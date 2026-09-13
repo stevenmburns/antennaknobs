@@ -1,0 +1,1244 @@
+deck,segments,stock_wall_s,a43_wall_s,speedup,set
+4nec2-models/Aperiodic/2ELK9AY.nec,297,0.42085945000872016,0.17630671290680766,2.3871,corpus
+4nec2-models/Aperiodic/2beverage.nec,242,0.4172654962167144,0.18952367547899485,2.2017,corpus
+4nec2-models/Aperiodic/2el160flag.nec,132,0.25893527548760176,0.14898983854800463,1.7379,corpus
+4nec2-models/Aperiodic/80pennant-pf.nec,68,0.21714112721383572,0.16064542485401034,1.3517,corpus
+4nec2-models/Aperiodic/ON4BAAWD.nec,164,0.1701190839521587,0.07563473517075181,2.2492,corpus
+4nec2-models/Aperiodic/Rhombic.nec,160,0.17950039636343718,0.07732219668105245,2.3215,corpus
+4nec2-models/Aperiodic/Semirhomb.nec,180,0.4159980434924364,0.23282100027427077,1.7868,corpus
+4nec2-models/Aperiodic/Slopvee.nec,170,0.3152546272613108,0.1702632657252252,1.8516,corpus
+4nec2-models/Aperiodic/Vee40.nec,82,0.3452937346883118,0.21134524187073112,1.6338,corpus
+4nec2-models/Aperiodic/bev80.nec,102,0.36967564607039094,0.22412397293373942,1.6494,corpus
+4nec2-models/Equations/Moxon.nec,95,0.287289306987077,0.18544213753193617,1.5492,corpus
+4nec2-models/Fractals/Fractal.nec,204,1.522823652252555,0.7526757339946926,2.0232,corpus
+4nec2-models/HFActiveFeed/2el10.nec,104,0.11393698118627071,0.06356644583866,1.7924,corpus
+4nec2-models/HFActiveFeed/2lsloper.nec,24,0.6246161316521466,0.3906868058256805,1.5988,corpus
+4nec2-models/HFActiveFeed/BRDZPR10.nec,116,0.12860810570418835,0.07016784651204944,1.8329,corpus
+4nec2-models/HFActiveFeed/ZLSPTS10.nec,108,0.12162231793627143,0.08536244835704565,1.4248,corpus
+4nec2-models/HFActiveFeed/ZLTROM10.nec,174,0.18136625736951828,0.08264595549553633,2.1945,corpus
+4nec2-models/HFActiveFeed/cedzph10.nec,168,0.18331016320735216,0.08004430262371898,2.2901,corpus
+4nec2-models/HFActiveFeed/n2pl_phased_dloop.nec,172,0.31840408267453313,0.17904048971831799,1.7784,corpus
+4nec2-models/HFActiveFeed/zlspdp10.nec,104,0.11913428688421845,0.06694453721866012,1.7796,corpus
+4nec2-models/HFbeams/2EL160H.nec,613,1.0768490261398256,0.33999885944649577,3.1672,corpus
+4nec2-models/HFbeams/2lyagi20.nec,43,0.08550823107361794,0.05609959550201893,1.5242,corpus
+4nec2-models/HFbeams/3YAGI20.nec,58,0.3207249860279262,0.20255612302571535,1.5834,corpus
+4nec2-models/HFbeams/3el-inverted-V.nec,125,0.3090424481779337,0.1817006333731115,1.7008,corpus
+4nec2-models/HFbeams/3lyagi20.nec,247,0.4951325007714331,0.21707906993106008,2.2809,corpus
+4nec2-models/HFbeams/40MYAG2.nec,162,0.3535380959510803,0.20005338033661246,1.7672,corpus
+4nec2-models/HFbeams/40quad.nec,84,0.1959122153930366,0.11837586434558034,1.6550,corpus
+4nec2-models/HFbeams/4el_vk1aa1.nec,361,0.5003801407292485,0.12978440895676613,3.8555,corpus
+4nec2-models/HFbeams/5_el_wbeam_PA2AWU.nec,346,0.5871580643579364,0.26348659209907055,2.2284,corpus
+4nec2-models/HFbeams/7lyagi10.nec,92,0.29962877044454217,0.19359013810753822,1.5477,corpus
+4nec2-models/HFbeams/80hsbeam.nec,132,0.33424034249037504,0.1975093688815832,1.6923,corpus
+4nec2-models/HFbeams/80rdbeam.nec,124,0.33742304518818855,0.19910221686586738,1.6947,corpus
+4nec2-models/HFbeams/8x6q.nec,584,0.3344142232090235,0.11618932383134961,2.8782,corpus
+4nec2-models/HFbeams/Deltalp.nec,120,0.10400197934359312,0.05821672733873129,1.7865,corpus
+4nec2-models/HFbeams/NinjaBeam.nec,100,0.28667437471449375,0.17121352115646005,1.6744,corpus
+4nec2-models/HFbeams/Stack.nec,106,0.4380350378341973,0.21115542855113745,2.0745,corpus
+4nec2-models/HFbeams/moxon20.nec,123,0.3342155059799552,0.19864590745419264,1.6825,corpus
+4nec2-models/HFbeams/sloper.nec,55,0.2141478443518281,0.137979154009372,1.5520,corpus
+4nec2-models/HFbeams/wa2wvl.nec,139,0.3892512312158942,0.23094258131459355,1.6855,corpus
+4nec2-models/HFbeams/zl1le10.nec,64,0.09724626271054149,0.059088672045618296,1.6458,corpus
+4nec2-models/HFcollinear/2 dipole on roof.nec,674,1.4580119494348764,0.23625603830441833,6.1713,corpus
+4nec2-models/HFcollinear/Collinear_1L.nec,63,0.12216115789487958,0.0771597744897008,1.5832,corpus
+4nec2-models/HFcollinear/SLOPER2.nec,204,0.4442914333194494,0.24445731937885284,1.8175,corpus
+4nec2-models/HFcollinear/W8BYA Collinear 7 MHz.nec,64,0.3277996117249131,0.20512643735855818,1.5980,corpus
+4nec2-models/HFcollinear/hrs_441.nec,191,13.589809713419527,5.913018601946533,2.2983,corpus
+4nec2-models/HFmultiband/4-BAND.nec,224,4.788729664403945,2.256674349773675,2.1220,corpus
+4nec2-models/HFmultiband/40MYAG2.nec,162,0.3525508134625852,0.20027088653296232,1.7604,corpus
+4nec2-models/HFmultiband/Cobra.nec,182,0.37681865086779,0.21346989832818508,1.7652,corpus
+4nec2-models/HFmultiband/Cone.nec,34,0.4065231615677476,0.2614367697387934,1.5550,corpus
+4nec2-models/HFmultiband/DUAL2EL.nec,52,0.08910501375794411,0.05752196116372943,1.5491,corpus
+4nec2-models/HFmultiband/InvV80-40.nec,74,0.30907655600458384,0.19110949151217937,1.6173,corpus
+4nec2-models/HFmultiband/MultiDips.nec,142,0.3548776088282466,0.20457596704363823,1.7347,corpus
+4nec2-models/HFmultiband/MultiTrap.nec,60,0.22567805647850037,0.14475606242194772,1.5590,corpus
+4nec2-models/HFmultiband/Sleeve.nec,49,0.28466710029169917,0.18098711827769876,1.5729,corpus
+4nec2-models/HFmultiband/UA3SFH.nec,52,0.08404568955302238,0.055581387132406235,1.5121,corpus
+4nec2-models/HFmultiband/dscn2.nec,513,0.8747082808986306,0.29151431377977133,3.0006,corpus
+4nec2-models/HFmultiband/logper.nec,188,0.5807847115211189,0.29533403599634767,1.9665,corpus
+4nec2-models/HFmultiband/lpda.nec,154,0.09046755777671933,0.05484658107161522,1.6495,corpus
+4nec2-models/HFmultiband/mil14.nec,707,1.1596586192026734,0.2582870624028146,4.4898,corpus
+4nec2-models/HFmultiband/op201510.nec,124,0.334417802747339,0.19721173448488116,1.6957,corpus
+4nec2-models/HFmultiband/quad5b10.nec,441,0.719886124599725,0.16262444388121367,4.4267,corpus
+4nec2-models/HFmultiband/sleeve_err.nec,43,0.28375783702358603,0.18057883949950337,1.5714,corpus
+4nec2-models/HFmultiband/yi20_40b.nec,314,0.3944561039097607,0.15999763598665595,2.4654,corpus
+4nec2-models/HFshort/2elShort.nec,102,0.11389901814982295,0.06414312217384577,1.7757,corpus
+4nec2-models/HFshort/2lygcl10.nec,64,0.09561887243762612,0.059373026713728905,1.6105,corpus
+4nec2-models/HFshort/CoilCapHat.nec,164,0.23845493094995618,0.12877965765073895,1.8517,corpus
+4nec2-models/HFsimple/36ccd.nec,52,0.3567526959814131,0.23899494810029864,1.4927,corpus
+4nec2-models/HFsimple/36dip.nec,40,0.304489903151989,0.19382788985967636,1.5709,corpus
+4nec2-models/HFsimple/36inv.nec,54,0.30595944123342633,0.19601734168827534,1.5609,corpus
+4nec2-models/HFsimple/36inv_coat.nec,54,0.3069856087677181,0.19562485022470355,1.5693,corpus
+4nec2-models/HFsimple/36inv_split.nec,52,0.3058880581520498,0.19538386445492506,1.5656,corpus
+4nec2-models/HFsimple/70edz.nec,104,0.35731643298640847,0.21824395935982466,1.6372,corpus
+4nec2-models/HFsimple/Coax.nec,84,0.3028197935782373,0.18647499615326524,1.6239,corpus
+4nec2-models/HFsimple/DLoop40.nec,135,0.21920465910807252,0.1255980092100799,1.7453,corpus
+4nec2-models/HFsimple/EDZ_TL.nec,36,0.08655241411179304,0.056762415915727615,1.5248,corpus
+4nec2-models/HFsimple/EDZ_mod.nec,46,0.27146340999752283,0.17237493628636003,1.5748,corpus
+4nec2-models/HFsimple/Halfsq40.nec,86,0.28250453528016806,0.17237543081864715,1.6389,corpus
+4nec2-models/HFsimple/HorLoop80.nec,117,0.36193122947588563,0.22570164687931538,1.6036,corpus
+4nec2-models/HFsimple/Inv-L.nec,240,0.42896544747054577,0.21221038280054927,2.0214,corpus
+4nec2-models/HFsimple/Lowdip.nec,153,0.3593647941015661,0.20738720335066319,1.7328,corpus
+4nec2-models/HFsimple/MagCirc.nec,52,0.08458842476829886,0.05679205432534218,1.4894,corpus
+4nec2-models/HFsimple/Magnetic.nec,38,0.08167458046227694,0.05431725736707449,1.5037,corpus
+4nec2-models/HFsimple/Piramid.nec,44,0.21384085854515433,0.13845552084967494,1.5445,corpus
+4nec2-models/HFsimple/Rectb40.nec,71,0.279230167157948,0.17105370247736573,1.6324,corpus
+4nec2-models/HFsimple/Rects40.nec,73,0.278805713634938,0.18205739045515656,1.5314,corpus
+4nec2-models/HFsimple/SLOPE1.nec,102,0.33152680238708854,0.202456699218601,1.6375,corpus
+4nec2-models/HFsimple/SLOPE3.nec,304,0.5519308494403958,0.2645261911675334,2.0865,corpus
+4nec2-models/HFsimple/deltb40.nec,114,0.2976363692432642,0.1782046090811491,1.6702,corpus
+4nec2-models/HFsimple/delts40.nec,124,0.3035164372995496,0.17823463771492243,1.7029,corpus
+4nec2-models/HFsimple/fanndp10.nec,148,0.1631980100646615,0.07635701540857553,2.1373,corpus
+4nec2-models/HFsimple/tr-line.nec,44,0.3044475866481662,0.19319279165938497,1.5759,corpus
+4nec2-models/HFvertical/40M2EL.nec,39,0.32430664356797934,0.18377985525876284,1.7646,corpus
+4nec2-models/HFvertical/4SQTL.nec,54,0.2729765996336937,0.17284405091777444,1.5793,corpus
+4nec2-models/HFvertical/4SQUARE.nec,40,0.17779958667233586,0.11583991954103112,1.5349,corpus
+4nec2-models/HFvertical/80RDBEAM.nec,248,0.44453773833811283,0.222249458078295,2.0002,corpus
+4nec2-models/HFvertical/BOBTAIL.nec,42,0.33961154939606786,0.21833098120987415,1.5555,corpus
+4nec2-models/HFvertical/Bloem.nec,147,0.25820194045081735,0.14818446151912212,1.7424,corpus
+4nec2-models/HFvertical/BurRad.nec,180,0.3670006403699517,0.19677994353696704,1.8650,corpus
+4nec2-models/HFvertical/CARDIOID.nec,24,0.2021948886103928,0.12810578243806958,1.5783,corpus
+4nec2-models/HFvertical/CardTL.nec,26,0.202919764444232,0.12812215741723776,1.5838,corpus
+4nec2-models/HFvertical/ElevatRad.nec,294,0.5105396825820208,0.23353551980108023,2.1861,corpus
+4nec2-models/HFvertical/GP80.nec,63,0.30229466361925006,0.19280693540349603,1.5679,corpus
+4nec2-models/HFvertical/GndScreen.nec,470,0.824705024715513,0.2885932307690382,2.8577,corpus
+4nec2-models/HFvertical/Gwave.nec,20,0.1334043126553297,0.09346757782623172,1.4273,corpus
+4nec2-models/HFvertical/Isolators.nec,458,0.35279087955132127,0.1948474650271237,1.8106,corpus
+4nec2-models/HFvertical/Lowdip.nec,153,0.3617508397437632,0.20723236072808504,1.7456,corpus
+4nec2-models/HFvertical/Phased array Trans-line.nec,122,0.2312879771925509,0.13517973897978663,1.7110,corpus
+4nec2-models/HFvertical/TOPLOAD.nec,84,0.2253968771547079,0.14564261632040143,1.5476,corpus
+4nec2-models/HFvertical/Varray.nec,100,0.3389090853743255,0.2076180772855878,1.6324,corpus
+4nec2-models/HFvertical/VertHats.nec,230,0.2898448118939996,0.13840846391394734,2.0941,corpus
+4nec2-models/LFvertical/cutler_single .nec,293,9.834936626255512,1.9911803817376494,4.9392,corpus
+4nec2-models/Objects/747plane.nec,1608,5.805358674377203,1.1651498624123633,4.9825,corpus
+4nec2-models/Objects/GM_test.nec,137,4.543194384779781,1.4604626409709454,3.1108,corpus
+4nec2-models/Objects/Illuminate.nec,490,3.2025256738997996,0.7249897569417953,4.4173,corpus
+4nec2-models/Objects/NearFld.nec,416,2.385139526799321,0.6597848399542272,3.6150,corpus
+4nec2-models/Objects/Ship1.nec,1217,0.9584626192227006,0.2842762270011008,3.3716,corpus
+4nec2-models/Objects/TL-test.nec,192,0.15615662652999163,0.08408613177016377,1.8571,corpus
+4nec2-models/Objects/Vehicle.nec,65,0.09211435774341226,0.05899688275530934,1.5613,corpus
+4nec2-models/Objects/car.nec,416,1.0265225642360747,0.3208852354437113,3.1990,corpus
+4nec2-models/Objects/car_1.nec,707,0.23023977037519217,0.11088609369471669,2.0764,corpus
+4nec2-models/VHFbeams/2SA.nec,618,1.8341540484689176,1.0809882171452045,1.6967,corpus
+4nec2-models/VHFbeams/4x20ra.nec,648,0.15299528976902366,0.05692833894863725,2.6875,corpus
+4nec2-models/VHFbeams/BIQDFEED.nec,481,1.0226491233333945,0.3540002186782658,2.8888,corpus
+4nec2-models/VHFbeams/DLW6U.nec,2101,1.4565148022957146,0.33942457661032677,4.2911,corpus
+4nec2-models/VHFbeams/GSM_yagi.nec,174,0.33627209113910794,0.17146504344418645,1.9612,corpus
+4nec2-models/VHFbeams/JBL.nec,137,4.546561727300286,1.4629110372625291,3.1079,corpus
+4nec2-models/VHFbeams/Parab50.nec,3800,8.671840624883771,3.0312967682257295,2.8608,corpus
+4nec2-models/VHFbeams/atl50E.nec,523,0.8236984321847558,0.2601671330630779,3.1660,corpus
+4nec2-models/VHFbeams/atl50e-h.nec,553,0.9344064327888191,0.29080055886879563,3.2132,corpus
+4nec2-models/VHFbeams/gridyagi.nec,1475,0.8655937467701733,0.26501665310934186,3.2662,corpus
+4nec2-models/VHFbeams/hel10ua.nec,1154,0.452260454185307,0.1464504860341549,3.0881,corpus
+4nec2-models/VHFbeams/helix.nec,602,1.1050815558992326,0.27755209850147367,3.9815,corpus
+4nec2-models/VHFbeams/qfh137.nec,38,1.2662825845181942,0.6036790744401515,2.0976,corpus
+4nec2-models/VHFmultiband/Dc8ce.nec,128,0.12984775099903345,0.05814862810075283,2.2330,corpus
+4nec2-models/VHFmultiband/SpiralAntennaCenterFeed.nec,4,27.399429260287434,13.783352464437485,1.9879,corpus
+4nec2-models/VHFsimple/2meteradr.nec,86,0.10494996700435877,0.05512703862041235,1.9038,corpus
+4nec2-models/VHFsimple/CoaxEnd.nec,281,0.32319515477865934,0.16296251118183136,1.9832,corpus
+4nec2-models/VHFsimple/Generator.nec,113,0.07508932705968618,0.05856943875551224,1.2821,corpus
+4nec2-models/VHFsimple/T-box.nec,1004,0.34754307521507144,0.12286381889134645,2.8287,corpus
+4nec2-models/VHFsimple/thick.nec,328,0.5168542177416384,0.16514190705493093,3.1298,corpus
+4nec2-models/zz_EZnec/v3.0/4SQTL.nec,54,0.27275930857285857,0.1735955635085702,1.5712,corpus
+4nec2-models/zz_EZnec/v3.0/4SQUARE.nec,48,0.27130809472873807,0.1723361499607563,1.5743,corpus
+4nec2-models/zz_EZnec/v3.0/BYDipole.nec,12,0.2865700186230242,0.183795225340873,1.5592,corpus
+4nec2-models/zz_EZnec/v3.0/BYVee.nec,20,0.28753320313990116,0.18365560984238982,1.5656,corpus
+4nec2-models/zz_EZnec/v3.0/DipTL.nec,84,0.3025317988358438,0.1868595201522112,1.6190,corpus
+4nec2-models/zz_EZnec/v3.0/ELEVRAD1.nec,30,0.30847281450405717,0.19671506620943546,1.5681,corpus
+4nec2-models/zz_EZnec/v3.0/ELEVRAD2.nec,294,0.5103212301619351,0.23334289761260152,2.1870,corpus
+4nec2-models/zz_EZnec/v3.0/FDSP.nec,24,0.3009107396937907,0.19036365440115333,1.5807,corpus
+4nec2-models/zz_EZnec/v3.0/K5RP.nec,66,0.2792012272402644,0.17207131534814835,1.6226,corpus
+4nec2-models/zz_EZnec/v3.0/N4PCLOOP.nec,128,0.33788527362048626,0.1993362857028842,1.6951,corpus
+4nec2-models/zz_EZnec/v3.0/Vert1.nec,20,0.0787593899294734,0.05252910032868385,1.4993,corpus
+4nec2-models/zz_EZnec/v3.0/W8JK.nec,24,0.2564224493689835,0.16220964025706053,1.5808,corpus
+4nec2-models/zz_MiniNec/ActiveFeed/2 el activ VP2E 40m.nec,166,0.3306646514683962,0.1842740406282246,1.7944,corpus
+4nec2-models/zz_MiniNec/HFAperiodic/2elK9AY-1.nec,64,0.22749957954511046,0.14218717999756336,1.6000,corpus
+4nec2-models/zz_MiniNec/HFAperiodic/BEVERAGE.nec,95,0.37653976306319237,0.24038211209699512,1.5664,corpus
+4nec2-models/zz_MiniNec/HFAperiodic/D2T.nec,68,0.2106564324349165,0.12918679974973202,1.6306,corpus
+4nec2-models/zz_MiniNec/HFAperiodic/EWE.nec,54,0.22347825905308127,0.1430804212577641,1.5619,corpus
+4nec2-models/zz_MiniNec/HFAperiodic/Flag K6SE.nec,58,0.08385951677337289,0.056482150219380856,1.4847,corpus
+4nec2-models/zz_MiniNec/HFAperiodic/RHOMBIC.nec,404,0.7251262101344764,0.2797142453491688,2.5924,corpus
+4nec2-models/zz_MiniNec/HFAperiodic/Semirhomb.nec,180,0.41446898924186826,0.2336738188751042,1.7737,corpus
+4nec2-models/zz_MiniNec/HFAperiodic/T2FD.nec,62,0.20703471545130014,0.12176536209881306,1.7003,corpus
+4nec2-models/zz_MiniNec/HFAperiodic/beverage200.nec,416,0.8835013024508953,0.27447447553277016,3.2189,corpus
+4nec2-models/zz_MiniNec/HFAperiodic/widebanddip.nec,66,0.3053284869529307,0.19102993048727512,1.5983,corpus
+4nec2-models/zz_MiniNec/HFbeams/2CQ20.nec,89,0.10393394762650132,0.0609171655960381,1.7062,corpus
+4nec2-models/zz_MiniNec/HFbeams/2ELQUAD.nec,1443,1.0432767979800701,0.23271052399650216,4.4832,corpus
+4nec2-models/zz_MiniNec/HFbeams/2el.delta.20m.nec,113,0.3303919546306133,0.19734917161986232,1.6741,corpus
+4nec2-models/zz_MiniNec/HFbeams/3EL20.nec,86,0.10594609519466758,0.061501323245465755,1.7227,corpus
+4nec2-models/zz_MiniNec/HFbeams/3el GP80 CW.nec,63,0.3021660731174052,0.1925114174373448,1.5696,corpus
+4nec2-models/zz_MiniNec/HFbeams/4EL20.nec,111,0.3232503370381892,0.1944994363002479,1.6620,corpus
+4nec2-models/zz_MiniNec/HFbeams/4_4RZT_2.nec,263,0.310484541580081,0.10683994647115469,2.9061,corpus
+4nec2-models/zz_MiniNec/HFbeams/DX415TT.nec,123,0.3053607610054314,0.17426078906282783,1.7523,corpus
+4nec2-models/zz_MiniNec/HFbeams/LPDA15.nec,276,0.31630348274484277,0.1065338496118784,2.9690,corpus
+4nec2-models/zz_MiniNec/HFbeams/Rhomb10.nec,186,0.19782683067023754,0.08183176536113024,2.4175,corpus
+4nec2-models/zz_MiniNec/HFbeams/XQ20.nec,212,0.4573878445662558,0.21065060002729297,2.1713,corpus
+4nec2-models/zz_MiniNec/HFbeams/ZL20.nec,146,0.15762028750032187,0.07453533168882132,2.1147,corpus
+4nec2-models/zz_MiniNec/HFmultiband/10-18-24GP.nec,155,0.23647917388007045,0.13961986685171723,1.6937,corpus
+4nec2-models/zz_MiniNec/HFmultiband/3.5-7-14-28offsetdip-1.nec,162,0.16919511836022139,0.0756371645256877,2.2369,corpus
+4nec2-models/zz_MiniNec/HFmultiband/3e lTriband Yagi.nec,116,0.32963648391887546,0.1972585739567876,1.6711,corpus
+4nec2-models/zz_MiniNec/HFmultiband/4_4RZT_2.nec,263,0.3108780491165817,0.10585010005161166,2.9370,corpus
+4nec2-models/zz_MiniNec/HFmultiband/8b Delta Loop.nec,123,0.3407699214294553,0.2032802882604301,1.6764,corpus
+4nec2-models/zz_MiniNec/HFmultiband/DBLDP.nec,63,0.0930780079215765,0.060373260639607906,1.5417,corpus
+4nec2-models/zz_MiniNec/HFmultiband/DUAL2EL.nec,52,0.08900508610531688,0.057026180904358625,1.5608,corpus
+4nec2-models/zz_MiniNec/HFmultiband/Db54m.nec,247,0.2796191740781069,0.09613354224711657,2.9087,corpus
+4nec2-models/zz_MiniNec/HFmultiband/Delta160allbands.nec,173,0.3706013369373977,0.2099766326136887,1.7650,corpus
+4nec2-models/zz_MiniNec/HFmultiband/G5RV.nec,140,0.3400860084220767,0.19763554818928242,1.7208,corpus
+4nec2-models/zz_MiniNec/HFmultiband/M2CQW.nec,309,0.3688640003092587,0.1250140997581184,2.9506,corpus
+4nec2-models/zz_MiniNec/HFmultiband/MULTDP.nec,126,0.13317582663148642,0.07101062498986721,1.8754,corpus
+4nec2-models/zz_MiniNec/HFmultiband/MULTDPH.nec,30,0.18076280411332846,0.11676855571568012,1.5480,corpus
+4nec2-models/zz_MiniNec/HFmultiband/MULTDPHW.nec,60,0.22526760259643197,0.14475716883316636,1.5562,corpus
+4nec2-models/zz_MiniNec/HFmultiband/MULTDPL.nec,96,0.34744946332648396,0.21263771736994386,1.6340,corpus
+4nec2-models/zz_MiniNec/HFmultiband/MULTDPW.nec,92,0.2979953815229237,0.18115996709093451,1.6449,corpus
+4nec2-models/zz_MiniNec/HFmultiband/QuadsUA4IF.nec,213,0.4086145432665944,0.21294020023196936,1.9189,corpus
+4nec2-models/zz_MiniNec/HFmultiband/TribandQQ.nec,385,0.4784118705429137,0.11312799528241158,4.2289,corpus
+4nec2-models/zz_MiniNec/HFmultiband/WARC open sleeve dip.nec,39,0.2832066575065255,0.17919598566368222,1.5804,corpus
+4nec2-models/zz_MiniNec/HFshort/05 lamda  deform  GP witn feed line.nec,210,0.28326274547725916,0.1367913489229977,2.0708,corpus
+4nec2-models/zz_MiniNec/HFshort/80mDLsh.nec,63,0.21777083911001682,0.14116126066073775,1.5427,corpus
+4nec2-models/zz_MiniNec/HFshort/Auto with GP.nec,147,0.13751632114872336,0.0778502426110208,1.7664,corpus
+4nec2-models/zz_MiniNec/HFshort/Dipol3_5-7.nec,26,0.2687475448474288,0.16984246531501412,1.5823,corpus
+4nec2-models/zz_MiniNec/HFshort/Fractal_1.nec,118,0.3010943019762635,0.17993815848603845,1.6733,corpus
+4nec2-models/zz_MiniNec/HFshort/Gp40short rad.nec,162,0.23680983111262321,0.14053350128233433,1.6851,corpus
+4nec2-models/zz_MiniNec/HFshort/Lineload75.nec,189,0.14563875831663609,0.07814543275162578,1.8637,corpus
+4nec2-models/zz_MiniNec/HFshort/MCQM.nec,165,0.15949242608621716,0.07756034331396222,2.0564,corpus
+4nec2-models/zz_MiniNec/HFshort/QQ21-14short.nec,121,0.20425951946526766,0.11690943967550993,1.7472,corpus
+4nec2-models/zz_MiniNec/HFshort/SLOPER.nec,28,0.07849529245868325,0.05331180291250348,1.4724,corpus
+4nec2-models/zz_MiniNec/HFshort/TRIHAT.nec,57,0.19046352989971638,0.12209151266142726,1.5600,corpus
+4nec2-models/zz_MiniNec/HFshort/TopCap75.nec,58,0.09896650863811374,0.07342994399368763,1.3478,corpus
+4nec2-models/zz_MiniNec/HFshort/VDP40.nec,20,0.07887033093720675,0.052785176783800125,1.4942,corpus
+4nec2-models/zz_MiniNec/HFshort/VDP40B.nec,20,0.07841002941131592,0.05260127130895853,1.4906,corpus
+4nec2-models/zz_MiniNec/HFshort/VDP40C.nec,28,0.08037975523620844,0.053789508529007435,1.4943,corpus
+4nec2-models/zz_MiniNec/HFshort/WA1MKP.nec,105,0.21093559358268976,0.1356182680465281,1.5554,corpus
+4nec2-models/zz_MiniNec/HFshort/field day GP short.nec,30,0.21023709885776043,0.13519370695576072,1.5551,corpus
+4nec2-models/zz_MiniNec/HFshort/short vetr75.nec,201,0.15682340180501342,0.08177380729466677,1.9178,corpus
+4nec2-models/zz_MiniNec/HFsimple/160m vert gnd tower.nec,301,0.4042691830545664,0.1803325484506786,2.2418,corpus
+4nec2-models/zz_MiniNec/HFsimple/CB5_8 lambda.nec,67,0.0949742803350091,0.061115545220673084,1.5540,corpus
+4nec2-models/zz_MiniNec/HFsimple/COLLINEA.nec,102,0.23270794842392206,0.1426023757085204,1.6319,corpus
+4nec2-models/zz_MiniNec/HFsimple/DIPOL160.nec,22,0.3076624567620456,0.1962026790715754,1.5681,corpus
+4nec2-models/zz_MiniNec/HFsimple/DP20.nec,20,0.07983573758974671,0.05299995467066765,1.5063,corpus
+4nec2-models/zz_MiniNec/HFsimple/GP with gamma match.nec,19,0.07632812531664968,0.05116367805749178,1.4918,corpus
+4nec2-models/zz_MiniNec/HFsimple/GP40.nec,60,0.2754595330916345,0.1754835587926209,1.5697,corpus
+4nec2-models/zz_MiniNec/HFsimple/GP40S.nec,60,0.18943901592865586,0.12192488322034478,1.5537,corpus
+4nec2-models/zz_MiniNec/HFsimple/J-ant28.nec,45,0.08682944858446717,0.057246532291173935,1.5168,corpus
+4nec2-models/zz_MiniNec/HFsimple/LONDQUAD.nec,60,0.30300444550812244,0.19246862269937992,1.5743,corpus
+4nec2-models/zz_MiniNec/HFsimple/Piramida.nec,44,0.2122330409474671,0.13723549526184797,1.5465,corpus
+4nec2-models/zz_MiniNec/HFsimple/VERT20.nec,20,0.07919944869354367,0.05246069608256221,1.5097,corpus
+4nec2-models/zz_MiniNec/HFsimple/VERT20M.nec,34,0.0823062565177679,0.05485923308879137,1.5003,corpus
+4nec2-models/zz_MiniNec/HFsimple/VERT53.nec,66,0.08985144970938563,0.05820378428325057,1.5437,corpus
+4nec2-models/zz_MiniNec/HFsimple/VERT58.nec,66,0.08791899448260665,0.05623021721839905,1.5636,corpus
+4nec2-models/zz_MiniNec/HFsimple/VP2E 40m.nec,23,0.2683193194679916,0.17072441428899765,1.5717,corpus
+4nec2-models/zz_MiniNec/HFsimple/VP2E-CW.nec,43,0.2972197076305747,0.18960655806586146,1.5676,corpus
+4nec2-models/zz_MiniNec/HFsimple/Vcollinear28.nec,60,0.19108670391142368,0.1226140190847218,1.5584,corpus
+4nec2-models/zz_MiniNec/HFsimple/Vert20s.nec,22,0.08046298613771796,0.05272520100697875,1.5261,corpus
+4nec2-models/zz_MiniNec/HFsimple/VertUA3SFH.nec,34,0.08074073866009712,0.053390900138765574,1.5123,corpus
+4nec2-models/zz_MiniNec/HFsimple/end feer dipole.nec,42,0.27101166686043143,0.17264197394251823,1.5698,corpus
+4nec2-models/zz_MiniNec/HFsimple/wideInvV80.nec,126,0.33107643527910113,0.19701338047161698,1.6805,corpus
+4nec2-models/zz_MiniNec/MagLoops/MAGLOOPT.nec,49,0.08395815780386329,0.05576955759897828,1.5054,corpus
+4nec2-models/zz_MiniNec/Stacks/2X6EL10.nec,122,0.1944721732288599,0.05473353387787938,3.5531,corpus
+4nec2-models/zz_MiniNec/Stacks/2x4elTwin Delta Loop 145 MHz.nec,353,0.1847396013326943,0.07116366224363446,2.5960,corpus
+4nec2-models/zz_MiniNec/Stacks/4xQQ.nec,89,0.29674373427405953,0.1586591904051602,1.8703,corpus
+4nec2-models/zz_MiniNec/Stacks/syack3el20.nec,86,0.12816233141347766,0.07522944547235966,1.7036,corpus
+4nec2-models/zz_MiniNec/VHFbeams/7elQuad_GW4CQT.nec,289,0.271345853805542,0.07131681451573968,3.8048,corpus
+4nec2-models/zz_MiniNec/VHFbeams/MIRROR.nec,2310,1.9424150600098073,0.4822055012919009,4.0282,corpus
+4nec2-models/zz_MiniNec/VHFbeams/f9ft-2-uu4jcr.nec,263,0.21933408686891198,0.058807621244341135,3.7297,corpus
+4nec2-models/zz_MiniNec/VHFsimple/GP144-435.nec,58,0.1083368482068181,0.07027561403810978,1.5416,corpus
+4nec2-models/zz_MiniNec/VHFsimple/HENTENNA.nec,98,0.2122181304730475,0.12329682800918818,1.7212,corpus
+4nec2-models/zz_MiniNec/VHFsimple/Helix145.nec,41,0.10597520368173718,0.06880760053172708,1.5402,corpus
+antenna-modeling/2el-yagi-freespace.nec,51,0.7979222638532519,0.5055926572531462,1.5782,corpus
+antenna-modeling/2el-yagi-halfwl.nec,51,0.863194779958576,0.5310876946896315,1.6253,corpus
+antenna-modeling/2el-yagi-high.nec,51,0.8700648746453226,0.5308668632060289,1.6390,corpus
+antenna-modeling/2m-sat-yagi/2m-sat-candidate1-crossed.nec,302,4.553394030313939,2.092005614656955,2.1766,corpus
+antenna-modeling/2m-sat-yagi/2m-sat-candidate1-drivenonly-long.nec,26,1.8161266539245844,1.3101811110973358,1.3862,corpus
+antenna-modeling/2m-sat-yagi/2m-sat-candidate1-drivenonly.nec,26,1.8138285940513015,1.301408851519227,1.3937,corpus
+antenna-modeling/2m-sat-yagi/2m-sat-candidate1-inorder.nec,302,4.554350889287889,2.073168365750462,2.1968,corpus
+antenna-modeling/2m-sat-yagi/2m-sat-candidate1.nec,151,2.196639115922153,1.2296208566986024,1.7864,corpus
+antenna-modeling/2m-sat-yagi/2m-sat-candidate2-folded-drivenonly.nec,53,2.555459041148424,1.5111935446038842,1.6910,corpus
+antenna-modeling/2m-sat-yagi/2m-sat-candidate2-thick-crossed-wide.nec,372,23.62316277064383,10.006016874220222,2.3609,corpus
+antenna-modeling/2m-sat-yagi/2m-sat-candidate2-thick-crossed.nec,372,5.771427625324577,2.4116769274696708,2.3931,corpus
+antenna-modeling/2m-sat-yagi/2m-sat-candidate2-thick-folded-inorder.nec,178,2.577359123621136,1.369933005888015,1.8814,corpus
+antenna-modeling/2m-sat-yagi/2m-sat-candidate2-thin-folded-inorder.nec,178,2.5769370580092072,1.3777286745607853,1.8704,corpus
+antenna-modeling/2m-sat-yagi/bar.nec,372,5.789891651365906,2.5314512476325035,2.2872,corpus
+antenna-modeling/2m-sat-yagi/foo.nec,53,1.0182133624330163,0.6180073800496757,1.6476,corpus
+antenna-modeling/2m-sat-yagi/thick-300.nec,53,1.0195486075244844,0.6180208092555404,1.6497,corpus
+antenna-modeling/2m-sat-yagi/thick-clearboom.nec,53,2.533980703447014,1.506706427782774,1.6818,corpus
+antenna-modeling/2m-sat-yagi/thin-5.nec,61,1.0963089438155293,0.6365505806170404,1.7223,corpus
+antenna-modeling/2m-sat-yagi/thin-clearboom.nec,53,2.5399543177336454,1.5081915217451751,1.6841,corpus
+antenna-modeling/2m-sat-yagi/thin.nec,53,1.0196063541807234,0.6160137145780027,1.6552,corpus
+antenna-modeling/2m-yagi-5el-calculated.nec,117,0.92805340513587,0.5525467027910054,1.6796,corpus
+antenna-modeling/2m-yagi-test1.nec,138,1.081015766132623,0.6111532803624868,1.7688,corpus
+antenna-modeling/General 6-Band G3TXQ Broadband Hex Beam.nec,474,0.7429461972787976,0.1444057789631188,5.1449,corpus
+antenna-modeling/barry.nec,102,0.6264883526600897,0.37765622045844793,1.6589,corpus
+antenna-modeling/biqdfeed-fixed.nec,481,10.009454117156565,2.8007487705908716,3.5738,corpus
+antenna-modeling/dipole-10m-gutters.nec,197,1.3377575622871518,0.6901918561197817,1.9382,corpus
+antenna-modeling/dipole-10m.nec,50,0.46626718621701,0.29317212849855423,1.5904,corpus
+antenna-modeling/dipole-12m.nec,50,0.2858792128972709,0.19264643359929323,1.4840,corpus
+antenna-modeling/dipole-15m.nec,50,1.174175811931491,0.7138147624209523,1.6449,corpus
+antenna-modeling/dipole-17m.nec,50,0.28439275035634637,0.18998700100928545,1.4969,corpus
+antenna-modeling/dipole-20m-gutters.nec,197,2.529513204935938,1.2881373525597155,1.9637,corpus
+antenna-modeling/dipole-20m.nec,50,0.9112225081771612,0.5604245774447918,1.6260,corpus
+antenna-modeling/dipole-30m-gutters.nec,197,0.6828674403950572,0.35640406236052513,1.9160,corpus
+antenna-modeling/dipole-30m.nec,50,0.25123089365661144,0.1741020013578236,1.4430,corpus
+antenna-modeling/dipole-40m-gutters.nec,197,1.949914519675076,1.0236623855307698,1.9048,corpus
+antenna-modeling/dipole-40m.nec,50,0.7337396945804358,0.4571537245064974,1.6050,corpus
+antenna-modeling/dipole-80m-gutters.nec,197,3.007369788363576,1.5915717538446188,1.8896,corpus
+antenna-modeling/dipole-80m.nec,50,1.1571690789423883,0.7298467056825757,1.5855,corpus
+antenna-modeling/dipole-sample-freespace.nec,26,0.5905348649248481,0.44931251741945744,1.3143,corpus
+antenna-modeling/dipole-sample-halfwl.nec,26,0.6322415922768414,0.46531907794997096,1.3587,corpus
+antenna-modeling/dipole-sample.nec,26,0.6343713887035847,0.47453224705532193,1.3368,corpus
+antenna-modeling/foo.nec,138,1.068914769217372,0.6112124687060714,1.7488,corpus
+antenna-modeling/force12-C3-10m-roof.nec,176,1.1944295358844101,0.6413814066909254,1.8623,corpus
+antenna-modeling/force12-C3-10m-tower.nec,176,1.2012978359125555,0.6401828988455236,1.8765,corpus
+antenna-modeling/force12-C3-12m-roof.nec,176,0.7290536719374359,0.39113716688007116,1.8639,corpus
+antenna-modeling/force12-C3-12m-tower.nec,176,0.7266747583635151,0.39311878057196736,1.8485,corpus
+antenna-modeling/force12-C3-15m-roof.nec,176,3.004475856665522,1.6055366238579154,1.8713,corpus
+antenna-modeling/force12-C3-15m-tower.nec,176,3.013212769292295,1.6124866185709834,1.8687,corpus
+antenna-modeling/force12-C3-17m-roof.nec,176,0.7139008268713951,0.3851576973684132,1.8535,corpus
+antenna-modeling/force12-C3-17m-tower.nec,176,0.7391268503852189,0.38828306552022696,1.9036,corpus
+antenna-modeling/force12-C3-20m-roof.nec,176,2.269723198376596,1.2231008913367987,1.8557,corpus
+antenna-modeling/force12-C3-20m-tower.nec,176,2.2786916391924024,1.2358819362707436,1.8438,corpus
+antenna-modeling/force12-C3.nec,176,2.0537471300922334,1.1064771232195199,1.8561,corpus
+antenna-modeling/gbhoyt.nec,304,34.46573852887377,15.632968735415488,2.2047,corpus
+antenna-modeling/hexbeam-20m.nec,79,1.179105288349092,0.602813777513802,1.9560,corpus
+antenna-modeling/log_per.nec,90,0.13252618722617626,0.08016900578513741,1.6531,corpus
+antenna-modeling/rotatable-dipole-40m.nec,50,0.689832225907594,0.4509604200720787,1.5297,corpus
+antenna-modeling/vertical-sample.nec,64,14.072775683365762,6.723204033449292,2.0932,corpus
+antenna-modeling/yagi.nec,138,1.0683023785240948,0.606551299802959,1.7613,corpus
+antenna-modeling/yagitools/2m-sat-candidate1-crossed.nec,302,2.2702576532028615,1.0395610639825463,2.1839,corpus
+antenna-modeling/yagitools/2m-sat-candidate1-drivenonly.nec,26,1.8097057095728815,1.3132032956928015,1.3781,corpus
+antenna-modeling/yagitools/2m-sat-candidate1-inorder.nec,151,2.2000701809301972,1.231061180587858,1.7871,corpus
+antenna-modeling/yagitools/2m-sat-candidate1.nec,151,1.1020289119333029,0.6115877963602543,1.8019,corpus
+antenna-modeling/yagitools/ON6MU-adjusted.nec,151,6.558789809700102,3.92424145527184,1.6714,corpus
+antenna-modeling/yagitools/ON6MU-adjusted2.nec,151,6.5376544669270515,3.5733853387646377,1.8295,corpus
+antenna-modeling/yagitools/ON6MU-adjusted3.nec,151,6.564795120619237,3.664340883027762,1.7915,corpus
+antenna-modeling/yagitools/ON6MU-adjusted4-allthick.nec,151,2.1918774168007076,1.2201666198670864,1.7964,corpus
+antenna-modeling/yagitools/ON6MU-adjusted4-refthick.nec,151,2.2141060954891145,1.2230123826302588,1.8104,corpus
+antenna-modeling/yagitools/ON6MU-adjusted4.nec,151,2.2008493719622493,1.2228267989121377,1.7998,corpus
+antenna-modeling/yagitools/ON6MU.nec,151,6.562321554869413,3.6418014732189476,1.8019,corpus
+antenna-modeling/yagitools/dipole.nec,51,0.4985959604382515,0.3164849691092968,1.5754,corpus
+antenna-modeling/yagitools/foo.nec,126,0.9356919499114156,0.5487617640756071,1.7051,corpus
+arthurcadore/helical/helical-simple.nec,0,0.08693371759727597,0.050329056568443775,1.7273,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/1-1.nec,16,0.27201507426798344,0.1744778254069388,1.5590,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/11-1-2.nec,337,0.3078281902708113,0.0953472456894815,3.2285,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/11-1-3.nec,337,0.30696780188009143,0.09535226691514254,3.2193,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/11-2-1.nec,43,0.27450610557571054,0.17470496520400047,1.5713,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/11-3-1.nec,123,0.30843596952036023,0.20258022425696254,1.5225,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/11-6-1.nec,22,0.3065445329993963,0.1958731785416603,1.5650,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/11-6.nec,22,0.30717617785558105,0.19557226914912462,1.5707,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/11-7-1.nec,247,0.1998456483706832,0.061222707852721214,3.2642,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/11-7.nec,247,0.19936049496755004,0.0613390039652586,3.2501,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/11-8-1.nec,22,0.08083514869213104,0.05418625380843878,1.4918,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/11-8-1a.nec,22,0.08073833351954818,0.05427360720932484,1.4876,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/11-8-1b.nec,22,0.07541295839473605,0.05110278958454728,1.4757,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/11-8-1c.nec,22,0.07550794258713722,0.05116019491106272,1.4759,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/11-8.nec,22,0.08050964446738362,0.06771362945437431,1.1890,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/11-8a.nec,22,0.08070826437324286,0.05428843153640628,1.4867,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/12-5-14.nec,204,0.41768376575782895,0.13038501050323248,3.2035,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/12-5-18.nec,204,0.38605559384450316,0.12295727245509624,3.1398,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/12-5-24.nec,204,0.30186021188274026,0.0749936643987894,4.0251,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/12-5-28.nec,204,0.3137248996645212,0.07508079102262855,4.1785,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/12-5.nec,204,0.38046744046732783,0.12110008392482996,3.1418,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/13-6.nec,32,0.276937126647681,0.17637667246162891,1.5701,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/13-7-1.nec,56,0.28821719298139215,0.18256657989695668,1.5787,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/13-7.nec,32,0.2764738001860678,0.17605565721169114,1.5704,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/13-7a.nec,32,0.2778384010307491,0.1754348836839199,1.5837,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/14-1-1.nec,24,0.6885181241668761,0.4351164661347866,1.5824,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/14-1-2.nec,24,0.688790422398597,0.43793671671301126,1.5728,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/14-1-3.nec,24,0.6917673456482589,0.43714165268465877,1.5825,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/14-1.nec,22,0.32063355296850204,0.21579680452123284,1.4858,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/14-4-1.nec,28,1.0693940063938498,0.6761598228476942,1.5816,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/14-4-2.nec,30,1.077352011576295,0.6830638935789466,1.5772,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/14-4.nec,26,1.067029110621661,0.67275645211339,1.5861,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-3-1A.nec,60,0.10063902754336596,0.06695788307115436,1.5030,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-3-1B.nec,60,0.09312174329534173,0.06068610353395343,1.5345,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-3-1C.nec,60,0.08701421692967415,0.05694290064275265,1.5281,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-3-2A.nec,100,0.12504727486521006,0.07076086243614554,1.7672,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-3-2B.nec,100,0.11551866354420781,0.06558779394254088,1.7613,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-3-2C.nec,100,0.10855959681794047,0.061961932107806206,1.7520,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-3-3A.nec,180,0.2111220029182732,0.09234003722667694,2.2864,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-3-3B.nec,180,0.1957001881673932,0.08714190451428294,2.2458,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-3-3C.nec,180,0.18553029233589768,0.0841037081554532,2.2060,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-3-4A.nec,340,0.5145235732197762,0.14507206482812762,3.5467,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-3-4b.nec,340,0.48106308933347464,0.14336788840591908,3.3554,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-3-4c.nec,340,0.45749224349856377,0.13429091311991215,3.4067,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-4-0.nec,60,0.09284578450024128,0.06098437821492553,1.5225,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-4-0a.nec,60,0.27862365916371346,0.18788108509033918,1.4830,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-4-0b.nec,60,0.27816700330004096,0.17653511092066765,1.5757,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-4-0c.nec,60,0.27762373769655824,0.1763297589495778,1.5745,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-4-30.nec,60,0.09177056839689612,0.0606118724681437,1.5141,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-4-30a.nec,60,0.27798502380028367,0.1768716759979725,1.5717,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-4-30b.nec,60,0.2780189081095159,0.17675593169406056,1.5729,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-4-45.nec,60,0.09109439235180616,0.06028379499912262,1.5111,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-4-45a.nec,60,0.18956872168928385,0.12220320291817188,1.5513,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-4-45b.nec,60,0.1890784902498126,0.1214836691506207,1.5564,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-4-60.nec,60,0.08961885748431087,0.05989533383399248,1.4963,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-4-60a.nec,60,0.1889890544116497,0.1214512069709599,1.5561,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-4-60b.nec,60,0.19018994318321347,0.12139630503952503,1.5667,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-5-32.nec,340,0.592581870034337,0.23589110933244228,2.5121,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-5-32A.nec,340,0.5944167291745543,0.24188973754644394,2.4574,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-5-32B.nec,340,0.5915705286897719,0.23543828586116433,2.5126,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-5-32C.nec,340,0.5826391400769353,0.23492676438763738,2.4801,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-5-4.nec,60,0.2779941326007247,0.1767013669013977,1.5732,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-5-4A.nec,60,0.27942918334156275,0.17768196016550064,1.5726,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-5-4B.nec,60,0.2784779337234795,0.177277194801718,1.5709,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-5-4C.nec,60,0.278247045353055,0.17671932140365243,1.5745,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-6-2a.nec,340,0.5930058010853827,0.2387400371953845,2.4839,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-6-2b.nec,340,0.5944418711587787,0.234283659607172,2.5373,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/15-6-2c.nec,340,0.5935627804137766,0.23393625440075994,2.5373,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/16-2-2.nec,342,0.6093731224536896,0.2533775148913264,2.4050,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/16-3-1.nec,64,0.20266458299010992,0.12099774554371834,1.6749,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/16-3.nec,22,0.08067325269803405,0.05473345797508955,1.4739,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/16-4.nec,66,0.20383553579449654,0.12204876216128469,1.6701,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/16-5-2.nec,252,0.6058224411681294,0.27468552766367793,2.2055,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/16-6-1.nec,52,0.2864431357011199,0.18267149478197098,1.5681,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/16-6-2.nec,153,0.38782550441101193,0.2113609639927745,1.8349,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/16-6-3.nec,54,0.28647770918905735,0.18141299113631248,1.5791,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/16-7-1.nec,97,0.29355905670672655,0.17618093127384782,1.6662,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/16-7-2.nec,108,0.30113093042746186,0.18057915335521102,1.6676,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-1-1.nec,16,0.30480194464325905,0.19247107254341245,1.5836,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-1.nec,32,0.3088580295443535,0.1948167970404029,1.5854,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-2-1.nec,130,0.42067349469289184,0.2261683437973261,1.8600,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-2.nec,66,0.3264592532068491,0.19565734593197703,1.6685,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-3-1.nec,66,0.33537329733371735,0.19745449535548687,1.6985,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-3.nec,66,0.334957966580987,0.1975517412647605,1.6955,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-4-1.nec,104,0.16863824194297194,0.0826895167119801,2.0394,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-4-2.nec,104,0.1682546199299395,0.0825758227147162,2.0376,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-4.nec,52,0.10768222669139504,0.06983408750966191,1.5420,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-5.nec,150,0.2488998156040907,0.09976952476426959,2.4947,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-6.nec,106,0.17118287831544876,0.08360235719010234,2.0476,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-7-1.nec,274,0.8368212855421007,0.3289211834780872,2.5441,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-7-2.nec,295,0.8672229233197868,0.32492377422749996,2.6690,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-7-2a.nec,295,0.6919428664259613,0.17950429348275065,3.8547,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-7-3.nec,274,0.7913077576085925,0.31506559858098626,2.5116,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-7.nec,295,0.9306264091283083,0.3341384860686958,2.7852,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-8-1.nec,440,1.5882653244771063,0.3913639937527478,4.0583,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/17-8.nec,442,1.6866111252456903,0.3891927641816437,4.3336,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/18-6.nec,174,0.09618711238726974,0.05074510583654046,1.8955,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/18-7.nec,235,0.1496013686992228,0.06957440450787544,2.1502,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/18-8-1.nec,170,0.1864434015005827,0.08464189572259784,2.2027,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/18-8-2.nec,170,0.18663677480071783,0.08445975556969643,2.2098,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/18-8-3.nec,169,0.18496457254514098,0.08425146248191595,2.1954,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/18-8-4.nec,169,0.184512363281101,0.08863072888925672,2.0818,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/18-8.nec,85,0.1095504374243319,0.06383989471942186,1.7160,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/19-4-1.nec,174,0.19087080424651504,0.08790409145876765,2.1714,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/19-4.nec,174,0.19073670217767358,0.08773508807644248,2.1740,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/19-5.nec,108,0.12843809416517615,0.07182441418990493,1.7882,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/2-2.nec,43,0.09374211635440588,0.0611028135754168,1.5342,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/2-3.nec,120,0.33722397312521935,0.20154011948034167,1.6732,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/2-5.nec,124,0.3061464843340218,0.1823179116472602,1.6792,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/20-5-4.nec,172,0.17651974596083164,0.05854449002072215,3.0151,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/20-5-5.nec,322,0.5886205458082259,0.16438579931855202,3.5807,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/20-7.nec,357,0.5520392684265971,0.2467682040296495,2.2371,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/21-2-3.nec,628,0.1531765847466886,0.06349813705310225,2.4123,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/21-4-4.nec,308,0.21782538387924433,0.09210366755723953,2.3650,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/21-5-2.nec,242,0.18417058885097504,0.06641392968595028,2.7731,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/21-5-3.nec,242,0.19427333259955049,0.06575656961649656,2.9544,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/3-2.nec,22,0.08126766141504049,0.05467499466612935,1.4864,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/3-3.nec,22,0.08366197953000665,0.05605670576915145,1.4925,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/4-1.nec,12,0.2674919096753001,0.16990554984658957,1.5744,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/4-5.nec,38,0.30116495909169316,0.1917364806868136,1.5707,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/4-6.nec,77,0.3148785247467458,0.2040837095119059,1.5429,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/4-7.nec,85,0.3233618950471282,0.18244862603023648,1.7723,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/4-8.nec,32,0.285410248208791,0.18101422488689423,1.5767,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/5-1-1.nec,12,0.2963348273187876,0.1907918374054134,1.5532,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/6-1.nec,42,0.3074780669994652,0.19427858386188745,1.5827,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/6-2.nec,72,0.12441512988880277,0.06966352509334683,1.7859,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/6-3.nec,83,0.13217905163764954,0.07224784465506673,1.8295,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/6-4.nec,27,0.09202070813626051,0.06158021604642272,1.4943,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/6-6.nec,220,0.410098347812891,0.14579769736155868,2.8128,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/6-7.nec,170,0.40951903304085135,0.22066626232117414,1.8558,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/7-1.nec,49,0.2862616269849241,0.18190446309745312,1.5737,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/7-7.nec,112,0.3855490954592824,0.16570742055773735,2.3267,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/8-6-1.nec,69,0.27896550111472607,0.187342609744519,1.4891,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/8-6.nec,138,0.3118340661749244,0.1822466030716896,1.7111,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-0/0-1.nec,378,0.5769948870874941,0.1448996434919536,3.9820,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-1/1-3.nec,63,0.3702461891807616,0.24180805031210184,1.5312,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-1/1-4b.nec,1202,0.4718500031158328,0.1492137028835714,3.1622,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-10/10-5.nec,293,0.38421994401142,0.1238180948421359,3.1031,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-10/10-5a.nec,299,0.39575144089758396,0.13280964782461524,2.9798,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-10/10-6.nec,647,0.14750697743147612,0.061946073081344366,2.3812,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-10-nec4.nec,30,0.10286286612972617,0.0672716018743813,1.5291,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-10a-nec4.nec,30,0.10313981724902987,0.06676180474460125,1.5449,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-10b-nec4.nec,30,0.10340387281030416,0.06764282798394561,1.5287,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-11.nec,23,0.3072508182376623,0.18679012218490243,1.6449,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-11a.nec,23,3.172705817501992,0.7021893528290093,4.5183,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-2a.nec,30,0.10482267523184419,0.06674264511093497,1.5706,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-2b.nec,30,0.10414589289575815,0.07700881501659751,1.3524,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-3.nec,12,0.29104035208001733,0.18235486187040806,1.5960,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-3a.nec,12,0.29036740539595485,0.1824483796954155,1.5915,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-4.nec,45,0.32107832888141274,0.20559655595570803,1.5617,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-4a-nec4.nec,178,1.0605236613191664,0.3205809984356165,3.3081,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-5.nec,45,0.2430591145530343,0.15436545386910439,1.5746,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-6.nec,12,0.08985799783840775,0.05909973895177245,1.5204,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-7.nec,12,0.10140598937869072,0.06561004091054201,1.5456,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-7a.nec,12,0.08588453661650419,0.058370464481413364,1.4714,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-7b-nec2.nec,12,0.10129224695265293,0.0654273652471602,1.5482,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-7c-nec2.nec,12,0.10229184478521347,0.06545777432620525,1.5627,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-7d-nec2.nec,12,0.10122811468318105,0.06574565544724464,1.5397,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-7e-nec2.nec,12,0.10319257853552699,0.07032418716698885,1.4674,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-7f-nec2.nec,12,0.102937251329422,0.07740534283220768,1.3298,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-7g-nec2.nec,12,0.10328159108757973,0.06749471509829164,1.5302,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-8b-nec2.nec,12,0.10134575422853231,0.06563325319439173,1.5441,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-8c-nec2.nec,12,0.1019284944050014,0.06709539098665118,1.5192,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-8d-nec2.nec,12,0.10129585256800056,0.06572834867984056,1.5411,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-8e-nec2.nec,12,0.10317657981067896,0.06739591853693128,1.5309,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-8e-nec4.nec,12,0.10302318027243018,0.06744046835228801,1.5276,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-8f-nec2.nec,12,0.10323283215984702,0.06739676045253873,1.5317,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-8f-nec4.nec,12,0.10286018624901772,0.06746492814272642,1.5246,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-8g-nec2.nec,12,0.10290457587689161,0.06769741093739867,1.5201,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-8g-nec4.nec,12,0.11165517661720514,0.07577475951984525,1.4735,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-9-nec2.nec,30,0.1032947488129139,0.0752647346816957,1.3724,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-9a-nec2.nec,30,0.10296256467700005,0.06650177435949445,1.5483,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-9b-nec2.nec,30,0.1031552804633975,0.06671630218625069,1.5462,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-12/12-10-nec4.nec,1854,1.1504252110607922,0.3142944239079952,3.6603,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-12/12-10a-nec4.nec,1670,0.9264936535619199,0.26461594365537167,3.5013,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-12/12-11-nec4.nec,1164,4.306502376683056,0.5900389170274138,7.2987,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-12/12-11a-nec4.nec,1164,4.325824941042811,0.5796884866431355,7.4623,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-12/12-6.nec,556,1.906797188334167,0.697748813778162,2.7328,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-15/15-1c1.nec,28,0.055484844371676445,0.05402037547901273,1.0271,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-15/15-1d1.nec,28,0.05531047470867634,0.054108868818730116,1.0222,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-15/15-6b.nec,42,0.17061158129945397,0.07293890696018934,2.3391,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-15/15-7a.nec,126,0.5086657493375242,0.1451602396555245,3.5042,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-15/15-7c.nec,126,0.32711762515828013,0.18883310724049807,1.7323,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-15/15-8.nec,126,0.3258004505187273,0.18691340973600745,1.7431,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-15/15-8a.nec,126,0.3262162683531642,0.18827372323721647,1.7327,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-15/15-8b.nec,126,0.32656085304915905,0.18839817075058818,1.7334,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-15/15-9a.nec,42,0.09643109561875463,0.06102814991027117,1.5801,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-17/17-1a.nec,12,0.10336494585499167,0.06744315102696419,1.5326,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-17/17-2.nec,12,0.2808687798678875,0.1985280690714717,1.4148,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-17/17-2a.nec,12,0.16905685979872942,0.08740504551678896,1.9342,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-17/17-3.nec,12,0.10152878984808922,0.06633019167929888,1.5307,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-17/17-3a.nec,12,0.10123237501829863,0.06587280100211501,1.5368,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-18/18-1.nec,12,0.10044016223400831,0.06545132864266634,1.5346,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-18/18-10.nec,64,0.7141554481349885,0.35452132392674685,2.0144,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-18/18-11a.nec,12,0.8776822336949408,0.5564851122908294,1.5772,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-18/18-11b.nec,12,0.8766635879874229,0.5521146818064153,1.5878,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-18/18-11c.nec,12,1.758323326241225,1.1054181880317628,1.5906,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-18/18-2.nec,12,0.10027584247291088,0.06534377951174974,1.5346,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-18/18-3.nec,12,0.10025925282388926,0.06468743644654751,1.5499,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-18/18-4.nec,12,0.10120655177161098,0.06578593840822577,1.5384,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-18/18-5-nec4.nec,12,0.10043958248570561,0.0653650127351284,1.5366,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-18/18-6.nec,12,0.10081690829247236,0.06494865287095308,1.5523,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-18/18-7.nec,12,0.28475075075402856,0.1479846155270934,1.9242,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-18/18-8.nec,12,0.2606051820330322,0.1391083593480289,1.8734,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-18/18-9.nec,64,1.0660805725492537,0.5156326624564826,2.0675,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-10a.nec,127,0.7987552438862622,0.40235697012394667,1.9852,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-10b.nec,127,0.5463442360050976,0.15655110916122794,3.4899,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-11c.nec,127,0.14439964527264237,0.06029595714062452,2.3948,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-2.nec,12,0.10115035390481353,0.06560066295787692,1.5419,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-20/20-14.nec,31,0.29977039713412523,0.18891249876469374,1.5868,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-20/20-15.nec,12,0.08941723592579365,0.059116096701473,1.5126,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-20/20-15a.nec,12,0.09085082495585084,0.06027279840782285,1.5073,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-20/20-15b.nec,12,0.2853160798549652,0.1796444682404399,1.5882,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-21/21-11.nec,174,0.12969344342127442,0.06967752845957875,1.8613,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-3/3-2.nec,63,0.3699510069563985,0.24248582171276212,1.5257,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-3/3-2a-nec4.nec,63,0.3724511447362602,0.235752466134727,1.5798,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-3/3-2b-nec4.nec,27,0.3738059252500534,0.23676773067563772,1.5788,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-4/4-4.nec,14,0.23017510399222374,0.10623916611075401,2.1666,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-4/4-4a.nec,16,0.23344461619853973,0.09791541425511241,2.3841,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-4/4-8.nec,14,0.23326020641252398,0.09892384335398674,2.3580,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-5/5-10.nec,30,0.685214648488909,0.26102696964517236,2.6251,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-5/5-10a.nec,30,0.4170773243531585,0.26576492097228765,1.5693,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-5/5-8.nec,4002,6.025967197492719,1.5603411295451224,3.8620,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-5/5-8a.nec,4002,12.895867796149105,7.772861762903631,1.6591,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-5/5-8b.nec,2002,1.4531763936392963,0.3628061367198825,4.0054,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-6/6-5a.nec,26,0.70683090435341,0.16931006405502558,4.1748,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-6/6-6-nec2.nec,82,0.3550178809091449,0.14767974196001887,2.4040,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-6/6-6-nec4.nec,82,0.3638260313309729,0.147709253244102,2.4631,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-7/7-9a.nec,170,0.34211607556790113,0.18994539370760322,1.8011,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-8/8-5a.nec,127,0.09451500605791807,0.05428342428058386,1.7411,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-9/9-2a.nec,12,0.10342571698129177,0.067814860958606,1.5251,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-9/9-3a.nec,66,0.11389133101329207,0.07072787033393979,1.6103,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-9/9-4.nec,12,0.2992890737950802,0.19708793330937624,1.5186,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-9/9-4a.nec,12,0.6020804136060178,0.38502154871821404,1.5638,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-9/9-4b.nec,12,0.5978396097198129,0.38367002457380295,1.5582,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-9/9-8a.nec,64,0.5254627945832908,0.3435877780430019,1.5293,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-9/9-8b.nec,64,0.27896429179236293,0.10520456498488784,2.6516,corpus
+cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-9/9-8c.nec,64,0.2953329444862902,0.10538515076041222,2.8024,corpus
+cebik-w4rnl/models/LPDAs/nec/LP100-1000-12el3ft150o.nec,674,0.1587115339934826,0.0659206141717732,2.4076,corpus
+cebik-w4rnl/models/LPDAs/nec/lp100-1000-12el5ft150o.nec,674,0.17535713966935873,0.06849039904773235,2.5603,corpus
+cebik-w4rnl/models/LPDAs/nec/lp100-1000-26el5ft150o.nec,1054,0.4209905322641134,0.15557782584801316,2.7060,corpus
+cebik-w4rnl/models/LPDAs/nec/lp14-30-14el40ft100o.nec,706,0.17760160379111767,0.08191772131249309,2.1680,corpus
+cebik-w4rnl/models/LPDAs/nec/lp14-30-27el217ft200o.nec,556,0.10963771212846041,0.05492163961753249,1.9963,corpus
+cebik-w4rnl/models/LPDAs/nec/lp220-15el11ft80o.nec,600,0.13864715863019228,0.05675808945670724,2.4428,corpus
+cebik-w4rnl/models/LPDAs/nec/lp220-17el11ft60o.nec,584,0.13175323698669672,0.05504637956619263,2.3935,corpus
+cebik-w4rnl/models/LPDAs/nec/lp220-18el11ft60o.nec,618,0.14568855054676533,0.05945612816140056,2.4504,corpus
+cebik-w4rnl/models/LPDAs/nec/lp220-20el12ft60o.nec,686,0.19000343838706613,0.07111610565334558,2.6717,corpus
+cebik-w4rnl/models/LPDAs/nec/lp220-20el13ft60o.nec,555,0.1218200046569109,0.05147396074607968,2.3666,corpus
+cebik-w4rnl/models/LPDAs/nec/lp3-30-20el100ft200o.nec,1210,0.5007555899210274,0.173931575845927,2.8790,corpus
+cebik-w4rnl/models/LPDAs/nec/lp3-30-20el60ft150o.nec,856,0.25508617563173175,0.10891190078109503,2.3421,corpus
+cebik-w4rnl/models/LPDAs/nec/lp3-30-21el100ft200o.nec,854,0.2553717498667538,0.10698049422353506,2.3871,corpus
+cebik-w4rnl/models/LPDAs/nec/lp3-30-22el100ft200o.nec,888,0.27445693546906114,0.11444929894059896,2.3981,corpus
+cebik-w4rnl/models/LPDAs/nec/lp3-30-23el100ft200o.nec,930,0.3002677410840988,0.12237250152975321,2.4537,corpus
+cebik-w4rnl/models/LPDAs/nec/lp3-30-24el100ft200o.nec,974,0.3271952271461487,0.13220397289842367,2.4749,corpus
+cebik-w4rnl/models/LPDAs/nec/lp3-30-25el100ft200o.nec,1010,0.3549862294457853,0.14105266239494085,2.5167,corpus
+cebik-w4rnl/models/LPDAs/nec/lp3-30-26el100ft200o.nec,1054,0.38457050872966647,0.16395321115851402,2.3456,corpus
+cebik-w4rnl/models/LPDAs/nec/lp3-30-26el164ft150o.nec,1054,0.38699668599292636,0.1516532958485186,2.5519,corpus
+cebik-w4rnl/models/LPDAs/nec/lp3-30-33el100ft150o.nec,1056,0.42430514423176646,0.1621577008627355,2.6166,corpus
+cebik-w4rnl/models/LPDAs/nec/lp3-30-33el168ft250o.nec,1440,0.7274741395376623,0.26580860186368227,2.7368,corpus
+cebik-w4rnl/models/LPDAs/nec/lp3-30-42el164ft250o.nec,1698,1.0338462879881263,0.34050456481054425,3.0362,corpus
+cebik-w4rnl/models/LPDAs/nec/lp4-30-19el60ft200o.nec,774,0.19560676254332066,0.08398762485012412,2.3290,corpus
+cebik-w4rnl/models/LPDAs/nec/lp4-30-20el65ft150o.nec,866,0.2663325406610966,0.10311394650489092,2.5829,corpus
+cebik-w4rnl/models/LPDAs/nec/lp4-30-20el65ft200o.nec,726,0.18837899807840586,0.07518974272534251,2.5054,corpus
+cebik-w4rnl/models/LPDAs/nec/lp4-30-21el65ft200o.nec,794,0.20692234160378575,0.0890244273468852,2.3243,corpus
+cebik-w4rnl/models/LPDAs/nec/lp850-2600-36el4ft200o.nec,844,0.2711195359006524,0.11023011524230242,2.4596,corpus
+cebik-w4rnl/models/LPDAs/nec/lp850-2600-37el4ft80o.nec,900,0.30576270120218396,0.12345065455883741,2.4768,corpus
+cebik-w4rnl/models/LPDAs/nec/lp900-1400-36el4ft200o.nec,846,0.27089474350214005,0.11043260153383017,2.4530,corpus
+cebik-w4rnl/models/LPDAs/nec/lpma3r5-4-6el86ft75o-buriedradials.nec,2698,20.266629046294838,3.6799194756895304,5.5074,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/14-8jkstack-stdphase-12.nec,254,0.5137445167638361,0.22867146879434586,2.2466,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/14-8jkstack-xphased-12.nec,251,0.5100474790669978,0.2316216053441167,2.2021,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/14-fdsp-W7EL.nec,214,0.24543598433956504,0.09858448011800647,2.4896,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/14-phased35o-50-W4RNL.nec,46,0.2125914990901947,0.13466264214366674,1.5787,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/14-shortel-stubs-50-N7CL.nec,108,0.12003024201840162,0.06754735996946692,1.7770,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/14-stacked3elYagis-1.nec,128,0.14476235769689083,0.07485301094129682,1.9340,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/14-zlsporig-1-ZL3MH.nec,108,0.12483895802870393,0.06977265560999513,1.7892,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/146-436-dualquad turnstile-sat-146.nec,518,0.9501363853923976,0.20173189463093877,4.7099,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/146-436-dualquadturnstile-sat-436.nec,490,0.6774375657550991,0.14355272194370627,4.7191,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/146-moxrectturnstile-sat-1875.nec,139,0.2686848156154156,0.140093298163265,1.9179,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/18-fdsp-W7EL.nec,214,0.24392317747697234,0.09886660892516375,2.4672,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/18-phased35o-50-W4RNL.nec,46,0.19009440299123526,0.12132813455536962,1.5668,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/18-shortel-stubs-50-N7CL.nec,108,0.11912768753245473,0.06714320695027709,1.7742,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/1r4-bc6elb-s+e-f-pergnd.nec,504,0.1474128570407629,0.053202856332063675,2.7708,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/1r5-bc2xhalfwldr+6parguy-sngnd.nec,656,1.3574389750137925,0.4502518977969885,3.0148,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/1r5-bc3elendfire-burrad.nec,1035,3.1562105673365295,0.7977758217602968,3.9563,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/1r5-bc4elendfire-pergnd.nec,336,0.19296259246766567,0.08493422996252775,2.2719,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/1r5-bc6elphaseaim-pergnd.nec,504,0.16050981963053346,0.05530126392841339,2.9025,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/1r5-bchalfwldr+6parguy-sngnd.nec,328,0.744190298486501,0.35130500653758645,2.1184,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/1r8-2-elphased-radials.nec,1428,5.573707593604922,1.104842260479927,5.0448,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/1r8-2x4elphased-K8UR.nec,426,0.8004482528194785,0.32283337926492095,2.4794,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/1r8-4el-broadside.nec,328,0.12159280851483345,0.052696445025503635,2.3074,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/1r8-4el-endfire-burrad.nec,1380,5.083921587094665,1.1200136188417673,4.5392,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/1r8-4el-endfire.nec,336,0.12888172501698136,0.05700124613940716,2.2610,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/1r8-4elphased-lowbend-K8UR.nec,256,0.4661066276021302,0.24274753872305155,1.9201,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/1r8-4elphased-midelbend-K8UR.nec,213,0.42218449944630265,0.22098112758249044,1.9105,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/1r8-5el-broadside.nec,410,0.16406318405643106,0.06708670081570745,2.4455,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/1r8-5el-endfire.nec,420,0.17392019787803292,0.07246873155236244,2.3999,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/21-2eledzbeam-2ref-gnd-12-ZL1LE.nec,62,0.26850222749635577,0.1693330672569573,1.5856,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/21-coledz-wiretl-12.nec,150,0.16827381402254105,0.07991945603862405,2.1055,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/21-fdsp-W7EL.nec,214,0.25101370736956596,0.0992304552346468,2.5296,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/21-phased35o-50-W4RNL.nec,46,0.17580581177026033,0.11269907094538212,1.5600,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/21-shortel-stubs-50-N7CL.nec,108,0.12087393272668123,0.06783340079709888,1.7819,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/21-zlsporig-1-ZL3MH.nec,108,0.12575500924140215,0.07042009802535176,1.7858,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/24-fdsp-W7EL.nec,214,0.2456583552993834,0.09994476195424795,2.4579,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/24-phased35o-50-W4RNL.nec,46,0.1911117834970355,0.12097119027748704,1.5798,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/24-shortel-stubs-50-N7CL.nec,108,0.12169439857825637,0.06836814898997545,1.7800,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/254-turnstileYagi-milsat.nec,295,0.37182428734377027,0.1231767968274653,3.0186,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/28-3eledzbeam-2ref-gnd-12.nec,84,0.1138099217787385,0.06554245250299573,1.7364,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/28-7-lazyh-vert-14.nec,66,0.28249757550656796,0.1741106384433806,1.6225,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/28-fdsp-W7EL.nec,214,0.2471539038233459,0.100165746640414,2.4674,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/28-phased35o-50-W4RNL.nec,46,0.1919358605518937,0.12168090092018247,1.5774,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/28-shortel-stubs-50-N7CL.nec,108,0.12321701785549521,0.06955533754080534,1.7715,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/28-shortel-stubstack-50-N7CL.nec,216,0.23770046839490533,0.09628409147262573,2.4687,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/28-zlsp-udp-75-W4RNL.nec,108,0.12877536285668612,0.07188063533976674,1.7915,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/28-zlsporig-1-ZL3MH.nec,108,0.13808562560006976,0.07134699914604425,1.9354,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/28-zlsptrombone-ARRL.nec,174,0.19060367718338966,0.08773719146847725,2.1724,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/284-turnstilequad-milsat-ez.nec,378,0.5769817922264338,0.14490216644480824,3.9819,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/300-20eldplarray.nec,440,0.15652576414868236,0.07376790326088667,2.1219,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/300-30eldplarray.nec,660,0.2679585414007306,0.11383410217240453,2.3539,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/300-40eldplarray.nec,880,0.4101296169683337,0.16222300380468369,2.5282,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/300-50dplarray.nec,1100,0.5843732221983373,0.20892731798812747,2.7970,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/3r6-2x4elphased-K8UR.nec,426,0.839763374067843,0.3408481925725937,2.4637,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/3r6-4elphased-lowbend-K8UR.nec,256,0.45599433965981007,0.21842230716720223,2.0877,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/3r6-4elphased-midelbend-K8UR.nec,213,0.3235975205898285,0.16039919713512063,2.0175,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/3r6-8jk-12.nec,66,0.35488789062947035,0.22100079711526632,1.6058,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/3r6-bruce-3sect-12.nec,66,0.3144441479817033,0.19040757091715932,1.6514,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/3r6-bruce-4sect-12.nec,88,0.31489657517522573,0.19207848142832518,1.6394,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/3r6-bruce-5sect-12.nec,110,0.3758611222729087,0.24029941158369184,1.5641,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/3r6-halfwldr+6parguy-sngnd.nec,328,0.6414093617349863,0.31063150335103273,2.0649,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/3r6-phasedrect-10-N2DT.nec,142,0.3533098460175097,0.2018606262281537,1.7503,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/3r6-sterba-12.nec,295,0.6355592105537653,0.2687268299050629,2.3651,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/3r6-sterba-ctrfed-12.nec,274,0.5860256422311068,0.25670588575303555,2.2829,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/3r9-halfwldr+6parguy-sngnd.nec,328,0.5670647309161723,0.26311604119837284,2.1552,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/436-moxrectturnstile-sat-12.nec,139,0.16840362222865224,0.086569270119071,1.9453,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/436-turnstileYagi-sat.nec,295,0.3855702793225646,0.12063336558640003,3.1962,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/5r4-2x4elphased-K8UR.nec,426,0.8452956001274288,0.34500250685960054,2.4501,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/5r4-4elphased-lowbend-K8UR.nec,256,0.46393406856805086,0.21929472545161843,2.1156,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/5r4-4elphased-midelbend-K8UR.nec,213,0.3182429550215602,0.15732938470318913,2.0228,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/5r4-halfwldr+6parguy-sngnd.nec,328,0.5809150403365493,0.2650100220926106,2.1920,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/7-2xhalfwldr+6parguy-sngnd.nec,656,1.3306520693004131,0.4203364006243646,3.1657,corpus
+cebik-w4rnl/models/Phased-Arrays/nec/7-halfwldr+6parguy-sngnd.nec,328,0.5766788655892015,0.26259005162864923,2.1961,corpus
+cebik-w4rnl/models/Quads/nec/14-28-2b2elquad-14-1feed.nec,180,0.2819988359697163,0.14984684018418193,1.8819,corpus
+cebik-w4rnl/models/Quads/nec/18-24-2b5-6elquad-W4RNL.nec,786,0.2172026145271957,0.08576545538380742,2.5325,corpus
+cebik-w4rnl/models/Quads/nec/18-3elquad-14-reversible-AA2NN.nec,187,0.35618901206180453,0.1901335665024817,1.8734,corpus
+cebik-w4rnl/models/Quads/nec/18-3elquad-14.nec,181,0.3543431479483843,0.1901874546892941,1.8631,corpus
+cebik-w4rnl/models/Quads/nec/3band2elquad-14-1feed-a.nec,296,0.5675553297623992,0.22426204849034548,2.5308,corpus
+cebik-w4rnl/models/Quads/nec/3band2elquad-14-1feed.nec,268,0.37819525925442576,0.1714871907606721,2.2054,corpus
+cebik-w4rnl/models/Quads/nec/5band3elquad-14-ON7NQ.nec,661,0.14225644478574395,0.06549771735444665,2.1719,corpus
+cebik-w4rnl/models/Quads/nec/5band3elquad-14-sepfeed.nec,661,0.14336393307894468,0.06618084805086255,2.1662,corpus
+cebik-w4rnl/models/Quads/nec/5band3r5elquad-12-ON7NQ.nec,725,0.18131032213568687,0.08344387216493487,2.1728,corpus
+cebik-w4rnl/models/Quads/nec/5band4-5elquad-12-W4RNL.nec,945,0.3130021868273616,0.12264003697782755,2.5522,corpus
+cebik-w4rnl/models/Quads/nec/5band4-5elquad-ON7NQ.nec,537,0.1090153600089252,0.060413651168346405,1.8045,corpus
+cebik-w4rnl/models/Quads/nec/5band4elquad-12-GI0KVQ.nec,881,0.25913069071248174,0.10158696444705129,2.5508,corpus
+cebik-w4rnl/models/Quads/nec/5band5-6elquad-12-W4RNL.nec,1017,0.3598054312169552,0.14347275020554662,2.5078,corpus
+cebik-w4rnl/models/VHF-UHF/nec/100-FMJpole.nec,105,0.13419604860246181,0.10203288681805134,1.3152,corpus
+cebik-w4rnl/models/VHF-UHF/nec/100-batwing+reflector.nec,584,0.15285581722855568,0.07955285580828786,1.9214,corpus
+cebik-w4rnl/models/VHF-UHF/nec/100-dual-rhombic.nec,3256,4.758592444006354,1.142168237362057,4.1663,corpus
+cebik-w4rnl/models/VHF-UHF/nec/1296-32elYagi-DL6WU.nec,609,0.14071479393169284,0.06434262730181217,2.1870,corpus
+cebik-w4rnl/models/VHF-UHF/nec/1296-cornerrefl+dipole.nec,1283,0.5764521383680403,0.18855002149939537,3.0573,corpus
+cebik-w4rnl/models/VHF-UHF/nec/1296-cornerrefl-vertical.nec,587,0.12768088607117534,0.05395283689722419,2.3665,corpus
+cebik-w4rnl/models/VHF-UHF/nec/1296-dual-rhombic-QST.nec,1584,1.2806105762720108,0.3464194224216044,3.6967,corpus
+cebik-w4rnl/models/VHF-UHF/nec/144-58gp.nec,278,0.276462122797966,0.09649101505056024,2.8652,corpus
+cebik-w4rnl/models/VHF-UHF/nec/220-33elYagi.nec,628,0.14872147468850017,0.05894311750307679,2.5231,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-31elYagi.nec,590,0.1335013471543789,0.05395787302404642,2.4742,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-32elYagi-DL6WU.nec,609,0.14111875230446458,0.055946012027561665,2.5224,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-32elwbYagi-VK3AUU.nec,609,0.14110728120431304,0.05574536323547363,2.5313,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-40elYagi-K1FO.nec,761,0.2123650424182415,0.07818169379606843,2.7163,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-41elwbYagi-VK3AUU.nec,780,0.22077303705736995,0.08141261665150523,2.7118,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-43elYagi-VE7SQB.nec,818,0.24112841999158263,0.08766700327396393,2.7505,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-batwing+reflector.nec,1032,0.4982179859653115,0.1991452262736857,2.5018,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-cornerrefl+dipole-a.nec,653,0.15478210104629397,0.06282004294916987,2.4639,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-cornerrefl+dipole-b.nec,1283,0.5887365634553134,0.1772856032475829,3.3208,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-cornerrefl+dipole.nec,911,0.29913860047236085,0.11000856664031744,2.7192,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-cornerrefl-horiz.nec,653,1.2820919384248555,0.27918274654075503,4.5923,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-cornerrefl-vertical.nec,587,0.12758440431207418,0.05447535403072834,2.3421,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-cornerrefl-wiregrid-large.nec,2290,2.9747156384401023,0.9051750134676695,3.2863,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-cornerrefl-wiregrid-small.nec,624,0.19953473797068,0.10232567274942994,1.9500,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-dbldiamond-wiregridplanarrefl.nec,1246,0.7232300811447203,0.24215154070407152,2.9867,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-flatcornerrefl+dipole.nec,727,0.19774643331766129,0.07936168555170298,2.4917,corpus
+cebik-w4rnl/models/VHF-UHF/nec/432-tri-cornerrefl.nec,2476,3.4527612682431936,1.0964633380062878,3.1490,corpus
+cebik-w4rnl/models/VHF-UHF/nec/50-dipole-turnstile.nec,44,0.0974947470240295,0.06587788974866271,1.4799,corpus
+cebik-w4rnl/models/VHF-UHF/nec/50-lazyH-phasedarray.nec,352,0.5174750895239413,0.13483772007748485,3.8378,corpus
+cebik-w4rnl/models/VHF-UHF/nec/50-lazyH.nec,174,0.19775124033913016,0.08801436331123114,2.2468,corpus
+cebik-w4rnl/models/VHF-UHF/nec/50-quad-turnstile.nec,172,0.19022274762392044,0.08725955709815025,2.1800,corpus
+cebik-w4rnl/models/VHF-UHF/nec/903-32elYagi-DL6WU.nec,609,0.14064976759254932,0.05606667883694172,2.5086,corpus
+cebik-w4rnl/models/VHF-UHF/nec/903-cornerrefl-vertical.nec,587,0.1282588141039014,0.05385022796690464,2.3818,corpus
+cebik-w4rnl/models/Verticals/nec/10-3elparasitic-sngnd.nec,354,0.4645239459350705,0.17111427104100585,2.7147,corpus
+cebik-w4rnl/models/Verticals/nec/10-3elwireparasitic-sngnd.nec,70,0.1870329612866044,0.11413703905418515,1.6387,corpus
+cebik-w4rnl/models/Verticals/nec/10-bobtailcurtain-14.nec,76,0.29775377456098795,0.18250787910073996,1.6315,corpus
+cebik-w4rnl/models/Verticals/nec/10-dblrect-14.nec,153,0.3440434020012617,0.1954498654231429,1.7603,corpus
+cebik-w4rnl/models/Verticals/nec/10-dpl-spiralhats-sngnd.nec,118,0.11620520427823067,0.07067449018359184,1.6442,corpus
+cebik-w4rnl/models/Verticals/nec/10-halfsquare-12.nec,75,0.29774252139031887,0.1825816915370524,1.6307,corpus
+cebik-w4rnl/models/Verticals/nec/10-hsbeam-12.nec,131,0.3281223298981786,0.19175035180523992,1.7112,corpus
+cebik-w4rnl/models/Verticals/nec/10-quadloop-dia-12.nec,102,0.31599518470466137,0.1871909722685814,1.6881,corpus
+cebik-w4rnl/models/Verticals/nec/10-quadloop-sq-12.nec,69,0.18671960616484284,0.12314207386225462,1.5163,corpus
+cebik-w4rnl/models/Verticals/nec/10-rect-14.nec,77,0.29906708700582385,0.1820821724832058,1.6425,corpus
+cebik-w4rnl/models/Verticals/nec/10-sterba-12.nec,295,0.6066263346001506,0.25997516931965947,2.3334,corpus
+cebik-w4rnl/models/Verticals/nec/10-sterba-ctrfed-12.nec,274,0.5695241540670395,0.25565226655453444,2.2277,corpus
+cebik-w4rnl/models/Verticals/nec/14-monopole-4rad.nec,126,0.341432916931808,0.20116898510605097,1.6972,corpus
+cebik-w4rnl/models/Verticals/nec/14-monopole-4sloperad.nec,120,0.24028653325513005,0.14216047851368785,1.6902,corpus
+cebik-w4rnl/models/Verticals/nec/144-14gp-45deg.nec,186,0.1478100512176752,0.058843893464654684,2.5119,corpus
+cebik-w4rnl/models/Verticals/nec/144-14gp.nec,186,0.14450746541842818,0.057357306592166424,2.5194,corpus
+cebik-w4rnl/models/Verticals/nec/144-2elBobtail.nec,322,0.2980501283891499,0.08919518068432808,3.3415,corpus
+cebik-w4rnl/models/Verticals/nec/144-3eljpoleYagi-375.nec,325,0.5147967743687332,0.16095308307558298,3.1984,corpus
+cebik-w4rnl/models/Verticals/nec/1r8-dblrect-12.nec,153,0.36948311422020197,0.2115599401295185,1.7465,corpus
+cebik-w4rnl/models/Verticals/nec/1r8-monopole-12rad-lentpr.nec,131,0.3582266424782574,0.2113610850647092,1.6949,corpus
+cebik-w4rnl/models/Verticals/nec/1r8-monopole-4rad-lentpr.nec,51,0.3166342368349433,0.20227732881903648,1.5653,corpus
+cebik-w4rnl/models/Verticals/nec/1r8-monopole-60rad-lentpr.nec,611,1.2605635542422533,0.38906426820904016,3.2400,corpus
+cebik-w4rnl/models/Verticals/nec/1r8-rect-12.nec,77,0.32324878172948956,0.1993554444052279,1.6215,corpus
+cebik-w4rnl/models/Verticals/nec/28-monopole-4rad.nec,126,0.3126954832114279,0.18356447713449597,1.7035,corpus
+cebik-w4rnl/models/Verticals/nec/28-monopole-4sloperad.nec,120,0.12503673322498798,0.07294254936277866,1.7142,corpus
+cebik-w4rnl/models/Verticals/nec/300-20eldplarray.nec,440,0.1554295625537634,0.07382239168509841,2.1055,corpus
+cebik-w4rnl/models/Verticals/nec/300-30eldplarray.nec,660,0.26676184963434935,0.11284407367929816,2.3640,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-alt2shortequidelta-sngnd-12.nec,78,0.22459285473451018,0.13737916620448232,1.6348,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-alt3shortequidelta-sngnd-12.nec,83,0.23702078312635422,0.1372867152094841,1.7265,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-altshortequidelta-sngnd-12.nec,81,0.22808015951886773,0.1387447346933186,1.6439,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-bobtailbeam-12.nec,151,0.4057590290904045,0.23784692725166678,1.7060,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-bobtailcurtain-12.nec,86,0.3626999040134251,0.22327831154689193,1.6244,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-dbldelta-sngnd-12.nec,100,0.32277578860521317,0.19723643455654383,1.6365,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-dblrect-12.nec,153,0.35320508759468794,0.20223431987687945,1.7465,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-halfsquare-12.nec,75,0.3083665082231164,0.19007095554843545,1.6224,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-hentenna-12.nec,77,0.3108552824705839,0.19188752956688404,1.6200,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-hsbeam-12.nec,118,0.3338294615969062,0.2021879805251956,1.6511,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-hsbeam-reverible-12.nec,131,0.34179556416347623,0.2165133678354323,1.5786,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-opendblrect-12.nec,122,0.3333419971168041,0.19887015596032143,1.6762,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-parasitichentennas-12-N2DT.nec,147,0.35586693277582526,0.20368287898600101,1.7472,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-phasedhentennas-12-N2DT.nec,147,0.35541622526943684,0.2080561458133161,1.7083,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-rectangle-12.nec,77,0.3104373188689351,0.191394476685673,1.6220,corpus
+cebik-w4rnl/models/Verticals/nec/3r6-shortequidelta-sngnd-12.nec,85,0.2274397755973041,0.1385893365368247,1.6411,corpus
+cebik-w4rnl/models/Verticals/nec/50-Lant-375.nec,60,0.10058798361569643,0.06570408260449767,1.5309,corpus
+cebik-w4rnl/models/Verticals/nec/50-Lant-50.nec,60,0.10048982547596097,0.06581530440598726,1.5268,corpus
+cebik-w4rnl/models/Verticals/nec/5r4-bobtailcurtain-14.nec,76,0.31134434370324016,0.1923959837295115,1.6182,corpus
+cebik-w4rnl/models/Verticals/nec/5r4-dblrect-14.nec,153,0.35792558500543237,0.20485147461295128,1.7472,corpus
+cebik-w4rnl/models/Verticals/nec/5r4-halfsquare-12.nec,75,0.3109046258032322,0.19134710542857647,1.6248,corpus
+cebik-w4rnl/models/Verticals/nec/5r4-opendblrect-12.nec,122,0.3367408700287342,0.20012669451534748,1.6826,corpus
+cebik-w4rnl/models/Verticals/nec/5r4-rect-14.nec,77,0.3123805630020797,0.19144868943840265,1.6317,corpus
+cebik-w4rnl/models/Verticals/nec/7-3elcaploadparasitic-sngnd.nec,330,0.526389635168016,0.24013594118878245,2.1920,corpus
+cebik-w4rnl/models/Verticals/nec/7-3elhatloadparasitic-sngnd.nec,318,0.5172291165217757,0.2210129126906395,2.3403,corpus
+cebik-w4rnl/models/Verticals/nec/7-3elparasitic-sngnd.nec,294,0.3874252839013934,0.15869306260719895,2.4413,corpus
+cebik-w4rnl/models/Verticals/nec/7-3elwireparasitic-sngnd.nec,70,0.194293977227062,0.11931123677641153,1.6285,corpus
+cebik-w4rnl/models/Verticals/nec/7-bobtailcurtain-14.nec,76,0.28529526572674513,0.17443736409768462,1.6355,corpus
+cebik-w4rnl/models/Verticals/nec/7-dbldelta-sngnd-12.nec,100,0.29876248305663466,0.1800225581973791,1.6596,corpus
+cebik-w4rnl/models/Verticals/nec/7-dblrect-14.nec,153,0.3307139207608998,0.1878971760161221,1.7601,corpus
+cebik-w4rnl/models/Verticals/nec/7-dpl-hats-sngnd.nec,110,0.21199636161327362,0.1262024948373437,1.6798,corpus
+cebik-w4rnl/models/Verticals/nec/7-dpl-spiralhats-sngnd.nec,98,0.10778602678328753,0.06646598782390356,1.6217,corpus
+cebik-w4rnl/models/Verticals/nec/7-halfsquare-12.nec,75,0.2839655731804669,0.17367730243131518,1.6350,corpus
+cebik-w4rnl/models/Verticals/nec/7-halfwlvert-6parasiticguys.nec,328,0.7042187359184027,0.3113679769448936,2.2617,corpus
+cebik-w4rnl/models/Verticals/nec/7-hsbeam-12.nec,131,0.316000625025481,0.1822872986085713,1.7335,corpus
+cebik-w4rnl/models/Verticals/nec/7-monopole-4sloperad-sngnd.nec,60,0.18933688942342997,0.12152123544365168,1.5581,corpus
+cebik-w4rnl/models/Verticals/nec/7-monopole-6rad-sngnd.nec,200,0.36492950888350606,0.1930811693891883,1.8900,corpus
+cebik-w4rnl/models/Verticals/nec/7-opendblrect-12.nec,122,0.310518201906234,0.18112162174656987,1.7144,corpus
+cebik-w4rnl/models/Verticals/nec/7-quadloop-dia-12.nec,102,0.298969894181937,0.193703253287822,1.5434,corpus
+cebik-w4rnl/models/Verticals/nec/7-quadloop-sq-12.nec,69,0.194503344129771,0.11951498687267303,1.6274,corpus
+cebik-w4rnl/models/Verticals/nec/7-rect-14.nec,77,0.2855933392420411,0.17517909221351147,1.6303,corpus
+cebik-w4rnl/models/Verticals/nec/7-rtangdelta-sngnd-12.nec,52,0.2770795221440494,0.17519513703882694,1.5815,corpus
+cebik-w4rnl/models/Verticals/nec/7-sterba-12.nec,295,0.5994572984054685,0.266833508387208,2.2466,corpus
+cebik-w4rnl/models/Verticals/nec/7-sterba-ctrfed-12.nec,274,0.5616623102687299,0.249678079970181,2.2495,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/10-28-hordelta-cnrfd-12.nec,175,0.24283572053536773,0.12667076056823134,1.9171,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/10-3elYagi-14.nec,100,0.3062572255730629,0.18223778391256928,1.6805,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/10-8jk-12.nec,66,0.29477172205224633,0.18189057102426887,1.6206,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/10-halfsq-14.nec,150,0.3363454542122781,0.19453132897615433,1.7290,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/14-3eledzbeam-12.nec,84,0.11080921860411763,0.06302264193072915,1.7582,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/14-5wllongwire-endfd-12.nec,440,0.9482782250270247,0.2782325940206647,3.4082,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/14-8jk-12.nec,66,0.3141343994066119,0.19361539417877793,1.6225,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/14-halfsq-14.nec,150,0.3575370744802058,0.20484357420355082,1.7454,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/14-halfsqbeam-14.nec,118,0.3392051779665053,0.20410041231662035,1.6620,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/14-slopet2fd-12.nec,96,0.3256617449223995,0.1923316209577024,1.6932,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/14-trianglebeam-12.nec,614,1.7037829919718206,0.38365990528836846,4.4409,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/14-vbeam-12.nec,442,1.0020678299479187,0.27989881904795766,3.5801,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/1r8-28-horhexloop-12.nec,248,0.43908293917775154,0.22045023832470179,1.9918,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/1r8-28-horhexloop-large-12.nec,151,0.36602624086663127,0.21116665983572602,1.7334,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/1r8-28-hort2fd-med-12.nec,142,0.34381197299808264,0.19924717349931598,1.7256,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/1r8-28-hort2fd-med-tl-12.nec,368,0.5056884018704295,0.1972798090428114,2.5633,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/1r8-bobtailbeam-12.nec,151,0.416685922536999,0.2454413822852075,1.6977,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/1r8-dblrect-12.nec,153,0.36638896400108933,0.21265337383374572,1.7229,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/1r8-halfsq-14.nec,75,0.3210259429179132,0.19872240256518126,1.6154,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/21-coledz-12.nec,192,0.2153716767206788,0.0882521872408688,2.4404,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/21-coledzlazyh-12.nec,386,0.585814131423831,0.1387950978241861,4.2207,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/28-hentenna-12.nec,82,0.10513084381818771,0.06422854447737336,1.6368,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r6-1wlhordelta-12.nec,175,0.3642142857424915,0.20773688005283475,1.7532,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r6-1wlhorhexloop-14.nec,91,0.31398592377081513,0.19133064756169915,1.6411,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r6-1wlhoroctloop-12.nec,169,0.3655517720617354,0.20589568372815847,1.7754,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r6-2elYagi-12.nec,23,0.2966687302105129,0.1887871827930212,1.5714,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r6-3elYagi-14.nec,100,0.3239990812726319,0.1940187574364245,1.6699,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r6-3r9-4wire2elYagi.nec,90,0.3228634293191135,0.19683651020750403,1.6403,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r6-halfsq-12.nec,75,0.30874854512512684,0.19141620816662908,1.6130,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r6-halfsqbeam-12.nec,132,0.3412304571829736,0.20429074903950095,1.6703,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r6-slopet2fd-12.nec,96,0.2307683597318828,0.13904640497639775,1.6596,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r6-vertrect-12.nec,77,0.3094967044889927,0.1909971907734871,1.6204,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r6-wbdipole-14.nec,16,0.2948804795742035,0.18749400321394205,1.5727,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r9-2elYagi-14.nec,63,0.31155122304335237,0.19825081387534738,1.5715,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r9-2elYagi-reflload-14.nec,66,0.3132488215342164,0.19427285948768258,1.6124,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r9-3elYagi-14.nec,100,0.3277832381427288,0.19690534751862288,1.6647,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r9-3wire2elYagi-14.nec,94,0.32047590846195817,0.19523345306515694,1.6415,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r9-nvis-1wlloop-planarrefl.nec,305,0.6068450375460088,0.28988224221393466,2.0934,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r9-nvis-batwing-planarrefl.nec,492,0.9413881716318429,0.3388982438482344,2.7778,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r9-nvis-dipole-planarrefl.nec,272,0.5628133565187454,0.2738443585112691,2.0552,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r9-nvis-edzlazyh-planarrefl.nec,536,1.0960432151332498,0.37330219987779856,2.9361,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/3r9-nvis-jamaica-planarrefl.nec,431,0.845326800365001,0.3322519641369581,2.5442,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/5r4-8jk-12.nec,66,0.3517285049892962,0.21872283890843391,1.6081,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/5r4-dblrect-14.nec,153,0.35761570697650313,0.21422979095950723,1.6693,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/5r4-halfsq-12.nec,75,0.3080705641768873,0.19007779099047184,1.6208,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/5r4-moxrect-reversible-12-AA2NN.nec,50,0.303159945178777,0.1919694533571601,1.5792,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-28-hordelta-cnrfd-12.nec,175,0.3382684038951993,0.18840230582281947,1.7955,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-28-lazyh15-al.nec,94,0.11605484504252672,0.068463119212538,1.6951,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-28-sqloop-cnrfd-12.nec,306,0.49217556277289987,0.22285483358427882,2.2085,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-28-sqloop-sidefd-12.nec,205,0.3855849844403565,0.20248903101310134,1.9042,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-2eldelta-12-K4TX.nec,155,0.33225795067846775,0.18812274187803268,1.7662,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-3elYagi-14.nec,100,0.2923027821816504,0.17534575564786792,1.6670,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-8jk-12.nec,66,0.28198894392699003,0.18733827816322446,1.5052,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-bobtailbeam-12.nec,151,0.38666238356381655,0.22794961230829358,1.6963,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-dblrect-14.nec,153,0.33045596024021506,0.18680572602897882,1.7690,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-edzlazyh-14.nec,66,0.10049661807715893,0.061173222959041595,1.6428,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-halfsq-12.nec,75,0.2810330633074045,0.17330735502764583,1.6216,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-halfsqbeam-12.nec,121,0.3078786740079522,0.18262477591633797,1.6859,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-halfsqbeam-14.nec,118,0.30728120636194944,0.18188146268948913,1.6895,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-hentenna-12.nec,78,0.10016824025660753,0.061556891072541475,1.6272,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-lazyh-14.nec,66,0.11336996452882886,0.06116628972813487,1.8535,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-moxrect-reversible-12-AA2NN.nec,50,0.2769332807511091,0.17575746402144432,1.5757,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-multiV-4wl-14.nec,342,0.6708525321446359,0.26342097762972116,2.5467,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-rect-botctrfd-14.nec,71,0.2810411029495299,0.1730627529323101,1.6239,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-rtanglevertdelta-botfd-12.nec,86,0.28663933696225286,0.174437643494457,1.6432,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-slopet2fd-12.nec,96,0.20265373401343822,0.1295393891632557,1.5644,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-vertdelta-botfd-12.nec,85,0.2860731719993055,0.1736933058127761,1.6470,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-vertintfldloop-12.nec,172,0.2494374569505453,0.13412649976089597,1.8597,corpus
+cebik-w4rnl/models/Wire-Arrays/nec/7-wbdipole-14.nec,16,0.26861931290477514,0.17114369291812181,1.5696,corpus
+cebik-w4rnl/models/Yagis-HF/nec/13el20mwireYagi-KB9MZ.nec,274,0.36017899168655276,0.11783001804724336,3.0568,corpus
+cebik-w4rnl/models/Yagis-HF/nec/2el10mB-antbeam-25.nec,164,0.17448649369180202,0.08474868955090642,2.0589,corpus
+cebik-w4rnl/nec2-ex3.nec,10,0.08179921749979258,0.0539491823874414,1.5162,corpus
+cebik-w4rnl/nec4-ex10_1.nec,12,0.22230735840275884,0.16306996159255505,1.3633,corpus
+cebik-w4rnl/nec4-ex10_3.nec,24,0.22328846622258425,0.14460948389023542,1.5441,corpus
+cebik-w4rnl/nec4-ex11.nec,28,0.08155994256958365,0.05428225873038173,1.5025,corpus
+cebik-w4rnl/nec4-ex3.nec,10,0.08222290966659784,0.05413256445899606,1.5189,corpus
+g1ojs/10m/10m 65cm Circ 10mm Copper Magloop H.nec,38,0.08176843309774995,0.054755229502916336,1.4933,corpus
+g1ojs/10m/10m 65cm Circ 10mm Copper Magloop V side.nec,38,0.08212033286690712,0.05470540653914213,1.5011,corpus
+g1ojs/10m/10m 65cm Circ 10mm Copper Magloop V.nec,38,0.08221596758812666,0.05500160530209541,1.4948,corpus
+g1ojs/10m/10m Helically loaded dipole 2.43m long.nec,0,11.279042436741292,2.1497499556280673,5.2467,corpus
+g1ojs/10m/10m LL Dipole 4m 5mm dia elements - hairpin.nec,32,0.7619314822368324,0.4832414956763387,1.5767,corpus
+g1ojs/10m/10m Quad base fed.nec,40,0.8377891341224313,0.5299989548511803,1.5807,corpus
+g1ojs/10m/10m Short Dipole 3m 5mm dia elements - trombone.nec,24,0.6506511983461678,0.41431391006335616,1.5704,corpus
+g1ojs/10m/_10m Dipole ref.nec,20,0.38450606632977724,0.248895482160151,1.5448,corpus
+g1ojs/10m/_10m V.nec,22,0.6459451150149107,0.4113267017528415,1.5704,corpus
+g1ojs/15m/_15m V.nec,22,0.9759212983772159,0.6147627914324403,1.5875,corpus
+g1ojs/160m/160m 239cm Circ 10mm Cu Magloop V.nec,110,0.1140268282033503,0.0715826004743576,1.5929,corpus
+g1ojs/160m/160m Coax Magloop V.nec,13,0.08538752887398005,0.05748272035270929,1.4854,corpus
+g1ojs/160m/160m Single Turn Coax Magloop V.nec,13,0.08535911189392209,0.05735105602070689,1.4884,corpus
+g1ojs/160m/160m Three Turn Coax Magloop V.nec,31,0.08812220953404903,0.05958168674260378,1.4790,corpus
+g1ojs/160m/160m Two Turn Coax Magloop V.nec,22,0.08642644342035055,0.058133984450250864,1.4867,corpus
+g1ojs/1V cap plates solid coplanar.nec,116,1.3284256691113114,0.8535026647150517,1.5564,corpus
+g1ojs/20m/20m 239cm Circ 10mm Copper Magloop H.nec,110,0.10685676382854581,0.06585837714374065,1.6225,corpus
+g1ojs/20m/20m 239cm Circ 10mm Copper Magloop V.nec,110,0.1068988349288702,0.06607352802529931,1.6179,corpus
+g1ojs/20m/20m 239cm Circ 10mm Copper Magloop Vside.nec,110,0.10737555101513863,0.06657537538558245,1.6128,corpus
+g1ojs/20m/20m 65cm Circ 10mm Copper Magloop H.nec,38,0.08175694895908237,0.054328450467437506,1.5049,corpus
+g1ojs/20m/20m 65cm Circ 10mm Copper Magloop V side.nec,38,0.08109741704538465,0.05423356452956796,1.4953,corpus
+g1ojs/20m/20m 65cm Circ 10mm Copper Magloop V.nec,38,0.08151078503578901,0.05447822064161301,1.4962,corpus
+g1ojs/20m/20m Half wave circular loop V side.nec,73,0.1860813982784748,0.1142024714499712,1.6294,corpus
+g1ojs/20m/20m Half wave square loop V side as built.nec,26,0.17596777621656656,0.11258915951475501,1.5629,corpus
+g1ojs/20m/20m Half wave square loop V side.nec,26,0.07906930707395077,0.052682464476674795,1.5009,corpus
+g1ojs/20m/20m V coax braid element.nec,22,1.1831434750929475,0.7395883128046989,1.5997,corpus
+g1ojs/20m/20m V coax inner element.nec,22,1.0094110816717148,0.6380856549367309,1.5819,corpus
+g1ojs/20m/20m V pvc covered.nec,22,1.0919904876500368,0.6895426721312106,1.5836,corpus
+g1ojs/20m/Open loop H 7.4m.nec,73,0.08964286558330059,0.05762383155524731,1.5557,corpus
+g1ojs/20m/Open loop V base 7.4m.nec,73,0.0907006785273552,0.07606224762275815,1.1925,corpus
+g1ojs/20m/Open loop V side 7.4m.nec,73,0.0899715875275433,0.05750748701393604,1.5645,corpus
+g1ojs/20m/_20m Dipole ref.nec,20,1.2579423221759498,0.7915703789331019,1.5892,corpus
+g1ojs/20m/_20m V.nec,22,1.174765004310757,0.7412642566487193,1.5848,corpus
+g1ojs/3V cap plates solid coplanar.nec,146,1.9425408393144608,0.9218606506474316,2.1072,corpus
+g1ojs/40m/40m 239cm Circ 10mm Cu Magloop H.nec,110,0.10027339356020093,0.0620909221470356,1.6149,corpus
+g1ojs/40m/40m 239cm Circ 10mm Cu Magloop V side.nec,110,0.09954204177483916,0.06239323923364282,1.5954,corpus
+g1ojs/40m/40m 239cm Circ 10mm Cu Magloop V.nec,110,0.09937535366043448,0.06283534225076437,1.5815,corpus
+g1ojs/40m/40m Fitted Attic V.nec,14,1.0083238668739796,0.6441303570754826,1.5654,corpus
+g1ojs/40m/40m V cap plates coplanar.nec,116,1.3266162890940905,0.8538784966804087,1.5536,corpus
+g1ojs/40m/40m V cap spokes.nec,24,1.0143081289716065,0.6497123553417623,1.5612,corpus
+g1ojs/40m/40m V doglegs BUILT.nec,20,1.0099059347994626,0.6441428796388209,1.5678,corpus
+g1ojs/40m/40m VU built 2.nec,19,1.0089633758179843,0.642843680921942,1.5695,corpus
+g1ojs/40m/40m VU built.nec,19,1.011630228254944,0.6419534850865602,1.5759,corpus
+g1ojs/40m/40m VU.nec,14,1.008702133782208,0.650021770503372,1.5518,corpus
+g1ojs/40m/_40m Dipole ref.nec,20,1.4169145375490189,0.8956063915975392,1.5821,corpus
+g1ojs/40m/_40m V loaded.nec,14,1.0067028310149908,0.6500738495960832,1.5486,corpus
+g1ojs/40m/opt/40m V integral PI-01.nec,22,0.20763911353424191,0.133892095182091,1.5508,corpus
+g1ojs/40m/opt/40m V integral PI-02.nec,22,0.20772699918597937,0.13411038368940353,1.5489,corpus
+g1ojs/40m/opt/40m V integral PI-03.nec,22,0.2073357254266739,0.13436678145080805,1.5431,corpus
+g1ojs/40m/opt/40m V integral PI-04.nec,22,0.20706649450585246,0.13424684666097164,1.5424,corpus
+g1ojs/40m/opt/40m V integral PI-05.nec,22,0.20817368105053902,0.13417900586500764,1.5515,corpus
+g1ojs/40m/opt/40m V integral PI-06.nec,22,0.20743942633271217,0.1335198380984366,1.5536,corpus
+g1ojs/40m/opt/40m V integral PI-07.nec,22,0.20822664955630898,0.13364921137690544,1.5580,corpus
+g1ojs/40m/opt/40m V integral PI-08.nec,22,0.20737520279362798,0.13392768101766706,1.5484,corpus
+g1ojs/40m/opt/40m V integral PI-09.nec,22,0.20699320081621408,0.1341482368297875,1.5430,corpus
+g1ojs/40m/opt/40m V integral PI-10.nec,22,0.20793651649728417,0.13525388482958078,1.5374,corpus
+g1ojs/40m/opt/40m V integral PI-11.nec,22,0.2085690381936729,0.1345786852762103,1.5498,corpus
+g1ojs/40m/opt/40m V integral PI-12.nec,22,0.20814992301166058,0.1342255943454802,1.5507,corpus
+g1ojs/40m/opt/40m V integral PI-13.nec,22,0.20753216510638595,0.1351184737868607,1.5359,corpus
+g1ojs/40m/opt/40m V integral PI-14.nec,22,0.208002298604697,0.1342239584773779,1.5497,corpus
+g1ojs/40m/opt/40m V integral PI-15.nec,22,0.20788481552153826,0.13393084099516273,1.5522,corpus
+g1ojs/40m/opt/40m V integral PI-16.nec,22,0.21603719284757972,0.13412354094907641,1.6107,corpus
+g1ojs/40m/opt/40m V integral PI-17.nec,22,0.207381097599864,0.1365961590781808,1.5182,corpus
+g1ojs/40m/opt/40m V integral PI-18.nec,22,0.2072929237037897,0.13487877743318677,1.5369,corpus
+g1ojs/40m/opt/40m V integral PI-19.nec,22,0.20795158483088017,0.13394677359610796,1.5525,corpus
+g1ojs/40m/opt/40m V integral PI-20.nec,22,0.20807137480005622,0.13352180970832705,1.5583,corpus
+g1ojs/40m/opt/40m V integral PI-21.nec,22,0.20726955076679587,0.13376602111384273,1.5495,corpus
+g1ojs/40m/opt/40m V integral PI-22.nec,22,0.2076663221232593,0.13372563244774938,1.5529,corpus
+g1ojs/40m/opt/40m V integral PI-23.nec,22,0.20750187430530787,0.13390647433698177,1.5496,corpus
+g1ojs/40m/opt/40m V integral PI-24.nec,22,0.20841621607542038,0.1353087667375803,1.5403,corpus
+g1ojs/40m/opt/40m V integral PI-25.nec,22,0.20748965768143535,0.1342715471982956,1.5453,corpus
+g1ojs/40m/opt/40m V integral PI-26.nec,22,0.20751977898180485,0.13389181811362505,1.5499,corpus
+g1ojs/40m/opt/40m V integral PI-27.nec,22,0.207327239215374,0.1339828372001648,1.5474,corpus
+g1ojs/40m/opt/40m V integral PI-28.nec,22,0.20774600561708212,0.13410295313224196,1.5492,corpus
+g1ojs/40m/opt/40m V integral PI-29.nec,22,0.21602993085980415,0.13351739989593625,1.6180,corpus
+g1ojs/40m/opt/40m V integral PI-30.nec,22,0.20740477507933974,0.1332822502590716,1.5561,corpus
+g1ojs/40m/opt/40m V integral PI_003-19.nec,22,0.2077572220005095,0.13395310891792178,1.5510,corpus
+g1ojs/40m/opt/40m V integral PI_007-12.nec,22,0.20879722340032458,0.13440852938219905,1.5535,corpus
+g1ojs/40m/trials/40m V cage.nec,21,1.760468197055161,1.1472080489620566,1.5346,corpus
+g1ojs/40m/trials/40m V curve 4pts 7MHz.nec,13,1.0086834318935871,0.6405584504827857,1.5747,corpus
+g1ojs/40m/trials/40m V curve 5pts 7MHz.nec,15,1.0101132420822978,0.6449505924247205,1.5662,corpus
+g1ojs/40m/trials/40m V integral PI.nec,22,1.0155885517597198,0.6486953422427177,1.5656,corpus
+g1ojs/40m/trials/40m V mesh.nec,72,1.5927562569268048,1.0178715512156487,1.5648,corpus
+g1ojs/630m/630m Three Turn Coax Magloop V.nec,31,0.09019502578303218,0.06120037194341421,1.4738,corpus
+g1ojs/80m/40m V3.nec,21,1.0097455070354044,0.6438998617231846,1.5682,corpus
+g1ojs/80m/80m 239cm Circ 10mm Cu Magloop V.nec,110,0.1056984611786902,0.06599275441840291,1.6017,corpus
+g1ojs/80m/80m V cap plates high H.nec,113,1.193538527470082,0.775001376401633,1.5400,corpus
+g1ojs/80m/80m V cap plates solid coplanar.nec,116,1.3476818390190601,0.8684683809988201,1.5518,corpus
+g1ojs/80m/80m V cap plates solid felt.nec,110,1.3059561541303992,0.835193335544318,1.5637,corpus
+g1ojs/80m/80m V.nec,22,1.0462986510246992,0.6654976261779666,1.5722,corpus
+g1ojs/80m/80m V3.nec,38,1.0680876420810819,0.6832623551599681,1.5632,corpus
+g1ojs/80m/_80m Dipole ref.nec,20,1.5251964768394828,0.9738744511269033,1.5661,corpus
+g1ojs/80m/tmp.nec,26,0.9295013132505119,0.5950343906879425,1.5621,corpus
+g1ojs/Delta loop/loop.nec,32,0.8698989721015096,0.55769864609465,1.5598,corpus
+g1ojs/Loft wires/1V.nec,20,1.0040144664235413,0.639634563587606,1.5697,corpus
+g1ojs/Loft wires/2V.nec,25,1.0148909208364785,0.6451605684123933,1.5731,corpus
+g1ojs/Loft wires/LF.nec,30,1.1229146742261946,0.7128545083105564,1.5752,corpus
+g1ojs/Loft wires/Max space V centre.nec,12,1.0046088118106127,0.6423529773019254,1.5640,corpus
+g1ojs/Loft wires/Max space V diag.nec,12,1.0085038570687175,0.6405977662652731,1.5743,corpus
+g1ojs/Loft wires/Spiral.nec,58,1.0411920412443578,0.6656203810125589,1.5642,corpus
+g1ojs/Magloop with cap on coupling loop.nec,110,0.11325795482844114,0.06622720928862691,1.7101,corpus
+g1ojs/Magloop with gap and cap on coupling loop.nec,111,0.20054399641230702,0.12665273575112224,1.5834,corpus
+g1ojs/Meander Loading/40m Dipole at 7m reference.nec,10,0.2933682114817202,0.1874337624758482,1.5652,corpus
+g1ojs/Meander Loading/40m Dipole at 7m with 10 meanders.nec,13,0.21162647102028131,0.13679378665983677,1.5470,corpus
+g1ojs/Meander Loading/40m Dipole at 7m with 20 meanders.nec,13,0.2263691620901227,0.13702906901016831,1.6520,corpus
+g1ojs/Meander Loading/40m Inverted V at 7m with 10 meanders.nec,30,0.2154718516394496,0.13479171646758914,1.5986,corpus
+g1ojs/Meander Loading/40m Inverted V at 7m with full meandering.nec,6,0.21009052777662873,0.1440514400601387,1.4584,corpus
+g1ojs/Open wire V/Open wire V fixed wire length.nec,42,1.189234769437462,0.7533154021948576,1.5787,corpus
+g1ojs/Open wire V/Open wire V max wire length.nec,42,0.94259994616732,0.5953790447674692,1.5832,corpus
+g1ojs/Small Receiving Loops/1m dia loop.nec,39,0.08119558356702328,0.05356176849454641,1.5159,corpus
+g1ojs/Trapped/TRAPx1 V 40m 20m.nec,72,0.09512674110010266,0.05635456880554557,1.6880,corpus
+g1ojs/Trapped/TRAPx2 V 40m 20m 10m - remove 10m.nec,42,0.08332931715995073,0.05430647078901529,1.5344,corpus
+g1ojs/Trapped/TRAPx2 V 40m 20m 10m.nec,52,0.08636891515925527,0.05624762503430247,1.5355,corpus
+g1ojs/Trapped/TRAPx2 V 40m 20m 6m.nec,52,0.08693407429382205,0.055662896018475294,1.5618,corpus
+g1ojs/Trapped/TRAPx2_V.nec,52,61.55080326180905,38.701801530551165,1.5904,corpus
+g1ojs/Trapped/Test.nec,32,0.46434082509949803,0.29497049236670136,1.5742,corpus
+g1ojs/Trapped/Trap V - 6m 15m.nec,32,0.0813892325386405,0.05325123108923435,1.5284,corpus
+g1ojs/Trapped/Trap_V.nec,52,0.08665825519710779,0.05578469578176737,1.5534,corpus
+g1ojs/Tree/treeV_20m_10m.nec,17,0.079569345805794,0.052609424106776714,1.5125,corpus
+g1ojs/Verticals/10m OCF H/10m H OCF 2.5m long.nec,18,0.38785534258931875,0.2521761367097497,1.5380,corpus
+g1ojs/Verticals/10m OCF H/10m H OCF 3.5m long.nec,16,0.3847209536470473,0.24983212584629655,1.5399,corpus
+g1ojs/Verticals/10m OCF H/10m H OCF 3m long.nec,18,0.3873098096810281,0.25187088642269373,1.5377,corpus
+g1ojs/Verticals/10m OCF H/10m Vertical V 3m tall.nec,12,0.8178002061322331,0.5178360110148787,1.5793,corpus
+g1ojs/Verticals/15m/15m H OCF 3m long.nec,18,0.4639370134100318,0.2999454978853464,1.5467,corpus
+g1ojs/Verticals/20m/20m horizontal V 3.5m high.nec,18,0.8552541402168572,0.5407746392302215,1.5815,corpus
+g1ojs/Verticals/20m/20m horizontal diamond 3m high.nec,38,0.861328570637852,0.547731845639646,1.5725,corpus
+g1ojs/Verticals/others/10m H OCF - Copy.nec,18,0.4153410722501576,0.2516169613227248,1.6507,corpus
+g1ojs/Verticals/others/10m arrow 2 wire 75cm wide - OCF.nec,16,0.3859019801020622,0.2513158265501261,1.5355,corpus
+g1ojs/Verticals/others/10m bicone 2 wire 75cm wide - OCF.nec,24,0.40004648407921195,0.26215403201058507,1.5260,corpus
+g1ojs/_2m/2m clutter/2m Diamond A144S5R over ground with clutter.nec,141,1.6043011462315917,0.36916957376524806,4.3457,corpus
+g1ojs/_2m/2m clutter/Circular Quad 2 ele V-pol with clutter.nec,61,0.358223473187536,0.0865606046281755,4.1384,corpus
+g1ojs/_2m/2m clutter/Circular Quad 2 ele with clutter no 6m.nec,52,0.339861910790205,0.08328478317707777,4.0807,corpus
+g1ojs/_2m/2m clutter/Circular Quad 2 ele with clutter no loop.nec,56,0.24451714800670743,0.06437073834240437,3.7986,corpus
+g1ojs/_2m/2m clutter/Circular Quad 2 ele with clutter.nec,61,0.35750736901536584,0.08637651056051254,4.1389,corpus
+g1ojs/_2m/2m clutter/Clutter feed the clutter.nec,62,0.19590713642537594,0.0508004198782146,3.8564,corpus
+g1ojs/_2m/2m clutter/Dipole ref with clutter.nec,71,1.0105785601772368,0.2351287892088294,4.2980,corpus
+g1ojs/_2m/Cylindrical slots/2m Cylindrical Slot Open.nec,20,0.28740297676995397,0.0863530426286161,3.3282,corpus
+g1ojs/_2m/Halo based/2m Stacked Halos Phi_0 El_0 1.5m.nec,79,0.33553517749533057,0.10342047968879342,3.2444,corpus
+g1ojs/_2m/Halo based/2m Stacked Halos Phi_0 El_0 1.7m.nec,79,0.3352398816496134,0.10263201408088207,3.2664,corpus
+g1ojs/_2m/Halo based/2m low stacked halos Phi_0 El_0 1.03m .nec,79,0.34705088660120964,0.10252677369862795,3.3850,corpus
+g1ojs/_2m/Halo based/Horizontal halo delta match with coax balun not folded - Copy.nec,105,0.16534731443971395,0.05451223533600569,3.0332,corpus
+g1ojs/_2m/Hentenna based/2m Cuboid Hentenna Symmetric.nec,36,0.09703070297837257,0.05228844052180648,1.8557,corpus
+g1ojs/_2m/Hentenna based/2m Hentenna over ground Phi_0 - flashing.nec,1092,3.395074932370335,0.5397804379463196,6.2897,corpus
+g1ojs/_2m/Hentenna based/2m Hentenna over ground Phi_90 - flashing.nec,1092,3.385919456835836,0.5287215770222247,6.4040,corpus
+g1ojs/_2m/Hentenna based/2m Small Cuboid Hentenna Symmetric.nec,36,0.09644424822181463,0.05163831729441881,1.8677,corpus
+g1ojs/_2m/Hentenna based/2m gapped hentenna over ground.nec,106,0.15653530322015285,0.0506156487390399,3.0926,corpus
+g1ojs/_2m/Hentenna based/2x Stacked 2m Hentenna Single Feed Inverted parallel to roof ridge over Ground.nec,95,0.15901491604745388,0.05359648447483778,2.9669,corpus
+g1ojs/_2m/Hentenna based/2x Stacked 2m Hentenna Single Feed parallel to roof ridge over Ground.nec,95,0.1477837315760553,0.05308578349649906,2.7839,corpus
+g1ojs/_2m/Hentenna based/2x Stacked 2m Hentenna parallel to roof ridge with reflector.nec,108,0.17914592707529664,0.06005237251520157,2.9832,corpus
+g1ojs/_2m/Quads/Square Wire Quad 2 ele 50R with clutter.nec,97,0.7939042705111206,0.18768880981951952,4.2299,corpus
+g1ojs/_2m/Shortened dipoles/Patch dipole.nec,704,1.0273864837363362,0.35085265012457967,2.9283,corpus
+g1ojs/_2m/Verticals/2m Stacked Vertical Dipoles with integral baluns - 4 lens opt WITH MEASUREMENT NOTES.nec,280,1.7948234230279922,0.5915959905833006,3.0339,corpus
+g1ojs/_2m/Verticals/2m Stacked Vertical Dipoles with integral baluns - no harness.nec,185,1.149214648641646,0.4569725561887026,2.5148,corpus
+g1ojs/_2m/Verticals/2m Stacked Vertical Dipoles with integral baluns reentrant harness.nec,266,1.8308693980798125,0.5989484433084726,3.0568,corpus
+g1ojs/_2m/Verticals/2m Stacked Vertical Dipoles with integral baluns.nec,242,1.5808801464736462,0.5466913203708827,2.8917,corpus
+g1ojs/_2m/Verticals/2m Stacked Vertical Gamma Matched Dipole over ground.nec,290,1.9856345038861036,0.6261573717929423,3.1711,corpus
+g1ojs/_2m/Verticals/2m Vertical Dipole with integral balun.nec,225,1.1652557770721614,0.47075037052854896,2.4753,corpus
+g1ojs/_2m/Verticals/2m Vertical Gamma Matched Dipole over ground.nec,217,1.1245961487293243,0.45879606110975146,2.4512,corpus
+g1ojs/_2m/Verticals/2m Vertical dipole with phasing balun.nec,480,3.745570566970855,0.8434082493185997,4.4410,corpus
+g1ojs/_2m/Verticals/2m high gain Vertical flowerpot with metal sleeve air spaced with feedline and feed stub.nec,231,0.8006596053019166,0.20543783903121948,3.8973,corpus
+g1ojs/_2m/Verticals/Periodic stubs tests/2m 3lam monopole stubs shaped generic.nec,132,0.6063046688213944,0.30554770631715655,1.9843,corpus
+g1ojs/_2m/Verticals/Periodic stubs tests/2m gamma dipole extended TL.nec,105,0.1619492587633431,0.055188609287142754,2.9345,corpus
+g1ojs/_2m/Verticals/Periodic stubs tests/2m gamma dipole extended stubs - test.nec,95,0.19373737601563334,0.08782050060108304,2.2061,corpus
+g1ojs/_2m/Verticals/Periodic stubs tests/2m gamma dipole extended stubs shaped.nec,95,0.18250318802893162,0.07860376685857773,2.3218,corpus
+g1ojs/_2m/Verticals/Periodic stubs tests/2m gamma dipole extended stubs.nec,58,0.15969922905787826,0.06290075927972794,2.5389,corpus
+g1ojs/_6m/6m 2ele Quad base fed.nec,80,0.4899474214762449,0.27260073320940137,1.7973,corpus
+g1ojs/_6m/6m Dipole bars.nec,14,0.3773542372509837,0.24382610246539116,1.5476,corpus
+g1ojs/_6m/6m Dipole droops.nec,14,0.3758209552615881,0.24659177800640464,1.5241,corpus
+g1ojs/_6m/6m Dipole stars.nec,14,0.3849020334891975,0.24774970905855298,1.5536,corpus
+g1ojs/_6m/6m Helically loaded dipole.nec,0,12.669320721644908,2.1889129574410617,5.7880,corpus
+g1ojs/_6m/6m LL Bar Dipole 5mm dia elements - 2.nec,19,0.3863670602440834,0.25208952836692333,1.5327,corpus
+g1ojs/_6m/6m LL Bar Dipole 5mm dia elements.nec,19,0.38636234076693654,0.25896395929157734,1.4920,corpus
+g1ojs/_6m/6m LL Dipole 5mm dia elements - hairpin - 2.nec,32,0.3973980387672782,0.25836435053497553,1.5381,corpus
+g1ojs/_6m/6m LL Dipole 5mm dia elements - hairpin.nec,32,0.39833818888291717,0.2605203678831458,1.5290,corpus
+g1ojs/_6m/6m LL Dipole test 5mm dia elements - hairpin.nec,32,0.3963716346770525,0.2575428932905197,1.5391,corpus
+g1ojs/_6m/6m LL2 Dipole 5mm dia elements.nec,22,0.3900478691793978,0.2514850050210953,1.5510,corpus
+g1ojs/_6m/6m Quad base fed.nec,40,0.40652434481307864,0.257680416572839,1.5776,corpus
+g1ojs/_6m/6m Quad side fed.nec,40,0.40254925563931465,0.2590679354034364,1.5538,corpus
+g1ojs/_6m/6m Rect Petlowany Dipole 5mm dia elements 3D.nec,16,0.38212182000279427,0.24720456171780825,1.5458,corpus
+g1ojs/_6m/6m Rect Petlowany Dipole 5mm dia elements flat 2.nec,17,0.4009693479165435,0.24727562814950943,1.6215,corpus
+g1ojs/_6m/6m Rect Petlowany Dipole 5mm dia elements flat.nec,16,0.3825228651985526,0.24750493140891194,1.5455,corpus
+g1ojs/_6m/6m Short Dipole 5mm dia elements - hairpin.nec,18,0.3828224721364677,0.24731348594650626,1.5479,corpus
+g1ojs/_6m/_6m V.nec,22,0.3807045458815992,0.24596939235925674,1.5478,corpus
+g1ojs/opt/Loaded V-01.nec,12,0.2060013492591679,0.1331748766824603,1.5468,corpus
+g1ojs/opt/Loaded V-02.nec,12,0.20611059293150902,0.13316000951454043,1.5478,corpus
+g1ojs/opt/Loaded V-03.nec,12,0.20725122606381774,0.13379254238680005,1.5490,corpus
+g1ojs/opt/Loaded V-04.nec,12,0.20571448374539614,0.13382076704874635,1.5372,corpus
+g1ojs/opt/Loaded V-05.nec,12,0.20611209468916059,0.13332734210416675,1.5459,corpus
+g1ojs/opt/Loaded V-06.nec,12,0.21181295346468687,0.13294506026431918,1.5932,corpus
+g1ojs/opt/Loaded V-07.nec,12,0.20612928410992026,0.13285474013537169,1.5515,corpus
+g1ojs/opt/Loaded V-08.nec,12,0.20585001120343804,0.13282229471951723,1.5498,corpus
+g1ojs/opt/Loaded V-09.nec,12,0.2058461531996727,0.13337499741464853,1.5434,corpus
+g1ojs/opt/Loaded V-10.nec,12,0.20616791350767016,0.13386181415989995,1.5402,corpus
+g1ojs/opt/Loaded V-11.nec,12,0.21690665697678924,0.13352918159216642,1.6244,corpus
+g1ojs/opt/Loaded V-12.nec,12,0.20646242843940854,0.1331022153608501,1.5512,corpus
+g1ojs/opt/Loaded V-13.nec,12,0.20612939586862922,0.1336552258580923,1.5422,corpus
+g1ojs/opt/Loaded V-14.nec,12,0.2059467383660376,0.13323524734005332,1.5457,corpus
+g1ojs/opt/Loaded V-15.nec,12,0.20651492709293962,0.13310929480940104,1.5515,corpus
+g1ojs/opt/Loaded V-16.nec,12,0.20725334528833628,0.13286050595343113,1.5599,corpus
+g1ojs/opt/Loaded V-18.nec,12,0.20611347444355488,0.1329164863564074,1.5507,corpus
+g1ojs/opt/Loaded V-19.nec,12,0.20769929653033614,0.13361701369285583,1.5544,corpus
+g1ojs/opt/Loaded V-20.nec,12,0.20659273909404874,0.1329184784553945,1.5543,corpus
+g1ojs/opt/Loaded V-21.nec,12,0.205906820949167,0.1327997762709856,1.5505,corpus
+g1ojs/opt/Loaded V-22.nec,12,0.20621760608628392,0.13349422812461853,1.5448,corpus
+g1ojs/opt/Loaded V-23.nec,12,0.2058700928464532,0.13290022779256105,1.5491,corpus
+g1ojs/opt/Loaded V-24.nec,12,0.2063052044250071,0.1328662596642971,1.5527,corpus
+g1ojs/opt/Loaded V-26.nec,12,0.20611660089343786,0.1330436826683581,1.5492,corpus
+g1ojs/opt/Loaded V-27.nec,12,0.20644946675747633,0.133034095633775,1.5519,corpus
+g1ojs/opt/Loaded V-28.nec,12,0.20604716101661325,0.1336055751889944,1.5422,corpus
+icecube-dbesson/2 dipole on roof.nec,674,1.4558847527951002,0.24359793635085225,5.9766,corpus
+icecube-dbesson/2lsloper.nec,24,0.6241755154915154,0.3900330741889775,1.6003,corpus
+icecube-dbesson/36ccd.nec,52,0.3561955476179719,0.22705625649541616,1.5688,corpus
+icecube-dbesson/36dip.nec,40,0.3037965972907841,0.1968873320147395,1.5430,corpus
+icecube-dbesson/36inv.nec,54,0.3063403610140085,0.19532907009124756,1.5683,corpus
+icecube-dbesson/36inv_split.nec,52,0.3056153883226216,0.19469743128865957,1.5697,corpus
+icecube-dbesson/3el-inverted-V.nec,124,0.3071839311160147,0.18142987228929996,1.6931,corpus
+icecube-dbesson/40quad.nec,84,0.19525434356182814,0.1188418217934668,1.6430,corpus
+icecube-dbesson/4nec2.nec,892,0.416106881108135,0.1266828258521855,3.2846,corpus
+icecube-dbesson/4square.nec,40,0.2954370090737939,0.1888310918584466,1.5646,corpus
+icecube-dbesson/4x20ra.nec,648,0.15289446990936995,0.0569850611500442,2.6831,corpus
+icecube-dbesson/7lyagi10.nec,92,0.29484715638682246,0.17727728327736259,1.6632,corpus
+icecube-dbesson/80hsbeam.nec,132,0.33380079502239823,0.1966787981800735,1.6972,corpus
+icecube-dbesson/80rdbeam.nec,248,0.44232641626149416,0.21997476695105433,2.0108,corpus
+icecube-dbesson/BCone55.nec,1442,0.7003453588113189,0.21944669028744102,3.1914,corpus
+icecube-dbesson/BCone65.nec,1442,0.7063940027728677,0.20629047229886055,3.4243,corpus
+icecube-dbesson/Bicone0+.nec,442,0.10115960612893105,0.05891236709430814,1.7171,corpus
+icecube-dbesson/Cedzph10.nec,168,0.18206038139760494,0.07990379026159644,2.2785,corpus
+icecube-dbesson/CoilCapHat.nec,164,0.24987986776977777,0.13845842517912388,1.8047,corpus
+icecube-dbesson/Collinear_1L.nec,63,0.12188127590343356,0.07734316121786833,1.5759,corpus
+icecube-dbesson/Deltalp.nec,120,0.10428249696269631,0.058320390060544014,1.7881,corpus
+icecube-dbesson/Example3.nec,42,0.303638297598809,0.19373095501214266,1.5673,corpus
+icecube-dbesson/Fractal.nec,204,1.5212581809610128,0.7549241641536355,2.0151,corpus
+icecube-dbesson/Gwave.nec,20,0.13357824552804232,0.09346200106665492,1.4292,corpus
+icecube-dbesson/Illuminate.nec,490,3.205979361664504,0.7126388126052916,4.4987,corpus
+icecube-dbesson/Lowdip.nec,153,0.35829805629327893,0.20894038025289774,1.7148,corpus
+icecube-dbesson/Moxon.nec,95,0.2870377115905285,0.17391408793628216,1.6505,corpus
+icecube-dbesson/Multiband.nec,142,0.3634561859071255,0.20448915241286159,1.7774,corpus
+icecube-dbesson/NearFld.nec,416,2.3441201811656356,0.6609206609427929,3.5467,corpus
+icecube-dbesson/Parab50.nec,3800,8.661409904714674,3.0294156190939248,2.8591,corpus
+icecube-dbesson/Quad.nec,160,0.4368729265406728,0.21791868517175317,2.0048,corpus
+icecube-dbesson/Rhombic.nec,160,0.1605548243969679,0.08210236113518476,1.9555,corpus
+icecube-dbesson/Slopvee.nec,170,0.3121234308928251,0.17167948698624969,1.8181,corpus
+icecube-dbesson/T-box.nec,1004,0.3486782191321254,0.13432941166684031,2.5957,corpus
+icecube-dbesson/TL-test.nec,192,0.15668827295303345,0.08237450942397118,1.9021,corpus
+icecube-dbesson/Tr-line.nec,44,0.30428389366716146,0.19449157360941172,1.5645,corpus
+icecube-dbesson/Vee40.nec,82,0.33991634612903,0.2103256224654615,1.6161,corpus
+icecube-dbesson/atl50E.nec,523,0.8265303336083889,0.2579187685623765,3.2046,corpus
+icecube-dbesson/atl50e-h.nec,553,0.9239992764778435,0.29024500399827957,3.1835,corpus
+icecube-dbesson/bev80.nec,102,0.37143657356500626,0.22519258502870798,1.6494,corpus
+icecube-dbesson/bobtail.nec,42,0.34490716317668557,0.2158574745990336,1.5978,corpus
+icecube-dbesson/dscn2.nec,513,0.8761103902943432,0.28512516478076577,3.0727,corpus
+icecube-dbesson/edzmod.nec,46,0.27224467787891626,0.17330529680475593,1.5709,corpus
+icecube-dbesson/hel10ua.nec,1154,0.44002065109089017,0.15405297419056296,2.8563,corpus
+icecube-dbesson/helix.nec,602,1.104857929982245,0.2780618122778833,3.9734,corpus
+icecube-dbesson/hrs_441.nec,191,13.546916794031858,5.854547976516187,2.3139,corpus
+icecube-dbesson/jbl.nec,137,4.555162237025797,1.4686050601303577,3.1017,corpus
+kk4obi-bent-dipoles/efhw-straight.nec,78,0.09642021870240569,0.06398539617657661,1.5069,corpus
+kk4obi-bent-dipoles/folded-end-dipole.nec,80,0.3170874756760895,0.19657505443319678,1.6131,corpus
+kk4obi-bent-dipoles/ocf-vertical-4radials.nec,150,0.2326496969908476,0.13856741227209568,1.6790,corpus
+kk4obi-bent-dipoles/std-vertical-dipole.nec,100,0.09548359783366323,0.059139343444257975,1.6146,corpus
+nec-simulations/nec/turnstileTestAntenna.nec,4307,7.171507143881172,2.1976612550206482,3.2632,corpus
+nec-simulations/nec/wireAntennaFastGround.nec,209,0.4591868012212217,0.24535971274599433,1.8715,corpus
+nec2-toys/2m-fd-fed-yagi.nec,124,1.008479630574584,0.5934585682116449,1.6993,corpus
+nec2-toys/2m-folded-dipole/2m-folded-dipole.nec,103,0.8576856586150825,0.526949031278491,1.6276,corpus
+nec2c/9elX2b_gr.nec,600,0.20309067890048027,0.06843044515699148,2.9678,corpus
+nec2c/9elX2b_mast.nec,625,0.1562458868138492,0.06293841218575835,2.4825,corpus
+nec2c/9elX2b_tonna.nec,600,0.1459298711270094,0.05972367757931352,2.4434,corpus
+nec2c/9elX2bm_gr.nec,1050,0.5910477517172694,0.1425661793909967,4.1458,corpus
+nec2c/9elXb_tonnaf.nec,308,1.1390238190069795,0.3847023551352322,2.9608,corpus
+nec2c/9el_tonnaf.nec,154,0.2922611846588552,0.1060209502466023,2.7566,corpus
+nec2c/BSZ10.nec,151,0.2517977454699576,0.15049090096727014,1.6732,corpus
+nec2c/EX3.nec,10,0.08182500395923853,0.05455092852935195,1.5000,corpus
+nec2c/MYGP.nec,60,0.1222442970611155,0.08013295428827405,1.5255,corpus
+nec2c/MYGPR.nec,60,0.6985425348393619,0.45418499829247594,1.5380,corpus
+nec2c/MYGPX.nec,70,0.6941690044477582,0.45315008889883757,1.5319,corpus
+nec2c/YI20_40B.nec,232,1.4948786944150925,0.7421034835278988,2.0144,corpus
+nec2c/YI20_40C.nec,232,1.84386670216918,0.6329098441638052,2.9133,corpus
+nec2c/dl_2el_18_1t15mvp.nec,70,0.3044730322435498,0.18669535452499986,1.6309,corpus
+nec2c/dl_2el_28_f.nec,210,0.5205514989793301,0.1777887032367289,2.9279,corpus
+nec2c/dl_4el_20f.nec,336,0.6340944659896195,0.21767685422673821,2.9130,corpus
+nec2c/i5tdjiiif.nec,314,1.2126088021323085,0.36105679580941796,3.3585,corpus
+nec2org/biquad_2440MHz.nec,481,1.020213711541146,0.34394174674525857,2.9662,corpus
+necpp/36dip.nec,40,0.3040163218975067,0.19358286308124661,1.5705,corpus
+necpp/Collinear_1L.nec,63,0.12201329739764333,0.07718463847413659,1.5808,corpus
+necpp/GA487.nec,2,0.5221098875626922,0.5100963311269879,1.0236,corpus
+necpp/biquad.nec,481,1.0221499372273684,0.3277955697849393,3.1183,corpus
+necpp/bruce_sommerfeld.nec,110,0.3762256526388228,0.22906507598236203,1.6424,corpus
+necpp/buoy.nec,20,0.1220253654755652,0.08202147809788585,1.4877,corpus
+necpp/example3.nec,10,0.08183253183960915,0.0540324323810637,1.5145,corpus
+necpp/ga_pjw_1.nec,1280,1.0008312896825373,0.26913106022402644,3.7188,corpus
+necpp/gn2.nec,26,0.18770289001986384,0.11989278346300125,1.5656,corpus
+necpp/hang.nec,996,0.6420500352978706,0.18054139846935868,3.5562,corpus
+necpp/inverted_v.nec,1295,4.395894280169159,0.9455434274859726,4.6491,corpus
+necpp/plet_helixumts.nec,755,0.22600250085815787,0.0970252612605691,2.3293,corpus
+necpp/salt_ground.nec,126,0.8910263082943857,0.5764879449270666,1.5456,corpus
+necpp/sommerfeld2.nec,180,0.16129848128184676,0.08452482707798481,1.9083,corpus
+necpp/sommerfeld3.nec,32,0.315929735545069,0.21099493140354753,1.4973,corpus
+necpp/sommerfield1.nec,18,0.08796456549316645,0.05693746963515878,1.5449,corpus
+opennec/6mYagi-Onec.nec,88,49.54224048508331,25.639752290211618,1.9322,corpus
+qantenna/10-30m_vert4.nec,47,15.542428222484887,7.596410946920514,2.0460,corpus
+qantenna/1_4l-gp_on_pole.nec,114,1.8011349909938872,1.058808668050915,1.7011,corpus
+qantenna/5_8l-gp_on_pole.nec,171,1.7231997796334326,0.9586054547689855,1.7976,corpus
+qantenna/adrian.nec,151,0.09970832103863358,0.07632422354072332,1.3064,corpus
+qantenna/collinear.nec,116,1.9468746189959347,1.1114544225856662,1.7516,corpus
+qantenna/delta-loop-15m.nec,52,0.9815690075047314,0.5616689254529774,1.7476,corpus
+qantenna/quad-20m.nec,40,0.8842472606338561,0.5124907437711954,1.7254,corpus
+qantenna/turnstile-sloped.nec,98,0.18456788873299956,0.10313639417290688,1.7896,corpus
+qantenna/turnstile.nec,96,0.18488117586821318,0.10308758541941643,1.7934,corpus
+qantenna/xpol_omni.nec,62,0.43097773287445307,0.29176352079957724,1.4771,corpus
+qantenna/yagi.nec,147,0.08197379251942039,0.05110892094671726,1.6039,corpus
+qantenna/yagi8sq_ch1.nec,159,0.0909578213468194,0.055335343815386295,1.6438,corpus
+qantenna/yg_6el.nec,31,0.8190539623610675,0.6228142366744578,1.3151,corpus
+qantenna/zepp-80m.nec,56,0.2440160820260644,0.17199657252058387,1.4187,corpus
+rchacker-antennas/58/helical58.nec,846,0.3851306843571365,0.14689101604744792,2.6219,corpus
+rchacker-antennas/58/pinwheel5.8.nec,66,0.1387581923045218,0.07327887648716569,1.8936,corpus
+rchacker-antennas/UHF/turnstile_droop_angle_raptor.nec,642,0.13185590459033847,0.05253611085936427,2.5098,corpus
+rchacker-antennas/UHF/turnstile_droop_angle_raptor_optimised.nec,882,0.24868595227599144,0.09050964750349522,2.7476,corpus
+rchacker-antennas/UHF/turnstile_droop_angle_raptor_optimised_eff.nec,882,0.25049877585843205,0.09107036655768752,2.7506,corpus
+rchacker-antennas/circular omni/PINWHEEL62m.nec,66,0.13498198054730892,0.072620022110641,1.8587,corpus
+rchacker-antennas/circular omni/pinwheel62m_980skewplanar-e3.nec,66,0.13722625374794006,0.07280997838824987,1.8847,corpus
+sokyrad/k8uy_yagi_10el/models/K8UY_yagi_2m_original.nec,222,0.20569055760279298,0.07449266314506531,2.7612,corpus
+sokyrad/unsorted/10m efhw narrow rect 28.4mhz  10m efhw narrow rect 28.4mhz.nec,155,0.18562667071819305,0.09382531465962529,1.9784,corpus
+sokyrad/unsorted/10m_3el_yagi_horizontal.nec,105,0.43459918536245823,0.21746106212958694,1.9985,corpus
+sokyrad/unsorted/10m_3el_yagi_horizontal_quarter_wave_elements.nec,105,0.4101846949197352,0.21279775025323033,1.9276,corpus
+sokyrad/unsorted/10m_3el_yagi_vertical.nec,105,0.5759386359713972,0.302904833573848,1.9014,corpus
+sokyrad/unsorted/10m_efhw_inverted_L_10ft.nec,63,0.20836723782122135,0.13243813021108508,1.5733,corpus
+sokyrad/unsorted/10m_quarter_wave_ground_plane_10ft.nec,126,0.9706094875000417,0.5498601710423827,1.7652,corpus
+sokyrad/unsorted/15m_20m_jumper_half_square.nec,114,3.097370432689786,1.6217936952598393,1.9098,corpus
+sokyrad/unsorted/26ft_vertical_26x20ft_radials_eznec_import.nec,608,2.4605699530802667,0.9077399554662406,2.7107,corpus
+sokyrad/unsorted/2m70cm_moxon_nested_four_masted.nec,403,0.6898166425526142,0.21499230526387691,3.2086,corpus
+sokyrad/unsorted/40m_efhw_L.nec,63,0.22798807313665748,0.1455239923670888,1.5667,corpus
+sokyrad/unsorted/6m_2m_70cm_moxon-yagi.nec,139,0.17418635357171297,0.0935567244887352,1.8618,corpus
+sokyrad/unsorted/80m_delta_loop_top10m_bottom1m_quarterwave_feed_3p9MHz.nec,238,1.4451484004966915,0.7740590805187821,1.8670,corpus
+sokyrad/unsorted/80m_delta_loop_top3m_bottom1m_quarterwave_feed_3p9MHz.nec,238,1.4391024527139962,0.76273163408041,1.8868,corpus
+sokyrad/unsorted/80m_efhw-Sloper-L_3.85M.nec,63,0.3166492828167975,0.1988780307583511,1.5922,corpus
+sokyrad/unsorted/80m_efhw-Sloper-L_7.2375M.nec,63,0.293109015095979,0.18271782202646136,1.6042,corpus
+sokyrad/unsorted/80m_efhw-Sloper.nec,63,0.2915736651048064,0.18242585752159357,1.5983,corpus
+sokyrad/unsorted/80m_efhw_inverted_v.nec,63,0.19650136213749647,0.12478913832455873,1.5747,corpus
+sokyrad/unsorted/80m_efhw_sloper.nec,63,0.3738782247528434,0.23393730400130153,1.5982,corpus
+sokyrad/unsorted/80m_square_horizontal_loop_65ft_3mm_3p9MHz.nec,246,1.4611826674081385,0.7681198944337666,1.9023,corpus
+sokyrad/unsorted/K8UY_dipole_2m_original_gamma.nec,224,0.8523751734755933,0.29969879798591137,2.8441,corpus
+sokyrad/unsorted/K8UY_yagi_2m_original.nec,222,0.20490922266617417,0.06812600139528513,3.0078,corpus
+sokyrad/unsorted/butternut_hf6v_approx.nec,230,0.3788098222576082,0.20113964518532157,1.8833,corpus
+sokyrad/unsorted/custom_28_4MHz_hybrid_dipole_invertedV.nec,105,0.15351301385089755,0.08527691708877683,1.8002,corpus
+sokyrad/unsorted/custom_28_4MHz_hybrid_dipole_invertedV_10mheight_1_8wave.nec,105,0.15327171329408884,0.08295303024351597,1.8477,corpus
+sokyrad/unsorted/custom_28_4MHz_hybrid_dipole_invertedV_2_5m.nec,105,0.7203463618643582,0.46584057668223977,1.5463,corpus
+sokyrad/unsorted/custom_28_4MHz_hybrid_dipole_invertedV_2_5m_horiz_1_8wave_angled_1_4wave.nec,105,0.6287151300348341,0.40236767940223217,1.5625,corpus
+sokyrad/unsorted/custom_28_4MHz_hybrid_dipole_invertedV_5_0m.nec,105,0.7207410675473511,0.4663053438998759,1.5456,corpus
+sokyrad/unsorted/custom_double_inverted_v_10m_28_4MHz_20ft.nec,105,0.6283685695379972,0.40352156572043896,1.5572,corpus
+sokyrad/unsorted/custom_double_inverted_v_10m_28_4MHz_20ft_same_plane.nec,105,0.631379684433341,0.4158636536449194,1.5182,corpus
+sokyrad/unsorted/delta_loop_equilateral_29MHz.nec,155,1.0034476956352592,0.5540344915352762,1.8112,corpus
+sokyrad/unsorted/delta_loop_equilateral_29MHz_bottom_corner_feed.nec,124,0.9477729299105704,0.5429750550538301,1.7455,corpus
+sokyrad/unsorted/dual_band_stacked_moxon_146_444_50mm_only146driven.nec,265,0.30150738498196006,0.15600404841825366,1.9327,corpus
+sokyrad/unsorted/fan_dipole_80_40_20_10_6m_20m_height_voltage_balun.nec,312,5.975296429358423,1.9149262798018754,3.1204,corpus
+sokyrad/unsorted/inverted_v_10m_28_4MHz_20ft.nec,63,0.6177225499413908,0.40115882456302643,1.5398,corpus
+sokyrad/unsorted/inverted_v_14p225MHz.nec,84,1.1744321649894118,0.5391022800467908,2.1785,corpus
+sokyrad/unsorted/inverted_v_28p4MHz.nec,84,1.1355989035218954,0.5226562251336873,2.1727,corpus
+sokyrad/unsorted/inverted_v_3p8MHz.nec,100,1.2454955843277276,0.5571519457735121,2.2355,corpus
+sokyrad/unsorted/inverted_v_7p2MHz.nec,84,1.1383310249075294,0.5297475140541792,2.1488,corpus
+sokyrad/unsorted/simple_10m_inverted_v_10ft.nec,63,0.8107550269924104,0.48763961158692837,1.6626,corpus
+sokyrad/unsorted/simple_dipole_28_4MHz_10_0m.nec,63,0.29293401073664427,0.18354892544448376,1.5959,corpus
+sokyrad/unsorted/simple_dipole_28_4MHz_2_5m.nec,63,0.7011193884536624,0.45922786137089133,1.5267,corpus
+sokyrad/unsorted/simple_dipole_28_4MHz_5_0m.nec,63,0.7010235325433314,0.4633016176521778,1.5131,corpus
+sokyrad/unsorted/stacked_146MHz_moxon_horizontal.nec,265,0.5288513721898198,0.21250296477228403,2.4887,corpus
+sokyrad/unsorted/stacked_146MHz_moxon_vertical (1).nec,265,0.5427401764318347,0.21416347147896886,2.5342,corpus
+sokyrad/unsorted/stacked_146MHz_moxon_vertical.nec,265,0.5473838490433991,0.21425524773076177,2.5548,corpus
+sokyrad/unsorted/stacked_146MHz_moxon_vertical_0_75lambda.nec,287,0.6094446717761457,0.2290525301359594,2.6607,corpus
+w8io/215DX.nec,196,0.18362087663263083,0.08731932146474719,2.1029,corpus
+w8io/216CP.nec,180,0.3150364472530782,0.1635268721729517,1.9265,corpus
+w8io/CC-17B2.nec,426,0.2825159621424973,0.09710541227832437,2.9094,corpus
+w8io/EF7021.nec,526,19.12913262983784,6.427378629334271,2.9762,corpus
+w8io/EF7027.nec,676,30.834675203543156,9.92438631085679,3.1070,corpus
+w8io/FO-25-432.nec,626,26.563938059378415,8.701920312829316,3.0527,corpus
+w8io/FO-33-432.nec,826,45.39591761305928,14.069052018690854,3.2267,corpus
+w8io/G0KSC-13LFA.nec,353,0.4192048991099,0.14283406315371394,2.9349,corpus
+w8io/G0KSC-14LFA.nec,377,0.47649657214060426,0.16019814601168036,2.9744,corpus
+w8io/G0KSC-15LFA.nec,402,0.5473761558532715,0.18218798888847232,3.0045,corpus
+w8io/HG7031DX.nec,776,40.02538076834753,12.539276469033211,3.1920,corpus
+w8io/I0JXX-16JXX2.nec,401,0.24997480679303408,0.08780553471297026,2.8469,corpus
+w8io/IO-432-28.nec,701,32.87250935891643,10.59743029717356,3.1019,corpus
+w8io/LP140-200-2D.nec,278,3.8730504172854125,1.6650795829482377,2.3260,corpus
+w8io/LP144-22.nec,268,3.182387747336179,1.3851318922825158,2.2975,corpus
+w8io/LP144-35-MAXFB.nec,914,50.967553849797696,15.706164829432964,3.2451,corpus
+w8io/LP50-108-16.nec,308,4.571561177726835,2.0275631709955633,2.2547,corpus
+w8io/LogYag220-520-15dbi.nec,1406,45.97980331350118,12.92720381077379,3.5568,corpus
+w8io/M2-2M5WL-inch.nec,222,0.14180755568668246,0.054073108825832605,2.6225,corpus
+w8io/M2-432-9WLA.nec,701,32.95564015395939,10.585759417619556,3.1132,corpus
+w8io/W8IO-144-13a.nec,326,0.16908132983371615,0.06123319827020168,2.7613,corpus
+w8io/W8IO-144-15fd.nec,398,0.5326449954882264,0.17847206024453044,2.9845,corpus
+w8io/W8IO-222-17.nec,426,0.29080812400206923,0.09745209384709597,2.9841,corpus
+w8io/W8IO-222-18.nec,451,0.31365446001291275,0.10667742555961013,2.9402,corpus
+w8io/W8IO-222-19.nec,476,0.3491741861216724,0.11777588678523898,2.9647,corpus
+w8io/YU7EF-EF0215.nec,376,0.22077785851433873,0.07730505894869566,2.8559,corpus
+w8io/whip_antenna_8ft_groundplane.nec,4408,145.30979182804003,50.80284706829116,2.8603,corpus
