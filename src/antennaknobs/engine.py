@@ -5,7 +5,7 @@ from typing import ClassVar, Literal, NamedTuple
 import numpy as np
 
 from .network import GradedSegments, PortOnWire, Wire, as_wire
-from .wire_catalog import port_at, port_wire, site_count
+from .wire_catalog import gap_knot, gap_segment, port_at, port_wire, site_count
 
 _logger = logging.getLogger(__name__)
 
@@ -98,6 +98,66 @@ class WireCurrents(NamedTuple):
     knot_currents: np.ndarray  # (M,)   complex
 
 
+def _positioned_ports(builder):
+    """[(port name, wire name, at)] for every non-distributed gap port that
+    names a position (AK#1469). No builder, or no network, means none."""
+    build = getattr(builder, "build_network", None)
+    net = build() if callable(build) else None
+    if net is None:
+        return []
+    return [
+        (name, port_wire(port), port_at(port))
+        for name, port in net.ports.items()
+        if isinstance(port, PortOnWire)
+        and not getattr(port, "distributed", False)
+        and port_at(port) is not None
+    ]
+
+
+def placement_note(port, wire, at, placed, offset_m, site):
+    """AK's advisory for a positioned port an engine could not place exactly
+    (AK#1469): where it was asked for, where it went, and how far that is."""
+    return {
+        "category": "FeedPlacement",
+        "text": (
+            f"Port {port!r} asks for {at:.4g} of the way along wire {wire!r}. "
+            f"This engine's nearest {site} is at {placed:.4g}, "
+            f"{abs(offset_m) * 1000:.3g} mm away, so the port is placed there. "
+            "Nothing was refused (AK#1469)."
+        ),
+    }
+
+
+def _grid_placement_notes(tups, ports, parity):
+    """The placement advisories for an engine that places a port on the
+    segment centres (odd parity) or knots (even parity) of its final count."""
+    family = {"odd": "centre", "even": "knot"}.get(parity)
+    if family is None or not ports:
+        return []
+    wires = {}
+    for t in tups:
+        w = as_wire(t)
+        if w.name is not None and not isinstance(w.n_seg, GradedSegments):
+            wires[w.name] = w
+    notes = []
+    for port, wire, at in ports:
+        w = wires.get(wire)
+        if w is None:
+            continue
+        n = int(w.n_seg)
+        if family == "centre":
+            placed, site = (gap_segment(n, at) - 0.5) / n, "segment centre"
+        else:
+            placed, site = gap_knot(n, at) / n, "knot"
+        if abs(placed - at) <= 1e-9:
+            continue
+        length = float(np.linalg.norm(np.subtract(w.p1, w.p0)))
+        notes.append(
+            placement_note(port, wire, at, placed, (placed - at) * length, site)
+        )
+    return notes
+
+
 def _port_positions(builder):
     """{wire name: [at, ...]} for every wire carrying a gap port with an
     explicit position (AK#1469), read from the builder's network.
@@ -157,6 +217,18 @@ class SimulationEngine(ABC):
             n_seg = max(1, n_seg)
             return n_seg + 1 if n_seg % 2 == 0 else n_seg
         return max(1, n_seg)
+
+    @property
+    def advisories(self):
+        """AK's own notes on how this engine meshed the design, as
+        ``{"category", "text"}``: today, a positioned port it could not place
+        exactly (AK#1469). Empty for an ordinary design, whose ports all sit
+        at a wire's middle."""
+        return _grid_placement_notes(
+            getattr(self, "tups", None) or (),
+            _positioned_ports(getattr(self, "builder", None)),
+            self.segment_parity,
+        )
 
     def _parity_exempt_names(self):
         """Wire names exempt from parity coercion even though marked.
