@@ -2835,10 +2835,32 @@ def _feed_position(engine, currents):
     lands on an endpoint when the feed edge has no interior knot (e.g. a
     1-segment driven stub under odd-parity bases like sinusoidal/Bspline=2).
     """
+    vertex = _vertex_feed_position(engine, currents)
+    if vertex is not None:
+        return vertex
     pf = _primary_feed(engine)
     if pf is None:
         return None
     return _position_at(currents, pf[0], pf[1])
+
+
+def _vertex_feed_position(engine, currents):
+    """The knot a `PortAtVertex` source drives, or None when the primary
+    source is not a vertex port. A vertex port is a series node gap at a
+    polyline END (momwire#305), with no `_feeds` arclength, so the momwire
+    lane used to draw no marker for it (AC6LA, 2026-09-13)."""
+    network = getattr(engine, "_network", None)
+    vports = getattr(engine, "_vertex_ports", None) or []
+    members = getattr(engine, "_vertex_port_members", None) or []
+    if network is None or not network.sources or not vports:
+        return None
+    driven = network.sources[0].port
+    for (name, _wire, _end), (pl_idx, end) in zip(vports, members, strict=True):
+        if name == driven and pl_idx < len(currents):
+            knots = currents[pl_idx].knot_positions
+            if knots.shape[0]:
+                return (knots[-1] if end == "end" else knots[0]).tolist()
+    return None
 
 
 def _declared_feed_ports(cls) -> list[str]:
@@ -3082,14 +3104,19 @@ def _pynec_feed_indices(builder, currents) -> tuple[int, int]:
 
 
 def _pynec_feed_position(builder, currents):
-    """Exact 3D feed point for PyNEC: the midpoint of the driven segment.
-    NEC feeds at segment (n_seg+1)//2, so on a 1-segment feed edge the feed
-    sits at the edge midpoint — not the wire's centre knot (`k//2`), which
-    lands on an endpoint for a 2-knot wire. Mirrors `_pynec_feed_indices`'
-    driven-tuple selection.
+    """Exact 3D feed point on the engine lanes (PyNEC, NEC-2, NEC-5).
+
+    A `PortAtVertex` source sits on its knot: the named piece's authored end.
+    Every other feed sits at the fed wire's physical MIDDLE. NEC-2 feeds the
+    middle segment's centre on an odd count and NEC-5 the centre knot on an
+    even count, and both ARE that point. Reading the middle segment's centre
+    instead put an even-count (NEC-5) marker half a segment off, and a
+    vertex source's marker on the middle of its piece (AC6LA, 2026-09-13).
+    Mirrors `_pynec_feed_indices`' driven-tuple selection.
     """
     tuples = list(builder.build_wires())
     driven_name = None
+    net = None
     if hasattr(builder, "build_network"):
         net = builder.build_network()
         if net is not None and net.sources:
@@ -3105,11 +3132,12 @@ def _pynec_feed_position(builder, currents):
         if i >= len(currents):
             return None
         knots = currents[i].knot_positions
-        n_seg = knots.shape[0] - 1
-        if n_seg < 1:
-            return knots[0].tolist() if knots.shape[0] else None
-        mid_seg = (n_seg + 1) // 2  # 1-indexed driven segment
-        return (0.5 * (knots[mid_seg - 1] + knots[mid_seg])).tolist()
+        if knots.shape[0] == 0:
+            return None
+        port = net.ports.get(driven_name) if driven_name is not None else None
+        if isinstance(port, PortAtVertex):
+            return (knots[0] if port.end == "p0" else knots[-1]).tolist()
+        return (0.5 * (knots[0] + knots[-1])).tolist()
     return None
 
 
@@ -3125,7 +3153,7 @@ def _pynec_feed_positions(builder, currents, multi_feed=False):
 
         def center(i):
             knots = currents[i].knot_positions
-            return knots[knots.shape[0] // 2].tolist() if knots.shape[0] else None
+            return (0.5 * (knots[0] + knots[-1])).tolist() if knots.shape[0] else None
 
         if net is not None:
             by_name = {t[4]: i for i, t in enumerate(tuples) if len(t) >= 5 and t[4]}

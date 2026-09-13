@@ -9,7 +9,7 @@ import pytest
 
 from antennaknobs import AntennaBuilder
 from antennaknobs.nec_import import parse_nec
-from antennaknobs.network import PortAtVertex
+from antennaknobs.network import PortAtVertex, PortOnWire
 
 
 # --------------------------------------------------------------------------
@@ -91,11 +91,12 @@ def test_edge_source_at_a_shared_knot_becomes_a_vertex_port():
     assert [t[2] for t in deck.wire_tuples()] == [16, 16]
 
 
-def test_interior_knot_splits_the_wire():
-    """An edge source at an interior knot — e.g. NEC5Engine's own center
-    feed spelling, EX at end 2 of the middle segment — splits the wire at
-    that knot and apex-feeds the junction: the colinear-identity spelling
-    (momwire#300/#305)."""
+def test_middle_knot_source_keeps_the_wire_whole():
+    """An edge source at a wire's MIDDLE knot is NEC5Engine's own centre-feed
+    spelling (EX at end 2 of the middle segment), and it is antennaknobs'
+    standard middle-of-wire feed. So the wire stays whole and carries a
+    PortOnWire (AK#1469). Before, the importer cut it at the knot and
+    apex-fed the junction."""
     deck = parse_nec(
         _APEX_DECK.replace(
             "GW 1 16 0. 0. -2.6 0. 0. 0. 0.001\nGW 2 16 0. 0. 0. 0. 0. 2.6 0.001",
@@ -105,9 +106,25 @@ def test_interior_knot_splits_the_wire():
         network=True,
     )
     tups = deck.wire_tuples()
-    assert [t[2] for t in tups] == [16, 16]
-    named = [t[4] for t in tups if len(t) > 4 and t[4]]
-    assert named == ["feed"]
+    assert [(t[2], t[4] if len(t) > 4 else None) for t in tups] == [(32, "feed")]
+    assert isinstance(deck.network().ports["feed"], PortOnWire)
+
+
+def test_off_centre_interior_knot_still_splits_the_wire():
+    """Slice 1 of AK#1469 covers the middle knot only. An off-centre interior
+    knot still cuts the wire and apex-feeds the junction, the colinear-identity
+    spelling (momwire#300/#305), until a position along the wire lands."""
+    deck = parse_nec(
+        _APEX_DECK.replace(
+            "GW 1 16 0. 0. -2.6 0. 0. 0. 0.001\nGW 2 16 0. 0. 0. 0. 0. 2.6 0.001",
+            "GW 1 32 0. 0. -2.6 0. 0. 2.6 0.001",
+        ).replace("EX 0 1 16 2", "EX 0 1 10 2"),
+        name="c.nec",
+        network=True,
+    )
+    tups = deck.wire_tuples()
+    assert [t[2] for t in tups] == [10, 22]
+    assert isinstance(deck.network().ports["feed"], PortAtVertex)
 
 
 @pytest.mark.antenna_computation_check
