@@ -1,0 +1,54 @@
+{'catalog-nec5': 476, 'nec_portal': 65}
+import_changed: 4
+    ('dipoles.short_dipole_loaded.default.free.nec', 'ERR ValueError: wire 1: piece between knots 10 and 11 is claimed by more than one attachment (a knot source needs its own wire end, #824)', None)
+    ('dipoles.short_dipole_loaded.default.somm13.nec', 'ERR ValueError: wire 1: piece between knots 10 and 11 is claimed by more than one attachment (a knot source needs its own wire end, #824)', None)
+    ('dipoles.short_dipole_loaded.refined.free.nec', 'ERR ValueError: wire 1: piece between knots 20 and 21 is claimed by more than one attachment (a knot source needs its own wire end, #824)', None)
+    ('dipoles.short_dipole_loaded.refined.somm13.nec', 'ERR ValueError: wire 1: piece between knots 20 and 21 is claimed by more than one attachment (a knot source needs its own wire end, #824)', None)
+segs_changed: 0
+at_off_grid: 0
+one_seg_named_after: 10
+    ('catalog_beams_moxon.deck', 1, 1)
+    ('catalog_broadband_t2fd.deck', 2, 2)
+    ('catalog_dipoles_invvee.deck', 1, 1)
+    ('catalog_dipoles_ocf_dipole.deck', 1, 1)
+    ('catalog_loops_delta_loop.deck', 1, 1)
+    ('catalog_multiband_trap_dipole.deck', 2, 2)
+    ('catalog_specialty_bowtie.deck', 1, 1)
+    ('catalog_verticals_vertical.deck', 1, 1)
+    ('catalog_wire_w8jk.deck', 2, 2)
+    ('dipole_ex6_gyrator.deck', 1, 1)
+nec2_rt_miss: 2
+    ('dipole_load_ld4.deck', "[('feed', (0.0, 0.0, 0.0))]")
+    ('dipole_nt_all_zero.deck', "[('feed', (0.0, 0.0, 0.0))]")
+nec5_rt_miss: 39
+    ('broadband.t2fd.default.free.nec', "[('feed', (0.0, 0.0, 10.0)), ('load', (0.08394609, -0.0324759525, 9.98125)), ('load', (0.08394609, -0.0108253175, 9.99375)), ('load', (0.08394609, 0.0108253175,")
+    ('broadband.t2fd.default.somm13.nec', "[('feed', (0.0, 0.0, 10.0)), ('load', (0.08394609, -0.0324759525, 9.98125)), ('load', (0.08394609, -0.0108253175, 9.99375)), ('load', (0.08394609, 0.0108253175,")
+    ('broadband.t2fd.refined.free.nec', "[('feed', (0.0, 0.0, 10.0)), ('load', (0.08394609, -0.0324759525, 9.98125)), ('load', (0.08394609, -0.0108253175, 9.99375)), ('load', (0.08394609, 0.0108253175,")
+    ('broadband.t2fd.refined.somm13.nec', "[('feed', (0.0, 0.0, 10.0)), ('load', (0.08394609, -0.0324759525, 9.98125)), ('load', (0.08394609, -0.0108253175, 9.99375)), ('load', (0.08394609, 0.0108253175,")
+    ('multiband.trap_dipole.default.free.nec', "[('feed', (0.0, 0.0, 5.0)), ('load', (-2.720468, 0.0, 5.0)), ('load', (-2.707968, 0.0, 5.0)), ('load', (-2.695468, 0.0, 5.0)), ('load', (2.6829680000000002, 0.0")
+    ('multiband.trap_dipole.default.somm13.nec', "[('feed', (0.0, 0.0, 5.0)), ('load', (-2.720468, 0.0, 5.0)), ('load', (-2.707968, 0.0, 5.0)), ('load', (-2.695468, 0.0, 5.0)), ('load', (2.6829680000000002, 0.0")
+    ('multiband.trap_dipole.refined.free.nec', "[('feed', (0.0, 0.0, 5.0)), ('load', (-2.720468, 0.0, 5.0)), ('load', (-2.707968, 0.0, 5.0)), ('load', (-2.695468, 0.0, 5.0)), ('load', (2.6829680000000002, 0.0")
+    ('multiband.trap_dipole.refined.somm13.nec', "[('feed', (0.0, 0.0, 5.0)), ('load', (-2.720468, 0.0, 5.0)), ('load', (-2.707968, 0.0, 5.0)), ('load', (-2.695468, 0.0, 5.0)), ('load', (2.6829680000000002, 0.0")
+    ('multiband.trap_fan_dipole.default.free.nec', "[('feed', (0.0, 0.0, 7.0)), ('load', (-0.12, -1.88450825, 5.7253345)), ('load', (-0.12, -1.87417175, 5.7323635)), ('load', (-0.12, -1.8638352500000002, 5.739392")
+    ('multiband.trap_fan_dipole.default.somm13.nec', "[('feed', (0.0, 0.0, 7.0)), ('load', (-0.12, -1.88450825, 5.7253345)), ('load', (-0.12, -1.87417175, 5.7323635)), ('load', (-0.12, -1.8638352500000002, 5.739392")
+    ('multiband.trap_fan_dipole.refined.free.nec', "[('feed', (0.0, 0.0, 7.0)), ('load', (-0.12, -1.88450825, 5.7253345)), ('load', (-0.12, -1.87417175, 5.7323635)), ('load', (-0.12, -1.8638352500000002, 5.739392")
+    ('multiband.trap_fan_dipole.refined.somm13.nec', "[('feed', (0.0, 0.0, 7.0)), ('load', (-0.12, -1.88450825, 5.7253345)), ('load', (-0.12, -1.87417175, 5.7323635)), ('load', (-0.12, -1.8638352500000002, 5.739392")
+nec2_counts_changed: 462
+    arrays.bowtie16x1.default.free.nec
+    arrays.bowtie16x1.default.somm13.nec
+    arrays.bowtie16x1.refined.free.nec
+    arrays.bowtie16x1.refined.somm13.nec
+    arrays.bowtie4x4.default.free.nec
+    arrays.bowtie4x4.default.somm13.nec
+    arrays.bowtie4x4.refined.free.nec
+    arrays.bowtie4x4.refined.somm13.nec
+    arrays.bowtiearray.default.free.nec
+    arrays.bowtiearray.default.somm13.nec
+    arrays.bowtiearray.refined.free.nec
+    arrays.bowtiearray.refined.somm13.nec
+nec2_lane_err_changed: 0
+nec5_lane_err_changed: 0
+adv_pynec: 0
+adv_nec5: 0
+vertex_dropped: 0
+G6 dan2.nec: tuples [(20, 'feed')] at 0.475 | PyNEC counts [20] adv [] | NEC-5 ['GW 1 40 0.000000E+00 -2.418000E-01 0.000000E+00 0.000000E+00 2.418000E-01 0.000000E+00 1.000000E-04'] ['EX 0 1 19 2 1.000000E+00 0.000000E+00'] adv []

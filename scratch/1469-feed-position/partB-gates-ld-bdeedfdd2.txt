@@ -1,0 +1,31 @@
+G2': 24 decks moved beyond 1e-09; 0 outside the 28 LD decks; status changes 0
+G8 (|Z - native| / |native|, before -> after):
+    broadband.t2fd.default.free.nec: 0.4144 -> 0.03787  closer   native 1348-286.4j  after 1302-312j
+    broadband.t2fd.default.somm13.nec: 0.4119 -> 0.03781  closer   native 1326-297.3j  after 1280-321.8j
+    broadband.t2fd.refined.free.nec: 0.3795 -> 8.831e-08  closer   native 1334-310j  after 1334-310j
+    broadband.t2fd.refined.somm13.nec: 0.3772 -> 7.82e-08  closer   native 1311-320j  after 1311-320j
+    dipoles.short_dipole_loaded.default.free.nec: 0.4037 -> 0.1091  alone   native 13.78-12.42j  after 13.71-10.4j
+    dipoles.short_dipole_loaded.default.somm13.nec: 0.3847 -> 0.1011  alone   native 14.05-14.37j  after 13.98-12.34j
+    dipoles.short_dipole_loaded.refined.free.nec: 0.1769 -> 1.261e-05  alone   native 13.4+0.03978j  after 13.4+0.03961j
+    dipoles.short_dipole_loaded.refined.somm13.nec: 0.1823 -> 1.222e-05  alone   native 13.66-1.854j  after 13.66-1.854j
+    multiband.trap_dipole.default.free.nec: 0.04138 -> 0.05341  MISS   native 81.97+55.97j  after 83.09+61.15j
+    multiband.trap_dipole.default.somm13.nec: 0.04317 -> 0.0551  MISS   native 82.04+43.93j  after 83.12+48.94j
+    multiband.trap_dipole.refined.free.nec: 0.04116 -> 0.05342  MISS   native 82.17+56.12j  after 83.3+61.32j
+    multiband.trap_dipole.refined.somm13.nec: 0.04292 -> 0.0551  MISS   native 82.22+44.06j  after 83.31+49.09j
+    multiband.trap_fan_dipole.default.free.nec: 3.211 -> 0.231  closer   native 54.97-3.77j  after 66.55+1.502j
+    multiband.trap_fan_dipole.default.somm13.nec: 3.644 -> 0.2408  closer   native 48.58-1.74j  after 58.81+3.961j
+    multiband.trap_fan_dipole.refined.free.nec: 3.156 -> 0.1805  closer   native 61.38+0.1483j  after 72.19+2.617j
+    multiband.trap_fan_dipole.refined.somm13.nec: 3.573 -> 0.1835  closer   native 54.25+2.428j  after 63.79+5.302j
+    verticals.elt_whip.default.free.nec: not comparable (ok, skipped-large, skipped-large)
+    verticals.elt_whip.default.somm13.nec: not comparable (ok, skipped-large, skipped-large)
+    verticals.elt_whip.refined.free.nec: not comparable (ok, skipped-large, skipped-large)
+    verticals.elt_whip.refined.somm13.nec: not comparable (ok, skipped-large, skipped-large)
+    wire.rhombic.default.free.nec: 0.5999 -> 0.02427  closer   native 698.6-200.2j  after 688.3-214.5j
+    wire.rhombic.default.somm13.nec: 0.5926 -> 0.02377  closer   native 705.6-198.9j  after 695.6-213.2j
+    wire.rhombic.refined.free.nec: 0.5869 -> 6.08e-07  closer   native 687-213.1j  after 687-213.1j
+    wire.rhombic.refined.somm13.nec: 0.5808 -> 5.77e-07  closer   native 694.3-211.6j  after 694.3-211.6j
+    wire.terminated_longwire.default.free.nec: 0.004124 -> 7.917e-07  closer   native 589.9-3914j  after 589.9-3914j
+    wire.terminated_longwire.default.somm13.nec: 0.1014 -> 7.308e-07  closer   native 540.3-369.3j  after 540.3-369.3j
+    wire.terminated_longwire.refined.free.nec: 0.02173 -> 0.02146  closer   native 540.2-3739j  after 518.8-3661j
+    wire.terminated_longwire.refined.somm13.nec: 0.2118 -> 0.223  MISS   native 589.9-577.9j  after 628.7-757.9j
+G8: closer on 15/20 = 75 % (bar 80 %)
