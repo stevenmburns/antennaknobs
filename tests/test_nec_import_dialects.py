@@ -110,10 +110,10 @@ def test_middle_knot_source_keeps_the_wire_whole():
     assert isinstance(deck.network().ports["feed"], PortOnWire)
 
 
-def test_off_centre_interior_knot_still_splits_the_wire():
-    """Slice 1 of AK#1469 covers the middle knot only. An off-centre interior
-    knot still cuts the wire and apex-feeds the junction, the colinear-identity
-    spelling (momwire#300/#305), until a position along the wire lands."""
+def test_off_centre_interior_knot_keeps_the_wire_whole_at_its_position():
+    """AK#1469 part B: an off-centre interior knot source no longer cuts the
+    wire. It is a port at k/n along the whole wire, and each engine chooses a
+    count that puts a site of its grid there."""
     deck = parse_nec(
         _APEX_DECK.replace(
             "GW 1 16 0. 0. -2.6 0. 0. 0. 0.001\nGW 2 16 0. 0. 0. 0. 0. 2.6 0.001",
@@ -123,8 +123,10 @@ def test_off_centre_interior_knot_still_splits_the_wire():
         network=True,
     )
     tups = deck.wire_tuples()
-    assert [t[2] for t in tups] == [10, 22]
-    assert isinstance(deck.network().ports["feed"], PortAtVertex)
+    assert [(t[2], t[4] if len(t) > 4 else None) for t in tups] == [(32, "feed")]
+    port = deck.network().ports["feed"]
+    assert isinstance(port, PortOnWire)
+    assert port.at == pytest.approx(10 / 32)
 
 
 @pytest.mark.antenna_computation_check

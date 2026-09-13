@@ -466,15 +466,14 @@ def test_network_mode_translates_single_segment_ld():
     assert [(s.port, s.voltage) for s in net.sources] == [("feed", 1 + 0j)]
     assert set(net.ports) == {"feed", "load1"}
 
-    # The loaded segment becomes its own named 1-segment wire on the deck's
-    # exact boundaries; the feed keeps the whole wire? No — two marks on one
-    # wire force a split, and the fed segment gets its own named piece too.
+    # Both marks sit on one wire, which keeps its seven segments (AK#1469
+    # part B). The wire is named for the pair, and each port names its
+    # position along it.
     tups = deck.wire_tuples()
-    named = {t[4]: t for t in tups if len(t) == 5}
-    assert set(named) == {"feed", "load1"}
-    assert named["load1"][2] == 1 and named["feed"][2] == 1
+    assert [(t[2], t[4] if len(t) == 5 else None) for t in tups] == [(7, "w1")]
     assert all(t[3] is None for t in tups)  # no legacy ex markers
-    assert sum(t[2] for t in tups) == 7  # segmentation preserved
+    assert net.ports["load1"].wire == "w1"
+    assert net.ports["load1"].at == pytest.approx(1.5 / 7)
 
 
 def test_ld_parallel_and_zero_legs():

@@ -21,9 +21,12 @@ def _wires(text):
 
 
 def test_without_the_card_the_deck_still_reads_as_nec2():
+    """NEC-2 reads EX segment 10 as the centre of segment 10: a port at 19/40
+    of the whole wire (AK#1469 part B), not the wire's middle."""
     deck, wires = _wires(DAN)
     assert deck.nec5_dialect is False
-    assert wires == [(9, None), (1, "feed"), (10, None)]
+    assert wires == [(20, "feed")]
+    assert deck.network().ports["feed"].at == pytest.approx(19 / 40)
 
 
 @pytest.mark.parametrize("card", ["CM NEC-5", "CM nec-5", "CM NEC5", "cm  NEC-5  "])
@@ -33,6 +36,7 @@ def test_the_card_makes_the_centre_source_a_whole_wire(card):
     assert wires == [(20, "feed")]
     (feed,) = deck.feeds
     assert (feed.seg, feed.edge) == (10, 2)
+    assert getattr(deck.network().ports["feed"], "at", None) is None
 
 
 @pytest.mark.parametrize(
@@ -41,7 +45,7 @@ def test_the_card_makes_the_centre_source_a_whole_wire(card):
 def test_a_comment_that_only_mentions_nec5_declares_nothing(card):
     deck, wires = _wires(f"{card}\n{DAN}")
     assert deck.nec5_dialect is False
-    assert wires == [(9, None), (1, "feed"), (10, None)]
+    assert deck.network().ports["feed"].at == pytest.approx(19 / 40)
 
 
 @pytest.mark.parametrize(
@@ -60,11 +64,12 @@ def test_a_declared_deck_takes_the_manuals_full_end_rule(ex, edge):
     assert (feed.seg, feed.edge) == (10, edge)
 
 
-def test_end_1_of_segment_10_is_an_off_centre_knot_and_keeps_todays_cut():
+def test_end_1_of_segment_10_is_an_off_centre_knot_on_the_whole_wire():
     deck, wires = _wires(
         "CM NEC-5\n" + DAN.replace("EX 0 1 10 0 1 0", "EX 0 1 10 1 1 0")
     )
-    assert [n for n, _name in wires] == [9, 11]
+    assert wires == [(20, "feed")]
+    assert deck.network().ports["feed"].at == pytest.approx(9 / 20)
 
 
 def test_a_declared_decks_gn_0_is_sommerfeld():

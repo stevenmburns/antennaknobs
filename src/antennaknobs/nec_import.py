@@ -42,10 +42,13 @@ Excitation: voltage sources (EX type 0 and 5) drive an antenna in any mode;
 4nec2's EX type 6 current source (issue #442) and NEC-5's EX type 4 current
 source (issue #1243, the form EZNEC's NEC-5 export writes) drive it in
 network mode as a ``DrivenCurrent``; plane-wave excitations and NEC-2's
-type 4 (an elementary current source at a point in space) raise. The engine feeds a
-wire tuple at its middle segment, so ``NecDeck.wire_tuples`` splits a wire
-whose EX segment is off-centre into colinear pieces that preserve the
-deck's exact segment boundaries and put the feed on its own 1-segment wire.
+type 4 (an elementary current source at a point in space) raise. In network
+mode a source, load or transmission-line end is a port at its position along
+its wire (AK#1469), so the wire keeps the deck's segments. Default mode's
+engine feeds a wire tuple at its middle segment, so there
+``NecDeck.wire_tuples`` splits a wire whose EX segment is off-centre into
+colinear pieces that preserve the deck's exact segment boundaries and put the
+feed on its own 1-segment wire.
 """
 
 from __future__ import annotations
@@ -54,6 +57,7 @@ import math
 import re
 from dataclasses import dataclass, replace
 from functools import cached_property
+from itertools import pairwise
 
 from . import network as _net
 from .design_data import read_data
@@ -544,7 +548,7 @@ class NecDeck:
         single = len(self.feeds) == 1
         for k, f in enumerate(self.feeds, 1):
             if f.edge:
-                continue  # knot sources live in _vertex_plan (#824)
+                continue  # knot sources: _vertex_plan (#824) or _site_plan
             key = (f.wire, f.seg)
             if key in plan:
                 raise ValueError(
@@ -563,42 +567,113 @@ class NecDeck:
         return plan
 
     @cached_property
-    def _middle_knot_plan(self) -> dict[int, str]:
-        """wire index → port name for a NEC-5 voltage edge source at a wire's
-        MIDDLE knot, on a wire that carries no other claim (AK#1469).
+    def _vertex_wires(self) -> frozenset[int]:
+        """Wires that keep the #824 cut and the PortAtVertex spelling (AK#1469
+        part B).
 
-        That source is antennaknobs' standard middle-of-wire feed, so the wire
-        stays whole and carries a `PortOnWire`. NEC5Engine writes it back as
-        `EX tag n/2 2`, the other engines feed the wire's middle their own way,
-        and no piece is cut. NEC5Engine's own centre feeds ARE this spelling,
-        so every catalog-nec5 deck round-trips wire for wire (AC6LA,
-        2026-09-13). Everything else keeps the #824 cut in `_vertex_plan`: an
-        off-centre knot, a wire end, a second claim on the wire, a junction
-        cut, a virtual anchor, or an EX 4 current source.
+        A knot source at a wire END (knot 0 or n_seg), an EX 4 current source,
+        and a knot source on a junction cut all need a wire end to feed. The
+        engines refuse a wire referenced by both a gap port and a vertex port,
+        so every attachment on such a wire keeps today's cut spelling. Every
+        other wire keeps its authored segments and carries its attachments as
+        positioned ports (`_site_plan`).
         """
         if not self.network_mode:
-            return {}
-        claimed = {wi for (wi, _seg) in self._port_plan}
-        edges_on: dict[int, int] = {}
+            return frozenset()
+        out = set()
         for f in self.feeds:
-            if f.edge:
-                edges_on[f.wire] = edges_on.get(f.wire, 0) + 1
-        plan: dict[int, str] = {}
-        single = len(self.feeds) == 1
-        for k, f in enumerate(self.feeds, 1):
-            if not f.edge or f.current:
+            if not f.edge:
                 continue
             n = self.wires[f.wire].n_seg
             knot = f.seg - 1 if f.edge == 1 else f.seg
             if (
-                2 * knot == n
-                and edges_on[f.wire] == 1
-                and f.wire not in claimed
-                and not self._junction_cuts.get(f.wire)
-                and f.wire not in self.virtual_anchors
+                f.current
+                or knot in (0, n)
+                or knot in self._junction_cuts.get(f.wire, frozenset())
+                or f.wire in self.virtual_anchors
             ):
-                plan[f.wire] = "feed" if single else f"feed{k}"
+                out.add(f.wire)
+        return frozenset(out)
+
+    @cached_property
+    def _site_plan(self) -> dict[int, dict]:
+        """wire index -> the positioned spelling of its attachments (AK#1469
+        part B): ``{"pieces": [(first knot, last knot, name or None)],
+        "ports": {port name: (piece name, at)}}``.
+
+        The wire is cut only where another wire touches it (`_junction_cuts`).
+        An attachment at segment k of an n-segment piece sits at
+        ``(k - 1/2) / n``, and an interior voltage knot source at knot k at
+        ``k / n``. The exact middle is None, so a wire whose one port sits at
+        its middle imports as it always did. A piece carrying one port is named
+        after it; a piece carrying several is named ``w<tag>`` (``w<tag>.<i>``
+        when junction cuts split the wire). Wires in `_vertex_wires` and
+        virtual anchors are absent.
+        """
+        if not self.network_mode:
+            return {}
+        single = len(self.feeds) == 1
+        claims: dict[int, list[tuple[str, str, int]]] = {}
+        for (wi, seg), pname in self._port_plan.items():
+            if wi in self.virtual_anchors or wi in self._vertex_wires:
+                continue
+            claims.setdefault(wi, []).append((pname, "seg", seg))
+        for k, f in enumerate(self.feeds, 1):
+            if not f.edge or f.wire in self._vertex_wires:
+                continue
+            knot = f.seg - 1 if f.edge == 1 else f.seg
+            claims.setdefault(f.wire, []).append(
+                ("feed" if single else f"feed{k}", "knot", knot)
+            )
+        plan: dict[int, dict] = {}
+        for wi, items in claims.items():
+            n = self.wires[wi].n_seg
+            bounds = [0, *sorted(self._junction_cuts.get(wi, frozenset())), n]
+            pieces = list(pairwise(bounds))
+            placed: dict = {}
+            for pname, kind, idx in items:
+                if kind == "seg":
+                    j = next(j for j, (a, b) in enumerate(pieces) if a < idx <= b)
+                    a, b = pieces[j]
+                    c, local = b - a, idx - a
+                    at = (
+                        None
+                        if (c % 2 == 1 and 2 * local == c + 1)
+                        else (local - 0.5) / c
+                    )
+                else:
+                    j = next(j for j, (a, b) in enumerate(pieces) if a < idx < b)
+                    a, b = pieces[j]
+                    c, local = b - a, idx - a
+                    at = None if 2 * local == c else local / c
+                placed[pname] = (j, at)
+            on_piece: dict[int, list[str]] = {}
+            for pname, (j, _at) in placed.items():
+                on_piece.setdefault(j, []).append(pname)
+            multi = len(pieces) > 1
+
+            def piece_name(j, on_piece=on_piece, multi=multi, wi=wi):
+                names = on_piece.get(j)
+                if not names:
+                    return None
+                if len(names) == 1:
+                    return names[0]
+                return f"w{wi + 1}.{j + 1}" if multi else f"w{wi + 1}"
+
+            plan[wi] = {
+                "pieces": [(a, b, piece_name(j)) for j, (a, b) in enumerate(pieces)],
+                "ports": {p: (piece_name(j), at) for p, (j, at) in placed.items()},
+            }
         return plan
+
+    def _site_port(self, wi: int, pname: str):
+        """The PortOnWire for a positioned attachment (`_site_plan`). A port at
+        its own piece's middle is written plainly, so it also builds on a
+        momwire without the position fields (0.54.0)."""
+        piece, at = self._site_plan[wi]["ports"][pname]
+        if piece == pname and at is None:
+            return _net.PortOnWire(pname)
+        return _net.PortOnWire(pname, wire=None if piece == pname else piece, at=at)
 
     @cached_property
     def _vertex_plan(self) -> dict[tuple[int, int], tuple[str, str]]:
@@ -610,9 +685,8 @@ class NecDeck:
         piece ENDING there ("p1"); knot 0 is the whole piece's "p0"."""
         plan: dict[tuple[int, int], tuple[str, str]] = {}
         single = len(self.feeds) == 1
-        middle = self._middle_knot_plan
         for k, f in enumerate(self.feeds, 1):
-            if not f.edge or f.wire in middle:
+            if not f.edge or f.wire not in self._vertex_wires:
                 continue
             knot = f.seg - 1 if f.edge == 1 else f.seg
             key = (f.wire, knot)
@@ -685,16 +759,18 @@ class NecDeck:
         (every wire carries its spec) — though a design may still define
         one for the weight readout of spec-less wires it adds itself.
 
-        Wires are split into colinear pieces on the deck's exact segment
-        boundaries in two situations: a marked (fed / port) segment that is
-        not the wire's middle segment gets isolated on its own 1-segment
-        wire so the delta gap lands exactly where the deck put it, and any
-        boundary another wire touches is cut so the crossing becomes a
-        wire-end junction (``_junction_cuts`` — NEC connects segment ends
-        regardless of wire grouping; the engines junction wire ends only).
-        Same geometry, same segmentation, same electrical graph as a NEC
-        run of the original deck. A wire with no cuts whose only mark sits
-        at the middle segment of an odd count stays whole.
+        Any boundary another wire touches is cut, so the crossing becomes a
+        wire-end junction (``_junction_cuts``: NEC connects segment ends
+        regardless of wire grouping, and the engines junction wire ends only).
+        In network mode that is the only cut on most wires: each attachment is
+        a port positioned along its wire (`_site_plan`, AK#1469), and each
+        engine chooses a count that puts the port on its grid. A wire with a
+        wire-end knot source, an EX 4 current source or a knot source on a
+        junction cut keeps the older spelling (`_vertex_wires`). There, and in
+        default mode, a marked segment that is not the wire's middle segment is
+        isolated on its own 1-segment wire so the delta gap lands exactly where
+        the deck put it, and a claimed interior knot cuts the wire. Either way
+        the geometry, segmentation and electrical graph are the deck's own.
         """
         if not self.feeds:
             raise ValueError(
@@ -766,11 +842,26 @@ class NecDeck:
             }
             n = w.n_seg
             spec = spec_for(i, w)
-            middle_name = self._middle_knot_plan.get(i)
-            if middle_name is not None:
-                # AK#1469: a middle knot source is the standard middle-of-wire
-                # feed. The wire stays whole and carries the port name.
-                emit(w.p1, w.p2, n, None, middle_name, spec)
+            site = self._site_plan.get(i)
+            if site is not None:
+                # AK#1469 part B: the wire keeps its authored segments, cut
+                # only where another wire touches it, and each attachment is a
+                # port at its position on its piece (`_site_plan`).
+                if len(site["pieces"]) == 1:
+                    emit(w.p1, w.p2, n, None, site["pieces"][0][2], spec)
+                else:
+                    for a, b, name in site["pieces"]:
+                        # The same expression as `point()` and
+                        # `_junction_cuts`, so adjoining pieces meet bitwise.
+                        p_a = tuple(
+                            x + (y - x) * (a / n)
+                            for x, y in zip(w.p1, w.p2, strict=True)
+                        )
+                        p_b = tuple(
+                            x + (y - x) * (b / n)
+                            for x, y in zip(w.p1, w.p2, strict=True)
+                        )
+                        emit(p_a, p_b, b - a, None, name, spec)
                 continue
             if not per and not cutset and not vper:
                 emit(w.p1, w.p2, n, None, spec=spec)
@@ -847,6 +938,8 @@ class NecDeck:
             pname: (
                 _net.PortVirtual(pname)
                 if wi in self.virtual_anchors
+                else self._site_port(wi, pname)
+                if wi in self._site_plan
                 else _net.PortOnWire(pname)
             )
             for (wi, _seg), pname in plan.items()
@@ -857,9 +950,11 @@ class NecDeck:
         # convention).
         for (_wi, _knot), (pname, end) in self._vertex_plan.items():
             ports[pname] = _net.PortAtVertex(pname, end=end)
-        # A middle knot source is a plain middle-of-wire port (AK#1469).
-        for pname in self._middle_knot_plan.values():
-            ports[pname] = _net.PortOnWire(pname)
+        # Knot sources positioned along their wire (AK#1469 part B).
+        for wi, site in self._site_plan.items():
+            for pname in site["ports"]:
+                if pname not in ports:
+                    ports[pname] = self._site_port(wi, pname)
         branches: list = []
         for ld in self.loads:
             branches.append(
@@ -904,19 +999,21 @@ class NecDeck:
             if nt.shunt_r_b is not None:
                 branches.append(_net.Shunt(port=b, r=nt.shunt_r_b))
 
-        def feed_port(f):
-            if f.edge and f.wire in self._middle_knot_plan:
-                return self._middle_knot_plan[f.wire]
+        single = len(self.feeds) == 1
+
+        def feed_port(k, f):
             if f.edge:
                 knot = f.seg - 1 if f.edge == 1 else f.seg
-                return self._vertex_plan[(f.wire, knot)][0]
+                if (f.wire, knot) in self._vertex_plan:
+                    return self._vertex_plan[(f.wire, knot)][0]
+                return "feed" if single else f"feed{k}"
             return plan[(f.wire, f.seg)]
 
         sources = [
-            _net.DrivenCurrent(port=feed_port(f), current=f.voltage)
+            _net.DrivenCurrent(port=feed_port(k, f), current=f.voltage)
             if f.current
-            else _net.Driven(port=feed_port(f), voltage=f.voltage)
-            for f in self.feeds
+            else _net.Driven(port=feed_port(k, f), voltage=f.voltage)
+            for k, f in enumerate(self.feeds, 1)
         ]
         return _net.Network(ports=ports, branches=branches, sources=sources)
 

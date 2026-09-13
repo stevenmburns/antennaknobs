@@ -62,33 +62,29 @@ def _momwire_z(builder):
 
 def test_imported_ld_matches_hand_built_load():
     # A 10 m dipole on 10 segments, fed at segment 5, series coil at
-    # segment 8 — both marks off-middle, so both split.
+    # segment 8: both marks off-middle, so both are positioned ports on the
+    # one wire (AK#1469 part B).
     deck = parse_nec(
         "GW 1 10 0 -5 10 0 5 10 0.001\nGE\nEX 0 1 5 0 1 0\nLD 0 1 8 8 0 2e-6 0\nEN\n",
         network=True,
     )
 
     class Hand(AntennaBuilder):
-        """The same geometry and network authored the catalog way: the fed
-        and loaded segments as named 1-segment wires on the deck's own
-        1 m boundaries."""
+        """The same geometry and network authored by hand: one 10-segment
+        wire carrying both ports at their positions, the centres of segments 5
+        and 8 (AK#1469 part B)."""
 
         default_params = {"freq": FREQ}
 
         def build_wires(self):
-            y = lambda k: float(-5 + k)  # noqa: E731 — segment boundary k
-            seg = lambda a, b, n: ((0.0, y(a), 10.0), (0.0, y(b), 10.0), n)  # noqa: E731
-            return [
-                seg(0, 4, 4) + (None,),
-                seg(4, 5, 1) + (None, "feed"),
-                seg(5, 7, 2) + (None,),
-                seg(7, 8, 1) + (None, "load1"),
-                seg(8, 10, 2) + (None,),
-            ]
+            return [((0.0, -5.0, 10.0), (0.0, 5.0, 10.0), 10, None, "w1")]
 
         def build_network(self):
             return Network(
-                ports={"feed": PortOnWire("feed"), "load1": PortOnWire("load1")},
+                ports={
+                    "feed": PortOnWire("feed", wire="w1", at=0.45),
+                    "load1": PortOnWire("load1", wire="w1", at=0.75),
+                },
                 branches=[Load(port="load1", l=2e-6)],
                 sources=[Driven(port="feed", voltage=1 + 0j)],
             )
