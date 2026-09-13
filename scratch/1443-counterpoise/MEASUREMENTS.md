@@ -306,3 +306,66 @@ with a segment count one away from NEC-5's.
 Competing outcome, registered with them: \|ΔG\| holding at 4–5 % on both
 radiators at 84, with the two agreeing, is a converged G difference not carried
 by the mesh. Then the plan's transmitted-grid probes are next.
+
+### Step 3 measured
+
+`step3_farmesh.py`, `step3_stock.json` / `step3_graded.json`. Source at F = 4
+(momwire odd port, off-knot and one segment away from NEC-5, both asserted).
+Fractions are (NEC-5 − momwire) / max.
+
+`stock` radiator:
+
+| nominal_nsegs | segs momwire / NEC-5 | momwire Z | NEC-5 Z | ΔR/max\|R\| | ΔG/max\|G\| | ΔB/max\|B\| | \|ΔZ\|/max\|Z\| |
+|---|---|---|---|---|---|---|---|
+| 21 | 246 / 245 | 26.6891 − 56641.5j | 27.677 − 56539j | +3.57 % | +3.92 % | +0.18 % | 0.18 % |
+| 42 | 479 / 478 | 26.5698 − 56606.4j | 26.580 − 56497j | +0.04 % | +0.42 % | +0.19 % | 0.19 % |
+| 84 | 953 / 952 | 26.5225 − 56585.4j | 25.852 − 56450j | -2.53 % | -2.06 % | +0.24 % | 0.24 % |
+
+`graded` radiator:
+
+| nominal_nsegs | segs momwire / NEC-5 | momwire Z | NEC-5 Z | ΔR/max\|R\| | ΔG/max\|G\| | ΔB/max\|B\| | \|ΔZ\|/max\|Z\| |
+|---|---|---|---|---|---|---|---|
+| 21 | 261 / 260 | 26.4982 − 56574.6j | 25.231 − 56390j | -4.78 % | -4.16 % | +0.33 % | 0.33 % |
+| 42 | 492 / 491 | 26.5015 − 56574.5j | 25.277 − 56389j | -4.62 % | -3.99 % | +0.33 % | 0.33 % |
+| 84 | 964 / 963 | 26.5039 − 56574.5j | 25.296 − 56389j | -4.56 % | -3.93 % | +0.33 % | 0.33 % |
+
+| id | verdict |
+|---|---|
+| P3.1 | **HIT** — ΔB +0.18, +0.19, +0.24 % (stock) and +0.33, +0.33, +0.33 % (graded) |
+| P3.2 | **MISSED** — \|ΔG\| at nominal_nsegs 84 is 2.06 % (stock) and 3.93 % (graded), bar < 2 % |
+| P3.3 | **MISSED** — the two radiators' G fractions at 84 are 1.87 pp apart, bar 1 pp |
+
+**What the ladder shows, as observations:**
+
+- **On the graded radiator both engines are converged in the far mesh.**
+  momwire's R reads 26.4982, 26.5015, 26.5039 and NEC-5's 25.231, 25.277, 25.296; both
+  X settle to the ohm. Here, with a matched-size source, **the engines agree on
+  Z to 0.33 % and on B to 0.33 %, and differ in G by -3.93 %** (R -4.56 %).
+- **On the stock radiator NEC-5 is not converged in the far mesh; momwire nearly
+  is.** NEC-5's R reads 27.677, 26.580, 25.852 as the 500 → 125 mm segments shrink beside a
+  6.25 mm source; momwire's reads 26.6891, 26.5698, 26.5225. The stock G fraction crosses
+  zero (+3.92, +0.42, -2.06 %). The near-agreement at nominal_nsegs 42 is NEC-5
+  passing through momwire's value, not a match. NEC-5's answer here depends on
+  the step in segment length at the junction beside the source; momwire's
+  hardly does.
+- **The census comparison stacks three things:** the fed segment's size
+  (B, P2.5); NEC-5's sensitivity to the segment-length step beside the source
+  (this step); and a near-open driving point that turns a 16 % difference in B
+  into 31 % in R. On a clean mesh what is left is a ~4 % difference in G.
+
+### P3.4 — the G residual along the source axis, on the clean mesh (registered before the run)
+
+The graded radiator at nominal_nsegs 42 (far-mesh converged, step 3), with the
+source at F = 4 / 6 / 8 / 12: NEC-5's fed wire 2F segments at the knot, momwire's
+odd port at 2F + 1, mid-segment. F stops at 12: the fed segments are then about
+2 mm, Δ/a ≈ 4, above the Δ/a < 3 regime momwire#1048 found carrying part of
+#1027's disagreement.
+
+| id | prediction | verdict |
+|---|---|---|
+| P3.4a | **blind**: \|ΔG/max\|G\|\| decreases monotonically with F and is below 2.5 % at F = 12 | pending |
+| P3.4b | **informed** (P2.5, P3.1): \|ΔB/max\|B\|\| stays below 0.5 % at every F | pending |
+
+Competing outcome, registered with them: \|ΔG\| holding near 4 % across F is
+a converged G difference on a clean mesh with a matched-size source. That is
+what the plan's transmitted-grid probes are for, and they come next.
