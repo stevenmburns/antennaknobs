@@ -8,35 +8,28 @@ Registered before any source change (2026-09-13, Laptop-builder). Branch `feat/1
 - **The escape hatch is a position along the wire,** an arclength fraction `at`. Engines report any offset between the requested and placed point, and nothing moves silently.
 - **Don't cut wires, and don't rejoin them afterwards either.**
 
-## Scope of slice 1
-A NEC-5 knot source (EX with I4 = 2, a negative segment, or EX 4) at an INTERIOR knot k of a wire with n segments imports as a feed on the WHOLE authored wire at fraction k/n.
-- **Middle knot (k/n = 1/2):** a named whole wire + `PortOnWire`, today's middle-of-wire feed, with no new field. This covers every AC6LA catalog deck, since NEC5Engine writes centre feeds as knot sources.
-- **Off-centre knot:** a named whole wire carrying `Wire.at = k/n` + `PortOnWire`.
-- **Falls back to today's cut + `PortAtVertex`** when any of these holds:
-  - more than one claim on the wire (two sources, or a source plus an `LD`/`TL`/`NT` mark);
-  - a junction boundary at that knot (a T-junction knot is a real vertex port);
+## Scope of slice 1 (revised before any source change, same day)
+The corpus sets the order. 472 of the 476 catalog-nec5 decks carry a MIDDLE knot source: NEC5Engine writes every centre feed as `EX tag n/2 2`. The other 4 source at knot 0, a wire end. The raw corpus has no NEC-5 edge sources at all, so no corpus deck carries an off-centre interior knot. `Wire.at` is therefore deferred to slice 2, where off-centre NEC-2 segment feeds (the #872 cuts, which ARE common) need it anyway. Adding the field once, for both, is less churn than adding it twice.
+
+Slice 1 is therefore:
+- **A middle voltage knot source** (interior knot k = n/2) on a wire with no other claim imports as the WHOLE named wire + `PortOnWire`, today's standard middle-of-wire feed. No new field. Every catalog-nec5 deck and AC6LA's deck take this path. It falls back to today's cut + `PortAtVertex` when any of these holds:
+  - more than one claim on the wire (a second source, or an `LD`/`TL`/`NT` mark);
+  - a junction boundary on the wire (`_junction_cuts`);
   - a virtual anchor;
-  - a knot at 0 or n (a wire end).
-
-## Per-engine placement of `at = p/q` (lowest terms)
-| engine | legal point | count rule | slice 1 |
-|---|---|---|---|
-| NEC-5 | knot | N a multiple of q (the middle, q = 2, is today's even rule) | `EX tag p·N/q 2` on the whole wire |
-| momwire bspline d=2, sinusoidal-Galerkin (point feed) | any arclength | none needed; avoid N with the feed exactly on a knot for d=2 (#449 C1) | feed arclength = at·L, flipped to (1 − at)·L when the walk runs the wire backwards |
-| momwire razor, bspline d=1 | knot | N a multiple of q | same |
-| momwire sinusoidal, pulse, harrington; PyNEC; NEC-2 | segment centre | the middle is today's odd rule | off-centre `at` REFUSED BY NAME (slice 2 adds the count rule and its advisory) |
-
-Exports (`nec_export`, `nec5_export`, `simnec_export`) inherit each engine's placement, and refusals stay by name. The web feed marker comes from the placed point on every lane.
+  - an EX 4 current source (kept on the proven path until an engine check covers `DrivenCurrent` on `PortOnWire`).
+- **The feed marker sits at the true source point on every lane:**
+  - a `PortOnWire` marker at the named wire's physical middle (the NEC-5 lane drew it at the middle SEGMENT's centre, half a segment off on an even count);
+  - a `PortAtVertex` marker at its knot (the NEC-5 lane drew it at the piece's middle; the momwire lane drew none).
+- **Unchanged in slice 1:** off-centre interior knots and knots 0/n keep today's cut + `PortAtVertex`. `Wire.at` and its per-engine placement rules are slice 2.
 
 ## Gates (registered predictions)
-- **G1, AC6LA round trip.** `dipoles.invvee.default.somm13.nec` imports as 3 wires, with GW 3 whole at 2 segments carrying `PortOnWire('feed')` at the middle. The NEC-5 engine deck writes `GW 3 2 …` and `EX 0 3 1 2`, with no GW 4.
-- **G2, off-centre knot.** `GW 1 11 …` with `EX 4 1 6 1` (knot 5 of 11) imports as ONE wire with `at = 5/11`. The NEC-5 deck keeps 11 segments and addresses knot 5, as segment 5 end 2 or an equivalent address.
-- **G3, NEC-5 impedance, same geometry.** Printed Z identical to 5 significant figures on AC6LA's deck between today's split spelling and the whole-wire spelling (NEC-5 x13 on this laptop).
-- **G4, marker.** The NEC-5 and momwire lanes put AC6LA's feed marker at (0, 0, 7.000) ± 1e-9 m. Today NEC-5 is 2.5 cm off and momwire draws no marker.
-- **G5, refusals.** An off-centre `at` refuses by name on PyNEC, NEC-2 and the sinusoidal, pulse and harrington solvers. A middle feed is served everywhere it is today.
-- **G6, U2 refinement.** `NecDeck.refined(r)` keeps `at` (k·r/(n·r) = k/n), and `test_a_knot_source_keeps_its_knot` passes unchanged.
-- **G7, momwire impedance before/after** on the catalog-nec5 decks that serve both before and after (bspline default). Prediction: |ΔZ|/|Z| ≤ 1e-3 on every deck, because today's C0 node-gap spelling and a C1 whole-wire gap differ only in the feed spelling (probe3b measured ~0.015 Ω on soil, #449). A deck above the bound is a finding to report, not a failure to hide.
-- **G8, no regression.** The full fast lane (`pytest`), vitest, ruff and tsc stay green. The expected test change: `test_nec_import_dialects.py::test_interior_knot_splits_the_wire` becomes "keeps the wire whole".
+- **G1, AC6LA round trip.** `dipoles.invvee.default.somm13.nec` imports as 3 wires, with GW 3 whole at 2 segments carrying `PortOnWire('feed')`. The NEC-5 engine deck writes `GW 3 2 …` and `EX 0 3 1 2`, with no GW 4.
+- **G2, fallbacks unchanged.** An off-centre interior knot (`GW 1 11 …` with `EX 4 1 6 1`, knot 5 of 11) still imports as two pieces + `PortAtVertex`. So does a middle knot on a wire that carries a second claim.
+- **G3, NEC-5 impedance.** Printed Z on AC6LA's deck identical to 5 significant figures between today's split spelling and the whole-wire spelling (NEC-5 x13, laptop).
+- **G4, marker.** AC6LA's feed marker lands at (0, 0, 7.000) ± 1e-9 m on the NEC-5 and momwire lanes. A `PortAtVertex` fallback's marker lands on its knot on both lanes.
+- **G5, refinement.** `NecDeck.refined(r)` keeps a middle knot in the middle (k·r of n·r), and `test_a_knot_source_keeps_its_knot` (off-centre knots, the fallback) passes unchanged.
+- **G6, momwire impedance before/after** on the catalog-nec5 decks that serve both before and after (bspline default). Prediction: |ΔZ|/|Z| <= 1e-3 on every such deck. The whole-wire spelling changes the fed wire's count (odd coercion) and swaps a C0 node gap for a C1 mid-segment gap; probe3b measured the spelling at ~0.015 Ω on soil (#449). A deck above the bound is a finding to report, not a failure to hide.
+- **G7, no regression.** The fast lane (`pytest`), vitest, ruff and tsc stay green. Expected test changes: `test_nec_import_dialects.py::test_interior_knot_splits_the_wire` for a middle knot, plus new G1/G2/G4 tests.
 
 ## Known behaviour change, stated up front
-Importing a middle knot as a middle-of-wire feed means PyNEC and NEC-2 now SERVE centre-knot NEC-5 decks they refused before, with the count coerced to odd. That is the standard feed, and it follows the decision. AK#1456 (per-engine fed-wire parity) applies to these decks exactly as it does to every catalog middle feed.
+Importing a middle knot as a middle-of-wire feed means PyNEC and NEC-2 now SERVE middle-knot NEC-5 decks they refused before, with the count coerced to odd. That is the standard feed, and it follows the decision. AK#1456 (per-engine fed-wire parity) applies to these decks exactly as it does to every catalog middle feed.
