@@ -57,19 +57,34 @@ Richardson step sequence. Every unit below wants a ladder on a corpus deck;
 today only Builders have one. **2–3 days** (Skylake). Gate: reproduces the
 #956 rod ladder's numbers when pointed at the exported rod decks.
 
-### U3 — serve `GE −1` (6 decks)
+### U3 — serve `GE −1` crossing decks (6 decks)
 
-NEC's `GE −1` is a ground plane with **no** current interpolation at a contact
-end: the wire ends *at* the plane rather than continuing into its image (the
-#151 continuation model is `GE 1`). momwire serves only the interpolated form.
-This is momwire#865 ("wire IN the ground plane — the z = 0 limit of the buried
-family") and #597 ("solvers still disagree about a lone wire end resting in
-the ground plane") under one name. First a 20-minute measurement: NEC-5's own
-print on the six decks under `GE −1` and under `GE 1` — if the engine reads
-them the same, the unit is a translation (`GE −1` → served as `GE 1` with a
-note); if not, it is the z → 0⁻ limit of the buried family as an end
-condition, derived against the #524 phase-0 kit and gated on the six decks
-through U2's ladder. **1 day if the former, 3–5 days if the latter.**
+Measured 2026-09-13, before any code, with the licensed x13 build: NEC-5 does
+**not** read the six decks the same under `GE −1` and `GE 1`. The impedances
+differ by 4.8–35 %. Its user manual makes `GE −1` the flag for buried or
+interface-crossing wires and says `GE 1` cannot be used with them. So a
+`GE −1` → `GE 1` translation would be wrong, and the six decks are correctly
+spelled. (The #1441 census table had published their NEC-5 values under the
+`GE 1` rewrite; its data file kept both, and the table is being corrected.)
+
+What momwire refuses is narrower than this unit first assumed. Its NEC-2
+reader (momwire#489) refuses `GE −1` whenever any wire end stands in the ground
+plane under a ground. In NEC-2 such an end is a free contact whose current goes
+to zero, which momwire's contact model does not implement. The check does not
+tell a free end from a **crossing junction**, where a wire above and a wire below
+meet at z = 0. Every z = 0 node in all six decks is such a junction, with no
+free ends. At a junction, `GE −1`'s unmodified current expansion is what
+momwire's crossing serve already does.
+
+So the unit is: exempt crossing junctions from the #489 refusal, and keep
+refusing free in-plane ends. The free end under `GE −1` (momwire#865 / #597)
+stays unserved and is not part of this unit. **Gate:** a `GE −1` crossing deck
+solves bit-identically to its `GE 1` twin; #489's grounded quarter-wave free-end
+refusal still fires; and the six decks then stop at their declared scope
+limits (U4, U5, U8) instead of at the flag. The antennaknobs importer drops the
+GE sign altogether, which is its own fix (#1460). Not verified: that NEC-4.2,
+the source of the Cebik decks, gives `GE −1` the same buried-wire meaning as
+NEC-5. **About 1 day.**
 
 ### U4 — the below/below range (3 decks)
 
@@ -155,7 +170,7 @@ current #1341 note (0.46 dB) says it should.
 |---|---|---|---|
 | 1 | U1 translator | 0.5 | provenance on 930 census rows |
 | 2 | U2 refine path | 2–3 | ladders on corpus decks for everything below |
-| 3 | U3 GE −1 | 1–5 | 6 decks (with U4/U5) |
+| 3 | U3 GE −1 crossing | ~1 | 6 decks reach their real limits (U4/U5/U8) |
 | 4 | U4 below range | 2–4 | 3 decks |
 | 5 | U5 mixed radii | 5–10 | 4 decks; thin radials on a fat mast |
 | 6 | U6 counterpoise | 2–3 (+fix) | 1 design's published number |
