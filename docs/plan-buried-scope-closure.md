@@ -7,6 +7,20 @@ inside the crossing serve's scope**: eight corpus decks have a wire below the
 plane, momwire refuses all eight, NEC-5 solves all eight. The refusals are the
 map of what is left. This plan orders them.
 
+**Progress, 2026-09-13.**
+
+| unit | state |
+|---|---|
+| U1 translator | done: corpus tool 1.10 (AK#1453), and the census page re-rendered on 1.11 (AK#1467) |
+| U2 refine path | done: `NecDeck.refined(r)` and `antennaknobs ladder` (AK#1457) |
+| U3 `GE −1` crossing | done: momwire#1052 |
+| U4 below range | open: momwire#1058 serves the remainder past the cap as zero, and its caveat awaits a decision; records in momwire#1057 |
+| U5 mixed radii | done: two-radius crossing, momwire#1050 |
+| U6 counterpoise | closed: AK#1443's verdict, with follow-ups AK#1455 and AK#1456 |
+| U7 buried rod | closed: momwire#1027, not a physical disagreement; the two engines converge toward the same R along two axes, at different rates |
+| U8 far field | not started (momwire#570) |
+| U9 several crossing nodes | a second node is refused by name (momwire#1054); the engine's pre-flight asks the fill's own verdict (momwire#1055, AK#1464 step 3); serving several nodes not started |
+
 Ground rules carried from the #956 arc, which are what made it converge:
 
 - Every unit registers its prediction before the run and reports the miss if
