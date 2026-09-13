@@ -33,3 +33,14 @@ Slice 1 is therefore:
 
 ## Known behaviour change, stated up front
 Importing a middle knot as a middle-of-wire feed means PyNEC and NEC-2 now SERVE middle-knot NEC-5 decks they refused before, with the count coerced to odd. That is the standard feed, and it follows the decision. AK#1456 (per-engine fed-wire parity) applies to these decks exactly as it does to every catalog middle feed.
+
+## Outcome (2026-09-13)
+- **Hit:** G1, G2, G4, G5. They are pinned in `tests/test_middle_knot_source_1469.py`.
+- **G3 hit.** AC6LA's deck prints 48.497 − j11.378 on NEC-5 x13 before and after, and GW 3 goes out whole.
+- **G6 MISSED as registered.** 284 of the 466 decks served on both runs move by more than 1e-3. The change scales with the feed impedance: median 7.0e-4 below 100 Ω, 1.5e-3 at 100–300, 4.8e-3 at 300–1000, 2.6e-2 above 1 kΩ, and a worst case of 0.110. AC6LA's invvee decks move 0.034–0.043 Ω. `buried_radial_vertical` on somm13 goes from refused (the cut made an above-side junction) to served at 78.14 + j46.33.
+- **Follow-up (post hoc, NOT registered before the run):** which spelling lands closer to the catalog design solved directly? The reference is `native_reference.py`, which builds each design the way the export does. The whole-wire spelling is closer on 112 of 118 decks:
+  - |Z| < 300 Ω: 70 of 70, median distance 2.3e-3 → 2.3e-4;
+  - |Z| ≥ 300 Ω: 42 of 48, median 3.1e-2 → 6.6e-3.
+  So G6's bound was wrong in kind: today's cut spelling was itself further from the design than the bound, and slice 1 moves imports TOWARD the design.
+- **Separate finding, not slice 1's:** `wire.rhombic` (~59 %) and `broadband.t2fd` (~38 %) sit far from the native design in BOTH spellings, so the catalog round trip loses something on those two terminated designs.
+- **G7:** CI green on the draft PR (build, frontend, ruff, wheel lanes).
