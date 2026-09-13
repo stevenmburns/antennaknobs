@@ -1,0 +1,17 @@
+=== pass 1: x13 (08:27:39) ===
+
+report: /home/smburns/nec5-timing/check-x13-p1.jsonl
+    pass 1 wall 2326 s
+=== pass 2: 3b75639 (09:06:25) ===
+
+report: /home/smburns/nec5-timing/check-3b75639-p2.jsonl
+    pass 2 wall 1187 s
+=== pass 3: 3b75639 (09:26:12) ===
+
+report: /home/smburns/nec5-timing/check-3b75639-p3.jsonl
+    pass 3 wall 1188 s
+=== pass 4: x13 (09:46:00) ===
+
+report: /home/smburns/nec5-timing/check-x13-p4.jsonl
+    pass 4 wall 2328 s
+BRACKETDONE 10:24:48
