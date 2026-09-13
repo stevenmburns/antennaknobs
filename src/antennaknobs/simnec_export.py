@@ -110,6 +110,7 @@ from xml.sax.saxutils import escape as _xml_escape
 
 from .engines.pynec import DEFAULT_GROUND, PyNECEngine
 from .nec_export import _gw, _num, export_nec
+from .wire_catalog import gap_segment, port_at, port_wire
 from .network import (
     TL,
     Admittance,
@@ -571,25 +572,33 @@ def _station_cards(eng, feed_port: str, deck_loads, freq_mhz: float):
     ports, FR, and an EX delta gap at the station's feed port (which the
     portal wires to the block's circuit port — the cascade attaches there).
     Same canonical GW → LD → FR → EX grouping as the antenna-only path."""
-    name_to_loc: dict[str, tuple[int, int]] = {}
+    wire_loc: dict[str, tuple[int, int]] = {}
+    net = getattr(eng, "_network", None)
+
+    def loc(port_name):
+        # PyNEC's delta-gap placement (pynec.py): the segment `at` names on the
+        # port's own wire, the middle segment when it names none (AK#1469).
+        port = net.ports.get(port_name) if net is not None else None
+        wire = port_wire(port) if isinstance(port, PortOnWire) else port_name
+        tag, n_seg = wire_loc[wire]
+        return tag, gap_segment(n_seg, port_at(port))
+
     geom: list[str] = []
     for tag, t in enumerate(eng.tups, start=1):
         geom.append(_gw(tag, t[2], t[0], t[1], eng._radius_for(t)))
         w = as_wire(t)
         if w.name is not None:
-            # PyNEC's delta-gap placement for a named wire (pynec.py):
-            # the middle segment.
-            name_to_loc[w.name] = (tag, (t[2] + 1) // 2)
+            wire_loc[w.name] = (tag, t[2])
     for br in deck_loads:
         r = float(br.r) if br.r is not None else 0.0
         l = float(br.l) if br.l is not None else 0.0
         c = float(br.c) if br.c is not None else 0.0
         if r == 0.0 and l == 0.0 and c == 0.0:
             continue
-        tag, seg = name_to_loc[br.port]
+        tag, seg = loc(br.port)
         ldtyp = 1 if br.parallel else 0
         geom.append(f"LD {ldtyp} {tag} {seg} {seg} {_num(r)} {_num(l)} {_num(c)}")
-    tag, seg = name_to_loc[feed_port]
+    tag, seg = loc(feed_port)
     return geom + [
         f"FR 0 1 0 0 {_num(freq_mhz)} {_num(0.0)}",
         f"EX 0 {tag} {seg} 0 {_num(1.0)} {_num(0.0)}",

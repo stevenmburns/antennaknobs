@@ -43,6 +43,7 @@ from momwire import insulation_inductance
 
 from ..engine import FarField, SimulationEngine, WireCurrents
 from ._external import find_exe
+from ..wire_catalog import gap_knot, port_at, port_wire
 from ..network import (
     Driven,
     DrivenCurrent,
@@ -362,7 +363,11 @@ class NEC5Engine(SimulationEngine):
             for p in network.ports.values():
                 if isinstance(p, PortAtVertex):
                     continue
-                nm = getattr(p, "name", None) or getattr(p, "wire", None)
+                nm = (
+                    port_wire(p)
+                    if isinstance(p, PortOnWire)
+                    else getattr(p, "name", None) or getattr(p, "wire", None)
+                )
                 if nm:
                     other_names.add(nm)
             self._vertex_only_names = frozenset(vertex_names - other_names)
@@ -535,13 +540,17 @@ class NEC5Engine(SimulationEngine):
                     f"port {port_name!r} is distributed (finite gap) — "
                     "NEC5Engine only serves delta-gap ports"
                 )
-            idx = by_name.get(port.name)
+            wire = port_wire(port)
+            idx = by_name.get(wire)
             if idx is None:
                 raise ValueError(
-                    f"port {port_name!r} names wire {port.name!r} which the "
+                    f"port {port_name!r} names wire {wire!r} which the "
                     "geometry does not carry"
                 )
-            return idx, "center"
+            # A position along the wire is a float knot token (AK#1469); the
+            # middle stays "center".
+            at = port_at(port)
+            return idx, "center" if at is None else float(at)
 
         if self._use_reducer:
             # NO EX CARDS FROM THE NETWORK on this route. The drive is the
@@ -642,6 +651,8 @@ class NEC5Engine(SimulationEngine):
         not shift the centre.
         """
         n_total = sum(c[2] for c in _expand_graded(self._wires[idx]))
+        if isinstance(knot, float):
+            return gap_knot(n_total, knot)
         if knot == "center":
             return n_total // 2
         if knot == "p0":
@@ -1075,6 +1086,9 @@ class NEC5Engine(SimulationEngine):
         wire's own end — segment 1 end 1 for ``p0``, segment n_seg end 2
         for ``p1`` (issue #898, the series apex feed)."""
         n_seg = self._wires[idx].n_seg
+        if isinstance(knot, float):
+            # End 2 of segment k is interior knot k (AK#1469).
+            return gap_knot(n_seg, knot), 2
         if knot == "center":
             return n_seg // 2, 2
         if knot == "p0":

@@ -23,6 +23,8 @@ from antennaknobs.network import (
     Wire,
 )
 from antennaknobs.wire_catalog import (
+    gap_knot,
+    gap_segment,
     port_at,
     port_wire,
     validate_named_wires_referenced,
@@ -250,6 +252,7 @@ class _Dipole(AntennaBuilder):
         {
             "freq": FREQ,
             "design_freq": FREQ,
+            "n_seg": 21,
             "wire_name": "w",
             "port_wire": "w",
             "feed_at": None,
@@ -259,7 +262,12 @@ class _Dipole(AntennaBuilder):
 
     def build_wires(self):
         return [
-            Wire((0.0, -ARM, 10.0), (0.0, ARM, 10.0), n_seg=21, name=self.wire_name)
+            Wire(
+                (0.0, -ARM, 10.0),
+                (0.0, ARM, 10.0),
+                n_seg=self.n_seg,
+                name=self.wire_name,
+            )
         ]
 
     def build_network(self):
@@ -326,3 +334,122 @@ def test_the_marker_follows_the_driven_port_not_the_first_one_listed():
     assert eng._feed_names[0] == "load"
     pl, arc = adapter._primary_feed(eng)
     assert (pl, arc) == eng._feeds[eng._feed_names.index("feed")][:2]
+
+
+# ---------------------------------------------------------------------------
+# the segment and knot rules the NEC-card engines use
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("n", "at", "seg"),
+    [
+        (21, None, 11),  # the middle segment, exactly as before
+        (20, None, 10),
+        (21, 0.3, 7),
+        (20, 0.475, 10),  # the centre of segment 10: exact
+        (20, 0.5, 10),  # a knot: the smaller arclength wins
+        (20, 0.26, 6),
+        (4, 0.999, 4),
+    ],
+)
+def test_gap_segment(n, at, seg):
+    assert gap_segment(n, at) == seg
+
+
+@pytest.mark.parametrize(
+    ("n", "at", "knot"),
+    [
+        (20, None, 10),  # the centre knot, exactly as before
+        (22, None, 11),
+        (20, 0.3, 6),  # exact
+        (20, 0.325, 6),  # a segment centre: the smaller arclength wins
+        (20, 0.33, 7),
+        (20, 0.01, 1),  # interior knots only
+        (20, 0.999, 19),
+    ],
+)
+def test_gap_knot(n, at, knot):
+    assert gap_knot(n, at) == knot
+
+
+# ---------------------------------------------------------------------------
+# PyNEC, NEC-5, the engine-lane marker and SimNEC
+# ---------------------------------------------------------------------------
+
+
+def _pynec(**params):
+    pytest.importorskip("PyNEC")
+    from antennaknobs.engines.pynec import PyNECEngine
+
+    return PyNECEngine(_Dipole(dict(_Dipole.default_params, **params)))
+
+
+def _zp(eng):
+    return complex(np.atleast_1d(eng.impedance())[0])
+
+
+@needs_position
+def test_pynec_port_named_apart_solves_like_one_named_after_it():
+    z_after = _zp(_pynec(wire_name="feed", port_wire="feed"))
+    z_apart = _zp(_pynec())
+    assert abs(z_apart - z_after) <= 1e-12 * abs(z_after)
+
+
+@needs_position
+def test_pynec_shorted_second_port_changes_nothing():
+    z_plain = _zp(_pynec())
+    z_short = _zp(_pynec(load_ohms=1e-9))
+    assert abs(z_short - z_plain) <= 1e-6 * abs(z_plain)
+
+
+@needs_position
+def test_pynec_feeds_the_segment_at_names():
+    eng = _pynec(feed_at=0.3)
+    eng.impedance()
+    if eng._network_port_loc:
+        assert eng._network_port_loc["feed"] == (1, 7)
+    else:
+        assert eng._port_drive_points["feed"] == [(7, 1.0)]
+
+
+@needs_position
+@pytest.mark.parametrize(
+    ("feed_at", "ex"), [(None, "EX 0 1 10 2"), (0.3, "EX 0 1 6 2")]
+)
+def test_nec5_writes_the_source_on_the_knot_at_names(feed_at, ex):
+    from antennaknobs.engines.nec5 import NEC5Engine
+
+    b = _Dipole(dict(_Dipole.default_params, n_seg=20, feed_at=feed_at))
+    deck = NEC5Engine(b, require_exe=False).deck([FREQ])
+    cards = [
+        " ".join(line.split()[:5])
+        for line in deck.splitlines()
+        if line.startswith("EX")
+    ]
+    assert cards == [ex]
+
+
+@needs_position
+@pytest.mark.parametrize(("feed_at", "y"), [(None, 0.0), (0.3, -0.4 * ARM)])
+def test_the_engine_lane_marker_sits_at_the_ports_position(feed_at, y):
+    from types import SimpleNamespace
+
+    import antennaknobs.web.examples  # noqa: F401  registration order
+    from antennaknobs.web import adapter
+
+    b = _Dipole(dict(_Dipole.default_params, feed_at=feed_at))
+    knots = np.linspace((0.0, -ARM, 10.0), (0.0, ARM, 10.0), 22)
+    pos = adapter._pynec_feed_position(b, [SimpleNamespace(knot_positions=knots)])
+    assert pos[1] == pytest.approx(y, abs=1e-12)
+
+
+@needs_position
+def test_simnec_station_cards_feed_the_segment_at_names():
+    from antennaknobs.simnec_export import _station_cards
+
+    eng = _pynec(feed_at=0.3)
+    cards = _station_cards(eng, "feed", [], FREQ)
+    assert [" ".join(c.split()[:4]) for c in cards if c.startswith("EX")] == [
+        "EX 0 1 7"
+    ]
