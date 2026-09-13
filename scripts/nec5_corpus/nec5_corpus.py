@@ -2076,6 +2076,32 @@ def _meta_row(step: str, **fields) -> str:
     return json.dumps({"_meta": meta}) + "\n"
 
 
+def _output_collisions(rels: list) -> dict:
+    """{losing source: kept source} for sources that translate to one output path.
+
+    `translate` names a deck's output by replacing its extension with `.nec`,
+    so `foo.inp` and `foo.nec` (or `foo.NEC` and `foo.nec` on a case-insensitive
+    filesystem) land on the same file, and before antennaknobs#1435 the second
+    one written silently replaced the first. The kept source is decided before
+    anything is written: an exact `.nec` source wins, because that is what the
+    tree held before this rule existed and deck paths are every report's join
+    key; otherwise the first in sorted order.
+    """
+    groups = {}
+    for rel in rels:
+        stem = re.sub(r"\.(nec|inp)$", "", rel, flags=re.I).casefold()
+        groups.setdefault(stem, []).append(rel)
+    kept_over = {}
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        keep = next((r for r in members if r.endswith(".nec")), members[0])
+        for r in members:
+            if r != keep:
+                kept_over[r] = keep
+    return kept_over
+
+
 def _iter_decks(src: Path):
     for p in sorted(src.rglob("*")):
         if p.is_file() and _is_deck_name(p.name) and p.name != "LICENSES.md":
@@ -2096,30 +2122,64 @@ def cmd_translate(args) -> int:
         "refused": 0,
         "invalid": 0,
         "unreadable": 0,
+        "collision": 0,
         "decks_written": 0,
     }
     reasons = {}
     note_kinds = {}
-    n_files = 0
+    sources = []
     for p in _iter_decks(src):
         rel = p.relative_to(src).as_posix()
         if args.only and args.only not in rel:
             continue
-        n_files += 1
-        if args.limit and n_files > args.limit:
+        sources.append((p, rel))
+        if args.limit and len(sources) >= args.limit:
             break
-        rec = translate_file(p, rel, args.offcenter, args.nofile)
+    n_files = len(sources)
+    kept_over = _output_collisions([rel for _, rel in sources])
+    claimed = {}  # output path, case-folded -> the source that wrote it
+    for p, rel in sources:
+        if rel in kept_over:
+            rec = {
+                "file": rel,
+                "status": "collision",
+                "notes": [],
+                "reason": f"translates to the same output path as {kept_over[rel]}, "
+                "which is kept (a .nec source over a same-named .inp; otherwise the "
+                "first in sorted order)",
+            }
+        else:
+            rec = translate_file(p, rel, args.offcenter, args.nofile)
+        stem = re.sub(r"\.(nec|inp)$", "", rel, flags=re.I)
+        dests = [
+            (out / (stem + (f"_{idx}" if idx else "") + ".nec"), deck)
+            for idx, deck in rec.pop("outputs", [])
+        ]
+        taken = [
+            claimed[d.relative_to(out).as_posix().casefold()]
+            for d, _ in dests
+            if d.relative_to(out).as_posix().casefold() in claimed
+        ]
+        if taken:
+            # An NX split's `_N` output landing on another source's path: the
+            # stem check above cannot see it, so it is caught here, and nothing
+            # of this deck is written rather than part of it.
+            rec["status"] = "collision"
+            rec["reason"] = (
+                f"an output path of this deck was already written from {taken[0]}; "
+                "not overwritten"
+            )
+            dests = []
         counts[rec["status"]] += 1
         if rec["status"] != "translated":
             key = re.sub(r"\d+", "N", rec["reason"])[:90]
             reasons[key] = reasons.get(key, 0) + 1
         written = []
-        for idx, deck in rec.pop("outputs", []):
-            stem = re.sub(r"\.(nec|inp)$", "", rel, flags=re.I)
-            dest = out / (stem + (f"_{idx}" if idx else "") + ".nec")
+        for dest, deck in dests:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(deck, encoding="ascii", errors="replace")
             written.append(dest.relative_to(out).as_posix())
+            claimed[written[-1].casefold()] = rel
             counts["decks_written"] += 1
         rec["written"] = written
         for n in rec["notes"]:
@@ -2132,13 +2192,19 @@ def cmd_translate(args) -> int:
     _log(
         f"files: {n_files}  translated: {counts['translated']}"
         f"  refused: {counts['refused']}  invalid: {counts['invalid']}"
-        f"  unreadable: {counts['unreadable']}  decks written: {counts['decks_written']}"
+        f"  unreadable: {counts['unreadable']}  collision: {counts['collision']}"
+        f"  decks written: {counts['decks_written']}"
     )
     if reasons:
         _log("\nrefused / unreadable, by reason:")
         for k, v in sorted(reasons.items(), key=lambda kv: -kv[1])[:25]:
             _log(f"  {v:5d}  {k}")
-    if counts["refused"] or counts["invalid"] or counts["unreadable"]:
+    if (
+        counts["refused"]
+        or counts["invalid"]
+        or counts["unreadable"]
+        or counts["collision"]
+    ):
         # Three unlike claims, so a census can put each on the right ledger
         # (antennaknobs#1382, #1386). Spelled out every run, because the words
         # alone do not say whose fault the deck is.
@@ -2146,6 +2212,7 @@ def cmd_translate(args) -> int:
             "\n  refused    = no NEC-5 card for it (about NEC-5)"
             "\n  invalid    = not valid NEC input of any dialect (about the deck; no engine's fault)"
             "\n  unreadable = this tool could not read it (about this tool; NOT a claim that no program can)"
+            "\n  collision  = another source translates to the same output path (about the source tree)"
         )
     if note_kinds:
         _log("\ntransformations applied (count of decks x notes):")
