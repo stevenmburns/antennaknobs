@@ -8,6 +8,11 @@ the slice-1 branch, then compare:
 
 Each worker caps its address space (the laptop's 8 GB rule), so a deck too big
 for the cap records a MemoryError on both runs and drops out of the comparison.
+
+Rows are appended to ``<out.json>.partial`` as they finish, and a rerun skips
+decks already there. So an out-of-memory kill of the whole run loses nothing
+already solved, which matters on a 16 GB laptop that shares memory with a
+desktop.
 """
 
 import json
@@ -71,10 +76,22 @@ def main(argv):
     paths = sorted(
         os.path.join(decks_dir, f) for f in os.listdir(decks_dir) if f.endswith(".nec")
     )
+    partial = out + ".partial"
     rows = {}
-    with ProcessPoolExecutor(max_workers=workers, initializer=_cap) as pool:
-        for name, row in pool.map(_solve, paths):
+    if os.path.exists(partial):
+        with open(partial, encoding="utf-8") as fh:
+            for line in fh:
+                name, row = json.loads(line)
+                rows[name] = row
+    todo = [p for p in paths if os.path.basename(p) not in rows]
+    with (
+        ProcessPoolExecutor(max_workers=workers, initializer=_cap) as pool,
+        open(partial, "a", encoding="utf-8") as log,
+    ):
+        for name, row in pool.map(_solve, todo):
             rows[name] = row
+            log.write(json.dumps([name, row]) + "\n")
+            log.flush()
     result = {"momwire": rows}
     if os.environ.get("NEC5_EXE"):
         result["nec5_ac6la"] = _nec5(os.path.join(decks_dir, NEC5_DECK))
