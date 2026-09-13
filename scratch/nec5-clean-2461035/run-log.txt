@@ -1,0 +1,20 @@
+=== headline set, 2461035, t1 and t4 (17:04:45) ===
+  done t1
+  done t4
+=== corpus: 2461035, 4 jobs x 1 thread(s) (17:09:27) ===
+      1  exit code N (NxFFFFFFFA): double free or corruption (!prev)
+
+report: /home/smburns/nec5-timing/check-2461035-j4t1.jsonl
+=== corpus: 2461035, 2 jobs x 4 thread(s) (17:19:51) ===
+      1  exit code N (NxFFFFFFFA): double free or corruption (!prev)
+
+report: /home/smburns/nec5-timing/check-2461035-j2t4.jsonl
+=== corpus: 2461035, 8 jobs x 1 thread(s) (17:34:45) ===
+      1  exit code N (NxFFFFFFFA): double free or corruption (!prev)
+
+report: /home/smburns/nec5-timing/check-2461035-j8t1.jsonl
+=== corpus: 94ad682, 4 jobs x 1 thread(s) (17:43:10) ===
+      1  exit code N (NxFFFFFFFN)
+
+report: /home/smburns/nec5-timing/check-94ad682-j4t1.jsonl
+ALLDONE 17:53:36

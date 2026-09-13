@@ -1,0 +1,215 @@
+
+
+========== 1. impedance rows, byte-identical vs d8e2147 (the solve is untouched) ==========
+
+--- t1
+d8e2147-t1 vs 94ad682-t1: ANTENNA INPUT PARAMETERS, byte for byte
+
+deck                            blocks a/b    rows  verdict
+-----------------------------------------------------------
+15m_20m_jumper_half_square         3/3           3  identical
+2m-sat-candidate2                160/160       320  identical
+6mYagi-Onec                       41/41         41  identical
+6mYagi-RPtoXQ                     41/41         41  identical
+6mYagi-oneFR                       1/1           1  identical
+LP144-35-MAXFB                   170/170       170  identical
+ON6MU                            120/120       120  identical
+TRAPx2_V                         252/252       252  identical
+fan_dipole_80_40_20_10_6m          5/5           5  identical
+gbhoyt                           500/500       500  identical
+
+VERDICT: PASS — every impedance row byte-identical
+--- t4
+d8e2147-t4 vs 94ad682-t4: ANTENNA INPUT PARAMETERS, byte for byte
+
+deck                            blocks a/b    rows  verdict
+-----------------------------------------------------------
+15m_20m_jumper_half_square         3/3           3  identical
+2m-sat-candidate2                160/160       320  identical
+6mYagi-Onec                       41/41         41  identical
+6mYagi-RPtoXQ                     41/41         41  identical
+6mYagi-oneFR                       1/1           1  identical
+LP144-35-MAXFB                   170/170       170  identical
+ON6MU                            120/120       120  identical
+TRAPx2_V                         252/252       252  identical
+fan_dipole_80_40_20_10_6m          5/5           5  identical
+gbhoyt                           500/500       500  identical
+
+VERDICT: PASS — every impedance row byte-identical
+
+
+========== 2. impedance rows, 94ad682 t1 vs t4 (thread invariance) ==========
+
+94ad682-t1 vs 94ad682-t4: ANTENNA INPUT PARAMETERS, byte for byte
+
+deck                            blocks a/b    rows  verdict
+-----------------------------------------------------------
+15m_20m_jumper_half_square         3/3           3  identical
+2m-sat-candidate2                160/160       320  identical
+6mYagi-Onec                       41/41         41  identical
+6mYagi-RPtoXQ                     41/41         41  identical
+6mYagi-oneFR                       1/1           1  identical
+LP144-35-MAXFB                   170/170       170  identical
+ON6MU                            120/120       120  identical
+TRAPx2_V                         252/252       252  identical
+fan_dipole_80_40_20_10_6m          5/5           5  identical
+gbhoyt                           500/500       500  identical
+
+VERDICT: PASS — every impedance row byte-identical
+
+
+========== 3. RP / NE / NH tables vs d8e2147, the room's rule at 1e-9 ==========
+
+--- t1
+d8e2147-t1 vs 94ad682-t1, tol 1e-09
+
+deck                              rows   worst mag   worst ph  worst dB  ph skip  dB skip  verdict
+--------------------------------------------------------------------------------------------------
+15m_20m_jumper_half_square      196026   0.000e+00  0.000e+00  0.00e+00     2520      816  PASS
+2m-sat-candidate2               480479   0.000e+00  0.000e+00  0.00e+00    12810    12802  PASS
+6mYagi-Onec                    5343202   0.000e+00  0.000e+00  0.00e+00   103033   103097  PASS
+6mYagi-RPtoXQ                        0   0.000e+00  0.000e+00  0.00e+00        0        0  n/a — no field tables read
+6mYagi-oneFR                    130322   0.000e+00  0.000e+00  0.00e+00     2513     2513  PASS
+LP144-35-MAXFB                   67456   0.000e+00  0.000e+00  0.00e+00    61237    61026  PASS
+ON6MU                           360240   5.027e-13  0.000e+00  0.00e+00    34920    30120  PASS
+TRAPx2_V                         45682   0.000e+00  0.000e+00  0.00e+00    44929    44875  PASS
+fan_dipole_80_40_20_10_6m        82361   0.000e+00  0.000e+00  0.00e+00      120        4  PASS
+gbhoyt                          883001   0.000e+00  0.000e+00  0.00e+00   164163   175015  PASS
+
+decks with field tables compared: 9 of 10; NO tables in: 6mYagi-RPtoXQ
+worst magnitude difference anywhere: 5.027e-13 (tol 1e-09)
+VERDICT: PASS — every table within tolerance on 9 deck(s)
+--- t4
+d8e2147-t4 vs 94ad682-t4, tol 1e-09
+
+deck                              rows   worst mag   worst ph  worst dB  ph skip  dB skip  verdict
+--------------------------------------------------------------------------------------------------
+15m_20m_jumper_half_square      196026   0.000e+00  0.000e+00  0.00e+00     2520      816  PASS
+2m-sat-candidate2               480479   0.000e+00  0.000e+00  0.00e+00    12810    12802  PASS
+6mYagi-Onec                    5343202   0.000e+00  0.000e+00  0.00e+00   103033   103097  PASS
+6mYagi-RPtoXQ                        0   0.000e+00  0.000e+00  0.00e+00        0        0  n/a — no field tables read
+6mYagi-oneFR                    130322   0.000e+00  0.000e+00  0.00e+00     2513     2513  PASS
+LP144-35-MAXFB                   67456   0.000e+00  0.000e+00  0.00e+00    61237    61026  PASS
+ON6MU                           360240   4.831e-13  0.000e+00  0.00e+00    34920    30120  PASS
+TRAPx2_V                         45682   0.000e+00  0.000e+00  0.00e+00    44929    44875  PASS
+fan_dipole_80_40_20_10_6m        82361   0.000e+00  0.000e+00  0.00e+00      120        4  PASS
+gbhoyt                          883001   0.000e+00  0.000e+00  0.00e+00   164163   175015  PASS
+
+decks with field tables compared: 9 of 10; NO tables in: 6mYagi-RPtoXQ
+worst magnitude difference anywhere: 4.831e-13 (tol 1e-09)
+VERDICT: PASS — every table within tolerance on 9 deck(s)
+
+
+========== 4. RP / NE / NH tables, 94ad682 t1 vs t4 ==========
+
+94ad682-t1 vs 94ad682-t4, tol 1e-09
+
+deck                              rows   worst mag   worst ph  worst dB  ph skip  dB skip  verdict
+--------------------------------------------------------------------------------------------------
+15m_20m_jumper_half_square      196026   0.000e+00  0.000e+00  0.00e+00     2520      816  PASS
+2m-sat-candidate2               480479   0.000e+00  0.000e+00  0.00e+00    12810    12802  PASS
+6mYagi-Onec                    5343202   0.000e+00  0.000e+00  0.00e+00   103033   103097  PASS
+6mYagi-RPtoXQ                        0   0.000e+00  0.000e+00  0.00e+00        0        0  n/a — no field tables read
+6mYagi-oneFR                    130322   0.000e+00  0.000e+00  0.00e+00     2513     2513  PASS
+LP144-35-MAXFB                   67456   0.000e+00  0.000e+00  0.00e+00    61237    61026  PASS
+ON6MU                           360240   5.027e-13  0.000e+00  0.00e+00    34920    30120  PASS
+TRAPx2_V                         45682   1.077e-12  0.000e+00  0.00e+00    44929    44875  PASS
+fan_dipole_80_40_20_10_6m        82361   0.000e+00  0.000e+00  0.00e+00      120        4  PASS
+gbhoyt                          883001   6.897e-14  0.000e+00  0.00e+00   164163   175015  PASS
+
+decks with field tables compared: 9 of 10; NO tables in: 6mYagi-RPtoXQ
+worst magnitude difference anywhere: 1.077e-12 (tol 1e-09)
+VERDICT: PASS — every table within tolerance on 9 deck(s)
+
+
+========== 5. the same two gates against x13 (fan_dipole is expected to move: unit 1's ==========
+
+   Sommerfeld flag effect, which d8e2147 already shows against x13)
+x13-t4 vs 94ad682-t4, tol 1e-09
+
+deck                              rows   worst mag   worst ph  worst dB  ph skip  dB skip  verdict
+--------------------------------------------------------------------------------------------------
+15m_20m_jumper_half_square      196026   0.000e+00  0.000e+00  0.00e+00     2520      816  PASS
+2m-sat-candidate2               480479   0.000e+00  0.000e+00  0.00e+00    12810    12802  PASS
+6mYagi-Onec                    5343202   0.000e+00  0.000e+00  0.00e+00   103033   103097  PASS
+6mYagi-RPtoXQ                        0   0.000e+00  0.000e+00  0.00e+00        0        0  n/a — no field tables read
+6mYagi-oneFR                    130322   0.000e+00  0.000e+00  0.00e+00     2513     2513  PASS
+LP144-35-MAXFB                   67456   0.000e+00  0.000e+00  0.00e+00    61237    61026  PASS
+ON6MU                           360240   5.027e-13  0.000e+00  0.00e+00    34920    30120  PASS
+TRAPx2_V                         45682   4.628e-13  0.000e+00  0.00e+00    44929    44875  PASS
+fan_dipole_80_40_20_10_6m        82361   4.114e-06  0.000e+00  0.00e+00      120        4  FAIL (20 cells; worst at RP table 4 row 69845 col 7 (mag))
+gbhoyt                          883001   6.811e-14  0.000e+00  0.00e+00   164163   175015  PASS
+
+decks with field tables compared: 9 of 10; NO tables in: 6mYagi-RPtoXQ
+worst magnitude difference anywhere: 4.114e-06 (tol 1e-09)
+VERDICT: FAIL on 1 deck(s): fan_dipole_80_40_20_10_6m
+--- and d8e2147 against x13, for the same decks, so the comparison is like-for-like
+x13-t4 vs d8e2147-t4, tol 1e-09
+
+deck                              rows   worst mag   worst ph  worst dB  ph skip  dB skip  verdict
+--------------------------------------------------------------------------------------------------
+15m_20m_jumper_half_square      196026   0.000e+00  0.000e+00  0.00e+00     2520      816  PASS
+2m-sat-candidate2               480479   0.000e+00  0.000e+00  0.00e+00    12810    12802  PASS
+6mYagi-Onec                    5343202   0.000e+00  0.000e+00  0.00e+00   103033   103097  PASS
+6mYagi-RPtoXQ                        0   0.000e+00  0.000e+00  0.00e+00        0        0  n/a — no field tables read
+6mYagi-oneFR                    130322   0.000e+00  0.000e+00  0.00e+00     2513     2513  PASS
+LP144-35-MAXFB                   67456   0.000e+00  0.000e+00  0.00e+00    61237    61026  PASS
+ON6MU                           360240   5.027e-13  0.000e+00  0.00e+00    34920    30120  PASS
+TRAPx2_V                         45682   4.628e-13  0.000e+00  0.00e+00    44929    44875  PASS
+fan_dipole_80_40_20_10_6m        82361   4.114e-06  0.000e+00  0.00e+00      120        4  FAIL (20 cells; worst at RP table 4 row 69845 col 7 (mag))
+gbhoyt                          883001   6.811e-14  0.000e+00  0.00e+00   164163   175015  PASS
+
+decks with field tables compared: 9 of 10; NO tables in: 6mYagi-RPtoXQ
+worst magnitude difference anywhere: 4.114e-06 (tol 1e-09)
+VERDICT: FAIL on 1 deck(s): fan_dipole_80_40_20_10_6m
+
+
+========== 6. corpus impedance movers: 94ad682 vs x13 and vs d8e2147, at 1e-9 ==========
+
+--- vs x13
+  4nec2-models/HFmultiband/dscn2.nec: 113.4+5.7287j -> 113.4+5.7289j   dZ/|Z| = 1.761e-06
+  4nec2-models/VHFmultiband/Dc8ce.nec: 84.878-0.97088j -> 84.878-0.97084j   dZ/|Z| = 4.712e-07
+  rchacker-antennas/UHF/vee3_asymmetrical_with_coax.nec: 54.377+0.57973j -> 54.377+0.57974j   dZ/|Z| = 1.839e-07
+  rchacker-antennas/UHF/vee3_asymmetrical_hello_kitty_evolved_40.nec: 65.877-0.14188j -> 65.877-0.14189j   dZ/|Z| = 1.518e-07
+  necpp/ga_pjw_1.nec: -0.53376-0.27046j -> -0.51377-0.24403j   degenerate (|Z| < 1 ohm), percentage meaningless
+impedance not compared: 133 decks with no row on one side
+--- vs d8e2147
+WARNING: /home/smburns/nec5-timing/check-94ad682-t4.jsonl was written with jobs x threads over the CPU count (timing_valid: false) — its wall times are not a speed measurement; statuses and impedances are unaffected
+decks: 3076 vs 3076; moved: 3; impedance moved (> 1e-09): 0
+  4nec2-models/HFbeams/Bowtie.nec: ok -> timeout
+  cebik-w4rnl/nec4-ex11.nec: ok -> crash
+  qantenna/10-30m_vert4.nec: ok -> crash
+impedance not compared: 133 decks with no row on one side
+--- 94ad682 t1 vs t4 (a thread-count move in the SOLVE would be a regression)
+environments differ:
+  env: {'OMP_NUM_THREADS': '1', 'MKL_NUM_THREADS': None, 'OPENBLAS_NUM_THREADS': '1', 'OMP_WAIT_POLICY': None, 'OMP_PROC_BIND': None, 'OMP_PLACES': None, 'OMP_DYNAMIC': None, 'KMP_AFFINITY': None, 'KMP_BLOCKTIME': None, 'GOMP_CPU_AFFINITY': None, 'GOMP_SPINCOUNT': None, 'MKL_DYNAMIC': None, 'PYTHONUTF8': '1', '_other_omp_like': []} != {'OMP_NUM_THREADS': '4', 'MKL_NUM_THREADS': None, 'OPENBLAS_NUM_THREADS': '4', 'OMP_WAIT_POLICY': None, 'OMP_PROC_BIND': None, 'OMP_PLACES': None, 'OMP_DYNAMIC': None, 'KMP_AFFINITY': None, 'KMP_BLOCKTIME': None, 'GOMP_CPU_AFFINITY': None, 'GOMP_SPINCOUNT': None, 'MKL_DYNAMIC': None, 'PYTHONUTF8': '1', '_other_omp_like': []}
+WARNING: /home/smburns/nec5-timing/check-94ad682-t4.jsonl was written with jobs x threads over the CPU count (timing_valid: false) — its wall times are not a speed measurement; statuses and impedances are unaffected
+decks: 3076 vs 3076; moved: 1; impedance moved (> 1e-09): 0
+  cebik-w4rnl/nec4-ex11.nec: ok -> crash
+impedance not compared: 133 decks with no row on one side
+
+
+========== 7. the 22-deck unit-1 regression set: printouts vs d8e2147 and vs x13 ==========
+
+--- vs d8e2147 (impedance)
+wire.sterba.default.sea            1/1           1  identical
+wire.sterba.default.somm13         1/1           1  identical
+
+VERDICT: PASS — every impedance row byte-identical
+--- vs d8e2147 (field tables)
+
+decks with field tables compared: 0 of 22; NO tables in: arrays.bowtie16x1.default.free, arrays.bowtie16x1.default.somm13, arrays.bowtie4x4.refined.free, arrays.bowtie4x4.refined.somm13, arrays.delta_looparray_2x2.default.free, arrays.delta_looparray_2x2.default.somm13, dipoles.invvee.default.free, dipoles.invvee.default.somm13, dipoles.koch_dipole.refined.free, dipoles.koch_dipole.refined.somm13, specialty.buried_dipole.refined.somm13, specialty.faceted_helix.refined.free, specialty.faceted_helix.refined.somm13, verticals.buried_radial_vertical.refined.somm13, verticals.elevated_buried_counterpoise.refined.somm13, verticals.elt_whip.default.free, verticals.elt_whip.default.somm13, wire.sterba.default.free, wire.sterba.default.gn1, wire.sterba.default.poor, wire.sterba.default.sea, wire.sterba.default.somm13
+worst magnitude difference anywhere: 0.000e+00 (tol 1e-09)
+VERDICT: NOTHING COMPARED — no deck in this pair carries a field table
+--- vs x13 (impedance)
+wire.sterba.default.sea            1/1           1  identical
+wire.sterba.default.somm13         1/1           1  identical
+
+VERDICT: PASS — every impedance row byte-identical
+--- vs x13 (field tables)
+
+decks with field tables compared: 0 of 22; NO tables in: arrays.bowtie16x1.default.free, arrays.bowtie16x1.default.somm13, arrays.bowtie4x4.refined.free, arrays.bowtie4x4.refined.somm13, arrays.delta_looparray_2x2.default.free, arrays.delta_looparray_2x2.default.somm13, dipoles.invvee.default.free, dipoles.invvee.default.somm13, dipoles.koch_dipole.refined.free, dipoles.koch_dipole.refined.somm13, specialty.buried_dipole.refined.somm13, specialty.faceted_helix.refined.free, specialty.faceted_helix.refined.somm13, verticals.buried_radial_vertical.refined.somm13, verticals.elevated_buried_counterpoise.refined.somm13, verticals.elt_whip.default.free, verticals.elt_whip.default.somm13, wire.sterba.default.free, wire.sterba.default.gn1, wire.sterba.default.poor, wire.sterba.default.sea, wire.sterba.default.somm13
+worst magnitude difference anywhere: 0.000e+00 (tol 1e-09)
+VERDICT: NOTHING COMPARED — no deck in this pair carries a field table
+
+GATECOMPAREDONE

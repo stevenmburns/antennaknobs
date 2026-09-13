@@ -1,0 +1,77 @@
+=== tables: 2461035-t1 vs 94ad682-t1 ===
+94ad682-t1 vs 2461035-t1, tol 1e-09
+
+deck                              rows   worst mag   worst ph  worst dB  ph skip  dB skip  verdict
+--------------------------------------------------------------------------------------------------
+15m_20m_jumper_half_square      196026   0.000e+00  0.000e+00  0.00e+00     2520      816  PASS
+2m-sat-candidate2               480479   0.000e+00  0.000e+00  0.00e+00    12810    12802  PASS
+6mYagi-Onec                    5343202   0.000e+00  0.000e+00  0.00e+00   103033   103097  PASS
+6mYagi-RPtoXQ                        0   0.000e+00  0.000e+00  0.00e+00        0        0  n/a — no field tables read
+6mYagi-oneFR                    130322   0.000e+00  0.000e+00  0.00e+00     2513     2513  PASS
+LP144-35-MAXFB                   67456   0.000e+00  0.000e+00  0.00e+00    61237    61026  PASS
+ON6MU                           360240   0.000e+00  0.000e+00  0.00e+00    34920    30120  PASS
+TRAPx2_V                         45682   0.000e+00  0.000e+00  0.00e+00    44929    44875  PASS
+fan_dipole_80_40_20_10_6m        82361   0.000e+00  0.000e+00  0.00e+00      120        4  PASS
+gbhoyt                          883001   0.000e+00  0.000e+00  0.00e+00   164163   175015  PASS
+
+decks with field tables compared: 9 of 10; NO tables in: 6mYagi-RPtoXQ
+worst magnitude difference anywhere: 0.000e+00 (tol 1e-09)
+VERDICT: PASS — every table within tolerance on 9 deck(s)
+=== tables: 2461035-t4 vs 94ad682-t4 ===
+94ad682-t4 vs 2461035-t4, tol 1e-09
+
+deck                              rows   worst mag   worst ph  worst dB  ph skip  dB skip  verdict
+--------------------------------------------------------------------------------------------------
+15m_20m_jumper_half_square      196026   0.000e+00  0.000e+00  0.00e+00     2520      816  PASS
+2m-sat-candidate2               480479   0.000e+00  0.000e+00  0.00e+00    12810    12802  PASS
+6mYagi-Onec                    5343202   0.000e+00  0.000e+00  0.00e+00   103033   103097  PASS
+6mYagi-RPtoXQ                        0   0.000e+00  0.000e+00  0.00e+00        0        0  n/a — no field tables read
+6mYagi-oneFR                    130322   0.000e+00  0.000e+00  0.00e+00     2513     2513  PASS
+LP144-35-MAXFB                   67456   0.000e+00  0.000e+00  0.00e+00    61237    61026  PASS
+ON6MU                           360240   0.000e+00  0.000e+00  0.00e+00    34920    30120  PASS
+TRAPx2_V                         45682   0.000e+00  0.000e+00  0.00e+00    44929    44875  PASS
+fan_dipole_80_40_20_10_6m        82361   0.000e+00  0.000e+00  0.00e+00      120        4  PASS
+gbhoyt                          883001   0.000e+00  0.000e+00  0.00e+00   164163   175015  PASS
+
+decks with field tables compared: 9 of 10; NO tables in: 6mYagi-RPtoXQ
+worst magnitude difference anywhere: 0.000e+00 (tol 1e-09)
+VERDICT: PASS — every table within tolerance on 9 deck(s)
+=== tables: 2461035 t1 vs t4 ===
+2461035-t1 vs 2461035-t4, tol 1e-09
+
+deck                              rows   worst mag   worst ph  worst dB  ph skip  dB skip  verdict
+--------------------------------------------------------------------------------------------------
+15m_20m_jumper_half_square      196026   0.000e+00  0.000e+00  0.00e+00     2520      816  PASS
+2m-sat-candidate2               480479   0.000e+00  0.000e+00  0.00e+00    12810    12802  PASS
+6mYagi-Onec                    5343202   0.000e+00  0.000e+00  0.00e+00   103033   103097  PASS
+6mYagi-RPtoXQ                        0   0.000e+00  0.000e+00  0.00e+00        0        0  n/a — no field tables read
+6mYagi-oneFR                    130322   0.000e+00  0.000e+00  0.00e+00     2513     2513  PASS
+LP144-35-MAXFB                   67456   0.000e+00  0.000e+00  0.00e+00    61237    61026  PASS
+ON6MU                           360240   5.027e-13  0.000e+00  0.00e+00    34920    30120  PASS
+TRAPx2_V                         45682   1.077e-12  0.000e+00  0.00e+00    44929    44875  PASS
+fan_dipole_80_40_20_10_6m        82361   0.000e+00  0.000e+00  0.00e+00      120        4  PASS
+gbhoyt                          883001   6.897e-14  0.000e+00  0.00e+00   164163   175015  PASS
+
+decks with field tables compared: 9 of 10; NO tables in: 6mYagi-RPtoXQ
+worst magnitude difference anywhere: 1.077e-12 (tol 1e-09)
+VERDICT: PASS — every table within tolerance on 9 deck(s)
+=== tables: 2461035-t4 vs x13-t4 (the near-H expected mover) ===
+x13-t4 vs 2461035-t4, tol 1e-09
+
+deck                              rows   worst mag   worst ph  worst dB  ph skip  dB skip  verdict
+--------------------------------------------------------------------------------------------------
+15m_20m_jumper_half_square      196026   0.000e+00  0.000e+00  0.00e+00     2520      816  PASS
+2m-sat-candidate2               480479   0.000e+00  0.000e+00  0.00e+00    12810    12802  PASS
+6mYagi-Onec                    5343202   0.000e+00  0.000e+00  0.00e+00   103033   103097  PASS
+6mYagi-RPtoXQ                        0   0.000e+00  0.000e+00  0.00e+00        0        0  n/a — no field tables read
+6mYagi-oneFR                    130322   0.000e+00  0.000e+00  0.00e+00     2513     2513  PASS
+LP144-35-MAXFB                   67456   0.000e+00  0.000e+00  0.00e+00    61237    61026  PASS
+ON6MU                           360240   5.027e-13  0.000e+00  0.00e+00    34920    30120  PASS
+TRAPx2_V                         45682   4.628e-13  0.000e+00  0.00e+00    44929    44875  PASS
+fan_dipole_80_40_20_10_6m        82361   4.114e-06  0.000e+00  0.00e+00      120        4  FAIL (20 cells; worst at RP table 4 row 69845 col 7 (mag))
+gbhoyt                          883001   6.811e-14  0.000e+00  0.00e+00   164163   175015  PASS
+
+decks with field tables compared: 9 of 10; NO tables in: 6mYagi-RPtoXQ
+worst magnitude difference anywhere: 4.114e-06 (tol 1e-09)
+VERDICT: FAIL on 1 deck(s): fan_dipole_80_40_20_10_6m
+TABLESDONE
