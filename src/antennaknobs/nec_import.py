@@ -207,7 +207,11 @@ class NecLoad:
 
     ``z`` carries an LD type 4 reactive load as a fixed complex impedance
     R + jX (issue #422); it is mutually exclusive with r/l/c, and a
-    conductance-only type 4 (X = 0) stays a plain ``r`` instead."""
+    conductance-only type 4 (X = 0) stays a plain ``r`` instead.
+
+    ``edge`` is 0 for NEC-2's load at the centre of ``seg``. On a NEC-5 deck
+    it is 1 or 2, the END of ``seg`` the load sits at: NEC-5 addresses a
+    discrete load by knot, as it does a source (AK#1483)."""
 
     wire: int
     seg: int
@@ -216,6 +220,7 @@ class NecLoad:
     c: float | None
     parallel: bool
     z: complex | None = None
+    edge: int = 0
 
 
 @dataclass(frozen=True)
@@ -412,7 +417,7 @@ class NecDeck:
 
         References move with the mesh: a centre attachment (feed, lumped load,
         TL/NT end) goes to the middle piece of its old segment, and a knot
-        source keeps its knot. A lumped load stays ONE element. Per-wire
+        source or NEC-5 knot load keeps its knot. A lumped load stays ONE element. Per-wire
         materials are per-wire and do not move. Virtualized TL anchors (a
         1-segment wire parked far away, issue #427) keep their single segment.
         """
@@ -443,7 +448,12 @@ class NecDeck:
                 for i, w in enumerate(self.wires)
             ),
             feeds=tuple(feed(f) for f in self.feeds),
-            loads=tuple(replace(ld, seg=centre(ld.wire, ld.seg)) for ld in self.loads),
+            loads=tuple(
+                replace(ld, seg=(ld.seg - 1) * r + 1 if ld.edge == 1 else ld.seg * r)
+                if ld.edge
+                else replace(ld, seg=centre(ld.wire, ld.seg))
+                for ld in self.loads
+            ),
             tls=tuple(
                 replace(
                     t, seg_a=centre(t.wire_a, t.seg_a), seg_b=centre(t.wire_b, t.seg_b)
@@ -557,6 +567,8 @@ class NecDeck:
                 )
             plan[key] = "feed" if single else f"feed{k}"
         for k, ld in enumerate(self.loads, 1):
+            if ld.edge:
+                continue  # a knot load rides its knot's port (AK#1483)
             plan.setdefault((ld.wire, ld.seg), f"load{k}")
         for k, tl in enumerate(self.tls, 1):
             plan.setdefault((tl.wire_a, tl.seg_a), f"tl{k}a")
@@ -572,7 +584,8 @@ class NecDeck:
         part B).
 
         A knot source at a wire END (knot 0 or n_seg), an EX 4 current source,
-        and a knot source on a junction cut all need a wire end to feed. The
+        and a knot source on a junction cut all need a wire end to feed, and so
+        does a NEC-5 knot load at either place (AK#1483). The
         engines refuse a wire referenced by both a gap port and a vertex port,
         so every attachment on such a wire keeps today's cut spelling. Every
         other wire keeps its authored segments and carries its attachments as
@@ -593,13 +606,22 @@ class NecDeck:
                 or f.wire in self.virtual_anchors
             ):
                 out.add(f.wire)
+        for ld in self.loads:
+            if not ld.edge:
+                continue
+            knot = ld.seg - 1 if ld.edge == 1 else ld.seg
+            if knot in (
+                0,
+                self.wires[ld.wire].n_seg,
+            ) or knot in self._junction_cuts.get(ld.wire, frozenset()):
+                out.add(ld.wire)
         return frozenset(out)
 
     @cached_property
     def _site_plan(self) -> dict[int, dict]:
         """wire index -> the positioned spelling of its attachments (AK#1469
         part B): ``{"pieces": [(first knot, last knot, name or None)],
-        "ports": {port name: (piece name, at)}}``.
+        "ports": {port name: (piece name, at)}, "knots": {knot: port name}}``.
 
         The wire is cut only where another wire touches it (`_junction_cuts`).
         An attachment at segment k of an n-segment piece sits at
@@ -625,6 +647,14 @@ class NecDeck:
             claims.setdefault(f.wire, []).append(
                 ("feed" if single else f"feed{k}", "knot", knot)
             )
+        for k, ld in enumerate(self.loads, 1):
+            if not ld.edge or ld.wire in self._vertex_wires:
+                continue
+            knot = ld.seg - 1 if ld.edge == 1 else ld.seg
+            items = claims.setdefault(ld.wire, [])
+            # A NEC-5 knot load (AK#1483) shares the port of a claimed knot.
+            if not any(kind == "knot" and idx == knot for _p, kind, idx in items):
+                items.append((f"load{k}", "knot", knot))
         plan: dict[int, dict] = {}
         for wi, items in claims.items():
             n = self.wires[wi].n_seg
@@ -663,6 +693,7 @@ class NecDeck:
             plan[wi] = {
                 "pieces": [(a, b, piece_name(j)) for j, (a, b) in enumerate(pieces)],
                 "ports": {p: (piece_name(j), at) for p, (j, at) in placed.items()},
+                "knots": {idx: p for p, kind, idx in items if kind == "knot"},
             }
         return plan
 
@@ -697,6 +728,12 @@ class NecDeck:
                 )
             end = "p0" if knot == 0 else "p1"
             plan[key] = ("feed" if single else f"feed{k}", end)
+        for k, ld in enumerate(self.loads, 1):
+            if not ld.edge or ld.wire not in self._vertex_wires:
+                continue
+            knot = ld.seg - 1 if ld.edge == 1 else ld.seg
+            # A load on a source's knot shares its port (AK#1483).
+            plan.setdefault((ld.wire, knot), (f"load{k}", "p0" if knot == 0 else "p1"))
         return plan
 
     @cached_property
@@ -955,11 +992,20 @@ class NecDeck:
             for pname in site["ports"]:
                 if pname not in ports:
                     ports[pname] = self._site_port(wi, pname)
+
+        def load_port(ld):
+            if not ld.edge:
+                return plan[(ld.wire, ld.seg)]
+            knot = ld.seg - 1 if ld.edge == 1 else ld.seg
+            if (ld.wire, knot) in self._vertex_plan:
+                return self._vertex_plan[(ld.wire, knot)][0]
+            return self._site_plan[ld.wire]["knots"][knot]
+
         branches: list = []
         for ld in self.loads:
             branches.append(
                 _net.Load(
-                    port=plan[(ld.wire, ld.seg)],
+                    port=load_port(ld),
                     r=ld.r,
                     l=ld.l,
                     c=ld.c,
@@ -2176,6 +2222,7 @@ def _translate_network_cards(
     fr_first_mhz=None,
     is_raw=(),
     sym_cell=None,
+    nec5_dialect=False,
 ):
     """Turn the collected LD/TL/NT cards into NecLoad/NecTL/NecNT records,
     plus (mnemonic, reason) detail for every card instance that stays
@@ -2319,6 +2366,13 @@ def _translate_network_cards(
         ldtyp = card.i(0)
         tag, sf, st = card.i(1), card.i(2), card.i(3)
         if ldtyp in (0, 1, 4, 6):
+            edge = 0
+            if nec5_dialect and sf != 0:
+                # NEC-5 addresses a discrete load as it does EX: I3 is the
+                # segment and I4 its END, so the card is ONE load at a knot,
+                # never a segment range (AK#1483). I4 = 0 takes EX's sign rule.
+                edge = st if st in (1, 2) else (1 if sf < 0 else 2)
+                sf = st = abs(sf)
             pairs = ld_range(tag, sf, st, card)
             if len(pairs) > _LD_EXPAND_MAX:
                 skip(
@@ -2367,11 +2421,14 @@ def _translate_network_cards(
                         "series-inside-the-segment composition is not modelled",
                     )
                     continue
-                if pair in loaded:
+                where = (*pair, edge)
+                if where in loaded:
                     skip("LD", "a second load on one segment is not merged")
                     continue
-                loaded.add(pair)
-                loads.append(NecLoad(pair[0], pair[1], r, le, c, ldtyp in (1, 6), z=z))
+                loaded.add(where)
+                loads.append(
+                    NecLoad(pair[0], pair[1], r, le, c, ldtyp in (1, 6), z=z, edge=edge)
+                )
         elif ldtyp in (2, 3):
             skip("LD", f"type {ldtyp} distributed per-metre loading is not translated")
         elif ldtyp == 5:
@@ -2915,6 +2972,10 @@ def parse_nec(
     wire_insulation: tuple[tuple[int, tuple[float, float]], ...] = ()
     detail: list[tuple[str, str]] = []
     virtual_anchors: frozenset[int] = frozenset()
+    # A declared deck is NEC-5 for every card, its loads included (AK#1476,
+    # AK#1483).
+    if nec5_declared:
+        nec5_dialect = True
     symmetry_dropped = 0
     if network:
         (
@@ -2939,6 +3000,7 @@ def parse_nec(
             fr_first_mhz,
             is_raw,
             sym_cell,
+            nec5_dialect,
         )
         ignored |= skipped
 
@@ -2946,8 +3008,6 @@ def parse_nec(
     # full Sommerfeld solution. Reading a NEC-5 deck's GN 0 the NEC-2 way
     # seeded the app with the approximation the deck never asked for (AC6LA,
     # 2026-09-13).
-    if nec5_declared:
-        nec5_dialect = True
     if nec5_dialect and ground_method == "fast":
         ground_spec = ("finite", *ground_spec[1:])
         ground_method = "sommerfeld"
