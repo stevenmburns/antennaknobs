@@ -1,0 +1,13 @@
+{
+ "nec2_exe": "/home/smburns/.local/bin/nec2c",
+ "z_pynec_loaded": "(128.31031511549654-8.79422339748376j)",
+ "z_pynec_bare": "(79.24323625320967+45.384126788840085j)",
+ "z_nec2_loaded": "(128.31-8.813j)",
+ "nec2_minus_pynec_loaded_ohm": 0.018779246519204106,
+ "nec2_minus_pynec_bare_ohm": 73.10865787818119,
+ "export_ld_lines": [
+  "LD 4 2 1 1  1.000000E+02 -7.500000E+01  0.000000E+00"
+ ],
+ "reads_load_free": false,
+ "reads_pynec_loaded": true
+}

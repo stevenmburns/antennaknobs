@@ -69,3 +69,34 @@ the bar that applies here.
 - Stage explicit paths only.
 - Use `gh -R stevenmburns/antennaknobs`.
 - The PR describes this as "the hole in #1485".
+
+## Results [2026-09-13]
+
+Registered at c2d37f2cc (19:55:22Z), before the source change. Before and after
+records are `census_before.json` / `census_after.json` (diff in
+`census_diff.txt`) and `nec2tab_before.json` / `nec2tab_after.json`.
+
+| id | result |
+|---|---|
+| PC1 | **HIT.** 0 of 112 catalog entries changed: 73 export, 30 refuse, 9 have no builder, and every text and refusal is byte-identical. The AST scan finds 0 `Load(…, z=…)` calls, and 0 designs carry a z-load. |
+| PC2 | **HIT on which decks, MISS on the literal line.** 1 of 65 nec_portal decks changed, `dipole_load_ld4.deck`, by one added LD 4 line; the other 64 are byte-identical (54 export, 9 refuse, 2 do not parse). The line was registered as `LD 4 1 3 3` and is written as `LD 4 2 1 1`. The importer gives the loaded segment a one-segment wire of its own, and the export numbers wires by the GW cards it writes: exported `GW 2 1` spans z −1.389 to −0.833 m, which is original segment 3 of 9. The feed moved the same way (`EX 0 4 1`, original segment 5), and that part was already true before this change. |
+| PC3 | **HIT.** PyNEC Z on the loaded deck is 128.31031511549654−8.79422339748376j before and after, bit for bit. |
+| PC4 | **HIT.** Before the fix, the NEC-2 tab (nec2c) read 79.24+45.364j: 0.020 Ω from PyNEC with the LD card removed, and 73.1 Ω from PyNEC loaded. After the fix it reads 128.31−8.813j, 0.019 Ω from PyNEC loaded. |
+
+**The tests, and a miss in their first draft.** T1 and T2 as first written
+asserted the imported deck's numbering (tag 1, segment 2), for the same reason
+PC2's literal line missed. They failed on that assumption, not on the fix, and
+were rewritten before any commit:
+- **T1** now asserts the row sits at PyNECEngine's `_network_port_loc` for the
+  load, which is where PyNEC's `ld_card` goes.
+- **T2** imports the export, checks that the same z comes back, and checks that
+  a second export repeats the first card for card.
+- **T3 and T4** passed as written. T4 ran against the real nec2c: agreement
+  within 0.1 Ω, and far from the load-free Z.
+
+**Lanes.**
+- ruff 0.16.5 `check` and `format --check` are clean over the whole tree.
+- `test_ld4_reactive_load`, `test_nec2_engine_1354`, and every test file that
+  touches the exporter: 350 passed, 45 skipped, 0 failed.
+- The skips are environment gates: 21 need a NEC-5 binary, and 19 in
+  `test_port_position_1469` need momwire#1059 in the submodule pointer.
