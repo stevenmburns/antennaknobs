@@ -70,6 +70,7 @@ def _make_builder(
     extended_kernel=False,
     ground=None,
     ground_method=None,
+    file_deck=None,
 ):
     ui: dict = {}
     if meas_range:
@@ -104,6 +105,9 @@ def _make_builder(
         # The deck's ground in the CLI's `--ground` shape (AK#1432): the
         # `@file` route applies it when `--ground` is not given.
         file_ground = ground
+        # The parsed deck the design was built from (U2): the `ladder`
+        # command reads its segment counts and fed segments for the report.
+        file_deck_parsed = file_deck
 
         def build_wires(self):
             return wires_fn()
@@ -117,8 +121,8 @@ def _make_builder(
     return Builder
 
 
-def _nec_builder(path: Path, text: str):
-    deck = parse_nec(text, name=path.name, network=True)
+def _nec_builder(path: Path, text: str, refine: int = 1):
+    deck = parse_nec(text, name=path.name, network=True).refined(refine)
     freq, meas_range, freq_note = _seed_freq(deck.freq_mhz)
     return _make_builder(
         path.stem,
@@ -130,6 +134,7 @@ def _nec_builder(path: Path, text: str):
         extended_kernel=deck.extended_kernel,
         ground=deck.ground_spec,
         ground_method=deck.ground_method,
+        file_deck=deck,
     )
 
 
@@ -161,7 +166,12 @@ def _ground_note(ground) -> str | None:
     return f"The file models {desc} ground — run with --ground {arg} to match."
 
 
-def _ssn_builder(path: Path, text: str):
+def _ssn_builder(path: Path, text: str, refine: int = 1):
+    if refine != 1:
+        raise SystemExit(
+            f"{path.name}: a SimNEC circuit has no refinement path; "
+            "export it to .nec and refine the deck"
+        )
     circuit = parse_ssn(text, name=path.name, network=True)
     if circuit.conductivity is not None and circuit.deck.conductivity is None:
         # NECOptions.mhosPerMeter is the wire material; bake it into the deck
@@ -195,7 +205,7 @@ def _ssn_builder(path: Path, text: str):
 _LOADERS = {".nec": _nec_builder, ".ssn": _ssn_builder}
 
 
-def builder_from_file(spec: str):
+def builder_from_file(spec: str, refine: int = 1):
     """The builder class for an ``@``-spec path (the leading ``@`` already
     stripped): dispatch on the extension, parse once, and synthesize the
     design. Raises ``SystemExit`` with a clear message for a missing file or
@@ -215,4 +225,4 @@ def builder_from_file(spec: str):
     # Old decks in the wild carry cp1252/latin-1 comment text; geometry cards
     # are ASCII, so replace rather than refuse on a stray comment byte.
     text = path.read_text(encoding="utf-8", errors="replace")
-    return loader(path, text)
+    return loader(path, text, refine=refine)
