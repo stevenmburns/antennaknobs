@@ -20,7 +20,7 @@
 | gate | result | numbers |
 |---|---|---|
 | G2' PyNEC Z | **HIT** | 24 decks moved beyond 1e-9, all among the 28 discrete-LD decks. The other 4 are `elt_whip`, skipped as over 3000 segments on both runs. 0 status changes. |
-| G4' round trip | **MISS by one** | NEC-5 round-trip misses 43 → **9** (registered 8). The extra one is `dipole_ld_nt_colocated.deck`: it carries an NT as well as the LD, and fails the way the other NT/TL decks do ("no voltage-source EX card" on re-import). The registration counted it with the LD decks. NEC-2 round-trip misses stay at the same 2. |
+| G4' round trip | **MISS by one** | NEC-5 round-trip misses 43 → **9** (registered 8). The extra one is `dipole_ld_nt_colocated.deck`: it carries an NT as well as the LD. Like the other TL/NT decks, NEC-5 solves it by the multiport-Y route (#1280), so the gate's plain `deck()` call writes a template with no EX card and the re-import finds no source. That is an artefact of the gate, not a defect. The registration counted it with the LD decks. NEC-2 round-trip misses stay at the same 2. |
 | G1, G6 | **HIT** | Unchanged from part B. |
 | G7 regression | **HIT** at bdeedfdd2 | Fast lane 5100 passed, 125 skipped. |
 | G8 direction | **MISS** | Closer to the native design's PyNEC Z on **15/20 = 75 %** (bar 80 %). |
@@ -39,7 +39,7 @@
 - Reported, not re-gated, as registered.
 
 ## Open
-- G5 needs a box for the momwire captures.
+- G5 is running on Skylake.
 - Found during gating, and the same on main:
-  - the NEC-5 deck written for a TL/NT portal deck re-imports with no voltage source (6 decks, plus `dipole_ld_nt_colocated`)
-  - the NEC-2 export of `dipole_load_ld4.deck` has no LD card: its reactive `LD 4` load (100 − j75 Ω) is missing. `dipole_nt_all_zero.deck`'s NT is all zero, so its absence from the export is correct.
+  - not a defect: the 7 TL/NT portal decks miss the NEC-5 round trip only because NEC-5 drives such a network one port at a time (#1280), and `deck()` with no source override is that template, with no EX card. The NEC-2 export refuses them by name.
+  - the NEC-2 export of `dipole_load_ld4.deck` has no LD card: its reactive `LD 4` load (100 − j75 Ω) is missing (filed #1485). `dipole_nt_all_zero.deck`'s NT is all zero, so its absence from the export is correct.
