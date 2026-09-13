@@ -2956,6 +2956,7 @@ def examples_endpoint():
                 "ground_requirement": ex.ground_requirement,
                 "ground_seed": ex.ground_seed,
                 "ground_medium": ex.ground_medium,
+                "ground_card": ex.ground_card,
                 "fixed_segment_counts": ex.fixed_segment_counts,
                 "has_design_freq": ex.has_design_freq,
                 "variants": list(ex.variants),
