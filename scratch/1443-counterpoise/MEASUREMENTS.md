@@ -225,3 +225,52 @@ not shrinking means the port definition is a genuine modelling choice at a
 near-open feed. antennaknobs would then have to declare which port a
 cross-engine row uses, and that becomes a finding about the comparison method,
 not an engine defect.
+
+### P2.5 measured
+
+`step2_port_ladder.py`, `step2_port_ladder_nn21.json`, against the port-matched
+`step2_feed_nn21.json`. The odd port was asserted off-knot, with its segment
+count one away from NEC-5's at every rung. The odd coercion makes the fed
+segment 50 / (2F + 1) mm for F ≥ 2, so at the same F it is slightly *shorter*
+than the even port's 25 / F mm. Fractions are (second − first) / max.
+
+| F | fed seg odd / even / NEC-5 | segs odd / even / NEC-5 | momwire odd Z | momwire even Z | NEC-5 Z | B odd vs even | G odd vs even | ΔB odd→NEC-5 | ΔB even→NEC-5 | ΔG odd→NEC-5 | ΔG even→NEC-5 | ΔR/max\|R\| odd→NEC-5 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 50.00 / 25.000 / 25.000 mm | 238 / 239 / 239 | 44.5602 − 73719.3j | 39.4782 − 68278.3j | 30.643 − 61604j | -7.38 % | -3.17 % | +16.43 % | +9.78 % | -1.52 % | -4.65 % | -31.23 % |
+| 2 | 10.00 / 12.500 / 12.500 mm | 242 / 241 / 241 | 28.5263 − 58690.3j | 32.7471 − 63256.3j | 29.029 − 58720j | +7.22 % | +1.18 % | -0.05 % | +7.17 % | +1.63 % | +2.79 % | +1.73 % |
+| 4 | 5.56 / 6.250 / 6.250 mm | 246 / 245 / 245 | 26.6891 − 56641.5j | 28.9962 − 59097.1j | 27.677 − 56539j | +4.16 % | +0.20 % | +0.18 % | +4.33 % | +3.92 % | +4.11 % | +3.57 % |
+| 8 | 2.94 / 3.125 / 3.125 mm | 254 / 253 / 253 | 25.1552 − 54828.9j | 26.6950 − 56498.2j | 26.466 − 54775j | +2.95 % | +0.06 % | +0.10 % | +3.05 % | +5.14 % | +5.19 % | +4.95 % |
+
+| id | verdict |
+|---|---|
+| P2.5a | **MISSED** — odd and even momwire B differ by 2.95 % at F = 8 (bar < 1.5 %); the magnitudes 7.38, 7.22, 4.16, 2.95 % are monotone |
+| P2.5b | **HIT** — their G differ by 0.06 % at F = 8 (bar < 2 %) |
+| P2.5c | **MISSED** — the odd port's ΔB against NEC-5 is 0.10 % against the matched port's 3.05 % at F = 8 (bar within 1 pp) |
+
+**Neither registered outcome fits cleanly.** The two momwire spellings converge
+toward each other in B (7.4 → 2.95 %), more slowly than predicted, and not
+"apart by more than 3 % and not shrinking" either.
+
+**What the table shows instead, as observations after the run:**
+
+- **momwire's stock port, the gap mid-segment, matches NEC-5's B to within 0.2 %
+  at every F ≥ 2** (-0.05, +0.18, +0.10 %). The port-matched spelling, the gap on a knot,
+  stays 3–7 % away. Matching segment topology did not match the physics of the
+  source; matching the fed segment's size nearly did.
+- **The census's 16 % in B, and so most of its 31 % in R, is the fed segment's
+  SIZE.** At the census mesh the odd coercion gives momwire one 50 mm fed
+  segment against NEC-5's two 25 mm. Once momwire's fed segment is 10 mm against
+  NEC-5's 12.5 mm (F = 2), B agrees to 0.05 %. That is an antennaknobs
+  comparison-method finding: the per-engine parity coercion hands the two
+  engines source regions that differ in size by 2×, on the one kind of deck, a
+  near-open, where the source's susceptance is most of \|Y\|.
+- **B itself is not converged on any spelling.** NEC-5's B rises 1.623 → 1.703 →
+  1.769 → 1.826 × 10⁻⁵ S across the ladder, in steps shrinking only slowly
+  (0.080, 0.066, 0.057), as a delta-gap source's capacitance does. Agreement in
+  B is agreement at matched source size, not a converged value.
+- **The residual is in G, and it grows with source refinement.** Odd port
+  against NEC-5: +1.63, +3.92, +5.14 % at F = 2, 4, 8. The even port behaves the same
+  (+2.79, +4.11, +5.19 %), while grading the radiator reverses its sign
+  (step 2's `graded` ladder). A few-percent G difference, sensitive to both the
+  source mesh and the radiator mesh, is what is left to localise. It is the
+  natural target for the plan's transmitted-grid probes.
