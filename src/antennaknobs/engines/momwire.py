@@ -1006,6 +1006,7 @@ class MomwireEngine(SimulationEngine):
         # know where the interface is, and this is a pure function of the
         # `ground` argument.
         self._ground = _normalise_ground(ground)
+        self._refuse_ge_minus_one_contact(self._ground)
         self._ground_z = ground_z if self._ground is not None else None
 
         # Issue #1346: a straight wire crossing the plane mid-span becomes

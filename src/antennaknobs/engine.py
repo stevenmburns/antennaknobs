@@ -109,6 +109,23 @@ class SimulationEngine(ABC):
     def __init__(self, builder):
         self.builder = builder
 
+    def _refuse_ge_minus_one_contact(self, ground):
+        """Refuse a file design whose deck says `GE -1` and has a FREE wire
+        end in the ground plane, when this engine applies a ground
+        (antennaknobs#1460; the rule is `nec_import.ge_minus_one_contact_refusal`).
+
+        Every engine calls this right after resolving its ground, before any
+        binary probe. Catalog designs carry no parsed deck and never refuse.
+        """
+        deck = getattr(self.builder, "file_deck_parsed", None)
+        if deck is None:
+            return
+        from .nec_import import ge_minus_one_contact_refusal
+
+        message = ge_minus_one_contact_refusal(deck, ground)
+        if message is not None:
+            raise ValueError(message)
+
     @staticmethod
     def coerce_n_seg(n_seg: int, parity: SegmentParity) -> int:
         # Floor below the parity step. n_seg=0 is invalid for every engine

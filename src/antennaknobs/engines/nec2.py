@@ -363,6 +363,7 @@ class NEC2Engine(SimulationEngine):
         from .pynec import DEFAULT_GROUND
 
         self.ground = DEFAULT_GROUND if ground is None else ground
+        self._refuse_ge_minus_one_contact(self.ground)
         self.timeout = float(timeout)
         # AK#1428: with a capture dir (or `ANTENNAKNOBS_CAPTURE_DIR/nec2` from
         # the environment) every run writes `<hash>.nec` and `<hash>.out`
