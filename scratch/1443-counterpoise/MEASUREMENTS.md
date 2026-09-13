@@ -274,3 +274,35 @@ toward each other in B (7.4 → 2.95 %), more slowly than predicted, and not
   (step 2's `graded` ladder). A few-percent G difference, sensitive to both the
   source mesh and the radiator mesh, is what is left to localise. It is the
   natural target for the plan's transmitted-grid probes.
+
+**How B is to be read, from here on.** On every spelling measured, B kept
+rising as the fed segment shrank; that is the measurement. This record does not
+cite the delta-gap source's susceptance behaviour from memory, so no literature
+claim is made. What it does say: **at a near-open feed B, and R with it, are
+only comparable between engines at a matched fed-segment size, and any
+published number there has to state that size.**
+
+## Step 3 — the far mesh at a fixed, matched-size source (registered before the run)
+
+The source is held at F = 4: NEC-5's fed wire at 8 × 6.25 mm with EX at the
+knot, and momwire on its own stock odd port, 9 × 5.56 mm with the gap
+mid-segment. P2.5 measured those two agreeing in B to 0.18 %. With the source
+fixed, the census's own axis is laddered: nominal_nsegs 21 / 42 / 84, which
+refines the radiator and the buried radials together. Two radiators:
+
+- **`stock`** — the radiator as the design meshes it (500 / 250 / 125 mm);
+- **`graded`** — step 2's explicit schedule from the fed segment, with the far
+  panel at the design's segment for that nominal_nsegs.
+
+Both engines, read in Y. The harness asserts that momwire's feed is off-knot,
+with a segment count one away from NEC-5's.
+
+| id | prediction | verdict |
+|---|---|---|
+| P3.1 | **informed by step 2**, where grading moved G but not B: ΔB/max\|B\| stays within 0.5 pp of its nominal_nsegs 21 value across 42 and 84, on both radiators | pending |
+| P3.2 | **blind**: the G residual is far-mesh discretization — \|ΔG/max\|G\|\| < 2 % at nominal_nsegs 84 on both radiators | pending |
+| P3.3 | **blind**: at nominal_nsegs 84 the `stock` and `graded` G fractions agree within 1 pp | pending |
+
+Competing outcome, registered with them: \|ΔG\| holding at 4–5 % on both
+radiators at 84, with the two agreeing, is a converged G difference not carried
+by the mesh. Then the plan's transmitted-grid probes are next.
