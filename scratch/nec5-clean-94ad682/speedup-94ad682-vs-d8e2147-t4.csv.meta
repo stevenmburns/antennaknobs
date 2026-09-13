@@ -1,0 +1,6 @@
+# a = /home/smburns/nec5-timing/nec5cl-d8e2147  timing_valid=True
+# b = /home/smburns/nec5-timing/nec5cl-94ad682  timing_valid=True
+# floor 0.05 s: 1629 deck(s) solved by both but too quick to time, kept in the CSV with comparable=0; 132 deck(s) not `ok` on one or both sides, also kept
+# sub-floor band (1629 decks, either side under 0.05 s): ratio median 1.004  p10 0.968  p90 1.048  — start-up, not solver; both binaries dynamic, no static d8e2147 to check against
+# comparable decks 1315 of 3076; speedup median 1.002  p10 0.986  p90 1.018  min 0.480  max 3.164
+# total wall over comparable decks: a 1127 s, b 1125 s

@@ -124,14 +124,18 @@ Unit-2 timing matches 94ad682, as expected. Headline set, t1 → t4:
 
 Six maps, every pair same-session and `timing_valid: true` on both sides:
 
-| map | comparable decks | median speedup | long decks (≥ 2 s) |
-|---|---:|---:|---|
-| 2461035 vs x13 | 1,313 | **1.552** | 86 faster, **0 slower** |
-| 2461035 vs d8e2147 | 1,319 | **1.001** | 34 faster, 31 slower |
-| 2461035 t1 vs t4 | 1,459 | **1.312** | 85 faster, 9 slower |
-| 94ad682 vs x13 | 1,312 | 1.554 | 85 faster, 0 slower |
-| 94ad682 vs d8e2147 | 1,315 | 1.002 | 37 faster, 27 slower |
-| 94ad682 t1 vs t4 | 1,466 | 1.313 | 86 faster, 5 slower |
+| map | condition | comparable | median | long decks (≥ 2 s) |
+|---|---|---:|---:|---|
+| 2461035 vs x13 | **1 thread**, 4 workers | 1,313 | **1.552** | 86 faster, **0 slower** |
+| 2461035 vs d8e2147 | **1 thread**, 4 workers | 1,319 | **1.001** | 34 faster, 31 slower |
+| 2461035 t1 vs t4 | 8×1 against 2×4 | 1,459 | **1.312** | 85 faster, 9 slower |
+| 94ad682 vs x13 | 1 thread, 4 workers | 1,312 | 1.554 | 85 faster, 0 slower |
+| 94ad682 vs d8e2147 | 1 thread, 4 workers | 1,315 | 1.002 | 37 faster, 27 slower |
+| 94ad682 t1 vs t4 | 8×1 against 2×4 | 1,466 | 1.313 | 86 faster, 5 slower |
+
+The first four are **single-thread** comparisons — both sides ran one thread per
+worker — so they measure serial speed, and the file names say `-1thread`. Only the
+last two vary the thread count.
 
 At one thread per worker the two unit-2 builds are **indistinguishable from
 d8e2147** (median 1.001 and 1.002, p10 0.983/0.986) — the whole of unit 2 is in
@@ -159,15 +163,33 @@ regression was the box, not the build.
 | #1448's 94ad682-vs-d8e2147 at t4 (headline set) | **no** — same session | yes |
 | #1448's corpus mover list (statuses, impedances at 1e-9) | n/a — statuses and impedances, not walls | yes |
 | the first 94ad682-vs-x13 / vs-d8e2147 **maps** (never published) | **yes** | **no — discarded and rebuilt same-session** |
-| `scratch/nec5-clean-d8e2147/speedup-*-t4.csv` (on main) | **within one session** for each pair | yes, but see below |
+| `scratch/nec5-clean-d8e2147/speedup-*-t4.csv` (on main) | **within one session** for each pair | **yes** |
 | #1433's "d8e2147 gives 2.08× on LP144" and the 38-deck set | **no** — one session, serialised | yes |
 
-Two notes on the committed `speedup-*-t4.csv` files. Their ratios are
-like-for-like (both sides from the same session) so their **conclusions stand**;
-but the name is misleading twice over — those passes ran **4 workers × 1 thread**,
-because `--jobs 4` makes the corpus tool pin each worker to one thread unless the
-caller exported a count, so they are serial-speed maps rather than four-thread
-ones. The maps in this PR name their condition instead of their intent.
+### A claim I made about those files, withdrawn
+
+An earlier draft of this report said the committed `speedup-*-t4.csv` files ran
+**4 workers × 1 thread** and were therefore serial-speed maps under a four-thread
+name. **That is wrong**, and the check that settles it is four decks:
+
+| deck | `check-x13-t4.jsonl` | this box, serialised at 4 threads, today |
+|---|---:|---:|
+| `gbhoyt` | 34.69 | 34.44 |
+| `LP144-35-MAXFB` | 50.05 | 50.28 |
+| `TRAPx2_V` | 61.48 | 61.53 |
+| `6mYagi-Onec` | 49.38 | 49.56 |
+
+Those walls are a serialised four-thread run, which is exactly what
+`scratch/nec5-clean-d8e2147/README.md` says on its fourth line: **`--jobs 1`,
+`OMP_NUM_THREADS=4`**. The reasoning that produced the wrong claim was about the
+tool's `--jobs 4` DEFAULT, which pins each worker to one thread unless the caller
+exported a count — true of the pass *I* ran in #1448, not of those.
+
+So the published files are the better measurement of the two, their name is
+accurate, and nothing there needs correcting. What needed correcting was in this
+PR: the baselines here ran `--jobs 4` with `OMP_NUM_THREADS=1`, so the four
+build-vs-build maps are **single-thread** comparisons and were carrying `-t4`
+names. They are renamed `-1thread`.
 
 ## Provenance
 
