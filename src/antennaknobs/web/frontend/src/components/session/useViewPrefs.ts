@@ -47,6 +47,11 @@ type ViewPrefs = {
   pinned: View[];
   seen: View[];
   layout: Layout;
+  // The stage readout's minimize choices, per view. Only a choice that differs
+  // from the view's registry default (VIEW_META.readoutStartsCollapsed) is
+  // kept, and an empty map is not written, so a session that never touches
+  // the readout still persists `{pinned, seen}`.
+  readoutCollapsed: Partial<Record<View, boolean>>;
 };
 
 const KNOWN = new Set<string>(VIEWS.map((v) => v.id));
@@ -79,10 +84,22 @@ function sanitizeLayout(raw: unknown): Layout {
   return raw === "grid" ? "grid" : "rail";
 }
 
+// Per-view readout choices. Unknown views and non-boolean values are dropped
+// one by one; a map that is garbage as a whole reads as "no choices", which
+// leaves every view on its registry default.
+function sanitizeReadout(raw: unknown): Partial<Record<View, boolean>> {
+  const out: Partial<Record<View, boolean>> = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (KNOWN.has(k) && typeof v === "boolean") out[k as View] = v;
+  }
+  return out;
+}
+
 // What loadPrefs falls back to on any of: missing key, corrupt JSON, wrong
 // shape, or an empty pin set post-sanitisation.
 function defaultPrefs(): ViewPrefs {
-  return { pinned: defaultPins(), seen: SEEN_SEED, layout: "rail" };
+  return { pinned: defaultPins(), seen: SEEN_SEED, layout: "rail", readoutCollapsed: {} };
 }
 
 // Parses and validates a raw stored string exactly as loadPrefs does, but
@@ -108,6 +125,7 @@ function parseStoredPrefs(raw: string): ViewPrefs | null {
           pinned,
           seen: seen.length > 0 ? seen : SEEN_SEED,
           layout: sanitizeLayout(rec.layout),
+          readoutCollapsed: sanitizeReadout(rec.readoutCollapsed),
         };
       }
     }
@@ -168,6 +186,10 @@ function update(next: ViewPrefs): void {
         pinned: next.pinned,
         seen: next.seen,
         layout: next.layout === "rail" ? undefined : next.layout,
+        readoutCollapsed:
+          Object.keys(next.readoutCollapsed).length > 0
+            ? next.readoutCollapsed
+            : undefined,
       }),
     );
   } catch {
@@ -328,7 +350,7 @@ export function gridFix(
 
 export function useViewPrefs() {
   const prefs = useSyncExternalStore(subscribe, getSnapshot);
-  const { pinned, seen, layout } = prefs;
+  const { pinned, seen, layout, readoutCollapsed } = prefs;
 
   // Views the user has never been offered. Seeded (not empty) on a first run,
   // so the badge only ever fires for views added after the picker shipped.
@@ -395,6 +417,26 @@ export function useViewPrefs() {
     update({ ...cur, layout: next });
   }, []);
 
+  // The stage readout's minimize state for a view: the viewer's choice, else
+  // the view's registry default (the Files view starts minimized).
+  const isReadoutCollapsed = useCallback(
+    (v: View): boolean => readoutCollapsed[v] ?? VIEW_META[v].readoutStartsCollapsed,
+    [readoutCollapsed],
+  );
+
+  // A choice equal to the view's default is removed rather than stored, so the
+  // record stays sparse and a later change of default reaches the viewer.
+  // No-ops (keeping snapshot identity) when the state would not change.
+  const setReadoutCollapsed = useCallback((v: View, collapsed: boolean) => {
+    const cur = getSnapshot();
+    const fallback = VIEW_META[v].readoutStartsCollapsed;
+    if ((cur.readoutCollapsed[v] ?? fallback) === collapsed) return;
+    const next = { ...cur.readoutCollapsed };
+    if (collapsed === fallback) delete next[v];
+    else next[v] = collapsed;
+    update({ ...cur, readoutCollapsed: next });
+  }, []);
+
   return {
     pinned,
     seen,
@@ -405,5 +447,7 @@ export function useViewPrefs() {
     markRosterSeen,
     layout,
     setLayout,
+    isReadoutCollapsed,
+    setReadoutCollapsed,
   };
 }

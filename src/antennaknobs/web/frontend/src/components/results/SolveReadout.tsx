@@ -39,6 +39,8 @@ export function SolveReadout({
   normCheckEnabled,
   onPlaneChange,
   className = "",
+  collapsed = false,
+  onCollapsedChange,
 }: {
   result: SolveResponse | null;
   rttMs: number | null;
@@ -63,8 +65,14 @@ export function SolveReadout({
   /** Measurement-plane pick (issue #652 c). Absent = picker never shown. */
   onPlaneChange?: ((plane: string) => void) | undefined;
   className?: string;
+  /** The desktop stage's minimize control. Without `onCollapsedChange` there
+   *  is no control and the card is never collapsed: the mobile Info screen,
+   *  where the readout is the page rather than a card floating over one. */
+  collapsed?: boolean | undefined;
+  onCollapsedChange?: ((collapsed: boolean) => void) | undefined;
 }) {
   const planes = result?.planes;
+  const isCollapsed = collapsed && onCollapsedChange !== undefined;
   // Overflow guard for the floating stage HUD: with enough content (a
   // multi-feed Z table plus a design's own readout rows), the card can
   // outgrow the stage. CSS caps its height; this effect detects that the
@@ -91,12 +99,65 @@ export function SolveReadout({
     return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `check` reads
     // only refs/setState; recreating the observer per render buys nothing.
-  }, []);
+    // Re-attached on expand: the collapsed pill is a different element, and
+    // nothing in it can overflow.
+  }, [isCollapsed]);
+
+  if (isCollapsed) {
+    // One line, the numbers a glance is for. It stays on screen so the full
+    // card is always one click away; nothing hides without a trace.
+    const open = !!result && Math.abs(result.z_in_re) >= 1e8;
+    return (
+      <button
+        type="button"
+        className={`readout readout-pill${className ? " " + className : ""}`}
+        aria-label="Show the full solve readout"
+        aria-expanded={false}
+        title="Show the full solve readout"
+        onClick={() => onCollapsedChange(false)}
+      >
+        <span>
+          <span className="readout-pill-key">R</span>{" "}
+          <span className="val">{result ? formatOhms(result.z_in_re) : "—"}</span>
+        </span>
+        {!open && (
+          <span>
+            <span className="readout-pill-key">X</span>{" "}
+            <span className="val">{result ? formatOhms(result.z_in_im) : "—"}</span>
+          </span>
+        )}
+        <span>
+          <span className="readout-pill-key">SWR</span>{" "}
+          <span className="val">
+            {result
+              ? formatSwr(result.z_in_re, result.z_in_im, result.z0_ohms ?? 50)
+              : "—"}
+          </span>
+        </span>
+        <span className="readout-pill-caret" aria-hidden="true">
+          ▴
+        </span>
+      </button>
+    );
+  }
+
   return (
     <div
       ref={rootRef}
-      className={`readout${className ? " " + className : ""}${overflowing ? " readout-overflowing" : ""}`}
+      className={`readout${className ? " " + className : ""}${onCollapsedChange ? " readout-collapsible" : ""}${overflowing ? " readout-overflowing" : ""}`}
     >
+      {onCollapsedChange && (
+        <button
+          type="button"
+          className="readout-collapse"
+          aria-label="Minimize the solve readout"
+          aria-expanded={true}
+          title="Minimize the solve readout (it stays minimized on this view)"
+          onClick={() => onCollapsedChange(true)}
+        >
+          –
+        </button>
+      )}
       {onPlaneChange && planes && planes.length > 1 && (
         <div
           className="row"

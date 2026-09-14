@@ -98,6 +98,15 @@ describe("view metadata", () => {
     expect(VIEW_META.smith.staleWhileOptimizing).toBe(false);
     expect(VIEW_META.schematic.staleWhileOptimizing).toBe(false);
   });
+
+  // The stage readout floats over every view. It starts minimized only where
+  // the view's own content already carries the numbers and the card would
+  // cover it: the Files view's printout.
+  it("starts the readout minimized only on the Files view", () => {
+    expect(VIEWS.filter((v) => v.readoutStartsCollapsed).map((v) => v.id)).toEqual([
+      "files",
+    ]);
+  });
 });
 
 // --- 3. Dispatch lands on the right component -------------------------------

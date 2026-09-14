@@ -2695,6 +2695,65 @@ input[type=checkbox] {
   cursor: pointer;
 }
 
+/* The readout's minimize control and its collapsed pill. Both take pointer
+   events back from the passive HUD, as the plane picker does; the rest of a
+   full card still lets canvas drags through. */
+.readout-collapsible {
+  position: relative;
+  padding-top: calc(var(--space-5) + 14px);
+}
+
+.stage-readout.readout-collapsible {
+  position: absolute;
+}
+
+.readout-collapse {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  pointer-events: auto;
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: 1;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.readout-collapse:hover {
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+.readout-pill {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  color: var(--fg);
+  text-align: left;
+  white-space: nowrap;
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+}
+
+.stage-readout.readout-pill {
+  min-width: 0;
+  max-width: none;
+  pointer-events: auto;
+}
+
+.readout-pill:hover {
+  border-color: var(--muted-2);
+}
+
+.readout-pill-key,
+.readout-pill-caret {
+  color: var(--muted);
+}
+
 .projection-toggle {
   display: flex;
   gap: var(--space-2);

@@ -33,22 +33,27 @@ export type ViewMeta = {
   // Required, not defaulted: a new view's answer is never obviously false, so
   // the compiler should make someone decide.
   staleWhileOptimizing: boolean;
+  // Whether the stage's solve readout starts minimized on this view, until the
+  // viewer chooses otherwise (useViewPrefs remembers that per view). True only
+  // where the view's own content already carries the numbers and the floating
+  // card would cover it. Required, for the same reason as the field above.
+  readoutStartsCollapsed: boolean;
 };
 export const VIEWS: ViewMeta[] = [
   // Geometry and currents are both drawn from the last solve, i.e. the knobs
   // as they stand — which is not the candidate being evaluated.
-  { id: "antenna", label: "Antenna", defaultPinned: true, staleWhileOptimizing: true },
-  { id: "azimuth", label: "Azimuth (xy)", defaultPinned: true, staleWhileOptimizing: true },
-  { id: "elevation", label: "Elevation (yz)", defaultPinned: true, staleWhileOptimizing: true },
+  { id: "antenna", label: "Antenna", defaultPinned: true, staleWhileOptimizing: true, readoutStartsCollapsed: false },
+  { id: "azimuth", label: "Azimuth (xy)", defaultPinned: true, staleWhileOptimizing: true, readoutStartsCollapsed: false },
+  { id: "elevation", label: "Elevation (yz)", defaultPinned: true, staleWhileOptimizing: true, readoutStartsCollapsed: false },
   // NOT stale: the dot follows the run's per-eval frames (ViewRenderProps'
   // liveZ), so this is the one view that is live. Its sweep locus is still
   // pre-run, which is why the live point draws as a hollow ring rather than
   // claiming to be a settled solve.
-  { id: "smith", label: "Smith", defaultPinned: true, staleWhileOptimizing: false },
+  { id: "smith", label: "Smith", defaultPinned: true, staleWhileOptimizing: false, readoutStartsCollapsed: false },
   // NOT stale: built from `build_network()` on the CURRENT knob values, and
   // an optimizer run leaves those alone until it applies its result — so the
   // drawing on screen stays accurate for the whole run.
-  { id: "schematic", label: "Schematic", defaultPinned: false, staleWhileOptimizing: false },
+  { id: "schematic", label: "Schematic", defaultPinned: false, staleWhileOptimizing: false, readoutStartsCollapsed: false },
   // Sweep-derived views (issue #700 unit 5, docs/plan-view-rail-scaling.md
   // items 6/7): the sweep data already flows to the Smith chart, so these
   // are a second and third presentation of it, not a new data path. Ship
@@ -58,14 +63,22 @@ export const VIEWS: ViewMeta[] = [
   // audience reads; linear |Γ| only ever appears as a Smith-chart radius.
   // Frequency sweeps of the pre-run geometry: the whole curve is stale for
   // the duration, and unlike the Smith chart there is no live point on them.
-  { id: "gamma", label: "S11 (dB) vs freq", defaultPinned: false, staleWhileOptimizing: true },
-  { id: "vswr", label: "VSWR vs freq", defaultPinned: false, staleWhileOptimizing: true },
+  { id: "gamma", label: "S11 (dB) vs freq", defaultPinned: false, staleWhileOptimizing: true, readoutStartsCollapsed: false },
+  { id: "vswr", label: "VSWR vs freq", defaultPinned: false, staleWhileOptimizing: true, readoutStartsCollapsed: false },
   // The Files view (AK#1428): the design's source file and, on a NEC-5 or
   // NEC-2 slot, the deck that engine ran plus its printout. Unpinned like
   // schematic. NOT stale: the source is the file as it stands, and a deck or
   // printout spells out its own inputs, so neither can be mistaken for the
   // candidate an optimizer run is evaluating.
-  { id: "files", label: "Files", defaultPinned: false, staleWhileOptimizing: false },
+  // Its readout starts minimized: the printout carries R and X itself, and the
+  // floating card would sit on top of the text.
+  {
+    id: "files",
+    label: "Files",
+    defaultPinned: false,
+    staleWhileOptimizing: false,
+    readoutStartsCollapsed: true,
+  },
 ];
 
 // Id → metadata, for the consumers that hold a list of ids in the USER's
