@@ -1407,7 +1407,18 @@ def cli(arguments=None):
 
     p.set_defaults(func=f)
 
-    p = subparsers.add_parser("export", help="Export antenna to a NEC2 .nec card deck")
+    p = subparsers.add_parser(
+        "export",
+        help="Export antenna to a .nec card deck (NEC-2 by default, NEC-5 with --dialect nec5)",
+    )
+    p.add_argument(
+        "--dialect",
+        choices=("nec2", "nec5"),
+        default="nec2",
+        help="Card dialect: nec2 (default) or nec5, NEC5Engine's own deck with "
+        "knot-placed sources and in-medium meshing, so a deck that leaves this "
+        "repo is written from the model and never by hand (issue #1328).",
+    )
     p.add_argument(
         "--builder",
         type=str,
@@ -1438,15 +1449,34 @@ def cli(arguments=None):
     )
 
     def f(args):
-        from .nec_export import export_nec
-
         builder = get_builder(args.builder)
-        kwargs = {"include_rp": args.include_rp}
-        if args.ground is not _GROUND_UNSET:
-            kwargs["ground"] = parse_ground(args.ground)
-        if args.freq is not None:
-            kwargs["freq"] = args.freq
-        deck = export_nec(builder(), **kwargs)
+        if args.dialect == "nec5":
+            if not args.include_rp:
+                raise SystemExit(
+                    "antennaknobs export: --no-pattern applies to the nec2 dialect "
+                    "only; the nec5 writer has no RP switch"
+                )
+            from .nec5_export import export_nec5
+
+            ground = args.ground if args.ground is not _GROUND_UNSET else "finite"
+            deck = export_nec5(
+                builder(),
+                ground=parse_ground(ground),
+                freq=args.freq,
+                design=args.builder,
+                rung="default",
+                ground_name=ground,
+                note="written by `antennaknobs export --dialect nec5`",
+            )
+        else:
+            from .nec_export import export_nec
+
+            kwargs = {"include_rp": args.include_rp}
+            if args.ground is not _GROUND_UNSET:
+                kwargs["ground"] = parse_ground(args.ground)
+            if args.freq is not None:
+                kwargs["freq"] = args.freq
+            deck = export_nec(builder(), **kwargs)
         if args.out:
             # NEC decks are ASCII by spec, but pin the encoding rather than
             # trust the platform default (issue #772).
