@@ -287,6 +287,19 @@ substitution is named in `skipped_note()`). This dialect support was
 validated against a 3,146-deck corpus of published models — ARRL course
 material, 4nec2's own library, and the wider web.
 
+4nec2 (5.7.0 and later) also lets `EX`, `LD`, `TL` and `NT` give a segment as a
+percentage of the wire's length, measured from its first end: `EX 0 2 50% 0 1 0`
+feeds the middle of wire 2. With `network=True` the percentage is the exact
+position, a port at that point on the uncut wire that each engine meshes to
+carry exactly there. Without it, the percentage names the segment whose centre
+is nearest, and a position exactly on a segment boundary takes the lower
+segment. The 4nec2 manual does not document its own rounding, so on a wire
+whose boundary falls at the percentage, such as 50% of a two-segment wire, a
+4nec2 run can feed the neighbouring segment. `0%` and `100%` use the end
+segment's centre, since a gap cannot sit at a wire's end. A percentage needs a
+tag that names one wire, and an `LD` range given as two percentages expands
+over the segments between them.
+
 ## The NEC-5 dialect
 
 NEC-5 changed one thing the importer must not guess about: **sources can sit

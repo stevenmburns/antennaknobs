@@ -194,6 +194,10 @@ class NecFeed:
     voltage: complex
     current: bool = False
     edge: int = 0
+    # A 4nec2 percentage position ("50%"): the exact place along the wire as a
+    # fraction from end 1, which the network path keeps; `seg` is then the
+    # segment whose centre is nearest (AK#1496).
+    at: float | None = None
 
 
 @dataclass(frozen=True)
@@ -221,6 +225,7 @@ class NecLoad:
     parallel: bool
     z: complex | None = None
     edge: int = 0
+    at: float | None = None  # a 4nec2 percentage position, as on NecFeed
 
 
 @dataclass(frozen=True)
@@ -259,6 +264,8 @@ class NecTL:
     virtual_b: bool = False
     shunt_y_a: complex | None = None
     shunt_y_b: complex | None = None
+    at_a: float | None = None  # 4nec2 percentage positions, as on NecFeed
+    at_b: float | None = None
 
 
 @dataclass(frozen=True)
@@ -284,6 +291,8 @@ class NecNT:
     shunt_r_a: float | None = None
     shunt_r_b: float | None = None
     y: tuple[tuple[complex, complex], tuple[complex, complex]] | None = None
+    at_a: float | None = None  # 4nec2 percentage positions, as on NecFeed
+    at_b: float | None = None
 
 
 @dataclass(frozen=True)
@@ -579,6 +588,37 @@ class NecDeck:
         return plan
 
     @cached_property
+    def _attachment_positions(self) -> dict[tuple[int, int], float]:
+        """(wire index, segment) -> the exact position a 4nec2 percentage gave
+        an attachment there, as a fraction of the wire from end 1 (AK#1496).
+        Two different positions rounding to one segment would be one port in
+        two places, so that is refused by name."""
+        out: dict[tuple[int, int], float] = {}
+
+        def put(wire, seg, at):
+            if at is None:
+                return
+            prev = out.get((wire, seg))
+            if prev is not None and abs(prev - at) > 1e-12:
+                raise ValueError(
+                    f"wire {wire + 1}, segment {seg}: two percentage positions "
+                    f"({prev * 100:g}% and {at * 100:g}%) fall on one segment; "
+                    "give the wire more segments"
+                )
+            out[(wire, seg)] = at
+
+        for f in self.feeds:
+            if not f.edge:
+                put(f.wire, f.seg, f.at)
+        for ld in self.loads:
+            if not ld.edge:
+                put(ld.wire, ld.seg, ld.at)
+        for tl in (*self.tls, *self.nts):
+            put(tl.wire_a, tl.seg_a, tl.at_a)
+            put(tl.wire_b, tl.seg_b, tl.at_b)
+        return out
+
+    @cached_property
     def _vertex_wires(self) -> frozenset[int]:
         """Wires that keep the #824 cut and the PortAtVertex spelling (AK#1469
         part B).
@@ -662,7 +702,22 @@ class NecDeck:
             pieces = list(pairwise(bounds))
             placed: dict = {}
             for pname, kind, idx in items:
-                if kind == "seg":
+                pos = (
+                    self._attachment_positions.get((wi, idx)) if kind == "seg" else None
+                )
+                if pos is not None:
+                    # A 4nec2 percentage: the exact point, on its junction piece.
+                    x = pos * n
+                    j = next((j for j, (a, b) in enumerate(pieces) if a < x < b), None)
+                    if j is None:
+                        raise ValueError(
+                            f"wire {wi + 1}: the position {pos * 100:g}% lands "
+                            "exactly where another wire joins it"
+                        )
+                    a, b = pieces[j]
+                    at = (x - a) / (b - a)
+                    at = None if abs(at - 0.5) < 1e-9 else at
+                elif kind == "seg":
                     j = next(j for j, (a, b) in enumerate(pieces) if a < idx <= b)
                     a, b = pieces[j]
                     c, local = b - a, idx - a
@@ -1557,10 +1612,29 @@ class _Card:
     ):
         self.mnemonic = mnemonic
         self.where = where
-        self.vals = [_value(t, where, syms) for t in tokens]
+        # 4nec2 lets EX, LD, TL and NT give a segment as a percentage of the
+        # wire's length from end 1 ("50%", AK#1496). Such a field is kept
+        # here; only `percent()` reads it, and `f()` / `i()` refuse it.
+        self.pct: dict[int, float] = {}
+        self.vals = []
+        for k, token in enumerate(tokens):
+            if len(token) > 1 and token.endswith("%"):
+                self.pct[k] = _value(token[:-1], where, syms)
+                self.vals.append(0.0)
+            else:
+                self.vals.append(_value(token, where, syms))
 
     def f(self, k: int) -> float:
+        if k in self.pct:
+            raise self.error(
+                f"field {k + 1} is a percentage ({self.pct[k]:g}%), which 4nec2 "
+                "allows only as a position on a wire, in EX, LD, TL and NT"
+            )
         return self.vals[k] if k < len(self.vals) else 0.0
+
+    def percent(self, k: int) -> float | None:
+        """The percentage in field ``k``, or None when it is a plain number."""
+        return self.pct.get(k)
 
     def i(self, k: int) -> int:
         return int(round(self.f(k)))
@@ -1935,6 +2009,54 @@ def _gs(card, wires):
         w[4] *= factor
 
 
+@dataclass(frozen=True)
+class _Pct:
+    """A percentage segment field, parked until the geometry is final."""
+
+    value: float
+
+
+def _percent_position(wires, tag, pct, card):
+    """4nec2's percentage position (AK#1496): ``pct`` percent of the length of
+    the one wire tagged ``tag``, measured from its end 1. Returns (wire index,
+    the 1-based segment whose centre is nearest, the position as a fraction).
+
+    The segment is what a path without positioned ports uses; a position
+    exactly on a segment boundary takes the lower segment. The fraction is the
+    exact position the network path keeps (a port at that point, AK#1469), or
+    None at 0 % or 100 %, where a gap cannot sit, so the end segment's centre
+    is used instead. The 4nec2 manual does not say how 4nec2 itself rounds."""
+    if not 0.0 <= pct <= 100.0:
+        raise card.error(f"a position of {pct:g}% is off the wire (0% to 100%)")
+    if tag == 0:
+        raise card.error(
+            f"a percentage position ({pct:g}%) needs a wire tag: tag 0 names no wire"
+        )
+    matches = [i for i, w in enumerate(wires) if w[0] == tag]
+    if not matches:
+        raise card.error(f"no wire has tag {tag}")
+    if len(matches) > 1:
+        raise card.error(
+            f"tag {tag} names {len(matches)} wires, so {pct:g}% of the wire is "
+            "ambiguous; give each wire its own tag"
+        )
+    i = matches[0]
+    n = wires[i][1]
+    seg = min(n, max(1, math.ceil(pct / 100.0 * n - 1e-9)))
+    frac = pct / 100.0
+    return i, seg, (frac if 0.0 < frac < 1.0 else None)
+
+
+def _attach(wires, card, tag_k, seg_k):
+    """(wire index, local segment, position or None) for a (tag, segment)
+    field pair in either spelling: a segment number or a 4nec2 percentage."""
+    pct = card.percent(seg_k)
+    if pct is None:
+        wi, seg = _locate_segment(wires, card.i(tag_k), card.i(seg_k), card)
+        return wi, seg, None
+    return _percent_position(wires, card.i(tag_k), pct, card)
+
+
 def _locate_segment(wires, tag, seg, card):
     """Resolve NEC's (tag, segment) addressing to (wire index, 1-based local
     segment): the ``seg``-th segment among wires with that tag, or the
@@ -1965,11 +2087,12 @@ def _locate_segment(wires, tag, seg, card):
 _LD_EXPAND_MAX = 8
 
 
-def _seg_mid(w, seg: int):
+def _seg_mid(w, seg: int, at: float | None = None):
     """Midpoint of 1-based local segment ``seg`` of a parse-time wire
     ``[tag, n_seg, p1, p2, radius]`` — NEC's connection point for a
-    zero-length TL's straight-line-distance rule."""
-    t = (seg - 0.5) / w[1]
+    zero-length TL's straight-line-distance rule — or the exact point a 4nec2
+    percentage position ``at`` names."""
+    t = (seg - 0.5) / w[1] if at is None else at
     return [a + (b - a) * t for a, b in zip(w[2], w[3], strict=True)]
 
 
@@ -2140,7 +2263,7 @@ def _anchor_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz):
     lam = _C_MPS / (min(freq_mhz) * 1e6)
 
     def loc(card, a, b):
-        return _locate_segment(wires, card.i(a), card.i(b), card)[0]
+        return _attach(wires, card, a, b)[0]
 
     tl_refs: set[int] = set()
     for card in tls_raw:
@@ -2157,6 +2280,9 @@ def _anchor_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz):
     for card in lds_raw:
         if card.i(0) == 5:
             continue  # LD 5 is a material conductivity, not an element
+        if card.percent(2) is not None or card.percent(3) is not None:
+            excluded.add(loc(card, 1, 2 if card.percent(2) is not None else 3))
+            continue
         tag, sf, st = card.i(1), card.i(2), card.i(3)
         if tag == 0 and sf == 0:
             continue  # whole-structure load — does not single out a wire
@@ -2247,8 +2373,8 @@ def _translate_network_cards(
 
     tls: list[NecTL] = []
     for card in tls_raw:
-        wa, sa = _locate_segment(wires, card.i(0), card.i(1), card)
-        wb, sb = _locate_segment(wires, card.i(2), card.i(3), card)
+        wa, sa, at_a = _attach(wires, card, 0, 1)
+        wb, sb, at_b = _attach(wires, card, 2, 3)
         va, vb = wa in anchors, wb in anchors
         # End admittances G+jB: a conductance-only end becomes a Shunt(1/G),
         # a reactive one (#423) or a virtual-node termination (#427) a fixed
@@ -2263,7 +2389,9 @@ def _translate_network_cards(
         if length == 0.0:
             # NEC: zero length means the straight-line distance between
             # the connection points.
-            length = math.dist(_seg_mid(wires[wa], sa), _seg_mid(wires[wb], sb))
+            length = math.dist(
+                _seg_mid(wires[wa], sa, at_a), _seg_mid(wires[wb], sb, at_b)
+            )
         tls.append(
             NecTL(
                 wire_a=wa,
@@ -2279,6 +2407,8 @@ def _translate_network_cards(
                 virtual_b=vb,
                 shunt_y_a=shunt_y_a,
                 shunt_y_b=shunt_y_b,
+                at_a=at_a,
+                at_b=at_b,
             )
         )
         if va:
@@ -2288,8 +2418,8 @@ def _translate_network_cards(
 
     nts: list[NecNT] = []
     for card in nts_raw:
-        wa, sa = _locate_segment(wires, card.i(0), card.i(1), card)
-        wb, sb = _locate_segment(wires, card.i(2), card.i(3), card)
+        wa, sa, at_a = _attach(wires, card, 0, 1)
+        wb, sb, at_b = _attach(wires, card, 2, 3)
         # NEC's NT card is reciprocal: it gives Y11, Y12, Y22 (real+imag each)
         # and Y21 = Y12.
         y11 = complex(card.f(4), card.f(5))
@@ -2314,6 +2444,8 @@ def _translate_network_cards(
                     wire_b=wb,
                     seg_b=sb,
                     y=((y11, y12), (y12, y22)),
+                    at_a=at_a,
+                    at_b=at_b,
                 )
             )
             continue
@@ -2330,6 +2462,8 @@ def _translate_network_cards(
                 series_r=1.0 / ys if ys else None,
                 shunt_r_a=1.0 / ya if ya else None,
                 shunt_r_b=1.0 / yb if yb else None,
+                at_a=at_a,
+                at_b=at_b,
             )
         )
 
@@ -2364,10 +2498,30 @@ def _translate_network_cards(
     wire_insulation: dict[int, tuple[float, float]] = {}
     for card in lds_raw:
         ldtyp = card.i(0)
-        tag, sf, st = card.i(1), card.i(2), card.i(3)
+        tag = card.i(1)
+        # 4nec2 percentage positions (AK#1496): each end of the range becomes
+        # its nearest segment, and a load at ONE position keeps that exact
+        # position on the network path.
+        psf, pst = card.percent(2), card.percent(3)
+        ld_at = None
+        if psf is not None or pst is not None:
+            sf, at_f = (
+                _percent_position(wires, tag, psf, card)[1:]
+                if psf is not None
+                else (card.i(2), None)
+            )
+            st, at_t = (
+                _percent_position(wires, tag, pst, card)[1:]
+                if pst is not None
+                else (card.i(3), None)
+            )
+            if st <= sf and (pst is None or at_t == at_f):
+                st, ld_at = sf, at_f
+        else:
+            sf, st = card.i(2), card.i(3)
         if ldtyp in (0, 1, 4, 6):
             edge = 0
-            if nec5_dialect and sf != 0:
+            if nec5_dialect and sf != 0 and psf is None and pst is None:
                 # NEC-5 addresses a discrete load as it does EX: I3 is the
                 # segment and I4 its END, so the card is ONE load at a knot,
                 # never a segment range (AK#1483). I4 = 0 takes EX's sign rule.
@@ -2427,7 +2581,17 @@ def _translate_network_cards(
                     continue
                 loaded.add(where)
                 loads.append(
-                    NecLoad(pair[0], pair[1], r, le, c, ldtyp in (1, 6), z=z, edge=edge)
+                    NecLoad(
+                        pair[0],
+                        pair[1],
+                        r,
+                        le,
+                        c,
+                        ldtyp in (1, 6),
+                        z=z,
+                        edge=edge,
+                        at=ld_at if len(pairs) == 1 else None,
+                    )
                 )
         elif ldtyp in (2, 3):
             skip("LD", f"type {ldtyp} distributed per-metre loading is not translated")
@@ -2913,7 +3077,13 @@ def parse_nec(
             # end 1 when negative and end 2 when positive. There is no
             # center reading to fall back on — NEC-5 has no center source.
             edge = 0
-            seg_field = card.i(2)
+            pct = card.percent(2)
+            if pct is not None and (ex_type == 4 or nec5_declared or card.i(3) == 2):
+                raise card.error(
+                    "a percentage position is 4nec2's spelling and cannot also "
+                    "name a NEC-5 segment end"
+                )
+            seg_field = 1 if pct is not None else card.i(2)
             if ex_type == 4:
                 if card.i(3) in (1, 2):
                     edge = card.i(3)
@@ -2943,7 +3113,7 @@ def parse_nec(
             feeds_raw.append(
                 (
                     card.i(1),
-                    abs(seg_field),
+                    _Pct(pct) if pct is not None else abs(seg_field),
                     complex(card.f(4), card.f(5)),
                     current,
                     edge,
@@ -2961,8 +3131,11 @@ def parse_nec(
     feeds = []
     for tag, seg, voltage, current, edge, where in feeds_raw:
         card = _Card("EX", [], where)
-        idx, local = _locate_segment(wires, tag, seg, card)
-        feeds.append(NecFeed(idx, local, voltage, current, edge))
+        if isinstance(seg, _Pct):
+            idx, local, at = _percent_position(wires, tag, seg.value, card)
+        else:
+            (idx, local), at = _locate_segment(wires, tag, seg, card), None
+        feeds.append(NecFeed(idx, local, voltage, current, edge, at=at))
 
     loads: tuple[NecLoad, ...] = ()
     tls: tuple[NecTL, ...] = ()
