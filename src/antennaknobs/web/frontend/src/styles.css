@@ -2439,6 +2439,11 @@ input[type=checkbox] {
   margin: 0;
   overflow: auto;
   padding: var(--space-4);
+  /* The floating solve readout covers the pane's bottom-left, so the scroll
+     ends that much further on: its last lines can always come out from under
+     it. The height is the readout's own, published as it collapses and grows
+     (SolveReadout); 0 where no readout floats. */
+  padding-bottom: calc(var(--space-4) + var(--stage-readout-h, 0px));
   background: var(--inset);
   border: 1px solid var(--border-control);
   border-radius: var(--r-sm);

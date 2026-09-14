@@ -83,6 +83,7 @@ export function SolveReadout({
   // Watched with a ResizeObserver rather than computed per render: the
   // readout grows on solve responses and dwell results, not renders.
   const rootRef = useRef<HTMLDivElement>(null);
+  const pillRef = useRef<HTMLButtonElement>(null);
   const [overflowing, setOverflowing] = useState(false);
   const check = () => {
     const el = rootRef.current;
@@ -103,12 +104,37 @@ export function SolveReadout({
     // nothing in it can overflow.
   }, [isCollapsed]);
 
+  // Room for the floating card. It sits over the bottom-left of whatever view
+  // shares its container, and a view that scrolls (the Files view's text)
+  // could otherwise never bring its last lines out from under it. So the card
+  // publishes its CURRENT height on that container as --stage-readout-h, for
+  // such a view to reserve at the end of its scroll. Tracked, not fixed: the
+  // full card is many times the pill's height. Only the floating stage card
+  // publishes; the mobile Info page passes no handler and floats over nothing.
+  const floats = onCollapsedChange !== undefined;
+  useEffect(() => {
+    if (!floats) return;
+    const el = isCollapsed ? pillRef.current : rootRef.current;
+    const host = el?.parentElement;
+    if (!el || !host) return;
+    const publish = () =>
+      host.style.setProperty("--stage-readout-h", `${el.offsetHeight}px`);
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      host.style.removeProperty("--stage-readout-h");
+    };
+  }, [floats, isCollapsed]);
+
   if (isCollapsed) {
     // One line, the numbers a glance is for. It stays on screen so the full
     // card is always one click away; nothing hides without a trace.
     const open = !!result && Math.abs(result.z_in_re) >= 1e8;
     return (
       <button
+        ref={pillRef}
         type="button"
         className={`readout readout-pill${className ? " " + className : ""}`}
         aria-label="Show the full solve readout"

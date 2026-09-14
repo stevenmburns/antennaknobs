@@ -1,7 +1,7 @@
 // The stage readout's minimize control: a "–" on the full card collapses it to
 // a one-line R · X · SWR pill, the pill expands it again, and a readout wired
 // with no handler (the mobile Info screen) has neither.
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { SolveReadout } from "../components/results/SolveReadout";
 import type { SolveResponse } from "../lib/api";
@@ -87,6 +87,65 @@ describe("readout minimize", () => {
     const pill = screen.getByRole("button", { name: /show the full solve readout/i });
     expect(pill.textContent).toContain("R —");
     expect(pill.textContent).toContain("SWR —");
+  });
+
+  // jsdom has no layout, so these pin the PUBLISHING, not the overlap: the
+  // overlap itself was found in a rendered browser and is re-measured there.
+  describe("room for the floating card", () => {
+    function readout(collapsed: boolean, onCollapsedChange?: (c: boolean) => void) {
+      return (
+        <SolveReadout
+          result={fakeResult()}
+          rttMs={null}
+          currentExample={undefined}
+          effectiveMultiFeed={false}
+          normCheck={null}
+          normCheckEnabled={false}
+          className="stage-readout"
+          collapsed={collapsed}
+          onCollapsedChange={onCollapsedChange}
+        />
+      );
+    }
+
+    function mountInHost(el: React.ReactElement) {
+      const host = document.createElement("div");
+      document.body.appendChild(host);
+      return { host, ...render(el, { container: host }) };
+    }
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    function fakeHeights() {
+      vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(
+        function (this: HTMLElement) {
+          return this.classList.contains("readout-pill") ? 30 : 180;
+        },
+      );
+    }
+
+    it("publishes the card's height on its container, then the pill's once collapsed", () => {
+      fakeHeights();
+      const { host, rerender } = mountInHost(readout(false, () => {}));
+      expect(host.style.getPropertyValue("--stage-readout-h")).toBe("180px");
+      rerender(readout(true, () => {}));
+      expect(host.style.getPropertyValue("--stage-readout-h")).toBe("30px");
+    });
+
+    it("takes the reservation away when the card goes", () => {
+      fakeHeights();
+      const { host, unmount } = mountInHost(readout(false, () => {}));
+      unmount();
+      expect(host.style.getPropertyValue("--stage-readout-h")).toBe("");
+    });
+
+    it("a readout that floats over nothing (no handler) reserves nothing", () => {
+      fakeHeights();
+      const { host } = mountInHost(readout(false));
+      expect(host.style.getPropertyValue("--stage-readout-h")).toBe("");
+    });
   });
 
   it("an open feed reads as open once, not twice", () => {
