@@ -138,7 +138,7 @@
 | src/antennaknobs/engines/pynec.py                                    |      477 |       46 |     90% |9-10, 77-79, 167, 170-172, 407-412, 517, 538, 569, 577, 587, 618, 625, 659, 690, 729, 739, 745, 759, 883-884, 1064, 1087-1116 |
 | src/antennaknobs/far\_field.py                                       |      184 |        2 |     99% |    92, 96 |
 | src/antennaknobs/ferrite.py                                          |      116 |        5 |     96% |289, 292, 300-301, 355 |
-| src/antennaknobs/file\_designs.py                                    |       87 |        2 |     98% |  179, 207 |
+| src/antennaknobs/file\_designs.py                                    |       87 |        2 |     98% |  184, 212 |
 | src/antennaknobs/fit.py                                              |      221 |       14 |     94% |247, 265, 277-278, 304, 314, 346, 350-352, 387, 402, 412-413 |
 | src/antennaknobs/geometry.py                                         |      234 |        6 |     97% |116, 138-139, 143, 174, 219 |
 | src/antennaknobs/in\_medium.py                                       |       74 |        3 |     96% |139, 143, 155 |
