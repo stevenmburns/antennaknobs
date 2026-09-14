@@ -41,7 +41,11 @@ export function BandDropdown({
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+      // The event's path, not contains(e.target): a mousedown on "Custom…"
+      // swaps the list for the form before this document listener runs, so
+      // the target is already detached and contains() would read it as a
+      // click outside and close the form it just opened (#1487).
+      if (rootRef.current && !e.composedPath().includes(rootRef.current)) {
         setOpen(false);
       }
     };
