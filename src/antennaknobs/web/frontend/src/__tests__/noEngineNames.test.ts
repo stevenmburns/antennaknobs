@@ -28,7 +28,7 @@ const FILES: [string, string][] = [
 /** Engine and panel names, as string literals. Property access (`opts.model`)
  *  is not a name; a quoted `"bspline"` is.
  *
- *  The `kind` union (`"momwire" | "pynec" | "nec5"`) is deliberately NOT here:
+ *  The `kind` union (`"momwire" | "pynec" | "nec5" | "nec2"`) is deliberately NOT here:
  *  it is the served payload's own field type, not a branch on an engine, and a
  *  client cannot type the wire without it. */
 const ENGINE_NAME = new RegExp(
@@ -44,6 +44,7 @@ const ENGINE_NAME = new RegExp(
     '"razor-nec5"',
     '"pynec"',
     '"nec5"',
+    '"nec2"',
     '"pulse"',
     "PANEL_[A-Z_]+",
   ].join("|"),
@@ -64,13 +65,13 @@ describe("no engine names in the two files the unit is about", () => {
       (line.match(ENGINE_NAME) ?? []).map((m) => `${n}: ${m}  ${line.trim()}`),
     );
     // THE RESIDUE, NAMED EXACTLY. One thing is allowed and nothing else:
-    // the `kind` union, `"momwire" | "pynec" | "nec5"`. That is the served
+    // the `kind` union, `"momwire" | "pynec" | "nec5" | "nec2"`. That is the served
     // payload's own FIELD TYPE, not a branch on an engine — a client cannot
     // type the wire without writing the values the wire carries. It is
     // matched narrowly (the union line itself) so that a genuine
     // `kind === "pynec"` branch would still fail.
     const allowed = (h: string) =>
-      /kind: "momwire" \| "pynec" \| "nec5";$/.test(h);
+      /kind: "momwire" \| "pynec" \| "nec5" \| "nec2";$/.test(h);
     const unexpected = hits.filter((h) => !allowed(h));
     expect(unexpected).toEqual([]);
   });
@@ -115,7 +116,7 @@ describe("the residue shrinks, and the reasons are written down", () => {
     const branch = 'if (b.kind === "pynec") return null;';
     expect(branch.match(ENGINE_NAME)).toEqual(['"pynec"']);
     ENGINE_NAME.lastIndex = 0;
-    expect(/kind: "momwire" \| "pynec" \| "nec5";$/.test(branch)).toBe(false);
+    expect(/kind: "momwire" \| "pynec" \| "nec5" \| "nec2";$/.test(branch)).toBe(false);
   });
 
   it("the slot seeds and the retired-name alias are SERVED, not local", () => {

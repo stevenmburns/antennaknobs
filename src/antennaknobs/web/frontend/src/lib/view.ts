@@ -1,4 +1,12 @@
-export type View = "antenna" | "azimuth" | "elevation" | "smith" | "schematic" | "gamma" | "vswr";
+export type View =
+  | "antenna"
+  | "azimuth"
+  | "elevation"
+  | "smith"
+  | "schematic"
+  | "gamma"
+  | "vswr"
+  | "files";
 
 // The view registry's metadata half. The render half — one function per id —
 // lives in components/results/viewRegistry.tsx, keyed by these same ids:
@@ -52,6 +60,12 @@ export const VIEWS: ViewMeta[] = [
   // the duration, and unlike the Smith chart there is no live point on them.
   { id: "gamma", label: "S11 (dB) vs freq", defaultPinned: false, staleWhileOptimizing: true },
   { id: "vswr", label: "VSWR vs freq", defaultPinned: false, staleWhileOptimizing: true },
+  // The Files view (AK#1428): the design's source file and, on a NEC-5 or
+  // NEC-2 slot, the deck that engine ran plus its printout. Unpinned like
+  // schematic. NOT stale: the source is the file as it stands, and a deck or
+  // printout spells out its own inputs, so neither can be mistaken for the
+  // candidate an optimizer run is evaluating.
+  { id: "files", label: "Files", defaultPinned: false, staleWhileOptimizing: false },
 ];
 
 // Id → metadata, for the consumers that hold a list of ids in the USER's

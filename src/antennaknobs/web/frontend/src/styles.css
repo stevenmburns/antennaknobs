@@ -2359,6 +2359,114 @@ input[type=checkbox] {
   padding: 0 6px;
 }
 
+/* The Files view (AK#1428): a tab row, then one monospace pane that scrolls
+   on its own, so a long printout never grows the stage. */
+.files-fill,
+.files-thumb {
+  display: flex;
+  flex-direction: column;
+  color: var(--fg);
+  overflow: hidden;
+}
+
+.files-fill {
+  position: absolute;
+  inset: 0;
+  padding: var(--space-6, 16px);
+  gap: var(--space-3);
+}
+
+.files-thumb {
+  align-items: center;
+  justify-content: center;
+}
+
+.files-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.files-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.files-tab,
+.files-action,
+.files-run {
+  background: var(--inset);
+  color: var(--muted);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.files-tab.active {
+  background: var(--accent-active);
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.files-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.files-text {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  padding: var(--space-4);
+  background: var(--inset);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  white-space: pre;
+  tab-size: 8;
+}
+
+.files-text.stale {
+  opacity: 0.5;
+}
+
+.files-note {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.files-error {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--r-sm);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.files-empty {
+  color: var(--muted);
+  text-align: center;
+  margin: auto;
+  max-width: 34em;
+  padding: 0 16px;
+  font-size: 0.9rem;
+}
+
+.files-thumb .files-empty {
+  font-size: 0.7rem;
+  padding: 0 6px;
+}
+
 .antenna-overlay,
 .smith-overlay,
 .farfield-overlay {

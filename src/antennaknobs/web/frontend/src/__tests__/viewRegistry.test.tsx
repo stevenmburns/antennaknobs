@@ -10,6 +10,7 @@ import { render } from "@testing-library/react";
 import { VIEWS, VIEW_META, type View } from "../lib/view";
 import { VIEW_RENDERERS, type ViewRenderProps } from "../components/results/viewRegistry";
 import { ViewPanel } from "../components/results/ViewPanel";
+import type { FilesViewData } from "../components/results/FilesPanel";
 
 // Azimuth and elevation are the same component differing only by its `cut`
 // prop, which drives canvas drawing and leaves no DOM trace. Stubbing that
@@ -38,6 +39,7 @@ const EVERY_VIEW: Record<View, true> = {
   schematic: true,
   gamma: true,
   vswr: true,
+  files: true,
 };
 const ALL_VIEWS = Object.keys(EVERY_VIEW) as View[];
 
@@ -69,6 +71,7 @@ describe("view metadata", () => {
       ["schematic", "Schematic"],
       ["gamma", "S11 (dB) vs freq"],
       ["vswr", "VSWR vs freq"],
+      ["files", "Files"],
     ]);
   });
 
@@ -137,6 +140,7 @@ const MARKERS: Record<View, string> = {
   schematic: ".schematic-fill",
   gamma: 'canvas.sweep[data-mode="gamma"]',
   vswr: 'canvas.sweep[data-mode="vswr"]',
+  files: ".files-fill",
 };
 
 describe("dispatch", () => {
@@ -201,5 +205,28 @@ describe("dispatch", () => {
     // Thumb sizing is the panel's, not the wrapper div's.
     const thumb = mount("schematic", { fill: false, size: 96 });
     expect(thumb.querySelector(".schematic-thumb")).not.toBeNull();
+  });
+
+  it("passes the files view its own props (AK#1428)", () => {
+    const files: FilesViewData = {
+      geometry: "g",
+      engine: null,
+      solved: true,
+      source: {
+        available: true,
+        geometry: "g",
+        filename: "g.py",
+        language: "python",
+        text: "SOURCE TEXT",
+      },
+      engineIo: null,
+      stale: false,
+    };
+    const stage = mount("files", { files });
+    expect(stage.querySelector("pre.files-text")?.textContent).toBe("SOURCE TEXT");
+    // The thumb is a label: no text reaches a 96 px square.
+    const thumb = mount("files", { fill: false, size: 96, files });
+    expect(thumb.querySelector(".files-thumb")).not.toBeNull();
+    expect(thumb.textContent).not.toContain("SOURCE TEXT");
   });
 });

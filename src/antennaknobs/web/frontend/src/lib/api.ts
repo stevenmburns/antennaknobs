@@ -145,6 +145,11 @@ export type SolveResponse = {
    *  (restart, eviction) falls back to the stateless full-body POST, so
    *  pinned ghosts from dead sessions still work. */
   solve_id?: string;
+  /** Present only when this solve ran through an external engine's binary
+   *  (AK#1428): the served name of that engine. The deck it was given and
+   *  the report it printed wait on the server under `solve_id`, for
+   *  POST /engine_io. */
+  engine_io_label?: string;
   directivity_norm?: number;
   ground?: boolean;
   height_m?: number;
@@ -281,12 +286,52 @@ export type SolveResponse = {
   error?: string;
 };
 
+/** POST /design_source (AK#1428): the file a design is built from. */
+export type DesignSource =
+  | {
+      available: true;
+      geometry: string;
+      filename: string;
+      /** "python" | "nec" | "ssn" | "text" */
+      language: string;
+      text: string;
+    }
+  | { available: false; geometry: string };
+
+/** One run of an external engine's binary: the deck it was given and the
+ *  report it printed, byte for byte. */
+export type EngineRun = {
+  deck: string;
+  printout: string;
+  /** NEC-5 served the printout from the capture folder instead of running. */
+  cached: boolean;
+  /** Why this run exists, when a solve took more than one. */
+  note?: string;
+};
+
+/** POST /engine_io (AK#1428): the runs behind one NEC-5 / NEC-2 solve. */
+export type EngineIo = {
+  /** False when the resolved solver runs no binary (momwire, PyNEC). */
+  available: boolean;
+  solver: string;
+  /** The served name of the engine, as the solve's `engine_io_label`. */
+  label?: string;
+  solve_id?: string;
+  runs?: EngineRun[];
+  /** The deck was run again because the solve's own runs had aged out. */
+  rerun?: boolean;
+  /** The re-run failed; `runs` still carries what the binary printed. */
+  error?: string;
+  /** A newer request on the session's lane overtook the re-run. */
+  superseded?: boolean;
+};
+
 export type SolveRequest = {
   geometry: string;
   /** Which `<name>_params` dict on the Builder to seed from. Omitted
    *  → backend falls back to default_params. */
   variant?: string;
-  solver: "momwire" | "pynec" | "nec5";
+  solver: "momwire" | "pynec" | "nec5" | "nec2";
   /** A momwire model name from the served roster (#628) — a plain string,
    *  not a union: the server owns the registry and validates it, and a
    *  third copy of the roster here is exactly the drift #628 removes. */

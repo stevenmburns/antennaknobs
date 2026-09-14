@@ -376,6 +376,10 @@ class NEC2Engine(SimulationEngine):
         self._capture_dir = Path(capture_dir).expanduser() if capture_dir else None
         if self._capture_dir is not None:
             self._capture_dir.mkdir(parents=True, exist_ok=True)
+        # AK#1428: one {"deck", "printout", "cached"} per _run call, kept in
+        # memory for the web lane's Files view. A run the binary faulted on is
+        # recorded too: its printout is where the reason is written.
+        self.io_runs: list[dict] = []
         exe = find_nec2(nec2_exe)
         if exe is None:
             raise NEC2Error(
@@ -430,6 +434,7 @@ class NEC2Engine(SimulationEngine):
         )
         t0 = time.perf_counter()
         text = run_deck(self.exe, deck, timeout=self.timeout)
+        self.io_runs.append({"deck": deck, "printout": text, "cached": False})
         _log.info(
             "NEC-2 %s: %.2f s, printout %d lines",
             h,
@@ -669,6 +674,9 @@ class NEC2Engine(SimulationEngine):
             budget = self._parse_power_budget(text)
         except NEC2Error:
             text = self._run(self.deck(self.builder.freq, rp=(1, 1, 0, 0)))
+            self.io_runs[-1]["note"] = (
+                "re-run with a 1x1 RP card: the first printout had no power budget"
+            )
             budget = self._parse_power_budget(text)
         zs = self._impedances(self._parse_input_parameters(text)[0])
         currents = self._currents_from(self._parse_currents(text)[0])

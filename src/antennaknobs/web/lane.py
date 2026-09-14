@@ -30,6 +30,9 @@ PRIORITY = {
     "norm_check": 1,
     "pattern": 1,
     "pattern_metrics": 1,
+    # The Files view's re-run (AK#1428): one solve, asked for only when the
+    # solve's own printout has aged out of the server's cache.
+    "engine_io": 1,
     "sweep": 2,
     "converge": 2,
     # Adaptive refinement (issue #744) is cosmetic — the curve is already
@@ -53,7 +56,9 @@ _PRIORITY_DEFAULT = 9
 # are purely additive, so they queue rather than cancel each other; a
 # genuinely newer knob generation still supersedes them by the generation
 # rule, like every other batch.
-SAME_KIND_SUPERSEDES = frozenset({"live", "sweep", "converge", "norm_check", "pattern"})
+SAME_KIND_SUPERSEDES = frozenset(
+    {"live", "sweep", "converge", "norm_check", "pattern", "engine_io"}
+)
 
 
 class Superseded(Exception):

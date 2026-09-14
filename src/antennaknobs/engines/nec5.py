@@ -353,6 +353,11 @@ class NEC5Engine(SimulationEngine):
         # One dict per _run call: {"hash", "cached", "seconds"} — the
         # per-solve time log the census machinery records (#872 phase 0).
         self.run_log: list[dict] = []
+        # AK#1428: one {"deck", "printout", "cached"} per _run call — the texts
+        # themselves, so the web lane can show the user exactly what the binary
+        # was given and what it printed. Apart from run_log, which the census
+        # records as JSON and must stay small.
+        self.io_runs: list[dict] = []
         if builder.build_tls():
             raise NotImplementedError(
                 "NEC5Engine stage 1 does not model transmission lines"
@@ -1199,7 +1204,9 @@ class NEC5Engine(SimulationEngine):
             if cached.is_file():
                 self.run_log.append({"hash": h, "cached": True, "seconds": 0.0})
                 _log.info("NEC-5 %s: printout served from capture %s", h, cached)
-                return cached.read_text(errors="replace")
+                text = cached.read_text(errors="replace")
+                self.io_runs.append({"deck": deck, "printout": text, "cached": True})
+                return text
         # AK#1428: at DEBUG the log carries exactly what the binary is given
         # and exactly what it prints; at INFO one line per run.
         _log.debug(
@@ -1209,6 +1216,7 @@ class NEC5Engine(SimulationEngine):
         text = self._run_binary(deck)
         seconds = time.perf_counter() - t0
         self.run_log.append({"hash": h, "cached": False, "seconds": seconds})
+        self.io_runs.append({"deck": deck, "printout": text, "cached": False})
         _log.info("NEC-5 %s: %.2f s, printout %d lines", h, seconds, text.count("\n"))
         _log.debug("NEC-5 %s: printout\n%s", h, text)
         if self._capture_dir is not None:

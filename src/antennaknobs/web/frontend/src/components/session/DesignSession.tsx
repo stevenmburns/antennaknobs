@@ -99,6 +99,7 @@ import { useGroundConfig } from "./useGroundConfig";
 import { MobileDots } from "./MobileDots";
 import { useMobileCarousel } from "./useMobileCarousel";
 import { useOptimizer } from "./useOptimizer";
+import { useEngineFiles } from "./useEngineFiles";
 import { useSchematic } from "./useSchematic";
 import { useSolveChannel } from "./useSolveChannel";
 import { useSolverSlots } from "./useSolverSlots";
@@ -1235,6 +1236,19 @@ function DesignSessionBody({
     inputPowerW: result?.input_power_w ?? null,
   });
 
+  // The Files view (AK#1428): the design's source file, plus the deck and
+  // printout behind the solve on screen when an external engine produced it.
+  // Same this-design gate as the budget above: another design's solve_id
+  // would fetch another antenna's deck.
+  const ownResult = result?.geometry === geometry ? result : null;
+  const files = useEngineFiles({
+    active: active && isResident("files"),
+    geometry,
+    solveId: ownResult?.solve_id ?? null,
+    engineLabel: ownResult?.engine_io_label ?? null,
+    buildRequest,
+  });
+
   // The design's band table plus the session's custom bands (#1487). A design
   // that suppresses the band row (bands === []) stays suppressed.
   const currentBands: BandSpec[] = useMemo(() => {
@@ -2197,6 +2211,7 @@ function DesignSessionBody({
             sweepSettled={sweepSettled}
             schematicSvg={schematicSvg}
             schematicUnavailable={schematicUnavailable}
+            files={files}
           />
     </>
   );

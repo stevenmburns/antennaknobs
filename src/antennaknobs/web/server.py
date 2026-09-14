@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
 import json
 import logging
 from datetime import datetime, timezone
@@ -1238,6 +1239,31 @@ def _polyline_knots(polyline: np.ndarray, npe_list: list[int]) -> np.ndarray:
 _SOLVE_CACHE: "OrderedDict[str, dict]" = OrderedDict()
 _SOLVE_CACHE_MAX = 100
 
+# What an external engine was given and printed for a solve (AK#1428), keyed by
+# the same solve_id: {"solver", "runs": [{"deck", "printout", "cached", "note"?}]}.
+# Kept OUT of _SOLVE_CACHE on purpose: a printout runs from tens of kB to
+# megabytes, every cache hit deep-copies its entry, and only the Files view
+# reads these. That view asks about the solve on screen, so a short history is
+# enough; a miss re-runs the deck (see /engine_io).
+_ENGINE_IO_CACHE: "OrderedDict[str, dict]" = OrderedDict()
+_ENGINE_IO_CACHE_MAX = 16
+# The solvers that run a binary on a deck, and what the Files view calls each.
+# Served, so the frontend names no engine (#1006 G2-6). PyNEC is NEC-2
+# in-process: no deck.
+_ENGINE_IO_LABELS = {"nec5": "NEC-5", "nec2": "NEC-2"}
+
+
+def _remember_engine_io(solve_id: str, solver: str, runs: list[dict]) -> None:
+    _ENGINE_IO_CACHE[solve_id] = {
+        "solver": solver,
+        "label": _ENGINE_IO_LABELS.get(solver, solver),
+        "runs": runs,
+    }
+    _ENGINE_IO_CACHE.move_to_end(solve_id)
+    while len(_ENGINE_IO_CACHE) > _ENGINE_IO_CACHE_MAX:
+        _ENGINE_IO_CACHE.popitem(last=False)
+
+
 # Per-frequency sweep impedance cache (issue #744). /sweep deliberately
 # bypasses _SOLVE_CACHE — a sweep point is a Z, not a whole solve response,
 # and caching 41 full responses per drag would blow that cache out — so
@@ -1303,14 +1329,17 @@ def _is_user_geometry(req: dict) -> bool:
 
 
 def _evict_user_design_caches() -> dict[str, int]:
-    """Drop every cached solve, cuts source and sweep point written for a
-    user design. Returns the per-cache eviction counts (observability, and
-    what the gate asserts). Called on every designs refresh."""
-    n_solve = n_cuts = n_sweep = 0
+    """Drop every cached solve, cuts source, engine printout and sweep point
+    written for a user design. Returns the per-cache eviction counts
+    (observability, and what the gate asserts). Called on every designs
+    refresh."""
+    n_solve = n_cuts = n_sweep = n_io = 0
     for key in _USER_CACHE_KEYS["solve"]:
         n_solve += _SOLVE_CACHE.pop(key, None) is not None
-        # The cuts source is keyed by the same solve_id.
+        # The cuts source and the engine printouts are keyed by the same
+        # solve_id.
         n_cuts += _CUTS_SRC_CACHE.pop(key, None) is not None
+        n_io += _ENGINE_IO_CACHE.pop(key, None) is not None
     design_keys = _USER_CACHE_KEYS["sweep"]
     if design_keys:
         for key in [k for k in _SWEEP_Z_CACHE if k[0] in design_keys]:
@@ -1320,7 +1349,7 @@ def _evict_user_design_caches() -> dict[str, int]:
             _SWEEP_Z_WRITER.pop(dk, None)
     _USER_CACHE_KEYS["solve"].clear()
     _USER_CACHE_KEYS["sweep"].clear()
-    return {"solve": n_solve, "cuts": n_cuts, "sweep": n_sweep}
+    return {"solve": n_solve, "cuts": n_cuts, "sweep": n_sweep, "engine_io": n_io}
 
 
 # Frequencies land back from JSON as the exact float the client sent, but
@@ -1773,8 +1802,19 @@ def solve(req: dict, cancel=None) -> dict:
         _attach_request_cuts(out, req)
         return out
     out = _solve_uncached(req, cancel=cancel)
+    # AK#1428: an external engine's deck and printout leave the response here,
+    # before it is cached or sent, and wait under the same solve_id for the
+    # Files view to ask.
+    runs = out.pop("_engine_runs", None)
     out["cache_hit"] = False
     out["solve_id"] = key
+    if runs is not None:
+        solver = str(out.get("solver", ""))
+        _remember_engine_io(key, solver, runs)
+        # All the response itself says: this solve left a deck and printout
+        # behind, and what to call their engine. Cached with it, so a hit says
+        # the same.
+        out["engine_io_label"] = _ENGINE_IO_LABELS.get(solver, solver)
     _SOLVE_CACHE[key] = deepcopy(out)
     while len(_SOLVE_CACHE) > _SOLVE_CACHE_MAX:
         _SOLVE_CACHE.popitem(last=False)
@@ -2336,6 +2376,105 @@ async def export_nec_endpoint(req: dict):
         media_type="text/plain; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@app.post("/engine_io")
+async def engine_io_endpoint(req: dict):
+    """The deck an external engine was given and the printout it returned, for
+    the solve the client is showing (AK#1428, the Files view).
+
+    ``solve_id`` names that solve. A solve through NEC-5 or NEC-2 leaves its
+    runs in ``_ENGINE_IO_CACHE``, so the usual answer is a lookup and nothing
+    runs. On a miss (evicted, a restarted server, or a solve answered from the
+    solve cache after its runs aged out) the request body is solved again,
+    uncached, on the session's lane, and its runs are remembered under the
+    body's own key. The deck is a function of the request alone, so the binary
+    is given the deck the readout came from.
+
+    ``available: false`` when the resolved solver runs no binary: momwire,
+    PyNEC, or an engine this machine cannot serve (which falls back to
+    momwire). Nothing is shown that could be mistaken for what an engine ran.
+    A re-run that fails still answers with its runs and the error, because a
+    failed run's printout is usually where the reason is written.
+    """
+    body = {k: v for k, v in req.items() if k != "solve_id"}
+    backend = _external_backend(body)
+    solver = "momwire" if backend is None else _BACKEND_NAME[backend]
+    if solver not in _ENGINE_IO_LABELS:
+        return {"available": False, "solver": solver}
+    key = _canonical_solve_key(body)
+    for sid in (req.get("solve_id"), key):
+        entry = _ENGINE_IO_CACHE.get(sid) if isinstance(sid, str) else None
+        if entry is not None:
+            _ENGINE_IO_CACHE.move_to_end(sid)
+            return {"available": True, "solve_id": sid, "rerun": False, **entry}
+    session, lane_gen = _lane_key(body)
+    try:
+        async with _LANES.turn(session, "engine_io", lane_gen):
+            out = await run_in_threadpool(_shed, _solve_uncached, body)
+    except Superseded:
+        return {"available": False, "solver": solver, "superseded": True}
+    except Exception as exc:  # noqa: BLE001 — a failed run is an answer here; its printout is what the view is for
+        return {
+            "available": True,
+            "solver": solver,
+            "solve_id": key,
+            "rerun": True,
+            "label": _ENGINE_IO_LABELS[solver],
+            "runs": list(getattr(exc, "engine_runs", None) or []),
+            "error": user_designs.format_solve_error(exc),
+        }
+    runs = out.pop("_engine_runs", None) or []
+    solver = str(out.get("solver", solver))
+    _remember_engine_io(key, solver, runs)
+    if _is_user_geometry(body):
+        _USER_CACHE_KEYS["solve"].add(key)  # issue #1312: a refresh evicts it
+    return {
+        "available": True,
+        "solver": solver,
+        "solve_id": key,
+        "rerun": True,
+        "label": _ENGINE_IO_LABELS.get(solver, solver),
+        "runs": runs,
+    }
+
+
+_SOURCE_LANGUAGE = {".py": "python", ".nec": "nec", ".ssn": "ssn"}
+
+
+@app.post("/design_source")
+async def design_source_endpoint(req: dict):
+    """The file the current design is built from, as text (AK#1428, the Files
+    view's Source tab).
+
+    A user design is the file in the designs folder that backs it: a ``.py``
+    (a stub beside a deck included, since the stub is the design) or a bare
+    ``.nec`` / ``.ssn``. A catalog design is its module's ``.py``, which ships
+    in the public package. Resolved through the registry only, never from a
+    path the client sends, and read, never executed. ``available: false`` for
+    a registered design with no file behind it.
+    """
+    geometry = req.get("geometry", next(iter(EXAMPLES)))
+    ex = example_for(geometry)
+    path = None
+    if _is_user_geometry({"geometry": geometry}):
+        path = _resolve_user_design_path(geometry)
+    elif ex.builder_cls is not None:
+        try:
+            found = inspect.getsourcefile(ex.builder_cls)
+        except TypeError:  # a class with no module file behind it
+            found = None
+        path = Path(found) if found else None
+    if path is None or not path.is_file():
+        return {"available": False, "geometry": geometry}
+    text = await run_in_threadpool(path.read_text, encoding="utf-8", errors="replace")
+    return {
+        "available": True,
+        "geometry": geometry,
+        "filename": path.name,
+        "language": _SOURCE_LANGUAGE.get(path.suffix.lower(), "text"),
+        "text": text,
+    }
 
 
 @app.post("/schematic")
