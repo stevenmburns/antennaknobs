@@ -221,6 +221,12 @@ the physics doesn't:
   construction. The catalog's Sterba-curtain TL variant runs its nine
   ports this way; they refine like every other wire and hold one
   basis-agreed value.
+- A port **positioned along a wire** (`PortOnWire(..., at=...)`) stays where
+  it was asked for as the mesh refines. At every rung each engine re-chooses
+  the wire's count (up to twice its own) so the gap lands on a segment centre
+  or a knot of its grid. On a rung where no count fits, the solve carries a
+  FeedPlacement advisory naming the offset. Imported NEC decks place their
+  off-centre sources and loads this way.
 - A **lumped load** (termination resistor, trap) is genuinely a point
   element — keep it on a delta gap, on a short named wire that meshes at
   the design density like everything else. The load stays on the wire's

@@ -53,8 +53,9 @@ view, and so on).
 A tuple may carry an optional **fifth element, a name** (a string), tagging
 the wire so the network layer can attach to it — a
 [`PortOnWire("feed")`](/concepts/station-modelling/) port, a trap's load, a
-transmission-line endpoint — at that wire's middle segment. Most wires are
-anonymous; you name exactly the ones something attaches to.
+transmission-line endpoint — at that wire's middle, or at any
+[position along it](/concepts/station-modelling/#a-port-anywhere-along-a-wire).
+Most wires are anonymous; you name exactly the ones something attaches to.
 
 For anything beyond the plain 4-tuple, the recommended spelling is the
 `Wire` named tuple (`from antennaknobs.network import Wire`) — a drop-in

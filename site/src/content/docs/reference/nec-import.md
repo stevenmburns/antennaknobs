@@ -176,10 +176,14 @@ Decks are read the way real ones are written: free-format fields separated by
 spaces and/or commas, missing trailing fields as `0`, old Fortran `1.0D+03`
 exponents, `CM`/`CE` comment headers, parsing stops at `EN`.
 
-A feed on a segment that isn't its wire's middle is handled by splitting the
-wire on the deck's own segment boundaries, putting the feed on a 1-segment
-wire of its own — same geometry, same segmentation, same feed point — so
-off-center-fed designs import correctly.
+A feed on a segment that isn't its wire's middle keeps its wire whole. With
+`network=True` it becomes a port
+[positioned along the wire](/concepts/station-modelling/#a-port-anywhere-along-a-wire)
+at that segment's centre, and each engine meshes the wire so the gap lands
+exactly there; PyNEC and NEC-2 keep the deck's own segment count. Without
+`network=True`, a wire tuple can only feed its middle segment, so the wire is
+still split on the deck's own segment boundaries and the feed gets a 1-segment
+wire of its own: same geometry, same feed point.
 
 Wires are also split wherever another wire's segment endpoint touches them
 mid-wire. NEC connects *segments* whose ends coincide — the grouping into GW
@@ -200,7 +204,7 @@ the trap dipole and station designs use), wherever it can express them
 
 | Card | Translation |
 | --- | --- |
-| `LD` type 0/1 (lumped series/parallel RLC) | A `Load` per segment in the card's range (expanded up to 8 segments), on a named 1-segment wire split out of the host wire |
+| `LD` type 0/1 (lumped series/parallel RLC) | A `Load` per segment in the card's range (expanded up to 8 segments), each a port positioned at its segment's centre on the uncut host wire. On a NEC-5 deck the card names one knot instead (see [the NEC-5 dialect](#the-nec-5-dialect)) |
 | `LD` type 4 (fixed impedance) | `Load(r=…)` when X = 0; a fixed complex-Z `Load` when reactive |
 | `LD` type 5 over the whole structure (wire conductivity) | `deck.conductivity`, baked into every `wire_tuples(specs=True)` spec (or feed it to `WireSpec` in `build_wire_material`) |
 | `LD` type 5 on a tag/range covering whole wires | Per-wire conductivity (`deck.wire_conductivity`), baked into those wires' `specs=True` specs — a ranged card wins over the whole-structure one |
@@ -212,8 +216,8 @@ the trap dipole and station designs use), wherever it can express them
 | `NT` with an all-real Y matrix | Its exact resistive pi: a series `TwoPort` between the ports plus a `Shunt` at each |
 | `NT` with susceptance | The full 2×2 complex Y as an `Admittance` branch |
 
-`deck.wire_tuples()` then emits *named* wires at every attachment point (no
-legacy `ex` markers) and `deck.network()` returns the matching `Network` —
+`deck.wire_tuples()` then emits the deck's wires, cut only where another wire
+touches them and named where something attaches (no legacy `ex` markers), and `deck.network()` returns the matching `Network` —
 the deck's `EX` cards become its `Driven` sources — ready to return from
 `build_wires` / `build_network` as in the quick start above. A deck with no
 network cards still works identically: `network()` is then just the drive.
@@ -297,15 +301,15 @@ keeps its legal NEC-2 meaning. The exception is NEC-5's current source,
 `EX` type 4: NEC-2's type 4 addresses no segment, so a segment-addressed
 type 4 can only be NEC-5, and the importer reads its end field by NEC-5's
 full rule (`I4` names the end; when zero, a positive segment number means
-end 2). With `network=True`, a voltage source on a wire's **middle knot**
-imports as that whole wire with an ordinary middle-of-wire port, the way
-antennaknobs feeds every centre-fed design: the wire is not cut, and each
-engine feeds its middle. Every other end source imports as a
-`PortAtVertex`, voltage or current alike: a source at a wire end, at an
-off-centre knot, a current source, or a middle knot on a wire that carries
-another load, source or mid-wire junction. It solves on momwire, and the
-deck also solves natively on [the NEC-5 engine](/reference/nec5/), which
-speaks the form as a first-class citizen. NEC-5's `GN` card also names a
+end 2). With `network=True`, a voltage source on an **interior knot** keeps its wire
+whole. On the middle knot it is an ordinary middle-of-wire port, the way
+antennaknobs feeds every centre-fed design; on any other interior knot it is a
+port [positioned](/concepts/station-modelling/#a-port-anywhere-along-a-wire)
+at that knot. A source at a wire **end**, an `EX` 4 current source, or a
+source on a knot where another wire joins imports as a `PortAtVertex`, voltage
+or current alike. Either way it solves on momwire, and the deck also solves
+natively on [the NEC-5 engine](/reference/nec5/), which speaks the form as a
+first-class citizen. NEC-5's `GN` card also names a
 ground file, and the `NOFILE` that says there is none is accepted.
 
 A deck that shows neither `NOFILE` nor an explicit end field reads as NEC-2,
@@ -314,6 +318,11 @@ Such a deck declares itself NEC-5 with a comment card whose whole text is
 `NEC-5` (`CM NEC-5`). An `EX` with `I4 = 0` then reads NEC-5's way: end 2
 of a positive segment, end 1 of a negative one. A comment that only
 mentions NEC-5 declares nothing.
+
+On a deck read as NEC-5, a discrete `LD` card (types 0, 1, 4 and 6) addresses
+a segment end the same way: `I3` is the segment and `I4` its end, not the last
+segment of a range. Each such card is one load at that knot, placed like a
+source there, and a load on the fed knot shares the source's port.
 
 ## Programmatic use
 
