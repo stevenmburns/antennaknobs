@@ -81,7 +81,12 @@ def _make_builder(
     ground_card=None,
 ):
     ui: dict = {}
-    if meas_range:
+    # A zero-width range seeds nothing: one FR point, or an .ssn with no armed
+    # sweep. It pinned both the measurement dial and the design slider to that
+    # one value (#1487 for decks, #1489 for .ssn), so the adapter's ±1.5 %
+    # synthetic band applies instead. The guard lives here, where every loader
+    # stores its range.
+    if meas_range and meas_range[1] > meas_range[0]:
         ui["meas_freq_range"] = tuple(meas_range)
     # AK#1432: the deck says what ground it models, so the folder route seeds
     # the app's switch from it instead of the app's default finite ground
