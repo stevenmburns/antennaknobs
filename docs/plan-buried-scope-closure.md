@@ -14,7 +14,7 @@ map of what is left. This plan orders them.
 | U1 translator | done: corpus tool 1.10 (AK#1453), and the census page re-rendered on 1.11 (AK#1467) |
 | U2 refine path | done: `NecDeck.refined(r)` and `antennaknobs ladder` (AK#1457) |
 | U3 `GE −1` crossing | done: momwire#1052 |
-| U4 below range | open: momwire#1058 serves the remainder past the cap as zero, and its caveat awaits a decision; records in momwire#1057 |
+| U4 below range | done: momwire#1058 serves the remainder past the cap as zero, merged 2026-09-13 with its caveat accepted (fresh water at 28 MHz clears the bound by only 2×; broadside parallel wires more than 4 λ_m apart are unmeasured); records in momwire#1057 |
 | U5 mixed radii | done: two-radius crossing, momwire#1050 |
 | U6 counterpoise | closed: AK#1443's verdict, with follow-ups AK#1455 and AK#1456 |
 | U7 buried rod | closed: momwire#1027, not a physical disagreement; the two engines converge toward the same R along two axes, at different rates |

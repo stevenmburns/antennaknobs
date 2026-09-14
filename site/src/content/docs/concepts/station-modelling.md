@@ -22,10 +22,12 @@ This page introduces the vocabulary. The worked examples put it to use:
 A design's `build_network()` returns a `Network` — ports, branches,
 sources. Ports come in five kinds:
 
-- **`PortOnWire("feed")`** — a real port at a named wire of the
-  geometry. This is the seam between the circuit world and the field
-  world: the MoM solve produces the antenna's multiport impedance at
-  exactly these gaps.
+- **`PortOnWire("feed")`** — a real port on a named wire of the
+  geometry, at the wire's middle unless told otherwise. This is the seam
+  between the circuit world and the field world: the MoM solve produces the
+  antenna's multiport impedance at exactly these gaps. `wire=` and `at=` put
+  the gap elsewhere; see
+  [A port anywhere along a wire](#a-port-anywhere-along-a-wire).
 - **`PortVirtual("rig")`** — a pure circuit node with no geometry. The
   transmitter end of a feedline is the classic one: it exists only in
   the network, and driving it makes every readout — impedance, SWR,
@@ -107,9 +109,49 @@ def build_network(self):
 
 Three fields, always: **ports** (every name a branch or source may
 reference), **branches**, **sources**. The one geometry-side
-obligation: a `PortOnWire` name must match a *named wire* in
-`build_wires()` — a short wire tagged `"feed"` whose middle segment
-becomes the port's gap.
+obligation: a `PortOnWire` must land on a *named wire* in
+`build_wires()`. By default that is the wire carrying the port's own name,
+such as a short wire tagged `"feed"`, and the gap sits at its middle.
+
+### A port anywhere along a wire
+
+`PortOnWire(name, wire=..., at=...)` puts the gap somewhere other than the
+middle of a wire of its own name:
+
+- **`wire`** names the geometry wire when it differs from the port's name.
+  This is how one wire carries several ports: an off-centre feed and a trap
+  on the same leg, or a NEC deck's source and its loads.
+- **`at`** is a position along that wire, as a fraction of its length
+  measured from the wire's first endpoint, strictly between 0 and 1. `None`
+  is the middle. Because it is a fraction, it survives a length knob and a
+  remesh.
+
+```python
+ports = {
+    "feed": PortOnWire("feed", wire="top", at=1 / 3),  # an off-centre feed
+    "trap": PortOnWire("trap", wire="top", at=0.85),  # a load on the same wire
+}
+```
+
+Each engine then chooses that wire's segment count so that every port on it
+sits exactly on a site of its own grid:
+
+- a segment centre for the NEC-2-shaped engines (PyNEC, NEC-2, sinusoidal,
+  B-spline d=2);
+- a knot for the knot engines (NEC-5, razor, B-spline d=1).
+
+The count may grow to twice the wire's own. When no count in that range fits,
+the port goes to the engine's nearest site, and the solve carries a
+**FeedPlacement** advisory that says where the port asked to be, where it went
+and how many millimetres apart they are. A port never moves silently.
+
+Two refusals keep the model honest. A distributed port spans its whole wire,
+so it cannot share one and takes no `at`. Two ports at the same point would be
+one port.
+
+This is also how an imported NEC deck carries its off-centre sources and loads:
+the importer keeps the deck's wires whole and positions each attachment on them
+(see [NEC deck import](/reference/nec-import/)).
 
 ## Branches: the circuit vocabulary
 
