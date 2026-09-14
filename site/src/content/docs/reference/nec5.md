@@ -75,6 +75,10 @@ set NEC5_EXE=C:\EZNEC 7.0\Docs\NEC5CL_x13.exe
 with no quotes. Either shell works; the variable lives in that window only,
 so set it and start the workbench in the same one.
 
+To name the engine once for every start, put it in your
+[`settings.toml`](/reference/web/#where-the-workbench-starts-settingstoml) instead, as `nec5_exe` under `[engines]`. The
+variable wins over the file.
+
 ## Seeing what the engine saw
 
 When a NEC-5 answer surprises you, the two things to look at are the deck
@@ -89,8 +93,9 @@ export ANTENNAKNOBS_LOG_LEVEL=DEBUG             # the deck and printout in the s
 The packaged workbench takes the same two as `--capture-dir DIR` and
 `--log-level DEBUG`. It also takes the engine itself as `--nec5-exe PATH` (and
 `--nec2-exe PATH`), which reads the same in PowerShell and Command Prompt
-and wins over both `NEC5_EXE` and a `NEC5_EXE.txt` beside the program. The
-capture directory is the pair of files to attach to a report; the hash in the file name is the deck's own, so two runs of
+and wins over `NEC5_EXE`, over `settings.toml` and over a `NEC5_EXE.txt` beside
+the program. In `settings.toml` the capture folder is `dir` under `[capture]`.
+The capture directory is the pair of files to attach to a report; the hash in the file name is the deck's own, so two runs of
 the same deck share one pair. At `INFO` the log is one line per run (hash,
 seconds, printout length). For NEC-5 a captured printout is also served
 back for the same deck without re-running the binary; NEC-2 captures are

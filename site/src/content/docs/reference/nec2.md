@@ -46,9 +46,10 @@ $env:NEC2_EXE = "C:\4nec2\exe\nec2dxs11.exe"
 
 And for someone who double-clicks the workbench rather than typing a
 command, a one-line text file `NEC2_EXE.txt` beside
-`antennaknobs-workbench.exe` holding the path does the same. The variable
-wins over the file, and the workbench's `--nec2-exe PATH` flag wins over
-both.
+`antennaknobs-workbench.exe` holding the path does the same, and so does
+`nec2_exe` under `[engines]` in [`settings.toml`](/reference/web/#where-the-workbench-starts-settingstoml). Strongest
+first: the workbench's `--nec2-exe PATH` flag, the variable, `settings.toml`,
+then `NEC2_EXE.txt`.
 
 `nec2` joins the engine roster only when the binary **runs** — not merely
 when the path exists. The engine writes a one-wire deck, runs it once, and
