@@ -66,6 +66,22 @@ change a knob:
 
 Every turn re-solves and redraws live (when **Live** is on — see below).
 
+### A frequency outside the band list
+
+The design-frequency and measurement-band pickers both end with **Custom…**, for
+a design that sits between the amateur bands (a 300 MHz dipole, say). Enter a
+centre frequency and, optionally, a span; the default is ±1.5 % of the centre.
+The picker keeps that band for the session:
+
+- the design-frequency slider sweeps its span;
+- a custom design band locks the measurement dial to the design frequency, so
+  the design is measured where it is cut (unlock the dial to move it again);
+- the measurement dial, the lock and the sweeps treat it like any other band.
+
+A `.nec` deck whose `FR` card names a single frequency opens on the same ±1.5 %
+band around it, so its dial can still move. An `FR` sweep sets the band to the
+swept range instead.
+
 ## The output stage — views, pins, and layout
 
 The right-hand stage shows one **primary view** at full size with your other

@@ -47,9 +47,16 @@ DEFAULT_FREQ_MHZ = 14.0
 
 
 def _seed_freq(freq_range):
-    """(freq, meas_freq_range, note) from a file's (lo, hi) MHz range."""
+    """(freq, meas_freq_range, note) from a file's (lo, hi) MHz range.
+
+    A single frequency (one FR point, lo == hi) seeds no measurement window. A
+    zero-width window pinned both the dial and the design slider to that one
+    value (#1487); without one, the adapter's ±1.5 % synthetic band and the
+    dial's usual window apply."""
     if freq_range:
         lo, hi = freq_range
+        if hi <= lo:
+            return float(lo), None, None
         return round(0.5 * (lo + hi), 6), (lo, hi), None
     return (
         DEFAULT_FREQ_MHZ,

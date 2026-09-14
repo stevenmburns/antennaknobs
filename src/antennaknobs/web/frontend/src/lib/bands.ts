@@ -20,3 +20,39 @@ export function bandContaining(bands: BandSpec[], f: number): string | null {
   }
   return null;
 }
+
+// A band the user types in for a frequency the design's band table does not
+// cover (#1487), e.g. a 300 MHz dipole between 2 m and 70 cm. It has the same
+// shape the adapter synthesizes for an out-of-band native freq (#390), built
+// client-side from a centre and a span. Keys carry a prefix so they can never
+// collide with a served band key.
+export const CUSTOM_BAND_PREFIX = "custom:";
+
+export function isCustomBand(key: string | null | undefined): boolean {
+  return !!key && key.startsWith(CUSTOM_BAND_PREFIX);
+}
+
+// ±1.5 % of the centre: the window the adapter gives a synthetic band.
+export function defaultCustomSpan(centerMhz: number): number {
+  return Number((0.03 * centerMhz).toPrecision(3));
+}
+
+export function customBandSpec(centerMhz: number, spanMhz: number): BandSpec {
+  return {
+    key: `${CUSTOM_BAND_PREFIX}${centerMhz}:${spanMhz}`,
+    label: `custom ${Number(centerMhz.toFixed(3))} MHz`,
+    freq_mhz: centerMhz,
+    min_mhz: centerMhz - spanMhz / 2,
+    max_mhz: centerMhz + spanMhz / 2,
+  };
+}
+
+// Why a centre/span pair cannot make a band, or null when it can.
+export function customBandError(centerMhz: number, spanMhz: number): string | null {
+  if (!Number.isFinite(centerMhz) || centerMhz <= 0) {
+    return "centre must be a positive frequency";
+  }
+  if (!Number.isFinite(spanMhz) || spanMhz <= 0) return "span must be positive";
+  if (spanMhz >= 2 * centerMhz) return "span must be less than twice the centre";
+  return null;
+}

@@ -72,6 +72,30 @@ def test_at_spec_never_splits_a_variant_colon(tmp_path):
     assert emit_params_name(f"@{p}") == "default_params"
 
 
+def test_at_nec_single_frequency_fr_seeds_no_zero_width_window(tmp_path):
+    """#1487: one FR point used to seed meas_freq_range = (f, f), and the app
+    pinned the dial and the design slider to that single value."""
+    p = tmp_path / "one.nec"
+    p.write_text(
+        "GW 1 21 0 -0.2418 0 0 0.2418 0 0.0001\nGE\nEX 0 1 11 0 1 0\n"
+        "FR 0 1 0 0 300 0\nEN\n"
+    )
+    cls = get_builder(f"@{p}")
+    b = cls()
+    assert b.freq == pytest.approx(300.0)
+    assert "meas_freq_range" not in b.ui_params
+    # The server module is the adapter's import entry; importing the adapter
+    # first trips the examples package's circular registration.
+    pytest.importorskip("antennaknobs.web.server")
+    adapter = pytest.importorskip("antennaknobs.web.adapter")
+    ex = adapter._make_example("one", cls, defer_hints=True)
+    assert ex.meas_freq_range_mhz is None
+    band = ex.bands[-1]
+    assert band.freq_mhz == pytest.approx(300.0)
+    assert band.min_mhz == pytest.approx(0.985 * 300.0)
+    assert band.max_mhz == pytest.approx(1.015 * 300.0)
+
+
 def test_at_nec_without_fr_defaults_and_notes(tmp_path):
     p = tmp_path / "nofr.nec"
     p.write_text("GW 1 11 0 -5 10 0 5 10 0.001\nGE\nEX 0 1 6 0 1 0\nEN\n")

@@ -22,7 +22,9 @@ import {
 } from "../../lib/backends";
 import {
   bandContaining as bandContainingIn,
+  customBandSpec,
   freqWindowCeiling as freqWindowCeilingFor,
+  isCustomBand,
 } from "../../lib/bands";
 import {
   findLinkedDesignFreq,
@@ -454,6 +456,9 @@ function DesignSessionBody({
   // by the meas-band picker; the dial roams measFreq within it without moving
   // it. Only consulted while unlocked — the meas controls are disabled locked.
   const [measBand, setMeasBand] = useState<string>("");
+  // Bands the user typed in for frequencies the design's table does not cover
+  // (#1487), appended to both pickers for this session, newest last.
+  const [customBands, setCustomBands] = useState<BandSpec[]>([]);
   const [designFreq, setDesignFreq] = useState(14.3);
   const [measFreq, setMeasFreq] = useState(14.3);
   const [linkMeas, setLinkMeas] = useState(true);
@@ -1151,7 +1156,14 @@ function DesignSessionBody({
     inputPowerW: result?.input_power_w ?? null,
   });
 
-  const currentBands: BandSpec[] = currentExample?.bands ?? [];
+  // The design's band table plus the session's custom bands (#1487). A design
+  // that suppresses the band row (bands === []) stays suppressed.
+  const currentBands: BandSpec[] = useMemo(() => {
+    const own = currentExample?.bands ?? [];
+    if (own.length === 0) return own;
+    const extra = customBands.filter((c) => !own.some((b) => b.key === c.key));
+    return extra.length ? [...own, ...extra] : own;
+  }, [currentExample, customBands]);
 
   // Anchor for the measurement-freq VFO window: the snap-freq of the *selected*
   // measurement band (`measBand`), falling back to designFreq before one is
@@ -1268,7 +1280,32 @@ function DesignSessionBody({
   function selectBand(nextKey: string) {
     const nb = currentBands.find((b) => b.key === nextKey);
     if (!nb) return;
-    setBand(nextKey);
+    applyDesignBand(nb);
+  }
+
+  // A custom band (#1487) is built here and applied in the same click, before
+  // the state update that lists it lands. The session keeps the four most
+  // recent, so either picker can return to one.
+  function addCustomBand(centerMhz: number, spanMhz: number): BandSpec {
+    const nb = customBandSpec(centerMhz, spanMhz);
+    setCustomBands((prev) =>
+      [...prev.filter((b) => b.key !== nb.key), nb].slice(-4),
+    );
+    return nb;
+  }
+  function selectCustomDesignBand(centerMhz: number, spanMhz: number) {
+    const nb = addCustomBand(centerMhz, spanMhz);
+    applyDesignBand(nb);
+    // The measurement comes along (#1487): the dial re-locks to the design
+    // frequency, so a design moved to 300 MHz is measured at 300 MHz rather
+    // than wherever an unlocked dial was left. Unlocking again works as usual.
+    setLinkMeas(true);
+    setMeasFreq(nb.freq_mhz);
+    setMeasBand(nb.key);
+  }
+
+  function applyDesignBand(nb: BandSpec) {
+    setBand(nb.key);
     setDesignFreq(nb.freq_mhz);
     if (linkMeas) setMeasFreq(nb.freq_mhz);
     else if (measFreq < nb.min_mhz || measFreq > nb.max_mhz) {
@@ -1281,11 +1318,17 @@ function DesignSessionBody({
   function selectMeasBand(nextKey: string) {
     const nb = currentBands.find((b) => b.key === nextKey);
     if (!nb) return;
+    applyMeasBand(nb);
+  }
+  function selectCustomMeasBand(centerMhz: number, spanMhz: number) {
+    applyMeasBand(addCustomBand(centerMhz, spanMhz));
+  }
+  function applyMeasBand(nb: BandSpec) {
     // Only a *live* lock needs breaking; an inert one (fixed-geometry
     // design) is the user's global preference — leave it for the next
     // design_freq-scaled design.
     if (measLocked) setLinkMeas(false);
-    setMeasBand(nextKey);
+    setMeasBand(nb.key);
     setMeasFreq(nb.freq_mhz);
   }
 
@@ -1762,9 +1805,21 @@ function DesignSessionBody({
           <DesignFreqRow
             bands={currentBands}
             designFreq={designFreq}
-            activeKey={bandContaining(designFreq)}
+            // The picked band wins while designFreq is inside it, so a custom
+            // band that overlaps a served one still shows as picked (#1487).
+            activeKey={
+              currentBands.some(
+                (b) =>
+                  b.key === band &&
+                  designFreq >= b.min_mhz &&
+                  designFreq <= b.max_mhz,
+              )
+                ? band
+                : bandContaining(designFreq)
+            }
             onSelectBand={selectBand}
             onSetFreq={updateDesignFreq}
+            onCustomBand={selectCustomDesignBand}
           />
         )}
 
@@ -1799,6 +1854,8 @@ function DesignSessionBody({
           bandContaining={bandContaining}
           measBand={measBand}
           selectMeasBand={selectMeasBand}
+          onCustomMeasBand={selectCustomMeasBand}
+          measBandIsCustom={!measLocked && isCustomBand(measBand)}
           currentExample={currentExample}
           measBandAnchor={measBandAnchor}
           freqWindowCeiling={freqWindowCeiling}
