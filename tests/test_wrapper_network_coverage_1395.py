@@ -183,15 +183,45 @@ def test_every_wrapper_kind_has_a_row(kind):
 def test_a_junction_port_design_greys_pynec_and_nec2():
     """`wire.sterba_bl` is the catalog's only `PortAtEnd` design. PyNEC refuses it
     by name (#579) and the NEC-2 writer raises that same sentence, so both tabs
-    grey; NEC-5's cell is unmeasured and is not greyed on a guess."""
+    grey; NEC-5's junction-port cell is unmeasured and greys nothing on a guess.
+    NEC-5's tab IS greyed, but for the design's distributed port (#1410), which
+    is the refusal its engine actually raises."""
     cov = adapter.design_backend_coverage("wire.sterba_bl")
     assert "junction_ports" in cov["needs"], cov["needs"]
     for backend in ("pynec", "nec2"):
         assert cov["refusals"][backend]["capability"] == "junction_ports", cov
         assert "PortAtEnd" in cov["refusals"][backend]["reason"]
-    assert "nec5" not in cov["refusals"], (
+    assert cov["refusals"]["nec5"]["capability"] != "junction_ports", (
         "NEC-5's junction-port cell is None (not measured) and must not grey a tab"
     )
+
+
+# --------------------------------------------------------------------------
+# antennaknobs#1410: the distributed port, a capability of its own
+# --------------------------------------------------------------------------
+
+
+def test_a_distributed_port_design_greys_nec5_for_that_port():
+    """`wire.sterba_bl` feeds through a `PortOnWire(distributed=True)`. NEC-5
+    refuses it by name, but the grid modelled no such need, so its tab stayed
+    offered and the refusal arrived after a click."""
+    cov = adapter.design_backend_coverage("wire.sterba_bl")
+    assert "distributed_ports" in cov["needs"], cov["needs"]
+    assert cov["refusals"]["nec5"]["capability"] == "distributed_ports", cov
+    assert "finite-gap port" in cov["refusals"]["nec5"]["reason"]
+
+
+def test_the_nec5_distributed_sentence_is_the_engines_own():
+    """No binary needed: NEC-5's refusal is reachable with `require_exe=False`,
+    and the grid's sentence must be the one the engine raises, not a paraphrase."""
+    from antennaknobs.engines.nec5 import DISTRIBUTED_PORT_REFUSAL, NEC5Engine
+
+    sentence = adapter._WRAPPER_PORT_SCOPE["distributed_ports"]["nec5"][1]
+    assert DISTRIBUTED_PORT_REFUSAL in sentence, sentence
+    builder = _design_cls("wire.sterba_bl")()
+    with pytest.raises(NotImplementedError) as exc:
+        NEC5Engine(builder, ground="free", require_exe=False)
+    assert DISTRIBUTED_PORT_REFUSAL in str(exc.value), str(exc.value)
 
 
 def test_a_vertex_port_design_greys_pynec_and_nec2_but_not_nec5():
@@ -215,7 +245,9 @@ def test_a_port_refusal_outranks_a_network_one():
     assert cov["refusals"]["nec2"]["capability"] == "junction_ports", cov["refusals"]
 
 
-@pytest.mark.parametrize("capability", ["junction_ports", "node_gaps"])
+@pytest.mark.parametrize(
+    "capability", ["junction_ports", "node_gaps", "distributed_ports"]
+)
 @pytest.mark.parametrize("kind", ["pynec", "nec5", "nec2"])
 def test_every_wrapper_kind_has_a_row_for_every_port_capability(capability, kind):
     """Three states, not two (#1103): a wrapper ABSENT from a table would read as

@@ -91,7 +91,11 @@ from antennaknobs.engines.momwire import (
     split_wires_at_plane,
 )
 from antennaknobs.engines.nec2 import NEC2Engine
-from antennaknobs.engines.nec5 import NEC5Engine, _network_needs_reducer
+from antennaknobs.engines.nec5 import (
+    DISTRIBUTED_PORT_REFUSAL,
+    NEC5Engine,
+    _network_needs_reducer,
+)
 from antennaknobs.terrain import (
     Terrain,
     cliff_terrain,
@@ -813,6 +817,13 @@ _NEC2_VERTEX_REFUSAL = (
     "the short-bridge idiom explicitly (antennaknobs#898)."
 )
 
+_NEC2_DISTRIBUTED_REFUSAL = (
+    "a NEC-2 deck cannot express a distributed finite-gap port: it spans every "
+    "segment of its named wire, and the app solves it by a multiport-Y reduction "
+    "over one deck per driven port, which no single deck says (issue #477). Run "
+    "it on momwire, whose finite-gap port is native."
+)
+
 _WRAPPER_PORT_SCOPE = {
     "junction_ports": {
         "pynec": (False, _PYNEC_JUNCTION_REFUSAL, "antennaknobs#579"),
@@ -823,6 +834,20 @@ _WRAPPER_PORT_SCOPE = {
         "pynec": (False, _PYNEC_VERTEX_REFUSAL, "antennaknobs#898"),
         "nec2": (False, _NEC2_VERTEX_REFUSAL, "antennaknobs#898"),
         "nec5": (True, None, None),
+    },
+    # `distributed_ports` -- a `PortOnWire(distributed=True)`, the finite-gap port
+    # spanning its whole named wire (antennaknobs#1410):
+    #   nec5   REFUSES by name, the engine's own sentence, measured on
+    #          `wire.sterba_bl` with `require_exe=False`.
+    #   pynec  NOT MEASURED. Its code reduces a distributed port (engines/pynec.py,
+    #          issue #477), but the catalog's only such design refuses first on
+    #          its junction port, so nothing solved says it serves.
+    #   nec2   REFUSES -- the writer's network refusal names distributed
+    #          finite-gap ports (nec_export.py, issue #477).
+    "distributed_ports": {
+        "pynec": (None, None, None),
+        "nec2": (False, _NEC2_DISTRIBUTED_REFUSAL, "antennaknobs#477"),
+        "nec5": (False, "a port is " + DISTRIBUTED_PORT_REFUSAL, "antennaknobs#1410"),
     },
 }
 
@@ -3662,6 +3687,10 @@ def _design_capability_needs(cls) -> frozenset:
             needs.add("junction_ports")
         if any(isinstance(p, PortAtVertex) for p in ports):
             needs.add("node_gaps")
+        # A finite-gap port spanning its whole wire (antennaknobs#1410): NEC-5
+        # refuses it by name, and without this need its tab stayed offered.
+        if any(isinstance(p, PortOnWire) and p.distributed for p in ports):
+            needs.add("distributed_ports")
         # A network no single card deck expresses: a transmission line, a
         # transformer, a virtual driver, a finite-Q load, a distributed port
         # (antennaknobs#1395). Asked with `_network_needs_reducer`, the engines'
@@ -3730,7 +3759,7 @@ def _backend_capability_refusal(spec, needs) -> dict | None:
         # Then the port kinds, in `_COVERAGE_FIELDS` order so the answer is
         # stable across runs, and the network last: a port the engine has no card
         # for is a more basic refusal than a network it cannot reduce.
-        for cap in ("junction_ports", "node_gaps"):
+        for cap in ("junction_ports", "node_gaps", "distributed_ports"):
             if cap not in needs:
                 continue
             row = _WRAPPER_PORT_SCOPE[cap].get(spec.kind)
