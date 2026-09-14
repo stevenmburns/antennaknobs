@@ -2214,6 +2214,15 @@ input[type=checkbox] {
   background: var(--accent-active);
 }
 
+/* A view's own corner controls (projection, overlay switches) start below the
+   rail/grid toggle, which sits over the stage's top-right corner: on a narrow
+   or zoomed-in window the two landed on the same spot, and the toggle hid the
+   Iso button until it faded (AC6LA). The toggle is a later-painted sibling of
+   the slide/grid, so this clears it in both layouts. */
+.layout-toggle ~ * :is(.antenna-overlay, .smith-overlay, .farfield-overlay) {
+  top: calc(var(--space-6) + var(--layout-toggle-clearance, 44px));
+}
+
 /* ---- Grid layout mode (unit 3): equal cells over the first ≤4 pins, no
    primary. Row/column count comes from JS (useGridCellSize/ViewGrid share
    gridShape's math) as an inline style, not fixed classes here — the shape
