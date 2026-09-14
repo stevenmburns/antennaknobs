@@ -22,6 +22,9 @@ Three gates, each run against the FROZEN executable and nothing else:
    impedance from the momwire solver.
 4. ``/export_nec`` (the gear menu's Download .nec) returns a NEC-2 deck. The
    bundle carries no PyNEC by policy, and the export used to need it (#1387).
+5. ``/design_source`` (the Files view's Source tab, #1428) serves a catalog
+   design's own ``.py``. The modules import from the bundle's archive; the
+   source exists only because build.py ships ``designs/`` as files too.
 """
 
 from __future__ import annotations
@@ -216,6 +219,24 @@ def main(argv: list[str]) -> int:
             print(f"FAIL: /export_nec returned no NEC deck:\n{deck[:400]}")
             return 1
         print(f"gate 4: /export_nec wrote {len(cards)} cards without PyNEC")
+
+        # 5. The Files view's Source tab (AK#1428) reads a catalog design's own
+        # .py. The bundle imports the modules from its archive, so the source is
+        # there only because build.py also ships designs/ as files.
+        req = json.dumps({"geometry": "dipoles.invvee"}).encode()
+        r = urllib.request.Request(  # noqa: S310 — loopback http only
+            base + "/design_source",
+            data=req,
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(r, timeout=60) as resp:  # noqa: S310 — loopback http only
+            src = json.loads(resp.read().decode("utf-8"))
+        if not src.get("available") or "class Builder" not in src.get("text", ""):
+            print(
+                f"FAIL: /design_source found no source in the bundle: {str(src)[:300]}"
+            )
+            return 1
+        print(f"gate 5: /design_source served {src['filename']} from the bundle")
         print("SMOKE OK")
         return 0
     finally:
