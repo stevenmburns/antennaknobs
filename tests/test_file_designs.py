@@ -118,6 +118,16 @@ def test_at_ssn_seeds_from_the_generator(tmp_path):
     assert b.build_network().sources
 
 
+def test_at_ssn_without_a_sweep_seeds_no_zero_width_window(tmp_path):
+    """#1489: with no armed Generator sweep, the .ssn loader stored the deck's
+    single FR point as (f, f), pinning the dial like #1487's decks."""
+    p = tmp_path / "dip.ssn"
+    p.write_text(export_ssn(_Dipole(), freq_mhz=14.1, ground=None))
+    b = get_builder(f"@{p}")()
+    assert b.freq == pytest.approx(14.1)
+    assert "meas_freq_range" not in b.ui_params
+
+
 def test_at_ssn_ground_note_points_at_the_flag(tmp_path):
     p = tmp_path / "dip.ssn"
     p.write_text(export_ssn(_Dipole(), freq_mhz=14.1, ground=("finite", 13.0, 0.005)))
