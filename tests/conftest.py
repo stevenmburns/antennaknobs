@@ -16,6 +16,14 @@ import os
 import tempfile
 import warnings
 
+# AK#1492: the library reads ~/.antennaknobs/settings.toml for engine paths and
+# the capture folder. Point the whole suite at a file that does not exist, so a
+# developer's own settings never reach a test; a test that needs one sets it.
+os.environ["ANTENNAKNOBS_SETTINGS"] = os.path.join(
+    tempfile.gettempdir(),
+    f"antennaknobs-tests-{os.getpid()}-no-such-settings.toml",
+)
+
 os.environ.setdefault("MPLBACKEND", "Agg")
 
 

@@ -133,3 +133,43 @@ def test_the_startup_line_flags_a_path_that_is_not_an_executable_file(
     real.chmod(0o755)
     monkeypatch.setenv(var, str(real))
     assert entry._engine_line(var) == str(real)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["--settings", r"C:\ak\settings.toml"], [r"--settings=C:\ak\settings.toml"]],
+)
+def test_the_settings_flag_sets_the_variable_the_server_reads(argv, monkeypatch):
+    """AK#1492: --settings becomes ANTENNAKNOBS_SETTINGS, in both spellings."""
+    monkeypatch.setenv("ANTENNAKNOBS_SETTINGS", "")
+    opts = entry._parse(argv)
+    assert opts["settings"] == r"C:\ak\settings.toml"
+    entry._apply_capture_opts(opts)
+    assert os.environ["ANTENNAKNOBS_SETTINGS"] == r"C:\ak\settings.toml"
+
+
+def test_the_settings_flag_missing_its_value_is_a_usage_error(capsys):
+    with pytest.raises(SystemExit) as exc:
+        entry._parse(["--settings"])
+    assert exc.value.code == 2
+    assert "--settings needs a value" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(("var", "flag", "fname"), ENGINES)
+def test_the_settings_file_sits_between_the_variable_and_the_text_file(
+    bundle, monkeypatch, var, flag, fname
+):
+    """AK#1492: an engine the settings file names is left for the library to
+    read, so NEC5_EXE.txt is not consulted, and a variable still wins."""
+    key = {"NEC5_EXE": "nec5_exe", "NEC2_EXE": "nec2_exe"}[var]
+    settings = bundle / "settings.toml"
+    settings.write_text(f'[engines]\n{key} = "/from/settings"\n')
+    monkeypatch.setenv("ANTENNAKNOBS_SETTINGS", str(settings))
+    (bundle / fname).write_text("/from/file\n")
+    entry._apply_capture_opts(entry._parse([]))
+    entry._apply_exe_files()
+    assert os.environ.get(var, "") == ""
+    line = entry._engine_line(var)
+    assert line.startswith("/from/settings") and "from settings.toml" in line
+    monkeypatch.setenv(var, "/from/var")
+    assert entry._engine_line(var).startswith("/from/var")

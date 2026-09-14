@@ -38,6 +38,7 @@ antennaknobs-workbench.exe --no-browser      print the URL only
 antennaknobs-workbench.exe --selftest        prove the bundle and exit
 antennaknobs-workbench.exe --nec5-exe PATH   use the NEC-5 engine at PATH
 antennaknobs-workbench.exe --nec2-exe PATH   use the NEC-2 engine at PATH
+antennaknobs-workbench.exe --settings PATH   start from this settings.toml
 ```
 
 `--selftest` is worth running once if you are unsure the download is intact:

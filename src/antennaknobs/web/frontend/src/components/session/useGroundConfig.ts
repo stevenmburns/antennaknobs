@@ -13,6 +13,7 @@ import {
   type SoilRanges,
   type TerrainParams,
 } from "../../lib/ground";
+import { BUILTIN_GROUND, type GroundDefaults } from "../../lib/settings";
 
 // The ground/terrain selection and everything derived from it: the wire
 // `ground_model` value the server protocol takes, the terrain change-detector
@@ -23,11 +24,14 @@ export function useGroundConfig({
   backend,
   soilRanges,
   soilPresets,
+  defaults = BUILTIN_GROUND,
 }: {
   backend: BackendEntry;
   /** Served bounds+defaults, null on a server predating #1173. */
   soilRanges?: SoilRanges | null;
   soilPresets?: SoilPresetSchema[];
+  /** Where the ground starts (AK#1492's settings.toml); built-in if omitted. */
+  defaults?: GroundDefaults;
 }) {
   // Ground plane at z = 0 (model per backend; see groundType). ON by
   // default: this is an HF wire-antenna workbench, and the over-ground
@@ -35,19 +39,21 @@ export function useGroundConfig({
   // is the decision-relevant one — free space is the idealization you
   // opt into. The whole catalog solves grounded (75/75 audit, all
   // designs above z=0) on the default B-spline refl-coef path.
-  const [groundEnabled, setGroundEnabled] = useState(true);
+  const [groundEnabled, setGroundEnabled] = useState(defaults.enabled);
   // Shared ground choice — one selector describing the GROUND (finite vs
   // PEC); every backend solves it as best it can (see the GroundType note).
-  const [groundType, setGroundType] = useState<GroundType>("finite");
+  const [groundType, setGroundType] = useState<GroundType>(defaults.type);
   // Finite-ground method; hidden (and inert) on backends with a single
   // finite model, but kept in state so it survives backend flips during
   // engine comparison. Defaults to "fast" — Sommerfeld is opt-in (it costs
   // seconds per solve on the B-spline backend).
   const [finiteGroundMethod, setFiniteGroundMethod] =
-    useState<FiniteGroundMethod>("fast");
+    useState<FiniteGroundMethod>(defaults.method);
   // Terrain preset + knobs (groundType === "terrain"; momwire only). One
   // flat params object for both presets so values survive preset flips.
-  const [terrainPreset, setTerrainPreset] = useState<string>("levee");
+  const [terrainPreset, setTerrainPreset] = useState<string>(
+    defaults.terrain_preset ?? "levee",
+  );
   const [terrainParams, setTerrainParams] = useState<TerrainParams>({});
   // Wire value derived for the server protocol (see GroundModel). A
   // terrain selection quietly degrades to the finite method on any future
@@ -82,8 +88,12 @@ export function useGroundConfig({
   //
   // Seeds ONCE, on the null→value transition only: re-seeding whenever the
   // served default changed would stomp a soil the user had dialled.
-  if (soil === null && servedDefault !== null) {
-    setSoil(servedDefault);
+  // A settings.toml soil (AK#1492) seeds instead of the served default. The
+  // served default itself is untouched, because the request path omits a
+  // default-valued soil and the server then solves its own default.
+  const seedSoil = defaults.soil ?? servedDefault;
+  if (soil === null && seedSoil !== null) {
+    setSoil(seedSoil);
   }
 
   // Whether the finite models are the active ones. pec and terrain carry no

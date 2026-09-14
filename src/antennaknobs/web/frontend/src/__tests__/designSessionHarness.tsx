@@ -95,6 +95,9 @@ export interface MountDesignSessionOptions {
    * and /geometry defaults — e.g. to capture POST /geometry bodies, or to
    * answer a route the defaults don't know about. */
   routes?: FetchRouteOverrides;
+  /** /capabilities' `ui_defaults` (AK#1492); omitted from the payload when
+   *  undefined, which is a server predating it. */
+  uiDefaults?: unknown;
 }
 
 // Mounts <DesignSession>: seeds the view prefs localStorage record, stubs
@@ -116,6 +119,7 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
     roster = SERVED_ROSTER,
     examples = [HARNESS_EXAMPLE],
     routes = {},
+    uiDefaults,
   } = opts;
 
   localStorage.clear();
@@ -149,6 +153,7 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
           backend_aliases: SERVED_ALIASES,
           default_slots: SERVED_SLOT_SEEDS,
           terrain_presets: [],
+          ...(uiDefaults === undefined ? {} : { ui_defaults: uiDefaults }),
         });
       if (path.startsWith("/examples"))
         return jsonResponse({ examples, errors: [] });

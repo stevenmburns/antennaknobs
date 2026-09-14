@@ -3571,3 +3571,28 @@ canvas {
 .solver-advisory-toggle:hover {
   color: var(--fg);
 }
+
+/* settings.toml problems and the save note (AK#1492): one dismissible line. */
+.settings-notice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  background: var(--inset);
+  font-size: var(--text-sm);
+}
+.settings-notice[role="alert"] {
+  border-color: var(--danger, #c0392b);
+}
+.settings-notice button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  line-height: 1;
+}

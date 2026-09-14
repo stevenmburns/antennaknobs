@@ -35,6 +35,8 @@ export function SessionGearMenu({
   setNormCheckEnabled,
   refineEnabled,
   setRefineEnabled,
+  canSaveDefaults,
+  onSaveDefaults,
   theme,
   applyTheme,
 }: {
@@ -66,6 +68,9 @@ export function SessionGearMenu({
   setNormCheckEnabled: (v: boolean) => void;
   refineEnabled: boolean;
   setRefineEnabled: (v: boolean) => void;
+  /** Local installs only: write these as the startup settings (AK#1492). */
+  canSaveDefaults: boolean;
+  onSaveDefaults: () => void;
   theme: Theme;
   applyTheme: (t: Theme) => void;
 }) {
@@ -274,6 +279,19 @@ export function SessionGearMenu({
                     />
                     adaptive resolution
                   </label>
+                  {canSaveDefaults && (
+                    <>
+                      <div className="gear-menu-section">startup</div>
+                      <button
+                        type="button"
+                        className="gear-menu-check gear-menu-button"
+                        title="Write these switches, the ground and the A/B/C solver slots to settings.toml, so the workbench starts this way next time"
+                        onClick={onSaveDefaults}
+                      >
+                        save as my defaults
+                      </button>
+                    </>
+                  )}
                 </div>
               </>
             )}

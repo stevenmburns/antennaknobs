@@ -22,15 +22,24 @@ server log, and Ctrl-C stops it.
                                         # same in PowerShell and Command Prompt
     antennaknobs-workbench --nec2-exe C:\\4nec2\\exe\\nec2dxs11.exe
                                         # a NEC-2 console binary, the same way
+    antennaknobs-workbench --settings C:\\ak\\settings.toml
+                                        # where the workbench starts: switches,
+                                        # ground, solver slots (AK#1492)
 
-The licensed NEC-5 engine is found three ways, first match wins: the
-``--nec5-exe PATH`` flag; the ``NEC5_EXE`` variable the pip install reads; and,
-for someone who double-clicks, a one-line text file ``NEC5_EXE.txt`` beside
-the executable holding the path to NEC5CL.exe. The flag exists because the
+The licensed NEC-5 engine is found four ways, first match wins: the
+``--nec5-exe PATH`` flag; the ``NEC5_EXE`` variable the pip install reads;
+``nec5_exe`` in the settings file's ``[engines]`` table (AK#1492); and, for
+someone who double-clicks, a one-line text file ``NEC5_EXE.txt`` beside the
+executable holding the path to NEC5CL.exe. The flag exists because the
 variable is spelled one way in PowerShell (``$env:NEC5_EXE = "..."``) and
 another in Command Prompt (``set NEC5_EXE=...``), and users mix the two up.
 The server stays on 127.0.0.1: an engine you are licensed for must not be
 served past your own machine.
+
+Startup settings (AK#1492) come from ``--settings PATH``, else the
+``ANTENNAKNOBS_SETTINGS`` variable, else ``settings.toml`` in the
+``.antennaknobs`` folder in your home directory, the one that holds
+``designs``. The Settings menu's "Save as my defaults" writes that file.
 
 ``--nec2-exe`` / ``NEC2_EXE`` / ``NEC2_EXE.txt`` do the same for a NEC-2
 console binary (nec2c, nec2++, 4nec2's nec2dxs*.exe). The bundle ships none:
@@ -127,6 +136,7 @@ def _parse(argv: list[str]) -> dict:
         "capture_dir": None,
         "nec5_exe": None,
         "nec2_exe": None,
+        "settings": None,
     }
     it = iter(argv)
     for a in it:
@@ -147,6 +157,10 @@ def _parse(argv: list[str]) -> dict:
         elif a.startswith(tuple(f"{flag}=" for flag in EXE_FLAGS.values())):
             flag, value = a.split("=", 1)
             opts[flag[2:].replace("-", "_")] = value
+        elif a == "--settings":
+            opts["settings"] = _value(it, a)
+        elif a.startswith("--settings="):
+            opts["settings"] = a.split("=", 1)[1]
         elif a == "--no-browser":
             opts["browser"] = False
         elif a == "--selftest":
@@ -176,15 +190,32 @@ def _apply_capture_opts(opts: dict) -> None:
         os.environ["NEC5_EXE"] = str(opts["nec5_exe"])
     if opts.get("nec2_exe"):
         os.environ["NEC2_EXE"] = str(opts["nec2_exe"])
+    # --settings becomes ANTENNAKNOBS_SETTINGS, which the server reads at every
+    # page load (AK#1492).
+    if opts.get("settings"):
+        os.environ["ANTENNAKNOBS_SETTINGS"] = str(opts["settings"])
+
+
+def _settings_line() -> str:
+    """What the startup summary says about the settings file."""
+    from antennaknobs.web.settings import settings_path
+
+    path = settings_path()
+    if path.is_file():
+        return str(path)
+    return f"{path}  (none yet: the Settings menu's 'Save as my defaults' writes it)"
 
 
 def _apply_exe_files() -> None:
     """``NEC5_EXE.txt`` / ``NEC2_EXE.txt`` beside the executable, for a variable
     still unset after the flags. A variable already set, by the environment or
-    by ``--nec5-exe`` / ``--nec2-exe``, is left alone. That makes the order flag,
-    then variable, then file."""
+    by ``--nec5-exe`` / ``--nec2-exe``, is left alone, and so is an engine the
+    settings file names (the library reads that itself). That makes the order
+    flag, then variable, then settings.toml, then text file."""
+    from antennaknobs.settings_file import engine_exe
+
     for var, fname in EXE_FILES.items():
-        if os.environ.get(var):
+        if os.environ.get(var) or engine_exe(var):
             continue
         from_file = _exe_from_file(fname)
         if from_file:
@@ -197,16 +228,22 @@ def _engine_line(var: str) -> str:
     the routes to set it. A path that is not an executable file gets a note:
     the engines' `find_exe` treats it as no engine at all, so its tab never
     appears, and before this the path printed as if it were fine."""
-    path = os.environ.get(var)
+    from antennaknobs.settings_file import ENGINE_KEYS, engine_exe
+
+    path, source = os.environ.get(var), ""
+    if not path:
+        path = engine_exe(var)
+        source = "from settings.toml" if path else ""
     if not path:
         return (
-            f"not set ({EXE_FLAGS[var]} PATH, or the path in {EXE_FILES[var]} "
-            "beside this program)"
+            f"not set ({EXE_FLAGS[var]} PATH, [engines] {ENGINE_KEYS[var]} in "
+            f"settings.toml, or the path in {EXE_FILES[var]} beside this program)"
         )
     p = Path(path).expanduser()
     if p.is_file() and os.access(p, os.X_OK):
-        return path
-    return f"{path}  (not an executable file, so this engine is off: check the path)"
+        return f"{path}  ({source})" if source else path
+    note = "not an executable file, so this engine is off: check the path"
+    return f"{path}  ({source}; {note})" if source else f"{path}  ({note})"
 
 
 def selftest() -> int:
@@ -254,9 +291,13 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  workbench: {url}")
     print(f"  NEC-5:     {_engine_line('NEC5_EXE')}")
     print(f"  NEC-2:     {_engine_line('NEC2_EXE')}")
-    if os.environ.get("ANTENNAKNOBS_CAPTURE_DIR"):
+    print(f"  settings:  {_settings_line()}")
+    from antennaknobs.settings_file import capture_dir
+
+    capture = os.environ.get("ANTENNAKNOBS_CAPTURE_DIR") or capture_dir()
+    if capture:
         print(
-            f"  capture:   {os.environ['ANTENNAKNOBS_CAPTURE_DIR']}  "
+            f"  capture:   {capture}  "
             "(every engine deck and printout, as nec5/ and nec2/ <hash>.nec + .out)"
         )
     if os.environ.get("ANTENNAKNOBS_LOG_LEVEL"):
