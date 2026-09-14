@@ -226,24 +226,19 @@ SAVE_BODY = {
 }
 
 
-def test_save_writes_a_file_that_reads_back_the_same(client, local):
+def test_save_writes_a_file_that_reads_back_the_same(client, local, monkeypatch):
+    monkeypatch.setattr(server.pynec_backend, "HAVE_PYNEC", True)
     r = client.post("/settings", json=SAVE_BODY)
     assert r.status_code == 200, r.text
     data = tomllib.loads(local.read_text())
-    assert data["switches"]["freq_sweep"] is False
-    assert data["ground"] == {
-        "enabled": True,
-        "type": "finite",
-        "method": "sommerfeld",
-        "eps_r": 20.0,
-        "sigma": 0.03,
-        "terrain_preset": "levee",
-    }
-    # A knob left at null (the solver decides) is written as absent.
-    assert data["slots"]["A"] == {
-        "backend": "bspline",
-        "n_per_wire": 17,
-        "model": {"degree": 2},
+    # Only what differs from the built-in defaults is written (#1497).
+    assert data["switches"] == {"freq_sweep": False, "wire_labels": True}
+    assert data["ground"] == {"method": "sommerfeld", "eps_r": 20.0, "sigma": 0.03}
+    # Degree 2 is where slot A starts and a knob left at null (the solver
+    # decides) is absent too; slot B is exactly its stock seed.
+    assert data["slots"] == {
+        "A": {"n_per_wire": 17},
+        "C": {"backend": "sinusoidal", "n_per_wire": 15},
     }
     caps = client.get("/capabilities").json()
     assert caps["ui_defaults"]["switches"] == SAVE_BODY["switches"]
@@ -286,6 +281,15 @@ def test_the_frontend_fallback_is_this_table():
     assert f"enabled: {str(ui_settings.GROUND_BUILTIN['enabled']).lower()}," in g
     assert f'type: "{ui_settings.GROUND_BUILTIN["type"]}",' in g
     assert f'method: "{ui_settings.GROUND_BUILTIN["method"]}",' in g
+    # A save leaves out the terrain preset the panel starts on (#1497), so the
+    # panel's fallback must be the catalog's first preset.
+    hook = (
+        ROOT / "src/antennaknobs/web/frontend/src/components/session/useGroundConfig.ts"
+    )
+    start = re.search(r'defaults\.terrain_preset \?\? "([\w-]+)"', hook.read_text())
+    assert start, "the terrain preset fallback not found in useGroundConfig.ts"
+    cat = ui_settings.catalog(have_pynec=False, have_nec5=False, have_nec2=False)
+    assert start.group(1) == cat.terrain_default
 
 
 def test_engines_and_capture_come_from_the_file_and_a_variable_wins(
@@ -352,8 +356,105 @@ def test_save_keeps_the_hand_edited_engines_and_capture(client, local):
     assert data["switches"]["freq_sweep"] is False
 
 
-def test_the_page_is_not_served_the_engine_paths(client, local):
-    local.write_text('[engines]\nnec5_exe = "/opt/nec5/nec5cl"\n')
+def test_the_page_is_not_served_the_engine_paths(client, local, tmp_path):
+    exe = tmp_path / "nec5cl"
+    exe.write_text("#!/bin/sh\n")
+    exe.chmod(0o755)
+    local.write_text(f'[engines]\nnec5_exe = "{exe}"\n')
     ui = client.get("/capabilities").json()["ui_defaults"]
     assert "engines" not in ui and "capture" not in ui
     assert ui["problems"] == []
+
+
+# #1497: a save writes only what differs from the built-in defaults, so a
+# default that a later release moves reaches a file saved today.
+
+
+@pytest.fixture
+def cat_pynec():
+    return ui_settings.catalog(have_pynec=True, have_nec5=False, have_nec2=False)
+
+
+def _untouched(cat):
+    """The body the page posts for a session nobody changed, built the way the
+    frontend builds it (defaultOptsFor, slotFromSeed): every switch, the served
+    soil and first terrain preset, and each stock slot with every knob its
+    solver takes at the served default."""
+    ground = {
+        **{k: ui_settings.GROUND_BUILTIN[k] for k in ("enabled", "type", "method")},
+        "eps_r": cat.soil_default[0],
+        "sigma": cat.soil_default[1],
+        "terrain_preset": cat.terrain_default,
+    }
+    slots = {}
+    for seed in cat.stock_slots:
+        backend = seed["backend"]
+        model = {k: cat.knob_defaults[k] for k in cat.backends[backend]}
+        model.update(seed["model"])
+        n = seed["n_per_wire"] or cat.n_per_wire_defaults[backend]
+        slots[seed["slot"]] = {"backend": backend, "n_per_wire": n, "model": model}
+    return {"switches": dict(BUILTIN_SWITCHES), "ground": ground, "slots": slots}
+
+
+def test_a_save_of_an_untouched_session_writes_no_settings(cat_pynec, local):
+    ui_settings.save(_untouched(cat_pynec), cat_pynec, path=local)
+    text = local.read_text()
+    assert tomllib.loads(text) == {}, text
+    loaded = ui_settings.load(cat_pynec, hosted=False, path=local)
+    assert loaded["problems"] == []
+    assert loaded["switches"] == BUILTIN_SWITCHES
+    assert loaded["ground"] == ui_settings.GROUND_BUILTIN
+    assert loaded["slots"] == {}
+
+
+def test_a_save_writes_only_what_differs(cat_pynec, local):
+    body = _untouched(cat_pynec)
+    body["switches"]["freq_sweep"] = False
+    eps_r, sigma = cat_pynec.soils["poor"]
+    body["ground"].update(eps_r=eps_r, sigma=sigma, terrain_preset="cliff")
+    body["slots"]["A"]["n_per_wire"] = 17
+    body["slots"]["A"]["model"]["tikhonov_lambda"] = 0.2
+    body["slots"]["C"] = {
+        "backend": "sinusoidal",
+        "n_per_wire": cat_pynec.n_per_wire_defaults["sinusoidal"],
+        "model": {"n_qp_const": cat_pynec.knob_defaults["n_qp_const"]},
+    }
+    ui_settings.save(body, cat_pynec, path=local)
+    assert tomllib.loads(local.read_text()) == {
+        "switches": {"freq_sweep": False},
+        # A soil that matches a preset is written by its name.
+        "ground": {"soil": "poor", "terrain_preset": "cliff"},
+        "slots": {
+            "A": {"n_per_wire": 17, "model": {"tikhonov_lambda": 0.2}},
+            # A new solver at its own defaults is just the solver.
+            "C": {"backend": "sinusoidal"},
+        },
+    }
+
+
+def test_a_default_a_later_release_moves_reaches_a_saved_file(
+    cat_pynec, local, monkeypatch
+):
+    body = _untouched(cat_pynec)
+    body["switches"]["freq_sweep"] = False
+    ui_settings.save(body, cat_pynec, path=local)
+    moved = tuple(
+        (key, label, (not default) if key == "refine" else default)
+        for key, label, default in ui_settings.SWITCHES
+    )
+    monkeypatch.setattr(ui_settings, "SWITCHES", moved)
+    switches = ui_settings.load(cat_pynec, hosted=False, path=local)["switches"]
+    assert switches["freq_sweep"] is False
+    assert switches["refine"] is (not BUILTIN_SWITCHES["refine"])
+
+
+def test_an_engine_path_with_no_program_is_named_and_kept(client, local, tmp_path):
+    missing = tmp_path / "NEC5CL_x13.exe"
+    local.write_text(f"[engines]\nnec5_exe = '{missing}'\n")
+    problems = client.get("/capabilities").json()["ui_defaults"]["problems"]
+    assert problems == [
+        f"[engines] nec5_exe = '{missing}': no program at that path, so this "
+        "entry finds no engine"
+    ]
+    assert client.post("/settings", json=SAVE_BODY).status_code == 200
+    assert tomllib.loads(local.read_text())["engines"] == {"nec5_exe": str(missing)}

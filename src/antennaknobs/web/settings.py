@@ -109,6 +109,11 @@ class Catalog:
     sigma_range: tuple[float, float]
     terrains: frozenset[str]
     stock_slots: tuple[dict, ...]
+    # Where a session starts, for a save to leave out (#1497).
+    soil_default: tuple[float, float]  # the served soil (eps_r, sigma)
+    terrain_default: str | None  # the terrain panel's first preset
+    knob_defaults: Mapping[str, object]  # knob -> its served default
+    n_per_wire_defaults: Mapping[str, int]  # backend name -> default_n_per_wire
 
 
 def catalog(*, have_pynec: bool, have_nec5: bool, have_nec2: bool) -> Catalog:
@@ -122,23 +127,34 @@ def catalog(*, have_pynec: bool, have_nec5: bool, have_nec2: bool) -> Catalog:
         backend_roster,
         default_slots,
         model_option_specs,
+        soil_ranges_schema,
         terrain_presets_schema,
     )
 
     roster = backend_roster(
         have_pynec=have_pynec, have_nec5=have_nec5, have_nec2=have_nec2
     )
+    specs = model_option_specs()
+    terrains = [p["name"] for p in terrain_presets_schema()]
+    ranges = soil_ranges_schema()
     return Catalog(
         backends={b["name"]: tuple(b.get("model_kwargs") or ()) for b in roster},
         aliases=backend_aliases(),
-        option_keys=frozenset(model_option_specs()),
+        option_keys=frozenset(specs),
         soils={
             name: (float(eps), float(sig)) for name, _, eps, sig, _ in _SOIL_PRESETS
         },
         eps_r_range=tuple(SOIL_EPS_R_RANGE),
         sigma_range=tuple(SOIL_SIGMA_RANGE),
-        terrains=frozenset(p["name"] for p in terrain_presets_schema()),
+        terrains=frozenset(terrains),
         stock_slots=tuple(default_slots()),
+        soil_default=(
+            float(ranges["eps_r"]["default"]),
+            float(ranges["sigma"]["default"]),
+        ),
+        terrain_default=terrains[0] if terrains else None,
+        knob_defaults={key: spec["default"] for key, spec in specs.items()},
+        n_per_wire_defaults={b["name"]: b["default_n_per_wire"] for b in roster},
     )
 
 
@@ -312,7 +328,20 @@ def _paths(data, table_name, keys, what, problems) -> dict:
             )
         else:
             out[key] = value
+            if table_name == "engines" and not _is_program(value):
+                # Named, and kept all the same: a drive that is not mounted
+                # today may be back tomorrow, and a save must not drop it.
+                problems.append(
+                    f"[engines] {key} = '{value}': no program at that path, so "
+                    "this entry finds no engine"
+                )
     return out
+
+
+def _is_program(path: str) -> bool:
+    """The test find_exe applies to a candidate (engines/_external.py)."""
+    p = Path(path).expanduser()
+    return p.is_file() and os.access(p, os.X_OK)
 
 
 def _resolve_slot(slot, entry, stock, cat: Catalog, problems) -> dict:
@@ -448,40 +477,107 @@ def _toml_value(value) -> str:
     return json.dumps(str(value))
 
 
-def dump(resolved: dict, kept: Mapping | None = None) -> str:
-    """TOML text for a resolved settings mapping: every switch, the ground as
-    posted, and the slots. A model knob left at null (the solver decides) is
-    written as absent, which reads back the same way."""
+_MISSING = object()
+
+
+def _differences(resolved: dict, cat: Catalog) -> dict:
+    """What a save writes (#1497): only the settings that differ from where
+    this version starts a session. A value left at its built-in default stays
+    out of the file, so it follows the defaults of a later release instead of
+    pinning today's. A save that wrote everything would freeze every default
+    the user never touched, and nothing would ever say so."""
+    switches = {
+        key: resolved["switches"][key]
+        for key, _, default in SWITCHES
+        if resolved["switches"][key] != default
+    }
+    given = resolved["ground"]
+    ground = {
+        key: given[key]
+        for key in ("enabled", "type", "method")
+        if given[key] != GROUND_BUILTIN[key]
+    }
+    if given.get("soil"):
+        pair = (float(given["soil"]["eps_r"]), float(given["soil"]["sigma"]))
+        if pair != cat.soil_default:
+            # A preset by its name, so a corrected preset reaches the file.
+            name = next((n for n, p in cat.soils.items() if p == pair), None)
+            if name:
+                ground["soil"] = name
+            else:
+                ground["eps_r"], ground["sigma"] = pair
+    if given.get("terrain_preset") not in (None, cat.terrain_default):
+        ground["terrain_preset"] = given["terrain_preset"]
+    stock = {s["slot"]: s for s in cat.stock_slots}
+    slots = {}
+    for slot in SLOTS:
+        if resolved["slots"].get(slot):
+            diff = _slot_differences(resolved["slots"][slot], stock.get(slot), cat)
+            if diff:
+                slots[slot] = diff
+    return {"switches": switches, "ground": ground, "slots": slots}
+
+
+def _slot_differences(entry: Mapping, seed: Mapping | None, cat: Catalog) -> dict:
+    """A slot's entries that differ from what the page starts it on: the
+    seed's solver (the roster's first when this server does not offer it, as
+    the frontend falls back), that solver's defaults, and the seed's own
+    n_per_wire and knobs on top. A different solver starts from its own
+    defaults, the way overlay_slots serves it."""
+    first = next(iter(cat.backends), None)
+    start = seed["backend"] if seed and seed["backend"] in cat.backends else first
+    backend = entry.get("backend", start)
+    out: dict = {}
+    n_start, model_start = None, {}
+    if backend != start:
+        out["backend"] = backend
+    elif seed:
+        n_start, model_start = seed.get("n_per_wire"), seed.get("model") or {}
+    if n_start is None:
+        n_start = cat.n_per_wire_defaults.get(backend)
+    knobs = {key: cat.knob_defaults.get(key) for key in cat.backends.get(backend, ())}
+    knobs.update({k: v for k, v in model_start.items() if k in knobs})
+    if "n_per_wire" in entry and entry["n_per_wire"] != n_start:
+        out["n_per_wire"] = entry["n_per_wire"]
+    model = {
+        key: value
+        for key, value in (entry.get("model") or {}).items()
+        if knobs.get(key, _MISSING) != value
+    }
+    if model:
+        out["model"] = model
+    return out
+
+
+def dump(settings: dict, kept: Mapping | None = None) -> str:
+    """TOML text for what a save writes (``_differences``): its switches,
+    ground and slots, then the hand-edited tables carried over verbatim. A
+    table with nothing in it is left out."""
     stamp = _dt.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
     lines = [
         "# antennaknobs workbench startup settings (AK#1492).",
         f"# Written by the Settings menu's 'Save as my defaults' on {stamp}.",
-        "# Hand edits are fine: the file is re-read at every page load.",
-        "",
-        "[switches]",
+        "# Only what differs from the built-in defaults is written; the rest",
+        "# follows the version you run. Hand edits are fine, and the file is",
+        "# re-read at every page load.",
     ]
-    lines += [f"{k} = {_toml_value(resolved['switches'][k])}" for k in _SWITCH_KEYS]
-    ground = resolved["ground"]
-    lines += ["", "[ground]"]
-    for key in ("enabled", "type", "method"):
-        lines.append(f"{key} = {_toml_value(ground[key])}")
-    if ground.get("soil"):
-        lines.append(f"eps_r = {_toml_value(float(ground['soil']['eps_r']))}")
-        lines.append(f"sigma = {_toml_value(float(ground['soil']['sigma']))}")
-    if ground.get("terrain_preset"):
-        lines.append(f"terrain_preset = {_toml_value(ground['terrain_preset'])}")
-    for slot in SLOTS:
-        entry = resolved["slots"].get(slot)
-        if not entry:
-            continue
+    for table_name in ("switches", "ground"):
+        if settings[table_name]:
+            lines += ["", f"[{table_name}]"]
+            lines += [
+                f"{k} = {_toml_value(v)}" for k, v in settings[table_name].items()
+            ]
+    for slot, entry in settings["slots"].items():
         lines += ["", f"[slots.{slot}]"]
-        if "backend" in entry:
-            lines.append(f"backend = {_toml_value(entry['backend'])}")
-        if entry.get("n_per_wire") is not None:
-            lines.append(f"n_per_wire = {_toml_value(entry['n_per_wire'])}")
-        model = {k: v for k, v in (entry.get("model") or {}).items() if v is not None}
-        if model:
-            inner = ", ".join(f"{k} = {_toml_value(v)}" for k, v in model.items())
+        lines += [
+            f"{key} = {_toml_value(entry[key])}"
+            for key in ("backend", "n_per_wire")
+            if key in entry
+        ]
+        if entry.get("model"):
+            inner = ", ".join(
+                f"{k} = {_toml_value(v)}" for k, v in entry["model"].items()
+            )
             lines.append(f"model = {{ {inner} }}")
     # The hand-edited tables the page never writes, carried over verbatim.
     for table_name in _FILE_TABLES:
@@ -493,10 +589,11 @@ def dump(resolved: dict, kept: Mapping | None = None) -> str:
 
 
 def save(body, cat: Catalog, *, path: Path | None = None) -> dict:
-    """Validate a posted body and write it as the settings file. The previous
-    file, if any, is kept beside it as ``settings.toml.bak``; the write goes
-    through a temporary file and a rename, so a crash never leaves half a file.
-    Returns the payload as read back from disk."""
+    """Validate a posted body and write what differs from the built-in
+    defaults as the settings file (#1497). The previous file, if any, is kept
+    beside it as ``settings.toml.bak``; the write goes through a temporary
+    file and a rename, so a crash never leaves half a file. Returns the payload
+    as read back from disk."""
     if isinstance(body, Mapping) and isinstance(body.get("slots"), Mapping):
         body = {
             **body,
@@ -533,7 +630,7 @@ def save(body, cat: Catalog, *, path: Path | None = None) -> dict:
     fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=".settings-", suffix=".toml")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(dump(resolved, kept))
+            fh.write(dump(_differences(resolved, cat), kept))
         os.replace(tmp, p)
     except BaseException:
         Path(tmp).unlink(missing_ok=True)

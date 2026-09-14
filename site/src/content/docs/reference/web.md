@@ -139,16 +139,21 @@ solver's own defaults.
   the entry, and that entry keeps its built-in default. The server log says
   the same.
 - **Save as my defaults.** The Settings menu's *save as my defaults* writes the
-  session's current switches, ground and slots to the file. The previous file
-  is kept beside it as `settings.toml.bak`, and hand edits to the saved file
-  are fine.
+  session's switches, ground and slots to the file, but only where they differ
+  from the built-in defaults. Everything you left alone stays out of the file,
+  so it follows the defaults of whichever version you run next. A soil that
+  matches a preset is written by its name. The previous file is kept beside it
+  as `settings.toml.bak`. Hand edits to the saved file are fine, though a line
+  that only repeats a default is dropped at the next save.
 - **Engines and the capture folder.** `[engines]` and `[capture]` do what
   `NEC5_EXE`, `NEC2_EXE` and `ANTENNAKNOBS_CAPTURE_DIR` do, for the workbench
   and the command line alike. A variable, or the workbench's `--nec5-exe`,
   `--nec2-exe` or `--capture-dir` flag, wins over the file, and the file wins
   over a `NEC5_EXE.txt` beside the workbench. Write Windows paths in single
   quotes, as above, so the backslashes need no escaping. The page never writes
-  these two tables: a path the server runs is never set from a browser.
+  these two tables: a path the server runs is never set from a browser. An
+  `[engines]` path with no program at it shows as a note like any other
+  mistake, and the entry stays in the file.
 - **The hosted simulator** reads no file and offers no save.
 
 ## The output stage — views, pins, and layout
