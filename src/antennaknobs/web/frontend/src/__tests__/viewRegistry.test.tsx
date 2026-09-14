@@ -224,8 +224,8 @@ describe("dispatch", () => {
     };
     const stage = mount("files", { files });
     expect(stage.querySelector("pre.files-text")?.textContent).toBe("SOURCE TEXT");
-    // The thumb is a label: no text reaches a 96 px square.
-    const thumb = mount("files", { fill: false, size: 96, files });
+    // The rail's thumbnail call site passes no texts, so it draws a label.
+    const thumb = mount("files", { fill: false, size: 96 });
     expect(thumb.querySelector(".files-thumb")).not.toBeNull();
     expect(thumb.textContent).not.toContain("SOURCE TEXT");
   });

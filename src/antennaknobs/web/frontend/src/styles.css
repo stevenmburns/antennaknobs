@@ -2362,6 +2362,7 @@ input[type=checkbox] {
 /* The Files view (AK#1428): a tab row, then one monospace pane that scrolls
    on its own, so a long printout never grows the stage. */
 .files-fill,
+.files-box,
 .files-thumb {
   display: flex;
   flex-direction: column;
@@ -2373,6 +2374,12 @@ input[type=checkbox] {
   position: absolute;
   inset: 0;
   padding: var(--space-6, 16px);
+  gap: var(--space-3);
+}
+
+.files-box {
+  position: relative;
+  padding: var(--space-4);
   gap: var(--space-3);
 }
 

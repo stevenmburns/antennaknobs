@@ -182,10 +182,21 @@ describe("copy and download", () => {
   });
 });
 
-describe("thumbnail", () => {
-  it("carries a label and no text", () => {
-    const c = mount(data(), false);
+describe("sizing", () => {
+  it("the rail's thumbnail, handed no texts, carries a label", () => {
+    const c = mount(null, false);
     expect(c.querySelector(".files-thumb")).not.toBeNull();
     expect(text(c)).toBeNull();
+  });
+
+  // `fill` is layout, not "stage": a stage that does not fill still gets the
+  // whole panel, in a size×size box, never the thumbnail's label.
+  it("a non-filling stage with texts gets the panel in a sized box", () => {
+    const c = mount(data(), false);
+    const box = c.querySelector(".files-box") as HTMLElement;
+    expect(box).not.toBeNull();
+    expect(box.style.width).toBe("180px");
+    expect(text(c)).toBe(SOURCE.text);
+    expect(c.querySelector(".files-thumb")).toBeNull();
   });
 });
