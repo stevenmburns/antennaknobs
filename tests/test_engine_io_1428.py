@@ -252,14 +252,38 @@ def test_engine_io_reruns_a_solve_whose_runs_aged_out(
 ):
     calls = []
     _stub_solve(monkeypatch, calls=calls)
-    r = client.post("/engine_io", json={**NEC5_REQ, "solve_id": "aged-out"}).json()
+    # The solve on screen, named by its own id: its texts aged out and the
+    # request still describes it, so the deck runs again.
+    sid = server._canonical_solve_key(NEC5_REQ)
+    r = client.post("/engine_io", json={**NEC5_REQ, "solve_id": sid}).json()
     assert r["available"] is True and r["rerun"] is True and r["runs"] == RUNS
     assert r["label"] == "NEC-5"
     assert len(calls) == 1 and "solve_id" not in calls[0]
-    assert r["solve_id"] == server._canonical_solve_key(NEC5_REQ)
+    assert r["solve_id"] == sid
     # Remembered under the request's own key: asking again runs nothing.
     again = client.post("/engine_io", json={**NEC5_REQ, "solve_id": r["solve_id"]})
     assert again.json()["rerun"] is False and len(calls) == 1
+
+
+def test_a_solve_whose_texts_are_gone_is_never_answered_with_another_request(
+    client, monkeypatch, caches, nec5_resolves
+):
+    """The AK#1428 review's defect. An N=15 readout is on screen and its texts
+    are gone from the cache; the Files request was built after N moved to 30.
+    Re-running that body printed the N=30 antenna under the N=15 solve's name.
+    It must answer `moved` and run nothing, even when the body's own solve is
+    held."""
+    calls = []
+    _stub_solve(monkeypatch, calls=calls)
+    moved_body = {**NEC5_REQ, "n_per_wire": 30}
+    shown = server._canonical_solve_key({**NEC5_REQ, "n_per_wire": 15})
+    r = client.post("/engine_io", json={**moved_body, "solve_id": shown}).json()
+    assert r == {"available": False, "solver": "nec5", "solve_id": shown, "moved": True}
+    assert calls == []
+    # Nor is the body's own solve served in its place, though it is held.
+    server._remember_engine_io(server._canonical_solve_key(moved_body), "nec5", RUNS)
+    r = client.post("/engine_io", json={**moved_body, "solve_id": shown}).json()
+    assert r["moved"] is True and "runs" not in r
 
 
 def test_a_failed_rerun_answers_with_what_the_binary_printed(

@@ -324,6 +324,9 @@ export type EngineIo = {
   error?: string;
   /** A newer request on the session's lane overtook the re-run. */
   superseded?: boolean;
+  /** The named solve's texts are no longer held and the request no longer
+   *  describes it, so nothing was run: the newer solve brings its own id. */
+  moved?: boolean;
 };
 
 export type SolveRequest = {
