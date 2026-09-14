@@ -1244,7 +1244,12 @@ function DesignSessionBody({
   // would fetch another antenna's deck.
   const ownResult = result?.geometry === geometry ? result : null;
   const files = useEngineFiles({
-    active: active && isResident("files"),
+    // Opt-in by focus, not residency. A Files thumbnail pinned in the rail
+    // shows no text, so fetching per solve for it pays for nothing, and a solve
+    // whose texts were evicted makes /engine_io re-run the whole engine deck on
+    // the session's lane. Nothing is asked until Files is the view on the stage
+    // (the focused cell in grid mode), and then only for the solve on screen.
+    active: active && view === "files",
     geometry,
     solveId: ownResult?.solve_id ?? null,
     engineLabel: ownResult?.engine_io_label ?? null,

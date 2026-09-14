@@ -10,8 +10,8 @@ import type { FilesViewData } from "../results/FilesPanel";
 // response carries `engine_io_label`: the server stamps that on a solve that
 // ran through a binary and keeps its runs under the solve_id, so the ask is a
 // lookup. Which engines run a binary is the server's fact, not this file's
-// (#1006 G2-6). Both fetches are gated on `active`, so nothing moves unless
-// the view is resident.
+// (#1006 G2-6). Both fetches are gated on `active`, which the session sets
+// only while Files is the view on the stage: opening the pane is the opt-in.
 //
 // Stale policy, the schematic's: a new solve keeps the previous texts up
 // (flagged stale) until its own land; a design switch drops them at once,
