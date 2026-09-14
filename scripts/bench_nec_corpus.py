@@ -63,6 +63,16 @@ reference run, so one pathological deck can't OOM the machine. A ``.jsonl``
 --out is written incrementally (one row per line as each deck finishes) and
 is a resume point: re-running with the same --out skips decks already done.
 Solve mode content-dedupes the corpus by md5 exactly like --parse-only.
+
+The run's ``_meta`` (the first line of a .jsonl --out) records the builds
+being measured as well as the reference (issue #1256):
+- antennaknobs and momwire: the version declared by the source tree the module
+  was imported from, the installed metadata's version beside it, and the git
+  SHA and dirty flag; momwire's accelerator too;
+- pynec-accel and the NEC-5 binary, when their lanes run.
+
+Before any solve, nec2c's md5 is checked against --nec2c-md5 (default: the
+pinned 1.3.1), and a resume refuses a file scored against a different nec2c.
 """
 
 from __future__ import annotations
@@ -1961,6 +1971,208 @@ def nec2c_fingerprint():
     return {"path": path, "version": ver, "md5": md5}
 
 
+# The nec2c build the wild-corpus records are scored against: nec2c 1.3.1 at
+# the md5 docs/status/2026-09-07-wild-corpus-solve-sweep.md pins. A box with
+# another build of the reference names it with --nec2c-md5.
+PINNED_NEC2C_MD5 = "050927160cecf7ee86db907dafac7bbe"
+
+
+def _md5_arg(text):
+    """--nec2c-md5: a 32-hex-digit md5, or ``any`` to record without checking."""
+    if text == "any":
+        return None
+    if not re.fullmatch(r"[0-9a-fA-F]{32}", text):
+        raise argparse.ArgumentTypeError(
+            f"not an md5 (32 hex digits) or 'any': {text!r}"
+        )
+    return text.lower()
+
+
+def nec2c_refusal(nec2c_id, expected):
+    """The sentence that stops a sweep scored against the wrong nec2c, or None.
+
+    ``expected`` None means no check was asked for. The 2026-09-07 sweep ran on
+    the distro's 1.3 package instead of the pinned 1.3.1 and discarded 154 rows
+    (#1256): the md5 was computed and printed, and nothing compared it.
+    """
+    if expected is None or nec2c_id.get("md5") == expected:
+        return None
+    return (
+        f"nec2c at {nec2c_id.get('path')} ({nec2c_id.get('version')}) has md5 "
+        f"{nec2c_id.get('md5')}, not the expected reference {expected}. Rows "
+        "scored against another build are not comparable with the records. "
+        "Put the reference build on PATH, or name this one with "
+        "--nec2c-md5 HASH (--nec2c-md5 any records it without checking)."
+    )
+
+
+def _normalized_dist(name):
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _declared_source(origin, dist_name):
+    """The source tree a module was imported from, and the version it declares.
+
+    The nearest ancestor holding a pyproject.toml whose [project] name is
+    ``dist_name``, or ``(None, None)`` for an installed wheel. The name has to
+    match: a venv inside another project's checkout sits under that project's
+    pyproject.toml, and must not be attributed to it.
+    """
+    import tomllib
+
+    want = _normalized_dist(dist_name)
+    for parent in Path(origin).resolve().parents:
+        pyproject = parent / "pyproject.toml"
+        if not pyproject.is_file():
+            continue
+        try:
+            project = tomllib.loads(pyproject.read_text()).get("project", {})
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        if _normalized_dist(str(project.get("name", ""))) == want:
+            return parent, project.get("version")
+    return None, None
+
+
+def _git_state(root):
+    """HEAD and a dirty flag for ``root`` when it is a git work tree's top
+    level, else None (an sdist, or a tree nested inside some other repo)."""
+
+    def git(*argv):
+        return subprocess.run(
+            ["git", "-C", str(root), *argv],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    try:
+        top = git("rev-parse", "--show-toplevel")
+        if top.returncode != 0 or Path(top.stdout.strip()).resolve() != root.resolve():
+            return None
+        sha = git("rev-parse", "HEAD").stdout.strip()
+        # Tracked changes only: untracked scratch is not part of what runs. A
+        # submodule's own build products do not dirty its parent; a moved
+        # submodule pointer does.
+        status = git(
+            "status",
+            "--porcelain",
+            "--untracked-files=no",
+            "--ignore-submodules=dirty",
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if status.returncode != 0 or not sha:
+        return None
+    return {"sha": sha, "dirty": bool(status.stdout.strip())}
+
+
+def package_fingerprint(module_name, dist_name):
+    """What a sweep imported for one package, or None when it is not importable.
+
+    ``version`` is the one the source tree declares when the module was imported
+    from a source tree, and the installed metadata's otherwise. The metadata
+    version is recorded beside it either way, because an editable install's
+    egg-info goes stale (#1256: momwire reported 0.49.0 against a 0.50.0 pin),
+    and a disagreement between the two is worth seeing in the record.
+    """
+    import importlib.metadata
+    import importlib.util
+
+    spec = importlib.util.find_spec(module_name)
+    if spec is None or spec.origin is None:
+        return None
+    try:
+        metadata_version = importlib.metadata.version(dist_name)
+    except importlib.metadata.PackageNotFoundError:
+        metadata_version = None
+    root, declared = _declared_source(spec.origin, dist_name)
+    return {
+        "version": declared if declared is not None else metadata_version,
+        "version_from": "pyproject" if declared is not None else "metadata",
+        "metadata_version": metadata_version,
+        "path": spec.origin,
+        "git": _git_state(root) if root is not None else None,
+    }
+
+
+def engine_fingerprints(engines, nec5_exe=None):
+    """The ``packages`` block of a sweep's ``_meta``.
+
+    antennaknobs and momwire always: every lane goes through the importer, and
+    the momwire lanes through momwire. pynec-accel when its lane runs, and the
+    NEC-5 binary by path and md5 when that lane runs (it prints no version).
+    """
+    import hashlib
+
+    packages = {
+        "antennaknobs": package_fingerprint("antennaknobs", "antennaknobs"),
+        "momwire": package_fingerprint("momwire", "momwire"),
+    }
+    if packages["momwire"] is not None:
+        import momwire
+
+        packages["momwire"]["accelerated"] = bool(momwire.accelerated)
+        packages["momwire"]["accelerator_variant"] = getattr(
+            momwire, "accelerator_variant", None
+        )
+    if "pynec" in engines:
+        packages["pynec-accel"] = package_fingerprint("PyNEC", "pynec-accel")
+    if nec5_exe is not None:
+        packages["nec5"] = {
+            "path": str(nec5_exe),
+            "md5": hashlib.md5(Path(nec5_exe).read_bytes()).hexdigest(),
+        }
+    return packages
+
+
+def describe_fingerprint(name, fp):
+    """One printed line per package at sweep start."""
+    if fp is None:
+        return f"{name}: not importable"
+    if "version" not in fp:
+        return f"{name}: {fp['path']} md5={fp['md5']}"
+    line = f"{name} {fp['version']} ({fp['version_from']})"
+    if fp["metadata_version"] not in (None, fp["version"]):
+        line += f" [installed metadata says {fp['metadata_version']}]"
+    git = fp["git"]
+    if git is not None:
+        line += f" at {git['sha'][:10]}" + (" DIRTY" if git["dirty"] else "")
+    if "accelerated" in fp:
+        line += f"   accelerated={fp['accelerated']} ({fp['accelerator_variant']})"
+    return line
+
+
+_DRIFT_KEYS = ("version", "git", "accelerated", "accelerator_variant", "md5")
+
+
+def fingerprint_drift(old_packages, new_packages):
+    """How this run's builds differ from the ones a resume file was started on.
+
+    One sentence per difference. A resume file with no ``packages`` block
+    predates #1256, so the builds behind its rows are unknown, and that is
+    said too.
+    """
+    if old_packages is None:
+        return [
+            "the resume file predates version recording (#1256), so the "
+            "builds behind its rows are unknown"
+        ]
+    notes = []
+    for name in sorted(set(old_packages) | set(new_packages)):
+        old, new = old_packages.get(name), new_packages.get(name)
+        if old is None or new is None:
+            if old != new:
+                notes.append(f"{name}: {old!r} then, {new!r} now")
+            continue
+        for key in _DRIFT_KEYS:
+            if old.get(key) != new.get(key):
+                notes.append(
+                    f"{name} {key}: {old.get(key)!r} then, {new.get(key)!r} now"
+                )
+    return notes
+
+
 def dedupe_decks(decks):
     """Content-dedupe (md5, first path wins) — same rule as --parse-only;
     the wild corpus has ~860 exact duplicates across source mirrors."""
@@ -2044,6 +2256,14 @@ def main(argv=None):
         "--out skips decks already recorded",
     )
     ap.add_argument(
+        "--nec2c-md5",
+        type=_md5_arg,
+        default=PINNED_NEC2C_MD5,
+        help="the md5 the nec2c on PATH must have, checked before any solve "
+        "(default: the pinned nec2c 1.3.1). 'any' records the binary without "
+        "checking it (issue #1256)",
+    )
+    ap.add_argument(
         "--parse-only",
         action="store_true",
         help="importer acceptance census (issue #410): run nec_import over "
@@ -2106,6 +2326,11 @@ def main(argv=None):
     )
     if nec2c_id.get("path") is None:
         sys.exit("nec2c not on PATH — build it and symlink into ~/.local/bin")
+    refusal = nec2c_refusal(nec2c_id, args.nec2c_md5)
+    if refusal:
+        sys.exit(refusal)
+    nec2c_id["md5_expected"] = args.nec2c_md5
+    nec5_exe = None
     if "nec5" in args.engines:
         from antennaknobs.engines.nec5 import find_nec5
 
@@ -2116,18 +2341,33 @@ def main(argv=None):
                 "executable — point it at your licensed nec5cl binary"
             )
         print(f"nec5 lane: {nec5_exe}   captures: {args.nec5_capture_dir}")
+    packages = engine_fingerprints(args.engines, nec5_exe)
+    for name, fp in packages.items():
+        print(describe_fingerprint(name, fp))
 
     # Incremental JSONL mode: resume by skipping decks already recorded.
     jsonl = args.out if args.out and args.out.suffix == ".jsonl" else None
     done: dict[str, dict] = {}
     if jsonl and jsonl.exists():
+        old_meta = None
         for line in jsonl.read_text().splitlines():
             try:
                 rec = json.loads(line)
             except json.JSONDecodeError:
                 continue  # torn final line from a killed run
-            if "_meta" not in rec:
+            if "_meta" in rec:
+                old_meta = rec["_meta"]
+            else:
                 done[rec["deck"]] = rec
+        old_md5 = ((old_meta or {}).get("nec2c") or {}).get("md5")
+        if old_md5 is not None and old_md5 != nec2c_id.get("md5"):
+            sys.exit(
+                f"resume: the rows in {jsonl} were scored against nec2c "
+                f"md5={old_md5}, and this run's nec2c is md5={nec2c_id.get('md5')}. "
+                "One file must not mix two references; use a new --out."
+            )
+        for note in fingerprint_drift((old_meta or {}).get("packages"), packages):
+            print(f"resume WARNING: {note}")
         print(f"resume: {len(done)} decks already in {jsonl}, skipping those")
     elif jsonl:
         meta = {
@@ -2137,6 +2377,7 @@ def main(argv=None):
                 "timeout_s": args.timeout,
                 "mem_limit_gb": args.mem_limit_gb,
                 "nec2c": nec2c_id,
+                "packages": packages,
                 "started": time.strftime("%Y-%m-%d %H:%M:%S"),
             }
         }
