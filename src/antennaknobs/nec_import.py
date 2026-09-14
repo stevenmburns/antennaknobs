@@ -1209,6 +1209,42 @@ def _split_card_fields(line: str) -> list[str]:
     return out
 
 
+# A physical line that starts with a number is not a card: NEC cards open with
+# a two-letter mnemonic. Some decks wrap a card's trailing fields onto the next
+# line (arrl/RHOM.NEC wraps EVERY card, the GW radius included), so such a line
+# continues the card before it (#1295).
+_CONTINUATION_START = frozenset("0123456789+-.")
+
+
+def _logical_lines(text: str):
+    """``(line number, text)`` per card, with wrapped continuation lines joined.
+
+    A continuation joins only onto a card line: never onto a blank line, a
+    ``CM``/``CE`` comment, or a line carrying a ``'`` comment (the joined fields
+    would land after the comment and be dropped with it). The card keeps its
+    FIRST line's number, so an error still points at the line the user sees the
+    mnemonic on. A deck with no wrapped lines passes through unchanged (#1295).
+    """
+    pending = None
+    for line_no, raw in enumerate(text.splitlines(), 1):
+        stripped = raw.strip()
+        if (
+            pending is not None
+            and stripped[:1] in _CONTINUATION_START
+            and stripped
+            and pending[1].strip()
+            and pending[1].strip()[:2].upper() not in ("CM", "CE")
+            and "'" not in pending[1]
+        ):
+            pending = (pending[0], pending[1].rstrip() + " " + stripped)
+            continue
+        if pending is not None:
+            yield pending
+        pending = (line_no, raw)
+    if pending is not None:
+        yield pending
+
+
 def resolve_sy(text: str, *, name: str = "NEC deck") -> str:
     """Resolve a 4nec2-dialect deck into plain NEC-2 card text (issue #439).
 
@@ -1238,7 +1274,7 @@ def resolve_sy(text: str, *, name: str = "NEC deck") -> str:
     out: list[str] = []
     in_comments = True
     wrote_comment = False
-    for line_no, raw in enumerate(text.splitlines(), 1):
+    for line_no, raw in _logical_lines(text):
         stripped = raw.strip()
         if not stripped:
             continue
@@ -2817,7 +2853,7 @@ def parse_nec(
         "GS": _gs,
     }
 
-    for line_no, raw in enumerate(text.splitlines(), 1):
+    for line_no, raw in _logical_lines(text):
         stripped = raw.strip()
         if not stripped:
             continue
