@@ -12,12 +12,15 @@ export function DesignFreqRow({
   activeKey,
   onSelectBand,
   onSetFreq,
+  onCustomBand,
 }: {
   bands: BandSpec[];
   designFreq: number;
   activeKey: string | null;
   onSelectBand: (key: string) => void;
   onSetFreq: (v: number) => void;
+  /** "Custom…" in the band picker (#1487): a band at any centre and span. */
+  onCustomBand?: (centerMhz: number, spanMhz: number) => void;
 }) {
   const active = bands.find((b) => b.key === activeKey) ?? bands[0];
   return (
@@ -32,9 +35,12 @@ export function DesignFreqRow({
           value={active.key}
           onSelect={onSelectBand}
           ariaLabel="band"
+          onCustom={onCustomBand}
+          customSeedMhz={designFreq}
         />
         <input
           type="range"
+          aria-label="design frequency"
           min={active.min_mhz}
           max={active.max_mhz}
           step={0.005}

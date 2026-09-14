@@ -343,6 +343,8 @@ export function VfoPanel({
   bandContaining,
   measBand,
   selectMeasBand,
+  onCustomMeasBand,
+  measBandIsCustom = false,
   currentExample,
   measBandAnchor,
   freqWindowCeiling,
@@ -376,6 +378,11 @@ export function VfoPanel({
   bandContaining: (f: number) => string | null;
   measBand: string;
   selectMeasBand: (key: string) => void;
+  /** "Custom…" in the measurement band picker (#1487). */
+  onCustomMeasBand?: ((centerMhz: number, spanMhz: number) => void) | undefined;
+  /** The selected measurement band is a custom one: its window replaces a
+   *  deck's FR-seeded dial range, which would otherwise clamp it away. */
+  measBandIsCustom?: boolean;
   currentExample: ExampleDescriptor | undefined;
   measBandAnchor: number;
   freqWindowCeiling: number;
@@ -410,6 +417,9 @@ export function VfoPanel({
   optError: string | null;
   optPausedBy: OptPause | null;
 }) {
+  const exampleRange = measBandIsCustom
+    ? null
+    : currentExample?.meas_freq_range_mhz ?? null;
   return (
     <>
       <h2 className="group-label">measurement freq</h2>
@@ -428,6 +438,8 @@ export function VfoPanel({
               onSelect={selectMeasBand}
               disabled={measLocked}
               ariaLabel="measurement band"
+              onCustom={onCustomMeasBand}
+              customSeedMhz={measFreq}
             />
           )}
           <div className="freq-lcd" title={`${measFreq.toFixed(3)} MHz`}>
@@ -474,13 +486,13 @@ export function VfoPanel({
               variant="vfo"
               value={measFreq}
               min={
-                currentExample?.meas_freq_range_mhz
-                  ? currentExample.meas_freq_range_mhz[0]
+                exampleRange
+                  ? exampleRange[0]
                   : Math.max(0.5, measBandAnchor * 0.8)
               }
               max={
-                currentExample?.meas_freq_range_mhz
-                  ? currentExample.meas_freq_range_mhz[1]
+                exampleRange
+                  ? exampleRange[1]
                   : Math.min(freqWindowCeiling, measBandAnchor * 1.25)
               }
               step={0.005}
