@@ -98,6 +98,18 @@ _NEC5_REDUCER_ROUTE = True
 _Y_RECIPROCITY_RTOL = 1e-2
 
 
+# The distributed-port refusal, one spelling (antennaknobs#1410): the engine
+# raises it with the port's name, and the coverage grid quotes it to grey the
+# NEC-5 tab before a click, so the two cannot drift apart.
+DISTRIBUTED_PORT_REFUSAL = (
+    "distributed (a finite-gap port spanning its whole named wire) — the NEC-5 "
+    "multiport-Y route serves delta-gap ports only. PyNEC serves this by driving "
+    "every segment at V/S and reading the weighted current; NEC-5's EX addresses "
+    "KNOTS, so the same expansion needs a knot-weighting rule that has not been "
+    "derived. Run this design on bspline or PyNEC."
+)
+
+
 def _network_needs_reducer(net) -> bool:
     """True iff this network carries something NEC-5 has no native card for.
 
@@ -615,13 +627,7 @@ class NEC5Engine(SimulationEngine):
                 continue
             if isinstance(port, PortOnWire) and port.distributed:
                 raise NotImplementedError(
-                    f"port {name!r} is distributed (a finite-gap port spanning "
-                    "its whole named wire) — the NEC-5 multiport-Y route "
-                    "serves delta-gap ports only. PyNEC serves this by driving "
-                    "every segment at V/S and reading the weighted current; "
-                    "NEC-5's EX addresses KNOTS, so the same expansion needs a "
-                    "knot-weighting rule that has not been derived. Run this "
-                    "design on bspline or PyNEC."
+                    f"port {name!r} is {DISTRIBUTED_PORT_REFUSAL}"
                 )
             raise NotImplementedError(
                 f"port {name!r} ({type(port).__name__}) cannot be addressed on "
