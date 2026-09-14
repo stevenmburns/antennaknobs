@@ -41,9 +41,46 @@ antennaknobs-workbench.exe --nec2-exe PATH   use the NEC-2 engine at PATH
 antennaknobs-workbench.exe --settings PATH   start from this settings.toml
 ```
 
+A `settings.toml` sets where the workbench starts: its switches, ground,
+solver slots and engine paths. See [Where the workbench starts](/reference/web/#where-the-workbench-starts-settingstoml).
+
 `--selftest` is worth running once if you are unsure the download is intact:
 it solves a known antenna and checks the answer against the value the
 unfrozen package produces, then exits.
+
+## A shortcut for each way you work
+
+Each settings file is one way of starting, so two shortcuts can start the
+workbench two ways. Say one run should leave every engine deck and printout
+in a folder with the frequency sweep off, and the other should sweep and
+capture nothing. Keep the everyday settings in `settings.toml`, and write the
+other way into a second file beside it, `capture.toml`:
+
+```toml
+[switches]
+freq_sweep = false
+
+[capture]
+dir = 'C:\ak-captures'
+```
+
+Then make a shortcut that starts from it:
+
+1. Right-click `antennaknobs-workbench.exe` and choose **Send to → Desktop
+   (create shortcut)**. On Windows 11, **Send to** is under **Show more
+   options**.
+2. Right-click the new shortcut, choose **Properties**, and at the end of the
+   **Target** box type a space and
+   `--settings "C:\Users\you\.antennaknobs\capture.toml"`, with your own user
+   folder in place of `you`.
+3. Rename the shortcut to say which it is, such as `antennaknobs (capture)`.
+
+A second shortcut made the same way, without the flag, starts from
+`settings.toml`. The capture folder is created on the first run, and the
+console window's startup summary names the settings file each shortcut
+started from. *Save as my defaults* writes to that same file, so each shortcut
+keeps its own defaults. An `[engines]` table serves only the file it is in,
+while a `NEC5_EXE.txt` beside the program serves both shortcuts.
 
 ## Adding your NEC-5 engine
 
@@ -92,7 +129,9 @@ antennaknobs-workbench.exe --nec5-exe "C:\EZNEC 7.0\Docs\NEC5CL_x13.exe"
 ```
 
 The `NEC5_EXE` environment variable works too: it wins over the file and
-loses to the flag.
+loses to the flag. So does `nec5_exe` under `[engines]` in
+[`settings.toml`](/reference/web/#where-the-workbench-starts-settingstoml), which loses to the variable and wins over
+`NEC5_EXE.txt`.
 
 ## When you want the Python package instead
 

@@ -29,16 +29,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.76.1" icon="star">
-  **The deck as you wrote it.** A NEC-5 deck now opens as written: its
-  `GN … NOFILE` card is understood, its `GN 0` is read as the Sommerfeld
-  ground NEC-5 means by it, and a source on a wire's middle knot keeps that
-  wire whole instead of cutting it in two. Feed markers sit on the source on
-  every engine tab. The packaged workbench takes the engine path on its
-  command line as `--nec5-exe` / `--nec2-exe`, which reads the same in
-  PowerShell and Command Prompt. `wire.terminated_longwire` now solves over
-  finite ground, and `antennaknobs ladder` runs an imported deck at refined
-  meshes on every engine.
+<Card title="New in v0.77.0" icon="star">
+  **Where the deck puts it.** An imported deck's off-centre feeds, loads and
+  NEC-5 knot sources now sit exactly where the deck puts them, on wires kept
+  whole: each engine meshes the wire so the port lands on its own grid, and
+  says so when it cannot. 4nec2's percentage positions (`EX 0 2 50%`) land
+  exactly there too. A NEC-5 deck's discrete `LD` cards are read the way NEC-5
+  means them, one load at a knot; a `CM NEC-5` card declares a hand-written
+  deck NEC-5; and the NEC-2 export writes fixed-impedance loads. Both band
+  pickers take a **Custom…** band, so a design can sit at any frequency, 300
+  MHz included, and a `settings.toml` sets where the workbench starts: its
+  switches, ground, solver slots and engine paths. Buried radial screens wider
+  than four wavelengths in the soil now solve instead of refusing. In the
+  workbench, charts keep their size after a trip to the grid layout, and the
+  layout toggle no longer covers the 3D view's Iso button. Imported decks with
+  off-centre attachments read slightly different impedances than before.
 </Card>
 
 ## The whole pitch, in one line
