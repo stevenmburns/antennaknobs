@@ -931,12 +931,17 @@ function DesignSessionBody({
         : `Not saved: ${outcome.problems.join(" · ")}`,
     );
   }
-  const { ref: slideRef, size: chartSize } = useSlideSize(720, isMobile);
+  // The rail's slide and thumbstrip unmount in grid mode and mount fresh on
+  // the way back, so the layout is part of the reattach key: without it the
+  // observers stayed on the detached boxes, which measure 0, and every rail
+  // chart came back at the 160 px floor after one trip to grid (AC6LA).
+  const railKey = `${isMobile}:${effectiveLayout}`;
+  const { ref: slideRef, size: chartSize } = useSlideSize(720, railKey);
   const thumbStripRef = useRef<HTMLDivElement>(null);
   // The rail is the pinned set minus whatever is on the stage; peeking an
   // unpinned view subtracts nothing, so the count the sizer needs varies.
   const rail = railViews(view);
-  const thumbSize = useThumbColumnSize(thumbStripRef, rail.length, 280, isMobile);
+  const thumbSize = useThumbColumnSize(thumbStripRef, rail.length, 280, railKey);
   // Grid mode's displayed cells (unit 3): the first ≤4 pins, in pin order.
   // gridCells/gridShape are pure (useViewPrefs.ts) so this and useViewState's
   // internal cycling can never disagree about "what's on screen".

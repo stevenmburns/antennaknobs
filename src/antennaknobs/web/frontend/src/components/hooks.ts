@@ -21,6 +21,9 @@ export const ThemeContext = createContext<Theme>("light");
 // so a caller whose measured element mounts LATER (e.g. the layout branch flips
 // between mobile and desktop at runtime) must pass a value that changes with
 // the branch, re-running the effect once the element exists.
+// `reattachKey` must change whenever the ref'd box is REPLACED (unmounted and
+// mounted anew): the observer is attached once per key, and a detached box
+// measures 0, so a stale key pins the size at the 160 px floor.
 export function useSlideSize(maxSize = 720, reattachKey?: unknown) {
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(maxSize);
