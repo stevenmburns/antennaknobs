@@ -59,14 +59,13 @@ export function FilesPanel({
     return () => clearTimeout(t);
   }, [copied]);
 
-  if (!fill || !data) {
-    // The thumbnail carries no texts (its call site passes none); a label is
-    // all a 96 px square can say about a file.
+  const box = fill ? undefined : { width: size, height: size };
+  if (!data) {
+    // The rail's thumbnail is handed no texts (only the stage fetches them),
+    // and a label is all a thumbnail can say about a file. `fill` is layout,
+    // not "stage": a stage that does not fill gets the panel in a sized box.
     return (
-      <div
-        className={fill ? "files-fill" : "files-thumb"}
-        style={fill ? undefined : { width: size, height: size }}
-      >
+      <div className={fill ? "files-fill" : "files-thumb"} style={box}>
         <div className="files-empty">Source · engine deck · engine output</div>
       </div>
     );
@@ -111,7 +110,7 @@ export function FilesPanel({
     ["output", `${engine ?? "Engine"} output`],
   ];
   return (
-    <div className="files-fill">
+    <div className={fill ? "files-fill" : "files-box"} style={box}>
       <div className="files-bar">
         <div className="files-tabs" role="tablist" aria-label="Files">
           {tabs.map(([id, label]) => (

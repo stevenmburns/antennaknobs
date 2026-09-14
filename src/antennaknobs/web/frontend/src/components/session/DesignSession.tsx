@@ -2107,6 +2107,11 @@ function DesignSessionBody({
   const outputStale =
     stale || (optRunning && VIEW_META[view].staleWhileOptimizing);
 
+  // Views that take the whole stage rather than a size×size square: the
+  // antenna canvas, and the Files view's text pane (AK#1428), which a square
+  // would crop to a narrow column of a wide printout.
+  const fillsStage = (v: View) => v === "antenna" || v === "files";
+
   // One output view: the per-view overlays plus the main <ViewPanel>. A
   // closure (not a component) so the ~30 captured locals need no props. The
   // solve-readout HUD stays OUT of it — mobile chart screens must not
@@ -2267,7 +2272,7 @@ function DesignSessionBody({
                     </div>
                   </>
                 ) : (
-                  renderOutput(s.id as View, mobChartSize, s.id === "antenna")
+                  renderOutput(s.id as View, mobChartSize, fillsStage(s.id as View))
                 )}
               </div>
             ))}
@@ -2309,7 +2314,7 @@ function DesignSessionBody({
               cellSize={gridCellSize}
               rows={gridRows}
               cols={gridCols}
-              renderCell={(v, size) => renderOutput(v, size, v === "antenna")}
+              renderCell={(v, size) => renderOutput(v, size, fillsStage(v))}
             />
             {/* Grid mode has no single primary slide to float the HUD over
                 (unit 3), so it anchors to the STAGE itself instead of one
@@ -2405,7 +2410,7 @@ function DesignSessionBody({
               className={`carousel-slide${outputStale ? " stale" : ""}`}
               ref={slideRef}
             >
-              {renderOutput(view, chartSize, view === "antenna")}
+              {renderOutput(view, chartSize, fillsStage(view))}
               {/* Solve readout, pinned to the lower-left of whichever view the
                   carousel is centered on. Floats over the canvas as a HUD so the
                   left input rail stays inputs-only. It sits INSIDE the slide, so
