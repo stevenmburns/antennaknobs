@@ -10,6 +10,11 @@ import type {
   SoilRanges,
   TerrainPresetSchema,
 } from "../../lib/ground";
+import {
+  BUILTIN_UI_DEFAULTS,
+  parseUiDefaults,
+  type UiDefaults,
+} from "../../lib/settings";
 
 /** GET /capabilities, typed. `have_pynec` is still served for compatibility
  *  but is no longer read: PyNEC's availability is roster membership (#628). */
@@ -23,6 +28,7 @@ type CapabilitiesPayload = {
   default_slots?: ServedSlotSeed[];
   composition_axes?: string[];
   axis_value_labels?: Record<string, Record<string, string>>;
+  ui_defaults?: unknown;
 };
 
 export type CapabilitiesState = {
@@ -52,6 +58,10 @@ export type CapabilitiesState = {
   /** The composition line's vocabulary (#1006 G2-7). Empty axes from a server
    *  predating it, which renders no line rather than a guessed one. */
   compositionVocab: CompositionVocabulary;
+  /** Where the session starts (AK#1492): the Settings-menu switches and the
+   *  ground, from the server's settings.toml. The built-in defaults from a
+   *  server predating it. */
+  uiDefaults: UiDefaults;
   error: string | null;
 };
 
@@ -74,6 +84,7 @@ export function useCapabilities(): CapabilitiesState {
     axes: [],
     labels: {},
   });
+  const [uiDefaults, setUiDefaults] = useState<UiDefaults>(BUILTIN_UI_DEFAULTS);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -119,6 +130,7 @@ export function useCapabilities(): CapabilitiesState {
               ? c.axis_value_labels
               : {},
         });
+        setUiDefaults(parseUiDefaults(c.ui_defaults));
         // An empty roster is as unusable as a failed fetch — there would be
         // no solver to pick — so it takes the error path rather than
         // stranding the session on the loading note.
@@ -145,6 +157,7 @@ export function useCapabilities(): CapabilitiesState {
     backendAliases,
     defaultSlotSeeds,
     compositionVocab,
+    uiDefaults,
     error,
   };
 }

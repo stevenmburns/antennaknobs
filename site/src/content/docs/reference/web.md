@@ -82,6 +82,75 @@ A `.nec` deck whose `FR` card names a single frequency opens on the same ±1.5 %
 band around it, so its dial can still move. An `FR` sweep sets the band to the
 swept range instead.
 
+## Where the workbench starts: `settings.toml`
+
+The Settings menu's switches, the ground and the three solver slots start
+from a file, so a workbench can open the way you use it, with the frequency
+sweep off, say. The file is `settings.toml` in the `.antennaknobs` folder in
+your home directory, the folder that holds `designs`:
+`~/.antennaknobs/settings.toml`, or `%USERPROFILE%\.antennaknobs\settings.toml`
+on Windows. The packaged workbench also takes `--settings PATH`, and a pip
+install reads the `ANTENNAKNOBS_SETTINGS` variable.
+
+```toml
+[switches]
+live = true
+freq_sweep = false          # the Smith chart's frequency sweep
+convergence_sweep = false
+pattern_renorm = true       # "norm check"
+refine = true               # "adaptive resolution"
+heatmap_currents = true
+current_waveforms = false
+wire_labels = false
+feed_labels = true
+
+[ground]
+enabled = true
+type = "finite"             # finite, pec or terrain
+method = "sommerfeld"       # fast or sommerfeld
+soil = "average"            # a soil preset, or eps_r = 13 and sigma = 0.005
+terrain_preset = "levee"    # cliff, hillside or levee
+
+[slots.A]
+backend = "bspline"
+n_per_wire = 15
+model = { degree = 2 }
+
+[engines]                   # edited by hand only; the page never writes these
+nec5_exe = 'C:\EZNEC 7.0\Docs\NEC5CL_x13.exe'
+nec2_exe = 'C:\4nec2\exe\nec2dxs11.exe'
+
+[capture]
+dir = 'C:\ak-captures'      # every NEC-5 / NEC-2 deck and printout
+```
+
+Every entry is optional; anything the file leaves out starts where it always
+did. The soil presets are `very-poor`, `poor`, `average`, `good`,
+`very-good`, `fresh-water` and `salt-water`. A slot's `backend` is any solver
+the slot picker offers, and its `model` knobs are the ones that solver's
+options panel shows. Naming a different solver starts that slot from the
+solver's own defaults.
+
+- **When it applies.** The server reads the file at every page load, so edit
+  it and reload; there is no need to restart. Whatever you change during a
+  session changes as usual, and the next load starts from the file again.
+- **A mistake never stops the workbench.** An unknown key, a wrong type or a
+  file that is not valid TOML shows once as a note under the header, naming
+  the entry, and that entry keeps its built-in default. The server log says
+  the same.
+- **Save as my defaults.** The Settings menu's *save as my defaults* writes the
+  session's current switches, ground and slots to the file. The previous file
+  is kept beside it as `settings.toml.bak`, and hand edits to the saved file
+  are fine.
+- **Engines and the capture folder.** `[engines]` and `[capture]` do what
+  `NEC5_EXE`, `NEC2_EXE` and `ANTENNAKNOBS_CAPTURE_DIR` do, for the workbench
+  and the command line alike. A variable, or the workbench's `--nec5-exe`,
+  `--nec2-exe` or `--capture-dir` flag, wins over the file, and the file wins
+  over a `NEC5_EXE.txt` beside the workbench. Write Windows paths in single
+  quotes, as above, so the backslashes need no escaping. The page never writes
+  these two tables: a path the server runs is never set from a browser.
+- **The hosted simulator** reads no file and offers no save.
+
 ## The output stage — views, pins, and layout
 
 The right-hand stage shows one **primary view** at full size with your other

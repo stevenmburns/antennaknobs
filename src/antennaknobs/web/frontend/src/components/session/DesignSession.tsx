@@ -14,6 +14,7 @@ import {
   backendSupportsGround,
   comboInappropriate,
   modelOptionsForRequest,
+  type Slot,
   normalizeBackend,
   type BackendRoster,
   type ModelOptionSpecs,
@@ -88,6 +89,11 @@ import {
   useAnalysisRunners,
 } from "./useAnalysisRunners";
 import { useCapabilities } from "./useCapabilities";
+import {
+  saveSettings,
+  type SettingsSaveBody,
+  type UiDefaults,
+} from "../../lib/settings";
 import { useDesignCatalog } from "./useDesignCatalog";
 import { useGroundConfig } from "./useGroundConfig";
 import { MobileDots } from "./MobileDots";
@@ -132,6 +138,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
     backendAliases,
     defaultSlotSeeds,
     compositionVocab,
+    uiDefaults,
     error,
   } = useCapabilities();
   if (error !== null)
@@ -155,6 +162,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
       backendAliases={backendAliases}
       defaultSlotSeeds={defaultSlotSeeds}
       compositionVocab={compositionVocab}
+      uiDefaults={uiDefaults}
     />
   );
 }
@@ -170,6 +178,7 @@ function DesignSessionBody({
   backendAliases,
   defaultSlotSeeds,
   compositionVocab,
+  uiDefaults,
 }: {
   id: number;
   active: boolean;
@@ -183,6 +192,8 @@ function DesignSessionBody({
   backendAliases: Record<string, string>;
   defaultSlotSeeds: ServedSlotSeed[];
   compositionVocab: CompositionVocabulary;
+  /** Where the session starts (AK#1492): switches and ground from settings.toml. */
+  uiDefaults: UiDefaults;
 }) {
   const [geometry, setGeometry] = useState<string>("");
 
@@ -222,7 +233,7 @@ function DesignSessionBody({
   // — the user keeps changing the design, then clicks Live to resume and solve.
   // This replaces the old fire-and-forget "Cancel" on the solver-mismatch prompt,
   // which left the plots blank with no obvious way back. Defaults on.
-  const [autoSim, setAutoSim] = useState(true);
+  const [autoSim, setAutoSim] = useState(uiDefaults.switches.live);
 
   const {
     examples,
@@ -492,7 +503,12 @@ function DesignSessionBody({
     setSoil,
     soilForRequest,
     soilKey,
-  } = useGroundConfig({ backend, soilRanges, soilPresets });
+  } = useGroundConfig({
+    backend,
+    soilRanges,
+    soilPresets,
+    defaults: uiDefaults.ground,
+  });
   const nLabel = currentExample?.fixed_segment_counts ? "deck's own" : String(nPerWire);
   const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${backendDisplayLabel(backend, currentOpts)} N=${nLabel} · ${groundSummary}`;
   useEffect(() => {
@@ -722,16 +738,26 @@ function DesignSessionBody({
   // whenever any antenna/backend parameter changes; gating them with these
   // checkboxes lets the user pause an expensive sweep (e.g. BSpline d=2
   // convergence on slow geometries) without leaving the Smith view.
-  const [sweepEnabled, setSweepEnabled] = useState(true);
-  const [convergeEnabled, setConvergeEnabled] = useState(false);
+  // Both start where settings.toml says (AK#1492), else at the built-in
+  // defaults the server serves.
+  const [sweepEnabled, setSweepEnabled] = useState(uiDefaults.switches.freq_sweep);
+  const [convergeEnabled, setConvergeEnabled] = useState(
+    uiDefaults.switches.convergence_sweep,
+  );
   // Adaptive resolution (issue #744): dwell-triggered display-space
   // refinement of the sweep and cut plots. Persisted, unlike the overlay
   // checkboxes above: turning it off is a per-machine capacity decision
   // ("this laptop, that 4k-segment design"), not a per-session view choice,
   // and it should survive a reload the same way the theme does.
-  const [refineEnabled, setRefineEnabled] = useState(
-    () => localStorage.getItem("antennaknobs.refineEnabled") !== "0",
-  );
+  //
+  // A settings.toml that names `refine` wins over the browser's memory: the
+  // packaged workbench opens on a fresh port each launch, and browser storage
+  // is per origin, so only the file survives there (AK#1492).
+  const [refineEnabled, setRefineEnabled] = useState(() => {
+    if (uiDefaults.switchesSet.includes("refine")) return uiDefaults.switches.refine;
+    const stored = localStorage.getItem("antennaknobs.refineEnabled");
+    return stored === null ? uiDefaults.switches.refine : stored !== "0";
+  });
   useEffect(() => {
     localStorage.setItem("antennaknobs.refineEnabled", refineEnabled ? "1" : "0");
     // The cuts side reads a module flag (charts/cuts.ts) rather than a prop
@@ -748,7 +774,9 @@ function DesignSessionBody({
   // (dotted) against the live input-power norm (circuit side). The gap is the
   // solver's power-balance error. Cheap (closed form), so on by default;
   // the checkbox hides the overlay. `normCheck` is null while off or pending.
-  const [normCheckEnabled, setNormCheckEnabled] = useState(true);
+  const [normCheckEnabled, setNormCheckEnabled] = useState(
+    uiDefaults.switches.pattern_renorm,
+  );
   // NEC rp_card exact-pattern overlay (PyNEC backend only). User-switchable;
   // forced off (and the switch greyed) over a terrain ground, where NEC's
   // flat-ground rp pattern would silently disagree with the facet traces.
@@ -856,7 +884,53 @@ function DesignSessionBody({
     pinned,
     layout: effectiveLayout,
     setLayout,
+    overlays: {
+      heatmap: uiDefaults.switches.heatmap_currents,
+      envelope: uiDefaults.switches.current_waveforms,
+      wireLabels: uiDefaults.switches.wire_labels,
+      feedNames: uiDefaults.switches.feed_labels,
+    },
   });
+
+  // "Save as my defaults" (AK#1492): the session's switches, ground and slots
+  // as the startup settings file, then a one-line note saying where it went.
+  // The settings-file problems the server reported show once, dismissibly.
+  const [settingsProblemsDismissed, setSettingsProblemsDismissed] = useState(false);
+  const [settingsNote, setSettingsNote] = useState<string | null>(null);
+  async function saveDefaults() {
+    const slot = (s: Slot) => ({
+      backend: slots[s].backend.name,
+      n_per_wire: slots[s].opts.nPerWire,
+      model: modelOptionsForRequest(slots[s].backend, slots[s].opts, modelOptionSpecs),
+    });
+    const body: SettingsSaveBody = {
+      switches: {
+        live: autoSim,
+        freq_sweep: sweepEnabled,
+        convergence_sweep: convergeEnabled,
+        pattern_renorm: normCheckEnabled,
+        refine: refineEnabled,
+        heatmap_currents: showHeatmap,
+        current_waveforms: showEnvelope,
+        wire_labels: showWireLabels,
+        feed_labels: showFeedNames,
+      },
+      ground: {
+        enabled: groundEnabled,
+        type: groundType,
+        method: finiteGroundMethod,
+        ...(soil ? { eps_r: soil.eps_r, sigma: soil.sigma } : {}),
+        terrain_preset: terrainPreset,
+      },
+      slots: { A: slot("A"), B: slot("B"), C: slot("C") },
+    };
+    const outcome = await saveSettings(body);
+    setSettingsNote(
+      outcome.ok
+        ? `Saved as your defaults: ${outcome.uiDefaults.path ?? "settings.toml"}`
+        : `Not saved: ${outcome.problems.join(" · ")}`,
+    );
+  }
   const { ref: slideRef, size: chartSize } = useSlideSize(720, isMobile);
   const thumbStripRef = useRef<HTMLDivElement>(null);
   // The rail is the pinned set minus whatever is on the stage; peeking an
@@ -1750,9 +1824,41 @@ function DesignSessionBody({
           setNormCheckEnabled={setNormCheckEnabled}
           refineEnabled={refineEnabled}
           setRefineEnabled={setRefineEnabled}
+          canSaveDefaults={uiDefaults.writable}
+          onSaveDefaults={() => {
+            setGearMenuOpen(false);
+            void saveDefaults();
+          }}
           theme={theme}
           applyTheme={applyTheme}
         />
+
+        {!settingsProblemsDismissed && uiDefaults.problems.length > 0 && (
+          <div className="settings-notice" role="alert">
+            <span>
+              <strong>settings.toml:</strong> {uiDefaults.problems.join(" · ")}
+            </span>
+            <button
+              type="button"
+              aria-label="Dismiss the settings notice"
+              onClick={() => setSettingsProblemsDismissed(true)}
+            >
+              ×
+            </button>
+          </div>
+        )}
+        {settingsNote && (
+          <div className="settings-notice" role="status">
+            <span>{settingsNote}</span>
+            <button
+              type="button"
+              aria-label="Dismiss the save note"
+              onClick={() => setSettingsNote(null)}
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         <CatalogPanel
           advisories={result?.advisories}

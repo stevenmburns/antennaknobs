@@ -21,9 +21,12 @@ from pathlib import Path
 
 
 def find_exe(env_var: str, explicit: str | None = None) -> str | None:
-    """The executable named explicitly, else by ``$env_var``; None if neither
-    resolves to an executable file."""
-    cand = explicit or os.environ.get(env_var)
+    """The executable named explicitly, else by ``$env_var``, else by the
+    settings file's ``[engines]`` table (AK#1492); None if none resolves to an
+    executable file."""
+    from ..settings_file import engine_exe
+
+    cand = explicit or os.environ.get(env_var) or engine_exe(env_var)
     if not cand:
         return None
     p = Path(cand).expanduser()

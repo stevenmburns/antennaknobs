@@ -3008,6 +3008,7 @@ def capabilities_endpoint():
     `have_pynec` stays for compatibility — the roster's membership is what
     the current frontend gates on.
     """
+    from . import settings as ui_settings
     from .adapter import (
         axis_value_labels,
         backend_aliases,
@@ -3020,22 +3021,55 @@ def capabilities_endpoint():
         terrain_presets_schema,
     )
 
-    return {
+    have = {
         "have_pynec": pynec_backend.HAVE_PYNEC,
-        "backends": backend_roster(
-            have_pynec=pynec_backend.HAVE_PYNEC,
-            have_nec5=nec5_backend.have_nec5(),
-            have_nec2=nec2_backend.have_nec2(),
-        ),
+        "have_nec5": nec5_backend.have_nec5(),
+        "have_nec2": nec2_backend.have_nec2(),
+    }
+    # The startup settings file (AK#1492), read per request so an edit applies
+    # at the next page load. Its slots are applied to the served seeds here, so
+    # the frontend seeds slots exactly as before; its switches and ground ride
+    # in `ui_defaults`, with any problems as sentences.
+    ui_defaults = ui_settings.load(ui_settings.catalog(**have), hosted=_HOSTED)
+    return {
+        "have_pynec": have["have_pynec"],
+        "backends": backend_roster(**have),
         "model_option_specs": model_option_specs(),
         "backend_aliases": backend_aliases(),
         "composition_axes": composition_axes(),
         "axis_value_labels": axis_value_labels(),
-        "default_slots": default_slots(),
+        "default_slots": ui_settings.overlay_slots(
+            default_slots(), ui_defaults["slots"]
+        ),
+        "ui_defaults": ui_defaults,
         "terrain_presets": terrain_presets_schema(),
         "soil_presets": soil_presets_schema(),
         "soil_ranges": soil_ranges_schema(),
     }
+
+
+@app.post("/settings")
+def settings_save_endpoint(req: dict):
+    """Write the Settings menu's current switches, ground and slots as the
+    startup settings file (AK#1492). Local-only: refused on the hosted
+    instance. A body that does not validate writes nothing and comes back as
+    422 with its problems."""
+    if _HOSTED:
+        raise HTTPException(
+            status_code=403,
+            detail="saving startup settings is disabled on the hosted instance",
+        )
+    from . import settings as ui_settings
+
+    cat = ui_settings.catalog(
+        have_pynec=pynec_backend.HAVE_PYNEC,
+        have_nec5=nec5_backend.have_nec5(),
+        have_nec2=nec2_backend.have_nec2(),
+    )
+    try:
+        return ui_settings.save(req, cat)
+    except ui_settings.SettingsError as exc:
+        raise HTTPException(status_code=422, detail={"problems": exc.problems}) from exc
 
 
 def _resolve_user_design_path(stem: str):

@@ -65,8 +65,11 @@ def configure_logging_from_env() -> int | None:
 
 
 def capture_dir_from_env(engine: str) -> Path | None:
-    """``ANTENNAKNOBS_CAPTURE_DIR/<engine>`` as a Path, or None when unset."""
-    raw = os.environ.get(CAPTURE_DIR_ENV, "").strip()
+    """``ANTENNAKNOBS_CAPTURE_DIR/<engine>`` as a Path, else the settings file's
+    ``[capture] dir`` (AK#1492), or None when neither is set."""
+    from .settings_file import capture_dir
+
+    raw = os.environ.get(CAPTURE_DIR_ENV, "").strip() or (capture_dir() or "")
     if not raw:
         return None
     return Path(raw).expanduser() / engine

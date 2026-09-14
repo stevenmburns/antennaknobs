@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { BUILTIN_SWITCHES } from "../../lib/settings";
 import { type ExampleDescriptor } from "../../lib/params";
 import { type Projection, type View } from "../../lib/view";
 import { cycleOrder, gridCells, gridFix, type Layout } from "./useViewPrefs";
@@ -16,6 +17,7 @@ export function useViewState({
   pinned,
   layout = "rail",
   setLayout,
+  overlays,
 }: {
   currentExample: ExampleDescriptor | undefined;
   active: boolean;
@@ -34,6 +36,14 @@ export function useViewState({
   // Only the grid-mode off-grid-peek fix (see the effect below) ever calls
   // this. Omit it and that one branch is simply inert.
   setLayout?: (l: Layout) => void;
+  // Where the four canvas overlays start (AK#1492's settings.toml). Omitted,
+  // they start at the built-in defaults.
+  overlays?: {
+    heatmap: boolean;
+    envelope: boolean;
+    wireLabels: boolean;
+    feedNames: boolean;
+  };
 }) {
   // Far-field cut angles. The azimuth plot slices the pattern at elevation
   // `azElevDeg`; the elevation plot slices the vertical plane at azimuth
@@ -88,13 +98,21 @@ export function useViewState({
   // toggles: the per-segment current-magnitude heatmap (wire color/width)
   // and the |I| envelope curve overlay. Either or both can be turned off;
   // the wires and feed marker are always drawn.
-  const [showHeatmap, setShowHeatmap] = useState(true);
-  const [showEnvelope, setShowEnvelope] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(
+    overlays?.heatmap ?? BUILTIN_SWITCHES.heatmap_currents,
+  );
+  const [showEnvelope, setShowEnvelope] = useState(
+    overlays?.envelope ?? BUILTIN_SWITCHES.current_waveforms,
+  );
   // Wire labels and feed names can crowd dense geometries (and PyNEC returns
   // many more wires than the momwire engines), so let them be toggled. Wire
   // labels default OFF — they're the noisiest, especially on PyNEC.
-  const [showWireLabels, setShowWireLabels] = useState(false);
-  const [showFeedNames, setShowFeedNames] = useState(true);
+  const [showWireLabels, setShowWireLabels] = useState(
+    overlays?.wireLabels ?? BUILTIN_SWITCHES.wire_labels,
+  );
+  const [showFeedNames, setShowFeedNames] = useState(
+    overlays?.feedNames ?? BUILTIN_SWITCHES.feed_labels,
+  );
 
   useEffect(() => {
     if (!active) return;
