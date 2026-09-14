@@ -72,9 +72,20 @@ export function useEngineFiles({
       })
         .then((r) => (r.ok ? r.json() : null))
         .then((data: EngineIo | null) => {
-          // A superseded re-run carries nothing; the solve that overtook it
+          // Only THIS solve's texts are taken. A superseded re-run carries
+          // nothing. A reply naming another solve, or `moved` (this solve's
+          // texts are gone and the request has changed since), would put a
+          // different antenna's printout beside this readout. The newer solve
           // brings its own solve_id and asks again.
-          if (controller.signal.aborted || !data || data.superseded) return;
+          if (
+            controller.signal.aborted ||
+            !data ||
+            data.superseded ||
+            data.moved ||
+            data.solve_id !== solveId
+          ) {
+            return;
+          }
           setIo({ geometry, solveId, data });
         })
         .catch(() => {});

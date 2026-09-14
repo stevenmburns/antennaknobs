@@ -175,6 +175,33 @@ describe("stale-display policy", () => {
     expect(result.current.solved).toBe(false);
   });
 
+  // The AK#1428 review's defect: texts for another request shown beside this
+  // readout as if they were its own.
+  it("a reply naming another solve is never taken as this one's texts", async () => {
+    ioReply = () => ({
+      available: true,
+      solver: "enga",
+      label: "Engine-A",
+      solve_id: "some-other-solve",
+      runs: [{ deck: "OTHER DECK", printout: "OTHER", cached: false }],
+    });
+    const { result } = renderFiles();
+    await settle();
+    expect(result.current.engineIo).toBeNull();
+  });
+
+  it("a `moved` reply is not taken either", async () => {
+    ioReply = (body) => ({
+      available: false,
+      solver: "enga",
+      solve_id: body.solve_id,
+      moved: true,
+    });
+    const { result } = renderFiles();
+    await settle();
+    expect(result.current.engineIo).toBeNull();
+  });
+
   it("a superseded re-run is not taken as the solve's texts", async () => {
     ioReply = () => ({ available: false, solver: "enga", superseded: true });
     const { result } = renderFiles();

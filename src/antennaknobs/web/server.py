@@ -2387,9 +2387,14 @@ async def engine_io_endpoint(req: dict):
     runs in ``_ENGINE_IO_CACHE``, so the usual answer is a lookup and nothing
     runs. On a miss (evicted, a restarted server, or a solve answered from the
     solve cache after its runs aged out) the request body is solved again,
-    uncached, on the session's lane, and its runs are remembered under the
-    body's own key. The deck is a function of the request alone, so the binary
-    is given the deck the readout came from.
+    uncached, on the session's lane, but ONLY when the body still describes
+    that solve: its key is the solve_id. The deck is a function of the request
+    alone, so that re-run hands the binary the deck the readout came from.
+
+    A body that has moved on answers ``moved`` and runs nothing. In Live mode
+    the old readout stays up while a new solve runs, so a Files request built
+    in that window describes the NEW state; re-running it printed an N=30 deck
+    beside an N=15 readout in the AK#1428 review.
 
     ``available: false`` when the resolved solver runs no binary: momwire,
     PyNEC, or an engine this machine cannot serve (which falls back to
@@ -2403,11 +2408,19 @@ async def engine_io_endpoint(req: dict):
     if solver not in _ENGINE_IO_LABELS:
         return {"available": False, "solver": solver}
     key = _canonical_solve_key(body)
-    for sid in (req.get("solve_id"), key):
-        entry = _ENGINE_IO_CACHE.get(sid) if isinstance(sid, str) else None
-        if entry is not None:
-            _ENGINE_IO_CACHE.move_to_end(sid)
-            return {"available": True, "solve_id": sid, "rerun": False, **entry}
+    asked = req.get("solve_id")
+    wanted = asked if isinstance(asked, str) and asked else key
+    entry = _ENGINE_IO_CACHE.get(wanted)
+    if entry is not None:
+        _ENGINE_IO_CACHE.move_to_end(wanted)
+        return {"available": True, "solve_id": wanted, "rerun": False, **entry}
+    if wanted != key:
+        # The solve on screen is no longer held, and the body no longer
+        # describes it: a knob moved while its readout was still up. Running
+        # the body, or serving the body's own entry, would print another
+        # antenna's deck under this solve's name. Nothing runs; the newer
+        # solve brings its own solve_id.
+        return {"available": False, "solver": solver, "solve_id": wanted, "moved": True}
     session, lane_gen = _lane_key(body)
     try:
         async with _LANES.turn(session, "engine_io", lane_gen):

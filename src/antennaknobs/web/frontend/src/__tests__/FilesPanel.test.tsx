@@ -152,8 +152,11 @@ describe("runs", () => {
   it("dims the engine texts of an earlier solve, never the source", () => {
     const c = mount(data({ stale: true }));
     expect(c.querySelector("pre.files-text.stale")).toBeNull();
+    expect(c.textContent).not.toMatch(/previous solve/);
     clickTab(c, /deck/);
     expect(c.querySelector("pre.files-text.stale")).not.toBeNull();
+    // Dimming alone was easy to miss; the pane says it in words.
+    expect(c.textContent).toMatch(/From the previous solve/);
   });
 });
 

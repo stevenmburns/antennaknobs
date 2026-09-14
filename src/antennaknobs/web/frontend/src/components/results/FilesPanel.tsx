@@ -166,6 +166,11 @@ export function FilesPanel({
           Served from the capture folder: this exact deck has run before.
         </div>
       )}
+      {engineTab && data.stale && (
+        <div className="files-note">
+          From the previous solve: this solve's deck and printout have not arrived.
+        </div>
+      )}
       {engineTab && run && data.engineIo?.error && (
         <div className="files-error">{data.engineIo.error}</div>
       )}
