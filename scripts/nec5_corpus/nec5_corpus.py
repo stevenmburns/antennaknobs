@@ -79,7 +79,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-VERSION = "1.11"
+VERSION = "1.12"
 DECK_EXTS = (".nec", ".inp")  # matched case-insensitively
 
 # ---------------------------------------------------------------------------
@@ -1398,19 +1398,58 @@ class Remesh:
         local2 = -(-local * n2 // n) if upper else (local - 1) * n2 // n + 1
         return self._offset(tag, gidx) + max(1, min(n2, local2))
 
+    def _abs_edge(self, s: int, *, upper: bool) -> int:
+        """One END of a tag-0 range: absolute segment `s` of the old structure,
+        on the new mesh (#1423).
+
+        Tag 0 addresses ABSOLUTE segment numbers across every wire in card
+        order, measured on nec2c 1.3.1: `LD 5 0 5 15` over two 11-segment wires
+        loads exactly what `LD 5 1 5 11` + `LD 5 2 1 4` do. So each edge maps on
+        the mesh of the card instance it falls in, by the same covering rule as
+        `_range_edge`, and lands at that instance's offset in the NEW absolute
+        order. Two wires remeshed by different factors are therefore no special
+        case: each edge only ever sees its own wire's factor.
+        """
+        old_end = new_offset = 0
+        for _tag, root, _gidx in self.geo._instances():
+            n = self.geo.root_n[root]
+            n2 = self.new_n.get(root, n)
+            if s <= old_end + n:
+                local = s - old_end
+                local2 = -(-local * n2 // n) if upper else (local - 1) * n2 // n + 1
+                return new_offset + max(1, min(n2, local2))
+            old_end += n
+            new_offset += n2
+        raise AssertionError("unreachable: s was checked against the structure")
+
     def remap_range(self, tag: int, a: int, b: int):
         """A NEC-2 segment range on a tag (distributed load, PT) on the new mesh.
 
         `0 0` is NEC's "the whole tag" spelling and is returned untouched: it
         names no segment numbers, so there is nothing to remap and rewriting it
         as an explicit range would only be a chance to get it wrong.
+
+        A zero END field is "segment M only" (#1423, measured on nec2c 1.3.1:
+        `LD 5 1 2 0` loads what `LD 5 1 2 2` does), so it maps as `M..M` and is
+        written with its end explicit: how NEC-5 reads a zero end was not
+        measured. Tag 0 is an absolute range over the whole structure; see
+        `_abs_edge`.
         """
         if a == 0 and b == 0:
             return a, b
+        if b == 0:
+            b = a
+        if tag == 0:
+            total = len(self.geo.order)
+            if not 1 <= a <= total:
+                return a, b
+            return self._abs_edge(a, upper=False), self._abs_edge(
+                min(b, total), upper=True
+            )
         total = self.geo.group_size(tag)
         if not 1 <= a <= total:
             return a, b
-        b2 = self._range_edge(tag, min(b, total), upper=True) if b else 0
+        b2 = self._range_edge(tag, min(b, total), upper=True)
         return self._range_edge(tag, a, upper=False), b2
 
 
@@ -1734,7 +1773,11 @@ def translate_deck(
                         "(NEC-5's 4th LD field is an end selector, not a range)"
                     )
                 continue
-            if typ in (2, 3, 5) and len(c.f) > 3 and c.int(1) in geo.groups:
+            if (
+                typ in (2, 3, 5)
+                and len(c.f) > 3
+                and (c.int(1) == 0 or c.int(1) in geo.groups)
+            ):
                 a, b = rm.remap_range(c.int(1), c.int(2), c.int(3))
                 c.f[2], c.f[3] = str(a), str(b)
             out.append(c.text())
@@ -1748,7 +1791,7 @@ def translate_deck(
         if mn == "GN":
             out.append(_gn(c, nofile, notes))
             continue
-        if mn == "PT" and len(c.f) >= 4 and c.int(1) in geo.groups:
+        if mn == "PT" and len(c.f) >= 4 and (c.int(1) == 0 or c.int(1) in geo.groups):
             a, b = rm.remap_range(c.int(1), c.int(2), c.int(3))
             c.f[2], c.f[3] = str(a), str(b)
         out.append(c.text())

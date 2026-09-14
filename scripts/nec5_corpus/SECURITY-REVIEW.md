@@ -1,13 +1,15 @@
-# Security review of nec5_corpus.py version 1.11
+# Security review of nec5_corpus.py version 1.12
 
 Reviewed 2026-09-10 by Claude (Anthropic's model, working in Claude Code) at
 the request of the tool's author, Steven Burns, by reading the whole source
 of `scripts/nec5_corpus/nec5_corpus.py` and the build that freezes it. This
 file ships beside `nec5_corpus.exe` so that a reader can see, before running
 it, what the program can and cannot do to their machine. It is a code
-review, not a penetration test, and it speaks for **version 1.11 only**: the
+review, not a penetration test, and it speaks for **version 1.12 only**: the
 test suite refuses a version bump that does not re-state the version here,
 so a stale review cannot ship by accident.
+
+**Re-read 2026-09-14 for 1.12.** One change, to `translate`'s range remapping (#1423): a tag-0 `LD`/`PT` range is now remapped as absolute segments across the knot remesh, and a zero end field is written as the explicit single segment it means. It changes the integers written into a card the tool already rewrote; it adds no file, network or process behaviour, and every claim below stands.
 
 **Re-read 2026-09-13 for 1.11.** One change, to `translate`'s card-field splitting: in a TAB-delimited card, a number followed by a unit symbol in the same field (`-68 ft`) is now read as one value, the way the SY evaluator already reads it. It adds no file, network or process behaviour, and every claim below stands.
 
@@ -239,7 +241,7 @@ To verify or rebuild:
 
 ## Limits of this review
 
-The review covers the script's own code as of version 1.11 and the build
+The review covers the script's own code as of version 1.12 and the build
 that freezes it. It does not cover Python, PyInstaller, Windows, or the
 NEC-5 engine you supply. It was done by reading, with the findings above
 confirmed by running the code (finding 1 was reproduced before it was
