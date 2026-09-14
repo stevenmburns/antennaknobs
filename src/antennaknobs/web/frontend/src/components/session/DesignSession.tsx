@@ -527,6 +527,8 @@ function DesignSessionBody({
     markRosterSeen,
     layout,
     setLayout,
+    isReadoutCollapsed,
+    setReadoutCollapsed,
   } = useViewPrefs();
 
   // When linked, design and measurement freq move together.
@@ -2324,6 +2326,10 @@ function DesignSessionBody({
             <SolveReadout
               live={liveSolve}
               className="stage-readout"
+              // One card for the whole grid, so it minimizes per the focused
+              // cell's view, as the rail's card does per its primary view.
+              collapsed={isReadoutCollapsed(view)}
+              onCollapsedChange={(c) => setReadoutCollapsed(view, c)}
               result={result}
               rttMs={rttMs}
               currentExample={currentExample}
@@ -2419,6 +2425,8 @@ function DesignSessionBody({
               <SolveReadout
                 live={liveSolve}
                 className="stage-readout"
+                collapsed={isReadoutCollapsed(view)}
+                onCollapsedChange={(c) => setReadoutCollapsed(view, c)}
                 result={result}
                 rttMs={rttMs}
                 currentExample={currentExample}
