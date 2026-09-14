@@ -3114,7 +3114,16 @@ def parse_nec(
                 (
                     card.i(1),
                     _Pct(pct) if pct is not None else abs(seg_field),
-                    complex(card.f(4), card.f(5)),
+                    # NEC drives a voltage source written with zero volts at
+                    # 1 V (measured 2026-09-14: nec2c 1.3.1 and SimNEC's ae6ty
+                    # build print V = 1.0 for `EX 0 1 6 0 0. 0.` and for the
+                    # five-field `EX 0 1 6 1 0`). Taken literally the port is
+                    # undriven, which is momwire#962's z = [inf, 0].
+                    (
+                        1 + 0j
+                        if not current and complex(card.f(4), card.f(5)) == 0
+                        else complex(card.f(4), card.f(5))
+                    ),
                     current,
                     edge,
                     where,
