@@ -33,6 +33,7 @@ def seeded(monkeypatch):
     write sites tag them."""
     monkeypatch.setattr(server, "_SOLVE_CACHE", server._SOLVE_CACHE.__class__())
     monkeypatch.setattr(server, "_CUTS_SRC_CACHE", server._CUTS_SRC_CACHE.__class__())
+    monkeypatch.setattr(server, "_ENGINE_IO_CACHE", server._ENGINE_IO_CACHE.__class__())
     monkeypatch.setattr(server, "_SWEEP_Z_CACHE", server._SWEEP_Z_CACHE.__class__())
     monkeypatch.setattr(server, "_SWEEP_Z_WRITER", {})
     monkeypatch.setattr(server, "_USER_CACHE_KEYS", {"solve": set(), "sweep": set()})
@@ -40,6 +41,8 @@ def seeded(monkeypatch):
     server._SOLVE_CACHE["k_cat"] = {"geometry": "dipoles.invvee"}
     server._CUTS_SRC_CACHE["k_user"] = {"wires": []}
     server._CUTS_SRC_CACHE["k_cat"] = {"wires": []}
+    server._ENGINE_IO_CACHE["k_user"] = {"solver": "nec5", "runs": []}
+    server._ENGINE_IO_CACHE["k_cat"] = {"solver": "nec5", "runs": []}
     server._SWEEP_Z_CACHE[("d_user", 7)] = (1.0, 0.0, None, None)
     server._SWEEP_Z_CACHE[("d_user", 8)] = (1.0, 0.0, None, None)
     server._SWEEP_Z_CACHE[("d_cat", 7)] = (1.0, 0.0, None, None)
@@ -52,6 +55,10 @@ def seeded(monkeypatch):
 def _assert_only_user_entries_gone():
     assert "k_user" not in server._SOLVE_CACHE and "k_cat" in server._SOLVE_CACHE
     assert "k_user" not in server._CUTS_SRC_CACHE and "k_cat" in server._CUTS_SRC_CACHE
+    # AK#1428: the engine printouts ride the same solve_id.
+    assert (
+        "k_user" not in server._ENGINE_IO_CACHE and "k_cat" in server._ENGINE_IO_CACHE
+    )
     assert ("d_user", 7) not in server._SWEEP_Z_CACHE
     assert ("d_user", 8) not in server._SWEEP_Z_CACHE
     assert ("d_cat", 7) in server._SWEEP_Z_CACHE
@@ -62,9 +69,14 @@ def _assert_only_user_entries_gone():
 
 def test_eviction_drops_user_entries_and_keeps_the_catalog(seeded):
     counts = server._evict_user_design_caches()
-    assert counts == {"solve": 1, "cuts": 1, "sweep": 2}
+    assert counts == {"solve": 1, "cuts": 1, "sweep": 2, "engine_io": 1}
     _assert_only_user_entries_gone()
-    assert server._evict_user_design_caches() == {"solve": 0, "cuts": 0, "sweep": 0}
+    assert server._evict_user_design_caches() == {
+        "solve": 0,
+        "cuts": 0,
+        "sweep": 0,
+        "engine_io": 0,
+    }
 
 
 def test_the_examples_refresh_is_the_invalidation_signal(seeded, userdir):

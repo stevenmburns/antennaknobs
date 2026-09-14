@@ -4384,7 +4384,16 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         plane, planes = _apply_plane(builder, req)
         eng = seams.make_engine(req, builder)
         t0 = time.perf_counter()
-        zs_raw, currents = seams.run(eng)
+        try:
+            zs_raw, currents = seams.run(eng)
+        except Exception as exc:
+            # AK#1428: a run that failed still printed something, and the
+            # printout is usually the only place the reason is spelt out. The
+            # Files view's /engine_io re-run reads the runs off the exception.
+            runs = getattr(eng, "io_runs", None)
+            if runs:
+                exc.engine_runs = list(runs)
+            raise
         zs = [_json_safe_z(z) for z in zs_raw]
         solve_ms = (time.perf_counter() - t0) * 1e3
         feed_wire_idx, feed_knot_idx = _pynec_feed_indices(builder, currents)
@@ -4466,6 +4475,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                 }
                 for z, v in zip(zs, values, strict=True)
             ]
+        # AK#1428: the texts behind this answer — each run's deck and printout —
+        # for the Files view. `server.solve` pops them before the response is
+        # cached or sent. PyNEC runs in-process and has no deck, so no key.
+        runs = getattr(eng, "io_runs", None)
+        if runs is not None:
+            out["_engine_runs"] = list(runs)
         return out
 
     def pynec_solve(req: dict) -> dict:

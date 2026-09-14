@@ -6,6 +6,7 @@ import { FarFieldChart } from "../charts/FarFieldChart";
 import { SmithChart } from "../charts/SmithChart";
 import { SweepChart } from "../charts/SweepChart";
 import type { PatternData, PinnedPattern } from "../charts/types";
+import { FilesPanel, type FilesViewData } from "./FilesPanel";
 import { SchematicPanel } from "./SchematicPanel";
 
 // The render half of the view registry (the metadata half — id, label,
@@ -70,6 +71,9 @@ export type ViewRenderProps = {
   } | null;
   schematicSvg: string | null;
   schematicUnavailable: boolean;
+  /** The Files view's texts (AK#1428). Optional: thumbnail call sites omit
+   *  it, and the panel's thumb carries no text anyway. */
+  files?: FilesViewData | null;
 };
 
 // Plain functions, not components: ViewPanel calls the entry rather than
@@ -189,4 +193,5 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       multiFeed={p.multiFeed}
     />
   ),
+  files: (p) => <FilesPanel data={p.files ?? null} size={p.size} fill={p.fill} />,
 };
