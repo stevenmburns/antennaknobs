@@ -2426,6 +2426,13 @@ input[type=checkbox] {
   margin-left: auto;
 }
 
+/* The rail/grid toggle floats over the stage's top-right corner, which is
+   where Copy and Download sit. Clear it as the other views' corner controls
+   do (.layout-toggle ~ * above), but sideways, so the tab row keeps its line. */
+.layout-toggle ~ * .files-bar {
+  padding-right: var(--layout-toggle-width-clearance, 84px);
+}
+
 .files-text {
   flex: 1;
   min-height: 0;
