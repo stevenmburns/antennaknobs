@@ -10,8 +10,12 @@ passed cancel=momwire.CancelToken() while the floor still admitted momwire
 AttributeError and the readout never populated.
 
 This script exercises precisely that seam: the web server's solve entry point,
-with a cancel token, against whatever momwire pip actually resolved.
+with a cancel token, against whatever momwire pip actually resolved. It also
+asks for a catalog design's source (AK#1428), which a wheel install can only
+serve from the installed package: there is no source tree beside it.
 """
+
+import asyncio
 
 import momwire
 
@@ -36,3 +40,9 @@ print(
     f"Z = {out['z_in_re']:.2f} {'+' if out['z_in_im'] >= 0 else '-'} "
     f"j{abs(out['z_in_im']):.2f} ohm, solve {out['solve_ms']:.1f} ms"
 )
+
+# The Files view's Source tab: the design's own .py, out of the installed wheel.
+src = asyncio.run(server.design_source_endpoint({"geometry": req["geometry"]}))
+assert src.get("available"), f"no design source from the wheel install: {src}"
+assert "class Builder" in src["text"], f"{src['filename']} is not the design's source"
+print(f"design source OK: {src['filename']}, {len(src['text'])} chars")
