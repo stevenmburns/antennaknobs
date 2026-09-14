@@ -262,7 +262,22 @@ def selftest() -> int:
         f"variant = {variant}"
     )
     if not momwire.accelerated:
-        print("FAIL: momwire's C++ accelerator did not load (OpenMP runtime missing?)")
+        forced = os.environ.get("MOMWIRE_FORCE_VARIANT")
+        if forced:
+            # A forced build that is not in this bundle is the likelier cause
+            # than a missing OpenMP runtime, so say that instead of guessing
+            # (momwire#1038). momwire's own warning above names the builds
+            # that are present.
+            print(
+                f"FAIL: momwire's C++ accelerator did not load with "
+                f"MOMWIRE_FORCE_VARIANT={forced!r} set. That build may not be in "
+                "this bundle: unset the variable and re-run before suspecting "
+                "the OpenMP runtime."
+            )
+        else:
+            print(
+                "FAIL: momwire's C++ accelerator did not load (OpenMP runtime missing?)"
+            )
         return 1
     from antennaknobs import Antenna
     from antennaknobs.designs.dipoles.invvee import Builder
