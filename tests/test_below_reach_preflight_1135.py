@@ -51,21 +51,25 @@ def test_the_shipped_catalog_deck_is_not_refused():
     assert ok, why
 
 
-def test_the_issues_own_case_refuses_by_name():
+def test_the_issues_own_case_is_served_past_the_cap():
     """#1135's headline: n_radials=4, length_factor=1.2, radial_factor=1.5
     over soil B, where the opposite tips are 38.0 m apart against a 19.06 m
-    cap. The sentence is momwire's own, so it carries the deck's numbers."""
+    cap. It refused by name until momwire 0.55.0, which serves the below/below
+    remainder past the cap as zero (momwire#1058), so the pre-flight must now
+    let it through. The zero at this range, about 8 in-medium wavelengths, is
+    backed by the Z gate in scratch/momwire-0.55.0."""
     ok, why = _constructs(SOIL_B, length_factor=1.2, radial_factor=1.5)
-    assert not ok
-    assert "below/below" in why and "in-medium wavelengths" in why
+    assert ok, why
 
 
-def test_the_threshold_sits_where_the_issue_measured_it():
-    """#1135 verified the soil-B boundary by SOLVING across it -- 0.85 serves,
-    0.95 refuses, predicted 0.903 between them. The pre-flight has to land in
-    the same place, or it is a different bound wearing the same name."""
+def test_the_issues_range_threshold_is_gone():
+    """#1135 verified the soil-B boundary by SOLVING across it -- 0.85 served,
+    0.95 refused, predicted 0.903 between them. That boundary was the
+    below/below R1 cap, and momwire 0.55.0 serves past it (momwire#1058), so
+    both sides now construct. The grazing floor is the pre-flight's one
+    remaining bound, held by the shallow-deck test above."""
     assert _constructs(SOIL_B, radial_factor=0.85)[0]
-    assert not _constructs(SOIL_B, radial_factor=0.95)[0]
+    assert _constructs(SOIL_B, radial_factor=0.95)[0]
 
 
 def test_a_shallow_deck_the_935_floor_just_made_servable_passes(monkeypatch):
