@@ -9,6 +9,11 @@ Three gates, each run against the FROZEN executable and nothing else:
 1. ``--selftest`` exits 0 and prints ``accelerated = True`` and an invvee
    impedance equal to the unfrozen package's to 1e-9 (same code, same
    wheel: packaging may not move a number).
+   1b. The same selftest with ``MOMWIRE_FORCE_VARIANT=sse2``, when the bundle
+   carries momwire's baseline build: it must load (``variant = sse2``) and
+   reproduce the invvee to 1e-9 (issue #1405). Every box on the fleet has
+   AVX2, so a plain selftest alone would leave the sse2 build unproven in
+   every bundle.
 2. The server starts on a chosen port with ``--no-browser`` and answers
    ``/healthz`` with ``{"ok": true}`` and ``/capabilities`` with a backend
    list that names the momwire lanes — the two checks the install scripts
@@ -22,6 +27,7 @@ Three gates, each run against the FROZEN executable and nothing else:
 from __future__ import annotations
 
 import json
+import os
 import re
 import socket
 import subprocess
@@ -110,6 +116,38 @@ def main(argv: list[str]) -> int:
         print(f"FAIL: frozen invvee {frozen_z} != unfrozen {ref_z}")
         return 1
     print(f"gate 1 OK: selftest in {dt:.1f} s, invvee {frozen_z} == unfrozen")
+
+    # 1b. the BASELINE build, forced (issue #1405). Every box on the fleet has
+    # AVX2, so a plain selftest only ever loads the avx2 half of momwire's
+    # double build (momwire#1032), and the sse2 half would ship unproven.
+    if any(exe.parent.rglob("_accelerators_sse2*")):
+        out = subprocess.run(
+            [str(exe), "--selftest"],
+            capture_output=True,
+            text=True,
+            timeout=600,
+            env=dict(os.environ, MOMWIRE_FORCE_VARIANT="sse2"),
+        )
+        print(out.stdout)
+        if (
+            out.returncode != 0
+            or "variant = sse2" not in out.stdout
+            or "SELFTEST OK" not in out.stdout
+        ):
+            print(out.stderr[-2000:], file=sys.stderr)
+            print(f"FAIL: the forced sse2 selftest (exit {out.returncode})")
+            return 1
+        m = re.search(
+            r"invvee free space: \[\(([-+0-9.e]+)([-+][0-9.e]+)j\)\]", out.stdout
+        )
+        assert m, out.stdout
+        sse2_z = complex(float(m.group(1)), float(m.group(2)))
+        if abs(sse2_z - ref_z) > 1e-9 * abs(ref_z):
+            print(f"FAIL: sse2 invvee {sse2_z} != unfrozen {ref_z}")
+            return 1
+        print(f"gate 1b OK: the sse2 build loads, invvee {sse2_z} == unfrozen")
+    else:
+        print("gate 1b skipped: no sse2 build in this bundle (not an x86 double build)")
 
     # 2 + 3. the server
     port = _free_port()

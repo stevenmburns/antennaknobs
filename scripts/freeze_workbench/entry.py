@@ -254,7 +254,13 @@ def selftest() -> int:
 
     import momwire
 
-    print(f"momwire {version('momwire')} accelerated = {momwire.accelerated}")
+    # Which build ran, not only whether one did (issue #1405): since momwire's
+    # double build (momwire#1032), `accelerated = True` cannot tell avx2 from sse2.
+    variant = getattr(momwire, "accelerator_variant", None)
+    print(
+        f"momwire {version('momwire')} accelerated = {momwire.accelerated} "
+        f"variant = {variant}"
+    )
     if not momwire.accelerated:
         print("FAIL: momwire's C++ accelerator did not load (OpenMP runtime missing?)")
         return 1
