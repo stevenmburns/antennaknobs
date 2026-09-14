@@ -79,3 +79,31 @@ far.
 - **If G8 and both bspline rows hit,** report the numbers. The antennaknobs
   re-pins that assert "served" at these corners are then backed, and D1131's
   app answer is banked from the shipped `nominal_nsegs` 21 solve.
+
+## Results [2026-09-14]
+
+Registered at 828cc0b6b (05:51:13Z), before any run.
+
+| id | result |
+|---|---|
+| PG8 | **HIT.** The worst relative error over 40 off-node points (4.14–8.21 λ_m × 0.33–3.17°) is 1.58e-8, on `IphiH` at 4.137 λ_m and 3.17°, against a bar of 2e-4. The extended table is a trustworthy reference out to 9 λ_m at soil B and 7.1 MHz (λ_m = 4.764 m). |
+| PZ8-B1135 | **HIT.** δ = 2.66e-4 Ω against the 21 → 63 step of 0.0907 Ω, which is 2.9e-3 of the step and 1.0e-6 of \|Z\|. Z shipped = 99.6467+234.0345j. The plan's R1 is 7.975 λ_m. |
+| PZ8-B1131 | **HIT.** δ = 9.35e-5 Ω against a step of 0.0893 Ω, which is 1.0e-3 of the step and 3.4e-7 of \|Z\|. Z shipped = 108.9379+253.9648j. The plan's R1 is 7.977 λ_m. |
+| PZ8-S1135 | **HIT.** SG serves the deck: δ = 2.66e-4 Ω against a step of 0.0904 Ω, which is 2.9e-3 of the step. |
+| PZ8-S1131 | **HIT.** SG serves the deck: δ = 9.37e-5 Ω against a step of 0.0906 Ω, which is 1.0e-3 of the step. |
+
+Every guard holds on every row:
+- the plan reaches past 4 λ_m;
+- the shipped grid stops at the cap;
+- the extended grid, at 9 λ_m, covers the plan;
+- δ is not bit-zero.
+
+**Reading, as registered.** G8 and both bspline rows hit.
+- **What that backs.** The antennaknobs re-pins that assert "served" at these
+  two corners.
+- **What gets banked.** D1131's app answer, from the shipped `nominal_nsegs` 21
+  solve: 108.93786519336538+253.96475104686718j. That is bit-identical to what
+  the CORNERS `_solve` call returns, and its degree pair is 0.650 Ω.
+
+**Margin.** The bspline rows sit 3.4× and 9.5× under the bar. That lies between
+U4's soil-A margin (48×) and its fresh-water margin (2×).

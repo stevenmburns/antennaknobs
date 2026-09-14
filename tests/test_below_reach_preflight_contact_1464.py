@@ -56,11 +56,19 @@ def test_the_terminated_longwire_constructs_over_finite_ground():
 
 
 def test_a_wire_strictly_below_is_still_asked():
-    """The guard is 'strictly below', not 'no crossing': the catalog BRV's
-    #1135 corner still refuses by momwire's own sentence."""
+    """The guard is 'strictly below', not 'no crossing': a catalog BRV corner
+    momwire still refuses is refused by momwire's own sentence.
+
+    Until momwire 0.55.0 this used the #1135 corner at spade depth, which
+    refused on the below/below range. 0.55.0 serves that range (momwire#1058),
+    so the corner here is one the grazing floor still refuses: radials twice
+    the UI's longest (`radial_factor` 3.0) buried 20 mm deep. Their widest
+    pairs sit at 0.030 deg, under the 0.05 deg floor with margin, as measured
+    on momwire main (925678d48). A shallower rise cannot be spelled at all: the
+    design's graded rise needs more than its 12.5 mm node panel."""
     from antennaknobs.designs.verticals.buried_radial_vertical import Builder
 
     b = Builder()
-    b.length_factor, b.radial_factor = 1.2, 1.5
-    with pytest.raises(ValueError, match="below/below"):
+    b.length_factor, b.radial_factor, b.depth = 1.2, 3.0, 0.02
+    with pytest.raises(ValueError, match="below/below pair elevation"):
         MomwireEngine(b, ground=("finite", 20.0, 0.03))

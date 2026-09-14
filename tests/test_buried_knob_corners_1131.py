@@ -80,6 +80,18 @@ CORNERS = {
         140.6354 - 342.4703j,
         0.365,
     ),
+    # Served since momwire 0.55.0 (momwire#1058), which serves the below/below
+    # remainder past the 4 lambda_m cap as zero; this corner spans about
+    # 8 lambda_m and refused by name before. Banked 2026-09-14 on momwire main
+    # 925678d48, the 0.55.0 candidate. The zero at this range is backed by
+    # scratch/momwire-0.55.0/ZGATE-8WL.md: dropping every pair past the cap
+    # moves this Z by 9.4e-5 ohm, 1.0e-3 of its own far-mesh ladder step.
+    "all_knobs_max_soil_B": (
+        {"n_radials": 4, "depth": 0.5, "length_factor": 1.2, "radial_factor": 1.5},
+        SOIL_B,
+        108.9379 + 253.9648j,
+        0.650,
+    ),
 }
 
 Z_TOL = 0.10  # ohm, against the banked answer — see the note above
@@ -133,30 +145,3 @@ def test_the_degree_pair_is_bounded_AND_non_degenerate(name):
     assert abs(got - want_pair) <= Z_TOL, (
         f"{name}: pair {got:.3f} vs banked {want_pair}"
     )
-
-
-def test_the_all_knobs_max_corner_refuses_BY_NAME():
-    """A combination the UI lets a user reach, which cannot solve (#1131).
-
-    `n_radials=4, depth=0.5, length_factor=1.2, radial_factor=1.5` over soil B
-    is inside every advertised range, and its buried structure exceeds the
-    below/below remainder table. That it refuses is correct — refusal over a
-    confident wrong number. What this gate holds is that it refuses *by name*,
-    naming the separation and the cap, rather than crashing, hanging, or
-    returning a plausible number. If the cap moves again (it went 2 → 4 λ_m in
-    momwire#847, which is what made this design's own docstring stale), this
-    test is where that surfaces.
-    """
-    with pytest.raises(ValueError) as exc:
-        _solve(
-            {
-                "n_radials": 4,
-                "depth": 0.5,
-                "length_factor": 1.2,
-                "radial_factor": 1.5,
-            },
-            SOIL_B,
-        )
-    msg = str(exc.value)
-    assert "below/below" in msg
-    assert "in-medium wavelength" in msg
