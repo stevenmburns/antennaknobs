@@ -3,11 +3,10 @@ positioned port sits exactly on a site of its grid.
 
 A segment-centre engine (PyNEC, NEC-2, sinusoidal, BSpline d=2) needs a
 segment centre at the port; a knot engine (NEC-5, razor, BSpline d=1) needs an
-interior knot. The count grows to at most twice the authored count. Past that,
-a wire carrying that one port is split so the port sits at the middle of a
-piece (AK#1510), and a wire carrying several keeps the parity count, each port
-on the engine's nearest site. A wire whose ports all sit at the middle keeps
-exactly the counts it had.
+interior knot. The count grows to at most twice the authored count, one count
+for every port on the wire at once. Past that, the wire is split so every port
+on it, one or several, sits exactly on a site (AK#1510, AK#1511). A wire whose
+ports all sit at the middle keeps exactly the counts it had.
 """
 
 from types import MappingProxyType
@@ -130,23 +129,33 @@ def test_every_port_on_the_wire_is_honoured_at_once():
 
 @needs_position
 def test_an_unreachable_position_splits_the_wire_it_sits_on():
-    """No count puts a centre at a third, so the wire is cut at two thirds and
-    the port fed at the middle of the first piece (AK#1510)."""
+    """No count puts a centre at a third, so the port gets a short piece of its
+    own centred on it, a third of the way to the nearer end either side, with
+    plain wire at each end (AK#1511)."""
     pytest.importorskip("PyNEC")
     from antennaknobs.engines.pynec import PyNECEngine
 
     assert [(t[2], t[4]) for t in PyNECEngine(_b(feed_at=1 / 3)).tups] == [
-        (13, "w"),
-        (7, None),
+        (4, None),
+        (5, "w@feed"),
+        (11, None),
     ]
 
 
 @needs_position
-def test_an_unreachable_position_shared_with_a_second_port_keeps_the_parity_count():
+def test_an_unreachable_position_shared_with_a_second_port_splits_for_both():
+    """Each port gets its own short piece; the load's is pegged at a third of
+    its end distance, the feed's at a third of its own (AK#1511)."""
     pytest.importorskip("PyNEC")
     from antennaknobs.engines.pynec import PyNECEngine
 
-    assert [t[2] for t in PyNECEngine(_b(feed_at=1 / 3, load_at=0.8)).tups] == [21]
+    assert [(t[2], t[4]) for t in PyNECEngine(_b(feed_at=1 / 3, load_at=0.8)).tups] == [
+        (4, None),
+        (5, "w@feed"),
+        (6, None),
+        (3, "w@load"),
+        (3, None),
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -167,13 +176,13 @@ def test_an_exactly_placed_port_raises_no_advisory():
 
 
 @needs_position
-def test_pynec_names_the_offset_it_could_not_avoid_between_two_ports():
+def test_pynec_says_it_split_a_wire_carrying_two_ports():
     pytest.importorskip("PyNEC")
     from antennaknobs.engines.pynec import PyNECEngine
 
-    notes = _placement_notes(PyNECEngine(_b(feed_at=1 / 3, load_at=0.8)).advisories)
-    (note,) = [n for n in notes if "'feed'" in n["text"]]
-    assert "segment centre" in note["text"] and "mm away" in note["text"]
+    (note,) = _placement_notes(PyNECEngine(_b(feed_at=1 / 3, load_at=0.8)).advisories)
+    assert "'feed' at 0.3333 and 'load' at 0.8" in note["text"]
+    assert "segment centre" in note["text"] and "mm away" not in note["text"]
 
 
 @needs_position

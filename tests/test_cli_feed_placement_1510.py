@@ -13,15 +13,15 @@ DECK = (
     "GW 1 10 0 -2.6 10 0 2.6 10 0.001\nGE\nEX 0 1 31% 0 1 0\nFR 0 1 0 0 28.47 0\nEN\n"
 )
 NOTE = (
-    "advisory: Port 'feed' asks for 0.31 of the way along wire 'feed'. No segment "
+    "advisory: Wire 'feed' carries port 'feed' at 0.31 of its length. No segment "
     "count up to 2× the wire's own puts a segment centre there, so the wire is "
-    "split in two at 0.62 of its length and the port is fed exactly, at the middle "
-    "of its piece (AK#1510).\n"
+    "split and the port is fed exactly, at the middle of a short piece of its own "
+    "(AK#1511).\n"
 )
 KNOT_NOTE = (
-    "advisory: Port 'feed' asks for 0.31 of the way along wire 'feed'. No segment "
-    "count up to 2× the wire's own puts a knot there, so the wire is split in two "
-    "at 0.31 and the port is fed at the knot the two pieces share (AK#1510).\n"
+    "advisory: Wire 'feed' carries port 'feed' at 0.31 of its length. No segment "
+    "count up to 2× the wire's own puts a knot there, so the wire is split there "
+    "and the port is fed exactly, at the knot the two pieces share (AK#1511).\n"
 )
 
 
