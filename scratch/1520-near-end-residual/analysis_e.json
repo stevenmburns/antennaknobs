@@ -1,0 +1,20 @@
+{
+ "E1": {
+  "verdict": "hit",
+  "fails": [],
+  "missing": []
+ },
+ "E2": {
+  "verdict": "MISS",
+  "fails": [
+   "n=161"
+  ],
+  "missing": []
+ },
+ "E3": {
+  "verdict": "hit",
+  "fails": [],
+  "missing": []
+ },
+ "verdict": "unexplained by these candidates"
+}
