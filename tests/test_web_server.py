@@ -280,6 +280,39 @@ def test_capabilities_reports_pynec_availability(client: TestClient, monkeypatch
     assert pynec_offered() is True
 
 
+def test_capabilities_serves_the_running_versions(client: TestClient, monkeypatch):
+    """AK#1507: a Windows user ran a stale bundle because copying only the
+    .exe over an old folder silently keeps the old `_internal` beside it, and
+    the console banner was the only tell. `/capabilities` now serves both
+    running versions, computed from installed package metadata rather than
+    hard-coded, so the page can show the same thing the console already does.
+
+    Adversarial: monkeypatching the metadata lookup and asserting the label
+    follows it is the check that would fail if `version_label` were ever
+    written as a literal string instead of built from `versions`.
+    """
+    import importlib.metadata
+
+    payload = client.get("/capabilities").json()
+    from importlib.metadata import version as real_version
+
+    assert payload["versions"] == {
+        "antennaknobs": real_version("antennaknobs"),
+        "momwire": real_version("momwire"),
+    }
+    assert payload["version_label"] == (
+        f"v{real_version('antennaknobs')} · momwire {real_version('momwire')}"
+    )
+
+    def fake_version(name: str) -> str:
+        return {"antennaknobs": "9.9.9", "momwire": "1.2.3"}[name]
+
+    monkeypatch.setattr(importlib.metadata, "version", fake_version)
+    payload = client.get("/capabilities").json()
+    assert payload["versions"] == {"antennaknobs": "9.9.9", "momwire": "1.2.3"}
+    assert payload["version_label"] == "v9.9.9 · momwire 1.2.3"
+
+
 def test_each_example_has_the_keys_the_frontend_reads(client: TestClient):
     payload = client.get("/examples").json()
     required = {
