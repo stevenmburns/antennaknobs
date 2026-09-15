@@ -356,12 +356,15 @@ def test_the_connected_spelling_is_the_way_out_and_tracks_momwire(record_propert
     b = BuriedRadialVertical()
     ground = ("finite", 13.0, 0.005)
     assert "GE -1 0" in NEC5Engine(b, ground=ground).deck([b.freq]).splitlines()
-    (z5,) = NEC5Engine(b, ground=ground).impedance()
-    (zm,) = MomwireEngine(b, ground=ground).impedance()
+    e5, em = NEC5Engine(b, ground=ground), MomwireEngine(b, ground=ground)
+    (z5,) = e5.impedance()
+    (zm,) = em.impedance()
+    fed = _fed_note(e5, em)
     record_property("nec5", f"{z5:.4f}")
     record_property("momwire", f"{zm:.4f}")
-    assert abs(z5.real - zm.real) / abs(zm.real) < 0.05, (z5, zm)
-    assert abs(z5.imag - zm.imag) / abs(zm.imag) < 0.15, (z5, zm)
+    record_property("fed_segments", fed)
+    assert abs(z5.real - zm.real) / abs(zm.real) < 0.05, (z5, zm, fed)
+    assert abs(z5.imag - zm.imag) / abs(zm.imag) < 0.15, (z5, zm, fed)
 
 
 def test_parse_ground_fixtures():
@@ -450,6 +453,19 @@ def test_faulty_deck_printout_raises():
 # ---------------------------------------------------------------- live runs
 
 
+def _fed_note(*engines):
+    """Each engine's fed segments, for a cross-engine assertion's message and
+    its JUnit record (AK#1456): the engines mesh one feed wire to different
+    segments, and a near-open driving point follows that size."""
+    return {
+        type(e).__name__: [
+            f"{r['segments']} x {1000 * r['length_m']:.1f} mm ({r['site']})"
+            for r in e.fed_segments()
+        ]
+        for e in engines
+    }
+
+
 def _yagi_builder():
     from antennaknobs.designs.beams.yagi import Builder as Yagi
 
@@ -460,20 +476,20 @@ def _yagi_builder():
 @pytest.mark.parametrize("make_builder", [_invvee_builder, _yagi_builder])
 def test_live_impedance_within_cross_engine_bars(make_builder):
     b = make_builder()
-    z5 = NEC5Engine(b).impedance()[0]
-    zm = MomwireEngine(b).impedance()[0]
+    e5, em = NEC5Engine(b), MomwireEngine(b)
+    z5, zm = e5.impedance()[0], em.impedance()[0]
     # Different formulations (NEC-5 mixed-potential vs momwire thin-wire):
     # agreement to a few ohms is the expected bar, not identity.
-    assert abs(z5 - zm) < 5.0
+    assert abs(z5 - zm) < 5.0, (z5, zm, _fed_note(e5, em))
 
 
 @needs_nec5
 @pytest.mark.parametrize("ground", ["pec", ("finite", 13.0, 0.005)])
 def test_live_ground_impedance_within_cross_engine_bars(ground):
     b = _invvee_builder()
-    z5 = NEC5Engine(b, ground=ground).impedance()[0]
-    zm = MomwireEngine(b, ground=ground).impedance()[0]
-    assert abs(z5 - zm) < 5.0
+    e5, em = NEC5Engine(b, ground=ground), MomwireEngine(b, ground=ground)
+    z5, zm = e5.impedance()[0], em.impedance()[0]
+    assert abs(z5 - zm) < 5.0, (z5, zm, _fed_note(e5, em))
 
 
 @needs_nec5
@@ -696,9 +712,9 @@ def test_network_refusals(monkeypatch):
 @needs_nec5
 def test_live_network_port_impedance():
     b = _PortDipole()
-    z5 = NEC5Engine(b).impedance()[0]
-    zm = MomwireEngine(b).impedance()[0]
-    assert abs(z5 - zm) < 10.0
+    e5, em = NEC5Engine(b), MomwireEngine(b)
+    z5, zm = e5.impedance()[0], em.impedance()[0]
+    assert abs(z5 - zm) < 10.0, (z5, zm, _fed_note(e5, em))
 
 
 @needs_nec5
@@ -826,10 +842,10 @@ def test_parse_power_budget_fixture():
 @needs_nec5
 def test_live_loaded_dipole_matches_momwire():
     b = _LoadedDipole()
-    z5 = NEC5Engine(b).impedance()[0]
-    zm = MomwireEngine(b).impedance()[0]
+    e5, em = NEC5Engine(b), MomwireEngine(b)
+    z5, zm = e5.impedance()[0], em.impedance()[0]
     # Loaded impedances run large; the bar is relative.
-    assert abs(z5 - zm) / abs(zm) < 0.05
+    assert abs(z5 - zm) / abs(zm) < 0.05, (z5, zm, _fed_note(e5, em))
 
 
 @needs_nec5
