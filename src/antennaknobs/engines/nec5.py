@@ -722,6 +722,19 @@ class NEC5Engine(SimulationEngine):
         k = self._knot_index(idx, knot)
         if k == 0:
             return cur[0]
+        owners = getattr(self, "_tup_authored", None) or []
+        if (
+            k >= cur.shape[0]
+            and idx + 1 < len(owners)
+            and owners[idx + 1] == owners[idx]
+        ):
+            # A wire split at this port (AK#1510) carries on in the next piece,
+            # so the current is smooth through the shared knot and interpolates
+            # across it exactly as at an interior knot. A vertex where distinct
+            # wires meet keeps the named arm's own current below.
+            nxt, nxt_lengths = self._wire_segments(per_tag, idx + 1)
+            h_a, h_b = float(lengths[-1]), float(nxt_lengths[0])
+            return (cur[-1] * h_b + nxt[0] * h_a) / (h_a + h_b)
         if k >= cur.shape[0]:
             return cur[-1]
         h_a, h_b = float(lengths[k - 1]), float(lengths[k])

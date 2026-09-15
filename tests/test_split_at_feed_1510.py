@@ -1,13 +1,14 @@
 """AK#1510 unit 2: a positioned port that no segment count up to the cap can
 carry is fed exactly, through a split wire.
 
-On a grid engine (segment centres on PyNEC and NEC-2, knots on NEC-5), a wire
-carrying ONE positioned port that no count up to twice its own puts on a site is
-cut in two so the port sits at the exact middle of one piece. That piece keeps
-the wire's name, and every reader of the port's position (segment, knot, card,
-drive point) sees the port at its middle. The momwire engine feeds the exact
-arclength and never splits. A wire carrying several such ports keeps its count
-and the nearest-site advisory.
+On a grid engine, a wire carrying ONE positioned port that no count up to twice
+its own puts on a site is split so the port sits exactly on one. PyNEC and NEC-2
+need a segment centre, so the port sits at the exact middle of a piece (three
+pieces near the wire's middle, where two would leave a sliver). NEC-5 feeds a
+knot, so the wire breaks at the port itself and the source sits at the knot the
+two pieces share. Every reader of the port's position (segment, knot, card,
+drive point, port current) sees that site. The momwire engine never splits. A
+wire carrying several such ports keeps its count and the nearest-site advisory.
 """
 
 from __future__ import annotations
@@ -17,10 +18,21 @@ from types import MappingProxyType
 
 import numpy as np
 import pytest
+from conftest import needs_nec5
 
 from antennaknobs import AntennaBuilder, WireSpec
 from antennaknobs.engines.nec5 import NEC5Engine
-from antennaknobs.network import Driven, Load, Network, PortOnWire, Wire, as_wire
+from antennaknobs.network import (
+    TL,
+    Driven,
+    Load,
+    Network,
+    PortAtVertex,
+    PortOnWire,
+    PortVirtual,
+    Wire,
+    as_wire,
+)
 
 pytestmark = pytest.mark.skipif(
     not hasattr(PortOnWire("x"), "at"),
@@ -83,8 +95,10 @@ def _z(eng):
 
 
 # In two pieces the free one would be |1 - 2 at| of the wire, under half of one
-# of its ten segments, so these split in three.
+# of its ten segments, so these split in three on a segment-centre engine.
 NEAR_MIDDLE = [0.49, 0.499, 0.5001]
+# No knot count from 10 to 20 reaches any of these, so NEC-5 breaks the wire.
+KNOT_BREAKS = [0.31, 0.69, 0.123, 0.499, 0.02, 0.49, 0.5001]
 
 
 # ---------------------------------------------------------------------------
@@ -110,16 +124,14 @@ def test_pynec_feeds_a_centre_at_the_position_through_a_split(at, wires):
     assert np.linalg.norm(centre - _target(at)) <= 1e-9 * LENGTH
 
 
-@pytest.mark.parametrize(
-    ("at", "wires"),
-    [(1 / 3, 1), (0.31, 2), (0.69, 2), (0.123, 2)] + [(a, 3) for a in NEAR_MIDDLE],
-)
+@pytest.mark.parametrize(("at", "wires"), [(1 / 3, 1)] + [(a, 2) for a in KNOT_BREAKS])
 def test_nec5_feeds_a_knot_at_the_position(at, wires):
     """A third of ten segments is a knot of twelve, so that wire only re-meshes;
-    the others fit no knot count up to twenty and split."""
+    the others break at the port, fed at the end knot of the first piece."""
     eng = NEC5Engine(_b(feed_at=at), require_exe=False)
     assert len(eng._wires) == wires
     ((idx, _type, _v, knot),) = eng._sources
+    assert (idx, knot) == ((0, "p1") if wires == 2 else (0, at))
     seg, end = eng._source_address(idx, knot)
     w = eng._wires[idx]
     point = np.asarray(w.p0) + seg / w.n_seg * (np.subtract(w.p1, w.p0))
@@ -160,18 +172,18 @@ def test_the_nec2_export_writes_the_pieces_and_the_source_mid_piece(at, pieces):
     assert np.linalg.norm(point - _target(at)) <= 1e-6 * LENGTH
 
 
-@pytest.mark.parametrize(
-    ("at", "pieces"), [(0.31, 2), (0.69, 2)] + [(a, 3) for a in NEAR_MIDDLE]
-)
-def test_the_nec5_export_writes_the_pieces_and_the_source_mid_piece(at, pieces):
+@pytest.mark.parametrize("at", KNOT_BREAKS)
+def test_the_nec5_export_writes_two_wires_and_the_source_at_the_shared_knot(at):
     from antennaknobs.nec5_export import export_nec5
 
     deck = export_nec5(
         _b(feed_at=at), design="test.split", rung="n=10", ground_name="free space"
     )
-    wires, _tag, seg, n, point = _deck_site(deck, knot=True)
-    assert wires == pieces
-    assert seg == n // 2 and n % 2 == 0
+    wires, tag, seg, n, point = _deck_site(deck, knot=True)
+    ((*_, end, _re, _im),) = _cards(deck, "EX")
+    assert wires == 2
+    # the last segment of the first piece, end 2: the knot the pieces share
+    assert (tag, seg, end) == (1, n, "2")
     assert np.linalg.norm(point - _target(at)) <= 1e-6 * LENGTH
 
 
@@ -181,13 +193,24 @@ def test_the_nec5_export_writes_the_pieces_and_the_source_mid_piece(at, pieces):
 
 
 @pytest.mark.parametrize(
-    ("at", "cut", "counts", "names"),
-    [(0.31, 0.62, [6, 4], ["w", None]), (0.69, 0.38, [4, 6], [None, "w"])],
+    ("engine", "at", "cut", "counts", "names"),
+    [
+        ("nec5", 0.31, 0.31, [3, 7], ["w", None]),
+        ("nec5", 0.69, 0.69, [7, 3], ["w", None]),
+        ("pynec", 0.31, 0.62, [7, 4], ["w", None]),
+        ("pynec", 0.69, 0.38, [4, 7], [None, "w"]),
+    ],
 )
 def test_the_pieces_meet_at_the_cut_in_the_wires_direction_with_its_spec(
-    at, cut, counts, names
+    engine, at, cut, counts, names
 ):
-    eng = NEC5Engine(_b(_ThickDipole, feed_at=at), require_exe=False)
+    if engine == "nec5":
+        eng = NEC5Engine(_b(_ThickDipole, feed_at=at), require_exe=False)
+    else:
+        pytest.importorskip("PyNEC")
+        from antennaknobs.engines.pynec import PyNECEngine
+
+        eng = PyNECEngine(_b(_ThickDipole, feed_at=at), ground=None)
     a, b = (as_wire(t) for t in eng.tups)
     point = _target(cut)
     np.testing.assert_allclose(
@@ -199,16 +222,26 @@ def test_the_pieces_meet_at_the_cut_in_the_wires_direction_with_its_spec(
     assert eng._split_feeds == {"feed": ("w", at, (pytest.approx(cut),))}
 
 
+@pytest.mark.parametrize("at", KNOT_BREAKS)
+def test_nec5_breaks_at_the_port_with_no_parity_and_no_sliver_rule(at):
+    """Each piece takes its own share of the ten segments, at least one: at
+    0.02 that is one segment a fifth as long as the rest, measured and kept."""
+    eng = NEC5Engine(_b(feed_at=at), require_exe=False)
+    ws = [as_wire(t) for t in eng.tups]
+    assert [w.n_seg for w in ws] == [
+        max(1, round(10 * at)),
+        max(1, round(10 * (1 - at))),
+    ]
+    np.testing.assert_allclose(
+        [ws[0].p1, ws[1].p0], [_target(at), _target(at)], rtol=0, atol=1e-12
+    )
+
+
 @pytest.mark.parametrize("at", NEAR_MIDDLE)
-@pytest.mark.parametrize("engine", ["pynec", "nec5"])
-def test_a_feed_near_the_middle_splits_in_three_and_leaves_no_sliver(engine, at):
+def test_a_feed_near_the_middle_splits_in_three_and_leaves_no_sliver(at):
     """A filler at each end: the nearer one authored segment long, the far one
     the rest, and the carrying piece centred on the port between them."""
-    eng = (
-        _pynec(feed_at=at)
-        if engine == "pynec"
-        else NEC5Engine(_b(_ThickDipole, feed_at=at), require_exe=False)
-    )
+    eng = _pynec(feed_at=at)
     ws = [as_wire(t) for t in eng.tups]
     assert [w.name for w in ws] == [None, "w", None]
     ends = [P0] + [np.asarray(w.p1) for w in ws[:-1]] + [P1]
@@ -228,15 +261,12 @@ def test_a_feed_near_the_middle_splits_in_three_and_leaves_no_sliver(engine, at)
     (note,) = eng.advisories
     lo, hi = eng._split_feeds["feed"][2]
     assert f"split in three at {lo:.4g} and {hi:.4g} of its length" in note["text"]
-    if engine == "nec5":
-        assert {w.spec for w in ws} == {THICK}
 
 
 def test_a_wire_of_two_segments_keeps_the_two_piece_split():
     """Two segments leave no room for a filler: at 0.49 the nearer filler would
     need half a segment and still leave the carrying piece under half of one."""
-    eng = NEC5Engine(_b(n_seg=2, feed_at=0.49), require_exe=False)
-    assert len(eng.tups) == 2
+    assert len(_pynec(n_seg=2, feed_at=0.49).tups) == 2
 
 
 def test_one_note_says_where_the_port_asked_to_be_and_where_the_wire_was_cut():
@@ -246,8 +276,7 @@ def test_one_note_says_where_the_port_asked_to_be_and_where_the_wire_was_cut():
         "text": (
             "Port 'feed' asks for 0.31 of the way along wire 'w'. No segment count "
             "up to 2× the wire's own puts a knot there, so the wire is split in two "
-            "at 0.62 of its length and the port is fed exactly, at the middle of its "
-            "piece (AK#1510)."
+            "at 0.31 and the port is fed at the knot the two pieces share (AK#1510)."
         ),
     }
 
@@ -275,9 +304,15 @@ def test_momwire_feeds_the_exact_arclength_and_never_splits():
 
 def test_the_builders_network_keeps_its_position():
     b = _b(feed_at=0.31)
-    eng = NEC5Engine(b, require_exe=False)
+    nec5 = NEC5Engine(b, require_exe=False)
     assert b.build_network().ports["feed"].at == 0.31
-    assert eng._network_as_meshed(b.build_network()).ports["feed"] == PortOnWire(
+    # a knot engine: the series source at the end the two pieces share
+    assert nec5._network_as_meshed(b.build_network()).ports["feed"] == PortAtVertex(
+        wire="w", end="p1"
+    )
+    # a segment-centre engine: the middle of the piece
+    pynec = _pynec(feed_at=0.31)
+    assert pynec._network_as_meshed(b.build_network()).ports["feed"] == PortOnWire(
         "feed", wire="w"
     )
 
@@ -288,12 +323,67 @@ def test_the_builders_network_keeps_its_position():
 
 
 def test_nec5_joins_the_pieces_currents_back_into_the_wire():
-    eng = NEC5Engine(_b(feed_at=0.31), require_exe=False)
-    (wc,) = eng._currents_from({1: [1.0] * 6, 2: [2.0] * 4})
-    np.testing.assert_allclose(wc.knot_positions[[0, 6, -1]], [P0, _target(0.62), P1])
+    import antennaknobs.web.examples  # noqa: F401  registration order
+    from antennaknobs.web import adapter
+
+    b = _b(feed_at=0.31)
+    eng = NEC5Engine(b, require_exe=False)
+    (wc,) = eng._currents_from({1: [1.0] * 3, 2: [2.0] * 7})
+    np.testing.assert_allclose(wc.knot_positions[[0, 3, -1]], [P0, _target(0.31), P1])
     assert wc.knot_positions.shape == (11, 3)
     # the knot at the cut: the mean of the two pieces' neighbouring currents
-    assert wc.knot_currents[6] == 1.5
+    assert wc.knot_currents[3] == 1.5
+    # the workbench marker lands on the fed knot
+    pos = adapter._pynec_feed_position(b, [wc])
+    assert np.linalg.norm(np.asarray(pos) - _target(0.31)) <= 1e-9 * LENGTH
+
+
+class _LineFedDipole(_Dipole):
+    """The feed reached through a line from a virtual source: the reducer
+    route, which reads each undriven port's current from the wire currents."""
+
+    def build_network(self):
+        return Network(
+            ports={
+                "src": PortVirtual("src"),
+                "feed": PortOnWire("feed", wire="w", at=self.feed_at),
+            },
+            branches=[TL(a="src", b="feed", z0=50.0, length=1.0)],
+            sources=[Driven(port="src")],
+        )
+
+
+class _ApexDipole(AntennaBuilder):
+    """Two wires meeting at a vertex source, the same geometry authored whole
+    as a split would make it: a real junction, not a split."""
+
+    default_params = MappingProxyType({"freq": FREQ, "design_freq": FREQ})
+
+    def build_wires(self):
+        cut = tuple(_target(0.31))
+        return [Wire(tuple(P0), cut, n_seg=3, name="w"), Wire(cut, tuple(P1), n_seg=7)]
+
+    def build_network(self):
+        return Network(
+            ports={"src": PortVirtual("src"), "feed": PortAtVertex(wire="w")},
+            branches=[TL(a="src", b="feed", z0=50.0, length=1.0)],
+            sources=[Driven(port="src")],
+        )
+
+
+def test_nec5_reads_a_split_ports_current_across_the_cut():
+    """An undriven port's current interpolates the two neighbouring segment
+    centres, weighted by the other's length, as at any interior knot. A vertex
+    where two authored wires meet keeps its named arm's own current."""
+    per_tag = {1: [1.0] * 3, 2: [3.0] * 7}
+    eng = NEC5Engine(_b(_LineFedDipole, feed_at=0.31), require_exe=False)
+    assert eng._use_reducer and eng._port_attach["feed"] == (0, "p1")
+    h_a, h_b = 0.31 * LENGTH / 3, 0.69 * LENGTH / 7
+    assert eng._port_knot_current(per_tag, 0, "p1") == pytest.approx(
+        (1.0 * h_b + 3.0 * h_a) / (h_a + h_b), rel=1e-12
+    )
+    apex = NEC5Engine(_ApexDipole(), require_exe=False)
+    assert apex._port_knot_current(per_tag, 0, "p1") == 1.0
 
 
 def test_nec2_meshes_as_its_deck_does_and_joins_the_currents(monkeypatch):
@@ -307,9 +397,14 @@ def test_nec2_meshes_as_its_deck_does_and_joins_the_currents(monkeypatch):
     assert wc.knot_positions.shape == (11, 3) and wc.knot_currents[7] == 2.0
 
 
-def test_nec5_joins_three_pieces_back_into_the_wire():
-    eng = NEC5Engine(_b(feed_at=0.499), require_exe=False)
+def test_nec2_joins_three_pieces_back_into_the_wire(monkeypatch):
+    pytest.importorskip("PyNEC")
+    from antennaknobs.engines import nec2
+
+    monkeypatch.setattr(nec2, "find_nec2", lambda explicit=None: "/bin/true")
+    eng = nec2.NEC2Engine(_b(feed_at=0.499))
     counts = [as_wire(t).n_seg for t in eng.tups]
+    assert len(counts) == 3
     (wc,) = eng._currents_from({i + 1: [float(i)] * c for i, c in enumerate(counts)})
     assert wc.knot_positions.shape == (sum(counts) + 1, 3)
     np.testing.assert_allclose(wc.knot_positions[[0, -1]], [P0, P1])
@@ -365,3 +460,82 @@ def test_the_split_feed_agrees_with_the_exact_arclength_as_a_centre_feed_does(
     assert len(split.tups) == pieces
     exact = _z(MomwireEngine(_b(n_seg=101, feed_at=at)))
     assert abs(_z(split) - exact) <= 2 * centre_fed_d
+
+
+# ---------------------------------------------------------------------------
+# live NEC-5
+# ---------------------------------------------------------------------------
+
+
+class _LoadedWhole(AntennaBuilder):
+    default_params = MappingProxyType({"freq": FREQ, "design_freq": FREQ})
+
+    def build_wires(self):
+        return [Wire(tuple(P0), tuple(P1), n_seg=10, name="w")]
+
+    def build_network(self):
+        return Network(
+            ports={"feed": PortOnWire("feed", wire="w", at=0.3)},
+            branches=[Load(port="feed", r=10.0)],
+            sources=[Driven(port="feed")],
+        )
+
+
+class _LoadedPieces(_LoadedWhole):
+    def build_wires(self):
+        cut = tuple(_target(0.3))
+        return [Wire(tuple(P0), cut, n_seg=3, name="w"), Wire(cut, tuple(P1), n_seg=7)]
+
+    def build_network(self):
+        return Network(
+            ports={"feed": PortAtVertex(wire="w")},
+            branches=[Load(port="feed", r=10.0)],
+            sources=[Driven(port="feed")],
+        )
+
+
+@needs_nec5
+def test_nec5_feeds_the_shared_knot_as_it_feeds_that_knot_of_the_whole_wire():
+    """The vertex source a break makes, with a series load on it, against the
+    interior knot source at the same point of the same ten segments. Measured:
+    125.59+j31.839 both."""
+    whole = _z(NEC5Engine(_LoadedWhole(), ground=None))
+    pieces = _z(NEC5Engine(_LoadedPieces(), ground=None))
+    assert abs(pieces - whole) <= 1e-9 * abs(whole)
+
+
+@pytest.fixture(scope="module")
+def nec5_centre_fed_d():
+    """D5 on the centre-fed dipole at 100 segments: |Z_NEC-5 - Z_momwire|, and
+    that as a fraction of |Z|."""
+    from antennaknobs.engines.momwire import MomwireEngine
+
+    nec5 = _z(NEC5Engine(_b(n_seg=100), ground=None))
+    mom = _z(MomwireEngine(_b(n_seg=100)))
+    return abs(nec5 - mom), abs(nec5 - mom) / abs(mom)
+
+
+@needs_nec5
+def test_nec5_split_feed_agrees_with_the_exact_arclength_as_a_centre_feed_does(
+    nec5_centre_fed_d,
+):
+    """Self-calibrating at 100 segments. Measured: D5 = 1.626 ohm (1.78 % of
+    |Z|). A break at 0.333, |Z| near 108 ohm, is 2.197 ohm from momwire's exact
+    arclength (1.35 D5).
+
+    At 0.123 |Z| is near 640 ohm and the two engines disagree in proportion,
+    whole wire or split: 0.12, a knot of the whole wire, is 16.35 ohm off
+    (2.41 %), and 0.125, re-meshed to 104 segments, 12.25 ohm (1.95 %). So the
+    gate there is relative, and the break's 13.14 ohm is 2.03 %."""
+    from antennaknobs.engines.momwire import MomwireEngine
+
+    d5, d5_rel = nec5_centre_fed_d
+    for at, bound in [(0.333, 2 * d5), (0.123, None)]:
+        split = NEC5Engine(_b(n_seg=100, feed_at=at), ground=None)
+        assert len(split.tups) == 2
+        exact = _z(MomwireEngine(_b(n_seg=100, feed_at=at)))
+        miss = abs(_z(split) - exact)
+        if bound is None:
+            assert miss / abs(exact) <= 2 * d5_rel
+        else:
+            assert miss <= bound

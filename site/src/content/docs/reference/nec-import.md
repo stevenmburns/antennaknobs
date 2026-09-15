@@ -294,9 +294,10 @@ position: a port
 [positioned along the wire](/concepts/station-modelling/#a-port-anywhere-along-a-wire)
 at that point, fed there on every engine. An engine re-meshes the wire, up to
 twice its own segment count, so the point is a segment centre or a knot of its
-grid. When no count in that range has one there, PyNEC, NEC-2 and NEC-5 split
-the wire so the port sits at the exact middle of one piece, and say so in
-a FeedPlacement advisory.
+grid. When no count in that range has one there, the wire is split
+and a FeedPlacement advisory says so. PyNEC and NEC-2 split it so the port sits
+at the exact middle of one piece; NEC-5 splits it at the port and feeds the
+knot the two pieces share.
 
 A percentage on a segment boundary can therefore differ from a 4nec2 run by
 design. 4nec2 converts the percentage to one of the two neighbouring segments

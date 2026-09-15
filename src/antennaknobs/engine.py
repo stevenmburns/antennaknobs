@@ -6,7 +6,7 @@ from typing import ClassVar, Literal, NamedTuple
 
 import numpy as np
 
-from .network import GradedSegments, PortOnWire, Wire, as_wire
+from .network import GradedSegments, PortAtVertex, PortOnWire, Wire, as_wire
 from .wire_catalog import gap_knot, gap_segment, port_at, port_wire, site_count
 
 _logger = logging.getLogger(__name__)
@@ -170,35 +170,48 @@ def split_note(port, wire, at, cuts, site):
     site there, and where the wire was cut. The feed is exact, so there is no
     offset to report."""
     where = " and ".join(f"{c:.4g}" for c in cuts)
-    pieces = "two" if len(cuts) == 1 else "three"
+    if site == "knot":
+        how = (
+            f"so the wire is split in two at {where} and the port is fed at the "
+            "knot the two pieces share"
+        )
+    else:
+        pieces = "two" if len(cuts) == 1 else "three"
+        how = (
+            f"so the wire is split in {pieces} at {where} of its length and the "
+            "port is fed exactly, at the middle of its piece"
+        )
     return {
         "category": "FeedPlacement",
         "text": (
             f"Port {port!r} asks for {at:.4g} of the way along wire {wire!r}. "
             f"No segment count up to {SITE_COUNT_CAP}× the wire's own puts a "
-            f"{site} there, so the wire is split in {pieces} at {where} of its "
-            "length and the port is fed exactly, at the middle of its piece "
-            "(AK#1510)."
+            f"{site} there, {how} (AK#1510)."
         ),
     }
 
 
-def _middle_parity_count(segments, parity):
-    """The count nearest `segments` whose middle is a site: odd and at least 1
-    for segment centres, even and at least 2 for knots."""
-    if parity == "even":
-        return max(2, 2 * round(segments / 2))
+def _nearest_odd_count(segments):
+    """The odd count, at least 1, nearest `segments`: its middle is a segment
+    centre."""
     return max(1, 2 * round((segments - 1) / 2) + 1)
 
 
 def _split_at_feed(t, at, parity):
-    """Wire entry `t` cut so a port at `at` sits at the exact middle of one
-    piece (AK#1510): ``(pieces in p0 -> p1 order, cuts as fractions)``.
+    """Wire entry `t` cut so a port at `at` sits exactly on a site (AK#1510):
+    ``(pieces in p0 -> p1 order, cuts as fractions)``.
 
+    A knot engine (even parity) feeds a knot at a piece's END, so the wire is
+    broken at the port itself: [0, at] keeps the wire's name, ex and spec,
+    [at, 1] is unnamed with the same spec, each takes its own share of the
+    authored count, at least 1, and the port is fed at the knot they share.
+    No parity applies, since that knot is an end of both pieces.
+
+    A segment-centre engine (odd parity) needs the port at a piece's MIDDLE.
     Two pieces: the carrying piece is [0, 2*at] for at < 1/2 and [2*at - 1, 1]
     above it, so its middle is `at`. It takes its share of the authored count
-    raised to the engine's middle parity, so its middle is a segment centre
-    (odd) or a knot (even); the other piece takes its own share, at least 1.
+    raised to odd, so its middle is a segment centre; the other piece takes
+    its own share, at least 1.
 
     That other piece is |1 - 2*at| of the wire, shorter than half an authored
     segment h = 1/n when |1 - 2*at| * n < 1/2: a sliver at the far end. Then
@@ -206,9 +219,9 @@ def _split_at_feed(t, at, parity):
     distance to the nearer end, the nearer filler is d - w = h, or h/2 when h
     leaves w < h/2, and the far filler is 1 - d - w >= h/2. Near the middle
     d > 1/2 - h/4, so h serves n >= 4 and h/2 serves n = 3. A wire of one or
-    two segments keeps the two-piece split. The carrying piece takes the
-    middle parity count nearest its length in authored segments, each filler
-    its own, at least 1.
+    two segments keeps the two-piece split. The carrying piece takes the odd
+    count nearest its length in authored segments, each filler its own, at
+    least 1.
 
     Every piece but the carrying one is unnamed with the same spec, and all
     keep the wire's orientation and meet at the cuts."""
@@ -216,7 +229,12 @@ def _split_at_feed(t, at, parity):
     n = int(wire.n_seg)
     h = 1 / n
     spans = None
-    if abs(1 - 2 * at) * n < 0.5:
+    if parity == "even":
+        spans = [
+            (0.0, at, max(1, round(at * n)), True),
+            (at, 1.0, max(1, round((1 - at) * n)), False),
+        ]
+    elif abs(1 - 2 * at) * n < 0.5:
         d = min(at, 1 - at)
         half = next((d - near for near in (h, h / 2) if d - near >= h / 2), None)
         if half is None:
@@ -232,7 +250,7 @@ def _split_at_feed(t, at, parity):
             lo, hi = at - half, at + half
             spans = [
                 (0.0, lo, max(1, round(lo * n)), False),
-                (lo, hi, _middle_parity_count(2 * half * n, parity), True),
+                (lo, hi, _nearest_odd_count(2 * half * n), True),
                 (hi, 1.0, max(1, round((1 - hi) * n)), False),
             ]
     if spans is None:
@@ -299,8 +317,9 @@ class SimulationEngine(ABC):
     segment_parity: ClassVar[SegmentParity] = "any"
     # An engine whose gap can only sit on a site of its own grid sets this: a
     # wire carrying ONE positioned port that no count up to the cap puts on a
-    # site is split so the port sits at the exact middle of one piece
-    # (AK#1510). momwire feeds the exact arclength and never splits.
+    # site is split so the port sits exactly on one (AK#1510), at the middle
+    # of a piece for a segment-centre engine and at the knot two pieces share
+    # for a knot engine. momwire never splits.
     splits_wire_at_feed: ClassVar[bool] = False
 
     def __init__(self, builder):
@@ -359,19 +378,29 @@ class SimulationEngine(ABC):
         )
 
     def _network_as_meshed(self, net):
-        """`net` as this engine meshes it (AK#1510). A port whose wire was
-        split at the feed sits at the MIDDLE of the piece carrying the wire's
-        name, so every reader of its position (segment, knot, card or drive
-        point) feeds that piece's middle site, never `at` re-applied to the
-        piece. A shallow copy: the builder's network is untouched."""
+        """`net` as this engine meshes it (AK#1510), so every reader of a split
+        port's position (segment, knot, card or drive point) feeds the site the
+        split made, never `at` re-applied to a piece. A shallow copy: the
+        builder's network is untouched.
+
+        On a segment-centre engine the port sits at the MIDDLE of the piece
+        carrying the wire's name. On a knot engine it is the series source at
+        that piece's p1 end, the knot it shares with the next piece: the
+        `PortAtVertex` NEC-5 serves natively (issue #898), whose source and
+        loads sit at that knot as they would at an interior one."""
         splits = getattr(self, "_split_feeds", None)
         if net is None or not splits:
             return net
+
+        def meshed_port(name, port):
+            if name not in splits:
+                return port
+            if self.segment_parity == "even":
+                return PortAtVertex(wire=port_wire(port), end="p1")
+            return replace(port, at=None)
+
         meshed = copy.copy(net)
-        meshed.ports = {
-            name: replace(port, at=None) if name in splits else port
-            for name, port in net.ports.items()
-        }
+        meshed.ports = {name: meshed_port(name, p) for name, p in net.ports.items()}
         return meshed
 
     def _authored_currents(self, currents):
@@ -462,9 +491,9 @@ class SimulationEngine(ABC):
             # A port positioned along this wire (AK#1469) wants a count at which
             # its position is a site of this engine's grid, not just the middle,
             # up to SITE_COUNT_CAP times the authored count. Past that, an engine
-            # that splits cuts a wire carrying that ONE port so the port sits at
-            # a piece's middle (AK#1510). A wire carrying several keeps the
-            # parity count, and the engine places each on its nearest site.
+            # that splits cuts a wire carrying that ONE port so the port sits on
+            # a site (AK#1510). A wire carrying several keeps the parity count,
+            # and the engine places each on its nearest site.
             at_here = positions.get(w.name) if marked else None
             if at_here and family is not None:
                 m = site_count(

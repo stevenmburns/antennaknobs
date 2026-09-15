@@ -18,6 +18,11 @@ NOTE = (
     "split in two at 0.62 of its length and the port is fed exactly, at the middle "
     "of its piece (AK#1510).\n"
 )
+KNOT_NOTE = (
+    "advisory: Port 'feed' asks for 0.31 of the way along wire 'feed'. No segment "
+    "count up to 2× the wire's own puts a knot there, so the wire is split in two "
+    "at 0.31 and the port is fed at the knot the two pieces share (AK#1510).\n"
+)
 
 
 @needs_pynec
@@ -49,7 +54,7 @@ def test_export_prints_the_note_to_stderr_and_the_deck_is_unchanged(
 
     ant.cli(argv)
     echoed = capsys.readouterr()
-    assert echoed.err.count(NOTE.replace("segment centre", "knot")) == 1
+    assert echoed.err.count(KNOT_NOTE) == 1
     assert echoed.out.count("\nGW ") == 2
 
     monkeypatch.setattr(_FeedPlacementEcho, "flush", lambda *a, **k: None)
