@@ -140,6 +140,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
     defaultSlotSeeds,
     compositionVocab,
     uiDefaults,
+    versionLabel,
     error,
   } = useCapabilities();
   if (error !== null)
@@ -164,6 +165,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
       defaultSlotSeeds={defaultSlotSeeds}
       compositionVocab={compositionVocab}
       uiDefaults={uiDefaults}
+      versionLabel={versionLabel}
     />
   );
 }
@@ -180,6 +182,7 @@ function DesignSessionBody({
   defaultSlotSeeds,
   compositionVocab,
   uiDefaults,
+  versionLabel,
 }: {
   id: number;
   active: boolean;
@@ -195,6 +198,9 @@ function DesignSessionBody({
   compositionVocab: CompositionVocabulary;
   /** Where the session starts (AK#1492): switches and ground from settings.toml. */
   uiDefaults: UiDefaults;
+  /** "v0.77.0 · momwire 0.55.0" (AK#1507), rendered under the brand as-is;
+   *  null from a server predating it. */
+  versionLabel: string | null;
 }) {
   const [geometry, setGeometry] = useState<string>("");
 
@@ -1811,6 +1817,7 @@ function DesignSessionBody({
   const controls = (
     <>
         <SessionGearMenu
+          versionLabel={versionLabel}
           gearMenuOpen={gearMenuOpen}
           setGearMenuOpen={setGearMenuOpen}
           copiedParams={copiedParams}

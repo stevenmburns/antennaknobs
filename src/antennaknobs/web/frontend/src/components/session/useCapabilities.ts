@@ -29,6 +29,9 @@ type CapabilitiesPayload = {
   composition_axes?: string[];
   axis_value_labels?: Record<string, Record<string, string>>;
   ui_defaults?: unknown;
+  /** "v0.77.0 · momwire 0.55.0" (AK#1507): one server-built string so this
+   *  file never names an engine. Absent from a server predating it. */
+  version_label?: string;
 };
 
 export type CapabilitiesState = {
@@ -62,6 +65,9 @@ export type CapabilitiesState = {
    *  ground, from the server's settings.toml. The built-in defaults from a
    *  server predating it. */
   uiDefaults: UiDefaults;
+  /** The served version string, rendered under the brand as-is. Null from a
+   *  server predating it (AK#1507), which renders no label at all. */
+  versionLabel: string | null;
   error: string | null;
 };
 
@@ -85,6 +91,7 @@ export function useCapabilities(): CapabilitiesState {
     labels: {},
   });
   const [uiDefaults, setUiDefaults] = useState<UiDefaults>(BUILTIN_UI_DEFAULTS);
+  const [versionLabel, setVersionLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -131,6 +138,7 @@ export function useCapabilities(): CapabilitiesState {
               : {},
         });
         setUiDefaults(parseUiDefaults(c.ui_defaults));
+        setVersionLabel(typeof c.version_label === "string" ? c.version_label : null);
         // An empty roster is as unusable as a failed fetch — there would be
         // no solver to pick — so it takes the error path rather than
         // stranding the session on the loading note.
@@ -158,6 +166,7 @@ export function useCapabilities(): CapabilitiesState {
     defaultSlotSeeds,
     compositionVocab,
     uiDefaults,
+    versionLabel,
     error,
   };
 }

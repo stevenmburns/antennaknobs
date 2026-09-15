@@ -453,6 +453,12 @@ button:focus-visible,
   letter-spacing: 0.01em;
 }
 
+.version-label {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
 .theme-toggle {
   flex: 0 0 auto;
   width: 28px;

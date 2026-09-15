@@ -98,6 +98,10 @@ export interface MountDesignSessionOptions {
   /** /capabilities' `ui_defaults` (AK#1492); omitted from the payload when
    *  undefined, which is a server predating it. */
   uiDefaults?: unknown;
+  /** /capabilities' `version_label` (AK#1507); omitted from the payload when
+   *  undefined, which is a server predating it — the default, so most tests
+   *  exercise the no-label render path without asking for it. */
+  versionLabel?: string;
 }
 
 // Mounts <DesignSession>: seeds the view prefs localStorage record, stubs
@@ -120,6 +124,7 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
     examples = [HARNESS_EXAMPLE],
     routes = {},
     uiDefaults,
+    versionLabel,
   } = opts;
 
   localStorage.clear();
@@ -154,6 +159,7 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
           default_slots: SERVED_SLOT_SEEDS,
           terrain_presets: [],
           ...(uiDefaults === undefined ? {} : { ui_defaults: uiDefaults }),
+          ...(versionLabel === undefined ? {} : { version_label: versionLabel }),
         });
       if (path.startsWith("/examples"))
         return jsonResponse({ examples, errors: [] });
