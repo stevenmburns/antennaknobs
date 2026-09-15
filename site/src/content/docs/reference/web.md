@@ -530,7 +530,7 @@ variant just replaced. Re-mark the knobs and turn Optimize back on to resume.
 A **solver selector** offers a few preset slots so you can flip between engines
 without re-entering options — e.g. a fast dense basis, an accelerated array
 engine, and the PyNEC reference. The available engines are the momwire bases
-(**Sinusoidal**, **Sin-Galerkin**, **B-spline**), the accelerators
+(**Sinusoidal**, **Sin-Galerkin**, **B-spline**, **Harrington (pulse)**), the accelerators
 (**H-matrix (ACA)**, **Array-block**), the optional **PyNEC** backend — see
 [The solver & accuracy](/reference/solver/) for what each is good at — and,
 on a machine with a licensed binary, **NEC-5**

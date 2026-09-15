@@ -374,7 +374,7 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
     _BackendSpec(
         name="pulse",
         model_kwargs=(),
-        label="Pulse",
+        label="Harrington (pulse)",
         solver=HarringtonSolver,
     ),
     # bspline; model_options forward verbatim (degree, aca_eta,
