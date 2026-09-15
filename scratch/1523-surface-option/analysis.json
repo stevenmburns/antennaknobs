@@ -1,0 +1,185 @@
+{
+ "checks": {
+  "K0": {
+   "verdict": "FAIL",
+   "fails": [
+    "m0-18 nec5",
+    "m1-28 nec5",
+    "m1-28 nec5_lonly",
+    "m2-20a nec5",
+    "q1-18-awg-pvc nec5",
+    "q1-18-awg-pvc nec5_lonly",
+    "q1-18-awg-pvc nec5_pre",
+    "q1-22-awg-pvc nec5",
+    "q1-22-awg-pvc nec5_lonly",
+    "q1-22-awg-pvc nec5_pre",
+    "q1-28-awg-pvc nec5",
+    "q1-28-awg-pvc nec5_lonly",
+    "q1-28-awg-pvc nec5_pre",
+    "q2-20a nec5",
+    "q2-20a nec5_lonly",
+    "q2-20a nec5_pre",
+    "q2-2b nec5",
+    "q2-2b nec5_lonly",
+    "q2-2b nec5_pre",
+    "q2-5b nec5",
+    "q2-5b nec5_lonly",
+    "q2-5b nec5_pre"
+   ],
+   "missing": [],
+   "instances": 51
+  },
+  "K1": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 7
+  }
+ },
+ "predictions": {
+  "A0": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 25
+  },
+  "A1": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 34
+  },
+  "B1": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 3
+  },
+  "B1o": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 1
+  },
+  "B2a": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 3
+  },
+  "B2b": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 3
+  },
+  "B3": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 3
+  },
+  "C1": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 2
+  },
+  "C2": {
+   "verdict": "MISS",
+   "fails": [
+    "5b <= b/5"
+   ],
+   "missing": [],
+   "instances": 1
+  },
+  "C3": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 3
+  },
+  "C4": {
+   "verdict": "MISS",
+   "fails": [
+    "shift 20a < b"
+   ],
+   "missing": [],
+   "instances": 1
+  },
+  "M": {
+   "verdict": "MISS",
+   "fails": [
+    "m1-28 bs2 <= 1 %"
+   ],
+   "missing": [],
+   "instances": 5
+  },
+  "S1": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 1
+  },
+  "S2": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 3
+  },
+  "S3": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 1
+  }
+ },
+ "extra": {
+  "advisory_by_arm": {
+   "q1-18-awg-pvc": {
+    "razor": false,
+    "bs2": true,
+    "razor_lonly": false,
+    "bs2_lonly": true
+   },
+   "q1-22-awg-pvc": {
+    "razor": false,
+    "bs2": true,
+    "razor_lonly": false,
+    "bs2_lonly": true
+   },
+   "q1-28-awg-pvc": {
+    "razor": false,
+    "bs2": true,
+    "razor_lonly": false,
+    "bs2_lonly": true
+   },
+   "m0-18": {
+    "razor": false,
+    "bs2": true
+   },
+   "m1-28": {
+    "razor": false,
+    "bs2": true
+   },
+   "q2-2b": {
+    "razor": false,
+    "bs2": true
+   },
+   "q2-5b": {
+    "razor": false,
+    "bs2": true
+   },
+   "severns": {
+    "razor": false,
+    "bs2": true
+   }
+  },
+  "B3_ratio": {
+   "18-awg-pvc": 0.949772073232376,
+   "22-awg-pvc": 0.9683718068642893,
+   "28-awg-pvc": 1.0013943571551929
+  }
+ },
+ "rule": "stop: K0 did not pass"
+}
