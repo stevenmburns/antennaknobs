@@ -95,6 +95,15 @@ def cell(
     return json.loads(line[-1])
 
 
+def fed_note(cell: dict) -> str:
+    """A cell's fed segments as `segments x length (site)`, e.g.
+    `2 x 25.0 mm (knot)`; empty when the cell recorded none (AK#1456)."""
+    return "; ".join(
+        f"{r['segments']} x {1000 * r['length_m']:.1f} mm ({r['site']})"
+        for r in cell.get("fed_segments") or []
+    )
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(HERE / "popa-rows.csv"))
@@ -185,6 +194,9 @@ def main(argv=None) -> int:
                 "zmax": zmax,
                 "crossing_nodes": nodes,
                 "nec5_segs": cells["nec5"].get("nsegs", ""),
+                # AK#1456: each engine's fed segment, next to the two impedances.
+                "momwire_fed": fed_note(cells["shipped"]),
+                "nec5_fed": fed_note(cells["nec5"]),
                 "deck_sha": cells["nec5"].get("deck_sha256", ""),
                 "ge_card": cells["nec5"].get("ge_card", ""),
                 "shipped_status": cells["shipped"]["status"],
