@@ -96,7 +96,7 @@
 | src/antennaknobs/designs/verticals/buried\_radial\_vertical.py       |       54 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/challenger.py                     |       25 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/dominator.py                      |       23 |        0 |    100% |           |
-| src/antennaknobs/designs/verticals/elevated\_buried\_counterpoise.py |       24 |        0 |    100% |           |
+| src/antennaknobs/designs/verticals/elevated\_buried\_counterpoise.py |       26 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/elt\_whip.py                      |      115 |        2 |     98% |   328-329 |
 | src/antennaknobs/designs/verticals/four\_square.py                   |       26 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/half\_square.py                   |       20 |        0 |    100% |           |
@@ -147,7 +147,7 @@
 | src/antennaknobs/nec5\_export.py                                     |       17 |        0 |    100% |           |
 | src/antennaknobs/nec\_export.py                                      |       78 |        4 |     95% |63, 129, 148, 169 |
 | src/antennaknobs/nec\_import.py                                      |     1519 |       84 |     94% |156-157, 446, 523-524, 528, 531, 573, 635, 713, 780, 880, 994, 1078, 1085, 1280, 1299, 1309, 1450, 1466, 1516, 1522, 1530, 1554, 1563, 1586, 1601, 1605, 1688, 1711-1721, 1743-1759, 1884, 1886, 1888, 1906, 1908, 1910, 1915, 1921-1922, 1941, 2015, 2038, 2075, 2114, 2186, 2205, 2230, 2279, 2327-2328, 2331, 2333-2334, 2337, 2436, 2464, 2709, 2898, 3107 |
-| src/antennaknobs/network.py                                          |      116 |        4 |     97% |158, 357, 363, 377 |
+| src/antennaknobs/network.py                                          |      116 |        4 |     97% |159, 358, 364, 378 |
 | src/antennaknobs/network\_reduce.py                                  |        3 |        0 |    100% |           |
 | src/antennaknobs/opt.py                                              |       90 |       14 |     84% |54-55, 57-60, 65-66, 72-76, 153 |
 | src/antennaknobs/plane.py                                            |       74 |        5 |     93% |59, 92, 158, 161-162 |
@@ -182,8 +182,8 @@
 | src/antennaknobs/web/settings.py                                     |      325 |       28 |     91% |182, 196-197, 211-212, 215, 223, 238, 247, 259, 263, 274, 281-282, 291-292, 317-318, 351, 377, 389, 447-448, 627-628, 635-637 |
 | src/antennaknobs/web/tracker.py                                      |      254 |       30 |     88% |207, 213, 256, 272-273, 302-303, 306, 317-319, 326-327, 333, 415, 438-442, 445-454, 481 |
 | src/antennaknobs/web/user\_designs.py                                |       64 |        6 |     91% |60-61, 92-93, 98-99 |
-| src/antennaknobs/wire\_catalog.py                                    |      203 |        0 |    100% |           |
-| **TOTAL**                                                            | **17312** | **1120** | **94%** |           |
+| src/antennaknobs/wire\_catalog.py                                    |      221 |        0 |    100% |           |
+| **TOTAL**                                                            | **17332** | **1120** | **94%** |           |
 
 
 ## Setup coverage badge
