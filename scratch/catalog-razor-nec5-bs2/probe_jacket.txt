@@ -1,0 +1,43 @@
+=== 0. does the segment-length step at the source predict the gap?
+
+    design                            source step   |dX| razor-NEC-5
+    loops.triangular_skyloop             18.97 :1            0.0899
+    multiband.fandipole                  10.39 :1            0.1991
+    verticals.raised_vertical             9.97 :1            0.0303
+    verticals.vertical                    4.99 :1            0.0243
+    dipoles.pota_invvee                   4.94 :1            7.9748
+
+=== 1. mesh ladder, free space: does the gap converge away?
+
+--- dipoles.pota_invvee
+ nseg  segs                 razor                  nec5                   bs2   X(razor)-X(nec5)
+   21    41       53.6022-8.1782j      53.1480-16.1530j       53.9856-5.2408j             7.9748
+   41    77       53.7935-6.7054j      53.3210-14.6910j       54.0004-5.0767j             7.9856
+   81   152       53.8937-5.8959j      53.4090-13.9170j       54.0077-4.9776j             8.0211
+  161   303       53.9483-5.4575j      53.4540-13.5130j       54.0161-4.8964j             8.0555
+
+--- dipoles.invvee_catenary
+ nseg  segs                 razor                  nec5                   bs2   X(razor)-X(nec5)
+   21    29       50.9356-0.8256j       50.5180-6.2344j       51.5655+3.4911j             5.4088
+   41    86       51.3921+2.2489j       50.9340-3.1896j       51.6213+3.8037j             5.4385
+   81   143       51.4855+2.8226j       51.0140-2.6522j       51.6364+3.9194j             5.4748
+  161   314       51.5714+3.4167j       51.0850-2.1162j       51.6577+4.0448j             5.5329
+
+--- dipoles.invvee
+ nseg  segs                 razor                  nec5                   bs2   X(razor)-X(nec5)
+   21    41      54.6752-12.9896j      54.6720-13.0270j      55.1095-10.0881j             0.0374
+   41    80      54.8871-11.4838j      54.8840-11.5210j       55.1136-9.9353j             0.0372
+   81   157      54.9941-10.7370j      54.9910-10.7750j       55.1283-9.8078j             0.0380
+  161   312      55.0544-10.2930j      55.0510-10.3310j       55.1332-9.7323j             0.0380
+
+=== 2. the catalog's insulated designs
+
+    dipoles.invvee_catenary              18-awg-pvc
+    dipoles.pota_invvee                  22-awg-pvc
+    wire.efhw_sloper                     28-awg-pvc
+    3 of 103 designs default to a jacketed wire
+
+=== 3. same design, jacket removed, nothing else changed
+
+    wire_type=22-awg-pvc   razor=      53.6022-8.1782j nec5=     53.1480-16.1530j bs2=      53.9856-5.2408j dX= +7.9748  rel= 14.3797%
+    wire_type=22-awg       razor=     50.8918-73.2323j nec5=     50.8890-73.2740j bs2=     51.2542-70.6772j dX= +0.0417  rel=  0.0469%

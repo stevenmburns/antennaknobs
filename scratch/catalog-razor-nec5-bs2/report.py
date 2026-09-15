@@ -245,8 +245,37 @@ def main(argv=None):
         )
     w("")
 
+    # ---------------- R vs X split ----------------
+    w("## 4. The razor-vs-NEC-5 gap is reactance\n")
+    xs = [
+        abs(r["za"].imag - r["zb"].imag) / r["rel"] / abs(r["zb"])
+        for r in rows
+        if r["rel"] > 0
+    ]
+    w(
+        f"Median share of `rel|ΔZ|` carried by X rather than R, over all "
+        f"{len(xs)} rows: **{statistics.median(xs):.3f}**. Every row above 2 %:\n"
+    )
+    w("| design | ground | port | ΔR/|Z| | ΔX/|Z| | rel\\|ΔZ\\| | razor → NEC-5 |")
+    w("|---|---|---:|---:|---:|---:|---|")
+    over = sorted((r for r in rows if r["rel"] > 0.02), key=lambda r: -r["rel"])
+    for r in over:
+        dR = abs(r["za"].real - r["zb"].real) / abs(r["zb"])
+        dX = abs(r["za"].imag - r["zb"].imag) / abs(r["zb"])
+        w(
+            f"| `{r['design']}` | {r['ground']} | {r['port']} | {pct(dR)} | "
+            f"{pct(dX)} | {pct(r['rel'])} | "
+            f"{r['za'].real:.4g}{r['za'].imag:+.4g}j → "
+            f"{r['zb'].real:.4g}{r['zb'].imag:+.4g}j |"
+        )
+    w("")
+    w(
+        f"**{len(over)} of {len(rows)}** rows exceed 2 %; "
+        f"**{sum(1 for r in rows if r['rel'] > 0.05)}** exceed 5 %.\n"
+    )
+
     # ---------------- mesh confound evidence ----------------
-    w("## 4. The parity confound, measured\n")
+    w("## 5. The parity confound, measured\n")
     w(
         'Confound 1 of `PLAN.md`: razor and NEC-5 declare `segment_parity="even"` '
         'and bs2 declares `"odd"`, so the feed is a source on a shared knot for '
@@ -280,7 +309,7 @@ def main(argv=None):
     w("")
 
     # ---------------- predictions ----------------
-    w("## 5. Predictions P1–P4, scored\n")
+    w("## 6. Predictions P1–P4, scored\n")
     rn = dist(all_rows[("razor", "nec5")][0])
     bn = dist(all_rows[("bs2", "nec5")][0])
     br = dist(all_rows[("bs2", "razor")][0])
@@ -326,18 +355,40 @@ def main(argv=None):
         for e in engines
     }
     razor_only = sorted(refused_designs["razor"] - refused_designs["bs2"])
-    p4 = (
+
+    def _first_refusal(design, engine):
+        return next(
+            recs[(design, g, engine)]
+            for g in GROUNDS
+            if recs.get((design, g, engine), {}).get("status") in ("refused", "error")
+        )
+
+    causes = [refusal_class(_first_refusal(d, "razor")) for d in razor_only]
+    # P4 was registered as TWO claims and both are scored. The count clause and
+    # the cause clause can disagree -- and if only the countable half were
+    # checked, a prediction whose stated reason was wrong would still read HIT.
+    p4a = (
         len(refused_designs["razor"]) > len(refused_designs["bs2"])
         and 4 <= len(razor_only) <= 20
     )
+    p4b = bool(causes) and all(c == "junction ports" for c in causes)
     verdicts.append(
         (
-            "P4",
-            "razor refuses strictly more designs than bs2; 4–20 razor-only",
+            "P4a",
+            "razor refuses strictly more designs than bs2; 4-20 razor-only",
             f"razor {len(refused_designs['razor'])}, bs2 "
             f"{len(refused_designs['bs2'])}, nec5 {len(refused_designs['nec5'])}; "
             f"razor-only {len(razor_only)}",
-            p4,
+            p4a,
+        )
+    )
+    verdicts.append(
+        (
+            "P4b",
+            "every razor-only refusal is a junction-port design",
+            ", ".join(f"{c} x{causes.count(c)}" for c in dict.fromkeys(causes))
+            or "none",
+            p4b,
         )
     )
     w("| prediction | bar | measured | verdict |")
@@ -355,6 +406,14 @@ def main(argv=None):
                 if recs.get((d, g, "razor"), {}).get("status") in ("refused", "error")
             )
             w(f"  - `{d}` — {refusal_class(rec)}")
+        w("")
+
+    # Prose lives in its own file and is INCLUDED, so the README still
+    # regenerates byte-for-byte from the data plus that file -- a hand-edited
+    # section inside a generated file is a section the next run deletes.
+    notes = Path(__file__).with_name("hypotheses.md")
+    if notes.is_file():
+        w(notes.read_text(encoding="utf-8").rstrip())
         w("")
 
     sys.stdout.write("\n".join(out) + "\n")

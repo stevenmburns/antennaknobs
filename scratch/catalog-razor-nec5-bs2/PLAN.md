@@ -125,3 +125,25 @@ Branch `scratch/catalog-razor-nec5-bs2`, no PR, no issue comments.
 * `records.jsonl` — one record per design × engine × ground
 * `report.py` — reads the JSONL, writes the tables in `README.md`
 * `README.md` — the tables, the verdicts on P1–P4, the worst-10 with hypotheses
+
+## 7. Amendment, after the sweep (2026-09-15)
+
+Appended rather than edited in place, so §4's bars stay as registered.
+
+* Two more files joined §6's list: `probe_jacket.py` / `probe_jacket.txt`, the
+  follow-up that identifies what the tail is made of, and `hypotheses.md`, the
+  prose the README includes verbatim so that generated file has no hand-edited
+  section in it.
+* **P4 was two claims and only one of them was scored.** As registered it says
+  razor refuses strictly more designs than bs2, 4–20 of them, *and* that every
+  razor-only refusal is a junction-port design. The scoring code checked only
+  the countable half, which would have reported HIT on a prediction whose stated
+  reason was wrong. It is now split into **P4a** (count, HIT) and **P4b**
+  (cause, **MISS** — 3 of the 4 are momwire's buried-fill refusal, not junction
+  ports).
+* **A fourth confound was found, and it dominates the headline's tail.** The
+  three designs whose razor-vs-NEC-5 rows exceed 5 % are exactly the three
+  catalog designs that default to a PVC-jacketed `wire_type`, and NEC-5 has no
+  insulated-wire card, so antennaknobs emulates the jacket with an `LD 2`
+  inductance while momwire's lane passes the jacket into the solver. README §7
+  has the falsified alternatives and the control that settles it.
