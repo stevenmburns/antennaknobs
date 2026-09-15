@@ -128,11 +128,11 @@
 | src/antennaknobs/designs/wire/w8jk.py                                |       22 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/zepp.py                                |       15 |        0 |    100% |           |
 | src/antennaknobs/drone.py                                            |      131 |        4 |     97% |208, 249-250, 261 |
-| src/antennaknobs/engine.py                                           |      207 |        4 |     98% |152, 284, 552, 558 |
+| src/antennaknobs/engine.py                                           |      245 |        7 |     97% |152, 284, 342, 344, 532, 659, 665 |
 | src/antennaknobs/engine\_capture.py                                  |       27 |        3 |     89% |     60-62 |
 | src/antennaknobs/engines/\_\_init\_\_.py                             |        8 |        2 |     75% |       3-4 |
 | src/antennaknobs/engines/\_external.py                               |       12 |        0 |    100% |           |
-| src/antennaknobs/engines/momwire.py                                  |      808 |       22 |     97% |150, 549, 553, 555, 796, 1216, 1584, 1788, 2245-2261 |
+| src/antennaknobs/engines/momwire.py                                  |      825 |       23 |     97% |150, 549, 553, 555, 796, 1216, 1584, 1777, 1825, 2282-2298 |
 | src/antennaknobs/engines/nec2.py                                     |      357 |       21 |     94% |188, 201, 256, 259, 270-273, 488, 517, 524, 538-539, 555, 560, 575, 588, 694, 717, 730, 773 |
 | src/antennaknobs/engines/nec5.py                                     |      679 |      150 |     78% |169-170, 229, 242-243, 363, 415, 477, 482-485, 520, 527, 538, 547, 553, 558, 565, 592, 639, 668, 670, 672, 698, 721, 724, 740-743, 777-786, 790-798, 808-815, 829-848, 884, 1146, 1277-1280, 1283, 1310, 1317, 1331-1332, 1348, 1353, 1360-1382, 1399-1400, 1413, 1420, 1428-1448, 1509-1539, 1546-1547, 1557-1570 |
 | src/antennaknobs/engines/pynec.py                                    |      478 |       46 |     90% |9-10, 77-79, 167, 170-172, 408-413, 518, 539, 570, 578, 588, 619, 626, 660, 691, 730, 740, 746, 760, 884-885, 1065, 1088-1117 |
@@ -183,7 +183,7 @@
 | src/antennaknobs/web/tracker.py                                      |      254 |       30 |     88% |207, 213, 256, 272-273, 302-303, 306, 317-319, 326-327, 333, 415, 438-442, 445-454, 481 |
 | src/antennaknobs/web/user\_designs.py                                |       64 |        6 |     91% |60-61, 92-93, 98-99 |
 | src/antennaknobs/wire\_catalog.py                                    |      203 |        0 |    100% |           |
-| **TOTAL**                                                            | **17257** | **1116** | **94%** |           |
+| **TOTAL**                                                            | **17312** | **1120** | **94%** |           |
 
 
 ## Setup coverage badge
