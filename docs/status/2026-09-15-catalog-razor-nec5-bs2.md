@@ -101,24 +101,26 @@ Over the whole catalog at default mesh, razor-2p and NEC-5 agree to a median **0
 
 **The class column is generated, not asserted.** It comes from `scratch/845-mesh-policy/probe3_sweep.json`, a 1× / 2× / 4× mesh sweep of the catalog measured on an **older build** (2026-09-03), with #845's own resolution rule applied: a design whose *reference* moved by more than a third of the quantity being judged is marked `reference unsettled` rather than classified, because a reference that is still moving cannot adjudicate anything. probe3's metric is **port 0 alone**, so the class is a property of the design and ground, not of the individual port row beside it. **Every one of these classes will be re-measured on current code by AK#1525**, and a design that changes class there is a finding.
 
-A class of `mesh` is the only one that explains a wide row. `reference unsettled`, `not converging`, `unexplained` and `not measured` all mean the same thing for a reader: **the disagreement on that row has no established cause yet.**
+Where **AK#1516** covers a row it overrides probe3, because it refined that exact pair eightfold while probe3 only ever compared razor-2p against bs2. That distinction changes answers: on `verticals.four_square` over Sommerfeld the bs2-against-NEC-5 gap closes from 19.0 % to 2.7 %, while the razor-2p-against-NEC-5 gap holds at 1.78 % → 1.74 %. Only the first is a density story.
+
+**Only a class saying the gap CLOSES explains a wide row.** `does NOT close under refinement` is a measured finding rather than an explanation — it says density is not the cause and names the issue tracking it. `reference unsettled`, `not converging`, `unexplained` and `not measured` all mean the same thing for a reader: **the disagreement on that row has no established cause yet.**
 
 ### razor-2p against NEC-5 — ten widest rows
 
 | design | ground | port | razor-2p Z | NEC-5 Z | \|ΔZ\| Ω | rel\|ΔZ\| | class |
 |---|---|---:|---|---|---:|---:|---|
-| `verticals.four_square` | Sommerfeld | 0 | 25.16-34.13j | 25.51-33.37j | 0.842 | 2 % | mesh (AK#1516 + probe3) |
-| `verticals.four_square` | Sommerfeld | 2 | 27.38-4.156j | 27.69-3.737j | 0.52 | 1.86 % | mesh (AK#1516 + probe3) |
-| `verticals.four_square` | Sommerfeld | 1 | 27.38-4.156j | 27.69-3.737j | 0.52 | 1.86 % | mesh (AK#1516 + probe3) |
-| `verticals.four_square` | Sommerfeld | 3 | 25.17+31.81j | 25.43+32.33j | 0.576 | 1.4 % | mesh (AK#1516 + probe3) |
-| `verticals.dominator` | free space | 0 | 30.8+2.138j | 30.78+2.338j | 0.202 | 0.655 % | reference unsettled |
-| `arrays.bowtie16x1` | Sommerfeld | 13 | 756.9-83.91j | 760.6-87.03j | 4.8 | 0.627 % | not measured |
-| `arrays.bowtie16x1` | Sommerfeld | 2 | 756.9-83.91j | 760.6-87.03j | 4.8 | 0.627 % | not measured |
-| `verticals.dominator` | Sommerfeld | 0 | 28.84+3.581j | 28.8+3.755j | 0.18 | 0.619 % | reference unsettled |
-| `wire.terminated_longwire` | Sommerfeld | 0 | 448.7-22.86j | 451.3-22.3j | 2.66 | 0.59 % | not measured |
-| `verticals.phased_verticals` | Sommerfeld | 1 | 96.28+175.6j | 95.22+176j | 1.15 | 0.576 % | mesh (probe3) |
+| `verticals.four_square` | Sommerfeld | 0 | 25.16-34.13j | 25.51-33.37j | 0.842 | 2 % | does NOT close under refinement (AK#1526) |
+| `verticals.four_square` | Sommerfeld | 2 | 27.38-4.156j | 27.69-3.737j | 0.52 | 1.86 % | does NOT close under refinement (AK#1526) |
+| `verticals.four_square` | Sommerfeld | 1 | 27.38-4.156j | 27.69-3.737j | 0.52 | 1.86 % | does NOT close under refinement (AK#1526) |
+| `verticals.four_square` | Sommerfeld | 3 | 25.17+31.81j | 25.43+32.33j | 0.576 | 1.4 % | does NOT close under refinement (AK#1526) |
+| `verticals.dominator` | free space | 0 | 30.8+2.138j | 30.78+2.338j | 0.202 | 0.655 % | not measured (probe3 cannot speak to this pair) |
+| `arrays.bowtie16x1` | Sommerfeld | 13 | 756.9-83.91j | 760.6-87.03j | 4.8 | 0.627 % | not measured (probe3 cannot speak to this pair) |
+| `arrays.bowtie16x1` | Sommerfeld | 2 | 756.9-83.91j | 760.6-87.03j | 4.8 | 0.627 % | not measured (probe3 cannot speak to this pair) |
+| `verticals.dominator` | Sommerfeld | 0 | 28.84+3.581j | 28.8+3.755j | 0.18 | 0.619 % | not measured (probe3 cannot speak to this pair) |
+| `wire.terminated_longwire` | Sommerfeld | 0 | 448.7-22.86j | 451.3-22.3j | 2.66 | 0.59 % | not measured (probe3 cannot speak to this pair) |
+| `verticals.phased_verticals` | Sommerfeld | 1 | 96.28+175.6j | 95.22+176j | 1.15 | 0.576 % | not measured (probe3 cannot speak to this pair) |
 
-Designs in this table with **no established cause**: `arrays.bowtie16x1`, `verticals.dominator`, `wire.terminated_longwire`.
+Designs in this table with **no established cause**: `arrays.bowtie16x1`, `verticals.dominator`, `verticals.four_square`, `verticals.phased_verticals`, `wire.terminated_longwire`.
 
 ### momwire bs2 against NEC-5 — ten widest rows
 
@@ -126,14 +128,14 @@ Designs in this table with **no established cause**: `arrays.bowtie16x1`, `verti
 |---|---|---:|---|---|---:|---:|---|
 | `dipoles.short_dipole_loaded` | Sommerfeld | 0 | 13.79-5.974j | 13.28+1.256j | 7.25 | 54.3 % | reference unsettled |
 | `dipoles.short_dipole_loaded` | free space | 0 | 13.52-4.063j | 13.02+3.097j | 7.18 | 53.6 % | reference unsettled |
-| `loops.skyloop_lmatch` | free space | 0 | 47.54-6.478j | 31.49-8.296j | 16.2 | 49.6 % | mesh (AK#1516 + probe3) |
-| `loops.skyloop_lmatch` | Sommerfeld | 0 | 47.16-6.229j | 31.34-8.048j | 15.9 | 49.2 % | mesh (AK#1516 + probe3) |
-| `verticals.rectangle` | Sommerfeld | 0 | 47.19+7.746j | 46.86-8.598j | 16.3 | 34.3 % | mesh (AK#1516 + probe3) |
-| `verticals.rectangle` | free space | 0 | 47.72+1.849j | 43.7-13.29j | 15.7 | 34.3 % | mesh (AK#1516 + probe3) |
-| `dipoles.koch_dipole` | Sommerfeld | 0 | 35.19+1.451j | 35.52+13.43j | 12 | 31.6 % | mesh (AK#1516 + probe3) |
-| `dipoles.koch_dipole` | free space | 0 | 35.25+6.269j | 35.59+18.3j | 12 | 30.1 % | mesh (AK#1516 + probe3) |
-| `verticals.four_square` | free space | 1 | 28.54+1.705j | 27.6-4.401j | 6.18 | 22.1 % | mesh (AK#1516 + probe3) |
-| `verticals.four_square` | free space | 2 | 28.54+1.705j | 27.6-4.401j | 6.18 | 22.1 % | mesh (AK#1516 + probe3) |
+| `loops.skyloop_lmatch` | free space | 0 | 47.54-6.478j | 31.49-8.296j | 16.2 | 49.6 % | closes under refinement (AK#1516) |
+| `loops.skyloop_lmatch` | Sommerfeld | 0 | 47.16-6.229j | 31.34-8.048j | 15.9 | 49.2 % | mesh (probe3) |
+| `verticals.rectangle` | Sommerfeld | 0 | 47.19+7.746j | 46.86-8.598j | 16.3 | 34.3 % | mesh (probe3) |
+| `verticals.rectangle` | free space | 0 | 47.72+1.849j | 43.7-13.29j | 15.7 | 34.3 % | closes under refinement (AK#1516) |
+| `dipoles.koch_dipole` | Sommerfeld | 0 | 35.19+1.451j | 35.52+13.43j | 12 | 31.6 % | mesh (probe3) |
+| `dipoles.koch_dipole` | free space | 0 | 35.25+6.269j | 35.59+18.3j | 12 | 30.1 % | closes under refinement (AK#1516) |
+| `verticals.four_square` | free space | 1 | 28.54+1.705j | 27.6-4.401j | 6.18 | 22.1 % | closes under refinement (AK#1516) |
+| `verticals.four_square` | free space | 2 | 28.54+1.705j | 27.6-4.401j | 6.18 | 22.1 % | closes under refinement (AK#1516) |
 
 Designs in this table with **no established cause**: `dipoles.short_dipole_loaded`.
 
@@ -143,14 +145,14 @@ Designs in this table with **no established cause**: `dipoles.short_dipole_loade
 |---|---|---:|---|---|---:|---:|---|
 | `dipoles.short_dipole_loaded` | Sommerfeld | 0 | 13.79-5.974j | 13.28+1.31j | 7.3 | 54.7 % | reference unsettled |
 | `dipoles.short_dipole_loaded` | free space | 0 | 13.52-4.063j | 13.02+3.151j | 7.23 | 54 % | reference unsettled |
-| `loops.skyloop_lmatch` | free space | 0 | 47.54-6.478j | 31.52-8.284j | 16.1 | 49.5 % | mesh (AK#1516 + probe3) |
-| `loops.skyloop_lmatch` | Sommerfeld | 0 | 47.16-6.229j | 31.34-8.161j | 15.9 | 49.2 % | mesh (AK#1516 + probe3) |
-| `verticals.rectangle` | Sommerfeld | 0 | 47.19+7.746j | 46.74-8.838j | 16.6 | 34.9 % | mesh (AK#1516 + probe3) |
-| `verticals.rectangle` | free space | 0 | 47.72+1.849j | 43.57-13.48j | 15.9 | 34.8 % | mesh (AK#1516 + probe3) |
-| `dipoles.koch_dipole` | Sommerfeld | 0 | 35.19+1.451j | 35.52+13.47j | 12 | 31.6 % | mesh (AK#1516 + probe3) |
-| `dipoles.koch_dipole` | free space | 0 | 35.25+6.269j | 35.59+18.33j | 12.1 | 30.1 % | mesh (AK#1516 + probe3) |
-| `verticals.four_square` | Sommerfeld | 1 | 28.29+1.894j | 27.38-4.156j | 6.12 | 22.1 % | mesh (AK#1516 + probe3) |
-| `verticals.four_square` | Sommerfeld | 2 | 28.29+1.894j | 27.38-4.156j | 6.12 | 22.1 % | mesh (AK#1516 + probe3) |
+| `loops.skyloop_lmatch` | free space | 0 | 47.54-6.478j | 31.52-8.284j | 16.1 | 49.5 % | closes under refinement (AK#1516) |
+| `loops.skyloop_lmatch` | Sommerfeld | 0 | 47.16-6.229j | 31.34-8.161j | 15.9 | 49.2 % | mesh (probe3) |
+| `verticals.rectangle` | Sommerfeld | 0 | 47.19+7.746j | 46.74-8.838j | 16.6 | 34.9 % | mesh (probe3) |
+| `verticals.rectangle` | free space | 0 | 47.72+1.849j | 43.57-13.48j | 15.9 | 34.8 % | closes under refinement (AK#1516) |
+| `dipoles.koch_dipole` | Sommerfeld | 0 | 35.19+1.451j | 35.52+13.47j | 12 | 31.6 % | mesh (probe3) |
+| `dipoles.koch_dipole` | free space | 0 | 35.25+6.269j | 35.59+18.33j | 12.1 | 30.1 % | closes under refinement (AK#1516) |
+| `verticals.four_square` | Sommerfeld | 1 | 28.29+1.894j | 27.38-4.156j | 6.12 | 22.1 % | closes under refinement (AK#1516) |
+| `verticals.four_square` | Sommerfeld | 2 | 28.29+1.894j | 27.38-4.156j | 6.12 | 22.1 % | closes under refinement (AK#1516) |
 
 Designs in this table with **no established cause**: `dipoles.short_dipole_loaded`.
 

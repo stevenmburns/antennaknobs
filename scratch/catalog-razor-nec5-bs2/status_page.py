@@ -54,6 +54,13 @@ PROBE3 = Path(__file__).resolve().parents[1] / "845-mesh-policy" / "probe3_sweep
 # design-level CLASS only, and every ohm figure printed beside a row is computed
 # from this run's own records for that row's own port.
 PROBE3_PORT = 0
+
+# AK#1516's own ladder records, copied in so the page regenerates from committed
+# inputs. These are a DIRECT measurement of the question the class column asks --
+# does THIS PAIR's gap close under refinement -- so where they cover a row they
+# override probe3, which only ever measured razor against bs2.
+LADDER1516 = Path(__file__).resolve().parent / "ladder-1516-records.jsonl"
+LADDER_LO, LADDER_HI = 21, 168  # the x1 and x8 rungs
 LABEL = {"razor": "razor-2p", "nec5": "NEC-5", "bs2": "momwire bs2"}
 GROUNDS = ("free", "somm")
 GROUND_LABEL = {"free": "free space", "somm": "Sommerfeld"}
@@ -70,6 +77,56 @@ ADJUDICATION = (
     "class column says what is and is not known, and the density question itself "
     "is AK#1525."
 )
+
+
+def load_ladder1516():
+    """(pair, design, ground) -> (ratio, gap at x1, gap at x8) from AK#1516.
+
+    KEYED ON THE PAIR, not just the design and ground, because the answer differs
+    between pairs on the same row: on `verticals.four_square` over Sommerfeld the
+    bs2-against-NEC-5 gap closes from 19.0 % to 2.7 % while the
+    razor-against-NEC-5 gap holds at 1.78 % -> 1.74 %. A class keyed only on
+    design and ground would have to be wrong about one of them.
+    """
+    if not LADDER1516.is_file():
+        return {}
+    rung = {}
+    for line in LADDER1516.read_text().splitlines():
+        if not line.strip():
+            continue
+        r = json.loads(line)
+        if r.get("variant") != "stock" or r.get("status") != "ok":
+            continue
+        rung[(r["design"], r["ground"], r["rung"], r["engine"])] = [
+            complex(*p) for p in r["z"]
+        ]
+    out = {}
+    for d, g, k, _e in list(rung):
+        for a, b in PAIRS:
+            key = (a, b, d, g)
+            if key in out:
+                continue
+            va1, vb1 = rung.get((d, g, LADDER_LO, a)), rung.get((d, g, LADDER_LO, b))
+            va8, vb8 = rung.get((d, g, LADDER_HI, a)), rung.get((d, g, LADDER_HI, b))
+            if not all(v is not None for v in (va1, vb1, va8, vb8)):
+                continue
+            if len(va1) != len(vb1) or len(va8) != len(vb8):
+                continue
+
+            def nrm(x, y):
+                den = math.sqrt(sum(abs(t) ** 2 for t in y))
+                if den == 0:
+                    return None
+                return (
+                    math.sqrt(sum(abs(u - t) ** 2 for u, t in zip(x, y, strict=True)))
+                    / den
+                )
+
+            g1, g8 = nrm(va1, vb1), nrm(va8, vb8)
+            if not g1 or g8 is None:
+                continue
+            out[key] = (g8 / g1, g1, g8)
+    return out
 
 
 def load_probe3():
@@ -121,13 +178,61 @@ def load_probe3():
     return out
 
 
-def mesh_class(p3, design, ground):
+def mesh_class(p3, ladder, pair, design, ground):
+    """The class for one row, measured where AK#1516 covers it and inferred from
+    probe3 where it does not.
+
+    AK#1516 wins when it has the row, because it measured the actual pair over an
+    x8 ladder. probe3 only ever compared razor against bs2, so it cannot speak to
+    whether a razor-against-NEC-5 gap closes -- and on all four AK#1516 designs
+    that gap does NOT close, in free space as well as over Sommerfeld. Reading
+    those rows as "mesh" would tell a reader density fixes them, and it does not.
+    """
+    hit = ladder.get((pair[0], pair[1], design, ground))
+    if hit is not None:
+        ratio, g1, g8 = hit
+        detail = f"{100 * g1:.3g} % at ×1 → {100 * g8:.3g} % at ×8 (AK#1516)"
+        if ratio <= 0.5:
+            return "closes under refinement (AK#1516)", detail
+        if ratio > 0.8:
+            tag = "AK#1526" if ground == "somm" else "AK#1516 residue"
+            return f"does NOT close under refinement ({tag})", detail
+        return "partly closes under refinement (AK#1516)", detail
+    # probe3 measured razor-2p against bs2-d2. It can therefore speak to a row
+    # where bs2 is one of the two engines, and NOT to a razor-against-NEC-5 row:
+    # those two are the pair that moves TOGETHER under refinement, so their mutual
+    # gap can sit flat while both converge. AK#1516 measured exactly that on all
+    # four of its designs, in free space as well as over Sommerfeld. Handing a
+    # razor-against-NEC-5 row a probe3 "converging" class would be the same
+    # mistake as calling four_square's Sommerfeld row "mesh", by another route.
+    if "bs2" not in pair:
+        return "not measured (probe3 cannot speak to this pair)", None
     cls, detail = p3.get((design, ground), ("not measured", None))
-    if cls == "converging" and design in AK1516_DESIGNS:
-        return "mesh (AK#1516 + probe3)", detail
     if cls == "converging":
         return "mesh (probe3)", detail
     return cls, detail
+
+
+def _knob_response(design):
+    """(segments at x21, segments at x160) for one design, or None.
+
+    `nominal_nsegs` is a density and each design decides which edges follow it,
+    so a design can be "refined" x7.6 on paper and hardly remesh at all.
+    """
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+        import bench_converge as cvg
+
+        cls = cvg.load_design(design)
+        return cvg.total_nominal_segs(cls, 21), cvg.total_nominal_segs(cls, 160)
+    except Exception:  # noqa: BLE001 -- absent is a fine answer for a footnote
+        return None
+
+
+def _explained(cls: str) -> bool:
+    """Only a class that says the gap CLOSES explains a wide row. "does NOT
+    close" is a measured finding, not an explanation of the disagreement."""
+    return cls.startswith("closes under refinement") or cls.startswith("mesh")
 
 
 def load(path):
@@ -240,6 +345,7 @@ def main(argv=None):
     w = out.append
 
     p3 = load_probe3()
+    ladder = load_ladder1516()
     # The main commit the study branch sits on, COMPUTED rather than typed: the
     # provenance record carries the branch SHA, and the page must name main.
     try:
@@ -468,8 +574,18 @@ def main(argv=None):
         "code by AK#1525**, and a design that changes class there is a finding.\n"
     )
     w(
-        "A class of `mesh` is the only one that explains a wide row. "
-        "`reference unsettled`, `not converging`, `unexplained` and "
+        "Where **AK#1516** covers a row it overrides probe3, because it refined "
+        "that exact pair eightfold while probe3 only ever compared razor-2p "
+        "against bs2. That distinction changes answers: on "
+        "`verticals.four_square` over Sommerfeld the bs2-against-NEC-5 gap closes "
+        "from 19.0 % to 2.7 %, while the razor-2p-against-NEC-5 gap holds at "
+        "1.78 % → 1.74 %. Only the first is a density story.\n"
+    )
+    w(
+        "**Only a class saying the gap CLOSES explains a wide row.** "
+        "`does NOT close under refinement` is a measured finding rather than an "
+        "explanation — it says density is not the cause and names the issue "
+        "tracking it. `reference unsettled`, `not converging`, `unexplained` and "
         "`not measured` all mean the same thing for a reader: **the disagreement "
         "on that row has no established cause yet.**\n"
     )
@@ -483,7 +599,7 @@ def main(argv=None):
         )
         w("|---|---|---:|---|---|---:|---:|---|")
         for r in worst:
-            cls, _detail = mesh_class(p3, r["design"], r["ground"])
+            cls, _detail = mesh_class(p3, ladder, (a, b), r["design"], r["ground"])
             w(
                 f"| `{r['design']}` | {GROUND_LABEL[r['ground']]} | {r['port']} | "
                 f"{r['za'].real:.4g}{r['za'].imag:+.4g}j | "
@@ -495,7 +611,9 @@ def main(argv=None):
             {
                 r["design"]
                 for r in worst
-                if not mesh_class(p3, r["design"], r["ground"])[0].startswith("mesh")
+                if not _explained(
+                    mesh_class(p3, ladder, (a, b), r["design"], r["ground"])[0]
+                )
             }
         )
         if unexplained:
@@ -503,6 +621,29 @@ def main(argv=None):
                 "Designs in this table with **no established cause**: "
                 + ", ".join(f"`{d}`" for d in unexplained)
                 + ".\n"
+            )
+        # A "not converging" class is only as good as the refinement it was
+        # measured over, and at least one catalog design barely remeshes when the
+        # knob moves. Say so wherever that class appears, with the counts.
+        stiff = sorted(
+            {
+                r["design"]
+                for r in worst
+                if mesh_class(p3, ladder, (a, b), r["design"], r["ground"])[0]
+                == "not converging"
+                and _knob_response(r["design"]) is not None
+                and _knob_response(r["design"])[1]
+                < 1.5 * _knob_response(r["design"])[0]
+            }
+        )
+        for d in stiff:
+            lo, hi = _knob_response(d)
+            w(
+                f"> **`{d}`'s mesh barely responds to the knob** — {lo} segments at "
+                f"×21 rising only to {hi} at ×160 — so a `not converging` class on "
+                f"it is measured over a refinement that hardly happened. AK#1525 "
+                f"reports the achieved segment count per rung for exactly this "
+                f"reason.\n"
             )
 
     w("## Reactance carries the disagreement\n")
