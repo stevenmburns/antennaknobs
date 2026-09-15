@@ -273,6 +273,7 @@ h_node = 6.25 mm rung, where the next grading rung moved it 0.019 ohm and a
 doubled far mesh 0.043 ohm.
 """
 
+import dataclasses
 import math
 from types import MappingProxyType
 
@@ -572,6 +573,16 @@ class Builder(AntennaBuilder):
                 f"Got wire_type={self.wire_type!r}."
             )
         h = self.surface_h_m if self.surface_h_m else spec.insulation_radius
+        # THE JACKET RIDES THE RADIALS ONLY, and the mast has to say so. A
+        # wire with no spec of its own does not stay bare: every engine falls
+        # back to `build_wire_material()`, which resolves this variant's
+        # jacketed `wire_type`, so a spec-less mast and feed gap were
+        # jacketed like the radials on momwire and on every NEC deck. They
+        # get the same conductor with the jacket removed. A jacketed mast is
+        # not the antenna anyone builds and is worth ~15-30 ohm of spurious
+        # reactance, the trap that sent momwire#874's first reading the wrong
+        # way.
+        bare = dataclasses.replace(spec, insulation_radius=None, insulation_eps_r=None)
 
         tups = []
         for i in range(n_radials):
@@ -582,14 +593,8 @@ class Builder(AntennaBuilder):
             # Foot-first, for the same reason the buried conventions are
             # hub-first: every radial must leave the shared node so the
             # screen's mirror symmetry survives the polyline walk.
-            #
-            # THE SPEC RIDES THE RADIALS ONLY. The mast below carries none
-            # and inherits the design's bare default. A SCALAR insulation
-            # would jacket the mast too, which is not the antenna anyone
-            # builds and is worth ~15-30 ohm of spurious reactance — the
-            # trap that sent momwire#874's first reading the wrong way.
             tups.append(Wire((0.0, 0.0, h), (x, y, h), spec=spec))
 
-        tups.append(Wire((0.0, 0.0, h), (0.0, 0.0, h + 0.05), ex=1 + 0j))
-        tups.append(Wire((0.0, 0.0, h + 0.05), (0.0, 0.0, h + height)))
+        tups.append(Wire((0.0, 0.0, h), (0.0, 0.0, h + 0.05), ex=1 + 0j, spec=bare))
+        tups.append(Wire((0.0, 0.0, h + 0.05), (0.0, 0.0, h + height), spec=bare))
         return tups

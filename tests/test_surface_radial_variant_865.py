@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import warnings
 
+import numpy as np
 import pytest
 
 from antennaknobs import as_wire, resolve_variant_params
@@ -97,19 +98,51 @@ def test_the_radials_lie_on_the_ground_and_nothing_is_buried():
         assert w.p0[2] == pytest.approx(spec.insulation_radius)
 
 
-def test_the_jacket_rides_the_RADIALS_ONLY():
+def test_the_jacket_rides_the_RADIALS_ONLY(monkeypatch):
     """The mast is bare aluminium in every real build of this antenna, and a
-    SCALAR insulation would jacket it too — worth ~15-30 ohm of spurious
-    reactance, and the trap that sent momwire#874's first reading the wrong
-    way. Per-wire specs make that structurally impossible; pinned anyway."""
-    wires = [as_wire(t) for t in _builder().build_wires()]
-    jacketed = [w for w in wires if w.spec is not None and w.spec.insulation_radius]
-    bare = [w for w in wires if w.spec is None or not w.spec.insulation_radius]
-    assert len(jacketed) == _builder().n_radials
-    assert bare, "the mast and feed gap must carry no jacket"
-    # ...and every jacketed wire is horizontal, every bare one vertical.
-    assert all(w.p0[2] == w.p1[2] for w in jacketed)
-    assert all(w.p0[0] == w.p1[0] == 0.0 for w in bare)
+    jacket there is worth ~15-30 ohm of spurious reactance — the trap that sent
+    momwire#874's first reading the wrong way.
+
+    Checked on what the ENGINES receive, not only on each wire's own `spec`. A
+    wire with no spec falls back to the design-level material, which is this
+    variant's jacketed `wire_type`: a spec-less mast was jacketed on momwire and
+    on every NEC deck while a per-wire check of `spec is None` passed.
+    """
+    import sys
+
+    from antennaknobs.engines.nec5 import NEC5Engine
+
+    b = _builder()
+    spec = WIRES[b.wire_type]
+    wires = [as_wire(t) for t in b.build_wires()]
+    radial = [w.p0[2] == w.p1[2] for w in wires]
+    assert sum(radial) == b.n_radials
+    for w, is_radial in zip(wires, radial, strict=True):
+        assert w.spec is not None, "a wire with no spec falls back to the jacket"
+        assert bool(w.spec.insulation_radius) is is_radial
+        assert (w.spec.radius, w.spec.conductivity) == (spec.radius, spec.conductivity)
+        if not is_radial:
+            assert w.p0[0] == w.p1[0] == 0.0
+
+    # momwire: insulation on the flat polylines, nowhere else.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        eng = MomwireEngine(b, **GROUND)
+    flat = [bool(np.ptp(np.asarray(pl)[:, 2]) == 0.0) for pl in eng._polylines]
+    ins = np.asarray(eng._loading_kwargs["insulation_radius"], dtype=float)
+    assert np.isfinite(ins).tolist() == flat
+    assert any(flat) and not all(flat)
+
+    # NEC-5: LD 2 and the equivalent GW radius on the radial tags only.
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+    deck = NEC5Engine(_builder(), ground=GROUND["ground"]).deck([b.freq])
+    gw = [ln.split() for ln in deck.splitlines() if ln.startswith("GW ")]
+    ld2_tags = {ln.split()[2] for ln in deck.splitlines() if ln.startswith("LD 2 ")}
+    radial_tags = {f[1] for f in gw if float(f[5]) == float(f[8])}
+    assert ld2_tags == radial_tags and len(radial_tags) == b.n_radials
+    for f in gw:
+        if f[1] not in radial_tags:
+            assert float(f[9]) == pytest.approx(spec.radius, rel=1e-6)
 
 
 def _without_the_coated_pair(monkeypatch):
@@ -188,18 +221,18 @@ def test_the_note_carries_the_advisory_and_points_at_the_live_one():
 # Knob corners — banked answers (AK#1131's shape)
 # ---------------------------------------------------------------------------
 #
-# Measured on momwire 1e19482, auto mesh, quadrature omitted — exactly the call
-# the web makes. See the module docstring for what these do NOT prove.
+# Measured on momwire v0.55.0 (1ca8725, the recorded pointer), auto mesh,
+# quadrature omitted — exactly the call the web makes. See the module docstring for what these do NOT prove.
 
 BANKED = {
-    "default": ({}, 60.621 + 60.949j),
-    "n16": ({"n_radials": 16}, 48.747 + 42.560j),
-    "n1": ({"n_radials": 1}, 148.238 + 153.062j),
-    "rf1": ({"radial_factor": 1.0}, 120.125 + 53.495j),
-    "28awg": ({"wire_type": "28-awg-pvc"}, 68.762 + 86.881j),
-    "22awg": ({"wire_type": "22-awg-pvc"}, 63.058 + 71.366j),
-    "grass3mm": ({"surface_h_m": 0.003}, 55.098 + 39.753j),
-    "lf08": ({"length_factor": 0.8}, 37.898 - 133.084j),
+    "default": ({}, 58.543 + 35.154j),
+    "n16": ({"n_radials": 16}, 46.718 + 16.872j),
+    "n1": ({"n_radials": 1}, 146.062 + 127.171j),
+    "rf1": ({"radial_factor": 1.0}, 117.351 + 27.283j),
+    "28awg": ({"wire_type": "28-awg-pvc"}, 65.647 + 45.682j),
+    "22awg": ({"wire_type": "22-awg-pvc"}, 60.496 + 38.465j),
+    "grass3mm": ({"surface_h_m": 0.003}, 52.999 + 14.101j),
+    "lf08": ({"length_factor": 0.8}, 37.227 - 159.833j),
 }
 
 
