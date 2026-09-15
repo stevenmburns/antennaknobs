@@ -40,9 +40,11 @@ second-named engine.
 Engine spellings, exactly:
 
 ```python
-bs2   = MomwireEngine(b, solver=BSplineSolver, solver_kwargs={"degree": 2}, ground=G)
-razor = MomwireEngine(b, solver=RazorSolver,  solver_kwargs={"nec5_quadrature": True}, ground=G)
-nec5  = NEC5Engine(b, ground=G)
+bs2 = MomwireEngine(b, solver=BSplineSolver, solver_kwargs={"degree": 2}, ground=G)
+razor = MomwireEngine(
+    b, solver=RazorSolver, solver_kwargs={"nec5_quadrature": True}, ground=G
+)
+nec5 = NEC5Engine(b, ground=G)
 ```
 
 `razor-2p`'s served option `extended_kernel` stays at its solver default
