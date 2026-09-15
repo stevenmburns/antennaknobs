@@ -302,10 +302,8 @@ a wire end, with plain wire in between. A port within a segment of an end, with
 nothing tighter nearby, runs its short wire to the end. NEC-5 cuts the wire at
 every port and feeds each one at the knot the pieces on either side share.
 
-A percentage on a segment boundary can therefore differ from a 4nec2 run by
-design. 4nec2 converts the percentage to one of the two neighbouring segments
-before it solves, so on a two-segment wire `50%` feeds a segment centre a
-quarter of the wire away from the middle. antennaknobs feeds the middle.
+Another program can feed a percentage that falls exactly on a segment boundary
+differently. antennaknobs feeds the stated point.
 
 Without `network=True`, the percentage names the segment whose centre is
 nearest. A percentage exactly on the boundary between two segments is equally
