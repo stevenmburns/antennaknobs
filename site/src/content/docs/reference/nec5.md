@@ -134,7 +134,7 @@ frequencies into a single run using NEC-5's linear `FR` stepping.
 | Radiation patterns | served (`compare_patterns`, the web far-field views) |
 | Feeds | plain `Wire.ex`, network `Driven`, and `DrivenCurrent` via NEC-5's **native current source** (`EX 4` — NEC-2 has no equivalent) |
 | Loads | `Load` branches (fixed-Z and series/parallel RLC) at the port |
-| Wire material | conductor loss natively; insulation via the same distributed-inductance emulation momwire uses — NEC-5 dropped NEC-4's insulated-wire card |
+| Wire material | conductor loss natively; an insulation jacket as the same coated-wire pair momwire models, spelled in cards — the equivalent radius on `GW`, the jacket's inductance as `LD 2`, and `LD 5` rescaled so the copper loss stays the real conductor's. NEC-5 dropped NEC-4's insulated-wire card |
 | Power budget | input/radiated/wire-loss/efficiency, plus hemisphere average gain (the ground-absorption readout) |
 | Transmission lines, two-ports, `ql`/`qc` loads, distributed ports | **refuse loudly**, each naming what is unsupported |
 | Ground-geometry refusals | mid-span interface crossings (the binary runs them and prints garbage), wires lying **in** the plane, buried wires under a PEC ground (image theory has no buried side), and **coincident wires** — each refused by name at construction |
