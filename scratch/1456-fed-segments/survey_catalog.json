@@ -1,0 +1,3665 @@
+{
+ "rows": [
+  {
+   "design": "arrays.bowtie16x1",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 9,
+     "name": "e0_0.feed",
+     "ex": false,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 19,
+     "name": "e1_0.feed",
+     "ex": false,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 29,
+     "name": "e2_0.feed",
+     "ex": false,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 39,
+     "name": "e3_0.feed",
+     "ex": false,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 49,
+     "name": "e4_0.feed",
+     "ex": false,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 59,
+     "name": "e5_0.feed",
+     "ex": false,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 69,
+     "name": "e6_0.feed",
+     "ex": false,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 79,
+     "name": "e7_0.feed",
+     "ex": false,
+     "length_m": 0.09999999999999987,
+     "length_lam": 0.009496569790291376,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999987,
+     "seg_even_mm": 49.999999999999936,
+     "ratio": 2.0
+    },
+    {
+     "wire": 89,
+     "name": "e8_0.feed",
+     "ex": false,
+     "length_m": 0.09999999999999987,
+     "length_lam": 0.009496569790291376,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999987,
+     "seg_even_mm": 49.999999999999936,
+     "ratio": 2.0
+    },
+    {
+     "wire": 99,
+     "name": "e9_0.feed",
+     "ex": false,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 109,
+     "name": "e10_0.feed",
+     "ex": false,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 119,
+     "name": "e11_0.feed",
+     "ex": false,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 129,
+     "name": "e12_0.feed",
+     "ex": false,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 139,
+     "name": "e13_0.feed",
+     "ex": false,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 149,
+     "name": "e14_0.feed",
+     "ex": false,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 159,
+     "name": "e15_0.feed",
+     "ex": false,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.bowtie1x2_bl",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 7,
+     "name": "feed0",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 17,
+     "name": "feed1",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.bowtie4x4",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 9,
+     "name": "e0_0.feed",
+     "ex": false,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 19,
+     "name": "e0_1.feed",
+     "ex": false,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 29,
+     "name": "e0_2.feed",
+     "ex": false,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 39,
+     "name": "e0_3.feed",
+     "ex": false,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 49,
+     "name": "e1_0.feed",
+     "ex": false,
+     "length_m": 0.09999999999999987,
+     "length_lam": 0.009496569790291376,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999987,
+     "seg_even_mm": 49.999999999999936,
+     "ratio": 2.0
+    },
+    {
+     "wire": 59,
+     "name": "e1_1.feed",
+     "ex": false,
+     "length_m": 0.09999999999999987,
+     "length_lam": 0.009496569790291376,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999987,
+     "seg_even_mm": 49.999999999999936,
+     "ratio": 2.0
+    },
+    {
+     "wire": 69,
+     "name": "e1_2.feed",
+     "ex": false,
+     "length_m": 0.09999999999999987,
+     "length_lam": 0.009496569790291376,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999987,
+     "seg_even_mm": 49.999999999999936,
+     "ratio": 2.0
+    },
+    {
+     "wire": 79,
+     "name": "e1_3.feed",
+     "ex": false,
+     "length_m": 0.09999999999999987,
+     "length_lam": 0.009496569790291376,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999987,
+     "seg_even_mm": 49.999999999999936,
+     "ratio": 2.0
+    },
+    {
+     "wire": 89,
+     "name": "e2_0.feed",
+     "ex": false,
+     "length_m": 0.09999999999999987,
+     "length_lam": 0.009496569790291376,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999987,
+     "seg_even_mm": 49.999999999999936,
+     "ratio": 2.0
+    },
+    {
+     "wire": 99,
+     "name": "e2_1.feed",
+     "ex": false,
+     "length_m": 0.09999999999999987,
+     "length_lam": 0.009496569790291376,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999987,
+     "seg_even_mm": 49.999999999999936,
+     "ratio": 2.0
+    },
+    {
+     "wire": 109,
+     "name": "e2_2.feed",
+     "ex": false,
+     "length_m": 0.09999999999999987,
+     "length_lam": 0.009496569790291376,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999987,
+     "seg_even_mm": 49.999999999999936,
+     "ratio": 2.0
+    },
+    {
+     "wire": 119,
+     "name": "e2_3.feed",
+     "ex": false,
+     "length_m": 0.09999999999999987,
+     "length_lam": 0.009496569790291376,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999987,
+     "seg_even_mm": 49.999999999999936,
+     "ratio": 2.0
+    },
+    {
+     "wire": 129,
+     "name": "e3_0.feed",
+     "ex": false,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 139,
+     "name": "e3_1.feed",
+     "ex": false,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 149,
+     "name": "e3_2.feed",
+     "ex": false,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 159,
+     "name": "e3_3.feed",
+     "ex": false,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.bowtiearray",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 9,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 19,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 29,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 39,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.bowtiearray1x2",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 9,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 19,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.bowtiearray2x4",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 9,
+     "name": null,
+     "ex": true,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.00952992619981134,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 19,
+     "name": null,
+     "ex": true,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.00952992619981134,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 29,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.00952992619981117,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 39,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.00952992619981117,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 49,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.00952992619981117,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 59,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.00952992619981117,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 69,
+     "name": null,
+     "ex": true,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.00952992619981134,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 79,
+     "name": null,
+     "ex": true,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.00952992619981134,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.delta_looparray",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 3,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 7,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.delta_looparray_1x4",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 3,
+     "name": null,
+     "ex": true,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 7,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 11,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 15,
+     "name": null,
+     "ex": true,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.delta_looparray_1x4_grouped",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 3,
+     "name": null,
+     "ex": true,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 7,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 11,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 15,
+     "name": null,
+     "ex": true,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009496569790291523,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.delta_looparray_2x2",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 3,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 7,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 11,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 15,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.delta_looparray_network",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 3,
+     "name": "loop1",
+     "ex": false,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 7,
+     "name": "loop2",
+     "ex": false,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.folded_invveearray",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 7,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 15,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 23,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 31,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.hentenna_array",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 8,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 17,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.hourglass_array",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 8,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 17,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.invveearray",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 2,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 5,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 8,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 11,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.lumped_coupled_pair",
+   "freq_mhz": 28.0,
+   "fed": [
+    {
+     "wire": 0,
+     "name": "front",
+     "ex": false,
+     "length_m": 5.0857649125,
+     "length_lam": 0.475,
+     "n_authored": 40,
+     "n_odd": 41,
+     "n_even": 40,
+     "seg_odd_mm": 124.04304664634145,
+     "seg_even_mm": 127.1441228125,
+     "ratio": 0.975609756097561
+    },
+    {
+     "wire": 1,
+     "name": "rear",
+     "ex": false,
+     "length_m": 5.0857649125,
+     "length_lam": 0.475,
+     "n_authored": 40,
+     "n_odd": 41,
+     "n_even": 40,
+     "seg_odd_mm": 124.04304664634145,
+     "seg_even_mm": 127.1441228125,
+     "ratio": 0.975609756097561
+    }
+   ]
+  },
+  {
+   "design": "arrays.moxonarray",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 7,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 15,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 23,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 31,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "arrays.yagiarray",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 4,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 13,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 22,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 31,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.009496569790291355,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "beams.hb9cv",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": "rear",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 4,
+     "name": "front",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "beams.hexbeam",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 9,
+     "name": null,
+     "ex": true,
+     "length_m": 0.05,
+     "length_lam": 0.004748284895145695,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.0,
+     "seg_even_mm": 25.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "beams.moxon",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 7,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "beams.moxon_turnstile",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 7,
+     "name": "feed_a",
+     "ex": false,
+     "length_m": 0.1014,
+     "length_lam": 0.009663345166608562,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 101.4,
+     "seg_even_mm": 50.7,
+     "ratio": 2.0
+    },
+    {
+     "wire": 15,
+     "name": "feed_b",
+     "ex": false,
+     "length_m": 0.1014,
+     "length_lam": 0.009663345166608562,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 101.4,
+     "seg_even_mm": 50.7,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "beams.owa_yagi",
+   "freq_mhz": 28.4,
+   "fed": [
+    {
+     "wire": 2,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.009473220303627518,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "beams.owa_yagi_6el",
+   "freq_mhz": 146.0,
+   "fed": [
+    {
+     "wire": 2,
+     "name": null,
+     "ex": true,
+     "length_m": 0.05,
+     "length_lam": 0.0243501789494651,
+     "n_authored": 2,
+     "n_odd": 3,
+     "n_even": 2,
+     "seg_odd_mm": 16.666666666666668,
+     "seg_even_mm": 25.0,
+     "ratio": 0.6666666666666666
+    }
+   ]
+  },
+  {
+   "design": "beams.phased_driver_yagi",
+   "freq_mhz": 7.15,
+   "fed": [
+    {
+     "wire": 1,
+     "name": "rear",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.002384983280666787,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 4,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.002384983280666787,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "beams.yagi",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 4,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "broadband.discone",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 0,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.00952992619981117,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "broadband.g5rv",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "broadband.lpda",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": "d0",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 4,
+     "name": "d1",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 7,
+     "name": "d2",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 10,
+     "name": "d3",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 13,
+     "name": "d4",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 16,
+     "name": "d5",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 19,
+     "name": "d6",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 22,
+     "name": "d7",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 25,
+     "name": "d8",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 28,
+     "name": "d9",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "broadband.t2fd",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.10000000000000037,
+     "length_lam": 0.00952992619981124,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000037,
+     "seg_even_mm": 50.000000000000185,
+     "ratio": 2.0
+    },
+    {
+     "wire": 4,
+     "name": "term",
+     "ex": false,
+     "length_m": 0.10000000000000037,
+     "length_lam": 0.00952992619981124,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000037,
+     "seg_even_mm": 50.000000000000185,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "dipoles.dipole_turnstile",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 2,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 5,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "dipoles.folded_invvee",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 7,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "dipoles.folded_invvee_balun",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 7,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "dipoles.invvee",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 2,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "dipoles.invvee_apex",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 0,
+     "name": "arm",
+     "ex": false,
+     "length_m": 2.5585554085897435,
+     "length_lam": 0.24297499999999997,
+     "n_authored": 20,
+     "n_odd": 21,
+     "n_even": 20,
+     "seg_odd_mm": 121.83597183760682,
+     "seg_even_mm": 127.92777042948717,
+     "ratio": 0.9523809523809524
+    }
+   ]
+  },
+  {
+   "design": "dipoles.invvee_catenary",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 0,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "dipoles.invvee_coax_station",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 2,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "dipoles.koch_dipole",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 0,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "dipoles.ocf_dipole",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": null,
+     "ex": true,
+     "length_m": 0.10000000000000009,
+     "length_lam": 0.009529926199811214,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000009,
+     "seg_even_mm": 50.00000000000004,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "dipoles.pota_invvee",
+   "freq_mhz": 14.1,
+   "fed": [
+    {
+     "wire": 2,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.004703253742293944,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "dipoles.short_dipole_loaded",
+   "freq_mhz": 28.0,
+   "fed": [
+    {
+     "wire": 0,
+     "name": "feed",
+     "ex": false,
+     "length_m": 2.676718375,
+     "length_lam": 0.25,
+     "n_authored": 21,
+     "n_odd": 21,
+     "n_even": 22,
+     "seg_odd_mm": 127.46277976190476,
+     "seg_even_mm": 121.66901704545454,
+     "ratio": 1.0476190476190477
+    }
+   ]
+  },
+  {
+   "design": "loops.bisquare",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 0,
+     "name": null,
+     "ex": true,
+     "length_m": 0.0999999999999999,
+     "length_lam": 0.009529926199811195,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.9999999999999,
+     "seg_even_mm": 49.99999999999995,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "loops.delta_loop",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 3,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "loops.delta_loop_flyby",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 3,
+     "name": null,
+     "ex": true,
+     "length_m": 0.0999999999999976,
+     "length_lam": 0.00949656979029116,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.9999999999976,
+     "seg_even_mm": 49.9999999999988,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "loops.delta_loop_reflected",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 3,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "loops.delta_loop_slanted",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 3,
+     "name": null,
+     "ex": true,
+     "length_m": 0.10000000000000041,
+     "length_lam": 0.009496569790291428,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000041,
+     "seg_even_mm": 50.000000000000206,
+     "ratio": 2.0
+    },
+    {
+     "wire": 7,
+     "name": null,
+     "ex": true,
+     "length_m": 0.10000000000000041,
+     "length_lam": 0.009496569790291428,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000041,
+     "seg_even_mm": 50.000000000000206,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "loops.delta_loop_topdown",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 3,
+     "name": null,
+     "ex": true,
+     "length_m": 0.10000000000000098,
+     "length_lam": 0.009496569790291481,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000098,
+     "seg_even_mm": 50.00000000000049,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "loops.diamond_loop",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 4,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "loops.diamond_loop_turnstile",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 4,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 9,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "loops.horizontal_loop",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "loops.horizontal_loop_drone",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 4,
+     "name": null,
+     "ex": true,
+     "length_m": 0.07071067811865482,
+     "length_lam": 0.006738675440093854,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 70.71067811865483,
+     "seg_even_mm": 35.35533905932741,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "loops.inv_delta_loop",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 3,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "loops.quad",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 4,
+     "name": null,
+     "ex": true,
+     "length_m": 2.6495483249912493,
+     "length_lam": 0.2525,
+     "n_authored": 21,
+     "n_odd": 21,
+     "n_even": 22,
+     "seg_odd_mm": 126.16896785672614,
+     "seg_even_mm": 120.4340147723295,
+     "ratio": 1.0476190476190477
+    }
+   ]
+  },
+  {
+   "design": "loops.skyloop_lmatch",
+   "freq_mhz": 18.1,
+   "fed": [
+    {
+     "wire": 0,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.0060375101230865525,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "loops.triangular_skyloop",
+   "freq_mhz": 3.8,
+   "fed": [
+    {
+     "wire": 0,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.0012675435617529778,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "multiband.fandipole",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 20,
+     "name": null,
+     "ex": true,
+     "length_m": 0.02,
+     "length_lam": 0.0018993139580582778,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 20.0,
+     "seg_even_mm": 10.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "multiband.hexbeam_5band",
+   "freq_mhz": 14.3,
+   "fed": [
+    {
+     "wire": 9,
+     "name": "feed0",
+     "ex": false,
+     "length_m": 0.05,
+     "length_lam": 0.002384983280666787,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.0,
+     "seg_even_mm": 25.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 19,
+     "name": "feed1",
+     "ex": false,
+     "length_m": 0.05,
+     "length_lam": 0.002384983280666787,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.0,
+     "seg_even_mm": 25.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 29,
+     "name": "feed2",
+     "ex": false,
+     "length_m": 0.05,
+     "length_lam": 0.002384983280666787,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.0,
+     "seg_even_mm": 25.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 39,
+     "name": "feed3",
+     "ex": false,
+     "length_m": 0.05,
+     "length_lam": 0.002384983280666787,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.0,
+     "seg_even_mm": 25.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 49,
+     "name": "feed4",
+     "ex": false,
+     "length_m": 0.05,
+     "length_lam": 0.002384983280666787,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.0,
+     "seg_even_mm": 25.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "multiband.trap_dipole",
+   "freq_mhz": 28.0,
+   "fed": [
+    {
+     "wire": 1,
+     "name": "trap_l",
+     "ex": false,
+     "length_m": 0.04999999999999982,
+     "length_lam": 0.004669897332774112,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 49.99999999999982,
+     "seg_even_mm": 24.99999999999991,
+     "ratio": 2.0
+    },
+    {
+     "wire": 2,
+     "name": "feed",
+     "ex": false,
+     "length_m": 5.35343675,
+     "length_lam": 0.5,
+     "n_authored": 42,
+     "n_odd": 43,
+     "n_even": 42,
+     "seg_odd_mm": 124.49852906976744,
+     "seg_even_mm": 127.46277976190476,
+     "ratio": 0.9767441860465117
+    },
+    {
+     "wire": 3,
+     "name": "trap_r",
+     "ex": false,
+     "length_m": 0.04999999999999982,
+     "length_lam": 0.004669897332774112,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 49.99999999999982,
+     "seg_even_mm": 24.99999999999991,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "multiband.trap_fan_dipole",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 2,
+     "name": "trap_p_b0",
+     "ex": false,
+     "length_m": 0.04999999999999967,
+     "length_lam": 0.004748284895145663,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 49.99999999999967,
+     "seg_even_mm": 24.999999999999837,
+     "ratio": 2.0
+    },
+    {
+     "wire": 6,
+     "name": "trap_n_b0",
+     "ex": false,
+     "length_m": 0.04999999999999967,
+     "length_lam": 0.004748284895145663,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 49.99999999999967,
+     "seg_even_mm": 24.999999999999837,
+     "ratio": 2.0
+    },
+    {
+     "wire": 10,
+     "name": "trap_p_b1",
+     "ex": false,
+     "length_m": 0.04999999999999986,
+     "length_lam": 0.004748284895145681,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 49.99999999999986,
+     "seg_even_mm": 24.99999999999993,
+     "ratio": 2.0
+    },
+    {
+     "wire": 14,
+     "name": "trap_n_b1",
+     "ex": false,
+     "length_m": 0.04999999999999986,
+     "length_lam": 0.004748284895145681,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 49.99999999999986,
+     "seg_even_mm": 24.99999999999993,
+     "ratio": 2.0
+    },
+    {
+     "wire": 16,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.02,
+     "length_lam": 0.0018993139580582778,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 20.0,
+     "seg_even_mm": 10.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "multiband.twoband_fan_dipole",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 8,
+     "name": null,
+     "ex": true,
+     "length_m": 0.02,
+     "length_lam": 0.0018993139580582778,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 20.0,
+     "seg_even_mm": 10.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "specialty.bowtie",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 9,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "specialty.buried_dipole",
+   "freq_mhz": 7.1,
+   "fed": [
+    {
+     "wire": 1,
+     "name": null,
+     "ex": true,
+     "length_m": 0.05,
+     "length_lam": 0.0011841525379534398,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.0,
+     "seg_even_mm": 25.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "specialty.continuous_helix",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 0,
+     "name": null,
+     "ex": true,
+     "length_m": 0.04999999999999982,
+     "length_lam": 0.004764963099905585,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 49.99999999999982,
+     "seg_even_mm": 24.99999999999991,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "specialty.faceted_helix",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 0,
+     "name": null,
+     "ex": true,
+     "length_m": 0.04999999999999982,
+     "length_lam": 0.004764963099905585,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 49.99999999999982,
+     "seg_even_mm": 24.99999999999991,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "specialty.hentenna",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 8,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "specialty.hentenna_slant",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 10,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "specialty.hourglass",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 8,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "specialty.hourglass_slant",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 10,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.00949656979029139,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.bobtail",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 5,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.00952992619981117,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.bruce",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.00952992619981117,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.buried_radial_vertical",
+   "freq_mhz": 7.1,
+   "fed": [
+    {
+     "wire": 5,
+     "name": null,
+     "ex": true,
+     "length_m": 0.05,
+     "length_lam": 0.0011841525379534398,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.0,
+     "seg_even_mm": 25.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.challenger",
+   "freq_mhz": 21.35,
+   "fed": [
+    {
+     "wire": 0,
+     "name": "ant",
+     "ex": false,
+     "length_m": 0.050000000000000044,
+     "length_lam": 0.003560796716240276,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.00000000000004,
+     "seg_even_mm": 25.00000000000002,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.dominator",
+   "freq_mhz": 21.35,
+   "fed": [
+    {
+     "wire": 0,
+     "name": "ant",
+     "ex": false,
+     "length_m": 0.050000000000000044,
+     "length_lam": 0.003560796716240276,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.00000000000004,
+     "seg_even_mm": 25.00000000000002,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.elevated_buried_counterpoise",
+   "freq_mhz": 7.1,
+   "fed": [
+    {
+     "wire": 0,
+     "name": null,
+     "ex": true,
+     "length_m": 0.050000000000000044,
+     "length_lam": 0.0011841525379534409,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.00000000000004,
+     "seg_even_mm": 25.00000000000002,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.elt_whip",
+   "freq_mhz": 406.0,
+   "fed": [
+    {
+     "wire": 0,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.012699999999999934,
+     "length_lam": 0.017199231876607025,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 12.699999999999934,
+     "seg_even_mm": 6.349999999999967,
+     "ratio": 2.0
+    },
+    {
+     "wire": 327,
+     "name": "post0",
+     "ex": false,
+     "length_m": 0.012699999999999934,
+     "length_lam": 0.017199231876607025,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 12.699999999999934,
+     "seg_even_mm": 6.349999999999967,
+     "ratio": 2.0
+    },
+    {
+     "wire": 328,
+     "name": "post1",
+     "ex": false,
+     "length_m": 0.012699999999999934,
+     "length_lam": 0.017199231876607025,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 12.699999999999934,
+     "seg_even_mm": 6.349999999999967,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.four_square",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.00952992619981117,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 4,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.00952992619981117,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 7,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.00952992619981117,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 10,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.00952992619981117,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.half_square",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.00952992619981117,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.inverted_l",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 0,
+     "name": null,
+     "ex": true,
+     "length_m": 0.04999999999999982,
+     "length_lam": 0.004764963099905585,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 49.99999999999982,
+     "seg_even_mm": 24.99999999999991,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.inverted_l_tmatch",
+   "freq_mhz": 24.9,
+   "fed": [
+    {
+     "wire": 0,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.04999999999999982,
+     "length_lam": 0.0041528729852169785,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 49.99999999999982,
+     "seg_even_mm": 24.99999999999991,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.jpole",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 6,
+     "name": null,
+     "ex": true,
+     "length_m": 0.20986521386069304,
+     "length_lam": 0.02,
+     "n_authored": 2,
+     "n_odd": 3,
+     "n_even": 2,
+     "seg_odd_mm": 69.95507128689768,
+     "seg_even_mm": 104.93260693034652,
+     "ratio": 0.6666666666666666
+    }
+   ]
+  },
+  {
+   "design": "verticals.phased_verticals",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.00952992619981117,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    },
+    {
+     "wire": 4,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999964,
+     "length_lam": 0.00952992619981117,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999964,
+     "seg_even_mm": 49.99999999999982,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.pota_performer",
+   "freq_mhz": 21.35,
+   "fed": [
+    {
+     "wire": 0,
+     "name": null,
+     "ex": true,
+     "length_m": 0.050000000000000044,
+     "length_lam": 0.003560796716240276,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.00000000000004,
+     "seg_even_mm": 25.00000000000002,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.raised_vertical",
+   "freq_mhz": 14.27,
+   "fed": [
+    {
+     "wire": 0,
+     "name": null,
+     "ex": true,
+     "length_m": 0.04999999999999982,
+     "length_lam": 0.0023799798192388065,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 49.99999999999982,
+     "seg_even_mm": 24.99999999999991,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.rectangle",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.10000000000000009,
+     "length_lam": 0.009529926199811214,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000009,
+     "seg_even_mm": 50.00000000000004,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.right_angle_delta",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": null,
+     "ex": true,
+     "length_m": 0.09999999999999962,
+     "length_lam": 0.009529926199811169,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 99.99999999999962,
+     "seg_even_mm": 49.99999999999981,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.stub_matched_vertical",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 0,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.050000000000000044,
+     "length_lam": 0.004764963099905607,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.00000000000004,
+     "seg_even_mm": 25.00000000000002,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.tri_moxon",
+   "freq_mhz": 28.35,
+   "fed": [
+    {
+     "wire": 4,
+     "name": "feed_1",
+     "ex": false,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009456542098867744,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 12,
+     "name": "feed_2",
+     "ex": false,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009456542098867744,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    },
+    {
+     "wire": 20,
+     "name": "feed_3",
+     "ex": false,
+     "length_m": 0.10000000000000142,
+     "length_lam": 0.009456542098867744,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.00000000000142,
+     "seg_even_mm": 50.00000000000071,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "verticals.vertical",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 0,
+     "name": null,
+     "ex": true,
+     "length_m": 0.050000000000000044,
+     "length_lam": 0.004764963099905607,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.00000000000004,
+     "seg_even_mm": 25.00000000000002,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "wire.doublet_balanced_tuner",
+   "freq_mhz": 14.1,
+   "fed": [
+    {
+     "wire": 0,
+     "name": "feed",
+     "ex": false,
+     "length_m": 15.308551046808512,
+     "length_lam": 0.7200000000000001,
+     "n_authored": 60,
+     "n_odd": 61,
+     "n_even": 60,
+     "seg_odd_mm": 250.95985322636906,
+     "seg_even_mm": 255.14251744680854,
+     "ratio": 0.9836065573770492
+    }
+   ]
+  },
+  {
+   "design": "wire.doublet_ladder_tuner",
+   "freq_mhz": 7.1,
+   "fed": [
+    {
+     "wire": 2,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.0023683050759068795,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "wire.edz",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "wire.efhw_sloper",
+   "freq_mhz": 14.1,
+   "fed": [
+    {
+     "wire": 1,
+     "name": "ant",
+     "ex": false,
+     "length_m": 0.05000000000000006,
+     "length_lam": 0.0023516268711469748,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.00000000000006,
+     "seg_even_mm": 25.00000000000003,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "wire.expanded_lazy_h",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": "lo",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 4,
+     "name": "hi",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "wire.lazy_h",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 4,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "wire.longwire",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "wire.rhombic",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 0,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 5,
+     "name": "term",
+     "ex": false,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "wire.sterba",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 14,
+     "name": null,
+     "ex": true,
+     "length_m": 5.2650589743589755,
+     "length_lam": 0.5000000000000001,
+     "n_authored": 42,
+     "n_odd": 43,
+     "n_even": 42,
+     "seg_odd_mm": 122.44323196183663,
+     "seg_even_mm": 125.35854700854703,
+     "ratio": 0.9767441860465116
+    }
+   ]
+  },
+  {
+   "design": "wire.sterba_bl",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 1,
+     "name": "A0b",
+     "ex": false,
+     "length_m": 1.3162647435897437,
+     "length_lam": 0.125,
+     "n_authored": 10,
+     "n_odd": 11,
+     "n_even": 10,
+     "seg_odd_mm": 119.66043123543123,
+     "seg_even_mm": 131.62647435897435,
+     "ratio": 0.9090909090909091
+    },
+    {
+     "wire": 2,
+     "name": "A1a",
+     "ex": false,
+     "length_m": 2.6325294871794873,
+     "length_lam": 0.25,
+     "n_authored": 21,
+     "n_odd": 21,
+     "n_even": 22,
+     "seg_odd_mm": 125.358547008547,
+     "seg_even_mm": 119.66043123543123,
+     "ratio": 1.0476190476190477
+    },
+    {
+     "wire": 3,
+     "name": "A1b",
+     "ex": false,
+     "length_m": 2.632529487179487,
+     "length_lam": 0.24999999999999994,
+     "n_authored": 21,
+     "n_odd": 21,
+     "n_even": 22,
+     "seg_odd_mm": 125.35854700854699,
+     "seg_even_mm": 119.66043123543122,
+     "ratio": 1.0476190476190474
+    },
+    {
+     "wire": 4,
+     "name": "A2a",
+     "ex": false,
+     "length_m": 2.6325294871794878,
+     "length_lam": 0.25000000000000006,
+     "n_authored": 21,
+     "n_odd": 21,
+     "n_even": 22,
+     "seg_odd_mm": 125.35854700854703,
+     "seg_even_mm": 119.66043123543126,
+     "ratio": 1.0476190476190477
+    },
+    {
+     "wire": 5,
+     "name": "A2b",
+     "ex": false,
+     "length_m": 2.6325294871794878,
+     "length_lam": 0.25000000000000006,
+     "n_authored": 21,
+     "n_odd": 21,
+     "n_even": 22,
+     "seg_odd_mm": 125.35854700854703,
+     "seg_even_mm": 119.66043123543126,
+     "ratio": 1.0476190476190477
+    },
+    {
+     "wire": 6,
+     "name": "A3a",
+     "ex": false,
+     "length_m": 2.632529487179486,
+     "length_lam": 0.24999999999999986,
+     "n_authored": 21,
+     "n_odd": 21,
+     "n_even": 22,
+     "seg_odd_mm": 125.35854700854695,
+     "seg_even_mm": 119.66043123543118,
+     "ratio": 1.0476190476190477
+    },
+    {
+     "wire": 7,
+     "name": "A3b",
+     "ex": false,
+     "length_m": 2.632529487179486,
+     "length_lam": 0.24999999999999986,
+     "n_authored": 21,
+     "n_odd": 21,
+     "n_even": 22,
+     "seg_odd_mm": 125.35854700854695,
+     "seg_even_mm": 119.66043123543118,
+     "ratio": 1.0476190476190477
+    },
+    {
+     "wire": 8,
+     "name": "A4a",
+     "ex": false,
+     "length_m": 1.3162647435897448,
+     "length_lam": 0.1250000000000001,
+     "n_authored": 11,
+     "n_odd": 11,
+     "n_even": 12,
+     "seg_odd_mm": 119.66043123543135,
+     "seg_even_mm": 109.68872863247873,
+     "ratio": 1.0909090909090908
+    },
+    {
+     "wire": 11,
+     "name": "B0b",
+     "ex": false,
+     "length_m": 1.3162647435897437,
+     "length_lam": 0.125,
+     "n_authored": 10,
+     "n_odd": 11,
+     "n_even": 10,
+     "seg_odd_mm": 119.66043123543123,
+     "seg_even_mm": 131.62647435897435,
+     "ratio": 0.9090909090909091
+    },
+    {
+     "wire": 12,
+     "name": "B1a",
+     "ex": false,
+     "length_m": 2.6325294871794873,
+     "length_lam": 0.25,
+     "n_authored": 21,
+     "n_odd": 21,
+     "n_even": 22,
+     "seg_odd_mm": 125.358547008547,
+     "seg_even_mm": 119.66043123543123,
+     "ratio": 1.0476190476190477
+    },
+    {
+     "wire": 13,
+     "name": "B1b",
+     "ex": false,
+     "length_m": 2.632529487179487,
+     "length_lam": 0.24999999999999994,
+     "n_authored": 21,
+     "n_odd": 21,
+     "n_even": 22,
+     "seg_odd_mm": 125.35854700854699,
+     "seg_even_mm": 119.66043123543122,
+     "ratio": 1.0476190476190474
+    },
+    {
+     "wire": 14,
+     "name": "B2a",
+     "ex": false,
+     "length_m": 2.532529487179488,
+     "length_lam": 0.24050343020970869,
+     "n_authored": 20,
+     "n_odd": 21,
+     "n_even": 20,
+     "seg_odd_mm": 120.59664224664229,
+     "seg_even_mm": 126.6264743589744,
+     "ratio": 0.9523809523809524
+    },
+    {
+     "wire": 15,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.1999999999999993,
+     "length_lam": 0.01899313958058271,
+     "n_authored": 2,
+     "n_odd": 3,
+     "n_even": 2,
+     "seg_odd_mm": 66.66666666666643,
+     "seg_even_mm": 99.99999999999964,
+     "ratio": 0.6666666666666666
+    },
+    {
+     "wire": 16,
+     "name": "B2b",
+     "ex": false,
+     "length_m": 2.532529487179488,
+     "length_lam": 0.24050343020970869,
+     "n_authored": 20,
+     "n_odd": 21,
+     "n_even": 20,
+     "seg_odd_mm": 120.59664224664229,
+     "seg_even_mm": 126.6264743589744,
+     "ratio": 0.9523809523809524
+    },
+    {
+     "wire": 17,
+     "name": "B3a",
+     "ex": false,
+     "length_m": 2.632529487179486,
+     "length_lam": 0.24999999999999986,
+     "n_authored": 21,
+     "n_odd": 21,
+     "n_even": 22,
+     "seg_odd_mm": 125.35854700854695,
+     "seg_even_mm": 119.66043123543118,
+     "ratio": 1.0476190476190477
+    },
+    {
+     "wire": 18,
+     "name": "B3b",
+     "ex": false,
+     "length_m": 2.632529487179486,
+     "length_lam": 0.24999999999999986,
+     "n_authored": 21,
+     "n_odd": 21,
+     "n_even": 22,
+     "seg_odd_mm": 125.35854700854695,
+     "seg_even_mm": 119.66043123543118,
+     "ratio": 1.0476190476190477
+    },
+    {
+     "wire": 19,
+     "name": "B4a",
+     "ex": false,
+     "length_m": 1.3162647435897448,
+     "length_lam": 0.1250000000000001,
+     "n_authored": 11,
+     "n_odd": 11,
+     "n_even": 12,
+     "seg_odd_mm": 119.66043123543135,
+     "seg_even_mm": 109.68872863247873,
+     "ratio": 1.0909090909090908
+    }
+   ]
+  },
+  {
+   "design": "wire.sterba_tl",
+   "freq_mhz": 28.47,
+   "fed": [
+    {
+     "wire": 1,
+     "name": "p1_a",
+     "ex": false,
+     "length_m": 0.31274450307692314,
+     "length_lam": 0.029700000000000004,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 312.74450307692314,
+     "seg_even_mm": 156.37225153846157,
+     "ratio": 2.0
+    },
+    {
+     "wire": 2,
+     "name": "p1_b",
+     "ex": false,
+     "length_m": 0.31274450307692314,
+     "length_lam": 0.029700000000000004,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 312.74450307692314,
+     "seg_even_mm": 156.37225153846157,
+     "ratio": 2.0
+    },
+    {
+     "wire": 4,
+     "name": "p2_a",
+     "ex": false,
+     "length_m": 0.3127445030769227,
+     "length_lam": 0.029699999999999963,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 312.7445030769227,
+     "seg_even_mm": 156.37225153846134,
+     "ratio": 2.0
+    },
+    {
+     "wire": 5,
+     "name": "p2_b",
+     "ex": false,
+     "length_m": 0.3127445030769236,
+     "length_lam": 0.029700000000000046,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 312.7445030769236,
+     "seg_even_mm": 156.3722515384618,
+     "ratio": 2.0
+    },
+    {
+     "wire": 7,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.3127445030769245,
+     "length_lam": 0.029700000000000133,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 312.7445030769245,
+     "seg_even_mm": 156.37225153846225,
+     "ratio": 2.0
+    },
+    {
+     "wire": 9,
+     "name": "p3_a",
+     "ex": false,
+     "length_m": 0.3127445030769227,
+     "length_lam": 0.029699999999999963,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 312.7445030769227,
+     "seg_even_mm": 156.37225153846134,
+     "ratio": 2.0
+    },
+    {
+     "wire": 10,
+     "name": "p3_b",
+     "ex": false,
+     "length_m": 0.3127445030769227,
+     "length_lam": 0.029699999999999963,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 312.7445030769227,
+     "seg_even_mm": 156.37225153846134,
+     "ratio": 2.0
+    },
+    {
+     "wire": 12,
+     "name": "p4_a",
+     "ex": false,
+     "length_m": 0.3127445030769245,
+     "length_lam": 0.029700000000000133,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 312.7445030769245,
+     "seg_even_mm": 156.37225153846225,
+     "ratio": 2.0
+    },
+    {
+     "wire": 13,
+     "name": "p4_b",
+     "ex": false,
+     "length_m": 0.3127445030769245,
+     "length_lam": 0.029700000000000133,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 312.7445030769245,
+     "seg_even_mm": 156.37225153846225,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "wire.terminated_longwire",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 0,
+     "name": "feed",
+     "ex": false,
+     "length_m": 0.3,
+     "length_lam": 0.028589778599433614,
+     "n_authored": 2,
+     "n_odd": 3,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 150.0,
+     "ratio": 0.6666666666666666
+    },
+    {
+     "wire": 4,
+     "name": "term",
+     "ex": false,
+     "length_m": 0.3,
+     "length_lam": 0.028589778599433614,
+     "n_authored": 2,
+     "n_odd": 3,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 150.0,
+     "ratio": 0.6666666666666666
+    }
+   ]
+  },
+  {
+   "design": "wire.vbeam",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 0,
+     "name": null,
+     "ex": true,
+     "length_m": 0.058778525229247314,
+     "length_lam": 0.005601550075684678,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 58.778525229247315,
+     "seg_even_mm": 29.389262614623657,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "wire.w8jk",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 1,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    },
+    {
+     "wire": 4,
+     "name": null,
+     "ex": true,
+     "length_m": 0.1,
+     "length_lam": 0.009529926199811205,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 100.0,
+     "seg_even_mm": 50.0,
+     "ratio": 2.0
+    }
+   ]
+  },
+  {
+   "design": "wire.zepp",
+   "freq_mhz": 28.57,
+   "fed": [
+    {
+     "wire": 0,
+     "name": "ant",
+     "ex": false,
+     "length_m": 0.05,
+     "length_lam": 0.0047649630999056026,
+     "n_authored": 1,
+     "n_odd": 1,
+     "n_even": 2,
+     "seg_odd_mm": 50.0,
+     "seg_even_mm": 25.0,
+     "ratio": 2.0
+    }
+   ]
+  }
+ ],
+ "errors": {}
+}
