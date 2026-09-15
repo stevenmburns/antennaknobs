@@ -227,8 +227,20 @@ def main(argv=None):
                 cells.extend((d, g, rung, e) for e in engines)
 
     out_path = Path(a.out) if a.out else Path(__file__).with_name("records.jsonl")
+    # Provenance as the first line of the data. `--dev-mode` because this study
+    # deliberately runs momwire ahead of the recorded pointer: the pointer check
+    # still runs and is recorded as excused, and the other six still gate.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import verify_env
+
+    provenance = verify_env.collect(a.nec5_exe, dev_mode=True)
+    if not provenance["all_checks_pass"]:
+        failed = [k for k, v in provenance["checks"].items() if not v]
+        print(f"STALENESS GUARD FAILED: {failed}", file=sys.stderr)
+        return 3
     t_start = time.perf_counter()
     with open(out_path, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(provenance) + "\n")
         for i, (d, g, rung, e) in enumerate(cells, 1):
             rec = run_cell(d, g, rung, e, a.timeout, a.mem_gb, a.nec5_exe)
             rec.update(design=d, ground=g, rung=rung, engine=e)
