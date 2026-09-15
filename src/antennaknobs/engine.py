@@ -164,52 +164,107 @@ def _grid_placement_notes(tups, ports, parity):
     return notes
 
 
-def split_note(port, wire, at, cut, site):
+def split_note(port, wire, at, cuts, site):
     """AK's advisory for a positioned port whose wire an engine split at the
     feed (AK#1510): where it was asked for, that no count up to the cap has a
     site there, and where the wire was cut. The feed is exact, so there is no
     offset to report."""
+    where = " and ".join(f"{c:.4g}" for c in cuts)
+    pieces = "two" if len(cuts) == 1 else "three"
     return {
         "category": "FeedPlacement",
         "text": (
             f"Port {port!r} asks for {at:.4g} of the way along wire {wire!r}. "
             f"No segment count up to {SITE_COUNT_CAP}× the wire's own puts a "
-            f"{site} there, so the wire is split in two at {cut:.4g} of its "
+            f"{site} there, so the wire is split in {pieces} at {where} of its "
             "length and the port is fed exactly, at the middle of its piece "
             "(AK#1510)."
         ),
     }
 
 
-def _split_at_feed(t, at, parity):
-    """Wire entry `t` cut in two so a port at `at` sits at the exact middle of
-    one piece (AK#1510): ``(pieces in p0 -> p1 order, cut as a fraction)``.
+def _middle_parity_count(segments, parity):
+    """The count nearest `segments` whose middle is a site: odd and at least 1
+    for segment centres, even and at least 2 for knots."""
+    if parity == "even":
+        return max(2, 2 * round(segments / 2))
+    return max(1, 2 * round((segments - 1) / 2) + 1)
 
-    The carrying piece is [0, 2*at] for at < 1/2 and [2*at - 1, 1] above it, so
-    its middle is `at`. It keeps the wire's name and ex and takes its share of
-    the authored count, raised to the engine's middle parity: its middle is
-    then a segment centre (odd) or a knot (even). The other piece is unnamed,
-    with the same spec and its own share, at least 1. Both keep the wire's
-    orientation and meet at the cut, so the segment length stays near the
-    authored one on either side."""
-    w = as_wire(t)
-    n = int(w.n_seg)
-    share = 2 * at if at < 0.5 else 2 * (1 - at)
-    cut = 2 * at if at < 0.5 else 2 * at - 1
-    point = tuple(float(a + cut * (b - a)) for a, b in zip(w.p0, w.p1, strict=True))
-    carrying = SimulationEngine.coerce_n_seg(max(1, round(share * n)), parity)
-    rest = max(1, round((1 - share) * n))
-    ends = [(w.p0, point), (point, w.p1)]
-    counts = [(carrying, w.ex, w.name), (rest, None, None)]
-    if at > 0.5:
-        counts.reverse()
-    pieces = []
-    for (p0, p1), (count, ex, name) in zip(ends, counts, strict=True):
-        if isinstance(t, Wire) or len(t) == 6:
-            pieces.append(w._replace(p0=p0, p1=p1, n_seg=count, ex=ex, name=name))
+
+def _split_at_feed(t, at, parity):
+    """Wire entry `t` cut so a port at `at` sits at the exact middle of one
+    piece (AK#1510): ``(pieces in p0 -> p1 order, cuts as fractions)``.
+
+    Two pieces: the carrying piece is [0, 2*at] for at < 1/2 and [2*at - 1, 1]
+    above it, so its middle is `at`. It takes its share of the authored count
+    raised to the engine's middle parity, so its middle is a segment centre
+    (odd) or a knot (even); the other piece takes its own share, at least 1.
+
+    That other piece is |1 - 2*at| of the wire, shorter than half an authored
+    segment h = 1/n when |1 - 2*at| * n < 1/2: a sliver at the far end. Then
+    the carrying piece is [at - w, at + w] between two fillers. With d the
+    distance to the nearer end, the nearer filler is d - w = h, or h/2 when h
+    leaves w < h/2, and the far filler is 1 - d - w >= h/2. Near the middle
+    d > 1/2 - h/4, so h serves n >= 4 and h/2 serves n = 3. A wire of one or
+    two segments keeps the two-piece split. The carrying piece takes the
+    middle parity count nearest its length in authored segments, each filler
+    its own, at least 1.
+
+    Every piece but the carrying one is unnamed with the same spec, and all
+    keep the wire's orientation and meet at the cuts."""
+    wire = as_wire(t)
+    n = int(wire.n_seg)
+    h = 1 / n
+    spans = None
+    if abs(1 - 2 * at) * n < 0.5:
+        d = min(at, 1 - at)
+        half = next((d - near for near in (h, h / 2) if d - near >= h / 2), None)
+        if half is None:
+            _logger.warning(
+                "wire %r has %d segment(s): a port at %.6g leaves a piece of "
+                "%.3g of the wire at its far end",
+                wire.name,
+                n,
+                at,
+                abs(1 - 2 * at),
+            )
         else:
-            pieces.append((p0, p1, count, ex, name))
-    return pieces, cut
+            lo, hi = at - half, at + half
+            spans = [
+                (0.0, lo, max(1, round(lo * n)), False),
+                (lo, hi, _middle_parity_count(2 * half * n, parity), True),
+                (hi, 1.0, max(1, round((1 - hi) * n)), False),
+            ]
+    if spans is None:
+        share = 2 * at if at < 0.5 else 2 * (1 - at)
+        cut = 2 * at if at < 0.5 else 2 * at - 1
+        carrying = SimulationEngine.coerce_n_seg(max(1, round(share * n)), parity)
+        rest = max(1, round((1 - share) * n))
+        spans = (
+            [(0.0, cut, carrying, True), (cut, 1.0, rest, False)]
+            if at < 0.5
+            else [(0.0, cut, rest, False), (cut, 1.0, carrying, True)]
+        )
+
+    def point(frac):
+        if frac == 0.0:
+            return wire.p0
+        if frac == 1.0:
+            return wire.p1
+        return tuple(
+            float(a + frac * (b - a)) for a, b in zip(wire.p0, wire.p1, strict=True)
+        )
+
+    pieces = []
+    for lo, hi, count, carries in spans:
+        ex, name = (wire.ex, wire.name) if carries else (None, None)
+        if isinstance(t, Wire) or len(t) == 6:
+            pieces.append(
+                wire._replace(p0=point(lo), p1=point(hi), n_seg=count, ex=ex, name=name)
+            )
+        else:
+            pieces.append((point(lo), point(hi), count, ex, name))
+    return pieces, tuple(hi for _lo, hi, _n, _c in spans[:-1])
 
 
 def _port_positions(builder):
@@ -290,8 +345,8 @@ class SimulationEngine(ABC):
         splits = getattr(self, "_split_feeds", None) or {}
         site = {"odd": "segment centre", "even": "knot"}.get(self.segment_parity)
         notes = [
-            split_note(port, wire, at, cut, site)
-            for port, (wire, at, cut) in splits.items()
+            split_note(port, wire, at, cuts, site)
+            for port, (wire, at, cuts) in splits.items()
         ]
         return notes + _grid_placement_notes(
             getattr(self, "tups", None) or (),
@@ -368,7 +423,7 @@ class SimulationEngine(ABC):
         positions = _port_positions(getattr(self, "builder", None))
         family = {"odd": "centre", "even": "knot"}.get(parity)
         splits = getattr(self, "splits_wire_at_feed", False)
-        # Port name -> (wire, at, cut) for each wire split at its feed, and the
+        # Port name -> (wire, at, cuts) for each wire split at its feed, and the
         # authored entry each output entry came from (AK#1510).
         self._split_feeds = {}
         self._tup_authored = []
@@ -422,16 +477,17 @@ class SimulationEngine(ABC):
                     n_new = m
                 elif splits and len(at_here) == 1:
                     ((port, at),) = at_here
-                    pieces, cut = _split_at_feed(t, at, parity)
-                    self._split_feeds[port] = (w.name, at, cut)
+                    pieces, cuts = _split_at_feed(t, at, parity)
+                    self._split_feeds[port] = (w.name, at, cuts)
                     self._tup_authored += [index] * len(pieces)
                     out.extend(pieces)
                     _logger.info(
-                        "%s split wire %r at %.6g of its length so port %r "
-                        "sits at %.6g exactly",
+                        "%s split wire %r into %d at %s of its length so port "
+                        "%r sits at %.6g exactly",
                         type(self).__name__,
                         w.name,
-                        cut,
+                        len(pieces),
+                        ", ".join(f"{c:.6g}" for c in cuts),
                         port,
                         at,
                     )

@@ -295,7 +295,7 @@ position: a port
 at that point, fed there on every engine. An engine re-meshes the wire, up to
 twice its own segment count, so the point is a segment centre or a knot of its
 grid. When no count in that range has one there, PyNEC, NEC-2 and NEC-5 split
-the wire in two so the port sits at the exact middle of one piece, and say so in
+the wire so the port sits at the exact middle of one piece, and say so in
 a FeedPlacement advisory.
 
 A percentage on a segment boundary can therefore differ from a 4nec2 run by
