@@ -1,0 +1,76 @@
+{
+ "Q1": {
+  "verdict": "hit",
+  "instances": 6,
+  "fails": [],
+  "missing": []
+ },
+ "Q2": {
+  "verdict": "hit",
+  "instances": 4,
+  "fails": [],
+  "missing": []
+ },
+ "Q3": {
+  "verdict": "hit",
+  "instances": 1,
+  "fails": [],
+  "missing": []
+ },
+ "Q4": {
+  "verdict": "MISS",
+  "instances": 3,
+  "fails": [
+   "n=81",
+   "n=161"
+  ],
+  "missing": []
+ },
+ "Q5": {
+  "verdict": "MISS",
+  "instances": 3,
+  "fails": [
+   "n=81",
+   "n=161"
+  ],
+  "missing": []
+ },
+ "Q6": {
+  "verdict": "MISS",
+  "instances": 2,
+  "fails": [
+   "n=81",
+   "n=161"
+  ],
+  "missing": []
+ },
+ "Q7": {
+  "verdict": "MISS",
+  "instances": 2,
+  "fails": [
+   "n=81",
+   "n=161"
+  ],
+  "missing": []
+ },
+ "Q8": {
+  "verdict": "MISS",
+  "instances": 6,
+  "fails": [
+   "pynec n=81",
+   "pynec n=161",
+   "sin n=81",
+   "sin n=161",
+   "nec2 n=81",
+   "nec2 n=161"
+  ],
+  "missing": []
+ },
+ "Q9": {
+  "verdict": "hit",
+  "instances": 1,
+  "fails": [],
+  "missing": []
+ },
+ "verdict": "the guard's end piece"
+}
