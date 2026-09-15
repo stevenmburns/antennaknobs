@@ -1,0 +1,26 @@
+{
+ "end": [
+  "wire.sterba_bl"
+ ],
+ "floating": [
+  "arrays.bowtie1x2_bl",
+  "wire.doublet_balanced_tuner"
+ ],
+ "vertex": [
+  "dipoles.invvee_apex"
+ ],
+ "jacketed": [
+  "dipoles.pota_invvee",
+  "dipoles.invvee_catenary",
+  "wire.efhw_sloper"
+ ],
+ "union": [
+  "arrays.bowtie1x2_bl",
+  "dipoles.invvee_apex",
+  "dipoles.invvee_catenary",
+  "dipoles.pota_invvee",
+  "wire.doublet_balanced_tuner",
+  "wire.efhw_sloper",
+  "wire.sterba_bl"
+ ]
+}
