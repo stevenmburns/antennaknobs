@@ -804,7 +804,7 @@ def test_fixed_z_load_deck_line(monkeypatch):
 
 
 def test_material_deck_lines(monkeypatch):
-    from momwire import insulation_inductance
+    from momwire import equivalent_radius, insulation_inductance
 
     from antennaknobs.network import WireSpec
 
@@ -820,15 +820,44 @@ def test_material_deck_lines(monkeypatch):
             )
 
     lines = NEC5Engine(Lossy()).deck([28.5]).splitlines()
+    gw = [ln for ln in lines if ln.startswith("GW")]
     ld5 = [ln for ln in lines if ln.startswith("LD 5")]
     ld2 = [ln for ln in lines if ln.startswith("LD 2")]
     assert len(ld5) == 1 and len(ld2) == 1
-    assert float(ld5[0].split()[5]) == pytest.approx(5.8e7)
-    # NEC-5 has no native insulated-wire card (no IS in the command
-    # roster) — the jacket rides the same King L' LD 2 emulation momwire
-    # and export_nec use.
+    # NEC-5 has no native insulated-wire card (no IS in the command roster),
+    # so the jacket is momwire's coated-wire pair spelled in cards (#1523):
+    # the equivalent radius on GW, the jacket's L' at the conductor radius on
+    # LD 2, and LD 5's conductivity scaled by (a/a')^2, which keeps the
+    # copper's internal impedance the real conductor's.
+    a_eq = equivalent_radius(0.0005, 0.0009, 3.5)
+    assert float(gw[0].split()[-1]) == pytest.approx(a_eq, rel=1e-5)
+    assert float(ld5[0].split()[5]) == pytest.approx(
+        5.8e7 * (0.0005 / a_eq) ** 2, rel=1e-5
+    )
     expected = insulation_inductance(0.0005, 0.0009, 3.5)
     assert float(ld2[0].split()[6]) == pytest.approx(expected, rel=1e-5)
+    # The deck says why its GW radius is not the wire's.
+    assert lines[1].startswith("CM jacketed wire")
+
+
+def test_bare_wire_deck_keeps_the_conductor(monkeypatch):
+    """Without a jacket the GW radius and LD 5 conductivity are the spec's
+    own, and the deck carries no jacket comment (#1523 touches jackets only)."""
+    from antennaknobs.network import WireSpec
+
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+
+    class Bare(_Dipole):
+        def build_wire_material(self):
+            return WireSpec(radius=0.0005, conductivity=5.8e7)
+
+    lines = NEC5Engine(Bare()).deck([28.5]).splitlines()
+    gw = [ln for ln in lines if ln.startswith("GW")]
+    ld5 = [ln for ln in lines if ln.startswith("LD 5")]
+    assert float(gw[0].split()[-1]) == 0.0005
+    assert float(ld5[0].split()[5]) == 5.8e7
+    assert not any(ln.startswith("LD 2") for ln in lines)
+    assert lines[:2] == ["CM antennaknobs NEC5Engine deck", "CE"]
 
 
 def test_parse_power_budget_fixture():

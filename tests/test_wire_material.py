@@ -148,7 +148,8 @@ def test_nec_export_carries_spec():
     """The exported deck is a text twin of what PyNECEngine solves: spec
     radius on the GW cards, the global LD 5 when the design's wire is
     lossy, and neither for the ideal default."""
-    from antennaknobs.nec_export import export_nec
+    from antennaknobs.engines._nec_wire import nec_wire_material
+    from antennaknobs.nec_export import _num, export_nec
 
     deck = export_nec(_builder("28-awg"), ground=None)
     assert "LD 5 0 0 0  5.800000E+07" in deck
@@ -157,10 +158,23 @@ def test_nec_export_carries_spec():
     deck0 = export_nec(_builder(), ground=None)
     assert "LD 5" not in deck0
     assert " 5.000000E-04" in deck0
-    # Insulated variant additionally carries the distributed-L' card.
+    # Insulated variant: the coated-wire pair (#1523) — the equivalent radius
+    # on the GW cards, LD 5 rescaled for it, and the distributed-L' card.
+    spec = WIRES["28-awg-pvc"]
+    mat = nec_wire_material(spec.radius, spec.conductivity, spec)
     deck2 = export_nec(_builder("28-awg-pvc"), ground=None)
-    assert "LD 5 0 0 0  5.800000E+07" in deck2
+    assert f"LD 5 0 0 0 {_num(mat.conductivity)} 0. 0." in deck2
+    assert _num(mat.radius) in deck2
+    assert " 1.600000E-04" not in deck2
     assert "LD 2 0 0 0 0. " in deck2
+    assert "CM jacketed wire" in deck2
+    # jacket_pair=False is the inductance-only spelling the SimNEC portal
+    # takes: the conductor's radius and conductivity, plus LD 2.
+    deck3 = export_nec(_builder("28-awg-pvc"), ground=None, jacket_pair=False)
+    assert "LD 5 0 0 0  5.800000E+07" in deck3
+    assert " 1.600000E-04" in deck3
+    assert "LD 2 0 0 0 0. " in deck3
+    assert "CM jacketed wire" not in deck3
 
 
 @needs_pynec
@@ -180,34 +194,35 @@ def test_cross_engine_skin_loss_oracle():
 
 
 # ----------------------------------------------------------------------
-# The coated-wire oracles (momwire#874)
+# The coated-wire oracles (momwire#874, #1523)
 # ----------------------------------------------------------------------
 #
 # momwire models a jacketed wire as the Popovic-Nesic PAIR: the kernel takes
 # an equivalent radius a' = a·(b/a)^((eps_r-1)/eps_r), and the series
 # inductance L = (mu0/2pi)·ln(a'/a) puts back what enlarging the radius
-# removed. NEC's LD 2 is the L half ALONE — same velocity to first order,
-# but the wrong characteristic impedance (C unchanged, L raised, rather than
-# C raised, L unchanged). The two are different models, so a same-model
-# comparison needs NEC given the pair too.
+# removed. LD 2 ALONE is the L half — same velocity to first order, but the
+# wrong characteristic impedance (C unchanged, L raised, rather than C
+# raised, L unchanged). Since #1523 the NEC engines write the pair; the
+# inductance-only spelling survives as `_jacket_pair = False`, for the test
+# that pins how far apart the two models are.
 #
-# GIVING NEC THE PAIR TAKES THREE COUPLED DETAILS, and getting any one wrong
-# reproduces a ~5 % gap that looks like a momwire defect:
+# `pair_pynec` (conftest) spells the pair a second way, which makes it the
+# oracle for the engine's own spelling too. Of its three details the one that
+# bites is the conductor's internal REACTANCE: momwire's skin loading is the
+# exact Bessel internal impedance, so it carries R + jX_int, and deep in the
+# skin regime X_int ~= R (measured 1.4399 and 1.3830 ohm/m here,
+# X/R = 0.961). Dropping it costs several ohms of reactance and reads as a
+# model error.
 #
-#   1. GW radius = a'  (not the conductor's a)
-#   2. LD 2 carries L PLUS the conductor's internal REACTANCE X_int/omega
-#   3. LD 5 is dropped and the conductor's R folded into that same LD 2 card,
-#      because LD 5 derives R from the GW radius, which is no longer the
-#      conductor's
-#
-# Detail 2 is the one that bites: momwire's skin loading is the exact Bessel
-# internal impedance, so it carries R + jX_int, and deep in the skin regime
-# X_int ~= R (measured 1.4399 and 1.3830 ohm/m here, X/R = 0.961). Dropping
-# it costs several ohms of reactance and reads as a model error.
-#
-# THAT IS WHY THE TIGHT ORACLE BELOW IS PEC: with no conductor loss there is
-# nothing to fold, no LD 5 to drop, and detail 2 cannot be got wrong. Do not
-# "improve" it back into the lossy form.
+# THAT IS WHY THE TIGHT CROSS-ENGINE ORACLE BELOW IS PEC: with no conductor
+# loss there is nothing to fold, no LD 5 to drop, and detail 2 cannot be got
+# wrong. Do not "improve" it back into the lossy form.
+
+
+class _InductanceOnly(PyNECEngine):
+    """A jacket as LD 2 alone, on the bare radius — not the pair."""
+
+    _jacket_pair = False
 
 
 def _pec(wire_type):
@@ -255,14 +270,16 @@ def test_the_pair_and_LD2_alone_differ_by_the_equivalent_radius():
     momwire had silently lost the equivalent radius and gone back to being
     NEC's velocity-matching approximation. The lower bound below is the real
     content of this test; the upper bound only catches a wild divergence.
+    NEC is `_InductanceOnly` here: PyNECEngine itself writes the pair since
+    #1523, and against the pair this residual is the other test's zero.
     """
     dx_m = (
         _z(MomwireEngine(_builder("28-awg-pvc"), ground=None)).imag
         - _z(MomwireEngine(_builder("28-awg"), ground=None)).imag
     )
     dx_n = (
-        _z(PyNECEngine(_builder("28-awg-pvc"), ground=None)).imag
-        - _z(PyNECEngine(_builder("28-awg"), ground=None)).imag
+        _z(_InductanceOnly(_builder("28-awg-pvc"), ground=None)).imag
+        - _z(_InductanceOnly(_builder("28-awg"), ground=None)).imag
     )
     rel = abs(dx_m - dx_n) / abs(dx_n)
     assert rel < 0.10, f"the two models diverged further than the a' end-effect: {rel}"

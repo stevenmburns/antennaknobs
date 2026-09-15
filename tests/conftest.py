@@ -101,12 +101,14 @@ from antennaknobs.engines import find_nec5  # noqa: E402
 
 
 def pair_pynec(builder, *, lossy, ground=None):
-    """PyNEC given the SAME coated-wire model momwire runs (momwire#874).
+    """PyNEC given momwire's coated-wire model by a SECOND, independent
+    spelling (momwire#874).
 
     momwire models a jacket as the Popovic-Nesic PAIR: kernel radius
     a' = a*(b/a)**((eps_r-1)/eps_r) plus the series inductance
-    L = (mu0/2pi)*ln(a'/a). NEC's LD 2 is the L half alone, so a same-model
-    comparison has to hand NEC the pair as well.
+    L = (mu0/2pi)*ln(a'/a). Since #1523 PyNECEngine writes the pair itself,
+    rescaling LD 5's conductivity for the larger GW radius. This spelling
+    folds the conductor into LD 2 instead, so the two can be held equal.
 
     THREE COUPLED DETAILS, and getting any one wrong reproduces a ~5 % gap
     that reads like a momwire defect:
@@ -117,10 +119,11 @@ def pair_pynec(builder, *, lossy, ground=None):
          because LD 5 derives R from the GW radius which is no longer the
          conductor's
 
-    Detail 2 bites hardest: momwire's skin loading is the exact Bessel
-    internal impedance, so deep in the skin regime X_int ~= R (measured
-    1.4399 and 1.3830 ohm/m on 28 AWG at 14.1 MHz, X/R = 0.961). Omitting
-    it turns a 0.1 % agreement into 5.6 %.
+    Details 2 and 3 are exact at the design frequency only: this is a
+    single-frequency oracle. Detail 2 bites hardest: momwire's skin loading is
+    the exact Bessel internal impedance, so deep in the skin regime X_int ~= R
+    (measured 1.4399 and 1.3830 ohm/m on 28 AWG at 14.1 MHz, X/R = 0.961).
+    Omitting it turns a 0.1 % agreement into 5.6 %.
 
     Lives in conftest because two oracle modules need one spelling of it;
     duplicating it is how the three details drift apart.
@@ -135,9 +138,9 @@ def pair_pynec(builder, *, lossy, ground=None):
     )
 
     class _Pair(PyNECEngine):
-        def _radius_for(self, t):
+        def _gw_radius_for(self, t):
             spec = self._wire_spec
-            r = super()._radius_for(t)
+            r = self._radius_for(t)
             if spec is not None and spec.insulation_radius:
                 return equivalent_radius(
                     r, spec.insulation_radius, spec.insulation_eps_r

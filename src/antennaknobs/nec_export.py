@@ -22,7 +22,8 @@ rather than PyNEC's: a user reading a download error has not chosen an engine
 from __future__ import annotations
 
 from .engines.nec2 import refuse_nec2_geometry
-from .engines.pynec import DEFAULT_GROUND, WIRE_CONDUCTIVITY, PyNECEngine
+from .engines._nec_wire import JACKET_COMMENT_CARDS
+from .engines.pynec import DEFAULT_GROUND, PyNECEngine
 from .network import GradedSegments, Load, as_wire
 
 
@@ -72,6 +73,7 @@ def export_nec(
     npoints=1,
     include_rp=True,
     title=None,
+    jacket_pair=True,
 ):
     """Return a NEC2 card deck (str) for ``builder``.
 
@@ -83,6 +85,9 @@ def export_nec(
     npoints  : FR-card frequency count.
     include_rp: append an RP card so the deck also computes a far-field pattern.
     title    : CM comment text; defaults to the builder's qualified name.
+    jacket_pair: write an insulation jacket as momwire's coated-wire pair (the
+               default, issue #1523). False writes the bare radius plus LD 2,
+               for a consumer that drops the LD cards.
     """
     # Refused HERE rather than inside PyNECEngine, for two reasons the QRZ
     # thread made plain (#1389). The sentence must say "a NEC-2 deck", not
@@ -113,12 +118,19 @@ def export_nec(
     freq = builder.freq if freq is None else float(freq)
 
     title = title or f"{type(builder).__module__}.{type(builder).__qualname__}"
-    lines = [f"CM {title}", "CM exported by antennaknobs.nec_export", "CE"]
+    # Read only by the card text below; the PyNEC context the engine built is
+    # never solved here.
+    eng._jacket_pair = jacket_pair
+    lines = [f"CM {title}", "CM exported by antennaknobs.nec_export"]
+    if any(eng._gw_radius_for(t) != eng._radius_for(t) for t in eng.tups):
+        lines.extend(JACKET_COMMENT_CARDS)
+    lines.append("CE")
 
     # --- geometry: one GW per resolved wire tuple, then GE. GW carries a
-    # radius natively, so a per-wire spec (issue #388) exports faithfully ---
+    # radius natively, so a per-wire spec (issue #388) exports faithfully,
+    # and a jacketed wire's is its equivalent radius (issue #1523) ---
     for tag, t in enumerate(eng.tups, start=1):
-        lines.append(_gw(tag, t[2], t[0], t[1], eng._radius_for(t)))
+        lines.append(_gw(tag, t[2], t[0], t[1], eng._gw_radius_for(t)))
     lines.append("GE 0")
 
     # --- Load branches -> LD cards (type 0 series / 1 parallel RLC, type 4
@@ -152,32 +164,26 @@ def export_nec(
     # Wire material (issue #316): the same LD cards the engine emits —
     # conductor loss as LD 5 (spec conductivity from the design, else the
     # module-level oracle constant; normally None → card omitted, PEC) and
-    # the insulation jacket's series inductance as LD 2 (H/m). Issue #1427:
-    # the same per-wire rule as `PyNECEngine._emit_wire_material` — when any
-    # wire carries its own spec (a deck loaded from a file does), every wire
-    # gets per-tag cards from its effective spec; otherwise one global card
-    # per effect, byte-identical to before. The two paths are exclusive.
+    # the insulation jacket's series inductance as LD 2 (H/m), with LD 5
+    # rescaled on a jacketed wire for its equivalent GW radius (issue #1523).
+    # Issue #1427: the same per-wire rule as `PyNECEngine._emit_wire_material`
+    # — when any wire carries its own spec (a deck loaded from a file does),
+    # every wire gets per-tag cards from its effective spec; otherwise one
+    # global card per effect, byte-identical to before. The two paths are
+    # exclusive.
     if any(as_wire(t).spec is not None for t in eng.tups):
         for tag, t in enumerate(eng.tups, start=1):
-            w = as_wire(t)
-            eff = w.spec if w.spec is not None else eng._wire_spec
-            sigma = eff.conductivity if eff is not None else WIRE_CONDUCTIVITY
-            if sigma is not None:
-                lines.append(f"LD 5 {tag} 0 0 {_num(sigma)} 0. 0.")
-            l_ins = eng._insulation_l_per_m(eff, eng._radius_for(t))
-            if l_ins is not None:
-                lines.append(f"LD 2 {tag} 0 0 0. {_num(l_ins)} 0.")
+            mat = eng._material_for(t)
+            if mat.conductivity is not None:
+                lines.append(f"LD 5 {tag} 0 0 {_num(mat.conductivity)} 0. 0.")
+            if mat.inductance is not None:
+                lines.append(f"LD 2 {tag} 0 0 0. {_num(mat.inductance)} 0.")
     else:
-        sigma = (
-            eng._wire_spec.conductivity
-            if eng._wire_spec is not None
-            else WIRE_CONDUCTIVITY
-        )
-        if sigma is not None:
-            lines.append(f"LD 5 0 0 0 {_num(sigma)} 0. 0.")
-        l_ins = eng._insulation_l_per_m()
-        if l_ins is not None:
-            lines.append(f"LD 2 0 0 0 0. {_num(l_ins)} 0.")
+        mat = eng._design_material()
+        if mat.conductivity is not None:
+            lines.append(f"LD 5 0 0 0 {_num(mat.conductivity)} 0. 0.")
+        if mat.inductance is not None:
+            lines.append(f"LD 2 0 0 0 0. {_num(mat.inductance)} 0.")
 
     gn = _gn(eng.ground)
     if gn:
