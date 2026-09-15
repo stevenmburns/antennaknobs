@@ -49,3 +49,61 @@ So C2 is expected to hold for a reason that is visible in the diff, and a MISS o
 it would mean the diff does something its file list does not suggest.
 
 Nothing has been solved against `3b0d942a9` at the time of writing.
+
+## Results
+
+| design | ground | razor−NEC-5 before | after | NEC-5 Z before → after |
+|---|---|---:|---:|---|
+| `dipoles.pota_invvee` | free | 14.380 % | **0.1025 %** | 53.1480-16.1530j → 53.5990-8.2337j |
+| `dipoles.pota_invvee` | somm | 12.131 % | **0.0877 %** | 65.0150-10.6390j → 65.6060-2.7267j |
+| `dipoles.invvee_catenary` | free | 10.658 % | **0.1177 %** | 50.5180-6.2344j → 50.9310-0.8854j |
+| `dipoles.invvee_catenary` | somm | 12.084 % | **0.1337 %** | 44.8490-5.0933j → 45.2160+0.2881j |
+| `wire.efhw_sloper` | free | 11.939 % | **0.0752 %** | 42.9233-6.6700j → 47.8816-5.2208j |
+| `wire.efhw_sloper` | somm | 11.071 % | **0.0629 %** | 48.9251-7.0788j → 54.3374-6.4035j |
+
+### C1–C4
+
+| prediction | bar | measured | verdict |
+|---|---|---|---|
+| **C1** | razor−NEC-5 ≤ 0.5 % on all 6 rows | worst 0.1337 % | **HIT** |
+| **C2** | every bs2 and razor row bit-identical to `b9bc3e2f0` | 12 of 18 rows unchanged, byte for byte | **HIT** |
+| **C3** | only the NEC-5 rows move | 6 rows changed, all `nec5` | **HIT** |
+| **C4** | after values within ×3 of the catalog median 0.0665 % (i.e. 0.022–0.20 %) | range 0.0629–0.1337 % | **HIT** |
+
+Hit 4 of 4.
+
+The six rows carried the catalog study's entire >5 % razor-vs-NEC-5 tail. They now sit at 0.0629–0.1337 %, against a catalog-wide median of 0.0665 % over the other 100 designs — at the unjacketed background, not below it, which is the strongest claim the data supports.
+
+### Cross-build agreement, unasked for and worth recording
+
+Laptop-builder measured `wire.efhw_sloper` at **0.075 %** free and **0.063 %** over
+the default ground on the *laptop's* `nec5cl`. This run, on `nec5cl-3b75639`, reads
+**0.0752 %** and **0.0629 %**. Two different NEC-5 builds, four-figure agreement.
+C4 was deliberately written as a band rather than a reproduction of their digits,
+because a different binary need not match; it matched anyway, which says the
+coated-wire pair is being read the same way by both builds.
+
+### What this does and does not settle
+
+It settles the jacket: the two engines now spell a coated wire the same way, and
+the catalog study's worst rows are gone. `CONFIRM-1532.md`'s own framing above is
+the limit of the claim — **nothing here is about convergence.** All six rows are
+at each design's default mesh, and the #1516 ladders showed razor-2p and NEC-5 are
+the *unconverged* pair there, moving 18–33 % together under refinement while bs2
+moves under 2.4 %. So these figures say the two engines agree about the jacket;
+they do not say either is near its own mesh limit. That is job 2's question.
+
+### Reproducing
+
+```
+git checkout 3b0d942a9                    # AK PR #1532, unmerged
+NEC5_EXE=<path to nec5cl-3b75639> \
+  python <this dir>/run_catalog.py \
+    --designs dipoles.pota_invvee dipoles.invvee_catenary wire.efhw_sloper \
+    --out records-1532.jsonl
+python <this dir>/confirm_1532_report.py
+```
+
+18 cells in 9.0 s. The harness is `run_catalog.py` at `b9bc3e2f0`, unchanged —
+it was read out of git rather than edited, and the copy used had sha256 prefix
+`1f373187981bb2b3`.
