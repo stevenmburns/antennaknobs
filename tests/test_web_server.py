@@ -301,7 +301,7 @@ def test_capabilities_serves_the_running_versions(client: TestClient, monkeypatc
         "momwire": real_version("momwire"),
     }
     assert payload["version_label"] == (
-        f"v{real_version('antennaknobs')} · momwire {real_version('momwire')}"
+        f"v{real_version('antennaknobs')} · momwire v{real_version('momwire')}"
     )
 
     def fake_version(name: str) -> str:
@@ -310,7 +310,7 @@ def test_capabilities_serves_the_running_versions(client: TestClient, monkeypatc
     monkeypatch.setattr(importlib.metadata, "version", fake_version)
     payload = client.get("/capabilities").json()
     assert payload["versions"] == {"antennaknobs": "9.9.9", "momwire": "1.2.3"}
-    assert payload["version_label"] == "v9.9.9 · momwire 1.2.3"
+    assert payload["version_label"] == "v9.9.9 · momwire v1.2.3"
 
 
 def test_each_example_has_the_keys_the_frontend_reads(client: TestClient):
