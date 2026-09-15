@@ -364,7 +364,9 @@ def main() -> int:
                 cmd += ["--add-binary", f"{vendored}{os.pathsep}."]
                 print(f"vendored runtime: {vendored}")
         version_file = _write_version_file()
-        cmd += ["--version-file", str(version_file)]
+        # Absolute: `--specpath build` makes PyInstaller resolve a relative
+        # path against build/, so build/x.txt would be read as build/build/x.txt.
+        cmd += ["--version-file", str(version_file.resolve())]
         print(f"version resource: {version_file} ({version('antennaknobs')})")
     cmd.append(str(HERE / "entry.py"))
     print("+", " ".join(cmd), flush=True)
