@@ -2052,16 +2052,18 @@ class _Pct:
     value: float
 
 
-def _percent_position(wires, tag, pct, card):
+def _percent_position(wires, tag, pct, card, *, legacy=False):
     """4nec2's percentage position (AK#1496): ``pct`` percent of the length of
     the one wire tagged ``tag``, measured from its end 1. Returns (wire index,
     the 1-based segment whose centre is nearest, the position as a fraction).
 
-    The segment is what a path without positioned ports uses; a position
-    exactly on a segment boundary takes the lower segment. The fraction is the
-    exact position the network path keeps (a port at that point, AK#1469), or
-    None at 0 % or 100 %, where a gap cannot sit, so the end segment's centre
-    is used instead. The 4nec2 manual does not say how 4nec2 itself rounds."""
+    The segment is what a path without positioned ports (``legacy``) feeds. A
+    position exactly on the boundary between two segments is equally near
+    both centres, so that path refuses it rather than choose one (AK#1510).
+    The network path feeds the fraction instead: the exact position (a port at
+    that point, AK#1469), or None at 0 % or 100 %, where a gap cannot sit, so
+    the end segment's centre is used. Its segment takes the lower of two at a
+    boundary."""
     if not 0.0 <= pct <= 100.0:
         raise card.error(f"a position of {pct:g}% is off the wire (0% to 100%)")
     if tag == 0:
@@ -2078,7 +2080,18 @@ def _percent_position(wires, tag, pct, card):
         )
     i = matches[0]
     n = wires[i][1]
-    seg = min(n, max(1, math.ceil(pct / 100.0 * n - 1e-9)))
+    x = pct / 100.0 * n
+    boundary = round(x)
+    # The same 1e-9 of a segment within which the ceiling below reads a
+    # position as sitting on a boundary.
+    if legacy and 0 < boundary < n and abs(x - boundary) <= 1e-9:
+        raise card.error(
+            f"{pct:g}% of tag {tag} falls exactly on the boundary between "
+            f"segments {boundary} and {boundary + 1} of its {n}, so it names no "
+            "single segment; parse with network=True, which feeds the exact "
+            "position"
+        )
+    seg = min(n, max(1, math.ceil(x - 1e-9)))
     frac = pct / 100.0
     return i, seg, (frac if 0.0 < frac < 1.0 else None)
 
@@ -3177,7 +3190,9 @@ def parse_nec(
     for tag, seg, voltage, current, edge, where in feeds_raw:
         card = _Card("EX", [], where)
         if isinstance(seg, _Pct):
-            idx, local, at = _percent_position(wires, tag, seg.value, card)
+            idx, local, at = _percent_position(
+                wires, tag, seg.value, card, legacy=not network
+            )
         else:
             (idx, local), at = _locate_segment(wires, tag, seg, card), None
         feeds.append(NecFeed(idx, local, voltage, current, edge, at=at))
