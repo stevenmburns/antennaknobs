@@ -76,3 +76,40 @@ and is not re-registered.
 4. The ladder: G1, G3 and C1.
 5. Lint, and the antennaknobs tests with momwire at the pointer.
 6. Open the PR, unmerged.
+
+## Results, 2026-09-15
+
+The records are `g2_mesh.json`, `ladder_graded.json` and `ladder_stock.json`.
+The NEC-5 binary's sha256 matched the registration (7ebf343d), and momwire was
+antennaknobs' pointer, 1ca8725.
+
+| id | result | prediction |
+|---|---|---|
+| **G2** | **PASS** at 21 / 42 / 84.<br>• steps 0.981–2.000;<br>• first segment 25 mm;<br>• largest 457.1 / 246.2 / 124.4 mm, under the stock 500.3 / 250.1 / 125.1 mm;<br>• the cap equals the stock segment;<br>• the schedule equals AK#1454's;<br>• the fed wire is unchanged. | hit |
+| **G1** | **PASS.** NEC-5 R reads 27.937 / 27.988 / 28.010 Ω, a spread of 0.261 %. | ≤ 0.5 %: hit |
+| **G3** | momwire R reads 38.1773 / 38.1821 / 38.1855 Ω, a spread of 0.022 %. Nothing pins this design. | ≤ 0.3 %: hit |
+| **C1** | The stock radiator's NEC-5 R reads 30.643 / 29.417 / 28.598 Ω, a spread of 7.15 %. momwire's reads 44.560 / 42.790 / 41.180 Ω, 8.21 %. | > 3 %: hit |
+
+**Recorded, not gated.**
+- **Fed segments.** momwire's is 1 × 50 mm, with the feed at s = 0.025 m, and
+  steps 2× into the radiator's first 25 mm segment. NEC-5's is 2 × 25 mm,
+  followed by a 25 mm radiator card.
+- **The cross-engine gap narrows but stays open (AK#1443).** Measured as the
+  difference over the larger value:
+  - R goes from 31 % on the stock radiator to 27 % graded;
+  - |Z| goes from 16 % to 10 %.
+
+**A defect the suite found, outside the registered gates.**
+- **Symptom.** `test_delta_a_lint`'s two top-rung cases failed with ValueError.
+  At nominal_nsegs 641 the design's radiator segment is 16.5 mm, below h0 =
+  25 mm, and `doubling_graded_wire` refuses max_h < h0.
+- **Fix.** h0 is now min(25 mm, max_h).
+- **Why the gates still stand.** At 21 / 42 / 84 the helper's arguments are
+  unchanged. A G2 re-run on the fixed source reproduced `g2_mesh.json` byte for
+  byte, so G1, G3 and C1 stand for it.
+- **New test.** `test_ebc_radiator_is_graded_from_the_feed` pins the mesh at 21,
+  84 and 641.
+
+**Order deviation.** The helper, design change and tests were drafted in the
+working tree before the registration commit (b6d1daf). Nothing was run before
+it.
