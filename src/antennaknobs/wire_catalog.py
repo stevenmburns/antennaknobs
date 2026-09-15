@@ -27,7 +27,6 @@ from __future__ import annotations
 import itertools
 import math
 from dataclasses import dataclass
-from fractions import Fraction
 from typing import NamedTuple
 
 # `Cable` is momwire's now — promoted in momwire#456 ws2 from a local catalog
@@ -598,94 +597,6 @@ def on_site(m, at, family, tol=1e-9):
     if family == "centre":
         x -= 0.5
     return abs(x - round(x)) <= tol * max(m, 1)
-
-
-def _first_site_count(n_seg, fractions, family):
-    """The smallest count from `n_seg` up at which every exact rational
-    position is a site of the family's grid, with no cap, or None when no
-    count is (AK#1510).
-
-    Write a position as p/q in lowest terms.
-
-    - Knot, k/m = p/q: m works iff q divides m. For several positions m is a
-      multiple of L = lcm(q), so ``(L * ceil(n / L), L)``.
-    - Centre, (2k - 1)/(2m) = p/q: gcd(p, q) = 1 gives q | 2m. With
-      2m = q*t, 2k - 1 = p*t forces t odd, and then q*t even forces q even.
-      So q = 2r and m = r*t, t odd: the odd multiples of r. An odd q (a
-      third, say) is a centre at no count. For several positions m is an odd
-      multiple of every r, so v2(m) = v2(r) for each: the r's must share one
-      power of 2, and the counts are then the odd multiples of R = lcm(r).
-    """
-    n = max(int(n_seg), 1)
-    if not fractions:
-        return n
-    if family != "centre":
-        step = math.lcm(*(f.denominator for f in fractions))
-        return step * -(-n // step)
-    halves = []
-    for f in fractions:
-        if f.denominator % 2:
-            return None
-        halves.append(f.denominator // 2)
-    if len({r & -r for r in halves}) > 1:
-        return None
-    step = math.lcm(*halves)
-    return step * (-(-n // step) | 1)
-
-
-def site_count(n_seg, positions, family, *, cap=2, tol=1e-9):
-    """The smallest segment count from `n_seg` up to ``cap * n_seg`` at which
-    every position on the wire is a site of the engine's grid, or None
-    (AK#1469). `tol` is `on_site`'s.
-
-    The "centre" family is the segment-centre engines (PyNEC, NEC-2,
-    sinusoidal, BSpline d=2); the "knot" family is the knot engines (NEC-5,
-    razor, BSpline d=1). A position of None is the middle, so a wire whose
-    ports all sit at the middle gets the old parity rule: odd for centres,
-    even for knots.
-
-    Closed form (AK#1510, `_first_site_count`), equal to searching every count
-    from `n_seg` to the cap with `on_site`. A site of a count m <= cap*n
-    reduces to a denominator dividing 2m, so the only rational a float
-    position can stand for is its closest fraction with denominator at most
-    ``bound = 2 * cap * n``. `on_site` accepts a site within ``tol``, and two
-    distinct such fractions differ by at least 1/(q*bound), so when
-    ``4 * tol * q * bound < 1`` the closest one is the ONLY site any count up
-    to the cap can accept, and the count it gives is accepted only when
-    `on_site` confirms it. Past that bound (a denominator near 1e4 on a wire
-    of thousands of segments) a second fraction can also be within ``tol``,
-    and every count is searched.
-    """
-    n = max(int(n_seg), 1)
-    top = cap * n
-    bound = 2 * top
-    exact = []
-    ambiguous = False
-    for at in positions:
-        if at is None:
-            exact.append(Fraction(1, 2))
-            continue
-        x = float(at)
-        near = Fraction(x).limit_denominator(bound)
-        if abs(Fraction(x) - near) > 2 * tol:
-            # `near` is the closest candidate, so no count up to the cap has a
-            # site within `tol` of this position.
-            return None
-        ambiguous = ambiguous or 4 * tol * near.denominator * bound >= 1
-        exact.append(near)
-    if ambiguous:
-        return next(
-            (
-                m
-                for m in range(n, top + 1)
-                if all(on_site(m, at, family, tol) for at in positions)
-            ),
-            None,
-        )
-    m = _first_site_count(n, exact, family)
-    if m is None or m > top:
-        return None
-    return m if all(on_site(m, at, family, tol) for at in positions) else None
 
 
 def validate_named_wires_referenced(named_wires, network):

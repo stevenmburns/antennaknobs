@@ -8,20 +8,19 @@ from conftest import needs_pynec
 import antennaknobs as ant
 from antennaknobs.cli import _FeedPlacementEcho
 
-# 31% of ten segments is a segment centre only at 50, past twice the count.
+# 31% of ten segments is neither a segment centre nor a knot of those ten.
 DECK = (
     "GW 1 10 0 -2.6 10 0 2.6 10 0.001\nGE\nEX 0 1 31% 0 1 0\nFR 0 1 0 0 28.47 0\nEN\n"
 )
 NOTE = (
-    "advisory: Wire 'feed' carries port 'feed' at 0.31 of its length. No segment "
-    "count up to 2× the wire's own puts a segment centre there, so the wire is "
-    "split and the port is fed exactly, at the middle of a short piece of its own "
-    "(AK#1511).\n"
+    "advisory: Wire 'feed' carries port 'feed' at 0.31 of its length, which is not "
+    "a segment centre of its 10 segments, so the wire is split and the port is fed "
+    "exactly, at the middle of a short piece of its own (AK#1511).\n"
 )
 KNOT_NOTE = (
-    "advisory: Wire 'feed' carries port 'feed' at 0.31 of its length. No segment "
-    "count up to 2× the wire's own puts a knot there, so the wire is split there "
-    "and the port is fed exactly, at the knot the two pieces share (AK#1511).\n"
+    "advisory: Wire 'feed' carries port 'feed' at 0.31 of its length, which is not "
+    "a knot of its 10 segments, so the wire is split there and the port is fed "
+    "exactly, at the knot the two pieces share (AK#1511).\n"
 )
 
 

@@ -1,11 +1,12 @@
 """AK#1510 unit 2: a positioned port that no segment count up to the cap can
 carry is fed exactly, through a split wire.
 
-On a grid engine, a wire whose positioned port no count up to twice its own
-puts on a site is split so the port sits exactly on one. PyNEC and NEC-2 need a
-segment centre, so the port gets a short piece centred on it, with plain wire
-at each end, or running to a wire end within one segment of it (AK#1511's rule,
-which replaced the two- and three-piece split first built here). NEC-5 feeds a
+On a grid engine, a wire whose positioned port is not a site of the wire's own
+segment count is split so the port sits exactly on one; the count is never
+changed to reach a site (AK#1511, split-always). PyNEC and NEC-2 need a segment
+centre, so the port gets a short piece centred on it, with plain wire at each
+end, or running to a wire end within one segment of it (AK#1511's rule, which
+replaced the two- and three-piece split first built here). NEC-5 feeds a
 knot, so the wire breaks at the port itself and the source sits at the knot the
 two pieces share. Every reader of the port's position (segment, knot, card,
 drive point, port current) sees that site. The momwire engine never splits.
@@ -97,7 +98,7 @@ def _z(eng):
 
 # Near the middle, where #1510's two-piece split left a sliver.
 NEAR_MIDDLE = [0.49, 0.499, 0.5001]
-# No knot count from 10 to 20 reaches any of these, so NEC-5 breaks the wire.
+# None of these is a knot of ten segments, so NEC-5 breaks the wire.
 KNOT_BREAKS = [0.31, 0.69, 0.123, 0.499, 0.02, 0.49, 0.5001]
 
 
@@ -126,14 +127,14 @@ def test_pynec_feeds_a_centre_at_the_position_through_a_split(at, wires):
     assert np.linalg.norm(centre - _target(at)) <= 1e-9 * LENGTH
 
 
-@pytest.mark.parametrize(("at", "wires"), [(1 / 3, 1)] + [(a, 2) for a in KNOT_BREAKS])
-def test_nec5_feeds_a_knot_at_the_position(at, wires):
-    """A third of ten segments is a knot of twelve, so that wire only re-meshes;
-    the others break at the port, fed at the end knot of the first piece."""
+@pytest.mark.parametrize("at", [1 / 3, *KNOT_BREAKS])
+def test_nec5_feeds_a_knot_at_the_position(at):
+    """No knot of ten segments sits at any of these, a third included, so the
+    wire breaks at the port, fed at the end knot of the first piece."""
     eng = NEC5Engine(_b(feed_at=at), require_exe=False)
-    assert len(eng._wires) == wires
+    assert len(eng._wires) == 2
     ((idx, _type, _v, knot),) = eng._sources
-    assert (idx, knot) == ((0, "p1") if wires == 2 else (0, at))
+    assert (idx, knot) == (0, "p1")
     seg, end = eng._source_address(idx, knot)
     w = eng._wires[idx]
     point = np.asarray(w.p0) + seg / w.n_seg * (np.subtract(w.p1, w.p0))
@@ -297,17 +298,16 @@ def test_one_note_says_where_the_port_asked_to_be_and_how_it_is_fed():
     assert note == {
         "category": "FeedPlacement",
         "text": (
-            "Wire 'w' carries port 'feed' at 0.31 of its length. No segment count "
-            "up to 2× the wire's own puts a knot there, so the wire is split there "
-            "and the port is fed exactly, at the knot the two pieces share "
-            "(AK#1511)."
+            "Wire 'w' carries port 'feed' at 0.31 of its length, which is not a "
+            "knot of its 10 segments, so the wire is split there and the port is "
+            "fed exactly, at the knot the two pieces share (AK#1511)."
         ),
     }
 
 
 def test_pynec_says_segment_centre():
     (note,) = _pynec(feed_at=1 / 3).advisories
-    assert "puts a segment centre there" in note["text"]
+    assert "which is not a segment centre of its 10 segments" in note["text"]
     assert "at the middle of a short piece of its own" in note["text"]
 
 

@@ -155,9 +155,9 @@ SPLIT_ARM = 0.25 * 299.792458 / SPLIT_FREQ
 
 
 class _PositionedDipole(AntennaBuilder):
-    """One 10-segment wire with its feed at `feed_at`: 0.31 is no knot of any
-    count from 10 to 20 and 1/3 no segment centre of any, so the splitting
-    engines cut it (`tests/test_split_at_feed_1510.py`)."""
+    """One 10-segment wire with its feed at `feed_at`: 0.31 is no knot of its
+    ten segments and 1/3 no segment centre, so the splitting engines cut it
+    (`tests/test_split_at_feed_1510.py`)."""
 
     default_params = MappingProxyType(
         {"freq": SPLIT_FREQ, "design_freq": SPLIT_FREQ, "feed_at": 0.31}
