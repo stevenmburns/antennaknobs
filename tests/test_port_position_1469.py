@@ -412,14 +412,14 @@ def test_pynec_shorted_second_port_changes_nothing():
 
 @needs_position
 def test_pynec_feeds_the_segment_at_names():
-    eng = _pynec(feed_at=0.3)
+    """0.275 is the centre of segment 6 of 20, so the wire stays whole."""
+    eng = _pynec(n_seg=20, feed_at=0.275)
     eng.impedance()
+    assert [t[2] for t in eng.tups] == [20]
     if eng._network_port_loc:
-        assert eng._network_port_loc["feed"] == (1, gap_segment(eng.tups[0][2], 0.3))
+        assert eng._network_port_loc["feed"] == (1, gap_segment(20, 0.275))
     else:
-        assert eng._port_drive_points["feed"] == [
-            (gap_segment(eng.tups[0][2], 0.3), 1.0)
-        ]
+        assert eng._port_drive_points["feed"] == [(gap_segment(20, 0.275), 1.0)]
 
 
 @needs_position
@@ -457,8 +457,8 @@ def test_the_engine_lane_marker_sits_at_the_ports_position(feed_at, y):
 def test_simnec_station_cards_feed_the_segment_at_names():
     from antennaknobs.simnec_export import _station_cards
 
-    eng = _pynec(feed_at=0.3)
+    eng = _pynec(n_seg=20, feed_at=0.275)
     cards = _station_cards(eng, "feed", [], FREQ)
     assert [" ".join(c.split()[:4]) for c in cards if c.startswith("EX")] == [
-        f"EX 0 1 {gap_segment(eng.tups[0][2], 0.3)}"
+        f"EX 0 1 {gap_segment(20, 0.275)}"
     ]

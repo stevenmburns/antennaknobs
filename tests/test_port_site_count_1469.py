@@ -1,12 +1,13 @@
-"""AK#1469 slice 2, part A2: an engine chooses a wire's segment count so a
-positioned port sits exactly on a site of its grid.
+"""AK#1469 slice 2, part A2, as split-always made it (AK#1511): a positioned
+port sits exactly on a site of its engine's grid, on the wire's own count.
 
 A segment-centre engine (PyNEC, NEC-2, sinusoidal, BSpline d=2) needs a
 segment centre at the port; a knot engine (NEC-5, razor, BSpline d=1) needs an
-interior knot. The count grows to at most twice the authored count, one count
-for every port on the wire at once. Past that, the wire is split so every port
-on it, one or several, sits exactly on a site (AK#1510, AK#1511). A wire whose
-ports all sit at the middle keeps exactly the counts it had.
+interior knot. A wire carrying a positioned port keeps its authored count,
+with no parity bump and no re-count. When its ports are all sites of that
+count it stays whole; otherwise PyNEC, NEC-2 and NEC-5 split it so every port
+sits exactly on a site. A wire whose ports all sit at the middle keeps exactly
+the counts it had.
 """
 
 from types import MappingProxyType
@@ -15,32 +16,12 @@ import pytest
 
 from antennaknobs import AntennaBuilder
 from antennaknobs.network import Driven, Load, Network, PortOnWire, Wire
-from antennaknobs.wire_catalog import on_site, site_count
+from antennaknobs.wire_catalog import on_site
 
 needs_position = pytest.mark.skipif(
     not hasattr(PortOnWire("x"), "at"),
     reason="the installed momwire's PortOnWire has no wire/at (momwire#1059)",
 )
-
-
-@pytest.mark.parametrize(
-    ("n", "positions", "family", "m"),
-    [
-        (20, [None], "centre", 21),  # the old odd rule
-        (21, [None], "knot", 22),  # the old even rule
-        (20, [0.3], "centre", 25),
-        (21, [0.3], "centre", 25),
-        (20, [0.3], "knot", 20),
-        (21, [0.3], "knot", 30),
-        (20, [1 / 3], "knot", 21),
-        (20, [1 / 3], "centre", None),  # no count puts a centre at a third
-        (20, [0.25, None], "knot", 20),
-        (20, [0.25, None], "centre", None),  # odd and 2 mod 4 at once
-        (20, [0.123], "knot", None),  # 1000 segments, past the 2x cap
-    ],
-)
-def test_site_count(n, positions, family, m):
-    assert site_count(n, positions, family) == m
 
 
 def test_on_site():
@@ -90,46 +71,59 @@ def test_a_middle_port_keeps_the_old_parity_counts():
 
 
 @needs_position
-def test_pynec_centres_a_segment_on_the_port():
+def test_pynec_feeds_a_segment_centre_of_the_authored_count():
+    """0.275 is the centre of segment 6 of 20: the wire keeps its even 20, with
+    no parity bump, and the port feeds that segment. 0.3 is no centre of 20,
+    so that wire is split instead of re-counted to 25."""
     pytest.importorskip("PyNEC")
     from antennaknobs.engines.pynec import PyNECEngine
 
-    assert PyNECEngine(_b(feed_at=0.3)).tups[0][2] == 25
+    assert [t[2] for t in PyNECEngine(_b(feed_at=0.275)).tups] == [20]
+    assert "w" in PyNECEngine(_b(feed_at=0.3))._split_wires
 
 
 @needs_position
-def test_momwire_bspline_centres_a_segment_on_the_port():
+def test_momwire_keeps_the_authored_count_of_a_positioned_wire():
+    """No re-count on momwire either: its default basis feeds 0.3 at the exact
+    arclength of the authored 20 segments."""
     from antennaknobs.engines.momwire import MomwireEngine
 
-    assert MomwireEngine(_b(feed_at=0.3))._edge_segments == [[25]]
+    assert MomwireEngine(_b(feed_at=0.3))._edge_segments == [[20]]
 
 
 @needs_position
-def test_nec5_puts_a_knot_on_the_port_and_writes_it():
+def test_nec5_feeds_a_knot_of_the_authored_count_and_writes_it():
+    """0.3 is knot 6 of 20: the wire stays whole and the EX card names that
+    knot. On 21 segments it is no knot, so NEC-5 cuts the wire there instead of
+    re-counting it to 30."""
     from antennaknobs.engines.nec5 import NEC5Engine
 
-    eng = NEC5Engine(_b(n_seg=21, feed_at=0.3), require_exe=False)
-    assert eng.tups[0][2] == 30
+    eng = NEC5Engine(_b(feed_at=0.3), require_exe=False)
+    assert [t[2] for t in eng.tups] == [20]
     deck = eng.deck([FREQ])
     cards = [
         " ".join(line.split()[:5])
         for line in deck.splitlines()
         if line.startswith("EX")
     ]
-    assert cards == ["EX 0 1 9 2"]
+    assert cards == ["EX 0 1 6 2"]
+    assert "w" in NEC5Engine(_b(n_seg=21, feed_at=0.3), require_exe=False)._split_wires
 
 
 @needs_position
 def test_every_port_on_the_wire_is_honoured_at_once():
+    """The middle and a quarter are both knots of 20, so that wire stays whole;
+    on 21 segments neither is, and the wire is cut at both."""
     from antennaknobs.engines.nec5 import NEC5Engine
 
-    # a knot at the middle (even) and at a quarter (a multiple of 4), from 21 up
-    assert NEC5Engine(_b(n_seg=21, load_at=0.25), require_exe=False).tups[0][2] == 24
+    assert [t[2] for t in NEC5Engine(_b(load_at=0.25), require_exe=False).tups] == [20]
+    cut = NEC5Engine(_b(n_seg=21, load_at=0.25), require_exe=False)
+    assert cut._split_ports == {"load": "w@load", "feed": "w@feed"}
 
 
 @needs_position
 def test_an_unreachable_position_splits_the_wire_it_sits_on():
-    """No count puts a centre at a third, so the port gets a short piece of its
+    """A third is no segment centre of 20, so the port gets a short piece of its
     own centred on it, a third of the way to the nearer end either side, with
     plain wire at each end (AK#1511)."""
     pytest.importorskip("PyNEC")
@@ -172,7 +166,7 @@ def test_an_exactly_placed_port_raises_no_advisory():
     pytest.importorskip("PyNEC")
     from antennaknobs.engines.pynec import PyNECEngine
 
-    assert _placement_notes(PyNECEngine(_b(feed_at=0.3)).advisories) == []
+    assert _placement_notes(PyNECEngine(_b(feed_at=0.275)).advisories) == []
 
 
 @needs_position

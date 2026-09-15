@@ -10,17 +10,14 @@ import numpy as np
 
 from .network import GradedSegments, PortAtVertex, PortOnWire, Wire, as_wire
 from .wire_catalog import (
+    on_site,
     port_at,
     port_wire,
     refuse_coincident_ports,
-    site_count,
 )
 
 _logger = logging.getLogger(__name__)
 
-# The most a positioned port's wire grows, as a multiple of its own count, to
-# put the port on a site of the engine's grid (AK#1469).
-SITE_COUNT_CAP = 2
 
 SegmentParity = Literal["odd", "even", "any"]
 
@@ -130,16 +127,21 @@ def _and_list(items):
     return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
 
 
-def split_note(wire, ports, site):
+def split_note(wire, ports, site, n_seg):
     """AK's advisory for a wire an engine split so every positioned port on it
-    is fed exactly (AK#1511): the ports and their positions, that no count up
-    to the cap puts a site at all of them, and how each port is fed. The feeds
-    are exact, so there is no offset to report. `ports` is ``[(port, at)]`` in
-    order along the wire."""
+    is fed exactly (AK#1511): the ports and their positions, that they are not
+    all sites of the wire's own `n_seg` segments, and how each port is fed. The
+    feeds are exact, so there is no offset to report. `ports` is
+    ``[(port, at)]`` in order along the wire."""
     listed = _and_list([f"{port!r} at {at:.4g}" for port, at in ports])
     one = len(ports) == 1
     who = f"port {listed}" if one else f"ports {listed}"
-    where = "there" if one else "at all of them"
+    segments = f"{n_seg} segment" if n_seg == 1 else f"{n_seg} segments"
+    fact = (
+        f"which is not a {site} of its {segments}"
+        if one
+        else f"which are not all {site}s of its {segments}"
+    )
     each = "the port is" if one else "every port is"
     if site == "knot" and one:
         how = (
@@ -159,9 +161,7 @@ def split_note(wire, ports, site):
     return {
         "category": "FeedPlacement",
         "text": (
-            f"Wire {wire!r} carries {who} of its length. No segment count up to "
-            f"{SITE_COUNT_CAP}× the wire's own puts a {site} {where}, {how} "
-            "(AK#1511)."
+            f"Wire {wire!r} carries {who} of its length, {fact}, {how} (AK#1511)."
         ),
     }
 
@@ -295,6 +295,8 @@ class WireSplit(NamedTuple):
     # The wire name of the piece each port feeds, in the same order.
     pieces: tuple[str, ...]
     plan: SplitPlan
+    # The wire's authored segment count, which the split kept.
+    n_seg: int
 
 
 def _piece_name(wire, port, taken):
@@ -425,11 +427,11 @@ class SimulationEngine(ABC):
     # (issue #450). "any" disables coercion.
     segment_parity: ClassVar[SegmentParity] = "any"
     # An engine whose gap can only sit on a site of its own grid sets this: a
-    # wire whose positioned ports no count up to the cap puts on sites, one
-    # port or several, is split so every port sits exactly on one (AK#1510,
-    # AK#1511; `split_spans`): at the middle of a short piece of its own for a
+    # wire carrying positioned ports that are not all sites of its own count,
+    # one port or several, is split so every port sits exactly on one (AK#1511;
+    # `split_spans`): at the middle of a short piece of its own for a
     # segment-centre engine, at the knot two pieces share for a knot engine.
-    # momwire never splits.
+    # No engine changes the count to reach a site. momwire never splits.
     splits_wire_at_feed: ClassVar[bool] = False
 
     def __init__(self, builder):
@@ -470,13 +472,13 @@ class SimulationEngine(ABC):
         """AK's own notes on how this engine meshed the design, as
         ``{"category", "text"}``: one per wire it split so the positioned ports
         on it are fed exactly (AK#1511). Empty for an ordinary design, whose
-        ports all sit at a wire's middle or on a site of a re-meshed count.
+        ports all sit at a wire's middle or on sites of the wire's own count.
 
         A splitting engine never places a port on a nearest site, so there is
         no offset note here; momwire's snapping bases report their own."""
         site = {"odd": "segment centre", "even": "knot"}.get(self.segment_parity)
         return [
-            split_note(wire, split.ports, site)
+            split_note(wire, split.ports, site, split.n_seg)
             for wire, split in (getattr(self, "_split_wires", None) or {}).items()
         ]
 
@@ -608,7 +610,9 @@ class SimulationEngine(ABC):
                 )
             else:
                 pieces.append((p0, p1, span.n_seg, here, name))
-        self._split_wires[wire.name] = WireSplit(ports=ordered, pieces=names, plan=plan)
+        self._split_wires[wire.name] = WireSplit(
+            ports=ordered, pieces=names, plan=plan, n_seg=int(wire.n_seg)
+        )
         self._split_ports.update(
             {port: name for (port, _at), name in zip(ordered, names, strict=True)}
         )
@@ -682,23 +686,20 @@ class SimulationEngine(ABC):
                 w.ex is not None or w.name is not None
             ) and w.name not in self._parity_exempt_names()
             n_new = self.coerce_n_seg(w.n_seg, parity) if marked else max(1, w.n_seg)
-            # A port positioned along this wire (AK#1469) wants a count at which
-            # its position is a site of this engine's grid, not just the middle,
-            # up to SITE_COUNT_CAP times the authored count, one count for every
-            # port on the wire at once. Past that, an engine that splits cuts
+            # A wire carrying a positioned port (AK#1469) keeps its authored
+            # count: no parity bump, and no re-count to put a port on a site,
+            # which moved the impedance whenever some count happened to fit
+            # (AK#1511, split-always). When every port on it is already a site
+            # of that count (a segment centre, or a knot), the wire stays whole
+            # and each port feeds its site. Otherwise an engine that splits cuts
             # the wire so every port on it, one or several, sits exactly on a
-            # site (AK#1511).
+            # site; a knot engine then cuts at every port, on a knot or not.
+            # momwire feeds the exact arclength and keeps the wire whole.
             at_here = positions.get(w.name) if marked else None
             if at_here and family is not None:
-                m = site_count(
-                    w.n_seg,
-                    [at for _name, at in at_here],
-                    family,
-                    cap=SITE_COUNT_CAP,
-                )
-                if m is not None:
-                    n_new = m
-                elif splits:
+                n_new = max(1, int(w.n_seg))
+                on_grid = all(on_site(n_new, at, family) for _name, at in at_here)
+                if splits and not on_grid:
                     pieces = self._split_wire(t, at_here, parity, taken)
                     self._tup_authored += [index] * len(pieces)
                     out.extend(pieces)

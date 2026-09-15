@@ -23,14 +23,8 @@ import numpy as np
 import pytest
 from conftest import needs_nec5
 
-import antennaknobs.engine as engine_module
 from antennaknobs import AntennaBuilder, WireSpec
-from antennaknobs.engine import (
-    SITE_COUNT_CAP,
-    _nearest_count,
-    _nearest_odd_count,
-    split_spans,
-)
+from antennaknobs.engine import _nearest_count, _nearest_odd_count, split_spans
 from antennaknobs.engines.nec5 import NEC5Engine
 from antennaknobs.network import (
     TL,
@@ -42,7 +36,7 @@ from antennaknobs.network import (
     Wire,
     as_wire,
 )
-from antennaknobs.wire_catalog import site_count
+from antennaknobs.wire_catalog import on_site
 
 pytestmark = pytest.mark.skipif(
     not hasattr(PortOnWire("x"), "at"),
@@ -234,11 +228,11 @@ def test_the_nec2_export_writes_every_port_at_its_position(case):
 
 @pytest.mark.parametrize("case", CASES)
 def test_nec5_feeds_every_port_at_a_knot_on_its_position(case):
-    """A third of ten segments is a knot of twelve, so that wire only
-    re-meshes; every other case splits."""
+    """No case's ports are all knots of the wire's own ten segments, so every
+    one is cut."""
     b = _b(**CASES[case])
     eng = NEC5Engine(b, require_exe=False)
-    assert ("w" in eng._split_wires) == (case != "k1-third")
+    assert "w" in eng._split_wires
     targets = _targets(b)
     ((idx, _type, _v, knot),) = eng._sources
     attach = {"feed": (idx, knot), **{br.port: (i, k) for i, k, br in eng._loads}}
@@ -362,7 +356,7 @@ def test_every_split_keeps_its_bounds():
     failures = [
         (n, u, bad)
         for n, u in population
-        if site_count(n, u, "centre", cap=SITE_COUNT_CAP) is None
+        if not all(on_site(n, at, "centre") for at in u)
         and (bad := _bound_failures(n, u))
     ]
     assert failures == [], f"{len(failures)} of {len(population)}: {failures[:3]}"
@@ -502,14 +496,114 @@ def test_two_ports_at_one_point_of_a_split_wire_are_refused():
         _pynec(_b(load_ats=(0.31,)))
 
 
-def test_a_multi_port_wire_that_fits_a_count_stays_whole_and_says_nothing():
-    """A quarter and three quarters are segment centres of ten and knots of
-    twelve: the wire re-meshes, as before, and no note."""
-    b = _b(feed_at=0.25, load_ats=(0.75,))
-    pynec = _pynec(b)
+def test_a_wire_whose_ports_are_all_sites_of_its_own_count_stays_whole():
+    """A quarter and three quarters are segment centres of ten, and 0.3 and 0.7
+    are knots of ten: each wire keeps its ten segments, and there is no note."""
+    pynec = _pynec(_b(feed_at=0.25, load_ats=(0.75,)))
     assert [t[2] for t in pynec.tups] == [10] and pynec.advisories == []
-    nec5 = NEC5Engine(b, require_exe=False)
-    assert [t[2] for t in nec5.tups] == [12] and nec5.advisories == []
+    nec5 = NEC5Engine(_b(feed_at=0.3, load_ats=(0.7,)), require_exe=False)
+    assert [t[2] for t in nec5.tups] == [10] and nec5.advisories == []
+
+
+def test_a_positioned_wire_keeps_its_authored_count():
+    """Split-always: no parity bump and no re-count. 0.3 is a segment centre of
+    25 and a knot of 30, counts a re-count once reached from 20 and 21, and now
+    PyNEC splits the 20-segment wire and NEC-5 cuts the 21-segment one. A port
+    already on a site keeps the authored count even where parity would have
+    bumped it: ten segments stay ten on both engines."""
+    pynec = _pynec(_b(n_seg=20, feed_at=0.3))
+    assert pynec._split_wires["w"].n_seg == 20
+    nec5 = NEC5Engine(_b(n_seg=21, feed_at=0.3), require_exe=False)
+    assert nec5._split_wires["w"].n_seg == 21
+    assert [t[2] for t in _pynec(_b(feed_at=0.25)).tups] == [10]
+    assert [
+        t[2] for t in NEC5Engine(_b(n_seg=9, feed_at=1 / 3), require_exe=False).tups
+    ] == [9]
+
+
+def test_a_knot_engine_cuts_at_every_port_once_one_is_off_its_grid():
+    """0.3 is a knot of ten and 0.35 is not, so NEC-5 cuts at both. The last
+    piece is 6.5 segments long and rounds up to 7."""
+    eng = NEC5Engine(_b(feed_at=0.3, load_ats=(0.35,)), require_exe=False)
+    assert [(as_wire(t).n_seg, as_wire(t).name) for t in eng.tups] == [
+        (3, "w@feed"),
+        (1, "w@load0"),
+        (7, None),
+    ]
+    assert eng._split_ports == {"feed": "w@feed", "load0": "w@load0"}
+
+
+HALF_OF_TWO_SEGMENTS = """\
+GW 1 20 -9.4 0 13.7 -0.1 0 20 0.001
+GW 2 2 -0.1 0 20 0.1 0 20 0.001
+GW 3 20 0.1 0 20 9.4 0 13.7 0.001
+GE
+EX 0 2 50% 0 1 0
+FR 0 1 0 0 3.68 0
+EN
+"""
+
+
+def _deck_builder(text):
+    from antennaknobs.nec_import import parse_nec
+
+    deck = parse_nec(text, name="two_segment_half.nec", network=True)
+
+    class _Deck(AntennaBuilder):
+        default_params = MappingProxyType({"freq": 3.68, "design_freq": 3.68})
+
+        def build_wires(self):
+            return list(deck.wire_tuples())
+
+        def build_network(self):
+            return deck.network()
+
+    return _Deck(dict(_Deck.default_params))
+
+
+@pytest.mark.parametrize("engine", ["pynec", "nec2"])
+def test_fifty_percent_of_two_segments_feeds_the_middle_of_three_segments_on_a_centre_engine(
+    engine, monkeypatch
+):
+    """`EX 0 2 50% 0 1 0` on a two-segment wire. The importer writes the exact
+    middle as a plain port at the wire's middle, so the parity rule serves it:
+    three segments, the source on the middle one. That is the mesh the pegged
+    split makes of a port at 0.5 (three one-segment pieces, below)."""
+    pytest.importorskip("PyNEC")
+    if engine == "pynec":
+        from antennaknobs.engines.pynec import PyNECEngine
+
+        eng = PyNECEngine(_deck_builder(HALF_OF_TWO_SEGMENTS), ground=None)
+    else:
+        from antennaknobs.engines import nec2
+
+        monkeypatch.setattr(nec2, "find_nec2", lambda explicit=None: "/bin/true")
+        eng = nec2.NEC2Engine(_deck_builder(HALF_OF_TWO_SEGMENTS))
+    assert [as_wire(t).n_seg for t in eng.tups] == [20, 3, 20]
+    (rec,) = eng.fed_segments()
+    assert (rec["wire"], rec["segments"], rec["site"]) == (1, 3, "centre")
+    assert eng._split_wires == {}
+
+
+def test_fifty_percent_of_two_segments_feeds_the_existing_knot_on_nec5():
+    eng = NEC5Engine(_deck_builder(HALF_OF_TWO_SEGMENTS), require_exe=False)
+    assert [as_wire(t).n_seg for t in eng.tups] == [20, 2, 20]
+    ((idx, _type, _v, knot),) = eng._sources
+    assert (idx, eng._source_address(idx, knot)) == (1, (1, 2))
+    assert eng._split_wires == {}
+
+
+def test_a_port_positioned_at_half_of_two_segments():
+    """Positioned at 0.5 instead of written as the middle: 0.5 is no segment
+    centre of two segments, so PyNEC makes three one-segment pieces and feeds
+    the middle one; NEC-5 feeds the knot 0.5 already is, with no cut."""
+    pynec = _pynec(_b(n_seg=2, feed_at=0.5))
+    ws = [as_wire(t) for t in pynec.tups]
+    assert [(w.n_seg, w.name) for w in ws] == [(1, None), (1, "w@feed"), (1, None)]
+    lengths = [float(np.linalg.norm(np.subtract(w.p1, w.p0))) for w in ws]
+    assert lengths == pytest.approx([LENGTH / 3] * 3, rel=1e-12)
+    nec5 = NEC5Engine(_b(n_seg=2, feed_at=0.5), require_exe=False)
+    assert [t[2] for t in nec5.tups] == [2] and nec5._split_wires == {}
 
 
 def test_momwire_never_splits_a_multi_port_wire():
@@ -523,18 +617,19 @@ def test_momwire_never_splits_a_multi_port_wire():
 def test_one_note_per_split_wire_names_every_port():
     k3 = (
         "Wire 'w' carries ports 'load0' at 0.04, 'feed' at 0.31 and 'load1' at "
-        "0.77 of its length. No segment count up to 2× the wire's own puts a "
+        "0.77 of its length, which are not all "
     )
     (centre,) = _pynec(_b(**CASES["k3"])).advisories
     assert centre == {
         "category": "FeedPlacement",
-        "text": k3 + "segment centre at all of them, so the wire is split and every "
-        "port is fed exactly, at the middle of a short piece of its own (AK#1511).",
+        "text": k3 + "segment centres of its 10 segments, so the wire is split and "
+        "every port is fed exactly, at the middle of a short piece of its own "
+        "(AK#1511).",
     }
     (knot,) = NEC5Engine(_b(**CASES["k3"]), require_exe=False).advisories
     assert knot["text"] == (
-        k3 + "knot at all of them, so the wire is split at each port and every port "
-        "is fed exactly, at the knot the pieces on either side share (AK#1511)."
+        k3 + "knots of its 10 segments, so the wire is split at each port and every "
+        "port is fed exactly, at the knot the pieces on either side share (AK#1511)."
     )
 
 
@@ -697,36 +792,34 @@ def test_the_nearest_count_rounds_a_half_up(segments, count):
 # where every port sits on its grid, so a formulation difference between
 # engines cancels. The bars, registered before the first run of these tests:
 #
-# - PyNEC, two ports (feed 0.31, 50 ohm load 0.77). The whole wire fits at the
-#   odd multiples of 50. Reference: Z_w(150). Splits: authored 61 (the rule
-#   splits it) and authored 101 (forced, because 0.31 and 0.77 are both centres
-#   of 150). Bar: the whole-wire step bracketing both splits' totals (61 and
-#   100 segments), |Z_w(150) - Z_w(50)|.
+# - PyNEC, two ports (feed 0.31, 50 ohm load 0.77). The whole wire has both on
+#   segment centres at the odd multiples of 50. Reference: Z_w(150). Splits:
+#   authored 61 and 101. Bar: the whole-wire step bracketing both splits'
+#   totals (61 and 100 segments), |Z_w(150) - Z_w(50)|.
 # - PyNEC, three ports (a second 50 ohm load at 0.04). No count fits: 0.04 is
 #   1/25, and an odd denominator is never a segment centre. Reference: the
 #   finest count in reach that fits the other two, 450, with the 0.04 load on
-#   its nearest centre half a segment (11.7 mm) away. Split: authored 101 (the
-#   rule splits it). Bar: the same whole-wire ladder's step bracketing the
-#   split's 100 segments, |Z_w(150) - Z_w(50)|, the 0.04 load half a segment
-#   off at each.
+#   its nearest centre half a segment (11.7 mm) away. Split: authored 101. Bar:
+#   the same whole-wire ladder's step bracketing the split's 100 segments,
+#   |Z_w(150) - Z_w(50)|, the 0.04 load half a segment off at each.
 # - NEC-5, two and three ports. Every multiple of 100 puts a knot at all of
-#   them. Reference: Z_w(100). Split: authored 100, forced, the same density.
-#   Bar: the step to the next fitting count, |Z_w(200) - Z_w(100)|.
-# - Added after that NEC-5 gate's first run, and registered before its own. The
-#   same-density split reproduces the whole wire's grid exactly (every cut is a
-#   knot of 100, and each piece takes its share of the 100 segments), so it
-#   shows only that NEC-5 feeds a collinear junction as an interior knot; it
-#   measured |dZ| = 0 at printout precision. The split at another density:
-#   authored 150, forced (both cases fit at 200), whose pieces are off that
-#   grid. Reference: Z_w(200). Bar: the bracketing step, |Z_w(200) - Z_w(100)|.
+#   them. Split: authored 150, whose pieces are off that grid. Reference:
+#   Z_w(200). Bar: the bracketing step, |Z_w(200) - Z_w(100)|. (Registered
+#   after a first NEC-5 gate, split from 100 against the whole wire at 100,
+#   proved degenerate: that split was the whole wire's own mesh.)
+#
+# Split-always (2026-09-15): no split here is forced any more. Each is the one
+# the rule makes, and the whole-wire references are the rule's own whole
+# wires, except PyNEC's three-port ladder, which switches the split off to
+# place 0.04 on its nearest centre. A wire whose ports are all knots of its
+# count now stays whole, so the degenerate NEC-5 gate is gone.
 #
 # Reported, not gated: each split against momwire fed at the exact arclength,
-# measured in the AK#1511 build. PyNEC at 101 segments, D = 0.0404 ohm on the
-# centre-fed dipole: one port at a third 0.0497 ohm (1.23 D); two ports, split
-# forced, 0.1693 ohm (4.19 D), where PyNEC's own whole wire at 150 is 0.1087
-# ohm (2.69 D); three ports 0.0841 ohm (2.08 D). PyNEC at 61, D = 0.0865 ohm:
-# two ports 0.2297 ohm (2.66 D). NEC-5 at 100, D5 = 1.618 ohm: two ports, split
-# forced, 2.429 ohm (1.50 D5); at 45, where the rule splits it, 4.965 ohm
+# measured before split-always. PyNEC at 101 segments, D = 0.0404 ohm on the
+# centre-fed dipole: one port at a third 0.0497 ohm (1.23 D); two ports 0.1693
+# ohm (4.19 D), where PyNEC's own whole wire at 150 is 0.1087 ohm (2.69 D);
+# three ports 0.0841 ohm (2.08 D). PyNEC at 61, D = 0.0865 ohm: two ports
+# 0.2297 ohm (2.66 D). NEC-5 at 45, D5 = 3.219 ohm: two ports 4.965 ohm
 # (1.54 D5).
 
 PHYSICS = {
@@ -735,36 +828,36 @@ PHYSICS = {
 }
 
 
-def _pynec_engine(builder):
+def _pynec_class():
     pytest.importorskip("PyNEC")
     from antennaknobs.engines.pynec import PyNECEngine
 
-    return PyNECEngine(builder, ground=None)
+    return PyNECEngine
+
+
+def _pynec_engine(builder):
+    return _pynec_class()(builder, ground=None)
 
 
 def _nec5_engine(builder):
     return NEC5Engine(builder, ground=None)
 
 
-def _whole_z(make, n, params, *, snap=False):
-    """Z of the whole wire at exactly `n` segments. Without `snap` every port
-    must already sit on a site at `n`; with it, a port no count reaches goes to
-    its nearest site there."""
+def _whole_z(make, n, params, *, snap_class=None):
+    """Z of the whole wire at exactly `n` segments. Every port must already sit
+    on a site at `n`, unless `snap_class` is given: that engine class is then
+    told not to split, and a port off its grid goes to its nearest site."""
     with pytest.MonkeyPatch.context() as mp:
-        if snap:
-            mp.setattr(engine_module, "site_count", lambda n_seg, *a, **k: n_seg)
+        if snap_class is not None:
+            mp.setattr(snap_class, "splits_wire_at_feed", False)
         eng = make(_b(n_seg=n, **params))
     assert [as_wire(t).n_seg for t in eng.tups] == [n]
     return _z(eng)
 
 
-def _split_z(make, n, params, *, force=False):
-    """Z of the wire split by the rule from `n` authored segments, `force`d
-    where a count up to the cap fits."""
-    with pytest.MonkeyPatch.context() as mp:
-        if force:
-            mp.setattr(engine_module, "site_count", lambda *a, **k: None)
-        eng = make(_b(n_seg=n, **params))
+def _split_z(make, n, params):
+    """Z of the wire the rule splits from `n` authored segments."""
+    eng = make(_b(n_seg=n, **params))
     assert "w" in eng._split_wires
     return _z(eng)
 
@@ -774,16 +867,17 @@ def pynec_whole():
     """PyNEC's whole-wire Z for both cases, by count."""
     k2 = {n: _whole_z(_pynec_engine, n, PHYSICS["k2"]) for n in (50, 150)}
     k3 = {
-        n: _whole_z(_pynec_engine, n, PHYSICS["k3"], snap=True) for n in (50, 150, 450)
+        n: _whole_z(_pynec_engine, n, PHYSICS["k3"], snap_class=_pynec_class())
+        for n in (50, 150, 450)
     }
     return {"k2": k2, "k3": k3}
 
 
-@pytest.mark.parametrize(("n", "force"), [(61, False), (101, True)])
-def test_pynec_two_port_split_agrees_with_its_own_whole_wire(pynec_whole, n, force):
+@pytest.mark.parametrize("n", [61, 101])
+def test_pynec_two_port_split_agrees_with_its_own_whole_wire(pynec_whole, n):
     """|Z_split - Z_w(150)| <= |Z_w(150) - Z_w(50)|, as registered above."""
     whole = pynec_whole["k2"]
-    split = _split_z(_pynec_engine, n, PHYSICS["k2"], force=force)
+    split = _split_z(_pynec_engine, n, PHYSICS["k2"])
     assert abs(split - whole[150]) <= abs(whole[150] - whole[50])
 
 
@@ -796,19 +890,9 @@ def test_pynec_three_port_split_agrees_with_its_finest_whole_wire(pynec_whole):
 
 @needs_nec5
 @pytest.mark.parametrize("case", PHYSICS)
-def test_nec5_split_agrees_with_its_own_whole_wire(case):
-    """|Z_split(100) - Z_w(100)| <= |Z_w(200) - Z_w(100)|, as registered above."""
-    w100 = _whole_z(_nec5_engine, 100, PHYSICS[case])
-    w200 = _whole_z(_nec5_engine, 200, PHYSICS[case])
-    split = _split_z(_nec5_engine, 100, PHYSICS[case], force=True)
-    assert abs(split - w100) <= abs(w200 - w100)
-
-
-@needs_nec5
-@pytest.mark.parametrize("case", PHYSICS)
 def test_nec5_split_off_the_whole_grid_agrees_with_its_whole_wire(case):
     """|Z_split(150) - Z_w(200)| <= |Z_w(200) - Z_w(100)|, as registered above."""
     w100 = _whole_z(_nec5_engine, 100, PHYSICS[case])
     w200 = _whole_z(_nec5_engine, 200, PHYSICS[case])
-    split = _split_z(_nec5_engine, 150, PHYSICS[case], force=True)
+    split = _split_z(_nec5_engine, 150, PHYSICS[case])
     assert abs(split - w200) <= abs(w200 - w100)
