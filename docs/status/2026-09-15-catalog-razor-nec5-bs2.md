@@ -1,8 +1,8 @@
 # razor-2p, NEC-5 and momwire bs2 over the antennaknobs catalog
 
-**Evidence, not a scoreboard.** AK#1525. Every built-in design solved three ways at its own default mesh and frequency, in free space and over Sommerfeld ground, and the three pairwise disagreements reported as distributions. The page states what the three engines do and do not agree about. It does not rank them.
+**Evidence, not a scoreboard.** Every built-in design solved three ways at its own default mesh and frequency, in free space and over Sommerfeld ground, and the three pairwise disagreements reported as distributions. The page states what the three engines do and do not agree about. It does not rank them.
 
-**The builds, named because a version string does not identify a solver.** antennaknobs at `4847554b5`; momwire **0.55.0** imported from the editable submodule at `1ca872511` with a clean working tree — which is also the commit antennaknobs records as its pointer, so this run is the momwire a user installs rather than a dev tip ahead of it. The compiled accelerator actually in use was **`_accelerators_avx2`**; momwire ships more than one SIMD variant behind that module name and they are not bit-identical to each other, so the variant is recorded with the data. NEC-5 is the build `nec5cl-3b75639`, run as an executable and timed; antennaknobs never inspects it.
+**The builds, named because a version string does not identify a solver.** antennaknobs **main `97ca2b6b0`**, run from a study branch (`4847554b5`) that adds only this study's harness and records; momwire **0.55.0** imported from the editable submodule at `1ca872511` with a clean working tree — which is also the commit antennaknobs records as its pointer, so this run is the momwire a user installs rather than a dev tip ahead of it. The compiled accelerator actually in use was **`_accelerators_avx2`**; momwire ships more than one SIMD variant behind that module name and they are not bit-identical to each other, so the variant is recorded with the data. NEC-5 is the build `nec5cl-3b75639`, run as an executable; antennaknobs never inspects it.
 
 **NEC-5 licensing.** NEC-5 is licensed from Lawrence Livermore National Laboratory (**LLNL-CODE-746721**). Neither its source nor any of its printouts appears here or in the committed data: the NEC-5 column is driving-point impedances and aggregates computed from them, and nothing else.
 
@@ -10,7 +10,7 @@ Per-design rows, and the run's own provenance record, are committed beside this 
 
 ## The one thing to read before any table
 
-> **Read with AK#1516.** At each design's default mesh razor-2p and NEC-5 are the *unconverged* pair, not bs2. Refining the mesh eightfold moves them **18–33 % together, toward bs2**, while bs2 moves **≤ 2.4 %** — razor-2p's path-testing rule is first order in the mesh and bs2's Galerkin testing is already converged at these segment counts. A wide bs2 row below is therefore a statement about mesh density, not about bs2. What density buys is AK#1525.
+> **The mesh reading, scoped to what was measured.** On the four designs AK#1516 refined eightfold — `loops.skyloop_lmatch`, `verticals.rectangle`, `dipoles.koch_dipole` and `verticals.four_square` — razor-2p and NEC-5 moved **18–33 % together, toward momwire bs2**, while bs2 moved **≤ 2.4 %**. On those four, a wide bs2 row is a statement about mesh density. **That is four designs, not the catalog**: for every other row the class column says what is and is not known, and the density question itself is AK#1525.
 
 This is stated first, and again beside every table that puts bs2 next to one of the other two, because the raw numbers invite the opposite reading: bs2 is the engine that most often sits apart, and it is also the engine nearest its own mesh limit. Both are true at once.
 
@@ -25,7 +25,7 @@ This is stated first, and again beside every table that puts bs2 next to one of 
 
 103 designs × 2 ground models × 3 engines = **618** cells, 618 recorded. One worker subprocess per cell, dispatched serially, each with an address-space cap so a runaway fill fails cleanly instead of paging the machine; BLAS and OpenMP pinned to four threads. Each design is solved at its own default frequency and its shipped `nominal_nsegs`, with no per-design tuning.
 
-Ground models are free space and the Sommerfeld-Norton finite ground `("finite", 13.0, 0.005)`, which is the application's default soil. **The reflection-coefficient ground is deliberately not on this page**: momwire writes it as `GN 0` and NEC-5 reads `GN 0` as Sommerfeld, so such a row would compare two different physical models rather than two formulations.
+Ground models are free space and the Sommerfeld-Norton finite ground `("finite", 13.0, 0.005)`, which is the application's default soil. **The reflection-coefficient ground is not on this page because NEC-5 has no such model**: its `IPERF 0` is a full Sommerfeld solution, and antennaknobs' NEC-5 engine refuses a `finite-fast` ground by name rather than silently upgrading the physics (`engines/nec5.py:_normalise_ground`). There is therefore no NEC-5 row to compare against, so the model is left off for all three engines rather than shown for two of them.
 
 Disagreement is reported as `rel|ΔZ| = |Z_a − Z_b| / |Z_b|`, one row per design × ground × port, and only where both engines solved and returned the same number of ports. Cells where one side declined are counted as unpaired rather than dropped, so coverage is a number on the page and not a smaller denominator.
 
@@ -63,7 +63,7 @@ Unpaired: **14** design×ground cells where one side declined. Port-count mismat
 
 ### momwire bs2 against NEC-5
 
-> **Read with AK#1516.** At each design's default mesh razor-2p and NEC-5 are the *unconverged* pair, not bs2. Refining the mesh eightfold moves them **18–33 % together, toward bs2**, while bs2 moves **≤ 2.4 %** — razor-2p's path-testing rule is first order in the mesh and bs2's Galerkin testing is already converged at these segment counts. A wide bs2 row below is therefore a statement about mesh density, not about bs2. What density buys is AK#1525.
+> **The mesh reading, scoped to what was measured.** On the four designs AK#1516 refined eightfold — `loops.skyloop_lmatch`, `verticals.rectangle`, `dipoles.koch_dipole` and `verticals.four_square` — razor-2p and NEC-5 moved **18–33 % together, toward momwire bs2**, while bs2 moved **≤ 2.4 %**. On those four, a wide bs2 row is a statement about mesh density. **That is four designs, not the catalog**: for every other row the class column says what is and is not known, and the density question itself is AK#1525.
 
 | population | rows | median | p90 | p99 | max | < 0.1 % | < 2 % |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -77,7 +77,7 @@ Unpaired: **11** design×ground cells where one side declined. Port-count mismat
 
 ### momwire bs2 against razor-2p
 
-> **Read with AK#1516.** At each design's default mesh razor-2p and NEC-5 are the *unconverged* pair, not bs2. Refining the mesh eightfold moves them **18–33 % together, toward bs2**, while bs2 moves **≤ 2.4 %** — razor-2p's path-testing rule is first order in the mesh and bs2's Galerkin testing is already converged at these segment counts. A wide bs2 row below is therefore a statement about mesh density, not about bs2. What density buys is AK#1525.
+> **The mesh reading, scoped to what was measured.** On the four designs AK#1516 refined eightfold — `loops.skyloop_lmatch`, `verticals.rectangle`, `dipoles.koch_dipole` and `verticals.four_square` — razor-2p and NEC-5 moved **18–33 % together, toward momwire bs2**, while bs2 moved **≤ 2.4 %**. On those four, a wide bs2 row is a statement about mesh density. **That is four designs, not the catalog**: for every other row the class column says what is and is not known, and the density question itself is AK#1525.
 
 | population | rows | median | p90 | p99 | max | < 0.1 % | < 2 % |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -91,56 +91,68 @@ Unpaired: **5** design×ground cells where one side declined. Port-count mismatc
 
 ### In one line
 
-Over the whole catalog at default mesh, razor-2p and NEC-5 agree to a median **0.0664 %** and their widest single row is **2 %**. momwire bs2 sits a median **1.55 %** from NEC-5 and **1.58 %** from razor-2p, with a tail to **54.3 %** — and the paragraph above is how that tail should be read. The two formulation twins track each other closely at any mesh; whether that mesh is fine enough is a separate question, and a measured one.
+Over the whole catalog at default mesh, razor-2p and NEC-5 agree to a median **0.0664 %** and their widest single row is **2 %**. momwire bs2 sits a median **1.55 %** from NEC-5 and **1.58 %** from razor-2p, with a tail to **54.3 %**. How to read that tail is not one answer: four of its widest designs are AK#1516's mesh finding, and the single widest row of all — `dipoles.short_dipole_loaded` — is **not yet explained**, because the reference it is measured against has not settled at that design's shipped mesh either. The class column on each table below says which is which.
 
 ## The widest disagreements
 
-> **Read with AK#1516.** At each design's default mesh razor-2p and NEC-5 are the *unconverged* pair, not bs2. Refining the mesh eightfold moves them **18–33 % together, toward bs2**, while bs2 moves **≤ 2.4 %** — razor-2p's path-testing rule is first order in the mesh and bs2's Galerkin testing is already converged at these segment counts. A wide bs2 row below is therefore a statement about mesh density, not about bs2. What density buys is AK#1525.
+> **The mesh reading, scoped to what was measured.** On the four designs AK#1516 refined eightfold — `loops.skyloop_lmatch`, `verticals.rectangle`, `dipoles.koch_dipole` and `verticals.four_square` — razor-2p and NEC-5 moved **18–33 % together, toward momwire bs2**, while bs2 moved **≤ 2.4 %**. On those four, a wide bs2 row is a statement about mesh density. **That is four designs, not the catalog**: for every other row the class column says what is and is not known, and the density question itself is AK#1525.
+
+**`|ΔZ|` in ohms is given beside the relative figure**, because on a low-impedance or near-open design a percentage misleads: the widest row on this page is a ~7 Ω reactance difference on a driving point of about 13 Ω.
+
+**The class column is generated, not asserted.** It comes from `scratch/845-mesh-policy/probe3_sweep.json`, a 1× / 2× / 4× mesh sweep of the catalog measured on an **older build** (2026-09-03), with #845's own resolution rule applied: a design whose *reference* moved by more than a third of the quantity being judged is marked `reference unsettled` rather than classified, because a reference that is still moving cannot adjudicate anything. probe3's metric is **port 0 alone**, so the class is a property of the design and ground, not of the individual port row beside it. **Every one of these classes will be re-measured on current code by AK#1525**, and a design that changes class there is a finding.
+
+A class of `mesh` is the only one that explains a wide row. `reference unsettled`, `not converging`, `unexplained` and `not measured` all mean the same thing for a reader: **the disagreement on that row has no established cause yet.**
 
 ### razor-2p against NEC-5 — ten widest rows
 
-| design | ground | port | razor-2p Z | NEC-5 Z | rel\|ΔZ\| |
-|---|---|---:|---|---|---:|
-| `verticals.four_square` | Sommerfeld | 0 | 25.16-34.13j | 25.51-33.37j | 2 % |
-| `verticals.four_square` | Sommerfeld | 2 | 27.38-4.156j | 27.69-3.737j | 1.86 % |
-| `verticals.four_square` | Sommerfeld | 1 | 27.38-4.156j | 27.69-3.737j | 1.86 % |
-| `verticals.four_square` | Sommerfeld | 3 | 25.17+31.81j | 25.43+32.33j | 1.4 % |
-| `verticals.dominator` | free space | 0 | 30.8+2.138j | 30.78+2.338j | 0.655 % |
-| `arrays.bowtie16x1` | Sommerfeld | 13 | 756.9-83.91j | 760.6-87.03j | 0.627 % |
-| `arrays.bowtie16x1` | Sommerfeld | 2 | 756.9-83.91j | 760.6-87.03j | 0.627 % |
-| `verticals.dominator` | Sommerfeld | 0 | 28.84+3.581j | 28.8+3.755j | 0.619 % |
-| `wire.terminated_longwire` | Sommerfeld | 0 | 448.7-22.86j | 451.3-22.3j | 0.59 % |
-| `verticals.phased_verticals` | Sommerfeld | 1 | 96.28+175.6j | 95.22+176j | 0.576 % |
+| design | ground | port | razor-2p Z | NEC-5 Z | \|ΔZ\| Ω | rel\|ΔZ\| | class |
+|---|---|---:|---|---|---:|---:|---|
+| `verticals.four_square` | Sommerfeld | 0 | 25.16-34.13j | 25.51-33.37j | 0.842 | 2 % | mesh (AK#1516 + probe3) |
+| `verticals.four_square` | Sommerfeld | 2 | 27.38-4.156j | 27.69-3.737j | 0.52 | 1.86 % | mesh (AK#1516 + probe3) |
+| `verticals.four_square` | Sommerfeld | 1 | 27.38-4.156j | 27.69-3.737j | 0.52 | 1.86 % | mesh (AK#1516 + probe3) |
+| `verticals.four_square` | Sommerfeld | 3 | 25.17+31.81j | 25.43+32.33j | 0.576 | 1.4 % | mesh (AK#1516 + probe3) |
+| `verticals.dominator` | free space | 0 | 30.8+2.138j | 30.78+2.338j | 0.202 | 0.655 % | reference unsettled |
+| `arrays.bowtie16x1` | Sommerfeld | 13 | 756.9-83.91j | 760.6-87.03j | 4.8 | 0.627 % | not measured |
+| `arrays.bowtie16x1` | Sommerfeld | 2 | 756.9-83.91j | 760.6-87.03j | 4.8 | 0.627 % | not measured |
+| `verticals.dominator` | Sommerfeld | 0 | 28.84+3.581j | 28.8+3.755j | 0.18 | 0.619 % | reference unsettled |
+| `wire.terminated_longwire` | Sommerfeld | 0 | 448.7-22.86j | 451.3-22.3j | 2.66 | 0.59 % | not measured |
+| `verticals.phased_verticals` | Sommerfeld | 1 | 96.28+175.6j | 95.22+176j | 1.15 | 0.576 % | mesh (probe3) |
+
+Designs in this table with **no established cause**: `arrays.bowtie16x1`, `verticals.dominator`, `wire.terminated_longwire`.
 
 ### momwire bs2 against NEC-5 — ten widest rows
 
-| design | ground | port | momwire bs2 Z | NEC-5 Z | rel\|ΔZ\| |
-|---|---|---:|---|---|---:|
-| `dipoles.short_dipole_loaded` | Sommerfeld | 0 | 13.79-5.974j | 13.28+1.256j | 54.3 % |
-| `dipoles.short_dipole_loaded` | free space | 0 | 13.52-4.063j | 13.02+3.097j | 53.6 % |
-| `loops.skyloop_lmatch` | free space | 0 | 47.54-6.478j | 31.49-8.296j | 49.6 % |
-| `loops.skyloop_lmatch` | Sommerfeld | 0 | 47.16-6.229j | 31.34-8.048j | 49.2 % |
-| `verticals.rectangle` | Sommerfeld | 0 | 47.19+7.746j | 46.86-8.598j | 34.3 % |
-| `verticals.rectangle` | free space | 0 | 47.72+1.849j | 43.7-13.29j | 34.3 % |
-| `dipoles.koch_dipole` | Sommerfeld | 0 | 35.19+1.451j | 35.52+13.43j | 31.6 % |
-| `dipoles.koch_dipole` | free space | 0 | 35.25+6.269j | 35.59+18.3j | 30.1 % |
-| `verticals.four_square` | free space | 1 | 28.54+1.705j | 27.6-4.401j | 22.1 % |
-| `verticals.four_square` | free space | 2 | 28.54+1.705j | 27.6-4.401j | 22.1 % |
+| design | ground | port | momwire bs2 Z | NEC-5 Z | \|ΔZ\| Ω | rel\|ΔZ\| | class |
+|---|---|---:|---|---|---:|---:|---|
+| `dipoles.short_dipole_loaded` | Sommerfeld | 0 | 13.79-5.974j | 13.28+1.256j | 7.25 | 54.3 % | reference unsettled |
+| `dipoles.short_dipole_loaded` | free space | 0 | 13.52-4.063j | 13.02+3.097j | 7.18 | 53.6 % | reference unsettled |
+| `loops.skyloop_lmatch` | free space | 0 | 47.54-6.478j | 31.49-8.296j | 16.2 | 49.6 % | mesh (AK#1516 + probe3) |
+| `loops.skyloop_lmatch` | Sommerfeld | 0 | 47.16-6.229j | 31.34-8.048j | 15.9 | 49.2 % | mesh (AK#1516 + probe3) |
+| `verticals.rectangle` | Sommerfeld | 0 | 47.19+7.746j | 46.86-8.598j | 16.3 | 34.3 % | mesh (AK#1516 + probe3) |
+| `verticals.rectangle` | free space | 0 | 47.72+1.849j | 43.7-13.29j | 15.7 | 34.3 % | mesh (AK#1516 + probe3) |
+| `dipoles.koch_dipole` | Sommerfeld | 0 | 35.19+1.451j | 35.52+13.43j | 12 | 31.6 % | mesh (AK#1516 + probe3) |
+| `dipoles.koch_dipole` | free space | 0 | 35.25+6.269j | 35.59+18.3j | 12 | 30.1 % | mesh (AK#1516 + probe3) |
+| `verticals.four_square` | free space | 1 | 28.54+1.705j | 27.6-4.401j | 6.18 | 22.1 % | mesh (AK#1516 + probe3) |
+| `verticals.four_square` | free space | 2 | 28.54+1.705j | 27.6-4.401j | 6.18 | 22.1 % | mesh (AK#1516 + probe3) |
+
+Designs in this table with **no established cause**: `dipoles.short_dipole_loaded`.
 
 ### momwire bs2 against razor-2p — ten widest rows
 
-| design | ground | port | momwire bs2 Z | razor-2p Z | rel\|ΔZ\| |
-|---|---|---:|---|---|---:|
-| `dipoles.short_dipole_loaded` | Sommerfeld | 0 | 13.79-5.974j | 13.28+1.31j | 54.7 % |
-| `dipoles.short_dipole_loaded` | free space | 0 | 13.52-4.063j | 13.02+3.151j | 54 % |
-| `loops.skyloop_lmatch` | free space | 0 | 47.54-6.478j | 31.52-8.284j | 49.5 % |
-| `loops.skyloop_lmatch` | Sommerfeld | 0 | 47.16-6.229j | 31.34-8.161j | 49.2 % |
-| `verticals.rectangle` | Sommerfeld | 0 | 47.19+7.746j | 46.74-8.838j | 34.9 % |
-| `verticals.rectangle` | free space | 0 | 47.72+1.849j | 43.57-13.48j | 34.8 % |
-| `dipoles.koch_dipole` | Sommerfeld | 0 | 35.19+1.451j | 35.52+13.47j | 31.6 % |
-| `dipoles.koch_dipole` | free space | 0 | 35.25+6.269j | 35.59+18.33j | 30.1 % |
-| `verticals.four_square` | Sommerfeld | 1 | 28.29+1.894j | 27.38-4.156j | 22.1 % |
-| `verticals.four_square` | Sommerfeld | 2 | 28.29+1.894j | 27.38-4.156j | 22.1 % |
+| design | ground | port | momwire bs2 Z | razor-2p Z | \|ΔZ\| Ω | rel\|ΔZ\| | class |
+|---|---|---:|---|---|---:|---:|---|
+| `dipoles.short_dipole_loaded` | Sommerfeld | 0 | 13.79-5.974j | 13.28+1.31j | 7.3 | 54.7 % | reference unsettled |
+| `dipoles.short_dipole_loaded` | free space | 0 | 13.52-4.063j | 13.02+3.151j | 7.23 | 54 % | reference unsettled |
+| `loops.skyloop_lmatch` | free space | 0 | 47.54-6.478j | 31.52-8.284j | 16.1 | 49.5 % | mesh (AK#1516 + probe3) |
+| `loops.skyloop_lmatch` | Sommerfeld | 0 | 47.16-6.229j | 31.34-8.161j | 15.9 | 49.2 % | mesh (AK#1516 + probe3) |
+| `verticals.rectangle` | Sommerfeld | 0 | 47.19+7.746j | 46.74-8.838j | 16.6 | 34.9 % | mesh (AK#1516 + probe3) |
+| `verticals.rectangle` | free space | 0 | 47.72+1.849j | 43.57-13.48j | 15.9 | 34.8 % | mesh (AK#1516 + probe3) |
+| `dipoles.koch_dipole` | Sommerfeld | 0 | 35.19+1.451j | 35.52+13.47j | 12 | 31.6 % | mesh (AK#1516 + probe3) |
+| `dipoles.koch_dipole` | free space | 0 | 35.25+6.269j | 35.59+18.33j | 12.1 | 30.1 % | mesh (AK#1516 + probe3) |
+| `verticals.four_square` | Sommerfeld | 1 | 28.29+1.894j | 27.38-4.156j | 6.12 | 22.1 % | mesh (AK#1516 + probe3) |
+| `verticals.four_square` | Sommerfeld | 2 | 28.29+1.894j | 27.38-4.156j | 6.12 | 22.1 % | mesh (AK#1516 + probe3) |
+
+Designs in this table with **no established cause**: `dipoles.short_dipole_loaded`.
 
 ## Reactance carries the disagreement
 

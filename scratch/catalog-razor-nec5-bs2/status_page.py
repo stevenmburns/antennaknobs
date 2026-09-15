@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import math
 import statistics
+import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
@@ -35,6 +36,24 @@ DATA = (
     / "docs/status/data/2026-09-15-catalog-razor-nec5-bs2.jsonl"
 )
 PAIRS = (("razor", "nec5"), ("bs2", "nec5"), ("bs2", "razor"))
+
+# The four designs AK#1516 actually refined x8. The mesh reading is scoped to
+# these by name, because that is the extent of what was measured.
+AK1516_DESIGNS = (
+    "loops.skyloop_lmatch",
+    "verticals.rectangle",
+    "dipoles.koch_dipole",
+    "verticals.four_square",
+)
+
+PROBE3 = Path(__file__).resolve().parents[1] / "845-mesh-policy" / "probe3_sweep.json"
+# probe3's own error metric is PORT 0 ALONE (`abs(z - ref)` on a scalar), while
+# this page's rows are per-port and its distributions use an all-port norm. The
+# two are not the same number -- on the 4-port `arrays.moxonarray` probe3 reads
+# 9.068 ohm where an all-port norm reads 18.0 -- so probe3 is used for the
+# design-level CLASS only, and every ohm figure printed beside a row is computed
+# from this run's own records for that row's own port.
+PROBE3_PORT = 0
 LABEL = {"razor": "razor-2p", "nec5": "NEC-5", "bs2": "momwire bs2"}
 GROUNDS = ("free", "somm")
 GROUND_LABEL = {"free": "free space", "somm": "Sommerfeld"}
@@ -42,14 +61,73 @@ GROUND_LABEL = {"free": "free space", "somm": "Sommerfeld"}
 # The one paragraph every bs2 comparison on this page carries. AK#1516 measured
 # it; AK#1525 is where the density question goes.
 ADJUDICATION = (
-    "> **Read with AK#1516.** At each design's default mesh razor-2p and NEC-5 "
-    "are the *unconverged* pair, not bs2. Refining the mesh eightfold moves them "
-    "**18–33 % together, toward bs2**, while bs2 moves **≤ 2.4 %** — razor-2p's "
-    "path-testing rule is first order in the mesh and bs2's Galerkin testing is "
-    "already converged at these segment counts. A wide bs2 row below is therefore "
-    "a statement about mesh density, not about bs2. What density buys is "
-    "AK#1525."
+    "> **The mesh reading, scoped to what was measured.** On the four designs "
+    "AK#1516 refined eightfold — `loops.skyloop_lmatch`, `verticals.rectangle`, "
+    "`dipoles.koch_dipole` and `verticals.four_square` — razor-2p and NEC-5 "
+    "moved **18–33 % together, toward momwire bs2**, while bs2 moved "
+    "**≤ 2.4 %**. On those four, a wide bs2 row is a statement about mesh "
+    "density. **That is four designs, not the catalog**: for every other row the "
+    "class column says what is and is not known, and the density question itself "
+    "is AK#1525."
 )
+
+
+def load_probe3():
+    """Design x ground -> the mesh class, from #845's probe3 sweep.
+
+    Classes, with #845's own resolution rule: a row whose REFERENCE moved by
+    more than a third of the quantity being judged is unresolved rather than
+    tabulated, because a reference that is still moving cannot adjudicate
+    anything.
+    """
+    if not PROBE3.is_file():
+        return {}
+
+    def z0(cell):
+        if not cell or cell.get("error") or not cell.get("z"):
+            return None
+        pair = cell["z"][PROBE3_PORT] if len(cell["z"]) > PROBE3_PORT else None
+        return complex(*pair) if pair else None
+
+    out = {}
+    for entry in json.loads(PROBE3.read_text()):
+        for g, scales in entry["grounds"].items():
+            r = {k: z0((scales.get(k) or {}).get("razor-2p")) for k in ("1", "2", "4")}
+            b = {
+                k: z0((scales.get(k) or {}).get("bspline-d2")) for k in ("1", "2", "4")
+            }
+            ref = b["4"]
+            if ref is None or any(r[k] is None for k in ("1", "2", "4")):
+                out[(entry["design"], g)] = ("not measured", None)
+                continue
+            d1, d2, d4 = (abs(r[k] - ref) for k in ("1", "2", "4"))
+            refmv = abs(b["2"] - ref) if b["2"] is not None else None
+            detail = (
+                f"razor {d1:.1f} → {d2:.1f} → {d4:.1f} Ω, reference moved {refmv:.2f} Ω"
+                if refmv is not None
+                else None
+            )
+            if refmv is None:
+                cls = "not measured"
+            elif d1 > 0 and refmv > d1 / 3.0:
+                cls = "reference unsettled"
+            elif d4 < d2 < d1:
+                cls = "converging"
+            elif d4 >= d1:
+                cls = "not converging"
+            else:
+                cls = "unexplained"
+            out[(entry["design"], g)] = (cls, detail)
+    return out
+
+
+def mesh_class(p3, design, ground):
+    cls, detail = p3.get((design, ground), ("not measured", None))
+    if cls == "converging" and design in AK1516_DESIGNS:
+        return "mesh (AK#1516 + probe3)", detail
+    if cls == "converging":
+        return "mesh (probe3)", detail
+    return cls, detail
 
 
 def load(path):
@@ -161,6 +239,19 @@ def main(argv=None):
     out = []
     w = out.append
 
+    p3 = load_probe3()
+    # The main commit the study branch sits on, COMPUTED rather than typed: the
+    # provenance record carries the branch SHA, and the page must name main.
+    try:
+        main_sha = subprocess.run(
+            ["git", "merge-base", prov["ak_sha"], "origin/main"],
+            cwd=Path(__file__).resolve().parents[2],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()[:9]
+    except Exception:  # noqa: BLE001 -- an unnamed main is better than a wrong one
+        main_sha = "undetermined"
     mw_ver = prov["version_momwire"]
     mw_sha = prov["momwire_sha"][:9]
     ak_sha = prov["ak_sha"][:9]
@@ -169,7 +260,7 @@ def main(argv=None):
 
     w("# razor-2p, NEC-5 and momwire bs2 over the antennaknobs catalog\n")
     w(
-        "**Evidence, not a scoreboard.** AK#1525. Every built-in design solved "
+        "**Evidence, not a scoreboard.** Every built-in design solved "
         "three ways at its own default mesh and frequency, in free space and "
         "over Sommerfeld ground, and the three pairwise disagreements reported "
         "as distributions. The page states what the three engines do and do not "
@@ -177,14 +268,16 @@ def main(argv=None):
     )
     w(
         f"**The builds, named because a version string does not identify a "
-        f"solver.** antennaknobs at `{ak_sha}`; momwire **{mw_ver}** imported "
+        f"solver.** antennaknobs **main `{main_sha}`**, run from a study branch "
+        f"(`{ak_sha}`) that adds only this study's harness and records; "
+        f"momwire **{mw_ver}** imported "
         f"from the editable submodule at `{mw_sha}` with a clean working tree — "
         f"which is also the commit antennaknobs records as its pointer, so this "
         f"run is the momwire a user installs rather than a dev tip ahead of it. "
         f"The compiled accelerator actually in use was **`{variant}`**; momwire "
         f"ships more than one SIMD variant behind that module name and they are "
         f"not bit-identical to each other, so the variant is recorded with the "
-        f"data. NEC-5 is the build `{nec5}`, run as an executable and timed; "
+        f"data. NEC-5 is the build `{nec5}`, run as an executable; "
         f"antennaknobs never inspects it.\n"
     )
     w(
@@ -236,10 +329,13 @@ def main(argv=None):
     w(
         "Ground models are free space and the Sommerfeld-Norton finite ground "
         '`("finite", 13.0, 0.005)`, which is the application\'s default soil. '
-        "**The reflection-coefficient ground is deliberately not on this page**: "
-        "momwire writes it as `GN 0` and NEC-5 reads `GN 0` as Sommerfeld, so "
-        "such a row would compare two different physical models rather than two "
-        "formulations.\n"
+        "**The reflection-coefficient ground is not on this page because NEC-5 "
+        "has no such model**: its `IPERF 0` is a full Sommerfeld solution, and "
+        "antennaknobs' NEC-5 engine refuses a `finite-fast` ground by name "
+        "rather than silently upgrading the physics "
+        "(`engines/nec5.py:_normalise_ground`). There is therefore no NEC-5 row "
+        "to compare against, so the model is left off for all three engines "
+        "rather than shown for two of them.\n"
     )
     w(
         "Disagreement is reported as `rel|ΔZ| = |Z_a − Z_b| / |Z_b|`, one row per "
@@ -343,30 +439,71 @@ def main(argv=None):
         f"median **{pct(rn['median'])}** and their widest single row is "
         f"**{pct(rn['max'])}**. momwire bs2 sits a median **{pct(bn['median'])}** "
         f"from NEC-5 and **{pct(br['median'])}** from razor-2p, with a tail to "
-        f"**{pct(bn['max'])}** — and the paragraph above is how that tail should "
-        f"be read. The two formulation twins track each other closely at any "
-        f"mesh; whether that mesh is fine enough is a separate question, and a "
-        f"measured one.\n"
+        f"**{pct(bn['max'])}**. How to read that tail is not one answer: four of "
+        f"its widest designs are AK#1516's mesh finding, and the single widest "
+        f"row of all — `dipoles.short_dipole_loaded` — is **not yet explained**, "
+        f"because the reference it is measured against has not settled at that "
+        f"design's shipped mesh either. The class column on each table below says "
+        f"which is which.\n"
     )
 
     w("## The widest disagreements\n")
     w(ADJUDICATION + "\n")
+    w(
+        "**`|ΔZ|` in ohms is given beside the relative figure**, because on a "
+        "low-impedance or near-open design a percentage misleads: the widest row "
+        "on this page is a ~7 Ω reactance difference on a driving point of about "
+        "13 Ω.\n"
+    )
+    w(
+        "**The class column is generated, not asserted.** It comes from "
+        "`scratch/845-mesh-policy/probe3_sweep.json`, a 1× / 2× / 4× mesh sweep of "
+        "the catalog measured on an **older build** (2026-09-03), with #845's own "
+        "resolution rule applied: a design whose *reference* moved by more than a "
+        "third of the quantity being judged is marked `reference unsettled` rather "
+        "than classified, because a reference that is still moving cannot "
+        "adjudicate anything. probe3's metric is **port 0 alone**, so the class is "
+        "a property of the design and ground, not of the individual port row "
+        "beside it. **Every one of these classes will be re-measured on current "
+        "code by AK#1525**, and a design that changes class there is a finding.\n"
+    )
+    w(
+        "A class of `mesh` is the only one that explains a wide row. "
+        "`reference unsettled`, `not converging`, `unexplained` and "
+        "`not measured` all mean the same thing for a reader: **the disagreement "
+        "on that row has no established cause yet.**\n"
+    )
     for a, b in PAIRS:
         rows = store[(a, b)]
         worst = sorted(rows, key=lambda r: -r["rel"])[:10]
         w(f"### {LABEL[a]} against {LABEL[b]} — ten widest rows\n")
         w(
-            "| design | ground | port | "
-            + f"{LABEL[a]} Z | {LABEL[b]} Z | rel\\|ΔZ\\| |"
+            f"| design | ground | port | {LABEL[a]} Z | {LABEL[b]} Z | "
+            f"\\|ΔZ\\| Ω | rel\\|ΔZ\\| | class |"
         )
-        w("|---|---|---:|---|---|---:|")
+        w("|---|---|---:|---|---|---:|---:|---|")
         for r in worst:
+            cls, _detail = mesh_class(p3, r["design"], r["ground"])
             w(
                 f"| `{r['design']}` | {GROUND_LABEL[r['ground']]} | {r['port']} | "
                 f"{r['za'].real:.4g}{r['za'].imag:+.4g}j | "
-                f"{r['zb'].real:.4g}{r['zb'].imag:+.4g}j | {pct(r['rel'])} |"
+                f"{r['zb'].real:.4g}{r['zb'].imag:+.4g}j | "
+                f"{abs(r['za'] - r['zb']):.3g} | {pct(r['rel'])} | {cls} |"
             )
         w("")
+        unexplained = sorted(
+            {
+                r["design"]
+                for r in worst
+                if not mesh_class(p3, r["design"], r["ground"])[0].startswith("mesh")
+            }
+        )
+        if unexplained:
+            w(
+                "Designs in this table with **no established cause**: "
+                + ", ".join(f"`{d}`" for d in unexplained)
+                + ".\n"
+            )
 
     w("## Reactance carries the disagreement\n")
     w(
