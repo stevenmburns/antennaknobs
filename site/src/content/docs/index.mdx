@@ -37,8 +37,9 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
   4nec2 percentage or a positioned port, is fed at that exact point on PyNEC,
   NEC-2, NEC-5 and every momwire solver, several ports on one wire included:
   when the point is not already a segment centre or knot of the wire's own
-  mesh, the wire is split there and the solve says so; the mesh is never
-  re-counted and nothing moves to a nearby segment. The page shows the running
+  mesh, the wire is split there and the solve says so. Nothing moves to the
+  nearest existing segment, and the wire is never re-meshed at a different
+  density to make the point fit. The page shows the running
   versions under the title, and the Windows workbench's Properties show its
   version too; to update the workbench, extract the whole new zip into a fresh
   folder. `export --dialect nec5` writes the same deck the NEC-5 tab runs, the
