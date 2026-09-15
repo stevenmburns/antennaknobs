@@ -1,0 +1,155 @@
+{
+ "pass_": true,
+ "rows": [
+  {
+   "nn": 21,
+   "checks": {
+    "adjacent_within_2x": true,
+    "max_le_stock_segment": true,
+    "first_segment_25mm": true,
+    "cap_equals_stock_segment": true,
+    "schedule_equals_ak1454": true,
+    "fed_wire_unchanged": true
+   },
+   "radiator_length_m": 10.506072464788733,
+   "radiator_segments": 32,
+   "stock_radiator_segments": 21,
+   "stock_seg_mm": 500.2891649899397,
+   "first_mm": 25.0,
+   "max_mm": 457.14285714285717,
+   "step_max": 2.0,
+   "step_min": 0.9980037240805947,
+   "fracs": [
+    0.004759152401392222,
+    0.009518304802784445,
+    0.01903660960556889,
+    0.03807321921113778,
+    0.07614643842227556,
+    0.15229287684455112,
+    0.30458575368910223,
+    0.6091715073782045
+   ],
+   "counts": [
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    4,
+    7,
+    9
+   ],
+   "momwire_feed_arclength_m": 0.025000000000000022,
+   "momwire_fed_segments": 1,
+   "momwire_fed_seg_mm": 50.00000000000004,
+   "nec5": {
+    "fed_tag": 1,
+    "fed_seg_index": 1,
+    "fed_segments": 2,
+    "fed_seg_mm": 25.00000000000002,
+    "radiator_first_card_seg_mm": 24.999999999999968
+   }
+  },
+  {
+   "nn": 42,
+   "checks": {
+    "adjacent_within_2x": true,
+    "max_le_stock_segment": true,
+    "first_segment_25mm": true,
+    "cap_equals_stock_segment": true,
+    "schedule_equals_ak1454": true,
+    "fed_wire_unchanged": true
+   },
+   "radiator_length_m": 10.506072464788733,
+   "radiator_segments": 51,
+   "stock_radiator_segments": 42,
+   "stock_seg_mm": 250.14458249496985,
+   "first_mm": 25.0,
+   "max_mm": 246.15384615384616,
+   "step_max": 2.0,
+   "step_min": 0.9812305522473075,
+   "fracs": [
+    0.004759152401392222,
+    0.009518304802784445,
+    0.01903660960556889,
+    0.03807321921113778,
+    0.07614643842227556,
+    0.15229287684455112,
+    0.30458575368910223,
+    0.6091715073782045
+   ],
+   "counts": [
+    2,
+    2,
+    2,
+    2,
+    2,
+    4,
+    7,
+    13,
+    17
+   ],
+   "momwire_feed_arclength_m": 0.025000000000000022,
+   "momwire_fed_segments": 1,
+   "momwire_fed_seg_mm": 50.00000000000004,
+   "nec5": {
+    "fed_tag": 1,
+    "fed_seg_index": 1,
+    "fed_segments": 2,
+    "fed_seg_mm": 25.00000000000002,
+    "radiator_first_card_seg_mm": 24.999999999999968
+   }
+  },
+  {
+   "nn": 84,
+   "checks": {
+    "adjacent_within_2x": true,
+    "max_le_stock_segment": true,
+    "first_segment_25mm": true,
+    "cap_equals_stock_segment": true,
+    "schedule_equals_ak1454": true,
+    "fed_wire_unchanged": true
+   },
+   "radiator_length_m": 10.506072464788733,
+   "radiator_segments": 91,
+   "stock_radiator_segments": 84,
+   "stock_seg_mm": 125.07229124748493,
+   "first_mm": 25.0,
+   "max_mm": 124.4264383269313,
+   "step_max": 2.0,
+   "step_min": 1.0,
+   "fracs": [
+    0.004759152401392222,
+    0.009518304802784445,
+    0.01903660960556889,
+    0.03807321921113778,
+    0.07614643842227556,
+    0.15229287684455112,
+    0.30458575368910223,
+    0.6091715073782045
+   ],
+   "counts": [
+    2,
+    2,
+    2,
+    2,
+    4,
+    7,
+    13,
+    26,
+    33
+   ],
+   "momwire_feed_arclength_m": 0.025000000000000022,
+   "momwire_fed_segments": 1,
+   "momwire_fed_seg_mm": 50.00000000000004,
+   "nec5": {
+    "fed_tag": 1,
+    "fed_seg_index": 1,
+    "fed_segments": 2,
+    "fed_seg_mm": 25.00000000000002,
+    "radiator_first_card_seg_mm": 24.999999999999968
+   }
+  }
+ ]
+}
