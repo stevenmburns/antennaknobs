@@ -254,7 +254,12 @@ def build_nec_portal_script(
     """Build the SimNEC NEC-portal daemon script (the ``<equ>`` body) for an
     antenna-only ``builder``. Reuses :func:`export_nec` for the geometry.
     """
-    deck = export_nec(builder, ground=ground, freq=freq_mhz, include_rp=False)
+    # jacket_pair=False: the portal drops the LD cards, and the equivalent
+    # radius without its LD 2 inductance would be half of the jacket's model
+    # (issue #1523). The conductor's own radius keeps it a bare-wire model.
+    deck = export_nec(
+        builder, ground=ground, freq=freq_mhz, include_rp=False, jacket_pair=False
+    )
     cards = _nec_cards_for_portal(deck)
     n_feeds = sum(1 for c in cards if c.startswith("EX"))
     if n_feeds > 1:

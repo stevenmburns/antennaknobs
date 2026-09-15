@@ -26,8 +26,9 @@ and note how much shorter the insulated antenna is.
 
 Geometry is the stock `dipoles.invvee` V (same knobs) at 20 m scale.
 Both engines model the full wire: momwire's distributed loading, and
-PyNEC via its native LD 5 (conductor loss) + LD 2 (jacket inductance,
-issue #328) cards — engine-switching holds the story steady.
+PyNEC via NEC cards spelling the same coated-wire pair (the equivalent
+radius on GW, LD 2 for the jacket inductance, LD 5 rescaled for the
+conductor loss; issue #1523) — engine-switching holds the story steady.
 """
 
 from types import MappingProxyType

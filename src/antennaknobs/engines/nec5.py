@@ -39,10 +39,9 @@ from pathlib import Path
 
 import numpy as np
 
-from momwire import insulation_inductance
-
 from ..engine import FarField, SimulationEngine, WireCurrents, vertex_only_names
 from ._external import find_exe
+from ._nec_wire import JACKET_COMMENT_CARDS, nec_wire_material
 from ..wire_catalog import gap_knot, port_at, port_wire
 from ..network import (
     Driven,
@@ -400,14 +399,19 @@ class NEC5Engine(SimulationEngine):
         self._radii = [
             w.spec.radius if w.spec is not None else default_radius for w in self._wires
         ]
-        # Wire material (stage 5): the same global LD cards export_nec
-        # emits — conductor loss as LD 5 (bulk conductivity, distributed
-        # over every segment) and the insulation jacket's King quasi-static
-        # series inductance as LD 2 (H/m) — momwire's own L', so the
-        # emulation matches its LD-2 parity work. NEC-5 has NO native
-        # insulated-wire card (the full 3.2/3.3 command roster carries no
-        # IS — NEC-4's card did not survive), so the emulation is the only
-        # route.
+        # Wire material (stage 5): the same LD cards export_nec emits —
+        # conductor loss as LD 5 (bulk conductivity, distributed over every
+        # segment) and an insulation jacket as momwire's coated-wire pair.
+        # NEC-5 has NO native insulated-wire card (the full 3.2/3.3 command
+        # roster carries no IS — NEC-4's card did not survive), so the pair is
+        # spelled with the cards it has: the equivalent radius on GW, LD 2 for
+        # the jacket's inductance, and LD 5 rescaled for the larger radius
+        # (issue #1523; `_nec_wire` says why each is needed). `_radii` stays
+        # the conductor's; `_gw_radii` is what the GW cards carry.
+        self._gw_radii = [
+            nec_wire_material(r, None, w.spec if w.spec is not None else spec).radius
+            for r, w in zip(self._radii, self._wires, strict=True)
+        ]
         self._wire_spec = spec
         self._has_buried_wires = False
         # Coincident-bundle first: its refusal names the `detached`
@@ -454,22 +458,20 @@ class NEC5Engine(SimulationEngine):
                 eff = w.spec if w.spec is not None else spec
                 if eff is None:
                     continue
+                mat = nec_wire_material(self._radii[i], eff.conductivity, eff)
                 for tag in self._tags_of[i]:
-                    if eff.conductivity is not None:
-                        lines.append(f"LD 5 {tag} 0 0 {_num(eff.conductivity)} 0. 0.")
-                    if eff.insulation_radius:
-                        l_ins = insulation_inductance(
-                            self._radii[i], eff.insulation_radius, eff.insulation_eps_r
-                        )
-                        lines.append(f"LD 2 {tag} 0 0 0. {_num(l_ins)} 0.")
+                    if mat.conductivity is not None:
+                        lines.append(f"LD 5 {tag} 0 0 {_num(mat.conductivity)} 0. 0.")
+                    if mat.inductance is not None:
+                        lines.append(f"LD 2 {tag} 0 0 0. {_num(mat.inductance)} 0.")
             return lines
-        if spec is not None and spec.conductivity is not None:
-            lines.append(f"LD 5 0 0 0 {_num(spec.conductivity)} 0. 0.")
-        if spec is not None and spec.insulation_radius:
-            l_ins = insulation_inductance(
-                spec.radius, spec.insulation_radius, spec.insulation_eps_r
-            )
-            lines.append(f"LD 2 0 0 0 0. {_num(l_ins)} 0.")
+        if spec is None:
+            return lines
+        mat = nec_wire_material(spec.radius, spec.conductivity, spec)
+        if mat.conductivity is not None:
+            lines.append(f"LD 5 0 0 0 {_num(mat.conductivity)} 0. 0.")
+        if mat.inductance is not None:
+            lines.append(f"LD 2 0 0 0 0. {_num(mat.inductance)} 0.")
         return lines
 
     def _resolve_network_sources(self, network):
@@ -1125,9 +1127,12 @@ class NEC5Engine(SimulationEngine):
             df = float(steps[0])
         else:
             df = 0.0
-        lines = ["CM antennaknobs NEC5Engine deck", "CE"]
+        lines = ["CM antennaknobs NEC5Engine deck"]
+        if self._gw_radii != self._radii:
+            lines.extend(JACKET_COMMENT_CARDS)
+        lines.append("CE")
         for tag, (i, p0, p1, n_seg) in enumerate(self._cards, start=1):
-            r = self._radii[i]
+            r = self._gw_radii[i]
             lines.append(
                 f"GW {tag} {n_seg} "
                 f"{_num(p0[0])} {_num(p0[1])} {_num(p0[2])} "

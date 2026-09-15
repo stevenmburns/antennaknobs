@@ -9,9 +9,9 @@ try:
 except ImportError:  # pynec-accel is optional (GPL; installed separately)
     nec = None
 
-# Exact round-conductor internal impedance + jacket inductance — public
-# momwire exports since 0.11.0 (momwire#133).
-from momwire import insulation_inductance, wire_internal_impedance
+# Exact round-conductor internal impedance — a public momwire export since
+# 0.11.0 (momwire#133).
+from momwire import wire_internal_impedance
 
 from ..engine import FarField, SimulationEngine, WireCurrents, refuse_graded_wires
 from ..network import as_wire
@@ -39,6 +39,7 @@ from ..wire_catalog import (
     port_wire,
 )
 from ..network_reduce import C_LIGHT, NetworkReducer, poison_singular_sample
+from ._nec_wire import nec_wire_material
 
 _logger = logging.getLogger(__name__)
 
@@ -325,12 +326,12 @@ class PyNECEngine(SimulationEngine):
         # ld_card type 5 (NEC's native wire-loss model — the momwire#131
         # cross-engine oracle); the module-level WIRE_CONDUCTIVITY constant
         # below stays as the manual all-designs override for oracle runs.
-        # A spec's insulation is emitted as a global ld_card type 2
-        # (distributed series R/L/C per metre): the same quasi-static jacket
-        # inductance L' momwire loads, so both engines model the "insulated
-        # wire tunes long" velocity-factor effect. NEC stacks LD cards on a
-        # segment in series, so LD 2 composes with the LD 5 conductor loss
-        # (pinned by the cross-engine vf oracle in test_wire_material.py).
+        # A spec's insulation jacket is momwire's coated-wire pair spelled in
+        # NEC cards (issue #1523): the equivalent radius on the wire card, the
+        # jacket's inductance L' as ld_card type 2 (distributed series L per
+        # metre), and the type 5 conductivity rescaled for the larger radius.
+        # NEC stacks LD cards on a segment in series, so type 2 composes with
+        # the type 5 conductor loss. `_nec_wire` has the derivation.
         self._wire_spec = builder.build_wire_material()
         self._wire_radius = (
             self._wire_spec.radius if self._wire_spec is not None else WIRE_RADIUS
@@ -438,7 +439,7 @@ class PyNECEngine(SimulationEngine):
                 n_seg,
                 p0[0], p0[1], p0[2],
                 p1[0], p1[1], p1[2],
-                self._radius_for(t),
+                self._gw_radius_for(t),
                 1.0,
                 1.0,
             )  # fmt: skip
@@ -473,26 +474,39 @@ class PyNECEngine(SimulationEngine):
             self.c.ex_card(0, tag, sub_index, 0, voltage.real, voltage.imag, 0, 0, 0, 0)
 
     def _radius_for(self, t):
-        """Wire-card radius for one build_wires() entry: its own spec's
+        """The conductor's radius for one build_wires() entry: its own spec's
         radius when it carries one (issue #388 — NEC takes a radius per GW
-        card natively), else the whole-antenna default."""
+        card natively), else the whole-antenna default. The GW card carries
+        `_gw_radius_for`, which is larger on a jacketed wire."""
         spec = as_wire(t).spec
         return spec.radius if spec is not None else self._wire_radius
 
-    def _insulation_l_per_m(self, spec=None, radius=None):
-        """The spec jacket's distributed series inductance [H/m] (King's
-        quasi-static insulated-antenna limit — the same L' momwire loads),
-        or None for bare/ideal wire. With no arguments, the design default;
-        per-wire callers pass that wire's spec and conductor radius."""
-        if spec is None:
-            spec = self._wire_spec
-        if radius is None:
-            radius = self._wire_radius
-        if spec is None or not spec.insulation_radius:
-            return None
-        return insulation_inductance(
-            radius, spec.insulation_radius, spec.insulation_eps_r
-        )
+    # Whether a jacket is written as momwire's coated-wire pair (issue #1523).
+    # False is the inductance-only spelling, the bare radius plus LD 2, for the
+    # two places that want it: the SimNEC portal, whose deck drops the LD cards,
+    # and the test that pins how far the two spellings differ.
+    _jacket_pair = True
+
+    def _material(self, radius, spec):
+        sigma = spec.conductivity if spec is not None else WIRE_CONDUCTIVITY
+        return nec_wire_material(radius, sigma, spec, pair=self._jacket_pair)
+
+    def _material_for(self, t):
+        """One build_wires() entry's GW radius, LD 5 conductivity and LD 2
+        inductance, from its effective spec (its own, else the design
+        default). `_nec_wire` says why a jacket moves all three."""
+        spec = as_wire(t).spec
+        eff = spec if spec is not None else self._wire_spec
+        return self._material(self._radius_for(t), eff)
+
+    def _design_material(self):
+        """The design default's material, for the global all-segments cards."""
+        return self._material(self._wire_radius, self._wire_spec)
+
+    def _gw_radius_for(self, t):
+        """The GW card's radius: the conductor's, or a jacketed wire's
+        equivalent radius."""
+        return self._material_for(t).radius
 
     def _emit_wire_material_cards(self, c):
         """LD cards for the design's wire material: conductor loss as type
@@ -500,7 +514,8 @@ class PyNECEngine(SimulationEngine):
         the H/m slot is used). NEC connects multiple loads on a segment in
         series, so the two stack — which is exactly why the per-wire and
         global paths are exclusive: a global card plus a per-tag card would
-        double the loss on that wire.
+        double the loss on that wire. On a jacketed wire the type 5
+        conductivity is rescaled for the equivalent GW radius (issue #1523).
 
         With no per-wire specs (issue #388), one global all-segments card
         per effect, exactly as before. When any wire carries its own spec,
@@ -508,25 +523,17 @@ class PyNECEngine(SimulationEngine):
         the design default for spec-less wires)."""
         if any(as_wire(t).spec is not None for t in self.tups):
             for tag, t in enumerate(self.tups, start=1):
-                w = as_wire(t)
-                eff = w.spec if w.spec is not None else self._wire_spec
-                sigma = eff.conductivity if eff is not None else WIRE_CONDUCTIVITY
-                if sigma is not None:
-                    c.ld_card(5, tag, 0, 0, sigma, 0.0, 0.0)
-                l_ins = self._insulation_l_per_m(eff, self._radius_for(t))
-                if l_ins is not None:
-                    c.ld_card(2, tag, 0, 0, 0.0, l_ins, 0.0)
+                mat = self._material_for(t)
+                if mat.conductivity is not None:
+                    c.ld_card(5, tag, 0, 0, mat.conductivity, 0.0, 0.0)
+                if mat.inductance is not None:
+                    c.ld_card(2, tag, 0, 0, 0.0, mat.inductance, 0.0)
             return
-        sigma = (
-            self._wire_spec.conductivity
-            if self._wire_spec is not None
-            else WIRE_CONDUCTIVITY
-        )
-        if sigma is not None:
-            c.ld_card(5, 0, 0, 0, sigma, 0.0, 0.0)
-        l_ins = self._insulation_l_per_m()
-        if l_ins is not None:
-            c.ld_card(2, 0, 0, 0, 0.0, l_ins, 0.0)
+        mat = self._design_material()
+        if mat.conductivity is not None:
+            c.ld_card(5, 0, 0, 0, mat.conductivity, 0.0, 0.0)
+        if mat.inductance is not None:
+            c.ld_card(2, 0, 0, 0, 0.0, mat.inductance, 0.0)
 
     def _resolve_network_ports(self):
         """Resolve every PortOnWire to its (tag, sub_seg) for native ld_card /
@@ -835,7 +842,7 @@ class PyNECEngine(SimulationEngine):
                 p1[0],
                 p1[1],
                 p1[2],
-                self._radius_for(t),
+                self._gw_radius_for(t),
                 1.0,
                 1.0,
             )

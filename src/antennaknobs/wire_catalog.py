@@ -80,8 +80,9 @@ class WireSpec:
     `conductivity=None` means PEC (today's idealization with a real
     radius); `insulation_radius=None` means bare wire. Engines consume
     this via `Builder.build_wire_material()` — momwire models both
-    effects, PyNEC models conductor loss natively (ld_card type 5) but
-    has no NEC-2 card for insulation and solves the bare wire.
+    effects, and the NEC engines write both as cards: conductor loss as
+    LD 5, a jacket as the equivalent radius plus LD 2 (issue #1523,
+    `engines/_nec_wire.py`).
     """
 
     radius: float  # conductor radius, m
