@@ -1,0 +1,23 @@
+{
+ "design": "wire.terminated_longwire",
+ "freq_mhz": 28.57,
+ "ground": null,
+ "marked": [
+  {
+   "wire": 0,
+   "name": "feed",
+   "ex": false,
+   "n": 2,
+   "length_m": 0.3
+  },
+  {
+   "wire": 4,
+   "name": "term",
+   "ex": false,
+   "n": 2,
+   "length_m": 0.3
+  }
+ ],
+ "status": "excluded",
+ "reason": "marked wire 0 is authored at 2 segments"
+}

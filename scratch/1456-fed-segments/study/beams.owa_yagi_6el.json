@@ -1,0 +1,16 @@
+{
+ "design": "beams.owa_yagi_6el",
+ "freq_mhz": 146.0,
+ "ground": null,
+ "marked": [
+  {
+   "wire": 2,
+   "name": null,
+   "ex": true,
+   "n": 2,
+   "length_m": 0.05
+  }
+ ],
+ "status": "excluded",
+ "reason": "marked wire 2 is authored at 2 segments"
+}

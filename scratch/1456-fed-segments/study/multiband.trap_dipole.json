@@ -1,0 +1,30 @@
+{
+ "design": "multiband.trap_dipole",
+ "freq_mhz": 28.0,
+ "ground": null,
+ "marked": [
+  {
+   "wire": 1,
+   "name": "trap_l",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.04999999999999982
+  },
+  {
+   "wire": 2,
+   "name": "feed",
+   "ex": false,
+   "n": 42,
+   "length_m": 5.35343675
+  },
+  {
+   "wire": 3,
+   "name": "trap_r",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.04999999999999982
+  }
+ ],
+ "status": "excluded",
+ "reason": "marked wire 2 is authored at 42 segments"
+}

@@ -1,0 +1,16 @@
+{
+ "design": "dipoles.short_dipole_loaded",
+ "freq_mhz": 28.0,
+ "ground": null,
+ "marked": [
+  {
+   "wire": 0,
+   "name": "feed",
+   "ex": false,
+   "n": 21,
+   "length_m": 2.676718375
+  }
+ ],
+ "status": "excluded",
+ "reason": "marked wire 0 is authored at 21 segments"
+}

@@ -1,0 +1,16 @@
+{
+ "design": "wire.sterba",
+ "freq_mhz": 28.47,
+ "ground": null,
+ "marked": [
+  {
+   "wire": 14,
+   "name": null,
+   "ex": true,
+   "n": 42,
+   "length_m": 5.2650589743589755
+  }
+ ],
+ "status": "excluded",
+ "reason": "marked wire 14 is authored at 42 segments"
+}

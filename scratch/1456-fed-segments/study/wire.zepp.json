@@ -1,0 +1,75 @@
+{
+ "design": "wire.zepp",
+ "freq_mhz": 28.57,
+ "ground": null,
+ "marked": [
+  {
+   "wire": 0,
+   "name": "ant",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.05
+  }
+ ],
+ "status": "ok",
+ "runs": {
+  "mw1": {
+   "status": "ok",
+   "z": [
+    [
+     2.608823019791444,
+     20.43659456302397
+    ]
+   ],
+   "meshed": [
+    1
+   ],
+   "fed_seg_mm": [
+    50.0
+   ],
+   "secs": 0.01
+  },
+  "mw3": {
+   "status": "ok",
+   "z": [
+    [
+     2.569814706229849,
+     16.564955853083365
+    ]
+   ],
+   "meshed": [
+    3
+   ],
+   "fed_seg_mm": [
+    16.666666666666668
+   ],
+   "secs": 0.01
+  },
+  "mw7": {
+   "status": "ok",
+   "z": [
+    [
+     2.5821959989704624,
+     16.24133030193901
+    ]
+   ],
+   "meshed": [
+    7
+   ],
+   "fed_seg_mm": [
+    7.142857142857143
+   ],
+   "secs": 0.01
+  },
+  "n52": {
+   "status": "error",
+   "error": "NotImplementedError: port 'ant' is distributed (a finite-gap port spanning its whole named wire) \u2014 the NEC-5 multiport-Y route serves delta-gap ports only. PyNEC serves this by driving every segment at V/S and reading the weighted current; NEC-5's EX addresses KNOTS, so the same expansion needs a knot-weighting rule that has not been derived. Run this design on bspline or PyNEC.",
+   "secs": 0.0
+  },
+  "n56": {
+   "status": "error",
+   "error": "NotImplementedError: port 'ant' is distributed (a finite-gap port spanning its whole named wire) \u2014 the NEC-5 multiport-Y route serves delta-gap ports only. PyNEC serves this by driving every segment at V/S and reading the weighted current; NEC-5's EX addresses KNOTS, so the same expansion needs a knot-weighting rule that has not been derived. Run this design on bspline or PyNEC.",
+   "secs": 0.0
+  }
+ }
+}

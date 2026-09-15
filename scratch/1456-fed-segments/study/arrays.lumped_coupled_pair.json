@@ -1,0 +1,23 @@
+{
+ "design": "arrays.lumped_coupled_pair",
+ "freq_mhz": 28.0,
+ "ground": null,
+ "marked": [
+  {
+   "wire": 0,
+   "name": "front",
+   "ex": false,
+   "n": 40,
+   "length_m": 5.0857649125
+  },
+  {
+   "wire": 1,
+   "name": "rear",
+   "ex": false,
+   "n": 40,
+   "length_m": 5.0857649125
+  }
+ ],
+ "status": "excluded",
+ "reason": "marked wire 0 is authored at 40 segments"
+}

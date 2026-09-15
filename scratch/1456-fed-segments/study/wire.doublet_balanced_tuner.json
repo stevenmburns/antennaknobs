@@ -1,0 +1,16 @@
+{
+ "design": "wire.doublet_balanced_tuner",
+ "freq_mhz": 14.1,
+ "ground": null,
+ "marked": [
+  {
+   "wire": 0,
+   "name": "feed",
+   "ex": false,
+   "n": 60,
+   "length_m": 15.308551046808512
+  }
+ ],
+ "status": "excluded",
+ "reason": "marked wire 0 is authored at 60 segments"
+}
