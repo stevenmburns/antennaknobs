@@ -1495,6 +1495,7 @@ def cli(arguments=None):
 
     def f(args):
         builder = get_builder(args.builder)
+        built = builder()
         if args.dialect == "nec5":
             if not args.include_rp:
                 raise SystemExit(
@@ -1505,7 +1506,7 @@ def cli(arguments=None):
 
             ground = args.ground if args.ground is not _GROUND_UNSET else "finite"
             deck = export_nec5(
-                builder(),
+                built,
                 ground=parse_ground(ground),
                 freq=args.freq,
                 design=args.builder,
@@ -1513,6 +1514,9 @@ def cli(arguments=None):
                 ground_name=ground,
                 note="written by `antennaknobs export --dialect nec5`",
             )
+            # The writers mesh through these engines, so their notes are the
+            # deck's (AK#1510).
+            meshed = partial(NEC5Engine, ground=parse_ground(ground), require_exe=False)
         else:
             from .nec_export import export_nec
 
@@ -1521,7 +1525,11 @@ def cli(arguments=None):
                 kwargs["ground"] = parse_ground(args.ground)
             if args.freq is not None:
                 kwargs["freq"] = args.freq
-            deck = export_nec(builder(), **kwargs)
+            deck = export_nec(built, **kwargs)
+            meshed = partial(
+                PyNECEngine, **{k: kwargs[k] for k in ("ground",) if k in kwargs}
+            )
+        placements.watch(meshed)(built)
         if args.out:
             # NEC decks are ASCII by spec, but pin the encoding rather than
             # trust the platform default (issue #772).

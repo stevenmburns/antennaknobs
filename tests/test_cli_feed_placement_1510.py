@@ -38,3 +38,22 @@ def test_ladder_prints_the_note_once_to_stderr_and_stdout_is_unchanged(
     silent = capsys.readouterr()
     assert NOTE not in silent.err
     assert echoed.out == silent.out
+
+
+def test_export_prints_the_note_to_stderr_and_the_deck_is_unchanged(
+    tmp_path, capsys, monkeypatch
+):
+    deck = tmp_path / "offset.nec"
+    deck.write_text(DECK)
+    argv = f"export --dialect nec5 --builder @{deck} --ground free".split()
+
+    ant.cli(argv)
+    echoed = capsys.readouterr()
+    assert echoed.err.count(NOTE.replace("segment centre", "knot")) == 1
+    assert echoed.out.count("\nGW ") == 2
+
+    monkeypatch.setattr(_FeedPlacementEcho, "flush", lambda *a, **k: None)
+    ant.cli(argv)
+    silent = capsys.readouterr()
+    assert silent.err == ""
+    assert echoed.out == silent.out
