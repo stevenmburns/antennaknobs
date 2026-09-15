@@ -1755,7 +1755,7 @@ class MomwireEngine(SimulationEngine):
         this engine keeps no coerced wire list, so each feed's segment is its
         own edge's length over that edge's count, which is what the fill
         solves. End and vertex ports report their wire's coerced count."""
-        from ..engine import fed_records
+        from ..engine import _builder_network, fed_records
 
         site = "knot" if self.segment_parity == "even" else "centre"
         out = []
@@ -1772,12 +1772,17 @@ class MomwireEngine(SimulationEngine):
                     "site": site,
                 }
             )
+        for rec in out:
+            if rec["site"] == "knot":
+                rec["length_after_m"] = rec["length_m"]
         end_names = {name for name, _w, _e in [*self._end_ports, *self._vertex_ports]}
         if end_names:
             coerced = self._coerce_wire_tuples(self.builder.build_wires())
             out += [
                 {**r, "wire": None}
-                for r in fed_records(coerced, self.builder, self.segment_parity)
+                for r in fed_records(
+                    coerced, _builder_network(self.builder), self.segment_parity
+                )
                 if r["port"] in end_names
             ]
         return out

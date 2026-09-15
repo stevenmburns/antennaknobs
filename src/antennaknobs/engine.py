@@ -286,23 +286,42 @@ def _split_at_feed(t, at, parity):
 
 
 def _fed_record(port, index, wire, site):
-    """One `SimulationEngine.fed_segments` record for a straight wire."""
+    """One `SimulationEngine.fed_segments` record for a straight wire. A knot
+    record carries the segment on the knot's far side too, the same length
+    unless a split says otherwise."""
     n = int(wire.n_seg)
     length = float(np.linalg.norm(np.subtract(wire.p1, wire.p0)))
-    return {
+    rec = {
         "port": port,
         "wire": index,
         "segments": n,
         "length_m": length / n,
         "site": site,
     }
+    if site == "knot":
+        rec["length_after_m"] = length / n
+    return rec
 
 
-def fed_records(wires, builder, parity):
-    """`SimulationEngine.fed_segments` over an engine's COERCED wire list: the
-    legacy ``ex`` wires, then every gap or end port the builder's network
-    declares, each on the wire it names (AK#1456)."""
-    from .network import PortAtEnd, PortAtVertex
+def _builder_network(builder):
+    """The builder's `build_network()`, or None when it has none."""
+    build = getattr(builder, "build_network", None)
+    return build() if callable(build) else None
+
+
+def fed_records(wires, network, parity, owners=None):
+    """`SimulationEngine.fed_segments` over an engine's COERCED wire list and
+    its network AS MESHED (AK#1456): the legacy ``ex`` wires, then every gap
+    or end port, each on the wire it names.
+
+    A port NEC-5 feeds through a wire split at its feed (AK#1510) arrives as a
+    `PortAtVertex` at the end of the piece carrying the wire's name, and
+    `owners` (the authored entry each wire came from) says the next piece is the
+    same wire. That source is the knot the two pieces share, so its record is a
+    knot whose two segments are that piece's last and the next piece's first. A
+    segment-centre engine's split port arrives as a gap at the middle of its
+    carrying piece, and reports that piece."""
+    from .network import PortAtEnd
 
     wires = [as_wire(t) for t in wires]
     site = "knot" if parity == "even" else "centre"
@@ -311,12 +330,10 @@ def fed_records(wires, builder, parity):
         for i, w in enumerate(wires)
         if w.ex is not None and not isinstance(w.n_seg, GradedSegments)
     ]
-    build = getattr(builder, "build_network", None)
-    net = build() if callable(build) else None
-    if net is None:
+    if network is None:
         return out
     by_name = {w.name: i for i, w in enumerate(wires) if w.name is not None}
-    for name, port in net.ports.items():
+    for name, port in network.ports.items():
         if isinstance(port, PortOnWire):
             index, where = by_name.get(port_wire(port)), site
         elif isinstance(port, (PortAtVertex, PortAtEnd)):
@@ -325,7 +342,22 @@ def fed_records(wires, builder, parity):
             continue
         if index is None or isinstance(wires[index].n_seg, GradedSegments):
             continue
-        out.append(_fed_record(name, index, wires[index], where))
+        nxt = index + 1
+        if (
+            where == "end"
+            and getattr(port, "end", None) == "p1"
+            and owners is not None
+            and len(owners) == len(wires)
+            and nxt < len(wires)
+            and owners[nxt] == owners[index]
+        ):
+            rec = _fed_record(name, index, wires[index], "knot")
+            rec["length_after_m"] = _fed_record(None, nxt, wires[nxt], "knot")[
+                "length_m"
+            ]
+        else:
+            rec = _fed_record(name, index, wires[index], where)
+        out.append(rec)
     return out
 
 
@@ -490,12 +522,20 @@ class SimulationEngine(ABC):
         or ``"end"`` (a port at the wire's end). ``port`` is the network
         port's name, or None for a legacy ``ex`` feed; ``wire`` indexes the
         engine's coerced wire list, or is None where the engine keeps none.
-        Read from the engine's own coerced wires, so it reports what the
-        engine solves, and it needs no solve."""
+        A knot record also carries ``length_after_m``, the segment on the
+        knot's far side. It equals ``length_m`` except where a wire is split at
+        its feed (AK#1510) and the source is the knot two pieces share. Read
+        from the engine's own coerced wires and its network as meshed, so it
+        reports what the engine solves, and it needs no solve."""
         tups = getattr(self, "tups", None)
         if tups is None:
             return []
-        return fed_records(tups, self.builder, self.segment_parity)
+        return fed_records(
+            tups,
+            self._network_as_meshed(_builder_network(self.builder)),
+            self.segment_parity,
+            getattr(self, "_tup_authored", None),
+        )
 
     def _parity_exempt_names(self):
         """Wire names exempt from parity coercion even though marked.
