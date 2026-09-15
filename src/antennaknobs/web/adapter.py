@@ -2825,6 +2825,9 @@ def _feed_indices(engine, currents) -> tuple[int, int]:
     split the current envelope. The visible marker dot uses `_feed_position`
     instead (exact, not snapped to a knot).
     """
+    vertex = _driven_vertex_knot(engine, currents)
+    if vertex is not None:
+        return vertex
     pf = _primary_feed(engine)
     if pf is None:
         return 0, 0
@@ -2870,23 +2873,39 @@ def _feed_position(engine, currents):
     return _position_at(currents, pf[0], pf[1])
 
 
+def _vertex_port_knot(engine, currents, name):
+    """``(polyline, knot)`` of the series node gap port `name` drives, or None
+    when `name` is not a vertex port. A vertex port sits at a polyline END
+    (momwire#305): an authored `PortAtVertex`, or a port the knot-family
+    solvers feed at the knot a split wire's pieces share (AK#1519)."""
+    vports = getattr(engine, "_vertex_ports", None) or []
+    members = getattr(engine, "_vertex_port_members", None) or []
+    for (port, _wire, _end), (pl_idx, end) in zip(vports, members, strict=True):
+        if port == name and pl_idx < len(currents):
+            n = currents[pl_idx].knot_positions.shape[0]
+            if n:
+                return pl_idx, (n - 1 if end == "end" else 0)
+    return None
+
+
+def _driven_vertex_knot(engine, currents):
+    """`_vertex_port_knot` for the primary (first driven) source, or None."""
+    network = getattr(engine, "_network", None)
+    if network is None or not network.sources:
+        return None
+    return _vertex_port_knot(engine, currents, network.sources[0].port)
+
+
 def _vertex_feed_position(engine, currents):
     """The knot a `PortAtVertex` source drives, or None when the primary
     source is not a vertex port. A vertex port is a series node gap at a
     polyline END (momwire#305), with no `_feeds` arclength, so the momwire
     lane used to draw no marker for it (AC6LA, 2026-09-13)."""
-    network = getattr(engine, "_network", None)
-    vports = getattr(engine, "_vertex_ports", None) or []
-    members = getattr(engine, "_vertex_port_members", None) or []
-    if network is None or not network.sources or not vports:
+    hit = _driven_vertex_knot(engine, currents)
+    if hit is None:
         return None
-    driven = network.sources[0].port
-    for (name, _wire, _end), (pl_idx, end) in zip(vports, members, strict=True):
-        if name == driven and pl_idx < len(currents):
-            knots = currents[pl_idx].knot_positions
-            if knots.shape[0]:
-                return (knots[-1] if end == "end" else knots[0]).tolist()
-    return None
+    pl_idx, k = hit
+    return currents[pl_idx].knot_positions[k].tolist()
 
 
 def _declared_feed_ports(cls) -> list[str]:
@@ -3079,6 +3098,9 @@ def _feed_positions(engine, currents, multi_feed=False):
                     pos = _position_at(currents, feeds[idx][0], feeds[idx][1])
                     if pos is not None:
                         out.append({"name": nm, "position": pos})
+                elif (hit := _vertex_port_knot(engine, currents, nm)) is not None:
+                    knot = currents[hit[0]].knot_positions[hit[1]]
+                    out.append({"name": nm, "position": knot.tolist()})
         elif len(feeds) > 1:
             for i, feed in enumerate(feeds):
                 pos = _position_at(currents, feed[0], feed[1])
