@@ -1,0 +1,365 @@
+"""Read `records.jsonl` and write the README tables. No number is hand-typed.
+
+    python scratch/catalog-razor-nec5-bs2/report.py > README.md
+
+Every table in the README comes out of this file, because the one table typo
+this study can afford is zero: a row transcribed by hand is a row nobody can
+re-derive. The P1-P4 verdicts are computed from the same arrays as the tables,
+so a verdict cannot disagree with the distribution it is read off.
+
+THREE THINGS THAT ARE NOT SILENTLY DROPPED, because each of them is the shape a
+broken comparison takes:
+
+  * a pair where one side refused -- counted as `unpaired`, with the cause, so
+    coverage is a reported number rather than a smaller denominator;
+  * a pair whose PORT COUNTS differ -- counted as `mismatched`, never zipped;
+  * a row whose reference |Z| is below 1 ohm -- kept, but flagged, since
+    rel|dZ| against a near-short denominator is not a percentage of anything.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import statistics
+import sys
+from collections import Counter, defaultdict
+from pathlib import Path
+
+PAIRS = (("razor", "nec5"), ("bs2", "nec5"), ("bs2", "razor"))
+GROUNDS = ("free", "somm")
+SMALL_Z_OHM = 1.0
+
+
+def load(path):
+    recs = {}
+    for line in open(path, encoding="utf-8"):
+        r = json.loads(line)
+        recs[(r["design"], r["ground"], r["engine"])] = r
+    return recs
+
+
+def zc(pair):
+    return complex(pair[0], pair[1])
+
+
+def rows_for(recs, a, b):
+    """Per-port rows for one engine pair. Returns (rows, unpaired, mismatched)."""
+    rows, unpaired, mismatched = [], [], []
+    designs = sorted({k[0] for k in recs})
+    for d in designs:
+        for g in GROUNDS:
+            ra, rb = recs.get((d, g, a)), recs.get((d, g, b))
+            if ra is None or rb is None:
+                continue
+            if ra["status"] != "ok" or rb["status"] != "ok":
+                unpaired.append((d, g, ra["status"], rb["status"]))
+                continue
+            za, zb = ra["z"], rb["z"]
+            if len(za) != len(zb):
+                mismatched.append((d, g, len(za), len(zb)))
+                continue
+            nports = len(za)
+            for i, (pa, pb) in enumerate(zip(za, zb, strict=True)):
+                ca, cbv = zc(pa), zc(pb)
+                den = abs(cbv)
+                rows.append(
+                    {
+                        "design": d,
+                        "ground": g,
+                        "port": i,
+                        "nports": nports,
+                        "rel": abs(ca - cbv) / den if den > 0 else math.inf,
+                        "za": ca,
+                        "zb": cbv,
+                        "small_ref": den < SMALL_Z_OHM,
+                        "flags": ra.get("flags") or [],
+                    }
+                )
+    return rows, unpaired, mismatched
+
+
+def dist(rows):
+    v = sorted(r["rel"] for r in rows)
+    if not v:
+        return None
+    n = len(v)
+    return {
+        "n": n,
+        "median": statistics.median(v),
+        "p90": v[min(n - 1, int(0.90 * n))],
+        "p99": v[min(n - 1, int(0.99 * n))],
+        "max": v[-1],
+        "under_0p1": sum(1 for x in v if x < 0.001) / n,
+        "under_1": sum(1 for x in v if x < 0.01) / n,
+        "under_2": sum(1 for x in v if x < 0.02) / n,
+    }
+
+
+def pct(x):
+    return "n/a" if x is None else f"{100 * x:.3g} %"
+
+
+def dist_row(label, d):
+    if d is None:
+        return f"| {label} | 0 | — | — | — | — | — | — |"
+    return (
+        f"| {label} | {d['n']} | {pct(d['median'])} | {pct(d['p90'])} | "
+        f"{pct(d['p99'])} | {pct(d['max'])} | {pct(d['under_0p1'])} | "
+        f"{pct(d['under_2'])} |"
+    )
+
+
+DIST_HEADER = (
+    "| population | rows | median | p90 | p99 | max | < 0.1 % | < 2 % |\n"
+    "|---|---:|---:|---:|---:|---:|---:|---:|"
+)
+
+
+def refusal_class(rec):
+    """One short cause label per refusal, from the engine's own sentence."""
+    msg = (rec.get("error") or "").lower()
+    if "junction_ports" in msg or "junction port" in msg:
+        return "junction ports"
+    if "distributed" in msg and "delta-gap" in msg:
+        return "distributed (finite-gap) port"
+    if "buried" in msg:
+        return "no buried fill"
+    if "ge" in msg and "-1" in msg and "contact" in msg:
+        return "GE -1 ground contact"
+    if "floating port" in msg:
+        return "floating port's second terminal"
+    if "node_gaps" in msg or "vertex" in msg:
+        return "vertex / node gap"
+    return (rec.get("error") or "").strip().split("\n")[0][:60] or rec.get(
+        "error_type", "?"
+    )
+
+
+def main(argv=None):
+    path = Path(argv[0]) if argv else Path(__file__).with_name("records.jsonl")
+    recs = load(path)
+    designs = sorted({k[0] for k in recs})
+    engines = ("razor", "nec5", "bs2")
+    out = []
+    w = out.append
+
+    w("# Catalog: razor-2p vs NEC-5 vs bs2\n")
+    w(
+        "Generated by `report.py` from `records.jsonl`; every number below is "
+        "computed, none transcribed. Read `PLAN.md` first — it registers the "
+        "predictions and names the three confounds this study labels rather "
+        "than fixes.\n"
+    )
+    w(
+        f"**Scope.** {len(designs)} built-in designs × {len(GROUNDS)} grounds × "
+        f"{len(engines)} engines = {len(designs) * len(GROUNDS) * len(engines)} "
+        f"cells, {len(recs)} recorded.\n"
+    )
+
+    # ---------------- coverage ----------------
+    w("## 1. Coverage — who solved what\n")
+    w("| engine | ok | refused | error | timeout |")
+    w("|---|---:|---:|---:|---:|")
+    status = {}
+    for e in engines:
+        c = Counter(
+            recs[(d, g, e)]["status"]
+            for d in designs
+            for g in GROUNDS
+            if (d, g, e) in recs
+        )
+        status[e] = c
+        w(f"| `{e}` | {c['ok']} | {c['refused']} | {c['error']} | {c['timeout']} |")
+    w("")
+    w("Refusal causes, counted by the engine's own sentence:\n")
+    w("| engine | cause | cells |")
+    w("|---|---|---:|")
+    for e in engines:
+        causes = Counter(
+            refusal_class(recs[(d, g, e)])
+            for d in designs
+            for g in GROUNDS
+            if (d, g, e) in recs and recs[(d, g, e)]["status"] in ("refused", "error")
+        )
+        for cause, n in causes.most_common():
+            w(f"| `{e}` | {cause} | {n} |")
+    w("")
+
+    # ---------------- distributions ----------------
+    w("## 2. rel|ΔZ| distributions\n")
+    w(
+        "`rel|ΔZ| = |Z_a − Z_b| / |Z_b|`, one row per design × ground × port "
+        "where BOTH engines solved and the port counts agree. The second-named "
+        "engine is the denominator; it is a choice of reference, not a claim "
+        "that it is right.\n"
+    )
+    all_rows = {}
+    for a, b in PAIRS:
+        rows, unpaired, mismatched = rows_for(recs, a, b)
+        all_rows[(a, b)] = (rows, unpaired, mismatched)
+        w(f"### `{a}` vs `{b}`\n")
+        w(DIST_HEADER)
+        w(dist_row("all", dist(rows)))
+        for g in GROUNDS:
+            w(dist_row(f"ground = {g}", dist([r for r in rows if r["ground"] == g])))
+        for flag in ("buried", "network", "end_ports", "vertex_ports", "gap_ports"):
+            sel = [r for r in rows if flag in r["flags"]]
+            if not sel:
+                continue
+            w(dist_row(f"flag = {flag}", dist(sel)))
+        w(
+            dist_row(
+                "no flags (plain wire design)",
+                dist([r for r in rows if not r["flags"]]),
+            )
+        )
+        # "multi-port" is a property of the DESIGN, so it selects every row of a
+        # cell that has more than one port -- not the rows after the first,
+        # which is a different population wearing the same label.
+        w(dist_row("multi-port designs", dist([r for r in rows if r["nports"] > 1])))
+        w(dist_row("single-port designs", dist([r for r in rows if r["nports"] == 1])))
+        w(dist_row("|Z_ref| < 1 Ω", dist([r for r in rows if r["small_ref"]])))
+        w("")
+        w(
+            f"Unpairable: **{len(unpaired)}** design×ground cells where one side "
+            f"did not solve, **{len(mismatched)}** where the port counts differ."
+        )
+        if mismatched:
+            for d, g, na, nb in mismatched:
+                w(f"  - `{d}` / {g}: {na} ports vs {nb}")
+        w("")
+
+    # ---------------- worst 10 ----------------
+    w("## 3. Worst 10, razor vs NEC-5\n")
+    rows = all_rows[("razor", "nec5")][0]
+    worst = sorted(rows, key=lambda r: -r["rel"])[:10]
+    w("| # | design | ground | port | razor Z | NEC-5 Z | rel\\|ΔZ\\| | flags |")
+    w("|---:|---|---|---:|---|---|---:|---|")
+    for i, r in enumerate(worst, 1):
+        w(
+            f"| {i} | `{r['design']}` | {r['ground']} | {r['port']} | "
+            f"{r['za'].real:.4g}{r['za'].imag:+.4g}j | "
+            f"{r['zb'].real:.4g}{r['zb'].imag:+.4g}j | {pct(r['rel'])} | "
+            f"{', '.join(r['flags']) or '—'} |"
+        )
+    w("")
+
+    # ---------------- mesh confound evidence ----------------
+    w("## 4. The parity confound, measured\n")
+    w(
+        'Confound 1 of `PLAN.md`: razor and NEC-5 declare `segment_parity="even"` '
+        'and bs2 declares `"odd"`, so the feed is a source on a shared knot for '
+        "the first two and a mid-segment delta gap for bs2. This counts how many "
+        "design×ground cells actually carry that difference.\n"
+    )
+    site = defaultdict(Counter)
+    for e in engines:
+        for d in designs:
+            for g in GROUNDS:
+                r = recs.get((d, g, e))
+                if r is None or r["status"] != "ok":
+                    continue
+                fs = r.get("fed_segments")
+                if not isinstance(fs, list):
+                    continue
+                for f in fs:
+                    site[e][f.get("site")] += 1
+    w("| engine | parity | feed sites (`site`: count) |")
+    w("|---|---|---|")
+    for e in engines:
+        par = Counter(
+            recs[(d, g, e)].get("parity")
+            for d in designs
+            for g in GROUNDS
+            if (d, g, e) in recs and recs[(d, g, e)]["status"] == "ok"
+        )
+        parity = ", ".join(f"{k}×{v}" for k, v in par.most_common())
+        sites = ", ".join(f"`{k}`: {v}" for k, v in site[e].most_common())
+        w(f"| `{e}` | {parity} | {sites} |")
+    w("")
+
+    # ---------------- predictions ----------------
+    w("## 5. Predictions P1–P4, scored\n")
+    rn = dist(all_rows[("razor", "nec5")][0])
+    bn = dist(all_rows[("bs2", "nec5")][0])
+    br = dist(all_rows[("bs2", "razor")][0])
+    verdicts = []
+
+    p1 = rn is not None and rn["median"] <= 0.005 and rn["under_2"] >= 0.80
+    verdicts.append(
+        (
+            "P1",
+            "razor-vs-NEC-5 median ≤ 0.5 % and ≥ 80 % of rows < 2 %",
+            f"median {pct(rn['median'] if rn else None)}, "
+            f"{pct(rn['under_2'] if rn else None)} of rows < 2 %",
+            p1,
+        )
+    )
+    ratio = (bn["median"] / rn["median"]) if (rn and bn and rn["median"] > 0) else None
+    p2 = ratio is not None and ratio >= 8.0
+    verdicts.append(
+        (
+            "P2",
+            "bs2-vs-NEC-5 median ≥ 8× razor-vs-NEC-5 median",
+            "ratio n/a" if ratio is None else f"ratio {ratio:.1f}×",
+            p2,
+        )
+    )
+    fac = (br["median"] / bn["median"]) if (br and bn and bn["median"] > 0) else None
+    p3 = fac is not None and (1 / 1.5) <= fac <= 1.5
+    verdicts.append(
+        (
+            "P3",
+            "bs2-vs-razor median within 1.5× of bs2-vs-NEC-5 median",
+            "n/a" if fac is None else f"factor {fac:.2f}×",
+            p3,
+        )
+    )
+    refused_designs = {
+        e: {
+            d
+            for d in designs
+            for g in GROUNDS
+            if recs.get((d, g, e), {}).get("status") in ("refused", "error")
+        }
+        for e in engines
+    }
+    razor_only = sorted(refused_designs["razor"] - refused_designs["bs2"])
+    p4 = (
+        len(refused_designs["razor"]) > len(refused_designs["bs2"])
+        and 4 <= len(razor_only) <= 20
+    )
+    verdicts.append(
+        (
+            "P4",
+            "razor refuses strictly more designs than bs2; 4–20 razor-only",
+            f"razor {len(refused_designs['razor'])}, bs2 "
+            f"{len(refused_designs['bs2'])}, nec5 {len(refused_designs['nec5'])}; "
+            f"razor-only {len(razor_only)}",
+            p4,
+        )
+    )
+    w("| prediction | bar | measured | verdict |")
+    w("|---|---|---|---|")
+    for tag, bar, got, ok in verdicts:
+        w(f"| **{tag}** | {bar} | {got} | {'**HIT**' if ok else '**MISS**'} |")
+    w("")
+    w(f"Hit {sum(1 for *_x, ok in verdicts if ok)} of {len(verdicts)}.\n")
+    if razor_only:
+        w("Designs razor refuses and bs2 does not:\n")
+        for d in razor_only:
+            rec = next(
+                recs[(d, g, "razor")]
+                for g in GROUNDS
+                if recs.get((d, g, "razor"), {}).get("status") in ("refused", "error")
+            )
+            w(f"  - `{d}` — {refusal_class(rec)}")
+        w("")
+
+    sys.stdout.write("\n".join(out) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
