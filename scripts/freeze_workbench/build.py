@@ -20,11 +20,14 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 import subprocess
 import shutil
 import sys
 from importlib.metadata import version
 from pathlib import Path
+
+from version_file import build_version_info
 
 HERE = Path(__file__).resolve().parent
 NAME = "antennaknobs-workbench"
@@ -175,7 +178,14 @@ Double-click {NAME}.exe. A console window opens, the workbench starts on
 this computer, and your browser opens at it (http://127.0.0.1:<port>/).
 Keep the console window open while you use the workbench; Ctrl-C or
 closing it stops the server. Nothing is installed; delete the folder to
-remove it. Keep the folder together: the program needs _internal beside it.
+remove it. Keep the folder together: the program runs the code in
+_internal beside it, so the .exe alone is not the whole program.
+
+To update: extract the WHOLE new zip into a fresh folder rather than
+copying just the .exe over an old one — an old _internal left in place
+keeps running the old code under the new .exe's name, with no obvious
+sign beyond the version shown under the page's title and in this
+window's startup line.
 
 Options (from a PowerShell or Command Prompt window in this folder):
     {NAME}.exe --port 8000       a fixed port
@@ -212,6 +222,33 @@ Docs: https://antennaknobs.dev/   Source: https://github.com/stevenmburns/antenn
 """,
         encoding="utf-8",
     )
+
+
+def _license_copyright() -> str:
+    """The LegalCopyright string for the version resource, read from LICENSE
+    so it can never drift from the file that actually governs the software."""
+    text = (HERE.parent.parent / "LICENSE").read_text(encoding="utf-8")
+    m = re.search(r"Copyright \(c\) .+", text)
+    return m.group(0) if m else "Copyright (c) Steven Burns"
+
+
+def _write_version_file() -> Path:
+    """The PyInstaller `--version-file` text, generated fresh from the
+    package's OWN version (issue #1507 follow-up) — the same source the web
+    label and the console banner read, so Explorer's Properties -> Details
+    can never disagree with either. Windows-only: a version resource is a PE
+    concept, and PyInstaller merely warns and ignores `version=` elsewhere."""
+    text = build_version_info(
+        version("antennaknobs"),
+        name=NAME,
+        product_name="antennaknobs workbench",
+        company="Steven Burns",
+        copyright_str=_license_copyright(),
+    )
+    out = Path("build") / "workbench_version_info.txt"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    return out
 
 
 def _prune_gpl(bundle: Path) -> None:
@@ -326,6 +363,9 @@ def main() -> int:
             if vendored != runtime:
                 cmd += ["--add-binary", f"{vendored}{os.pathsep}."]
                 print(f"vendored runtime: {vendored}")
+        version_file = _write_version_file()
+        cmd += ["--version-file", str(version_file)]
+        print(f"version resource: {version_file} ({version('antennaknobs')})")
     cmd.append(str(HERE / "entry.py"))
     print("+", " ".join(cmd), flush=True)
     result = subprocess.run(cmd)
