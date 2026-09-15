@@ -398,8 +398,15 @@ def test_pynec_port_named_apart_solves_like_one_named_after_it():
 
 @needs_position
 def test_pynec_shorted_second_port_changes_nothing():
-    z_plain = _zp(_pynec())
-    z_short = _zp(_pynec(load_ohms=1e-9))
+    """A port at the middle and one at a quarter fit no count (odd for the
+    middle, 2 mod 4 for the quarter), so PyNEC splits the wire at both
+    (AK#1511) and the baseline has to be that same split: the second port with
+    no load on it, which writes no LD card. Against the plain whole wire the
+    split's own re-mesh moves Z by 0.052 ohm, which is not the short's doing."""
+    z_plain = _zp(_pynec(load_ohms=0.0))
+    shorted = _pynec(load_ohms=1e-9)
+    assert "w" in shorted._split_wires
+    z_short = _zp(shorted)
     assert abs(z_short - z_plain) <= 1e-6 * abs(z_plain)
 
 
