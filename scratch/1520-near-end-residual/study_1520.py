@@ -135,6 +135,48 @@ def builder(case, geom, n):
         for name, u, kind in ports:
             if kind != "none":
                 net_ports[name] = PortOnWire(name, wire="w", at=u)
+    elif geom in ("AF", "AL"):
+        # Amendment 1: split only the feed (AF) or only the loads (AL), with the
+        # rule's own pieces for them. Every other port stays at its exact
+        # arclength on the unsplit run that contains it.
+        h = 1.0 / n
+        kept = {
+            "AF": {"feed"},
+            "AL": {nm for nm, _u, kd in ports if kd in ("load", "short")},
+        }[geom]
+        merged = []
+        for lo, hi, count, i in split_pieces(ats, n, "rule"):
+            if i is not None and ports[i][0] in kept:
+                merged.append((lo, hi, count, i))
+            elif merged and merged[-1][3] is None:
+                plo = merged[-1][0]
+                merged[-1] = (plo, hi, max(1, round((hi - plo) / h)), None)
+            else:
+                merged.append((lo, hi, max(1, round((hi - lo) / h)), None))
+        pieces = merged
+        wires = []
+        for j, (lo, hi, count, i) in enumerate(pieces):
+            if i is not None:
+                wname = f"piece_{ports[i][0]}"
+                net_ports[ports[i][0]] = PortOnWire(ports[i][0], wire=wname)
+            else:
+                inside = [
+                    (nm, u)
+                    for nm, u, kd in ports
+                    if kd != "none" and nm not in kept and lo < u < hi
+                ]
+                wname = f"run_{j}" if inside else None
+                for nm, u in inside:
+                    net_ports[nm] = PortOnWire(nm, wire=wname, at=(u - lo) / (hi - lo))
+            wires.append(
+                Wire(
+                    study._point(lo),
+                    study._point(hi),
+                    n_seg=count,
+                    name=wname,
+                    spec=spec,
+                )
+            )
     else:
         guard = {"B": "rule", "Bp": "off", "Bg": "forced"}[geom]
         pieces = split_pieces(ats, n, guard)
@@ -243,11 +285,8 @@ def runs(have_nec2):
 
 def one(engine, case, geom, n, solve):
     b, pieces = builder(case, geom, n)
-    ctx = (
-        authored_count()
-        if (engine == "bs2" and geom == "A")
-        else contextlib.nullcontext()
-    )
+    exact = engine == "bs2" and geom in ("A", "AF", "AL")
+    ctx = authored_count() if exact else contextlib.nullcontext()
     rec = dict(engine=engine, case=case, geometry=geom, n=n)
     rec["authored_pieces"] = [[lo, hi, c, i] for lo, hi, c, i in pieces]
     t0 = time.perf_counter()
@@ -287,6 +326,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mesh", action="store_true", help="mesh only, no solve")
     ap.add_argument("--out", type=Path)
+    ap.add_argument(
+        "--extra", action="store_true", help="Amendment 1's runs only (AF, AL)"
+    )
     args = ap.parse_args()
     _check_rule_matches_split_study()
     have_nec2 = shutil.which("nec2c") is not None
@@ -301,7 +343,12 @@ def main():
     out = open(args.out, "w") if args.out else None  # noqa: SIM115
     if out:
         out.write(json.dumps(meta) + "\n")
-    for engine, case, geom, n in runs(have_nec2):
+    todo = (
+        [("bs2", "base", g, n) for n in NS for g in ("AF", "AL")]
+        if args.extra
+        else runs(have_nec2)
+    )
+    for engine, case, geom, n in todo:
         rec = one(engine, case, geom, n, solve=not args.mesh)
         if out:
             out.write(json.dumps(rec) + "\n")

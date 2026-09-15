@@ -141,3 +141,52 @@ The 0.31 feed and the 0.77 load are in every case.
    `partb_rows.jsonl`, `mesh.jsonl` and `analyze_1520.py`, and push.
 2. The solves (`rows.jsonl`), under `systemd-run` with MemoryMax=24G.
 3. `analyze_1520.py` writes `README.md`, and the report follows.
+
+## Amendment 1, registered after the analysis above and before any amendment solve
+
+**Why.**
+- **The registered rule does not fit.** Q4, Q5, Q6, Q7 and Q8 all miss. So the
+  rule's first branch, "the guard's end piece", fires on a pattern it was not
+  built for: every variant keeps the residual. That output stands as the
+  registered one, and is not re-spelled.
+- **Where the residual is not.** From the recorded tables:
+  - It is the same with or without the 0.04 load: noload reads 0.043 / 0.218 /
+    0.144 / 0.0026 Ω against base's 0.047 / 0.223 / 0.146 / 0.0027 Ω at n = 41 /
+    81 / 161 / 321.
+  - It is the same with a 0 Ω short, with the load at 0.10 (0.20 / 0.26 / 0.16 /
+    0.007 Ω) and with the forced guard (0.10 / 0.22 / 0.14 / 0.007 Ω).
+  - The 0.04 load's own effect agrees between A and B to 0.003–0.005 Ω.
+- **When it vanishes.** It collapses at n = 321 in every variant.
+  - On A, the feed at 0.31 sits at ξ = frac(0.31 · n) = 0.71 / 0.11 / 0.91 /
+    0.51 within its segment at n = 41 / 81 / 161 / 321. B always feeds a segment
+    centre.
+  - Part D found that bs2's Z ripples with the feed's ξ. The ripple is largest
+    near a knot, about 0.2 Ω peak-to-peak at N = 81 on this deck's k2, and its
+    shape matches the residual's pattern here.
+
+**Hypothesis H.** The residual is the whole wire's feed position within its
+segment (Part D's ripple), and nothing at 0.04. This hypothesis came from the
+data above. The runs below test it with bars set before they are solved.
+
+**New geometries** (bs2 only, the base case, n = 41 / 81 / 161 / 321, at the
+authored count):
+- **AF:** only the feed is split. It takes its piece from the rule, with the
+  feed at the middle, and both loads stay at their exact arclengths on the
+  unsplit runs.
+- **AL:** only the loads are split, with their pieces from the rule. The feed
+  stays at its exact arclength on its run.
+
+**Predictions:**
+
+| id | what | bar | prediction |
+|---|---|---|---|
+| **E1** | splitting the feed alone reproduces B | \|Z_AF − Z_B\| ≤ 0.25 · r(base, B; n) at n = 81 and 161 | hit |
+| **E2** | splitting the loads alone leaves A unchanged | \|Z_AL − Z_A\| ≤ 0.25 · r(base, B; n) at n = 81 and 161 | hit |
+| **E3** | the feed split carries the residual | \|Z_AF − Z_A\| ≥ 0.75 · r(base, B; n) at n = 81 and 161 | hit |
+
+**If E1–E3 all hit,** the cause is the feed's position within its segment on
+the whole wire (Part D's ripple), which the split removes. The 0.04 end, the
+guard and the load are not it. **Any other outcome** leaves the residual
+unexplained by these candidates.
+
+**Records:** `rows_e.jsonl`, from `study_1520.py --extra`.
