@@ -1,0 +1,50 @@
+{
+ "PS1": {
+  "verdict": "hit",
+  "instances": 14,
+  "fails": [],
+  "missing": []
+ },
+ "PS2": {
+  "verdict": "MISS",
+  "instances": 4,
+  "fails": [
+   "transition k1_031/free N=41 n=45\u201355"
+  ],
+  "missing": []
+ },
+ "PS3": {
+  "verdict": "MISS",
+  "instances": 11,
+  "fails": [
+   "window k1_031/free N=81 n=76\u201386",
+   "window k2/free N=81 n=76\u201386",
+   "transition k1_031/free N=81 n=70\u201380",
+   "transition k2/free N=81 n=70\u201380"
+  ],
+  "missing": []
+ },
+ "PS4": {
+  "verdict": "MISS",
+  "instances": 10,
+  "fails": [
+   "window k1_031/free N=41 n=36\u201346",
+   "window k2/free N=41 n=36\u201346",
+   "window k2/free N=81 n=76\u201386",
+   "window k3/free N=41 n=36\u201346",
+   "window k2/somm13 N=81 n=76\u201386"
+  ],
+  "missing": []
+ },
+ "PS5": {
+  "verdict": "hit",
+  "instances": 2,
+  "fails": [],
+  "missing": []
+ },
+ "decision": {
+  "recommendation": "split-always",
+  "max_S_jump_over_step": 0.7248188465410832,
+  "max_R_jump_over_step": 38.54214779824576
+ }
+}
