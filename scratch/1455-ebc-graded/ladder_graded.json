@@ -1,0 +1,80 @@
+{
+ "meta": {
+  "nec5_exe": "/home/smburns/nec5-timing/nec5cl-x13-static",
+  "nec5_sha256": "7ebf343d7d01283b83fae8192cd9c6ca434b5befb232065fc12b4d729f06a9f3",
+  "momwire": "/home/smburns/stevenmburns/momwire-wt-1064-v055/src/momwire"
+ },
+ "radiator": "graded",
+ "rows": [
+  {
+   "nn": 21,
+   "radiator": "graded",
+   "radiator_segments": 32,
+   "radiator_seg_first_mm": 25.0,
+   "radiator_seg_max_mm": 457.14285714285717,
+   "nec5_gw_segments": 250,
+   "nec5_deck_sha256": "f4750355407ede6b7a5190efd091e9f3461a9c4ebaeb32e9b0bd9141e59332c9",
+   "momwire": [
+    38.17725537547862,
+    -68518.12212962945
+   ],
+   "nec5": [
+    27.937,
+    -61445.0
+   ],
+   "dR_pct": -26.822921854293305,
+   "dG_pct": -9.005966545346261,
+   "dB_pct": 10.323004022382184,
+   "secs_momwire": 1.81,
+   "secs_nec5": 0.43
+  },
+  {
+   "nn": 42,
+   "radiator": "graded",
+   "radiator_segments": 51,
+   "radiator_seg_first_mm": 25.0,
+   "radiator_seg_max_mm": 246.15384615384616,
+   "nec5_gw_segments": 481,
+   "nec5_deck_sha256": "312445257301df7f11529fc7b3911e85789e783ad9761d2fe7705d919b3fa625",
+   "momwire": [
+    38.18210524393533,
+    -68518.08976151432
+   ],
+   "nec5": [
+    27.988,
+    -61445.0
+   ],
+   "dR_pct": -26.698646339189263,
+   "dG_pct": -8.851518946131996,
+   "dB_pct": 10.32296159810159,
+   "secs_momwire": 0.63,
+   "secs_nec5": 0.9
+  },
+  {
+   "nn": 84,
+   "radiator": "graded",
+   "radiator_segments": 91,
+   "radiator_seg_first_mm": 25.0,
+   "radiator_seg_max_mm": 124.4264383269313,
+   "nec5_gw_segments": 953,
+   "nec5_deck_sha256": "704f519202c96f9dfbdded8ab71bf904891cd0762bd854ffc2fbccb3e6b6d4e2",
+   "momwire": [
+    38.18554651059928,
+    -68518.06659667475
+   ],
+   "nec5": [
+    28.01,
+    -61445.0
+   ],
+   "dR_pct": -26.6476388069366,
+   "dG_pct": -8.788153998199116,
+   "dB_pct": 10.322931255535938,
+   "secs_momwire": 2.17,
+   "secs_nec5": 2.72
+  }
+ ],
+ "summary": {
+  "nec5_R_spread_pct": 0.26062120671189004,
+  "momwire_R_spread_pct": 0.021712757517706873
+ }
+}
