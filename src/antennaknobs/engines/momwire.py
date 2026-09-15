@@ -1750,7 +1750,6 @@ class MomwireEngine(SimulationEngine):
         # AK's own placement notes follow momwire's (AK#1469).
         return items + list(getattr(self, "_placement_notes", None) or [])
 
-    @_captures_advisories
     def fed_segments(self):
         """`SimulationEngine.fed_segments`, read from the walked polylines:
         this engine keeps no coerced wire list, so each feed's segment is its
@@ -1783,6 +1782,7 @@ class MomwireEngine(SimulationEngine):
             ]
         return out
 
+    @_captures_advisories
     def impedance(self):
         self._raise_if_cancelled()
         return self._impedance_at(self._wavelength_for(self.builder.freq))
