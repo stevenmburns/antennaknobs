@@ -1,0 +1,49 @@
+{
+ "rows": [
+  {
+   "label": "10 segs, EX 5 end 2 (translated)",
+   "n": 10,
+   "seg": 5,
+   "field4": 2,
+   "z": [
+    70.0,
+    -26.1
+   ]
+  },
+  {
+   "label": "10 segs, EX 5 field 0",
+   "n": 10,
+   "seg": 5,
+   "field4": 0,
+   "z": [
+    70.0,
+    -26.1
+   ]
+  },
+  {
+   "label": "10 segs, EX 6 end 2 (mirror)",
+   "n": 10,
+   "seg": 6,
+   "field4": 2,
+   "z": [
+    70.0,
+    -26.1
+   ]
+  },
+  {
+   "label": "11 segs, EX 6 (true centre)",
+   "n": 11,
+   "seg": 6,
+   "field4": 0,
+   "z": [
+    68.494,
+    -25.051
+   ]
+  }
+ ],
+ "summary": {
+  "field4_ignored": true,
+  "mirror_equal": true,
+  "dR_vs_true_centre_pct": 2.1987327357140773
+ }
+}
