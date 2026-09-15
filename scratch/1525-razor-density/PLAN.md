@@ -157,3 +157,102 @@ Two things that follows and one it does not:
   that could move it — the buried designs — is exactly what the probe does not
   cover. Any buried-design row in this ladder that disagrees with the catalog run
   is a momwire-main candidate first and a density effect second.
+
+## 9. Re-registered 2026-09-15 — revised design, and D1–D5 superseded
+
+Laptop-builder's revision changes the reference and adds a classification, so the
+§4 bars no longer describe what is being measured. **D1–D5 are superseded, not
+quietly reused**, and the reason is stated for each below. New bars are E1–E5,
+registered before any rung of this configuration was solved.
+
+### Configuration
+
+| axis | value |
+|---|---|
+| antennaknobs | main `97ca2b6b0`, study branch on top |
+| momwire | **dev mode**: branch `main` at `227491d`, 79 commits past the recorded pointer, rebuilt with `make build` |
+| staleness guard | `verify_env.py --dev-mode` passes; the pointer check is run, **recorded as excused**, and the other six gate |
+| NEC-5 | `nec5cl-3b75639`, matched density, on the four AK#1516 designs only |
+| rungs | `nominal_nsegs` = **21, 40, 80, 160**, for **both** razor-2p and bs2 |
+| reference | **bs2 at rung 160** |
+| grounds | free and Sommerfeld `("finite", 13.0, 0.005)` |
+
+**One stated deviation from the brief.** The brief asked for bs2 at 1× / 2× / 4×
+of the shipped mesh (21 / 42 / 84) with bs2@4× as the reference. This runs both
+engines on the *same* four rungs, 21 / 40 / 80 / 160, and takes **bs2@160** as the
+reference. Two reasons: 40 is the served razor density and has to be a rung, and a
+shared x-axis is what lets one exponent be fitted per pair without interpolating.
+bs2@160 is a finer reference than bs2@4× would have been, so the reference-movement
+rule below is applied against a better reference, not a worse one.
+
+### The metric, stated once and used everywhere
+
+Relative error is `|Z_a − Z_b| / |Z_b|` with the port impedances taken as
+**vectors over all ports** — an all-port norm. **Every ohm figure in this study is
+the numerator of that same expression**, `|Z_a − Z_b|` over all ports, so the ohms
+and the percentage beside them are the same quantity. This is *not* probe3's
+metric, which is port 0 alone: on the four-port `arrays.moxonarray` probe3 reads
+9.068 Ω where this study's norm reads 18.0. probe3 is used for the **predicted
+class** and for nothing else.
+
+### Classification, keyed on the pair
+
+Per (pair, design, ground), from this run's own data:
+
+* **converging** — the gap shrinks monotonically across the rungs; the fitted
+  order is reported with it.
+* **reference unsettled** — #845's rule: the reference's own movement between the
+  last two rungs exceeds **one third** of the quantity being judged. Marked
+  unresolved and **not tabulated as a convergence result**.
+* **not converging** — the gap at the top rung is no smaller than at ×1.
+* **refused** — an engine declined; the reason is recorded.
+
+**A class is only ever applied to the pair it was measured on.** That rule exists
+because the published page got it wrong twice: a measurement of razor-against-bs2
+cannot say whether razor-against-NEC-5 closes, since those two move together under
+refinement, and AK#1516's records show their mutual gap is flat while both
+converge. Job 2's primary comparison is razor against bs2 — the same pair probe3
+measured — so the predicted classes transfer without any cross-pair inference.
+Where a NEC-5 column is present, its classes are computed separately.
+
+### Achieved mesh, not the requested knob
+
+`nominal_nsegs` is a density and each design decides which edges follow it. Every
+cell records the **achieved** segment count, and a design whose mesh does not
+respond to the knob is reported as **its own finding**, not as a convergence
+result: `verticals.elt_whip` goes 4392 → 4577 segments across 21 → 160, a 1.04×
+refinement, so any statement about how its error behaves "under ×7.6 refinement"
+is false on its face.
+
+### Predictions
+
+Predicted classes are committed as `predicted-classes.json` — probe3's class for
+all 206 design×ground rows, computed with #845's rule. **Any row that changes
+class is a finding**, reported with its design, ground and both classes.
+
+* **E1.** ≥ **90 %** of the 206 rows keep their predicted class. probe3's
+  distribution is 154 converging, 20 reference unsettled, 18 not measured, 8
+  unexplained, 6 not converging; the 18 "not measured" can only improve, since
+  this run covers all 103 designs.
+* **E2.** On rows classed converging, the fitted exponent has median in
+  **0.8–1.3**; `loops.skyloop_lmatch` lands in **1.7–2.4** (AK#1516 measured
+  1.94–2.34 for the bs2−NEC-5 gap there).
+* **E3.** What 80 buys over 40: median `err(80)/err(40)` in **0.45–0.60**; median
+  `wall(80)/wall(40)` in **3.0–5.0**; median `peakRSS(80)/peakRSS(40)` in
+  **1.5–4.0**.
+* **E4.** Between **10 and 40** rows are marked *reference unsettled* — i.e. bs2
+  is not settled at the shipped mesh on a real minority of the catalog, which is
+  the fact that makes "bs2 as yardstick" a measured claim rather than an
+  assumption. probe3 predicts 20.
+* **E5.** Exactly **one** design has a mesh that fails to respond to the knob at a
+  1.5× threshold over 21 → 160 (`verticals.elt_whip`).
+
+Superseded, with reasons: **D1** and **D2** are reworded as E2 because the
+reference changed from bs2-at-defaults to bs2@160. **D3** carries over unchanged
+as E3. **D4** is gone: "is bs2 a usable yardstick" is no longer a prediction but
+a measured output, and E4 replaces it. **D5** is gone: with a reference-movement
+rule in force, "rows still above 2 % at rung 160" mixes unresolved rows with real
+ones, and the classification reports it better.
+
+**No recommendation on the default density.** Not a prediction — a constraint on
+the deliverable.
