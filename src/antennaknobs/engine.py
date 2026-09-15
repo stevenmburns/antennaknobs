@@ -418,6 +418,34 @@ def _port_positions(builder):
     return positions, referenced
 
 
+def vertex_only_names(network):
+    """The wire names whose only attachment in `network` is a `PortAtVertex`
+    (issue #898), as a frozenset: empty for no network.
+
+    A vertex source sits at a wire's END knot, which every count provides, so
+    parity coercion, which exists to put a site at the MIDDLE, has nothing to
+    do for such a wire and would only change the author's mesh. Any other port
+    touching a wire (a gap port by the wire it names, an end port by its
+    `.wire`) keeps the wire under the normal rule. A `PortVirtual`'s name is a
+    circuit node, not a wire; a coincidental match only costs an unnecessary
+    parity bump, never a wrong mesh."""
+    if network is None:
+        return frozenset()
+    vertex = {p.wire for p in network.ports.values() if isinstance(p, PortAtVertex)}
+    other = set()
+    for p in network.ports.values():
+        if isinstance(p, PortAtVertex):
+            continue
+        name = (
+            port_wire(p)
+            if isinstance(p, PortOnWire)
+            else getattr(p, "name", None) or getattr(p, "wire", None)
+        )
+        if name:
+            other.add(name)
+    return frozenset(vertex - other)
+
+
 class SimulationEngine(ABC):
     supports_far_field: ClassVar[bool] = False
     # Engines that demand a specific basis parity override this. The
@@ -431,7 +459,8 @@ class SimulationEngine(ABC):
     # one port or several, is split so every port sits exactly on one (AK#1511;
     # `split_spans`): at the middle of a short piece of its own for a
     # segment-centre engine, at the knot two pieces share for a knot engine.
-    # No engine changes the count to reach a site. momwire never splits.
+    # No engine changes the count to reach a site. The momwire engine sets it
+    # per instance, for every solver whose parity is "odd" or "even" (AK#1519).
     splits_wire_at_feed: ClassVar[bool] = False
 
     def __init__(self, builder):
@@ -475,7 +504,7 @@ class SimulationEngine(ABC):
         ports all sit at a wire's middle or on sites of the wire's own count.
 
         A splitting engine never places a port on a nearest site, so there is
-        no offset note here; momwire's snapping bases report their own."""
+        no offset note here."""
         site = {"odd": "segment centre", "even": "knot"}.get(self.segment_parity)
         return [
             split_note(wire, split.ports, site, split.n_seg)
@@ -694,7 +723,6 @@ class SimulationEngine(ABC):
             # and each port feeds its site. Otherwise an engine that splits cuts
             # the wire so every port on it, one or several, sits exactly on a
             # site; a knot engine then cuts at every port, on a knot or not.
-            # momwire feeds the exact arclength and keeps the wire whole.
             at_here = positions.get(w.name) if marked else None
             if at_here and family is not None:
                 n_new = max(1, int(w.n_seg))

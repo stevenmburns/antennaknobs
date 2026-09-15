@@ -83,15 +83,15 @@ def test_network_ports_are_reported_by_name_on_every_engine():
 
 
 def test_a_vertex_port_reports_its_wires_end_segment_at_each_engines_count():
-    """NEC-5 exempts a vertex-only wire from the parity bump (#898) and keeps
-    the authored 20 segments; momwire bumps the named wire to 21. The same
-    wire, so the two segment lengths are the one wire length divided two ways."""
+    """NEC-5 (#898) and momwire (AK#1519) both exempt a vertex-only wire from
+    the parity bump and keep the authored 20 segments: the source sits at the
+    wire's end, which every count provides."""
     b = _builder("dipoles.invvee_apex")
     (mw,) = MomwireEngine(b).fed_segments()
     (n5,) = NEC5Engine(b, require_exe=False).fed_segments()
-    assert (mw["port"], mw["segments"], mw["site"]) == ("apex", 21, "end")
+    assert (mw["port"], mw["segments"], mw["site"]) == ("apex", 20, "end")
     assert (n5["port"], n5["segments"], n5["site"]) == ("apex", 20, "end")
-    assert mw["length_m"] * 21 == pytest.approx(n5["length_m"] * 20)
+    assert mw["length_m"] == pytest.approx(n5["length_m"])
 
 
 def test_the_validation_pages_sites_are_the_engines_own_parities():
@@ -229,12 +229,17 @@ def test_a_centre_engine_reports_the_carrying_piece_of_its_split(engine, monkeyp
     assert rec["length_m"] == pytest.approx(_segment(carrying))
 
 
-def test_momwire_never_splits_and_reports_the_edge_its_feed_sits_on():
+def test_momwire_reports_the_carrying_piece_of_its_split():
+    """bs2 splits as PyNEC does (AK#1519): the fed segment is the middle one
+    of the port's own piece, not a segment of the authored wire."""
     eng = MomwireEngine(_positioned(1 / 3))
-    assert not getattr(eng, "_split_wires", None)
+    (span,) = [s for s in eng._split_wires["w"].plan.spans if s.port is not None]
     (rec,) = eng.fed_segments()
     assert (rec["port"], rec["site"]) == ("feed", "centre")
-    assert rec["length_m"] * rec["segments"] == pytest.approx(2 * SPLIT_ARM)
+    assert rec["segments"] == span.n_seg and span.n_seg % 2 == 1
+    assert rec["length_m"] * rec["segments"] == pytest.approx(
+        (span.hi - span.lo) * 2 * SPLIT_ARM
+    )
 
 
 class _TwoPortDipole(_PositionedDipole):

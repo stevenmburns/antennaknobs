@@ -6,8 +6,8 @@ port a short piece centred on it, reaching a quarter of the way to its
 neighbours or a third of the way to a wire end, with plain wire in between; a
 port within a segment of an end, with nothing tighter nearby, runs its piece to
 that end. NEC-5 cuts the wire at every port and feeds the knot the pieces on
-either side share. The momwire engine feeds the exact arclength and never
-splits.
+either side share. The momwire engine's solvers split the same way, each like
+the engines of its family (AK#1519).
 
 The k = 2 and k = 3 designs are the demo decks' geometry: a 10.5 m dipole at
 10 m, 1 mm radius, ten segments, at 14.2 MHz, fed at 0.31 with 50 ohm loads.
@@ -606,12 +606,21 @@ def test_a_port_positioned_at_half_of_two_segments():
     assert [t[2] for t in nec5.tups] == [2] and nec5._split_wires == {}
 
 
-def test_momwire_never_splits_a_multi_port_wire():
+def test_momwire_splits_a_multi_port_wire_as_its_reference_engines_do():
+    """AK#1519: bs2 meshes the pieces PyNEC does, razor-2p the pieces NEC-5
+    does."""
+    from momwire import RazorSolver
+
     from antennaknobs.engines.momwire import MomwireEngine
 
-    eng = MomwireEngine(_b(**CASES["k3"]))
-    assert eng._split_wires == {}
-    assert len(eng._edge_segments) == 1
+    bs2 = MomwireEngine(_b(**CASES["k3"]))
+    pynec = _pynec(_b(**CASES["k3"]))
+    assert bs2._edge_segments == [[as_wire(t).n_seg for t in pynec.tups]]
+    razor = MomwireEngine(
+        _b(**CASES["k3"]), solver=RazorSolver, solver_kwargs={"nec5_quadrature": True}
+    )
+    nec5 = NEC5Engine(_b(**CASES["k3"]), require_exe=False)
+    assert razor._edge_segments == [[as_wire(t).n_seg] for t in nec5.tups]
 
 
 def test_one_note_per_split_wire_names_every_port():
