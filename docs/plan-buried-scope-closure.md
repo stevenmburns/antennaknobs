@@ -1,25 +1,26 @@
 # Plan: closing the buried-wire refusals
 
-Status: **draft for review, 2026-09-12.** Written the day the momwire#956
+Status: **in progress, 2026-09-15.** U1–U7 and U9 are done or closed; U8
+waits. Written 2026-09-12, the day the momwire#956
 residual closed (momwire#1043, antennaknobs PR #1434 for the derivation,
 #1441 for the census) and the corpus census showed that **no public deck is
 inside the crossing serve's scope**: eight corpus decks have a wire below the
 plane, momwire refuses all eight, NEC-5 solves all eight. The refusals are the
 map of what is left. This plan orders them.
 
-**Progress, 2026-09-13.**
+**Progress, 2026-09-15.**
 
 | unit | state |
 |---|---|
 | U1 translator | done: corpus tool 1.10 (AK#1453), and the census page re-rendered on 1.11 (AK#1467) |
 | U2 refine path | done: `NecDeck.refined(r)` and `antennaknobs ladder` (AK#1457) |
-| U3 `GE −1` crossing | done: momwire#1052 |
-| U4 below range | done: momwire#1058 serves the remainder past the cap as zero, merged 2026-09-13 with its caveat accepted (fresh water at 28 MHz clears the bound by only 2×; broadside parallel wires more than 4 λ_m apart are unmeasured); records in momwire#1057 |
-| U5 mixed radii | done: two-radius crossing, momwire#1050 |
+| U3 `GE −1` crossing | done: momwire#1052, released in momwire 0.55.0, which antennaknobs v0.77.0 ships on |
+| U4 below range | done: momwire#1058 serves the remainder past the cap as zero, merged 2026-09-13 with its caveat accepted (fresh water at 28 MHz clears the bound by only 2×; broadside parallel wires more than 4 λ_m apart are unmeasured); records in momwire#1057; released in momwire 0.55.0, which antennaknobs v0.77.0 ships on |
+| U5 mixed radii | done: two-radius crossing, momwire#1050, released in momwire 0.55.0, which antennaknobs v0.77.0 ships on |
 | U6 counterpoise | closed: AK#1443's verdict, with follow-ups AK#1455 and AK#1456 |
 | U7 buried rod | closed: momwire#1027, not a physical disagreement; the two engines converge toward the same R along two axes, at different rates |
-| U8 far field | not started (momwire#570) |
-| U9 several crossing nodes | a second node is refused by name (momwire#1054); the engine's pre-flight asks the fill's own verdict (momwire#1055, AK#1464 step 3); serving several nodes not started |
+| U8 far field | not started (momwire#570); deferred by decision |
+| U9 several crossing nodes | done on momwire main, **not released**: momwire#1065 serves several crossing nodes per deck (momwire#1068 moved two tests it made slow). antennaknobs, on momwire 0.55.0, still refuses a second node by name. Measured: the 8-node LPDA at refine 1 reads 52.09 − 3.18j against NEC-5's 53.07 − 3.54j (2.0 %), and momwire's own far × 3 step on it is 0.0394 Ω; two-node soil-A decks against NEC-5 meet the gate on 16 of 16 readings. The LPDA check (d) stopped at its pre-Z check; the two cebik phased arrays are still refused by name; route 1 is deferred; follow-up momwire#1064 |
 
 Ground rules carried from the #956 arc, which are what made it converge:
 
@@ -181,60 +182,105 @@ current #1341 note (0.46 dB) says it should.
 
 ### U9 — more than one crossing node (3 decks, every multi-element buried array)
 
-momwire's crossing fill completes ONE crossing node per deck, and a second
-node is refused by name (momwire#1054). Before that, a two-node deck passed
-the serve plan and died on an assert in the fill (AK#1464).
+**Done on momwire main, not released.**
+- **Where it landed.** momwire#1065 serves a deck with several crossing nodes,
+  and momwire#1068 moved two tests it made slow on macOS.
+- **What users get today.** Neither is in a momwire release or in
+  antennaknobs' momwire pointer. So antennaknobs, on momwire 0.55.0, still
+  refuses a second node by name (momwire#1054).
+- **Records:** momwire `scratch/u9-multi-crossing/` (momwire#1063).
 
-**A scoping read of the code (2026-09-13), not yet measured:**
-- The by-parts end terms are already evaluated at every end-to-node distance.
-- On a crossing deck the crossing fill is the only place cross-node pairs are
-  computed (no transmitted grid is built), so nothing is counted twice.
-- The one term fixed to a single point is the corner V(a).
+**What the fill does now.**
+- **The corner.** It was the one term fixed to a single node. It is now
+  evaluated for every in-plane end pair, at one node or across two, as
+  −σσ′·c1·V(√(ρ² + a²)). Every other term was already evaluated at any
+  distance.
+- **The grazing floor.** Two crossing nodes put their rises' below/below pairs
+  at θ = atan(2·h_node/d), under the old 0.05° floor at any practical spacing.
+  - **The new floor is 0.016667°.** The low band starts two cells lower, at its
+    own Δθ, with a 24,000-panel tail budget.
+  - **Interpolation.** The real-grid interpolation over the new cells reads
+    3.9e-9 against a 4.7e-4 bar.
+- **Still refused by name:**
+  - crossing nodes closer than 1 m (`MIN_CROSSING_NODE_SEPARATION_M`, gated on
+    one deck);
+  - a two-radius deck with more than one node.
 
-The working hypothesis is one missing term, plus text: the cross-node corner
-−σσ′·c1·V(√(ρ² + a²)), the point-charge pair term that the same-medium self
-completions already carry.
+**What is measured.**
+- **The ε̃ = 1 collapse.**
+  - Two rise-plus-monopole pairs match the free-space two-wire Z to 2.0e-4 Ω,
+    at 12 m and at 1 m, on both σσ′ orientations.
+  - Without the cross-node corner, Z12 misses by 4.70 Ω.
+  - Two of the registered magnitude bands missed low, so the GO was a
+    post-hoc ruling, recorded in momwire#1063's `PLAN.md`.
+- **The soil-A ladder, at 3 / 5 / 8 / 11 m.**
+  - Every rung is served.
+  - Z11 approaches the single-node print, 1.02 → 0.33 Ω.
+  - Z12 = Z21 to 1.5e-15.
+- **Two-node decks against NEC-5.** Soil A, at 3 / 5 / 8 / 11 m, with both
+  engines fed at one knot.
+  - **The gate.** The full 2 × 2 Z meets the registered gate on all 16
+    readings: Z11 and Z12, at two meshes, at every separation.
+  - **At the finer mesh,** Z12 is within 0.7 % and Z11 within 1.1 %.
+  - **The gate sees the term.** Leaving the cross-node corner out moves Z12 by
+    5.5–21.9 Ω.
+- **The 8-node lpma3r5 LPDA.**
+  - **The reading.** At refine 1 through antennaknobs' multiport route, momwire
+    reads 52.09 − 3.18j against NEC-5's 53.07 − 3.54j, 2.0 % of |Z|.
+  - **momwire's own far × 3 step** on it is 0.0394 Ω (run on Skylake).
+  - **The condition.** antennaknobs' construction-time preflight was stubbed.
+    momwire's own scope and serve plan ran unstubbed.
 
-Plan:
-- (a) Confirm the corner is the only same-node-only term, and derive its
-  cross-node form.
-- (b) The ε̃ = 1 collapse: two rise-plus-monopole pairs 12 m apart against
-  the free-space bent-wire solve. W = 0 there, so it isolates the corner.
-  Cover both σσ′ orientations.
-- (c) A separation ladder at 5 / 12 / 50 / 200 m on soil A: Z11 approaches the
-  single-node print, Z12 goes to 0, and Z12 = Z21.
-- (d) The three corpus decks through U2 against NEC-5, gated on Z12 and on
-  the change from the single-node answer rather than on absolute Z.
+**What did not land.**
+- **(d), isolating the corner on the corpus LPDA, stopped at a pre-Z check.**
+  The NEC-5 route's reciprocity on the one-node spelling read 2.29 %, against
+  1 %.
+  - **(d) was ended there.** The full-against-one-node change is mostly the
+    ungrounded elements, so it could not isolate the corner.
+  - **The two-node decks took its place.**
+- **The two cebik phased arrays stay refused by name.** Their walls:
+  - pairs grazing past the table;
+  - U5's within-side radius spread, on both sides;
+  - NT-fed ports.
+- **Route 1,** serving past-cap below/below pairs at any θ, is deferred.
+- **Refining a served two-node deck's node segments** pushes it back under the
+  floor.
 
-Then AK#1464's construction-time preflight measures on the fill's own nodes,
-through a momwire helper.
-
-**4–6 days; 10 or more if (b) fails**, which would mean a gap beyond the
-corner. Gate: single-node decks bit-identical (the crossing rod, the fan, the
-hub, the U5 rod, SG), split-vs-dense parity on the two-node deck, and SG vs
-bspline at the class tolerance. Each of the three decks also carries other
-walls: U4's range on all three, the grazing floor on the LPDA, and U5's
-within-side radius spread on the phased arrays. The LPDA's 8 fans may need a
-fill-cost unit of their own.
+**Follow-ups.**
+- **momwire#1064, the cold fill.** Decks that reach under 0.1° pay 2.3–2.9× on
+  the cold fill; warm solves and memory are unchanged. A fifth θ band would
+  confine that cost to decks under 0.05°.
+- **Solve cost.** A two-node solve at soil A takes about 30 s.
 
 ## Order and size
 
-| order | unit | days | unblocks |
-|---|---|---|---|
-| 1 | U1 translator | 0.5 | provenance on 930 census rows |
-| 2 | U2 refine path | 2–3 | ladders on corpus decks for everything below |
-| 3 | U3 GE −1 crossing | ~1 | 6 decks reach their real limits (U4/U5/U8/U9) |
-| 4 | U4 below range | 2–4 | 3 decks |
-| 5 | U5 mixed radii | 5–10 | 4 decks; thin radials on a fat mast |
-| 6 | U6 counterpoise | 2–3 (+fix) | 1 design's published number |
-| 7 | U7 buried rod | 2–3 (+fix) | every wholly buried fed element's R |
-| 8 | U8 far field | 15–25 | every buried pattern |
-| 9 | U9 several crossing nodes | 4–6 | 3 decks; every multi-element buried array |
+| order | unit | days | unblocks | state |
+|---|---|---|---|---|
+| 1 | U1 translator | 0.5 | provenance on 930 census rows | done |
+| 2 | U2 refine path | 2–3 | ladders on corpus decks for everything below | done |
+| 3 | U3 GE −1 crossing | ~1 | 6 decks reach their real limits (U4/U5/U8/U9) | done; released in momwire 0.55.0 |
+| 4 | U4 below range | 2–4 | 3 decks | done; released in momwire 0.55.0 |
+| 5 | U5 mixed radii | 5–10 | 4 decks; thin radials on a fat mast | done; released in momwire 0.55.0 |
+| 6 | U6 counterpoise | 2–3 (+fix) | 1 design's published number | closed (AK#1443) |
+| 7 | U7 buried rod | 2–3 (+fix) | every wholly buried fed element's R | closed (momwire#1027) |
+| 8 | U8 far field | 15–25 | every buried pattern | not started; deferred by decision |
+| 9 | U9 several crossing nodes | 4–6 | 3 decks; every multi-element buried array | done on momwire main; not released |
 
-About 7–11 weeks of session time end to end, U8 alone being a third of it.
-U1–U4 are the cheap half and clear the corpus population that the census
-cannot exercise today; U5 is the one users will meet first; U8 is the one that
-turns "impedance and currents only" into a complete buried serve.
+**What remains.**
+- **U8, the buried far field.** It is the only formulation unit, and the one
+  that turns "impedance and currents only" into a complete buried serve. It is
+  deferred by decision.
+- **Follow-ups from the done units:**
+  - **momwire#1064:** U9's extra cold-fill cost, confined to decks under 0.05°
+    by a fifth θ band;
+  - **AK#1455:** grade `elevated_buried_counterpoise`'s radiator, so that its
+    NEC-5 comparison converges (from U6);
+  - **AK#1456:** cross-engine comparisons inherit each engine's fed-segment
+    size, which matters at near-open feeds (from U6);
+  - **momwire#1066:** SinusoidalGalerkin's slope jump across a crossing node
+    grows under refinement, while bspline's halves. Nothing gated moves.
+- **U9 reaches users** when momwire releases it and antennaknobs adopts that
+  release.
 
 ## What is deliberately not on the plan
 
