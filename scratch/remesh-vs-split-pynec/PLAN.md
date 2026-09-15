@@ -114,7 +114,7 @@ each fed piece rounds to an odd count.
 | **PS1** | hit (14) | — |
 | **PS2** | **MISS** (1 of 4) | k1 at n = 45–55: R's re-mesh-to-split switch at 50 → 51 moves Z by only 0.020 Ω, against step_S 0.366 Ω |
 | **PS3** | **MISS** (4 of 11) | k1 and k2 at N = 81, windows and transitions: \|R − S\| of 0.20–0.25 Ω against step_S of 0.19–0.23 Ω |
-| **PS4** | **MISS** (5 of 10) | S's trend ptp is 0.07–0.23 Ω against 0.25 · step_S (0.034–0.09 Ω): k1, k2 and k3 at N = 41, k2 at N = 81, and k2 over somm13 |
+| **PS4** | **MISS** (5 of 10) | S's trend ptp is 0.058–0.23 Ω against 0.25 · step_S (0.034–0.09 Ω): k1, k2 and k3 at N = 41, k2 at N = 81, and k2 over somm13 |
 | **PS5** | hit (2) | — |
 
 **The decision rule: split-always.** S's largest jump is 0.72 × step_S; R's is
