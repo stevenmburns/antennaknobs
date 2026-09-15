@@ -4,7 +4,8 @@ Usage::
 
     python scripts/freeze_workbench/smoke.py dist/antennaknobs-workbench/antennaknobs-workbench[.exe]
 
-Three gates, each run against the FROZEN executable and nothing else:
+The numbered gates below, each run against the FROZEN executable and
+nothing else:
 
 1. ``--selftest`` exits 0 and prints ``accelerated = True`` and an invvee
    impedance equal to the unfrozen package's to 1e-9 (same code, same
@@ -17,7 +18,11 @@ Three gates, each run against the FROZEN executable and nothing else:
 2. The server starts on a chosen port with ``--no-browser`` and answers
    ``/healthz`` with ``{"ok": true}`` and ``/capabilities`` with a backend
    list that names the momwire lanes — the two checks the install scripts
-   already make.
+   already make. Also (issue #1507): ``/capabilities``' ``version_label``
+   names both the antennaknobs and momwire versions this SAME environment's
+   installed metadata reports — the fix for a user who ran a stale bundle
+   because copying only the .exe over an old folder silently keeps the old
+   ``_internal`` beside it.
 3. One solve through the server's own sweep endpoint returns a finite
    impedance from the momwire solver.
 4. ``/export_nec`` (the gear menu's Download .nec) returns a NEC-2 deck. The
@@ -25,6 +30,10 @@ Three gates, each run against the FROZEN executable and nothing else:
 5. ``/design_source`` (the Files view's Source tab, #1428) serves a catalog
    design's own ``.py``. The modules import from the bundle's archive; the
    source exists only because build.py ships ``designs/`` as files too.
+6. (Windows only) the exe's own Windows version resource — Explorer's
+   Properties -> Details — reports ProductVersion equal to the antennaknobs
+   version. Skipped with a printed note on any other platform: a version
+   resource is a PE concept, and there is nothing to read.
 """
 
 from __future__ import annotations
@@ -49,6 +58,37 @@ def _free_port() -> int:
 def _get(url: str, timeout: float = 30.0):
     with urllib.request.urlopen(url, timeout=timeout) as r:  # noqa: S310 — loopback http only
         return r.status, json.loads(r.read().decode("utf-8"))
+
+
+def _exe_product_version(exe: Path) -> str | None:
+    """The exe's own Windows version resource ProductVersion string — what
+    Explorer's Properties -> Details actually shows (issue #1507). Reads it
+    through PowerShell's .NET FileVersionInfo reflection (`Get-Item
+    ... .VersionInfo.ProductVersion`) rather than hand-rolled ctypes bindings
+    to version.dll: every windows-latest GitHub runner has powershell.exe by
+    definition, and .NET's ProductVersion reads the StringFileInfo
+    'ProductVersion' entry verbatim when the resource sets one — which is
+    what `version_file.build_version_info` does — rather than reformatting
+    FixedFileInfo's packed DWORDs, so it returns the full antennaknobs string
+    (dev/local suffix included) exactly as written."""
+    try:
+        out = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                f"(Get-Item -LiteralPath '{exe}').VersionInfo.ProductVersion",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=True,
+        )
+    except Exception as e:  # noqa: BLE001 — reported to the caller as a gate failure, not raised
+        print(f"WARNING: could not read the exe's version resource: {e}")
+        return None
+    value = out.stdout.strip()
+    return value or None
 
 
 def main(argv: list[str]) -> int:
@@ -185,6 +225,22 @@ def main(argv: list[str]) -> int:
         ):
             print("FAIL: no momwire backend in /capabilities")
             return 1
+
+        # #1507: the served label names the SAME versions this environment's
+        # own installed metadata reports — the bundle is built from this
+        # environment's wheels, so the two must agree.
+        from importlib.metadata import version as pkg_version
+
+        ak_version = pkg_version("antennaknobs")
+        mw_version = pkg_version("momwire")
+        label = caps.get("version_label", "")
+        if ak_version not in label or mw_version not in label:
+            print(
+                f"FAIL: /capabilities version_label {label!r} does not name "
+                f"antennaknobs {ak_version} and momwire {mw_version}"
+            )
+            return 1
+        print(f"gate 2b OK: version_label = {label!r}")
         req = json.dumps(
             {"geometry": "dipoles.invvee", "freqs_mhz": [14.1], "solver": "momwire"}
         ).encode()
@@ -237,14 +293,43 @@ def main(argv: list[str]) -> int:
             )
             return 1
         print(f"gate 5: /design_source served {src['filename']} from the bundle")
-        print("SMOKE OK")
-        return 0
     finally:
         proc.terminate()
         try:
             proc.wait(timeout=20)
         except subprocess.TimeoutExpired:
             proc.kill()
+
+    # 6. (Windows only) the exe's own version resource, which is what a user
+    # actually sees in Explorer's Properties -> Details — the second half of
+    # #1507, checked after the server is stopped since it needs nothing from
+    # it. `_exe_product_version` returns None (with its own printed reason)
+    # off Windows or if the resource cannot be read, and this gate is the
+    # ONE place that is allowed to be a no-op rather than a failure: a
+    # version resource is a PE concept, so there is nothing to check
+    # elsewhere.
+    if sys.platform == "win32":
+        from importlib.metadata import version as pkg_version
+
+        ak_version = pkg_version("antennaknobs")
+        resource_version = _exe_product_version(exe)
+        if resource_version is None:
+            print("FAIL: could not read the exe's version resource on Windows")
+            return 1
+        if resource_version != ak_version:
+            print(
+                f"FAIL: exe version resource ProductVersion {resource_version!r} "
+                f"!= antennaknobs {ak_version!r}"
+            )
+            return 1
+        print(f"gate 6 OK: exe version resource ProductVersion = {resource_version!r}")
+    else:
+        print(
+            f"gate 6 skipped: not Windows ({sys.platform}); no version resource to read"
+        )
+
+    print("SMOKE OK")
+    return 0
 
 
 if __name__ == "__main__":
