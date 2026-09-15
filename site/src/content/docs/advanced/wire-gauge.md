@@ -30,19 +30,21 @@ per-meter series impedance:
   solid-round-conductor law (the same one NEC's `LD 5` card implements),
   valid from DC through full skin effect.
 - **Insulation loading.** A dielectric jacket stores E-field energy next
-  to the wire, which acts as distributed series inductance — the wave on
-  the wire slows down, and the antenna tunes a few percent *lower* than
-  bare wire cut to the same length. That's the velocity factor behind
+  to the wire, which slows the wave on the wire, and the antenna tunes a
+  few percent *lower* than bare wire cut to the same length. That's the
+  velocity factor behind
   "my cut-to-formula insulated dipole came out long."
 
 Both engines model both effects. Conductor loss: the momwire loading and
 PyNEC's native `LD 5` card agree on the added resistance to half a
-percent. Insulation: NEC-2 has no insulated-wire card, but the same
-jacket inductance enters as a distributed series load (`LD 2`, henries
-per metre), and the two engines agree on the resonance shift to a few
-percent. Each pairing is a cross-engine oracle in the test suite — two
-independent implementations of the same physics, kept honest against
-each other.
+percent. Insulation: NEC has no insulated-wire card, so the NEC deck
+spells the jacket the way momwire models it, as a pair. The wire card
+carries a slightly larger *equivalent radius* (the jacket's effect on the
+charge), a distributed series load (`LD 2`, henries per metre) puts back
+the inductance the larger radius removed, and `LD 5` is rescaled so the
+copper loss stays the real conductor's. Each pairing is a cross-engine
+oracle in the test suite — two independent implementations of the same
+physics, kept honest against each other.
 
 ## The numbers
 
