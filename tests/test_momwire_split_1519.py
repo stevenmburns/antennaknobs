@@ -54,6 +54,7 @@ import pytest
 from conftest import needs_nec5
 from momwire import (
     BSplineSolver,
+    HarringtonSolver,
     HMatrixSolver,
     RazorSolver,
     SinusoidalGalerkinSolver,
@@ -83,6 +84,7 @@ CENTRE = {
     "sinusoidal": (SinusoidalSolver, {}),
     "sg-point": (SinusoidalGalerkinSolver, {}),
     "sg-segment": (SinusoidalGalerkinSolver, {"feed_model": "segment"}),
+    "pulse": (HarringtonSolver, {}),
 }
 KNOT = {
     "razor-2p": (RazorSolver, {"nec5_quadrature": True}),
@@ -200,10 +202,24 @@ def test_a_port_on_a_site_of_the_wires_own_count_keeps_it_whole():
         assert [a for a in eng.advisories if a.get("category") == "FeedPlacement"] == []
 
 
-def test_a_parity_free_solver_keeps_the_wire_whole():
-    from momwire import PulseSolver
+@pytest.mark.parametrize("name", ["PulseSolver", "HarringtonSolver"])
+def test_the_pulse_family_has_midpoint_parity(name):
+    """A pulse row is a segment: the pulse tab (HarringtonSolver) and
+    PulseSolver feed segment centres, as the sinusoidal family does."""
+    import momwire
 
-    eng = MomwireEngine(_b(**CASES["k3"]), solver=PulseSolver, ground=None)
+    from antennaknobs.engines.momwire import _parity_for_solver
+
+    assert _parity_for_solver(getattr(momwire, name), {}) == "odd"
+
+
+class _NoGridProbe(BSplineSolver):
+    """A solver class `_parity_for_solver` does not know, so its parity is
+    "any": B-spline physics under a name no rule matches."""
+
+
+def test_a_parity_free_solver_keeps_the_wire_whole():
+    eng = MomwireEngine(_b(**CASES["k3"]), solver=_NoGridProbe, ground=None)
     assert eng.segment_parity == "any"
     assert not getattr(eng, "_split_wires", None)
     assert eng._edge_segments == [[10]]

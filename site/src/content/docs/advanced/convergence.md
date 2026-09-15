@@ -225,7 +225,7 @@ the physics doesn't:
   it was asked for as the mesh refines, and so does every other port on the
   same wire. At every rung the wire keeps that rung's segment count: no engine
   re-counts it to reach a port. Where every gap is already a segment centre
-  (PyNEC, NEC-2, momwire's B-spline and sinusoidal solvers) or a knot (NEC-5,
+  (PyNEC, NEC-2, momwire's B-spline, sinusoidal and pulse solvers) or a knot (NEC-5,
   momwire's razor and B-spline degree 1) of that mesh, the wire stays whole;
   otherwise it is split so every gap sits exactly there. On the segment-centre
   engines each port gets its own short wire centred on it,
