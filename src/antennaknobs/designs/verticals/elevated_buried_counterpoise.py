@@ -34,20 +34,28 @@ FEED. The house eps-gap idiom at the radiator's foot, as `raised_vertical`
 and `vertical` spell it. There is no crossing junction to protect here, so
 nothing about the feed is unusual.
 
-REQUIRES A FINITE GROUND, and momwire. The buried screen only exists under
-a Sommerfeld half-space, which antennaknobs chooses at SOLVE time, not in
-the design: pass ``--ground finite:13,0.005`` (or another eps_r/sigma
-pair). Under ``free`` the screen is a floating wire in the air; under
-``pec`` it is shorted to a perfect plane above it. The NEC-5 and PyNEC
-engine wrappers both refuse a wire below z = 0 outright, so this is a
-momwire-only design, and the mixed-medium fill makes it a slow one.
+MESH. The radiator is graded from the feed (AK#1455), as
+`buried_radial_vertical` grades its own: its first segments match the 25 mm
+halves of the fed gap, neighbouring segments stay within 2x of each other,
+and the far panels sit at the design's usual radiator segment for
+`nominal_nsegs` (`doubling_graded_wire`). A uniform radiator puts a
+half-metre segment against the 50 mm gap, and the driving-point resistance
+then moves by several percent with `nominal_nsegs`; graded, it holds still.
+
+REQUIRES A FINITE GROUND. The buried screen only exists under a Sommerfeld
+half-space, which antennaknobs chooses at SOLVE time, not in the design:
+pass ``--ground finite:13,0.005`` (or another eps_r/sigma pair). Under
+``free`` the screen is a floating wire in the air; under ``pec`` it is
+shorted to a perfect plane above it. momwire and NEC-5 serve it; PyNEC and
+the NEC-2 deck export refuse a wire below z = 0. The mixed-medium fill makes
+it a slow design on either engine.
 """
 
 import math
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Wire
+from antennaknobs.network import Wire, doubling_graded_wire
 
 
 class Builder(AntennaBuilder):
@@ -117,7 +125,17 @@ class Builder(AntennaBuilder):
         tups = []
         # Driven gap at the radiator foot; the radiator stacks on top of it.
         tups.append(Wire((0.0, 0.0, base), (0.0, 0.0, base + eps), ex=1 + 0j))
-        tups.append(Wire((0.0, 0.0, base + eps), (0.0, 0.0, base + height)))
+        # The radiator is GRADED away from the gap (AK#1455); see MESH above.
+        radiator_length = height - eps
+        tups.append(
+            doubling_graded_wire(
+                (0.0, 0.0, base + eps),
+                (0.0, 0.0, base + height),
+                h0=eps / 2.0,
+                max_h=radiator_length
+                / self.segs_for(radiator_length, 0.25 * self.design_wavelength),
+            )
+        )
 
         for i in range(n_radials):
             theta = 2 * math.pi / n_radials * i

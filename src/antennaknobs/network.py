@@ -99,6 +99,7 @@ from .wire_catalog import (  # noqa: F401
     as_wire,
     balanced_line_from_geometry,
     cable_from_catalog,
+    doubling_graded_wire,
     graded_wire,
     two_wire_params,
     validate_named_wires_referenced,

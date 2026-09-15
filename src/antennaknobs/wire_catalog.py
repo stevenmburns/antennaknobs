@@ -393,7 +393,8 @@ class GradedSegments(NamedTuple):
     ``fracs``: interior vertex positions as fractions of the wire length
     measured from ``p0``, strictly increasing in (0, 1). ``counts``:
     per-sub-edge segment counts, ``p0 → p1`` order, one longer than
-    ``fracs``. Build these with :func:`graded_wire` rather than by hand.
+    ``fracs``. Build these with :func:`graded_wire` or
+    :func:`doubling_graded_wire` rather than by hand.
 
     A graded wire is structural only — the geometry walk rejects one
     carrying an excitation or a port name (a delta gap inside a graded
@@ -401,9 +402,12 @@ class GradedSegments(NamedTuple):
     feed-gap note).
 
     SCOPE-FROZEN (maintainer decision, 2026-08-28, PR #1024): this
-    spelling has ONE consumer (the buried-radial vertical's default
-    mesh) and stays exactly this size until a second consumer exists.
-    Extensions each have a recorded unfreeze trigger — card-engine
+    spelling stays exactly this size. It has TWO consumers: the
+    buried-radial vertical's default mesh, and the elevated buried
+    counterpoise's radiator (AK#1455, through :func:`doubling_graded_wire`,
+    measured first in AK#1454). The second one arrived with its issue and
+    its measurement, and needed only a new schedule, not a bigger
+    spelling. Extensions each have a recorded unfreeze trigger — card-engine
     expansion via :meth:`subdivide` (a graded design needing NEC
     export), bend-grading (someone chasing the measured hub-bend
     0.1–0.2 Ω class), momwire-side knot multiplicity (a second
@@ -477,6 +481,52 @@ def graded_wire(
         tuple(p0),
         tuple(p1),
         n_seg=GradedSegments(fracs=fracs, counts=tuple(int(c) for c in counts)),
+        name=name,
+        spec=spec,
+    )
+
+
+def doubling_graded_wire(p0, p1, *, h0, max_h, name=None, spec=None) -> Wire:
+    """A structural wire graded from ``p0``, with neighbouring segments within
+    2x of each other and none longer than ``max_h`` (AK#1455).
+
+    Panel boundaries double from ``2 * h0`` (``2 h0, 4 h0, 8 h0, ...``) up to
+    the wire's length. Each panel's segment is ``min(max_h, max(h0, start /
+    2))``, where ``start`` is the panel's distance from ``p0``. So the first
+    segments are ``h0``, neighbours differ by at most 2x, and the far panels
+    sit at ``max_h``. A last panel shorter than its own segment is merged into
+    the one before it, so a short tail cannot put a larger step beside it.
+
+    This is the schedule AK#1454 measured on `elevated_buried_counterpoise`'s
+    radiator, where both engines came out far-mesh converged. It is not
+    `graded_wire`'s recipe: growth 4 with two segments per panel leaves
+    metre-scale segments in the middle of a long wire.
+    """
+    length = math.dist(tuple(p0), tuple(p1))
+    if not 0 < h0 < length:
+        raise ValueError(f"h0 {h0} outside (0, wire length {length:.4g})")
+    if max_h < h0:
+        raise ValueError(f"max_h {max_h} is below h0 {h0}")
+
+    def seg(start):
+        return min(max_h, max(h0, start / 2.0))
+
+    bounds = []
+    b = 2.0 * h0
+    while b < length * (1 - 1e-9):
+        bounds.append(b)
+        b *= 2.0
+    while bounds and length - bounds[-1] < seg(bounds[-1]):
+        bounds.pop()
+    edges = [0.0, *bounds, length]
+    counts = tuple(
+        max(2, math.ceil((hi - lo) / seg(lo) - 1e-9))
+        for lo, hi in itertools.pairwise(edges)
+    )
+    return Wire(
+        tuple(p0),
+        tuple(p1),
+        n_seg=GradedSegments(fracs=tuple(x / length for x in bounds), counts=counts),
         name=name,
         spec=spec,
     )
