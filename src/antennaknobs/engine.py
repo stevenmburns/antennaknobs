@@ -166,12 +166,25 @@ def split_note(wire, ports, site):
     }
 
 
+# A value within this of a half counts as the half. A piece's length in
+# segments comes out of floating point: (1 - 0.77) * 150 is 34.49999999999999,
+# where its mirror image, 0.23 * 150, may be 34.5. Without the tolerance a wire
+# and its mirror image could get different counts.
+_HALF_TOL = 1e-9
+
+
+def _nearest_count(segments):
+    """The count, at least 1, nearest `segments`. A half rounds up, 46.5 -> 47,
+    to within `_HALF_TOL`, the same convention as `_nearest_odd_count`."""
+    return max(1, math.floor(segments + 0.5 + _HALF_TOL))
+
+
 def _nearest_odd_count(segments):
     """The odd count, at least 1, nearest `segments`: its middle is a segment
-    centre. A tie, an even `segments` exactly between two odd counts, takes the
-    larger one, so the rule never depends on which odd count sits at an even
-    half-index: 2 -> 3, 4 -> 5, 6 -> 7."""
-    return max(1, 2 * math.floor((segments - 1) / 2 + 0.5) + 1)
+    centre. A tie, an even `segments` exactly between two odd counts (to within
+    `_HALF_TOL`), takes the larger one, so the rule never depends on which odd
+    count sits at an even half-index: 2 -> 3, 4 -> 5, 6 -> 7."""
+    return max(1, 2 * math.floor((segments - 1) / 2 + 0.5 + _HALF_TOL) + 1)
 
 
 class SplitSpan(NamedTuple):
@@ -202,9 +215,9 @@ def split_spans(n_seg, positions, parity):
     `positions` (fractions in (0, 1), distinct) is fed exactly (AK#1511). The
     deterministic rule decided on the issue; with h = 1/n_seg:
 
-    A knot engine (even parity) cuts at every port. Each piece takes
-    max(1, round(length/h)) segments, and port i is fed at the `hi` knot of
-    piece i, which it shares with piece i + 1.
+    A knot engine (even parity) cuts at every port. Each piece takes the count
+    nearest length/h, at least 1, a half rounding up (`_nearest_count`), and
+    port i is fed at the `hi` knot of piece i, which it shares with piece i + 1.
 
     A segment-centre engine (odd parity) gives port i a short piece
     [u_i - x_i, u_i + x_i] centred on it, with the odd count nearest 2 x_i / h
@@ -219,8 +232,9 @@ def split_spans(n_seg, positions, parity):
       filler. The two ends of a lone port cannot both fire (b <= b'/3 and
       b' <= b/3 together need b = 0).
 
-    Plain fillers take the gaps, each max(1, round(length/h)) segments, and the
-    zero-length filler where the guard fired is omitted. So a filler between
+    Plain fillers take the gaps, each the count nearest length/h, at least 1, a
+    half rounding up, and the zero-length filler where the guard fired is
+    omitted. So a filler between
     two ports is at least g/2, an end filler at least 2b/3, and every piece has
     a lower bound set by the local geometry: no slivers."""
     n = max(int(n_seg), 1)
@@ -230,7 +244,7 @@ def split_spans(n_seg, positions, parity):
         cuts = [0.0, *u, 1.0]
         return SplitPlan(
             spans=tuple(
-                SplitSpan(lo, hi, max(1, round((hi - lo) * n)), i if i < k else None)
+                SplitSpan(lo, hi, _nearest_count((hi - lo) * n), i if i < k else None)
                 for i, (lo, hi) in enumerate(itertools.pairwise(cuts))
             ),
             half=(),
@@ -265,11 +279,11 @@ def split_spans(n_seg, positions, parity):
         lo = 0.0 if i == 0 and guard[0] else ui - xi
         hi = 1.0 if i == k - 1 and guard[1] else ui + xi
         if not (i == 0 and guard[0]):
-            spans.append(SplitSpan(edge, lo, max(1, round((lo - edge) * n)), None))
+            spans.append(SplitSpan(edge, lo, _nearest_count((lo - edge) * n), None))
         spans.append(SplitSpan(lo, hi, _nearest_odd_count(2 * xi * n), i))
         edge = hi
     if not guard[1]:
-        spans.append(SplitSpan(edge, 1.0, max(1, round((1.0 - edge) * n)), None))
+        spans.append(SplitSpan(edge, 1.0, _nearest_count((1.0 - edge) * n), None))
     return SplitPlan(spans=tuple(spans), half=tuple(half), guard=tuple(guard))
 
 

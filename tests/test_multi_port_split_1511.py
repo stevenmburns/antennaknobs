@@ -25,7 +25,12 @@ from conftest import needs_nec5
 
 import antennaknobs.engine as engine_module
 from antennaknobs import AntennaBuilder, WireSpec
-from antennaknobs.engine import SITE_COUNT_CAP, _nearest_odd_count, split_spans
+from antennaknobs.engine import (
+    SITE_COUNT_CAP,
+    _nearest_count,
+    _nearest_odd_count,
+    split_spans,
+)
 from antennaknobs.engines.nec5 import NEC5Engine
 from antennaknobs.network import (
     TL,
@@ -385,7 +390,7 @@ def test_a_knot_split_cuts_at_every_port():
         assert all(a.hi == b.lo for a, b in itertools.pairwise(spans))
         assert [s.port for s in spans] == [*range(len(u)), None]
         assert [s.n_seg for s in spans] == [
-            max(1, round((s.hi - s.lo) * n)) for s in spans
+            _nearest_count((s.hi - s.lo) * n) for s in spans
         ]
 
 
@@ -661,6 +666,27 @@ def test_simnec_station_cards_feed_and_load_each_ports_own_piece():
 )
 def test_the_nearest_odd_count_takes_the_larger_at_a_tie(segments, count):
     assert _nearest_odd_count(segments) == count
+
+
+@pytest.mark.parametrize(
+    ("segments", "count"),
+    [
+        (0, 1),
+        (0.4, 1),
+        (0.5, 1),
+        (1.5, 2),
+        (2.49, 2),
+        (2.5, 3),
+        (34.5, 35),
+        (46.5, 47),
+        (46.49, 46),
+        # floating point: 34.49999999999999, and its mirror image's 34.5
+        ((1 - 0.77) * 150, 35),
+        (0.23 * 150, 35),
+    ],
+)
+def test_the_nearest_count_rounds_a_half_up(segments, count):
+    assert _nearest_count(segments) == count
 
 
 # ---------------------------------------------------------------------------
