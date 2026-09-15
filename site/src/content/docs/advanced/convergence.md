@@ -225,14 +225,17 @@ the physics doesn't:
   it was asked for as the mesh refines, and so does every other port on the
   same wire. At every rung the wire keeps that rung's segment count: no engine
   re-counts it to reach a port. Where every gap is already a segment centre
-  (PyNEC, NEC-2) or a knot (NEC-5) of that mesh, the wire stays whole;
-  otherwise it is split so every gap sits exactly there. On PyNEC and NEC-2
-  each port gets its own short wire centred on it,
+  (PyNEC, NEC-2, momwire's B-spline and sinusoidal solvers) or a knot (NEC-5,
+  momwire's razor and B-spline degree 1) of that mesh, the wire stays whole;
+  otherwise it is split so every gap sits exactly there. On the segment-centre
+  engines each port gets its own short wire centred on it,
   reaching a quarter of the way to its neighbours or a third of the way to a
   wire end, with plain wire in between; a port within a segment of an end, with
-  nothing tighter nearby, runs its short wire to the end. On NEC-5 the wire is
-  cut at every port and each port is fed at the knot the pieces share. The
-  solve carries a FeedPlacement advisory saying so. Imported NEC decks place
+  nothing tighter nearby, runs its short wire to the end. On the knot engines
+  the wire is cut at every port and each port is fed at the knot the pieces
+  share. Every momwire solver feeds positioned ports exactly, split like its
+  reference engine family. The solve carries a FeedPlacement advisory saying
+  so. Imported NEC decks place
   their off-centre sources and loads this way.
 - A **lumped load** (termination resistor, trap) is genuinely a point
   element — keep it on a delta gap, on a short named wire that meshes at
