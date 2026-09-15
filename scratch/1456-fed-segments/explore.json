@@ -1,0 +1,311 @@
+{
+ "excluded": {
+  "arrays.lumped_coupled_pair": "marked wire 0 is authored at 40 segments",
+  "beams.owa_yagi_6el": "marked wire 2 is authored at 2 segments",
+  "dipoles.invvee_apex": "marked wire 0 is authored at 20 segments",
+  "dipoles.short_dipole_loaded": "marked wire 0 is authored at 21 segments",
+  "loops.quad": "marked wire 4 is authored at 21 segments",
+  "multiband.trap_dipole": "marked wire 2 is authored at 42 segments",
+  "verticals.elt_whip": "marked wire 0 is 0.0172 lambda",
+  "verticals.jpole": "marked wire 6 is authored at 2 segments",
+  "wire.doublet_balanced_tuner": "marked wire 0 is authored at 60 segments",
+  "wire.sterba": "marked wire 14 is authored at 42 segments",
+  "wire.sterba_bl": "marked wire 1 is authored at 10 segments",
+  "wire.sterba_tl": "marked wire 1 is 0.0297 lambda",
+  "wire.terminated_longwire": "marked wire 0 is authored at 2 segments"
+ },
+ "all": {
+  "label": "all ports",
+  "ports": 164,
+  "designs": 90,
+  "rho_s_Zf": 0.6847523567260212,
+  "shunt_model_s_over_ZwdC_median": 1.0005579329397423,
+  "shunt_model_p5_p95": [
+   0.9986931545777102,
+   1.9382828161293475
+  ]
+ },
+ "single_port_designs": {
+  "label": "single-port designs",
+  "ports": 68,
+  "designs": 68,
+  "rho_s_Zf": 0.4024888345993816,
+  "shunt_model_s_over_ZwdC_median": 1.0012186900968607,
+  "shunt_model_p5_p95": [
+   0.9869170904582398,
+   2.8838281165936706
+  ]
+ },
+ "multi_port_designs": {
+  "label": "multi-port designs",
+  "ports": 96,
+  "designs": 22,
+  "rho_s_Zf": 0.9881850244167119,
+  "shunt_model_s_over_ZwdC_median": 1.0004818267509912,
+  "shunt_model_p5_p95": [
+   0.9987077927753174,
+   1.0610507799907425
+  ]
+ },
+ "single_rho_sR_Xf": 0.5526205290682139,
+ "P4_movers": [
+  {
+   "design": "broadband.t2fd",
+   "port": 0,
+   "ports": 1,
+   "f_mhz": 28.57,
+   "z_mw1": [
+    1353.155,
+    -304.677
+   ],
+   "absZ": 1387.0,
+   "sR_pct": 1.14,
+   "dC_fF": 45.0
+  },
+  {
+   "design": "multiband.trap_fan_dipole",
+   "port": 0,
+   "ports": 1,
+   "f_mhz": 28.47,
+   "z_mw1": [
+    53.413,
+    -0.67
+   ],
+   "absZ": 53.4,
+   "sR_pct": 1.34,
+   "dC_fF": -5263.0
+  },
+  {
+   "design": "verticals.bruce",
+   "port": 0,
+   "ports": 1,
+   "f_mhz": 28.57,
+   "z_mw1": [
+    272.316,
+    -1213.699
+   ],
+   "absZ": 1243.9,
+   "sR_pct": 3.51,
+   "dC_fF": 82.8
+  },
+  {
+   "design": "verticals.elevated_buried_counterpoise",
+   "port": 0,
+   "ports": 1,
+   "f_mhz": 7.1,
+   "z_mw1": [
+    44.56,
+    -73719.32
+   ],
+   "absZ": 73719.3,
+   "sR_pct": 30.91,
+   "dC_fF": 60.7
+  },
+  {
+   "design": "wire.efhw_sloper",
+   "port": 0,
+   "ports": 1,
+   "f_mhz": 14.1,
+   "z_mw1": [
+    47.838,
+    -3.856
+   ],
+   "absZ": 48.0,
+   "sR_pct": 1.06,
+   "dC_fF": -919.2
+  },
+  {
+   "design": "wire.lazy_h",
+   "port": 0,
+   "ports": 2,
+   "f_mhz": 28.57,
+   "z_mw1": [
+    4705.648,
+    -2412.67
+   ],
+   "absZ": 5288.1,
+   "sR_pct": 7.19,
+   "dC_fF": 82.4
+  },
+  {
+   "design": "wire.lazy_h",
+   "port": 1,
+   "ports": 2,
+   "f_mhz": 28.57,
+   "z_mw1": [
+    4705.648,
+    -2412.67
+   ],
+   "absZ": 5288.1,
+   "sR_pct": 7.19,
+   "dC_fF": 82.4
+  },
+  {
+   "design": "wire.vbeam",
+   "port": 0,
+   "ports": 1,
+   "f_mhz": 28.57,
+   "z_mw1": [
+    2229.47,
+    -2872.954
+   ],
+   "absZ": 3636.5,
+   "sR_pct": 5.96,
+   "dC_fF": 59.9
+  },
+  {
+   "design": "wire.w8jk",
+   "port": 0,
+   "ports": 2,
+   "f_mhz": 28.57,
+   "z_mw1": [
+    24.929,
+    526.54
+   ],
+   "absZ": 527.1,
+   "sR_pct": 1.58,
+   "dC_fF": 83.0
+  },
+  {
+   "design": "wire.w8jk",
+   "port": 1,
+   "ports": 2,
+   "f_mhz": 28.57,
+   "z_mw1": [
+    24.929,
+    526.54
+   ],
+   "absZ": 527.1,
+   "sR_pct": 1.58,
+   "dC_fF": 83.0
+  },
+  {
+   "design": "wire.zepp",
+   "port": 0,
+   "ports": 1,
+   "f_mhz": 28.57,
+   "z_mw1": [
+    2.609,
+    20.437
+   ],
+   "absZ": 20.6,
+   "sR_pct": 1.5,
+   "dC_fF": -60177.1
+  }
+ ],
+ "cross_engine": {
+  "ports": 161,
+  "median_split_inherited_pct": 1.468260658697925,
+  "median_split_near_matched_pct": 1.0768725396523187,
+  "ports_inherited_over_1pct": 92,
+  "of_those_near_matched_halves_it": 7,
+  "worst_inherited": [
+   {
+    "design": "loops.skyloop_lmatch",
+    "port": 0,
+    "inherited_pct": 33.68,
+    "near_matched_pct": 33.64,
+    "absZ": 48.0
+   },
+   {
+    "design": "verticals.rectangle",
+    "port": 0,
+    "inherited_pct": 32.8,
+    "near_matched_pct": 32.71,
+    "absZ": 47.8
+   },
+   {
+    "design": "dipoles.koch_dipole",
+    "port": 0,
+    "inherited_pct": 30.06,
+    "near_matched_pct": 30.07,
+    "absZ": 35.8
+   },
+   {
+    "design": "verticals.four_square",
+    "port": 1,
+    "inherited_pct": 21.61,
+    "near_matched_pct": 21.63,
+    "absZ": 28.6
+   },
+   {
+    "design": "verticals.four_square",
+    "port": 2,
+    "inherited_pct": 21.61,
+    "near_matched_pct": 21.63,
+    "absZ": 28.6
+   },
+   {
+    "design": "dipoles.pota_invvee",
+    "port": 0,
+    "inherited_pct": 19.7,
+    "near_matched_pct": 19.7,
+    "absZ": 54.2
+   },
+   {
+    "design": "verticals.four_square",
+    "port": 3,
+    "inherited_pct": 19.61,
+    "near_matched_pct": 19.67,
+    "absZ": 45.3
+   },
+   {
+    "design": "dipoles.invvee_catenary",
+    "port": 0,
+    "inherited_pct": 18.93,
+    "near_matched_pct": 18.98,
+    "absZ": 51.7
+   },
+   {
+    "design": "verticals.four_square",
+    "port": 0,
+    "inherited_pct": 17.86,
+    "near_matched_pct": 17.9,
+    "absZ": 38.9
+   },
+   {
+    "design": "arrays.moxonarray",
+    "port": 0,
+    "inherited_pct": 16.43,
+    "near_matched_pct": 16.4,
+    "absZ": 48.3
+   },
+   {
+    "design": "arrays.moxonarray",
+    "port": 2,
+    "inherited_pct": 16.43,
+    "near_matched_pct": 16.4,
+    "absZ": 48.3
+   },
+   {
+    "design": "verticals.elevated_buried_counterpoise",
+    "port": 0,
+    "inherited_pct": 16.43,
+    "near_matched_pct": 0.19,
+    "absZ": 73719.3
+   }
+  ]
+ },
+ "counterpoise": {
+  "mw1": [
+   44.56018940137674,
+   -73719.31963777544
+  ],
+  "mw3": [
+   30.785056853488154,
+   -61451.71070267861
+  ],
+  "mw7": [
+   27.401720433304273,
+   -57489.06467311549
+  ],
+  "n52": [
+   30.643,
+   -61604.0
+  ],
+  "n56": [
+   28.212,
+   -57377.0
+  ]
+ }
+}
