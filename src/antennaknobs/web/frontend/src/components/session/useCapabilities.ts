@@ -29,7 +29,7 @@ type CapabilitiesPayload = {
   composition_axes?: string[];
   axis_value_labels?: Record<string, Record<string, string>>;
   ui_defaults?: unknown;
-  /** "v0.77.0 · momwire 0.55.0" (AK#1507): one server-built string so this
+  /** "v0.77.0 · momwire 0.55.0" (AK#1517): one server-built string so this
    *  file never names an engine. Absent from a server predating it. */
   version_label?: string;
 };
@@ -66,7 +66,7 @@ export type CapabilitiesState = {
    *  server predating it. */
   uiDefaults: UiDefaults;
   /** The served version string, rendered under the brand as-is. Null from a
-   *  server predating it (AK#1507), which renders no label at all. */
+   *  server predating it (AK#1517), which renders no label at all. */
   versionLabel: string | null;
   error: string | null;
 };

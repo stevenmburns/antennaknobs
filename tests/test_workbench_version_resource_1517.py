@@ -1,4 +1,4 @@
-"""The Windows version resource on the frozen exe (issue #1507 follow-up).
+"""The Windows version resource on the frozen exe (issue #1517 follow-up).
 
 `scripts/freeze_workbench/version_file.py` has no PyInstaller import (it must
 stay importable on Linux for this test), so it is loaded the same way

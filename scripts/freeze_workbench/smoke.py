@@ -18,7 +18,7 @@ nothing else:
 2. The server starts on a chosen port with ``--no-browser`` and answers
    ``/healthz`` with ``{"ok": true}`` and ``/capabilities`` with a backend
    list that names the momwire lanes — the two checks the install scripts
-   already make. Also (issue #1507): ``/capabilities``' ``version_label``
+   already make. Also (issue #1517): ``/capabilities``' ``version_label``
    names both the antennaknobs and momwire versions this SAME environment's
    installed metadata reports — the fix for a user who ran a stale bundle
    because copying only the .exe over an old folder silently keeps the old
@@ -62,7 +62,7 @@ def _get(url: str, timeout: float = 30.0):
 
 def _exe_product_version(exe: Path) -> str | None:
     """The exe's own Windows version resource ProductVersion string — what
-    Explorer's Properties -> Details actually shows (issue #1507). Reads it
+    Explorer's Properties -> Details actually shows (issue #1517). Reads it
     through PowerShell's .NET FileVersionInfo reflection (`Get-Item
     ... .VersionInfo.ProductVersion`) rather than hand-rolled ctypes bindings
     to version.dll: every windows-latest GitHub runner has powershell.exe by
@@ -226,7 +226,7 @@ def main(argv: list[str]) -> int:
             print("FAIL: no momwire backend in /capabilities")
             return 1
 
-        # #1507: the served label names the SAME versions this environment's
+        # #1517: the served label names the SAME versions this environment's
         # own installed metadata reports — the bundle is built from this
         # environment's wheels, so the two must agree.
         from importlib.metadata import version as pkg_version
@@ -302,7 +302,7 @@ def main(argv: list[str]) -> int:
 
     # 6. (Windows only) the exe's own version resource, which is what a user
     # actually sees in Explorer's Properties -> Details — the second half of
-    # #1507, checked after the server is stopped since it needs nothing from
+    # #1517, checked after the server is stopped since it needs nothing from
     # it. `_exe_product_version` returns None (with its own printed reason)
     # off Windows or if the resource cannot be read, and this gate is the
     # ONE place that is allowed to be a no-op rather than a failure: a

@@ -281,7 +281,7 @@ def test_capabilities_reports_pynec_availability(client: TestClient, monkeypatch
 
 
 def test_capabilities_serves_the_running_versions(client: TestClient, monkeypatch):
-    """AK#1507: a Windows user ran a stale bundle because copying only the
+    """AK#1517: a Windows user ran a stale bundle because copying only the
     .exe over an old folder silently keeps the old `_internal` beside it, and
     the console banner was the only tell. `/capabilities` now serves both
     running versions, computed from installed package metadata rather than

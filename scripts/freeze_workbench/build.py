@@ -234,7 +234,7 @@ def _license_copyright() -> str:
 
 def _write_version_file() -> Path:
     """The PyInstaller `--version-file` text, generated fresh from the
-    package's OWN version (issue #1507 follow-up) — the same source the web
+    package's OWN version (issue #1517 follow-up) — the same source the web
     label and the console banner read, so Explorer's Properties -> Details
     can never disagree with either. Windows-only: a version resource is a PE
     concept, and PyInstaller merely warns and ignores `version=` elsewhere."""

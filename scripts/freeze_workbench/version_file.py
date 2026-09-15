@@ -1,5 +1,5 @@
 """Generate the Windows version-resource text for PyInstaller's
-``--version-file`` (issue #1507 follow-up).
+``--version-file`` (issue #1517 follow-up).
 
 The format is not YAML or JSON: PyInstaller's own loader
 (``PyInstaller.utils.win32.versioninfo.load_version_info_from_text_file``)

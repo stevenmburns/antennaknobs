@@ -98,7 +98,7 @@ export interface MountDesignSessionOptions {
   /** /capabilities' `ui_defaults` (AK#1492); omitted from the payload when
    *  undefined, which is a server predating it. */
   uiDefaults?: unknown;
-  /** /capabilities' `version_label` (AK#1507); omitted from the payload when
+  /** /capabilities' `version_label` (AK#1517); omitted from the payload when
    *  undefined, which is a server predating it — the default, so most tests
    *  exercise the no-label render path without asking for it. */
   versionLabel?: string;
