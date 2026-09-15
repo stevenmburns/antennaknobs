@@ -104,6 +104,13 @@ def run_momwire(b) -> dict:
         out["nsegs"] = int(sum(w.n_seg for w in eng._wires()))
     except Exception:  # noqa: BLE001 -- segment bookkeeping must never decide the row
         pass
+    # Each engine's fed segment (AK#1456): momwire's gap mid-segment on an odd
+    # count and NEC-5's knot source on an even one are different sizes, and a
+    # near-open driving point follows that size.
+    try:
+        out["fed_segments"] = eng.fed_segments()
+    except Exception:  # noqa: BLE001 -- segment bookkeeping must never decide the row
+        pass
     return out
 
 
@@ -116,6 +123,7 @@ def run_nec5(b, exe: str) -> dict:
     deck = eng.deck([b.freq])
     out = {
         "engine": "nec5",
+        "fed_segments": eng.fed_segments(),
         "exe": exe,
         "exe_sha256": hashlib.sha256(Path(exe).read_bytes()).hexdigest()[:16],
         "deck_sha256": hashlib.sha256(deck.encode()).hexdigest()[:16],

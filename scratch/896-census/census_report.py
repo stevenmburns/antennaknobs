@@ -55,6 +55,18 @@ def load(path: Path) -> tuple[dict, dict]:
     return meta, rows
 
 
+def feed_note(feed) -> str:
+    """One deck's fed segment and how far momwire's source sits from NEC-5's,
+    from `census_momwire.deck_feed` (AK#1456); a dash when the report predates
+    the field or the EX tag is not on a literal GW card."""
+    if not feed or not feed.get("resolved"):
+        return "—"
+    seg = f"{1000 * feed['seg_len_m']:.0f} mm"
+    if feed.get("offset_m") is None:
+        return f"{seg}; end selector {feed['field4']}, offset not claimed"
+    return f"{seg}; {1000 * feed['offset_m']:.0f} mm"
+
+
 def rel_dz(a: dict, b: dict):
     """`compare`'s own relative impedance difference, or None.
 
@@ -254,14 +266,32 @@ def main(argv=None) -> int:
     print(
         f"| deck | {short} Z (ohm) = Zm | NEC-5 Z (ohm) = Zn | "
         "symmetric rel. diff \\|Zm-Zn\\|/max(\\|Zm\\|,\\|Zn\\|) | "
-        "`compare`'s rel. diff \\|Zm-Zn\\|/\\|Zn\\| |"
+        "`compare`'s rel. diff \\|Zm-Zn\\|/\\|Zn\\| | "
+        "fed segment; momwire's source from NEC-5's |"
     )
-    print("|---|---|---|---:|---:|")
+    print("|---|---|---|---:|---:|---|")
     ranked = sorted(rows, key=lambda r: sym_dz(r[2], r[3]), reverse=True)
     for v, k, z5, zm in ranked[: a.cases]:
         print(
             f"| `{k}` | {zm.real:.4g}{zm.imag:+.4g}j | "
-            f"{z5.real:.4g}{z5.imag:+.4g}j | {sym_dz(z5, zm):.3g} | {v:.3g} |"
+            f"{z5.real:.4g}{z5.imag:+.4g}j | {sym_dz(z5, zm):.3g} | {v:.3g} | "
+            f"{feed_note(rm[k].get('feed'))} |"
+        )
+
+    # --- where each engine feeds (AK#1456) --------------------------------
+    feeds = [rm[k].get("feed") for _, k, _, _ in rows]
+    if any(feeds):
+        offset = [f["offset_m"] for f in feeds if f and f.get("offset_m") is not None]
+        print("\n## Where each engine feeds\n")
+        print(
+            f"On **{len(offset)}** of {len(rows)} comparable decks the EX card names "
+            "a knot (end selector 2). NEC-5 drives that knot; momwire's portal "
+            "reads the same card as NEC-2 does and drives the centre of the "
+            "segment, so the two sources are half a segment apart. The median "
+            "half-segment is "
+            + (f"{1000 * statistics.median(offset):.0f} mm" if offset else "n/a")
+            + ". Both engines read the same bytes, so the fed segment itself is "
+            "the same length on both (AK#1456).\n"
         )
 
     # --- the tail's dominant pattern, and the boring explanation, tested ----

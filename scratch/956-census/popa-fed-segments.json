@@ -1,0 +1,226 @@
+[
+ {
+  "design": "specialty.buried_dipole",
+  "variant": "default",
+  "rung": "default",
+  "nominal_nsegs": "21",
+  "momwire_fed": "1 x 50.0 mm (centre)",
+  "momwire_records": [
+   {
+    "port": null,
+    "wire": null,
+    "segments": 1,
+    "length_m": 0.05,
+    "site": "centre"
+   }
+  ],
+  "nec5_fed": "2 x 25.0 mm (knot)",
+  "nec5_records": [
+   {
+    "port": null,
+    "wire": 1,
+    "segments": 2,
+    "length_m": 0.025,
+    "site": "knot"
+   }
+  ]
+ },
+ {
+  "design": "specialty.buried_dipole",
+  "variant": "default",
+  "rung": "refined",
+  "nominal_nsegs": "42",
+  "momwire_fed": "1 x 50.0 mm (centre)",
+  "momwire_records": [
+   {
+    "port": null,
+    "wire": null,
+    "segments": 1,
+    "length_m": 0.05,
+    "site": "centre"
+   }
+  ],
+  "nec5_fed": "2 x 25.0 mm (knot)",
+  "nec5_records": [
+   {
+    "port": null,
+    "wire": 1,
+    "segments": 2,
+    "length_m": 0.025,
+    "site": "knot"
+   }
+  ]
+ },
+ {
+  "design": "verticals.buried_radial_vertical",
+  "variant": "default",
+  "rung": "default",
+  "nominal_nsegs": "21",
+  "momwire_fed": "1 x 50.0 mm (centre)",
+  "momwire_records": [
+   {
+    "port": null,
+    "wire": null,
+    "segments": 1,
+    "length_m": 0.05,
+    "site": "centre"
+   }
+  ],
+  "nec5_fed": "2 x 25.0 mm (knot)",
+  "nec5_records": [
+   {
+    "port": null,
+    "wire": 5,
+    "segments": 2,
+    "length_m": 0.025,
+    "site": "knot"
+   }
+  ]
+ },
+ {
+  "design": "verticals.buried_radial_vertical",
+  "variant": "default",
+  "rung": "refined",
+  "nominal_nsegs": "42",
+  "momwire_fed": "1 x 50.0 mm (centre)",
+  "momwire_records": [
+   {
+    "port": null,
+    "wire": null,
+    "segments": 1,
+    "length_m": 0.05,
+    "site": "centre"
+   }
+  ],
+  "nec5_fed": "2 x 25.0 mm (knot)",
+  "nec5_records": [
+   {
+    "port": null,
+    "wire": 5,
+    "segments": 2,
+    "length_m": 0.025,
+    "site": "knot"
+   }
+  ]
+ },
+ {
+  "design": "verticals.buried_radial_vertical",
+  "variant": "bundle",
+  "rung": "default",
+  "nominal_nsegs": "21",
+  "momwire_fed": "1 x 50.0 mm (centre)",
+  "momwire_records": [
+   {
+    "port": null,
+    "wire": null,
+    "segments": 1,
+    "length_m": 0.05,
+    "site": "centre"
+   }
+  ],
+  "nec5_fed": "NotImplementedError: wires 2 and 4 are geometrically coincident (identical endpoints): the N-coincident-rise bundle is momwire's crossing-serve spelling and NEC-5 prints garbage for it silently \u2014 de-d"
+ },
+ {
+  "design": "verticals.buried_radial_vertical",
+  "variant": "bundle",
+  "rung": "refined",
+  "nominal_nsegs": "42",
+  "momwire_fed": "1 x 50.0 mm (centre)",
+  "momwire_records": [
+   {
+    "port": null,
+    "wire": null,
+    "segments": 1,
+    "length_m": 0.05,
+    "site": "centre"
+   }
+  ],
+  "nec5_fed": "NotImplementedError: wires 2 and 4 are geometrically coincident (identical endpoints): the N-coincident-rise bundle is momwire's crossing-serve spelling and NEC-5 prints garbage for it silently \u2014 de-d"
+ },
+ {
+  "design": "verticals.buried_radial_vertical",
+  "variant": "detached",
+  "rung": "default",
+  "nominal_nsegs": "21",
+  "momwire_fed": "1 x 50.0 mm (centre)",
+  "momwire_records": [
+   {
+    "port": null,
+    "wire": null,
+    "segments": 1,
+    "length_m": 0.05,
+    "site": "centre"
+   }
+  ],
+  "nec5_fed": "NotImplementedError: a conductor ends ON the ground plane at (0, 0, 0) while this deck also has buried wires: NEC-5 has no documented spelling for that combination. Buried wires require the ground fla"
+ },
+ {
+  "design": "verticals.buried_radial_vertical",
+  "variant": "detached",
+  "rung": "refined",
+  "nominal_nsegs": "42",
+  "momwire_fed": "1 x 50.0 mm (centre)",
+  "momwire_records": [
+   {
+    "port": null,
+    "wire": null,
+    "segments": 1,
+    "length_m": 0.05,
+    "site": "centre"
+   }
+  ],
+  "nec5_fed": "NotImplementedError: a conductor ends ON the ground plane at (0, 0, 0) while this deck also has buried wires: NEC-5 has no documented spelling for that combination. Buried wires require the ground fla"
+ },
+ {
+  "design": "verticals.elevated_buried_counterpoise",
+  "variant": "default",
+  "rung": "default",
+  "nominal_nsegs": "21",
+  "momwire_fed": "1 x 50.0 mm (centre)",
+  "momwire_records": [
+   {
+    "port": null,
+    "wire": null,
+    "segments": 1,
+    "length_m": 0.050000000000000044,
+    "site": "centre"
+   }
+  ],
+  "nec5_fed": "2 x 25.0 mm (knot)",
+  "nec5_records": [
+   {
+    "port": null,
+    "wire": 0,
+    "segments": 2,
+    "length_m": 0.025000000000000022,
+    "site": "knot"
+   }
+  ]
+ },
+ {
+  "design": "verticals.elevated_buried_counterpoise",
+  "variant": "default",
+  "rung": "refined",
+  "nominal_nsegs": "42",
+  "momwire_fed": "1 x 50.0 mm (centre)",
+  "momwire_records": [
+   {
+    "port": null,
+    "wire": null,
+    "segments": 1,
+    "length_m": 0.050000000000000044,
+    "site": "centre"
+   }
+  ],
+  "nec5_fed": "2 x 25.0 mm (knot)",
+  "nec5_records": [
+   {
+    "port": null,
+    "wire": 0,
+    "segments": 2,
+    "length_m": 0.025000000000000022,
+    "site": "knot"
+   }
+  ]
+ }
+]

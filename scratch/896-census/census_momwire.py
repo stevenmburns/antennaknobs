@@ -65,6 +65,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import json
+import math
 import os
 import platform
 import re
@@ -118,6 +119,59 @@ def deck_segments(body: str) -> int:
             except ValueError:
                 pass
     return n
+
+
+def deck_feed(text: str) -> dict | None:
+    """The first EX card's fed segment, and where each engine drives it
+    (AK#1456). Both engines read the same translated bytes, so the fed segment
+    is the same length on both; what differs is the point.
+
+    `translate` spells a knot source as `EX 0 tag seg 2`, the end of segment
+    `seg`, and NEC-5 drives that knot. momwire's portal reads the card as
+    NEC-2 does, `(tag, seg)` only, and drives the centre of segment `seg`
+    (measured: `scratch/1456-fed-segments/probe_end_selector.py`). With the
+    fourth field at 2 the two sources are half a segment apart. Any other value
+    is recorded as read, with no offset claimed.
+
+    None when the deck has no EX card; `resolved` is False when the EX tag is
+    not on a literal GW card (a GR/GM copy, say), so no length is given.
+    """
+    cards = []
+    for raw in text.splitlines():
+        line = raw.strip().replace(",", " ")
+        if len(line) >= 2 and line[:2].upper() in ("GW", "EX"):
+            cards.append(line.split())
+    ex = next((c for c in cards if c[0].upper() == "EX"), None)
+    if ex is None or len(ex) < 4:
+        return None
+    try:
+        tag, seg, field4 = int(float(ex[2])), int(float(ex[3])), int(float(ex[4]))
+    except (IndexError, ValueError):
+        return None
+    out = {"tag": tag, "seg": seg, "field4": field4, "resolved": False}
+    for c in cards:
+        if c[0].upper() != "GW" or len(c) < 9:
+            continue
+        try:
+            if int(float(c[1])) != tag:
+                continue
+            n = int(float(c[2]))
+            x1, y1, z1, x2, y2, z2 = (float(v) for v in c[3:9])
+        except ValueError:
+            continue
+        seg_len = math.dist((x1, y1, z1), (x2, y2, z2)) / max(n, 1)
+        out.update(
+            resolved=True,
+            wire_segments=n,
+            seg_len_m=seg_len,
+            momwire_drives="centre of segment",
+            nec5_drives="end of segment (knot)"
+            if field4 == 2
+            else f"end selector {field4}",
+            offset_m=seg_len / 2 if field4 == 2 else None,
+        )
+        break
+    return out
 
 
 def run_one_in_process(body: str) -> dict:
@@ -476,7 +530,8 @@ def main(argv=None) -> int:
     t0 = time.perf_counter()
 
     def one(p: Path) -> dict:
-        segs = deck_segments(p.read_text(encoding="latin-1", errors="replace"))
+        text = p.read_text(encoding="latin-1", errors="replace")
+        segs = deck_segments(text)
         if segs > a.cap:
             rec = {
                 "status": "over-cap",
@@ -490,6 +545,7 @@ def main(argv=None) -> int:
             rec = run_one(p, a.timeout, a.mem_gb)
         rec["file"] = p.relative_to(src).as_posix()
         rec["segments"] = segs
+        rec["feed"] = deck_feed(text)
         return rec
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as pool:
