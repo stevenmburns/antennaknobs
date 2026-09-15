@@ -27,6 +27,7 @@ does (`momwire/tests/test_crossing_serve_524.py`,
 
 from __future__ import annotations
 
+import itertools
 import math
 import sys
 
@@ -432,6 +433,36 @@ def test_ebc_feed_is_the_house_gap_at_the_radiator_foot():
     assert voltage == 1 + 0j
     assert engine._polylines[pl_idx][0].tolist() == [0.0, 0.0, b.base]
     assert arclength == pytest.approx(0.025)
+
+
+@pytest.mark.parametrize("nominal_nsegs", [21, 84, 641])
+def test_ebc_radiator_is_graded_from_the_feed(nominal_nsegs):
+    """AK#1455: the radiator starts at the gap's 25 mm halves (or at the
+    design's own segment, once that is finer), neighbouring segments stay
+    within 2x, and none is longer than the uniform radiator's segment. The
+    fed wire is untouched."""
+    from antennaknobs.network import GradedSegments
+
+    b = ElevatedBuriedCounterpoise()
+    b.nominal_nsegs = nominal_nsegs
+    gap, rad = _wires(b)[:2]
+    assert gap.ex == 1 + 0j
+    assert math.dist(gap.p0, gap.p1) == pytest.approx(0.05)
+    assert isinstance(rad.n_seg, GradedSegments)
+    length = math.dist(rad.p0, rad.p1)
+    cap = length / b.segs_for(length, 0.25 * b.design_wavelength)
+    edges = [0.0, *rad.n_seg.fracs, 1.0]
+    segs = [
+        (edges[k + 1] - edges[k]) * length / n
+        for k, n in enumerate(rad.n_seg.counts)
+        for _ in range(n)
+    ]
+    assert sum(segs) == pytest.approx(length)
+    assert segs[0] == pytest.approx(min(0.025, cap))
+    assert max(segs) <= cap * (1 + 1e-12)
+    steps = [hi / lo for lo, hi in itertools.pairwise(segs)]
+    assert 0.5 - 1e-9 <= min(steps)
+    assert max(steps) <= 2.0 + 1e-9
 
 
 # ---------------------------------------------------------------------------
