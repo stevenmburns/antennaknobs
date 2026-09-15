@@ -664,88 +664,125 @@ def test_the_nearest_odd_count_takes_the_larger_at_a_tie(segments, count):
 
 
 # ---------------------------------------------------------------------------
-# (d) physics: against momwire's exact arclength
+# (d) physics: the split against the same engine's whole wire
 # ---------------------------------------------------------------------------
+#
+# Each engine's split is compared with THAT engine's whole wire at a count
+# where every port sits on its grid, so a formulation difference between
+# engines cancels. The bars, registered before the first run of these tests:
+#
+# - PyNEC, two ports (feed 0.31, 50 ohm load 0.77). The whole wire fits at the
+#   odd multiples of 50. Reference: Z_w(150). Splits: authored 61 (the rule
+#   splits it) and authored 101 (forced, because 0.31 and 0.77 are both centres
+#   of 150). Bar: the whole-wire step bracketing both splits' totals (61 and
+#   100 segments), |Z_w(150) - Z_w(50)|.
+# - PyNEC, three ports (a second 50 ohm load at 0.04). No count fits: 0.04 is
+#   1/25, and an odd denominator is never a segment centre. Reference: the
+#   finest count in reach that fits the other two, 450, with the 0.04 load on
+#   its nearest centre half a segment (11.7 mm) away. Split: authored 101 (the
+#   rule splits it). Bar: the same whole-wire ladder's step bracketing the
+#   split's 100 segments, |Z_w(150) - Z_w(50)|, the 0.04 load half a segment
+#   off at each.
+# - NEC-5, two and three ports. Every multiple of 100 puts a knot at all of
+#   them. Reference: Z_w(100). Split: authored 100, forced, the same density.
+#   Bar: the step to the next fitting count, |Z_w(200) - Z_w(100)|.
+# - Added after that NEC-5 gate's first run, and registered before its own. The
+#   same-density split reproduces the whole wire's grid exactly (every cut is a
+#   knot of 100, and each piece takes its share of the 100 segments), so it
+#   shows only that NEC-5 feeds a collinear junction as an interior knot; it
+#   measured |dZ| = 0 at printout precision. The split at another density:
+#   authored 150, forced (both cases fit at 200), whose pieces are off that
+#   grid. Reference: Z_w(200). Bar: the bracketing step, |Z_w(200) - Z_w(100)|.
+#
+# Reported, not gated: each split against momwire fed at the exact arclength,
+# measured in the AK#1511 build. PyNEC at 101 segments, D = 0.0404 ohm on the
+# centre-fed dipole: one port at a third 0.0497 ohm (1.23 D); two ports, split
+# forced, 0.1693 ohm (4.19 D), where PyNEC's own whole wire at 150 is 0.1087
+# ohm (2.69 D); three ports 0.0841 ohm (2.08 D). PyNEC at 61, D = 0.0865 ohm:
+# two ports 0.2297 ohm (2.66 D). NEC-5 at 100, D5 = 1.618 ohm: two ports, split
+# forced, 2.429 ohm (1.50 D5); at 45, where the rule splits it, 4.965 ohm
+# (1.54 D5).
 
 PHYSICS = {
-    "k1": dict(feed_at=1 / 3),
     "k2": dict(feed_at=0.31, load_ats=(0.77,)),
     "k3": dict(feed_at=0.31, load_ats=(0.04, 0.77)),
 }
 
 
-def _force_split(monkeypatch, n, params, family):
-    """Split even where a count up to the cap fits. At 100 segments 0.31 and
-    0.77 are both knots of 100, so without this NEC-5's k = 2 wire re-meshes
-    whole and the split is not what the gate measures."""
-    at = [params["feed_at"], *params.get("load_ats", ())]
-    if site_count(n, at, family, cap=SITE_COUNT_CAP) is not None:
-        monkeypatch.setattr(engine_module, "site_count", lambda *a, **k: None)
+def _pynec_engine(builder):
+    pytest.importorskip("PyNEC")
+    from antennaknobs.engines.pynec import PyNECEngine
+
+    return PyNECEngine(builder, ground=None)
 
 
-@pytest.mark.parametrize(
-    ("case", "n", "relative"),
-    [("k1", 101, False), ("k2", 61, True), ("k3", 101, True)],
-)
-def test_pynec_split_agrees_with_the_exact_arclength(case, n, relative):
-    """Self-calibrating: D is PyNEC against momwire on the centre-fed demo
-    dipole at the same count, and the split must sit within 2 D of momwire fed
-    at the exact arclength.
+def _nec5_engine(builder):
+    return NEC5Engine(builder, ground=None)
 
-    What was decided when. Before measuring, all three cases were set to the
-    absolute bound |Z_split - Z_momwire| <= 2 D at 101 segments. Measured
-    there, D = 0.0404 ohm (0.047 % of |Z_centre| = 86.4 ohm): k1 is 0.0497 ohm
-    (1.23 D) and keeps that bound; k2 is 0.1693 ohm (4.19 D) and k3 0.0841 ohm
-    (2.08 D), both OVER it.
 
-    k2 at 101 is not a split the rule makes: 0.31 and 0.77 are both centres
-    of 150, so that wire re-meshes whole, and 4.19 D came from forcing the
-    split. The whole-wire re-mesh, both ports exactly on centres and no split,
-    is itself 0.1087 ohm (2.69 D) from momwire: at this loaded off-centre feed,
-    |Z| near 155 ohm, the engines differ by more than 2 D before any split.
+def _whole_z(make, n, params, *, snap=False):
+    """Z of the whole wire at exactly `n` segments. Without `snap` every port
+    must already sit on a site at `n`; with it, a port no count reaches goes to
+    its nearest site there."""
+    with pytest.MonkeyPatch.context() as mp:
+        if snap:
+            mp.setattr(engine_module, "site_count", lambda n_seg, *a, **k: n_seg)
+        eng = make(_b(n_seg=n, **params))
+    assert [as_wire(t).n_seg for t in eng.tups] == [n]
+    return _z(eng)
 
-    So k2 and k3 are gated on a RELATIVE bound chosen AFTER that measurement,
-    |dZ| / |Z_momwire| <= 2 D / |Z_centre|, with k2 at 61 segments, where the
-    rule does split it (51 to 74 do). Measured: k3 at 101, 0.054 % against
-    0.094 %; k2 at 61, 0.149 % against 0.200 % (D = 0.0865 ohm, and 2.66 D
-    absolute)."""
-    from antennaknobs.engines.momwire import MomwireEngine
 
-    centre = _b(n_seg=n, feed_at=None)
-    z_centre = _z(MomwireEngine(centre))
-    d = abs(_z(_pynec(centre)) - z_centre)
-    b = _b(n_seg=n, **PHYSICS[case])
-    exact = _z(MomwireEngine(b))
-    split = _pynec(b)
-    assert "w" in split._split_wires
-    miss = abs(_z(split) - exact)
-    if relative:
-        assert miss / abs(exact) <= 2 * d / abs(z_centre)
-    else:
-        assert miss <= 2 * d
+def _split_z(make, n, params, *, force=False):
+    """Z of the wire split by the rule from `n` authored segments, `force`d
+    where a count up to the cap fits."""
+    with pytest.MonkeyPatch.context() as mp:
+        if force:
+            mp.setattr(engine_module, "site_count", lambda *a, **k: None)
+        eng = make(_b(n_seg=n, **params))
+    assert "w" in eng._split_wires
+    return _z(eng)
+
+
+@pytest.fixture(scope="module")
+def pynec_whole():
+    """PyNEC's whole-wire Z for both cases, by count."""
+    k2 = {n: _whole_z(_pynec_engine, n, PHYSICS["k2"]) for n in (50, 150)}
+    k3 = {
+        n: _whole_z(_pynec_engine, n, PHYSICS["k3"], snap=True) for n in (50, 150, 450)
+    }
+    return {"k2": k2, "k3": k3}
+
+
+@pytest.mark.parametrize(("n", "force"), [(61, False), (101, True)])
+def test_pynec_two_port_split_agrees_with_its_own_whole_wire(pynec_whole, n, force):
+    """|Z_split - Z_w(150)| <= |Z_w(150) - Z_w(50)|, as registered above."""
+    whole = pynec_whole["k2"]
+    split = _split_z(_pynec_engine, n, PHYSICS["k2"], force=force)
+    assert abs(split - whole[150]) <= abs(whole[150] - whole[50])
+
+
+def test_pynec_three_port_split_agrees_with_its_finest_whole_wire(pynec_whole):
+    """|Z_split(101) - Z_w(450)| <= |Z_w(150) - Z_w(50)|, as registered above."""
+    whole = pynec_whole["k3"]
+    split = _split_z(_pynec_engine, 101, PHYSICS["k3"])
+    assert abs(split - whole[450]) <= abs(whole[150] - whole[50])
 
 
 @needs_nec5
-def test_nec5_split_at_two_ports_agrees_with_the_exact_arclength(monkeypatch):
-    """Self-calibrating at 100 segments, the k = 2 case, on a RELATIVE bound
-    decided before measuring: |Z_split - Z_momwire| / |Z_momwire| <= 2 D5 /
-    |Z_centre|. NEC-5 and momwire disagree in proportion to |Z| (1.78 % at the
-    centre, #1510), and a feed at 0.31 roughly doubles |Z|, so the centre's
-    absolute D5 would understate the engines' own difference there.
+@pytest.mark.parametrize("case", PHYSICS)
+def test_nec5_split_agrees_with_its_own_whole_wire(case):
+    """|Z_split(100) - Z_w(100)| <= |Z_w(200) - Z_w(100)|, as registered above."""
+    w100 = _whole_z(_nec5_engine, 100, PHYSICS[case])
+    w200 = _whole_z(_nec5_engine, 200, PHYSICS[case])
+    split = _split_z(_nec5_engine, 100, PHYSICS[case], force=True)
+    assert abs(split - w100) <= abs(w200 - w100)
 
-    Measured: D5 = 1.618 ohm, 1.873 % of |Z_centre| = 86.40 ohm. The split, in
-    pieces of 31, 46 and 23 segments, is 2.429 ohm from momwire (1.50 D5):
-    1.569 % of |Z| = 154.8 ohm against the 3.747 % bound. Where the rule splits
-    that wire unforced, at 45 segments: 4.965 ohm (1.54 D5), 3.212 % against
-    7.464 %."""
-    from antennaknobs.engines.momwire import MomwireEngine
 
-    centre = _b(n_seg=100, feed_at=None)
-    z_c = _z(MomwireEngine(centre))
-    d5_rel = abs(_z(NEC5Engine(centre, ground=None)) - z_c) / abs(z_c)
-    b = _b(n_seg=100, **PHYSICS["k2"])
-    exact = _z(MomwireEngine(b))
-    _force_split(monkeypatch, 100, PHYSICS["k2"], "knot")
-    split = NEC5Engine(b, ground=None)
-    assert len(split.tups) == 3
-    assert abs(_z(split) - exact) / abs(exact) <= 2 * d5_rel
+@needs_nec5
+@pytest.mark.parametrize("case", PHYSICS)
+def test_nec5_split_off_the_whole_grid_agrees_with_its_whole_wire(case):
+    """|Z_split(150) - Z_w(200)| <= |Z_w(200) - Z_w(100)|, as registered above."""
+    w100 = _whole_z(_nec5_engine, 100, PHYSICS[case])
+    w200 = _whole_z(_nec5_engine, 200, PHYSICS[case])
+    split = _split_z(_nec5_engine, 150, PHYSICS[case], force=True)
+    assert abs(split - w200) <= abs(w200 - w100)
