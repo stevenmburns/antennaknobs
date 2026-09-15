@@ -44,7 +44,7 @@ Ground rules carried from the #956 arc, which are what made it converge:
 | 4 | "below/below pair separation R₁ = 136 m (8.9 in-medium λ), past the 4 in-medium λ the remainder is tabulated to" | range | 3 | — |
 | 5 | "crossing serve with per-wire radii: ρ_eff = √(ρ² + a²) regularizes the corner with ONE radius, and a mixed-radius convention is not pinned" (momwire#524 phase 2) | scope | 4 | every real screen: radials thinner than the mast |
 | 6 | "RP asks for the far field of a deck with a wire below the plane … the transmitted family's far-zone asymptotics" (momwire#570) | **formulation** | 1 | every buried design's pattern (wholly buried refused; mixed served with a note, #1341) |
-| 7 | `elevated_buried_counterpoise` disagrees with NEC-5 by 27 % in R and 10 % in \|Z\| (+10 Ω R, −7.1 kΩ X on \|Z\| ≈ 61–69 kΩ) on its graded radiator, at nominal_nsegs 21, 42 and 84 | **open disagreement** (AK#1443) | — | 1 design |
+| 7 | `elevated_buried_counterpoise` disagrees with NEC-5 by 27 % in R and 10 % in \|Z\| (+10 Ω R, −7.1 kΩ X on \|Z\| ≈ 61–69 kΩ) on its graded radiator, at nominal_nsegs 21, 42 and 84, with each engine's own fed segment (momwire 1 × 50 mm, NEC-5 2 × 25 mm). Most of it is that fed segment's size: with the fed segments near-matched, the R gap is 2.9 % (31 % at the engines' own sizes, measured on the uniform radiator, AK#1456) | **mostly fed-segment size** (AK#1443, AK#1456) | — | 1 design |
 | 8 | AK#1417's gate: no refinement path for an imported deck (every ladder tool is Builder-driven) | tooling | blocks per-deck ladders on all of the above | — |
 | 9 | a wholly buried vertical rod reads a constant −1.20 % of R against NEC-5, invariant in depth, conductivity and frequency (momwire#1027) | **open disagreement** | — | every wholly buried fed element |
 | 10 | "a deck with N crossing junctions … the crossing serve completes ONE crossing node per deck" (momwire#1054; before it, a bare assert in the fill, AK#1464) | scope | 3 (the lpma3r5 LPDA with 8 nodes; two cebik phased arrays with 3 and 4) | every multi-element buried array |
@@ -141,7 +141,12 @@ ladder. **2–3 days to localise;** the fix depends on what it names.
 
 Graded from the feed (AK#1455), each engine's R holds to 0.3 % across
 nominal_nsegs 21–84 while the engines stay 27 % apart in R, so the gap is not
-the far mesh. The fed segment's size is AK#1456's question.
+the far mesh. **It is mostly the fed segment's size.** The two engines mesh the
+50 mm feed gap differently (one 50 mm segment on momwire, two 25 mm segments on
+NEC-5), and at this near-open driving point the impedance follows that size.
+With the fed segments near-matched (momwire 7 × 7.1 mm, NEC-5 6 × 8.3 mm), the
+engines are 2.9 % apart in R and 0.2 % in B, against 31 % and 16 % at their own
+sizes. That was measured on the uniform radiator (AK#1456).
 
 ### U7 — the wholly buried rod's −1.20 % of R (momwire#1027)
 
