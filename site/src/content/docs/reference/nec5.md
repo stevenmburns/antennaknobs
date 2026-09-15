@@ -82,8 +82,10 @@ variable wins over the file.
 ## Seeing what the engine saw
 
 When a NEC-5 answer surprises you, the two things to look at are the deck
-antennaknobs handed the binary and the printout it got back. Two switches
-expose both, for NEC-5 and NEC-2 alike:
+antennaknobs handed the binary and the printout it got back. In the
+workbench, the [Files view](/reference/web/#the-output-stage--views-pins-and-layout)
+shows both for the solve on screen. Two switches also keep them, for NEC-5
+and NEC-2 alike:
 
 ```bash
 export ANTENNAKNOBS_CAPTURE_DIR=~/ak-captures   # every run leaves nec5/<hash>.nec + <hash>.out

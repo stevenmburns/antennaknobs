@@ -440,11 +440,16 @@ complete dict reproduces that dict — but the minimal delta form is the idiom.)
 ## Exporting to NEC
 
 ```bash
-python -m antennaknobs export --builder beams.yagi --fn yagi.nec
+python -m antennaknobs export --builder beams.yagi --out yagi.nec
+python -m antennaknobs export --builder beams.yagi --out yagi_nec5.nec --dialect nec5
 ```
 
-The deck is validated against `nec2c`, so designs round-trip into other NEC
-tools. The reverse direction — loading an existing `.nec` deck as a design —
+The default deck (`--dialect nec2`) is validated against `nec2c`, so designs
+round-trip into other NEC tools. `--dialect nec5` writes the deck the
+[NEC-5 engine](/reference/nec5/) runs, with sources on knots, buried wires
+meshed in the soil and a header naming the design, mesh and ground; writing it
+needs no NEC-5 binary. That writer has no pattern switch, so `--no-pattern` is
+refused under it. The reverse direction — loading an existing `.nec` deck as a design —
 is [`parse_nec` / `read_nec`](/reference/nec-import/).
 
 ## Allowing user designs to run

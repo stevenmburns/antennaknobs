@@ -170,11 +170,25 @@ views as thumbnails beside it. The roster is:
 | **Schematic** | the [feed network as a chain](#the-schematic-view) |
 | **S11 (dB) vs freq** | return loss against frequency, the log-magnitude form a VNA shows |
 | **VSWR vs freq** | SWR against frequency |
+| **Files** | the design's source, and the deck an external engine ran with the report it printed |
 
 Click a thumbnail to promote it to primary. The last two read the **same
 frequency sweep** the Smith chart plots — run a [sweep](#convergence-sweep)
 and all three fill in together; the marker on each rides the measurement
 frequency.
+
+**The Files view** shows the text behind a solve, each tab with Copy and
+Download. **Source** is the file the design is built from: a catalog or user
+`.py`, or a bare `.nec`/`.ssn` as written. When the slot's solve ran through
+an external binary (NEC-5 or NEC-2), the other two tabs show the exact
+**deck** that engine was given and the **output** it printed. A momwire or
+PyNEC slot runs no deck and says so instead. The texts are fetched only while
+Files is the view on the stage, never for a thumbnail.
+
+**Minimizing the readout.** The **–** on the floating solve readout collapses
+it to a one-line **R · X · SWR** pill; click the pill to restore the card. The
+choice is remembered per view, and the Files view starts minimized, since its
+printout carries the numbers.
 
 **Wires below the ground plane and the polar cuts.** The cuts are read out
 of the solved currents with the above-ground formula (an image in the
