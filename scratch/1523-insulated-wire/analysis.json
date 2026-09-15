@@ -1,0 +1,222 @@
+{
+ "checks": {
+  "C1": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 12
+  },
+  "P0": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 288
+  }
+ },
+ "predictions": {
+  "R1": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 11
+  },
+  "R2": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 13
+  },
+  "D1": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 99
+  },
+  "D2": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 6
+  },
+  "D3": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 36
+  },
+  "D4": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 72
+  },
+  "D5": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 11
+  }
+ },
+ "extra": {
+  "R2_rho": 1.0,
+  "R2_lonly_matches": false,
+  "D2_rho": {
+   "bs2": 1.0,
+   "razor": 1.0,
+   "nec5": 1.0
+  },
+  "amendment1_rows": [
+   [
+    "18-awg-pvc",
+    "lonly",
+    "nec5",
+    41
+   ],
+   [
+    "18-awg-pvc",
+    "lonly",
+    "nec5",
+    161
+   ],
+   [
+    "18-awg-pvc",
+    "pair",
+    "nec5",
+    161
+   ],
+   [
+    "22-awg-pvc",
+    "lonly",
+    "nec5",
+    161
+   ],
+   [
+    "22-awg-pvc",
+    "pair",
+    "nec5",
+    41
+   ],
+   [
+    "22-awg-pvc",
+    "pair",
+    "nec5",
+    161
+   ],
+   [
+    "ba1.5-er2.3",
+    "lonly",
+    "nec5",
+    161
+   ],
+   [
+    "ba1.5-er2.3",
+    "pair",
+    "nec5",
+    41
+   ],
+   [
+    "ba1.5-er3.5",
+    "lonly",
+    "nec5",
+    41
+   ],
+   [
+    "ba1.5-er3.5",
+    "pair",
+    "nec5",
+    41
+   ],
+   [
+    "ba1.5-er5",
+    "pair",
+    "nec5",
+    41
+   ],
+   [
+    "ba1.5-er5",
+    "pair",
+    "nec5",
+    161
+   ],
+   [
+    "ba2-er2.3",
+    "pair",
+    "nec5",
+    41
+   ],
+   [
+    "ba2-er2.3",
+    "pair",
+    "nec5",
+    161
+   ],
+   [
+    "ba2-er3.5",
+    "lonly",
+    "nec5",
+    161
+   ],
+   [
+    "ba2-er3.5",
+    "pair",
+    "nec5",
+    41
+   ],
+   [
+    "ba2-er3.5",
+    "pair",
+    "nec5",
+    161
+   ],
+   [
+    "ba2-er5",
+    "lonly",
+    "nec5",
+    41
+   ],
+   [
+    "ba2-er5",
+    "lonly",
+    "nec5",
+    161
+   ],
+   [
+    "ba2-er5",
+    "pair",
+    "nec5",
+    41
+   ],
+   [
+    "ba3-er2.3",
+    "lonly",
+    "nec5",
+    41
+   ],
+   [
+    "ba3-er2.3",
+    "pair",
+    "nec5",
+    161
+   ],
+   [
+    "ba3-er3.5",
+    "lonly",
+    "nec5",
+    161
+   ],
+   [
+    "ba3-er5",
+    "lonly",
+    "nec5",
+    41
+   ],
+   [
+    "ba3-er5",
+    "pair",
+    "nec5",
+    41
+   ]
+  ]
+ },
+ "rule": "the pair (momwire's path) matches the exact coated-line physics; LD 2 on the bare radius has the right velocity to first order but overstates the line impedance by about x"
+}
