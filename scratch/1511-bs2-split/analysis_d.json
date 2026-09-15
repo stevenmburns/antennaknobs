@@ -1,0 +1,51 @@
+{
+ "PD1": {
+  "verdict": "hit",
+  "instances": 3,
+  "fails": [],
+  "missing": []
+ },
+ "PD2": {
+  "verdict": "MISS",
+  "instances": 9,
+  "fails": [
+   "D2 k1_031/free N=41",
+   "D2 k1_031/free N=81",
+   "D2 k1_031/free N=161",
+   "D3 k2/free N=41",
+   "D3 k2/free N=81",
+   "D3 k2/free N=161",
+   "D3 k3/free N=41",
+   "D3 k3/free N=81",
+   "D3 k3/free N=161"
+  ],
+  "missing": []
+ },
+ "PD3": {
+  "verdict": "MISS",
+  "instances": 33,
+  "fails": [
+   "k3/free n=36",
+   "k3/free n=42",
+   "k3/free n=44",
+   "k3/free n=76",
+   "k3/free n=84",
+   "k3/free n=86"
+  ],
+  "missing": []
+ },
+ "PD4": {
+  "verdict": "MISS",
+  "instances": 1,
+  "fails": [
+   "D4 k2/somm13 N=81"
+  ],
+  "missing": []
+ },
+ "PD5": {
+  "verdict": "hit",
+  "instances": 3,
+  "fails": [],
+  "missing": []
+ }
+}
