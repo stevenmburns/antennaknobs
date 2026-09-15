@@ -32,11 +32,20 @@ SMALL_Z_OHM = 1.0
 
 
 def load(path):
-    recs = {}
+    """Cell records by (design, ground, engine), plus the provenance header.
+
+    A line without a "design" key is the provenance record the harness writes
+    first, not a cell. Skipping it by shape rather than by position means a
+    records file written before the header existed still loads.
+    """
+    recs, prov = {}, None
     for line in open(path, encoding="utf-8"):
         r = json.loads(line)
+        if "design" not in r:
+            prov = r
+            continue
         recs[(r["design"], r["ground"], r["engine"])] = r
-    return recs
+    return recs, prov
 
 
 def zc(pair):
@@ -138,7 +147,7 @@ def refusal_class(rec):
 
 def main(argv=None):
     path = Path(argv[0]) if argv else Path(__file__).with_name("records.jsonl")
-    recs = load(path)
+    recs, _prov = load(path)
     designs = sorted({k[0] for k in recs})
     engines = ("razor", "nec5", "bs2")
     out = []

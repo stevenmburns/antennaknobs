@@ -249,10 +249,26 @@ def main(argv=None):
 
     designs = a.designs or list_builtin_designs()
     out_path = Path(a.out) if a.out else Path(__file__).with_name("records.jsonl")
+    # PROVENANCE AS THE FIRST LINE OF THE DATA, not as a commit message. Both
+    # SHAs, both package versions, every extension's resolved path and the
+    # accelerator variant travel with the records, so a reader of the JSONL
+    # alone can tell what produced it -- and a stale checkout cannot be
+    # discovered after the fact. Added for the 2026-09-15 published re-run;
+    # `report.py` skips any line without a "design" key, so a records file
+    # written before this (b9bc3e2f0's) still loads.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import verify_env
+
+    provenance = verify_env.collect(a.nec5_exe)
+    if not provenance["all_checks_pass"]:
+        failed = [k for k, v in provenance["checks"].items() if not v]
+        print(f"STALENESS GUARD FAILED: {failed}", file=sys.stderr)
+        return 3
     total = len(designs) * len(a.engines) * len(a.grounds)
     done = 0
     t_start = time.perf_counter()
     with open(out_path, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(provenance) + "\n")
         for design in designs:
             for ground in a.grounds:
                 for engine in a.engines:
