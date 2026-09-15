@@ -141,3 +141,71 @@ offset "non-zero" means a note was issued.
 1. Commit this registration with `study.py` and `mesh.jsonl`, and push.
 2. The solves (`rows.jsonl`), under `systemd-run` with MemoryMax=24G.
 3. `README.md` with the tables and the P results.
+
+## Results, 2026-09-15
+
+**Records:**
+- `rows.jsonl`: 260 rows, all ok;
+- `README.md` and `analysis.json`: `analyze.py`'s output, committed before any
+  result was read.
+
+**Setup:** momwire 1ca8725 (0.55.0) and NEC-5 7ebf343d. The README's header
+prints "momwire ?" because momwire has no `__version__`.
+
+| id | verdict | where it failed |
+|---|---|---|
+| **P1** | **MISS** (3 of 12) | n = 81 for k2, k3 and k2 over somm13: \|Z_B − Z_A\| 0.122 / 0.223 / 0.086 Ω against steps 0.073 / 0.190 / 0.051 Ω |
+| **P1c** | **MISS** (7 of 12) | k2 and k2 over somm13 at n = 21, 41 and 81, and k3 at n = 81 |
+| **P2** | **MISS** (2 of 4) | k3: d(B, A0) grows from 0.047 at n = 41 to 0.146 at 161. k2 over somm13: d(B, A0; 161) = 0.136 against a bar of 0.133 |
+| **P3** | hit (14) | — |
+| **P3c** | hit (20) | — |
+| **P4** | hit (20) | — |
+| **P4c** | **MISS** (7 of 16) | where razor's bump no longer shows at finer meshes |
+| **P5** | hit (9) | — |
+| **P5c** | hit (18) | — |
+| **P6** | **MISS** (4 of 4) | antennaknobs' re-count moves bs2's k2 by 0.20–0.30 Ω, more than A0's own step |
+
+### Reading, after the analysis (not registered)
+
+**bs2 and the split agree at the level of bs2's own mesh noise on this deck.**
+- **The split difference.** \|Z_B − Z_A\| is at most 0.143 % of \|Z\| at
+  n ≥ 41 (0.017–0.223 Ω), and 0.3–0.44 % at n = 10 and 21.
+- **bs2's own ladder is still moving.** Across the rungs, \|Z_A(21) − Z_A(161)\|
+  is 0.50–0.82 Ω, and single steps run 0.05–0.54 Ω, unevenly. So a bar of "no
+  more than the step" is a bar at the noise, and it missed wherever a step
+  happened to be small.
+- **One residual does not shrink.** k3, the only case with a load near the wire
+  end (0.04, where the guard fires at n = 10 and 21), reads 0.03 % at n = 41,
+  0.14 % at 81 and 0.09 % at 161. The cut ratios next to that load are 1.50 and
+  1.42 at n = 81.
+- **P1c and P6 miss for the same reason.** On k2, antennaknobs' re-count meshes A
+  at 50 / 150 / 250 against A0's 41 / 81 / 161. B, at A0's density, lands nearer
+  A than A0.
+
+**Sinusoidal: snapping costs far more than splitting.**
+- On A0, where every port snaps by 4–250 mm, Z sits 0.36–2.4 Ω from bs2∞ at
+  n = 161, and up to 10 Ω at n = 21.
+- The split B converges steadily to bs2∞: from 2.2–2.7 Ω at n = 10 to 0.11–0.18 Ω
+  at 161.
+
+**razor-2p and NEC-5.**
+- **On Ce they agree to 0.034–0.048 %,** the same as their centre-fed agreement
+  on D5 (0.044–0.051 %).
+- **The count bump on C.**
+  - Its effect is 3.4–4.6 % at n = 10 and 0.45–0.98 % at n = 21.
+  - By n = 41 it is 0.04–0.22 %, inside the 2·D5 bar in several instances. That
+    is P4c's miss.
+- **razor's snapping** (A0 against Ce) costs 0.43–13.8 Ω, always more than razor
+  against NEC-5 on Ce.
+- **Both knot engines are still 1.4–1.8 Ω from bs2∞ at n = 161.** The knot path
+  converges at first order.
+
+**Verdict.**
+- **bs2.** The whole wire and #1511's split agree to within 0.15 % of \|Z\| at
+  n ≥ 41, which is bs2's own refinement scale on this deck. The registered
+  test, a difference no larger than the step at every n ≥ 21, missed in 3 of 12
+  instances, and k3 keeps a residual of about 0.1 % that has not shrunk by
+  n = 161.
+- **The snapping solvers.** Splitting (sinusoidal) and breaking at the port
+  (razor-2p) remove a snapping error 2–10× larger. On the break geometry with
+  matched counts, razor-2p equals NEC-5 as closely as it does centre-fed.
