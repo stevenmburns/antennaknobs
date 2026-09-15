@@ -121,7 +121,10 @@ def main():
     )
     print(json.dumps(summary))
     args.out.write_text(
-        json.dumps(dict(meta=meta, radiator=args.radiator, rows=rows, summary=summary), indent=1)
+        json.dumps(
+            dict(meta=meta, radiator=args.radiator, rows=rows, summary=summary),
+            indent=1,
+        )
     )
 
 
