@@ -295,9 +295,34 @@ def test_a_port_named_apart_from_its_wire_solves_like_one_named_after_it():
 
 @needs_position
 def test_a_shorted_second_port_on_the_feed_wire_changes_nothing():
-    """A near-zero series load closes its gap, so the wire is the plain dipole."""
-    z_plain = _z()
-    z_short = _z(load_ohms=1e-9)
+    """A near-zero series load closes its gap, so the wire is the plain dipole.
+    A port at the middle and one at a quarter are not both segment centres of
+    21, so bs2 splits the wire at both (AK#1519), and the plain dipole has to
+    be those same pieces carrying the feed alone: against the whole wire the
+    split's own re-mesh moves Z by 0.18 ohm, which is not the short's doing."""
+    from antennaknobs.engines.momwire import MomwireEngine
+
+    shorted = MomwireEngine(_Dipole(dict(_Dipole.default_params, load_ohms=1e-9)))
+    split = shorted._split_wires["w"]
+    feed = [port for port, _at in split.ports].index("feed")
+    p0, p1 = np.array((0.0, -ARM, 10.0)), np.array((0.0, ARM, 10.0))
+
+    class _Pieces(_Dipole):
+        def build_wires(self):
+            return [
+                Wire(
+                    tuple(p0 + s.lo * (p1 - p0)),
+                    tuple(p0 + s.hi * (p1 - p0)),
+                    n_seg=s.n_seg,
+                    name="w" if s.port == feed else None,
+                )
+                for s in split.plan.spans
+            ]
+
+    plain = MomwireEngine(_Pieces(dict(_Dipole.default_params)))
+    assert plain._edge_segments == shorted._edge_segments
+    z_plain = complex(np.atleast_1d(plain.impedance())[0])
+    z_short = complex(np.atleast_1d(shorted.impedance())[0])
     assert abs(z_short - z_plain) <= 1e-6 * abs(z_plain)
 
 

@@ -84,11 +84,14 @@ def test_pynec_feeds_a_segment_centre_of_the_authored_count():
 
 @needs_position
 def test_momwire_keeps_the_authored_count_of_a_positioned_wire():
-    """No re-count on momwire either: its default basis feeds 0.3 at the exact
-    arclength of the authored 20 segments."""
+    """No re-count on momwire either. 0.3 is no segment centre of 20, so bs2
+    splits the wire as PyNEC does (AK#1519): a five-segment piece centred on
+    the port, with the fillers at the authored density."""
     from antennaknobs.engines.momwire import MomwireEngine
 
-    assert MomwireEngine(_b(feed_at=0.3))._edge_segments == [[20]]
+    eng = MomwireEngine(_b(feed_at=0.3))
+    assert "w" in eng._split_wires
+    assert eng._edge_segments == [[4, 5, 12]]
 
 
 @needs_position
@@ -190,9 +193,10 @@ def test_nec5_says_it_split_the_wire_past_the_cap():
 
 
 @needs_position
-def test_momwire_reports_a_snapping_solvers_own_placement():
-    """Razor snaps to its knots. At 0.123 no knot count up to 2x reaches the
-    port, so razor places it on its nearest knot and the note says how far."""
+def test_momwire_cuts_a_snapping_solvers_wire_at_the_port():
+    """Razor snaps to its knots. 0.123 is no knot of 20, so the wire is cut at
+    the port as NEC-5 cuts it (AK#1519), and no port lands on a nearest knot:
+    the note says the wire was split, not how far a port moved."""
     from momwire import RazorSolver
 
     from antennaknobs.engines.momwire import MomwireEngine
@@ -200,16 +204,19 @@ def test_momwire_reports_a_snapping_solvers_own_placement():
     eng = MomwireEngine(_b(feed_at=0.123), solver=RazorSolver)
     eng.impedance()
     (note,) = _placement_notes(eng.advisories)
-    assert "'feed'" in note["text"] and "mm away" in note["text"]
+    assert "'feed'" in note["text"] and "knot" in note["text"]
+    assert "split" in note["text"] and "mm away" not in note["text"]
 
 
 @needs_position
-def test_momwire_bspline_places_exactly_and_says_nothing():
+def test_momwire_bspline_places_exactly_and_notes_only_the_split():
     from antennaknobs.engines.momwire import MomwireEngine
 
     eng = MomwireEngine(_b(feed_at=0.3))
     eng.impedance()
-    assert _placement_notes(eng.advisories) == []
+    (note,) = _placement_notes(eng.advisories)
+    assert "segment centre" in note["text"] and "split" in note["text"]
+    assert "mm away" not in note["text"]
 
 
 @needs_position

@@ -9,7 +9,8 @@ end, or running to a wire end within one segment of it (AK#1511's rule, which
 replaced the two- and three-piece split first built here). NEC-5 feeds a
 knot, so the wire breaks at the port itself and the source sits at the knot the
 two pieces share. Every reader of the port's position (segment, knot, card,
-drive point, port current) sees that site. The momwire engine never splits.
+drive point, port current) sees that site. The momwire engine's solvers split
+the same way, each like the engines of its family (AK#1519).
 Several ports on one wire are `test_multi_port_split_1511`'s.
 """
 
@@ -323,12 +324,29 @@ def test_two_unreachable_ports_on_one_wire_split_it_at_both():
     assert "mm away" not in note["text"]
 
 
-def test_momwire_feeds_the_exact_arclength_and_never_splits():
+def test_momwire_bs2_splits_the_wire_as_pynec_does():
+    """AK#1519: bs2 is a segment-centre basis, so its pieces are PyNEC's."""
     from antennaknobs.engines.momwire import MomwireEngine
 
     eng = MomwireEngine(_b(feed_at=1 / 3))
-    assert eng._split_wires == {}
-    assert len(eng._edge_segments) == 1
+    assert set(eng._split_wires) == {"w"}
+    assert eng._edge_segments == [
+        [as_wire(t).n_seg for t in _pynec(feed_at=1 / 3).tups]
+    ]
+
+
+def _exact_momwire(builder):
+    """bs2 on the whole wire, fed at the exact arclength: the momwire engine
+    with its split (AK#1519) switched off, the reference these gates were
+    registered and measured against."""
+    from antennaknobs.engines.momwire import MomwireEngine
+
+    class _Exact(MomwireEngine):
+        splits_wire_at_feed = property(lambda self: False, lambda self, value: None)
+
+    eng = _Exact(builder)
+    assert len(eng._edge_segments) == 1 and len(eng._edge_segments[0]) == 1
+    return eng
 
 
 def test_the_builders_network_keeps_its_position():
@@ -486,11 +504,9 @@ def test_the_split_feed_agrees_with_the_exact_arclength_as_a_centre_feed_does(
     exact arclength within 2 D, at the same 101 segments. Measured: D = 0.049
     ohm, where the nearest centre of the parity count was 0.682 ohm off at a
     third."""
-    from antennaknobs.engines.momwire import MomwireEngine
-
     split = _pynec(n_seg=101, feed_at=at)
     assert len(split.tups) == 3
-    exact = _z(MomwireEngine(_b(n_seg=101, feed_at=at)))
+    exact = _z(_exact_momwire(_b(n_seg=101, feed_at=at)))
     assert abs(_z(split) - exact) <= 2 * centre_fed_d
 
 
@@ -559,13 +575,11 @@ def test_nec5_split_feed_agrees_with_the_exact_arclength_as_a_centre_feed_does(
     whole wire or split: 0.12, a knot of the whole wire, is 16.35 ohm off
     (2.41 %), and 0.125, re-meshed to 104 segments, 12.25 ohm (1.95 %). So the
     gate there is relative, and the break's 13.14 ohm is 2.03 %."""
-    from antennaknobs.engines.momwire import MomwireEngine
-
     d5, d5_rel = nec5_centre_fed_d
     for at, bound in [(0.333, 2 * d5), (0.123, None)]:
         split = NEC5Engine(_b(n_seg=100, feed_at=at), ground=None)
         assert len(split.tups) == 2
-        exact = _z(MomwireEngine(_b(n_seg=100, feed_at=at)))
+        exact = _z(_exact_momwire(_b(n_seg=100, feed_at=at)))
         miss = abs(_z(split) - exact)
         if bound is None:
             assert miss / abs(exact) <= 2 * d5_rel

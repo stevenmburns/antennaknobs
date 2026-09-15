@@ -14,7 +14,13 @@ import momwire
 from momwire import BSplineSolver, RazorSolver
 
 from .. import in_medium
-from ..engine import FarField, SimulationEngine, WireCurrents, placement_note
+from ..engine import (
+    FarField,
+    SimulationEngine,
+    WireCurrents,
+    placement_note,
+    vertex_only_names,
+)
 from ..geometry import flat_wires_to_polylines
 from ..network import (
     PortAtEnd,
@@ -993,13 +999,26 @@ class MomwireEngine(SimulationEngine):
         # Per-instance parity: sinusoidal wants odd, bspline depends on
         # degree. Set before _coerce_wire_tuples runs.
         self.segment_parity = _parity_for_solver(self._solver, self._solver_kwargs)
+        # A solver with a grid parity meshes a positioned port the way its
+        # reference engines do (AK#1519): the centre family (odd) gives each
+        # port the middle of a short piece of its own, as PyNEC and NEC-2 do;
+        # the knot family (even) cuts the wire at every port and feeds the
+        # knot the pieces share through a series node gap, as NEC-5 does.
+        # Only a wire whose ports are not all sites of its own count is split
+        # (`_coerce_wire_tuples`). "any" parity keeps every wire whole.
+        self.splits_wire_at_feed = self.segment_parity in ("odd", "even")
 
         # build_wires() must run before build_tls() — a build_tls design may
         # populate self.tls inside build_wires() (the legacy path, exercised by
         # the tests/fixtures/delta_looparray_with_tls oracle; no catalog design
         # uses build_tls anymore).
-        tups = self._coerce_wire_tuples(builder.build_wires())
-        self._network = builder.build_network()
+        wires = builder.build_wires()
+        # Read before the coercion so a vertex-only wire keeps its count
+        # (`_parity_exempt_names`), then meshed: a split port names its piece.
+        network = builder.build_network()
+        self._vertex_only_names = vertex_only_names(network)
+        tups = self._coerce_wire_tuples(wires)
+        self._network = self._network_as_meshed(network)
         self._tls = [] if self._network is not None else list(builder.build_tls())
 
         # Resolve TL endpoint tags into augmented tups: any tag whose ev was
@@ -1747,15 +1766,29 @@ class MomwireEngine(SimulationEngine):
         """
         rec = getattr(self, "_advisory_recorder", None)
         items = list(rec.items) if rec is not None else []
-        # AK's own placement notes follow momwire's (AK#1469).
-        return items + list(getattr(self, "_placement_notes", None) or [])
+        # AK's own notes follow momwire's: one per wire split at its ports
+        # (AK#1511, AK#1519), then any port a solver placed off its request
+        # (AK#1469).
+        return (
+            items
+            + SimulationEngine.advisories.fget(self)
+            + list(getattr(self, "_placement_notes", None) or [])
+        )
+
+    def _parity_exempt_names(self):
+        """Wires whose only attachment is a `PortAtVertex` keep their authored
+        segment count on every solver, as on NEC-5: the node gap sits at the
+        wire's END, which every count provides (issue #898, AK#1519)."""
+        return getattr(self, "_vertex_only_names", frozenset())
 
     def fed_segments(self):
         """`SimulationEngine.fed_segments`, read from the walked polylines:
         this engine keeps no coerced wire list, so each feed's segment is its
         own edge's length over that edge's count, which is what the fill
-        solves. End and vertex ports report their wire's coerced count."""
-        from ..engine import _builder_network, fed_records
+        solves. End and vertex ports report their wire's coerced count; a port
+        fed at the knot a split shares (AK#1519) reports that piece's last
+        segment and the next piece's first."""
+        from ..engine import fed_records
 
         site = "knot" if self.segment_parity == "even" else "centre"
         out = []
@@ -1781,7 +1814,10 @@ class MomwireEngine(SimulationEngine):
             out += [
                 {**r, "wire": None}
                 for r in fed_records(
-                    coerced, _builder_network(self.builder), self.segment_parity
+                    coerced,
+                    self._network,
+                    self.segment_parity,
+                    getattr(self, "_tup_authored", None),
                 )
                 if r["port"] in end_names
             ]

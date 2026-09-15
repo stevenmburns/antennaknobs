@@ -41,7 +41,7 @@ import numpy as np
 
 from momwire import insulation_inductance
 
-from ..engine import FarField, SimulationEngine, WireCurrents
+from ..engine import FarField, SimulationEngine, WireCurrents, vertex_only_names
 from ._external import find_exe
 from ..wire_catalog import gap_knot, port_at, port_wire
 from ..network import (
@@ -367,28 +367,7 @@ class NEC5Engine(SimulationEngine):
         # can be exempted (their EX sits at an end knot, which every count
         # provides — bumping the author's mesh would be gratuitous, #898).
         network = builder.build_network()
-        self._vertex_only_names = frozenset()
-        if network is not None:
-            vertex_names = {
-                p.wire for p in network.ports.values() if isinstance(p, PortAtVertex)
-            }
-            # Any non-vertex port that touches a wire (by .name for gap
-            # ports, .wire for end ports) keeps that wire under the normal
-            # coercion rule; a PortVirtual's name is a circuit node, not a
-            # wire, but a coincidental match only costs an unnecessary
-            # even count — never a wrong mesh.
-            other_names = set()
-            for p in network.ports.values():
-                if isinstance(p, PortAtVertex):
-                    continue
-                nm = (
-                    port_wire(p)
-                    if isinstance(p, PortOnWire)
-                    else getattr(p, "name", None) or getattr(p, "wire", None)
-                )
-                if nm:
-                    other_names.add(nm)
-            self._vertex_only_names = frozenset(vertex_names - other_names)
+        self._vertex_only_names = vertex_only_names(network)
         self.tups = self._coerce_wire_tuples(builder.build_wires())
         self._wires = [as_wire(t) for t in self.tups]
         network = self._network_as_meshed(network)
