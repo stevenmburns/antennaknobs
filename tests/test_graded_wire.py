@@ -8,12 +8,20 @@ shared split point of the coincident bundle — the spelling exists so
 grading can never touch topology.
 """
 
+import itertools
+import math
+
 import numpy as np
 import pytest
 
 from antennaknobs.engine import refuse_graded_wires
 from antennaknobs.geometry import flat_wires_to_polylines
-from antennaknobs.network import GradedSegments, Wire, graded_wire
+from antennaknobs.network import (
+    GradedSegments,
+    Wire,
+    doubling_graded_wire,
+    graded_wire,
+)
 
 
 def test_graded_wire_panel_math_toward_p1():
@@ -124,3 +132,78 @@ def test_the_remaining_card_engine_refuses_by_name():
     not renumber."""
     with pytest.raises(NotImplementedError, match="graded-mesh spelling"):
         refuse_graded_wires([graded_wire((0, 0, 0), (0, 0, 1.0), toward="p0")], "PyNEC")
+
+
+# ---------------------------------------------------------------------------
+# doubling_graded_wire (AK#1455): neighbours within 2x, capped far panels
+# ---------------------------------------------------------------------------
+
+
+def _segment_lengths(w):
+    """A graded wire's segment lengths, p0 first."""
+    length = math.dist(w.p0, w.p1)
+    edges = [0.0, *w.n_seg.fracs, 1.0]
+    out = []
+    for k, n in enumerate(w.n_seg.counts):
+        out += [(edges[k + 1] - edges[k]) * length / n] * n
+    return np.array(out)
+
+
+def _ak1454_schedule(length, h0, rest):
+    """AK#1454's measured schedule as it was run
+    (`scratch/1443-counterpoise/step2_source.graded_schedule`), without the
+    tail guard, so the promoted helper can be held to it."""
+    bounds = []
+    b = 2.0 * h0
+    while b < length * (1 - 1e-9):
+        bounds.append(b)
+        b *= 2.0
+    edges = [0.0, *bounds, length]
+    counts = [
+        max(2, math.ceil((hi - lo) / min(rest, max(h0, lo / 2.0)) - 1e-9))
+        for lo, hi in itertools.pairwise(edges)
+    ]
+    return tuple(x / length for x in bounds), tuple(counts)
+
+
+@pytest.mark.parametrize("length", [0.3, 1.0, 2.5, 6.45, 6.5, 10.507, 12.85, 15.0])
+@pytest.mark.parametrize("max_h", [0.06, 0.125, 0.25, 0.5, 1.0])
+def test_doubling_graded_wire_steps_within_2x_under_the_cap(length, max_h):
+    """Every neighbouring pair within 2x, nothing above the cap, the first
+    segment at h0, and the lengths summing to the wire. 6.45 m puts a 5 cm
+    tail past the 6.4 m boundary, which the guard must merge."""
+    h0 = 0.025
+    segs = _segment_lengths(
+        doubling_graded_wire((0, 0, 0), (0, 0, length), h0=h0, max_h=max_h)
+    )
+    assert segs.sum() == pytest.approx(length)
+    assert segs[0] == pytest.approx(h0)
+    assert segs.max() <= max_h * (1 + 1e-12)
+    steps = segs[1:] / segs[:-1]
+    assert steps.max() <= 2.0 + 1e-9, steps.max()
+    assert steps.min() >= 0.5 - 1e-9, steps.min()
+
+
+@pytest.mark.parametrize("nominal_nsegs", [21, 42, 84])
+def test_doubling_graded_wire_is_ak1454s_schedule_on_the_counterpoise(nominal_nsegs):
+    """At `elevated_buried_counterpoise`'s default radiator the helper is the
+    schedule AK#1454 measured, count for count: the tail guard does not engage."""
+    from antennaknobs.designs.verticals.elevated_buried_counterpoise import Builder
+
+    b = Builder()
+    b.nominal_nsegs = nominal_nsegs
+    quarter = 0.25 * b.design_wavelength
+    length = quarter - 0.05
+    max_h = length / b.segs_for(length, quarter)
+    assert max_h == pytest.approx(length / nominal_nsegs)  # AK#1454's own cap
+    w = doubling_graded_wire((0, 0, 0), (0, 0, length), h0=0.025, max_h=max_h)
+    fracs, counts = _ak1454_schedule(length, 0.025, length / nominal_nsegs)
+    np.testing.assert_allclose(w.n_seg.fracs, fracs)
+    assert w.n_seg.counts == counts
+
+
+def test_doubling_graded_wire_rejects_bad_args():
+    with pytest.raises(ValueError, match="h0"):
+        doubling_graded_wire((0, 0, 0), (0, 0, 0.02), h0=0.025, max_h=0.5)
+    with pytest.raises(ValueError, match="max_h"):
+        doubling_graded_wire((0, 0, 0), (0, 0, 1.0), h0=0.025, max_h=0.01)
