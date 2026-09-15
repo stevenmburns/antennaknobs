@@ -1,0 +1,90 @@
+{
+ "P1": {
+  "verdict": "MISS",
+  "instances": 12,
+  "fails": [
+   "k2/free n=81",
+   "k3/free n=81",
+   "k2/somm13 n=81"
+  ],
+  "missing": []
+ },
+ "P1c": {
+  "verdict": "MISS",
+  "instances": 12,
+  "fails": [
+   "k2/free n=21",
+   "k2/free n=41",
+   "k2/free n=81",
+   "k3/free n=81",
+   "k2/somm13 n=21",
+   "k2/somm13 n=41",
+   "k2/somm13 n=81"
+  ],
+  "missing": []
+ },
+ "P2": {
+  "verdict": "MISS",
+  "instances": 4,
+  "fails": [
+   "k3/free",
+   "k2/somm13"
+  ],
+  "missing": []
+ },
+ "P3": {
+  "verdict": "hit",
+  "instances": 14,
+  "fails": [],
+  "missing": []
+ },
+ "P3c": {
+  "verdict": "hit",
+  "instances": 20,
+  "fails": [],
+  "missing": []
+ },
+ "P4": {
+  "verdict": "hit",
+  "instances": 20,
+  "fails": [],
+  "missing": []
+ },
+ "P4c": {
+  "verdict": "MISS",
+  "instances": 16,
+  "fails": [
+   "k1/free n=81",
+   "k2/free n=41",
+   "k2/free n=81",
+   "k3/free n=41",
+   "k3/free n=161",
+   "k2/somm13 n=41",
+   "k2/somm13 n=81"
+  ],
+  "missing": []
+ },
+ "P5": {
+  "verdict": "hit",
+  "instances": 9,
+  "fails": [],
+  "missing": []
+ },
+ "P5c": {
+  "verdict": "hit",
+  "instances": 18,
+  "fails": [],
+  "missing": []
+ },
+ "P6": {
+  "verdict": "MISS",
+  "instances": 4,
+  "fails": [
+   "k2/free n=41",
+   "k2/free n=81",
+   "k2/somm13 n=41",
+   "k2/somm13 n=81"
+  ],
+  "missing": []
+ }
+}
