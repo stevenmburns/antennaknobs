@@ -106,13 +106,22 @@ def test_a_drag_draws_specular_and_the_settle_draws_diffracted(client):
     assert settled["cuts"]["elevation"] != seen[-1]["cuts"]["elevation"]
 
 
-def _engine_grid_dbi(req: dict, monkeypatch, *, diffraction: bool) -> np.ndarray:
-    """The engine's own field for `req` at `CUT_ELEVS`, one bearing.
+def _engine_grid(req: dict, monkeypatch, *, diffraction: bool):
+    """The engine's own field for `req` at `CUT_ELEVS`, one bearing, and the
+    knots of the antenna it solved.
 
     Built through the adapter's own factory, with `_terrain_from_request`
     monkeypatched when the diffracted field is wanted — the app pins it specular
     there, and reaching around that seam with a hand-rolled engine would make
     this a comparison of two guesses about what the server builds.
+
+    Both frequencies are set the way the socket's solve sets them.
+    `_build_builder` reads a design's parameters by their own names, so the
+    request's `design_freq_mhz` never reaches the builder's `design_freq`.
+    Without the second assignment below this is the inverted V cut for the
+    design's default 28.47 MHz, solved at 21.2: a different antenna, whose
+    pattern differs from the socket's by up to 3.16 dB (#1501). The knots come
+    back so the caller checks it is the same antenna instead of assuming it.
     """
     real = adapter._terrain_from_request
     if diffraction:
@@ -124,12 +133,14 @@ def _engine_grid_dbi(req: dict, monkeypatch, *, diffraction: bool) -> np.ndarray
     cls = importlib.import_module(f"antennaknobs.designs.{GEOMETRY}").Builder
     builder = adapter._build_builder(cls, req)
     builder.freq = FREQ
+    builder.design_freq = FREQ
     eng = adapter._make_momwire_engine(req, builder)
-    assert eng._ground[0] == "terrain"
-    assert eng._ground[1].diffraction is diffraction, (
-        "the engine was built with the wrong field — this test would compare "
-        "one field's cut against the other's grid and call the gap a defect"
-    )
+    if req.get("ground_model") == "terrain":
+        assert eng._ground[0] == "terrain"
+        assert eng._ground[1].diffraction is diffraction, (
+            "the engine was built with the wrong field — this test would compare "
+            "one field's cut against the other's grid and call the gap a defect"
+        )
     # ONE azimuth column, the cut's own bearing. `far_field` requires
     # del_phi * n_phi == 360, so n_phi=1 asks for phi=0 alone — 90 directions
     # instead of 32400, which is what keeps a diffracted grid inside the
@@ -147,10 +158,13 @@ def _engine_grid_dbi(req: dict, monkeypatch, *, diffraction: bool) -> np.ndarray
     # Whole-degree elevations on a del_theta=1 grid: the nearest row IS the
     # angle, so the comparison is exact and not a nearest-neighbour read.
     assert np.allclose(els[rows], CUT_ELEVS), (els[rows], CUT_ELEVS)
-    return np.asarray(ff.rings)[rows, 0]
+    knots = np.concatenate([w.knot_positions for w in eng.current_distribution()])
+    return np.asarray(ff.rings)[rows, 0], knots
 
 
-def _settled_cut(client, req: dict, *, diffraction: bool) -> np.ndarray:
+def _settled_cut(client, req: dict, *, diffraction: bool):
+    """The elevation cut the socket serves for `req`, and the knots of the
+    antenna it solved."""
     with client.websocket_connect("/ws") as ws:
         ws.send_text(json.dumps(req))
         result = json.loads(ws.receive_text())
@@ -167,56 +181,59 @@ def _settled_cut(client, req: dict, *, diffraction: bool) -> np.ndarray:
         reply = json.loads(ws.receive_text())
     assert reply["ok"] and reply["cuts"]["diffraction"] is diffraction
     assert reply["cuts"]["elev_angles_deg"] == pytest.approx(CUT_ELEVS)
-    return np.asarray(reply["cuts"]["elevation"])
+    knots = np.concatenate([np.asarray(w["knot_positions"]) for w in result["wires"]])
+    return np.asarray(reply["cuts"]["elevation"]), knots
+
+
+# The cut ships dBi rounded to three decimals (`_pattern_cuts`); the engine grid
+# is unrounded. Measured 2026-09-15 on the same antenna: at most 0.001 dB, for
+# both fields over the levee, and over flat ground, PEC and free space.
+CUT_TOL_DB = 0.005
+
+
+def _report(name, cut, grid):
+    return f"{name}: " + ", ".join(
+        f"{e:g} deg {c:+.3f} vs {g:+.3f}"
+        for e, c, g in zip(CUT_ELEVS, cut, grid, strict=True)
+    )
 
 
 def test_the_settled_cut_is_the_engines_diffracted_field(client, monkeypatch):
-    """The settled elevation cut against the engine's own grid, sample by sample.
+    """Both fields' elevation cuts against the engine's own grids, sample by
+    sample.
 
-    The claim is RELATIVE, and deliberately so. The cuts layer and the engine do
-    not share a moment set: the server re-extracts one from a JSON response
-    (knot and sample arrays, rounded on the wire), the engine takes the solver's
-    own segment dipoles. Those are two discretisations of the same currents, and
-    they have always disagreed by a little — measured 2026-09-10 on this design
-    and preset, the SPECULAR cut is up to 3.16 dB from the specular grid, worst
-    at high elevation where the pattern is smallest.
-
-    So an absolute tolerance here would be a number picked to make the new path
-    pass a bar the old path fails. What is actually testable is that the new path
-    is no worse, and it is comfortably better: 0.59 dB against 3.16, the
-    diffracted composer being literally shared with the engine where the
-    specular one is a second implementation of the same physics.
-
-    (That gap is the specular cuts path's, not this feature's, and worth its own
-    look someday — `_mag2_at_directions` mirroring `_evaluate_M_perp` is the
-    kind of duplication that drifts. It is why this PR shares the diffracted
-    composer instead of mirroring it a second time.)
+    The cuts path evaluates the composer over a moment set re-extracted from the
+    JSON response, on azimuth-grouped slices of a grid it never builds; the
+    engine takes the solver's own segment dipoles on its own grid. On the same
+    antenna those are the same field, so the bar is the cut's rounding and not a
+    tolerance for a second implementation.
     """
     req = _req(6.1)
-    diff_cut = _settled_cut(client, req, diffraction=True)
-    spec_cut = _settled_cut(client, req, diffraction=False)
-    spec_grid = _engine_grid_dbi(req, monkeypatch, diffraction=False)
-    diff_grid = _engine_grid_dbi(req, monkeypatch, diffraction=True)
-
-    def report(name, cut, grid):
-        return f"{name}: " + ", ".join(
-            f"{e:g} deg {c:+.3f} vs {g:+.3f}"
-            for e, c, g in zip(CUT_ELEVS, cut, grid, strict=True)
-        )
-
-    d_diff = float(np.abs(diff_cut - diff_grid).max())
-    d_spec = float(np.abs(spec_cut - spec_grid).max())
-    assert d_diff <= d_spec, (
-        f"the diffracted cut tracks its grid worse than the specular one does "
-        f"({d_diff:.3f} dB vs {d_spec:.3f} dB)\n"
-        + report("diffracted", diff_cut, diff_grid)
-        + "\n"
-        + report("specular", spec_cut, spec_grid)
+    diff_cut, knots = _settled_cut(client, req, diffraction=True)
+    spec_cut, _ = _settled_cut(client, req, diffraction=False)
+    spec_grid, spec_knots = _engine_grid(req, monkeypatch, diffraction=False)
+    diff_grid, diff_knots = _engine_grid(req, monkeypatch, diffraction=True)
+    assert np.array_equal(knots, spec_knots) and np.array_equal(knots, diff_knots), (
+        "the engine solved a different antenna from the socket's, so any gap "
+        "below would be geometry and not the composer"
     )
-    # An absolute backstop too, well clear of the 0.59 dB measured, so a real
-    # regression cannot hide behind a specular path that also got worse.
-    assert d_diff < 1.0, report("diffracted", diff_cut, diff_grid)
+
+    spec_gap = np.max(np.abs(spec_cut - spec_grid))
+    diff_gap = np.max(np.abs(diff_cut - diff_grid))
+    assert spec_gap < CUT_TOL_DB, _report("specular", spec_cut, spec_grid)
+    assert diff_gap < CUT_TOL_DB, _report("diffracted", diff_cut, diff_grid)
 
     # Not vacuous: the specular cut is nowhere near the diffracted grid, so this
     # is a test of WHICH FIELD was composed and not only of the plumbing.
     assert np.max(np.abs(spec_cut - diff_grid)) > 1.0
+
+
+def test_the_flat_ground_cut_is_the_engines_field(client, monkeypatch):
+    """The same check over flat finite ground, where the specular composer draws
+    the cuts all the time rather than only while a knob moves."""
+    req = {k: v for k, v in _req(6.1).items() if k != "terrain"}
+    req["ground_model"] = "fast"
+    cut, knots = _settled_cut(client, req, diffraction=False)
+    grid, eng_knots = _engine_grid(req, monkeypatch, diffraction=False)
+    assert np.array_equal(knots, eng_knots)
+    assert np.max(np.abs(cut - grid)) < CUT_TOL_DB, _report("flat ground", cut, grid)
