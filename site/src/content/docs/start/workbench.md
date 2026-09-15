@@ -26,6 +26,14 @@ server. Nothing is installed and nothing is written outside the folder —
 delete the folder to remove it. The server listens on `127.0.0.1` only, so
 nothing on your network can reach it.
 
+The page shows the running version just below the bold "AntennaKNoBs" in the
+upper left, so you can always tell which release you launched. **To update to
+a new release, extract the whole new zip into a fresh folder rather than
+copying just the `.exe` over an old one** — the exe runs whatever `_internal`
+sits beside it, so a copied-in `.exe` next to an old `_internal` runs the old
+code under the new file name, with no sign of that beyond the version shown
+on the page and in the console's startup line.
+
 First launch takes appreciably longer than the rest: Windows scans the
 unpacked folder once. Measured on a laptop, the self-test ran 17.7 s cold and
 2.2 s warm, and the warm number is the one you live with.
