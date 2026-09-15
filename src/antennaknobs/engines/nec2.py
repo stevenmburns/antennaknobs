@@ -349,6 +349,7 @@ class NEC2Engine(SimulationEngine):
     # an odd count with the source on the middle segment — PyNECEngine's parity,
     # not NEC-5's "even" (whose source sits at a segment end).
     segment_parity = "odd"
+    splits_wire_at_feed = True
 
     def __init__(
         self,
@@ -785,7 +786,7 @@ class NEC2Engine(SimulationEngine):
                 if endpoint_count.get(_key(w.p1), 0) >= 2:
                     knot_cur[-1] = cur_per_seg[-1]
             out.append(WireCurrents(knot_positions=knots, knot_currents=knot_cur))
-        return out
+        return self._authored_currents(out)
 
     def far_field(self, *, n_theta=90, n_phi=360, del_theta=1, del_phi=1):
         # Same grid contract as PyNECEngine._collect_pattern: the upper

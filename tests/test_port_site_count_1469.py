@@ -4,8 +4,10 @@ positioned port sits exactly on a site of its grid.
 A segment-centre engine (PyNEC, NEC-2, sinusoidal, BSpline d=2) needs a
 segment centre at the port; a knot engine (NEC-5, razor, BSpline d=1) needs an
 interior knot. The count grows to at most twice the authored count. Past that,
-the parity count stays and the engine places the port on its nearest site. A
-wire whose ports all sit at the middle keeps exactly the counts it had.
+a wire carrying that one port is split so the port sits at the middle of a
+piece (AK#1510), and a wire carrying several keeps the parity count, each port
+on the engine's nearest site. A wire whose ports all sit at the middle keeps
+exactly the counts it had.
 """
 
 from types import MappingProxyType
@@ -127,11 +129,24 @@ def test_every_port_on_the_wire_is_honoured_at_once():
 
 
 @needs_position
-def test_an_unreachable_position_keeps_the_parity_count():
+def test_an_unreachable_position_splits_the_wire_it_sits_on():
+    """No count puts a centre at a third, so the wire is cut at two thirds and
+    the port fed at the middle of the first piece (AK#1510)."""
     pytest.importorskip("PyNEC")
     from antennaknobs.engines.pynec import PyNECEngine
 
-    assert PyNECEngine(_b(feed_at=1 / 3)).tups[0][2] == 21
+    assert [(t[2], t[4]) for t in PyNECEngine(_b(feed_at=1 / 3)).tups] == [
+        (13, "w"),
+        (7, None),
+    ]
+
+
+@needs_position
+def test_an_unreachable_position_shared_with_a_second_port_keeps_the_parity_count():
+    pytest.importorskip("PyNEC")
+    from antennaknobs.engines.pynec import PyNECEngine
+
+    assert [t[2] for t in PyNECEngine(_b(feed_at=1 / 3, load_at=0.8)).tups] == [21]
 
 
 # ---------------------------------------------------------------------------
@@ -152,23 +167,23 @@ def test_an_exactly_placed_port_raises_no_advisory():
 
 
 @needs_position
-def test_pynec_names_the_offset_it_could_not_avoid():
+def test_pynec_names_the_offset_it_could_not_avoid_between_two_ports():
     pytest.importorskip("PyNEC")
     from antennaknobs.engines.pynec import PyNECEngine
 
-    (note,) = _placement_notes(PyNECEngine(_b(feed_at=1 / 3)).advisories)
-    assert "'feed'" in note["text"] and "segment centre" in note["text"]
-    assert "mm away" in note["text"]
+    notes = _placement_notes(PyNECEngine(_b(feed_at=1 / 3, load_at=0.8)).advisories)
+    (note,) = [n for n in notes if "'feed'" in n["text"]]
+    assert "segment centre" in note["text"] and "mm away" in note["text"]
 
 
 @needs_position
-def test_nec5_names_the_offset_past_the_cap():
+def test_nec5_says_it_split_the_wire_past_the_cap():
     from antennaknobs.engines.nec5 import NEC5Engine
 
     (note,) = _placement_notes(
         NEC5Engine(_b(feed_at=0.123), require_exe=False).advisories
     )
-    assert "knot" in note["text"]
+    assert "knot" in note["text"] and "split" in note["text"]
 
 
 @needs_position

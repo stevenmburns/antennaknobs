@@ -306,6 +306,7 @@ class NEC5Engine(SimulationEngine):
     # NEC-5 sources sit at segment ends; an even count puts a knot at the
     # fed wire's midpoint (see module docstring).
     segment_parity = "even"
+    splits_wire_at_feed = True
 
     def __init__(
         self,
@@ -390,6 +391,7 @@ class NEC5Engine(SimulationEngine):
             self._vertex_only_names = frozenset(vertex_names - other_names)
         self.tups = self._coerce_wire_tuples(builder.build_wires())
         self._wires = [as_wire(t) for t in self.tups]
+        network = self._network_as_meshed(network)
         # Sources, in excitation order: (wire_index, ex_type, value, knot)
         # with ex_type NEC-5's EX I1 — 0 voltage, 4 current (native in
         # NEC-5; NEC-2 has no current source) — and knot naming which knot
@@ -1595,4 +1597,4 @@ class NEC5Engine(SimulationEngine):
                 if endpoint_count.get(_key(w.p1), 0) >= 2:
                     knot_cur[-1] = cur_per_seg[-1]
             out.append(WireCurrents(knot_positions=knots, knot_currents=knot_cur))
-        return out
+        return self._authored_currents(out)
