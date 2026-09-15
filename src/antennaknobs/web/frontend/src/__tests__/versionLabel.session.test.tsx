@@ -13,10 +13,10 @@ afterEach(() => {
 
 describe("the served version label", () => {
   it("renders under the brand when the server sends one", async () => {
-    mountDesignSession({ versionLabel: "v0.77.0 · momwire 0.55.0" });
+    mountDesignSession({ versionLabel: "v0.77.0 · momwire v0.55.0" });
     await waitFor(() =>
       expect(
-        screen.getByText("v0.77.0 · momwire 0.55.0"),
+        screen.getByText("v0.77.0 · momwire v0.55.0"),
       ).not.toBeNull(),
     );
   });

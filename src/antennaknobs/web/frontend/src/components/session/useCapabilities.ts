@@ -29,7 +29,7 @@ type CapabilitiesPayload = {
   composition_axes?: string[];
   axis_value_labels?: Record<string, Record<string, string>>;
   ui_defaults?: unknown;
-  /** "v0.77.0 · momwire 0.55.0" (AK#1517): one server-built string so this
+  /** "v0.77.0 · momwire v0.55.0" (AK#1517): one server-built string so this
    *  file never names an engine. Absent from a server predating it. */
   version_label?: string;
 };

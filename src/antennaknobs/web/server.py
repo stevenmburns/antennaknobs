@@ -3201,7 +3201,7 @@ def capabilities_endpoint():
         # Served as one string so the frontend names no engine (#1006 G2-6):
         # it renders this, never "momwire" itself.
         "versions": {"antennaknobs": ak_version, "momwire": mw_version},
-        "version_label": f"v{ak_version} · momwire {mw_version}",
+        "version_label": f"v{ak_version} · momwire v{mw_version}",
         "backends": backend_roster(**have),
         "model_option_specs": model_option_specs(),
         "backend_aliases": backend_aliases(),
