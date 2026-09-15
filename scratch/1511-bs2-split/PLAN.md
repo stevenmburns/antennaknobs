@@ -329,7 +329,7 @@ segment and moves the feed's ξ, so \|old − cont\| mixes a one-segment density
 change with a large ξ shift.
 
 **Finite ground (PD4) behaves like free space.** The pattern is identical (99 %
-explained by the feed's ξ), at 0.31 % of \|Z\| at N = 81.
+explained by the feed's ξ), at 0.16 % of \|Z\| at N = 81.
 
 **Verdict.**
 - **Not insensitive at the registered level.** bs2's continuous feed carries a
