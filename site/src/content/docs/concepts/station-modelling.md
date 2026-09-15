@@ -141,8 +141,9 @@ sits exactly on a site of its own grid:
 - a knot for the knot engines (NEC-5, razor, B-spline d=1).
 
 The count may grow to twice the wire's own. When no count in that range fits,
-PyNEC, NEC-2 and NEC-5 split the wire so the port sits at the exact middle of
-one piece, and the solve carries a **FeedPlacement** advisory that
+PyNEC and NEC-2 split the wire so the port sits at the exact middle of one
+piece, NEC-5 splits it at the port and feeds the knot the two pieces share, and
+the solve carries a **FeedPlacement** advisory that
 says where the port asked to be and where the wire was cut. The momwire engine
 never splits a wire: its default B-spline basis feeds the exact arclength at any
 count.
