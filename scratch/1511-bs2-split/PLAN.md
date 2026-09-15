@@ -288,3 +288,54 @@ the engine's actual count.
 - **Where a PD misses,** the report names the row with the largest \|residual\|
   and its ports' ξ.
 - **Changing a bar** after the data is seen is an amendment, and never a re-spell.
+
+## Part D results, 2026-09-15
+
+**Records:**
+- `rows_d.jsonl`: 233 rows, all ok;
+- `README_D.md` and `analysis_d.json`: the output of `analyze_d.py`, which was
+  committed with the registration (4e18e38) before any Part D solve;
+- `explore_d.py` and `explore_d.json`: the exploratory attribution below.
+
+| id | verdict | where it failed |
+|---|---|---|
+| **PD1** | hit (3) | the feed on a knot against a segment centre at matched density: 0.140 / 0.082 / 0.049 Ω at m = 20 / 40 / 80, against steps 0.148 / 0.107 / 0.081 Ω |
+| **PD2** | **MISS** (9 of 9) | peak-to-peak 0.286 / 0.168 / 0.106 Ω for k1, 0.439 / 0.254 / 0.161 Ω for k2, and 0.447 / 0.259 / 0.164 Ω for k3, at N = 41 / 81 / 161. The bars are 0.04–0.05 Ω (0.25 × step) and 0.063–0.078 Ω (0.05 % of \|Z\|) |
+| **PD3** | **MISS** (6 of 33, all on k3) | even n = 36, 42, 44, 76, 84, 86: \|old − cont\| of 0.20–0.36 Ω against steps of 0.17–0.19 Ω |
+| **PD4** | **MISS** | k2 over somm13 at N = 81: peak-to-peak 0.231 Ω against bars of 0.033 and 0.074 Ω |
+| **PD5** | hit (3) | — |
+
+### Reading, after the analysis (not registered; `explore_d.py`)
+
+**The feed's own position within its segment drives the misses. The loads' do
+not.**
+- **The fit.** In every sweep, a fit of the residual on (1, cos 2πξ, sin 2πξ) of
+  the feed's ξ explains 99–100 % of it. The loads' ξ explain 0–7 %.
+- **The shape.** Z sits below the density trend with the feed near a knot
+  (ξ ≈ 0) and above it with the feed near a segment centre (ξ ≈ 0.5). The
+  residual is smallest near ξ ≈ 0.25 and 0.75.
+- **The size.** The ripple's peak-to-peak is 0.08–0.28 % of \|Z\|, and
+  0.7–2.7× bs2's own refinement step at that N.
+- **How it shrinks.** For k1 it goes 0.29 → 0.17 → 0.11 Ω from N = 41 to 161,
+  about N^−0.7. The refinement step itself shrinks more slowly, 0.21 → 0.17 →
+  0.15 Ω.
+
+**D1 is the same effect at its two extremes.** A centre feed moved from a
+segment centre (odd n) to a knot (even n) at matched density costs 0.16 % of
+\|Z\| at m = 20 and 0.06 % at m = 80, which is the ripple's size.
+
+**PD3's k3 misses are that ripple as well.** On even n, old's parity bump adds a
+segment and moves the feed's ξ, so \|old − cont\| mixes a one-segment density
+change with a large ξ shift.
+
+**Finite ground (PD4) behaves like free space.** The pattern is identical (99 %
+explained by the feed's ξ), at 0.31 % of \|Z\| at N = 81.
+
+**Verdict.**
+- **Not insensitive at the registered level.** bs2's continuous feed carries a
+  periodic ripple in the feed's position within its segment, peak-to-peak 0.08–
+  0.28 % of \|Z\| (0.7–2.7× bs2's own refinement step), and it shrinks with
+  refinement.
+- **What that means for #1519.** Moving a feed off a segment centre can move Z by
+  up to that peak-to-peak. The positioned feed is therefore only as
+  placement-stable as bs2's mesh is converged.
