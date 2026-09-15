@@ -190,3 +190,82 @@ guard and the load are not it. **Any other outcome** leaves the residual
 unexplained by these candidates.
 
 **Records:** `rows_e.jsonl`, from `study_1520.py --extra`.
+
+## Results, 2026-09-15
+
+**Records:**
+- `rows.jsonl`: 120 rows, all ok;
+- `rows_e.jsonl`: 8 rows, all ok;
+- `README.md`, `analysis.json`, `README_E.md` and `analysis_e.json`: the output of
+  the analysis scripts, each committed before its solves;
+- `explore_1520.py` and `explore_1520.json`: exploratory, not registered.
+
+### The registered predictions
+
+| id | verdict | notes |
+|---|---|---|
+| **Q1** | hit | the split study's k3 A and B reproduce exactly |
+| **Q2** | hit | Bp equals B at every n: the guard is not active at n ≥ 41 |
+| **Q3** | hit | r(base, B) = 0.047 / 0.223 / 0.146 / 0.003 Ω at n = 41 / 81 / 161 / 321 |
+| **Q4** | **MISS** | Bg keeps it: 0.219 / 0.141 Ω at n = 81 / 161 |
+| **Q5** | **MISS** | the load at 0.10 keeps it: 0.263 / 0.161 Ω |
+| **Q6** | **MISS** | no port at 0.04 keeps it: 0.218 / 0.144 Ω |
+| **Q7** | **MISS** | a 0 Ω short keeps it, identical to no port |
+| **Q8** | **MISS** | every engine's 0.04 load effect on B (1.52–1.56 Ω in R) lies 0.002–0.028 Ω from bs2's on B and 0.001–0.025 Ω from bs2's on A, with NEC-2 and n = 41 the widest. bs2's own A and B load effects differ by only 0.000–0.005 Ω, so the load's effect is not where A and B part |
+| **Q9** | hit | 0.003 Ω at n = 321 |
+
+**The registered verdict rule outputs "the guard's end piece",** because Q4
+misses first. Every variant keeps the residual, a pattern the rule was not built
+for, so that output does not describe the data. It stands as the registered
+output.
+
+### Amendment 1
+
+| id | verdict | numbers |
+|---|---|---|
+| **E1** | hit | \|AF − B\| = 0.016 / 0.012 Ω at n = 81 / 161 |
+| **E2** | **MISS** (at n = 161) | \|AL − A\| = 0.013 / 0.108 Ω |
+| **E3** | hit | \|AF − A\| = 0.238 / 0.138 Ω, against r_B 0.223 / 0.146 Ω |
+
+**The amendment's registered verdict is "unexplained by these candidates"**,
+because E2 missed.
+
+### Reading, after the analysis (not registered; `explore_1520.py`)
+
+**E2's premise was wrong, and its miss is the same effect.**
+- Splitting only the loads re-grids the long run that holds the feed, so the
+  feed's position within its segment changes on AL: ξ goes 0.71 → 0.43, 0.11 →
+  0.85, 0.91 → 0.31 and 0.51 → 0.21 at n = 41 / 81 / 161 / 321.
+- \|AL − A\| follows \|Δ cos 2πξ\|:
+  - 0.056 Ω at a change of 0.65;
+  - 0.013 Ω at 0.16;
+  - 0.108 Ω at 1.20;
+  - 0.055 Ω at 1.23 (n = 321, where the ripple is smaller).
+
+**Part D's ripple predicts the split quantitatively.**
+- Part D's k3 continuous-feed records are this study's A, identical.
+- A fit to them of Z = a + b/n² + c cos 2πξ + s sin 2πξ per base N has a cos
+  amplitude of 0.224 / 0.128 / 0.079 Ω at N = 41 / 81 / 161 (the sin term is
+  under 0.005 Ω). Its worst residual is 0.025 / 0.011 / 0.007 Ω.
+- Setting ξ = 0.5, the feed centred as B centres it, predicts B to 0.009 Ω at
+  n = 81 and 0.008 Ω at 161, against residuals of 0.223 and 0.146 Ω. At n = 41
+  the prediction is 0.116 Ω off, the coarsest fit.
+
+**Why the residual "grows" and then vanishes.**
+- On A the feed at 0.31 sits at ξ = 0.71 / 0.11 / 0.91 / 0.51. That is near the
+  ripple's zero crossing at n = 41, near a knot at 81 and at 161, and at a
+  segment centre at 321.
+- The residual follows that sequence: 0.047 / 0.223 / 0.146 / 0.003 Ω. It is not
+  a function of n.
+
+**Verdict.** None of the issue's candidates is the cause:
+- not the guard's end piece (it does not fire at n ≥ 41, and forcing it changes
+  nothing);
+- not the junction beside the 0.04 piece;
+- not the load (removing it or shorting it changes nothing);
+- not bs2 near a wire end.
+
+The residual is the **whole wire's feed position within its segment**, Part D's
+ripple, which the split removes by centring the feed. It appears in k3 at
+n = 81 and 161 because 0.31 · n falls near a knot there. It is not specific to
+k3's third port.
