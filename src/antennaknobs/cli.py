@@ -44,6 +44,7 @@ from momwire import (
 import argparse
 import math
 import logging
+import sys
 from importlib import import_module
 from types import ModuleType
 
@@ -541,11 +542,53 @@ def deck_extended_kernel_flag(builder_cls) -> bool:
     return bool(getattr(builder_cls, "file_extended_kernel", False))
 
 
+class _FeedPlacementEcho:
+    """Prints each distinct FeedPlacement advisory of the engines a command
+    builds to stderr, once (AK#1510), so stdout stays the command's own output.
+
+    A grid engine knows where its ports sit once it is built. The momwire
+    engine learns it from its first solver, so one of those is read after it
+    has solved (at the next engine the command builds, or when the command
+    ends) and released once read: an optimizer's many engines are never all
+    held at once."""
+
+    def __init__(self):
+        self._pending = []
+        self._seen = set()
+
+    def watch(self, factory):
+        def build(*args, **kwargs):
+            eng = factory(*args, **kwargs)
+            self._pending.append(eng)
+            self.flush()
+            return eng
+
+        return build
+
+    def flush(self, final=False):
+        waiting = []
+        for eng in self._pending:
+            unsolved = (
+                isinstance(eng, MomwireEngine)
+                and getattr(eng, "_placement_notes", None) is None
+            )
+            if unsolved and not final:
+                waiting.append(eng)
+                continue
+            for note in getattr(eng, "advisories", None) or ():
+                text = note.get("text")
+                if note.get("category") == "FeedPlacement" and text not in self._seen:
+                    self._seen.add(text)
+                    print(f"advisory: {text}", file=sys.stderr)
+        self._pending = waiting
+
+
 def cli(arguments=None):
     # AK#1428: `ANTENNAKNOBS_LOG_LEVEL` turns on the engine run log here too.
     from .engine_capture import configure_logging_from_env
 
     configure_logging_from_env()
+    placements = _FeedPlacementEcho()
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -698,11 +741,13 @@ def cli(arguments=None):
         )
         if builder is not None:
             ground = file_ground_default(ground, builder)  # AK#1432
-        return make_engine_factory(
-            args.engine,
-            ground,
-            extended_kernel=args.extended_kernel,
-            deck_extended_kernel=deck_extended_kernel,
+        return placements.watch(
+            make_engine_factory(
+                args.engine,
+                ground,
+                extended_kernel=args.extended_kernel,
+                deck_extended_kernel=deck_extended_kernel,
+            )
         )
 
     p = subparsers.add_parser("draw", help="Draw antenna")
@@ -1287,7 +1332,7 @@ def cli(arguments=None):
                 extended_kernel=args.extended_kernel,
                 deck_extended_kernel=deck_extended_kernel_flag(builder_cls),
             )
-            instances.append(eng(builder_cls()))
+            instances.append(placements.watch(eng)(builder_cls()))
             if multi_engine and multi_builder:
                 labels.append(f"{bname}/{espec}")
             elif multi_engine:
@@ -1362,7 +1407,7 @@ def cli(arguments=None):
                     extended_kernel=args.extended_kernel,
                     deck_extended_kernel=deck_extended_kernel_flag(builder_cls),
                 )
-                z = complex(eng(builder_cls()).impedance()[0])
+                z = complex(placements.watch(eng)(builder_cls()).impedance()[0])
                 segs = sum(
                     w.n_seg
                     for i, w in enumerate(deck.wires)
@@ -1645,6 +1690,7 @@ def cli(arguments=None):
 
     try:
         args.func(args)
+        placements.flush(final=True)
     except DesignNotTrustedError as exc:
         # A design the user hasn't allowed yet: show the clean guidance, not a
         # traceback.
