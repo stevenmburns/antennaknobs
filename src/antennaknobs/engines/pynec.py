@@ -218,6 +218,7 @@ class PyNECEngine(SimulationEngine):
     # segment for odd n_seg. Even counts get bumped up so the feed sits
     # at a true wire midpoint instead of off-centre.
     segment_parity = "odd"
+    splits_wire_at_feed = True
 
     def __init__(
         self,
@@ -290,7 +291,7 @@ class PyNECEngine(SimulationEngine):
         self._extended_thin_wire_kernel = extended_thin_wire_kernel
         self.tups = self._coerce_wire_tuples(builder.build_wires())
         refuse_graded_wires(self.tups, "PyNEC")
-        self._network = builder.build_network()
+        self._network = self._network_as_meshed(builder.build_network())
         # End ports are momwire-only (issue #579): NEC-2 has no junction-node
         # port — NT/TL cards attach to segment interiors, and synthesizing a
         # stub would reintroduce the exact attachment artifact PortAtEnd
@@ -1173,7 +1174,7 @@ class PyNECEngine(SimulationEngine):
                     knot_currents=knot_cur,
                 )
             )
-        return out
+        return self._authored_currents(out)
 
     def far_field(self, *, n_theta=90, n_phi=360, del_theta=1, del_phi=1):
         if self._use_reducer:
