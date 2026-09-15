@@ -14,7 +14,11 @@ double-click.
    [latest release](https://github.com/stevenmburns/antennaknobs/releases/latest)
    (the direct link is
    [releases/latest/download/antennaknobs-workbench-windows.zip](https://github.com/stevenmburns/antennaknobs/releases/latest/download/antennaknobs-workbench-windows.zip);
-   releases before v0.73.0 shipped the Python package only).
+   releases before v0.73.0 shipped the Python package only). The release also
+   carries `antennaknobs-workbench-windows-v<version>.zip`: the same file,
+   named with its version so a saved copy says which release it is. The
+   version-less name is what keeps the link above pointing at the newest
+   release, so either download is fine.
 2. Unzip it anywhere. **Keep the folder together** — the exe needs the
    `_internal` runtime beside it, and a lone copied-out `.exe` is the one way
    a correct download still fails.
