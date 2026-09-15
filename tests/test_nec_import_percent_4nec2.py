@@ -9,7 +9,8 @@ exactly on the joint between them. The importer used to refuse the card
 With ``network=True`` the percentage is the exact position: a port at that
 point on the uncut wire, which every engine meshes to carry exactly there
 (AK#1469). The path without positioned ports uses the segment whose centre is
-nearest, a tie on a boundary going to the lower segment.
+nearest, and refuses a percentage exactly on a boundary between two segments,
+which is equally near both (AK#1510).
 """
 
 from __future__ import annotations
@@ -53,10 +54,22 @@ def test_daniels_example_3_feeds_the_true_middle_of_the_two_segment_wire():
     assert deck.network().ports["feed"] == PortOnWire("feed")
 
 
-def test_without_the_network_path_the_nearest_segment_is_used_ties_going_low():
-    deck = parse_nec(EXAMPLE3_2SEG, name="2segCtrExample3.nec")
+def test_without_the_network_path_a_boundary_percentage_is_refused():
+    # 50% of two segments is equally near both centres, and without positioned
+    # ports there is no exact place to feed it.
+    with pytest.raises(ValueError, match=r"network=True") as exc:
+        parse_nec(EXAMPLE3_2SEG, name="2segCtrExample3.nec")
+    assert "line 12" in str(exc.value)
+    assert "boundary between segments 1 and 2" in str(exc.value)
+
+
+def test_without_the_network_path_other_percentages_take_the_nearest_segment():
+    deck = parse_nec(LINE10.format(cards="EX 0 1 31% 0 1 0\n"), name="p.nec")
     (feed,) = deck.feeds
-    assert (feed.seg, feed.at) == (1, 0.5)
+    assert (feed.seg, feed.at) == (4, pytest.approx(0.31))
+    # A wire end is no boundary between two segments: the end segment.
+    deck = parse_nec(LINE10.format(cards="EX 0 1 100% 0 1 0\n"), name="p.nec")
+    assert deck.feeds[0].seg == 10
 
 
 @pytest.mark.parametrize(
