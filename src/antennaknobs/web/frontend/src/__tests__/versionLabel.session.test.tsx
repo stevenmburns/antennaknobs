@@ -1,4 +1,4 @@
-// AK#1507: /capabilities' `version_label` renders under the brand. Mounted
+// AK#1517: /capabilities' `version_label` renders under the brand. Mounted
 // through the real <DesignSession> (designSessionHarness.tsx) rather than
 // SessionGearMenu in isolation, since the interesting fact is the served
 // string reaching the DOM through useCapabilities -> DesignSessionBody ->

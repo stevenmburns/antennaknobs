@@ -198,7 +198,7 @@ function DesignSessionBody({
   compositionVocab: CompositionVocabulary;
   /** Where the session starts (AK#1492): switches and ground from settings.toml. */
   uiDefaults: UiDefaults;
-  /** "v0.77.0 · momwire 0.55.0" (AK#1507), rendered under the brand as-is;
+  /** "v0.77.0 · momwire 0.55.0" (AK#1517), rendered under the brand as-is;
    *  null from a server predating it. */
   versionLabel: string | null;
 }) {

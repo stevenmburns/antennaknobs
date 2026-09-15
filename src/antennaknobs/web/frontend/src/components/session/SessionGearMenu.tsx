@@ -41,7 +41,7 @@ export function SessionGearMenu({
   theme,
   applyTheme,
 }: {
-  /** "v0.77.0 · momwire 0.55.0" (AK#1507), rendered as served — this
+  /** "v0.77.0 · momwire 0.55.0" (AK#1517), rendered as served — this
    *  component names no engine. Null renders no label (older server, or the
    *  fetch has not resolved yet). */
   versionLabel: string | null;

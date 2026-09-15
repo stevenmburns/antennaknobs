@@ -3167,7 +3167,7 @@ def capabilities_endpoint():
     Windows user once ran a stale bundle because copying only the .exe over
     an old folder silently keeps the old `_internal` beside it; the console
     line was the only tell, so the label is served here too rather than
-    built in the frontend (which must name no engine — issue #1507).
+    built in the frontend (which must name no engine — issue #1517).
     """
     from importlib.metadata import version as pkg_version
 
