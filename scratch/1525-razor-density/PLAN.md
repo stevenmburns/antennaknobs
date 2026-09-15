@@ -120,3 +120,40 @@ comments. NEC-5 conclusions, impedances and timings only.
 * `report.py` — writes every table in `README.md` from the JSONL
 * `hypotheses.md` — the reading, included verbatim by `report.py`
 * `README.md` — the tables, the cost summary, D1–D5 scored
+
+## 8. Amendment: dev mode (2026-09-15, before any recorded rung)
+
+Appended, not edited in place; §4's bars stand as registered. The sweep begun at
+`3b0d942a9` + momwire `1ca8725` was **stopped after 14 cells and those records
+discarded** — moving momwire changes the solver, so they were the wrong
+configuration, and 14 cells is cheaper to throw away than an hour.
+
+| axis | value |
+|---|---|
+| antennaknobs | **`97ca2b6b0`** — main with #1532 merged. Its tree is `87602a506` , **byte-identical to the PR head `3b0d942a9`** §2 named, verified by comparing tree objects. This branch was rebased onto it. |
+| momwire | **branch `main` at `227491d`**, the dev tip — **79 commits ahead** of the recorded pointer `1ca8725`. Rebuilt with `make build` (so `MOMWIRE_REQUIRE_ACCEL=1`); `momwire._accelerators` and `momwire._near_interface_accel` both resolve to the `_avx2` builds under `momwire/src/momwire/`, and `importlib.metadata` reports 0.55.0. |
+| recorded pointer | still `1ca8725` in AK's tree. **`momwire` is never staged** — `git status` showing `M momwire` is the intended dev-mode state. |
+
+### What momwire's 79 commits do to the numbers: nothing measurable here
+
+Those commits include a real numeric-path change — `b2530ab perf(below): fill a
+zone's floor and low bands in one evaluation call when both need filling
+(momwire#1064 G5)` — so "79 scratch commits, probably inert" was not good enough
+to assume. It was measured instead: `momwire-main-delta.jsonl` re-runs job 1's 18
+cells (the three jacketed designs × free/Sommerfeld × razor/NEC-5/bs2) with the AK
+tree held identical and only momwire moved.
+
+**All 18 rows are bit-identical to the `1ca8725` records.** 0 of 6 moved for
+razor, 0 of 6 for bs2, 0 of 6 for NEC-5, worst relative move 0.00000 %.
+
+Two things that follows and one it does not:
+
+* Job 1's result at the recorded pointer stands unchanged, and there is no
+  momwire-attributable difference to report separately for it.
+* The ladder's razor and bs2 columns are comparable with the catalog run at
+  `b9bc3e2f0` on these designs.
+* **It does NOT establish catalog-wide inertness.** All three probe designs sit
+  above ground, and `b2530ab` is a *below-interface* fill change, so the geometry
+  that could move it — the buried designs — is exactly what the probe does not
+  cover. Any buried-design row in this ladder that disagrees with the catalog run
+  is a momwire-main candidate first and a density effect second.
