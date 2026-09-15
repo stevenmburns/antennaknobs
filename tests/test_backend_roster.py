@@ -140,7 +140,7 @@ def test_backend_roster_served_shape(client):
         "Sinusoidal",
         "Sin-Galerkin",
         "B-spline",
-        "Pulse",
+        "Harrington (pulse)",
         "H-matrix (ACA)",
         "Array-block",
         "Razor (2-point)",

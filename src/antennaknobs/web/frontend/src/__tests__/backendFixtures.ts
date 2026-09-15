@@ -115,7 +115,7 @@ export const SERVED_ROSTER: BackendRoster = ([
   // #1255 had to stop the EK card guarding on `kind === "momwire"`.
   backendEntry({
     name: "pulse",
-    label: "Pulse",
+    label: "Harrington (pulse)",
     model_kwargs: [],
     options_schema: [],
   }),
