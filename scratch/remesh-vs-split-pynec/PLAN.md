@@ -101,3 +101,51 @@ each fed piece rounds to an odd count.
    `mesh.jsonl`, and push.
 2. The solves (`rows.jsonl`), under `systemd-run` with MemoryMax=24G.
 3. `analyze.py` writes `README.md` with the tables, and the report follows.
+
+## Results, 2026-09-15
+
+**Records:**
+- `rows.jsonl`: 288 rows, all ok;
+- `README.md` and `analysis.json`: the output of `analyze.py`, which was committed
+  with the registration (49ff792) before any solve.
+
+| id | verdict | where it failed |
+|---|---|---|
+| **PS1** | hit (14) | — |
+| **PS2** | **MISS** (1 of 4) | k1 at n = 45–55: R's re-mesh-to-split switch at 50 → 51 moves Z by only 0.020 Ω, against step_S 0.366 Ω |
+| **PS3** | **MISS** (4 of 11) | k1 and k2 at N = 81, windows and transitions: \|R − S\| of 0.20–0.25 Ω against step_S of 0.19–0.23 Ω |
+| **PS4** | **MISS** (5 of 10) | S's trend ptp is 0.07–0.23 Ω against 0.25 · step_S (0.034–0.09 Ω): k1, k2 and k3 at N = 41, k2 at N = 81, and k2 over somm13 |
+| **PS5** | hit (2) | — |
+
+**The decision rule: split-always.** S's largest jump is 0.72 × step_S; R's is
+38.5 × step_S.
+
+### Reading, after the analysis (not registered)
+
+**Where R jumps, and why.**
+- **The largest jumps come from snapping,** which is not the re-mesh itself.
+  - Main has no multi-port split (#1511 has not landed), so a wire carrying
+    several ports with no fitting count keeps its parity count and snaps them.
+  - On k3 at every count, and on k2 between n = 51 and 74, R jumps 3.3–12.8 Ω
+    between consecutive counts. It sits 2.4–9.2 Ω from S.
+  - #1511 would replace those snaps with splits.
+- **The re-mesh has a cost of its own, measured where no snap is involved.**
+  - **k1 at n = 74 → 75.** R switches from a 75-segment split to the 150-segment
+    whole wire, a 0.248 Ω jump (1.1 × step_S). S never moves more than 0.036 Ω in
+    that sweep.
+  - **Inside the windows.** R's Z is constant, because it is one re-meshed deck,
+    but that deck is 1.1–2× denser than the authored count. Where R is exact,
+    \|R − S\| is 0.09–0.25 Ω, and it exceeds the step at N = 81 (150 segments
+    against about 80).
+  - **The other re-mesh switch** (k1 at 50 → 51) happens to cost only 0.020 Ω.
+- **S is smooth at every count.**
+  - Its largest jump is 0.01–0.24 Ω (at most 0.72 × step_S).
+  - Its residual after the density trend (PS4's miss) is below the step
+    everywhere. It comes from the ±1–3 segment wobble of each fed piece's odd
+    rounding.
+
+**Recommendation: split-always.** It holds on the registered rule. It still
+holds on the evidence that does not depend on #1511: re-mesh-first makes Z
+depend on whether a segment count happens to fit, which in this deck means a
+jump of about one refinement step at the 74 → 75 switch. The split's worst
+wobble stays under three-quarters of a step.
