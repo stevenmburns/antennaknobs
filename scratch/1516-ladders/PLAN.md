@@ -139,3 +139,41 @@ conclusions and aggregates only — impedances and timings, never a printout.
 * `report.py` — writes every table in `README.md` from the JSONL
 * `hypotheses.md` — the per-design verdicts, included verbatim by `report.py`
 * `README.md` — deck-equivalence tables, ladder tables, verdicts, P1–P6 scored
+
+## 8. Amendment, after the ladders (2026-09-15)
+
+Appended, not edited in place, so §5's bars stay as registered.
+
+* `hypotheses.md` joined §7's list, and the harness gained two fields the plan
+  did not anticipate: `mesh_by_wire` (the built mesh keyed by each run's
+  endpoints) and `deck_card_types`. Both exist because a claim in §3 had to be
+  generated rather than asserted — that the network is applied in Python and
+  never written into the deck.
+* **Three harness bugs were found and fixed before the recorded sweep**, all of
+  the same shape — a comparison that reports a difference where there is none:
+  1. The mesh comparison was **positional**. momwire's `_edge_segments` walks the
+     fed polyline first while the NEC-5 deck lists `GW` cards in builder-wire
+     order, so `verticals.rectangle` read `[2, 4, 35, 8, 35, 4]` against
+     `[4, 2, 4, 35, 8, 35]` — the same mesh — and every rung of every design
+     reported a deck difference. Now keyed by geometry.
+  2. The geometry key was rounded to **1e-9 m**, which matches nothing: the deck
+     writes coordinates as `%E` with six significant figures. At 1e-9 every wire
+     read as "only one side has it". At 1e-5 `rectangle` was still on the
+     boundary (3.55379 one side, 3.55380 the other, two phantom differences per
+     rung). The key is 1e-4 m — 500× below the smallest feature, a 50 mm feed.
+  3. The bs2 allowance was **one** differing wire. `verticals.four_square` has
+     four driven elements and therefore four legitimate parity differences, and a
+     hardcoded 1 called them a deck difference. The allowance is now the number
+     of feeds the engine reports.
+  All three produced a confident **"deck difference"** verdict on designs whose
+  meshes are identical. P3 read MISS with 20 offending rungs before the fixes and
+  HIT with 0 after — the same records, three comparison bugs.
+* **P4 and P5 missed** (README §"The two misses"). P4's mechanism was wrong, not
+  only its number: the L-match's amplification of the bs2 gap is itself a
+  coarse-mesh artefact and collapses from 1.462 to 1.030 across the ladder. P5's
+  bar ignored the convergence order the study then measured — first order means
+  the served ×40 rung keeps ≈ 21/40 of the ×1 error, and three of four designs
+  land on that.
+* One claim in `hypotheses.md` was corrected after a programmatic check: ports 1
+  and 2 of `four_square` are not bit-identical, they agree to 1.7e-12 relative.
+  The table that suggested otherwise rounds both to three figures.
