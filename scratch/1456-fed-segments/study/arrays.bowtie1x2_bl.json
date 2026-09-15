@@ -1,0 +1,88 @@
+{
+ "design": "arrays.bowtie1x2_bl",
+ "freq_mhz": 28.47,
+ "ground": null,
+ "marked": [
+  {
+   "wire": 7,
+   "name": "feed0",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.1
+  },
+  {
+   "wire": 17,
+   "name": "feed1",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.1
+  }
+ ],
+ "status": "ok",
+ "runs": {
+  "mw1": {
+   "status": "ok",
+   "z": [
+    [
+     49.964869101726194,
+     -0.6232200350519937
+    ]
+   ],
+   "meshed": [
+    1,
+    1
+   ],
+   "fed_seg_mm": [
+    100.0,
+    100.0
+   ],
+   "secs": 0.06
+  },
+  "mw3": {
+   "status": "ok",
+   "z": [
+    [
+     49.96473768888252,
+     -0.5753260106521948
+    ]
+   ],
+   "meshed": [
+    3,
+    3
+   ],
+   "fed_seg_mm": [
+    33.333333333333336,
+    33.333333333333336
+   ],
+   "secs": 0.05
+  },
+  "mw7": {
+   "status": "ok",
+   "z": [
+    [
+     49.96475481041168,
+     -0.5471935916149103
+    ]
+   ],
+   "meshed": [
+    7,
+    7
+   ],
+   "fed_seg_mm": [
+    14.285714285714286,
+    14.285714285714286
+   ],
+   "secs": 0.05
+  },
+  "n52": {
+   "status": "error",
+   "error": "NotImplementedError: NEC5Engine cannot expose a floating port's second terminal (no circuit stamping on this engine)",
+   "secs": 0.0
+  },
+  "n56": {
+   "status": "error",
+   "error": "NotImplementedError: NEC5Engine cannot expose a floating port's second terminal (no circuit stamping on this engine)",
+   "secs": 0.0
+  }
+ }
+}

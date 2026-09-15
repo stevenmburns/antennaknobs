@@ -1,0 +1,22 @@
+{
+ "nec5_exe": "/home/smburns/nec5-timing/nec5cl-x13-static",
+ "nec5_sha256": "7ebf343d7d01283b83fae8192cd9c6ca434b5befb232065fc12b4d729f06a9f3",
+ "momwire": "/home/smburns/stevenmburns/momwire-wt-1064-v055/src/momwire",
+ "antennaknobs_head": "bc4f0a44fb26c8f0a74fdaf6b5c42ccec37a484c",
+ "workers": 4,
+ "omp_num_threads": "2",
+ "counts": {
+  "mw": [
+   1,
+   3,
+   7
+  ],
+  "n5": [
+   2,
+   6
+  ]
+ },
+ "max_gap_lambda": 0.01,
+ "timeout_s": 1800,
+ "designs": 103
+}

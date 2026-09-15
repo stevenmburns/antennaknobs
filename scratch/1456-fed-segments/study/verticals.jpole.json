@@ -1,0 +1,16 @@
+{
+ "design": "verticals.jpole",
+ "freq_mhz": 28.57,
+ "ground": null,
+ "marked": [
+  {
+   "wire": 6,
+   "name": null,
+   "ex": true,
+   "n": 2,
+   "length_m": 0.20986521386069304
+  }
+ ],
+ "status": "excluded",
+ "reason": "marked wire 6 is authored at 2 segments"
+}

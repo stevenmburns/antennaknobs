@@ -1,0 +1,16 @@
+{
+ "design": "dipoles.invvee_apex",
+ "freq_mhz": 28.47,
+ "ground": null,
+ "marked": [
+  {
+   "wire": 0,
+   "name": "arm",
+   "ex": false,
+   "n": 20,
+   "length_m": 2.5585554085897435
+  }
+ ],
+ "status": "excluded",
+ "reason": "marked wire 0 is authored at 20 segments"
+}

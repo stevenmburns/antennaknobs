@@ -1,0 +1,72 @@
+{
+ "design": "wire.sterba_tl",
+ "freq_mhz": 28.47,
+ "ground": null,
+ "marked": [
+  {
+   "wire": 1,
+   "name": "p1_a",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.31274450307692314
+  },
+  {
+   "wire": 2,
+   "name": "p1_b",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.31274450307692314
+  },
+  {
+   "wire": 4,
+   "name": "p2_a",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.3127445030769227
+  },
+  {
+   "wire": 5,
+   "name": "p2_b",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.3127445030769236
+  },
+  {
+   "wire": 7,
+   "name": "feed",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.3127445030769245
+  },
+  {
+   "wire": 9,
+   "name": "p3_a",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.3127445030769227
+  },
+  {
+   "wire": 10,
+   "name": "p3_b",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.3127445030769227
+  },
+  {
+   "wire": 12,
+   "name": "p4_a",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.3127445030769245
+  },
+  {
+   "wire": 13,
+   "name": "p4_b",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.3127445030769245
+  }
+ ],
+ "status": "excluded",
+ "reason": "marked wire 1 is 0.0297 lambda"
+}

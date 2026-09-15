@@ -1,0 +1,128 @@
+{
+ "design": "wire.sterba_bl",
+ "freq_mhz": 28.47,
+ "ground": null,
+ "marked": [
+  {
+   "wire": 1,
+   "name": "A0b",
+   "ex": false,
+   "n": 10,
+   "length_m": 1.3162647435897437
+  },
+  {
+   "wire": 2,
+   "name": "A1a",
+   "ex": false,
+   "n": 21,
+   "length_m": 2.6325294871794873
+  },
+  {
+   "wire": 3,
+   "name": "A1b",
+   "ex": false,
+   "n": 21,
+   "length_m": 2.632529487179487
+  },
+  {
+   "wire": 4,
+   "name": "A2a",
+   "ex": false,
+   "n": 21,
+   "length_m": 2.6325294871794878
+  },
+  {
+   "wire": 5,
+   "name": "A2b",
+   "ex": false,
+   "n": 21,
+   "length_m": 2.6325294871794878
+  },
+  {
+   "wire": 6,
+   "name": "A3a",
+   "ex": false,
+   "n": 21,
+   "length_m": 2.632529487179486
+  },
+  {
+   "wire": 7,
+   "name": "A3b",
+   "ex": false,
+   "n": 21,
+   "length_m": 2.632529487179486
+  },
+  {
+   "wire": 8,
+   "name": "A4a",
+   "ex": false,
+   "n": 11,
+   "length_m": 1.3162647435897448
+  },
+  {
+   "wire": 11,
+   "name": "B0b",
+   "ex": false,
+   "n": 10,
+   "length_m": 1.3162647435897437
+  },
+  {
+   "wire": 12,
+   "name": "B1a",
+   "ex": false,
+   "n": 21,
+   "length_m": 2.6325294871794873
+  },
+  {
+   "wire": 13,
+   "name": "B1b",
+   "ex": false,
+   "n": 21,
+   "length_m": 2.632529487179487
+  },
+  {
+   "wire": 14,
+   "name": "B2a",
+   "ex": false,
+   "n": 20,
+   "length_m": 2.532529487179488
+  },
+  {
+   "wire": 15,
+   "name": "feed",
+   "ex": false,
+   "n": 2,
+   "length_m": 0.1999999999999993
+  },
+  {
+   "wire": 16,
+   "name": "B2b",
+   "ex": false,
+   "n": 20,
+   "length_m": 2.532529487179488
+  },
+  {
+   "wire": 17,
+   "name": "B3a",
+   "ex": false,
+   "n": 21,
+   "length_m": 2.632529487179486
+  },
+  {
+   "wire": 18,
+   "name": "B3b",
+   "ex": false,
+   "n": 21,
+   "length_m": 2.632529487179486
+  },
+  {
+   "wire": 19,
+   "name": "B4a",
+   "ex": false,
+   "n": 11,
+   "length_m": 1.3162647435897448
+  }
+ ],
+ "status": "excluded",
+ "reason": "marked wire 1 is authored at 10 segments"
+}

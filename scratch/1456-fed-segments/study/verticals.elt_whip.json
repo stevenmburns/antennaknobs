@@ -1,0 +1,30 @@
+{
+ "design": "verticals.elt_whip",
+ "freq_mhz": 406.0,
+ "ground": null,
+ "marked": [
+  {
+   "wire": 0,
+   "name": "feed",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.012699999999999934
+  },
+  {
+   "wire": 327,
+   "name": "post0",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.012699999999999934
+  },
+  {
+   "wire": 328,
+   "name": "post1",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.012699999999999934
+  }
+ ],
+ "status": "excluded",
+ "reason": "marked wire 0 is 0.0172 lambda"
+}

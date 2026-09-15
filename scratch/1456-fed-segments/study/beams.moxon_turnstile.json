@@ -1,0 +1,101 @@
+{
+ "design": "beams.moxon_turnstile",
+ "freq_mhz": 28.57,
+ "ground": null,
+ "marked": [
+  {
+   "wire": 7,
+   "name": "feed_a",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.1014
+  },
+  {
+   "wire": 15,
+   "name": "feed_b",
+   "ex": false,
+   "n": 1,
+   "length_m": 0.1014
+  }
+ ],
+ "status": "ok",
+ "runs": {
+  "mw1": {
+   "status": "ok",
+   "z": [
+    [
+     50.077221446266506,
+     0.0014808556895506127
+    ]
+   ],
+   "meshed": [
+    1,
+    1
+   ],
+   "fed_seg_mm": [
+    101.4,
+    101.4
+   ],
+   "secs": 0.04
+  },
+  "mw3": {
+   "status": "ok",
+   "z": [
+    [
+     50.07706760562783,
+     0.0017608937333861315
+    ]
+   ],
+   "meshed": [
+    3,
+    3
+   ],
+   "fed_seg_mm": [
+    33.800000000000004,
+    33.800000000000004
+   ],
+   "secs": 0.04
+  },
+  "mw7": {
+   "status": "ok",
+   "z": [
+    [
+     50.07698276413538,
+     0.0018984692549675007
+    ]
+   ],
+   "meshed": [
+    7,
+    7
+   ],
+   "fed_seg_mm": [
+    14.485714285714286,
+    14.485714285714286
+   ],
+   "secs": 0.04
+  },
+  "n52": {
+   "status": "ok",
+   "z": [
+    [
+     50.11435660123064,
+     0.17029505779403936
+    ]
+   ],
+   "meshed": [
+    2,
+    2
+   ],
+   "fed_seg_mm": [
+    50.7,
+    50.7
+   ],
+   "secs": 0.05
+  },
+  "n56": {
+   "status": "error",
+   "error": "NEC5Error: the multiport Y is not reciprocal: ports 'feed_a' and 'feed_b' disagree by 1.000e+00 relative, over the 0.01 this route allows. Y[i,j] and Y[j,i] come from different runs, so this is the off-diagonal port-current rule in `_port_knot_current`, not the network.",
+   "secs": 0.06
+  }
+ }
+}
