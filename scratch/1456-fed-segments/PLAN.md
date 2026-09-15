@@ -129,3 +129,94 @@ and the threshold goes back upstream as a proposal instead of shipping.
    suite at the pointer.
 6. The PR, unmerged, without a closing keyword (the issue stays open for options
    2 and 3), and the proposal upstream.
+
+## Results, 2026-09-15
+
+### The study
+
+- **Records:** `study/`, `analysis.json`.
+- **Run:** at bc4f0a4, from a detached worktree.
+- **Setup:** NEC-5 7ebf343d; momwire at the pointer (0.55.0).
+- **Coverage:** 103 designs, 90 solved, 13 excluded (listed in `explore.json`),
+  164 ports.
+
+| id | result | prediction |
+|---|---|---|
+| **P1** | The median shunt fraction \|Re ΔY\| / \|Im ΔY\| is 0.0055 | ≤ 0.1: **hit** |
+| **P2** | ρ(\|Z\|·f) = 0.68, and ρ(\|X\|/R) = 0.12 | ρ(\|Z\|·f) ≥ 0.9 and higher: **miss** |
+| **P3** | \|ΔC\| p10 48 fF, p90 107 fF, a ratio of 2.2 | ≤ 10: **hit** |
+| **P4** | 9 designs move > 1 % in R: t2fd, trap_fan_dipole, bruce, the counterpoise, efhw_sloper, lazy_h, vbeam, w8jk, zepp | ≤ 5, with the counterpoise: **miss** |
+| **P5** | The counterpoise's B split is 16.4 % inherited and 0.19 % near-matched | inherited > 10 %, near-matched ≤ 2 %: **hit** |
+
+**The threshold procedure is abandoned, as registered, because P2 missed.**
+C_ref came out at 227 fF. It is recorded and not used, and no flag ships.
+
+**The dry run** (two designs, in the scratchpad, not recorded) was seen before
+the full run. The predictions were committed before it.
+
+### Exploratory, after the miss (`explore.py`, not registered)
+
+- **The shunt model holds per port.** The relative \|ΔZ\| equals \|Z\|·ω·\|ΔC\|
+  with a median ratio of 1.0005 (p5 0.999, p95 1.94).
+- **Where P2 failed.**
+  - On multi-port designs, ρ(\|Z\|·f) is 0.988.
+  - On single-port designs it is 0.40. There a few marked wires are not small
+    feed gaps, and their ΔC is huge: zepp −60 pF, trap_fan_dipole −5.3 pF,
+    efhw_sloper −0.9 pF. This is a caveat of the harness's scope: a marked wire
+    is not always a feed gap.
+- **The counterpoise.** R goes from 44.56 against 30.64 Ω (31 %, inherited) to
+  27.40 against 28.21 Ω (2.9 %, near-matched). AK#1443's disagreement is mostly
+  fed-segment size.
+- **Catalog-wide, most cross-engine splits are not fed size.**
+  - The median goes from 1.47 % inherited to 1.08 % near-matched.
+  - Of the 92 ports above 1 %, 7 halve.
+  - The widest splits (skyloop_lmatch, rectangle, koch_dipole, four_square,
+    pota_invvee) do not move.
+
+### Sent upstream as proposals, not built
+
+- **A threshold.** Flag a row when \|Z\|·2πf·C ≥ 1 %, with C = 107 fF (the p90
+  of \|ΔC\| for the house gap). That is 2.1 kΩ at 7.1 MHz, 1.06 kΩ at 14 MHz and
+  530 Ω at 28 MHz. It was derived after the miss, so it is a decision, not a
+  result.
+- **Option 2.**
+  - A harness asks for a fed-segment length along the fed wire.
+  - Each engine re-counts only that wire, to the smallest parity-valid count at
+    or below it.
+  - The requested and placed sizes go through AK#1469's advisory channel. The
+    feed stays at the middle, and the wire is never cut.
+- **Option 3.** A workbench note naming both fed segments, once a threshold is
+  decided.
+
+### Deliverables
+
+- **Done:**
+  - `SimulationEngine.fed_segments()`, with its tests;
+  - the validation page:
+    - ByDipole1: each ladder's fed segment;
+    - Leeson: bs2's fed segment; the NEC-5 pair is extrapolated and has none;
+    - below ground: momwire 1 × 50 mm against NEC-5 2 × 25 mm, a literal held to
+      the engines by a test;
+  - the NEC-5 reference note;
+  - the #1441 census (the worker, the row writer, and the addendum for the
+    committed rows);
+  - the #896 census harness and report;
+  - the live NEC-5/momwire tests' messages.
+- **Not done:**
+  - **The flag.** No threshold is decided (P2 missed).
+  - **The page's Fig. 36 row.** Its momwire column was re-measured on momwire
+    0.54.0 (de5a0cf82) without the deck or mesh being recorded. NEC-5's scratch
+    deck uses end selector 0, whose source site this project does not document.
+    Stating either fed segment would be a guess.
+  - **The plan doc's row 7.** Its AK#1443 disagreement should now say it is
+    mostly fed-segment size, but that edit waits for AK#1513, which edits the
+    same lines.
+  - **The #896 census report is not re-run.** The NEC-5 JSONL is not on this
+    box.
+
+### A side finding
+
+momwire's NEC-2 portal ignores NEC-5's EX end selector (`probe_end_selector.py`).
+So the #896 census drives momwire half a segment from NEC-5's knot on every deck
+where `translate` put the source on a knot. That is 2.2 % of R on a 10-segment
+dipole.
