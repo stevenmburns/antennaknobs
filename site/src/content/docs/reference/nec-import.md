@@ -293,11 +293,14 @@ feeds the middle of wire 2. With `network=True` the percentage is the exact
 position: a port
 [positioned along the wire](/concepts/station-modelling/#a-port-anywhere-along-a-wire)
 at that point, fed there on every engine. An engine re-meshes the wire, up to
-twice its own segment count, so the point is a segment centre or a knot of its
-grid. When no count in that range has one there, the wire is split
-and a FeedPlacement advisory says so. PyNEC and NEC-2 split it so the port sits
-at the exact middle of one piece; NEC-5 splits it at the port and feeds the
-knot the two pieces share.
+twice its own segment count, so every such point on it is a segment centre or a
+knot of its grid. When no count in that range fits them all, the wire is split
+so every port on it is fed exactly, however many share it, and a FeedPlacement
+advisory says so. On PyNEC and NEC-2 each port gets its own short wire centred
+on it, reaching a quarter of the way to its neighbours or a third of the way to
+a wire end, with plain wire in between. A port within a segment of an end, with
+nothing tighter nearby, runs its short wire to the end. NEC-5 cuts the wire at
+every port and feeds each one at the knot the pieces on either side share.
 
 A percentage on a segment boundary can therefore differ from a 4nec2 run by
 design. 4nec2 converts the percentage to one of the two neighbouring segments

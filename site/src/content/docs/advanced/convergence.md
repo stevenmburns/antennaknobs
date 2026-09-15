@@ -222,13 +222,17 @@ the physics doesn't:
   ports this way; they refine like every other wire and hold one
   basis-agreed value.
 - A port **positioned along a wire** (`PortOnWire(..., at=...)`) stays where
-  it was asked for as the mesh refines. At every rung each engine re-chooses
-  the wire's count (up to twice its own) so the gap lands on a segment centre
-  or a knot of its grid. On a rung where no count fits, the wire is
-  split so the gap still sits exactly there: at the middle of a piece on PyNEC
-  and NEC-2, at the knot two pieces share on NEC-5. The solve carries a
-  FeedPlacement advisory saying so. Imported NEC decks place their off-centre
-  sources and loads this way.
+  it was asked for as the mesh refines, and so does every other port on the
+  same wire. At every rung each engine re-chooses the wire's count (up to twice
+  its own) so every gap lands on a segment centre or a knot of its grid. On a
+  rung where no count fits, the wire is split so every gap still sits exactly
+  there. On PyNEC and NEC-2 each port gets its own short wire centred on it,
+  reaching a quarter of the way to its neighbours or a third of the way to a
+  wire end, with plain wire in between; a port within a segment of an end, with
+  nothing tighter nearby, runs its short wire to the end. On NEC-5 the wire is
+  cut at every port and each port is fed at the knot the pieces share. The
+  solve carries a FeedPlacement advisory saying so. Imported NEC decks place
+  their off-centre sources and loads this way.
 - A **lumped load** (termination resistor, trap) is genuinely a point
   element — keep it on a delta gap, on a short named wire that meshes at
   the design density like everything else. The load stays on the wire's
