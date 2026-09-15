@@ -146,8 +146,8 @@ offset "non-zero" means a note was issued.
 
 **Records:**
 - `rows.jsonl`: 260 rows, all ok;
-- `README.md` and `analysis.json`: `analyze.py`'s output, committed before any
-  result was read.
+- `README.md` and `analysis.json`: the output of `analyze.py`, which was itself
+  committed before any result was read (163362c).
 
 **Setup:** momwire 1ca8725 (0.55.0) and NEC-5 7ebf343d. The README's header
 prints "momwire ?" because momwire has no `__version__`.
