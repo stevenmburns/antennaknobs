@@ -209,3 +209,82 @@ prints "momwire ?" because momwire has no `__version__`.
 - **The snapping solvers.** Splitting (sinusoidal) and breaking at the port
   (razor-2p) remove a snapping error 2–10× larger. On the break geometry with
   matched counts, razor-2p equals NEC-5 as closely as it does centre-fed.
+
+## Part D: bs2's continuous feed against the old placement, at fixed density (#1519)
+
+Registered 2026-09-15, **before any Part D solve**. Measure only.
+
+**Setup.**
+- Same branch; antennaknobs 006d60e8e, momwire 1ca8725.
+- The engine is bs2 only.
+- The harness is `study_d.py`, and the analysis is `analyze_d.py`, committed with
+  this registration.
+
+**Why.** P6 found a difference of 0.20–0.30 Ω between A and A0, and it mixed two
+effects: the re-count's denser mesh (41 → 50, 81 → 150) and where the feed sits
+within its segment. #1519 stops re-counting bs2's wires, so a positioned port
+will sit anywhere inside a segment. Part D holds density fixed and varies only
+the feed's position within its segment.
+
+### The paths
+
+- **cont:** #1519's continuous feed. The mesh is exactly the authored count, with
+  both antennaknobs' positioned-port re-count and its odd-parity bump
+  suppressed, and each port at its exact arclength.
+  - Part C's A0 suppressed only the re-count, so an even authored count still
+    became odd there. #1519's no-re-mesh gate asks that a positioned-port wire
+    keep its authored count, so this path suppresses both.
+- **old:** antennaknobs' placement as it stands (the parity bump and the
+  re-count), i.e. A.
+
+### The runs
+
+- **D1:** the feed at 0.5, on cont.
+  - Even n = 20, 40, 80, 160 put the feed on a knot.
+  - Odd n = 21, 41, 81, 161, 321 put it at a segment centre.
+- **D2:** k1, the feed at 0.31 with no loads. For base N = 41, 81 and 161:
+  - n = N − 5 … N + 5 on both paths;
+  - cont at 2N − 1, for the refinement step at N.
+- **D3:** D2 for k2 (with the load at 0.77) and for k3 (with loads at 0.77 and
+  0.04).
+- **D4:** D2 for k2 over finite ground 13 / 0.005, at base N = 81 only.
+
+ξ = frac(u·m) is each port's fractional position within its segment, where m is
+the engine's actual count.
+
+### Facts from the mesh-only probe, before any Part D solve (`mesh_d.jsonl`)
+
+- **233 rows, all ok.**
+- **cont's count equals the authored n in every row,** even n included.
+- **The feed's ξ covers 0.02–0.98,** eleven values per base N.
+- **old re-counts k1 and k2** to 50 / 150 / 250 segments at N = 41 / 81 / 161,
+  more than 5 % from n. So old is density-matched only on k3: no count puts
+  0.04 on a segment centre, so old keeps the parity count, n or n + 1, within
+  2.8 %.
+
+### Measures
+
+- **D1:**
+  - D1(m) = \|Z_cont(2m) − Z_cont(2m + 1)\|;
+  - step_odd(m) = \|Z_cont(2m + 1) − Z_cont(4m + 1)\|.
+- **The density trend per base N:** a least-squares fit Z = a + b/n² over the 11
+  counts, real and imaginary parts separately.
+  - The residual is Z − trend.
+  - ptp is the largest pairwise \|resᵢ − resⱼ\|.
+- **The refinement step at N:** step(N) = \|Z_cont(N) − Z_cont(2N − 1)\|.
+
+### Predictions
+
+| id | what | bar | prediction |
+|---|---|---|---|
+| **PD1** | a centre feed on a knot (even) against a segment centre (odd), at matched density | D1(m) ≤ step_odd(m) for m = 20, 40 and 80 | hit |
+| **PD2** | the continuous feed is insensitive to its place in the segment | ptp ≤ 0.25 · step(N) **and** ptp ≤ 0.05 % of \|Z_cont(N)\|, for k1, k2 and k3 in free space at N = 41, 81 and 161 | hit |
+| **PD3** | the old placement against the new, where density matches | wherever old's count is within ±5 % of n: \|Z_old(n) − Z_cont(n)\| ≤ step(N) | hit (k3 is the only case with instances) |
+| **PD4** | finite ground behaves like free space | k2 over somm13 at N = 81 meets both of PD2's bars | hit |
+| **PD5** | the placement sensitivity shrinks with refinement | ptp(N = 161) < ptp(N = 41), for k1, k2 and k3 in free space | hit |
+
+- **Reported and not gated:** D1 at m = 10, and each row's residual against every
+  port's ξ.
+- **Where a PD misses,** the report names the row with the largest \|residual\|
+  and its ports' ξ.
+- **Changing a bar** after the data is seen is an amendment, and never a re-spell.
