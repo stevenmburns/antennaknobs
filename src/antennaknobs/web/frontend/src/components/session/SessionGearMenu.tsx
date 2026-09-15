@@ -7,6 +7,7 @@ import { TabStrip } from "./TabStrip";
 // copies of the chart-overlay toggles (same state the overlays use, so the
 // two locations can never disagree), and the theme toggle.
 export function SessionGearMenu({
+  versionLabel,
   gearMenuOpen,
   setGearMenuOpen,
   copiedParams,
@@ -40,6 +41,10 @@ export function SessionGearMenu({
   theme,
   applyTheme,
 }: {
+  /** "v0.77.0 · momwire 0.55.0" (AK#1507), rendered as served — this
+   *  component names no engine. Null renders no label (older server, or the
+   *  fetch has not resolved yet). */
+  versionLabel: string | null;
   gearMenuOpen: boolean;
   setGearMenuOpen: (v: boolean | ((o: boolean) => boolean)) => void;
   copiedParams: boolean;
@@ -81,6 +86,9 @@ export function SessionGearMenu({
         <div className="brand">
           <h1>AntennaKNoBs</h1>
           <span className="byline">by KK7KNB</span>
+          {versionLabel !== null && (
+            <span className="version-label">{versionLabel}</span>
+          )}
         </div>
         <div className="header-actions">
           <div className="gear-menu-wrap">
