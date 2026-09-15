@@ -141,8 +141,15 @@ sits exactly on a site of its own grid:
 - a knot for the knot engines (NEC-5, razor, B-spline d=1).
 
 The count may grow to twice the wire's own. When no count in that range fits,
-the port goes to the engine's nearest site, and the solve carries a
-**FeedPlacement** advisory that says where the port asked to be, where it went
+PyNEC, NEC-2 and NEC-5 split the wire in two so the port sits at the exact
+middle of one piece, and the solve carries a **FeedPlacement** advisory that
+says where the port asked to be and where the wire was cut. The momwire engine
+never splits a wire: its default B-spline basis feeds the exact arclength at any
+count.
+
+A port can still land on the nearest site in two cases: a wire carrying several
+positioned ports that no count fits, and a momwire basis that places a port on
+its own grid. The advisory then says where the port asked to be, where it went
 and how many millimetres apart they are. A port never moves silently.
 
 Two refusals keep the model honest. A distributed port spans its whole wire,

@@ -290,15 +290,25 @@ material, 4nec2's own library, and the wider web.
 4nec2 (5.7.0 and later) also lets `EX`, `LD`, `TL` and `NT` give a segment as a
 percentage of the wire's length, measured from its first end: `EX 0 2 50% 0 1 0`
 feeds the middle of wire 2. With `network=True` the percentage is the exact
-position, a port at that point on the uncut wire that each engine meshes to
-carry exactly there. Without it, the percentage names the segment whose centre
-is nearest, and a position exactly on a segment boundary takes the lower
-segment. The 4nec2 manual does not document its own rounding, so on a wire
-whose boundary falls at the percentage, such as 50% of a two-segment wire, a
-4nec2 run can feed the neighbouring segment. `0%` and `100%` use the end
-segment's centre, since a gap cannot sit at a wire's end. A percentage needs a
-tag that names one wire, and an `LD` range given as two percentages expands
-over the segments between them.
+position: a port
+[positioned along the wire](/concepts/station-modelling/#a-port-anywhere-along-a-wire)
+at that point, fed there on every engine. An engine re-meshes the wire, up to
+twice its own segment count, so the point is a segment centre or a knot of its
+grid. When no count in that range has one there, PyNEC, NEC-2 and NEC-5 split
+the wire in two so the port sits at the exact middle of one piece, and say so in
+a FeedPlacement advisory.
+
+A percentage on a segment boundary can therefore differ from a 4nec2 run by
+design. 4nec2 converts the percentage to one of the two neighbouring segments
+before it solves, so on a two-segment wire `50%` feeds a segment centre a
+quarter of the wire away from the middle. antennaknobs feeds the middle.
+
+Without `network=True`, the percentage names the segment whose centre is
+nearest. A percentage exactly on the boundary between two segments is equally
+near both, so it is refused, and the message names `network=True`. `0%` and
+`100%` use the end segment's centre, since a gap cannot sit at a wire's end. A
+percentage needs a tag that names one wire, and an `LD` range given as two
+percentages expands over the segments between them.
 
 ## The NEC-5 dialect
 
