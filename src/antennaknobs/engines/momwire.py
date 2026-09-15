@@ -1751,6 +1751,38 @@ class MomwireEngine(SimulationEngine):
         return items + list(getattr(self, "_placement_notes", None) or [])
 
     @_captures_advisories
+    def fed_segments(self):
+        """`SimulationEngine.fed_segments`, read from the walked polylines:
+        this engine keeps no coerced wire list, so each feed's segment is its
+        own edge's length over that edge's count, which is what the fill
+        solves. End and vertex ports report their wire's coerced count."""
+        from ..engine import fed_records
+
+        site = "knot" if self.segment_parity == "even" else "centre"
+        out = []
+        for k, (pl, e) in enumerate(self._feed_edges):
+            poly = np.asarray(self._polylines[pl])
+            length = float(np.linalg.norm(poly[e + 1] - poly[e]))
+            n = int(self._edge_segments[pl][e])
+            out.append(
+                {
+                    "port": self._feed_names[k] if k < len(self._feed_names) else None,
+                    "wire": None,
+                    "segments": n,
+                    "length_m": length / n,
+                    "site": site,
+                }
+            )
+        end_names = {name for name, _w, _e in [*self._end_ports, *self._vertex_ports]}
+        if end_names:
+            coerced = self._coerce_wire_tuples(self.builder.build_wires())
+            out += [
+                {**r, "wire": None}
+                for r in fed_records(coerced, self.builder, self.segment_parity)
+                if r["port"] in end_names
+            ]
+        return out
+
     def impedance(self):
         self._raise_if_cancelled()
         return self._impedance_at(self._wavelength_for(self.builder.freq))

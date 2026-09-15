@@ -285,6 +285,50 @@ def _split_at_feed(t, at, parity):
     return pieces, tuple(hi for _lo, hi, _n, _c in spans[:-1])
 
 
+def _fed_record(port, index, wire, site):
+    """One `SimulationEngine.fed_segments` record for a straight wire."""
+    n = int(wire.n_seg)
+    length = float(np.linalg.norm(np.subtract(wire.p1, wire.p0)))
+    return {
+        "port": port,
+        "wire": index,
+        "segments": n,
+        "length_m": length / n,
+        "site": site,
+    }
+
+
+def fed_records(wires, builder, parity):
+    """`SimulationEngine.fed_segments` over an engine's COERCED wire list: the
+    legacy ``ex`` wires, then every gap or end port the builder's network
+    declares, each on the wire it names (AK#1456)."""
+    from .network import PortAtEnd, PortAtVertex
+
+    wires = [as_wire(t) for t in wires]
+    site = "knot" if parity == "even" else "centre"
+    out = [
+        _fed_record(None, i, w, site)
+        for i, w in enumerate(wires)
+        if w.ex is not None and not isinstance(w.n_seg, GradedSegments)
+    ]
+    build = getattr(builder, "build_network", None)
+    net = build() if callable(build) else None
+    if net is None:
+        return out
+    by_name = {w.name: i for i, w in enumerate(wires) if w.name is not None}
+    for name, port in net.ports.items():
+        if isinstance(port, PortOnWire):
+            index, where = by_name.get(port_wire(port)), site
+        elif isinstance(port, (PortAtVertex, PortAtEnd)):
+            index, where = by_name.get(port.wire), "end"
+        else:
+            continue
+        if index is None or isinstance(wires[index].n_seg, GradedSegments):
+            continue
+        out.append(_fed_record(name, index, wires[index], where))
+    return out
+
+
 def _port_positions(builder):
     """{wire name: [(port name, at), ...]} for every wire carrying a gap port
     with an explicit position (AK#1469), read from the builder's network.
@@ -429,6 +473,29 @@ class SimulationEngine(ABC):
                 out.append(wc)
             last = owner
         return out
+
+    def fed_segments(self):
+        """The segment each feed and port sits on, as THIS engine meshes it
+        (AK#1456): ``[{"port", "wire", "segments", "length_m", "site"}]``.
+
+        Engines differ here by construction. The parity coercion puts a delta
+        gap mid-segment on an odd count (momwire's bs2, PyNEC, NEC-2) and a
+        NEC-5 source on the centre knot of an even count, so the house 50 mm
+        gap wire is one 50 mm segment on one engine and two 25 mm segments on
+        the other. A near-open driving point is sensitive to that size, so a
+        row comparing engines records both.
+
+        ``site`` is ``"centre"`` (a gap in the middle of a segment
+        ``length_m`` long), ``"knot"`` (a source between two such segments)
+        or ``"end"`` (a port at the wire's end). ``port`` is the network
+        port's name, or None for a legacy ``ex`` feed; ``wire`` indexes the
+        engine's coerced wire list, or is None where the engine keeps none.
+        Read from the engine's own coerced wires, so it reports what the
+        engine solves, and it needs no solve."""
+        tups = getattr(self, "tups", None)
+        if tups is None:
+            return []
+        return fed_records(tups, self.builder, self.segment_parity)
 
     def _parity_exempt_names(self):
         """Wire names exempt from parity coercion even though marked.
