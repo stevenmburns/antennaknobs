@@ -133,32 +133,27 @@ ports = {
 }
 ```
 
-Each engine then chooses that wire's segment count so that every port on it
-sits exactly on a site of its own grid:
+Every engine feeds that point on the wire's own mesh: the segment count of a
+wire carrying a positioned port is never changed to reach it. What happens next
+depends on where the engine can feed:
 
-- a segment centre for the NEC-2-shaped engines (PyNEC, NEC-2, sinusoidal,
-  B-spline d=2);
-- a knot for the knot engines (NEC-5, razor, B-spline d=1).
+- PyNEC and NEC-2 feed a delta gap at a segment centre. When every positioned
+  port on the wire is already a segment centre, the wire stays whole. Otherwise
+  the wire is split: each port gets its own short wire centred on it, reaching a
+  quarter of the way to its neighbours or a third of the way to a wire end, with
+  plain wire in between. A port within a segment of an end, with nothing tighter
+  nearby, runs its short wire to the end.
+- NEC-5 feeds a knot. When every positioned port on the wire is already a knot,
+  the wire stays whole. Otherwise the wire is cut at every port, and each port
+  is fed at the knot the pieces on either side share.
+- The momwire engine never splits a wire: its default B-spline basis feeds the
+  exact arclength at any count.
 
-The count may grow to twice the wire's own. When no count in that range fits
-every port, the wire is split so every port on it is fed exactly, however many
-share it, and the solve carries a **FeedPlacement** advisory naming each port
-and its position:
-
-- On PyNEC and NEC-2, each port gets its own short wire centred on it, reaching
-  a quarter of the way to its neighbours or a third of the way to a wire end,
-  with plain wire in between. A port within a segment of an end, with nothing
-  tighter nearby, runs its short wire to the end.
-- On NEC-5, the wire is cut at every port, and each port is fed at the knot the
-  pieces on either side share.
-
-The momwire engine never splits a wire: its default B-spline basis feeds the
-exact arclength at any count.
-
-A port can still land on the nearest site in one case: a momwire basis that
-places a port on its own grid. The advisory then says where the port asked to
-be, where it went and how many millimetres apart they are. A port never moves
-silently.
+A split wire's solve carries a **FeedPlacement** advisory naming each port and
+its position. A port can still land on the nearest site in one case: a momwire
+basis that places a port on its own grid. The advisory then says where the port
+asked to be, where it went and how many millimetres apart they are. A port never
+moves silently.
 
 Two refusals keep the model honest. A distributed port spans its whole wire,
 so it cannot share one and takes no `at`. Two ports at the same point would be

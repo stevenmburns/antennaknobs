@@ -223,10 +223,11 @@ the physics doesn't:
   basis-agreed value.
 - A port **positioned along a wire** (`PortOnWire(..., at=...)`) stays where
   it was asked for as the mesh refines, and so does every other port on the
-  same wire. At every rung each engine re-chooses the wire's count (up to twice
-  its own) so every gap lands on a segment centre or a knot of its grid. On a
-  rung where no count fits, the wire is split so every gap still sits exactly
-  there. On PyNEC and NEC-2 each port gets its own short wire centred on it,
+  same wire. At every rung the wire keeps that rung's segment count: no engine
+  re-counts it to reach a port. Where every gap is already a segment centre
+  (PyNEC, NEC-2) or a knot (NEC-5) of that mesh, the wire stays whole;
+  otherwise it is split so every gap sits exactly there. On PyNEC and NEC-2
+  each port gets its own short wire centred on it,
   reaching a quarter of the way to its neighbours or a third of the way to a
   wire end, with plain wire in between; a port within a segment of an end, with
   nothing tighter nearby, runs its short wire to the end. On NEC-5 the wire is

@@ -292,15 +292,16 @@ percentage of the wire's length, measured from its first end: `EX 0 2 50% 0 1 0`
 feeds the middle of wire 2. With `network=True` the percentage is the exact
 position: a port
 [positioned along the wire](/concepts/station-modelling/#a-port-anywhere-along-a-wire)
-at that point, fed there on every engine. An engine re-meshes the wire, up to
-twice its own segment count, so every such point on it is a segment centre or a
-knot of its grid. When no count in that range fits them all, the wire is split
-so every port on it is fed exactly, however many share it, and a FeedPlacement
-advisory says so. On PyNEC and NEC-2 each port gets its own short wire centred
-on it, reaching a quarter of the way to its neighbours or a third of the way to
-a wire end, with plain wire in between. A port within a segment of an end, with
-nothing tighter nearby, runs its short wire to the end. NEC-5 cuts the wire at
-every port and feeds each one at the knot the pieces on either side share.
+at that point, fed there on every engine, and the wire's own segment count is
+never changed to reach it. When every such point on the wire is already a
+segment centre (PyNEC, NEC-2) or a knot (NEC-5) of its mesh, the wire stays
+whole and each port is fed there. Otherwise the wire is split so every port on
+it is fed exactly, however many share it, and a FeedPlacement advisory says so.
+On PyNEC and NEC-2 each port gets its own short wire centred on it, reaching a
+quarter of the way to its neighbours or a third of the way to a wire end, with
+plain wire in between. A port within a segment of an end, with nothing tighter
+nearby, runs its short wire to the end. NEC-5 cuts the wire at every port and
+feeds each one at the knot the pieces on either side share.
 
 Another program can feed a percentage that falls exactly on a segment boundary
 differently. antennaknobs feeds the stated point.
