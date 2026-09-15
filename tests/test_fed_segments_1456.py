@@ -20,7 +20,7 @@ import pytest
 from antennaknobs import AntennaBuilder
 from antennaknobs.engines.momwire import MomwireEngine
 from antennaknobs.engines.nec5 import NEC5Engine
-from antennaknobs.network import Driven, Network, PortOnWire, Wire, as_wire
+from antennaknobs.network import Driven, Load, Network, PortOnWire, Wire, as_wire
 
 SOIL = ("finite", 13.0, 0.005)
 
@@ -146,7 +146,8 @@ def test_the_validation_pages_leeson_fed_segment_is_the_benchs_mesh():
 
 
 # ---------------------------------------------------------------------------
-# A wire split at its feed (AK#1510): the fed segment is the one meshed there
+# A wire split at its ports (AK#1510, AK#1511): the fed segment is the one
+# meshed there
 # ---------------------------------------------------------------------------
 
 SPLIT_FREQ = 28.47
@@ -190,7 +191,7 @@ def test_nec5_reports_the_knot_its_split_shares_not_the_authored_wire():
     share, as a series source at the first piece's end: the fed segments are
     that piece's last and the next piece's first, not a tenth of the wire."""
     eng = NEC5Engine(_positioned(0.31), require_exe=False)
-    assert set(eng._split_feeds) == {"feed"}
+    assert set(eng._split_ports) == {"feed"}
     before, after = eng.tups[0], eng.tups[1]
     (rec,) = eng.fed_segments()
     assert (rec["port"], rec["wire"], rec["site"]) == ("feed", 0, "knot")
@@ -200,22 +201,26 @@ def test_nec5_reports_the_knot_its_split_shares_not_the_authored_wire():
     assert rec["length_m"] != pytest.approx(2 * SPLIT_ARM / 10)
 
 
-@pytest.mark.parametrize("engine", ["pynec", "nec2"])
-def test_a_centre_engine_reports_the_carrying_piece_of_its_split(engine, monkeypatch):
-    """PyNEC and NEC-2 cut the wire so the port sits at the middle of the piece
-    that keeps the wire's name: the fed segment is that piece's middle one."""
+def _centre_engine(engine, builder, monkeypatch):
     pytest.importorskip("PyNEC")
     if engine == "pynec":
         from antennaknobs.engines.pynec import PyNECEngine
 
-        eng = PyNECEngine(_positioned(1 / 3), ground=None)
-    else:
-        from antennaknobs.engines import nec2
+        return PyNECEngine(builder, ground=None)
+    from antennaknobs.engines import nec2
 
-        monkeypatch.setattr(nec2, "find_nec2", lambda explicit=None: "/bin/true")
-        eng = nec2.NEC2Engine(_positioned(1 / 3))
-    assert set(eng._split_feeds) == {"feed"}
-    (index,) = [i for i, t in enumerate(eng.tups) if as_wire(t).name == "w"]
+    monkeypatch.setattr(nec2, "find_nec2", lambda explicit=None: "/bin/true")
+    return nec2.NEC2Engine(builder)
+
+
+@pytest.mark.parametrize("engine", ["pynec", "nec2"])
+def test_a_centre_engine_reports_the_carrying_piece_of_its_split(engine, monkeypatch):
+    """PyNEC and NEC-2 give the port a short piece of its own, named
+    ``w@feed``, with the port at its middle: the fed segment is that piece's
+    middle one."""
+    eng = _centre_engine(engine, _positioned(1 / 3), monkeypatch)
+    assert set(eng._split_ports) == {"feed"}
+    (index,) = [i for i, t in enumerate(eng.tups) if as_wire(t).name == "w@feed"]
     carrying = eng.tups[index]
     (rec,) = eng.fed_segments()
     assert (rec["port"], rec["wire"], rec["site"]) == ("feed", index, "centre")
@@ -226,7 +231,62 @@ def test_a_centre_engine_reports_the_carrying_piece_of_its_split(engine, monkeyp
 
 def test_momwire_never_splits_and_reports_the_edge_its_feed_sits_on():
     eng = MomwireEngine(_positioned(1 / 3))
-    assert not getattr(eng, "_split_feeds", None)
+    assert not getattr(eng, "_split_wires", None)
     (rec,) = eng.fed_segments()
     assert (rec["port"], rec["site"]) == ("feed", "centre")
     assert rec["length_m"] * rec["segments"] == pytest.approx(2 * SPLIT_ARM)
+
+
+class _TwoPortDipole(_PositionedDipole):
+    """The same wire with a 50 ohm load at 0.77 as well. No count from 10 to 20
+    puts a knot, or a segment centre, at both 0.31 and 0.77, so every splitting
+    engine cuts the wire for both ports (AK#1511)."""
+
+    def build_network(self):
+        return Network(
+            ports={
+                "feed": PortOnWire("feed", wire="w", at=0.31),
+                "load": PortOnWire("load", wire="w", at=0.77),
+            },
+            branches=[Load(port="load", r=50.0)],
+            sources=[Driven(port="feed")],
+        )
+
+
+def _two_port():
+    _positioned(0.31)  # the same momwire#1059 skip
+    return _TwoPortDipole()
+
+
+def test_nec5_reports_each_port_at_the_knot_of_its_own_cut():
+    """The wire breaks at 0.31 and 0.77 into pieces of 3, 5 and 2 segments. Each
+    port's record is its own cut: the last segment of the piece named for it
+    and the first of the next, which differ in length here."""
+    eng = NEC5Engine(_two_port(), require_exe=False)
+    assert eng._split_ports == {"feed": "w@feed", "load": "w@load"}
+    records = {r["port"]: r for r in eng.fed_segments()}
+    assert set(records) == {"feed", "load"}
+    for port, index in (("feed", 0), ("load", 1)):
+        piece, nxt = eng.tups[index], eng.tups[index + 1]
+        rec = records[port]
+        assert as_wire(piece).name == f"w@{port}"
+        assert (rec["wire"], rec["site"]) == (index, "knot")
+        assert rec["segments"] == as_wire(piece).n_seg
+        assert rec["length_m"] == pytest.approx(_segment(piece))
+        assert rec["length_after_m"] == pytest.approx(_segment(nxt))
+        assert rec["length_after_m"] != pytest.approx(rec["length_m"])
+
+
+@pytest.mark.parametrize("engine", ["pynec", "nec2"])
+def test_a_centre_engine_reports_each_ports_own_piece(engine, monkeypatch):
+    eng = _centre_engine(engine, _two_port(), monkeypatch)
+    assert eng._split_ports == {"feed": "w@feed", "load": "w@load"}
+    records = {r["port"]: r for r in eng.fed_segments()}
+    assert set(records) == {"feed", "load"}
+    for port in ("feed", "load"):
+        (index,) = [i for i, t in enumerate(eng.tups) if as_wire(t).name == f"w@{port}"]
+        piece = eng.tups[index]
+        rec = records[port]
+        assert (rec["wire"], rec["site"]) == (index, "centre")
+        assert rec["segments"] == as_wire(piece).n_seg and rec["segments"] % 2 == 1
+        assert rec["length_m"] == pytest.approx(_segment(piece))

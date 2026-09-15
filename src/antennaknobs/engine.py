@@ -1,4 +1,5 @@
 import copy
+import itertools
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import replace
@@ -7,7 +8,12 @@ from typing import ClassVar, Literal, NamedTuple
 import numpy as np
 
 from .network import GradedSegments, PortAtVertex, PortOnWire, Wire, as_wire
-from .wire_catalog import gap_knot, gap_segment, port_at, port_wire, site_count
+from .wire_catalog import (
+    port_at,
+    port_wire,
+    refuse_coincident_ports,
+    site_count,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -104,22 +110,6 @@ class WireCurrents(NamedTuple):
     knot_currents: np.ndarray  # (M,)   complex
 
 
-def _positioned_ports(builder):
-    """[(port name, wire name, at)] for every non-distributed gap port that
-    names a position (AK#1469). No builder, or no network, means none."""
-    build = getattr(builder, "build_network", None)
-    net = build() if callable(build) else None
-    if net is None:
-        return []
-    return [
-        (name, port_wire(port), port_at(port))
-        for name, port in net.ports.items()
-        if isinstance(port, PortOnWire)
-        and not getattr(port, "distributed", False)
-        and port_at(port) is not None
-    ]
-
-
 def placement_note(port, wire, at, placed, offset_m, site):
     """AK's advisory for a positioned port an engine could not place exactly
     (AK#1469): where it was asked for, where it went, and how far that is."""
@@ -134,59 +124,43 @@ def placement_note(port, wire, at, placed, offset_m, site):
     }
 
 
-def _grid_placement_notes(tups, ports, parity):
-    """The placement advisories for an engine that places a port on the
-    segment centres (odd parity) or knots (even parity) of its final count."""
-    family = {"odd": "centre", "even": "knot"}.get(parity)
-    if family is None or not ports:
-        return []
-    wires = {}
-    for t in tups:
-        w = as_wire(t)
-        if w.name is not None and not isinstance(w.n_seg, GradedSegments):
-            wires[w.name] = w
-    notes = []
-    for port, wire, at in ports:
-        w = wires.get(wire)
-        if w is None:
-            continue
-        n = int(w.n_seg)
-        if family == "centre":
-            placed, site = (gap_segment(n, at) - 0.5) / n, "segment centre"
-        else:
-            placed, site = gap_knot(n, at) / n, "knot"
-        if abs(placed - at) <= 1e-9:
-            continue
-        length = float(np.linalg.norm(np.subtract(w.p1, w.p0)))
-        notes.append(
-            placement_note(port, wire, at, placed, (placed - at) * length, site)
-        )
-    return notes
+def _and_list(items):
+    """'a', 'a and b', 'a, b and c'."""
+    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
 
 
-def split_note(port, wire, at, cuts, site):
-    """AK's advisory for a positioned port whose wire an engine split at the
-    feed (AK#1510): where it was asked for, that no count up to the cap has a
-    site there, and where the wire was cut. The feed is exact, so there is no
-    offset to report."""
-    where = " and ".join(f"{c:.4g}" for c in cuts)
-    if site == "knot":
+def split_note(wire, ports, site):
+    """AK's advisory for a wire an engine split so every positioned port on it
+    is fed exactly (AK#1511): the ports and their positions, that no count up
+    to the cap puts a site at all of them, and how each port is fed. The feeds
+    are exact, so there is no offset to report. `ports` is ``[(port, at)]`` in
+    order along the wire."""
+    listed = _and_list([f"{port!r} at {at:.4g}" for port, at in ports])
+    one = len(ports) == 1
+    who = f"port {listed}" if one else f"ports {listed}"
+    where = "there" if one else "at all of them"
+    each = "the port is" if one else "every port is"
+    if site == "knot" and one:
         how = (
-            f"so the wire is split in two at {where} and the port is fed at the "
-            "knot the two pieces share"
+            "so the wire is split there and the port is fed exactly, at the knot "
+            "the two pieces share"
+        )
+    elif site == "knot":
+        how = (
+            "so the wire is split at each port and every port is fed exactly, at "
+            "the knot the pieces on either side share"
         )
     else:
-        pieces = "two" if len(cuts) == 1 else "three"
         how = (
-            f"so the wire is split in {pieces} at {where} of its length and the "
-            "port is fed exactly, at the middle of its piece"
+            f"so the wire is split and {each} fed exactly, at the middle of a "
+            "short piece of its own"
         )
     return {
         "category": "FeedPlacement",
         "text": (
-            f"Port {port!r} asks for {at:.4g} of the way along wire {wire!r}. "
-            f"No segment count up to {SITE_COUNT_CAP}× the wire's own puts a "
-            f"{site} there, {how} (AK#1510)."
+            f"Wire {wire!r} carries {who} of its length. No segment count up to "
+            f"{SITE_COUNT_CAP}× the wire's own puts a {site} {where}, {how} "
+            "(AK#1511)."
         ),
     }
 
@@ -197,92 +171,127 @@ def _nearest_odd_count(segments):
     return max(1, 2 * round((segments - 1) / 2) + 1)
 
 
-def _split_at_feed(t, at, parity):
-    """Wire entry `t` cut so a port at `at` sits exactly on a site (AK#1510):
-    ``(pieces in p0 -> p1 order, cuts as fractions)``.
+class SplitSpan(NamedTuple):
+    """One piece of a split wire, as fractions of the wire (AK#1511)."""
 
-    A knot engine (even parity) feeds a knot at a piece's END, so the wire is
-    broken at the port itself: [0, at] keeps the wire's name, ex and spec,
-    [at, 1] is unnamed with the same spec, each takes its own share of the
-    authored count, at least 1, and the port is fed at the knot they share.
-    No parity applies, since that knot is an end of both pieces.
+    lo: float
+    hi: float
+    n_seg: int
+    # The index, in order along the wire, of the port this piece feeds: at its
+    # middle on a segment-centre engine, at its `hi` knot on a knot engine.
+    # None for a plain filler (or a knot engine's last piece).
+    port: int | None
 
-    A segment-centre engine (odd parity) needs the port at a piece's MIDDLE.
-    Two pieces: the carrying piece is [0, 2*at] for at < 1/2 and [2*at - 1, 1]
-    above it, so its middle is `at`. It takes its share of the authored count
-    raised to odd, so its middle is a segment centre; the other piece takes
-    its own share, at least 1.
 
-    That other piece is |1 - 2*at| of the wire, shorter than half an authored
-    segment h = 1/n when |1 - 2*at| * n < 1/2: a sliver at the far end. Then
-    the carrying piece is [at - w, at + w] between two fillers. With d the
-    distance to the nearer end, the nearer filler is d - w = h, or h/2 when h
-    leaves w < h/2, and the far filler is 1 - d - w >= h/2. Near the middle
-    d > 1/2 - h/4, so h serves n >= 4 and h/2 serves n = 3. A wire of one or
-    two segments keeps the two-piece split. The carrying piece takes the odd
-    count nearest its length in authored segments, each filler its own, at
-    least 1.
+class SplitPlan(NamedTuple):
+    """How `split_spans` cuts a wire (AK#1511)."""
 
-    Every piece but the carrying one is unnamed with the same spec, and all
-    keep the wire's orientation and meet at the cuts."""
-    wire = as_wire(t)
-    n = int(wire.n_seg)
-    h = 1 / n
-    spans = None
+    spans: tuple[SplitSpan, ...]
+    # Centre engines: each port's half-width x, so its piece is [u - x, u + x].
+    # Empty for a knot engine.
+    half: tuple[float, ...]
+    # Centre engines: whether the end guard fired at the wire's p0 / p1 end.
+    guard: tuple[bool, bool]
+
+
+def split_spans(n_seg, positions, parity):
+    """The pieces a wire of `n_seg` segments is cut into so that every port at
+    `positions` (fractions in (0, 1), distinct) is fed exactly (AK#1511). The
+    deterministic rule decided on the issue; with h = 1/n_seg:
+
+    A knot engine (even parity) cuts at every port. Each piece takes
+    max(1, round(length/h)) segments, and port i is fed at the `hi` knot of
+    piece i, which it shares with piece i + 1.
+
+    A segment-centre engine (odd parity) gives port i a short piece
+    [u_i - x_i, u_i + x_i] centred on it, with the odd count nearest 2 x_i / h
+    (at least 1), so its middle segment's centre is the port. x_i is the
+    smallest of its limits:
+
+    - g/4 for each neighbouring port at gap g;
+    - for an end port, b/3 for its wire end at distance b. The guard: with
+      OTHER the smallest of the port's remaining limits (its neighbour's g/4
+      and, for a lone port, the other end's b'/3), an end with b <= h and
+      b <= OTHER has the limit b instead, so the piece runs to that end with no
+      filler. The two ends of a lone port cannot both fire (b <= b'/3 and
+      b' <= b/3 together need b = 0).
+
+    Plain fillers take the gaps, each max(1, round(length/h)) segments, and the
+    zero-length filler where the guard fired is omitted. So a filler between
+    two ports is at least g/2, an end filler at least 2b/3, and every piece has
+    a lower bound set by the local geometry: no slivers."""
+    n = max(int(n_seg), 1)
+    u = sorted(float(a) for a in positions)
+    k = len(u)
     if parity == "even":
-        spans = [
-            (0.0, at, max(1, round(at * n)), True),
-            (at, 1.0, max(1, round((1 - at) * n)), False),
-        ]
-    elif abs(1 - 2 * at) * n < 0.5:
-        d = min(at, 1 - at)
-        half = next((d - near for near in (h, h / 2) if d - near >= h / 2), None)
-        if half is None:
-            _logger.warning(
-                "wire %r has %d segment(s): a port at %.6g leaves a piece of "
-                "%.3g of the wire at its far end",
-                wire.name,
-                n,
-                at,
-                abs(1 - 2 * at),
-            )
-        else:
-            lo, hi = at - half, at + half
-            spans = [
-                (0.0, lo, max(1, round(lo * n)), False),
-                (lo, hi, _nearest_odd_count(2 * half * n), True),
-                (hi, 1.0, max(1, round((1 - hi) * n)), False),
-            ]
-    if spans is None:
-        share = 2 * at if at < 0.5 else 2 * (1 - at)
-        cut = 2 * at if at < 0.5 else 2 * at - 1
-        carrying = SimulationEngine.coerce_n_seg(max(1, round(share * n)), parity)
-        rest = max(1, round((1 - share) * n))
-        spans = (
-            [(0.0, cut, carrying, True), (cut, 1.0, rest, False)]
-            if at < 0.5
-            else [(0.0, cut, rest, False), (cut, 1.0, carrying, True)]
+        cuts = [0.0, *u, 1.0]
+        return SplitPlan(
+            spans=tuple(
+                SplitSpan(lo, hi, max(1, round((hi - lo) * n)), i if i < k else None)
+                for i, (lo, hi) in enumerate(itertools.pairwise(cuts))
+            ),
+            half=(),
+            guard=(False, False),
         )
+    h = 1.0 / n
+    half = []
+    guard = [False, False]
+    for i, ui in enumerate(u):
+        near = []
+        if i > 0:
+            near.append((ui - u[i - 1]) / 4)
+        if i < k - 1:
+            near.append((u[i + 1] - ui) / 4)
+        ends = []
+        if i == 0:
+            ends.append((0, ui))
+        if i == k - 1:
+            ends.append((1, 1.0 - ui))
+        limits = list(near)
+        for side, b in ends:
+            other = min(near + [b2 / 3 for s2, b2 in ends if s2 != side])
+            if b <= h and b <= other:
+                guard[side] = True
+                limits.append(b)
+            else:
+                limits.append(b / 3)
+        half.append(min(limits))
+    spans = []
+    edge = 0.0
+    for i, (ui, xi) in enumerate(zip(u, half, strict=True)):
+        lo = 0.0 if i == 0 and guard[0] else ui - xi
+        hi = 1.0 if i == k - 1 and guard[1] else ui + xi
+        if not (i == 0 and guard[0]):
+            spans.append(SplitSpan(edge, lo, max(1, round((lo - edge) * n)), None))
+        spans.append(SplitSpan(lo, hi, _nearest_odd_count(2 * xi * n), i))
+        edge = hi
+    if not guard[1]:
+        spans.append(SplitSpan(edge, 1.0, max(1, round((1.0 - edge) * n)), None))
+    return SplitPlan(spans=tuple(spans), half=tuple(half), guard=tuple(guard))
 
-    def point(frac):
-        if frac == 0.0:
-            return wire.p0
-        if frac == 1.0:
-            return wire.p1
-        return tuple(
-            float(a + frac * (b - a)) for a, b in zip(wire.p0, wire.p1, strict=True)
-        )
 
-    pieces = []
-    for lo, hi, count, carries in spans:
-        ex, name = (wire.ex, wire.name) if carries else (None, None)
-        if isinstance(t, Wire) or len(t) == 6:
-            pieces.append(
-                wire._replace(p0=point(lo), p1=point(hi), n_seg=count, ex=ex, name=name)
-            )
-        else:
-            pieces.append((point(lo), point(hi), count, ex, name))
-    return pieces, tuple(hi for _lo, hi, _n, _c in spans[:-1])
+class WireSplit(NamedTuple):
+    """One authored wire as an engine split it (AK#1511)."""
+
+    # (port name, at) in order along the wire, the middle as 0.5.
+    ports: tuple[tuple[str, float], ...]
+    # The wire name of the piece each port feeds, in the same order.
+    pieces: tuple[str, ...]
+    plan: SplitPlan
+
+
+def _piece_name(wire, port, taken):
+    """The wire name of the piece `port` feeds on split wire `wire`:
+    ``"<wire>@<port>"``, with ``#2``, ``#3``, ... appended in the rare case a
+    wire of the design already carries that name. Deterministic, and never a
+    name in `taken`, which it joins (AK#1511)."""
+    base = f"{wire}@{port}"
+    name, i = base, 1
+    while name in taken:
+        i += 1
+        name = f"{base}#{i}"
+    taken.add(name)
+    return name
 
 
 def _fed_record(port, index, wire, site):
@@ -314,13 +323,13 @@ def fed_records(wires, network, parity, owners=None):
     its network AS MESHED (AK#1456): the legacy ``ex`` wires, then every gap
     or end port, each on the wire it names.
 
-    A port NEC-5 feeds through a wire split at its feed (AK#1510) arrives as a
-    `PortAtVertex` at the end of the piece carrying the wire's name, and
-    `owners` (the authored entry each wire came from) says the next piece is the
-    same wire. That source is the knot the two pieces share, so its record is a
-    knot whose two segments are that piece's last and the next piece's first. A
-    segment-centre engine's split port arrives as a gap at the middle of its
-    carrying piece, and reports that piece."""
+    A port NEC-5 feeds through a wire split at its ports (AK#1510, AK#1511)
+    arrives as a `PortAtVertex` at the p1 end of the piece named for it
+    (``<wire>@<port>``), and `owners` (the authored entry each wire came from)
+    says the next piece is the same wire. That source is the knot the two
+    pieces share, so its record is a knot whose two segments are that piece's
+    last and the next piece's first. A segment-centre engine's split port
+    arrives as a gap at the middle of its own piece, and reports that piece."""
     from .network import PortAtEnd
 
     wires = [as_wire(t) for t in wires]
@@ -362,8 +371,9 @@ def fed_records(wires, network, parity, owners=None):
 
 
 def _port_positions(builder):
-    """{wire name: [(port name, at), ...]} for every wire carrying a gap port
-    with an explicit position (AK#1469), read from the builder's network.
+    """``({wire name: [(port name, at), ...]}, referenced)`` for the gap ports
+    of the builder's network (AK#1469): every wire carrying a gap port with an
+    explicit position, and the set of wire names any port references.
 
     A wire whose ports all sit at the middle is absent: the parity rule already
     serves it, and the old counts must not move. No builder (a stub borrowing
@@ -371,16 +381,22 @@ def _port_positions(builder):
     build = getattr(builder, "build_network", None)
     net = build() if callable(build) else None
     if net is None:
-        return {}
+        return {}, set()
     by_wire: dict = {}
+    referenced = set()
     for name, port in net.ports.items():
-        if isinstance(port, PortOnWire) and not getattr(port, "distributed", False):
-            by_wire.setdefault(port_wire(port), []).append((name, port_at(port)))
-    return {
+        if isinstance(port, PortOnWire):
+            referenced.add(port_wire(port))
+            if not getattr(port, "distributed", False):
+                by_wire.setdefault(port_wire(port), []).append((name, port_at(port)))
+        elif isinstance(getattr(port, "wire", None), str):
+            referenced.add(port.wire)
+    positions = {
         w: ports
         for w, ports in by_wire.items()
         if any(at is not None for _name, at in ports)
     }
+    return positions, referenced
 
 
 class SimulationEngine(ABC):
@@ -392,10 +408,11 @@ class SimulationEngine(ABC):
     # (issue #450). "any" disables coercion.
     segment_parity: ClassVar[SegmentParity] = "any"
     # An engine whose gap can only sit on a site of its own grid sets this: a
-    # wire carrying ONE positioned port that no count up to the cap puts on a
-    # site is split so the port sits exactly on one (AK#1510), at the middle
-    # of a piece for a segment-centre engine and at the knot two pieces share
-    # for a knot engine. momwire never splits.
+    # wire whose positioned ports no count up to the cap puts on sites, one
+    # port or several, is split so every port sits exactly on one (AK#1510,
+    # AK#1511; `split_spans`): at the middle of a short piece of its own for a
+    # segment-centre engine, at the knot two pieces share for a knot engine.
+    # momwire never splits.
     splits_wire_at_feed: ClassVar[bool] = False
 
     def __init__(self, builder):
@@ -434,46 +451,41 @@ class SimulationEngine(ABC):
     @property
     def advisories(self):
         """AK's own notes on how this engine meshed the design, as
-        ``{"category", "text"}``: a positioned port it fed through a split
-        wire (AK#1510), or one it could not place exactly (AK#1469). Empty for
-        an ordinary design, whose ports all sit at a wire's middle."""
-        splits = getattr(self, "_split_feeds", None) or {}
+        ``{"category", "text"}``: one per wire it split so the positioned ports
+        on it are fed exactly (AK#1511). Empty for an ordinary design, whose
+        ports all sit at a wire's middle or on a site of a re-meshed count.
+
+        A splitting engine never places a port on a nearest site, so there is
+        no offset note here; momwire's snapping bases report their own."""
         site = {"odd": "segment centre", "even": "knot"}.get(self.segment_parity)
-        notes = [
-            split_note(port, wire, at, cuts, site)
-            for port, (wire, at, cuts) in splits.items()
+        return [
+            split_note(wire, split.ports, site)
+            for wire, split in (getattr(self, "_split_wires", None) or {}).items()
         ]
-        return notes + _grid_placement_notes(
-            getattr(self, "tups", None) or (),
-            [
-                p
-                for p in _positioned_ports(getattr(self, "builder", None))
-                if p[0] not in splits
-            ],
-            self.segment_parity,
-        )
 
     def _network_as_meshed(self, net):
-        """`net` as this engine meshes it (AK#1510), so every reader of a split
-        port's position (segment, knot, card or drive point) feeds the site the
-        split made, never `at` re-applied to a piece. A shallow copy: the
-        builder's network is untouched.
+        """`net` as this engine meshes it (AK#1510, AK#1511), so every reader
+        of a split port's position (segment, knot, card, drive point, reducer
+        attach) feeds the site the split made, never `at` re-applied to a
+        piece. A shallow copy: the builder's network is untouched.
 
-        On a segment-centre engine the port sits at the MIDDLE of the piece
-        carrying the wire's name. On a knot engine it is the series source at
-        that piece's p1 end, the knot it shares with the next piece: the
-        `PortAtVertex` NEC-5 serves natively (issue #898), whose source and
-        loads sit at that knot as they would at an interior one."""
-        splits = getattr(self, "_split_feeds", None)
-        if net is None or not splits:
+        Each port on a split wire maps to the piece named for it
+        (`_piece_name`). On a segment-centre engine the port sits at the MIDDLE
+        of that piece. On a knot engine it is the series source at the piece's
+        p1 end, the knot it shares with the next piece: the `PortAtVertex`
+        NEC-5 serves natively (issue #898), whose source and loads sit at that
+        knot as they would at an interior one."""
+        pieces = getattr(self, "_split_ports", None)
+        if net is None or not pieces:
             return net
 
         def meshed_port(name, port):
-            if name not in splits:
+            piece = pieces.get(name)
+            if piece is None:
                 return port
             if self.segment_parity == "even":
-                return PortAtVertex(wire=port_wire(port), end="p1")
-            return replace(port, at=None)
+                return PortAtVertex(wire=piece, end="p1")
+            return replace(port, wire=piece, at=None)
 
         meshed = copy.copy(net)
         meshed.ports = {name: meshed_port(name, p) for name, p in net.ports.items()}
@@ -481,12 +493,12 @@ class SimulationEngine(ABC):
 
     def _authored_currents(self, currents):
         """One `WireCurrents` per authored ``build_wires()`` entry (AK#1510).
-        The two pieces of a wire split at its feed join back into that wire,
-        so a caller indexing currents by the design's own wires finds each one
-        where the design wrote it. The knot at the cut takes the mean of the
-        two pieces' end currents, the rule every interior knot follows."""
+        Every piece of a split wire joins back into that wire, in order, so a
+        caller indexing currents by the design's own wires finds each one where
+        the design wrote it. The knot at each cut takes the mean of the two
+        pieces' end currents, the rule every interior knot follows."""
         owners = getattr(self, "_tup_authored", None)
-        if not getattr(self, "_split_feeds", None) or owners is None:
+        if not getattr(self, "_split_wires", None) or owners is None:
             return currents
         out, last = [], None
         for owner, wc in zip(owners, currents, strict=True):
@@ -524,7 +536,8 @@ class SimulationEngine(ABC):
         engine's coerced wire list, or is None where the engine keeps none.
         A knot record also carries ``length_after_m``, the segment on the
         knot's far side. It equals ``length_m`` except where a wire is split at
-        its feed (AK#1510) and the source is the knot two pieces share. Read
+        its ports (AK#1510, AK#1511) and the source is the knot two pieces
+        share. Read
         from the engine's own coerced wires and its network as meshed, so it
         reports what the engine solves, and it needs no solve."""
         tups = getattr(self, "tups", None)
@@ -536,6 +549,60 @@ class SimulationEngine(ABC):
             self.segment_parity,
             getattr(self, "_tup_authored", None),
         )
+
+    def _split_wire(self, t, at_here, parity, taken):
+        """Wire entry `t` cut by `split_spans` so every port in `at_here`
+        (``[(port name, at)]``, None the middle) is fed exactly (AK#1511),
+        recording the split on `_split_wires` and `_split_ports`. Returns the
+        pieces in p0 -> p1 order.
+
+        Every piece keeps the wire's orientation and spec, and neighbours meet
+        at the same point. The piece a port feeds is named for it
+        (`_piece_name`), so the meshed network can point that port at it;
+        fillers are unnamed. A legacy ``ex`` on the wire rides on the first fed
+        piece: a positioned port only exists in a `build_network()` design,
+        where PyNEC and NEC-2 ignore ``ex`` and NEC-5 refuses the mix, and the
+        refusal must still see it."""
+        wire = as_wire(t)
+        refuse_coincident_ports(wire.name, at_here)
+        middle = [(port, 0.5 if at is None else float(at)) for port, at in at_here]
+        ordered = tuple(sorted(middle, key=lambda p: p[1]))
+        plan = split_spans(wire.n_seg, [at for _port, at in ordered], parity)
+        names = tuple(_piece_name(wire.name, port, taken) for port, _at in ordered)
+
+        def point(frac):
+            if frac == 0.0:
+                return wire.p0
+            if frac == 1.0:
+                return wire.p1
+            return tuple(
+                float(a + frac * (b - a)) for a, b in zip(wire.p0, wire.p1, strict=True)
+            )
+
+        pieces = []
+        ex = wire.ex
+        for span in plan.spans:
+            name = None if span.port is None else names[span.port]
+            here, ex = (ex, None) if name is not None else (None, ex)
+            p0, p1 = point(span.lo), point(span.hi)
+            if isinstance(t, Wire) or len(t) == 6:
+                pieces.append(
+                    wire._replace(p0=p0, p1=p1, n_seg=span.n_seg, ex=here, name=name)
+                )
+            else:
+                pieces.append((p0, p1, span.n_seg, here, name))
+        self._split_wires[wire.name] = WireSplit(ports=ordered, pieces=names, plan=plan)
+        self._split_ports.update(
+            {port: name for (port, _at), name in zip(ordered, names, strict=True)}
+        )
+        _logger.info(
+            "%s split wire %r into %d pieces so %s sit(s) exactly on its sites",
+            type(self).__name__,
+            wire.name,
+            len(pieces),
+            ", ".join(f"{port!r} at {at:.6g}" for port, at in ordered),
+        )
+        return pieces
 
     def _parity_exempt_names(self):
         """Wire names exempt from parity coercion even though marked.
@@ -556,13 +623,16 @@ class SimulationEngine(ABC):
         parity = self.segment_parity
         if parity == "any":
             return tups
-        positions = _port_positions(getattr(self, "builder", None))
+        positions, referenced = _port_positions(getattr(self, "builder", None))
         family = {"odd": "centre", "even": "knot"}.get(parity)
         splits = getattr(self, "splits_wire_at_feed", False)
-        # Port name -> (wire, at, cuts) for each wire split at its feed, and the
-        # authored entry each output entry came from (AK#1510).
-        self._split_feeds = {}
+        # Authored wire name -> WireSplit for each wire split at its ports, port
+        # name -> the piece that feeds it, and the authored entry each output
+        # entry came from (AK#1510, AK#1511).
+        self._split_wires = {}
+        self._split_ports = {}
         self._tup_authored = []
+        taken = referenced | {as_wire(t).name for t in tups} - {None}
         seen = set()
         out = []
         for index, t in enumerate(tups):
@@ -597,10 +667,10 @@ class SimulationEngine(ABC):
             n_new = self.coerce_n_seg(w.n_seg, parity) if marked else max(1, w.n_seg)
             # A port positioned along this wire (AK#1469) wants a count at which
             # its position is a site of this engine's grid, not just the middle,
-            # up to SITE_COUNT_CAP times the authored count. Past that, an engine
-            # that splits cuts a wire carrying that ONE port so the port sits on
-            # a site (AK#1510). A wire carrying several keeps the parity count,
-            # and the engine places each on its nearest site.
+            # up to SITE_COUNT_CAP times the authored count, one count for every
+            # port on the wire at once. Past that, an engine that splits cuts
+            # the wire so every port on it, one or several, sits exactly on a
+            # site (AK#1511).
             at_here = positions.get(w.name) if marked else None
             if at_here and family is not None:
                 m = site_count(
@@ -611,22 +681,10 @@ class SimulationEngine(ABC):
                 )
                 if m is not None:
                     n_new = m
-                elif splits and len(at_here) == 1:
-                    ((port, at),) = at_here
-                    pieces, cuts = _split_at_feed(t, at, parity)
-                    self._split_feeds[port] = (w.name, at, cuts)
+                elif splits:
+                    pieces = self._split_wire(t, at_here, parity, taken)
                     self._tup_authored += [index] * len(pieces)
                     out.extend(pieces)
-                    _logger.info(
-                        "%s split wire %r into %d at %s of its length so port "
-                        "%r sits at %.6g exactly",
-                        type(self).__name__,
-                        w.name,
-                        len(pieces),
-                        ", ".join(f"{c:.6g}" for c in cuts),
-                        port,
-                        at,
-                    )
                     continue
             if n_new != w.n_seg and (w.n_seg, n_new) not in seen:
                 seen.add((w.n_seg, n_new))

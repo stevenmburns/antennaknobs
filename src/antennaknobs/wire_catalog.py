@@ -753,16 +753,23 @@ def validate_named_wires_referenced(named_wires, network):
                 f"{len(ports) - 1} other port(s): a distributed gap spans its "
                 "whole wire, so it cannot share it (AK#1469)."
             )
-        seen: dict = {}
-        for p in ports:
-            at = port_at(p)
-            where = 0.5 if at is None else float(at)
-            if where in seen:
-                raise ValueError(
-                    f"ports {seen[where]!r} and {p.name!r} sit at the same point "
-                    f"of wire {wire!r} (at = {where:g}). Two gaps at one point "
-                    "give identical admittance columns, so the network is "
-                    "singular: use one port and attach both branches to it "
-                    "(AK#1469)."
-                )
-            seen[where] = p.name
+        refuse_coincident_ports(wire, [(p.name, port_at(p)) for p in ports])
+
+
+def refuse_coincident_ports(wire, ports):
+    """Refuse two gap ports at one point of `wire`, given as ``[(port name,
+    at)]`` with None for the middle (AK#1469). Engines that split a wire at its
+    ports (AK#1511) call it before cutting, since a zero-length piece is the
+    same singular network in another form."""
+    seen: dict = {}
+    for name, at in ports:
+        where = 0.5 if at is None else float(at)
+        if where in seen:
+            raise ValueError(
+                f"ports {seen[where]!r} and {name!r} sit at the same point "
+                f"of wire {wire!r} (at = {where:g}). Two gaps at one point "
+                "give identical admittance columns, so the network is "
+                "singular: use one port and attach both branches to it "
+                "(AK#1469)."
+            )
+        seen[where] = name
