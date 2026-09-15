@@ -146,14 +146,17 @@ depends on where the engine can feed:
 - NEC-5 feeds a knot. When every positioned port on the wire is already a knot,
   the wire stays whole. Otherwise the wire is cut at every port, and each port
   is fed at the knot the pieces on either side share.
-- The momwire engine never splits a wire: its default B-spline basis feeds the
-  exact arclength at any count.
+- Every momwire solver feeds positioned ports exactly, split like its reference
+  engine family. The B-spline (degree 2), sinusoidal and sinusoidal-Galerkin
+  solvers split the wire as PyNEC and NEC-2 do. Razor and B-spline degree 1
+  cut it at every port as NEC-5 does, and feed each port as a series gap at
+  the knot the pieces share.
 
 A split wire's solve carries a **FeedPlacement** advisory naming each port and
-its position. A port can still land on the nearest site in one case: a momwire
-basis that places a port on its own grid. The advisory then says where the port
-asked to be, where it went and how many millimetres apart they are. A port never
-moves silently.
+its position. No engine places a port on a nearest site, so a port never moves.
+
+A wire whose only port is a `PortAtVertex` keeps its authored segment count on
+every engine, because the vertex source sits at the wire's end.
 
 Two refusals keep the model honest. A distributed port spans its whole wire,
 so it cannot share one and takes no `at`. Two ports at the same point would be
