@@ -38,9 +38,11 @@ MESH. The radiator is graded from the feed (AK#1455), as
 `buried_radial_vertical` grades its own: its first segments match the 25 mm
 halves of the fed gap, neighbouring segments stay within 2x of each other,
 and the far panels sit at the design's usual radiator segment for
-`nominal_nsegs` (`doubling_graded_wire`). A uniform radiator puts a
-half-metre segment against the 50 mm gap, and the driving-point resistance
-then moves by several percent with `nominal_nsegs`; graded, it holds still.
+`nominal_nsegs` (`doubling_graded_wire`); once that segment is finer than
+25 mm, the radiator starts at it and comes out near-uniform. A uniform
+radiator at the usual densities puts a half-metre segment against the 50 mm
+gap, and the driving-point resistance then moves by several percent with
+`nominal_nsegs`; graded, it holds still.
 
 REQUIRES A FINITE GROUND. The buried screen only exists under a Sommerfeld
 half-space, which antennaknobs chooses at SOLVE time, not in the design:
@@ -126,14 +128,19 @@ class Builder(AntennaBuilder):
         # Driven gap at the radiator foot; the radiator stacks on top of it.
         tups.append(Wire((0.0, 0.0, base), (0.0, 0.0, base + eps), ex=1 + 0j))
         # The radiator is GRADED away from the gap (AK#1455); see MESH above.
+        # Its far panels keep the design's usual radiator segment. Its first
+        # segments match the gap's 25 mm halves, unless that usual segment is
+        # already shorter, when there is nothing to grade.
         radiator_length = height - eps
+        max_h = radiator_length / self.segs_for(
+            radiator_length, 0.25 * self.design_wavelength
+        )
         tups.append(
             doubling_graded_wire(
                 (0.0, 0.0, base + eps),
                 (0.0, 0.0, base + height),
-                h0=eps / 2.0,
-                max_h=radiator_length
-                / self.segs_for(radiator_length, 0.25 * self.design_wavelength),
+                h0=min(eps / 2.0, max_h),
+                max_h=max_h,
             )
         )
 

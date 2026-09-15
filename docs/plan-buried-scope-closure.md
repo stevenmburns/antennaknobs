@@ -17,7 +17,7 @@ map of what is left. This plan orders them.
 | U3 `GE −1` crossing | done: momwire#1052, released in momwire 0.55.0, which antennaknobs v0.77.0 ships on |
 | U4 below range | done: momwire#1058 serves the remainder past the cap as zero, merged 2026-09-13 with its caveat accepted (fresh water at 28 MHz clears the bound by only 2×; broadside parallel wires more than 4 λ_m apart are unmeasured); records in momwire#1057; released in momwire 0.55.0, which antennaknobs v0.77.0 ships on |
 | U5 mixed radii | done: two-radius crossing, momwire#1050, released in momwire 0.55.0, which antennaknobs v0.77.0 ships on |
-| U6 counterpoise | closed: AK#1443's verdict, with follow-ups AK#1455 and AK#1456 |
+| U6 counterpoise | closed: AK#1443's verdict; follow-up AK#1455 done (the radiator is graded), AK#1456 open |
 | U7 buried rod | closed: momwire#1027, not a physical disagreement; the two engines converge toward the same R along two axes, at different rates |
 | U8 far field | not started (momwire#570); deferred by decision |
 | U9 several crossing nodes | done on momwire main, **not released**: momwire#1065 serves several crossing nodes per deck (momwire#1068 moved two tests it made slow). antennaknobs, on momwire 0.55.0, still refuses a second node by name. Measured: the 8-node LPDA at refine 1 reads 52.09 − 3.18j against NEC-5's 53.07 − 3.54j (2.0 %), and momwire's own far × 3 step on it is 0.0394 Ω; two-node soil-A decks against NEC-5 meet the gate on 16 of 16 readings. The LPDA check (d) stopped at its pre-Z check; the two cebik phased arrays are still refused by name; route 1 is deferred; follow-up momwire#1064 |
@@ -44,7 +44,7 @@ Ground rules carried from the #956 arc, which are what made it converge:
 | 4 | "below/below pair separation R₁ = 136 m (8.9 in-medium λ), past the 4 in-medium λ the remainder is tabulated to" | range | 3 | — |
 | 5 | "crossing serve with per-wire radii: ρ_eff = √(ρ² + a²) regularizes the corner with ONE radius, and a mixed-radius convention is not pinned" (momwire#524 phase 2) | scope | 4 | every real screen: radials thinner than the mast |
 | 6 | "RP asks for the far field of a deck with a wire below the plane … the transmitted family's far-zone asymptotics" (momwire#570) | **formulation** | 1 | every buried design's pattern (wholly buried refused; mixed served with a note, #1341) |
-| 7 | `elevated_buried_counterpoise` disagrees with NEC-5 by 31 % in R and 16 % in \|Z\| (+14 Ω R, −12 kΩ X on \|Z\| ≈ 62–74 kΩ), at both meshes and all three momwire commits | **open disagreement** (AK#1443) | — | 1 design |
+| 7 | `elevated_buried_counterpoise` disagrees with NEC-5 by 27 % in R and 10 % in \|Z\| (+10 Ω R, −7.1 kΩ X on \|Z\| ≈ 61–69 kΩ) on its graded radiator, at nominal_nsegs 21, 42 and 84 | **open disagreement** (AK#1443) | — | 1 design |
 | 8 | AK#1417's gate: no refinement path for an imported deck (every ladder tool is Builder-driven) | tooling | blocks per-deck ladders on all of the above | — |
 | 9 | a wholly buried vertical rod reads a constant −1.20 % of R against NEC-5, invariant in depth, conductivity and frequency (momwire#1027) | **open disagreement** | — | every wholly buried fed element |
 | 10 | "a deck with N crossing junctions … the crossing serve completes ONE crossing node per deck" (momwire#1054; before it, a bare assert in the fill, AK#1464) | scope | 3 (the lpma3r5 LPDA with 8 nodes; two cebik phased arrays with 3 and 4) | every multi-element buried array |
@@ -138,6 +138,10 @@ large relative one. Localise before fixing: the field form on the grid
 against the designed tables (probe5's method) on this deck's pairs; the grid's
 range and interpolation error at the counterpoise's height/depth; NEC-5's own
 ladder. **2–3 days to localise;** the fix depends on what it names.
+
+Graded from the feed (AK#1455), each engine's R holds to 0.3 % across
+nominal_nsegs 21–84 while the engines stay 27 % apart in R, so the gap is not
+the far mesh. The fed segment's size is AK#1456's question.
 
 ### U7 — the wholly buried rod's −1.20 % of R (momwire#1027)
 
@@ -273,8 +277,6 @@ current #1341 note (0.46 dB) says it should.
 - **Follow-ups from the done units:**
   - **momwire#1064:** U9's extra cold-fill cost, confined to decks under 0.05°
     by a fifth θ band;
-  - **AK#1455:** grade `elevated_buried_counterpoise`'s radiator, so that its
-    NEC-5 comparison converges (from U6);
   - **AK#1456:** cross-engine comparisons inherit each engine's fed-segment
     size, which matters at near-open feeds (from U6);
   - **momwire#1066:** SinusoidalGalerkin's slope jump across a crossing node
