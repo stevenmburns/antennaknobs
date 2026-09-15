@@ -147,8 +147,8 @@ depends on where the engine can feed:
   the wire stays whole. Otherwise the wire is cut at every port, and each port
   is fed at the knot the pieces on either side share.
 - Every momwire solver feeds positioned ports exactly, split like its reference
-  engine family. The B-spline (degree 2), sinusoidal and sinusoidal-Galerkin
-  solvers split the wire as PyNEC and NEC-2 do. Razor and B-spline degree 1
+  engine family. The B-spline (degree 2), sinusoidal, sinusoidal-Galerkin and
+  pulse solvers split the wire as PyNEC and NEC-2 do. Razor and B-spline degree 1
   cut it at every port as NEC-5 does, and feed each port as a series gap at
   the knot the pieces share.
 

@@ -50,11 +50,8 @@ def _parity_for_solver(solver, solver_kwargs):
       - SinusoidalGalerkinSolver → odd (same basis, Galerkin testing)
       - RazorSolver → even (also a tent basis, like BSplineSolver degree=1 —
         see below)
-    Anything else falls through as "any" (no coercion). `PulseSolver` is in
-    that fall-through today and would want "odd" if it ever joined the roster
-    (`cli.py` keeps it off `--basis`): a pulse row IS a segment, so it has no
-    sub-grid position at all and a midpoint feed on an even count lands
-    exactly between two cells.
+      - PulseSolver, HarringtonSolver → odd (a pulse row IS a segment)
+    Anything else falls through as "any" (no coercion).
 
     These are not all requirements of the same strength, and momwire#623
     measured the difference. A family that resolves a feed by snapping to its
@@ -104,6 +101,13 @@ def _parity_for_solver(solver, solver_kwargs):
         # variant) only changes how ∫A·dl is evaluated, not where the basis
         # or the feed live, so both roster entries share this rule.
         return "even"
+    if name in ("PulseSolver", "HarringtonSolver"):
+        # A pulse row IS a segment, so the pulse family has no sub-grid position
+        # at all: a gap sits at a segment centre (`centre_feeds` True,
+        # `knot_feeds` False), and a midpoint feed on an even count would land
+        # exactly between two cells. HarringtonSolver, a PulseSolver subclass,
+        # is the web roster's "pulse" tab (point-matched pulse expansion).
+        return "odd"
     return "any"
 
 
