@@ -1,6 +1,7 @@
 import copy
 import itertools
 import logging
+import math
 from abc import ABC, abstractmethod
 from dataclasses import replace
 from typing import ClassVar, Literal, NamedTuple
@@ -167,8 +168,10 @@ def split_note(wire, ports, site):
 
 def _nearest_odd_count(segments):
     """The odd count, at least 1, nearest `segments`: its middle is a segment
-    centre."""
-    return max(1, 2 * round((segments - 1) / 2) + 1)
+    centre. A tie, an even `segments` exactly between two odd counts, takes the
+    larger one, so the rule never depends on which odd count sits at an even
+    half-index: 2 -> 3, 4 -> 5, 6 -> 7."""
+    return max(1, 2 * math.floor((segments - 1) / 2 + 0.5) + 1)
 
 
 class SplitSpan(NamedTuple):

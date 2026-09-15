@@ -25,7 +25,7 @@ from conftest import needs_nec5
 
 import antennaknobs.engine as engine_module
 from antennaknobs import AntennaBuilder, WireSpec
-from antennaknobs.engine import SITE_COUNT_CAP, split_spans
+from antennaknobs.engine import SITE_COUNT_CAP, _nearest_odd_count, split_spans
 from antennaknobs.engines.nec5 import NEC5Engine
 from antennaknobs.network import (
     TL,
@@ -635,6 +635,32 @@ def test_simnec_station_cards_feed_and_load_each_ports_own_piece():
     cards = _station_cards(eng, "feed", list(net.branches), FREQ)
     deck = "\n".join(cards)
     _assert_sites(_nec2_deck_sites(deck), _targets(b), 1e-6 * LENGTH)
+
+
+# ---------------------------------------------------------------------------
+# the fed piece's count
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("segments", "count"),
+    [
+        (0, 1),
+        (0.4, 1),
+        (1, 1),
+        (1.99, 1),
+        (2, 3),
+        (2.01, 3),
+        (3, 3),
+        (3.99, 3),
+        (4, 5),
+        (5.2, 5),
+        (6, 7),
+        (8, 9),
+    ],
+)
+def test_the_nearest_odd_count_takes_the_larger_at_a_tie(segments, count):
+    assert _nearest_odd_count(segments) == count
 
 
 # ---------------------------------------------------------------------------
