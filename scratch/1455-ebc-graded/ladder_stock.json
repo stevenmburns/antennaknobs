@@ -1,0 +1,80 @@
+{
+ "meta": {
+  "nec5_exe": "/home/smburns/nec5-timing/nec5cl-x13-static",
+  "nec5_sha256": "7ebf343d7d01283b83fae8192cd9c6ca434b5befb232065fc12b4d729f06a9f3",
+  "momwire": "/home/smburns/stevenmburns/momwire-wt-1064-v055/src/momwire"
+ },
+ "radiator": "stock",
+ "rows": [
+  {
+   "nn": 21,
+   "radiator": "stock",
+   "radiator_segments": 21,
+   "radiator_seg_first_mm": 500.2891649899397,
+   "radiator_seg_max_mm": 500.2891649899397,
+   "nec5_gw_segments": 239,
+   "nec5_deck_sha256": "14239f58d8073ceb36dc5544ed84d7d9bd711f265e3bc63d132cd4fda399d46b",
+   "momwire": [
+    44.560189401376704,
+    -73719.31963777544
+   ],
+   "nec5": [
+    30.643,
+    -61604.0
+   ],
+   "dR_pct": -31.232338974184717,
+   "dG_pct": -1.5242908979475438,
+   "dB_pct": 16.434398693679405,
+   "secs_momwire": 1.89,
+   "secs_nec5": 0.42
+  },
+  {
+   "nn": 42,
+   "radiator": "stock",
+   "radiator_segments": 42,
+   "radiator_seg_first_mm": 250.14458249496985,
+   "radiator_seg_max_mm": 250.14458249496985,
+   "nec5_gw_segments": 472,
+   "nec5_deck_sha256": "5c08c0eee924e8fe31cd72925cc3f11b53674b7084b524c38e85bbf79c760830",
+   "momwire": [
+    42.78958801156903,
+    -72708.61049930776
+   ],
+   "nec5": [
+    29.417,
+    -61557.0
+   ],
+   "dR_pct": -31.251967202753807,
+   "dG_pct": -4.087077439461885,
+   "dB_pct": 15.337410087476762,
+   "secs_momwire": 0.6,
+   "secs_nec5": 0.89
+  },
+  {
+   "nn": 84,
+   "radiator": "stock",
+   "radiator_segments": 84,
+   "radiator_seg_first_mm": 125.07229124748493,
+   "radiator_seg_max_mm": 125.07229124748493,
+   "nec5_gw_segments": 946,
+   "nec5_deck_sha256": "38e5450e260090d93bb95f7f6c788913b9a15defdf1f1c3e945862c1ff658597",
+   "momwire": [
+    41.18020967740875,
+    -71464.75936420352
+   ],
+   "nec5": [
+    28.598,
+    -61505.0
+   ],
+   "dR_pct": -30.55402042868005,
+   "dG_pct": -6.2416006851437595,
+   "dB_pct": 13.93661236369019,
+   "secs_momwire": 3.41,
+   "secs_nec5": 2.7
+  }
+ ],
+ "summary": {
+  "nec5_R_spread_pct": 7.15084970976992,
+  "momwire_R_spread_pct": 8.207776867688452
+ }
+}
