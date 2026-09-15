@@ -3159,7 +3159,18 @@ def capabilities_endpoint():
     monkeypatched in tests and the PyNEC roster entry must follow it.
     `have_pynec` stays for compatibility — the roster's membership is what
     the current frontend gates on.
+
+    `versions`/`version_label`: the running antennaknobs and momwire
+    versions, read from installed package metadata — the same call
+    (`importlib.metadata.version`) the frozen workbench's console banner
+    already prints, so the page and the startup line can never disagree. A
+    Windows user once ran a stale bundle because copying only the .exe over
+    an old folder silently keeps the old `_internal` beside it; the console
+    line was the only tell, so the label is served here too rather than
+    built in the frontend (which must name no engine — issue #1507).
     """
+    from importlib.metadata import version as pkg_version
+
     from . import settings as ui_settings
     from .adapter import (
         axis_value_labels,
@@ -3183,8 +3194,14 @@ def capabilities_endpoint():
     # the frontend seeds slots exactly as before; its switches and ground ride
     # in `ui_defaults`, with any problems as sentences.
     ui_defaults = ui_settings.load(ui_settings.catalog(**have), hosted=_HOSTED)
+    ak_version = pkg_version("antennaknobs")
+    mw_version = pkg_version("momwire")
     return {
         "have_pynec": have["have_pynec"],
+        # Served as one string so the frontend names no engine (#1006 G2-6):
+        # it renders this, never "momwire" itself.
+        "versions": {"antennaknobs": ak_version, "momwire": mw_version},
+        "version_label": f"v{ak_version} · momwire {mw_version}",
         "backends": backend_roster(**have),
         "model_option_specs": model_option_specs(),
         "backend_aliases": backend_aliases(),
