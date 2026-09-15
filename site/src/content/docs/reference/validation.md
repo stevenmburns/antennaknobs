@@ -75,12 +75,12 @@ radius, and Harrington's half-shifted dual cell, which converges first-order
 with no such
 wall.](../../../assets/validation/bydipole1-convergence.png)
 
-| engine | coarsest read — Z in Ω (SWR₅₀) @ N | finest read @ N |
-| --- | --- | --- |
-| momwire bs2 | 74.21 -41.85j (2.17) @ 11 | 73.92 -41.40j (2.15) @ 99 |
-| momwire bs1 | 72.59 -45.04j (2.26) @ 12 | 73.78 -41.72j (2.16) @ 100 |
-| nec2c (NEC-2) | 74.32 -42.45j (2.19) @ 11 | 73.85 -41.32j (2.15) @ 99 |
-| NEC-5 raw | 71.49 -55.57j (2.61) @ 12 | 73.63 -42.86j (2.20) @ 100 |
+| engine | coarsest read — Z in Ω (SWR₅₀) @ N | finest read @ N | fed segment, coarsest → finest |
+| --- | --- | --- | --- |
+| momwire bs2 | 74.21 -41.85j (2.17) @ 11 | 73.92 -41.40j (2.15) @ 99 | 926 → 103 mm, centre |
+| momwire bs1 | 72.59 -45.04j (2.26) @ 12 | 73.78 -41.72j (2.16) @ 100 | 849 → 102 mm, knot |
+| nec2c (NEC-2) | 74.32 -42.45j (2.19) @ 11 | 73.85 -41.32j (2.15) @ 99 | 926 → 103 mm, centre |
+| NEC-5 raw | 71.49 -55.57j (2.61) @ 12 | 73.63 -42.86j (2.20) @ 100 | 849 → 102 mm, knot |
 
 NEC-5 (N, 2N) pair extrapolations: (44,88) → 73.84 -41.54j / (48,96) → 73.84 -41.55j — both pairs land on the
 common limit within 0.05 Ω of each other.
@@ -217,13 +217,17 @@ tapers, giving uncorrected and Leeson-corrected NEC-2 values for each
 through our engines — the exact stepped geometry, no correction applied
 anywhere:
 
-| element (14 MHz, free space) | published NEC-2 raw | our nec2c, 1×→4× mesh | momwire bs2 | NEC-5 pair | published corrected |
+| element (14 MHz, free space) | published NEC-2 raw | our nec2c, 1×→4× mesh | momwire bs2 (fed segment) | NEC-5 pair | published corrected |
 | --- | --- | --- | --- | --- | --- |
-| uniform 1.0″ | — | 72.03 +0.63j → 72.28 +1.26j | 72.01 +0.24j | 72.03 -0.01j | 71.80 -0.60j |
-| one step, far out | 73.00 +4.40j | 73.55 +7.22j → 74.44 +10.92j | 72.01 -2.09j | 72.01 -2.33j | 72.00 +0.40j |
-| one step, near center | 72.40 +5.20j | 72.40 +7.66j → 72.38 +10.52j | 73.50 -0.40j | 73.51 -0.64j | 71.80 -0.50j |
-| two steps, modest taper | 72.50 +10.60j | 72.42 +12.71j → 72.46 +17.34j | 73.87 -1.43j | 73.87 -1.73j | 71.90 +0.10j |
-| two steps, extreme taper | 67.60 +17.10j | 66.56 +19.56j → 65.29 +24.42j | 76.55 -1.02j | 76.53 -1.83j | 72.10 +0.90j |
+| uniform 1.0″ | — | 72.03 +0.63j → 72.28 +1.26j | 72.01 +0.24j (123 mm) | 72.03 -0.01j | 71.80 -0.60j |
+| one step, far out | 73.00 +4.40j | 73.55 +7.22j → 74.44 +10.92j | 72.01 -2.09j (125 mm) | 72.01 -2.33j | 72.00 +0.40j |
+| one step, near center | 72.40 +5.20j | 72.40 +7.66j → 72.38 +10.52j | 73.50 -0.40j (121 mm) | 73.51 -0.64j | 71.80 -0.50j |
+| two steps, modest taper | 72.50 +10.60j | 72.42 +12.71j → 72.46 +17.34j | 73.87 -1.43j (113 mm) | 73.87 -1.73j | 71.90 +0.10j |
+| two steps, extreme taper | 67.60 +17.10j | 66.56 +19.56j → 65.29 +24.42j | 76.55 -1.02j (113 mm) | 76.53 -1.83j | 72.10 +0.90j |
+
+The bs2 column names its fed segment: a gap in the middle of the centre
+section's middle segment. The NEC-5 pair is extrapolated over two meshes,
+so it has no single fed segment.
 
 Reading the table:
 
@@ -350,7 +354,8 @@ below-ground card: on the wholly buried fed dipole the two engines agree to
 0.2 % in resistance at 0.15, 1 and 2 m depth (146.4+44.4j against
 146.6+44.7j Ω at 0.15 m). On the bonded-base vertical over buried radials
 at the catalog's defaults they agree to 0.3 Ω in resistance at the shipped
-mesh and 0.2 Ω at twice it. The third leg is
+mesh and 0.2 Ω at twice it. In both comparisons each engine meshes the
+50 mm feed gap its own way (momwire 1 × 50 mm, NEC-5 2 × 25 mm). The third leg is
 in-house and arrived with momwire 0.52.0: the sinusoidal-Galerkin basis
 serves the wholly buried and the mixed classes from its own fill, sharing no
 below-interface code with `bspline`, and the two bases are gated to agree

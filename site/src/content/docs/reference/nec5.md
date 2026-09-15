@@ -167,7 +167,12 @@ during development:
   segment — and the solver-slot label shows the *requested* count. At nine
   segments on a half-wave dipole that convention alone is worth a couple of
   ohms against the deck's own spelling in the same engine; both converge as
-  N grows.
+  N grows. The two engines' **fed segments** therefore differ in size: the
+  catalog's 50 mm feed-gap wire is one 50 mm segment under momwire's default
+  basis and two 25 mm segments under NEC-5. That is immaterial at an ordinary
+  driving point, but near an open circuit the impedance follows the fed
+  segment's size, so this project's cross-engine comparisons record each
+  engine's fed segment beside its impedance.
 - **The "fast" ground model is served as full Sommerfeld.** NEC-5 has no
   reflection-coefficient approximation (its `IPERF 0` *is* the Sommerfeld
   solution), so asking for the fast model gets the accurate one, and the

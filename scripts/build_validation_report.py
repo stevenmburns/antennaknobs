@@ -56,6 +56,11 @@ PAGE = ROOT / "site" / "src" / "content" / "docs" / "reference" / "validation.md
 FREQ, H, L, RAD = 14.0, 9.144, 10.18946, 0.0010262
 EPS, SIG = 20.0, 0.0303
 GROUND = ("finite", EPS, SIG)
+# The two engines' fed segments on the catalog's buried designs (AK#1456),
+# stated beside the below-ground cross-engine numbers. The house 50 mm gap wire
+# is one segment on momwire's odd count and two on NEC-5's even one;
+# `tests/test_fed_segments_1456.py` holds this literal to the engines.
+BURIED_FED = "momwire 1 × 50 mm, NEC-5 2 × 25 mm"
 ODD = list(range(11, 102, 4))
 EVEN = list(range(12, 101, 4))
 
@@ -448,19 +453,25 @@ def bydipole1_section(data: dict) -> str:
         "nec2c": "nec2c (NEC-2)",
         "nec5": "NEC-5 raw",
     }
+    # Each engine's fed segment at each read (AK#1456): the dipole is one wire,
+    # so it is L / N, as a gap mid-segment on the odd ladders (bs2, nec2c) and a
+    # source between two such segments on the even ones (bs1, NEC-5).
+    sites = {"bs2": "centre", "bs1": "knot", "nec2c": "centre", "nec5": "knot"}
     for key in ("bs2", "bs1", "nec2c", "nec5"):
         s = data[key]
         z0, z1 = _z(s[0]), _z(s[-1])
+        n0, n1 = int(s[0][0]), int(s[-1][0])
         rows.append(
-            f"| {labels[key]} | {fmt_z(z0)} ({swr(z0):.2f}) @ {int(s[0][0])} "
-            f"| {fmt_z(z1)} ({swr(z1):.2f}) @ {int(s[-1][0])} |"
+            f"| {labels[key]} | {fmt_z(z0)} ({swr(z0):.2f}) @ {n0} "
+            f"| {fmt_z(z1)} ({swr(z1):.2f}) @ {n1} "
+            f"| {1000 * L / n0:.0f} → {1000 * L / n1:.0f} mm, {sites[key]} |"
         )
     pairs = richardson_pairs(data["nec5"])[-2:]
     pair_cells = " / ".join(f"({a},{b}) → {fmt_z(z)}" for a, b, z in pairs)
     table = "\n".join(
         [
-            "| engine | coarsest read — Z in Ω (SWR₅₀) @ N | finest read @ N |",
-            "| --- | --- | --- |",
+            "| engine | coarsest read — Z in Ω (SWR₅₀) @ N | finest read @ N | fed segment, coarsest → finest |",
+            "| --- | --- | --- | --- |",
             *rows,
         ]
     )
@@ -523,9 +534,20 @@ def _zrow(row: list[float]) -> complex:
     return complex(row[2], row[3])
 
 
+def leeson_bs2_fed_mm(case: dict, mult: int) -> float:
+    """bs2's fed segment on a Leeson case, in mm (AK#1456). The centre section
+    is one wire spanning the feed with an odd count, meshed exactly as
+    `bench_leeson.build_wires` does it at 4 segments per metre times `mult`;
+    `tests/test_fed_segments_1456.py` holds the two together."""
+    _x1, x2, _dia = case["half_inches"][0]
+    n = max(3, round(2 * x2 * 0.0254 * 4.0 * mult))
+    n += 1 - n % 2
+    return 1000 * 2 * x2 * 0.0254 / n
+
+
 def leeson_table(leeson: dict) -> str:
     lines = [
-        "| element (14 MHz, free space) | published NEC-2 raw | our nec2c, 1×→4× mesh | momwire bs2 | NEC-5 pair | published corrected |",
+        "| element (14 MHz, free space) | published NEC-2 raw | our nec2c, 1×→4× mesh | momwire bs2 (fed segment) | NEC-5 pair | published corrected |",
         "| --- | --- | --- | --- | --- | --- |",
     ]
     for case in leeson["cases"]:
@@ -533,7 +555,8 @@ def leeson_table(leeson: dict) -> str:
         raw = fmt_z(complex(*pub["raw"])) if pub["raw"] else "—"
         cor = fmt_z(complex(*pub["corrected"]))
         march = " → ".join(fmt_z(_zrow(r)) for r in case["nec2c"][::2])
-        bs2 = fmt_z(_zrow(case["bs2"][-1]))
+        bs2_row = case["bs2"][-1]
+        bs2 = f"{fmt_z(_zrow(bs2_row))} ({leeson_bs2_fed_mm(case, int(bs2_row[0])):.0f} mm)"
         nec5 = fmt_z(_zrow(case["nec5"][-1]))
         lines.append(f"| {case['label']} | {raw} | {march} | {bs2} | {nec5} | {cor} |")
     return "\n".join(lines)
@@ -1085,6 +1108,10 @@ anywhere:
 
 {lee_table}
 
+The bs2 column names its fed segment: a gap in the middle of the centre
+section's middle segment. The NEC-5 pair is extrapolated over two meshes,
+so it has no single fed segment.
+
 Reading the table:
 
 - **The control row behaves**: on the uniform element every engine and
@@ -1196,7 +1223,8 @@ below-ground card: on the wholly buried fed dipole the two engines agree to
 0.2 % in resistance at 0.15, 1 and 2 m depth (146.4+44.4j against
 146.6+44.7j Ω at 0.15 m). On the bonded-base vertical over buried radials
 at the catalog's defaults they agree to 0.3 Ω in resistance at the shipped
-mesh and 0.2 Ω at twice it. The third leg is
+mesh and 0.2 Ω at twice it. In both comparisons each engine meshes the
+50 mm feed gap its own way ({BURIED_FED}). The third leg is
 in-house and arrived with momwire 0.52.0: the sinusoidal-Galerkin basis
 serves the wholly buried and the mixed classes from its own fill, sharing no
 below-interface code with `bspline`, and the two bases are gated to agree
