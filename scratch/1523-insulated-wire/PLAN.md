@@ -209,3 +209,31 @@ mesh. The bare conductor is the jacket's own a.
 2. The reference numbers, then the ladder solves, under `systemd-run` with
    MemoryMax=24G.
 3. `README.md` with the tables; the report follows.
+
+## Amendment 1 (2026-09-15, after the ladder ran, before any analysis)
+
+Written from the convergence records alone: no bar has been computed and
+`analyze_1523.py` has not run.
+
+**What happened.**
+
+- All 144 rows solved (status ok). All 96 momwire rows converged at the
+  registered stop, \|X\| ≤ 1e-4 Ω.
+- **25 of the 48 NEC-5 rows did not.** On each of them, NEC-5's X sits on a grid
+  of about 3.3e-4 Ω, and the secant alternates between two adjacent levels (for
+  example −1.21e-4 and +2.06e-4 Ω) at lengths that agree to 1e-6 m. The best
+  \|X\| reached on those rows is 1.0e-4 to 2.3e-4 Ω.
+- **So the registered stop cannot be reached on NEC-5.** The analysis would have
+  dropped those rows as incomplete for a reason that has nothing to do with the
+  physics.
+
+**The change.** For NEC-5 rows only, the resonance counts as converged when both
+hold:
+
+- its best \|X\| is ≤ 5e-4 Ω, about 1.5 × the observed step;
+- the search's last two lengths agree to 1e-5 m.
+
+L_res stays the length with the smallest \|X\|, as recorded. That fixes L_res to
+about 1e-5 m, against the finest bar at about 2 cm (D4's 0.2 %).
+
+**Not changed:** momwire rows, Z at L₀, and every bar and prediction.

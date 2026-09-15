@@ -72,9 +72,26 @@ def main():
         rec = rows.get((name, t, e, n))
         return rec if rec is not None and rec.get("status") == "ok" else None
 
+    amended = set()
+
     def lres(name, t, e, n):
         rec = ok(name, t, e, n)
-        return rec["L_res"] if rec and rec.get("converged") else None
+        if rec is None:
+            return None
+        if rec.get("converged"):
+            return rec["L_res"]
+        # Amendment 1: NEC-5's X is quantised at about 3.3e-4 ohm, so a NEC-5 row
+        # counts as converged when its best |X| <= 5e-4 ohm and its last two
+        # lengths agree to 1e-5 m.
+        s = rec["search"]
+        if (
+            e == "nec5"
+            and min(abs(pt[2]) for pt in s) <= 5e-4
+            and abs(s[-1][0] - s[-2][0]) <= 1e-5
+        ):
+            amended.add((name, t, e, n))
+            return rec["L_res"]
+        return None
 
     def z(name, t, e, n):
         rec = ok(name, t, e, n)
@@ -322,6 +339,9 @@ def main():
         f"momwire {meta.get('momwire_version', '?')} at `{meta.get('momwire_head')}`; "
         f"NEC-5 sha256 `{(meta.get('nec5_sha256') or '')[:8]}`.",
         "",
+        f"Amendment 1: {len(amended)} NEC-5 rows count as converged at NEC-5's "
+        "X resolution (best |X| ≤ 5e-4 Ω, last two lengths within 1e-5 m).",
+        "",
         "## Checks and predictions",
         "",
         "| id | verdict | instances | failing |",
@@ -459,6 +479,7 @@ def main():
         )
     out.append("")
     (here / "README.md").write_text("\n".join(out))
+    extra["amendment1_rows"] = [list(k) for k in sorted(amended)]
     (here / "analysis.json").write_text(
         json.dumps(
             {"checks": checks, "predictions": preds, "extra": extra, "rule": rule},
