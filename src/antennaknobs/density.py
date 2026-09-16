@@ -29,8 +29,15 @@ WHERE EACH NUMBER COMES FROM
   0.0037 and d=1's 0.0076) but its TAIL did not — worst 0.90 on
   ``short_dipole_loaded`` with the reactance's sign wrong, nine times d=1's
   worst — and a served density is judged on what a user can hit, not on the
-  median. 16 is a decision, not a measured rung; the rung is the next
-  measurement. Even, so a centre-fed wire keeps a knot at its middle.
+  median. Measured at 16 the same day (Skylake, 206 cells, record branch
+  ``scratch/1553-d3-at-16``): median ΔΓ 0.0035, p90 0.074, worst 0.74; the
+  one genuine density row (``continuous_helix``) improves by a third, the
+  loaded dipole by 17 % (a conditioning case no served density rescues —
+  judge it at the antenna port), the zepp not at all (its fed wire is one
+  fixed segment); catalog cold total 1.41x that of 12. bs2@160 is near the
+  floor of what it can adjudicate at this density (admissible rows fell
+  158 to 140 as the errors shrank), so saying more needs a deeper
+  reference. Even, so a centre-fed wire keeps a knot at its middle.
 - ``razor-2p`` and ``nec5`` at 40: one number for the two first-order
   engines, so an A/B between momwire's formulation twin and the licensed
   binary is not also an A/B on the mesh. It is higher than bspline's because
