@@ -269,6 +269,233 @@ def sweep_gain(
     save_or_show(plt, fn)
 
 
+def ladder_estimate(rungs):
+    """First-order Richardson from a refinement ladder's last two rungs.
+
+    ``rungs`` is [(refinement factor, Z), ...] in ascending factor order. Returns
+    ``(Z_inf, shrinking)``, or None with fewer than two rungs. ``Z_inf`` is
+    Z_hi + (Z_hi - Z_lo) / (r_hi / r_lo - 1), the first-order extrapolation in
+    the segment length. ``shrinking`` is False when the ladder has three or more
+    rungs and the last step is no smaller than the one before it. That means the
+    ladder is not yet in its asymptotic range and the extrapolation should not
+    be trusted. With two rungs there is nothing to compare, so it is True.
+
+    Shared by the CLI ``ladder`` subcommand (a card deck's own GW refinement)
+    and ``sweep --param nominal_nsegs`` (#1554, a catalog design's density
+    ladder) — the extrapolation is the same math over either refinement
+    axis, so it lives once, next to the convergence-sweep code that is its
+    other caller.
+    """
+    if len(rungs) < 2:
+        return None
+    (r_lo, z_lo), (r_hi, z_hi) = rungs[-2], rungs[-1]
+    z_inf = z_hi + (z_hi - z_lo) / (r_hi / r_lo - 1)
+    shrinking = True
+    if len(rungs) >= 3:
+        prev_step = abs(rungs[-2][1] - rungs[-3][1])
+        last_step = abs(z_hi - z_lo)
+        shrinking = last_step < prev_step
+    return z_inf, shrinking
+
+
+# The app's own convergence ladder (`CONVERGE_N_VALUES`,
+# useAnalysisRunners.ts). A CLI study run with no --range reproduces exactly
+# the rungs the UI's convergence overlay solves, so a number quoted from
+# either side is the same measurement (#1554).
+NOMINAL_NSEGS_LADDER = (8, 12, 17, 24, 34, 48, 68)
+
+
+def _nominal_nsegs_rungs(rng, npoints):
+    """Integer ``nominal_nsegs`` rungs for a convergence sweep (#1554).
+
+    No ``--range``: the app's own ladder, above. A ``--range lo hi`` is
+    spaced geometrically instead of linearly — a fixed step in log N puts
+    every rung at the same relative mesh refinement, which is what a
+    convergence study is supposed to sample — then rounded to ints,
+    deduplicated and sorted ascending, since rounding can collide two
+    rungs at a narrow range or a large ``--npoints``.
+    """
+    if rng is None:
+        return list(NOMINAL_NSEGS_LADDER)
+    lo, hi = rng
+    n = max(int(npoints), 2)
+    return sorted({int(round(x)) for x in np.geomspace(lo, hi, n)})
+
+
+def _achieved_n(eng, builder):
+    """Total segments THIS engine actually meshed at one rung (#1554).
+
+    Read from the coerced wire list — the same private seam
+    ``SimulationEngine.fed_segments`` itself falls back to for an
+    end-ported wire, and the one ``scratch/1525-razor-density/run_density.py``
+    calls ``built_segs`` — rather than ``fed_segments()``'s own count, which
+    is the fed EDGE alone. A house dipole's fed edge is one to a handful of
+    segments almost regardless of the ladder rung (the gap wire is short),
+    so it never tracks the density knob; the mesh total does, and it is
+    what shows the parity rounding: an odd-parity engine (bspline, the
+    framework default) and an even-parity engine (razor-2p, nec5) round the
+    same nominal count to totals one segment apart.
+    """
+    from .network import as_wire
+    from .wire_catalog import GradedSegments
+
+    coerced = eng._coerce_wire_tuples(builder.build_wires())
+    total = 0
+    for t in coerced:
+        n_seg = as_wire(t).n_seg
+        total += sum(n_seg.counts) if isinstance(n_seg, GradedSegments) else int(n_seg)
+    return total
+
+
+def _reflection(z, z0):
+    return (z - z0) / (z + z0)
+
+
+def _print_convergence_table(per_engine, estimates, z0):
+    """The stdout table for ``sweep --param nominal_nsegs`` (#1554): grouped
+    per engine so a single-engine study reads like a plain ladder printout,
+    and a multi-engine one reads as N of those back to back. ΔΓ is against
+    that engine's own FINEST rung (issue #1525's ladder metric — the density
+    records are judged on ΔΓ against the finest rung, not against Z* itself,
+    since Z* is itself only an estimate)."""
+    for name, rows in per_engine.items():
+        print(f"== nominal_nsegs convergence: {name} ==")
+        print(f"{'nominal_N':>9} {'N_ach':>6} {'R (Ω)':>9} {'X (Ω)':>9} {'|ΔΓ|':>9}")
+        finest_gamma = _reflection(rows[-1][2], z0)
+        for nominal_n, achieved_n, z in rows:
+            dgamma = abs(_reflection(z, z0) - finest_gamma)
+            print(
+                f"{nominal_n:>9} {achieved_n:>6} {z.real:>9.3f} {z.imag:>+9.3f} "
+                f"{dgamma:>9.4f}"
+            )
+        z_star, shrinking = estimates[name]
+        if z_star is None:
+            print(f"{name}  Z* unavailable (need >= 2 rungs)")
+        else:
+            verdict = "yes" if shrinking else "no"
+            print(
+                f"{name}  Z* = {z_star.real:.3f}{z_star.imag:+.3f}j  "
+                f"(shrinking: {verdict})"
+            )
+
+
+def _sweep_convergence(
+    antenna_builder, engines, *, rng, npoints, use_smithchart, z0, fn
+):
+    """``sweep --param nominal_nsegs`` (#1554): one cold solve per rung per
+    engine, port 0 only (multi-port trajectories are the app's own overlay,
+    out of scope here — see the title note when a design has more than one).
+
+    ``engines`` is ``[(name, factory), ...]``. The density wrapper from
+    #1543 must already have stood down in the caller (``mesh_density=False``
+    in ``cli.engine_factories_from_args``) — this function is the one thing
+    allowed to move ``antenna_builder.nominal_nsegs`` for the duration.
+    """
+    import matplotlib.pyplot as plt
+
+    rungs = _nominal_nsegs_rungs(rng, npoints)
+
+    per_engine = {}
+    nports = 1
+    for name, factory in engines:
+        rows = []
+        for n in rungs:
+            antenna_builder.nominal_nsegs = n
+            eng = factory(antenna_builder)
+            z = eng.impedance()
+            nports = max(nports, len(z))
+            rows.append((n, _achieved_n(eng, antenna_builder), complex(z[0])))
+        per_engine[name] = rows
+
+    estimates = {
+        name: ladder_estimate([(achieved, z) for _, achieved, z in rows])
+        or (None, None)
+        for name, rows in per_engine.items()
+    }
+
+    _print_convergence_table(per_engine, estimates, z0)
+
+    title = "impedance vs nominal_nsegs, Richardson Z*"
+    if nports > 1:
+        title += f" (port 0 of {nports})"
+
+    if use_smithchart:
+        from .smith_chart import draw_smith_chart, plot_reflection
+
+        fig, ax0 = plt.subplots(figsize=(6.8, 6.8))
+        draw_smith_chart(ax0, z0=z0)
+        for i, (name, rows) in enumerate(per_engine.items()):
+            color = f"C{i}"
+            zs = np.array([z for _, _, z in rows])
+            gamma = _reflection(zs, z0)
+            plot_reflection(
+                ax0, gamma, color=color, marker="o", ms=3, linewidth=1.4, label=name
+            )
+            # Coarsest rung: hollow ring. Finest: filled disc. Matches
+            # SmithChart.tsx's convergence overlay conventions.
+            ax0.plot(
+                [gamma[0].real],
+                [gamma[0].imag],
+                marker="o",
+                ms=7,
+                markerfacecolor="none",
+                markeredgecolor=color,
+                linestyle="None",
+            )
+            ax0.plot(
+                [gamma[-1].real],
+                [gamma[-1].imag],
+                marker="o",
+                ms=7,
+                markerfacecolor=color,
+                markeredgecolor=color,
+                linestyle="None",
+            )
+            z_star, _shrinking = estimates[name]
+            if z_star is not None:
+                g = _reflection(z_star, z0)
+                # Clip to the unit disc: an early-ladder Richardson estimate
+                # can fly past |Γ|=1, same as the app's drawing does.
+                mag = abs(g)
+                if mag > 0.98:
+                    g = g * (0.98 / mag)
+                ax0.plot(
+                    [g.real], [g.imag], marker="D", ms=8, color=color, linestyle="None"
+                )
+        ax0.legend(loc="upper left", frameon=False, fontsize=8)
+        ax0.set_title(title, fontsize=11)
+        fig.tight_layout()
+    else:
+        fig, ax0 = plt.subplots(figsize=(7.0, 4.5))
+        for i, (name, rows) in enumerate(per_engine.items()):
+            color = f"C{i}"
+            ns = [achieved for _, achieved, _ in rows]
+            re = [z.real for _, _, z in rows]
+            im = [z.imag for _, _, z in rows]
+            ax0.plot(
+                ns, re, color=color, linestyle="-", marker="o", ms=3, label=f"{name} R"
+            )
+            ax0.plot(
+                ns, im, color=color, linestyle="--", marker="^", ms=3, label=f"{name} X"
+            )
+            z_star, _shrinking = estimates[name]
+            if z_star is not None:
+                ax0.axhline(
+                    z_star.real, color=color, linestyle=":", linewidth=1.0, alpha=0.7
+                )
+                ax0.axhline(
+                    z_star.imag, color=color, linestyle=":", linewidth=1.0, alpha=0.7
+                )
+        ax0.set_xscale("log")
+        ax0.set_xlabel("segments achieved (log)")
+        ax0.set_ylabel("Ω")
+        _polish_axes(ax0, title=title)
+        ax0.legend(loc="best", frameon=False, fontsize=7)
+        fig.tight_layout()
+
+    save_or_show(plt, fn)
+
+
 def sweep(
     antenna_builder,
     nm,
@@ -286,133 +513,273 @@ def sweep(
 ):
     import matplotlib.pyplot as plt
 
+    engines = list(engine.items()) if isinstance(engine, dict) else [(None, engine)]
+
+    if nm == "nominal_nsegs":
+        # A first-class case (#1554): int rungs, not gen_xs's float linspace,
+        # and a fundamentally different table/chart — factored out entirely
+        # rather than threaded through the branches below.
+        _sweep_convergence(
+            antenna_builder,
+            engines,
+            rng=rng,
+            npoints=npoints,
+            use_smithchart=use_smithchart,
+            z0=z0,
+            fn=fn,
+        )
+        return
+
     xs = gen_xs(getattr(antenna_builder, nm), rng, center, fraction, npoints)
     # Align first so a disjoint measured band errors before any solving.
     meas = _align_measured(measured, nm, xs, z0)
 
-    zs = []
-    for x in xs:
-        setattr(antenna_builder, nm, x)
-        zs.append(engine(antenna_builder).impedance())
+    if len(engines) == 1 and engines[0][0] is None:
+        # The pre-#1554 single-engine path, UNCHANGED — pinned byte-identical
+        # by test_cli_sweep_single_engine_output_is_unchanged (#1554).
+        engine = engines[0][1]
 
-    marker_zs = []
-    for x in markers:
-        setattr(antenna_builder, nm, x)
-        marker_zs.append(engine(antenna_builder).impedance())
+        zs = []
+        for x in xs:
+            setattr(antenna_builder, nm, x)
+            zs.append(engine(antenna_builder).impedance())
 
-    zs = np.array(zs)
+        marker_zs = []
+        for x in markers:
+            setattr(antenna_builder, nm, x)
+            marker_zs.append(engine(antenna_builder).impedance())
+
+        zs = np.array(zs)
+        marker_xs = np.array(markers)
+        marker_zs = np.array(marker_zs)
+
+        nwidth = zs.shape[1] if npoints > 0 else marker_zs.shape[1]
+        logger.debug(
+            "smith sweep: nwidth=%s npoints=%s markers=%s zs.shape=%s marker_zs.shape=%s",
+            nwidth,
+            npoints,
+            markers,
+            zs.shape,
+            marker_zs.shape,
+        )
+
+        if use_smithchart:
+            # Lazy import (see the note at the top of the module): our own
+            # matplotlib renderer — scikit-rf was dropped in #332.
+            from .smith_chart import draw_smith_chart, plot_reflection
+
+            fig, ax0 = plt.subplots(figsize=(6.8, 6.8))
+            draw_smith_chart(ax0, z0=z0)
+            for i in range(nwidth):
+                color = f"C{i}"
+                if nwidth > 1:
+                    label = f"port {i + 1}"
+                else:
+                    label = "modeled" if meas is not None else None
+                if zs.shape[0] > 0:
+                    gamma = (zs[:, i] - z0) / (zs[:, i] + z0)
+                    plot_reflection(ax0, gamma, color=color, linewidth=1.8, label=label)
+                    label = None
+                if marker_zs.shape[0] > 0:
+                    gamma = (marker_zs[:, i] - z0) / (marker_zs[:, i] + z0)
+                    plot_reflection(
+                        ax0,
+                        gamma,
+                        color=color,
+                        marker="s",
+                        ms=6,
+                        linestyle="None",
+                        label=label,
+                    )
+            if meas is not None:
+                plot_reflection(
+                    ax0,
+                    meas[1],
+                    color="0.25",
+                    label=measured.label,
+                    **_MEASURED_KW,
+                )
+            if nwidth > 1 or meas is not None:
+                # Upper left keeps clear of the z0 note in the lower-left corner.
+                ax0.legend(loc="upper left", frameon=False, fontsize=8)
+            # Same title as the rectangular branch — the chart form says "Smith".
+            ax0.set_title(_z_title(antenna_builder, nm), fontsize=11)
+            fig.tight_layout()
+
+        else:
+            fig, ax0 = plt.subplots(figsize=(7.0, 4.5))
+            color = "tab:red"
+            ax0.set_xlabel(_param_label(nm))
+            ax0.set_ylabel("resistance R (Ω)", color=color)
+            ax0.tick_params(axis="y", labelcolor=color)
+            for i in range(nwidth):
+                if zs.shape[0] > 0:
+                    ax0.plot(
+                        xs,
+                        np.real(zs)[:, i],
+                        color=color,
+                        linestyle=_port_style(i),
+                        marker="o",
+                        ms=3,
+                    )
+                if marker_zs.shape[0] > 0:
+                    ax0.plot(
+                        marker_xs,
+                        np.real(marker_zs)[:, i],
+                        color=color,
+                        marker="s",
+                        linestyle="None",
+                    )
+            if meas is not None:
+                mxs, mz = meas[0], z0 * (1.0 + meas[1]) / (1.0 - meas[1])
+                ax0.plot(mxs, np.real(mz), color=color, **_MEASURED_KW)
+
+            color = "tab:blue"
+            ax1 = ax0.twinx()
+            ax1.set_ylabel("reactance X (Ω)", color=color)
+            ax1.tick_params(axis="y", labelcolor=color)
+            for i in range(nwidth):
+                if zs.shape[0] > 0:
+                    ax1.plot(
+                        xs,
+                        np.imag(zs)[:, i],
+                        color=color,
+                        linestyle=_port_style(i),
+                        marker="o",
+                        ms=3,
+                    )
+                if marker_zs.shape[0] > 0:
+                    ax1.plot(
+                        marker_xs,
+                        np.imag(marker_zs)[:, i],
+                        color=color,
+                        marker="s",
+                        linestyle="None",
+                    )
+            if meas is not None:
+                ax1.plot(mxs, np.imag(mz), color=color, **_MEASURED_KW)
+                _measured_legend(ax0, measured.label)
+
+            _polish_axes(ax0, title=_z_title(antenna_builder, nm))
+            ax1.spines["top"].set_visible(False)
+            fig.tight_layout()
+
+        save_or_show(plt, fn)
+        return
+
+    # Multi-engine path (#1554): same xs, one trajectory/line per engine.
+    # Colour now keys the ENGINE (one axis, not the twin-axis red/blue
+    # R/X split the single-engine rectangular chart uses) — R solid, X
+    # dashed, so a port still reads within an engine via `_port_style`.
+    per_engine = []
+    for name, factory in engines:
+        zs = []
+        for x in xs:
+            setattr(antenna_builder, nm, x)
+            zs.append(factory(antenna_builder).impedance())
+        marker_zs = []
+        for x in markers:
+            setattr(antenna_builder, nm, x)
+            marker_zs.append(factory(antenna_builder).impedance())
+        per_engine.append((name, np.array(zs), np.array(marker_zs)))
+
     marker_xs = np.array(markers)
-    marker_zs = np.array(marker_zs)
-
-    nwidth = zs.shape[1] if npoints > 0 else marker_zs.shape[1]
-    logger.debug(
-        "smith sweep: nwidth=%s npoints=%s markers=%s zs.shape=%s marker_zs.shape=%s",
-        nwidth,
-        npoints,
-        markers,
-        zs.shape,
-        marker_zs.shape,
-    )
+    nwidth = 1
+    for _name, zs, marker_zs in per_engine:
+        if zs.shape[0] > 0:
+            nwidth = zs.shape[1]
+            break
+        if marker_zs.shape[0] > 0:
+            nwidth = marker_zs.shape[1]
+            break
 
     if use_smithchart:
-        # Lazy import (see the note at the top of the module): our own
-        # matplotlib renderer — scikit-rf was dropped in #332.
         from .smith_chart import draw_smith_chart, plot_reflection
 
         fig, ax0 = plt.subplots(figsize=(6.8, 6.8))
         draw_smith_chart(ax0, z0=z0)
-        for i in range(nwidth):
-            color = f"C{i}"
-            if nwidth > 1:
-                label = f"port {i + 1}"
-            else:
-                label = "modeled" if meas is not None else None
-            if zs.shape[0] > 0:
-                gamma = (zs[:, i] - z0) / (zs[:, i] + z0)
-                plot_reflection(ax0, gamma, color=color, linewidth=1.8, label=label)
-                label = None
-            if marker_zs.shape[0] > 0:
-                gamma = (marker_zs[:, i] - z0) / (marker_zs[:, i] + z0)
-                plot_reflection(
-                    ax0,
-                    gamma,
-                    color=color,
-                    marker="s",
-                    ms=6,
-                    linestyle="None",
-                    label=label,
-                )
+        for ei, (name, zs, marker_zs) in enumerate(per_engine):
+            color = f"C{ei}"
+            for i in range(nwidth):
+                label = f"{name} port {i + 1}" if nwidth > 1 else name
+                if zs.shape[0] > 0:
+                    gamma = (zs[:, i] - z0) / (zs[:, i] + z0)
+                    plot_reflection(
+                        ax0,
+                        gamma,
+                        color=color,
+                        linewidth=1.8,
+                        linestyle=_port_style(i),
+                        label=label,
+                    )
+                    label = None
+                if marker_zs.shape[0] > 0:
+                    gamma = (marker_zs[:, i] - z0) / (marker_zs[:, i] + z0)
+                    plot_reflection(
+                        ax0,
+                        gamma,
+                        color=color,
+                        marker="s",
+                        ms=6,
+                        linestyle="None",
+                        label=label,
+                    )
         if meas is not None:
             plot_reflection(
-                ax0,
-                meas[1],
-                color="0.25",
-                label=measured.label,
-                **_MEASURED_KW,
+                ax0, meas[1], color="0.25", label=measured.label, **_MEASURED_KW
             )
-        if nwidth > 1 or meas is not None:
-            # Upper left keeps clear of the z0 note in the lower-left corner.
-            ax0.legend(loc="upper left", frameon=False, fontsize=8)
-        # Same title as the rectangular branch — the chart form says "Smith".
+        ax0.legend(loc="upper left", frameon=False, fontsize=8)
         ax0.set_title(_z_title(antenna_builder, nm), fontsize=11)
         fig.tight_layout()
 
     else:
         fig, ax0 = plt.subplots(figsize=(7.0, 4.5))
-        color = "tab:red"
         ax0.set_xlabel(_param_label(nm))
-        ax0.set_ylabel("resistance R (Ω)", color=color)
-        ax0.tick_params(axis="y", labelcolor=color)
-        for i in range(nwidth):
-            if zs.shape[0] > 0:
-                ax0.plot(
-                    xs,
-                    np.real(zs)[:, i],
-                    color=color,
-                    linestyle=_port_style(i),
-                    marker="o",
-                    ms=3,
-                )
-            if marker_zs.shape[0] > 0:
-                ax0.plot(
-                    marker_xs,
-                    np.real(marker_zs)[:, i],
-                    color=color,
-                    marker="s",
-                    linestyle="None",
-                )
+        ax0.set_ylabel("R solid / X dashed (Ω)")
+        for ei, (name, zs, marker_zs) in enumerate(per_engine):
+            color = f"C{ei}"
+            for i in range(nwidth):
+                label = f"{name} port {i + 1}" if nwidth > 1 else name
+                if zs.shape[0] > 0:
+                    ax0.plot(
+                        xs,
+                        np.real(zs)[:, i],
+                        color=color,
+                        linestyle=_port_style(i),
+                        marker="o",
+                        ms=3,
+                        label=label,
+                    )
+                    ax0.plot(
+                        xs,
+                        np.imag(zs)[:, i],
+                        color=color,
+                        linestyle="--",
+                        marker="^",
+                        ms=3,
+                    )
+                if marker_zs.shape[0] > 0:
+                    ax0.plot(
+                        marker_xs,
+                        np.real(marker_zs)[:, i],
+                        color=color,
+                        marker="s",
+                        linestyle="None",
+                    )
+                    ax0.plot(
+                        marker_xs,
+                        np.imag(marker_zs)[:, i],
+                        color=color,
+                        marker="s",
+                        linestyle="None",
+                    )
         if meas is not None:
             mxs, mz = meas[0], z0 * (1.0 + meas[1]) / (1.0 - meas[1])
-            ax0.plot(mxs, np.real(mz), color=color, **_MEASURED_KW)
-
-        color = "tab:blue"
-        ax1 = ax0.twinx()
-        ax1.set_ylabel("reactance X (Ω)", color=color)
-        ax1.tick_params(axis="y", labelcolor=color)
-        for i in range(nwidth):
-            if zs.shape[0] > 0:
-                ax1.plot(
-                    xs,
-                    np.imag(zs)[:, i],
-                    color=color,
-                    linestyle=_port_style(i),
-                    marker="o",
-                    ms=3,
-                )
-            if marker_zs.shape[0] > 0:
-                ax1.plot(
-                    marker_xs,
-                    np.imag(marker_zs)[:, i],
-                    color=color,
-                    marker="s",
-                    linestyle="None",
-                )
-        if meas is not None:
-            ax1.plot(mxs, np.imag(mz), color=color, **_MEASURED_KW)
+            ax0.plot(mxs, np.real(mz), color="0.25", **_MEASURED_KW)
             _measured_legend(ax0, measured.label)
 
         _polish_axes(ax0, title=_z_title(antenna_builder, nm))
-        ax1.spines["top"].set_visible(False)
+        ax0.legend(loc="best", frameon=False, fontsize=8)
         fig.tight_layout()
 
     save_or_show(plt, fn)

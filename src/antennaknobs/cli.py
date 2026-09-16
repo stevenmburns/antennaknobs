@@ -11,6 +11,12 @@ from . import (
     compare_patterns,
     optimize,
 )
+
+# `ladder_estimate` lives in sweep.py (#1554): it is `sweep --param
+# nominal_nsegs`'s Richardson extrapolation as much as it is the `ladder`
+# subcommand's, so it moved next to its other caller rather than staying
+# here with only one.
+from .sweep import ladder_estimate
 from .engines import (
     PyNECEngine,
     MomwireEngine,
@@ -448,6 +454,22 @@ def engine_density(engine_spec):
     return default_nsegs(key, degree=degree)
 
 
+def _engine_specs(raw):
+    """Flatten a `sweep --engine` value into an ordered list of specs
+    (#1554): comma-separated within one flag, the flag repeated, or both.
+    A plain `--engine foo` (no comma, one occurrence) is a length-1 list
+    either way, so a single-engine sweep sees no change in what reaches
+    `make_engine_factory`.
+    """
+    if raw is None:
+        return ["momwire"]
+    items = raw if isinstance(raw, list) else [raw]
+    specs = []
+    for item in items:
+        specs.extend(s.strip() for s in item.split(",") if s.strip())
+    return specs
+
+
 def _mesh_at(factory, n):
     """Wrap an engine factory so the builder it is handed meshes at `n`
     segments per quarter-wave (#1543).
@@ -524,29 +546,6 @@ def make_engine_factory(
 
 
 _GROUND_UNSET = object()
-
-
-def ladder_estimate(rungs):
-    """First-order Richardson from a refinement ladder's last two rungs.
-
-    ``rungs`` is [(refinement factor, Z), ...] in ascending factor order. Returns
-    ``(Z_inf, shrinking)``, or None with fewer than two rungs. ``Z_inf`` is
-    Z_hi + (Z_hi - Z_lo) / (r_hi / r_lo - 1), the first-order extrapolation in
-    the segment length. ``shrinking`` is False when the ladder has three or more
-    rungs and the last step is no smaller than the one before it. That means the
-    ladder is not yet in its asymptotic range and the extrapolation should not
-    be trusted. With two rungs there is nothing to compare, so it is True.
-    """
-    if len(rungs) < 2:
-        return None
-    (r_lo, z_lo), (r_hi, z_hi) = rungs[-2], rungs[-1]
-    z_inf = z_hi + (z_hi - z_lo) / (r_hi / r_lo - 1)
-    shrinking = True
-    if len(rungs) >= 3:
-        prev_step = abs(rungs[-2][1] - rungs[-3][1])
-        last_step = abs(z_hi - z_lo)
-        shrinking = last_step < prev_step
-    return z_inf, shrinking
 
 
 def file_ground_default(ground, builder):
@@ -694,7 +693,7 @@ def cli(arguments=None):
                 "deck / SimNEC circuit directly.",
             )
 
-    def add_engine_args(p, plural=False):
+    def add_engine_args(p, plural=False, allow_multi=False):
         if plural:
             p.add_argument(
                 "--engines",
@@ -724,6 +723,22 @@ def cli(arguments=None):
                 "nec2++, or 4nec2's nec2dxs*.exe): the same physics as "
                 "pynec, reached without linking to a GPL library. "
                 "Cross-products with --builders.",
+            )
+        elif allow_multi:
+            p.add_argument(
+                "--engine",
+                type=str,
+                action="append",
+                default=None,
+                help="Simulation backend(s) (default: momwire). A "
+                "comma-separated list, or --engine repeated, crosses the "
+                "sweep with one trajectory/line per engine (#1554) — a "
+                "single spec behaves exactly as --engine always has. Each "
+                "spec is momwire[:sinusoidal|sinusoidal-galerkin|bspline|"
+                "bspline-d1|hmatrix|arrayblock|razor-2p], pynec, nec5, or "
+                "nec2 — see the plain --engine's help for what each basis "
+                "is. --swr/--gain/--patterns and a --param nominal_nsegs "
+                "convergence study each still take exactly one engine.",
             )
         else:
             p.add_argument(
@@ -852,6 +867,39 @@ def cli(arguments=None):
             )
         )
 
+    def engine_factories_from_args(
+        args, deck_extended_kernel=False, builder=None, mesh_density=True
+    ):
+        """One engine factory per `--engine` spec (#1554), keyed by spec in
+        the order given — `sweep`'s multi-engine path, where `args.engine`
+        is `_engine_specs`' comma/repeated-flag list rather than the plain
+        string `engine_factory_from_args` above reads.
+
+        `mesh_density=False` stands the #1543 density wrapper down: a
+        `--param nominal_nsegs` convergence study sets `nominal_nsegs`
+        itself, rung by rung, and the wrapper would otherwise reset it to
+        the engine's own default on every single solve, fighting the sweep
+        it is supposed to be running.
+        """
+        ground = (
+            args.ground if args.ground is _GROUND_UNSET else parse_ground(args.ground)
+        )
+        if builder is not None:
+            ground = file_ground_default(ground, builder)  # AK#1432
+        out = {}
+        for spec in _engine_specs(args.engine):
+            density = density_from_args(args, spec) if mesh_density else None
+            out[spec] = placements.watch(
+                make_engine_factory(
+                    spec,
+                    ground,
+                    extended_kernel=args.extended_kernel,
+                    deck_extended_kernel=deck_extended_kernel,
+                    nominal_nsegs=density,
+                )
+            )
+        return out
+
     p = subparsers.add_parser("draw", help="Draw antenna")
     add_common(p)
 
@@ -863,9 +911,18 @@ def cli(arguments=None):
 
     p = subparsers.add_parser("sweep", help="Sweep antenna")
     add_common(p)
-    add_engine_args(p)
+    add_engine_args(p, allow_multi=True)
     add_pattern_common(p)
-    p.add_argument("--param", type=str, default="freq", help="Variable to sweep.")
+    p.add_argument(
+        "--param",
+        type=str,
+        default="freq",
+        help="Variable to sweep. `nominal_nsegs` is a convergence study "
+        "(#1554): int rungs, the app's own ladder [8, 12, 17, 24, 34, 48, "
+        "68] by default, geometric spacing with --range/--npoints, one cold "
+        "solve per rung per --engine, a table on stdout, and a Richardson "
+        "Z* per engine on the chart.",
+    )
     p.add_argument(
         "--range", nargs=2, default=None, type=float, help="Range for sweep."
     )
@@ -919,15 +976,74 @@ def cli(arguments=None):
 
     def f(args):
         builder = get_builder(args.builder)
-        engine = engine_factory_from_args(
-            args, deck_extended_kernel_flag(builder), builder=builder
-        )
+        is_density_study = args.param == "nominal_nsegs"
+        engine_specs = _engine_specs(args.engine)
+
+        # Usage errors named in decisions 2 and 6 (#1554): a --param
+        # nominal_nsegs convergence study owns the density knob and is a
+        # mesh-refinement notion, not a frequency-sweep one, so the flags
+        # that assume the latter refuse by name rather than silently
+        # fighting the sweep or producing a chart that answers the wrong
+        # question.
+        if is_density_study and args.nominal_nsegs is not None:
+            raise SystemExit(
+                "--nominal-nsegs conflicts with --param nominal_nsegs: the "
+                "sweep sets the density itself, rung by rung"
+            )
+        if is_density_study and args.swr:
+            raise SystemExit(
+                "--swr is a frequency-sweep notion; it does not apply to a "
+                "--param nominal_nsegs convergence study"
+            )
+        if is_density_study and args.gain:
+            raise SystemExit(
+                "--gain is a frequency-sweep notion; it does not apply to a "
+                "--param nominal_nsegs convergence study"
+            )
+        if is_density_study and args.patterns:
+            # Also closes a real crash: sweep_patterns expects one callable
+            # engine, and a density study's `engine` below is a {spec:
+            # factory} dict even with a single --engine, so it could not
+            # take this branch anyway.
+            raise SystemExit(
+                "--patterns is a pattern-sweep notion; it does not apply to "
+                "a --param nominal_nsegs convergence study"
+            )
+        if len(engine_specs) > 1 and (args.swr or args.gain or args.patterns):
+            raise SystemExit(
+                "--swr/--gain/--patterns take exactly one engine; drop "
+                "--engine to a single spec, or use the plain impedance "
+                "sweep for a multi-engine chart"
+            )
+
         measured = read_measured(args.measured, z0=args.z0) if args.measured else None
         if measured is not None and (args.patterns or args.gain):
             # Measured S11 has nothing to say about a pattern or gain chart.
             raise SystemExit(
                 "--measured overlays an impedance/SWR chart; drop --patterns/--gain"
             )
+        if is_density_study and measured is not None:
+            raise SystemExit(
+                "--measured is frequency data; it does not apply to a "
+                "--param nominal_nsegs convergence study"
+            )
+
+        engines = engine_factories_from_args(
+            args,
+            deck_extended_kernel_flag(builder),
+            builder=builder,
+            mesh_density=not is_density_study,
+        )
+        # A density study always keeps its engines keyed by spec (even a
+        # single one) so the table/chart can name them; every other sweep
+        # keeps the pre-#1554 single-factory shape when only one engine was
+        # asked for, which is what pins the byte-identical single-engine
+        # output.
+        engine = (
+            engines
+            if is_density_study or len(engines) > 1
+            else next(iter(engines.values()))
+        )
         if args.patterns:
             sweep_patterns(
                 builder(),
