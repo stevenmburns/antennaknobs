@@ -48,6 +48,7 @@ export function backendEntry(over: Partial<BackendEntry> = {}): BackendEntry {
     options_schema: [],
     panel: null,
     default_n_per_wire: 30,
+    default_n_per_wire_by_degree: null,
     accelerator: false,
     dense_family: false,
     axes: null,
@@ -103,11 +104,16 @@ export const SERVED_ROSTER: BackendRoster = ([
     panel: "sin-galerkin",
     dense_family: true,
   }),
+  // Served density 15 with a per-degree map (#1543): the degree IS the basis
+  // for this family, so the density follows the degree tab. The accelerators
+  // below take the same kwargs and deliberately serve no map.
   backendEntry({
     name: "bspline",
     label: "B-spline",
     panel: "bspline",
     model_kwargs: BSPLINE_KWARGS,
+    default_n_per_wire: 15,
+    default_n_per_wire_by_degree: { "1": 20, "2": 15, "3": 12 },
     dense_family: true,
   }),
   // The Pulse tab (#1148). The only momwire row that takes NO model kwargs
@@ -146,6 +152,7 @@ export const SERVED_ROSTER: BackendRoster = ([
     name: "razor-2p",
     label: "Razor (2-point)",
     model_kwargs: RAZOR_KWARGS,
+    default_n_per_wire: 40,
     dense_family: true,
     bound: { nec5_quadrature: true },
     bound_axes: {"quadrature": "nec5"},
@@ -176,7 +183,7 @@ export const ROSTER_WITH_NEC5: BackendRoster = [
     label: "NEC-5",
     kind: "nec5",
     panel: "nec5",
-    default_n_per_wire: 20,
+    default_n_per_wire: 40,
   }),
 ];
 

@@ -3752,6 +3752,18 @@ canvas {
   margin: 0 0 var(--space-2);
 }
 
+/* Why the segments/wire knob holds the number it holds, when the slot adopted
+   it from the engine rather than the user setting it (#1543). Sits directly
+   under the knob and is muted for the same reason `.composition-refusal` is:
+   it explains a value, it does not warn about one. Pulled up against the
+   field above it because it belongs to that field. */
+.density-note {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+}
+
 /* Solver advisories from one solve (#1144). Muted like `.design-note`, and
    deliberately NOT the `.examples-error` alarm styling: nothing was refused
    and nothing was remeshed, so this explains, it does not warn. */

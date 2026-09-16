@@ -441,6 +441,7 @@ function DesignSessionBody({
     currentOpts,
     nPerWire,
     wireRadius,
+    densityNotes,
     backendOptsKey,
     updateSlotOpts,
     setSlotBackend,
@@ -2073,6 +2074,7 @@ function DesignSessionBody({
             suggestConvergedFeed={
               currentExample?.converged_feed_suggested ?? false
             }
+            densityNote={densityNotes[gearOpen]}
             opts={slots[gearOpen].opts}
             onChangeBackend={(b) => {
               backendTouchedRef.current = true;
