@@ -258,3 +258,17 @@ def test_cli_a_design_pinning_its_own_density_wins(monkeypatch):
         )
     ) == {9}
     assert AntennaBuilder.FRAMEWORK_PARAMS["nominal_nsegs"] == 21
+
+
+def test_the_pulse_basis_is_on_the_cli_roster_at_its_served_density(
+    monkeypatch, capsys
+):
+    """`--engine momwire:pulse` is the app's Pulse tab (HarringtonSolver,
+    AK#1148) and runs at the density table's 41 without a flag; the roster
+    used to stop at the momwire-0.32.0 exclusion of the bare PulseSolver."""
+    seen = _meshed_at(
+        monkeypatch,
+        f"pattern --builder dipoles.invvee --engine momwire:pulse{o}",
+    )
+    assert seen and set(seen) == {41}
+    assert "engine momwire:pulse: N=41 segments/wire" in capsys.readouterr().err

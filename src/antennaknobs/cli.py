@@ -40,13 +40,15 @@ from momwire import (
     HMatrixSolver,
     ArrayBlockSolver,
     RazorSolver,
+    HarringtonSolver,
 )
 
-# momwire also ships PulseSolver (the d=0 pulse-basis probe, momwire#432's
-# sibling exploration). It deliberately does NOT join this roster: the
-# maintainer's call for the momwire-0.32.0 / antennaknobs coordinated
-# release is that RazorSolver gets full `--basis` exposure while PulseSolver
-# stays library-only — a choice, not an oversight.
+# `pulse` below is HarringtonSolver — the point-matched pulse expansion the
+# app's Pulse tab serves (AK#1148) and the row `density.py` gives 41 to. The
+# bare PulseSolver (the d=0 probe, momwire#432's sibling) stays library-only,
+# as the momwire-0.32.0 coordinated release decided; the CLI roster carried
+# that exclusion over to Harrington by accident until the density table and
+# the app both named `pulse` and the CLI could not (AK#1554 follow-up).
 
 import argparse
 import math
@@ -82,6 +84,9 @@ MOMWIRE_BASES = {
     "bspline": BSplineSolver,
     "hmatrix": HMatrixSolver,
     "arrayblock": ArrayBlockSolver,
+    # The app's Pulse tab (AK#1148): point-matched pulse expansion, odd parity,
+    # served at 41 per wire (density.py). Refuses wire loading by name.
+    "pulse": HarringtonSolver,
 }
 
 # RazorSolver (momwire#309/#432) is a tent basis tested by NEC-5's own
@@ -702,7 +707,7 @@ def cli(arguments=None):
                 default=["momwire"],
                 help="One or more simulation backends. Each spec is "
                 '"momwire[:sinusoidal|sinusoidal-galerkin|bspline|'
-                'bspline-d1|hmatrix|arrayblock|razor-2p]", '
+                'bspline-d1|hmatrix|arrayblock|pulse|razor-2p]", '
                 '"pynec", "nec5", or "nec2". sinusoidal is NEC-2\'s own formulation; '
                 "sinusoidal-galerkin is the same basis tested variationally "
                 "and with the point-gap feed model. bspline-d1 is bspline "
@@ -735,7 +740,7 @@ def cli(arguments=None):
                 "sweep with one trajectory/line per engine (#1554) — a "
                 "single spec behaves exactly as --engine always has. Each "
                 "spec is momwire[:sinusoidal|sinusoidal-galerkin|bspline|"
-                "bspline-d1|hmatrix|arrayblock|razor-2p], pynec, nec5, or "
+                "bspline-d1|hmatrix|arrayblock|pulse|razor-2p], pynec, nec5, or "
                 "nec2 — see the plain --engine's help for what each basis "
                 "is. --swr/--gain/--patterns and a --param nominal_nsegs "
                 "convergence study each still take exactly one engine.",
