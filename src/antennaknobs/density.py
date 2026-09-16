@@ -37,7 +37,13 @@ WHERE EACH NUMBER COMES FROM
   decision (2026-09-16).
 - ``arrayblock``, ``pynec``, ``nec2`` at 21 — the Builder framework default
   (``AntennaBuilder.FRAMEWORK_PARAMS``), odd for the same feed-knot reason.
-- The rest at 30, unchanged and unmeasured: no census has said otherwise.
+- ``sinusoidal`` at 21: it is NEC-2's own basis, so it meshes as ``nec2`` and
+  ``pynec`` do and an A/B across the three is not an A/B on the mesh.
+  ``sinusoidal-galerkin`` at 20 (both decided 2026-09-16 on #1543).
+- ``pulse`` at 41: a pulse row IS a segment, so the basis is odd-parity like
+  ``nec2``'s, and it wants the denser mesh of a first-order basis (decided
+  2026-09-16 on #1543).
+- ``hmatrix`` at 30, unchanged and unmeasured: no census has said otherwise.
 
 An engine ABSENT from this table has no antennaknobs opinion, and its caller
 falls back to the Builder framework default. That is what ``--engine
@@ -49,10 +55,10 @@ from collections.abc import Mapping
 
 # Engine/roster name -> segments per quarter-wave at design_freq.
 DEFAULT_NSEGS: Mapping[str, int] = {
-    "sinusoidal": 30,
-    "sinusoidal-galerkin": 30,
+    "sinusoidal": 21,
+    "sinusoidal-galerkin": 20,
     "bspline": 15,
-    "pulse": 30,
+    "pulse": 41,
     "hmatrix": 30,
     "arrayblock": 21,
     "razor-2p": 40,

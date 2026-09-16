@@ -200,10 +200,10 @@ def test_backend_roster_served_shape(client):
     # mesh of bspline for the same self-convergence on the ByDipole1 ladder
     # -- and EVEN, because both want the feed at a segment end.
     assert {n: e["default_n_per_wire"] for n, e in by_name.items()} == {
-        "sinusoidal": 30,
-        "sinusoidal-galerkin": 30,
+        "sinusoidal": 21,
+        "sinusoidal-galerkin": 20,
         "bspline": 15,
-        "pulse": 30,
+        "pulse": 41,
         "hmatrix": 30,
         "arrayblock": 21,
         "razor-2p": 40,
