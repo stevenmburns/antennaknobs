@@ -1,13 +1,13 @@
 """PyInstaller entry point for the frozen antennaknobs workbench (issue #1349).
 
-``antennaknobs-workbench[.exe]``: start the web workbench on a free localhost
-port and open the default browser at it. The same package, the same momwire
+``antennaknobs-workbench[.exe]``: start the web workbench on localhost port
+8000 and open the default browser at it. The same package, the same momwire
 wheel and the same frontend bundle as ``pip install antennaknobs[web]``; the
 executable is packaging, not a fork. Console stays open with the URL and the
 server log, and Ctrl-C stops it.
 
-    antennaknobs-workbench              # free port, browser opens
-    antennaknobs-workbench --port 8000  # a fixed port
+    antennaknobs-workbench              # port 8000, browser opens
+    antennaknobs-workbench --port 8123  # somewhere else
     antennaknobs-workbench --no-browser # print the URL only
     antennaknobs-workbench --selftest   # prove the bundle: accelerator +
                                         # one solve, printed, exit 0
@@ -35,6 +35,13 @@ variable is spelled one way in PowerShell (``$env:NEC5_EXE = "..."``) and
 another in Command Prompt (``set NEC5_EXE=...``), and users mix the two up.
 The server stays on 127.0.0.1: an engine you are licensed for must not be
 served past your own machine.
+
+The port is fixed rather than free because a browser keys what it remembers to
+the origin, and the origin is the port: the view rail's pins, the stage layout
+and the theme belong to ``http://127.0.0.1:8000``, and a launch somewhere else
+starts at the defaults (AK#1540). A busy 8000 still gets a free port, with a
+line in this window saying so. None of this is in ``settings.toml``: those are
+the browser's own, and the file holds where the WORKBENCH starts.
 
 Startup settings (AK#1492) come from ``--settings PATH``, else the
 ``ANTENNAKNOBS_SETTINGS`` variable, else ``settings.toml`` in the
@@ -64,6 +71,9 @@ import webbrowser
 from pathlib import Path
 
 NAME = "antennaknobs-workbench"
+# The port a launch takes unless it is busy or ``--port`` says otherwise. It is
+# the browser's identity for the workbench, not only a number: see choose_port.
+DEFAULT_PORT = 8000
 # One file per engine, named after the variable it fills, beside the exe, and
 # one flag per engine that fills the same variable. NEC-5 is licensed software
 # the user supplies (#825); NEC-2 is freely available but GPL, so the bundle
@@ -103,6 +113,52 @@ def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return int(s.getsockname()[1])
+
+
+def _port_is_free(port: int) -> bool:
+    with socket.socket() as s:
+        try:
+            s.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+        return True
+
+
+def choose_port(requested: int | None) -> tuple[int, bool]:
+    """The port to serve on, and whether the default had to be given up.
+
+    A fixed default, not a free one (AK#1540). What the browser remembers
+    about the workbench — the view rail's pins, the stage layout, the theme —
+    lives in ``localStorage``, which is keyed to the ORIGIN, and a loopback
+    server's origin is ``http://127.0.0.1:<port>``. An ephemeral port made
+    every start a first visit: a rail arranged one evening was gone the next,
+    with nothing missing from any file on disk to explain it. 8000 is the port
+    the pip install serves on, so both routes share one origin and one memory.
+
+    ``--port`` is obeyed as given, busy or not: routing silently around it
+    would land the user on an origin they did not ask for, and uvicorn's
+    refusal is the clearer answer.
+    """
+    if requested is not None:
+        return requested, False
+    if _port_is_free(DEFAULT_PORT):
+        return DEFAULT_PORT, False
+    return _free_port(), True
+
+
+def port_notice(port: int, *, moved: bool) -> str | None:
+    """The startup line for a launch that could not have its usual port."""
+    if not moved:
+        return None
+    return (
+        f"             (port {DEFAULT_PORT} was busy, so this window is on "
+        f"{port} instead.\n"
+        "              A browser keys what it remembers to the port, so the "
+        "view rail,\n"
+        "              the layout and the theme start at their defaults here; "
+        f"--port {DEFAULT_PORT}\n"
+        "              once whatever holds it is closed.)"
+    )
 
 
 def _open_when_up(url: str, health: str, *, deadline_s: float = 120.0) -> None:
@@ -306,10 +362,13 @@ def main(argv: list[str] | None = None) -> int:
 
     from antennaknobs.web.server import app
 
-    port = opts["port"] or _free_port()
+    port, moved = choose_port(opts["port"])
     url = f"http://127.0.0.1:{port}/"
     print(f"{NAME} {version('antennaknobs')}  (momwire {version('momwire')})")
     print(f"  workbench: {url}")
+    notice = port_notice(port, moved=moved)
+    if notice:
+        print(notice)
     print(f"  NEC-5:     {_engine_line('NEC5_EXE')}")
     print(f"  NEC-2:     {_engine_line('NEC2_EXE')}")
     print(f"  settings:  {_settings_line()}")

@@ -221,7 +221,14 @@ there.
   unpinning takes it away.
 - **Pins are yours, not the design's**: the set (and the layout mode) is
   stored in the browser and shared by every design session, since which views
-  you care about is a habit, not a property of the antenna. Since v0.43.0
+  you care about is a habit, not a property of the antenna. *Stored in the
+  browser* means stored against the address the workbench answers at, port
+  included — which is why the packaged workbench serves on a fixed port, 8000,
+  and not on a free one: a launch at another address is a first visit as far
+  as the browser is concerned, and starts from the default set. `--port`, or
+  8000 being busy, moves it, and the console window says so. These never go
+  into `settings.toml`: that file holds where the *workbench* starts, and pins,
+  layout and theme are the browser's own. Since v0.43.0
   the picker's **▲/▼ buttons reorder** the pinned set — pin order IS rail
   order, grid-cell order, and phone-page order, so one reorder serves all
   three — and a second browser **window** picks up pin/order/layout changes
