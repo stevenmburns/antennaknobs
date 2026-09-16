@@ -115,7 +115,7 @@ export const SERVED_ROSTER: BackendRoster = ([
     panel: "bspline",
     model_kwargs: BSPLINE_KWARGS,
     default_n_per_wire: 15,
-    default_n_per_wire_by_degree: { "1": 20, "2": 15, "3": 12 },
+    default_n_per_wire_by_degree: { "1": 20, "2": 15, "3": 16 },
     dense_family: true,
   }),
   // The Pulse tab (#1148). The only momwire row that takes NO model kwargs

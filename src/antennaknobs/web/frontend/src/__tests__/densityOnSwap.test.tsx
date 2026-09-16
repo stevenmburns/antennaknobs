@@ -152,7 +152,7 @@ describe("a degree tab change adopts that degree's density", () => {
   // change and must adopt nothing.
   it.each([
     [[1], 20],
-    [[3], 12],
+    [[3], 16],
     [[1, 2], 15],
   ])("degrees %j -> N=%i", (walk, n) => {
     const { result } = slots();

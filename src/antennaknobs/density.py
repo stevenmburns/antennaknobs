@@ -23,16 +23,22 @@ WHERE EACH NUMBER COMES FROM
   the basis is what sets the density. d=2 at 15 and d=1 at 20 are the
   basis-convergence census (docs/status/2026-07-20) — within 2% of the
   basis-agreed limit on 50/66 scorable designs at d=2, with d=1 needing the
-  larger mesh to reach the same answer. d=3 at 12 continues the sequence
-  (#1543, 2026-09-16). Odd, so a centre-fed deck gets an interior knot at the
-  feed.
+  larger mesh to reach the same answer. d=3 at 16 (Steve, 2026-09-16, on
+  the ΔΓ re-cut of the served-rung census, AK#1552 / #1553): at 12 its
+  MEDIAN matched the others (ΔΓ 0.0040 against bs2@160, beside d=2's
+  0.0037 and d=1's 0.0076) but its TAIL did not — worst 0.90 on
+  ``short_dipole_loaded`` with the reactance's sign wrong, nine times d=1's
+  worst — and a served density is judged on what a user can hit, not on the
+  median. 16 is a decision, not a measured rung; the rung is the next
+  measurement. Even, so a centre-fed wire keeps a knot at its middle.
 - ``razor-2p`` and ``nec5`` at 40: one number for the two first-order
   engines, so an A/B between momwire's formulation twin and the licensed
   binary is not also an A/B on the mesh. It is higher than bspline's because
   both engines converge at FIRST order in the segment count (the #1525
   density ladder: razor-2p's fitted order is ~0.9 against bs2 refined to 160
-  per wire, with a median 2.4 % residual at 40), where bs2 is within a few
-  percent of its limit at 15. EVEN because both want a source at a segment
+  per wire; on ΔΓ, the metric the July corpus benchmark scores on, its
+  median at 40 is 0.0129 against bs2@160 where d=2 at 15 reads 0.0037 —
+  AK#1553's re-cut), where bs2 is within a few percent of its limit at 15. EVEN because both want a source at a segment
   end / a knot at the wire's exact middle. The number itself is the #1525
   decision (2026-09-16).
 - ``arrayblock``, ``pynec``, ``nec2`` at 21 — the Builder framework default
@@ -77,7 +83,7 @@ DEFAULT_NSEGS: Mapping[str, int] = {
 # they are accelerators chosen for SIZE, and no census has measured a
 # per-degree density for them, so they keep one number across the tab.
 NSEGS_BY_DEGREE: Mapping[str, Mapping[int, int]] = {
-    "bspline": {1: 20, 2: 15, 3: 12},
+    "bspline": {1: 20, 2: 15, 3: 16},
 }
 
 
