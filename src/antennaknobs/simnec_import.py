@@ -461,6 +461,45 @@ def _gen_sweep(gen) -> tuple[float, float] | None:
     return None
 
 
+# The call-style portal dialect: a NETWORK script that BUILDS the antenna by
+# calling SimNEC, instead of carrying NEC cards for it (AK#1538). These two
+# calls are the tell. Neither appears in a card block — antennaknobs' own
+# export writes GW and EX cards — so seeing one in a file with no NEC2 line
+# says the antenna is there and is written the other way, which is a different
+# thing to tell the reader than "no antenna here".
+_CALL_STYLE = re.compile(r"\bNEC(?:Wire|Source)\s*\(")
+
+# The one spelling the importer reads, named in both refusals. SimNEC's NEC
+# portal accepts it and antennaknobs' own .ssn export writes it, so it is both
+# a format and a way to get one.
+_THE_SPELLING = (
+    "NEC cards between a NEC2 line and a NECEND line, inside a NETWORK "
+    "element's <equ> script"
+)
+
+
+def _no_block_message(*, scripted: bool) -> str:
+    """Why this circuit has no deck to read, and what to do about it."""
+    if not scripted:
+        return (
+            f"no NEC-portal antenna block. antennaknobs reads {_THE_SPELLING} "
+            f"— the spelling SimNEC's NEC portal accepts and antennaknobs' own "
+            f"'python -m antennaknobs.simnec_export' writes. This circuit has "
+            f"no such script."
+        )
+    return (
+        f"this circuit's antenna is a SimNEC script — NECWire/NECSource calls "
+        f"that SimNEC evaluates itself — and the saved file keeps no cards "
+        f"from it. antennaknobs does not evaluate SimNEC's scripting language; "
+        f"it reads {_THE_SPELLING}. Two ways to get there: write this "
+        f"antenna's cards into a NEC2 ... NECEND block in the NETWORK script, "
+        f"or export a design from antennaknobs to .ssn "
+        f"('python -m antennaknobs.simnec_export') and edit that. Reading the "
+        f"deck SimNEC itself generates from the script would be the faithful "
+        f"third way, and is not available yet."
+    )
+
+
 def parse_ssn(
     text: str,
     *,
@@ -498,10 +537,12 @@ def parse_ssn(
         and re.search(r"(?m)^\s*NEC2\s*$", params["equ"] or "")
     ]
     if not nec_positions:
-        raise ValueError(
-            f"{name}: no NEC-portal antenna block (a NETWORK element whose "
-            f"<equ> script carries NEC2 cards)"
-        )
+        scripted = [
+            i
+            for i, (typ, params, _) in enumerate(infos)
+            if typ == "NETWORK" and _CALL_STYLE.search(params.get("equ") or "")
+        ]
+        raise ValueError(f"{name}: {_no_block_message(scripted=bool(scripted))}")
     if len(nec_positions) > 1:
         raise ValueError(
             f"{name}: {len(nec_positions)} NEC-portal blocks — antennaknobs "
