@@ -371,3 +371,34 @@ of date is a guard that gets bypassed by hand, so the check now compares
 That is the invariant originally worth checking (editable metadata does not follow
 a submodule checkout, which is how the `b9bc3e2f0` run read 0.53.0 against a
 pyproject saying 0.55.0), and it never needs updating again.
+
+## 12. Correction, 2026-09-16 — ×40 was never the served density
+
+`PLAN.md` §2 and §9 call ×40 "the served razor density", and §5/§7 of the README
+built on that. **That is wrong, and it is my error, not a change underneath me.**
+
+`default_n_per_wire=40` is razor-2p's *declared roster default*. The web app never
+reached it: no stock solver slot seeds razor-2p — the served seeds are `bspline`
+at 15, `bspline` d=1 at 20, and `pynec` — so razor-2p is only ever arrived at by
+swapping a slot's backend, and `useSolverSlots.ts:setSlotBackend` **deliberately
+preserves `nPerWire` across the swap**, overriding exactly the field
+`defaultOptsFor` would have set from the roster. Its comment says so plainly:
+*"Preserve segments-per-wire and wire-radius across the swap so the user keeps
+their geometry-sizing choices when comparing models."* Users therefore ran
+razor-2p at **15 or 20**. AK#1547 fixes it.
+
+I verified this in the code at the SHA this study measured rather than taking it
+on report; the mechanism above is what the source says.
+
+**Consequence for this study.** Both real densities are at or below the ladder's
+lowest rung, so **this study does not measure the density users actually had**,
+and its ×40 figures understate the error they saw. The nearest measured point is
+×21 — median **3.64 %**, p90 **10.7 %**, worst **54.7 %** against bs2@160 — and
+because error falls with N that is a **lower bound** on the error at 15. Rungs at
+15 and 20 would measure it; they are not run here and nothing above is restated as
+if they were.
+
+Nothing else changes: the classes, the fitted orders, the 30 unresolved rows, the
+skip and the cost ratios are all properties of the ladder and are unaffected by
+what the app happened to serve. Only the *label* on ×40, and the claim that it
+described users' experience, were wrong.

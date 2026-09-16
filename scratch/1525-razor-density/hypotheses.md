@@ -12,9 +12,23 @@ catalog rather than on four cases.
 for the bs2−NEC-5 gap on the same design — the one design in the study whose error
 falls quadratically. Predicted in advance (E2b) and hit.
 
-### What the served density actually costs in accuracy
+### What ×40 costs in accuracy — and a correction about what was served
 
-At `default_n_per_wire=40` — the density the razor-2p tab serves — razor-2p sits a
+**Correction, 2026-09-16.** Everything below said ×40 was "the density the app
+serves". It is razor-2p's *declared roster default*, and the app never reached it.
+No stock slot seeds razor-2p — the served seeds are bspline at 15, bspline d=1 at
+20 and PyNEC — so razor-2p is only arrived at by swapping a slot's backend, and
+`useSolverSlots.ts:setSlotBackend` preserves `nPerWire` across the swap, overriding
+the very field the roster default would have set. Users ran razor-2p at **15 or
+20**. AK#1547 fixes that.
+
+Both are at or below this ladder's lowest rung, so **this study never measured the
+density users actually had**, and every figure here understates the real error.
+The nearest measured point is ×21: median **3.64 %**, p90 **10.7 %**, worst
+**54.7 %** — and since error falls with N, that is a *lower bound* on what 15 gave.
+Measuring 15 and 20 properly would need two more rungs; it is not done here.
+
+At `default_n_per_wire=40` razor-2p sits a
 **median 2.42 %** from bs2@160 over its 155 converging rows, p90 **7.64 %**, worst
 **42.5 %**. Doubling to 80 removes about half of that: the median
 `err(80)/err(40)` is **0.519**, which is what first order predicts and is the one
@@ -39,7 +53,7 @@ the small ones do not, because a ~90 MB interpreter-and-numpy floor and a fixed
 per-solve setup dominate anything with a few hundred segments. The O(N²) fill only
 governs once N is big enough to matter.
 
-The practical form of that, which is the useful half: **doubling the served
+The practical form of that, which is the useful half: **doubling the
 density is cheaper than the asymptotic model suggests for most of the catalog.**
 Median cold solve goes 0.106 s at ×40 to 0.205 s at ×80; the catalog total goes
 60 s to 160 s; the worst single solve goes 5.4 s to 20.3 s. The ×160 rung costs
