@@ -190,21 +190,17 @@ it to a one-line **R · X · SWR** pill; click the pill to restore the card. The
 choice is remembered per view, and the Files view starts minimized, since its
 printout carries the numbers.
 
-**Wires below the ground plane and the polar cuts.** The cuts are read out
-of the solved currents with the above-ground formula (an image in the
-plane, then Fresnel reflection). For a current *inside* the soil that is
-the wrong problem: its field above ground is the transmitted field,
-refracted at the interface and attenuated through the medium, which the
-readout does not compute (momwire#570). So a design whose every wire is
-buried — the buried dipole — gets its impedance, currents and charges and
-**no pattern**: the polar views carry the sentence instead of a lobe. A
-mixed design — a vertical over buried radials, an elevated feed over a
-buried counterpoise — is read out in full and labelled with the share of
-current below ground, because on those the imaged buried currents account
-for under a tenth of the radiated power (a screen's currents cancel in the
-far field); a design where they would account for more than half is
-refused the same way. The label is the caveat: those currents are imaged as
-if in air.
+**Wires below the ground plane and the polar cuts.** Currents above the
+plane are read out through an image in it, Fresnel-corrected. Currents
+*inside* the soil reach the air a different way — as the transmitted wave,
+refracted at the interface and attenuated on the way up — and that is how
+the cuts place them. Every buried design gets a pattern: the buried dipole,
+whose wires are all below the plane, is its transmitted field alone; a
+vertical over buried radials or an elevated feed over a buried counterpoise
+adds it to what the above-ground wires radiate, with nothing below the
+plane entering the image. The polar views label the share of the current
+moment that lies below ground, which says how much of the antenna is down
+there.
 
 - **Pin the views you watch.** The stage carries a *pinned set*, not the whole
   roster — **Antenna, Azimuth, Elevation, Smith** to start, up to **six**
