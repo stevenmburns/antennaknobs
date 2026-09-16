@@ -375,8 +375,10 @@ alone takes seven rungs across the range; both together space `k` rungs
 across `lo`..`hi`. Every rung is rounded to an int and duplicates are dropped.
 `--markers 15 16 20` solves those densities too — the served numbers a
 study usually wants to see — starred in the table and squared on the
-chart; they are observations on the trajectory, not rungs of the
-Richardson ladder.
+chart. Beside a ladder they are observations on the trajectory, not rungs
+of the Richardson estimate; given alone, with neither `--range` nor
+`--npoints`, they are the whole ladder: `--markers 15 16 20` solves just
+those three.
 
 The table is grouped one block per engine:
 
