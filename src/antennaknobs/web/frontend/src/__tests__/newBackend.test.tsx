@@ -143,13 +143,18 @@ describe("a solver that exists only in the served roster (#628)", () => {
     expect(knob.value).toBe("8");
     expect(knob.min).toBe("2");
     expect(knob.max).toBe("32");
-    // Segments/wire carries over from the slot's previous backend, as on
-    // any manual swap — it is geometry sizing, not a solver kwarg.
+    // Segments/wire is the NEW backend's served default, not the slot's old
+    // value (#1543) — and this fixture's 12 is a number no other entry in the
+    // roster carries, so the knob can only have got it off the wire. The
+    // note beside it says where it came from.
     const nPerWire = screen
       .getByText("segments / wire (N)")
       .closest(".field")
       ?.querySelector("input") as HTMLInputElement;
-    expect(nPerWire.value).toBe("15");
+    expect(nPerWire.value).toBe("12");
+    expect(
+      screen.getByText("segments set to Fake Solver's default, 12"),
+    ).toBeTruthy();
     // Its bespoke-panel-less roster entry shows no other solver's controls.
     expect(screen.queryByRole("tab", { name: "d=2" })).toBeNull();
     expect(screen.queryByRole("tab", { name: "Converged" })).toBeNull();
@@ -163,7 +168,7 @@ describe("a solver that exists only in the served roster (#628)", () => {
       expect(req?.momwire_model).toBe("fake-solver");
       expect(req?.solver).toBe("momwire");
       expect(req?.model_options).toEqual({ n_qp_const: 8 });
-      expect(req?.n_per_wire).toBe(15);
+      expect(req?.n_per_wire).toBe(12);
       // supports_ground: false is honoured all the way to the wire.
       expect(req?.ground).toBe(false);
     });

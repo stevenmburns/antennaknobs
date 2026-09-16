@@ -115,6 +115,12 @@ export type BackendEntry = {
    *  typed only because the wire carries it. */
   panel: string | null;
   default_n_per_wire: number;
+  /** Degree -> default segments/wire, for a backend whose DEGREE is its basis
+   *  (antennaknobs#1543). Null (or absent, on a server predating it) when the
+   *  backend keeps one density across every degree it accepts — which is the
+   *  honest answer for the accelerators, chosen for size rather than basis.
+   *  Keys are strings because they are JSON object keys. */
+  default_n_per_wire_by_degree?: Record<string, number> | null;
   accelerator: boolean;
   dense_family: boolean;
   /** What the CLASS can be configured to: axis -> the values it accepts
@@ -628,10 +634,50 @@ export function defaultOptsFor(
     model[key] = spec.default;
   }
   return {
-    nPerWire: b.default_n_per_wire,
+    nPerWire: defaultNPerWireFor(b, model.degree),
     wireRadius: DEFAULT_WIRE_RADIUS,
     model,
   };
+}
+
+/** This backend's default segments/wire at `degree` (antennaknobs#1543).
+ *
+ *  What N a solver needs to be converged is a property of its BASIS, and for
+ *  the B-spline family the degree IS the basis — so the served per-degree map
+ *  wins where it has a row. A backend that merely ACCEPTS a degree serves no
+ *  map and keeps one density across it, which is also what a server predating
+ *  #1543 gets.
+ */
+export function defaultNPerWireFor(b: BackendEntry, degree: unknown): number {
+  return perDegreeNPerWire(b, degree) ?? b.default_n_per_wire;
+}
+
+/** The served density for THIS degree, or null when the backend does not
+ *  vary its density by degree.
+ *
+ *  Separate from `defaultNPerWireFor` because the two answer different
+ *  questions and one caller needs the null. A degree tab change adopts a
+ *  density only where a per-degree row exists: falling back to the flat
+ *  default there would reset a hand-set N on every accelerator's degree tab,
+ *  which is a value the user chose and this issue never said to discard.
+ */
+export function perDegreeNPerWire(
+  b: BackendEntry,
+  degree: unknown,
+): number | null {
+  const byDegree = b.default_n_per_wire_by_degree;
+  if (byDegree == null || typeof degree !== "number") return null;
+  const n = byDegree[String(degree)];
+  return typeof n === "number" ? n : null;
+}
+
+/** The sentence beside the segments/wire knob after a slot adopts a density.
+ *
+ *  Named with `backendDisplayLabel` so the note says what the slot chip says,
+ *  degree affix included — the degree is half the reason the number moved.
+ */
+export function densityAdoptionNote(b: BackendEntry, opts: BackendOpts): string {
+  return `segments set to ${backendDisplayLabel(b, opts)}'s default, ${opts.nPerWire}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -890,13 +936,18 @@ export function slotFromSeed(
 ): SlotConfig {
   const backend = findBackend(roster, seed.backend) ?? roster[0];
   const opts = defaultOptsFor(backend, specs);
-  if (seed.nPerWire != null) opts.nPerWire = seed.nPerWire;
   // Only deviations the backend actually takes: a seed naming a kwarg this
   // solver does not accept would put it on the wire, where the hosted
   // sanitiser drops it and a local install raises TypeError.
   for (const [k, v] of Object.entries(seed.model ?? {})) {
     if (k in opts.model) opts.model[k] = v;
   }
+  // The model lands BEFORE the density so a seed that names a degree and no N
+  // gets that degree's default rather than degree 2's (#1543). An explicit
+  // `n_per_wire` — a stock slot's, or one a settings file names — still wins:
+  // a saved value is a decision, and adoption is only for the swap.
+  opts.nPerWire = defaultNPerWireFor(backend, opts.model.degree);
+  if (seed.nPerWire != null) opts.nPerWire = seed.nPerWire;
   return { backend, opts };
 }
 

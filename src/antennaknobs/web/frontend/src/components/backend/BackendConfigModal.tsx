@@ -102,6 +102,11 @@ export type BackendConfigProps = {
    *  antennaknobs#478) — shown as a hint on the Sin-Galerkin feed-model
    *  control. */
   suggestConvergedFeed: boolean;
+  /** Why this slot's segments/wire is what it is, when the slot adopted it
+   *  from the engine rather than the user setting it (antennaknobs#1543);
+   *  null once the knob is touched. Optional: a panel rendered without it
+   *  simply has no note to show. */
+  densityNote?: string | null;
   opts: BackendOpts;
   onChangeBackend: (b: BackendEntry) => void;
   onPatch: (patch: Partial<BackendOpts>) => void;
@@ -122,6 +127,7 @@ export function BackendConfigModal({
   vocab,
   designRefusalNote,
   suggestConvergedFeed,
+  densityNote = null,
   opts,
   onChangeBackend,
   onPatch,
@@ -249,6 +255,15 @@ export function BackendConfigModal({
             step={1}
             onChange={(v) => onPatch({ nPerWire: v })}
           />
+          {/* Why the number moved (#1543). A swap and a degree change both
+              re-mesh the slot, and a value that changes under you without a
+              word is indistinguishable from a bug — so the note says which
+              engine chose it, and goes away the moment you choose one. */}
+          {densityNote && (
+            <em className="density-note" role="note">
+              {densityNote}
+            </em>
+          )}
           <NumberField
             label="wire radius (m)"
             value={opts.wireRadius}
