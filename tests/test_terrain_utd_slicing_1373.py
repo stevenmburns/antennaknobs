@@ -90,21 +90,29 @@ def test_one_azimuth_at_a_time_is_bit_identical_to_the_whole_grid(name, monkeypa
     seen: list[tuple] = []
     real = M.terrain_utd_power
 
-    def spy(*args):
-        out = real(*args)
-        seen.append((args, out))
+    def spy(*args, **kwargs):
+        out = real(*args, **kwargs)
+        seen.append((args, kwargs, out))
         return out
 
     monkeypatch.setattr(M, "terrain_utd_power", spy)
     _engine(terrain).far_field(n_theta=18, n_phi=12, del_theta=5, del_phi=30)
 
     assert len(seen) == 1, f"expected one composer call for one grid, got {len(seen)}"
-    args, full = seen[-1]
+    args, kwargs, full = seen[-1]
     n_phi = full.shape[1]
     assert n_phi > 1, "a one-column grid would make the comparison vacuous"
 
+    # Keyword arguments are sliced by the same shape rule as positional ones
+    # (`m_below`, the buried moment of issue #1341, arrives as one).
     sliced = np.stack(
-        [real(*[_column(a, j, n_phi) for a in args])[:, 0] for j in range(n_phi)],
+        [
+            real(
+                *[_column(a, j, n_phi) for a in args],
+                **{k: _column(v, j, n_phi) for k, v in kwargs.items()},
+            )[:, 0]
+            for j in range(n_phi)
+        ],
         axis=1,
     )
     assert sliced.shape == full.shape
