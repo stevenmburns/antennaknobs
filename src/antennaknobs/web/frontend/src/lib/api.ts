@@ -125,20 +125,11 @@ export type SolveResponse = {
    *  can't support them (no wires / no gain norm) or from geometry previews;
    *  new angles are fetched from POST /cuts (see useCutTraces). */
   cuts?: PatternCuts;
-  /** Issue #1341: currents below the ground plane in the far-field readout.
-   *  `pattern_refusal` — the pattern is not served (every current is below
-   *  the plane, or the pattern depends on in-medium currents past the bar);
-   *  `cuts` is then absent and must not be fetched. `pattern_note` — served,
-   *  with the share of current moment below the plane and the largest
-   *  change (dB, lit hemisphere) that imaging it as if above ground makes. */
-  pattern_refusal?: string;
-  pattern_note?: string;
+  /** Issue #1341: the share of the current moment below the ground plane,
+   *  absent when none of it is. The cuts place those currents through the
+   *  interface (the transmitted far field), so this labels the antenna and
+   *  withholds nothing. */
   in_medium_moment_fraction?: number;
-  /** Share of the lit hemisphere's radiated power the imaged in-medium
-   *  currents account for (the refusal bar is one half). */
-  in_medium_power_share?: number;
-  /** Change at the peak direction, dB, when those currents are dropped. */
-  in_medium_pattern_delta_db?: number | null;
   /** Advisory key into the server's cuts-source cache (issue #551). When
    *  present, cut refetches send this ~100-byte id (over /ws or POST /cuts)
    *  instead of re-uploading the full solve body; a server-side miss

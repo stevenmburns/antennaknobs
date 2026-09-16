@@ -291,24 +291,16 @@ def _attach_gain_norm(out: dict) -> None:
     out["directivity_norm"] = _ETA0 * k * k / (8.0 * np.pi * p_in)
 
 
-# Issue #1341: the coarse hemisphere the in-medium assessment evaluates on
-# (3° in θ, 6° in φ — the same density as pattern3d's grid). Both readouts
-# run at ~O(N·directions); 1,800 directions on a 4k-segment mesh is ~100 ms
-# once per solve, and zero when nothing is buried.
-_IN_MEDIUM_THETA = np.deg2rad(np.arange(0.0, 90.0, 3.0))
-_IN_MEDIUM_PHI = np.deg2rad(np.arange(0.0, 360.0, 6.0))
+def _attach_in_medium_fraction(out: dict) -> None:
+    """Issue #1341: stamp ``in_medium_moment_fraction``, the share of
+    Σ|I·dl| below the ground plane, when any of it is.
 
-
-def _attach_in_medium_assessment(out: dict) -> None:
-    """Issue #1341: the cuts readout images every segment as if above the
-    ground plane. For currents below the plane that is the wrong problem
-    (the transmitted field, momwire#570), so a response with in-medium
-    currents carries either ``pattern_refusal`` (every current below the
-    plane, or the pattern depends on them past the bar — cuts are then
-    withheld, `_pattern_cuts` returns None) or ``pattern_note`` with
-    ``in_medium_moment_fraction`` / ``in_medium_pattern_delta_db``. The
-    web ground plane sits at z = 0. Never raises: a response the readout
-    cannot digest simply carries no assessment, as it carries no cuts."""
+    Informational only. `_mag2_at_directions` places those currents through
+    the interface (the transmitted far field, momwire#570), so this is a
+    property of the antenna the chart can label, not a caveat on the
+    pattern. The web ground plane sits at z = 0. Never raises: a response
+    the readout cannot digest simply carries no fraction, as it carries no
+    cuts."""
     if not bool(out.get("ground", False)) or not out.get("wires"):
         return
     try:
@@ -317,32 +309,11 @@ def _attach_in_medium_assessment(out: dict) -> None:
         return
     if mid.shape[0] == 0:
         return
-    sin_t, cos_t = np.sin(_IN_MEDIUM_THETA), np.cos(_IN_MEDIUM_THETA)
-    rhat = np.stack(
-        [
-            sin_t[:, None] * np.cos(_IN_MEDIUM_PHI)[None, :],
-            sin_t[:, None] * np.sin(_IN_MEDIUM_PHI)[None, :],
-            np.broadcast_to(cos_t[:, None], (sin_t.size, _IN_MEDIUM_PHI.size)),
-        ],
-        axis=-1,
+    fraction = in_medium.moment_fraction(
+        dr, i_mid, in_medium.below_surface_mask(mid, 0.0)
     )
-    medium = in_medium.assess(
-        mid,
-        dr,
-        i_mid,
-        0.0,
-        lambda m, d, i: _mag2_at_directions(out, rhat, mid=m, dr=d, i_mid=i),
-        weights=sin_t[:, None],
-    )
-    if medium.fraction == 0.0:
-        return
-    out["in_medium_moment_fraction"] = medium.fraction
-    out["in_medium_power_share"] = medium.power_share
-    out["in_medium_pattern_delta_db"] = medium.delta_db
-    if medium.served:
-        out["pattern_note"] = medium.note
-    else:
-        out["pattern_refusal"] = medium.refusal
+    if fraction > 0.0:
+        out["in_medium_moment_fraction"] = fraction
 
 
 def _adaptive_norm_grid(k: float, lo: np.ndarray, hi: np.ndarray) -> tuple[int, int]:
@@ -523,6 +494,7 @@ def _utd_mag2(
     i_mid,
     k: float,
     omega: float,
+    m_below=None,
 ) -> np.ndarray:
     """|M_perp|² at arbitrary directions through the DIFFRACTED composer.
 
@@ -549,12 +521,18 @@ def _utd_mag2(
     floors them, so their value is never read — and on the elevation cut that
     is half the samples. Directions within float slop OF the horizon are
     skipped for a different and load-bearing reason: see `_UTD_GRAZING_RZ`.
+
+    ``m_below`` is the buried segments' transmitted moment (issue #1341),
+    sliced per group and handed to the composer, which sums it into the
+    field: this path recomputes its own direct term, so a term folded into
+    ``M_perp`` upstream would be dropped here.
     """
     flat = rhat.reshape(-1, 3)
     n = flat.shape[0]
     h_f = h_hat.reshape(-1, 3)
     v_f = v_hat.reshape(-1, 3)
     m_f = M_perp.reshape(-1, 3)
+    b_f = None if m_below is None else m_below.reshape(-1, 3)
     rz = flat[:, 2]
     theta_all = np.arccos(np.clip(rz, -1.0, 1.0))
     # Quantised so directions meant to share a bearing DO, whatever float
@@ -589,6 +567,7 @@ def _utd_mag2(
             # about where the ground is.
             0.0,
             None,  # h_ref: the per-segment treatment has no reference height
+            m_below=None if b_f is None else b_f[sel][col],
         )[:, 0]
     return power.reshape(rhat.shape[:-1])
 
@@ -638,14 +617,41 @@ def _mag2_at_directions(
         mid, dr, i_mid = _moment_segments(out)
     rx, ry, rz = rhat[..., 0], rhat[..., 1], rhat[..., 2]
 
+    # Issue #1341: currents below the plane reach the air through the
+    # interface, not through an image of themselves in it. Their transmitted
+    # moment (momwire#570) joins the direct term; the image below is built
+    # from the above-ground segments alone, and every ground branch after it
+    # — flat Fresnel, specular terrain, UTD terrain — acts on that image.
+    # The soil is the one the response already carries for the reflection
+    # coefficients, which for a faceted terrain is the crest medium the
+    # impedance solve ran on.
+    M_below = None
+    if ground_on:
+        below = in_medium.below_surface_mask(mid, 0.0)
+        if np.any(below):
+            eps_t = complex(out["ground_eps_r"], out["ground_eps_im"])
+            M_below = in_medium.transmitted_m_perp(
+                mid[below],
+                dr[below],
+                i_mid[below],
+                k,
+                in_medium.medium_wavenumber(eps_t, k),
+                rhat,
+                0.0,
+            )
+            above = ~below
+            mid, dr, i_mid = mid[above], dr[above], i_mid[above]
+
     phase = k * np.einsum("...c,nc->...n", rhat, mid)
     expp = np.exp(1j * phase)
     weighted = i_mid[:, None] * dr  # (Nseg, 3)
     M = np.einsum("...n,nc->...c", expp, weighted)
     m_dot_r = np.sum(M * rhat, axis=-1)
     M_perp = M - m_dot_r[..., None] * rhat
+    if M_below is not None:
+        M_perp = M_perp + M_below
 
-    if ground_on:
+    if ground_on and mid.shape[0]:
         # PEC-image method, then Fresnel-correct the reflected wave per-ray.
         # Image current: horizontal components flipped, vertical preserved.
         # This reproduces PEC reflection when ρ_h=-1, ρ_v=+1, and lets us
@@ -703,6 +709,7 @@ def _mag2_at_directions(
                 i_mid,
                 k,
                 2.0 * np.pi * float(out["measurement_freq_mhz"]) * 1e6,
+                m_below=M_below,
             )
         if terr:
             # Faceted terrain (issue #534): per ray, find the facet the
@@ -831,10 +838,6 @@ def _pattern_cuts(
     norm = float(out.get("directivity_norm") or 0.0)
     if norm <= 0.0 or (mid is None and not out.get("wires")):
         return None
-    if out.get("pattern_refusal"):
-        # Issue #1341: the response says why its pattern is not served; a
-        # cut through the same readout would draw exactly what is refused.
-        return None
     t_az = _cut_angles(az_angles_deg)
     t_el = _cut_angles(elev_angles_deg)
 
@@ -907,7 +910,6 @@ _CUTS_SRC_CACHE_MAX = 64
 _CUTS_SRC_FIELDS = (
     "k_meas_m_inv",
     "ground",
-    "pattern_refusal",  # issue #1341: a refused pattern has no cuts either
     "ground_eps_r",
     "ground_eps_im",
     "ground_terrain",
@@ -1673,7 +1675,7 @@ def _solve_uncached(req: dict, cancel=None) -> dict:
         out["solver"] = "momwire"
     _attach_derived_em_fields(out)
     _attach_gain_norm(out)
-    _attach_in_medium_assessment(out)
+    _attach_in_medium_fraction(out)
     return out
 
 
