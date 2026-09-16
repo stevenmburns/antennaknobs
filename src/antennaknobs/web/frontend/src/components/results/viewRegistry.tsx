@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import type { ConvergeData, MeasuredData, SolveResponse, SweepData } from "../../lib/api";
-import type { Projection, View } from "../../lib/view";
+import type { CanvasCamera, Projection, View } from "../../lib/view";
 import { CurrentCanvas } from "../charts/CurrentCanvas";
 import { FarFieldChart } from "../charts/FarFieldChart";
 import { SmithChart } from "../charts/SmithChart";
@@ -31,6 +31,11 @@ export type ViewRenderProps = {
   azElevDeg: number;
   elevAzDeg: number;
   cameraProjection: Projection;
+  /** The antenna canvas's zoom and pan, held by the session so that leaving
+   *  the view and coming back does not throw away the framing (AK#1542).
+   *  Optional: a call site that omits it — every thumbnail — gets a canvas
+   *  with its own camera, always at the fit view. */
+  canvasCamera?: CanvasCamera | undefined;
   showHeatmap: boolean;
   showEnvelope: boolean;
   showWireLabels: boolean;
@@ -99,6 +104,11 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
           showWireLabels={p.showWireLabels}
           showFeedNames={p.showFeedNames}
           interactive={p.fill}
+          // Tied to `fill` for the same reason `interactive` is: the camera
+          // belongs to the one canvas a drag can reach, and a thumbnail
+          // drawing the stage's zoom would be a crop of an antenna, not a
+          // picture of one.
+          camera={p.fill ? p.canvasCamera : undefined}
         />
       </div>
     );

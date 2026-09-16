@@ -1,7 +1,15 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { SolveResponse } from "../../lib/api";
 import { formatMetres } from "../../lib/format";
-import { cross3, dot3, PROJECTIONS, type Projection, type Vec3 } from "../../lib/view";
+import {
+  type CanvasCamera,
+  cross3,
+  dot3,
+  fitCamera,
+  PROJECTIONS,
+  type Projection,
+  type Vec3,
+} from "../../lib/view";
 import { ThemeContext } from "../hooks";
 import { currentColor, plotColors } from "./palette";
 
@@ -19,6 +27,7 @@ export function CurrentCanvas({
   showWireLabels,
   showFeedNames,
   interactive = false,
+  camera,
 }: {
   result: SolveResponse | null;
   projection: Projection;
@@ -28,6 +37,12 @@ export function CurrentCanvas({
   showFeedNames: boolean;
   // Zoom/pan navigation — main stage only; thumbnails stay inert buttons.
   interactive?: boolean;
+  /** A camera to look through and write back to, outliving this mount
+   *  (AK#1542) — the stage passes the session's. Without one the canvas keeps
+   *  its own and starts at the fit view every time it mounts, which is what a
+   *  thumbnail wants. Taken on the first render and held: the object is
+   *  mutated in place, never replaced, and one session has one camera. */
+  camera?: CanvasCamera | undefined;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -38,8 +53,16 @@ export function CurrentCanvas({
   // knob drags and re-solves; zoom composes on top as a pure multiplier.
   // Lives in a ref (mutated at pointer-event rate, drawn via rAF) with a
   // React mirror of the zoom level for the HUD chip / touch-action gate.
-  const vpRef = useRef({ zoom: 1, panX: 0, panY: 0 });
-  const [vpZoom, setVpZoom] = useState(1);
+  // The session's camera where it lends one, so the framing survives this view
+  // being unmounted and mounted again (AK#1542); otherwise a private one,
+  // which does not. In state so it is created once and cannot be rebuilt by a
+  // render, and in a ref besides so the draw and the pointer handlers reach it
+  // without taking a dependency on it.
+  const [cameraObject] = useState<CanvasCamera>(() => camera ?? fitCamera());
+  const vpRef = useRef<CanvasCamera>(cameraObject);
+  // Seeded from the camera, not from 1: on a remount the HUD has to come back
+  // saying what the canvas is actually showing.
+  const [vpZoom, setVpZoom] = useState(() => cameraObject.zoom);
   const redrawRef = useRef<() => void>(() => {});
   // useCallback with an empty dep array (react-hooks/exhaustive-deps, #736):
   // the body only writes vpRef.current and calls setVpZoom, both of which
@@ -47,8 +70,13 @@ export function CurrentCanvas({
   // closure never goes stale — giving it a fixed identity lets the two
   // effects below list it as a dependency without re-running on every
   // render.
+  // Mutated in place rather than replaced: the object may be the session's
+  // camera, which other mounts of this view hold the same reference to.
   const resetViewport = useCallback(() => {
-    vpRef.current = { zoom: 1, panX: 0, panY: 0 };
+    const vp = vpRef.current;
+    vp.zoom = 1;
+    vp.panX = 0;
+    vp.panY = 0;
     setVpZoom(1);
   }, []);
 
@@ -71,7 +99,14 @@ export function CurrentCanvas({
     // Re-fit on a DESIGN switch: the viewport was aimed at the old geometry.
     // Deliberate — projection switches within a design carry the viewport
     // instead (#768).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    //
+    // Keyed on the camera's own record of what it was aimed at, not on this
+    // mount (AK#1542): this effect runs whenever the view is mounted, so
+    // testing the design against `fitFor` is what tells a design switch apart
+    // from coming back to the view. Same design, same framing.
+    const vp = vpRef.current;
+    if (vp.fitFor === geometryName) return;
+    vp.fitFor = geometryName;
     resetViewport();
     frameRef.current = null;
     // The main draw effect below re-runs on any new result, so the re-fit

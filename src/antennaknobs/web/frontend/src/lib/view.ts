@@ -125,6 +125,34 @@ export const PROJECTIONS: { id: Projection; label: string; h: Vec3; v: Vec3 }[] 
   { id: "yz", label: "Side (yz)",  h: [0, 1, 0], v: [0, 0, 1] },
   { id: "iso", label: "Iso", h: [-ISO_S2, ISO_S2, 0], v: [-ISO_S6, -ISO_S6, 2 * ISO_S6] },
 ];
+// Where the antenna canvas is looking: the zoom/pan viewport (zoom = 1, pan =
+// 0 IS the auto-fit view, so zoom composes on top of the fit as a multiplier),
+// plus the design that framing was aimed at.
+//
+// A session holds one of these and lends it to the canvas (AK#1542). The
+// canvas can hold its own, but only for as long as it is mounted, and the
+// stage unmounts the view it is not showing: without a camera from outside,
+// looking at the Smith chart and coming back put the antenna at fit again,
+// after the work of finding the detail you were inspecting.
+//
+// `fitFor` is what still makes an antenna SWITCH re-fit. It records the
+// geometry the numbers were aimed at, so the canvas can tell a design switch
+// (re-fit — the old framing means nothing for new wires) from a remount of
+// the same design (keep). "" before anything has been drawn.
+export type CanvasCamera = {
+  zoom: number;
+  panX: number;
+  panY: number;
+  fitFor: string;
+};
+
+export const fitCamera = (): CanvasCamera => ({
+  zoom: 1,
+  panX: 0,
+  panY: 0,
+  fitFor: "",
+});
+
 export const dot3 = (a: Vec3, b: Vec3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 export const cross3 = (a: Vec3, b: Vec3): Vec3 => [
   a[1] * b[2] - a[2] * b[1],

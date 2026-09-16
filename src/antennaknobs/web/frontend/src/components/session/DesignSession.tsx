@@ -879,6 +879,7 @@ function DesignSessionBody({
     setView,
     cameraProjection,
     setCameraProjection,
+    canvasCamera,
     showHeatmap,
     setShowHeatmap,
     showEnvelope,
@@ -2220,6 +2221,12 @@ function DesignSessionBody({
             azElevDeg={azElevDeg}
             elevAzDeg={elevAzDeg}
             cameraProjection={cameraProjection}
+            // The session's camera, so the antenna view is where you left it
+            // when you come back to it (AK#1542). This bag serves the rail's
+            // primary view, the grid cells and the mobile pages — one antenna
+            // canvas at a time in any of them. The thumbnail bag below passes
+            // none, and thumbnails stay fitted.
+            canvasCamera={canvasCamera}
             showHeatmap={showHeatmap}
             showEnvelope={showEnvelope}
             showWireLabels={showWireLabels}
