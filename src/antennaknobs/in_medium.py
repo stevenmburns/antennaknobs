@@ -1,98 +1,78 @@
-"""Currents below the interface in a far-field readout (issue #1341).
+"""The far field of a current below the interface (issue #1341, momwire#570).
 
-Both far-field readouts in this package — `MomwireEngine.far_field` (the
-grid behind the compare table and the CLI plots) and the web server's
-`_mag2_at_directions` (the polar-chart cuts) — build the pattern from every
-solved segment's current moment through the above-ground formula: a PEC
-image mirrored in the ground plane, then Fresnel reflection on the image
-wave. That formula is the far field of a current ABOVE the interface. The
-far field above ground of a current INSIDE the medium is the transmitted
-field, refracted at the boundary and attenuated through the soil, and its
-stationary-phase form is momwire#570 — not written. Neither readout ever
-looked at which side of the plane a segment was on, so the app served for a
-wholly buried dipole a −21 dBi pattern that means nothing, and imaged the
-buried radials of the ground-mounted vertical as if they stood in air.
+Both far-field readouts in this package — `MomwireEngine._evaluate_M_perp`
+(the grid behind the compare table and the CLI plots) and the web server's
+`_mag2_at_directions` (the polar-chart cuts) — build a pattern as a direct
+term plus a geometric image in the ground plane, Fresnel-corrected on the
+reflected wave. That is the far field of a current ABOVE the interface. A
+current BELOW it reaches the air through the boundary instead, and its far
+field is the transmitted plane wave. This module is where that term is
+written; both readouts split their moment set on `below_surface_mask` and
+add `transmitted_m_perp` to their direct term.
 
-This module is the one place the rule lives:
+Conventions are momwire's: e^{+jωt}, air above z = ``ground_z`` with real
+k_p = ω/c, medium below with k_m = k_p·√ε̃ on the Im k_m ≤ 0 branch, where
+ε̃ = ε_r − jσ/(ωε₀). The far field is
 
-* every current below the plane → the pattern is REFUSED by name (the
-  impedance, currents and charges stay served);
-* a mixture → the pattern is evaluated twice, with and without the
-  in-medium segments, and the share of the radiated power (over the lit
-  hemisphere, sin θ weighted) that the imaged in-medium currents account
-  for is the measured dependence of this pattern on currents the readout
-  cannot place honestly. Under `IN_MEDIUM_POWER_SHARE_BAR` the full
-  readout is served (the status quo — excluding the segments is not the
-  transmitted answer either, and on the ground-mounted vertical it moves
-  the peak 0.37 dB AWAY from NEC-5's) with a note carrying the share and
-  the change at the peak direction; over the bar it is refused, because a
-  pattern that depends materially on in-medium currents needs momwire#570.
+    E = −jηk_p/(4π) · e^{−jk_pR}/R · (M_θ θ̂ + M_φ φ̂)
 
-The measure is a POWER SHARE and not a worst-direction dB change, and
-not the share of current moment below the plane, for two reasons found
-by fire. A dB change over the lit hemisphere compares against nulls: a
-monopole over one buried radial has an exact zenith null on its
-above-ground currents alone and a filled one with the radial imaged, and
-that read as "254 dB" and refused a pattern the physics barely notices
-(the main-only power-balance suite, 2026-09-10). A moment fraction sees
-38 % of Σ|I·dl| below ground on the shipped buried-radial vertical, whose
-symmetric screen cancels in the far field and accounts for 8 % of the
-radiated power as imaged. The power share is bounded, integrates over
-the whole lit hemisphere, and is 100 % exactly when nothing is above
-the plane.
+on NEC's basis θ̂ = (cosθcosφ, cosθsinφ, −sinθ), φ̂ = (−sinφ, cosφ, 0), so
+what a readout accumulates is the moment M, not the field.
+
+An element at (x, y, z) carrying m = I·dl at depth d = ground_z − z > 0
+contributes
+
+    k_pz = k_p cosθ,   k_mz = √(k_m² − k_p² sin²θ)         (Im k_mz ≤ 0)
+    t_s  = 2 k_pz/(k_pz + k_mz)                 Fresnel TE, air → medium
+    t_p  = 2 k_pz k_p k_m/(k_m² k_pz + k_p² k_mz)          Fresnel TM
+    T_e  = t_s,   T_h = t_p·k_mz/k_m,   T_v = −t_p·(k_p/k_m)·sinθ
+    M_θ += phase·(T_h·(m_x cosφ + m_y sinφ) + T_v·m_z)
+    M_φ += phase·T_e·(−m_x sinφ + m_y cosφ)
+
+The coefficients are the reciprocal reading of a plane wave arriving from
+(θ, φ) and transmitted into the medium — Snell's sinθ_t = (k_p/k_m)·sinθ,
+cosθ_t = k_mz/k_m — read at the buried source, which is why they are the
+Fresnel pair. Stationary phase over momwire's below→above Sommerfeld
+surfaces at the saddle λ_s = k_p sinθ gives the same three factors by a
+route that touches no reciprocity argument (momwire `scratch/570-far-field/`,
+gate P-C: the two spellings agree to 7.6e-16).
+
+**The Fresnel spelling is load-bearing.** The saddle spelling reads
+γ_p = √(λ_s² − k_p²) from λ_s − k_p = k_p(sinθ − 1), which cancels eight
+digits at grazing (4.5e-9 at θ = 89.99°, 1e-14 below 85°). k_pz = k_p cosθ
+cancels nothing at any angle; `_factors` says how k_mz keeps the same
+property.
+
+``phase`` carries the horizontal position and the vertical leg, referenced
+to the SAME origin the above-ground term uses so that the two sum
+coherently:
+
+    phase = exp(+j k_p·(r̂_x x + r̂_y y + cosθ·ground_z)) · exp(−j k_mz d)
+
+The vertical leg is the in-medium exp(−j k_mz d) from the source up to the
+plane, then the air leg exp(+j k_p cosθ·ground_z) from the plane to the
+origin's reference sphere — NOT exp(+j k_p cosθ·z), which is the leg the
+element would have if it stood in air.
+
+Two limits pin the assembly. At ε̃ = 1 (k_m = k_p) the factors collapse to
+(1, cosθ, −sinθ) and the phase to exp(+j k_p r̂·r), so the transmitted
+moment IS the free-space moment of the same currents, exactly. At θ = 90°
+every factor vanishes over a lossy medium, as the finite-ground image
+pattern does. The lateral wave and the critical-angle structure are
+O(1/R²) at an observer in air, so they are not in the 1/R coefficient a
+far-field readout is.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from typing import NamedTuple
 
 import numpy as np
 
-# The share of the lit hemisphere's radiated power that the imaged in-medium
-# currents account for, past which the pattern is refused. Half: past that
-# the in-medium currents are not a detail of the pattern, they are the
-# pattern. Measured on the catalog at 13/0.005 (2026-09-10):
-# buried_radial_vertical 8.3 % (4 radials; 8.8 % at one, 8.1 % at two),
-# elevated_buried_counterpoise 1.6 %, buried_dipole 100 % (refused: nothing
-# above the plane).
-IN_MEDIUM_POWER_SHARE_BAR = 0.5
-
-# Directions more than this far below the pattern's own peak are ignored by
-# the sensitivity measure: a null moves by tens of dB when anything moves,
-# and a null is not what a pattern is read for.
-IN_MEDIUM_LIT_WINDOW_DB = 20.0
-
-TRANSMITTED_FAR_FIELD_ISSUE = "momwire#570"
-
-
-class InMediumPatternRefusal(ValueError):
-    """The far field of this solve cannot be read out honestly (issue #1341).
-
-    Raised by `MomwireEngine.far_field`; the web solve path stores the same
-    sentence under ``pattern_refusal`` instead of raising, so impedance and
-    currents still ship.
-    """
-
-
-@dataclass(frozen=True)
-class InMediumAssessment:
-    """What the readout found below the plane. ``fraction`` is the share of
-    Σ|I·dl| below the interface; ``power_share`` the share of the lit
-    hemisphere's radiated power the imaged in-medium currents account for;
-    ``delta_db`` the change at the full pattern's peak direction between
-    the full readout and the above-ground currents alone (negative when
-    the imaged currents add there); exactly one of ``refusal`` / ``note``
-    is set when ``fraction`` is non-zero, neither when it is zero."""
-
-    fraction: float
-    power_share: float
-    delta_db: float
-    refusal: str | None
-    note: str | None
-
-    @property
-    def served(self) -> bool:
-        return self.refusal is None
+# Below this |sinθ| the plane containing ẑ and r̂ is not resolved in float,
+# so the azimuth of the transmitted basis is substituted rather than
+# divided for. Exact, not a guard: see `transmitted_m_perp`.
+_POLE_SIN = 1e-12
 
 
 def below_surface_mask(
@@ -120,97 +100,109 @@ def moment_fraction(dr: np.ndarray, i_mid: np.ndarray, mask: np.ndarray) -> floa
     return float(np.sum(w[mask]) / total) if total > 0.0 else 0.0
 
 
-def power_share(
-    mag2_full, mag2_above, weights=None, *, window_db=IN_MEDIUM_LIT_WINDOW_DB
-):
-    """The share of the full readout's radiated power, over the directions
-    within ``window_db`` of its peak, that the imaged in-medium currents
-    account for: Σ w·|full − above| / Σ w·full. ``weights`` is the solid-
-    angle weight per direction (sin θ per row on a θ×φ grid), broadcast
-    against the arrays; None means a uniform direction set."""
-    full = np.asarray(mag2_full, dtype=float)
-    above = np.asarray(mag2_above, dtype=float)
-    if weights is None:
-        w = np.ones_like(full)
-    else:
-        w = np.broadcast_to(np.asarray(weights, dtype=float), full.shape)
-    peak = float(np.max(full))
-    if peak <= 0.0:
-        return 0.0
-    lit = full >= peak * 10.0 ** (-window_db / 10.0)
-    denominator = float(np.sum(w[lit] * full[lit]))
-    if denominator <= 0.0:
-        return 0.0
-    return float(np.sum(w[lit] * np.abs(full[lit] - above[lit])) / denominator)
+def medium_wavenumber(eps_t, k_p) -> complex:
+    """k_m = k_p·√ε̃ on the Im ≤ 0 branch.
+
+    Delegated to momwire's own `k_medium` rather than spelled again here, so
+    the readout and the fill cannot drift apart on which root of ε̃ they
+    mean — the branch is the whole content of the function.
+    """
+    from momwire._sommerfeld_below import k_medium
+
+    return k_medium(eps_t, k_p)
 
 
-def peak_delta_db(mag2_full, mag2_above) -> float:
-    """The change, in dB, at the full readout's peak direction when the
-    in-medium currents are dropped: 10·log10(above/full) there. Bounded
-    below at −99 for an exact null."""
-    full = np.asarray(mag2_full, dtype=float)
-    above = np.asarray(mag2_above, dtype=float)
-    idx = np.unravel_index(int(np.argmax(full)), full.shape)
-    if full[idx] <= 0.0:
-        return 0.0
-    if above[idx] <= 0.0:
-        return -99.0
-    return float(10.0 * np.log10(above[idx] / full[idx]))
+class TransmittedFactors(NamedTuple):
+    """The three angular transmission factors of the module docstring, plus
+    the in-medium vertical wavenumber ``k_mz`` that carries the depth
+    (exp(−j·k_mz·d)). Arrays of the direction set's shape."""
+
+    t_e: np.ndarray
+    t_h: np.ndarray
+    t_v: np.ndarray
+    k_mz: np.ndarray
 
 
-def wholly_buried_sentence() -> str:
-    return (
-        "every current in this solve lies below the interface, and the far "
-        "field above ground of a source inside the medium is the transmitted "
-        "field — refracted at the interface and attenuated through the soil — "
-        f"which this readout does not compute ({TRANSMITTED_FAR_FIELD_ISSUE}). "
-        "Impedance, currents and charges are served; the pattern is not."
+def transmitted_factors(theta, k_p, k_m) -> TransmittedFactors:
+    """(T_e, T_h, T_v, k_mz) at zenith angles ``theta`` (radians)."""
+    theta = np.asarray(theta, dtype=float)
+    return _factors(np.cos(theta), np.sin(theta), k_p, k_m)
+
+
+def _factors(cos_t, sin_t, k_p, k_m) -> TransmittedFactors:
+    """The factors from cosθ and sinθ directly — the form a readout holding
+    a unit r̂ has, with sinθ = |r̂ projected on the plane| and no arccos
+    round trip between them."""
+    cos_t = np.asarray(cos_t, dtype=float)
+    sin_t = np.asarray(sin_t, dtype=float)
+    k_pz = k_p * cos_t + 0j
+    # k_mz² = k_m² − k_p² sin²θ, spelled as (k_m − k_p)(k_m + k_p) + k_pz².
+    # Algebraically the same; numerically it is the difference of the
+    # WAVENUMBERS that is formed, which is exactly zero at ε̃ = 1, leaving
+    # k_mz = k_p|cosθ| to half an ulp. The literal k_m² − (k_p sinθ)²
+    # cancels against sin²θ ≈ 1 instead and reads 3e-13 on the ε̃ = 1
+    # collapse at θ = 89°. The new spelling loses digits only when
+    # ε̃ ≈ sin²θ — the critical angle of a medium THINNER than air, which
+    # no ground is.
+    k_mz = np.sqrt((k_m - k_p) * (k_m + k_p) + k_pz * k_pz)
+    k_mz = np.where(k_mz.imag > 0.0, -k_mz, k_mz)  # the decaying root
+    # Both denominators vanish together only at θ = 90° over ε̃ = 1, which
+    # is not a ground: over any real soil k_mz is bounded away from k_pz and
+    # the grazing limit of all three factors is the zero written here (the
+    # same zero the image pattern goes to, and what NEC prints as −999.99).
+    den_s = k_pz + k_mz
+    den_p = k_m * k_m * k_pz + k_p * k_p * k_mz
+    t_s = np.where(den_s == 0.0, 0.0, 2.0 * k_pz / np.where(den_s == 0.0, 1.0, den_s))
+    t_p = np.where(
+        den_p == 0.0,
+        0.0,
+        2.0 * k_pz * k_p * k_m / np.where(den_p == 0.0, 1.0, den_p),
     )
+    return TransmittedFactors(t_s, t_p * k_mz / k_m, -t_p * (k_p / k_m) * sin_t, k_mz)
 
 
-def over_bar_sentence(fraction: float, share: float, delta_db: float) -> str:
-    return (
-        f"{fraction:.0%} of the current moment lies below the interface, and "
-        "imaged as if above ground rather than through the interface it "
-        f"accounts for {share:.0%} of the radiated power ({delta_db:+.1f} dB at "
-        "the peak). A pattern that depends on in-medium currents needs the "
-        f"transmitted far field ({TRANSMITTED_FAR_FIELD_ISSUE}), which this "
-        "readout does not compute; the pattern is not served."
-    )
+def transmitted_m_perp(mid, dr, i_mid, k_p, k_m, rhat, ground_z):
+    """The far-field moment M_θ·θ̂ + M_φ·φ̂ of elements BELOW the plane.
 
+    ``mid`` / ``dr`` / ``i_mid`` are the buried elements only (the caller
+    splits on `below_surface_mask`); ``rhat`` is (..., 3) unit directions of
+    any leading shape, so one implementation serves both a θ×φ grid and an
+    unstructured cut. Returns (..., 3) complex, already transverse to r̂ by
+    construction — it is built ON θ̂ and φ̂ — so the caller adds it to its
+    own M_perp without projecting.
 
-def served_note(fraction: float, share: float, delta_db: float) -> str:
-    return (
-        f"{fraction:.0%} of the current moment lies below the interface and is "
-        f"imaged as if above ground; that accounts for {share:.0%} of the "
-        f"radiated power ({delta_db:+.1f} dB at the peak). The transmitted far "
-        f"field ({TRANSMITTED_FAR_FIELD_ISSUE}) is not computed."
-    )
-
-
-def assess(
-    mid, dr, i_mid, ground_z, evaluate, *, weights=None, bar=IN_MEDIUM_POWER_SHARE_BAR
-):
-    """Assess one solve's far-field readout against the currents below the
-    plane. ``evaluate(mid, dr, i_mid) -> |M_perp|²`` over a fixed direction
-    set is the readout under test, called at most twice; ``weights`` is that
-    direction set's solid-angle weight (sin θ per row on a θ×φ grid)."""
+    The sum over elements is taken BEFORE the angular factors are applied:
+    they depend only on the direction, so P = Σ_n phase_n·m_n is the one
+    per-direction array of element size, which keeps this the same memory
+    shape as the direct term beside it.
+    """
     mid = np.asarray(mid, dtype=float)
-    mask = below_surface_mask(mid, ground_z)
-    if not np.any(mask):
-        return InMediumAssessment(0.0, 0.0, 0.0, None, None)
-    fraction = moment_fraction(dr, i_mid, mask)
-    if not np.any(~mask):
-        return InMediumAssessment(fraction, 1.0, -99.0, wholly_buried_sentence(), None)
-    above = ~mask
-    full = evaluate(mid, dr, i_mid)
-    part = evaluate(mid[above], np.asarray(dr)[above], np.asarray(i_mid)[above])
-    share = power_share(full, part, weights)
-    delta = peak_delta_db(full, part)
-    if share > bar:
-        return InMediumAssessment(
-            fraction, share, delta, over_bar_sentence(fraction, share, delta), None
-        )
-    return InMediumAssessment(
-        fraction, share, delta, None, served_note(fraction, share, delta)
+    m = np.asarray(i_mid)[:, None] * np.asarray(dr, dtype=float)
+    rhat = np.asarray(rhat, dtype=float)
+    rx, ry, rz = rhat[..., 0], rhat[..., 1], rhat[..., 2]
+
+    sin_t = np.sqrt(rx * rx + ry * ry)
+    t_e, t_h, t_v, k_mz = _factors(rz, sin_t, k_p, k_m)
+
+    # cosφ / sinφ for the θ̂, φ̂ basis. At the zenith the plane of incidence
+    # is undefined, and there T_v = 0 and T_h = T_e, which makes
+    # M_θ θ̂ + M_φ φ̂ = T_e·(m_x, m_y, 0) for ANY azimuth — so substituting
+    # φ = 0 there is exact, not a guard on a division.
+    at_pole = sin_t <= _POLE_SIN
+    s_safe = np.where(at_pole, 1.0, sin_t)
+    cos_p = np.where(at_pole, 1.0, rx / s_safe)
+    sin_p = np.where(at_pole, 0.0, ry / s_safe)
+
+    depth = float(ground_z) - mid[:, 2]  # > 0 by the caller's split
+    horizontal = k_p * (rx[..., None] * mid[:, 0] + ry[..., None] * mid[:, 1])
+    air_leg = (k_p * float(ground_z)) * rz
+    phase = np.exp(1j * (horizontal + air_leg[..., None])) * np.exp(
+        -1j * k_mz[..., None] * depth
     )
+    P = np.einsum("...n,nc->...c", phase, m)
+
+    m_th = t_h * (P[..., 0] * cos_p + P[..., 1] * sin_p) + t_v * P[..., 2]
+    m_ph = t_e * (-P[..., 0] * sin_p + P[..., 1] * cos_p)
+    th_hat = np.stack([rz * cos_p, rz * sin_p, -sin_t], axis=-1)
+    ph_hat = np.stack([-sin_p, cos_p, np.zeros_like(sin_p)], axis=-1)
+    return m_th[..., None] * th_hat + m_ph[..., None] * ph_hat
