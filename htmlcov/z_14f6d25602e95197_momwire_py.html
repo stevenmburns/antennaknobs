@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">833 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">806<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">27<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">804<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">29<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_14f6d25602e95197_nec2_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-16 00:44 +0000
+            created at 2026-09-16 03:24 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -429,13 +429,13 @@
     <p class="run"><span class="n"><a id="t347" href="#t347">347</a></span><span class="t">    <span class="key">if</span> <span class="nam">ask</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t348" href="#t348">348</a></span><span class="t">        <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t349" href="#t349">349</a></span><span class="t">            <span class="key">return</span> <span class="nam">ask</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t350" href="#t350">350</a></span><span class="t">        <span class="key">except</span> <span class="op">(</span><span class="nam">ValueError</span><span class="op">,</span> <span class="nam">NotImplementedError</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t350" href="#t350">350</a></span><span class="t">        <span class="key">except</span> <span class="op">(</span><span class="nam">ValueError</span><span class="op">,</span> <span class="nam">NotImplementedError</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t351" href="#t351">351</a></span><span class="t">            <span class="com"># The method is meant to RETURN its sentence, but its wire</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t352" href="#t352">352</a></span><span class="t">            <span class="com"># labeling runs before its own try: a ground-contact end beside a</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t353" href="#t353">353</a></span><span class="t">            <span class="com"># buried wire raises there (the detached BRV). That deck keeps</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t354" href="#t354">354</a></span><span class="t">            <span class="com"># refusing where it always did, at the fill&#x27;s labeling step, so</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t355" href="#t355">355</a></span><span class="t">            <span class="com"># the vertex verdict below stands for it, exactly as before.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t356" href="#t356">356</a></span><span class="t">            <span class="key">pass</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t356" href="#t356">356</a></span><span class="t">            <span class="key">pass</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t357" href="#t357">357</a></span><span class="t">    <span class="key">from</span> <span class="nam">momwire</span> <span class="key">import</span> <span class="nam">below_reach_refusal</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t358" href="#t358">358</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t359" href="#t359">359</a></span><span class="t">    <span class="nam">pts</span> <span class="op">=</span> <span class="nam">np</span><span class="op">.</span><span class="nam">concatenate</span><span class="op">(</span><span class="op">[</span><span class="nam">np</span><span class="op">.</span><span class="nam">asarray</span><span class="op">(</span><span class="nam">pl</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">float</span><span class="op">)</span> <span class="key">for</span> <span class="nam">pl</span> <span class="key">in</span> <span class="nam">polylines</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -2449,7 +2449,7 @@
             <a class="nav" href="z_14f6d25602e95197_nec2_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-16 00:44 +0000
+            created at 2026-09-16 03:24 +0000
         </p>
     </div>
 </footer>
