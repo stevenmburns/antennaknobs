@@ -23,7 +23,8 @@ double-click.
    `_internal` runtime beside it, and a lone copied-out `.exe` is the one way
    a correct download still fails.
 3. Double-click `antennaknobs-workbench.exe`. A console window opens, the
-   server starts on this computer, and your browser opens at it.
+   server starts on this computer at `http://127.0.0.1:8000`, and your browser
+   opens at it.
 
 Keep the console window open while you work; closing it, or Ctrl-C, stops the
 server. Nothing is installed and nothing is written outside the folder —
@@ -45,7 +46,7 @@ unpacked folder once. Measured on a laptop, the self-test ran 17.7 s cold and
 Options, from a PowerShell or Command Prompt window in the folder:
 
 ```text
-antennaknobs-workbench.exe --port 8000       a fixed port
+antennaknobs-workbench.exe --port 8123       serve somewhere else
 antennaknobs-workbench.exe --no-browser      print the URL only
 antennaknobs-workbench.exe --selftest        prove the bundle and exit
 antennaknobs-workbench.exe --nec5-exe PATH   use the NEC-5 engine at PATH
@@ -55,6 +56,13 @@ antennaknobs-workbench.exe --settings PATH   start from this settings.toml
 
 A `settings.toml` sets where the workbench starts: its switches, ground,
 solver slots and engine paths. See [Where the workbench starts](/reference/web/#where-the-workbench-starts-settingstoml).
+
+The port is worth leaving alone. Your browser keeps what *it* remembers about
+the workbench — which views are pinned to the rail, rail or grid, light or
+dark — against the address it visited, and the address is the port. Launching
+on 8000 every time is what carries those across restarts. If something else on
+the machine already holds 8000, the workbench takes a free port instead and
+the console says so; that window starts with the default rail.
 
 `--selftest` is worth running once if you are unsure the download is intact:
 it solves a known antenna and checks the answer against the value the
