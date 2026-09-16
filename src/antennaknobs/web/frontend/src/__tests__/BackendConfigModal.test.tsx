@@ -366,13 +366,19 @@ describe("BackendConfigModal — extended kernel (#849)", () => {
     expect(enrich).toHaveProperty("disabled", true);
     // The tooltip is MOMWIRE'S OWN SENTENCE, arriving in the served
     // constraints (momwire#888). The frontend used to carry a paraphrase that
-    // cited momwire#271 where momwire cites #249 follow-up C — asserting the
-    // real issue number here is what makes the drift impossible to
-    // reintroduce.
-    const titled = screen.getByTitle(/use_singular_enrichment=True not/);
+    // cited momwire#271 where momwire cited only #249 follow-up C, so this
+    // used to assert the title carried #249 and NOT #271.
+    //
+    // momwire 0.56.0 rewords the refusal to "is refused, permanently
+    // (momwire#271)" and keeps the #249 derivation, so its own sentence now
+    // carries BOTH numbers and the old negative assertion would fail on the
+    // real payload. What is still worth pinning is unchanged: the tooltip is
+    // momwire's text, not ours, so it keeps the derivation reference a
+    // paraphrase always dropped.
+    const titled = screen.getByTitle(/use_singular_enrichment=True is refused/);
     expect(within(titled).getByRole("checkbox")).toBe(enrich);
-    expect(titled.getAttribute("title")).toContain("momwire#249");
-    expect(titled.getAttribute("title")).not.toContain("momwire#271");
+    expect(titled.getAttribute("title")).toContain("momwire#249 follow-up C");
+    expect(titled.getAttribute("title")).toContain("enrichment DOFs bypass");
     // …and the kernel itself is still live.
     expect(screen.getByRole("checkbox", { name: EK })).toHaveProperty("disabled", false);
   });

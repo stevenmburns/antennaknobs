@@ -295,8 +295,10 @@ that declare a wire material (the `WIRES` catalog — see the
 [wire-gauge example](/advanced/wire-gauge/)) get skin-effect conductor loss as
 a distributed series impedance in the solve itself (momwire ≥ 0.10.0, validated
 against NEC's native `LD 5` wire-loss card to ~0.5 %) plus the insulated-wire
-velocity factor (mirrored on the NEC engine as an `LD 2` distributed-inductance
-card, agreeing on the resonance shift to ~1 %). Every momwire solver carries
+velocity factor. Since v0.79.0 every NEC deck this app writes carries the same
+coated-wire pair momwire models rather than an approximation of it: the larger
+equivalent radius the kernel sees, the jacket's own inductance as an `LD 2`
+card, and the conductor's loss preserved by rescaling `LD 5` for that radius. Every momwire solver carries
 the loading (momwire ≥ 0.11.0): the B-spline family as a Galerkin overlap, the
 sinusoidal solver through NEC's impedance boundary condition at its match
 points — so matched-basis cross-engine comparisons keep the full wire physics
@@ -353,7 +355,10 @@ joining the radials at depth is allowed). That crossing junction is served on
 both lanes since momwire 0.52.0: the sinusoidal-Galerkin node carries its own
 degrees of freedom, and continuity across the interface emerges from the
 fill rather than being imposed
-([momwire#980](https://github.com/stevenmburns/momwire/issues/980)). The
+([momwire#980](https://github.com/stevenmburns/momwire/issues/980)). Since
+momwire 0.56.0 a deck may carry **several** such nodes, so a multi-element
+buried array — two base-fed verticals each over their own screen, say — solves
+instead of being refused on a one-node scope. The
 one spelling that lane refuses by name is N coincident rises meeting at the
 node — the retired `bundle` variant — which stays `bspline`-only; the app
 greys the tab with momwire's sentence before a solve is attempted. The [design catalog](/reference/catalog/) now authors buried

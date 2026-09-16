@@ -29,25 +29,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.78.0" icon="star">
-  **What the engine saw.** A **Files** view shows a design's source beside the
-  deck an external engine actually ran and the report it printed, each with
-  Copy and Download, and the floating readout minimizes to an R · X · SWR pill
-  when it is in the way. A feed or load placed partway along a wire, from a
-  4nec2 percentage or a positioned port, is fed at that exact point on PyNEC,
-  NEC-2, NEC-5 and every momwire solver, several ports on one wire included:
-  when the point is not already a segment centre or knot of the wire's own
-  mesh, the wire is split there and the solve says so. Nothing moves to the
-  nearest existing segment, and the wire is never re-meshed at a different
-  density to make the point fit. The page shows the running
-  versions under the title, and the Windows workbench's Properties show its
-  version too; to update the workbench, extract the whole new zip into a fresh
-  folder. `export --dialect nec5` writes the same deck the NEC-5 tab runs, the
-  pulse tab is named **Harrington (pulse)** for the solver it runs, and the
-  elevated buried counterpoise grades its radiator from the feed, so its NEC-5
-  answer holds steady as the mesh refines. Decks with off-centre attachments
-  now mesh differently and read slightly different impedances, and the
-  counterpoise's impedance moves with its new mesh.
+<Card title="New in v0.79.0" icon="star">
+  **The same wire on every engine.** An insulated wire is now modelled the same
+  way whichever engine answers. NEC-2, NEC-5 and every deck this app exports
+  carry the jacket the way momwire always has: as the larger radius the solver's
+  kernel sees, plus the inductance that enlarging it would otherwise remove,
+  with the conductor's own loss preserved. On the catalog's PVC-jacketed
+  designs that closes a 10–14 % disagreement between engines to about a tenth
+  of a percent, so their impedances move. The surface radial screen's mast and
+  feed gap are bare, as the design always said they were — they had been
+  inheriting the radials' jacket, worth about 26 Ω of reactance on the stock
+  screen, so that design's numbers move too. On the solver side, a buried array
+  with more than one element standing over its own ground connection now solves
+  instead of being refused, buried screens that mesh finer than a twentieth of a
+  degree fill faster, and an EZNEC drop-in printout names on its second line the
+  version, basis and processor support that answered it.
 </Card>
 
 ## The whole pitch, in one line
