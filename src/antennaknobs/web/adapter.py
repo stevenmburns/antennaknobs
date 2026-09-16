@@ -77,6 +77,7 @@ from antennaknobs.builder import (
     diff_params,
     resolve_variant_params,
 )
+from antennaknobs.density import default_nsegs, nsegs_by_degree
 from antennaknobs.network import PortAtEnd, PortAtVertex, PortOnWire, as_wire
 from antennaknobs.wire_catalog import port_at, port_wire
 
@@ -214,8 +215,6 @@ class _BackendSpec:
     # carry (degree tabs, checkbox-gated smoothing, the feed-model tablist).
     # A name, not a backend check: the component is selected by this hint.
     panel: str | None = None
-    # Interactive default for the client-side segments/wire knob.
-    default_n_per_wire: int = 30
     # comboInappropriate policy, as capabilities rather than name lists:
     # `accelerator` = built for arrays (overkill on one element), and
     # `dense_family` = minutes per solve on a benchmark-class mesh.
@@ -255,6 +254,33 @@ class _BackendSpec:
     # set through `**kwargs`, and `SinusoidalGalerkinSolver` reports only
     # `feed_model` while plainly accepting `extended_kernel`. Construct it.
     model_kwargs: tuple[str, ...] = ()
+
+    # Interactive default for the client-side segments/wire knob, READ from
+    # antennaknobs' one density table rather than written here (#1543). It
+    # used to be a field with a per-entry literal, which is how the roster
+    # and the CLI came to hold different numbers for the same engine.
+    @property
+    def default_n_per_wire(self) -> int:
+        n = default_nsegs(self.name)
+        if n is None:
+            # A roster entry with no density is a table this file cannot
+            # serve: `defaultOptsFor` would put `undefined` on the knob. Fail
+            # at roster-build time, where the missing row is obvious.
+            raise KeyError(
+                f"backend {self.name!r} has no antennaknobs.density entry; "
+                "every roster entry needs one (#1543)"
+            )
+        return n
+
+    # The per-degree densities for a backend whose DEGREE is its basis, or
+    # None. Served so the frontend can follow a degree tab without a table of
+    # its own — `lib/backends.ts` carries no engine names (#1006 G2-6).
+    @property
+    def default_n_per_wire_by_degree(self) -> dict[str, int] | None:
+        by_degree = nsegs_by_degree(self.name)
+        # Stringified because this is the wire: JSON object keys are strings,
+        # and a Python-side int key would arrive as one anyway.
+        return None if by_degree is None else {str(d): n for d, n in by_degree.items()}
 
 
 _N_QP_CONST = _BackendOption(
@@ -396,15 +422,13 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
     # coupling, block-Jacobi GMRES. Same B-spline basis and model_options as
     # bspline/hmatrix (degree, aca_tol, solve_tol, …); on a single connected
     # structure it degrades to one element and matches the dense bspline solve.
-    # 21 segs/wire is the converged, correct-parity default for B-spline d=2
-    # (odd → interior knot at the feed).
+    # Its density is `antennaknobs.density`'s, like every entry here (#1543).
     _BackendSpec(
         name="arrayblock",
         model_kwargs=_BSPLINE_FAMILY_KWARGS,
         label="Array-block",
         solver=ArrayBlockSolver,
         panel="bspline",
-        default_n_per_wire=21,
         accelerator=True,
         dense_family=True,
     ),
@@ -436,7 +460,6 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         model_kwargs=_RAZOR_KWARGS,
         label="Razor (2-point)",
         solver=RazorSolver,
-        default_n_per_wire=40,
         dense_family=True,
         bound={"nec5_quadrature": True},
     ),
@@ -450,7 +473,6 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         solver=None,
         kind="pynec",
         panel="pynec",
-        default_n_per_wire=21,
     ),
     # Licensed, user-supplied binary (issue #825): served only when the
     # machine running the server resolves $NEC5_EXE. The hosted simulator
@@ -463,7 +485,6 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         solver=None,
         kind="nec5",
         panel="nec5",
-        default_n_per_wire=20,
     ),
     # A NEC-2 console binary the user supplies (issue #1354), served only when
     # the machine running the server resolves $NEC2_EXE and the binary RUNS.
@@ -477,7 +498,6 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         solver=None,
         kind="nec2",
         panel="pynec",
-        default_n_per_wire=21,
     ),
 )
 
@@ -571,6 +591,10 @@ def backend_roster(
             ],
             "panel": b.panel,
             "default_n_per_wire": b.default_n_per_wire,
+            # Degree -> density for a backend whose degree IS its basis; null
+            # otherwise (#1543). The client adopts this on a degree-tab change
+            # the same way it adopts `default_n_per_wire` on an engine swap.
+            "default_n_per_wire_by_degree": b.default_n_per_wire_by_degree,
             "accelerator": b.accelerator,
             "dense_family": b.dense_family,
             "buried": _backend_serves_buried(b),

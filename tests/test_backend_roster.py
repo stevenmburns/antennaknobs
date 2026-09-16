@@ -186,23 +186,45 @@ def test_backend_roster_served_shape(client):
         "step": 1,
         "default": 8,
     }
-    # Interactive mesh defaults: 21 (odd, interior knot at the feed) for the
-    # array-block solver and PyNEC, 30 elsewhere. razor-2p asks for more
-    # because it converges slower -- ~16x the mesh of bspline for the same
-    # self-convergence on the ByDipole1 ladder -- and EVEN, because a
-    # centre-fed deck wants a knot at the feed for that basis.
+    # Interactive mesh defaults, all of them from `antennaknobs.density`
+    # (#1543) -- the roster reads that table, it does not carry numbers. The
+    # literals are repeated here on purpose: a pin that computed them from
+    # the table would pass whatever the table said.
+    #
+    # 21 (odd, interior knot at the feed) for the array-block solver and
+    # PyNEC, 30 where no census has said otherwise, 15 for bspline (its
+    # degree-2 value; see `default_n_per_wire_by_degree` below). razor-2p and
+    # nec5 share 40: one number for the two first-order engines, so an A/B
+    # between momwire's formulation twin and the licensed binary is not also
+    # an A/B on the mesh. Higher because razor converges slower -- ~16x the
+    # mesh of bspline for the same self-convergence on the ByDipole1 ladder
+    # -- and EVEN, because both want the feed at a segment end.
     assert {n: e["default_n_per_wire"] for n, e in by_name.items()} == {
         "sinusoidal": 30,
         "sinusoidal-galerkin": 30,
-        "bspline": 30,
+        "bspline": 15,
         "pulse": 30,
         "hmatrix": 30,
         "arrayblock": 21,
         "razor-2p": 40,
         "pynec": 21,
-        # NEC-5 sources sit at segment ends: an EVEN count puts the feed
-        # knot at the wire's exact middle (issue #825).
-        "nec5": 20,
+        "nec5": 40,
+    }
+    # The per-degree shape the frontend follows on a degree-tab change
+    # (#1543). Keys are strings because they are JSON object keys. Only
+    # bspline has one: hmatrix and arrayblock expose `degree` too and keep a
+    # single density across it, so they serve null and the client leaves the
+    # knob alone.
+    assert {n: e["default_n_per_wire_by_degree"] for n, e in by_name.items()} == {
+        "sinusoidal": None,
+        "sinusoidal-galerkin": None,
+        "bspline": {"1": 20, "2": 15, "3": 12},
+        "pulse": None,
+        "hmatrix": None,
+        "arrayblock": None,
+        "razor-2p": None,
+        "pynec": None,
+        "nec5": None,
     }
     # comboInappropriate policy, served as capabilities instead of the
     # frontend's old name lists.
