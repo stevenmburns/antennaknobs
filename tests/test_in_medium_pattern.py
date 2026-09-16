@@ -177,6 +177,47 @@ def test_web_readout_collapses_to_free_space_at_unit_permittivity():
     assert np.max(np.abs(got - want)) / np.max(want) < 1e-12
 
 
+@pytest.mark.parametrize("diffraction", [False, True])
+def test_the_terrain_branches_collapse_to_free_space_too(diffraction):
+    """G1 through the two faceted-terrain composers, on one flat facet of
+    ε̃ = 1. It is the branch-specific gate: the specular composer CORRECTS a
+    reflected wave onto the caller's M_perp, so the transmitted moment
+    belongs in M_perp before it, while the UTD composer rebuilds the direct
+    term per segment and reads M_perp only for its shape, so the same
+    moment has to travel separately and be summed into the FIELD there. A
+    term folded into the wrong one of those is dropped, and this is what
+    notices."""
+    from antennaknobs.designs.dipoles.invvee import Builder
+    from antennaknobs.terrain import Terrain, flat_terrain
+    from antennaknobs.web.adapter import _pack_terrain
+
+    terrain = Terrain(sectors=flat_terrain(*AIR[1:]).sectors, diffraction=diffraction)
+    eng = MomwireEngine(Builder(), ground=("terrain", terrain))
+    mid, dr, i_mid = _mixed_moment_set()
+    k = 2.0 * np.pi / eng._wavelength_for(eng.builder.freq)
+    theta = np.deg2rad(np.arange(0.0, 89.0, 2.0))
+    phi = np.deg2rad(np.arange(0.0, 360.0, 10.0))
+    rhat = _grid_rhat(theta, phi)
+    want = _free_space_mag2(mid, dr, i_mid, k, rhat)
+
+    grid = eng._evaluate_M_perp(mid, dr, i_mid, k, theta, phi, eng.builder.freq * 1e6)
+    assert np.max(np.abs(grid - want)) / np.max(want) < 1e-12
+
+    out = {
+        "k_meas_m_inv": k,
+        "ground": True,
+        "ground_eps_r": AIR[1],
+        "ground_eps_im": 0.0,
+        "measurement_freq_mhz": eng.builder.freq,
+        "directivity_norm": 1.0,
+        "ground_terrain": _pack_terrain(terrain),
+    }
+    cuts = _mag2_at_directions(
+        out, rhat, mid=mid, dr=dr, i_mid=i_mid, diffraction=diffraction
+    )
+    assert np.max(np.abs(cuts - want)) / np.max(want) < 1e-12
+
+
 # --- G2: momwire's numerical transmitted integrals as the oracle ------------
 
 _ORACLE_FREQ_HZ = 7e6
