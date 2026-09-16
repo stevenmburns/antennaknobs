@@ -629,16 +629,22 @@ def _mag2_at_directions(
     if ground_on:
         below = in_medium.below_surface_mask(mid, 0.0)
         if np.any(below):
-            eps_t = complex(out["ground_eps_r"], out["ground_eps_im"])
-            M_below = in_medium.transmitted_m_perp(
-                mid[below],
-                dr[below],
-                i_mid[below],
-                k,
-                in_medium.medium_wavenumber(eps_t, k),
-                rhat,
-                0.0,
-            )
+            if not terrain_pec:
+                eps_t = complex(out["ground_eps_r"], out["ground_eps_im"])
+                M_below = in_medium.transmitted_m_perp(
+                    mid[below],
+                    dr[below],
+                    i_mid[below],
+                    k,
+                    in_medium.medium_wavenumber(eps_t, k),
+                    rhat,
+                    0.0,
+                )
+            # The PEC reference keeps no transmitted term: nothing radiates
+            # out of a perfect reflector, which is the |k_m| → ∞ limit of the
+            # same factors. What it must not do is image those currents
+            # instead — that is the contribution the ledger's ratio exists to
+            # measure, and it would cancel itself.
             above = ~below
             mid, dr, i_mid = mid[above], dr[above], i_mid[above]
 
@@ -651,6 +657,8 @@ def _mag2_at_directions(
     if M_below is not None:
         M_perp = M_perp + M_below
 
+    # `mid` is the above-ground segments by here, so an empty one means
+    # nothing to image and no facet geometry to build one on.
     if ground_on and mid.shape[0]:
         # PEC-image method, then Fresnel-correct the reflected wave per-ray.
         # Image current: horizontal components flipped, vertical preserved.
