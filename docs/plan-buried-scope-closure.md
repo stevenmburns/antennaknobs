@@ -1,7 +1,8 @@
 # Plan: closing the buried-wire refusals
 
-Status: **in progress, 2026-09-15.** U1–U7 and U9 are done or closed; U8
-waits. Written 2026-09-12, the day the momwire#956
+Status: **units complete, 2026-09-16.** U1–U7 and U9 are done or closed; U8's
+pattern is built in both repos (momwire#1078, #1544), with
+the near-field item on momwire#570 the one thing left. Written 2026-09-12, the day the momwire#956
 residual closed (momwire#1043, antennaknobs PR #1434 for the derivation,
 #1441 for the census) and the corpus census showed that **no public deck is
 inside the crossing serve's scope**: eight corpus decks have a wire below the
@@ -19,7 +20,7 @@ map of what is left. This plan orders them.
 | U5 mixed radii | done: two-radius crossing, momwire#1050, released in momwire 0.55.0, which antennaknobs v0.77.0 ships on |
 | U6 counterpoise | closed: AK#1443's verdict; follow-up AK#1455 done (the radiator is graded), AK#1456 open |
 | U7 buried rod | closed: momwire#1027, not a physical disagreement; the two engines converge toward the same R along two axes, at different rates |
-| U8 far field | readout half done in antennaknobs (the transmitted placement; #1341's refusal retired); momwire#570's own `RP` refusal and the NE/NH item stand |
+| U8 far field | **built, both halves** (2026-09-16): momwire#1078 serves `RP` for buried decks on both seams through the transmitted far-zone factors in the shared readout; #1544 places buried currents through the interface in both app readouts and retires #1341's refusal and note. Closed form, not a formulation: the far-zone limit of the transmitted family is the Fresnel-transmitted plane wave. Measured against NEC-5 x13: 0.005 dB shape / 0.03 dB absolute on `buried_dipole`; the buried-radial vertical's honest pattern lands 0.005 dB from NEC-5, having moved −0.19 dB off the imaged readout. Records in momwire `scratch/570-far-field/`. Still open on momwire#570: the NE/NH below/below point reader (phase 3) |
 | U9 several crossing nodes | **done and released**: momwire#1065 serves several crossing nodes per deck (momwire#1068 moved two tests it made slow). Released in momwire 0.56.0, which antennaknobs v0.79.0 pins and ships on. Measured: the 8-node LPDA at refine 1 reads 52.09 − 3.18j against NEC-5's 53.07 − 3.54j (2.0 %), and momwire's own far × 3 step on it is 0.0394 Ω; two-node soil-A decks against NEC-5 meet the gate on 16 of 16 readings. The LPDA check (d) stopped at its pre-Z check; the two cebik phased arrays are still refused by name; route 1 is deferred; follow-up momwire#1064 |
 
 Ground rules carried from the #956 arc, which are what made it converge:
@@ -43,7 +44,7 @@ Ground rules carried from the #956 arc, which are what made it converge:
 | 3 | "ground CONTACT under `refl-coef` is refused" | **decision** (D3, 2026-08; stays) | 6 + 2 once #2 is lifted, 0 once #1 is fixed | — |
 | 4 | "below/below pair separation R₁ = 136 m (8.9 in-medium λ), past the 4 in-medium λ the remainder is tabulated to" | range | 3 | — |
 | 5 | "crossing serve with per-wire radii: ρ_eff = √(ρ² + a²) regularizes the corner with ONE radius, and a mixed-radius convention is not pinned" (momwire#524 phase 2) | scope | 4 | every real screen: radials thinner than the mast |
-| 6 | "RP asks for the far field of a deck with a wire below the plane … the transmitted family's far-zone asymptotics" (momwire#570) | **formulation** | 1 | none in antennaknobs since U8's readout half: every buried design's pattern is served through the interface (#1341). momwire's own `RP` still refuses |
+| 6 | "RP asks for the far field of a deck with a wire below the plane … the transmitted family's far-zone asymptotics" (momwire#570) | **closed form** (U8) | 1 → 0 | none: every buried design's pattern is served through the interface in the app (#1341) and `RP` prints on both momwire seams (momwire#1078) |
 | 7 | `elevated_buried_counterpoise` disagrees with NEC-5 by 27 % in R and 10 % in \|Z\| (+10 Ω R, −7.1 kΩ X on \|Z\| ≈ 61–69 kΩ) on its graded radiator, at nominal_nsegs 21, 42 and 84, with each engine's own fed segment (momwire 1 × 50 mm, NEC-5 2 × 25 mm). Most of it is that fed segment's size: with the fed segments near-matched, the R gap is 2.9 % (31 % at the engines' own sizes, measured on the uniform radiator, AK#1456) | **mostly fed-segment size** (AK#1443, AK#1456) | — | 1 design |
 | 8 | AK#1417's gate: no refinement path for an imported deck (every ladder tool is Builder-driven) | tooling | blocks per-deck ladders on all of the above | — |
 | 9 | a wholly buried vertical rod reads a constant −1.20 % of R against NEC-5, invariant in depth, conductivity and frequency (momwire#1027) | **open disagreement** | — | every wholly buried fed element |
@@ -177,33 +178,46 @@ moving only if this unit says they should.
 
 ### U8 — the buried far field (momwire#570)
 
-**The readout half has landed in antennaknobs.** Both far-field readouts here
-— the engine's grid and the web cuts — split their moment set at the plane and
-place the buried elements through the interface as the transmitted plane wave
-(`antennaknobs/in_medium.py`); nothing below the plane is imaged, and nothing
-below the plane enters the image. The #1341 refusal, its note and its
-power-share bar are gone: every buried design is served. Measured: the
-transmitted factors agree with momwire's own numerical below→above integrals
-(Richardson-extrapolated in 1/R over 40 and 80 λ₀) to 8.6e-6; at ε̃ = 1 both
-readouts reproduce the free-space pattern to 7e-16; the buried-radial
-vertical's peak moves −0.187 dB off the imaged readout, inside the 0.46 dB the
-note said it should. What is NOT done here: momwire's own `RP` refusal for a
-deck with a wire below the plane, the NE/NH below/below point reader, and the
-gates against NEC-5 and an independent oracle (P-H, P-I below).
+**Built in both repos, 2026-09-16.** The unit was registered as a 3–5 week
+formulation; it is a closed form. The pattern is the coefficient of
+e^{−jk_pR}/R in the transmitted field, which is the stationary-phase value of
+the below→above Sommerfeld surfaces at λ_s = k_p sinθ, and there the five
+surfaces collapse to three angular factors: the Fresnel TE transmission
+coefficient, the TM pair on Snell's angle, and a depth leg exp(−j k_mz d).
+The lateral wave and the critical-angle structure are O(1/R²) at an observer
+in air and are not in a pattern; at θ = 90° every factor vanishes, as the
+finite-ground image pattern does. Two derivations (the saddle point of the
+AGARD surfaces and reciprocity with the Fresnel coefficients) agree to 1e-14
+wherever the saddle spelling is well conditioned; the Fresnel spelling is the
+one built, because the saddle spelling loses eight digits at grazing.
 
-The remainder of this section is the unit as registered.
+- **momwire#1078:** `_far_readout.transmitted_factors` /
+  `transmitted_moments`; `_far_moments` splits its elements at the plane
+  (above: direct + image from the above elements alone; below: transmitted);
+  the buried far-field refusal is gone from `_medium_spec`, the NEC-2 portal
+  and the EZNEC seam. Serve matrix for a buried deck: impedance, currents,
+  charges and pattern; the near field still refuses by name (phase 3).
+- **#1544:** `in_medium.py` owns the transmitted placement;
+  `MomwireEngine._evaluate_M_perp` and the web cuts split at the plane and
+  build the image from the above elements only (the UTD composer takes the
+  transmitted moment as a keyword); #1341's refusal, note and power-share bar
+  are gone, `in_medium_moment_fraction` stays as information.
 
-The far-zone asymptotics of the transmitted family: stationary phase over the
-below→above Sommerfeld integrals, with the lateral wave and the critical-angle
-structure the near-zone tables never see. A phase-0-style prototype against
-empymod's far field first (the #524 phase-0 shape: verified equations from the
-open literature, gates G1–G6, then the kit), then the far-field readout in
-both engines and the app's `in_medium` rule (#1341) replacing its refusal and
-its 3 dB note with the served answer. Also carries #570's NE/NH item (the
-below/below point reader) if the readout contract is settled on the way.
-**3–5 weeks**, the only formulation unit here. Gate: the buried dipole's
-pattern against empymod and NEC-5; the BRV's pattern moving by less than its
-current #1341 note (0.46 dB) says it should.
+**Measured** (records: momwire `scratch/570-far-field/`, PLAN.md with every
+prediction registered before its run and every miss kept):
+
+| gate | result |
+|---|---|
+| ε̃ = 1 collapse to the free-space moment | 2e-13 (momwire), 7e-16 (app factors) |
+| closed form vs momwire's numerical transmitted integrals, extrapolated in 1/R over 40 and 80 λ₀ | 8.6e-6 worst; the raw approach is an exact 1/R law (halving ratios 2.000) |
+| adversarial: depth leg flipped / T_v negated | 0.18–0.85 / 2.0, against a 1e-2 bar |
+| above-ground readouts | bit-identical to v0.79.0 |
+| NEC-5 x13, `buried_dipole` (soil A, 7 MHz), momwire's own currents | shape 0.005 dB, absolute 0.03 dB over the lit hemisphere |
+| NEC-5 x13, `buried_radial_vertical` (connected) | the honest pattern moves −0.19 dB off the imaged one (bar 0.46 dB) and lands 0.005 dB from NEC-5; the imaged readout sat 0.18 dB above it |
+| empymod 2.6.0 as a far-zone oracle | disqualified: O(1) on its above-soil control with every Hankel transform, so NEC-5 is the independent check |
+
+**Not in this unit:** momwire#570's NE/NH item (the below/below point reader,
+phase 3) and its EK-under-a-medium item.
 
 ### U9 — more than one crossing node (3 decks, every multi-element buried array)
 
@@ -289,13 +303,13 @@ current #1341 note (0.46 dB) says it should.
 | 5 | U5 mixed radii | 5–10 | 4 decks; thin radials on a fat mast | done; released in momwire 0.55.0 |
 | 6 | U6 counterpoise | 2–3 (+fix) | 1 design's published number | closed (AK#1443) |
 | 7 | U7 buried rod | 2–3 (+fix) | every wholly buried fed element's R | closed (momwire#1027) |
-| 8 | U8 far field | 15–25 | every buried pattern | not started; deferred by decision |
+| 8 | U8 far field | 15–25 (took 1: closed form) | every buried pattern | built in both repos (momwire#1078, #1544) |
 | 9 | U9 several crossing nodes | 4–6 | 3 decks; every multi-element buried array | done; released in momwire 0.56.0 |
 
 **What remains.**
-- **U8, the buried far field.** It is the only formulation unit, and the one
-  that turns "impedance and currents only" into a complete buried serve. It is
-  deferred by decision.
+- **momwire#570's near-field item** (NE/NH for buried decks, phase 3) is the
+  last output a buried deck cannot answer; U8's pattern turned "impedance and
+  currents only" into a serve with a pattern.
 - **Follow-ups from the done units:**
   - **momwire#1064:** U9's extra cold-fill cost, confined to decks under 0.05°
     by a fifth θ band;
