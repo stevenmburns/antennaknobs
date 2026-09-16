@@ -339,8 +339,11 @@ def main():
 
     # ------------------------------------------------------------ answer rule
     passing = ("hit", "n/a (Amendment 2)")
-    if any(checks[q]["verdict"] not in passing for q in ("K0", "K0'", "K1")):
-        failed = [q for q in ("K0", "K0'", "K1") if checks[q]["verdict"] not in passing]
+    # Amendment 3: on fixed-design records (the `post` tree) K0's non-radial
+    # clauses describe the pre-fix deck and are superseded by K0'.
+    gate = ("K0'", "K1") if "post" in metas else ("K0", "K0'", "K1")
+    if any(checks[q]["verdict"] not in passing for q in gate):
+        failed = [q for q in gate if checks[q]["verdict"] not in passing]
         rule = f"stop: {', '.join(failed)} did not pass"
     elif preds["A0"]["verdict"] != "hit":
         rule = "stop: NEC-5 did not serve every cell (A0); see the refusals"
@@ -366,8 +369,8 @@ def main():
     def fx(v, fmt=".3f"):
         return "—" if v is None else format(v, fmt)
 
-    mm = metas.get("main", {})
-    mp = metas.get("pre", {})
+    mm = metas.get("main") or metas.get("post") or {}
+    mp = metas.get("pre") or {}
     out = [
         "# AK#1523 surface option: #1532's pair near ground",
         "",

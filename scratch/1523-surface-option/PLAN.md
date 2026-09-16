@@ -268,3 +268,29 @@ one changes that is reported as a change, never as a correction.
 
 **Order.** Commit this amendment with the harness and analysis changes; run;
 analyse into `rerun-1534/`; report.
+
+## Amendment 3 (2026-09-16): on the fixed design, K0′ replaces K0's non-radial clauses
+
+Written **after** the re-run's analysis, on inspection of which K0 clauses failed.
+Nothing is re-run, and no bar moves.
+
+**What happened.** On `rerun-1534`, K0′ hits on all 44 rows. K0 fails on 34, and
+every failure is one of the two clauses that describe the **pre-fix** deck:
+
+- **NEC-5, 16 rows:** "the mast and gap carry no LD cards". They now carry an
+  unscaled `LD 5` (the copper conductor) and no `LD 2` — which is what the fix
+  does, and what K0′ requires.
+- **momwire, 18 rows:** "every kernel radius is a′ or the engine's 0.0005 m
+  default". The mast's kernel radius is now the conductor's own: 0.512, 0.321 or
+  0.160 mm.
+- **Every radial clause of K0 passes on every row**, on both engines.
+
+**What changes.** On records from the `post` tree, the plumbing check is K0's
+radial clauses plus K0′. The analysis's answer rule reads K0′ and K1 there. K0's
+reported FAIL stays in the table as the outcome of the pre-fix statement, and is
+not a plumbing failure.
+
+**Why this is not re-registering a miss.** K0 is a check on the harness's
+plumbing, not a prediction, and its non-radial half describes a deck upstream
+deliberately changed. The evidence that each treatment reached the solve is K0's
+radial clauses together with K0′, both hit.
