@@ -70,7 +70,7 @@ def test_the_values():
         "nec2": 21,
     }
     assert {k: dict(v) for k, v in NSEGS_BY_DEGREE.items()} == {
-        "bspline": {1: 20, 2: 15, 3: 12},
+        "bspline": {1: 20, 2: 15, 3: 16},
     }
 
 
@@ -108,7 +108,7 @@ def test_the_per_degree_map_is_handed_out_fresh():
     let one caller edit the table for every other."""
     first = nsegs_by_degree("bspline")
     first[2] = "mutated"
-    assert nsegs_by_degree("bspline") == {1: 20, 2: 15, 3: 12}
+    assert nsegs_by_degree("bspline") == {1: 20, 2: 15, 3: 16}
 
 
 # --------------------------------------------------------------------------
