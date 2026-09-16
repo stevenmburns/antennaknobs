@@ -214,3 +214,18 @@ def _expect_system_exit(argv):
     with pytest.raises(SystemExit) as exc:
         ant.cli(argv.split())
     return exc.value
+
+
+def test_npoints_and_range_each_stand_alone_for_the_density_ladder():
+    """--npoints without --range walks the app ladder's own 8..68 span in
+    that many geometric steps, and --range without --npoints takes the
+    ladder's seven rungs, not the frequency sweep's 21 (#1554 follow-up:
+    --npoints used to be ignored unless --range was given)."""
+    from antennaknobs.sweep import NOMINAL_NSEGS_LADDER, _nominal_nsegs_rungs
+
+    assert _nominal_nsegs_rungs(None, None) == list(NOMINAL_NSEGS_LADDER)
+    three = _nominal_nsegs_rungs(None, 3)
+    assert three[0] == 8 and three[-1] == 68 and len(three) == 3
+    seven = _nominal_nsegs_rungs((10.0, 40.0), None)
+    assert seven[0] == 10 and seven[-1] == 40 and len(seven) == 7
+    assert _nominal_nsegs_rungs((8.0, 68.0), 6) == [8, 12, 19, 29, 44, 68]

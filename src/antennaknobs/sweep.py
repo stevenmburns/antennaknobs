@@ -308,17 +308,24 @@ NOMINAL_NSEGS_LADDER = (8, 12, 17, 24, 34, 48, 68)
 def _nominal_nsegs_rungs(rng, npoints):
     """Integer ``nominal_nsegs`` rungs for a convergence sweep (#1554).
 
-    No ``--range``: the app's own ladder, above. A ``--range lo hi`` is
+    Neither ``--range`` nor ``--npoints``: the app's own ladder, above.
+    ``npoints`` is None when the flag was not given (the CLI's ``sweep``
+    parser leaves it unset so this study can tell). A ``--range lo hi`` is
     spaced geometrically instead of linearly — a fixed step in log N puts
     every rung at the same relative mesh refinement, which is what a
     convergence study is supposed to sample — then rounded to ints,
     deduplicated and sorted ascending, since rounding can collide two
     rungs at a narrow range or a large ``--npoints``.
     """
-    if rng is None:
+    if rng is None and npoints is None:
         return list(NOMINAL_NSEGS_LADDER)
-    lo, hi = rng
-    n = max(int(npoints), 2)
+    # Either flag alone spans the other's default: `--npoints k` walks the
+    # app ladder's own 8..68 in k geometric steps, and `--range lo hi` alone
+    # takes the ladder's seven rungs rather than the frequency sweep's 21.
+    lo, hi = (
+        rng if rng is not None else (NOMINAL_NSEGS_LADDER[0], NOMINAL_NSEGS_LADDER[-1])
+    )
+    n = max(int(npoints), 2) if npoints is not None else len(NOMINAL_NSEGS_LADDER)
     return sorted({int(round(x)) for x in np.geomspace(lo, hi, n)})
 
 
@@ -530,6 +537,8 @@ def sweep(
         )
         return
 
+    if npoints is None:
+        npoints = 21
     xs = gen_xs(getattr(antenna_builder, nm), rng, center, fraction, npoints)
     # Align first so a disjoint measured band errors before any solving.
     meas = _align_measured(measured, nm, xs, z0)

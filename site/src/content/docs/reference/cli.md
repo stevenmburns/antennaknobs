@@ -368,9 +368,11 @@ python -m antennaknobs sweep --builder dipoles.invvee:dipole \
 
 `--engine` takes a comma-separated list (or repeat the flag) — one
 trajectory per engine on one chart, same colour keying the whole way through.
-With no `--range`, the rungs are the app's own ladder, `8 12 17 24 34 48 68`
-(`CONVERGE_N_VALUES` in the frontend); `--range lo hi --npoints k` spaces `k`
-rungs geometrically instead and rounds each to an int.
+With neither `--range` nor `--npoints`, the rungs are the app's own ladder,
+`8 12 17 24 34 48 68` (`CONVERGE_N_VALUES` in the frontend). `--npoints k`
+alone walks that ladder's 8 to 68 in `k` geometric steps; `--range lo hi`
+alone takes seven rungs across the range; both together space `k` rungs
+across `lo`..`hi`. Every rung is rounded to an int and duplicates are dropped.
 
 The table is grouped one block per engine:
 
