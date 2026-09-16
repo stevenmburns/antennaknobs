@@ -218,7 +218,7 @@ def test_backend_roster_served_shape(client):
     assert {n: e["default_n_per_wire_by_degree"] for n, e in by_name.items()} == {
         "sinusoidal": None,
         "sinusoidal-galerkin": None,
-        "bspline": {"1": 20, "2": 15, "3": 12},
+        "bspline": {"1": 20, "2": 15, "3": 16},
         "pulse": None,
         "hmatrix": None,
         "arrayblock": None,
