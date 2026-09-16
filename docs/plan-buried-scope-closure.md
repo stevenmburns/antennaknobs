@@ -19,7 +19,7 @@ map of what is left. This plan orders them.
 | U5 mixed radii | done: two-radius crossing, momwire#1050, released in momwire 0.55.0, which antennaknobs v0.77.0 ships on |
 | U6 counterpoise | closed: AK#1443's verdict; follow-up AK#1455 done (the radiator is graded), AK#1456 open |
 | U7 buried rod | closed: momwire#1027, not a physical disagreement; the two engines converge toward the same R along two axes, at different rates |
-| U8 far field | not started (momwire#570); deferred by decision |
+| U8 far field | readout half done in antennaknobs (the transmitted placement; #1341's refusal retired); momwire#570's own `RP` refusal and the NE/NH item stand |
 | U9 several crossing nodes | **done and released**: momwire#1065 serves several crossing nodes per deck (momwire#1068 moved two tests it made slow). Released in momwire 0.56.0, which antennaknobs v0.79.0 pins and ships on. Measured: the 8-node LPDA at refine 1 reads 52.09 − 3.18j against NEC-5's 53.07 − 3.54j (2.0 %), and momwire's own far × 3 step on it is 0.0394 Ω; two-node soil-A decks against NEC-5 meet the gate on 16 of 16 readings. The LPDA check (d) stopped at its pre-Z check; the two cebik phased arrays are still refused by name; route 1 is deferred; follow-up momwire#1064 |
 
 Ground rules carried from the #956 arc, which are what made it converge:
@@ -43,7 +43,7 @@ Ground rules carried from the #956 arc, which are what made it converge:
 | 3 | "ground CONTACT under `refl-coef` is refused" | **decision** (D3, 2026-08; stays) | 6 + 2 once #2 is lifted, 0 once #1 is fixed | — |
 | 4 | "below/below pair separation R₁ = 136 m (8.9 in-medium λ), past the 4 in-medium λ the remainder is tabulated to" | range | 3 | — |
 | 5 | "crossing serve with per-wire radii: ρ_eff = √(ρ² + a²) regularizes the corner with ONE radius, and a mixed-radius convention is not pinned" (momwire#524 phase 2) | scope | 4 | every real screen: radials thinner than the mast |
-| 6 | "RP asks for the far field of a deck with a wire below the plane … the transmitted family's far-zone asymptotics" (momwire#570) | **formulation** | 1 | every buried design's pattern (wholly buried refused; mixed served with a note, #1341) |
+| 6 | "RP asks for the far field of a deck with a wire below the plane … the transmitted family's far-zone asymptotics" (momwire#570) | **formulation** | 1 | none in antennaknobs since U8's readout half: every buried design's pattern is served through the interface (#1341). momwire's own `RP` still refuses |
 | 7 | `elevated_buried_counterpoise` disagrees with NEC-5 by 27 % in R and 10 % in \|Z\| (+10 Ω R, −7.1 kΩ X on \|Z\| ≈ 61–69 kΩ) on its graded radiator, at nominal_nsegs 21, 42 and 84, with each engine's own fed segment (momwire 1 × 50 mm, NEC-5 2 × 25 mm). Most of it is that fed segment's size: with the fed segments near-matched, the R gap is 2.9 % (31 % at the engines' own sizes, measured on the uniform radiator, AK#1456) | **mostly fed-segment size** (AK#1443, AK#1456) | — | 1 design |
 | 8 | AK#1417's gate: no refinement path for an imported deck (every ladder tool is Builder-driven) | tooling | blocks per-deck ladders on all of the above | — |
 | 9 | a wholly buried vertical rod reads a constant −1.20 % of R against NEC-5, invariant in depth, conductivity and frequency (momwire#1027) | **open disagreement** | — | every wholly buried fed element |
@@ -176,6 +176,22 @@ already found a buried-fed drift on this axis in any medium.
 moving only if this unit says they should.
 
 ### U8 — the buried far field (momwire#570)
+
+**The readout half has landed in antennaknobs.** Both far-field readouts here
+— the engine's grid and the web cuts — split their moment set at the plane and
+place the buried elements through the interface as the transmitted plane wave
+(`antennaknobs/in_medium.py`); nothing below the plane is imaged, and nothing
+below the plane enters the image. The #1341 refusal, its note and its
+power-share bar are gone: every buried design is served. Measured: the
+transmitted factors agree with momwire's own numerical below→above integrals
+(Richardson-extrapolated in 1/R over 40 and 80 λ₀) to 8.6e-6; at ε̃ = 1 both
+readouts reproduce the free-space pattern to 7e-16; the buried-radial
+vertical's peak moves −0.187 dB off the imaged readout, inside the 0.46 dB the
+note said it should. What is NOT done here: momwire's own `RP` refusal for a
+deck with a wire below the plane, the NE/NH below/below point reader, and the
+gates against NEC-5 and an independent oracle (P-H, P-I below).
+
+The remainder of this section is the unit as registered.
 
 The far-zone asymptotics of the transmitted family: stationary phase over the
 below→above Sommerfeld integrals, with the lateral wave and the critical-angle
