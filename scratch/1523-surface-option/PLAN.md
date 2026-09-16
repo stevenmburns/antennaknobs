@@ -231,3 +231,40 @@ These come from arithmetic on the deck's own numbers, not from any solve.
    tree.
 3. `analyze_surface.py` writes `README.md` and `analysis.json`; the report
    follows.
+
+## Amendment 2 (2026-09-16): the re-run on the fixed design
+
+Registered **before the re-run's first solve**. The pre-fix records (b4aa104,
+919c3bd) stay exactly as they are; nothing is replaced.
+
+**What changed upstream.** AK 34f533bb (PR #1534, merged; main is now cf3618b93)
+gives the surface variant's mast and feed gap the radials' conductor with the
+jacket removed, `dataclasses.replace(spec, insulation_radius=None,
+insulation_eps_r=None)`. The radius and the conductivity are unchanged; only the
+jacket moved. The 8 banked #865 corners were re-measured upstream: the shipped
+corner goes 60.621 + 60.949j → 58.543 + 35.154j (X −25.8 Ω), and −41.2 Ω on
+28 AWG PVC.
+
+**The re-run.** The same cells, arms, decks, ground and bars as registered, with
+AK `src` at 34f533bb and momwire 227491d. Records go in `rerun-1534/`, beside the
+pre-fix ones, which were taken on the jacketed-mast deck.
+
+**The pre-#1532 arm is dropped.** e7317cb19 predates the design fix, so its deck
+still jackets the mast: comparing it with the fixed tree's monkeypatched L-only
+arm would compare two different antennas. K1 stands as measured on the pre-fix
+records (0.0000 Ω on all 7 cells), and the monkeypatch is unchanged code.
+
+**K0′ (a check; a failure is a stop and a report).**
+
+- **Every NEC-5 row:** each non-radial GW tag carries the conductor radius a, no
+  `LD 2` card, and — where the wire has a conductivity — an unscaled `LD 5` σ.
+- **Every momwire row:** every kernel radius is a′ or a, with both present on the
+  pair arms and every entry equal to a on the L-only arms.
+
+**The predictions are re-evaluated, not re-registered.** The pre-fix verdicts
+stand as recorded: A0, A1, B1, B1o, B2a, B2b, B3, C1, C3 and S1–S3 hit; C2, C4
+and M missed. The re-run reports its own verdicts under the same bars, and where
+one changes that is reported as a change, never as a correction.
+
+**Order.** Commit this amendment with the harness and analysis changes; run;
+analyse into `rerun-1534/`; report.

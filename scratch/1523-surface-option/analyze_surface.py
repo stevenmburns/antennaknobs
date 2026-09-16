@@ -151,6 +151,45 @@ def main():
         k0.append(("rows", None))
     checks["K0"] = verdict(k0, "FAIL")
 
+    # ------------------------------------------------------------ K0' (Amendment 2)
+    k0p = []
+    for (cell, arm), rec in sorted(rows.items()):
+        label = f"{cell} {arm}"
+        if rec.get("status") != "ok":
+            k0p.append((label, None))
+            continue
+        a, b, eps, sig = rec["a"], rec["b"], rec["eps_r"], rec["sigma"]
+        kern = a_eq(a, b, eps) if arm in PAIR_ARMS else a
+        if arm.startswith("nec5"):
+            dc = rec.get("deck_cards") or {}
+            if "gw" not in dc:
+                k0p.append((label, False))
+                continue
+            radial = {g["tag"] for g in dc["gw"] if g["p0"][2] == g["p1"][2]}
+            other = [g for g in dc["gw"] if g["tag"] not in radial]
+            ld5 = {int(f[1]): f[4] for f in dc["ld"] if f[0] == "5"}
+            ld2 = {int(f[1]): f[5] for f in dc["ld"] if f[0] == "2"}
+            good = bool(other) and all(printed_equal(g["radius"], a) for g in other)
+            good = good and not any(g["tag"] in ld2 for g in other)
+            if sig is None:
+                good = good and not any(g["tag"] in ld5 for g in other)
+            else:
+                good = good and all(
+                    g["tag"] in ld5 and printed_equal(ld5[g["tag"]], sig) for g in other
+                )
+        else:
+            kr = rec.get("kernel_radius") or []
+            near_kern = [k for k in kr if abs(k / kern - 1) <= 1e-12]
+            near_a = [k for k in kr if abs(k / a - 1) <= 1e-12]
+            good = bool(kr) and len(near_kern) + len(near_a) >= len(kr)
+            good = good and bool(near_a)
+            if arm in PAIR_ARMS:
+                good = good and bool(near_kern) and len(near_a) < len(kr)
+        k0p.append((label, good))
+    if not rows:
+        k0p.append(("rows", None))
+    checks["K0'"] = verdict(k0p, "FAIL")
+
     # ------------------------------------------------------------ K1
     k1, k1_table = [], []
     for cell in sorted({c for c, arm in rows if arm == "nec5_pre"}):
@@ -159,8 +198,17 @@ def main():
         k1.append((cell, cmp(d, lambda v: v <= 5e-3)))
         k1_table.append((cell, zl, zp, d))
     if not k1:
-        k1.append(("nec5_pre rows", None))
-    checks["K1"] = verdict(k1, "FAIL")
+        # Amendment 2 drops the pre-#1532 arm on the fixed design: that tree
+        # predates the design fix, so its deck still jackets the mast. K1 stands
+        # as measured on the pre-fix records.
+        checks["K1"] = {
+            "verdict": "n/a (Amendment 2)",
+            "fails": [],
+            "missing": [],
+            "instances": 0,
+        }
+    else:
+        checks["K1"] = verdict(k1, "FAIL")
 
     # ------------------------------------------------------------ A0, A1
     a0, a1 = [], []
@@ -290,8 +338,9 @@ def main():
     preds.update(S1=verdict(s1), S2=verdict(s2), S3=verdict(s3))
 
     # ------------------------------------------------------------ answer rule
-    if checks["K0"]["verdict"] != "hit" or checks["K1"]["verdict"] != "hit":
-        failed = [q for q in ("K0", "K1") if checks[q]["verdict"] != "hit"]
+    passing = ("hit", "n/a (Amendment 2)")
+    if any(checks[q]["verdict"] not in passing for q in ("K0", "K0'", "K1")):
+        failed = [q for q in ("K0", "K0'", "K1") if checks[q]["verdict"] not in passing]
         rule = f"stop: {', '.join(failed)} did not pass"
     elif preds["A0"]["verdict"] != "hit":
         rule = "stop: NEC-5 did not serve every cell (A0); see the refusals"

@@ -51,6 +51,8 @@ SEVERNS = {
 HEADS = {
     "main": "97ca2b6b02e7937abe5797052efd171bdd834031",
     "pre": "e7317cb192f0278ae8866ab1027f9f4a26c12bdb",
+    # Amendment 2: the surface-mast fix, PR #1534 (main is cf3618b93 past it).
+    "post": "34f533bb468467e0638f8b53776205f376466bd1",
 }
 MOMWIRE_HEAD = "227491dc24b7b4f0cf0d51c85e65b647ecfeb463"
 
@@ -372,7 +374,7 @@ def main():
     ap.add_argument(
         "--mesh", action="store_true", help="build and write decks, no solve"
     )
-    ap.add_argument("--tree", choices=("main", "pre"), default="main")
+    ap.add_argument("--tree", choices=("main", "pre", "post"), default="main")
     ap.add_argument("--out", type=Path)
     ap.add_argument("--only", default="", help="comma list of cell names")
     args = ap.parse_args()
