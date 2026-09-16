@@ -208,21 +208,47 @@ def test_a_multi_feed_design_ships_one_feed_row_per_port(portal_exe):
     assert all("v_re" in f and "z_re" in f for f in out["feeds"])
 
 
-def test_the_binarys_own_complaint_is_reported_not_the_missing_block(portal_exe):
+def test_the_binarys_own_complaint_is_reported_not_the_missing_block(
+    portal_exe, monkeypatch
+):
     """A deck the engine rejects used to surface as "no POWER BUDGET" — true,
     and useless: it names the block that is missing rather than the reason.
 
-    `dipoles.pota_invvee` carries an `LD 2` (a distributed jacket inductance)
-    which momwire's portal declines, so the stand-in is the one refusing here.
-    Real nec2c supports LD 2; what this pins is the REPORTING, which is the
-    part that was wrong whoever refuses.
+    This pin used to ride on `dipoles.pota_invvee`'s `LD 2` (a distributed
+    jacket inductance), which momwire's portal declined until momwire#1088
+    taught both dialects the card (momwire 0.57.0); the design now solves
+    (the sibling test below). What is pinned is the REPORTING, which is the
+    part that was wrong whoever refuses, so the refusal is provoked with a
+    card the nec2 dialect still declines by name — `KH`, the interaction
+    approximation limit — spliced into the same design's own deck.
     """
     B = importlib.import_module("antennaknobs.designs.dipoles.pota_invvee").Builder
     eng = NEC2Engine(B(), ground="free")
+    real_deck = eng.deck
+
+    def deck_with_kh(*args, **kwargs):
+        text = real_deck(*args, **kwargs)
+        assert "\nGE " in text
+        return text.replace("\nFR ", "\nKH 1.0\nFR ", 1)
+
+    monkeypatch.setattr(eng, "deck", deck_with_kh)
     with pytest.raises(NEC2Error) as e:
         eng.solve_snapshot()
-    assert "LD type 2" in str(e.value), str(e.value)
+    assert "KH" in str(e.value), str(e.value)
     assert "POWER BUDGET" not in str(e.value), str(e.value)
+
+
+def test_a_jacketed_design_solves_through_the_stand_in(portal_exe):
+    """momwire#1088 (momwire 0.57.0): the `LD 2` per-metre jacket inductance
+    `dipoles.pota_invvee` writes is served, so the stand-in answers where it
+    used to refuse. The a′+L′ pair (antennaknobs#1523) is what moves the
+    reactance here; only that the solve completes with a finite Z is pinned,
+    the number belongs to the engine records."""
+    B = importlib.import_module("antennaknobs.designs.dipoles.pota_invvee").Builder
+    eng = NEC2Engine(B(), ground="free")
+    zs = eng.impedance()
+    assert len(zs) >= 1
+    assert all(0.0 < abs(complex(z)) < 1e6 for z in zs)
 
 
 def test_the_pattern_endpoint_fills_the_grid_and_closes_the_seam(portal_exe):
