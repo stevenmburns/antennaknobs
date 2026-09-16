@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { BUILTIN_SWITCHES } from "../../lib/settings";
 import { type ExampleDescriptor } from "../../lib/params";
-import { type Projection, type View } from "../../lib/view";
+import { type CanvasCamera, fitCamera, type Projection, type View } from "../../lib/view";
 import { cycleOrder, gridCells, gridFix, type Layout } from "./useViewPrefs";
 
 // Which output view is on screen and how it is drawn: the two far-field cut
@@ -72,6 +72,18 @@ export function useViewState({
   }, [layout, view, pinned, setLayout]);
 
   const [cameraProjection, setCameraProjection] = useState<Projection>("xy");
+  // The antenna canvas's zoom and pan (AK#1542). Here rather than inside the
+  // canvas because the stage shows one view at a time and unmounts the rest:
+  // a camera living in the component was a new one every time the view came
+  // back, so a hard-won close-up was gone the moment you glanced at the Smith
+  // chart. An antenna SWITCH still re-fits, which the canvas decides from the
+  // geometry recorded in the camera.
+  //
+  // State with no setter, which is this tree's way of saying "one object,
+  // made once, and never remade by a render". A mutable object rather than
+  // state proper: the canvas writes it at pointer-event rate and repaints
+  // itself, so a zoom re-renders nothing here, which is the point.
+  const [canvasCamera] = useState<CanvasCamera>(fitCamera);
   // When the user switches antennas, reset the camera to that example's
   // natural starting view (declared on the backend via default_view).
   // Explicit user override sticks until the next geometry change.
@@ -154,6 +166,7 @@ export function useViewState({
     setView,
     cameraProjection,
     setCameraProjection,
+    canvasCamera,
     showHeatmap,
     setShowHeatmap,
     showEnvelope,
