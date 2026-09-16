@@ -358,7 +358,7 @@ def _reflection(z, z0):
     return (z - z0) / (z + z0)
 
 
-def _print_convergence_table(per_engine, estimates, z0):
+def _print_convergence_table(per_engine, estimates, z0, marked=frozenset()):
     """The stdout table for ``sweep --param nominal_nsegs`` (#1554): grouped
     per engine so a single-engine study reads like a plain ladder printout,
     and a multi-engine one reads as N of those back to back. ΔΓ is against
@@ -371,10 +371,13 @@ def _print_convergence_table(per_engine, estimates, z0):
         finest_gamma = _reflection(rows[-1][2], z0)
         for nominal_n, achieved_n, z in rows:
             dgamma = abs(_reflection(z, z0) - finest_gamma)
+            star = " *" if nominal_n in marked else ""
             print(
                 f"{nominal_n:>9} {achieved_n:>6} {z.real:>9.3f} {z.imag:>+9.3f} "
-                f"{dgamma:>9.4f}"
+                f"{dgamma:>9.4f}{star}"
             )
+        if marked:
+            print("  * = a --markers rung")
         z_star, shrinking = estimates[name]
         if z_star is None:
             print(f"{name}  Z* unavailable (need >= 2 rungs)")
@@ -387,7 +390,7 @@ def _print_convergence_table(per_engine, estimates, z0):
 
 
 def _sweep_convergence(
-    antenna_builder, engines, *, rng, npoints, use_smithchart, z0, fn
+    antenna_builder, engines, *, rng, npoints, use_smithchart, z0, fn, markers=()
 ):
     """``sweep --param nominal_nsegs`` (#1554): one cold solve per rung per
     engine, port 0 only (multi-port trajectories are the app's own overlay,
@@ -400,7 +403,12 @@ def _sweep_convergence(
     """
     import matplotlib.pyplot as plt
 
-    rungs = _nominal_nsegs_rungs(rng, npoints)
+    # `--markers` on a density study are extra rungs at exactly the densities
+    # named (the served 15 / 16 / 20, say): solved like any rung, starred in
+    # the table and squared on the chart, but NOT rungs of the Richardson
+    # ladder (see `estimates` below).
+    marked = {int(round(m)) for m in markers}
+    rungs = sorted(set(_nominal_nsegs_rungs(rng, npoints)) | marked)
 
     per_engine = {}
     nports = 1
@@ -414,13 +422,20 @@ def _sweep_convergence(
             rows.append((n, _achieved_n(eng, antenna_builder), complex(z[0])))
         per_engine[name] = rows
 
+    # Richardson reads the GEOMETRIC ladder only: a marker dropped between two
+    # rungs would shrink one step and grow the next, and the "shrinking"
+    # verdict compares adjacent steps. Markers are observations on the
+    # trajectory, not rungs of the extrapolation.
+    ladder_rungs = set(_nominal_nsegs_rungs(rng, npoints))
     estimates = {
-        name: ladder_estimate([(achieved, z) for _, achieved, z in rows])
+        name: ladder_estimate(
+            [(achieved, z) for n, achieved, z in rows if n in ladder_rungs]
+        )
         or (None, None)
         for name, rows in per_engine.items()
     }
 
-    _print_convergence_table(per_engine, estimates, z0)
+    _print_convergence_table(per_engine, estimates, z0, marked=marked)
 
     title = "impedance vs nominal_nsegs, Richardson Z*"
     if nports > 1:
@@ -458,6 +473,17 @@ def _sweep_convergence(
                 markeredgecolor=color,
                 linestyle="None",
             )
+            for k, (nominal_n, _achieved, _z) in enumerate(rows):
+                if nominal_n in marked:
+                    ax0.plot(
+                        [gamma[k].real],
+                        [gamma[k].imag],
+                        marker="s",
+                        ms=6,
+                        markerfacecolor="none",
+                        markeredgecolor=color,
+                        linestyle="None",
+                    )
             z_star, _shrinking = estimates[name]
             if z_star is not None:
                 g = _reflection(z_star, z0)
@@ -485,6 +511,17 @@ def _sweep_convergence(
             ax0.plot(
                 ns, im, color=color, linestyle="--", marker="^", ms=3, label=f"{name} X"
             )
+            for nominal_n, achieved, z in rows:
+                if nominal_n in marked:
+                    ax0.plot(
+                        [achieved, achieved],
+                        [z.real, z.imag],
+                        marker="s",
+                        ms=6,
+                        markerfacecolor="none",
+                        markeredgecolor=color,
+                        linestyle="None",
+                    )
             z_star, _shrinking = estimates[name]
             if z_star is not None:
                 ax0.axhline(
@@ -534,6 +571,7 @@ def sweep(
             use_smithchart=use_smithchart,
             z0=z0,
             fn=fn,
+            markers=markers,
         )
         return
 

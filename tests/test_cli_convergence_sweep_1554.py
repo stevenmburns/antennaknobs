@@ -229,3 +229,30 @@ def test_npoints_and_range_each_stand_alone_for_the_density_ladder():
     seven = _nominal_nsegs_rungs((10.0, 40.0), None)
     assert seven[0] == 10 and seven[-1] == 40 and len(seven) == 7
     assert _nominal_nsegs_rungs((8.0, 68.0), 6) == [8, 12, 19, 29, 44, 68]
+
+
+def test_markers_add_rungs_at_exactly_the_densities_named(capsys):
+    """`--markers 15 16` on a density study solves those densities as extra
+    rungs (the served numbers a study usually wants to see), stars them in the
+    table, and leaves the ladder otherwise as it was."""
+    import importlib
+
+    from antennaknobs.sweep import _sweep_convergence
+
+    B = importlib.import_module("antennaknobs.designs.dipoles.invvee").Builder
+    from antennaknobs.engines.momwire import MomwireEngine
+
+    _sweep_convergence(
+        B(),
+        [("momwire:bspline", lambda b: MomwireEngine(b))],
+        rng=(8.0, 24.0),
+        npoints=3,
+        use_smithchart=False,
+        z0=50.0,
+        fn="/dev/null",
+        markers=(15, 16),
+    )
+    out = capsys.readouterr().out
+    starred = [ln for ln in out.splitlines() if ln.rstrip().endswith("*")]
+    assert [int(ln.split()[0]) for ln in starred] == [15, 16]
+    assert "* = a --markers rung" in out
