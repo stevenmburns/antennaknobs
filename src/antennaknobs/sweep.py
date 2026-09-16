@@ -403,12 +403,19 @@ def _sweep_convergence(
     """
     import matplotlib.pyplot as plt
 
-    # `--markers` on a density study are extra rungs at exactly the densities
-    # named (the served 15 / 16 / 20, say): solved like any rung, starred in
-    # the table and squared on the chart, but NOT rungs of the Richardson
-    # ladder (see `estimates` below).
+    # `--markers` on a density study are rungs at exactly the densities named
+    # (the served 15 / 16 / 20, say): solved like any rung, starred in the
+    # table and squared on the chart. Beside a ladder (--range / --npoints, or
+    # the default one) they are observations only, not rungs of the Richardson
+    # estimate (see `estimates` below); alone, they are the whole ladder.
     marked = {int(round(m)) for m in markers}
-    rungs = sorted(set(_nominal_nsegs_rungs(rng, npoints)) | marked)
+    if marked and rng is None and npoints is None:
+        # `--markers` alone IS the ladder: "just these densities". Richardson
+        # then reads them as its rungs, since they are the only rungs.
+        ladder_rungs = set(marked)
+    else:
+        ladder_rungs = set(_nominal_nsegs_rungs(rng, npoints))
+    rungs = sorted(ladder_rungs | marked)
 
     per_engine = {}
     nports = 1
@@ -426,7 +433,6 @@ def _sweep_convergence(
     # rungs would shrink one step and grow the next, and the "shrinking"
     # verdict compares adjacent steps. Markers are observations on the
     # trajectory, not rungs of the extrapolation.
-    ladder_rungs = set(_nominal_nsegs_rungs(rng, npoints))
     estimates = {
         name: ladder_estimate(
             [(achieved, z) for n, achieved, z in rows if n in ladder_rungs]

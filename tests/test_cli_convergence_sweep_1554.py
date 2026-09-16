@@ -256,3 +256,28 @@ def test_markers_add_rungs_at_exactly_the_densities_named(capsys):
     starred = [ln for ln in out.splitlines() if ln.rstrip().endswith("*")]
     assert [int(ln.split()[0]) for ln in starred] == [15, 16]
     assert "* = a --markers rung" in out
+
+
+def test_markers_alone_are_the_whole_ladder(capsys):
+    """`--markers 15 16 20` with neither --range nor --npoints solves ONLY those
+    densities, and Richardson reads them as its rungs."""
+    import importlib
+
+    from antennaknobs.engines.momwire import MomwireEngine
+    from antennaknobs.sweep import _sweep_convergence
+
+    B = importlib.import_module("antennaknobs.designs.dipoles.invvee").Builder
+    _sweep_convergence(
+        B(),
+        [("momwire:bspline", lambda b: MomwireEngine(b))],
+        rng=None,
+        npoints=None,
+        use_smithchart=False,
+        z0=50.0,
+        fn="/dev/null",
+        markers=(15, 16, 20),
+    )
+    out = capsys.readouterr().out
+    rows = [ln for ln in out.splitlines() if ln.rstrip().endswith("*")]
+    assert [int(ln.split()[0]) for ln in rows] == [15, 16, 20]
+    assert "Z* =" in out and "Z* unavailable" not in out
