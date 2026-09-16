@@ -28,10 +28,13 @@ WHERE EACH NUMBER COMES FROM
   feed.
 - ``razor-2p`` and ``nec5`` at 40: one number for the two first-order
   engines, so an A/B between momwire's formulation twin and the licensed
-  binary is not also an A/B on the mesh. ~16x the mesh of bspline for the same
-  self-convergence on the ByDipole1 ladder (momwire#780) is why it is higher,
-  and EVEN because both want a source at a segment end / a knot at the wire's
-  exact middle.
+  binary is not also an A/B on the mesh. It is higher than bspline's because
+  both engines converge at FIRST order in the segment count (the #1525
+  density ladder: razor-2p's fitted order is ~0.9 against bs2 refined to 160
+  per wire, with a median 2.4 % residual at 40), where bs2 is within a few
+  percent of its limit at 15. EVEN because both want a source at a segment
+  end / a knot at the wire's exact middle. The number itself is the #1525
+  decision (2026-09-16).
 - ``arrayblock``, ``pynec``, ``nec2`` at 21 — the Builder framework default
   (``AntennaBuilder.FRAMEWORK_PARAMS``), odd for the same feed-knot reason.
 - The rest at 30, unchanged and unmeasured: no census has said otherwise.
