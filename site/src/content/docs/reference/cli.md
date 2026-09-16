@@ -373,6 +373,10 @@ With neither `--range` nor `--npoints`, the rungs are the app's own ladder,
 alone walks that ladder's 8 to 68 in `k` geometric steps; `--range lo hi`
 alone takes seven rungs across the range; both together space `k` rungs
 across `lo`..`hi`. Every rung is rounded to an int and duplicates are dropped.
+`--markers 15 16 20` solves those densities too — the served numbers a
+study usually wants to see — starred in the table and squared on the
+chart; they are observations on the trajectory, not rungs of the
+Richardson ladder.
 
 The table is grouped one block per engine:
 
