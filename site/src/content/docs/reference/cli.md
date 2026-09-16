@@ -320,8 +320,10 @@ needs to be converged is a property of its basis:
 | `momwire:razor-2p`, `nec5` | 40 |
 | `momwire:bspline` | 15 |
 | `momwire:bspline-d1` | 20 |
-| `momwire:sinusoidal`, `momwire:sinusoidal-galerkin`, `momwire:hmatrix` | 30 |
-| `momwire:arrayblock`, `pynec`, `nec2` | 21 |
+| `momwire:pulse` | 41 |
+| `momwire:sinusoidal-galerkin` | 20 |
+| `momwire:hmatrix` | 30 |
+| `momwire:sinusoidal`, `momwire:arrayblock`, `pynec`, `nec2` | 21 |
 | `momwire` (no basis) | 21 |
 
 The number is segments per quarter-wave at the design frequency, so it is

@@ -92,12 +92,14 @@ function withConstraints(b: BackendEntry): BackendEntry {
 export const SERVED_ROSTER: BackendRoster = ([
   backendEntry({
     name: "sinusoidal",
+    default_n_per_wire: 21,
     label: "Sinusoidal",
     model_kwargs: SIN_KWARGS,
     options_schema: [backendOption()],
   }),
   backendEntry({
     name: "sinusoidal-galerkin",
+    default_n_per_wire: 20,
     label: "Sin-Galerkin",
     model_kwargs: SIN_GALERKIN_KWARGS,
     options_schema: [backendOption()],

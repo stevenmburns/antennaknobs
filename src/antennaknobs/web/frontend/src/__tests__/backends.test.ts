@@ -83,7 +83,7 @@ describe("defaultOptsFor", () => {
       defaultOptsFor(entry("sinusoidal-galerkin"), SERVED_OPTION_SPECS).model
         .feed_model,
     ).toBe("point");
-    expect(opts.nPerWire).toBe(30);
+    expect(opts.nPerWire).toBe(21);
   });
 
   it("takes segments/wire from the entry, not a client-side table", () => {

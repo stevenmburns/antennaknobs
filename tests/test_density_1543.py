@@ -58,10 +58,10 @@ def test_the_values():
     value.
     """
     assert dict(DEFAULT_NSEGS) == {
-        "sinusoidal": 30,
-        "sinusoidal-galerkin": 30,
+        "sinusoidal": 21,
+        "sinusoidal-galerkin": 20,
         "bspline": 15,
-        "pulse": 30,
+        "pulse": 41,
         "hmatrix": 30,
         "arrayblock": 21,
         "razor-2p": 40,
@@ -153,8 +153,8 @@ def test_the_roster_carries_no_density_literal_of_its_own():
         ("momwire:bspline", 15),
         ("momwire:bspline-d1", 20),
         # The rest.
-        ("momwire:sinusoidal", 30),
-        ("momwire:sinusoidal-galerkin", 30),
+        ("momwire:sinusoidal", 21),
+        ("momwire:sinusoidal-galerkin", 20),
         ("momwire:hmatrix", 30),
         ("momwire:arrayblock", 21),
         ("pynec", 21),
