@@ -221,6 +221,7 @@ describe("dispatch", () => {
       geometry: "g",
       engine: null,
       solved: true,
+      ssn: null,
       source: {
         available: true,
         geometry: "g",

@@ -402,6 +402,13 @@ class AntennaExample:
     # request (params/variant/freq/ground). None when the design has no
     # faithful native-NEC representation (TL/virtual-driver networks).
     nec_export: Optional[Callable[[dict], str]] = None
+    # Render the design as a SimNEC .ssn circuit (str) for the current request
+    # (AK#1539), so the workbench can hand the antenna to SimNEC without a
+    # terminal. Needs no PyNEC and no engine. Raises SsnUnsupported (a
+    # NotImplementedError) for a design SimNEC cannot faithfully represent —
+    # common-mode constructs, non-ladder topologies — which the endpoint
+    # reports as a stated reason.
+    ssn_export: Optional[Callable[[dict], str]] = None
     # Render the design's build_network() — feedline, tuner, balun, and the
     # port the source sits on — as an SVG circuit schematic for the current
     # request (issue #652). The callable returns None when the design has no

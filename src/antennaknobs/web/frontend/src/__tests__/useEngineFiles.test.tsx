@@ -1,9 +1,10 @@
 // Pins the Files view's fetch discipline (src/components/session/
 // useEngineFiles.ts, AK#1428): the source is fetched per DESIGN, the engine
 // texts once per SOLVE and only for a solve the server labelled as having run
-// through a binary, nothing moves while the view is not resident, a new solve
-// keeps the previous texts up (stale) until its own land, and a design switch
-// drops them at once.
+// through a binary, the SimNEC circuit once per solve whatever ran (AK#1539 —
+// the writer needs no engine), nothing moves while the view is not resident, a
+// new solve keeps the previous texts up (stale) until its own land, and a
+// design switch drops them at once.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { useEngineFiles } from "../components/session/useEngineFiles";
@@ -30,6 +31,15 @@ beforeEach(() => {
         filename: "f.py",
         language: "python",
         text: `source of ${body.geometry}`,
+      });
+    }
+    if (url === "/design_ssn") {
+      return respond({
+        available: true,
+        geometry: body.geometry,
+        filename: "f.ssn",
+        language: "ssn",
+        text: `circuit of ${body.solve_id ?? "now"}`,
       });
     }
     return respond(
@@ -127,6 +137,18 @@ describe("what is fetched when", () => {
     expect(JSON.parse(String(calls("/engine_io")[0][1].body)).solve_id).toBe("s3");
   });
 
+  it("writes the SimNEC circuit per solve, whatever solver ran", async () => {
+    // Unlike the source it comes FROM the knobs, so it follows the solve; and
+    // unlike the deck it needs no binary, so a momwire solve gets one too.
+    const { result, rerender } = renderFiles({ engineLabel: null });
+    await settle();
+    expect(calls("/design_ssn")).toHaveLength(1);
+    expect(result.current.ssn?.available).toBe(true);
+    rerender({ ...BASE, engineLabel: null, solveId: "s2" });
+    await settle();
+    expect(calls("/design_ssn")).toHaveLength(2);
+  });
+
   it("loads the source per design, not per solve", async () => {
     const { rerender } = renderFiles();
     await settle();
@@ -172,6 +194,7 @@ describe("stale-display policy", () => {
     rerender({ ...BASE, geometry: "user.my_yagi", solveId: null, engineLabel: null });
     expect(result.current.source).toBeNull();
     expect(result.current.engineIo).toBeNull();
+    expect(result.current.ssn).toBeNull();
     expect(result.current.solved).toBe(false);
   });
 

@@ -179,11 +179,14 @@ frequency.
 
 **The Files view** shows the text behind a solve, each tab with Copy and
 Download. **Source** is the file the design is built from: a catalog or user
-`.py`, or a bare `.nec`/`.ssn` as written. When the slot's solve ran through
-an external binary (NEC-5 or NEC-2), the other two tabs show the exact
-**deck** that engine was given and the **output** it printed. A momwire or
-PyNEC slot runs no deck and says so instead. The texts are fetched only while
-Files is the view on the stage, never for a thumbnail.
+`.py`, or a bare `.nec`/`.ssn` as written. **SimNEC** is the design as a
+[`.ssn` circuit](/reference/simnec/) — the antenna on screen at its frequency
+and ground, written for every design and needing no engine, which is how the
+round trip to SimNEC runs without a terminal. When the slot's solve ran through
+an external binary (NEC-5 or NEC-2), the last two tabs show the exact **deck**
+that engine was given and the **output** it printed. A momwire or PyNEC slot
+runs no deck and says so instead. The texts are fetched only while Files is the
+view on the stage, never for a thumbnail.
 
 **Minimizing the readout.** The **–** on the floating solve readout collapses
 it to a one-line **R · X · SWR** pill; click the pill to restore the card. The

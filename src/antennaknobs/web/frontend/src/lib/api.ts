@@ -289,6 +289,19 @@ export type DesignSource =
     }
   | { available: false; geometry: string };
 
+/** POST /design_ssn (AK#1539): the design as a SimNEC circuit, built from the
+ *  request the way a solve is. `reason` names the construct SimNEC's cascade
+ *  cannot carry, for the designs that refuse. */
+export type DesignSsn =
+  | {
+      available: true;
+      geometry: string;
+      filename: string;
+      language: string;
+      text: string;
+    }
+  | { available: false; geometry: string; reason: string };
+
 /** One run of an external engine's binary: the deck it was given and the
  *  report it printed, byte for byte. */
 export type EngineRun = {

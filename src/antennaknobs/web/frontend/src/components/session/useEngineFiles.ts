@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
-import type { DesignSource, EngineIo, SolveRequest } from "../../lib/api";
+import type { DesignSource, DesignSsn, EngineIo, SolveRequest } from "../../lib/api";
 import type { FilesViewData } from "../results/FilesPanel";
 
 // The Files view's data (AK#1428): the file the design was written as, and the
 // deck an external engine was given plus the report it printed.
 //
 // The source is fetched per DESIGN (POST /design_source, a file read). The
+// SimNEC circuit is fetched per SOLVE (POST /design_ssn, AK#1539): unlike the
+// source it is written FROM the request, so it changes with every knob, and
+// the solve on screen is the cheapest honest signature of "the knobs settled".
+// It needs no engine and no solve of its own. The
 // engine texts are fetched per SOLVE, not per knob, and only for a solve whose
 // response carries `engine_io_label`: the server stamps that on a solve that
 // ran through a binary and keeps its runs under the solve_id, so the ask is a
@@ -34,6 +38,7 @@ export function useEngineFiles({
   buildRequest: () => SolveRequest;
 }): FilesViewData {
   const [source, setSource] = useState<DesignSource | null>(null);
+  const [ssn, setSsn] = useState<{ geometry: string; data: DesignSsn } | null>(null);
   const [io, setIo] = useState<{
     geometry: string;
     solveId: string;
@@ -56,6 +61,32 @@ export function useEngineFiles({
       .catch(() => {});
     return () => controller.abort();
   }, [active, geometry]);
+
+  useEffect(() => {
+    if (!active || !geometry || !solveId) return;
+    const controller = new AbortController();
+    // Debounced like the engine texts below: a drag lands a solve per tick,
+    // and only the antenna the drag settles on is worth writing a circuit for.
+    const t = setTimeout(() => {
+      fetch("/design_ssn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildRequest()),
+        signal: controller.signal,
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: DesignSsn | null) => {
+          if (!controller.signal.aborted && data) setSsn({ geometry, data });
+        })
+        .catch(() => {});
+    }, 250);
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+    };
+    // buildRequest is a plain closure over the session's live state, as below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, geometry, solveId]);
 
   const have = io?.solveId ?? null;
   useEffect(() => {
@@ -107,6 +138,9 @@ export function useEngineFiles({
     engine: solveId !== null ? engineLabel : (shownIo?.data.label ?? null),
     solved: solveId !== null || shownIo !== null,
     source: source && source.geometry === geometry ? source : null,
+    // Another antenna's circuit on screen is misinformation, exactly as its
+    // deck would be: dropped on a design switch, not carried over stale.
+    ssn: ssn && ssn.geometry === geometry ? ssn.data : null,
     engineIo: shownIo?.data ?? null,
     stale: shownIo !== null && shownIo.solveId !== solveId,
   };

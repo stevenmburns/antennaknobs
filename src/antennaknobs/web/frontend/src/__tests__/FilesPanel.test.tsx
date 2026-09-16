@@ -15,6 +15,13 @@ const SOURCE = {
   text: "class Builder:\n    pass\n",
 };
 const RUN = { deck: "CM the deck\nEN\n", printout: "THE PRINTOUT\n", cached: false };
+const SSN = {
+  available: true as const,
+  geometry: "dipoles.invvee",
+  filename: "dipoles_invvee.ssn",
+  language: "ssn",
+  text: "<SimNEC1p0/>\n",
+};
 
 function data(over: Partial<FilesViewData> = {}): FilesViewData {
   return {
@@ -22,6 +29,7 @@ function data(over: Partial<FilesViewData> = {}): FilesViewData {
     engine: "Engine-A",
     solved: true,
     source: SOURCE,
+    ssn: SSN,
     engineIo: {
       available: true,
       solver: "enga",

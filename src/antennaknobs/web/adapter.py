@@ -4696,6 +4696,37 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             ground = ("finite",) + ground[1].crest_medium
         return _export_nec(builder, ground=ground, freq=meas_freq)
 
+    def ssn_export(req: dict) -> str:
+        # The design as a SimNEC circuit (AK#1539), so the round trip to SimNEC
+        # needs no terminal — which on the packaged workbench means it is
+        # possible at all. Same builder construction as `nec_export` above, so
+        # the circuit carries the antenna on screen at its frequency and
+        # ground, not the design's defaults.
+        #
+        # No sweep is armed: the Generator's frequency is the solve frequency,
+        # and the band the workbench sweeps is not part of a solve request. The
+        # CLI's --sweep is where that lives.
+        #
+        # Needs no PyNEC: the writer builds a PyNECEngine for its geometry and
+        # network reduction and never runs it, and that class imports the
+        # library optionally (the bundle ships none, by the #1354 licence
+        # argument). Raises SsnUnsupported — a NotImplementedError — for a
+        # design SimNEC's cascade cannot represent; the endpoint turns that
+        # into a stated reason rather than an error.
+        from antennaknobs.simnec_export import export_ssn as _export_ssn
+
+        design_freq, meas_freq = _req_freqs(req)
+        builder = _build_builder(cls, req)
+        builder.freq = meas_freq
+        if has_design_freq:
+            builder.design_freq = design_freq
+        ground = _ground_for_engine(req) or "free"
+        if isinstance(ground, tuple) and ground[0] == "terrain":
+            # As in nec_export: SimNEC's NEC block cannot carry the facet
+            # model, so the crest medium the impedance solve used goes in.
+            ground = ("finite",) + ground[1].crest_medium
+        return _export_ssn(builder, freq_mhz=meas_freq, ground=ground)
+
     def nec5_export(req: dict) -> str:
         # The NEC-5 twin of `nec_export` (#1389). Same builder construction, so
         # the deck matches the antenna on screen, and the SAME writer the corpus
@@ -4862,6 +4893,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         nec2_pattern=nec2_pattern,
         nec5_export=nec5_export,
         nec_export=nec_export,
+        ssn_export=ssn_export,
         schematic_svg=schematic_svg,
         params_source=params_source,
         far_field_metrics=far_field_metrics,
