@@ -317,3 +317,57 @@ which would need a different knob, not a different rung — may say otherwise.
 E1's denominator falls from 206 rows to **204**: `verticals.elt_whip`'s two rows
 are skipped, not classified, so they can neither agree nor disagree with a
 prediction. The ≥ 90 % bar applies to the 204.
+
+## 11. Re-based on v0.79.0 (2026-09-15), with the delta predicted first
+
+A complete 1,680-cell ladder finished on AK `97ca2b6b0` + momwire `227491d` in
+3,744 s. antennaknobs **v0.79.0** then shipped, moving the pin triple to momwire
+**0.56.0**, so those records describe a baseline that is no longer current. They
+are **kept**, as `records-momwire-227491d.jsonl`, and superseded rather than
+deleted — the re-run's diff against them is the measurement of what the release
+moved.
+
+### The new configuration
+
+| axis | value |
+|---|---|
+| antennaknobs | **main `5de6cdde9`** = tag **v0.79.0**, study branch on top |
+| momwire | branch `main` at **`a925d37`** = tag **v0.56.0** |
+| dev mode | **vacuous for this run**: `a925d37` is simultaneously the dev tip, the v0.56.0 tag commit and AK's recorded pointer. There is no divergence to excuse, so the ladder describes exactly what a user installs. |
+| versions | momwire 0.56.0, antennaknobs 0.79.0, both matching their pyproject |
+
+### What actually changed, read from the diffs
+
+* **momwire `227491d` → `a925d37`, six commits, touching only
+  `src/momwire/eznec/_printout.py` and `_shell.py`** — the EZNEC printout shell.
+  Nothing on the solver path. Two independent signs: the `src/` diff contains no
+  kernel, fill or solver file, and `make build` recompiled **zero** translation
+  units, which a pure-Python change is exactly what produces.
+* **antennaknobs `97ca2b6b0` → `5de6cdde9`, one `src/antennaknobs` file**:
+  `designs/verticals/buried_radial_vertical.py`, 21 lines. That is a *design*
+  change, so it moves one catalog design's geometry and nothing else. The other
+  three changed files are frontend tests.
+
+### Predictions, registered before the re-run
+
+* **F1.** Every cell is **bit-identical** to `records-momwire-227491d.jsonl`
+  except `verticals.buried_radial_vertical`. Bar: **zero** movers outside that
+  design, tested on the stored `[re, im]` pairs.
+* **F2.** `verticals.buried_radial_vertical` **does** move. F1 without F2 would be
+  satisfied by a harness that silently re-ran the old tree.
+
+The skip list was recomputed on the new baseline and is **unchanged** —
+`verticals.elt_whip` alone, growth 1.042×. `buried_radial_vertical`'s own mesh is
+248 / 453 / 888 / 1764 across the rungs, a 7.1× refinement, so it remains
+ladderable.
+
+### A guard fix this forced, and it is the better check
+
+`verify_env.py` asserted `version('momwire') == "0.55.0"` and
+`version('antennaknobs') == "0.78.0"` as constants. Both correctly FAILED on the
+new baseline — the guard caught the release. But a guard that fails for being out
+of date is a guard that gets bypassed by hand, so the check now compares
+**installed metadata against the version declared in the tree being imported**.
+That is the invariant originally worth checking (editable metadata does not follow
+a submodule checkout, which is how the `b9bc3e2f0` run read 0.53.0 against a
+pyproject saying 0.55.0), and it never needs updating again.
