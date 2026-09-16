@@ -19,6 +19,7 @@ from .engines import (
     probe_nec2,
     probe_nec5,
 )
+from .density import default_nsegs
 from .serialize import builder_params_source
 from .fit import MAX_FREE_PARAMS, LineEmbedding, fit, plot_fit
 from .measured import read_measured
@@ -417,8 +418,66 @@ def parse_engine_spec(spec):
     return name, {"solver": MOMWIRE_BASES[basis]}
 
 
+# CLI basis spellings that are not roster names. A name bound to kwargs is
+# still the same ENGINE, so it reads the same density row rather than growing
+# one of its own (#1543) — two rows would be two numbers to move.
+_DENSITY_ALIASES = {
+    "bspline-d1": ("bspline", 1),
+    "razor-nec5": ("razor-2p", None),
+}
+
+
+def engine_density(engine_spec):
+    """The default segments-per-wire for `--engine <spec>`, or None.
+
+    None means antennaknobs has no opinion and the Builder framework default
+    (`AntennaBuilder.FRAMEWORK_PARAMS`, 21) stands.
+
+    A BARE `momwire` resolves to None deliberately, even though it solves on
+    the same B-spline class `momwire:bspline` names. `momwire` is the CLI's
+    DEFAULT engine, so a density on it would re-mesh every command line that
+    names no engine at all — the catalog runs and every published number with
+    them. Naming the basis is what asks for the basis's density.
+    """
+    name, _, basis = engine_spec.partition(":")
+    if name != "momwire":
+        return default_nsegs(name)
+    if not basis:
+        return None
+    key, degree = _DENSITY_ALIASES.get(basis, (basis, None))
+    return default_nsegs(key, degree=degree)
+
+
+def _mesh_at(factory, n):
+    """Wrap an engine factory so the builder it is handed meshes at `n`
+    segments per quarter-wave (#1543).
+
+    Stamped HERE, on the way into the engine, because the density is a
+    property of the ENGINE choice while the builder is constructed in a dozen
+    places — a sweep or an optimizer builds a fresh one per evaluation, and
+    this seam is the only one every such builder passes through.
+
+    A design that names `nominal_nsegs` in its own `default_params` wins: it
+    has measured something about its mesh the engine default cannot know.
+    `FRAMEWORK_PARAMS` is NOT such a pin — it is the fallback this value
+    replaces, and it is not in `default_params`.
+    """
+
+    def build(builder, *args, **kwargs):
+        if "nominal_nsegs" not in getattr(type(builder), "default_params", {}):
+            builder.nominal_nsegs = n
+        return factory(builder, *args, **kwargs)
+
+    return build
+
+
 def make_engine_factory(
-    engine_spec, ground_spec, *, extended_kernel=False, deck_extended_kernel=False
+    engine_spec,
+    ground_spec,
+    *,
+    extended_kernel=False,
+    deck_extended_kernel=False,
+    nominal_nsegs=None,
 ):
     """Bind an engine spec (+ optional ground) into a builder->engine factory.
 
@@ -433,6 +492,13 @@ def make_engine_factory(
     unexposed constructor kwarg — not driven by this flag); a deck-only
     request on a non-momwire engine is silently left alone, matching the
     pre-#849 status quo for that engine.
+
+    ``nominal_nsegs`` is the mesh density the builder should run at (#1543).
+    ``None`` leaves the builder alone AND leaves the return value a bare class
+    or ``partial``, which is what the engine-spec tests read — the density is
+    a CLI-layer decision (`engine_density`, `--nominal-nsegs`), so calling
+    this function with an engine name alone still means "just bind the
+    engine".
     """
     name, kwargs = parse_engine_spec(engine_spec)
     cls = ENGINE_CLASSES[name]
@@ -453,9 +519,8 @@ def make_engine_factory(
             # isn't wired to a deck or this flag.
         else:
             kwargs["extended_kernel"] = True
-    if not kwargs:
-        return cls
-    return partial(cls, **kwargs)
+    factory = cls if not kwargs else partial(cls, **kwargs)
+    return factory if nominal_nsegs is None else _mesh_at(factory, int(nominal_nsegs))
 
 
 _GROUND_UNSET = object()
@@ -714,6 +779,20 @@ def cli(arguments=None):
             '"@file.nec" deck\'s own EK card is honoured too — either one '
             "turns the kernel on (OR). Only applies to the momwire engine.",
         )
+        p.add_argument(
+            "--nominal-nsegs",
+            dest="nominal_nsegs",
+            type=int,
+            default=None,
+            help="Mesh density in segments per quarter-wave at the design "
+            "frequency, overriding the engine's own default (issue #1543). "
+            "Naming a basis picks that basis's converged density — "
+            "momwire:razor-2p and nec5 at 40, momwire:bspline at 15 (20 at "
+            "degree 1), pynec/nec2 at 21 — and a bare --engine momwire keeps "
+            "the framework default of 21. A card deck carries its own GW "
+            "segment counts, so neither the default nor this flag changes "
+            "one.",
+        )
 
     def add_pattern_common(p):
         p.add_argument(
@@ -735,6 +814,28 @@ def cli(arguments=None):
             help="Azimuth angle (rear) for the elevation plot.",
         )
 
+    # (engine spec, N) pairs already announced this run, so a command that
+    # builds many engines from one spec says it once.
+    announced_density = set()
+
+    def density_from_args(args, engine_spec):
+        """The density `engine_spec` runs at, announced once per (spec, N).
+
+        The line goes to STDERR beside the engine name (#1543) so that a
+        number quoted from a run carries the N that produced it, and so that
+        stdout stays the command's own output — the same split the
+        feed-placement advisories use.
+        """
+        n = getattr(args, "nominal_nsegs", None)
+        why = "--nominal-nsegs"
+        if n is None:
+            n = engine_density(engine_spec)
+            why = "engine default"
+        if n is not None and (engine_spec, n) not in announced_density:
+            announced_density.add((engine_spec, n))
+            print(f"engine {engine_spec}: N={n} segments/wire ({why})", file=sys.stderr)
+        return n
+
     def engine_factory_from_args(args, deck_extended_kernel=False, builder=None):
         ground = (
             args.ground if args.ground is _GROUND_UNSET else parse_ground(args.ground)
@@ -747,6 +848,7 @@ def cli(arguments=None):
                 ground,
                 extended_kernel=args.extended_kernel,
                 deck_extended_kernel=deck_extended_kernel,
+                nominal_nsegs=density_from_args(args, args.engine),
             )
         )
 
@@ -1331,6 +1433,10 @@ def cli(arguments=None):
                 file_ground_default(ground, builder_cls),  # AK#1432
                 extended_kernel=args.extended_kernel,
                 deck_extended_kernel=deck_extended_kernel_flag(builder_cls),
+                # Per SPEC, not per command: a cross-engine comparison whose
+                # engines meshed alike would be comparing meshes as much as
+                # formulations (#1543).
+                nominal_nsegs=density_from_args(args, espec),
             )
             instances.append(placements.watch(eng)(builder_cls()))
             if multi_engine and multi_builder:
@@ -1401,6 +1507,12 @@ def cli(arguments=None):
             for r in factors:
                 builder_cls = builder_from_file(spec[1:], refine=r)
                 deck = builder_cls.file_deck_parsed
+                # No density here, and no `--nominal-nsegs` either (#1543):
+                # a deck's only mesh is its GW counts, which `refine` scales.
+                # `nominal_nsegs` drives `auto_mesh`, and `auto_mesh` resolves
+                # UNSET counts, so on a deck it is inert — announcing an N
+                # that changes nothing would be the misleading half of a
+                # number that carries its mesh.
                 eng = make_engine_factory(
                     espec,
                     file_ground_default(ground, builder_cls),

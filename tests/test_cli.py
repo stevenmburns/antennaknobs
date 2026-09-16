@@ -152,3 +152,109 @@ def test_cli_export_writes_utf8_even_under_a_non_utf8_default(
 
     text = out.read_text(encoding="utf-8")
     assert "Ω" in text
+
+
+# ---------------------------------------------------------------------------
+# Mesh density beside the engine name (antennaknobs#1543)
+# ---------------------------------------------------------------------------
+
+
+def _meshed_at(monkeypatch, argv):
+    """Run `argv` and return the nominal_nsegs each engine's builder carried.
+
+    Reads the BUILDER the engine was handed, which is the thing a solve
+    actually meshes from — a test that read `engine_density` would only be
+    asking the table what the table says.
+    """
+    import importlib
+
+    cli_mod = importlib.import_module("antennaknobs.cli")
+    seen = []
+    real = cli_mod.MomwireEngine
+
+    class Spy(real):
+        def __init__(self, builder, *a, **kw):
+            seen.append(builder.nominal_nsegs)
+            super().__init__(builder, *a, **kw)
+
+    monkeypatch.setitem(cli_mod.ENGINE_CLASSES, "momwire", Spy)
+    ant.cli(argv.split())
+    return seen
+
+
+def test_cli_engine_default_density_reaches_the_builder(monkeypatch, capsys):
+    """`--engine momwire:razor-2p` runs at the razor density without a flag,
+    and says so beside the engine name."""
+    seen = _meshed_at(
+        monkeypatch,
+        f"pattern --builder dipoles.invvee --engine momwire:razor-2p{o}",
+    )
+    assert seen and set(seen) == {40}
+    assert "engine momwire:razor-2p: N=40 segments/wire" in capsys.readouterr().err
+
+
+def test_cli_bspline_density_follows_the_degree(monkeypatch):
+    """The degree IS the basis, so the density follows the degree spelling."""
+    assert set(
+        _meshed_at(
+            monkeypatch, f"pattern --builder dipoles.invvee --engine momwire:bspline{o}"
+        )
+    ) == {15}
+    assert set(
+        _meshed_at(
+            monkeypatch,
+            f"pattern --builder dipoles.invvee --engine momwire:bspline-d1{o}",
+        )
+    ) == {20}
+
+
+def test_cli_nominal_nsegs_overrides_the_engine_default(monkeypatch, capsys):
+    seen = _meshed_at(
+        monkeypatch,
+        f"pattern --builder dipoles.invvee --engine momwire:razor-2p "
+        f"--nominal-nsegs 25{o}",
+    )
+    assert set(seen) == {25}
+    assert "N=25 segments/wire (--nominal-nsegs)" in capsys.readouterr().err
+
+
+def test_cli_without_an_engine_change_meshes_exactly_as_before(monkeypatch, capsys):
+    """THE REGRESSION GUARD for the catalog and the status pages (#1543).
+
+    Every published antennaknobs number was produced by a command line that
+    named no engine, or named `momwire` with no basis. Both must keep the
+    Builder framework default of 21, and must print nothing — a density line
+    on the default engine would be a claim that something had changed.
+    """
+    from antennaknobs.builder import AntennaBuilder
+
+    n = AntennaBuilder.FRAMEWORK_PARAMS["nominal_nsegs"]
+    assert set(_meshed_at(monkeypatch, f"pattern --builder dipoles.invvee{o}")) == {n}
+    assert capsys.readouterr().err == ""
+    assert set(
+        _meshed_at(monkeypatch, f"pattern --builder dipoles.invvee --engine momwire{o}")
+    ) == {n}
+    assert capsys.readouterr().err == ""
+
+
+def test_cli_a_design_pinning_its_own_density_wins(monkeypatch):
+    """A design that names `nominal_nsegs` in its own `default_params` has
+    measured something about its mesh the engine default cannot know."""
+    import importlib
+
+    from antennaknobs.builder import AntennaBuilder
+
+    cli_mod = importlib.import_module("antennaknobs.cli")
+    base = cli_mod.get_builder("dipoles.invvee")
+
+    class Pinned(base):
+        default_params = dict(base.default_params, nominal_nsegs=9)
+
+    monkeypatch.setattr(cli_mod, "get_builder", lambda nm: Pinned)
+    assert set(
+        _meshed_at(
+            monkeypatch,
+            f"pattern --builder dipoles.invvee --engine momwire:razor-2p{o}",
+        )
+    ) == {9}
+    assert AntennaBuilder.FRAMEWORK_PARAMS["nominal_nsegs"] == 21
