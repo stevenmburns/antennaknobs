@@ -310,6 +310,41 @@ for the full guidance and refusal boundary.
 engine to reach for — including when the accelerated `hmatrix` / `arrayblock`
 solvers pay off.
 
+### Segments per wire
+
+Naming a basis also picks that basis's mesh density, because what N a solver
+needs to be converged is a property of its basis:
+
+| `--engine` | segments / wire |
+| --- | --- |
+| `momwire:razor-2p`, `nec5` | 40 |
+| `momwire:bspline` | 15 |
+| `momwire:bspline-d1` | 20 |
+| `momwire:sinusoidal`, `momwire:sinusoidal-galerkin`, `momwire:hmatrix` | 30 |
+| `momwire:arrayblock`, `pynec`, `nec2` | 21 |
+| `momwire` (no basis) | 21 |
+
+The number is segments per quarter-wave at the design frequency, so it is
+comparable across designs, and the run prints it beside the engine name:
+
+```
+engine momwire:razor-2p: N=40 segments/wire (engine default)
+```
+
+These are the same values the app's solver slots use. `--nominal-nsegs N`
+overrides any of them:
+
+```bash
+python -m antennaknobs pattern --builder beams.yagi \
+    --engine momwire:razor-2p --nominal-nsegs 61
+```
+
+A bare `--engine momwire` keeps the framework default of 21 — it is the
+default engine, so naming the basis is what asks for the basis's density. A
+design that pins `nominal_nsegs` in its own params keeps winning, and a
+`@file.nec` deck is unaffected either way: a deck's only mesh is its own `GW`
+segment counts.
+
 ### The extended kernel
 
 `--extended-kernel` applies NEC's extended thin-wire kernel (the `EK` card) on

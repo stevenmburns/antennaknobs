@@ -600,6 +600,16 @@ larger, slower solve. See
 [Segments & convergence](/reference/solver/#segments--convergence) for what N
 means and how to find "enough."
 
+Switching a slot to a different solver **sets N to that solver's own default**,
+and a note under the knob says which one it came from — *segments set to Razor
+(2-point)'s default, 40*. What N a solver needs to be converged is a property
+of its basis, so carrying a number across the swap would run the new engine at
+a mesh nobody measured for it. Changing the **degree** tab does the same, for
+the same reason: the degree is the basis. Type your own N and the note goes
+away; it stays gone until the next swap. The stock slots are unchanged (A at
+15, B at 20, C at 21), a settings file's saved `n_per_wire` still wins at
+startup, and the convergence sweep sets its own N per point regardless.
+
 :::caution[The live instance limits very large solves]
 A solve builds a matrix whose size grows with the total segment count, so the
 hosted instance **rejects** solves that would be too large for the shared box
