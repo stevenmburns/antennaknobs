@@ -1,0 +1,201 @@
+{
+ "checks": {
+  "K0": {
+   "verdict": "FAIL",
+   "fails": [
+    "m0-18 bs2",
+    "m0-18 nec5",
+    "m0-18 razor",
+    "m1-28 bs2",
+    "m1-28 nec5",
+    "m1-28 nec5_lonly",
+    "m1-28 razor",
+    "m2-20a bs2",
+    "m2-20a nec5",
+    "m2-20a razor",
+    "q1-18-awg-pvc bs2",
+    "q1-18-awg-pvc nec5",
+    "q1-18-awg-pvc nec5_lonly",
+    "q1-18-awg-pvc razor",
+    "q1-22-awg-pvc bs2",
+    "q1-22-awg-pvc nec5",
+    "q1-22-awg-pvc nec5_lonly",
+    "q1-22-awg-pvc razor",
+    "q1-28-awg-pvc bs2",
+    "q1-28-awg-pvc nec5",
+    "q1-28-awg-pvc nec5_lonly",
+    "q1-28-awg-pvc razor",
+    "q2-20a bs2",
+    "q2-20a nec5",
+    "q2-20a nec5_lonly",
+    "q2-20a razor",
+    "q2-2b bs2",
+    "q2-2b nec5",
+    "q2-2b nec5_lonly",
+    "q2-2b razor",
+    "q2-5b bs2",
+    "q2-5b nec5",
+    "q2-5b nec5_lonly",
+    "q2-5b razor"
+   ],
+   "missing": [],
+   "instances": 44
+  },
+  "K0'": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 44
+  },
+  "K1": {
+   "verdict": "n/a (Amendment 2)",
+   "fails": [],
+   "missing": [],
+   "instances": 0
+  }
+ },
+ "predictions": {
+  "A0": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 18
+  },
+  "A1": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 34
+  },
+  "B1": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 3
+  },
+  "B1o": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 1
+  },
+  "B2a": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 3
+  },
+  "B2b": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 3
+  },
+  "B3": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 3
+  },
+  "C1": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 2
+  },
+  "C2": {
+   "verdict": "MISS",
+   "fails": [
+    "5b <= b/5"
+   ],
+   "missing": [],
+   "instances": 1
+  },
+  "C3": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 3
+  },
+  "C4": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 1
+  },
+  "M": {
+   "verdict": "MISS",
+   "fails": [
+    "m1-28 bs2 <= 1 %"
+   ],
+   "missing": [],
+   "instances": 5
+  },
+  "S1": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 1
+  },
+  "S2": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 3
+  },
+  "S3": {
+   "verdict": "hit",
+   "fails": [],
+   "missing": [],
+   "instances": 1
+  }
+ },
+ "extra": {
+  "advisory_by_arm": {
+   "q1-18-awg-pvc": {
+    "razor": false,
+    "bs2": true,
+    "razor_lonly": false,
+    "bs2_lonly": true
+   },
+   "q1-22-awg-pvc": {
+    "razor": false,
+    "bs2": true,
+    "razor_lonly": false,
+    "bs2_lonly": true
+   },
+   "q1-28-awg-pvc": {
+    "razor": false,
+    "bs2": true,
+    "razor_lonly": false,
+    "bs2_lonly": true
+   },
+   "m0-18": {
+    "razor": false,
+    "bs2": true
+   },
+   "m1-28": {
+    "razor": false,
+    "bs2": true
+   },
+   "q2-2b": {
+    "razor": false,
+    "bs2": true
+   },
+   "q2-5b": {
+    "razor": false,
+    "bs2": true
+   },
+   "severns": {
+    "razor": false,
+    "bs2": true
+   }
+  },
+  "B3_ratio": {
+   "18-awg-pvc": 0.9482420018422782,
+   "22-awg-pvc": 0.9667338284251099,
+   "28-awg-pvc": 0.9994606731644551
+  }
+ },
+ "rule": "near ground the pair narrows but does not close razor-2p vs NEC-5; the near-ground signature is gap_pair"
+}
