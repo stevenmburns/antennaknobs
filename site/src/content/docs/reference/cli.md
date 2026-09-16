@@ -87,6 +87,12 @@ Note that knob sweeps in **free space** can be perfectly flat by design —
 translation-invariant knobs like a height `base` only matter over a ground
 (`--ground finite`).
 
+`--param nominal_nsegs` is a different kind of sweep — a mesh-density
+convergence study rather than a geometry or frequency one; see [Convergence
+studies](#convergence-studies) below. `--engine` also takes a
+comma-separated list (or repeat the flag): one trajectory or line per engine
+on the same chart, most useful for that same convergence study.
+
 ## Drawing the feed network
 
 `schematic` renders a design's `build_network()` — feedline, tuner, balun, and
@@ -346,6 +352,63 @@ default engine, so naming the basis is what asks for the basis's density. A
 design that pins `nominal_nsegs` in its own params keeps winning, and a
 `@file.nec` deck is unaffected either way: a deck's only mesh is its own `GW`
 segment counts.
+
+### Convergence studies
+
+`sweep --param nominal_nsegs` runs a convergence study the way the app's
+convergence overlay is one checkbox: a ladder of mesh densities, one cold
+solve per rung per engine, a Smith-chart trajectory per engine, and a table
+on stdout.
+
+```bash
+python -m antennaknobs sweep --builder dipoles.invvee:dipole \
+    --param nominal_nsegs --engine momwire:bspline,momwire:razor-2p \
+    --use_smithchart --fn convergence.png
+```
+
+`--engine` takes a comma-separated list (or repeat the flag) — one
+trajectory per engine on one chart, same colour keying the whole way through.
+With no `--range`, the rungs are the app's own ladder, `8 12 17 24 34 48 68`
+(`CONVERGE_N_VALUES` in the frontend); `--range lo hi --npoints k` spaces `k`
+rungs geometrically instead and rounds each to an int.
+
+The table is grouped one block per engine:
+
+```text
+== nominal_nsegs convergence: momwire:bspline ==
+nominal_N  N_ach     R (Ω)     X (Ω)      |ΔΓ|
+        8     17    71.240    -5.612    0.0038
+       13     25    71.266    -5.388    0.0023
+       21     41    71.291    -5.183    0.0009
+       34     65    71.309    -5.051    0.0000
+momwire:bspline  Z* = 71.339-4.826j  (shrinking: yes)
+```
+
+`nominal_N` is the rung asked for; `N_ach` is the total segment count the
+engine actually meshed at that rung — engines round the density to their own
+parity (razor-2p and nec5 even; bspline, nec2, and pynec odd), so two engines
+given the same `nominal_N` do not mesh at the same `N_ach`, and this column
+is where that shows up. `|ΔΓ|` is the reflection-coefficient distance to that
+engine's own finest rung, the same ladder metric the density studies (#1525)
+are judged on. `Z*` is the first-order Richardson extrapolation from the
+last two rungs (the same math the `ladder` subcommand below uses, over
+`nominal_nsegs` instead of a deck's `GW` counts); `shrinking: no` means the
+last step did not get smaller than the one before it, so the ladder is not
+yet in its asymptotic range and `Z*` should not be trusted.
+
+On the Smith chart, each engine's trajectory carries a hollow ring at its
+coarsest rung, a filled disc at its finest, and a diamond at its `Z*`
+(clipped inside the unit circle, since an early-ladder extrapolation can fly
+past it) — the same conventions as the app's convergence overlay. Without
+`--use_smithchart`, the chart is R and X against the achieved segment count
+on a log axis, one line per engine, with `Z*` drawn as a dashed horizontal
+line. A multi-port design draws port 0 only, noted in the title; the app's
+own per-port convergence view is out of scope here.
+
+`--nominal-nsegs`, `--swr`, `--gain`, and `--measured` are frequency-sweep or
+fixed-density notions and each refuses by name alongside `--param
+nominal_nsegs` — the sweep sets `nominal_nsegs` itself, rung by rung, so a
+fixed override would fight it silently rather than visibly.
 
 ### The extended kernel
 
