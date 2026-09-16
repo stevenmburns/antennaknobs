@@ -932,7 +932,14 @@ def cli(arguments=None):
     p.add_argument(
         "--fraction", default=None, type=float, help="Fraction around center for range."
     )
-    p.add_argument("--npoints", default=21, type=int, help="Points in the range.")
+    p.add_argument(
+        "--npoints",
+        default=None,
+        type=int,
+        help="Points in the range (21 for a frequency sweep; a --param "
+        "nominal_nsegs study takes the app's seven-rung ladder unless "
+        "--range or --npoints says otherwise, #1554).",
+    )
     p.add_argument(
         "--gain",
         default=False,
@@ -978,6 +985,9 @@ def cli(arguments=None):
         builder = get_builder(args.builder)
         is_density_study = args.param == "nominal_nsegs"
         engine_specs = _engine_specs(args.engine)
+        # None means "not given": the density study reads that (its ladder);
+        # every frequency-sweep path keeps its 21.
+        npoints = args.npoints if (args.npoints is not None or is_density_study) else 21
 
         # Usage errors named in decisions 2 and 6 (#1554): a --param
         # nominal_nsegs convergence study owns the density knob and is a
@@ -1049,7 +1059,7 @@ def cli(arguments=None):
                 builder(),
                 args.param,
                 rng=args.range,
-                npoints=args.npoints,
+                npoints=npoints,
                 center=args.center,
                 fraction=args.fraction,
                 fn=args.fn,
@@ -1064,7 +1074,7 @@ def cli(arguments=None):
                 args.param,
                 z0=args.z0,
                 rng=args.range,
-                npoints=args.npoints,
+                npoints=npoints,
                 center=args.center,
                 fraction=args.fraction,
                 fn=args.fn,
@@ -1076,7 +1086,7 @@ def cli(arguments=None):
                 builder(),
                 args.param,
                 rng=args.range,
-                npoints=args.npoints,
+                npoints=npoints,
                 center=args.center,
                 fraction=args.fraction,
                 fn=args.fn,
@@ -1087,7 +1097,7 @@ def cli(arguments=None):
                 builder(),
                 args.param,
                 rng=args.range,
-                npoints=args.npoints,
+                npoints=npoints,
                 center=args.center,
                 fraction=args.fraction,
                 use_smithchart=args.use_smithchart,
