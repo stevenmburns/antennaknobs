@@ -55,7 +55,12 @@ def vnorm(v):
 
 
 def verr(rec_a, rec_b):
-    """All-port relative error, or None when the pair is not comparable."""
+    """All-port relative error, or None when the pair is not comparable.
+
+    A `skipped` cell returns None like any other non-ok status, which is what
+    keeps a skipped design out of every distribution and out of every class: it
+    has no error to fit and must not acquire one by default.
+    """
     if rec_a is None or rec_b is None:
         return None
     if rec_a["status"] != "ok" or rec_b["status"] != "ok":
