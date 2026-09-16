@@ -351,7 +351,20 @@ def main(argv=None):
     )
 
     # ---------------- the served rung ----------------
-    w("## 5. The served rung, ×40\n")
+    w("## 5. The ×40 rung — razor-2p's declared default\n")
+    w(
+        "**×40 is razor-2p's declared roster default (`default_n_per_wire=40`), "
+        "not a density the web app actually reached.** Correction recorded "
+        "2026-09-16: no stock solver slot seeds razor-2p (the served seeds are "
+        "bspline at 15, bspline d=1 at 20, and PyNEC), so razor-2p is only ever "
+        "arrived at by swapping a slot's backend — and "
+        "`useSolverSlots.ts:setSlotBackend` **deliberately preserves `nPerWire` "
+        "across a swap**, overriding exactly the field the roster default would "
+        "have set. The app therefore ran razor-2p at **15 or 20**, which AK#1547 "
+        "fixes. Both are at or below this ladder's lowest rung, so **the figures "
+        "below understate the error users actually saw**; the ×21 row in the "
+        "appendix is the nearest measured point and a lower bound on it.\n"
+    )
     served = sorted(
         (
             (v["rel"][RUNGS.index(SERVED)], v["ohms"][RUNGS.index(SERVED)], k)
@@ -365,8 +378,8 @@ def main(argv=None):
     if served:
         vals = [s[0] for s in served]
         w(
-            f"razor-2p's error against bs2@160 at the density the app serves "
-            f"(`default_n_per_wire=40`), over **{len(vals)}** converging rows: "
+            f"razor-2p's error against bs2@160 at ×40, over "
+            f"**{len(vals)}** converging rows: "
             f"median **{pct(statistics.median(vals))}**, p90 "
             f"**{pct(sorted(vals)[min(len(vals) - 1, 9 * len(vals) // 10)])}**, "
             f"worst **{pct(vals[0])}**.\n"
