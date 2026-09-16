@@ -89,6 +89,8 @@ def test_momwire_bases_keys():
         "bspline",
         "hmatrix",
         "arrayblock",
+        # The app's Pulse tab (AK#1148), on the CLI since AK#1559.
+        "pulse",
     }
 
 
