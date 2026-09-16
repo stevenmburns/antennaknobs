@@ -99,6 +99,19 @@ translate back branch-for-branch through the same table as export, and a
 chain element outside that set makes `network()` refuse rather than build a
 station with a silently-missing tuner part.
 
+**Which `.ssn` files import.** SimNEC lets a circuit hold its antenna two
+ways, and antennaknobs reads one of them: **NEC cards between a `NEC2` line
+and a `NECEND` line, inside a NETWORK element's script**. That is what
+SimNEC's NEC portal accepts and what the export above writes, so every
+round-tripped file qualifies.
+
+The other way is a **script** — `NECWire` and `NECSource` calls against
+declared variables, which SimNEC evaluates itself, leaving no cards in the
+saved file. antennaknobs does not evaluate SimNEC's scripting language, and
+says so by name rather than reporting a missing block. To bring such an
+antenna in, either write its cards into a `NEC2 … NECEND` block in the NETWORK
+script, or export a design from antennaknobs to `.ssn` and edit that.
+
 In Python the same machinery is `read_ssn(self, "circuit.ssn")` /
 `parse_ssn(text)` — `read_ssn` ships a `.ssn` next to a
 [user design](/reference/cli/#allowing-user-designs-to-run) in
