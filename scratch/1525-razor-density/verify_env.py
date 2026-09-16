@@ -40,6 +40,26 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def _pyproject_version(path):
+    """The version declared in a pyproject.toml, or None.
+
+    The version check compares INSTALLED metadata against the version declared
+    in the tree being imported, rather than against a constant. A hardcoded
+    "0.55.0" was right for one afternoon and wrong the moment v0.79.0 bumped the
+    pin -- and a guard that fails for being out of date is a guard that gets
+    bypassed by hand. The invariant actually worth checking never changes:
+    editable metadata does not follow a submodule checkout, so "what pip thinks
+    is installed" can silently disagree with "what is on disk".
+    """
+    try:
+        import tomllib
+
+        with open(path, "rb") as fh:
+            return tomllib.load(fh)["project"]["version"]
+    except Exception:  # noqa: BLE001 -- absent is a recorded value
+        return None
+
+
 def _git(*args, cwd=ROOT):
     try:
         return subprocess.run(
@@ -104,6 +124,8 @@ def collect(nec5_exe: str | None = None, dev_mode: bool = False) -> dict:
         "antennaknobs_file": ak.__file__,
         "version_momwire": md.version("momwire"),
         "version_antennaknobs": md.version("antennaknobs"),
+        "pyproject_momwire": _pyproject_version(ROOT / "momwire" / "pyproject.toml"),
+        "pyproject_antennaknobs": _pyproject_version(ROOT / "pyproject.toml"),
         "extensions": sos,
         "accelerator_variant": variant,
         "python": sys.version.split()[0],
@@ -117,8 +139,14 @@ def collect(nec5_exe: str | None = None, dev_mode: bool = False) -> dict:
         "all_extensions_in_source_tree": all(
             v.get("in_source_tree") for v in sos.values()
         ),
-        "momwire_version_0_55_0": out["version_momwire"] == "0.55.0",
-        "antennaknobs_version_0_78_0": out["version_antennaknobs"] == "0.78.0",
+        "momwire_metadata_matches_pyproject": (
+            out["pyproject_momwire"] is not None
+            and out["version_momwire"] == out["pyproject_momwire"]
+        ),
+        "antennaknobs_metadata_matches_pyproject": (
+            out["pyproject_antennaknobs"] is not None
+            and out["version_antennaknobs"] == out["pyproject_antennaknobs"]
+        ),
         "momwire_at_recorded_pointer": out["momwire_sha"]
         == out["ak_recorded_momwire_pointer"],
         "momwire_clean": out["momwire_dirty"] == "",
