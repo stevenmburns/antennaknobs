@@ -2500,6 +2500,53 @@ async def design_source_endpoint(req: dict):
     }
 
 
+@app.post("/design_ssn")
+async def design_ssn_endpoint(req: dict):
+    """The current design as a SimNEC ``.ssn`` circuit (AK#1539, the Files
+    view's SimNEC tab).
+
+    The same file ``python -m antennaknobs.simnec_export`` writes, built from
+    the request the way a solve is — knobs, variant, frequency and ground — so
+    what goes to SimNEC is the antenna on screen. That matters most where
+    there is no terminal to type the command in: the packaged workbench is the
+    whole interface a Windows user has.
+
+    No Generator sweep is armed. The Generator's frequency is the solve
+    frequency, and the band the workbench sweeps is not part of a solve
+    request; the CLI's ``--sweep`` is where that lives.
+
+    ``available: false`` with a ``reason`` where the exporter refuses — a
+    design whose physics SimNEC's differential-only cascade cannot carry — so
+    the pane can say which construct is in the way, as the other tabs say why
+    they are empty. That is a stated answer, not an error: a 422 here would
+    read to the client as a request it got wrong.
+    """
+    geometry = req.get("geometry", next(iter(EXAMPLES)))
+    ex = example_for(geometry)
+    if ex.ssn_export is None:
+        return {
+            "available": False,
+            "geometry": geometry,
+            "reason": "This design has no SimNEC export.",
+        }
+    try:
+        text = await run_in_threadpool(ex.ssn_export, req)
+    except NotImplementedError as e:
+        # SsnUnsupported names the branch SimNEC cannot represent.
+        return {"available": False, "geometry": geometry, "reason": str(e)}
+    except ValueError as e:
+        # Request validation (bad freq / radius / n_per_wire), and the ports
+        # NEC-2 itself has no spelling for — same shape of answer.
+        return {"available": False, "geometry": geometry, "reason": str(e)}
+    return {
+        "available": True,
+        "geometry": geometry,
+        "filename": f"{ex.name.replace('.', '_')}.ssn",
+        "language": "ssn",
+        "text": text,
+    }
+
+
 @app.post("/schematic")
 async def schematic_endpoint(req: dict):
     """Render the design's feed network as an SVG circuit schematic (#652).

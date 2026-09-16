@@ -32,6 +32,16 @@ python -m antennaknobs.simnec_export loops.skyloop_lmatch \
 python -m antennaknobs.simnec_export @measured/invvee.nec --out invvee.ssn
 ```
 
+**From the workbench**, with no terminal: open the **Files** view and pick the
+**SimNEC** tab. It holds the same circuit for the design on screen — its knobs,
+its frequency, its ground — with **Copy** and **Download** beside it, the way
+the Source and engine-deck tabs work. That is the whole export step on Windows,
+where the packaged workbench is the only interface there is. The tab is offered
+for every design and needs no engine installed; a design SimNEC cannot carry
+shows the same refusal the command prints, naming the construct in the way. The
+Generator's frequency is the solve frequency and no sweep is armed — arming one
+is `--sweep` below, on the command line.
+
 Flags: `--freq` (MHz, default the design's), `--ground free | pec | finite |
 finite:<eps_r>,<sigma>`, `--seg-per-wl` (SimNEC re-meshes at its own
 segments-per-wavelength — the deck's segment counts are advisory there),

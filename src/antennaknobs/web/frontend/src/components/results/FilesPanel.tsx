@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import type { DesignSource, EngineIo } from "../../lib/api";
+import type { DesignSource, DesignSsn, EngineIo } from "../../lib/api";
 
 // The Files view (AK#1428): what the design was written as and, when the solve
 // on screen ran through an external engine's binary, the deck that engine was
-// given and the report it printed. Three tabs over one monospace pane, each
-// with Copy and Download.
+// given and the report it printed — plus the design as a SimNEC circuit
+// (AK#1539), which is the only route to the .ssn round trip for someone whose
+// whole interface is this window. Four tabs over one monospace pane, each with
+// Copy and Download.
 //
 // The Deck and Output tabs show only texts a binary actually ran on. A solver
 // that runs none gets a sentence saying so, never the export writer's deck,
@@ -19,12 +21,14 @@ export type FilesViewData = {
   /** A solve of this design is on screen, or texts from an earlier one are. */
   solved: boolean;
   source: DesignSource | null;
+  /** The design as a SimNEC .ssn (AK#1539), or null before it has arrived. */
+  ssn: DesignSsn | null;
   engineIo: EngineIo | null;
   /** The engine texts belong to an earlier solve than the one on screen. */
   stale: boolean;
 };
 
-type Tab = "source" | "deck" | "output";
+type Tab = "source" | "ssn" | "deck" | "output";
 
 type Pane =
   | { text: string; filename: string; message?: undefined }
@@ -85,6 +89,13 @@ export function FilesPanel({
       }
       return { text: data.source.text, filename: data.source.filename };
     }
+    if (tab === "ssn") {
+      if (!data.ssn) return { message: "Writing the SimNEC circuit…" };
+      // The exporter's own sentence, which names the construct SimNEC's
+      // differential-only cascade cannot carry.
+      if (!data.ssn.available) return { message: data.ssn.reason };
+      return { text: data.ssn.text, filename: data.ssn.filename };
+    }
     if (engine === null) {
       if (!data.solved) return { message: "Waiting for a solve…" };
       return {
@@ -103,9 +114,10 @@ export function FilesPanel({
     };
   })();
 
-  const engineTab = tab !== "source" && engine !== null;
+  const engineTab = (tab === "deck" || tab === "output") && engine !== null;
   const tabs: [Tab, string][] = [
     ["source", data.source?.available ? data.source.filename : "Source"],
+    ["ssn", "SimNEC"],
     ["deck", `${engine ?? "Engine"} deck`],
     ["output", `${engine ?? "Engine"} output`],
   ];
