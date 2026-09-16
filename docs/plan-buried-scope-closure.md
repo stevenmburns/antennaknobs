@@ -20,7 +20,7 @@ map of what is left. This plan orders them.
 | U6 counterpoise | closed: AK#1443's verdict; follow-up AK#1455 done (the radiator is graded), AK#1456 open |
 | U7 buried rod | closed: momwire#1027, not a physical disagreement; the two engines converge toward the same R along two axes, at different rates |
 | U8 far field | not started (momwire#570); deferred by decision |
-| U9 several crossing nodes | done on momwire main, **not released**: momwire#1065 serves several crossing nodes per deck (momwire#1068 moved two tests it made slow). antennaknobs, on momwire 0.55.0, still refuses a second node by name. Measured: the 8-node LPDA at refine 1 reads 52.09 − 3.18j against NEC-5's 53.07 − 3.54j (2.0 %), and momwire's own far × 3 step on it is 0.0394 Ω; two-node soil-A decks against NEC-5 meet the gate on 16 of 16 readings. The LPDA check (d) stopped at its pre-Z check; the two cebik phased arrays are still refused by name; route 1 is deferred; follow-up momwire#1064 |
+| U9 several crossing nodes | **done and released**: momwire#1065 serves several crossing nodes per deck (momwire#1068 moved two tests it made slow). Released in momwire 0.56.0, which antennaknobs v0.79.0 pins and ships on. Measured: the 8-node LPDA at refine 1 reads 52.09 − 3.18j against NEC-5's 53.07 − 3.54j (2.0 %), and momwire's own far × 3 step on it is 0.0394 Ω; two-node soil-A decks against NEC-5 meet the gate on 16 of 16 readings. The LPDA check (d) stopped at its pre-Z check; the two cebik phased arrays are still refused by name; route 1 is deferred; follow-up momwire#1064 |
 
 Ground rules carried from the #956 arc, which are what made it converge:
 
@@ -191,12 +191,13 @@ current #1341 note (0.46 dB) says it should.
 
 ### U9 — more than one crossing node (3 decks, every multi-element buried array)
 
-**Done on momwire main, not released.**
+**Done and released.**
 - **Where it landed.** momwire#1065 serves a deck with several crossing nodes,
   and momwire#1068 moved two tests it made slow on macOS.
-- **What users get today.** Neither is in a momwire release or in
-  antennaknobs' momwire pointer. So antennaknobs, on momwire 0.55.0, still
-  refuses a second node by name (momwire#1054).
+- **What users get today.** Both are in momwire 0.56.0, which antennaknobs
+  v0.79.0 pins and ships on, so a deck with several crossing nodes solves
+  instead of being refused by name (momwire#1054). The two cebik phased arrays
+  are still refused, on limits of their own.
 - **Records:** momwire `scratch/u9-multi-crossing/` (momwire#1063).
 
 **What the fill does now.**
@@ -273,7 +274,7 @@ current #1341 note (0.46 dB) says it should.
 | 6 | U6 counterpoise | 2–3 (+fix) | 1 design's published number | closed (AK#1443) |
 | 7 | U7 buried rod | 2–3 (+fix) | every wholly buried fed element's R | closed (momwire#1027) |
 | 8 | U8 far field | 15–25 | every buried pattern | not started; deferred by decision |
-| 9 | U9 several crossing nodes | 4–6 | 3 decks; every multi-element buried array | done on momwire main; not released |
+| 9 | U9 several crossing nodes | 4–6 | 3 decks; every multi-element buried array | done; released in momwire 0.56.0 |
 
 **What remains.**
 - **U8, the buried far field.** It is the only formulation unit, and the one
@@ -286,8 +287,8 @@ current #1341 note (0.46 dB) says it should.
     size, which matters at near-open feeds (from U6);
   - **momwire#1066:** SinusoidalGalerkin's slope jump across a crossing node
     grows under refinement, while bspline's halves. Nothing gated moves.
-- **U9 reaches users** when momwire releases it and antennaknobs adopts that
-  release.
+- **U9 reached users** in momwire 0.56.0, which antennaknobs v0.79.0 ships
+  on.
 
 ## What is deliberately not on the plan
 

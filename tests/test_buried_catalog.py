@@ -308,12 +308,14 @@ def test_brv_detached_same_knobs_move_the_same_geometry():
 def test_brv_detached_momwire_refuses_by_name():
     """momwire's #567 scope sentence, on the deck the adapter actually
     builds: ground contact plus a buried wire is the combination its
-    contact-image fiction cannot serve, and the refusal fires at the
-    labeling step — before any fill — pointing back at the connected
-    spelling it does serve."""
-    _engine, s = _solver(_detached())
+    contact-image fiction cannot serve, pointing back at the connected
+    spelling it does serve.
+
+    Since momwire#1061 the refusal fires at CONSTRUCTION — earlier than the
+    labeling step it used to come from, before any solver exists and long
+    before any fill — in the same words and for the same reason."""
     with pytest.raises(ValueError, match="ground CONTACT"):
-        s._wire_media()
+        _solver(_detached())
 
 
 def test_brv_nec5_now_takes_the_connected_default_too(monkeypatch):

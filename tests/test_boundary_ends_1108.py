@@ -178,13 +178,17 @@ def test_the_decks_the_rule_is_a_no_op_for_walk_exactly_as_they_did():
         [(1, "end"), (3, "end"), (5, "end"), (7, "end"), (8, "start")],
     ]
 
-    detached, _ = _solver(
-        BuriedRadialVertical(
-            params=resolve_variant_params(BuriedRadialVertical, "detached")
+    # The detached variant no longer reaches the walk at all: since
+    # momwire#1061 its contact-plus-buried refusal fires at CONSTRUCTION,
+    # before any polyline is built (momwire 0.56.0). Its walk record is kept
+    # by the refusal gate in tests/test_buried_catalog.py; what this test owns
+    # is the bundle arm above, which still walks exactly as it did.
+    with pytest.raises(ValueError, match="ground CONTACT"):
+        _solver(
+            BuriedRadialVertical(
+                params=resolve_variant_params(BuriedRadialVertical, "detached")
+            )
         )
-    )
-    assert len(detached._polylines) == 5
-    assert detached._junctions == [[(i, "start") for i in range(4)]]
 
 
 def test_a_single_rise_hub_now_reaches_momwire_as_a_crossing_junction():

@@ -274,9 +274,10 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
     mount(b(), withModel(name, { extended_kernel: true }));
     const box = controls().boxes.find((x) => x.label?.includes("enrichment"));
     expect(box?.disabled).toBe(true);
-    const titled = screen.getByTitle(/use_singular_enrichment=True not/);
-    // momwire#249 follow-up C, as momwire says it — not the momwire#271 the
-    // deleted frontend copy cited.
+    const titled = screen.getByTitle(/use_singular_enrichment=True is refused/);
+    // momwire#249 follow-up C, as momwire says it. Its 0.56.0 wording also
+    // cites momwire#271 for the refusal itself; the derivation reference is
+    // what the deleted frontend paraphrase used to drop.
     expect(titled.getAttribute("title")).toContain("momwire#249");
   });
 

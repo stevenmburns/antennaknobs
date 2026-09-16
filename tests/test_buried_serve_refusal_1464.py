@@ -75,15 +75,25 @@ def test_the_submodule_carries_the_exact_preflight():
     assert hasattr(momwire.BSplineSolver, "buried_serve_refusal")
 
 
-def test_a_two_node_deck_is_refused_for_its_real_reason(tmp_path):
-    """The engine names the crossing scope (momwire#1054), not a grazing
-    floor that the fill's own nodes clear."""
+@pytest.mark.antenna_computation_check
+def test_a_two_node_deck_is_served_since_0_56_0(tmp_path):
+    """momwire 0.56.0 serves several crossing nodes per deck (U9), so the deck
+    this file was written around is not refused at all any more.
+
+    Until then the gate was that the refusal named the crossing SCOPE
+    (momwire#1054) rather than a grazing floor the fill's own nodes clear. The
+    scope sentence went with the scope; what still has to be true is that this
+    deck reaches a solve instead of being turned away by the pre-flight, which
+    is the pre-flight behaviour AK#1464 is about. Measured on momwire 0.56.0
+    (a925d37): 43.543 - 18.669j.
+
+    Marked main-only: while the deck was REFUSED this cost nothing, because the
+    pre-flight turned it away before any fill. Serving it is a real 12-wire
+    buried solve at 10.7 s, past the suite's 5 s ceiling for an unmarked test.
+    """
     b = _builder(tmp_path, TWO_NODE, "two_node.nec")
-    with pytest.raises(ValueError) as exc:
-        MomwireEngine(b, ground=SOIL_A)
-    why = str(exc.value)
-    assert "ONE crossing node per deck" in why, why
-    assert "grazing floor" not in why, why
+    z = complex(np.asarray(MomwireEngine(b, ground=SOIL_A).impedance()).ravel()[0])
+    assert abs(z - (43.543 - 18.669j)) < 0.05, z
 
 
 def test_the_vertex_fallback_still_over_refuses_the_same_deck():

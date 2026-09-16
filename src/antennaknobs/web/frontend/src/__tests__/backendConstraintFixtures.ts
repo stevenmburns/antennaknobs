@@ -87,7 +87,7 @@ export const SERVED_CONSTRAINTS: Record<string, BackendConstraint[] | null> =
       "forbids_value": "True",
       "forbids_is_axis": false,
       "condition": null,
-      "reason": "extended_kernel=True + use_singular_enrichment=True not supported yet \u2014 the enrichment DOFs bypass the moment kernels entirely (they carry their own \u03a6_sing quadrature), they exist only at K >= 3 junctions where NEC's own gating turns EK off, and the O(a\u00b2) tube expansion was never derived for the s^(-1/2) shapes (stevenmburns/momwire#249 follow-up C)",
+      "reason": "extended_kernel=True + use_singular_enrichment=True is refused, permanently (momwire#271) \u2014 the enrichment DOFs bypass the moment kernels entirely (they carry their own \u03a6_sing quadrature), they exist only at K >= 3 junctions where NEC's own gating turns EK off, and the O(a\u00b2) tube expansion was never derived for the s^(-1/2) shapes (stevenmburns/momwire#249 follow-up C)",
       "issue": "momwire#249"
     },
     {
@@ -140,7 +140,7 @@ export const SERVED_CONSTRAINTS: Record<string, BackendConstraint[] | null> =
       "forbids_value": "True",
       "forbids_is_axis": false,
       "condition": null,
-      "reason": "extended_kernel=True + use_singular_enrichment=True not supported yet \u2014 the enrichment DOFs bypass the moment kernels entirely (they carry their own \u03a6_sing quadrature), they exist only at K >= 3 junctions where NEC's own gating turns EK off, and the O(a\u00b2) tube expansion was never derived for the s^(-1/2) shapes (stevenmburns/momwire#249 follow-up C)",
+      "reason": "extended_kernel=True + use_singular_enrichment=True is refused, permanently (momwire#271) \u2014 the enrichment DOFs bypass the moment kernels entirely (they carry their own \u03a6_sing quadrature), they exist only at K >= 3 junctions where NEC's own gating turns EK off, and the O(a\u00b2) tube expansion was never derived for the s^(-1/2) shapes (stevenmburns/momwire#249 follow-up C)",
       "issue": "momwire#249"
     },
     {
@@ -192,7 +192,7 @@ export const SERVED_CONSTRAINTS: Record<string, BackendConstraint[] | null> =
       "forbids_value": "True",
       "forbids_is_axis": false,
       "condition": null,
-      "reason": "extended_kernel=True + use_singular_enrichment=True not supported yet \u2014 the enrichment DOFs bypass the moment kernels entirely (they carry their own \u03a6_sing quadrature), they exist only at K >= 3 junctions where NEC's own gating turns EK off, and the O(a\u00b2) tube expansion was never derived for the s^(-1/2) shapes (stevenmburns/momwire#249 follow-up C)",
+      "reason": "extended_kernel=True + use_singular_enrichment=True is refused, permanently (momwire#271) \u2014 the enrichment DOFs bypass the moment kernels entirely (they carry their own \u03a6_sing quadrature), they exist only at K >= 3 junctions where NEC's own gating turns EK off, and the O(a\u00b2) tube expansion was never derived for the s^(-1/2) shapes (stevenmburns/momwire#249 follow-up C)",
       "issue": "momwire#249"
     },
     {
