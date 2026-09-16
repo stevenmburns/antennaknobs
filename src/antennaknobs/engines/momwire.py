@@ -730,6 +730,7 @@ def terrain_utd_power(
     M_perp,
     z0,
     h_ref,
+    m_below=None,
 ):
     """|M_perp|² over the (theta, phi) grid for a faceted terrain with
     shadowing, exact tilted-mirror reflections and UTD wedge diffraction
@@ -762,6 +763,15 @@ def terrain_utd_power(
     arrays stay a few hundred megabytes at the largest catalog decks.
     ``h_ref`` is kept in the signature for the caller; the per-segment
     treatment does not use a reference height.
+
+    ``M_perp`` fixes the output shape only — this composer recomputes the
+    direct term per segment rather than correcting a reflected wave onto a
+    caller's, which is why the buried elements' transmitted moment arrives
+    separately as ``m_below`` (issue #1341) and is summed into the total
+    field, not into the power. ``mid``/``dr``/``i_mid`` are then the
+    above-ground elements alone: a buried segment has no shadow boundary,
+    no specular image and no wedge term on this terrain — it is already
+    placed through the interface.
     """
     from .. import terrain_utd as utd  # noqa: PLC0415 — keeps terrain_utd import-light
 
@@ -885,6 +895,8 @@ def terrain_utd_power(
                 S_hd = np.sum(_tcn(d.D_hard) * gate * E_v[None, :, :], axis=-1) * ph_out
                 acc = acc + S_s[..., None] * hh + S_hd[..., None] * vv
             total[:, cols, :] = acc
+    if m_below is not None:
+        total = total + m_below
     return np.sum(total.real**2 + total.imag**2, axis=-1)
 
 
@@ -2119,13 +2131,40 @@ class MomwireEngine(SimulationEngine):
             np.concatenate(i_mids, axis=0),
         )
 
+    def _below_plane_medium(self, freq_hz):
+        """ε̃ = ε_r − jσ/(ωε₀) of the half-space under the plane — the SAME
+        constants the matrix fill was given, so the pattern and the currents
+        cannot describe two different soils. A faceted terrain solves flat
+        Sommerfeld with its crest medium (issue #534), so that is the one
+        used here too.
+
+        None for free space and for a PEC plane: nothing radiates out of a
+        perfect conductor, which is also the |k_m| → ∞ limit of the
+        transmitted factors."""
+        if self._ground is None or self._ground[0] == "pec":
+            return None
+        if self._ground[0] == "terrain":
+            eps_r, sigma = self._ground[1].crest_medium
+        else:
+            _, eps_r, sigma = self._ground
+        return complex(eps_r) - 1j * float(sigma) / (2.0 * np.pi * freq_hz * EPS0)
+
     def _evaluate_M_perp(self, mid, dr, i_mid, k, theta, phi, freq_hz):
         """|M_perp(θ,φ)|² on the (theta, phi) grids (radians).
 
-        With ground enabled, adds the geometric-image contribution with PEC
-        polarity, then layers Fresnel coefficients on the reflected wave so
-        ρ_h=−1, ρ_v=+1 recovers the PEC limit exactly. Returns a real
-        (n_theta, n_phi) array."""
+        Elements ABOVE the ground plane radiate directly and through the
+        geometric image: PEC polarity, then Fresnel coefficients on the
+        reflected wave so ρ_h=−1, ρ_v=+1 recovers the PEC limit exactly.
+
+        Elements BELOW it reach the air through the interface instead, as
+        the transmitted plane wave of `in_medium.transmitted_m_perp`
+        (momwire#570 / issue #1341). That moment is added to the direct
+        term and imaged by nothing: the image is built from the above-ground
+        elements alone, so every ground branch below — flat Fresnel,
+        specular terrain, UTD terrain — acts on an image the buried
+        elements never entered.
+
+        Returns a real (n_theta, n_phi) array."""
         sin_t, cos_t = np.sin(theta), np.cos(theta)
         cos_p, sin_p = np.cos(phi), np.sin(phi)
 
@@ -2134,14 +2173,35 @@ class MomwireEngine(SimulationEngine):
         rz = np.broadcast_to(cos_t[:, None], rx.shape)
         rhat = np.stack([rx, ry, rz], axis=-1)
 
+        M_below = None
+        below = in_medium.below_surface_mask(mid, self._ground_z)
+        if np.any(below):
+            eps_t = self._below_plane_medium(freq_hz)
+            if eps_t is not None:
+                M_below = in_medium.transmitted_m_perp(
+                    mid[below],
+                    dr[below],
+                    i_mid[below],
+                    k,
+                    in_medium.medium_wavenumber(eps_t, k),
+                    rhat,
+                    self._ground_z,
+                )
+            above = ~below
+            mid, dr, i_mid = mid[above], dr[above], i_mid[above]
+
         phase = k * np.einsum("ijc,nc->ijn", rhat, mid)
         expp = np.exp(1j * phase)
         weighted = i_mid[:, None] * dr
         M = np.einsum("ijn,nc->ijc", expp, weighted)
         m_dot_r = np.sum(M * rhat, axis=-1)
         M_perp = M - m_dot_r[..., None] * rhat
+        if M_below is not None:
+            M_perp = M_perp + M_below
 
-        if self._ground is None:
+        if self._ground is None or mid.shape[0] == 0:
+            # Nothing above the plane means nothing to image; the buried
+            # elements are already placed through the interface.
             return np.sum(M_perp.real**2 + M_perp.imag**2, axis=-1)
 
         # Geometric image — horizontal current flipped, vertical preserved,
@@ -2224,6 +2284,7 @@ class MomwireEngine(SimulationEngine):
                     M_perp,
                     z0,
                     h_ref,
+                    m_below=M_below,
                 )
             z_f = np.empty(rx.shape)
             beta_g = np.empty(rx.shape)
@@ -2281,31 +2342,17 @@ class MomwireEngine(SimulationEngine):
         sim, coeffs, _z = self._solved_excited(wavelength)
         mid, dr, i_mid = self._segment_dipoles(sim, coeffs)
 
-        # Issue #1341: this readout images every segment in the ground plane
-        # as if it stood above it. For a segment below the plane that is not
-        # an approximation of its far field but a different problem (the
-        # transmitted field, momwire#570), so the currents below the plane
-        # are assessed first — refused by name when they are the whole
-        # structure or when the pattern depends on them past the bar, served
-        # with a note otherwise. The assessment evaluates on the user's own
-        # grid, so it costs one extra readout and nothing when nothing is
-        # buried.
         theta_deg = np.linspace(0, 90 - del_theta, n_theta)
         phi_deg = np.linspace(0, 360, n_phi + 1)
         theta_user = np.deg2rad(theta_deg)
         phi_user = np.deg2rad(phi_deg)
-        medium = in_medium.assess(
-            mid,
-            dr,
-            i_mid,
-            self._ground_z,
-            lambda m, d, i: self._evaluate_M_perp(
-                m, d, i, k, theta_user, phi_user, freq_hz
-            ),
-            weights=np.sin(theta_user)[:, None],
+        # Issue #1341: informational, not a caveat — `_evaluate_M_perp`
+        # places the currents below the plane through the interface. The
+        # share of Σ|I·dl| down there is a property of the antenna, and the
+        # one number the readout can report about it for free.
+        moment_below = in_medium.moment_fraction(
+            dr, i_mid, in_medium.below_surface_mask(mid, self._ground_z)
         )
-        if not medium.served:
-            raise in_medium.InMediumPatternRefusal(medium.refusal)
 
         # Gain normaliser from the source input power (same convention as the
         # web solve path): gain = 4π·U/P_in = η₀k²/(8π·P_in)·|M_perp|². Load
@@ -2353,8 +2400,5 @@ class MomwireEngine(SimulationEngine):
             min_gain=float(np.min(dBi)),
             thetas=theta_deg,
             phis=phi_deg,
-            in_medium_moment_fraction=medium.fraction,
-            in_medium_power_share=medium.power_share,
-            in_medium_pattern_delta_db=medium.delta_db,
-            note=medium.note,
+            in_medium_moment_fraction=moment_below,
         )
