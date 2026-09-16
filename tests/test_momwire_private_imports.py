@@ -48,6 +48,11 @@ ALLOWED = {
     # Incidental reach-throughs: no public momwire equivalent today.
     ("builder.py", "momwire._ground_refl", "eps_tilde"),
     ("builder.py", "momwire._sommerfeld_below", "lambda_medium"),
+    # The transmitted far field (#1341) needs k_m on the SAME branch of √ε̃
+    # the fill took; `k_medium` is that branch and momwire exports no public
+    # alias of it. Re-deriving it here is the drift this table exists to
+    # prevent, so the reach-through is the safer of the two.
+    ("in_medium.py", "momwire._sommerfeld_below", "k_medium"),
     # The coated-wire capability guard (momwire#865). Both are FEATURE
     # probes, not calls: the engine refuses a surface deck when the installed
     # momwire lacks the equivalent-radius pair, because that momwire does not
