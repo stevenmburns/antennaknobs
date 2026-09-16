@@ -2380,6 +2380,14 @@ input[type=checkbox] {
   position: absolute;
   inset: 0;
   padding: var(--space-6, 16px);
+  /* Clear the floating solve readout with the whole pane, not just its text
+     (#1541). A scrolling pane's horizontal scrollbar rides the bottom EDGE of
+     its box, below any padding inside it, so the padding-bottom on .files-text
+     lifts the last lines out from under the card but never the scrollbar — and
+     a deck is exactly the text wide enough to need one. Filling the stage, the
+     pane owns the bottom edge and can simply end above the card: the height it
+     publishes (SolveReadout) plus the offset it floats at. 0 where none does. */
+  padding-bottom: calc(var(--space-6, 16px) + var(--stage-readout-h, 0px));
   gap: var(--space-3);
 }
 
@@ -2458,6 +2466,14 @@ input[type=checkbox] {
   line-height: 1.4;
   white-space: pre;
   tab-size: 8;
+}
+
+/* Filling the stage, the pane itself already ends above the readout (see
+   .files-fill), so reserving inside the scroll as well would cost the reader
+   that many lines of room for nothing. As one cell of the grid the pane does
+   not own the stage's bottom edge, and the reservation above is what it has. */
+.files-fill .files-text {
+  padding-bottom: var(--space-4);
 }
 
 .files-text.stale {
