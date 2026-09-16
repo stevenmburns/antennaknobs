@@ -256,3 +256,64 @@ ones, and the classification reports it better.
 
 **No recommendation on the default density.** Not a prediction — a constraint on
 the deliverable.
+
+## 10. Skip rule, registered before the recorded run (2026-09-15)
+
+Steve's call: a design that cannot be laddered is skipped rather than laddered
+badly. Decided from **geometry and a cost model, before any cell runs**, so the
+decision is not a post-hoc exclusion of inconvenient rows.
+
+### The rule
+
+A design is **skipped** when either
+
+1. its **achieved** segment count grows by less than **1.10×** from the lowest
+   rung to the highest — there is no ladder to fit, and a convergence statement
+   would be measured over a refinement that did not happen; or
+2. a rung's **predicted** peak RSS or wall time breaches the budget.
+
+A skip is **a recorded row per (ground, rung, engine)** with `status: "skipped"`,
+carrying the reason, the achieved counts, the predicted cost and the budget — not
+a dropped cell. **A skipped design is not classified.** "Cannot be laddered on
+this box" is the finding; it is neither *converging* nor *not converging*.
+
+### The budget and the cost model
+
+`RLIMIT_AS` **40 GB**, timeout **1200 s**. The model is fitted on this box from
+two razor/Sommerfeld solves — 98.7 s and 15,519 MB peak at N = 10,496, and 49.6 s
+at N = 7,688:
+
+* peak RSS ≈ 1.409e-4 · N² MB → breaches 40 GB above **N ≈ 17,052**
+* wall ≈ 8.96e-7 · N² s → breaches 1200 s above **N ≈ 36,596**
+
+Memory is the binding constraint by a factor of two, which is the same conclusion
+the brief reached from the other direction.
+
+### The skip list: one design
+
+| design | achieved N at ×21/×40/×80/×160 | growth | predicted worst cost | verdict |
+|---|---|---:|---|---|
+| `verticals.elt_whip` | 4392 / 4417 / 4471 / 4577 | **1.042×** | 2.9 GB, 19 s | skipped, rule 1 |
+
+**No design is skipped under rule 2.** The largest are `arrays.bowtie16x1` and
+`arrays.bowtie4x4` at N = 10,496 on the top rung, predicting **15.2 GB and 99 s**
+— inside both budgets, so they are laddered. `wire.rhombic` and
+`wire.terminated_longwire` predict 8.1 GB and 53 s. The brief expected the big
+arrays might hit the wall; on this box, measured against the fitted model, they
+do not, and the skip list is one design rather than a family.
+
+### elt_whip's earlier reading is withdrawn
+
+probe3 classed `verticals.elt_whip` free-space as **not converging** (razor's
+distance to bs2 growing 7.556 → 8.593 → 8.931 Ω across 1× → 4×). That reading is
+**withdrawn**, and `predicted-classes.json` records the withdrawal and its cause
+rather than silently dropping it: the mesh grew 1.04× over that sweep, so "razor
+moves away under refinement" was measured over a refinement that did not happen.
+Nothing here replaces it. A later measurement on a mesh that actually moves —
+which would need a different knob, not a different rung — may say otherwise.
+
+### Effect on E1
+
+E1's denominator falls from 206 rows to **204**: `verticals.elt_whip`'s two rows
+are skipped, not classified, so they can neither agree nor disagree with a
+prediction. The ≥ 90 % bar applies to the 204.

@@ -988,14 +988,14 @@
   "class": "not measured"
  },
  "verticals.elt_whip|free": {
-  "class": "not converging",
-  "d1": 7.5564,
-  "d2": 8.5929,
-  "d4": 8.9315,
-  "refmv": 0.0206
+  "class": "skipped (cannot be laddered on this box)",
+  "why": "achieved mesh grows 1.042x from x21 to x160; probe3's reading was measured over a refinement that did not happen",
+  "withdrawn_prediction": "not converging"
  },
  "verticals.elt_whip|somm": {
-  "class": "not measured"
+  "class": "skipped (cannot be laddered on this box)",
+  "why": "achieved mesh grows 1.042x from x21 to x160; probe3's reading was measured over a refinement that did not happen",
+  "withdrawn_prediction": "not measured"
  },
  "verticals.four_square|free": {
   "class": "converging",

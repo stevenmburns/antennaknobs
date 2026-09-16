@@ -1,0 +1,16 @@
+{
+ "verticals.elt_whip": {
+  "achieved": [
+   4392,
+   4417,
+   4471,
+   4577
+  ],
+  "budget_rss_mb": 40960,
+  "budget_wall_s": 1200.0,
+  "growth": 1.0421,
+  "predicted_peak_rss_mb": 2951.1,
+  "predicted_wall_s": 18.8,
+  "reason": "mesh does not respond to the knob"
+ }
+}

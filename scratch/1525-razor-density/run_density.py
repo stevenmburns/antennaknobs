@@ -56,6 +56,18 @@ NEC5_DESIGNS = (
     "verticals.four_square",
 )
 
+# Designs that cannot be laddered on this box, decided from GEOMETRY AND A COST
+# MODEL before any cell runs, and recorded as rows rather than dropped. Two
+# grounds for a skip:
+#   * the achieved segment count grows by less than 1.10x from the lowest rung to
+#     the highest, so there is no ladder to fit -- refining the knob does not
+#     refine the mesh, and a convergence statement about it would be measured
+#     over a refinement that did not happen;
+#   * a rung's predicted peak RSS or wall time breaches the budget.
+# A SKIPPED DESIGN IS NOT CLASSIFIED. "Cannot be laddered on this box" is the
+# finding; it is neither "converging" nor "not converging".
+SKIP_LIST = Path(__file__).with_name("skip-list.json")
+
 DEFAULT_TIMEOUT_S = 1200.0
 DEFAULT_MEM_GB = 40.0
 REFUSAL_TYPES = ("NotImplementedError", "ValueError", "TypeError")
@@ -226,6 +238,7 @@ def main(argv=None):
             for rung in a.rungs:
                 cells.extend((d, g, rung, e) for e in engines)
 
+    skips = json.loads(SKIP_LIST.read_text()) if SKIP_LIST.is_file() else {}
     out_path = Path(a.out) if a.out else Path(__file__).with_name("records.jsonl")
     # Provenance as the first line of the data. `--dev-mode` because this study
     # deliberately runs momwire ahead of the recorded pointer: the pointer check
@@ -242,7 +255,16 @@ def main(argv=None):
     with open(out_path, "w", encoding="utf-8") as fh:
         fh.write(json.dumps(provenance) + "\n")
         for i, (d, g, rung, e) in enumerate(cells, 1):
-            rec = run_cell(d, g, rung, e, a.timeout, a.mem_gb, a.nec5_exe)
+            if d in skips:
+                rec = {
+                    "status": "skipped",
+                    "error_type": "NotLadderable",
+                    "error": skips[d]["reason"],
+                    **{k: v for k, v in skips[d].items() if k != "reason"},
+                    "wall_s": 0.0,
+                }
+            else:
+                rec = run_cell(d, g, rung, e, a.timeout, a.mem_gb, a.nec5_exe)
             rec.update(design=d, ground=g, rung=rung, engine=e)
             fh.write(json.dumps(rec) + "\n")
             fh.flush()
