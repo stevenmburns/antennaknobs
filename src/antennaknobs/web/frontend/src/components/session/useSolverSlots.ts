@@ -105,20 +105,14 @@ export function useSolverSlots({
     // basis, so carrying the old engine's number across the swap ran the new
     // engine at a mesh nothing had measured for it. Wire radius is preserved
     // — that is geometry, and it means the same thing on every solver.
-    setSlots((prev) => {
-      const prevOpts = prev[slot].opts;
-      return {
-        ...prev,
-        [slot]: {
-          backend: newBackend,
-          opts: {
-            ...defaultOptsFor(newBackend, specs),
-            wireRadius: prevOpts.wireRadius,
-          },
-        },
-      };
-    });
     const adopted = defaultOptsFor(newBackend, specs);
+    setSlots((prev) => ({
+      ...prev,
+      [slot]: {
+        backend: newBackend,
+        opts: { ...adopted, wireRadius: prev[slot].opts.wireRadius },
+      },
+    }));
     setDensityNotes((notes) => ({
       ...notes,
       [slot]: densityAdoptionNote(newBackend, adopted),
