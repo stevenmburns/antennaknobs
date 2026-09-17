@@ -53,6 +53,14 @@ console binary (nec2c, nec2++, 4nec2's nec2dxs*.exe). The bundle ships none:
 nec2++ is GPLv2, and shipping it would make this zip a combined work (#1354).
 It is the one engine most users already have, because 4nec2 installs one.
 
+``antennaknobs-cli[.exe]`` beside this one is the same zip's command line
+(issue #1566) — ``antennaknobs-cli sweep --param nominal_nsegs ...``, the
+pip install's ``python -m antennaknobs``. It runs THIS program with a
+``--cli`` flag in front of its arguments rather than carrying a second copy
+of the code, which is why the two executables share one ``_internal`` and
+why ``--cli`` exists here. ``entry_cli.py`` and ``cli_main.py`` hold that
+half; nothing else about this program changes.
+
 A separate script rather than ``-m antennaknobs.web.server`` because
 PyInstaller wants a file to trace from, and because the browser-opening and
 the NEC5_EXE.txt convenience are this program's and not the library's.
@@ -83,6 +91,11 @@ EXE_FILES = {"NEC5_EXE": "NEC5_EXE.txt", "NEC2_EXE": "NEC2_EXE.txt"}
 EXE_FLAGS = {"NEC5_EXE": "--nec5-exe", "NEC2_EXE": "--nec2-exe"}
 NEC5_FILE = EXE_FILES["NEC5_EXE"]
 NEC2_FILE = EXE_FILES["NEC2_EXE"]
+# What ``antennaknobs-cli[.exe]`` puts in front of the user's arguments when
+# it runs this program (#1566). Spelled again in ``entry_cli.py`` rather than
+# imported from it: that file must import nothing that reaches antennaknobs,
+# or PyInstaller collects the whole package into the shim as well.
+CLI_FLAG = "--cli"
 
 
 def _bundle_dir() -> Path:
@@ -349,8 +362,18 @@ def selftest() -> int:
 
 def main(argv: list[str] | None = None) -> int:
     multiprocessing.freeze_support()
+    args = list(sys.argv[1:] if argv is None else argv)
+    if args and args[0] == CLI_FLAG:
+        # antennaknobs-cli[.exe] arrives here (#1566): one frozen program,
+        # two faces. Ahead of the MPLBACKEND line below, because the CLI's
+        # backend depends on whether its chart has a --fn to go to, and
+        # `Agg` set here would win over the rule that decides that.
+        import cli_main
+
+        _apply_exe_files()
+        return cli_main.run(args[1:])
     os.environ.setdefault("MPLBACKEND", "Agg")
-    opts = _parse(sys.argv[1:] if argv is None else argv)
+    opts = _parse(args)
     _apply_capture_opts(opts)
     _apply_exe_files()
     if opts["selftest"]:
