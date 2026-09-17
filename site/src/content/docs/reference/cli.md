@@ -23,6 +23,12 @@ python -m antennaknobs {draw,sweep,optimize,pattern,compare_patterns,params,expo
 | `allow` | Allow a user design to run (it runs code on your machine) |
 | `disallow` | Stop allowing a user design to run |
 
+Since v0.81.0 a pip install also puts an `antennaknobs` command on PATH, so
+`antennaknobs sweep ...` and `python -m antennaknobs sweep ...` are the same
+thing; the Windows workbench zip carries the same command line as
+`antennaknobs-cli.exe` (see [the workbench page](/start/workbench/#the-command-line)),
+with no Python to set up.
+
 ## Naming a design
 
 Designs are addressed as `family.name` (the same names `list` prints):
@@ -384,6 +390,7 @@ The table is grouped one block per engine:
 
 ```text
 == nominal_nsegs convergence: momwire:bspline ==
+ground: free space
 nominal_N  N_ach     R (Ω)     X (Ω)      |ΔΓ|
         8     17    71.240    -5.612    0.0038
        13     25    71.266    -5.388    0.0023
@@ -449,7 +456,12 @@ under the ground its own `GE` / `GN` cards model — `GE 0` free space, `GE 1`
 or `GN 1` perfect, `GN 2` finite with the card's ε<sub>r</sub> and σ, `GN 0`
 the reflection-coefficient model (Sommerfeld in a NEC-5 deck, which has no
 reflection-coefficient ground) — and an explicit `--ground` still wins.
-Catalog designs keep each engine's own default as before.
+Since v0.81.0 the ground is settled ONCE per run and handed to every engine
+named: an explicit `--ground`, else the file design's own, else free space.
+The engines' own defaults disagree (PyNEC and NEC-2 assume a finite ground,
+momwire and NEC-5 free space), and a multi-engine study that let each engine
+pick was comparing two physics without saying so; the convergence table now
+prints the ground under each engine's header.
 
 ## Comparing engines
 

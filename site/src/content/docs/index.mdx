@@ -29,28 +29,26 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.80.0" icon="star">
-  **The buried far field, and convergence studies from the command line.**
-  A buried design now gets its far-field pattern: the field a wire below the
-  interface radiates is carried through the soil as the transmitted plane wave
-  (the reflected part is O(1/R²) and never reaches a pattern), so the buried
-  dipole and the buried radial vertical show honest patterns instead of a
-  refusal — within 0.005 dB of NEC-5 in shape. Every finite-ground deck this
-  app exports now parses and solves through momwire's NEC-5 dialect (98 of 98
-  catalog designs, from none): the `NOFILE` ground token, `LD 0`/`LD 1` RLC
-  loads, `LD 2` per-metre jacket inductance, `LD 5` conductivity and the
-  explicit segment-end address are all read (momwire 0.57.0). Swapping the
-  solver in a slot now adopts that engine's own density, from one table the
-  app and the CLI share; razor-2p and NEC-5 serve 40 per wire, B-spline 20 /
-  15 / 16 by degree, each number a measured rung. On the command line,
-  `sweep --param nominal_nsegs` is a convergence study — several engines on
-  one Smith chart, a Richardson estimate per engine, and `--markers` for the
-  densities you care about — and `momwire:pulse` joins the `--engine` roster.
-  From a field report on the workbench: the Files rail keeps its state across
-  launches (the launcher now holds a fixed port), the readout pill sits clear
-  of the scrollbar, the antenna view comes back at the zoom you left, a
-  scripted `.ssn` refusal says how to get the design in, and the Files view
-  exports the design as a SimNEC circuit.
+<Card title="New in v0.81.0" icon="star">
+  **The command line in the zip.** The Windows workbench zip now carries
+  `antennaknobs-cli.exe` beside `antennaknobs-workbench.exe`, over the one
+  `_internal` they share: the same command line a pip install runs, with no
+  Python to set up. Tk is back in the bundle, so a chart with no `--fn` opens
+  in a window with matplotlib's toolbar — the Smith chart zooms and pans, which
+  is what a convergence study needs. A pip install now puts an `antennaknobs`
+  command on PATH too, so `antennaknobs sweep ...` and
+  `python -m antennaknobs sweep ...` are the same thing. On the command line,
+  every engine of a run gets ONE ground: an explicit `--ground`, else a
+  `.nec` design's own `GE`/`GN` cards, else free space — a multi-engine
+  `sweep --param nominal_nsegs` used to compare PyNEC and NEC-2 over a finite
+  ground against momwire and NEC-5 in free space, a 9 Ω split that was never
+  the solvers — and the convergence table prints the ground under each
+  header. The CLI's tables survive a redirected stdout on Windows, and the
+  workbench page is served so the browser revalidates it, since a fixed port
+  can otherwise show last release's page. momwire 0.58.0 underneath: EZNEC's
+  1e-10 V load-probe sources are served, so an EZNEC model with an R/L/C load
+  runs through the drop-in; a refused card reads as its sentence rather than
+  an internal error; and the READMEs say to Unblock the zip before extracting.
 </Card>
 
 ## The whole pitch, in one line
