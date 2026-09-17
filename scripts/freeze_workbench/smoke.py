@@ -32,21 +32,42 @@ nothing else:
    source exists only because build.py ships ``designs/`` as files too.
 6. (Windows only) the exe's own Windows version resource — Explorer's
    Properties -> Details — reports ProductVersion equal to the antennaknobs
-   version. Skipped with a printed note on any other platform: a version
-   resource is a PE concept, and there is nothing to read.
+   version, for BOTH executables (issue #1566). Skipped with a printed note
+   on any other platform: a version resource is a PE concept, and there is
+   nothing to read.
+7. ``antennaknobs-cli[.exe]`` is in the SAME folder, beside the workbench and
+   over the one ``_internal`` (the whole point of #1566: a second one-dir
+   build would have doubled the zip), and its ``--help`` exits 0 and names
+   the subcommands.
+8. The convergence study from issue #1566 runs end to end through that
+   executable — ``sweep --param nominal_nsegs`` over two rungs, to a PNG —
+   and prints the table with its ``ground:`` line. This is the run Dan AC6LA
+   could not get to from PyPI, so the gate is that exact shape rather than a
+   cheaper one.
+9. Tk: the frozen interpreter imports ``matplotlib.backends.backend_tkagg``,
+   creates a ``tkinter.Tk()`` root and destroys it, which is what proves
+   Tcl/Tk's script library landed in ``_internal`` rather than only the
+   modules. Runs where the smoke's OWN Python has tkinter (the Windows
+   canary), and prints a named skip where it does not (this Linux venv's
+   Python ships none, so no build here can carry Tk).
 """
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import re
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 from pathlib import Path
+
+# The zip's second executable (issue #1566), gates 7-9.
+CLI_NAME = "antennaknobs-cli"
 
 
 def _free_port() -> int:
@@ -97,6 +118,11 @@ def main(argv: list[str]) -> int:
         return 2
     exe = Path(argv[0]).resolve()
     assert exe.is_file(), exe
+    # The command line is the same folder's other executable, and its suffix
+    # is this one's: one OS, one spelling of "executable". Taken from the
+    # bundle rather than from a second argument, so the workflow's smoke step
+    # keeps its one-path contract.
+    cli_exe = exe.with_name(CLI_NAME + exe.suffix)
 
     # 0. NO GPL CODE IN THE BUNDLE. This is a licence gate, not a size one, and
     # it runs before anything else because a bundle that fails it must not be
@@ -312,21 +338,116 @@ def main(argv: list[str]) -> int:
         from importlib.metadata import version as pkg_version
 
         ak_version = pkg_version("antennaknobs")
-        resource_version = _exe_product_version(exe)
-        if resource_version is None:
-            print("FAIL: could not read the exe's version resource on Windows")
-            return 1
-        if resource_version != ak_version:
+        for target in (exe, cli_exe):
+            resource_version = _exe_product_version(target)
+            if resource_version is None:
+                print(f"FAIL: could not read {target.name}'s version resource")
+                return 1
+            if resource_version != ak_version:
+                print(
+                    f"FAIL: {target.name} version resource ProductVersion "
+                    f"{resource_version!r} != antennaknobs {ak_version!r}"
+                )
+                return 1
             print(
-                f"FAIL: exe version resource ProductVersion {resource_version!r} "
-                f"!= antennaknobs {ak_version!r}"
+                f"gate 6 OK: {target.name} version resource ProductVersion = "
+                f"{resource_version!r}"
             )
-            return 1
-        print(f"gate 6 OK: exe version resource ProductVersion = {resource_version!r}")
     else:
         print(
             f"gate 6 skipped: not Windows ({sys.platform}); no version resource to read"
         )
+
+    # 7. The second executable (issue #1566). Same folder, same `_internal`:
+    # `antennaknobs-cli` is a shim that runs the workbench program beside it,
+    # so "is it there" and "does it answer" are one gate. `--help` is
+    # argparse's, which exits 0 and prints the subcommand list.
+    if not cli_exe.is_file():
+        print(
+            f"FAIL: no {cli_exe.name} in {exe.parent.name}. The zip is meant "
+            "to carry both executables over one _internal (#1566); check that "
+            "build.py's spec still feeds two EXE objects to one COLLECT.",
+            file=sys.stderr,
+        )
+        return 1
+    t0 = time.perf_counter()
+    out = subprocess.run(
+        [str(cli_exe), "--help"], capture_output=True, text=True, timeout=600
+    )
+    dt = time.perf_counter() - t0
+    if out.returncode != 0 or "sweep" not in out.stdout or "pattern" not in out.stdout:
+        print(out.stdout[-2000:])
+        print(out.stderr[-2000:], file=sys.stderr)
+        print(f"FAIL: {cli_exe.name} --help exit {out.returncode}")
+        return 1
+    print(f"gate 7 OK: {cli_exe.name} --help in {dt:.1f} s, subcommands listed")
+
+    # 8. The run the issue is about: `sweep --param nominal_nsegs` to a PNG.
+    # Two rungs rather than the seven-rung ladder, because this gate is about
+    # the packaging and not about convergence — it is the chart file, the
+    # exit code and the table that have to exist.
+    png = Path(tempfile.mkdtemp(prefix="ak-smoke-")) / "sweep.png"
+    t0 = time.perf_counter()
+    out = subprocess.run(
+        [
+            str(cli_exe),
+            "sweep",
+            "--param",
+            "nominal_nsegs",
+            "--builder",
+            "dipoles.invvee:dipole",
+            "--engine",
+            "momwire:bspline",
+            "--markers",
+            "8",
+            "16",
+            "--fn",
+            str(png),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=1800,
+    )
+    dt = time.perf_counter() - t0
+    print(out.stdout[-2000:])
+    if out.returncode != 0:
+        print(out.stderr[-2000:], file=sys.stderr)
+        print(f"FAIL: the frozen sweep exited {out.returncode}")
+        return 1
+    if "nominal_nsegs convergence" not in out.stdout or "ground:" not in out.stdout:
+        print("FAIL: the frozen sweep printed no convergence table")
+        return 1
+    if not png.is_file() or png.read_bytes()[:4] != b"\x89PNG":
+        print(f"FAIL: the frozen sweep wrote no PNG at {png}")
+        return 1
+    print(
+        f"gate 8 OK: sweep --param nominal_nsegs in {dt:.1f} s, "
+        f"{png.stat().st_size} byte PNG, table printed"
+    )
+
+    # 9. Tk (issue #1566). The bundle can only carry Tk if the Python that
+    # built it had tkinter, and the smoke runs on that same Python — so its
+    # own `find_spec` is the right question to ask, and the answer on this
+    # Linux venv is "no tkinter at all". `--selftest-tk` does the proving
+    # INSIDE the frozen interpreter, where the collected Tcl/Tk data either
+    # is or is not.
+    if importlib.util.find_spec("tkinter") is None:
+        print("gate 9 SKIPPED: no tkinter on this Python")
+    else:
+        out = subprocess.run(
+            [str(cli_exe), "--selftest-tk"], capture_output=True, text=True, timeout=600
+        )
+        print(out.stdout)
+        if out.returncode != 0 or "TK SELFTEST OK" not in out.stdout:
+            print(out.stderr[-2000:], file=sys.stderr)
+            print(
+                f"FAIL: the frozen Tk selftest exited {out.returncode}. This "
+                "Python has tkinter, so the bundle must carry it: check that "
+                "build.py still names matplotlib.backends.backend_tkagg and "
+                "excludes no tkinter."
+            )
+            return 1
+        print("gate 9 OK: TkAgg imports and a Tk root opens in the bundle")
 
     print("SMOKE OK")
     return 0
