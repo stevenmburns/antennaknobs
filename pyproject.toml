@@ -47,6 +47,13 @@ dependencies = [
     "matplotlib>=3.5",
 ]
 
+[project.scripts]
+# `antennaknobs sweep ...` on PATH after a pip install (#1568): the same words
+# the zip's antennaknobs-cli.exe takes, and the spelling a PowerShell user
+# reaches for first. `cli()` returns None on success and lets argparse's
+# SystemExit through, which is what the console-script wrapper expects.
+antennaknobs = "antennaknobs.cli:cli"
+
 [project.optional-dependencies]
 # Web UI: src/antennaknobs/web/server.py is a FastAPI app served by uvicorn.
 #   - fastapi (+ its starlette core) is the web framework itself — imported

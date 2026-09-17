@@ -292,7 +292,9 @@ ant.compare_patterns(builders)
 
 ## Command-line usage
 
-Everything is under `python -m antennaknobs <subcommand>`. Designs are named
+A pip install puts an `antennaknobs` command on PATH, so `antennaknobs
+<subcommand>` and `python -m antennaknobs <subcommand>` are the same thing;
+the examples below use the long form. Designs are named
 `family.name` (with an optional `:variant`) — run `list` to see them all.
 
 ```bash
