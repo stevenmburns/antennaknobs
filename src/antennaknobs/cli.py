@@ -529,9 +529,12 @@ def make_engine_factory(
     """
     name, kwargs = parse_engine_spec(engine_spec)
     cls = ENGINE_CLASSES[name]
-    # PyNECEngine's default ground IS finite; momwire's default is free.
-    # When the user passes --ground explicitly we always honour it;
-    # when they don't, we use whatever the engine's own default is.
+    # An UNSET ground binds the engine alone (the engine-spec tests read a
+    # bare class here). The CLI never leaves it unset: `resolve_ground`
+    # hands every engine the same value, because the engines' own defaults
+    # disagree — PyNEC and NEC-2 assume a finite ground, momwire and NEC-5
+    # free space — and a multi-engine sweep that let each engine pick was
+    # comparing two physics without saying so (AK#1563).
     if ground_spec is not _GROUND_UNSET:
         kwargs["ground"] = ground_spec
     if extended_kernel or deck_extended_kernel:
@@ -568,6 +571,42 @@ def file_ground_default(ground, builder):
     if fg is _GROUND_UNSET:
         return _GROUND_UNSET
     return "free" if fg is None else fg
+
+
+# The CLI's one ground when nothing else names it (AK#1563). Free space, not
+# a finite ground: the app defaults to ground off, momwire and NEC-5 already
+# default to free, it is the cheapest model on every engine, and a deck that
+# carries GE/GN cards still wins through `file_ground_default`. The point is
+# that it is ONE value for every engine, stated in the output.
+CLI_DEFAULT_GROUND = "free"
+
+
+def resolve_ground(ground_arg, builder=None):
+    """The ground every engine of a CLI run receives: an explicit --ground
+    parsed, else a file design's own ground, else `CLI_DEFAULT_GROUND`.
+    Never `_GROUND_UNSET` — an engine's own default is not a CLI notion."""
+    ground = ground_arg if ground_arg is _GROUND_UNSET else parse_ground(ground_arg)
+    if builder is not None:
+        ground = file_ground_default(ground, builder)  # AK#1432
+    if ground is _GROUND_UNSET:
+        ground = CLI_DEFAULT_GROUND
+    return ground
+
+
+def format_ground(ground):
+    """One line naming a ground spec, for a table header or a log."""
+    if ground is None or ground == "free":
+        return "free space"
+    if ground == "pec":
+        return "pec"
+    if isinstance(ground, tuple) and ground:
+        kind = ground[0]
+        if kind == "finite":
+            return f"finite {ground[1]:g}/{ground[2]:g} (Sommerfeld-Norton)"
+        if kind == "finite-fast":
+            return f"finite-fast {ground[1]:g}/{ground[2]:g} (reflection-coefficient)"
+        return kind
+    return str(ground)
 
 
 def _solve_for_budget(eng) -> None:
@@ -781,8 +820,9 @@ def cli(arguments=None):
             default=_GROUND_UNSET,
             help="Ground model: free | pec | finite[:<eps_r>,<sigma>] "
             "(Sommerfeld-Norton, both engines) | finite-fast[:<eps_r>,<sigma>] "
-            "(reflection-coefficient approximation) "
-            "(default: engine-specific — finite for pynec, free for momwire).",
+            "(reflection-coefficient approximation). Default: a file design's "
+            "own GE/GN ground, else free space — ONE value handed to every "
+            "engine named, never an engine's own default (AK#1563).",
         )
         p.add_argument(
             "--extended-kernel",
@@ -857,11 +897,7 @@ def cli(arguments=None):
         return n
 
     def engine_factory_from_args(args, deck_extended_kernel=False, builder=None):
-        ground = (
-            args.ground if args.ground is _GROUND_UNSET else parse_ground(args.ground)
-        )
-        if builder is not None:
-            ground = file_ground_default(ground, builder)  # AK#1432
+        ground = resolve_ground(args.ground, builder)  # AK#1432, AK#1563
         return placements.watch(
             make_engine_factory(
                 args.engine,
@@ -886,11 +922,7 @@ def cli(arguments=None):
         the engine's own default on every single solve, fighting the sweep
         it is supposed to be running.
         """
-        ground = (
-            args.ground if args.ground is _GROUND_UNSET else parse_ground(args.ground)
-        )
-        if builder is not None:
-            ground = file_ground_default(ground, builder)  # AK#1432
+        ground = resolve_ground(args.ground, builder)  # AK#1432, AK#1563
         out = {}
         for spec in _engine_specs(args.engine):
             density = density_from_args(args, spec) if mesh_density else None
@@ -1110,6 +1142,11 @@ def cli(arguments=None):
                 z0=args.z0,
                 markers=args.markers,
                 engine=engine,
+                ground_label=(
+                    format_ground(resolve_ground(args.ground, builder))
+                    if is_density_study
+                    else None
+                ),
                 measured=measured,
             )
 

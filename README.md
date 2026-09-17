@@ -334,8 +334,11 @@ python -m antennaknobs list dipole
 ```
 
 Shared flags: `--engine` (backend, see above), `--ground`
-(`free` | `pec` | `finite` | `finite:<eps_r>,<sigma>`), `--builder`/`--builders`,
-and `--fn` (save to file instead of showing on screen).
+(`free` | `pec` | `finite` | `finite:<eps_r>,<sigma>`; left out, a `.nec`
+design's own GE/GN ground, else free space — one value handed to every engine
+named, so a multi-engine sweep always compares the same physics),
+`--builder`/`--builders`, and `--fn` (save to file instead of showing on
+screen).
 
 Below is a typical far-field plot produced by the `pattern`/`compare_patterns`
 commands:

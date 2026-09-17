@@ -333,6 +333,12 @@ def refuse_nec2_geometry(tups, ground, *, suggest_download: bool = False) -> Non
             )
 
 
+# The constructor's bare-default marker. PyNEC's DEFAULT_GROUND is what it
+# resolves to, imported lazily INSIDE __init__: this module must not import
+# pynec at module scope (`test_subprocess_is_the_only_coupling`).
+_GROUND_DEFAULT = object()
+
+
 class NEC2Engine(SimulationEngine):
     """A user-supplied NEC-2 console binary, driven over text.
 
@@ -355,15 +361,23 @@ class NEC2Engine(SimulationEngine):
         self,
         builder,
         *,
-        ground=None,
+        ground=_GROUND_DEFAULT,
         nec2_exe: str | None = None,
         timeout: float = 120.0,
         capture_dir=None,
     ):
+        """`ground` takes PyNECEngine's spellings with PyNECEngine's meaning:
+        None or "free" is free space, "pec", ("finite", eps_r, sigma)
+        Sommerfeld-Norton, ("finite-fast", eps_r, sigma) reflection-
+        coefficient. The bare default is the finite ground, as on PyNEC.
+        An explicit None used to be folded into that default — the one
+        engine on which `--ground free` silently meant finite (AK#1563)."""
         super().__init__(builder)
-        from .pynec import DEFAULT_GROUND
+        if ground is _GROUND_DEFAULT:
+            from .pynec import DEFAULT_GROUND
 
-        self.ground = DEFAULT_GROUND if ground is None else ground
+            ground = DEFAULT_GROUND
+        self.ground = ground
         self._refuse_ge_minus_one_contact(self.ground)
         self.timeout = float(timeout)
         # AK#1428: with a capture dir (or `ANTENNAKNOBS_CAPTURE_DIR/nec2` from

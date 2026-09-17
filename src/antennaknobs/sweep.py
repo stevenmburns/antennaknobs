@@ -358,7 +358,9 @@ def _reflection(z, z0):
     return (z - z0) / (z + z0)
 
 
-def _print_convergence_table(per_engine, estimates, z0, marked=frozenset()):
+def _print_convergence_table(
+    per_engine, estimates, z0, marked=frozenset(), ground_label=None
+):
     """The stdout table for ``sweep --param nominal_nsegs`` (#1554): grouped
     per engine so a single-engine study reads like a plain ladder printout,
     and a multi-engine one reads as N of those back to back. ΔΓ is against
@@ -367,6 +369,11 @@ def _print_convergence_table(per_engine, estimates, z0, marked=frozenset()):
     since Z* is itself only an estimate)."""
     for name, rows in per_engine.items():
         print(f"== nominal_nsegs convergence: {name} ==")
+        if ground_label is not None:
+            # Every engine of a CLI study runs on the SAME ground (AK#1563);
+            # it is printed under each header so a table pasted on its own
+            # still says which physics the numbers are.
+            print(f"ground: {ground_label}")
         print(f"{'nominal_N':>9} {'N_ach':>6} {'R (Ω)':>9} {'X (Ω)':>9} {'|ΔΓ|':>9}")
         finest_gamma = _reflection(rows[-1][2], z0)
         for nominal_n, achieved_n, z in rows:
@@ -390,7 +397,16 @@ def _print_convergence_table(per_engine, estimates, z0, marked=frozenset()):
 
 
 def _sweep_convergence(
-    antenna_builder, engines, *, rng, npoints, use_smithchart, z0, fn, markers=()
+    antenna_builder,
+    engines,
+    *,
+    rng,
+    npoints,
+    use_smithchart,
+    z0,
+    fn,
+    markers=(),
+    ground_label=None,
 ):
     """``sweep --param nominal_nsegs`` (#1554): one cold solve per rung per
     engine, port 0 only (multi-port trajectories are the app's own overlay,
@@ -441,7 +457,9 @@ def _sweep_convergence(
         for name, rows in per_engine.items()
     }
 
-    _print_convergence_table(per_engine, estimates, z0, marked=marked)
+    _print_convergence_table(
+        per_engine, estimates, z0, marked=marked, ground_label=ground_label
+    )
 
     title = "impedance vs nominal_nsegs, Richardson Z*"
     if nports > 1:
@@ -560,6 +578,7 @@ def sweep(
     fn=None,
     engine=Antenna,
     measured=None,
+    ground_label=None,
 ):
     import matplotlib.pyplot as plt
 
@@ -578,6 +597,7 @@ def sweep(
             z0=z0,
             fn=fn,
             markers=markers,
+            ground_label=ground_label,
         )
         return
 
