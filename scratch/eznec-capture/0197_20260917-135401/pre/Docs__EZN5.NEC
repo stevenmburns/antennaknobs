@@ -1,0 +1,19 @@
+CM Dipole in free space
+CM
+CM EZNEC Pro/2+ v. 7.0.4  2026-09-17 13:54:01
+CM
+CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-5 format.
+CM
+CM ! Wire #2 for shorted/open trans. lines and/or parallel loads.
+CE
+GW 1,11,0.,-.25,0.,0.,.25,0.,.0005
+GW 2,2,99.99998,99.99998,99.99998,100.002,100.002,100.002,1.0000E-4
+GE 0,-1
+LD 4,2,1,0,1.E+10,0.
+FR 0,1,0,0,299.7925
+GN -1
+EX 4,1,6,0,1.414214,0.
+NT 1,8,2,1,0.,-1.217E-2,0.,0.,0.,0.
+PQ 0
+RP 0,1,361,1000,90.,0.,0.,1.,0.
+EN
