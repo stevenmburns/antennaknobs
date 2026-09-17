@@ -1,0 +1,17 @@
+CM Dipole in free space
+CM
+CM EZNEC Pro/2+ v. 7.0.4  2026-09-17 13:49:15
+CM
+CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-5 format.
+CM ! 1.E-10 volt sources for recording currents at load locations.
+CE
+GW 1,11,0.,-.25,0.,0.,.25,0.,.0005
+GE 0,-1
+LD 1,1,8,0,0.,.0000001,5.E-12
+FR 0,1,0,0,299.7925
+GN -1
+EX 4,1,6,0,1.414214,0.
+EX 0,1,8,0,1.E-10,0.
+PQ 0
+RP 0,1,361,1000,90.,0.,0.,1.,0.
+EN
