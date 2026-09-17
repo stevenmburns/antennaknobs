@@ -691,11 +691,33 @@ class _FeedPlacementEcho:
         self._pending = waiting
 
 
+def _tolerant_console() -> None:
+    """The tables print Ω, Δ and Γ, and a Windows stdout that is a pipe or a
+    file is cp1252, which has none of them: the run computed everything and
+    then died on the first row (#1566's Windows canary, gate 8). A real
+    Windows console is not the problem — Python writes it as UTF-16 — so this
+    fires only where the stream's own encoding cannot take the characters: a
+    redirected stream becomes UTF-8, the right bytes for a file; a terminal
+    that somehow cannot keeps its encoding and prints ? for what it lacks."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            "ΩΔΓ".encode(stream.encoding or "ascii")
+        except (UnicodeEncodeError, LookupError):
+            if stream.isatty():
+                reconfigure(errors="replace")
+            else:
+                reconfigure(encoding="utf-8", errors="replace")
+
+
 def cli(arguments=None):
     # AK#1428: `ANTENNAKNOBS_LOG_LEVEL` turns on the engine run log here too.
     from .engine_capture import configure_logging_from_env
 
     configure_logging_from_env()
+    _tolerant_console()
     placements = _FeedPlacementEcho()
 
     parser = argparse.ArgumentParser()
