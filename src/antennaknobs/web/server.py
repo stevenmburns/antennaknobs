@@ -3617,29 +3617,68 @@ async def ws_endpoint(ws: WebSocket):
         cuts_task.cancel()
 
 
-# Serve the built React frontend (web/static, produced by `npm run build` in
-# web/frontend) at "/". Mounted LAST so every API route and FastAPI's own
-# /docs + /openapi.json (local only — disabled when hosted, see the FastAPI
-# construction) — all registered above — take precedence; the mount only
-# catches "/", the SPA's assets, and other unclaimed GETs. html=True serves
-# index.html for the root.
-#
-# Gated on the directory existing: a source checkout / editable install without
-# a frontend build (the dev workflow, where Vite serves the SPA on :5173 and
-# proxies here) simply runs API-only, while a wheel install — which ships the
-# built bundle as package data — serves the whole app from this one process.
-_FRONTEND_DIR = Path(__file__).resolve().parent / "static"
-if _FRONTEND_DIR.is_dir():
+class _RevalidateHTMLStaticFiles(StaticFiles):
+    """StaticFiles that forces revalidation on every ``.html`` response.
+
+    Plain StaticFiles sends ETag/Last-Modified and no Cache-Control at all;
+    browsers apply heuristic freshness to that and can show a cached
+    index.html without ever asking the server (#1565) — invisible until a
+    launch reuses an origin, which the fixed port 8000 (#1540) made routine.
+    ETag/Last-Modified stay untouched (set by the base FileResponse before we
+    see it), so a revalidation that matches still short-circuits to a cheap
+    304. Hashed assets (js/css under assets/) are untouched — their filename
+    changes when their content does, so caching them hard is correct.
+    """
+
+    def file_response(
+        self,
+        full_path: str,
+        stat_result: os.stat_result,
+        scope: dict,
+        status_code: int = 200,
+    ) -> Response:
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        if str(full_path).endswith(".html"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+def _mount_frontend(app: FastAPI, directory: Path) -> None:
+    """Serve a built React frontend (web/static, produced by `npm run build`
+    in web/frontend) at "/". Mounted LAST so every API route and FastAPI's
+    own /docs + /openapi.json (local only — disabled when hosted, see the
+    FastAPI construction) — all registered above — take precedence; the
+    mount only catches "/", the SPA's assets, and other unclaimed GETs.
+    html=True serves index.html for the root.
+
+    Gated on the directory existing: a source checkout / editable install
+    without a frontend build (the dev workflow, where Vite serves the SPA on
+    :5173 and proxies here) simply runs API-only, while a wheel install —
+    which ships the built bundle as package data — serves the whole app from
+    this one process.
+
+    A function (rather than inline module-level code) so a test can mount a
+    throwaway bundle onto its own FastAPI instance without a built
+    src/antennaknobs/web/static.
+    """
+    if not directory.is_dir():
+        return
     # One line of staleness signal (#733): the mount is unconditional, so a
     # source checkout serves whatever bundle was last built — which can trail
     # frontend/src by days with no other symptom than "my change isn't
     # showing up". The build time in the log gives that failure a timestamp.
-    _index = _FRONTEND_DIR / "index.html"
-    if _index.is_file():
-        _built = datetime.fromtimestamp(_index.stat().st_mtime, tz=timezone.utc)
+    index = directory / "index.html"
+    if index.is_file():
+        built = datetime.fromtimestamp(index.stat().st_mtime, tz=timezone.utc)
         logging.getLogger(__name__).info(
             "serving frontend bundle built %s (%s)",
-            _built.strftime("%Y-%m-%d %H:%M UTC"),
-            _FRONTEND_DIR,
+            built.strftime("%Y-%m-%d %H:%M UTC"),
+            directory,
         )
-    app.mount("/", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")
+    app.mount(
+        "/", _RevalidateHTMLStaticFiles(directory=directory, html=True), name="frontend"
+    )
+
+
+_FRONTEND_DIR = Path(__file__).resolve().parent / "static"
+_mount_frontend(app, _FRONTEND_DIR)
