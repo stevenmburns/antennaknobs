@@ -5,6 +5,13 @@ name: freeze-windows
 # tags through the same Azure Artifact Signing steps momwire's eznec-dropin
 # lane uses (sign.py is that lane's file, verbatim), attached to the release.
 #
+# TWO EXECUTABLES, ONE BUILD (issue #1566). The zip carries
+# `antennaknobs-workbench.exe` and `antennaknobs-cli.exe` over ONE `_internal`
+# — build.py's generated spec feeds two EXE objects to one COLLECT, so there
+# is one freeze job, one dist folder and one zip here, and nothing below needs
+# a second path. The steps that touch the pair are marked; the rest never
+# learns there are two.
+#
 # Triggers:
 #   - push tag v*: build, smoke, SIGN (azure), attach the zip to the release.
 #   - workflow_dispatch: build + smoke on a branch; self-signed rehearsal by
@@ -106,12 +113,20 @@ jobs:
           "MOMWIRE_SIGN_METADATA=$((Resolve-Path metadata.json).Path)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "MOMWIRE_SIGN_TIMESTAMP_URL=http://timestamp.acs.microsoft.com" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Freeze (and sign)
+        # Both executables come out of this one run, and build.py hands both
+        # to sign.py in ONE signtool invocation (#1566): an unsigned .exe in a
+        # signed folder is exactly the file Windows would warn about.
         run: python scripts/freeze_workbench/build.py
         env:
           AZURE_TENANT_ID: ${{ env.MOMWIRE_SIGN_MODE == 'azure' && secrets.AZURE_TENANT_ID || '' }}
           AZURE_CLIENT_ID: ${{ env.MOMWIRE_SIGN_MODE == 'azure' && secrets.AZURE_CLIENT_ID || '' }}
           AZURE_CLIENT_SECRET: ${{ env.MOMWIRE_SIGN_MODE == 'azure' && secrets.AZURE_CLIENT_SECRET || '' }}
       - name: Smoke the frozen bundle
+        # One path still: smoke.py finds antennaknobs-cli.exe beside the one
+        # named here and runs gates 7-9 (--help, the #1566 convergence sweep
+        # to a PNG, and Tk). THIS is the lane that proves the Tk half — the
+        # Linux boxes' Python has no tkinter, so gate 9 can only skip there,
+        # and windows-latest's setup-python ships it.
         run: python scripts/freeze_workbench/smoke.py dist/antennaknobs-workbench/antennaknobs-workbench.exe
       # The RELEASE zip keeps a version-less name so
       # .../releases/latest/download/antennaknobs-workbench-windows.zip is a
@@ -127,6 +142,8 @@ jobs:
                   else { 'antennaknobs-workbench-windows-SELFSIGNED-rehearsal' }
           "BUNDLE=$base" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Zip the bundle
+        # The whole dist folder, which is both executables and the one
+        # _internal they share (#1566) — no second path, and no second zip.
         shell: pwsh
         run: |
           Compress-Archive -Path dist/antennaknobs-workbench -DestinationPath "$env:BUNDLE.zip"
