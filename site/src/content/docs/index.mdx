@@ -29,21 +29,28 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.79.0" icon="star">
-  **The same wire on every engine.** An insulated wire is now modelled the same
-  way whichever engine answers. NEC-2, NEC-5 and every deck this app exports
-  carry the jacket the way momwire always has: as the larger radius the solver's
-  kernel sees, plus the inductance that enlarging it would otherwise remove,
-  with the conductor's own loss preserved. On the catalog's PVC-jacketed
-  designs that closes a 10–14 % disagreement between engines to about a tenth
-  of a percent, so their impedances move. The surface radial screen's mast and
-  feed gap are bare, as the design always said they were — they had been
-  inheriting the radials' jacket, worth about 26 Ω of reactance on the stock
-  screen, so that design's numbers move too. On the solver side, a buried array
-  with more than one element standing over its own ground connection now solves
-  instead of being refused, buried screens that mesh finer than a twentieth of a
-  degree fill faster, and an EZNEC drop-in printout names on its second line the
-  version, basis and processor support that answered it.
+<Card title="New in v0.80.0" icon="star">
+  **The buried far field, and convergence studies from the command line.**
+  A buried design now gets its far-field pattern: the field a wire below the
+  interface radiates is carried through the soil as the transmitted plane wave
+  (the reflected part is O(1/R²) and never reaches a pattern), so the buried
+  dipole and the buried radial vertical show honest patterns instead of a
+  refusal — within 0.005 dB of NEC-5 in shape. Every finite-ground deck this
+  app exports now parses and solves through momwire's NEC-5 dialect (98 of 98
+  catalog designs, from none): the `NOFILE` ground token, `LD 0`/`LD 1` RLC
+  loads, `LD 2` per-metre jacket inductance, `LD 5` conductivity and the
+  explicit segment-end address are all read (momwire 0.57.0). Swapping the
+  solver in a slot now adopts that engine's own density, from one table the
+  app and the CLI share; razor-2p and NEC-5 serve 40 per wire, B-spline 20 /
+  15 / 16 by degree, each number a measured rung. On the command line,
+  `sweep --param nominal_nsegs` is a convergence study — several engines on
+  one Smith chart, a Richardson estimate per engine, and `--markers` for the
+  densities you care about — and `momwire:pulse` joins the `--engine` roster.
+  From a field report on the workbench: the Files rail keeps its state across
+  launches (the launcher now holds a fixed port), the readout pill sits clear
+  of the scrollbar, the antenna view comes back at the zoom you left, a
+  scripted `.ssn` refusal says how to get the design in, and the Files view
+  exports the design as a SimNEC circuit.
 </Card>
 
 ## The whole pitch, in one line
