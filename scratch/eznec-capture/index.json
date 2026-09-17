@@ -5253,5 +5253,63 @@
     "stdin_redirected": "False",
     "exit_code": "0",
     "elapsed_ms": "22"
+  },
+  {
+    "capture": "0198_20260917-135657",
+    "title": "Cardioid - L Network Feed",
+    "freq_mhz": "7.15",
+    "cards": {
+      "EN": 1,
+      "EX": 1,
+      "FR": 1,
+      "GD": 1,
+      "GE": 1,
+      "GW": 3,
+      "LD": 4,
+      "NT": 1,
+      "PQ": 1,
+      "RP": 1,
+      "TL": 2
+    },
+    "has_tl": true,
+    "has_nt": true,
+    "deck": "0198_20260917-135657\\pre\\Docs__EZN5.NEC",
+    "deck_lines": 25,
+    "printout": "0198_20260917-135657\\post\\Docs__NEC5.OUT",
+    "command_line": "\"C:\\EZNEC 7.0\\Docs\\NEC5CL_x13.exe\" \"EZN5.NEC\" \"NEC5.OUT\"",
+    "argument_tail": "\"EZN5.NEC\" \"NEC5.OUT\"",
+    "cwd": "C:\\EZNEC 7.0\\Docs",
+    "stdin_redirected": "False",
+    "exit_code": "0",
+    "elapsed_ms": "39"
+  },
+  {
+    "capture": "0199_20260917-135931",
+    "title": "Cardioid - L Network Feed",
+    "freq_mhz": "7.15",
+    "cards": {
+      "EN": 1,
+      "EX": 1,
+      "FR": 1,
+      "GD": 1,
+      "GE": 1,
+      "GW": 3,
+      "LD": 4,
+      "NT": 1,
+      "PQ": 1,
+      "RP": 1,
+      "TL": 2
+    },
+    "has_tl": true,
+    "has_nt": true,
+    "deck": "0199_20260917-135931\\pre\\Docs__EZN5.NEC",
+    "deck_lines": 25,
+    "printout": "0199_20260917-135931\\post\\Docs__NEC5.OUT",
+    "command_line": "\"C:\\EZNEC 7.0\\Docs\\NEC5CL_x13.exe\" \"EZN5.NEC\" \"NEC5.OUT\"",
+    "argument_tail": "\"EZN5.NEC\" \"NEC5.OUT\"",
+    "cwd": "C:\\EZNEC 7.0\\Docs",
+    "stdin_redirected": "False",
+    "exit_code": "0",
+    "elapsed_ms": "23"
   }
 ]
