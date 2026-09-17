@@ -19,9 +19,15 @@ double-click.
    named with its version so a saved copy says which release it is. The
    version-less name is what keeps the link above pointing at the newest
    release, so either download is fine.
-2. Unzip it anywhere. **Keep the folder together** — the exe needs the
-   `_internal` runtime beside it, and a lone copied-out `.exe` is the one way
-   a correct download still fails.
+2. Before extracting, right-click the downloaded zip, choose Properties, tick
+   **Unblock** and click OK. Windows marks a downloaded file, every file
+   extracted from a marked zip inherits the mark, and unblocking the one zip
+   before it becomes several hundred files is the easy moment: the
+   "Windows protected your PC" screen never appears, and the files keep their
+   own dates instead of the download's. Then unzip it anywhere. **Keep the
+   folder together** — the two executables need the `_internal` runtime
+   beside them, and a lone copied-out `.exe` is the one way a correct
+   download still fails.
 3. Double-click `antennaknobs-workbench.exe`. A console window opens, the
    server starts on this computer at `http://127.0.0.1:8000`, and your browser
    opens at it.
@@ -37,7 +43,11 @@ a new release, extract the whole new zip into a fresh folder rather than
 copying just the `.exe` over an old one** — the exe runs whatever `_internal`
 sits beside it, so a copied-in `.exe` next to an old `_internal` runs the old
 code under the new file name, with no sign of that beyond the version shown
-on the page and in the console's startup line.
+on the page and in the console's startup line. If the console says the new
+version and the page still looks like the old one — no version under the
+title, a missing view in the rail — the browser has kept a cached copy of the
+page for `127.0.0.1:8000`: press Ctrl+F5 (Ctrl+Shift+R in Firefox) once, or
+open the address in a private window.
 
 First launch takes appreciably longer than the rest: Windows scans the
 unpacked folder once. Measured on a laptop, the self-test ran 17.7 s cold and
@@ -153,12 +163,38 @@ loses to the flag. So does `nec5_exe` under `[engines]` in
 [`settings.toml`](/reference/web/#where-the-workbench-starts-settingstoml), which loses to the variable and wins over
 `NEC5_EXE.txt`.
 
+## The command line
+
+`antennaknobs-cli.exe` in the same folder is the same program's command line —
+what `python -m antennaknobs` runs for someone who installed from PyPI, so the
+[CLI reference](/reference/cli/) is its documentation. Open a PowerShell
+window in the folder (Shift+right-click the folder background, "Open
+PowerShell window here") and put `.\` in front of the name:
+
+```powershell
+.\antennaknobs-cli.exe --help
+.\antennaknobs-cli.exe sweep --param nominal_nsegs --builder dipoles.invvee:dipole --engine momwire:bspline
+```
+
+The second line is a convergence study: one cold solve per segment count, a
+table of R, X and the change in reflection coefficient per rung, and a
+Richardson-extrapolated Z\* under it. With no `--fn` the chart opens in a
+window with the matplotlib toolbar, so the Smith chart zooms and pans; add
+`--fn out.png` to write the picture to a file instead.
+
+It finds NEC-5 and NEC-2 the way the workbench does — the same `NEC5_EXE.txt`
+and `NEC2_EXE.txt` beside it, the same variables and the same `settings.toml`
+— so an engine set up once is set up for both. It does its work by running
+`antennaknobs-workbench.exe`, which is why the two executables and
+`_internal` have to stay together.
+
 ## When you want the Python package instead
 
 The workbench is the no-install path. If you want antennaknobs as a library —
-to write your own designs, script a sweep, or run the CLI — install the
-package and follow the [Quickstart](/start/quickstart/) instead. The two are
-the same code; only the packaging differs.
+to write your own designs or script a sweep — install the package and follow
+the [Quickstart](/start/quickstart/) instead. The two are the same code; only
+the packaging differs, and a pip install puts the same `antennaknobs` command
+on PATH.
 
 ## For the NEC-5 working group: the corpus tool
 
