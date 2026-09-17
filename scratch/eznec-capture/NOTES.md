@@ -704,3 +704,95 @@ That puts a floor under any sweep and gives the client/server plan a concrete ta
 So the client/server shape does not need to be fast in absolute terms; it needs to
 get under EZNEC's own per-point overhead, at which point the difference stops being
 observable to the operator.
+
+---
+
+# EZNEC capture session — 2026-09-17 (momwire#1099/#1105/#1110)
+
+Load entry forms and wire loss, requested from the laptop session. I/O observation
+only. **Captures `0183`–`0199`.** Harness: `scripts/eznec_spy`, shim rebuilt this
+session (capture root baked to `scratch/eznec-capture`), installed 13:07 local.
+Engine `External NEC-5` throughout, argv-form, exit 0, every launch accounted for.
+
+Host: `EZNEC Pro/2+ v. 7.0.4` as the deck header prints it. AutoEZ 
+drove the `.weq` models; EZNEC drove the `.ez` ones.
+
+## What was clicked, in order
+
+| capture | model | what changed | card emitted | probe |
+|---|---|---|---|---|
+| `0183` | `Dipole1.ez` | bare — smoke test, also the control for `0193` | — | no |
+| `0184` | `Dipole1.ez` | Wire Loss = Copper | `LD 5,0,1,11,5.7471E+7,1.` | no |
+| `0185` | `OCF Dipole.weq` | Wire Loss = Copper | `LD 5,0,1,271,…` + 4:1 `NT` | no |
+| `0186` | `4Square TL Separate Sources.weq` | as-is | `EX 4` ×4 | no |
+| `0187` | ″ | sources I → V | `EX 0` ×4 | no |
+| `0188` | `4Square TL With Feed System.weq` | as-is | `EX 4`, `TL` ×6 | no |
+| `0189` | ″ | source I → V | `EX 0` | no |
+| `0190` | `Stepped Dipole 1.weq` | as-is | `LD 5,0,1,33,2.5E+07,1.` | no |
+| `0191` | `Stepped Dipole 2.weq` | as-is | same card, wires ordered centre-out | no |
+| `0192` | `TFD.weq` | as-is | `LD 0,2,34,0,820.,0.,0.` | **YES** |
+| `0193` | `Dipole1.ez` | RLC/Ser, R=18 L=0 C=0, wire 1 seg 8 | `LD 0,1,8,0,18.,0.,0.` | **YES** |
+| `0194` | ″ | RLC/Ser, R=0 L=0.1 µH C=5 pF | `LD 0,1,8,0,0.,.0000001,5.E-12` | **YES** |
+| `0195` | ″ | RLC/**Par**, same values | `LD 1,1,8,0,0.,.0000001,5.E-12` | **YES** |
+| `0196` | ″ | RLC/**Trap**, same values | `LD 4,1,8,0,0.,-243.3432` | **YES** |
+| `0197` | ″ | **Ext Con = Par** | `NT 1,8,2,1,0.,-1.217E-2,…` + new virtual wire | no |
+| `0198` | `Cardioid L Network Feed ARRL Example.ez` | as-is — R+jX control | `LD 4,1,-1` and `LD 4,2,-1` | no |
+| `0199` | ″ | both loads → RLC/Ser, positions untouched | `LD 0,1,-1` and `LD 0,2,-1` | **no** ← counterexample |
+
+`0198` reproduces `0000` (2026-08-16) **byte for byte apart from the timestamp**.
+
+## What the sitting established
+
+**The 1.E-10 V probe is not a Pro/4+ trait.** Pro/2+ writes it (`0192` onward).
+The old corpus missed it only because all 149 of its `LD` cards were `LD 4` — the
+bundled examples enter every load as an impedance.
+
+**Load type is a property of the MODEL, not of individual loads.** Switching one
+load to the RLC window converts them all, so a deck cannot mix entry forms and
+either carries probes on all its discrete loads or none. The
+`CM ! 1.E-10 volt sources for recording currents at load locations.` header is
+therefore a reliable deck-level flag.
+
+**Where NEC has no card for the shape, EZNEC does the algebra and the deck becomes
+single-frequency.** Twice: Trap → `LD 4` at −243.3432 Ω (`XL`=188.36, `XC`=106.17,
+parallel = −243.4 at 299.7925 MHz), and Ext Con=Par → a one-port `NT` at
+−j1.217E-2 S (= 1/(j82.19)). Everything NEC *can* express passes through with only
+a type field changing and the payload untouched — `EX 4`/`EX 0`, `LD 0`/`LD 1`.
+
+**A second virtual-wire idiom**, distinct from the feed-system one: comment
+`! Wire #2 for shorted/open trans. lines and/or parallel loads.`, parked at 100 m
+rather than the 4–8 km of `! *Wire #N for virtual segments.`
+
+**Wire loss** is `LD 5` with EZNEC's own conductivities — copper `5.7471E+7`,
+aluminum `2.5E+7`, both off-book — using absolute segment numbering that spans
+wires and **excludes virtual wires** (`0185`: 88+3+180 = 271, range `1,271`;
+`0192`: 69+69+1+1 = 140, range `1,140`).
+
+**`LD 0`/`LD 1` units are SI base** — ohms, henries, farads. EZNEC mixes decimal
+and exponential notation within one card (`.0000001` beside `5.E-12`).
+
+**No stepped-diameter correction card**, correctly: it is a NEC-2 workaround for
+unequal-radius junctions, which NEC-5 handles natively. The consequence inverts
+into a requirement — a drop-in must handle those junctions itself, because EZNEC
+will not pre-correct. `0190`/`0191` are the regression pair.
+
+## The open question
+
+`0199` has `LD 0` and **no probe**. Every probed load so far sits at a numbered
+segment (`2,34`, `1,8`); these sit at `-1`, EZNEC's junction addressing, at the
+base of each vertical. Either EZNEC will not place an `EX` at a junction, or a
+load-data option is simply off for this model — not yet separated, and they are
+different answers for the seam.
+
+**Next sitting, in this order** (agreed with the laptop session):
+
+1. **The deciding capture** — the Cardioid with ONE load moved to a mid-wire
+   segment (50 % along wire 1), R+jX twin as the control. If a probe appears
+   there and not on the wire-2 junction load, the addressing is the rule.
+2. **Laplace** — it exists in this edition (`The_Laplace_Loads_Window.htm` is a
+   real help topic); expect another computed equivalent, so record the frequency.
+3. **Insulated wire** (item 5c).
+4. **The 14 bonus AutoEZ workbooks** — pure clicking, new corpus titles.
+
+Item 6 (census of the bundled examples) is closed on titles: all 32 bundled `.ez`
+resolve to titles the corpus already holds.
