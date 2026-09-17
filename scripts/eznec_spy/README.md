@@ -91,6 +91,16 @@ semantics momwire's knot-addressed `node_gaps` has to match.
 2. **Confirm the engine selection** in EZNEC: `Options → Calculating engine →
    External NEC-5`. `LastRun.log` should say `Running ext engine ...NEC5CL_x13.exe`.
 
+   **The selection is stored per MODEL, inside the `.ez` file — not globally.**
+   `EZNEC.INI` carries no engine key (it has not been written since 2023 on the
+   capture host). So the selection has to be re-confirmed every time a different
+   model is loaded, and any model never switched comes up on the *internal*
+   engine. The failure is silent: EZNEC computes with `EZCalcD_70_x64.EXE`, draws
+   a perfectly good FF Plot, and no capture appears. **When a click produces no
+   capture directory, read `LastRun.log` first** — that line names the engine
+   that actually ran, and it is the difference between a broken shim and a
+   model whose engine selection was never switched.
+
 3. **Run each bundled example.** Open the `.ez`, then trigger a calculation
    (`SWR`, `FF Plot`, or `Src Dat` — each is one engine launch, and each gets its
    own capture directory). No batch mode exists, so this is a manual-but-mechanical
@@ -106,6 +116,37 @@ semantics momwire's knot-addressed `node_gaps` has to match.
    ```
 
 5. **Uninstall** when done: `pwsh scripts/eznec_spy/uninstall.ps1`.
+
+### Driving the sitting with AutoEZ
+
+AutoEZ will run the models, but not in the obvious order. It **spawns its own
+EZNEC instance**, and that instance loads `C:\AutoEZ\$AutoEZ$.ez` — a working
+copy carrying its own engine selection, which is the internal one. Started the
+natural way (AutoEZ first, or AutoEZ while no EZNEC is running) it therefore
+produces **zero captures, silently**. Measured 2026-09-17: two full runs, two
+good-looking FF Plots, nothing in the capture root.
+
+The order that works:
+
+1. Start EZNEC yourself.
+2. Set `Options → Calculating engine → External NEC-5`.
+3. *Then* start AutoEZ — it attaches to the running instance rather than
+   spawning one.
+
+Re-confirm the engine whenever AutoEZ loads a different model, for the per-model
+reason in step 2 above. **Never leave two EZNEC instances open**: both write
+`EZN5.NEC` into the same `Docs` directory, so their captures interleave with
+nothing in the deck to say which model produced which.
+
+A single-frequency AutoEZ run still logs as `Beginning frequency sweep`. That is
+normal and is one capture — `C:\AutoEZ\$Freqs$.txt` holds the points actually
+requested, so check there rather than trusting the log's wording.
+
+AutoEZ also reaches models the bundled `.ez` set does not: its `Sample Models`
+folder is mostly `.weq` workbooks (OCF dipole with a 4:1 transformer, stepped
+dipoles, a terminated folded dipole), and those are only reachable through
+AutoEZ. Capture `0192`'s `LD 0`-with-probe — the first in the corpus — came from
+one of them.
 
 ### Model checklist
 
