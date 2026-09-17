@@ -620,3 +620,19 @@ def test_subprocess_is_the_only_coupling():
     assert not [ln for ln in top if "pynec" in ln.lower()], top
     assert any("subprocess" in ln for ln in top)
     assert subprocess is not None
+
+
+def test_an_explicit_none_ground_is_free_space_not_the_default(working_exe):
+    """AK#1563: `--ground free` parses to None, and this engine used to fold
+    None back into PyNEC's finite default — the one engine on which free space
+    was unreachable from the CLI. None and "free" now mean the same thing,
+    and the BARE default is still PyNEC's finite ground."""
+    b = _one_wire_builder(1.0, 1.0)
+    none = NEC2Engine(b, ground=None)
+    free = NEC2Engine(b, ground="free")
+    bare = NEC2Engine(b)
+    assert none.ground is None
+    assert not any(ln.startswith("GN") for ln in none.deck(28.57).splitlines())
+    assert none.deck(28.57) == free.deck(28.57)
+    assert bare.ground == ("finite", 13.0, 0.005)
+    assert any(ln.startswith("GN 2") for ln in bare.deck(28.57).splitlines())
