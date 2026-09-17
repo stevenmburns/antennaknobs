@@ -286,6 +286,10 @@ jobs:
         # The seam the v0.13.0 incident was about: the server's solve entry
         # point with a cancel token, against whatever momwire pip resolved.
         .venv/bin/python "$SMOKE"
+        # #1568: the wheel puts an `antennaknobs` command on PATH; this is the
+        # only lane that installs the wheel, so it is where the entry point is
+        # proven rather than declared.
+        .venv/bin/antennaknobs --help > /dev/null
     - name: README install script (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
@@ -305,6 +309,9 @@ jobs:
         if ($LASTEXITCODE -ne 0) { throw "install-windows.ps1 failed ($LASTEXITCODE)" }
         & .\.venv\Scripts\python.exe $smoke
         if ($LASTEXITCODE -ne 0) { throw "wheel_solve_smoke.py failed ($LASTEXITCODE)" }
+        # #1568: the installed console command, the spelling a PowerShell user types.
+        & .\.venv\Scripts\antennaknobs.exe --help | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "antennaknobs --help failed ($LASTEXITCODE)" }
 
   wheel-smoke:
     # The REQUIRED status check, by this exact name. Branch protection names
