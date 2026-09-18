@@ -283,7 +283,12 @@ A remote
 1-segment wire parked hundreds of wavelengths away purely to terminate a
 `TL` card is recognised and replaced by a virtual circuit node (the deck
 solves in seconds instead of meshing an electrically irrelevant wire; the
-substitution is named in `skipped_note()`). This dialect support was
+substitution is named in `skipped_note()`). EZNEC's virtual wire — the short,
+distant wire its transformer and lossy-line idiom puts a source or a network
+end on — is recognised the same way: each referenced segment becomes a virtual
+circuit node, the source drives the node, and the idiom's open-circuit pins
+are kept as the ideal open they stand for, so the deck solves without meshing
+the wire and `skipped_note()` says what was translated. This dialect support was
 validated against a 3,146-deck corpus of published models — ARRL course
 material, 4nec2's own library, and the wider web.
 
@@ -341,9 +346,15 @@ ground file, and the `NOFILE` that says there is none is accepted.
 A deck that shows neither `NOFILE` nor an explicit end field reads as NEC-2,
 because the `EX` card alone cannot say which program it was written for.
 Such a deck declares itself NEC-5 with a comment card whose whole text is
-`NEC-5` (`CM NEC-5`). An `EX` with `I4 = 0` then reads NEC-5's way: end 2
-of a positive segment, end 1 of a negative one. A comment that only
-mentions NEC-5 declares nothing.
+`NEC-5` (`CM NEC-5`), or with EZNEC's own stamp line —
+`CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-5 format.` — whose format token
+names the dialect: `NEC-5` declares it, `NEC-2` and `NEC-4.2` keep the NEC-2
+reading (EZNEC's NEC-4.2 slot writes the same deck with NEC-4's `EX 6`
+segment current source in place of `EX 4`), and any other token is refused by
+name. An `EX` with `I4 = 0` then reads NEC-5's way: end 2 of a positive
+segment, end 1 of a negative one, and the same rule reaches the ends `NT`
+and `TL` cards name, so `TL 3,2,2,-1` and `EX 4,2,-1` resolve to one port. A
+comment that only mentions NEC-5 declares nothing.
 
 On a deck read as NEC-5, a discrete `LD` card (types 0, 1, 4 and 6) addresses
 a segment end the same way: `I3` is the segment and `I4` its end, not the last
