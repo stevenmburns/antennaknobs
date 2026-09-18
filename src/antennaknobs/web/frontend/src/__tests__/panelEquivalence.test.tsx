@@ -155,7 +155,7 @@ function mount(b: BackendEntry, opts: BackendOpts) {
 describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
   const b = () => entry(name);
 
-  it("default: the nine stock knobs, with the sub-form collapsed", () => {
+  it("default: the ten stock knobs, with the sub-form collapsed", () => {
     mount(b(), defaultOptsFor(b(), SERVED_OPTION_SPECS));
     const c = controls();
     expect(c.tabs.map((t) => t.tabs)).toContainEqual(["d=1", "d=2", "d=3"]);
@@ -174,6 +174,11 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
       "n_qp_pair: auto",
       "feed source smoothing",
       "K≥3 junction singular enrichment",
+      // The sector-route switch (#1029), offered on bspline ALONE once the
+      // pinned momwire declares the route (0.60.0); unticked by default. The
+      // accelerators' capability rows exclude it, so their panels stay at
+      // the family's four boxes.
+      ...(name === "bspline" ? ["rotational symmetry (radial screens)"] : []),
     ]);
   });
 
@@ -305,6 +310,9 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
       "n_qp_pair: auto",
       "feed source smoothing",
       "K≥3 junction singular enrichment",
+      // ADDED with momwire 0.60.0 (#1029), on bspline alone: the generic
+      // loop draws it last, in spec order, above the axis-governed feed model.
+      ...(name === "bspline" ? ["rotational symmetry (radial screens)"] : []),
       // ADDED DELIBERATELY, and it is why this list is asserted rather than
       // described: the b-spline family gained a feed-model control when
       // momwire#891 corrected a row that declared the axis single-valued

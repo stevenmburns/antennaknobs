@@ -204,7 +204,12 @@ describe("axisControls over the SERVED roster — the per-tab lists, pinned", ()
     // it genuinely REFUSES the point gap (momwire#212).
     sinusoidal: ["kernel"],
     "sinusoidal-galerkin": ["feed_model", "kernel"],
-    bspline: ["basis", "feed_model", "kernel"],
+    // `solve_strategy` joined for bspline ALONE with momwire 0.60.0 (#1029):
+    // the sector route makes the axis multi-valued ("dense" | "sector") on
+    // the one backend that declares it. It reaches the panel as the
+    // `rotational_symmetry` checkbox through the generic renderer, not as
+    // an axis control of its own; hmatrix/arrayblock keep a single value.
+    bspline: ["basis", "feed_model", "kernel", "solve_strategy"],
     // Pulse (#1148) is the roster's first row with NO controls at all: every
     // one of its axes is single-valued, which is why #1255 had to stop the EK
     // card rendering on `kind === "momwire"` alone.

@@ -93,12 +93,20 @@ def test_the_kwarg_tuples_match_what_the_server_measured():
     # exactly what would have sent a point gap to the solver that raises.
     assert _ts_tuple(src, "SIN_KWARGS") == live["sinusoidal"]
     assert _ts_tuple(src, "SIN_GALERKIN_KWARGS") == live["sinusoidal-galerkin"]
+    # The B-spline family split the same way over `rotational_symmetry`
+    # (#1029): the sector route is offered by capability, on the one backend
+    # whose `solve_strategy` axis lists "sector", so `bspline` carries the
+    # kwarg and the accelerators, excluded by their own capability rows, do
+    # not. The family tuple is pinned to BOTH accelerators so they cannot
+    # drift apart either.
+    assert _ts_tuple(src, "BSPLINE_KWARGS") == live["bspline"]
     assert (
-        _ts_tuple(src, "BSPLINE_KWARGS")
-        == live["bspline"]
-        == live["hmatrix"]
-        == live["arrayblock"]
+        _ts_tuple(src, "BSPLINE_FAMILY_KWARGS") == live["hmatrix"] == live["arrayblock"]
     )
+    assert _ts_tuple(src, "BSPLINE_KWARGS") == [
+        *_ts_tuple(src, "BSPLINE_FAMILY_KWARGS"),
+        "rotational_symmetry",
+    ]
     assert _ts_tuple(src, "RAZOR_KWARGS") == live["razor-2p"]
 
 

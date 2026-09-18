@@ -70,9 +70,16 @@ export function backendEntry(over: Partial<BackendEntry> = {}): BackendEntry {
 // genuinely share a constructor surface, so three literals here would be three
 // things to drift. Pinned against the live payload by
 // tests/test_frontend_option_spec_fixture.py.
+//
+// `bspline` alone carries `rotational_symmetry` (#1029): the option is offered
+// by capability, on the one backend whose `solve_strategy` axis lists "sector",
+// and the accelerators are excluded by their own capability rows — so the
+// family tuple is the bspline tuple WITHOUT it, the same split the sinusoidal
+// pair got over `feed_model`.
 const SIN_KWARGS = ["n_qp_const", "extended_kernel"];
 const SIN_GALERKIN_KWARGS = ["n_qp_const", "feed_model", "extended_kernel"];
-const BSPLINE_KWARGS = ["degree", "feed_model", "n_qp_pair", "n_qp_source", "feed_smoothing_factor", "use_singular_enrichment", "enrichment_variant", "tikhonov_lambda", "auto_tap_ratio_threshold", "n_qp_sing", "enrichment_min_k", "extended_kernel"];
+const BSPLINE_FAMILY_KWARGS = ["degree", "feed_model", "n_qp_pair", "n_qp_source", "feed_smoothing_factor", "use_singular_enrichment", "enrichment_variant", "tikhonov_lambda", "auto_tap_ratio_threshold", "n_qp_sing", "enrichment_min_k", "extended_kernel"];
+const BSPLINE_KWARGS = ["degree", "feed_model", "n_qp_pair", "n_qp_source", "feed_smoothing_factor", "use_singular_enrichment", "enrichment_variant", "tikhonov_lambda", "auto_tap_ratio_threshold", "n_qp_sing", "enrichment_min_k", "extended_kernel", "rotational_symmetry"];
 const RAZOR_KWARGS = ["extended_kernel"];
 
 
@@ -130,7 +137,7 @@ export const SERVED_ROSTER: BackendRoster = ([
   backendEntry({
     name: "hmatrix",
     label: "H-matrix (ACA)",
-    model_kwargs: BSPLINE_KWARGS,
+    model_kwargs: BSPLINE_FAMILY_KWARGS,
     panel: "bspline",
     accelerator: true,
     dense_family: true,
@@ -138,7 +145,7 @@ export const SERVED_ROSTER: BackendRoster = ([
   backendEntry({
     name: "arrayblock",
     label: "Array-block",
-    model_kwargs: BSPLINE_KWARGS,
+    model_kwargs: BSPLINE_FAMILY_KWARGS,
     panel: "bspline",
     default_n_per_wire: 21,
     accelerator: true,
