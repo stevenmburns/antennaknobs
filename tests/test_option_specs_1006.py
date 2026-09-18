@@ -10,7 +10,7 @@ THE RISK THIS FILE EXISTS FOR is that the rewrite quietly changed what the
 hosted endpoint accepts. It is a public boundary: a range that widened by one
 is a validation hole, and a rejection message that reworded breaks a client
 parsing it. So the OLD behaviour was recorded from the closures BEFORE they
-were replaced — 262 (kwarg, input) outcomes over each option's own boundaries
+were replaced — 278 (kwarg, input) outcomes over each option's own boundaries
 (lo-1, lo, hi, hi+1, midpoint), the wrong types, None, the non-finite floats,
 and for enums every member plus case variants — and the derived sanitisers are
 required to reproduce it exactly, accept/reject AND message text.
@@ -62,7 +62,7 @@ def test_the_baseline_is_not_empty_and_covers_every_kwarg():
     the failure mode where a check cannot tell "nothing wrong" from "nothing
     measured"."""
     assert set(BASELINE) == set(_HOSTED_MODEL_OPTIONS) == set(_OPTION_SPECS)
-    assert len(BASELINE) == 13
+    assert len(BASELINE) == 14
     total = sum(len(v) for v in BASELINE.values())
     assert total >= 250, total
     # ...and it must record BOTH outcomes. An all-reject baseline would be
@@ -177,7 +177,7 @@ def test_the_catalogue_serves_all_thirteen_and_is_json():
 
     served = model_option_specs()
     assert set(served) == set(_OPTION_SPECS)
-    assert len(served) == 13
+    assert len(served) == 14
     assert json.loads(json.dumps(served)) == served
 
 
@@ -236,8 +236,19 @@ def test_the_roster_names_only_kwargs_the_catalogue_describes():
         for k in row["model_kwargs"]:
             assert k in described, f"{row['name']}: {k} has no served spec"
             seen.add(k)
-    # ...and the catalogue is not carrying descriptions nobody can reach.
-    assert seen == described, f"described but unreachable: {sorted(described - seen)}"
+    # ...and the catalogue is not carrying descriptions nobody can reach —
+    # except a kwarg whose EXPOSURE is itself a live momwire-capability probe
+    # (`rotational_symmetry`, momwire#1029, unadvertised issue #1567). Its
+    # spec is unconditional (`_OPTION_SPECS`, so the frontend can always
+    # render the checkbox WHEN a backend offers it), but no roster row names
+    # it on the submodule pointer this suite runs against today — that is
+    # the intended, capability-gated state, not a dead description. The
+    # capability's own test lives in
+    # test_rotational_symmetry_sector_route_1029.py, which SKIPS here for
+    # the identical reason and runs for real once #1029 has landed.
+    CAPABILITY_GATED = {"rotational_symmetry"}
+    unreachable = described - seen - CAPABILITY_GATED
+    assert not unreachable, f"described but unreachable: {sorted(unreachable)}"
 
 
 # --------------------------------------------------------------------------

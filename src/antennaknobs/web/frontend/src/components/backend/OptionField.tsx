@@ -92,12 +92,13 @@ export function OptionField({
   const value = model[name];
 
   if (spec.kind === "bool") {
+    // `disabledReason` (why the control is greyed, from the served
+    // `constraints`) wins over `spec.description` (the knob's own one-
+    // sentence tooltip): a live refusal is more urgent than static doc.
+    const title = disabledReason ?? spec.description ?? undefined;
     return (
       <div className="field">
-        <label
-          className="link-toggle"
-          {...(disabledReason ? { title: disabledReason } : {})}
-        >
+        <label className="link-toggle" {...(title ? { title } : {})}>
           <input
             type="checkbox"
             checked={value === true}

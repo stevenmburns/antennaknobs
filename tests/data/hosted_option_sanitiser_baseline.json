@@ -1161,6 +1161,83 @@
    "ok": false
   }
  ],
+ "rotational_symmetry": [
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "None",
+   "ok": false
+  },
+  {
+   "in": "True",
+   "ok": true,
+   "out": "True"
+  },
+  {
+   "in": "False",
+   "ok": true,
+   "out": "False"
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "-1",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "0.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "1.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "nan",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "'raw'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "'nope'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "''",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "[1]",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "{}",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "inf",
+   "ok": false
+  }
+ ],
  "tikhonov_lambda": [
   {
    "err": "ValueError: must be a number",

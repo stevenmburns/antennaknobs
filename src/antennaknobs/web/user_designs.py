@@ -100,7 +100,15 @@ def format_solve_error(exc: BaseException) -> str:
         if any(fp == d or fp.startswith(d + os.sep) for d in dirs):
             frame = fr  # keep the deepest (last) frame in a user folder
     where = f" ({Path(frame.filename).name}, line {frame.lineno})" if frame else ""
-    return f"{type(exc).__name__}: {exc}{where}"
+    # The one momwire refusal this layer rewords rather than passes through
+    # verbatim (issue #1029's workbench checkbox): a NO-OP on every other
+    # exception, since it only ever matches the exact sentence
+    # `rotational_symmetry=True` refuses with. See
+    # `adapter.reword_rotational_symmetry_refusal` for why the rewrite is a
+    # kwarg-name-for-checkbox-label tail swap and nothing more.
+    return adapter.reword_rotational_symmetry_refusal(
+        f"{type(exc).__name__}: {exc}{where}"
+    )
 
 
 def refresh() -> list[dict]:

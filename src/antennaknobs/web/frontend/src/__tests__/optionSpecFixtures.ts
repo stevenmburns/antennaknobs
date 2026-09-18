@@ -21,6 +21,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_label": null,
     "gate_on_value": null,
     "shown_when_value": null,
+    "description": null,
     "min": 1,
     "max": 3,
     "step": 1,
@@ -37,6 +38,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_label": null,
     "gate_on_value": null,
     "shown_when_value": null,
+    "description": null,
     "min": 2,
     "max": 32,
     "step": 1,
@@ -53,6 +55,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_label": "n_qp_pair: auto",
     "gate_on_value": 8,
     "shown_when_value": null,
+    "description": null,
     "min": 2,
     "max": 32,
     "step": 1,
@@ -69,6 +72,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_label": null,
     "gate_on_value": null,
     "shown_when_value": null,
+    "description": null,
     "min": 4,
     "max": 64,
     "step": 1,
@@ -85,6 +89,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_label": null,
     "gate_on_value": null,
     "shown_when_value": null,
+    "description": null,
     "min": 8,
     "max": 64,
     "step": 1,
@@ -101,6 +106,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_label": "feed source smoothing",
     "gate_on_value": 3,
     "shown_when_value": null,
+    "description": null,
     "min": 0.5,
     "max": 10.0,
     "step": 0.5,
@@ -117,6 +123,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_label": null,
     "gate_on_value": null,
     "shown_when_value": null,
+    "description": null,
     "values": [
       "segment",
       "point"
@@ -130,7 +137,8 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "shown_when": null,
     "gate_label": null,
     "gate_on_value": null,
-    "shown_when_value": null
+    "shown_when_value": null,
+    "description": null
   },
   "enrichment_variant": {
     "kind": "enum",
@@ -141,6 +149,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_label": null,
     "gate_on_value": null,
     "shown_when_value": null,
+    "description": null,
     "values": [
       "raw",
       "stable",
@@ -157,6 +166,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_label": null,
     "gate_on_value": null,
     "shown_when_value": "tikhonov",
+    "description": null,
     "min": 0.0,
     "max": 10.0,
     "step": 0.05,
@@ -173,6 +183,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_label": null,
     "gate_on_value": null,
     "shown_when_value": "auto",
+    "description": null,
     "min": 0.0,
     "max": 1.0,
     "step": 0.05,
@@ -189,6 +200,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_label": null,
     "gate_on_value": null,
     "shown_when_value": null,
+    "description": null,
     "min": 2,
     "max": 6,
     "step": 1,
@@ -204,6 +216,18 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "shown_when": null,
     "gate_label": null,
     "gate_on_value": null,
-    "shown_when_value": null
+    "shown_when_value": null,
+    "description": null
+  },
+  "rotational_symmetry": {
+    "kind": "bool",
+    "label": "rotational symmetry (radial screens)",
+    "default": false,
+    "auto_when_null": false,
+    "shown_when": null,
+    "gate_label": null,
+    "gate_on_value": null,
+    "shown_when_value": null,
+    "description": "Solve a rotationally symmetric radial screen as one repeated sector instead of the whole structure. Refused, with a reason, on a design that is not built that way."
   }
 };

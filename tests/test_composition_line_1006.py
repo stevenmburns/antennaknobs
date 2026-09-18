@@ -102,6 +102,9 @@ def test_no_phrase_is_the_raw_value_or_empty():
         ("basis", "tent"),
         ("solve_strategy", "dense"),
         ("solve_strategy", "element-block"),
+        # momwire#1029, unadvertised (issue #1567): same register as "dense"/
+        # "ACA"/"element-block" above it — a technical word, not a sentence.
+        ("solve_strategy", "sector"),
     }
     for axis, values in axis_value_labels().items():
         for value, phrase in values.items():
