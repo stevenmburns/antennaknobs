@@ -505,6 +505,10 @@ _MOMWIRE_MODELS = {b.name: b.solver for b in _BACKENDS if b.kind == "momwire"}
 _MOMWIRE_BOUND = {
     b.name: dict(b.bound) for b in _BACKENDS if b.kind == "momwire" and b.bound
 }
+# Name -> spec, for the one place (`_make_momwire_engine`) that needs to look
+# a resolved request's `momwire_model` back up against the roster rather than
+# walking `_BACKENDS` linearly.
+_BACKENDS_BY_NAME = {b.name: b for b in _BACKENDS}
 
 
 def design_backend_coverage(design: str) -> dict:
@@ -575,7 +579,17 @@ def backend_roster(
             # the capabilities payload rather than repeated per row — thirteen
             # descriptions copied across eight rows is the duplication this
             # unit exists to remove, not a new one to add.
-            "model_kwargs": list(b.model_kwargs),
+            #
+            # `rotational_symmetry` (momwire#1029) is appended HERE rather
+            # than living in `b.model_kwargs` itself, because it is the one
+            # kwarg whose exposure is a live momwire-capability probe rather
+            # than a fact fixed at roster-definition time — the same tuple
+            # object must keep meaning "what bspline/hmatrix/arrayblock
+            # share" (test_the_families_share_a_list_exactly_where_they_share
+            # _a_surface, #1006) even though only bspline's own
+            # `solve_strategy` axis ever contains "sector".
+            "model_kwargs": list(b.model_kwargs)
+            + (["rotational_symmetry"] if _offers_rotational_symmetry(b) else []),
             # Axis -> the value this preset pins it to (#1006 G2-7).
             "bound_axes": _bound_axes(b),
             "options_schema": [
@@ -729,6 +743,66 @@ def _backend_axes(spec):
     # frozenset is not JSON; sorted lists keep the payload stable so a
     # response fixture does not churn on set iteration order.
     return {axis: sorted(values) for axis, values in axes_for(caps).items()}
+
+
+def _offers_rotational_symmetry(spec) -> bool:
+    """Whether `spec`'s momwire class exposes the sector (block-circulant)
+    route (momwire#1029) — the checkbox, unadvertised, on the bspline panel.
+
+    Probed exactly the way `_backend_axes` probes every other composition
+    fact: through `axes_for`, never a hand-kept backend-name list. A momwire
+    predating the route (the submodule pointer today) answers False for
+    EVERY backend, with no version compare — `_backend_axes` already returns
+    None for it and this follows straight through.
+
+    A solver whose OWN `solve_strategy` axis excludes "sector" answers False
+    too, exactly as its own capability row says it must:
+    `HMatrixSolver.capabilities.axes["solve_strategy"] == ("aca",)` and
+    `ArrayBlockSolver`'s is `("element-block",)`, both declared that way in
+    momwire even though the two classes inherit `BSplineSolver.__init__`
+    unchanged and would otherwise silently ACCEPT the constructor kwarg —
+    `_make_momwire_engine` reads this same function to keep it off their
+    wire for exactly that reason. Only `BSplineSolver` itself declares
+    `("dense", "sector")`.
+    """
+    axes = _backend_axes(spec)
+    if not axes:
+        return False
+    return "sector" in axes.get("solve_strategy", ())
+
+
+# Fallback only — see `reword_rotational_symmetry_refusal`, which prefers
+# momwire's OWN constant and reaches this literal solely for a momwire whose
+# `_rotational_symmetry` submodule has not (yet) been imported into the
+# `momwire` namespace, which cannot happen on the path that actually raises
+# this refusal (that path imports the module to raise it).
+_ROTATIONAL_SYMMETRY_REFUSAL_TAIL = (
+    "Drop rotational_symmetry=True to solve this deck densely."
+)
+
+
+def reword_rotational_symmetry_refusal(message: str) -> str:
+    """momwire's own `rotational_symmetry=True` refusal sentence, its TAIL
+    swapped for the checkbox's own name — issue #1029's workbench checkbox.
+
+    A tail rewrite BY EXACT MATCH and nothing else. momwire's sentence names
+    its own constructor kwarg because that is what ITS caller sets
+    (`_rotational_symmetry._WAY_OUT`, read live rather than duplicated here,
+    so a reworded upstream sentence is caught by simply no longer matching
+    rather than being mangled); the workbench's caller ticks a checkbox with
+    its own label, and that label — never a kwarg name — is what a person
+    should be told to untick. Every other word of momwire's sentence, which
+    names the specific condition that failed, is momwire's own measurement
+    and is untouched.
+    """
+    way_out = (
+        getattr(getattr(momwire, "_rotational_symmetry", None), "_WAY_OUT", None)
+        or _ROTATIONAL_SYMMETRY_REFUSAL_TAIL
+    )
+    return message.replace(
+        way_out,
+        "Untick 'rotational symmetry (radial screens)' to solve this design densely.",
+    )
 
 
 # The buried scope of AK's OWN wrappers — MEASURED, not asserted
@@ -1184,6 +1258,12 @@ class _OptionSpec(NamedTuple):
     # served `constraints`, never through a field here: a refusal invented in
     # this table would be the retyped-prose failure momwire#888 is about.
     shown_when: str | None = None
+    # One sentence, rendered as the control's native `title` tooltip — the
+    # ONLY doc a knob gets beyond its own `label` (issue #1029's checkbox:
+    # unadvertised means no site page, no release note, nothing beyond what
+    # the control itself says). Optional and generic — most knobs carry none
+    # — so adding it here never touches an existing spec.
+    description: str | None = None
 
 
 def _sanitiser_for(name: str, spec: _OptionSpec):
@@ -1350,6 +1430,22 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
     # engine-side note), but the named kwarg keeps the adapter's intent
     # explicit and is what unit 1 documented at this call site.
     "extended_kernel": _OptionSpec("bool", label="extended kernel (EK)", default=False),
+    # The sector (block-circulant) solve route for a rotationally symmetric
+    # radial screen (momwire#1029). Unadvertised on purpose (Steve, #1567
+    # thread): a checkbox on the bspline panel, offered only where momwire's
+    # roster declares the route (`_offers_rotational_symmetry`, never a
+    # hand-kept backend list) and silently absent otherwise — no site page,
+    # no release note, nothing beyond this label and tooltip.
+    "rotational_symmetry": _OptionSpec(
+        "bool",
+        label="rotational symmetry (radial screens)",
+        default=False,
+        description=(
+            "Solve a rotationally symmetric radial screen as one repeated "
+            "sector instead of the whole structure. Refused, with a "
+            "reason, on a design that is not built that way."
+        ),
+    ),
 }
 
 # Derived, never written twice. Same name and same shape as the dict of
@@ -2621,6 +2717,30 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
     if solver_kwargs and "extended_kernel" in solver_kwargs:
         solver_kwargs = dict(solver_kwargs)
         extended_kernel = bool(solver_kwargs.pop("extended_kernel"))
+    # Rotational symmetry (momwire#1029 sector route), gated the same way on
+    # BOTH paths — hosted (already whitelisted through _OPTION_SPECS above)
+    # and local (model_options forwarded verbatim, sanitize_model_options
+    # skips the whitelist). Popped and reinserted only when THIS resolved
+    # backend's own `solve_strategy` axis declares "sector"
+    # (`_offers_rotational_symmetry`, never a hand-kept name list), so:
+    #   * an older momwire (the pointer today) never sees the kwarg at all —
+    #     it is simply absent from `solver_kwargs`, never a literal None or
+    #     False reaching a constructor that predates the parameter;
+    #   * a backend whose class inherits BSplineSolver's constructor
+    #     unchanged but declares a DIFFERENT solve_strategy (HMatrixSolver's
+    #     ACA lane, ArrayBlockSolver's element-block lane) cannot be handed
+    #     the flag through a hand-crafted LOCAL request either, even though
+    #     the constructor would otherwise accept it silently.
+    if solver_kwargs and "rotational_symmetry" in solver_kwargs:
+        solver_kwargs = dict(solver_kwargs)
+        wants_sector = bool(solver_kwargs.pop("rotational_symmetry"))
+        backend_spec = _BACKENDS_BY_NAME.get(model)
+        if (
+            wants_sector
+            and backend_spec is not None
+            and _offers_rotational_symmetry(backend_spec)
+        ):
+            solver_kwargs["rotational_symmetry"] = True
     if _SWEPT_MEM_MB is not None and issubclass(solver_cls, BSplineSolver):
         # Deployment-owned memory policy (momwire >= 0.9): cap the batched
         # frequency sweep's transient memory per solve. Server-side value
@@ -5149,6 +5269,11 @@ _AXIS_VALUE_LABELS = {
         "dense": "dense",
         "aca": "ACA",
         "element-block": "element-block",
+        # momwire#1029, unadvertised (issue #1567): terse like its siblings,
+        # never "rotational symmetry" — that phrase is the CHECKBOX's label,
+        # which already exists once; the composition line names the AXIS
+        # VALUE, the same register "dense"/"ACA" are in.
+        "sector": "sector",
     },
     "feed_model": {
         "segment-gap": "segment gap",
@@ -5192,6 +5317,7 @@ def model_option_specs() -> dict[str, dict]:
             "gate_label": spec.gate_label,
             "gate_on_value": spec.gate_on_value,
             "shown_when_value": spec.shown_when_value,
+            "description": spec.description,
         }
         if spec.kind in ("int", "float"):
             # The RENDER bounds, falling back to the sanitiser's. What the

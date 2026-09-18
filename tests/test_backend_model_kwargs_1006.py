@@ -73,6 +73,7 @@ SAMPLE = {
     "auto_tap_ratio_threshold": 0.3,
     "enrichment_min_k": 3,
     "extended_kernel": False,
+    "rotational_symmetry": False,
 }
 
 MOMWIRE = [b for b in _BACKENDS if b.kind == "momwire" and b.solver is not None]

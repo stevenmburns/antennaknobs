@@ -76,6 +76,9 @@ export type ModelOptionSpec = {
    *  `use_singular_enrichment`, so resolving transitively reproduces the old
    *  panel's nesting with no chain syntax on the wire. */
   shown_when_value?: string | null;
+  /** One sentence, rendered as the control's native tooltip. The only doc a
+   *  knob carries beyond its own `label` — most options have none. */
+  description?: string | null;
 };
 
 export type ModelOptionSpecs = Record<string, ModelOptionSpec>;
@@ -1137,6 +1140,14 @@ function currentAxisValue(axis: string, opts: BackendOpts): string | undefined {
       const f = opts.model.feed_model;
       return f === "point" ? "point-gap" : f === "segment" ? "segment-gap" : undefined;
     }
+    // momwire#1029, unadvertised (issue #1567): free only on a momwire that
+    // serves the sector route at all — `solve_strategy` stays single-valued
+    // (fixed, never reaching here) everywhere else, hmatrix/arrayblock
+    // included, since their OWN axis excludes "sector" (see
+    // `_offers_rotational_symmetry` server-side). Same shape as "kernel"
+    // above: the checkbox reads back as the axis value it means.
+    case "solve_strategy":
+      return opts.model.rotational_symmetry === true ? "sector" : "dense";
     default:
       return undefined;
   }
