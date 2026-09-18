@@ -1715,6 +1715,10 @@ def cli(arguments=None):
                     for i, w in enumerate(deck.wires)
                     if i not in deck.virtual_anchors
                 )
+                # Segment length at each fed wire. A feed on a VIRTUALIZED
+                # wire is skipped like its segments are above (AK#1577): it
+                # drives a circuit node, and the remote geometry the deck
+                # parked it on is not in the mesh this column reports.
                 fed = sorted(
                     {
                         round(
@@ -1724,6 +1728,7 @@ def cli(arguments=None):
                             3,
                         )
                         for fd in deck.feeds
+                        if fd.wire not in deck.virtual_anchors
                     }
                 )
                 step = z - rows[-1][1] if rows else None
