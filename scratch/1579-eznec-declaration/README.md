@@ -1,0 +1,95 @@
+# AK#1579 — EZNEC's stamp is the NEC-5 declaration
+
+What produced the numbers in AK#1579's PR. Two passes over momwire's EZNEC
+capture corpus (the 75 captures that ship a licensed-NEC-5 printout), plus a
+hash census of this repo's own `.nec` fixtures, run before and after the
+change.
+
+Nothing here is copied from momwire: `eznec_corpus_gate.py` reads
+`<installed momwire>/tests/fixtures/eznec/` at the recorded submodule
+pointer, the same route `tests/test_deck_nec2_corpus_1299.py` takes.
+
+## How to re-run
+
+```
+W=/tmp/ak1579 && mkdir -p $W
+# BEFORE: shadow HEAD~'s importer so only that module differs
+cp -r src $W/base_src
+git show <base>:src/antennaknobs/nec_import.py > $W/base_src/antennaknobs/nec_import.py
+
+PYTHONPATH=$W/base_src NEC5_EXE=<licensed nec5cl> python scratch/1579-eznec-declaration/eznec_corpus_gate.py \
+  --root $PWD --corpus <momwire>/tests/fixtures/eznec --out corpus_before.jsonl
+PYTHONPATH=$PWD/src NEC5_EXE=<licensed nec5cl> python scratch/1579-eznec-declaration/eznec_corpus_gate.py \
+  --root $PWD --corpus <momwire>/tests/fixtures/eznec --out corpus_after.jsonl
+python scratch/1579-eznec-declaration/summarise.py
+```
+
+Each capture is imported through `builder_from_file` (the `@file` route the
+CLI and workbench use — the deck's own segments, per-wire specs, the deck's
+ground), solved on AK's NEC-5 engine and on momwire's `BSplineSolver`, and
+compared row by row to the printout's ANTENNA INPUT PARAMETERS block.
+`corpus_*.jsonl` is one JSON object per capture: the printout's rows, each
+engine's Z, the relative error per driven port, and the refusal text where
+there is one.
+
+## Result
+
+`table.md` is `summarise.py`'s output. Counts over 75 captures:
+
+| lane | improved | unchanged | worsened | newly solve | lost | still refuse |
+|---|---|---|---|---|---|---|
+| AK NEC-5 engine | 0 | 59 | **0** | 5 | **0** | 11 |
+| momwire bspline | 5 | 42 | 1 | 4 | **0** | 23 |
+
+The NEC-5 lane is the gate and nothing on it worsens. Its 59 "unchanged" are
+mostly exact (`0.00 %`): AK re-emits a deck for that engine, so when the
+import lands the port where the deck put it the round trip is identity — the
+lane measures placement, not arithmetic.
+
+The one bspline mover in the wrong direction is `0017` (13.46 % → 15.36 %).
+Its two `NT` ends — `NT 3,-1` and `NT 2,3` — name the SAME physical node from
+two different wires (wire 2's end 2 IS wire 3's end 1), and the import mints a
+separate vertex port for each instead of one. That is its own defect; before
+the change the two ports simply sat at two different segment centres and the
+error happened to be smaller. Reported, not gated (the issue asks for the
+bspline column as a report).
+
+Biggest wins: `0034` 78.65 % → 9.49 % and `0079`/`0080` 25.65 % → 1.50 % on
+bspline, and all three go from refusing to exact on the NEC-5 engine — the
+declaration also makes their `GN 0` Sommerfeld rather than the
+reflection-coefficient approximation NEC-5 does not have.
+
+## What still refuses, and why
+
+Three classes, all of them outside this issue:
+
+- **lone-end node gap** (21 captures on bspline, pre-existing): an `EX 4 …,-1`
+  at the grounded base of a vertical. momwire hosts no series gap between a
+  lone conductor end and its ground contact (`node_gaps` needs a two-member
+  junction) and no shunt port at a grounded node (`junction_ports` refuses a
+  node the ground image pins). `0120`/`0121` join this class — they now IMPORT
+  (they refused before) and solve on the NEC-5 engine at 10.1 % / 12.3 %, but
+  momwire still declines them.
+- **#824, one piece two attachments**: a wire whose only piece carries two
+  vertex claims, one at knot 0 and one at its far end. `wire_tuples()` gives
+  each vertex port the piece ending on its knot, so it cannot name both.
+- **multiport Y not reciprocal**: AK's NEC-5 multiport route reads a vertex
+  port's current from the named arm's last SEGMENT CENTRE when the arms are
+  distinct wires — O(h) at a knot the current is not smooth through. Above
+  1e-2 the route refuses. This is what takes `tests/fixtures/
+  eznec_virtual_wire_1577/failEZN5.nec` off that engine (it solved at 3.9 %
+  before, with one of the two ports still on a segment).
+
+## Fixture hash census
+
+`fixture_hash_census.py` hashes `wire_tuples()` + `network()` for every `.nec`
+under `tests/fixtures/`, in both parse modes. `fixture_hashes_before.json` vs
+`fixture_hashes_after.json`: **24 fixtures, 6 changed, all 6 EZNEC-stamped.**
+The 4nec2-dialect decks (`SY` symbols, percent positions) and the
+hand-written NEC-2 decks are byte-identical.
+
+Two of the six also stop importing in DEFAULT (non-network) mode, with the
+#824 sentence "this is the NEC-5 edge-source form … parse with network=True".
+That is AK#1476's established behaviour for a declared deck, now reaching the
+decks that carry EZNEC's stamp; `tests/test_nec5_cm_marker_1476.py::
+test_a_declared_deck_still_needs_the_network_path` is the same rule.

@@ -1,0 +1,98 @@
+{
+ "tests/fixtures/eznec_nec5/w7el_a_rp.nec": {
+  "net": "aab8e7b8f070c41a",
+  "plain": "ValueError: w7el_a_rp.nec, line 18: EX type 4 is NEC-5's current-source excitation, which needs the network path \u2014 parse with network=True"
+ },
+ "tests/fixtures/eznec_nec5/w7el_a_xq.nec": {
+  "net": "aab8e7b8f070c41a",
+  "plain": "ValueError: w7el_a_xq.nec, line 18: EX type 4 is NEC-5's current-source excitation, which needs the network path \u2014 parse with network=True"
+ },
+ "tests/fixtures/eznec_nec5/w7el_b_rp.nec": {
+  "net": "570d2954cb2b57c4",
+  "plain": "ValueError: w7el_b_rp.nec, line 18: EX type 4 is NEC-5's current-source excitation, which needs the network path \u2014 parse with network=True"
+ },
+ "tests/fixtures/eznec_nec5/w7el_c_xq.nec": {
+  "net": "28cd0edbea13465d",
+  "plain": "ValueError: w7el_c_xq.nec, line 18: EX type 4 is NEC-5's current-source excitation, which needs the network path \u2014 parse with network=True"
+ },
+ "tests/fixtures/eznec_virtual_wire_1577/WA7ARK-OCF-Load-Xfmr-TL.nec": {
+  "net": "e7ec2b0f8977d1cd",
+  "plain": "940c79ac802a5fa5"
+ },
+ "tests/fixtures/eznec_virtual_wire_1577/WA7ARK-OCF-LoadOnly.nec": {
+  "net": "b271e810022e0e29",
+  "plain": "372057ab559a7115"
+ },
+ "tests/fixtures/eznec_virtual_wire_1577/failEZN5.nec": {
+  "net": "59277033d75c18eb",
+  "plain": "ValueError: failEZN5.nec, line 20: EX type 4 is NEC-5's current-source excitation, which needs the network path \u2014 parse with network=True"
+ },
+ "tests/fixtures/nec5/brv_connected_ge1_witness.nec": {
+  "net": "0b9bc591fc7f70ea",
+  "plain": "ValueError: brv_connected_ge1_witness.nec, line 19: EX card: this is the NEC-5 edge-source form (a source at a segment END \u2014 I4 selects the end, or a "
+ },
+ "tests/fixtures/nec5/brv_connected_minus1.nec": {
+  "net": "0b9bc591fc7f70ea",
+  "plain": "ValueError: brv_connected_minus1.nec, line 19: EX card: this is the NEC-5 edge-source form (a source at a segment END \u2014 I4 selects the end, or a negat"
+ },
+ "tests/fixtures/nec5/buried_dipole_fed_below.nec": {
+  "net": "98e902854568982e",
+  "plain": "ValueError: buried_dipole_fed_below.nec, line 8: EX card: this is the NEC-5 edge-source form (a source at a segment END \u2014 I4 selects the end, or a neg"
+ },
+ "tests/fixtures/nec5/buried_dipole_fed_below_ge1.nec": {
+  "net": "98e902854568982e",
+  "plain": "ValueError: buried_dipole_fed_below_ge1.nec, line 8: EX card: this is the NEC-5 edge-source form (a source at a segment END \u2014 I4 selects the end, or a"
+ },
+ "tests/fixtures/nec5/faulty_deck_error.nec": {
+  "net": "ValueError: faulty_deck_error.nec, line 3: GW card: segment count must be >= 1, got 0",
+  "plain": "ValueError: faulty_deck_error.nec, line 3: GW card: segment count must be >= 1, got 0"
+ },
+ "tests/fixtures/nec5/invvee_dipole_pattern.nec": {
+  "net": "28119171a13e2505",
+  "plain": "ValueError: invvee_dipole_pattern.nec, line 7: EX card: this is the NEC-5 edge-source form (a source at a segment END \u2014 I4 selects the end, or a negat"
+ },
+ "tests/fixtures/nec5/invvee_dipole_pec.nec": {
+  "net": "28119171a13e2505",
+  "plain": "ValueError: invvee_dipole_pec.nec, line 8: EX card: this is the NEC-5 edge-source form (a source at a segment END \u2014 I4 selects the end, or a negative "
+ },
+ "tests/fixtures/nec5/invvee_dipole_single.nec": {
+  "net": "28119171a13e2505",
+  "plain": "ValueError: invvee_dipole_single.nec, line 7: EX card: this is the NEC-5 edge-source form (a source at a segment END \u2014 I4 selects the end, or a negati"
+ },
+ "tests/fixtures/nec5/invvee_dipole_sommerfeld.nec": {
+  "net": "28119171a13e2505",
+  "plain": "ValueError: invvee_dipole_sommerfeld.nec, line 8: EX card: this is the NEC-5 edge-source form (a source at a segment END \u2014 I4 selects the end, or a ne"
+ },
+ "tests/fixtures/nec5/invvee_dipole_sweep3.nec": {
+  "net": "28119171a13e2505",
+  "plain": "ValueError: invvee_dipole_sweep3.nec, line 7: EX card: this is the NEC-5 edge-source form (a source at a segment END \u2014 I4 selects the end, or a negati"
+ },
+ "tests/fixtures/nec5/vertical_dipole_pattern.nec": {
+  "net": "672c281118bbc105",
+  "plain": "ValueError: vertical_dipole_pattern.nec, line 5: EX card: this is the NEC-5 edge-source form (a source at a segment END \u2014 I4 selects the end, or a neg"
+ },
+ "tests/fixtures/nec5/witness_ex_end1.nec": {
+  "net": "f36509ae1eb19c67",
+  "plain": "382f333944d70aa4"
+ },
+ "tests/fixtures/nec5/witness_ex_end2.nec": {
+  "net": "98e902854568982e",
+  "plain": "ValueError: witness_ex_end2.nec, line 8: EX card: this is the NEC-5 edge-source form (a source at a segment END \u2014 I4 selects the end, or a negative se"
+ },
+ "tests/fixtures/nec5/witness_ld_discrete_end1.nec": {
+  "net": "e074e7513b9203f3",
+  "plain": "ValueError: witness_ld_discrete_end1.nec, line 9: EX card: this is the NEC-5 edge-source form (a source at a segment END \u2014 I4 selects the end, or a ne"
+ },
+ "tests/fixtures/nec5/witness_ld_discrete_end2.nec": {
+  "net": "4d9a24b3c1b637d1",
+  "plain": "ValueError: witness_ld_discrete_end2.nec, line 9: EX card: this is the NEC-5 edge-source form (a source at a segment END \u2014 I4 selects the end, or a ne"
+ },
+ "tests/fixtures/nec5/witness_ld_henries_per_m.nec": {
+  "net": "e90f5639e4524c23",
+  "plain": "ValueError: witness_ld_henries_per_m.nec, line 9: EX card: this is the NEC-5 edge-source form (a source at a segment END \u2014 I4 selects the end, or a ne"
+ },
+ "tests/fixtures/nec5/witness_ld_henries_per_seg.nec": {
+  "net": "e90f5639e4524c23",
+  "plain": "ValueError: witness_ld_henries_per_seg.nec, line 9: EX card: this is the NEC-5 edge-source form (a source at a segment END \u2014 I4 selects the end, or a "
+ }
+}
