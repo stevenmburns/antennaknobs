@@ -38,6 +38,22 @@ stays in ``ignored`` with a per-card reason in ``ignored_detail``.
 ``ex`` markers) and ``network()`` returns the matching ``Network``, ready to
 return from ``build_wires`` / ``build_network``.
 
+Two dialects, and which one a deck is in: 4nec2 writes NEC-2 and EZNEC's
+export writes NEC-5, and they read the same ``EX``, ``LD``, ``TL`` and ``NT``
+cards differently — NEC-2 attaches at a segment CENTRE, NEC-5 at a segment
+END (``I4`` picks it, or the sign of the segment field does). A deck declares
+NEC-5 by saying so: EZNEC's own stamp line (``CM ! Written by EZNEC/Pro+ v.
+7.0 in NEC-5 format.``, AK#1579 — and an EZNEC stamp naming any OTHER format
+refuses, because only that writer has been captured), a bare ``CM NEC-5``
+(AK#1476), a ``GN`` card's ``NOFILE`` sentinel, or an ``EX`` in the edge form
+NEC-2 has no spelling for. Declared, the whole deck reads NEC-5: sources and
+probes at knots, a discrete ``LD`` as ONE knot load rather than a segment
+range (AK#1483), ``TL``/``NT`` ends at knots, and ``GN 0`` as Sommerfeld
+rather than the reflection-coefficient approximation. The one knot the port
+model cannot reach is a LONE wire end — the node's only through path is the
+ground contact — so a network end there keeps the segment its card names and
+the deck reports it in ``net_ends_demoted``.
+
 Excitation: voltage sources (EX type 0 and 5) drive an antenna in any mode;
 4nec2's EX type 6 current source (issue #442) and NEC-5's EX type 4 current
 source (issue #1243, the form EZNEC's NEC-5 export writes) drive it in
@@ -168,6 +184,53 @@ def _is_int_literal(token: str) -> bool:
     return token.lstrip("+-").isdigit()
 
 
+# EZNEC stamps every deck it writes with the writer that wrote it:
+# `! Written by EZNEC/Pro+ v. 7.0 in NEC-5 format.` (AK#1579). That sentence
+# is a DECLARATION — the first and strongest of the NEC-5 tells this importer
+# already has — so a `CM` carrying it puts the deck on the AK#1476 reading:
+# sources, probes, discrete loads and network ends at segment ENDS.
+#
+# Matched by PHRASE, never by a substring of "NEC-5": prose that mentions the
+# dialect is still prose (`CM converted from a NEC-5 deck`). The separator
+# between the two halves of the product name is loose because our own AC6LA
+# fixture spells it `EZNEC Pro+`; the format word is read from the END of the
+# sentence, which is where EZNEC puts it.
+_EZNEC_STAMP = re.compile(r"written\s+by\s+eznec\s*/?\s*pro\+", re.IGNORECASE)
+_EZNEC_FORMAT = re.compile(r"\bin\s+(\S+)\s+format\s*\.?\s*\Z", re.IGNORECASE)
+
+
+def _eznec_declares_nec5(text: str, where: str) -> bool:
+    """Is this ``CM`` comment EZNEC's writer stamp, and does it declare NEC-5?
+
+    False when the comment is not a stamp at all. True for the NEC-5 writer.
+    Any OTHER format word raises: EZNEC has NEC-2 and NEC-4.2 engine slots and
+    writes a different deck for each, we have captured neither, and the
+    NEC-4.2 slot's sources are not NEC-2's — so falling through to the NEC-2
+    reading would repeat AK#1579 one dialect over instead of saying so.
+    """
+    if not _EZNEC_STAMP.search(text):
+        return False
+    m = _EZNEC_FORMAT.search(text)
+    word = m.group(1) if m else ""
+    if word.upper() in ("NEC-5", "NEC5"):
+        return True
+    named = f"in {word} format" if word else "in a format this stamp does not name"
+    raise ValueError(
+        f"{where}: EZNEC wrote this deck {named}, which this importer has no "
+        f"capture for — only EZNEC's NEC-5 writer has been captured, and its "
+        f"NEC-2 and NEC-4.2 slots spell sources, loads and network ends "
+        f"differently, so reading this deck as either would place them wrong "
+        f"(AK#1579)"
+    )
+
+
+def _knot_of(seg: int, edge: int) -> int:
+    """The knot a NEC-5 end field names on a wire: end 1 of 1-based segment
+    ``seg`` is knot ``seg - 1``, end 2 is knot ``seg``. ``edge`` 0 has no
+    knot — that is NEC-2's centre attachment — and callers check first."""
+    return seg - 1 if edge == 1 else seg
+
+
 @dataclass(frozen=True)
 class NecWire:
     """One straight wire after all geometry transforms: NEC's GW columns."""
@@ -253,7 +316,12 @@ class NecTL:
     virtual node (the shorted-stub variant); a zero ``shunt_y`` leaves the node
     an ideal open (the open-stub variant).
     The ``shunt_r_*`` / ``shunt_y_*`` fields are mutually exclusive per end:
-    a real end uses ``shunt_r``, a virtual end uses ``shunt_y``."""
+    a real end uses ``shunt_r``, a virtual end uses ``shunt_y``.
+
+    ``edge_a`` / ``edge_b`` are 0 for NEC-2's connection at the centre of the
+    named segment. On a NEC-5 deck they are 1 or 2, the END of that segment
+    the line attaches to: NEC-5 addresses a network connection by knot, as it
+    does a source (AK#1579)."""
 
     wire_a: int
     seg_a: int
@@ -270,6 +338,8 @@ class NecTL:
     shunt_y_b: complex | None = None
     at_a: float | None = None  # 4nec2 percentage positions, as on NecFeed
     at_b: float | None = None
+    edge_a: int = 0  # NEC-5 knot ends (AK#1579), as on NecFeed/NecLoad
+    edge_b: int = 0
 
 
 @dataclass(frozen=True)
@@ -285,7 +355,10 @@ class NecNT:
     Y matrix with susceptance anywhere: no resistive pi exists, so the full 2×2
     complex short-circuit admittance is kept in ``y`` (issue #416) and the
     resistive-pi fields are ``None``. ``network()`` emits it as a general
-    ``Admittance`` branch. ``None`` pi legs are absent elements."""
+    ``Admittance`` branch. ``None`` pi legs are absent elements.
+
+    ``edge_a`` / ``edge_b`` carry the NEC-5 knot end, as on ``NecTL``
+    (AK#1579)."""
 
     wire_a: int
     seg_a: int
@@ -297,6 +370,8 @@ class NecNT:
     y: tuple[tuple[complex, complex], tuple[complex, complex]] | None = None
     at_a: float | None = None  # 4nec2 percentage positions, as on NecFeed
     at_b: float | None = None
+    edge_a: int = 0  # NEC-5 knot ends (AK#1579), as on NecFeed/NecLoad
+    edge_b: int = 0
 
 
 @dataclass(frozen=True)
@@ -375,6 +450,12 @@ class NecDeck:
     # (EZNEC spells a parallel load as an NT whose far half is all zeros) is
     # a singular row without it.
     virtual_pins: tuple[tuple[int, int, complex], ...] = ()
+    # AK#1579: (wire index, knot) for every NEC-5 network end whose knot is a
+    # LONE wire end. NEC-5 connects there; the port model cannot, so the end
+    # stays on the segment the card names. Counted rather than routed through
+    # `ignored`, for the same reason the symmetry drop below is: the card IS
+    # modelled, just not at the node NEC-5 puts it on.
+    net_ends_demoted: tuple[tuple[int, int], ...] = ()
     # GX/GR symmetry (issue #946): the cell size in segments while the
     # symmetry is still live at GE (None when a later GW collapsed it, the
     # common case), and how many LD segments NEC discarded because they
@@ -588,6 +669,18 @@ class NecDeck:
                     f"{'loads' if k > 1 else 'a load'}"
                 )
             parts.append(part)
+        if self.net_ends_demoted:
+            n = len(self.net_ends_demoted)
+            where = ", ".join(
+                f"wire {i + 1} knot {k}" for i, k in self.net_ends_demoted
+            )
+            parts.append(
+                f"{n} NEC-5 network connection{'s' if n > 1 else ''} at a wire "
+                f"END with no other conductor there ({where}) kept on the "
+                "segment the card names: the node itself is a port between a "
+                "lone conductor end and its ground contact, which no engine "
+                "here hosts"
+            )
         if self.symmetry_dropped_loads:
             n = self.symmetry_dropped_loads
             parts.append(
@@ -600,6 +693,27 @@ class NecDeck:
         return (
             body[0].upper() + body[1:] + " — the app's own settings are used instead."
         )
+
+    @cached_property
+    def _net_ends(self) -> tuple[tuple[str, int, int, int], ...]:
+        """(port name, wire index, 1-based segment, end) for every TL and NT
+        end, in the order the names are minted. One sequence so the four
+        plans below agree on which name a connection point carries, whether
+        it is a segment (NEC-2) or a knot (NEC-5, AK#1579)."""
+        out: list[tuple[str, int, int, int]] = []
+        for k, tl in enumerate(self.tls, 1):
+            out.append((f"tl{k}a", tl.wire_a, tl.seg_a, tl.edge_a))
+            out.append((f"tl{k}b", tl.wire_b, tl.seg_b, tl.edge_b))
+        for k, nt in enumerate(self.nts, 1):
+            out.append((f"nt{k}a", nt.wire_a, nt.seg_a, nt.edge_a))
+            out.append((f"nt{k}b", nt.wire_b, nt.seg_b, nt.edge_b))
+        return tuple(out)
+
+    def _knot_end(self, wire: int, seg: int, edge: int) -> bool:
+        """Does this attachment address a KNOT that is a place on a wire? A
+        virtualized wire has no places — its segment IS the circuit node, so
+        the end a NEC-5 card names there is not one (AK#1577)."""
+        return bool(edge) and wire not in self.virtual_anchors
 
     @cached_property
     def _port_plan(self) -> dict[tuple[int, int], str]:
@@ -631,12 +745,10 @@ class NecDeck:
             if ld.edge:
                 continue  # a knot load rides its knot's port (AK#1483)
             plan.setdefault((ld.wire, ld.seg), f"load{k}")
-        for k, tl in enumerate(self.tls, 1):
-            plan.setdefault((tl.wire_a, tl.seg_a), f"tl{k}a")
-            plan.setdefault((tl.wire_b, tl.seg_b), f"tl{k}b")
-        for k, nt in enumerate(self.nts, 1):
-            plan.setdefault((nt.wire_a, nt.seg_a), f"nt{k}a")
-            plan.setdefault((nt.wire_b, nt.seg_b), f"nt{k}b")
+        for pname, wi, seg, edge in self._net_ends:
+            if self._knot_end(wi, seg, edge):
+                continue  # a knot end: _vertex_plan or _site_plan (AK#1579)
+            plan.setdefault((wi, seg), pname)
         return plan
 
     @cached_property
@@ -690,30 +802,34 @@ class NecDeck:
         if not self.network_mode:
             return frozenset()
         out = set()
+
+        def needs_a_wire_end(wire: int, seg: int, edge: int) -> bool:
+            knot = _knot_of(seg, edge)
+            return knot in (
+                0,
+                self.wires[wire].n_seg,
+            ) or knot in self._junction_cuts.get(wire, frozenset())
+
         for f in self.feeds:
-            if not f.edge or f.wire in self.virtual_anchors:
+            if not self._knot_end(f.wire, f.seg, f.edge):
                 # A source on a virtualized wire (AK#1577) drives a circuit
                 # NODE: there is no wire end for a vertex port to sit on, and
                 # the end the EX names is not a place. `_port_plan` claims it
                 # as an ordinary port on its segment's node instead.
                 continue
-            n = self.wires[f.wire].n_seg
-            knot = f.seg - 1 if f.edge == 1 else f.seg
-            if (
-                f.current
-                or knot in (0, n)
-                or knot in self._junction_cuts.get(f.wire, frozenset())
-            ):
+            if f.current or needs_a_wire_end(f.wire, f.seg, f.edge):
                 out.add(f.wire)
         for ld in self.loads:
-            if not ld.edge or ld.wire in self.virtual_anchors:
-                continue
-            knot = ld.seg - 1 if ld.edge == 1 else ld.seg
-            if knot in (
-                0,
-                self.wires[ld.wire].n_seg,
-            ) or knot in self._junction_cuts.get(ld.wire, frozenset()):
+            if self._knot_end(ld.wire, ld.seg, ld.edge) and needs_a_wire_end(
+                ld.wire, ld.seg, ld.edge
+            ):
                 out.add(ld.wire)
+        # A NEC-5 network end at a wire END or a junction cut needs the same
+        # wire end a knot source does (AK#1579): a line landing on the OCF
+        # feedpoint is the shape, and it is a PortAtVertex or it is nothing.
+        for _p, wi, seg, edge in self._net_ends:
+            if self._knot_end(wi, seg, edge) and needs_a_wire_end(wi, seg, edge):
+                out.add(wi)
         return frozenset(out)
 
     @cached_property
@@ -739,25 +855,28 @@ class NecDeck:
             if wi in self.virtual_anchors or wi in self._vertex_wires:
                 continue
             claims.setdefault(wi, []).append((pname, "seg", seg))
+
+        def claim_knot(wire, seg, edge, pname, share=True):
+            if wire in self._vertex_wires or not self._knot_end(wire, seg, edge):
+                # AK#1577: on a virtualized wire the segment IS the node, so
+                # there is no knot to claim and no pin to turn into a load.
+                return
+            knot = _knot_of(seg, edge)
+            items = claims.setdefault(wire, [])
+            # A NEC-5 knot load (AK#1483) or network end (AK#1579) shares the
+            # port of a knot another attachment already claimed.
+            if share and any(kind == "knot" and idx == knot for _p, kind, idx in items):
+                return
+            items.append((pname, "knot", knot))
+
         for k, f in enumerate(self.feeds, 1):
-            if not f.edge or f.wire in self._vertex_wires:
-                continue
-            if f.wire in self.virtual_anchors:
-                continue  # a node drive, not a knot on a wire (AK#1577)
-            knot = f.seg - 1 if f.edge == 1 else f.seg
-            claims.setdefault(f.wire, []).append(
-                ("feed" if single else f"feed{k}", "knot", knot)
+            claim_knot(
+                f.wire, f.seg, f.edge, "feed" if single else f"feed{k}", share=False
             )
         for k, ld in enumerate(self.loads, 1):
-            if not ld.edge or ld.wire in self._vertex_wires:
-                continue
-            if ld.wire in self.virtual_anchors:
-                continue  # AK#1577: the idiom's pins never become loads
-            knot = ld.seg - 1 if ld.edge == 1 else ld.seg
-            items = claims.setdefault(ld.wire, [])
-            # A NEC-5 knot load (AK#1483) shares the port of a claimed knot.
-            if not any(kind == "knot" and idx == knot for _p, kind, idx in items):
-                items.append((f"load{k}", "knot", knot))
+            claim_knot(ld.wire, ld.seg, ld.edge, f"load{k}")
+        for pname, wi, seg, edge in self._net_ends:
+            claim_knot(wi, seg, edge, pname)
         plan: dict[int, dict] = {}
         for wi, items in claims.items():
             n = self.wires[wi].n_seg
@@ -837,7 +956,7 @@ class NecDeck:
         for k, f in enumerate(self.feeds, 1):
             if not f.edge or f.wire not in self._vertex_wires:
                 continue
-            knot = f.seg - 1 if f.edge == 1 else f.seg
+            knot = _knot_of(f.seg, f.edge)
             key = (f.wire, knot)
             if key in plan:
                 raise ValueError(
@@ -849,9 +968,16 @@ class NecDeck:
         for k, ld in enumerate(self.loads, 1):
             if not ld.edge or ld.wire not in self._vertex_wires:
                 continue
-            knot = ld.seg - 1 if ld.edge == 1 else ld.seg
+            knot = _knot_of(ld.seg, ld.edge)
             # A load on a source's knot shares its port (AK#1483).
             plan.setdefault((ld.wire, knot), (f"load{k}", "p0" if knot == 0 else "p1"))
+        # ... and so does a NEC-5 network end on that knot (AK#1579): `TL
+        # 3,2,2,-1` and `EX 4,2,-1` name ONE node, which is one port here.
+        for pname, wi, seg, edge in self._net_ends:
+            if not edge or wi not in self._vertex_wires:
+                continue
+            knot = _knot_of(seg, edge)
+            plan.setdefault((wi, knot), (pname, "p0" if knot == 0 else "p1"))
         return plan
 
     @cached_property
@@ -1115,13 +1241,24 @@ class NecDeck:
                 if pname not in ports:
                     ports[pname] = self._site_port(wi, pname)
 
+        def knot_port(wire, seg, edge):
+            """The port name an attachment carries — its knot's, when it
+            names one (AK#1483, AK#1579), so everything landing on one knot
+            lands on one port."""
+            if not edge:
+                return plan[(wire, seg)]
+            knot = _knot_of(seg, edge)
+            if (wire, knot) in self._vertex_plan:
+                return self._vertex_plan[(wire, knot)][0]
+            return self._site_plan[wire]["knots"][knot]
+
         def load_port(ld):
-            if not ld.edge:
-                return plan[(ld.wire, ld.seg)]
-            knot = ld.seg - 1 if ld.edge == 1 else ld.seg
-            if (ld.wire, knot) in self._vertex_plan:
-                return self._vertex_plan[(ld.wire, knot)][0]
-            return self._site_plan[ld.wire]["knots"][knot]
+            return knot_port(ld.wire, ld.seg, ld.edge)
+
+        def net_port(wire, seg, edge):
+            if not self._knot_end(wire, seg, edge):
+                return plan[(wire, seg)]
+            return knot_port(wire, seg, edge)
 
         branches: list = []
         for ld in self.loads:
@@ -1136,8 +1273,8 @@ class NecDeck:
                 )
             )
         for tl in self.tls:
-            a = plan[(tl.wire_a, tl.seg_a)]
-            b = plan[(tl.wire_b, tl.seg_b)]
+            a = net_port(tl.wire_a, tl.seg_a, tl.edge_a)
+            b = net_port(tl.wire_b, tl.seg_b, tl.edge_b)
             branches.append(
                 _net.TL(a=a, b=b, z0=tl.z0, length=tl.length, transposed=tl.transposed)
             )
@@ -1160,8 +1297,8 @@ class NecDeck:
             if pname is not None and z:
                 branches.append(_net.Admittance(ports=(pname,), y=((1.0 / z,),)))
         for nt in self.nts:
-            a = plan[(nt.wire_a, nt.seg_a)]
-            b = plan[(nt.wire_b, nt.seg_b)]
+            a = net_port(nt.wire_a, nt.seg_a, nt.edge_a)
+            b = net_port(nt.wire_b, nt.seg_b, nt.edge_b)
             if nt.y is not None:
                 # Complex Y (susceptance present): the full 2×2 as one general
                 # Admittance branch (issue #416).
@@ -1177,8 +1314,8 @@ class NecDeck:
         single = len(self.feeds) == 1
 
         def feed_port(k, f):
-            if f.edge and f.wire not in self.virtual_anchors:
-                knot = f.seg - 1 if f.edge == 1 else f.seg
+            if self._knot_end(f.wire, f.seg, f.edge):
+                knot = _knot_of(f.seg, f.edge)
                 if (f.wire, knot) in self._vertex_plan:
                     return self._vertex_plan[(f.wire, knot)][0]
                 return "feed" if single else f"feed{k}"
@@ -2170,14 +2307,68 @@ def _percent_position(wires, tag, pct, card, *, legacy=False):
     return i, seg, (frac if 0.0 < frac < 1.0 else None)
 
 
-def _attach(wires, card, tag_k, seg_k):
-    """(wire index, local segment, position or None) for a (tag, segment)
-    field pair in either spelling: a segment number or a 4nec2 percentage."""
+def _attach(wires, card, tag_k, seg_k, nec5=False):
+    """(wire index, local segment, position or None, end) for a (tag, segment)
+    field pair in either spelling: a segment number or a 4nec2 percentage.
+
+    ``nec5`` reads the segment field the way NEC-5 does on a TL/NT card
+    (AK#1579): it names a segment END, not a centre — positive is end 2 of
+    that segment, negative is end 1, exactly the sign rule ``EX`` takes with
+    ``I4 = 0``. Verified against our licensed NEC-5, which both ECHOES the
+    sign back in its NETWORK DATA block and moves the answer: on a 10-segment
+    dipole a line attached at ``2`` and at ``-3`` solve bit-identically (one
+    knot), and ``2`` and ``-2`` do not. ``end`` is 0 in the NEC-2 reading,
+    where the field is the segment whose centre carries the connection.
+    """
     pct = card.percent(seg_k)
     if pct is None:
-        wi, seg = _locate_segment(wires, card.i(tag_k), card.i(seg_k), card)
-        return wi, seg, None
-    return _percent_position(wires, card.i(tag_k), pct, card)
+        field = card.i(seg_k)
+        end = 0 if not nec5 or field == 0 else (1 if field < 0 else 2)
+        wi, seg = _locate_segment(
+            wires, card.i(tag_k), abs(field) if end else field, card
+        )
+        return wi, seg, None, end
+    return (*_percent_position(wires, card.i(tag_k), pct, card), 0)
+
+
+def _knot_sharing(wires):
+    """``(lone ends, cuts)`` for the parse-time wire list.
+
+    ``lone ends`` is every ``(wire index, knot)`` at a wire END that no other
+    wire touches. A NEC-5 network end there names a node whose only through
+    path is the ground contact, and a port in that path is a gap between a
+    lone conductor end and its image — which neither engine here hosts:
+    momwire refuses a series ``node_gaps`` entry at a one-member junction and
+    a shunt ``junction_ports`` entry at a grounded node, and the NEC-5
+    multiport route cannot address either. ``cuts`` is ``_junction_cuts``
+    computed on the same points, which the collision guard needs before a
+    ``NecDeck`` exists (AK#1579).
+    """
+    eps = 1e-9
+
+    def key(w, k):
+        # The same expression `_junction_cuts` uses, so the two agree on
+        # which points coincide.
+        t = k / w[1]
+        return tuple(
+            round((a + (b - a) * t) / eps) for a, b in zip(w[2], w[3], strict=True)
+        )
+
+    owners: dict[tuple, set[int]] = {}
+    for i, w in enumerate(wires):
+        for k in range(w[1] + 1):
+            owners.setdefault(key(w, k), set()).add(i)
+    lone = {
+        (i, k)
+        for i, w in enumerate(wires)
+        for k in (0, w[1])
+        if len(owners[key(w, k)]) < 2
+    }
+    cuts = {
+        i: frozenset(k for k in range(1, w[1]) if len(owners[key(w, k)]) > 1)
+        for i, w in enumerate(wires)
+    }
+    return lone, cuts
 
 
 def _locate_segment(wires, tag, seg, card):
@@ -2637,10 +2828,56 @@ def _translate_network_cards(
     # (wire, segment, Z) per LD 4 pin the idiom writes (AK#1577).
     virtual_pins: list[tuple[int, int, complex]] = []
 
+    def knot_at(wi, seg, edge):
+        """Where a NEC-5 knot end sits along its wire, as ``_seg_mid`` takes
+        it — the connection point a zero-length TL measures from (AK#1579)."""
+        return _knot_of(seg, edge) / wires[wi][1] if edge else None
+
+    lone_ends, wire_cuts = _knot_sharing(wires) if nec5_dialect else (set(), {})
+    # Knots a SOURCE already needs as a port. The model carries that node
+    # either way, so a network end landing on one is kept even at a lone wire
+    # end: demoting it would put the source on the knot and the line on the
+    # segment beside it, which is one piece with two attachments (#824).
+    driven_knots = {
+        (f.wire, _knot_of(f.seg, f.edge))
+        for f in feeds
+        if f.edge and f.wire not in anchors
+    }
+    demoted: list[tuple[int, int]] = []
+
+    def shares_a_piece_with_a_source(wi, knot):
+        """Would a vertex port at ``knot`` land on the same emitted wire piece
+        as a knot SOURCE? ``wire_tuples`` gives each vertex port the piece
+        ENDING on its knot and lets knot 0 ride the FIRST piece, so the only
+        pairing its cut plan cannot separate is knot 0 against another claim
+        with no junction cut between them — which is the #824 refusal."""
+        cuts = wire_cuts.get(wi, frozenset())
+        return any(
+            min(knot, m) == 0 and not any(0 < c < max(knot, m) for c in cuts)
+            for w, m in driven_knots
+            if w == wi and m != knot
+        )
+
+    def hosted(wi, seg, edge):
+        """``edge``, or 0 when the knot it names is one the port model cannot
+        host a network connection at: a lone wire end (`_knot_sharing`), or a
+        knot sharing a piece with a source. A virtualized wire has no ends at
+        all, so its segment keeps being the node (AK#1577)."""
+        if not edge or wi in anchors:
+            return edge
+        knot = _knot_of(seg, edge)
+        lone = (wi, knot) in lone_ends and (wi, knot) not in driven_knots
+        if not lone and not shares_a_piece_with_a_source(wi, knot):
+            return edge
+        if (wi, knot) not in demoted:
+            demoted.append((wi, knot))
+        return 0
+
     tls: list[NecTL] = []
     for card in tls_raw:
-        wa, sa, at_a = _attach(wires, card, 0, 1)
-        wb, sb, at_b = _attach(wires, card, 2, 3)
+        wa, sa, at_a, ea = _attach(wires, card, 0, 1, nec5_dialect)
+        wb, sb, at_b, eb = _attach(wires, card, 2, 3, nec5_dialect)
+        ea, eb = hosted(wa, sa, ea), hosted(wb, sb, eb)
         va, vb = wa in anchors, wb in anchors
         # End admittances G+jB: a conductance-only end becomes a Shunt(1/G),
         # a reactive one (#423) or a virtual-node termination (#427) a fixed
@@ -2654,9 +2891,14 @@ def _translate_network_cards(
         length = card.f(5)
         if length == 0.0:
             # NEC: zero length means the straight-line distance between
-            # the connection points.
+            # the connection points — the knots themselves on a NEC-5 deck.
             length = math.dist(
-                _seg_mid(wires[wa], sa, at_a), _seg_mid(wires[wb], sb, at_b)
+                _seg_mid(
+                    wires[wa], sa, at_a if at_a is not None else knot_at(wa, sa, ea)
+                ),
+                _seg_mid(
+                    wires[wb], sb, at_b if at_b is not None else knot_at(wb, sb, eb)
+                ),
             )
         tls.append(
             NecTL(
@@ -2675,6 +2917,8 @@ def _translate_network_cards(
                 shunt_y_b=shunt_y_b,
                 at_a=at_a,
                 at_b=at_b,
+                edge_a=ea,
+                edge_b=eb,
             )
         )
         if va:
@@ -2684,8 +2928,9 @@ def _translate_network_cards(
 
     nts: list[NecNT] = []
     for card in nts_raw:
-        wa, sa, at_a = _attach(wires, card, 0, 1)
-        wb, sb, at_b = _attach(wires, card, 2, 3)
+        wa, sa, at_a, ea = _attach(wires, card, 0, 1, nec5_dialect)
+        wb, sb, at_b, eb = _attach(wires, card, 2, 3, nec5_dialect)
+        ea, eb = hosted(wa, sa, ea), hosted(wb, sb, eb)
         # NEC's NT card is reciprocal: it gives Y11, Y12, Y22 (real+imag each)
         # and Y21 = Y12.
         y11 = complex(card.f(4), card.f(5))
@@ -2712,6 +2957,8 @@ def _translate_network_cards(
                     y=((y11, y12), (y12, y22)),
                     at_a=at_a,
                     at_b=at_b,
+                    edge_a=ea,
+                    edge_b=eb,
                 )
             )
             continue
@@ -2730,11 +2977,24 @@ def _translate_network_cards(
                 shunt_r_b=1.0 / yb if yb else None,
                 at_a=at_a,
                 at_b=at_b,
+                edge_a=ea,
+                edge_b=eb,
             )
         )
 
-    connected = {(t.wire_a, t.seg_a) for t in tls} | {(t.wire_b, t.seg_b) for t in tls}
-    connected |= {(t.wire_a, t.seg_a) for t in nts} | {(t.wire_b, t.seg_b) for t in nts}
+    # Where the networks connect, keyed the way a load addresses the same
+    # place: a NEC-2 card names a segment centre, a NEC-5 card a knot
+    # (AK#1579), and the two never collide because a deck is one or the other.
+    def site(wi, seg, edge):
+        return (wi, _knot_of(seg, edge)) if edge else (wi, "seg", seg)
+
+    connected = {site(t.wire_a, t.seg_a, t.edge_a) for t in (*tls, *nts)}
+    connected |= {site(t.wire_b, t.seg_b, t.edge_b) for t in (*tls, *nts)}
+    # A demoted end still OCCUPIES the knot NEC-5 put it on, so a knot load
+    # there is co-located with it exactly as it was before AK#1579 — without
+    # this the load would be kept AND the demoted end marked on its segment,
+    # which is the #824 collision on one piece.
+    connected |= set(demoted)
 
     dropped_by_symmetry = 0
 
@@ -2843,7 +3103,7 @@ def _translate_network_cards(
                         (*pair, z if z is not None else complex(r or 0.0, 0.0))
                     )
                     continue
-                if pair in connected:
+                if site(*pair, edge) in connected:
                     skip(
                         "LD",
                         "load on a segment with a TL/NT connection — the "
@@ -2992,6 +3252,7 @@ def _translate_network_cards(
         frozenset(virtual_segments),
         tuple(virtual_pins),
         dropped_by_symmetry,
+        tuple(demoted),
     )
 
 
@@ -3119,10 +3380,12 @@ def parse_nec(
             # comment out cards). Tolerated after CE as well (#418).
             text = stripped[2:].strip()
             comments.append(text)
-            # The whole comment must be the declaration: a comment that
-            # merely mentions NEC-5 ("converted from a NEC-5 deck") is
-            # prose, not a dialect (AK#1476).
-            if text.upper() in ("NEC-5", "NEC5"):
+            # Either the whole comment is the declaration — a comment that
+            # merely mentions NEC-5 ("converted from a NEC-5 deck") is prose,
+            # not a dialect (AK#1476) — or it is EZNEC's writer stamp naming
+            # the format it wrote (AK#1579), which refuses by name for a
+            # writer we have never captured.
+            if text.upper() in ("NEC-5", "NEC5") or _eznec_declares_nec5(text, where):
                 nec5_declared = True
             continue
         if stripped[:2].upper() == "CE":
@@ -3443,6 +3706,7 @@ def parse_nec(
     virtual_anchors: frozenset[int] = frozenset()
     virtual_segment_wires: frozenset[int] = frozenset()
     virtual_pins: tuple[tuple[int, int, complex], ...] = ()
+    net_ends_demoted: tuple[tuple[int, int], ...] = ()
     # A declared deck is NEC-5 for every card, its loads included (AK#1476,
     # AK#1483).
     if nec5_declared:
@@ -3462,6 +3726,7 @@ def parse_nec(
             virtual_segment_wires,
             virtual_pins,
             symmetry_dropped,
+            net_ends_demoted,
         ) = _translate_network_cards(
             wires,
             lds_raw,
@@ -3515,4 +3780,5 @@ def parse_nec(
         virtual_pins=virtual_pins,
         symmetry_cell=sym_cell,
         symmetry_dropped_loads=symmetry_dropped,
+        net_ends_demoted=net_ends_demoted,
     )
