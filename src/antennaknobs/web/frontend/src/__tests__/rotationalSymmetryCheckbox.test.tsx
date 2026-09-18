@@ -36,16 +36,29 @@ const SPECS = SERVED_OPTION_SPECS;
 const opts = (model: Record<string, unknown>): BackendOpts =>
   ({ model }) as unknown as BackendOpts;
 
-describe("absent from the real served roster (the submodule pointer, no #1029)", () => {
-  it("bspline's real model_kwargs does not carry it", () => {
+describe("present on the real served roster (momwire 0.60.0 declares the route)", () => {
+  // Until the pin passed #1029 this block asserted the ABSENCE: the option
+  // is offered by capability, so under 0.58.0 no backend carried it. The
+  // fixture is regenerated from the live server at the pinned momwire, and
+  // the pin is what flipped these two.
+  it("bspline's real model_kwargs carries it", () => {
     const b = entry("bspline");
-    expect(b.model_kwargs).not.toContain("rotational_symmetry");
+    expect(b.model_kwargs).toContain("rotational_symmetry");
   });
 
-  it("so renderableOptions never offers it today", () => {
-    expect(renderableOptions(entry("bspline"), SPECS)).not.toContain(
+  it("so renderableOptions offers it on bspline", () => {
+    expect(renderableOptions(entry("bspline"), SPECS)).toContain(
       "rotational_symmetry",
     );
+  });
+
+  it("and on no accelerator, whose own capability rows exclude it", () => {
+    for (const name of ["hmatrix", "arrayblock"]) {
+      expect(entry(name).model_kwargs).not.toContain("rotational_symmetry");
+      expect(renderableOptions(entry(name), SPECS)).not.toContain(
+        "rotational_symmetry",
+      );
+    }
   });
 });
 

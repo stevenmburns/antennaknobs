@@ -107,7 +107,8 @@ export const SERVED_AXES: Record<string, Record<string, string[]> | null> =
       "converged"
     ],
     "solve_strategy": [
-      "dense"
+      "dense",
+      "sector"
     ],
     "feed_model": [
       "point-gap",
