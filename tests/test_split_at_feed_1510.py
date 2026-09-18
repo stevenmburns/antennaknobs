@@ -420,8 +420,7 @@ class _ApexDipole(AntennaBuilder):
 
 def test_nec5_reads_a_split_ports_current_across_the_cut():
     """An undriven port's current interpolates the two neighbouring segment
-    centres, weighted by the other's length, as at any interior knot. A vertex
-    where two authored wires meet keeps its named arm's own current."""
+    centres, weighted by the other's length, as at any interior knot."""
     per_tag = {1: [1.0] * 3, 2: [3.0] * 7}
     eng = NEC5Engine(_b(_LineFedDipole, feed_at=0.31), require_exe=False)
     assert eng._use_reducer and eng._port_attach["feed"] == (0, "p1")
@@ -429,8 +428,23 @@ def test_nec5_reads_a_split_ports_current_across_the_cut():
     assert eng._port_knot_current(per_tag, 0, "p1") == pytest.approx(
         (1.0 * h_b + 3.0 * h_a) / (h_a + h_b), rel=1e-12
     )
+
+
+def test_nec5_extrapolates_a_vertex_ports_current_to_the_knot():
+    """A vertex where two AUTHORED wires meet reads the named arm alone — its
+    last segment centre is h/2 short of the knot, so the read extrapolates
+    through the last two centres instead of stopping at the last one. On a
+    uniform arm that is 1.5*I_last - 0.5*I_prev.
+
+    O(h) there was worth 1.5e-02 of reciprocity on AK#1579's OCF deck, whose
+    two real ports are both vertex ports — enough for the multiport route to
+    refuse a deck it had solved (2.3e-04 after)."""
     apex = NEC5Engine(_ApexDipole(), require_exe=False)
-    assert apex._port_knot_current(per_tag, 0, "p1") == 1.0
+    # A constant current has no slope, so the extrapolation is the value.
+    assert apex._port_knot_current({1: [1.0] * 3, 2: [3.0] * 7}, 0, "p1") == 1.0
+    # A sloping one is where the two rules differ: the old read said 4.0.
+    sloped = {1: [1.0, 2.0, 4.0], 2: [3.0] * 7}
+    assert apex._port_knot_current(sloped, 0, "p1") == pytest.approx(5.0, rel=1e-12)
 
 
 def test_nec2_meshes_as_its_deck_does_and_joins_the_currents(monkeypatch):

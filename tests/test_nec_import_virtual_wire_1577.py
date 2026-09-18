@@ -33,7 +33,6 @@ import pytest
 
 from antennaknobs import AntennaBuilder
 from antennaknobs.engines import MomwireEngine, NEC5Engine
-from antennaknobs.engines.nec5 import NEC5Error
 from antennaknobs.file_designs import builder_from_file
 from antennaknobs.nec_import import parse_nec
 from antennaknobs.network import (
@@ -237,20 +236,25 @@ def test_the_attachment_lands_on_the_knot_nec5_used():
 # gate 2 — the app's NEC-5 engine solves it through the multiport-Y reducer
 # --------------------------------------------------------------------------
 @needs_nec5
-def test_nec5_engine_route_refuses_once_both_ports_are_knots():
+def test_nec5_engine_solves_it_through_the_reducer():
     """A PortVirtual sends the design down `_network_needs_reducer`'s route:
-    one deck per driven real port, the circuit reduced onto them. Both real
-    ports are now VERTEX ports — the probe's knot and the transformer's knot
-    at the OCF junction (AK#1579) — and the route's reciprocity check refuses
-    at 1.5e-02 against its 1e-02 bar.
+    one deck per driven real port, the circuit reduced onto them. The virtual
+    nodes never reach a card, and the 1e-10 V probe is the real port that
+    keeps the route legal.
 
-    The bar is not the import: `_port_knot_current` reads a vertex port's
-    current from the named arm's LAST SEGMENT CENTRE where the arms are
-    distinct wires, which is O(h) at a knot the current is not smooth
-    through. Pinned here so the refusal is a decision and not a surprise;
-    when that read is second-order the assertion flips back to a solve."""
-    with pytest.raises(NEC5Error, match="multiport Y is not reciprocal"):
-        _solve("failEZN5.nec", engine=NEC5Engine)
+    Both real ports are VERTEX ports since AK#1579 — the probe's knot and the
+    transformer's knot at the OCF junction — so the route rests on
+    `_port_knot_current` reading a vertex current at a junction of distinct
+    wires. Extrapolating that read to the knot instead of stopping at the last
+    segment centre takes the multiport Y from 1.5e-02 out of reciprocity (a
+    refusal) to 2.3e-04, and the answer from 3.9 % of the printout to
+    0.02 %."""
+    cls = builder_from_file(str(FIXTURES / "failEZN5.nec"))
+    eng = NEC5Engine(cls(), ground=cls.file_ground)
+    z_source, _z_probe = (complex(x) for x in eng.impedance())
+    assert eng._y_reciprocity_rel < 1e-2
+    assert abs(z_source - NEC5_SOURCE_Z) / abs(NEC5_SOURCE_Z) < 0.02
+    assert z_source == pytest.approx(complex(48.9169, 103.8667), rel=1e-4)
 
 
 @needs_nec5
