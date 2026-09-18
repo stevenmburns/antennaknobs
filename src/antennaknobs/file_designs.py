@@ -221,6 +221,16 @@ def _ssn_builder(path: Path, text: str, refine: int = 1):
         extended_kernel=deck.extended_kernel,
         ground=circuit.ground,
         ground_method="sommerfeld",
+        # AK#1576: `_nec_builder` sets this; a re-imported `.ssn` is exactly
+        # as much a parsed file deck as the `.nec` it came from, and leaving
+        # it unset here was the one place the two loaders disagreed about
+        # that fact. `file_deck_parsed` is a general "this design came from
+        # parsing a file" signal other code reads (`_refuse_ge_minus_one_contact`
+        # applies the GE -1 ground-contact refusal only when it is set, and
+        # `ladder` reads its segment counts for `.nec` decks) — a `.ssn`
+        # round trip of a GE -1 deck used to lose that refusal on the second
+        # hop purely because this loader forgot to carry the fact forward.
+        file_deck=deck,
     )
 
 
