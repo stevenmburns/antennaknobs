@@ -44,7 +44,11 @@ source (issue #1243, the form EZNEC's NEC-5 export writes) drive it in
 network mode as a ``DrivenCurrent``; plane-wave excitations and NEC-2's
 type 4 (an elementary current source at a point in space) raise. In network
 mode a source, load or transmission-line end is a port at its position along
-its wire (AK#1469), so the wire keeps the deck's segments. Default mode's
+its wire (AK#1469), so the wire keeps the deck's segments — unless it lands on
+a wire that is not geometry at all: EZNEC parks a wire ~100 λ away and uses
+its segments as circuit nodes to spell a source behind a transformer or a
+line, and each such segment imports as a ``PortVirtual`` with the wire itself
+dropped (AK#1577). Default mode's
 engine feeds a wire tuple at its middle segment, so there
 ``NecDeck.wire_tuples`` splits a wire whose EX segment is off-centre into
 colinear pieces that preserve the deck's exact segment boundaries and put the
@@ -348,12 +352,29 @@ class NecDeck:
     # its own formulation, so this is reference fidelity, not a momwire knob.
     # Deck-level: True if any EK card other than `EK -1` (off) appears.
     extended_kernel: bool = False
-    # Wire indices (into ``wires``) detected as remote TL-anchor wires and
-    # virtualized (issue #427): a 1-segment wire parked ≫λ away, referenced
-    # only as a TL far-end termination. They are dropped from wire_tuples()
-    # and their TL end becomes a PortVirtual in network(). Empty unless
-    # parsed with network=True and virtualize_anchors=True.
+    # Wire indices (into ``wires``) whose geometry was replaced by virtual
+    # circuit nodes. They are dropped from wire_tuples() and every port on
+    # them is a PortVirtual in network(). Empty unless parsed with
+    # network=True and virtualize_anchors=True. Two idioms land here:
+    # issue #427's remote TL anchor (a 1-segment wire parked ≫λ away,
+    # referenced only as a TL far-end termination) and AK#1577's EZNEC
+    # virtual wire, which is the subset named below.
     virtual_anchors: frozenset[int] = frozenset()
+    # The AK#1577 subset of ``virtual_anchors``: EZNEC's virtual wire, whose
+    # every referenced SEGMENT is one circuit node — so one wire can carry
+    # several, and a source on one of them is a drive on that node rather
+    # than a feed on geometry (`_virtual_segment_wires`).
+    virtual_segment_wires: frozenset[int] = frozenset()
+    # The idiom's LD 4 open-circuit pins (AK#1577), as
+    # ``(wire index, segment, impedance)``: the card EZNEC writes on every
+    # virtual segment it uses, to stop that segment carrying antenna current.
+    # Virtualizing the wire is what actually removes the segment, so the pin
+    # survives only as what it leaves behind — a 1-port ``Admittance`` of
+    # 1/Z on the node, the same ideal open ``_end_shunt`` gives a #427
+    # shorted stub. Keeping it matters: a virtual node held by nothing else
+    # (EZNEC spells a parallel load as an NT whose far half is all zeros) is
+    # a singular row without it.
+    virtual_pins: tuple[tuple[int, int, complex], ...] = ()
     # GX/GR symmetry (issue #946): the cell size in segments while the
     # symmetry is still live at GE (None when a later GW collapsed it, the
     # common case), and how many LD segments NEC discarded because they
@@ -427,8 +448,9 @@ class NecDeck:
         References move with the mesh: a centre attachment (feed, lumped load,
         TL/NT end) goes to the middle piece of its old segment, and a knot
         source or NEC-5 knot load keeps its knot. A lumped load stays ONE element. Per-wire
-        materials are per-wire and do not move. Virtualized TL anchors (a
-        1-segment wire parked far away, issue #427) keep their single segment.
+        materials are per-wire and do not move. A virtualized wire (a #427 TL
+        anchor, an AK#1577 EZNEC virtual wire) has no mesh to refine and keeps
+        its segments, so the nodes its ports name stay where they were.
         """
         if not isinstance(r, int) or r < 1 or r % 2 == 0:
             raise ValueError(
@@ -481,9 +503,10 @@ class NecDeck:
         )
 
     def virtual_anchor_tags(self) -> tuple[int, ...]:
-        """The NEC tags of the wires virtualized as TL anchors (issue #427),
-        in wire order — for honest benchmark/UI labeling of decks whose
-        remote anchor geometry the app replaced with a circuit termination."""
+        """The NEC tags of the wires whose geometry was replaced by virtual
+        circuit nodes, in wire order — for honest benchmark/UI labeling.
+        Both idioms: issue #427's TL anchors and AK#1577's EZNEC virtual
+        wires."""
         return tuple(self.wires[i].tag for i in sorted(self.virtual_anchors))
 
     def dominant_radius(self) -> float:
@@ -532,14 +555,39 @@ class NecDeck:
 
             cards = ", ".join(describe(m) for m in shown)
             parts.append(f"deck cards not applied: {cards}")
-        if self.virtual_anchors:
-            tags = ", ".join(str(t) for t in self.virtual_anchor_tags())
-            n = len(self.virtual_anchors)
+        anchors = self.virtual_anchors - self.virtual_segment_wires
+        if anchors:
+            tags = ", ".join(str(self.wires[i].tag) for i in sorted(anchors))
+            n = len(anchors)
             parts.append(
                 f"{n} remote TL-anchor wire{'s' if n > 1 else ''} "
                 f"(tag{'s' if n > 1 else ''} {tags}) modeled as ideal virtual "
                 f"terminations"
             )
+        if self.virtual_segment_wires:
+            # AK#1577: say both halves of what was translated — the wire that
+            # stopped being geometry, and the pins that stopped being loads —
+            # because both are things the deck says and the solve does not.
+            tags = ", ".join(
+                str(self.wires[i].tag) for i in sorted(self.virtual_segment_wires)
+            )
+            n = len(self.virtual_segment_wires)
+            nodes = sum(
+                1 for (wi, _seg) in self._port_plan if wi in self.virtual_segment_wires
+            )
+            part = (
+                f"{n} EZNEC virtual wire{'s' if n > 1 else ''} "
+                f"(tag{'s' if n > 1 else ''} {tags}) imported as {nodes} "
+                f"virtual circuit node{'s' if nodes > 1 else ''}"
+            )
+            if self.virtual_pins:
+                k = len(self.virtual_pins)
+                part += (
+                    f", with {k} LD 4 open-circuit pin{'s' if k > 1 else ''} "
+                    "kept as the idiom's ideal open rather than applied as "
+                    f"{'loads' if k > 1 else 'a load'}"
+                )
+            parts.append(part)
         if self.symmetry_dropped_loads:
             n = self.symmetry_dropped_loads
             parts.append(
@@ -566,8 +614,12 @@ class NecDeck:
         plan: dict[tuple[int, int], str] = {}
         single = len(self.feeds) == 1
         for k, f in enumerate(self.feeds, 1):
-            if f.edge:
+            if f.edge and f.wire not in self.virtual_anchors:
                 continue  # knot sources: _vertex_plan (#824) or _site_plan
+            # On a virtualized wire the END the EX names is not a place: the
+            # segment IS the node, so the source claims it like any other
+            # attachment and shares it with the TL/NT ends that land there
+            # (AK#1577).
             key = (f.wire, f.seg)
             if key in plan:
                 raise ValueError(
@@ -630,12 +682,20 @@ class NecDeck:
         so every attachment on such a wire keeps today's cut spelling. Every
         other wire keeps its authored segments and carries its attachments as
         positioned ports (`_site_plan`).
+
+        A VIRTUALIZED wire is never here, whatever its sources say (AK#1577):
+        it has no ends, so a knot source on it is a drive on the node its
+        segment became, claimed in `_port_plan` like any other attachment.
         """
         if not self.network_mode:
             return frozenset()
         out = set()
         for f in self.feeds:
-            if not f.edge:
+            if not f.edge or f.wire in self.virtual_anchors:
+                # A source on a virtualized wire (AK#1577) drives a circuit
+                # NODE: there is no wire end for a vertex port to sit on, and
+                # the end the EX names is not a place. `_port_plan` claims it
+                # as an ordinary port on its segment's node instead.
                 continue
             n = self.wires[f.wire].n_seg
             knot = f.seg - 1 if f.edge == 1 else f.seg
@@ -643,11 +703,10 @@ class NecDeck:
                 f.current
                 or knot in (0, n)
                 or knot in self._junction_cuts.get(f.wire, frozenset())
-                or f.wire in self.virtual_anchors
             ):
                 out.add(f.wire)
         for ld in self.loads:
-            if not ld.edge:
+            if not ld.edge or ld.wire in self.virtual_anchors:
                 continue
             knot = ld.seg - 1 if ld.edge == 1 else ld.seg
             if knot in (
@@ -683,6 +742,8 @@ class NecDeck:
         for k, f in enumerate(self.feeds, 1):
             if not f.edge or f.wire in self._vertex_wires:
                 continue
+            if f.wire in self.virtual_anchors:
+                continue  # a node drive, not a knot on a wire (AK#1577)
             knot = f.seg - 1 if f.edge == 1 else f.seg
             claims.setdefault(f.wire, []).append(
                 ("feed" if single else f"feed{k}", "knot", knot)
@@ -690,6 +751,8 @@ class NecDeck:
         for k, ld in enumerate(self.loads, 1):
             if not ld.edge or ld.wire in self._vertex_wires:
                 continue
+            if ld.wire in self.virtual_anchors:
+                continue  # AK#1577: the idiom's pins never become loads
             knot = ld.seg - 1 if ld.edge == 1 else ld.seg
             items = claims.setdefault(ld.wire, [])
             # A NEC-5 knot load (AK#1483) shares the port of a claimed knot.
@@ -858,7 +921,9 @@ class NecDeck:
         a port positioned along its wire (`_site_plan`, AK#1469), and each
         engine chooses a count that puts the port on its grid. A wire with a
         wire-end knot source, an EX 4 current source or a knot source on a
-        junction cut keeps the older spelling (`_vertex_wires`). There, and in
+        junction cut keeps the older spelling (`_vertex_wires`). A virtualized
+        wire is not emitted at all: its segments are circuit nodes, not wire
+        (issue #427, AK#1577). There, and in
         default mode, a marked segment that is not the wire's middle segment is
         isolated on its own 1-segment wire so the delta gap lands exactly where
         the deck put it, and a claimed interior knot cuts the wire. Either way
@@ -917,8 +982,9 @@ class NecDeck:
 
         for i, w in enumerate(self.wires):
             if i in self.virtual_anchors:
-                # Remote TL-anchor wire (issue #427): no geometry — its TL end
-                # is a PortVirtual in network(), so emit nothing here.
+                # Not geometry: a remote TL anchor (issue #427) or EZNEC's
+                # virtual wire (AK#1577). Every port on it is a PortVirtual
+                # in network(), so emit nothing here.
                 continue
             per = marks.get(i, {})
             cutset = self._junction_cuts.get(i, frozenset())
@@ -1024,8 +1090,9 @@ class NecDeck:
                 "parse_nec/read_nec with network=True"
             )
         plan = self._port_plan
-        # A port on a virtualized anchor wire (issue #427) is a pure circuit
-        # node (PortVirtual), no geometry; every other port is on a real wire.
+        # A port on a virtualized wire — a #427 TL anchor, or one of the
+        # segments of an AK#1577 EZNEC virtual wire — is a pure circuit node
+        # (PortVirtual), no geometry; every other port is on a real wire.
         ports = {
             pname: (
                 _net.PortVirtual(pname)
@@ -1085,6 +1152,13 @@ class NecDeck:
                 branches.append(_net.Admittance(ports=(a,), y=((tl.shunt_y_a,),)))
             if tl.shunt_y_b is not None:
                 branches.append(_net.Admittance(ports=(b,), y=((tl.shunt_y_b,),)))
+        for wi, seg, z in self.virtual_pins:
+            # AK#1577: what the idiom's LD 4 leaves behind once its segment
+            # is a node — an ideal open, and the only branch holding a node
+            # the deck's networks reach through an all-zero half.
+            pname = plan.get((wi, seg))
+            if pname is not None and z:
+                branches.append(_net.Admittance(ports=(pname,), y=((1.0 / z,),)))
         for nt in self.nts:
             a = plan[(nt.wire_a, nt.seg_a)]
             b = plan[(nt.wire_b, nt.seg_b)]
@@ -1103,7 +1177,7 @@ class NecDeck:
         single = len(self.feeds) == 1
 
         def feed_port(k, f):
-            if f.edge:
+            if f.edge and f.wire not in self.virtual_anchors:
                 knot = f.seg - 1 if f.edge == 1 else f.seg
                 if (f.wire, knot) in self._vertex_plan:
                     return self._vertex_plan[(f.wire, knot)][0]
@@ -1126,7 +1200,7 @@ def read_nec(
     ships next to ``builder``'s design, with the same folder confinement as
     ``read_json``. ``network=True`` translates the deck's expressible
     LD/TL/NT cards into ``deck.network()`` (see the module docstring);
-    ``virtualize_anchors`` forwards to ``parse_nec`` (issue #427)."""
+    ``virtualize_anchors`` forwards to ``parse_nec`` (issue #427, AK#1577)."""
     return parse_nec(
         read_data(builder, name),
         name=name,
@@ -2286,7 +2360,95 @@ def _symmetry_after(mnemonic, card, wires, segs_before, cell):
 # give a TL card a far-end segment. Kept conservative so nothing intentional
 # (a real end-loaded stub a fraction of a wavelength away) is ever swallowed.
 _ANCHOR_CLEARANCE_LAMBDA = 10.0
+# The EZNEC virtual wire is electrically negligible in its own right, not
+# merely far away (AK#1577): this bounds its end-to-end extent in
+# wavelengths. Measured 0.0052 λ on the idiom's own decks.
+_VIRTUAL_EXTENT_LAMBDA = 0.05
+# At or above this, an LD 4 is not a load but the open-circuit pin the
+# EZNEC idiom writes on every virtual segment it uses (AK#1577). EZNEC
+# writes 1.E+10 exactly; the margin is for a deck that spells it 1e9.
+_VIRTUAL_PIN_OHMS = 1e9
 _C_MPS = 299_792_458.0  # speed of light, for wavelength = c / f
+
+
+def _remote_wire_tests(wires):
+    """``(touches, clearance)`` over ``wires`` — the geometry half shared by
+    both virtualization idioms (issue #427, AK#1577).
+
+    ``touches(i)`` is True when wire ``i`` shares a segment boundary with any
+    other wire (the same ``key()`` quantisation ``wire_tuples`` uses, so the
+    two agree on what "connected" means). ``clearance(i)`` is the nearest
+    endpoint-to-endpoint distance from wire ``i`` to any other wire — a lower
+    bound on true separation, ample at the ≫10 λ scales both idioms park at.
+
+    Closures rather than a precomputed set: the callers test a handful of
+    candidate wires, and ``clearance`` is O(n) per call.
+    """
+    eps = 1e-9
+
+    def key(p):
+        return tuple(round(c / eps) for c in p)
+
+    def boundary(w, k):
+        t = k / w[1]
+        return tuple(a + (b - a) * t for a, b in zip(w[2], w[3], strict=True))
+
+    owners: dict[tuple, set[int]] = {}
+    for i, w in enumerate(wires):
+        for k in range(w[1] + 1):
+            owners.setdefault(key(boundary(w, k)), set()).add(i)
+
+    def touches(i):
+        w = wires[i]
+        return any(len(owners[key(boundary(w, k))]) > 1 for k in range(w[1] + 1))
+
+    def clearance(i):
+        wi = wires[i]
+        pts_i = (wi[2], wi[3])
+        best = math.inf
+        for j, wj in enumerate(wires):
+            if j == i:
+                continue
+            for pj in (wj[2], wj[3]):
+                for pi in pts_i:
+                    d = math.dist(pi, pj)
+                    if d < best:
+                        best = d
+        return best
+
+    return touches, clearance
+
+
+def _load_wires(wires, lds_raw):
+    """``(loaded, pinned)``: wire indices an LD card singles out, split by
+    whether the card is one of the open-circuit PINS the EZNEC virtual-wire
+    idiom writes (AK#1577) or a real element.
+
+    A pin is an ``LD 4`` (fixed R + jX) of at least ``_VIRTUAL_PIN_OHMS`` —
+    EZNEC writes ``1.E+10`` on every virtual segment it uses, which is how it
+    keeps that segment from carrying antenna current. LD 5 is a material
+    conductivity, not an element, and a whole-structure card singles out no
+    wire; neither appears in either set.
+    """
+    loaded: set[int] = set()
+    pinned: set[int] = set()
+    for card in lds_raw:
+        if card.i(0) == 5:
+            continue  # LD 5 is a material conductivity, not an element
+        tag, sf, st = card.i(1), card.i(2), card.i(3)
+        if card.percent(2) is not None or card.percent(3) is not None:
+            # A 4nec2 percentage position: its wire, whatever the value.
+            loaded.add(
+                _attach(wires, card, 1, 2 if card.percent(2) is not None else 3)[0]
+            )
+            continue
+        if tag == 0 and sf == 0:
+            continue  # whole-structure load — does not single out a wire
+        pin = card.i(0) == 4 and abs(complex(card.f(4), card.f(5))) >= _VIRTUAL_PIN_OHMS
+        into = pinned if pin else loaded
+        for wi, _ in _segment_range(wires, tag, sf, st, card):
+            into.add(wi)
+    return loaded, pinned
 
 
 def _anchor_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz):
@@ -2321,69 +2483,107 @@ def _anchor_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz):
     if not tl_refs:
         return set()
 
-    # Wires the network otherwise uses electrically — never anchors.
+    # Wires the network otherwise uses electrically — never anchors. A pin
+    # counts here exactly as any other LD does: a 1-segment anchor carrying
+    # one is outside this idiom (AK#1577 reads that shape instead).
     excluded: set[int] = {f.wire for f in feeds}
     for card in nts_raw:
         excluded.add(loc(card, 0, 1))
         excluded.add(loc(card, 2, 3))
-    for card in lds_raw:
-        if card.i(0) == 5:
-            continue  # LD 5 is a material conductivity, not an element
-        if card.percent(2) is not None or card.percent(3) is not None:
-            excluded.add(loc(card, 1, 2 if card.percent(2) is not None else 3))
-            continue
-        tag, sf, st = card.i(1), card.i(2), card.i(3)
-        if tag == 0 and sf == 0:
-            continue  # whole-structure load — does not single out a wire
-        for wi, _ in _segment_range(wires, tag, sf, st, card):
-            excluded.add(wi)
+    loaded, pinned = _load_wires(wires, lds_raw)
+    excluded |= loaded | pinned
 
-    # Node-coincidence over every wire's segment boundaries: an anchor touches
-    # nothing, so any shared node disqualifies it (same key() as wire_tuples).
-    eps = 1e-9
-
-    def key(p):
-        return tuple(round(c / eps) for c in p)
-
-    def boundary(w, k):
-        t = k / w[1]
-        return tuple(a + (b - a) * t for a, b in zip(w[2], w[3], strict=True))
-
-    owners: dict[tuple, set[int]] = {}
-    for i, w in enumerate(wires):
-        for k in range(w[1] + 1):
-            owners.setdefault(key(boundary(w, k)), set()).add(i)
-
-    def junctioned(i):
-        w = wires[i]
-        return any(len(owners[key(boundary(w, k))]) > 1 for k in range(w[1] + 1))
-
-    def clearance(i):
-        """Nearest endpoint-to-endpoint distance from wire ``i`` to any other
-        wire — a lower bound on true separation, ample at ≫10 λ scales."""
-        wi = wires[i]
-        pts_i = (wi[2], wi[3])
-        best = math.inf
-        for j, wj in enumerate(wires):
-            if j == i:
-                continue
-            for pj in (wj[2], wj[3]):
-                for pi in pts_i:
-                    d = math.dist(pi, pj)
-                    if d < best:
-                        best = d
-        return best
+    touches, clearance = _remote_wire_tests(wires)
 
     anchors: set[int] = set()
     for i in tl_refs:
         w = wires[i]
-        if w[1] != 1 or i in excluded or junctioned(i):
+        if w[1] != 1 or i in excluded or touches(i):
             continue
         extent = math.dist(w[2], w[3])
         clr = clearance(i)
         if clr > _ANCHOR_CLEARANCE_LAMBDA * lam and clr > 100.0 * extent:
             anchors.add(i)
     return anchors
+
+
+def _virtual_segment_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz):
+    """Wire indices that are EZNEC's *virtual wire* (AK#1577).
+
+    EZNEC spells a source that sits behind a transformer or a transmission
+    line by parking ONE extra wire ~100 λ away and using its segments as
+    circuit nodes: the network cards (``NT``/``TL``) and the source address
+    those segments, and each segment it uses is pinned open with an
+    ``LD 4 … 1.E+10`` so it carries no antenna current. The deck's own
+    ``! *Wire #N for virtual segments.`` comment names it, but that is
+    corroboration, not the rule — this detector is structural.
+
+    A wire qualifies when all hold:
+
+    - at least one ``TL``/``NT`` end lands on it (it is a circuit anchor, not
+      a far-away antenna);
+    - an ``NT`` end or an ``EX`` lands on it — the two shapes today's reading
+      cannot serve. A wire that only TERMINATES ``TL`` cards is left exactly
+      as it is: that deck imports and solves today (Dan's CardTL.ez class),
+      and virtualizing it would move a working answer by 0.53 % — measured on
+      an open stub into a pinned 3-segment remote wire, the difference
+      between an ideal open and the pinned segment's own small admittance.
+      Serving the pin's intent there is right, but it is a change to working
+      output and belongs to whatever issue asks for it;
+    - it has MORE THAN ONE segment. The 1-segment remote shape belongs to
+      issue #427's detector, which reads it as a bare TL termination and whose
+      negatives pin a *driven* 1-segment remote wire as electrically real;
+    - no LD other than the idiom's own ≥ ``_VIRTUAL_PIN_OHMS`` pins touches
+      it (a real load means a real wire);
+    - it shares no node with any other wire, stands more than
+      ``_ANCHOR_CLEARANCE_LAMBDA`` wavelengths and 100× its own extent clear
+      of the structure (issue #427's thresholds), and is itself electrically
+      negligible — extent under ``_VIRTUAL_EXTENT_LAMBDA`` λ. Measured: the
+      EZNEC virtual wire is 0.0052 λ end to end and the #427 corpus anchors
+      0.0025 λ, while the smallest thing anyone models on purpose at that
+      distance (a remote element in a coupling study) is a sizable fraction
+      of a wavelength. Without this gate a genuinely remote antenna fed
+      through a feedline could be swallowed whole.
+
+    A source ON the wire is a TRIGGER here, where issue #427 excludes a driven
+    wire by name: the EX becoming a drive on a virtual node is the whole point
+    of the idiom.
+    """
+    if freq_mhz is None or len(wires) < 2:
+        return set()
+    lam = _C_MPS / (min(freq_mhz) * 1e6)
+
+    net_refs: set[int] = set()  # a TL or NT end lands here
+    forcing: set[int] = {f.wire for f in feeds}  # ... and today's reading fails
+    for card in nts_raw:
+        for a, b in ((0, 1), (2, 3)):
+            wi = _attach(wires, card, a, b)[0]
+            net_refs.add(wi)
+            forcing.add(wi)
+    for card in tls_raw:
+        net_refs.add(_attach(wires, card, 0, 1)[0])
+        net_refs.add(_attach(wires, card, 2, 3)[0])
+    candidates = net_refs & forcing
+    if not candidates:
+        return set()
+
+    loaded, _pinned = _load_wires(wires, lds_raw)
+    touches, clearance = _remote_wire_tests(wires)
+
+    out: set[int] = set()
+    for i in candidates:
+        w = wires[i]
+        if w[1] < 2 or i in loaded or touches(i):
+            continue
+        extent = math.dist(w[2], w[3])
+        clr = clearance(i)
+        if (
+            clr > _ANCHOR_CLEARANCE_LAMBDA * lam
+            and clr > 100.0 * extent
+            and extent < _VIRTUAL_EXTENT_LAMBDA * lam
+        ):
+            out.add(i)
+    return out
 
 
 def _translate_network_cards(
@@ -2413,12 +2613,29 @@ def _translate_network_cards(
         if (mnemonic, reason) not in detail:
             detail.append((mnemonic, reason))
 
+    # Two idioms, one representation (a PortVirtual circuit node): issue
+    # #427's remote 1-segment TL anchor and AK#1577's EZNEC virtual wire.
+    # `anchors` is the union — every site downstream asks "is this wire
+    # geometry?" — while `virtual_segments` stays separate for the parts that
+    # differ: which LD cards are the idiom's pins, and what skipped_note()
+    # says about the wire.
     anchors = (
         _anchor_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz)
         if virtualize_anchors
         else set()
     )
-    virtualized: set[int] = set()  # anchors actually replaced by a virtual end
+    virtual_segments = (
+        _virtual_segment_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz)
+        if virtualize_anchors
+        else set()
+    )
+    anchors |= virtual_segments
+    # Anchors actually replaced by a virtual end. Every virtual-segment wire
+    # is one by construction (a TL/NT end is what detects it), so they go in
+    # whole; a #427 anchor is added by the TL that terminates on it.
+    virtualized: set[int] = set(virtual_segments)
+    # (wire, segment, Z) per LD 4 pin the idiom writes (AK#1577).
+    virtual_pins: list[tuple[int, int, complex]] = []
 
     tls: list[NecTL] = []
     for card in tls_raw:
@@ -2617,6 +2834,15 @@ def _translate_network_cards(
             if r is None and le is None and c is None and z is None:
                 continue  # zero-valued load — a no-op
             for pair in pairs:
+                if pair[0] in virtual_segments:
+                    # The idiom's own open-circuit pin (AK#1577), not a load
+                    # on geometry: the segment it opens is becoming a circuit
+                    # node. Kept as the node's residual admittance rather
+                    # than reported as a card we could not express.
+                    virtual_pins.append(
+                        (*pair, z if z is not None else complex(r or 0.0, 0.0))
+                    )
+                    continue
                 if pair in connected:
                     skip(
                         "LD",
@@ -2763,6 +2989,8 @@ def _translate_network_cards(
         detail,
         skipped,
         frozenset(virtualized),
+        frozenset(virtual_segments),
+        tuple(virtual_pins),
         dropped_by_symmetry,
     )
 
@@ -2822,12 +3050,20 @@ def parse_nec(
     cards into ``deck.network()`` branches instead of recording them in
     ``ignored`` — see the module docstring for exactly what translates.
 
-    ``virtualize_anchors`` (network mode only, default on) replaces a remote
-    1-segment TL-anchor wire with a ``PortVirtual`` termination (issue #427):
-    a wire ≫10 λ from everything else, referenced only to give a TL card a
-    far-end segment, is dropped from ``wire_tuples()`` and its TL end becomes
-    a pure circuit node — an ideal open, or a 1-port ``Admittance`` for a
-    shorted-stub far-Y. Set it ``False`` to model such wires as real geometry.
+    ``virtualize_anchors`` (network mode only, default on) replaces a wire
+    that is a circuit artifact rather than an antenna with ``PortVirtual``
+    circuit nodes, and drops it from ``wire_tuples()``. Two idioms:
+
+    - issue #427's remote TL anchor — a 1-segment wire ≫10 λ from everything
+      else, referenced only to give a TL card a far-end segment. Its TL end
+      becomes an ideal open, or a 1-port ``Admittance`` for a shorted-stub
+      far-Y;
+    - AK#1577's EZNEC virtual wire — the same parking trick with SEVERAL
+      segments, each one a node the deck's ``NT``/``TL`` cards and its ``EX``
+      address, pinned open with ``LD 4 … 1.E+10``. That is how EZNEC spells a
+      source behind a transformer or a transmission line.
+
+    Set it ``False`` to model such wires as real geometry.
 
     Raises ``ValueError`` (with ``name`` and the line number) on cards that
     are malformed or describe things antennaknobs cannot model — patches,
@@ -3205,6 +3441,8 @@ def parse_nec(
     wire_insulation: tuple[tuple[int, tuple[float, float]], ...] = ()
     detail: list[tuple[str, str]] = []
     virtual_anchors: frozenset[int] = frozenset()
+    virtual_segment_wires: frozenset[int] = frozenset()
+    virtual_pins: tuple[tuple[int, int, complex], ...] = ()
     # A declared deck is NEC-5 for every card, its loads included (AK#1476,
     # AK#1483).
     if nec5_declared:
@@ -3221,6 +3459,8 @@ def parse_nec(
             detail,
             skipped,
             virtual_anchors,
+            virtual_segment_wires,
+            virtual_pins,
             symmetry_dropped,
         ) = _translate_network_cards(
             wires,
@@ -3271,6 +3511,8 @@ def parse_nec(
         network_mode=network,
         extended_kernel=extended_kernel,
         virtual_anchors=virtual_anchors,
+        virtual_segment_wires=virtual_segment_wires,
+        virtual_pins=virtual_pins,
         symmetry_cell=sym_cell,
         symmetry_dropped_loads=symmetry_dropped,
     )
