@@ -1,0 +1,8 @@
+CM AK#1576 test fixture: an ODD-segment centre-fed wire
+CM (the case PyNEC's odd-parity coercion needs no bump for)
+CE
+GW 1 21 -10 0 10 10 0 10 0.001
+GE 0
+EX 0 1 50% 0 1 0
+FR 0 1 0 0 14.1 0
+EN

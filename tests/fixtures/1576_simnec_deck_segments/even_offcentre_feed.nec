@@ -1,0 +1,8 @@
+CM AK#1576 test fixture: an EVEN-segment OFF-CENTRE-fed wire
+CM (the split-at-feed path, AK#1511 -- deliberately untouched by this fix)
+CE
+GW 1 4 -10 0 10 10 0 10 0.001
+GE 0
+EX 0 1 25% 0 1 0
+FR 0 1 0 0 14.1 0
+EN
