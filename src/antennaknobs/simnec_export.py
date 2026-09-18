@@ -37,6 +37,25 @@ that knob is exposed. ``FR`` is left in the deck too: a SimNEC 5.1a1-saved
 ``.ssn`` carries ``FR`` alongside a live ``G.MHz`` sweep, so it is harmless
 (advisory) and matches SimNEC's own output.
 
+**Why a written count can differ from the file's own (AK#1576).** A source
+sitting at a wire JUNCTION — the deck's exact centre on an even-segment
+feed wire, e.g. a 2-segment ``GW`` fed at 50% — has no NEC-2 card spelling:
+NEC-2's ``EX`` addresses a whole segment, with no end code (unlike NEC-5's
+``EX ... 2``, which addresses a segment END and so can sit exactly on a
+knot). The importer's own feed-position rule (AK#1510: the exact position is
+kept; re-mesh ≤2× to land a segment centre under it; never snap) already
+resolves this on the way IN — a 2-segment centre feed reads as a 3-segment
+one with the source on the middle segment, exactly on the physical centre —
+and :func:`export_nec` (which this module's geometry comes from) writes that
+resolved, PyNEC-coerced mesh. Writing the deck's OWN even count instead
+(2 segments, source on segment 1) was tried and reverted: NEC-2 syntax then
+places the source at 25% of the wire, not the junction — a snap at the
+writer, the same mistake the importer's rule exists to forbid, and a
+measurably different antenna (PyNEC's driving-point impedance moves ~4% on
+the reported deck). :mod:`nec5_export` is the one writer that CAN keep the
+file's own count for this wire, because NEC-5's end code reaches the
+junction NEC-2 cannot address at all.
+
 Scope
 -----
 Two export shapes:
@@ -252,7 +271,18 @@ def build_nec_portal_script(
     name: str | None = None,
 ) -> str:
     """Build the SimNEC NEC-portal daemon script (the ``<equ>`` body) for an
-    antenna-only ``builder``. Reuses :func:`export_nec` for the geometry.
+    antenna-only ``builder``. Reuses :func:`export_nec` for the geometry,
+    unchanged (AK#1576 considered and rejected rewriting a deck-faithful
+    even-count centre-fed wire's ``GW``/``EX`` back to the file's own count:
+    NEC-2 syntax has no end-code, so "segment 1 of 2" IS a source at 25% of
+    the wire, not at the junction — a SNAP the project's feed-position rule
+    (AK#1510: keep the exact position; re-mesh ≤2× to land a segment centre
+    under it; never snap) forbids at the writer just as much as at the
+    importer. ``export_nec``'s PyNEC-coerced mesh (the SAME re-mesh AK#1510
+    already applies on import) is the sanctioned spelling, so this writer
+    keeps it verbatim; only :mod:`nec5_export` can keep the deck's OWN count,
+    because NEC-5's end code addresses the junction exactly, which NEC-2 (and
+    therefore SimNEC) cannot.
     """
     # jacket_pair=False: the portal drops the LD cards, and the equivalent
     # radius without its LD 2 inductance would be half of the jacket's model
