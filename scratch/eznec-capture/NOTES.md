@@ -796,3 +796,113 @@ different answers for the seam.
 
 Item 6 (census of the bundled examples) is closed on titles: all 32 bundled `.ez`
 resolve to titles the corpus already holds.
+
+---
+
+# EZNEC capture session — 2026-09-18 (AK#1579, momwire#1116)
+
+The other two writers, and a knot-rule result that came out of checking them.
+**No new spy captures** — neither writer produces one, for different reasons.
+Decks banked under `scratch/eznec-capture/exports/`.
+
+## The three stamps
+
+Every EZNEC writer emits the same sentence with one token swapped:
+
+| writer | stamp |
+|---|---|
+| NEC-5 | `! Written by EZNEC/Pro+ v. 7.0 in NEC-5 format.` |
+| NEC-4.2 | `! Written by EZNEC/Pro+ v. 7.0 in NEC-4.2 format.` |
+| NEC-2 | `! Written by EZNEC/Pro+ v. 7.0 in NEC-2 format.` |
+
+The token is `NEC-4.2`, not `NEC-4`. AK#1579 reads the token off the fixed frame
+rather than matching whole strings.
+
+## The same antenna through all three
+
+`Dipole1.ez`; the NEC-5 column is capture `0183`.
+
+| | NEC-5 | NEC-4.2 | NEC-2 |
+|---|---|---|---|
+| wires | 1 | 1 | **2** (virtual wire added) |
+| `GE` | `GE 0,-1` | `GE 0,-1` | **`GE 0`** |
+| source | `EX 4,1,6,0` | `EX 6,1,6,0` | `EX 0,2,2,0` + `NT 2,2,1,6` |
+| `PQ` | `PQ 0` | `PQ 0` | absent |
+| version/date `CM` | yes | yes | **no** |
+
+NEC-4.2 and NEC-5 are otherwise identical — the split is not by NEC version but
+by **whether the dialect has a native current source**. NEC-2 doesn't, so EZNEC
+synthesizes one from a virtual wire, a *voltage* source on it, and an `NT`
+injector with Y12 = j1, and says so itself: `! NT #1 is EZNEC current source`.
+
+**A third virtual-wire comment wording**, completing the census:
+
+| context | comment |
+|---|---|
+| TL/NT feed systems | `! *Wire #N for virtual segments.` |
+| NEC-5 parallel load (`0197`) | `! Wire #2 for shorted/open trans. lines and/or parallel loads.` |
+| NEC-2 export | `! Wire #2 for I srcs, shorted/open TL, and/or parallel loads.` |
+
+The NEC-2 form is a superset — it adds `I srcs` and abbreviates `trans. lines`.
+`#1577`'s detector is structural and doesn't read these, but the census is worth
+keeping.
+
+## How each was obtained — neither is a capture
+
+- **NEC-2 has no external-engine slot** in Pro/2+; it runs on the built-in
+  engine, so it can never be captured. `File → Save As` with a `.nec` type writes
+  it, and offers **no format choice**. That export also carries the model's
+  descriptive `CM` prose, which engine decks strip.
+- **NEC-4.2 does take an executable path**, but the shim resolves
+  `<name>.real.exe` *before* it starts capturing (`Nec5Spy.cs` line 48 vs 58) and
+  returns `9009` when that's missing — and there is no real 4.2 engine here to
+  rename. EZNEC launched the shim and no capture directory appeared.
+
+  The deck was recoverable because **the 4.2 slot writes `EZ.NEC` in the
+  ENGINE's directory**, not `EZN5.NEC` in `Docs` the way the NEC-5 slot does.
+  Worth knowing before anyone spends an hour on it.
+
+## `EX 4` is a knot source — and EZNEC can't hit the centre of an odd wire
+
+Measured directly against `NEC5CL_x13.real.exe`, `Dipole1` re-cut to 10 segments
+so the centre *is* a knot, `EX 4` spelled eight ways, nothing else changed.
+Reproduced independently on both boxes, every digit:
+
+| spelling | lands on | Z (Ω) |
+|---|---|---|
+| `5,0` ≡ `5,2` ≡ `-6,0` ≡ `6,1` | knot 5 (the centre) | 77.639 + 27.349j |
+| `6,0` ≡ `6,2` ≡ `-5,0` ≡ `4,2` | knots 6 / 4 (mirrors) | 86.047 + 29.035j |
+
+So: **a positive segment with I4 = 0 means that segment's END 2; negative means
+end 1.** The printout's third column (`6 1`) is NEC-5's own end index, not I4.
+
+On the 11-segment deck EZNEC actually wrote, every spelling gives `0183`'s
+79.948 + 29.919j, because knots 5 and 6 sit symmetrically about the centre —
+which is why it looked undecidable from the capture alone.
+
+**The consequence is a fact about EZNEC.** `Dipole1.ez` specifies a source at
+50 %. An 11-segment wire has no knot at its centre, so EZNEC writes `EX 4,1,6,0`
+— knot 6, **0.5455 of the wire**, half a segment off — and never says so. On
+even segment counts the knot rule lands exactly. **The model says 50 %, the deck
+says 54.55 %, on odd counts only.**
+
+Whether that goes to Roy is Steve's call.
+
+It also means the NEC-5 deck and the NEC-2 export of the same model put the
+source in *different physical places* (knot 6 = 0.5455 versus segment 6's centre
+= 0.5), so a residual impedance difference between them is expected and is not
+evidence about any detector. AK#1579's gate was re-cut onto the NEC-4.2 deck
+against the NEC-2 export, which both sit at 0.5.
+
+## Still to run
+
+1. Items 1 and 2 of the run sheet — the deciding capture, and the mixed-drive
+   Cardioid (QRZ #100 / momwire PR #1118).
+2. **One `Save As` of `Dipole1` re-cut to 10 segments** — the one pair with a
+   NEC-5 knot source and a NEC-2 injector at the same physical point. Bank it
+   beside the other two exports.
+3. Laplace, insulated wire, the 14 workbooks.
+4. Item 4 — whether AutoEZ writes a bare `GE 0` while copying EZNEC's NEC-5
+   stamp. Mike WA7ARK's decks carry the NEC-5 token, a one-field `GE`, and no
+   version line, and **no EZNEC writer on this box produces that combination**,
+   so something third-party wrote them.
