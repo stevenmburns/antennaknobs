@@ -50,8 +50,16 @@ momwire's own EZNEC seam reads the same knot. Recorded, not tuned.
 
 The equality class here is the 4.2 deck against the NEC-2 export: same
 reading, same source position, two spellings, so the only thing between them
-is the virtual-wire detector and the injector. A 10-segment Dipole1 NEC-2
-export — where the wire's centre IS a knot and the NEC-5 and NEC-2 writers
-would be co-located — is the follow-up fixture that would make the NEC-5 row
-an equality case too; it has been requested from the Windows box and is not
-here yet.
+is the virtual-wire detector and the injector. The NEC-5 row can NEVER join
+it, at any segment count: a knot source sits at an integer multiple of L/N
+and a segment-centre source at an odd multiple of L/(2N), and those sets are
+disjoint. At the centre they are complementary - a knot lands on L/2 only
+for even N, a segment centre only for odd N. Measured both ways on the
+Windows box (2026-09-18): at 11 segments NEC-2's injector sits at 0.5 and
+NEC-5's knot at 0.5455; re-cut to 10, NEC-5's knot sits at 0.5 and EZNEC's
+NEC-2 export puts the injector on segment 5, centre 0.45. So a residual
+between a NEC-5 deck and a NEC-2 deck of the same model is geometric, never
+evidence about a detector, and the 10-segment export (banked beside the
+captures as `Dipole1-10seg-nec2-export.nec` on branch
+capture/2026-09-18-writers) is a specimen of the mirror-image offset, not a
+fixture for equivalence.
