@@ -91,11 +91,22 @@ semantics momwire's knot-addressed `node_gaps` has to match.
 2. **Confirm the engine selection** in EZNEC: `Options → Calculating engine →
    External NEC-5`. `LastRun.log` should say `Running ext engine ...NEC5CL_x13.exe`.
 
-   **The selection is stored per MODEL, inside the `.ez` file — not globally.**
+   **The selection is stored per MODEL, inside the `.ez` file — not globally,
+   and it does NOT survive `Save As`.** That second half is the one that costs
+   time: a model saved under a new name comes up on the *internal* engine even
+   when the model it was saved *from* was set to External NEC-5. So a sitting
+   that edits a model, saves it under a new name and calculates straight away
+   produces **nothing at all** — measured 2026-09-18, three Laplace models saved
+   and run in one pass, zero captures, `LastRun.log` reading
+   `edit load(s)` → `SA` → `Running EZCalcD_70_x64.EXE`.
+
+   **Re-set the engine after every `Save As`, not only when opening a different
+   model.**
+
    `EZNEC.INI` carries no engine key (it has not been written since 2023 on the
-   capture host). So the selection has to be re-confirmed every time a different
-   model is loaded, and any model never switched comes up on the *internal*
-   engine. The failure is silent: EZNEC computes with `EZCalcD_70_x64.EXE`, draws
+   capture host), and nothing in the registry holds one either. So the selection
+   has to be re-confirmed every time a different model is loaded, and any model
+   never switched comes up on the *internal* engine. The failure is silent: EZNEC computes with `EZCalcD_70_x64.EXE`, draws
    a perfectly good FF Plot, and no capture appears. **When a click produces no
    capture directory, read `LastRun.log` first** — that line names the engine
    that actually ran, and it is the difference between a broken shim and a
@@ -116,6 +127,29 @@ semantics momwire's knot-addressed `node_gaps` has to match.
    ```
 
 5. **Uninstall** when done: `pwsh scripts/eznec_spy/uninstall.ps1`.
+
+### Engine slots other than NEC-5
+
+`NEC-2` has **no external-engine slot** in Pro/2+ — it runs on the built-in
+engine, so it can never be captured. `File → Save As` with a `.nec` type writes a
+NEC-2 deck instead, with no format choice offered.
+
+`NEC-4.2` **does** take an executable path, and there is no real 4.2 engine on
+this host to rename — so point the slot straight at
+`scripts/eznec_spy/NEC42W64CL.exe`, no `install.ps1` dance. Two things follow:
+
+- **The shim will not capture it.** It resolves `<name>.real.exe` *before* it
+  starts capturing and returns `9009` when that is missing, so EZNEC launches it
+  and no capture directory appears. A pass-through mode would fix this and does
+  not exist yet.
+- **You do not need the capture.** The 4.2 slot writes its deck as **`EZ.NEC` in
+  the ENGINE's own directory** — not `EZN5.NEC` in `Docs` the way the NEC-5 slot
+  does — so the deck is simply sitting next to the shim afterwards.
+
+Expect EZNEC to report `Unable to read ..` after the run; that is its NEC-4.2
+reader, and it happens *after* the deck is written. Nothing needs cleaning up
+afterwards either: the slot's selection is per-model like any other, so it dies
+with an unsaved model and is not persisted anywhere on disk.
 
 ### Driving the sitting with AutoEZ
 
