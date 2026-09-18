@@ -37,7 +37,14 @@ from antennaknobs import AntennaBuilder
 from antennaknobs.engines import MomwireEngine, NEC5Engine
 from antennaknobs.file_designs import builder_from_file
 from antennaknobs.nec_import import _eznec_declares_nec5, parse_nec
-from antennaknobs.network import PortAtVertex
+from antennaknobs.network import (
+    Admittance,
+    Driven,
+    DrivenCurrent,
+    PortAtVertex,
+    PortOnWire,
+    PortVirtual,
+)
 
 import momwire
 from momwire import BSplineSolver
@@ -112,19 +119,34 @@ def test_without_the_stamp_the_same_deck_is_still_nec2():
     assert deck.network().ports["feed"].at == pytest.approx(19 / 40)
 
 
+@pytest.mark.parametrize("word", ["NEC-2", "NEC2", "NEC-4.2", "NEC4.2"])
+def test_eznecs_other_two_writers_keep_the_nec2_reading(word):
+    """EZNEC's File > Save As writes NEC-2 and its External slot writes
+    NEC-4.2, both stamped in the same frame with their own word. Those decks
+    are ordinary NEC-2 decks this importer already reads, so the stamp is
+    recognised and declares NOTHING — Save As is how most EZNEC users will
+    bring a model here, and refusing it would be worse than the bug.
+
+    The whole point, asserted: a positive-segment `EX 0,tag,seg,0` is the
+    segment CENTRE under that reading, 19/40 of this 20-segment wire."""
+    deck = _deck(f"CM ! Written by EZNEC/Pro+ v. 7.0 in {word} format.\n{DAN}")
+    assert deck.nec5_dialect is False
+    (feed,) = deck.feeds
+    assert (feed.seg, feed.edge) == (10, 0)
+    assert deck.network().ports["feed"].at == pytest.approx(19 / 40)
+
+
 @pytest.mark.parametrize(
     ("word", "stamp"),
     [
-        ("NEC-2", "CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-2 format."),
-        ("NEC-4", "CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-4 format."),
-        ("NEC-4.2", "CM ! Written by EZNEC/Pro+ v. 7.1 in NEC-4.2 format."),
+        ("NEC-3", "CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-3 format."),
         ("MININEC", "CM ! Written by EZNEC/Pro+ v. 7.0 in MININEC format."),
     ],
 )
-def test_another_eznec_writer_refuses_by_name(word, stamp):
-    """We have captured only EZNEC's NEC-5 writer. Its NEC-4.2 slot writes
-    `EX 6` current sources whose semantics are not NEC-2's, so falling
-    through to the NEC-2 reading would repeat this issue one dialect over."""
+def test_an_uncaptured_eznec_writer_refuses_by_name(word, stamp):
+    """Three writers are captured and every one of them has a rule. A fourth
+    would spell its sources and loads its own way, and guessing which is what
+    AK#1579 was, so it refuses instead."""
     with pytest.raises(ValueError, match=rf"EZNEC wrote this deck in {word} format"):
         _deck(f"{stamp}\n{DAN}")
 
@@ -345,15 +367,17 @@ def test_the_cardioid_capture_reaches_an_engine():
 # --------------------------------------------------------------------------
 # blast radius: only EZNEC's own decks move
 # --------------------------------------------------------------------------
-def test_no_unstamped_fixture_in_this_repo_reads_as_an_eznec_deck():
-    """Both directions over every `.nec` fixture here: the stamp is found on
-    exactly the decks EZNEC wrote and on nothing else, so the 4nec2-dialect
-    decks (SY symbols, percent positions) and the hand-written NEC-2 decks
-    keep their reading. A hash census of `wire_tuples()` + `network()` across
-    the same 24 fixtures moves 6, all of them EZNEC's —
-    `scratch/1579-eznec-declaration/` has it."""
+def test_every_fixture_here_lands_on_the_writer_its_stamp_names():
+    """Every `.nec` fixture in this repo, all three ways: a deck stamped NEC-5
+    declares, a deck stamped NEC-2 or NEC-4.2 is recognised and declares
+    NOTHING, and an unstamped deck is not an EZNEC deck at all — so the
+    4nec2-dialect decks (SY symbols, percent positions) and the hand-written
+    NEC-2 decks keep their reading. No fixture refuses. A hash census of
+    `wire_tuples()` + `network()` across the same fixtures moves 6, all of
+    them EZNEC's NEC-5 export — `scratch/1579-eznec-declaration/` has it."""
     fixtures = sorted((Path(__file__).parent / "fixtures").rglob("*.nec"))
     assert len(fixtures) > 15
+    seen = set()
     for f in fixtures:
         text = f.read_text(errors="replace")
         comments = [
@@ -361,5 +385,113 @@ def test_no_unstamped_fixture_in_this_repo_reads_as_an_eznec_deck():
             for ln in text.splitlines()
             if ln.strip()[:2].upper() == "CM"
         ]
-        found = any(_eznec_declares_nec5(c, f.name) for c in comments)
-        assert found is ("written by eznec" in text.lower()), f.name
+        declares = any(_eznec_declares_nec5(c, f.name) for c in comments)
+        low = text.lower()
+        if "written by eznec" not in low:
+            assert declares is False, f.name
+            seen.add("unstamped")
+        elif "in nec-5 format" in low:
+            assert declares is True, f.name
+            seen.add("nec-5")
+        else:
+            assert declares is False, f.name
+            seen.add("nec-2 family")
+    assert seen == {"unstamped", "nec-5", "nec-2 family"}
+
+
+# --------------------------------------------------------------------------
+# one antenna, three writers
+# --------------------------------------------------------------------------
+# EZNEC's other two writers on the SAME model as the NEC-5 capture: see
+# `tests/fixtures/eznec_writers_1579/README.md` for their provenance and
+# their bytes. At the submodule pointer this branch runs against, that capture
+# is `0010_dipole-in-free-space.nec` (the corpus later renumbered it 0183).
+WRITERS = Path(__file__).parent / "fixtures" / "eznec_writers_1579"
+DIPOLE1_NEC5 = "0010_dipole-in-free-space.nec"
+DIPOLE1_FREQ = 299.7925
+
+
+def _bspline_z(deck):
+    return complex(
+        MomwireEngine(
+            _builder(deck, DIPOLE1_FREQ), solver=BSplineSolver, ground=None
+        ).impedance()[0]
+    )
+
+
+def _file_deck(path):
+    return parse_nec(path.read_text(errors="replace"), name=path.name, network=True)
+
+
+def test_the_nec2_export_synthesizes_its_current_source_as_a_virtual_wire():
+    """NEC-2 has no segment current source, so File > Save As spells one: a
+    wire ~100 m away, an `EX 0` on it, and an `NT` between that node and the
+    antenna. That is AK#1577's idiom already, and the structural detector
+    takes it without the `LD 4 … 1.E+10` pins this vintage does not write."""
+    deck = _file_deck(WRITERS / "Dipole1-nec2-export.nec")
+    assert deck.nec5_dialect is False  # the stamp names NEC-2
+    assert deck.virtual_segment_wires == frozenset({1})  # tag 2
+    net = deck.network()
+    (src,) = net.sources
+    assert isinstance(src, Driven)
+    assert isinstance(net.ports[src.port], PortVirtual)
+    assert src.voltage == pytest.approx(1.414214j)
+    # The injector bridges that node and the antenna's own port on wire 1.
+    (inj,) = [
+        b for b in net.branches if isinstance(b, Admittance) and len(b.ports) == 2
+    ]
+    assert set(inj.ports) == {src.port, "nt1b"}
+    assert isinstance(net.ports["nt1b"], PortOnWire)
+    assert inj.y == ((0j, 1j), (1j, 0j))
+
+
+def test_the_nec42_deck_is_a_centre_fed_ex6():
+    """The External NEC-4.2 slot writes NEC-4's `EX 6` segment current source.
+    `I4` is a print flag in NEC-2 and NEC-4, not an end, so it takes issue
+    #442's reading: the CENTRE of segment 6."""
+    deck = _file_deck(WRITERS / "Dipole1-nec42-deck.nec")
+    assert deck.nec5_dialect is False
+    (feed,) = deck.feeds
+    assert (feed.seg, feed.edge, feed.current) == (6, 0, True)
+    (src,) = deck.network().sources
+    assert isinstance(src, DrivenCurrent)
+
+
+def test_the_two_nec2_writers_describe_the_same_antenna():
+    """THE equality class, and the only pair here that is one: both decks take
+    the NEC-2 reading and both put the source at the CENTRE of segment 6, so
+    the single difference between them is the virtual-wire detector plus the
+    injector two-port. The `NT` is an ideal gyrator (Y11 = Y22 = 0, Y12 = j1,
+    a 1 ohm gyration resistance), so the impedance at its driven virtual node
+    is 1/Z_antenna; undo that and the two must agree. They do, to 7.2e-13 —
+    the injector translation is exact."""
+    via_injector = 1.0 / _bspline_z(_file_deck(WRITERS / "Dipole1-nec2-export.nec"))
+    direct = _bspline_z(_file_deck(WRITERS / "Dipole1-nec42-deck.nec"))
+    assert direct == pytest.approx(complex(82.1202, 45.9154), rel=1e-5)
+    assert abs(via_injector - direct) / abs(direct) < 1e-9
+
+
+@needs_captures
+def test_the_nec5_writer_feeds_the_same_model_half_a_segment_higher():
+    """RECORDED, not gated, and not this importer's doing. `EX 4,1,6,0` is
+    NEC-5's end 2 of segment 6 — knot 6 of an 11-segment wire, 6/11 = 0.5454
+    of it — where the other two writers' `EX 6,1,6,0` and `NT …,1,6` are
+    NEC-2's centre of segment 6, 0.5. That half segment is the whole of the
+    3.18e-02 between them on one solver.
+
+    `EX 4` has taken NEC-5's end rule since issue #1243, so this predates
+    AK#1579; AK's NEC-5 engine reproduces this capture's printout exactly
+    (79.948 + 29.919j), i.e. the card is re-emitted where NEC-5 read it, and
+    momwire's own EZNEC seam reads the same knot. Whether EZNEC means a
+    centre-fed odd-segment model to feed at 6/11 in its NEC-5 export is a
+    question about EZNEC."""
+    nec5 = _capture(DIPOLE1_NEC5)
+    (feed,) = nec5.feeds
+    assert (feed.seg, feed.edge) == (6, 2)
+    assert nec5.network().ports["feed"] == PortAtVertex("feed", end="p1")
+    # Its own Z is pinned, as a guard on OUR reading of the card. The
+    # cross-reading difference (3.18e-02 against the other two writers) is
+    # recorded in the README, not asserted: the two feeds are not in the same
+    # place, so their agreement would not mean anything and their
+    # disagreement does not either.
+    assert _bspline_z(nec5) == pytest.approx(complex(85.1086, 45.8302), rel=1e-5)
