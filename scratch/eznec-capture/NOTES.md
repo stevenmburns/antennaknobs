@@ -989,11 +989,11 @@ every dialog**, rather than being special-cased per entry form. That is worth
 more than the Laplace answer itself: it means a consumer never has to model
 EZNEC's dialogs, only the four cards they can produce.
 
-**The `LD` vocabulary is now closed.** Everything EZNEC can express arrives as
-`LD 0`, `LD 1`, `LD 4` or `LD 5`; there is no Laplace card and no fifth type.
-Anything NEC cannot express is computed at the frequency and written as `LD 4`
-— or, for a parallel external connection, leaves `LD` entirely and becomes an
-`NT` (`0197`).
+**For lumped loads the vocabulary is `LD 0` / `LD 1` / `LD 4`**: there is no
+Laplace card, and anything NEC cannot express is computed at the frequency into
+an `LD 4` — or, for a parallel external connection, leaves `LD` entirely and
+becomes an `NT` (`0197`). ~~The `LD` vocabulary is closed.~~ **It is not** —
+insulated wire adds `LD 2`, below.
 
 Probes on all three, at `1,8`, exactly as the rule predicts.
 
@@ -1007,6 +1007,48 @@ the engine produced all three immediately.
 
 So the per-model rule in the harness README needs the sharper version: **re-set
 the engine after every `Save As`, not only when opening a different model.**
+
+## Insulated wire — `LD 2`, and the `GW` radius is rewritten
+
+`0206`, `Dipole1` with insulation only (Diel C 2.5, Thk 1.0 mm, Loss Tan 0.01),
+against `0183` its byte-exact bare twin. The whole diff beyond the timestamp:
+
+```
+GW 1,11,…,.0005      ->  GW 1,11,…,9.666E-4
+(added)                  LD 2,1,0,0,1.655357,1.3184E-7,0.
+```
+
+EZNEC does **two things at once** — modifies the geometry *and* adds a
+distributed load. `LD 2` is series R-L-C **per unit length**, addressed as tag 1
+with segments `0,0` (the whole wire), which is neither the explicit-segment form
+nor the `-1` junction form.
+
+**The model reproduces from closed form to five figures**, using a complex
+permittivity ε\* = εr(1 − j·tanδ), with a = 0.0005 (conductor), b = 0.0015
+(a + thickness), b/a = 3:
+
+| | expression | computed | deck |
+|---|---|---|---|
+| radius | a·(b/a)^(1−1/εr) | 9.66591e-4 | `9.666E-4` |
+| L′ | (μ₀/2π)·ln(b/a)·Re[1−1/ε\*] | 1.318423e-7 | `1.3184E-7` |
+| R′ | ω·(μ₀/2π)·ln(b/a)·Im[1−1/ε\*] | 1.65538 | `1.655357` |
+
+Using **real** εr instead of ε\* gives Im = 0.004 flat and R′ = 1.655522, which
+is 0.01 % off. So EZNEC uses the **exact complex form**, not the first-order
+approximation — worth knowing if momwire ever reproduces it.
+
+Three consequences:
+
+- **A parser that knows only `LD 0/1/4/5` fails on any insulated model**, and
+  insulated wire is common in real models. This is not an exotic corner.
+- **The `GW` radius cannot be trusted as the physical conductor.** EZNEC
+  silently substitutes the equivalent radius and the original 0.5 mm appears
+  nowhere in the deck. Anything round-tripping geometry out of a deck and back
+  reports the wrong wire.
+- **Partially frequency-specific**: R′ carries ω, the radius and L′ do not.
+
+**No probe**, correctly — `LD 2` is distributed over the whole wire, so there is
+no location at which to report a current.
 
 ## Still to run
 
