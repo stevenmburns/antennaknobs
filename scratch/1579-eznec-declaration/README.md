@@ -73,12 +73,14 @@ Three classes, all of them outside this issue:
 - **#824, one piece two attachments**: a wire whose only piece carries two
   vertex claims, one at knot 0 and one at its far end. `wire_tuples()` gives
   each vertex port the piece ending on its knot, so it cannot name both.
-- **multiport Y not reciprocal**: AK's NEC-5 multiport route reads a vertex
-  port's current from the named arm's last SEGMENT CENTRE when the arms are
-  distinct wires — O(h) at a knot the current is not smooth through. Above
-  1e-2 the route refuses. This is what takes `tests/fixtures/
-  eznec_virtual_wire_1577/failEZN5.nec` off that engine (it solved at 3.9 %
-  before, with one of the two ports still on a segment).
+- **multiport Y not reciprocal**: AK's NEC-5 multiport route checks Y against
+  its own transpose, and above 1e-2 it refuses. 5 captures sit there. It used
+  to take `tests/fixtures/eznec_virtual_wire_1577/failEZN5.nec` with them
+  (1.5e-02) because `_port_knot_current` read a vertex port's current from the
+  named arm's last SEGMENT CENTRE when the arms are distinct wires — O(h) at a
+  knot the current is not smooth through. Extrapolating that read to the knot
+  fixed Dan's deck (2.3e-04, and 0.02 % of the printout) and moved no corpus
+  deck at all: the 5 that remain are a different cause.
 
 ## Fixture hash census
 
