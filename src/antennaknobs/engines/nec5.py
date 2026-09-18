@@ -717,7 +717,26 @@ class NEC5Engine(SimulationEngine):
             h_a, h_b = float(lengths[-1]), float(nxt_lengths[0])
             return (cur[-1] * h_b + nxt[0] * h_a) / (h_a + h_b)
         if k >= cur.shape[0]:
-            return cur[-1]
+            # A vertex where DISTINCT wires meet: the port current is the
+            # current flowing from the node into the named arm, and that arm's
+            # last centre is h/2 short of the knot. Reading it there is O(h) —
+            # on AK#1579's OCF deck, whose two real ports are both vertex
+            # ports, it put the multiport Y 1.5e-02 out of reciprocity against
+            # the 1e-02 that route allows, i.e. it refused a deck it had
+            # solved. Extrapolate instead, through the last TWO centres: the
+            # knot is h_last/2 beyond the last one and the one before it sits
+            # (h_last + h_prev)/2 further back, so the linear term is
+            # (I_last - I_prev) * h_last / (h_last + h_prev). Length-weighted
+            # for the same reason the interior read is (issue #1108); on a
+            # uniform wire it is the familiar 1.5*I_last - 0.5*I_prev.
+            if cur.shape[0] < 2:
+                # A one-segment arm has no second centre to draw a line
+                # through, so there is nothing better than its own centre.
+                return cur[-1]
+            h_last, h_prev = float(lengths[-1]), float(lengths[-2])
+            if h_last + h_prev <= 0:
+                raise NEC5Error(f"wire {idx}: zero-length segments at knot {k}")
+            return cur[-1] + (cur[-1] - cur[-2]) * h_last / (h_last + h_prev)
         h_a, h_b = float(lengths[k - 1]), float(lengths[k])
         if h_a + h_b <= 0:
             raise NEC5Error(f"wire {idx}: zero-length segments at knot {k}")
