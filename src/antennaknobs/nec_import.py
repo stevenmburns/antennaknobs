@@ -43,8 +43,9 @@ export writes NEC-5, and they read the same ``EX``, ``LD``, ``TL`` and ``NT``
 cards differently — NEC-2 attaches at a segment CENTRE, NEC-5 at a segment
 END (``I4`` picks it, or the sign of the segment field does). A deck declares
 NEC-5 by saying so: EZNEC's own stamp line (``CM ! Written by EZNEC/Pro+ v.
-7.0 in NEC-5 format.``, AK#1579 — and an EZNEC stamp naming any OTHER format
-refuses, because only that writer has been captured), a bare ``CM NEC-5``
+7.0 in NEC-5 format.``, AK#1579 — its NEC-2 and NEC-4.2 writers stamp the
+same frame with their own word and keep the NEC-2 reading; a word we have
+never captured refuses), a bare ``CM NEC-5``
 (AK#1476), a ``GN`` card's ``NOFILE`` sentinel, or an ``EX`` in the edge form
 NEC-2 has no spelling for. Declared, the whole deck reads NEC-5: sources and
 probes at knots, a discrete ``LD`` as ONE knot load rather than a segment
@@ -199,28 +200,48 @@ _EZNEC_STAMP = re.compile(r"written\s+by\s+eznec\s*/?\s*pro\+", re.IGNORECASE)
 _EZNEC_FORMAT = re.compile(r"\bin\s+(\S+)\s+format\s*\.?\s*\Z", re.IGNORECASE)
 
 
+# The format words we have a capture for. EZNEC drives three engine slots and
+# writes a different deck for each (all three captured 2026-09-18):
+#
+#   NEC-5   — the export this whole rule exists for: sources, probes, discrete
+#             loads and network ends at segment ENDS.
+#   NEC-2   — what File > Save As writes. An ordinary NEC-2 deck, read
+#             natively; a current source becomes a virtual wire carrying an
+#             `EX 0` and an `NT` injector, which is AK#1577's idiom already.
+#   NEC-4.2 — the External NEC-4.2 slot. NEC-2 geometry and card semantics
+#             with NEC-4's `EX 6` segment current source, which is the NEC-2
+#             reading here too (issue #442) — `I4` is a print flag in both,
+#             not an end.
+#
+# Only NEC-5 is a DECLARATION; the other two are the reading this importer
+# already had. A word we have never seen refuses rather than guessing which.
+_EZNEC_NEC5_WRITER = ("NEC-5", "NEC5")
+_EZNEC_NEC2_WRITERS = ("NEC-2", "NEC2", "NEC-4.2", "NEC4.2")
+
+
 def _eznec_declares_nec5(text: str, where: str) -> bool:
     """Is this ``CM`` comment EZNEC's writer stamp, and does it declare NEC-5?
 
-    False when the comment is not a stamp at all. True for the NEC-5 writer.
-    Any OTHER format word raises: EZNEC has NEC-2 and NEC-4.2 engine slots and
-    writes a different deck for each, we have captured neither, and the
-    NEC-4.2 slot's sources are not NEC-2's — so falling through to the NEC-2
-    reading would repeat AK#1579 one dialect over instead of saying so.
+    False when the comment is not a stamp at all, and False for the two
+    captured writers whose decks read as NEC-2. True for the NEC-5 writer.
+    Any OTHER format word raises: a writer we have not seen spells its
+    sources and loads its own way, and guessing is what AK#1579 was.
     """
     if not _EZNEC_STAMP.search(text):
         return False
     m = _EZNEC_FORMAT.search(text)
-    word = m.group(1) if m else ""
-    if word.upper() in ("NEC-5", "NEC5"):
+    word = (m.group(1) if m else "").upper()
+    if word in _EZNEC_NEC5_WRITER:
         return True
+    if word in _EZNEC_NEC2_WRITERS:
+        return False
     named = f"in {word} format" if word else "in a format this stamp does not name"
     raise ValueError(
         f"{where}: EZNEC wrote this deck {named}, which this importer has no "
-        f"capture for — only EZNEC's NEC-5 writer has been captured, and its "
-        f"NEC-2 and NEC-4.2 slots spell sources, loads and network ends "
-        f"differently, so reading this deck as either would place them wrong "
-        f"(AK#1579)"
+        f"capture for — only EZNEC's NEC-5, NEC-4.2 and NEC-2 writers have "
+        f"been captured, and a writer we have not seen spells sources, loads "
+        f"and network ends its own way, so reading this deck as any of them "
+        f"would place them wrong (AK#1579)"
     )
 
 
