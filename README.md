@@ -157,7 +157,7 @@
 | src/antennaknobs/serialize.py                                        |       83 |        6 |     93% |32-34, 54, 91, 103 |
 | src/antennaknobs/settings\_file.py                                   |       41 |        2 |     95% |     69-70 |
 | src/antennaknobs/sim.py                                              |        2 |        0 |    100% |           |
-| src/antennaknobs/simnec\_export.py                                   |      248 |       27 |     89% |172, 339, 374, 380, 404, 412, 417, 427, 473, 480, 482-497, 504, 508, 550, 562, 602, 802-805, 825 |
+| src/antennaknobs/simnec\_export.py                                   |      248 |       27 |     89% |191, 369, 404, 410, 434, 442, 447, 457, 503, 510, 512-527, 534, 538, 580, 592, 632, 832-835, 855 |
 | src/antennaknobs/simnec\_import.py                                   |      296 |       21 |     93% |155-156, 213, 277, 303, 322, 359-360, 380, 425, 456, 459-460, 572-573, 577-578, 633-634, 637-638 |
 | src/antennaknobs/smith\_chart.py                                     |       44 |        0 |    100% |           |
 | src/antennaknobs/station.py                                          |       68 |        3 |     96% |235-236, 313 |
