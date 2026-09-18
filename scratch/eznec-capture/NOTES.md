@@ -882,7 +882,7 @@ which is why it looked undecidable from the capture alone.
 
 **The consequence is a fact about EZNEC.** `Dipole1.ez` specifies a source at
 50 %. An 11-segment wire has no knot at its centre, so EZNEC writes `EX 4,1,6,0`
-— knot 6, **0.5455 of the wire**, half a segment off — and never says so. On
+— knot 6, **0.5455 of the wire**, half a segment off. On
 even segment counts the knot rule lands exactly. **The model says 50 %, the deck
 says 54.55 %, on odd counts only.**
 
@@ -911,8 +911,20 @@ At the centre the conditions are complementary: a knot lands on L/2 only when N
 is **even**, a segment centre only when N is **odd**. No N satisfies both.
 
 So the model's stated 50 % is honoured exactly **only when the segment count
-matches the dialect's addressing parity**, and EZNEC silently tolerates either
-miss. A NEC-5-vs-NEC-2 comparison of one model can therefore never be an
+matches the dialect's addressing parity**.
+
+**EZNEC discloses this — it is not silent.** The Loads and Sources windows carry
+two position columns side by side: **`Specified` (Wire # / % From E1)** and
+**`Act Pos` (Seg / % From E1)**. The requested percentage and the one the
+segmentation actually produced are both on screen, so a user who asks for 50 %
+on an 11-segment wire can see 54.55 % in the next column. The deck reflects what
+the display already shows.
+
+That reframes the finding and defuses it. It is not "EZNEC drops a model
+property on the floor" — it is the ordinary consequence of discretising a
+continuous position onto a segmentation, surfaced in the UI. Worth knowing when
+reading a deck (the `EX`/`LD` address is the *actual* position, never the
+requested one), but not a defect, and not something to raise with Roy. A NEC-5-vs-NEC-2 comparison of one model can therefore never be an
 equality case; any residual difference is irreducibly geometric. AK#1579's gate
 is the NEC-4.2 deck against the NEC-2 export instead — `EX 6,1,6,0` and the
 injector at wire 1 segment 6, both read at 5.5/11 = 0.5, genuinely co-located.
