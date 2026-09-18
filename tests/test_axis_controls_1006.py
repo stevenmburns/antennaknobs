@@ -83,6 +83,21 @@ def _controls(row) -> set[str]:
     }
 
 
+# Axes that can become multi-valued/unbound `_controls()` members with NO
+# `AXIS_KWARG` entry at all, because the frontend renders them a different
+# way: `renderableOptions`' Rule 3 ("no axis governs this kwarg, so the
+# kwarg list decides") draws a plain `OptionField` straight from a served
+# `model_kwargs` entry, bypassing `axisControls`/`AXIS_KWARG` entirely.
+# `rotational_symmetry` (momwire#1029, unadvertised issue #1567) is the
+# first of these — its axis is `solve_strategy` and there is deliberately
+# no bespoke widget for it, unlike `degree`/`kernel`/`feed_model`/
+# `quadrature`. The invariant this file exists to protect (a control a
+# user can see always reaches the hosted sanitiser) still holds for them;
+# it is proven on the kwarg directly below rather than through
+# `AXIS_KWARG`, so this is a second proof, not a hole in the first one.
+_EXEMPT_VIA_MODEL_KWARG = {"solve_strategy": "rotational_symmetry"}
+
+
 def test_every_axis_control_kwarg_is_hosted_allowed():
     """The gate the frontend comment points at."""
     kw = _axis_kwarg_from_typescript()
@@ -91,6 +106,13 @@ def test_every_axis_control_kwarg_is_hosted_allowed():
         for axis in _controls(row):
             kwarg = kw.get(axis)
             if kwarg is None:
+                exempt = _EXEMPT_VIA_MODEL_KWARG.get(axis)
+                if (
+                    exempt is not None
+                    and exempt in row["model_kwargs"]
+                    and exempt in _HOSTED_MODEL_OPTIONS
+                ):
+                    continue
                 offenders.append(f"{row['name']}: axis {axis!r} maps to no kwarg")
             elif kwarg not in _HOSTED_MODEL_OPTIONS:
                 offenders.append(f"{row['name']}: {axis} -> {kwarg} not allowlisted")
