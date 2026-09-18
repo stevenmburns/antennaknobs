@@ -1052,9 +1052,31 @@ no location at which to report a current.
 
 ## Still to run
 
-1. Item 2 of the run sheet — the mixed-drive Cardioid (QRZ #100 / momwire
-   PR #1118). Both loads sit at explicit segments clear of the feed, so on the
-   rule above both should carry probes.
+1. **Insulation + wire loss together** — the one remaining capture that could
+   change a rule. `0206` has **no `LD 5`**, so nothing here gates the
+   conductivity question: EZNEC rewrote the conductor radius to `9.666E-4`, and
+   `LD 5` is a conductivity over a cross-section, so a conductivity written
+   against the rewritten radius describes a different amount of metal than the
+   physical 0.5 mm wire. Either EZNEC compensates or the loss is silently wrong
+   on every insulated lossy wire.
+
+   Run `Dipole1` with the same insulation (2.5 / 1.0 mm / 0.01) **and Wire Loss
+   = Copper**. It diffs three ways against `0184` (copper alone) and `0206`
+   (insulation alone), which are byte-exact twins with each effect isolated.
+
+   | `LD 5` conductivity | means |
+   |---|---|
+   | `5.7471E+7` | no compensation — loss wrong on insulated wires |
+   | `1.5377E+7` | scaled by (a/a′)² = 0.2676× |
+   | `2.9727E+7` | scaled by (a/a′) = 0.5173× |
+
+   AK#1523's `(a/a′)²` rule is **AK's own, not EZNEC-verified** — AK#1587 now
+   says so. The deck would also be the first to carry `LD 2` (tag with `0,0`)
+   beside `LD 5` (tag 0 with an absolute span) on one wire, which is a parser
+   test in its own right.
+
+2. The 14 bonus AutoEZ workbooks — pure clicking, new corpus titles.
+3. The AutoEZ `GE` confirmation run — corroboration only; provenance is closed.
 2. **One `Save As` of `Dipole1` re-cut to 10 segments** — the one pair with a
    NEC-5 knot source and a NEC-2 injector at the same physical point. Bank it
    beside the other two exports.
