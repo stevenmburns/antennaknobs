@@ -18,12 +18,12 @@ worth naming:
   lands on NEC-5's printed source impedance to 1.8e-05 — no solver involved,
   so it pins the translation itself: ports, pi decomposition, complex-Y line,
   pin admittances and where the drive sits;
-- the END-TO-END gate is looser (4.1 % of R) and the residual is NOT this
-  translation. AK reads an `NT`/`EX` segment field as a segment and puts the
-  port at its CENTRE where NEC-5 addresses a knot; on this 378-segment wire
-  that one knot is worth 2.15 % of X, which the transformer and lossy line
-  amplify. `test_the_end_to_end_residual_is_the_attachment_knot` measures
-  that on the control deck, where no virtual wire is involved at all.
+- the END-TO-END gate was looser (4.1 % of R) while AK read an `NT`/`EX`
+  segment field as a segment and put the port at its CENTRE where NEC-5
+  addresses a knot. AK#1579 reads EZNEC's stamp as the NEC-5 declaration it
+  is, so the ports sit on the knots and the residual is 0.75 %;
+  `test_the_attachment_lands_on_the_knot_nec5_used` measures what is left on
+  the control deck, where no virtual wire is involved at all.
 """
 
 from pathlib import Path
@@ -33,6 +33,7 @@ import pytest
 
 from antennaknobs import AntennaBuilder
 from antennaknobs.engines import MomwireEngine, NEC5Engine
+from antennaknobs.engines.nec5 import NEC5Error
 from antennaknobs.file_designs import builder_from_file
 from antennaknobs.nec_import import parse_nec
 from antennaknobs.network import (
@@ -40,8 +41,9 @@ from antennaknobs.network import (
     Driven,
     DrivenCurrent,
     Network,
-    PortOnWire,
+    PortAtVertex,
     PortVirtual,
+    Shunt,
 )
 from momwire import BSplineSolver
 from momwire.networks import NetworkReducer
@@ -126,15 +128,20 @@ def test_dans_deck_imports_the_virtual_wire_as_nodes():
     # the AK#1577 idiom, not #427's remote TL anchor.
     assert deck.virtual_segment_wires == frozenset({2})
     assert deck.virtual_anchors == frozenset({2})
-    # Its geometry is gone: only the two antenna wires are emitted.
-    assert len(deck.wire_tuples()) == 2
+    # Its geometry is gone: only the two antenna wires are emitted — wire 1
+    # in two pieces, because the probe's knot (189 of 378) cuts it (AK#1579).
+    assert [t[2] for t in deck.wire_tuples()] == [189, 189, 24]
     net = deck.network()
     # Segment 1 is the transformer's secondary and one end of the line;
     # segment 2 is the line's other end and the source. Two nodes, both
     # virtual; the transformer's antenna end stays a port on a real wire.
     assert isinstance(net.ports["nt1a"], PortVirtual)
     assert isinstance(net.ports["feed1"], PortVirtual)
-    assert isinstance(net.ports["nt2a"], PortOnWire)
+    # The transformer's antenna end is `NT 1,378,...` — NEC-5's end 2 of
+    # segment 378, i.e. the OCF junction where wire 1 meets wire 2, so it is
+    # the series vertex port there rather than a gap half a segment short of
+    # it (AK#1579).
+    assert net.ports["nt2a"] == PortAtVertex("nt2a", end="p1")
     # The EX 4 becomes a forced current on the virtual node — which is what
     # momwire's PortVirtual is documented for ("driver feeds that branch out
     # via TLs to real ports").
@@ -190,32 +197,31 @@ def test_translated_network_reproduces_nec5_at_the_source():
 
 
 def test_momwire_bspline_solves_dans_deck():
-    """End to end on the deck as posted. The tolerance is 5 %, not the 2 %
-    AK#1577 asked for, and the gap is measured in
-    `test_the_end_to_end_residual_is_the_attachment_knot`: it is the
-    segment-centre vs knot attachment, amplified by the transformer and the
-    line, not the virtual-wire translation."""
+    """End to end on the deck as posted. 0.75 % since AK#1579 put the source,
+    the probe and the transformer's antenna end on the knots NEC-5 solves them
+    at; it was 2.44 % while they sat at segment centres."""
     z_source, z_probe = (
         complex(x) for x in _solve("failEZN5.nec", solver=BSplineSolver)
     )
-    assert z_source == pytest.approx(complex(50.928, 105.839), rel=1e-4)
-    assert abs(z_source - NEC5_SOURCE_Z) / abs(NEC5_SOURCE_Z) < 0.05
+    assert z_source == pytest.approx(complex(49.4982, 104.5294), rel=1e-4)
+    assert abs(z_source - NEC5_SOURCE_Z) / abs(NEC5_SOURCE_Z) < 0.01
     # The probe: 1e-10 V across the port, so its current is V/Z (NEC-5 prints
     # the current directly).
     i_probe = 1e-10 / z_probe
-    assert abs(i_probe - NEC5_PROBE_I) / abs(NEC5_PROBE_I) < 0.05
+    assert abs(i_probe - NEC5_PROBE_I) / abs(NEC5_PROBE_I) < 0.01
 
 
-def test_the_end_to_end_residual_is_the_attachment_knot():
+def test_the_attachment_lands_on_the_knot_nec5_used():
     """Attribution, on the CONTROL deck — no virtual wire, no network, one
-    source. AK puts the port at the centre of the deck's segment 378; NEC-5
-    addresses the knot at its end. That one knot out of 378 is the whole
-    residual: 2.15 % of X here, which the transformer and lossy line turn
-    into ~4 % of R at the source."""
+    source. While AK read `EX 0,1,378,0` as the centre of segment 378 this was
+    275.111 - 1409.989j, 2.15 % of X from the printout, and that one knot out
+    of 378 was the whole end-to-end residual. Reading EZNEC's stamp as the
+    NEC-5 declaration it is (AK#1579) puts the port on knot 378, and what is
+    left is momwire against NEC-5 on the same model: 0.64 % of |Z|."""
     (z,) = (complex(x) for x in _solve("WA7ARK-OCF-LoadOnly.nec", solver=BSplineSolver))
-    assert z == pytest.approx(complex(275.111, -1409.989), rel=1e-4)
-    assert abs(z.real - NEC5_CONTROL_Z.real) / abs(NEC5_CONTROL_Z.real) < 0.003
-    assert 0.02 < abs(z.imag - NEC5_CONTROL_Z.imag) / abs(NEC5_CONTROL_Z.imag) < 0.025
+    assert z == pytest.approx(complex(274.7914, -1431.6775), rel=1e-4)
+    assert abs(z - NEC5_CONTROL_Z) / abs(NEC5_CONTROL_Z) < 0.01
+    assert abs(z.imag - NEC5_CONTROL_Z.imag) / abs(NEC5_CONTROL_Z.imag) < 0.007
     # And it composes. Push AK's OWN control value through the imported
     # network and it lands on AK's own end-to-end answer for the same model
     # with the virtual wire: the antenna one-port is the only input the
@@ -231,14 +237,20 @@ def test_the_end_to_end_residual_is_the_attachment_knot():
 # gate 2 — the app's NEC-5 engine solves it through the multiport-Y reducer
 # --------------------------------------------------------------------------
 @needs_nec5
-def test_nec5_engine_solves_it_through_the_reducer():
+def test_nec5_engine_route_refuses_once_both_ports_are_knots():
     """A PortVirtual sends the design down `_network_needs_reducer`'s route:
-    one deck per driven real port, the circuit reduced onto them. The virtual
-    nodes never reach a card, and the 1e-10 V probe is the real port that
-    keeps the route legal."""
-    z_source, _z_probe = (complex(x) for x in _solve("failEZN5.nec", engine=NEC5Engine))
-    assert z_source == pytest.approx(complex(50.680, 105.862), rel=1e-3)
-    assert abs(z_source - NEC5_SOURCE_Z) / abs(NEC5_SOURCE_Z) < 0.05
+    one deck per driven real port, the circuit reduced onto them. Both real
+    ports are now VERTEX ports — the probe's knot and the transformer's knot
+    at the OCF junction (AK#1579) — and the route's reciprocity check refuses
+    at 1.5e-02 against its 1e-02 bar.
+
+    The bar is not the import: `_port_knot_current` reads a vertex port's
+    current from the named arm's LAST SEGMENT CENTRE where the arms are
+    distinct wires, which is O(h) at a knot the current is not smooth
+    through. Pinned here so the refusal is a decision and not a surprise;
+    when that read is second-order the assertion flips back to a solve."""
+    with pytest.raises(NEC5Error, match="multiport Y is not reciprocal"):
+        _solve("failEZN5.nec", engine=NEC5Engine)
 
 
 @needs_nec5
@@ -274,7 +286,7 @@ def test_voltage_source_on_the_virtual_wire_imports_too():
     (z,) = (
         complex(x) for x in _solve("WA7ARK-OCF-Load-Xfmr-TL.nec", solver=BSplineSolver)
     )
-    assert z == pytest.approx(complex(51.030, 105.903), rel=1e-4)
+    assert z == pytest.approx(complex(49.4982, 104.5294), rel=1e-4)
 
 
 def test_unpinned_virtual_segments_cost_half_a_percent():
@@ -348,23 +360,38 @@ def test_a_tl_only_virtual_segment_is_left_exactly_as_it_was():
 # --------------------------------------------------------------------------
 # gate 5 — the #824 refusal still fires on a REAL wire
 # --------------------------------------------------------------------------
-REAL_WIRE_COLLISION = (
-    "CM a knot source and a network port on one piece of a REAL wire\n"
+_REAL_WIRE_HEAD = (
+    "CM a knot source and a network end on a REAL wire\n"
     "CE\n"
     "GW 1,21,-4.87,0.,21.45,4.87,0.,21.45,.0254\n"
     "GW 2,3,2114.9,2114.9,2114.9,2114.93,2114.93,2114.93,.0021\n"
     "GE 0\nFR 0,1,0,0,14.175\n"
     "LD 4,2,1,0,1.E+10,0.\n"
     "EX 4,1,11,2,1.414214,0.\n"  # knot 11 of wire 1 — a current source
-    "NT 1,11,2,1,.01,0.,0.,0.,0.,0.\n"  # ... and an NT on segment 11
-    "EN\n"
 )
+ONE_KNOT = _REAL_WIRE_HEAD + "NT 1,11,2,1,.01,0.,0.,0.,0.,0.\nEN\n"
+# The same wire carrying a knot source at 11 and a knot LOAD at 0, which no
+# cut can separate: they ride the one piece between them.
+REAL_WIRE_COLLISION = ONE_KNOT.replace("EN\n", "LD 0,1,1,1,50.,0.,0.\nEN\n")
+
+
+def test_a_knot_source_and_a_network_end_on_one_knot_share_a_port():
+    """`EX 4,1,11,2` and `NT 1,11` name the SAME node in NEC-5 — end 2 of
+    segment 11 (AK#1579) — so the deck that used to read as two attachments
+    fighting over one piece is one port carrying both."""
+    deck = parse_nec(ONE_KNOT, network=True)
+    assert deck.virtual_segment_wires == frozenset({1})
+    net = deck.network()
+    assert net.ports["feed"] == PortAtVertex("feed", end="p1")
+    assert "nt1a" not in net.ports  # the NT's antenna end IS the feed's port
+    (shunt,) = [b for b in net.branches if isinstance(b, Shunt)]
+    assert (shunt.port, shunt.r) == ("feed", 100.0)
 
 
 def test_824_refusal_still_fires_for_a_real_wire():
     """Wire 1 is the antenna: a knot source there needs its own wire end, and
-    the NT claims the same one-segment piece. Virtualizing wire 2 (which IS
-    the idiom) does not make that collision legal."""
+    the knot load at the far end of the same piece claims it too. Virtualizing
+    wire 2 (which IS the idiom) does not make that collision legal."""
     deck = parse_nec(REAL_WIRE_COLLISION, network=True)
     assert deck.virtual_segment_wires == frozenset({1})
     with pytest.raises(ValueError, match="claimed by more than one attachment"):
