@@ -888,6 +888,35 @@ says 54.55 %, on odd counts only.**
 
 Whether that goes to Roy is Steve's call.
 
+### It is not a NEC-5 quirk — it is addressing parity, and it cannot be re-cut away
+
+Re-cutting `Dipole1` to 10 segments and exporting NEC-2 (`Dipole1-10seg-nec2-export.nec`)
+was meant to give one model whose NEC-5 and NEC-2 sources sit at the same point.
+It does the opposite, and shows why none can. The injector lands on **segment 5
+of 10**, whose centre is **0.45** — half a segment off, the mirror of the NEC-5
+failure.
+
+For a wire of length L in N segments:
+
+| | positions |
+|---|---|
+| knots (NEC-5 `EX 4`) | `i·L/N`, i = 1…N−1 — multiples of `L/N` |
+| segment centres (NEC-2 source) | `(i−0.5)·L/N`, i = 1…N — **odd** multiples of `L/2N` |
+
+An odd multiple of a half-step is never an integer multiple of a whole step, so
+**those sets are disjoint for every N.** A knot source and a segment-centre
+source are never co-located, at any position, for any segment count.
+
+At the centre the conditions are complementary: a knot lands on L/2 only when N
+is **even**, a segment centre only when N is **odd**. No N satisfies both.
+
+So the model's stated 50 % is honoured exactly **only when the segment count
+matches the dialect's addressing parity**, and EZNEC silently tolerates either
+miss. A NEC-5-vs-NEC-2 comparison of one model can therefore never be an
+equality case; any residual difference is irreducibly geometric. AK#1579's gate
+is the NEC-4.2 deck against the NEC-2 export instead — `EX 6,1,6,0` and the
+injector at wire 1 segment 6, both read at 5.5/11 = 0.5, genuinely co-located.
+
 It also means the NEC-5 deck and the NEC-2 export of the same model put the
 source in *different physical places* (knot 6 = 0.5455 versus segment 6's centre
 = 0.5), so a residual impedance difference between them is expected and is not
