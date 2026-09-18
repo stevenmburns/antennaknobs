@@ -894,10 +894,54 @@ source in *different physical places* (knot 6 = 0.5455 versus segment 6's centre
 evidence about any detector. AK#1579's gate was re-cut onto the NEC-4.2 deck
 against the NEC-2 export, which both sit at 0.5.
 
+## The probe rule, settled — and it is neither of my two guesses
+
+Item 1 ran as `0200` / `0201`, and its control is what decided it. Cardioid,
+wire 1's load moved to 50 % (segment 15), wire 2's left at the junction:
+
+| | wire 1 load | wire 2 load | probe |
+|---|---|---|---|
+| `0200` RLC window | `LD 0,1,15` | `LD 0,2,-1` | on `1,15` only |
+| `0201` R+jX window | `LD 4,1,15` | `LD 4,2,-1` | on `1,15` only |
+
+So the **entry window is irrelevant to the probe** — an `LD 4` straight from the
+R+jX window carries one. That kills the rule the 09-17 section proposed.
+
+"Explicit segment vs junction address" also fits both captures, but it is a
+**proxy, not the mechanism**. Roy's own statement (QRZ #98) is the real one:
+
+> A probe is written at a load's location **unless an `EX`, `NT` or `TL`
+> already reports current there.**
+
+The captures all turn on that, and the `-1` addresses are incidental — they are
+simply where the feed system happens to terminate:
+
+- `0198`/`0199` — loads at `1,-1` and `2,-1`; the deck's `TL 3,1,1,-1` and
+  `TL 3,2,2,-1` end at exactly those two points. Both loads are already reported.
+  No probes.
+- `0200`/`0201` — wire 1's load moves to `1,15`, clear of the `TL` end still at
+  `1,-1`, and gains a probe. Wire 2's stays at the `TL` end and does not.
+- `0192` — the TFD's load is at `2,34` while its `NT` ends at `1,34`. Different
+  *wire*, so nothing reports there, so it gets a probe. That near-miss is why the
+  TFD showed the first probe in the corpus.
+- `0193`–`0196` — plain dipole, load at `1,8`, source at `1,6`, no `TL`/`NT`
+  anywhere. Nothing reports at the load. Probe.
+- `0197` — `Ext Con = Par` turns the load into an `NT`, so there is no `LD` to
+  probe at all.
+
+**A consumer cannot infer probe presence from card type, entry form, or address
+form.** It must read the `EX`/`NT`/`TL` cards and match addresses — which is what
+momwire's seam already does.
+
+Corollary worth one capture some day, not on this sitting's list: a load at an
+explicit segment that coincides with a `TL` end should get **no** probe. Nothing
+in the corpus exercises it yet.
+
 ## Still to run
 
-1. Items 1 and 2 of the run sheet — the deciding capture, and the mixed-drive
-   Cardioid (QRZ #100 / momwire PR #1118).
+1. Item 2 of the run sheet — the mixed-drive Cardioid (QRZ #100 / momwire
+   PR #1118). Both loads sit at explicit segments clear of the feed, so on the
+   rule above both should carry probes.
 2. **One `Save As` of `Dipole1` re-cut to 10 segments** — the one pair with a
    NEC-5 knot source and a NEC-2 injector at the same physical point. Bank it
    beside the other two exports.
