@@ -1050,6 +1050,29 @@ Three consequences:
 **No probe**, correctly — `LD 2` is distributed over the whole wire, so there is
 no location at which to report a current.
 
+## The AutoEZ workbooks — and a refusal, which is a new category
+
+`0207`–`0218`, twelve of the fourteen. Mostly `TL`/`NT`-rich decks, which the
+corpus was thin on: `0215` (W5TX stack) is 21 `GW` and 6 `NT`, the three LPDAs
+carry 7 `TL` each, and `0212` (Complete Feed System) puts 4 `NT` on a model whose
+title the corpus already held but whose deck is far richer.
+
+**Two were refused outright:**
+
+> Use of split sources is not allowed when using the External NEC-5 engine
+
+— `Diamond Pentaband Quad` and `Vee With Formulas`. That is a **new category**.
+Everywhere else, when NEC had no card for something EZNEC computed an
+equivalent: the trap became `LD 4`, a parallel load became an `NT`, insulation
+became a rewritten radius plus `LD 2`. Split sources are the first feature where
+it **refuses instead of reducing**.
+
+So the reduction strategy has a boundary, and the useful consequence is that
+**a NEC-5 deck will never contain a split source** — a drop-in need not handle
+the case at all. `Split_Source.htm` is a real help topic, so this is a
+documented EZNEC feature that simply does not survive the seam. Two of fourteen
+bundled AutoEZ samples hit it, so it is not a rarity.
+
 ## Still to run
 
 1. **Insulation + wire loss together** — the one remaining capture that could
