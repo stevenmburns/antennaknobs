@@ -946,7 +946,49 @@ in the corpus exercises it yet.
    NEC-5 knot source and a NEC-2 injector at the same physical point. Bank it
    beside the other two exports.
 3. Laplace, insulated wire, the 14 workbooks.
-4. Item 4 — whether AutoEZ writes a bare `GE 0` while copying EZNEC's NEC-5
-   stamp. Mike WA7ARK's decks carry the NEC-5 token, a one-field `GE`, and no
-   version line, and **no EZNEC writer on this box produces that combination**,
-   so something third-party wrote them.
+4. Item 4's confirmation run — AutoEZ Calculate against AutoEZ's own export.
+   Corroboration only; the question below is already answered.
+
+## Who writes a one-field `GE` — closed, from files already in the repo
+
+momwire#1116 asked which writer emits a bare `GE 0`. **Two do**, and Mike
+WA7ARK's decks are the second:
+
+- **EZNEC's own NEC-2 export** — `Save As` with a `.nec` type (above).
+- **AutoEZ**, writing the deck itself. Its decks say so in their first line:
+  `CM Created from AutoEZ`, then EZNEC's NEC-5 stamp copied verbatim, then
+  `GE 0`, and no version/date line.
+
+**But `Created from AutoEZ` is NOT a discriminator on its own** — it marks the
+MODEL's origin and appears on both paths. AK#1577's three fixtures settle it:
+
+| fixture | `Created from AutoEZ` | `CM EZNEC Pro/… v. 7.0.x <date>` | `GE` |
+|---|---|---|---|
+| `WA7ARK-OCF-LoadOnly.nec` | yes | — | `GE 0` |
+| `WA7ARK-OCF-Load-Xfmr-TL.nec` | yes | — | `GE 0` |
+| `failEZN5.nec` | yes | **yes** | `GE 0,-1` |
+
+`failEZN5.nec` is AutoEZ building the model and then *driving EZNEC*, which
+wrote the deck — so it gets EZNEC's version line and EZNEC's two-field `GE`.
+**AutoEZ's own writer is the triple:** `Created from AutoEZ` **and** no version/
+date line **and** the bare `GE`. Mike's two files have all three; Dan's has only
+the first. Counting on the comment alone over-counts.
+
+## `! NT #N is EZNEC <thing>` — a family, not a one-off
+
+Three members so far, numbered per `NT` card:
+
+| annotation | seen in |
+|---|---|
+| `! NT #1 is EZNEC current source` | NEC-2 export |
+| `! NT #1 is EZNEC lossy transmission line` | `WA7ARK-OCF-Load-Xfmr-TL.nec` |
+| `! NT #2 is EZNEC transformer` | same |
+
+Better than the virtual-wire comment for telling what a network *does* — the
+wire comment only says a virtual wire exists, these say what each `NT`
+implements. Corroboration only; the cards decide. On AK#1577 for the detector's
+docstring.
+
+That AutoEZ-written fixture carries both the virtual-wire comment and the `NT`
+annotations, so AutoEZ reproduces EZNEC's whole comment idiom, not just the
+stamp.
