@@ -966,6 +966,48 @@ Corollary worth one capture some day, not on this sitting's list: a load at an
 explicit segment that coincides with a `TL` end should get **no** probe. Nothing
 in the corpus exercises it yet.
 
+## Laplace — no new card, and the reduction lives in one place
+
+The third Loads window takes a rational function in s, ascending powers to s^5,
+numerator over denominator: **Z(s) = (N0 + N1s + N2s^2 + …) / (D0 + D1s + …)**.
+Three runs on `Dipole1`, load at wire 1 / 75 % (segment 8), same place as
+`0193`–`0196`:
+
+| | cells set | predicted | `LD` written |
+|---|---|---|---|
+| `0203` | N0 = 18, D0 = 1 | 18 + 0j | `LD 4,1,8,0,18.,0.` |
+| `0204` | N1 = 1E-7, D0 = 1 | +188.36j | `LD 4,1,8,0,0.,188.3652` |
+| `0205` | N1 = 1E-7, D0 = 1, D2 = 5E-19 | −243.34j | `LD 4,1,8,0,0.,-243.3432` |
+
+**`0205` is byte-identical to `0196`** — the whole deck, not just the card; the
+only line that differs is the timestamp, a day apart. `0196` reached that trap
+through the **RLC window with Config = Trap**; `0205` reached it through the
+**Laplace window** as `sL / (1 + s²LC)`. Two unrelated dialogs, one output.
+
+So the reduction to an equivalent `LD 4` happens **in one place, downstream of
+every dialog**, rather than being special-cased per entry form. That is worth
+more than the Laplace answer itself: it means a consumer never has to model
+EZNEC's dialogs, only the four cards they can produce.
+
+**The `LD` vocabulary is now closed.** Everything EZNEC can express arrives as
+`LD 0`, `LD 1`, `LD 4` or `LD 5`; there is no Laplace card and no fifth type.
+Anything NEC cannot express is computed at the frequency and written as `LD 4`
+— or, for a parallel external connection, leaves `LD` entirely and becomes an
+`NT` (`0197`).
+
+Probes on all three, at `1,8`, exactly as the rule predicts.
+
+### The engine selection does not survive `Save As`
+
+All three were saved and calculated in one pass and produced **no captures** —
+`LastRun.log` showed `edit load(s)` → `SA` → `Running EZCalcD_70_x64.EXE`. A
+model saved under a new name comes up on the **internal** engine even when the
+model it was saved *from* was set to External NEC-5. Re-opening each and setting
+the engine produced all three immediately.
+
+So the per-model rule in the harness README needs the sharper version: **re-set
+the engine after every `Save As`, not only when opening a different model.**
+
 ## Still to run
 
 1. Item 2 of the run sheet — the mixed-drive Cardioid (QRZ #100 / momwire
