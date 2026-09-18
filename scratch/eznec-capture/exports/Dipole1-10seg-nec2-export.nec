@@ -1,0 +1,28 @@
+CM Dipole in free space
+CM
+CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-2 format.
+CM
+CM ! Wire #2 for I srcs, shorted/open TL, and/or parallel loads.
+CM ! NT #1 is EZNEC current source
+CM
+CM 	Dipole1
+CM 
+CM This is a plain dipole in free space, about the simplest antenna you're
+CM likely to model. The frequency is 299.7+ MHz (selected by entering '0'
+CM for the frequency), at which a wavelength is one meter. The antenna
+CM dimensions, in meters, are therefore also the dimensions in wavelengths.
+CM Note that this antenna, exactly a half wavelength long, is greater than
+CM a resonant length, as indicated by the positive feedpoint reactance
+CM (seen by clicking the Control Center Src Dat [Source Data] action
+CM button. A resonant "half-wave" antenna is somewhat shorter than 0.5
+CM wavelength, the amount depending on its diameter.
+CE
+GW 1,10,0.,-.25,0.,0.,.25,0.,.0005
+GW 2,3,99.99998,99.99998,99.99998,100.003,100.003,100.003,1.0000E-4
+GE 0
+FR 0,1,0,0,299.7925
+GN -1
+EX 0,2,2,0,0.,1.414214
+NT 2,2,1,5,0.,0.,0.,1.,0.,0.
+RP 0,1,361,1000,90.,0.,0.,1.,0.
+EN
