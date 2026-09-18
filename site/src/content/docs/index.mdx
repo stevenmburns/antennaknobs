@@ -29,26 +29,22 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.81.0" icon="star">
-  **The command line in the zip.** The Windows workbench zip now carries
-  `antennaknobs-cli.exe` beside `antennaknobs-workbench.exe`, over the one
-  `_internal` they share: the same command line a pip install runs, with no
-  Python to set up. Tk is back in the bundle, so a chart with no `--fn` opens
-  in a window with matplotlib's toolbar — the Smith chart zooms and pans, which
-  is what a convergence study needs. A pip install now puts an `antennaknobs`
-  command on PATH too, so `antennaknobs sweep ...` and
-  `python -m antennaknobs sweep ...` are the same thing. On the command line,
-  every engine of a run gets ONE ground: an explicit `--ground`, else a
-  `.nec` design's own `GE`/`GN` cards, else free space — a multi-engine
-  `sweep --param nominal_nsegs` used to compare PyNEC and NEC-2 over a finite
-  ground against momwire and NEC-5 in free space, a 9 Ω split that was never
-  the solvers — and the convergence table prints the ground under each
-  header. The CLI's tables survive a redirected stdout on Windows, and the
-  workbench page is served so the browser revalidates it, since a fixed port
-  can otherwise show last release's page. momwire 0.58.0 underneath: EZNEC's
-  1e-10 V load-probe sources are served, so an EZNEC model with an R/L/C load
-  runs through the drop-in; a refused card reads as its sentence rather than
-  an internal error; and the READMEs say to Unblock the zip before extracting.
+<Card title="New in v0.82.0" icon="star">
+  **The decks EZNEC actually writes.** EZNEC's virtual wire — the short,
+  distant wire its transformer and lossy-line idiom puts a source on — now
+  imports as virtual circuit nodes instead of a refusal, so a model fed
+  through a transformer and a lossy line opens on the command line, in the
+  workbench, on momwire and on the NEC-5 engine. A deck EZNEC stamps
+  "in NEC-5 format" is read as NEC-5: its sources, load probes, loads and
+  network ends land on the knot the writer meant rather than half a segment
+  away, while the NEC-2 and NEC-4.2 exports keep their NEC-2 reading — on a
+  reported deck the NEC-5 engine now reproduces EZNEC's own printout to
+  0.02 %. The SimNEC round trip is a fixed point: a re-imported `.ssn` keeps
+  its segment counts (the export's one-time re-mesh at the feed is deliberate
+  and stays). momwire 0.60.0 underneath: a one-field `GE` card — the shape
+  AutoEZ's writer and EZNEC's NEC-2 Save As emit — is accepted instead of
+  refused, and a two-drive model with load probes on both drives is gated
+  against NEC-5.
 </Card>
 
 ## The whole pitch, in one line

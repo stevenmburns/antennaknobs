@@ -88,7 +88,11 @@ SimNEC-side sweep. `Q = 0` means ideal (lossless) on both sides.
 
 The reverse direction loads a SimNEC circuit — one you built in SimNEC, or
 one that came back modified from a round-trip — as antenna geometry plus,
-for station files, the matching chain as a real `build_network()`:
+for station files, the matching chain as a real `build_network()`. A
+re-imported `.ssn` is a file deck like a `.nec`: its segment counts are what
+the file says, so export → import → export is a fixed point — the export's
+one-time re-mesh of a fed wire, which puts the feed exactly at its stated
+position, does not repeat on every hop.
 
 ```bash
 # Any subcommand takes an @file.ssn spec, like @file.nec
