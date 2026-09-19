@@ -5837,6 +5837,33 @@
     "elapsed_ms": "189"
   },
   {
+    "capture": "0219_20260918-171244",
+    "title": "Dipole in free space",
+    "freq_mhz": "299.7925",
+    "cards": {
+      "EN": 1,
+      "EX": 1,
+      "FR": 1,
+      "GE": 1,
+      "GN": 1,
+      "GW": 1,
+      "LD": 2,
+      "PQ": 1,
+      "RP": 1
+    },
+    "has_tl": false,
+    "has_nt": false,
+    "deck": "0219_20260918-171244\\pre\\Docs__EZN5.NEC",
+    "deck_lines": 16,
+    "printout": "0219_20260918-171244\\post\\Docs__NEC5.OUT",
+    "command_line": "\"C:\\EZNEC 7.0\\Docs\\NEC5CL_x13.exe\" \"EZN5.NEC\" \"NEC5.OUT\"",
+    "argument_tail": "\"EZN5.NEC\" \"NEC5.OUT\"",
+    "cwd": "C:\\EZNEC 7.0\\Docs",
+    "stdin_redirected": "False",
+    "exit_code": "0",
+    "elapsed_ms": "128"
+  },
+  {
     "capture": "exports",
     "title": "",
     "freq_mhz": "",
