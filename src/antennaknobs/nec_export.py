@@ -17,6 +17,19 @@ native NEC ``tl_card``s, so there is no faithful single-deck representation.
 ``export_nec`` raises ``NotImplementedError`` for them, in the DIALECT's name
 rather than PyNEC's: a user reading a download error has not chosen an engine
 (antennaknobs#1389).
+
+CURRENT SOURCES are the exception that used to be swept in with them
+(AK#1597). ``DrivenCurrent`` forces the reducer because NEC's ``EX`` drives
+VOLTS, so the refusal above caught it too — and that premise was false: a
+NEC-2 deck expresses an ideal current source perfectly well, as a phantom wire
+parked far from the antenna carrying an ``EX 0``, tied to the real feed
+segment by an ``NT`` GYRATOR (Y11 = Y22 = 0, Y12 = Y21 = j). EZNEC writes
+exactly that when asked to save a current-driven model as NEC-2, and 4nec2
+builds it to emulate ``EX 6``; ``scripts/bench_nec_corpus.py``'s
+``gyrator_reference`` (AK#475) is the same construction from the other side.
+So a network whose ONLY reducer reason is its current sources is written, not
+refused — see :func:`_gyrator_cards`. Dan AC6LA's ``Cardioidmodnec2.nec`` is
+the reporting deck, and it is one EZNEC itself wrote.
 """
 
 from __future__ import annotations
@@ -25,6 +38,75 @@ from .engines.nec2 import refuse_nec2_geometry
 from .engines._nec_wire import JACKET_COMMENT_CARDS
 from .engines.pynec import DEFAULT_GROUND, PyNECEngine
 from .network import GradedSegments, Load, as_wire
+
+
+def _gyrator_cards(eng, tups, freq_mhz):
+    """``(gw, nt, ex)`` card lists spelling every forced current in ``eng``
+    as NEC-2's gyrator idiom (AK#1597), or three empty lists.
+
+    NEC-2 has no current-source ``EX``. The idiom, which EZNEC writes and
+    4nec2 uses to emulate ``EX 6``, is per current source:
+
+    1. a phantom 1-segment wire parked far from the structure, so its coupling
+       to the antenna is negligible;
+    2. an ``NT`` gyrator tying phantom -> real feed segment with Y11 = Y22 = 0
+       and Y12 = Y21 = j, which forces a current into the real segment
+       regardless of what that segment is loaded with;
+    3. an ``EX 0`` voltage source on the phantom of V = j*I, since the
+       delivered current at the far port is -j*V.
+
+    The geometry follows ``scripts/bench_nec_corpus.py``'s ``gyrator_reference``
+    (AK#475), which is verified against 4nec2/NEC-2D to <0.2 %: park the
+    phantom 10x the structure extent plus 200 wavelengths away, one segment of
+    lambda/50 with a lambda/10000 radius.
+
+    Sign and scale are exactly what ``nec_import._collapse_gyrator_drives``
+    reads back (AK#1595), which is what makes the round trip an identity
+    rather than an approximation: it recovers ``I = -Y12*V = -(j)(j*I) = I``.
+    """
+    if not eng.current_sources:
+        return [], [], []
+    lam = 299.792458 / float(freq_mhz)
+    coords = [c for t in tups for p_ in (t[0], t[1]) for c in p_]
+    extent = max((abs(float(c)) for c in coords), default=0.0)
+    zbase = 10.0 * extent + 200.0 * lam
+    # ONE phantom wire carrying a node per source, which is the shape EZNEC
+    # writes (its `! *Wire #N for virtual segments.` wire) and the shape our
+    # own reader accepts. Two constraints fix the geometry, and both are the
+    # importer's (`_virtual_segment_wires`), so getting them wrong costs the
+    # round trip rather than the deck:
+    #
+    #  - MORE THAN ONE SEGMENT. The 1-segment remote wire belongs to issue
+    #    #427's detector, which reads it as a bare TL termination and pins a
+    #    driven one as electrically REAL — so a per-source 1-segment phantom
+    #    (`gyrator_reference`'s shape, which only ever fed nec2c) reads back
+    #    as geometry and reports the phantom port, i.e. 1/Z.
+    #  - EXTENT UNDER 0.05 lambda end to end, so it stays electrically
+    #    negligible. Sized at lambda/200 total however many sources there are,
+    #    matching EZNEC's own 0.0052 lambda wire, rather than growing per
+    #    source and walking into that gate.
+    nseg = max(2, len(eng.current_sources))
+    total = lam / 200.0
+    prad = total / nseg / 200.0
+    # Segment numbering is cumulative over the emitted GW cards, and the
+    # phantom comes last so it cannot shift any real segment's number.
+    seg_base, acc = [], 0
+    for t in tups:
+        seg_base.append(acc)
+        acc += as_wire(t).n_seg
+    ptag = len(tups) + 1
+    gw = [
+        f"GW {ptag} {nseg} 0. 0. {_num(zbase)} "
+        f"{_num(total)} 0. {_num(zbase)} {_num(prad)}"
+    ]
+    nt, ex = [], []
+    for j, (tag, seg, current) in enumerate(eng.current_sources, start=1):
+        # Port 2 addressed as tag 0 + ABSOLUTE segment number, NEC's tag-0
+        # convention — no within-tag rank to recompute.
+        nt.append(f"NT {ptag} {j} 0 {seg_base[tag - 1] + seg} 0. 0. 0. 1. 0. 0.")
+        v = 1j * complex(current)
+        ex.append(f"EX 0 {ptag} {j} 0 {_num(v.real)} {_num(v.imag)}")
+    return gw, nt, ex
 
 
 def _num(x):
@@ -106,7 +188,19 @@ def export_nec(
                 "(issue #1108)"
             )
     refuse_nec2_geometry(tups, ground, suggest_download=True)
-    eng = PyNECEngine(builder, ground=ground)
+    # AK#1597: ask WHY the network reduces, not merely whether. A network whose
+    # only reducer reason is its current sources HAS a faithful single-deck
+    # NEC-2 spelling — the gyrator idiom EZNEC itself writes — so it is built
+    # with the writer-only flag that takes the native path and records those
+    # sources for `_gyrator_cards`. Every other reason still refuses.
+    probe = PyNECEngine(builder, ground=ground)
+    reasons = probe._reducer_reasons()
+    gyrators = reasons == frozenset({"current-source"})
+    eng = (
+        PyNECEngine(builder, ground=ground, _export_current_sources=True)
+        if gyrators
+        else probe
+    )
     if eng._use_reducer:
         raise NotImplementedError(
             "a NEC-2 deck cannot express TL/virtual-driver networks (or "
@@ -131,7 +225,17 @@ def export_nec(
     # and a jacketed wire's is its equivalent radius (issue #1523) ---
     for tag, t in enumerate(eng.tups, start=1):
         lines.append(_gw(tag, t[2], t[0], t[1], eng._gw_radius_for(t)))
-    lines.append("GE 0")
+    # AK#1597: the phantom wires carrying forced currents. LAST, so no real
+    # wire's absolute segment number moves and the NT addresses below stay put.
+    gy_gw, gy_nt, gy_ex = _gyrator_cards(eng, eng.tups, freq)
+    lines.extend(gy_gw)
+    # The engine's own flag, not a constant (AK#1597). GE 1 is what tells NEC
+    # a wire END standing at z=0 is CONNECTED to the ground plane, so the
+    # touching segments' currents interpolate onto their images; with GE 0
+    # that end is silently insulated and the deck models a different antenna.
+    # This writer's whole premise is to be a text twin of what PyNECEngine
+    # hands PyNEC, and PyNECEngine has always used `_ge_flag()` here.
+    lines.append(f"GE {eng._ge_flag()}")
 
     # --- Load branches -> LD cards (type 0 series / 1 parallel RLC, type 4
     # fixed R + jX): the cards `PyNECEngine._emit_load_card` hands PyNEC ---
@@ -189,10 +293,16 @@ def export_nec(
     if gn:
         lines.append(gn)
 
-    # --- excitations (EX), frequency (FR), optional pattern (RP) ---
+    # --- networks (NT), then excitations (EX), frequency (FR), pattern (RP) ---
+    # Order matters and is not cosmetic: NEC requires the network cards of one
+    # configuration to be contiguous, and it DROPS a voltage source read before
+    # a network card, so every NT precedes every EX (AK#1597; the same hazard
+    # `gyrator_reference` documents, where it silently lost a TL).
+    lines.extend(gy_nt)
     for tag, seg, v in eng.excitation_pairs:
         v = complex(v)
         lines.append(f"EX 0 {tag} {seg} 0 {_num(v.real)} {_num(v.imag)}")
+    lines.extend(gy_ex)
 
     lines.append(f"FR 0 {npoints} 0 0 {_num(freq)} {_num(df)}")
     if include_rp:

@@ -19,6 +19,7 @@ from ..network import (
     Admittance,
     BalancedLine,
     Driven,
+    DrivenCurrent,
     FloatingBalun,
     Load,
     PortAtEnd,
@@ -229,6 +230,7 @@ class PyNECEngine(SimulationEngine):
         native_nt=False,
         check_intersections=True,
         extended_thin_wire_kernel=False,
+        _export_current_sources=False,
     ):
         """
         ground:
@@ -372,6 +374,18 @@ class PyNECEngine(SimulationEngine):
         # the baked NEC context entirely — impedance uses per-port solves and
         # far-field/current build an excitation-resolved context on demand.
         # Load-only, native-nt, and plain designs keep the native path.
+        # AK#1597, WRITER ONLY. A DrivenCurrent has no native NEC excitation,
+        # so it normally forces the reducer — but a NEC-2 DECK can express one,
+        # as the phantom-wire + EX 0 + NT gyrator idiom EZNEC and 4nec2 both
+        # write. With this set the native path runs and records the current
+        # sources for `nec_export` to spell, instead of refusing them.
+        #
+        # It makes this engine UNSOLVABLE by construction (`_refuse_export_only`
+        # below): the baked context carries no excitation for those ports, so a
+        # solve would silently answer for an undriven antenna. Never set it on
+        # an engine anything intends to solve.
+        self._export_current_sources = bool(_export_current_sources)
+        self.current_sources = []
         self._use_reducer = self._network is not None and self._network_uses_reducer()
         if self._use_reducer:
             self._init_network()
@@ -581,6 +595,13 @@ class PyNECEngine(SimulationEngine):
                     "NetworkReducer path"
                 )
         for src in net.sources:
+            if isinstance(src, DrivenCurrent) and self._export_current_sources:
+                # Recorded for `nec_export`'s gyrator cards, NOT turned into an
+                # ex_card: NEC's EX drives volts, and the whole point of the
+                # idiom is that the current is forced regardless of load.
+                tag, seg = self._network_port_loc[src.port]
+                self.current_sources.append((tag, seg, complex(src.current)))
+                continue
             if not isinstance(src, Driven):
                 raise NotImplementedError(f"unknown source type: {src!r}")
             tag, seg = self._network_port_loc[src.port]
@@ -682,20 +703,40 @@ class PyNECEngine(SimulationEngine):
         lumped 2-port (TwoPort) that isn't being emitted as a native nt_card.
         Load-only (and native-nt) networks are handled natively by NEC's
         ld_card / nt_card."""
+        return bool(self._reducer_reasons())
+
+    def _reducer_reasons(self) -> frozenset:
+        """WHICH features force the Y-matrix reduction path, as short slugs —
+        ``_network_uses_reducer`` is just whether this is non-empty.
+
+        Split out for `nec_export` (AK#1597). "Can a NEC-2 deck express this
+        network?" is not one question: a network whose ONLY reducer reason is
+        ``{"current-source"}`` HAS a faithful single-deck NEC-2 spelling (the
+        phantom-wire + ``EX 0`` + ``NT`` gyrator idiom EZNEC and 4nec2 both
+        write), while a ``TL`` or a ``PortVirtual`` genuinely does not. Asking
+        for the reasons lets the writer tell those apart instead of refusing
+        the union.
+
+        Slugs: ``transmission-line``, ``virtual-port``, ``distributed-port``,
+        ``no-native-card``, ``finite-q``, ``current-source``, ``two-port``.
+        """
         net = self._network
+        if net is None:
+            return frozenset()
+        why = set()
         # TL and the differential BalancedLine (issue #575) are both pure
         # NetworkReducer stamps on the antenna Y — no native NEC card is
         # involved on either engine, so nec2++ serves as an independent MoM
         # oracle for momwire's sinusoidal-basis Y here just as it does for TL.
         if any(isinstance(b, (TL, BalancedLine)) for b in net.branches):
-            return True
+            why.add("transmission-line")
         if any(isinstance(p, PortVirtual) for p in net.ports.values()):
-            return True
+            why.add("virtual-port")
         # A distributed (finite-gap) port spans every segment of its named
         # wire (issue #477); there is no native single-EX equivalent, so it
         # always reduces (the Y contraction lives on that path).
         if any(isinstance(p, PortOnWire) and p.distributed for p in net.ports.values()):
-            return True
+            why.add("distributed-port")
         # A Shunt to common has no native NEC card (there's no 1-port
         # shunt-to-common primitive); always reduce it. Same for the ideal
         # Transformer (issue #301) and its floating-secondary sibling the
@@ -706,7 +747,7 @@ class PyNECEngine(SimulationEngine):
             isinstance(b, (Shunt, Transformer, Admittance, FloatingBalun))
             for b in net.branches
         ):
-            return True
+            why.add("no-native-card")
         # A finite-Q Load (issue #298) needs R = ωL/Q re-derived at every
         # frequency; ld_card takes fixed R/L/C baked into one context, which
         # would freeze the loss resistance at the first frequency of a sweep.
@@ -714,17 +755,19 @@ class PyNECEngine(SimulationEngine):
             isinstance(b, Load) and (b.ql is not None or b.qc is not None)
             for b in net.branches
         ):
-            return True
+            why.add("finite-q")
         # A current source (DrivenCurrent, issue #442) has no native NEC
         # excitation — nec2++ EX cards drive voltages only — so any network
         # with a non-voltage source takes the reducer path.
         if any(not isinstance(s, Driven) for s in net.sources):
-            return True
+            # The writer's exemption (AK#1597): a deck CAN spell these.
+            if not getattr(self, "_export_current_sources", False):
+                why.add("current-source")
         # TwoPort goes native only when the oracle switch is on; otherwise it
         # is a shared-reducer stamp (the general path both engines agree on).
-        if any(isinstance(b, TwoPort) for b in net.branches):
-            return not self._native_nt
-        return False
+        if any(isinstance(b, TwoPort) for b in net.branches) and not self._native_nt:
+            why.add("two-port")
+        return frozenset(why)
 
     def _validate_native_nt(self):
         """native_nt emits real nt_cards into one baked context, which needs
@@ -1047,7 +1090,24 @@ class PyNECEngine(SimulationEngine):
                 stacklevel=3,
             )
 
+    def _refuse_export_only(self):
+        """An engine built with ``_export_current_sources`` carries no
+        excitation for its current-driven ports (AK#1597) — NEC's EX drives
+        volts, and the forced current lives in gyrator CARDS the writer emits,
+        not in this context. Solving it would answer for an undriven antenna
+        and look perfectly healthy doing it, so the answer is refused rather
+        than returned."""
+        if self._export_current_sources:
+            raise NotImplementedError(
+                "this PyNECEngine was built for `nec_export` only "
+                "(_export_current_sources): its baked context has no "
+                "excitation for the DrivenCurrent ports, so any result would "
+                "be for an undriven antenna. Build it without that flag to "
+                "solve — the reducer path serves current sources."
+            )
+
     def _set_freq_and_execute(self):
+        self._refuse_export_only()
         self._warn_if_somm_low_wires(C_LIGHT / (self.builder.freq * 1e6))
         self.c.fr_card(0, 1, self.builder.freq, 0)
         self.c.xq_card(0)
