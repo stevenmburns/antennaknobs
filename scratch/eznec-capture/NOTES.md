@@ -1079,19 +1079,34 @@ equivalent: the trap became `LD 4`, a parallel load became an `NT`, insulation
 became a rewritten radius plus `LD 2`. Split sources are the first feature where
 it **refuses instead of reducing**.
 
-So the reduction strategy has a boundary.
+**⚠ The refusal is AUTOEZ'S, not EZNEC's** — and that undoes the conclusion
+first drawn here.
 
-**The refusal fires BEFORE the deck is written** — tested rather than assumed,
-since the whole conclusion turns on it. With the refusal dialog still open,
-`Docs\EZN5.NEC` was byte-identical to the baseline taken minutes earlier
-(sha `666172fd…`, still carrying the previous model's deck), no other `.nec`
-had appeared anywhere in `Docs`, and no capture directory existed because the
-engine was never launched.
+The dialog is an **Excel** popup. `LastRun.log` for the attempt shows AutoEZ
+only *querying* EZNEC — requests `99`, `7|1`, `9`, `8|1`, `10`, `11|1`, which
+return version and path information — and then stopping. There is **no `MM CR`**
+and no `Running ext engine` line: EZNEC was never asked to calculate. AutoEZ
+knows the constraint and blocks in its own sheet first.
 
-So **a NEC-5 deck will never contain a split source** — a drop-in need not
-handle the case at all, and needs no refusal path for it either. Had EZNEC
-exported first and refused second, the claim would only have been "EZNEC will
-not *run* one", which is a much weaker thing. `Split_Source.htm` is a real help topic, so this is a
+`Docs\EZN5.NEC` was indeed byte-identical to a baseline taken minutes earlier
+(sha `666172fd…`), and no capture directory appeared — but that is **not
+evidence about EZNEC**, because EZNEC never got as far as writing a deck.
+AutoEZ's own `$AutoEZ$.ez` *was* written (17:16), so the model reached AutoEZ
+and stopped there.
+
+So **nothing is established about EZNEC's own behaviour**, and two earlier
+claims are withdrawn:
+
+- ~~the first feature EZNEC refuses rather than reduces~~ — it is AutoEZ
+  refusing, so this is not a boundary of EZNEC's reduction strategy at all;
+- ~~a NEC-5 deck will never contain a split source~~ — untested. EZNEC might
+  refuse likewise, or might write one happily when driven directly.
+
+**The real test** is a split source created in EZNEC itself (`Split_Source.htm`
+is a real help topic, so the feature exists independently of AutoEZ) on a simple
+model, External NEC-5 selected, calculated directly — no AutoEZ in the path.
+Until that runs, a drop-in should assume it **may** be handed a split-source
+deck. `Split_Source.htm` is a real help topic, so this is a
 documented EZNEC feature that simply does not survive the seam. Two of fourteen
 bundled AutoEZ samples hit it, so it is not a rarity.
 
