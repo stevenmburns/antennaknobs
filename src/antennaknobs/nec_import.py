@@ -853,6 +853,128 @@ class NecDeck:
         return out
 
     @cached_property
+    def _ground_contact_knots(self) -> frozenset[tuple[int, int]]:
+        """``(wire index, knot)`` for every wire END standing ALONE in the
+        ground plane — momwire's ground-contact feed (AK#1598).
+
+        momwire sorts a NEC-5 knot address three ways, not two
+        (``momwire/eznec/_serve.py``, "Three drive spellings"): a node where
+        two or more wire ends meet is a junction and takes the series EMF
+        ``node_gaps`` spells; a FREE wire end is refused, because a lone
+        conductor end has no through-current path for a series EMF to sit in;
+        and a wire end standing IN THE GROUND PLANE is neither of those — it is
+        *"a delta gap at arclength 0 on the grounded piece"*, an ORDINARY feed,
+        the one ``momwire/tests/test_contact_nec5_lane.py`` certifies against
+        NEC-5 over five grounds and five densities.
+
+        Only the first spelling was reaching momwire from here. Every NEC-5
+        knot source went to ``PortAtVertex`` → ``node_gaps=``, so a base-fed
+        vertical — EZNEC's ``EX 4,tag,-1``, the most ordinary ground-mounted
+        antenna there is — died on momwire's two-member check with an internal
+        ``node_gaps[0]: junction 0 has a single member``. That cost 23 of the
+        76 ``EX 4`` decks in momwire's own EZNEC corpus, including the three
+        (0019/0043/0044) ``_serve.py`` names as this very idiom. The knots
+        named here take the positioned spelling instead (`_site_plan`, at
+        arclength 0 or 1): the same delta gap momwire's lane asks for, landing
+        the feed exactly where the deck put it, with no snap to disclose.
+
+        Both halves of the condition carry weight and neither implies the
+        other. The end must be ALONE — a hub where radials meet the vertical
+        is a junction and keeps the series EMF — and it must be IN THE PLANE,
+        because a lone end in free space or elevated above the ground is the
+        row momwire refuses by design. Measured on one wire with one ``EX 4``
+        and no ``LD``: on the plane, free space and elevated all failed
+        identically before this, so the old reading was not about ground at
+        all, and the elevated two are still refused (`_lone_end_refusal`).
+        """
+        if not self.network_mode or not self.ground:
+            return frozenset()
+        return frozenset(
+            (i, knot)
+            for i, knot in self._lone_wire_ends
+            if self._stands_in_the_plane(i, knot)
+        )
+
+    def _stands_in_the_plane(self, wire: int, knot: int) -> bool:
+        """Is this wire END in the ground plane? The same |z| ≤ tolerance rule
+        `free_plane_ends` uses, so the two readings of "in the plane" agree."""
+        w = self.wires[wire]
+        end = w.p1 if knot == 0 else w.p2
+        t = _NEC_SMIN * math.dist(w.p1, w.p2) / max(int(w.n_seg), 1)
+        return abs(float(end[2])) <= t
+
+    @cached_property
+    def _lone_wire_ends(self) -> frozenset[tuple[int, int]]:
+        """``(wire index, knot)`` for every wire END that no OTHER wire end
+        touches — the ends with no through-current path, whatever the ground.
+
+        Split out from `_ground_contact_knots` because the two halves refuse
+        for different reasons and only one of them is fixable here: a lone end
+        IN the plane is momwire's ground-contact feed, and a lone end away from
+        it is the row momwire refuses by design (`_lone_end_refusal`)."""
+        if not self.network_mode:
+            return frozenset()
+
+        def tol(w):
+            return _NEC_SMIN * math.dist(w.p1, w.p2) / max(int(w.n_seg), 1)
+
+        # Every authored wire end, keyed so an end is never compared to itself.
+        ends = [
+            (i, knot, end)
+            for i, w in enumerate(self.wires)
+            for knot, end in ((0, w.p1), (int(w.n_seg), w.p2))
+        ]
+        out = set()
+        for i, knot, end in ends:
+            t = tol(self.wires[i])
+            shared = any(
+                all(
+                    abs(float(o[k]) - float(end[k])) <= max(t, tol(self.wires[j]))
+                    for k in range(3)
+                )
+                for j, jk, o in ends
+                if (j, jk) != (i, knot)
+            )
+            if not shared:
+                out.add((i, knot))
+        return frozenset(out)
+
+    def _lone_end_refusal(self) -> str | None:
+        """Why a knot source on this deck cannot be served, or None (AK#1598).
+
+        The one row momwire genuinely refuses: a series EMF at a lone
+        conductor end with no through-current path to sit in, and not standing
+        in the ground plane where the ordinary contact gap would serve it.
+        Raised here so the deck says what is wrong with IT, instead of letting
+        momwire's internal ``node_gaps[0]: junction 0 has a single member``
+        surface as the whole diagnosis."""
+        for f in self.feeds:
+            if not self._knot_end(f.wire, f.seg, f.edge):
+                continue
+            knot = _knot_of(f.seg, f.edge)
+            if (f.wire, knot) not in self._lone_wire_ends:
+                continue
+            if (f.wire, knot) in self._ground_contact_knots:
+                continue
+            w = self.wires[f.wire]
+            end = w.p1 if knot == 0 else w.p2
+            where = "end 1" if knot == 0 else "end 2"
+            if not self.ground:
+                why = "the deck models free space, so there is no plane for it to stand in"
+            else:
+                why = f"it stands clear of the ground plane (z = {float(end[2]):g})"
+            return (
+                f"wire {w.tag} is driven at {where}, a FREE conductor end: no "
+                "other wire meets it, so there is no through-current path for "
+                f"the source to sit in, and {why}. A source at a wire end is "
+                "servable only where that end stands IN the ground plane — "
+                "momwire's ground-contact feed. Move the source to an interior "
+                "knot or segment, join another wire at that end, or stand the "
+                "wire on the plane."
+            )
+        return None
+
+    @cached_property
     def _vertex_wires(self) -> frozenset[int]:
         """Wires that keep the #824 cut and the PortAtVertex spelling (AK#1469
         part B).
@@ -872,9 +994,15 @@ class NecDeck:
         if not self.network_mode:
             return frozenset()
         out = set()
+        contact = self._ground_contact_knots
 
         def needs_a_wire_end(wire: int, seg: int, edge: int) -> bool:
             knot = _knot_of(seg, edge)
+            if (wire, knot) in contact:
+                # A ground-contact end is served as a delta gap at arclength
+                # 0 or 1, not as a series EMF, so it needs no wire end and
+                # must not drag its wire into the vertex spelling (AK#1598).
+                return False
             return knot in (
                 0,
                 self.wires[wire].n_seg,
@@ -887,7 +1015,14 @@ class NecDeck:
                 # the end the EX names is not a place. `_port_plan` claims it
                 # as an ordinary port on its segment's node instead.
                 continue
-            if f.current or needs_a_wire_end(f.wire, f.seg, f.edge):
+            # A current source normally needs the vertex spelling too, but a
+            # ground-contact end carries one perfectly well as a positioned
+            # delta gap — that is what EZNEC's `EX 4,tag,-1` on a base-fed
+            # vertical IS, and momwire's contact lane drives it exactly so.
+            at_contact = (f.wire, _knot_of(f.seg, f.edge)) in contact
+            if (f.current and not at_contact) or needs_a_wire_end(
+                f.wire, f.seg, f.edge
+            ):
                 out.add(f.wire)
         for ld in self.loads:
             if self._knot_end(ld.wire, ld.seg, ld.edge) and needs_a_wire_end(
@@ -978,6 +1113,30 @@ class NecDeck:
                         if (c % 2 == 1 and 2 * local == c + 1)
                         else (local - 0.5) / c
                     )
+                elif (wi, idx) in self._ground_contact_knots:
+                    # A ground-contact END (AK#1598) drives the mesh cell it
+                    # stands in — the first for knot 0, the last for knot
+                    # n_seg — so the port sits at that cell's CENTRE.
+                    #
+                    # That is not a snap. momwire's contact lane feeds
+                    # `feed_arclength=0.0` under `feed_model="segment"`, and a
+                    # segment gap is `E = V/Δ` over "the mesh cell containing
+                    # s_f", so arclength 0 and that cell's centre are ONE
+                    # drive: measured bit-identical on the lane's own
+                    # 21-segment monopole (39.201378865973574 +
+                    # 22.566288939925254j from both, rel 0.0), against
+                    # 9.4e-3 for the next knot up. It is also the cell
+                    # EZNEC's own NEC-4.2 writer names for the same antenna,
+                    # which has no knot addressing and says `EX 6,tag,1`.
+                    #
+                    # `at` must land strictly inside (0, 1) — momwire's
+                    # `PortOnWire` spec refuses an endpoint — which the cell
+                    # centre does for every n_seg >= 1.
+                    j = 0 if idx == 0 else len(pieces) - 1
+                    a, b = pieces[j]
+                    c = b - a
+                    at = (0.5 / c) if idx == 0 else (1.0 - 0.5 / c)
+                    at = None if c == 1 else at
                 else:
                     j = next(j for j, (a, b) in enumerate(pieces) if a < idx < b)
                     a, b = pieces[j]
@@ -1312,6 +1471,9 @@ class NecDeck:
                 "deck was not parsed for network translation — call "
                 "parse_nec/read_nec with network=True"
             )
+        refusal = self._lone_end_refusal()
+        if refusal is not None:
+            raise ValueError(refusal)
         plan = self._port_plan
         # A port on a virtualized wire — a #427 TL anchor, or one of the
         # segments of an AK#1577 EZNEC virtual wire — is a pure circuit node
@@ -2433,11 +2595,19 @@ def _knot_sharing(wires):
 
     ``lone ends`` is every ``(wire index, knot)`` at a wire END that no other
     wire touches. A NEC-5 network end there names a node whose only through
-    path is the ground contact, and a port in that path is a gap between a
-    lone conductor end and its image — which neither engine here hosts:
-    momwire refuses a series ``node_gaps`` entry at a one-member junction and
-    a shunt ``junction_ports`` entry at a grounded node, and the NEC-5
-    multiport route cannot address either. ``cuts`` is ``_junction_cuts``
+    path is the ground contact, and neither NODE spelling hosts a port in that
+    path: momwire refuses a series ``node_gaps`` entry at a one-member
+    junction (*"no through-current path to be in series with"*) and a shunt
+    ``junction_ports`` entry at a grounded node (*"a grounded node's voltage
+    is pinned by the ground"*, momwire#151), and the NEC-5 multiport route
+    cannot address either. Both of those are true and both were measured.
+
+    What they do NOT add up to is "so this cannot be served", which is how
+    they read until AK#1598 — the enumeration is short one spelling. An end
+    standing IN the plane is served by an ordinary GAP on the cell it stands
+    in, no node port at all, and that is momwire's certified ground-contact
+    feed; see `NecDeck._ground_contact_knots`. Only a lone end AWAY from the
+    plane is genuinely refused. ``cuts`` is ``_junction_cuts``
     computed on the same points, which the collision guard needs before a
     ``NecDeck`` exists (AK#1579).
     """

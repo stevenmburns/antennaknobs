@@ -333,17 +333,45 @@ def test_the_cardioid_captures_import(name):
     """Captures 0120/0121: a virtual wire feeding two grounded verticals
     through TL cards whose far ends carry `-1`, with an `EX 4 …,-1` on one of
     them. AK read the `-1` as segment 1 and collided a knot source with a
-    segment port there; it now reads one node, and the deck opens."""
+    segment port there; it now reads one node, and the deck opens.
+
+    Both verticals STAND on the ground plane, so since AK#1598 the fed base is
+    a ground-contact feed — an ordinary gap on the cell it stands in — rather
+    than the series EMF a `PortAtVertex` spells. That is not a cosmetic
+    change: this test used to assert the vertex port and stop at "the deck
+    opens", and the shape it was pinning could not be SOLVED (momwire refuses
+    a series `node_gaps` entry at a one-member junction). Hence the solve
+    below, which is the claim that was missing."""
     deck = _capture(name)
     assert deck.virtual_segment_wires == frozenset({2})  # tag 3, the node holder
     net = deck.network()
-    # The source and the line's far end are one port at knot 0 of wire 2.
-    assert isinstance(net.ports["feed2"], PortAtVertex)
+    # The source and the line's far end are one port at knot 0 of wire 2 —
+    # now spelled as the contact gap on the cell that knot stands in.
+    assert isinstance(net.ports["feed2"], PortOnWire)
+    assert not isinstance(net.ports["feed2"], PortAtVertex)
+    assert net.ports["feed2"].at == pytest.approx(0.5 / 30)
     assert "tl2b" not in net.ports
     # Wire 1's base carries only the line, and nothing else is on that node,
     # so it keeps its segment and the deck reports it.
     assert deck.net_ends_demoted == ((0, 0),)
     assert deck.wire_tuples()  # used to raise the #824 collision
+
+
+@needs_captures
+@pytest.mark.parametrize("name", [CARDIOID, "0121_cardioid-l-network-feed.nec"])
+def test_the_cardioid_captures_solve(name):
+    """What "the deck opens" was standing in for. Before AK#1598 both captures
+    imported and then raised `node_gaps[0]: junction 0 has a single member` on
+    the first solve, so nothing here was reachable."""
+    import numpy as np
+
+    from antennaknobs.engines import MomwireEngine
+    from antennaknobs.file_designs import builder_from_file
+
+    cls = builder_from_file(str(CAPTURES / name))
+    z = np.asarray(MomwireEngine(cls(), ground=cls.file_ground).impedance())
+    assert z.shape == (2,)
+    assert np.all(np.isfinite(z))
 
 
 @needs_captures
