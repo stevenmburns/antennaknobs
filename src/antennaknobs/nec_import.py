@@ -3236,6 +3236,20 @@ def _translate_network_cards(
                 radius, insulation_radius, eps_r = inverted
                 wire_conductor_radius[wi] = radius
                 wire_insulation[wi] = (insulation_radius, eps_r)
+            if _r_per_len != 0.0:
+                # The jacket IS translated; R' is the part of the card that
+                # is not, and this module's contract is that what cannot be
+                # expressed is named rather than dropped in silence (module
+                # docstring). EZNEC writes it for a lossy dielectric --
+                # capture 0219 carries 1.655357 ohm/m from a Loss Tan of
+                # 0.01 -- and AK's jacket is lossless (momwire#131), so the
+                # number has nowhere to go. Reported per card, once.
+                skip(
+                    "LD",
+                    "a jacket pair's per-metre resistance R' is dielectric "
+                    "loss the jacket model does not carry and was dropped; "
+                    "the jacket inductance on this card WAS applied",
+                )
         elif ldtyp == 3:
             skip("LD", "type 3 distributed per-metre loading is not translated")
         elif ldtyp == 5:

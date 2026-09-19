@@ -53,7 +53,8 @@ def _capture_0219_shape(a_eq: float, l_ins: float, *, ld_order=("5", "2")) -> st
     is tag 1 with the whole-wire sentinel, and LD 5 is written first.
     ``r_per_len`` (1.655357, EZNEC's own F1) is carried through unchanged to
     confirm it does not block the jacket reading -- AK's jacket model has no
-    resistive term, so it is silently not part of what comes back.
+    resistive term, so it is dropped, and NAMED in ``ignored_detail`` rather
+    than dropped in silence (issue #1591 review).
     """
     cards = {
         "5": "LD 5,0,1,11,1.5378E+7,1.",
@@ -112,7 +113,13 @@ def test_0219_ld5_absolute_span_and_ld2_whole_wire_sentinel_agree_either_order()
     assert forward.wire_conductivity == swapped.wire_conductivity == ((0, 1.5378e7),)
     assert forward.wire_insulation == swapped.wire_insulation
     assert forward.wire_conductor_radius == swapped.wire_conductor_radius
-    assert not forward.ignored_detail and not swapped.ignored_detail
+    untranslated = [
+        why
+        for d in (forward, swapped)
+        for _m, why in d.ignored_detail
+        if "not translated" in why
+    ]
+    assert not untranslated, untranslated
 
 
 def _two_wire_mixed_addressing_deck(
@@ -160,7 +167,9 @@ def test_mixed_addressing_lands_on_the_correct_wire_only():
         assert [wi for wi, _ in deck.wire_insulation] == [1]
         assert [wi for wi, _ in deck.wire_conductor_radius] == [1]
         assert math.isclose(deck.wire_conductor_radius[0][1], a, rel_tol=1e-9)
-        assert not deck.ignored_detail
+        assert not [
+            why for _m, why in deck.ignored_detail if "not translated" in why
+        ], deck.ignored_detail
     assert forward.wire_conductivity == swapped.wire_conductivity
     assert forward.wire_insulation == swapped.wire_insulation
     assert forward.wire_conductor_radius == swapped.wire_conductor_radius
@@ -215,7 +224,9 @@ def test_round_trip_through_nec_wire_material_is_exact_over_several_triples():
         l_ins_again = float(insulation_inductance(radius, ins_radius, ins_eps_r))
         assert math.isclose(a_eq_again, mat.radius, rel_tol=1e-12)
         assert math.isclose(l_ins_again, mat.inductance, rel_tol=1e-12)
-        assert not deck.ignored_detail
+        assert not [
+            why for _m, why in deck.ignored_detail if "not translated" in why
+        ], deck.ignored_detail
 
 
 def _dipole7(*cards) -> str:
@@ -274,3 +285,32 @@ def test_jacket_from_equivalent_radius_rejects_a_malformed_gw_radius():
     assert jacket_from_equivalent_radius(-1e-4, 1e-8) is None
     assert jacket_from_equivalent_radius(9e-4, 0.0) is None
     assert jacket_from_equivalent_radius(9e-4, -1e-8) is None
+
+
+def test_a_lossy_dielectric_r_prime_is_reported_while_the_jacket_is_applied():
+    """EZNEC writes the jacket pair with a nonzero R' when the dielectric has
+    a loss tangent -- capture 0219 carries 1.655357 ohm/m from Loss Tan 0.01,
+    which is why `_capture_0219_shape` carries it by default.
+
+    AK's jacket is lossless (momwire#131), so that number has nowhere to go.
+    Dropping it is the right call; dropping it SILENTLY is not, because this
+    module's contract is that what it cannot express is named in
+    `ignored_detail`. The jacket must still be applied either way: R'
+    disqualifies nothing, or capture 0219 itself would stop translating.
+    """
+    d = parse_nec(_capture_0219_shape(9.665910e-4, 1.318335e-7), network=True)
+    assert d.wire_insulation, "the jacket was refused because of R'"
+    assert d.wire_conductor_radius, "the conductor radius was not recovered"
+    why = " ".join(r for m, r in d.ignored_detail if m == "LD")
+    assert "R'" in why and "dropped" in why, d.ignored_detail
+
+
+def test_a_lossless_dielectric_reports_nothing():
+    """The complement, so the report above cannot become unconditional noise:
+    with R' = 0 the card is fully expressed and nothing is named."""
+    deck = _capture_0219_shape(9.665910e-4, 1.318335e-7).replace(
+        "LD 2,1,0,0,1.655357,", "LD 2,1,0,0,0.,"
+    )
+    d = parse_nec(deck, network=True)
+    assert d.wire_insulation
+    assert not [r for m, r in d.ignored_detail if m == "LD"], d.ignored_detail
