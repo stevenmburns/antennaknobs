@@ -7,11 +7,18 @@ Two tables are for the library itself, so that the CLI and the workbench find
 the same engines and capture folder:
 
     [engines]
-    nec5_exe = "C:\\EZNEC 7.0\\Docs\\NEC5CL_x13.exe"
-    nec2_exe = "C:\\4nec2\\exe\\nec2dxs11.exe"
+    nec5_exe = 'C:\\EZNEC 7.0\\Docs\\NEC5CL_x13.exe'
+    nec2_exe = 'C:\\4nec2\\exe\\nec2dxs11.exe'
 
     [capture]
-    dir = "C:\\ak-captures"
+    dir = 'C:\\ak-captures'
+
+SINGLE quotes on Windows (AK#1602). TOML's single-quoted strings are LITERAL:
+the path goes in exactly as Explorer gives it. Double quotes make it a BASIC
+string, where a backslash starts an escape and ``\\E``, ``\\D``, ``\\4`` are not
+valid ones -- so the natural thing, pasting the path between double quotes,
+is a TOML syntax error that rejects the WHOLE file, engines and capture dir
+together. Double quotes work only with every backslash doubled.
 
 An environment variable (``NEC5_EXE``, ``NEC2_EXE``,
 ``ANTENNAKNOBS_CAPTURE_DIR``, which the packaged workbench's flags set) always
@@ -25,6 +32,7 @@ settable by a web request.
 from __future__ import annotations
 
 import os
+import re
 import tomllib
 from pathlib import Path
 
@@ -65,11 +73,40 @@ def read_settings() -> tuple[dict | None, str | None]:
     key = (str(path), st.st_mtime_ns, st.st_size)
     if _cache["key"] != key:
         try:
-            data, error = tomllib.loads(path.read_text(encoding="utf-8")), None
-        except (tomllib.TOMLDecodeError, UnicodeDecodeError, OSError) as exc:
-            data, error = None, f"{path.name} is not valid TOML ({exc})"
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError) as exc:
+            text, data, error = None, None, f"{path.name} could not be read ({exc})"
+        if text is not None:
+            try:
+                data, error = tomllib.loads(text), None
+            except tomllib.TOMLDecodeError as exc:
+                data, error = None, _toml_error(path, text, exc)
         _cache.update(key=key, data=data, error=error)
     return _cache["data"], _cache["error"]
+
+
+def _toml_error(path, text: str, exc) -> str:
+    """The decode message, plus the fix when the cause is a Windows path.
+
+    A parse failure rejects the WHOLE file, so a user whose engines vanished
+    is told the settings file was refused, not that an exe was missing. By far
+    the commonest cause is the natural thing on Windows: pasting
+    ``C:\\EZNEC 7.0\\...`` between DOUBLE quotes, where TOML reads a
+    backslash as the start of an escape and ``\\E`` is not one (AK#1602).
+
+    Keyed on a backslash inside a double-quoted value rather than on the
+    exception's wording, which is a CPython implementation detail: the hint
+    should survive tomllib rephrasing its message.
+    """
+    hint = ""
+    if re.search(r'=\s*"[^"\n]*\\', text):
+        hint = (
+            " — a Windows path needs SINGLE quotes, which TOML takes "
+            "literally: nec5_exe = 'C:\\EZNEC 7.0\\Docs\\NEC5CL_x13.exe'. "
+            "In double quotes a backslash starts an escape, so every one "
+            "would have to be doubled."
+        )
+    return f"{path.name} is not valid TOML ({exc}){hint}"
 
 
 def _string(table: str, key: str) -> str | None:
