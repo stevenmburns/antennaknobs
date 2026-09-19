@@ -88,9 +88,10 @@ def test_cardioid_deck_imports_and_wire_tuples_succeeds():
     deck = parse_nec(CARDIOID_NEC5, name="Cardioidmodnec5.nec", network=True)
     assert _named(deck) == [(6, "w1"), (6, "w2")]
     net = deck.network()
-    # Feed at the centre of cell 1 (the cell the base stands in), load on its
-    # own knot 2 -- both exact, neither snapped onto the other.
-    assert net.ports["feed1"].at == pytest.approx(0.5 / 6)
+    # Feed AT the base (AK#1605 -- AK#1598 put it at the first cell's centre,
+    # which is a different drive under the default point model), load on its
+    # own knot 2. Both exact, neither snapped onto the other.
+    assert net.ports["feed1"].at == 0.0
     assert net.ports["load1"].at == pytest.approx(2 / 6)
 
 
@@ -142,7 +143,7 @@ EN
     deck = parse_nec(text, name="t.nec", network=True)
     assert _named(deck) == [(6, "w1")]
     net = deck.network()
-    assert net.ports["feed"].at == pytest.approx(0.5 / 6)
+    assert net.ports["feed"].at == 0.0  # the base itself (AK#1605)
     assert net.ports["load1"].at == pytest.approx(2 / 6)
 
 

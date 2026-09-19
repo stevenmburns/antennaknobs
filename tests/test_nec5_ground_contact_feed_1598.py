@@ -75,15 +75,20 @@ def test_a_base_fed_vertical_solves():
     assert not isinstance(port, PortAtVertex)
 
 
-def test_the_base_feed_drives_the_cell_it_stands_in():
-    """`at` is the CENTRE of the first cell, which is the cell arclength 0
-    falls in. A segment gap is `E = V/Delta` over the mesh cell containing the
-    feed point, so those are one drive, not two — measured bit-identical on
-    momwire's own contact lane. Six segments, so the centre of cell 1 is
-    0.5/6."""
+def test_the_base_feed_sits_at_the_contact():
+    """`at` is 0 — the base itself, which is what the deck names.
+
+    AK#1598 shipped the first cell's CENTRE here, on the argument that a
+    segment gap is `E = V/Delta` over the mesh cell containing the feed point,
+    so the contact and that centre are one drive. True, and true only under
+    `feed_model="segment"`. The default is `"point"` on both `BSplineSolver`
+    and `SinusoidalGalerkinSolver` (momwire#654), where the drive is
+    `E = V*delta(s - s_f)` and where in the cell the point sits IS the answer:
+    36.5032 + 2.1899j at the contact against 36.6245 + 2.8136j at the centre
+    on deck 0019, 29 % in X. Corrected in AK#1605."""
     deck = _deck(ON_GROUND)
     (src,) = deck.network().sources
-    assert deck.network().ports[src.port].at == pytest.approx(0.5 / 6)
+    assert deck.network().ports[src.port].at == 0.0
 
 
 def test_a_free_lone_end_is_still_refused_and_says_why():
@@ -120,11 +125,21 @@ def test_an_interior_knot_source_keeps_the_vertex_spelling():
     assert isinstance(deck.network().ports[src.port], PortAtVertex)
 
 
-def test_the_two_dialects_put_the_drive_in_one_place():
-    """THE gate. EZNEC wrote one antenna to NEC-4.2 (`EX 6`, segment-addressed)
-    and NEC-5 (`EX 4,tag,-1`, knot-addressed at the base). The decks are
-    byte-identical apart from those cards, so once the loads are dropped the
-    drive is the only thing left that can differ — and it must not."""
+def test_the_two_dialects_put_the_drive_half_a_segment_apart():
+    """The dialects do NOT agree here, and AK#1598 asserting that they did was
+    an artifact of its own bug.
+
+    EZNEC wrote one antenna to NEC-4.2 (`EX 6,tag,1` — segment-addressed, so
+    the drive is the CENTRE of segment 1) and to NEC-5 (`EX 4,tag,-1` —
+    knot-addressed, so the drive is the BASE). Those are different points, half
+    a segment apart, because NEC-4.2 cannot address a knot: it is EZNEC
+    rendering one model into a dialect that has to snap it.
+
+    AK#1598 read them as bit-identical because it snapped the NEC-5 feed to the
+    same cell centre NEC-4.2 lands on, so the agreement measured the snap. With
+    AK#1605 the NEC-5 deck keeps the feed the deck asks for and the two
+    separate — which is the honest answer, and the NEC-5 one is the faithful
+    rendering."""
     n4 = "\n".join(
         ln for ln in NEC4.read_text().splitlines() if not ln.startswith("LD ")
     )
@@ -137,20 +152,25 @@ def test_the_two_dialects_put_the_drive_in_one_place():
         a.write_text(n4 + "\n")
         b.write_text(n5 + "\n")
         z4, z5 = _z(a), _z(b)
-    # Not approx: the same drive on the same geometry is the same solve.
-    assert z5 == pytest.approx(z4, rel=0, abs=0)
+    # Same geometry, same loads (none), so the ONLY thing left is the drive
+    # position — and it differs, by design.
+    spread = abs(z5[0] - z4[0]) / abs(z4[0])
+    assert 1e-3 < spread < 0.2, f"{z4[0]!r} vs {z5[0]!r}, rel {spread:.3e}"
 
 
-def test_the_nec5_feed_lands_where_the_nec42_writer_put_it():
-    """The same claim at the port level, and the reason the solve above agrees:
-    EZNEC's NEC-4.2 writer has no knot addressing, so it spells the base feed
-    as `EX 6,tag,1` — segment 1 — and the NEC-5 base feed resolves to that same
-    cell's centre."""
+def test_each_dialect_lands_where_its_own_card_says():
+    """The same difference at the port level, stated as the two addresses.
+
+    Six segments, so the centre of segment 1 is 1/12 and the base is 0. Half a
+    segment (1/12) apart, which is exactly the discretisation NEC-4.2 forces
+    and NEC-5 does not."""
     p4 = parse_nec(NEC4.read_text(), name="n4", network=True).network()
     p5 = parse_nec(NEC5.read_text(), name="n5", network=True).network()
     at4 = sorted(p4.ports[s.port].at for s in p4.sources)
     at5 = sorted(p5.ports[s.port].at for s in p5.sources)
-    assert at4 == at5 == [pytest.approx(1 / 12), pytest.approx(1 / 12)]
+    assert at4 == [pytest.approx(1 / 12), pytest.approx(1 / 12)]  # segment 1
+    assert at5 == [0.0, 0.0]  # the base
+    assert at4[0] - at5[0] == pytest.approx(0.5 / 6)  # half a segment
 
 
 def test_dans_full_nec5_deck_solves():

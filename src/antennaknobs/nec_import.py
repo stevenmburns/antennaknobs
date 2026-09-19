@@ -1161,29 +1161,31 @@ class NecDeck:
                         else (local - 0.5) / c
                     )
                 elif (wi, idx) in self._ground_contact_knots:
-                    # A ground-contact END (AK#1598) drives the mesh cell it
-                    # stands in — the first for knot 0, the last for knot
-                    # n_seg — so the port sits at that cell's CENTRE.
+                    # A ground-contact END (AK#1598) is fed AT the contact —
+                    # arclength 0 on the first piece for knot 0, 1 on the last
+                    # for knot n_seg. That is the point the deck names, and
+                    # where momwire's own contact lane and `eznec.serve` both
+                    # put it.
                     #
-                    # That is not a snap. momwire's contact lane feeds
-                    # `feed_arclength=0.0` under `feed_model="segment"`, and a
+                    # AK#1598 shipped the first cell's CENTRE instead, and
+                    # AK#1605 is that being wrong. The argument was that a
                     # segment gap is `E = V/Δ` over "the mesh cell containing
-                    # s_f", so arclength 0 and that cell's centre are ONE
-                    # drive: measured bit-identical on the lane's own
-                    # 21-segment monopole (39.201378865973574 +
-                    # 22.566288939925254j from both, rel 0.0), against
-                    # 9.4e-3 for the next knot up. It is also the cell
-                    # EZNEC's own NEC-4.2 writer names for the same antenna,
-                    # which has no knot addressing and says `EX 6,tag,1`.
+                    # s_f", so the contact and that cell's centre are ONE
+                    # drive — true, and true only under
+                    # `feed_model="segment"`. The default is `"point"` on both
+                    # `BSplineSolver` and `SinusoidalGalerkinSolver`
+                    # (momwire#654), where the drive is `E = V·δ(s − s_f)` and
+                    # WHERE in the cell the point sits is the answer: measured
+                    # on deck 0019, a 10-segment base-fed vertical over
+                    # perfect ground, 36.5032 + 2.1899j at the contact against
+                    # 36.6245 + 2.8136j at the cell centre — 29 % in X.
                     #
-                    # `at` must land strictly inside (0, 1) — momwire's
-                    # `PortOnWire` spec refuses an endpoint — which the cell
-                    # centre does for every n_seg >= 1.
+                    # It was also the whole of the AK-route vs `serve`-route
+                    # disagreement, since serve fed the contact all along.
+                    # momwire#1135 admits the endpoint that AK#1598 could not
+                    # spell; without it this line refuses.
                     j = 0 if idx == 0 else len(pieces) - 1
-                    a, b = pieces[j]
-                    c = b - a
-                    at = (0.5 / c) if idx == 0 else (1.0 - 0.5 / c)
-                    at = None if c == 1 else at
+                    at = 0.0 if idx == 0 else 1.0
                 else:
                     j = next(j for j, (a, b) in enumerate(pieces) if a < idx < b)
                     a, b = pieces[j]
