@@ -39,7 +39,6 @@ from antennaknobs.file_designs import builder_from_file
 from antennaknobs.nec_import import _eznec_declares_nec5, parse_nec
 from antennaknobs.network import (
     Admittance,
-    Driven,
     DrivenCurrent,
     PortAtVertex,
     PortOnWire,
@@ -427,22 +426,27 @@ def test_the_nec2_export_synthesizes_its_current_source_as_a_virtual_wire():
     """NEC-2 has no segment current source, so File > Save As spells one: a
     wire ~100 m away, an `EX 0` on it, and an `NT` between that node and the
     antenna. That is AK#1577's idiom already, and the structural detector
-    takes it without the `LD 4 … 1.E+10` pins this vintage does not write."""
+    takes it without the `LD 4 … 1.E+10` pins this vintage does not write.
+
+    The `NT` is an ideal gyrator, which is how NEC-2 spells a CURRENT source,
+    so AK#1595 reads the three cards as the one thing they are: the node and
+    the injector collapse and the drive lands on the antenna's own port as a
+    `DrivenCurrent`. EZNEC's own arithmetic checks it — `Y12 = +j` against
+    `V = 1.414214j` gives 1.414214, which is exactly the current the NEC-4.2
+    writer's `EX 6` asks for on the same model."""
     deck = _file_deck(WRITERS / "Dipole1-nec2-export.nec")
     assert deck.nec5_dialect is False  # the stamp names NEC-2
     assert deck.virtual_segment_wires == frozenset({1})  # tag 2
     net = deck.network()
     (src,) = net.sources
-    assert isinstance(src, Driven)
-    assert isinstance(net.ports[src.port], PortVirtual)
-    assert src.voltage == pytest.approx(1.414214j)
-    # The injector bridges that node and the antenna's own port on wire 1.
-    (inj,) = [
-        b for b in net.branches if isinstance(b, Admittance) and len(b.ports) == 2
-    ]
-    assert set(inj.ports) == {src.port, "nt1b"}
+    assert isinstance(src, DrivenCurrent)
+    assert src.current == pytest.approx(1.414214 + 0j)
+    # On the antenna's own port on wire 1 — the NT's other end. Nothing
+    # virtual, and no injector, survives to invert anything.
+    assert src.port == "nt1b"
     assert isinstance(net.ports["nt1b"], PortOnWire)
-    assert inj.y == ((0j, 1j), (1j, 0j))
+    assert not [p for p in net.ports.values() if isinstance(p, PortVirtual)]
+    assert not [b for b in net.branches if isinstance(b, Admittance)]
 
 
 def test_the_nec42_deck_is_a_centre_fed_ex6():
@@ -460,12 +464,17 @@ def test_the_nec42_deck_is_a_centre_fed_ex6():
 def test_the_two_nec2_writers_describe_the_same_antenna():
     """THE equality class, and the only pair here that is one: both decks take
     the NEC-2 reading and both put the source at the CENTRE of segment 6, so
-    the single difference between them is the virtual-wire detector plus the
-    injector two-port. The `NT` is an ideal gyrator (Y11 = Y22 = 0, Y12 = j1,
-    a 1 ohm gyration resistance), so the impedance at its driven virtual node
-    is 1/Z_antenna; undo that and the two must agree. They do, to 7.2e-13 —
-    the injector translation is exact."""
-    via_injector = 1.0 / _bspline_z(_file_deck(WRITERS / "Dipole1-nec2-export.nec"))
+    the single difference between them is how the drive is spelled — an `EX 6`
+    current source against the phantom node, `EX 0` and gyrator EZNEC writes
+    when the dialect has no such card.
+
+    Until AK#1595 this read `1.0 / _bspline_z(export)`: the gyrator (Y11 =
+    Y22 = 0, Y12 = j1, a 1 ohm gyration resistance) inverts impedance, and the
+    import reported the driving point at the node the source sat on, so the
+    reciprocal was the correction that made the pair agree — to 7.2e-13. The
+    idiom now imports as the current source it spells, so there is nothing to
+    undo and the two decks land on the same number directly."""
+    via_injector = _bspline_z(_file_deck(WRITERS / "Dipole1-nec2-export.nec"))
     direct = _bspline_z(_file_deck(WRITERS / "Dipole1-nec42-deck.nec"))
     assert direct == pytest.approx(complex(82.1202, 45.9154), rel=1e-5)
     assert abs(via_injector - direct) / abs(direct) < 1e-9

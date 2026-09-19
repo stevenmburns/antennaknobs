@@ -73,7 +73,12 @@ its wire (AK#1469), so the wire keeps the deck's segments — unless it lands on
 a wire that is not geometry at all: EZNEC parks a wire ~100 λ away and uses
 its segments as circuit nodes to spell a source behind a transformer or a
 line, and each such segment imports as a ``PortVirtual`` with the wire itself
-dropped (AK#1577). Default mode's
+dropped (AK#1577). When what that phantom segment drives is an ``NT`` GYRATOR
+(zero diagonal, ``Y12 = Y21 = jB``) it is not a source behind a component at
+all — it is the only way NEC-2 can spell a CURRENT source, so the phantom node
+and the gyrator collapse into a ``DrivenCurrent`` on the real segment
+(``_collapse_gyrator_drives``, AK#1595) and all three dialects of one antenna
+import to one network. Default mode's
 engine feeds a wire tuple at its middle segment, so there
 ``NecDeck.wire_tuples`` splits a wire whose EX segment is off-centre into
 colinear pieces that preserve the deck's exact segment boundaries and put the
@@ -692,16 +697,42 @@ class NecDeck:
                 str(self.wires[i].tag) for i in sorted(self.virtual_segment_wires)
             )
             n = len(self.virtual_segment_wires)
-            nodes = sum(
-                1 for (wi, _seg) in self._port_plan if wi in self.virtual_segment_wires
+            # A gyrator drive (AK#1595) leaves no node behind: the phantom and
+            # the NT collapse into a forced current on the segment they drive,
+            # so the count here would otherwise name nodes the solve never sees.
+            collapsed = self._network_parts()[3]
+            gyr = len(collapsed)
+            nodes = (
+                sum(
+                    1
+                    for (wi, _seg) in self._port_plan
+                    if wi in self.virtual_segment_wires
+                )
+                - gyr
             )
+            became = []
+            if nodes:
+                became.append(f"{nodes} virtual circuit node{'s' if nodes > 1 else ''}")
+            if gyr:
+                became.append(
+                    f"{gyr} NT-gyrator current source{'s' if gyr > 1 else ''} "
+                    f"forced on the segment{'s' if gyr > 1 else ''} "
+                    f"{'they' if gyr > 1 else 'it'} drive{'' if gyr > 1 else 's'}"
+                )
             part = (
                 f"{n} EZNEC virtual wire{'s' if n > 1 else ''} "
-                f"(tag{'s' if n > 1 else ''} {tags}) imported as {nodes} "
-                f"virtual circuit node{'s' if nodes > 1 else ''}"
+                f"(tag{'s' if n > 1 else ''} {tags}) imported as "
+                + " and ".join(became)
             )
-            if self.virtual_pins:
-                k = len(self.virtual_pins)
+            # A pin on a collapsed node went with it — the forced current is
+            # the whole of what that node became — so only the survivors are
+            # opens the solve still carries.
+            k = sum(
+                1
+                for (wi, seg, _z) in self.virtual_pins
+                if self._port_plan.get((wi, seg)) not in collapsed
+            )
+            if k:
                 part += (
                     f", with {k} LD 4 open-circuit pin{'s' if k > 1 else ''} "
                     "kept as the idiom's ideal open rather than applied as "
@@ -1253,6 +1284,16 @@ class NecDeck:
         A deck with no translatable cards still gets its ``Driven`` feeds,
         so a network-mode stub can always define ``build_network``. Only
         available when the deck was parsed with ``network=True``."""
+        ports, branches, sources, _gyr = self._network_parts()
+        return _net.Network(ports=ports, branches=branches, sources=sources)
+
+    def _network_parts(self):
+        """``(ports, branches, sources, gyrators)`` — ``network()``'s pieces
+        before they are sealed into a ``Network``, which is what lets
+        ``skipped_note`` say which of the two an EZNEC virtual wire became
+        without sealing a second one. ``gyrators`` maps each collapsed virtual
+        node (AK#1595) to the real port its forced current moved to; it is
+        empty for every other deck."""
         if not self.network_mode:
             raise ValueError(
                 "deck was not parsed for network translation — call "
@@ -1370,7 +1411,7 @@ class NecDeck:
             else _net.Driven(port=feed_port(k, f), voltage=f.voltage)
             for k, f in enumerate(self.feeds, 1)
         ]
-        return _net.Network(ports=ports, branches=branches, sources=sources)
+        return _collapse_gyrator_drives(ports, branches, sources)
 
 
 def read_nec(
@@ -2473,6 +2514,110 @@ def _end_shunt(y: complex, virtual: bool) -> tuple[float | None, complex | None]
     if y.imag != 0.0 or virtual:
         return None, y
     return 1.0 / y.real, None
+
+
+# A gyrator's whole transfer IS its off-diagonal, and that off-diagonal is
+# purely reactive. Below this susceptance the branch forces nothing, so
+# reading it as a current source would be reading float noise as a drive.
+# EZNEC and 4nec2 both write Y12 = ±j exactly.
+_GYRATOR_MIN_B = 1e-12
+
+
+def _collapse_gyrator_drives(ports, branches, sources):
+    """``(ports, branches, sources, gyrators)`` with NEC-2's gyrator-emulated
+    current sources read as the current sources they are (AK#1595).
+
+    NEC-2 has no current-source ``EX`` card, so EZNEC — and 4nec2, see
+    ``scripts/bench_nec_corpus.py``'s ``gyrator_reference``, which builds this
+    same construction from the other side — spells one as a GYRATOR: an ``NT``
+    with Y11 = Y22 = 0 and Y12 = Y21 = jB tying a phantom segment carrying an
+    ``EX 0`` voltage source to the real feed segment. Read literally (AK#1577
+    makes that phantom segment a ``PortVirtual``) the CIRCUIT is right and the
+    READOUT is not: a gyrator inverts impedance, Z_in = 1/(B²·Z_load), so the
+    driving point reported where the source sits is the reciprocal of the
+    antenna's. Measured on Dan AC6LA's Cardioid, the same antenna EZNEC also
+    wrote with ``EX 6``: 0.021584 + 0.011249j against 36.4347 − 18.9882j.
+
+    ``nec_import`` already turns NEC-4's ``EX 6`` and NEC-5's ``EX 4`` into a
+    ``DrivenCurrent`` on the real segment. This is the same physical object
+    spelled the only way NEC-2 can spell it, so it imports to the same thing
+    and all three dialects of one antenna give one network.
+
+    The forced current is ``I = −Y_rv·V``. The reducer stamps ``y`` as a nodal
+    admittance block, so ``(y·V)_r`` is the current leaving node r INTO the
+    branch and the antenna receives its negative. Sign and scale are EZNEC's
+    own to check: Y12 = +j with V = 1.414214j gives 1.414214, which is exactly
+    what the NEC-4.2 twin's ``EX 6`` asks for — on both of the Cardioid's
+    ports, whose drives differ in phase.
+
+    Detection has to be NARROW, because the same phantom wire legitimately
+    spells a source behind a TRANSFORMER or a transmission LINE (AK#1577,
+    ``tests/fixtures/eznec_virtual_wire_1577/``) and there the source-side
+    impedance is precisely what the user asked for. All of these must hold:
+
+    - zero diagonal, and off-diagonals equal and purely reactive. An EZNEC
+      transformer is an all-real Y, which arrives as its exact resistive pi
+      and is not an ``Admittance`` branch at all; a lossy line is lossy, so
+      its 2×2 has a nonzero diagonal. Neither survives the first test;
+    - exactly one side on a ``PortVirtual``, the other on real geometry. A
+      line between two virtual nodes drives nothing, and a gyrator between two
+      real ports is a component of the model rather than a source;
+    - that virtual node carries one source, a ``Driven`` with a nonzero EMF —
+      the voltage the gyrator converts. Zero is the datum pin, not a drive.
+
+    Other branches on the node must be 1-ports: the idiom's own ``LD 4 …
+    1.E+10`` open-circuit pin lands there, and a shunt across an ideal voltage
+    source injects nothing into the rest of the circuit, so it collapses with
+    the node it was holding up.
+    """
+    src_at: dict[str, list[int]] = {}
+    for i, s in enumerate(sources):
+        src_at.setdefault(s.port, []).append(i)
+    touch: dict[str, set[int]] = {}
+    for i, br in enumerate(branches):
+        for p in _net._branch_port_refs(br):
+            touch.setdefault(p, set()).add(i)
+
+    gyrators: dict[str, str] = {}
+    drop_branches: set[int] = set()
+    swap: dict[int, object] = {}
+    for i, br in enumerate(branches):
+        if not isinstance(br, _net.Admittance) or len(br.ports) != 2:
+            continue
+        (y11, y12), (y21, y22) = br.y
+        if y11 or y22 or y12 != y21:
+            continue
+        if y12.real or abs(y12.imag) < _GYRATOR_MIN_B:
+            continue
+        virtual = [p for p in br.ports if isinstance(ports.get(p), _net.PortVirtual)]
+        if len(virtual) != 1:
+            continue
+        v = virtual[0]
+        real = br.ports[1] if br.ports[0] == v else br.ports[0]
+        # The real port must be free: it becomes the driven one, and a second
+        # source (or a second gyrator) there would be two drives on one node.
+        if src_at.get(real) or real in gyrators.values():
+            continue
+        held = src_at.get(v, ())
+        if len(held) != 1:
+            continue
+        src = sources[held[0]]
+        if not isinstance(src, _net.Driven) or not src.voltage:
+            continue
+        if any(len(_net._branch_port_refs(branches[j])) != 1 for j in touch[v] - {i}):
+            continue
+        gyrators[v] = real
+        drop_branches |= touch[v]
+        swap[held[0]] = _net.DrivenCurrent(port=real, current=-y12 * src.voltage)
+
+    if not gyrators:
+        return ports, branches, sources, gyrators
+    return (
+        {n: p for n, p in ports.items() if n not in gyrators},
+        [br for i, br in enumerate(branches) if i not in drop_branches],
+        [swap.get(i, s) for i, s in enumerate(sources)],
+        gyrators,
+    )
 
 
 def _segment_range(wires, tag, sf, st, card):
