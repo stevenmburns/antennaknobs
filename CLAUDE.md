@@ -251,10 +251,15 @@ short.
 
 ## EZNEC decks: provenance, and which position a deck records
 
-- **The AutoEZ writer tell is a triple**, not one line: "Created from AutoEZ"
-  AND no version line AND a bare `GE`. That phrase alone is not a tell.
-  EZNEC's NEC-2 Save As and AutoEZ's writer both emit a one-field `GE`, which
-  the dialect accepts; the zero-field `GE` stays refused.
+- **EZNEC writes every `.nec`. There is no AutoEZ writer** — corrected by
+  AC6LA, who wrote AutoEZ (QRZ 1003328 #107). AutoEZ instructs EZNEC to open a
+  `.ez` that AutoEZ created, and EZNEC then writes the deck; the resulting
+  `CM Created from AutoEZ` line is provenance of the `.ez` and "just a
+  comment", not a tell about who wrote the `.nec`. Do not reason about a
+  second writer. The observation that some decks carry a bare one-field `GE`
+  and no version line is real and those decks are accepted (momwire#1116), but
+  the CONDITION under which EZNEC writes that shape is not yet known — the
+  zero-field `GE` stays refused.
 - **A deck records the SNAPPED address, not the requested one**, and that is
   discretisation rather than a defect: EZNEC shows both columns itself
   (Specified vs Act Pos in its Sources and Loads windows), so 50 % on an
