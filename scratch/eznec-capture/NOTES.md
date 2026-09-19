@@ -1085,6 +1085,48 @@ the case at all. `Split_Source.htm` is a real help topic, so this is a
 documented EZNEC feature that simply does not survive the seam. Two of fourteen
 bundled AutoEZ samples hit it, so it is not a rarity.
 
+## Insulation + wire loss — the `(a/a′)²` rule is EZNEC's too
+
+`0219`, `Dipole1-insulated.ez` with **Wire Loss = Copper** added and nothing
+else changed. Against `0206` (insulation alone) the whole diff is one added
+line; against `0184` (copper alone) it is the radius, the conductivity and the
+added `LD 2`.
+
+```
+GW 1,11,0.,-.25,0.,0.,.25,0.,9.666E-4
+LD 5,0,1,11,1.5378E+7,1.
+LD 2,1,0,0,1.655357,1.3184E-7,0.
+```
+
+**EZNEC scales the conductivity by (a/a′)².** The three predictions were
+mutually exclusive and only one survives:
+
+| | value | verdict |
+|---|---|---|
+| raw, no compensation | 5.7471E+7 | ruled out |
+| **(a/a′)²** | **1.53781e7** | **matches the deck's `1.5378E+7`** |
+| linear (a/a′) | 2.9729e7 | ruled out |
+
+So AK#1523's rule is not merely AK's own — EZNEC does the same thing, and
+AK#1587 can drop the "not EZNEC-verified" caveat.
+
+**The scaling uses the EXACT equivalent radius, not the rounded one in the
+deck.** From a′ = 9.665910e-4 the product is 1.53781e7, matching to five
+figures; from the `GW` card's own `9.666E-4` it is 1.53778e7, which differs in
+the fifth. A consumer recomputing the scaling *from the deck* cannot reproduce
+EZNEC's figure exactly, because the radius it would use has already been
+rounded. Fine for physics, a trap for byte-comparison.
+
+Why the compensation is needed at all: the `GW` radius is the insulation's
+equivalent radius (0.9666 mm), not the physical conductor (0.5 mm), so a
+conductivity applied to that cross-section would describe roughly 3.7× too much
+metal. The square is the area ratio.
+
+**`LD 5` and `LD 2` coexist on one wire, and they address it differently** —
+`LD 5,0,1,11` is tag 0 with an absolute segment span, `LD 2,1,0,0` is tag 1 with
+`0,0` for the whole wire. `LD 5` is written **first**. That combination is new to
+the corpus and gates independently of the conductivity question.
+
 ## Still to run
 
 1. **Insulation + wire loss together** — the one remaining capture that could
