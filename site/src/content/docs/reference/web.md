@@ -124,6 +124,14 @@ nec2_exe = 'C:\4nec2\exe\nec2dxs11.exe'
 dir = 'C:\ak-captures'      # every NEC-5 / NEC-2 deck and printout
 ```
 
+Note the SINGLE quotes on the Windows paths. TOML reads a single-quoted
+string literally, so the path goes in exactly as Explorer gives it. Double
+quotes make it an escape-processing string, where `\E` and `\D` are not valid
+escapes — and because a parse error rejects the whole file, getting that wrong
+makes every engine *and* the capture dir disappear at once rather than
+reporting a bad path. If you prefer double quotes, every backslash has to be
+doubled.
+
 Every entry is optional; anything the file leaves out starts where it always
 did. The soil presets are `very-poor`, `poor`, `average`, `good`,
 `very-good`, `fresh-water` and `salt-water`. A slot's `backend` is any solver
