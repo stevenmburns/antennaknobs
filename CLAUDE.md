@@ -165,7 +165,7 @@ worth keeping readable.
 ## Two repos, one working tree
 
 `momwire/` is a git submodule with **its own** ruff config, excluded here via
-`extend-exclude`. Four hazards follow:
+`extend-exclude`. Six hazards follow:
 
 - **Never `git add -A`.** It sweeps the momwire submodule pointer and
   untracked `scratch/*.jsonl` into the commit. Stage explicit paths.
@@ -184,7 +184,10 @@ worth keeping readable.
   next version bump; at a momwire release the release skill moves all
   three to the tag together, and the two contracts re-converge. Never move
   the pointer as a side effect of another PR, never move it past a momwire
-  version bump without the pin, and never move it backwards.
+  version bump without the pin, and never move it backwards. The wheel-smoke
+  lane races PyPI's index for about a minute after a momwire tag, so poll
+  PyPI's JSON for the version before opening the pin PR, and re-run rather
+  than merge on red.
 - **Always pass `gh -R <owner>/<repo>`.** The two repos have overlapping
   issue numbers and the shell's cwd persists across calls, so a bare
   `gh issue` can land on the wrong tracker.
@@ -198,6 +201,22 @@ worth keeping readable.
   `make build` sets `MOMWIRE_REQUIRE_ACCEL=1`, without which a failed build
   warns, falls back to pure Python, and **exits 0** over the stale `.so`.
   The `sync` skill's step 5 is the long version.
+- **A capability-gated option makes the FRONTEND's fixtures depend on the
+  PINNED momwire**, so a pin bump is not always a three-line diff. When the
+  pin passed momwire#1029 the served roster grew an axis, and the fixtures
+  and their pins had to move with it in the same PR. They do not all move the
+  same way: `axesFixtures.ts` and `optionSpec` regenerate from a command in
+  their own header; `backendFixtures.ts` is hand-maintained by design (it
+  models the wire shape directly, not a roster import), and so are the Python
+  pin `tests/test_frontend_option_spec_fixture.py` and the roster-shape tests
+  (`backendAxisControls`, `modelOptions`, `panelEquivalence`).
+- **Neither repo allows a squash or a merge commit** — both are rebase-only
+  (`allow_squash_merge=false`, `allow_merge_commit=false`). GitHub rewrites
+  the SHAs, so a merged branch's tip is never an ancestor of main and
+  `git merge-base --is-ancestor` reports every merged branch as unmerged. Ask
+  the PR instead: `gh pr view <branch> -R <owner>/<repo> --json state,mergedAt`.
+  This also means the global instructions' squash-contagion warning cannot
+  apply here — no squash commit ever concatenates the branch's messages.
 
 ## Testing: four tests that run nowhere unless you know this
 
@@ -229,6 +248,25 @@ short.
   or a typo in the env var cannot present as "corpus not installed". Module-
   scope `pytestmark` would skip a tripwire written inside the module itself,
   which is why it is a separate file.
+
+## EZNEC decks: provenance, and which position a deck records
+
+- **The AutoEZ writer tell is a triple**, not one line: "Created from AutoEZ"
+  AND no version line AND a bare `GE`. That phrase alone is not a tell.
+  EZNEC's NEC-2 Save As and AutoEZ's writer both emit a one-field `GE`, which
+  the dialect accepts; the zero-field `GE` stays refused.
+- **A deck records the SNAPPED address, not the requested one**, and that is
+  discretisation rather than a defect: EZNEC shows both columns itself
+  (Specified vs Act Pos in its Sources and Loads windows), so 50 % on an
+  11-segment wire reads back as 54.55 %. Do not re-file it as a bug. AK#1579
+  was the *different* thing that wears similar words — reading that address
+  with the wrong end-versus-centre semantics, which was a real importer
+  defect and is fixed.
+- **CRLF hides under `scratch/eznec-capture/` and `scratch/4nec2-capture/`,**
+  both `-text` in `.gitattributes` on purpose, because captured I/O is a byte
+  oracle. A NOTES.md inside them can still carry CRLF, and normalising it
+  makes a 366-line addition read as a 1072/706 rewrite. Diff with
+  `--ignore-cr-at-eol` before judging the size of a capture commit.
 
 ## Frontend
 
