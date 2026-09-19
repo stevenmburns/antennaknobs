@@ -593,8 +593,25 @@ def gap_knot(n_seg, at):
 def on_site(m, at, family, tol=1e-9):
     """Whether a port at `at` (None is the middle) sits exactly on a site of
     an `m`-segment wire: a segment centre (k - 1/2)/m for the "centre" family,
-    an interior knot k/m for the "knot" family (AK#1469)."""
-    x = (0.5 if at is None else float(at)) * m
+    an interior knot k/m for the "knot" family (AK#1469).
+
+    An ENDPOINT is a site for both families (AK#1605). The "knot" family
+    already said so — 0 and m are knots — and the "centre" family has to
+    agree, for a reason that is not about sites at all: the answer here
+    decides whether the wire gets SPLIT so the port lands on one
+    (`SimulationEngine._split_wire`), and an endpoint cannot be split to. The
+    span around it collapses to zero width, which reaches the geometry layer
+    as a degenerate edge and raises.
+
+    Nor does it need one. A ground-contact feed is `feed_arclength` 0 or 1,
+    which momwire places EXACTLY — `feed_placements()` reports placed ==
+    requested — and a NEC-2 engine, which cannot address an arclength, puts it
+    on the first or last segment, the same cell EZNEC's own NEC-4.2 writer
+    names for the same antenna. Neither is improved by cutting the wire."""
+    frac = 0.5 if at is None else float(at)
+    if frac in (0.0, 1.0):
+        return True
+    x = frac * m
     if family == "centre":
         x -= 0.5
     return abs(x - round(x)) <= tol * max(m, 1)

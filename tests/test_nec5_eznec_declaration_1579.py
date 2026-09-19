@@ -336,8 +336,9 @@ def test_the_cardioid_captures_import(name):
     segment port there; it now reads one node, and the deck opens.
 
     Both verticals STAND on the ground plane, so since AK#1598 the fed base is
-    a ground-contact feed — an ordinary gap on the cell it stands in — rather
-    than the series EMF a `PortAtVertex` spells. That is not a cosmetic
+    a ground-contact feed — an ordinary gap AT the contact (AK#1605; AK#1598
+    first put it at that cell's centre) — rather than the series EMF a
+    `PortAtVertex` spells. That is not a cosmetic
     change: this test used to assert the vertex port and stop at "the deck
     opens", and the shape it was pinning could not be SOLVED (momwire refuses
     a series `node_gaps` entry at a one-member junction). Hence the solve
@@ -349,7 +350,7 @@ def test_the_cardioid_captures_import(name):
     # now spelled as the contact gap on the cell that knot stands in.
     assert isinstance(net.ports["feed2"], PortOnWire)
     assert not isinstance(net.ports["feed2"], PortAtVertex)
-    assert net.ports["feed2"].at == pytest.approx(0.5 / 30)
+    assert net.ports["feed2"].at == 0.0  # the contact itself (AK#1605)
     assert "tl2b" not in net.ports
     # Wire 1's base carries only the line, and nothing else is on that node,
     # so it keeps its segment and the deck reports it.

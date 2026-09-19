@@ -236,15 +236,23 @@ def split_spans(n_seg, positions, parity):
     u = sorted(float(a) for a in positions)
     k = len(u)
     if parity == "even":
-        cuts = [0.0, *u, 1.0]
-        return SplitPlan(
-            spans=tuple(
-                SplitSpan(lo, hi, _nearest_count((hi - lo) * n), i if i < k else None)
-                for i, (lo, hi) in enumerate(itertools.pairwise(cuts))
-            ),
-            half=(),
-            guard=(False, False),
-        )
+        # A port AT an endpoint is already on the wire's own end knot, so it
+        # needs no cut — cutting there duplicates 0.0 or 1.0 in `cuts` and
+        # emits a zero-length piece, which reaches the geometry layer as a
+        # degenerate edge (AK#1605, the ground-contact feed). It feeds the
+        # piece it bounds: the first for 0, the last for 1. With no endpoint
+        # port this is the old list, cut for cut and port for port.
+        interior = [x for x in u if x not in (0.0, 1.0)]
+        cuts = [0.0, *interior, 1.0]
+        spans = []
+        for lo, hi in itertools.pairwise(cuts):
+            port = None
+            for i, x in enumerate(u):
+                if (x == 0.0 and lo == 0.0) or (x == 1.0 and hi == 1.0) or x == hi:
+                    port = i
+                    break
+            spans.append(SplitSpan(lo, hi, _nearest_count((hi - lo) * n), port))
+        return SplitPlan(spans=tuple(spans), half=(), guard=(False, False))
     h = 1.0 / n
     half = []
     guard = [False, False]
@@ -264,7 +272,17 @@ def split_spans(n_seg, positions, parity):
             other = min(near + [b2 / 3 for s2, b2 in ends if s2 != side])
             if b <= h and b <= other:
                 guard[side] = True
-                limits.append(b)
+                # `b` is the room between the port and that end, reserved so
+                # the span does not overrun it. At b == 0 the port IS the end
+                # (a ground-contact feed, AK#1605) and there is no room to
+                # reserve — the guard already runs the span out to it. Letting
+                # a zero through here would cap the half-width on BOTH sides,
+                # since one `half` serves `lo = ui - xi` and `hi = ui + xi`,
+                # collapsing the span to zero width and reaching the geometry
+                # layer as a degenerate edge. Every b > 0 keeps its old limit,
+                # so no existing split moves.
+                if b:
+                    limits.append(b)
             else:
                 limits.append(b / 3)
         half.append(min(limits))
