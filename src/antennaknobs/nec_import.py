@@ -31,9 +31,17 @@ resistive pi when the Y matrix is all-real (``TwoPort`` + ``Shunt``) or a
 2-port ``Admittance`` when it carries susceptance, an LD 4 reactive load
 (fixed R+jX) becomes a fixed-complex-Z ``Load`` (issue #422), and 4nec2's
 LD 7 wire insulation becomes per-wire ``WireSpec`` jackets via
-``wire_insulation`` (issue #447). What cannot be expressed exactly —
-distributed RLC (LD 2/3), partial-wire conductivity or insulation ranges —
-stays in ``ignored`` with a per-card reason in ``ignored_detail``.
+``wire_insulation`` (issue #447). An LD 2 whose fields spell the a′+L′
+jacket pair AK's own writers emit (``engines._nec_wire.nec_wire_material``,
+issue #1523) inverts back to a jacket the same way, via
+``engines._nec_wire.jacket_from_equivalent_radius`` — the conductor radius
+comes back exact, surfacing through ``wire_insulation`` alongside a
+canonical (not measured) insulation radius/permittivity, and the GW card's
+own radius is corrected from a′ back to that conductor radius via
+``wire_conductor_radius``. What still cannot be expressed exactly —
+distributed RLC proper (LD 3, and an LD 2 that is not that pair), partial-wire
+conductivity or insulation ranges — stays in ``ignored`` with a per-card
+reason in ``ignored_detail``.
 ``wire_tuples()`` then emits *named* wires (no legacy
 ``ex`` markers) and ``network()`` returns the matching ``Network``, ready to
 return from ``build_wires`` / ``build_network``.
@@ -436,8 +444,18 @@ class NecDeck:
     # LD 7 wire insulation (issue #447, 4nec2 dialect): (wire index,
     # (jacket outer radius m, jacket relative permittivity)) for every
     # wire an LD 7 card covers in full — a whole-structure card covers
-    # them all. Baked into wire_tuples(specs=True) specs.
+    # them all. Baked into wire_tuples(specs=True) specs. An LD 2 a'+L'
+    # jacket pair (issue #1591) also lands here, through
+    # engines._nec_wire.jacket_from_equivalent_radius: the (radius, eps_r)
+    # reported is one member of the electrically-equivalent family that
+    # inductance implies, not a measurement of the physical jacket.
     wire_insulation: tuple[tuple[int, tuple[float, float]], ...] = ()
+    # The conductor radius an LD 2 jacket-pair inversion (issue #1591)
+    # recovered for a wire whose GW card carries the fattened equivalent
+    # radius a' instead: (wire index, true conductor radius m). Overrides
+    # that wire's GW radius in wire_tuples(specs=True) specs — every other
+    # wire's WireSpec radius is still its GW radius unchanged.
+    wire_conductor_radius: tuple[tuple[int, float], ...] = ()
     # (mnemonic, reason) per card instance that network mode still could not
     # translate — skipped_note() prefers these over the generic descriptions.
     ignored_detail: tuple[tuple[str, str], ...] = ()
@@ -1097,6 +1115,7 @@ class NecDeck:
 
         sigma_by_wire = dict(self.wire_conductivity)
         ins_by_wire = dict(self.wire_insulation)
+        radius_by_wire = dict(self.wire_conductor_radius)
 
         def spec_for(i, w):
             """Per-wire spec (issue #388): the deck wire's own radius, with
@@ -1106,12 +1125,15 @@ class NecDeck:
             required: engines treat an explicit spec as complete (no
             field-level fallback to build_wire_material), so leaving
             conductivity None would turn a copper deck into PEC wire by
-            wire."""
+            wire. An LD 2 jacket-pair inversion (issue #1591) overrides the
+            GW radius itself: that card's wire carries the fattened
+            equivalent radius a' on its GW card, not the conductor radius
+            WireSpec wants."""
             if not specs:
                 return None
             ins = ins_by_wire.get(i)
             return _net.WireSpec(
-                radius=w.radius,
+                radius=radius_by_wire.get(i, w.radius),
                 conductivity=sigma_by_wire.get(i, self.conductivity),
                 insulation_radius=ins[0] if ins else None,
                 insulation_eps_r=ins[1] if ins else None,
@@ -3043,6 +3065,7 @@ def _translate_network_cards(
     conductivity: float | None = None
     wire_conductivity: dict[int, float] = {}
     wire_insulation: dict[int, tuple[float, float]] = {}
+    wire_conductor_radius: dict[int, float] = {}
     for card in lds_raw:
         ldtyp = card.i(0)
         tag = card.i(1)
@@ -3149,8 +3172,72 @@ def _translate_network_cards(
                         at=ld_at if len(pairs) == 1 else None,
                     )
                 )
-        elif ldtyp in (2, 3):
-            skip("LD", f"type {ldtyp} distributed per-metre loading is not translated")
+        elif ldtyp == 2:
+            # AK's own writers spell a jacket as the a'+L' pair (issue #1523,
+            # engines._nec_wire.nec_wire_material): GW carries the fattened
+            # equivalent radius a', and F2 here is the jacket's series
+            # inductance L' [H/m] alone (F1 = F3 = 0). A real capture can
+            # carry a nonzero F1 too (the wire's own per-length resistance,
+            # e.g. EZNEC's own R' at its design frequency) — that is not
+            # part of AK's jacket model (a lossless dielectric, momwire#131,
+            # the same reason the IS card refuses a conductive sheath below)
+            # and is dropped: the wire's own loss is LD 5 / WireSpec
+            # conductivity, a separate card, not this one. A nonzero F3 (C')
+            # is genuine distributed capacitance the pair never writes, so
+            # it is the discriminator that keeps a true distributed-RLC LD 2
+            # from being misread as a jacket.
+            _r_per_len, l_ins, c_per_len = card.f(4), card.f(5), card.f(6)
+            if c_per_len != 0.0 or l_ins <= 0.0:
+                # A nonzero C' is genuine distributed capacitance the pair
+                # never writes — real LD 3/general-RLC territory, not this
+                # shape. l_ins <= 0 is the same tell: the pair always writes
+                # a positive L' (a jacket only ever ADDS inductance), so
+                # nothing here is worth the range/whole-wire work below.
+                skip("LD", "type 2 distributed per-metre loading is not translated")
+                continue
+            pairs = ld_range(tag, sf, st, card)
+            by_wire: dict[int, set[int]] = {}
+            for wi, s in pairs:
+                by_wire.setdefault(wi, set()).add(s)
+            if not all(
+                segs == set(range(1, wires[wi][1] + 1)) for wi, segs in by_wire.items()
+            ):
+                skip(
+                    "LD",
+                    "type 2 distributed per-metre loading is not translated "
+                    "on a partial-wire segment range — per-wire specs cover "
+                    "whole wires only",
+                )
+                continue
+            # Momwire is a heavy, compiled optional dependency (accelerator
+            # .so); nec_import must stay importable without it, so this is
+            # pulled in only for a deck that actually carries a jacket pair
+            # to invert.
+            from .engines._nec_wire import (  # noqa: PLC0415
+                jacket_from_equivalent_radius,
+            )
+
+            for wi in by_wire:
+                inverted = jacket_from_equivalent_radius(wires[wi][4], l_ins)
+                if inverted is None:
+                    # Defensive only: l_ins > 0 already guarantees a smaller
+                    # conductor radius than this wire's own GW radius (see
+                    # the module docstring's identity) for any positive GW
+                    # radius, so this fires only on a malformed GW radius —
+                    # not a case this corpus produces, but not a card to
+                    # silently misread either.
+                    skip(
+                        "LD",
+                        "type 2 inductance does not invert to a smaller "
+                        "conductor radius on this wire's GW radius — not "
+                        "read as a jacket pair",
+                    )
+                    continue
+                radius, insulation_radius, eps_r = inverted
+                wire_conductor_radius[wi] = radius
+                wire_insulation[wi] = (insulation_radius, eps_r)
+        elif ldtyp == 3:
+            skip("LD", "type 3 distributed per-metre loading is not translated")
         elif ldtyp == 5:
             if tag == 0 and sf == 0:
                 conductivity = card.f(4)
@@ -3267,6 +3354,7 @@ def _translate_network_cards(
         conductivity,
         tuple(sorted(wire_conductivity.items())),
         tuple(sorted(wire_insulation.items())),
+        tuple(sorted(wire_conductor_radius.items())),
         detail,
         skipped,
         frozenset(virtualized),
@@ -3723,6 +3811,7 @@ def parse_nec(
     conductivity: float | None = None
     wire_conductivity: tuple[tuple[int, float], ...] = ()
     wire_insulation: tuple[tuple[int, tuple[float, float]], ...] = ()
+    wire_conductor_radius: tuple[tuple[int, float], ...] = ()
     detail: list[tuple[str, str]] = []
     virtual_anchors: frozenset[int] = frozenset()
     virtual_segment_wires: frozenset[int] = frozenset()
@@ -3741,6 +3830,7 @@ def parse_nec(
             conductivity,
             wire_conductivity,
             wire_insulation,
+            wire_conductor_radius,
             detail,
             skipped,
             virtual_anchors,
@@ -3793,6 +3883,7 @@ def parse_nec(
         conductivity=conductivity,
         wire_conductivity=wire_conductivity,
         wire_insulation=wire_insulation,
+        wire_conductor_radius=wire_conductor_radius,
         ignored_detail=tuple(detail),
         network_mode=network,
         extended_kernel=extended_kernel,
