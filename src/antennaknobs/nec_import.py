@@ -265,6 +265,53 @@ def _knot_of(seg: int, edge: int) -> int:
     return seg - 1 if edge == 1 else seg
 
 
+# One notion of "same point" for the whole importer. `_junction_cuts` has
+# always bucketed at 1e-9 rather than comparing the endpoints, and it must:
+# the two expressions that produce a shared node are NOT bitwise equal. Wire 2
+# of AK#1583's deck ends at `7.62 + (0.6096 - 7.62) * 33/33` = 0.6096000000000004
+# where wire 3 starts at the literal 0.6096.
+_NODE_EPS = 1e-9
+
+
+def _node_key(p) -> tuple:
+    return tuple(round(c / _NODE_EPS) for c in p)
+
+
+def _knot_point(w, k: int) -> tuple:
+    """The point after ``k`` of wire ``w``'s ``n_seg`` segments — the same
+    expression `wire_tuples`' ``point()`` emits, so a node detected here and a
+    piece end emitted there are the same place."""
+    t = k / w.n_seg
+    return tuple(a + (b - a) * t for a, b in zip(w.p1, w.p2, strict=True))
+
+
+def _emitted_pieces(n: int, cuts, segs, claims) -> list[tuple[int, int]]:
+    """The ``(first knot, last knot)`` pieces `wire_tuples` emits for an
+    ``n``-segment wire: cut at every junction boundary (``cuts``), around every
+    marked segment (``segs``) so it sits alone, and at every claimed knot
+    (``claims``, ``(knot, end)`` pairs).
+
+    Shared with `_vertex_hosting`, which has to know which piece a claim would
+    land on BEFORE the emit loop runs — a second copy of this arithmetic would
+    be a second answer.
+
+    The last clause is AK#1594's: a knot-0 claim rides the FIRST piece, so it
+    collides with the next claimed knot unless something cuts between them. A
+    cut at 1 always separates them and always fits, unless the next claimed
+    knot IS 1 — a 1-segment piece has one end per side and cannot host both.
+    """
+    bounds = set(cuts)
+    for seg in segs:
+        bounds.update((seg - 1, seg))
+    bounds.update(k for k, _e in claims)
+    bounds -= {0, n}
+    if (0, "p0") in claims:
+        nxt = min((b for b in bounds if b > 0), default=n)
+        if (nxt, "p1") in claims and nxt >= 2:
+            bounds.add(1)
+    return list(pairwise([0, *sorted(bounds), n]))
+
+
 @dataclass(frozen=True)
 class NecWire:
     """One straight wire after all geometry transforms: NEC's GW columns."""
@@ -1173,14 +1220,18 @@ class NecDeck:
         return _net.PortOnWire(pname, wire=None if piece == pname else piece, at=at)
 
     @cached_property
-    def _vertex_plan(self) -> dict[tuple[int, int], tuple[str, str]]:
-        """(wire index, local knot 0..n_seg) → (port name, "p0"|"p1") for
-        every NEC-5 edge source (issue #824). The knot is the shared feed
-        naming sequence with `_port_plan` (a lone feed is ``"feed"``); the
-        end token names which authored end of the EMITTED wire piece the
-        knot is: an interior knot cuts the wire and the port rides the
-        piece ENDING there ("p1"); knot 0 is the whole piece's "p0"."""
-        plan: dict[tuple[int, int], tuple[str, str]] = {}
+    def _vertex_claims(self) -> dict[tuple[int, int], tuple[str, bool]]:
+        """(wire index, local knot 0..n_seg) → (port name, LOADS ONLY) for
+        every NEC-5 edge attachment on a `_vertex_wires` wire (issue #824).
+        The knot is the shared feed naming sequence with `_port_plan` (a lone
+        feed is ``"feed"``).
+
+        The second field is what `_vertex_hosting` needs: True when the only
+        cards on that knot are ``LD``s. A load is a two-terminal impedance and
+        does not care which way its port points; a source, a ``TL`` or an
+        ``NT`` does."""
+        plan: dict[tuple[int, int], str] = {}
+        passive: dict[tuple[int, int], bool] = {}
         single = len(self.feeds) == 1
         for k, f in enumerate(self.feeds, 1):
             if not f.edge or f.wire not in self._vertex_wires:
@@ -1192,22 +1243,221 @@ class NecDeck:
                     f"NEC deck drives knot {knot} of wire {f.wire + 1} "
                     f"with more than one EX card"
                 )
-            end = "p0" if knot == 0 else "p1"
-            plan[key] = ("feed" if single else f"feed{k}", end)
+            plan[key] = "feed" if single else f"feed{k}"
+            passive[key] = False
         for k, ld in enumerate(self.loads, 1):
             if not ld.edge or ld.wire not in self._vertex_wires:
                 continue
-            knot = _knot_of(ld.seg, ld.edge)
             # A load on a source's knot shares its port (AK#1483).
-            plan.setdefault((ld.wire, knot), (f"load{k}", "p0" if knot == 0 else "p1"))
+            key = (ld.wire, _knot_of(ld.seg, ld.edge))
+            plan.setdefault(key, f"load{k}")
+            passive.setdefault(key, True)
         # ... and so does a NEC-5 network end on that knot (AK#1579): `TL
         # 3,2,2,-1` and `EX 4,2,-1` name ONE node, which is one port here.
         for pname, wi, seg, edge in self._net_ends:
             if not edge or wi not in self._vertex_wires:
                 continue
-            knot = _knot_of(seg, edge)
-            plan.setdefault((wi, knot), (pname, "p0" if knot == 0 else "p1"))
-        return plan
+            key = (wi, _knot_of(seg, edge))
+            plan.setdefault(key, pname)
+            passive[key] = False
+        return {key: (name, passive[key]) for key, name in plan.items()}
+
+    def _vertex_occupancy(self, hosts) -> dict[tuple[int, int, int], tuple]:
+        """(host wire, first knot, last knot) → (the claim keys riding that
+        piece, whether a gap mark already owns it), for a candidate `hosts`
+        assignment. A piece whose total exceeds one is the #824 collision."""
+        by_wire: dict[int, list] = {}
+        for key, host in hosts.items():
+            by_wire.setdefault(host[0], []).append((host[1], host[2], key))
+        out: dict[tuple[int, int, int], tuple] = {}
+        for wi, items in by_wire.items():
+            n = self.wires[wi].n_seg
+            segs = {seg for (w, seg) in self._port_plan if w == wi}
+            pieces = _emitted_pieces(
+                n,
+                self._junction_cuts.get(wi, frozenset()),
+                segs,
+                {(k, e) for k, e, _key in items},
+            )
+            for a, b in pieces:
+                on = [
+                    key
+                    for k, e, key in items
+                    if (e == "p0" and k == a) or (e == "p1" and k == b)
+                ]
+                out[(wi, a, b)] = (on, b - a == 1 and b in segs)
+        return out
+
+    def _vertex_candidates(self, key) -> tuple[list[tuple[int, int, str]], str]:
+        """Where else a knot claim could ride, and — when nowhere — why.
+
+        A knot claim is a node gap AT A NODE, so in principle any emitted
+        piece whose authored end lands on that node could carry it. Three
+        things narrow that down to "another WIRE's end at a two-arm node":
+
+        - momwire resolves a `PortAtVertex` to "the current flowing from the
+          node INTO the named wire", so the other arm reverses the port's
+          reference direction. Measured on an 8+8 apex dipole: the impedance
+          is unchanged either way (6.1e-15 relative), and for a `Driven`
+          source every knot current comes back NEGATED — a silent 180°. A
+          pure-``LD`` knot comes back unchanged (1.3e-13, assembly-order
+          noise), because a two-terminal impedance has no polarity, and it is
+          the only claim allowed to move.
+        - at a node of degree >= 3, WHICH arm the gap separates is part of the
+          answer, exactly as NEC-5's tag/segment/end addressing says. Only a
+          two-arm node has an equivalent alternative.
+        - the same wire's OTHER side at an interior knot is also a two-arm
+          alternative, and is deliberately not offered: that is AK#1594's
+          knot-0-against-knot-1 refusal, pinned on purpose, and widening it is
+          a separate decision from this one.
+        """
+        wi, knot = key
+        _pname, passive = self._vertex_claims[key]
+        if not passive:
+            return [], (
+                f"the claim on knot {knot} of wire {wi + 1} is a source or a "
+                "TL/NT end, and a port's reference direction reverses on the "
+                "other arm of a node, so it cannot change arms"
+            )
+        if (wi, knot) in self._ground_contact_knots:
+            return [], (
+                f"knot {knot} of wire {wi + 1} stands in the ground plane, "
+                "which is an arm of its own"
+            )
+        members = self._knot_nodes.get(_node_key(_knot_point(self.wires[wi], knot)), ())
+        degree = sum(1 if k in (0, self.wires[i].n_seg) else 2 for i, k in members)
+        if degree != 2:
+            return [], (
+                f"the node at knot {knot} of wire {wi + 1} has degree "
+                f"{degree}, and which arm the gap separates is part of the "
+                "answer there"
+            )
+        out: list[tuple[int, int, str]] = []
+        blocked: list[str] = []
+        for i, k in members:
+            if i == wi or k not in (0, self.wires[i].n_seg):
+                continue
+            if i in self.virtual_anchors:
+                blocked.append(f"wire {i + 1} is virtualized and is not emitted")
+                continue
+            if i in self._site_plan:
+                # That wire is emitted with positioned gap ports on its
+                # pieces, and the engines refuse one wire named by both a gap
+                # port and a vertex port (`wire_catalog`, issues #579, #898).
+                # Pulling it into `_vertex_wires` instead would re-spell its
+                # OWN attachments, which is a bigger decision than this one.
+                blocked.append(
+                    f"wire {i + 1} carries positioned gap ports of its own, "
+                    "and one wire cannot be named by both a gap port and a "
+                    "vertex port"
+                )
+                continue
+            out.append((i, k, "p0" if k == 0 else "p1"))
+        if not out:
+            return [], (
+                blocked[0]
+                if blocked
+                else (
+                    f"the other arm of the node on knot {knot} of wire "
+                    f"{wi + 1} is not a wire end this spelling can name"
+                )
+            )
+        return out, ""
+
+    @cached_property
+    def _vertex_hosting(self) -> tuple[dict, dict]:
+        """``(hosts, notes)``: authored (wire, knot) → (host wire, host knot,
+        "p0"|"p1"), plus, for a claim that stayed put on a contested piece,
+        why it could not move (AK#1583).
+
+        Today's host — the piece ENDING at the knot, or the wire's FIRST
+        piece for knot 0 — is always assigned first, and only a claim whose
+        piece is already taken ever looks further. So no deck that imports
+        today moves: re-hosting can turn a refusal into an import, never the
+        reverse.
+
+        The reporting deck is EZNEC's own instrumentation idiom — a 1e-10 V
+        ``EX`` ammeter beside the ``LD`` it reads. On WA7ARK's ground-rod EFHW
+        that is ``EX 0,2,33,0`` (the CENTRE of segment 33) and
+        ``LD 4,2,33,0`` (KNOT 33, where wire 3 begins): two different points
+        that only the piece model put in conflict, because the segment's
+        1-segment piece is also the piece ending at the knot. The load rides
+        wire 3's ``p0`` instead, which is the same node and leaves wire 2
+        carrying only its gap port.
+        """
+        claims = self._vertex_claims
+        hosts = {key: (key[0], key[1], "p0" if key[1] == 0 else "p1") for key in claims}
+        notes: dict[tuple[int, int], str] = {}
+        if not claims:
+            return hosts, notes
+
+        def over(occ):
+            return sum(max(0, len(on) + marked - 1) for on, marked in occ.values())
+
+        for _pass in range(len(claims) + 1):
+            occ = self._vertex_occupancy(hosts)
+            crowd = over(occ)
+            if not crowd:
+                break
+            contested = [
+                key for on, marked in occ.values() if len(on) + marked > 1 for key in on
+            ]
+            move = None
+            for key in contested:
+                cands, why = self._vertex_candidates(key)
+                if not cands:
+                    notes.setdefault(key, why)
+                    continue
+                for cand in cands:
+                    if over(self._vertex_occupancy({**hosts, key: cand})) < crowd:
+                        move = (key, cand)
+                        break
+                if move:
+                    break
+                notes.setdefault(
+                    key,
+                    f"the other wire end at the node on knot {key[1]} of wire "
+                    f"{key[0] + 1} is claimed too",
+                )
+            if move is None:
+                break
+            hosts[move[0]] = move[1]
+            notes.pop(move[0], None)
+        return hosts, notes
+
+    @property
+    def _vertex_hosts(self) -> dict[tuple[int, int], tuple[int, int, str]]:
+        return self._vertex_hosting[0]
+
+    @cached_property
+    def _vertex_plan(self) -> dict[tuple[int, int], tuple[str, str]]:
+        """(wire index, local knot 0..n_seg) → (port name, "p0"|"p1") for
+        every NEC-5 edge source (issue #824). The end token names which
+        authored end of the EMITTED wire piece hosts the claim — usually the
+        piece ENDING at the knot ("p1"), with knot 0 the first piece's "p0",
+        and since AK#1583 the ``p0`` of another wire's end at the same node
+        when the authored host is taken (`_vertex_hosting`).
+
+        The KEY stays the authored (wire, knot) whatever the host, because
+        that is how every card that lands on the knot finds its port."""
+        return {
+            key: (name, self._vertex_hosts[key][2])
+            for key, (name, _passive) in self._vertex_claims.items()
+        }
+
+    @cached_property
+    def _knot_nodes(self) -> dict[tuple, tuple[tuple[int, int], ...]]:
+        """node key → every ``(wire index, knot)`` sitting on it, over the
+        wires `wire_tuples` emits. The same 1e-9 bucket `_junction_cuts`
+        groups by — that is the only notion of coincidence the emitted
+        geometry has, and it is not bitwise equality (see `_node_key`)."""
+        out: dict[tuple, list[tuple[int, int]]] = {}
+        for i, w in enumerate(self.wires):
+            if i in self.virtual_anchors:
+                continue
+            for k in range(w.n_seg + 1):
+                out.setdefault(_node_key(_knot_point(w, k)), []).append((i, k))
+        return {key: tuple(v) for key, v in out.items()}
 
     @cached_property
     def _junction_cuts(self) -> dict[int, frozenset[int]]:
@@ -1223,25 +1473,16 @@ class NecDeck:
         graph. The split is lossless: same segments, same boundaries, and
         the KCL junction at the shared node is exactly NEC's connection.
         """
-        eps = 1e-9
-
-        def key(p):
-            return tuple(round(c / eps) for c in p)
-
-        def boundary(w, k):
-            # Must match wire_tuples' point() bitwise so the shattered
-            # pieces land exactly on the detected nodes.
-            t = k / w.n_seg
-            return tuple(a + (b - a) * t for a, b in zip(w.p1, w.p2, strict=True))
-
         owners: dict[tuple, set[int]] = {}
         for i, w in enumerate(self.wires):
             for k in range(w.n_seg + 1):
-                owners.setdefault(key(boundary(w, k)), set()).add(i)
+                owners.setdefault(_node_key(_knot_point(w, k)), set()).add(i)
         cuts: dict[int, frozenset[int]] = {}
         for i, w in enumerate(self.wires):
             shared = {
-                k for k in range(1, w.n_seg) if len(owners[key(boundary(w, k))]) > 1
+                k
+                for k in range(1, w.n_seg)
+                if len(owners[_node_key(_knot_point(w, k))]) > 1
             }
             if shared:
                 cuts[i] = frozenset(shared)
@@ -1350,13 +1591,17 @@ class NecDeck:
             # Knot sources (issue #824): wire pieces are cut at each claimed
             # interior knot, and the piece whose authored end lands ON the
             # knot carries the port name — network() then hosts a
-            # PortAtVertex there. Empty outside network mode (the parser
-            # refuses edge sources without it).
-            vper = {
-                knot: nm_end
-                for (wi, knot), nm_end in self._vertex_plan.items()
-                if wi == i
-            }
+            # PortAtVertex there. The host is usually the claim's own wire
+            # and knot; AK#1583 lets a crowded-out LOAD claim ride another
+            # wire's end at the same node instead (`_vertex_hosting`), which
+            # is why this reads the hosts and not the authored keys. Empty
+            # outside network mode (the parser refuses edge sources without
+            # it).
+            vper = [
+                (hk, he, self._vertex_claims[key][0], key)
+                for key, (hw, hk, he) in self._vertex_hosts.items()
+                if hw == i
+            ]
             n = w.n_seg
             spec = spec_for(i, w)
             site = self._site_plan.get(i)
@@ -1398,55 +1643,47 @@ class NecDeck:
                 t = k / n
                 return tuple(a + (b - a) * t for a, b in zip(w.p1, w.p2, strict=True))
 
-            # Cut at every junction boundary, around every marked segment
-            # so it sits alone on a 1-segment piece, and at every claimed
-            # interior knot (#824).
-            bounds = set(cutset)
-            for seg in per:
-                bounds.update((seg - 1, seg))
-            bounds.update(k for k in vper)
-            bounds -= {0, n}
-            if 0 in vper:
-                # Knot 0 rides the wire's FIRST piece (its "p0"), same as
-                # every other claimed knot rides the piece ENDING at it — so
-                # a knot-0 claim and the next claimed knot collide on that
-                # one first piece unless something already cuts between
-                # them. A cut at 1 always separates them, and always fits,
-                # UNLESS the next claimed knot IS 1: a 1-segment piece has
-                # only one end and cannot host both (#1594; the two-attachment
-                # case genuinely has no room and falls through to the
-                # ValueError below).
-                nxt = min((b for b in bounds if b > 0), default=n)
-                if nxt in vper and nxt >= 2:
-                    bounds.add(1)
-            prev = 0
-            for b in [*sorted(bounds), n]:
-                count = b - prev
+            # Cut at every junction boundary, around every marked segment so
+            # it sits alone on a 1-segment piece, and at every claimed knot
+            # (#824). `_vertex_hosting` read the same pieces to place the
+            # claims, so the two cannot disagree about where they land.
+            for a, b in _emitted_pieces(
+                n, cutset, set(per), {(k, e) for k, e, _nm, _key in vper}
+            ):
+                count = b - a
                 mark = per.get(b) if count == 1 else None
-                # Vertex claim on this piece: knot 0 rides the first piece
-                # (its "p0"); every other knot rides the piece ENDING there.
-                vclaims = ([vper[0][0]] if prev == 0 and 0 in vper else []) + (
-                    [vper[b][0]] if b in vper else []
-                )
+                # A "p1" claim rides the piece ENDING at its knot, a "p0"
+                # claim the piece STARTING there.
+                vclaims = [
+                    (nm, key)
+                    for k, e, nm, key in vper
+                    if (e == "p0" and k == a) or (e == "p1" and k == b)
+                ]
                 if len(vclaims) > 1 or (vclaims and mark is not None):
+                    notes = self._vertex_hosting[1]
+                    why = list(
+                        dict.fromkeys(
+                            notes[key] for _nm, key in vclaims if key in notes
+                        )
+                    )
                     raise ValueError(
-                        f"wire {i + 1}: piece between knots {prev} and {b} "
+                        f"wire {i + 1}: piece between knots {a} and {b} "
                         "is claimed by more than one attachment (a knot "
                         "source needs its own wire end, #824)"
+                        + (f" — and {'; and '.join(why)}" if why else "")
                     )
                 if mark is not None:
                     ex, pname = mark
-                    emit(point(prev), point(b), 1, ex, pname, spec)
+                    emit(point(a), point(b), 1, ex, pname, spec)
                 else:
                     emit(
-                        point(prev),
+                        point(a),
                         point(b),
                         count,
                         None,
-                        vclaims[0] if vclaims else None,
+                        vclaims[0][0] if vclaims else None,
                         spec,
                     )
-                prev = b
         return tups
 
     def network(self):
