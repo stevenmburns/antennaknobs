@@ -374,9 +374,14 @@ _REAL_WIRE_HEAD = (
     "EX 4,1,11,2,1.414214,0.\n"  # knot 11 of wire 1 — a current source
 )
 ONE_KNOT = _REAL_WIRE_HEAD + "NT 1,11,2,1,.01,0.,0.,0.,0.,0.\nEN\n"
-# The same wire carrying a knot source at 11 and a knot LOAD at 0, which no
-# cut can separate: they ride the one piece between them.
-REAL_WIRE_COLLISION = ONE_KNOT.replace("EN\n", "LD 0,1,1,1,50.,0.,0.\nEN\n")
+# The same wire carrying a knot source at 11 and two knot LOADS at 0 and 1 --
+# adjacent knots, so the piece between them is one segment and cannot be cut
+# again (AK#1594): knot 0 and knot 11 alone would have 10 segments of room
+# and no longer collide (the #824 refusal is room-aware, not "any shared
+# piece"), which is why a second load pins the claim to knot 1 as well.
+REAL_WIRE_COLLISION = ONE_KNOT.replace(
+    "EN\n", "LD 0,1,1,1,50.,0.,0.\nLD 0,1,1,2,50.,0.,0.\nEN\n"
+)
 
 
 def test_a_knot_source_and_a_network_end_on_one_knot_share_a_port():
@@ -393,12 +398,14 @@ def test_a_knot_source_and_a_network_end_on_one_knot_share_a_port():
 
 
 def test_824_refusal_still_fires_for_a_real_wire():
-    """Wire 1 is the antenna: a knot source there needs its own wire end, and
-    the knot load at the far end of the same piece claims it too. Virtualizing
-    wire 2 (which IS the idiom) does not make that collision legal."""
+    """Wire 1 is the antenna: a knot source at knot 11 and two knot loads
+    pinned to the adjacent knots 0 and 1 leave no room to cut between the
+    load at 0 and the load at 1 -- a genuine collision (AK#1594), not one the
+    room-aware #824 rule can resolve. Virtualizing wire 2 (which IS the
+    idiom) does not make it legal."""
     deck = parse_nec(REAL_WIRE_COLLISION, network=True)
     assert deck.virtual_segment_wires == frozenset({1})
-    with pytest.raises(ValueError, match="claimed by more than one attachment"):
+    with pytest.raises(ValueError, match="piece between knots 0 and 1"):
         deck.wire_tuples()
 
 

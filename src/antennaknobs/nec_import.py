@@ -1216,6 +1216,19 @@ class NecDeck:
                 bounds.update((seg - 1, seg))
             bounds.update(k for k in vper)
             bounds -= {0, n}
+            if 0 in vper:
+                # Knot 0 rides the wire's FIRST piece (its "p0"), same as
+                # every other claimed knot rides the piece ENDING at it — so
+                # a knot-0 claim and the next claimed knot collide on that
+                # one first piece unless something already cuts between
+                # them. A cut at 1 always separates them, and always fits,
+                # UNLESS the next claimed knot IS 1: a 1-segment piece has
+                # only one end and cannot host both (#1594; the two-attachment
+                # case genuinely has no room and falls through to the
+                # ValueError below).
+                nxt = min((b for b in bounds if b > 0), default=n)
+                if nxt in vper and nxt >= 2:
+                    bounds.add(1)
             prev = 0
             for b in [*sorted(bounds), n]:
                 count = b - prev
