@@ -1079,9 +1079,19 @@ equivalent: the trap became `LD 4`, a parallel load became an `NT`, insulation
 became a rewritten radius plus `LD 2`. Split sources are the first feature where
 it **refuses instead of reducing**.
 
-So the reduction strategy has a boundary, and the useful consequence is that
-**a NEC-5 deck will never contain a split source** — a drop-in need not handle
-the case at all. `Split_Source.htm` is a real help topic, so this is a
+So the reduction strategy has a boundary.
+
+**The refusal fires BEFORE the deck is written** — tested rather than assumed,
+since the whole conclusion turns on it. With the refusal dialog still open,
+`Docs\EZN5.NEC` was byte-identical to the baseline taken minutes earlier
+(sha `666172fd…`, still carrying the previous model's deck), no other `.nec`
+had appeared anywhere in `Docs`, and no capture directory existed because the
+engine was never launched.
+
+So **a NEC-5 deck will never contain a split source** — a drop-in need not
+handle the case at all, and needs no refusal path for it either. Had EZNEC
+exported first and refused second, the claim would only have been "EZNEC will
+not *run* one", which is a much weaker thing. `Split_Source.htm` is a real help topic, so this is a
 documented EZNEC feature that simply does not survive the seam. Two of fourteen
 bundled AutoEZ samples hit it, so it is not a rarity.
 
