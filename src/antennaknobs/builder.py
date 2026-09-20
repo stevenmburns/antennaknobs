@@ -85,6 +85,15 @@ def diff_params(base, target):
 
 
 class AntennaBuilder:
+    # The metre-megahertz product this design's frequencies are turned into
+    # wavelengths with (AK#1607). SI for an antennaknobs design, where the
+    # dimensions are ours and no dialect is involved; an IMPORTED deck
+    # overrides it with its own engine's constant, because a deck is a
+    # document in a dialect and the dialect's metre-megahertz product is part
+    # of it. The import seam sets it (`file_designs._make_builder`); nothing
+    # else should, and a design that declares nothing keeps SI.
+    c_light_mhz_m = C_LIGHT_MHZ_M
+
     # Framework-level params live alongside per-design default_params but
     # don't surface in the UI param panel (adapter._auto_paramspec walks
     # default_params, not this). Convergence drives nominal_nsegs from
@@ -152,8 +161,8 @@ class AntennaBuilder:
     def design_wavelength(self):
         """Free-space wavelength in metres at ``design_freq`` (MHz).
 
-        The single named quantity for the ``299.792458 / self.design_freq``
-        idiom that every wavelength-scaled builder repeats — geometry held as
+        The single named quantity for the ``self.c_light_mhz_m /
+        self.design_freq`` idiom that every wavelength-scaled builder repeats — geometry held as
         wavelength fractions (``half_frac * self.design_wavelength``) then reads
         as what it is, and the constant lives in exactly one place. This is the
         *design* wavelength (the frequency the geometry is dimensioned for), not
@@ -172,7 +181,7 @@ class AntennaBuilder:
                 "param (the frequency the geometry is designed for); declare "
                 "one in default_params."
             )
-        return C_LIGHT_MHZ_M / float(design_freq)
+        return self.c_light_mhz_m / float(design_freq)
 
     @property
     def design_medium_wavelength(self):
@@ -217,7 +226,7 @@ class AntennaBuilder:
         # design_freq raises that property's error rather than a bare
         # AttributeError, and design_freq is read in exactly one place.
         k0 = 2.0 * _math.pi / self.design_wavelength
-        omega = k0 * C_LIGHT_MHZ_M * 1e6
+        omega = k0 * self.c_light_mhz_m * 1e6
         eps_t = _eps_tilde((float(eps_r), float(sigma)), omega, _Solver.eps)
         return float(_lambda_medium(eps_t, k0))
 
@@ -330,7 +339,7 @@ class AntennaBuilder:
                 "per quarter-wavelength); declare one in default_params "
                 "or give every wire an explicit segment count."
             )
-        quarter_wave = 0.25 * C_LIGHT_MHZ_M / float(design_freq)
+        quarter_wave = 0.25 * self.c_light_mhz_m / float(design_freq)
         # Below the interface the wave is shorter by |n|, so the same
         # nominal_nsegs-per-quarter-wave density needs a different reference
         # there (issue #983). None when the design declares no soil: every

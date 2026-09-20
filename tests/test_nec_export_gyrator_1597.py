@@ -40,8 +40,25 @@ FIXTURES = Path(__file__).parent / "fixtures" / "eznec_gyrator_1595"
 NEC2 = FIXTURES / "Cardioidmodnec2.nec"
 NEC4 = FIXTURES / "Cardioidmodnec4.nec"
 
-# Dan's NEC-4.2 twin, the oracle for this antenna in every dialect.
-ORACLE = np.array([36.43472011 - 18.98819787j, 67.7650881 + 19.99760805j])
+# OUR OWN solve of Dan's NEC-4.2 twin — momwire's default solver on that deck
+# through the `@file` route, as the fixture README records. It is a regression
+# pin on a cross-dialect identity, NOT an external authority: NEC-4.2 never
+# printed these digits for us. The name is historical, and the comment it used
+# to carry ("the oracle for this antenna in every dialect") invited reading it
+# as NEC-4.2's own answer, which cost real time in AK#1607 — where this moved
+# 3.9e-4 and momentarily looked like evidence about NEC-4's speed of light.
+# What the NEC-4.2 deck IS the oracle for is the DRIVE the other two dialects
+# must deliver (the fixture README's table), and that is unaffected by this
+# number's value.
+#
+# Re-recorded 2026-09-20 for AK#1607 (an imported deck is solved at NEC's
+# 299.8, not the SI c); the previous literal was the same solve at the SI c.
+# The identity these pin — the NEC-2 gyrator deck against the NEC-4.2 native
+# `EX 6` deck — is BIT-IDENTICAL across that change, which is the reason to
+# re-record rather than to doubt the change.
+ORACLE = np.array(
+    [36.43350555306979 - 19.004373849634746j, 67.76101624023624 + 19.980489794638522j]
+)
 # What the two EX 6 cards ask for, and so what the gyrators must deliver.
 EX6_CURRENTS = (complex(1.414214, 0.0), complex(0.0, -1.414214))
 
@@ -78,6 +95,22 @@ def test_the_round_trip_is_an_identity(tmp_path):
     assert z_out == pytest.approx(z_in, rel=0, abs=0)
     # ... and that identity is on the right number, not merely self-consistent.
     assert z_out == pytest.approx(ORACLE, rel=1e-6)
+
+
+def test_the_two_dialects_are_the_same_antenna():
+    """What `ORACLE` is really asserting, stated as an identity rather than a
+    literal — and the check that makes re-recording that literal safe.
+
+    The claim of this whole fixture is that EZNEC's gyrator construction in
+    NEC-2 delivers the drive NEC-4.2's native `EX 6` asks for, so the two
+    decks are one antenna. A constant is a poor way to hold that: it also
+    pins whatever else moves the number, and cannot tell the two apart. This
+    can — it survives any change that moves both decks together, and fails
+    for anything that moves one.
+
+    BITWISE, deliberately. These are the same geometry, the same solver and
+    the same forced currents; there is no rounding budget to spend."""
+    assert _z(NEC2).tolist() == _z(NEC4).tolist()
     # NOTE, measured: neither line above catches a SIGN inversion, and the
     # oracle line does not rescue it. Flip the writer to V = -j*I and the
     # reader flips back (I' = -Y12*V = -I); impedance is invariant under

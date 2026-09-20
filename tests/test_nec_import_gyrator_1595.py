@@ -47,12 +47,27 @@ NEC4 = "Cardioidmodnec4.nec"
 # The NEC-4.2 twin's own `EX 6` cards: what the gyrator pair must deliver.
 EX6_CURRENTS = (complex(1.414214, 0.0), complex(0.0, -1.414214))
 # momwire's answer on the oracle deck, which the NEC-2 deck must reproduce.
-ORACLE_Z = (complex(36.43472011, -18.98819787), complex(67.7650881, 19.99760805))
+# OURS, not NEC-4.2's: the deck is the oracle for the DRIVE the other dialects
+# must deliver, and these digits are what our own solver makes of it. So they
+# are re-recordable when our solver's inputs deliberately change, and the
+# identity below (`z2 == z4`) is what must not be.
+#
+# Re-recorded 2026-09-20 for AK#1607 — an imported deck is now solved at NEC's
+# 299.8 MHz*m rather than the SI c, which is 2.5e-5 of relative frequency and
+# moved these 3.9e-4. Both dialects moved together and still agree bitwise.
+ORACLE_Z = (
+    complex(36.433505553069786, -19.004373849634746),
+    complex(67.76101624023624, 19.980489794638522),
+)
 # ... and its azimuth ring one degree above the horizon (the deck's own RP cut
 # is the horizon itself; `far_field`'s grid stops one step short of it).
+# Re-recorded with ORACLE_Z. The pattern is far less sensitive than the
+# impedance: the peak did not move at 1e-4 dB, and the two figures that did
+# are a front-to-back ratio and a null depth, which is what one expects of a
+# frequency shift near a 30 dB null.
 PEAK_DBI = 6.5744
-NULL_DBI = -29.9441
-FRONT_TO_BACK_DB = 34.8429
+NULL_DBI = -29.945
+FRONT_TO_BACK_DB = 34.8489
 
 # The gyrator card as EZNEC wrote it, and the source it drives.
 GYRATOR_NT = "NT 3,2,1,1,0.,0.,0.,1.,0.,0."
@@ -178,7 +193,21 @@ def test_the_pattern_is_unchanged(tmp_path):
     assert m["front_to_back_db"] == pytest.approx(FRONT_TO_BACK_DB, abs=1e-3)
     ring = r2[-1]  # one degree above the horizon
     assert ring.min() == pytest.approx(NULL_DBI, abs=1e-3)
-    assert np.asarray(ff2.phis, float)[ring.argmin()] == pytest.approx(171.0)
+
+    # The null is a SYMMETRIC PAIR, 9 degrees either side of the back axis,
+    # and the two are equal to float noise — 3.6e-15 dB. So which of them
+    # `argmin` returns is the SIGN OF THAT NOISE, not a property of the
+    # pattern. This used to read `phis[ring.argmin()] == approx(171.0)`,
+    # which could only ever be green by luck: AK#1607's 2.5e-5 frequency
+    # shift flipped it to 189 with the pattern itself unmoved. Assert the
+    # symmetry, which is the real claim and cannot flip.
+    phis = np.asarray(ff2.phis, float)
+    lo = int(np.flatnonzero(phis == 171.0)[0])
+    hi = int(np.flatnonzero(phis == 189.0)[0])
+    assert {ring[lo], ring[hi]} == {ring.min()} or ring[lo] == pytest.approx(
+        ring[hi], abs=1e-9
+    )
+    assert abs(phis[ring.argmin()] - 180.0) == pytest.approx(9.0)
 
 
 def test_a_mixed_voltage_and_gyrator_deck_agrees_with_nec4(tmp_path):
@@ -212,8 +241,11 @@ def test_a_mixed_voltage_and_gyrator_deck_agrees_with_nec4(tmp_path):
     z4 = np.asarray(_solve(mixed4, tmp_path, "mixed4.nec").impedance())
     assert z2 == pytest.approx(z4, rel=1e-9, abs=1e-12)
     # The voltage-driven element's port is the sensitive one — name what it
-    # is, so a drift in the fixture cannot pass as agreement.
-    assert z2[1] == pytest.approx(complex(-1.147379, -0.97577888), rel=1e-5)
+    # is, so a drift in the fixture cannot pass as agreement. Re-recorded for
+    # AK#1607 with ORACLE_Z, and for the same reason.
+    assert z2[1] == pytest.approx(
+        complex(-1.147720151352307, -0.9753739365962907), rel=1e-5
+    )
 
 
 # --------------------------------------------------------------------------

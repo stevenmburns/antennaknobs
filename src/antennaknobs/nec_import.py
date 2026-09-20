@@ -97,6 +97,7 @@ from . import network as _net
 from .design_data import read_data
 
 __all__ = [
+    "NEC_C_LIGHT_MHZ_M",
     "NecDeck",
     "NecFeed",
     "NecLoad",
@@ -109,6 +110,35 @@ __all__ = [
 ]
 
 _DEG = math.pi / 180.0
+
+# NEC's own metre-megahertz product: a deck's frequency becomes a wavelength
+# as ``NEC_C_LIGHT_MHZ_M / f_MHz``, not with the SI c (AK#1607).  MEASURED off
+# the engine's own printed output rather than assumed, on two decks that
+# discriminate:
+#
+#   - ``0019_vertical-over-real-ground`` prints ``WAVELENGTH= 4.2829E+01
+#     METERS`` at 7 MHz.  299.8/7 = 42.8286 prints that cell; the SI c gives
+#     42.8275 and would print ``4.2827E+01``.
+#   - ``0010_dipole-in-free-space`` runs at 299.7925 MHz and prints its
+#     segment length normalized by wavelength as ``4.54534E-02``.  The
+#     physical length is 0.5/11 = 4.545454E-02 m, so the printed figure is
+#     that divided by 299.8/299.7925 to every digit; the SI c would print
+#     ``4.54545E-02``.
+#
+# The same constant is nec2c's ``CVEL`` and momwire's
+# ``eznec._serve.SPEED_OF_LIGHT_MHZ_M``, measured there the same way.  Solving
+# an imported deck at the SI c models a slightly different antenna than the
+# one its author wrote down and than every other tool they compare against --
+# 2.5e-5 of relative frequency, which is the ENTIRE residual between this
+# repo's route and ``momwire.eznec.serve`` on a network-free deck.
+#
+# NOT the same fact as the ``fr_first_mhz or 299.8`` fallback in the LD 6
+# conversion below, which is a FREQUENCY -- the 299.8 MHz a deck with no FR
+# card runs at (nec2c's FMHZ starts at CVEL; momwire's
+# ``deck._nec2._DEFAULT_FREQUENCY_MHZ``, oracle-verified there).  That default
+# is 299.8 BECAUSE this constant is -- it is the frequency whose wavelength is
+# exactly 1 m -- so the two share a number and nothing else.
+NEC_C_LIGHT_MHZ_M = 299.8
 
 # Cards that configure a NEC *run* rather than the wire list. antennaknobs has
 # its own engine settings for these concerns (ground, loading, feedlines,
@@ -3169,7 +3199,14 @@ _VIRTUAL_EXTENT_LAMBDA = 0.05
 # EZNEC idiom writes on every virtual segment it uses (AK#1577). EZNEC
 # writes 1.E+10 exactly; the margin is for a deck that spells it 1e9.
 _VIRTUAL_PIN_OHMS = 1e9
-_C_MPS = 299_792_458.0  # speed of light, for wavelength = c / f
+# Speed of light for the CLEARANCE heuristics above, wavelength = c / f.
+# Deliberately SI rather than `NEC_C_LIGHT_MHZ_M` (AK#1607), and the one place
+# in this module where the two are allowed to differ: these are geometric
+# thresholds ("is this wire parked far enough away to be an anchor"), measured
+# as ratios with this constant, and 2.5e-5 is seven orders below the nearest
+# margin. Changing it would re-measure every threshold to buy nothing. The
+# deck's own constant governs the SOLVE, which is a different question.
+_C_MPS = 299_792_458.0
 
 
 def _remote_wire_tests(wires):

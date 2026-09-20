@@ -36,7 +36,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 from .builder import AntennaBuilder
-from .nec_import import parse_nec
+from .nec_import import NEC_C_LIGHT_MHZ_M, parse_nec
 from .simnec_import import parse_ssn
 
 __all__ = ["builder_from_file"]
@@ -113,6 +113,16 @@ def _make_builder(
         label = stem
 
         default_params = MappingProxyType(params)
+
+        # The deck's own metre-megahertz product, not the SI one (AK#1607).
+        # A file design's frequencies come from the file, and the file is a
+        # document in NEC's dialect: solving it at the SI c models a
+        # slightly different antenna than its author wrote down. Set here
+        # rather than in either loader because BOTH of them hand this
+        # factory NEC cards -- a `.ssn`'s geometry is the deck embedded in
+        # it, the same reason `file_deck` is set for both (AK#1576). A
+        # loader for a format that is NOT NEC cards must say so here.
+        c_light_mhz_m = NEC_C_LIGHT_MHZ_M
 
         # The file's own EK card (NecDeck.extended_kernel), issue #849: the
         # CLI's `--extended-kernel` handling ORs this in for a momwire engine
