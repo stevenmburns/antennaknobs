@@ -1383,13 +1383,18 @@ class NecDeck:
         things narrow that down to "another WIRE's end at a two-arm node":
 
         - momwire resolves a `PortAtVertex` to "the current flowing from the
-          node INTO the named wire", so the other arm reverses the port's
-          reference direction. Measured on an 8+8 apex dipole: the impedance
-          is unchanged either way (6.1e-15 relative), and for a `Driven`
-          source every knot current comes back NEGATED — a silent 180°. A
-          pure-``LD`` knot comes back unchanged (1.3e-13, assembly-order
-          noise), because a two-terminal impedance has no polarity, and it is
-          the only claim allowed to move.
+          node INTO the named wire", so at MOMWIRE's boundary the other arm
+          reverses the port's reference direction: measured on an 8+8 apex
+          dipole, the impedance is unchanged either way (6.1e-15 relative)
+          but a `Driven` source's knot currents come back NEGATED. Since
+          AK#1608 the engine signs the vertex block, so that reversal no
+          longer reaches THIS boundary and a source claim would in fact
+          survive a change of arm. The restriction is kept anyway, and is now
+          CONSERVATIVE rather than necessary — widening it wants its own
+          measurement, not a free ride on #1608. A pure-``LD`` knot was
+          unchanged either way even before that (1.3e-13, assembly-order
+          noise), because a two-terminal impedance has no polarity, and it
+          remains the only claim allowed to move.
         - at a node of degree >= 3, WHICH arm the gap separates is part of the
           answer, exactly as NEC-5's tag/segment/end addressing says. Only a
           two-arm node has an equivalent alternative.
@@ -1403,8 +1408,8 @@ class NecDeck:
         if not passive:
             return [], (
                 f"the claim on knot {knot} of wire {wi + 1} is a source or a "
-                "TL/NT end, and a port's reference direction reverses on the "
-                "other arm of a node, so it cannot change arms"
+                "TL/NT end, and only a loads-only claim has a measured "
+                "equivalent on the other arm of a node"
             )
         if (wi, knot) in self._ground_contact_knots:
             return [], (

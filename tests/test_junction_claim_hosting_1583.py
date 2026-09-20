@@ -262,21 +262,40 @@ EN
     assert "not a wire end this spelling can name" in str(e.value)
 
 
-def test_a_driven_source_at_a_two_wire_node_is_inverted_by_the_other_arm():
-    """The derivation the whole design rests on, measured rather than assumed.
+def test_a_driven_source_at_a_two_wire_node_is_the_same_circuit_either_arm():
+    """AMENDED for AK#1608. This test used to assert the OPPOSITE, and the
+    change of verdict is the point.
 
     momwire resolves a `PortAtVertex` to "the current flowing from the node
-    INTO the named wire", so naming the other arm of a two-wire node reverses
-    the port's reference direction. For a driven source the applied EMF
-    reverses with it: the impedance survives (both V and I flip -- measured
-    agreeing to 6.1e-15 relative) and every knot current comes back NEGATED (to
-    6.0e-15). That is a silent 180 degrees: invisible in any magnitude, and
-    fatal to the relative phase of a multi-source model. It is why a knot
-    carrying a source is not allowed to change arms.
+    INTO the named wire", so at momwire's own boundary naming the other arm
+    of a two-wire node reverses the port's reference direction, and a driven
+    source's currents come back NEGATED. That reading is still true OF
+    MOMWIRE, and it was measured here (impedance agreeing to 6.1e-15, currents
+    negated to 6.0e-15).
+
+    It is no longer true at AK's boundary. AK#1608 found that the engine was
+    stamping deck-convention network branches onto momwire-convention ports
+    and applying no congruence between them -- worth up to 16 % on any deck
+    carrying a TL or NT, and decided against AK by the engine's own printouts
+    (0012 and 0016 print byte-identical; serve preserved that to 1e-15, AK
+    broke it by 7.2 %). `_contract_y` now signs the vertex block, so a port's
+    reported current means "current in the +wire direction" whichever arm
+    names it, and the two spellings are ONE circuit.
+
+    That has to be so for decks: `TL 2,-1,4,1` and `TL 1,10,4,1` are two
+    spellings of one node, and the author's arbitrary tag choice cannot pick
+    the answer. It is the same port type for hand-authored designs, so it is
+    one convention for both.
+
+    What this costs AK#1583: `_vertex_candidates`' refusal on a source claim
+    is now CONSERVATIVE rather than necessary -- its stated reason (a
+    reference direction that reverses) no longer holds at this boundary. The
+    refusal is unchanged and still correct to keep; widening it is a separate
+    decision with its own measurement, not a free consequence of this one.
 
     The bar is 1e-10 -- four orders above the assembly-order noise the two
-    spellings legitimately carry, and ten below the factor of two that
-    separates a negated current from an equal one, which the second assertion
+    spellings legitimately carry, and ten below the factor of two that a
+    regression to the old convention would show, which the second assertion
     pins from the other side."""
     arm, freq = 2.6, 27.0
 
@@ -304,8 +323,11 @@ def test_a_driven_source_at_a_two_wire_node_is_inverted_by_the_other_arm():
 
     p1, p0 = run("p1"), run("p0")
     assert p1[0] == pytest.approx(p0[0], rel=1e-10)
-    assert _worst_rel(p1[1], -p0[1]) < 1e-10
-    assert _worst_rel(p1[1], p0[1]) > 1.0
+    # SAME, not negated -- the congruence normalizes the arm away.
+    assert _worst_rel(p1[1], p0[1]) < 1e-10
+    # And pinned from the other side: a regression to the raw momwire
+    # convention would make these differ by a factor of two.
+    assert _worst_rel(p1[1], -p0[1]) > 1.0
 
 
 def test_a_load_at_a_two_wire_node_is_the_same_circuit_on_either_arm():
