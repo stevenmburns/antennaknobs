@@ -278,16 +278,31 @@ def test_a_network_end_and_a_source_on_one_knot_are_one_port():
 
 
 def test_a_network_end_at_a_lone_wire_end_keeps_its_segment_and_says_so():
-    """A knot with no other conductor on it is a port between a lone
-    conductor end and its ground contact, which no engine here hosts. The
-    connection stays on the segment the card names, and the deck reports it
-    rather than quietly moving the line."""
+    """A lone conductor end AWAY FROM GROUND has no through-current path for a
+    port to sit in, so the connection stays on the segment the card names and
+    the deck reports it rather than quietly moving the line.
+
+    This is the one demotion that survives AK#1608 part 2 on the lone-end
+    branch, and its fixture is why: `GE 0` with the wires ten metres up, so
+    the end is genuinely free. A wire end standing IN the ground plane is a
+    different case — the plane is its second terminal and it IS hosted.
+
+    The refusal is also not ours alone. The licensed NEC-5 declines the same
+    deck by name, `SORVT1: ERROR - Voltage source specified where there is no
+    basis function`, and its header counts why: 21 nodes, 19 unknowns, the two
+    free ends carrying no degree of freedom."""
     deck = _deck(TWO_WIRE.format(cards="TL 1,-1,2,5,50.,2.,0.,0.,0.,0.\n"))
     assert deck.net_ends_demoted == ((0, 0),)
     assert (deck.tls[0].seg_a, deck.tls[0].edge_a) == (1, 0)
     note = deck.skipped_note()
     assert "wire 1 knot 0" in note
-    assert "no other conductor there" in note
+    # The note must say the connection MOVED and that the answer is for the
+    # moved one. It used to assert a single cause ("no other conductor
+    # there"), which was wrong wherever the OTHER branch fired — on deck 0016
+    # it told the reader their ordinary junction was a free end.
+    assert "moved from the knot the card names" in note
+    assert "treat it as approximate" in note
+    assert "no through-current path" in note
 
 
 def test_a_zero_length_line_measures_between_the_knots():

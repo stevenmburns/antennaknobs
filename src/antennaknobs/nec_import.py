@@ -830,11 +830,14 @@ class NecDeck:
                 f"wire {i + 1} knot {k}" for i, k in self.net_ends_demoted
             )
             parts.append(
-                f"{n} NEC-5 network connection{'s' if n > 1 else ''} at a wire "
-                f"END with no other conductor there ({where}) kept on the "
-                "segment the card names: the node itself is a port between a "
-                "lone conductor end and its ground contact, which no engine "
-                "here hosts"
+                f"{n} NEC-5 network connection{'s' if n > 1 else ''} moved "
+                f"from the knot the card names to the centre of that segment "
+                f"({where}) — the impedance is for the MOVED connection, so "
+                "treat it as approximate. Either two network ports meet at "
+                "one junction (which we carry one node gap for), or the node "
+                "is a lone conductor end away from ground, which has no "
+                "through-current path to host a port in (NEC-5 refuses that "
+                "deck too)"
             )
         if self.symmetry_dropped_loads:
             n = self.symmetry_dropped_loads
@@ -3550,13 +3553,26 @@ def _translate_network_cards(
 
     def shares_a_piece_with_a_source(wi, knot):
         """Would a vertex port at ``knot`` land on the same emitted wire piece
-        as a knot SOURCE? ``wire_tuples`` gives each vertex port the piece
-        ENDING on its knot and lets knot 0 ride the FIRST piece, so the only
-        pairing its cut plan cannot separate is knot 0 against another claim
-        with no junction cut between them — which is the #824 refusal."""
+        as a knot SOURCE, WITH NO CUT ABLE TO SEPARATE THEM?
+
+        ``wire_tuples`` gives each vertex port the piece ENDING on its knot
+        and lets knot 0 ride the FIRST piece. `_emitted_pieces` already cuts
+        at every claimed knot, and AK#1594's clause adds a cut at 1 when knot
+        0 is claimed — so knot 0 and knot ``m`` ARE separable for every
+        ``m >= 2``. The one pairing no cut can fix is knot 0 against a claim
+        at knot **1**: a 1-segment piece has one end per side and cannot host
+        both.
+
+        This used to return True for EVERY ``m``, which demoted a perfectly
+        hostable knot to a segment centre and cost 7-15 % on four corpus decks
+        (AK#1608 part 2). Dropping the over-broad half takes 0016, 0018,
+        0116 and 0117 to 0.00 % against the licensed NEC-5 under a matched
+        basis, and makes the razor lane stop failing outright on 0116."""
         cuts = wire_cuts.get(wi, frozenset())
         return any(
-            min(knot, m) == 0 and not any(0 < c < max(knot, m) for c in cuts)
+            min(knot, m) == 0
+            and max(knot, m) == 1
+            and not any(0 < c < max(knot, m) for c in cuts)
             for w, m in driven_knots
             if w == wi and m != knot
         )
@@ -3600,11 +3616,53 @@ def _translate_network_cards(
             and (wi, knot) not in driven_knots
             and not is_a_ground_contact(wi, knot)
         )
-        if not lone and not shares_a_piece_with_a_source(wi, knot):
+        if (
+            not lone
+            and not shares_a_piece_with_a_source(wi, knot)
+            and not another_port_already_holds_this_node(wi, knot)
+        ):
+            claimed_places.setdefault(node_key(wi, knot), (wi, knot))
             return edge
         if (wi, knot) not in demoted:
             demoted.append((wi, knot))
         return 0
+
+    def node_key(wi, knot):
+        """Physical identity of a knot, to the same 1e-9 grid `_knot_sharing`
+        and `_junction_cuts` use — so all three agree which points coincide."""
+        w = wires[wi]
+        t = knot / w[1]
+        return tuple(
+            round((a + (b - a) * t) / 1e-9) for a, b in zip(w[2], w[3], strict=True)
+        )
+
+    # Every network end already placed, by PHYSICAL NODE (AK#1608 part 2).
+    # Filled as the TL and NT loops run, so a later end can see an earlier one.
+    claimed_places: dict[tuple, tuple[int, int]] = {}
+
+    def another_port_already_holds_this_node(wi, knot):
+        """Does a network end on a DIFFERENT wire already claim this physical
+        node? Our model carries one node gap per junction, so a second port
+        there cannot be hosted — momwire says so by name: `junction N already
+        carries a node gap`.
+
+        This is NOT a cosmetic collision, and the licensed engine is why we
+        can say so. `NT 3,-1` and `NT 2,3` are two spellings of one junction,
+        and used CONSISTENTLY they are interchangeable: NEC-5 gives 0012
+        (both `3,-1`) and 0016 (both `2,3`) bit-identical answers,
+        114.4700 + 21.0960j. Deck 0017 MIXES them — one card each way — and
+        NEC-5 returns 195.3400 - 57.4580j, a different circuit. So the
+        spelling selects which element the port attaches to, and that matters
+        the moment two ports meet at one node.
+
+        Canonicalising the two spellings to one (which this code briefly did)
+        therefore models the WRONG antenna: it turns 0017 into 0016 and moves
+        it from 12.62 % to 55.37 % against NEC-5. Two ports at one junction
+        is a real shape we cannot yet host, so it is demoted and reported,
+        not silently merged."""
+        place = node_key(wi, knot)
+        held = claimed_places.get(place)
+        return held is not None and held != (wi, knot)
 
     tls: list[NecTL] = []
     for card in tls_raw:
