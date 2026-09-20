@@ -1120,10 +1120,51 @@ class NecDeck:
         # A NEC-5 network end at a wire END or a junction cut needs the same
         # wire end a knot source does (AK#1579): a line landing on the OCF
         # feedpoint is the shape, and it is a PortAtVertex or it is nothing.
+        crowded = self._crowded_net_knots
         for _p, wi, seg, edge in self._net_ends:
-            if self._knot_end(wi, seg, edge) and needs_a_wire_end(wi, seg, edge):
+            if not self._knot_end(wi, seg, edge):
+                continue
+            # Two network ends on one node cannot both be vertex ports
+            # (AK#1617); they take the positioned spelling, as serve does.
+            if (wi, _knot_of(seg, edge)) in crowded:
+                continue
+            if needs_a_wire_end(wi, seg, edge):
                 out.add(wi)
         return frozenset(out)
+
+    @cached_property
+    def _crowded_net_knots(self) -> frozenset[tuple[int, int]]:
+        """Every ``(wire, knot)`` network end whose PHYSICAL NODE carries more
+        than one such end (AK#1617).
+
+        A junction has two spellings — end 2 of one wire's last segment and
+        end 1 of the next wire's first — and a deck may use both, as deck 0017
+        does. The vertex spelling cannot host that: a `PortAtVertex` is a
+        series EMF in the through-current path, momwire carries one per
+        junction, and the second raises `junction N already carries a node
+        gap`. These knots therefore take the POSITIONED spelling instead,
+        which is what `momwire.eznec.serve` uses for every network end — it
+        hands the solver plain `feeds` delta gaps at arclengths with
+        `node_gaps=None` and no cuts, so two ports at one place are simply two
+        entries and cannot collide.
+
+        Not merged into one port: the licensed NEC-5 gives 0012 (both `3,-1`)
+        and 0016 (both `2,3`) the identical 114.4700 + 21.0960j, and 0017,
+        which mixes the spellings, 195.3400 - 57.4580j. They are different
+        circuits, so the two ends stay two ports."""
+        if not self.network_mode:
+            return frozenset()
+        at_place: dict[tuple, list[tuple[int, int]]] = {}
+        for _p, wi, seg, edge in self._net_ends:
+            if not edge or wi in self.virtual_anchors:
+                continue
+            knot = _knot_of(seg, edge)
+            at_place.setdefault(
+                _node_key(_knot_point(self.wires[wi], knot)), []
+            ).append((wi, knot))
+        return frozenset(
+            k for ends in at_place.values() if len(set(ends)) > 1 for k in ends
+        )
 
     @cached_property
     def _site_plan(self) -> dict[int, dict]:
@@ -1201,7 +1242,10 @@ class NecDeck:
                         if (c % 2 == 1 and 2 * local == c + 1)
                         else (local - 0.5) / c
                     )
-                elif (wi, idx) in self._ground_contact_knots:
+                elif (wi, idx) in self._ground_contact_knots or (
+                    wi,
+                    idx,
+                ) in self._crowded_net_knots:
                     # A ground-contact END (AK#1598) is fed AT the contact —
                     # arclength 0 on the first piece for knot 0, 1 on the last
                     # for knot n_seg. That is the point the deck names, and
@@ -3616,12 +3660,7 @@ def _translate_network_cards(
             and (wi, knot) not in driven_knots
             and not is_a_ground_contact(wi, knot)
         )
-        if (
-            not lone
-            and not shares_a_piece_with_a_source(wi, knot)
-            and not another_port_already_holds_this_node(wi, knot)
-        ):
-            claimed_places.setdefault(node_key(wi, knot), (wi, knot))
+        if not lone and not shares_a_piece_with_a_source(wi, knot):
             return edge
         if (wi, knot) not in demoted:
             demoted.append((wi, knot))

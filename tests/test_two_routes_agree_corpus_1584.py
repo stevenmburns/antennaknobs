@@ -109,26 +109,19 @@ EXPECTED = {
     "0018_network-connection-test": (5e-4, "the two bspline lanes differ"),
     "0116_40-meter-four-square-array": (1.1e-1, "the two bspline lanes differ"),
     "0117_40-meter-four-square-array": (1.1e-1, "the two bspline lanes differ"),
-    # TWO network ports meet at ONE junction, and we carry one node gap per
-    # junction, so the second is still demoted to its segment centre. Not a
-    # cosmetic collision: `NT 3,-1` and `NT 2,3` are two spellings of one
-    # node, and used CONSISTENTLY they are interchangeable -- the licensed
-    # NEC-5 gives 0012 (both `3,-1`) and 0016 (both `2,3`) the identical
-    # 114.4700 + 21.0960j. 0017 MIXES them and NEC-5 returns
-    # 195.3400 - 57.4580j, a different circuit. So the spelling picks which
-    # element the port attaches to, and merging the two (which an earlier
-    # draft of AK#1608 part 2 did) models the wrong antenna -- it turns 0017
-    # into 0016 and moves it from 12.62 % to 55.37 % against NEC-5.
+    # FIXED by AK#1617: two network ports at ONE junction now take the
+    # POSITIONED spelling instead of the vertex one, which is what serve does
+    # for every network end. 12.62 % -> 0.00 % against the licensed NEC-5, and
+    # 1.4e-01 -> 2.2e-04 here, joining its neighbours at the bspline-lane
+    # difference.
     #
-    # NEC-5 SOLVES this deck, and so does SERVE: at razor-2p serve reproduces
-    # the licensed engine to 0.00 % while this route is 12.62 % out. So the
-    # defect is ENTIRELY OURS, momwire can already express the shape, and the
-    # fix is to find what serve spells differently -- not a momwire feature
-    # request and not a port-model rewrite.
-    "0017_network-connection-test": (
-        1.5e-1,
-        "two network ports at one junction, AK-only",
-    ),
+    # They are NOT merged into one port, and the licensed engine is why:
+    # `NT 3,-1` and `NT 2,3` are two spellings of one node and, used
+    # CONSISTENTLY, interchangeable -- NEC-5 gives 0012 (both `3,-1`) and
+    # 0016 (both `2,3`) the identical 114.4700 + 21.0960j. 0017 MIXES them
+    # and NEC-5 returns 195.3400 - 57.4580j, a DIFFERENT circuit. Merging
+    # them (an earlier draft did) turns 0017 into 0016 and costs 55.37 %.
+    "0017_network-connection-test": (5e-4, "the two bspline lanes differ"),
     # Ports from the NEC-2 reading (edge 0 from the start), never demoted, so
     # no part of this change reaches it. The worst deck in the corpus.
     "0028_17-10m-log-per-arrl-ant-book": (2.9e-1, "unexplained: the NEC-2 reading"),
@@ -182,3 +175,70 @@ def test_the_two_routes_agree(stem):
             f"defect owned by {owner}. Something fixed it — move this row to "
             f"NOISE and say what did."
         )
+
+
+def test_two_network_ports_at_one_junction_are_two_positioned_ports():
+    """AK#1617: the shape that had no spelling here.
+
+    Deck 0017's two `NT` cards name ONE junction through DIFFERENT wires, and
+    a `PortAtVertex` is a series EMF in the through-current path — momwire
+    carries one per junction, so the second raised `junction N already carries
+    a node gap` and used to be demoted half a segment away, worth 12.62 %.
+
+    `momwire.eznec.serve` never had the problem because it spells every
+    network end as a POSITIONED delta gap: it hands the solver `feeds` at
+    arclengths with `node_gaps=None` and no cuts, so two ports at one place
+    are two list entries. This route now does the same for a crowded knot.
+
+    Pinned as SHAPE rather than numbers: at least one of the two ends is a
+    positioned `PortOnWire`, and neither is demoted."""
+    from antennaknobs.nec_import import parse_nec
+
+    deck = parse_nec(
+        (DECKS / "0017_network-connection-test.nec").read_text(errors="replace"),
+        name="0017",
+        network=True,
+    )
+    assert deck.net_ends_demoted == ()
+    assert len(deck._crowded_net_knots) == 2
+
+    ports = deck.network().ports
+    near = [ports[n] for n in ("nt1a", "nt2a") if n in ports]
+    assert len(near) == 2, sorted(ports)
+    positioned = [p for p in near if type(p).__name__ == "PortOnWire"]
+    assert positioned, [type(p).__name__ for p in near]
+    assert all(p.at in (0.0, 1.0) for p in positioned)
+
+
+def test_the_crowded_knots_are_not_merged_into_one_port():
+    """The wrong fix, pinned so it is not re-attempted.
+
+    Merging the two spellings models a DIFFERENT antenna: consistently spelled
+    they are interchangeable (NEC-5 gives 0012 and 0016 the identical
+    114.4700 + 21.0960j), but 0017 mixes them and NEC-5 returns
+    195.3400 - 57.4580j. Collapsing 0017 onto 0016 costs 55.37 % against the
+    licensed engine."""
+    from antennaknobs.nec_import import parse_nec
+
+    def z(stem):
+        cls = builder_from_file(str(DECKS / f"{stem}.nec"))
+        return complex(
+            np.asarray(MomwireEngine(cls(), ground=cls.file_ground).impedance())[0]
+        )
+
+    mixed, consistent = (
+        z("0017_network-connection-test"),
+        z("0016_network-connection-test"),
+    )
+    assert abs(mixed - consistent) / abs(consistent) > 0.2, (mixed, consistent)
+
+    deck = parse_nec(
+        (DECKS / "0017_network-connection-test.nec").read_text(errors="replace"),
+        name="0017",
+        network=True,
+    )
+    # Two distinct ports, not one shared by both admittance branches.
+    holders = {
+        b.ports[0] for b in deck.network().branches if type(b).__name__ == "Admittance"
+    }
+    assert len(holders) == 2, holders
