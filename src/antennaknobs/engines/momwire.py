@@ -111,7 +111,10 @@ def _parity_for_solver(solver, solver_kwargs):
     return "any"
 
 
-C_LIGHT = 299_792_458.0
+# No module-level speed of light here on purpose (AK#1607): which one this
+# engine solves at is a property of the DESIGN, not of the engine, so it is
+# read per builder in `_wavelength_for`. A deck-derived design carries NEC's
+# constant; an antennaknobs design carries SI.
 ETA0 = 376.730313668  # free-space impedance, ohms
 EPS0 = 8.854_187_817e-12
 
@@ -1639,9 +1642,24 @@ class MomwireEngine(SimulationEngine):
                 )
         self._placement_notes = notes
 
-    @staticmethod
-    def _wavelength_for(freq_mhz):
-        return C_LIGHT / (freq_mhz * 1e6)
+    def _wavelength_for(self, freq_mhz):
+        """Metres, at ``freq_mhz`` MHz, in the DESIGN's metre-megahertz
+        product (AK#1607).
+
+        SI for an antennaknobs design; an imported deck carries NEC's own
+        constant instead, because this is the one engine that hands a
+        wavelength straight to the solver as the physical wavelength. The
+        deck-writing engines (`pynec`, `nec5`) round-trip theirs back to a
+        frequency and let their engine apply its own constant, so they are
+        already solving in the dialect and need no equivalent.
+
+        Not a staticmethod any more: it reads the builder. Written as
+        ``c*1e6 / (f*1e6)`` rather than the tidier ``c / f`` so that the SI
+        path stays BIT-IDENTICAL to the module ``C_LIGHT`` it replaces
+        (``299.792458 * 1e6`` is exactly ``299792458.0``; the two spellings
+        otherwise differ by an ulp at 4 of 13 sampled frequencies, which is
+        a silent perturbation of every catalog number)."""
+        return self.builder.c_light_mhz_m * 1e6 / (freq_mhz * 1e6)
 
     def _apply_tls(self, Y, wavelength):
         """Y + per-TL stamps at the corresponding feed-index pairs (legacy
@@ -1896,7 +1914,9 @@ class MomwireEngine(SimulationEngine):
                 )
             return np.vstack(rows)
         s = self._make_solver(wavelength=self._wavelength_for(freqs[0]))
-        k_array = 2.0 * np.pi * freqs * 1e6 / C_LIGHT
+        # Same arithmetic shape as `_wavelength_for`, and for the same
+        # bit-identity reason.
+        k_array = 2.0 * np.pi * freqs * 1e6 / (self.builder.c_light_mhz_m * 1e6)
         if self._network is not None:
             Y_swept = self._contract_y(
                 np.asarray(s.compute_y_matrix_swept(k_array), dtype=np.complex128)

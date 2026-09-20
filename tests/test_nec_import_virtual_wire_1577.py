@@ -196,13 +196,21 @@ def test_translated_network_reproduces_nec5_at_the_source():
 
 
 def test_momwire_bspline_solves_dans_deck():
-    """End to end on the deck as posted. 0.75 % since AK#1579 put the source,
+    """End to end on the deck as posted. 0.74 % since AK#1579 put the source,
     the probe and the transformer's antenna end on the knots NEC-5 solves them
-    at; it was 2.44 % while they sat at segment centres."""
+    at; it was 2.44 % while they sat at segment centres.
+
+    The literal is OURS and the percentage is against NEC-5's own printout,
+    so the two move for different reasons. Re-recorded 2026-09-20 for AK#1607
+    (the deck is solved at NEC's 299.8 MHz*m now, not the SI c): the literal
+    moved 3.5e-4, and the distance to the PRINTOUT fell, 0.7513 % to
+    0.7371 %."""
     z_source, z_probe = (
         complex(x) for x in _solve("failEZN5.nec", solver=BSplineSolver)
     )
-    assert z_source == pytest.approx(complex(49.4982, 104.5294), rel=1e-4)
+    assert z_source == pytest.approx(
+        complex(49.48082380696756, 104.52305377126747), rel=1e-4
+    )
     assert abs(z_source - NEC5_SOURCE_Z) / abs(NEC5_SOURCE_Z) < 0.01
     # The probe: 1e-10 V across the port, so its current is V/Z (NEC-5 prints
     # the current directly).
@@ -216,9 +224,12 @@ def test_the_attachment_lands_on_the_knot_nec5_used():
     275.111 - 1409.989j, 2.15 % of X from the printout, and that one knot out
     of 378 was the whole end-to-end residual. Reading EZNEC's stamp as the
     NEC-5 declaration it is (AK#1579) puts the port on knot 378, and what is
-    left is momwire against NEC-5 on the same model: 0.64 % of |Z|."""
+    left is momwire against NEC-5 on the same model: 0.63 % of |Z|.
+
+    Literal re-recorded 2026-09-20 for AK#1607, which also took that figure
+    from 0.6374 % to 0.6254 %."""
     (z,) = (complex(x) for x in _solve("WA7ARK-OCF-LoadOnly.nec", solver=BSplineSolver))
-    assert z == pytest.approx(complex(274.7914, -1431.6775), rel=1e-4)
+    assert z == pytest.approx(complex(274.7134805813256, -1431.8604381203234), rel=1e-4)
     assert abs(z - NEC5_CONTROL_Z) / abs(NEC5_CONTROL_Z) < 0.01
     assert abs(z.imag - NEC5_CONTROL_Z.imag) / abs(NEC5_CONTROL_Z.imag) < 0.007
     # And it composes. Push AK's OWN control value through the imported
@@ -290,7 +301,8 @@ def test_voltage_source_on_the_virtual_wire_imports_too():
     (z,) = (
         complex(x) for x in _solve("WA7ARK-OCF-Load-Xfmr-TL.nec", solver=BSplineSolver)
     )
-    assert z == pytest.approx(complex(49.4982, 104.5294), rel=1e-4)
+    # Re-recorded for AK#1607 with its twin in `test_momwire_bspline_solves_dans_deck`.
+    assert z == pytest.approx(complex(49.48082259178274, 104.52305497503484), rel=1e-4)
 
 
 def test_unpinned_virtual_segments_cost_half_a_percent():

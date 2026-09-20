@@ -54,10 +54,17 @@ def test_the_two_routes_agree_on_a_shared_deck():
     1.775e-02 on this deck, entirely because of where the contact feed sat.
 
     The bar is deliberately far from both numbers: five times the 3.7e-4 that
-    remains (which is route CONFIG — quadrature and basis defaults — not
-    placement, and was present with no loads at all), and forty times under the
-    1.8e-2 the placement bug cost. A regression in placement cannot pass it; a
-    legitimate config difference has room."""
+    remained when this was written, and forty times under the 1.8e-2 the
+    placement bug cost. A regression in placement cannot pass it.
+
+    That 3.7e-4 is now GONE, and this docstring used to explain it wrongly:
+    it was read as route CONFIG (quadrature and basis defaults), on the
+    strength of its being present with no loads at all. It was the SPEED OF
+    LIGHT — the two routes turned the deck's frequency into a wavelength with
+    different constants (AK#1607). With that shared, the two routes agree here
+    to 1.2e-17. The bar stays where it is: this test's subject is placement,
+    and the tight gate on the constant lives in
+    `test_deck_speed_of_light_1607.py`, which would fail first."""
     from momwire.deck._nec5 import parse_nec5
     from momwire.eznec import serve
 
