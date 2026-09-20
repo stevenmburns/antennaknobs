@@ -352,9 +352,16 @@ def test_the_cardioid_captures_import(name):
     assert not isinstance(net.ports["feed2"], PortAtVertex)
     assert net.ports["feed2"].at == 0.0  # the contact itself (AK#1605)
     assert "tl2b" not in net.ports
-    # Wire 1's base carries only the line, and nothing else is on that node,
-    # so it keeps its segment and the deck reports it.
-    assert deck.net_ends_demoted == ((0, 0),)
+    # Wire 1's base carries only the line — and NOTHING IS DEMOTED any more.
+    # This used to assert `net_ends_demoted == ((0, 0),)`, on the rule that a
+    # lone wire end cannot host a network connection. Both verticals STAND on
+    # the ground plane, so that end is a ground contact and the plane is its
+    # second terminal; hosting it is what AK#1598/AK#1605 and momwire#1052 +
+    # #1135 delivered, and AK#1608 retired the demotion for exactly this case.
+    # The free-space case still demotes — see
+    # `test_a_network_end_at_a_lone_wire_end_keeps_its_segment_and_says_so`,
+    # whose fixture is `GE 0` with the wires ten metres up.
+    assert deck.net_ends_demoted == ()
     assert deck.wire_tuples()  # used to raise the #824 collision
 
 
@@ -373,6 +380,20 @@ def test_the_cardioid_captures_solve(name):
     z = np.asarray(MomwireEngine(cls(), ground=cls.file_ground).impedance())
     assert z.shape == (2,)
     assert np.all(np.isfinite(z))
+
+    # ... and on the RIGHT numbers, which "finite" never checked. These decks
+    # carry an 18 ohm base load at the same knot as the line AND the source;
+    # the load used to be dropped and the line demoted off the knot, which
+    # left this route 1.29e-01 from `momwire.eznec.serve`. With the load
+    # composed in series and everything external behind it (AK#1584, AK#1608),
+    # the two routes we ship agree to float noise.
+    from momwire.deck._nec5 import parse_nec5
+    from momwire.eznec import serve
+
+    text = (CAPTURES / name).read_text(errors="replace")
+    mw = np.asarray([complex(s.impedance) for s in serve(parse_nec5(text)).sources])
+    rel = float(np.max(np.abs(z - mw) / np.abs(mw)))
+    assert rel < 1e-9, f"AK {z} vs serve {mw}, rel {rel:.3e}"
 
 
 @needs_captures

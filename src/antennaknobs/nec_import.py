@@ -404,6 +404,14 @@ class NecLoad:
     z: complex | None = None
     edge: int = 0
     at: float | None = None  # a 4nec2 percentage position, as on NecFeed
+    # AK#1584: a TL/NT connects at this load's own site. NEC composes the two
+    # as a series impedance INSIDE the segment, so the line sees the antenna
+    # through the load; our `Load` is a termination on the port, which would
+    # sit in PARALLEL with the line instead. Such a load is therefore emitted
+    # as a SERIES two-terminal branch between the wire's port and a circuit
+    # node that the TL/NT attaches to, not as a `Load` on the port
+    # (`_network_parts`). It used to be dropped with a skipped note.
+    at_connection: bool = False
 
 
 @dataclass(frozen=True)
@@ -1783,16 +1791,61 @@ class NecDeck:
         def load_port(ld):
             return knot_port(ld.wire, ld.seg, ld.edge)
 
+        # AK#1584: the loads a line connects at. NEC composes the two as a
+        # series impedance INSIDE the segment, so the line reaches the
+        # antenna THROUGH the load. Our `Load` is a termination on the port,
+        # which would hang in parallel with the line instead — so each of
+        # these becomes a two-terminal series branch from the wire's port to
+        # a fresh circuit node, and everything that named this site attaches
+        # to the node rather than to the wire. `behind` is that redirection.
+        #
+        # EVERYTHING, sources included — that is what "in series inside the
+        # segment" means: the wire's current reaches whatever is attached
+        # here only THROUGH the load. Measured rather than assumed, on the
+        # one corpus pair that separates the two readings: 0120/0121 are
+        # 0000 plus a second `EX` at a knot that already carries a load and
+        # a line. Driving the wire directly and redirecting only the line
+        # leaves them at 2.01e-01 (WORSE than the 1.29e-01 of dropping the
+        # load outright); redirecting the source too puts them at 4.06e-14,
+        # and leaves every deck with no source at a load site untouched.
+        behind = {
+            load_port(ld): f"{load_port(ld)}#ld"
+            for ld in self.loads
+            if ld.at_connection
+        }
+        for node in behind.values():
+            ports[node] = _net.PortVirtual(node)
+
         def net_port(wire, seg, edge):
             if not self._knot_end(wire, seg, edge):
-                return plan[(wire, seg)]
-            return knot_port(wire, seg, edge)
+                name = plan[(wire, seg)]
+            else:
+                name = knot_port(wire, seg, edge)
+            return behind.get(name, name)
 
         branches: list = []
         for ld in self.loads:
+            port = load_port(ld)
+            if ld.at_connection:
+                # Series, between the wire and the node the lines moved to.
+                # A fixed complex z has no r/l/c spelling, so it goes in as
+                # the 2x2 admittance of a series element, y = 1/z; every
+                # other shape is the frequency-dependent `TwoPort`.
+                if ld.z is not None:
+                    y = 1.0 / ld.z
+                    branches.append(
+                        _net.Admittance(
+                            ports=(port, behind[port]), y=((y, -y), (-y, y))
+                        )
+                    )
+                else:
+                    branches.append(
+                        _net.TwoPort(a=port, b=behind[port], r=ld.r, l=ld.l, c=ld.c)
+                    )
+                continue
             branches.append(
                 _net.Load(
-                    port=load_port(ld),
+                    port=port,
                     r=ld.r,
                     l=ld.l,
                     c=ld.c,
@@ -1846,8 +1899,10 @@ class NecDeck:
                 knot = _knot_of(f.seg, f.edge)
                 if (f.wire, knot) in self._vertex_plan:
                     return self._vertex_plan[(f.wire, knot)][0]
-                return "feed" if single else f"feed{k}"
-            return plan[(f.wire, f.seg)]
+                name = "feed" if single else f"feed{k}"
+            else:
+                name = plan[(f.wire, f.seg)]
+            return behind.get(name, name)
 
         sources = [
             _net.DrivenCurrent(port=feed_port(k, f), current=f.voltage)
@@ -3436,6 +3491,7 @@ def _translate_network_cards(
     is_raw=(),
     sym_cell=None,
     nec5_dialect=False,
+    ground=False,
 ):
     """Turn the collected LD/TL/NT cards into NecLoad/NecTL/NecNT records,
     plus (mnemonic, reason) detail for every card instance that stays
@@ -3505,6 +3561,32 @@ def _translate_network_cards(
             if w == wi and m != knot
         )
 
+    def is_a_ground_contact(wi, knot):
+        """Is this knot a wire end STANDING IN THE GROUND PLANE (AK#1608)?
+
+        A lone wire end is not electrically lone when it stands on the
+        ground: the plane is the second terminal, and hosting a port there
+        is exactly what AK#1598 / AK#1605 and momwire#1052 + #1135
+        delivered. Before them no engine here could host it, which is why
+        `hosted` demoted every lone end alike — the rule has outlived that.
+
+        Measured on momwire's EZNEC corpus: the bases of ground-mounted
+        verticals (`GE 1`, `TL 5,1,N,-1`, z = 0) are what this admits, and
+        admitting them makes ten decks agree with `momwire.eznec.serve`
+        BITWISE. The corpus supplies both negative controls — 0116/0117's
+        elevated ends at z = 4.9911 fail the plane test, and 0016-0018's
+        z = 0 dipole in free space fails the ground test.
+
+        Same in-plane rule as `NecDeck.free_plane_ends` (nec2c's `conect`
+        tolerance), so the two readers agree about what is in the plane."""
+        if not ground:
+            return False
+        w = wires[wi]
+        tol = _NEC_SMIN * math.dist(w[2], w[3]) / max(int(w[1]), 1)
+        t = knot / w[1]
+        z = w[2][2] + (w[3][2] - w[2][2]) * t
+        return abs(z) <= tol
+
     def hosted(wi, seg, edge):
         """``edge``, or 0 when the knot it names is one the port model cannot
         host a network connection at: a lone wire end (`_knot_sharing`), or a
@@ -3513,7 +3595,11 @@ def _translate_network_cards(
         if not edge or wi in anchors:
             return edge
         knot = _knot_of(seg, edge)
-        lone = (wi, knot) in lone_ends and (wi, knot) not in driven_knots
+        lone = (
+            (wi, knot) in lone_ends
+            and (wi, knot) not in driven_knots
+            and not is_a_ground_contact(wi, knot)
+        )
         if not lone and not shares_a_piece_with_a_source(wi, knot):
             return edge
         if (wi, knot) not in demoted:
@@ -3641,7 +3727,8 @@ def _translate_network_cards(
     # there is co-located with it exactly as it was before AK#1579 — without
     # this the load would be kept AND the demoted end marked on its segment,
     # which is the #824 collision on one piece.
-    connected |= set(demoted)
+    demoted_sites = {(wi, knot) for (wi, knot) in demoted}
+    connected |= demoted_sites
 
     dropped_by_symmetry = 0
 
@@ -3751,11 +3838,36 @@ def _translate_network_cards(
                         (*pair, z if z is not None else complex(r or 0.0, 0.0))
                     )
                     continue
-                if site(*pair, edge) in connected:
+                here = site(*pair, edge)
+                at_connection = here in connected
+                if at_connection and here in demoted_sites:
+                    # The line that named this site was DEMOTED to its
+                    # segment centre (`hosted`), so in our model it no longer
+                    # sits on the knot this load is on: there is no single
+                    # node to put a series element in front of. Modelling it
+                    # anyway would leave the series branch dangling and the
+                    # line still attached straight to the wire — a silently
+                    # different circuit. Refused until the demotion goes
+                    # (AK#1608 part 2); the two defects meet only here.
                     skip(
                         "LD",
-                        "load on a segment with a TL/NT connection — the "
-                        "series-inside-the-segment composition is not modelled",
+                        "load at a TL/NT connection whose end was demoted to "
+                        "a segment centre — the line and the load no longer "
+                        "share a node",
+                    )
+                    continue
+                if at_connection and ldtyp in (1, 6):
+                    # A PARALLEL RLC in series with the path is not a
+                    # two-terminal series element, and nothing in the branch
+                    # vocabulary spells it. Narrowed from the old blanket
+                    # refusal (AK#1584), which dropped every load sharing a
+                    # site with a line — including the plain series
+                    # resistances that are the whole of this idiom.
+                    skip(
+                        "LD",
+                        "a PARALLEL RLC load at a TL/NT connection point — "
+                        "only a series element can sit between the wire and "
+                        "the line",
                     )
                     continue
                 where = (*pair, edge)
@@ -3774,6 +3886,7 @@ def _translate_network_cards(
                         z=z,
                         edge=edge,
                         at=ld_at if len(pairs) == 1 else None,
+                        at_connection=at_connection,
                     )
                 )
         elif ldtyp == 2:
@@ -4468,6 +4581,7 @@ def parse_nec(
             is_raw,
             sym_cell,
             nec5_dialect,
+            ground,
         )
         ignored |= skipped
 

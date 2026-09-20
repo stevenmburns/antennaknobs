@@ -669,13 +669,33 @@ def test_nt_susceptance_becomes_admittance_and_nt_minus_one_clears():
     assert deck.tls == () and deck.nts == ()
 
 
-def test_ld_on_a_tl_segment_is_not_composed():
+def test_ld_on_a_tl_segment_composes_in_series_with_the_line():
+    """A load where a line connects is a SERIES element between them
+    (AK#1584), which is how NEC composes the two: the load sits inside the
+    segment, so the wire's current reaches the line only through it.
+
+    This used to be dropped with a skipped note, on the argument that our
+    `Load` is a termination on the port and would hang in PARALLEL with the
+    line. True of `Load`, but the conclusion did not follow — a `TwoPort`
+    between the wire's port and a circuit node the line attaches to says
+    exactly what NEC says."""
     deck = parse_nec(
         TWO_VERTICALS.format(tl="TL 1 2 2 2 73 1.5 0 0 0 0\nLD 0 2 2 2 0 1e-6 0"),
         network=True,
     )
-    assert deck.tls != () and deck.loads == ()
-    assert any("TL/NT connection" in why for _m, why in deck.ignored_detail)
+    assert deck.tls != ()
+    (ld,) = deck.loads
+    assert (ld.l, ld.at_connection) == (1e-6, True)
+    assert not any("TL/NT connection" in why for _m, why in deck.ignored_detail)
+
+    # ... and in the network it is a series branch, with the line moved onto
+    # the node BEHIND it rather than onto the wire.
+    net = deck.network()
+    (series,) = [b for b in net.branches if type(b).__name__ == "TwoPort"]
+    (tl,) = [b for b in net.branches if type(b).__name__ == "TL"]
+    assert series.l == 1e-6
+    assert series.b in (tl.a, tl.b) and series.a not in (tl.a, tl.b)
+    assert type(net.ports[series.b]).__name__ == "PortVirtual"
 
 
 def test_network_requires_network_mode_and_default_mode_is_unchanged():
