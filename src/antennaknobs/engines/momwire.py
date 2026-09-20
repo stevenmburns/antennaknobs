@@ -1148,6 +1148,26 @@ class MomwireEngine(SimulationEngine):
         self._vertex_port_members = [
             translated["end_port_members"][(w, e)] for _n, w, e in self._vertex_ports
         ]
+        # Vertex-port sign convention (AK#1608), the same congruence #580
+        # applies to gap feeds and for the same reason. momwire's node gap
+        # reports the current flowing FROM the node INTO the named wire; a
+        # branch stamped onto that port is authored in the other convention —
+        # the current ALONG the named wire's own p0->p1 direction. The two
+        # agree at p0 and are opposite at p1, so sigma = +-1 per vertex port,
+        # applied as V_solver = sigma.V_port going in and Y_port =
+        # sigma.Y_solver.sigma coming out.
+        #
+        # The sign is read off the AUTHORED end, not off the polyline member
+        # `_vertex_port_members` records. A walker that traverses the piece
+        # against the authored direction flips momwire's own sigma a second
+        # time, and the two flips cancel: authored p0 is +1 whether it landed
+        # on the polyline's "start" or its "end". The two readings genuinely
+        # differ — 6 of the 55 vertex ports in momwire's EZNEC corpus sit on a
+        # reversed walk (0063/0064 and 0081-0084) — and the member reading
+        # would move 0081, whose two driven vertex ports are both authored p0.
+        self._vertex_dirs = [
+            1.0 if e == "p0" else -1.0 for _n, _w, e in self._vertex_ports
+        ]
         # Distributed-port expansion (issue #477): None until _init_network
         # finds a PortOnWire(distributed=True); every other path treats the
         # feed list 1:1.
@@ -1461,24 +1481,31 @@ class MomwireEngine(SimulationEngine):
         """Contract a solver Y (sub-feed granularity) to port granularity;
         the signed W also normalizes each port's sign convention to the
         authored wire direction (issue #580). Identity when no distributed
-        ports exist and every port edge was walked as authored. End-port
-        rows (issue #579) trail the solver's feed rows and pass through
-        unweighted — a junction-node port has no sub-feed expansion and no
-        walk-sign ambiguity (a KCL row's outflow convention is geometric) —
-        so W extends by an identity block. Works on one matrix or a swept
-        (n_k, n, n) stack."""
-        if self._feed_W is None:
+        ports exist, every port edge was walked as authored, and no vertex
+        port sits at a `p1`.
+
+        End-port rows (issue #579) trail the solver's feed rows and pass
+        through unweighted — a junction-node port has no sub-feed expansion
+        and no sign to normalize, because a KCL row's outflow convention is
+        geometric and shared by both sides. VERTEX-port rows (AK#1608) do
+        carry a sign: momwire's node gap measures current from the node into
+        the named wire, the branches stamped on it measure current along that
+        wire's authored p0->p1 direction, and those are opposite at a `p1`.
+        So the tail block is the +-1 diagonal `_vertex_dirs`, not an identity.
+
+        Works on one matrix or a swept (n_k, n, n) stack."""
+        signs = [1.0] * len(self._end_port_junctions) + self._vertex_dirs
+        if self._feed_W is None and all(s == 1.0 for s in signs):
             return Y
-        W = self._feed_W
-        # Vertex ports pass through like end ports: a node gap's sign is
-        # geometric (current from the node into the named wire), so there
-        # is no walk-sign to normalize and no sub-feed expansion.
-        n_end = len(self._end_port_junctions) + len(self._vertex_port_members)
-        if n_end:
+        # No sub-feed expansion and no walk reversal, but a vertex port still
+        # needs its sign: stand in the identity the fast path above would
+        # otherwise have skipped over.
+        W = np.eye(len(self._feeds)) if self._feed_W is None else self._feed_W
+        if signs:
             W = np.block(
                 [
-                    [W, np.zeros((W.shape[0], n_end))],
-                    [np.zeros((n_end, W.shape[1])), np.eye(n_end)],
+                    [W, np.zeros((W.shape[0], len(signs)))],
+                    [np.zeros((len(signs), W.shape[1])), np.diag(signs)],
                 ]
             )
         if Y.ndim == 3:
@@ -1576,9 +1603,16 @@ class MomwireEngine(SimulationEngine):
                 if vertex_port_voltages is not None
                 else [0j] * len(self._vertex_port_members)
             )
+            # The drive side of AK#1608's congruence: an applied voltage is
+            # authored in the deck's convention, so it carries the same
+            # +-1 `_contract_y` applies to the row and column it comes back
+            # on. Without it the excited solve would drive a `p1` port
+            # backwards relative to the impedance the same engine reports.
             kw["node_gaps"] = [
-                (pl, end, complex(v))
-                for (pl, end), v in zip(self._vertex_port_members, v_volts, strict=True)
+                (pl, end, complex(v) * d)
+                for (pl, end), v, d in zip(
+                    self._vertex_port_members, v_volts, self._vertex_dirs, strict=True
+                )
             ]
         solver = self._solver(
             wires=self._polylines,
@@ -2034,12 +2068,18 @@ class MomwireEngine(SimulationEngine):
                 )
             ]
         if self._vertex_port_members:
-            # Same guard: only the network path declares vertex ports.
+            # Same guard: only the network path declares vertex ports. The
+            # resolved voltage comes out of the reducer in the deck's
+            # convention, so it goes in through the same +-1 as above
+            # (AK#1608).
             self._require_node_gaps()
             kw["node_gaps"] = [
-                (pl, end, complex(v))
-                for (pl, end), v in zip(
-                    self._vertex_port_members, vertex_port_voltages, strict=True
+                (pl, end, complex(v) * d)
+                for (pl, end), v, d in zip(
+                    self._vertex_port_members,
+                    vertex_port_voltages,
+                    self._vertex_dirs,
+                    strict=True,
                 )
             ]
         return self._solver(
