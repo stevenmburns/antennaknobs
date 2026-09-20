@@ -314,9 +314,17 @@ differently. antennaknobs feeds the stated point.
 Without `network=True`, the percentage names the segment whose centre is
 nearest. A percentage exactly on the boundary between two segments is equally
 near both, so it is refused, and the message names `network=True`. `0%` and
-`100%` use the end segment's centre, since a gap cannot sit at a wire's end. A
-percentage needs a tag that names one wire, and an `LD` range given as two
-percentages expands over the segments between them.
+`100%` use the end segment's centre. A percentage needs a tag that names one
+wire, and an `LD` range given as two percentages expands over the segments
+between them.
+
+With `network=True` a feed **at** a wire end is fed at the end itself, not at
+the centre of the segment it stands in. That distinction is the whole
+difference between the two drive models: a segment gap is `E = V/Δ` spread
+over the mesh cell, where the contact and the cell's centre are one drive,
+while the default point model is `E = V·δ(s − s_f)`, where where in the cell
+the point sits IS the answer. On a base-fed vertical over ground the two
+placements differ by 29 % in X.
 
 ## The NEC-5 dialect
 

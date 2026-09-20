@@ -29,22 +29,20 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.82.0" icon="star">
-  **The decks EZNEC actually writes.** EZNEC's virtual wire — the short,
-  distant wire its transformer and lossy-line idiom puts a source on — now
-  imports as virtual circuit nodes instead of a refusal, so a model fed
-  through a transformer and a lossy line opens on the command line, in the
-  workbench, on momwire and on the NEC-5 engine. A deck EZNEC stamps
-  "in NEC-5 format" is read as NEC-5: its sources, load probes, loads and
-  network ends land on the knot the writer meant rather than half a segment
-  away, while the NEC-2 and NEC-4.2 exports keep their NEC-2 reading — on a
-  reported deck the NEC-5 engine now reproduces EZNEC's own printout to
-  0.02 %. The SimNEC round trip is a fixed point: a re-imported `.ssn` keeps
-  its segment counts (the export's one-time re-mesh at the feed is deliberate
-  and stays). momwire 0.60.0 underneath: a one-field `GE` card — the shape
-  AutoEZ's writer and EZNEC's NEC-2 Save As emit — is accepted instead of
-  refused, and a two-drive model with load probes on both drives is gated
-  against NEC-5.
+<Card title="New in v0.83.0" icon="star">
+  **The drive the deck meant, and where it sits.** A source at a wire end
+  standing in the ground plane is a feed rather than a refusal, and it is now
+  fed AT the contact instead of at the centre of the segment it stands in — on
+  a base-fed vertical over ground those are two different drives, 29 % apart
+  in X. A gyrator-emulated current source is read as the current source it is,
+  not as a source behind a component, so a deck EZNEC wrote in its NEC-2
+  dialect reports the antenna's impedance instead of its reciprocal; NEC-2
+  export can now write that current source back out. EZNEC's own
+  instrumentation idiom — a 1e-10 V probe dropped beside a load at a wire
+  join — imports instead of colliding, and an `LD 2` jacket pair is read the
+  way the card means it. momwire 0.61.0 underneath: a bonded ground rod on an
+  ordinary antenna is served, and above the interface the wires may carry
+  several different radii.
 </Card>
 
 ## The whole pitch, in one line
