@@ -33,6 +33,19 @@ half-fixed state).
 pinned at what they measure, each against the open issue that owns it, so
 they cannot drift quietly -- and a FIX shows up here as a failure asking for
 the number to be re-recorded, which is the intended way to find out.
+
+ONE CAVEAT ON WHAT THIS GATE MEANS. Agreement between the two routes is a
+CONSISTENCY claim, not an accuracy one: it says they are the same
+computation, not that the computation is right. The accuracy claim lives
+outside CI, against `nec5cl`, which is licensed and cannot run here.
+
+AND ONE ON HOW TO MEASURE IT. Every number in a comparison must come from ONE
+configuration. This gate runs both routes in their DEFAULTS, which are two
+different bspline lanes -- so a row's bar can be a lane difference rather
+than a defect. Drafting these rows across mixed configurations produced two
+confidently wrong readings in a row (that serve lagged AK on four decks; that
+AK sat at the noise floor on 0011/0029/0030). At matched razor-2p the two
+routes agree to float noise on every deck here except 0017.
 """
 
 import pathlib
@@ -79,17 +92,43 @@ EXPECTED = {
     "0011_dipole-with-coax-feedline": (2.0e-2, "AK#1608 part 1"),
     "0029_dipole-with-coax-feedline": (2.0e-2, "AK#1608 part 1"),
     "0030_dipole-with-coax-feedline": (2.0e-2, "AK#1608 part 1"),
-    # `hosted()`'s OTHER branch: a network end at a knot that shares an
-    # emitted piece with a source is still demoted (the #824 collision).
-    # 0016 is the minimal case -- the same physical connection as 0012,
-    # spelled `2,3` instead of `3,-1`.
-    "0016_network-connection-test": (7.5e-2, "AK#1608, the shares-a-piece branch"),
-    "0017_network-connection-test": (1.5e-1, "AK#1608, the shares-a-piece branch"),
-    "0018_network-connection-test": (1.7e-1, "AK#1608, the shares-a-piece branch"),
-    # Lone ends that are NOT ground contacts (z = 4.9911), so the demotion
-    # correctly stands and something else owns the gap. Unexplained.
-    "0116_40-meter-four-square-array": (2.3e-1, "unexplained: elevated lone ends"),
-    "0117_40-meter-four-square-array": (2.3e-1, "unexplained: elevated lone ends"),
+    # These four are FIXED by AK#1608 part 2, and both routes now reproduce
+    # the licensed NEC-5 to 0.00 % under a matched basis. What is left below
+    # is a BSPLINE-LANE CONFIGURATION difference between the two routes --
+    # this gate runs AK's default `BSplineSolver` against serve's default
+    # `basis="bspline"`, and those two lanes are not configured identically.
+    # Set both to razor-2p and the same decks agree to float noise:
+    # 0016 6.1e-15, 0018 5.2e-16, 0116/0117 1.1e-14.
+    #
+    # Recorded carefully because an earlier draft of this file got it
+    # backwards. It claimed "AK is now ahead of serve", on serve figures
+    # measured in BSPLINE compared against AK figures measured in RAZOR --
+    # mixed configurations. serve was never behind: at matched basis it is
+    # exact on all four.
+    "0016_network-connection-test": (5e-4, "the two bspline lanes differ"),
+    "0018_network-connection-test": (5e-4, "the two bspline lanes differ"),
+    "0116_40-meter-four-square-array": (1.1e-1, "the two bspline lanes differ"),
+    "0117_40-meter-four-square-array": (1.1e-1, "the two bspline lanes differ"),
+    # TWO network ports meet at ONE junction, and we carry one node gap per
+    # junction, so the second is still demoted to its segment centre. Not a
+    # cosmetic collision: `NT 3,-1` and `NT 2,3` are two spellings of one
+    # node, and used CONSISTENTLY they are interchangeable -- the licensed
+    # NEC-5 gives 0012 (both `3,-1`) and 0016 (both `2,3`) the identical
+    # 114.4700 + 21.0960j. 0017 MIXES them and NEC-5 returns
+    # 195.3400 - 57.4580j, a different circuit. So the spelling picks which
+    # element the port attaches to, and merging the two (which an earlier
+    # draft of AK#1608 part 2 did) models the wrong antenna -- it turns 0017
+    # into 0016 and moves it from 12.62 % to 55.37 % against NEC-5.
+    #
+    # NEC-5 SOLVES this deck, and so does SERVE: at razor-2p serve reproduces
+    # the licensed engine to 0.00 % while this route is 12.62 % out. So the
+    # defect is ENTIRELY OURS, momwire can already express the shape, and the
+    # fix is to find what serve spells differently -- not a momwire feature
+    # request and not a port-model rewrite.
+    "0017_network-connection-test": (
+        1.5e-1,
+        "two network ports at one junction, AK-only",
+    ),
     # Ports from the NEC-2 reading (edge 0 from the start), never demoted, so
     # no part of this change reaches it. The worst deck in the corpus.
     "0028_17-10m-log-per-arrl-ant-book": (2.9e-1, "unexplained: the NEC-2 reading"),
