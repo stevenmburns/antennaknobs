@@ -3079,6 +3079,29 @@ def _source_values(sources) -> list[complex]:
     return [complex(entry[2]) for entry in sources]
 
 
+def _network_drive_values(eng) -> list[complex]:
+    """Each network source's own drive, in source order, which is the order a
+    network design reports its impedances in: a `Driven`'s volts, a
+    `DrivenCurrent`'s amps. Empty for a design with no network.
+
+    Read off the SOURCES, never off the engine's feed list. A network design
+    answers one impedance per source, while momwire's `_feeds` holds every
+    network PORT, loads included, each with a zero placeholder, because the
+    network resolves the drive. AC6LA's `Cardioidmodnec5.nec` has two sources
+    and four ports (feed1, load1, feed2, load2), and pairing the two raised
+    `zip() argument 2 is longer than argument 1` on every built-in solver.
+    """
+    net = getattr(eng, "_network", None)
+    if net is None:
+        builder = getattr(eng, "builder", None)
+        net = builder.build_network() if builder is not None else None
+    if net is None:
+        return []
+    return [
+        complex(s.current if hasattr(s, "current") else s.voltage) for s in net.sources
+    ]
+
+
 class _SolveSeams(NamedTuple):
     """Everything that differs between the engine lanes in ONE web solve.
 
@@ -3137,7 +3160,11 @@ _PYNEC_SEAMS = _SolveSeams(
     run=lambda eng: (eng.impedance(), eng.current_distribution()),
     ground_constants=_pynec_ground_constants,
     ground_applied=_pynec_ground_applied,
-    feed_values=lambda eng: [v for _t, _s, v in (eng.excitation_pairs or [])],
+    # The multiport route stamps no excitation pairs, so its drives come from
+    # the network's own sources rather than a padded 1 V.
+    feed_values=lambda eng: (
+        [v for _t, _s, v in (eng.excitation_pairs or [])] or _network_drive_values(eng)
+    ),
 )
 
 
@@ -3205,7 +3232,8 @@ _NEC5_SEAMS = _SolveSeams(
     run=lambda eng: eng.solve_snapshot()[:2],
     ground_constants=_nec5_ground_constants,
     ground_applied=_nec5_ground_applied,
-    feed_values=lambda eng: _source_values(eng._sources),
+    # The multiport route (#1280) carries no `_sources`; see the PyNEC seam.
+    feed_values=lambda eng: _source_values(eng._sources) or _network_drive_values(eng),
 )
 
 
@@ -4385,7 +4413,11 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # can render each feed's phase indicator. MomwireEngine stores
             # _feeds = [(polyline_idx, arclength, voltage)]; fall back to
             # 1+0j (the canonical unit drive) when missing.
-            voltages = [f[2] for f in (getattr(eng, "_feeds", None) or [])]
+            # A network design's drives are its sources'; a legacy `Wire.ex`
+            # design's are its feeds, one per impedance.
+            voltages = _network_drive_values(eng) or [
+                f[2] for f in (getattr(eng, "_feeds", None) or [])
+            ]
             voltages += [complex(1.0, 0.0)] * (len(zs) - len(voltages))
             out["feeds"] = [
                 {
