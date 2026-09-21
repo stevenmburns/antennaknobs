@@ -129,7 +129,7 @@
 | src/antennaknobs/designs/wire/w8jk.py                                |       22 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/zepp.py                                |       15 |        0 |    100% |           |
 | src/antennaknobs/drone.py                                            |      131 |        4 |     97% |208, 249-250, 261 |
-| src/antennaknobs/engine.py                                           |      295 |        7 |     98% |109, 383, 385, 606, 654, 776, 782 |
+| src/antennaknobs/engine.py                                           |      319 |        8 |     97% |109, 161, 436, 438, 677, 756, 880, 886 |
 | src/antennaknobs/engine\_capture.py                                  |       27 |        3 |     89% |     60-62 |
 | src/antennaknobs/engines/\_\_init\_\_.py                             |        8 |        2 |     75% |       3-4 |
 | src/antennaknobs/engines/\_external.py                               |       12 |        0 |    100% |           |
@@ -185,7 +185,7 @@
 | src/antennaknobs/web/tracker.py                                      |      254 |       30 |     88% |207, 213, 256, 272-273, 302-303, 306, 317-319, 326-327, 333, 415, 438-442, 445-454, 481 |
 | src/antennaknobs/web/user\_designs.py                                |       64 |        6 |     91% |60-61, 92-93, 98-99 |
 | src/antennaknobs/wire\_catalog.py                                    |      186 |        0 |    100% |           |
-| **TOTAL**                                                            | **18249** | **1181** | **94%** |           |
+| **TOTAL**                                                            | **18273** | **1182** | **94%** |           |
 
 
 ## Setup coverage badge
