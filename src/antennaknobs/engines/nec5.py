@@ -724,7 +724,43 @@ class NEC5Engine(SimulationEngine):
             )
         self._y_reciprocity_rel = worst[0]
 
-    # ---------- ground ----------    # ---------- ground ----------
+    def _real_port_sources(self, V):
+        """EX cards driving every real port at its network-resolved voltage
+        `V[i]`, in `_real_port_names` order (AK#1627). A port the network
+        leaves at exactly 0 V gets no card: an unfed knot is already that
+        short, and NEC-5 would read a zero-amplitude EX as 1 V."""
+        sources = []
+        for i, name in enumerate(self._real_port_names):
+            v = complex(V[i])
+            if v != 0:
+                idx, knot = self._port_attach[name]
+                sources.append((idx, 0, v, knot))
+        if not sources:
+            raise NEC5Error(
+                "the network resolves every real port to 0 V, so there is "
+                "nothing to drive the structure with"
+            )
+        return sources
+
+    def _drive_sources(self, freq_mhz):
+        """The EX cards that excite this model at `freq_mhz`: its own feeds,
+        or on the multiport-Y route (#1280) every real port at the voltage the
+        network resolves for it (AK#1627).
+
+        That route writes no EX of its own, which is right for the Y runs,
+        which bring their own. But every single-deck reading (the pattern, the
+        currents, the power budget, the web solve) went out with NO EX, so
+        NEC-5 solved an unexcited structure. AC6LA's failEZN5 ended its deck
+        at `***** INPUT LINE 6 EN`. PyNEC drives the same route the same way
+        (`_excited_real_context`)."""
+        if not getattr(self, "_use_reducer", False):
+            return self._sources
+        wl = C_LIGHT / (float(freq_mhz) * 1e6)
+        Y = self._compute_y_matrix(wl)
+        V = self._reducer.resolve_voltages(self._reducer.apply_branches(Y, wl))
+        return self._real_port_sources(V)
+
+    # ---------- ground ----------
 
     @staticmethod
     def _normalise_ground(ground):
@@ -1247,8 +1283,13 @@ class NEC5Engine(SimulationEngine):
         # with the 360-degree seam duplicated.
         assert 90 % n_theta == 0 and 90 == del_theta * n_theta
         assert 360 % n_phi == 0 and 360 == del_phi * n_phi
+        f = self.builder.freq
         text = self._run(
-            self.deck([self.builder.freq], rp=(n_theta, n_phi, del_theta, del_phi))
+            self.deck(
+                [f],
+                rp=(n_theta, n_phi, del_theta, del_phi),
+                sources=self._drive_sources(f),
+            )
         )
         gains = self._parse_radiation_patterns(text)
         thetas = np.linspace(0, 90 - del_theta, n_theta)
@@ -1305,7 +1346,10 @@ class NEC5Engine(SimulationEngine):
         """Run at the builder's frequency and return the parsed POWER
         BUDGET (input_w, radiated_w, wire_loss_w, efficiency_pct —
         conductor efficiency; ground absorption is not in this section)."""
-        return self._parse_power_budget(self._run(self.deck([self.builder.freq])))
+        f = self.builder.freq
+        return self._parse_power_budget(
+            self._run(self.deck([f], sources=self._drive_sources(f)))
+        )
 
     def average_power_gain(self, *, n_theta=18, n_phi=36):
         """(average power gain, solid angle in steradians) from an RP run
@@ -1316,7 +1360,8 @@ class NEC5Engine(SimulationEngine):
         del_theta = 90.0 / n_theta
         del_phi = 360.0 / n_phi
         # Sample cell centers so the sector average is honest.
-        lines = self.deck([self.builder.freq]).splitlines()
+        f = self.builder.freq
+        lines = self.deck([f], sources=self._drive_sources(f)).splitlines()
         lines = [ln for ln in lines if not ln.startswith("XQ")]
         rp = (
             f"RP 0 {n_theta} {n_phi} 0002 {_num(del_theta / 2)} 0.0 "
@@ -1436,7 +1481,8 @@ class NEC5Engine(SimulationEngine):
         knot conversion PyNECEngine uses: interior knots average the two
         adjacent segment-center currents; free ends go to zero; junction
         ends carry the adjacent center current."""
-        text = self._run(self.deck([self.builder.freq]))
+        f = self.builder.freq
+        text = self._run(self.deck([f], sources=self._drive_sources(f)))
         return self._currents_from(self._parse_wire_currents(text)[0])
 
     def solve_snapshot(self):
@@ -1447,6 +1493,8 @@ class NEC5Engine(SimulationEngine):
         ``_excited_efficiency`` / ``_excited_p_in`` /
         ``_excited_power_budget`` attributes the web adapter's budget and
         efficiency helpers read on every engine."""
+        if getattr(self, "_use_reducer", False):
+            return self._reduced_snapshot()
         text = self._run(self.deck([self.builder.freq]))
         zs = self._impedances_from(self._parse_input_parameters(text)[0])
         currents = self._currents_from(self._parse_wire_currents(text)[0])
@@ -1459,6 +1507,33 @@ class NEC5Engine(SimulationEngine):
         # design the CLI and the web panel both read "antenna (accepted): 0 %"
         # where momwire read 100 % (issue #1354).
         self._excited_power_budget = [("Wire loss", budget["wire_loss_w"])]
+        self._excited_p_radiated = budget["radiated_w"]
+        return zs, currents, budget
+
+    def _reduced_snapshot(self):
+        """`solve_snapshot` on the multiport-Y route (AK#1627): the Y runs once,
+        for the impedances AND the port voltages, then one deck driving every
+        real port for the currents and NEC-5's wire loss.
+
+        The budget is PyNEC's on the same route. The network's own input power
+        and losses come from the reducer, which the structure deck cannot see,
+        and NEC-5's conductor loss is folded in on top."""
+        f = self.builder.freq
+        wl = C_LIGHT / (f * 1e6)
+        Y = self._compute_y_matrix(wl)
+        zs = list(np.atleast_1d(self._reducer.driven_impedance(Y, wl)))
+        V = self._reducer.resolve_voltages(self._reducer.apply_branches(Y, wl))
+        _v, efficiency, p_in, net_budget = self._reducer.excited_state(Y, wl)
+        text = self._run(self.deck([f], sources=self._real_port_sources(V)))
+        currents = self._currents_from(self._parse_wire_currents(text)[0])
+        budget = self._parse_power_budget(text)
+        p_wire = budget["wire_loss_w"]
+        if p_wire > 0.0 and p_in > 0.0:
+            efficiency = max(0.0, min(1.0, efficiency - p_wire / p_in))
+        self._excited_efficiency = efficiency
+        self._excited_p_in = p_in
+        # LOSSES ONLY (issue #1354), as on the native route.
+        self._excited_power_budget = list(net_budget) + [("Wire loss", p_wire)]
         self._excited_p_radiated = budget["radiated_w"]
         return zs, currents, budget
 
