@@ -152,12 +152,12 @@ def test_nec_export_carries_spec():
     from antennaknobs.nec_export import _num, export_nec
 
     deck = export_nec(_builder("28-awg"), ground=None)
-    assert "LD 5 0 0 0  5.800000E+07" in deck
-    assert " 1.600000E-04" in deck  # 28 AWG radius on the GW cards
+    assert f"LD 5 0 0 0 {_num(5.8e7)} 0. 0." in deck
+    assert f" {_num(1.6e-4)}\n" in deck  # 28 AWG radius, the last field of each GW
     assert "LD 2" not in deck  # bare wire: no insulation card
     deck0 = export_nec(_builder(), ground=None)
     assert "LD 5" not in deck0
-    assert " 5.000000E-04" in deck0
+    assert f" {_num(5e-4)}\n" in deck0
     # Insulated variant: the coated-wire pair (#1523) — the equivalent radius
     # on the GW cards, LD 5 rescaled for it, and the distributed-L' card.
     spec = WIRES["28-awg-pvc"]
@@ -165,14 +165,14 @@ def test_nec_export_carries_spec():
     deck2 = export_nec(_builder("28-awg-pvc"), ground=None)
     assert f"LD 5 0 0 0 {_num(mat.conductivity)} 0. 0." in deck2
     assert _num(mat.radius) in deck2
-    assert " 1.600000E-04" not in deck2
+    assert f" {_num(1.6e-4)}\n" not in deck2
     assert "LD 2 0 0 0 0. " in deck2
     assert "CM jacketed wire" in deck2
     # jacket_pair=False is the inductance-only spelling the SimNEC portal
     # takes: the conductor's radius and conductivity, plus LD 2.
     deck3 = export_nec(_builder("28-awg-pvc"), ground=None, jacket_pair=False)
-    assert "LD 5 0 0 0  5.800000E+07" in deck3
-    assert " 1.600000E-04" in deck3
+    assert f"LD 5 0 0 0 {_num(5.8e7)} 0. 0." in deck3
+    assert f" {_num(1.6e-4)}\n" in deck3
     assert "LD 2 0 0 0 0. " in deck3
     assert "CM jacketed wire" not in deck3
 
