@@ -86,6 +86,48 @@ def test_every_single_deck_reading_is_excited(monkeypatch):
     assert all(_ex_cards(d) for d in decks), [d for d in decks if not _ex_cards(d)]
 
 
+def test_the_web_nec_rp_trace_is_excited(monkeypatch):
+    """The app's NEC rp trace writes its own RP deck in the adapter rather
+    than through `far_field`, and missed the fix above: on this route it
+    printed no pattern at all (`no RADIATION PATTERNS in NEC-5 printout`)."""
+    import antennaknobs.web.examples  # noqa: F401  (before the adapter)
+    from antennaknobs.web import adapter
+
+    real_make = adapter._make_nec5_engine
+    real_init = NEC5Engine.__init__
+    monkeypatch.setattr(
+        NEC5Engine,
+        "__init__",
+        lambda self, *a, **kw: real_init(self, *a, **{**kw, "require_exe": False}),
+    )
+
+    def make(req, builder):
+        eng = real_make(req, builder)
+        n = len(eng._real_port_names)
+        Y = np.eye(n) * (0.01 - 0.02j) + 0.002
+        monkeypatch.setattr(eng, "_compute_y_matrix", lambda _wl: Y)
+        monkeypatch.setattr(eng, "_run", run)
+        return eng
+
+    class _Stop(Exception):
+        pass
+
+    decks = []
+
+    def run(deck):
+        decks.append(deck)
+        raise _Stop
+
+    monkeypatch.setattr(adapter, "_make_nec5_engine", make)
+    cls = builder_from_file(str(FAIL))
+    ex = adapter._make_example("failEZN5", cls)
+    f = cls().freq
+    with pytest.raises(_Stop):
+        ex.nec5_pattern({"measurement_freq_mhz": f, "design_freq_mhz": f})
+    (deck,) = decks
+    assert "RP " in deck and _ex_cards(deck)
+
+
 def test_every_real_port_is_driven_at_its_resolved_voltage():
     eng = _engine()
     V = [0.3 - 0.2j, 1.1 + 0.4j]
