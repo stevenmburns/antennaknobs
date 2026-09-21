@@ -159,25 +159,19 @@ def test_hand_written_minimal_file():
     assert w.p2 == (0.0, 5.0, 10.0)
 
 
-def test_necunits_feet_scales_to_metres():
-    script = _SCRIPT_M.replace("NECUnits meters, meters;", "NECUnits feet, feet;")
+@pytest.mark.parametrize(
+    "units", ["inches, inches", "feet, feet", "feet, mm", "cubits, m", "meters"]
+)
+def test_necunits_is_display_only_and_never_scales_the_geometry(units):
+    """AK#1625: in SimNEC `NECUnits` only sets the units wire dimensions are
+    DISPLAYED in. The cards are metres whatever it says: AC6LA showed that
+    deleting the line leaves SimNEC's own answer unchanged, and his
+    `NECUnits inches, inches;` Yagi, read as a scale, was solved as a 1/80-wave
+    stub (0.19 - j13972 ohms against SimNEC's 13.26 - j7.385)."""
+    script = _SCRIPT_M.replace("NECUnits meters, meters;", f"NECUnits {units};")
     (w,) = parse_ssn(_ssn(script), name="t.ssn").deck.wires
-    assert w.p2[1] == pytest.approx(5 * 0.3048)
-    assert w.p2[2] == pytest.approx(10 * 0.3048)
-    assert w.radius == pytest.approx(0.0005 * 0.3048)
-
-
-def test_necunits_mixed_units_scale_radius_separately():
-    script = _SCRIPT_M.replace("NECUnits meters, meters;", "NECUnits feet, mm;")
-    (w,) = parse_ssn(_ssn(script), name="t.ssn").deck.wires
-    assert w.p2[1] == pytest.approx(5 * 0.3048)
-    assert w.radius == pytest.approx(0.0005 * 0.001)
-
-
-def test_necunits_unknown_unit_raises():
-    script = _SCRIPT_M.replace("NECUnits meters, meters;", "NECUnits cubits, m;")
-    with pytest.raises(ValueError, match="cubits"):
-        parse_ssn(_ssn(script), name="t.ssn")
+    assert w.p1 == (0.0, -5.0, 10.0) and w.p2 == (0.0, 5.0, 10.0)
+    assert w.radius == pytest.approx(0.0005)
 
 
 def test_wire_conductivity_directive():
@@ -251,13 +245,13 @@ def test_missing_necend_raises():
         parse_ssn(_ssn(script), name="t.ssn")
 
 
-def test_stray_en_card_does_not_defeat_units_or_ground():
-    """An EN inside the block must not truncate the appended GS/GE cards."""
+def test_stray_en_card_does_not_defeat_the_ground():
+    """An EN inside the block must not truncate the appended GE card."""
     script = _SCRIPT_M.replace(
         "NECUnits meters, meters;", "NECUnits feet, feet;\nPerfectGround();"
     ).replace("NECEND", "EN\nNECEND")
     c = parse_ssn(_ssn(script), name="t.ssn")
-    assert c.deck.wires[0].p2[1] == pytest.approx(5 * 0.3048)
+    assert c.deck.wires[0].p2[1] == pytest.approx(5.0)
     assert c.ground == "pec" and c.deck.ground is True
 
 

@@ -25,10 +25,11 @@ language — with the NEC cards between ``NEC2`` and ``NECEND``:
 model — geometry transforms, EX feeds, lumped LD loads with ``network=True`` —
 works identically), and translates the daemon directives back into antennaknobs
 terms: the ground call becomes an ``export_nec``-style ground spec, wire
-conductivity and SimNEC's re-mesh density surface as fields, and ``NECUnits``
-scales the geometry to metres (via a native ``GS`` card, so NEC's own scaling
-semantics apply; the second ``NECUnits`` argument is taken as the wire-radius
-unit, matching the export's ``NECUnits meters, meters``).
+conductivity and SimNEC's re-mesh density surface as fields. ``NECUnits`` is
+read and NOT applied: in SimNEC it only sets the units wire dimensions are
+DISPLAYED in, and the NEC cards in the block are metres whatever it says
+(AK#1625). AC6LA's `NECUnits inches, inches;` Yagi, read as a scale, was solved
+as a 1/80-wave stub: 0.19 - j13972 ohms against SimNEC's 13.26 - j7.385.
 
 The solve frequency comes from the GENERATOR element's ``MHz`` — in SimNEC the
 deck's ``FR`` card is advisory; the Generator drives the solve — and an armed
@@ -75,7 +76,7 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from . import network as _net
 from .design_data import read_data
@@ -83,25 +84,6 @@ from .nec_import import NecDeck, parse_nec
 
 __all__ = ["SsnCircuit", "SsnElement", "parse_ssn", "read_ssn"]
 
-# NECUnits values, in metres. The directive names a unit per argument:
-# (coordinates, wire radius) — the exporter writes "NECUnits meters, meters".
-_UNIT_M = {
-    "meters": 1.0,
-    "meter": 1.0,
-    "m": 1.0,
-    "centimeters": 0.01,
-    "centimeter": 0.01,
-    "cm": 0.01,
-    "millimeters": 0.001,
-    "millimeter": 0.001,
-    "mm": 0.001,
-    "feet": 0.3048,
-    "foot": 0.3048,
-    "ft": 0.3048,
-    "inches": 0.0254,
-    "inch": 0.0254,
-    "in": 0.0254,
-}
 
 # The exporter's scaffold LOAD is a 1e9 Ohm open; treat anything this large as
 # "no termination" rather than a circuit element worth reporting.
@@ -346,13 +328,6 @@ class SsnCircuit:
         )
 
 
-def _unit_scale(token: str, where: str) -> float:
-    try:
-        return _UNIT_M[token.strip().lower()]
-    except KeyError:
-        raise ValueError(f"{where}: unrecognised NECUnits unit {token!r}") from None
-
-
 def _fnum(token: str, where: str, what: str) -> float:
     try:
         return float(token.rstrip(";"))
@@ -369,8 +344,9 @@ class _Script:
         self.ground: None | str | tuple = None
         self.conductivity: float | None = None
         self.seg_per_wl: int | None = None
-        self.coord_scale = 1.0
-        self.radius_scale = 1.0
+        # `NECUnits`, as written: SimNEC's DISPLAY units, never a scale on the
+        # cards (AK#1625). Kept for what the file said, not for the geometry.
+        self.display_units: tuple[str, ...] = ()
         self.name: str | None = None
         self.ignored: list[str] = []
         in_cards = False
@@ -423,10 +399,7 @@ class _Script:
             units = [u for u in m.group(1).split(",") if u.strip()]
             if not 1 <= len(units) <= 2:
                 raise ValueError(f"{where}: bad NECUnits directive {stmt!r}")
-            self.coord_scale = _unit_scale(units[0], where)
-            self.radius_scale = (
-                _unit_scale(units[1], where) if len(units) == 2 else self.coord_scale
-            )
+            self.display_units = tuple(u.strip() for u in units)
             return
         m = _NECOPTION.match(stmt)
         if m:
@@ -602,10 +575,6 @@ def parse_ssn(
     script = _Script(infos[nec_pos][1]["equ"] or "", name)
 
     deck_lines = list(script.cards)
-    if script.coord_scale != 1.0:
-        # NEC's own whole-structure scale card, appended after the geometry so
-        # transforms and TL-length resolution all see metres.
-        deck_lines.append(f"GS 0 0 {script.coord_scale!r}")
     if script.ground is not None:
         deck_lines.append("GE 1")  # so deck.ground reflects the ground call
     deck_lines.append("EN")
@@ -615,13 +584,6 @@ def parse_ssn(
         network=network,
         virtualize_anchors=virtualize_anchors,
     )
-    if script.radius_scale != script.coord_scale:
-        # GS scaled radii along with coordinates; correct to the radius unit.
-        fix = script.radius_scale / script.coord_scale
-        deck = replace(
-            deck,
-            wires=tuple(replace(w, radius=w.radius * fix) for w in deck.wires),
-        )
 
     freq_mhz = None
     sweep = None

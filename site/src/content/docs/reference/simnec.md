@@ -107,8 +107,9 @@ python -m antennaknobs export --builder @dip.ssn --out dip.nec
 What the importer honours: the solve frequency comes from the **Generator's
 MHz** (in SimNEC the deck's `FR` card is advisory), an armed Generator sweep
 becomes the design's measurement band, the daemon ground call surfaces as a
-`--ground` hint, wire conductivity applies per-wire, and `NECUnits` scales
-geometry to metres with NEC's own scaling semantics. Chain elements
+`--ground` hint, and wire conductivity applies per-wire. `NECUnits` is read
+but not applied: in SimNEC it only sets the units wire dimensions are
+displayed in, and the NEC cards are metres whatever it says. Chain elements
 translate back branch-for-branch through the same table as export, and a
 chain element outside that set makes `network()` refuse rather than build a
 station with a silently-missing tuner part.
