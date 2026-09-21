@@ -178,6 +178,14 @@ def _new_context():
     return nec.nec_context() if nec is not None else _DeckOnlyContext()
 
 
+# NEC reports a null direction as -999.99 dB; a gain shift must leave it one.
+_NULL_GAIN_DB = -999.99
+
+
+def _shift_gain(g, shift_db):
+    return g if g <= _NULL_GAIN_DB else g + shift_db
+
+
 class PyNECEngine(SimulationEngine):
     """nec2++ through PyNEC.
 
@@ -1026,12 +1034,13 @@ class PyNECEngine(SimulationEngine):
             del c
         return Y
 
-    def _excited_real_context(self, wavelength):
+    def _excited_real_context(self, wavelength, Y=None):
         """Fresh real-geometry context driven at the network-resolved real-
         port voltages (each real port a delta-gap at its resolved V), so
         far-field / current readouts reflect the network. fr_card is left to
-        the caller."""
-        Y = self._compute_y_matrix(wavelength)
+        the caller. `Y` saves the N port solves when the caller has it."""
+        if Y is None:
+            Y = self._compute_y_matrix(wavelength)
         V = self._reducer.resolve_voltages(self._reducer.apply_branches(Y, wavelength))
         c, loc = self._make_real_context()
         for i, name in enumerate(self._real_port_names):
@@ -1244,12 +1253,52 @@ class PyNECEngine(SimulationEngine):
         return self._authored_currents(out)
 
     def far_field(self, *, n_theta=90, n_phi=360, del_theta=1, del_phi=1):
+        p_source = None
         if self._use_reducer:
-            self.c = self._excited_real_context(C_LIGHT / (self.builder.freq * 1e6))
+            self.c, p_source = self._excited_for_pattern(
+                C_LIGHT / (self.builder.freq * 1e6)
+            )
         self._set_freq_and_execute()
-        return self._collect_pattern(
+        ff = self._collect_pattern(
             n_theta=n_theta, n_phi=n_phi, del_theta=del_theta, del_phi=del_phi
         )
+        shift_db = self._source_gain_shift_db(p_source)
+        if shift_db == 0.0:
+            return ff
+        return FarField(
+            rings=[[_shift_gain(g, shift_db) for g in ring] for ring in ff.rings],
+            max_gain=_shift_gain(ff.max_gain, shift_db),
+            min_gain=_shift_gain(ff.min_gain, shift_db),
+            thetas=ff.thetas,
+            phis=ff.phis,
+        )
+
+    def _excited_for_pattern(self, wavelength):
+        """``(context, p_source)`` on the multiport-Y route: the excited real
+        context, and the power the network's SOURCES deliver, from one Y."""
+        Y = self._compute_y_matrix(wavelength)
+        p_source = float(self._reducer.excited_state(Y, wavelength)[2])
+        return self._excited_real_context(wavelength, Y), p_source
+
+    def _source_gain_shift_db(self, p_source):
+        """10·log10(P_structure / P_source), the shift turning NEC's gain per
+        STRUCTURE watt into gain per SOURCE watt (AK#1637); 0.0 on the native
+        route (`p_source` None), where NEC's input power already is that.
+
+        NEC normalises gain by the power into the structure, the sum over its
+        EX cards. On the multiport-Y route the network sits between the
+        sources and those cards, and a lossy one burns its share first, so the
+        unscaled pattern is high by the network's loss (1.64 dB on
+        `dipoles.invvee_coax_station`). `self.c` must already be solved."""
+        if p_source is None:
+            return 0.0
+        p_struct = float(sum(self.c.get_input_parameters(0).get_power()))
+        if p_source <= 0.0 or p_struct <= 0.0:
+            raise ValueError(
+                f"cannot normalise the pattern per source watt: structure "
+                f"input {p_struct} W, source power {p_source} W"
+            )
+        return 10.0 * np.log10(p_struct / p_source)
 
     def _collect_pattern(self, *, n_theta, n_phi, del_theta, del_phi):
         assert 90 % n_theta == 0 and 90 == del_theta * n_theta

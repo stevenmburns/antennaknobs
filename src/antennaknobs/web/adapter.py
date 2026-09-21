@@ -94,6 +94,7 @@ from antennaknobs.engines.momwire import (
 from antennaknobs.engines.nec2 import NEC2Engine
 from antennaknobs.engines.nec5 import (
     DISTRIBUTED_PORT_REFUSAL,
+    NULL_GAIN_DB,
     NEC5Engine,
     _network_needs_reducer,
 )
@@ -4541,8 +4542,16 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # parity fields. PyNECEngine.excitation_pairs is (tag, sub_seg,
         # voltage); take the first.
         feed_tag, feed_seg, _v = (eng.excitation_pairs or [(1, 1, 0)])[0]
+        # The multiport-Y route builds no context of its own: its readings
+        # each drive a fresh one at the network-resolved port voltages, and
+        # this one has to as well (AK#1637 — the trace raised AttributeError
+        # there). Its gain is then rescaled per SOURCE watt, as `far_field`'s.
+        p_source = None
+        if eng._use_reducer:
+            eng.c, p_source = eng._excited_for_pattern(C_LIGHT / (meas_freq * 1e6))
         return {
             "context": eng.c,
+            "source_gain_shift_db": lambda: eng._source_gain_shift_db(p_source),
             "feed_seg": int(feed_seg),
             "feed_tag": int(feed_tag),
             "n_per_wire": 1,
@@ -4704,19 +4713,25 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         del_theta = 90.0 / (n_theta - 1)
         del_phi = 360.0 / (n_phi - 1)
         t0 = time.perf_counter()
+        sources, p_source = eng._excitation(meas_freq)
         text = eng._run(
             eng.deck(
                 [meas_freq],
                 rp=(n_theta, n_phi - 1, del_theta, del_phi),
-                sources=eng._drive_sources(meas_freq),
+                sources=sources,
             )
         )
         gains_by_angle = eng._parse_radiation_patterns(text)
+        # Per SOURCE watt, as `NEC5Engine.far_field` reports (AK#1637).
+        shift_db = 10.0 * np.log10(eng._to_source_gain(text, p_source))
         pattern_ms = (time.perf_counter() - t0) * 1e3
         thetas = [ti * del_theta for ti in range(n_theta)]
         phis = [pi * del_phi for pi in range(n_phi)]
         gains = [
-            [gains_by_angle[(round(th, 2), round(ph, 2))] for ph in phis]
+            [
+                g if g <= NULL_GAIN_DB else g + shift_db
+                for g in (gains_by_angle[(round(th, 2), round(ph, 2))] for ph in phis)
+            ]
             for th in thetas
         ]
         return {

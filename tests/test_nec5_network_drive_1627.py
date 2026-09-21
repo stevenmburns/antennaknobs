@@ -10,11 +10,12 @@ printout ending `***** INPUT LINE 6 EN`.
 Every real port is now driven at the voltage the network resolves for it, as
 PyNEC's `_excited_real_context` does.
 
-NEC-5's OWN gain on this route stays what NEC-5 reports: per watt into the
-structure, which excludes what the network burns (failEZN5's lossy line and
-transformer take 48 %). Rescaling it to the app's per-source-watt convention
-was measured and HELD (USER DECISION 2026-09-21), so the pattern test here
-pins its SHAPE against the licensed printout, not its level.
+And because NEC-5 normalises gain by the power into the STRUCTURE, while the
+network between the sources and the structure burns its share first
+(failEZN5's lossy line and transformer take 48 %), the pattern is rescaled to
+gain per SOURCE watt (AK#1637). It then reproduces the licensed engine run on
+EZNEC's own deck, which solves the network itself: -0.86 dBi at theta 76,
+where the unscaled pattern read 2.00.
 """
 
 from __future__ import annotations
@@ -158,7 +159,23 @@ def test_the_native_route_is_unchanged():
     eng = NEC5Engine(
         Builder(resolve_variant_params(Builder, "dipole")), require_exe=False
     )
-    assert eng._drive_sources(eng.builder.freq) is eng._sources
+    sources, p_source = eng._excitation(eng.builder.freq)
+    assert sources is eng._sources and p_source is None
+    assert eng._to_source_gain("no budget needed", None) == 1.0
+
+
+def test_gain_is_rescaled_by_structure_over_source_power():
+    budget = (
+        " - - - POWER BUDGET - - -\n"
+        "   INPUT POWER   = 2.5000E+01 WATTS\n"
+        "   RADIATED POWER= 2.4000E+01 WATTS\n"
+        "   WIRE LOSS     = 1.0000E+00 WATTS\n"
+        "   EFFICIENCY    = 96.00 PERCENT\n"
+    )
+    eng = _engine()
+    assert eng._to_source_gain(budget, 50.0) == pytest.approx(0.5)
+    with pytest.raises(NEC5Error, match="per source watt"):
+        eng._to_source_gain(budget, 0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -174,9 +191,8 @@ def _licensed_theta76_row():
 
 
 @needs_nec5
-def test_failEZN5_has_a_pattern_with_the_licensed_engines_shape():
-    """Its SHAPE, peak-relative: the level on this route is NEC-5's gain per
-    structure watt, which is held as reported (see the module docstring)."""
+def test_failEZN5_has_a_pattern_and_it_is_the_licensed_engines():
+    """Shape AND level: per source watt, the ring is the licensed engine's."""
     cls = builder_from_file(str(FAIL))
     eng = NEC5Engine(cls(), ground=cls.file_ground)
     ff = eng.far_field(n_theta=90, n_phi=36, del_theta=1, del_phi=10)
@@ -185,7 +201,25 @@ def test_failEZN5_has_a_pattern_with_the_licensed_engines_shape():
     ours = np.asarray(ff.rings[76])
     theirs = np.asarray([ref[float(ph)] for ph in ff.phis])
     # The printout carries two decimals.
-    assert ours - ours.max() == pytest.approx(theirs - theirs.max(), abs=0.02)
+    assert ours == pytest.approx(theirs, abs=0.02)
+
+
+@needs_nec5
+def test_failEZN5_web_nec_rp_trace_is_the_licensed_engines():
+    """The app's NEC rp trace writes its own deck; it gets the same level."""
+    import antennaknobs.web.examples  # noqa: F401  (before the adapter)
+    from antennaknobs.web import adapter
+
+    cls = builder_from_file(str(FAIL))
+    f = cls().freq
+    pat = adapter._make_example("failEZN5", cls).nec5_pattern(
+        {"measurement_freq_mhz": f, "design_freq_mhz": f}
+    )
+    ring = pat["gain_dbi"][pat["theta_deg"].index(76.0)]
+    ref = _licensed_theta76_row()
+    assert all(float(ph) in ref for ph in pat["phi_deg"])  # a 1-degree printout
+    theirs = [ref[float(ph)] for ph in pat["phi_deg"]]
+    assert ring == pytest.approx(theirs, abs=0.02)
 
 
 @needs_nec5

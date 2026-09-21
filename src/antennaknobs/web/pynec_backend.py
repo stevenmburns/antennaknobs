@@ -21,6 +21,7 @@ except ImportError:
     HAVE_PYNEC = False
     nec = None
 
+from ..engines.pynec import _shift_gain
 from ..network_reduce import SingularNetworkError
 from .examples import REGISTRY as EXAMPLES
 from .examples import example_for
@@ -147,8 +148,11 @@ def pattern(req: dict) -> dict:
     del_theta = 90.0 / (n_theta - 1)
     del_phi = 360.0 / (n_phi - 1)
     c.rp_card(0, n_theta, n_phi, 0, 5, 0, 0, 0.0, 0.0, del_theta, del_phi, 0.0, 0.0)
+    # Per SOURCE watt on a network design's multiport-Y route (AK#1637).
+    shift_db = b.get("source_gain_shift_db", lambda: 0.0)()
     gains = [
-        [float(c.get_gain(0, ti, pi)) for pi in range(n_phi)] for ti in range(n_theta)
+        [_shift_gain(float(c.get_gain(0, ti, pi)), shift_db) for pi in range(n_phi)]
+        for ti in range(n_theta)
     ]
     pattern_ms = (time.perf_counter() - t0) * 1e3
 

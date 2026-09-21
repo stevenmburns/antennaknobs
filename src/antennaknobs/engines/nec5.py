@@ -753,12 +753,42 @@ class NEC5Engine(SimulationEngine):
         NEC-5 solved an unexcited structure. AC6LA's failEZN5 ended its deck
         at `***** INPUT LINE 6 EN`. PyNEC drives the same route the same way
         (`_excited_real_context`)."""
+        return self._excitation(freq_mhz)[0]
+
+    def _excitation(self, freq_mhz):
+        """``(sources, p_source)``: `_drive_sources`' cards, and on the
+        multiport-Y route the power the network's SOURCES deliver, which is
+        what a gain is per (None on the native route, where NEC-5's own input
+        power is already that).
+
+        NEC-5 normalises gain by the power into the STRUCTURE, the sum over
+        its EX cards. On this route the network sits between the sources and
+        those cards, and a lossy one burns its share first: failEZN5's line
+        and transformer take 48 %, and NEC-5's pattern read 2.00 dBi where the
+        licensed engine, solving EZNEC's deck with the network inside it,
+        reads -0.86. `_to_source_gain` takes the ratio back out."""
         if not getattr(self, "_use_reducer", False):
-            return self._sources
+            return self._sources, None
         wl = C_LIGHT / (float(freq_mhz) * 1e6)
         Y = self._compute_y_matrix(wl)
         V = self._reducer.resolve_voltages(self._reducer.apply_branches(Y, wl))
-        return self._real_port_sources(V)
+        _v, _eff, p_source, _budget = self._reducer.excited_state(Y, wl)
+        return self._real_port_sources(V), float(p_source)
+
+    def _to_source_gain(self, text, p_source):
+        """The factor turning NEC-5's gain per structure watt into gain per
+        SOURCE watt (see `_excitation`): P_structure / P_source, with
+        P_structure the INPUT POWER this run's own POWER BUDGET reports. 1.0
+        on the native route."""
+        if p_source is None:
+            return 1.0
+        p_struct = self._parse_power_budget(text)["input_w"]
+        if p_source <= 0.0 or p_struct <= 0.0:
+            raise NEC5Error(
+                f"cannot normalise the pattern per source watt: structure "
+                f"input {p_struct} W, source power {p_source} W"
+            )
+        return p_struct / p_source
 
     # ---------- ground ----------
 
@@ -1284,14 +1314,12 @@ class NEC5Engine(SimulationEngine):
         assert 90 % n_theta == 0 and 90 == del_theta * n_theta
         assert 360 % n_phi == 0 and 360 == del_phi * n_phi
         f = self.builder.freq
+        sources, p_source = self._excitation(f)
         text = self._run(
-            self.deck(
-                [f],
-                rp=(n_theta, n_phi, del_theta, del_phi),
-                sources=self._drive_sources(f),
-            )
+            self.deck([f], rp=(n_theta, n_phi, del_theta, del_phi), sources=sources)
         )
         gains = self._parse_radiation_patterns(text)
+        shift_db = 10.0 * np.log10(self._to_source_gain(text, p_source))
         thetas = np.linspace(0, 90 - del_theta, n_theta)
         phis = np.linspace(0, 360, n_phi + 1)
         rings = []
@@ -1303,7 +1331,8 @@ class NEC5Engine(SimulationEngine):
                 key = (round(float(th), 2), round(float(ph), 2))
                 if key not in gains:
                     raise NEC5Error(f"pattern grid point {key} missing from printout")
-                ring.append(gains[key])
+                g = gains[key]
+                ring.append(g if g <= NULL_GAIN_DB else g + shift_db)
             rings.append(ring)
         flat = [g for ring in rings for g in ring if g > NULL_GAIN_DB]
         max_gain = max(flat) if flat else NULL_GAIN_DB
@@ -1361,7 +1390,8 @@ class NEC5Engine(SimulationEngine):
         del_phi = 360.0 / n_phi
         # Sample cell centers so the sector average is honest.
         f = self.builder.freq
-        lines = self.deck([f], sources=self._drive_sources(f)).splitlines()
+        sources, p_source = self._excitation(f)
+        lines = self.deck([f], sources=sources).splitlines()
         lines = [ln for ln in lines if not ln.startswith("XQ")]
         rp = (
             f"RP 0 {n_theta} {n_phi} 0002 {_num(del_theta / 2)} 0.0 "
@@ -1373,6 +1403,7 @@ class NEC5Engine(SimulationEngine):
             if "AVERAGE POWER GAIN" in line:
                 toks = line.replace("=", " = ").split()
                 avg = float(toks[toks.index("GAIN") + 2])
+                avg *= self._to_source_gain(text, p_source)
                 # "...SOLID ANGLE USED IN AVERAGING=( x.xxxx)*PI STERADIANS"
                 m = re.search(r"AVERAGING=\(\s*([0-9.Ee+-]+)\)\*PI", line)
                 if not m:
