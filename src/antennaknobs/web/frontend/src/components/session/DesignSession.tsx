@@ -1262,6 +1262,7 @@ function DesignSessionBody({
     solveId: ownResult?.solve_id ?? null,
     engineLabel: ownResult?.engine_io_label ?? null,
     buildRequest,
+    reloadNonce,
   });
 
   // The design's band table plus the session's custom bands (#1487). A design

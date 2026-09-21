@@ -20,12 +20,18 @@ import type { FilesViewData } from "../results/FilesPanel";
 // Stale policy, the schematic's: a new solve keeps the previous texts up
 // (flagged stale) until its own land; a design switch drops them at once,
 // because another antenna's deck on screen is misinformation.
+//
+// A reload of the design FILE (AK#1626) changes no request field. The server
+// folds its reload count into a user design's solve_id, so the deck and the
+// circuit follow on their own; the source, fetched per design, is re-asked on
+// `reloadNonce`.
 export function useEngineFiles({
   active,
   geometry,
   solveId,
   engineLabel,
   buildRequest,
+  reloadNonce = 0,
 }: {
   active: boolean;
   geometry: string;
@@ -36,6 +42,8 @@ export function useEngineFiles({
    *  external engine's binary. */
   engineLabel: string | null;
   buildRequest: () => SolveRequest;
+  /** Bumped when the design's file is reloaded from disk. */
+  reloadNonce?: number;
 }): FilesViewData {
   const [source, setSource] = useState<DesignSource | null>(null);
   const [ssn, setSsn] = useState<{ geometry: string; data: DesignSsn } | null>(null);
@@ -60,7 +68,7 @@ export function useEngineFiles({
       })
       .catch(() => {});
     return () => controller.abort();
-  }, [active, geometry]);
+  }, [active, geometry, reloadNonce]);
 
   useEffect(() => {
     if (!active || !geometry || !solveId) return;
