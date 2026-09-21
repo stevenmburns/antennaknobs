@@ -1,0 +1,80 @@
+{"deck": "0000_cardioid-l-network-feed", "ak": 9.48755749414443e-06, "serve": 9.487557466675541e-06, "owner": "both fine"}
+{"deck": "0001_4-square-array-w-feed-system", "ak": 5.358545665468181e-05, "serve": 5.3585456652917475e-05, "owner": "both fine"}
+{"deck": "0002_4-square-array-w-feed-system", "ak": 5.358545665468181e-05, "serve": 5.3585456652917475e-05, "owner": "both fine"}
+{"deck": "0003_4-square-array-w-feed-system", "ak": 2.6962739620875305e-05, "serve": 2.69627396194316e-05, "owner": "both fine"}
+{"deck": "0004_4-square-array-w-feed-system", "ak": 3.392610769165918e-05, "serve": 3.39261076914205e-05, "owner": "both fine"}
+{"deck": "0005_4-square-array-w-feed-system", "ak": 4.17960249946637e-05, "serve": 4.179602499664904e-05, "owner": "both fine"}
+{"deck": "0006_4-square-array-w-feed-system", "ak": 2.0289721377455378e-05, "serve": 2.0289721376523588e-05, "owner": "both fine"}
+{"deck": "0007_4-square-array-w-feed-system", "ak": 4.123776648721297e-06, "serve": 4.123776648670679e-06, "owner": "both fine"}
+{"deck": "0008_4-square-array-w-feed-system", "ak": 2.3385484490299622e-05, "serve": 2.3385484490638093e-05, "owner": "both fine"}
+{"deck": "0009_4-square-array-w-feed-system", "ak": 2.0874159502248398e-05, "serve": 2.087415950192889e-05, "owner": "both fine"}
+{"deck": "0010_dipole-in-free-space", "ak": 2.707018031562871e-05, "serve": 2.7070180317528778e-05, "owner": "both fine"}
+{"deck": "0011_dipole-with-coax-feedline", "ak": 0.01722698359619543, "serve": 3.447455778006995e-05, "owner": "AK-SIDE ONLY"}
+{"deck": "0012_network-connection-test", "ak": 5.369505112960376e-06, "serve": 5.3695051128893295e-06, "owner": "both fine"}
+{"deck": "0013_vhf-ground-plane", "ak": 2.2636532608904122e-05, "serve": 2.2636532609012583e-05, "owner": "both fine"}
+{"deck": "0014_network-connection-test", "ak": 5.369505112960376e-06, "serve": 5.3695051128893295e-06, "owner": "both fine"}
+{"deck": "0015_vertical-over-real-ground", "ak": 2.9180435983007104e-05, "serve": 2.9180435983006714e-05, "owner": "both fine"}
+{"deck": "0016_network-connection-test", "ak": 5.369505115533154e-06, "serve": 5.3695051128893295e-06, "owner": "both fine"}
+{"deck": "0017_network-connection-test", "ak": 1.037690692483472e-05, "serve": 1.0376906923979775e-05, "owner": "both fine"}
+{"deck": "0018_network-connection-test", "ak": 1.8088882013584877e-05, "serve": 1.808888201451227e-05, "owner": "both fine"}
+{"deck": "0019_vertical-over-real-ground", "ak": 2.9180435983007104e-05, "serve": 2.9180435983006714e-05, "owner": "both fine"}
+{"deck": "0020_vertical-over-real-ground", "ak": 2.9180435983007104e-05, "serve": 2.9180435983006714e-05, "owner": "both fine"}
+{"deck": "0021_vertical-over-real-ground", "ak": 0.021642459363886517, "serve": 0.021642459363886524, "owner": "SHARED (momwire model)"}
+{"deck": "0022_vertical-over-real-ground", "ak": 0.021642459363886517, "serve": null, "error": "ServeRefusal: NE (near electric field) asks for the field at (0, 0, 0) metres, which is where wire 1 stands on this deck's finite ground - and the field AT a contact-fed wire's base over a finite grou", "owner": "unmeasured"}
+{"deck": "0023_4-square-array-l-ntwk-feed", "ak": 4.390753500809987e-05, "serve": 4.390753501177899e-05, "owner": "both fine"}
+{"deck": "0024_4-square-array-w-feed-system", "ak": 1.8274827496025608e-05, "serve": 1.8274827499288877e-05, "owner": "both fine"}
+{"deck": "0025_4-sq-l-ntwrk-z-match", "ak": 7.992673850628955e-06, "serve": 7.992673853968807e-06, "owner": "both fine"}
+{"deck": "0026_cardioid-with-feed-system", "ak": 1.9029987642639872e-05, "serve": 1.9029987613479675e-05, "owner": "both fine"}
+{"deck": "0027_cardioid-with-feed-system", "ak": 3.064851281327457e-05, "serve": 3.06485128134017e-05, "owner": "both fine"}
+{"deck": "0028_17-10m-log-per-arrl-ant-book", "ak": 0.2396528544923508, "serve": 2.466840733902618e-05, "owner": "AK-SIDE ONLY"}
+{"deck": "0029_dipole-with-coax-feedline", "ak": 0.017977076135704987, "serve": 1.6673721696572174e-05, "owner": "AK-SIDE ONLY"}
+{"deck": "0030_dipole-with-coax-feedline", "ak": 0.01722698359619543, "serve": 3.447455778006995e-05, "owner": "AK-SIDE ONLY"}
+{"deck": "0031_40-meter-four-square-array", "ak": 3.3198245247048265e-05, "serve": 3.319824522551908e-05, "owner": "both fine"}
+{"deck": "0032_cardioid", "ak": 3.367474120890537e-05, "serve": 3.367474120890543e-05, "owner": "both fine"}
+{"deck": "0033_elevated-radial-system", "ak": 0.014694940887875076, "serve": 0.014694940887875143, "owner": "SHARED (momwire model)"}
+{"deck": "0034_elevated-radial-system", "ak": 0.007806209188735611, "serve": 0.007806209189242143, "owner": "SHARED (momwire model)"}
+{"deck": "0035_five-element-yagi", "ak": 0.0002306071325258988, "serve": 0.00023060713254346383, "owner": "both fine"}
+{"deck": "0036_dipole-in-free-space", "ak": 2.2800579163780867e-05, "serve": 2.2800579164945283e-05, "owner": "both fine"}
+{"deck": "0037_dipole-in-free-space", "ak": 2.933583051329165e-05, "serve": 2.933583051363296e-05, "owner": "both fine"}
+{"deck": "0038_dipole-in-free-space", "ak": 2.933583051329165e-05, "serve": 2.933583051363296e-05, "owner": "both fine"}
+{"deck": "0039_dipole-in-free-space", "ak": 3.0018268043169288e-05, "serve": 3.0018268043590568e-05, "owner": "both fine"}
+{"deck": "0040_dipole-in-free-space", "ak": 2.692786352829243e-05, "serve": 2.6927863531771095e-05, "owner": "both fine"}
+{"deck": "0041_dipole-in-free-space", "ak": 2.4095952286408714e-05, "serve": 2.409595229152708e-05, "owner": "both fine"}
+{"deck": "0042_dipole-in-free-space", "ak": 2.0784085128521192e-05, "serve": 2.0784085129602223e-05, "owner": "both fine"}
+{"deck": "0043_vertical-over-real-ground", "ak": 2.9180435983007104e-05, "serve": 2.9180435983006714e-05, "owner": "both fine"}
+{"deck": "0044_vertical-over-real-ground", "ak": 2.9180435983007104e-05, "serve": 2.9180435983006714e-05, "owner": "both fine"}
+{"deck": "0045_vertical-over-real-ground", "ak": 2.9180435983007104e-05, "serve": 2.9180435983006714e-05, "owner": "both fine"}
+{"deck": "0046_vertical-over-real-ground", "ak": 2.5805610922632596e-05, "serve": 2.5805610922632596e-05, "owner": "both fine"}
+{"deck": "0047_vertical-over-real-ground", "ak": 0.021642459363886517, "serve": 0.021642459363886524, "owner": "SHARED (momwire model)"}
+{"deck": "0048_vertical-over-real-ground", "ak": 0.021561688972444454, "serve": 0.021561688972447157, "owner": "SHARED (momwire model)"}
+{"deck": "0059_back-yard-inverted-vee", "ak": 3.6285549800128055e-05, "serve": 3.6285549800105124e-05, "owner": "both fine"}
+{"deck": "0060_back-yard-inverted-vee", "ak": 3.6285549800128055e-05, "serve": 3.6285549800105124e-05, "owner": "both fine"}
+{"deck": "0063_15m-quad-ant-book-p-12-2", "ak": 2.3271113053403666e-06, "serve": 2.327111309202763e-06, "owner": "both fine"}
+{"deck": "0064_15m-quad-ant-book-p-12-2", "ak": 2.3271113053403666e-06, "serve": 2.327111309202763e-06, "owner": "both fine"}
+{"deck": "0067_nbs-yagi-ant-book-p-18-7", "ak": 4.6809025869655985e-05, "serve": 4.6809025883712374e-05, "owner": "both fine"}
+{"deck": "0068_nbs-yagi-ant-book-p-18-7", "ak": 4.6809025869655985e-05, "serve": 4.6809025883712374e-05, "owner": "both fine"}
+{"deck": "0069_w8jk-with-0-1-wavelength-sp", "ak": 8.041651022196408e-05, "serve": 8.041651023699653e-05, "owner": "both fine"}
+{"deck": "0070_w8jk-with-0-1-wavelength-sp", "ak": 8.041651022196408e-05, "serve": 8.041651023699653e-05, "owner": "both fine"}
+{"deck": "0075_field-day-special-jun-84-qst", "ak": 5.616136149696003e-05, "serve": 5.616136149676564e-05, "owner": "both fine"}
+{"deck": "0076_field-day-special-jun-84-qst", "ak": 5.616136149696003e-05, "serve": 5.616136149676564e-05, "owner": "both fine"}
+{"deck": "0077_field-day-special-jun-84-qst", "ak": 4.702909541573284e-05, "serve": 4.7029095415756174e-05, "owner": "both fine"}
+{"deck": "0078_field-day-special-jun-84-qst", "ak": 4.702909541573284e-05, "serve": 4.7029095415756174e-05, "owner": "both fine"}
+{"deck": "0079_k5rp", "ak": 0.00010732273359018095, "serve": 0.0001073227335653762, "owner": "both fine"}
+{"deck": "0080_k5rp", "ak": 0.00010732273359018095, "serve": 0.0001073227335653762, "owner": "both fine"}
+{"deck": "0081_n4pc-loop-cq-dec-1990", "ak": 4.655256319335402e-05, "serve": 4.655256320682889e-05, "owner": "both fine"}
+{"deck": "0082_n4pc-loop-cq-dec-1990", "ak": 4.655256319335402e-05, "serve": 4.655256320682889e-05, "owner": "both fine"}
+{"deck": "0083_n4pc-loop-cq-dec-1990", "ak": 3.0254537242393234e-05, "serve": 3.0254537241249858e-05, "owner": "both fine"}
+{"deck": "0084_n4pc-loop-cq-dec-1990", "ak": 3.0254537242393234e-05, "serve": 3.0254537241249858e-05, "owner": "both fine"}
+{"deck": "0107_vertical-over-real-ground", "ak": 2.9180435983007104e-05, "serve": null, "error": "ServeRefusal: NE (near electric field) asks for the field at (0, 0, 0) metres, which is where wire 1 stands on this deck's finite ground - and the field AT a contact-fed wire's base over a finite grou", "owner": "unmeasured"}
+{"deck": "0108_vertical-over-real-ground", "ak": 2.9180435983007104e-05, "serve": 2.9180435983006714e-05, "owner": "both fine"}
+{"deck": "0109_vertical-over-real-ground", "ak": 2.9180435983007104e-05, "serve": 2.9180435983006714e-05, "owner": "both fine"}
+{"deck": "0110_vertical-over-real-ground", "ak": 0.021642459363886517, "serve": 0.021642459363886524, "owner": "SHARED (momwire model)"}
+{"deck": "0111_vertical-over-real-ground", "ak": 0.021642459363886517, "serve": 0.021642459363886524, "owner": "SHARED (momwire model)"}
+{"deck": "0112_vertical-over-real-ground", "ak": 0.021642459363886517, "serve": null, "error": "ServeRefusal: NE (near electric field) asks for the field at (0, 0, 0) metres, which is where wire 1 stands on this deck's finite ground - and the field AT a contact-fed wire's base over a finite grou", "owner": "unmeasured"}
+{"deck": "0113_back-yard-dipole", "ak": 3.837005304255448e-05, "serve": 3.8370053049676766e-05, "owner": "both fine"}
+{"deck": "0114_back-yard-dipole", "ak": 2.9533239480221186e-05, "serve": 2.9533239476694443e-05, "owner": "both fine"}
+{"deck": "0115_back-yard-dipole", "ak": 2.9533239480221186e-05, "serve": 2.9533239476694443e-05, "owner": "both fine"}
+{"deck": "0116_40-meter-four-square-array", "ak": 2.889260034012112e-05, "serve": 2.8892600342698897e-05, "owner": "both fine"}
+{"deck": "0117_40-meter-four-square-array", "ak": 2.889260034012112e-05, "serve": 2.8892600342698897e-05, "owner": "both fine"}
+{"deck": "0120_cardioid-l-network-feed", "ak": 1.6613587550871778e-05, "serve": 1.6613587545989354e-05, "owner": "both fine"}
+{"deck": "0121_cardioid-l-network-feed", "ak": 1.6613587550871778e-05, "serve": 1.6613587545989354e-05, "owner": "both fine"}
