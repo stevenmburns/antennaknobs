@@ -744,9 +744,15 @@ def _mag2_at_directions(
             eps_c = out["ground_eps_r"] + 1j * out["ground_eps_im"]
             cos_ti = rz
             sin2_ti = s * s
-        if terr and terrain_pec:
-            # Perfect-reflector facets (see docstring): geometry intact,
-            # media losses off.
+        if (terr and terrain_pec) or (not terr and _pec_ground(out)):
+            # A perfect reflector takes its exact coefficients. Perfect-
+            # reflector facets (see docstring) keep their geometry with media
+            # losses off. A flat PEC ground ships the 1e10 placeholder, and
+            # Fresnel on it is PEC everywhere EXCEPT exact grazing, where
+            # cos(theta) = 0 makes rho_v = -1 for any finite eps. The vertical's
+            # image then cancels instead of doubling: AC6LA's cardioid over
+            # PEC read 6.7 dBi at elevation 1 and -310 dBi at elevation 0, the
+            # slider value a user can dial (AK#1630).
             rho_h, rho_v = -1.0, 1.0
         else:
             Q = np.sqrt(eps_c - sin2_ti)
@@ -1235,6 +1241,14 @@ def _pack_momwire_wires(sim, coeffs, knot_arrays, labels) -> list[dict]:
 # (ρ_h → −1, ρ_v → +1 in the eps_r → ∞ limit).
 _PEC_GROUND_EPS_R = 1.0e10
 _PEC_GROUND_SIGMA = 0.0
+
+
+def _pec_ground(out: dict) -> bool:
+    """Whether a response's ground is the PEC placeholder above rather than a
+    real medium: the one test every PEC-only shortcut here takes."""
+    return float(out.get("ground_eps_r", _PEC_GROUND_EPS_R)) >= 1e6 and not float(
+        out.get("ground_sigma", 0.0) or 0.0
+    )
 
 
 def _polyline_knots(polyline: np.ndarray, npe_list: list[int]) -> np.ndarray:
@@ -2253,9 +2267,7 @@ def _norm_check(req: dict, cancel=None) -> dict:
     if "directivity_norm" not in out or out["directivity_norm"] <= 0:
         return {"available": False}
     ground_on = bool(out.get("ground", False))
-    pec = float(out.get("ground_eps_r", _PEC_GROUND_EPS_R)) >= 1e6 and not float(
-        out.get("ground_sigma", 0.0) or 0.0
-    )
+    pec = _pec_ground(out)
     terrain_pec_norm = None
     if not ground_on or pec:
         pattern_norm = _pattern_integral_norm(out)
