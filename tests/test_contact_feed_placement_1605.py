@@ -123,16 +123,37 @@ def test_an_endpoint_counts_as_a_site_for_both_families():
 
 
 @pytest.mark.parametrize(
-    "u", [[0.0], [1.0], [0.0, 0.3], [0.7, 1.0], [0.0, 1.0], [0.0, 0.5, 1.0]]
+    "u",
+    [
+        [0.0],
+        [1.0],
+        [0.0, 0.3],
+        [0.7, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.5, 1.0],
+        # the guard's end of it: the interior port's own piece runs out to the
+        # end the other port already occupies, so ONE piece carries both.
+        [0.0, 0.05],
+        [0.95, 1.0],
+    ],
 )
-def test_a_split_never_emits_a_zero_width_span(u):
-    """The failure a port at an endpoint used to cause, one layer down.
+def test_a_split_places_every_port_and_slivers_nothing(u):
+    """The failure a port at an endpoint used to cause, one layer down, and
+    (AK#1619) the one it caused after that.
 
     `split_spans` reserves the room between a port and the wire end so the
     port's span does not overrun it. At an endpoint that room is zero, and one
     `half` serves both sides (`lo = ui - xi`, `hi = ui + xi`), so the zero
     collapsed the span entirely and reached the geometry layer as
     `degenerate edge (p0==p1 within eps)`.
+
+    This test carried only those width assertions, and its name promised more
+    than it measured: it never checked that an END port lands ON the end. It
+    did not, and AK#1619 is what that cost. The end ports are now filtered out
+    of the geometry — the cuts are the interior ports' — and recorded on the
+    piece that bounds them, so what has to be checked is PLACEMENT: every port
+    placed exactly once, an end port at its end and every other port on a site
+    of a piece.
 
     Not reachable from a NEC deck today — a NEC-5 load lands on a knot, which
     is always on-grid, so the split does not run — but reachable through the
@@ -142,3 +163,22 @@ def test_a_split_never_emits_a_zero_width_span(u):
         assert all(s.hi > s.lo for s in plan.spans), plan.spans
         assert all(s.n_seg >= 1 for s in plan.spans), plan.spans
         assert plan.spans[0].lo == 0.0 and plan.spans[-1].hi == 1.0
+
+        # port -> (the piece it is on, where on it: 0.0/1.0 a wire end, None
+        # the site the cut made). A piece may carry an end port AND a port of
+        # its own, so this is a census, not one entry per span.
+        placed = {}
+        for j, s in enumerate(plan.spans):
+            for i, where in ((s.p0_port, 0.0), (s.port, None), (s.p1_port, 1.0)):
+                if i is not None:
+                    assert i not in placed, f"{parity} {u}: port {i} placed twice"
+                    placed[i] = (j, where)
+        assert sorted(placed) == list(range(len(u))), f"{parity} {u}: {plan.spans}"
+        last = len(plan.spans) - 1
+        for i, (j, where) in placed.items():
+            if u[i] == 0.0:
+                assert (j, where) == (0, 0.0), f"{parity} {u}: port {i} at {where}"
+            elif u[i] == 1.0:
+                assert (j, where) == (last, 1.0), f"{parity} {u}: port {i} at {where}"
+            else:
+                assert where is None, f"{parity} {u}: interior port {i} at {where}"

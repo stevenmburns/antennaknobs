@@ -107,14 +107,21 @@ EXPECTED = {
     # exact on all four.
     "0016_network-connection-test": (5e-4, "the two bspline lanes differ"),
     "0018_network-connection-test": (5e-4, "the two bspline lanes differ"),
-    # NOT a lane difference, and a convergence ladder is what says so. The
+    # NOT a lane difference, and a convergence ladder is what said so. The
     # 2-3e-4 rows above refine AWAY -- 0016 goes 3.43e-04, 2.58e-05, 4.60e-06,
     # 2.42e-07, 4.47e-10 at r = 1, 3, 5, 7, 15 -- which is what a
-    # discretisation artifact does. These two do NOT: 1.022e-01, 8.172e-02,
+    # discretisation artifact does. These two did NOT: 1.022e-01, 8.172e-02,
     # 8.234e-02, 8.099e-02 at r = 1, 3, 5, 7. Flat under a 7x mesh is a
-    # different MODEL, not a different mesh, and it is unexplained.
-    "0116_40-meter-four-square-array": (1.1e-1, "unexplained: flat under refinement"),
-    "0117_40-meter-four-square-array": (1.1e-1, "unexplained: flat under refinement"),
+    # different MODEL, not a different mesh, and the model was AK#1619: the
+    # `TL` port forces a split, and the split CENTRED the base feed in the
+    # piece it made -- 0.6238875 m, 1/16 of the way up a 9.9822 m vertical,
+    # where serve feeds the contact. 1.022e-01 -> 1.208e-02.
+    #
+    # What is left is the topology the two routes choose: serve declares six
+    # polylines with `junctions` and `node_gaps`, AK keeps four and positions
+    # its ports. That half has never been laddered.
+    "0116_40-meter-four-square-array": (1.3e-2, "the two routes' topology"),
+    "0117_40-meter-four-square-array": (1.3e-2, "the two routes' topology"),
     # FIXED by AK#1617: two network ports at ONE junction now take the
     # POSITIONED spelling instead of the vertex one, which is what serve does
     # for every network end. 12.62 % -> 0.00 % against the licensed NEC-5, and

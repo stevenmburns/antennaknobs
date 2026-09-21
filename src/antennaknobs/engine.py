@@ -130,6 +130,10 @@ def split_note(wire, ports, site, n_seg):
     ``[(port, at)]`` in order along the wire."""
     listed = _and_list([f"{port!r} at {at:.4g}" for port, at in ports])
     one = len(ports) == 1
+    # A port at the wire's OWN end is a site of both families already and no
+    # cut can reach it, so it is placed there rather than cut to (AK#1619).
+    # It is here because a DIFFERENT port forced the split.
+    ends = [port for port, at in ports if at in (0.0, 1.0)]
     who = f"port {listed}" if one else f"ports {listed}"
     segments = f"{n_seg} segment" if n_seg == 1 else f"{n_seg} segments"
     fact = (
@@ -153,10 +157,17 @@ def split_note(wire, ports, site, n_seg):
             f"so the wire is split and {each} fed exactly, at the middle of a "
             "short piece of its own"
         )
+    if ends:
+        how += (
+            f" — except {_and_list([repr(p) for p in ends])}, which "
+            f"{'sits' if len(ends) == 1 else 'sit'} at the wire's own end: that "
+            "is a site already, and no cut can reach it, so it is placed there"
+        )
+    issues = "AK#1511, AK#1619" if ends else "AK#1511"
     return {
         "category": "FeedPlacement",
         "text": (
-            f"Wire {wire!r} carries {who} of its length, {fact}, {how} (AK#1511)."
+            f"Wire {wire!r} carries {who} of its length, {fact}, {how} ({issues})."
         ),
     }
 
@@ -192,14 +203,23 @@ class SplitSpan(NamedTuple):
     # middle on a segment-centre engine, at its `hi` knot on a knot engine.
     # None for a plain filler (or a knot engine's last piece).
     port: int | None
+    # A port at the WIRE'S OWN end rides on the piece that bounds it, at that
+    # end, instead of being cut to (AK#1619): `p0_port` only on the piece whose
+    # `lo` is 0.0, `p1_port` only on the piece whose `hi` is 1.0. They are
+    # independent of `port`, so one piece can carry an end port and a port of
+    # its own, and a single-piece plan can carry both ends.
+    p0_port: int | None = None
+    p1_port: int | None = None
 
 
 class SplitPlan(NamedTuple):
     """How `split_spans` cuts a wire (AK#1511)."""
 
     spans: tuple[SplitSpan, ...]
-    # Centre engines: each port's half-width x, so its piece is [u - x, u + x].
-    # Empty for a knot engine.
+    # Centre engines: each INTERIOR port's half-width x, so its piece is
+    # [u - x, u + x], in order along the wire. A port at the wire's own end is
+    # placed, not cut to, and has no entry here (AK#1619). Empty for a knot
+    # engine.
     half: tuple[float, ...]
     # Centre engines: whether the end guard fired at the wire's p0 / p1 end.
     guard: tuple[bool, bool]
@@ -207,8 +227,18 @@ class SplitPlan(NamedTuple):
 
 def split_spans(n_seg, positions, parity):
     """The pieces a wire of `n_seg` segments is cut into so that every port at
-    `positions` (fractions in (0, 1), distinct) is fed exactly (AK#1511). The
+    `positions` (fractions in [0, 1], distinct) is fed exactly (AK#1511). The
     deterministic rule decided on the issue; with h = 1/n_seg:
+
+    A port AT a wire end (0.0 or 1.0) is PLACED there, never cut to (AK#1619).
+    It is already on a site of both families — that is `wire_catalog.on_site`'s
+    rule — and no cut can put a segment centre at a wire end, so it takes no
+    part in the geometry below: the cuts are decided by the INTERIOR ports
+    alone and the end port is recorded on the piece that bounds it, as that
+    piece's `p0_port` or `p1_port`. Before AK#1619 an end port was fed like any
+    other, which centred it in a piece running out to the end — 1/16 of the way
+    up a base-fed vertical on a six-segment wire — whenever a second port on
+    the wire forced a split at all.
 
     A knot engine (even parity) cuts at every port. Each piece takes the count
     nearest length/h, at least 1, a half rounding up (`_nearest_count`), and
@@ -234,34 +264,39 @@ def split_spans(n_seg, positions, parity):
     a lower bound set by the local geometry: no slivers."""
     n = max(int(n_seg), 1)
     u = sorted(float(a) for a in positions)
-    k = len(u)
+    # The end ports, by their index in `u`, and the interior ports that alone
+    # decide the cuts (AK#1619). `u` is sorted and its entries are distinct, so
+    # an end port can only be the first or the last of them.
+    at_p0 = 0 if u and u[0] == 0.0 else None
+    at_p1 = len(u) - 1 if u and u[-1] == 1.0 else None
+    inner = [i for i, x in enumerate(u) if x not in (0.0, 1.0)]
+    v = [u[i] for i in inner]
+    k = len(v)
     if parity == "even":
-        # A port AT an endpoint is already on the wire's own end knot, so it
-        # needs no cut — cutting there duplicates 0.0 or 1.0 in `cuts` and
-        # emits a zero-length piece, which reaches the geometry layer as a
-        # degenerate edge (AK#1605, the ground-contact feed). It feeds the
-        # piece it bounds: the first for 0, the last for 1. With no endpoint
-        # port this is the old list, cut for cut and port for port.
-        interior = [x for x in u if x not in (0.0, 1.0)]
-        cuts = [0.0, *interior, 1.0]
-        spans = []
-        for lo, hi in itertools.pairwise(cuts):
-            port = None
-            for i, x in enumerate(u):
-                if (x == 0.0 and lo == 0.0) or (x == 1.0 and hi == 1.0) or x == hi:
-                    port = i
-                    break
-            spans.append(SplitSpan(lo, hi, _nearest_count((hi - lo) * n), port))
-        return SplitPlan(spans=tuple(spans), half=(), guard=(False, False))
+        # A knot engine cuts at every interior port. An end port needs no cut
+        # either way — it is already on the wire's own end knot, and cutting
+        # there duplicates 0.0 or 1.0 in `cuts` and emits a zero-length piece,
+        # which reaches the geometry layer as a degenerate edge (AK#1605, the
+        # ground-contact feed).
+        cuts = [0.0, *v, 1.0]
+        spans = [
+            SplitSpan(
+                lo, hi, _nearest_count((hi - lo) * n), inner[j] if j < k else None
+            )
+            for j, (lo, hi) in enumerate(itertools.pairwise(cuts))
+        ]
+        return SplitPlan(
+            spans=_end_ports(spans, at_p0, at_p1), half=(), guard=(False, False)
+        )
     h = 1.0 / n
     half = []
     guard = [False, False]
-    for i, ui in enumerate(u):
+    for i, ui in enumerate(v):
         near = []
         if i > 0:
-            near.append((ui - u[i - 1]) / 4)
+            near.append((ui - v[i - 1]) / 4)
         if i < k - 1:
-            near.append((u[i + 1] - ui) / 4)
+            near.append((v[i + 1] - ui) / 4)
         ends = []
         if i == 0:
             ends.append((0, ui))
@@ -273,14 +308,14 @@ def split_spans(n_seg, positions, parity):
             if b <= h and b <= other:
                 guard[side] = True
                 # `b` is the room between the port and that end, reserved so
-                # the span does not overrun it. At b == 0 the port IS the end
-                # (a ground-contact feed, AK#1605) and there is no room to
-                # reserve — the guard already runs the span out to it. Letting
-                # a zero through here would cap the half-width on BOTH sides,
-                # since one `half` serves `lo = ui - xi` and `hi = ui + xi`,
-                # collapsing the span to zero width and reaching the geometry
-                # layer as a degenerate edge. Every b > 0 keeps its old limit,
-                # so no existing split moves.
+                # the span does not overrun it. A port exactly AT the end no
+                # longer reaches here — `inner` filtered it out (AK#1619) — but
+                # one a hair off it still can, and a zero would cap the
+                # half-width on BOTH sides, since one `half` serves
+                # `lo = ui - xi` and `hi = ui + xi`, collapsing the span to zero
+                # width and reaching the geometry layer as a degenerate edge
+                # (AK#1605). Every b > 0 keeps its old limit, so no existing
+                # split moves.
                 if b:
                     limits.append(b)
             else:
@@ -288,16 +323,34 @@ def split_spans(n_seg, positions, parity):
         half.append(min(limits))
     spans = []
     edge = 0.0
-    for i, (ui, xi) in enumerate(zip(u, half, strict=True)):
+    for i, (ui, xi) in enumerate(zip(v, half, strict=True)):
         lo = 0.0 if i == 0 and guard[0] else ui - xi
         hi = 1.0 if i == k - 1 and guard[1] else ui + xi
         if not (i == 0 and guard[0]):
             spans.append(SplitSpan(edge, lo, _nearest_count((lo - edge) * n), None))
-        spans.append(SplitSpan(lo, hi, _nearest_odd_count(2 * xi * n), i))
+        spans.append(SplitSpan(lo, hi, _nearest_odd_count(2 * xi * n), inner[i]))
         edge = hi
     if not guard[1]:
         spans.append(SplitSpan(edge, 1.0, _nearest_count((1.0 - edge) * n), None))
-    return SplitPlan(spans=tuple(spans), half=tuple(half), guard=tuple(guard))
+    # With no interior port at all the loop emitted nothing and the wire is one
+    # uncut piece, which is the whole plan for a wire whose only ports are at
+    # its ends.
+    return SplitPlan(
+        spans=_end_ports(spans, at_p0, at_p1),
+        half=tuple(half),
+        guard=tuple(guard),
+    )
+
+
+def _end_ports(spans, at_p0, at_p1):
+    """`spans` as a tuple, with a port at the WIRE's own end recorded on the
+    piece that bounds it (AK#1619). The two pieces are the same one when the
+    plan has a single piece, which carries both ends."""
+    if at_p0 is not None:
+        spans[0] = spans[0]._replace(p0_port=at_p0)
+    if at_p1 is not None:
+        spans[-1] = spans[-1]._replace(p1_port=at_p1)
+    return tuple(spans)
 
 
 class WireSplit(NamedTuple):
@@ -535,8 +588,14 @@ class SimulationEngine(ABC):
         of that piece. On a knot engine it is the series source at the piece's
         p1 end, the knot it shares with the next piece: the `PortAtVertex`
         NEC-5 serves natively (issue #898), whose source and loads sit at that
-        knot as they would at an interior one."""
+        knot as they would at an interior one.
+
+        A port at the WIRE's own end is the exception, and the one AK#1619
+        fixed: it keeps that end — arclength 0.0 or 1.0 of the piece that
+        bounds it, which both families place exactly — instead of the middle or
+        the shared knot, neither of which is where the design put it."""
         pieces = getattr(self, "_split_ports", None)
+        at_site = getattr(self, "_split_port_at", None) or {}
         if net is None or not pieces:
             return net
 
@@ -544,6 +603,18 @@ class SimulationEngine(ABC):
             piece = pieces.get(name)
             if piece is None:
                 return port
+            frac = at_site.get(name)
+            if frac is not None:
+                # A port at the WIRE's own end keeps the POSITIONED spelling on
+                # BOTH families (AK#1619). A knot engine's `PortAtVertex` is a
+                # series EMF at the knot two pieces SHARE; a wire's outer end
+                # is no such knot, and asking momwire for a node gap there is
+                # refused by name — "wire 0 'start' is not a member of any
+                # junction group ... for a feed inside a wire use feeds=". It
+                # is also what this port is spelled as when nothing splits the
+                # wire, and what `momwire.eznec.serve` hands the solver for
+                # every network end (AK#1617).
+                return replace(port, wire=piece, at=frac)
             if self.segment_parity == "even":
                 return PortAtVertex(wire=piece, end="p1")
             return replace(port, wire=piece, at=None)
@@ -629,7 +700,39 @@ class SimulationEngine(ABC):
         middle = [(port, 0.5 if at is None else float(at)) for port, at in at_here]
         ordered = tuple(sorted(middle, key=lambda p: p[1]))
         plan = split_spans(wire.n_seg, [at for _port, at in ordered], parity)
-        names = tuple(_piece_name(wire.name, port, taken) for port, _at in ordered)
+        # One name per NAMED piece, and the site each port takes on it: the
+        # middle (None) for a port the piece is cut around, 0.0 or 1.0 for one
+        # at the wire's own end (AK#1619). A piece can carry an end port and a
+        # port of its own, so it is named once, for the first port along it,
+        # and both ports point at that one name.
+        piece_names = [None] * len(plan.spans)
+        site = {}
+        for j, span in enumerate(plan.spans):
+            on_it = [
+                (i, frac)
+                for i, frac in (
+                    (span.p0_port, 0.0),
+                    (span.port, None),
+                    (span.p1_port, 1.0),
+                )
+                if i is not None
+            ]
+            if not on_it:
+                continue
+            if parity == "even" and span.port is not None and len(on_it) > 1:
+                # A knot engine spells a port at a shared knot as a series
+                # `PortAtVertex`, and a piece cannot carry one of those AND a
+                # gap port — `validate_named_wires_referenced` refuses the pair
+                # by name (issues #579, #898). An end port has nowhere else to
+                # go, so the port sharing its piece takes the POSITIONED
+                # spelling instead, at the same knot: `momwire.eznec.serve`
+                # spells EVERY network end that way, and AK#1617 already moved
+                # a crowded junction onto it.
+                on_it = [(i, 1.0 if i == span.port else frac) for i, frac in on_it]
+            piece_names[j] = _piece_name(wire.name, ordered[on_it[0][0]][0], taken)
+            for i, frac in on_it:
+                site[ordered[i][0]] = (piece_names[j], frac)
+        names = tuple(site[port][0] for port, _at in ordered)
 
         def point(frac):
             if frac == 0.0:
@@ -642,8 +745,7 @@ class SimulationEngine(ABC):
 
         pieces = []
         ex = wire.ex
-        for span in plan.spans:
-            name = None if span.port is None else names[span.port]
+        for span, name in zip(plan.spans, piece_names, strict=True):
             here, ex = (ex, None) if name is not None else (None, ex)
             p0, p1 = point(span.lo), point(span.hi)
             if isinstance(t, Wire) or len(t) == 6:
@@ -658,6 +760,7 @@ class SimulationEngine(ABC):
         self._split_ports.update(
             {port: name for (port, _at), name in zip(ordered, names, strict=True)}
         )
+        self._split_port_at.update({port: frac for port, (_n, frac) in site.items()})
         _logger.info(
             "%s split wire %r into %d pieces so %s sit(s) exactly on its sites",
             type(self).__name__,
@@ -694,6 +797,7 @@ class SimulationEngine(ABC):
         # entry came from (AK#1510, AK#1511).
         self._split_wires = {}
         self._split_ports = {}
+        self._split_port_at = {}
         self._tup_authored = []
         taken = referenced | {as_wire(t).name for t in tups} - {None}
         seen = set()
