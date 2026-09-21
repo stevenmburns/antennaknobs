@@ -111,6 +111,19 @@ def format_solve_error(exc: BaseException) -> str:
     )
 
 
+# Bumped by every `refresh()`. A user design's file, or a data file it reads,
+# can change on disk under an unchanged request, and the server's solve key
+# (which IS the solve_id the client keys everything by) hashes the request. The
+# refresh is the only signal that the file may have moved, so the key carries
+# this count for user designs (AK#1626).
+_GENERATION = 0
+
+
+def generation() -> int:
+    """How many times the user designs have been reloaded in this process."""
+    return _GENERATION
+
+
 def refresh() -> list[dict]:
     """Reload every user design into ``REGISTRY`` under ``user.<filename>``,
     replacing any previously-loaded user designs.
@@ -119,6 +132,8 @@ def refresh() -> list[dict]:
     load — surfaced in the UI so the author (or Claude) can fix them. A broken
     file never takes down the rest.
     """
+    global _GENERATION
+    _GENERATION += 1
     for key in [k for k in REGISTRY if k.startswith(f"{USER_NS}.")]:
         del REGISTRY[key]
 

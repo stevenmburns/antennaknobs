@@ -65,6 +65,7 @@ type Props = {
   geometry: string;
   solveId: string | null;
   engineLabel: string | null;
+  reloadNonce?: number;
 };
 
 const BASE: Props = {
@@ -156,6 +157,17 @@ describe("what is fetched when", () => {
     await settle();
     expect(calls("/design_source")).toHaveLength(1);
     rerender({ ...BASE, geometry: "user.my_yagi", solveId: null, engineLabel: null });
+    await settle();
+    expect(calls("/design_source")).toHaveLength(2);
+  });
+
+  it("re-reads the source when the design's file is reloaded (AK#1626)", async () => {
+    // A reload changes no request field, so nothing else here would move; the
+    // deck and circuit follow the solve_id, which the server bumps on reload.
+    const { rerender } = renderFiles({ reloadNonce: 0 });
+    await settle();
+    expect(calls("/design_source")).toHaveLength(1);
+    rerender({ ...BASE, reloadNonce: 1 });
     await settle();
     expect(calls("/design_source")).toHaveLength(2);
   });

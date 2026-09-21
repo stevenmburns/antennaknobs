@@ -1623,6 +1623,12 @@ def _canonical_solve_key(req: dict) -> str:
     # answer (or vice versa) after the environment changes.
     backend = _external_backend(req)
     canon["_resolved_solver"] = "momwire" if backend is None else _BACKEND_NAME[backend]
+    # A user design's file can change under an unchanged request (#1312), and
+    # this key is the solve_id the client keys by: without the refresh
+    # generation a reload re-solved under the OLD solve_id, so the Files view
+    # kept the pre-edit deck and circuit beside the new numbers (AK#1626).
+    if _is_user_geometry(req):
+        canon["_user_designs_generation"] = user_designs.generation()
     blob = json.dumps(canon, sort_keys=True, default=str).encode()
     return hashlib.blake2b(blob, digest_size=16).hexdigest()
 
