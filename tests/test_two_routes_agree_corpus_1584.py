@@ -29,10 +29,11 @@ in front of; with the load still dropped, moving the line back onto the knot
 makes the missing 18 ohms matter MORE (0023 went 5.77e-02 -> 8.02e-02 in that
 half-fixed state).
 
-19 of the 28 agree to float noise now, where 2 did. The nine that remain are
-pinned at what they measure, each against the open issue that owns it, so
-they cannot drift quietly -- and a FIX shows up here as a failure asking for
-the number to be re-recorded, which is the intended way to find out.
+19 of the 28 agreed to float noise when this gate landed, where 2 had; 22 do
+now. The six that remain are pinned at what they measure, each against what
+owns it, so they cannot drift quietly -- and a FIX shows up here as a failure
+asking for the number to be re-recorded, which is the intended way to find
+out (it is how AK#1608 part 1 moved 0011/0029/0030).
 
 ONE CAVEAT ON WHAT THIS GATE MEANS. Agreement between the two routes is a
 CONSISTENCY claim, not an accuracy one: it says they are the same
@@ -45,7 +46,7 @@ different bspline lanes -- so a row's bar can be a lane difference rather
 than a defect. Drafting these rows across mixed configurations produced two
 confidently wrong readings in a row (that serve lagged AK on four decks; that
 AK sat at the noise floor on 0011/0029/0030). At matched razor-2p the two
-routes agree to float noise on every deck here except 0017.
+routes agree to float noise on every deck here (8.3e-14 at worst).
 """
 
 import pathlib
@@ -87,11 +88,13 @@ EXPECTED = {
     "0027_cardioid-with-feed-system": (NOISE, None),
     "0120_cardioid-l-network-feed": (NOISE, None),
     "0121_cardioid-l-network-feed": (NOISE, None),
-    # AK#1608 part 1 -- a vertex port's sign convention. These carry no
-    # demoted end and no co-located load, so nothing here touches them.
-    "0011_dipole-with-coax-feedline": (2.0e-2, "AK#1608 part 1"),
-    "0029_dipole-with-coax-feedline": (2.0e-2, "AK#1608 part 1"),
-    "0030_dipole-with-coax-feedline": (2.0e-2, "AK#1608 part 1"),
+    # FIXED by AK#1608 part 1, a vertex port's sign convention. Each drives a
+    # line from a vertex port at a `p1`, where momwire's node gap measures
+    # current from the node INTO the wire and the line is authored along it,
+    # so the line reached the reducer transposed. 1.7e-02 -> 4.6e-14 here.
+    "0011_dipole-with-coax-feedline": (NOISE, None),
+    "0029_dipole-with-coax-feedline": (NOISE, None),
+    "0030_dipole-with-coax-feedline": (NOISE, None),
     # These four are FIXED by AK#1608 part 2, and both routes now reproduce
     # the licensed NEC-5 to 0.00 % under a matched basis. What is left on the
     # first two is a BSPLINE-LANE difference between the two routes --
@@ -159,9 +162,15 @@ EXPECTED = {
     # and NEC-5 returns 195.3400 - 57.4580j, a DIFFERENT circuit. Merging
     # them (an earlier draft did) turns 0017 into 0016 and costs 55.37 %.
     "0017_network-connection-test": (5e-4, "the two bspline lanes differ"),
-    # Ports from the NEC-2 reading (edge 0 from the start), never demoted, so
-    # no part of this change reaches it. The worst deck in the corpus.
-    "0028_17-10m-log-per-arrl-ant-book": (2.9e-1, "unexplained: the NEC-2 reading"),
+    # AK#1608 part 1 fixed its sign, and at matched razor-2p the two routes now
+    # agree to 2.3e-15 (2.8e-01 before). What is left is 0116's mechanism, five
+    # times over: serve cuts each of the five elements at its feed knot, which
+    # clamps the degree-2 B-spline there, and AK keeps each element whole with a
+    # positioned feed. At degree 1, with no continuity to differ on, the routes
+    # agree to 8.1e-05; at degree 2, 4.51e-02. Both are far from the licensed
+    # NEC-5 (AK 9.4e-02, serve 1.34e-01), so like 0116 this is a consistency
+    # bar inside the bspline basis error, not a defect with a known fix.
+    "0028_17-10m-log-per-arrl-ant-book": (5e-2, "basis continuity at the cut, AK#1622"),
 }
 
 
