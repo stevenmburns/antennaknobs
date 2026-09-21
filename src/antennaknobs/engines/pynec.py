@@ -1203,8 +1203,9 @@ class PyNECEngine(SimulationEngine):
         knots are the average of the two adjacent NEC segment-centre
         currents. Boundary knots are zeroed at genuine free ends (open-wire
         BC) but carry the adjacent segment-centre current at junctions, where
-        the current is physically continuous through the shared endpoint.
-        Mirrors antennaknobs.web.pynec_backend._segment_centers_to_knot_currents."""
+        the current is physically continuous through the shared endpoint, and
+        at an end on the ground plane, which `_ge_flag` bonds to it (issue
+        #1638: a vertical's base read 0 A)."""
         if self._use_reducer:
             self.c = self._excited_real_context(C_LIGHT / (self.builder.freq * 1e6))
         self._set_freq_and_execute()
@@ -1229,6 +1230,12 @@ class PyNECEngine(SimulationEngine):
         for t in self.tups:
             for p in (t[0], t[1]):
                 endpoint_count[_key(p)] = endpoint_count.get(_key(p), 0) + 1
+        bonded = self.ground not in (None, "free")
+
+        def _joined(p):
+            return endpoint_count.get(_key(p), 0) >= 2 or (
+                bonded and float(p[2]) == 0.0
+            )
 
         out = []
         for tag_idx, t in enumerate(self.tups, start=1):
@@ -1240,9 +1247,9 @@ class PyNECEngine(SimulationEngine):
             if n_seg >= 2:
                 knot_cur[1:-1] = 0.5 * (cur_per_seg[:-1] + cur_per_seg[1:])
             if cur_per_seg.shape[0] >= 1:
-                if endpoint_count.get(_key(p0), 0) >= 2:
+                if _joined(p0):
                     knot_cur[0] = cur_per_seg[0]
-                if endpoint_count.get(_key(p1), 0) >= 2:
+                if _joined(p1):
                     knot_cur[-1] = cur_per_seg[-1]
             out.append(
                 WireCurrents(

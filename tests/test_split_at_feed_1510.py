@@ -375,11 +375,15 @@ def test_nec5_joins_the_pieces_currents_back_into_the_wire():
 
     b = _b(feed_at=0.31)
     eng = NEC5Engine(b, require_exe=False)
-    (wc,) = eng._currents_from({1: [1.0] * 3, 2: [2.0] * 7})
+    # NEC-5 prints each segment's centre current, the mean of its two knots
+    # (a tent basis); a half-wave shape, zero at both free ends.
+    truth = np.sin(np.pi * np.linspace(0.0, 1.0, 11)) * (1.0 - 0.5j)
+    centres = 0.5 * (truth[:-1] + truth[1:])
+    (wc,) = eng._currents_from({1: centres[:3], 2: centres[3:]})
     np.testing.assert_allclose(wc.knot_positions[[0, 3, -1]], [P0, _target(0.31), P1])
     assert wc.knot_positions.shape == (11, 3)
-    # the knot at the cut: the mean of the two pieces' neighbouring currents
-    assert wc.knot_currents[3] == 1.5
+    # every knot, the one at the cut included, is recovered exactly (#1638)
+    np.testing.assert_allclose(wc.knot_currents, truth, atol=1e-12)
     # the workbench marker lands on the fed knot
     pos = adapter._pynec_feed_position(b, [wc])
     assert np.linalg.norm(np.asarray(pos) - _target(0.31)) <= 1e-9 * LENGTH

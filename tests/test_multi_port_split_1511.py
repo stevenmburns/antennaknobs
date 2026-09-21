@@ -718,18 +718,24 @@ def test_pynec_joins_every_piece_back_into_the_wire_and_the_marker_is_exact():
     assert np.linalg.norm(np.asarray(pos) - _targets(b)["feed"]) <= 1e-9 * LENGTH
 
 
-def test_nec5_joins_every_piece_with_the_mean_at_each_cut():
+def test_nec5_joins_every_piece_exactly_at_each_cut():
     eng = NEC5Engine(_b(**CASES["k3"]), require_exe=False)
     counts = [as_wire(t).n_seg for t in eng.tups]
+    # NEC-5 prints each segment's centre current, the mean of its two knots
+    # (a tent basis); a half-wave shape across the whole wire.
+    truth = np.sin(np.pi * np.linspace(0.0, 1.0, sum(counts) + 1)) * (1.0 + 0.2j)
+    centres = 0.5 * (truth[:-1] + truth[1:])
+    edges = np.concatenate([[0], np.cumsum(counts)])
     (wc,) = eng._currents_from(
-        {i + 1: [float(i + 1)] * c for i, c in enumerate(counts)}
+        {i + 1: centres[edges[i] : edges[i + 1]] for i in range(len(counts))}
     )
     assert wc.knot_positions.shape == (sum(counts) + 1, 3)
     knots = np.cumsum(counts)[:-1]
     np.testing.assert_allclose(
         wc.knot_positions[knots], [P0 + a * (P1 - P0) for a in (0.04, 0.31, 0.77)]
     )
-    assert list(wc.knot_currents[knots]) == [1.5, 2.5, 3.5]
+    # every knot, each cut included, is recovered exactly (#1638)
+    np.testing.assert_allclose(wc.knot_currents, truth, atol=1e-12)
 
 
 def test_nec2_joins_every_piece_back_into_the_wire(monkeypatch):
