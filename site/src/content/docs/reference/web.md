@@ -861,7 +861,7 @@ hybrid** — NEC-2 has no facet model, so NEC solves the currents over the
 crest-medium Sommerfeld ground (exactly what the terrain recipe feeds the
 current solve anyway) and the server applies the facet reflection to those
 currents; the two engines agree to engine tolerance. The **NEC rp** overlay
-switch (PyNEC only) is greyed out over terrain, because NEC's own `rp_card`
+switch (on the NEC engines' lanes) is greyed out over terrain, because NEC's own `rp_card`
 pattern is flat-ground-only and would silently disagree with the facet
 traces. **Download .nec** exports the crest medium as a flat `GN` card —
 a NEC deck cannot carry the facets.
@@ -884,8 +884,9 @@ When the design you're iterating **is** a user design — editor in one
 window, workbench in the other — a **reload button** next to the design
 picker re-reads the file and re-solves in place. Your tuned knob values
 always survive the reload; a parameter the edited file just *grew* appears
-with the file's default. One click instead of a page reload per edit
-cycle.
+with the file's default, and the Files view follows it: the source, the
+SimNEC circuit and the engine's deck are the edited file's. One click instead
+of a page reload per edit cycle.
 
 ## Power budget
 

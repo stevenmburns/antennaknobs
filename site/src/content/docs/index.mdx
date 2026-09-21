@@ -29,20 +29,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.83.0" icon="star">
-  **The drive the deck meant, and where it sits.** A source at a wire end
-  standing in the ground plane is a feed rather than a refusal, and it is now
-  fed AT the contact instead of at the centre of the segment it stands in — on
-  a base-fed vertical over ground those are two different drives, 29 % apart
-  in X. A gyrator-emulated current source is read as the current source it is,
-  not as a source behind a component, so a deck EZNEC wrote in its NEC-2
-  dialect reports the antenna's impedance instead of its reciprocal; NEC-2
-  export can now write that current source back out. EZNEC's own
-  instrumentation idiom — a 1e-10 V probe dropped beside a load at a wire
-  join — imports instead of colliding, and an `LD 2` jacket pair is read the
-  way the card means it. momwire 0.61.0 underneath: a bonded ground rod on an
-  ordinary antenna is served, and above the interface the wires may carry
-  several different radii.
+<Card title="New in v0.84.0" icon="star">
+  **Every engine, read the way it solved.** A ground-mounted vertical on the
+  NEC-5, NEC-2 and PyNEC engines no longer draws, and radiates, its base
+  current as zero: the base on the ground plane is bonded, and NEC-5's
+  printed currents are now turned back into the currents it solved exactly,
+  so a two-vertical cardioid reads 6.78 dBi on NEC-5, as EZNEC and razor-2p
+  do, instead of 5.41. A design fed through a lossy network reports NEC's own
+  pattern per watt the source delivers, which is what the licensed engine
+  prints for the same network, and that pattern now draws on NEC-5 and PyNEC
+  at all. NEC-5 drives such a design's ports at the voltages the network
+  resolves. Every NEC-2 card fits in 80 columns, so 4nec2's `nec2dxs` reads
+  our decks; SimNEC's `NECUnits` is a display unit, not a scale; the pattern
+  over a perfect ground is continuous through the horizon; a multi-source
+  network design solves in the workbench; and reloading an edited design
+  file refreshes the deck the Files view shows.
 </Card>
 
 ## The whole pitch, in one line
