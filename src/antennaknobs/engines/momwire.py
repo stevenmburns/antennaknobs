@@ -1162,7 +1162,7 @@ class MomwireEngine(SimulationEngine):
         # against the authored direction flips momwire's own sigma a second
         # time, and the two flips cancel: authored p0 is +1 whether it landed
         # on the polyline's "start" or its "end". The two readings genuinely
-        # differ — 6 of the 55 vertex ports in momwire's EZNEC corpus sit on a
+        # differ — 6 of the 58 vertex ports in momwire's EZNEC corpus sit on a
         # reversed walk (0063/0064 and 0081-0084) — and the member reading
         # would move 0081, whose two driven vertex ports are both authored p0.
         self._vertex_dirs = [

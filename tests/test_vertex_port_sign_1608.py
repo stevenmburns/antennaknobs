@@ -22,9 +22,9 @@ voltage that goes in beside it.
 The oracle is invariance, and it needs no engine but this one: `2,-1` and
 `1,10` are two spellings of ONE node on deck 0011, with both wires running
 +y through it, so the port they name is the same port. `momwire.eznec.serve`
-answers both with 26.728390 - 11.751671j; before this fix antennaknobs
-answered 26.239349 - 11.649880j and 26.739384 - 11.748823j, 1.9e-02 apart on
-a relabelling that moved no wire.
+answers both with 26.728390 - 11.751671j. Before this fix antennaknobs
+answered 26.228536 - 11.652622j for the `p1` spelling and serve's value for the
+`p0` one: 1.75e-02 apart on a relabelling that moved no wire.
 """
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ def _z(path):
     every PR. What is being pinned is which port a card's `(tag, segment)`
     field names, which the ground does not enter: the invariance holds at
     7.3e-14 in free space and 3.7e-14 over the deck's own ground, and the
-    defect it catches is large either way -- 5.6e-03 free, 1.9e-02 grounded."""
+    defect it catches is large either way -- 5.6e-03 free, 1.75e-02 grounded."""
     cls = builder_from_file(path)
     return complex(MomwireEngine(cls(), ground=None).impedance()[0])
 
@@ -116,7 +116,7 @@ def test_the_spelling_of_a_network_end_does_not_move_the_answer(tmp_path):
     bar is 1e-12: nine orders under the 5.6e-03 the missing congruence costs
     here, and well above the assembly-order noise two different wire orderings
     carry (measured 7.3e-14). Over the deck's own ground the same two
-    spellings are 1.9e-02 apart, which is the number AK#1608 reports."""
+    spellings were 1.75e-02 apart, which is the 0011 number AK#1608 reports."""
     text = DECK.read_text(errors="replace")
     assert SHIPPED in text, "fixture moved: the TL card this test respells is gone"
     shipped = tmp_path / "shipped.nec"
