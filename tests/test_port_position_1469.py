@@ -390,8 +390,10 @@ def test_gap_segment(n, at, seg):
         (20, 0.3, 6),  # exact
         (20, 0.325, 6),  # a segment centre: the smaller arclength wins
         (20, 0.33, 7),
-        (20, 0.01, 1),  # interior knots only
+        (20, 0.01, 1),  # short of an end: the nearest interior knot
         (20, 0.999, 19),
+        (20, 0.0, 0),  # AT an end: that end's own knot (AK#1629)
+        (20, 1.0, 20),
     ],
 )
 def test_gap_knot(n, at, knot):

@@ -577,13 +577,18 @@ def gap_segment(n_seg, at):
 
 
 def gap_knot(n_seg, at):
-    """The interior knot a NEC-5 source at `at` drives (AK#1469).
+    """The knot a NEC-5 source at `at` drives (AK#1469).
 
-    None is the centre knot, ``n_seg // 2``, exactly as before. Otherwise it is
-    the nearest interior knot. A point exactly at a segment centre is
+    None is the centre knot, ``n_seg // 2``, exactly as before. A port AT the
+    wire's own end drives that end's knot, 0 or ``n_seg`` (AK#1629): an
+    endpoint is a knot, which is `on_site`'s rule too (AK#1605). Clamping it
+    inward instead fed a base-fed vertical one segment up its wire. Otherwise
+    it is the nearest interior knot. A point exactly at a segment centre is
     equidistant from two knots, and the smaller arclength wins."""
     if at is None:
         return n_seg // 2
+    if float(at) in (0.0, 1.0):
+        return 0 if float(at) == 0.0 else int(n_seg)
     x = float(at) * n_seg
     lo = math.floor(x)
     k = lo if x - lo <= 0.5 + 1e-9 else lo + 1
