@@ -54,9 +54,14 @@ The three blocks this engine parses, and how they differ from NEC-5's — which 
 why the parsers are not shared:
 
 * ``ANTENNA INPUT PARAMETERS``: ``TAG SEG Vre Vim Ire Iim Zre Zim Yre Yim P`` —
-  **11** tokens with the impedance at 6/7. NEC-5's row has a third leading
-  index and 12 tokens with the impedance at 7/8, so a shared parser would read
-  the admittance as the impedance on one of the two.
+  two integers and nine numbers, the impedance at numbers 4/5. NEC-5's row has
+  a third leading index, so a shared parser would read the admittance as the
+  impedance on one of the two. The numbers are read by PATTERN, not by
+  splitting on whitespace (AK#1641): 4nec2's ``nec2dxs`` prints fixed-width
+  ``E12.5`` fields, and a negative value's minus sign takes the one separating
+  space, fusing it to the field before (``7.18272E+01-8.10563E+00``). nec2c
+  spaces its columns, which is why a token count passed on it and read none of
+  the 861 input-parameter blocks in 1,010 real 4nec2 printouts.
 * ``CURRENTS AND LOCATION``: ``SEG TAG X Y Z len Ire Iim mag phase`` — 10
   tokens, the same layout NEC-5 prints under a different heading.
 * ``RADIATION PATTERNS``: angles then gains, ``TOTAL`` at index 4, and the
@@ -86,6 +91,14 @@ _log = logging.getLogger(__name__)
 NEC2_EXE_ENV = "NEC2_EXE"
 
 _AIP_HEADER = "ANTENNA INPUT PARAMETERS"
+# One ANTENNA INPUT PARAMETERS data row: TAG and SEG, then the rest of the line,
+# whose nine numbers `_NUMBER` finds however many separators a minus sign took.
+# The rest must be NOTHING but numbers: NEC-5's row carries a third leading
+# index, a bare integer, and a row with a stray field is the wrong dialect, to be
+# refused rather than read (a shared parser read it at the wrong columns).
+_AIP_ROW_RE = re.compile(r"^\s*(\d+)\s+(\d+)(?=[\s+-])(.*)$")
+_NUMBER = re.compile(r"[-+]?(?:\d+\.\d*|\.\d+)(?:[EeDd][-+]?\d+)?")
+_NUMBERS_ONLY = re.compile(rf"(?:\s*{_NUMBER.pattern})+\s*")
 _CURRENTS_HEADER = "CURRENTS AND LOCATION"
 _PATTERN_HEADER = "RADIATION PATTERNS"
 
@@ -480,32 +493,47 @@ class NEC2Engine(SimulationEngine):
     def _parse_input_parameters(text: str) -> list[list[tuple[int, int, complex]]]:
         """Every ANTENNA INPUT PARAMETERS section, one list per frequency, each
         row (tag, seg, Z). Row layout: TAG SEG Vre Vim Ire Iim Zre Zim Yre Yim
-        POWER — 11 tokens, impedance at 6/7 (see the module docstring on why
-        this is not NEC-5's parser)."""
+        POWER, the impedance the 5th and 6th numbers (see the module docstring
+        on why this is not NEC-5's parser, and on reading it by pattern)."""
         chunks = text.split(_AIP_HEADER)[1:]
         if not chunks:
             raise NEC2Error(f"no {_AIP_HEADER} in NEC-2 printout; tail: " + text[-500:])
         out = []
         for chunk in chunks:
-            rows: list[tuple[int, int, complex]] = []
-            for line in chunk.splitlines():
-                toks = line.split()
-                if len(toks) != 11:
-                    if rows:
-                        break
-                    continue
-                try:
-                    tag, seg = int(toks[0]), int(toks[1])
-                    z = complex(float(toks[6]), float(toks[7]))
-                except ValueError:
-                    if rows:
-                        break
-                    continue
-                rows.append((tag, seg, z))
+            rows = [
+                (tag, seg, complex(nums[4], nums[5]))
+                for tag, seg, nums in NEC2Engine._aip_rows(chunk)
+            ]
             if not rows:
                 raise NEC2Error(f"unparseable {_AIP_HEADER} section")
             out.append(rows)
         return out
+
+    @staticmethod
+    def _aip_rows(chunk: str) -> list[tuple[int, int, list[float]]]:
+        """The data rows of one ANTENNA INPUT PARAMETERS block, as (tag, seg,
+        [Vre, Vim, Ire, Iim, Zre, Zim, Yre, Yim, P]), stopping at the first
+        line after them that is not one.
+
+        By pattern rather than by token count (AK#1641): see the module
+        docstring for the fused ``nec2dxs`` fields. A header line has no two
+        leading integers, a row with anything but numbers after them (NEC-5's
+        third index) is refused, and so is one whose numbers are not nine."""
+        rows: list[tuple[int, int, list[float]]] = []
+        for line in chunk.splitlines():
+            m = _AIP_ROW_RE.match(line)
+            rest = m.group(3) if m else ""
+            nums = (
+                [float(x) for x in _NUMBER.findall(rest)]
+                if _NUMBERS_ONLY.fullmatch(rest)
+                else []
+            )
+            if len(nums) != 9:
+                if rows:
+                    break
+                continue
+            rows.append((int(m.group(1)), int(m.group(2)), nums))
+        return rows
 
     @staticmethod
     def _parse_currents(text: str) -> list[dict[int, list[complex]]]:
@@ -582,26 +610,16 @@ class NEC2Engine(SimulationEngine):
         the report is what the binary was actually driven with — and because
         this engine has no resolved-feed list of its own to reconstruct from:
         `nec_export.export_nec` builds and discards the `PyNECEngine` that
-        resolves them. Row layout as `_parse_input_parameters`: V at 2/3.
+        resolves them. Row layout as `_parse_input_parameters`: V the first two
+        numbers.
         """
         chunks = text.split(_AIP_HEADER)[1:]
         if not chunks:
             raise NEC2Error(f"no {_AIP_HEADER} in NEC-2 printout")
-        out: list[complex] = []
-        for line in chunks[0].splitlines():
-            toks = line.split()
-            if len(toks) != 11:
-                if out:
-                    break
-                continue
-            try:
-                int(toks[0]), int(toks[1])
-                out.append(complex(float(toks[2]), float(toks[3])))
-            except ValueError:
-                if out:
-                    break
-                continue
-        return out
+        return [
+            complex(nums[0], nums[1])
+            for _t, _s, nums in NEC2Engine._aip_rows(chunks[0])
+        ]
 
     @staticmethod
     def _parse_power_budget(text: str) -> dict:
