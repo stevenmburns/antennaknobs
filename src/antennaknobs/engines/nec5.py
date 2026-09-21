@@ -1113,8 +1113,11 @@ class NEC5Engine(SimulationEngine):
         for ``p1`` (issue #898, the series apex feed)."""
         n_seg = self._wires[idx].n_seg
         if isinstance(knot, float):
-            # End 2 of segment k is interior knot k (AK#1469).
-            return gap_knot(n_seg, knot), 2
+            # End 2 of segment k is knot k (AK#1469). Knot 0, a port at the
+            # wire's p0, has no segment 0 to name it, so it is segment 1 end 1:
+            # the address `p0` takes (AK#1629).
+            k = gap_knot(n_seg, knot)
+            return (1, 1) if k == 0 else (k, 2)
         if knot == "center":
             return n_seg // 2, 2
         if knot == "p0":
