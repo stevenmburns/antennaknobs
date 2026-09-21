@@ -136,7 +136,7 @@ frequencies into a single run using NEC-5's linear `FR` stepping.
 | Loads | `Load` branches (fixed-Z and series/parallel RLC) at the port |
 | Wire material | conductor loss natively; an insulation jacket as the same coated-wire pair momwire models, spelled in cards — the equivalent radius on `GW`, the jacket's inductance as `LD 2`, and `LD 5` rescaled so the copper loss stays the real conductor's. NEC-5 dropped NEC-4's insulated-wire card |
 | Power budget | input/radiated/wire-loss/efficiency, plus hemisphere average gain (the ground-absorption readout) |
-| Transmission lines, two-ports, `ql`/`qc` loads, distributed ports | **refuse loudly**, each naming what is unsupported |
+| Transmission lines, transformers, two-ports, virtual drivers, `ql`/`qc` loads | served through a **multiport-Y reduction**: NEC-5 solves the antenna's admittance at its real ports, the circuit is reduced onto them, and every other reading (currents, the pattern, the power budget) runs a deck driven at the ports' resolved voltages. NEC's own pattern there is reported per watt the **sources** deliver, which is what NEC-5 prints when it carries the same network in its own cards. Two port kinds **refuse loudly**, each by name: a **floating** port, whose second terminal NEC-5 cannot expose, and a **distributed** port, whose knot weighting is not derived |
 | Ground-geometry refusals | mid-span interface crossings (the binary runs them and prints garbage), wires lying **in** the plane, buried wires under a PEC ground (image theory has no buried side), and **coincident wires** — each refused by name at construction |
 
 Refusals are the design: NEC-5 either solves exactly what you asked or
