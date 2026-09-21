@@ -109,17 +109,43 @@ def _gyrator_cards(eng, tups, freq_mhz):
     return gw, nt, ex
 
 
-def _num(x):
-    """NEC free-format real. 6 significant digits round-trips wire coordinates
-    and component values without NEC's fixed-column ambiguity."""
-    return f"{float(x): .6E}"
+# NEC-2 reads a card as an 80-column record (AK#1628). The Fortran builds read
+# free-format numbers INSIDE those 80 columns and drop the rest without a word:
+# AC6LA's nec2dxs11k.exe cut `GW 1 20 ... 5.682399E+00  5.000000E-04` at
+# column 80, read Z2 as 5 and the radius as 0, and stopped on GEOMETRY DATA
+# CARD ERROR. nec2c has no such limit, which is why every check here passed.
+CARD_COLUMNS = 80
+
+
+def _num(x, digits=7, bare=False):
+    """A NEC free-format real, as short as it can be written: `digits`
+    significant figures (7 is what the `.6E` spelling this replaced carried)
+    and no padding, so a card fits NEC-2's 80-column record. 4nec2 and EZNEC
+    write their decks the same way (`GW 1 12 0.0 0.0 0.0 0.0 0.0 23.5 .04`).
+    ``bare`` drops a leading zero (`.0005`, `-.05`), as EZNEC does, which both
+    the Fortran readers and nec2c take."""
+    s = f"{float(x):.{digits}g}"
+    if s == "-0":
+        return "0"
+    if bare and s.startswith(("0.", "-0.")):
+        s = s.replace("0.", ".", 1)
+    return s
 
 
 def _gw(tag, n_seg, p0, p1, radius):
-    return (
-        f"GW {tag} {n_seg} "
-        f"{_num(p0[0])} {_num(p0[1])} {_num(p0[2])} "
-        f"{_num(p1[0])} {_num(p1[1])} {_num(p1[2])} {_num(radius)}"
+    """A GW card, inside `CARD_COLUMNS`. The only card with seven reals, so the
+    only one that can overflow: three of the catalog's run to 81 columns at 7
+    figures (the helices, the fan dipole). Such a card first drops its leading
+    zeros, which costs nothing, then one significant figure at a time, never
+    below 5, and refuses rather than let the reader truncate it."""
+    values = (*p0, *p1, radius)
+    for digits, bare in ((7, False), (7, True), (6, True), (5, True)):
+        card = f"GW {tag} {n_seg} " + " ".join(_num(v, digits, bare) for v in values)
+        if len(card) <= CARD_COLUMNS:
+            return card
+    raise ValueError(
+        f"GW {tag} cannot be written inside NEC-2's {CARD_COLUMNS}-column card "
+        f"even at 5 significant figures: {card!r}"
     )
 
 
@@ -315,4 +341,13 @@ def export_nec(
         # card NEC reads the geometry but never executes.
         lines.append("XQ 0")
     lines.append("EN")
+    # The tripwire for AK#1628: a card past column 80 is read silently
+    # truncated by NEC-2's Fortran builds, so it is refused here instead.
+    # Comments are exempt; a truncated CM line changes nothing.
+    long = [ln for ln in lines if not ln.startswith("CM") and len(ln) > CARD_COLUMNS]
+    if long:
+        raise ValueError(
+            f"NEC-2 card past column {CARD_COLUMNS}, which NEC-2 would read "
+            f"truncated: {long[0]!r}"
+        )
     return "\n".join(lines) + "\n"

@@ -115,7 +115,7 @@ def test_nec2_export_uses_the_same_per_wire_rule(tmp_path):
         else export_nec(b)
     )
     lds = [" ".join(ln.split()) for ln in deck.splitlines() if ln.startswith("LD ")]
-    assert lds == ["LD 5 1 0 0 5.800100E+07 0. 0."]
+    assert lds == ["LD 5 1 0 0 5.8001e+07 0. 0."]
     # The NEC-2 deck keeps the deck's own 9 segments and centre-segment source
     # (NEC-2's convention), so this IS the author's deck with its copper.
     assert any(" ".join(ln.split()).startswith("GW 1 9 ") for ln in deck.splitlines())

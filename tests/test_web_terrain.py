@@ -408,4 +408,4 @@ def test_nec_export_falls_back_to_crest_medium():
         }
     )
     gn = [ln for ln in deck.splitlines() if ln.startswith("GN")]
-    assert gn and "1.300000E+01" in gn[0] and "5.000000E-03" in gn[0]
+    assert gn and [float(x) for x in gn[0].split()[5:7]] == [13.0, 0.005]
