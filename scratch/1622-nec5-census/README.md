@@ -119,3 +119,25 @@ essentially exact on all four is what AK#1608 part 1 needed.
 
 Courtesy rule: never cite NEC-5 internals publicly, only "verified against our
 licensed materials".
+
+## Drive-point continuity (AK#1622)
+
+What is left between the two routes on 0116/0117 and 0028 lives only in the
+default degree-2 B-spline lane. At matched razor-2p they agree to float noise.
+Two scripts measure whether it is convergence:
+
+| file | what |
+|---|---|
+| `continuity_ladder.py` → `continuity_ladder.jsonl` | the three decks at r = 1 to 32, four lanes (AK, serve, razor-2p, `nec5cl`), EK on |
+| the same with `--no-ek` → `continuity_ladder_noek.jsonl` | the reduced kernel, for comparison |
+| `continuity_dipole.py` → `continuity_dipole.jsonl` | a thin centre-fed dipole, ONE mesh, the drive point spelled both ways, a = 2e-5 lambda |
+| `continuity_dipole.py --radius 2e-6 ...` → `continuity_dipole_thin.jsonl` | the same at a = 2e-6 lambda, h/a 58.6 at N = 4096 |
+
+**On the dipole the two spellings converge to one answer.** The difference
+shrinks about 0.6 per doubling, down to 4.5e-03 ohm at N = 4096, and
+antennaknobs' continuous spelling converges faster than serve's cut. razor-2p's
+C0 basis makes the two spellings identical, as it must. The decks cannot show
+the same closure: the gap narrows while h/a allows (0116 1.2e-02 → 5.6e-03 at
+r = 16; 0028 4.4e-02 → 2.5e-02 at r = 8), and then the conductors are too fat
+for the thin-wire model and every lane drifts, NEC-5 included. The routes also
+mesh a positioned feed differently, which is AK#1622's original premise.
