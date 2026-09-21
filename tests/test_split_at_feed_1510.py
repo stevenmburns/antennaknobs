@@ -21,7 +21,7 @@ from types import MappingProxyType
 
 import numpy as np
 import pytest
-from conftest import needs_nec5
+from conftest import needs_nec5, nec5_fake_y_runs
 
 from antennaknobs import AntennaBuilder, WireSpec
 from antennaknobs.engines.nec5 import NEC5Engine
@@ -387,7 +387,7 @@ def test_nec5_joins_the_pieces_currents_back_into_the_wire():
 
 class _LineFedDipole(_Dipole):
     """The feed reached through a line from a virtual source: the reducer
-    route, which reads each undriven port's current from the wire currents."""
+    route, which reads each port's current from its own source row."""
 
     def build_network(self):
         return Network(
@@ -418,33 +418,30 @@ class _ApexDipole(AntennaBuilder):
         )
 
 
-def test_nec5_reads_a_split_ports_current_across_the_cut():
-    """An undriven port's current interpolates the two neighbouring segment
-    centres, weighted by the other's length, as at any interior knot."""
-    per_tag = {1: [1.0] * 3, 2: [3.0] * 7}
-    eng = NEC5Engine(_b(_LineFedDipole, feed_at=0.31), require_exe=False)
+@pytest.mark.parametrize(
+    ("design", "counts"),
+    [(lambda: _b(_LineFedDipole, feed_at=0.31), [3, 7]), (_ApexDipole, [3, 7])],
+    ids=["split", "authored-vertex"],
+)
+def test_nec5_reads_a_vertex_ports_current_at_its_own_knot(design, counts):
+    """The port's current is the source row NEC-5 prints for the EX at the knot
+    the two pieces share — segment 3 of the first, end 2 — and nothing is
+    interpolated (AK#1629). The same whether a split made the knot or the
+    author did.
+
+    Before AK#1629 this was an interpolation of the segment-centre table, and
+    a vertex read extrapolated through the named arm's last two centres (O(h)
+    there was worth 1.5e-02 of reciprocity on AK#1579's OCF deck). A centre is
+    the mean of two knot values under NEC-5's tent basis, so no such rule is
+    exact; the row is."""
+    eng = NEC5Engine(design(), require_exe=False)
     assert eng._use_reducer and eng._port_attach["feed"] == (0, "p1")
-    h_a, h_b = 0.31 * LENGTH / 3, 0.69 * LENGTH / 7
-    assert eng._port_knot_current(per_tag, 0, "p1") == pytest.approx(
-        (1.0 * h_b + 3.0 * h_a) / (h_a + h_b), rel=1e-12
-    )
-
-
-def test_nec5_extrapolates_a_vertex_ports_current_to_the_knot():
-    """A vertex where two AUTHORED wires meet reads the named arm alone — its
-    last segment centre is h/2 short of the knot, so the read extrapolates
-    through the last two centres instead of stopping at the last one. On a
-    uniform arm that is 1.5*I_last - 0.5*I_prev.
-
-    O(h) there was worth 1.5e-02 of reciprocity on AK#1579's OCF deck, whose
-    two real ports are both vertex ports — enough for the multiport route to
-    refuse a deck it had solved (2.3e-04 after)."""
-    apex = NEC5Engine(_ApexDipole(), require_exe=False)
-    # A constant current has no slope, so the extrapolation is the value.
-    assert apex._port_knot_current({1: [1.0] * 3, 2: [3.0] * 7}, 0, "p1") == 1.0
-    # A sloping one is where the two rules differ: the old read said 4.0.
-    sloped = {1: [1.0, 2.0, 4.0], 2: [3.0] * 7}
-    assert apex._port_knot_current(sloped, 0, "p1") == pytest.approx(5.0, rel=1e-12)
+    assert [as_wire(t).n_seg for t in eng.tups] == counts
+    decks = nec5_fake_y_runs(eng, [[3e-3 - 4e-3j]])
+    Y = eng._compute_y_matrix(299.792458 / FREQ)
+    ((card,),) = [[ln for ln in d.splitlines() if ln.startswith("EX ")] for d in decks]
+    assert card.split()[1:5] == ["0", "1", "3", "2"]
+    assert Y[0, 0] == pytest.approx(3e-3 - 4e-3j, rel=1e-4)
 
 
 def test_nec2_meshes_as_its_deck_does_and_joins_the_currents(monkeypatch):
