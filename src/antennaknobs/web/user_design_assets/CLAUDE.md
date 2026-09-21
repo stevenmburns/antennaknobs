@@ -218,7 +218,8 @@ Circuit-level settings SimNEC keeps outside the deck surface on the
 sweep (seed `ui_params["meas_freq_range"]`), `ground` the file's ground model
 (free / `"pec"` / `("finite", eps_r, sigma)` — tell the user to set the app
 ground to match), and `conductivity` the wire material for `WireSpec`.
-`NECUnits` in feet/inches/cm/mm is converted to metres automatically.
+`NECUnits` is SimNEC's DISPLAY unit and is ignored: the NEC cards in a `.ssn`
+are always metres, whatever `NECUnits` says.
 Whatever the import leaves behind (untranslatable elements, unknown
 directives) is rendered by `circuit.skipped_note()` as the same one-sentence
 note as `deck.skipped_note()` — put it under `ui_params["notes"]`.
