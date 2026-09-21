@@ -1186,18 +1186,22 @@ the corpus and gates independently of the conductivity question.
 4. Item 4's confirmation run — AutoEZ Calculate against AutoEZ's own export.
    Corroboration only; the question below is already answered.
 
-## Who writes a one-field `GE` — closed, from files already in the repo
+## Who writes a one-field `GE` — ⚠ the "second writer" reading was WRONG
 
-momwire#1116 asked which writer emits a bare `GE 0`. **Two do**, and Mike
-WA7ARK's decks are the second:
+**Corrected by AC6LA, who wrote AutoEZ (QRZ 1003328 #107): EZNEC writes every
+`.nec`. There is no AutoEZ writer.** AutoEZ instructs EZNEC to open a `.ez` that
+AutoEZ created, and EZNEC then writes the deck. So `CM Created from AutoEZ` is
+provenance of the **`.ez`** — "just a comment" — and says nothing about who
+wrote the `.nec`.
 
-- **EZNEC's own NEC-2 export** — `Save As` with a `.nec` type (above).
-- **AutoEZ**, writing the deck itself. Its decks say so in their first line:
-  `CM Created from AutoEZ`, then EZNEC's NEC-5 stamp copied verbatim, then
-  `GE 0`, and no version/date line.
+~~momwire#1116 asked which writer emits a bare `GE 0`. Two do, and Mike WA7ARK's
+decks are AutoEZ's own writer, identified by the triple: `Created from AutoEZ`
+and no version/date line and the bare `GE`.~~ **Withdrawn.** There is only one
+writer, and the triple identifies nothing — it describes a shape EZNEC itself
+produces under conditions not yet known.
 
-**But `Created from AutoEZ` is NOT a discriminator on its own** — it marks the
-MODEL's origin and appears on both paths. AK#1577's three fixtures settle it:
+The three AK#1577 fixtures are still worth having, but as a record of shapes
+rather than of writers:
 
 | fixture | `Created from AutoEZ` | `CM EZNEC Pro/… v. 7.0.x <date>` | `GE` |
 |---|---|---|---|
@@ -1205,11 +1209,15 @@ MODEL's origin and appears on both paths. AK#1577's three fixtures settle it:
 | `WA7ARK-OCF-Load-Xfmr-TL.nec` | yes | — | `GE 0` |
 | `failEZN5.nec` | yes | **yes** | `GE 0,-1` |
 
-`failEZN5.nec` is AutoEZ building the model and then *driving EZNEC*, which
-wrote the deck — so it gets EZNEC's version line and EZNEC's two-field `GE`.
-**AutoEZ's own writer is the triple:** `Created from AutoEZ` **and** no version/
-date line **and** the bare `GE`. Mike's two files have all three; Dan's has only
-the first. Counting on the comment alone over-counts.
+All three came from EZNEC. What still wants explaining is why the first two
+carry a bare one-field `GE` and no version line while the third carries both —
+**the CONDITION under which EZNEC writes that shape is not known**, and guessing
+at a second writer was the wrong way to account for it. Those decks are accepted
+(momwire#1116); the zero-field `GE` stays refused.
+
+The methodological lesson matches the split-source one below: a comment naming a
+tool is evidence about the tool's involvement, not about which program emitted
+the bytes. Ask the process, not the label.
 
 ## `! NT #N is EZNEC <thing>` — a family, not a one-off
 
