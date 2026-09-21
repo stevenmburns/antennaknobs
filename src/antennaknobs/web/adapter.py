@@ -4705,7 +4705,11 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         del_phi = 360.0 / (n_phi - 1)
         t0 = time.perf_counter()
         text = eng._run(
-            eng.deck([meas_freq], rp=(n_theta, n_phi - 1, del_theta, del_phi))
+            eng.deck(
+                [meas_freq],
+                rp=(n_theta, n_phi - 1, del_theta, del_phi),
+                sources=eng._drive_sources(meas_freq),
+            )
         )
         gains_by_angle = eng._parse_radiation_patterns(text)
         pattern_ms = (time.perf_counter() - t0) * 1e3
