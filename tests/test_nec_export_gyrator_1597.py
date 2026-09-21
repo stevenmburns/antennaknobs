@@ -108,9 +108,22 @@ def test_the_two_dialects_are_the_same_antenna():
     can — it survives any change that moves both decks together, and fails
     for anything that moves one.
 
-    BITWISE, deliberately. These are the same geometry, the same solver and
-    the same forced currents; there is no rounding budget to spend."""
-    assert _z(NEC2).tolist() == _z(NEC4).tolist()
+    NOT bitwise, and the reason is worth keeping. This test asserted exact
+    equality when it was written, on the argument that the two decks are "the
+    same geometry, the same solver and the same forced currents, so there is
+    no rounding budget to spend". That argument is wrong: the two reach the
+    same physics through DIFFERENT circuits — the NEC-2 deck carries two NT
+    gyrator branches and a phantom wire, the NEC-4.2 deck drives the elements
+    natively — so the arithmetic ORDER differs and the last ulp is not
+    guaranteed. It passed locally and on CI until it did not: the runner
+    reported 36.4335055530698 against 36.43350555306981.
+
+    Pinning cross-build bit equality is a standing mistake in this project
+    (momwire#249's lesson, and the 08-11 cycle's). 1e-12 is eleven orders
+    under the defect this guards — a sign or scale error in the gyrator
+    readout is percent-level or larger — and does not depend on the host's
+    floating-point ordering."""
+    assert _z(NEC2) == pytest.approx(_z(NEC4), rel=1e-12)
     # NOTE, measured: neither line above catches a SIGN inversion, and the
     # oracle line does not rescue it. Flip the writer to V = -j*I and the
     # reader flips back (I' = -Y12*V = -I); impedance is invariant under

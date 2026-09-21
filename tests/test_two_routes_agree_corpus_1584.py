@@ -93,8 +93,8 @@ EXPECTED = {
     "0029_dipole-with-coax-feedline": (2.0e-2, "AK#1608 part 1"),
     "0030_dipole-with-coax-feedline": (2.0e-2, "AK#1608 part 1"),
     # These four are FIXED by AK#1608 part 2, and both routes now reproduce
-    # the licensed NEC-5 to 0.00 % under a matched basis. What is left below
-    # is a BSPLINE-LANE CONFIGURATION difference between the two routes --
+    # the licensed NEC-5 to 0.00 % under a matched basis. What is left on the
+    # first two is a BSPLINE-LANE difference between the two routes --
     # this gate runs AK's default `BSplineSolver` against serve's default
     # `basis="bspline"`, and those two lanes are not configured identically.
     # Set both to razor-2p and the same decks agree to float noise:
@@ -107,8 +107,14 @@ EXPECTED = {
     # exact on all four.
     "0016_network-connection-test": (5e-4, "the two bspline lanes differ"),
     "0018_network-connection-test": (5e-4, "the two bspline lanes differ"),
-    "0116_40-meter-four-square-array": (1.1e-1, "the two bspline lanes differ"),
-    "0117_40-meter-four-square-array": (1.1e-1, "the two bspline lanes differ"),
+    # NOT a lane difference, and a convergence ladder is what says so. The
+    # 2-3e-4 rows above refine AWAY -- 0016 goes 3.43e-04, 2.58e-05, 4.60e-06,
+    # 2.42e-07, 4.47e-10 at r = 1, 3, 5, 7, 15 -- which is what a
+    # discretisation artifact does. These two do NOT: 1.022e-01, 8.172e-02,
+    # 8.234e-02, 8.099e-02 at r = 1, 3, 5, 7. Flat under a 7x mesh is a
+    # different MODEL, not a different mesh, and it is unexplained.
+    "0116_40-meter-four-square-array": (1.1e-1, "unexplained: flat under refinement"),
+    "0117_40-meter-four-square-array": (1.1e-1, "unexplained: flat under refinement"),
     # FIXED by AK#1617: two network ports at ONE junction now take the
     # POSITIONED spelling instead of the vertex one, which is what serve does
     # for every network end. 12.62 % -> 0.00 % against the licensed NEC-5, and
