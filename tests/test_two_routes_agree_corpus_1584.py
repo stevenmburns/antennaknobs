@@ -117,11 +117,35 @@ EXPECTED = {
     # piece it made -- 0.6238875 m, 1/16 of the way up a 9.9822 m vertical,
     # where serve feeds the contact. 1.022e-01 -> 1.208e-02.
     #
-    # What is left is the topology the two routes choose: serve declares six
-    # polylines with `junctions` and `node_gaps`, AK keeps four and positions
-    # its ports. That half has never been laddered.
-    "0116_40-meter-four-square-array": (1.3e-2, "the two routes' topology"),
-    "0117_40-meter-four-square-array": (1.3e-2, "the two routes' topology"),
+    # What is left IS laddered now, and it is not the topology DECLARATION.
+    # 1.208e-02, 8.155e-03, 7.006e-03, 6.543e-03, 6.353e-03 at r = 1, 3, 5, 7,
+    # 11. About half refines away -- AK spends 26 segments where serve spends
+    # 24, because the centre family rebuilds a 6-segment vertical as 2+3+2 to
+    # manufacture a segment centre at 0.5, which on six segments is already an
+    # exact KNOT. The floor does not refine away, and it is BASIS CONTINUITY
+    # at the drive point: serve severs each fed vertical AT the port into
+    # separate polylines with a declared junction, which CLAMPS the degree-2
+    # B-spline there; AK's pieces are EDGES OF ONE CHAIN, which the basis runs
+    # straight through. Same knots, same six segments, port at the same place,
+    # clamped vs continuous: 5.504e-03. Clamping away from the drive is worth
+    # only 3.165e-04, the 2-3e-4 CLAUDE.md already records for a cut under
+    # degree-2 B-splines.
+    #
+    # The SPELLING is not it. At serve's own geometry, swapping its `node_gaps`
+    # series EMF for a positioned delta gap at the same knot gives a BIT-
+    # IDENTICAL 6x6 admittance matrix (and nudging that feed 5 cm moves it by
+    # 7.112e-03, so the comparison is not vacuous).
+    #
+    # Neither route is known to be the right one and the adjudicator cannot
+    # say. Against the licensed NEC-5 at r = 11: AK 2.118e-02, AK with the
+    # split disabled 1.999e-02, serve 2.564e-02 -- every variant three to four
+    # times FURTHER from NEC-5 than they are from each other, and all still
+    # converging. The disagreement sits inside the bspline basis error. So this
+    # row is a CONSISTENCY bar, not a defect with a known fix; closing it by
+    # making AK sever the wire the way serve does would buy float noise here
+    # and has no accuracy evidence behind it. AK#1622.
+    "0116_40-meter-four-square-array": (1.3e-2, "basis continuity at the cut, AK#1622"),
+    "0117_40-meter-four-square-array": (1.3e-2, "basis continuity at the cut, AK#1622"),
     # FIXED by AK#1617: two network ports at ONE junction now take the
     # POSITIONED spelling instead of the vertex one, which is what serve does
     # for every network end. 12.62 % -> 0.00 % against the licensed NEC-5, and
