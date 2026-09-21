@@ -254,18 +254,17 @@ def test_nec5_engine_solves_it_through_the_reducer():
     keeps the route legal.
 
     Both real ports are VERTEX ports since AK#1579 — the probe's knot and the
-    transformer's knot at the OCF junction — so the route rests on
-    `_port_knot_current` reading a vertex current at a junction of distinct
-    wires. Extrapolating that read to the knot instead of stopping at the last
-    segment centre takes the multiport Y from 1.5e-02 out of reciprocity (a
-    refusal) to 2.3e-04, and the answer from 3.9 % of the printout to
-    0.02 %."""
+    transformer's knot at the OCF junction — at a junction of distinct wires.
+    Reading their currents from the segment-centre table put the answer 3.9 %
+    from the printout, and 0.02 % once the read extrapolated to the knot. Since
+    AK#1629 each is NEC-5's own source row for that knot, nothing is
+    interpolated, and the answer is the printout's to 9.6e-06 — inside its
+    five figures."""
     cls = builder_from_file(str(FIXTURES / "failEZN5.nec"))
     eng = NEC5Engine(cls(), ground=cls.file_ground)
     z_source, _z_probe = (complex(x) for x in eng.impedance())
-    assert eng._y_reciprocity_rel < 1e-2
-    assert abs(z_source - NEC5_SOURCE_Z) / abs(NEC5_SOURCE_Z) < 0.02
-    assert z_source == pytest.approx(complex(48.9169, 103.8667), rel=1e-4)
+    assert eng._y_reciprocity_rel < 1e-3
+    assert abs(z_source - NEC5_SOURCE_Z) / abs(NEC5_SOURCE_Z) < 5e-5
 
 
 @needs_nec5

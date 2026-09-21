@@ -169,6 +169,66 @@ needs_nec5 = pytest.mark.skipif(
 )
 
 
+def nec5_source_rows(deck, current):
+    """A NEC-5 printout holding one ANTENNA INPUT PARAMETERS section for
+    `deck`'s EX cards, in card order, as the licensed binary prints it
+    (AK#1629) — enough for NEC5Engine's source-row readers, with no binary.
+
+    ``current(k, volts)`` is the k-th card's current. SEG. NO. is the
+    ABSOLUTE segment, the tag's offset plus the card's own; the column after
+    it is printed as 1 and read by nothing."""
+    offsets, total = {}, 0
+    for f in (ln.split() for ln in deck.splitlines() if ln.startswith("GW ")):
+        offsets[int(f[1])] = total
+        total += int(f[2])
+    rows = []
+    cards = (ln.split() for ln in deck.splitlines() if ln.startswith("EX "))
+    for k, f in enumerate(cards):
+        tag, seg = int(f[2]), int(f[3])
+        v = complex(float(f[5]), float(f[6]))
+        i = complex(current(k, v))
+        z = v / i
+        cells = (v.real, v.imag, i.real, i.imag, z.real, z.imag)
+        cells += ((1 / z).real, (1 / z).imag, 0.5 * (v * i.conjugate()).real)
+        rows.append(
+            f"{tag:4d} {offsets[tag] + seg:5d} 1 "
+            + " ".join(f"{x: .4E}" for x in cells)
+        )
+    return (
+        "\n - - - ANTENNA INPUT PARAMETERS - - -\n\n"
+        "   TAG   SEG.    VOLTAGE (VOLTS)    CURRENT (AMPS)    IMPEDANCE (OHMS)\n"
+        + "\n".join(rows)
+        + "\n\n"
+    )
+
+
+def nec5_fake_y_runs(eng, Y, *, reverse=False):
+    """Point NEC5Engine `eng`'s `_run` at a fake binary that answers each
+    multiport-Y deck as NEC-5 would if `Y` were the structure's admittance: the
+    card at 1 V is port j, and every card's current is Y[k, j] (AK#1629).
+    ``reverse`` prints the rows backwards, as a printout matched to the wrong
+    cards would read. Returns the list the decks it is given are appended to."""
+    import numpy as np
+
+    Y = np.asarray(Y)
+    decks = []
+
+    def run(deck):
+        decks.append(deck)
+        cards = [ln.split() for ln in deck.splitlines() if ln.startswith("EX ")]
+        volts = [complex(float(f[5]), float(f[6])) for f in cards]
+        (j,) = [k for k, v in enumerate(volts) if v == 1.0]
+        text = nec5_source_rows(deck, lambda k, _v: Y[k, j])
+        if reverse:
+            head, _, body = text.partition("(OHMS)\n")
+            rows = body.strip("\n").split("\n")
+            text = head + "(OHMS)\n" + "\n".join(reversed(rows)) + "\n\n"
+        return text
+
+    eng._run = run
+    return decks
+
+
 # --------------------------------------------------------------------------
 # Test time-budget guardrail (issue #393)
 # --------------------------------------------------------------------------

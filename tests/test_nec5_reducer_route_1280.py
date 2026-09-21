@@ -329,30 +329,22 @@ def test_a_reduced_design_solves_and_agrees_with_bspline(design):
 
 
 @needs_nec5
-def test_the_reciprocity_gate_is_live_and_catches_a_bad_knot():
-    """The off-diagonal rule's only gate must actually fire.
+def test_the_reciprocity_gate_is_live_and_catches_a_bad_reading():
+    """The gate must actually fire, on a real printout.
 
     Two arms, because either alone is weak. Tightening the tolerance to zero
-    proves the comparison runs on a real printout rather than being a branch
-    nothing reaches; perturbing ONE PORT's reading proves the gate SEPARATES a
-    right rule from a wrong one — a symmetry check that passes for every
-    interpolation would be worth nothing.
+    proves the comparison runs on real data rather than being a branch nothing
+    reaches; misreading ONE PORT proves the gate SEPARATES a right reading from
+    a wrong one.
 
-    Both arms needed the licensed box to get right, and both were vacuous on
-    the first try: the first ran on a design whose Y is symmetric to the bit,
-    the second on a perturbation that is identically zero at a centre-fed
-    port. The comments below record what does not work and why.
+    hb9cv, NOT a mirror-symmetric pair. THE DESIGN IS THE TEST'S SUBJECT here,
+    not scenery: on `arrays.lumped_coupled_pair` the two per-port runs are
+    mirror images, Y[0,1] == Y[1,0] to the BIT, and a zero tolerance cannot
+    fire. Since AK#1629 every entry is a printed source-row current, and hb9cv
+    reads 1.1e-05 of its ports' own scale.
     """
     import unittest.mock as mock
 
-    # hb9cv, NOT a mirror-symmetric pair. THE DESIGN IS THE TEST'S SUBJECT
-    # here, not scenery: on `arrays.lumped_coupled_pair` the two per-port runs
-    # are mirror images, Y[0,1] == Y[1,0] to the BIT, and the residual is
-    # exactly 0.0 — so tightening the tolerance to zero raises nothing and the
-    # arm passes for a gate that could never fire. Measured on the licensed
-    # box: lumped_coupled_pair, delta_looparray_network, moxon_turnstile,
-    # tri_moxon and expanded_lazy_h are all exactly 0.0 for that reason;
-    # hb9cv is 1.9e-05 and phased_driver_yagi 3.8e-05.
     from antennaknobs.designs.beams.hb9cv import Builder
 
     eng = NEC5Engine(Builder())
@@ -371,53 +363,43 @@ def test_the_reciprocity_gate_is_live_and_catches_a_bad_knot():
         with pytest.raises(nec5.NEC5Error, match="not reciprocal"):
             eng._compute_y_matrix(wl)
 
-    # A WRONG READING AT ONE PORT. Scaling a single named port's current
-    # makes Y[i, j] and Y[j, i] disagree, because only one of the two is
-    # affected — which is what a mis-weighted interpolation or a wrong knot on
-    # ONE wire actually looks like. Measured: reciprocity 1.9e-05 -> 9.1e-02.
-    #
-    # WHAT DOES NOT WORK, AND WHY, so the next person does not retry it:
-    #
-    #   * "the adjacent segment centre instead of the interpolated knot" is
-    #     INVISIBLE here. An undriven centre-fed element's current is
-    #     symmetric about its centre knot, so the two adjacent segment centres
-    #     carry the same current and the substitution returns the interpolated
-    #     value. Measured on hb9cv: 1.88e-05 before, 1.88e-05 after, unchanged
-    #     to the digit. Both of its ports are centre knots of symmetric
-    #     elements, and that is the common case rather than a quirk.
-    #   * perturbing by WIRE index without checking which wires carry ports:
-    #     `idx` here is the wire index, not the port index, and hb9cv's ports
-    #     sit on wires 1 and 4 — a probe that scaled wire 0 changed nothing
-    #     and looked like a passing gate.
-    real = NEC5Engine._port_knot_current
-    first_idx, first_knot = eng._port_attach[eng._real_port_names[0]]
+    # A WRONG READING AT ONE PORT: the first port's source row scaled by 10 %
+    # in every run, so Y[0, j] moves and Y[j, 0] does not — what a row read
+    # into the wrong port looks like. hb9cv's ports couple at 0.72 of their
+    # own scale, so that is 6.5e-2, over the 1e-2 tolerance.
+    real = NEC5Engine._parse_input_parameters
 
-    def scale_one_port(self, per_tag, idx, knot):
-        v = real(self, per_tag, idx, knot)
-        return v * 1.1 if (idx, knot) == (first_idx, first_knot) else v
+    def scale_first_port(text, *, current=False):
+        sections = real(text, current=current)
+        return [
+            [
+                (t, s, v * 1.1) if k == 0 else (t, s, v)
+                for k, (t, s, v) in enumerate(rows)
+            ]
+            for rows in sections
+        ]
 
-    with mock.patch.object(NEC5Engine, "_port_knot_current", scale_one_port):
+    with mock.patch.object(
+        NEC5Engine, "_parse_input_parameters", staticmethod(scale_first_port)
+    ):
         with pytest.raises(nec5.NEC5Error, match="not reciprocal"):
             NEC5Engine(Builder())._compute_y_matrix(wl)
-    assert NEC5Engine._port_knot_current is real
+    assert NEC5Engine._parse_input_parameters is real
 
 
 @needs_nec5
-def test_the_driven_diagonal_comes_from_the_input_parameters_block():
-    """Y[j,j] is NEC-5's own reported source current, not an interpolation.
-
-    Pinned because the first version interpolated the diagonal too and was
-    wrong by a consistent 0.4 % on 19 of the catalog's 21 network designs —
-    a delta gap makes dI/ds discontinuous at the driven knot. The gap is
-    still RECORDED per port in `run_log`, as a measurement.
-    """
+def test_a_probe_source_moves_nothing():
+    """The claim the probe readout rests on (AK#1629): a `_PROBE_VOLTS` source
+    at every undriven port leaves the solution where it was. The driven
+    entry of the probed run matches the same port driven ALONE, with no probe
+    anywhere, to the printout's five figures (measured 4.0e-05 and 1.1e-05)."""
     from antennaknobs.designs.beams.hb9cv import Builder
 
     eng = NEC5Engine(Builder())
-    wl = nec5.C_LIGHT / (eng.builder.freq * 1e6)
-    Y = eng._compute_y_matrix(wl)
-    gaps = [r["knot_vs_driven_rel"] for r in eng.run_log if "knot_vs_driven_rel" in r]
-    assert len(gaps) == Y.shape[0], eng.run_log
-    # Nonzero: if the interpolation agreed exactly the split would be
-    # pointless and this test would be asserting nothing.
-    assert max(gaps) > 1e-4, gaps
+    f = eng.builder.freq
+    Y = eng._compute_y_matrix(nec5.C_LIGHT / (f * 1e6))
+    for j, name in enumerate(eng._real_port_names):
+        idx, knot = eng._port_attach[name]
+        alone = eng.deck([f], sources=[(idx, 0, 1 + 0j, knot)])
+        ((_tag, _seg, z),) = eng._parse_input_parameters(eng._run(alone))[0]
+        assert Y[j, j] == pytest.approx(1 / z, rel=1e-4), name

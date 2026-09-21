@@ -21,7 +21,7 @@ from types import MappingProxyType
 
 import numpy as np
 import pytest
-from conftest import needs_nec5
+from conftest import needs_nec5, nec5_fake_y_runs
 
 from antennaknobs import AntennaBuilder, WireSpec
 from antennaknobs.engine import _nearest_count, _nearest_odd_count, split_spans
@@ -661,10 +661,11 @@ def test_pynec_reducer_drives_each_port_at_the_middle_of_its_piece():
         assert np.linalg.norm(centre - point) <= 1e-9 * LENGTH
 
 
-def test_nec5_reads_each_ports_current_across_its_own_cut():
-    """The reducer attaches each port at the p1 knot of its piece and
-    interpolates across that cut, at the second and third cuts as at the
-    first."""
+def test_nec5_reads_each_ports_current_at_its_own_cut():
+    """The reducer attaches each port at the p1 knot of its piece, and every
+    Y run carries an EX there for every port — 1 V on the driven one, a probe
+    on the rest — so each port's current is the source row NEC-5 prints for
+    that knot, at the second and third cuts as at the first (AK#1629)."""
     eng = NEC5Engine(_b(_LineFed, **CASES["k3"]), require_exe=False)
     assert eng._use_reducer
     assert eng._port_attach == {
@@ -674,14 +675,25 @@ def test_nec5_reads_each_ports_current_across_its_own_cut():
     }
     counts = [as_wire(t).n_seg for t in eng.tups]
     assert counts == [1, 3, 5, 2]
-    per_tag = {i + 1: [float(i + 1)] * c for i, c in enumerate(counts)}
-    lengths = [0.04, 0.27, 0.46, 0.23]
-    for idx in range(3):
-        h_a = lengths[idx] * LENGTH / counts[idx]
-        h_b = lengths[idx + 1] * LENGTH / counts[idx + 1]
-        want = ((idx + 1) * h_b + (idx + 2) * h_a) / (h_a + h_b)
-        got = eng._port_knot_current(per_tag, idx, "p1")
-        assert got == pytest.approx(want, rel=1e-12)
+    Y = np.array(
+        [
+            [3e-3 - 1e-3j, 2e-4 + 1e-4j, -1e-4 + 3e-4j],
+            [2e-4 + 1e-4j, 5e-3 - 6e-3j, 7e-5 + 2e-5j],
+            [-1e-4 + 3e-4j, 7e-5 + 2e-5j, 4e-3 + 2e-3j],
+        ]
+    )
+    decks = nec5_fake_y_runs(eng, Y)
+    got = eng._compute_y_matrix(299.792458 / eng.builder.freq)
+    # One card per port in port order, each at tag idx + 1, its last segment,
+    # end 2: the knot the cut made.
+    idxs = [eng._port_attach[name][0] for name in eng._real_port_names]
+    assert sorted(idxs) == [0, 1, 2]
+    for deck in decks:
+        cards = [ln.split() for ln in deck.splitlines() if ln.startswith("EX ")]
+        assert [f[2:5] for f in cards] == [
+            [str(idx + 1), str(counts[idx]), "2"] for idx in idxs
+        ]
+    assert got == pytest.approx(Y, rel=1e-4)
 
 
 def _cut_points(eng):
