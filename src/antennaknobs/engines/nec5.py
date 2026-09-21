@@ -291,6 +291,98 @@ def _expand_graded(w):
     ]
 
 
+def _tent_knot_currents(centres, ends, kinds):
+    """Knot currents from NEC-5's printed segment-centre currents, exactly
+    (issue #1638).
+
+    NEC-5's basis is the tent, so the current is linear along every segment
+    and each printed centre current is the MEAN of its two knots:
+    ``k_j + k_(j+1) = 2 c_j``. Averaging adjacent centres instead, the rule
+    this replaced, smooths the current twice (the far field averages knots
+    back to midpoints), and zeroed a base on the ground plane outright.
+
+    Along one wire the centres fix the knots up to a single alternating term:
+    ``k_j = p_j + (-1)^j a`` with ``p_0 = 0``. The per-wire ``a`` come from
+    the nodes: a FREE end's knot is zero, a JUNCTION's knots obey KCL, and a
+    CONTACT (an end bonded to the ground plane) adds no equation, since the
+    ground takes whatever current flows there. What the nodes leave open (a
+    wire grounded at both ends, a closed loop) is exactly the alternating mode,
+    which moves no midpoint; it goes to the smoothest solution.
+
+    ``centres[i]`` is wire i's centre currents in order, ``ends[i]`` its
+    (start, end) node ids, ``kinds[node]`` one of "free" / "junction" /
+    "contact". Returns one knot array per wire (``len(centres[i]) + 1``).
+    """
+    n_w = len(centres)
+    parts = []
+    for c in centres:
+        p = np.zeros(c.size + 1, dtype=np.complex128)
+        for j in range(c.size):
+            p[j + 1] = 2.0 * c[j] - p[j]
+        parts.append(p)
+
+    at: dict = {}
+    for i, (a, b) in enumerate(ends):
+        at.setdefault(a, []).append((i, False))
+        at.setdefault(b, []).append((i, True))
+
+    # One row per equation, in the per-wire unknowns `a`. Current flows
+    # start -> end, so at a node an END contributes +k_n and a START -k_0.
+    rows, rhs = [], []
+    for node, touching in at.items():
+        kind = kinds[node]
+        if kind == "contact":
+            continue
+        if kind == "free":
+            for i, is_end in touching:
+                row = np.zeros(n_w)
+                if is_end:
+                    row[i] = (-1.0) ** centres[i].size
+                    rhs.append(-parts[i][-1])
+                else:
+                    row[i] = 1.0
+                    rhs.append(0.0)
+                rows.append(row)
+            continue
+        row = np.zeros(n_w)
+        r = 0.0
+        for i, is_end in touching:
+            if is_end:
+                row[i] += (-1.0) ** centres[i].size
+                r -= parts[i][-1]
+            else:
+                row[i] -= 1.0
+        rows.append(row)
+        rhs.append(r)
+
+    A = np.array(rows, dtype=float).reshape(len(rows), n_w)
+    b = np.array(rhs, dtype=np.complex128)
+    if A.shape[0]:
+        U, S, Vt = np.linalg.svd(A, full_matrices=True)
+        rank = int(np.sum(S > 1e-9 * max(1.0, float(S[0]))))
+        a = Vt[:rank].T @ ((U[:, :rank].T @ b) / S[:rank])
+    else:
+        Vt = np.eye(n_w)
+        rank = 0
+        a = np.zeros(n_w, dtype=np.complex128)
+    null = Vt[rank:].T
+    if null.shape[1]:
+        # Smoothest: minimise sum |k_(j+1) - k_j|^2 over the free directions.
+        # Per wire, dk_j = dp_j + a * d_j with d_j = 2(-1)^(j+1), so the
+        # roughness is diagonal in `a`: H = 4n, gradient term g = <d, dp>.
+        h = np.array([4.0 * c.size for c in centres])
+        g = np.array(
+            [
+                np.dot(2.0 * (-1.0) ** (np.arange(c.size) + 1), np.diff(p))
+                for c, p in zip(centres, parts, strict=True)
+            ],
+            dtype=np.complex128,
+        )
+        z = np.linalg.solve(null.T @ (h[:, None] * null), -null.T @ (h * a + g))
+        a = a + null @ z
+    return [p + (-1.0) ** np.arange(p.size) * a[i] for i, p in enumerate(parts)]
+
+
 class NEC5Engine(SimulationEngine):
     """Drive a licensed NEC-5 binary through intermediate files.
 
@@ -1569,6 +1661,16 @@ class NEC5Engine(SimulationEngine):
         return zs, currents, budget
 
     def _currents_from(self, per_tag):
+        """One `WireCurrents` per wire, its knots rebuilt EXACTLY from NEC-5's
+        printed centre currents by `_tent_knot_currents` (issue #1638).
+
+        A node's kind follows the ground card this engine writes: under
+        ``GE 1`` an end on the ground plane is BONDED to it (a contact, whose
+        current the ground takes); under ``GE -1`` (buried wires present) a
+        z=0 node is an ordinary junction between the wires meeting there, and
+        an unshared one is free (NEC-5 forces its current to zero, and
+        `_refuse_contact_without_continuation` refuses the design anyway)."""
+
         def _key(p):
             return tuple(np.round(np.asarray(p, dtype=float), 6))
 
@@ -1577,7 +1679,18 @@ class NEC5Engine(SimulationEngine):
             for p in (w.p0, w.p1):
                 endpoint_count[_key(p)] = endpoint_count.get(_key(p), 0) + 1
 
-        out = []
+        bonded = self.ground is not None and not self._has_buried_wires
+        kinds = {}
+        for w in self._wires:
+            for p in (w.p0, w.p1):
+                if bonded and float(p[2]) == 0.0:
+                    kinds[_key(p)] = "contact"
+                elif endpoint_count[_key(p)] >= 2:
+                    kinds[_key(p)] = "junction"
+                else:
+                    kinds[_key(p)] = "free"
+
+        centres, ends, knot_positions = [], [], []
         for i, w in enumerate(self._wires):
             # One authored wire may be several tags (issue #1108); its
             # currents are their concatenation, in card order, and its knots
@@ -1596,17 +1709,18 @@ class NEC5Engine(SimulationEngine):
                     f"tags {list(self._tags_of[i])}: expected {n_total} segment "
                     f"currents, got {cur_per_seg.shape[0]}"
                 )
-            knots = np.concatenate(
-                [np.linspace(a, b, n + 1)[:-1] for a, b, n in sub]
-                + [np.asarray(sub[-1][1], dtype=float)[None, :]]
+            knot_positions.append(
+                np.concatenate(
+                    [np.linspace(a, b, n + 1)[:-1] for a, b, n in sub]
+                    + [np.asarray(sub[-1][1], dtype=float)[None, :]]
+                )
             )
-            knot_cur = np.zeros(n_total + 1, dtype=np.complex128)
-            if n_total >= 2:
-                knot_cur[1:-1] = 0.5 * (cur_per_seg[:-1] + cur_per_seg[1:])
-            if cur_per_seg.shape[0] >= 1:
-                if endpoint_count.get(_key(w.p0), 0) >= 2:
-                    knot_cur[0] = cur_per_seg[0]
-                if endpoint_count.get(_key(w.p1), 0) >= 2:
-                    knot_cur[-1] = cur_per_seg[-1]
-            out.append(WireCurrents(knot_positions=knots, knot_currents=knot_cur))
+            centres.append(cur_per_seg)
+            ends.append((_key(w.p0), _key(w.p1)))
+
+        knot_currents = _tent_knot_currents(centres, ends, kinds)
+        out = [
+            WireCurrents(knot_positions=k, knot_currents=c)
+            for k, c in zip(knot_positions, knot_currents, strict=True)
+        ]
         return self._authored_currents(out)

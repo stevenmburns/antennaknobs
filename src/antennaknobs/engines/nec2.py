@@ -764,7 +764,9 @@ class NEC2Engine(SimulationEngine):
         a JUNCTION, where the current is continuous through the shared point.
         Without that, a one-segment feed stub — both ends junctions — would
         render zero current along its whole length while sitting at a current
-        maximum, opening a visible gap right at the feed.
+        maximum, opening a visible gap right at the feed. An end on the ground
+        plane is joined too: `export_nec` writes ``GE 1``, which bonds it
+        (issue #1638: a vertical's base read 0 A).
 
         `export_nec` writes one GW per wire tuple with tag = index + 1, so the
         tag IS the wire.
@@ -777,6 +779,12 @@ class NEC2Engine(SimulationEngine):
         for t in self.tups:
             for p in (as_wire(t).p0, as_wire(t).p1):
                 endpoint_count[_key(p)] = endpoint_count.get(_key(p), 0) + 1
+        bonded = self.ground not in (None, "free")
+
+        def _joined(p):
+            return endpoint_count.get(_key(p), 0) >= 2 or (
+                bonded and float(p[2]) == 0.0
+            )
 
         out = []
         for i, t in enumerate(self.tups):
@@ -795,9 +803,9 @@ class NEC2Engine(SimulationEngine):
             if n_seg >= 2:
                 knot_cur[1:-1] = 0.5 * (cur_per_seg[:-1] + cur_per_seg[1:])
             if n_seg >= 1:
-                if endpoint_count.get(_key(w.p0), 0) >= 2:
+                if _joined(w.p0):
                     knot_cur[0] = cur_per_seg[0]
-                if endpoint_count.get(_key(w.p1), 0) >= 2:
+                if _joined(w.p1):
                     knot_cur[-1] = cur_per_seg[-1]
             out.append(WireCurrents(knot_positions=knots, knot_currents=knot_cur))
         return self._authored_currents(out)
