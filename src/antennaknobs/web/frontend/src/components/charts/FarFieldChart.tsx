@@ -195,14 +195,19 @@ export function FarFieldChart({
     // name is printed under it anyway.
     if (drawCaptions && size >= 220) ctx.fillText(cutLabel, 6, 14);
     ctx.fillStyle = PC.label;
-    if (cut === "xy") {
-      ctx.fillText("+x", cx + R - 14, cy + 11);
-      ctx.fillText("−x", cx - R + 2, cy + 11);
-      ctx.fillText("+y", cx - 8, cy - R + 12);
-      ctx.fillText("−y", cx - 7, cy + R - 2);
-    } else {
-      ctx.fillText("zen", cx - 9, cy - R + 12);
-      ctx.fillText("nad", cx - 9, cy + R - 2);
+    // A thumbnail (the chart that prints its own captions) has no room for
+    // the axis labels: they collide with its peak and cut captions, and the
+    // view's name under it already says which plot it is.
+    if (!drawCaptions) {
+      if (cut === "xy") {
+        ctx.fillText("+x", cx + R - 14, cy + 11);
+        ctx.fillText("−x", cx - R + 2, cy + 11);
+        ctx.fillText("+y", cx - 8, cy - R + 12);
+        ctx.fillText("−y", cx - 7, cy + R - 2);
+      } else {
+        ctx.fillText("zen", cx - 9, cy - R + 12);
+        ctx.fillText("nad", cx - 9, cy + R - 2);
+      }
     }
 
     // Cross-reference: a single dashed spoke showing where the *other* cut
