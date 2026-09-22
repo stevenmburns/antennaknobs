@@ -774,8 +774,11 @@ class NEC2Engine(SimulationEngine):
                 ("Network loss", budget["network_loss_w"])
             )
         self._excited_p_radiated = budget["radiated_w"]
-        # The per-feed drive values, for the web lane's multi-feed response.
-        self._excited_feed_values = self._drive_values(text, deck)
+        # The per-feed drive values and their units ("V" / "A"), for the web
+        # lane's multi-feed response.
+        drives = self._drives(text, deck)
+        self._excited_feed_values = [v for v, _ in drives]
+        self._excited_feed_units = [u for _, u in drives]
         return zs, currents, budget
 
     # -- the engine surface ----------------------------------------------
@@ -789,20 +792,21 @@ class NEC2Engine(SimulationEngine):
             out.append(z if b is None or z == 0 else 1.0 / (b * b * z))
         return out
 
-    def _drive_values(self, text: str, deck: str) -> list[complex]:
-        """Each feed's drive value (`_parse_feed_voltages`), with a gyrator
-        phantom's EMF V read back as the current it forces, I = -jB V
-        (AK#1648), since that is the feed's drive. Both readers walk the same
-        ANTENNA INPUT PARAMETERS rows in the same order."""
+    def _drives(self, text: str, deck: str) -> list[tuple[complex, str]]:
+        """Each feed's drive value (`_parse_feed_voltages`) and its unit, with
+        a gyrator phantom's EMF V read back as the current it forces,
+        I = -jB V (AK#1648), since that is the feed's drive: amps there, volts
+        everywhere else (AK#1657). Both readers walk the same ANTENNA INPUT
+        PARAMETERS rows in the same order."""
         values = self._parse_feed_voltages(text)
         phantoms = _gyrator_phantoms(deck)
         if not phantoms:
-            return values
+            return [(v, "V") for v in values]
         rows = self._parse_input_parameters(text)[0]
         out = []
         for (tag, seg, _z), v in zip(rows, values, strict=True):
             b = phantoms.get((tag, seg))
-            out.append(v if b is None else -1j * b * v)
+            out.append((v, "V") if b is None else (-1j * b * v, "A"))
         return out
 
     def impedance(self):

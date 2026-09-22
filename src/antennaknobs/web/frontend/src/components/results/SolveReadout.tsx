@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { NormCheckData, SolveResponse } from "../../lib/api";
-import { formatOhms, formatSwr } from "../../lib/format";
+import { feedDriveText, formatOhms, formatSwr } from "../../lib/format";
 import type { ExampleDescriptor } from "../../lib/params";
 import { ReadoutsPanel } from "./ReadoutsPanel";
 import { ResultPanel } from "./ResultPanel";
@@ -233,19 +233,33 @@ export function SolveReadout({
         />
       )}
       {effectiveMultiFeed && result?.feeds && result.feeds.length > 1 && (
+        // AK#1657: the index and the drive in their own labelled columns.
+        // "feed 0 ∠0°" on one line read as a phasor, 0 A at 0°. The index
+        // stays 0-based: it is the index into result.feeds.
         <div className="feeds-table">
-          <div className="feeds-table-header">per-feed Z (V/I)</div>
-          {result.feeds.map((f, i) => (
-            <div className="row" key={`feed-z-${i}`}>
-              <span>
-                feed {i} ∠{Math.round(Math.atan2(f.v_im, f.v_re) * 180 / Math.PI)}°
-              </span>
-              <span className="val">
-                {f.z_re.toFixed(1)} {f.z_im >= 0 ? "+" : "−"} j
-                {Math.abs(f.z_im).toFixed(1)} Ω
-              </span>
+          <div
+            className="feeds-grid"
+            role="table"
+            aria-label="per-feed drive and impedance"
+          >
+            <div className="feeds-grid-row feeds-table-header" role="row">
+              <span role="columnheader">feed</span>
+              <span role="columnheader">drive</span>
+              <span role="columnheader">Z (V/I)</span>
             </div>
-          ))}
+            {result.feeds.map((f, i) => (
+              <div className="feeds-grid-row" role="row" key={`feed-z-${i}`}>
+                <span role="cell">{i}</span>
+                <span role="cell" className="val">
+                  {feedDriveText(f)}
+                </span>
+                <span role="cell" className="val">
+                  {f.z_re.toFixed(1)} {f.z_im >= 0 ? "+" : "−"} j
+                  {Math.abs(f.z_im).toFixed(1)} Ω
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       <div className="row">

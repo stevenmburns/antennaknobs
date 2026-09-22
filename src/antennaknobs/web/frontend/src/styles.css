@@ -1896,6 +1896,32 @@ input[type=checkbox] {
   margin-bottom: var(--space-1);
 }
 
+/* The per-feed table (AK#1657): feed index, drive, Z, each in its own column
+   so an index and a phase can never read as one phasor. Rows are
+   `display: contents` so the three columns line up across every row. */
+.feeds-grid {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  column-gap: var(--space-3);
+  align-items: baseline;
+}
+
+.feeds-grid-row {
+  display: contents;
+}
+
+.feeds-grid-row > span:first-child {
+  color: var(--muted);
+}
+
+.feeds-grid-row > span:last-child {
+  text-align: right;
+}
+
+.feeds-grid-row.feeds-table-header > span {
+  color: var(--muted-2);
+}
+
 /* Power-budget instance group header (issue #489 hierarchy): names the
    composite instance whose indented rows follow. */
 .pb-group {

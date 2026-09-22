@@ -20,8 +20,13 @@ export type FeedEntry = {
   feed_position?: [number, number, number];
   z_re: number;
   z_im: number;
+  /** The feed's drive: a voltage source's volts, a current source's amps. */
   v_re: number;
   v_im: number;
+  /** Which of the two the drive is (AK#1657). Null for a feed the lane had no
+   *  drive for (padded with 1 V); absent from servers predating it. The
+   *  readout shows a magnitude only where this says what it is. */
+  drive_unit?: "V" | "A" | null;
 };
 
 /** The two polar-chart traces, computed server-side (issue #547): the

@@ -51,7 +51,7 @@ def test_the_seams_are_exactly_the_five_differences():
         "run",
         "ground_constants",
         "ground_applied",
-        "feed_values",
+        "feed_drives",
     )
 
 
@@ -60,26 +60,27 @@ def test_the_seams_are_exactly_the_five_differences():
 # --------------------------------------------------------------------------
 
 
-def test_the_nec5_feed_values_seam_reads_four_tuples():
+def test_the_nec5_feed_drives_seam_reads_four_tuples():
     """#1342 in its new home. `_sources` carries
     `(wire_index, ex_type, value, knot)`; the old NEC-5 copy of the body
     unpacked three and every multi-feed design on that lane broke."""
     eng = type(
         "E", (), {"_sources": [(9, 0, 1 + 0j, "center"), (10, 4, 0.5 - 0.25j, "p0")]}
     )()
-    assert _NEC5_SEAMS.feed_values(eng) == [1 + 0j, 0.5 - 0.25j]
+    # EX 4 is NEC-5's current source: amps (AK#1657).
+    assert _NEC5_SEAMS.feed_drives(eng) == [(1 + 0j, "V"), (0.5 - 0.25j, "A")]
 
 
-def test_the_pynec_feed_values_seam_reads_three_tuples():
+def test_the_pynec_feed_drives_seam_reads_three_tuples():
     """PyNEC's `excitation_pairs` is `(tag, sub_seg, voltage)` — a different
     shape, which is why this is a seam and not shared code."""
     eng = type("E", (), {"excitation_pairs": [(1, 3, 2 + 1j), (2, 3, 1 + 0j)]})()
-    assert _PYNEC_SEAMS.feed_values(eng) == [2 + 1j, 1 + 0j]
+    assert _PYNEC_SEAMS.feed_drives(eng) == [(2 + 1j, "V"), (1 + 0j, "V")]
 
 
 def test_a_lane_with_no_sources_yields_no_values_rather_than_raising():
     """`excitation_pairs` can be None; the body pads to len(zs) after."""
-    assert _PYNEC_SEAMS.feed_values(type("E", (), {"excitation_pairs": None})()) == []
+    assert _PYNEC_SEAMS.feed_drives(type("E", (), {"excitation_pairs": None})()) == []
 
 
 # --------------------------------------------------------------------------
@@ -197,7 +198,7 @@ def test_the_two_lanes_serve_the_same_response_KEYS(monkeypatch):
             run=adapter._PYNEC_SEAMS.run,
             ground_constants=adapter._PYNEC_SEAMS.ground_constants,
             ground_applied=adapter._PYNEC_SEAMS.ground_applied,
-            feed_values=adapter._PYNEC_SEAMS.feed_values,
+            feed_drives=adapter._PYNEC_SEAMS.feed_drives,
         ),
     )
     nec5_payload = example_for("dipoles.invvee").nec5_solve(req)

@@ -3094,11 +3094,18 @@ def _declared_feed_ports(cls) -> list[str]:
     return []
 
 
-def _source_values(sources) -> list[complex]:
-    """The drive value of each NEC5Engine source, in feed order, from the
+def _source_drives(sources) -> list[tuple[complex, str]]:
+    """The drive of each NEC5Engine source, in feed order, from the
     `(wire_index, ex_type, value, knot)` tuples `_sources` carries (issue
-    #1342: the tuple grew a fourth field and one unpack did not follow)."""
-    return [complex(entry[2]) for entry in sources]
+    #1342: the tuple grew a fourth field and one unpack did not follow), with
+    its unit: `EX 4` is NEC-5's current source, in amps, and every other type
+    is a voltage (AK#1657)."""
+    return [(complex(entry[2]), "A" if entry[1] == 4 else "V") for entry in sources]
+
+
+def _source_values(sources) -> list[complex]:
+    """`_source_drives` without the units."""
+    return [v for v, _ in _source_drives(sources)]
 
 
 def _network_drive_values(eng) -> list[complex]:
@@ -3113,6 +3120,12 @@ def _network_drive_values(eng) -> list[complex]:
     and four ports (feed1, load1, feed2, load2), and pairing the two raised
     `zip() argument 2 is longer than argument 1` on every built-in solver.
     """
+    return [v for v, _ in _network_drives(eng)]
+
+
+def _network_drives(eng) -> list[tuple[complex, str]]:
+    """`_network_drive_values` with each drive's unit: a `DrivenCurrent`'s
+    amps, a `Driven`'s volts (AK#1657)."""
     net = getattr(eng, "_network", None)
     if net is None:
         builder = getattr(eng, "builder", None)
@@ -3120,7 +3133,31 @@ def _network_drive_values(eng) -> list[complex]:
     if net is None:
         return []
     return [
-        complex(s.current if hasattr(s, "current") else s.voltage) for s in net.sources
+        (complex(s.current), "A")
+        if hasattr(s, "current")
+        else (complex(s.voltage), "V")
+        for s in net.sources
+    ]
+
+
+def _pack_feeds(zs, drives) -> list[dict]:
+    """The response's per-feed rows: each impedance with its drive and the
+    drive's unit, "V" or "A" (AK#1657), so the readout can print "1.414 A"
+    where it used to print a bare phase after a bare index. A feed the lane
+    has no drive for is padded with the canonical 1 V and NO unit, so the
+    readout shows its phase alone rather than claim a unit it was not told.
+    """
+    drives = list(drives)
+    drives += [(complex(1.0, 0.0), None)] * (len(zs) - len(drives))
+    return [
+        {
+            "z_re": float(z.real),
+            "z_im": float(z.imag),
+            "v_re": float(complex(v).real),
+            "v_im": float(complex(v).imag),
+            "drive_unit": unit,
+        }
+        for z, (v, unit) in zip(zs, drives, strict=True)
     ]
 
 
@@ -3148,15 +3185,17 @@ class _SolveSeams(NamedTuple):
       unreachable today (NEC-5 refuses `finite-fast`) and is preserved anyway,
       because a shared body must not quietly change a lane it is only moving.
     * `ground_applied` — the label each lane puts on the ground it solved.
-    * `feed_values` — the per-feed drive value: PyNEC's `excitation_pairs`
-      3-tuples, NEC-5's `_sources` 4-tuples. THE #1342 SEAM.
+    * `feed_drives` — the per-feed drive value and its unit ("V" / "A"):
+      PyNEC's `excitation_pairs` 3-tuples, NEC-5's `_sources` 4-tuples. THE
+      #1342 SEAM. The unit comes from the same branch as the value, so the
+      readout can never label one lane's volts as another's amps (AK#1657).
     """
 
     make_engine: Callable
     run: Callable
     ground_constants: Callable
     ground_applied: Callable
-    feed_values: Callable
+    feed_drives: Callable
 
 
 def _pynec_ground_constants(eng):
@@ -3186,8 +3225,8 @@ _PYNEC_SEAMS = _SolveSeams(
     ground_applied=_pynec_ground_applied,
     # The multiport route stamps no excitation pairs, so its drives come from
     # the network's own sources rather than a padded 1 V.
-    feed_values=lambda eng: (
-        [v for _t, _s, v in (eng.excitation_pairs or [])] or _network_drive_values(eng)
+    feed_drives=lambda eng: (
+        [(v, "V") for _t, _s, v in (eng.excitation_pairs or [])] or _network_drives(eng)
     ),
 )
 
@@ -3244,7 +3283,13 @@ _NEC2_SEAMS = _SolveSeams(
     # this engine has no resolved-feed list to read (`export_nec` builds and
     # discards the PyNECEngine that resolves them), and the report is what the
     # binary was actually driven with.
-    feed_values=lambda eng: list(getattr(eng, "_excited_feed_values", None) or []),
+    feed_drives=lambda eng: list(
+        zip(
+            getattr(eng, "_excited_feed_values", None) or [],
+            getattr(eng, "_excited_feed_units", None) or [],
+            strict=True,
+        )
+    ),
 )
 
 
@@ -3257,7 +3302,7 @@ _NEC5_SEAMS = _SolveSeams(
     ground_constants=_nec5_ground_constants,
     ground_applied=_nec5_ground_applied,
     # The multiport route (#1280) carries no `_sources`; see the PyNEC seam.
-    feed_values=lambda eng: _source_values(eng._sources) or _network_drive_values(eng),
+    feed_drives=lambda eng: _source_drives(eng._sources) or _network_drives(eng),
 )
 
 
@@ -4439,19 +4484,10 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # 1+0j (the canonical unit drive) when missing.
             # A network design's drives are its sources'; a legacy `Wire.ex`
             # design's are its feeds, one per impedance.
-            voltages = _network_drive_values(eng) or [
-                f[2] for f in (getattr(eng, "_feeds", None) or [])
+            drives = _network_drives(eng) or [
+                (f[2], "V") for f in (getattr(eng, "_feeds", None) or [])
             ]
-            voltages += [complex(1.0, 0.0)] * (len(zs) - len(voltages))
-            out["feeds"] = [
-                {
-                    "z_re": float(z.real),
-                    "z_im": float(z.imag),
-                    "v_re": float(v.real),
-                    "v_im": float(v.imag),
-                }
-                for z, v in zip(zs, voltages, strict=True)
-            ]
+            out["feeds"] = _pack_feeds(zs, drives)
         return out
 
     def momwire_geometry(req: dict) -> dict:
@@ -4695,17 +4731,8 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         if hints()["multi_feed"] and len(zs) > 1:
             # Per-feed drive values so phase comes through. Where the engines
             # keep them differs, which is the seam #1342 was hiding in.
-            values = seams.feed_values(eng)
-            values += [complex(1.0, 0.0)] * (len(zs) - len(values))
-            out["feeds"] = [
-                {
-                    "z_re": float(z.real),
-                    "z_im": float(z.imag),
-                    "v_re": float(v.real),
-                    "v_im": float(v.imag),
-                }
-                for z, v in zip(zs, values, strict=True)
-            ]
+            drives = seams.feed_drives(eng)
+            out["feeds"] = _pack_feeds(zs, drives)
         # AK#1428: the texts behind this answer — each run's deck and printout —
         # for the Files view. `server.solve` pops them before the response is
         # cached or sent. PyNEC runs in-process and has no deck, so no key.

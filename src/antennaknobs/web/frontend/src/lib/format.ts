@@ -1,3 +1,5 @@
+import type { FeedEntry } from "./api";
+
 export function formatScalar(raw: unknown, precision: number, unit: string | null): string {
   return typeof raw === "number" ? `${raw.toFixed(precision)}${unit ?? ""}` : "—";
 }
@@ -33,4 +35,15 @@ export function formatMetres(v: number): string {
   if (v >= 1) return fmt(v, "m");
   if (v >= 0.01) return fmt(v * 100, "cm");
   return fmt(v * 1000, "mm");
+}
+
+// One feed's drive for the per-feed table (AK#1657): "1.414 A ∠−90°" where
+// the server says whether it is volts or amps, else the phase alone. A bare
+// magnitude with no unit is exactly the reading this column exists to stop.
+export function feedDriveText(f: FeedEntry): string {
+  const phase = Math.round((Math.atan2(f.v_im, f.v_re) * 180) / Math.PI);
+  const angle = `∠${phase < 0 ? "−" : ""}${Math.abs(phase)}°`;
+  if (!f.drive_unit) return angle;
+  const mag = Number(Math.hypot(f.v_re, f.v_im).toPrecision(4));
+  return `${mag} ${f.drive_unit} ${angle}`;
 }

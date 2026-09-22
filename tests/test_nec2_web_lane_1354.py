@@ -82,16 +82,23 @@ def test_the_feed_voltages_come_from_the_printouts_own_columns():
 
 
 def test_the_seam_reads_the_stamped_feed_values():
-    """`_NEC2_SEAMS.feed_values` reads what `solve_snapshot` stamped. Unlike
+    """`_NEC2_SEAMS.feed_drives` reads what `solve_snapshot` stamped. Unlike
     PyNEC and NEC-5 this engine has no resolved-feed list of its own —
     `export_nec` builds and discards the PyNECEngine that resolves them — so
     the printout's VOLTAGE columns are the source, and they are what the binary
     was actually driven with."""
-    eng = type("E", (), {"_excited_feed_values": [1 + 0j, 0.5 - 0.25j]})()
-    assert _NEC2_SEAMS.feed_values(eng) == [1 + 0j, 0.5 - 0.25j]
+    eng = type(
+        "E",
+        (),
+        {
+            "_excited_feed_values": [1 + 0j, 0.5 - 0.25j],
+            "_excited_feed_units": ["V", "A"],
+        },
+    )()
+    assert _NEC2_SEAMS.feed_drives(eng) == [(1 + 0j, "V"), (0.5 - 0.25j, "A")]
     # Absent rather than zero-length is also an empty list, not a crash: the
     # body pads to len(zs) afterwards.
-    assert _NEC2_SEAMS.feed_values(type("E", (), {})()) == []
+    assert _NEC2_SEAMS.feed_drives(type("E", (), {})()) == []
 
 
 def test_the_seam_runs_one_subprocess_not_two():
