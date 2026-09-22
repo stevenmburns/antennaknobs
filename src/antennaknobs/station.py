@@ -81,24 +81,96 @@ def t_network_tuner(
 
 
 def l_network_tuner(
-    series_l_uH: float, shunt_c_pF: float, ql: float | None = None
+    series_l_uH: float | None = None,
+    shunt_c_pF: float | None = None,
+    ql: float | None = None,
+    *,
+    qc: float | None = None,
+    shunt_at: str = "out",
+    tune_to: float | None = None,
+    tune_at_mhz: float | None = None,
+    mode: str = "low",
 ) -> Composite:
     """L-match: series L from ``rig`` to ``out``, shunt C across ``out``
     (the load side — the arrangement that steps a higher load R down to
     the rig). Degenerate values are physics, not errors (issue #285): a
     0 H series arm is an ideal short and a 0 F shunt is an open, so both
     arms at zero make this an inert pass-through. Formals: ``rig``,
-    ``out``."""
+    ``out``.
+
+    ``shunt_at`` puts the shunt part across ``out`` (the antenna side, the
+    default) or across ``rig`` (the transmitter side, the arrangement that
+    steps a lower load R up).
+
+    Given ``tune_to`` (ohms) instead of the two values, it is a tuner that
+    tunes itself (AK#1646, `antennaknobs.auto_match`): at ``tune_at_mhz``,
+    else the design frequency, the solving engine chooses the two components
+    that present ``tune_to`` at ``rig`` for whatever hangs on ``out``, then
+    holds them across a sweep. ``mode`` picks the parts: "low" (series L,
+    shunt C), "high" (series C, shunt L), "ll" (both coils), "cc" (both
+    capacitors). ``shunt_at="auto"`` lets it pick the side too, the less
+    lossy of the two that match, as an L autotuner's relay moves its
+    capacitor. A load it cannot match is reported and the tuner bypassed.
+    ``ql`` / ``qc`` give the coils and capacitors a finite Q.
+    """
+    if tune_to is not None:
+        if series_l_uH is not None or shunt_c_pF is not None:
+            raise ValueError(
+                "l_network_tuner(tune_to=...) chooses its own component values; "
+                "drop series_l_uH / shunt_c_pF, or drop tune_to to fix them"
+            )
+        from .auto_match import LTuner, bypass_body
+
+        mechanism = LTuner(
+            target=tune_to,
+            mode=mode,
+            shunt_at=shunt_at,
+            f_mhz=tune_at_mhz,
+            qc=qc,
+            ql=ql,
+        )
+        at = f"{tune_at_mhz:g} MHz" if tune_at_mhz else "design frequency"
+        return Composite(
+            ports=("rig", "out"),
+            # Until it tunes, the box is out of circuit — a wire. The
+            # mechanism owns the topology and hands the engine the parts it
+            # chose, where it put them; no invented value is ever in a
+            # network (AK#1646).
+            branches=bypass_body("rig", "out"),
+            schematic=(
+                series(
+                    "box",
+                    "L tuner",
+                    f"{mode}, shunt at {shunt_at}, {tune_to:g} Ω at {at}",
+                ),
+            ),
+            tuner=mechanism,
+        )
+    if series_l_uH is None or shunt_c_pF is None:
+        raise ValueError(
+            "l_network_tuner needs series_l_uH and shunt_c_pF, or tune_to=... "
+            "for a tuner that tunes itself"
+        )
+    if mode != "low":
+        raise ValueError(
+            f"mode={mode!r} applies to a tuner that tunes itself (tune_to=...); "
+            "fixed values are the low-pass L (series L, shunt C)"
+        )
+    if shunt_at not in ("out", "rig"):
+        raise ValueError(
+            f"shunt_at={shunt_at!r}: fixed values sit at 'out' or 'rig'; "
+            "'auto' is for a tuner that tunes itself (tune_to=...)"
+        )
+    coil = series("inductor", f"{series_l_uH:g} µH")
+    cap = shunt("capacitor", f"{shunt_c_pF:g} pF")
     return Composite(
         ports=("rig", "out"),
         branches=(
             TwoPort(a="rig", b="out", l=series_l_uH * 1e-6, ql=ql),
-            Shunt(port="out", c=shunt_c_pF * 1e-12),
+            Shunt(port=shunt_at, c=shunt_c_pF * 1e-12, qc=qc),
         ),
-        schematic=(
-            series("inductor", f"{series_l_uH:g} µH"),
-            shunt("capacitor", f"{shunt_c_pF:g} pF"),
-        ),
+        # Drawn from the rig side: the shunt comes first when it sits there.
+        schematic=(coil, cap) if shunt_at == "out" else (cap, coil),
     )
 
 

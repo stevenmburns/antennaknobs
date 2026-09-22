@@ -54,7 +54,8 @@ from ..network import (
     PortVirtual,
     as_wire,
 )
-from ..network_reduce import NetworkReducer
+from ..auto_match import design_freq_mhz as _design_freq_mhz
+from ..auto_match import make_reducer
 
 C_LIGHT = 299_792_458.0
 
@@ -728,7 +729,15 @@ class NEC5Engine(SimulationEngine):
                 "nothing for it to drive. Give the design a PortOnWire or "
                 "PortAtVertex terminal, or run it on bspline or PyNEC."
             )
-        self._reducer = NetworkReducer(network, port_to_idx, next_idx)
+        # A self-tuning L tuner (AK#1646) is tuned here, from this engine's
+        # own port admittance; a plain network gets a plain reducer.
+        self._reducer = make_reducer(
+            network,
+            port_to_idx,
+            next_idx,
+            y_at=self._compute_y_matrix,
+            design_freq_mhz=_design_freq_mhz(self.builder),
+        )
 
     def _compute_y_matrix(self, wavelength):
         """Multiport short-circuit Y at the real ports: one NEC-5 run per
