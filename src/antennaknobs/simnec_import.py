@@ -124,10 +124,13 @@ class SsnElement:
 
 
 # SimNEC writes component values with SI suffixes ("37.52p", "731.9n", "2K":
-# AC6LA's C1-L1 circuit, AK#1645), read as SI: m is milli, M mega, G giga
-# (USER DECISION 2026-09-21, not SPICE's M = milli). `K` is kilo as `k` is, as
-# SimNEC writes it. Wire diameters are a different path: `12g` there is gauge.
+# AC6LA's C1-L1 circuit, AK#1645). The set is SimNEC's own, from the SimNEC
+# Manual's "Setting Parameter Values" table (December 2025): a f p n u m k/K M G
+# T P, as SI, so `m` is milli and `M` mega (not SPICE's M = milli). The same
+# table's `g` is "AWG in inches", a wire GAUGE, not giga; wire diameters are a
+# different path from these element values, and a `g` here is refused.
 _SI_SUFFIX = {
+    "a": 1e-18,
     "f": 1e-15,
     "p": 1e-12,
     "n": 1e-9,
@@ -138,6 +141,8 @@ _SI_SUFFIX = {
     "K": 1e3,
     "M": 1e6,
     "G": 1e9,
+    "T": 1e12,
+    "P": 1e15,
 }
 
 
