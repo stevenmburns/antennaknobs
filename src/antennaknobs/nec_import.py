@@ -3477,7 +3477,13 @@ def _virtual_segment_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz):
       output and belongs to whatever issue asks for it;
     - it has MORE THAN ONE segment. The 1-segment remote shape belongs to
       issue #427's detector, which reads it as a bare TL termination and whose
-      negatives pin a *driven* 1-segment remote wire as electrically real;
+      negatives pin a *driven* 1-segment remote wire as electrically real.
+      The one exception is a driven 1-segment wire at the end of a pure
+      GYRATOR ``NT`` (zero diagonal, ``Y12 = Y21 = jB``): that is NEC-2's
+      current-source idiom spelled on one phantom segment instead of EZNEC's
+      two (AC6LA's SimNEC ``Bydipole1``, AK#1644), and left real its gyrator
+      stays a component, so the driving point reads 1/Z of the antenna.
+      Behind a ``TL`` or any other two-port, #427's reading stands;
     - no LD other than the idiom's own ≥ ``_VIRTUAL_PIN_OHMS`` pins touches
       it (a real load means a real wire);
     - it shares no node with any other wire, stands more than
@@ -3512,13 +3518,28 @@ def _virtual_segment_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz):
     if not candidates:
         return set()
 
+    # A driven 1-segment wire at a pure gyrator's end is the one-segment
+    # spelling of the current-source idiom (AK#1644); see the docstring.
+    driven = {f.wire for f in feeds}
+    gyrator_ends: set[int] = set()
+    for card in nts_raw:
+        y11 = complex(card.f(4), card.f(5))
+        y12 = complex(card.f(6), card.f(7))
+        y22 = complex(card.f(8), card.f(9))
+        if y11 or y22 or y12.real or abs(y12.imag) < _GYRATOR_MIN_B:
+            continue
+        ends = {_attach(wires, card, 0, 1)[0], _attach(wires, card, 2, 3)[0]}
+        if len(ends) == 2:
+            gyrator_ends |= ends
+
     loaded, _pinned = _load_wires(wires, lds_raw)
     touches, clearance = _remote_wire_tests(wires)
 
     out: set[int] = set()
     for i in candidates:
         w = wires[i]
-        if w[1] < 2 or i in loaded or touches(i):
+        one_segment_idiom = w[1] == 1 and i in driven and i in gyrator_ends
+        if (w[1] < 2 and not one_segment_idiom) or i in loaded or touches(i):
             continue
         extent = math.dist(w[2], w[3])
         clr = clearance(i)
