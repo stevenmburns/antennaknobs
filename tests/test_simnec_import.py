@@ -183,6 +183,42 @@ def test_wire_conductivity_directive():
     assert parse_ssn(_ssn(script), name="t.ssn").conductivity is None
 
 
+@pytest.mark.parametrize(
+    ("name", "mhos"),
+    [
+        # SimNEC's own table: 1/resistivity. Copper is EZNEC's 5.7471e7.
+        ("aluminum", 1 / 4.0e-8),
+        ("copper", 1 / 1.74e-8),
+        ("silver", 1 / 1.59e-8),
+        ("lowCarbonSteel", 1 / 1.43e-7),
+        ("stainless", 1 / 6.9e-7),
+    ],
+)
+def test_wire_conductivity_by_simnec_name(name, mhos):
+    """AK#1647: AC6LA's Yagi stack names its wire, `NECOptions.mhosPerMeter =
+    Conductivities.aluminum;`, and the import refused anything but a number."""
+    script = _SCRIPT_M.replace(
+        "NEC2", f"NECOptions.mhosPerMeter = Conductivities.{name};\nNEC2"
+    )
+    c = parse_ssn(_ssn(script), name="t.ssn")
+    assert c.conductivity == pytest.approx(mhos)
+
+
+def test_perfect_by_name_is_a_perfect_wire():
+    script = _SCRIPT_M.replace(
+        "NEC2", "NECOptions.mhosPerMeter = Conductivities.perfect;\nNEC2"
+    )
+    assert parse_ssn(_ssn(script), name="t.ssn").conductivity is None
+
+
+def test_an_unknown_conductivity_name_is_refused_by_name():
+    script = _SCRIPT_M.replace(
+        "NEC2", "NECOptions.mhosPerMeter = Conductivities.unobtainium;\nNEC2"
+    )
+    with pytest.raises(ValueError, match=r"unobtainium.*copper"):
+        parse_ssn(_ssn(script), name="t.ssn")
+
+
 def test_non_open_load_is_recorded():
     ssn = _ssn(_SCRIPT_M).replace("1000000000", "50")
     c = parse_ssn(ssn, name="t.ssn")
