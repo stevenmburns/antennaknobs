@@ -114,6 +114,48 @@ _ENGINE_ERROR_RE = re.compile(
     r"|DATA CARD ERROR|not supported"
 )
 
+
+def _gyrator_phantoms(deck: str) -> dict[tuple[int, int], float]:
+    """``{(tag, absolute segment): B}`` for every gyrator port in ``deck`` that
+    carries a source: an ``NT`` with a zero diagonal and ``Y12 = Y21 = jB``
+    whose port 1 is driven by an ``EX`` (AK#1648).
+
+    That is the shape ``export_nec`` writes for a ``DrivenCurrent`` (AK#1597),
+    because NEC-2 has no current-source card. The printout's ANTENNA INPUT
+    PARAMETERS row for such a source is the PHANTOM's, 1/(B^2 Z) of the antenna
+    behind it, so the readers map it back exactly. The deck is our own, so this
+    is a lookup, not a recognition heuristic: it reads what was written.
+
+    Keyed by the ABSOLUTE segment number, which is what the printout's rows
+    carry, so each tag's segment offset comes from the deck's own GW cards.
+    """
+    base: dict[int, int] = {}
+    acc = 0
+    driven: set[tuple[int, int]] = set()
+    nts = []
+    for line in deck.splitlines():
+        toks = line.split()
+        if not toks:
+            continue
+        if toks[0] == "GW" and len(toks) >= 3:
+            base[int(toks[1])] = acc
+            acc += int(toks[2])
+        elif toks[0] == "EX" and len(toks) >= 4 and toks[1] == "0":
+            driven.add((int(toks[2]), int(toks[3])))
+        elif toks[0] == "NT" and len(toks) >= 11:
+            nts.append(toks)
+    out: dict[tuple[int, int], float] = {}
+    for toks in nts:
+        tag, seg = int(toks[1]), int(toks[2])
+        y11r, y11i, y12r, y12i, y22r, y22i = (float(x) for x in toks[5:11])
+        if y11r or y11i or y22r or y22i or y12r or not y12i:
+            continue
+        if (tag, seg) not in driven or tag not in base:
+            continue
+        out[(tag, base[tag] + seg)] = y12i
+    return out
+
+
 # The two ways to hand a deck to a NEC-2 binary; see the module docstring.
 FORM_ARGS = "args"
 FORM_STDIN = "stdin"
@@ -702,7 +744,8 @@ class NEC2Engine(SimulationEngine):
         inside the process-startup noise); if that printout has no budget
         either, the solve refuses.
         """
-        text = self._run(self.deck(self.builder.freq))
+        deck = self.deck(self.builder.freq)
+        text = self._run(deck)
         try:
             budget = self._parse_power_budget(text)
         except NEC2Error:
@@ -711,7 +754,7 @@ class NEC2Engine(SimulationEngine):
                 "re-run with a 1x1 RP card: the first printout had no power budget"
             )
             budget = self._parse_power_budget(text)
-        zs = self._impedances(self._parse_input_parameters(text)[0])
+        zs = self._impedances(self._parse_input_parameters(text)[0], deck)
         currents = self._currents_from(self._parse_currents(text)[0])
         self._excited_efficiency = budget["efficiency_pct"] / 100.0
         self._excited_p_in = budget["input_w"]
@@ -728,12 +771,35 @@ class NEC2Engine(SimulationEngine):
             )
         self._excited_p_radiated = budget["radiated_w"]
         # The per-feed drive values, for the web lane's multi-feed response.
-        self._excited_feed_values = self._parse_feed_voltages(text)
+        self._excited_feed_values = self._drive_values(text, deck)
         return zs, currents, budget
 
     # -- the engine surface ----------------------------------------------
-    def _impedances(self, rows) -> list[complex]:
-        return [z for _tag, _seg, z in rows]
+    def _impedances(self, rows, deck: str | None = None) -> list[complex]:
+        """One impedance per EX row; a row on one of the deck's own gyrator
+        phantoms reads as the antenna behind it, 1/(B^2 Z) (AK#1648)."""
+        phantoms = _gyrator_phantoms(deck) if deck else {}
+        out = []
+        for tag, seg, z in rows:
+            b = phantoms.get((tag, seg))
+            out.append(z if b is None or z == 0 else 1.0 / (b * b * z))
+        return out
+
+    def _drive_values(self, text: str, deck: str) -> list[complex]:
+        """Each feed's drive value (`_parse_feed_voltages`), with a gyrator
+        phantom's EMF V read back as the current it forces, I = -jB V
+        (AK#1648), since that is the feed's drive. Both readers walk the same
+        ANTENNA INPUT PARAMETERS rows in the same order."""
+        values = self._parse_feed_voltages(text)
+        phantoms = _gyrator_phantoms(deck)
+        if not phantoms:
+            return values
+        rows = self._parse_input_parameters(text)[0]
+        out = []
+        for (tag, seg, _z), v in zip(rows, values, strict=True):
+            b = phantoms.get((tag, seg))
+            out.append(v if b is None else -1j * b * v)
+        return out
 
     def impedance(self):
         """One impedance per driven port, in EX-card order.
@@ -743,8 +809,9 @@ class NEC2Engine(SimulationEngine):
         every engine, where a scalar-for-one special case makes the shape
         depend on the design.
         """
-        rows = self._parse_input_parameters(self._run(self.deck(self.builder.freq)))
-        zs = self._impedances(rows[0])
+        deck = self.deck(self.builder.freq)
+        rows = self._parse_input_parameters(self._run(deck))
+        zs = self._impedances(rows[0], deck)
         if not zs:
             raise NEC2Error("NEC-2 printed no driving-point impedance")
         return zs
@@ -762,8 +829,9 @@ class NEC2Engine(SimulationEngine):
             raise ValueError("freqs must be a 1-D non-empty array")
         out = []
         for f in freqs:
-            rows = self._parse_input_parameters(self._run(self.deck(float(f))))
-            out.append(self._impedances(rows[0]))
+            deck = self.deck(float(f))
+            rows = self._parse_input_parameters(self._run(deck))
+            out.append(self._impedances(rows[0], deck))
         return np.array(out)
 
     def current_distribution(self):
