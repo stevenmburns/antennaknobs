@@ -153,6 +153,11 @@ class Composite:
     #: one. Written with `schematic.series` / `shunt`, which are plain data, so
     #: declaring one costs this module no drawing-library import.
     schematic: object = None
+    #: A self-tuning component's MECHANISM (AK#1646), e.g.
+    #: `auto_match.LTuner`: it owns this box's topology, and the engine asks
+    #: it for the branches to hold once it knows the load. Until then the box
+    #: carries its bypass. None for every ordinary component.
+    tuner: object = None
 
     def __post_init__(self):
         if len(set(self.ports)) != len(self.ports):

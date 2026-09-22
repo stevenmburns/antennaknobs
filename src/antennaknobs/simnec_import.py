@@ -52,6 +52,11 @@ branch→element mapping, element for element:
     TRANSFORMER2 (Mdl ideal)          -> Transformer (n = 1/N: SimNEC's N is
                                          the antenna:generator voltage ratio,
                                          validated on 5.1a0 — see export)
+    XMATCH (mode auto)                -> station.l_network_tuner(tune_to=...),
+                                         the L tuner that tunes itself (AK#1646):
+                                         R/X or the generator Zo, MHz (else the
+                                         generator's), pass -> mode, the side
+                                         "auto" (SimNEC picks it), Qc / Ql
 
 The chain hangs between a virtual generator-side node (``"rig"``, the
 ``Driven`` source) and the deck's fed wire; trap ``Load``s ride in the deck as
@@ -94,7 +99,10 @@ M_PER_FT = 0.3048
 # Station chain elements network() can translate (issue #604's captured set).
 _SHUNT_CHAIN = frozenset({"SHUNT_IND", "SHUNT_CAP"})
 _SERIES_CHAIN = frozenset({"SERIES_TLINE", "SERIES_IND", "SERIES_CAP", "TRANSFORMER2"})
-_CHAIN_TYPES = _SHUNT_CHAIN | _SERIES_CHAIN
+# SimNEC's LC matching component. A series-position element: its generator
+# side and load side are two nodes, like a series element's (AK#1646).
+_MATCH_CHAIN = frozenset({"XMATCH"})
+_CHAIN_TYPES = _SHUNT_CHAIN | _SERIES_CHAIN | _MATCH_CHAIN
 
 _NEC2_LINE = re.compile(r"^NEC2\s*$")
 _NECEND_LINE = re.compile(r"^NECEND\s*$")
@@ -283,6 +291,19 @@ class SsnCircuit:
                 "NEC-portal directives not applied: "
                 + "; ".join(self.ignored_directives)
             )
+        for el in self.chain:
+            if el.typ in _MATCH_CHAIN and _chain_f(el, "MHz", default=0.0) <= 0.0:
+                # AK#1646: SimNEC retunes an MHz = 0 XMATCH at every
+                # frequency; the app's tuner tunes once and holds.
+                at = (
+                    f"{self.freq_mhz:g} MHz"
+                    if self.freq_mhz
+                    else "the design frequency"
+                )
+                parts.append(
+                    f"XMATCH {el.label or ''} retunes at every frequency in "
+                    f"SimNEC; here the tuner tunes once, at {at}, and holds"
+                )
         note = None
         if parts:
             body = "; ".join(parts)
@@ -325,7 +346,8 @@ class SsnCircuit:
         ports = dict(net.ports)
         branches = list(net.branches)
 
-        series_left = sum(1 for el in self.chain if el.typ in _SERIES_CHAIN)
+        in_series = _SERIES_CHAIN | _MATCH_CHAIN
+        series_left = sum(1 for el in self.chain if el.typ in in_series)
         if series_left == 0:
             # Shunt-only chain: nothing separates the generator from the
             # feed, so the shunts hang straight across the feed terminals
@@ -352,13 +374,68 @@ class SsnCircuit:
                 k += 1
                 nxt = f"chain{k}"
                 ports[nxt] = _net.PortVirtual(nxt)
-            branches.append(_series_branch(el, node, nxt))
+            if el.typ in _MATCH_CHAIN:
+                branches.append(self._tuner(el, node, nxt, k))
+            else:
+                branches.append(_series_branch(el, node, nxt))
             node = nxt
         return _net.Network(
             ports=ports,
             branches=branches,
             sources=[_net.Driven(port=rig_port, voltage=src.voltage)],
         )
+
+    def _tuner(self, el: SsnElement, rig: str, out: str, k: int):
+        """An XMATCH as antennaknobs' own self-tuning L tuner (AK#1646):
+        `station.l_network_tuner(tune_to=...)`, from SimNEC's parameters
+        (its manual, "The LC Matching Component")."""
+        from .station import l_network_tuner
+
+        where = "XMATCH element" + (f" {el.label}" if el.label else "")
+        mode = (el.get("mode") or "auto").strip()
+        if mode != "auto":
+            raise ValueError(
+                f"{where}: {mode!r} mode is not translated, only 'auto'. "
+                "Replace it with the explicit SERIES_IND / SHUNT_CAP (or "
+                "SERIES_CAP / SHUNT_IND) elements it stands for"
+            )
+        pass_ = (el.get("pass") or "low").strip().lower()
+        if pass_ not in ("low", "high"):
+            raise ValueError(f"{where}: pass {pass_!r} is not 'low' or 'high'")
+        r = _chain_f(el, "R", default=0.0)
+        x = _chain_f(el, "X", default=0.0)
+        if x != 0.0:
+            raise ValueError(
+                f"{where}: a complex target (R {r:g}, X {x:g}) is not translated; "
+                "SimNEC's manual does not say whether it presents R + jX or its "
+                "conjugate"
+            )
+        if r == 0.0:
+            if self.gen_zo is None:
+                raise ValueError(
+                    f"{where}: matches to the generator's Zo, and this file's "
+                    "GENERATOR carries none"
+                )
+            r = self.gen_zo
+        mhz = _chain_f(el, "MHz", default=0.0)
+        if mhz <= 0.0:
+            # SimNEC's MHz = 0 retunes at every generator frequency; the app's
+            # tuner holds its tune (skipped_note says so), so it tunes at the
+            # generator's own frequency, where SimNEC's would be at the start.
+            mhz = self.freq_mhz or 0.0
+        qc = _chain_f(el, "Qc", default=0.0)
+        ql = _chain_f(el, "Ql", default=0.0)
+        comp = l_network_tuner(
+            tune_to=r,
+            tune_at_mhz=mhz if mhz > 0.0 else None,
+            mode=pass_,
+            # SimNEC picks the side itself, by the same rule as "auto".
+            shunt_at="auto",
+            qc=qc if qc > 0.0 else None,
+            ql=ql if ql > 0.0 else None,
+        )
+        name = (el.label or f"tuner{k}").replace(".", "_")
+        return _net.Instance(name, comp, rig=rig, out=out)
 
 
 def _fnum(token: str, where: str, what: str) -> float:

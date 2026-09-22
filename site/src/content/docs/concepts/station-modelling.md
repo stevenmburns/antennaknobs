@@ -344,6 +344,23 @@ special members:
   `verticals.stub_matched_vertical` is the worked example: a 22 Ω
   quarter-wave vertical brought to 50 Ω by two lengths of RG-213, with
   both lengths as live knobs so the match is something you *find*.
+- **a tuner that tunes itself** — `l_network_tuner(tune_to=50)` leaves out
+  the two values, and the engine solving the design picks them. At
+  `tune_at_mhz` (else the design frequency) it chooses the parts that
+  present `tune_to` ohms for whatever hangs on the tuner's output, then
+  holds them, so a sweep shows the tuned network's bandwidth rather than a
+  match that follows you around. `mode` picks the parts: `"low"` (series L,
+  shunt C, the default), `"high"` (series C, shunt L), `"ll"` or `"cc"`.
+  `shunt_at` puts the shunt part across `"out"` (the antenna side, the
+  default, as on the fixed-value tuner) or `"rig"` (the transmitter side);
+  `"auto"` takes the side the load calls for, the way an L autotuner's relay
+  moves its capacitor: across `out` when the load's resistance must come
+  down, across `rig` when it must go up. A fixed side can only step a load
+  one way, which is what makes it worth modelling: the tool tells you when
+  your box cannot match. The readout reports what it tuned to; a load it
+  cannot match is reported and the tuner bypassed, so the readout shows the
+  mismatch a real tuner would leave you with. SimNEC's automatic LC match
+  element imports as this component.
 
 ### Ferrite cores: one number vs a curve
 

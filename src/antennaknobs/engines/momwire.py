@@ -33,8 +33,9 @@ from ..network import (
 )
 from ..terrain import Terrain, specular_cut
 from ..wire_catalog import port_at, port_wire
+from ..auto_match import design_freq_mhz as _design_freq_mhz
+from ..auto_match import make_reducer
 from ..network_reduce import (
-    NetworkReducer,
     poison_singular_sample,
     tl_admittance_2x2,
 )
@@ -1411,7 +1412,16 @@ class MomwireEngine(SimulationEngine):
                 port_to_idx[name] = next_idx
                 next_idx += 1
 
-        self._reducer = NetworkReducer(net, port_to_idx, next_idx)
+        # A self-tuning L tuner (AK#1646) is tuned here, from this engine's
+        # own port admittance; a plain network gets a plain reducer.
+        self._reducer = make_reducer(
+            net,
+            port_to_idx,
+            next_idx,
+            y_at=self._compute_y_matrix,
+            design_freq_mhz=_design_freq_mhz(self.builder),
+            wavelength_for=self._wavelength_for,
+        )
 
         # Finite-gap (distributed) ports — issue #477. A distributed port
         # is realised as one delta-gap sub-feed per SEGMENT of its named

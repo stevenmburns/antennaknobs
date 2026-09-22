@@ -39,7 +39,9 @@ from ..wire_catalog import (
     port_at,
     port_wire,
 )
-from ..network_reduce import C_LIGHT, NetworkReducer, poison_singular_sample
+from ..auto_match import design_freq_mhz as _design_freq_mhz
+from ..auto_match import make_reducer
+from ..network_reduce import C_LIGHT, poison_singular_sample
 from ._nec_wire import nec_wire_material
 
 _logger = logging.getLogger(__name__)
@@ -870,7 +872,15 @@ class PyNECEngine(SimulationEngine):
             if isinstance(port, PortVirtual):
                 port_to_idx[name] = next_idx
                 next_idx += 1
-        self._reducer = NetworkReducer(net, port_to_idx, next_idx)
+        # A self-tuning L tuner (AK#1646) is tuned here, from this engine's
+        # own port admittance; a plain network gets a plain reducer.
+        self._reducer = make_reducer(
+            net,
+            port_to_idx,
+            next_idx,
+            y_at=self._compute_y_matrix,
+            design_freq_mhz=_design_freq_mhz(self.builder),
+        )
 
         # Per-port drive points (issue #477): a delta-gap port drives its
         # wire's middle segment with the full port voltage; a distributed

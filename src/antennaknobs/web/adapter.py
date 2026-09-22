@@ -115,6 +115,7 @@ from momwire import (
     SinusoidalSolver,
 )
 
+from ..auto_match import tuner_advisories, tuner_rows
 from ..geometry import flat_wires_to_polylines
 from .examples import REGISTRY, register
 from .examples._base import (
@@ -2666,7 +2667,7 @@ def _readout_row(raw, owner: str) -> dict | None:
     return {"label": label, "value": value, "unit": unit, "group": group}
 
 
-def _readout_rows_results(builder) -> dict:
+def _readout_rows_results(builder, eng=None) -> dict:
     """Generic workbench readout rows (issue #712), surfaced under "readouts"
     beside `_wire_material_results` / `_rig_report_results`. {} for every
     design that defines no `readout_rows()` — the duck-typed per-design
@@ -2688,9 +2689,12 @@ def _readout_rows_results(builder) -> dict:
     its valid siblings survive, so one design-author typo cannot blank the
     whole panel.
     """
+    # What a self-tuning L tuner tuned to (AK#1646): the ENGINE's rows, since
+    # the engine is what tuned it, after the design's own.
+    tuned = tuner_rows(eng) if eng is not None else []
     readout_rows = getattr(builder, "readout_rows", None)
     if not callable(readout_rows):
-        return {}
+        return {"readouts": tuned} if tuned else {}
     owner = type(builder).__name__
     try:
         raw_rows = readout_rows()
@@ -2705,6 +2709,7 @@ def _readout_rows_results(builder) -> dict:
     except Exception:
         _logger.debug("readout_rows() failed for %r", owner, exc_info=True)
         return {}
+    rows += tuned
     return {"readouts": rows} if rows else {}
 
 
@@ -2884,6 +2889,8 @@ def _advisories_for(eng, req: Mapping, buried: bool, meas_freq: float) -> list:
     ak = _soil_dispersion_advisory(req, buried, meas_freq)
     if ak is not None:
         out.append(ak)
+    # A self-tuning L tuner that found no match (AK#1646): bypassed, and said.
+    out.extend(tuner_advisories(eng))
     return out
 
 
@@ -4464,7 +4471,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             **_rig_report_results(builder),
             # Generic self-describing readout rows (issue #712): the same
             # duck-typed discovery, rendered by one frontend component.
-            **_readout_rows_results(builder),
+            **_readout_rows_results(builder, eng),
         }
         if planes is not None:
             # Measurement plane (issue #652 c): which port this solve is
@@ -4710,7 +4717,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             **_rig_report_results(builder),
             # Generic self-describing readout rows (issue #712): the same
             # duck-typed discovery, rendered by one frontend component.
-            **_readout_rows_results(builder),
+            **_readout_rows_results(builder, eng),
         }
         if planes is not None:
             # Same plane fields as the momwire path (issue #652 c).

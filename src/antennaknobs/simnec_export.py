@@ -127,6 +127,7 @@ from __future__ import annotations
 import math
 from xml.sax.saxutils import escape as _xml_escape
 
+from .auto_match import find_tuners
 from .engines.pynec import DEFAULT_GROUND, PyNECEngine
 from .nec_export import _gw, _num, export_nec
 from .wire_catalog import gap_segment, port_at, port_wire
@@ -742,6 +743,17 @@ def export_ssn(
     is exact at that frequency and Q-model-approximate across a sweep.
     """
     freq_mhz = builder.freq if freq_mhz is None else float(freq_mhz)
+    net = builder.build_network() if hasattr(builder, "build_network") else None
+    if net is not None and find_tuners(net):
+        # AK#1646: a self-tuning tuner carries PLACEHOLDER values, and the
+        # engine tunes the real ones at solve time. Writing the placeholders
+        # would be a wrong circuit that looks like a right one; writing
+        # SimNEC's own XMATCH element back is not built yet.
+        raise SsnUnsupported(
+            "this circuit has a self-tuning L tuner (l_network_tuner with "
+            "tune_to=), whose values the solving engine tunes; exporting it to "
+            "SimNEC is not supported yet"
+        )
     # PyNECEngine raises ValueError here for PortAtEnd / PortAtVertex
     # designs — NEC-2 (and therefore SimNEC's NEC block) has no
     # junction-node port and no segment-end source (issues #579, #898).
