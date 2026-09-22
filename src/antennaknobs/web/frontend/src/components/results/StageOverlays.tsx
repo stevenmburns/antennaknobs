@@ -287,14 +287,18 @@ function PeakReadout({
   captions,
   maxMetrics,
   maxPending,
+  canFindMax,
   onFindMax,
   onAimAtMax,
+  onDismissMax,
 }: {
   captions: FarFieldCaptions;
   maxMetrics: PatternMetrics | null;
   maxPending: boolean;
+  canFindMax: boolean;
   onFindMax: () => void;
   onAimAtMax: (m: PatternMetrics) => void;
+  onDismissMax: () => void;
 }) {
   const where = captions.cut === "xy" ? "az" : "el";
   return (
@@ -309,25 +313,36 @@ function PeakReadout({
         </span>
       )}
       {maxMetrics ? (
-        <button
-          type="button"
-          className="overlay-readout overlay-max"
-          onClick={() => onAimAtMax(maxMetrics)}
-          title="The whole pattern's maximum, and where it is. Click to aim both cuts through it."
-        >
-          3-D max {signed(maxMetrics.peak_gain_dbi, 1)} dBi{" "}
-          {/* Two lines, so the readout stays narrow on a small stage. */}
-          <span className="overlay-max-where">
-            @ az {Math.round(maxMetrics.azimuth_deg) % 360}°, el{" "}
-            {Math.round(maxMetrics.takeoff_deg)}°
-          </span>
-        </button>
+        <span className="overlay-max-row">
+          <button
+            type="button"
+            className="overlay-readout overlay-max"
+            onClick={() => onAimAtMax(maxMetrics)}
+            title="The whole pattern's maximum, and where it is. Click to aim both cuts through it."
+          >
+            3-D max {signed(maxMetrics.peak_gain_dbi, 1)} dBi{" "}
+            {/* Two lines, so the readout stays narrow on a small stage. */}
+            <span className="overlay-max-where">
+              @ az {Math.round(maxMetrics.azimuth_deg) % 360}°, el{" "}
+              {Math.round(maxMetrics.takeoff_deg)}°
+            </span>
+          </button>
+          <button
+            type="button"
+            className="overlay-dismiss"
+            onClick={onDismissMax}
+            aria-label="Dismiss the 3-D max"
+            title="Dismiss the 3-D max (find it again to bring it back)"
+          >
+            ×
+          </button>
+        </span>
       ) : (
         <button
           type="button"
           className="overlay-readout overlay-max"
           onClick={onFindMax}
-          disabled={maxPending || captions.peakDbi == null}
+          disabled={maxPending || !canFindMax || captions.peakDbi == null}
           title="Find the whole pattern's maximum (a full far-field solve), then click it to aim both cuts through it."
         >
           {maxPending ? "finding 3-D max…" : "find 3-D max"}
@@ -361,8 +376,10 @@ export function FarFieldOverlayControls({
   captions,
   maxMetrics,
   maxPending,
+  canFindMax,
   onFindMax,
   onAimAtMax,
+  onDismissMax,
 }: {
   isMobile: boolean;
   normCheckEnabled: boolean;
@@ -376,8 +393,10 @@ export function FarFieldOverlayControls({
   captions: FarFieldCaptions | null;
   maxMetrics: PatternMetrics | null;
   maxPending: boolean;
+  canFindMax: boolean;
   onFindMax: () => void;
   onAimAtMax: (m: PatternMetrics) => void;
+  onDismissMax: () => void;
 }) {
   return (
     <div className="farfield-overlay">
@@ -386,8 +405,10 @@ export function FarFieldOverlayControls({
           captions={captions}
           maxMetrics={maxMetrics}
           maxPending={maxPending}
+          canFindMax={canFindMax}
           onFindMax={onFindMax}
           onAimAtMax={onAimAtMax}
+          onDismissMax={onDismissMax}
         />
       )}
       {!isMobile && (
