@@ -86,9 +86,10 @@ def test_a_phantom_row_reads_as_the_antenna_behind_it(monkeypatch):
     monkeypatch.setattr(eng, "_run", lambda deck: printout)
     assert eng.impedance() == [pytest.approx(z, rel=1e-4) for z in antenna]
     deck = eng.deck(eng.builder.freq)
-    assert eng._drive_values(printout, deck) == [
-        pytest.approx(i, rel=1e-5) for i in forced
-    ]
+    drives = eng._drives(printout, deck)
+    assert [v for v, _ in drives] == [pytest.approx(i, rel=1e-5) for i in forced]
+    # A forced current is in amps (AK#1657).
+    assert [u for _, u in drives] == ["A"] * len(forced)
 
 
 @pytest.mark.skipif(shutil.which("nec2c") is None, reason="nec2c not on PATH")

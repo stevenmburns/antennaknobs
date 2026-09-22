@@ -1878,9 +1878,11 @@ def test_solve_for_multi_feed_geometry_includes_feeds_array():
     assert "feeds" in out
     assert len(out["feeds"]) == 2  # bowtiearray1x2 has two driven elements
     for f in out["feeds"]:
-        assert set(f) == {"z_re", "z_im", "v_re", "v_im"}
+        assert set(f) == {"z_re", "z_im", "v_re", "v_im", "drive_unit"}
         assert isinstance(f["z_re"], float)
         assert isinstance(f["v_re"], float)
+        # Two voltage-driven elements: the unit says so (AK#1657).
+        assert f["drive_unit"] == "V"
     # Primary z_in_re must match feeds[0].z_re — the primary impedance
     # field has always been a duplicate of the first feed.
     assert out["z_in_re"] == pytest.approx(out["feeds"][0]["z_re"])
