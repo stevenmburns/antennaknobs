@@ -82,9 +82,14 @@ describe("ground seed from a file design (AK#1432)", () => {
     mountDesignSession({ examples: [PEC] });
     await screen.findByText(/from the file: perfect ground/);
     await waitFor(() => expect(groundBox().checked).toBe(true));
-    expect(
-      (screen.getByRole("radio", { name: /perfect|pec/i }) as HTMLInputElement).checked,
-    ).toBe(true);
+    // The radio settles in its own update, as in the GN 2 case below (CI
+    // caught this one a render behind too, on the v0.85.0 release PR).
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("radio", { name: /perfect|pec/i }) as HTMLInputElement)
+          .checked,
+      ).toBe(true),
+    );
   });
 
   it("GN 2: ground on, finite, Sommerfeld, with the card's medium in the notice", async () => {
