@@ -230,7 +230,7 @@ export function SessionGearMenu({
                   </label>
                   <label
                     className="gear-menu-check"
-                    title={`Re-solve at N = ${convergeNValues.join(", ")} segments/wire and Richardson-extrapolate Z to N→∞`}
+                    title={`Re-solve at N = ${convergeNValues.join(", ")} segments per λ/4 and Richardson-extrapolate Z to N→∞`}
                   >
                     <input
                       type="checkbox"

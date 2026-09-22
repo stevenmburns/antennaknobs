@@ -225,7 +225,7 @@ export function SmithOverlayControls({
       </label>
       <label
         className="overlay-checkbox"
-        title={`Re-solve at N = ${convergeNValues.join(", ")} segments/wire and Richardson-extrapolate Z to N→∞`}
+        title={`Re-solve at N = ${convergeNValues.join(", ")} segments per λ/4 and Richardson-extrapolate Z to N→∞`}
       >
         <input
           type="checkbox"

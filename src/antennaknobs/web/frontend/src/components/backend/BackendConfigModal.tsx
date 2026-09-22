@@ -107,6 +107,9 @@ export type BackendConfigProps = {
    *  null once the knob is touched. Optional: a panel rendered without it
    *  simply has no note to show. */
   densityNote?: string | null;
+  /** The design keeps its own segment counts (a file deck, AK#1432), so N
+   *  does nothing and the field gives way to a note saying so (AK#1649). */
+  fixedSegmentCounts?: boolean;
   opts: BackendOpts;
   onChangeBackend: (b: BackendEntry) => void;
   onPatch: (patch: Partial<BackendOpts>) => void;
@@ -128,6 +131,7 @@ export function BackendConfigModal({
   designRefusalNote,
   suggestConvergedFeed,
   densityNote = null,
+  fixedSegmentCounts = false,
   opts,
   onChangeBackend,
   onPatch,
@@ -247,22 +251,36 @@ export function BackendConfigModal({
               it is geometry, not a solver kwarg (it never rides
               model_options). Only its default is per-backend, and that the
               roster carries. */}
-          <NumberField
-            label="segments / wire (N)"
-            value={opts.nPerWire}
-            min={4}
-            max={120}
-            step={1}
-            onChange={(v) => onPatch({ nPerWire: v })}
-          />
-          {/* Why the number moved (#1543). A swap and a degree change both
-              re-mesh the slot, and a value that changes under you without a
-              word is indistinguishable from a bug — so the note says which
-              engine chose it, and goes away the moment you choose one. */}
-          {densityNote && (
+          {fixedSegmentCounts ? (
             <em className="density-note" role="note">
-              {densityNote}
+              Segments: the deck's own. A design loaded from a file keeps the
+              segment counts it was written with, so N does not apply to it.
             </em>
+          ) : (
+            <>
+              {/* N is a DENSITY, not a count (AK#1649): each wire gets N
+                  segments per quarter wavelength at the design frequency
+                  (`AntennaBuilder.auto_mesh`), so a long wire gets
+                  proportionally more. The wire field is still `n_per_wire`. */}
+              <NumberField
+                label="segments per λ/4 (N)"
+                title="Each wire gets N segments per quarter wavelength at the design frequency, so a long wire gets proportionally more."
+                value={opts.nPerWire}
+                min={4}
+                max={120}
+                step={1}
+                onChange={(v) => onPatch({ nPerWire: v })}
+              />
+              {/* Why the number moved (#1543). A swap and a degree change both
+                  re-mesh the slot, and a value that changes under you without a
+                  word is indistinguishable from a bug — so the note says which
+                  engine chose it, and goes away the moment you choose one. */}
+              {densityNote && (
+                <em className="density-note" role="note">
+                  {densityNote}
+                </em>
+              )}
+            </>
           )}
           <NumberField
             label="wire radius (m)"
