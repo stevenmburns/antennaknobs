@@ -52,6 +52,17 @@ const NEC5_GN0: ExampleDescriptor = {
   fixed_segment_counts: true,
 };
 
+// AK#1655: a NEC-5 deck's bare GD, EZNEC's MININEC-type ground.
+const NEC5_GD: ExampleDescriptor = {
+  ...HARNESS_EXAMPLE,
+  name: "user.fourSquare",
+  label: "4square",
+  ground_seed: "mininec",
+  ground_medium: { eps_r: 13, sigma: 0.005 },
+  ground_card: "NEC-5 GD",
+  fixed_segment_counts: true,
+};
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -108,6 +119,21 @@ describe("ground seed from a file design (AK#1432)", () => {
     await waitFor(() => {
       expect(
         (screen.getByRole("radio", { name: "Sommerfeld" }) as HTMLInputElement).checked,
+      ).toBe(true);
+    });
+  });
+
+  it("NEC-5 GD: finite, the MININEC method, and the notice says which half the soil is for", async () => {
+    mountDesignSession({ examples: [NEC5_GD] });
+    await screen.findByText(
+      /from the file: MININEC-type ground \(NEC-5 GD\) — perfect ground for the currents and impedance, εr 13, σ 0.005 S\/m for the pattern/,
+    );
+    await waitFor(() => {
+      expect(
+        (screen.getByRole("radio", { name: "MININEC" }) as HTMLInputElement).checked,
+      ).toBe(true);
+      expect(
+        (screen.getByRole("radio", { name: /finite/ }) as HTMLInputElement).checked,
       ).toBe(true);
     });
   });

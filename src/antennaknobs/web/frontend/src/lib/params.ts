@@ -173,7 +173,8 @@ export type ExampleDescriptor = {
    *  requirement. Declared statically in the design's ui_params. */
   ground_requirement?: string | null;
   /** AK#1432 — file designs only: the ground the deck itself models,
-   *  "free" | "pec" | "sommerfeld" | "fast" (the GN finite model). On
+   *  "free" | "pec" | "sommerfeld" | "fast" (the GN finite model) |
+   *  "mininec" (a NEC-5 bare GD, NEC-2's GN 1 + GD, 4nec2's GN 3). On
    *  selection the session seeds the ground switch, type, method and soil
    *  from it; the ground panel says so. Absent/null = catalog design. */
   ground_seed?: string | null;

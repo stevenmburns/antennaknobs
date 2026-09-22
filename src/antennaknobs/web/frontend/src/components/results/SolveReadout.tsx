@@ -19,6 +19,8 @@ const GROUND_APPLIED_LABEL: Record<string, string> = {
   sommerfeld: "Sommerfeld",
   "refl-coef": "refl-coef",
   "pec-image": "PEC image",
+  // AK#1655: the currents over the PEC image, the pattern off the soil.
+  mininec: "MININEC (PEC Z)",
   free: "free space",
   // Faceted terrain: impedance ran crest-medium Sommerfeld; the far field
   // reflects per-direction off the facets (issue #534).

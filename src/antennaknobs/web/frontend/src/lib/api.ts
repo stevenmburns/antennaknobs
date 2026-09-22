@@ -158,7 +158,10 @@ export type SolveResponse = {
     marker?: { bearing_deg: number; label: string; opposite: string };
   };
   /** What the impedance solve actually used. Momwire: "refl-coef" |
-   *  "pec-image" | "free"; PyNEC adds "sommerfeld". Authoritative — the
+   *  "pec-image" | "free"; PyNEC adds "sommerfeld". "mininec" on every
+   *  backend is the MININEC-type ground (AK#1655): the solve saw the PEC
+   *  image, and ground_eps_r / ground_sigma are the soil the pattern
+   *  reflects off. Authoritative — the
    *  readout's ground row shows this rather than re-deriving it from
    *  backend + groundType state. */
   ground_model_applied?: string;

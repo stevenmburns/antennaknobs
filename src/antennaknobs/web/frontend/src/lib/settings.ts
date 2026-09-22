@@ -76,7 +76,7 @@ export const BUILTIN_UI_DEFAULTS: UiDefaults = {
 
 const SWITCH_KEYS = Object.keys(BUILTIN_SWITCHES) as SwitchKey[];
 const GROUND_TYPES: GroundType[] = ["finite", "pec", "terrain"];
-const METHODS: FiniteGroundMethod[] = ["fast", "sommerfeld"];
+const METHODS: FiniteGroundMethod[] = ["fast", "sommerfeld", "mininec"];
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
