@@ -1120,6 +1120,28 @@ directly.
   minimizes the table to a compact *n pinned* chip — ghosts stay on the plot —
   and clicking the chip reopens it.
 
+### Where the maximum is
+
+The readout at the top right of a pattern view says where this cut's own
+maximum is: **peak +6.8 dBi @ el 0°** on an elevation cut (reading up and
+over, 0–180°, like EZNEC's "Slice Max Gain"), or **@ az** on an azimuth cut.
+That costs nothing; it is the peak of the trace on screen.
+
+The whole pattern's maximum needs a full far-field solve, so it is found on
+request: **find 3-D max** fetches it for the design as it stands, and shows
+**3-D max … @ az …, el …**. Click that to aim both cuts through it: the
+elevation cut turns to its bearing and the azimuth cut rises to its elevation,
+and the slice peak becomes the 3-D maximum. A re-solve offers the button again
+rather than keep an answer for a design that has changed. With a pattern
+pinned, the compare table already fetches the maximum, so it appears without
+asking. The **×** beside it hides it until you find it again. It is the best
+sample of a 1° grid over elevations 1–90°, so a peak exactly on the horizon
+reads at 1° (#1669).
+
+The plot's captions (which cut this is, the peak, the terrain field, the NEC rp
+legend) sit in the control stacks rather than printed in the plot's corners,
+so no control covers them on a small or zoomed display.
+
 ## Norm check — is the solve trustworthy?
 
 On the **azimuth** and **elevation** pattern views a **norm check** checkbox

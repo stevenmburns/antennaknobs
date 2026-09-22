@@ -19,14 +19,20 @@ import antennaknobs.web.examples  # noqa: F401  registration order
 from antennaknobs.file_designs import builder_from_file
 from antennaknobs.web.adapter import _make_example, _network_drive_values
 
-CARDIOID = (
-    Path(__file__).parent / "fixtures" / "eznec_gyrator_1595" / "Cardioidmodnec5.nec"
+FIXTURES = Path(__file__).parent / "fixtures" / "eznec_gyrator_1595"
+CARDIOID = FIXTURES / "Cardioidmodnec5.nec"
+
+
+# AC6LA hit the crash on BOTH decks: the NEC-5 one (#1636) and, on the B-spline
+# slot, the NEC-2 one (QRZ #120). Each spells its two current sources its own
+# way, so each is pinned; the impedances are B-spline's on its own mesh.
+@pytest.mark.parametrize(
+    "deck, z_re",
+    [("Cardioidmodnec5.nec", (32.88, 65.49)), ("Cardioidmodnec2.nec", (36.43, 67.76))],
 )
-
-
-def test_the_cardioid_solves_in_the_workbench_with_its_own_drives():
-    cls = builder_from_file(str(CARDIOID))
-    ex = _make_example("Cardioidmodnec5", cls)
+def test_the_cardioid_solves_in_the_workbench_with_its_own_drives(deck, z_re):
+    cls = builder_from_file(str(FIXTURES / deck))
+    ex = _make_example(deck.removesuffix(".nec"), cls)
     f = cls().freq
     out = ex.momwire_solve(
         {
@@ -42,8 +48,8 @@ def test_the_cardioid_solves_in_the_workbench_with_its_own_drives():
     drives = [complex(r["v_re"], r["v_im"]) for r in feeds]
     assert drives == [pytest.approx(1.414214), pytest.approx(-1.414214j)]
     # Each paired with its own impedance, in source order.
-    assert feeds[0]["z_re"] == pytest.approx(32.88, rel=1e-2)
-    assert feeds[1]["z_re"] == pytest.approx(65.49, rel=1e-2)
+    assert feeds[0]["z_re"] == pytest.approx(z_re[0], rel=1e-2)
+    assert feeds[1]["z_re"] == pytest.approx(z_re[1], rel=1e-2)
 
 
 def test_the_drives_come_from_the_sources_not_the_ports():
