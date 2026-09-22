@@ -806,7 +806,13 @@ function DesignSessionBody({
     togglePin,
     clearPins,
   } = useContext(PinsContext);
-  const [liveMetrics, setLiveMetrics] = useState<PatternMetrics | null>(null);
+  // The live antenna's metrics for the compare table, held WITH the solve
+  // they describe: a re-solve must not keep showing the previous design's
+  // numbers while the new ones are fetched (AK#1632).
+  const [liveMetricsFor, setLiveMetricsFor] = useState<{
+    result: SolveResponse;
+    metrics: PatternMetrics | null;
+  } | null>(null);
   // The stage's far-field captions, per cut (a grid can show both), handed up
   // by the charts so the overlay stacks can show them (see FarFieldCaptions).
   const [ffCaptions, setFfCaptions] = useState<
@@ -1544,9 +1550,14 @@ function DesignSessionBody({
       // effect's purpose, not a sync that could be computed during render
       // (#768).
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setLiveMetrics(null);
+      setLiveMetricsFor(null);
       return;
     }
+    // A solve in flight means the knobs already describe a design `result`
+    // does not: wait for it, or the metrics would be filed under the wrong
+    // solve. Its arrival re-runs this effect.
+    if (stale) return;
+    const r = result;
     let cancelled = false;
     const h = window.setTimeout(() => {
       // Read at fire time, not at schedule time: the dwell is 300 ms and the
@@ -1555,7 +1566,7 @@ function DesignSessionBody({
       const controls = controlsRef.current;
       if (!controls) return;
       fetchMetrics(controls).then((m) => {
-        if (!cancelled) setLiveMetrics(m);
+        if (!cancelled) setLiveMetricsFor({ result: r, metrics: m });
       });
     }, 300);
     return () => {
@@ -1563,17 +1574,35 @@ function DesignSessionBody({
       window.clearTimeout(h);
     };
     // result identity changes per solve; that's the cue to refresh.
-  }, [comparing, result, active]);
+  }, [comparing, result, active, stale]);
+  // Only ever the CURRENT solve's metrics: null (the table's "…") while the
+  // new ones are on their way.
+  const liveMetrics =
+    liveMetricsFor?.result === result ? liveMetricsFor.metrics : null;
 
   // The 3-D maximum for the peak readout (AK#1632): the compare table's
-  // metrics when pins are up, else the on-demand fetch for THIS solve.
-  const maxMetrics =
-    liveMetrics ?? (maxFetch?.result === result ? maxFetch.metrics : null);
-  const maxPending = !!(maxFetch?.result === result && maxFetch.pending);
+  // metrics when pins are up, else the on-demand fetch for THIS solve. Each is
+  // tied to the solve it describes, so neither can show a previous design's
+  // maximum. The × dismisses it until "find 3-D max" is clicked again, across
+  // re-solves too, so pins do not bring it back uninvited.
+  const [maxDismissed, setMaxDismissed] = useState(false);
+  const ownMax = maxFetch?.result === result ? maxFetch.metrics : null;
+  const maxMetrics = maxDismissed ? null : (liveMetrics ?? ownMax);
+  const maxPending =
+    !maxDismissed &&
+    !maxMetrics &&
+    ((comparing && liveMetricsFor?.result !== result) ||
+      !!(maxFetch?.result === result && maxFetch.pending));
   function findMax() {
+    setMaxDismissed(false);
+    // Already in hand (dismissed, or fetched by the pin table): just show it.
+    // With pins up the table's fetch is on its way; don't pay twice.
+    if (liveMetrics || ownMax || comparing) return;
     const controls = controlsRef.current;
     const r = result;
-    if (!controls || !r) return;
+    // Not while a solve is in flight: the knobs would describe a design the
+    // on-screen `result` does not, and the answer would be filed under it.
+    if (!controls || !r || stale) return;
     setMaxFetch({ result: r, metrics: null, pending: true });
     fetchMetrics(controls).then((m) => {
       setMaxFetch((prev) =>
@@ -2227,8 +2256,10 @@ function DesignSessionBody({
               captions={ffCaptions[v === "azimuth" ? "xy" : "yz"] ?? null}
               maxMetrics={maxMetrics}
               maxPending={maxPending}
+              canFindMax={!!result && !stale}
               onFindMax={findMax}
               onAimAtMax={aimAtMax}
+              onDismissMax={() => setMaxDismissed(true)}
             />
           )}
           <CutAngleOverlay

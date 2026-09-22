@@ -73,8 +73,10 @@ function controls(
       captions={CAPTIONS}
       maxMetrics={null}
       maxPending={false}
+      canFindMax
       onFindMax={() => {}}
       onAimAtMax={() => {}}
+      onDismissMax={() => {}}
       {...over}
     />,
   );
@@ -108,6 +110,23 @@ describe("the peak readout", () => {
     });
     fireEvent.click(b);
     expect(onAimAtMax).toHaveBeenCalledWith(METRICS);
+  });
+
+  it("dismisses the 3-D max with its ×", () => {
+    const onDismissMax = vi.fn();
+    const onAimAtMax = vi.fn();
+    controls({ maxMetrics: METRICS, onDismissMax, onAimAtMax });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss the 3-D max" }),
+    );
+    expect(onDismissMax).toHaveBeenCalledOnce();
+    expect(onAimAtMax).not.toHaveBeenCalled();
+  });
+
+  it("cannot be asked while a solve is in flight", () => {
+    controls({ canFindMax: false });
+    const b = screen.getByRole("button", { name: "find 3-D max" });
+    expect((b as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("carries the NEC legend on its own switch", () => {
