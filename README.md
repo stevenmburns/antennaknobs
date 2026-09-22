@@ -158,7 +158,7 @@
 | src/antennaknobs/settings\_file.py                                   |       52 |        2 |     96% |     77-78 |
 | src/antennaknobs/sim.py                                              |        2 |        0 |    100% |           |
 | src/antennaknobs/simnec\_export.py                                   |      248 |       27 |     89% |191, 369, 404, 410, 434, 442, 447, 457, 503, 510, 512-527, 534, 538, 580, 592, 632, 832-835, 855 |
-| src/antennaknobs/simnec\_import.py                                   |      288 |       19 |     93% |222, 286, 312, 331, 361-362, 383, 428, 456, 459-460, 572-573, 577-578, 622-623, 626-627 |
+| src/antennaknobs/simnec\_import.py                                   |      301 |       19 |     94% |222, 286, 312, 331, 361-362, 421, 466, 494, 497-498, 610-611, 615-616, 660-661, 664-665 |
 | src/antennaknobs/smith\_chart.py                                     |       44 |        0 |    100% |           |
 | src/antennaknobs/station.py                                          |       68 |        3 |     96% |235-236, 313 |
 | src/antennaknobs/sweep.py                                            |      376 |       60 |     84% |213-224, 466, 469-524, 605, 755-756, 765-767, 790-791, 801, 809-856 |
@@ -185,7 +185,7 @@
 | src/antennaknobs/web/tracker.py                                      |      254 |       30 |     88% |207, 213, 256, 272-273, 302-303, 306, 317-319, 326-327, 333, 415, 438-442, 445-454, 481 |
 | src/antennaknobs/web/user\_designs.py                                |       68 |        6 |     91% |60-61, 92-93, 98-99 |
 | src/antennaknobs/wire\_catalog.py                                    |      188 |        0 |    100% |           |
-| **TOTAL**                                                            | **18433** | **1123** | **94%** |           |
+| **TOTAL**                                                            | **18446** | **1123** | **94%** |           |
 
 
 ## Setup coverage badge
