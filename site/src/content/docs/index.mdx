@@ -29,16 +29,17 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.84.1" icon="star">
-  **The circuit around the antenna, read as written.** A current source spelled
-  NEC-2's way on a one-segment phantom wire now reads as the antenna rather
-  than its reciprocal, and on the NEC-2 engine a design with a current source
-  reports its feed rather than the inverse of it. SimNEC circuits import the
-  way SimNEC writes them: component values with its SI suffixes (`731.9n`,
-  `37.52p`, `2K`) and wire materials by name (`Conductivities.aluminum`). In the
-  workbench, the mesh-density knob now says what it is, segments per quarter
-  wavelength, and says so when a design loaded from a file keeps its own
-  segments.
+<Card title="New in v0.85.0" icon="star">
+  **Tuners that tune themselves.** Give `l_network_tuner` or `t_network_tuner`
+  a `tune_to` target instead of component values, and the engine solving the
+  design picks the parts for its own antenna, then holds them across a sweep so
+  you see the tuned bandwidth. A T keeps one part fixed (yours, or a capacitor
+  parked at its maximum), and both take the component ranges a real box has.
+  SimNEC's automatic LC match imports as this tuner and exports back as one.
+  EZNEC's MININEC-type ground joins the finite grounds on every engine. The
+  pattern views now say where the maximum is, with one click to find the whole
+  pattern's peak and aim both cuts through it, and their captions stay clear of
+  the controls on a small or zoomed display.
 </Card>
 
 ## The whole pitch, in one line

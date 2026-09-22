@@ -66,6 +66,16 @@ cascade order:
 | `Shunt` L/C leg | `SHUNT_IND` / `SHUNT_CAP` | H / F, Q likewise |
 | ideal `Transformer` | `TRANSFORMER2` (`Mdl ideal`) | turns ratio (SimNEC's N is the antenna:generator voltage ratio — handled internally, validated live) |
 | `Load` on a real port (traps) | stays an `LD` card in the deck | R/L/C |
+| self-tuning `l_network_tuner(tune_to=…)`, `"low"` / `"high"` | `XMATCH` (the LC matching component, `mode auto`) | `pass`, `R` = the target (`X` 0), `Qc` / `Ql`, `MHz` = the tune frequency |
+
+A self-tuning tuner exports as SimNEC's own element, not as numbers: SimNEC
+tunes it against its antenna solve, as antennaknobs tunes it against its own,
+and importing the file gives the same tuner back. What that element cannot
+say is refused by name: a T network, `"ll"` / `"cc"` parts, component ranges,
+and a tuner with a fixed shunt side that found no match (SimNEC's automatic
+element picks its side, and would). For those, `--freeze-tuners`
+(`freeze_tuners=True`) tunes the box first and writes the parts it chose as
+ordinary `SERIES_*` / `SHUNT_*` elements, which import back as fixed values.
 
 ### What refuses to export — and why
 
@@ -115,7 +125,10 @@ displayed in, and the NEC cards are metres whatever it says. Values are read
 the way SimNEC writes them: component values with its SI suffixes (`37.52p`,
 `731.9n`, `2K`; its `g` is a wire gauge and is not a multiplier), and a wire
 material by name (`NECOptions.mhosPerMeter = Conductivities.aluminum;`, with
-SimNEC's own values). SimNEC re-meshes a deck's wires by its own rules before
+SimNEC's own values). An automatic `XMATCH` imports as a self-tuning
+[`l_network_tuner`](/concepts/station-modelling/), which tunes for the solving
+engine's own antenna impedance; SimNEC's `MHz 0` (retune at every frequency)
+tunes once, at the Generator's frequency, and the import note says so. SimNEC re-meshes a deck's wires by its own rules before
 solving, and antennaknobs solves the segments the deck gives, so the two can
 differ by the mesh alone. Chain elements
 translate back branch-for-branch through the same table as export, and a
