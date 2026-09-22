@@ -29,21 +29,16 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.84.0" icon="star">
-  **Every engine, read the way it solved.** A ground-mounted vertical on the
-  NEC-5, NEC-2 and PyNEC engines no longer draws, and radiates, its base
-  current as zero: the base on the ground plane is bonded, and NEC-5's
-  printed currents are now turned back into the currents it solved exactly,
-  so a two-vertical cardioid reads 6.78 dBi on NEC-5, as EZNEC and razor-2p
-  do, instead of 5.41. A design fed through a lossy network reports NEC's own
-  pattern per watt the source delivers, which is what the licensed engine
-  prints for the same network, and that pattern now draws on NEC-5 and PyNEC
-  at all. NEC-5 drives such a design's ports at the voltages the network
-  resolves. Every NEC-2 card fits in 80 columns, so 4nec2's `nec2dxs` reads
-  our decks; SimNEC's `NECUnits` is a display unit, not a scale; the pattern
-  over a perfect ground is continuous through the horizon; a multi-source
-  network design solves in the workbench; and reloading an edited design
-  file refreshes the deck the Files view shows.
+<Card title="New in v0.84.1" icon="star">
+  **The circuit around the antenna, read as written.** A current source spelled
+  NEC-2's way on a one-segment phantom wire now reads as the antenna rather
+  than its reciprocal, and on the NEC-2 engine a design with a current source
+  reports its feed rather than the inverse of it. SimNEC circuits import the
+  way SimNEC writes them: component values with its SI suffixes (`731.9n`,
+  `37.52p`, `2K`) and wire materials by name (`Conductivities.aluminum`). In the
+  workbench, the mesh-density knob now says what it is, segments per quarter
+  wavelength, and says so when a design loaded from a file keeps its own
+  segments.
 </Card>
 
 ## The whole pitch, in one line

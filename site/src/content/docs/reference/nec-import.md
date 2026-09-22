@@ -288,7 +288,11 @@ distant wire its transformer and lossy-line idiom puts a source or a network
 end on — is recognised the same way: each referenced segment becomes a virtual
 circuit node, the source drives the node, and the idiom's open-circuit pins
 are kept as the ideal open they stand for, so the deck solves without meshing
-the wire and `skipped_note()` says what was translated. This dialect support was
+the wire and `skipped_note()` says what was translated. When what a phantom
+segment drives is an `NT` gyrator (zero diagonal, `Y12 = Y21 = jB`), the only
+way NEC-2 can spell a current source, it imports as the current source it is,
+whether the phantom wire has one segment or several, and the driving point
+reads as the antenna rather than its reciprocal. This dialect support was
 validated against a 3,146-deck corpus of published models — ARRL course
 material, 4nec2's own library, and the wider web.
 
