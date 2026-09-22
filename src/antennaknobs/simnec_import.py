@@ -362,6 +362,44 @@ def _fnum(token: str, where: str, what: str) -> float:
         raise ValueError(f"{where}: bad {what} value {token!r}") from None
 
 
+# SimNEC's `Conductivities.<metal>` names (AK#1647), as SimNEC defines them:
+# each is 1/resistivity in S/m, from these resistivities in ohm-metres, and
+# `perfect` is 0, which `mhosPerMeter` reads as a perfect wire. SimNEC's release
+# notes say the table was "set to match EZNEC's", and copper's 5.7471e7 is
+# EZNEC's own figure (WA7ARK's EZNEC deck writes `LD 5 ... 5.7471E+7`).
+_RESISTIVITY_OHM_M = {
+    "silver": 1.59e-8,
+    "copper": 1.74e-8,
+    "gold": 2.44e-8,
+    "aluminum": 4.0e-8,
+    "zinc": 6.0e-8,
+    "tin": 1.14e-7,
+    "chromium": 1.25e-7,
+    "lowcarbonsteel": 1.43e-7,
+    "lead": 2.2e-7,
+    "stainless": 6.9e-7,
+}
+_CONDUCTIVITY_NAME = re.compile(r"^Conductivities\.(\w+)$", re.IGNORECASE)
+
+
+def _mhos(token: str, where: str, what: str) -> float:
+    """A wire conductivity in S/m: a number, or a SimNEC `Conductivities.<name>`
+    (0 = a perfect wire either way)."""
+    m = _CONDUCTIVITY_NAME.match(token.rstrip(";"))
+    if not m:
+        return _fnum(token, where, what)
+    name = m.group(1).lower()
+    if name == "perfect":
+        return 0.0
+    if name not in _RESISTIVITY_OHM_M:
+        known = ", ".join(["perfect", *_RESISTIVITY_OHM_M])
+        raise ValueError(
+            f"{where}: {what} names Conductivities.{m.group(1)}, which SimNEC "
+            f"does not define (it has {known})"
+        )
+    return 1.0 / _RESISTIVITY_OHM_M[name]
+
+
 class _Script:
     """The NEC-portal ``<equ>`` script pulled apart: NEC cards, translated
     directives, the block name, and whatever was not understood."""
@@ -433,7 +471,7 @@ class _Script:
             option, value = m.group(1), m.group(2)
             key = option.lower()
             if key == "mhospermeter":
-                mhos = _fnum(value, where, f"NECOptions.{option}")
+                mhos = _mhos(value, where, f"NECOptions.{option}")
                 self.conductivity = mhos if mhos > 0.0 else None
                 return
             if key == "segmentsperwavelength":
