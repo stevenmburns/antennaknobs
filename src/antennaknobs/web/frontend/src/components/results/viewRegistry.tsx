@@ -5,7 +5,11 @@ import { CurrentCanvas } from "../charts/CurrentCanvas";
 import { FarFieldChart } from "../charts/FarFieldChart";
 import { SmithChart } from "../charts/SmithChart";
 import { SweepChart } from "../charts/SweepChart";
-import type { PatternData, PinnedPattern } from "../charts/types";
+import type {
+  FarFieldCaptions,
+  PatternData,
+  PinnedPattern,
+} from "../charts/types";
 import { FilesPanel, type FilesViewData } from "./FilesPanel";
 import { SchematicPanel } from "./SchematicPanel";
 
@@ -42,6 +46,10 @@ export type ViewRenderProps = {
   showFeedNames: boolean;
   multiFeed: boolean;
   fineNorm?: number | null;
+  /** The stage's far-field charts hand their corner captions up to this
+   *  instead of printing them, so the overlay stacks can show them where no
+   *  control covers them. Thumbnail call sites omit it and keep the print. */
+  onFarFieldCaptions?: (c: FarFieldCaptions) => void;
   /** Adaptive resolution (issue #744) is ON for this session — the Smith
    *  chart uses it to draw the sweep as a connected locus (the refined,
    *  frequency-sorted samples finally support one). Optional: thumbnail
@@ -123,6 +131,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       azElevDeg={p.azElevDeg}
       elevAzDeg={p.elevAzDeg}
       fineNorm={p.fineNorm}
+      onCaptions={p.onFarFieldCaptions}
     />
   ),
   elevation: (p) => (
@@ -135,6 +144,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       azElevDeg={p.azElevDeg}
       elevAzDeg={p.elevAzDeg}
       fineNorm={p.fineNorm}
+      onCaptions={p.onFarFieldCaptions}
     />
   ),
   // liveZ wins over result while it is set: during an optimizer run it is the

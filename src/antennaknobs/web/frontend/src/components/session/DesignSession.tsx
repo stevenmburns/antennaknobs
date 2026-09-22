@@ -55,7 +55,11 @@ import type {
 import { BackendConfigModal } from "../backend/BackendConfigModal";
 import { ParamForm } from "../params/ParamForm";
 import { setCutRefineEnabled } from "../charts/cuts";
-import type { PatternMetrics } from "../charts/types";
+import type {
+  FarFieldCaptions,
+  FarFieldCut,
+  PatternMetrics,
+} from "../charts/types";
 import {
   ThemeContext,
   useFullscreen,
@@ -803,6 +807,23 @@ function DesignSessionBody({
     clearPins,
   } = useContext(PinsContext);
   const [liveMetrics, setLiveMetrics] = useState<PatternMetrics | null>(null);
+  // The stage's far-field captions, per cut (a grid can show both), handed up
+  // by the charts so the overlay stacks can show them (see FarFieldCaptions).
+  const [ffCaptions, setFfCaptions] = useState<
+    Partial<Record<FarFieldCut, FarFieldCaptions>>
+  >({});
+  const onFarFieldCaptions = useCallback((c: FarFieldCaptions) => {
+    setFfCaptions((prev) => ({ ...prev, [c.cut]: c }));
+  }, []);
+  // The whole pattern's maximum, fetched on demand (AK#1632): it needs a full
+  // far-field solve, which the compare table already pays for while pins are
+  // on screen and nothing else should pay for unasked. Held with the solve it
+  // describes, so a later solve shows "find" again rather than a stale max.
+  const [maxFetch, setMaxFetch] = useState<{
+    result: SolveResponse;
+    metrics: PatternMetrics | null;
+    pending: boolean;
+  } | null>(null);
   // The app never switches solvers on its own. When the current design+solver
   // combo is a poor match the solve is withheld and a warning is shown; these
   // handle its two buttons. (To change solver, the user uses the gear menu.)
@@ -1544,6 +1565,29 @@ function DesignSessionBody({
     // result identity changes per solve; that's the cue to refresh.
   }, [comparing, result, active]);
 
+  // The 3-D maximum for the peak readout (AK#1632): the compare table's
+  // metrics when pins are up, else the on-demand fetch for THIS solve.
+  const maxMetrics =
+    liveMetrics ?? (maxFetch?.result === result ? maxFetch.metrics : null);
+  const maxPending = !!(maxFetch?.result === result && maxFetch.pending);
+  function findMax() {
+    const controls = controlsRef.current;
+    const r = result;
+    if (!controls || !r) return;
+    setMaxFetch({ result: r, metrics: null, pending: true });
+    fetchMetrics(controls).then((m) => {
+      setMaxFetch((prev) =>
+        prev?.result === r ? { result: r, metrics: m, pending: false } : prev,
+      );
+    });
+  }
+  // Aim both cuts through the maximum: the elevation cut at its bearing, the
+  // azimuth cut at its elevation (the knob's own 0-89° range).
+  function aimAtMax(m: PatternMetrics) {
+    setElevAzDeg(Math.round(m.azimuth_deg) % 360);
+    setAzElevDeg(Math.min(89, Math.max(0, Math.round(m.takeoff_deg))));
+  }
+
   // Reset the "solve anyway" approval whenever the design or solver changes, so
   // an inappropriate combo is re-evaluated (and re-warned) rather than riding a
   // stale approval. Defined before the solve effect so it runs first.
@@ -2168,9 +2212,9 @@ function DesignSessionBody({
               onClearMeasured={() => setMeasured(null)}
             />
           )}
-          {/* The container is skipped entirely when it would be empty. */}
-          {(v === "azimuth" || v === "elevation") &&
-            (!isMobile || (normCheckEnabled && normCheck)) && (
+          {/* Always there on a pattern view now: it carries the chart's
+              captions and the peak readout, on mobile too. */}
+          {(v === "azimuth" || v === "elevation") && (
             <FarFieldOverlayControls
               isMobile={isMobile}
               normCheckEnabled={normCheckEnabled}
@@ -2180,6 +2224,11 @@ function DesignSessionBody({
               groundModel={groundModel}
               necOverlayEnabled={necOverlayEnabled}
               setNecOverlayEnabled={setNecOverlayEnabled}
+              captions={ffCaptions[v === "azimuth" ? "xy" : "yz"] ?? null}
+              maxMetrics={maxMetrics}
+              maxPending={maxPending}
+              onFindMax={findMax}
+              onAimAtMax={aimAtMax}
             />
           )}
           <CutAngleOverlay
@@ -2203,6 +2252,9 @@ function DesignSessionBody({
               measFreq={measFreq}
               removePin={removePin}
               togglePin={togglePin}
+              cutLabel={
+                ffCaptions[v === "azimuth" ? "xy" : "yz"]?.cutLabel ?? null
+              }
             />
           )}
           <ViewPanel
@@ -2239,6 +2291,7 @@ function DesignSessionBody({
             showFeedNames={showFeedNames}
             multiFeed={effectiveMultiFeed}
             fineNorm={normCheck?.pattern_norm ?? null}
+            onFarFieldCaptions={onFarFieldCaptions}
             refineEnabled={refineEnabled}
             sweepSettled={sweepSettled}
             schematicSvg={schematicSvg}

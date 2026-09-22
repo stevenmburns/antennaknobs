@@ -2,9 +2,19 @@ import { useContext, useEffect, useRef } from "react";
 import type { SolveResponse } from "../../lib/api";
 import { cutDbiTop, cutDbiToFrac } from "../../lib/refine";
 import { ThemeContext } from "../hooks";
-import { cutsRedrawKey, traceFor, useCutTraces } from "./cuts";
+import {
+  cutsRedrawKey,
+  slicePeakAngleDeg,
+  traceFor,
+  useCutTraces,
+} from "./cuts";
 import { ghostRgb, plotColors } from "./palette";
-import type { FarFieldCut, PatternData, PinnedPattern } from "./types";
+import type {
+  FarFieldCaptions,
+  FarFieldCut,
+  PatternData,
+  PinnedPattern,
+} from "./types";
 
 export function FarFieldChart({
   result,
@@ -15,6 +25,7 @@ export function FarFieldChart({
   azElevDeg,
   elevAzDeg,
   fineNorm,
+  onCaptions,
 }: {
   result: SolveResponse | null;
   pattern: PatternData | null;
@@ -30,6 +41,10 @@ export function FarFieldChart({
    *  radially by 10·log10(fineNorm/liveNorm). Overlap ⇒ the solve conserves
    *  power; a visible gap ⇒ the solver's discretisation error. */
   fineNorm?: number | null | undefined;
+  /** Given, the chart does NOT print its corner captions and hands them up
+   *  instead, for the stage's overlay stacks to show where no control can
+   *  cover them. Omitted (a thumbnail), it prints them as always. */
+  onCaptions?: ((c: FarFieldCaptions) => void) | undefined;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -49,6 +64,36 @@ export function FarFieldChart({
   // angles are already deps of their own; this covers what can change at
   // unchanged angles.
   const cutTracesKey = cutsRedrawKey(cutTraces);
+
+  // The captions, from the same trace the draw uses. Serialised so the effect
+  // below fires when a caption CHANGES, not on every render.
+  const captionTrace = traceFor(cutTraces[0], cut);
+  const captions: FarFieldCaptions = {
+    cut,
+    cutLabel:
+      cut === "xy"
+        ? `az @ ${azElevDeg}° elev (dBi)`
+        : `elev @ ${elevAzDeg}° az (dBi)`,
+    peakDbi: result && captionTrace ? captionTrace.peakDbi : null,
+    peakAngleDeg:
+      result && captionTrace ? slicePeakAngleDeg(captionTrace, cut) : null,
+    field:
+      cutTraces[0] && result?.ground_terrain
+        ? cutTraces[0].diffraction
+          ? "with diffraction"
+          : "specular while dragging"
+        : null,
+    belowGroundPct:
+      result?.in_medium_moment_fraction != null
+        ? Math.round(result.in_medium_moment_fraction * 100)
+        : null,
+    necOverlay: !!(result && captionTrace && pattern),
+  };
+  const captionsJson = JSON.stringify(captions);
+  useEffect(() => {
+    onCaptions?.(JSON.parse(captionsJson) as FarFieldCaptions);
+  }, [captionsJson, onCaptions]);
+  const drawCaptions = !onCaptions;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -146,7 +191,9 @@ export function FarFieldChart({
       cut === "xy"
         ? `az @ ${azElevDeg}° elev (dBi)`
         : `elev @ ${elevAzDeg}° az (dBi)`;
-    ctx.fillText(cutLabel, 6, 14);
+    // A thumbnail too small for both corner labels keeps the peak; the view's
+    // name is printed under it anyway.
+    if (drawCaptions && size >= 220) ctx.fillText(cutLabel, 6, 14);
     ctx.fillStyle = PC.label;
     if (cut === "xy") {
       ctx.fillText("+x", cx + R - 14, cy + 11);
@@ -377,12 +424,18 @@ export function FarFieldChart({
       ctx.setLineDash([]);
 
       // Legend swatch + label, bottom-right.
-      ctx.fillStyle = `rgba(${PC.necRgb}, 0.9)`;
-      ctx.font = "10px ui-monospace, monospace";
-      const necText = "NEC rp_card";
-      const necTw = ctx.measureText(necText).width;
-      ctx.fillText(necText, size - necTw - 6, size - 6);
+      if (drawCaptions) {
+        ctx.fillStyle = `rgba(${PC.necRgb}, 0.9)`;
+        ctx.font = "10px ui-monospace, monospace";
+        const necText = "NEC rp_card";
+        const necTw = ctx.measureText(necText).width;
+        ctx.fillText(necText, size - necTw - 6, size - 6);
+      }
     }
+
+    // The corner captions below are the stage overlays' to show (see
+    // `onCaptions`); a thumbnail prints them itself.
+    if (!drawCaptions) return;
 
     // Peak dBi annotation (top-right corner).
     const peakDbi = liveTrace.peakDbi;
@@ -437,6 +490,7 @@ export function FarFieldChart({
     fineNorm,
     theme,
     cutTracesKey,
+    drawCaptions,
   ]);
 
   return <canvas ref={canvasRef} className="farfield" />;

@@ -6,7 +6,11 @@ import type { ExampleDescriptor } from "../../lib/params";
 import type { Projection, View } from "../../lib/view";
 import { PROJECTIONS } from "../../lib/view";
 import type { Layout } from "../session/useViewPrefs";
-import type { PatternMetrics, PinnedPattern } from "../charts/types";
+import type {
+  FarFieldCaptions,
+  PatternMetrics,
+  PinnedPattern,
+} from "../charts/types";
 import { Knob } from "../params/Knob";
 import { PatternCompareTable } from "./PatternCompareTable";
 
@@ -269,6 +273,82 @@ export function SmithOverlayControls({
 // it's one short span); the norm-check toggle lives in the gear menu. The
 // caller skips this entirely when it would be empty (see the `!isMobile ||
 // (normCheckEnabled && normCheck)` gate at the call site).
+function signed(x: number, digits: number): string {
+  return `${x >= 0 ? "+" : ""}${x.toFixed(digits)}`;
+}
+
+// The far-field chart's own corner captions, shown in the stage's overlay
+// stack rather than printed on the canvas, where a control could cover them
+// (AC6LA, QRZ #115), plus where the maximum is (AK#1632). The slice max is the
+// peak of the trace on screen and costs nothing; the 3-D max needs a full
+// far-field solve, so it is shown when the pattern metrics are already in hand
+// and fetched on a click otherwise. Clicking it aims both cut knobs there.
+function PeakReadout({
+  captions,
+  maxMetrics,
+  maxPending,
+  onFindMax,
+  onAimAtMax,
+}: {
+  captions: FarFieldCaptions;
+  maxMetrics: PatternMetrics | null;
+  maxPending: boolean;
+  onFindMax: () => void;
+  onAimAtMax: (m: PatternMetrics) => void;
+}) {
+  const where = captions.cut === "xy" ? "az" : "el";
+  return (
+    <>
+      {captions.peakDbi != null && captions.peakAngleDeg != null && (
+        <span
+          className="overlay-readout overlay-peak"
+          title={`The maximum of this ${captions.cut === "xy" ? "azimuth" : "elevation"} cut and where it is on the cut (EZNEC's "Slice Max Gain"). Over the far side of the zenith an elevation reads past 90°.`}
+        >
+          peak {signed(captions.peakDbi, 1)} dBi @ {where}{" "}
+          {Math.round(captions.peakAngleDeg)}°
+        </span>
+      )}
+      {maxMetrics ? (
+        <button
+          type="button"
+          className="overlay-readout overlay-max"
+          onClick={() => onAimAtMax(maxMetrics)}
+          title="The whole pattern's maximum, and where it is. Click to aim both cuts through it."
+        >
+          3-D max {signed(maxMetrics.peak_gain_dbi, 1)} dBi{" "}
+          {/* Two lines, so the readout stays narrow on a small stage. */}
+          <span className="overlay-max-where">
+            @ az {Math.round(maxMetrics.azimuth_deg) % 360}°, el{" "}
+            {Math.round(maxMetrics.takeoff_deg)}°
+          </span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="overlay-readout overlay-max"
+          onClick={onFindMax}
+          disabled={maxPending || captions.peakDbi == null}
+          title="Find the whole pattern's maximum (a full far-field solve), then click it to aim both cuts through it."
+        >
+          {maxPending ? "finding 3-D max…" : "find 3-D max"}
+        </button>
+      )}
+      {captions.field && (
+        <span
+          className={`overlay-caption${captions.field === "with diffraction" ? " overlay-caption-strong" : ""}`}
+        >
+          {captions.field}
+        </span>
+      )}
+      {captions.belowGroundPct != null && (
+        <span className="overlay-caption">
+          {captions.belowGroundPct}% of current below ground
+        </span>
+      )}
+    </>
+  );
+}
+
 export function FarFieldOverlayControls({
   isMobile,
   normCheckEnabled,
@@ -278,6 +358,11 @@ export function FarFieldOverlayControls({
   groundModel,
   necOverlayEnabled,
   setNecOverlayEnabled,
+  captions,
+  maxMetrics,
+  maxPending,
+  onFindMax,
+  onAimAtMax,
 }: {
   isMobile: boolean;
   normCheckEnabled: boolean;
@@ -288,9 +373,23 @@ export function FarFieldOverlayControls({
   groundModel: GroundModel;
   necOverlayEnabled: boolean;
   setNecOverlayEnabled: (v: boolean) => void;
+  captions: FarFieldCaptions | null;
+  maxMetrics: PatternMetrics | null;
+  maxPending: boolean;
+  onFindMax: () => void;
+  onAimAtMax: (m: PatternMetrics) => void;
 }) {
   return (
     <div className="farfield-overlay">
+      {captions && (
+        <PeakReadout
+          captions={captions}
+          maxMetrics={maxMetrics}
+          maxPending={maxPending}
+          onFindMax={onFindMax}
+          onAimAtMax={onAimAtMax}
+        />
+      )}
       {!isMobile && (
         <label
           className="overlay-checkbox"
@@ -323,6 +422,10 @@ export function FarFieldOverlayControls({
             onChange={(e) => setNecOverlayEnabled(e.target.checked)}
           />
           NEC rp
+          {/* The legend the chart used to print in its corner. */}
+          {captions?.necOverlay && (
+            <span className="nec-swatch" aria-label="dashed cyan line" />
+          )}
         </label>
       )}
       {/* Over a finite ground the norm gap IS physics (structural
@@ -438,6 +541,7 @@ export function CompareOverlay({
   measFreq,
   removePin,
   togglePin,
+  cutLabel,
 }: {
   pinCurrentPattern: () => void;
   setCompareCollapsed: (v: boolean) => void;
@@ -451,9 +555,12 @@ export function CompareOverlay({
   measFreq: number;
   removePin: (id: string) => void;
   togglePin: (id: string) => void;
+  /** The chart's cut caption, shown above the Pin button (see PeakReadout). */
+  cutLabel: string | null;
 }) {
   return (
     <div className="compare-overlay">
+      {cutLabel && <span className="overlay-caption">{cutLabel}</span>}
       <button
         type="button"
         className="pin-btn"
