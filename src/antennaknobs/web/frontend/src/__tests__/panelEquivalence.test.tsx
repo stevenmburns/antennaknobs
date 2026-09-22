@@ -303,7 +303,7 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
     );
     expect(order).toEqual([
       "solver" + entry(name).label,
-      "segments / wire (N)",
+      "segments per λ/4 (N)",
       "wire radius (m)",
       "extended kernel (EK)",
       "degree",
@@ -355,7 +355,7 @@ describe("the backends that never had a bespoke panel", () => {
     expect(c.tabs.flatMap((t) => t.tabs)).not.toContain("d=2");
     expect(c.selects).toHaveLength(0);
     expect(c.numbers.map((n) => n.label?.replace(/[\d.]+$/, ""))).toEqual([
-      "segments / wire (N)",
+      "segments per λ/4 (N)",
       "wire radius (m)",
     ]);
   });

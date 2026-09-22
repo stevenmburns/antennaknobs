@@ -325,9 +325,10 @@ solvers pay off.
 ### Segments per wire
 
 Naming a basis also picks that basis's mesh density, because what N a solver
-needs to be converged is a property of its basis:
+needs to be converged is a property of its basis. N is segments per quarter
+wavelength at the design frequency, so a long wire gets proportionally more:
 
-| `--engine` | segments / wire |
+| `--engine` | N (segments per λ/4) |
 | --- | --- |
 | `momwire:razor-2p`, `nec5` | 40 |
 | `momwire:bspline` | 15 |

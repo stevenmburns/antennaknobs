@@ -148,7 +148,7 @@ describe("a solver that exists only in the served roster (#628)", () => {
     // roster carries, so the knob can only have got it off the wire. The
     // note beside it says where it came from.
     const nPerWire = screen
-      .getByText("segments / wire (N)")
+      .getByText("segments per λ/4 (N)")
       .closest(".field")
       ?.querySelector("input") as HTMLInputElement;
     expect(nPerWire.value).toBe("12");

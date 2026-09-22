@@ -612,9 +612,12 @@ spelling it greys, with momwire's own sentence, is N coincident rises meeting
 at the node (the catalog's retired `bundle` variant), which stays on the
 B-spline lane.
 
-The solver's gear menu also exposes **segments / wire (N)** — how finely each
-wire is discretized. More segments = more accurate (up to convergence) but a
-larger, slower solve. See
+The solver's gear menu also exposes **segments per λ/4 (N)**, the mesh
+density: each wire gets N segments per quarter wavelength at the design
+frequency, so a long wire gets proportionally more. More segments = more
+accurate (up to convergence) but a larger, slower solve. A design loaded from a
+`.nec` or `.ssn` file keeps the segment counts it was written with, so N does
+not apply to it and the gear says so. See
 [Segments & convergence](/reference/solver/#segments--convergence) for what N
 means and how to find "enough."
 

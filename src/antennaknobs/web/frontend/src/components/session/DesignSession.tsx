@@ -2072,6 +2072,7 @@ function DesignSessionBody({
             specs={modelOptionSpecs}
             vocab={compositionVocab}
             designRefusalNote={optionRefusal}
+            fixedSegmentCounts={currentExample?.fixed_segment_counts ?? false}
             suggestConvergedFeed={
               currentExample?.converged_feed_suggested ?? false
             }

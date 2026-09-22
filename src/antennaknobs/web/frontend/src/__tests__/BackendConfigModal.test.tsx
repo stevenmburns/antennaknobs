@@ -215,11 +215,26 @@ describe("BackendConfigModal — backend tab list", () => {
   });
 });
 
+describe("BackendConfigModal — the mesh density N (AK#1649)", () => {
+  it("names N for what it is: segments per quarter wavelength", () => {
+    renderModal({ backend: "bspline" });
+    const field = numberField("segments per λ/4 (N)");
+    expect(field).toBeTruthy();
+    expect(screen.queryByText("segments / wire (N)")).toBeNull();
+  });
+
+  it("gives way to a note on a file deck, where N does nothing", () => {
+    renderModal({ backend: "bspline", fixedSegmentCounts: true });
+    expect(screen.queryByText("segments per λ/4 (N)")).toBeNull();
+    expect(screen.getByRole("note").textContent).toMatch(/deck's own/);
+  });
+});
+
 describe("BackendConfigModal — per-backend knob visibility", () => {
   it("shows the shared mesh knobs for every backend, at the served default N", () => {
     for (const b of SERVED_ROSTER) {
       const { unmount } = renderModal({ backend: b.name });
-      expect(numberField("segments / wire (N)").value).toBe(
+      expect(numberField("segments per λ/4 (N)").value).toBe(
         String(b.default_n_per_wire),
       );
       expect(numberField("wire radius (m)")).toBeTruthy();
