@@ -424,7 +424,8 @@ class NEC2Engine(SimulationEngine):
         """`ground` takes PyNECEngine's spellings with PyNECEngine's meaning:
         None or "free" is free space, "pec", ("finite", eps_r, sigma)
         Sommerfeld-Norton, ("finite-fast", eps_r, sigma) reflection-
-        coefficient. The bare default is the finite ground, as on PyNEC.
+        coefficient, ("mininec", eps_r, sigma) EZNEC's MININEC-type ground
+        (`GN 1` + `GD`, patterns in cliff mode; AK#1655). The bare default is the finite ground, as on PyNEC.
         An explicit None used to be folded into that default — the one
         engine on which `--ground free` silently meant finite (AK#1563)."""
         super().__init__(builder)
@@ -476,7 +477,7 @@ class NEC2Engine(SimulationEngine):
         `rp` is (n_theta, n_phi, del_theta, del_phi) for a pattern run; None
         asks for impedance only, which `export_nec` spells as `XQ`.
         """
-        from ..nec_export import export_nec
+        from ..nec_export import export_nec, rp_mode
 
         text = export_nec(
             self.builder,
@@ -489,7 +490,10 @@ class NEC2Engine(SimulationEngine):
         if rp is None:
             return text
         n_theta, n_phi, del_theta, del_phi = rp
-        card = f"RP 0 {n_theta} {n_phi} 1000 0 0 {del_theta:g} {del_phi:g}"
+        card = (
+            f"RP {rp_mode(self.ground)} {n_theta} {n_phi} 1000 0 0 "
+            f"{del_theta:g} {del_phi:g}"
+        )
         # export_nec closes with XQ then EN; the pattern card replaces the XQ
         # (an RP triggers the solve itself) so the deck runs once, not twice.
         lines = [ln for ln in text.splitlines() if ln.split()[:1] != ["XQ"]]

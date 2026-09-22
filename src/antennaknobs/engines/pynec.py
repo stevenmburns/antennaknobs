@@ -256,6 +256,12 @@ class PyNECEngine(SimulationEngine):
                                            trusted there. Fixed by the INTRP
                                            cell-cache repair in 1.7.6
                                            (stevenmburns/necpp#5).
+          ("mininec", eps_r, sigma)      — EZNEC's MININEC-type ground
+                                           (AK#1655): gn_card 1 for the
+                                           currents and impedance, and the
+                                           medium as a gd_card circular cliff
+                                           at radius 0 that only the pattern
+                                           reads (rp_card mode 3).
           ("finite-fast", eps_r, sigma)  — finite ground via NEC's reflection-
                                            coefficient approximation. Much
                                            cheaper than Sommerfeld and within
@@ -405,6 +411,13 @@ class PyNECEngine(SimulationEngine):
         c = getattr(self, "c", None)
         if c is not None:
             del self.c
+
+    def rp_mode(self) -> int:
+        """The rp_card mode for a pattern over this engine's ground: the
+        circular cliff over the MININEC-type ground, else normal (AK#1655)."""
+        from ..nec_export import rp_mode
+
+        return rp_mode(self.ground)
 
     def _ge_flag(self):
         """NEC GE-card ground-plane flag: 1 when a ground card will be
@@ -686,6 +699,15 @@ class PyNECEngine(SimulationEngine):
             return  # no gn_card -> free space
         if g == "pec":
             c.gn_card(1, 0, 0, 0, 0, 0, 0, 0)
+            return
+        if isinstance(g, tuple) and len(g) == 3 and g[0] == "mininec":
+            # EZNEC's MININEC-type ground (AK#1655), NEC-2's spelling of it:
+            # the perfect ground for the currents, then the medium as a
+            # circular cliff at radius 0 and height 0, which only a cliff-mode
+            # rp_card reads (`nec_export.rp_mode`).
+            _, eps_r, sigma = g
+            c.gn_card(1, 0, 0, 0, 0, 0, 0, 0)
+            c.gd_card(float(eps_r), float(sigma), 0.0, 0.0)
             return
         if isinstance(g, tuple) and len(g) == 3 and g[0] in ("finite", "finite-fast"):
             _, eps_r, sigma = g
@@ -1312,7 +1334,19 @@ class PyNECEngine(SimulationEngine):
         assert 360 % n_phi == 0 and 360 == del_phi * n_phi
 
         self.c.rp_card(
-            0, n_theta, n_phi + 1, 0, 5, 0, 0, 0, 0, del_theta, del_phi, 0, 0
+            self.rp_mode(),
+            n_theta,
+            n_phi + 1,
+            0,
+            5,
+            0,
+            0,
+            0,
+            0,
+            del_theta,
+            del_phi,
+            0,
+            0,
         )
 
         thetas = np.linspace(0, 90 - del_theta, n_theta)

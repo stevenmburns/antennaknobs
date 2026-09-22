@@ -174,14 +174,17 @@ def _nec_builder(path: Path, text: str, refine: int = 1):
 def ground_seed(ground, method=None):
     """The ``ui_params`` pair a file design publishes for the app (AK#1432):
     ``(seed, medium)`` with seed one of "free" / "pec" / "sommerfeld" /
-    "fast" and medium ``{"eps_r", "sigma"}`` for the finite seeds, None
-    otherwise. `ground` is the CLI's `--ground` shape."""
+    "fast" / "mininec" and medium ``{"eps_r", "sigma"}`` for the seeds with a
+    soil, None otherwise. `ground` is the CLI's `--ground` shape."""
     if ground is None:
         return "free", None
     if ground == "pec":
         return "pec", None
     kind, eps_r, sigma = ground
-    seed = "fast" if kind == "finite-fast" else (method or "sommerfeld")
+    if kind == "mininec":
+        seed = "mininec"
+    else:
+        seed = "fast" if kind == "finite-fast" else (method or "sommerfeld")
     return seed, {"eps_r": float(eps_r), "sigma": float(sigma)}
 
 
@@ -192,6 +195,10 @@ def _ground_note(ground) -> str | None:
         return None
     if ground == "pec":
         arg, desc = "pec", "a perfect (PEC)"
+    elif ground[0] == "mininec":
+        _, eps_r, sigma = ground
+        arg = f"mininec:{eps_r:g},{sigma:g}"
+        desc = f"a MININEC-type (eps_r {eps_r:g}, sigma {sigma:g} S/m)"
     else:
         _, eps_r, sigma = ground
         arg = f"finite:{eps_r:g},{sigma:g}"

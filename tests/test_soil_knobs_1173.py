@@ -18,7 +18,7 @@ from __future__ import annotations
 import pytest
 from starlette.testclient import TestClient
 
-from antennaknobs.nec_export import _gn
+from antennaknobs.nec_export import _ground_cards
 from antennaknobs.web.server import _sweep_design_key, app
 
 # Imported after server: adapter and examples import each other cyclically,
@@ -210,13 +210,15 @@ def _gn_media(card: str) -> tuple[float, float]:
 def test_the_exported_gn_card_carries_the_soil():
     """`GN 2 ... eps_r sigma` — the deck a user downloads has to describe
     the antenna they were looking at, soil included."""
-    card = _gn(_ground_for_engine(_req(soil={"eps_r": 20.0, "sigma": 0.0303})))
+    [card] = _ground_cards(
+        _ground_for_engine(_req(soil={"eps_r": 20.0, "sigma": 0.0303}))
+    )
     assert card.startswith("GN 2 ")
     assert _gn_media(card) == pytest.approx((20.0, 0.0303))
 
 
 def test_the_exported_gn_card_tracks_the_fast_model():
-    card = _gn(
+    [card] = _ground_cards(
         _ground_for_engine(
             _req(ground_model="fast", soil={"eps_r": 81.0, "sigma": 5.0})
         )
@@ -226,7 +228,7 @@ def test_the_exported_gn_card_tracks_the_fast_model():
 
 
 def test_the_exported_gn_card_still_defaults_without_soil():
-    card = _gn(_ground_for_engine(_req()))
+    [card] = _ground_cards(_ground_for_engine(_req()))
     assert _gn_media(card) == pytest.approx(tuple(DEFAULT_GROUND[1:]))
 
 

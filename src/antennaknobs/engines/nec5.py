@@ -388,7 +388,8 @@ class NEC5Engine(SimulationEngine):
 
     Stages 1-4 of #825: impedance, currents and radiation patterns, in
     free space or over ground (``"pec"`` / NEC-5's native Sommerfeld
-    ``("finite", eps_r, sigma)``), fed by legacy ``Wire.ex`` entries or a
+    ``("finite", eps_r, sigma)`` / EZNEC's MININEC-type
+    ``("mininec", eps_r, sigma)``, a bare ``GD``), fed by legacy ``Wire.ex`` entries or a
     ``build_network()`` spec whose sources sit on ``PortOnWire`` delta
     gaps — ``Driven`` as ``EX 0``, ``DrivenCurrent`` as NEC-5's native
     ``EX 4`` current source. Network branches (loads, lines) and
@@ -910,6 +911,11 @@ class NEC5Engine(SimulationEngine):
                     "for free space"
                 )
             return ("finite", eps_r, sigma)
+        if isinstance(ground, tuple) and len(ground) == 3 and ground[0] == "mininec":
+            # EZNEC's MININEC-type ground (AK#1655): GE 1 with a bare GD.
+            # The currents are the PEC ones, so no Sommerfeld table is built
+            # and the near-free-space corner above cannot degenerate.
+            return ("mininec", float(ground[1]), float(ground[2]))
         if isinstance(ground, tuple) and ground and ground[0] == "finite-fast":
             raise NotImplementedError(
                 "NEC-5 has no reflection-coefficient ground (its IPERF 0 is "
@@ -1001,7 +1007,8 @@ class NEC5Engine(SimulationEngine):
                     raise NotImplementedError(
                         f"wire {i + 1} dips below z=0: NEC-5 serves buried "
                         "conductors only over its Sommerfeld ground — use "
-                        "ground=('finite', eps_r, sigma), not PEC"
+                        "ground=('finite', eps_r, sigma), not PEC or the "
+                        "MININEC-type ground, whose currents are PEC's"
                     )
                 self._has_buried_wires = True
 
@@ -1070,6 +1077,15 @@ class NEC5Engine(SimulationEngine):
             return "GE 0 0", []
         if self.ground[0] == "pec":
             return "GE 1 0", ["GN 1 0 0 0"]
+        if self.ground[0] == "mininec":
+            # The whole of EZNEC's "Real, MININEC type" ground in NEC-5 is a
+            # bare GD after GE 1, no GN card at all: PEC currents, and the
+            # medium on every pattern request (AK#1655). It is NOT NEC-2's
+            # GD. The trailing 1, 0 are mu_r, which EZNEC writes too.
+            _, eps_r, sigma = self.ground
+            return "GE 1 0", [
+                f"GD 0 0 0 0 {_num(eps_r)} {_num(sigma)} {_num(1.0)} {_num(0.0)}"
+            ]
         _, eps_r, sigma = self.ground
         # FMUR/FMUI are written explicitly (free space's mu) so the NOFILE
         # token cannot be misread into the permeability fields — the file

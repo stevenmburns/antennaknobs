@@ -2449,8 +2449,10 @@ def _ground_for_engine(req: dict):
     solves as the TRUE Sommerfeld ground on every solver (momwire >=
     0.8.0: bspline dense, sinusoidal field-based, hmatrix/arrayblock fast
     paths); "fast" → ("finite-fast", ...), the reflection-coefficient
-    model everywhere. Both finite models carry the request's soil (issue
-    #1173, `_soil_from_request`). The response ships the engine's actual
+    model everywhere; "mininec" → ("mininec", ...), EZNEC's MININEC-type
+    ground, the PEC image for the solve and the soil for the far field alone
+    (AK#1655). All three carry the request's soil (issue #1173,
+    `_soil_from_request`). The response ships the engine's actual
     eps/sigma so the frontend far-field Fresnel uses the real constants
     either way; `ground_model_applied` reports what the impedance solve
     really used."""
@@ -2461,6 +2463,8 @@ def _ground_for_engine(req: dict):
         return "pec"
     if model == "fast":
         return ("finite-fast",) + _soil_from_request(req)
+    if model == "mininec":
+        return ("mininec",) + _soil_from_request(req)
     if model == "terrain":
         # Faceted terrain (issue #534): impedance solves flat Sommerfeld on
         # the crest medium; the far field applies per-direction specular-
@@ -2472,11 +2476,13 @@ def _ground_for_engine(req: dict):
 def _pynec_ground_applied(ground) -> str:
     """What PyNEC's impedance solve actually used, from the engine's ground
     spec — the PyNEC counterpart of the momwire path's ground_model_applied:
-    "sommerfeld" / "refl-coef" for the finite specs, "pec-image", or
-    "free". PyNEC honours every requested model directly, so unlike momwire
+    "sommerfeld" / "refl-coef" for the finite specs, "mininec" for the
+    MININEC-type ground (AK#1655), "pec-image", or "free". PyNEC honours every requested model directly, so unlike momwire
     this never differs from the request; it ships anyway so the frontend
     readout has one authoritative source across engines."""
     if isinstance(ground, tuple):
+        if ground[0] == "mininec":
+            return "mininec"
         return "refl-coef" if ground[0] == "finite-fast" else "sommerfeld"
     return "pec-image" if ground == "pec" else "free"
 
@@ -2486,8 +2492,9 @@ def _pynec_ground_spec(req: dict):
     the UI labels. `ground_model` picks the model when ground is on:
     "sommerfeld" (default) — Sommerfeld-Norton finite ground; "fast" — the
     same finite ground via NEC's reflection-coefficient approximation;
-    "pec" — perfectly conducting ground. Ground off is free space. Both
-    finite models carry the request's soil (issue #1173,
+    "mininec" — EZNEC's MININEC-type ground, perfect for the currents and
+    the soil for the pattern (AK#1655); "pec" — perfectly conducting ground.
+    Ground off is free space. Every finite model carries the request's soil (issue #1173,
     `_soil_from_request`), which defaults to DEFAULT_GROUND's 13 / 0.005."""
     model = _requested_ground_model(req)
     if model is None:
@@ -2496,6 +2503,8 @@ def _pynec_ground_spec(req: dict):
         return "pec"
     if model == "fast":
         return ("finite-fast",) + _soil_from_request(req)
+    if model == "mininec":
+        return ("mininec",) + _soil_from_request(req)
     if model == "terrain":
         # PyNEC terrain hybrid (issue #553): NEC-2 has no facet model, but
         # the #534 recipe never lets the facets touch the current solve —
@@ -2522,6 +2531,9 @@ def _nec5_ground_spec(req: dict):
         return "pec"
     if model == "terrain":
         return ("finite",) + _terrain_from_request(req).crest_medium
+    if model == "mininec":
+        # A bare GD after GE 1: NEC-5's own spelling of it (AK#1655).
+        return ("mininec",) + _soil_from_request(req)
     # "fast" and "sommerfeld" both land on NEC-5's native Sommerfeld.
     return ("finite",) + _soil_from_request(req)
 
@@ -2529,6 +2541,8 @@ def _nec5_ground_spec(req: dict):
 def _nec5_ground_applied(ground) -> str:
     if isinstance(ground, tuple) and ground and ground[0] == "finite":
         return "sommerfeld"
+    if isinstance(ground, tuple) and ground and ground[0] == "mininec":
+        return "mininec"
     if ground == "pec" or (isinstance(ground, tuple) and ground[0] == "pec"):
         return "pec-image"
     return "free"
@@ -2886,7 +2900,8 @@ def _momwire_ground_fields(eng, req: dict) -> dict:
 
     `ground_model_applied` is what the impedance solve actually used, for
     honest UI wording: "sommerfeld" (any momwire solver + "finite", momwire
-    >= 0.8.0), "refl-coef" ("finite-fast"), "pec-image", "free" — or
+    >= 0.8.0), "refl-coef" ("finite-fast"), "mininec" (the PEC image for the
+    solve, the soil for the far field; AK#1655), "pec-image", "free" — or
     "terrain" (crest-medium Sommerfeld impedance + faceted far field)."""
     g = eng._ground
     if isinstance(g, tuple) and g[0] == "terrain":
@@ -2905,12 +2920,18 @@ def _momwire_ground_fields(eng, req: dict) -> dict:
         eps_r, sigma = g[1], g[2]
     else:
         eps_r, sigma = _PEC_GROUND_EPS_R, _PEC_GROUND_SIGMA
+    if g is None:
+        applied = "free"
+    elif g[0] == "mininec":
+        # `_ground_model` is None here as it is for "pec": the solve saw only
+        # the image. The label says which ground the pattern is over.
+        applied = "mininec"
+    else:
+        applied = eng._ground_model or "pec-image"
     return {
         "ground_eps_r": eps_r,
         "ground_sigma": sigma,
-        "ground_model_applied": (
-            "free" if g is None else (eng._ground_model or "pec-image")
-        ),
+        "ground_model_applied": applied,
     }
 
 
@@ -3147,9 +3168,11 @@ def _pynec_ground_constants(eng):
 
 
 def _nec5_ground_constants(eng):
-    """`finite` only — NEC-5's IPERF 0 is full Sommerfeld and it has no
-    reflection-coefficient option, so `finite-fast` never reaches a solve."""
-    if isinstance(eng.ground, tuple) and eng.ground[0] == "finite":
+    """`finite` and `mininec` — NEC-5's IPERF 0 is full Sommerfeld and it has
+    no reflection-coefficient option, so `finite-fast` never reaches a solve.
+    The MININEC-type ground (AK#1655) ships its soil: the currents are PEC's,
+    and the soil is what the pattern reflects off."""
+    if isinstance(eng.ground, tuple) and eng.ground[0] in ("finite", "mininec"):
         return eng.ground[1], eng.ground[2]
     return _PEC_GROUND_EPS_R, _PEC_GROUND_SIGMA
 
@@ -4552,6 +4575,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         return {
             "context": eng.c,
             "source_gain_shift_db": lambda: eng._source_gain_shift_db(p_source),
+            "rp_mode": eng.rp_mode(),
             "feed_seg": int(feed_seg),
             "feed_tag": int(feed_tag),
             "n_per_wire": 1,

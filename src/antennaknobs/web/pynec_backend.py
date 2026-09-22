@@ -147,7 +147,23 @@ def pattern(req: dict) -> dict:
     n_phi = 73
     del_theta = 90.0 / (n_theta - 1)
     del_phi = 360.0 / (n_phi - 1)
-    c.rp_card(0, n_theta, n_phi, 0, 5, 0, 0, 0.0, 0.0, del_theta, del_phi, 0.0, 0.0)
+    # The mode is the build's: the circular cliff over the MININEC-type
+    # ground, whose medium no normal-mode pattern reads (AK#1655).
+    c.rp_card(
+        b.get("rp_mode", 0),
+        n_theta,
+        n_phi,
+        0,
+        5,
+        0,
+        0,
+        0.0,
+        0.0,
+        del_theta,
+        del_phi,
+        0.0,
+        0.0,
+    )
     # Per SOURCE watt on a network design's multiport-Y route (AK#1637).
     shift_db = b.get("source_gain_shift_db", lambda: 0.0)()
     gains = [
