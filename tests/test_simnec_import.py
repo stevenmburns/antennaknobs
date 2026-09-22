@@ -429,6 +429,10 @@ def test_station_values_take_simnec_si_suffixes():
         ("47m", 47e-3),
         ("1.5M", 1.5e6),
         ("2G", 2e9),
+        # the rest of SimNEC's own table: atto, tera, peta
+        ("3a", 3e-18),
+        ("2T", 2e12),
+        ("1.5P", 1.5e15),
         ("731.9e-9", 731.9e-9),
         ("2000", 2000.0),
     ],
@@ -438,6 +442,15 @@ def test_a_suffixed_value_reads_as_its_number(raw, value):
     c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
     (tp,) = [b for b in c.network().branches if isinstance(b, TwoPort)]
     assert tp.l == pytest.approx(value)
+
+
+def test_a_gauge_suffix_is_not_read_as_giga():
+    """SimNEC's `g` is "AWG in inches", a wire gauge, and never an element
+    value's multiplier; lowercase `g` must not be taken for `G`."""
+    extra = _el("SERIES_IND", {"H": "12g"}, label="L1")
+    c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
+    with pytest.raises(ValueError, match="SERIES_IND element L1: bad 'H' value '12g'"):
+        c.network()
 
 
 def test_antenna_only_network_is_the_deck_network():
