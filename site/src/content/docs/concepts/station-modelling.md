@@ -360,7 +360,11 @@ special members:
   your box cannot match. The readout reports what it tuned to; a load it
   cannot match is reported and the tuner bypassed, so the readout shows the
   mismatch a real tuner would leave you with. SimNEC's automatic LC match
-  element imports as this component.
+  element imports as this component, and a low- or high-pass tuner exports
+  back as that element, so each program tunes it against its own antenna.
+  What the element cannot say (a T, `"ll"` / `"cc"`, component ranges, a
+  fixed side that found no match) is refused by name; `--freeze-tuners`
+  writes the tuned parts as fixed components instead.
 
   `t_network_tuner(tune_to=50, c_max_pF=250)` is the T that tunes itself.
   A T has three parts for two conditions (R and X at the rig), so one is
