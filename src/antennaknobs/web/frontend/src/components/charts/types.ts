@@ -9,6 +9,27 @@ export type PatternData = {
   measurement_freq_mhz: number;
 };
 
+// What a far-field chart would print in its corners. On the stage the chart
+// hands these up instead of drawing them, and the overlay stacks show them:
+// canvas text in a corner sits under whatever control the stage puts there,
+// which a small or zoomed display makes coincide (AC6LA, QRZ #115).
+export type FarFieldCaptions = {
+  cut: FarFieldCut;
+  /** Which cut this is: "elev @ 0° az (dBi)". */
+  cutLabel: string;
+  /** The live trace's maximum (the slice max) and where it is on this cut:
+   *  the azimuth for the xy cut, the elevation for the yz cut (0-180, over
+   *  the far side past 90; negative below the horizon). Null with no trace. */
+  peakDbi: number | null;
+  peakAngleDeg: number | null;
+  /** Over faceted terrain, which field the trace is (issue #1373). */
+  field: "with diffraction" | "specular while dragging" | null;
+  /** Share of current moment below ground, percent (issue #1341). */
+  belowGroundPct: number | null;
+  /** NEC's rp_card pattern is drawn (the dashed cyan line). */
+  necOverlay: boolean;
+};
+
 // Scalar far-field metrics from /pattern_metrics, shown in the compare table.
 export type PatternMetrics = {
   peak_gain_dbi: number;

@@ -2559,10 +2559,50 @@ input[type=checkbox] {
   box-shadow: 0 2px 10px var(--shadow);
 }
 
+/* The far-field chart's corner captions and peak readout, shown in the
+   overlay stacks instead of printed on the canvas under the controls
+   (AC6LA's zoomed display, QRZ #115; AK#1632). */
+.overlay-caption {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--muted-2);
+  font-variant-numeric: tabular-nums;
+}
+.overlay-caption-strong {
+  color: var(--fg);
+}
+.overlay-peak {
+  font-family: var(--font-mono);
+  color: var(--fg);
+}
+.overlay-max-where {
+  display: block;
+}
+button.overlay-readout {
+  font-family: var(--font-mono);
+  color: var(--fg);
+  cursor: pointer;
+}
+button.overlay-readout:hover:not(:disabled) {
+  border-color: var(--muted-2);
+}
+button.overlay-readout:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.nec-swatch {
+  display: inline-block;
+  width: 1.6em;
+  margin-left: var(--space-2);
+  vertical-align: middle;
+  border-top: 2px dashed rgb(var(--plot-nec-rgb, 110, 220, 255));
+}
+
 /* far-field cut-angle knob, overlaid bottom-right on the plot it drives */
 .cut-overlay {
   position: absolute;
-  bottom: var(--space-6);
+  /* Clear of the ws status line, which sits in the same corner. */
+  bottom: calc(var(--space-5) + 1.75rem);
   right: var(--space-6);
   z-index: 2;
   display: flex;

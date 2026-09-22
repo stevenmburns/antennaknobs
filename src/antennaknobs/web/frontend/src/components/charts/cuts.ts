@@ -678,3 +678,21 @@ export function traceFor(
     peakDbi: peak,
   };
 }
+
+/** Where a trace peaks, in the cut's own terms (see `FarFieldCaptions`). */
+export function slicePeakAngleDeg(
+  trace: { dbi: number[]; anglesDeg?: number[] },
+  cut: FarFieldCut,
+): number {
+  let best = 0;
+  for (let i = 1; i < trace.dbi.length; i++) {
+    if (trace.dbi[i] > trace.dbi[best]) best = i;
+  }
+  const raw = trace.anglesDeg
+    ? trace.anglesDeg[best]
+    : (360 * best) / trace.dbi.length;
+  const a = ((raw % 360) + 360) % 360;
+  // Azimuth reads 0-360; elevation reads up and over, 0-180, and a sample
+  // below the horizon (free space) as negative.
+  return cut === "xy" ? a : a > 180 ? a - 360 : a;
+}
