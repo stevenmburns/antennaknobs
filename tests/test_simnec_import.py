@@ -399,6 +399,47 @@ def test_station_missing_param_names_the_element():
         c.network()
 
 
+def test_station_values_take_simnec_si_suffixes():
+    """SimNEC writes component values with SI suffixes (AK#1645, AC6LA's
+    `snBydipole1-C1-L1.ssn`: 37.52p F, Q 2K, 731.9n H). They were refused
+    as "bad 'H' value '731.9n'", and his workaround was hand-editing the file
+    to e-notation."""
+    extra = _el("SHUNT_CAP", {"F": "37.52p", "Q": "2K"}, label="C1") + _el(
+        "SERIES_IND", {"H": "731.9n", "Q": "200"}, label="L1"
+    )
+    c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
+    net = c.network()
+    (sh,) = [b for b in net.branches if isinstance(b, Shunt)]
+    assert sh.c == pytest.approx(37.52e-12) and sh.qc == pytest.approx(2000.0)
+    (tp,) = [b for b in net.branches if isinstance(b, TwoPort)]
+    assert tp.l == pytest.approx(731.9e-9) and tp.ql == pytest.approx(200.0)
+
+
+@pytest.mark.parametrize(
+    ("raw", "value"),
+    [
+        ("1f", 1e-15),
+        ("37.52p", 37.52e-12),
+        ("731.9n", 731.9e-9),
+        ("1u", 1e-6),
+        ("1µ", 1e-6),
+        ("2k", 2e3),
+        ("2K", 2e3),
+        # m, M and G as SI: milli, mega, giga (not SPICE's M = milli)
+        ("47m", 47e-3),
+        ("1.5M", 1.5e6),
+        ("2G", 2e9),
+        ("731.9e-9", 731.9e-9),
+        ("2000", 2000.0),
+    ],
+)
+def test_a_suffixed_value_reads_as_its_number(raw, value):
+    extra = _el("SERIES_IND", {"H": raw}, label="L1")
+    c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
+    (tp,) = [b for b in c.network().branches if isinstance(b, TwoPort)]
+    assert tp.l == pytest.approx(value)
+
+
 def test_antenna_only_network_is_the_deck_network():
     c = parse_ssn(_ssn(_SCRIPT_M), name="t.ssn", network=True)
     net = c.network()

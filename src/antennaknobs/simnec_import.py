@@ -123,17 +123,39 @@ class SsnElement:
         return default
 
 
+# SimNEC writes component values with SI suffixes ("37.52p", "731.9n", "2K":
+# AC6LA's C1-L1 circuit, AK#1645), read as SI: m is milli, M mega, G giga
+# (USER DECISION 2026-09-21, not SPICE's M = milli). `K` is kilo as `k` is, as
+# SimNEC writes it. Wire diameters are a different path: `12g` there is gauge.
+_SI_SUFFIX = {
+    "f": 1e-15,
+    "p": 1e-12,
+    "n": 1e-9,
+    "u": 1e-6,
+    "\u00b5": 1e-6,
+    "m": 1e-3,
+    "k": 1e3,
+    "K": 1e3,
+    "M": 1e6,
+    "G": 1e9,
+}
+
+
 def _chain_f(el: SsnElement, key: str, default: float | None = None) -> float:
     """A chain element's numeric parameter; ``default`` for an absent one
-    (None = required)."""
+    (None = required). A trailing SI suffix scales it (see `_SI_SUFFIX`)."""
     raw = el.get(key)
     where = f"{el.typ} element" + (f" {el.label}" if el.label else "")
     if raw is None:
         if default is None:
             raise ValueError(f"{where}: missing its {key!r} parameter")
         return default
+    text = raw.strip()
+    scale = 1.0
+    if text and text[-1] in _SI_SUFFIX:
+        scale, text = _SI_SUFFIX[text[-1]], text[:-1]
     try:
-        return float(raw)
+        return float(text) * scale
     except ValueError:
         raise ValueError(f"{where}: bad {key!r} value {raw!r}") from None
 
