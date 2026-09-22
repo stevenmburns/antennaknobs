@@ -109,7 +109,13 @@ MHz** (in SimNEC the deck's `FR` card is advisory), an armed Generator sweep
 becomes the design's measurement band, the daemon ground call surfaces as a
 `--ground` hint, and wire conductivity applies per-wire. `NECUnits` is read
 but not applied: in SimNEC it only sets the units wire dimensions are
-displayed in, and the NEC cards are metres whatever it says. Chain elements
+displayed in, and the NEC cards are metres whatever it says. Values are read
+the way SimNEC writes them: component values with its SI suffixes (`37.52p`,
+`731.9n`, `2K`; its `g` is a wire gauge and is not a multiplier), and a wire
+material by name (`NECOptions.mhosPerMeter = Conductivities.aluminum;`, with
+SimNEC's own values). SimNEC re-meshes a deck's wires by its own rules before
+solving, and antennaknobs solves the segments the deck gives, so the two can
+differ by the mesh alone. Chain elements
 translate back branch-for-branch through the same table as export, and a
 chain element outside that set makes `network()` refuse rather than build a
 station with a silently-missing tuner part.
