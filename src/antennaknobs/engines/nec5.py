@@ -729,7 +729,7 @@ class NEC5Engine(SimulationEngine):
                 "nothing for it to drive. Give the design a PortOnWire or "
                 "PortAtVertex terminal, or run it on bspline or PyNEC."
             )
-        # A self-tuning L tuner (AK#1646) is tuned here, from this engine's
+        # A self-tuning tuner (AK#1646, #1661) is tuned here, from this engine's
         # own port admittance; a plain network gets a plain reducer.
         self._reducer = make_reducer(
             network,

@@ -417,5 +417,5 @@ def test_simnec_export_refuses_rather_than_write_placeholders(tmp_path):
     from antennaknobs.simnec_export import SsnUnsupported, export_ssn
 
     cls = _ssn_builder(tmp_path)
-    with pytest.raises(SsnUnsupported, match="self-tuning L tuner"):
+    with pytest.raises(SsnUnsupported, match="self-tuning tuner"):
         export_ssn(cls(), ground=cls.file_ground)

@@ -872,7 +872,7 @@ class PyNECEngine(SimulationEngine):
             if isinstance(port, PortVirtual):
                 port_to_idx[name] = next_idx
                 next_idx += 1
-        # A self-tuning L tuner (AK#1646) is tuned here, from this engine's
+        # A self-tuning tuner (AK#1646, #1661) is tuned here, from this engine's
         # own port admittance; a plain network gets a plain reducer.
         self._reducer = make_reducer(
             net,

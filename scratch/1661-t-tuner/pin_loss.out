@@ -1,0 +1,11 @@
+625 loads, R 5-2000 ohm x X +-1500 ohm, target 50 ohm, c_min 10 pF, l_max 30 uH
+  3.6 MHz cmax  250 pF Ql  150 Qc  1000 | both  34 only-C1 221 only-C2 328 neither  42 | where both: C2 less lossy   0, C1 less lossy  33, median -0.039 dB, max -0.001 dB, min -0.118 dB
+  3.6 MHz cmax  500 pF Ql  150 Qc  1000 | both   8 only-C1 176 only-C2 393 neither  48 | where both: C2 less lossy   0, C1 less lossy   8, median -0.011 dB, max -0.003 dB, min -0.054 dB
+  7.1 MHz cmax  250 pF Ql  150 Qc  1000 | both  20 only-C1 165 only-C2 439 neither   1 | where both: C2 less lossy   0, C1 less lossy  20, median -0.036 dB, max -0.003 dB, min -0.136 dB
+  7.1 MHz cmax  500 pF Ql  150 Qc  1000 | both   4 only-C1 142 only-C2 461 neither  18 | where both: C2 less lossy   1, C1 less lossy   2, median -0.004 dB, max +0.001 dB, min -0.021 dB
+ 14.1 MHz cmax  250 pF Ql  150 Qc  1000 | both   8 only-C1  91 only-C2 417 neither 109 | where both: C2 less lossy   1, C1 less lossy   6, median -0.015 dB, max +0.001 dB, min -0.062 dB
+ 14.1 MHz cmax  500 pF Ql  150 Qc  1000 | both   0 only-C1  87 only-C2 418 neither 120 | where both: C2 less lossy   0, C1 less lossy   0, median +0.000 dB, max +0.000 dB, min +0.000 dB
+ 28.5 MHz cmax  250 pF Ql  150 Qc  1000 | both   0 only-C1  47 only-C2 332 neither 246 | where both: C2 less lossy   0, C1 less lossy   0, median +0.000 dB, max +0.000 dB, min +0.000 dB
+ 28.5 MHz cmax  500 pF Ql  150 Qc  1000 | both   0 only-C1  49 only-C2 329 neither 247 | where both: C2 less lossy   0, C1 less lossy   0, median +0.000 dB, max +0.000 dB, min +0.000 dB
+ 14.1 MHz cmax  250 pF Ql   75 Qc   500 | both   8 only-C1  92 only-C2 438 neither  87 | where both: C2 less lossy   1, C1 less lossy   6, median -0.030 dB, max +0.002 dB, min -0.132 dB
+ 14.1 MHz cmax  250 pF Ql  300 Qc  5000 | both   7 only-C1  92 only-C2 406 neither 120 | where both: C2 less lossy   0, C1 less lossy   5, median -0.004 dB, max +0.001 dB, min -0.022 dB

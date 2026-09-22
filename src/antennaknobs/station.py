@@ -55,19 +55,94 @@ def bypass() -> Composite:
 
 
 def t_network_tuner(
-    c1_pF: float, c2_pF: float, l_uH: float, ql: float | None = None
+    c1_pF: float | None = None,
+    c2_pF: float | None = None,
+    l_uH: float | None = None,
+    ql: float | None = None,
+    *,
+    qc: float | None = None,
+    tune_to: float | None = None,
+    tune_at_mhz: float | None = None,
+    pin: str | None = None,
+    c_min_pF: float | None = None,
+    c_max_pF: float | None = None,
+    l_min_uH: float | None = None,
+    l_max_uH: float | None = None,
 ) -> Composite:
     """The classic T-network ("high-pass tee") antenna tuner: series C1
     from ``rig`` to an internal tee midpoint, shunt L to common at the
     midpoint, series C2 on to ``out``. `ql` gives the coil a finite Q
     (R = ωL/Q, issue #298) — the coil is where a real T-network burns
-    its watts. Formals: ``rig`` (transmitter side), ``out`` (line side)."""
+    its watts — and `qc` the capacitors. Formals: ``rig`` (transmitter
+    side), ``out`` (line side).
+
+    Given ``tune_to`` (ohms), it is a tuner that tunes itself (AK#1661,
+    `antennaknobs.auto_match.TTuner`): at ``tune_at_mhz``, else the design
+    frequency, the solving engine chooses the parts that present ``tune_to``
+    at ``rig`` for whatever hangs on ``out``, then holds them across a
+    sweep. Three parts for two conditions, so one is held: give any ONE of
+    ``c1_pF`` / ``l_uH`` / ``c2_pF`` and the other two are tuned, or give none
+    and a capacitor sits at ``c_max_pF``: ``pin`` "c1", "c2", or "auto" (the
+    default), which tries both and keeps the less lossy tuning, because each
+    pin reaches loads the other cannot. The ranges (``c_min_pF`` … ``l_max_uH``) are what the
+    parts can reach; a tuning outside them is no match. A load it cannot
+    match is reported and the tuner bypassed.
+    """
+    if tune_to is not None:
+        from .auto_match import DEFAULT_PIN, Ranges, TTuner, t_bypass_body
+
+        given = {
+            k: v
+            for k, v in (("c1", c1_pF), ("l", l_uH), ("c2", c2_pF))
+            if v is not None
+        }
+        if pin is not None and given:
+            raise ValueError(
+                "pin chooses the capacitor a fully free T holds at c_max_pF; "
+                "with a part given there is nothing to pin"
+            )
+        mechanism = TTuner(
+            target=tune_to,
+            f_mhz=tune_at_mhz,
+            c1=None if c1_pF is None else c1_pF * 1e-12,
+            l=None if l_uH is None else l_uH * 1e-6,
+            c2=None if c2_pF is None else c2_pF * 1e-12,
+            pin=pin or DEFAULT_PIN,
+            qc=qc,
+            ql=ql,
+            ranges=Ranges.from_radio_units(c_min_pF, c_max_pF, l_min_uH, l_max_uH),
+        )
+        at = f"{tune_at_mhz:g} MHz" if tune_at_mhz else "design frequency"
+        return Composite(
+            ports=("rig", "out"),
+            # Out of circuit until it tunes: two 0 H arms through the tee
+            # midpoint, which declares "m" for the tuned coil (AK#1661).
+            branches=t_bypass_body("rig", "out", "m"),
+            schematic=(
+                series(
+                    "box",
+                    "T tuner",
+                    f"{mechanism.describe().removeprefix('T network ')}, {tune_to:g} Ω at {at}",
+                ),
+            ),  # fmt: skip
+            tuner=mechanism,
+        )
+    if c1_pF is None or c2_pF is None or l_uH is None:
+        raise ValueError(
+            "t_network_tuner needs c1_pF, c2_pF and l_uH, or tune_to=... for a "
+            "tuner that tunes itself"
+        )
+    if any(v is not None for v in (pin, c_min_pF, c_max_pF, l_min_uH, l_max_uH)):
+        raise ValueError(
+            "pin and the component ranges bound what a tuner that tunes itself "
+            "may choose (tune_to=...); fixed values choose nothing"
+        )
     return Composite(
         ports=("rig", "out"),
         branches=(
-            TwoPort(a="rig", b="m", c=c1_pF * 1e-12),
+            TwoPort(a="rig", b="m", c=c1_pF * 1e-12, qc=qc),
             Shunt(port="m", l=l_uH * 1e-6, ql=ql),
-            TwoPort(a="m", b="out", c=c2_pF * 1e-12),
+            TwoPort(a="m", b="out", c=c2_pF * 1e-12, qc=qc),
         ),
         # Draws as the tee it is (issue #652). Without this the shunt coil
         # lands after both capacitors, because "the coil goes in the middle"
@@ -90,6 +165,10 @@ def l_network_tuner(
     tune_to: float | None = None,
     tune_at_mhz: float | None = None,
     mode: str = "low",
+    c_min_pF: float | None = None,
+    c_max_pF: float | None = None,
+    l_min_uH: float | None = None,
+    l_max_uH: float | None = None,
 ) -> Composite:
     """L-match: series L from ``rig`` to ``out``, shunt C across ``out``
     (the load side — the arrangement that steps a higher load R down to
@@ -110,8 +189,10 @@ def l_network_tuner(
     shunt C), "high" (series C, shunt L), "ll" (both coils), "cc" (both
     capacitors). ``shunt_at="auto"`` lets it pick the side too, the less
     lossy of the two that match, as an L autotuner's relay moves its
-    capacitor. A load it cannot match is reported and the tuner bypassed.
-    ``ql`` / ``qc`` give the coils and capacitors a finite Q.
+    capacitor. The ranges (``c_min_pF`` … ``l_max_uH``, AK#1661) are what the
+    parts can reach; a tuning outside them is no match. A load it cannot
+    match is reported and the tuner bypassed. ``ql`` / ``qc`` give the coils
+    and capacitors a finite Q.
     """
     if tune_to is not None:
         if series_l_uH is not None or shunt_c_pF is not None:
@@ -119,7 +200,7 @@ def l_network_tuner(
                 "l_network_tuner(tune_to=...) chooses its own component values; "
                 "drop series_l_uH / shunt_c_pF, or drop tune_to to fix them"
             )
-        from .auto_match import LTuner, bypass_body
+        from .auto_match import LTuner, Ranges, bypass_body
 
         mechanism = LTuner(
             target=tune_to,
@@ -128,6 +209,7 @@ def l_network_tuner(
             f_mhz=tune_at_mhz,
             qc=qc,
             ql=ql,
+            ranges=Ranges.from_radio_units(c_min_pF, c_max_pF, l_min_uH, l_max_uH),
         )
         at = f"{tune_at_mhz:g} MHz" if tune_at_mhz else "design frequency"
         return Composite(
@@ -155,6 +237,11 @@ def l_network_tuner(
         raise ValueError(
             f"mode={mode!r} applies to a tuner that tunes itself (tune_to=...); "
             "fixed values are the low-pass L (series L, shunt C)"
+        )
+    if any(v is not None for v in (c_min_pF, c_max_pF, l_min_uH, l_max_uH)):
+        raise ValueError(
+            "the component ranges bound what a tuner that tunes itself may "
+            "choose (tune_to=...); fixed values choose nothing"
         )
     if shunt_at not in ("out", "rig"):
         raise ValueError(

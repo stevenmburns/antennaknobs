@@ -750,9 +750,9 @@ def export_ssn(
         # would be a wrong circuit that looks like a right one; writing
         # SimNEC's own XMATCH element back is not built yet.
         raise SsnUnsupported(
-            "this circuit has a self-tuning L tuner (l_network_tuner with "
-            "tune_to=), whose values the solving engine tunes; exporting it to "
-            "SimNEC is not supported yet"
+            "this circuit has a self-tuning tuner (l_network_tuner or "
+            "t_network_tuner with tune_to=), whose values the solving engine "
+            "tunes; exporting it to SimNEC is not supported yet"
         )
     # PyNECEngine raises ValueError here for PortAtEnd / PortAtVertex
     # designs — NEC-2 (and therefore SimNEC's NEC block) has no

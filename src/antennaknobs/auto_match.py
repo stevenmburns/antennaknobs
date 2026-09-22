@@ -1,5 +1,8 @@
-"""The L tuner that tunes itself: ``station.l_network_tuner(tune_to=...)``
-(AK#1646).
+"""The tuners that tune themselves: ``station.l_network_tuner(tune_to=...)``
+(AK#1646) and ``station.t_network_tuner(tune_to=...)`` (AK#1661, `TTuner`,
+whose rule for its third part is documented there). Both take component
+ranges (`Ranges`): a tuning that needs a part a real box does not have is not
+a match. The rest of this note is the L tuner's.
 
 A fixed ``l_network_tuner`` is a series L and a shunt C with values the design
 chooses. Given ``tune_to`` instead, it is an automatic tuner: at its tune
@@ -75,6 +78,63 @@ class TunerAdvisory(UserWarning):
 
 
 @dataclass(frozen=True)
+class Ranges:
+    """What a real tuner's parts can reach (AK#1661), in SI units (farads,
+    henries); None is unbounded. A tuning that needs a part outside its
+    range is not a match: the algebra will happily ask for a 900 pF
+    capacitor nobody owns."""
+
+    c_min: float | None = None
+    c_max: float | None = None
+    l_min: float | None = None
+    l_max: float | None = None
+
+    def __post_init__(self):
+        for kind in ("c", "l"):
+            lo, hi = getattr(self, f"{kind}_min"), getattr(self, f"{kind}_max")
+            for v in (lo, hi):
+                if v is not None and not float(v) > 0.0:
+                    raise ValueError(f"a component range must be positive, got {v!r}")
+            if lo is not None and hi is not None and lo > hi:
+                raise ValueError(
+                    f"{kind}_min {_value_str(kind.upper(), lo)} is above "
+                    f"{kind}_max {_value_str(kind.upper(), hi)}"
+                )
+
+    def outside(self, kind: str, value: float) -> str | None:
+        """Why ``value`` (a part of ``kind`` "L" or "C") is out of range, or
+        None when it is in."""
+        lo = self.l_min if kind == "L" else self.c_min
+        hi = self.l_max if kind == "L" else self.c_max
+        if lo is not None and value < lo * (1.0 - 1e-12):
+            return (
+                f"{_value_str(kind, value)} is below its minimum {_value_str(kind, lo)}"
+            )
+        if hi is not None and value > hi * (1.0 + 1e-12):
+            return (
+                f"{_value_str(kind, value)} is above its maximum {_value_str(kind, hi)}"
+            )
+        return None
+
+    @classmethod
+    def from_radio_units(cls, c_min_pF, c_max_pF, l_min_uH, l_max_uH) -> Ranges:
+        def si(v, scale):
+            return None if v is None else float(v) * scale
+
+        return cls(
+            si(c_min_pF, 1e-12), si(c_max_pF, 1e-12),
+            si(l_min_uH, 1e-6), si(l_max_uH, 1e-6),
+        )  # fmt: skip
+
+
+def _value_str(kind: str, value: float) -> str:
+    """A part's value in radio units, for what the tuner says."""
+    if kind == "L":
+        return f"{value * 1e6:.4g} µH"
+    return f"{value * 1e12:.4g} pF"
+
+
+@dataclass(frozen=True)
 class LTuner:
     """The tuning MECHANISM attached to an L-match unit: present ``target``
     ohms at ``f_mhz`` (None: the design frequency), with components of
@@ -88,8 +148,8 @@ class LTuner:
     mechanism chose, where it put them.
 
     An engine finds it as the `Composite.tuner` of an instance
-    (`find_tuners`). Another mechanism — the T network of AK#1661 — is any
-    object with this `body` and a ``f_mhz`` of its own.
+    (`find_tuners`). Another mechanism — the T network, `TTuner` — is any
+    object with this `body`, a ``describe``, and a ``f_mhz`` of its own.
     """
 
     target: float
@@ -98,6 +158,7 @@ class LTuner:
     f_mhz: float | None = None
     qc: float | None = None
     ql: float | None = None
+    ranges: Ranges = Ranges()
 
     def __post_init__(self):
         if self.mode not in MODES:
@@ -124,6 +185,7 @@ class LTuner:
                 shunt_at=self.shunt_at,
                 qc=self.qc,
                 ql=self.ql,
+                ranges=self.ranges,
             )
         except NoMatch as exc:
             side = "out" if self.shunt_at == "auto" else self.shunt_at
@@ -143,6 +205,16 @@ class LTuner:
         else:
             shunt = Shunt(port=node, c=design.shunt, qc=self.qc)
         return ((series, shunt), design)
+
+    def describe(self) -> str:
+        """What the box is, for the advisory: "low L network with its shunt
+        at out"."""
+        where = (
+            "with its shunt on either side"
+            if self.shunt_at == "auto"
+            else f"with its shunt at {self.shunt_at}"
+        )
+        return f"{self.mode} L network {where}"
 
 
 @dataclass(frozen=True)
@@ -171,6 +243,18 @@ class LMatchDesign:
     @property
     def shunt_kind(self) -> str:
         return _KINDS[self.mode][1]
+
+    @property
+    def parts(self) -> list[tuple[str, str, float]]:
+        """(readout label, kind, SI value) for each part it tuned."""
+        return [
+            (f"series {self.series_kind}", self.series_kind, self.series),
+            (f"shunt {self.shunt_kind}", self.shunt_kind, self.shunt),
+        ]
+
+    @property
+    def summary(self) -> str:
+        return f"{self.mode} at {self.f_mhz:g} MHz, shunt at {self.shunt_at}"
 
 
 class NoMatch(ValueError):
@@ -244,13 +328,15 @@ def design_l_match(
     shunt_at: str = "out",
     qc: float | None = None,
     ql: float | None = None,
+    ranges: Ranges | None = None,
 ) -> LMatchDesign:
     """The L network of ``mode``'s kinds, with its shunt at ``shunt_at``,
     that presents ``target`` ohms when ``z_load`` hangs on its output, at
     ``f_mhz``, with the components' finite Q included. ``shunt_at="auto"``
     tries the side the load calls for first (``"out"`` when its resistance
     is above the target, ``"rig"`` when below) and the other only if that
-    one cannot match. Raises `NoMatch` when there is no solution."""
+    one cannot match. A solution with a part outside ``ranges`` is not one.
+    Raises `NoMatch` when there is no solution."""
     from scipy.optimize import fsolve
 
     if mode not in MODES:
@@ -269,6 +355,8 @@ def design_l_match(
     else:
         sides = (shunt_at,)
     kinds = _KINDS[mode]
+    ranges = ranges or Ranges()
+    out_of_range: list[str] = []
     for side in sides:
         # At most one start per side satisfies the parts' signs: the series
         # reactance and the total shunt susceptance share a sign.
@@ -287,6 +375,17 @@ def design_l_match(
             if ok != 1 or max(abs(v) for v in residual(x)) > 1e-9:
                 continue
             series, shunt = math.exp(x[0]), math.exp(x[1])
+            why = [
+                f"its {where} {kind} {reason}"
+                for where, kind, value in (
+                    ("series", kinds[0], series),
+                    ("shunt", kinds[1], shunt),
+                )
+                if (reason := ranges.outside(kind, value))
+            ]
+            if why:
+                out_of_range.append(f"with its shunt at {side}, " + " and ".join(why))
+                continue
             return LMatchDesign(mode, side, series, shunt, f_mhz, z_load)
     where = {
         "out": "with its shunt at out",
@@ -297,6 +396,11 @@ def design_l_match(
         f"no {mode} L network {where} presents {r_t:g} ohm for a load of "
         f"{z_load.real:.4g} {'+' if z_load.imag >= 0 else '-'} "
         f"j{abs(z_load.imag):.4g} ohm at {f_mhz:g} MHz"
+        + (
+            " within its component ranges (" + "; ".join(out_of_range) + ")"
+            if out_of_range
+            else ""
+        )
     )
 
 
@@ -304,6 +408,337 @@ def bypass_body(rig: str, out: str):
     """A tuner out of circuit: one 0 H series arm, which is a wire (issue
     #285's degenerate values). The body an untuned unit carries."""
     return (TwoPort(a=rig, b=out, l=0.0),)
+
+
+# --- the T network (AK#1661) -------------------------------------------------
+
+T_PARTS = ("c1", "l", "c2")
+PINS = ("c1", "c2", "auto")
+#: Which capacitor a T with all three parts free holds at its maximum: both,
+#: keeping the less lossy tuning. Measured (AK#1661,
+#: ``scratch/1661-t-tuner/pin_loss.py``; 625 loads, R 5-2000 ohm, X +-1500
+#: ohm, 3.6-28.5 MHz, c_max 250 / 500 pF, Ql 75-300, Qc 500-5000): the pin
+#: barely moves the LOSS (where both match, at most 0.14 dB apart) but it
+#: decides the REACH, and the two pins reach different loads. C2 at its
+#: maximum matches 2-7x as many loads as C1 does, yet C1 alone reaches up to
+#: 221 of them (3.6 MHz, 250 pF), so either pin by itself gives up loads the
+#: other would match.
+DEFAULT_PIN = "auto"
+
+
+@dataclass(frozen=True)
+class TMatchDesign:
+    """What a T tuner tuned to: C1 (rig side), L (the shunt coil at the tee
+    midpoint) and C2 (antenna side) in SI units, and which of them were not
+    tuned: ``given`` (the design fixed them) and ``pinned`` (the capacitor a
+    fully free T held at its maximum, or None). ``bypass`` and ``matched``
+    mean what they do on `LMatchDesign`."""
+
+    c1: float
+    l: float
+    c2: float
+    f_mhz: float
+    z_load: complex
+    given: tuple[str, ...] = ()
+    pinned: str | None = None
+    #: The fraction of the rig's power that reaches the load, from the
+    #: parts' Q's (1.0 when lossless).
+    efficiency: float = 1.0
+    matched: bool = True
+    bypass: bool = False
+    no_match: str | None = None
+
+    @property
+    def parts(self) -> list[tuple[str, str, float]]:
+        return [("C1", "C", self.c1), ("L", "L", self.l), ("C2", "C", self.c2)]
+
+    @property
+    def summary(self) -> str:
+        held = [f"{p.upper()} given" for p in self.given]
+        if self.pinned:
+            held.append(f"{self.pinned.upper()} at its maximum")
+        return f"T at {self.f_mhz:g} MHz" + (", " + ", ".join(held) if held else "")
+
+
+def _t_z_in(c1, l, c2, z_load, omega, qc, ql) -> complex:
+    z_m = 1.0 / (
+        1.0 / _element_z("L", l, omega, qc, ql)
+        + 1.0 / (_element_z("C", c2, omega, qc, ql) + z_load)
+    )
+    return _element_z("C", c1, omega, qc, ql) + z_m
+
+
+def _t_efficiency(c1, l, c2, z_load, omega, qc, ql) -> float:
+    """The fraction of the power into the rig side that reaches the load."""
+    z_in = _t_z_in(c1, l, c2, z_load, omega, qc, ql)
+    i1 = 1.0 / z_in
+    v_m = 1.0 - i1 * _element_z("C", c1, omega, qc, ql)
+    i2 = v_m / (_element_z("C", c2, omega, qc, ql) + z_load)
+    return float(abs(i2) ** 2 * z_load.real / (abs(i1) ** 2 * z_in.real))
+
+
+def _t_lossless_starts(fixed: dict, z_load: complex, r_t: float, omega: float):
+    """The lossless T solutions with the one part in ``fixed`` held, as
+    (c1, l, c2) triples with every part's reactance of the right sign
+    (capacitors negative, the coil positive)."""
+    r_l, x_l = z_load.real, z_load.imag
+    cands = []
+    if "c2" in fixed:
+        # Series C1 and a shunt L across (C2 + load): the high-pass L with
+        # its shunt at out, for the load as C2 leaves it.
+        x2 = -1.0 / (omega * fixed["c2"])
+        z_a = complex(r_l, x_l + x2)
+        for c1, l in _lossless_starts(("C", "L"), "out", z_a, r_t, omega):
+            cands.append((c1, l, fixed["c2"]))
+    elif "c1" in fixed:
+        # Looking into the tee midpoint the rig side must see r_t minus C1's
+        # reactance, a COMPLEX target the shunt L and series C2 reach.
+        y_m = 1.0 / complex(r_t, 1.0 / (omega * fixed["c1"]))
+        g_t, b_t = y_m.real, y_m.imag
+        disc = r_l / g_t - r_l * r_l
+        if disc >= 0.0:
+            for u in (math.sqrt(disc), -math.sqrt(disc)):
+                x2 = u - x_l
+                b_sh = b_t - (1.0 / complex(r_l, u)).imag
+                if x2 < 0.0 and b_sh < 0.0:
+                    cands.append(
+                        (fixed["c1"], -1.0 / (omega * b_sh), -1.0 / (omega * x2))
+                    )
+    else:
+        # The coil held: with u = X_load + X2 the condition Re Z_m = r_t is a
+        # quartic in u, R (R^2 + u^2) = r_t (R^2 + (B u^2 - u + B R^2)^2),
+        # B the coil's susceptance.
+        b = -1.0 / (omega * fixed["l"])
+        r2 = r_l * r_l
+        # (B u^2 - u + B R^2)^2 expanded, highest power first.
+        sq = np.polymul([b, -1.0, b * r2], [b, -1.0, b * r2])
+        poly = r_t * np.polyadd(sq, [r2]) - np.array([0.0, 0.0, r_l, 0.0, r_l * r2])
+        for u in np.roots(poly):
+            if abs(u.imag) > 1e-9 * max(1.0, abs(u.real)):
+                continue
+            u = float(u.real)
+            x2 = u - x_l
+            if x2 >= 0.0:
+                continue
+            z_m = 1.0 / (1.0 / complex(r_l, u) + 1j * b)
+            x1 = -z_m.imag
+            if x1 < 0.0:
+                cands.append((-1.0 / (omega * x1), fixed["l"], -1.0 / (omega * x2)))
+    return cands
+
+
+def design_t_match(
+    z_load: complex,
+    target: float,
+    f_mhz: float,
+    *,
+    c1: float | None = None,
+    l: float | None = None,
+    c2: float | None = None,
+    pin: str = DEFAULT_PIN,
+    qc: float | None = None,
+    ql: float | None = None,
+    ranges: Ranges | None = None,
+) -> TMatchDesign:
+    """The T network (series C1 from the rig, shunt L at the tee midpoint,
+    series C2 to the load) that presents ``target`` ohms when ``z_load`` hangs
+    on its output, at ``f_mhz``, with the parts' finite Q included.
+
+    A T has three parts for two conditions (R and X at the rig), so exactly
+    one must be held: give one of ``c1`` / ``l`` / ``c2`` (SI units), or give
+    none and the capacitor ``pin`` names ("c1", "c2", or "auto", the less
+    lossy of the two) is held at ``ranges.c_max``. Where two tunings exist,
+    the less lossy one is taken. A solution with a part outside ``ranges``
+    is not one. Raises `NoMatch` when there is no solution."""
+    from scipy.optimize import fsolve
+
+    if pin not in PINS:
+        raise ValueError(f"pin={pin!r} is not one of {PINS}")
+    ranges = ranges or Ranges()
+    given = {k: v for k, v in (("c1", c1), ("l", l), ("c2", c2)) if v is not None}
+    if len(given) > 1:
+        raise ValueError(
+            "a T with two parts given has one left to tune for two conditions; "
+            "give at most one of c1 / l / c2"
+        )
+    z_load, r_t = complex(z_load), float(target)
+    omega = 2.0 * math.pi * f_mhz * 1e6
+    if abs(z_load - r_t) <= 1e-9 * r_t:
+        return TMatchDesign(
+            0.0, 0.0, 0.0, f_mhz, z_load, given=tuple(given), bypass=True
+        )
+    if given:
+        holds = [(given, None)]
+    else:
+        if ranges.c_max is None:
+            raise ValueError(
+                "a T with all three parts free holds a capacitor at its "
+                "maximum, so it needs c_max"
+            )
+        pins = ("c1", "c2") if pin == "auto" else (pin,)
+        holds = [({p: ranges.c_max}, p) for p in pins]
+
+    found: list[TMatchDesign] = []
+    out_of_range: list[str] = []
+    for fixed, pinned in holds:
+        free = [p for p in T_PARTS if p not in fixed]
+        for start in _t_lossless_starts(fixed, z_load, r_t, omega):
+            vals = dict(zip(T_PARTS, start, strict=True))
+
+            def parts(x, fixed=fixed, free=free):
+                v = dict(fixed)
+                # Clamped so a wandering step cannot underflow a part to 0.
+                v.update(
+                    {
+                        p: math.exp(min(max(xi, -60.0), 5.0))
+                        for p, xi in zip(free, x, strict=True)
+                    }
+                )
+                return v["c1"], v["l"], v["c2"]
+
+            def residual(x, parts=parts):
+                d = (_t_z_in(*parts(x), z_load, omega, qc, ql) - r_t) / r_t
+                return [d.real, d.imag]
+
+            x, _info, ok, _msg = fsolve(
+                residual,
+                np.log([vals[p] for p in free]),
+                full_output=True,
+                xtol=1e-13,
+            )
+            if ok != 1 or max(abs(v) for v in residual(x)) > 1e-9:
+                continue
+            c1_v, l_v, c2_v = parts(x)
+            why = [
+                f"{name} {reason}"
+                for name, kind, value in (
+                    ("C1", "C", c1_v), ("L", "L", l_v), ("C2", "C", c2_v)
+                )
+                if (reason := ranges.outside(kind, value))
+            ]  # fmt: skip
+            if why:
+                out_of_range.append(" and ".join(why))
+                continue
+            eff = _t_efficiency(c1_v, l_v, c2_v, z_load, omega, qc, ql)
+            found.append(
+                TMatchDesign(
+                    c1_v, l_v, c2_v, f_mhz, z_load,
+                    given=tuple(given), pinned=pinned, efficiency=eff,
+                )
+            )  # fmt: skip
+    if found:
+        return max(found, key=lambda d: d.efficiency)
+    held = (
+        f"with {next(iter(given)).upper()} given"
+        if given
+        else f"with {'either capacitor' if pin == 'auto' else pin.upper()} at its maximum"
+    )
+    raise NoMatch(
+        f"no T network {held} presents {r_t:g} ohm for a load of "
+        f"{z_load.real:.4g} {'+' if z_load.imag >= 0 else '-'} "
+        f"j{abs(z_load.imag):.4g} ohm at {f_mhz:g} MHz"
+        + (
+            " within its component ranges (" + "; ".join(out_of_range) + ")"
+            if out_of_range
+            else ""
+        )
+    )
+
+
+def t_bypass_body(rig: str, out: str, mid: str = "m"):
+    """A T out of circuit: its two series arms at 0 H (wires) through the tee
+    midpoint, and no shunt (an open). Declaring the midpoint here is what
+    makes the flattened network carry it as a `PortVirtual`, so the tuned
+    body has a node to hang its coil on."""
+    return (TwoPort(a=rig, b=mid, l=0.0), TwoPort(a=mid, b=out, l=0.0))
+
+
+@dataclass(frozen=True)
+class TTuner:
+    """The tuning MECHANISM of a T network (AK#1661): present ``target`` ohms
+    at ``f_mhz`` (None: the design frequency). Any ONE of ``c1`` / ``l`` /
+    ``c2`` (SI) may be given and the other two are tuned; with none given,
+    the capacitor ``pin`` names is held at ``ranges.c_max``, as a real T
+    autotuner holds one capacitor and searches the other two.
+
+    Which capacitor to pin by default was measured, not assumed
+    (``scratch/1661-t-tuner/pin_loss.py``): both, as `DEFAULT_PIN` records —
+    the choice barely moves the loss but decides which loads can be matched
+    at all.
+    """
+
+    target: float
+    f_mhz: float | None = None
+    c1: float | None = None
+    l: float | None = None
+    c2: float | None = None
+    pin: str = DEFAULT_PIN
+    qc: float | None = None
+    ql: float | None = None
+    ranges: Ranges = Ranges()
+
+    def __post_init__(self):
+        if isinstance(self.target, complex) or not float(self.target) > 0.0:
+            raise ValueError(
+                f"tune_to={self.target!r}: a tuner tunes to a positive resistance "
+                "in ohms"
+            )
+        if self.f_mhz is not None and not float(self.f_mhz) > 0.0:
+            raise ValueError(f"tune_at_mhz={self.f_mhz!r} must be positive")
+        if self.pin not in PINS:
+            raise ValueError(f"pin={self.pin!r} is not one of {PINS}")
+        given = [p for p in T_PARTS if getattr(self, p) is not None]
+        if len(given) > 1:
+            raise ValueError(
+                f"a T tuner with {' and '.join(p.upper() for p in given)} given "
+                "has one part left for two conditions (R and X at the rig); "
+                "give at most one"
+            )
+        if not given and self.ranges.c_max is None:
+            raise ValueError(
+                "a T tuner with all three parts free holds a capacitor at its "
+                "maximum, so it needs c_max_pF"
+            )
+
+    def body(self, rig: str, out: str, z_load: complex, f_mhz: float, mid: str):
+        """``(branches, design)`` for this load: the real T, or the bypass
+        when nothing matches."""
+        given = tuple(p for p in T_PARTS if getattr(self, p) is not None)
+        try:
+            design = design_t_match(
+                z_load,
+                self.target,
+                f_mhz,
+                c1=self.c1,
+                l=self.l,
+                c2=self.c2,
+                pin=self.pin,
+                qc=self.qc,
+                ql=self.ql,
+                ranges=self.ranges,
+            )
+        except NoMatch as exc:
+            design = TMatchDesign(
+                0.0, 0.0, 0.0, f_mhz, z_load, given=given,
+                matched=False, bypass=True, no_match=str(exc),
+            )  # fmt: skip
+        if design.bypass:
+            return (t_bypass_body(rig, out, mid), design)
+        return (
+            (
+                TwoPort(a=rig, b=mid, c=design.c1, qc=self.qc),
+                Shunt(port=mid, l=design.l, ql=self.ql),
+                TwoPort(a=mid, b=out, c=design.c2, qc=self.qc),
+            ),
+            design,
+        )
+
+    def describe(self) -> str:
+        given = [p for p in T_PARTS if getattr(self, p) is not None]
+        if given:
+            return f"T network with {given[0].upper()} given"
+        which = "either capacitor" if self.pin == "auto" else self.pin.upper()
+        return f"T network with {which} at its maximum"
 
 
 # --- finding the tuner in a network -----------------------------------------
@@ -316,6 +751,8 @@ class _Tuner:
     indices: tuple[int, ...]
     rig: str
     out: str
+    #: Nodes internal to the box, passed on to the mechanism's `body`.
+    inner: tuple[str, ...] = ()
 
     @property
     def name(self) -> str:
@@ -335,8 +772,11 @@ def find_tuners(net) -> list[_Tuner]:
         if mechanism is None:
             continue
         idx = tuple(i for i, p in enumerate(paths) if p == path)
-        series = net.branches[idx[0]]
-        found.append(_Tuner(path, mechanism, idx, series.a, series.b))
+        # The bypass is a chain of series arms, rig -> ... -> out; the nodes
+        # between them are the box's own (a T's tee midpoint).
+        chain = [net.branches[i] for i in idx]
+        inner = tuple(br.b for br in chain[:-1])
+        found.append(_Tuner(path, mechanism, idx, chain[0].a, chain[-1].b, inner))
     return found
 
 
@@ -425,7 +865,7 @@ class AutoMatchReducer:
         self._last = self._structural
         self._tuned: NetworkReducer | None = None
         self._body: tuple = ()
-        self.design: LMatchDesign | None = None
+        self.design: LMatchDesign | TMatchDesign | None = None
         n_virtual = sum(isinstance(p, PortVirtual) for p in net.ports.values())
         self._n_real = n_total_ports - n_virtual
         self._load = _load_side(net, tuner)
@@ -446,7 +886,7 @@ class AutoMatchReducer:
         z = red.driven_impedance(y_real, self._wavelength)
         return complex(np.atleast_1d(z)[0])
 
-    def tune(self, y_real=None) -> LMatchDesign:
+    def tune(self, y_real=None) -> LMatchDesign | TMatchDesign:
         """Tune (once): design at the tune wavelength from the load's
         impedance there, or bypass with a warning when nothing matches.
 
@@ -462,7 +902,7 @@ class AutoMatchReducer:
         # The mechanism owns the topology: it returns the branches its box
         # holds for this load, and what it tuned to.
         body, design = t.mechanism.body(
-            t.rig, t.out, z_load, C_LIGHT / self._wavelength / 1e6
+            t.rig, t.out, z_load, C_LIGHT / self._wavelength / 1e6, *t.inner
         )
         design = replace(design, f_mhz=self.f_mhz)
         if design.no_match:
@@ -527,26 +967,17 @@ class AutoMatchReducer:
                     "group": group,
                 }
             ]
-        rows = []
-        for where, kind, value in (
-            ("series", d.series_kind, d.series),
-            ("shunt", d.shunt_kind, d.shunt),
-        ):
-            rows.append(
-                {
-                    "label": f"{where} {kind}",
-                    "value": round(value * (1e6 if kind == "L" else 1e12), 6),
-                    "unit": "µH" if kind == "L" else "pF",
-                    "group": group,
-                }
-            )
-        rows.append(
+        rows = [
             {
-                "label": "tuned",
-                "value": f"{d.mode} at {d.f_mhz:g} MHz, shunt at {d.shunt_at}",
-                "unit": None,
+                "label": label,
+                "value": round(value * (1e6 if kind == "L" else 1e12), 6),
+                "unit": "µH" if kind == "L" else "pF",
                 "group": group,
             }
+            for label, kind, value in d.parts
+        ]
+        rows.append(
+            {"label": "tuned", "value": d.summary, "unit": None, "group": group}
         )
         return rows
 
@@ -560,8 +991,7 @@ class AutoMatchReducer:
             {
                 "category": "tuner",
                 "text": (
-                    f"Tuner {self._tuner.name} found no {t.mode} L network "
-                    f"{'with its shunt on either side' if t.shunt_at == 'auto' else f'with its shunt at {t.shunt_at}'} that "
+                    f"Tuner {self._tuner.name} found no {t.describe()} that "
                     f"presents {t.target:g} Ω for the {z.real:.4g} "
                     f"{'+' if z.imag >= 0 else '−'} j{abs(z.imag):.4g} Ω it sees "
                     f"at {d.f_mhz:g} MHz, so it is bypassed and the readout "
@@ -615,19 +1045,18 @@ def make_reducer(
     wavelength_for=None,
 ):
     """The engine's reducer: a plain `NetworkReducer`, or an
-    `AutoMatchReducer` when the network holds a self-tuning L tuner."""
+    `AutoMatchReducer` when the network holds a self-tuning tuner."""
     tuners = find_tuners(net)
     if not tuners:
         return NetworkReducer(net, port_to_idx, n_total_ports)
     if len(tuners) > 1:
         raise NotImplementedError(
-            "a network with more than one self-tuning L tuner is not supported: "
+            "a network with more than one self-tuning tuner is not supported: "
             "each one's load would include the other's tuning"
         )
     if y_at is None:
         raise NotImplementedError(
-            "this engine cannot tune an L tuner: it has no port admittance to "
-            "tune it from"
+            "this engine cannot tune a tuner: it has no port admittance to tune it from"
         )
     return AutoMatchReducer(
         net,
