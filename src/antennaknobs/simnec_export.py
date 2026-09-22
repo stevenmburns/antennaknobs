@@ -125,9 +125,10 @@ the documented NEC-portal API. The surrounding XML scaffold in
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass, replace
 from xml.sax.saxutils import escape as _xml_escape
 
-from .auto_match import find_tuners
+from .auto_match import design_freq_mhz, find_tuners
 from .engines.pynec import DEFAULT_GROUND, PyNECEngine
 from .nec_export import _gw, _num, export_nec
 from .wire_catalog import gap_segment, port_at, port_wire
@@ -465,7 +466,73 @@ def _shunt_elements(br: Shunt, freq_mhz: float, mk, name: str):
     return out
 
 
-def _station_chain(net, freq_mhz: float):
+@dataclass(frozen=True)
+class _TunerSpan:
+    """A self-tuning tuner in the ladder walk (AK#1662): one series position
+    from its ``rig`` node to its ``out`` node, standing for every branch of
+    its body. Emitted as SimNEC's own XMATCH, never as its bypass arms, which
+    would write a wire and silently drop the tuner."""
+
+    a: str
+    b: str
+    indices: tuple[int, ...]
+    #: ``emit(mk)`` -> the element's XML, numbered in walk order.
+    emit: object
+
+
+def _xmatch(tuner, design, f_mhz: float, mk) -> str:
+    """SimNEC's LC matching component in automatic mode for an L tuner, the
+    inverse of the importer's XMATCH translation: ``pass`` is the mode, ``R``
+    the target (``X`` 0), ``Qc`` / ``Ql`` the parts' Q's (0 is lossless), and
+    ``MHz`` the tune frequency. SimNEC tunes it against its own antenna solve,
+    as the app tunes against its own; the element survives the trip, not the
+    values."""
+    m = tuner.mechanism
+    name = f"XMATCH for tuner {tuner.name!r}"
+    way_out = (
+        "export with freeze_tuners=True (CLI --freeze-tuners) to write its "
+        "tuned parts as fixed elements instead"
+    )
+    if not hasattr(m, "mode"):
+        raise SsnUnsupported(
+            f"tuner {tuner.name!r} is a T network; SimNEC's LC matching "
+            f"component is an L network only. {way_out[0].upper()}{way_out[1:]}"
+        )
+    if m.mode not in ("low", "high"):
+        raise SsnUnsupported(
+            f"{name}: mode {m.mode!r} has no XMATCH form, which is low- or "
+            f"high-pass only; {way_out}"
+        )
+    if m.ranges != type(m.ranges)():
+        raise SsnUnsupported(
+            f"{name}: the component ranges (c_min_pF … l_max_uH) have no "
+            f"XMATCH parameter, and SimNEC would tune without them; {way_out}"
+        )
+    if design is not None and design.bypass and not design.matched:
+        # For low and high only one side can match a load (AK#1646), so a
+        # fixed side that matched is the side SimNEC picks. One that could
+        # not match is the case SimNEC's automatic element would differ on.
+        raise SsnUnsupported(
+            f"{name}: with its shunt fixed at {m.shunt_at!r} it finds no match "
+            f"at {f_mhz:g} MHz and is bypassed, while SimNEC's automatic "
+            f"element chooses its side and would match; {way_out}"
+        )
+    return mk(
+        "XMATCH",
+        "LC",
+        [
+            ("mode", "auto"),
+            ("pass", m.mode),
+            ("R", _fmt(m.target)),
+            ("X", "0"),
+            ("Qc", _fmt(m.qc or 0.0)),
+            ("Ql", _fmt(m.ql or 0.0)),
+            ("MHz", _fmt(f_mhz)),
+        ],
+    )
+
+
+def _station_chain(net, freq_mhz: float, spans=()):
     """Map the network's branches onto SimNEC's linear cascade.
 
     Returns ``(feed_port, elements, deck_loads)``: the antenna-side
@@ -480,8 +547,28 @@ def _station_chain(net, freq_mhz: float):
     series_at: dict[str, list] = {}
     shunts_at: dict[str, list] = {}
     deck_loads: list[Load] = []
+    in_span: set[int] = set()
+    for span in spans:
+        in_span.update(span.indices)
+        name = f"tuner {span.a}->{span.b}"
+        series_at.setdefault(span.a, []).append((span.indices[0], span, name))
+        series_at.setdefault(span.b, []).append((span.indices[0], span, name))
+    # A tuner's body outside a span is its BYPASS, a 0 H arm that would be
+    # written as a plain wire: the tuner silently gone (AK#1662). Never.
+    tuner_paths = {
+        path
+        for path, comp in (getattr(net, "composites", None) or {}).items()
+        if getattr(comp, "tuner", None) is not None
+    }
     for bi, br in enumerate(net.branches):
+        if bi in in_span:
+            continue
         path = net.branch_paths[bi] if bi < len(net.branch_paths) else ""
+        if path in tuner_paths:
+            raise SsnUnsupported(
+                f"tuner {path.rstrip('.')!r} would be written as its bypass, a "
+                "plain wire, which drops the tuner from the circuit"
+            )
         name = _brname(br, path)
         if isinstance(br, BalancedLine):
             if br.zcomm is not None:
@@ -579,7 +666,10 @@ def _station_chain(net, freq_mhz: float):
             )
         bi, br, name = avail[0]
         visited.add(bi)
-        elements.extend(_series_elements(br, node, freq_mhz, mk, name))
+        if isinstance(br, _TunerSpan):
+            elements.append(br.emit(mk))
+        else:
+            elements.extend(_series_elements(br, node, freq_mhz, mk, name))
         node = br.b if br.a == node else br.a
         if node in seen_nodes:
             raise SsnUnsupported(
@@ -708,6 +798,59 @@ def _gen_sweep_block(lo: float, hi: float) -> str:
     )
 
 
+def _tuner_spans(eng, builder, ground, freeze: bool):
+    """The network to walk and the tuner spans in it (AK#1662). No tuner:
+    the engine's network, no spans.
+
+    A tuner is tuned here only when the export needs its answer: a frozen
+    one needs its values, and an XMATCH for a box with a FIXED side needs to
+    know whether that side matched. It is tuned on momwire, the app's own
+    engine and always installed; the PyNEC engine this writer builds is
+    geometry and network only and never solves (the bundle ships no PyNEC,
+    #1354), so an auto-side XMATCH needs no solve at all."""
+    net = eng._network
+    tuners = find_tuners(net)
+    if not tuners:
+        return net, ()
+    t = tuners[0]
+
+    def tuned():
+        from .engines.momwire import MomwireEngine
+
+        red = MomwireEngine(builder, ground=ground)._reducer
+        red.tune()
+        return red
+
+    if freeze:
+        red = tuned()
+        design = red.design
+        if design.bypass:
+            why = "is already at its target" if design.matched else "finds no match"
+            raise SsnUnsupported(
+                f"tuner {t.name!r} {why} at {red.f_mhz:g} MHz and is bypassed, "
+                "so there are no tuned parts to freeze; export it without "
+                "freeze_tuners to write SimNEC's own matching element"
+            )
+        # The tuned parts, as fixed values: the box is no longer a tuner.
+        frozen = red.tuned_network()
+        frozen.composites = {
+            path: replace(comp, tuner=None) if comp.tuner is not None else comp
+            for path, comp in frozen.composites.items()
+        }
+        return frozen, ()
+    m = t.mechanism
+    f_mhz = m.f_mhz or design_freq_mhz(builder)
+    if not f_mhz:
+        raise SsnUnsupported(
+            f"tuner {t.name!r} has no tune_at_mhz and the design no design "
+            "frequency, so there is no MHz to write"
+        )
+    design = tuned().design if getattr(m, "shunt_at", "auto") != "auto" else None
+    return net, (
+        _TunerSpan(t.rig, t.out, t.indices, lambda mk: _xmatch(t, design, f_mhz, mk)),
+    )
+
+
 def export_ssn(
     builder,
     *,
@@ -716,6 +859,7 @@ def export_ssn(
     seg_per_wl: int | None = None,
     sweep: tuple[float, float] | None = None,
     name: str | None = None,
+    freeze_tuners: bool = False,
 ) -> str:
     """Return a SimNEC ``.ssn`` (str) for ``builder`` — antenna-only, or a
     differential-only station (issue #604; see the module Scope note).
@@ -734,6 +878,13 @@ def export_ssn(
     name       : block display name (SimNEC's first ``//`` comment). Defaults to
                  the design's short leaf name; keep it ≤ ~12 chars — SimNEC
                  shrinks the font for longer names.
+    freeze_tuners : a self-tuning tuner (AK#1646, #1661) is written as
+                 SimNEC's own XMATCH element by default, which SimNEC retunes
+                 against its antenna solve (low- and high-pass L tuners only).
+                 True tunes it here (on momwire, the app's own engine) and
+                 writes the tuned parts as fixed elements instead: the answer
+                 for a T, an "ll" / "cc" L, or a tuner with component ranges,
+                 and it re-imports as fixed values, not a tuner.
 
     Raises :class:`SsnUnsupported` (a ``NotImplementedError``) for networked
     designs SimNEC cannot faithfully represent — common-mode constructs
@@ -743,17 +894,6 @@ def export_ssn(
     is exact at that frequency and Q-model-approximate across a sweep.
     """
     freq_mhz = builder.freq if freq_mhz is None else float(freq_mhz)
-    net = builder.build_network() if hasattr(builder, "build_network") else None
-    if net is not None and find_tuners(net):
-        # AK#1646: a self-tuning tuner carries PLACEHOLDER values, and the
-        # engine tunes the real ones at solve time. Writing the placeholders
-        # would be a wrong circuit that looks like a right one; writing
-        # SimNEC's own XMATCH element back is not built yet.
-        raise SsnUnsupported(
-            "this circuit has a self-tuning tuner (l_network_tuner or "
-            "t_network_tuner with tune_to=), whose values the solving engine "
-            "tunes; exporting it to SimNEC is not supported yet"
-        )
     # PyNECEngine raises ValueError here for PortAtEnd / PortAtVertex
     # designs — NEC-2 (and therefore SimNEC's NEC block) has no
     # junction-node port and no segment-end source (issues #579, #898).
@@ -762,7 +902,8 @@ def export_ssn(
         # Station path (issue #604): circuit elements from the reducer
         # branches, the antenna alone in the NEC block, driven at the
         # station's feed port.
-        feed_port, walk_elements, deck_loads = _station_chain(eng._network, freq_mhz)
+        net, spans = _tuner_spans(eng, builder, ground, freeze_tuners)
+        feed_port, walk_elements, deck_loads = _station_chain(net, freq_mhz, spans)
         cards = _station_cards(eng, feed_port, deck_loads, freq_mhz)
         script = _portal_wrap(
             cards,
@@ -836,6 +977,12 @@ def main(argv=None):
         help="Block display name (default: design's short leaf name). SimNEC "
         "shrinks the font past ~12 chars, so keep it short.",
     )
+    ap.add_argument(
+        "--freeze-tuners",
+        action="store_true",
+        help="Write a self-tuning tuner's tuned parts as fixed elements instead "
+        "of SimNEC's XMATCH (needed for a T, an ll/cc L, or component ranges)",
+    )
     ap.add_argument("--out", default=None, help="Write here (default: stdout)")
     args = ap.parse_args(argv)
 
@@ -857,6 +1004,7 @@ def main(argv=None):
         seg_per_wl=args.seg_per_wl,
         sweep=sweep,
         name=args.name,
+        freeze_tuners=args.freeze_tuners,
     )
     if args.out:
         # --name is echoed verbatim into the script's first //comment; pin

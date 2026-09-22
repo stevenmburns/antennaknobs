@@ -413,9 +413,15 @@ def test_the_schematic_draws_the_tuner_not_its_placeholders(tmp_path):
     assert "0.001 µH" not in svg and "1 pF" not in svg
 
 
-def test_simnec_export_refuses_rather_than_write_placeholders(tmp_path):
-    from antennaknobs.simnec_export import SsnUnsupported, export_ssn
+def test_an_imported_xmatch_exports_as_an_xmatch_again(tmp_path):
+    """SimNEC -> antennaknobs -> SimNEC gives back the element, not frozen
+    numbers or placeholders (AK#1662)."""
+    from antennaknobs.auto_match import find_tuners
+    from antennaknobs.simnec_export import export_ssn
 
     cls = _ssn_builder(tmp_path)
-    with pytest.raises(SsnUnsupported, match="self-tuning tuner"):
-        export_ssn(cls(), ground=cls.file_ground)
+    ssn = export_ssn(cls(), ground=cls.file_ground)
+    [t] = find_tuners(parse_ssn(ssn, network=True).network())
+    m = t.mechanism
+    assert (m.target, m.mode, m.shunt_at, m.f_mhz) == (50.0, "low", "auto", 14.0)
+    assert (m.qc, m.ql) == (2000.0, 200.0)

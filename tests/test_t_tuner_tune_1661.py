@@ -328,5 +328,6 @@ def test_the_schematic_draws_the_tuner_not_its_placeholders():
 def test_simnec_export_refuses_a_t_tuner_too():
     from antennaknobs.simnec_export import SsnUnsupported, export_ssn
 
-    with pytest.raises(SsnUnsupported, match="t_network_tuner with tune_to"):
+    # SimNEC's matching element is an L; a T is written frozen (AK#1662).
+    with pytest.raises(SsnUnsupported, match="is a T network"):
         export_ssn(_skyloop())
