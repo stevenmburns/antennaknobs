@@ -780,6 +780,10 @@ was actually used, and over a finite ground the
 **radiated** percentage — the share of your input power that actually
 leaves as sky wave. The rest is absorbed power, not error.
 
+The third method, **MININEC**, is a different ground rather than a cheaper
+solve of the same one; see [The MININEC-type ground](#the-mininec-type-ground)
+below.
+
 One class of designs picks its own method: the **buried-wire designs**
 (`verticals.buried_radial_vertical`, `verticals.elevated_buried_counterpoise`,
 `specialty.buried_dipole`) declare that they require the Sommerfeld model —
@@ -788,6 +792,36 @@ and the reflection-coefficient approximation refuses it by name. Loading
 one auto-selects finite ground with the Sommerfeld method and notes it in
 the ground panel; you can still flip the radio back, but the solver's
 refusal is the answer you'll get.
+
+### The MININEC-type ground
+
+**MININEC** is EZNEC's "Real, MININEC type" ground. The currents and the
+feed-point impedance are the ones a **perfect** ground gives. Only the far
+field sees the soil: the pattern reflects off the εr and σ you set, just as
+it does over a finite ground. On AC6LA's EZNEC 4-square it moves the pattern
+by 5.4 dB: 5.40 dBi at 25° elevation over the MININEC-type ground, 10.83 dBi on the
+horizon over the perfect ground. Both grounds give the same impedance,
+because this ground's currents are the perfect ground's.
+
+It is valid only for antennas well clear of the ground. The 4nec2 manual puts
+the limit at no horizontal wire below about 0.2 λ. It suits verticals and
+elevated arrays, where the MININEC heritage came from; for low horizontal
+wires, radials near the surface, or anything buried, use the Sommerfeld
+method.
+
+Every engine serves it in its own terms:
+
+- momwire solves over the PEC image and reflects the far field off the soil;
+- NEC-5 is sent `GE 1` and a bare `GD 0 0 0 0 εr σ 1 0` — EZNEC's own NEC-5
+  spelling;
+- NEC-2 (the NEC-2 tab and PyNEC) is sent `GN 1` plus a `GD` circular cliff
+  at radius 0 and height 0, and asked for its pattern with `RP 3`, the one
+  mode that reads that medium everywhere. This is how 4nec2 runs its
+  `GN 3`.
+
+The NEC rp overlay therefore reflects off the same soil as the app's own
+cut. A deck that carries this ground opens with it selected; see
+[NEC import](/reference/nec-import/#what-is-not-applied).
 
 ### Faceted terrain
 

@@ -123,6 +123,14 @@ disagreement rather than like a bug in one of ours.
 It also means a `nec2` result is reproducible by hand. Download the deck, run
 your own binary over it, and you should get the printout antennaknobs parsed.
 
+One ground needs two cards. The
+[MININEC-type ground](/reference/web/#the-mininec-type-ground) is `GN 1` for
+the currents, then a `GD` circular cliff at radius 0 and height 0 carrying the
+soil. Only a cliff-mode pattern request reads that cliff, so this engine asks
+for patterns with `RP 3` over it; an impedance-only run sees the perfect
+ground, which is the right answer for this ground. 4nec2 runs its own `GN 3`
+the same way.
+
 ## Efficiency and the power budget
 
 The engine reads NEC-2's own **POWER BUDGET** block — input power, radiated
