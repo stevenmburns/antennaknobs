@@ -71,7 +71,10 @@ python -m antennaknobs pattern --builder beams.yagi --engine momwire
 ```
 
 Useful `pattern` flags: `--fn out.png` (write to a file instead of the screen),
-`--ground free|pec|finite|finite:<eps_r>,<sigma>`, `--wireframe`, and
+`--ground free|pec|finite|finite:<eps_r>,<sigma>|mininec:<eps_r>,<sigma>`
+(`finite-fast` for the reflection-coefficient model, and `mininec` for
+EZNEC's [MININEC-type ground](/reference/web/#the-mininec-type-ground):
+perfect-ground currents and impedance, a real-ground pattern), `--wireframe`, and
 `--elevation_angle`.
 
 ## Sweeps
@@ -456,7 +459,9 @@ ground since v0.75.1: with no `--ground`, a `@file.nec` design is solved
 under the ground its own `GE` / `GN` cards model — `GE 0` free space, `GE 1`
 or `GN 1` perfect, `GN 2` finite with the card's ε<sub>r</sub> and σ, `GN 0`
 the reflection-coefficient model (Sommerfeld in a NEC-5 deck, which has no
-reflection-coefficient ground) — and an explicit `--ground` still wins.
+reflection-coefficient ground), and the MININEC-type ground for a NEC-5
+deck's bare `GD`, NEC-2's `GN 1` + `GD` cliff at 0, or 4nec2's `GN 3` — and
+an explicit `--ground` still wins.
 Since v0.81.0 the ground is settled ONCE per run and handed to every engine
 named: an explicit `--ground`, else the file design's own, else free space.
 The engines' own defaults disagree (PyNEC and NEC-2 assume a finite ground,

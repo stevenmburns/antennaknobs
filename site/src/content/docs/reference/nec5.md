@@ -129,7 +129,7 @@ frequencies into a single run using NEC-5's linear `FR` stepping.
 | capability | status |
 | --- | --- |
 | Impedance, currents, frequency sweeps | served |
-| Grounds | free space, PEC, and NEC-5's **native Sommerfeld** (`("finite", eps_r, sigma)`) |
+| Grounds | free space, PEC, NEC-5's **native Sommerfeld** (`("finite", eps_r, sigma)`), and EZNEC's [MININEC-type ground](/reference/web/#the-mininec-type-ground) (`("mininec", eps_r, sigma)`) as `GE 1` with a bare `GD` |
 | Buried wires | served over the Sommerfeld ground — the `GE` ground flag follows the deck: `GE -1 0` where every conductor is below the plane, `GE 1 0` where one stands **at** `z = 0`, which is the legal contact that joins a monopole to its detached screen. The two settings say opposite things about a wire end on the plane (bond it to ground, or leave the current expansion alone), so the flag is a property of the geometry and not a constant |
 | Radiation patterns | served (`compare_patterns`, the web far-field views) |
 | Feeds | plain `Wire.ex`, network `Driven`, and `DrivenCurrent` via NEC-5's **native current source** (`EX 4` — NEC-2 has no equivalent) |
@@ -137,7 +137,7 @@ frequencies into a single run using NEC-5's linear `FR` stepping.
 | Wire material | conductor loss natively; an insulation jacket as the same coated-wire pair momwire models, spelled in cards — the equivalent radius on `GW`, the jacket's inductance as `LD 2`, and `LD 5` rescaled so the copper loss stays the real conductor's. NEC-5 dropped NEC-4's insulated-wire card |
 | Power budget | input/radiated/wire-loss/efficiency, plus hemisphere average gain (the ground-absorption readout) |
 | Transmission lines, transformers, two-ports, virtual drivers, `ql`/`qc` loads | served through a **multiport-Y reduction**: NEC-5 solves the antenna's admittance at its real ports, the circuit is reduced onto them, and every other reading (currents, the pattern, the power budget) runs a deck driven at the ports' resolved voltages. NEC's own pattern there is reported per watt the **sources** deliver, which is what NEC-5 prints when it carries the same network in its own cards. Two port kinds **refuse loudly**, each by name: a **floating** port, whose second terminal NEC-5 cannot expose, and a **distributed** port, whose knot weighting is not derived |
-| Ground-geometry refusals | mid-span interface crossings (the binary runs them and prints garbage), wires lying **in** the plane, buried wires under a PEC ground (image theory has no buried side), and **coincident wires** — each refused by name at construction |
+| Ground-geometry refusals | mid-span interface crossings (the binary runs them and prints garbage), wires lying **in** the plane, buried wires under a PEC or MININEC-type ground (image theory has no buried side), and **coincident wires** — each refused by name at construction |
 
 Refusals are the design: NEC-5 either solves exactly what you asked or
 tells you precisely why not — never a silently simplified model. The

@@ -43,7 +43,8 @@ Generator's frequency is the solve frequency and no sweep is armed — arming on
 is `--sweep` below, on the command line.
 
 Flags: `--freq` (MHz, default the design's), `--ground free | pec | finite |
-finite:<eps_r>,<sigma>`, `--seg-per-wl` (SimNEC re-meshes at its own
+finite:<eps_r>,<sigma> | mininec:<eps_r>,<sigma>` (the last as SimNEC's own
+`MiniNECGround`), `--seg-per-wl` (SimNEC re-meshes at its own
 segments-per-wavelength — the deck's segment counts are advisory there),
 `--sweep` (bare for ±10% around the frequency, or `LO,HI`), `--name`, and
 `--out` (default stdout).
@@ -107,7 +108,8 @@ python -m antennaknobs export --builder @dip.ssn --out dip.nec
 What the importer honours: the solve frequency comes from the **Generator's
 MHz** (in SimNEC the deck's `FR` card is advisory), an armed Generator sweep
 becomes the design's measurement band, the daemon ground call surfaces as a
-`--ground` hint, and wire conductivity applies per-wire. `NECUnits` is read
+`--ground` hint (`PerfectGround`, `SommerfeldGround`, and `MiniNECGround` as
+the [MININEC-type ground](/reference/web/#the-mininec-type-ground)), and wire conductivity applies per-wire. `NECUnits` is read
 but not applied: in SimNEC it only sets the units wire dimensions are
 displayed in, and the NEC cards are metres whatever it says. Values are read
 the way SimNEC writes them: component values with its SI suffixes (`37.52p`,
