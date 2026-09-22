@@ -112,6 +112,14 @@ def test_finite_ground_maps_sigma_then_epsr():
     assert "SommerfeldGround(0.0303, 20);" in script
 
 
+def test_mininec_ground_is_simnecs_own_mininecground():
+    """AK#1655: SimNEC's MiniNECGround takes SommerfeldGround's (mhos,
+    dielectric) order."""
+    script = _script(ground=("mininec", 20.0, 0.0303))
+    assert "MiniNECGround(0.0303, 20);" in script
+    assert "SommerfeldGround" not in script
+
+
 def test_seg_per_wl_directive():
     assert "NECOptions.segmentsPerWavelength = 120;" in _script(
         ground=None, seg_per_wl=120

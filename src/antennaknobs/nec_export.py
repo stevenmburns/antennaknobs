@@ -149,13 +149,26 @@ def _gw(tag, n_seg, p0, p1, radius):
     )
 
 
-def _gn(ground):
-    """Ground card matching PyNECEngine._apply_ground_card. Returns None for
-    free space (no GN card)."""
+def _ground_cards(ground):
+    """Ground cards matching PyNECEngine._apply_ground_card, as a list of
+    lines. Empty for free space (no GN card).
+
+    The MININEC-type ground (AK#1655) is two cards in NEC-2: ``GN 1`` for the
+    currents, then a ``GD`` second medium whose circular cliff sits at radius 0
+    and height 0, so every reflection point lies in it. That medium is read by
+    a cliff-mode pattern request alone (`rp_mode`); under ``XQ`` or ``RP 0`` the
+    pair is byte for byte a perfect ground, which is what the impedance is.
+    """
     if ground is None or ground == "free":
-        return None
+        return []
     if ground == "pec":
-        return "GN 1 0 0 0 0 0"
+        return ["GN 1 0 0 0 0 0"]
+    if isinstance(ground, tuple) and len(ground) == 3 and ground[0] == "mininec":
+        _, eps_r, sigma = ground
+        return [
+            "GN 1 0 0 0 0 0",
+            f"GD 0 0 0 0 {_num(eps_r)} {_num(sigma)} {_num(0.0)} {_num(0.0)}",
+        ]
     if (
         isinstance(ground, tuple)
         and len(ground) == 3
@@ -168,8 +181,22 @@ def _gn(ground):
         _, eps_r, sigma = ground
         # IPERF 2 = Sommerfeld-Norton, 0 = reflection-coefficient approximation.
         iperf = 2 if ground[0] == "finite" else 0
-        return f"GN {iperf} 0 0 0 {_num(eps_r)} {_num(sigma)}"
+        return [f"GN {iperf} 0 0 0 {_num(eps_r)} {_num(sigma)}"]
     raise ValueError(f"unrecognised ground spec: {ground!r}")
+
+
+def rp_mode(ground) -> int:
+    """The RP card's mode field (I1) for a pattern over `ground` in NEC-2.
+
+    3, the circular cliff, over the MININEC-type ground: it is the only mode
+    that reads the ``GD`` medium `_ground_cards` writes, and with the cliff at
+    radius 0 it reads it everywhere (AK#1655; 4nec2 asks for its ``GN 3`` patterns the
+    same way). 2, the linear cliff, would read it only on the x > 0 side.
+    0, the normal mode, for every other ground.
+    """
+    if isinstance(ground, tuple) and ground and ground[0] == "mininec":
+        return 3
+    return 0
 
 
 def export_nec(
@@ -315,9 +342,7 @@ def export_nec(
         if mat.inductance is not None:
             lines.append(f"LD 2 0 0 0 0. {_num(mat.inductance)} 0.")
 
-    gn = _gn(eng.ground)
-    if gn:
-        lines.append(gn)
+    lines.extend(_ground_cards(eng.ground))
 
     # --- networks (NT), then excitations (EX), frequency (FR), pattern (RP) ---
     # Order matters and is not cosmetic: NEC requires the network cards of one
@@ -334,7 +359,7 @@ def export_nec(
     if include_rp:
         # RP triggers the solve and prints input parameters + the pattern.
         # Hemisphere cut matching PyNECEngine._collect_pattern defaults.
-        lines.append("RP 0 19 37 1000 0 0 10 10")
+        lines.append(f"RP {rp_mode(eng.ground)} 19 37 1000 0 0 10 10")
     else:
         # No pattern requested: an explicit XQ still triggers the solve so the
         # deck reports ANTENNA INPUT PARAMETERS (impedance). Without an XQ/RP

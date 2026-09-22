@@ -108,6 +108,9 @@ def test_roundtrip_grounds():
     # a SommerfeldGround maps back as the accurate model even from finite-fast
     g = _roundtrip(freq_mhz=14.1, ground=("finite-fast", 13.0, 0.005)).ground
     assert g == ("finite", pytest.approx(13.0), pytest.approx(0.005))
+    # SimNEC's MiniNECGround is the MININEC-type ground both ways (AK#1655)
+    g = _roundtrip(freq_mhz=14.1, ground=("mininec", 13.0, 0.005)).ground
+    assert g == ("mininec", pytest.approx(13.0), pytest.approx(0.005))
 
 
 def test_roundtrip_ground_sets_deck_flag():

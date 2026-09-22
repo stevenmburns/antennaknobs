@@ -360,12 +360,17 @@ def parse_ground(s):
     finite-fast                   -> default ('finite-fast', 13.0, 0.005)
                                      (reflection-coefficient approximation)
     finite-fast:<eps_r>,<sigma>   -> ('finite-fast', eps_r, sigma)
+    mininec                       -> default ('mininec', 13.0, 0.005)
+                                     (EZNEC's MININEC type: perfect ground
+                                     for the currents and impedance, the
+                                     real ground for the pattern alone)
+    mininec:<eps_r>,<sigma>       -> ('mininec', eps_r, sigma)
     """
     if s is None or s == "free":
         return None
     if s == "pec":
         return "pec"
-    for kind in ("finite-fast", "finite"):
+    for kind in ("finite-fast", "finite", "mininec"):
         if s == kind:
             return (kind, 13.0, 0.005)
         if s.startswith(kind + ":"):
@@ -605,6 +610,11 @@ def format_ground(ground):
             return f"finite {ground[1]:g}/{ground[2]:g} (Sommerfeld-Norton)"
         if kind == "finite-fast":
             return f"finite-fast {ground[1]:g}/{ground[2]:g} (reflection-coefficient)"
+        if kind == "mininec":
+            return (
+                f"mininec {ground[1]:g}/{ground[2]:g} "
+                "(perfect-ground currents, real-ground pattern)"
+            )
         return kind
     return str(ground)
 
@@ -842,7 +852,9 @@ def cli(arguments=None):
             default=_GROUND_UNSET,
             help="Ground model: free | pec | finite[:<eps_r>,<sigma>] "
             "(Sommerfeld-Norton, both engines) | finite-fast[:<eps_r>,<sigma>] "
-            "(reflection-coefficient approximation). Default: a file design's "
+            "(reflection-coefficient approximation) | mininec[:<eps_r>,<sigma>] "
+            "(EZNEC's MININEC type: perfect ground for the currents and "
+            "impedance, the real ground for the pattern). Default: a file design's "
             "own GE/GN ground, else free space — ONE value handed to every "
             "engine named, never an engine's own default (AK#1563).",
         )

@@ -103,6 +103,11 @@ _SOMMERFELD = re.compile(
     r"^SommerfeldGround\s*\(\s*([^\s,()]+)\s*,\s*([^\s,()]+)\s*\)$", re.IGNORECASE
 )
 _PERFECT = re.compile(r"^PerfectGround\s*\(\s*\)$", re.IGNORECASE)
+# SimNEC's own MININEC ground (its NECPortal manual, "NECGrounds"), with the
+# SommerfeldGround argument order: (mhos, dielectric).
+_MININEC = re.compile(
+    r"^MiniNECGround\s*\(\s*([^\s,()]+)\s*,\s*([^\s,()]+)\s*\)$", re.IGNORECASE
+)
 _NECUNITS = re.compile(r"^NECUnits\s+(.+)$", re.IGNORECASE)
 _NECOPTION = re.compile(r"^NECOptions\.(\w+)\s*=\s*(\S+)$", re.IGNORECASE)
 
@@ -237,7 +242,8 @@ class SsnCircuit:
     # Armed (doSweep y) Generator frequency sweep, MHz. None = no sweep armed.
     sweep: tuple[float, float] | None
     # Ground translated from the daemon call, in export_ssn's own spec:
-    # None (free space), "pec", or ("finite", eps_r, sigma).
+    # None (free space), "pec", ("finite", eps_r, sigma), or
+    # ("mininec", eps_r, sigma) for MiniNECGround (AK#1655).
     ground: None | str | tuple
     # NECOptions.mhosPerMeter, S/m — feed to WireSpec(conductivity=...).
     # None when absent or 0 (perfect wires).
@@ -458,6 +464,14 @@ class _Script:
             sigma = _fnum(m.group(1), where, "SommerfeldGround")
             eps_r = _fnum(m.group(2), where, "SommerfeldGround")
             self.ground = ("finite", eps_r, sigma)
+            return
+        m = _MININEC.match(stmt)
+        if m:
+            # Perfect-ground currents, the soil for the pattern alone: the
+            # same ground as EZNEC's MININEC type (AK#1655).
+            sigma = _fnum(m.group(1), where, "MiniNECGround")
+            eps_r = _fnum(m.group(2), where, "MiniNECGround")
+            self.ground = ("mininec", eps_r, sigma)
             return
         m = _NECUNITS.match(stmt)
         if m:

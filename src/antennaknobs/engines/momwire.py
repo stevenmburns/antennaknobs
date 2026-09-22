@@ -141,6 +141,7 @@ def _normalise_ground(ground):
         in (
             "finite",
             "finite-fast",
+            "mininec",
         )
     ):
         # The variant is preserved: "finite" means the true Sommerfeld/
@@ -148,7 +149,9 @@ def _normalise_ground(ground):
         # since 0.6.0), "finite-fast" the reflection-coefficient
         # approximation (NEC gn 0). Solvers without the requested model
         # fall back to their best available one — see the ground-model
-        # mapping in __init__.
+        # mapping in __init__. "mininec" is EZNEC's MININEC-type ground
+        # (AK#1655): the solve sees only the PEC image, and the medium
+        # reaches the far field alone.
         return (ground[0],) + tuple(ground[1:])
     if (
         isinstance(ground, tuple)
@@ -988,6 +991,13 @@ class MomwireEngine(SimulationEngine):
                                      "finite" to ~2 ohm above ~0.1λ heights
                                      but diverges hard below (~22 ohm at
                                      0.05λ, >100 ohm at 0.02λ).
+          ("mininec", eps_r, sigma) — EZNEC's "Real, MININEC type" ground
+                                     (AK#1655): currents and impedance over
+                                     the PEC image, exactly as "pec"; only
+                                     the far field sees the medium, through
+                                     the same Fresnel reflection "finite"
+                                     uses. NEC-5's bare GD, NEC-2's GN 1 +
+                                     GD with the pattern in cliff mode.
           ("terrain", Terrain)     — faceted-terrain far field (issue #534,
                                      antennaknobs.terrain): per-direction
                                      specular-facet reflection with per-facet
@@ -2201,7 +2211,9 @@ class MomwireEngine(SimulationEngine):
         None for free space and for a PEC plane: nothing radiates out of a
         perfect conductor, which is also the |k_m| → ∞ limit of the
         transmitted factors."""
-        if self._ground is None or self._ground[0] == "pec":
+        if self._ground is None or self._ground[0] in ("pec", "mininec"):
+            # A MININEC ground's currents are a PEC solve's (AK#1655), so
+            # nothing below its plane was solved in a medium either.
             return None
         if self._ground[0] == "terrain":
             eps_r, sigma = self._ground[1].crest_medium
@@ -2281,7 +2293,8 @@ class MomwireEngine(SimulationEngine):
             M_perp = M_perp + M_img_perp
             return np.sum(M_perp.real**2 + M_perp.imag**2, axis=-1)
 
-        # ("finite", eps_r, sigma) / ("terrain", Terrain): polarisation basis
+        # ("finite" / "finite-fast" / "mininec", eps_r, sigma) and
+        # ("terrain", Terrain): polarisation basis
         # at each ray and Fresnel reflection on the image wave.
         # Vertical (TM, in-plane) and horizontal (TE, out-of-plane)
         # polarisation unit vectors for the reflected ray, written straight

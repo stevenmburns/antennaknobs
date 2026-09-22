@@ -288,6 +288,57 @@ def _eznec_declares_nec5(text: str, where: str) -> bool:
     )
 
 
+def _mininec_ground_from_gd(card, nec5_dialect, ground_spec, ground_card):
+    """What a deck's last ``GD`` does to its ground, or None when it leaves it
+    alone (AK#1655). Returns ``(ground_spec, ground_method, ground_card)``.
+
+    The two dialects share the mnemonic and nothing else.
+
+    * **NEC-5**: a bare ``GD`` IS the ground, EZNEC's "Real, MININEC type":
+      perfect-ground currents, the medium (F1 = eps_r, F2 = sigma) on every
+      pattern. ``GD -1`` cancels it, which is free space. F3/F4 are the
+      complex mu_r (EZNEC writes ``1., 0.``) and are not read here, as GN's
+      are not.
+    * **NEC-2**: ``GD`` is a second medium beyond a cliff, and only a
+      cliff-mode pattern request reads it. After ``GN 1``, with the cliff at
+      radius 0 and height 0 (F3 = CLT, F4 = CHT), the second medium is under
+      every reflection point: that is the MININEC idiom 4nec2 writes for its
+      ``GN 3``. A real cliff, or a GD over a finite or absent GN, is not
+      something the app models, and stays a card not applied.
+
+    A medium of all zeros is no medium (momwire#490's vacuum cliff), so it is
+    left alone in both dialects: the ground stays what the GN or GE made it.
+    """
+    where = card.where
+    if nec5_dialect:
+        if card.i(0) == -1:
+            return None, None, None
+        eps_r, sigma = card.f(4), card.f(5)
+        label = "GD"
+    else:
+        if ground_spec != "pec" or ground_card != "GN 1":
+            return None
+        if card.f(6) != 0.0 or card.f(7) != 0.0:
+            return None
+        eps_r, sigma = card.f(4), card.f(5)
+        label = "GN 1 + GD"
+    if eps_r == 0.0 and sigma == 0.0:
+        return None
+    if sigma < 0.0:
+        # NEC-5 reads a negative sigma as Im(eps_c) itself, which only the
+        # frequency turns into a conductivity. No deck in hand writes one.
+        raise ValueError(
+            f"{where}: GD carries a negative conductivity ({sigma:g}), NEC-5's "
+            "spelling of Im(eps_c) itself; write the conductivity in S/m"
+        )
+    if eps_r < 1.0:
+        raise ValueError(
+            f"{where}: GD's relative permittivity is {eps_r:g}; a ground medium "
+            "needs eps_r >= 1"
+        )
+    return ("mininec", eps_r, sigma), "mininec", label
+
+
 def _knot_of(seg: int, edge: int) -> int:
     """The knot a NEC-5 end field names on a wire: end 1 of 1-based segment
     ``seg`` is knot ``seg - 1``, end 2 is knot ``seg``. ``edge`` 0 has no
@@ -511,14 +562,17 @@ class NecDeck:
     # (GN 1, or GE 1 with no GN — NEC's default), ("finite", eps_r, sigma)
     # for GN 2 and ("finite-fast", eps_r, sigma) for a NEC-2 deck's GN 0 (a
     # NEC-5 deck's GN 0 is Sommerfeld, so "finite"), the card's own medium
-    # either way. `ground_method` names the
-    # finite model the deck asked for: "sommerfeld" (GN 2) or "fast" (GN 0,
-    # the reflection-coefficient approximation); None otherwise. The folder
-    # route seeds the app's ground switch from these; the CLI's `@file` route
-    # uses them when `--ground` is not given.
+    # either way. ("mininec", eps_r, sigma) is EZNEC's MININEC-type ground
+    # (AK#1655): a NEC-5 deck's bare GD, NEC-2's GN 1 + a GD cliff at 0, or
+    # 4nec2's GN 3. `ground_method` names the
+    # finite model the deck asked for: "sommerfeld" (GN 2), "fast" (GN 0,
+    # the reflection-coefficient approximation) or "mininec"; None otherwise.
+    # The folder route seeds the app's ground switch from these; the CLI's
+    # `@file` route uses them when `--ground` is not given.
     ground_spec: object = None
     ground_method: str | None = None
-    # The GN card the ground came from ("GN 0" / "GN 2"), None without one.
+    # The card(s) the ground came from ("GN 0" / "GN 2" / "GD" / "GN 1 + GD"
+    # / "GN 3"), None without one.
     ground_card: str | None = None
     # The deck shows NEC-5's dialect: the GN card's NOFILE sentinel, or an EX
     # source at a segment END (#824). NEC-2 has neither. It decides what GN 0
@@ -4307,6 +4361,11 @@ def parse_nec(
     ground_contact_interpolates = True
     ground_spec, ground_method = None, None
     ground_card = None
+    # The last GD card since the last GN (AK#1655), resolved after the loop
+    # because what it means is the dialect's, and the dialect is only settled
+    # there. A GN resets it in both dialects: NEC-2's GN clears the second
+    # medium, and in NEC-5 the last ground card wins.
+    gd_card: _Card | None = None
     nec5_dialect = False
     # A `CM NEC-5` card declares the deck NEC-5 (AK#1476). It is the only
     # way a deck with no NOFILE and no explicit EX end field can say so.
@@ -4433,6 +4492,7 @@ def parse_nec(
             # a ground plane. Nullification also drops the earlier GN from
             # the skipped note, since nothing of it survives to be skipped.
             card = _Card(mnemonic, tokens[1:], where, syms)
+            gd_card = None
             if card.i(0) == -1:
                 ground = False
                 ground_spec, ground_method, ground_card = None, None, None
@@ -4444,6 +4504,13 @@ def parse_nec(
                 ground_card = f"GN {gtype}"
                 if gtype == 1:
                     ground_spec, ground_method = "pec", None
+                elif gtype == 3:
+                    # 4nec2's MININEC ground (AK#1655), which its own manual
+                    # defines as GN 1 plus a GD circular cliff at radius 0 and
+                    # height 0, and which 4nec2 hands its engine as exactly
+                    # that. The medium sits where GN 0/2 carry theirs.
+                    ground_spec = ("mininec", card.f(4), card.f(5))
+                    ground_method = "mininec"
                 else:
                     # GN 0 (reflection coefficients) and GN 2 (Sommerfeld)
                     # both carry eps_r in F1 and sigma (S/m) in F2; the CLI
@@ -4485,6 +4552,12 @@ def parse_nec(
             # decks in the wild use it globally, so one deck-level flag.
             card = _Card(mnemonic, tokens[1:], where, syms)
             extended_kernel = card.i(0) != -1
+            continue
+        if mnemonic == "GD":
+            # Recorded as not applied until the dialect says otherwise
+            # (`_mininec_ground_from_gd`, after the loop).
+            gd_card = _Card(mnemonic, tokens[1:], where, syms)
+            ignored.add(mnemonic)
             continue
         if mnemonic in _IGNORED_CARDS:
             ignored.add(mnemonic)
@@ -4675,6 +4748,14 @@ def parse_nec(
     # AK#1483).
     if nec5_declared:
         nec5_dialect = True
+    if gd_card is not None:
+        resolved = _mininec_ground_from_gd(
+            gd_card, nec5_dialect, ground_spec, ground_card
+        )
+        if resolved is not None:
+            ground_spec, ground_method, ground_card = resolved
+            ground = ground_spec is not None
+            ignored.discard("GD")
     symmetry_dropped = 0
     if network:
         (

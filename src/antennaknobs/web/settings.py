@@ -14,7 +14,7 @@ apply, and the entry it names keeps its built-in default.
     [ground]
     enabled = true
     type = "finite"          # finite | pec | terrain
-    method = "sommerfeld"    # fast | sommerfeld
+    method = "sommerfeld"    # fast | sommerfeld | mininec
     soil = "average"         # a soil preset name, or eps_r = ... and sigma = ...
     terrain_preset = "levee"
 
@@ -76,7 +76,7 @@ GROUND_BUILTIN: dict = {
     "terrain_preset": None,
 }
 GROUND_TYPES = ("finite", "pec", "terrain")
-GROUND_METHODS = ("fast", "sommerfeld")
+GROUND_METHODS = ("fast", "sommerfeld", "mininec")
 SLOTS = ("A", "B", "C")
 
 _TABLES = ("switches", "ground", "slots")

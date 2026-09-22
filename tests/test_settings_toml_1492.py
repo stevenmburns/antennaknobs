@@ -55,6 +55,15 @@ def test_no_file_means_the_builtin_defaults(cat, local):
     assert payload["path"] == str(local)
 
 
+def test_the_mininec_method_is_a_ground_method(cat, local):
+    """AK#1655: the MININEC-type ground rides the finite method, so a saved
+    session that picked it opens with it again."""
+    local.write_text('[ground]\nmethod = "mininec"\n')
+    payload = ui_settings.load(cat, hosted=False)
+    assert payload["problems"] == []
+    assert payload["ground"]["method"] == "mininec"
+
+
 def test_the_path_is_the_variable_else_the_home_folder(monkeypatch, tmp_path):
     monkeypatch.delenv(ui_settings.SETTINGS_ENV, raising=False)
     assert (

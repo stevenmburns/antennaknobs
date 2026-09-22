@@ -188,6 +188,10 @@ def _ground_directive(ground) -> tuple[str | None, float]:
         # both map to its Sommerfeld solve — the accurate model — which is also
         # what a validation run should compare against.
         return f"SommerfeldGround({_fmt(sigma)}, {_fmt(eps_r)});", 0.0
+    if isinstance(ground, tuple) and len(ground) == 3 and ground[0] == "mininec":
+        # SimNEC's own MININEC ground, same (mhos, dielectric) order (AK#1655).
+        _, eps_r, sigma = ground
+        return f"MiniNECGround({_fmt(sigma)}, {_fmt(eps_r)});", 0.0
     raise ValueError(f"unrecognised ground spec: {ground!r}")
 
 
@@ -717,7 +721,8 @@ def export_ssn(
 
     freq_mhz   : Generator frequency in MHz; defaults to ``builder.freq``.
     ground     : same spec as ``export_nec`` / PyNECEngine — None/"free",
-                 "pec", ("finite", eps_r, sigma), ("finite-fast", eps_r, sigma).
+                 "pec", ("finite", eps_r, sigma), ("finite-fast", eps_r, sigma),
+                 ("mininec", eps_r, sigma) as SimNEC's MiniNECGround.
     seg_per_wl : SimNEC auto-mesh density (segments per wavelength). None leaves
                  SimNEC's default; set it to pin SimNEC's mesh for a convergence
                  comparison (SimNEC re-segments regardless of the deck).
