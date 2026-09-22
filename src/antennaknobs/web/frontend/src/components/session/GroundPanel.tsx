@@ -59,7 +59,7 @@ export function GroundPanel({
    *  the selection itself is DesignSession's ground-requirement effect. */
   groundRequirement?: string | null;
   /** AK#1432 — a file design's own ground ("free" | "pec" | "sommerfeld" |
-   *  "fast") and its GN medium; the session seeded the switch from them,
+   *  "fast" | "mininec") and its GN / GD medium; the session seeded the switch from them,
    *  and this notice says so. */
   groundSeed?: string | null;
   groundMedium?: { eps_r: number; sigma: number } | null;
@@ -120,7 +120,7 @@ export function GroundPanel({
                   [
                     "finite",
                     "finite",
-                    "Finite ground — pick the solve method below (Sommerfeld-Norton or the reflection-coefficient approximation).",
+                    "Finite ground — pick the solve method below (Sommerfeld-Norton, the reflection-coefficient approximation, or the MININEC type).",
                   ],
                   [
                     "pec",
@@ -175,6 +175,11 @@ export function GroundPanel({
                         backend.name === "pynec"
                           ? "Sommerfeld-Norton (NEC ITYPE=2) — most accurate, slowest; the impedance sweep drops to half resolution to compensate."
                           : "True Sommerfeld ground — accurate at any height, on every momwire solver including the fast array paths (momwire ≥ 0.8.0). First solve at each frequency builds a grid (seconds); repeats are fast. The impedance sweep runs at half resolution.",
+                      ],
+                      [
+                        "mininec",
+                        "MININEC",
+                        "EZNEC's “Real, MININEC type” ground (AK#1655): the currents and impedance are the perfect ground's, and only the pattern reflects off this soil. Valid when no horizontal wire is lower than about 0.2λ.",
                       ],
                     ] as [FiniteGroundMethod, string, string][]
                   ).map(([value, label, title]) => (

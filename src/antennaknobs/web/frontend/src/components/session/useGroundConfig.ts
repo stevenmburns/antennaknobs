@@ -97,8 +97,12 @@ export function useGroundConfig({
   }
 
   // Whether the finite models are the active ones. pec and terrain carry no
-  // soil: terrain media are fixed (the #1173 non-goal) and PEC has none.
-  const soilApplies = groundModel === "fast" || groundModel === "sommerfeld";
+  // soil: terrain media are fixed (the #1173 non-goal) and PEC has none. The
+  // MININEC-type ground (AK#1655) does: its pattern reflects off it.
+  const soilApplies =
+    groundModel === "fast" ||
+    groundModel === "sommerfeld" ||
+    groundModel === "mininec";
 
   // What rides on the request, or undefined. Omitted when it equals the
   // served default so that a default-soil request is byte-identical to a

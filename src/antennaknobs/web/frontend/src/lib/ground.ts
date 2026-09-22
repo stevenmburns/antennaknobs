@@ -21,11 +21,14 @@ export type GroundType = "finite" | "pec" | "terrain";
 // Sommerfeld is opt-in because it is more expensive: the first solve at a
 // new frequency fills an interpolation grid (~0.2-0.5 s on a small box;
 // the first sweep pays that per point), and repeat solves at seen
-// frequencies reuse cached grids (tens of ms).
-export type FiniteGroundMethod = "sommerfeld" | "fast";
+// frequencies reuse cached grids (tens of ms). "mininec" is EZNEC's
+// "Real, MININEC type" ground (AK#1655): the currents and impedance are the
+// perfect ground's, and only the pattern reflects off the soil. Every backend
+// serves it (NEC-5 as a bare GD, NEC-2 as GN 1 + GD read in cliff mode).
+export type FiniteGroundMethod = "sommerfeld" | "fast" | "mininec";
 // The wire value (`ground_model` on SolveRequest): derived from groundType
 // (+ the method wherever finite ground is supported).
-export type GroundModel = "sommerfeld" | "fast" | "pec" | "terrain";
+export type GroundModel = "sommerfeld" | "fast" | "mininec" | "pec" | "terrain";
 
 // --- Soil constants for the finite ground models (issue #1173) -------------
 //
@@ -162,7 +165,9 @@ export function groundSummaryLabel(
         ? `terrain (${terrainPreset})`
         : groundModel === "fast"
           ? "reflection-coef ground"
-          : "Sommerfeld ground";
+          : groundModel === "mininec"
+            ? "MININEC-type ground"
+            : "Sommerfeld ground";
 }
 /** The one-line notice for a file design's own ground (AK#1432), or null. */
 export function groundSeedText(
@@ -173,6 +178,12 @@ export function groundSeedText(
   if (!seed) return null;
   if (seed === "free") return "from the file: free space (GE 0) — ground plane off";
   if (seed === "pec") return "from the file: perfect ground (GE 1 / GN 1)";
+  if (seed === "mininec") {
+    // AK#1655: say which half of the ground the soil is for, because the
+    // impedance will read exactly the perfect ground's.
+    const soil = medium ? ` εr ${medium.eps_r}, σ ${medium.sigma} S/m` : " soil";
+    return `from the file: MININEC-type ground (${card ?? "GD"}) — perfect ground for the currents and impedance,${soil} for the pattern`;
+  }
   const model =
     seed === "fast" ? `reflection coefficients (${card ?? "GN 0"})` : `Sommerfeld (${card ?? "GN 2"})`;
   const med = medium ? `, εr ${medium.eps_r}, σ ${medium.sigma} S/m` : "";

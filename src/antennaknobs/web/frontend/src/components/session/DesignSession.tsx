@@ -1362,7 +1362,7 @@ function DesignSessionBody({
 
   // Ground SEED (AK#1432): a file design's deck says what ground it models
   // (GE 0 = free space, GE 1 / GN 1 = perfect, GN 0 / GN 2 = finite with the
-  // card's medium), so the switch starts where the deck is instead of at the
+  // card's medium, a NEC-5 bare GD = MININEC-type, AK#1655), so the switch starts where the deck is instead of at the
   // app's default finite ground — which had NEC-5 refusing a free-space
   // dipole at z = 0 until the user unticked ground by hand. Same key and
   // same contract as the requirement seed above: fires on the design switch
@@ -1380,7 +1380,9 @@ function DesignSessionBody({
       return;
     }
     setGroundType("finite");
-    setFiniteGroundMethod(seed === "fast" ? "fast" : "sommerfeld");
+    setFiniteGroundMethod(
+      seed === "fast" ? "fast" : seed === "mininec" ? "mininec" : "sommerfeld",
+    );
     const m = currentExample?.ground_medium ?? null;
     if (m && setSoil) setSoil({ eps_r: m.eps_r, sigma: m.sigma });
     // eslint-disable-next-line react-hooks/exhaustive-deps

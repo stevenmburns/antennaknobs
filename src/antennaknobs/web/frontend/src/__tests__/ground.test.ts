@@ -60,6 +60,10 @@ describe("groundSummaryLabel", () => {
     expect(groundSummaryLabel(true, entry("bspline"), "fast", "levee")).toBe("reflection-coef ground");
   });
 
+  it("labels 'MININEC-type ground' for the mininec finite method (AK#1655)", () => {
+    expect(groundSummaryLabel(true, entry("bspline"), "mininec", "levee")).toBe("MININEC-type ground");
+  });
+
   it("labels 'Sommerfeld ground' for the sommerfeld finite method", () => {
     expect(groundSummaryLabel(true, entry("bspline"), "sommerfeld", "levee")).toBe("Sommerfeld ground");
   });
