@@ -362,6 +362,22 @@ special members:
   mismatch a real tuner would leave you with. SimNEC's automatic LC match
   element imports as this component.
 
+  `t_network_tuner(tune_to=50, c_max_pF=250)` is the T that tunes itself.
+  A T has three parts for two conditions (R and X at the rig), so one is
+  held: give any one of `c1_pF`, `l_uH` or `c2_pF` and the other two are
+  tuned, or give none and a capacitor sits at `c_max_pF`, the way a T
+  autotuner parks one capacitor and searches the other two. `pin` says
+  which: `"c1"`, `"c2"`, or `"auto"` (the default), which tries both and
+  keeps the less lossy. Which capacitor you park barely changes the loss
+  (at most 0.14 dB apart, across 625 loads and four bands), but it changes
+  which loads the tuner can reach, and each capacitor reaches loads the
+  other cannot.
+
+  Both tuners take component ranges — `c_min_pF`, `c_max_pF`, `l_min_uH`,
+  `l_max_uH` — because a real tuner's parts are finite: a tuning that needs
+  a 900 pF capacitor nobody owns is reported as no match, naming the part
+  that ran out of range.
+
 ### Ferrite cores: one number vs a curve
 
 `qlmag` is a single, frequency-independent Q on the magnetizing branch. Real

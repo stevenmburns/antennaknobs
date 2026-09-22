@@ -2689,7 +2689,7 @@ def _readout_rows_results(builder, eng=None) -> dict:
     its valid siblings survive, so one design-author typo cannot blank the
     whole panel.
     """
-    # What a self-tuning L tuner tuned to (AK#1646): the ENGINE's rows, since
+    # What a self-tuning tuner tuned to (AK#1646, #1661): the ENGINE's rows, since
     # the engine is what tuned it, after the design's own.
     tuned = tuner_rows(eng) if eng is not None else []
     readout_rows = getattr(builder, "readout_rows", None)
@@ -2889,7 +2889,7 @@ def _advisories_for(eng, req: Mapping, buried: bool, meas_freq: float) -> list:
     ak = _soil_dispersion_advisory(req, buried, meas_freq)
     if ak is not None:
         out.append(ak)
-    # A self-tuning L tuner that found no match (AK#1646): bypassed, and said.
+    # A self-tuning tuner that found no match (AK#1646, #1661): bypassed, and said.
     out.extend(tuner_advisories(eng))
     return out
 
