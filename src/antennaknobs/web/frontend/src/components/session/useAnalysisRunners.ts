@@ -21,8 +21,11 @@ import {
 } from "../../lib/refine";
 import { solveSignature } from "../../lib/solveSignature";
 import {
+  defaultSweepPoints,
   mergeSweepPoints,
-  planSweepFreqs,
+  resolveSweepRange,
+  sweepGrid,
+  type SweepRange,
   SWEEP_REFINE_BUDGET,
   SWEEP_REFINE_ROUND_BUDGET,
   type SweepProgress,
@@ -161,6 +164,7 @@ export function useAnalysisRunners({
   designFreq,
   measFreq,
   measLocked,
+  sweepRange,
   groundEnabled,
   groundModel,
   sweepEnabled,
@@ -190,6 +194,12 @@ export function useAnalysisRunners({
   designFreq: number;
   measFreq: number;
   measLocked: boolean;
+  /** AK#1682: the one range the measurement dial travels — DesignSession
+   *  resolves it once and hands the SAME object to the dial and here, so
+   *  the sweep's [lo, hi] is the dial's travel by construction. Omitted,
+   *  the range is resolved from the fields above with no session edit
+   *  (the design's own range, levels 2–5 of lib/sweep.ts). */
+  sweepRange?: SweepRange;
   groundEnabled: boolean;
   groundModel: GroundModel;
   sweepEnabled: boolean;
@@ -237,6 +247,20 @@ export function useAnalysisRunners({
   seqRef: MutableRefObject<number>;
   approvedComboRef: MutableRefObject<boolean>;
 }) {
+  // The range the sweep grids (AK#1682): the caller's, or the design's own.
+  const effectiveSweepRange =
+    sweepRange ??
+    resolveSweepRange({
+      currentExample,
+      currentVariant,
+      measLocked,
+      measFreq,
+      designFreq,
+      currentBands,
+      freqWindowCeiling,
+    }).range;
+  const sweepRangeKey = JSON.stringify(effectiveSweepRange);
+
   // The physics dependency of each effect below (issue #692): a fresh
   // buildRequest() per render, hashed down to a stable string. Anything that
   // changes the request — a knob, the variant, the measurement plane, a
@@ -366,10 +390,13 @@ export function useAnalysisRunners({
     // Everything physics — knobs, freqs, ground, backend, variant, the
     // measurement plane (#652 c / #691) — arrives through the signature.
     impedanceSig,
-    // Not a request field: measLocked steers planSweepFreqs' anchor policy
-    // (band-locked sweeps stay put; unlocked re-anchor on measFreq), so a
-    // lock toggle must re-plan the freqs even though the solve is unchanged.
+    // Not a request field: measLocked steers the range's anchor policy
+    // (lib/sweep.ts), so a lock toggle must re-plan the freqs even though
+    // the solve is unchanged.
     measLocked,
+    // Not a request field either: the range itself (AK#1682) — a menu edit,
+    // "↺ design range" or a band pick re-plans the grid.
+    sweepRangeKey,
     sweepEnabled,
     // Residency (issue #715): no smith/gamma/vswr view on screen means
     // nobody can see the sweep — clear it and free the server lane.
@@ -570,23 +597,15 @@ export function useAnalysisRunners({
     const controller = new AbortController();
     sweepAbortRef.current = controller;
 
-    // Sweep range, log-spaced — see planSweepFreqs for the resolution,
-    // anchor, and band-lock policy this applies.
-    const freqs = planSweepFreqs({
-      backend,
-      groundEnabled,
-      groundModel,
-      currentExample,
-      currentVariant,
-      measLocked,
-      measFreq,
-      designFreq,
-      currentBands,
-      freqWindowCeiling,
-      // Lean base grid when refinement will polish it; the historical
-      // dense grid when the toggle says the base IS the rendering.
-      refineEnabled,
-    });
+    // The range's grid — see lib/sweep.ts for the precedence, anchor and
+    // band-lock policy. A range with its own density is solved exactly
+    // (refinement adds points between its points); one without gets the
+    // lean base grid when refinement will polish it, the historical dense
+    // grid when the toggle says the base IS the rendering.
+    const freqs = sweepGrid(
+      effectiveSweepRange,
+      defaultSweepPoints({ backend, groundEnabled, groundModel, refineEnabled }),
+    ).freqs;
 
     const base = buildRequest();
     const body = {

@@ -2,35 +2,71 @@ import type { SweepData } from "./api";
 import { tunedInt } from "./tuning";
 import { backendSupportsGround, type BackendEntry } from "./backends";
 import type { GroundModel } from "./ground";
-import type { BandSpec, ExampleDescriptor } from "./params";
+import type { BandSpec, ExampleDescriptor, SweepRangeSpec } from "./params";
 
-// Sweep frequency plan: the log-spaced freq list `runSweep` requests.
-// Sommerfeld ground stays at half resolution: momwire 0.7.0's C++ fill +
-// grid cache made warm sweeps fast (~30 ms per point once the
-// per-frequency grids are cached; measured 0.6 s for 21 points at 2
-// threads), but the FIRST sweep after enabling it still fills one grid per
-// point (measured 4.3 s for 21 points at 2 threads; 41 would be ~9 s) —
-// half resolution halves that cold hit. Fast (reflection-coefficient)
-// ground and momwire PEC ground are cheap enough for full resolution.
+// Sweep frequency plan: the freq list `runSweep` requests.
 //
-// Anchor + span come from the active example's sweep_policy (a variant can
-// override it — see SweepPolicy in web/examples/_base.py). Anchor on the
-// measurement frequency whenever the sweep should follow what the user is
-// *viewing*: multiband designs declare anchor="meas_freq", and any design
-// that's been unlocked from its design freq (to check the pattern on
-// another band) should sweep that band too — not stay pinned to the
-// design band. Locked single-resonance designs keep sweeping design_freq
-// (where measFreq == designFreq anyway).
+// ONE RANGE (AK#1682). The measurement-freq dial's travel IS the sweep
+// range: `resolveSweepRange` produces a single `SweepRange` that the dial
+// (VfoPanel) travels and the sweep grids (`sweepGrid`), so the two cannot
+// disagree. It is seeded by a fixed precedence, first match wins:
 //
-// Band-locked sweep: when the active band contains the anchor, snap the
-// sweep range to that band's [min_mhz, max_mhz] so the trace stays inside
-// the band the user is tuning instead of bleeding into adjacent ones.
-// Falls through to the multiplicative window if the anchor sits outside
-// every band.
-export function planSweepFreqs(params: {
-  backend: BackendEntry;
-  groundEnabled: boolean;
-  groundModel: GroundModel;
+//   1. "session" — the user's edit from the dial's right-click menu. Lives
+//      in DesignSession state only; nothing persists to settings.toml. A
+//      design switch or a band pick clears it.
+//   2. "file"    — a file design's own sweep: the `.nec` FR card, the `.ssn`
+//      Generator sweep (`sweep_range` with source "file").
+//   3. "design"  — a Python design's `ui_params["sweep_range"]`, else its
+//      `meas_freq_range` (the dial span it has always declared).
+//   4. "policy"  — the design's `sweep_policy` (band lock or factors).
+//   5. "default" — ×0.8–×1.25 of the anchor, log-spaced.
+//
+// "↺ design range" in the menu clears level 1, which lands on 2–5.
+//
+// Levels 4–5 are relative to an anchor. It must be STABLE while the dial
+// moves — a window that followed measFreq would move under the dial that
+// travels it — so an unlocked dial anchors on the selected measurement band
+// (`measBandAnchor`), not on measFreq itself. Locked, measFreq follows the
+// design frequency, and the policy's `anchor` picks between the two exactly
+// as before.
+//
+// Band-locked policy: when the active band contains the anchor, the range is
+// that band's [min_mhz, max_mhz], so the trace stays inside the band the
+// user is tuning instead of bleeding into adjacent ones. Falls through to
+// the multiplicative window if the anchor sits outside every band.
+//
+// Density: a range may carry its own (`step` for lin, `pointsPerDecade` for
+// log); that grid is always solved, and refinement still adds points between
+// its points. A range with no density gets the historical count (below).
+// Sommerfeld ground stays at half resolution when refinement is off:
+// momwire 0.7.0's C++ fill + grid cache made warm sweeps fast (~30 ms per
+// point once the per-frequency grids are cached; measured 0.6 s for 21
+// points at 2 threads), but the FIRST sweep after enabling it still fills
+// one grid per point (measured 4.3 s for 21 points at 2 threads; 41 would be
+// ~9 s) — half resolution halves that cold hit. Fast (reflection-
+// coefficient) ground and momwire PEC ground are cheap enough for full
+// resolution.
+
+export type SweepSpacing = "lin" | "log";
+
+/** The one range (AK#1682): the dial's travel and the sweep's span, in MHz,
+ *  with an optional density — `step` (MHz between points) when lin,
+ *  `pointsPerDecade` when log. No density = the app's default count. */
+export type SweepRange = {
+  lo: number;
+  hi: number;
+  spacing: SweepSpacing;
+  step?: number;
+  pointsPerDecade?: number;
+};
+
+/** Which rung of the precedence produced the range (see the header). */
+export type SweepRangeLevel = "session" | "file" | "design" | "policy" | "default";
+
+export type ResolvedSweepRange = { range: SweepRange; level: SweepRangeLevel };
+
+/** Everything the range resolution reads. */
+export type SweepRangeInputs = {
   currentExample: ExampleDescriptor | undefined;
   currentVariant: string;
   measLocked: boolean;
@@ -38,6 +74,103 @@ export function planSweepFreqs(params: {
   designFreq: number;
   currentBands: BandSpec[];
   freqWindowCeiling: number;
+  /** The selected measurement band's snap frequency (designFreq before one
+   *  is chosen) — the unlocked dial's stable anchor. Defaults to measFreq. */
+  measBandAnchor?: number;
+  /** The selected measurement band is a custom one (#1487): its window
+   *  replaces the design's absolute range, as it replaced the file's dial
+   *  span before AK#1682. */
+  measBandIsCustom?: boolean;
+  /** Level 1: the user's edit this session, or null. */
+  sweepRangeEdit?: SweepRange | null;
+};
+
+/** The hosted instance refuses a sweep over this many points
+ *  (`MAX_SWEEP_POINTS` in web/cost.py; tests/test_sweep_range_1682.py holds
+ *  the two equal). A grid finer than this is clamped to it, and the range
+ *  menu says so. */
+export const MAX_SWEEP_POINTS = 500;
+
+// A served density, whichever form it came in, as the state's own.
+function specRange(spec: SweepRangeSpec): SweepRange {
+  const { lo, hi, spacing } = spec;
+  const out: SweepRange = { lo, hi, spacing };
+  if (spacing === "lin") {
+    if (spec.step && spec.step > 0) out.step = spec.step;
+    else if (spec.points && spec.points >= 2) out.step = (hi - lo) / (spec.points - 1);
+  } else if (spec.points_per_decade && spec.points_per_decade > 0) {
+    out.pointsPerDecade = spec.points_per_decade;
+  } else if (spec.points && spec.points >= 2) {
+    out.pointsPerDecade = (spec.points - 1) / Math.log10(hi / lo);
+  }
+  return out;
+}
+
+/** Levels 2–5: the range "↺ design range" returns to. */
+export function designSweepRange(inp: SweepRangeInputs): ResolvedSweepRange {
+  const {
+    currentExample,
+    currentVariant,
+    measLocked,
+    measFreq,
+    designFreq,
+    currentBands,
+    freqWindowCeiling,
+    measBandAnchor = measFreq,
+    measBandIsCustom = false,
+  } = inp;
+  if (!measBandIsCustom) {
+    const spec = currentExample?.sweep_range ?? null;
+    if (spec && spec.hi > spec.lo) {
+      return { range: specRange(spec), level: spec.source === "file" ? "file" : "design" };
+    }
+    const dial = currentExample?.meas_freq_range_mhz ?? null;
+    if (dial && dial[1] > dial[0]) {
+      return { range: { lo: dial[0], hi: dial[1], spacing: "log" }, level: "design" };
+    }
+  }
+  const policy =
+    currentExample?.variant_ui?.[currentVariant]?.sweep_policy ??
+    currentExample?.sweep_policy;
+  const measAnchor = measLocked ? measFreq : measBandAnchor;
+  const anchor =
+    !measLocked || policy?.anchor === "meas_freq" ? measAnchor : designFreq;
+  const bandLocked = policy?.band_locked
+    ? currentBands.find((b) => anchor >= b.min_mhz && anchor <= b.max_mhz)
+    : undefined;
+  if (bandLocked) {
+    return {
+      range: { lo: bandLocked.min_mhz, hi: bandLocked.max_mhz, spacing: "log" },
+      level: "policy",
+    };
+  }
+  const loF = policy?.lo_factor ?? 0.8;
+  const hiF = policy?.hi_factor ?? 1.25;
+  return {
+    range: {
+      lo: Math.max(0.5, anchor * loF),
+      hi: Math.min(freqWindowCeiling, anchor * hiF),
+      spacing: "log",
+    },
+    level: loF !== 0.8 || hiF !== 1.25 ? "policy" : "default",
+  };
+}
+
+/** The range in force: the session edit when there is one, else the
+ *  design's (levels 2–5). */
+export function resolveSweepRange(inp: SweepRangeInputs): ResolvedSweepRange {
+  const edit = inp.sweepRangeEdit;
+  if (edit && edit.hi > edit.lo && edit.lo > 0) {
+    return { range: edit, level: "session" };
+  }
+  return designSweepRange(inp);
+}
+
+/** The point count a range with no density of its own gets. */
+export function defaultSweepPoints(params: {
+  backend: BackendEntry;
+  groundEnabled: boolean;
+  groundModel: GroundModel;
   /** Adaptive resolution is on for this session (the default): the base
    *  grid's job is then DETECTION, not resolution — it only has to land
    *  samples in a feature's tails for the refinement planner to dig in —
@@ -49,51 +182,155 @@ export function planSweepFreqs(params: {
    *  final rendering, so the historical 41 (21 on Sommerfeld ground)
    *  stays — the toggle must mean "today's behavior", not "coarser". */
   refineEnabled?: boolean;
-}): number[] {
-  const {
-    backend,
-    groundEnabled,
-    groundModel,
-    currentExample,
-    currentVariant,
-    measLocked,
-    measFreq,
-    designFreq,
-    currentBands,
-    freqWindowCeiling,
-    refineEnabled = true,
-  } = params;
+}): number {
+  const { backend, groundEnabled, groundModel, refineEnabled = true } = params;
   const slowGround =
     backendSupportsGround(backend) &&
     groundEnabled &&
     groundModel === "sommerfeld";
-  const N = refineEnabled ? SWEEP_BASE_N : slowGround ? 21 : 41;
-  const policy =
-    currentExample?.variant_ui?.[currentVariant]?.sweep_policy ??
-    currentExample?.sweep_policy;
-  const sweepAnchor =
-    !measLocked || policy?.anchor === "meas_freq" ? measFreq : designFreq;
-  let fLo: number;
-  let fHi: number;
-  const bandLocked = policy?.band_locked
-    ? currentBands.find(
-        (b) => sweepAnchor >= b.min_mhz && sweepAnchor <= b.max_mhz,
-      )
-    : undefined;
-  if (bandLocked) {
-    fLo = bandLocked.min_mhz;
-    fHi = bandLocked.max_mhz;
-  } else {
-    fLo = Math.max(0.5, sweepAnchor * (policy?.lo_factor ?? 0.8));
-    fHi = Math.min(freqWindowCeiling, sweepAnchor * (policy?.hi_factor ?? 1.25));
-  }
-  return Array.from({ length: N }, (_, i) =>
-    Math.exp(Math.log(fLo) + (i / (N - 1)) * (Math.log(fHi) - Math.log(fLo))),
+  return refineEnabled ? SWEEP_BASE_N : slowGround ? 21 : 41;
+}
+
+export type SweepGrid = {
+  freqs: number[];
+  /** Points the range's own density asks for, before the cap. */
+  requested: number;
+  /** The grid was clamped to `MAX_SWEEP_POINTS`. */
+  clamped: boolean;
+};
+
+function linspace(lo: number, hi: number, n: number): number[] {
+  if (n < 2) return [lo];
+  return Array.from({ length: n }, (_, i) =>
+    i === n - 1 ? hi : lo + (i / (n - 1)) * (hi - lo),
   );
 }
 
+function logspace(lo: number, hi: number, n: number): number[] {
+  if (n < 2) return [lo];
+  return Array.from({ length: n }, (_, i) =>
+    Math.exp(Math.log(lo) + (i / (n - 1)) * (Math.log(hi) - Math.log(lo))),
+  );
+}
+
+/** How many points `range` asks for (its own density, else `defaultN`). */
+export function sweepPointCount(range: SweepRange, defaultN: number): number {
+  const { lo, hi, spacing, step, pointsPerDecade } = range;
+  if (hi === lo) return 1;
+  // An inverted derived window (a ceiling below the anchor's low factor)
+  // keeps the historical default grid; only a real range has a density.
+  if (!(hi > lo)) return defaultN;
+  if (spacing === "lin" && step && step > 0) {
+    const n = Math.floor((hi - lo) / step + 1e-9) + 1;
+    // A step that does not divide the span still ends at hi: the sweep must
+    // reach the dial's end stop.
+    return lo + (n - 1) * step < hi - (hi - lo) * 1e-9 ? n + 1 : n;
+  }
+  if (spacing === "log" && pointsPerDecade && pointsPerDecade > 0) {
+    return Math.ceil(Math.log10(hi / lo) * pointsPerDecade - 1e-9) + 1;
+  }
+  return defaultN;
+}
+
+/** The frequencies `range` sweeps: its own grid when it has a density
+ *  (a lin step lands on lo, lo + step, … and closes on hi; a log density is
+ *  evenly log-spaced from lo to hi), else `defaultN` points at its spacing.
+ *  Clamped to `cap` points. */
+export function sweepGrid(
+  range: SweepRange,
+  defaultN: number,
+  cap: number = MAX_SWEEP_POINTS,
+): SweepGrid {
+  const { lo, hi, spacing, step } = range;
+  const requested = sweepPointCount(range, defaultN);
+  if (requested > cap) {
+    return {
+      freqs: spacing === "lin" ? linspace(lo, hi, cap) : logspace(lo, hi, cap),
+      requested,
+      clamped: true,
+    };
+  }
+  if (spacing === "lin" && step && step > 0 && hi > lo) {
+    const freqs = Array.from({ length: requested }, (_, i) =>
+      Math.min(hi, lo + i * step),
+    );
+    freqs[freqs.length - 1] = hi;
+    return { freqs, requested, clamped: false };
+  }
+  return {
+    freqs:
+      spacing === "lin"
+        ? linspace(lo, hi, requested)
+        : logspace(lo, hi, requested),
+    requested,
+    clamped: false,
+  };
+}
+
+/** The density the menu shows for `range` — its own, or the one its
+ *  `n`-point default grid works out to. */
+export function effectiveDensity(
+  range: SweepRange,
+  n: number,
+): { step: number; pointsPerDecade: number } {
+  const { lo, hi } = range;
+  const gaps = Math.max(1, n - 1);
+  return {
+    step: range.step ?? (hi - lo) / gaps,
+    pointsPerDecade: range.pointsPerDecade ?? gaps / Math.log10(hi / lo),
+  };
+}
+
+/** Apply one menu edit to the range in force, or null when the result is
+ *  not a range (lo ≥ hi, a non-positive density). The first edit
+ *  materialises the density the grid was using, so changing lo alone keeps
+ *  the spacing the user was looking at; a spacing switch keeps the point
+ *  count. */
+export function editSweepRange(
+  current: SweepRange,
+  n: number,
+  patch: Partial<SweepRange>,
+): SweepRange | null {
+  const d = effectiveDensity(current, n);
+  const base: SweepRange =
+    current.spacing === "lin"
+      ? { lo: current.lo, hi: current.hi, spacing: "lin", step: d.step }
+      : { lo: current.lo, hi: current.hi, spacing: "log", pointsPerDecade: d.pointsPerDecade };
+  const next: SweepRange = { ...base, ...patch };
+  if (patch.spacing && patch.spacing !== current.spacing) {
+    const gaps = Math.max(1, n - 1);
+    delete next.step;
+    delete next.pointsPerDecade;
+    if (patch.spacing === "lin") next.step = (next.hi - next.lo) / gaps;
+    else next.pointsPerDecade = gaps / Math.log10(next.hi / next.lo);
+  }
+  if (next.spacing === "lin") delete next.pointsPerDecade;
+  else delete next.step;
+  const ok =
+    Number.isFinite(next.lo) &&
+    Number.isFinite(next.hi) &&
+    next.lo > 0 &&
+    next.hi > next.lo &&
+    (next.spacing === "lin"
+      ? next.step !== undefined && next.step > 0
+      : next.pointsPerDecade !== undefined && next.pointsPerDecade > 0);
+  return ok ? next : null;
+}
+
+export function planSweepFreqs(
+  params: SweepRangeInputs & {
+    backend: BackendEntry;
+    groundEnabled: boolean;
+    groundModel: GroundModel;
+    refineEnabled?: boolean;
+  },
+): number[] {
+  return sweepGrid(resolveSweepRange(params).range, defaultSweepPoints(params))
+    .freqs;
+}
+
 // The lean base grid used when refinement will polish the curve (see
-// planSweepFreqs). Overridable without a rebuild (lib/tuning.ts) for the
+// defaultSweepPoints). Overridable without a rebuild (lib/tuning.ts) for the
 // design that manages to straddle a feature at ~6% spacing.
 const SWEEP_BASE_N = tunedInt("antennaknobs.sweepBaseN", 17, 101);
 

@@ -81,6 +81,21 @@ export type ResultFieldSpec = {
   unit: string | null;
 };
 
+/** The served shape of an absolute sweep range (AK#1682; normalised by the
+ *  adapter's `_ui_sweep_range`). At most one density is present: `step`
+ *  (MHz, lin), `points_per_decade` (log) or `points` (the total, either
+ *  spacing); none means the app picks it. `source` ranks a file's range
+ *  above a design's. */
+export type SweepRangeSpec = {
+  lo: number;
+  hi: number;
+  spacing: "lin" | "log";
+  source: "file" | "design";
+  step?: number;
+  points_per_decade?: number;
+  points?: number;
+};
+
 export type SweepPolicy = {
   anchor: "design_freq" | "meas_freq";
   lo_factor: number;
@@ -201,6 +216,11 @@ export type ExampleDescriptor = {
    *  variants. Complex-valued params arrive as {re, im}. */
   variant_values: { [variant: string]: { [key: string]: unknown } };
   sweep_policy: SweepPolicy;
+  /** AK#1682: an absolute sweep range + grid — a file design's own sweep
+   *  (the FR card, the SimNEC Generator's) or a Python design's
+   *  `ui_params["sweep_range"]`. It is also the measurement dial's travel.
+   *  Absent/null when neither declares one. See `resolveSweepRange`. */
+  sweep_range?: SweepRangeSpec | null;
   /** Informational note shown under the antenna selector — deck-backed
    *  designs list the NEC cards the import recorded but did not apply.
    *  null (the norm) renders nothing. */
