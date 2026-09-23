@@ -4018,3 +4018,19 @@ canvas {
   font-size: var(--text-sm);
   line-height: 1;
 }
+
+/* The measurement dial's sweep-range menu (AK#1682), in the knob menu's
+   frame: a point-count / clamp note and the revert button. */
+.sweep-range-menu select {
+  font-size: var(--text-xs);
+}
+.knob-menu-note {
+  color: var(--muted);
+}
+.knob-menu-note[data-clamped] {
+  color: var(--hot);
+}
+.knob-menu-revert {
+  align-self: flex-start;
+  font-size: var(--text-xs);
+}
