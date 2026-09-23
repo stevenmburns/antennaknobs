@@ -3246,6 +3246,10 @@ def examples_endpoint():
                 "variants": list(ex.variants),
                 "variant_values": dict(ex.variant_values),
                 "sweep_policy": _sweep_policy_json(ex.sweep_policy),
+                # The absolute range + grid (AK#1682): a file's own sweep, or
+                # a design's ui_params["sweep_range"]. The frontend's range
+                # precedence ranks it above sweep_policy.
+                "sweep_range": ex.sweep_range,
                 # Per-variant hint overrides; only variants that differ from
                 # the design-level values appear here. `sweep_policy` falls
                 # back to the top-level field; `params` carries explicit

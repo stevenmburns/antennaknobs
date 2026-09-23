@@ -10,9 +10,24 @@ drive it without per-design glue.
 Reserved keys inside `ui_params`:
   default_view     : "xy" | "yz" | "xz"  — initial 2D projection
   target_z0        : float — reference impedance for SWR (default 50)
-  meas_freq_range  : (lo, hi)  — measurement-freq slider span override
+  meas_freq_range  : (lo, hi)  — measurement-freq slider span override. Since
+                     AK#1682 the dial's travel IS the sweep range, so this is
+                     also where the sweep runs (log-spaced, the app's density)
+                     unless `sweep_range` says more.
   bands            : tuple[BandSpec] — band tabs (default amateur set, 160m–70cm)
-  sweep_policy     : (anchor, lo_factor, hi_factor)
+  sweep_range      : {lo, hi, spacing, step | points | points_per_decade}
+                     — the frequency sweep's range and grid, MHz (AK#1682),
+                     which the measurement dial also travels. `spacing` is
+                     "lin" (default) or "log"; the density is optional:
+                     `step` in MHz for lin, `points_per_decade` for log, or
+                     `points` (the total count) for either, and without one
+                     the app picks it. Outranks `meas_freq_range` and
+                     `sweep_policy`; a session edit from the dial's
+                     right-click menu outranks it. File designs (.nec FR
+                     card, .ssn Generator sweep) fill it from the file.
+  sweep_policy     : (anchor, lo_factor, hi_factor) — the range, relative to
+                     the design / measurement frequency, when no absolute one
+                     is declared
   multi_feed       : bool — declare multi-feed response shape
   notes            : str — informational note shown under the antenna
                      selector (deck-backed designs fill it from
@@ -3575,6 +3590,63 @@ def _ui_medium(default_params: dict):
         return None
 
 
+def _ui_sweep_range(default_params: dict) -> dict | None:
+    """`ui_params["sweep_range"]` normalised for /examples (AK#1682), or None
+    when absent or malformed.
+
+    Returns {"lo", "hi", "spacing", "source"} plus whichever ONE density was
+    given, in the order step > points_per_decade > points. A density that
+    does not fit the spacing (a `step` on a log range, `points_per_decade` on
+    a lin one) is converted to `points`, so the grid the author meant still
+    arrives. `source` is "file" for a file design's own range and "design"
+    otherwise -- the frontend ranks the two."""
+    ui = default_params.get("ui_params") or {}
+    raw = ui.get("sweep_range")
+    if not isinstance(raw, Mapping):
+        return None
+    try:
+        lo, hi = float(raw["lo"]), float(raw["hi"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not (0.0 < lo < hi and math.isfinite(hi)):
+        return None
+    spacing = str(raw.get("spacing", "lin")).lower()
+    if spacing not in ("lin", "log"):
+        return None
+    out: dict[str, Any] = {
+        "lo": lo,
+        "hi": hi,
+        "spacing": spacing,
+        "source": "file" if raw.get("source") == "file" else "design",
+    }
+
+    def positive(key: str) -> float | None:
+        try:
+            v = float(raw[key])
+        except (KeyError, TypeError, ValueError):
+            return None
+        return v if v > 0.0 and math.isfinite(v) else None
+
+    step, ppd, points = (
+        positive("step"),
+        positive("points_per_decade"),
+        positive("points"),
+    )
+    if step is not None:
+        if spacing == "lin":
+            out["step"] = step
+        else:
+            out["points"] = int(math.floor((hi - lo) / step + 1e-9)) + 1
+    elif ppd is not None:
+        if spacing == "log":
+            out["points_per_decade"] = ppd
+        else:
+            out["points"] = int(math.ceil(math.log10(hi / lo) * ppd - 1e-9)) + 1
+    elif points is not None and points >= 2:
+        out["points"] = int(points)
+    return out
+
+
 def _ui_scalar(default_params: dict, key: str, default):
     ui = default_params.get("ui_params") or {}
     if key in ui and not isinstance(ui[key], dict):
@@ -5190,6 +5262,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         bands=bands,
         meas_freq_range_mhz=tuple(meas_range) if meas_range else None,
         sweep_policy=sweep_policy,
+        sweep_range=_ui_sweep_range(dp),
         default_view=field_default_view,
         default_freq=float(dp["freq"]) if "freq" in dp else None,
         default_design_freq=(float(dp["design_freq"]) if has_design_freq else None),

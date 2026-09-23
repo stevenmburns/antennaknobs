@@ -393,6 +393,12 @@ class SsnCircuit:
     sweep_points: tuple[float, ...] | None = None
     # Why an armed sweep was not read, when it was not (AK#1679).
     sweep_note: str | None = None
+    # The armed sweep's grid (AK#1682), for the app's sweep: ``("lin", step
+    # MHz)`` or ``("log", points per decade)``, the shape ``NecDeck.freq_grid``
+    # uses. An ``expr`` sweep has one only when it is a single ``from:to:step``
+    # range; several ranges or listed values have no one spacing, and leave
+    # the density to the app.
+    sweep_grid: tuple[str, float] | None = None
 
     def skipped_note(self) -> str | None:
         """One human-readable sentence naming what the file carries that the
@@ -866,6 +872,15 @@ def _sweep_range(item: str) -> list[float]:
     return [lo + i * step for i in range(count)]
 
 
+def _expr_items(expr: str) -> list[str]:
+    """A sweep expression's items, one token each: ``{}`` dropped, spaces
+    around ``:`` closed up, and ``logStep s`` fused to ``logSteps``."""
+    text = expr.replace("{", " ").replace("}", " ")
+    text = re.sub(r"\s*:\s*", ":", text)
+    text = re.sub(r"(?i)logstep\s+", "logStep", text)
+    return text.split()
+
+
 def _sweep_expr(expr: str) -> tuple[float, ...]:
     """The values a SimNEC sweep expression names (AK#1679), in its order.
 
@@ -876,11 +891,8 @@ def _sweep_expr(expr: str) -> tuple[float, ...]:
     how SimNEC plots it. Raises ``ValueError`` for anything else, ``Vary``
     included: its span comes from a SimNEC preference the file does not
     carry."""
-    text = expr.replace("{", " ").replace("}", " ")
-    text = re.sub(r"\s*:\s*", ":", text)
-    text = re.sub(r"(?i)logstep\s+", "logStep", text)
     out: list[float] = []
-    for item in text.split():
+    for item in _expr_items(expr):
         if ":" in item:
             out.extend(_sweep_range(item))
         else:
@@ -892,8 +904,22 @@ def _sweep_expr(expr: str) -> tuple[float, ...]:
     return tuple(out)
 
 
+def _expr_grid(expr: str) -> tuple[str, float] | None:
+    """The grid of a sweep expression that is exactly one ``from:to:step``
+    range (AK#1682): ``("lin", step)`` or, for ``logStep s``, ``("log", 1/s)``
+    points per decade. None for anything else -- several items have no one
+    spacing."""
+    items = _expr_items(expr)
+    if len(items) != 1 or items[0].count(":") != 2:
+        return None
+    step = items[0].split(":")[2]
+    if step.lower().startswith("logstep"):
+        return "log", 1.0 / _sweep_number(step[7:])
+    return "lin", _sweep_number(step)
+
+
 def _gen_sweep(gen):
-    """``(sweep, points, note)`` for the Generator's frequency sweep.
+    """``(sweep, points, grid, note)`` for the Generator's frequency sweep.
 
     SimNEC stores it in a ``<sweepParam>`` under the MHz param, and only
     ``doSweep`` = y is live. Its ``log`` field picks the spacing: ``lin`` and
@@ -902,6 +928,7 @@ def _gen_sweep(gen):
     ``14 : 14.35 : 0.025`` was read as the stale 1-30 MHz ``from``/``to``).
     ``sweep`` is the (lowest, highest) frequency visited, ``points`` the
     frequencies themselves (None for a lin/log sweep with no usable count),
+    ``grid`` the spacing as ``SsnCircuit.sweep_grid`` records it (AK#1682),
     and ``note`` says why an armed sweep was not read, for the user."""
     for p in gen.findall("p"):
         if p.findtext("n") != "MHz":
@@ -919,11 +946,14 @@ def _gen_sweep(gen):
                     return (
                         None,
                         None,
+                        None,
                         f"the Generator's sweep expression {expr!r} was not read ({e})",
                     )
-                return (min(pts), max(pts)), pts, None
+                grid = _expr_grid(expr) if max(pts) > min(pts) else None
+                return (min(pts), max(pts)), pts, grid, None
             if mode not in ("lin", "log"):
                 return (
+                    None,
                     None,
                     None,
                     f"the Generator's sweep spacing {q.get('log')!r} is not "
@@ -932,21 +962,23 @@ def _gen_sweep(gen):
             try:
                 lo, hi = float(q["from"]), float(q["to"])
             except (KeyError, TypeError, ValueError):
-                return None, None, "the Generator's sweep range was not read"
+                return None, None, None, "the Generator's sweep range was not read"
             lo, hi = min(lo, hi), max(lo, hi)
             try:
                 n = int(float(q.get("points") or "nan"))
             except ValueError:
                 n = 0
-            pts = None
+            pts = grid = None
             if 2 <= n <= _SWEEP_MAX_POINTS and 0.0 < lo < hi:
                 if mode == "log":
                     r = (hi / lo) ** (1.0 / (n - 1))
                     pts = tuple(lo * r**i for i in range(n))
+                    grid = ("log", (n - 1) / math.log10(hi / lo))
                 else:
                     pts = tuple(lo + (hi - lo) * i / (n - 1) for i in range(n))
-            return (lo, hi), pts, None
-    return None, None, None
+                    grid = ("lin", (hi - lo) / (n - 1))
+            return (lo, hi), pts, grid, None
+    return None, None, None, None
 
 
 # The call-style portal dialect: a NETWORK script that BUILDS the antenna by
@@ -1107,7 +1139,7 @@ def parse_ssn(
     script.ignored.extend(unapplied)
 
     freq_mhz = None
-    sweep = sweep_points = sweep_note = None
+    sweep = sweep_points = sweep_grid = sweep_note = None
     gen_zo = None
     if generator is not None:
         p = _params(generator)
@@ -1119,7 +1151,7 @@ def parse_ssn(
             gen_zo = float(p["Zo"]) if p.get("Zo") else None
         except ValueError:
             gen_zo = None
-        sweep, sweep_points, sweep_note = _gen_sweep(generator)
+        sweep, sweep_points, sweep_grid, sweep_note = _gen_sweep(generator)
 
     return SsnCircuit(
         deck=deck,
@@ -1135,6 +1167,7 @@ def parse_ssn(
         ignored_directives=tuple(script.ignored),
         sweep_points=sweep_points,
         sweep_note=sweep_note,
+        sweep_grid=sweep_grid,
     )
 
 
