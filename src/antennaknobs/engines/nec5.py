@@ -54,8 +54,7 @@ from ..network import (
     PortVirtual,
     as_wire,
 )
-from ..auto_match import design_freq_mhz as _design_freq_mhz
-from ..auto_match import make_reducer
+from . import _multiport
 
 C_LIGHT = 299_792_458.0
 
@@ -700,14 +699,8 @@ class NEC5Engine(SimulationEngine):
         ]
         self._real_port_names = real
         self._port_attach = {n: wire_attachment(n) for n in real}
-        port_to_idx = {n: i for i, n in enumerate(real)}
-        next_idx = len(real)
         for name, port in network.ports.items():
-            if isinstance(port, PortVirtual):
-                port_to_idx[name] = next_idx
-                next_idx += 1
-        for name, port in network.ports.items():
-            if name in port_to_idx:
+            if name in real or isinstance(port, PortVirtual):
                 continue
             if isinstance(port, PortOnWire) and port.distributed:
                 raise NotImplementedError(
@@ -730,14 +723,9 @@ class NEC5Engine(SimulationEngine):
                 "PortAtVertex terminal, or run it on bspline or PyNEC."
             )
         # A self-tuning tuner (AK#1646, #1661) is tuned here, from this engine's
-        # own port admittance; a plain network gets a plain reducer.
-        self._reducer = make_reducer(
-            network,
-            port_to_idx,
-            next_idx,
-            y_at=self._compute_y_matrix,
-            design_freq_mhz=_design_freq_mhz(self.builder),
-        )
+        # own port admittance; a plain network gets a plain reducer. Shared
+        # with NEC-2 (AK#1678).
+        self._reducer = _multiport.make_port_reducer(self, network, real)
 
     def _compute_y_matrix(self, wavelength):
         """Multiport short-circuit Y at the real ports: one NEC-5 run per
@@ -804,27 +792,9 @@ class NEC5Engine(SimulationEngine):
         symmetric. With the gate lifted, all four reproduce the licensed
         engine run on EZNEC's own deck to 1.8e-4.
         """
-        n = len(names)
-        worst = (0.0, None)
-        for i in range(n):
-            for j in range(i + 1, n):
-                scale = np.sqrt(abs(Y[i, i]) * abs(Y[j, j]))
-                if scale <= 0:
-                    continue
-                rel = abs(Y[i, j] - Y[j, i]) / scale
-                if rel > worst[0]:
-                    worst = (rel, (names[i], names[j]))
-        if worst[0] > _Y_RECIPROCITY_RTOL:
-            a, b = worst[1]
-            raise NEC5Error(
-                f"the multiport Y is not reciprocal: ports {a!r} and {b!r} "
-                f"disagree by {worst[0]:.3e} of the ports' own admittance, over "
-                f"the {_Y_RECIPROCITY_RTOL:g} this route allows. Y[i,j] and "
-                "Y[j,i] come from different runs and every entry is NEC-5's own "
-                "source-row current, so this is the port-to-row bookkeeping in "
-                "`_compute_y_matrix`, not the network."
-            )
-        self._y_reciprocity_rel = worst[0]
+        self._y_reciprocity_rel = _multiport.check_reciprocity(
+            Y, names, _Y_RECIPROCITY_RTOL, NEC5Error, "NEC-5"
+        )
 
     def _real_port_sources(self, V):
         """EX cards driving every real port at its network-resolved voltage
@@ -871,11 +841,8 @@ class NEC5Engine(SimulationEngine):
         reads -0.86. `_to_source_gain` takes the ratio back out."""
         if not getattr(self, "_use_reducer", False):
             return self._sources, None
-        wl = C_LIGHT / (float(freq_mhz) * 1e6)
-        Y = self._compute_y_matrix(wl)
-        V = self._reducer.resolve_voltages(self._reducer.apply_branches(Y, wl))
-        _v, _eff, p_source, _budget = self._reducer.excited_state(Y, wl)
-        return self._real_port_sources(V), float(p_source)
+        state = _multiport.reduced_state(self, freq_mhz)
+        return self._real_port_sources(state.V), float(state.p_in)
 
     def _to_source_gain(self, text, p_source):
         """The factor turning NEC-5's gain per structure watt into gain per
@@ -884,13 +851,9 @@ class NEC5Engine(SimulationEngine):
         on the native route."""
         if p_source is None:
             return 1.0
-        p_struct = self._parse_power_budget(text)["input_w"]
-        if p_source <= 0.0 or p_struct <= 0.0:
-            raise NEC5Error(
-                f"cannot normalise the pattern per source watt: structure "
-                f"input {p_struct} W, source power {p_source} W"
-            )
-        return p_struct / p_source
+        return _multiport.source_gain_factor(
+            self._parse_power_budget(text)["input_w"], p_source, NEC5Error
+        )
 
     # ---------- ground ----------
 
@@ -1584,29 +1547,16 @@ class NEC5Engine(SimulationEngine):
 
     def impedance(self):
         if getattr(self, "_use_reducer", False):
-            wl = C_LIGHT / (self.builder.freq * 1e6)
-            return np.atleast_1d(
-                self._reducer.driven_impedance(self._compute_y_matrix(wl), wl)
-            )
+            return _multiport.reduced_impedance(self, self.builder.freq)
         text = self._run(self.deck([self.builder.freq]))
         return self._impedances_from(self._parse_input_parameters(text)[0])
 
     def impedance_sweep(self, freqs):
         freqs = np.asarray(freqs, dtype=float)
         if getattr(self, "_use_reducer", False):
-            # One reduction per frequency: the antenna Y and every branch the
-            # reducer stamps are frequency-dependent, and NEC-5's FR stepping
-            # would give one printout for the sweep rather than the per-f Y
-            # this route needs.
-            if freqs.ndim != 1 or freqs.size == 0:
-                raise ValueError("freqs must be a 1-D non-empty array")
-            out = []
-            for f in freqs:
-                wl = C_LIGHT / (float(f) * 1e6)
-                out.append(
-                    self._reducer.driven_impedance(self._compute_y_matrix(wl), wl)
-                )
-            return np.array([np.atleast_1d(z) for z in out]).reshape(freqs.size, -1)
+            # One reduction per frequency: NEC-5's FR stepping would give one
+            # printout for the sweep rather than the per-f Y this route needs.
+            return _multiport.reduced_impedance_sweep(self, freqs)
         if freqs.ndim != 1 or freqs.size == 0:
             raise ValueError("freqs must be a 1-D non-empty array")
         steps = np.diff(freqs)
@@ -1667,23 +1617,19 @@ class NEC5Engine(SimulationEngine):
         and losses come from the reducer, which the structure deck cannot see,
         and NEC-5's conductor loss is folded in on top."""
         f = self.builder.freq
-        wl = C_LIGHT / (f * 1e6)
-        Y = self._compute_y_matrix(wl)
-        zs = list(np.atleast_1d(self._reducer.driven_impedance(Y, wl)))
-        V = self._reducer.resolve_voltages(self._reducer.apply_branches(Y, wl))
-        _v, efficiency, p_in, net_budget = self._reducer.excited_state(Y, wl)
-        text = self._run(self.deck([f], sources=self._real_port_sources(V)))
+        state = _multiport.reduced_state(self, f, impedances=True)
+        text = self._run(self.deck([f], sources=self._real_port_sources(state.V)))
         currents = self._currents_from(self._parse_wire_currents(text)[0])
         budget = self._parse_power_budget(text)
-        p_wire = budget["wire_loss_w"]
-        if p_wire > 0.0 and p_in > 0.0:
-            efficiency = max(0.0, min(1.0, efficiency - p_wire / p_in))
-        self._excited_efficiency = efficiency
-        self._excited_p_in = p_in
         # LOSSES ONLY (issue #1354), as on the native route.
-        self._excited_power_budget = list(net_budget) + [("Wire loss", p_wire)]
+        self._excited_efficiency, self._excited_power_budget = (
+            _multiport.fold_wire_loss(
+                state.efficiency, state.p_in, state.budget, budget["wire_loss_w"]
+            )
+        )
+        self._excited_p_in = state.p_in
         self._excited_p_radiated = budget["radiated_w"]
-        return zs, currents, budget
+        return state.zs, currents, budget
 
     def _currents_from(self, per_tag):
         """One `WireCurrents` per wire, its knots rebuilt EXACTLY from NEC-5's
