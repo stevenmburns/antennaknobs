@@ -35,9 +35,16 @@ import type { BandSpec, ExampleDescriptor, SweepRangeSpec } from "./params";
 // user is tuning instead of bleeding into adjacent ones. Falls through to
 // the multiplicative window if the anchor sits outside every band.
 //
-// Density: a range may carry its own (`step` for lin, `pointsPerDecade` for
-// log); that grid is always solved, and refinement still adds points between
-// its points. A range with no density gets the historical count (below).
+// Density: a range may carry its own (`step` MHz for lin, `points` — the
+// total count across [lo, hi] — for log); that grid is always solved, and
+// refinement still adds points between its points. A range with no density
+// gets the historical count (below).
+//
+// Log density is a plain point count, not points-per-decade (AK#1682
+// follow-up): a band-locked range like 14.0-14.35 MHz is 0.011 decades, so
+// 17 points used to read back as "≈1,500 points/decade" in the menu. A
+// served `points_per_decade` (backward compatibility only — the wire format
+// is now `points`) is converted on arrival in `specRange`.
 // Sommerfeld ground stays at half resolution when refinement is off:
 // momwire 0.7.0's C++ fill + grid cache made warm sweeps fast (~30 ms per
 // point once the per-frequency grids are cached; measured 0.6 s for 21
@@ -51,13 +58,14 @@ export type SweepSpacing = "lin" | "log";
 
 /** The one range (AK#1682): the dial's travel and the sweep's span, in MHz,
  *  with an optional density — `step` (MHz between points) when lin,
- *  `pointsPerDecade` when log. No density = the app's default count. */
+ *  `points` (the total count across [lo, hi]) when log. No density = the
+ *  app's default count. */
 export type SweepRange = {
   lo: number;
   hi: number;
   spacing: SweepSpacing;
   step?: number;
-  pointsPerDecade?: number;
+  points?: number;
 };
 
 /** Which rung of the precedence produced the range (see the header). */
@@ -91,17 +99,24 @@ export type SweepRangeInputs = {
  *  menu says so. */
 export const MAX_SWEEP_POINTS = 500;
 
-// A served density, whichever form it came in, as the state's own.
+// A served density, whichever form it came in, as the state's own. The
+// adapter (web/adapter.py) already converts a served `points_per_decade` to
+// `points` before it reaches /examples, so that fallback is for a spec built
+// some other way (a stale cache, a hand-built fixture) rather than the live
+// wire format.
 function specRange(spec: SweepRangeSpec): SweepRange {
   const { lo, hi, spacing } = spec;
   const out: SweepRange = { lo, hi, spacing };
   if (spacing === "lin") {
     if (spec.step && spec.step > 0) out.step = spec.step;
     else if (spec.points && spec.points >= 2) out.step = (hi - lo) / (spec.points - 1);
-  } else if (spec.points_per_decade && spec.points_per_decade > 0) {
-    out.pointsPerDecade = spec.points_per_decade;
   } else if (spec.points && spec.points >= 2) {
-    out.pointsPerDecade = (spec.points - 1) / Math.log10(hi / lo);
+    out.points = spec.points;
+  } else if (spec.points_per_decade && spec.points_per_decade > 0) {
+    out.points = Math.max(
+      2,
+      Math.round(spec.points_per_decade * Math.log10(hi / lo)) + 1,
+    );
   }
   return out;
 }
@@ -215,7 +230,7 @@ function logspace(lo: number, hi: number, n: number): number[] {
 
 /** How many points `range` asks for (its own density, else `defaultN`). */
 export function sweepPointCount(range: SweepRange, defaultN: number): number {
-  const { lo, hi, spacing, step, pointsPerDecade } = range;
+  const { lo, hi, spacing, step, points } = range;
   if (hi === lo) return 1;
   // An inverted derived window (a ceiling below the anchor's low factor)
   // keeps the historical default grid; only a real range has a density.
@@ -226,8 +241,8 @@ export function sweepPointCount(range: SweepRange, defaultN: number): number {
     // reach the dial's end stop.
     return lo + (n - 1) * step < hi - (hi - lo) * 1e-9 ? n + 1 : n;
   }
-  if (spacing === "log" && pointsPerDecade && pointsPerDecade > 0) {
-    return Math.ceil(Math.log10(hi / lo) * pointsPerDecade - 1e-9) + 1;
+  if (spacing === "log" && points && points >= 2) {
+    return points;
   }
   return defaultN;
 }
@@ -268,24 +283,27 @@ export function sweepGrid(
 }
 
 /** The density the menu shows for `range` — its own, or the one its
- *  `n`-point default grid works out to. */
+ *  `n`-point default grid works out to. Log's `points` is `n` itself when
+ *  the range has none of its own: no ppd/log10 conversion needed, since the
+ *  field IS the point count now. */
 export function effectiveDensity(
   range: SweepRange,
   n: number,
-): { step: number; pointsPerDecade: number } {
+): { step: number; points: number } {
   const { lo, hi } = range;
   const gaps = Math.max(1, n - 1);
   return {
     step: range.step ?? (hi - lo) / gaps,
-    pointsPerDecade: range.pointsPerDecade ?? gaps / Math.log10(hi / lo),
+    points: range.points ?? n,
   };
 }
 
 /** Apply one menu edit to the range in force, or null when the result is
- *  not a range (lo ≥ hi, a non-positive density). The first edit
- *  materialises the density the grid was using, so changing lo alone keeps
- *  the spacing the user was looking at; a spacing switch keeps the point
- *  count. */
+ *  not a range (lo ≥ hi, a non-positive density, a log `points` below 2).
+ *  The first edit materialises the density the grid was using, so changing
+ *  lo alone keeps the spacing the user was looking at; a spacing switch
+ *  keeps the point count exactly — log's density IS the point count, so no
+ *  ppd/log10 round trip is needed to preserve it. */
 export function editSweepRange(
   current: SweepRange,
   n: number,
@@ -295,17 +313,18 @@ export function editSweepRange(
   const base: SweepRange =
     current.spacing === "lin"
       ? { lo: current.lo, hi: current.hi, spacing: "lin", step: d.step }
-      : { lo: current.lo, hi: current.hi, spacing: "log", pointsPerDecade: d.pointsPerDecade };
+      : { lo: current.lo, hi: current.hi, spacing: "log", points: d.points };
   const next: SweepRange = { ...base, ...patch };
   if (patch.spacing && patch.spacing !== current.spacing) {
     const gaps = Math.max(1, n - 1);
     delete next.step;
-    delete next.pointsPerDecade;
+    delete next.points;
     if (patch.spacing === "lin") next.step = (next.hi - next.lo) / gaps;
-    else next.pointsPerDecade = gaps / Math.log10(next.hi / next.lo);
+    else next.points = n;
   }
-  if (next.spacing === "lin") delete next.pointsPerDecade;
+  if (next.spacing === "lin") delete next.points;
   else delete next.step;
+  if (next.points !== undefined) next.points = Math.round(next.points);
   const ok =
     Number.isFinite(next.lo) &&
     Number.isFinite(next.hi) &&
@@ -313,7 +332,7 @@ export function editSweepRange(
     next.hi > next.lo &&
     (next.spacing === "lin"
       ? next.step !== undefined && next.step > 0
-      : next.pointsPerDecade !== undefined && next.pointsPerDecade > 0);
+      : next.points !== undefined && next.points >= 2);
   return ok ? next : null;
 }
 

@@ -2143,6 +2143,7 @@ function DesignSessionBody({
               resolvedSweepRange.range,
               defaultSweepPoints({ backend, groundEnabled, groundModel, refineEnabled }),
             )}
+            refineEnabled={refineEnabled}
             onEdit={applySweepRangeEdit}
             onRevert={() => applySweepRangeEdit(null)}
             onClose={() => setSweepMenu(null)}

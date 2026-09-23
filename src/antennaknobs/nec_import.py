@@ -673,7 +673,8 @@ class NecDeck:
     # of that count splits the wire at the port (AK#1511) rather than moving.
     pinned_wires: frozenset[int] = frozenset()
     # The FR card's grid (AK#1682), for the app's sweep: ``("lin", step MHz)``
-    # for a linear FR, ``("log", points per decade)`` for a multiplicative one.
+    # for a linear FR, ``("log", total points)`` for a multiplicative one --
+    # the card's own NFRQ, which the log grid hits exactly.
     # None for a single-frequency FR or no FR at all -- ``freq_mhz`` is then a
     # point, not a range, and there is no grid to honour.
     freq_grid: tuple[str, float] | None = None
@@ -4928,7 +4929,9 @@ def parse_nec(
                     if card.i(0) == 0:
                         freq_grid = ("lin", abs(step))
                     elif step > 0 and step != 1.0:
-                        freq_grid = ("log", 1.0 / abs(math.log10(step)))
+                        # The card's own NFRQ is the exact log-spaced point
+                        # count -- no ppd/log10 round trip needed.
+                        freq_grid = ("log", nfrq)
                 # The raw F1 of the initial FR card, pre min/max
                 # normalization — 4nec2 evaluates LD 6 trap loss at
                 # exactly this frequency (issue #444).

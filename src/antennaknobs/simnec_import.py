@@ -460,7 +460,7 @@ class SsnCircuit:
     # Why an armed sweep was not read, when it was not (AK#1679).
     sweep_note: str | None = None
     # The armed sweep's grid (AK#1682), for the app's sweep: ``("lin", step
-    # MHz)`` or ``("log", points per decade)``, the shape ``NecDeck.freq_grid``
+    # MHz)`` or ``("log", total points)``, the shape ``NecDeck.freq_grid``
     # uses. An ``expr`` sweep has one only when it is a single ``from:to:step``
     # range; several ranges or listed values have no one spacing, and leave
     # the density to the app.
@@ -1053,17 +1053,18 @@ def _sweep_expr(expr: str) -> tuple[float, ...]:
     return tuple(out)
 
 
-def _expr_grid(expr: str) -> tuple[str, float] | None:
+def _expr_grid(expr: str, pts: tuple[float, ...]) -> tuple[str, float] | None:
     """The grid of a sweep expression that is exactly one ``from:to:step``
-    range (AK#1682): ``("lin", step)`` or, for ``logStep s``, ``("log", 1/s)``
-    points per decade. None for anything else -- several items have no one
-    spacing."""
+    range (AK#1682): ``("lin", step)`` or, for ``logStep s``, ``("log", n)``
+    where ``n`` is the actual count of values that range produced (``pts``,
+    from ``_sweep_expr`` -- the same list, not recomputed). None for anything
+    else -- several items have no one spacing."""
     items = _expr_items(expr)
     if len(items) != 1 or items[0].count(":") != 2:
         return None
     step = items[0].split(":")[2]
     if step.lower().startswith("logstep"):
-        return "log", 1.0 / _sweep_number(step[7:])
+        return "log", len(pts)
     return "lin", _sweep_number(step)
 
 
@@ -1098,7 +1099,7 @@ def _gen_sweep(gen):
                         None,
                         f"the Generator's sweep expression {expr!r} was not read ({e})",
                     )
-                grid = _expr_grid(expr) if max(pts) > min(pts) else None
+                grid = _expr_grid(expr, pts) if max(pts) > min(pts) else None
                 return (min(pts), max(pts)), pts, grid, None
             if mode not in ("lin", "log"):
                 return (
@@ -1122,7 +1123,8 @@ def _gen_sweep(gen):
                 if mode == "log":
                     r = (hi / lo) ** (1.0 / (n - 1))
                     pts = tuple(lo * r**i for i in range(n))
-                    grid = ("log", (n - 1) / math.log10(hi / lo))
+                    # n is already the exact point count SimNEC asked for.
+                    grid = ("log", n)
                 else:
                     pts = tuple(lo + (hi - lo) * i / (n - 1) for i in range(n))
                     grid = ("lin", (hi - lo) / (n - 1))

@@ -9,7 +9,6 @@ the frontend ranks above ``sweep_policy`` (see ``lib/sweep.ts``).
 
 from __future__ import annotations
 
-import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -53,17 +52,19 @@ def test_the_expr_sweep_gives_start_stop_and_step():
     assert note is None
 
 
-def test_a_logstep_expr_is_a_log_grid_in_points_per_decade():
-    sweep, _, grid, _ = _gen_sweep(_gen("expr", "1.1 : 2.2 : logStep .1"))
+def test_a_logstep_expr_is_a_log_grid_in_total_points():
+    sweep, points, grid, _ = _gen_sweep(_gen("expr", "1.1 : 2.2 : logStep .1"))
     assert sweep == pytest.approx((1.1, 2.2))
-    assert grid == ("log", pytest.approx(10.0))
+    # lo, hi, and every 10**(k*.1) strictly between them: 5 values total.
+    assert grid == ("log", 5)
+    assert len(points) == 5
 
 
 @pytest.mark.parametrize(
     ("spacing", "grid"),
     [
         ("lin", ("lin", pytest.approx(29 / 99))),
-        ("log", ("log", pytest.approx(99 / math.log10(30)))),
+        ("log", ("log", 100)),  # the GEN fixture's own <points>, exactly
     ],
 )
 def test_lin_and_log_modes_carry_their_spacing(spacing, grid):
@@ -109,9 +110,8 @@ def test_a_linear_fr_card_is_a_lin_grid():
 
 def test_a_multiplicative_fr_card_is_a_log_grid():
     deck = parse_nec(DECK.format(fr="FR 1 11 0 0 10.0 1.0717735"))
-    assert deck.freq_grid[0] == "log"
-    # 1.0717735 = 10 ** (1 / 33.3)
-    assert deck.freq_grid[1] == pytest.approx(1 / math.log10(1.0717735))
+    # The card's own NFRQ (11) is the exact point count -- no ppd round trip.
+    assert deck.freq_grid == ("log", 11)
 
 
 def test_a_single_frequency_fr_card_has_no_range_or_grid(tmp_path):
@@ -168,14 +168,34 @@ def test_a_design_range_is_normalised_with_source_design():
         "step": 0.01,
         "source": "design",
     }
-    assert _ui({"lo": 3, "hi": 30, "spacing": "log", "points_per_decade": 40}) == {
+    assert _ui({"lo": 3, "hi": 30, "spacing": "log", "points": 61})["points"] == 61
+
+
+def test_a_served_points_per_decade_converts_to_a_point_count():
+    """AK#1682 follow-up: a band-locked 14.0-14.35 MHz range is 0.011
+    decades, so 17 points used to be served/shown as ~1,500 per decade.
+    `points_per_decade` is still accepted from `ui_params` (backward
+    compatibility) but always converts to a plain point count on arrival."""
+    # A whole decade (3-30 MHz) at 40/decade is 41 points -- kept as
+    # "points_per_decade" pre-#1682-followup, now converted even though the
+    # spacing matches.
+    got = _ui({"lo": 3, "hi": 30, "spacing": "log", "points_per_decade": 40})
+    assert got == {
         "lo": 3.0,
         "hi": 30.0,
         "spacing": "log",
-        "points_per_decade": 40.0,
+        "points": 41,
         "source": "design",
     }
-    assert _ui({"lo": 3, "hi": 30, "spacing": "log", "points": 61})["points"] == 61
+    # 14.0-14.35 MHz (0.0108 decades) at 20/decade rounds to 2 points, the
+    # floor -- not the ~1,500-per-decade-looking absurdity 17 points used to
+    # print as.
+    assert (
+        _ui({"lo": 14.0, "hi": 14.35, "spacing": "log", "points_per_decade": 20})[
+            "points"
+        ]
+        == 2
+    )
 
 
 def test_a_density_that_does_not_fit_the_spacing_becomes_a_point_count():

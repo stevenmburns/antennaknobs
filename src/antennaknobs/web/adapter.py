@@ -15,16 +15,21 @@ Reserved keys inside `ui_params`:
                      also where the sweep runs (log-spaced, the app's density)
                      unless `sweep_range` says more.
   bands            : tuple[BandSpec] — band tabs (default amateur set, 160m–70cm)
-  sweep_range      : {lo, hi, spacing, step | points | points_per_decade}
+  sweep_range      : {lo, hi, spacing, step | points}
                      — the frequency sweep's range and grid, MHz (AK#1682),
                      which the measurement dial also travels. `spacing` is
                      "lin" (default) or "log"; the density is optional:
-                     `step` in MHz for lin, `points_per_decade` for log, or
-                     `points` (the total count) for either, and without one
-                     the app picks it. Outranks `meas_freq_range` and
-                     `sweep_policy`; a session edit from the dial's
-                     right-click menu outranks it. File designs (.nec FR
-                     card, .ssn Generator sweep) fill it from the file.
+                     `step` in MHz for lin, or `points` (the total count
+                     across [lo, hi]) for either spacing, and without one
+                     the app picks it. A served `points_per_decade` (log,
+                     kept for backward compatibility) converts to `points`
+                     on the way in: points = round(ppd * log10(hi/lo)) + 1,
+                     at least 2 — a band-locked 14.0-14.35 MHz range no
+                     longer reads as ~1,500 points/decade for 17 points.
+                     Outranks `meas_freq_range` and `sweep_policy`; a
+                     session edit from the dial's right-click menu outranks
+                     it. File designs (.nec FR card, .ssn Generator sweep)
+                     fill it from the file.
   sweep_policy     : (anchor, lo_factor, hi_factor) — the range, relative to
                      the design / measurement frequency, when no absolute one
                      is declared
@@ -3595,11 +3600,13 @@ def _ui_sweep_range(default_params: dict) -> dict | None:
     when absent or malformed.
 
     Returns {"lo", "hi", "spacing", "source"} plus whichever ONE density was
-    given, in the order step > points_per_decade > points. A density that
-    does not fit the spacing (a `step` on a log range, `points_per_decade` on
-    a lin one) is converted to `points`, so the grid the author meant still
-    arrives. `source` is "file" for a file design's own range and "design"
-    otherwise -- the frontend ranks the two."""
+    given, in the order step > points_per_decade > points. `step` survives
+    only on a lin range (a `step` on a log range is converted to `points`).
+    `points_per_decade` is accepted for backward compatibility only -- the
+    wire format is now a plain point count -- and always converts to
+    `points`: points = round(ppd * log10(hi/lo)) + 1, at least 2. `source` is
+    "file" for a file design's own range and "design" otherwise -- the
+    frontend ranks the two."""
     ui = default_params.get("ui_params") or {}
     raw = ui.get("sweep_range")
     if not isinstance(raw, Mapping):
@@ -3638,10 +3645,7 @@ def _ui_sweep_range(default_params: dict) -> dict | None:
         else:
             out["points"] = int(math.floor((hi - lo) / step + 1e-9)) + 1
     elif ppd is not None:
-        if spacing == "log":
-            out["points_per_decade"] = ppd
-        else:
-            out["points"] = int(math.ceil(math.log10(hi / lo) * ppd - 1e-9)) + 1
+        out["points"] = max(2, round(ppd * math.log10(hi / lo)) + 1)
     elif points is not None and points >= 2:
         out["points"] = int(points)
     return out
