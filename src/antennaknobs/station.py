@@ -68,6 +68,7 @@ def t_network_tuner(
     c_max_pF: float | None = None,
     l_min_uH: float | None = None,
     l_max_uH: float | None = None,
+    on_no_match: str = "best",
 ) -> Composite:
     """The classic T-network ("high-pass tee") antenna tuner: series C1
     from ``rig`` to an internal tee midpoint, shunt L to common at the
@@ -84,9 +85,13 @@ def t_network_tuner(
     ``c1_pF`` / ``l_uH`` / ``c2_pF`` and the other two are tuned, or give none
     and a capacitor sits at ``c_max_pF``: ``pin`` "c1", "c2", or "auto" (the
     default), which tries both and keeps the less lossy tuning, because each
-    pin reaches loads the other cannot. The ranges (``c_min_pF`` … ``l_max_uH``) are what the
-    parts can reach; a tuning outside them is no match. A load it cannot
-    match is reported and the tuner bypassed.
+    pin reaches loads the other cannot. Give TWO and the third is tuned for
+    the lowest SWR it can reach (AK#1663). The ranges (``c_min_pF`` …
+    ``l_max_uH``) are what the parts can reach. When the exact tuning falls
+    outside them it tunes for best effort, the lowest SWR inside them, and
+    reports it; ``on_no_match="bypass"`` takes the box out of circuit
+    instead. A load no T of this kind could match at all is reported and the
+    tuner bypassed.
     """
     if tune_to is not None:
         from .auto_match import DEFAULT_PIN, Ranges, TTuner, t_bypass_body
@@ -111,6 +116,7 @@ def t_network_tuner(
             qc=qc,
             ql=ql,
             ranges=Ranges.from_radio_units(c_min_pF, c_max_pF, l_min_uH, l_max_uH),
+            on_no_match=on_no_match,
         )
         at = f"{tune_at_mhz:g} MHz" if tune_at_mhz else "design frequency"
         return Composite(
@@ -131,6 +137,11 @@ def t_network_tuner(
         raise ValueError(
             "t_network_tuner needs c1_pF, c2_pF and l_uH, or tune_to=... for a "
             "tuner that tunes itself"
+        )
+    if on_no_match != "best":
+        raise ValueError(
+            "on_no_match says what a tuner that tunes itself (tune_to=...) does "
+            "when the target is out of reach; fixed values never tune"
         )
     if any(v is not None for v in (pin, c_min_pF, c_max_pF, l_min_uH, l_max_uH)):
         raise ValueError(
@@ -169,6 +180,7 @@ def l_network_tuner(
     c_max_pF: float | None = None,
     l_min_uH: float | None = None,
     l_max_uH: float | None = None,
+    on_no_match: str = "best",
 ) -> Composite:
     """L-match: series L from ``rig`` to ``out``, shunt C across ``out``
     (the load side — the arrangement that steps a higher load R down to
@@ -190,9 +202,11 @@ def l_network_tuner(
     capacitors). ``shunt_at="auto"`` lets it pick the side too, the less
     lossy of the two that match, as an L autotuner's relay moves its
     capacitor. The ranges (``c_min_pF`` … ``l_max_uH``, AK#1661) are what the
-    parts can reach; a tuning outside them is no match. A load it cannot
-    match is reported and the tuner bypassed. ``ql`` / ``qc`` give the coils
-    and capacitors a finite Q.
+    parts can reach. When the exact tuning falls outside them it tunes for
+    best effort, the lowest SWR inside them, and reports it (AK#1663);
+    ``on_no_match="bypass"`` takes the box out of circuit instead. A load no
+    L network of this kind could match at all is reported and the tuner
+    bypassed. ``ql`` / ``qc`` give the coils and capacitors a finite Q.
     """
     if tune_to is not None:
         if series_l_uH is not None or shunt_c_pF is not None:
@@ -210,6 +224,7 @@ def l_network_tuner(
             qc=qc,
             ql=ql,
             ranges=Ranges.from_radio_units(c_min_pF, c_max_pF, l_min_uH, l_max_uH),
+            on_no_match=on_no_match,
         )
         at = f"{tune_at_mhz:g} MHz" if tune_at_mhz else "design frequency"
         return Composite(
@@ -237,6 +252,11 @@ def l_network_tuner(
         raise ValueError(
             f"mode={mode!r} applies to a tuner that tunes itself (tune_to=...); "
             "fixed values are the low-pass L (series L, shunt C)"
+        )
+    if on_no_match != "best":
+        raise ValueError(
+            "on_no_match says what a tuner that tunes itself (tune_to=...) does "
+            "when the target is out of reach; fixed values never tune"
         )
     if any(v is not None for v in (c_min_pF, c_max_pF, l_min_uH, l_max_uH)):
         raise ValueError(

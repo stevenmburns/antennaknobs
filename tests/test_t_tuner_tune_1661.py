@@ -155,7 +155,14 @@ def test_the_component_carries_its_tuning():
     "kw, said",
     [
         ({"tune_to": 50.0}, "needs c_max_pF"),
-        ({"tune_to": 50.0, "c1_pF": 100.0, "l_uH": 1.0}, "give at most one"),
+        (
+            {"tune_to": 50.0, "c1_pF": 100.0, "l_uH": 1.0, "c2_pF": 100.0},
+            "nothing left to tune",
+        ),
+        (
+            {"tune_to": 50.0, "c1_pF": 100.0, "l_uH": 1.0, "on_no_match": "bypass"},
+            "only tune for best effort",
+        ),
         ({"tune_to": 50.0, "c1_pF": 100.0, "pin": "c2"}, "nothing to pin"),
         ({"tune_to": 50.0, "c_max_pF": 250.0, "pin": "l"}, "not one of"),
         ({"tune_to": 50.0 + 5j, "c_max_pF": 250.0}, "positive resistance"),
@@ -305,8 +312,9 @@ def test_tune_at_mhz_is_where_it_tunes():
 def test_no_match_bypasses_and_says_so():
     from antennaknobs.auto_match import tuner_advisories
 
-    # Capacitors that top out at 2 pF cannot tune the loop to anything.
-    eng = _engine("momwire", _skyloop(c_max_pF=2.0))
+    # Capacitors that top out at 2 pF cannot tune the loop to anything; asked
+    # to bypass rather than tune for best effort (AK#1663), it bypasses.
+    eng = _engine("momwire", _skyloop(c_max_pF=2.0, on_no_match="bypass"))
     with pytest.warns(TunerAdvisory, match="bypassed"):
         eng.impedance()
     d = eng._reducer.design
