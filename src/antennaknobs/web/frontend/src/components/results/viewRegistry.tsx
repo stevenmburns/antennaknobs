@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import type { ConvergeData, MeasuredData, SolveResponse, SweepData } from "../../lib/api";
+import type { SweepProgress } from "../../lib/sweep";
 import type { CanvasCamera, Projection, View } from "../../lib/view";
 import { CurrentCanvas } from "../charts/CurrentCanvas";
 import { FarFieldChart } from "../charts/FarFieldChart";
@@ -31,6 +32,9 @@ export type ViewRenderProps = {
   pinnedPatterns: PinnedPattern[];
   measFreqMhz: number;
   sweepRunning: boolean;
+  /** Points received by the sweep in flight (AK#1682). Optional so a call
+   *  site that omits it keeps the bare "sweeping…" status. */
+  sweepProgress?: SweepProgress | null;
   convergeRunning: boolean;
   azElevDeg: number;
   elevAzDeg: number;
@@ -165,6 +169,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       measured={p.measured}
       measFreqMhz={p.measFreqMhz}
       running={p.sweepRunning}
+      progress={p.sweepProgress}
       convergeRunning={p.convergeRunning}
       feeds={p.result?.feeds}
       multiFeed={p.multiFeed}
@@ -193,6 +198,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       sweep={p.sweep}
       measFreqMhz={p.measFreqMhz}
       running={p.sweepRunning}
+      progress={p.sweepProgress}
       settled={p.sweepSettled ?? true}
       feeds={p.result?.feeds}
       multiFeed={p.multiFeed}
@@ -208,6 +214,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       sweep={p.sweep}
       measFreqMhz={p.measFreqMhz}
       running={p.sweepRunning}
+      progress={p.sweepProgress}
       settled={p.sweepSettled ?? true}
       feeds={p.result?.feeds}
       multiFeed={p.multiFeed}

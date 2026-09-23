@@ -25,6 +25,7 @@ import {
   planSweepFreqs,
   SWEEP_REFINE_BUDGET,
   SWEEP_REFINE_ROUND_BUDGET,
+  type SweepProgress,
 } from "../../lib/sweep";
 import type { PatternData } from "../charts/types";
 
@@ -251,6 +252,11 @@ export function useAnalysisRunners({
   // run with refinement disabled settles immediately — its uniform grid is
   // the rendering, unchanged from the pre-#744 behavior.
   const [sweepSettled, setSweepSettled] = useState(true);
+  // Points received so far by the sweep in flight (AK#1682): the base grid
+  // as k/N, then any refinement pass as its own count. Null when nothing is
+  // streaming — including the dwell between the base sweep and refinement,
+  // when no request is out and a counter would claim work that isn't.
+  const [sweepProgress, setSweepProgress] = useState<SweepProgress | null>(null);
   const [converge, setConverge] = useState<ConvergeData | null>(null);
   const [convergeRunning, setConvergeRunning] = useState(false);
   const [normCheck, setNormCheck] = useState<NormCheckData | null>(null);
@@ -316,6 +322,7 @@ export function useAnalysisRunners({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSweep(null);
     setSweepRunning(false);
+    setSweepProgress(null);
     // Paused (Live off) holds the engine (issue #612): an enabled sweep must
     // not keep solving while the user edits. Clearing above + returning here
     // blanks the overlay while paused; resuming Live re-runs this effect
@@ -590,11 +597,20 @@ export function useAnalysisRunners({
     // base grid is provisional until the refine pass lands; with it off, the
     // dense grid IS the final shape.
     setSweepSettled(!refineEnabledRef.current);
+    setSweepProgress({ phase: "base", received: 0, planned: freqs.length });
     let planned: SweepData | null = null;
     try {
       // New object per point so React re-renders the Smith chart as the
-      // sweep fills in.
-      planned = await streamSweep(body, controller, setSweep);
+      // sweep fills in. The counter reads the snapshot's own length, so it
+      // is the number of points that actually landed (AK#1682).
+      planned = await streamSweep(body, controller, (snapshot) => {
+        setSweep(snapshot);
+        setSweepProgress({
+          phase: "base",
+          received: snapshot.freqs_mhz.length,
+          planned: freqs.length,
+        });
+      });
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;
       console.error("sweep error", e);
@@ -602,6 +618,7 @@ export function useAnalysisRunners({
       if (sweepAbortRef.current === controller) {
         sweepAbortRef.current = null;
         setSweepRunning(false);
+        setSweepProgress(null);
         // Adaptive refinement (issue #744) rides the tail of the base
         // sweep rather than its own effect: reaching here IS the dwell
         // signal — the design settled long enough for a whole sweep to
@@ -642,6 +659,7 @@ export function useAnalysisRunners({
     sweepRefineAbortRef.current = controller;
     let acc = base;
     let spent = 0;
+    let refined = 0; // points RECEIVED across rounds, for the counter
     // Unsettle here too, not just in runSweep (issue #866): a pass triggered
     // by a chart becoming resident refines a sweep whose base flow settled
     // long ago (or ran refine-disabled), and its insertions are about to
@@ -671,6 +689,13 @@ export function useAnalysisRunners({
         }
         spent += want.length;
         const settled = acc; // merge target for this round's snapshots
+        // Cumulative across rounds, counted per point received (AK#1682).
+        const before = refined;
+        setSweepProgress({
+          phase: "refine",
+          received: before,
+          budget: SWEEP_REFINE_BUDGET,
+        });
         const extra = await streamSweep(
           {
             ...buildRequest(),
@@ -685,8 +710,16 @@ export function useAnalysisRunners({
             _refine: true,
           },
           controller,
-          (snapshot) => setSweep(mergeSweepPoints(settled, snapshot)),
+          (snapshot) => {
+            setSweep(mergeSweepPoints(settled, snapshot));
+            setSweepProgress({
+              phase: "refine",
+              received: before + snapshot.freqs_mhz.length,
+              budget: SWEEP_REFINE_BUDGET,
+            });
+          },
         );
+        refined = before + extra.freqs_mhz.length;
         acc = mergeSweepPoints(acc, extra);
         if (controller.signal.aborted) return;
         setSweep(acc);
@@ -705,6 +738,7 @@ export function useAnalysisRunners({
       if (concluded) setSweepSettled(true);
       if (sweepRefineAbortRef.current === controller) {
         sweepRefineAbortRef.current = null;
+        setSweepProgress(null);
       }
     }
   }
@@ -897,6 +931,7 @@ export function useAnalysisRunners({
     sweep,
     sweepRunning,
     sweepSettled,
+    sweepProgress,
     converge,
     convergeRunning,
     normCheck,

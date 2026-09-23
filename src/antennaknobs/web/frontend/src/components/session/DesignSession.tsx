@@ -1832,6 +1832,7 @@ function DesignSessionBody({
     sweep,
     sweepRunning,
     sweepSettled,
+    sweepProgress,
     converge,
     convergeRunning,
     normCheck,
@@ -2310,6 +2311,7 @@ function DesignSessionBody({
             pinnedPatterns={pinnedPatterns}
             measFreqMhz={measFreq}
             sweepRunning={sweepRunning}
+            sweepProgress={sweepProgress}
             convergeRunning={convergeRunning}
             azElevDeg={azElevDeg}
             elevAzDeg={elevAzDeg}
@@ -2497,6 +2499,7 @@ function DesignSessionBody({
                       pinnedPatterns={[]}
                       measFreqMhz={measFreq}
                       sweepRunning={sweepRunning}
+                      sweepProgress={sweepProgress}
                       sweepSettled={sweepSettled}
                       convergeRunning={convergeRunning}
                       azElevDeg={azElevDeg}
