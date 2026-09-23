@@ -27,8 +27,9 @@ conductivity surfaces as ``NecDeck.conductivity`` (feed it to ``WireSpec``),
 TL cards become ``TL`` branches (crossed lines, zero-length = port
 separation, end shunts — a conductance as a ``Shunt``, a reactive G+jB as a
 fixed 1-port ``Admittance``, issue #423), an NT card becomes its exact
-resistive pi when the Y matrix is all-real (``TwoPort`` + ``Shunt``) or a
-2-port ``Admittance`` when it carries susceptance, an LD 4 reactive load
+resistive pi when the Y matrix is all-real (``TwoPort`` + ``Shunt``), a
+``Transformer`` when that real Y is rank 1 (AK#1681), or a 2-port
+``Admittance`` when it carries susceptance, an LD 4 reactive load
 (fixed R+jX) becomes a fixed-complex-Z ``Load`` (issue #422), and 4nec2's
 LD 7 wire insulation becomes per-wire ``WireSpec`` jackets via
 ``wire_insulation`` (issue #447). An LD 2 whose fields spell the a′+L′

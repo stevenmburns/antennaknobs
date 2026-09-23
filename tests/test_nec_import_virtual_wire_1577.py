@@ -16,7 +16,7 @@ worth naming:
 - the CIRCUIT gate (`test_translated_network_reproduces_nec5_at_the_source`)
   drives the imported network with NEC-5's OWN control-deck impedance and
   lands on NEC-5's printed source impedance to 1.8e-05 — no solver involved,
-  so it pins the translation itself: ports, pi decomposition, complex-Y line,
+  so it pins the translation itself: ports, the transformer, complex-Y line,
   pin admittances and where the drive sits;
 - the END-TO-END gate was looser (4.1 % of R) while AK read an `NT`/`EX`
   segment field as a segment and put the port at its CENTRE where NEC-5
@@ -147,7 +147,8 @@ def test_dans_deck_imports_the_virtual_wire_as_nodes():
     (src,) = [s for s in net.sources if isinstance(s, DrivenCurrent)]
     assert (src.port, src.current) == ("feed1", 1.414214 + 0j)
     # The lossy line is the reactive NT's full 2x2 (issue #416) between the
-    # two virtual nodes; the transformer is the real-Y pi to the antenna.
+    # two virtual nodes; the transformer (a rank-1 real Y) is a `Transformer`
+    # to the antenna (AK#1681).
     (line,) = [
         b for b in net.branches if isinstance(b, Admittance) and len(b.ports) == 2
     ]
