@@ -29,11 +29,15 @@ script, expressed in SimNEC's NEC-portal daemon language:
     $GW_1.JamSegments(11);             // the deck's own count, per wire
 
 We reuse :func:`antennaknobs.nec_export.export_nec` for the geometry, then keep
-the ``GW`` / ``FR`` / ``EX`` / lumped-``LD`` cards and translate the rest into
-daemon directives: the Generator's ``MHz`` carries the (sweepable) solve
-frequency; ``GN`` → the ground call; ``LD 5`` → ``NECOptions.mhosPerMeter``
-(SimNEC's NEC2 reader ignores LD cards, and takes one conductivity for the
-whole block, so a design whose wires differ is refused — AK#1680). SimNEC
+the ``GW`` / ``FR`` / ``EX`` cards and translate the rest into daemon
+directives: the Generator's ``MHz`` carries the (sweepable) solve frequency;
+``GN`` → the ground call; ``LD 5`` → ``NECOptions.mhosPerMeter`` (SimNEC's
+NEC2 reader ignores LD cards, and takes one conductivity for the whole block,
+so a design whose wires differ is refused — AK#1680). SimNEC ignores a lumped
+``LD 0`` / ``LD 1`` load just the same, and silently (AK#1683), so each one is
+written as SimNEC's own ``NECSource`` load on its ``$GW_<tag>`` wire — or, on
+the fed segment, as a series circuit element at the feed — and an insulated
+wire is refused (see :func:`_wire_loads`, :func:`_refuse_jacket`). SimNEC
 treats a ``GW`` card's segment count as advisory and re-meshes, so each wire
 also gets a ``$GW_<tag>.JamSegments(N)`` carrying the deck's count (AK#1680),
 unless ``seg_per_wl`` is given: that knob asks for SimNEC's own mesh at
@@ -266,7 +270,11 @@ def _jam_segments(cards) -> list[str]:
 
 def _nec_cards_for_portal(deck: str) -> list[str]:
     """Keep the cards SimNEC's NEC block wants: geometry (``GW``), frequency
-    (``FR``), excitation (``EX``), and lumped loads (``LD 0`` / ``LD 1``).
+    (``FR``) and excitation (``EX``). No ``LD`` card of any type: SimNEC's
+    NEC2 reader takes GW / GM / GS / EX / NT and ignores the rest (NECPortal
+    manual, "NEC2 Decks"), and Steve confirmed on SimNEC 5.3 that lumped
+    ``LD 0`` / ``LD 1`` loads were dropped with no word (AK#1683). Lumped
+    loads are written by :func:`_wire_loads` instead.
 
     ``FR`` is kept because SimNEC's own NEC-portal decks carry it — even while
     the Generator sweeps ``G.MHz`` (the deck's ``FR`` is advisory; the solve
@@ -274,10 +282,9 @@ def _nec_cards_for_portal(deck: str) -> list[str]:
     ``.ssn`` (``FR 0 1 0 0 <f> 0`` present alongside a live G.MHz sweep).
 
     Dropped: ``CM``/``CE``/``GE``/``RP``/``XQ``/``EN`` (structural), ``GN`` (→
-    ground call), ``LD 5`` global conductivity (→ ``NECOptions.mhosPerMeter``)
-    and ``LD 2`` insulation (not representable in the NEC block).
+    ground call), and every ``LD``.
     """
-    # Group into canonical NEC order — geometry+loads, then FR, then EX — to
+    # Group into canonical NEC order — geometry, then FR, then EX — to
     # match a SimNEC 5.1a1-saved deck (GW … FR … EX) rather than export_nec's
     # emission order, which puts EX before FR.
     geom: list[str] = []
@@ -291,14 +298,152 @@ def _nec_cards_for_portal(deck: str) -> list[str]:
             fr.append(s)
         elif s.startswith("EX "):
             ex.append(s)
-        elif s.startswith("LD "):
-            parts = s.split()
-            ldtyp = parts[1] if len(parts) > 1 else ""
-            if ldtyp in ("0", "1"):  # series / parallel lumped RLC load
-                geom.append(s)
-            # LD 5 (conductivity) and LD 2 (insulation) are handled elsewhere
-            # or unsupported; skip here.
+        # LD cards are not kept (see above): LD 0 / 1 / 4 lumped loads are
+        # written by `_wire_loads`, LD 5 as NECOptions.mhosPerMeter, and
+        # LD 2 (the jacket) is never written, because `jacket_pair=False`.
     return geom + fr + ex
+
+
+def _val(x: float) -> str:
+    """A component value for a load expression: twelve significant figures
+    (a float's last-bit noise, 4.9999999999999996e-06, is not a value anyone
+    wrote), with no ``+`` in the exponent (SimNEC's own scripts write
+    ``1e-3``)."""
+    return f"{float(x):.12g}".replace("e+", "e")
+
+
+def _load_legs(br: Load) -> tuple[float, float, float]:
+    """(R, L, C) of a lumped RLC ``Load``, 0 for an absent leg (the LD card's
+    own convention: 0 means the element is not there)."""
+    return tuple(float(v) if v is not None else 0.0 for v in (br.r, br.l, br.c))
+
+
+def _load_expr(br: Load) -> str:
+    """The load as a SimNEC impedance expression, in the N-block functions of
+    the Anvil manual ("Caps, Inductors, and Resistors"): ``L(henries)``,
+    ``C(farads)``, a bare number for ohms, ``+`` for series and ``|||`` for
+    parallel; a fixed ``z`` as ``R + j*X``. Evaluated per frequency, like the
+    LD card it replaces."""
+    if br.z is not None:
+        z = complex(br.z)
+        sign = "-" if z.imag < 0 else "+"
+        return f"{_val(z.real)} {sign} j*{_val(abs(z.imag))}"
+    r, l, c = _load_legs(br)
+    terms = []
+    if r:
+        terms.append(_val(r))
+    if l:
+        terms.append(f"L({_val(l)})")
+    if c:
+        terms.append(f"C({_val(c)})")
+    return (" ||| " if br.parallel else " + ").join(terms)
+
+
+def _wire_loads(loads, feed_loc, n_segs, freq_mhz: float):
+    """Lumped ``Load`` branches in the spelling SimNEC solves (AK#1683).
+
+    ``loads`` is ``[(branch, name, (tag, seg))]``, ``feed_loc`` the fed
+    ``(tag, seg)``, ``n_segs`` tag → the GW segment count. Returns
+    ``(statements, feed_elements)``.
+
+    SimNEC ignores LD cards in a NEC2 block (NECPortal manual, "NEC2 Decks":
+    every card but GW / GM / GS / EX / NT is ignored), so a load is written
+    the way its manual places one ("Loading": "The NECSource() function is
+    used to place loads at specific places along a wire"), in the form
+    AC6LA's EZNEC-to-SimNEC files use for a deck's own ``LD`` card — an
+    N-block ``R`` component carrying the impedance, attached to the GW wire
+    ``$GW_<tag>`` at a percentage of its length:
+
+        R1 (L(5e-06) ||| C(6.46181018127e-12)) ld1a ld1b;  dcl Load1 = NECSource({ld1a,ld1b}, $GW_2, 50);
+
+    The percentage is the load segment's centre, ``(seg - 1/2) / N``, and
+    SimNEC re-meshes the wire so the load sits exactly there (the manual's
+    "Source Placement"), whatever its own segmentation does to the count.
+
+    A load on the FED segment cannot be written that way: SimNEC turns the
+    ``EX`` card into a NECSource of its own at that place. There it is in
+    series with the source, so the driving-point impedance is the antenna's
+    plus the load's, exactly (NEC adds a segment load to the diagonal of the
+    same row the gap voltage drives), and it is written as SimNEC's own
+    series circuit elements between the antenna block and the generator:
+    ``SERIES_IND`` / ``SERIES_CAP``, the two load-validated in SimNEC 5.1a0.
+    A resistor, a fixed Z, or a parallel pair there is refused by name, as
+    are a finite-Q load (R = ωL/Q re-derived per frequency) and a load that
+    names no wire segment."""
+    mk = _element_factory()
+    statements: list[str] = []
+    feed_elements: list[str] = []
+    k = 0
+    for br, name, (tag, seg) in loads:
+        if br.ql is not None or br.qc is not None:
+            raise SsnUnsupported(
+                f"{name}: a finite-Q Load needs R = ωL/Q re-derived per "
+                "frequency, which the export does not write"
+            )
+        if br.z is not None:
+            if complex(br.z) == 0:
+                continue
+        elif not any(_load_legs(br)):
+            continue
+        if (tag, seg) == feed_loc:
+            r, l, c = _load_legs(br)
+            if br.z is not None or r or (br.parallel and l and c):
+                raise SsnUnsupported(
+                    f"{name}: this load sits on the fed segment, where SimNEC "
+                    "places the EX source, so it can only be written as a "
+                    "series circuit element at the feed, and only a series L "
+                    "and/or C has one; move the load off the feed segment"
+                )
+            if l:
+                feed_elements.append(
+                    mk("SERIES_IND", "LD", [("H", _val(l)), *_q_params(None, freq_mhz)])
+                )
+            if c:
+                feed_elements.append(
+                    mk("SERIES_CAP", "LD", [("F", _val(c)), *_q_params(None, freq_mhz)])
+                )
+            continue
+        k += 1
+        pct = (seg - 0.5) / n_segs[tag] * 100.0
+        statements.append(
+            f"R{k} ({_load_expr(br)}) ld{k}a ld{k}b;  "
+            f"dcl Load{k} = NECSource({{ld{k}a,ld{k}b}}, $GW_{tag}, {_val(pct)});"
+        )
+    return statements, feed_elements
+
+
+def _refuse_jacket(eng) -> None:
+    """Refuse a design with an insulated wire, by name (AK#1683 item 3).
+
+    The export writes each conductor's bare radius (``jacket_pair=False``)
+    and no LD 2, so a jacket would otherwise be silently missing. SimNEC has
+    its own ``$wire.Insulation(thickness, permittivity, lossTangent)``, but
+    its default is the K6OIK correction, not the coaxial-shell a′ + L′ model
+    the engines here use, so writing it would be a different wire model under
+    our name; that mapping is a follow-up."""
+    tags = []
+    for tag, t in enumerate(eng.tups, start=1):
+        spec = as_wire(t).spec
+        eff = spec if spec is not None else eng._wire_spec
+        if eff is not None and getattr(eff, "insulation_radius", None):
+            tags.append(tag)
+    if tags:
+        raise SsnUnsupported(
+            f"wire{'s' if len(tags) > 1 else ''} {', '.join(map(str, tags))} "
+            "carry an insulation jacket, which the SimNEC export does not "
+            "write (SimNEC ignores LD cards, and its Insulation() correction "
+            "is not the model the engines here use); export the design with "
+            "bare wire"
+        )
+
+
+def _feed_loc(cards) -> tuple[int, int] | None:
+    """The ``(tag, seg)`` the block's one ``EX`` card drives."""
+    for c in cards:
+        parts = c.split()
+        if parts[:1] == ["EX"]:
+            return int(parts[2]), int(parts[3])
+    return None
 
 
 def _default_block_name(builder) -> str:
@@ -313,11 +458,12 @@ def _default_block_name(builder) -> str:
     return qual
 
 
-def _portal_wrap(cards, *, name, ground, seg_per_wl, conductivity) -> str:
+def _portal_wrap(cards, *, name, ground, seg_per_wl, conductivity, loads=()) -> str:
     """The NEC-portal daemon script (the ``<equ>`` body): comment header,
     ports/units/ground/conductivity/mesh directives, then ``cards`` between
     NEC2/NECEND, then a ``JamSegments`` per wire — unless ``seg_per_wl`` asks
-    for SimNEC's own mesh, which is what that knob is for."""
+    for SimNEC's own mesh, which is what that knob is for — then the lumped
+    loads' statements (:func:`_wire_loads`)."""
     ground_call = _ground_directive(ground)
     lines = [
         f"//{name}",
@@ -336,6 +482,7 @@ def _portal_wrap(cards, *, name, ground, seg_per_wl, conductivity) -> str:
     lines.append("NECEND")
     if seg_per_wl is None:
         lines.extend(_jam_segments(cards))
+    lines.extend(loads)
     return "\n".join(lines)
 
 
@@ -347,8 +494,34 @@ def build_nec_portal_script(
     seg_per_wl: int | None = None,
     name: str | None = None,
 ) -> str:
-    """Build the SimNEC NEC-portal daemon script (the ``<equ>`` body) for an
-    antenna-only ``builder``. Reuses :func:`export_nec` for the geometry,
+    """The SimNEC NEC-portal daemon script (the ``<equ>`` body) for an
+    antenna-only ``builder``: :func:`_antenna_portal`'s script. A load on the
+    fed segment is a circuit element outside the script (see
+    :func:`_wire_loads`), so a design with one is refused here; use
+    :func:`export_ssn`, which writes the whole circuit."""
+    script, feed_elements = _antenna_portal(
+        builder, freq_mhz=freq_mhz, ground=ground, seg_per_wl=seg_per_wl, name=name
+    )
+    if feed_elements:
+        raise SsnUnsupported(
+            "a load on the fed segment is written as a circuit element next "
+            "to the antenna block, which the script alone cannot carry; use "
+            "export_ssn for the whole circuit"
+        )
+    return script
+
+
+def _antenna_portal(
+    builder,
+    *,
+    freq_mhz: float,
+    ground=DEFAULT_GROUND,
+    seg_per_wl: int | None = None,
+    name: str | None = None,
+) -> tuple[str, list[str]]:
+    """The NEC-portal script for an antenna-only ``builder``, and the series
+    circuit elements for any load on its fed segment (:func:`_wire_loads`).
+    Reuses :func:`export_nec` for the geometry,
     unchanged (AK#1576 considered and rejected rewriting a deck-faithful
     even-count centre-fed wire's ``GW``/``EX`` back to the file's own count:
     NEC-2 syntax has no end-code, so "segment 1 of 2" IS a source at 25% of
@@ -361,22 +534,22 @@ def build_nec_portal_script(
     because NEC-5's end code addresses the junction exactly, which NEC-2 (and
     therefore SimNEC) cannot.
     """
-    # jacket_pair=False: the portal drops the LD cards, and the equivalent
+    # jacket_pair=False: SimNEC ignores the LD cards, and the equivalent
     # radius without its LD 2 inductance would be half of the jacket's model
-    # (issue #1523). The conductor's own radius keeps it a bare-wire model.
+    # (issue #1523). The conductor's own radius keeps it a bare-wire model,
+    # and a jacketed design is refused rather than written bare (AK#1683).
     #
-    # AK#1677 needs no separate handling here either, for the same reason as
+    # AK#1677 needs no separate handling here, for the same reason as
     # `nec_export.export_nec` itself: this call IS that function, so its
     # `refuse_nec2_geometry` already refuses any below-z=0 wire before a
-    # SimNEC script can be built — a jacketed buried wire can no more reach
-    # SimNEC's export than NEC-2's.
+    # SimNEC script can be built.
+    eng = PyNECEngine(builder, ground=ground)
+    _refuse_jacket(eng)
     deck = export_nec(
         builder, ground=ground, freq=freq_mhz, include_rp=False, jacket_pair=False
     )
     cards = _nec_cards_for_portal(deck)
-    conductivity = _uniform_conductivity(
-        _wire_conductivities(PyNECEngine(builder, ground=ground))
-    )
+    conductivity = _uniform_conductivity(_wire_conductivities(eng))
     n_feeds = sum(1 for c in cards if c.startswith("EX"))
     if n_feeds > 1:
         # SimNEC's cascade template has ONE generator, so a multi-feed deck's
@@ -392,15 +565,37 @@ def build_nec_portal_script(
             "(every feed driven in phase — issue #815); multi-feed designs "
             "are not exported until per-feed sources are modeled"
         )
+    net = eng._network
+    loads = (
+        [
+            (
+                br,
+                _brname(br, net.branch_paths[bi] if bi < len(net.branch_paths) else ""),
+                eng._network_port_loc[br.port],
+            )
+            for bi, br in enumerate(net.branches)
+            if isinstance(br, Load)
+        ]
+        if net is not None
+        else []
+    )
+    statements, feed_elements = _wire_loads(
+        loads,
+        _feed_loc(cards),
+        {tag: t[2] for tag, t in enumerate(eng.tups, 1)},
+        freq_mhz,
+    )
     if name is None:
         name = _default_block_name(builder)
-    return _portal_wrap(
+    script = _portal_wrap(
         cards,
         name=name,
         ground=ground,
         seg_per_wl=seg_per_wl,
         conductivity=conductivity,
+        loads=statements,
     )
+    return script, feed_elements
 
 
 # --- phase 2: networked (station) export — issue #604 -----------------------
@@ -629,8 +824,8 @@ def _station_chain(net, freq_mhz: float, spans=()):
 
     Returns ``(feed_port, elements, deck_loads)``: the antenna-side
     ``PortOnWire`` the walk terminates on, the chain's element XML fragments
-    in generator→antenna walk order, and the ``Load`` branches that belong in
-    the NEC deck (as LD cards) rather than the circuit.
+    in generator→antenna walk order, and the ``(Load, name)`` branches that
+    sit on the antenna's wires rather than in the circuit (:func:`_wire_loads`).
 
     Raises :class:`SsnUnsupported` for anything that is not a single
     generator→antenna ladder of representable elements — most importantly
@@ -693,22 +888,14 @@ def _station_chain(net, freq_mhz: float, spans=()):
         if isinstance(br, (Admittance, TouchstoneLoad, TouchstoneTwoPort)):
             raise SsnUnsupported(f"{name}: no SimNEC element mapping (yet)")
         if isinstance(br, Load):
-            if br.z is not None:
-                raise SsnUnsupported(
-                    f"{name}: the fixed-Z load form (LD 4) is not exported"
-                )
-            if br.ql is not None or br.qc is not None:
-                raise SsnUnsupported(
-                    f"{name}: a finite-Q Load needs R = ωL/Q re-derived per "
-                    "frequency, which a deck LD card cannot express"
-                )
+            # Its value is vetted where it is written (`_wire_loads`).
             if not isinstance(net.ports.get(br.port), PortOnWire):
                 raise SsnUnsupported(
                     f"{name}: a series Load on a virtual node has no SimNEC "
                     "cascade element (use a TwoPort for an in-line series "
                     "impedance)"
                 )
-            deck_loads.append(br)
+            deck_loads.append((br, name))
         elif isinstance(br, Shunt):
             shunts_at.setdefault(br.port, []).append((bi, br, name))
         elif isinstance(br, (TL, TwoPort, Transformer)):
@@ -809,10 +996,11 @@ def _wire_conductivities(eng) -> dict[int, float | None]:
 
 
 def _station_cards(eng, feed_port: str, deck_loads, freq_mhz: float):
-    """The station's NEC-block cards: geometry, trap/lumped LD loads on real
-    ports, FR, and an EX delta gap at the station's feed port (which the
-    portal wires to the block's circuit port — the cascade attaches there).
-    Same canonical GW → LD → FR → EX grouping as the antenna-only path."""
+    """The station's NEC-block cards — geometry, FR, and an EX delta gap at
+    the station's feed port (which the portal wires to the block's circuit
+    port — the cascade attaches there), in the antenna-only path's canonical
+    GW → FR → EX grouping — and the lumped loads on its wires, as
+    :func:`_wire_loads` writes them: ``(cards, statements, feed_elements)``."""
     wire_loc: dict[str, tuple[int, int]] = {}
     net = getattr(eng, "_network", None)
 
@@ -830,20 +1018,18 @@ def _station_cards(eng, feed_port: str, deck_loads, freq_mhz: float):
         w = as_wire(t)
         if w.name is not None:
             wire_loc[w.name] = (tag, t[2])
-    for br in deck_loads:
-        r = float(br.r) if br.r is not None else 0.0
-        l = float(br.l) if br.l is not None else 0.0
-        c = float(br.c) if br.c is not None else 0.0
-        if r == 0.0 and l == 0.0 and c == 0.0:
-            continue
-        tag, seg = loc(br.port)
-        ldtyp = 1 if br.parallel else 0
-        geom.append(f"LD {ldtyp} {tag} {seg} {seg} {_num(r)} {_num(l)} {_num(c)}")
     tag, seg = loc(feed_port)
-    return geom + [
+    statements, feed_elements = _wire_loads(
+        [(br, name, loc(br.port)) for br, name in deck_loads],
+        (tag, seg),
+        {tag: t[2] for tag, t in enumerate(eng.tups, start=1)},
+        freq_mhz,
+    )
+    cards = geom + [
         f"FR 0 1 0 0 {_num(freq_mhz)} {_num(0.0)}",
         f"EX 0 {tag} {seg} 0 {_num(1.0)} {_num(0.0)}",
     ]
+    return cards, statements, feed_elements
 
 
 # --- minimal .ssn XML scaffold (see module note) ----------------------------
@@ -1015,24 +1201,29 @@ def export_ssn(
         # Station path (issue #604): circuit elements from the reducer
         # branches, the antenna alone in the NEC block, driven at the
         # station's feed port.
+        _refuse_jacket(eng)
         net, spans = _tuner_spans(eng, builder, ground, freeze_tuners)
         feed_port, walk_elements, deck_loads = _station_chain(net, freq_mhz, spans)
-        cards = _station_cards(eng, feed_port, deck_loads, freq_mhz)
+        cards, statements, feed_elements = _station_cards(
+            eng, feed_port, deck_loads, freq_mhz
+        )
         script = _portal_wrap(
             cards,
             name=name if name is not None else _default_block_name(builder),
             ground=ground,
             seg_per_wl=seg_per_wl,
             conductivity=_uniform_conductivity(_wire_conductivities(eng)),
+            loads=statements,
         )
-        # File order is right-to-left (LOAD … GENERATOR), so the chain lands
-        # after the antenna NETWORK element in antenna→generator order.
-        chain = "".join("\n" + el for el in reversed(walk_elements))
+        # A load on the fed segment is the antenna-most element (AK#1683).
+        walk_elements = walk_elements + feed_elements
     else:
-        script = build_nec_portal_script(
+        script, walk_elements = _antenna_portal(
             builder, freq_mhz=freq_mhz, ground=ground, seg_per_wl=seg_per_wl, name=name
         )
-        chain = ""
+    # File order is right-to-left (LOAD … GENERATOR), so the chain lands
+    # after the antenna NETWORK element in antenna→generator order.
+    chain = "".join("\n" + el for el in reversed(walk_elements))
     gen_sweep = (
         "" if sweep is None else _gen_sweep_block(float(sweep[0]), float(sweep[1]))
     )

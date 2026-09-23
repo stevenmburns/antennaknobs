@@ -485,7 +485,7 @@ def test_simnec_station_cards_feed_the_segment_at_names():
     from antennaknobs.simnec_export import _station_cards
 
     eng = _pynec(n_seg=20, feed_at=0.275)
-    cards = _station_cards(eng, "feed", [], FREQ)
+    cards, _, _ = _station_cards(eng, "feed", [], FREQ)
     assert [" ".join(c.split()[:4]) for c in cards if c.startswith("EX")] == [
         f"EX 0 1 {gap_segment(20, 0.275)}"
     ]

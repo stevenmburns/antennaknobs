@@ -491,7 +491,7 @@ def test_simnec_station_cards_feed_the_middle_of_the_piece():
     from antennaknobs.simnec_export import _station_cards
 
     eng = _pynec(feed_at=1 / 3)
-    cards = _station_cards(eng, "feed", [], FREQ)
+    cards, _, _ = _station_cards(eng, "feed", [], FREQ)
     # the port's own piece is wire 2, three segments long
     assert [" ".join(c.split()[:4]) for c in cards if c.startswith("EX")] == [
         "EX 0 2 2"

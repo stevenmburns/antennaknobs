@@ -74,8 +74,13 @@ The chain hangs between a virtual generator-side node (``"rig"``, the
 ``Driven`` source: SimNEC's GENERATOR) and the deck's fed wire (``"feed"``,
 the antenna's own terminals), and each block sits on a node of its own named
 after its label (AK#1679, AK#1681), so every block SimNEC reports an impedance
-at is a measurement plane here too; trap ``Load``s ride in the deck as LD
-cards and translate through ``parse_nec`` as usual. Semantics notes, shared
+at is a measurement plane here too. A lumped load on a wire is SimNEC's
+``R<k> (<impedance>) a b;`` component attached by ``NECSource({a,b},
+$GW_<tag>, <percent>)`` (the exporter's spelling since AK#1683: SimNEC ignores
+LD cards in the block); one with constant values at a segment centre reads as
+the LD card it stands for and translates through ``parse_nec`` as usual. An LD
+card inside the block is still read, although SimNEC itself ignores it.
+Semantics notes, shared
 with the exporter: SimNEC quotes component ``Q`` at a frequency (``@MHz``)
 while ``ql``/``qc`` are frequency-independent, so the import is exact at the
 quoted frequency and Q-model-approximate across a sweep; ``Q = 0`` reads as
@@ -143,6 +148,18 @@ _NECOPTION = re.compile(r"^NECOptions\.(\w+)\s*=\s*(\S+)$", re.IGNORECASE)
 # and JamSegments fixes that wire's count (the NECPortal manual, "Suggesting
 # Wire Segmentation"). Applied exactly (AK#1679).
 _JAM = re.compile(r"^\$GW_(\d+)\s*\.\s*JamSegments\s*\(\s*(\d+)\s*\)$", re.IGNORECASE)
+# A lumped load on a GW wire, the way SimNEC places one (AK#1683): an N-block
+# `R` component carrying the impedance between two nodes, and a NECSource
+# attaching those nodes to `$GW_<tag>` at a percentage of its length.
+_R_COMPONENT = re.compile(r"^R\d+\s*\((.*)\)\s+(\w+)\s+(\w+)$")
+_LOAD_SOURCE = re.compile(
+    r"^(?:dcl\s+\w+\s*=\s*)?NECSource\s*\(\s*\{\s*(\w+)\s*,\s*(\w+)\s*\}\s*,"
+    r"\s*\$GW_(\d+)\s*,\s*([^\s,()]+)\s*\)$",
+    re.IGNORECASE,
+)
+_NUM = r"[0-9.]+(?:[eE][-+]?\d+)?[a-zA-Z\u00b5]?"
+_Z_EXPR = re.compile(rf"^({_NUM})\s*([+-])\s*j\s*\*\s*({_NUM})$")
+_LC_TERM = re.compile(rf"^([LC])\(\s*({_NUM})\s*\)$")
 
 
 @dataclass(frozen=True)
@@ -210,6 +227,44 @@ def _chain_q(el: SsnElement) -> float | None:
     exporter also uses."""
     q = _chain_f(el, "Q", default=0.0)
     return q if q > 0.0 else None
+
+
+def _si_float(token: str) -> float:
+    """A number with an optional trailing SI suffix (`_SI_SUFFIX`)."""
+    text = token.strip()
+    scale = 1.0
+    if text and text[-1] in _SI_SUFFIX:
+        scale, text = _SI_SUFFIX[text[-1]], text[:-1]
+    return float(text) * scale
+
+
+def _load_card_values(expr: str) -> tuple[int, float, float, float] | None:
+    """An N-block impedance expression as LD card values ``(type, F1, F2,
+    F3)``: type 0 series R/L/C, 1 parallel, 4 a fixed R + jX (AK#1683). Only
+    the spellings the exporter writes and constant values are read — a bare
+    number (ohms), ``L(henries)``, ``C(farads)``, joined all by ``+`` or all
+    by ``|||``, or ``R + j*X`` / ``R - j*X``; None for anything else
+    (variables, a Q argument), which the caller leaves unapplied."""
+    expr = expr.strip()
+    m = _Z_EXPR.match(expr)
+    if m:
+        x = _si_float(m.group(3))
+        return 4, _si_float(m.group(1)), -x if m.group(2) == "-" else x, 0.0
+    parallel = "|||" in expr
+    terms = [t.strip() for t in expr.split("|||" if parallel else " + ")]
+    legs: dict[str, float] = {}
+    for t in terms:
+        m = _LC_TERM.match(t)
+        kind, token = (m.group(1), m.group(2)) if m else ("R", t)
+        if kind in legs or not re.fullmatch(_NUM, token):
+            return None
+        legs[kind] = _si_float(token)
+    return (
+        1 if parallel else 0,
+        legs.get("R", 0.0),
+        legs.get("L", 0.0),
+        legs.get("C", 0.0),
+    )
 
 
 def _shunt_branch(el: SsnElement, node: str):
@@ -701,6 +756,10 @@ class _Script:
         # `$GW_<tag>.JamSegments(N)`: GW tag -> (segment count, the statement
         # as written) (AK#1679).
         self.jam: dict[int, tuple[int, str]] = {}
+        # Lumped loads on GW wires (AK#1683): the `R` components by their
+        # node pair, and the NECSource statements attaching them.
+        self._r_components: dict[tuple[str, str], tuple[str, str]] = {}
+        self._load_sources: list[tuple[re.Match, str]] = []
         in_cards = False
         for raw in text.splitlines():
             line = raw.strip()
@@ -731,6 +790,53 @@ class _Script:
                     self._directive(stmt, where)
         if in_cards:
             raise ValueError(f"{where}: NEC2 block is missing its NECEND")
+        self._apply_loads(where)
+
+    def _apply_loads(self, where: str) -> None:
+        """Each NECSource load (an `R` component on a `$GW_<tag>` wire,
+        AK#1683) as the LD card it stands for, appended to the cards. SimNEC
+        places the load at the percentage itself; here it must be a segment
+        centre of the GW count, which is where the exporter puts it. A load
+        between two centres is refused by name, never moved to the nearest;
+        one whose value or wire cannot be read is left unapplied (and so
+        reported), as is an `R` component no NECSource attaches."""
+        counts: dict[int, list[int]] = {}
+        for card in self.cards:
+            parts = re.split(r"[\s,]+", card.strip())
+            if parts[0].upper() == "GW" and len(parts) > 2:
+                try:
+                    counts.setdefault(int(parts[1]), []).append(int(parts[2]))
+                except ValueError:
+                    continue
+        used: set[tuple[str, str]] = set()
+        for m, stmt in self._load_sources:
+            a, b, tag, pct_text = m.group(1), m.group(2), int(m.group(3)), m.group(4)
+            key = (a, b) if (a, b) in self._r_components else (b, a)
+            comp = self._r_components.get(key)
+            values = _load_card_values(comp[0]) if comp else None
+            n = counts.get(tag, [])
+            try:
+                pct = _si_float(pct_text)
+            except ValueError:
+                pct = None
+            if values is None or len(n) != 1 or pct is None:
+                self.ignored.append(stmt)
+                continue
+            used.add(key)
+            seg_f = pct / 100.0 * n[0] + 0.5
+            seg = round(seg_f)
+            if not (1 <= seg <= n[0] and math.isclose(seg_f, seg, abs_tol=1e-6)):
+                raise ValueError(
+                    f"{where}: the load {comp[1]!r} sits at {pct_text}% of "
+                    f"$GW_{tag}, which is not a segment centre of its "
+                    f"{n[0]}-segment GW card; this import places a load on a "
+                    "segment and does not re-mesh a wire to put one there"
+                )
+            ldtyp, f1, f2, f3 = values
+            self.cards.append(f"LD {ldtyp} {tag} {seg} {seg} {f1!r} {f2!r} {f3!r}")
+        for key, (_expr, stmt) in self._r_components.items():
+            if key not in used:
+                self.ignored.append(stmt)
 
     def _directive(self, stmt: str, where: str) -> None:
         if _PORT_DECL.match(stmt):
@@ -738,6 +844,14 @@ class _Script:
         m = _JAM.match(stmt)
         if m:
             self.jam[int(m.group(1))] = (int(m.group(2)), stmt)
+            return
+        m = _R_COMPONENT.match(stmt)
+        if m:
+            self._r_components[(m.group(2), m.group(3))] = (m.group(1), stmt)
+            return
+        m = _LOAD_SOURCE.match(stmt)
+        if m:
+            self._load_sources.append((m, stmt))
             return
         if _PERFECT.match(stmt):
             self.ground = "pec"
