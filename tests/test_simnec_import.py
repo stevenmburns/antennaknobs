@@ -5,6 +5,7 @@ XML covers the foreign-file cases (units, station elements, unknown directives,
 malformed input) a SimNEC-saved circuit can carry.
 """
 
+import re
 from types import MappingProxyType
 
 import pytest
@@ -136,9 +137,14 @@ def test_roundtrip_scaffold_is_not_reported():
     elements; a clean round-trip has nothing to warn about."""
     c = _roundtrip(freq_mhz=14.1, ground=None)
     assert c.other_elements == ()
-    assert c.ignored_directives == ()
+    # The export's per-wire JamSegments (AK#1680) are the only statements the
+    # importer does not read yet; reading them is AK#1679's, and once it does
+    # this is `== ()` again, with skipped_note() None.
+    assert c.ignored_directives
+    assert all(
+        re.fullmatch(r"\$GW_\d+\.JamSegments\(\d+\)", d) for d in c.ignored_directives
+    )
     assert c.gen_zo == pytest.approx(50.0)
-    assert c.skipped_note() is None
 
 
 def test_roundtrip_real_builtin_design():

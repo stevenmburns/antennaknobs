@@ -21,19 +21,24 @@ script, expressed in SimNEC's NEC-portal daemon language:
     P2 w2 gnd;
     NECUnits meters, meters;
     SommerfeldGround(0.0303, 20);      // (mhos, dielectric) == (sigma, eps_r)
-    NECOptions.mhosPerMeter = 0;       // 0 = PEC
-    NECOptions.segmentsPerWavelength = 120;
+    NECOptions.mhosPerMeter = Conductivities.copper;  // 0 = perfect wire
     NEC2                               // NEC cards go between NEC2 and NECEND
-    GW 1 ...
+    GW 1 11 ...
     EX 0 1 6 0 1. 0.
     NECEND
+    $GW_1.JamSegments(11);             // the deck's own count, per wire
 
 We reuse :func:`antennaknobs.nec_export.export_nec` for the geometry, then keep
 the ``GW`` / ``FR`` / ``EX`` / lumped-``LD`` cards and translate the rest into
 daemon directives: the Generator's ``MHz`` carries the (sweepable) solve
-frequency; ``GN`` → the ground call; the deck's segment counts are *advisory
-only* — SimNEC re-meshes at ``NECOptions.segmentsPerWavelength``, which is why
-that knob is exposed. ``FR`` is left in the deck too: a SimNEC 5.1a1-saved
+frequency; ``GN`` → the ground call; ``LD 5`` → ``NECOptions.mhosPerMeter``
+(SimNEC's NEC2 reader ignores LD cards, and takes one conductivity for the
+whole block, so a design whose wires differ is refused — AK#1680). SimNEC
+treats a ``GW`` card's segment count as advisory and re-meshes, so each wire
+also gets a ``$GW_<tag>.JamSegments(N)`` carrying the deck's count (AK#1680),
+unless ``seg_per_wl`` is given: that knob asks for SimNEC's own mesh at
+``NECOptions.segmentsPerWavelength``, for a convergence comparison, and
+writes no JamSegments. ``FR`` is left in the deck too: a SimNEC 5.1a1-saved
 ``.ssn`` carries ``FR`` alongside a live ``G.MHz`` sweep, so it is harmless
 (advisory) and matches SimNEC's own output.
 
@@ -129,8 +134,10 @@ from dataclasses import dataclass, replace
 from xml.sax.saxutils import escape as _xml_escape
 
 from .auto_match import design_freq_mhz, find_tuners
-from .engines.pynec import DEFAULT_GROUND, PyNECEngine
+from .engines._nec_wire import nec_wire_material
+from .engines.pynec import DEFAULT_GROUND, WIRE_CONDUCTIVITY, PyNECEngine
 from .nec_export import _gw, _num, export_nec
+from .simnec_import import _RESISTIVITY_OHM_M
 from .wire_catalog import gap_segment, port_at, port_wire
 from .network import (
     TL,
@@ -168,18 +175,17 @@ def _fmt(x: float) -> str:
     return f"{float(x):g}"
 
 
-def _ground_directive(ground) -> tuple[str | None, float]:
-    """Map an antennaknobs ground spec to a SimNEC daemon ground call and the
-    wire conductivity (mhos/m) to set on ``NECOptions.mhosPerMeter``.
-
-    Returns ``(call_or_None, mhos_per_meter)``. Free space → no ground call.
-    Note SimNEC's ``SommerfeldGround(mhos, dielectric)`` takes (sigma, eps_r) —
-    the reverse of our ``("finite", eps_r, sigma)`` tuple.
+def _ground_directive(ground) -> str | None:
+    """Map an antennaknobs ground spec to a SimNEC daemon ground call, or
+    ``None`` for free space. Note SimNEC's ``SommerfeldGround(mhos,
+    dielectric)`` takes (sigma, eps_r) — the reverse of our
+    ``("finite", eps_r, sigma)`` tuple. The WIRE conductivity is not a ground
+    property; :func:`_conductivity_token` writes it (AK#1680).
     """
     if ground is None or ground == "free":
-        return None, 0.0
+        return None
     if ground == "pec":
-        return "PerfectGround();", 0.0
+        return "PerfectGround();"
     if (
         isinstance(ground, tuple)
         and len(ground) == 3
@@ -189,12 +195,73 @@ def _ground_directive(ground) -> tuple[str | None, float]:
         # SimNEC has no distinct reflection-coefficient ("finite-fast") ground;
         # both map to its Sommerfeld solve — the accurate model — which is also
         # what a validation run should compare against.
-        return f"SommerfeldGround({_fmt(sigma)}, {_fmt(eps_r)});", 0.0
+        return f"SommerfeldGround({_fmt(sigma)}, {_fmt(eps_r)});"
     if isinstance(ground, tuple) and len(ground) == 3 and ground[0] == "mininec":
         # SimNEC's own MININEC ground, same (mhos, dielectric) order (AK#1655).
         _, eps_r, sigma = ground
-        return f"MiniNECGround({_fmt(sigma)}, {_fmt(eps_r)});", 0.0
+        return f"MiniNECGround({_fmt(sigma)}, {_fmt(eps_r)});"
     raise ValueError(f"unrecognised ground spec: {ground!r}")
+
+
+def _conductivity_token(sigma: float | None) -> str:
+    """The right-hand side of ``NECOptions.mhosPerMeter`` for a wire
+    conductivity in S/m (None = perfect wire, which SimNEC spells 0).
+
+    A value that IS one of SimNEC's ``Conductivities.<name>`` (the table
+    :mod:`simnec_import` reads, so export and import are inverses) is written
+    by name, as SimNEC's own files do; anything else as the shortest decimal
+    that round-trips the float exactly (no ``+`` in the exponent)."""
+    if sigma is None or sigma == 0.0:
+        return "0"
+    for name, rho in _RESISTIVITY_OHM_M.items():
+        if math.isclose(sigma, 1.0 / rho, rel_tol=1e-12):
+            return f"Conductivities.{name}"
+    return repr(float(sigma)).replace("e+", "e")
+
+
+def _uniform_conductivity(sigmas: dict[int, float | None]) -> float | None:
+    """The one conductivity every wire shares (tag → S/m, None = perfect).
+
+    SimNEC's NEC2 deck reader takes GW / GS / EX / NT and ignores every other
+    card (NECPortal manual, "NEC2 Decks"), so an ``LD 5`` inside the block is
+    not read: the conductivity has to be ``NECOptions.mhosPerMeter``, one
+    value for the whole block. A design whose wires differ is refused, naming
+    them, rather than written with one of its conductivities applied to all
+    (AK#1680). The manual documents a per-wire ``$wire.Mhos(...)``, but not on
+    a NEC2 block's ``$GW_<tag>`` wires, and it is unverified there."""
+    values = set(sigmas.values())
+    if len(values) <= 1:
+        return next(iter(values), None)
+    by_value: dict[float | None, list[int]] = {}
+    for tag, v in sigmas.items():
+        by_value.setdefault(v, []).append(tag)
+    groups = "; ".join(
+        ("perfect" if v is None else f"{v:g} S/m")
+        + f" on wire{'s' if len(t) > 1 else ''} {', '.join(map(str, t))}"
+        for v, t in by_value.items()
+    )
+    raise SsnUnsupported(
+        f"the wires' conductivities differ ({groups}); SimNEC's NEC2 block "
+        "takes one NECOptions.mhosPerMeter for every wire and ignores LD 5 "
+        "cards, so the design is not exported rather than written with one "
+        "conductivity applied to all (AK#1680)"
+    )
+
+
+def _jam_segments(cards) -> list[str]:
+    """``$GW_<tag>.JamSegments(N);`` for every ``GW`` card, so SimNEC meshes
+    each wire the way the deck (and so antennaknobs) did (AK#1680). SimNEC
+    names a NEC2 block's wires ``$GW_<tag>`` after ``NECEND``; this is the
+    spelling in AC6LA's own SimNEC files. The manual calls JamSegments a
+    strong suggestion, not a guarantee: it does not suppress SimNEC's
+    auto-segmentation (growth-rate / junction splits), so the counts SimNEC
+    reports are still worth a look."""
+    out = []
+    for c in cards:
+        parts = c.split()
+        if parts[:1] == ["GW"]:
+            out.append(f"$GW_{int(parts[1])}.JamSegments({int(parts[2])});")
+    return out
 
 
 def _nec_cards_for_portal(deck: str) -> list[str]:
@@ -246,10 +313,12 @@ def _default_block_name(builder) -> str:
     return qual
 
 
-def _portal_wrap(cards, *, name, ground, seg_per_wl) -> str:
+def _portal_wrap(cards, *, name, ground, seg_per_wl, conductivity) -> str:
     """The NEC-portal daemon script (the ``<equ>`` body): comment header,
-    ports/units/ground/mesh directives, then ``cards`` between NEC2/NECEND."""
-    ground_call, mhos = _ground_directive(ground)
+    ports/units/ground/conductivity/mesh directives, then ``cards`` between
+    NEC2/NECEND, then a ``JamSegments`` per wire — unless ``seg_per_wl`` asks
+    for SimNEC's own mesh, which is what that knob is for."""
+    ground_call = _ground_directive(ground)
     lines = [
         f"//{name}",
         "// generated by antennaknobs.simnec_export",
@@ -259,12 +328,14 @@ def _portal_wrap(cards, *, name, ground, seg_per_wl) -> str:
     ]
     if ground_call:
         lines.append(ground_call)
-    lines.append(f"NECOptions.mhosPerMeter = {_fmt(mhos)};")
+    lines.append(f"NECOptions.mhosPerMeter = {_conductivity_token(conductivity)};")
     if seg_per_wl is not None:
         lines.append(f"NECOptions.segmentsPerWavelength = {int(seg_per_wl)};")
     lines.append("NEC2")
     lines.extend(cards)
     lines.append("NECEND")
+    if seg_per_wl is None:
+        lines.extend(_jam_segments(cards))
     return "\n".join(lines)
 
 
@@ -297,6 +368,9 @@ def build_nec_portal_script(
         builder, ground=ground, freq=freq_mhz, include_rp=False, jacket_pair=False
     )
     cards = _nec_cards_for_portal(deck)
+    conductivity = _uniform_conductivity(
+        _wire_conductivities(PyNECEngine(builder, ground=ground))
+    )
     n_feeds = sum(1 for c in cards if c.startswith("EX"))
     if n_feeds > 1:
         # SimNEC's cascade template has ONE generator, so a multi-feed deck's
@@ -314,7 +388,13 @@ def build_nec_portal_script(
         )
     if name is None:
         name = _default_block_name(builder)
-    return _portal_wrap(cards, name=name, ground=ground, seg_per_wl=seg_per_wl)
+    return _portal_wrap(
+        cards,
+        name=name,
+        ground=ground,
+        seg_per_wl=seg_per_wl,
+        conductivity=conductivity,
+    )
 
 
 # --- phase 2: networked (station) export — issue #604 -----------------------
@@ -697,6 +777,25 @@ def _station_chain(net, freq_mhz: float, spans=()):
     return feed_port, elements, deck_loads
 
 
+def _wire_conductivities(eng) -> dict[int, float | None]:
+    """Per-tag wire conductivity (S/m, None = perfect), in the ``GW`` tag
+    order both paths write (``eng.tups``, from 1): each wire's effective spec,
+    the conductor's own value, unscaled — the portal writes the bare radius
+    (``jacket_pair=False``). Read from the specs, not from an ``LD 5`` card,
+    whose 7-figure spelling would move SimNEC's copper off its own name."""
+    out: dict[int, float | None] = {}
+    for tag, t in enumerate(eng.tups, start=1):
+        spec = as_wire(t).spec
+        eff = spec if spec is not None else eng._wire_spec
+        out[tag] = nec_wire_material(
+            eng._radius_for(t),
+            eff.conductivity if eff is not None else WIRE_CONDUCTIVITY,
+            eff,
+            pair=False,
+        ).conductivity
+    return out
+
+
 def _station_cards(eng, feed_port: str, deck_loads, freq_mhz: float):
     """The station's NEC-block cards: geometry, trap/lumped LD loads on real
     ports, FR, and an EX delta gap at the station's feed port (which the
@@ -868,9 +967,11 @@ def export_ssn(
     ground     : same spec as ``export_nec`` / PyNECEngine — None/"free",
                  "pec", ("finite", eps_r, sigma), ("finite-fast", eps_r, sigma),
                  ("mininec", eps_r, sigma) as SimNEC's MiniNECGround.
-    seg_per_wl : SimNEC auto-mesh density (segments per wavelength). None leaves
-                 SimNEC's default; set it to pin SimNEC's mesh for a convergence
-                 comparison (SimNEC re-segments regardless of the deck).
+    seg_per_wl : SimNEC auto-mesh density (segments per wavelength). None (the
+                 default) writes a ``$GW_<tag>.JamSegments(N)`` per wire, so
+                 SimNEC meshes each wire as the deck does (AK#1680); set it to
+                 hand the mesh to SimNEC's auto-segmentation instead, for a
+                 convergence comparison (no JamSegments are written then).
     sweep      : ``(lo_mhz, hi_mhz)`` to enable the Generator's frequency sweep
                  over that band. ``None`` (default) leaves it minimal, so SimNEC
                  uses its own default (disabled) range — the single-point solve
@@ -910,6 +1011,7 @@ def export_ssn(
             name=name if name is not None else _default_block_name(builder),
             ground=ground,
             seg_per_wl=seg_per_wl,
+            conductivity=_uniform_conductivity(_wire_conductivities(eng)),
         )
         # File order is right-to-left (LOAD … GENERATOR), so the chain lands
         # after the antenna NETWORK element in antenna→generator order.
