@@ -29,17 +29,17 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.85.0" icon="star">
-  **Tuners that tune themselves.** Give `l_network_tuner` or `t_network_tuner`
-  a `tune_to` target instead of component values, and the engine solving the
-  design picks the parts for its own antenna, then holds them across a sweep so
-  you see the tuned bandwidth. A T keeps one part fixed (yours, or a capacitor
-  parked at its maximum), and both take the component ranges a real box has.
-  SimNEC's automatic LC match imports as this tuner and exports back as one.
-  EZNEC's MININEC-type ground joins the finite grounds on every engine. The
-  pattern views now say where the maximum is, with one click to find the whole
-  pattern's peak and aim both cuts through it, and their captions stay clear of
-  the controls on a small or zoomed display.
+<Card title="New in v0.86.0" icon="star">
+  **One range for the dial and the sweep.** The measurement dial now travels
+  exactly the band the sweep covers: right-click it (long-press on touch) to
+  set the range, a step or a point count, and linear or log spacing, and a
+  deck's own sweep arrives with the file. SimNEC files round-trip more
+  faithfully: loads and insulated wires export in the forms SimNEC applies,
+  `JamSegments` counts are honoured, and every block of a station is a
+  measurement plane, with `rig` at the generator and `feed` at the antenna.
+  The NEC-2 engine now solves the network decks NEC-5 does, razor-2p serves
+  buried radials on momwire 0.62, and a rescan button picks up a design file
+  you just dropped into your folder.
 </Card>
 
 ## The whole pitch, in one line

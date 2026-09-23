@@ -44,8 +44,9 @@ is `--sweep` below, on the command line.
 
 Flags: `--freq` (MHz, default the design's), `--ground free | pec | finite |
 finite:<eps_r>,<sigma> | mininec:<eps_r>,<sigma>` (the last as SimNEC's own
-`MiniNECGround`), `--seg-per-wl` (SimNEC re-meshes at its own
-segments-per-wavelength — the deck's segment counts are advisory there),
+`MiniNECGround`), `--seg-per-wl` (skip the per-wire mesh pin described below
+and ask for SimNEC's own re-mesh at `NECOptions.segmentsPerWavelength`
+instead — for a convergence comparison against SimNEC's own density),
 `--sweep` (bare for ±10% around the frequency, or `LO,HI`), `--name`, and
 `--out` (default stdout).
 
@@ -54,6 +55,19 @@ LOAD / NETWORK / GENERATOR — with the geometry riding inside the NETWORK
 element as a NEC-portal script (the same `GW`/`FR`/`EX`/lumped-`LD` cards
 [`export`](/reference/cli/#exporting-to-nec) emits, plus daemon directives
 for ground and mesh density).
+
+SimNEC's NEC2 reader ignores everything in that block but `GW`/`GM`/`GS`/`EX`/`NT`, so three more things travel as daemon directives rather than cards:
+the wire **conductivity** as one `NECOptions.mhosPerMeter` for the whole
+block (refused by name when the design's wires do not all share one value);
+each wire's **mesh**, as a `$GW_<tag>.JamSegments(N)` carrying the deck's own
+segment count, so SimNEC solves the mesh you asked for instead of
+re-meshing it away — unless `--seg-per-wl` is given, which skips these and
+asks for SimNEC's own density instead; and an **insulation jacket**, as
+`NECOptions.Insulation("W7EL", thickness, εr, 0)` — the EZNEC correction
+model, set inside `if (NECOptions.Engine == 2)` since it applies on SimNEC's
+NEC2 engine only, with an `errorOutln` for any other engine. A jacket is one
+value for every wire, so a design whose wires carry different jackets is
+refused by name.
 
 **Station designs** — a `build_network()` ladder of feedline, tuner arms, and
 transformers — additionally emit the chain as SimNEC circuit elements in
@@ -65,7 +79,8 @@ cascade order:
 | `TwoPort` L/C arm | `SERIES_IND` / `SERIES_CAP` | H / F, component Q quoted at the export frequency |
 | `Shunt` L/C leg | `SHUNT_IND` / `SHUNT_CAP` | H / F, Q likewise |
 | ideal `Transformer` | `TRANSFORMER2` (`Mdl ideal`) | turns ratio (SimNEC's N is the antenna:generator voltage ratio — handled internally, validated live) |
-| `Load` on a real port (traps) | stays an `LD` card in the deck | R/L/C |
+| `Load` off the fed segment (traps) | SimNEC's own `NECSource` load on the `$GW_<tag>` wire, at the load's segment centre | R/L/C, a fixed `z`, series or parallel |
+| `Load` on the fed segment | `SERIES_IND` / `SERIES_CAP` between the antenna and the generator (SimNEC turns the `EX` card into its own source there, so the load has to be a series circuit element instead) | H / F |
 | self-tuning `l_network_tuner(tune_to=…)`, `"low"` / `"high"` | `XMATCH` (the LC matching component, `mode auto`) | `pass`, `R` = the target (`X` 0), `Qc` / `Ql`, `MHz` = the tune frequency |
 
 A self-tuning tuner exports as SimNEC's own element, not as numbers: SimNEC
@@ -86,9 +101,13 @@ balanced tuners built from them — cannot be faithfully represented, and the
 exporter raises a clear error naming the offending branch instead of
 silently dropping the common mode and emitting a confidently-wrong circuit.
 The same applies to non-ladder topologies, current sources, lossy
-transformers, and distributed (finite-gap) feed ports. About four in five
-catalog designs export; the refusals tell you exactly what construct is in
-the way.
+transformers, and distributed (finite-gap) feed ports. A **finite-Q** `Load`
+is refused by name too: SimNEC's series elements take a fixed R/L/C, not a Q
+that would need re-deriving per frequency. And a `Load` that lands on the fed
+segment can only leave as a series L and/or C (the row above) — a resistor, a
+fixed `z`, or a parallel pair there is refused by name, since SimNEC's own
+source already owns that spot. About four in five catalog designs export; the
+refusals tell you exactly what construct is in the way.
 
 Component `Q` deserves one note: antennaknobs models `ql`/`qc` as
 frequency-independent while SimNEC quotes Q at a frequency, so a lossy
@@ -116,24 +135,51 @@ python -m antennaknobs export --builder @dip.ssn --out dip.nec
 ```
 
 What the importer honours: the solve frequency comes from the **Generator's
-MHz** (in SimNEC the deck's `FR` card is advisory), an armed Generator sweep
+MHz** (in SimNEC the deck's `FR` card is advisory), the Generator's own sweep
+expression is read (`14 : 14.35 : 0.025`, lin or log spacing honoured) and
 becomes the design's measurement band, the daemon ground call surfaces as a
 `--ground` hint (`PerfectGround`, `SommerfeldGround`, and `MiniNECGround` as
-the [MININEC-type ground](/reference/web/#the-mininec-type-ground)), and wire conductivity applies per-wire. `NECUnits` is read
+the [MININEC-type ground](/reference/web/#the-mininec-type-ground)), and wire conductivity applies to every wire alike, one value for the circuit. `NECUnits` is read
 but not applied: in SimNEC it only sets the units wire dimensions are
-displayed in, and the NEC cards are metres whatever it says. Values are read
-the way SimNEC writes them: component values with its SI suffixes (`37.52p`,
+displayed in, and the NEC cards are metres whatever it says. `NECOptions.fieldStep`
+(SimNEC's far-field display step, in degrees) is likewise read and accepted
+quietly rather than reported as skipped — it is a display resolution, and no
+solved number depends on it — though a malformed value still refuses. Values
+are read the way SimNEC writes them: component values with its SI suffixes (`37.52p`,
 `731.9n`, `2K`; its `g` is a wire gauge and is not a multiplier), and a wire
 material by name (`NECOptions.mhosPerMeter = Conductivities.aluminum;`, with
 SimNEC's own values). An automatic `XMATCH` imports as a self-tuning
 [`l_network_tuner`](/concepts/station-modelling/), which tunes for the solving
 engine's own antenna impedance; SimNEC's `MHz 0` (retune at every frequency)
-tunes once, at the Generator's frequency, and the import note says so. SimNEC re-meshes a deck's wires by its own rules before
-solving, and antennaknobs solves the segments the deck gives, so the two can
-differ by the mesh alone. Chain elements
-translate back branch-for-branch through the same table as export, and a
-chain element outside that set makes `network()` refuse rather than build a
-station with a silently-missing tuner part.
+tunes once, at the Generator's frequency, and the import note says so.
+
+A `$GW_<tag>.JamSegments(N)` is honoured **exactly**: the file's N replaces
+that wire's `GW` count and pins it there, so no engine's even-count rule
+moves it. An attachment that JamSegments leaves off a segment site — a feed
+at the middle of an odd-count wire, say — is fed exactly where it is by
+splitting the wire at that point, never snapped to a neighbouring site.
+`JamSegments(0)` means "auto-segment as usual", so the `GW` count stands,
+unpinned. Short of that, SimNEC still re-meshes every wire by its own rules
+before it solves, so its numbers differ from an import's by the mesh alone;
+for a same-mesh comparison, import `lastConstructedNEC.nec` from
+`~/.SimNEC/<version>/` instead — the deck SimNEC actually solved.
+
+Each SimNEC block is its own **measurement plane**: the Generator is `"rig"`
+(the far end of the feed system, not the antenna), the deck's fed wire is
+`"feed"` (the antenna's own terminals) — the same two names EZNEC's virtual-wire
+idiom uses in the [NEC importer](/reference/nec-import/) — and every chain
+block in between gets a node of its own, named after its label, so every
+block SimNEC reports an impedance at is a measurement plane here too.
+
+Chain elements
+translate back branch-for-branch through the same table as export, plus one
+import-only case: a `SERIES_Z` — SimNEC's fixed complex impedance — becomes a
+frequency-independent 2-port `Admittance`. A `SERIES_TLINE`'s `Mdl simplified`
+loss model (SimNEC's default: one dB/100-length figure at one frequency) is
+read and kept as the matched-loss coefficient it implies, exact at that
+frequency; any other line model is refused by name rather than approximated.
+A chain element outside the translated set makes `network()` refuse rather
+than build a station with a silently-missing tuner part.
 
 **Which `.ssn` files import.** SimNEC lets a circuit hold its antenna two
 ways, and antennaknobs reads one of them: **NEC cards between a `NEC2` line
