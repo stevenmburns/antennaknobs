@@ -24,29 +24,68 @@ function useNumericDraft(value: number) {
 // Bare numeric input with the same clear-without-snapping-to-0 draft treatment
 // as NumberField (which carries its own label/value chrome and doesn't fit the
 // knob menu's grid rows).
+//
+// Validation is the caller's job (e.g. `editSweepRange`'s cross-field rules —
+// step > 0, hi > lo — that this field cannot check on its own), reported back
+// through `invalid`: a value this field passed to `onChange` that the caller
+// refused. This field itself only catches empty / unparsable text, which
+// never reaches `onChange` (so nothing would otherwise flag it). Either way
+// the edit is never applied — `value` stays the last committed one — and the
+// field shows `data-invalid` until the text is fixed, or reverts to `value`
+// on blur or Escape.
 export function KnobMenuNumber({
   value,
   onChange,
+  invalid,
+  onRevert,
 }: {
   value: number;
   onChange: (v: number) => void;
+  /** The last value passed to `onChange` was refused by the caller. */
+  invalid?: boolean;
+  /** Called after a blur/Escape revert, so the caller can clear its own
+   *  `invalid` for this field along with the text. */
+  onRevert?: () => void;
 }) {
   const [draft, setDraft] = useNumericDraft(value);
+  const [textInvalid, setTextInvalid] = useState(false);
+  const revert = () => {
+    setDraft(String(value));
+    setTextInvalid(false);
+    onRevert?.();
+  };
   return (
     <input
       type="number"
       step="any"
       value={draft}
+      data-invalid={invalid || textInvalid || undefined}
+      aria-invalid={invalid || textInvalid || undefined}
       onChange={(e) => {
         const text = e.target.value;
         setDraft(text); // allow "", partial, or leading-zero input while typing
-        if (text.trim() === "") return; // empty: don't commit (no snap to 0)
+        if (text.trim() === "") {
+          setTextInvalid(true); // empty: don't commit (no snap to 0)
+          return;
+        }
         const v = Number(text);
+        setTextInvalid(Number.isNaN(v));
         if (!Number.isNaN(v)) onChange(v);
       }}
-      // Normalize on blur: drop any leading zeros / revert an empty field to
-      // the last committed value.
-      onBlur={() => setDraft(String(value))}
+      // Normalize on blur: drop any leading zeros / revert an empty or
+      // refused field to the last committed value.
+      onBlur={revert}
+      onKeyDown={(e) => {
+        if (e.key !== "Escape") return;
+        // Only a DIRTY field (unparsable text, or a value the caller
+        // refused) eats the Escape: it cancels that edit and leaves the
+        // menu open, mirroring blur. A clean field has nothing to cancel,
+        // so Escape falls through to the menu's own close-on-Escape —
+        // unchanged from before this field could ever be invalid.
+        if (draft === String(value) && !textInvalid && !invalid) return;
+        e.stopPropagation();
+        revert();
+      }}
     />
   );
 }
