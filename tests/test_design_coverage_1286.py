@@ -184,10 +184,37 @@ def test_buried_refusals_are_present():
         cov = adapter.design_backend_coverage(design)
         assert "buried" in cov["needs"], design
         assert "bspline" not in cov["refusals"], design
-        for backend in ("hmatrix", "arrayblock", "sinusoidal", "razor-2p", "pulse"):
+        for backend in ("hmatrix", "arrayblock", "sinusoidal", "pulse"):
             assert cov["refusals"][backend]["capability"] == "buried", (
                 f"{backend} on {design}"
             )
+    # razor-2p serves buried decks since momwire#1149 (wholly-below and
+    # detached at U0/U1, the crossing node at U2). Read from its row, as the
+    # SG cell below is, so the gate holds on either side of the pointer that
+    # moves it.
+    razor_caps = _spec("razor-2p").solver.capabilities
+    for design in (
+        "specialty.buried_dipole",
+        "verticals.buried_radial_vertical",
+        "verticals.elevated_buried_counterpoise",
+    ):
+        cov = adapter.design_backend_coverage(design)
+        if (
+            razor_caps.buried
+            and razor_caps.refusal("buried", adapter._CROSSING_NEED) is None
+        ):
+            assert "razor-2p" not in cov["refusals"], design
+        elif razor_caps.buried:
+            # U0/U1 without U2: the crossing deck alone is refused, by the row.
+            if adapter._CROSSING_NEED in cov["needs"]:
+                row = cov["refusals"]["razor-2p"]
+                assert row["reason"] == razor_caps.refusal(
+                    "buried", adapter._CROSSING_NEED
+                ), design
+            else:
+                assert "razor-2p" not in cov["refusals"], design
+        else:
+            assert cov["refusals"]["razor-2p"]["capability"] == "buried", design
     for design in ("specialty.buried_dipole", "verticals.elevated_buried_counterpoise"):
         cov = adapter.design_backend_coverage(design)
         assert adapter._CROSSING_NEED not in cov["needs"], design

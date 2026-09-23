@@ -102,11 +102,16 @@ def test_free_space_never_asks_the_question():
 
 
 @needs_the_cell
-def test_razor_refuses_the_buried_catalog_deck_at_construction():
+def test_razor_follows_its_row_on_the_buried_catalog_deck():
     """Before this it constructed and failed mid-solve with an internal
-    message. The sentence must be the ROW's, not a copy."""
+    message. While razor's row declares the crossing cell, the engine refuses
+    at construction with the ROW's sentence, not a copy. Since momwire#1149 U2
+    the row serves the crossing node, and the engine constructs. Read from the
+    row, so the gate holds on either side of the pointer that moves it."""
     declared = RazorSolver.capabilities.refusal("buried", "crossing_junction")
-    assert declared is not None, "this gate is about the pre-flip row"
+    if declared is None:
+        assert _engine(RazorSolver)._polylines
+        return
     with pytest.raises(ValueError) as exc:
         _engine(RazorSolver)
     assert str(exc.value).endswith(declared)
@@ -147,7 +152,10 @@ def test_the_flip_makes_the_engine_construct_with_no_second_edit(monkeypatch):
 def test_the_deck_decides_which_cell_is_asked():
     """momwire#850's separate cell, reached through this engine: the catalog's
     bonded screen has a declared crossing junction, so it earns the crossing
-    sentence and not the base one."""
+    sentence and not the base one — while that cell is declared. Served
+    since momwire#1149 U2, there is no sentence to ask for."""
+    if RazorSolver.capabilities.refusal("buried", "crossing_junction") is None:
+        pytest.skip("razor serves the crossing node (momwire#1149 U2)")
     with pytest.raises(ValueError) as exc:
         _engine(RazorSolver)
     assert "cross the interface at a junction" in str(exc.value)
