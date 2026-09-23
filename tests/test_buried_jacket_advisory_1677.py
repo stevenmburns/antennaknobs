@@ -60,7 +60,7 @@ from antennaknobs.engines._nec_wire import (
 )
 from antennaknobs.nec5_export import export_nec5
 from antennaknobs.nec_export import export_nec
-from antennaknobs.simnec_export import export_ssn
+from antennaknobs.simnec_export import SsnUnsupported, export_ssn
 from antennaknobs.wire_catalog import Wire, WireSpec
 
 GROUND = ("finite", 13.0, 0.005)
@@ -228,13 +228,15 @@ def test_simnec_refuses_the_buried_design_whether_or_not_it_is_jacketed(wire_typ
 
 
 def test_nec2_and_simnec_serve_the_jacketed_surface_variant_with_no_advisory():
-    """Confirms the NEC-2/SimNEC refusal above is about BURIAL, not about
-    jackets in general: the surface variant is jacketed and both writers
-    happily serve it, carrying no buried-jacket comment (they have none)."""
+    """Confirms the NEC-2 refusal above is about BURIAL, not about jackets in
+    general: the surface variant is jacketed and NEC-2 serves it, carrying no
+    buried-jacket comment. SimNEC refuses it for a different reason, by name:
+    its jacketed radials sit beside a bare vertical, and SimNEC's W7EL
+    insulation is one setting for every wire (AK#1683)."""
     deck2 = export_nec(_builder("surface"), ground=GROUND)
     assert deck2  # served
-    ssn = export_ssn(_builder("surface"), freq_mhz=7.1, ground=GROUND)
-    assert ssn  # served
+    with pytest.raises(SsnUnsupported, match="insulation differs"):
+        export_ssn(_builder("surface"), freq_mhz=7.1, ground=GROUND)
 
 
 # ---------------------------------------------------------------------------
