@@ -151,11 +151,12 @@ def test_lc1_round_trips_conductivity_and_segment_counts(tmp_path):
     assert "NECOptions.mhosPerMeter = Conductivities.copper;" in again
     # Per-wire segment counts: the re-imported design meshes each wire as the
     # exported one did. The importer reads the GW card's count, which the
-    # exporter writes equal to the JamSegments beside it; whether the importer
-    # APPLIES a JamSegments that differs from its GW card is AK#1679's, and
-    # this writer never emits one that differs.
+    # exporter writes equal to the JamSegments beside it, so the importer reads
+    # those as consistent and reports nothing (applying a DIFFERENT count is a
+    # held decision; this writer never emits one).
     assert _n_segs(rt()) == _n_segs(cls())
     assert _jammed(again) == _jammed(_equ(ssn))
+    assert parse_ssn(ssn, network=True).ignored_directives == ()
 
 
 def test_lc1_keeps_its_xmatch(tmp_path):

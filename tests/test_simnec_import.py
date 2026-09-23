@@ -5,7 +5,6 @@ XML covers the foreign-file cases (units, station elements, unknown directives,
 malformed input) a SimNEC-saved circuit can carry.
 """
 
-import re
 from types import MappingProxyType
 
 import pytest
@@ -137,14 +136,34 @@ def test_roundtrip_scaffold_is_not_reported():
     elements; a clean round-trip has nothing to warn about."""
     c = _roundtrip(freq_mhz=14.1, ground=None)
     assert c.other_elements == ()
-    # The export's per-wire JamSegments (AK#1680) are the only statements the
-    # importer does not read yet; reading them is AK#1679's, and once it does
-    # this is `== ()` again, with skipped_note() None.
-    assert c.ignored_directives
-    assert all(
-        re.fullmatch(r"\$GW_\d+\.JamSegments\(\d+\)", d) for d in c.ignored_directives
-    )
+    assert c.ignored_directives == ()
     assert c.gen_zo == pytest.approx(50.0)
+    assert c.skipped_note() is None
+
+
+def test_a_jamsegments_equal_to_its_gw_count_is_silent():
+    """AK#1680: the exporter writes `$GW_<tag>.JamSegments(N)` with the GW
+    card's own N. That says nothing the card does not, so it is not reported
+    and changes nothing."""
+    plain = parse_ssn(_ssn(_SCRIPT_M), name="t.ssn")
+    c = parse_ssn(_ssn(_SCRIPT_M + "\n$GW_1.JamSegments(11);"), name="t.ssn")
+    assert c.ignored_directives == ()
+    assert c.skipped_note() is None
+    assert c.deck.wires == plain.deck.wires
+    assert c.deck.feeds == plain.deck.feeds
+
+
+def test_a_jamsegments_that_differs_from_its_gw_count_is_still_noted():
+    """A different N would re-mesh the wire, which is not applied (a held
+    decision), so it stays in the not-applied note as before."""
+    plain = parse_ssn(_ssn(_SCRIPT_M), name="t.ssn")
+    c = parse_ssn(_ssn(_SCRIPT_M + "\n$GW_1.JamSegments(12);"), name="t.ssn")
+    assert c.ignored_directives == ("$GW_1.JamSegments(12)",)
+    assert "$GW_1.JamSegments(12)" in c.skipped_note()
+    assert c.deck.wires == plain.deck.wires
+    # A JamSegments naming a wire the deck does not have is noted too.
+    c = parse_ssn(_ssn(_SCRIPT_M + "\n$GW_7.JamSegments(11);"), name="t.ssn")
+    assert c.ignored_directives == ("$GW_7.JamSegments(11)",)
 
 
 def test_roundtrip_real_builtin_design():
