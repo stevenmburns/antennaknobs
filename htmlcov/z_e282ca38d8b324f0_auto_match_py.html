@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/antennaknobs/auto_match.py: 95%</title>
+    <title>Coverage for src/antennaknobs/auto_match.py: 96%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_4667309f.css" type="text/css">
     <script src="coverage_html_cb_dd2e7eb5.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src<span class="sep">/</span>antennaknobs<span class="sep">/</span>auto_match.py</b>:
-            <span class="pc_cov">95%</span>
+            <span class="pc_cov">96%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">643 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">611<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">32<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">618<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">25<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_e282ca38d8b324f0_builder_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-23 16:33 +0000
+            created at 2026-09-23 17:30 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1150,15 +1150,15 @@
     <p class="pln"><span class="n"><a id="t1068" href="#t1068">1068</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1069" href="#t1069">1069</a></span><span class="t">    <span class="key">def</span> <span class="nam">find</span><span class="op">(</span><span class="nam">n</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1070" href="#t1070">1070</a></span><span class="t">        <span class="key">while</span> <span class="nam">parent</span><span class="op">.</span><span class="nam">setdefault</span><span class="op">(</span><span class="nam">n</span><span class="op">,</span> <span class="nam">n</span><span class="op">)</span> <span class="op">!=</span> <span class="nam">n</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1071" href="#t1071">1071</a></span><span class="t">            <span class="nam">parent</span><span class="op">[</span><span class="nam">n</span><span class="op">]</span> <span class="op">=</span> <span class="nam">parent</span><span class="op">[</span><span class="nam">parent</span><span class="op">[</span><span class="nam">n</span><span class="op">]</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1072" href="#t1072">1072</a></span><span class="t">            <span class="nam">n</span> <span class="op">=</span> <span class="nam">parent</span><span class="op">[</span><span class="nam">n</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1071" href="#t1071">1071</a></span><span class="t">            <span class="nam">parent</span><span class="op">[</span><span class="nam">n</span><span class="op">]</span> <span class="op">=</span> <span class="nam">parent</span><span class="op">[</span><span class="nam">parent</span><span class="op">[</span><span class="nam">n</span><span class="op">]</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1072" href="#t1072">1072</a></span><span class="t">            <span class="nam">n</span> <span class="op">=</span> <span class="nam">parent</span><span class="op">[</span><span class="nam">n</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1073" href="#t1073">1073</a></span><span class="t">        <span class="key">return</span> <span class="nam">n</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1074" href="#t1074">1074</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1075" href="#t1075">1075</a></span><span class="t">    <span class="nam">rest</span> <span class="op">=</span> <span class="op">[</span><span class="nam">br</span> <span class="key">for</span> <span class="nam">i</span><span class="op">,</span> <span class="nam">br</span> <span class="key">in</span> <span class="nam">enumerate</span><span class="op">(</span><span class="nam">net</span><span class="op">.</span><span class="nam">branches</span><span class="op">)</span> <span class="key">if</span> <span class="nam">i</span> <span class="key">not</span> <span class="key">in</span> <span class="nam">tuner</span><span class="op">.</span><span class="nam">indices</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1076" href="#t1076">1076</a></span><span class="t">    <span class="key">for</span> <span class="nam">br</span> <span class="key">in</span> <span class="nam">rest</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1077" href="#t1077">1077</a></span><span class="t">        <span class="nam">nodes</span> <span class="op">=</span> <span class="nam">terminals_of</span><span class="op">(</span><span class="nam">br</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1078" href="#t1078">1078</a></span><span class="t">        <span class="key">for</span> <span class="nam">a</span><span class="op">,</span> <span class="nam">b</span> <span class="key">in</span> <span class="nam">pairwise</span><span class="op">(</span><span class="nam">nodes</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1079" href="#t1079">1079</a></span><span class="t">            <span class="nam">parent</span><span class="op">[</span><span class="nam">find</span><span class="op">(</span><span class="nam">a</span><span class="op">)</span><span class="op">]</span> <span class="op">=</span> <span class="nam">find</span><span class="op">(</span><span class="nam">b</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1077" href="#t1077">1077</a></span><span class="t">        <span class="nam">nodes</span> <span class="op">=</span> <span class="nam">terminals_of</span><span class="op">(</span><span class="nam">br</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1078" href="#t1078">1078</a></span><span class="t">        <span class="key">for</span> <span class="nam">a</span><span class="op">,</span> <span class="nam">b</span> <span class="key">in</span> <span class="nam">pairwise</span><span class="op">(</span><span class="nam">nodes</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1079" href="#t1079">1079</a></span><span class="t">            <span class="nam">parent</span><span class="op">[</span><span class="nam">find</span><span class="op">(</span><span class="nam">a</span><span class="op">)</span><span class="op">]</span> <span class="op">=</span> <span class="nam">find</span><span class="op">(</span><span class="nam">b</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1080" href="#t1080">1080</a></span><span class="t">    <span class="nam">side</span> <span class="op">=</span> <span class="nam">find</span><span class="op">(</span><span class="nam">tuner</span><span class="op">.</span><span class="nam">out</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1081" href="#t1081">1081</a></span><span class="t">    <span class="key">if</span> <span class="nam">find</span><span class="op">(</span><span class="nam">tuner</span><span class="op">.</span><span class="nam">rig</span><span class="op">)</span> <span class="op">==</span> <span class="nam">side</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t1082" href="#t1082">1082</a></span><span class="t">        <span class="key">raise</span> <span class="nam">NotImplementedError</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -1313,8 +1313,8 @@
     <p class="run"><span class="n"><a id="t1231" href="#t1231">1231</a></span><span class="t">                <span class="nam">branches</span><span class="op">.</span><span class="nam">extend</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_body</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1232" href="#t1232">1232</a></span><span class="t">                <span class="nam">paths</span><span class="op">.</span><span class="nam">extend</span><span class="op">(</span><span class="op">[</span><span class="nam">t</span><span class="op">.</span><span class="nam">path</span><span class="op">]</span> <span class="op">*</span> <span class="nam">len</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_body</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1233" href="#t1233">1233</a></span><span class="t">            <span class="key">elif</span> <span class="nam">i</span> <span class="key">not</span> <span class="key">in</span> <span class="nam">t</span><span class="op">.</span><span class="nam">indices</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1234" href="#t1234">1234</a></span><span class="t">                <span class="nam">branches</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">br</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1235" href="#t1235">1235</a></span><span class="t">                <span class="nam">paths</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">path</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1234" href="#t1234">1234</a></span><span class="t">                <span class="nam">branches</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">br</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1235" href="#t1235">1235</a></span><span class="t">                <span class="nam">paths</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">path</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1236" href="#t1236">1236</a></span><span class="t">        <span class="nam">net</span> <span class="op">=</span> <span class="nam">type</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_net</span><span class="op">)</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t1237" href="#t1237">1237</a></span><span class="t">            <span class="nam">ports</span><span class="op">=</span><span class="nam">dict</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_net</span><span class="op">.</span><span class="nam">ports</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t1238" href="#t1238">1238</a></span><span class="t">            <span class="nam">branches</span><span class="op">=</span><span class="nam">branches</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -1501,7 +1501,7 @@
             <a class="nav" href="z_e282ca38d8b324f0_builder_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-23 16:33 +0000
+            created at 2026-09-23 17:30 +0000
         </p>
     </div>
 </footer>
