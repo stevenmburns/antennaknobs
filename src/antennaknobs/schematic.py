@@ -1092,8 +1092,11 @@ _SCHEMDRAW_SYMBOLS = {
 }
 
 DX, DY = 3.2, 2.2  # spine step and rib drop, in schemdraw units
-FONTSIZE = 8  # one size for every label — element, block, note and terminal
-SUBFONT = 7  # the second line under an element (a line's length, a stub's end)
+# Label sizes in pt. 8/7 until AK#1682: a wide chain fitted to the panel
+# printed at a few pixels. 10/9 widens a tuner chain by ~2 % (the label
+# reserves below scale with it) and the panel's zoom reaches the rest.
+FONTSIZE = 10  # one size for every label — element, block, note and terminal
+SUBFONT = 9  # the second line under an element (a line's length, a stub's end)
 LEADIN = 1.4  # source → first block (widened below when a shunt lands on the
 # first spine node, so its left-hand label clears the source circle).
 LEADOUT = 0.9  # last block → antenna

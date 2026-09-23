@@ -2209,9 +2209,12 @@ function DesignSessionBody({
     stale || (optRunning && VIEW_META[view].staleWhileOptimizing);
 
   // Views that take the whole stage rather than a size×size square: the
-  // antenna canvas, and the Files view's text pane (AK#1428), which a square
-  // would crop to a narrow column of a wide printout.
-  const fillsStage = (v: View) => v === "antenna" || v === "files";
+  // antenna canvas, the Files view's text pane (AK#1428), which a square
+  // would crop to a narrow column of a wide printout, and the schematic
+  // (AK#1682) — a feed chain is wide and short, and fitting one into the
+  // square shrank its labels to a few pixels.
+  const fillsStage = (v: View) =>
+    v === "antenna" || v === "files" || v === "schematic";
 
   // One output view: the per-view overlays plus the main <ViewPanel>. A
   // closure (not a component) so the ~30 captured locals need no props. The
