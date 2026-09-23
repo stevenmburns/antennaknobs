@@ -35,6 +35,7 @@ __all__ = [
     "plot_patterns",
     "compare_patterns",
     "pattern_metrics",
+    "refined_pattern_metrics",
     "radiated_fraction",
     "resolve_range",
     "gen_xs",
@@ -92,6 +93,7 @@ from .sweep import (
 from .far_field import (
     compare_patterns,
     pattern_metrics,
+    refined_pattern_metrics,
     plot_patterns,
     pattern,
     pattern3d,

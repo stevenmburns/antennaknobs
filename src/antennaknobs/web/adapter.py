@@ -4912,10 +4912,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         )
 
     def far_field_metrics(req: dict, cancel=None) -> dict:
-        # Scalar metrics for the pattern-compare table. Uses the same builder
-        # setup as momwire_solve and the momwire engine (so the numbers match
-        # the client-derived lobe on screen), then summarises the full grid.
-        from antennaknobs.far_field import pattern_metrics
+        # Scalar metrics for the pattern-compare table and the 3-D max readout.
+        # Uses the same builder setup as momwire_solve and the momwire engine
+        # (so the numbers match the lobe on screen), then searches the pattern
+        # for its peak: horizon included, the lower hemisphere in free space,
+        # refined off the 1° grid (issue #1669).
+        from antennaknobs.far_field import refined_pattern_metrics
 
         design_freq, meas_freq = _req_freqs(req)
         builder = _build_builder(cls, req)
@@ -4924,8 +4926,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             builder.design_freq = design_freq
         _apply_plane(builder, req)
         eng = _make_momwire_engine(req, builder, cancel=cancel)
-        ff = eng.far_field(n_theta=90, n_phi=360, del_theta=1, del_phi=1)
-        metrics = pattern_metrics(ff)
+        metrics = refined_pattern_metrics(eng.gain_evaluator())
         metrics["measurement_freq_mhz"] = meas_freq
         return metrics
 
