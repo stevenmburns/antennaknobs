@@ -143,27 +143,31 @@ def test_roundtrip_scaffold_is_not_reported():
 
 def test_a_jamsegments_equal_to_its_gw_count_is_silent():
     """AK#1680: the exporter writes `$GW_<tag>.JamSegments(N)` with the GW
-    card's own N. That says nothing the card does not, so it is not reported
-    and changes nothing."""
+    card's own N. That is not reported and leaves the mesh as the card has
+    it, but the count is still the FILE's, so it is pinned (AK#1679): the feed
+    carries its exact place and no engine bumps the count to its parity."""
     plain = parse_ssn(_ssn(_SCRIPT_M), name="t.ssn")
     c = parse_ssn(_ssn(_SCRIPT_M + "\n$GW_1.JamSegments(11);"), name="t.ssn")
     assert c.ignored_directives == ()
     assert c.skipped_note() is None
     assert c.deck.wires == plain.deck.wires
-    assert c.deck.feeds == plain.deck.feeds
+    assert plain.deck.pinned_wires == frozenset()
+    assert c.deck.pinned_wires == frozenset({0})
+    (f,) = c.deck.feeds
+    assert (f.wire, f.seg, f.at) == (0, 6, 0.5)
 
 
-def test_a_jamsegments_that_differs_from_its_gw_count_is_still_noted():
-    """A different N would re-mesh the wire, which is not applied (a held
-    decision), so it stays in the not-applied note as before."""
-    plain = parse_ssn(_ssn(_SCRIPT_M), name="t.ssn")
+def test_a_jamsegments_that_differs_from_its_gw_count_is_applied():
+    """AK#1679: a different N is the count, exactly, and it no longer lands
+    in the not-applied note. One naming a wire the deck does not have names no
+    wire, and stays there."""
     c = parse_ssn(_ssn(_SCRIPT_M + "\n$GW_1.JamSegments(12);"), name="t.ssn")
-    assert c.ignored_directives == ("$GW_1.JamSegments(12)",)
-    assert "$GW_1.JamSegments(12)" in c.skipped_note()
-    assert c.deck.wires == plain.deck.wires
-    # A JamSegments naming a wire the deck does not have is noted too.
+    assert c.ignored_directives == ()
+    assert c.skipped_note() is None
+    assert [w.n_seg for w in c.deck.wires] == [12]
     c = parse_ssn(_ssn(_SCRIPT_M + "\n$GW_7.JamSegments(11);"), name="t.ssn")
     assert c.ignored_directives == ("$GW_7.JamSegments(11)",)
+    assert c.deck.pinned_wires == frozenset()
 
 
 def test_roundtrip_real_builtin_design():

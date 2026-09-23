@@ -232,7 +232,12 @@ def _ssn_builder(path: Path, text: str, refine: int = 1):
         path.stem,
         freq,
         meas_range,
-        [circuit.skipped_note(), _ground_note(circuit.ground), freq_note],
+        [
+            circuit.skipped_note(),
+            circuit.mesh_note(),
+            _ground_note(circuit.ground),
+            freq_note,
+        ],
         lambda: deck.wire_tuples(specs=True),
         circuit.network,
         extended_kernel=deck.extended_kernel,

@@ -244,8 +244,10 @@ def test_the_wire_loss_folds_into_the_reducers_budget():
 def test_dans_designs_solve_and_agree_with_pynec(path):
     """nec2c and nec2++ are the same formulation, so this is tight. Measured
     2026-09-23 over the file grounds: 52.945+3.871j vs 52.952+3.885j (lnet),
-    54.966+15.397j vs 54.973+15.410j (C1-L1), 3e-4 at worst. Also measured
-    over the catalog's 25 reduced designs: 3.6e-3 at worst (wire.efhw_sloper)."""
+    54.840+15.545j vs 54.848+15.560j (C1-L1: its JamSegments(12) wire, split
+    at the centre feed as a segment-centre engine feeds it, AK#1679), 3e-4 at
+    worst. Also measured over the catalog's 25 reduced designs: 3.6e-3 at
+    worst (wire.efhw_sloper)."""
     from antennaknobs.engines.pynec import PyNECEngine
 
     cls, ground = _file(path)
@@ -257,7 +259,9 @@ def test_dans_designs_solve_and_agree_with_pynec(path):
     assert abs(z2[0] - zp) / abs(zp) < 2e-3, (z2, zp)
     assert e2._excited_efficiency == pytest.approx(ep._excited_efficiency, abs=1e-3)
     assert e2._excited_p_in == pytest.approx(ep._excited_p_in, rel=2e-3)
-    assert len(currents) == len(e2.tups)
+    # One WireCurrents per AUTHORED wire: a wire split at its feed (C1-L1's
+    # jammed 12 segments, AK#1679) joins back into one (AK#1510).
+    assert len(currents) == len(cls().build_wires())
     # The reducer's rows, then NEC-2's conductor loss: LOSSES ONLY.
     assert e2._excited_power_budget[-1][0] == "Wire loss"
     assert [r for r, _w in e2._excited_power_budget[:-1]] == [

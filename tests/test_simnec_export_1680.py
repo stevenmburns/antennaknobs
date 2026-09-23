@@ -150,11 +150,13 @@ def test_lc1_round_trips_conductivity_and_segment_counts(tmp_path):
     again = _equ(export_ssn(rt(), ground=rt.file_ground))
     assert "NECOptions.mhosPerMeter = Conductivities.copper;" in again
     # Per-wire segment counts: the re-imported design meshes each wire as the
-    # exported one did. The importer reads the GW card's count, which the
-    # exporter writes equal to the JamSegments beside it, so the importer reads
-    # those as consistent and reports nothing (applying a DIFFERENT count is a
-    # held decision; this writer never emits one).
-    assert _n_segs(rt()) == _n_segs(cls())
+    # exported cards do. AC6LA's JamSegments(12) is applied exactly (AK#1679),
+    # so his wire is 12 segments fed at its centre knot — which a NEC-2 deck
+    # can only feed by splitting the wire there (AK#1511), so the export
+    # writes the pieces and a JamSegments per piece, and the importer reads
+    # each back as written and reports nothing.
+    assert _n_segs(cls()) == [12]
+    assert _n_segs(rt()) == list(_gw_counts(_equ(ssn)).values())
     assert _jammed(again) == _jammed(_equ(ssn))
     assert parse_ssn(ssn, network=True).ignored_directives == ()
 

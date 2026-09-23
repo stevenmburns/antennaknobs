@@ -169,7 +169,14 @@ def test_the_round_trip_preserves_the_feed_position(deck, tmp_path):
     geometry)."""
     _ssn1, _ssn2, b1, b2 = _roundtrip(deck, tmp_path)
     port1, port2 = _feed_port(b1), _feed_port(b2)
-    assert port2.at == port1.at
+    # The re-imported file carries a JamSegments per wire, which pins the
+    # wire's count and so spells its centre feed as the explicit 0.5 rather
+    # than None (AK#1679). Both are the exact centre.
+    assert _at(port2) == _at(port1)
+
+
+def _at(port):
+    return 0.5 if port.at is None else port.at
 
 
 def test_ac6la_deck_is_2_to_3_to_3_not_2_to_3_to_4():

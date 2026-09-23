@@ -666,6 +666,12 @@ class NecDeck:
     # so a free end standing in the plane is refused wherever an engine
     # applies a ground (`ge_minus_one_contact_refusal`).
     ground_contact_interpolates: bool = True
+    # AK#1679: wire indices whose segment count the FILE fixed (SimNEC's
+    # `$GW_<tag>.JamSegments(N)`, through `resegmented`). Every attachment on
+    # one keeps its exact position, the middle included, so the engines keep
+    # the count as written: no parity bump, and a port that is not on a site
+    # of that count splits the wire at the port (AK#1511) rather than moving.
+    pinned_wires: frozenset[int] = frozenset()
 
     def free_plane_ends(self) -> tuple[tuple[int, str], ...]:
         """Every wire end standing in the ground plane (z = 0) that is NOT a
@@ -779,6 +785,112 @@ class NecDeck:
             if self.symmetry_cell is None
             else self.symmetry_cell * r,
         )
+
+    def resegmented(self, counts: dict[int, int]) -> NecDeck:
+        """The same deck with the wires in ``counts`` (wire index -> segment
+        count) meshed with exactly those counts and PINNED there (AK#1679,
+        SimNEC's ``JamSegments``): recorded in ``pinned_wires``, so no engine
+        bumps the count to its parity.
+
+        Unlike `refined`, the new count need not be a multiple of the old one,
+        so an attachment cannot keep its segment NUMBER: it keeps its PLACE.
+        A centre attachment (feed, load, TL/NT end) is carried as the exact
+        position ``at`` its old segment centre had — the field a 4nec2
+        percentage uses (AK#1496) — so the network path places it where the
+        deck put it and each engine meshes around it as for any positioned
+        port: whole when the position is a site of the count, split at the
+        port when it is not (AK#1511). A wire whose count does not change is
+        pinned the same way. A knot attachment (a NEC-5 end field) must land
+        on a knot of the new mesh.
+
+        Refused, by name: a count below 1, a virtualized wire (it has no
+        mesh), a knot that falls between new knots, a GX/GR symmetry cell (its
+        size is counted in segments), and a count that changes which wires
+        connect (a wire another wire joins mid-way must keep a knot there).
+        """
+        counts = {int(wi): int(n) for wi, n in counts.items()}
+        if not counts:
+            return self
+        for wi, n in counts.items():
+            tag = self.wires[wi].tag
+            if n < 1:
+                raise ValueError(f"wire tag {tag}: segment count must be >= 1, got {n}")
+            if wi in self.virtual_anchors:
+                raise ValueError(
+                    f"wire tag {tag} is a virtual circuit node here, not "
+                    "geometry, so it has no segments to set"
+                )
+        if self.symmetry_cell is not None and any(
+            n != self.wires[wi].n_seg for wi, n in counts.items()
+        ):
+            raise ValueError(
+                "the deck's GX/GR symmetry cell is counted in segments; "
+                "re-meshing one wire would break it"
+            )
+
+        def place(wire, seg, edge, at):
+            """(seg, edge, at) of one attachment on the re-meshed wire."""
+            if wire not in counts:
+                return seg, edge, at
+            old, new = self.wires[wire].n_seg, counts[wire]
+            if not edge:
+                pos = at if at is not None else (seg - 0.5) / old
+                return min(new, int(pos * new) + 1), 0, pos
+            k = _knot_of(seg, edge) * new / old
+            if abs(k - round(k)) > 1e-9:
+                raise ValueError(
+                    f"wire tag {self.wires[wire].tag}: an attachment at knot "
+                    f"{_knot_of(seg, edge)} of {old} falls between the knots "
+                    f"of {new} segments"
+                )
+            k = round(k)
+            return (1, 1, None) if k == 0 else (k, 2, None)
+
+        def feed(f):
+            seg, edge, at = place(f.wire, f.seg, f.edge, f.at)
+            return replace(f, seg=seg, edge=edge, at=at)
+
+        def load(ld):
+            seg, edge, at = place(ld.wire, ld.seg, ld.edge, ld.at)
+            return replace(ld, seg=seg, edge=edge, at=at)
+
+        def link(t):
+            sa, ea, aa = place(t.wire_a, t.seg_a, t.edge_a, t.at_a)
+            sb, eb, ab = place(t.wire_b, t.seg_b, t.edge_b, t.at_b)
+            return replace(
+                t, seg_a=sa, edge_a=ea, at_a=aa, seg_b=sb, edge_b=eb, at_b=ab
+            )
+
+        out = replace(
+            self,
+            wires=tuple(
+                replace(w, n_seg=counts[i]) if i in counts else w
+                for i, w in enumerate(self.wires)
+            ),
+            feeds=tuple(feed(f) for f in self.feeds),
+            loads=tuple(load(ld) for ld in self.loads),
+            tls=tuple(link(t) for t in self.tls),
+            nts=tuple(link(t) for t in self.nts),
+            pinned_wires=self.pinned_wires | frozenset(counts),
+        )
+        # The electrical graph must not move: every interior junction of a
+        # re-meshed wire lands on one of its new knots, and no new knot
+        # meets another wire where no old one did.
+        want = {}
+        for wi, cuts in self._junction_cuts.items():
+            if wi in counts:
+                scaled = {k * counts[wi] / self.wires[wi].n_seg for k in cuts}
+                want[wi] = frozenset(round(k) for k in scaled)
+                if any(abs(k - round(k)) > 1e-9 for k in scaled):
+                    want[wi] = None
+            else:
+                want[wi] = cuts
+        if want != out._junction_cuts:
+            raise ValueError(
+                "re-meshing changes which wires connect: a wire another wire "
+                "joins mid-way must keep a knot at that joint"
+            )
+        return out
 
     def virtual_anchor_tags(self) -> tuple[int, ...]:
         """The NEC tags of the wires whose geometry was replaced by virtual
@@ -1396,7 +1508,11 @@ class NecDeck:
                         )
                     a, b = pieces[j]
                     at = (x - a) / (b - a)
-                    at = None if abs(at - 0.5) < 1e-9 else at
+                    if abs(at - 0.5) < 1e-9 and wi not in self.pinned_wires:
+                        # The exact middle imports as it always did — except
+                        # on a wire whose count the file fixed (AK#1679),
+                        # where the position is what keeps the count exact.
+                        at = None
                 elif kind == "seg":
                     j = next(j for j, (a, b) in enumerate(pieces) if a < idx <= b)
                     a, b = pieces[j]
@@ -1439,7 +1555,11 @@ class NecDeck:
                     j = next(j for j, (a, b) in enumerate(pieces) if a < idx < b)
                     a, b = pieces[j]
                     c, local = b - a, idx - a
-                    at = None if 2 * local == c else local / c
+                    at = (
+                        None
+                        if 2 * local == c and wi not in self.pinned_wires
+                        else local / c
+                    )
                 placed[pname] = (j, at)
             on_piece: dict[int, list[str]] = {}
             for pname, (j, _at) in placed.items():
