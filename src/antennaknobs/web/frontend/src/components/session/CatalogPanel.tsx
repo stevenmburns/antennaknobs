@@ -52,7 +52,11 @@ export function CatalogPanel({
           setFilter={setGeomFilter}
           onSelect={setGeometry}
         />
-        {currentExample?.name.startsWith("user.") && (
+        {/* Always present: with a user design selected it reloads that file
+            and re-solves (#867); otherwise it rescans the user-design folder,
+            so a file dropped into an empty ~/.antennaknobs/designs shows up
+            without a page reload. The catalog never refreshes on its own. */}
+        {currentExample?.name.startsWith("user.") ? (
           <button
             type="button"
             className="design-reload-btn"
@@ -60,6 +64,17 @@ export function CatalogPanel({
             disabled={reloadBusy}
             aria-label="reload design file"
             title="Reload this design file from disk and re-solve (trust it in “always” mode so edits keep loading)"
+          >
+            ⟳
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="design-reload-btn"
+            onClick={onReloadDesign}
+            disabled={reloadBusy}
+            aria-label="rescan my designs"
+            title="Rescan your design folder (~/.antennaknobs/designs) for new or changed files"
           >
             ⟳
           </button>

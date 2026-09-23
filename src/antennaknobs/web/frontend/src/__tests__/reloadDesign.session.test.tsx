@@ -99,4 +99,40 @@ describe("user-design reload (issue #867)", () => {
     const slider = screen.getByRole("slider", { name: "Gap" });
     expect(slider.getAttribute("aria-valuenow")).toBe("0.25");
   });
+
+  it("rescans an empty design folder: a new file appears without re-solving the built-in", async () => {
+    let examplesCalls = 0;
+    let geometryCalls = 0;
+    mountDesignSession({
+      examples: [HARNESS_EXAMPLE],
+      routes: {
+        "/examples": () => {
+          examplesCalls += 1;
+          // First serve: no user designs. After the rescan: a file appeared.
+          return jsonResponse({
+            examples:
+              examplesCalls === 1 ? [HARNESS_EXAMPLE] : [HARNESS_EXAMPLE, USER_EXAMPLE],
+            errors: [],
+          });
+        },
+        "/geometry": () => {
+          geometryCalls += 1;
+          return jsonResponse({ wires: [] });
+        },
+      },
+    });
+
+    const rescan = await screen.findByRole("button", { name: "rescan my designs" });
+    await waitFor(() => expect(geometryCalls).toBe(1));
+    expect(screen.queryByRole("button", { name: "reload design file" })).toBeNull();
+
+    await userEvent.setup().click(rescan);
+
+    await waitFor(() => expect(examplesCalls).toBe(2));
+    // The new user design is in the catalog the picker lists...
+    await userEvent.setup().click(screen.getByRole("combobox"));
+    expect(await screen.findByText("Probe (user file)")).toBeTruthy();
+    // ...and the built-in selection was not re-previewed for it.
+    expect(geometryCalls).toBe(1);
+  });
 });
