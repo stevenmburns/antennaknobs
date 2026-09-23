@@ -1,8 +1,14 @@
 import { useContext, useEffect, useRef } from "react";
 import { reflectionCoefficient } from "../../lib/format";
 import type { ConvergeData, FeedEntry, MeasuredData, SweepData } from "../../lib/api";
+import type { SweepProgress } from "../../lib/sweep";
 import { ThemeContext } from "../hooks";
 import { feedColor, feedSweepColor, plotColors } from "./palette";
+import {
+  drawSweepProgressBar,
+  sweepProgressAttr,
+  sweepStatusText,
+} from "./sweepStatus";
 
 export function SmithChart({
   r,
@@ -14,6 +20,7 @@ export function SmithChart({
   measured,
   measFreqMhz,
   running,
+  progress,
   convergeRunning,
   feeds,
   multiFeed,
@@ -32,6 +39,10 @@ export function SmithChart({
   measured: MeasuredData | null;
   measFreqMhz: number;
   running: boolean;
+  /** Points received by the sweep in flight (AK#1682): the status line
+   *  reads "sweeping k/N" or "refining +k (≤B)" instead of a bare
+   *  "sweeping…". Optional — a call site without it keeps the old label. */
+  progress?: SweepProgress | null | undefined;
   convergeRunning: boolean;
   /** Multi-feed geometries pass the per-feed Z list from the latest
    *  solve so the chart can also render N centre dots, one per port. */
@@ -353,11 +364,15 @@ export function SmithChart({
       }
     }
 
-    if (running) {
+    // `status` (not `running`) decides the bottom-left stack below: a
+    // refinement pass streams with running false and still owns the line.
+    const status = sweepStatusText(running, progress);
+    if (status) {
       ctx.fillStyle = PC.label;
       ctx.font = "10px ui-monospace, monospace";
-      ctx.fillText("sweeping…", 6, size - 6);
+      ctx.fillText(status, 6, size - 6);
     }
+    drawSweepProgressBar(ctx, progress, size, PC.label);
 
     // Convergence locus: Z(N) trajectory as N increases, drawn as a
     // connected polyline per feed so the sequence direction reads as
@@ -479,7 +494,7 @@ export function SmithChart({
       ctx.fillStyle = PC.label;
       ctx.font = "10px ui-monospace, monospace";
       // Stack under the freq-sweep status if both are running.
-      const yOff = running ? 18 : 6;
+      const yOff = status ? 18 : 6;
       ctx.fillText("converging…", 6, size - yOff);
     }
 
@@ -632,8 +647,8 @@ export function SmithChart({
       const nHi = converge.n_values[converge.n_values.length - 1];
       ctx.fillStyle = PC.labelBright;
       ctx.font = "10px ui-monospace, monospace";
-      const baseY = running && convergeRunning ? size - 30
-        : running || convergeRunning ? size - 18
+      const baseY = status && convergeRunning ? size - 30
+        : status || convergeRunning ? size - 18
         : size - 6;
       ctx.fillText(`N: ${nLo} → ${nHi}`, 6, baseY);
     }
@@ -658,12 +673,17 @@ export function SmithChart({
     // and `trialWorstFeed` likewise carry the whole per-eval picture (#789):
     // r/x still change every frame on a multi-feed run, but they are only
     // feed 0, so a run where feed 0 sat still would freeze every ring.
-  }, [r, x, z0, size, sweep, converge, measured, measFreqMhz, running, convergeRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme]);
+  }, [r, x, z0, size, sweep, converge, measured, measFreqMhz, running, progress, convergeRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme]);
 
   // data-connect mirrors the trail mode (locus vs. dot cloud) for tests —
   // canvas pixels are invisible to jsdom, the attribute is not (the same
   // seam SweepChart's data-* attributes provide).
   return (
-    <canvas ref={canvasRef} className="smith" data-connect={connectSweep ? "1" : "0"} />
+    <canvas
+      ref={canvasRef}
+      className="smith"
+      data-connect={connectSweep ? "1" : "0"}
+      data-progress={sweepProgressAttr(progress)}
+    />
   );
 }

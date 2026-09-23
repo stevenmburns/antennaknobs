@@ -159,3 +159,32 @@ export function mergeSweepPoints(base: SweepData, extra: SweepData): SweepData {
     ...(feedsIm ? { feeds_z_im: feedsIm } : {}),
   };
 }
+
+/** How far the sweep in flight has got (AK#1682), for the charts' status
+ *  line. Counts are points RECEIVED, never points requested — a point is
+ *  counted when its NDJSON record lands, so a stream that dies part way
+ *  stops the count where the curve stops.
+ *
+ *  The two phases are kept distinct because they promise different things.
+ *  A base sweep asks for a known grid, so `received / planned` is an honest
+ *  fraction. A refinement pass has no fixed size: the planner decides round
+ *  by round and may conclude long before the budget, so the budget is shown
+ *  as the ceiling it is ("≤"), never as a denominator to be reached. */
+export type SweepProgress =
+  | { phase: "base"; received: number; planned: number }
+  | { phase: "refine"; received: number; budget: number };
+
+/** The status line the charts print for `p` — "sweeping 12/17",
+ *  "refining +8 (≤48)". */
+export function sweepProgressLabel(p: SweepProgress): string {
+  return p.phase === "base"
+    ? `sweeping ${p.received}/${p.planned}`
+    : `refining +${p.received} (≤${p.budget})`;
+}
+
+/** The fraction a progress bar may honestly fill: the base grid only. A
+ *  refinement pass has no known end (see SweepProgress), so it gets none. */
+export function sweepProgressFraction(p: SweepProgress): number | null {
+  if (p.phase !== "base" || p.planned <= 0) return null;
+  return Math.min(1, p.received / p.planned);
+}

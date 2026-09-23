@@ -2,8 +2,14 @@ import { useContext, useEffect, useRef } from "react";
 import type { FeedEntry, SweepData } from "../../lib/api";
 import { gammaDbFromMag, gammaMagFromZ, vswrFromGammaMag } from "../../lib/math";
 import { s11DbTop } from "../../lib/refine";
+import type { SweepProgress } from "../../lib/sweep";
 import { ThemeContext } from "../hooks";
 import { feedColor, feedSweepColor, plotColors } from "./palette";
+import {
+  drawSweepProgressBar,
+  sweepProgressAttr,
+  sweepStatusText,
+} from "./sweepStatus";
 
 // The two output views the sweep already pays for: |Γ| vs. frequency and
 // VSWR vs. frequency (issue #700 unit 5, docs/plan-view-rail-scaling.md
@@ -42,6 +48,7 @@ export function SweepChart({
   sweep,
   measFreqMhz,
   running,
+  progress,
   settled = true,
   feeds,
   multiFeed,
@@ -54,6 +61,9 @@ export function SweepChart({
   sweep: SweepData | null;
   measFreqMhz: number;
   running: boolean;
+  /** Points received by the sweep in flight (AK#1682) — see SmithChart's
+   *  prop of the same name. */
+  progress?: SweepProgress | null | undefined;
   /** The sweep's shape is final (issue #866). While a refinement pass is
    *  still inserting points (or was cut short mid-run), the trail renders as
    *  unconnected dots — a polyline through a still-densifying set draws
@@ -302,11 +312,13 @@ export function SweepChart({
       }
     }
 
-    if (running) {
+    const status = sweepStatusText(running, progress);
+    if (status) {
       ctx.fillStyle = PC.label;
       ctx.font = "10px ui-monospace, monospace";
-      ctx.fillText("sweeping…", marginL, size - 6);
+      ctx.fillText(status, marginL, size - 6);
     }
+    drawSweepProgressBar(ctx, progress, size, PC.label);
     // multiFeed isn't read directly (nFeeds/hasMulti already derive the same
     // thing from the sweep payload's own shape) but is kept as a dep so a
     // descriptor flip that changes it without changing the sweep shape still
@@ -319,7 +331,7 @@ export function SweepChart({
     // memoization this dep array exists for. mode is listed directly since
     // it's the one prop dom/valueFor key off that isn't otherwise present.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, r, x, z0, size, sweep, measFreqMhz, running, settled, feeds, multiFeed, theme]);
+  }, [mode, r, x, z0, size, sweep, measFreqMhz, running, progress, settled, feeds, multiFeed, theme]);
 
   return (
     <canvas
@@ -327,6 +339,7 @@ export function SweepChart({
       className={`sweep sweep-${mode}`}
       data-mode={mode}
       data-settled={settled ? "1" : "0"}
+      data-progress={sweepProgressAttr(progress)}
       data-points={hasSweep ? sweep!.freqs_mhz.length : 0}
       data-feeds={nFeeds}
       data-y-values={traceY.map((v) => v.toFixed(4)).join(",")}
