@@ -177,12 +177,12 @@ def test_lc1_keeps_its_xmatch(tmp_path):
 
 
 def test_a_copper_catalog_design_writes_its_conductivity():
-    """pota_invvee's catalog wire is copper at 5.8e7 S/m (the catalog's
-    figure, not SimNEC's 1/1.74e-8), so it is written as the number, exactly.
-    Its bare 22 AWG option: the stock PVC jacket is refused (AK#1683)."""
+    """pota_invvee's stock wire is 22 AWG PVC-jacketed copper, 5.8e7 S/m
+    (the catalog's figure, not SimNEC's 1/1.74e-8), so it is written as the
+    number, exactly."""
     from antennaknobs.designs.dipoles.pota_invvee import Builder
 
-    b = Builder({**Builder.default_params, "wire_type": "22-awg"})
+    b = Builder()
     assert b.build_wire_material().conductivity == 5.8e7
     script = _equ(export_ssn(b))
     assert "NECOptions.mhosPerMeter = 58000000.0;" in script

@@ -253,12 +253,106 @@ def test_a_feed_segment_load_without_a_series_element_is_refused(load):
         export_ssn(_with(load), ground=None)
 
 
-def test_a_jacketed_design_is_refused_by_name():
-    """The export writes the bare conductor and no LD 2, so the jacket would
-    have been silently missing (the issue's item 3)."""
-    b = _with(Load(port="tip", r=50.0), spec=wire_from_catalog("18-awg-pvc"))
-    with pytest.raises(SsnUnsupported, match=r"wires 1, 2, 3, 4 carry an insul"):
-        export_ssn(b, ground=None)
+# --- insulation: SimNEC's own W7EL directive --------------------------------
+
+
+_W7EL_GUARD = [
+    "if (NECOptions.Engine == 2)",
+    '    NECOptions.Insulation("W7EL", 0.000479, 3.5, 0);',
+    "else",
+    '    errorOutln("NOT USING NEC2: the W7EL insulation needs the NEC2 engine");',
+]
+
+
+def test_a_jacket_is_simnecs_w7el_insulation_before_the_block():
+    """pota_invvee's stock 22 AWG PVC: 0.321 mm conductor in a 0.8 mm
+    jacket, so 0.479 mm of eps_r 3.5, the GW cards on the bare conductor.
+    The spelling and the engine guard are Ward's own
+    (Examples/insulation/w7elExample.ssn)."""
+    from antennaknobs.designs.dipoles.pota_invvee import Builder
+
+    ssn = export_ssn(Builder(), ground=None)
+    lines = _equ(ssn).splitlines()
+    i = lines.index(_W7EL_GUARD[0])
+    assert lines[i : i + 4] == _W7EL_GUARD
+    assert lines[i - 2].startswith("// SimNEC applies its own (W7EL)")
+    assert i < lines.index("NEC2")
+    gw = [c for c in _block(ssn) if c.startswith("GW")]
+    assert gw and all(c.split()[-1] == "0.000321" for c in gw)
+    assert not [c for c in _block(ssn) if c.startswith("LD")]
+
+
+@pytest.mark.parametrize("design", ["dipoles.pota_invvee", "dipoles.invvee_catenary"])
+def test_a_stock_pvc_design_round_trips_with_its_jacket(tmp_path, design):
+    import importlib
+
+    from antennaknobs.engines.momwire import MomwireEngine
+    from antennaknobs.file_designs import builder_from_file
+    from antennaknobs.wire_catalog import as_wire
+
+    b = importlib.import_module(f"antennaknobs.designs.{design}").Builder()
+    want = b.build_wire_material()
+    path = tmp_path / "rt.ssn"
+    path.write_text(export_ssn(b, ground=None))
+    rb = builder_from_file(str(path))()
+    for t in rb.build_wires():
+        spec = as_wire(t).spec
+        assert spec.radius == pytest.approx(want.radius)
+        assert spec.conductivity == pytest.approx(want.conductivity)
+        assert spec.insulation_radius == pytest.approx(want.insulation_radius)
+        assert spec.insulation_eps_r == pytest.approx(want.insulation_eps_r)
+    # Same wire model and mesh: PyNEC agrees to the solve; momwire picks
+    # its own counts for the design and solves the file's pinned ones.
+    assert _z(rb) == pytest.approx(_z(b), rel=1e-5)
+    z_mw = complex(MomwireEngine(b, ground=None).impedance()[0])
+    z_mw_rt = complex(MomwireEngine(rb, ground=None).impedance()[0])
+    assert z_mw_rt == pytest.approx(z_mw, abs=0.1)
+
+
+def test_efhw_sloper_is_refused_for_its_unun_not_its_jacket():
+    """The third stock-PVC design: its jacket now exports, and what still
+    stops it is the lossy unun (no TRANSFORMER2 equivalent)."""
+    from antennaknobs.designs.wire.efhw_sloper import Builder
+
+    with pytest.raises(SsnUnsupported, match="IDEAL transformer") as e:
+        export_ssn(Builder(), ground=None)
+    assert "insulation" not in str(e.value)
+
+
+def test_wires_with_different_jackets_are_refused_by_name():
+    """SimNEC's W7EL insulation is one NECOptions default for every wire."""
+    pvc, bare = wire_from_catalog("18-awg-pvc"), wire_from_catalog("18-awg")
+
+    class Mixed(_Loaded):
+        def build_wires(self):
+            return [
+                w._replace(spec=pvc if i < 2 else bare)
+                for i, w in enumerate(super().build_wires())
+            ]
+
+    with pytest.raises(SsnUnsupported, match=r"insulation differs.*bare on wires 3, 4"):
+        export_ssn(Mixed(), ground=None)
+
+
+def test_a_lossy_w7el_insulation_is_refused_on_import():
+    with pytest.raises(ValueError, match="loss tangent"):
+        parse_ssn(
+            _script_ssn("").replace(
+                "P2 w2 gnd;\n",
+                'P2 w2 gnd;\nNECOptions.Insulation("W7EL", 5e-4, 3.5, 0.05);\n',
+            )
+        )
+
+
+def test_simnecs_default_k6oik_insulation_is_reported_not_applied():
+    """Only the W7EL form is the model here; K6OIK is a different one."""
+    c = parse_ssn(
+        _script_ssn("").replace(
+            "P2 w2 gnd;\n", "P2 w2 gnd;\nNECOptions.Insulation(5e-4, 3.5, 0);\n"
+        )
+    )
+    assert c.deck.wire_insulation == ()
+    assert c.ignored_directives == ("NECOptions.Insulation(5e-4, 3.5, 0)",)
 
 
 # --- the importer, on files it did not write ---------------------------------
