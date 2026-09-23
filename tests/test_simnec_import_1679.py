@@ -16,7 +16,8 @@ import pytest
 from momwire.networks._reduce import C_LIGHT, tl_abcd
 
 from antennaknobs.file_designs import builder_from_file
-from antennaknobs.network import TL
+from antennaknobs.nec_import import NEC_C_LIGHT_MHZ_M
+from antennaknobs.network import TL, Admittance
 from antennaknobs.simnec_import import parse_ssn
 
 FIX = Path(__file__).parent / "fixtures" / "simnec_ac6la_1679"
@@ -139,3 +140,87 @@ def test_an_untranslated_line_model_is_refused_by_name():
     assert "RG-213" in text
     with pytest.raises(ValueError, match="line model 'RG-213' is not translated"):
         _line(text)
+
+
+# --- SERIES_Z ----------------------------------------------------------------
+
+
+def _rig_z(tmp_path: Path, text: str, plane: str | None = None) -> complex:
+    """The design's Z at `rig` (or at `plane`, upstream unscrewed), on the
+    momwire engine in free space: the two circuits compared here share the
+    antenna, so any engine will do."""
+    from antennaknobs.engines.momwire import MomwireEngine
+    from antennaknobs.plane import driven_at
+
+    path = tmp_path / f"clc{len(list(tmp_path.iterdir()))}.ssn"
+    path.write_text(text)
+    base = builder_from_file(str(path))
+
+    class At(base):
+        def build_network(self):
+            net = super().build_network()
+            return driven_at(net, plane) if plane else net
+
+    return complex(MomwireEngine(At()).impedance()[0])
+
+
+def test_a_series_z_block_imports_as_its_fixed_admittance(tmp_path):
+    """Dan's R1 (-0.04 - j2.016 ohm, between the line and the 1:4
+    transformer) failed the import (post #144), real-only or not. It is
+    now the series element y = 1/(R + jX), and the rig reads the R1-less
+    circuit's own chain carried through R1: the impedance the line
+    presents, plus R1, stepped down 4:1 and through the CLC T at the
+    generator's 14.175 MHz, with the file's Qs (component Q adds
+    R = wL/Q or 1/(wCQ))."""
+    c = _parse(CLC)
+    net = c.network()
+    (adm,) = [b for b in net.branches if isinstance(b, Admittance)]
+    z1 = complex(-0.04, -2.0160000000000027)
+    y = 1 / z1
+    assert adm.y == ((y, -y), (-y, y))
+
+    text = CLC.read_text()
+    plain = _without_r1(text)
+    # chain3 is the no-R1 circuit's node between transformer B and line T1.
+    z_line = _rig_z(tmp_path, plain, plane="chain3")
+    z_rig_plain = _rig_z(tmp_path, plain)
+    z_rig = _rig_z(tmp_path, text)
+
+    # A file design's wavelength is the deck's own 299.8 m*MHz (AK#1607) and
+    # the circuit reducer reads its frequency back with momwire's SI c, so
+    # the lumped parts are solved 25 ppm below 14.175 MHz.
+    w = 2 * math.pi * 14.175e6 * (C_LIGHT / (NEC_C_LIGHT_MHZ_M * 1e6))
+
+    def cap(f, q):
+        return 1 / (w * f * q) + 1 / (1j * w * f)
+
+    z = (z_line + z1) / 4  # SimNEC's N = 2 is antenna:generator
+    z += cap(350e-12, 2000)  # C2
+    zl = w * 0.292737e-6 / 200 + 1j * w * 0.292737e-6  # L1, shunt
+    z = z * zl / (z + zl)
+    z += cap(156.639e-12, 2000)  # C1
+    assert z_rig == pytest.approx(z, rel=1e-9)
+    # R1 is a real correction, not noise: it moves the rig reading.
+    assert abs(z_rig - z_rig_plain) > 0.5
+
+
+def _r1_edit(old: str, new: str) -> str:
+    """Dan's CLC circuit with one value inside R1 replaced."""
+    text = CLC.read_text()
+    at = text.index("<type>SERIES_Z</type>")
+    head, tail = text[:at], text[at:]
+    assert old in tail
+    return head + tail.replace(old, new, 1)
+
+
+def test_a_series_z_from_a_file_is_refused_by_name():
+    text = _r1_edit("&lt;none&gt;", "r1.s1p")
+    with pytest.raises(ValueError, match="SERIES_Z R1: takes its impedance from"):
+        _parse(CLC, text).network()
+
+
+def test_a_zero_series_z_is_refused_by_name():
+    text = _r1_edit("<v>-0.04</v>", "<v>0</v>")
+    text = text.replace("<v>-2.0160000000000027</v>", "<v>0</v>")
+    with pytest.raises(ValueError, match="SERIES_Z R1: R = X = 0"):
+        _parse(CLC, text).network()

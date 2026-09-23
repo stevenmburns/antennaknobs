@@ -53,6 +53,8 @@ branch→element mapping, element for element:
                                          Mdl simplified's one /100f @frq point
                                          becomes k1, exact at @frq, AK#1679)
     SERIES_IND / SERIES_CAP           -> TwoPort  (H / F, Q -> ql / qc)
+    SERIES_Z                          -> Admittance (2-port, y = 1/(R + jX),
+                                         fixed like SERIES_Z; AK#1679)
     SHUNT_IND / SHUNT_CAP             -> Shunt    (H / F, Q -> ql / qc)
     TRANSFORMER2 (Mdl ideal)          -> Transformer (n = 1/N: SimNEC's N is
                                          the antenna:generator voltage ratio,
@@ -104,7 +106,9 @@ M_PER_FT = 0.3048
 
 # Station chain elements network() can translate (issue #604's captured set).
 _SHUNT_CHAIN = frozenset({"SHUNT_IND", "SHUNT_CAP"})
-_SERIES_CHAIN = frozenset({"SERIES_TLINE", "SERIES_IND", "SERIES_CAP", "TRANSFORMER2"})
+_SERIES_CHAIN = frozenset(
+    {"SERIES_TLINE", "SERIES_IND", "SERIES_CAP", "SERIES_Z", "TRANSFORMER2"}
+)
 # SimNEC's LC matching component. A series-position element: its generator
 # side and load side are two nodes, like a series element's (AK#1646).
 _MATCH_CHAIN = frozenset({"XMATCH"})
@@ -267,6 +271,29 @@ def _tline_loss(el: SsnElement) -> tuple[float, float]:
     return _chain_f(el, "k1", default=0.0), _chain_f(el, "k2", default=0.0)
 
 
+def _series_z(el: SsnElement, a: str, b: str):
+    """A SERIES_Z — SimNEC's fixed complex impedance, ``ohms`` + j``johms``,
+    in series — as the 2-port ``Admittance`` of a series element,
+    y = 1/(R + jX) (AK#1679). Both hold that R + jX at every frequency. A
+    ``file`` (measured data) and R = X = 0 (an ideal short,
+    with no admittance) are refused by name."""
+    where = "SERIES_Z" + (f" {el.label}" if el.label else "")
+    src = (el.get("file") or "").strip()
+    if src and src != "<none>":
+        raise ValueError(
+            f"{where}: takes its impedance from the file {src!r}, which is not "
+            "imported; give it ohms and johms instead"
+        )
+    z = complex(_chain_f(el, "ohms", default=0.0), _chain_f(el, "johms", default=0.0))
+    if z == 0:
+        raise ValueError(
+            f"{where}: R = X = 0 is an ideal short with no admittance; delete "
+            "the element instead"
+        )
+    y = 1.0 / z
+    return _net.Admittance(ports=(a, b), y=((y, -y), (-y, y)))
+
+
 def _series_branch(el: SsnElement, a: str, b: str):
     """The network branch for one series chain element, entered generator-side
     at ``a`` — the inverse of the station exporter's ``_series_elements``."""
@@ -285,6 +312,8 @@ def _series_branch(el: SsnElement, a: str, b: str):
         return _net.TwoPort(a=a, b=b, l=_chain_f(el, "H"), ql=_chain_q(el))
     if el.typ == "SERIES_CAP":
         return _net.TwoPort(a=a, b=b, c=_chain_f(el, "F"), qc=_chain_q(el))
+    if el.typ == "SERIES_Z":
+        return _series_z(el, a, b)
     # TRANSFORMER2 — only the ideal ratio maps onto Transformer, exactly as
     # only the ideal Transformer maps onto TRANSFORMER2 on export.
     mdl = (el.get("Mdl") or "").strip().lower()
