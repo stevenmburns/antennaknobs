@@ -503,6 +503,14 @@ input, so the optimizer scores the driven plane — the same impedance the
 readout shows. The CLI's `optimize` aggregates feeds the same way (it differs
 only in scoring |Z − Z₀| distance rather than SWR).
 
+A design whose network holds a **tuner that tunes itself** (`tune_to`) is
+refused when it is measured at the tuner's tune frequency: the tuner presents
+its target on every solve there, so SWR, Resonance and Match Z₀ are already
+met and cannot respond to any knob. The message names the ways out — measure
+at another frequency, give the tuner fixed part values and mark them as knobs,
+or optimise something other than the match. The drag-hold below refuses the
+same case, with the same message.
+
 ### Keep the target while I drag
 
 The optimizer tunes for you and hands back an answer. This is the other half:

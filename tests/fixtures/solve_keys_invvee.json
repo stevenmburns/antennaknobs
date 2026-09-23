@@ -33,6 +33,7 @@
   "solve_id": "string",
   "solve_ms": "number",
   "solver": "string",
+  "tuner_holds_match": "null",
   "wires[].knot_currents_im[]": "number",
   "wires[].knot_currents_re[]": "number",
   "wires[].knot_positions[][]": "number",

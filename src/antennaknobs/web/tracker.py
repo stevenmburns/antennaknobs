@@ -50,7 +50,13 @@ from typing import Callable
 
 import numpy as np
 
-from .optimize import _feed_zs, _newton_root2, _residual_vec, _secant_root
+from .optimize import (
+    _feed_zs,
+    _newton_root2,
+    _residual_vec,
+    _secant_root,
+    tuner_refusal,
+)
 
 # How close the objective has to stay while dragging, in ohms. This is a
 # USER-FACING tolerance and deliberately not `optimize._ROOT_FTOL`, which is
@@ -236,6 +242,13 @@ class Tracker:
         self.n_solves = 0
         budget = 40
 
+        # AK#1664: a tuner holding the match makes the target hold itself.
+        # The solve is memoised, so the root find below starts from it free.
+        self._F(self.x, self.drag_value)
+        why = tuner_refusal(self._memo[self._key(self.x)], self.objective)
+        if why:
+            return self._state("refused", why)
+
         def probe1(v):
             F = self._F(np.array([v]), self.drag_value)
             return None if F is None else float(F[0])
@@ -302,6 +315,9 @@ class Tracker:
             except np.linalg.LinAlgError:
                 pass
         F = self._F(x_pred, a)
+        why = tuner_refusal(self._memo[self._key(x_pred)], self.objective)
+        if why:
+            return self._state("refused", why)
         if F is None:
             return self._state(
                 "refused",

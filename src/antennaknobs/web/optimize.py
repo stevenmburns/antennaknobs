@@ -33,6 +33,34 @@ from scipy.optimize import minimize
 OBJECTIVES = ("swr", "resonance", "match_z0")
 
 
+class DegenerateObjective(ValueError):
+    """The objective cannot respond to any knob (AK#1664): refused by name
+    before the run, not an error in the design."""
+
+
+def tuner_refusal(out: dict, objective: str) -> str | None:
+    """Why ``objective`` is degenerate on this solve, or None.
+
+    Every objective here is a match, and a self-tuning tuner measured at its
+    tune frequency makes the driven port read its target on every solve
+    (``tuner_holds_match`` on the response, `auto_match.tuner_holding_match`).
+    The objective is then met whatever the knobs do: the optimizer would
+    descend a flat surface and the tracker's tangent would be zero. Off the
+    tune frequency the tuner holds its parts and the match responds again, so
+    that combination is left alone."""
+    held = out.get("tuner_holds_match")
+    if not held or objective not in OBJECTIVES:
+        return None
+    return (
+        f"Tuner {held['name']} retunes on every solve to present its target at "
+        f"{held['f_mhz']:g} MHz, the frequency this is measured at, so the "
+        "match is met whatever the knobs do. Measure at another frequency "
+        "(the tuner holds its parts there), give the tuner fixed part values "
+        "instead of tune_to and mark them as knobs, or optimise something "
+        "other than the match."
+    )
+
+
 def _swr(z_re: float, z_im: float, z0: float) -> float:
     """Voltage SWR of impedance Z against a real reference Z0. 1.0 = perfect
     match; clamped just below the open-circuit singularity so a totally
@@ -669,6 +697,9 @@ def optimize(
         return _objective_value(_solve_at(x), objective)
 
     out0 = _solve_at(x0)
+    why = tuner_refusal(out0, objective)
+    if why:
+        raise DegenerateObjective(why)
 
     # --- scalar root path: one knob, X = 0 (#1202) ----------------------
     # `resonance` on a single knob is a SCALAR ROOT, not a minimum, and

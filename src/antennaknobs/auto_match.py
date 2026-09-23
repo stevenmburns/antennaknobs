@@ -860,6 +860,7 @@ class AutoMatchReducer:
         # (AK#1607), and a tuner tuned at any other wavelength would be tuned
         # for a slightly different frequency than the one it is used at.
         wl_for = wavelength_for or (lambda f: C_LIGHT / (f * 1e6))
+        self._wl_for = wl_for
         self._wavelength = float(wl_for(self.f_mhz))
         self._structural = NetworkReducer(net, port_to_idx, n_total_ports)
         self._last = self._structural
@@ -913,6 +914,14 @@ class AutoMatchReducer:
             )
         self.design, self._body = design, body
         return design
+
+    def tunes_at(self, f_mhz) -> bool:
+        """Whether a solve at ``f_mhz`` is at the tune frequency, by the same
+        rule `_reducer_for` uses to reuse the tuning: there the port
+        impedance IS the target, whatever the rest of the design does."""
+        return math.isclose(
+            float(self._wl_for(float(f_mhz))), self._wavelength, rel_tol=1e-12
+        )
 
     def _reducer_for(self, y_real, wavelength) -> NetworkReducer:
         same = math.isclose(wavelength, self._wavelength, rel_tol=1e-12)
@@ -1073,6 +1082,22 @@ def tuner_rows(eng) -> list[dict]:
     """The engine's tuner readout rows, [] when it has no self-tuning tuner."""
     red = getattr(eng, "_reducer", None)
     return red.tuner_rows() if isinstance(red, AutoMatchReducer) else []
+
+
+def tuner_holding_match(eng) -> dict | None:
+    """``{"name", "f_mhz"}`` of the self-tuning tuner when the engine's
+    solve frequency is its tune frequency, else None (AK#1664).
+
+    There the driven port reads the tuner's target on every solve, so a
+    match objective (SWR, resonance, match to Z0) is met whatever the knobs
+    do: the optimizer and the tracker refuse on this rather than descend a
+    flat surface. Off the tune frequency the tuner holds its parts and the
+    match responds again."""
+    red = getattr(eng, "_reducer", None)
+    f = getattr(getattr(eng, "builder", None), "freq", None)
+    if not isinstance(red, AutoMatchReducer) or not f or not red.tunes_at(f):
+        return None
+    return {"name": red._tuner.name, "f_mhz": red.f_mhz}
 
 
 def tuner_advisories(eng) -> list[dict]:
