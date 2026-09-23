@@ -210,30 +210,50 @@ describe("the range menu's edits (AK#1682)", () => {
   const LOG: sweep.SweepRange = { lo: 10, hi: 100, spacing: "log" };
 
   it("the first edit materialises the density the grid was using", () => {
-    // 17 default points over one decade = 16 per decade; moving lo keeps it.
+    // The range has no density of its own, so it inherits the 17-point
+    // default grid it was actually running; moving lo keeps that count.
     const next = sweep.editSweepRange(LOG, 17, { lo: 1 });
-    expect(next).toEqual({ lo: 1, hi: 100, spacing: "log", pointsPerDecade: 16 });
-    expect(sweep.sweepGrid(next!, 17).freqs).toHaveLength(33);
+    expect(next).toEqual({ lo: 1, hi: 100, spacing: "log", points: 17 });
+    expect(sweep.sweepGrid(next!, 17).freqs).toHaveLength(17);
   });
 
-  it("a spacing switch keeps the point count", () => {
+  it("a spacing switch keeps the point count exactly", () => {
     const lin = sweep.editSweepRange(LOG, 17, { spacing: "lin" })!;
     expect(lin).toEqual({ lo: 10, hi: 100, spacing: "lin", step: 90 / 16 });
     expect(sweep.sweepGrid(lin, 17).freqs).toHaveLength(17);
     const back = sweep.editSweepRange(lin, 17, { spacing: "log" })!;
-    expect(back.pointsPerDecade).toBeCloseTo(16, 9);
+    expect(back.points).toBe(17);
     expect(back.step).toBeUndefined();
+    expect(sweep.sweepGrid(back, 17).freqs).toHaveLength(17);
   });
 
   it("refuses an edit that is not a range", () => {
     expect(sweep.editSweepRange(LOG, 17, { lo: 200 })).toBeNull();
     expect(sweep.editSweepRange(LOG, 17, { lo: 0 })).toBeNull();
     expect(sweep.editSweepRange(EDIT, 11, { step: 0 })).toBeNull();
+    expect(sweep.editSweepRange(LOG, 17, { points: 1 })).toBeNull();
   });
 
   it("a step that does not divide the span still ends on hi", () => {
     const freqs = sweep.sweepGrid({ lo: 14, hi: 14.35, spacing: "lin", step: 0.1 }, 17).freqs;
     expect(freqs).toEqual([14, 14.1, 14.2, 14.3, 14.35].map((f) => expect.closeTo(f, 9)));
+  });
+
+  it("log spacing is a total point count, not points per decade (AK#1682 follow-up)", () => {
+    // 14.0-14.35 MHz is 0.0108 decades: 17 points used to be served/shown as
+    // ~1,500 points/decade. It is now just 17.
+    const range: sweep.SweepRange = { lo: 14.0, hi: 14.35, spacing: "log", points: 17 };
+    const g = sweep.sweepGrid(range, 41);
+    expect(g.freqs).toHaveLength(17);
+    expect(g.freqs[0]).toBeCloseTo(14.0, 9);
+    expect(g.freqs[16]).toBeCloseTo(14.35, 9);
+    const r = g.freqs[1] / g.freqs[0];
+    for (let i = 1; i < g.freqs.length; i++) {
+      expect(g.freqs[i] / g.freqs[i - 1]).toBeCloseTo(r, 9);
+    }
+    // The menu's density readout is the same 17 -- not a huge points/decade
+    // number a narrow band-locked span would otherwise imply.
+    expect(sweep.effectiveDensity(range, 17).points).toBe(17);
   });
 });
 

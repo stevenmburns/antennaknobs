@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { KnobMenuNumber } from "../backend/fields";
 import {
   effectiveDensity,
@@ -8,6 +9,14 @@ import {
   type SweepRange,
   type SweepRangeLevel,
 } from "../../lib/sweep";
+
+// Which field the user is editing (Steve, 2026-09-23): `editSweepRange`
+// already refuses a bad value (step ≤ 0, a sub-2 point count, lo ≤ 0,
+// hi ≤ lo) by returning null, but that alone left the field showing what was
+// typed with no sign the edit never happened. This tracks which field's
+// LAST attempted value was refused, so it can be marked `data-invalid` until
+// corrected or reverted (blur / Escape, handled by KnobMenuNumber itself).
+type SweepField = "lo" | "hi" | "step" | "points";
 
 // Where "↺ design range" lands, in the words the menu uses for it.
 const LEVEL_LABEL: Record<SweepRangeLevel, string> = {
@@ -27,6 +36,7 @@ export function SweepRangeMenu({
   resolved,
   design,
   grid,
+  refineEnabled,
   onEdit,
   onRevert,
   onClose,
@@ -41,6 +51,10 @@ export function SweepRangeMenu({
   design: ResolvedSweepRange;
   /** The grid the sweep runs for `resolved` (its point count + clamp). */
   grid: SweepGrid;
+  /** Adaptive refinement is on for this session (AK#1682 follow-up): the
+   *  log "points" field is then the BASE grid refinement starts from, so
+   *  the menu labels it "base points" rather than "points". */
+  refineEnabled?: boolean;
   onEdit: (next: SweepRange) => void;
   onRevert: () => void;
   onClose: () => void;
@@ -49,9 +63,24 @@ export function SweepRangeMenu({
   const n = grid.freqs.length;
   const d = effectiveDensity(range, n);
   const round = (v: number, sig = 6) => Number(v.toPrecision(sig));
-  const set = (patch: Partial<SweepRange>) => {
+  const [invalidFields, setInvalidFields] = useState<ReadonlySet<SweepField>>(
+    new Set(),
+  );
+  const markValid = (field: SweepField) =>
+    setInvalidFields((s) => {
+      if (!s.has(field)) return s;
+      const next = new Set(s);
+      next.delete(field);
+      return next;
+    });
+  const set = (field: SweepField, patch: Partial<SweepRange>) => {
     const next = editSweepRange(range, n, patch);
-    if (next) onEdit(next);
+    if (next) {
+      onEdit(next);
+      markValid(field);
+    } else {
+      setInvalidFields((s) => (s.has(field) ? s : new Set(s).add(field)));
+    }
   };
   const edited = resolved.level === "session";
   return (
@@ -74,29 +103,60 @@ export function SweepRangeMenu({
         <div className="knob-menu-title">Sweep range</div>
         <div className="knob-menu-row">
           <span>Sweep range lo / hi (MHz)</span>
-          <KnobMenuNumber value={round(range.lo)} onChange={(v) => set({ lo: v })} />
-          <KnobMenuNumber value={round(range.hi)} onChange={(v) => set({ hi: v })} />
+          <KnobMenuNumber
+            value={round(range.lo)}
+            onChange={(v) => set("lo", { lo: v })}
+            invalid={invalidFields.has("lo")}
+            onRevert={() => markValid("lo")}
+          />
+          <KnobMenuNumber
+            value={round(range.hi)}
+            onChange={(v) => set("hi", { hi: v })}
+            invalid={invalidFields.has("hi")}
+            onRevert={() => markValid("hi")}
+          />
         </div>
         {range.spacing === "lin" ? (
           <div className="knob-menu-row">
             <span>Step (MHz)</span>
-            <KnobMenuNumber value={round(d.step, 4)} onChange={(v) => set({ step: v })} />
+            <KnobMenuNumber
+              value={round(d.step, 4)}
+              onChange={(v) => set("step", { step: v })}
+              invalid={invalidFields.has("step")}
+              onRevert={() => markValid("step")}
+            />
+            <span className="knob-menu-note">{n} points</span>
           </div>
         ) : (
           <div className="knob-menu-row">
-            <span>Points / decade</span>
+            <span>{refineEnabled ? "Base points" : "Points"}</span>
             <KnobMenuNumber
-              value={round(d.pointsPerDecade, 4)}
-              onChange={(v) => set({ pointsPerDecade: v })}
+              value={Math.round(d.points)}
+              onChange={(v) => set("points", { points: Math.round(v) })}
+              invalid={invalidFields.has("points")}
+              onRevert={() => markValid("points")}
             />
           </div>
         )}
+        {range.spacing === "log" && refineEnabled ? (
+          <div className="knob-menu-note">
+            refinement adds points where the curve bends
+          </div>
+        ) : null}
         <div className="knob-menu-row">
           <span>Spacing</span>
           <select
             aria-label="sweep spacing"
             value={range.spacing}
-            onChange={(e) => set({ spacing: e.target.value as SweepRange["spacing"] })}
+            onChange={(e) => {
+              // Never refused (a valid range's own spacing always re-applies
+              // cleanly), so this bypasses the per-field invalid tracking
+              // `set` above does for the numeric fields.
+              const next = editSweepRange(range, n, {
+                spacing: e.target.value as SweepRange["spacing"],
+              });
+              if (next) onEdit(next);
+            }}
           >
             <option value="lin">lin</option>
             <option value="log">log</option>
@@ -112,7 +172,10 @@ export function SweepRangeMenu({
           className="knob-menu-revert"
           disabled={!edited}
           title={`Return to ${LEVEL_LABEL[design.level]}: ${round(design.range.lo)}–${round(design.range.hi)} MHz`}
-          onClick={onRevert}
+          onClick={() => {
+            setInvalidFields(new Set());
+            onRevert();
+          }}
         >
           ↺ design range
         </button>

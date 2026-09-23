@@ -83,9 +83,12 @@ export type ResultFieldSpec = {
 
 /** The served shape of an absolute sweep range (AK#1682; normalised by the
  *  adapter's `_ui_sweep_range`). At most one density is present: `step`
- *  (MHz, lin), `points_per_decade` (log) or `points` (the total, either
- *  spacing); none means the app picks it. `source` ranks a file's range
- *  above a design's. */
+ *  (MHz, lin) or `points` (the total count across [lo, hi], either
+ *  spacing); none means the app picks it. `points_per_decade` is the
+ *  retired log density -- the adapter always converts a served one to
+ *  `points` before /examples, so it should never actually arrive here, but
+ *  the field stays for a spec built some other way (a stale cache, a
+ *  hand-built fixture). `source` ranks a file's range above a design's. */
 export type SweepRangeSpec = {
   lo: number;
   hi: number;

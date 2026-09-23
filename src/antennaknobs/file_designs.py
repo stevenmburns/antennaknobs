@@ -69,17 +69,19 @@ def _seed_freq(freq_range):
 
 def sweep_range_ui(lo, hi, grid=None, *, source="file") -> dict:
     """The ``ui_params["sweep_range"]`` a file's sweep publishes (AK#1682):
-    ``{lo, hi, spacing}`` plus ``step`` (MHz) for a linear grid or
-    ``points_per_decade`` for a logarithmic one. ``grid`` is the importers'
-    ``(spacing, value)`` pair (``NecDeck.freq_grid`` /
-    ``SsnCircuit.sweep_grid``); without one the spacing is linear and the app
-    picks the density. ``source`` tells the app which rung of its range
-    precedence this is -- a file's own range outranks a design's."""
+    ``{lo, hi, spacing}`` plus ``step`` (MHz) for a linear grid or ``points``
+    (the total count) for a logarithmic one. ``grid`` is the importers'
+    ``(spacing, value)`` pair (``NecDeck.freq_grid`` / ``SsnCircuit.sweep_grid``,
+    already a point count for "log"); without one the spacing is linear and
+    the app picks the density. ``source`` tells the app which rung of its
+    range precedence this is -- a file's own range outranks a design's."""
     out: dict = {"lo": float(lo), "hi": float(hi), "spacing": "lin", "source": source}
     if grid is not None:
         spacing, value = grid
         out["spacing"] = spacing
-        out["step" if spacing == "lin" else "points_per_decade"] = float(value)
+        out["step" if spacing == "lin" else "points"] = (
+            float(value) if spacing == "lin" else int(value)
+        )
     return out
 
 

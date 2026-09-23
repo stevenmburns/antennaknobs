@@ -459,11 +459,11 @@ class AntennaExample:
     sweep_policy: SweepPolicy = DEFAULT_SWEEP_POLICY
     # An absolute sweep range (AK#1682), which is also the measurement dial's
     # travel: {"lo", "hi", "spacing": "lin" | "log", "source": "file" |
-    # "design"} plus an optional density -- "step" (MHz, lin),
-    # "points_per_decade" (log) or "points" (total). A file design's range
-    # ("file") outranks a design's own ui_params["sweep_range"] ("design"),
-    # and both outrank `meas_freq_range_mhz` and `sweep_policy`. None when
-    # neither declares one.
+    # "design"} plus an optional density -- "step" (MHz, lin) or "points"
+    # (the total count, either spacing). A file design's range ("file")
+    # outranks a design's own ui_params["sweep_range"] ("design"), and both
+    # outrank `meas_freq_range_mhz` and `sweep_policy`. None when neither
+    # declares one.
     sweep_range: Optional[dict] = None
     # Initial 2D-view projection the wire-render canvas picks when the
     # user first selects this example. "xy" = top-down (beam-in-xy
