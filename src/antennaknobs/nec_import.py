@@ -527,6 +527,13 @@ class NecNT:
     resistive-pi fields are ``None``. ``network()`` emits it as a general
     ``Admittance`` branch. ``None`` pi legs are absent elements.
 
+    All-real RANK-1 Y (AK#1681): an ideal transformer with a series winding
+    resistance, carried as ``xfmr_n`` / ``xfmr_r`` in `network.Transformer`'s
+    own terms (a:b turns ratio, resistance referred to side a), plus
+    ``shunt_r_b`` for whatever conductance the printed digits leave over
+    (``None`` when the ratio prints exactly); ``series_r``, ``shunt_r_a`` and
+    ``y`` are ``None`` — see `_rank_one_transformer`.
+
     ``edge_a`` / ``edge_b`` carry the NEC-5 knot end, as on ``NecTL``
     (AK#1579)."""
 
@@ -538,6 +545,8 @@ class NecNT:
     shunt_r_a: float | None = None
     shunt_r_b: float | None = None
     y: tuple[tuple[complex, complex], tuple[complex, complex]] | None = None
+    xfmr_n: float | None = None
+    xfmr_r: float | None = None
     at_a: float | None = None  # 4nec2 percentage positions, as on NecFeed
     at_b: float | None = None
     edge_a: int = 0  # NEC-5 knot ends (AK#1579), as on NecFeed/NecLoad
@@ -1991,6 +2000,14 @@ class NecDeck:
                 # Admittance branch (issue #416).
                 branches.append(_net.Admittance(ports=(a, b), y=nt.y))
                 continue
+            if nt.xfmr_n is not None:
+                # AK#1681: the rank-1 real Y, as the transformer it is.
+                branches.append(_net.Transformer(a=a, b=b, n=nt.xfmr_n, r=nt.xfmr_r))
+                if nt.shunt_r_b is not None:
+                    # What the printed digits leave over, so the pair is
+                    # the card's Y exactly (`_rank_one_transformer`).
+                    branches.append(_net.Shunt(port=b, r=nt.shunt_r_b))
+                continue
             if nt.series_r is not None:
                 branches.append(_net.TwoPort(a=a, b=b, r=nt.series_r))
             if nt.shunt_r_a is not None:
@@ -3129,6 +3146,60 @@ def _end_shunt(y: complex, virtual: bool) -> tuple[float | None, complex | None]
     return 1.0 / y.real, None
 
 
+# How far from rank 1 an all-real NT's Y may sit and still read as a
+# transformer (AK#1681), as |det Y| / (Y11·Y22). EZNEC prints each Y entry to
+# five significant figures or more, so each carries a relative rounding error
+# up to 5e-5, and det = Y11·Y22 − Y12² inherits up to four of them: 2e-4 of
+# Y11·Y22. The bound sits just above that, so a transformer whose ratio does
+# not print exactly still reads as one. It decides only the SHAPE: whatever
+# the determinant leaves over is kept as a shunt (see below), so the branch
+# set reproduces the card's Y exactly either way.
+_XFMR_RANK_TOL = 5e-4
+
+
+def _rank_one_transformer(y11: float, y12: float, y22: float):
+    """``(n, r, g_b)`` when a real 2×2 short-circuit Y is an ideal transformer
+    with a series winding resistance, None otherwise (AK#1681).
+
+    `network.Transformer(a, b, n, r)` obeys ``v_a − n·v_b = r·i_a`` and
+    ``i_b = −n·i_a``, so its admittance is
+
+        Y = (1/r)·[[1, −n], [−n, n²]]
+
+    — rank 1, with ``Y11 = 1/r``, ``Y12 = −n/r`` and ``Y22 = n²/r``. Read
+    backwards: ``r = 1/Y11`` and ``n = −Y12/Y11``, and the matrix IS that
+    transformer when ``Y11·Y22 = Y12²``. EZNEC writes its transformer this way
+    (``NT ... 20,0,-10,0,5,0`` is n = ½ with r = 0.05 Ω on side a, i.e. 1:2
+    turns and 0.2 Ω referred to side b).
+
+    ``g_b = Y22 − Y12²/Y11 = det Y / Y11`` is what the printed digits leave
+    over: a conductance at port b that makes transformer + shunt equal the
+    card exactly. It is zero for an exactly printed ratio and NOT negligible
+    otherwise — not relative to Y22, which the small winding resistance makes
+    huge, but relative to the node, whose own admittance is set by the load.
+    On WA7ARK's 7:1 (``.2040816, -1.428571, 10.``) g_b is 4.4e-6 S, only
+    4.4e-7 of Y22, yet dropping it moves the source impedance by 1.3e-4.
+    Port b is a choice, not a physical claim: fitting Y22 and Y12 instead
+    leaves ``det Y / Y22`` at port a, and that spelling is exact too.
+
+    The resistive pi that fits every real Y also fits this one, but one of its
+    legs is ``1/(Y11 + Y12)`` or ``1/(Y22 + Y12)`` — negative whenever |n| ≠ 1
+    — so it draws a negative resistor, and a plane cut at that port hangs the
+    leg on whatever is downstream and reads it (AK#1681 read −0.201 Ω there).
+
+    ``Y11`` and ``Y22`` must both be positive, and ``Y12`` nonzero: a zero
+    ``Y12`` is two unconnected shunts, not a transformer. ``Y12 > 0`` is the
+    phase-inverting winding (n < 0), which the Transformer's law covers as
+    written.
+    """
+    if not (y11 > 0.0 and y22 > 0.0 and y12 != 0.0):
+        return None
+    det = y11 * y22 - y12 * y12
+    if abs(det) > _XFMR_RANK_TOL * y11 * y22:
+        return None
+    return -y12 / y11, 1.0 / y11, det / y11
+
+
 # A gyrator's whole transfer IS its off-diagonal, and that off-diagonal is
 # purely reactive. Below this susceptance the branch forces nothing, so
 # reading it as a current source would be reading float noise as a drive.
@@ -3169,8 +3240,8 @@ def _collapse_gyrator_drives(ports, branches, sources):
     impedance is precisely what the user asked for. All of these must hold:
 
     - zero diagonal, and off-diagonals equal and purely reactive. An EZNEC
-      transformer is an all-real Y, which arrives as its exact resistive pi
-      and is not an ``Admittance`` branch at all; a lossy line is lossy, so
+      transformer is an all-real Y, which arrives as a ``Transformer``
+      (AK#1681) and is not an ``Admittance`` branch at all; a lossy line is lossy, so
       its 2×2 has a nonzero diagonal. Neither survives the first test;
     - exactly one side on a ``PortVirtual``, the other on real geometry. A
       line between two virtual nodes drives nothing, and a gyrator between two
@@ -3865,6 +3936,28 @@ def _translate_network_cards(
                     wire_b=wb,
                     seg_b=sb,
                     y=((y11, y12), (y12, y22)),
+                    at_a=at_a,
+                    at_b=at_b,
+                    edge_a=ea,
+                    edge_b=eb,
+                )
+            )
+            continue
+        # A rank-1 real Y is an ideal transformer with a winding resistance
+        # (AK#1681) — EZNEC's transformer. Its resistive pi is exact too, but
+        # it spells the transformer with a NEGATIVE shunt leg, which a plane
+        # cut at that port reads as part of the load.
+        xfmr = _rank_one_transformer(y11.real, y12.real, y22.real)
+        if xfmr is not None:
+            nts.append(
+                NecNT(
+                    wire_a=wa,
+                    seg_a=sa,
+                    wire_b=wb,
+                    seg_b=sb,
+                    xfmr_n=xfmr[0],
+                    xfmr_r=xfmr[1],
+                    shunt_r_b=1.0 / xfmr[2] if xfmr[2] else None,
                     at_a=at_a,
                     at_b=at_b,
                     edge_a=ea,
