@@ -847,9 +847,10 @@ _NEC2_BURIED_REFUSAL = (
 #   pynec  SERVES it — PyNECEngine solves it by a multiport-Y reduction outside
 #          the field solve, one deck per driven port.
 #   nec5   SERVES it — the same route since #1280.
-#   nec2   REFUSES it. `nec_export.export_nec` writes ONE deck, and there is no
-#          faithful single-deck spelling of a reduction, so the engine and the
-#          Download NEC-2 button refuse together (#1354).
+#   nec2   SERVES it — the same route since AK#1678, one structure deck per
+#          real port. Only the Download NEC-2 button still refuses: there is no
+#          faithful single-deck spelling of a reduction. Until #1678 the engine
+#          built every run through that writer and refused with it (#1354).
 #
 # Before this the coverage grid asked the wrappers only about `buried`, so a TL
 # design showed an OFFERED NEC-2 tab and met the refusal after a click — the
@@ -857,17 +858,10 @@ _NEC2_BURIED_REFUSAL = (
 # reached.
 _NETWORK_NEED = "network_reduction"
 
-_NEC2_NETWORK_REFUSAL = (
-    "a NEC-2 deck cannot express a transmission line, a transformer or a "
-    "virtual driver: the app solves those by a multiport-Y reduction over one "
-    "deck per driven port, and no single deck says that. Use momwire, whose "
-    "network is native, or the PyNEC or NEC-5 tab, which reduce it the same way."
-)
-
 _WRAPPER_NETWORK_SCOPE = {
     "pynec": (True, None, None),
     "nec5": (True, None, None),
-    "nec2": (False, _NEC2_NETWORK_REFUSAL, "antennaknobs#1395"),
+    "nec2": (True, None, None),
 }
 
 # The two remaining wrapper rows (#1395), so the table is not half filled. Each
@@ -917,13 +911,6 @@ _NEC2_VERTEX_REFUSAL = (
     "the short-bridge idiom explicitly (antennaknobs#898)."
 )
 
-_NEC2_DISTRIBUTED_REFUSAL = (
-    "a NEC-2 deck cannot express a distributed finite-gap port: it spans every "
-    "segment of its named wire, and the app solves it by a multiport-Y reduction "
-    "over one deck per driven port, which no single deck says (issue #477). Run "
-    "it on momwire, whose finite-gap port is native."
-)
-
 _WRAPPER_PORT_SCOPE = {
     "junction_ports": {
         "pynec": (False, _PYNEC_JUNCTION_REFUSAL, "antennaknobs#579"),
@@ -942,11 +929,13 @@ _WRAPPER_PORT_SCOPE = {
     #   pynec  NOT MEASURED. Its code reduces a distributed port (engines/pynec.py,
     #          issue #477), but the catalog's only such design refuses first on
     #          its junction port, so nothing solved says it serves.
-    #   nec2   REFUSES -- the writer's network refusal names distributed
-    #          finite-gap ports (nec_export.py, issue #477).
+    #   nec2   NOT MEASURED, and for PyNEC's reason. Since AK#1678 it reduces a
+    #          distributed port with PyNEC's own drive points (every segment at its
+    #          weight), but nothing in the catalog reaches that without refusing
+    #          first on its junction port.
     "distributed_ports": {
         "pynec": (None, None, None),
-        "nec2": (False, _NEC2_DISTRIBUTED_REFUSAL, "antennaknobs#477"),
+        "nec2": (None, None, None),
         "nec5": (False, "a port is " + DISTRIBUTED_PORT_REFUSAL, "antennaknobs#1410"),
     },
 }
@@ -3304,7 +3293,9 @@ _NEC2_SEAMS = _SolveSeams(
     # From the printout's own VOLTAGE columns, stamped by `solve_snapshot`:
     # this engine has no resolved-feed list to read (`export_nec` builds and
     # discards the PyNECEngine that resolves them), and the report is what the
-    # binary was actually driven with.
+    # binary was actually driven with. On the multiport-Y route (AK#1678) the
+    # snapshot stamps the network's own sources instead, since its decks are
+    # driven at the resolved port voltages, which nobody authored.
     feed_drives=lambda eng: list(
         zip(
             getattr(eng, "_excited_feed_values", None) or [],
@@ -4854,10 +4845,25 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         del_theta = 90.0 / (n_theta - 1)
         del_phi = 360.0 / (n_phi - 1)
         t0 = time.perf_counter()
+        # The multiport-Y route (AK#1678) drives every real port at its
+        # network-resolved voltage and reports gain per SOURCE watt, as
+        # `NEC2Engine.far_field` does; the single-deck route gets (None, None)
+        # and the deck and gains it always had.
+        sources, p_source = eng._excitation(meas_freq)
         text = eng._run(
-            eng.deck(meas_freq, rp=(n_theta, n_phi - 1, del_theta, del_phi))
+            eng.deck(
+                meas_freq,
+                rp=(n_theta, n_phi - 1, del_theta, del_phi),
+                sources=sources,
+            )
         )
         gains_by_angle = eng._parse_radiation_patterns(text)
+        if p_source is not None:
+            shift_db = 10.0 * np.log10(eng._to_source_gain(text, p_source))
+            gains_by_angle = {
+                k: g if g <= NULL_GAIN_DB else g + shift_db
+                for k, g in gains_by_angle.items()
+            }
         pattern_ms = (time.perf_counter() - t0) * 1e3
         thetas = [ti * del_theta for ti in range(n_theta)]
         phis = [pi * del_phi for pi in range(n_phi)]

@@ -7,13 +7,16 @@ OFFERED NEC-2 tab and met the refusal after a click: the experience #1286 exists
 remove, surviving in the one corner it never reached. #1354 made it visible by
 adding a third wrapper; it did not create it.
 
-The three wrappers genuinely differ, which is why this is a per-kind row and not
-one sentence for the design:
+The row is per kind, not one sentence for the design, because the wrappers have
+not always agreed:
 
     pynec   SERVES — a multiport-Y reduction outside the field solve.
     nec5    SERVES — the same route since #1280.
-    nec2    REFUSES — `export_nec` writes ONE deck, and a reduction has no
-            faithful single-deck spelling.
+    nec2    SERVES — the same route since AK#1678. Until then it REFUSED:
+            the engine built every run through `export_nec`, which writes ONE
+            deck, and a reduction has no faithful single-deck spelling. The
+            writer still refuses (that is the Download NEC-2 button), so the
+            need is still derived where it refuses; it just greys no tab now.
 
 THE GATE, and it needs no binary. `#1286`'s model is that a fast derivation needs
 checking against something that constructs. `NEC2Engine.__init__` cannot be that
@@ -74,7 +77,7 @@ _EARLIER_CAPABILITY = {"junction_ports", "node_gaps", "buried"}
 
 @pytest.mark.antenna_computation_check
 def test_the_derivation_agrees_with_the_deck_writer_over_the_catalog():
-    """Every design, both directions: the grid greys the NEC-2 tab exactly when the
+    """Every design, both directions: the network need is derived exactly when the
     writer refuses the network — over the designs where the network is the first
     thing that could refuse."""
     disagree, skipped = [], []
@@ -111,24 +114,24 @@ def test_the_probe_answered_a_useful_number_of_designs():
     assert asked >= 80, asked
 
 
-def test_a_tl_design_greys_nec2_and_only_nec2_among_the_wrappers():
-    """The user story. `broadband.lpda` is a log-periodic fed through a TL."""
+def test_a_tl_design_greys_no_wrapper():
+    """The user story. `broadband.lpda` is a log-periodic fed through a TL. It
+    used to grey the NEC-2 tab; since AK#1678 NEC-2 reduces it the way PyNEC and
+    NEC-5 do, so the need is still derived and no wrapper refuses on it."""
     cov = adapter.design_backend_coverage("broadband.lpda")
     assert _NEED in cov["needs"], cov
     refusals = cov["refusals"]
-    assert refusals.get("nec2", {}).get("capability") == _NEED, refusals
-    assert "nec2" not in (refusals.get("pynec") or {}), refusals
-    assert "pynec" not in refusals and "nec5" not in refusals, refusals
+    assert not {"pynec", "nec5", "nec2"} & set(refusals), refusals
 
 
-def test_the_nec2_sentence_names_the_tabs_that_do_serve_it():
-    """A greyed tab with no way forward is a dead end; the sentence a user hovers
-    to read has to say where to go."""
-    reason = adapter.design_backend_coverage("broadband.lpda")["refusals"]["nec2"][
-        "reason"
-    ]
-    assert "momwire" in reason and "NEC-5" in reason and "PyNEC" in reason, reason
-    assert "multiport-Y" in reason, reason
+def test_every_wrapper_serves_the_network():
+    """AK#1678: the NEC-2 row flipped to SERVES with the engine's multiport-Y
+    route, so no wrapper carries a network sentence any more."""
+    assert adapter._WRAPPER_NETWORK_SCOPE == {
+        "pynec": (True, None, None),
+        "nec5": (True, None, None),
+        "nec2": (True, None, None),
+    }
 
 
 def test_a_momwire_backend_is_not_greyed_by_a_network():

@@ -20,7 +20,8 @@ module was built for the download button and emits the same NEC-2 dialect a
 `PyNECEngine` solve resolves to, wire tuple for wire tuple, so a deck this
 engine runs is a text twin of what PyNEC would have solved in process. A second
 writer here is how the two would drift apart, and the drift would look like an
-engine disagreement.
+engine disagreement. The multiport-Y route's structure decks (AK#1678) come from
+the same lines, through `nec_export.export_nec_structure`.
 
 Two invocation forms, chosen by PROBING
 ---------------------------------------
@@ -84,6 +85,8 @@ import numpy as np
 
 from ..engine import FarField, SimulationEngine, WireCurrents, refuse_graded_wires
 from ..network import as_wire
+from ..network_reduce import C_LIGHT
+from . import _multiport
 from ._external import find_exe
 
 _log = logging.getLogger(__name__)
@@ -101,6 +104,18 @@ _NUMBER = re.compile(r"[-+]?(?:\d+\.\d*|\.\d+)(?:[EeDd][-+]?\d+)?")
 _NUMBERS_ONLY = re.compile(rf"(?:\s*{_NUMBER.pattern})+\s*")
 _CURRENTS_HEADER = "CURRENTS AND LOCATION"
 _PATTERN_HEADER = "RADIATION PATTERNS"
+
+# How far the multiport Y may sit from symmetric before `_compute_y_matrix`
+# refuses (AK#1678). NEC-5's tripwire, for NEC-5's reason — Y[i, j] and Y[j, i]
+# come from different runs, and a current read into the wrong port breaks the
+# symmetry — but NOT NEC-5's 1e-2 bar. NEC-2 tests by point matching, so its
+# discrete Y is not symmetric, and on `multiband.hexbeam_5band`'s closely
+# spaced feeds the asymmetry is 1.96e-2 of the ports' scale: PyNEC's own Y
+# (nec2++, in process) reads 1.9557e-2 and nec2c's 1.9554e-2, the two Y
+# agreeing to 5.6e-5. That is the formulation, and a gate at 1e-2 refused a
+# design both NEC-2s solve identically. 1e-1 sits 5x above the worst catalog
+# design and still catches a row read into the wrong port of a coupled pair.
+_Y_RECIPROCITY_RTOL = 1e-1
 
 # NEC prints -999.99 dB for a true pattern null. Kept verbatim: it is already a
 # dB floor, and inventing -inf here would change what a caller plots.
@@ -398,11 +413,13 @@ class NEC2Engine(SimulationEngine):
     """A user-supplied NEC-2 console binary, driven over text.
 
     Same physics as `PyNECEngine` — it is the same code family — reached
-    without linking to it. Where the two differ is worth knowing before
-    comparing numbers: PyNEC solves TL / virtual-driver networks by a
-    multiport-Y reduction outside the field solve, and there is no faithful
-    single-deck spelling of that, so `nec_export.export_nec` refuses those and
-    so does this engine. A design PyNEC serves and this refuses is that.
+    without linking to it. A network no card expresses (a line, a transformer,
+    a virtual driver, a self-tuning tuner) is solved the way PyNEC and NEC-5
+    solve it (AK#1678): one structure deck per real port, each driving that
+    port's segment centre at 1 V with the others shorted, the segment currents
+    read into the multiport Y, and the shared `NetworkReducer` stamping the
+    network on it. A single-deck download of such a design is still refused
+    (`nec_export.export_nec`), because no single deck says it.
     """
 
     supports_far_field = True
@@ -465,28 +482,195 @@ class NEC2Engine(SimulationEngine):
         self.tups = self._coerce_wire_tuples(builder.build_wires())
         refuse_graded_wires(self.tups, "NEC-2")
         self._check_geometry_against_ground()
+        self._init_route()
+
+    # -- the multiport-Y route (AK#1678) ------------------------------------
+    def _init_route(self) -> None:
+        """Choose between the single-deck route and the multiport-Y one.
+
+        THE ROUTE DECISION is `export_nec`'s, asked the same way: a network
+        whose only reducer reason is its current sources has a single-deck
+        spelling (the gyrator idiom, AK#1597) and stays on `export_nec`, deck
+        text unchanged; any other reason reduces. So every design this engine
+        solved before is solved by the same deck, and the route only takes the
+        designs `export_nec` refused.
+
+        The PORTS are PyNEC's, resolved by a `PyNECEngine` that never solves:
+        its real ports (every `PortOnWire`, a distributed one included), the
+        wire each names, and the segments each drives with what weight
+        (issue #477). NEC-2 and PyNEC address a port identically — a source at
+        a segment CENTRE, the middle segment of an odd count (AK#1598's
+        convention) — so reusing that bookkeeping is what makes this engine a
+        text twin of PyNEC on this route too, rather than a second opinion on
+        where a port is. The same engine then writes the structure decks
+        (`nec_export.export_nec_structure`), so the wires, ground and material
+        come from the one writer. The reducer is this engine's own: a
+        self-tuning tuner must tune from NEC-2's Y, not PyNEC's.
+        """
+        self._use_reducer = False
+        if self.builder.build_network() is None:
+            return
+        from .pynec import PyNECEngine
+
+        probe = PyNECEngine(self.builder, ground=self.ground)
+        reasons = probe._reducer_reasons()
+        if not reasons or reasons == frozenset({"current-source"}):
+            return
+        if [as_wire(t).n_seg for t in probe.tups] != [
+            as_wire(t).n_seg for t in self.tups
+        ]:
+            raise NEC2Error(
+                "the structure decks' mesh differs from this engine's "
+                "(PyNECEngine and NEC2Engine coerced the wires differently), so "
+                "the currents would be read against the wrong segments"
+            )
+        tag_of = {
+            as_wire(t).name: tag
+            for tag, t in enumerate(probe.tups, start=1)
+            if as_wire(t).name is not None
+        }
+        self._real_port_names = list(probe._real_port_names)
+        # Per port: [(tag, segment, weight)], the segments its drive spans.
+        self._port_drive = {
+            name: [
+                (tag_of[probe._port_wire_of[name]], int(seg), float(w))
+                for seg, w in probe._port_drive_points[name]
+            ]
+            for name in self._real_port_names
+        }
+        self._deck_engine = probe
+        # PyNEC's attribute, read the same way by the web lane: the budget
+        # rows group under their instance paths, and the drives come from the
+        # network's sources (`_reduced_snapshot`).
+        self._network = probe._network
+        self._reducer = _multiport.make_port_reducer(
+            self, probe._network, self._real_port_names
+        )
+        self._use_reducer = True
+
+    def _compute_y_matrix(self, wavelength):
+        """Multiport short-circuit Y at the real ports: one NEC-2 run per
+        port, that port driven at 1 V and every other port shorted, reading
+        the current at every port into column j.
+
+        A shorted port is simply a segment with no source: NEC-2's source is
+        a delta gap at a segment centre, so an undriven segment is that gap
+        closed, and its printed CENTRE current is the port's current. That is
+        the reading `PyNECEngine._compute_y_matrix` takes, and it is exact on
+        this basis, unlike NEC-5's knot-addressed route, which needs a probe
+        source per port (AK#1629). A distributed port drives each of its
+        segments at its weight and reads the weighted sum (issue #477).
+
+        Sign convention: each wire is a GW card in its authored p0->p1
+        direction and NEC-2's EX and current readout follow it, so this Y is
+        in the authored-direction port convention, as PyNEC's is.
+        """
+        freq = C_LIGHT / wavelength / 1e6
+        names = self._real_port_names
+        n = len(names)
+        Y = np.zeros((n, n), dtype=np.complex128)
+        for j, drv in enumerate(names):
+            sources = [(tag, seg, complex(w)) for tag, seg, w in self._port_drive[drv]]
+            text = self._run(self.deck(freq, sources=sources))
+            per_tag = self._parse_currents(text)[0]
+            for i, name in enumerate(names):
+                Y[i, j] = sum(
+                    w * per_tag[tag][seg - 1] for tag, seg, w in self._port_drive[name]
+                )
+        self._y_reciprocity_rel = _multiport.check_reciprocity(
+            Y, names, _Y_RECIPROCITY_RTOL, NEC2Error, "NEC-2"
+        )
+        return Y
+
+    def _port_sources(self, V):
+        """EX sources driving every real port at its network-resolved voltage
+        `V[i]`, in `_real_port_names` order. A port the network leaves at
+        exactly 0 V gets no card: an undriven segment already is that short."""
+        sources = []
+        for i, name in enumerate(self._real_port_names):
+            v = complex(V[i])
+            if v != 0:
+                sources.extend(
+                    (tag, seg, w * v) for tag, seg, w in self._port_drive[name]
+                )
+        if not sources:
+            raise NEC2Error(
+                "the network resolves every real port to 0 V, so there is "
+                "nothing to drive the structure with"
+            )
+        return sources
+
+    def _excitation(self, freq_mhz):
+        """``(sources, p_source)`` for a single-deck reading at `freq_mhz`.
+
+        On the multiport-Y route: every real port at the voltage the network
+        resolves for it, and the power the network's SOURCES deliver, which is
+        what a gain is per (AK#1637). ``(None, None)`` on the single-deck
+        route, where the deck carries its own feeds and NEC-2's input power
+        already is the source's."""
+        if not self._use_reducer:
+            return None, None
+        state = _multiport.reduced_state(self, freq_mhz)
+        return self._port_sources(state.V), float(state.p_in)
+
+    def _to_source_gain(self, text, p_source):
+        """P_structure / P_source for this run (see `_excitation`), with
+        P_structure the INPUT POWER its own POWER BUDGET reports; 1.0 on the
+        single-deck route."""
+        if p_source is None:
+            return 1.0
+        return _multiport.source_gain_factor(
+            self._parse_power_budget(text)["input_w"], p_source, NEC2Error
+        )
 
     # -- refusals ---------------------------------------------------------
     def _check_geometry_against_ground(self) -> None:
         return refuse_nec2_geometry(self.tups, self.ground)
 
     # -- running ----------------------------------------------------------
-    def deck(self, freq: float, *, npoints: int = 1, df: float = 0.0, rp=None) -> str:
+    def deck(
+        self,
+        freq: float,
+        *,
+        npoints: int = 1,
+        df: float = 0.0,
+        rp=None,
+        sources=None,
+    ) -> str:
         """The deck for one run, from `nec_export.export_nec`.
 
         `rp` is (n_theta, n_phi, del_theta, del_phi) for a pattern run; None
         asks for impedance only, which `export_nec` spells as `XQ`.
-        """
-        from ..nec_export import export_nec, rp_mode
 
-        text = export_nec(
-            self.builder,
-            ground=self.ground,
-            freq=freq,
-            df=df,
-            npoints=npoints,
-            include_rp=False,
-        )
+        On the multiport-Y route (AK#1678) the deck is the bare structure from
+        `nec_export.export_nec_structure`, driven by `sources`
+        (``[(tag, segment, volts)]``) — or, when None, by every real port at
+        the voltage the network resolves for it, which costs the Y runs.
+        `sources` is refused on the single-deck route, whose feeds are the
+        design's own.
+        """
+        from ..nec_export import export_nec, export_nec_structure, rp_mode
+
+        if self._use_reducer:
+            if sources is None:
+                sources = self._excitation(freq)[0]
+            text = export_nec_structure(
+                self._deck_engine, freq=freq, sources=sources, df=df, npoints=npoints
+            )
+        elif sources is not None:
+            raise ValueError(
+                "sources= drives the multiport-Y route's structure decks; this "
+                "design is solved by its own single deck"
+            )
+        else:
+            text = export_nec(
+                self.builder,
+                ground=self.ground,
+                freq=freq,
+                df=df,
+                npoints=npoints,
+                include_rp=False,
+            )
         if rp is None:
             return text
         n_theta, n_phi, del_theta, del_phi = rp
@@ -748,16 +932,9 @@ class NEC2Engine(SimulationEngine):
         inside the process-startup noise); if that printout has no budget
         either, the solve refuses.
         """
-        deck = self.deck(self.builder.freq)
-        text = self._run(deck)
-        try:
-            budget = self._parse_power_budget(text)
-        except NEC2Error:
-            text = self._run(self.deck(self.builder.freq, rp=(1, 1, 0, 0)))
-            self.io_runs[-1]["note"] = (
-                "re-run with a 1x1 RP card: the first printout had no power budget"
-            )
-            budget = self._parse_power_budget(text)
+        if self._use_reducer:
+            return self._reduced_snapshot()
+        deck, text, budget = self._run_with_budget(self.builder.freq)
         zs = self._impedances(self._parse_input_parameters(text)[0], deck)
         currents = self._currents_from(self._parse_currents(text)[0])
         self._excited_efficiency = budget["efficiency_pct"] / 100.0
@@ -780,6 +957,58 @@ class NEC2Engine(SimulationEngine):
         self._excited_feed_values = [v for v, _ in drives]
         self._excited_feed_units = [u for _, u in drives]
         return zs, currents, budget
+
+    def _run_with_budget(self, freq, sources=None):
+        """``(deck, printout, budget)`` for one run that must carry a POWER
+        BUDGET, with `solve_snapshot`'s one 1x1-RP retry for a build that
+        prints the budget only on a pattern request."""
+        deck = self.deck(freq, sources=sources)
+        text = self._run(deck)
+        try:
+            budget = self._parse_power_budget(text)
+        except NEC2Error:
+            text = self._run(self.deck(freq, rp=(1, 1, 0, 0), sources=sources))
+            self.io_runs[-1]["note"] = (
+                "re-run with a 1x1 RP card: the first printout had no power budget"
+            )
+            budget = self._parse_power_budget(text)
+        return deck, text, budget
+
+    def _reduced_snapshot(self):
+        """`solve_snapshot` on the multiport-Y route: the Y runs once, for the
+        impedances AND the port voltages, then one deck driving every real port
+        for the currents and NEC-2's structure loss. NEC-5's
+        `_reduced_snapshot`, with the budget assembled by the same helper: the
+        network's input power and losses from the reducer, which the structure
+        deck cannot see, and NEC-2's conductor loss folded in."""
+        f = self.builder.freq
+        state = _multiport.reduced_state(self, f, impedances=True)
+        _deck, text, budget = self._run_with_budget(
+            f, sources=self._port_sources(state.V)
+        )
+        currents = self._currents_from(self._parse_currents(text)[0])
+        # LOSSES ONLY (issue #1354). The structure deck carries no NT card, so
+        # NEC-2's NETWORK LOSS line is zero here; the network's losses are the
+        # reducer's rows.
+        self._excited_efficiency, self._excited_power_budget = (
+            _multiport.fold_wire_loss(
+                state.efficiency, state.p_in, state.budget, budget["wire_loss_w"]
+            )
+        )
+        self._excited_p_in = state.p_in
+        self._excited_p_radiated = budget["radiated_w"]
+        # The drives are the network's SOURCES, one per impedance: the
+        # structure deck's EX cards carry the resolved port voltages, which are
+        # not what the user drives (AK#1657's units come with them).
+        drives = [
+            (complex(s.current), "A")
+            if hasattr(s, "current")
+            else (complex(s.voltage), "V")
+            for s in self._network.sources
+        ]
+        self._excited_feed_values = [v for v, _ in drives]
+        self._excited_feed_units = [u for _, u in drives]
+        return state.zs, currents, budget
 
     # -- the engine surface ----------------------------------------------
     def _impedances(self, rows, deck: str | None = None) -> list[complex]:
@@ -817,6 +1046,8 @@ class NEC2Engine(SimulationEngine):
         every engine, where a scalar-for-one special case makes the shape
         depend on the design.
         """
+        if self._use_reducer:
+            return list(_multiport.reduced_impedance(self, self.builder.freq))
         deck = self.deck(self.builder.freq)
         rows = self._parse_input_parameters(self._run(deck))
         zs = self._impedances(rows[0], deck)
@@ -832,6 +1063,8 @@ class NEC2Engine(SimulationEngine):
         lists, and a per-point run is the shape that always answers. Batching a
         uniform grid is an optimisation, not a correctness change.
         """
+        if self._use_reducer:
+            return _multiport.reduced_impedance_sweep(self, freqs)
         freqs = np.asarray(freqs, dtype=float)
         if freqs.ndim != 1 or freqs.size == 0:
             raise ValueError("freqs must be a 1-D non-empty array")
@@ -910,10 +1143,20 @@ class NEC2Engine(SimulationEngine):
         # with the 360-degree seam duplicated.
         assert 90 % n_theta == 0 and 90 == del_theta * n_theta
         assert 360 % n_phi == 0 and 360 == del_phi * n_phi
+        f = self.builder.freq
+        # On the multiport-Y route the deck drives every real port at its
+        # network-resolved voltage, and the gain is rescaled per SOURCE watt,
+        # as NEC-5's and PyNEC's are (AK#1637).
+        sources, p_source = self._excitation(f)
         text = self._run(
-            self.deck(self.builder.freq, rp=(n_theta, n_phi, del_theta, del_phi))
+            self.deck(f, rp=(n_theta, n_phi, del_theta, del_phi), sources=sources)
         )
         gains = self._parse_radiation_patterns(text)
+        if p_source is not None:
+            shift_db = 10.0 * np.log10(self._to_source_gain(text, p_source))
+            gains = {
+                k: g if g <= NULL_GAIN_DB else g + shift_db for k, g in gains.items()
+            }
         thetas = np.arange(n_theta) * del_theta
         phis = np.arange(n_phi + 1) * del_phi
         rings = []

@@ -100,16 +100,25 @@ NEC-5, whose Sommerfeld path serves them.
 In free space there is no plane and nothing to refuse: a free-space model may
 sit anywhere, `z = 0` and below included.
 
-Two more refusals come from the deck itself, and both are shared with the
-`.nec` download button, because they come from the same writer:
+One more refusal comes from the deck itself, and it is shared with the
+`.nec` download button, because it comes from the same writer: **graded
+meshes** (the per-edge segment spelling) — a card deck numbers wires by tag,
+and expanding a graded wire into several cards would shift every `EX` / `LD` /
+`NT` reference that names one.
 
-- **graded meshes** (the per-edge segment spelling) — a card deck numbers
-  wires by tag, and expanding a graded wire into several cards would shift
-  every `EX` / `LD` / `NT` reference that names one;
-- **TL and virtual-driver networks** — the PyNEC engine solves those by a
-  multiport-Y reduction outside the field solve, and there is no faithful
-  single-deck spelling of that. A design `pynec` serves and `nec2` refuses is
-  almost always this one.
+## Networks: one deck per port
+
+A **transmission line, transformer, virtual driver or self-tuning tuner** has
+no NEC-2 card, so no single deck says it, and the download button refuses such
+a design. The `nec2` engine solves it anyway, the way `pynec` and `nec5` do:
+it runs one deck per real port — that port's segment centre driven at 1 V, the
+others shorted — reads the currents into the antenna's multiport admittance,
+and reduces the network on it. The currents, the power budget and the pattern
+then come from one more deck driving every port at the voltage the network
+resolves, with the gain reported per watt the network's **sources** deliver,
+so a lossy feedline lowers the gain the way it does on the other engines.
+A self-tuning tuner tunes from NEC-2's own admittance. The Files view shows
+every one of those decks.
 
 ## The deck is the download button's deck
 
@@ -122,6 +131,8 @@ disagreement rather than like a bug in one of ours.
 
 It also means a `nec2` result is reproducible by hand. Download the deck, run
 your own binary over it, and you should get the printout antennaknobs parsed.
+A network design's per-port decks come from the same writer's lines but are
+not a download; the Files view shows each one.
 
 One ground needs two cards. The
 [MININEC-type ground](/reference/web/#the-mininec-type-ground) is `GN 1` for
