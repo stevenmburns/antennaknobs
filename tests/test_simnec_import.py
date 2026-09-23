@@ -257,6 +257,16 @@ def test_non_open_load_is_recorded():
     assert "LOAD" in c.other_elements
 
 
+def test_the_far_field_step_is_a_display_option_not_a_skipped_directive():
+    """AC6LA #144.1: SimNEC writes `NECOptions.fieldStep = 2;` (its far-field
+    display step, degrees) and the import note listed it as not applied. It
+    changes nothing we solve, so it is accepted quietly."""
+    script = _SCRIPT_M.replace("NEC2", "NECOptions.fieldStep = 2;\nNEC2")
+    c = parse_ssn(_ssn(script), name="t.ssn")
+    assert c.ignored_directives == ()
+    assert c.skipped_note() is None
+
+
 def test_unknown_directive_is_recorded():
     script = _SCRIPT_M.replace("NEC2", "FancyNewThing(1, 2);\nNEC2")
     c = parse_ssn(_ssn(script), name="t.ssn")
