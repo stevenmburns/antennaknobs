@@ -776,6 +776,15 @@ class _Script:
             if key == "segmentsperwavelength":
                 self.seg_per_wl = int(_fnum(value, where, f"NECOptions.{option}"))
                 return
+            if key == "fieldstep":
+                # SimNEC's far-field step in degrees ("the step used when
+                # computing and displaying the far field", 2 by default): a
+                # display resolution, not part of the model. Our far field
+                # has its own grid and refines the peak (AK#1669), so no
+                # solved number depends on it and it is not a directive we
+                # failed to apply. Still parsed, so a malformed one refuses.
+                _fnum(value, where, f"NECOptions.{option}")
+                return
         self.ignored.append(stmt)
 
 
