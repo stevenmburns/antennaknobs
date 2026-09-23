@@ -14,6 +14,7 @@ import type { Projection } from "../../lib/view";
 export const invveeShape = {
   "geometry": "dipoles.invvee",
   "advisories": [],
+  "tuner_holds_match": null,
   "wires": [
     {
       "label": "wire0",
@@ -61,7 +62,7 @@ export const invveeShape = {
   "design_freq_mhz": 28.47,
   "measurement_freq_mhz": 28.481,
   "lambda_design_m": 10.53011794871795,
-  "solve_ms": 4.092858172953129,
+  "solve_ms": 5.382795934565365,
   "ground": false,
   "height_m": 0.0,
   "ground_eps_r": 10000000000.0,
@@ -100,6 +101,7 @@ export const invveeShape = {
 export const doubletLadderTunerShape = {
   "geometry": "wire.doublet_ladder_tuner",
   "advisories": [],
+  "tuner_holds_match": null,
   "wires": [
     {
       "label": "wire0",
@@ -147,7 +149,7 @@ export const doubletLadderTunerShape = {
   "design_freq_mhz": 7.1,
   "measurement_freq_mhz": 7.15,
   "lambda_design_m": 42.22428985915493,
-  "solve_ms": 7.445327006280422,
+  "solve_ms": 9.396334062330425,
   "ground": false,
   "height_m": 0.0,
   "ground_eps_r": 10000000000.0,
@@ -204,6 +206,7 @@ export const doubletLadderTunerShape = {
 export const invveeCatenaryShape = {
   "geometry": "dipoles.invvee_catenary",
   "advisories": [],
+  "tuner_holds_match": null,
   "wires": [
     {
       "label": "wire0",
@@ -251,7 +254,7 @@ export const invveeCatenaryShape = {
   "design_freq_mhz": 28.47,
   "measurement_freq_mhz": 28.489,
   "lambda_design_m": 10.53011794871795,
-  "solve_ms": 9.922375902533531,
+  "solve_ms": 11.478089028969407,
   "ground": false,
   "height_m": 0.0,
   "ground_eps_r": 10000000000.0,

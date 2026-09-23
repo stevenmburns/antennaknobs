@@ -2940,7 +2940,7 @@ async def optimize_endpoint(req: dict, request: Request):
     `progress` event per eval, then exactly one terminal `result` (that same
     JSON object) or `error`. Every other Accept keeps the single-response form.
     """
-    from .optimize import OBJECTIVES, optimize as _optimize
+    from .optimize import OBJECTIVES, DegenerateObjective, optimize as _optimize
 
     wants_sse = _SSE_MEDIA_TYPE in (request.headers.get("accept") or "")
 
@@ -3010,6 +3010,9 @@ async def optimize_endpoint(req: dict, request: Request):
     if not wants_sse:
         try:
             result = await _run(None)
+        except DegenerateObjective as exc:
+            # AK#1664: refused by name, in the user's words, not as a traceback.
+            return {"geometry": geometry, "error": str(exc)}
         except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise
             return {"geometry": geometry, "error": user_designs.format_solve_error(exc)}
         result["geometry"] = geometry
@@ -3029,6 +3032,9 @@ async def optimize_endpoint(req: dict, request: Request):
                     # The consumer left and publish() aborted the run. Not an
                     # error — and not reportable, there is nobody to report to.
                     raise
+                except DegenerateObjective as exc:
+                    stream.fail(str(exc))
+                    return
                 except Exception as exc:  # noqa: BLE001 — user design build_wires
                     stream.fail(user_designs.format_solve_error(exc))
                     return

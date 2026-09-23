@@ -50,6 +50,7 @@
   "solve_id": "string",
   "solve_ms": "number",
   "solver": "string",
+  "tuner_holds_match": "null",
   "wire_length_m": "number",
   "wire_weight_g": "number",
   "wires[].knot_currents_im[]": "number",

@@ -113,6 +113,10 @@ export type SolveResponse = {
    *  carries this deck's own numbers, so it is re-measured and must never be
    *  matched on. */
   advisories?: { category: string; text: string }[];
+  /** AK#1664: the self-tuning tuner, when this solve is at its tune
+   *  frequency — where a match objective cannot move. null otherwise. The
+   *  server refuses optimize/hold on it; the client only carries it. */
+  tuner_holds_match?: { name: string; f_mhz: number } | null;
   z_in_re: number;
   z_in_im: number;
   /** Multi-feed geometries (bowtie 1×2 array) populate this; single-feed

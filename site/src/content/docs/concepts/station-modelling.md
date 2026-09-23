@@ -382,6 +382,19 @@ special members:
   a 900 pF capacitor nobody owns is reported as no match, naming the part
   that ran out of range.
 
+  **Knobs, or a tuner that tunes itself?** Reach for knobs — fixed part
+  values marked for the optimizer, as `loops.skyloop_lmatch` marks
+  `series_L_uH` and `shunt_C_pF` — when the parts are the subject: you want
+  the sliders and to see what values the box takes. Reach for `tune_to` when
+  the box is not the subject and its parts are an outcome. A self-tuning
+  tuner retunes on every solve, because every solve builds its own engine, so
+  during an optimizer run or a knob drag it follows the antenna the way a
+  real autotuner does. That is why the optimizer and the drag-hold refuse a
+  match objective measured at the tuner's tune frequency: there the port
+  reads `tune_to` whatever the knobs do, so there is nothing to optimise. One
+  band edge away the tuner holds its parts and the match responds again, so
+  "make my tuner setting also match at the band edge" works as asked.
+
 ### Ferrite cores: one number vs a curve
 
 `qlmag` is a single, frequency-independent Q on the magnetizing branch. Real

@@ -115,7 +115,7 @@ from momwire import (
     SinusoidalSolver,
 )
 
-from ..auto_match import tuner_advisories, tuner_rows
+from ..auto_match import tuner_advisories, tuner_holding_match, tuner_rows
 from ..geometry import flat_wires_to_polylines
 from .examples import REGISTRY, register
 from .examples._base import (
@@ -4433,6 +4433,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "advisories": _advisories_for(
                 eng, req, hints()["has_buried_wire"], meas_freq
             ),
+            # AK#1664: a self-tuning tuner measured at its tune frequency, where
+            # a match objective cannot move. None otherwise.
+            "tuner_holds_match": tuner_holding_match(eng),
             "wires": _pack_wires(currents),
             "feed_wire_index": feed_wire_idx,
             "feed_knot_index": feed_knot_idx,
@@ -4681,6 +4684,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "advisories": _advisories_for(
                 eng, req, hints()["has_buried_wire"], meas_freq
             ),
+            # AK#1664: a self-tuning tuner measured at its tune frequency, where
+            # a match objective cannot move. None otherwise.
+            "tuner_holds_match": tuner_holding_match(eng),
             "wires": _pack_wires(currents),
             "feed_wire_index": feed_wire_idx,
             "feed_knot_index": feed_knot_idx,
