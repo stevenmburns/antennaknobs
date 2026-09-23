@@ -687,13 +687,16 @@ def test_razor_2p_on_the_buried_decks_follows_its_capability_cell(cls, cells):
 
 @_needs_buried_cell
 def test_the_razor_buried_gate_does_not_pass_by_accident():
-    """The cell-keyed test above has two arms; this pins that the arm it is
-    on today is the refusing one, so a momwire pin bump that flips the cell
-    is noticed here as a change in which arm runs (and fails until razor
-    carries the labels), never as a silently green test."""
-    assert RazorSolver.capabilities.buried is False
-    for cells in (("buried",), ("buried", "crossing")):
-        assert RazorSolver.capabilities.refusal(*cells)
+    """The cell-keyed test above has two arms; this pins which one it is on,
+    so a momwire pointer move that flips the cell is noticed here as a change
+    in which arm runs, never as a silently green test. Since momwire#1149
+    (U0/U1/U2/U2b) razor serves buried decks, the crossing node included, so
+    the arm is the SERVING one. The mid-span crossing (`buried+crossing`)
+    stays refused tree-wide."""
+    assert RazorSolver.capabilities.buried is True
+    assert RazorSolver.capabilities.refusal("buried") is None
+    assert RazorSolver.capabilities.refusal("buried", "crossing_junction") is None
+    assert RazorSolver.capabilities.refusal("buried", "crossing")
 
 
 # ---------------------------------------------------------------------------
