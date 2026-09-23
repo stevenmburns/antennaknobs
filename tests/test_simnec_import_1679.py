@@ -181,8 +181,9 @@ def test_a_series_z_block_imports_as_its_fixed_admittance(tmp_path):
 
     text = CLC.read_text()
     plain = _without_r1(text)
-    # chain3 is the no-R1 circuit's node between transformer B and line T1.
-    z_line = _rig_z(tmp_path, plain, plane="chain3")
+    # T1 is line T1's own node, its generator side: in the no-R1 circuit,
+    # between transformer B and the line.
+    z_line = _rig_z(tmp_path, plain, plane="T1")
     z_rig_plain = _rig_z(tmp_path, plain)
     z_rig = _rig_z(tmp_path, text)
 

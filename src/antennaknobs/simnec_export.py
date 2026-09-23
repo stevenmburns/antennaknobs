@@ -502,6 +502,12 @@ def _series_elements(br, entered_at: str, freq_mhz: float, mk, name: str):
             )
         return out
     if isinstance(br, Transformer):
+        if br.n == 1.0 and br.r is None and br.lmag is None and br.core is None:
+            # The ideal 1:1 is a through-connection, a plain wire in a
+            # datum-referenced cascade — as the SimNEC importer's pass-through
+            # between two block nodes is (AK#1679). Like the all-omitted
+            # TwoPort, it emits nothing.
+            return []
         if br.r is not None or br.lmag is not None or br.core is not None:
             raise SsnUnsupported(
                 f"{name}: only the IDEAL transformer maps to TRANSFORMER2 "

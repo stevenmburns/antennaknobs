@@ -71,8 +71,11 @@ branch→element mapping, element for element:
                                          "auto" (SimNEC picks it), Qc / Ql
 
 The chain hangs between a virtual generator-side node (``"rig"``, the
-``Driven`` source) and the deck's fed wire; trap ``Load``s ride in the deck as
-LD cards and translate through ``parse_nec`` as usual. Semantics notes, shared
+``Driven`` source: SimNEC's GENERATOR) and the deck's fed wire (``"feed"``,
+the antenna's own terminals), and each block sits on a node of its own named
+after its label (AK#1679, AK#1681), so every block SimNEC reports an impedance
+at is a measurement plane here too; trap ``Load``s ride in the deck as LD
+cards and translate through ``parse_nec`` as usual. Semantics notes, shared
 with the exporter: SimNEC quotes component ``Q`` at a frequency (``@MHz``)
 while ``ql``/``qc`` are frequency-independent, so the import is exact at the
 quoted frequency and Q-model-approximate across a sweep; ``Q = 0`` reads as
@@ -100,6 +103,8 @@ from dataclasses import dataclass
 from . import network as _net
 from .design_data import read_data
 from .nec_import import NecDeck, parse_nec
+from .network import Composite
+from .schematic import series
 
 __all__ = ["SsnCircuit", "SsnElement", "parse_ssn", "read_ssn"]
 
@@ -464,6 +469,17 @@ class SsnCircuit:
         node — where the ``Driven`` source moves to — and the deck's fed
         wire. An antenna-only file returns the deck network unchanged.
 
+        The measurement planes follow SimNEC's blocks (AK#1679, AK#1681):
+        ``rig`` is the GENERATOR, ``feed`` (the deck's fed port) is the
+        antenna's own terminals, and every chain block gets a node of its
+        own, named after its label, at the block's GENERATOR side — the
+        point SimNEC reports under that block, the impedance looking into it
+        and everything antenna-ward. A series block runs from its node to
+        the next block's; a shunt block hangs on its node, which ideal
+        pass-throughs join to its neighbours (`_through`). So a trailing
+        shunt (C1 after L1, generator→antenna) sits upstream of ``feed``,
+        and ``feed`` reads the antenna alone.
+
         Raises ``ValueError`` for a chain the app cannot faithfully rebuild:
         an element outside the captured set (see ``other_elements``), a
         non-ideal TRANSFORMER2, a k0 loss term, or a deck without exactly
@@ -488,40 +504,41 @@ class SsnCircuit:
         feed_port = src.port
         ports = dict(net.ports)
         branches = list(net.branches)
-
-        in_series = _SERIES_CHAIN | _MATCH_CHAIN
-        series_left = sum(1 for el in self.chain if el.typ in in_series)
-        if series_left == 0:
-            # Shunt-only chain: nothing separates the generator from the
-            # feed, so the shunts hang straight across the feed terminals
-            # and the source stays where the deck put it.
-            branches.extend(_shunt_branch(el, feed_port) for el in self.chain)
-            return _net.Network(ports=ports, branches=branches, sources=[src])
-
         if rig_port in ports:
             raise ValueError(
                 f"rig_port {rig_port!r} collides with a deck port name — "
                 f"pass a different rig_port"
             )
-        node = rig_port
-        ports[node] = _net.PortVirtual(node)
-        k = 0
-        for el in self.chain:
+        ports[rig_port] = _net.PortVirtual(rig_port)
+
+        nodes = _block_nodes(self.chain, taken=set(ports))
+        # `at` is the node the next block attaches to. `pending` is a series
+        # block whose antenna side is not wired yet: the next node closes it,
+        # so two series blocks in a row meet with no pass-through between.
+        at, pending, n_thru = rig_port, None, 0
+
+        def attach(node):
+            nonlocal pending, n_thru
+            if pending is None:
+                n_thru += 1
+                branches.append(_through(at, node, n_thru))
+                return
+            el, a, index = pending
+            pending = None
+            if el.typ in _MATCH_CHAIN:
+                branches.append(self._tuner(el, a, node, index))
+            else:
+                branches.append(_series_branch(el, a, node))
+
+        for index, (el, node) in enumerate(zip(self.chain, nodes, strict=True), 1):
+            ports[node] = _net.PortVirtual(node)
+            attach(node)
             if el.typ in _SHUNT_CHAIN:
                 branches.append(_shunt_branch(el, node))
-                continue
-            series_left -= 1
-            if series_left == 0:
-                nxt = feed_port  # the last series element lands on the feed
             else:
-                k += 1
-                nxt = f"chain{k}"
-                ports[nxt] = _net.PortVirtual(nxt)
-            if el.typ in _MATCH_CHAIN:
-                branches.append(self._tuner(el, node, nxt, k))
-            else:
-                branches.append(_series_branch(el, node, nxt))
-            node = nxt
+                pending = (el, node, index)
+            at = node
+        attach(feed_port)
         return _net.Network(
             ports=ports,
             branches=branches,
@@ -579,6 +596,41 @@ class SsnCircuit:
         )
         name = (el.label or f"tuner{k}").replace(".", "_")
         return _net.Instance(name, comp, rig=rig, out=out)
+
+
+def _block_nodes(chain, taken: set[str]) -> list[str]:
+    """One node name per chain block, generator→antenna: its SimNEC label
+    (AK#1679), made a usable port name — dots (the network's namespace
+    separator) and spaces become ``_`` — or ``<type><index>`` for a block
+    with none. A name another port already has gets ``_2``, ``_3``, ... ."""
+    out: list[str] = []
+    for index, el in enumerate(chain, 1):
+        base = re.sub(r"[.\s]+", "_", (el.label or "").strip()).strip("_")
+        base = base or f"{el.typ.lower()}{index}"
+        name, n = base, 1
+        while name in taken:
+            n += 1
+            name = f"{base}_{n}"
+        taken.add(name)
+        out.append(name)
+    return out
+
+
+# An ideal pass-through between two block nodes (AK#1679): SimNEC draws its
+# blocks joined by bare wire, and a shunt block's node must still be a node of
+# its own, or a plane on one side would carry the shunt on the other. The
+# ideal 1:1 `Transformer` is the network's zero-impedance through-connection
+# (its docstring: "n = 1 (with no loss) is an ideal through-connection"); an
+# alias would MERGE the nodes, which is the defect. It draws as a wire.
+_THROUGH = Composite(
+    ports=("a", "b"),
+    branches=(_net.Transformer(a="a", b="b", n=1.0),),
+    schematic=(series("short"),),
+)
+
+
+def _through(a: str, b: str, k: int):
+    return _net.Instance(f"through{k}", _THROUGH, a=a, b=b)
 
 
 def _fnum(token: str, where: str, what: str) -> float:
