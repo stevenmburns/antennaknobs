@@ -1050,6 +1050,13 @@ def find_tuners(net) -> list[_Tuner]:
         if mechanism is None:
             continue
         idx = tuple(i for i, p in enumerate(paths) if p == path)
+        if not idx:
+            # The box is not in the circuit being solved: a network re-rooted
+            # at a plane on the antenna side of the tuner (`driven_at(net,
+            # "feed")`) drops everything generator-side, the tuner included,
+            # while `composites` still lists it. Seen from there it has
+            # nothing to tune.
+            continue
         # The bypass is a chain of series arms, rig -> ... -> out; the nodes
         # between them are the box's own (a T's tee midpoint).
         chain = [net.branches[i] for i in idx]
