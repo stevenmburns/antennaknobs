@@ -375,29 +375,39 @@ def test_station_chain_is_parsed_generator_to_antenna():
 
 def test_station_network_rebuilds_the_full_ladder():
     """network() is the inverse of the station exporter's cascade walk: the
-    Driven moves to a virtual rig node and the chain hangs rig → … → feed."""
+    Driven moves to a virtual rig node and the chain hangs rig → … → feed,
+    each block on a node of its own named after its label, at its generator
+    side (AK#1679): series blocks run node to node, and ideal pass-throughs
+    join a shunt block's node to its neighbours."""
     c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=_LADDER), name="t.ssn", network=True)
     net = c.network()
     (src,) = net.sources
     assert isinstance(src, Driven) and src.port == "rig"
     assert isinstance(net.ports["rig"], PortVirtual)
+    assert all(isinstance(net.ports[n], PortVirtual) for n in ("C1", "L1", "C2", "T1"))
 
     tl = next(b for b in net.branches if isinstance(b, TL))
-    assert (tl.a, tl.b) == ("chain2", "feed")
+    assert (tl.a, tl.b) == ("T1", "feed")
     assert tl.z0 == pytest.approx(600.0)
     assert tl.length == pytest.approx(100 * 0.3048)
     assert tl.vf == pytest.approx(0.95)
     assert tl.k1 == pytest.approx(0.02) and tl.k2 == pytest.approx(0.0001)
 
     caps = [b for b in net.branches if isinstance(b, TwoPort)]
-    assert [(b.a, b.b) for b in caps] == [("rig", "chain1"), ("chain1", "chain2")]
+    assert [(b.a, b.b) for b in caps] == [("C1", "L1"), ("C2", "T1")]
     assert caps[0].c == pytest.approx(8.12e-11)  # rig-side C1
     assert caps[1].c == pytest.approx(5e-10)  # line-side C2
     assert caps[0].qc is None  # Q = 0 -> the ideal component
 
     (coil,) = [b for b in net.branches if isinstance(b, Shunt)]
-    assert coil.port == "chain1"  # the tee node, between the caps
+    assert coil.port == "L1"  # the tee node, between the caps
     assert coil.l == pytest.approx(4.218e-6) and coil.ql == pytest.approx(200.0)
+
+    thru = [b for b in net.branches if isinstance(b, Transformer)]
+    assert [(b.a, b.b, b.n, b.r) for b in thru] == [
+        ("rig", "C1", 1.0, None),
+        ("L1", "C2", 1.0, None),
+    ]
 
 
 def test_station_deck_trap_loads_ride_along():
@@ -416,10 +426,12 @@ def test_station_deck_trap_loads_ride_along():
 def test_station_ideal_transformer2():
     extra = _el("TRANSFORMER2", {"Mdl": "ideal", "N": 2}, label="X1")
     c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
-    (x,) = [b for b in c.network().branches if isinstance(b, Transformer)]
+    thru, x = [b for b in c.network().branches if isinstance(b, Transformer)]
     # SimNEC's N is the antenna:generator voltage ratio (validated on 5.1a0,
     # PR #696), so entered generator-side, Transformer n = 1/N.
-    assert (x.a, x.b, x.n) == ("rig", "feed", 0.5)
+    assert (x.a, x.b, x.n) == ("X1", "feed", 0.5)
+    # The block's own node, joined to the generator by a pass-through.
+    assert (thru.a, thru.b, thru.n) == ("rig", "X1", 1.0)
 
 
 def test_station_non_ideal_transformer2_rejected():
@@ -436,17 +448,21 @@ def test_station_k0_loss_rejected():
         c.network()
 
 
-def test_station_shunt_only_chain_hangs_across_the_feed():
-    """With no series element between generator and feed, the shunts sit
-    straight across the feed terminals and the Driven stays at the feed."""
+def test_station_shunt_only_chain_sits_upstream_of_the_feed():
+    """With no series element between generator and feed, the shunt still
+    sits on a node of its own (AK#1679): the Driven moves to the rig, and
+    ideal pass-throughs join rig -> shunt node -> feed, so the rig plane
+    reads the shunt and ``feed`` reads the antenna alone. A block with no
+    label is named after its type and place in the chain."""
     extra = _el("SHUNT_CAP", {"F": "1e-10"})
     c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
     net = c.network()
     (sh,) = [b for b in net.branches if isinstance(b, Shunt)]
-    assert sh.port == "feed" and sh.c == pytest.approx(1e-10)
+    assert sh.port == "shunt_cap1" and sh.c == pytest.approx(1e-10)
     (src,) = net.sources
-    assert src.port == "feed"
-    assert "rig" not in net.ports
+    assert src.port == "rig"
+    thru = [(b.a, b.b) for b in net.branches if isinstance(b, Transformer)]
+    assert thru == [("rig", "shunt_cap1"), ("shunt_cap1", "feed")]
 
 
 def test_station_unknown_chain_element_recorded_and_refused():
@@ -602,7 +618,9 @@ class _XfmrStation(AntennaBuilder):
 def test_roundtrip_transformer_n_identity():
     ssn = export_ssn(_XfmrStation(), freq_mhz=14.0, ground=None)
     net = parse_ssn(ssn, name="rt.ssn", network=True).network()
-    (x,) = [b for b in net.branches if isinstance(b, Transformer)]
+    # The rig -> X pass-through (AK#1679) is the 1:1; the element is the other.
+    thru, x = [b for b in net.branches if isinstance(b, Transformer)]
+    assert thru.n == 1.0
     assert x.n == pytest.approx(2.0)
 
 
