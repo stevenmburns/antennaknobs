@@ -9,13 +9,12 @@ exists (developer machines), guarded by a skipif.
 import math
 import re
 import shutil
-import subprocess
-import tempfile
 from pathlib import Path
 
 import pytest
 
 from antennaknobs.nec_import import parse_nec
+from conftest import nec2c_printout
 
 XNEC2C_EXAMPLES = Path.home() / "antennas" / "xnec2c" / "examples"
 
@@ -390,13 +389,7 @@ def test_roundtrip_impedance_matches_nec2c(name, tol, deck_text):
 
 
 def _nec2c_impedances(deck_text):
-    with tempfile.TemporaryDirectory() as d:
-        nec, out = Path(d) / "deck.nec", Path(d) / "deck.out"
-        nec.write_text(deck_text)
-        subprocess.run(
-            ["nec2c", "-i", str(nec), "-o", str(out)], check=True, capture_output=True
-        )
-        lines = out.read_text().splitlines()
+    lines = nec2c_printout(deck_text).splitlines()
     zs = []
     for i, ln in enumerate(lines):
         if "ANTENNA INPUT PARAMETERS" in ln:

@@ -25,7 +25,6 @@ The gates, in increasing independence:
 
 import re
 import shutil
-import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -35,6 +34,7 @@ from antennaknobs.engines import MomwireEngine
 from antennaknobs.engines.pynec import PyNECEngine
 from antennaknobs.file_designs import builder_from_file
 from antennaknobs.nec_export import export_nec
+from conftest import nec2c_printout
 
 FIXTURES = Path(__file__).parent / "fixtures" / "eznec_gyrator_1595"
 NEC2 = FIXTURES / "Cardioidmodnec2.nec"
@@ -199,17 +199,11 @@ def test_a_ground_mounted_export_says_GE_1():
 
 
 @needs_nec2c
-def test_a_real_nec2_kernel_forces_the_currents_we_asked_for(tmp_path):
+def test_a_real_nec2_kernel_forces_the_currents_we_asked_for():
     """The independent gate: nec2c is a different implementation, and it must
     both ACCEPT these cards and deliver the requested currents. The CURRENT
     column of its network block is the drive the gyrators forced."""
-    inp, out = tmp_path / "g.nec", tmp_path / "g.out"
-    inp.write_text(_export(NEC2))
-    r = subprocess.run(
-        ["nec2c", "-i", str(inp), "-o", str(out)], capture_output=True, timeout=300
-    )
-    assert r.returncode == 0, r.stderr.decode()[:400]
-    lines = out.read_text(errors="replace").splitlines()
+    lines = nec2c_printout(_export(NEC2)).splitlines()
     i = next(
         k
         for k, ln in enumerate(lines)
@@ -234,19 +228,14 @@ def test_a_real_nec2_kernel_forces_the_currents_we_asked_for(tmp_path):
 
 
 @needs_nec2c
-def test_a_real_nec2_kernel_lands_on_the_oracle(tmp_path):
+def test_a_real_nec2_kernel_lands_on_the_oracle():
     """And the impedance it reports is Dan's antenna. Read as V/I_requested:
     with a gyrator the ANTENNA INPUT PARAMETERS block reports the PHANTOM
     port, and the true port voltage is the network row's VOLTAGE column
     (`gyrator_reference`'s readout rule). Tolerance is loose on purpose --
     nec2c is a different kernel and a different basis from the NEC-4.2 twin,
     so agreeing to a percent is the claim, not agreeing to the digit."""
-    inp, out = tmp_path / "g.nec", tmp_path / "g.out"
-    inp.write_text(_export(NEC2))
-    subprocess.run(
-        ["nec2c", "-i", str(inp), "-o", str(out)], capture_output=True, timeout=300
-    )
-    lines = out.read_text(errors="replace").splitlines()
+    lines = nec2c_printout(_export(NEC2)).splitlines()
     i = next(
         k
         for k, ln in enumerate(lines)
