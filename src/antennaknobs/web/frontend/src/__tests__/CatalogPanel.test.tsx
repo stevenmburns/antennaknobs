@@ -152,14 +152,25 @@ describe("CatalogPanel — reload button (issue #867)", () => {
     expect(reloadButton()).not.toBeNull();
   });
 
-  it("hides the button for a built-in design", () => {
+  const rescanButton = () =>
+    screen.queryByRole("button", { name: "rescan my designs" });
+
+  it("shows a rescan button, not the file reload, for a built-in design", () => {
     renderPanel(); // dipole.test
     expect(reloadButton()).toBeNull();
+    expect(rescanButton()).not.toBeNull();
   });
 
-  it("hides the button when currentExample is undefined", () => {
+  it("shows the rescan button when currentExample is undefined", () => {
     renderPanel({ currentExample: undefined });
     expect(reloadButton()).toBeNull();
+    expect(rescanButton()).not.toBeNull();
+  });
+
+  it("fires onReloadDesign from the rescan button", async () => {
+    const { user, onReloadDesign } = renderPanel();
+    await user.click(rescanButton()!);
+    expect(onReloadDesign).toHaveBeenCalledTimes(1);
   });
 
   it("fires onReloadDesign on click", async () => {

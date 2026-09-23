@@ -274,15 +274,19 @@ function DesignSessionBody({
   // usual panels.
   const [reloadNonce, setReloadNonce] = useState(0);
   const [reloadBusy, setReloadBusy] = useState(false);
+  // The catalog button: a re-fetch always (the server rescans the user-design
+  // folder on every GET /examples). Only a selected USER design is also
+  // re-previewed and re-solved — its file may have changed; a built-in one
+  // has not, so rescanning for new files does not cost it a solve.
   const reloadDesigns = useCallback(async () => {
     setReloadBusy(true);
     try {
       await reloadCatalog();
-      setReloadNonce((n) => n + 1);
+      if (geometry.startsWith("user.")) setReloadNonce((n) => n + 1);
     } finally {
       setReloadBusy(false);
     }
-  }, [reloadCatalog]);
+  }, [reloadCatalog, geometry]);
 
   const currentExample = examples.find((e) => e.name === geometry);
   // currentValues is deliberately a fresh reference whenever paramValues[geometry]
