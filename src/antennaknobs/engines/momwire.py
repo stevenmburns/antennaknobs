@@ -117,6 +117,9 @@ def _parity_for_solver(solver, solver_kwargs):
 # read per builder in `_wavelength_for`. A deck-derived design carries NEC's
 # constant; an antennaknobs design carries SI.
 ETA0 = 376.730313668  # free-space impedance, ohms
+# Elements per block of `gain_evaluator`'s (θ, φ, segment) phase array: 4 M
+# complex values is 64 MB per temporary, whatever the grid or the design size.
+_GAIN_BLOCK = 4_000_000
 EPS0 = 8.854_187_817e-12
 
 
@@ -2414,9 +2417,40 @@ class MomwireEngine(SimulationEngine):
 
     @_captures_advisories
     def far_field(self, *, n_theta=90, n_phi=360, del_theta=1, del_phi=1):
-        self._raise_if_cancelled()
         assert 90 % n_theta == 0 and 90 == del_theta * n_theta
         assert 360 % n_phi == 0 and 360 == del_phi * n_phi
+
+        # NEC convention: θ from 0 to 90−Δθ, the closed φ ring 0..360.
+        theta_deg = np.linspace(0, 90 - del_theta, n_theta)
+        phi_deg = np.linspace(0, 360, n_phi + 1)
+        gain = self.gain_evaluator()
+        dBi = gain(theta_deg, phi_deg)
+
+        rings = dBi.tolist()
+        return FarField(
+            rings=rings,
+            max_gain=float(np.max(dBi)),
+            min_gain=float(np.min(dBi)),
+            thetas=theta_deg,
+            phis=phi_deg,
+            in_medium_moment_fraction=gain.moment_below,
+        )
+
+    @_captures_advisories
+    def gain_evaluator(self):
+        """Gain in dBi at arbitrary directions, off one solve (issue #1669).
+
+        Returns a callable ``gain(theta_deg, phi_deg)`` taking two 1-D angle
+        arrays (θ from the zenith, φ from +x) and returning the (n_theta,
+        n_phi) grid in dBi. The solve, the moment set and the gain normaliser
+        are fixed when this is called, so a peak search can make many small
+        evaluations without rebuilding any of them.
+
+        θ is not limited to NEC's 0..90−Δθ. Over a ground the lower
+        hemisphere is the caller's to exclude (``gain.has_ground``); in free
+        space it is as real as the upper one. The callable also carries
+        ``moment_below``, the #1341 readout `far_field` reports."""
+        self._raise_if_cancelled()
 
         wavelength = self._wavelength_for(self.builder.freq)
         k = 2.0 * np.pi / wavelength
@@ -2425,10 +2459,6 @@ class MomwireEngine(SimulationEngine):
         sim, coeffs, _z = self._solved_excited(wavelength)
         mid, dr, i_mid = self._segment_dipoles(sim, coeffs)
 
-        theta_deg = np.linspace(0, 90 - del_theta, n_theta)
-        phi_deg = np.linspace(0, 360, n_phi + 1)
-        theta_user = np.deg2rad(theta_deg)
-        phi_user = np.deg2rad(phi_deg)
         # Issue #1341: informational, not a caveat — `_evaluate_M_perp`
         # places the currents below the plane through the interface. The
         # share of Σ|I·dl| down there is a property of the antenna, and the
@@ -2467,21 +2497,26 @@ class MomwireEngine(SimulationEngine):
             efficiency = getattr(self, "_excited_efficiency", 1.0)
             directivity_norm = 4 * np.pi / p_rad * efficiency
 
-        # Evaluate on the user grid (NEC convention: θ from 0 to 90−Δθ).
-        mag2_user = self._evaluate_M_perp(
-            mid, dr, i_mid, k, theta_user, phi_user, freq_hz
-        )
-        D = directivity_norm * mag2_user
-        # Floor before log so points where M_perp is exactly zero (poles,
-        # nulls below quantisation) don't produce −inf.
-        dBi = 10.0 * np.log10(np.maximum(D, 1e-30))
+        def gain(theta_deg, phi_deg):
+            theta = np.deg2rad(np.atleast_1d(np.asarray(theta_deg, float)))
+            phi = np.deg2rad(np.atleast_1d(np.asarray(phi_deg, float)))
+            # In row blocks: `_evaluate_M_perp` holds an (n_theta, n_phi,
+            # n_segments) complex array, and a whole-sphere grid in free space
+            # is twice NEC's hemisphere. Blocking keeps that array near
+            # _GAIN_BLOCK elements whatever grid the caller asks for.
+            rows = max(1, _GAIN_BLOCK // max(1, phi.size * mid.shape[0]))
+            mag2 = np.concatenate(
+                [
+                    self._evaluate_M_perp(
+                        mid, dr, i_mid, k, theta[r : r + rows], phi, freq_hz
+                    )
+                    for r in range(0, theta.size, rows)
+                ]
+            )
+            # Floor before log so points where M_perp is exactly zero (poles,
+            # nulls below quantisation) don't produce −inf.
+            return 10.0 * np.log10(np.maximum(directivity_norm * mag2, 1e-30))
 
-        rings = dBi.tolist()
-        return FarField(
-            rings=rings,
-            max_gain=float(np.max(dBi)),
-            min_gain=float(np.min(dBi)),
-            thetas=theta_deg,
-            phis=phi_deg,
-            in_medium_moment_fraction=moment_below,
-        )
+        gain.has_ground = self._ground is not None
+        gain.moment_below = moment_below
+        return gain

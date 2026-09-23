@@ -170,6 +170,87 @@ def pattern_metrics(ff, *, beamwidth_db=3.0):
     }
 
 
+# Samples within this many dB of the grid maximum count as tied with it. The
+# FIRST of them wins, in θ-then-φ order: the highest elevation, then the
+# smallest azimuth. An omnidirectional ring or a pattern symmetric about the
+# horizon then reports one direction by construction, rather than whichever
+# sample a last-bit difference happened to favour (the #958 lesson).
+_PEAK_TIE_DB = 1e-9
+
+
+def refined_pattern_metrics(gain, *, beamwidth_db=3.0, tol_deg=0.01):
+    """`pattern_metrics`, measured off a gain evaluator instead of a fixed
+    grid (issue #1669).
+
+    `gain` is a callable ``gain(theta_deg, phi_deg) -> dBi grid`` carrying
+    ``has_ground`` (`MomwireEngine.gain_evaluator`). NEC's far-field grid runs
+    θ 0..89°, so it never samples the horizon and never the lower hemisphere,
+    and its maximum is the best 1° × 1° sample. This one:
+
+      * samples elevation 0° itself, and in free space the whole sphere, so a
+        lobe pointing down is found and reports a negative `takeoff_deg`;
+      * refines the best sample by a pattern search, to about `tol_deg` in
+        each angle, so the peak gain is the lobe's and not its nearest sample;
+      * takes F/B and both beamwidths through the REFINED direction: the
+        azimuth ring at its elevation, and the elevation column at its
+        azimuth, running to the horizon (to the nadir in free space).
+
+    Returns the same keys as `pattern_metrics`.
+    """
+    theta_max = 90.0 if gain.has_ground else 180.0
+    thetas = np.arange(0.0, theta_max + 0.5, 1.0)
+    phis = np.arange(0.0, 360.0, 1.0)
+    grid = gain(thetas, phis)
+    best = int(np.flatnonzero(grid.ravel() >= grid.max() - _PEAK_TIE_DB)[0])
+    ti, pi = np.unravel_index(best, grid.shape)
+    th, ph, peak = float(thetas[ti]), float(phis[pi]), float(grid[ti, pi])
+
+    # Compass search: step to the best of the eight neighbours at spacing h
+    # when it beats the centre, halve h when none does. Moving only on a
+    # strict gain means a flat ring leaves the centre where the grid put it.
+    h = 0.5
+    for _ in range(400):
+        if h < tol_deg:
+            break
+        cand_t = np.clip(th + np.array([-h, 0.0, h]), 0.0, theta_max)
+        cand_p = ph + np.array([-h, 0.0, h])
+        local = gain(cand_t, cand_p)
+        li, lj = np.unravel_index(int(np.argmax(local)), local.shape)
+        if local[li, lj] > peak + _PEAK_TIE_DB:
+            th, ph, peak = float(cand_t[li]), float(cand_p[lj]), float(local[li, lj])
+        else:
+            h /= 2.0
+    ph %= 360.0
+
+    # The azimuth ring through the peak, starting AT it and closed as the
+    # plots' rings are, so index 0 is the peak and index 180 the back.
+    ring_phis = ph + np.arange(0.0, 361.0, 1.0)
+    ring = gain([th], ring_phis)[0]
+    # The elevation column through the peak, on 1° steps from it, with the
+    # column's two ends added so a lobe that runs into one is measured to it.
+    col_thetas = np.unique(
+        np.concatenate(
+            [
+                [0.0],
+                th + np.arange(-np.floor(th), np.floor(theta_max - th) + 1.0),
+                [theta_max],
+            ]
+        )
+    )
+    col = gain(col_thetas, [ph])[:, 0]
+    ci = int(np.argmin(np.abs(col_thetas - th)))
+
+    thr = peak - beamwidth_db
+    return {
+        "peak_gain_dbi": peak,
+        "takeoff_deg": 90.0 - th,
+        "azimuth_deg": ph,
+        "front_to_back_db": peak - float(ring[180]),
+        "az_beamwidth_deg": float(_beamwidth_wrapped(ring_phis, ring, 0, thr)),
+        "el_beamwidth_deg": float(_beamwidth_linear(90.0 - col_thetas, col, ci, thr)),
+    }
+
+
 def radiated_fraction(ff):
     """Fraction of input power that leaves as far-field radiation.
 
