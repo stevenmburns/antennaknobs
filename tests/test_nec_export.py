@@ -6,9 +6,6 @@ impedance to PyNECEngine; it is skipped when nec2c is not installed.
 """
 
 import shutil
-import subprocess
-import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -19,6 +16,7 @@ from antennaknobs.designs.dipoles.invvee import Builder as InvVee
 from antennaknobs.designs.beams.yagi import Builder as Yagi
 from antennaknobs.engines import PyNECEngine
 from antennaknobs.nec_export import export_nec
+from conftest import nec2c_printout
 
 # InvVee's `dipole` variant is a partial overlay on default_params; resolve it
 # to a complete param set before constructing the Builder directly.
@@ -78,14 +76,7 @@ def test_export_reducer_network_raises():
 
 
 def _nec2c_impedances(deck):
-    with tempfile.TemporaryDirectory() as d:
-        nec = Path(d) / "deck.nec"
-        out = Path(d) / "deck.out"
-        nec.write_text(deck)
-        subprocess.run(
-            ["nec2c", "-i", str(nec), "-o", str(out)], check=True, capture_output=True
-        )
-        text = out.read_text()
+    text = nec2c_printout(deck)
     zs = []
     lines = text.splitlines()
     for i, ln in enumerate(lines):

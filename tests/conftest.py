@@ -313,3 +313,30 @@ def cp1252_default_open(monkeypatch):
         return real_open(file, mode, *args, encoding=encoding, **kwargs)
 
     monkeypatch.setattr(builtins, "open", cp1252_default)
+
+
+def nec2c_printout(deck: str, *, timeout: float = 300) -> str:
+    """nec2c's printout for `deck`, run the way `engines.nec2` runs it: from
+    the deck's own directory with SHORT relative names. nec2c silently writes
+    nothing (and still exits 0) when a file path reaches 80 characters, which
+    pytest's per-worker tmp paths under xdist do (`.../popen-gw0/<test>/...`),
+    so an absolute path made the NEC-2 gates fail only in parallel runs."""
+    import subprocess
+
+    with tempfile.TemporaryDirectory(prefix="n2c") as d:
+        with open(os.path.join(d, "g.nec"), "w") as f:
+            f.write(deck)
+        r = subprocess.run(
+            ["nec2c", "-i", "g.nec", "-o", "g.out"],
+            cwd=d,
+            capture_output=True,
+            timeout=timeout,
+        )
+        out = os.path.join(d, "g.out")
+        if r.returncode != 0 or not os.path.exists(out):
+            raise AssertionError(
+                f"nec2c wrote no printout (rc {r.returncode}): "
+                f"{r.stderr.decode(errors='replace')[:400]}"
+            )
+        with open(out, errors="replace") as f:
+            return f.read()
