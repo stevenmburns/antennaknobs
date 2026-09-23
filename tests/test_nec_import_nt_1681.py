@@ -2,10 +2,14 @@
 
 Dan AC6LA's feed-system deck (`tests/fixtures/eznec_ac6la_1681/`, README there)
 drives a dipole through two L networks, an EZNEC transformer and 100 ft of lossy
-line, every one of them an ``NT`` card on EZNEC's virtual wire. The
-transformer card ``NT 2,2,2,3,20.,0.,-10.,0.,5.,0.`` is rank 1 — an ideal
-1:2 with 0.2 Ω — but imported as its resistive pi, whose −0.2 Ω shunt leg
-made the plane at the line's input read −0.201 Ω.
+line, every one of them an ``NT`` card on EZNEC's virtual wire. Two things were
+wrong with how they imported, and both are pinned here:
+
+- the transformer card ``NT 2,2,2,3,20.,0.,-10.,0.,5.,0.`` is rank 1 — an ideal
+  1:2 with 0.2 Ω — but imported as its resistive pi, whose −0.2 Ω shunt leg
+  made the plane at the line's input read −0.201 Ω;
+- the reactive cards are admittances EZNEC froze at the deck's ``FR``
+  frequency, and nothing said so when a solve or a sweep left it.
 
 The circuit gates drive the imported network with NEC-5's own reading of the
 antenna one-port (plane ``nt1b``), so they pin the translation with no solver
@@ -17,14 +21,19 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+# First, for its side effect: the adapter and the examples registry resolve
+# their import cycle examples-first.
+import antennaknobs.web.examples  # noqa: F401
 from antennaknobs.engines import NEC5Engine
 from antennaknobs.file_designs import builder_from_file
 from antennaknobs.nec_import import (
+    FIXED_FREQUENCY_NT_CATEGORY,
     _rank_one_transformer,
     parse_nec,
 )
 from antennaknobs.network import PortVirtual, Shunt, Transformer, TwoPort
 from antennaknobs.plane import driven_at, planes_of
+from antennaknobs.web.adapter import fixed_frequency_advisories
 from momwire.networks import NetworkReducer
 
 from conftest import needs_nec5
@@ -32,6 +41,7 @@ from conftest import needs_nec5
 FIXTURES = Path(__file__).parent / "fixtures"
 DECK = FIXTURES / "eznec_ac6la_1681" / "Bydpole-TL-Xfmr-CLC.nec"
 WA7ARK = FIXTURES / "eznec_virtual_wire_1577" / "WA7ARK-OCF-Load-Xfmr-TL.nec"
+CARDIOID_NEC2 = FIXTURES / "eznec_gyrator_1595" / "Cardioidmodnec2.nec"
 
 FREQ = 14.175
 LAMBDA = 299792458.0 / (FREQ * 1e6)
@@ -177,3 +187,52 @@ def test_nec5_reads_the_line_input_and_the_rig_unchanged():
     object.__setattr__(b, "build_network", lambda: pruned)
     (z_line,) = (complex(x) for x in NEC5Engine(b, ground=cls.file_ground).impedance())
     assert abs(z_line - NEC5["nt1a"]) < 1e-3
+
+
+# --------------------------------------------------------------------------
+# fixed-frequency NTs
+# --------------------------------------------------------------------------
+def test_the_reactive_cards_are_named_with_their_frequency():
+    deck = _deck()
+    # NT #2 is the transformer, which holds at every frequency.
+    assert deck.fixed_frequency_nts() == (1, 3, 4)
+    assert deck.nt_frequency_mhz() == FREQ
+    note = deck.fixed_frequency_note()
+    assert "NT cards #1, #3, #4" in note
+    assert "14.175 MHz" in note
+    # And it reaches the design's notes, beside the skipped-card note.
+    ui = builder_from_file(str(DECK)).default_params["ui_params"]
+    assert note in ui["notes"]
+
+
+def test_real_cards_and_gyrators_hold_at_every_frequency():
+    # WA7ARK: a lossy line (reactive) and a transformer (real).
+    assert _deck(WA7ARK).fixed_frequency_nts() == (1,)
+    # The Cardioid's two NTs are EZNEC's current-source gyrators (AK#1595).
+    cardioid = _deck(CARDIOID_NEC2)
+    assert cardioid.nts and cardioid.fixed_frequency_nts() == ()
+    assert cardioid.fixed_frequency_note() is None
+    assert cardioid.fixed_frequency_advisory([1.0, 500.0]) is None
+
+
+def test_the_advisory_fires_away_from_the_frequency_only():
+    deck = _deck()
+    assert deck.fixed_frequency_advisory([FREQ]) is None
+    one = deck.fixed_frequency_advisory([14.0])
+    assert one["category"] == FIXED_FREQUENCY_NT_CATEGORY
+    assert "at 14 MHz" in one["text"]
+    assert "14.175 MHz" in one["text"]
+    # A sweep that passes through 14.175 still leaves it everywhere else.
+    sweep = deck.fixed_frequency_advisory([11.34, FREQ, 17.72])
+    assert "over 11.34–17.72 MHz" in sweep["text"]
+
+
+def test_the_solve_and_sweep_hook_reads_the_file_design():
+    """The adapter's hook takes the builder instance (a solve) or the class
+    (the sweep endpoint), and is silent for anything without a parsed deck."""
+    cls = builder_from_file(str(DECK))
+    assert fixed_frequency_advisories(cls, [FREQ]) == []
+    (adv,) = fixed_frequency_advisories(cls(), [14.0])
+    assert adv["category"] == FIXED_FREQUENCY_NT_CATEGORY
+    assert fixed_frequency_advisories(object(), [14.0]) == []
+    assert fixed_frequency_advisories(None, [14.0]) == []

@@ -156,7 +156,7 @@ def _nec_builder(path: Path, text: str, refine: int = 1):
         path.stem,
         freq,
         meas_range,
-        [deck.skipped_note(), freq_note],
+        [deck.skipped_note(), deck.fixed_frequency_note(), freq_note],
         lambda: deck.wire_tuples(specs=True),
         deck.network,
         extended_kernel=deck.extended_kernel,

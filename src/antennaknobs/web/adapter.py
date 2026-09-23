@@ -2879,6 +2879,20 @@ def _solver_advisories(eng) -> list:
     return list(getattr(eng, "advisories", ()) or ())
 
 
+def fixed_frequency_advisories(builder, freqs_mhz) -> list:
+    """AK#1681: ``[advisory]`` when `builder` is a NEC file design whose
+    reactive ``NT`` cards were written for one frequency and ``freqs_mhz``
+    leaves it, ``[]`` otherwise — catalog designs carry no parsed deck.
+    `builder` may be the instance or the class (the sweep endpoint holds only
+    the class)."""
+    deck = getattr(builder, "file_deck_parsed", None)
+    advise = getattr(deck, "fixed_frequency_advisory", None)
+    if advise is None:
+        return []
+    note = advise(freqs_mhz)
+    return [] if note is None else [note]
+
+
 def _advisories_for(eng, req: Mapping, buried: bool, meas_freq: float) -> list:
     """The solver's advisories plus AK's own, in one list for the response.
 
@@ -2889,6 +2903,7 @@ def _advisories_for(eng, req: Mapping, buried: bool, meas_freq: float) -> list:
     ak = _soil_dispersion_advisory(req, buried, meas_freq)
     if ak is not None:
         out.append(ak)
+    out.extend(fixed_frequency_advisories(getattr(eng, "builder", None), [meas_freq]))
     # A self-tuning tuner that found no match (AK#1646, #1661): bypassed, and said.
     out.extend(tuner_advisories(eng))
     return out

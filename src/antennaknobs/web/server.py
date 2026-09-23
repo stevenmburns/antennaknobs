@@ -1961,12 +1961,16 @@ async def sweep_endpoint(req: dict, request: Request):
     # Imported here (like /optimize's optimizer import): adapter ↔ examples
     # resolve their import cycle examples-first, so a module-level import
     # of adapter from server would re-trip it.
-    from .adapter import sanitize_model_options
+    from .adapter import fixed_frequency_advisories, sanitize_model_options
 
     try:
         sanitize_model_options(req)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
+    # AK#1681: a deck whose reactive NT cards hold at one frequency is not
+    # modelled across the sweep; the closing record says so (the key is
+    # present only when there is something to say).
+    sweep_advisories = fixed_frequency_advisories(sweep_ex.builder_cls, freqs)
 
     async def gen():
         if not freqs:
@@ -2126,7 +2130,10 @@ async def sweep_endpoint(req: dict, request: Request):
                     yield json.dumps(_sweep_record(f, known[f], solver_name)) + "\n"
                 start += len(chunk)
 
-        yield json.dumps({"done": True, "solver": solver_name}) + "\n"
+        done = {"done": True, "solver": solver_name}
+        if sweep_advisories:
+            done["advisories"] = sweep_advisories
+        yield json.dumps(done) + "\n"
 
     return StreamingResponse(gen(), media_type="application/x-ndjson")
 
