@@ -278,8 +278,8 @@ def test_only_the_gyrator_shape_collapses(card, collapses):
         assert isinstance(net.sources[0], DrivenCurrent)
     else:
         # Untouched: the phantom node survives and still carries the EX 0.
-        assert virtual == ["feed1"]
-        assert net.sources[0] == Driven(port="feed1", voltage=complex(0, 1.414214))
+        assert virtual == ["rig1"]
+        assert net.sources[0] == Driven(port="rig1", voltage=complex(0, 1.414214))
 
 
 def _gyrator_net(voltage=complex(0, 1.414214), extra_branches=(), extra_sources=()):
@@ -323,13 +323,13 @@ def test_a_source_behind_a_transformer_or_line_is_left_alone(name):
     deck = _deck(name, VIRTUAL_1577)
     net = deck.network()
     assert sorted(n for n, p in net.ports.items() if isinstance(p, PortVirtual)) == [
-        "feed1" if name == "failEZN5.nec" else "feed",
         "nt1a",
+        "rig1" if name == "failEZN5.nec" else "rig",
     ]
     (line,) = [
         b for b in net.branches if isinstance(b, Admittance) and len(b.ports) == 2
     ]
-    assert set(line.ports) == {"nt1a", "feed1" if name == "failEZN5.nec" else "feed"}
+    assert set(line.ports) == {"nt1a", "rig1" if name == "failEZN5.nec" else "rig"}
     assert "virtual circuit nodes" in deck.skipped_note()
 
 

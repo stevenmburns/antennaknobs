@@ -50,7 +50,7 @@ LAMBDA = 299792458.0 / (FREQ * 1e6)
 # and ground (README.md). `nt1b` is the dipole's feedpoint; the others are the
 # nodes of the feed system, source first.
 NEC5 = {
-    "feed": complex(50.010, 0.003),
+    "rig": complex(50.010, 0.003),
     "nt3b": complex(46.930, -71.246),
     "nt2a": complex(7.209, -0.861),
     "nt1a": complex(28.635, -3.442),
@@ -162,9 +162,9 @@ def test_the_line_input_plane_reads_the_line():
     every plane lands on NEC-5's own reading there. The line's input was
     −0.201 Ω while the pi's −0.2 Ω leg hung on it."""
     net = _deck().network()
-    assert planes_of(net) == ["feed", "nt3b", "nt2a", "nt1a", "nt1b"]
+    assert planes_of(net) == ["rig", "nt3b", "nt2a", "nt1a", "nt1b"]
     z_ant = NEC5["nt1b"]
-    for plane in ("nt1a", "nt2a", "nt3b", "feed"):
+    for plane in ("nt1a", "nt2a", "nt3b", "rig"):
         z = _driven_z(driven_at(net, plane), z_ant)
         # NEC-5's readings carry three decimals; so does its antenna.
         assert abs(z - NEC5[plane]) < 2e-3, (plane, z)
@@ -181,7 +181,7 @@ def test_nec5_reads_the_line_input_and_the_rig_unchanged():
     cls = builder_from_file(str(DECK))
     b = cls()
     (z_rig,) = (complex(x) for x in NEC5Engine(b, ground=cls.file_ground).impedance())
-    assert abs(z_rig - NEC5["feed"]) < 1e-3
+    assert abs(z_rig - NEC5["rig"]) < 1e-3
     pruned = driven_at(b.build_network(), "nt1a")
     b = cls()
     object.__setattr__(b, "build_network", lambda: pruned)
@@ -236,3 +236,13 @@ def test_the_solve_and_sweep_hook_reads_the_file_design():
     assert adv["category"] == FIXED_FREQUENCY_NT_CATEGORY
     assert fixed_frequency_advisories(object(), [14.0]) == []
     assert fixed_frequency_advisories(None, [14.0]) == []
+
+
+def test_the_source_on_the_virtual_wire_is_the_rig():
+    """The plane EZNEC's virtual-wire source sits on is the RIG — the far end
+    of the feed system — and takes the station convention's name, so "feed"
+    keeps meaning the antenna as it does in the SimNEC importer."""
+    net = _deck().network()
+    assert [s.port for s in net.sources] == ["rig"]
+    assert isinstance(net.ports["rig"], PortVirtual)
+    assert "feed" not in net.ports

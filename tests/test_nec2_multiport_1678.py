@@ -307,7 +307,7 @@ def test_the_pattern_is_excited_and_per_source_watt():
 @needs_nec2
 @pytest.mark.parametrize(
     ("path", "planes"),
-    [(LNET, [None, "feed"]), (C1L1, [None, "feed", "rig"])],
+    [(LNET, [None, "rig", "nt1b"]), (C1L1, [None, "feed", "L1", "C1", "rig"])],
     ids=["eznec-lnet", "simnec-C1-L1"],
 )
 def test_the_web_lane_solves_every_plane(path, planes, monkeypatch):
