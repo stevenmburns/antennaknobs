@@ -135,7 +135,7 @@ def test_dans_deck_imports_the_virtual_wire_as_nodes():
     # segment 2 is the line's other end and the source. Two nodes, both
     # virtual; the transformer's antenna end stays a port on a real wire.
     assert isinstance(net.ports["nt1a"], PortVirtual)
-    assert isinstance(net.ports["feed1"], PortVirtual)
+    assert isinstance(net.ports["rig1"], PortVirtual)
     # The transformer's antenna end is `NT 1,378,...` — NEC-5's end 2 of
     # segment 378, i.e. the OCF junction where wire 1 meets wire 2, so it is
     # the series vertex port there rather than a gap half a segment short of
@@ -145,14 +145,14 @@ def test_dans_deck_imports_the_virtual_wire_as_nodes():
     # momwire's PortVirtual is documented for ("driver feeds that branch out
     # via TLs to real ports").
     (src,) = [s for s in net.sources if isinstance(s, DrivenCurrent)]
-    assert (src.port, src.current) == ("feed1", 1.414214 + 0j)
+    assert (src.port, src.current) == ("rig1", 1.414214 + 0j)
     # The lossy line is the reactive NT's full 2x2 (issue #416) between the
     # two virtual nodes; the transformer (a rank-1 real Y) is a `Transformer`
     # to the antenna (AK#1681).
     (line,) = [
         b for b in net.branches if isinstance(b, Admittance) and len(b.ports) == 2
     ]
-    assert set(line.ports) == {"nt1a", "feed1"}
+    assert set(line.ports) == {"nt1a", "rig1"}
 
 
 def test_the_pins_become_ideal_opens_on_their_nodes():
@@ -165,7 +165,7 @@ def test_the_pins_become_ideal_opens_on_their_nodes():
     ]
     net = deck.network()
     pins = [b for b in net.branches if isinstance(b, Admittance) and len(b.ports) == 1]
-    assert sorted(p.ports[0] for p in pins) == ["feed1", "nt1a"]
+    assert sorted(p.ports[0] for p in pins) == ["nt1a", "rig1"]
     assert all(p.y == ((complex(1e-10, 0),),) for p in pins)
     # They are NOT reported as loads the importer could not express: the deck
     # carries no unexpressed LD at all.
@@ -296,8 +296,8 @@ def test_voltage_source_on_the_virtual_wire_imports_too():
     net = deck.network()
     (src,) = net.sources
     assert isinstance(src, Driven)
-    assert (src.port, src.voltage) == ("feed", 1.414214 + 0j)
-    assert isinstance(net.ports["feed"], PortVirtual)
+    assert (src.port, src.voltage) == ("rig", 1.414214 + 0j)
+    assert isinstance(net.ports["rig"], PortVirtual)
     (z,) = (
         complex(x) for x in _solve("WA7ARK-OCF-Load-Xfmr-TL.nec", solver=BSplineSolver)
     )

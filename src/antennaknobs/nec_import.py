@@ -1174,7 +1174,13 @@ class NecDeck:
                     f"NEC deck drives segment {f.seg} of wire {f.wire + 1} "
                     f"with more than one EX card"
                 )
-            plan[key] = "feed" if single else f"feed{k}"
+            # AK#1681: a source on EZNEC's virtual wire is the RIG — the far
+            # end of the deck's feed system, not the antenna's feedpoint —
+            # so it takes the station convention's name (`Driven(port=
+            # "rig")`), and "feed" keeps meaning the antenna, as it does in
+            # the SimNEC importer.
+            stem = "rig" if f.wire in self.virtual_segment_wires else "feed"
+            plan[key] = stem if single else f"{stem}{k}"
         for k, ld in enumerate(self.loads, 1):
             if ld.edge:
                 continue  # a knot load rides its knot's port (AK#1483)

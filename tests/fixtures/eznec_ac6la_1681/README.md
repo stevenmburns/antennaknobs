@@ -39,7 +39,7 @@ counts and ground:
 
 | plane | node | NEC-5 |
 |---|---|---|
-| `feed` | the source (virtual segment 1) | **50.010 + 0.003j Ω** |
+| `rig` | the source (virtual segment 1) | **50.010 + 0.003j Ω** |
 | `nt3b` | between the L networks (segment 4) | 46.930 − 71.246j Ω |
 | `nt2a` | transformer, low side (segment 2) | 7.209 − 0.861j Ω |
 | `nt1a` | transformer high side = line input (segment 3) | **28.635 − 3.442j Ω** |
