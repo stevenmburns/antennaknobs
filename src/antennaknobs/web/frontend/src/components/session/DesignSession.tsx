@@ -42,6 +42,14 @@ import {
   type SchemaParamSpec,
 } from "../../lib/params";
 import { mobileScreens, VIEW_META, type View } from "../../lib/view";
+import {
+  defaultSweepPoints,
+  designSweepRange,
+  resolveSweepRange,
+  sweepGrid,
+  type SweepRange,
+  type SweepRangeInputs,
+} from "../../lib/sweep";
 import type {
   MeasuredData,
   SolveRequest,
@@ -85,6 +93,7 @@ import { CatalogPanel } from "./CatalogPanel";
 import { DesignFreqRow } from "./DesignFreqRow";
 import { GroundPanel } from "./GroundPanel";
 import { KnobOptMenu } from "./KnobOptMenu";
+import { SweepRangeMenu } from "./SweepRangeMenu";
 import { copyParams, downloadNec, loadMeasured } from "./sessionActions";
 import { SessionGearMenu } from "./SessionGearMenu";
 import { SolveOverlays } from "./SolveOverlays";
@@ -484,6 +493,17 @@ function DesignSessionBody({
   // (#1487), appended to both pickers for this session, newest last.
   const [customBands, setCustomBands] = useState<BandSpec[]>([]);
   const [designFreq, setDesignFreq] = useState(14.3);
+  // AK#1682: the user's own sweep range for this session — level 1 of the
+  // range precedence in lib/sweep.ts, edited from the measurement dial's
+  // right-click menu. Session-only (never written to settings.toml); a design
+  // switch or a band pick clears it, and "↺ design range" sets it back to
+  // null. `sweepMenu` is where that menu is open, or null.
+  const [sweepRangeEdit, setSweepRangeEdit] = useState<SweepRange | null>(null);
+  const [sweepMenu, setSweepMenu] = useState<{
+    x: number;
+    y: number;
+    touch: boolean;
+  } | null>(null);
   const [measFreq, setMeasFreq] = useState(14.3);
   const [linkMeas, setLinkMeas] = useState(true);
   // The meas↔design lock only means something when the design HAS a design
@@ -1302,6 +1322,33 @@ function DesignSessionBody({
   // bandless/HF-only designs behave exactly as before.
   const freqWindowCeiling = freqWindowCeilingFor(currentBands);
 
+  // The ONE range (AK#1682): resolved once, here, and handed as the same
+  // object to the measurement dial (its travel) and to the sweep runner (its
+  // span and grid). lib/sweep.ts has the precedence.
+  const measBandIsCustom = !measLocked && isCustomBand(measBand);
+  const sweepRangeInputs: SweepRangeInputs = {
+    currentExample,
+    currentVariant,
+    measLocked,
+    measFreq,
+    designFreq,
+    currentBands,
+    freqWindowCeiling,
+    measBandAnchor,
+    measBandIsCustom,
+    sweepRangeEdit,
+  };
+  const resolvedSweepRange = resolveSweepRange(sweepRangeInputs);
+  // Close the range menu on Escape, as the knob menu closes.
+  useEffect(() => {
+    if (!sweepMenu || !active) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSweepMenu(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sweepMenu, active]);
+
   // When the active example changes (or first loads), snap band /
   // designFreq / measFreq to the band whose [min, max] window contains
   // the design's native freq (from the schema's freq ParamSpec). If
@@ -1311,11 +1358,14 @@ function DesignSessionBody({
   // those own their design freq via their own schema controls.
   useEffect(() => {
     if (!currentExample) return;
+    // A new design starts on its own sweep range (AK#1682): the last
+    // design's edit is in the wrong place for this one.
+    // Derived state cleared when its inputs change — the reset IS the
+    // effect's purpose, not a sync that could be computed during render
+    // (#768). (The rule reports an effect's first setState only.)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSweepRangeEdit(null);
     if (currentBands.length === 0) {
-      // Derived state cleared when its inputs change — the reset IS the
-      // effect's purpose, not a sync that could be computed during render
-      // (#768).
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (band !== "") setBand("");
       return;
     }
@@ -1426,6 +1476,8 @@ function DesignSessionBody({
   }
 
   function applyDesignBand(nb: BandSpec) {
+    // Picking a band sets the range, as it sets the dial (AK#1682).
+    setSweepRangeEdit(null);
     setBand(nb.key);
     setDesignFreq(nb.freq_mhz);
     if (linkMeas) setMeasFreq(nb.freq_mhz);
@@ -1451,6 +1503,8 @@ function DesignSessionBody({
     if (measLocked) setLinkMeas(false);
     setMeasBand(nb.key);
     setMeasFreq(nb.freq_mhz);
+    // Picking a band sets the range, as it sets the dial (AK#1682).
+    setSweepRangeEdit(null);
   }
 
   // Which band (if any) currently contains the measurement freq — drives
@@ -1848,6 +1902,7 @@ function DesignSessionBody({
       designFreq,
       measFreq,
       measLocked,
+      sweepRange: resolvedSweepRange.range,
       groundEnabled,
       groundModel,
       sweepEnabled,
@@ -2061,6 +2116,23 @@ function DesignSessionBody({
           />
         )}
 
+        {/* The measurement dial's range menu (AK#1682): right-click (or
+            long-press) the dial. Its travel is the sweep range. */}
+        {sweepMenu && (
+          <SweepRangeMenu
+            menu={sweepMenu}
+            resolved={resolvedSweepRange}
+            design={designSweepRange(sweepRangeInputs)}
+            grid={sweepGrid(
+              resolvedSweepRange.range,
+              defaultSweepPoints({ backend, groundEnabled, groundModel, refineEnabled }),
+            )}
+            onEdit={setSweepRangeEdit}
+            onRevert={() => setSweepRangeEdit(null)}
+            onClose={() => setSweepMenu(null)}
+          />
+        )}
+
         {/* Measurement freq = the rig's tuning control: a weighted VFO dial +
             frequency-counter readout. Top line: band select + the LCD. Below:
             the Live/Optimize toggles stacked at the left of the dial, with the
@@ -2079,10 +2151,8 @@ function DesignSessionBody({
           measBand={measBand}
           selectMeasBand={selectMeasBand}
           onCustomMeasBand={selectCustomMeasBand}
-          measBandIsCustom={!measLocked && isCustomBand(measBand)}
-          currentExample={currentExample}
-          measBandAnchor={measBandAnchor}
-          freqWindowCeiling={freqWindowCeiling}
+          sweepRange={resolvedSweepRange.range}
+          onSweepMenu={(x, y, touch) => setSweepMenu({ x, y, touch })}
           setMeasFreq={setMeasFreq}
           measLockable={measLockable}
           linkMeas={linkMeas}

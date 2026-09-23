@@ -1,7 +1,8 @@
 import { BandDropdown } from "../params/BandDropdown";
 import { Knob } from "../params/Knob";
-import { useState } from "react";
-import type { BandSpec, ExampleDescriptor } from "../../lib/params";
+import { useEffect, useRef, useState } from "react";
+import type { BandSpec } from "../../lib/params";
+import type { SweepRange } from "../../lib/sweep";
 
 // Response from POST /optimize.
 //
@@ -331,6 +332,10 @@ function SimControls({
   );
 }
 
+// How long a still touch on the measurement dial takes to open its range
+// menu (AK#1682) — about the platforms' own long-press delay.
+export const LONG_PRESS_MS = 550;
+
 // Measurement freq = the rig's tuning control: a weighted VFO dial +
 // frequency-counter readout. Top line: band select + the LCD. Below: the
 // Live/Optimize toggles stacked at the left of the dial, with the lock
@@ -344,10 +349,8 @@ export function VfoPanel({
   measBand,
   selectMeasBand,
   onCustomMeasBand,
-  measBandIsCustom = false,
-  currentExample,
-  measBandAnchor,
-  freqWindowCeiling,
+  sweepRange,
+  onSweepMenu,
   setMeasFreq,
   measLockable,
   linkMeas,
@@ -380,12 +383,12 @@ export function VfoPanel({
   selectMeasBand: (key: string) => void;
   /** "Custom…" in the measurement band picker (#1487). */
   onCustomMeasBand?: ((centerMhz: number, spanMhz: number) => void) | undefined;
-  /** The selected measurement band is a custom one: its window replaces a
-   *  deck's FR-seeded dial range, which would otherwise clamp it away. */
-  measBandIsCustom?: boolean;
-  currentExample: ExampleDescriptor | undefined;
-  measBandAnchor: number;
-  freqWindowCeiling: number;
+  /** AK#1682: the one range — the dial travels exactly the sweep's
+   *  [lo, hi] (resolved in DesignSession by lib/sweep.ts). */
+  sweepRange: SweepRange;
+  /** Open the range menu at a viewport point: right-click, or a long press
+   *  on touch. `touch` says which. */
+  onSweepMenu?: ((x: number, y: number, touch: boolean) => void) | undefined;
   setMeasFreq: (v: number) => void;
   measLockable: boolean;
   linkMeas: boolean;
@@ -417,9 +420,19 @@ export function VfoPanel({
   optError: string | null;
   optPausedBy: OptPause | null;
 }) {
-  const exampleRange = measBandIsCustom
-    ? null
-    : currentExample?.meas_freq_range_mhz ?? null;
+  // Long press = the touch route to the range menu. The knobs have no touch
+  // path of their own: their menu rides the browser's contextmenu event,
+  // which Android's long press fires and iOS Safari never does. So the dial
+  // times its own press — a touch or pen held still (≤ 8 px) for
+  // LONG_PRESS_MS. Moving further is a drag of the dial, and cancels it.
+  const pressRef = useRef<{ x: number; y: number; timer: number } | null>(null);
+  const cancelPress = () => {
+    if (pressRef.current) window.clearTimeout(pressRef.current.timer);
+    pressRef.current = null;
+  };
+  useEffect(() => cancelPress, []);
+  const onLock = (e: React.SyntheticEvent) =>
+    (e.target as Element).closest?.(".vfo-lock") != null;
   return (
     <>
       <h2 className="group-label">measurement freq</h2>
@@ -480,21 +493,45 @@ export function VfoPanel({
             optPausedBy={optPausedBy}
           />
 
-          <div className="vfo-dial">
+          <div
+            className="vfo-dial"
+            title="Right-click (long-press on touch) to set the sweep range"
+            onContextMenu={
+              onSweepMenu
+                ? (e) => {
+                    if (onLock(e)) return;
+                    e.preventDefault();
+                    cancelPress();
+                    onSweepMenu(e.clientX, e.clientY, false);
+                  }
+                : undefined
+            }
+            onPointerDown={(e) => {
+              if (!onSweepMenu || e.pointerType === "mouse" || onLock(e)) return;
+              cancelPress();
+              const { clientX: x, clientY: y } = e;
+              pressRef.current = {
+                x,
+                y,
+                timer: window.setTimeout(() => {
+                  pressRef.current = null;
+                  onSweepMenu(x, y, true);
+                }, LONG_PRESS_MS),
+              };
+            }}
+            onPointerMove={(e) => {
+              const p = pressRef.current;
+              if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 8) cancelPress();
+            }}
+            onPointerUp={cancelPress}
+            onPointerCancel={cancelPress}
+          >
             <Knob
               knobId="meas_freq"
               variant="vfo"
               value={measFreq}
-              min={
-                exampleRange
-                  ? exampleRange[0]
-                  : Math.max(0.5, measBandAnchor * 0.8)
-              }
-              max={
-                exampleRange
-                  ? exampleRange[1]
-                  : Math.min(freqWindowCeiling, measBandAnchor * 1.25)
-              }
+              min={sweepRange.lo}
+              max={sweepRange.hi}
               step={0.005}
               precision={3}
               unit=" MHz"
