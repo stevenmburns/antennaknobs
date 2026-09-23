@@ -36,8 +36,9 @@ NEC2 reader ignores LD cards, and takes one conductivity for the whole block,
 so a design whose wires differ is refused — AK#1680). SimNEC ignores a lumped
 ``LD 0`` / ``LD 1`` load just the same, and silently (AK#1683), so each one is
 written as SimNEC's own ``NECSource`` load on its ``$GW_<tag>`` wire — or, on
-the fed segment, as a series circuit element at the feed — and an insulated
-wire is refused (see :func:`_wire_loads`, :func:`_refuse_jacket`). SimNEC
+the fed segment, as a series circuit element at the feed — and an insulation
+jacket as SimNEC's ``NECOptions.Insulation("W7EL", ...)`` (see
+:func:`_wire_loads`, :func:`_insulation`). SimNEC
 treats a ``GW`` card's segment count as advisory and re-meshes, so each wire
 also gets a ``$GW_<tag>.JamSegments(N)`` carrying the deck's count (AK#1680),
 unless ``seg_per_wl`` is given: that knob asks for SimNEC's own mesh at
@@ -412,29 +413,61 @@ def _wire_loads(loads, feed_loc, n_segs, freq_mhz: float):
     return statements, feed_elements
 
 
-def _refuse_jacket(eng) -> None:
-    """Refuse a design with an insulated wire, by name (AK#1683 item 3).
+def _insulation(eng) -> list[str]:
+    """The design's insulation jacket as SimNEC's own directive, with the
+    W7EL correction selected (AK#1683) — the EZNEC model the engines' a′ + L′
+    pair was built to match (AK#1523) — or ``[]`` for bare wire.
 
-    The export writes each conductor's bare radius (``jacket_pair=False``)
-    and no LD 2, so a jacket would otherwise be silently missing. SimNEC has
-    its own ``$wire.Insulation(thickness, permittivity, lossTangent)``, but
-    its default is the K6OIK correction, not the coaxial-shell a′ + L′ model
-    the engines here use, so writing it would be a different wire model under
-    our name; that mapping is a follow-up."""
-    tags = []
+    The spelling is SimNEC's: the NECPortal manual ("Specifying Insulation",
+    footnote 7) gives ``Insulation("W7EL", t, p, lt)`` for "the EZNEC
+    corrections", and Ward's own ``Examples/insulation/w7elExample.ssn`` and
+    ``w7elVsK6OIKLoss.ssn`` write it as ``NECOptions.Insulation("W7EL", ...)``,
+    the circuit's default insulation, set before any wire is declared, and
+    only under ``if (NECOptions.Engine == 2)`` — they report "NOT USING NEC2"
+    otherwise. So does this file: SimNEC's default correction is K6OIK, and
+    silently solving another insulation model under a NEC-5 engine is what
+    the guard prevents. Thickness is the jacket's radial thickness,
+    ``insulation_radius - radius``; the loss tangent is 0, because a
+    ``WireSpec`` has none. The GW cards keep the bare conductor radius, which
+    is what SimNEC's correction starts from.
+
+    The directive is one value for every wire, and the manual documents no
+    per-wire W7EL form (``$wire.Insulation(...)`` is K6OIK), so a design
+    whose wires do not all carry the same jacket is refused by name."""
+    jackets: dict[tuple[float, float] | None, list[int]] = {}
     for tag, t in enumerate(eng.tups, start=1):
         spec = as_wire(t).spec
         eff = spec if spec is not None else eng._wire_spec
-        if eff is not None and getattr(eff, "insulation_radius", None):
-            tags.append(tag)
-    if tags:
-        raise SsnUnsupported(
-            f"wire{'s' if len(tags) > 1 else ''} {', '.join(map(str, tags))} "
-            "carry an insulation jacket, which the SimNEC export does not "
-            "write (SimNEC ignores LD cards, and its Insulation() correction "
-            "is not the model the engines here use); export the design with "
-            "bare wire"
+        if eff is not None and eff.insulation_radius:
+            thick = eff.insulation_radius - eng._radius_for(t)
+            eps_r = eff.insulation_eps_r if eff.insulation_eps_r else 1.0
+            key = (round(thick, 15), eps_r)
+        else:
+            key = None
+        jackets.setdefault(key, []).append(tag)
+    if list(jackets) == [None]:
+        return []
+    if len(jackets) > 1:
+        groups = "; ".join(
+            ("bare" if k is None else f"{k[0]:g} m of eps_r {k[1]:g}")
+            + f" on wire{'s' if len(t) > 1 else ''} {', '.join(map(str, t))}"
+            for k, t in jackets.items()
         )
+        raise SsnUnsupported(
+            f"the wires' insulation differs ({groups}); SimNEC's W7EL "
+            "insulation is one NECOptions.Insulation for every wire, so the "
+            "design is not exported rather than written with one jacket "
+            "applied to all"
+        )
+    ((thick, eps_r),) = jackets
+    return [
+        "// SimNEC applies its own (W7EL) insulated-wire correction, so small",
+        "// differences from antennaknobs are expected.",
+        "if (NECOptions.Engine == 2)",
+        f'    NECOptions.Insulation("W7EL", {_val(thick)}, {_val(eps_r)}, 0);',
+        "else",
+        '    errorOutln("NOT USING NEC2: the W7EL insulation needs the NEC2 engine");',
+    ]
 
 
 def _feed_loc(cards) -> tuple[int, int] | None:
@@ -458,12 +491,16 @@ def _default_block_name(builder) -> str:
     return qual
 
 
-def _portal_wrap(cards, *, name, ground, seg_per_wl, conductivity, loads=()) -> str:
+def _portal_wrap(
+    cards, *, name, ground, seg_per_wl, conductivity, loads=(), insulation=()
+) -> str:
     """The NEC-portal daemon script (the ``<equ>`` body): comment header,
     ports/units/ground/conductivity/mesh directives, then ``cards`` between
     NEC2/NECEND, then a ``JamSegments`` per wire — unless ``seg_per_wl`` asks
     for SimNEC's own mesh, which is what that knob is for — then the lumped
-    loads' statements (:func:`_wire_loads`)."""
+    loads' statements (:func:`_wire_loads`). ``insulation`` (:func:`_insulation`)
+    goes before the block: SimNEC's default insulation applies to the wires
+    declared after it."""
     ground_call = _ground_directive(ground)
     lines = [
         f"//{name}",
@@ -475,6 +512,7 @@ def _portal_wrap(cards, *, name, ground, seg_per_wl, conductivity, loads=()) -> 
     if ground_call:
         lines.append(ground_call)
     lines.append(f"NECOptions.mhosPerMeter = {_conductivity_token(conductivity)};")
+    lines.extend(insulation)
     if seg_per_wl is not None:
         lines.append(f"NECOptions.segmentsPerWavelength = {int(seg_per_wl)};")
     lines.append("NEC2")
@@ -536,15 +574,14 @@ def _antenna_portal(
     """
     # jacket_pair=False: SimNEC ignores the LD cards, and the equivalent
     # radius without its LD 2 inductance would be half of the jacket's model
-    # (issue #1523). The conductor's own radius keeps it a bare-wire model,
-    # and a jacketed design is refused rather than written bare (AK#1683).
+    # (issue #1523). The GW cards carry the conductor's own radius, and the
+    # jacket is SimNEC's W7EL Insulation() directive (AK#1683).
     #
     # AK#1677 needs no separate handling here, for the same reason as
     # `nec_export.export_nec` itself: this call IS that function, so its
     # `refuse_nec2_geometry` already refuses any below-z=0 wire before a
     # SimNEC script can be built.
     eng = PyNECEngine(builder, ground=ground)
-    _refuse_jacket(eng)
     deck = export_nec(
         builder, ground=ground, freq=freq_mhz, include_rp=False, jacket_pair=False
     )
@@ -594,6 +631,7 @@ def _antenna_portal(
         seg_per_wl=seg_per_wl,
         conductivity=conductivity,
         loads=statements,
+        insulation=_insulation(eng),
     )
     return script, feed_elements
 
@@ -1201,7 +1239,6 @@ def export_ssn(
         # Station path (issue #604): circuit elements from the reducer
         # branches, the antenna alone in the NEC block, driven at the
         # station's feed port.
-        _refuse_jacket(eng)
         net, spans = _tuner_spans(eng, builder, ground, freeze_tuners)
         feed_port, walk_elements, deck_loads = _station_chain(net, freq_mhz, spans)
         cards, statements, feed_elements = _station_cards(
@@ -1214,6 +1251,7 @@ def export_ssn(
             seg_per_wl=seg_per_wl,
             conductivity=_uniform_conductivity(_wire_conductivities(eng)),
             loads=statements,
+            insulation=_insulation(eng),
         )
         # A load on the fed segment is the antenna-most element (AK#1683).
         walk_elements = walk_elements + feed_elements

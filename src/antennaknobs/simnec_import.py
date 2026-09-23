@@ -103,7 +103,7 @@ from __future__ import annotations
 import math
 import re
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from . import network as _net
 from .design_data import read_data
@@ -156,6 +156,17 @@ _LOAD_SOURCE = re.compile(
     r"^(?:dcl\s+\w+\s*=\s*)?NECSource\s*\(\s*\{\s*(\w+)\s*,\s*(\w+)\s*\}\s*,"
     r"\s*\$GW_(\d+)\s*,\s*([^\s,()]+)\s*\)$",
     re.IGNORECASE,
+)
+# SimNEC's W7EL (EZNEC) insulation, the circuit default, as the exporter writes
+# it (AK#1683) under Ward's own engine guard, whose `if` / `else` /
+# `errorOutln` lines are structure, not directives.
+_W7EL = re.compile(
+    r'^NECOptions\.Insulation\s*\(\s*"W7EL"\s*,\s*([^\s,()]+)\s*,'
+    r"\s*([^\s,()]+)\s*,\s*([^\s,()]+)\s*\)$",
+    re.IGNORECASE,
+)
+_ENGINE_GUARD = re.compile(
+    r"^(?:if\s*\(\s*NECOptions\.Engine\s*==\s*2\s*\)|else|errorOutln\s*\(.*\))$"
 )
 _NUM = r"[0-9.]+(?:[eE][-+]?\d+)?[a-zA-Z\u00b5]?"
 _Z_EXPR = re.compile(rf"^({_NUM})\s*([+-])\s*j\s*\*\s*({_NUM})$")
@@ -760,6 +771,8 @@ class _Script:
         # node pair, and the NECSource statements attaching them.
         self._r_components: dict[tuple[str, str], tuple[str, str]] = {}
         self._load_sources: list[tuple[re.Match, str]] = []
+        # NECOptions.Insulation("W7EL", ...): (radial thickness m, eps_r).
+        self.insulation: tuple[float, float] | None = None
         in_cards = False
         for raw in text.splitlines():
             line = raw.strip()
@@ -844,6 +857,19 @@ class _Script:
         m = _JAM.match(stmt)
         if m:
             self.jam[int(m.group(1))] = (int(m.group(2)), stmt)
+            return
+        m = _W7EL.match(stmt)
+        if m:
+            thick = _fnum(m.group(1), where, "Insulation thickness")
+            eps_r = _fnum(m.group(2), where, "Insulation permittivity")
+            if _fnum(m.group(3), where, "Insulation loss tangent") != 0.0:
+                raise ValueError(
+                    f"{where}: {stmt!r} gives the insulation a loss tangent, "
+                    "which the insulated-wire model here does not carry"
+                )
+            self.insulation = (thick, eps_r) if thick > 0.0 else None
+            return
+        if _ENGINE_GUARD.match(stmt):
             return
         m = _R_COMPONENT.match(stmt)
         if m:
@@ -1260,6 +1286,16 @@ def parse_ssn(
     )
     deck, unapplied = _jam_segments(deck, script.jam, name)
     script.ignored.extend(unapplied)
+    if script.insulation is not None:
+        # The circuit's default insulation covers every wire (AK#1683): a
+        # jacket of that radial thickness over each GW conductor radius.
+        thick, eps_r = script.insulation
+        deck = replace(
+            deck,
+            wire_insulation=tuple(
+                (i, (w.radius + thick, eps_r)) for i, w in enumerate(deck.wires)
+            ),
+        )
 
     freq_mhz = None
     sweep = sweep_points = sweep_grid = sweep_note = None
