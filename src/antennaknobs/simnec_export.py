@@ -364,6 +364,12 @@ def build_nec_portal_script(
     # jacket_pair=False: the portal drops the LD cards, and the equivalent
     # radius without its LD 2 inductance would be half of the jacket's model
     # (issue #1523). The conductor's own radius keeps it a bare-wire model.
+    #
+    # AK#1677 needs no separate handling here either, for the same reason as
+    # `nec_export.export_nec` itself: this call IS that function, so its
+    # `refuse_nec2_geometry` already refuses any below-z=0 wire before a
+    # SimNEC script can be built — a jacketed buried wire can no more reach
+    # SimNEC's export than NEC-2's.
     deck = export_nec(
         builder, ground=ground, freq=freq_mhz, include_rp=False, jacket_pair=False
     )

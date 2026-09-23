@@ -41,7 +41,12 @@ import numpy as np
 
 from ..engine import FarField, SimulationEngine, WireCurrents, vertex_only_names
 from ._external import find_exe
-from ._nec_wire import JACKET_COMMENT_CARDS, nec_wire_material
+from ._nec_wire import (
+    BURIED_JACKET_ADVISORY_CARDS,
+    JACKET_COMMENT_CARDS,
+    has_buried_jacketed_wire,
+    nec_wire_material,
+)
 from ..wire_catalog import gap_knot, port_at, port_wire
 from ..network import (
     Driven,
@@ -1175,6 +1180,15 @@ class NEC5Engine(SimulationEngine):
         lines = ["CM antennaknobs NEC5Engine deck"]
         if self._gw_radii != self._radii:
             lines.extend(JACKET_COMMENT_CARDS)
+        # AK#1677: `_has_buried_wires` is only ever True over a real
+        # Sommerfeld ground (`_check_geometry_against_ground` refuses a
+        # below-z=0 wire under any other ground), so this is exactly "an
+        # insulated wire actually buried in soil" — the momwire#1154 gap
+        # neither writer nor the a'+L' pair above can close.
+        if self._has_buried_wires and has_buried_jacketed_wire(
+            self._wires, self._wire_spec
+        ):
+            lines.extend(BURIED_JACKET_ADVISORY_CARDS)
         lines.append("CE")
         for tag, (i, p0, p1, n_seg) in enumerate(self._cards, start=1):
             r = self._gw_radii[i]
