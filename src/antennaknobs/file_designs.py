@@ -23,7 +23,8 @@ The synthesized builder is the authoring guide's deck-stub recipe, generated
 on the fly: ``build_wires`` returns the deck's wires with per-wire specs,
 ``build_network`` the deck's (or station ``.ssn``'s) translated network,
 ``freq`` is seeded from the file (the FR card / the Generator's MHz), the FR
-range or an armed Generator sweep seeds ``ui_params["meas_freq_range"]``, and
+range or an armed Generator sweep seeds ``ui_params["meas_freq_range"]`` and,
+with its spacing, ``ui_params["sweep_range"]`` (AK#1682), and
 whatever the import left behind lands under ``ui_params["notes"]``. A deck is
 frozen geometry, so the only knob is ``freq`` — port the design to a real
 ``AntennaBuilder`` when dimensions should tune.
@@ -66,6 +67,22 @@ def _seed_freq(freq_range):
     )
 
 
+def sweep_range_ui(lo, hi, grid=None, *, source="file") -> dict:
+    """The ``ui_params["sweep_range"]`` a file's sweep publishes (AK#1682):
+    ``{lo, hi, spacing}`` plus ``step`` (MHz) for a linear grid or
+    ``points_per_decade`` for a logarithmic one. ``grid`` is the importers'
+    ``(spacing, value)`` pair (``NecDeck.freq_grid`` /
+    ``SsnCircuit.sweep_grid``); without one the spacing is linear and the app
+    picks the density. ``source`` tells the app which rung of its range
+    precedence this is -- a file's own range outranks a design's."""
+    out: dict = {"lo": float(lo), "hi": float(hi), "spacing": "lin", "source": source}
+    if grid is not None:
+        spacing, value = grid
+        out["spacing"] = spacing
+        out["step" if spacing == "lin" else "points_per_decade"] = float(value)
+    return out
+
+
 def _make_builder(
     stem,
     freq,
@@ -79,6 +96,7 @@ def _make_builder(
     ground_method=None,
     file_deck=None,
     ground_card=None,
+    sweep_grid=None,
 ):
     ui: dict = {}
     # A zero-width range seeds nothing: one FR point, or an .ssn with no armed
@@ -88,6 +106,10 @@ def _make_builder(
     # stores its range.
     if meas_range and meas_range[1] > meas_range[0]:
         ui["meas_freq_range"] = tuple(meas_range)
+        # The same range with its grid (AK#1682): the app's sweep covers what
+        # the file sweeps, at the file's spacing, and the measurement dial
+        # travels it.
+        ui["sweep_range"] = sweep_range_ui(*meas_range, sweep_grid)
     # AK#1432: the deck says what ground it models, so the folder route seeds
     # the app's switch from it instead of the app's default finite ground
     # (which made NEC-5 refuse a free-space dipole at z = 0). The wires carry
@@ -168,6 +190,7 @@ def _nec_builder(path: Path, text: str, refine: int = 1):
             else None
         ),
         file_deck=deck,
+        sweep_grid=deck.freq_grid,
     )
 
 
@@ -228,6 +251,7 @@ def _ssn_builder(path: Path, text: str, refine: int = 1):
     else:
         freq, _, freq_note = _seed_freq(deck.freq_mhz)
     meas_range = circuit.sweep or deck.freq_mhz
+    sweep_grid = circuit.sweep_grid if circuit.sweep else deck.freq_grid
     return _make_builder(
         path.stem,
         freq,
@@ -253,6 +277,7 @@ def _ssn_builder(path: Path, text: str, refine: int = 1):
         # round trip of a GE -1 deck used to lose that refusal on the second
         # hop purely because this loader forgot to carry the fact forward.
         file_deck=deck,
+        sweep_grid=sweep_grid,
     )
 
 

@@ -672,6 +672,11 @@ class NecDeck:
     # the count as written: no parity bump, and a port that is not on a site
     # of that count splits the wire at the port (AK#1511) rather than moving.
     pinned_wires: frozenset[int] = frozenset()
+    # The FR card's grid (AK#1682), for the app's sweep: ``("lin", step MHz)``
+    # for a linear FR, ``("log", points per decade)`` for a multiplicative one.
+    # None for a single-frequency FR or no FR at all -- ``freq_mhz`` is then a
+    # point, not a range, and there is no grid to honour.
+    freq_grid: tuple[str, float] | None = None
 
     def free_plane_ends(self) -> tuple[tuple[int, str], ...]:
         """Every wire end standing in the ground plane (z = 0) that is NOT a
@@ -4677,6 +4682,7 @@ def parse_nec(
     nts_raw: list[_Card] = []
     freq_mhz: tuple[float, float] | None = None
     fr_first_mhz: float | None = None
+    freq_grid: tuple[str, float] | None = None
     ground = False
     ground_contact_interpolates = True
     ground_spec, ground_method = None, None
@@ -4916,6 +4922,13 @@ def parse_nec(
                 else:  # multiplicative sweep
                     end = start * step ** (nfrq - 1) if step > 0 else start
                 freq_mhz = (min(start, end), max(start, end))
+                # The grid itself (AK#1682): the app sweeps what the deck
+                # sweeps, at the deck's spacing.
+                if nfrq >= 2 and end != start:
+                    if card.i(0) == 0:
+                        freq_grid = ("lin", abs(step))
+                    elif step > 0 and step != 1.0:
+                        freq_grid = ("log", 1.0 / abs(math.log10(step)))
                 # The raw F1 of the initial FR card, pre min/max
                 # normalization — 4nec2 evaluates LD 6 trap loss at
                 # exactly this frequency (issue #444).
@@ -5124,6 +5137,7 @@ def parse_nec(
         ),
         feeds=tuple(feeds),
         freq_mhz=freq_mhz,
+        freq_grid=freq_grid,
         ground=ground,
         ground_contact_interpolates=ground_contact_interpolates,
         # GE 1 with no GN card is NEC's perfect ground.
