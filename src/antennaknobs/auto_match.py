@@ -74,7 +74,8 @@ _KINDS = {"low": ("L", "C"), "high": ("C", "L"), "ll": ("L", "L"), "cc": ("C", "
 
 
 class TunerAdvisory(UserWarning):
-    """A tuner found no match at its tune frequency and was bypassed."""
+    """A tuner found no match at its tune frequency: bypassed, or tuned for
+    best effort (AK#1663)."""
 
 
 @dataclass(frozen=True)
@@ -159,8 +160,16 @@ class LTuner:
     qc: float | None = None
     ql: float | None = None
     ranges: Ranges = Ranges()
+    #: What to do when the target is out of reach but the topology could
+    #: match in principle (AK#1663): "best", the lowest SWR the parts give,
+    #: or "bypass", the box out of circuit.
+    on_no_match: str = "best"
 
     def __post_init__(self):
+        if self.on_no_match not in ON_NO_MATCH:
+            raise ValueError(
+                f"on_no_match={self.on_no_match!r} is not one of {ON_NO_MATCH}"
+            )
         if self.mode not in MODES:
             raise ValueError(f"tuner mode {self.mode!r} is not one of {MODES}")
         if self.shunt_at not in SIDES:
@@ -188,11 +197,22 @@ class LTuner:
                 ranges=self.ranges,
             )
         except NoMatch as exc:
-            side = "out" if self.shunt_at == "auto" else self.shunt_at
-            design = LMatchDesign(
-                self.mode, side, 0.0, 0.0, f_mhz, z_load, matched=False, bypass=True
-            )
-            design = replace(design, no_match=str(exc))
+            why = str(exc)
+            design = None
+            if exc.reachable and self.on_no_match == "best":
+                design = best_l_match(
+                    z_load, self.target, f_mhz, self.mode, shunt_at=self.shunt_at,
+                    qc=self.qc, ql=self.ql, ranges=self.ranges, why=why,
+                )  # fmt: skip
+                worse = _no_better_than_bypass(design, self.target)
+                if worse:
+                    why, design = f"{why}, and {worse}", None
+            if design is None:
+                side = "out" if self.shunt_at == "auto" else self.shunt_at
+                design = LMatchDesign(
+                    self.mode, side, 0.0, 0.0, f_mhz, z_load,
+                    matched=False, bypass=True, no_match=why,
+                )  # fmt: skip
         if design.bypass:
             return (bypass_body(rig, out), design)
         if design.series_kind == "L":
@@ -235,6 +255,10 @@ class LMatchDesign:
     bypass: bool = False
     #: Why nothing matched, for the advisory; None when something did.
     no_match: str | None = None
+    #: The SWR a best-effort tuning reached (AK#1663); None for an exact
+    #: match or a bypass. With it set, the parts are in circuit and
+    #: ``no_match`` says why the target was out of reach.
+    best_swr: float | None = None
 
     @property
     def series_kind(self) -> str:
@@ -254,11 +278,23 @@ class LMatchDesign:
 
     @property
     def summary(self) -> str:
-        return f"{self.mode} at {self.f_mhz:g} MHz, shunt at {self.shunt_at}"
+        return (
+            f"{self.mode} at {self.f_mhz:g} MHz, shunt at {self.shunt_at}"
+            + _best_effort_note(self)
+        )
 
 
 class NoMatch(ValueError):
-    """No L network of the allowed kinds presents the target."""
+    """No network of the allowed kinds presents the target.
+
+    ``reachable`` says whether the topology could in principle: True when a
+    lossless solution exists but a part's range (or the parts' loss) rules
+    it out, which is where a best-effort tuning is worth having (AK#1663);
+    False when there is no solution at all, and the tuner can do nothing."""
+
+    def __init__(self, message: str, *, reachable: bool = False):
+        super().__init__(message)
+        self.reachable = reachable
 
 
 def _element_z(kind: str, value: float, omega: float, qc, ql) -> complex:
@@ -357,10 +393,12 @@ def design_l_match(
     kinds = _KINDS[mode]
     ranges = ranges or Ranges()
     out_of_range: list[str] = []
+    reachable = False
     for side in sides:
         # At most one start per side satisfies the parts' signs: the series
         # reactance and the total shunt susceptance share a sign.
         for start in _lossless_starts(kinds, side, z_load, r_t, omega):
+            reachable = True
 
             def residual(x, kinds=kinds, side=side):
                 z = _z_in(
@@ -400,7 +438,8 @@ def design_l_match(
             " within its component ranges (" + "; ".join(out_of_range) + ")"
             if out_of_range
             else ""
-        )
+        ),
+        reachable=reachable,
     )
 
 
@@ -447,6 +486,7 @@ class TMatchDesign:
     matched: bool = True
     bypass: bool = False
     no_match: str | None = None
+    best_swr: float | None = None
 
     @property
     def parts(self) -> list[tuple[str, str, float]]:
@@ -457,7 +497,11 @@ class TMatchDesign:
         held = [f"{p.upper()} given" for p in self.given]
         if self.pinned:
             held.append(f"{self.pinned.upper()} at its maximum")
-        return f"T at {self.f_mhz:g} MHz" + (", " + ", ".join(held) if held else "")
+        return (
+            f"T at {self.f_mhz:g} MHz"
+            + (", " + ", ".join(held) if held else "")
+            + _best_effort_note(self)
+        )
 
 
 def _t_z_in(c1, l, c2, z_load, omega, qc, ql) -> complex:
@@ -580,9 +624,11 @@ def design_t_match(
 
     found: list[TMatchDesign] = []
     out_of_range: list[str] = []
+    reachable = False
     for fixed, pinned in holds:
         free = [p for p in T_PARTS if p not in fixed]
         for start in _t_lossless_starts(fixed, z_load, r_t, omega):
+            reachable = True
             vals = dict(zip(T_PARTS, start, strict=True))
 
             def parts(x, fixed=fixed, free=free):
@@ -641,7 +687,8 @@ def design_t_match(
             " within its component ranges (" + "; ".join(out_of_range) + ")"
             if out_of_range
             else ""
-        )
+        ),
+        reachable=reachable,
     )
 
 
@@ -676,8 +723,13 @@ class TTuner:
     qc: float | None = None
     ql: float | None = None
     ranges: Ranges = Ranges()
+    on_no_match: str = "best"
 
     def __post_init__(self):
+        if self.on_no_match not in ON_NO_MATCH:
+            raise ValueError(
+                f"on_no_match={self.on_no_match!r} is not one of {ON_NO_MATCH}"
+            )
         if isinstance(self.target, complex) or not float(self.target) > 0.0:
             raise ValueError(
                 f"tune_to={self.target!r}: a tuner tunes to a positive resistance "
@@ -688,11 +740,17 @@ class TTuner:
         if self.pin not in PINS:
             raise ValueError(f"pin={self.pin!r} is not one of {PINS}")
         given = [p for p in T_PARTS if getattr(self, p) is not None]
-        if len(given) > 1:
+        if len(given) == 3:
+            raise ValueError(
+                "a T tuner with C1, L and C2 all given has nothing left to "
+                "tune; drop tune_to for a fixed T"
+            )
+        if len(given) == 2 and self.on_no_match == "bypass":
             raise ValueError(
                 f"a T tuner with {' and '.join(p.upper() for p in given)} given "
-                "has one part left for two conditions (R and X at the rig); "
-                "give at most one"
+                "has one part for two conditions (R and X at the rig), so it "
+                "can only tune for best effort; on_no_match='bypass' would "
+                "never tune"
             )
         if not given and self.ranges.c_max is None:
             raise ValueError(
@@ -704,23 +762,34 @@ class TTuner:
         """``(branches, design)`` for this load: the real T, or the bypass
         when nothing matches."""
         given = tuple(p for p in T_PARTS if getattr(self, p) is not None)
-        try:
-            design = design_t_match(
-                z_load,
-                self.target,
-                f_mhz,
-                c1=self.c1,
-                l=self.l,
-                c2=self.c2,
-                pin=self.pin,
-                qc=self.qc,
-                ql=self.ql,
-                ranges=self.ranges,
+        kw = dict(
+            c1=self.c1, l=self.l, c2=self.c2, pin=self.pin,
+            qc=self.qc, ql=self.ql, ranges=self.ranges,
+        )  # fmt: skip
+        design, why = None, None
+        if len(given) == 2:
+            # One part for two conditions: never exact by algebra, so the
+            # search is the tuning (AK#1663).
+            why = (
+                f"with {' and '.join(p.upper() for p in given)} given, one part "
+                "cannot set both R and X"
             )
-        except NoMatch as exc:
+            design = best_t_match(z_load, self.target, f_mhz, why=why, **kw)
+        else:
+            try:
+                design = design_t_match(z_load, self.target, f_mhz, **kw)
+            except NoMatch as exc:
+                why = str(exc)
+                if exc.reachable and self.on_no_match == "best":
+                    design = best_t_match(z_load, self.target, f_mhz, why=why, **kw)
+        if design is not None and (
+            worse := _no_better_than_bypass(design, self.target)
+        ):
+            why, design = f"{why}, and {worse}", None
+        if design is None:
             design = TMatchDesign(
                 0.0, 0.0, 0.0, f_mhz, z_load, given=given,
-                matched=False, bypass=True, no_match=str(exc),
+                matched=False, bypass=True, no_match=why,
             )  # fmt: skip
         if design.bypass:
             return (t_bypass_body(rig, out, mid), design)
@@ -739,6 +808,215 @@ class TTuner:
             return f"T network with {given[0].upper()} given"
         which = "either capacitor" if self.pin == "auto" else self.pin.upper()
         return f"T network with {which} at its maximum"
+
+
+# --- best effort (AK#1663) --------------------------------------------------
+#
+# What an operator does with a box that cannot reach the target: tune the parts
+# that move for the lowest SWR they give, and leave it there. It is used where
+# the topology could match in principle (a lossless solution exists) but a
+# part's range or the parts' loss rules the exact answer out, and where a T has
+# two parts given and one left to tune. A topology with no solution at all is
+# still bypassed: there is nothing for its parts to do.
+
+ON_NO_MATCH = ("best", "bypass")
+#: How far past a part's characteristic value (reactance = the target) the
+#: search runs on a side its range leaves open, as a ratio each way.
+_OPEN_SPAN = 1e4
+#: The grid the search starts from, per free part: dense enough that the
+#: local refinement starts inside the right basin on the loads we measured.
+_GRID = {1: 801, 2: 81}
+#: A best effort this close to the target is the exact match, reached by
+#: search rather than algebra (a T with two parts given, say).
+_EXACT_GAMMA = 1e-9
+
+
+def _gamma(z, r_t):
+    return np.abs((z - r_t) / (z + r_t))
+
+
+def _swr(gamma: float) -> float:
+    gamma = min(float(gamma), 1.0 - 1e-12)
+    return (1.0 + gamma) / (1.0 - gamma)
+
+
+def _log_box(kind: str, ranges: Ranges, omega: float, r_t: float):
+    """The search interval for one part, in log(SI value): its range, and on
+    a side the range leaves open, ``_OPEN_SPAN`` past the value whose
+    reactance equals the target."""
+    char = r_t / omega if kind == "L" else 1.0 / (omega * r_t)
+    lo = ranges.l_min if kind == "L" else ranges.c_min
+    hi = ranges.l_max if kind == "L" else ranges.c_max
+    lo = char / _OPEN_SPAN if lo is None else lo
+    hi = char * _OPEN_SPAN if hi is None else hi
+    return math.log(lo), math.log(hi)
+
+
+def _minimise_gamma(gamma_of, boxes, seeds=()):
+    """The parts (SI values) minimising ``gamma_of(*values)`` over the log
+    ``boxes``, and the |Γ| there. Deterministic: a fixed grid, then a
+    bounded quasi-Newton refinement from its best point and from each seed
+    (clipped into the box), keeping the lowest."""
+    from scipy.optimize import minimize
+
+    n = len(boxes)
+    axes = [np.linspace(lo, hi, _GRID[n]) for lo, hi in boxes]
+    mesh = np.meshgrid(*axes, indexing="ij")
+    g = gamma_of(*(np.exp(m) for m in mesh))
+    g = np.where(np.isfinite(g), g, np.inf)
+    best = np.unravel_index(int(np.argmin(g)), g.shape)
+    starts = [np.array([axes[i][best[i]] for i in range(n)])]
+    for seed in seeds:
+        x = np.log(np.asarray(seed, float))
+        starts.append(np.clip(x, [b[0] for b in boxes], [b[1] for b in boxes]))
+
+    def obj(x):
+        v = gamma_of(*np.exp(x))
+        v = float(v)
+        return v * v if math.isfinite(v) else 1.0
+
+    best_x, best_g = starts[0], math.sqrt(obj(starts[0]))
+    for x0 in starts:
+        res = minimize(
+            obj,
+            x0,
+            method="L-BFGS-B",
+            bounds=boxes,
+            options={"ftol": 1e-15, "gtol": 1e-12, "maxiter": 500},
+        )
+        gx = math.sqrt(obj(res.x))
+        if gx < best_g - 1e-15:
+            best_x, best_g = res.x, gx
+    return np.exp(best_x), best_g
+
+
+def _no_better_than_bypass(design, target: float) -> str | None:
+    """Why a best effort is worse than leaving the box out of circuit, or
+    None when it helps. A box whose parts are held can make a load WORSE
+    (a pinned capacitor and a short-ranged coil measured 763:1 on a load
+    that is 2.9:1 bypassed), and a real tuner's bypass relay is always there,
+    so a best effort only goes in circuit when it beats the bypass."""
+    if design.best_swr is None:
+        return None
+    bypass_swr = _swr(float(_gamma(design.z_load, float(target))))
+    if design.best_swr < bypass_swr:
+        return None
+    return (
+        f"the best its parts reach, SWR {design.best_swr:.2f}:1, is no better "
+        f"than the load's own {bypass_swr:.2f}:1"
+    )
+
+
+def _best_effort_note(design) -> str:
+    return (
+        f", best effort: SWR {design.best_swr:.2f}:1"
+        if design.best_swr is not None
+        else ""
+    )
+
+
+def best_l_match(
+    z_load,
+    target,
+    f_mhz,
+    mode="low",
+    *,
+    shunt_at="out",
+    qc=None,
+    ql=None,
+    ranges=None,
+    why="",
+) -> LMatchDesign:
+    """The L network of ``mode``'s kinds, parts inside ``ranges``, with the
+    lowest reflection at ``target`` for ``z_load`` (AK#1663). ``shunt_at``
+    "auto" searches both sides and keeps the better. ``why`` is the exact
+    solver's reason, carried as the design's ``no_match``."""
+    z_load, r_t = complex(z_load), float(target)
+    omega = 2.0 * math.pi * f_mhz * 1e6
+    kinds = _KINDS[mode]
+    ranges = ranges or Ranges()
+    boxes = [_log_box(k, ranges, omega, r_t) for k in kinds]
+    best = None
+    for side in ("out", "rig") if shunt_at == "auto" else (shunt_at,):
+
+        def gamma_of(series, shunt, side=side):
+            return _gamma(_z_in(kinds, side, series, shunt, z_load, omega, qc, ql), r_t)
+
+        seeds = _lossless_starts(kinds, side, z_load, r_t, omega)
+        (series, shunt), g = _minimise_gamma(gamma_of, boxes, seeds)
+        if best is None or g < best[0]:
+            best = (g, side, float(series), float(shunt))
+    g, side, series, shunt = best
+    if g < _EXACT_GAMMA:
+        return LMatchDesign(mode, side, series, shunt, f_mhz, z_load)
+    return LMatchDesign(
+        mode, side, series, shunt, f_mhz, z_load,
+        matched=False, no_match=why or None, best_swr=_swr(g),
+    )  # fmt: skip
+
+
+def best_t_match(
+    z_load,
+    target,
+    f_mhz,
+    *,
+    c1=None,
+    l=None,
+    c2=None,
+    pin=DEFAULT_PIN,
+    qc=None,
+    ql=None,
+    ranges=None,
+    why="",
+) -> TMatchDesign:
+    """The T with the given parts held (SI; with none given, a capacitor at
+    ``ranges.c_max`` as ``pin`` says), the rest inside ``ranges``, with the
+    lowest reflection at ``target`` for ``z_load`` (AK#1663). Two parts given
+    leave one to tune; ``pin`` "auto" tries both capacitors."""
+    z_load, r_t = complex(z_load), float(target)
+    omega = 2.0 * math.pi * f_mhz * 1e6
+    ranges = ranges or Ranges()
+    given = {k: v for k, v in (("c1", c1), ("l", l), ("c2", c2)) if v is not None}
+    if given:
+        holds = [(given, None)]
+    else:
+        pins = ("c1", "c2") if pin == "auto" else (pin,)
+        holds = [({p: ranges.c_max}, p) for p in pins]
+    best = None
+    for fixed, pinned in holds:
+        free = [p for p in T_PARTS if p not in fixed]
+        boxes = [_log_box("L" if p == "l" else "C", ranges, omega, r_t) for p in free]
+
+        def gamma_of(*vals, fixed=fixed, free=free):
+            v = dict(fixed)
+            v.update(zip(free, vals, strict=True))
+            return _gamma(_t_z_in(v["c1"], v["l"], v["c2"], z_load, omega, qc, ql), r_t)
+
+        seeds = (
+            [
+                [t[T_PARTS.index(p)] for p in free]
+                for t in _t_lossless_starts(fixed, z_load, r_t, omega)
+            ]
+            if len(fixed) == 1
+            else []
+        )
+        vals, g = _minimise_gamma(gamma_of, boxes, seeds)
+        if best is None or g < best[0]:
+            parts = dict(fixed)
+            parts.update(zip(free, (float(x) for x in vals), strict=True))
+            best = (g, parts, pinned)
+    g, parts, pinned = best
+    exact = g < _EXACT_GAMMA
+    return TMatchDesign(
+        parts["c1"], parts["l"], parts["c2"], f_mhz, z_load,
+        given=tuple(given), pinned=pinned,
+        efficiency=_t_efficiency(
+            parts["c1"], parts["l"], parts["c2"], z_load, omega, qc, ql
+        ),
+        matched=exact,
+        no_match=None if exact else (why or None),
+        best_swr=None if exact else _swr(g),
+    )  # fmt: skip
 
 
 # --- finding the tuner in a network -----------------------------------------
@@ -907,8 +1185,13 @@ class AutoMatchReducer:
         )
         design = replace(design, f_mhz=self.f_mhz)
         if design.no_match:
+            then = (
+                f"tuned for best effort, SWR {design.best_swr:.2f}:1"
+                if design.best_swr is not None
+                else "bypassed"
+            )
             warnings.warn(
-                f"tuner {t.name}: {design.no_match}; bypassed",
+                f"tuner {t.name}: {design.no_match}; {then}",
                 TunerAdvisory,
                 stacklevel=2,
             )
@@ -985,6 +1268,15 @@ class AutoMatchReducer:
             }
             for label, kind, value in d.parts
         ]
+        if d.best_swr is not None:
+            rows.append(
+                {
+                    "label": "SWR reached",
+                    "value": round(d.best_swr, 3),
+                    "unit": ":1",
+                    "group": group,
+                }
+            )
         rows.append(
             {"label": "tuned", "value": d.summary, "unit": None, "group": group}
         )
@@ -996,6 +1288,20 @@ class AutoMatchReducer:
             return []
         t = self._tuner.mechanism
         z = d.z_load
+        if d.best_swr is not None:
+            return [
+                {
+                    "category": "tuner",
+                    "text": (
+                        f"Tuner {self._tuner.name} cannot present {t.target:g} Ω "
+                        f"for the {z.real:.4g} {'+' if z.imag >= 0 else '−'} "
+                        f"j{abs(z.imag):.4g} Ω it sees at {d.f_mhz:g} MHz "
+                        f"({d.no_match}), so it is tuned as close as its parts "
+                        f"allow: SWR {d.best_swr:.2f}:1, and the readout shows "
+                        "that mismatch."
+                    ),
+                }
+            ]
         return [
             {
                 "category": "tuner",

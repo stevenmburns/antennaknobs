@@ -357,9 +357,7 @@ special members:
   moves its capacitor: across `out` when the load's resistance must come
   down, across `rig` when it must go up. A fixed side can only step a load
   one way, which is what makes it worth modelling: the tool tells you when
-  your box cannot match. The readout reports what it tuned to; a load it
-  cannot match is reported and the tuner bypassed, so the readout shows the
-  mismatch a real tuner would leave you with. SimNEC's automatic LC match
+  your box cannot match. The readout reports what it tuned to. SimNEC's automatic LC match
   element imports as this component, and a low- or high-pass tuner exports
   back as that element, so each program tunes it against its own antenna.
   What the element cannot say (a T, `"ll"` / `"cc"`, component ranges, a
@@ -378,9 +376,20 @@ special members:
   other cannot.
 
   Both tuners take component ranges — `c_min_pF`, `c_max_pF`, `l_min_uH`,
-  `l_max_uH` — because a real tuner's parts are finite: a tuning that needs
-  a 900 pF capacitor nobody owns is reported as no match, naming the part
-  that ran out of range.
+  `l_max_uH` — because a real tuner's parts are finite: the algebra will
+  happily ask for a 900 pF capacitor nobody owns.
+
+  **When the target is out of reach** a tuner does what an operator does:
+  it tunes the parts it can move for the lowest SWR they give, leaves them
+  there, and says so. The readout adds an *SWR reached* row and marks the
+  tuning *best effort*, and an advisory names the part that ran out of range.
+  This covers a tuning that needs a part outside its range, and a T with two
+  parts given, where one part cannot set both R and X. The tuner is bypassed
+  instead, with the reason, when no network of its kind could match the load
+  at all (a shunt across the load can only bring its resistance down), or
+  when its best is no better than the load's own SWR, the way a real
+  tuner's bypass relay wins. `on_no_match="bypass"` asks for the bypass
+  whenever the exact answer is out of reach.
 
   **Knobs, or a tuner that tunes itself?** Reach for knobs — fixed part
   values marked for the optimizer, as `loops.skyloop_lmatch` marks
