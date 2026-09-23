@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import itertools
 import random
+import re
 from types import MappingProxyType
 
 import numpy as np
@@ -756,12 +757,25 @@ def test_nec2_joins_every_piece_back_into_the_wire(monkeypatch):
 def test_simnec_station_cards_feed_and_load_each_ports_own_piece():
     from antennaknobs.simnec_export import _station_cards
 
+    from antennaknobs.network import Load
+
     b = _b(**CASES["k3"])
     eng = _pynec(b)
     net = eng._network
-    cards = _station_cards(eng, "feed", list(net.branches), FREQ)
+    loads = [(br, br.port) for br in net.branches if isinstance(br, Load)]
+    cards, statements, feed_elements = _station_cards(eng, "feed", loads, FREQ)
+    assert feed_elements == []
     deck = "\n".join(cards)
-    _assert_sites(_nec2_deck_sites(deck), _targets(b), 1e-6 * LENGTH)
+    sites = _nec2_deck_sites(deck)
+    # SimNEC ignores LD cards, so each load is a NECSource at a percentage of
+    # its wire (AK#1683): the point that percentage names.
+    gw = _gw(deck)
+    sites["LD"] = []
+    for st in statements:
+        m = re.search(r"\$GW_(\d+), ([0-9.e-]+)\);$", st)
+        _n, a, z = gw[int(m.group(1))]
+        sites["LD"].append(a + float(m.group(2)) / 100.0 * (z - a))
+    _assert_sites(sites, _targets(b), 1e-6 * LENGTH)
 
 
 # ---------------------------------------------------------------------------
