@@ -197,3 +197,26 @@ def test_a_density_that_does_not_fit_the_spacing_becomes_a_point_count():
 )
 def test_a_malformed_range_is_dropped_not_guessed(bad):
     assert _ui(bad) is None
+
+
+# --- the hosted cap the frontend clamps to ------------------------------------
+
+
+def test_the_frontend_clamps_to_the_servers_sweep_cap():
+    """``lib/sweep.ts`` clamps a too-fine grid to ``MAX_SWEEP_POINTS`` so the
+    hosted instance never refuses it. The two numbers are one contract: the
+    frontend's constant is the server's default (an operator's env override
+    is the one thing the frontend cannot know)."""
+    import os
+    import re
+
+    from antennaknobs.web import cost
+
+    if "ANTENNAKNOBS_MAX_SWEEP_POINTS" in os.environ:
+        pytest.skip("the server's cap is overridden in this environment")
+    ts = (
+        Path(__file__).parents[1] / "src/antennaknobs/web/frontend/src/lib/sweep.ts"
+    ).read_text()
+    m = re.search(r"export const MAX_SWEEP_POINTS = (\d+);", ts)
+    assert m, "lib/sweep.ts no longer declares MAX_SWEEP_POINTS"
+    assert int(m.group(1)) == cost.MAX_SWEEP_POINTS
