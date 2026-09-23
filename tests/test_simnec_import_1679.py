@@ -8,11 +8,15 @@ a compensating series Z, an ideal 1:4 transformer and a CLC high-pass T.
 
 from __future__ import annotations
 
+import math
+import re
 from pathlib import Path
 
 import pytest
+from momwire.networks._reduce import C_LIGHT, tl_abcd
 
 from antennaknobs.file_designs import builder_from_file
+from antennaknobs.network import TL
 from antennaknobs.simnec_import import parse_ssn
 
 FIX = Path(__file__).parent / "fixtures" / "simnec_ac6la_1679"
@@ -80,3 +84,58 @@ def test_an_unreadable_sweep_expression_is_said_not_guessed():
     c = _parse(LC1, LC1.read_text().replace("14 : 14.35 : 0.025", "Vary"))
     assert c.sweep is None and c.sweep_points is None
     assert "'Vary' was not read" in c.skipped_note()
+
+
+# --- the 'simplified' line model's loss --------------------------------------
+
+
+def _without_r1(text: str) -> str:
+    """Dan's CLC circuit with its SERIES_Z R1 deleted: the variant he could
+    import before AK#1679, and the reference the R1 import is checked
+    against."""
+    out, n = re.subn(
+        r"<element>\s*<type>SERIES_Z</type>.*?</element>\s*", "", text, flags=re.S
+    )
+    assert n == 1
+    return out
+
+
+def _matched_loss_db(tl, f_mhz: float) -> float:
+    a, b, _c, _d = tl_abcd(
+        tl.z0, tl.length, C_LIGHT / (f_mhz * 1e6), tl.vf, tl.k1, tl.k2
+    )
+    return 20.0 * math.log10(abs(a + b / tl.z0))
+
+
+def _line(text: str):
+    net = _parse(CLC, _without_r1(text)).network()
+    (tl,) = [b for b in net.branches if isinstance(b, TL)]
+    return tl
+
+
+def test_the_simplified_line_loss_is_exact_at_its_quoted_frequency():
+    """T1 is 100 ft of 50 ohm line in SimNEC's default 'simplified' model,
+    0.5 dB/100 ft at 14.175 MHz, with k0 = k1 = k2 = 0 stored beside it. It
+    imported LOSSLESS, with no warning. The model scales its one loss point
+    with sqrt(f) (SimNEC's k1), so the line's matched loss is 0.5 dB at
+    14.175 MHz and 0.5*sqrt(2) dB at twice that."""
+    tl = _line(CLC.read_text())
+    assert tl.k2 == 0.0
+    assert tl.k1 == pytest.approx(0.5 / math.sqrt(14.175))
+    assert _matched_loss_db(tl, 14.175) == pytest.approx(0.5, rel=1e-12)
+    assert _matched_loss_db(tl, 28.35) == pytest.approx(0.5 * math.sqrt(2), rel=1e-12)
+
+
+def test_a_simplified_loss_per_100_metres_is_converted():
+    text = CLC.read_text().replace("<n>/100f</n>", "<n>/100m</n>")
+    tl = _line(text)
+    assert _matched_loss_db(tl, 14.175) == pytest.approx(0.5 * 0.3048, rel=1e-12)
+
+
+def test_an_untranslated_line_model_is_refused_by_name():
+    text = CLC.read_text().replace(
+        "<p><n>Mdl</n><v>simplified</v></p>", "<p><n>Mdl</n><v>RG-213</v></p>"
+    )
+    assert "RG-213" in text
+    with pytest.raises(ValueError, match="line model 'RG-213' is not translated"):
+        _line(text)
