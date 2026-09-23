@@ -1970,7 +1970,9 @@ async def sweep_endpoint(req: dict, request: Request):
     # AK#1681: a deck whose reactive NT cards hold at one frequency is not
     # modelled across the sweep; the closing record says so (the key is
     # present only when there is something to say).
-    sweep_advisories = fixed_frequency_advisories(sweep_ex.builder_cls, freqs)
+    sweep_advisories = fixed_frequency_advisories(
+        getattr(sweep_ex, "builder_cls", None), freqs
+    )
 
     async def gen():
         if not freqs:
