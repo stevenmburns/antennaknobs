@@ -140,6 +140,10 @@ _DEG = math.pi / 180.0
 # exactly 1 m -- so the two share a number and nothing else.
 NEC_C_LIGHT_MHZ_M = 299.8
 
+# The advisory category for a solve away from the frequency a deck's reactive
+# NT cards were written at (AK#1681; `NecDeck.fixed_frequency_advisory`).
+FIXED_FREQUENCY_NT_CATEGORY = "FixedFrequencyNT"
+
 # Cards that configure a NEC *run* rather than the wire list. antennaknobs has
 # its own engine settings for these concerns (ground, loading, feedlines,
 # sweeps, pattern output), so they are recorded, not translated.
@@ -914,6 +918,102 @@ class NecDeck:
         return (
             body[0].upper() + body[1:] + " — the app's own settings are used instead."
         )
+
+    def fixed_frequency_nts(self) -> tuple[int, ...]:
+        """1-based card numbers of the ``NT`` cards that hold at ONE
+        frequency only (AK#1681): those with susceptance anywhere.
+
+        An ``NT`` is a constant 2×2 admittance. All-real, that is a resistive
+        network or a transformer, and it holds at every frequency. With
+        susceptance it is a frequency-dependent circuit — a line, an L
+        network, a parallel load — that the deck's writer evaluated at one
+        frequency and froze: EZNEC writes every such network this way, at the
+        deck's ``FR`` frequency. The pure gyrator (zero diagonal, ``Y12 = jB``)
+        is the one reactive shape left out: it is the current-source idiom
+        (AK#1595), whose transfer is the fixed ``B`` by construction."""
+        out = []
+        for k, nt in enumerate(self.nts, 1):
+            if nt.y is None:
+                continue
+            (y11, y12), (_y21, y22) = nt.y
+            if not (y11 or y22 or y12.real):
+                continue  # the gyrator
+            out.append(k)
+        return tuple(out)
+
+    def nt_frequency_mhz(self) -> float | None:
+        """The frequency the deck's fixed-frequency ``NT`` cards hold at: the
+        ``FR`` card's, when it names one frequency. None with no such cards,
+        no ``FR`` card, or an ``FR`` sweep (whose networks hold at one of its
+        frequencies, and the deck does not say which)."""
+        if not self.fixed_frequency_nts() or self.freq_mhz is None:
+            return None
+        lo, hi = self.freq_mhz
+        return float(lo) if lo == hi else None
+
+    def fixed_frequency_note(self) -> str | None:
+        """The import note for `fixed_frequency_nts` (AK#1681), or None."""
+        cards = self.fixed_frequency_nts()
+        if not cards:
+            return None
+        n = len(cards)
+        names = ", ".join(f"#{k}" for k in cards)
+        f = self.nt_frequency_mhz()
+        if f is not None:
+            at = f"{f:g} MHz, the deck's FR frequency"
+            off = f"away from {f:g} MHz"
+        elif self.freq_mhz is not None:
+            lo, hi = self.freq_mhz
+            at = f"one frequency of the deck's FR sweep ({lo:g}–{hi:g} MHz)"
+            off = "at any other frequency"
+        else:
+            at = "one frequency the deck does not state (it has no FR card)"
+            off = "at any other frequency"
+        return (
+            f"NT card{'s' if n > 1 else ''} {names} "
+            f"{'are fixed admittances' if n > 1 else 'is a fixed admittance'} "
+            f"(a line, L network or load, evaluated once) written for {at}: "
+            f"the solve applies {'them' if n > 1 else 'it'} unchanged at every "
+            f"frequency, so impedances and sweeps {off} do not model "
+            f"{'those networks' if n > 1 else 'that network'}."
+        )
+
+    def fixed_frequency_advisory(self, freqs_mhz) -> dict | None:
+        """The solve-response advisory for `fixed_frequency_nts` (AK#1681):
+        a note when any of ``freqs_mhz`` is not the frequency the cards hold
+        at, None when every one is (or the deck has no such cards). With no
+        single stated frequency every solve is suspect, so it always fires."""
+        cards = self.fixed_frequency_nts()
+        if not cards:
+            return None
+        f = self.nt_frequency_mhz()
+        freqs = [float(x) for x in freqs_mhz]
+        if f is not None and all(abs(x - f) <= 1e-9 * f for x in freqs):
+            return None
+        n = len(cards)
+        names = ", ".join(f"#{k}" for k in cards)
+        if f is not None:
+            where = (
+                f"at {freqs[0]:g} MHz"
+                if len(freqs) == 1
+                else f"over {min(freqs):g}–{max(freqs):g} MHz"
+            )
+            held = f"{f:g} MHz"
+        else:
+            where = "here"
+            held = "one frequency the deck does not state"
+        return {
+            "category": FIXED_FREQUENCY_NT_CATEGORY,
+            "text": (
+                f"The deck's NT card{'s' if n > 1 else ''} {names} "
+                f"{'are' if n > 1 else 'is'} fixed admittance"
+                f"{'s' if n > 1 else ''} written for {held}, and this solve "
+                f"runs {where}: {'they are' if n > 1 else 'it is'} applied "
+                "unchanged, so the result does not model "
+                f"{'those networks' if n > 1 else 'that network'} away from "
+                f"{held} (AK#1681)."
+            ),
+        }
 
     @cached_property
     def _net_ends(self) -> tuple[tuple[str, int, int, int], ...]:
