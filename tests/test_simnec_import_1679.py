@@ -224,3 +224,28 @@ def test_a_zero_series_z_is_refused_by_name():
     text = text.replace("<v>-2.0160000000000027</v>", "<v>0</v>")
     with pytest.raises(ValueError, match="SERIES_Z R1: R = X = 0"):
         _parse(CLC, text).network()
+
+
+# --- SimNEC's unused terminating LOAD ----------------------------------------
+
+
+def test_the_unused_notused_termination_is_not_reported():
+    """Every SimNEC NEC-portal circuit ends in a 0 ohm LOAD labelled NotUsed
+    on the antenna block's spare port. It was reported as "not imported:
+    LOAD" on every file."""
+    for path in (LC1, CLC):
+        c = _parse(path)
+        assert "LOAD" not in c.other_elements
+        assert "LOAD" not in (c.skipped_note() or "")
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("<sweeperLabel>NotUsed</sweeperLabel>", "<sweeperLabel>Term</sweeperLabel>"),
+        ("<v>0</v>", "<v>50</v>"),  # the first <v> in the file is its ohms
+    ],
+)
+def test_any_other_load_is_still_reported(old, new):
+    text = LC1.read_text().replace(old, new, 1)
+    assert _parse(LC1, text).other_elements == ("LOAD",)

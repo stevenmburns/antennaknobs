@@ -54,7 +54,7 @@ branch→element mapping, element for element:
                                          becomes k1, exact at @frq, AK#1679)
     SERIES_IND / SERIES_CAP           -> TwoPort  (H / F, Q -> ql / qc)
     SERIES_Z                          -> Admittance (2-port, y = 1/(R + jX),
-                                         fixed like SERIES_Z; AK#1679)
+                                         frequency-independent; AK#1679)
     SHUNT_IND / SHUNT_CAP             -> Shunt    (H / F, Q -> ql / qc)
     TRANSFORMER2 (Mdl ideal)          -> Transformer (n = 1/N: SimNEC's N is
                                          the antenna:generator voltage ratio,
@@ -81,7 +81,8 @@ importing the antenna while silently dropping a tuner element would be a
 confidently-wrong circuit. Elements outside the generator→antenna span, and
 daemon statements the importer does not understand (``ignored_directives``),
 are recorded the same way. The exporter's own scaffold (the open LOAD
-termination and the 50 Ohm GENERATOR) is recognised and not reported.
+termination and the 50 Ohm GENERATOR) is recognised and not reported, and so
+is SimNEC's own unused 0 Ohm ``NotUsed`` LOAD on the antenna block (AK#1679).
 """
 
 from __future__ import annotations
@@ -695,6 +696,21 @@ class _Script:
         return False
 
 
+def _is_unused_termination(label: str | None, params: dict) -> bool:
+    """SimNEC's own terminating LOAD on a NEC-portal circuit: labelled
+    ``NotUsed``, 0 + j0 ohm, no file. The antenna block's P1 port it closes
+    carries nothing the NEC cards use, so every SimNEC circuit has one and
+    reporting it as "not imported" on every file was noise (AK#1679). Only
+    that exact element qualifies; any other LOAD is still reported."""
+    if (label or "").strip() != "NotUsed":
+        return False
+    try:
+        z = complex(float(params.get("ohms") or 0), float(params.get("johms") or 0))
+    except ValueError:
+        return False
+    return z == 0 and (params.get("file") or "<none>").strip() == "<none>"
+
+
 def _params(el) -> dict[str, str | None]:
     """An element's top-level ``<p><n>name</n><v>value</v></p>`` params."""
     return {p.findtext("n"): p.findtext("v") for p in el.findall("p")}
@@ -939,6 +955,10 @@ def parse_ssn(
                 is_open = False
             if is_open:
                 continue  # the exporter's scaffold open termination
+            if i not in span and _is_unused_termination(
+                el.findtext("sweeperLabel"), params
+            ):
+                continue  # SimNEC's own "NotUsed" 0 ohm termination
         if i in span:
             chain_doc.append(
                 SsnElement(
