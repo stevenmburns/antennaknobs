@@ -64,6 +64,52 @@ JACKET_COMMENT_CARDS = (
     "CM its LD 5 conductivity is scaled by (a/a')^2; LD 2 = jacket inductance",
 )
 
+# AK#1677: momwire#1154 adds a charge-side elastance dS' = ln(b/a)/(2*pi*eps0*
+# epsr)*(1 - 1/eps~) for a jacketed wire IN SOIL, on top of the free-space a'+L'
+# pair `JACKET_COMMENT_CARDS` documents above. No NEC card (NEC-2 or NEC-5) has
+# a place to put a charge-side term at all, so a deck with a jacketed BURIED
+# wire is silently the wrong antenna by tens of ohms at the feed once momwire
+# carries the correction (measured -9.7-j46 ohm on a 5 m buried dipole, soil A,
+# 7 MHz) — this says so instead of leaving it unstated. Plain-English text for
+# a response-level advisory, kept beside the deck spelling so the two can never
+# say something different about the same wire.
+BURIED_JACKET_ADVISORY_TEXT = (
+    "The insulated wire below ground carries an in-soil charge correction "
+    "(momwire) that no NEC card can express; this deck models its jacket as "
+    "if in air, so its impedance will differ from antennaknobs'."
+)
+BURIED_JACKET_ADVISORY_CARDS = (
+    "CM insulated wire below ground: momwire's in-soil charge correction has",
+    "CM no NEC card; this deck models the jacket as if in air, so its",
+    "CM impedance will differ from antennaknobs' (issue #1677)",
+)
+
+
+def has_buried_jacketed_wire(wires, default_spec, *, ground_z: float = 0.0) -> bool:
+    """True if some wire carrying an insulation jacket has an endpoint
+    strictly below the ground plane at ``ground_z`` (AK#1677).
+
+    A wire's EFFECTIVE spec is its own ``spec``, else ``default_spec`` — the
+    design's ``build_wire_material()`` — the same fallback every writer here
+    already uses for the LD cards (`nec_wire_material`, `_build_material_lines`
+    in `engines/nec5.py`), so a spec-less buried radial that inherits a
+    jacketed design default is caught exactly as it is for the LD cards.
+
+    Checking either endpoint is enough: a wire crossing the plane mid-span is
+    refused upstream, by name, before this ever runs
+    (`engines.nec2.refuse_nec2_geometry`,
+    `NEC5Engine._check_geometry_against_ground`), so a wire that reaches here
+    with one end below ``ground_z`` is wholly on that side or ends AT the
+    plane — never straddling it.
+    """
+    for w in wires:
+        eff = w.spec if w.spec is not None else default_spec
+        if eff is None or not getattr(eff, "insulation_radius", None):
+            continue
+        if float(w.p0[2]) < ground_z or float(w.p1[2]) < ground_z:
+            return True
+    return False
+
 
 @dataclass(frozen=True)
 class NecWireMaterial:

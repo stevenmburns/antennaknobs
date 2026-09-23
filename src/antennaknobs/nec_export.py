@@ -244,6 +244,12 @@ def export_nec(
                 "(issue #1108)"
             )
     refuse_nec2_geometry(tups, ground, suggest_download=True)
+    # AK#1677 needs no separate handling here: `refuse_nec2_geometry` above
+    # already refuses ANY wire dipping below z=0 under a real ground, jacketed
+    # or bare, before a deck is ever assembled — so a NEC-2 download of a
+    # jacketed buried wire cannot exist to need the momwire#1154 advisory.
+    # Only `engines.nec5.NEC5Engine.deck` (buried, served natively) needs it;
+    # see `engines._nec_wire.BURIED_JACKET_ADVISORY_CARDS`.
     # AK#1597: ask WHY the network reduces, not merely whether. A network whose
     # only reducer reason is its current sources HAS a faithful single-deck
     # NEC-2 spelling — the gyrator idiom EZNEC itself writes — so it is built
