@@ -2352,9 +2352,14 @@ input[type=checkbox] {
 
 /* Feed-network schematic view (issue #652). The SVG arrives server-rendered
    in currentColor, inlined — so `color` here is what paints the circuit,
-   and the drawing follows the theme with no refetch. Scale DOWN to fit
-   (max-*) but never up: a small station chain at its natural size stays
-   readable, a 9-branch LPDA shrinks into view. */
+   and the drawing follows the theme with no refetch.
+
+   Thumbnails scale DOWN to fit and never up. The stage view (AK#1682) fits
+   both ways but caps the upscale at FIT_CAP × natural size (the
+   --schem-max-* vars SchematicPanel computes), so a wide chain no longer
+   shrinks to unreadable while a small one does not balloon; its zoom
+   control then draws at an exact multiple of natural size (--schem-w/h)
+   in a box that scrolls. */
 .schematic-fill,
 .schematic-thumb {
   display: flex;
@@ -2367,15 +2372,96 @@ input[type=checkbox] {
 .schematic-fill {
   position: absolute;
   inset: 0;
-  padding: var(--space-6, 16px);
 }
 
-.schematic-fill svg,
 .schematic-thumb svg {
   max-width: 100%;
   max-height: 100%;
   width: auto;
   height: auto;
+}
+
+.schematic-scroll {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  padding: var(--space-6, 16px);
+  /* Clear the floating solve readout (see .files-fill): its published
+     height, 0 where there is none (grid cells, phone screens). */
+  padding-bottom: calc(var(--space-6, 16px) + var(--stage-readout-h, 0px));
+  box-sizing: border-box;
+}
+
+/* margin:auto, not justify/align center: a centred flex child wider than
+   its box overflows on BOTH sides and the left half cannot be scrolled to. */
+.schematic-scroll svg {
+  margin: auto;
+  flex: none;
+}
+
+.schematic-fit {
+  overflow: hidden;
+}
+
+.schematic-fit svg {
+  width: 100%;
+  height: 100%;
+  max-width: var(--schem-max-w, 100%);
+  max-height: var(--schem-max-h, 100%);
+}
+
+.schematic-zoomed {
+  overflow: auto;
+}
+
+.schematic-zoomed svg {
+  width: var(--schem-w);
+  height: var(--schem-h);
+  max-width: none;
+  max-height: none;
+}
+
+/* Bottom-left, stacked above the solve readout that floats there: the
+   stage's top corners carry the layout toggle and the grid's maximize
+   glyph, the bottom-right the ws status. */
+.schematic-zoom {
+  position: absolute;
+  left: var(--space-6);
+  bottom: calc(var(--space-6) + var(--stage-readout-h, 0px) + var(--space-3));
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--space-1);
+  box-shadow: 0 2px 10px var(--shadow);
+}
+
+.schematic-zoom button {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font: var(--text-sm) var(--font-mono);
+  min-width: 2em;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.schematic-zoom button:hover:not(:disabled) {
+  color: var(--fg);
+  background: var(--inset);
+}
+
+.schematic-zoom button.active {
+  color: var(--accent);
+  background: var(--accent-active);
+}
+
+.schematic-zoom button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .schematic-empty {
@@ -3893,7 +3979,9 @@ canvas {
 .sweep-advisory-overlay {
   position: absolute;
   left: var(--space-6);
-  bottom: var(--space-5);
+  /* Above the solve readout, which floats in the same corner of the rail
+     stage and publishes its height; 0 elsewhere. */
+  bottom: calc(var(--space-6) + var(--stage-readout-h, 0px) + var(--space-3));
   z-index: 2;
   max-width: min(26rem, calc(100% - 2 * var(--space-6)));
   background: var(--panel);

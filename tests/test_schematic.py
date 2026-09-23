@@ -444,6 +444,30 @@ def test_render_produces_an_svg(tmp_path):
     assert out.read_text(encoding="utf-8") == svg
 
 
+def test_labels_are_drawn_at_a_readable_size():
+    """AK#1682: at 8/7 pt a wide chain scaled to fit the panel printed its
+    values at ~8 px. The values render at the raised sizes, and the drawing
+    does not balloon for it — a tuner chain stays within a few percent of
+    its old footprint (585.7 × 172.6 pt at 8/7), so the panel's zoom, not a
+    bigger canvas, is what reaches the rest."""
+    import re
+
+    from antennaknobs.schematic import FONTSIZE, SUBFONT
+
+    pytest.importorskip("schemdraw")
+    assert (FONTSIZE, SUBFONT) == (10, 9)
+    svg = render_svg(lower(build("wire.doublet_ladder_tuner").build_network()))
+    sizes = set(re.findall(r'font-size="([\d.]+)"', svg))
+    assert sizes == {"10", "9"}
+    w, h = (
+        float(v)
+        for v in re.search(r'width="([\d.]+)pt" viewBox="[^"]*"', svg).groups()
+        + re.search(r'height="([\d.]+)pt"', svg).groups()
+    )
+    assert 585 < w < 620
+    assert 170 < h < 185
+
+
 def test_render_svg_writes_utf8_even_under_a_non_utf8_default(
     tmp_path, cp1252_default_open
 ):
