@@ -76,6 +76,7 @@ import {
   FarFieldOverlayControls,
   LayoutModeToggle,
   SmithOverlayControls,
+  SweepAdvisoryOverlay,
 } from "../results/StageOverlays";
 import { ViewGrid } from "../results/ViewGrid";
 import { ViewPanel } from "../results/ViewPanel";
@@ -1833,6 +1834,7 @@ function DesignSessionBody({
     sweepRunning,
     sweepSettled,
     sweepProgress,
+    sweepAdvisories,
     converge,
     convergeRunning,
     normCheck,
@@ -2266,6 +2268,9 @@ function DesignSessionBody({
               onAimAtMax={aimAtMax}
               onDismissMax={() => setMaxDismissed(true)}
             />
+          )}
+          {(v === "smith" || v === "vswr" || v === "gamma") && (
+            <SweepAdvisoryOverlay advisories={sweepAdvisories} />
           )}
           <CutAngleOverlay
             v={v}

@@ -28,6 +28,7 @@ import {
   type SweepProgress,
 } from "../../lib/sweep";
 import type { PatternData } from "../charts/types";
+import type { Advisory } from "../results/SolverAdvisories";
 
 // Log-spaced segments-per-wire ladder for the convergence sweep. Hentenna's
 // 8N+2 total segments at N=68 puts the dense LU at a ~550-cell matrix —
@@ -62,11 +63,13 @@ const SWEEP_REFINE_DWELL_MS = 500;
  *  base sweep and its refinement rounds — they differ only in which freqs
  *  they ask for and what the caller does with the snapshots. Throws
  *  AbortError (via fetch) when the controller is tripped; the callers own
- *  that. */
+ *  that. `onDone` sees the closing record, which carries the sweep's
+ *  `advisories` when the server has any (AK#1681/#1682). */
 async function streamSweep(
   body: object,
   controller: AbortController,
   onPoint: (snapshot: SweepData) => void,
+  onDone?: (closing: { advisories?: Advisory[] }) => void,
 ): Promise<SweepData> {
   // feeds_z_re/feeds_z_im start OMITTED (not set to undefined): the type's
   // doc comment says single-feed geometries omit them entirely, and
@@ -106,7 +109,10 @@ async function streamSweep(
       buf = buf.slice(nl + 1);
       if (!line) continue;
       const pt = JSON.parse(line);
-      if (pt.done) continue;
+      if (pt.done) {
+        if (!controller.signal.aborted) onDone?.(pt);
+        continue;
+      }
       // A failed point/chunk ends the stream with {error} instead of
       // tearing the connection down (e.g. an approved poor-match combo
       // whose dense fill can't allocate). Keep whatever points landed.
@@ -257,6 +263,13 @@ export function useAnalysisRunners({
   // streaming — including the dwell between the base sweep and refinement,
   // when no request is out and a counter would claim work that isn't.
   const [sweepProgress, setSweepProgress] = useState<SweepProgress | null>(null);
+  // The base sweep's closing-record advisories (AK#1682) — today #1681's
+  // FixedFrequencyNT, raised when a deck's fixed-frequency NT cards do not
+  // hold across the swept range. Taken from the BASE sweep only: its record
+  // names the whole range, and a refinement round only ever inserts points
+  // inside it. Cleared with the sweep, so a stale note never outlives the
+  // curve it was about.
+  const [sweepAdvisories, setSweepAdvisories] = useState<Advisory[]>([]);
   const [converge, setConverge] = useState<ConvergeData | null>(null);
   const [convergeRunning, setConvergeRunning] = useState(false);
   const [normCheck, setNormCheck] = useState<NormCheckData | null>(null);
@@ -323,6 +336,7 @@ export function useAnalysisRunners({
     setSweep(null);
     setSweepRunning(false);
     setSweepProgress(null);
+    setSweepAdvisories([]);
     // Paused (Live off) holds the engine (issue #612): an enabled sweep must
     // not keep solving while the user edits. Clearing above + returning here
     // blanks the overlay while paused; resuming Live re-runs this effect
@@ -610,7 +624,7 @@ export function useAnalysisRunners({
           received: snapshot.freqs_mhz.length,
           planned: freqs.length,
         });
-      });
+      }, (closing) => setSweepAdvisories(closing.advisories ?? []));
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;
       console.error("sweep error", e);
@@ -932,6 +946,7 @@ export function useAnalysisRunners({
     sweepRunning,
     sweepSettled,
     sweepProgress,
+    sweepAdvisories,
     converge,
     convergeRunning,
     normCheck,

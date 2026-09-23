@@ -13,6 +13,7 @@ import type {
 } from "../charts/types";
 import { Knob } from "../params/Knob";
 import { PatternCompareTable } from "./PatternCompareTable";
+import { SolverAdvisories, type Advisory } from "./SolverAdvisories";
 
 // How long the mouse must be still before the layout toggle fades. Long
 // enough that it never flickers during normal pointer travel toward it,
@@ -189,6 +190,26 @@ export function AntennaOverlayControls({
           </label>
         </>
       )}
+    </div>
+  );
+}
+
+// The sweep's own advisories (AK#1682), on the three views that draw the
+// sweep. Rendered by the same SolverAdvisories a solve's notes use, so a
+// sweep off a deck's NT frequency reads exactly like the live solve's note
+// about the same cards — muted and labelled "Advisory", not an error.
+// Bottom-left, the one stage corner no control claims (the view controls
+// sit top-right, the grid's maximize glyph top-left, the ws status
+// bottom-right). Nothing at all when the closing record had no key.
+export function SweepAdvisoryOverlay({
+  advisories,
+}: {
+  advisories: Advisory[] | null | undefined;
+}) {
+  if (!advisories || advisories.length === 0) return null;
+  return (
+    <div className="sweep-advisory-overlay" role="note" aria-label="Sweep advisories">
+      <SolverAdvisories advisories={advisories} />
     </div>
   );
 }
