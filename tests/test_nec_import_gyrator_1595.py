@@ -265,8 +265,8 @@ def test_a_mixed_voltage_and_gyrator_deck_agrees_with_nec4(tmp_path):
 )
 def test_only_the_gyrator_shape_collapses(card, collapses):
     """The signature is the whole of the specificity argument, so walk the
-    NT's own fields. A transformer is an all-real Y (it arrives as its exact
-    resistive pi, not an `Admittance` at all) and a lossy line is lossy, so
+    NT's own fields. A transformer is an all-real Y (it arrives as a
+    `Transformer`, AK#1681, not an `Admittance` at all) and a lossy line is lossy, so
     its 2x2 has a nonzero diagonal — the first two rejections below are those
     two shapes, reduced to one field each."""
     net = parse_nec(
