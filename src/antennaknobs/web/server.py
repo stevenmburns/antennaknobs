@@ -1277,6 +1277,29 @@ _ENGINE_IO_CACHE_MAX = 16
 _ENGINE_IO_LABELS = {"nec5": "NEC-5", "nec2": "NEC-2"}
 
 
+# The pattern run's deck and printout (AK#1506): the engine's own gain tables,
+# which are what a user compares our cuts against. Keyed by the SOLVE, the
+# same solve_id as the impedance runs: the pattern dispatch asks one fixed
+# 46 x 73 RP grid of every design, so a solve has exactly one pattern deck,
+# and the Files view lists it after that solve's impedance runs. A separate
+# cache because /pattern runs when the NEC overlay is asked for, not with
+# every solve, and a pattern that never ran is not a miss worth re-running.
+_PATTERN_IO_CACHE: "OrderedDict[str, list[dict]]" = OrderedDict()
+_PATTERN_IO_NOTE = (
+    "The pattern run: the RP card the NEC overlay's gain grid comes from "
+    "(46 elevations x 73 azimuths), and the gain tables the engine printed."
+)
+
+
+def _remember_pattern_io(solve_id: str, runs: list[dict]) -> None:
+    _PATTERN_IO_CACHE[solve_id] = [
+        {**r, "kind": "pattern", "note": _PATTERN_IO_NOTE} for r in runs
+    ]
+    _PATTERN_IO_CACHE.move_to_end(solve_id)
+    while len(_PATTERN_IO_CACHE) > _ENGINE_IO_CACHE_MAX:
+        _PATTERN_IO_CACHE.popitem(last=False)
+
+
 def _remember_engine_io(solve_id: str, solver: str, runs: list[dict]) -> None:
     _ENGINE_IO_CACHE[solve_id] = {
         "solver": solver,
@@ -1364,6 +1387,7 @@ def _evict_user_design_caches() -> dict[str, int]:
         # solve_id.
         n_cuts += _CUTS_SRC_CACHE.pop(key, None) is not None
         n_io += _ENGINE_IO_CACHE.pop(key, None) is not None
+        n_io += _PATTERN_IO_CACHE.pop(key, None) is not None
     design_keys = _USER_CACHE_KEYS["sweep"]
     if design_keys:
         for key in [k for k in _SWEEP_Z_CACHE if k[0] in design_keys]:
@@ -2237,9 +2261,19 @@ async def pattern_endpoint(req: dict):
         # PyNEC-only, so the token is a start gate: a queued pattern that a
         # knob drag overtook dies here instead of grinding a stale solve.
         async with _LANES.turn(session, "pattern", lane_gen):
-            return await run_in_threadpool(_shed, pat_backend.pattern, req)
+            out = await run_in_threadpool(_shed, pat_backend.pattern, req)
     except Superseded:
         return {"available": False}
+    # AK#1506: the deck and printout behind the pattern, parked under the
+    # solve it belongs to for the Files view. PyNEC runs in-process: none.
+    runs = out.pop("_engine_runs", None)
+    if runs:
+        key = _canonical_solve_key(req)
+        _remember_pattern_io(key, runs)
+        if _is_user_geometry(req):
+            _USER_CACHE_KEYS["solve"].add(key)  # issue #1312: a refresh evicts it
+        out["solve_id"] = key
+    return out
 
 
 def _norm_check(req: dict, cancel=None) -> dict:
@@ -2439,9 +2473,17 @@ async def engine_io_endpoint(req: dict):
     asked = req.get("solve_id")
     wanted = asked if isinstance(asked, str) and asked else key
     entry = _ENGINE_IO_CACHE.get(wanted)
+    # The pattern run, when the overlay asked for one, follows the solve's own.
+    pattern_runs = list(_PATTERN_IO_CACHE.get(wanted, ()))
     if entry is not None:
         _ENGINE_IO_CACHE.move_to_end(wanted)
-        return {"available": True, "solve_id": wanted, "rerun": False, **entry}
+        return {
+            "available": True,
+            "solve_id": wanted,
+            "rerun": False,
+            **entry,
+            "runs": list(entry["runs"]) + pattern_runs,
+        }
     if wanted != key:
         # The solve on screen is no longer held, and the body no longer
         # describes it: a knob moved while its readout was still up. Running
@@ -2476,7 +2518,7 @@ async def engine_io_endpoint(req: dict):
         "solve_id": key,
         "rerun": True,
         "label": _ENGINE_IO_LABELS.get(solver, solver),
-        "runs": runs,
+        "runs": list(runs) + pattern_runs,
     }
 
 

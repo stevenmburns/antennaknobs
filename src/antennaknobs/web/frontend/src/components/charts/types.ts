@@ -7,6 +7,9 @@ export type PatternData = {
   phi_deg: number[];
   gain_dbi: number[][];
   measurement_freq_mhz: number;
+  /** The solve this pattern belongs to, when its engine ran a deck whose
+   *  texts the Files view can show (AK#1506). */
+  solve_id?: string;
 };
 
 // What a far-field chart would print in its corners. On the stage the chart

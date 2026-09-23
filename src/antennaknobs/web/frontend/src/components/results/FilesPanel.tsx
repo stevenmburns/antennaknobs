@@ -35,7 +35,9 @@ type Pane =
   | { text?: undefined; filename?: undefined; message: string };
 
 function saveText(text: string, filename: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+  const url = URL.createObjectURL(
+    new Blob([text], { type: "text/plain;charset=utf-8" }),
+  );
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
@@ -79,6 +81,8 @@ export function FilesPanel({
   const runs = data.engineIo?.runs ?? [];
   const runIdx = Math.min(runPick, Math.max(0, runs.length - 1));
   const run = runs[runIdx];
+  // The solve's own runs; a pattern run (AK#1506) follows them, named apart.
+  const nSolve = runs.filter((r) => r.kind !== "pattern").length;
   const base = data.geometry.replace(/\./g, "_") || "antenna";
 
   const pane = ((): Pane => {
@@ -106,8 +110,14 @@ export function FilesPanel({
       };
     }
     if (!data.engineIo) return { message: `Fetching the ${engine} ${tab}…` };
-    if (!run) return { message: data.engineIo.error ?? `No ${engine} run to show.` };
-    const which = runs.length > 1 ? `_run${runIdx + 1}` : "";
+    if (!run)
+      return { message: data.engineIo.error ?? `No ${engine} run to show.` };
+    const which =
+      run.kind === "pattern"
+        ? "_pattern"
+        : nSolve > 1
+          ? `_run${runIdx + 1}`
+          : "";
     return {
       text: tab === "deck" ? run.deck : run.printout,
       filename: `${base}_${data.engineIo.solver}${which}.${tab === "deck" ? "nec" : "out"}`,
@@ -144,8 +154,12 @@ export function FilesPanel({
             value={runIdx}
             onChange={(e) => setRunPick(Number(e.target.value))}
           >
-            {runs.map((_r, i) => (
-              <option key={i} value={i}>{`run ${i + 1} of ${runs.length}`}</option>
+            {runs.map((r, i) => (
+              <option key={i} value={i}>
+                {r.kind === "pattern"
+                  ? "pattern run"
+                  : `run ${i + 1} of ${nSolve}`}
+              </option>
             ))}
           </select>
         )}
@@ -180,7 +194,8 @@ export function FilesPanel({
       )}
       {engineTab && data.stale && (
         <div className="files-note">
-          From the previous solve: this solve's deck and printout have not arrived.
+          From the previous solve: this solve's deck and printout have not
+          arrived.
         </div>
       )}
       {engineTab && run && data.engineIo?.error && (

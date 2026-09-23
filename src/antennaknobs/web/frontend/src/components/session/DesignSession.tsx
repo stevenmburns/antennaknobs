@@ -1273,24 +1273,6 @@ function DesignSessionBody({
     inputPowerW: result?.input_power_w ?? null,
   });
 
-  // The Files view (AK#1428): the design's source file, plus the deck and
-  // printout behind the solve on screen when an external engine produced it.
-  // Same this-design gate as the budget above: another design's solve_id
-  // would fetch another antenna's deck.
-  const ownResult = result?.geometry === geometry ? result : null;
-  const files = useEngineFiles({
-    // Opt-in by focus, not residency. A Files thumbnail pinned in the rail
-    // shows no text, so fetching per solve for it pays for nothing, and a solve
-    // whose texts were evicted makes /engine_io re-run the whole engine deck on
-    // the session's lane. Nothing is asked until Files is the view on the stage
-    // (the focused cell in grid mode), and then only for the solve on screen.
-    active: active && view === "files",
-    geometry,
-    solveId: ownResult?.solve_id ?? null,
-    engineLabel: ownResult?.engine_io_label ?? null,
-    buildRequest,
-    reloadNonce,
-  });
 
   // The design's band table plus the session's custom bands (#1487). A design
   // that suppresses the band row (bands === []) stays suppressed.
@@ -1887,6 +1869,28 @@ function DesignSessionBody({
       seqRef,
       approvedComboRef,
     });
+
+  // The Files view (AK#1428): the design's source file, plus the deck and
+  // printout behind the solve on screen when an external engine produced it.
+  // Same this-design gate as the budget above: another design's solve_id
+  // would fetch another antenna's deck.
+  const ownResult = result?.geometry === geometry ? result : null;
+  const files = useEngineFiles({
+    // Opt-in by focus, not residency. A Files thumbnail pinned in the rail
+    // shows no text, so fetching per solve for it pays for nothing, and a solve
+    // whose texts were evicted makes /engine_io re-run the whole engine deck on
+    // the session's lane. Nothing is asked until Files is the view on the stage
+    // (the focused cell in grid mode), and then only for the solve on screen.
+    active: active && view === "files",
+    geometry,
+    solveId: ownResult?.solve_id ?? null,
+    engineLabel: ownResult?.engine_io_label ?? null,
+    // The NEC overlay's pattern run (AK#1506) lands under the solve it
+    // belongs to; when it is this solve's, the texts are asked for again.
+    patternSolveId: pattern?.solve_id ?? null,
+    buildRequest,
+    reloadNonce,
+  });
   // Hoisted JSX shared between the desktop tree below and the mobile tree
   // (Phase B). These close over the session's locals, so they are consts /
   // a closure rather than components — zero prop surface, identical DOM.

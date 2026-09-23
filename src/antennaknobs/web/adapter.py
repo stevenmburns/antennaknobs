@@ -4809,6 +4809,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "phi_deg": phis,
             "gain_dbi": gains,
             "pattern_ms": pattern_ms,
+            # AK#1506: the deck and printout, for the Files view. `/pattern`
+            # pops them before the response is sent.
+            "_engine_runs": list(getattr(eng, "io_runs", None) or []),
         }
 
     def nec2_pattern(req: dict) -> dict:
@@ -4864,6 +4867,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "phi_deg": phis,
             "gain_dbi": gains,
             "pattern_ms": pattern_ms,
+            # AK#1506: the deck and printout, for the Files view. `/pattern`
+            # pops them before the response is sent.
+            "_engine_runs": list(getattr(eng, "io_runs", None) or []),
         }
 
     def params_source(req: dict) -> str:
