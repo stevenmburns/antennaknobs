@@ -3502,6 +3502,15 @@ canvas {
   width: 5em;
   font-size: var(--text-xs);
 }
+/* A value the field's own validation refused (AK#1682 follow-up): step ≤ 0,
+   a non-integer / sub-2 point count, lo ≤ 0, hi ≤ lo. The edit is never
+   applied; this is the only visible sign it was rejected, since the field
+   otherwise just reverts quietly on blur / Escape. */
+.knob-menu-row input[data-invalid] {
+  border-color: var(--hot);
+  outline: 1px solid var(--hot);
+  outline-offset: -1px;
+}
 
 /* ---- Mobile (phones / small tablets) ----------------------------------------
    A purpose-built layout replacing the old pan-around-a-1920x1080-canvas: on a

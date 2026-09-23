@@ -117,9 +117,10 @@ describe("the sweep range menu in the session (AK#1682)", () => {
     // The sweep's ends are the dial's, at the file's 0.025 MHz: 25 points.
     await sweepWhere(sweeps, spans(dial()[0], dial()[1], 25));
 
-    // Spacing → log keeps the point count; the dial is unmoved.
+    // Spacing → log keeps the point count exactly; the dial is unmoved.
+    // Refinement is on by default, so the log field reads "base points".
     await user.selectOptions(within(menu).getByRole("combobox", { name: "sweep spacing" }), "log");
-    expect(within(menu).getByText("Points / decade")).toBeTruthy();
+    expect(within(menu).getByText("Base points")).toBeTruthy();
     await sweepWhere(sweeps, (h) => {
       expect(h[1] / h[0]).toBeCloseTo(h[2] / h[1], 9);
       spans(dial()[0], dial()[1])(h);
@@ -142,6 +143,88 @@ describe("the sweep range menu in the session (AK#1682)", () => {
     await waitFor(() =>
       expect(within(menu).getByText(/clamped to 500, the hosted limit/)).toBeTruthy(),
     T);
+  });
+
+  // Steve, 2026-09-23: a non-positive step / a hi ≤ lo / a sub-2 log point
+  // count must be visibly refused, not just silently dropped.
+  it("0, a negative, or an empty step is refused, marks the field, and leaves the sweep alone", async () => {
+    const user = userEvent.setup();
+    const { container, sweeps } = mountCapturing([DECK]);
+    await deckLoaded();
+    await sweepWhere(sweeps, spans(14, 14.35, 15));
+    const sentBefore = sweeps.length;
+    const menu = openMenu(container);
+    const step = within(menu).getAllByRole("spinbutton")[2] as HTMLInputElement;
+    expect(step.getAttribute("aria-invalid")).toBeNull();
+
+    for (const bad of ["0", "-0.01", ""]) {
+      await user.clear(step);
+      if (bad) await user.type(step, bad);
+      expect(step.getAttribute("aria-invalid")).toBe("true");
+      expect(step.getAttribute("data-invalid")).toBe("true");
+    }
+    // Nothing was ever applied: no new sweep sent, dial and step unmoved.
+    expect(sweeps.length).toBe(sentBefore);
+    expect(dial()).toEqual([14, 14.35]);
+
+    // Escape cancels the bad text (menu stays open) and restores the field.
+    await user.keyboard("{Escape}");
+    expect(step.value).toBe("0.025");
+    expect(step.getAttribute("aria-invalid")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "sweep range" })).toBeTruthy();
+
+    // Re-broken, then blur reverts it the same way.
+    await user.clear(step);
+    await user.type(step, "-1");
+    expect(step.getAttribute("aria-invalid")).toBe("true");
+    await user.tab();
+    expect(step.value).toBe("0.025");
+    expect(step.getAttribute("aria-invalid")).toBeNull();
+  });
+
+  it("hi <= lo is refused and marks the field being edited", async () => {
+    const user = userEvent.setup();
+    const { container, sweeps } = mountCapturing([DECK]);
+    await deckLoaded();
+    await sweepWhere(sweeps, spans(14, 14.35, 15));
+    const sentBefore = sweeps.length;
+    const menu = openMenu(container);
+    const [lo, hi] = within(menu).getAllByRole("spinbutton") as HTMLInputElement[];
+
+    // hi dropped to below the current lo (14).
+    await user.clear(hi);
+    await user.type(hi, "10");
+    expect(hi.getAttribute("aria-invalid")).toBe("true");
+    expect(lo.getAttribute("aria-invalid")).toBeNull();
+    expect(sweeps.length).toBe(sentBefore);
+    expect(dial()).toEqual([14, 14.35]);
+
+    await user.clear(hi);
+    await user.type(hi, "14.35"); // back to the file's own hi: valid again
+    expect(hi.getAttribute("aria-invalid")).toBeNull();
+
+    // lo raised to at or above hi.
+    await user.clear(lo);
+    await user.type(lo, "14.35");
+    expect(lo.getAttribute("aria-invalid")).toBe("true");
+    expect(sweeps.length).toBe(sentBefore);
+  });
+
+  it("a log point count below 2 is refused", async () => {
+    const user = userEvent.setup();
+    const { container } = mountCapturing([DECK]);
+    await deckLoaded();
+    const menu = openMenu(container);
+    await user.selectOptions(within(menu).getByRole("combobox", { name: "sweep spacing" }), "log");
+    // lo, hi, points -- same slot the step field occupied for lin.
+    const points = within(menu).getAllByRole("spinbutton")[2] as HTMLInputElement;
+    const before = points.value;
+    await user.clear(points);
+    await user.type(points, "1");
+    expect(points.getAttribute("aria-invalid")).toBe("true");
+    await user.tab();
+    expect(points.value).toBe(before);
+    expect(points.getAttribute("aria-invalid")).toBeNull();
   });
 
   it("the backdrop closes it, and so does Escape", async () => {
