@@ -33,7 +33,10 @@ as a 1/80-wave stub: 0.19 - j13972 ohms against SimNEC's 13.26 - j7.385.
 
 The solve frequency comes from the GENERATOR element's ``MHz`` — in SimNEC the
 deck's ``FR`` card is advisory; the Generator drives the solve — and an armed
-(``doSweep y``) Generator sweep surfaces as ``sweep=(lo, hi)``.
+(``doSweep y``) Generator sweep surfaces as ``sweep=(lo, hi)``, with the
+frequencies it visits in ``sweep_points``: ``points`` values over from..to for
+``lin`` / ``log`` spacing, or the values of its sweep expression for ``expr``
+(``14 : 14.35 : 0.025``, AK#1679).
 
 Station circuits (issue #604's element set)
 -------------------------------------------
@@ -79,6 +82,7 @@ termination and the 50 Ohm GENERATOR) is recognised and not reported.
 
 from __future__ import annotations
 
+import math
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -248,7 +252,9 @@ class SsnCircuit:
     # GENERATOR MHz — the authoritative solve frequency (the deck's FR card is
     # advisory in SimNEC; it is still exposed as ``deck.freq_mhz``).
     freq_mhz: float | None
-    # Armed (doSweep y) Generator frequency sweep, MHz. None = no sweep armed.
+    # Armed (doSweep y) Generator frequency sweep, MHz: (lowest, highest)
+    # frequency the sweep visits. None = no sweep armed (or one not read —
+    # see ``sweep_note``).
     sweep: tuple[float, float] | None
     # Ground translated from the daemon call, in export_ssn's own spec:
     # None (free space), "pec", ("finite", eps_r, sigma), or
@@ -274,6 +280,12 @@ class SsnCircuit:
     other_elements: tuple[str, ...] = ()
     # Daemon statements not understood, verbatim.
     ignored_directives: tuple[str, ...] = ()
+    # The frequencies the armed sweep evaluates, MHz, in SimNEC's order: its
+    # lin / log spacing of `points` over from..to, or the values its `expr`
+    # names (AK#1679). None with no sweep, or a lin/log sweep with no count.
+    sweep_points: tuple[float, ...] | None = None
+    # Why an armed sweep was not read, when it was not (AK#1679).
+    sweep_note: str | None = None
 
     def skipped_note(self) -> str | None:
         """One human-readable sentence naming what the file carries that the
@@ -292,6 +304,8 @@ class SsnCircuit:
                 "NEC-portal directives not applied: "
                 + "; ".join(self.ignored_directives)
             )
+        if self.sweep_note:
+            parts.append(self.sweep_note)
         for el in self.chain:
             if el.typ in _MATCH_CHAIN and _chain_f(el, "MHz", default=0.0) <= 0.0:
                 # AK#1646: SimNEC retunes an MHz = 0 XMATCH at every
@@ -594,18 +608,126 @@ def _params(el) -> dict[str, str | None]:
     return {p.findtext("n"): p.findtext("v") for p in el.findall("p")}
 
 
-def _gen_sweep(gen) -> tuple[float, float] | None:
-    """The Generator's armed frequency sweep, or None. SimNEC stores the range
-    in a ``<sweepParam>`` under the MHz param; only ``doSweep`` = y is live."""
-    for sp in gen.iter("sweepParam"):
-        p = {q.findtext("n"): q.findtext("v") for q in sp.findall("p")}
-        if p.get("doSweep") != "y":
+# The most points a sweep may ask for. SimNEC prunes a sweep that is too
+# dense; a 0.0001 MHz step over 1-30 MHz is an unreadable sweep here, not a
+# reason to allocate hundreds of thousands of floats.
+_SWEEP_MAX_POINTS = 100_000
+
+
+def _sweep_number(token: str) -> float:
+    text = token.strip()
+    scale = 1.0
+    if text and text[-1] in _SI_SUFFIX:
+        scale, text = _SI_SUFFIX[text[-1]], text[:-1]
+    return float(text) * scale
+
+
+def _sweep_range(item: str) -> list[float]:
+    """The values of one ``from:to:step`` (or ``from:to:logStep s``) triple."""
+    parts = item.split(":")
+    if len(parts) != 3:
+        raise ValueError(f"{item!r} is not from:to:step")
+    lo, hi = _sweep_number(parts[0]), _sweep_number(parts[1])
+    log = parts[2].lower().startswith("logstep")
+    step = _sweep_number(parts[2][7:] if log else parts[2])
+    if not 0.0 < lo <= hi or step <= 0.0:
+        raise ValueError(f"{item!r} is not an increasing positive range")
+    if log:
+        # SimNEC: the start and finish, and between them every value whose
+        # log10 is a whole multiple of the step.
+        k0 = math.floor(math.log10(lo) / step + 1e-9) + 1
+        k1 = math.ceil(math.log10(hi) / step - 1e-9) - 1
+        if k1 - k0 > _SWEEP_MAX_POINTS:
+            raise ValueError(f"{item!r} asks for more than {_SWEEP_MAX_POINTS} points")
+        inner = (10.0 ** (k * step) for k in range(k0, k1 + 1))
+        return [lo, *(v for v in inner if lo < v < hi), hi]
+    count = math.floor((hi - lo) / step + 1e-9) + 1
+    if count > _SWEEP_MAX_POINTS:
+        raise ValueError(f"{item!r} asks for {count} points")
+    return [lo + i * step for i in range(count)]
+
+
+def _sweep_expr(expr: str) -> tuple[float, ...]:
+    """The values a SimNEC sweep expression names (AK#1679), in its order.
+
+    The grammar is the SimNEC Manual's "Sweep Expressions": whitespace-
+    separated items, each a single value or a colon triple ``from:to:step``,
+    where the step may be ``logStep s`` for steps whose log10 values are whole
+    multiples of ``s``. A range may be wrapped in ``{}``, which only changes
+    how SimNEC plots it. Raises ``ValueError`` for anything else, ``Vary``
+    included: its span comes from a SimNEC preference the file does not
+    carry."""
+    text = expr.replace("{", " ").replace("}", " ")
+    text = re.sub(r"\s*:\s*", ":", text)
+    text = re.sub(r"(?i)logstep\s+", "logStep", text)
+    out: list[float] = []
+    for item in text.split():
+        if ":" in item:
+            out.extend(_sweep_range(item))
+        else:
+            out.append(_sweep_number(item))
+        if len(out) > _SWEEP_MAX_POINTS:
+            raise ValueError(f"it asks for more than {_SWEEP_MAX_POINTS} points")
+    if not out:
+        raise ValueError("it names no frequencies")
+    return tuple(out)
+
+
+def _gen_sweep(gen):
+    """``(sweep, points, note)`` for the Generator's frequency sweep.
+
+    SimNEC stores it in a ``<sweepParam>`` under the MHz param, and only
+    ``doSweep`` = y is live. Its ``log`` field picks the spacing: ``lin`` and
+    ``log`` space ``points`` values over ``from``..``to``; ``expr`` ignores
+    those two and evaluates the ``expr`` text instead (AK#1679: AC6LA's
+    ``14 : 14.35 : 0.025`` was read as the stale 1-30 MHz ``from``/``to``).
+    ``sweep`` is the (lowest, highest) frequency visited, ``points`` the
+    frequencies themselves (None for a lin/log sweep with no usable count),
+    and ``note`` says why an armed sweep was not read, for the user."""
+    for p in gen.findall("p"):
+        if p.findtext("n") != "MHz":
             continue
-        try:
-            return float(p["from"]), float(p["to"])
-        except (KeyError, TypeError, ValueError):
-            return None
-    return None
+        for sp in p.findall("sweepParam"):
+            q = {e.findtext("n"): e.findtext("v") for e in sp.findall("p")}
+            if q.get("doSweep") != "y":
+                continue
+            mode = (q.get("log") or "lin").strip().lower()
+            if mode == "expr":
+                expr = (q.get("expr") or "").strip()
+                try:
+                    pts = _sweep_expr(expr)
+                except ValueError as e:
+                    return (
+                        None,
+                        None,
+                        f"the Generator's sweep expression {expr!r} was not read ({e})",
+                    )
+                return (min(pts), max(pts)), pts, None
+            if mode not in ("lin", "log"):
+                return (
+                    None,
+                    None,
+                    f"the Generator's sweep spacing {q.get('log')!r} is not "
+                    "lin, log or expr",
+                )
+            try:
+                lo, hi = float(q["from"]), float(q["to"])
+            except (KeyError, TypeError, ValueError):
+                return None, None, "the Generator's sweep range was not read"
+            lo, hi = min(lo, hi), max(lo, hi)
+            try:
+                n = int(float(q.get("points") or "nan"))
+            except ValueError:
+                n = 0
+            pts = None
+            if 2 <= n <= _SWEEP_MAX_POINTS and 0.0 < lo < hi:
+                if mode == "log":
+                    r = (hi / lo) ** (1.0 / (n - 1))
+                    pts = tuple(lo * r**i for i in range(n))
+                else:
+                    pts = tuple(lo + (hi - lo) * i / (n - 1) for i in range(n))
+            return (lo, hi), pts, None
+    return None, None, None
 
 
 # The call-style portal dialect: a NETWORK script that BUILDS the antenna by
@@ -760,7 +882,7 @@ def parse_ssn(
     )
 
     freq_mhz = None
-    sweep = None
+    sweep = sweep_points = sweep_note = None
     gen_zo = None
     if generator is not None:
         p = _params(generator)
@@ -772,7 +894,7 @@ def parse_ssn(
             gen_zo = float(p["Zo"]) if p.get("Zo") else None
         except ValueError:
             gen_zo = None
-        sweep = _gen_sweep(generator)
+        sweep, sweep_points, sweep_note = _gen_sweep(generator)
 
     return SsnCircuit(
         deck=deck,
@@ -786,6 +908,8 @@ def parse_ssn(
         chain=chain,
         other_elements=tuple(other),
         ignored_directives=tuple(script.ignored),
+        sweep_points=sweep_points,
+        sweep_note=sweep_note,
     )
 
 
