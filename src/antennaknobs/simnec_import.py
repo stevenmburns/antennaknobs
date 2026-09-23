@@ -49,7 +49,9 @@ branch→element mapping, element for element:
 
     SERIES_TLINE                      -> TL       (Zo / VFnom / ft, and the
                                          k1·sqrt(f) + k2·f dB/100 ft matched-loss
-                                         coefficients — the same convention)
+                                         coefficients — the same convention;
+                                         Mdl simplified's one /100f @frq point
+                                         becomes k1, exact at @frq, AK#1679)
     SERIES_IND / SERIES_CAP           -> TwoPort  (H / F, Q -> ql / qc)
     SHUNT_IND / SHUNT_CAP             -> Shunt    (H / F, Q -> ql / qc)
     TRANSFORMER2 (Mdl ideal)          -> Transformer (n = 1/N: SimNEC's N is
@@ -198,25 +200,86 @@ def _shunt_branch(el: SsnElement, node: str):
     return _net.Shunt(port=node, c=_chain_f(el, "F"), qc=_chain_q(el))
 
 
+# SimNEC's `/100<unit>` loss key: dB per 100 of the unit, as feet per unit.
+_LOSS_PER_100 = {"f": 1.0, "m": 1.0 / M_PER_FT}
+
+
+def _tline_loss(el: SsnElement) -> tuple[float, float]:
+    """A SERIES_TLINE's matched loss as TL's ``(k1, k2)``, dB/100 ft at
+    ``k1*sqrt(f_MHz) + k2*f_MHz`` (AK#1679).
+
+    SimNEC's ``Mdl`` picks the loss model (its manual, "The Simplified Model"
+    and "The K0K1K2 Model"):
+
+    - ``simplified`` (SimNEC's default) takes ONE loss point, ``/100f`` dB per
+      100 ft at ``@frq`` MHz, and scales it with the square root of
+      frequency: "SimSmith uses these parameters to compute a 'k1' ... K0 and
+      K2 are assumed 0" (SimSmith Primer). So ``k1 = loss / sqrt(@frq)``,
+      exact at ``@frq``, and the stored k0/k1/k2 are not what it solves. A
+      line given per 100 m (``/100m``) is converted to per 100 ft.
+    - ``k0k1k2`` takes the three coefficients as written (the station
+      exporter pins this model). k0, a constant dB term, has no TL
+      equivalent and is refused.
+    - No ``Mdl`` at all reads as ``k0k1k2``, as older station exports did.
+
+    Any other model (a named commercial line from SimNEC's database) is
+    refused by name rather than imported lossless. SimNEC runs even the
+    simplified loss through AC6LA's line model, which also bends the
+    effective Zo and velocity factor at low frequency; TL keeps ``Zo`` and
+    ``VFnom`` at face value, so the import is exact in loss at ``@frq`` and
+    approximate in Zo off it."""
+    where = "SERIES_TLINE" + (f" {el.label}" if el.label else "")
+    mdl = (el.get("Mdl") or "k0k1k2").strip()
+    if mdl.lower() == "simplified":
+        keys = [n for n, _v in el.params if n and n.startswith("/100")]
+        if len(keys) != 1:
+            raise ValueError(
+                f"{where}: the simplified line model needs one '/100<unit>' "
+                f"loss, found {keys or 'none'}"
+            )
+        unit = keys[0][4:]
+        if unit not in _LOSS_PER_100:
+            raise ValueError(
+                f"{where}: loss {keys[0]!r} is per 100 {unit!r}; only per 100 "
+                "feet ('/100f') or metres ('/100m') are read"
+            )
+        loss = _chain_f(el, keys[0], default=0.0) / _LOSS_PER_100[unit]
+        if loss == 0.0:
+            return 0.0, 0.0
+        frq = _chain_f(el, "@frq", default=0.0)
+        if frq <= 0.0:
+            raise ValueError(
+                f"{where}: a {loss:g} dB/100 ft loss needs the frequency it "
+                "is quoted at, and '@frq' is missing or zero"
+            )
+        return loss / frq**0.5, 0.0
+    if mdl.lower() != "k0k1k2":
+        raise ValueError(
+            f"{where}: line model {mdl!r} is not translated; only 'simplified' "
+            "and 'k0k1k2' are. Switch the line to one of those in SimNEC "
+            "(k0k1k2 keeps a database line's coefficients)"
+        )
+    if _chain_f(el, "k0", default=0.0) != 0.0:
+        raise ValueError(
+            f"{where}: a constant k0 loss term has no TL equivalent — TL "
+            f"matched loss is k1*sqrt(f) + k2*f (dB/100 ft)"
+        )
+    return _chain_f(el, "k1", default=0.0), _chain_f(el, "k2", default=0.0)
+
+
 def _series_branch(el: SsnElement, a: str, b: str):
     """The network branch for one series chain element, entered generator-side
     at ``a`` — the inverse of the station exporter's ``_series_elements``."""
     if el.typ == "SERIES_TLINE":
-        k0 = _chain_f(el, "k0", default=0.0)
-        if k0 != 0.0:
-            raise ValueError(
-                f"SERIES_TLINE {el.label or ''}: a constant k0 loss term has "
-                f"no TL equivalent — TL matched loss is k1*sqrt(f) + k2*f "
-                f"(dB/100 ft)"
-            )
+        k1, k2 = _tline_loss(el)
         return _net.TL(
             a=a,
             b=b,
             z0=_chain_f(el, "Zo"),
             length=_chain_f(el, "ft") * M_PER_FT,
             vf=_chain_f(el, "VFnom", default=1.0),
-            k1=_chain_f(el, "k1", default=0.0),
-            k2=_chain_f(el, "k2", default=0.0),
+            k1=k1,
+            k2=k2,
         )
     if el.typ == "SERIES_IND":
         return _net.TwoPort(a=a, b=b, l=_chain_f(el, "H"), ql=_chain_q(el))
