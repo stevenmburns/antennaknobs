@@ -57,9 +57,34 @@ function mountCapturing(examples: ExampleDescriptor[]) {
   return { ...r, sweeps };
 }
 
-async function lastSweepAfter(sweeps: number[][], n: number): Promise<number[]> {
-  await waitFor(() => expect(sweeps.length).toBeGreaterThan(n), { timeout: 3000 });
+// Every wait below is on a CONDITION, never on "a sweep arrived": the
+// session mounts before /examples lands, so its first dial window and first
+// sweep can be the default ×0.8–×1.25 one (11.44–17.875) rather than the
+// deck's. Waiting on the condition itself is what makes these order-proof.
+const T = { timeout: 5000 };
+
+async function deckLoaded() {
+  await waitFor(() => expect(dial()).toEqual([14, 14.35]), T);
+}
+
+// The most recent base sweep, once it satisfies `check`.
+async function sweepWhere(
+  sweeps: number[][],
+  check: (f: number[]) => void,
+): Promise<number[]> {
+  await waitFor(() => {
+    expect(sweeps.length).toBeGreaterThan(0);
+    check(sweeps[sweeps.length - 1]);
+  }, T);
   return sweeps[sweeps.length - 1];
+}
+
+function spans(lo: number, hi: number, n?: number) {
+  return (f: number[]) => {
+    if (n !== undefined) expect(f).toHaveLength(n);
+    expect(f[0]).toBeCloseTo(lo, 9);
+    expect(f[f.length - 1]).toBeCloseTo(hi, 9);
+  };
 }
 
 describe("the sweep range menu in the session (AK#1682)", () => {
@@ -70,18 +95,15 @@ describe("the sweep range menu in the session (AK#1682)", () => {
 
   it("the file's range is the dial's travel and the sweep's grid", async () => {
     const { sweeps } = mountCapturing([DECK]);
-    await waitFor(() => expect(dial()).toEqual([14, 14.35]));
-    const f = await lastSweepAfter(sweeps, 0);
-    expect(f).toHaveLength(15);
-    expect(f[0]).toBeCloseTo(14, 9);
-    expect(f[14]).toBeCloseTo(14.35, 9);
+    await deckLoaded();
+    await sweepWhere(sweeps, spans(14, 14.35, 15));
   });
 
   it("after an edit, the dial's travel and the sweep's [lo, hi] are the same numbers", async () => {
     const user = userEvent.setup();
     const { container, sweeps } = mountCapturing([DECK]);
-    await waitFor(() => expect(dial()).toEqual([14, 14.35]));
-    await lastSweepAfter(sweeps, 0);
+    await deckLoaded();
+    await sweepWhere(sweeps, spans(14, 14.35, 15));
 
     const menu = openMenu(container);
     const [lo, hi] = within(menu).getAllByRole("spinbutton");
@@ -91,56 +113,41 @@ describe("the sweep range menu in the session (AK#1682)", () => {
     await user.type(lo, "13.9");
     // The menu reads the file's step, and the edit kept it.
     expect(within(menu).getByText("Step (MHz)")).toBeTruthy();
-    await waitFor(() => expect(dial()).toEqual([13.9, 14.5]));
-    const before = sweeps.length;
-    const f = await lastSweepAfter(sweeps, before - 1);
-    await waitFor(() => {
-      const g = sweeps[sweeps.length - 1];
-      expect(g[0]).toBeCloseTo(dial()[0], 9);
-      expect(g[g.length - 1]).toBeCloseTo(dial()[1], 9);
-    });
-    expect(f.length).toBeGreaterThan(0);
-    const g = sweeps[sweeps.length - 1];
-    expect(g).toHaveLength(25); // 13.9 → 14.5 at the file's 0.025 MHz
+    await waitFor(() => expect(dial()).toEqual([13.9, 14.5]), T);
+    // The sweep's ends are the dial's, at the file's 0.025 MHz: 25 points.
+    await sweepWhere(sweeps, spans(dial()[0], dial()[1], 25));
 
     // Spacing → log keeps the point count; the dial is unmoved.
     await user.selectOptions(within(menu).getByRole("combobox", { name: "sweep spacing" }), "log");
     expect(within(menu).getByText("Points / decade")).toBeTruthy();
-    await waitFor(() => {
-      const h = sweeps[sweeps.length - 1];
+    await sweepWhere(sweeps, (h) => {
       expect(h[1] / h[0]).toBeCloseTo(h[2] / h[1], 9);
-      expect(h[0]).toBeCloseTo(dial()[0], 9);
-      expect(h[h.length - 1]).toBeCloseTo(dial()[1], 9);
+      spans(dial()[0], dial()[1])(h);
     });
 
     // ↺ design range: back to the file's range, dial and sweep together.
     await user.click(within(menu).getByRole("button", { name: "↺ design range" }));
-    await waitFor(() => expect(dial()).toEqual([14, 14.35]));
-    await waitFor(() => {
-      const h = sweeps[sweeps.length - 1];
-      expect(h).toHaveLength(15);
-      expect(h[0]).toBeCloseTo(14, 9);
-      expect(h[14]).toBeCloseTo(14.35, 9);
-    });
+    await deckLoaded();
+    await sweepWhere(sweeps, spans(14, 14.35, 15));
   });
 
   it("says when the grid is clamped to the hosted limit", async () => {
     const user = userEvent.setup();
     const { container } = mountCapturing([DECK]);
-    await waitFor(() => expect(dial()).toEqual([14, 14.35]));
+    await deckLoaded();
     const menu = openMenu(container);
     const step = within(menu).getAllByRole("spinbutton")[2];
     await user.clear(step);
     await user.type(step, "0.0001");
     await waitFor(() =>
       expect(within(menu).getByText(/clamped to 500, the hosted limit/)).toBeTruthy(),
-    );
+    T);
   });
 
   it("the backdrop closes it, and so does Escape", async () => {
     const user = userEvent.setup();
     const { container } = mountCapturing([DECK]);
-    await waitFor(() => expect(dial()).toEqual([14, 14.35]));
+    await deckLoaded();
     openMenu(container);
     await user.click(container.ownerDocument.querySelector(".knob-menu-backdrop")!);
     expect(screen.queryByRole("dialog", { name: "sweep range" })).toBeNull();
@@ -168,7 +175,7 @@ describe("the sweep range menu in the session (AK#1682)", () => {
       vi.stubGlobal("PointerEvent", PointerEventShim);
     }
     const { container } = mountCapturing([DECK]);
-    await waitFor(() => expect(dial()).toEqual([14, 14.35]));
+    await deckLoaded();
     vi.useFakeTimers();
     const target = container.querySelector(".vfo-dial svg")!;
     fireEvent.pointerDown(target, { pointerType: "touch", pointerId: 1, clientX: 40, clientY: 50 });
@@ -190,15 +197,15 @@ describe("the sweep range menu in the session (AK#1682)", () => {
   it("a band pick clears the session edit", async () => {
     const user = userEvent.setup();
     const { container } = mountCapturing([DECK]);
-    await waitFor(() => expect(dial()).toEqual([14, 14.35]));
+    await deckLoaded();
     const menu = openMenu(container);
     const hi = within(menu).getAllByRole("spinbutton")[1];
     await user.clear(hi);
     await user.type(hi, "15");
-    await waitFor(() => expect(dial()).toEqual([14, 15]));
+    await waitFor(() => expect(dial()).toEqual([14, 15]), T);
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "measurement band" }));
     await user.click(screen.getByRole("option", { name: "14.175 MHz" }));
-    await waitFor(() => expect(dial()).toEqual([14, 14.35]));
+    await deckLoaded();
   });
 });
