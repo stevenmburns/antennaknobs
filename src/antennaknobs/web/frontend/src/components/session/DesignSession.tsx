@@ -1339,6 +1339,18 @@ function DesignSessionBody({
     sweepRangeEdit,
   };
   const resolvedSweepRange = resolveSweepRange(sweepRangeInputs);
+  // A menu edit or "↺ design range" (AK#1682). The dial cannot show a
+  // measurement frequency outside its travel — the needle pins at the end
+  // stop while the LCD, the solve and the pattern sit somewhere the dial can
+  // no longer reach — so an unlocked measFreq is clamped into the new range.
+  // A LOCKED one is left alone: the lock ties it to the design frequency,
+  // and an edited sweep range is not a reason to measure elsewhere.
+  function applySweepRangeEdit(next: SweepRange | null) {
+    setSweepRangeEdit(next);
+    if (measLocked) return;
+    const r = next ?? designSweepRange(sweepRangeInputs).range;
+    setMeasFreq((f) => Math.min(r.hi, Math.max(r.lo, f)));
+  }
   // Close the range menu on Escape, as the knob menu closes.
   useEffect(() => {
     if (!sweepMenu || !active) return;
@@ -2127,8 +2139,8 @@ function DesignSessionBody({
               resolvedSweepRange.range,
               defaultSweepPoints({ backend, groundEnabled, groundModel, refineEnabled }),
             )}
-            onEdit={setSweepRangeEdit}
-            onRevert={() => setSweepRangeEdit(null)}
+            onEdit={applySweepRangeEdit}
+            onRevert={() => applySweepRangeEdit(null)}
             onClose={() => setSweepMenu(null)}
           />
         )}

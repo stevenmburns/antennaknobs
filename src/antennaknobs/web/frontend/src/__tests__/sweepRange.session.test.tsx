@@ -209,3 +209,53 @@ describe("the sweep range menu in the session (AK#1682)", () => {
     await deckLoaded();
   });
 });
+
+describe("measFreq and the range it must sit in (AK#1682)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function lcd(container: HTMLElement) {
+    return container.querySelector(".freq-lcd .lcd-live")?.textContent;
+  }
+
+  it("an edit that leaves measFreq outside the range clamps it in, and so does ↺", async () => {
+    const user = userEvent.setup();
+    const { container } = mountCapturing([DECK]);
+    await deckLoaded();
+    await waitFor(() => expect(lcd(container)).toBe("14.175"), T);
+
+    const menu = openMenu(container);
+    const [lo, hi] = within(menu).getAllByRole("spinbutton");
+    await user.clear(hi);
+    await user.type(hi, "14.6");
+    await user.clear(lo);
+    await user.type(lo, "14.4");
+    await waitFor(() => expect(dial()).toEqual([14.4, 14.6]), T);
+    // 14.175 is below the new lo: the measurement moves to the end stop.
+    await waitFor(() => expect(lcd(container)).toBe("14.400"), T);
+
+    // ↺ design range: back to 14–14.35, which 14.4 is above.
+    await user.click(within(menu).getByRole("button", { name: "↺ design range" }));
+    await deckLoaded();
+    await waitFor(() => expect(lcd(container)).toBe("14.350"), T);
+  });
+
+  it("a locked dial keeps measuring at the design frequency", async () => {
+    // HARNESS_EXAMPLE has a design frequency, so the lock is live. The dial
+    // is disabled while locked; an edited range that excludes the design
+    // frequency does not move the measurement off it.
+    const user = userEvent.setup();
+    const { container } = mountCapturing([HARNESS_EXAMPLE]);
+    await waitFor(() => expect(lcd(container)).toBeTruthy(), T);
+    const locked = lcd(container);
+    const menu = openMenu(container);
+    const [lo, hi] = within(menu).getAllByRole("spinbutton");
+    await user.clear(hi);
+    await user.type(hi, "1000");
+    await user.clear(lo);
+    await user.type(lo, "900");
+    await waitFor(() => expect(dial()).toEqual([900, 1000]), T);
+    expect(lcd(container)).toBe(locked);
+  });
+});
