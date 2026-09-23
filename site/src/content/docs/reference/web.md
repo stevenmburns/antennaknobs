@@ -64,6 +64,11 @@ change a knob:
     [Keep the target while I drag](#keep-the-target-while-i-drag): a marked knob
     is the one the hold moves, and it will not leave this range to do it.
 
+The measurement-frequency dial's own right-click menu is different: its
+**Display range** *is* the sweep range, so it opens the range editor
+described in [The measurement dial is the sweep range](#the-measurement-dial-is-the-sweep-range)
+below instead of a plain min/max.
+
 Every turn re-solves and redraws live (when **Live** is on — see below).
 
 ### A frequency outside the band list
@@ -81,6 +86,41 @@ The picker keeps that band for the session:
 A `.nec` deck whose `FR` card names a single frequency opens on the same ±1.5 %
 band around it, so its dial can still move. An `FR` sweep sets the band to the
 swept range instead.
+
+### The measurement dial is the sweep range
+
+There is one range, not two: the span the measurement dial travels **is** the
+span the frequency sweep, S11/VSWR charts and Smith locus solve over. Set it
+from the dial's own right-click menu (long-press on a touch screen):
+
+- **Sweep range lo / hi (MHz)** — the dial's endpoints.
+- **Step (MHz)**, with linear spacing, showing the resulting point count; or
+  **Points** with log spacing (**Base points** when
+  [adaptive resolution](#adaptive-resolution) is on, with a hint that
+  refinement adds points where the curve bends).
+- **lin / log** spacing.
+- **↺ design range** reverts a session edit back to wherever the range would
+  otherwise come from.
+
+A bad entry — a step of zero or less, fewer than two points, or a high end at
+or below the low end — is refused visibly: the field marks itself invalid and
+keeps the last good value rather than accepting the edit.
+
+**Where the range comes from**, first match wins:
+
+1. your edit in this menu;
+2. else the file's own sweep — a `.nec` deck's `FR` card, or a SimNEC
+   Generator sweep (`start : stop : step`, lin or log);
+3. else a Python design's `ui_params["sweep_range"]`, or its
+   `meas_freq_range`;
+4. else the design's `sweep_policy` (a band lock, or multiplicative factors);
+5. else ×0.8–×1.25 of the design frequency, log-spaced.
+
+Your edit is **session-only** — it lives in that tab, never in
+`settings.toml` — and picking a different band or switching design clears it,
+falling back through the same list. A **band-locked** design's dial now
+travels only that band, and narrowing the range clamps an unlocked
+measurement frequency that had drifted outside it back in.
 
 ## Where the workbench starts: `settings.toml`
 
@@ -192,9 +232,12 @@ Download. **Source** is the file the design is built from: a catalog or user
 and ground, written for every design and needing no engine, which is how the
 round trip to SimNEC runs without a terminal. When the slot's solve ran through
 an external binary (NEC-5 or NEC-2), the last two tabs show the exact **deck**
-that engine was given and the **output** it printed. A momwire or PyNEC slot
-runs no deck and says so instead. The texts are fetched only while Files is the
-view on the stage, never for a thumbnail.
+that engine was given and the **output** it printed, with a run picker beside
+them: the NEC overlay's own far-field pass is a separate **pattern run**
+against the same engine, and once you've fetched a pattern its deck and
+printout are a second entry in that picker, named apart from the solve's own.
+A momwire or PyNEC slot runs no deck and says so instead. The texts are
+fetched only while Files is the view on the stage, never for a thumbnail.
 
 **Minimizing the readout.** The **–** on the floating solve readout collapses
 it to a one-line **R · X · SWR** pill; click the pill to restore the card. The
@@ -618,7 +661,8 @@ connected screen where a buried radial meets the mast at a node in the plane
 — a second basis sharing no below-interface code with the default. The one
 spelling it greys, with momwire's own sentence, is N coincident rises meeting
 at the node (the catalog's retired `bundle` variant), which stays on the
-B-spline lane.
+B-spline lane. **Razor (2-point)** serves the buried and crossing classes too,
+since momwire 0.62.0.
 
 The solver's gear menu also exposes **segments per λ/4 (N)**, the mesh
 density: each wire gets N segments per quarter wavelength at the design
@@ -925,13 +969,16 @@ them as self-describing rows the readout renders generically, so a new
 design idea (including a user design in `~/.antennaknobs/designs/`) gets its
 numbers on screen with no frontend change.
 
-When the design you're iterating **is** a user design — editor in one
-window, workbench in the other — a **reload button** next to the design
-picker re-reads the file and re-solves in place. Your tuned knob values
-always survive the reload; a parameter the edited file just *grew* appears
-with the file's default, and the Files view follows it: the source, the
-SimNEC circuit and the engine's deck are the edited file's. One click instead
-of a page reload per edit cycle.
+A **⟳ button** beside the design picker is always there. When the design
+you're iterating **is** a user design — editor in one window, workbench in
+the other — it re-reads that file and re-solves in place: your tuned knob
+values always survive the reload; a parameter the edited file just *grew*
+appears with the file's default, and the Files view follows it: the source,
+the SimNEC circuit and the engine's deck are the edited file's. One click
+instead of a page reload per edit cycle. With anything else loaded, the same
+button instead rescans `~/.antennaknobs/designs` for new or changed files, so
+a design dropped into an empty folder shows up in the picker without a page
+reload.
 
 ## Power budget
 
@@ -1142,9 +1189,12 @@ elevation cut turns to its bearing and the azimuth cut rises to its elevation,
 and the slice peak becomes the 3-D maximum. A re-solve offers the button again
 rather than keep an answer for a design that has changed. With a pattern
 pinned, the compare table already fetches the maximum, so it appears without
-asking. The **×** beside it hides it until you find it again. It is the best
-sample of a 1° grid over elevations 1–90°, so a peak exactly on the horizon
-reads at 1° (#1669).
+asking. The **×** beside it hides it until you find it again. The search
+samples elevations 0–90° over ground (0–180° in free space, so a lobe
+pointing into the lower hemisphere is not missed), then refines the peak it
+finds to 0.01° — a lobe sitting exactly on the horizon reads there, not one
+degree off, and the front-to-back and beamwidth figures are measured through
+that refined peak (#1669).
 
 The plot's captions (which cut this is, the peak, the terrain field, the NEC rp
 legend) sit in the control stacks rather than printed in the plot's corners,

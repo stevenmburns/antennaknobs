@@ -213,7 +213,8 @@ the trap dipole and station designs use), wherever it can express them
 | `EX` type 6 (4nec2 current source) | A `DrivenCurrent` source — the forced complex current drives the network exactly as 4nec2 would |
 | `EX` type 4 (NEC-5 current source) | The same `DrivenCurrent`, at the segment **end** NEC-5's rule names (I4, else the sign of I3) — the form EZNEC's NEC-5 export writes. NEC-2's type 4 (an elementary current source at a point in space, no segment addressed) is refused by name |
 | `TL` | A `TL` branch: negative z0 (NEC's crossed line) becomes `transposed=True`, zero length resolves to the port separation, conductance-only end admittances become `Shunt(r=1/G)`, reactive ones a fixed 1-port `Admittance` |
-| `NT` with an all-real Y matrix | Its exact resistive pi: a series `TwoPort` between the ports plus a `Shunt` at each |
+| `NT` with an all-real, rank-1 Y matrix | An ideal `Transformer` (turns ratio plus a series winding resistance) — EZNEC's own transformer card, read as the transformer it is rather than the pi network that Y would also describe |
+| `NT` with an all-real Y matrix, not rank 1 | Its exact resistive pi: a series `TwoPort` between the ports plus a `Shunt` at each |
 | `NT` with susceptance | The full 2×2 complex Y as an `Admittance` branch |
 
 `deck.wire_tuples()` then emits the deck's wires, cut only where another wire
@@ -228,6 +229,16 @@ RLC (`LD` 2/3), an `LD` 5/7 range covering only *part* of a wire's segments
 (per-wire specs cover whole wires only), and an `LD` landing on a segment
 that also has a `TL`/`NT` connection (NEC composes those in series inside
 the segment, which the port model doesn't express).
+
+**An `NT` with susceptance anywhere holds at one frequency only.** EZNEC
+writes such a card — a line, an L network, or a load — by evaluating it once
+at the deck's `FR` frequency and freezing the result; an all-real `NT` (the
+pi network or the transformer above) is a real circuit and holds at every
+frequency. A deck with a frequency-dependent `NT` carries an import note
+naming the card and the frequency it was written for, and solving or
+sweeping away from that frequency raises the same advisory in the solve
+response: the network is applied unchanged, so the result does not model it
+off that frequency.
 
 ## What is *not* applied
 
@@ -298,7 +309,11 @@ distant wire its transformer and lossy-line idiom puts a source or a network
 end on — is recognised the same way: each referenced segment becomes a virtual
 circuit node, the source drives the node, and the idiom's open-circuit pins
 are kept as the ideal open they stand for, so the deck solves without meshing
-the wire and `skipped_note()` says what was translated. When what a phantom
+the wire and `skipped_note()` says what was translated. A source EZNEC placed
+on that virtual wire is the **rig** — the generator end of the deck's feed
+system, not the antenna — so it takes the station convention's port name
+(`"rig"`), and `"feed"` keeps meaning the antenna's own terminals, the same
+naming the SimNEC importer uses. When what a phantom
 segment drives is an `NT` gyrator (zero diagonal, `Y12 = Y21 = jB`), the only
 way NEC-2 can spell a current source, it imports as the current source it is,
 whether the phantom wire has one segment or several, and the driving point
