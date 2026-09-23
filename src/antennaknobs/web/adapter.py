@@ -4255,19 +4255,32 @@ def _derive_sweep_policy(ui: dict) -> SweepPolicy:
     """Build a SweepPolicy from a `ui_params` dict's `sweep_policy` entry.
 
     Accepts the positional 3-tuple `(anchor, lo_factor, hi_factor)` form or the
-    dict form (which can opt into named fields like `band_locked` without
+    mapping form (which can opt into named fields like `band_locked` without
     supplying every positional; missing fields fall back to the dataclass
-    defaults). Anything else yields the default policy. Takes any ui dict, so
-    the same derivation runs for the default's ui_params and for each variant's
-    deep-merged ui_params (see `variant_ui` in `_make_example`)."""
+    defaults). The mapping form is any Mapping: a design that freezes its
+    ui_params spells it as a MappingProxyType. No entry yields the default
+    policy; any other spelling — another type, or a key SweepPolicy does not
+    have — raises. A dict-only check once dropped Dominator's and Challenger's
+    band lock without a word (2026-07-12 to 2026-09-23), and a misspelt key
+    would do the same. Takes any ui dict, so the same derivation runs for the
+    default's ui_params and for each variant's deep-merged ui_params (see
+    `variant_ui` in `_make_example`)."""
     raw = ui.get("sweep_policy")
+    if raw is None:
+        return DEFAULT_SWEEP_POLICY
     if isinstance(raw, (tuple, list)) and len(raw) == 3:
         return SweepPolicy(
             anchor=str(raw[0]),
             lo_factor=float(raw[1]),
             hi_factor=float(raw[2]),
         )
-    if isinstance(raw, dict):
+    if isinstance(raw, Mapping):
+        unknown = set(raw) - {"anchor", "lo_factor", "hi_factor", "band_locked"}
+        if unknown:
+            raise ValueError(
+                f"sweep_policy has unknown keys {sorted(unknown)}; "
+                "expected anchor, lo_factor, hi_factor, band_locked"
+            )
         d = DEFAULT_SWEEP_POLICY
         return SweepPolicy(
             anchor=str(raw.get("anchor", d.anchor)),
@@ -4275,7 +4288,10 @@ def _derive_sweep_policy(ui: dict) -> SweepPolicy:
             hi_factor=float(raw.get("hi_factor", d.hi_factor)),
             band_locked=bool(raw.get("band_locked", d.band_locked)),
         )
-    return DEFAULT_SWEEP_POLICY
+    raise ValueError(
+        f"sweep_policy must be a mapping or an (anchor, lo_factor, hi_factor) "
+        f"triple, got {type(raw).__name__}: {raw!r}"
+    )
 
 
 # Presentation fields a variant's explicit ui_params may move per-variant
