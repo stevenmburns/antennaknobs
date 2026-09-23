@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import type { DesignSource, DesignSsn, EngineIo, SolveRequest } from "../../lib/api";
+import type {
+  DesignSource,
+  DesignSsn,
+  EngineIo,
+  SolveRequest,
+} from "../../lib/api";
 import type { FilesViewData } from "../results/FilesPanel";
 
 // The Files view's data (AK#1428): the file the design was written as, and the
@@ -32,6 +37,7 @@ export function useEngineFiles({
   engineLabel,
   buildRequest,
   reloadNonce = 0,
+  patternSolveId = null,
 }: {
   active: boolean;
   geometry: string;
@@ -44,9 +50,15 @@ export function useEngineFiles({
   buildRequest: () => SolveRequest;
   /** Bumped when the design's file is reloaded from disk. */
   reloadNonce?: number;
+  /** solve_id of the NEC overlay's pattern, when its engine ran a deck
+   *  (AK#1506). It runs after the solve, so the texts already fetched for
+   *  that solve lack it: equal to `solveId`, it asks again. */
+  patternSolveId?: string | null;
 }): FilesViewData {
   const [source, setSource] = useState<DesignSource | null>(null);
-  const [ssn, setSsn] = useState<{ geometry: string; data: DesignSsn } | null>(null);
+  const [ssn, setSsn] = useState<{ geometry: string; data: DesignSsn } | null>(
+    null,
+  );
   const [io, setIo] = useState<{
     geometry: string;
     solveId: string;
@@ -96,9 +108,14 @@ export function useEngineFiles({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, geometry, solveId]);
 
+  // What is already in hand for this solve: its texts, and whether they carry
+  // the pattern run.
   const have = io?.solveId ?? null;
+  const haveHasPattern = !!io?.data.runs?.some((r) => r.kind === "pattern");
+  const wantPattern = patternSolveId !== null && patternSolveId === solveId;
   useEffect(() => {
-    if (!active || !engineLabel || !solveId || have === solveId) return;
+    if (!active || !engineLabel || !solveId) return;
+    if (have === solveId && (haveHasPattern || !wantPattern)) return;
     const controller = new AbortController();
     // Debounced like the schematic: a drag lands a solve per tick, and only
     // the one the drag settles on is worth a printout.
@@ -136,7 +153,15 @@ export function useEngineFiles({
     // buildRequest is a plain closure over the session's live state (not
     // memoized); solveId is the real signature of what is on screen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, engineLabel, solveId, have, geometry]);
+  }, [
+    active,
+    engineLabel,
+    solveId,
+    have,
+    haveHasPattern,
+    wantPattern,
+    geometry,
+  ]);
 
   const shownIo = io && io.geometry === geometry ? io : null;
   return {

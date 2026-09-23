@@ -66,6 +66,7 @@ type Props = {
   solveId: string | null;
   engineLabel: string | null;
   reloadNonce?: number;
+  patternSolveId?: string | null;
 };
 
 const BASE: Props = {
@@ -235,6 +236,42 @@ describe("stale-display policy", () => {
     const { result } = renderFiles();
     await settle();
     expect(result.current.engineIo).toBeNull();
+  });
+
+  it("asks again when this solve's pattern run lands, and only then (AK#1506)", async () => {
+    let withPattern = false;
+    ioReply = (body) => ({
+      available: true,
+      solver: "enga",
+      label: "Engine-A",
+      solve_id: body.solve_id,
+      runs: [
+        { deck: "solve deck", printout: "out", cached: false },
+        ...(withPattern
+          ? [{ deck: "RP deck", printout: "gains", cached: false, kind: "pattern" }]
+          : []),
+      ],
+    });
+    const { result, rerender } = renderFiles();
+    await settle();
+    expect(calls("/engine_io")).toHaveLength(1);
+    // Another solve's pattern changes nothing.
+    rerender({ ...BASE, patternSolveId: "s0" });
+    await settle();
+    expect(calls("/engine_io")).toHaveLength(1);
+    // This solve's pattern: asked again, and the pattern run is in hand.
+    withPattern = true;
+    rerender({ ...BASE, patternSolveId: "s1" });
+    await settle();
+    expect(calls("/engine_io")).toHaveLength(2);
+    expect(result.current.engineIo?.runs?.map((r) => r.kind ?? "solve")).toEqual([
+      "solve",
+      "pattern",
+    ]);
+    // Once held, not asked for again.
+    rerender({ ...BASE, patternSolveId: "s1" });
+    await settle();
+    expect(calls("/engine_io")).toHaveLength(2);
   });
 
   it("a superseded re-run is not taken as the solve's texts", async () => {

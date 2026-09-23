@@ -323,6 +323,9 @@ export type EngineRun = {
   cached: boolean;
   /** Why this run exists, when a solve took more than one. */
   note?: string;
+  /** "pattern": the NEC overlay's RP run (AK#1506), listed after the solve's
+   *  own runs. Absent on a solve's runs. */
+  kind?: "pattern";
 };
 
 /** POST /engine_io (AK#1428): the runs behind one NEC-5 / NEC-2 solve. */
