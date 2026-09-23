@@ -31,6 +31,11 @@ DISPLAYED in, and the NEC cards in the block are metres whatever it says
 (AK#1625). AC6LA's `NECUnits inches, inches;` Yagi, read as a scale, was solved
 as a 1/80-wave stub: 0.19 - j13972 ohms against SimNEC's 13.26 - j7.385.
 
+Segment counts are the deck's GW counts, and a ``$GW_<tag>.JamSegments(N)``
+sets that wire's count to exactly N (AK#1679). SimNEC's own re-mesh
+(``NECOptions.segmentsPerWavelength`` and its segmentation pass) is not
+emulated, and ``SsnCircuit.mesh_note()`` says so.
+
 The solve frequency comes from the GENERATOR element's ``MHz`` — in SimNEC the
 deck's ``FR`` card is advisory; the Generator drives the solve — and an armed
 (``doSweep y``) Generator sweep surfaces as ``sweep=(lo, hi)``, with the
@@ -129,7 +134,10 @@ _MININEC = re.compile(
 )
 _NECUNITS = re.compile(r"^NECUnits\s+(.+)$", re.IGNORECASE)
 _NECOPTION = re.compile(r"^NECOptions\.(\w+)\s*=\s*(\S+)$", re.IGNORECASE)
-_JAM = re.compile(r"^\$GW_(\d+)\.JamSegments\s*\(\s*(\d+)\s*\)$", re.IGNORECASE)
+# `$GW_<tag>.JamSegments(N)`: SimNEC names each NEC2-block GW wire `$GW_<tag>`,
+# and JamSegments fixes that wire's count (the NECPortal manual, "Suggesting
+# Wire Segmentation"). Applied exactly (AK#1679).
+_JAM = re.compile(r"^\$GW_(\d+)\s*\.\s*JamSegments\s*\(\s*(\d+)\s*\)$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -356,8 +364,9 @@ class SsnCircuit:
     # NECOptions.mhosPerMeter, S/m — feed to WireSpec(conductivity=...).
     # None when absent or 0 (perfect wires).
     conductivity: float | None
-    # NECOptions.segmentsPerWavelength — SimNEC's re-mesh density. Advisory
-    # for antennaknobs (its engines keep the deck's segment counts).
+    # NECOptions.segmentsPerWavelength — SimNEC's re-mesh density. Not
+    # emulated (AK#1679): the engines keep the deck's segment counts, and
+    # `mesh_note()` says so.
     seg_per_wl: int | None
     # GENERATOR reference impedance (Zo), ohms.
     gen_zo: float | None
@@ -420,6 +429,32 @@ class SsnCircuit:
         if note and deck_note:
             return f"{note} {deck_note}"
         return note or deck_note
+
+    def mesh_note(self) -> str:
+        """Why SimNEC's numbers for this file differ from ours by mesh, and
+        how to compare on one mesh (AK#1679). Always given: SimNEC re-meshes
+        every wire before it solves (its own segmentation pass, not a density
+        formula), and antennaknobs does not emulate that — it solves the GW
+        counts as written, and each ``JamSegments(N)`` as exactly N."""
+        spw = (
+            f" (NECOptions.segmentsPerWavelength = {self.seg_per_wl})"
+            if self.seg_per_wl
+            else ""
+        )
+        jammed = (
+            f", and the {len(self.deck.pinned_wires)} JamSegments "
+            f"wire{'s' if len(self.deck.pinned_wires) != 1 else ''} at "
+            "exactly the jammed count"
+            if self.deck.pinned_wires
+            else ""
+        )
+        return (
+            f"SimNEC re-meshes the wires before it solves{spw}; this import "
+            f"solves the file's own segment counts{jammed}, so SimNEC's "
+            "numbers differ from these by mesh. For a same-mesh comparison, "
+            "import lastConstructedNEC.nec from ~/.SimNEC/<version>/ — the "
+            "deck SimNEC actually solved."
+        )
 
     def network(self, *, rig_port: str = "rig"):
         """The full circuit as a ``network.Network``, ready to return from
@@ -605,6 +640,9 @@ class _Script:
         self.display_units: tuple[str, ...] = ()
         self.name: str | None = None
         self.ignored: list[str] = []
+        # `$GW_<tag>.JamSegments(N)`: GW tag -> (segment count, the statement
+        # as written) (AK#1679).
+        self.jam: dict[int, tuple[int, str]] = {}
         in_cards = False
         for raw in text.splitlines():
             line = raw.strip()
@@ -639,7 +677,9 @@ class _Script:
     def _directive(self, stmt: str, where: str) -> None:
         if _PORT_DECL.match(stmt):
             return  # port declaration (P1 w1 gnd) — circuit structure only
-        if self._jam_agrees(stmt):
+        m = _JAM.match(stmt)
+        if m:
+            self.jam[int(m.group(1))] = (int(m.group(2)), stmt)
             return
         if _PERFECT.match(stmt):
             self.ground = "pec"
@@ -680,20 +720,39 @@ class _Script:
                 return
         self.ignored.append(stmt)
 
-    def _jam_agrees(self, stmt: str) -> bool:
-        """A ``$GW_<tag>.JamSegments(N)`` whose N is that GW card's own count
-        says nothing the card does not (the exporter writes one per wire,
-        AK#1680), so it is consistent, not ignored. A different N stays in the
-        ignored note: applying it would re-mesh the wire, a held decision."""
-        m = _JAM.match(stmt)
-        if not m:
-            return False
-        tag, n = int(m.group(1)), int(m.group(2))
-        for card in self.cards:
-            f = card.replace(",", " ").split()
-            if f[:1] == ["GW"] and len(f) > 2 and f[1].isdigit() and int(f[1]) == tag:
-                return f[2].isdigit() and int(f[2]) == n
-        return False
+
+def _jam_segments(
+    deck: NecDeck, jam: dict[int, tuple[int, str]], where: str
+) -> tuple[NecDeck, list[str]]:
+    """The deck with each ``$GW_<tag>.JamSegments(N)`` applied (AK#1679), and
+    the statements that could not be, for the not-applied note.
+
+    SimNEC re-meshes every wire by its own density before it solves;
+    ``JamSegments(N)`` is how a file fixes one wire at N segments instead.
+    Here the file's N is the count, exactly: it replaces the GW count, and the
+    wire is PINNED there (`NecDeck.resegmented`), so no engine's parity rule
+    moves it — the even-count rule is for counts the app chooses, not ones the
+    file sets. Each attachment keeps the place the GW count gave it. One that
+    is then not on a site of N (a centre feed on an odd count, on a knot
+    engine) is fed where it is by splitting the wire at the feed (AK#1511),
+    never snapped to a neighbouring site.
+
+    ``JamSegments(0)`` is SimNEC's "auto-segment as usual", which here means
+    the GW count stands, unpinned. A tag no GW card declares, or one several
+    wires carry after the deck's transforms, names no one wire: that
+    statement is returned unapplied rather than guessed at."""
+    counts: dict[int, int] = {}
+    unapplied: list[str] = []
+    for tag, (n, stmt) in jam.items():
+        hits = [i for i, w in enumerate(deck.wires) if w.tag == tag]
+        if len(hits) != 1:
+            unapplied.append(stmt)
+        elif n > 0:
+            counts[hits[0]] = n
+    try:
+        return deck.resegmented(counts), unapplied
+    except ValueError as e:
+        raise ValueError(f"{where}: JamSegments: {e}") from None
 
 
 def _is_unused_termination(label: str | None, params: dict) -> bool:
@@ -992,6 +1051,8 @@ def parse_ssn(
         network=network,
         virtualize_anchors=virtualize_anchors,
     )
+    deck, unapplied = _jam_segments(deck, script.jam, name)
+    script.ignored.extend(unapplied)
 
     freq_mhz = None
     sweep = sweep_points = sweep_note = None
