@@ -158,8 +158,8 @@
 | src/antennaknobs/serialize.py                                        |       83 |        6 |     93% |32-34, 54, 91, 103 |
 | src/antennaknobs/settings\_file.py                                   |       52 |        2 |     96% |     77-78 |
 | src/antennaknobs/sim.py                                              |        2 |        0 |    100% |           |
-| src/antennaknobs/simnec\_export.py                                   |      313 |       28 |     91% |197, 375, 410, 416, 440, 448, 453, 463, 595, 602, 604-619, 626, 630, 675, 687, 727, 844, 996-999, 1020 |
-| src/antennaknobs/simnec\_import.py                                   |      341 |       21 |     94% |235, 313, 339, 359, 404, 415, 444-445, 504, 557, 585, 588-589, 701-702, 706-707, 751-752, 755-756 |
+| src/antennaknobs/simnec\_export.py                                   |      348 |       28 |     92% |203, 455, 490, 496, 520, 528, 533, 543, 675, 682, 684-699, 706, 710, 755, 767, 826, 943, 1098-1101, 1122 |
+| src/antennaknobs/simnec\_import.py                                   |      354 |       17 |     95% |236, 340, 360, 405, 416, 445-446, 560, 603, 606-607, 719-720, 769-770, 773-774 |
 | src/antennaknobs/smith\_chart.py                                     |       44 |        0 |    100% |           |
 | src/antennaknobs/station.py                                          |      101 |        5 |     95% |142, 257, 414-415, 492 |
 | src/antennaknobs/sweep.py                                            |      376 |       60 |     84% |213-224, 466, 469-524, 605, 755-756, 765-767, 790-791, 801, 809-856 |
@@ -186,7 +186,7 @@
 | src/antennaknobs/web/tracker.py                                      |      261 |       30 |     89% |213, 219, 269, 285-286, 315-316, 322, 333-335, 342-343, 349, 431, 454-458, 461-470, 497 |
 | src/antennaknobs/web/user\_designs.py                                |       68 |        6 |     91% |60-61, 92-93, 98-99 |
 | src/antennaknobs/wire\_catalog.py                                    |      188 |        0 |    100% |           |
-| **TOTAL**                                                            | **19395** | **1156** | **94%** |           |
+| **TOTAL**                                                            | **19443** | **1152** | **94%** |           |
 
 
 ## Setup coverage badge
