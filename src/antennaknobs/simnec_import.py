@@ -118,6 +118,7 @@ _MININEC = re.compile(
 )
 _NECUNITS = re.compile(r"^NECUnits\s+(.+)$", re.IGNORECASE)
 _NECOPTION = re.compile(r"^NECOptions\.(\w+)\s*=\s*(\S+)$", re.IGNORECASE)
+_JAM = re.compile(r"^\$GW_(\d+)\.JamSegments\s*\(\s*(\d+)\s*\)$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -531,6 +532,8 @@ class _Script:
     def _directive(self, stmt: str, where: str) -> None:
         if _PORT_DECL.match(stmt):
             return  # port declaration (P1 w1 gnd) — circuit structure only
+        if self._jam_agrees(stmt):
+            return
         if _PERFECT.match(stmt):
             self.ground = "pec"
             return
@@ -569,6 +572,21 @@ class _Script:
                 self.seg_per_wl = int(_fnum(value, where, f"NECOptions.{option}"))
                 return
         self.ignored.append(stmt)
+
+    def _jam_agrees(self, stmt: str) -> bool:
+        """A ``$GW_<tag>.JamSegments(N)`` whose N is that GW card's own count
+        says nothing the card does not (the exporter writes one per wire,
+        AK#1680), so it is consistent, not ignored. A different N stays in the
+        ignored note: applying it would re-mesh the wire, a held decision."""
+        m = _JAM.match(stmt)
+        if not m:
+            return False
+        tag, n = int(m.group(1)), int(m.group(2))
+        for card in self.cards:
+            f = card.replace(",", " ").split()
+            if f[:1] == ["GW"] and len(f) > 2 and f[1].isdigit() and int(f[1]) == tag:
+                return f[2].isdigit() and int(f[2]) == n
+        return False
 
 
 def _params(el) -> dict[str, str | None]:
