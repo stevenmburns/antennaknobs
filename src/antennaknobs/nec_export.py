@@ -16,7 +16,10 @@ multiport-Y reduction (a circuit post-process on the field solution), not by
 native NEC ``tl_card``s, so there is no faithful single-deck representation.
 ``export_nec`` raises ``NotImplementedError`` for them, in the DIALECT's name
 rather than PyNEC's: a user reading a download error has not chosen an engine
-(antennaknobs#1389).
+(antennaknobs#1389). The refusal is of a single DECK, not of the design:
+``NEC2Engine`` solves those networks the way PyNEC does, one structure deck per
+port through :func:`export_nec_structure` and the reducer on the resulting Y
+(AK#1678).
 
 CURRENT SOURCES are the exception that used to be swept in with them
 (AK#1597). ``DrivenCurrent`` forces the reducer because NEC's ``EX`` drives
@@ -255,16 +258,67 @@ def export_nec(
         else probe
     )
     if eng._use_reducer:
+        # Worded for BOTH readers (AK#1678). This refuses a single DECK — the
+        # download — and never a solve: the NEC-2 and NEC-5 engines (and PyNEC,
+        # which the sentence does not name, #1389) serve these designs by
+        # running one deck per port and reducing the network on the result. It
+        # used to end "The NEC-5 deck cannot express them either", which a user
+        # whose NEC-5 tab had just solved the same design read as nonsense.
         raise NotImplementedError(
-            "a NEC-2 deck cannot express TL/virtual-driver networks (or "
-            "distributed finite-gap ports, issue #477): the app solves those by "
-            "a multiport-Y reduction over one deck per driven port, not by "
-            "native NEC cards, so there is no faithful single-deck "
-            "representation. The NEC-5 deck cannot express them either."
+            "a single NEC-2 deck cannot express TL/virtual-driver networks (or "
+            "distributed finite-gap ports, issue #477): there are no native NEC "
+            "cards for them, so there is no faithful single-deck representation "
+            "to download, and a single NEC-5 deck has none either. The NEC-2 and "
+            "NEC-5 engines still solve such a design, by a multiport-Y reduction "
+            "over one deck per driven port."
         )
     freq = builder.freq if freq is None else float(freq)
-
     title = title or f"{type(builder).__module__}.{type(builder).__qualname__}"
+    return _deck_text(
+        eng,
+        freq=freq,
+        df=df,
+        npoints=npoints,
+        include_rp=include_rp,
+        title=title,
+        jacket_pair=jacket_pair,
+    )
+
+
+def export_nec_structure(eng, *, freq, sources, df=0.0, npoints=1):
+    """The deck of `eng`'s bare structure driven by `sources`, for the
+    multiport-Y route (AK#1678). Never a download: see `export_nec`'s refusal.
+
+    `eng` is a `PyNECEngine` on that route, which resolves every port and never
+    solves here. `sources` is ``[(tag, segment, volts), ...]``, one ``EX 0``
+    each at a segment CENTRE, NEC-2's source convention. The network itself
+    writes NO card: its branches (plain loads included) are the reducer's to
+    stamp, exactly as PyNEC's real-geometry context carries none. What the
+    deck does carry is everything that belongs to the structure — the wires,
+    the ground, the wire material — written by the same lines `export_nec`
+    uses, so the two cannot disagree about the antenna.
+    """
+    builder = eng.builder
+    return _deck_text(
+        eng,
+        freq=float(freq),
+        df=df,
+        npoints=npoints,
+        include_rp=False,
+        title=f"{type(builder).__module__}.{type(builder).__qualname__}",
+        jacket_pair=True,
+        excitations=[(int(t), int(g), complex(v)) for t, g, v in sources],
+    )
+
+
+def _deck_text(
+    eng, *, freq, df, npoints, include_rp, title, jacket_pair, excitations=None
+):
+    """The card text for a resolved `PyNECEngine`. With `excitations` None,
+    the engine's own feeds, loads and gyrators (`export_nec`); otherwise the
+    bare structure driven by those ``(tag, seg, volts)`` sources
+    (`export_nec_structure`)."""
+    structure_only = excitations is not None
     # Read only by the card text below; the PyNEC context the engine built is
     # never solved here.
     eng._jacket_pair = jacket_pair
@@ -280,7 +334,9 @@ def export_nec(
         lines.append(_gw(tag, t[2], t[0], t[1], eng._gw_radius_for(t)))
     # AK#1597: the phantom wires carrying forced currents. LAST, so no real
     # wire's absolute segment number moves and the NT addresses below stay put.
-    gy_gw, gy_nt, gy_ex = _gyrator_cards(eng, eng.tups, freq)
+    gy_gw, gy_nt, gy_ex = (
+        ([], [], []) if structure_only else _gyrator_cards(eng, eng.tups, freq)
+    )
     lines.extend(gy_gw)
     # The engine's own flag, not a constant (AK#1597). GE 1 is what tells NEC
     # a wire END standing at z=0 is CONNECTED to the ground plane, so the
@@ -292,7 +348,7 @@ def export_nec(
 
     # --- Load branches -> LD cards (type 0 series / 1 parallel RLC, type 4
     # fixed R + jX): the cards `PyNECEngine._emit_load_card` hands PyNEC ---
-    if eng._network is not None:
+    if eng._network is not None and not structure_only:
         for br in eng._network.branches:
             if not isinstance(br, Load):
                 continue
@@ -350,7 +406,7 @@ def export_nec(
     # a network card, so every NT precedes every EX (AK#1597; the same hazard
     # `gyrator_reference` documents, where it silently lost a TL).
     lines.extend(gy_nt)
-    for tag, seg, v in eng.excitation_pairs:
+    for tag, seg, v in excitations if structure_only else eng.excitation_pairs:
         v = complex(v)
         lines.append(f"EX 0 {tag} {seg} 0 {_num(v.real)} {_num(v.imag)}")
     lines.extend(gy_ex)
