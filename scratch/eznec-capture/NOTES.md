@@ -1237,3 +1237,48 @@ docstring.
 That AutoEZ-written fixture carries both the virtual-wire comment and the `NT`
 annotations, so AutoEZ reproduces EZNEC's whole comment idiom, not just the
 stamp.
+
+---
+
+# EZNEC capture session — 2026-09-23 (AC6LA's CLC drift check, QRZ #140–#144)
+
+Not a dialect sitting — a measurement for Dan AC6LA, captured incidentally
+because the spy was still armed. **Captures `0220`–`0222`.** Model
+`Bydipole-TL-Xfmr-CLC` (sha256 `b015b351…d410`), `Src Dat` on External NEC-5 at
+14.175 MHz, Wire 1 re-segmented between runs.
+
+## The drift
+
+| `0220`–`0222` | Wire 1 segs | Z at the rig | predicted |
+|---|---|---|---|
+| `0220` | 20 | 50.010 + j0.003 | ≈ 50.01 + j0.00 |
+| `0221` | 60 | 48.281 − j2.240 | ≈ 48.2 − j2.2 |
+| `0222` | 180 | 47.755 − j2.840 | ≈ 47.6 − j2.7 |
+
+Drift **−1.729 Ω R** by 60 segments and **−2.255 Ω** by 180, against a prediction
+of −1.8 and −2.3 — both within 0.08 Ω. X runs slightly deeper than predicted at
+180 (−2.84 against −2.5); the shape is right and monotonic. Confirmed.
+
+The source is on wire 2 (the virtual wire), and the printout's `SEG.` column is
+an **absolute index across wires**, which is why it reads 21 / 61 / 181 as wire
+1's count changes. These are rig-side numbers; `Src Dat` reports only the source,
+so no feedpoint Z was obtained.
+
+## What the captures bought for free
+
+The decks EZNEC wrote match hand-built `.nec` equivalents on **every
+physics-bearing card** — `GW` ×2, `LD 5`, `FR`, `GN`, `EX`, and all four `NT`
+cards, at both 60 and 180. Three differences, none affecting the answer:
+
+- EZNEC writes **`GE 1,-1`** where the reference has `GE 1`.
+- EZNEC adds four **`LD 4,2,n,0,1.E+10,0.`** — the 1e10 open-circuit
+  terminations on the virtual wire's segments 1–4.
+- EZNEC emits **`PQ 0` + `XQ 0`** where the reference has `RP` — that is `Src
+  Dat` against `FF Plot`, nothing more.
+
+So EZNEC independently produced `NT 2,3,1,30` at 60 segments and `NT 2,3,1,90`
+at 180, matching a hand renumbering exactly.
+
+**This says nothing about momwire#1116.** EZNEC wrote the TWO-field `GE 1,-1`
+here; the one-field `GE` in the reference is a hand-built spelling, not EZNEC
+output. The condition under which EZNEC emits the bare form remains unknown.
