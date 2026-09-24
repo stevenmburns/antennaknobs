@@ -1163,8 +1163,11 @@ directly.
 - Each pinned trace recomputes for whichever cut (azimuth or elevation) and
   cut-angle you're viewing, so it always shares the live plot's geometry.
 - A **compare table** appears alongside with a row per pattern — peak gain
-  (dBi), takeoff angle, front-to-back, and −3 dB azimuth beamwidth — so the
-  overlaid shapes come with the numbers that matter.
+  (dBi), takeoff angle, front-to-back, −3 dB azimuth beamwidth, and RDF (the
+  receiving directivity factor: peak gain over the pattern's average gain,
+  normalised by the whole sphere; see the
+  [CLI reference](/reference/cli/#comparing-engines)) — so the overlaid shapes
+  come with the numbers that matter.
 - **Show or hide a pin without losing it**: click a pinned row's colored
   swatch-and-name in the compare table. The ghost disappears from the plot and
   the row dims, but its metrics stay readable for the side-by-side numbers;
