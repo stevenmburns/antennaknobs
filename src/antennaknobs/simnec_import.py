@@ -801,8 +801,9 @@ def _mhos(token: str, where: str, what: str) -> float:
 # constants `Pi`, `mpf`, `fpm`, the functions `Sqrt Abs Int Sin Cos Tan Asin
 # Acos Atan`, and names the script sets once as constants. Refused by name:
 # the `j` operator and complex values, `/_`, `|||`, comparisons and `?:`,
-# member access (`G.MHz`), Anvil's `^T` / `^I` / `^*` suffix operators, any other function, and a result that is not a finite real
-# (Anvil's numbers are complex; a root of a negative has no card value).
+# member access (`G.MHz`), Anvil's `^T` / `^I` / `^*` suffix operators, any
+# other function, and a result that is not a finite real (Anvil's numbers
+# are complex; a root of a negative has no card value).
 #
 # Where Anvil's behaviour is a convention rather than something its manual
 # pins, it is one field of `ANVIL` -- measured in SimNEC itself -- and the
@@ -1270,12 +1271,13 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
     a suffix SimNEC does not have (`mm`, `ft`, `in`, the gauge `g`) is
     refused by name. A card of plain numbers passes as written. The one
     exception is a block that carries SY cards of its own (4nec2's dialect):
-    it goes to `parse_nec` as written. An FR card that names anything but a constant is dropped
-    and reported: SimNEC's FR is advisory (the Generator's MHz drives its
-    solve), and AC6LA's own 3-el Yagi names a `freq` whose dcl is commented
-    out. Any other card naming something the script never sets as a constant
-    is refused by name; so is a constant read before its definition, or one
-    written in syntax outside the subset read here."""
+    it goes to `parse_nec` as written. An FR card that names anything but a
+    constant is dropped and reported: SimNEC's FR is advisory (the
+    Generator's MHz drives its solve), and AC6LA's own 3-el Yagi names a
+    `freq` whose dcl is commented out. Any other card naming something the
+    script never sets as a constant is refused by name; so is a constant read
+    before its definition, or one written in syntax outside the subset read
+    here."""
     cards = list(script.cards)
     unchanged = _DclCards(tuple(cards), (), ())
     split = []
