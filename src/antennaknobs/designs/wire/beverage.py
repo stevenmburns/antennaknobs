@@ -43,14 +43,14 @@ Geometry, (x, y, z), planar in y = 0:
 TERMINATION. The run's characteristic impedance over ground is the textbook
 Z0 = 138 log10(4h/d) = 523 ohm for #14 at 2.5 m; `term_r` defaults to
 500 ohm. The `contact` variant confirms it: with a perfect connection at
-each end the feed reads 531.6 - 1.9j ohm (momwire razor-2p over average
+each end the feed reads 532.2 - 0.3j ohm (momwire razor-2p over average
 soil), a matched line.
 
 THE RODS ARE NOT A PERFECT GROUND, and that is the point of modelling them.
 They put the soil's resistance in series with both the feed and the
-termination: the feed moves from 531.6 - 1.9j (contact) to 675.9 - 99.5j
+termination: the feed moves from 532.2 - 0.3j (contact) to 677.0 - 97.6j
 ohm (rods), the terminator's share of the input power falls from 51.7 % to
-32.9 %, and F/B from 20.5 to 19.1 dB (all razor-2p, average soil).
+32.9 %, and F/B from 20.4 to 19.1 dB (all razor-2p, average soil).
 
 MODELLED NUMBERS, at the defaults (1.5 wl, 2.5 m, 500 ohm, 9:1, 1.8 m rods
 at the wire's own radius), 1.83 MHz. Soils are the app's presets (ARRL
@@ -60,25 +60,26 @@ Table 3.1): average eps_r 13 / sigma 0.005, poor eps_r 13 / sigma 0.002.
 the input power (momwire's power budget; NEC-5 has no such row here):
 
                      feed Z (ohm)    peak dBi takeoff F/B dB RDF dB  term
-  razor-2p, average  675.9 -  99.5j   -9.10    29.1   19.1   11.95  32.9 %
-  NEC-5,    average  676.0 -  99.3j   -9.10    30     18.4   11.94
-  razor-2p, poor     749.4 - 271.6j   -8.15    29.7   19.5   12.22  18.4 %
-  NEC-5,    poor     749.5 - 271.5j   -8.14    30     19.3   12.22
+  razor-2p, average  677.0 -  97.6j   -9.10    29.1   19.1   11.95  32.9 %
+  NEC-5,    average  677.0 -  97.6j   -9.10    29     19.2   11.95
+  razor-2p, poor     750.9 - 269.8j   -8.14    29.7   19.5   12.22  18.4 %
+  NEC-5,    poor     751.0 - 270.0j   -8.14    30     19.3   12.22
   razor-2p, average, contact variant
-                     531.6 -   1.9j   -8.26    28.4   20.5   12.10  51.7 %
+                     532.2 -   0.3j   -8.26    28.4   20.4   12.09  51.7 %
   razor-2p, average, termination removed
-                     536.2 - 617.6j   -7.16    34.6    3.1    9.92
+                     540.2 - 619.8j   -7.15    34.6    3.1    9.92
 
-ROD DEPTH is worth its knob (razor-2p, average): 1.2 m reads 731.1 - 145.3j
-ohm, F/B 17.9 dB and 27.7 % in the terminator; 2.4 m reads 648.1 - 72.4j,
+ROD DEPTH is worth its knob (razor-2p, average): 1.2 m reads 732.4 - 143.3j
+ohm, F/B 17.9 dB and 27.7 % in the terminator; 2.4 m reads 649.1 - 70.5j,
 19.5 dB and 36.2 %. Deeper rods are a better ground, and the antenna moves
 toward the contact variant.
 
 NEC-5 is the licensed binary (`--engine nec5`) at the same mesh; its F/B
 and takeoff come off the 1-degree grid, momwire's off the refined peak
-(#1669), which accounts for the F/B differences. On the impedance the two
-engines agree to 0.03 ohm on the rig side. Doubling the mesh
-(`nominal_nsegs` 42) moves the rig-side impedance 0.10 ohm on both.
+(#1669), so those two can differ by a few tenths. On the impedance the two
+engines agree to 0.02 ohm on the rig side (NEC-5 reads 75.222 - 10.849j
+against razor-2p's 75.221 - 10.841j over average soil). Doubling the mesh
+(`nominal_nsegs` 42) moves the rig-side impedance 0.22 ohm (0.3 %) on both.
 
 The absolute gain is -8 to -9 dBi and that is not a defect: a Beverage
 radiates well under 1 % of what it is given (average gain -21 dB here). On
@@ -100,22 +101,23 @@ ENGINES, as measured today:
     below the ground, and both solve a buried wire as if it were in air.
 
 The `contact` variant is the comparison case for the NEC-2 family (AK#1707's
-decision). momwire (B-spline and razor-2p) and NEC-5 agree on it to 0.2 ohm
-on the rig side (1.7 ohm at the feed, over average soil).
-PyNEC solves it too, but it is a poor reference: NEC-2 joins a wire ending
-on a Sommerfeld ground to a perfectly conducting point, which is outside its
-formulation, and it reads 1085 - 387j ohm at the feed where the other three
-read 532.
+decision). momwire (B-spline and razor-2p) and NEC-5 agree on it to 0.4 ohm
+on the rig side (3.4 ohm at the feed, over average soil). PyNEC solves it
+too, but it is a poor reference: NEC-2 joins a wire ending on a Sommerfeld
+ground to a perfectly conducting point, which is outside its formulation,
+and it reads 978.7 - 358.8j ohm at the feed where the other three read
+~532.
 
 MODELLING CONVENTIONS, and why:
 
   * ONE WIRE RADIUS, so the rods are #14 too by default. momwire refuses a
     crossing deck with two radii AND more than one crossing node (plans U5 and
     U9 were each measured alone). A thin rod reads more ground resistance
-    than a real 16 mm one: NEC-5 with `rod_radius_m=0.008` reads 636.1 -
-    74.6j ohm (average) against 676.0 - 99.3j, and F/B 19.9 against 18.4 dB.
-    `rod_radius_m` is there for NEC-5 comparisons; momwire refuses it by
-    name.
+    than a real 16 mm one: NEC-5 with `rod_radius_m=0.008` reads 637.0 -
+    72.9j ohm (average) against 677.0 - 97.6j, with F/B 19.0 against 19.2 dB
+    and RDF 11.98 against 11.95 dB; over poor soil 687.8 - 202.6j against
+    751.0 - 270.0j. `rod_radius_m` is there for NEC-5 comparisons; momwire
+    refuses it by name.
   * THE RODS ARE MESHED AT THE DESIGN DENSITY, not graded into the node the
     way `buried_radial_vertical` grades its rise. A graded rod puts
     quadrature points a fraction of a millimetre below the interface, and
@@ -226,17 +228,13 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         L = self.length_frac * self.design_wavelength
         h = self.height_m
-        # The down-leads mesh at 4x the design density, so their segments sit
-        # within ~2x of the 0.25 m edges below them rather than one 2 m
-        # segment beside a 0.25 m one. Scaled by nominal_nsegs, so a mesh
-        # ladder refines them too.
-        quarter = 0.25 * self.design_wavelength
-        lead_n = max(1, round(4 * self.nominal_nsegs * (h - EDGE_M) / quarter))
+        # Every wire meshes at the design density (the catalog's #521/#522
+        # rule, `test_delta_a_lint`), the rods at their in-medium one.
         above = [
             Wire((0.0, 0.0, 0.0), (0.0, 0.0, EDGE_M), name="feed"),
-            Wire((0.0, 0.0, EDGE_M), (0.0, 0.0, h), n_seg=lead_n),
+            Wire((0.0, 0.0, EDGE_M), (0.0, 0.0, h)),
             Wire((0.0, 0.0, h), (L, 0.0, h)),
-            Wire((L, 0.0, h), (L, 0.0, EDGE_M), n_seg=lead_n),
+            Wire((L, 0.0, h), (L, 0.0, EDGE_M)),
             Wire((L, 0.0, EDGE_M), (L, 0.0, 0.0), name="term"),
         ]
         if not self.rods:

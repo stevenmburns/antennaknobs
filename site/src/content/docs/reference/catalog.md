@@ -50,18 +50,18 @@ defaults, `razor-2p` and a licensed NEC-5 at the same mesh agree:
 
 | 1.83 MHz, defaults | feed Z (Ω) | peak | F/B | RDF |
 | --- | --- | --- | --- | --- |
-| `razor-2p`, average soil (13, 0.005) | 675.9 − j99.5 | −9.10 dBi | 19.1 dB | 11.95 dB |
-| NEC-5, average soil | 676.0 − j99.3 | −9.10 dBi | 18.4 dB | 11.94 dB |
-| `razor-2p`, poor soil (13, 0.002) | 749.4 − j271.6 | −8.15 dBi | 19.5 dB | 12.22 dB |
-| NEC-5, poor soil | 749.5 − j271.5 | −8.14 dBi | 19.3 dB | 12.22 dB |
+| `razor-2p`, average soil (13, 0.005) | 677.0 − j97.6 | −9.10 dBi | 19.1 dB | 11.95 dB |
+| NEC-5, average soil | 677.0 − j97.6 | −9.10 dBi | 19.2 dB | 11.95 dB |
+| `razor-2p`, poor soil (13, 0.002) | 750.9 − j269.8 | −8.14 dBi | 19.5 dB | 12.22 dB |
+| NEC-5, poor soil | 751.0 − j270.0 | −8.14 dBi | 19.3 dB | 12.22 dB |
 
 The feed is the antenna side of the transformer. The two engines are
-0.03 Ω apart on the 50 Ω side of it. The low absolute gain is normal for a
+0.02 Ω apart on the 50 Ω side of it. The low absolute gain is normal for a
 Beverage, which is judged by its RDF (the receiving directivity factor, peak
 gain over average gain). The rods are the wire's own radius, because momwire
 does not yet serve two radii with two crossing nodes. The `contact` variant
 stops the down-leads on the ground plane instead of in rods; there `razor-2p`,
-`bspline` and NEC-5 agree to within 2 Ω at the feed (531.6 − j1.9 Ω on
+`bspline` and NEC-5 agree to within 4 Ω at the feed (532.2 − j0.3 Ω on
 `razor-2p`, average soil), a matched line. The module
 docstring carries the rest: rod depth, the terminator's share of the power,
 and a real 16 mm rod on NEC-5.
