@@ -185,7 +185,8 @@ than build a station with a silently-missing tuner part.
 ways, and antennaknobs reads one of them: **NEC cards between a `NEC2` line
 and a `NECEND` line, inside a NETWORK element's script**. That is what
 SimNEC's NEC portal accepts and what the export above writes, so every
-round-tripped file qualifies.
+round-tripped file qualifies. Either keyword line may carry a trailing `//`
+comment (`NEC2  // ====`), and so may a card inside the block.
 
 The other way is a **script** — `NECWire` and `NECSource` calls against
 declared variables, which SimNEC evaluates itself, leaving no cards in the
@@ -198,6 +199,61 @@ In Python the same machinery is `read_ssn(self, "circuit.ssn")` /
 `parse_ssn(text)` — `read_ssn` ships a `.ssn` next to a
 [user design](/reference/cli/#allowing-user-designs-to-run) in
 `~/.antennaknobs/designs/`, with the same folder confinement as `read_nec`.
+
+### dcl constants are knobs
+
+SimNEC evaluates every field of a NEC card as an expression, so a block can
+name constants the script declares above `NEC2` — which is how AC6LA's
+examples convert a 4nec2 deck's `SY` cards ("replace all SY with dcl"):
+
+```
+dcl hgh = 50*0.3048 ; // Height (50 feet)
+dcl len = 2.5601*2  ; // Driven element half-length
+NEC2  // ====================
+GW  2  19  -len  0  hgh  len  0  hgh  rad
+...
+NECEND  // ====================
+```
+
+Such a file keeps its parametrisation, the way a `.nec` deck's
+[SY constants](/reference/nec-import/#sy-constants-are-knobs) do. Each
+**constant** the cards read — a `dcl name = ...;` or `$name = ...;` statement
+of its own, outside any `{ }` block, assigned nowhere else — whose expression
+names no other constant becomes the knob `dcl_<name>` (`tmp_<name>` for a
+`$name` temporary). Its label is the name as the script spells it (SimNEC
+names are case-sensitive, so `Xc` stays `Xc`), and its tooltip is the line's
+`//` comment. A constant that names another follows the knobs; one that
+reaches only the `FR` card, or no card the design is built from, is not a
+knob, and the import note says which and why. At its defaults the design is
+the import, bit for bit, and moving a knob builds exactly what editing that
+`dcl` line by hand would. As with a deck, the topology is frozen at the
+file's own values: a value that makes wires meet or part, puts a wire end
+into the ground plane, or collapses a wire is refused, naming the knob.
+
+The expressions are evaluated with **SimNEC's own rules**, not 4nec2's —
+measured by running probe circuits through SimNEC:
+
+- trig (`Sin`, `Cos`, `Tan`, `Asin`, `Acos`, `Atan`) is in **radians**
+  (4nec2's is in degrees);
+- a trailing letter on a number is SimNEC's SI suffix: `5m` is 5 mm,
+  `1.054u` is 1.054e-6 (its `g` is a wire gauge and is refused);
+- unary minus binds tighter than `^`, so `-2^2` is 4, and `2^3^2` groups
+  left, to 64; `**` is `^`, and `Int` truncates toward zero;
+- names are case-sensitive, built-ins included: `Pi`, `mpf`, `fpm`, `Sqrt`,
+  `Abs`, `Int` are read as spelled, and `sin(30)` is refused with "did you
+  mean 'Sin'?", as SimNEC refuses it.
+
+Anything else — complex values (`0+j50`), `|||`, `/_`, comparisons, member
+access such as `G.MHz`, other functions — is refused by name. So is a card
+that names something the script never sets as a constant: an undefined name
+is an error, never a silent zero. The one exception is the `FR` card, which
+SimNEC treats as advisory (the Generator's MHz drives the solve): an `FR` that
+names an undefined constant — AC6LA's 3-el Yagi names a `freq` whose `dcl` is
+commented out — is dropped, and the note says so.
+
+Constants used only outside the NEC block, such as the `L`/`C` values of an
+N-block trap (`R2 (L(L_23, Q_23) ||| C(C_23)) r2a r2b;`), are not read, and
+the statements that use them are listed as not applied, as before.
 
 ## The round-trip guarantee
 
