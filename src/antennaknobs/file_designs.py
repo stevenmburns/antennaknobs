@@ -440,14 +440,22 @@ class _SyKnobs:
         """Per-knob metadata. The adapter's usual ±50 % window applies; a
         zero default, which has no window of its own, spans ± the deck's own
         extent (the largest coordinate it writes), the only length scale a
-        zero constant -- a height, an offset -- has to go by."""
+        zero constant -- a height, an offset -- has to go by.
+
+        The knob shows the SY symbol as the deck spells it (``hgh``,
+        ``len``, ...) -- short, and what the deck author and a 4nec2 user
+        know it by (AK#1709). The SY card's trailing comment, when it has
+        one, goes into `description` instead: the tooltip, not a second
+        copy of the label."""
         extent = max(
             (abs(c) for w in self.deck.wires for c in (*w.p1, *w.p2)), default=0.0
         )
         span = extent if extent > 0 else 1.0
         ui = {}
         for s in self.symbols:
-            meta = {"label": s.label or s.spelling}
+            meta = {"label": s.spelling}
+            if s.label:
+                meta["description"] = s.label
             if s.unit:
                 meta["unit"] = s.unit
             if s.default == 0 and not s.integer:

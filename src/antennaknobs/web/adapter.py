@@ -56,16 +56,21 @@ Reserved keys inside `ui_params`:
   layout           : dict {columns: int} — pin the knob grid to a fixed
                      column count so per-param `layout` col positions are
                      stable (default: responsive auto-flow packing)
-  <param_name>     : dict of {min, max, step, unit, label, precision,
-                              kind, sweepable, enum_options, layout, hidden}
+  <param_name>     : dict of {min, max, step, unit, label, description,
+                              precision, kind, sweepable, enum_options,
+                              layout, hidden}
                      — slider-bounds + metadata overrides for one param.
                      `layout` is {row, col, row_span, col_span} (1-indexed
                      CSS grid lines, all optional) to place this knob
                      explicitly. `hidden: True` suppresses the control
                      entirely (the param stays pinned at its default value
                      through solves) — for a knob that's degenerate with
-                     another. Anything missing falls back to auto-derived
-                     defaults.
+                     another. `description` is one sentence rendered as the
+                     knob's tooltip in place of the default "label · param:
+                     name" (AK#1709) — SY-knob decks use it for the SY
+                     card's comment while the knob itself shows the short
+                     SY spelling. Anything missing falls back to
+                     auto-derived defaults.
 
 Everything else in `default_params` becomes a `ParamSpec`. Numeric
 defaults become float sliders with auto bounds (±50% around default);
@@ -1579,6 +1584,7 @@ def _auto_paramspec(name: str, default: Any, override: dict | None) -> ParamSpec
     override = dict(override or {})
     label = override.pop("label", _display_label(name))
     unit = override.pop("unit", None)
+    description = override.pop("description", None)
     # Optional explicit grid placement for this knob (row/col/spans). Only a
     # dict is meaningful; anything else is ignored so a typo can't crash the
     # registry. Passed verbatim to ParamSpec.layout for every kind.
@@ -1601,6 +1607,7 @@ def _auto_paramspec(name: str, default: Any, override: dict | None) -> ParamSpec
             unit=unit,
             precision=precision,
             layout=layout,
+            description=description,
         )
 
     if isinstance(default, (int, float)) and not isinstance(default, bool):
@@ -1677,6 +1684,7 @@ def _auto_paramspec(name: str, default: Any, override: dict | None) -> ParamSpec
             unit=unit,
             sweepable=sweepable,
             layout=layout,
+            description=description,
         )
         if "linked_to_design_freq" in override:
             spec_kwargs["linked_to_design_freq"] = bool(
@@ -1708,6 +1716,7 @@ def _auto_paramspec(name: str, default: Any, override: dict | None) -> ParamSpec
             precision=precision,
             unit=unit,
             layout=layout,
+            description=description,
         )
 
     # complex, None, or anything exotic — skip the auto-UI; the request
