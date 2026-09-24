@@ -490,16 +490,26 @@ python -m antennaknobs compare_patterns \
 ```
 
 Alongside the overlaid plot, `compare_patterns` prints a metrics table — peak
-gain (dBi), takeoff angle, front-to-back, and −3 dB azimuth/elevation
-beamwidths — one row per antenna, so the comparison comes with numbers, not just
-shapes:
+gain (dBi), takeoff angle, front-to-back, −3 dB azimuth/elevation beamwidths,
+and the RDF — one row per antenna, so the comparison comes with numbers, not
+just shapes:
 
 ```text
-design            peak dBi  takeoff°    F/B dB    az bw°    el bw°
-----------------------------------------------------------------
-dipoles.invvee        1.93         1       0.0        85        89
-beams.yagi            8.89         1       8.2        60        42
+design          peak dBi  takeoff°    F/B dB    az bw°    el bw°    RDF dB
+--------------------------------------------------------------------------
+dipoles.invvee      1.92         1       0.0        85        89       1.9
+beams.yagi          8.89         1       8.3        60        42       8.9
 ```
+
+**RDF** is the receiving directivity factor: the peak gain minus the
+pattern's average gain, 10·log10 of (1/4π)∬G dΩ. The average is always
+normalised by the whole sphere. Over a ground the lower hemisphere adds
+nothing to it, which is how EZNEC's "Average Gain" works and what published
+RDF figures subtract. Loss cancels, so a lossless free-space antenna reads
+its peak gain, as the two rows above do. A receiving antenna is judged on it
+rather than on gain: a Beverage at −9 dBi reads about 12 dB. In free space
+the RDF needs the whole sphere, which the momwire engine samples; a NEC
+engine's pattern stops at the horizon, so its free-space row prints `—`.
 
 ### A refinement ladder for an imported deck
 
