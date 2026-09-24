@@ -256,7 +256,7 @@ def test_outside_the_subset_is_refused_by_name(dcls, field, message):
 
 
 def test_names_are_case_sensitive():
-    assert _value("dcl DY = 3; dcl dy = 4;", "DY*10+dy") == 34.0
+    assert _value("dcl DY = 3; dcl dy = 4;", "10*DY+dy") == 34.0
     # A script constant may be spelled like 4nec2's `pi`; SimNEC's is `Pi`.
     assert _value("dcl pi = 3;", "pi+Pi") == 3 + math.pi
 
@@ -500,3 +500,30 @@ def test_nec2_and_necend_lines_may_carry_a_comment():
         "EX 0 1 6 0 1 0", "EX 0 1 6 0 1 0  // the feed"
     )
     assert parse_ssn(text, network=True).deck == plain.deck
+
+
+# -- where SimNEC ends a card field ------------------------------------------
+
+
+# A `+` / `-` directly after a NUMBER ends a GW field in SimNEC 5.3; after a
+# name it stays in the field. scratch/simnec-expr-probe/probeG*.ssn: G1 and
+# G3 built decks reading 10 (captured-152608.nec, captured-152635.nec); G2,
+# G4, G5 and G6 (tab-separated) were refused, "expected an end of line".
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("a-b", 10.0),
+        ("a-2", 10.0),
+        ("(12-b)", 10.0),
+        ("(8+b)", 10.0),
+        ("a-b+1e-3*0", 10.0),
+    ],
+)
+def test_a_sign_after_a_name_stays_in_the_field(field, value):
+    assert _value("dcl a = 12; dcl b = 2;", field) == value
+
+
+@pytest.mark.parametrize("field", ["12-b", "12-2", "8+b", "gap/2+b", "(a)*2-b"])
+def test_a_sign_after_a_number_ends_the_field_as_simnec_reads_it(field):
+    with pytest.raises(ValueError, match="ends a card field .* after a number"):
+        _value("dcl a = 12; dcl b = 2; dcl gap = 0.2;", field)

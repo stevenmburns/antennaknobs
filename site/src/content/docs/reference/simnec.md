@@ -242,6 +242,12 @@ measured by running probe circuits through SimNEC:
 - unary minus binds tighter than `^`, so `-2^2` is 4, `2^-1` is 0.5, and
   `2^3^2` groups left, to 64; `**` is `^`, `%` takes the sign of the
   dividend (`-7%3` is −1), and `Int` truncates toward zero;
+- in a card field, a `+` or `-` right after a **number** ends the field:
+  SimNEC reads `12-dz` as the two fields `12` and `-dz`, and refuses the
+  card when that overflows it. After a name the sign stays in the field
+  (`hgh-sln` is one field). The import refuses such a field rather than
+  read it differently from SimNEC; write `(12-dz)`, or move the sum into a
+  `dcl`;
 - names are case-sensitive, built-ins included: `Pi`, `mpf`, `fpm`, `Sqrt`,
   `Abs`, `Int` are read as spelled, and `sin(30)` is refused with "did you
   mean 'Sin'?", as SimNEC refuses it.
