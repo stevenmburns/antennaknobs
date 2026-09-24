@@ -90,6 +90,7 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from functools import cached_property
 from itertools import pairwise
@@ -105,6 +106,8 @@ __all__ = [
     "NecNT",
     "NecTL",
     "NecWire",
+    "SySymbol",
+    "classify_sy",
     "parse_nec",
     "read_nec",
     "resolve_sy",
@@ -2395,7 +2398,12 @@ def _logical_lines(text: str):
         yield pending
 
 
-def resolve_sy(text: str, *, name: str = "NEC deck") -> str:
+def resolve_sy(
+    text: str,
+    *,
+    name: str = "NEC deck",
+    sy_overrides: Mapping[str, float] | None = None,
+) -> str:
     """Resolve a 4nec2-dialect deck into plain NEC-2 card text (issue #439).
 
     Evaluates every ``SY`` symbol (#417, #424 grammar) in deck order and
@@ -2419,7 +2427,13 @@ def resolve_sy(text: str, *, name: str = "NEC deck") -> str:
     malformed card mnemonic or ``SY`` definition. A card *field* that
     fails to evaluate is kept verbatim instead (filename fields on
     GN/WG/GF cards look like expressions but aren't).
+
+    ``sy_overrides`` sets SY symbols by (case-insensitive) name, exactly as
+    ``parse_nec``'s does (AK#1705): the deck with a knob moved, as plain
+    NEC-2 cards.
     """
+    overrides = _lower_overrides(sy_overrides)
+    used: dict[str, int] = {}
     syms: dict[str, float] = {}
     out: list[str] = []
     in_comments = True
@@ -2460,7 +2474,7 @@ def resolve_sy(text: str, *, name: str = "NEC deck") -> str:
                 f"{where}: expected a NEC card mnemonic, got {tokens[0]!r}"
             )
         if mnemonic == "SY":
-            _define_sy(stripped[2:], syms, where)
+            _define_sy(stripped[2:], syms, where, overrides, used)
             continue
         if in_comments:
             if wrote_comment:
@@ -2484,6 +2498,7 @@ def resolve_sy(text: str, *, name: str = "NEC deck") -> str:
         out.append(" ".join([mnemonic, *fields]))
         if mnemonic == "EN":
             break
+    _check_sy_overrides(overrides, used, name)
     return "\n".join(out) + "\n"
 
 
@@ -2729,8 +2744,11 @@ def _eval_sy_expr(expr: str, syms: dict, where: str) -> float:
     return finite(float(result), "result")
 
 
-def _define_sy(rest: str, syms: dict, where: str) -> None:
-    """Apply one SY card: ``name=expr[, name=expr...]['comment]``."""
+def _sy_assignments(rest: str, where: str) -> list[tuple[str, str]]:
+    """One SY card's ``(name, expr)`` pairs, in card order: the text after the
+    mnemonic is ``name=expr[, name=expr...]['comment]``. The one place the
+    card is split, so the evaluator (`_define_sy`) and the classifier
+    (`classify_sy`, AK#1705) cannot disagree about what a card assigns."""
     body = rest.split("'", 1)[0].strip()  # 4nec2 trailing comment
     if not body:
         raise ValueError(f"{where}: SY card without an assignment")
@@ -2746,6 +2764,7 @@ def _define_sy(rest: str, syms: dict, where: str) -> None:
             parts.append(body[start:i])
             start = i + 1
     parts.append(body[start:])
+    out = []
     for part in parts:
         if "=" not in part:
             raise ValueError(f"{where}: SY assignment {part.strip()!r} has no '='")
@@ -2753,7 +2772,385 @@ def _define_sy(rest: str, syms: dict, where: str) -> None:
         name = name.strip()
         if not name.isidentifier():
             raise ValueError(f"{where}: SY name {name!r} is not a valid symbol")
-        syms[name.lower()] = _eval_sy_expr(expr, syms, where)
+        out.append((name, expr))
+    return out
+
+
+def _define_sy(
+    rest: str,
+    syms: dict,
+    where: str,
+    overrides: Mapping[str, float] | None = None,
+    used: dict[str, int] | None = None,
+) -> None:
+    """Apply one SY card: ``name=expr[, name=expr...]['comment]``.
+
+    A symbol named in ``overrides`` (lower-case keys, AK#1705) takes the
+    override's value instead of its expression's; ``used`` counts how many
+    assignments each override replaced, so the caller can refuse an override
+    that named nothing or a symbol the deck assigns more than once."""
+    for name, expr in _sy_assignments(rest, where):
+        key = name.lower()
+        if overrides is not None and key in overrides:
+            syms[key] = float(overrides[key])
+            if used is not None:
+                used[key] = used.get(key, 0) + 1
+            continue
+        syms[key] = _eval_sy_expr(expr, syms, where)
+
+
+def _lower_overrides(overrides: Mapping[str, float] | None) -> dict | None:
+    """``overrides`` keyed by lower-case name (4nec2 names are
+    case-insensitive), or None when there are none."""
+    if not overrides:
+        return None
+    out: dict[str, float] = {}
+    for key, v in overrides.items():
+        low = key.lower()
+        if low in out:
+            raise ValueError(
+                f"SY symbol {key!r} is overridden twice (names ignore case)"
+            )
+        try:
+            fv = float(v)
+        except (TypeError, ValueError):
+            fv = math.nan
+        if not math.isfinite(fv):
+            raise ValueError(f"SY symbol {key!r} set to {v!r}, not a finite number")
+        out[low] = fv
+    return out
+
+
+def _check_sy_overrides(
+    overrides: Mapping[str, float] | None, used: dict[str, int], name: str
+) -> None:
+    """Refuse an override that replaced nothing, or replaced a symbol the deck
+    assigns more than once (AK#1705): which assignment it meant is ambiguous,
+    so such a symbol is never a knob."""
+    for key in overrides or ():
+        n = used.get(key, 0)
+        if n == 0:
+            raise ValueError(f"{name}: the deck defines no SY symbol {key!r}")
+        if n > 1:
+            raise ValueError(
+                f"{name}: SY symbol {key!r} is assigned {n} times in the deck, "
+                "so it cannot be set from outside"
+            )
+
+
+# ---------------------------------------------------------------------------
+# SY symbols as knobs (AK#1705)
+# ---------------------------------------------------------------------------
+# The cards a file design re-evaluates on every build: its geometry, and the
+# EX/LD/TL/NT/IS cards `build_network()` and the wire specs come from. FR,
+# GN/GD, GE and EK are read once, when the design loads (the app's frequency
+# dial and ground switch are seeded from them), and RP and the other run
+# cards are not applied at all -- so a symbol that reaches only those is not
+# a knob: moving it would change nothing the app solves.
+_SY_REBUILT_CARDS = frozenset(
+    ("GW", "GA", "GH", "GM", "GX", "GR", "GS", "GC", "EX", "LD", "TL", "NT", "IS")
+)
+# Integer fields per card, as the readers take them with `_Card.i` (GM's ITS,
+# field 9, is read as a float and rounded, the same thing).
+_SY_INT_FIELDS = {
+    **dict.fromkeys(("GW", "GA", "GH", "GX", "GR", "GS", "GC"), (0, 1)),
+    "GM": (0, 1, 8),
+    **dict.fromkeys(
+        ("EX", "LD", "TL", "NT", "IS", "FR", "GN", "GE", "EK", "GD"), (0, 1, 2, 3)
+    ),
+}
+# How a knob spells the 4nec2 unit symbol it was written with.
+_SY_UNIT_LABELS = {
+    "mm": "mm",
+    "cm": "cm",
+    "dm": "dm",
+    "m": "m",
+    "in": "in",
+    "ft": "ft",
+    "pf": "pF",
+    "nf": "nF",
+    "uf": "µF",
+    "nh": "nH",
+    "uh": "µH",
+    "mh": "mH",
+}
+
+
+@dataclass(frozen=True)
+class SySymbol:
+    """One SY symbol as `classify_sy` reads it (AK#1705).
+
+    ``kind`` is one of:
+
+    - ``"knob"`` -- a constant: its right-hand side names no other deck
+      symbol (a literal, literal arithmetic such as ``360/16``, or a literal
+      times a 4nec2 unit symbol such as ``1.5*mm``), assigned once, and
+      reaching a card the design rebuilds (`_SY_REBUILT_CARDS`);
+    - ``"derived"`` -- its right-hand side names another deck symbol; it is
+      re-evaluated from the knobs;
+    - ``"redefined"`` -- assigned more than once, so fixed;
+    - ``"unit"`` -- a unit selector: a right-hand side that is only a unit
+      symbol (``Inp=mm``), or a constant that sets the ``GS`` scale factor
+      (``Scal=1`` / ``Scal=ft``), which is how a 4nec2 deck chooses its units;
+    - ``"frequency"`` -- a constant that reaches the ``FR`` card and nothing
+      the design rebuilds (the app's frequency dial covers it);
+    - ``"inert"`` -- a constant that reaches nothing the design rebuilds
+      (unused, or read only by cards the import does not apply).
+
+    For a knob, ``default`` is its value in knob units: the literal before
+    the unit symbol when there is one (``unit`` names it, ``unit_factor``
+    converts), an ``int`` when the symbol lands directly in an integer card
+    field and its value is whole (``integer``), else the evaluated value.
+    ``label`` is the SY card's trailing ``'`` comment.
+    """
+
+    name: str  # lower case: 4nec2 names ignore case
+    spelling: str  # as the deck first wrote it
+    line: int
+    expr: str
+    label: str | None
+    kind: str
+    value: float  # the evaluated value, at the symbol's last assignment
+    assignments: int
+    refs: tuple[str, ...]  # deck symbols its right-hand side names
+    reaches: frozenset[str]  # card mnemonics it reaches, through derived ones
+    unit: str | None = None
+    unit_factor: float | None = None
+    default: float | int | None = None
+    integer: bool = False
+
+    @property
+    def param(self) -> str:
+        """The design param this knob is published as."""
+        return f"sy_{self.name}"
+
+    def symbol_value(self, knob_value) -> float:
+        """The value the SY symbol takes when the knob reads ``knob_value``:
+        whole for an integer knob, times the unit factor for a unit knob.
+        At the knob's default this is bit for bit the deck's own value."""
+        if self.integer:
+            return float(int(round(float(knob_value))))
+        if self.unit_factor is not None:
+            return float(knob_value) * self.unit_factor
+        return float(knob_value)
+
+
+def _sy_tokens(expr: str) -> list[tuple[str, object]] | None:
+    """``expr`` in the evaluator's own tokens (`_SY_TOKEN`, the ``#nn`` gauge
+    already a number), or None where the evaluator's tokenizer would fail."""
+    text = re.sub(r"#(\d+)", "0", expr.strip())
+    tokens: list[tuple[str, object]] = []
+    pos = 0
+    while pos < len(text):
+        m = _SY_TOKEN.match(text, pos)
+        if m is None or m.end() == m.start():
+            if not text[pos:].strip():
+                break
+            return None
+        pos = m.end()
+        num, ident, op = m.group(1), m.group(2), m.group(3)
+        if num is not None:
+            tokens.append(("num", float(num)))
+        elif ident is not None:
+            tokens.append(("ident", ident.lower()))
+        else:
+            tokens.append(("op", op))
+    return tokens
+
+
+def _sy_refs(tokens, known) -> set[str]:
+    """The deck symbols a tokenized expression reads. An identifier followed
+    by ``(`` is a function call; any other resolves against the deck's
+    symbols first and only then against the predefined constants, exactly as
+    `_eval_sy_expr`'s lookup does -- so a deck that defines ``mm`` itself
+    reads its own."""
+    out = set()
+    for i, (kind, val) in enumerate(tokens or ()):
+        if kind != "ident" or val not in known:
+            continue
+        if i + 1 < len(tokens) and tokens[i + 1] == ("op", "("):
+            continue
+        out.add(val)
+    return out
+
+
+def _sy_field_refs(token: str, known) -> set[str]:
+    """The deck symbols one card field reads, by the rules `_value` evaluates
+    it with: a plain number (Fortran D exponents included) reads none."""
+    if len(token) > 1 and token.endswith("%"):
+        token = token[:-1]
+    if token.startswith("#"):
+        m = re.match(r"#(\d+)(.*)\Z", token)
+        if m is None or not m.group(2):
+            return set()
+        token = "0" + m.group(2)
+    try:
+        _float(token, "")
+        return set()
+    except ValueError:
+        pass
+    return _sy_refs(_sy_tokens(token), known)
+
+
+def _sy_labels(comment: str, n: int) -> list[str | None]:
+    """Labels for a card's ``n`` assignments from its trailing comment.
+
+    The comment is the text after the card's first ``'``; a second ``'``
+    inside it starts a note on the note (3elYagiGain writes
+    ``SY Fr=14.05 '299.7925 ' Enter Desired Frequency in MHz.``), so the
+    label is the last non-empty ``'``-separated piece. A card with several
+    assignments whose label splits on commas into exactly that many pieces
+    labels them one each (``SY cu=5.8e7, fe=1.39e6 'Wire loading for
+    Copper, Steel``); otherwise every assignment gets the whole label."""
+    pieces = [p.strip() for p in comment.split("'")]
+    pieces = [p for p in pieces if p]
+    if not pieces:
+        return [None] * n
+    label = pieces[-1]
+    if n > 1:
+        parts = [p.strip() for p in label.split(",")]
+        if len(parts) == n and all(parts):
+            return parts
+    return [label] * n
+
+
+def classify_sy(text: str, *, name: str = "NEC deck") -> tuple[SySymbol, ...]:
+    """Every SY symbol in the deck, in definition order, classified as a knob
+    or not (AK#1705; `SySymbol` states the rules).
+
+    Reads the deck with the same line handling as `parse_nec` and
+    `resolve_sy` -- logical lines, ``'`` comments, fused mnemonics, SY cards
+    split by `_sy_assignments`, evaluated by `_eval_sy_expr`, stopping at
+    ``EN`` / ``NX`` -- so a symbol this calls a knob is one `parse_nec`'s
+    ``sy_overrides`` can set. A deck `parse_nec` refuses may raise here too.
+    """
+    syms: dict[str, float] = {}
+    recs: dict[str, dict] = {}
+    direct: dict[str, set[str]] = {}
+    int_use: set[str] = set()
+    gs_scale: set[str] = set()
+    for line_no, raw in _logical_lines(text):
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("'"):
+            continue
+        if stripped[:2].upper() in ("CM", "CE"):
+            continue
+        code, _, comment = stripped.partition("'")
+        code = code.rstrip()
+        if not code:
+            continue
+        where = f"{name}, line {line_no}"
+        tokens = _split_card_fields(code)
+        if (
+            len(tokens[0]) > 2
+            and tokens[0][:2].isalpha()
+            and tokens[0][2] in "0123456789.+-"
+        ):
+            tokens = [tokens[0][:2], tokens[0][2:], *tokens[1:]]
+        mnemonic = tokens[0].upper()
+        if mnemonic in ("EN", "NX"):
+            break
+        if mnemonic == "SY":
+            pairs = _sy_assignments(code[2:], where)
+            for (spelling, expr), label in zip(
+                pairs, _sy_labels(comment, len(pairs)), strict=True
+            ):
+                key = spelling.lower()
+                toks = _sy_tokens(expr)
+                refs = _sy_refs(toks, syms)
+                value = _eval_sy_expr(expr, syms, where)
+                syms[key] = value
+                rec = recs.get(key)
+                if rec is None:
+                    recs[key] = {
+                        "spelling": spelling,
+                        "line": line_no,
+                        "expr": expr.strip(),
+                        "label": label,
+                        "count": 1,
+                        "refs": set(refs),
+                        "tokens": toks,
+                        "value": value,
+                    }
+                else:
+                    rec["count"] += 1
+                    rec["refs"] |= refs
+                    rec["value"] = value
+            continue
+        int_fields = _SY_INT_FIELDS.get(mnemonic, ())
+        for k, tok in enumerate(tokens[1:]):
+            for ref in _sy_field_refs(tok, syms):
+                direct.setdefault(ref, set()).add(mnemonic)
+                if k in int_fields:
+                    int_use.add(ref)
+                if mnemonic == "GS" and k == 2:
+                    gs_scale.add(ref)
+
+    dependents: dict[str, set[str]] = {}
+    for key, rec in recs.items():
+        for ref in rec["refs"]:
+            dependents.setdefault(ref, set()).add(key)
+
+    def reach(key: str) -> frozenset[str]:
+        seen, stack, out = {key}, [key], set()
+        while stack:
+            k = stack.pop()
+            out |= direct.get(k, set())
+            for d in dependents.get(k, ()):
+                if d not in seen:
+                    seen.add(d)
+                    stack.append(d)
+        return frozenset(out)
+
+    out = []
+    for key, rec in recs.items():
+        toks = rec["tokens"] or []
+        reaches = reach(key)
+        unit = factor = default = None
+        integer = False
+        if rec["count"] > 1:
+            kind = "redefined"
+        elif rec["refs"]:
+            kind = "derived"
+        elif (len(toks) == 1 and toks[0][0] == "ident" and toks[0][1] in _SY_UNITS) or (
+            key in gs_scale
+        ):
+            kind = "unit"
+        elif not reaches & _SY_REBUILT_CARDS:
+            kind = "frequency" if "FR" in reaches else "inert"
+        else:
+            kind = "knob"
+            value = rec["value"]
+            shape = [t[0] for t in toks]
+            if shape in (["num", "ident"], ["num", "op", "ident"]) and (
+                shape == ["num", "ident"] or toks[1] == ("op", "*")
+            ):
+                u = toks[-1][1]
+                if u in _SY_UNITS and float(toks[0][1]) * _SY_CONSTANTS[u] == value:
+                    unit, factor = _SY_UNIT_LABELS[u], _SY_CONSTANTS[u]
+                    default = float(toks[0][1])
+            if default is None:
+                integer = key in int_use and float(value).is_integer()
+                default = int(value) if integer else float(value)
+        out.append(
+            SySymbol(
+                name=key,
+                spelling=rec["spelling"],
+                line=rec["line"],
+                expr=rec["expr"],
+                label=rec["label"],
+                kind=kind,
+                value=rec["value"],
+                assignments=rec["count"],
+                refs=tuple(sorted(rec["refs"])),
+                reaches=reaches,
+                unit=unit,
+                unit_factor=factor,
+                default=default,
+                integer=integer,
+            )
+        )
+    return tuple(out)
 
 
 def _awg_radius(gauge: int) -> float:
@@ -4647,6 +5044,7 @@ def parse_nec(
     name: str = "NEC deck",
     network: bool = False,
     virtualize_anchors: bool = True,
+    sy_overrides: Mapping[str, float] | None = None,
 ) -> NecDeck:
     """Parse the text of a NEC2 card deck into a :class:`NecDeck`.
 
@@ -4668,6 +5066,12 @@ def parse_nec(
       source behind a transformer or a transmission line.
 
     Set it ``False`` to model such wires as real geometry.
+
+    ``sy_overrides`` (AK#1705) sets SY symbols by case-insensitive name: the
+    named symbol takes that value at its definition, and every later symbol
+    and card field is evaluated from it, exactly as if the deck's text had
+    been edited there. A name the deck does not define, or defines more than
+    once, is refused. ``classify_sy`` says which symbols are knobs.
 
     Raises ``ValueError`` (with ``name`` and the line number) on cards that
     are malformed or describe things antennaknobs cannot model — patches,
@@ -4699,6 +5103,8 @@ def parse_nec(
     nec5_declared = False
     extended_kernel = False
     syms: dict[str, float] = {}  # SY symbol table (#417)
+    overrides = _lower_overrides(sy_overrides)
+    sy_used: dict[str, int] = {}
     sym_cell: int | None = None  # GX/GR symmetry cell, in segments (#946)
 
     geometry = {
@@ -4775,7 +5181,7 @@ def parse_nec(
             # 4nec2 symbolic variables (#417): bind name=expr (possibly
             # several per card, possibly with a trailing ' comment) into the
             # symbol table consulted by every later card field.
-            _define_sy(stripped[2:], syms, where)
+            _define_sy(stripped[2:], syms, where, overrides, sy_used)
             continue
         if mnemonic == "SP":
             # Refused either way — antennaknobs models wires only — but by the
@@ -5052,6 +5458,7 @@ def parse_nec(
         else:
             raise ValueError(f"{where}: unrecognised NEC card {mnemonic!r}")
 
+    _check_sy_overrides(overrides, sy_used, name)
     if not wires:
         raise ValueError(f"{name}: deck defines no wires")
 
