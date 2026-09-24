@@ -5,3 +5,6 @@
 # autocrlf normalise them.
 scratch/eznec-capture/** -text
 scratch/4nec2-capture/** -text
+# AK#1705's driving decks are byte-exact copies of the nec-wild originals
+# (one is CRLF); keep git from normalising them.
+tests/fixtures/sy_knobs_1705/*.nec -text
