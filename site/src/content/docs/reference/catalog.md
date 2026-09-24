@@ -10,14 +10,15 @@ simulator](https://app.antennaknobs.dev/) to drag its knobs. Many are modelled
 after L. B. Cebik (W4RNL)'s articles.
 
 :::caution[Buried-wire designs need a finite ground]
-Three designs put conductors *below* the surface —
+Four designs put conductors *below* the surface —
 `verticals.buried_radial_vertical`, `verticals.elevated_buried_counterpoise`,
-and `specialty.buried_dipole`. A buried wire only means anything under a
-Sommerfeld half-space, which is chosen at solve time rather than by the
-design, so solve them with `--ground finite:<eps_r>,<sigma>` (e.g.
-`--ground finite:13,0.005`). The PyNEC wrapper refuses a wire below `z = 0`
-outright; a licensed local NEC-5 (`--engine nec5`) serves buried decks as
-of v0.61.0. Since the one-rise hub spelling (issue #1108) **both engines run
+`specialty.buried_dipole`, and `wire.beverage` (its ground rods). A buried
+wire only means anything under a Sommerfeld half-space, which is chosen at
+solve time rather than by the design, so solve them with
+`--ground finite:<eps_r>,<sigma>` (e.g. `--ground finite:13,0.005`). The app
+withholds PyNEC and NEC-2 from buried decks: neither has a medium below the
+ground, and both solve a buried wire as though it were in air. A licensed
+local NEC-5 (`--engine nec5`) serves buried decks as of v0.61.0. Since the one-rise hub spelling (issue #1108) **both engines run
 the buried-radial vertical's default spelling**: N radials to a buried hub
 with one rise to the node,
 which momwire's crossing serve and NEC-5 both accept. The variants are
@@ -35,6 +36,35 @@ crossing-junction kernels got their C++ twin in momwire 0.41.0. In the
 requirement themselves: loading one auto-selects finite ground with the
 Sommerfeld method (the panel notes it), so the default
 reflection-coefficient method's by-name refusal never lands in your lap.
+:::
+
+:::note[The Beverage and its ground rods]
+`wire.beverage` is a 1.5 wl, 2.5 m high Beverage for 160 m (245.8 m of #14
+at 1.83 MHz) with a 500 Ω terminator, a 9:1 feed transformer, and a 1.8 m
+ground rod at each end; the beam points toward the terminated end. The rods
+cross into the soil, and **momwire's `razor-2p` is the momwire lane that
+serves them**: `bspline` and `sinusoidal-galerkin` refuse the deck by name,
+because the two rod tops are a Beverage's length apart and their pair falls
+under the grazing floor of those lanes' below-ground tables. At the
+defaults, `razor-2p` and a licensed NEC-5 at the same mesh agree:
+
+| 1.83 MHz, defaults | feed Z (Ω) | peak | F/B | RDF |
+| --- | --- | --- | --- | --- |
+| `razor-2p`, average soil (13, 0.005) | 675.9 − j99.5 | −9.10 dBi | 19.1 dB | 11.95 dB |
+| NEC-5, average soil | 676.0 − j99.3 | −9.10 dBi | 18.4 dB | 11.94 dB |
+| `razor-2p`, poor soil (13, 0.002) | 749.4 − j271.6 | −8.15 dBi | 19.5 dB | 12.22 dB |
+| NEC-5, poor soil | 749.5 − j271.5 | −8.14 dBi | 19.3 dB | 12.22 dB |
+
+The feed is the antenna side of the transformer. The two engines are
+0.03 Ω apart on the 50 Ω side of it. The low absolute gain is normal for a
+Beverage, which is judged by its RDF (the receiving directivity factor, peak
+gain over average gain). The rods are the wire's own radius, because momwire
+does not yet serve two radii with two crossing nodes. The `contact` variant
+stops the down-leads on the ground plane instead of in rods; there `razor-2p`,
+`bspline` and NEC-5 agree to within 2 Ω at the feed (531.6 − j1.9 Ω on
+`razor-2p`, average soil), a matched line. The module
+docstring carries the rest: rod depth, the terminator's share of the power,
+and a real 16 mm rod on NEC-5.
 :::
 
 ## Dipoles
@@ -131,6 +161,7 @@ whole shape with a `Drone` — see
 <!-- catalog:begin wire -->
 | Design | Notes |
 | --- | --- |
+| `wire.beverage` | Beverage receiving antenna with a ground rod at each end (AK#1707) · variants: `contact` |
 | `wire.doublet_balanced_tuner` | Center-fed doublet on open-wire line into a genuinely balanced tuner — the `FloatingBalun` showcase (issue #589) |
 | `wire.doublet_ladder_tuner` | 88 ft doublet + 100 ft of 600 Ω open-wire line + lossy T-network tuner — the "non-resonant wire and a matchbox" station, modelled from the rig (issue #300) · variants: `classic_edz`, `dipole`, `three_halves` |
 | `wire.edz` | Extended Double Zepp: 1.25 wl centre-fed doublet + series match (L. B. Cebik, W4RNL) |
