@@ -146,7 +146,6 @@ def test_dense_and_sector_agree_on_a_swept_impedance():
     "design",
     [
         "dipoles.invvee",  # a plain dipole
-        "verticals.vertical",  # a vertical over ground, but not buried
         "specialty.buried_dipole",  # buried, but not rotationally symmetric at all
     ],
 )
@@ -175,6 +174,23 @@ def test_a_disqualified_design_refuses_with_the_checkboxs_own_words(design):
     assert not reworded.lstrip().startswith("Traceback")
     # No fill happened: well under a second, generously, on a laptop.
     assert dt < 1.0, dt
+
+
+def test_an_above_ground_vertical_is_served_since_momwire_1131():
+    """momwire#1131 (0.63.0) opened the sector route to screens that are not
+    buried, so a vertical over ground -- refused before -- is served, and the
+    route is the dense solve through the same matrix."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        z_off, z_on = (
+            complex(
+                np.ravel(
+                    _engine("verticals.vertical", rotational_symmetry=rs).impedance()
+                )[0]
+            )
+            for rs in (False, True)
+        )
+    assert abs(z_on - z_off) / abs(z_off) < RTOL, (z_off, z_on)
 
 
 def test_the_settings_toml_round_trip_carries_the_flag(tmp_path):
