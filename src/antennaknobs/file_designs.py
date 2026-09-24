@@ -29,14 +29,17 @@ whatever the import left behind lands under ``ui_params["notes"]``.
 
 A ``.nec`` deck written in 4nec2's ``SY`` dialect keeps its parametrisation
 (AK#1705): every constant ``SY`` symbol (`nec_import.classify_sy`) is
-published as a knob ``sy_<name>``, labelled from the card's ``'`` comment, and
-``build_wires`` / ``build_network`` re-evaluate the deck from the knobs on
-every build (`_SyKnobs`), so derived symbols, segment counts written as
-``int(...)`` and everything else follow as the author wrote them. The deck's
-topology is frozen at its own values: a knob value that changes which wire
-ends meet, or makes the geometry invalid, is refused by name. A deck with no
-such constant -- every deck without ``SY`` cards -- is frozen geometry, as
-before, and a ``.ssn`` always is: port the design to a real ``AntennaBuilder``
+published as a knob ``sy_<name>``, labelled with its spelling (the card's
+``'`` comment is the tooltip), and ``build_wires`` / ``build_network``
+re-evaluate the deck from the knobs on every build (`_SyKnobs`), so derived
+symbols, segment counts written as ``int(...)`` and everything else follow as
+the author wrote them. A ``.ssn`` whose NEC cards name ``dcl`` constants
+(AK#1714, `simnec_import.classify_dcl`) gets the same treatment: each
+constant is a knob ``dcl_<name>`` (``tmp_<name>`` for a ``$name``
+temporary), its line's ``//`` comment the tooltip. The file's topology is
+frozen at its own values: a knob value that changes which wire ends meet, or
+makes the geometry invalid, is refused by name. A file with no such constant
+is frozen geometry, as before: port the design to a real ``AntennaBuilder``
 when its dimensions should tune.
 """
 
@@ -50,7 +53,7 @@ from types import MappingProxyType
 
 from .builder import AntennaBuilder
 from .nec_import import _NEC_SMIN, NEC_C_LIGHT_MHZ_M, classify_sy, parse_nec
-from .simnec_import import parse_ssn
+from .simnec_import import classify_dcl, parse_ssn
 
 __all__ = ["builder_from_file"]
 
@@ -177,8 +180,9 @@ def _make_builder(
         # command reads its segment counts and fed segments for the report.
         file_deck_parsed = file_deck
 
-        # The deck's SY knobs (AK#1705), None for a frozen deck. Not
-        # `sy_...`: that prefix is the knobs' own.
+        # The file's knobs -- a deck's SY constants (AK#1705), a circuit's
+        # dcl constants (AK#1714) -- None for a frozen file. Not `sy_...` /
+        # `dcl_...`: those prefixes are the knobs' own.
         file_sy_knobs = knobs
 
         def build_wires(self):
@@ -188,7 +192,7 @@ def _make_builder(
 
         def build_network(self):
             if knobs is not None:
-                return knobs.deck_for(self).network()
+                return knobs.network_for(self)
             return network_fn()
 
     if knobs is not None:
@@ -305,35 +309,70 @@ def _nice_step(x: float) -> float:
     return 10.0 ** math.floor(math.log10(x))
 
 
-class _SyKnobs:
-    """A deck's constant SY symbols as the design's knobs (AK#1705).
+# How the knobs of each file dialect speak in the import note.
+_SY_DIALECT = MappingProxyType(
+    {
+        "constant": "SY constant",
+        "file": "deck",
+        "frequency": "sets only the FR card; the frequency dial covers it",
+    }
+)
+_DCL_DIALECT = MappingProxyType(
+    {
+        "constant": "dcl constant",
+        "file": "file",
+        # SimNEC's Generator drives the solve; its FR card is advisory.
+        "frequency": (
+            "sets only the FR card, which SimNEC treats as advisory; the "
+            "frequency dial covers it"
+        ),
+    }
+)
 
-    Every build re-parses the deck with the knobs' values as
-    ``parse_nec(..., sy_overrides=)`` -- the same parse the import ran, with
-    those symbols set at their definition -- so derived symbols, ``int(...)``
-    segment counts and every card field follow exactly as they would from a
-    hand-edited deck. Parses are cached per knob tuple (a drag, the tracker
-    and the optimizer re-visit points; `build_wires` and `build_network`
-    both ask).
+
+class _SyKnobs:
+    """A file's constants as the design's knobs: a ``.nec`` deck's constant SY
+    symbols (AK#1705), or the dcl constants a ``.ssn``'s NEC cards read
+    (AK#1714). Both are `nec_import.SySymbol` records, classified by the same
+    rules (`classify_sy`, `simnec_import.classify_dcl`), so one machine
+    serves.
+
+    Every build re-parses the file with the knobs' values as overrides
+    (``reparse``: ``parse_nec(..., sy_overrides=)`` for a deck,
+    ``parse_ssn(..., dcl_overrides=)`` for a circuit) -- the same parse the
+    import ran, with those symbols set at their definition -- so derived
+    symbols, ``int(...)`` segment counts and every card field follow exactly
+    as they would from a hand-edited file. Parses are cached per knob tuple
+    (a drag, the tracker and the optimizer re-visit points; `build_wires` and
+    `build_network` both ask).
 
     A value is refused, naming the knobs that moved and what broke, when the
-    deck no longer parses at it (a segment count below 1, a feed or load off
+    file no longer parses at it (a segment count below 1, a feed or load off
     its wire, ...), when a wire collapses to zero length or a non-positive
     radius, or when the topology changes (`_topology`): it is frozen at the
-    deck's own values. A refused value is never cached, so the next good one
+    file's own values. A refused value is never cached, so the next good one
     builds as usual.
+
+    ``reparse`` returns the parsed file, whose ``network()`` is the design's
+    network; ``deck_of`` takes its NEC deck out of it (the file itself for a
+    deck, ``circuit.deck`` for a ``.ssn``).
     """
 
-    def __init__(self, stem, name, text, refine, symbols, default_deck):
-        self.stem, self.name, self.text, self.refine = stem, name, text, refine
+    def __init__(
+        self, stem, reparse, symbols, imported, *, deck_of=None, dialect=_SY_DIALECT
+    ):
+        self.stem, self.reparse, self.dialect = stem, reparse, dialect
+        self.deck_of = deck_of or (lambda parsed: parsed)
         self.symbols = tuple(s for s in symbols if s.kind == "knob")
         self.defaults = tuple(s.default for s in self.symbols)
         self._parse = functools.lru_cache(maxsize=16)(self._checked)
-        # Through the override path, not a copy of the import: `for_deck`
-        # compares the two and keeps the knobs only when they agree.
-        self.deck = self._parse(self._symbol_values(self.defaults), check=False)
+        # Through the override path, not a copy of the import: `_for` compares
+        # the two and keeps the knobs only when they agree.
+        self.parsed = self._parse(self._symbol_values(self.defaults), check=False)
+        self.deck = self.deck_of(self.parsed)
         self.topology = _topology(self.deck)
-        # A wire the deck ALREADY writes degenerate is the deck's business.
+        # A wire the file ALREADY writes degenerate is the file's business.
+        default_deck = self.deck_of(imported)
         self._degenerate = {
             i for i, w in enumerate(default_deck.wires) if w.p1 == w.p2 or w.radius <= 0
         }
@@ -341,28 +380,56 @@ class _SyKnobs:
         self.default_deck = default_deck
 
     @classmethod
-    def for_deck(cls, path: Path, text: str, refine: int, deck, freq):
-        """``(knobs, note)`` for a parsed deck: ``(None, None)`` when it has
-        no knob. The knobs are dropped, with a note, if the deck at their
-        defaults is not the deck as imported -- never a knob that moves the
-        design before anyone touches it."""
+    def _for(cls, stem, reparse, classify, imported, freq, **kw):
+        """``(knobs, note)``: ``(None, None)`` when the file has no knob. The
+        knobs are dropped, with a note, if the file at their defaults is not
+        the file as imported -- never a knob that moves the design before
+        anyone touches it."""
+        dialect = kw.get("dialect", _SY_DIALECT)
         try:
-            symbols = classify_sy(text, name=path.name)
+            symbols = classify()
         except ValueError:
             return None, None
         if not any(s.kind == "knob" for s in symbols):
             return None, None
         try:
-            knobs = cls(path.stem, path.name, text, refine, symbols, deck)
-            same = knobs.deck == deck
+            knobs = cls(stem, reparse, symbols, imported, **kw)
+            same = knobs.parsed == imported
         except ValueError:
             same = False
         if not same:
             return None, (
-                "The deck's SY symbols are not offered as knobs: re-evaluating "
-                "it from them does not reproduce the import exactly."
+                f"The {dialect['file']}'s {dialect['constant']}s are not offered "
+                f"as knobs: re-evaluating it from them does not reproduce the "
+                "import exactly."
             )
         return knobs, knobs.note(freq)
+
+    @classmethod
+    def for_deck(cls, path: Path, text: str, refine: int, deck, freq):
+        """A ``.nec`` deck's SY knobs (AK#1705)."""
+
+        def reparse(overrides):
+            return parse_nec(
+                text, name=path.name, network=True, sy_overrides=overrides
+            ).refined(refine)
+
+        return cls._for(
+            path.stem, reparse, lambda: classify_sy(text, name=path.name), deck, freq
+        )
+
+    @classmethod
+    def for_circuit(cls, path: Path, text: str, circuit, freq):
+        """A ``.ssn`` circuit's dcl knobs (AK#1714)."""
+        return cls._for(
+            path.stem,
+            lambda overrides: _ssn_circuit(text, path.name, overrides),
+            lambda: classify_dcl(text, name=path.name),
+            circuit,
+            freq,
+            deck_of=lambda c: c.deck,
+            dialect=_DCL_DIALECT,
+        )
 
     # -- values ------------------------------------------------------------
 
@@ -371,8 +438,8 @@ class _SyKnobs:
             s.symbol_value(v) for s, v in zip(self.symbols, values, strict=True)
         )
 
-    def deck_for(self, builder):
-        """The deck at ``builder``'s knob values, or a ValueError naming the
+    def parsed_for(self, builder):
+        """The file at ``builder``'s knob values, or a ValueError naming the
         knobs that moved and what the value broke."""
         values = []
         for s in self.symbols:
@@ -389,7 +456,7 @@ class _SyKnobs:
             return self._parse(symvals)
         except ValueError as e:
             moved = [
-                f"{s.param} = {v:g} (the deck has {d:g})"
+                f"{s.param} = {v:g} (the {self.dialect['file']} has {d:g})"
                 for s, v, d, sv, dv in zip(
                     self.symbols,
                     values,
@@ -400,17 +467,28 @@ class _SyKnobs:
                 )
                 if sv != dv
             ]
+            if not moved:
+                # The file's own values: what broke is the file's, not a knob's.
+                raise ValueError(f"{self.stem}: {e}") from None
             raise ValueError(
                 f"{self.stem}: {', '.join(moved)} is refused: {e}"
             ) from None
 
+    def deck_for(self, builder):
+        """The NEC deck at ``builder``'s knob values (see `parsed_for`)."""
+        return self.deck_of(self.parsed_for(builder))
+
+    def network_for(self, builder):
+        """The design's network at ``builder``'s knob values."""
+        return self.parsed_for(builder).network()
+
     def _checked(self, symvals, check=True):
-        overrides = {s.name: v for s, v in zip(self.symbols, symvals, strict=True)}
-        deck = parse_nec(
-            self.text, name=self.name, network=True, sy_overrides=overrides
-        ).refined(self.refine)
+        parsed = self.reparse(
+            {s.name: v for s, v in zip(self.symbols, symvals, strict=True)}
+        )
         if not check:
-            return deck
+            return parsed
+        deck = self.deck_of(parsed)
         for i, w in enumerate(deck.wires):
             if i in self._degenerate or i >= len(self.deck.wires):
                 continue
@@ -423,13 +501,14 @@ class _SyKnobs:
         change = _topology_change(self.topology, _topology(deck), deck)
         if change is not None:
             raise ValueError(
-                f"{change}; the deck's topology is frozen at its own values"
+                f"{change}; the {self.dialect['file']}'s topology is frozen at "
+                "its own values"
             )
         # Surface the translation's own refusals here, by name, rather than
         # from whichever consumer builds first.
         deck.wire_tuples(specs=True)
-        deck.network()
-        return deck
+        parsed.network()
+        return parsed
 
     # -- what the design publishes ----------------------------------------
 
@@ -446,7 +525,8 @@ class _SyKnobs:
         ``len``, ...) -- short, and what the deck author and a 4nec2 user
         know it by (AK#1709). The SY card's trailing comment, when it has
         one, goes into `description` instead: the tooltip, not a second
-        copy of the label."""
+        copy of the label. A ``.ssn``'s dcl constant is the same, with the
+        script's spelling and its line's ``//`` comment (AK#1714)."""
         extent = max(
             (abs(c) for w in self.deck.wires for c in (*w.p1, *w.p2)), default=0.0
         )
@@ -467,7 +547,8 @@ class _SyKnobs:
         knobs = self.symbols
         derived = [s for s in self.all_symbols if s.kind == "derived"]
         parts = [
-            f"{len(knobs)} SY constant{'s are' if len(knobs) != 1 else ' is a'} "
+            f"{len(knobs)} {self.dialect['constant']}"
+            f"{'s are' if len(knobs) != 1 else ' is a'} "
             f"knob{'s' if len(knobs) != 1 else ''} "
             f"({', '.join(s.param for s in knobs)})"
             + (
@@ -480,7 +561,7 @@ class _SyKnobs:
         why = {
             "redefined": "assigned more than once",
             "unit": "a unit selector",
-            "frequency": "sets only the FR card; the frequency dial covers it",
+            "frequency": self.dialect["frequency"],
             "inert": "reaches nothing the design is built from",
         }
         fixed = [
@@ -492,24 +573,24 @@ class _SyKnobs:
             if "FR" in s.reaches:
                 parts.append(
                     f"{s.param} also sets the FR card; the design and measurement "
-                    f"frequencies stay at the deck's {freq:g} MHz."
+                    f"frequencies stay at the {self.dialect['file']}'s {freq:g} MHz."
                 )
             late = [c for c in _LOAD_TIME_CARDS if c in s.reaches]
             if late:
                 parts.append(
                     f"{s.param} also sets the {'/'.join(late)} card, which stays "
-                    "at the deck's value."
+                    f"at the {self.dialect['file']}'s value."
                 )
         parts.append(
-            "The deck's topology is frozen at its own values: a knob value that "
-            "changes which wires meet is refused."
+            f"The {self.dialect['file']}'s topology is frozen at its own values: "
+            "a knob value that changes which wires meet is refused."
         )
         return " ".join(parts)
 
 
 class _DeckAtParams:
-    """``file_deck_parsed`` for a design with SY knobs: the deck as imported
-    on the class, the deck at the instance's knob values on an instance."""
+    """``file_deck_parsed`` for a design with knobs: the deck as imported on
+    the class, the deck at the instance's knob values on an instance."""
 
     def __init__(self, deck, knobs: _SyKnobs):
         self.deck, self.knobs = deck, knobs
@@ -578,20 +659,29 @@ def _ground_note(ground) -> str | None:
     return f"The file models {desc} ground — run with --ground {arg} to match."
 
 
+def _ssn_circuit(text: str, name: str, dcl_overrides=None):
+    """The circuit a ``.ssn`` design builds from: `parse_ssn` with the
+    wire material applied. The import and every knob re-parse (AK#1714) go
+    through here, so the two cannot differ by the material step."""
+    circuit = parse_ssn(text, name=name, network=True, dcl_overrides=dcl_overrides)
+    if circuit.conductivity is not None and circuit.deck.conductivity is None:
+        # NECOptions.mhosPerMeter is the wire material; bake it into the deck
+        # so wire_tuples(specs=True) carries it per wire, exactly as a deck
+        # LD 5 would. A deck that writes its own LD 5 keeps it: the two are
+        # never both applied.
+        circuit = replace(
+            circuit, deck=replace(circuit.deck, conductivity=circuit.conductivity)
+        )
+    return circuit
+
+
 def _ssn_builder(path: Path, text: str, refine: int = 1):
     if refine != 1:
         raise SystemExit(
             f"{path.name}: a SimNEC circuit has no refinement path; "
             "export it to .nec and refine the deck"
         )
-    circuit = parse_ssn(text, name=path.name, network=True)
-    if circuit.conductivity is not None and circuit.deck.conductivity is None:
-        # NECOptions.mhosPerMeter is the wire material; bake it into the deck
-        # so wire_tuples(specs=True) carries it per wire, exactly as a deck
-        # LD 5 would.
-        circuit = replace(
-            circuit, deck=replace(circuit.deck, conductivity=circuit.conductivity)
-        )
+    circuit = _ssn_circuit(text, path.name)
     deck = circuit.deck
     # The Generator's MHz is the authoritative solve frequency; the deck's FR
     # is advisory. Either can seed the measurement range (an armed sweep wins).
@@ -601,6 +691,7 @@ def _ssn_builder(path: Path, text: str, refine: int = 1):
         freq, _, freq_note = _seed_freq(deck.freq_mhz)
     meas_range = circuit.sweep or deck.freq_mhz
     sweep_grid = circuit.sweep_grid if circuit.sweep else deck.freq_grid
+    knobs, knob_note = _SyKnobs.for_circuit(path, text, circuit, freq)
     return _make_builder(
         path.stem,
         freq,
@@ -610,6 +701,7 @@ def _ssn_builder(path: Path, text: str, refine: int = 1):
             circuit.mesh_note(),
             _ground_note(circuit.ground),
             freq_note,
+            knob_note,
         ],
         lambda: deck.wire_tuples(specs=True),
         circuit.network,
@@ -627,6 +719,7 @@ def _ssn_builder(path: Path, text: str, refine: int = 1):
         # hop purely because this loader forgot to carry the fact forward.
         file_deck=deck,
         sweep_grid=sweep_grid,
+        knobs=knobs,
     )
 
 

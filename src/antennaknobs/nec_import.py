@@ -2902,6 +2902,11 @@ class SySymbol:
     converts), an ``int`` when the symbol lands directly in an integer card
     field and its value is whole (``integer``), else the evaluated value.
     ``label`` is the SY card's trailing ``'`` comment.
+
+    A ``.ssn``'s dcl constants are classified by the same rules
+    (`simnec_import.classify_dcl`, AK#1714): there ``name`` and ``spelling``
+    are the script's case-sensitive name, ``label`` the line's ``//``
+    comment, and ``param_name`` the design param (``dcl_<name>``).
     """
 
     name: str  # lower case: 4nec2 names ignore case
@@ -2918,11 +2923,13 @@ class SySymbol:
     unit_factor: float | None = None
     default: float | int | None = None
     integer: bool = False
+    # The design param, when not ``sy_<name>`` (a .ssn dcl constant).
+    param_name: str | None = None
 
     @property
     def param(self) -> str:
         """The design param this knob is published as."""
-        return f"sy_{self.name}"
+        return self.param_name or f"sy_{self.name}"
 
     def symbol_value(self, knob_value) -> float:
         """The value the SY symbol takes when the knob reads ``knob_value``:

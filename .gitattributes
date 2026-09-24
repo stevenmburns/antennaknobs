@@ -8,3 +8,6 @@ scratch/4nec2-capture/** -text
 # AK#1705's driving decks are byte-exact copies of the nec-wild originals
 # (one is CRLF); keep git from normalising them.
 tests/fixtures/sy_knobs_1705/*.nec -text
+# AK#1714's driving circuits are byte-exact copies of AC6LA's SimNEC examples
+# (both mix CRLF and LF line ends); keep git from normalising them.
+tests/fixtures/ssn_dcl_knobs_1714/*.ssn -text
