@@ -35,6 +35,11 @@ export type SchemaParamSpec = {
   // lines). When present the field opts out of auto-flow and lands at the
   // given row/col, optionally spanning multiple tracks. null = auto-flow.
   layout?: KnobLayout | null;
+  // One sentence rendered as the knob's native `title` tooltip in place of
+  // the default "label · param: name" (AK#1709). SY-knob decks (AK#1705)
+  // use it for the SY card's own comment, while the knob itself shows the
+  // short SY spelling. Absent/null keeps today's fallback rule.
+  description?: string | null;
 };
 
 // Per-knob grid placement. All fields optional; mapped onto inline
