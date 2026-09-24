@@ -960,6 +960,35 @@ export function useAnalysisRunners({
     }
   }
 
+  // The user's "Cancel solve" (AK#1712): stop every batch this session has in
+  // flight or waiting on its dwell. The server's session cancel already trips
+  // each one's lane token; aborting here as well closes the streams now rather
+  // than when the server gets round to ending them, and clearing the dwell
+  // timers stops a batch the user never saw start from starting a moment
+  // after the cancel. What is already drawn stays drawn: the next knob change
+  // re-runs everything through the effects above, as before.
+  function abortInFlight() {
+    for (const timer of [
+      sweepTimerRef,
+      sweepRefineTimerRef,
+      convergeTimerRef,
+      normCheckTimerRef,
+      patternTimerRef,
+    ]) {
+      if (timer.current) window.clearTimeout(timer.current);
+      timer.current = null;
+    }
+    for (const ctrl of [
+      sweepAbortRef,
+      sweepRefineAbortRef,
+      convergeAbortRef,
+      normCheckAbortRef,
+      patternAbortRef,
+    ]) {
+      ctrl.current?.abort();
+    }
+  }
+
   return {
     sweep,
     sweepRunning,
@@ -970,5 +999,6 @@ export function useAnalysisRunners({
     convergeRunning,
     normCheck,
     pattern,
+    abortInFlight,
   };
 }

@@ -1610,24 +1610,39 @@ function DesignSessionBody({
     // does not: wait for it, or the metrics would be filed under the wrong
     // solve. Its arrival re-runs this effect.
     if (stale) return;
+    // The same, after a CANCELLED solve (AK#1712): `stale` clears at the
+    // cancel, but the knobs still describe the design the user just stopped,
+    // not `result`. Fetching here would restart that very solve on the server
+    // 300 ms after the cancel. A result older than the channel's generation
+    // is exactly that case; the next solve's arrival re-runs this effect.
+    if (typeof result._seq === "number" && result._seq < seqRef.current) return;
     const r = result;
     let cancelled = false;
+    // Aborted on cleanup, not just ignored (AK#1712): the fetch is a full
+    // server-side solve, and a result that moved on must stop it rather than
+    // leave it grinding. The generation lets the lane supersede it too.
+    const controller = new AbortController();
     const h = window.setTimeout(() => {
       // Read at fire time, not at schedule time: the dwell is 300 ms and the
       // metrics must describe the design as it now stands. Null only before
       // the first solve, which `result` above already excludes (issue #768).
       const controls = controlsRef.current;
       if (!controls) return;
-      fetchMetrics(controls).then((m) => {
+      fetchMetrics(controls, {
+        gen: seqRef.current,
+        signal: controller.signal,
+      }).then((m) => {
         if (!cancelled) setLiveMetricsFor({ result: r, metrics: m });
       });
     }, 300);
     return () => {
       cancelled = true;
       window.clearTimeout(h);
+      controller.abort();
     };
-    // result identity changes per solve; that's the cue to refresh.
-  }, [comparing, result, active, stale]);
+    // result identity changes per solve; that's the cue to refresh. seqRef is
+    // the channel's stable ref (read at run time, never a trigger).
+  }, [comparing, result, active, stale, seqRef]);
   // Only ever the CURRENT solve's metrics: null (the table's "…") while the
   // new ones are on their way.
   const liveMetrics =
@@ -1657,7 +1672,8 @@ function DesignSessionBody({
     // on-screen `result` does not, and the answer would be filed under it.
     if (!controls || !r || stale) return;
     setMaxFetch({ result: r, metrics: null, pending: true });
-    fetchMetrics(controls).then((m) => {
+    // The live design: a newer solve supersedes it on the lane (AK#1712).
+    fetchMetrics(controls, { gen: seqRef.current }).then((m) => {
       setMaxFetch((prev) =>
         prev?.result === r ? { result: r, metrics: m, pending: false } : prev,
       );
@@ -1909,6 +1925,7 @@ function DesignSessionBody({
     convergeRunning,
     normCheck,
     pattern,
+    abortInFlight,
   } = useAnalysisRunners({
       backend,
       currentVariant,
@@ -2263,7 +2280,12 @@ function DesignSessionBody({
     <SolveOverlays
       showBusy={showBusy}
       solving={solving}
-      onCancelSolve={cancelSolve}
+      onCancelSolve={() => {
+        // AK#1712: the server stops the live solve and every batch on this
+        // session's lane; the client drops its batch streams and dwells too.
+        cancelSolve();
+        abortInFlight();
+      }}
       solverWarning={solverWarning}
       backendDisallowed={backendDisallowed}
       backend={backend}

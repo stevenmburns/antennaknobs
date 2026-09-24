@@ -187,3 +187,51 @@ describe("a refusal between scheduling and sending", () => {
     expect(FakeWebSocket.last!.sent).toHaveLength(0);
   });
 });
+
+// --------------------------------------------------------------------------
+// Cancel reaches the server (AK#1712)
+// --------------------------------------------------------------------------
+//
+// "Cancel solve" used to be purely client-side: it dropped the result and
+// sent nothing, so the server ran a cold Sommerfeld fill to completion many
+// minutes after the button. The server can only stop what it is told about.
+
+describe("cancelSolve", () => {
+  beforeEach(() => {
+    FakeWebSocket.last = null;
+    globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
+    frames.length = 0;
+    globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) =>
+      frames.push(cb)) as typeof requestAnimationFrame;
+  });
+  afterEach(() => {
+    globalThis.WebSocket = realWs;
+    globalThis.requestAnimationFrame = realRaf;
+  });
+
+  it("sends a session cancel with a fresh generation", () => {
+    const controlsRef = {
+      current: { geometry: "x", _session: "tab-1" } as unknown as SolveRequest,
+    };
+    const { result } = mount(controlsRef);
+    act(() => FakeWebSocket.last!.open());
+    act(() => flushFrame()); // the onopen send: seq 1, in flight
+    expect(result.current.solving).toBe(true);
+
+    act(() => result.current.cancelSolve());
+
+    const sent = FakeWebSocket.last!.sent.map((m) => JSON.parse(m));
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toEqual({ _kind: "cancel", _session: "tab-1", _seq: 2 });
+    // The client stops waiting at once, as before.
+    expect(result.current.solving).toBe(false);
+
+    // The next solve is newer than the cancel, so the server's lane (whose
+    // generation the cancel advanced) runs it rather than calling it stale.
+    act(() => result.current.requestSolve());
+    act(() => flushFrame());
+    const next = JSON.parse(FakeWebSocket.last!.sent[2]);
+    expect(next._seq).toBe(3);
+    expect(result.current.solving).toBe(true);
+  });
+});
