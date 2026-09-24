@@ -13,8 +13,9 @@ it degrades F/B — measured on the `contact` variant with PyNEC over a
 Sommerfeld ground, where a solve takes about a second.
 
 HEAVY (`heavy_mesh`, run manually). The same questions asked of the rod
-design itself on razor-2p, the only momwire lane that serves it, plus the
-rods-versus-contact difference and the RDF. The first solve builds the
+design itself on razor-2p, plus the rods-versus-contact difference, the
+RDF, and bspline's feed impedance (bspline and sinusoidal-Galerkin serve the
+deck since momwire#1187). A razor-2p lane's first solve builds the
 below-ground tables (~90 s, ~350 MB); the rest reuse them, and the lane
 takes about two minutes.
 """
@@ -33,11 +34,13 @@ from antennaknobs.designs.wire.beverage import Builder
 from antennaknobs.engines.momwire import MomwireEngine
 from antennaknobs.network import Load, Transformer
 from antennaknobs.web.adapter import design_backend_coverage
+import momwire._sommerfeld_below
 from momwire import BSplineSolver, RazorSolver, SinusoidalGalerkinSolver
 
 C_LIGHT = 299792458.0
 AVERAGE = ("finite", 13.0, 0.005)
 POOR = ("finite", 13.0, 0.002)
+BSPLINE_RIG_Z = 75.022 - 10.943j
 RAZOR_2P = {"solver": RazorSolver, "solver_kwargs": {"nec5_quadrature": True}}
 
 
@@ -154,18 +157,68 @@ def test_razor_2p_serves_the_rod_deck(ground):
     assert _razor_solver(Builder(), ground).buried_serve_refusal() is None
 
 
+# momwire#1187 (momwire 0.63.0) asks the below/below grazing floor only of
+# pairs inside the R1 cap. Before it, bspline and SG refused this deck by name
+# on the rod tops' pair, ~246 m apart, whose value is served as zero anyway.
+# The guard asks the BUILD, not the version: the submodule pointer runs ahead
+# of the PyPI release, so a build with the fix and one without can both say
+# 0.62.0 (momwire's own `__init__` makes the same point). `below_r1_cap` is the
+# name #1187 introduced for the capped floor's arithmetic, and it is absent
+# from every momwire before it.
+_FLOOR_ASKS_INSIDE_THE_CAP = hasattr(momwire._sommerfeld_below, "below_r1_cap")
+
+
+@pytest.mark.skipif(
+    not _FLOOR_ASKS_INSIDE_THE_CAP,
+    reason="installed momwire predates momwire#1187 (no "
+    "_sommerfeld_below.below_r1_cap): bspline and SG refuse the rod deck on "
+    "the grazing floor until the pin reaches momwire 0.63.0",
+)
+@pytest.mark.parametrize("ground", [AVERAGE, POOR], ids=["average", "poor"])
 @pytest.mark.parametrize(
     "solver", [BSplineSolver, SinusoidalGalerkinSolver], ids=lambda c: c.__name__
 )
-def test_bspline_and_galerkin_refuse_the_rod_deck_by_name(solver):
-    """These lanes' quadrature reaches within a centimetre of the interface,
-    so their below/below pair between the two rod tops, ~246 m apart, is far
-    under the 1-arc-minute grazing floor the tables start at (momwire#1149
-    measures bspline reaching the floor at 12 m on its own two-node deck).
-    Pinned so the day either serves, this fails and the docstring's engine
-    list is revisited."""
-    with pytest.raises(ValueError, match="grazing floor"):
-        MomwireEngine(Builder(), ground=AVERAGE, solver=solver)
+def test_bspline_and_galerkin_serve_the_rod_deck(solver, ground):
+    """The engine's construction runs the buried pre-flight (the solver's own
+    `buried_serve_refusal` where it has one, else `below_reach_refusal`), and
+    that is what raised on these lanes before momwire#1187. It passes, and
+    where the solver can answer exactly it says None."""
+    b = Builder()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        eng = MomwireEngine(b, ground=ground, solver=solver)
+        solver_obj = eng._make_solver(wavelength=C_LIGHT / (b.freq * 1e6))
+    ask = getattr(solver_obj, "buried_serve_refusal", None)
+    if ask is not None:
+        assert ask() is None
+
+
+@pytest.mark.skipif(
+    not _FLOOR_ASKS_INSIDE_THE_CAP,
+    reason="installed momwire predates momwire#1187: the app's default lane "
+    "(bspline) refuses the rod deck until the pin reaches momwire 0.63.0",
+)
+def test_the_apps_default_lane_loads_the_rod_deck():
+    """What the web app does on load: a request naming no momwire model gets
+    bspline, over the finite Sommerfeld ground the design's
+    `ground_requirement` selects, and the engine it builds carries no
+    refusal."""
+    from antennaknobs.web import adapter
+
+    req = {
+        "geometry": "wire.beverage",
+        "ground": True,
+        "ground_model": "sommerfeld",
+        "params": {},
+    }
+    builder = adapter._build_builder(Builder, req)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        eng = adapter._make_momwire_engine(req, builder)
+        solver = eng._make_solver(wavelength=C_LIGHT / (builder.freq * 1e6))
+    assert eng._ground == AVERAGE
+    assert type(solver) is BSplineSolver
+    assert solver.buried_serve_refusal() is None
 
 
 def test_nec2_family_is_refused_by_name_on_the_rod_deck():
@@ -267,6 +320,29 @@ def test_heavy_rods_beverage_on_razor_2p():
     assert term_row / eng._excited_p_in == pytest.approx(0.329, abs=0.01), budget
     # Rig side; NEC-5 at the same mesh reads 75.222 - 10.849j.
     assert abs(z - (75.221 - 10.841j)) < 0.1, z
+
+
+@pytest.mark.heavy_mesh
+@pytest.mark.skipif(
+    not _FLOOR_ASKS_INSIDE_THE_CAP,
+    reason="installed momwire predates momwire#1187: bspline refuses the rod deck",
+)
+def test_heavy_rods_beverage_on_bspline():
+    """The app's default lane on the rod design, average soil. bspline sits
+    about 0.3 % from NEC-5 here (675.196 - 98.488j ohm at the feed against
+    NEC-5's 677.002 - 97.638j, the known bspline-vs-NEC-5 buried formulation
+    difference the module docstring states), so the pin is bspline's own
+    number, and the gap is held under 0.5 % so a regression toward or away
+    from NEC-5 is seen."""
+    b = Builder()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        eng = MomwireEngine(b, ground=AVERAGE, solver=BSplineSolver)
+        z = complex(eng.impedance()[0])
+    # Rig side, 1/9 of the feed.
+    assert abs(z - BSPLINE_RIG_Z) < 0.1, z
+    nec5_rig = (677.002 - 97.638j) / 9.0
+    assert abs(z - nec5_rig) / abs(nec5_rig) < 0.005, z
 
 
 @pytest.mark.heavy_mesh
