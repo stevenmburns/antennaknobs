@@ -137,6 +137,38 @@ describe("ParamForm — scalar float/int knob", () => {
     const field = slider.closest(".field-knob") as HTMLElement;
     expect(field.querySelector(".knob-value")?.textContent).toBe("7.0");
   });
+
+  // AK#1709: an SY knob shows the deck's short spelling as its label, and
+  // the SY card's comment as the tooltip -- not both concatenated.
+  it("title is the description alone when set, even when name !== label", () => {
+    const schema: SchemaItem[] = [
+      makeParam({
+        name: "sy_len",
+        label: "len",
+        description: "Length radiator",
+        default: 10.472,
+      }),
+    ];
+    renderForm(schema, { sy_len: 10.472 });
+    const label = screen.getByText("len");
+    expect(label.getAttribute("title")).toBe("Length radiator");
+  });
+
+  it("title keeps today's 'label · param: name' rule when description is absent", () => {
+    const schema: SchemaItem[] = [
+      makeParam({ name: "sy_len", label: "Length radiator", default: 10.472 }),
+    ];
+    renderForm(schema, { sy_len: 10.472 });
+    const label = screen.getByText("Length radiator");
+    expect(label.getAttribute("title")).toBe("Length radiator · param: sy_len");
+  });
+
+  it("title is just the label when name === label and description is absent", () => {
+    const schema: SchemaItem[] = [makeParam({ name: "len", label: "len", default: 3 })];
+    renderForm(schema, { len: 3 });
+    const label = screen.getByText("len");
+    expect(label.getAttribute("title")).toBe("len");
+  });
 });
 
 describe("ParamForm — bool", () => {

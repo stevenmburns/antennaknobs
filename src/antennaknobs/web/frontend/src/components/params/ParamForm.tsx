@@ -230,7 +230,13 @@ export function ParamForm({
           >
             <span
               className="knob-label"
-              title={item.name === item.label ? item.label : `${item.label} · param: ${item.name}`}
+              title={
+                item.description
+                  ? item.description
+                  : item.name === item.label
+                    ? item.label
+                    : `${item.label} · param: ${item.name}`
+              }
             >
               {item.label}
             </span>
