@@ -37,6 +37,8 @@ __all__ = [
     "pattern_metrics",
     "refined_pattern_metrics",
     "radiated_fraction",
+    "average_gain",
+    "rdf_db",
     "resolve_range",
     "gen_xs",
     "sweep",
@@ -98,6 +100,8 @@ from .far_field import (
     pattern,
     pattern3d,
     radiated_fraction,
+    average_gain,
+    rdf_db,
 )
 from .serialize import params_source, builder_params_source
 from .cli import cli

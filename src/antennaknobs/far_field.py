@@ -18,6 +18,15 @@ def _as_engine(obj):
     return Antenna(obj)
 
 
+def _engine_has_ground(engine):
+    """Whether this engine solves over a ground: its pattern's lower
+    hemisphere is then empty, and a θ ≤ 90° grid is the whole sphere's
+    integral (`average_gain`). The momwire engine keeps it as `_ground`
+    (None in free space), the NEC wrappers as `ground` ("free" or None)."""
+    g = getattr(engine, "ground", getattr(engine, "_ground", None))
+    return g is not None and g != "free"
+
+
 def _default_name(obj):
     if isinstance(obj, SimulationEngine):
         return type(obj).__name__
@@ -125,7 +134,76 @@ def _beamwidth_linear(angles, gains, peak_idx, threshold):
     return walk(+1) + walk(-1)
 
 
-def pattern_metrics(ff, *, beamwidth_db=3.0):
+def average_gain(gain_dbi, thetas_deg, phis_deg):
+    """The pattern's AVERAGE GAIN, linear: (1/4π)∬ G(θ, φ) dΩ over the grid.
+
+    `gain_dbi` is the (n_theta, n_phi) grid in dBi, θ from the zenith and φ
+    from +x, both in degrees. The φ grid must go all the way round: either a
+    CLOSED ring (0 ... 360, the duplicated endpoint the far-field grids carry)
+    or an OPEN one (0 ... 359, which is wrapped here). Trapezoid in both
+    angles, weighted by sin θ.
+
+    The normalisation is ALWAYS the full sphere, 4π, whatever the θ grid
+    covers. Over a ground the lower hemisphere carries no radiation, so a grid
+    that stops at the horizon is the whole integral and the missing half
+    contributes zero — this is EZNEC's "Average Gain", the one the published
+    RDF figures (W8JI, ON4UN) subtract. Normalising by the upper hemisphere's
+    2π instead would read 3.01 dB higher and is NOT what those figures mean.
+    It follows that a free-space pattern must be sampled over the whole
+    sphere (θ to 180°) for this to be its average gain.
+
+    Since gain is power density per INPUT watt, the average gain is also
+    P_radiated / P_input — the same integral `radiated_fraction` takes.
+    """
+    g = 10.0 ** (np.asarray(gain_dbi, float) / 10.0)
+    th = np.radians(np.asarray(thetas_deg, float))
+    ph = np.asarray(phis_deg, float)
+    if g.shape != (th.size, ph.size):
+        raise ValueError(
+            f"gain grid {g.shape} does not match {th.size} thetas x {ph.size} phis"
+        )
+    span = float(ph[-1] - ph[0])
+    if abs(span - 360.0) > 1e-6:
+        # An open ring: close it with its own first column, one step on.
+        step = float(ph[1] - ph[0]) if ph.size > 1 else 360.0
+        if abs(span + step - 360.0) > 1e-6:
+            raise ValueError(
+                f"the phi grid spans {span:g} deg; an average gain needs the "
+                "whole ring (0..360 closed, or 0..360-step open)"
+            )
+        g = np.concatenate([g, g[:, :1]], axis=1)
+        ph = np.append(ph, ph[0] + 360.0)
+    ring = np.trapezoid(g, np.radians(ph), axis=1)
+    return float(np.trapezoid(ring * np.sin(th), th) / (4.0 * np.pi))
+
+
+def rdf_db(target_gain_dbi, gain_dbi, thetas_deg, phis_deg):
+    """Receiving Directivity Factor, dB (AK#1707).
+
+        RDF = G(target) − 10·log10( (1/4π) ∬ G(θ, φ) dΩ )
+
+    the forward gain in dBi minus the average gain in dB (`average_gain`,
+    normalised by the FULL sphere, with the lower hemisphere contributing
+    nothing over a ground). This is the figure of merit W8JI and ON4UN use for
+    receiving antennas: on a band limited by atmospheric noise arriving from
+    every direction, the signal-to-noise ratio the antenna delivers depends on
+    how much it favours the wanted direction over the average of all of them,
+    not on its absolute gain — a Beverage at −10 dBi and a dipole at +6 dBi are
+    judged on the same scale.
+
+    Two properties worth knowing. Loss cancels: gain and average gain carry
+    the same efficiency, so RDF is the DIRECTIVITY in the target direction,
+    4π·U/P_rad, and ground or terminator loss does not move it. And the full-
+    sphere normalisation makes a lossless antenna over perfect ground read its
+    ordinary directivity: a short monopole over PEC reads 4.77 dB (3x), an
+    isotropic radiator in free space 0 dB.
+    """
+    return float(target_gain_dbi) - 10.0 * np.log10(
+        average_gain(gain_dbi, thetas_deg, phis_deg)
+    )
+
+
+def pattern_metrics(ff, *, beamwidth_db=3.0, has_ground=None):
     """Summarise a `FarField` into scalar metrics for comparing antennas.
 
     Returns a dict with:
@@ -139,6 +217,14 @@ def pattern_metrics(ff, *, beamwidth_db=3.0):
       * `el_beamwidth_deg` — −`beamwidth_db` width through the peak in the
                              elevation column at the peak's azimuth (a lower
                              bound when the lobe meets the 0°/90° limit)
+      * `rdf_db`           — receiving directivity factor at the peak (`rdf_db`,
+                             the function). NEC-convention grids stop at
+                             θ = 89°, so this is only the whole integral when
+                             the lower hemisphere is known to be empty: pass
+                             `has_ground=True` for a pattern over a ground.
+                             None when the grid is a hemisphere and
+                             `has_ground` is not True — a free-space pattern
+                             sampled over half the sphere has no average gain.
     """
     rings = np.asarray(ff.rings, float)
     thetas = np.asarray(ff.thetas, float)
@@ -167,6 +253,11 @@ def pattern_metrics(ff, *, beamwidth_db=3.0):
         "front_to_back_db": front_to_back,
         "az_beamwidth_deg": _beamwidth_wrapped(phis, ring, pi, thr),
         "el_beamwidth_deg": _beamwidth_linear(90.0 - thetas, rings[:, pi], ti, thr),
+        "rdf_db": (
+            rdf_db(peak, rings, thetas, phis)
+            if has_ground or float(np.max(thetas)) > 90.0
+            else None
+        ),
     }
 
 
@@ -193,7 +284,11 @@ def refined_pattern_metrics(gain, *, beamwidth_db=3.0, tol_deg=0.01):
         each angle, so the peak gain is the lobe's and not its nearest sample;
       * takes F/B and both beamwidths through the REFINED direction: the
         azimuth ring at its elevation, and the elevation column at its
-        azimuth, running to the horizon (to the nadir in free space).
+        azimuth, running to the horizon (to the nadir in free space);
+      * takes the RDF (AK#1707) as the refined peak gain over the average
+        gain of the 1° search grid — the upper hemisphere to the horizon over
+        a ground, the whole sphere in free space, normalised by 4π either way
+        (`rdf_db`).
 
     Returns the same keys as `pattern_metrics`.
     """
@@ -248,6 +343,7 @@ def refined_pattern_metrics(gain, *, beamwidth_db=3.0, tol_deg=0.01):
         "front_to_back_db": peak - float(ring[180]),
         "az_beamwidth_deg": float(_beamwidth_wrapped(ring_phis, ring, 0, thr)),
         "el_beamwidth_deg": float(_beamwidth_linear(90.0 - col_thetas, col, ci, thr)),
+        "rdf_db": rdf_db(peak, grid, thetas, phis),
     }
 
 
@@ -359,6 +455,7 @@ def _print_metrics_table(names, metrics_lst):
         ("F/B dB", "front_to_back_db", "{:.1f}"),
         ("az bw°", "az_beamwidth_deg", "{:.0f}"),
         ("el bw°", "el_beamwidth_deg", "{:.0f}"),
+        ("RDF dB", "rdf_db", "{:.1f}"),
     ]
     name_w = max([len("design")] + [len(str(n)) for n in names])
     header = "design".ljust(name_w) + "  " + "  ".join(h.rjust(8) for h, _, _ in cols)
@@ -367,7 +464,8 @@ def _print_metrics_table(names, metrics_lst):
     for nm, m in zip(names, metrics_lst, strict=True):
         row = str(nm).ljust(name_w)
         for _, key, fmt in cols:
-            row += "  " + fmt.format(m[key]).rjust(8)
+            v = m.get(key)
+            row += "  " + ("—" if v is None else fmt.format(v)).rjust(8)
         print(row)
 
 
@@ -389,7 +487,7 @@ def compare_patterns(
     that, engine instances get their class name (e.g. "PyNECEngine",
     "MomwireEngine") and bare builders fall back to "Unknown" for
     backwards compatibility. With `show_metrics` (default) a peak-gain /
-    takeoff / F-B / beamwidth table is printed alongside the plot."""
+    takeoff / F-B / beamwidth / RDF table is printed alongside the plot."""
     if builder_names is None:
         builder_names = [_default_name(b) for b in builders_or_engines]
 
@@ -400,9 +498,10 @@ def compare_patterns(
     for item in builders_or_engines:
         a = _as_engine(item)
         ff = a.far_field(n_theta=90, n_phi=360, del_theta=1, del_phi=1)
+        has_ground = _engine_has_ground(a)
         del a
         rings_lst.append(ff.rings)
-        metrics_lst.append(pattern_metrics(ff))
+        metrics_lst.append(pattern_metrics(ff, has_ground=has_ground))
         thetas, phis = ff.thetas, ff.phis
 
     if show_metrics:

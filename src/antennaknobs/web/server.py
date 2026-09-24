@@ -2852,7 +2852,8 @@ async def pattern_metrics_endpoint(req: dict, request: Request):
     Reuses the same builder + momwire engine as the live solve, so the metrics
     match the lobe drawn on screen. Returns ``{available, metrics}`` where
     metrics carries peak_gain_dbi / takeoff_deg / azimuth_deg /
-    front_to_back_db / az_beamwidth_deg / el_beamwidth_deg (+ the freq).
+    front_to_back_db / az_beamwidth_deg / el_beamwidth_deg / rdf_db (+ the
+    freq).
     """
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     ex = example_for(geometry)

@@ -41,6 +41,10 @@ export type PatternMetrics = {
   front_to_back_db: number;
   az_beamwidth_deg: number;
   el_beamwidth_deg: number;
+  /** Receiving directivity factor at the peak, dB (AK#1707): peak gain over
+   * the pattern's average gain, normalised by the full sphere. Optional so a
+   * pin fetched from an older server still renders ("—"). */
+  rdf_db?: number;
   measurement_freq_mhz?: number;
 };
 
