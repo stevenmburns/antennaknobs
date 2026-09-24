@@ -134,29 +134,30 @@ answer is a coarse-mesh one. The measured two-lane table lives on
 [momwire's engine-choice page](https://momwire.dev/reference/choosing-an-engine/).
 
 **Refusal boundary.** RazorSolver is deliberately scoped to what its
-formulation-twin role needs, and refuses the rest at construction with a
-named message rather than a silent wrong answer:
+formulation-twin role needs, and refuses the rest with a named message
+rather than a silent wrong answer:
 
-- **No extended kernel** — it is reduced-kernel only; NEC-5's formulation
-  tests the expansion on the wire axis, and extending it would answer a
-  different question than the one this solver exists to check.
-- **No junction ports, no node gaps** — a junction basis is already a
-  through-current unknown with no unambiguous branch to drive a source or
-  land a series gap on. Ordinary K=2 junctions (a wire split, or two wires
-  meeting end to end) are unaffected — those resolve to the same tent
-  basis automatically, from the geometry, with nothing to configure.
-- **No ground contact over a finite ground** (issue #282) — over both
-  finite-ground flavours, an end resting in the plane would need its
-  grounded-end tent's image wing to carry spurious contact charge, since
-  the fold hard-codes image coefficient 1 (PEC). Ground contact over a
-  **PEC** plane (`ground` = `pec`) is fully served — including a
-  base-fed monopole.
-- **No K≥3 port**, on a feed, load, or junction — the branch pair a source
-  or load would drive is ambiguous at three or more coincident ends.
+- **No junction ports, and no feed or load at a junction of three or more
+  ends** — a junction basis is already a through-current unknown, and the
+  branch pair a source or load would drive is ambiguous at three or more
+  coincident ends. A series node gap there names its arm, and is served.
+  Ordinary K=2 junctions (a wire split, or two wires meeting end to end)
+  are unaffected — those resolve to the same tent basis automatically, from
+  the geometry, with nothing to configure.
+- **No feed named at a segment centre** — razor's ports sit on knots, so a
+  feed addressed the way the NEC-2 dialect addresses it would land half a
+  cell from where it was named.
+- **No singular enrichment.**
+- **No ground contact under the reflection-coefficient ground** — that
+  ground's model has no validity at zero clearance, and every momwire
+  family refuses the combination.
 
-Free space and all three grounds (PEC, reflection-coefficient, Sommerfeld)
-are otherwise served, along with per-wire radii and both distributed and
-lumped wire loading. Full detail: momwire's
+Served: free space and all three grounds (PEC, reflection-coefficient,
+Sommerfeld); the extended kernel; series node gaps (a `PortAtVertex` feed);
+ground contact over PEC — including a base-fed monopole — and over the
+Sommerfeld ground; buried and interface-crossing decks over the Sommerfeld
+ground (see *Below the interface*, under
+[Honest limitations](#honest-limitations)); per-wire radii; and both distributed and lumped wire loading. Full detail: momwire's
 [`docs/razor-solver.md`](https://github.com/stevenmburns/antennaknobs/blob/main/momwire/docs/razor-solver.md).
 
 ## The extended thin-wire kernel (EK)
@@ -175,22 +176,24 @@ dipole, nec2c reads 123.7+28.6 j reduced and 113.6+29.0 j extended — an 8 %
 step — and momwire's sinusoidal basis tracks both sides of the card to 0.5 %
 and 3.1 % respectively.
 
-momwire serves it on five of the six solver families — **`sinusoidal`**,
-**`sinusoidal-galerkin`**, **`bspline`**, **`hmatrix`** and
+momwire serves it on six solver families — **`sinusoidal`**,
+**`sinusoidal-galerkin`**, **`bspline`**, **`razor-2p`**, **`hmatrix`** and
 **`arrayblock`** — in free space and over every ground model, at about
 1.0–1.3× the reduced-kernel solve. The Galerkin family joined with momwire
 0.27.0: momwire#246 built its extended kernel, momwire#287 measured the
 Sommerfeld ground in, and momwire#299 made non-collinear geometry (vees,
-bent elements, junctions, radius steps) sound. Two things refuse it,
-loudly rather than silently:
+bent elements, junctions) sound. What refuses it does so loudly rather
+than silently:
 
-- **`RazorSolver`** (`razor-2p`, and its unrostered Gauss-Legendre
-  quadrature) — reduced-kernel only, by design: NEC-5's formulation is the
-  comparison target, and it tests the expansion on the wire axis. See
-  [Razor](#razor-the-nec-5-formulation-twin) above.
+- **the `pulse` basis** — reduced-kernel only.
 - **singular enrichment**, on the bases that otherwise serve EK — the
   enrichment degrees of freedom carry their own quadrature and bypass the
   moment kernels the extended kernel corrects (momwire#249).
+- **a wire below the ground plane**, on every lane — the kernel's O(a²)
+  tube expansion is written at one wavenumber, and a buried deck spans two
+  media. Solve it with the reduced kernel.
+- **a radius step at a junction** on `sinusoidal-galerkin` — measured
+  divergent; `bspline` and `sinusoidal` serve the step.
 
 Three ways to ask for it: the **extended kernel (EK)** check in a solver
 slot's gear menu (per slot, so you can put the same basis and mesh in two
@@ -227,7 +230,8 @@ Two app-side notes the engine page doesn't carry:
   the dense parent to machine precision as their tolerances tighten; the
   sin-Galerkin junction ports run in free space and over a PEC ground —
   momwire#191 — with finite grounds still refused). The point-matched
-  sinusoidal and pulse bases refuse them, with momwire's own sentence.
+  sinusoidal and pulse bases and `razor-2p` refuse them, with momwire's
+  own sentence.
 
 ## Segments & convergence
 
@@ -330,10 +334,12 @@ and the NEC-5 formulation twin are fixed, so the cross-check at grazing
 height is a genuine second opinion rather than two copies of one bug.
 
 Two things to know about the edges. Standing a wire *in* a finite ground —
-ground **contact**, as distinct from grazing above it — is served on the
-`bspline` lane only, at about 7 % on impedance; the formulation twin refuses
-it by name rather than guess
-([momwire#624](https://github.com/stevenmburns/momwire/issues/624)). And the
+ground **contact**, as distinct from grazing above it — is served over the
+Sommerfeld ground on the `bspline`, `sinusoidal`, `sinusoidal-galerkin` and
+`razor-2p` lanes
+([momwire#624](https://github.com/stevenmburns/momwire/issues/624)), and
+refused by name under the reflection-coefficient ground, whose model has no
+validity at zero clearance. And the
 accelerated solvers (`HMatrixSolver`, `ArrayBlockSolver`) reach the ground
 image by their own path and have **not** received the grazing fix
 ([momwire#634](https://github.com/stevenmburns/momwire/issues/634)) — they
@@ -342,9 +348,10 @@ model; the default solver is unaffected.
 
 **Below the interface** (momwire ≥ 0.38.0): wires strictly below the ground
 plane — buried radials and screens, buried fed elements, elevated feeds over
-buried counterpoises — serve **impedance, currents and charges** on the
-`bspline` lane over the Sommerfeld ground, and since momwire 0.52.0 on the
-`sinusoidal-galerkin` lane as well. The two bases share no fill code below
+buried counterpoises — serve **impedance, currents and charges**, and
+since v0.80.0 the **radiation pattern**, on the `bspline` lane over the
+Sommerfeld ground, and since momwire 0.52.0 on the `sinusoidal-galerkin`
+lane as well. The two bases share no fill code below
 the interface, so a buried number now has an in-house second opinion from a
 different formulation rather than a re-run of the same one. Since momwire
 0.62.0 `razor-2p` — the NEC-5 formulation twin — serves buried and crossing
@@ -371,8 +378,8 @@ buried radials, and a buried dipole — with their own in-medium meshing
 [antennaknobs#983](https://github.com/stevenmburns/antennaknobs/issues/983)).
 What still refuses does so by name: a wire crossing the interface mid-span,
 a ground-contact wire combined with buried wires (the rise respelling is
-the served path), coincident rises meeting at a node on the sinusoidal-Galerkin lane,
-and near fields or patterns of buried decks. Validation
+the served path), coincident rises meeting at a node on the
+sinusoidal-Galerkin and `razor-2p` lanes, and near fields of buried decks. Validation
 below ground rests on exact identities (the lossless-limit collapse onto
 free space, the deep-burial limit onto the infinite-medium solve) plus
 ladder-limit agreement at the half-percent class on the radial and

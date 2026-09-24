@@ -315,9 +315,9 @@ differentiator it once was: since momwire#742 gave both lanes the same
 C++ fill — the razor family had no accelerated path at all before that —
 they sit within a tenth of each other (520 MB against 479 MB, free
 N=1600). And at a fine mesh the answers converge anyway: 0.001 Ω apart at
-N=1600. Neither serves
-the extended kernel, junction/node-gap ports, or ground contact over a
-finite ground — see [Solvers & accuracy](/reference/solver/#razor-the-nec-5-formulation-twin)
+N=1600. Both serve the extended kernel, series node gaps, and ground
+contact over PEC and the Sommerfeld ground; neither serves junction ports —
+see [Solvers & accuracy](/reference/solver/#razor-the-nec-5-formulation-twin)
 for the full guidance and refusal boundary.
 
 `momwire` is the default so a plain install works without the optional
@@ -441,15 +441,12 @@ python -m antennaknobs sweep --builder wire.dipole --extended-kernel
 It matters for **fat wires** — segments not much longer than the wire radius —
 and is a fraction of a percent on ordinary thin wire; see
 [the extended thin-wire kernel](/reference/solver/#the-extended-thin-wire-kernel-ek).
-Every momwire basis but `razor-2p` (and `RazorSolver`'s unrostered
-Gauss-Legendre quadrature) serves it — `sinusoidal-galerkin` included since
-momwire 0.27.0 (momwire#246/#287/#299). On the B-spline/sinusoidal families
-the one refusal left is the combination with `use_singular_enrichment`
-(momwire#271), which exits with a named message rather than a
-reduced-kernel answer under an extended-kernel request; razor refuses it
-outright (it is a reduced-kernel-only formulation twin, out of scope by
-design — see [Razor](/reference/solver/#razor-the-nec-5-formulation-twin)).
-The flag applies only to momwire: passing it with `--engine pynec` is an
+Every momwire basis but `pulse` serves it — `sinusoidal-galerkin` since
+momwire 0.27.0 (momwire#246/#287/#299), and `razor-2p` with it. The
+refusals left are combinations: with `use_singular_enrichment`
+(momwire#271), with a wire below the ground plane, and with a radius step at
+a junction on `sinusoidal-galerkin`. Each exits with a named message rather
+than a reduced-kernel answer under an extended-kernel request. The flag applies only to momwire: passing it with `--engine pynec` is an
 error.
 
 An imported deck brings its own: a `@file.nec` design whose deck carries an
