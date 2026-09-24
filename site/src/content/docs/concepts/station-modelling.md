@@ -69,9 +69,10 @@ sources. Ports come in five kinds:
   series-fed two-wire apex that current reads zero by symmetry). At a
   two-wire vertex the wire choice doesn't change the answer; at a
   junction of three or more it names which arm the gap separates. Runs
-  on every momwire family over every ground model, and on NEC-5
-  natively; NEC-2-shaped engines refuse by name — the honest near-miss
-  is the short-bridge idiom, which stays a different model you author
+  on the `bspline`, `sinusoidal-galerkin`, `razor-2p`, `hmatrix` and
+  `arrayblock` families over every ground model, and on NEC-5 natively;
+  `sinusoidal`, `pulse` and the NEC-2-shaped engines refuse it by name —
+  the honest near-miss is the short-bridge idiom, which stays a different model you author
   explicitly (the stock `dipoles.invvee` *is* that spelling, and
   `dipoles.invvee_apex` is this one — about 2 Ω apart, nearly all
   reactance, at stock geometry).
