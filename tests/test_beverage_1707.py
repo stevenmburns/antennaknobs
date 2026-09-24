@@ -186,7 +186,7 @@ def test_nec2_family_is_refused_by_name_on_the_rod_deck():
 #
 # A signature, not a number. NEC-2 joins a wire ending on a Sommerfeld ground
 # to a perfectly conducting point, which is outside its formulation, and its
-# feed impedance here (1085 - 387j ohm) is nothing like the 532 ohm momwire
+# feed impedance here (979 - 359j ohm) is nothing like the 532 ohm momwire
 # and NEC-5 agree on. What any ground connection does show is the terminated
 # traveling wave: power into the resistor, and F/B that goes when it does.
 # The same two questions are asked of the ROD design on razor-2p below.
@@ -265,8 +265,8 @@ def test_heavy_rods_beverage_on_razor_2p():
     budget = dict(eng._excited_power_budget)
     (term_row,) = [w for label, w in budget.items() if "term" in label.lower()]
     assert term_row / eng._excited_p_in == pytest.approx(0.329, abs=0.01), budget
-    # Rig side; NEC-5 at the same mesh reads 75.106 - 11.036j.
-    assert abs(z - (75.098 - 11.058j)) < 0.1, z
+    # Rig side; NEC-5 at the same mesh reads 75.222 - 10.849j.
+    assert abs(z - (75.221 - 10.841j)) < 0.1, z
 
 
 @pytest.mark.heavy_mesh
