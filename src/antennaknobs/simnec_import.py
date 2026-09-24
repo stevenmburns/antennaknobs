@@ -1085,6 +1085,37 @@ def _sim_names(tree) -> list[str]:
     return []
 
 
+def _sim_field(field: str, what: str):
+    """One NEC card field as a SimNEC expression tree.
+
+    SimNEC's card reader ends a field at a ``+`` or ``-`` that directly
+    follows a NUMBER outside parentheses; after a name the sign stays in the
+    field. Measured on SimNEC 5.3 (scratch/simnec-expr-probe/probeG*.ssn,
+    each a GW field): ``a-b`` and ``a-2`` read as one field (10, as
+    captured-152608.nec / captured-152635.nec show), while ``12-b``, ``12-2``
+    and ``8+b`` are refused with "expected an end of line" -- the card's
+    fields overflow. So are ``gap/2+dy`` and ``12-dz``, while ``(gap/2+dy)
+    (12-dz)`` and the sums moved into a ``dcl`` load
+    (scratch/dan-1714-examples/invvee3*.ssn). On a card with a field to
+    spare the split would read silently as two fields, so the field is
+    refused here rather than read as one. An exponent's sign (``1e-3``) is
+    part of the number."""
+    depth, after_number = 0, False
+    for kind, val in _sim_tokens(field, what):
+        if (kind, val) == ("op", "("):
+            depth += 1
+        elif (kind, val) == ("op", ")"):
+            depth -= 1
+        elif kind == "op" and val in _SIM_ADD and after_number and depth == 0:
+            raise ValueError(
+                f"{what}: SimNEC ends a card field at the {val!r} after a "
+                f"number in {field!r}; write ({field}) or move the sum into "
+                "a dcl"
+            )
+        after_number = kind == "num"
+    return _sim_parse(field, what)
+
+
 def _sim_eval(tree, env: Mapping[str, float], what: str) -> float:
     """``tree``'s value with the script's constants ``env``: a finite real,
     or a ValueError naming ``what``."""
@@ -1330,7 +1361,7 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
         parsed = [
             f
             if _plain_number(f)
-            else _sim_parse(f, f"{where}: {mnemonic} card {card!r}")
+            else _sim_field(f, f"{where}: {mnemonic} card {card!r}")
             for f in fields
         ]
         if all(isinstance(f, str) for f in parsed):
