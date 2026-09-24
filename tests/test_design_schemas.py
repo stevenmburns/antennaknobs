@@ -210,6 +210,9 @@ def test_yagi_n_directors_is_int_slider():
     assert isinstance(n_dir, ParamSpec)
     assert n_dir.kind == "int"
     assert n_dir.default == 2
+    # AK#1709: a catalog design carries no per-knob `description` -- the
+    # new field is additive and doesn't touch designs that never set it.
+    assert n_dir.description is None
 
 
 def test_yagi_factor_sliders_present():

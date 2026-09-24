@@ -127,7 +127,10 @@ def test_primary_deck_nine_commented_constants_are_knobs():
     assert syms["refa"].label == "Guy wire angle with XY plane"
     cls = _design(PRIMARY)
     assert cls.default_params["sy_hgh"] == 21.0
-    assert cls.default_params["ui_params"]["sy_len"]["label"] == "Length radiator"
+    # AK#1709: the knob shows the SY spelling; the comment is the tooltip
+    # description, not a second copy of the label.
+    assert cls.default_params["ui_params"]["sy_len"]["label"] == "len"
+    assert cls.default_params["ui_params"]["sy_len"]["description"] == "Length radiator"
     assert [k for k in cls.default_params if k.startswith("sy_")] == [
         f"sy_{n}" for n in ("hgh", "len", "ang", "refl", "refd", "refa", "dirl", "dird", "dira")
     ]  # fmt: skip
@@ -138,7 +141,10 @@ def test_moxon_five_labelled_knobs():
     ui = cls.default_params["ui_params"]
     knobs = [k for k in cls.default_params if k.startswith("sy_")]
     assert knobs == ["sy_width", "sy_length", "sy_gapstart", "sy_gap", "sy_radius"]
-    assert [ui[k]["label"] for k in knobs[:4]] == ["A", "E", "D", "C"]
+    assert [ui[k]["label"] for k in knobs] == [
+        "width", "length", "gapstart", "gap", "radius",
+    ]  # fmt: skip
+    assert [ui[k]["description"] for k in knobs[:4]] == ["A", "E", "D", "C"]
 
 
 def test_gndscreen_literal_arithmetic_is_a_knob_and_counts_follow_the_deck():
@@ -186,9 +192,34 @@ def test_the_adapter_publishes_the_knobs_with_their_labels():
         "user.t", _design("3elYagiGain.nec"), defer_hints=True
     )
     specs = {p.name: p for p in ex.param_schema}
-    assert specs["sy_fr"].label == "Enter Desired Frequency in MHz."
+    assert specs["sy_fr"].label == "Fr"  # the deck's own spelling, case kept
+    assert specs["sy_fr"].description == "Enter Desired Frequency in MHz."
     assert specs["sy_hgh"].min < 0 < specs["sy_hgh"].max
     assert specs["sy_wd"].min == pytest.approx(5.0) and specs["sy_wd"].max == 15.0
+
+
+def test_ak1709_primary_deck_served_schema_labels_are_the_sy_spellings():
+    """The 3el-inverted-V knob grid (AK#1709 acceptance): every knob's
+    served `label` is the deck's own SY spelling, and its `description`
+    carries the SY card's comment -- through the same adapter path
+    `GET /examples` uses, not just `_SyKnobs.ui_params()` in isolation."""
+    ex = _adapter()._make_example("user.t", _design(PRIMARY), defer_hints=True)
+    specs = {p.name: p for p in ex.param_schema}
+    expected = {
+        "hgh": "Height tower",
+        "len": "Length radiator",
+        "ang": "Angle between wires",
+        "refl": "Lenght reflector",
+        "refd": "Distance from radiator",
+        "refa": "Guy wire angle with XY plane",
+        "dirl": "Length reflector",
+        "dird": "Distance from radiator",
+        "dira": "Guy wire angle with XY plane",
+    }
+    for spelling, comment in expected.items():
+        spec = specs[f"sy_{spelling}"]
+        assert spec.label == spelling
+        assert spec.description == comment
 
 
 def test_integer_unit_redefined_and_frequency_only_symbols():

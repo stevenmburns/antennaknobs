@@ -119,6 +119,12 @@ class ParamSpec:
     # count so these positions are stable rather than width-dependent.
     # Authored under ui_params[<param>]["layout"]; None keeps auto-flow.
     layout: Optional[dict] = None
+    # One sentence, rendered as the control's native `title` tooltip in place
+    # of the default "label · param: name" (AK#1709) — SY knobs use it to
+    # carry the deck's own comment ("Height tower") while the knob itself
+    # shows the short SY spelling ("hgh"). Optional and generic — most knobs
+    # carry none — so adding it here never touches an existing spec.
+    description: Optional[str] = None
 
 
 @dataclass(frozen=True)
