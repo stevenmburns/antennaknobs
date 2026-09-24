@@ -64,6 +64,10 @@ the input power (momwire's power budget; NEC-5 has no such row here):
   NEC-5,    average  677.0 -  97.6j   -9.10    29     19.2   11.95
   razor-2p, poor     750.9 - 269.8j   -8.14    29.7   19.5   12.22  18.4 %
   NEC-5,    poor     751.0 - 270.0j   -8.14    30     19.3   12.22
+  bspline,  average  675.2 -  98.5j
+  SG,       average  675.2 -  98.5j
+  bspline,  poor     748.9 - 269.4j
+  SG,       poor     748.9 - 269.5j
   razor-2p, average, contact variant
                      532.2 -   0.3j   -8.26    28.4   20.4   12.09  51.7 %
   razor-2p, average, termination removed
@@ -86,17 +90,20 @@ radiates well under 1 % of what it is given (average gain -21 dB here). On
 receive it is judged by RDF, not gain, because gain and average gain carry
 the same loss.
 
-ENGINES, as measured today:
+ENGINES:
 
-  * momwire razor-2p SERVES the rod design over both soils. Its buried
-    pre-flight passes to 3 wl at the default mesh, and to 1.5 wl at twice
-    the mesh; past that the rod tops' pair meets the grazing floor below.
-  * momwire B-spline and sinusoidal-Galerkin REFUSE it by name. Two crossing
-    nodes are served (plan U9), but the pair of rod tops — ~246 m apart,
-    with those lanes' quadrature points within a centimetre of the
-    interface — is under the 1-arc-minute grazing floor their below/below
-    tables start at. razor-2p's remainder points sit deeper and clear it.
-  * NEC-5 (licensed, local) serves it and agrees, above.
+  * momwire razor-2p, B-spline (the app's default) and sinusoidal-Galerkin
+    all SERVE the rod design over both soils.
+  * razor-2p and NEC-5 agree to 0.1 ohm at the feed. B-spline and
+    sinusoidal-Galerkin agree with each other to 0.1 ohm, and both read
+    about 0.3 % from NEC-5: 2.0-2.2 ohm at the feed, 0.22-0.24 ohm on the
+    rig side (feed Z to 0.001 ohm at the same mesh: NEC-5 677.002 - 97.638j
+    average, 750.987 - 269.961j poor; razor-2p 676.993 - 97.566j,
+    750.919 - 269.838j; B-spline 675.196 - 98.488j, 748.945 - 269.428j;
+    SG 675.172 - 98.538j, 748.853 - 269.494j). That gap is the known
+    difference between momwire's B-spline buried formulation and NEC-5's,
+    not a defect of this deck; razor-2p is NEC-5's formulation.
+  * NEC-5 (licensed, local) serves it, above.
   * PyNEC and NEC-2 are REFUSED by name in the app: neither has a medium
     below the ground, and both solve a buried wire as if it were in air.
 
@@ -119,12 +126,12 @@ MODELLING CONVENTIONS, and why:
     751.0 - 270.0j. `rod_radius_m` is there for NEC-5 comparisons; momwire
     refuses it by name.
   * THE RODS ARE MESHED AT THE DESIGN DENSITY, not graded into the node the
-    way `buried_radial_vertical` grades its rise. A graded rod puts
-    quadrature points a fraction of a millimetre below the interface, and
-    with two rods a Beverage's length apart that pair is under the grazing
-    floor on every momwire lane, razor-2p included. The in-medium density
-    comes from `design_eps_r` / `design_sigma` (average soil) and never
-    tracks the solve's ground, so a soil sweep never remeshes.
+    way `buried_radial_vertical` grades its rise: every number above was
+    measured on this mesh. A rod graded to a 12.5 mm node segment passes the
+    buried pre-flight on B-spline and razor-2p as well, but it has not been
+    measured. The in-medium density comes from `design_eps_r` /
+    `design_sigma` (average soil) and never tracks the solve's ground, so a
+    soil sweep never remeshes.
   * Every segment is horizontal or vertical, and each crossing node has one
     wire above it (the feed or termination edge): the crossing serve's
     measured shape.
@@ -171,7 +178,7 @@ class Builder(AntennaBuilder):
             "design_eps_r": 13.0,
             "design_sigma": 0.005,
             # Run length in wavelengths at the design frequency (1.5 wl =
-            # 245.8 m at 1.83 MHz). razor-2p serves to 3 wl at this mesh.
+            # 245.8 m at 1.83 MHz).
             "length_frac": 1.5,
             # Height of the run, metres.
             "height_m": 2.5,
