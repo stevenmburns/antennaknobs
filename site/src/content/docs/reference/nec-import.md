@@ -17,7 +17,9 @@ fractions, so element lengths, spacings, and angles are all draggable and
 optimizable, and `design_freq` moves the whole antenna to another band. A
 plain deck has none of that structure to expose; coordinates are just numbers.
 The exception is a deck written with 4nec2's `SY` variables: each constant it
-defines becomes a knob (see [SY constants are knobs](#sy-constants-are-knobs)).
+defines becomes a knob (see [SY constants are knobs](#sy-constants-are-knobs)),
+and so does each `dcl` constant a SimNEC file's cards read (see
+[dcl constants are knobs](/reference/simnec/#dcl-constants-are-knobs)).
 Otherwise an imported deck supports the measurement frequency, a `height`
 lift, and a whole-geometry `scale` — useful, but blunt. Treat the import as a
 *viewer* for published decks, and as a source of dimensions when you decide a

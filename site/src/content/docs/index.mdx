@@ -29,17 +29,18 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.86.0" icon="star">
-  **One range for the dial and the sweep.** The measurement dial now travels
-  exactly the band the sweep covers: right-click it (long-press on touch) to
-  set the range, a step or a point count, and linear or log spacing, and a
-  deck's own sweep arrives with the file. SimNEC files round-trip more
-  faithfully: loads and insulated wires export in the forms SimNEC applies,
-  `JamSegments` counts are honoured, and every block of a station is a
-  measurement plane, with `rig` at the generator and `feed` at the antenna.
-  The NEC-2 engine now solves the network decks NEC-5 does, razor-2p serves
-  buried radials on momwire 0.62, and a rescan button picks up a design file
-  you just dropped into your folder.
+<Card title="New in v0.87.0" icon="star">
+  **The file's own knobs.** A 4nec2 deck written with `SY` cards and a SimNEC
+  file written with `dcl` constants now import with those constants as
+  knobs: each is labelled with its name as the file spells it, its comment is
+  the tooltip, and the values the file derives from them follow as you drag.
+  SimNEC's expressions are read by SimNEC's own rules (trig in radians, SI
+  suffixes, case-sensitive names), measured against SimNEC itself. The
+  catalog gains a Beverage receiving antenna with ground rods at both ends
+  and a receiving-directivity (RDF) readout, the cancel button now stops
+  every server-side computation, and momwire 0.63 makes near-ground and
+  buried screens much faster: 4nec2's GndScreen solves in 10 s instead of
+  276 s.
 </Card>
 
 ## The whole pitch, in one line
