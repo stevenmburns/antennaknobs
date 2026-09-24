@@ -89,7 +89,9 @@ def test_the_catalog_split_is_what_the_arrayblock_advisory_was_argued_from():
     # and it used to refuse at construction under finite ground because the
     # below/below pre-flight counted its two ground terminations as buried.
     assert len(no_repeats) == 73, len(no_repeats)
-    assert len(errors) == 3, sorted(errors)
+    # 4 since AK#1707: `wire.beverage`'s ground rods are buried, and the
+    # array-block operator refuses a buried deck.
+    assert len(errors) == 4, sorted(errors)
     # The Yagi class is the reason this advises: multi-element, all distinct.
     for yagi in ("beams.owa_yagi", "beams.moxon", "broadband.lpda"):
         assert yagi in no_repeats
