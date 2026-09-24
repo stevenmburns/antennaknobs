@@ -25,19 +25,31 @@ on the fly: ``build_wires`` returns the deck's wires with per-wire specs,
 ``freq`` is seeded from the file (the FR card / the Generator's MHz), the FR
 range or an armed Generator sweep seeds ``ui_params["meas_freq_range"]`` and,
 with its spacing, ``ui_params["sweep_range"]`` (AK#1682), and
-whatever the import left behind lands under ``ui_params["notes"]``. A deck is
-frozen geometry, so the only knob is ``freq`` — port the design to a real
-``AntennaBuilder`` when dimensions should tune.
+whatever the import left behind lands under ``ui_params["notes"]``.
+
+A ``.nec`` deck written in 4nec2's ``SY`` dialect keeps its parametrisation
+(AK#1705): every constant ``SY`` symbol (`nec_import.classify_sy`) is
+published as a knob ``sy_<name>``, labelled from the card's ``'`` comment, and
+``build_wires`` / ``build_network`` re-evaluate the deck from the knobs on
+every build (`_SyKnobs`), so derived symbols, segment counts written as
+``int(...)`` and everything else follow as the author wrote them. The deck's
+topology is frozen at its own values: a knob value that changes which wire
+ends meet, or makes the geometry invalid, is refused by name. A deck with no
+such constant -- every deck without ``SY`` cards -- is frozen geometry, as
+before, and a ``.ssn`` always is: port the design to a real ``AntennaBuilder``
+when its dimensions should tune.
 """
 
 from __future__ import annotations
 
+import functools
+import math
 from dataclasses import replace
 from pathlib import Path
 from types import MappingProxyType
 
 from .builder import AntennaBuilder
-from .nec_import import NEC_C_LIGHT_MHZ_M, parse_nec
+from .nec_import import _NEC_SMIN, NEC_C_LIGHT_MHZ_M, classify_sy, parse_nec
 from .simnec_import import parse_ssn
 
 __all__ = ["builder_from_file"]
@@ -99,6 +111,7 @@ def _make_builder(
     file_deck=None,
     ground_card=None,
     sweep_grid=None,
+    knobs=None,
 ):
     ui: dict = {}
     # A zero-width range seeds nothing: one FR point, or an .ssn with no armed
@@ -130,6 +143,9 @@ def _make_builder(
     if note:
         ui["notes"] = note
     params = {"freq": freq, "design_freq": freq}
+    if knobs is not None:
+        params.update(knobs.default_params())
+        ui.update(knobs.ui_params())
     if ui:
         params["ui_params"] = MappingProxyType(ui)
 
@@ -161,11 +177,25 @@ def _make_builder(
         # command reads its segment counts and fed segments for the report.
         file_deck_parsed = file_deck
 
+        # The deck's SY knobs (AK#1705), None for a frozen deck. Not
+        # `sy_...`: that prefix is the knobs' own.
+        file_sy_knobs = knobs
+
         def build_wires(self):
+            if knobs is not None:
+                return knobs.deck_for(self).wire_tuples(specs=True)
             return wires_fn()
 
         def build_network(self):
+            if knobs is not None:
+                return knobs.deck_for(self).network()
             return network_fn()
+
+    if knobs is not None:
+        # The deck re-evaluated at an instance's knob values: `engine`,
+        # `ladder` and the advisories read the instance's; class access keeps
+        # the deck as imported.
+        Builder.file_deck_parsed = _DeckAtParams(file_deck, knobs)
 
     # The dotted-name machinery (display titles, simnec_export's block name)
     # keys off the class identity; make it the file's, not this factory's.
@@ -173,14 +203,322 @@ def _make_builder(
     return Builder
 
 
+# The cards a knob can reach that the design reads once, at load, rather
+# than on every build (the app's ground switch and kernel flag are seeded
+# from them), for the import note.
+_LOAD_TIME_CARDS = ("GN", "GD", "GE", "EK")
+
+
+def _wire_name(deck, i: int) -> str:
+    return f"wire {i + 1} (tag {deck.wires[i].tag})"
+
+
+def _topology(deck) -> dict:
+    """What a knob may not change (AK#1705): which wire ends meet which, where
+    each end stands against a ground plane, and which wires the feeds,
+    loads and TL/NT cards land on. Segment counts may change -- the deck's
+    own formulas re-mesh it (``segV=int(hgh)``) -- but a contact that exists
+    only on one mesh changes the list, since NEC connects a wire end to
+    another wire's interior only at a segment boundary.
+
+    Contacts are compared EXACTLY: `parse_nec` has already snapped every end
+    NEC would connect onto one shared coordinate (`_snap_nec_connections`),
+    and interior boundaries use the snap's own formula, bit for bit."""
+    wires = deck.wires
+    at: dict[tuple, list] = {}
+    for i, w in enumerate(wires):
+        at.setdefault(w.p1, []).append((i, 1))
+        at.setdefault(w.p2, []).append((i, 2))
+    contacts = set()
+    for ends in at.values():
+        for a in ends:
+            for b in ends:
+                if a < b and a[0] != b[0]:
+                    contacts.add((a, b))
+    for j, w in enumerate(wires):
+        n = int(w.n_seg)
+        for k in range(1, n):
+            p = tuple(a + (b - a) * (k / n) for a, b in zip(w.p1, w.p2, strict=True))
+            for end in at.get(p, ()):
+                if end[0] != j:
+                    contacts.add((end, (j, 0)))
+    plane = None
+    if deck.ground:
+        plane = {}
+        for i, w in enumerate(wires):
+            tol = _NEC_SMIN * math.dist(w.p1, w.p2) / max(int(w.n_seg), 1)
+            for e, p in ((1, w.p1), (2, w.p2)):
+                plane[(i, e)] = 0 if abs(p[2]) <= tol else (1 if p[2] > 0 else -1)
+    return {
+        "wires": len(wires),
+        "contacts": frozenset(contacts),
+        "plane": plane,
+        "feeds": tuple((f.wire, f.edge, f.current) for f in deck.feeds),
+        "loads": tuple(ld.wire for ld in deck.loads),
+        "lines": tuple((t.wire_a, t.wire_b) for t in (*deck.tls, *deck.nts)),
+        "virtual": (deck.virtual_anchors, deck.virtual_segment_wires),
+    }
+
+
+def _topology_change(old: dict, new: dict, deck) -> str | None:
+    """The first way ``new`` differs from ``old``, in words, or None."""
+    if old["wires"] != new["wires"]:
+        return (
+            f"the deck would have {new['wires']} wires, where it has "
+            f"{old['wires']} at its own values"
+        )
+
+    def end_name(end):
+        i, e = end
+        return f"{_wire_name(deck, i)} " + (
+            f"end {e}" if e else "at a segment boundary"
+        )
+
+    for verb, diff in (
+        ("no longer meets", old["contacts"] - new["contacts"]),
+        ("now meets", new["contacts"] - old["contacts"]),
+    ):
+        if diff:
+            a, b = min(diff)
+            return f"{end_name(a)} {verb} {end_name(b)}"
+    if old["plane"] != new["plane"]:
+        where = {1: "above", 0: "in", -1: "below"}
+        for end in sorted(old["plane"]):
+            if old["plane"][end] != new["plane"][end]:
+                return (
+                    f"{end_name(end)} moves from {where[old['plane'][end]]} the "
+                    f"ground plane to {where[new['plane'][end]]} it"
+                )
+    for key, what in (
+        ("feeds", "a feed"),
+        ("loads", "an LD load"),
+        ("lines", "a TL or NT card"),
+        ("virtual", "the deck's virtual wires"),
+    ):
+        if old[key] != new[key]:
+            return f"{what} would land on a different wire"
+    return None
+
+
+def _nice_step(x: float) -> float:
+    """The power of ten at or below ``x``."""
+    return 10.0 ** math.floor(math.log10(x))
+
+
+class _SyKnobs:
+    """A deck's constant SY symbols as the design's knobs (AK#1705).
+
+    Every build re-parses the deck with the knobs' values as
+    ``parse_nec(..., sy_overrides=)`` -- the same parse the import ran, with
+    those symbols set at their definition -- so derived symbols, ``int(...)``
+    segment counts and every card field follow exactly as they would from a
+    hand-edited deck. Parses are cached per knob tuple (a drag, the tracker
+    and the optimizer re-visit points; `build_wires` and `build_network`
+    both ask).
+
+    A value is refused, naming the knobs that moved and what broke, when the
+    deck no longer parses at it (a segment count below 1, a feed or load off
+    its wire, ...), when a wire collapses to zero length or a non-positive
+    radius, or when the topology changes (`_topology`): it is frozen at the
+    deck's own values. A refused value is never cached, so the next good one
+    builds as usual.
+    """
+
+    def __init__(self, stem, name, text, refine, symbols, default_deck):
+        self.stem, self.name, self.text, self.refine = stem, name, text, refine
+        self.symbols = tuple(s for s in symbols if s.kind == "knob")
+        self.defaults = tuple(s.default for s in self.symbols)
+        self._parse = functools.lru_cache(maxsize=16)(self._checked)
+        # Through the override path, not a copy of the import: `for_deck`
+        # compares the two and keeps the knobs only when they agree.
+        self.deck = self._parse(self._symbol_values(self.defaults), check=False)
+        self.topology = _topology(self.deck)
+        # A wire the deck ALREADY writes degenerate is the deck's business.
+        self._degenerate = {
+            i for i, w in enumerate(default_deck.wires) if w.p1 == w.p2 or w.radius <= 0
+        }
+        self.all_symbols = tuple(symbols)
+        self.default_deck = default_deck
+
+    @classmethod
+    def for_deck(cls, path: Path, text: str, refine: int, deck, freq):
+        """``(knobs, note)`` for a parsed deck: ``(None, None)`` when it has
+        no knob. The knobs are dropped, with a note, if the deck at their
+        defaults is not the deck as imported -- never a knob that moves the
+        design before anyone touches it."""
+        try:
+            symbols = classify_sy(text, name=path.name)
+        except ValueError:
+            return None, None
+        if not any(s.kind == "knob" for s in symbols):
+            return None, None
+        try:
+            knobs = cls(path.stem, path.name, text, refine, symbols, deck)
+            same = knobs.deck == deck
+        except ValueError:
+            same = False
+        if not same:
+            return None, (
+                "The deck's SY symbols are not offered as knobs: re-evaluating "
+                "it from them does not reproduce the import exactly."
+            )
+        return knobs, knobs.note(freq)
+
+    # -- values ------------------------------------------------------------
+
+    def _symbol_values(self, values) -> tuple[float, ...]:
+        return tuple(
+            s.symbol_value(v) for s, v in zip(self.symbols, values, strict=True)
+        )
+
+    def deck_for(self, builder):
+        """The deck at ``builder``'s knob values, or a ValueError naming the
+        knobs that moved and what the value broke."""
+        values = []
+        for s in self.symbols:
+            v = getattr(builder, s.param)
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                fv = math.nan
+            if not math.isfinite(fv):
+                raise ValueError(f"{self.stem}: {s.param} = {v!r} is not a number")
+            values.append(fv)
+        symvals = self._symbol_values(values)
+        try:
+            return self._parse(symvals)
+        except ValueError as e:
+            moved = [
+                f"{s.param} = {v:g} (the deck has {d:g})"
+                for s, v, d, sv, dv in zip(
+                    self.symbols,
+                    values,
+                    self.defaults,
+                    symvals,
+                    self._symbol_values(self.defaults),
+                    strict=True,
+                )
+                if sv != dv
+            ]
+            raise ValueError(
+                f"{self.stem}: {', '.join(moved)} is refused: {e}"
+            ) from None
+
+    def _checked(self, symvals, check=True):
+        overrides = {s.name: v for s, v in zip(self.symbols, symvals, strict=True)}
+        deck = parse_nec(
+            self.text, name=self.name, network=True, sy_overrides=overrides
+        ).refined(self.refine)
+        if not check:
+            return deck
+        for i, w in enumerate(deck.wires):
+            if i in self._degenerate or i >= len(self.deck.wires):
+                continue
+            if w.p1 == w.p2:
+                raise ValueError(f"{_wire_name(deck, i)} would have zero length")
+            if w.radius <= 0:
+                raise ValueError(
+                    f"{_wire_name(deck, i)} would have radius {w.radius:g}"
+                )
+        change = _topology_change(self.topology, _topology(deck), deck)
+        if change is not None:
+            raise ValueError(
+                f"{change}; the deck's topology is frozen at its own values"
+            )
+        # Surface the translation's own refusals here, by name, rather than
+        # from whichever consumer builds first.
+        deck.wire_tuples(specs=True)
+        deck.network()
+        return deck
+
+    # -- what the design publishes ----------------------------------------
+
+    def default_params(self) -> dict:
+        return {s.param: s.default for s in self.symbols}
+
+    def ui_params(self) -> dict:
+        """Per-knob metadata. The adapter's usual ±50 % window applies; a
+        zero default, which has no window of its own, spans ± the deck's own
+        extent (the largest coordinate it writes), the only length scale a
+        zero constant -- a height, an offset -- has to go by."""
+        extent = max(
+            (abs(c) for w in self.deck.wires for c in (*w.p1, *w.p2)), default=0.0
+        )
+        span = extent if extent > 0 else 1.0
+        ui = {}
+        for s in self.symbols:
+            meta = {"label": s.label or s.spelling}
+            if s.unit:
+                meta["unit"] = s.unit
+            if s.default == 0 and not s.integer:
+                meta.update(min=-span, max=span, step=_nice_step(span / 500.0))
+            ui[s.param] = meta
+        return ui
+
+    def note(self, freq) -> str:
+        knobs = self.symbols
+        derived = [s for s in self.all_symbols if s.kind == "derived"]
+        parts = [
+            f"{len(knobs)} SY constant{'s are' if len(knobs) != 1 else ' is a'} "
+            f"knob{'s' if len(knobs) != 1 else ''} "
+            f"({', '.join(s.param for s in knobs)})"
+            + (
+                f"; {len(derived)} derived symbol"
+                f"{'s follow' if len(derived) != 1 else ' follows'} them."
+                if derived
+                else "."
+            )
+        ]
+        why = {
+            "redefined": "assigned more than once",
+            "unit": "a unit selector",
+            "frequency": "sets only the FR card; the frequency dial covers it",
+            "inert": "reaches nothing the design is built from",
+        }
+        fixed = [
+            f"{s.spelling} ({why[s.kind]})" for s in self.all_symbols if s.kind in why
+        ]
+        if fixed:
+            parts.append(f"Not knobs: {'; '.join(fixed)}.")
+        for s in knobs:
+            if "FR" in s.reaches:
+                parts.append(
+                    f"{s.param} also sets the FR card; the design and measurement "
+                    f"frequencies stay at the deck's {freq:g} MHz."
+                )
+            late = [c for c in _LOAD_TIME_CARDS if c in s.reaches]
+            if late:
+                parts.append(
+                    f"{s.param} also sets the {'/'.join(late)} card, which stays "
+                    "at the deck's value."
+                )
+        parts.append(
+            "The deck's topology is frozen at its own values: a knob value that "
+            "changes which wires meet is refused."
+        )
+        return " ".join(parts)
+
+
+class _DeckAtParams:
+    """``file_deck_parsed`` for a design with SY knobs: the deck as imported
+    on the class, the deck at the instance's knob values on an instance."""
+
+    def __init__(self, deck, knobs: _SyKnobs):
+        self.deck, self.knobs = deck, knobs
+
+    def __get__(self, obj, owner=None):
+        return self.deck if obj is None else self.knobs.deck_for(obj)
+
+
 def _nec_builder(path: Path, text: str, refine: int = 1):
     deck = parse_nec(text, name=path.name, network=True).refined(refine)
     freq, meas_range, freq_note = _seed_freq(deck.freq_mhz)
+    knobs, knob_note = _SyKnobs.for_deck(path, text, refine, deck, freq)
     return _make_builder(
         path.stem,
         freq,
         meas_range,
-        [deck.skipped_note(), deck.fixed_frequency_note(), freq_note],
+        [deck.skipped_note(), deck.fixed_frequency_note(), freq_note, knob_note],
         lambda: deck.wire_tuples(specs=True),
         deck.network,
         extended_kernel=deck.extended_kernel,
@@ -193,6 +531,7 @@ def _nec_builder(path: Path, text: str, refine: int = 1):
         ),
         file_deck=deck,
         sweep_grid=deck.freq_grid,
+        knobs=knobs,
     )
 
 
