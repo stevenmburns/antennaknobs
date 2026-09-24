@@ -158,6 +158,25 @@ class SolveLane:
         if r is not None and r.gen is not None and r.gen < self.gen:
             r.token.cancel()
 
+    def cancel_all(self, gen: int | None = None) -> None:
+        """The user pressed cancel (AK#1712): stop EVERYTHING in this lane.
+
+        Unlike :meth:`advance`, which only overtakes older-generation work,
+        this ignores kind and generation: every queued turn is superseded and
+        the running turn's token is tripped — a gen-less compare-table row
+        included, since "cancel" means the user wants the machine back. The
+        cancel's own generation (if any) is folded in first, so a batch
+        request issued before the cancel that arrives after it is stale on
+        arrival. Nothing sticks: a turn requested afterwards runs normally.
+        """
+        if gen is not None and gen > self.gen:
+            self.gen = gen
+        for w in list(self._waiting):
+            self._waiting.remove(w)
+            w.ready.set_exception(Superseded())
+        if self._running is not None:
+            self._running.token.cancel()
+
     def _supersede_overtaken_by(self, new: _Turn) -> None:
         if new.gen is not None and new.gen > self.gen:
             self.gen = new.gen
@@ -222,6 +241,15 @@ class LaneRegistry:
         found = self._lanes.get(session)
         if found is not None:
             found.advance(gen)
+
+    def cancel(self, session: str | None, gen: int | None = None) -> None:
+        """See :meth:`SolveLane.cancel_all`. No-op for unknown/sessionless
+        keys, for the reason :meth:`advance` gives."""
+        if session is None:
+            return
+        found = self._lanes.get(session)
+        if found is not None:
+            found.cancel_all(gen)
 
     @asynccontextmanager
     async def turn(self, session: str | None, kind: str, gen: int | None = None):

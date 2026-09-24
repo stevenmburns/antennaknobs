@@ -40,7 +40,7 @@ from pathlib import Path
 import numpy as np
 
 from ..engine import FarField, SimulationEngine, WireCurrents, vertex_only_names
-from ._external import find_exe
+from ._external import find_exe, run_exe
 from ._nec_wire import (
     BURIED_JACKET_ADVISORY_CARDS,
     JACKET_COMMENT_CARDS,
@@ -164,11 +164,11 @@ def run_deck(exe: str, deck: str, *, timeout: float) -> str:
         tdp = Path(td)
         (tdp / "model.nec").write_text(deck)
         try:
-            proc = subprocess.run(
+            # run_exe, not subprocess.run: a solve's cancel kills the binary
+            # (AK#1712) instead of letting a stale fill run to completion.
+            proc = run_exe(
                 [exe],
-                input="model.nec\nmodel.out\n\n",
-                text=True,
-                capture_output=True,
+                stdin_text="model.nec\nmodel.out\n\n",
                 cwd=td,
                 timeout=timeout,
             )
