@@ -801,8 +801,7 @@ def _mhos(token: str, where: str, what: str) -> float:
 # constants `Pi`, `mpf`, `fpm`, the functions `Sqrt Abs Int Sin Cos Tan Asin
 # Acos Atan`, and names the script sets once as constants. Refused by name:
 # the `j` operator and complex values, `/_`, `|||`, comparisons and `?:`,
-# member access (`G.MHz`), Anvil's `^-1` / `^T` / `^I` / `^*` suffix
-# operators, any other function, and a result that is not a finite real
+# member access (`G.MHz`), Anvil's `^T` / `^I` / `^*` suffix operators, any other function, and a result that is not a finite real
 # (Anvil's numbers are complex; a root of a negative has no card value).
 #
 # Where Anvil's behaviour is a convention rather than something its manual
@@ -815,8 +814,9 @@ class _AnvilRules:
     """The conventions of SimNEC's expression evaluator that the import
     depends on (AK#1714), each MEASURED by running probe circuits through
     SimNEC 5.3 (legacyNEC2C) and reading the deck it constructed:
-    scratch/simnec-expr-probe/probe{A,B}.ssn, captured as
-    captured-1414{20,34}.nec. tests/test_ssn_dcl_knobs_1714.py pins every
+    scratch/simnec-expr-probe/probe{A,B,D,E,F}.ssn, captured as
+    captured-1414{20,34}.nec and captured-1427{22,31,38}.nec.
+    tests/test_ssn_dcl_knobs_1714.py pins every
     probe row against SimNEC's printed value (`SIMNEC_MEASURED`)."""
 
     # Sin/Cos/Tan take, and Asin/Acos/Atan return, radians: SimNEC printed
@@ -827,9 +827,9 @@ class _AnvilRules:
     unary_over_power: bool = True
     # `a^b^c` groups left: 2^3^2 = 64. "right" or None (refuse) otherwise.
     power_assoc: str | None = "left"
-    # `%`: "fmod" (the sign of the dividend, Java's `%`) or "floor". SimNEC
-    # printed 7%3 = 1, which both give; a negative operand is unmeasured.
-    # TODO(AK#1714): measure -7%3 in SimNEC.
+    # `%` takes the sign of the dividend (fmod, Java's `%`): SimNEC printed
+    # -7%3 = -1, 7%-3 = 1, -7.5%2 = -1.5 (probeD_more.ssn,
+    # captured-142722.nec). "floor" is the other convention.
     modulus: str = "fmod"
     # Int(x) truncates toward zero: Int(-2.7) = -2.
     int_rounding: str = "trunc"
@@ -1018,12 +1018,13 @@ def _sim_parse(text: str, what: str):
         return sub()
 
     def exponent(op):
-        # What follows a power operator. `^-1`, `^*`, `^T`, `^I` are Anvil
-        # suffix operators (inverse, conjugate, transpose, identity).
+        # What follows a power operator. `^*`, `^T`, `^I` are Anvil suffix
+        # operators (conjugate, transpose, identity). `^-1` is its matrix
+        # inverse, but on a scalar it is the power: SimNEC printed 2^-1 = 0.5
+        # (probeE_negexp.ssn, captured-142731.nec).
         kind, val = peek()
         if op == "^" and (
-            (kind, val) in (("op", "-"), ("op", "*"))
-            or (kind == "name" and val in ("T", "I"))
+            (kind, val) == ("op", "*") or (kind == "name" and val in ("T", "I"))
         ):
             raise ValueError(
                 f"{what}: '^{val}' is an Anvil suffix operator, not read here"
@@ -1148,8 +1149,6 @@ class _Assign:
 
 
 _NAME = r"\$?[A-Za-z_]\w*"
-# A name inside a card field (not a number's SI suffix or exponent).
-_NAME_IN_FIELD = re.compile(rf"(?<![\w.$])({_NAME})")
 _DCL_ASSIGN = re.compile(rf"^dcl\s+({_NAME})\s*=(?!=)\s*(.*)$", re.DOTALL)
 _DCL_BARE = re.compile(rf"^dcl\s+({_NAME})\s*$")
 _TMP_ASSIGN = re.compile(r"^(\$[A-Za-z_]\w*)\s*=(?!=)\s*(.*)$", re.DOTALL)
@@ -1264,11 +1263,14 @@ class _DclCards:
 def _dcl_cards(script: _Script, where: str) -> _DclCards:
     """The block's cards and the script constants they read (AK#1714).
 
-    A block that names nothing is returned as written, as every block was
-    before AK#1714, and so is one that carries SY cards of its own (4nec2's
-    dialect, which `parse_nec` reads). Otherwise every card field that is not
-    a plain number is parsed as a SimNEC expression (see the note above
-    `_AnvilRules`). An FR card that names anything but a constant is dropped
+    Every card field that is not a plain number is parsed as a SimNEC
+    expression (see the note above `_AnvilRules`), whether or not the block
+    names a constant: a bare `500m` is 0.5, as SimNEC reads it
+    (probeF_literal.ssn, captured-142738.nec), never 4nec2's 500 metres, and
+    a suffix SimNEC does not have (`mm`, `ft`, `in`, the gauge `g`) is
+    refused by name. A card of plain numbers passes as written. The one
+    exception is a block that carries SY cards of its own (4nec2's dialect):
+    it goes to `parse_nec` as written. An FR card that names anything but a constant is dropped
     and reported: SimNEC's FR is advisory (the Generator's MHz drives its
     solve), and AC6LA's own 3-el Yagi names a `freq` whose dcl is commented
     out. Any other card naming something the script never sets as a constant
@@ -1285,17 +1287,6 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
         if mnemonic == "SY":
             return unchanged
         split.append((mnemonic, fields))
-    named = any(
-        _builtin(_SIM_CONSTANTS, n) is None and _builtin(_SIM_FUNCS, n) is None
-        for entry in split
-        if entry
-        for field in entry[1]
-        if not (_plain_number(field) or field.startswith("#"))
-        for n in _NAME_IN_FIELD.findall(field)
-    )
-    if not named:
-        return unchanged
-
     assigned: dict[str, list[_Assign]] = {}
     for a in script.assigns:
         assigned.setdefault(a.name, []).append(a)
@@ -1336,7 +1327,7 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
         mnemonic, fields = entry
         parsed = [
             f
-            if _plain_number(f) or f.startswith("#")
+            if _plain_number(f)
             else _sim_parse(f, f"{where}: {mnemonic} card {card!r}")
             for f in fields
         ]

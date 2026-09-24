@@ -167,6 +167,21 @@ SIMNEC_MEASURED = [
     ("$t = 3; dcl p = $t*2;", "p", 6.0),  # a $ temporary
     ("dcl p = 2*3+4;", "p", 10.0),
     ("dcl p = 2+3*4;", "p", 14.0),
+    # probe D (captured-142722.nec): % takes the dividend's sign (fmod).
+    ("dcl p = -7%3;", "p", -1.0),
+    ("dcl p = 7%-3;", "p", 1.0),
+    ("dcl p = -7.5%2;", "p", -1.5),
+    ("dcl p = Acos(0.5);", "p", 1.047198),
+    ("dcl p = Abs(-2);", "p", 2.0),
+    ("dcl p = 2*-3;", "p", -6.0),
+    ("dcl p = 2^0.5;", "p", 1.414214),
+    ("dcl p = (1+2)*3;", "p", 9.0),
+    # probe E (captured-142731.nec): on a scalar, `^-1` is the power.
+    ("dcl p = 2^-1;", "p", 0.5),
+    # probe F (captured-142738.nec): a bare suffixed literal in a card field,
+    # with or without a constant in the block, is SI: 500m is 0.5.
+    ("dcl q = 1;", "500m", 0.5),
+    ("", "500m", 0.5),
 ]
 
 
@@ -191,26 +206,13 @@ def test_the_measured_conventions_sit_in_one_place(monkeypatch):
         "left",
     )
     assert (rules.int_rounding, rules.builtins_case_sensitive) == ("trunc", True)
+    assert rules.modulus == "fmod"
     monkeypatch.setattr(simnec_import, "ANVIL", replace(rules, trig_unit="degrees"))
     assert math.isclose(_value("dcl p = Sin(30);", "p"), 0.5)
     monkeypatch.setattr(simnec_import, "ANVIL", replace(rules, power_assoc="right"))
     assert _value("dcl p = 2^3^2;", "p") == 512.0
     monkeypatch.setattr(simnec_import, "ANVIL", replace(rules, unary_over_power=False))
     assert _value("dcl p = -2^2;", "p") == -4.0
-
-
-# Conventions the probes have NOT settled: the rows pin today's choice, and
-# each names what would change it.
-UNMEASURED = [
-    # TODO(AK#1714): measure -7%3 in SimNEC. Java's % (fmod) gives -1; a
-    # floor modulus would give 2.
-    ("dcl p = -7%3;", "p", -1.0),
-]
-
-
-@pytest.mark.parametrize(("dcls", "field", "expected"), UNMEASURED)
-def test_unmeasured_conventions_pin_todays_choice(dcls, field, expected):
-    assert _value(dcls, field) == expected
 
 
 @pytest.mark.parametrize(
@@ -229,7 +231,15 @@ def test_unmeasured_conventions_pin_todays_choice(dcls, field, expected):
         ("dcl p = 0+j50;", "p", "complex value"),
         ("dcl a = 1; dcl b = 2;", "a|||b", "'|||b' is SimNEC syntax"),
         ("dcl a = 1;", "a/_45", "rotate operator"),
-        ("dcl a = 2;", "a^-1", "'\\^-' is an Anvil suffix operator"),
+        ("dcl a = 2;", "a^T", "'\\^T' is an Anvil suffix operator"),
+        ("dcl a = 2;", "a^I", "'\\^I' is an Anvil suffix operator"),
+        ("dcl a = 2;", "a^*2", "'\\^\\*' is an Anvil suffix operator"),
+        # 4nec2's unit suffixes are not SimNEC's; AC6LA's conversion notes
+        # tell the user to convert them.
+        ("", "10mm", "'10mm' has no SI suffix SimNEC reads"),
+        ("", "33ft", "'33ft' has no SI suffix SimNEC reads"),
+        ("", "12in", "'12in' has no SI suffix SimNEC reads"),
+        ("", "14g", "wire gauge"),
         ("dcl a = 2;", "G.MHz", "'.MHz' is SimNEC syntax"),
         ("dcl a = -4;", "Sqrt(a)", r"Sqrt\(-4\) failed"),
         ("dcl a = -8;", "a^(1/3)", "not a real number"),
