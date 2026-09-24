@@ -42,11 +42,8 @@ reflection-coefficient method's by-name refusal never lands in your lap.
 `wire.beverage` is a 1.5 wl, 2.5 m high Beverage for 160 m (245.8 m of #14
 at 1.83 MHz) with a 500 Ω terminator, a 9:1 feed transformer, and a 1.8 m
 ground rod at each end; the beam points toward the terminated end. The rods
-cross into the soil, and **momwire's `razor-2p` is the momwire lane that
-serves them**: `bspline` and `sinusoidal-galerkin` refuse the deck by name,
-because the two rod tops are a Beverage's length apart and their pair falls
-under the grazing floor of those lanes' below-ground tables. At the
-defaults, `razor-2p` and a licensed NEC-5 at the same mesh agree:
+cross into the soil, and momwire's `bspline` (the app's default),
+`sinusoidal-galerkin` and `razor-2p` all serve them. At the defaults, against a licensed NEC-5 at the same mesh:
 
 | 1.83 MHz, defaults | feed Z (Ω) | peak | F/B | RDF |
 | --- | --- | --- | --- | --- |
@@ -55,8 +52,20 @@ defaults, `razor-2p` and a licensed NEC-5 at the same mesh agree:
 | `razor-2p`, poor soil (13, 0.002) | 750.9 − j269.8 | −8.14 dBi | 19.5 dB | 12.22 dB |
 | NEC-5, poor soil | 751.0 − j270.0 | −8.14 dBi | 19.3 dB | 12.22 dB |
 
-The feed is the antenna side of the transformer. The two engines are
-0.02 Ω apart on the 50 Ω side of it. The low absolute gain is normal for a
+The feed is the antenna side of the transformer. `razor-2p` and NEC-5 are
+0.02 Ω apart on the 50 Ω side of it. `bspline` and `sinusoidal-galerkin`
+agree with each other to 0.1 Ω and read about 0.3 % from NEC-5:
+
+| feed Z (Ω), same mesh | average soil | poor soil |
+| --- | --- | --- |
+| NEC-5 | 677.00 − j97.64 | 750.99 − j269.96 |
+| `razor-2p` | 676.99 − j97.57 | 750.92 − j269.84 |
+| `bspline` | 675.20 − j98.49 | 748.95 − j269.43 |
+| `sinusoidal-galerkin` | 675.17 − j98.54 | 748.85 − j269.49 |
+
+That 2 Ω at the feed (0.2 Ω on the 50 Ω side) is the known difference
+between momwire's B-spline buried formulation and NEC-5's; `razor-2p` is
+NEC-5's formulation, which is why it lands on it. The low absolute gain is normal for a
 Beverage, which is judged by its RDF (the receiving directivity factor, peak
 gain over average gain). The rods are the wire's own radius, because momwire
 does not yet serve two radii with two crossing nodes. The `contact` variant
