@@ -51,6 +51,9 @@ export function PatternCompareTable({
           <th>takeoff</th>
           <th>F/B</th>
           <th>az bw</th>
+          <th title="Receiving directivity factor: peak gain over the average gain of the whole pattern">
+            RDF
+          </th>
           <th />
         </tr>
       </thead>
@@ -93,6 +96,7 @@ export function PatternCompareTable({
             <td>{row.m ? `${fmt(row.m.takeoff_deg, 0)}°` : "—"}</td>
             <td>{fmt(row.m?.front_to_back_db, 1)}</td>
             <td>{row.m ? `${fmt(row.m.az_beamwidth_deg, 0)}°` : "—"}</td>
+            <td>{fmt(row.m?.rdf_db, 1)}</td>
             <td>
               {row.onX && (
                 <button
