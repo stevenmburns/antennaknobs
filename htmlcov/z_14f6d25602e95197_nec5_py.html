@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_14f6d25602e95197_pynec_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-24 15:58 +0000
+            created at 2026-09-24 17:09 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -122,7 +122,7 @@
     <p class="run"><span class="n"><a id="t40" href="#t40">40</a></span><span class="t"><span class="key">import</span> <span class="nam">numpy</span> <span class="key">as</span> <span class="nam">np</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t41" href="#t41">41</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t42" href="#t42">42</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="op">.</span><span class="nam">engine</span> <span class="key">import</span> <span class="nam">FarField</span><span class="op">,</span> <span class="nam">SimulationEngine</span><span class="op">,</span> <span class="nam">WireCurrents</span><span class="op">,</span> <span class="nam">vertex_only_names</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t43" href="#t43">43</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">_external</span> <span class="key">import</span> <span class="nam">find_exe</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t43" href="#t43">43</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">_external</span> <span class="key">import</span> <span class="nam">find_exe</span><span class="op">,</span> <span class="nam">run_exe</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t44" href="#t44">44</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">_nec_wire</span> <span class="key">import</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t45" href="#t45">45</a></span><span class="t">    <span class="nam">BURIED_JACKET_ADVISORY_CARDS</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t46" href="#t46">46</a></span><span class="t">    <span class="nam">JACKET_COMMENT_CARDS</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -246,11 +246,11 @@
     <p class="run"><span class="n"><a id="t164" href="#t164">164</a></span><span class="t">        <span class="nam">tdp</span> <span class="op">=</span> <span class="nam">Path</span><span class="op">(</span><span class="nam">td</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t165" href="#t165">165</a></span><span class="t">        <span class="op">(</span><span class="nam">tdp</span> <span class="op">/</span> <span class="str">&quot;model.nec&quot;</span><span class="op">)</span><span class="op">.</span><span class="nam">write_text</span><span class="op">(</span><span class="nam">deck</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t166" href="#t166">166</a></span><span class="t">        <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t167" href="#t167">167</a></span><span class="t">            <span class="nam">proc</span> <span class="op">=</span> <span class="nam">subprocess</span><span class="op">.</span><span class="nam">run</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t168" href="#t168">168</a></span><span class="t">                <span class="op">[</span><span class="nam">exe</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t169" href="#t169">169</a></span><span class="t">                <span class="nam">input</span><span class="op">=</span><span class="str">&quot;model.nec\nmodel.out\n\n&quot;</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t170" href="#t170">170</a></span><span class="t">                <span class="nam">text</span><span class="op">=</span><span class="key">True</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t171" href="#t171">171</a></span><span class="t">                <span class="nam">capture_output</span><span class="op">=</span><span class="key">True</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t167" href="#t167">167</a></span><span class="t">            <span class="com"># run_exe, not subprocess.run: a solve&#x27;s cancel kills the binary</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t168" href="#t168">168</a></span><span class="t">            <span class="com"># (AK#1712) instead of letting a stale fill run to completion.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t169" href="#t169">169</a></span><span class="t">            <span class="nam">proc</span> <span class="op">=</span> <span class="nam">run_exe</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t170" href="#t170">170</a></span><span class="t">                <span class="op">[</span><span class="nam">exe</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t171" href="#t171">171</a></span><span class="t">                <span class="nam">stdin_text</span><span class="op">=</span><span class="str">&quot;model.nec\nmodel.out\n\n&quot;</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t172" href="#t172">172</a></span><span class="t">                <span class="nam">cwd</span><span class="op">=</span><span class="nam">td</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t173" href="#t173">173</a></span><span class="t">                <span class="nam">timeout</span><span class="op">=</span><span class="nam">timeout</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t174" href="#t174">174</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -1800,7 +1800,7 @@
             <a class="nav" href="z_14f6d25602e95197_pynec_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-24 15:58 +0000
+            created at 2026-09-24 17:09 +0000
         </p>
     </div>
 </footer>
