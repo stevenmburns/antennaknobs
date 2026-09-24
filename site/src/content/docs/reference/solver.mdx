@@ -189,9 +189,9 @@ than silently:
 - **singular enrichment**, on the bases that otherwise serve EK — the
   enrichment degrees of freedom carry their own quadrature and bypass the
   moment kernels the extended kernel corrects (momwire#249).
-- **a wire below the ground plane**, on every lane — the kernel's O(a²)
-  tube expansion is written at one wavenumber, and a buried deck spans two
-  media. Solve it with the reduced kernel.
+- **a wire below the ground plane**, on every lane — the extended kernel
+  has not been measured on a pair of segments spanning two media. Solve a
+  buried deck with the reduced kernel, which is the default.
 - **a radius step at a junction** on `sinusoidal-galerkin` — measured
   divergent; `bspline` and `sinusoidal` serve the step.
 
@@ -349,7 +349,7 @@ model; the default solver is unaffected.
 **Below the interface** (momwire ≥ 0.38.0): wires strictly below the ground
 plane — buried radials and screens, buried fed elements, elevated feeds over
 buried counterpoises — serve **impedance, currents and charges**, and
-since v0.80.0 the **radiation pattern**, on the `bspline` lane over the
+since antennaknobs v0.80.0 the **radiation pattern**, on the `bspline` lane over the
 Sommerfeld ground, and since momwire 0.52.0 on the `sinusoidal-galerkin`
 lane as well. The two bases share no fill code below
 the interface, so a buried number now has an in-house second opinion from a
