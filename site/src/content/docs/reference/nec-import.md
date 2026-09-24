@@ -10,16 +10,18 @@ xnec2c, 4nec2, EZNEC, and fifty years of antenna handbooks all speak — into
 wire geometry a design can return from `build_wires`, so you can solve, sweep,
 and view a deck someone published without retyping its coordinates.
 
-Set expectations first, though: **a NEC deck is frozen geometry, not a
+Set expectations first, though: **a NEC deck is mostly frozen geometry, not a
 parameterized design.** The knobs are where antennaknobs earns its name — a
 native builder expresses its dimensions as parameters and wavelength
 fractions, so element lengths, spacings, and angles are all draggable and
 optimizable, and `design_freq` moves the whole antenna to another band. A
-deck has none of that structure to expose; coordinates are just numbers. What
-an imported deck supports is the measurement frequency, a `height` lift, and
-a whole-geometry `scale` — useful, but blunt. Treat the import as a *viewer*
-for published decks, and as a source of dimensions when you decide a design
-is worth porting to a real `AntennaBuilder`.
+plain deck has none of that structure to expose; coordinates are just numbers.
+The exception is a deck written with 4nec2's `SY` variables: each constant it
+defines becomes a knob (see [SY constants are knobs](#sy-constants-are-knobs)).
+Otherwise an imported deck supports the measurement frequency, a `height`
+lift, and a whole-geometry `scale` — useful, but blunt. Treat the import as a
+*viewer* for published decks, and as a source of dimensions when you decide a
+design is worth porting to a real `AntennaBuilder`.
 
 ## Quick start
 
@@ -355,6 +357,57 @@ while the default point model is `E = V·δ(s − s_f)`, where where in the cell
 the point sits IS the answer. On a base-fed vertical over ground the two
 placements differ by 29 % in X.
 
+## SY constants are knobs
+
+A deck that names its dimensions with `SY` cards keeps them as knobs when it
+is loaded as a design (the designs folder, or an `@file.nec` spec). Each
+**constant** — a symbol whose right-hand side names no other symbol: a number,
+literal arithmetic such as `360/16`, or a number times a unit symbol such as
+`1.5*mm` — becomes the knob `sy_<name>` (lower case; 4nec2 names ignore case),
+defaulting to the deck's value. Its label is the `SY` card's trailing
+`'` comment, or the symbol's name without one; a card that assigns several
+symbols and whose comment splits on commas into as many pieces labels them
+one each. A knob written with a unit symbol reads in that unit (`1.5*mm` is a
+1.5 mm knob); otherwise values are in the deck's own units, and its `GS` scale
+still applies. A constant that lands directly in an integer field — a
+segment count, a tag — is an integer knob.
+
+Every other symbol follows the knobs: the design re-reads the deck from the
+current knob values on every build, so a derived symbol (`z=len*cos(ang/2)`)
+and a segment count written as `int(hgh)` come out exactly as they would from
+a copy of the deck with that one `SY` value edited by hand. At its default
+values the design is the deck as imported, bit for bit.
+
+Some constants are not knobs, and the design's note under the antenna
+selector names them and why:
+
+- a symbol assigned more than once;
+- a unit selector: a right-hand side that is only a unit symbol (`Inp=mm`),
+  or a constant that sets the `GS` scale factor (`Scal=1`);
+- a symbol that reaches only the `FR` card — the frequency dial covers it;
+- a symbol that reaches nothing the design is built from (unused, or read only
+  by cards the import does not apply).
+
+A knob that also reaches `FR` (Cebik's equation Yagi sizes every element from
+`Fr`) moves the geometry, but the design and measurement frequencies stay at
+the deck's; the note says so. The same holds for a knob that also reaches a
+`GN`, `GD`, `GE` or `EK` card: those are read once, when the design loads.
+
+Ranges are the workbench's usual ±50 % around the default. A zero default
+has no such window, so it spans ± the deck's own extent (the largest
+coordinate the deck writes).
+
+**The deck's topology is frozen at its own values.** A knob value is refused,
+with a message naming the knob, its value and what broke, when it changes
+which wire ends meet (or meet another wire at a segment boundary), moves a
+wire end into, through or out of the ground plane, moves a feed, load or
+network card onto a different wire, collapses a wire to zero length, or
+makes the deck itself invalid (a segment count below 1, a feed off its
+wire). The design keeps building at any good value, the deck's own included.
+
+A deck with no `SY` constants loads exactly as before, and a SimNEC `.ssn` is
+not affected.
+
 ## The NEC-5 dialect
 
 NEC-5 changed one thing the importer must not guess about: **sources can sit
@@ -429,3 +482,9 @@ raises if no voltage source drives the antenna), `network()` (the translated
 cards + `EX` drives as a `Network`, `network=True` only),
 `dominant_radius()`, and `skipped_note()` (the not-applied record as one
 informational sentence, reasons included).
+
+`parse_nec(text, sy_overrides={"hgh": 22.0})` sets `SY` symbols by name, as if
+the deck's text had been edited at their definitions; a name the deck does not
+define, or assigns more than once, is refused. `classify_sy(text)` returns each
+symbol with its classification (`"knob"`, `"derived"`, `"redefined"`,
+`"unit"`, `"frequency"` or `"inert"`), label, unit and the cards it reaches.
