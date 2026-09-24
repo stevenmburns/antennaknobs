@@ -15,8 +15,8 @@ language — with the NEC cards between ``NEC2`` and ``NECEND``:
     SommerfeldGround(0.0303, 20);      // (mhos, dielectric) == (sigma, eps_r)
     NECOptions.mhosPerMeter = 0;       // 0 = perfect wires
     NECOptions.segmentsPerWavelength = 120;
-    NEC2
-    GW 1 ...
+    NEC2                               // a trailing // comment is read
+    GW 1 ...                           // on the keyword lines and cards
     EX 0 1 6 0 1. 0.
     NECEND
 
@@ -35,6 +35,16 @@ Segment counts are the deck's GW counts, and a ``$GW_<tag>.JamSegments(N)``
 sets that wire's count to exactly N (AK#1679). SimNEC's own re-mesh
 (``NECOptions.segmentsPerWavelength`` and its segmentation pass) is not
 emulated, and ``SsnCircuit.mesh_note()`` says so.
+
+A card field may be an expression naming constants the script declares above
+``NEC2`` (``dcl hgh = 50*0.3048;`` ... ``GW 2 19 -len 0 hgh len 0 hgh rad``,
+AK#1714): the import evaluates it with SimNEC's own expression rules (a subset
+of its Anvil language, the note above `_AnvilRules`) and hands ``parse_nec``
+the value. ``parse_ssn(..., dcl_overrides=)`` sets constants by name, and
+`classify_dcl` says which are knobs, so a ``.ssn`` file design publishes them
+as ``.nec`` SY constants are published (`file_designs._SyKnobs`). A card that
+names something the script never sets as a constant is refused by name; an FR
+card that does is dropped and reported, since SimNEC's FR is advisory.
 
 The solve frequency comes from the GENERATOR element's ``MHz`` — in SimNEC the
 deck's ``FR`` card is advisory; the Generator drives the solve — and an armed
@@ -103,15 +113,24 @@ from __future__ import annotations
 import math
 import re
 import xml.etree.ElementTree as ET
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
 from . import network as _net
 from .design_data import read_data
-from .nec_import import NecDeck, parse_nec
+from .nec_import import (
+    _SY_INT_FIELDS,
+    _SY_REBUILT_CARDS,
+    NecDeck,
+    SySymbol,
+    _split_card_fields,
+    parse_nec,
+)
+from .nec_import import _float as _nec_float
 from .network import Composite
 from .schematic import series
 
-__all__ = ["SsnCircuit", "SsnElement", "parse_ssn", "read_ssn"]
+__all__ = ["SsnCircuit", "SsnElement", "classify_dcl", "parse_ssn", "read_ssn"]
 
 
 # The exporter's scaffold LOAD is a 1e9 Ohm open; treat anything this large as
@@ -130,8 +149,10 @@ _SERIES_CHAIN = frozenset(
 _MATCH_CHAIN = frozenset({"XMATCH"})
 _CHAIN_TYPES = _SHUNT_CHAIN | _SERIES_CHAIN | _MATCH_CHAIN
 
-_NEC2_LINE = re.compile(r"^NEC2\s*$")
-_NECEND_LINE = re.compile(r"^NECEND\s*$")
+# SimNEC reads a `//` comment after either keyword (AC6LA's examples write
+# `NEC2  // ====`), so the keyword line is the keyword plus that comment.
+_NEC2_LINE = re.compile(r"^NEC2\s*(?://.*)?$")
+_NECEND_LINE = re.compile(r"^NECEND\s*(?://.*)?$")
 _PORT_DECL = re.compile(r"^P\d+\s+\S", re.IGNORECASE)
 _SOMMERFELD = re.compile(
     r"^SommerfeldGround\s*\(\s*([^\s,()]+)\s*,\s*([^\s,()]+)\s*\)$", re.IGNORECASE
@@ -465,6 +486,9 @@ class SsnCircuit:
     # range; several ranges or listed values have no one spacing, and leave
     # the density to the app.
     sweep_grid: tuple[str, float] | None = None
+    # FR cards not read because they name something the script does not set
+    # as a constant (AK#1714; SimNEC's FR is advisory), as written, with why.
+    dropped_fr: tuple[str, ...] = ()
 
     def skipped_note(self) -> str | None:
         """One human-readable sentence naming what the file carries that the
@@ -485,6 +509,8 @@ class SsnCircuit:
             )
         if self.sweep_note:
             parts.append(self.sweep_note)
+        for card in self.dropped_fr:
+            parts.append(f"FR card not read: {card}")
         for el in self.chain:
             if el.typ in _MATCH_CHAIN and _chain_f(el, "MHz", default=0.0) <= 0.0:
                 # AK#1646: SimNEC retunes an MHz = 0 XMATCH at every
@@ -750,6 +776,699 @@ def _mhos(token: str, where: str, what: str) -> float:
     return 1.0 / _RESISTIVITY_OHM_M[name]
 
 
+# ---------------------------------------------------------------------------
+# dcl constants in the NEC cards (AK#1714)
+# ---------------------------------------------------------------------------
+# SimNEC's NEC portal evaluates a card field as an expression in its own
+# language (Anvil), so a parametrised block names constants the script
+# declares above `NEC2` (AC6LA's 4nec2 conversions: "replace all SY with dcl"):
+#
+#     dcl hgh = 50*0.3048 ; // Height (50 feet)
+#     NEC2
+#     GW 2 19 -len 0 hgh len 0 hgh rad
+#
+# The import evaluates those constants and fields itself, with a parser for
+# the subset of Anvil below (the Anvil Programming Manual: Appendix A for the
+# operators, Appendix B for the functions and constants), and hands
+# `parse_nec` the block with every such field replaced by its value's `repr`
+# -- a deck of plain numbers. It never goes through 4nec2's SY evaluator: the
+# two languages differ in their trig unit, their suffixes (SimNEC's `5m` is
+# 5 mm), the binding of unary minus against `^`, and case (SimNEC names are
+# case-sensitive).
+#
+# Read: numbers with SimNEC's SI suffix (`1.054u`, `30p`, `5m`: `_SI_SUFFIX`),
+# `+ - * / %`, `^` and `**` (both power), unary `+ -`, parentheses, the
+# constants `Pi`, `mpf`, `fpm`, the functions `Sqrt Abs Int Sin Cos Tan Asin
+# Acos Atan`, and names the script sets once as constants. Refused by name:
+# the `j` operator and complex values, `/_`, `|||`, comparisons and `?:`,
+# member access (`G.MHz`), Anvil's `^-1` / `^T` / `^I` / `^*` suffix
+# operators, any other function, and a result that is not a finite real
+# (Anvil's numbers are complex; a root of a negative has no card value).
+#
+# Where Anvil's behaviour is a convention rather than something its manual
+# pins, it is one field of `ANVIL` -- measured in SimNEC itself -- and the
+# evaluator reads it only there.
+
+
+@dataclass(frozen=True)
+class _AnvilRules:
+    """The conventions of SimNEC's expression evaluator that the import
+    depends on (AK#1714), each MEASURED by running probe circuits through
+    SimNEC 5.3 (legacyNEC2C) and reading the deck it constructed:
+    scratch/simnec-expr-probe/probe{A,B}.ssn, captured as
+    captured-1414{20,34}.nec. tests/test_ssn_dcl_knobs_1714.py pins every
+    probe row against SimNEC's printed value (`SIMNEC_MEASURED`)."""
+
+    # Sin/Cos/Tan take, and Asin/Acos/Atan return, radians: SimNEC printed
+    # Sin(30) = -0.9880316 and Atan(1) = 0.7853982 (4nec2's SY trig is in
+    # degrees).
+    trig_unit: str = "radians"
+    # Unary minus binds tighter than ^ / **: -2^2 = +4.
+    unary_over_power: bool = True
+    # `a^b^c` groups left: 2^3^2 = 64. "right" or None (refuse) otherwise.
+    power_assoc: str | None = "left"
+    # `%`: "fmod" (the sign of the dividend, Java's `%`) or "floor". SimNEC
+    # printed 7%3 = 1, which both give; a negative operand is unmeasured.
+    # TODO(AK#1714): measure -7%3 in SimNEC.
+    modulus: str = "fmod"
+    # Int(x) truncates toward zero: Int(-2.7) = -2.
+    int_rounding: str = "trunc"
+    # Built-in names are case-sensitive: on probeC_case.ssn (`sin(30)`,
+    # `SIN(30)`) SimNEC refused the circuit, "Missing Method Declaration (or
+    # inconsistent number of args) (maybe: 'Sin' ...Capitalization)".
+    builtins_case_sensitive: bool = True
+
+
+ANVIL = _AnvilRules()
+
+
+def _anvil_trig(fn):
+    def call(x):
+        return fn(math.radians(x) if ANVIL.trig_unit == "degrees" else x)
+
+    return call
+
+
+def _anvil_arc(fn):
+    def call(x):
+        r = fn(x)
+        return math.degrees(r) if ANVIL.trig_unit == "degrees" else r
+
+    return call
+
+
+def _anvil_int(x: float) -> float:
+    return float(math.trunc(x) if ANVIL.int_rounding == "trunc" else math.floor(x))
+
+
+_SIM_FUNCS = {
+    "Sqrt": math.sqrt,
+    "Abs": abs,
+    "Int": _anvil_int,
+    "Sin": _anvil_trig(math.sin),
+    "Cos": _anvil_trig(math.cos),
+    "Tan": _anvil_trig(math.tan),
+    "Asin": _anvil_arc(math.asin),
+    "Acos": _anvil_arc(math.acos),
+    "Atan": _anvil_arc(math.atan),
+}
+# Appendix B: Pi; mpf and fpm are metres per foot and feet per metre, whose
+# definition is the international foot.
+_SIM_CONSTANTS = {"Pi": math.pi, "mpf": 0.3048, "fpm": 1.0 / 0.3048}
+
+
+def _builtin(table: dict, name: str):
+    """``name``'s entry in a built-in table, under `ANVIL`'s case rule."""
+    if name in table:
+        return table[name]
+    if not ANVIL.builtins_case_sensitive:
+        for key, value in table.items():
+            if key.lower() == name.lower():
+                return value
+    return None
+
+
+def _documented_spelling(table: dict, name: str) -> str | None:
+    """The built-in ``name`` folds onto, spelled as the manual spells it."""
+    return next((k for k in table if k.lower() == name.lower()), None)
+
+
+# A number, with a trailing SI suffix glued on (`1.054u`, `30p`), a name
+# (`len`, `$tmp`), or an operator (`/_` only so that it is refused by name).
+_SIM_TOKEN = re.compile(
+    r"\s*(?:"
+    r"(?P<num>(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(?P<suf>[A-Za-zµ]\w*)?"
+    r"|(?P<name>\$?[A-Za-z_]\w*)"
+    r"|(?P<op>\*\*|/_|[-+*/%^()])"
+    r")"
+)
+_SIM_ADD = ("+", "-")
+_SIM_MUL = ("*", "/", "%")
+_SIM_POW = ("**", "^")
+# `j50`, `j`: Anvil's "multiply by j" unary operator, i.e. a complex value.
+_SIM_IMAGINARY = re.compile(r"^j(?:\d|$)")
+
+
+def _sim_tokens(text: str, what: str) -> list[tuple[str, object]]:
+    toks: list[tuple[str, object]] = []
+    pos = 0
+    while pos < len(text):
+        m = _SIM_TOKEN.match(text, pos)
+        if m is None or m.end() == pos:
+            if not text[pos:].strip():
+                break
+            raise ValueError(
+                f"{what}: {text[pos:].strip()!r} is SimNEC syntax this import "
+                "does not read"
+            )
+        pos = m.end()
+        if m.group("num") is not None:
+            num, suf = m.group("num"), m.group("suf")
+            if suf is None:
+                toks.append(("num", float(num)))
+            elif suf in _SI_SUFFIX:
+                toks.append(("num", _si_float(num + suf)))
+            elif suf == "g":
+                raise ValueError(
+                    f"{what}: {num + suf!r} is a SimNEC wire gauge (AWG), "
+                    "which this import does not read"
+                )
+            else:
+                raise ValueError(f"{what}: {num + suf!r} has no SI suffix SimNEC reads")
+        elif m.group("name") is not None:
+            name = m.group("name")
+            if _SIM_IMAGINARY.match(name):
+                raise ValueError(
+                    f"{what}: {name!r} is a complex value (SimNEC's j operator), "
+                    "which a card field here cannot hold"
+                )
+            toks.append(("name", name))
+        elif m.group("op") == "/_":
+            raise ValueError(f"{what}: SimNEC's rotate operator '/_' is not read here")
+        else:
+            toks.append(("op", m.group("op")))
+    return toks
+
+
+def _sim_parse(text: str, what: str):
+    """One SimNEC expression as a tree: ``("num", value)``, ``("name", n)``,
+    ``("const", name)``, ``("call", name, arg)``, ``("neg", x)`` or
+    ``("bin", op, a, b)``, grouped by Anvil's precedence under `ANVIL`.
+    Anything outside the subset is a ValueError that names the construct."""
+    toks = _sim_tokens(text, what)
+    i = 0
+
+    def peek():
+        return toks[i] if i < len(toks) else (None, None)
+
+    def take():
+        nonlocal i
+        i += 1
+        return toks[i - 1]
+
+    def at_op(ops) -> bool:
+        kind, val = peek()
+        return kind == "op" and val in ops
+
+    def primary():
+        kind, val = peek()
+        if kind == "num":
+            take()
+            return ("num", val)
+        if kind == "name":
+            take()
+            if peek() == ("op", "("):
+                spelled = _documented_spelling(_SIM_FUNCS, val)
+                if spelled is not None and _builtin(_SIM_FUNCS, val) is None:
+                    # SimNEC's own refusal: "(maybe: 'Sin' ...Capitalization)".
+                    raise ValueError(
+                        f"{what}: SimNEC has no function {val}(...); its names "
+                        f"are case-sensitive (did you mean {spelled!r}?)"
+                    )
+                if _builtin(_SIM_FUNCS, val) is None:
+                    raise ValueError(
+                        f"{what}: the function {val}(...) is not read here "
+                        f"(this import reads {', '.join(_SIM_FUNCS)})"
+                    )
+                take()
+                arg = additive()
+                if peek() != ("op", ")"):
+                    raise ValueError(f"{what}: expected ')' after {val}(...")
+                take()
+                return ("call", val, arg)
+            if _builtin(_SIM_CONSTANTS, val) is not None:
+                return ("const", val)
+            return ("name", val)
+        if (kind, val) == ("op", "("):
+            take()
+            inner = additive()
+            if peek() != ("op", ")"):
+                raise ValueError(f"{what}: unbalanced parenthesis")
+            take()
+            return inner
+        if kind is None:
+            raise ValueError(f"{what}: ends unexpectedly")
+        raise ValueError(f"{what}: unexpected {val!r}")
+
+    def signed(sub):
+        if at_op(("-", "+")):
+            op = take()[1]
+            x = signed(sub)
+            return ("neg", x) if op == "-" else x
+        return sub()
+
+    def exponent(op):
+        # What follows a power operator. `^-1`, `^*`, `^T`, `^I` are Anvil
+        # suffix operators (inverse, conjugate, transpose, identity).
+        kind, val = peek()
+        if op == "^" and (
+            (kind, val) in (("op", "-"), ("op", "*"))
+            or (kind == "name" and val in ("T", "I"))
+        ):
+            raise ValueError(
+                f"{what}: '^{val}' is an Anvil suffix operator, not read here"
+            )
+        return signed(primary) if ANVIL.unary_over_power else primary()
+
+    def power():
+        base = signed(primary) if ANVIL.unary_over_power else primary()
+        operands = [base]
+        while at_op(_SIM_POW):
+            operands.append(exponent(take()[1]))
+        if len(operands) > 2 and ANVIL.power_assoc is None:
+            raise ValueError(f"{what}: a chained power is ambiguous; parenthesise it")
+        if ANVIL.power_assoc == "left":
+            tree = operands[0]
+            for x in operands[1:]:
+                tree = ("bin", "^", tree, x)
+            return tree
+        tree = operands[-1]
+        for x in reversed(operands[:-1]):
+            tree = ("bin", "^", x, tree)
+        return tree
+
+    def unary():
+        return power() if ANVIL.unary_over_power else signed(power)
+
+    def binary(sub, ops):
+        lhs = sub()
+        while at_op(ops):
+            op = take()[1]
+            lhs = ("bin", op, lhs, sub())
+        return lhs
+
+    def mul():
+        return binary(unary, _SIM_MUL)
+
+    def additive():
+        return binary(mul, _SIM_ADD)
+
+    tree = additive()
+    if i != len(toks):
+        raise ValueError(f"{what}: unexpected {toks[i][1]!r}")
+    return tree
+
+
+def _sim_names(tree) -> list[str]:
+    """The script names ``tree`` reads, in order."""
+    kind = tree[0]
+    if kind == "name":
+        return [tree[1]]
+    if kind == "call":
+        return _sim_names(tree[2])
+    if kind == "neg":
+        return _sim_names(tree[1])
+    if kind == "bin":
+        return _sim_names(tree[2]) + _sim_names(tree[3])
+    return []
+
+
+def _sim_eval(tree, env: Mapping[str, float], what: str) -> float:
+    """``tree``'s value with the script's constants ``env``: a finite real,
+    or a ValueError naming ``what``."""
+
+    def ev(t) -> float:
+        kind = t[0]
+        if kind == "num":
+            return t[1]
+        if kind == "name":
+            return env[t[1]]
+        if kind == "const":
+            return _builtin(_SIM_CONSTANTS, t[1])
+        if kind == "neg":
+            return -ev(t[1])
+        if kind == "call":
+            arg = ev(t[2])
+            try:
+                return _builtin(_SIM_FUNCS, t[1])(arg)
+            except (ArithmeticError, ValueError) as e:
+                raise ValueError(f"{what}: {t[1]}({arg:g}) failed: {e}") from None
+        op, a, b = t[1], ev(t[2]), ev(t[3])
+        try:
+            if op == "+":
+                r = a + b
+            elif op == "-":
+                r = a - b
+            elif op == "*":
+                r = a * b
+            elif op == "/":
+                r = a / b
+            elif op == "%":
+                if b == 0.0:
+                    raise ZeroDivisionError("modulo by zero")
+                r = math.fmod(a, b) if ANVIL.modulus == "fmod" else a % b
+            else:
+                r = a**b
+        except (ArithmeticError, ValueError) as e:
+            raise ValueError(f"{what}: '{a:g} {op} {b:g}' failed: {e}") from None
+        if isinstance(r, complex):
+            raise ValueError(f"{what}: '{a:g} {op} {b:g}' is not a real number")
+        return r
+
+    value = float(ev(tree))
+    if not math.isfinite(value):
+        raise ValueError(f"{what}: evaluates to {value}")
+    return value
+
+
+@dataclass(frozen=True)
+class _Assign:
+    """One assignment the script makes (AK#1714). ``expr`` is None for one
+    that is not ``name = expr`` (an ``x++``, a ``+=``, a bare ``dcl x``).
+    ``constant`` marks the two constant forms: a top-level (outside any
+    ``{ }``) ``dcl name = expr`` or ``$name = expr`` statement of its own."""
+
+    name: str
+    expr: str | None
+    comment: str
+    line: int
+    constant: bool
+    stmt: str
+    declares: bool = False
+
+
+_NAME = r"\$?[A-Za-z_]\w*"
+# A name inside a card field (not a number's SI suffix or exponent).
+_NAME_IN_FIELD = re.compile(rf"(?<![\w.$])({_NAME})")
+_DCL_ASSIGN = re.compile(rf"^dcl\s+({_NAME})\s*=(?!=)\s*(.*)$", re.DOTALL)
+_DCL_BARE = re.compile(rf"^dcl\s+({_NAME})\s*$")
+_TMP_ASSIGN = re.compile(r"^(\$[A-Za-z_]\w*)\s*=(?!=)\s*(.*)$", re.DOTALL)
+# Any other assignment inside a statement: `if (c) $x = 1`, `x += 2`,
+# `$i++`, `for($i=0` -- the name is assigned, so not a constant.
+_ANY_ASSIGN = re.compile(
+    rf"(?<![\w$.])({_NAME})\s*(?:\*\*|<<|>>>?|[-+*/%^|&])?=(?!=)"
+    rf"|(?:\+\+|--)\s*({_NAME})|(?<![\w$.])({_NAME})\s*(?:\+\+|--)"
+)
+
+
+def _assignments(stmt: str, depth: int, comment: str, line: int) -> list[_Assign]:
+    """The assignments one directive statement makes."""
+    for pat in (_DCL_ASSIGN, _TMP_ASSIGN):
+        m = pat.match(stmt)
+        if m:
+            return [
+                _Assign(m.group(1), m.group(2).strip(), comment, line, depth == 0, stmt)
+            ]
+    m = _DCL_BARE.match(stmt)
+    if m:
+        return [_Assign(m.group(1), None, comment, line, False, stmt, declares=True)]
+    return [
+        _Assign(next(g for g in m.groups() if g), None, comment, line, False, stmt)
+        for m in _ANY_ASSIGN.finditer(stmt)
+    ]
+
+
+def _card_mnemonic(fields: list[str]) -> tuple[str, list[str]]:
+    """``(mnemonic, value fields)``, a fused ``GW1`` split as `parse_nec`
+    splits it."""
+    head = fields[0]
+    if len(head) > 2 and head[:2].isalpha() and head[2] in "0123456789.+-":
+        return head[:2].upper(), [head[2:], *fields[1:]]
+    return head.upper(), fields[1:]
+
+
+def _plain_number(field: str) -> bool:
+    try:
+        _nec_float(field, "")
+    except ValueError:
+        return False
+    return True
+
+
+@dataclass(frozen=True)
+class _DclConstant:
+    """A script constant the cards read (AK#1714), in script order."""
+
+    name: str  # as the script spells it (case-sensitive)
+    expr: str
+    tree: tuple
+    comment: str
+    line: int
+    stmt: str
+
+
+@dataclass(frozen=True)
+class _DclCards:
+    """The block's cards, with the dcl constants they read (AK#1714).
+
+    ``cards`` holds, per card, either the card as written (a comment, or a
+    card of plain numbers) or ``(mnemonic, fields)`` with each field a plain
+    string or an expression tree; `render` evaluates the constants in script
+    order and writes the trees' values in."""
+
+    cards: tuple
+    constants: tuple[_DclConstant, ...]
+    # FR cards not read (SimNEC's FR is advisory), with why.
+    dropped: tuple[str, ...]
+
+    @property
+    def names(self) -> tuple[str, ...]:
+        return tuple(c.name for c in self.constants)
+
+    def values(self, where: str, overrides: Mapping[str, float] | None = None):
+        """Each constant's value, in script order; an overridden one takes
+        the override in place of its expression, at its definition, so the
+        constants that read it follow."""
+        env: dict[str, float] = {}
+        for c in self.constants:
+            if overrides and c.name in overrides:
+                env[c.name] = float(overrides[c.name])
+            else:
+                env[c.name] = _sim_eval(c.tree, env, f"{where}: {c.stmt!r}")
+        return env
+
+    def render(self, where: str, overrides: Mapping[str, float] | None = None):
+        """The cards `parse_nec` reads: every expression field replaced by
+        its value -- ``repr``, so the deck reads back the very double -- or,
+        in an integer field (`_SY_INT_FIELDS`) holding a whole value, the
+        integer."""
+        env = self.values(where, overrides)
+        out = []
+        for card in self.cards:
+            if isinstance(card, str):
+                out.append(card)
+                continue
+            mnemonic, fields = card
+            ints = _SY_INT_FIELDS.get(mnemonic, ())
+            parts = [mnemonic]
+            for k, f in enumerate(fields):
+                if isinstance(f, str):
+                    parts.append(f)
+                    continue
+                v = _sim_eval(f, env, f"{where}: {mnemonic} card field {k + 1}")
+                parts.append(str(int(v)) if k in ints and v.is_integer() else repr(v))
+            out.append(" ".join(parts))
+        return out
+
+
+def _dcl_cards(script: _Script, where: str) -> _DclCards:
+    """The block's cards and the script constants they read (AK#1714).
+
+    A block that names nothing is returned as written, as every block was
+    before AK#1714, and so is one that carries SY cards of its own (4nec2's
+    dialect, which `parse_nec` reads). Otherwise every card field that is not
+    a plain number is parsed as a SimNEC expression (see the note above
+    `_AnvilRules`). An FR card that names anything but a constant is dropped
+    and reported: SimNEC's FR is advisory (the Generator's MHz drives its
+    solve), and AC6LA's own 3-el Yagi names a `freq` whose dcl is commented
+    out. Any other card naming something the script never sets as a constant
+    is refused by name; so is a constant read before its definition, or one
+    written in syntax outside the subset read here."""
+    cards = list(script.cards)
+    unchanged = _DclCards(tuple(cards), (), ())
+    split = []
+    for card in cards:
+        if card[:2].upper() in ("CM", "CE"):
+            split.append(None)
+            continue
+        mnemonic, fields = _card_mnemonic(_split_card_fields(card))
+        if mnemonic == "SY":
+            return unchanged
+        split.append((mnemonic, fields))
+    named = any(
+        _builtin(_SIM_CONSTANTS, n) is None and _builtin(_SIM_FUNCS, n) is None
+        for entry in split
+        if entry
+        for field in entry[1]
+        if not (_plain_number(field) or field.startswith("#"))
+        for n in _NAME_IN_FIELD.findall(field)
+    )
+    if not named:
+        return unchanged
+
+    assigned: dict[str, list[_Assign]] = {}
+    for a in script.assigns:
+        assigned.setdefault(a.name, []).append(a)
+
+    def constant(name: str) -> _Assign | None:
+        hits = [a for a in assigned.get(name, ()) if not a.declares]
+        if len(hits) == 1 and hits[0].constant and hits[0].expr:
+            return hits[0]
+        return None
+
+    def why_not(name: str) -> str:
+        hits = [a for a in assigned.get(name, ()) if not a.declares]
+        if not assigned.get(name):
+            how = f"{name} = ...;" if name.startswith("$") else f"dcl {name} = ...;"
+            spelled = _documented_spelling(_SIM_CONSTANTS, name)
+            hint = (
+                f"; SimNEC's names are case-sensitive (did you mean {spelled!r}?)"
+                if spelled
+                else ""
+            )
+            return f"which the script never defines (as `{how}` above NEC2){hint}"
+        if len(hits) > 1:
+            return (
+                f"which the script assigns {len(hits)} times, so it is not a constant"
+            )
+        return (
+            "which the script does not set as a constant (a `dcl` or `$` "
+            "assignment of its own, outside any { } block)"
+        )
+
+    out: list = []
+    dropped: list[str] = []
+    todo: list[str] = []
+    for card, entry in zip(cards, split, strict=True):
+        if entry is None:
+            out.append(card)
+            continue
+        mnemonic, fields = entry
+        parsed = [
+            f
+            if _plain_number(f) or f.startswith("#")
+            else _sim_parse(f, f"{where}: {mnemonic} card {card!r}")
+            for f in fields
+        ]
+        if all(isinstance(f, str) for f in parsed):
+            out.append(card)
+            continue
+        names = [n for f in parsed if not isinstance(f, str) for n in _sim_names(f)]
+        bad = [n for n in dict.fromkeys(names) if constant(n) is None]
+        if bad and mnemonic == "FR":
+            dropped.append(
+                f"{card} (names {', '.join(bad)}, not a constant of the script; "
+                "SimNEC's FR is advisory, and the Generator's MHz drives the solve)"
+            )
+            continue
+        if bad:
+            raise ValueError(
+                f"{where}: the {mnemonic} card {card!r} names {bad[0]!r}, "
+                f"{why_not(bad[0])}"
+            )
+        out.append((mnemonic, tuple(parsed)))
+        todo.extend(names)
+
+    # The constants the cards read, and the ones those read, in script order.
+    order = {id(a): k for k, a in enumerate(script.assigns)}
+    need: dict[str, _DclConstant] = {}
+    while todo:
+        n = todo.pop()
+        if n in need:
+            continue
+        a = constant(n)
+        tree = _sim_parse(a.expr, f"{where}: {a.stmt!r}")
+        for ref in _sim_names(tree):
+            ra = constant(ref)
+            if ra is None:
+                raise ValueError(f"{where}: {a.stmt!r} reads {ref!r}, {why_not(ref)}")
+            if order[id(ra)] >= order[id(a)]:
+                raise ValueError(
+                    f"{where}: {a.stmt!r} reads {ref!r} before the script defines it"
+                )
+            todo.append(ref)
+        need[n] = _DclConstant(n, a.expr, tree, a.comment, a.line, a.stmt)
+    constants = tuple(sorted(need.values(), key=lambda c: order[id(constant(c.name))]))
+    return _DclCards(tuple(out), constants, tuple(dropped))
+
+
+def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
+    """The constants as `SySymbol` records, classified by `classify_sy`'s
+    rules for a deck's SY symbols (AK#1705): a knob is a constant whose
+    expression names no other constant and that reaches a card the design
+    rebuilds (`_SY_REBUILT_CARDS`); one that names another is derived; one
+    that reaches only FR is a frequency constant; one that sets the GS scale
+    is a unit selector; the rest are inert. An integer knob is one that lands
+    directly in an integer card field with a whole value."""
+    values = dcl.values(where)
+    direct: dict[str, set[str]] = {}
+    int_use: set[str] = set()
+    gs_scale: set[str] = set()
+    for card in dcl.cards:
+        if isinstance(card, str):
+            continue
+        mnemonic, fields = card
+        ints = _SY_INT_FIELDS.get(mnemonic, ())
+        for k, f in enumerate(fields):
+            if isinstance(f, str):
+                continue
+            for n in _sim_names(f):
+                direct.setdefault(n, set()).add(mnemonic)
+                if k in ints:
+                    int_use.add(n)
+                if mnemonic == "GS" and k == 2:
+                    gs_scale.add(n)
+    dependents: dict[str, set[str]] = {}
+    for c in dcl.constants:
+        for ref in _sim_names(c.tree):
+            dependents.setdefault(ref, set()).add(c.name)
+
+    def reach(name: str) -> frozenset[str]:
+        seen, stack, out = {name}, [name], set()
+        while stack:
+            k = stack.pop()
+            out |= direct.get(k, set())
+            for d in dependents.get(k, ()):
+                if d not in seen:
+                    seen.add(d)
+                    stack.append(d)
+        return frozenset(out)
+
+    out = []
+    for c in dcl.constants:
+        refs = tuple(sorted(set(_sim_names(c.tree))))
+        reaches = reach(c.name)
+        value = values[c.name]
+        integer, default = False, None
+        if refs:
+            kind = "derived"
+        elif c.name in gs_scale:
+            kind = "unit"
+        elif not reaches & _SY_REBUILT_CARDS:
+            kind = "frequency" if "FR" in reaches else "inert"
+        else:
+            kind = "knob"
+            integer = c.name in int_use and value.is_integer()
+            default = int(value) if integer else value
+        out.append(
+            SySymbol(
+                name=c.name,
+                spelling=c.name,
+                line=c.line,
+                expr=c.expr,
+                label=c.comment or None,
+                kind=kind,
+                value=value,
+                assignments=1,
+                refs=refs,
+                reaches=reaches,
+                default=default,
+                integer=integer,
+                param_name=_dcl_param(c.name),
+            )
+        )
+    return tuple(out)
+
+
+def _dcl_param(spelling: str) -> str:
+    """The design param a dcl constant is published as (AK#1714):
+    ``dcl_<name>`` for ``dcl name``, ``tmp_<name>`` for a ``$name``
+    temporary. SimNEC names are case-sensitive, and so is the param."""
+    if spelling.startswith("$"):
+        return f"tmp_{spelling[1:]}"
+    return f"dcl_{spelling}"
+
+
 class _Script:
     """The NEC-portal ``<equ>`` script pulled apart: NEC cards, translated
     directives, the block name, and whatever was not understood."""
@@ -773,15 +1492,24 @@ class _Script:
         self._load_sources: list[tuple[re.Match, str]] = []
         # NECOptions.Insulation("W7EL", ...): (radial thickness m, eps_r).
         self.insulation: tuple[float, float] | None = None
+        # Every assignment the script makes, in order (AK#1714): what
+        # `_DclCards` reads the cards' names from.
+        self.assigns: list[_Assign] = []
         in_cards = False
-        for raw in text.splitlines():
+        depth = 0  # `{ }` nesting of the directive text
+        in_comment = False  # inside a /* */ block
+        for line_no, raw in enumerate(text.splitlines(), 1):
             line = raw.strip()
             if not line:
                 continue
             if in_cards:
                 if _NECEND_LINE.match(line):
                     in_cards = False
-                elif not line.startswith("//") and line.split()[0].upper() != "EN":
+                    continue
+                if line[:2].upper() not in ("CM", "CE"):
+                    # SimNEC reads `//` as a comment inside the block too.
+                    line = line.split("//", 1)[0].rstrip()
+                if line and line.split()[0].upper() != "EN":
                     # A stray EN inside the block would make parse_nec stop
                     # before the appended GS (units) / GE (ground) cards; the
                     # importer supplies its own EN.
@@ -797,9 +1525,21 @@ class _Script:
             # Directive line: drop a trailing // comment, then take the
             # ;-separated statements (the exporter writes one per line, but
             # the daemon language does not require that).
-            for stmt in line.split("//", 1)[0].split(";"):
+            code, _, comment = line.partition("//")
+            # A /* */ block is prose to the script: its lines still reach
+            # `_directive` (and the not-applied list) as before, but no
+            # assignment or brace in it counts.
+            prose = in_comment or code.lstrip().startswith("/*")
+            if prose:
+                in_comment = "*/" not in code
+            for stmt in code.split(";"):
                 stmt = stmt.strip()
                 if stmt:
+                    if not prose:
+                        self.assigns.extend(
+                            _assignments(stmt, depth, comment.strip(), line_no)
+                        )
+                        depth = max(0, depth + stmt.count("{") - stmt.count("}"))
                     self._directive(stmt, where)
         if in_cards:
             raise ValueError(f"{where}: NEC2 block is missing its NECEND")
@@ -1171,25 +1911,10 @@ def _no_block_message(*, scripted: bool) -> str:
     )
 
 
-def parse_ssn(
-    text: str,
-    *,
-    name: str = "SimNEC circuit",
-    network: bool = False,
-    virtualize_anchors: bool = True,
-) -> SsnCircuit:
-    """Parse the text of a SimNEC ``.ssn`` file into an :class:`SsnCircuit`.
-
-    ``network`` and ``virtualize_anchors`` forward to :func:`parse_nec` for the
-    embedded NEC cards — ``network=True`` makes ``circuit.deck.wire_tuples()``
-    and ``circuit.network()`` ready to return from ``build_wires`` /
-    ``build_network``, with the deck's lumped LD loads and the file's station
-    chain (see the module note) translated.
-
-    Raises ``ValueError`` (prefixed with ``name``) on malformed XML, on a file
-    with no NEC-portal antenna block or more than one, and on anything
-    ``parse_nec`` refuses in the embedded cards.
-    """
+def _nec_block(text: str, name: str):
+    """``(elements, infos, nec_pos)``: the circuit's elements, each as
+    ``(type, params, element)``, and the index of the one NETWORK element
+    whose script holds the NEC2 block. Refuses a file with none or several."""
     try:
         root = ET.fromstring(text)
     except ET.ParseError as e:
@@ -1205,7 +1930,10 @@ def parse_ssn(
         for i, (typ, params, _) in enumerate(infos)
         if typ == "NETWORK"
         and "equ" in params
-        and re.search(r"(?m)^\s*NEC2\s*$", params["equ"] or "")
+        and any(
+            _NEC2_LINE.match(line.strip())
+            for line in (params["equ"] or "").splitlines()
+        )
     ]
     if not nec_positions:
         scripted = [
@@ -1219,7 +1947,56 @@ def parse_ssn(
             f"{name}: {len(nec_positions)} NEC-portal blocks — antennaknobs "
             f"imports a single-antenna circuit"
         )
-    nec_pos = nec_positions[0]
+    return elements, infos, nec_positions[0]
+
+
+def _deck_text(
+    script: _Script,
+    dcl: _DclCards,
+    where: str,
+    overrides: Mapping[str, float] | None = None,
+) -> str:
+    """The NEC deck ``parse_nec`` reads for the block, the constants at
+    ``overrides`` (AK#1714)."""
+    deck_lines = dcl.render(where, overrides)
+    if script.ground is not None:
+        deck_lines.append("GE 1")  # so deck.ground reflects the ground call
+    deck_lines.append("EN")
+    return "\n".join(deck_lines) + "\n"
+
+
+def classify_dcl(text: str, *, name: str = "SimNEC circuit") -> tuple[SySymbol, ...]:
+    """The dcl / ``$`` constants a ``.ssn``'s NEC cards read (AK#1714), as
+    `SySymbol` records classified by `classify_sy`'s rules (see `_classify`):
+    ``name`` and ``spelling`` are the script's case-sensitive name, ``label``
+    its line's ``//`` comment, and ``param`` ``dcl_<name>`` (``tmp_<name>``
+    for ``$name``). Empty for a file whose cards name no constant."""
+    _, infos, nec_pos = _nec_block(text, name)
+    script = _Script(infos[nec_pos][1]["equ"] or "", name)
+    return _classify(_dcl_cards(script, name), name)
+
+
+def parse_ssn(
+    text: str,
+    *,
+    name: str = "SimNEC circuit",
+    network: bool = False,
+    virtualize_anchors: bool = True,
+    dcl_overrides: Mapping[str, float] | None = None,
+) -> SsnCircuit:
+    """Parse the text of a SimNEC ``.ssn`` file into an :class:`SsnCircuit`.
+
+    ``network`` and ``virtualize_anchors`` forward to :func:`parse_nec` for the
+    embedded NEC cards — ``network=True`` makes ``circuit.deck.wire_tuples()``
+    and ``circuit.network()`` ready to return from ``build_wires`` /
+    ``build_network``, with the deck's lumped LD loads and the file's station
+    chain (see the module note) translated.
+
+    Raises ``ValueError`` (prefixed with ``name``) on malformed XML, on a file
+    with no NEC-portal antenna block or more than one, and on anything
+    ``parse_nec`` refuses in the embedded cards.
+    """
+    elements, infos, nec_pos = _nec_block(text, name)
     gen_pos = next(
         (i for i, (typ, _, _) in enumerate(infos) if typ == "GENERATOR"), None
     )
@@ -1275,13 +2052,26 @@ def parse_ssn(
     chain = tuple(chain_doc)
 
     script = _Script(infos[nec_pos][1]["equ"] or "", name)
+    dcl = _dcl_cards(script, name)
+    for c in dcl.constants:
+        # Read into the cards now, so no longer "not applied".
+        if c.stmt in script.ignored:
+            script.ignored.remove(c.stmt)
+    for key, value in (dcl_overrides or {}).items():
+        if key not in dcl.names:
+            raise ValueError(
+                f"{name}: the NEC cards read no dcl constant {key!r} "
+                "(names are case-sensitive)"
+            )
+        try:
+            fv = float(value)
+        except (TypeError, ValueError):
+            fv = math.nan
+        if not math.isfinite(fv):
+            raise ValueError(f"{name}: {key} set to {value!r}, not a finite number")
 
-    deck_lines = list(script.cards)
-    if script.ground is not None:
-        deck_lines.append("GE 1")  # so deck.ground reflects the ground call
-    deck_lines.append("EN")
     deck = parse_nec(
-        "\n".join(deck_lines) + "\n",
+        _deck_text(script, dcl, name, dcl_overrides),
         name=f"{name} NEC block",
         network=network,
         virtualize_anchors=virtualize_anchors,
@@ -1329,6 +2119,7 @@ def parse_ssn(
         sweep_points=sweep_points,
         sweep_note=sweep_note,
         sweep_grid=sweep_grid,
+        dropped_fr=dcl.dropped,
     )
 
 
