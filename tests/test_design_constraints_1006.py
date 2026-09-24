@@ -160,18 +160,19 @@ def test_a_design_that_will_not_build_never_breaks_a_listing(name, monkeypatch):
 # The buried input (#1006 G2-5), the design side of momwire#553
 # --------------------------------------------------------------------------
 
-# The three buried decks, and one that sits ON the interface rather than below
-# it — `contact` is a different axis value with different refusals, so a helper
+# The four buried decks (`wire.beverage`'s ground rods joined them in AK#1707),
+# and one that sits ON the interface rather than below it — `contact` is a different axis value with different refusals, so a helper
 # that treated z == 0 as buried would grey out the extended kernel across every
 # ground-plane design in the catalog.
 BURIED = [
     "specialty.buried_dipole",
     "verticals.buried_radial_vertical",
     "verticals.elevated_buried_counterpoise",
+    "wire.beverage",
 ]
 
 
-def test_exactly_the_three_buried_decks_are_recognised():
+def test_exactly_the_buried_decks_are_recognised():
     from antennaknobs.cli import list_builtin_designs
 
     got = [n for n in list_builtin_designs() if _has_buried_wire(resolve_class(n))]
