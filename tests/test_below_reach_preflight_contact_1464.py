@@ -68,10 +68,16 @@ def test_a_wire_strictly_below_is_still_asked():
     sentence on momwire 0.56.0 (a925d37). The corner moves OUTWARD in radius
     rather than up toward the surface because a shallower rise cannot be
     spelled at all: the design's graded rise needs more than its 12.5 mm node
-    panel."""
+    panel.
+
+    momwire#1187 (0.63.0) asks the floor only of pairs inside the R1 cap (4
+    in-medium wavelengths), which served that corner over 20 / 0.03 soil: its
+    refusing pairs were past the cap. Over a low-loss dry soil (5 / 0.001)
+    the in-medium wavelength is long enough that they sit inside it, so the
+    same corner is refused both before and after #1187."""
     from antennaknobs.designs.verticals.buried_radial_vertical import Builder
 
     b = Builder()
     b.length_factor, b.radial_factor, b.depth = 1.2, 6.0, 0.02
     with pytest.raises(ValueError, match="below/below pair elevation"):
-        MomwireEngine(b, ground=("finite", 20.0, 0.03))
+        MomwireEngine(b, ground=("finite", 5.0, 0.001))
