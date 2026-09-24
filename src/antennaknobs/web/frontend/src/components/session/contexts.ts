@@ -58,13 +58,28 @@ export const PinsContext = createContext<PinsCtx>({
 });
 
 // Fetch the scalar far-field metrics for a request (peak gain, takeoff, F/B,
-// beamwidths). Returns null when the design can't be evaluated or on error.
-export async function fetchMetrics(req: SolveRequest): Promise<PatternMetrics | null> {
+// beamwidths). Returns null when the design can't be evaluated, on error, or
+// when aborted.
+//
+// Each fetch is a full momwire solve on the server (AK#1712), so the two
+// options are how a caller stops paying for one it no longer wants:
+// - `gen` stamps the request with the solve channel's generation, so a newer
+//   knob change supersedes it on the session's lane. Only for the LIVE
+//   design: a pinned row describes a frozen snapshot, which a knob drag must
+//   not cancel, and so sends none.
+// - `signal` aborts the fetch; the server trips the solve's token when the
+//   client goes away.
+export async function fetchMetrics(
+  req: SolveRequest,
+  opts: { gen?: number; signal?: AbortSignal } = {},
+): Promise<PatternMetrics | null> {
   try {
+    const body = opts.gen === undefined ? req : { ...req, _gen: opts.gen };
     const resp = await fetch("/pattern_metrics", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req),
+      body: JSON.stringify(body),
+      signal: opts.signal ?? null,
     });
     const data = await resp.json();
     return data.available ? (data.metrics as PatternMetrics) : null;
