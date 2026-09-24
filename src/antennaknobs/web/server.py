@@ -55,6 +55,7 @@ from . import tracker
 from . import nec2_backend, nec5_backend, pynec_backend, user_designs
 from .examples import REGISTRY as EXAMPLES
 from .examples import UnknownGeometryError, example_for
+from ..engines._external import cancel_scope as _engine_cancel_scope
 from .lane import LaneRegistry, Superseded, cancel_on_disconnect
 from .progress_stream import ProgressStream, ProgressStreamClosed
 
@@ -1675,6 +1676,15 @@ def _shed(fn, *args, **kwargs):
     try:
         return fn(*args, **kwargs)
     except BaseException as exc:
+        if type(exc).__name__ == "AcceleratorAborted":
+            # A native kernel that polls the token but that momwire does not
+            # remap to SolveAborted (AK#1712 found the Sommerfeld remainder
+            # fill, `sommerfeld_remainder_bspline_Q`, is one) raises its raw
+            # C++ type. It IS a cancel: without this, every route's
+            # `except SolveAborted` misses it and the abort ships to the
+            # client as an error. Matched by name because the type lives on
+            # a private extension module.
+            raise momwire.SolveAborted() from None
         if not isinstance(exc, momwire.SolveAborted):
             exc._formatted_solve_error = user_designs.format_solve_error(exc)
         exc.__traceback__ = None
@@ -1708,18 +1718,31 @@ def _external_backend(req: dict):
     return mod if available() else None
 
 
+def _external_call(fn, *args, cancel=None):
+    """Run one external-engine call (a backend's solve / pattern / sweep
+    point) under the lane's token (AK#1712).
+
+    The token is a start gate for every backend — a turn the user already
+    cancelled or a newer request overtook dies here for free — and, for the
+    subprocess engines (NEC-5, NEC-2), a kill switch: `run_exe` polls it and
+    kills the binary mid-run, surfacing ``momwire.SolveAborted`` like a
+    cancelled momwire solve. PyNEC runs in-process with no checkpoint, so an
+    in-flight PyNEC call still runs out (its calls are short; admission bounds
+    them)."""
+    if cancel is not None:
+        cancel.raise_if_cancelled()
+    with _engine_cancel_scope(cancel):
+        return fn(*args)
+
+
 def _solve_uncached(req: dict, cancel=None) -> dict:
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     backend = _external_backend(req)
     _check_solve_size(req, use_pynec=backend is not None)
     if backend is not None:
-        # External-engine start-gate only: a request already superseded before
-        # its solve begins dies for free here; the native solve is one opaque
-        # call with no mid-solve abort (PyNEC in-process, NEC-5 a subprocess),
-        # so an in-flight one runs to completion (as today).
-        if cancel is not None:
-            cancel.raise_if_cancelled()
-        out = backend.solve(req)
+        # Start gate for every backend; a subprocess engine is also killed
+        # mid-run when the token trips (AK#1712). See _external_call.
+        out = _external_call(backend.solve, req, cancel=cancel)
         out["solver"] = _BACKEND_NAME[backend]
     else:
         ex = example_for(geometry)
@@ -1993,15 +2016,24 @@ async def sweep_endpoint(req: dict, request: Request):
                 if cached is None:
                     try:
                         # One lane turn per point: a queued live solve gets
-                        # the lane at the next point boundary. PyNEC has no
-                        # mid-solve abort, so a supersession trips the token
-                        # but the point runs out; the post-turn check stops
-                        # the stream there. A cache hit takes no turn at all
-                        # — there is no engine work to serialize.
-                        async with _LANES.turn(session, lane_kind, lane_gen) as token:
+                        # the lane at the next point boundary. A NEC-5 / NEC-2
+                        # point is killed mid-run when the token trips
+                        # (AK#1712); PyNEC has no mid-solve abort, so its
+                        # point runs out and the post-turn check stops the
+                        # stream there. A cache hit takes no turn at all —
+                        # there is no engine work to serialize.
+                        async with (
+                            _LANES.turn(session, lane_kind, lane_gen) as token,
+                            cancel_on_disconnect(request, token),
+                        ):
                             if is_multifeed:
                                 primary, feeds_z = await run_in_threadpool(
-                                    _shed, ext_backend._sweep_at_multifeed, req, f
+                                    _shed,
+                                    _external_call,
+                                    ext_backend._sweep_at_multifeed,
+                                    req,
+                                    f,
+                                    cancel=token,
                                 )
                                 cached = (
                                     float(primary.real),
@@ -2011,11 +2043,16 @@ async def sweep_endpoint(req: dict, request: Request):
                                 )
                             else:
                                 z = await run_in_threadpool(
-                                    _shed, ext_backend._sweep_at, req, f
+                                    _shed,
+                                    _external_call,
+                                    ext_backend._sweep_at,
+                                    req,
+                                    f,
+                                    cancel=token,
                                 )
                                 cached = (float(z.real), float(z.imag), None, None)
                             superseded_mid_point = token.cancelled
-                    except Superseded:
+                    except (Superseded, momwire.SolveAborted):
                         return
                     except Exception as exc:  # noqa: BLE001 — solver can fail per point
                         yield (
@@ -2151,10 +2188,8 @@ def _solve_z_only(req: dict, cancel=None) -> tuple[complex, list[complex] | None
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     backend = _external_backend(req)
     if backend is not None:
-        # Start-gate only: the external solve has no mid-solve abort.
-        if cancel is not None:
-            cancel.raise_if_cancelled()
-        res = backend.solve(req)
+        # Start gate, and a kill switch for a subprocess engine (AK#1712).
+        res = _external_call(backend.solve, req, cancel=cancel)
     else:
         ex = example_for(geometry)
         res = ex.momwire_solve(req, cancel=cancel)
@@ -2254,7 +2289,7 @@ async def converge_endpoint(req: dict, request: Request):
 
 
 @app.post("/pattern")
-async def pattern_endpoint(req: dict):
+async def pattern_endpoint(req: dict, request: Request):
     """NEC's rp_card-computed gain pattern (PyNEC or NEC-5)."""
     pat_backend = _external_backend(req)
     if pat_backend is None:
@@ -2267,11 +2302,15 @@ async def pattern_endpoint(req: dict):
         return {"available": False, "error": str(e)}
     session, lane_gen = _lane_key(req)
     try:
-        # PyNEC-only, so the token is a start gate: a queued pattern that a
-        # knob drag overtook dies here instead of grinding a stale solve.
-        async with _LANES.turn(session, "pattern", lane_gen):
-            out = await run_in_threadpool(_shed, pat_backend.pattern, req)
-    except Superseded:
+        # The token reaches the engine (AK#1712): a start gate for PyNEC, and
+        # a kill switch for the NEC-5 / NEC-2 binary, tripped by a newer
+        # request, the user's cancel, or the client going away.
+        async with _LANES.turn(session, "pattern", lane_gen) as token:
+            async with cancel_on_disconnect(request, token):
+                out = await run_in_threadpool(
+                    _shed, _external_call, pat_backend.pattern, req, cancel=token
+                )
+    except (Superseded, momwire.SolveAborted):
         return {"available": False}
     # AK#1506: the deck and printout behind the pattern, parked under the
     # solve it belongs to for the Files view. PyNEC runs in-process: none.
@@ -2450,7 +2489,7 @@ async def export_nec_endpoint(req: dict):
 
 
 @app.post("/engine_io")
-async def engine_io_endpoint(req: dict):
+async def engine_io_endpoint(req: dict, request: Request):
     """The deck an external engine was given and the printout it returned, for
     the solve the client is showing (AK#1428, the Files view).
 
@@ -2502,9 +2541,15 @@ async def engine_io_endpoint(req: dict):
         return {"available": False, "solver": solver, "solve_id": wanted, "moved": True}
     session, lane_gen = _lane_key(body)
     try:
-        async with _LANES.turn(session, "engine_io", lane_gen):
-            out = await run_in_threadpool(_shed, _solve_uncached, body)
-    except Superseded:
+        # The re-run is a whole engine run; its token kills the binary when
+        # the user cancels, a newer request overtakes it, or the Files view
+        # goes away (AK#1712).
+        async with _LANES.turn(session, "engine_io", lane_gen) as token:
+            async with cancel_on_disconnect(request, token):
+                out = await run_in_threadpool(
+                    _shed, _solve_uncached, body, cancel=token
+                )
+    except (Superseded, momwire.SolveAborted):
         return {"available": False, "solver": solver, "superseded": True}
     except Exception as exc:  # noqa: BLE001 — a failed run is an answer here; its printout is what the view is for
         return {
@@ -2819,13 +2864,16 @@ async def pattern_metrics_endpoint(req: dict, request: Request):
         _check_solve_size(req, use_pynec=False)
     except SolveTooLargeError as e:
         return {"geometry": geometry, "error": str(e)}
-    # Lane turn with NO generation: compare-table rows describe *other*
-    # designs at their defaults, so a knob drag on the live design must not
-    # supersede them — they still serialize with everything else and stop
-    # when their client goes away.
-    session, _ = _lane_key(req)
+    # The generation is the CLIENT's call (AK#1712). The live design's row
+    # sends `_gen`, so a knob drag supersedes it like any other batch — it was
+    # gen-less once, and a pinned compare table then left one full momwire
+    # fill per settled solve grinding after the design had moved on. A pinned
+    # row describes a frozen snapshot and sends none: a knob drag must not
+    # supersede it. Both serialize with everything else, stop when their
+    # client goes away, and stop on the user's cancel (`LaneRegistry.cancel`).
+    session, lane_gen = _lane_key(req)
     try:
-        async with _LANES.turn(session, "pattern_metrics") as token:
+        async with _LANES.turn(session, "pattern_metrics", lane_gen) as token:
             async with cancel_on_disconnect(request, token):
                 metrics = await run_in_threadpool(
                     _shed, ex.far_field_metrics, req, cancel=token
@@ -2926,7 +2974,7 @@ async def _next_event(events):
 
 
 async def _sse_progress_body(
-    request: Request, stream: ProgressStream, drive
+    request: Request, stream: ProgressStream, drive, cancel=None
 ) -> AsyncIterator[str]:
     """Frame `stream`'s events as SSE for as long as the client is there.
 
@@ -2941,6 +2989,10 @@ async def _sse_progress_body(
     streaming body at its next send — so without a probe, a browser closed at
     eval 3 would keep burning solves until eval 4 landed. The tick both polls
     the receive channel and writes a comment, so either half alone catches it.
+
+    ``cancel`` (a CancelToken the producer's solves carry) is tripped on the
+    same way out, so the eval IN FLIGHT stops at its next solver checkpoint
+    too, instead of finishing a minutes-long fill first (AK#1712).
     """
     task = asyncio.create_task(drive())
     _OPT_STREAM_TASKS.add(task)
@@ -2969,6 +3021,8 @@ async def _sse_progress_body(
         if pending is not None:
             pending.cancel()
         stream.close()
+        if cancel is not None:
+            cancel.cancel()
 
 
 @app.post("/optimize")
@@ -3041,6 +3095,15 @@ async def optimize_endpoint(req: dict, request: Request):
     except SolveTooLargeError as e:
         return _reject({"geometry": geometry, "error": str(e)})
 
+    # The run's own token (AK#1712): /optimize takes no lane turn, so nothing
+    # else would ever trip it. The client going away does — the SSE body on
+    # its way out, the watcher on the plain-JSON path — and every eval's solve
+    # carries it, so a stopped run abandons the eval in flight too.
+    token = momwire.CancelToken()
+
+    def _eval_solve(r: dict) -> dict:
+        return ex.momwire_solve(r, cancel=token)
+
     def _run(on_progress):
         # THE dispatch, shared by both representations so _shed can never be
         # on one path and not the other: it formats the error while the
@@ -3052,7 +3115,7 @@ async def optimize_endpoint(req: dict, request: Request):
             base,
             free,
             objective,
-            solve_fn=ex.momwire_solve,
+            solve_fn=_eval_solve,
             max_evals=max_evals,
             seed_surrogate=seed_surrogate,
             on_progress=on_progress,
@@ -3060,7 +3123,10 @@ async def optimize_endpoint(req: dict, request: Request):
 
     if not wants_sse:
         try:
-            result = await _run(None)
+            async with cancel_on_disconnect(request, token):
+                result = await _run(None)
+        except momwire.SolveAborted:
+            return {"geometry": geometry, "error": "cancelled"}
         except DegenerateObjective as exc:
             # AK#1664: refused by name, in the user's words, not as a traceback.
             return {"geometry": geometry, "error": str(exc)}
@@ -3094,7 +3160,7 @@ async def optimize_endpoint(req: dict, request: Request):
         except ProgressStreamClosed:
             pass
 
-    return _sse_response(_sse_progress_body(request, stream, _drive))
+    return _sse_response(_sse_progress_body(request, stream, _drive, cancel=token))
 
 
 @app.get("/healthz")
@@ -3512,6 +3578,20 @@ async def ws_endpoint(ws: WebSocket):
                         diff = bool(req.get("diffraction", False))
                         cuts_box[f"{sid}|{int(refined)}|{int(diff)}"] = req
                         cuts_newer.set()
+                    continue
+                if req.get("_kind") == "cancel":
+                    # The user's "Cancel solve" (AK#1712). It used to be
+                    # client-side only — nothing reached the server, so a
+                    # cold Sommerfeld fill ran on for many minutes after the
+                    # button. Drop the unsolved request, trip the live
+                    # solve's token, and stop every other compute this
+                    # session holds or has queued (sweep, pattern, metrics,
+                    # Files re-run), whatever its kind or generation.
+                    mailbox.clear()
+                    token = current["token"]
+                    if token is not None:
+                        token.cancel()
+                    _LANES.cancel(*_lane_key(req))
                     continue
                 mailbox[:] = [req]  # overwrite → squash anything unsolved
                 token = current["token"]

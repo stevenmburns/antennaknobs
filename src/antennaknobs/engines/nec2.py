@@ -87,7 +87,7 @@ from ..engine import FarField, SimulationEngine, WireCurrents, refuse_graded_wir
 from ..network import as_wire
 from ..network_reduce import C_LIGHT
 from . import _multiport
-from ._external import find_exe
+from ._external import find_exe, run_exe
 
 _log = logging.getLogger(__name__)
 
@@ -216,14 +216,9 @@ def _run_form(exe: str, deck: str, form: str, timeout: float) -> str | None:
             # NEC5CL's convention: input name, output name, then a blank line.
             stdin_text = "model.nec\nmodel.out\n\n"
         try:
-            proc = subprocess.run(
-                argv,
-                input=stdin_text,
-                text=True,
-                capture_output=True,
-                cwd=td,
-                timeout=timeout,
-            )
+            # run_exe, not subprocess.run: a solve's cancel kills the binary
+            # (AK#1712) instead of letting a stale run go to completion.
+            proc = run_exe(argv, stdin_text=stdin_text, cwd=td, timeout=timeout)
         except subprocess.TimeoutExpired as e:
             raise NEC2Error(f"NEC-2 timed out after {timeout:.0f}s") from e
         return _printout(tdp, "model.out", proc)
