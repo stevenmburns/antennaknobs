@@ -167,3 +167,21 @@ def test_a_directional_pattern_has_the_directivity_of_its_beam():
     m = refined_pattern_metrics(_evaluator(cardioid, has_ground=True))
     assert m["rdf_db"] == pytest.approx(10.0 * math.log10(8.0), abs=2e-3)
     assert m["azimuth_deg"] == pytest.approx(0.0, abs=0.05)
+
+
+def test_compare_patterns_helpers_take_free_space_over_the_whole_sphere():
+    """`compare_patterns` reads the ground off the engine, and in free space
+    asks a gain evaluator for the whole sphere: a lossless free-space antenna
+    then reads its peak gain as its RDF, as it must."""
+    from types import SimpleNamespace
+
+    from antennaknobs.far_field import _engine_has_ground, _whole_sphere_rdf
+
+    assert _engine_has_ground(SimpleNamespace(ground=("finite", 13.0, 0.005)))
+    assert _engine_has_ground(SimpleNamespace(_ground="pec"))
+    assert not _engine_has_ground(SimpleNamespace(ground="free"))
+    assert not _engine_has_ground(SimpleNamespace(_ground=None))
+    dipole = _evaluator(
+        lambda t, p: _db(1.5 * np.sin(t) ** 2 * np.ones_like(p)), has_ground=False
+    )
+    assert _whole_sphere_rdf(dipole) == pytest.approx(D_DIPOLE_DB, abs=1e-3)

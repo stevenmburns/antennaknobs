@@ -27,6 +27,16 @@ def _engine_has_ground(engine):
     return g is not None and g != "free"
 
 
+def _whole_sphere_rdf(gain):
+    """RDF at the whole-sphere 1° grid's peak, off a gain evaluator
+    (`MomwireEngine.gain_evaluator`): the free-space case a NEC-convention
+    hemisphere grid cannot answer."""
+    thetas = np.arange(0.0, 180.5, 1.0)
+    phis = np.arange(0.0, 360.0, 1.0)
+    grid = gain(thetas, phis)
+    return rdf_db(float(grid.max()), grid, thetas, phis)
+
+
 def _default_name(obj):
     if isinstance(obj, SimulationEngine):
         return type(obj).__name__
@@ -499,9 +509,14 @@ def compare_patterns(
         a = _as_engine(item)
         ff = a.far_field(n_theta=90, n_phi=360, del_theta=1, del_phi=1)
         has_ground = _engine_has_ground(a)
+        m = pattern_metrics(ff, has_ground=has_ground)
+        if m["rdf_db"] is None and hasattr(a, "gain_evaluator"):
+            # Free space on an engine that can look below the horizon: take
+            # the RDF over the whole sphere rather than leave it blank.
+            m["rdf_db"] = _whole_sphere_rdf(a.gain_evaluator())
         del a
         rings_lst.append(ff.rings)
-        metrics_lst.append(pattern_metrics(ff, has_ground=has_ground))
+        metrics_lst.append(m)
         thetas, phis = ff.thetas, ff.phis
 
     if show_metrics:
