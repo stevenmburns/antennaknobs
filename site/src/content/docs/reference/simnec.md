@@ -235,10 +235,13 @@ measured by running probe circuits through SimNEC:
 
 - trig (`Sin`, `Cos`, `Tan`, `Asin`, `Acos`, `Atan`) is in **radians**
   (4nec2's is in degrees);
-- a trailing letter on a number is SimNEC's SI suffix: `5m` is 5 mm,
-  `1.054u` is 1.054e-6 (its `g` is a wire gauge and is refused);
-- unary minus binds tighter than `^`, so `-2^2` is 4, and `2^3^2` groups
-  left, to 64; `**` is `^`, and `Int` truncates toward zero;
+- a trailing letter on a number is SimNEC's SI suffix, in any card field
+  whether or not the block names a constant: `500m` is 0.5, `1.054u` is
+  1.054e-6. 4nec2's unit suffixes (`mm`, `ft`, `in`) and SimNEC's wire gauge
+  `g` are refused by name;
+- unary minus binds tighter than `^`, so `-2^2` is 4, `2^-1` is 0.5, and
+  `2^3^2` groups left, to 64; `**` is `^`, `%` takes the sign of the
+  dividend (`-7%3` is −1), and `Int` truncates toward zero;
 - names are case-sensitive, built-ins included: `Pi`, `mpf`, `fpm`, `Sqrt`,
   `Abs`, `Int` are read as spelled, and `sin(30)` is refused with "did you
   mean 'Sin'?", as SimNEC refuses it.
