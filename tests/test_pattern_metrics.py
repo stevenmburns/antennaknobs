@@ -122,4 +122,5 @@ def test_metrics_keys_present():
         "front_to_back_db",
         "az_beamwidth_deg",
         "el_beamwidth_deg",
+        "rdf_db",
     }

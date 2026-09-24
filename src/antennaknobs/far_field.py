@@ -203,10 +203,11 @@ def rdf_db(target_gain_dbi, gain_dbi, thetas_deg, phis_deg):
 
     Two properties worth knowing. Loss cancels: gain and average gain carry
     the same efficiency, so RDF is the DIRECTIVITY in the target direction,
-    4π·U/P_rad, and ground or terminator loss does not move it. And the full-
-    sphere normalisation makes a lossless antenna over perfect ground read its
-    ordinary directivity: a short monopole over PEC reads 4.77 dB (3x), an
-    isotropic radiator in free space 0 dB.
+    4π·U/P_rad — power burned in a terminator, the conductors or the ground
+    scales both terms alike, and only a change in the pattern's SHAPE moves
+    it. And the full-sphere normalisation makes a lossless antenna over
+    perfect ground read its ordinary directivity: a short monopole over PEC
+    reads 4.77 dB (3x), an isotropic radiator in free space 0 dB.
     """
     return float(target_gain_dbi) - 10.0 * np.log10(
         average_gain(gain_dbi, thetas_deg, phis_deg)
@@ -232,7 +233,11 @@ def pattern_metrics(ff, *, beamwidth_db=3.0, has_ground=None):
                              θ = 89°, so this is only the whole integral when
                              the lower hemisphere is known to be empty: pass
                              `has_ground=True` for a pattern over a ground.
-                             None when the grid is a hemisphere and
+                             The missing 89-90° strip costs nothing over lossy
+                             ground (the horizon is a null) and up to ~0.1 dB
+                             on a pattern that peaks at the horizon (a
+                             vertical over PEC). None when the grid is a
+                             hemisphere and
                              `has_ground` is not True — a free-space pattern
                              sampled over half the sphere has no average gain.
     """
