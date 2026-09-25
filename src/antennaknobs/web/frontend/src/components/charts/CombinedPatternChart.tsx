@@ -6,7 +6,8 @@ import { ThemeContext } from "../hooks";
 import {
   combinedDbiTop,
   combinedTraces,
-  effectiveFocus,
+  effectiveHighlight,
+  highlightState,
   LIVE_ENTITY,
 } from "./combined";
 import { buildFarFieldCaptions, cutsRedrawKey, useCutTraces } from "./cuts";
@@ -31,7 +32,8 @@ import type {
 //
 // Colour = cut: azimuth in the live lobe's hue, elevation in its own token.
 // Pinned traces keep their cut's hue, dashed, thinner and dimmer; which pin
-// is which comes from the legend, which can focus one entity and dim the rest.
+// is which comes from the compare table, whose rows can highlight any number
+// of designs (the rest dim while at least one is highlighted).
 // The trace model (what is drawn, and on what scale) is in ./combined.
 
 export function CombinedPatternChart({
@@ -42,7 +44,7 @@ export function CombinedPatternChart({
   azElevDeg,
   elevAzDeg,
   fill,
-  focus,
+  highlight,
   onCaptions,
 }: {
   result: SolveResponse | null;
@@ -54,9 +56,9 @@ export function CombinedPatternChart({
   azElevDeg: number;
   elevAzDeg: number;
   fill: CombinedFill;
-  /** LIVE_ENTITY or a pin id: that entity's traces draw at full strength and
-   *  everything else dims. Null draws everything normally. */
-  focus: string | null;
+  /** Highlighted designs (LIVE_ENTITY and/or pin ids): their traces draw at
+   *  full strength and the rest dim. Empty draws everything normally. */
+  highlight: readonly string[];
   /** Given (the stage), the chart hands its captions up, one per cut, and
    *  prints its rim labels. Omitted (a thumbnail), it draws the bare plot. */
   onCaptions?: ((c: FarFieldCaptions) => void) | undefined;
@@ -72,7 +74,8 @@ export function CombinedPatternChart({
     elevAzDeg,
   );
   const cutTracesKey = cutsRedrawKey(cutTraces);
-  const focused = effectiveFocus(focus, enabledPins);
+  const lit = effectiveHighlight(highlight, enabledPins);
+  const litKey = lit.join("|");
 
   const captionsJson = JSON.stringify(
     (["xy", "yz"] as const).map((cut) =>
@@ -174,9 +177,9 @@ export function CombinedPatternChart({
       ctx.fillText(leftLabel, cx - R + 2, cy - 5);
     }
 
-    // With a focus, the focused entity draws at full strength (a focused pin
-    // at the live pair's weight, so it can be traced), the rest at a ghost.
-    const dimmed = (entity: string) => focused != null && entity !== focused;
+    // Under a highlight, highlighted designs draw at full strength (a pin at
+    // the live pair's weight, so it can be traced) and the rest at a ghost.
+    const dimmed = (entity: string) => highlightState(entity, lit) === "dim";
     const liveElev = traces.find(
       (t) => t.entity === LIVE_ENTITY && t.cut === "yz",
     );
@@ -192,7 +195,7 @@ export function CombinedPatternChart({
       });
     }
     for (const t of traces) {
-      const strong = focused != null && t.entity === focused;
+      const strong = highlightState(t.entity, lit) === "strong";
       const alpha = dimmed(t.entity) ? 0.18 : t.pinned && !strong ? 0.6 : 0.95;
       strokeTrace(ctx, geom, t.dbi, {
         stroke: `rgba(${rgbOf(t.cut)}, ${alpha})`,
@@ -211,7 +214,7 @@ export function CombinedPatternChart({
     azElevDeg,
     elevAzDeg,
     fill,
-    focused,
+    litKey,
     theme,
     cutTracesKey,
     stage,

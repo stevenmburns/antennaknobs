@@ -8,7 +8,6 @@ import { cutDbiTop, cutDbiToFrac } from "../lib/refine";
 import {
   combinedDbiTop,
   combinedTraces,
-  effectiveFocus,
   LIVE_ENTITY,
 } from "../components/charts/combined";
 import { polarPoint, sampleAngleRad, type PolarGeom } from "../components/charts/polar";
@@ -109,15 +108,5 @@ describe("the elevation trace's angles", () => {
     expect(p.x).toBeGreaterThan(100);
     expect(p.y).toBeLessThan(100);
     expect(Math.atan2(100 - p.y, p.x - 100) * (180 / Math.PI)).toBeCloseTo(30);
-  });
-});
-
-describe("effectiveFocus", () => {
-  it("keeps the live design or a shown pin, and drops a pin that is gone", () => {
-    const pins = [{ id: "a" }, { id: "b" }];
-    expect(effectiveFocus(null, pins)).toBeNull();
-    expect(effectiveFocus(LIVE_ENTITY, [])).toBe(LIVE_ENTITY);
-    expect(effectiveFocus("b", pins)).toBe("b");
-    expect(effectiveFocus("gone", pins)).toBeNull();
   });
 });
