@@ -58,8 +58,9 @@ class Builder(AntennaBuilder):
             "ui_params": MappingProxyType(
                 {
                     "target_z0": 50.0,
-                    # Vertical radiator; the xz view reads the elevation.
-                    "default_view": "xz",
+                    # Disc and cone radials spread in x/y around a vertical
+                    # axis; no single 2D projection shows the cage, so iso.
+                    "default_view": "iso",
                     # Broadband by design: let the GUI sweep run wide rather
                     # than band-locking to 10 m.
                     "cone_frac": {

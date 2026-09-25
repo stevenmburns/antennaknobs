@@ -82,7 +82,7 @@ class Builder(AntennaBuilder):
             "ui_params": MappingProxyType(
                 {
                     "target_z0": 50.0,
-                    "default_view": "xz",
+                    "default_view": "iso",
                     "design_freq": {"hidden": True},
                     # Max covers band20's 207" = 5.26 m (17' whip + stud).
                     "whip_len_m": {"min": 1.0, "max": 5.3, "unit": "m"},

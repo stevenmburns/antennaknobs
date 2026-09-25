@@ -97,9 +97,10 @@ class Builder(AntennaBuilder):
                     # half-space: the web app auto-selects finite + Sommerfeld
                     # on load.
                     "ground_requirement": "sommerfeld",
-                    # Radial 0 runs along +x, so x-z shows one radial at full
-                    # length under the radiator with both clearances visible.
-                    "default_view": "xz",
+                    # Elevated and buried radials spread in x/y around a
+                    # vertical radiator — no single 2D projection shows both
+                    # clearances, so iso.
+                    "default_view": "iso",
                     # Unlike the bonded design there is no degree-2 node to
                     # avoid, so a single radial is a legal (and instructive)
                     # screen — it is momwire#553's own serve-gate deck.

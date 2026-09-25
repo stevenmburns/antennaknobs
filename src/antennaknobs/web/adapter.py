@@ -8,7 +8,7 @@ overrides under the reserved `ui_params` key), and register one
 drive it without per-design glue.
 
 Reserved keys inside `ui_params`:
-  default_view     : "xy" | "yz" | "xz"  — initial 2D projection
+  default_view     : "xy" | "yz" | "xz" | "iso"  — initial camera projection
   target_z0        : float — reference impedance for SWR (default 50). The
                      design's value; a request's `z0_ohms` outranks it for
                      that request (AK#1735), see `request_z0`.
@@ -3791,17 +3791,21 @@ def _auto_multi_feed(cls) -> bool:
 
 
 def _auto_default_view(cls) -> str:
-    """Pick a 2D projection from the spans of the antenna's wires.
+    """Pick a default view from the spans of the antenna's wires.
 
-    Rule: if x_span is small (the antenna lies in the y-z plane —
-    typical for dipoles, V's, loops, fan/bowtie variants), default to
-    `yz`. Otherwise return the plane of the two largest spans (xy / yz
-    / xz). The 0.5 m threshold catches feed-gap micro-offsets like
-    fan_dipole's 0.22 m without flipping to xy.
+    Rule: if the wires' spans don't fit cleanly into a 2D plane — the
+    smallest span is at least 1/5 of the largest (min/max >= 0.2) —
+    default to `iso`. That covers helices, turnstiles, quads and other
+    genuinely 3D shapes where any single 2D projection hides geometry.
+
+    Otherwise fall back to the 2D rule: if x_span is small (the antenna
+    lies in the y-z plane — typical for dipoles, V's, loops, fan/bowtie
+    variants), default to `yz`. Otherwise return the plane of the two
+    largest spans (xy / yz / xz). The 0.5 m threshold catches feed-gap
+    micro-offsets like fan_dipole's 0.22 m without flipping to xy.
 
     Hand-overridden via ui_params['default_view']; designs whose axis
-    layout doesn't match this rule (vertical, moxonarray) supply the
-    explicit value.
+    layout doesn't match this rule supply the explicit value.
     """
     try:
         b = cls()
@@ -3816,6 +3820,9 @@ def _auto_default_view(cls) -> str:
     sx = float(a[:, 0].max() - a[:, 0].min())
     sy = float(a[:, 1].max() - a[:, 1].min())
     sz = float(a[:, 2].max() - a[:, 2].min())
+    ordered_spans = sorted([sx, sy, sz])
+    if ordered_spans[2] > 0 and ordered_spans[0] / ordered_spans[2] >= 0.2:
+        return "iso"
     if sx < 0.5:
         return "yz"
     spans = sorted([("x", sx), ("y", sy), ("z", sz)], key=lambda t: t[1], reverse=True)

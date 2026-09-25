@@ -53,8 +53,9 @@ class Builder(AntennaBuilder):
                 {
                     # Top-loaded monopole feed -> low R (~25-45 ohm).
                     "target_z0": 50.0,
-                    # Riser along z, top wire along y -> yz view is face-on.
-                    "default_view": "yz",
+                    # Riser along z, top wire along y -> not planar in any
+                    # single 2D projection -> iso shows the L shape.
+                    "default_view": "iso",
                     "length_factor": {
                         "min": 0.85,
                         "max": 1.2,

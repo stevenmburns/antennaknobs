@@ -92,7 +92,7 @@ class Builder(AntennaBuilder):
             "ui_params": MappingProxyType(
                 {
                     "target_z0": 50.0,
-                    "default_view": "xy",
+                    "default_view": "iso",
                     "active": {"min": 1, "max": 3, "step": 1, "precision": 0},
                     "length_factor": {
                         "min": 0.95,

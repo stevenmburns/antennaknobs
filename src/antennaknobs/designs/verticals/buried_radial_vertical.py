@@ -364,11 +364,10 @@ class Builder(AntennaBuilder):
                     # the Sommerfeld method on load (with a notice) instead
                     # of letting the refl-coef default hit the refusal wall.
                     "ground_requirement": "sommerfeld",
-                    # Radial 0 always runs along +x, so the x-z plane always
-                    # shows one radial full-length beside the radiator and the
-                    # buried hub below the surface — the elevation profile
-                    # that makes the depth knob legible.
-                    "default_view": "xz",
+                    # Radials spread in x/y around a vertical radiator and a
+                    # buried hub — no single 2D projection shows the whole
+                    # structure, so iso.
+                    "default_view": "iso",
                     "n_radials": {"min": 1, "max": 4, "step": 1},
                     "depth": {"min": 0.05, "max": 0.5, "unit": "m"},
                     "length_factor": {"min": 0.8, "max": 1.2},
