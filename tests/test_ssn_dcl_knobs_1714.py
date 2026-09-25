@@ -467,7 +467,7 @@ def test_an_undefined_name_in_the_geometry_is_refused_by_name(tmp_path):
 
 
 def test_parse_ssn_refuses_an_override_the_cards_do_not_read():
-    with pytest.raises(ValueError, match="no dcl constant 'HGH'"):
+    with pytest.raises(ValueError, match="no dcl constant or element parameter 'HGH'"):
         parse_ssn(_text(YAGI), dcl_overrides={"HGH": 10.0})
     with pytest.raises(ValueError, match="not a finite number"):
         parse_ssn(_text(YAGI), dcl_overrides={"hgh": math.nan})
@@ -481,7 +481,8 @@ def test_parse_ssn_refuses_an_override_the_cards_do_not_read():
     sorted(
         p
         for p in (Path(__file__).parent / "fixtures").rglob("*.ssn")
-        if p.parent != FIXTURES
+        # AK#1716's circuits publish element-parameter knobs.
+        if p.parent not in (FIXTURES, FIXTURES.parent / "ssn_numericparam_1716")
     ),
     ids=lambda p: p.name,
 )
