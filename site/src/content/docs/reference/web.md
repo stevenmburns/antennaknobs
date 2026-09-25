@@ -235,6 +235,30 @@ frequency sweep** the Smith chart plots — run a [sweep](#convergence-sweep)
 and all three fill in together; the marker on each rides the measurement
 frequency.
 
+The S11 and VSWR charts carry the Smith chart's **freq sweep** switch too, and
+it is one switch: turning the sweep off on any of the three turns it off on
+all of them, and in the Settings menu.
+
+**Their vertical range** is set by clicking the chart's y axis. VSWR offers
+1–1.5, 1–2, 1–3, 1–5 and 1–10, S11 floors of −10, −20, −30 and −40 dB, and
+either takes a custom min and max; each chart remembers its own choice.
+**Auto**, the default, fits the dip: the smallest of 1.5, 2, 3, 5, 10 … that
+holds the lowest SWR with room above it, or the shallowest S11 floor the dip
+clears by 5 dB. Anything above a VSWR top pegs at the edge with the off-scale
+tick. So that the axis never rescales under your hand, Auto only grows while
+a knob is moving or a sweep is landing, and fits again once things have been
+still for half a second. For a very wide range of SWR, the S11 chart is the
+better view.
+
+Both charts draw a dashed **SWR threshold** line, 2:1 unless you change it in
+the same menu (on S11 it is the matching return loss, −9.5 dB for 2:1). The
+band where the sweep is below it is shaded, and the title row reads its width,
+e.g. `2:1 BW 176 kHz`, with the edges interpolated between sweep points rather
+than taken at the nearest one. `≥` means the band runs off the end of the
+sweep, so it may be wider. When the sweep dips below the line more than once,
+the readout gives the band holding the measurement frequency (else the widest)
+and says `(1 of 2)`.
+
 **The Files view** shows the text behind a solve, each tab with Copy and
 Download. **Source** is the file the design is built from: a catalog or user
 `.py`, or a bare `.nec`/`.ssn` as written. **SimNEC** is the design as a
