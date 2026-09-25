@@ -1,3 +1,26 @@
+# Thread-pool wait policy, set before anything below loads NumPy/SciPy/libgomp.
+# Each native pool reads these ONCE, when its library loads: OpenBLAS (every
+# bundled copy) OPENBLAS_THREAD_TIMEOUT, libgomp OMP_WAIT_POLICY and
+# GOMP_SPINCOUNT. Left at their defaults, the idle workers busy-spin after
+# every factorization and steal cores from the next solve's fill -- measured
+# on momwire 0.63.0 (Skylake, 4 threads, paired runs, 2026-09-24): +29 %
+# Sommerfeld, +60 % refl-coef, +77 % free space per repeated solve (#1050,
+# scratch/openblas-spin). Setting them here, rather than in the web server
+# (#377: too late there, the package has loaded NumPy), covers every launch
+# -- bare `uvicorn antennaknobs.web.server:app`, the install scripts, scripts
+# that import antennaknobs first. setdefault keeps a caller's own values, and
+# a process that loaded NumPy before importing antennaknobs is unaffected:
+# the pools have already read their environment.
+import os as _os
+
+for _k, _v in (
+    ("OMP_WAIT_POLICY", "PASSIVE"),
+    ("GOMP_SPINCOUNT", "0"),
+    ("OPENBLAS_THREAD_TIMEOUT", "1"),
+):
+    _os.environ.setdefault(_k, _v)
+del _os, _k, _v
+
 __all__ = [
     "Transform",
     "TransformStack",
