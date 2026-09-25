@@ -187,7 +187,7 @@ each design opens on its own best view, Top, Front or Side, guessed from its
 shape. Any other value wins over that guess every time a design loads, not
 only the first. The view's own Top / Front / Side / Iso switch still changes it
 for the design on screen, until the next design loads. The Settings menu's
-*on load* choice sets the same thing for the session.
+*View* choice (under Antenna chart) sets the same thing for the session.
 
 - **When it applies.** The server reads the file at every page load, so edit
   it and reload; there is no need to restart. Whatever you change during a

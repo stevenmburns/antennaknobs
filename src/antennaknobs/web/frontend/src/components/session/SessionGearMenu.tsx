@@ -239,7 +239,7 @@ export function SessionGearMenu({
                     className="gear-menu-check"
                     title="The view the antenna chart turns to whenever a design loads. auto: the design's own guess (Top, Front or Side from its shape). Any other choice wins over that guess at every load; the view's own switch still changes it until the next load."
                   >
-                    on load
+                    View
                     <select
                       className="gear-menu-select"
                       value={orientation}
