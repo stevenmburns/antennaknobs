@@ -183,7 +183,7 @@ export function useOptimizer({
   // (from each knob's menu) and objective, then apply the returned params to the
   // knobs (re-solving via the normal onChange path). Warm-started from the
   // current values; a newer run aborts the previous so stale results are
-  // dropped. Always uses the momwire engine server-side.
+  // dropped. Optimises on the slot's own engine server-side (AK#1741).
   //
   // Requests `text/event-stream` (issue #773's pinned contract) to get live
   // `progress` frames; a server that doesn't stream yet ignores the header

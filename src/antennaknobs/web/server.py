@@ -3126,10 +3126,17 @@ async def optimize_endpoint(req: dict, request: Request):
           "max_evals": <int, optional>,
         }
     Returns the best params found + before/after metrics. The objective is
-    evaluated at the request's measurement frequency through the geometry's
-    impedance-only momwire_solve (cheap — no far field), so a run is dozens of
-    quick solves rather than a far-field sweep. Always uses the momwire engine
-    regardless of the request's `solver` (PyNEC would be far too slow per eval).
+    evaluated at the request's measurement frequency with no far field, so a
+    run is a handful of impedance solves rather than a far-field sweep.
+
+    **The run optimises on the request's own engine** (AK#1741): a slot on
+    NEC-5, NEC-2 or PyNEC evaluates each point through that engine's solve,
+    exactly as the drag tracker already did, and a momwire slot through
+    ``momwire_solve`` with its own model. It used to be momwire (B-spline, the
+    model default) whatever the slot said, so a NEC-5 slot was handed
+    B-spline's resonance and then re-solved on NEC-5 there — ~2.4 ohm of jX
+    short on AC6LA's inverted V. The response's ``solver`` names the engine
+    the objective was measured on.
 
     With `Accept: text/event-stream` the same run is streamed instead: one
     `progress` event per eval, then exactly one terminal `result` (that same
@@ -3177,11 +3184,16 @@ async def optimize_endpoint(req: dict, request: Request):
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     ex = example_for(geometry)
     base = {k: v for k, v in req.items() if k != "optimize"}
-    # Every optimizer eval is a full momwire solve of the base geometry (the
-    # free knobs never change n_per_wire), so one hosted size check on the
-    # base request covers the whole run.
+    # The slot's engine, resolved once for the whole run (AK#1741). Same
+    # resolution as a live solve: a requested-but-unavailable engine falls
+    # back to momwire, and the result says which one ran.
+    backend = _external_backend(base)
+    solver_name = _BACKEND_NAME[backend] if backend is not None else "momwire"
+    # Every optimizer eval is a full solve of the base geometry (the free
+    # knobs never change n_per_wire), so one hosted size check on the base
+    # request covers the whole run.
     try:
-        _check_solve_size(base, use_pynec=False)
+        _check_solve_size(base, use_pynec=backend is not None)
     except SolveTooLargeError as e:
         return _reject({"geometry": geometry, "error": str(e)})
 
@@ -3192,7 +3204,15 @@ async def optimize_endpoint(req: dict, request: Request):
     token = momwire.CancelToken()
 
     def _eval_solve(r: dict) -> dict:
-        return ex.momwire_solve(r, cancel=token)
+        if backend is None:
+            return ex.momwire_solve(r, cancel=token)
+        # Start gate + subprocess kill switch under the run's token, as for a
+        # live external solve (AK#1712).
+        out = _external_call(backend.solve, r, cancel=token)
+        # An eval's deck/printout are not a Files-view answer: nothing keys
+        # them, and holding one per eval would grow with the run.
+        out.pop("_engine_runs", None)
+        return out
 
     def _run(on_progress):
         # THE dispatch, shared by both representations so _shed can never be
@@ -3223,6 +3243,7 @@ async def optimize_endpoint(req: dict, request: Request):
         except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise
             return {"geometry": geometry, "error": user_designs.format_solve_error(exc)}
         result["geometry"] = geometry
+        result["solver"] = solver_name
         return result
 
     stream = ProgressStream()
@@ -3246,6 +3267,7 @@ async def optimize_endpoint(req: dict, request: Request):
                     stream.fail(user_designs.format_solve_error(exc))
                     return
                 result["geometry"] = geometry
+                result["solver"] = solver_name
                 stream.finish(result)
         except ProgressStreamClosed:
             pass

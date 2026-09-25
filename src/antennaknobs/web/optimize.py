@@ -3,8 +3,9 @@ optimise an electrical objective (impedance match / SWR, resonance, …).
 
 Deliberately free of any web framework. The objective is evaluated through an
 injected ``solve_fn(req) -> response`` callback, so the same code runs:
-  - under the FastAPI ``/optimize`` endpoint, wired to a registry example's
-    cheap impedance-only ``momwire_solve`` (no far-field — we only read Z), and
+  - under the FastAPI ``/optimize`` endpoint, wired to the request's own
+    engine with no far field (we only read Z): a registry example's
+    ``momwire_solve``, or the slot's NEC-5 / NEC-2 / PyNEC solve (AK#1741), and
   - under unit tests, wired to a builder/example solve directly or to a stub.
 
 The optimiser is a bounded Nelder–Mead (derivative-free — each objective eval is
