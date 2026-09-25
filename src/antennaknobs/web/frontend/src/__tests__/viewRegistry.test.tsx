@@ -35,6 +35,7 @@ const EVERY_VIEW: Record<View, true> = {
   antenna: true,
   azimuth: true,
   elevation: true,
+  combined: true,
   smith: true,
   schematic: true,
   gamma: true,
@@ -67,6 +68,7 @@ describe("view metadata", () => {
       ["antenna", "Antenna"],
       ["azimuth", "Azimuth (xy)"],
       ["elevation", "Elevation (yz)"],
+      ["combined", "Az + El (combined)"],
       ["smith", "Smith"],
       ["schematic", "Schematic"],
       ["gamma", "S11 (dB) vs freq"],
@@ -93,7 +95,7 @@ describe("view metadata", () => {
   it("marks every pre-run view stale while optimizing, and only those", () => {
     const stale = VIEWS.filter((v) => v.staleWhileOptimizing).map((v) => v.id);
     expect(stale.sort()).toEqual(
-      ["antenna", "azimuth", "elevation", "gamma", "vswr"],
+      ["antenna", "azimuth", "combined", "elevation", "gamma", "vswr"],
     );
     expect(VIEW_META.smith.staleWhileOptimizing).toBe(false);
     expect(VIEW_META.schematic.staleWhileOptimizing).toBe(false);
@@ -145,6 +147,7 @@ const MARKERS: Record<View, string> = {
   antenna: ".canvas-viewport",
   azimuth: 'canvas.farfield[data-cut="xy"]',
   elevation: 'canvas.farfield[data-cut="yz"]',
+  combined: "canvas.farfield[data-fill]",
   smith: "canvas.smith",
   schematic: ".schematic-fill",
   gamma: 'canvas.sweep[data-mode="gamma"]',
@@ -205,6 +208,17 @@ describe("dispatch", () => {
       expect(settledAttr({ sweepSettled: false })).toBe("0");
     });
   }
+
+  // AK#1730: the combined view is an alternative, so nobody's rail moves —
+  // it is off by default (the founding-four test above pins that too) — and
+  // its fill reaches the chart, defaulting to none where a call site omits it.
+  it("ships the combined view unpinned, with its fill passed through", () => {
+    expect(VIEW_META.combined.defaultPinned).toBe(false);
+    const fillOf = (o: Partial<React.ComponentProps<typeof ViewPanel>>) =>
+      mount("combined", o).querySelector(MARKERS.combined)!.getAttribute("data-fill");
+    expect(fillOf({})).toBe("none");
+    expect(fillOf({ combinedFill: "elevation" })).toBe("elevation");
+  });
 
   it("passes the schematic view its own props", () => {
     const svg = '<svg viewBox="0 0 10 10"><path d="M 0,0 L 10,10" /></svg>';

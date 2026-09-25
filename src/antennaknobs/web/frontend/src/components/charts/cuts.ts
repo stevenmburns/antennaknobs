@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { PatternCuts, SolveResponse } from "../../lib/api";
 import { cutDbiTop, refineCutAngles } from "../../lib/refine";
 import { tunedInt } from "../../lib/tuning";
-import type { FarFieldCut } from "./types";
+import type { FarFieldCaptions, FarFieldCut } from "./types";
 
 // --- Server-side polar cuts (issue #547) -----------------------------------
 // The per-direction cut physics lives in server.py (_pattern_cuts); every
@@ -531,15 +531,24 @@ function refineCuts(
 //
 // `cut` is which polar chart this hook instance serves; while mounted it
 // registers that cut so refinement (below) buys angles only for cuts that
-// are actually on screen.
+// are actually on screen. "both" is the combined view (AK#1730), which draws
+// the two cuts on one plot and so wants both refined.
 export function useCutTraces(
-  cut: FarFieldCut,
+  cut: FarFieldCut | "both",
   results: readonly (SolveResponse | null)[],
   azElevDeg: number,
   elevAzDeg: number,
 ): (PatternCuts | null)[] {
   const [, setFetchTick] = useState(0); // re-render when a fetch lands
-  useEffect(() => registerCutChart(cut), [cut]);
+  useEffect(() => {
+    if (cut !== "both") return registerCutChart(cut);
+    const offXy = registerCutChart("xy");
+    const offYz = registerCutChart("yz");
+    return () => {
+      offXy();
+      offYz();
+    };
+  }, [cut]);
   const wantKey = results
     .map((r) => (r ? cutsKey(r, azElevDeg, elevAzDeg) : "-"))
     .join("|");
@@ -695,4 +704,38 @@ export function slicePeakAngleDeg(
   // Azimuth reads 0-360; elevation reads up and over, 0-180, and a sample
   // below the horizon (free space) as negative.
   return cut === "xy" ? a : a > 180 ? a - 360 : a;
+}
+
+/** What a far-field chart prints in its corners for one cut (see
+ *  `FarFieldCaptions`), from the live trace it draws. Shared by the one-cut
+ *  charts and the combined view (AK#1730), which hands up one per cut. */
+export function buildFarFieldCaptions(
+  cut: FarFieldCut,
+  liveCuts: PatternCuts | null,
+  result: SolveResponse | null,
+  azElevDeg: number,
+  elevAzDeg: number,
+  hasPattern: boolean,
+): FarFieldCaptions {
+  const trace = traceFor(liveCuts, cut);
+  return {
+    cut,
+    cutLabel:
+      cut === "xy"
+        ? `az @ ${azElevDeg}° elev (dBi)`
+        : `elev @ ${elevAzDeg}° az (dBi)`,
+    peakDbi: result && trace ? trace.peakDbi : null,
+    peakAngleDeg: result && trace ? slicePeakAngleDeg(trace, cut) : null,
+    field:
+      liveCuts && result?.ground_terrain
+        ? liveCuts.diffraction
+          ? "with diffraction"
+          : "specular while dragging"
+        : null,
+    belowGroundPct:
+      result?.in_medium_moment_fraction != null
+        ? Math.round(result.in_medium_moment_fraction * 100)
+        : null,
+    necOverlay: !!(result && trace && hasPattern),
+  };
 }

@@ -3,8 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import type { MeasuredData, NormCheckData, SolveResponse } from "../../lib/api";
 import type { GroundModel } from "../../lib/ground";
 import type { ExampleDescriptor } from "../../lib/params";
-import type { Projection, View } from "../../lib/view";
+import type { CombinedFill, Projection, View } from "../../lib/view";
 import { PROJECTIONS } from "../../lib/view";
+import { LIVE_ENTITY } from "../charts/combined";
+import { GHOST_COLOR_COUNT, GHOST_FALLBACK_RGB } from "../charts/palette";
 import type { Layout } from "../session/useViewPrefs";
 import type {
   FarFieldCaptions,
@@ -304,8 +306,23 @@ function signed(x: number, digits: number): string {
 // peak of the trace on screen and costs nothing; the 3-D max needs a full
 // far-field solve, so it is shown when the pattern metrics are already in hand
 // and fetched on a click otherwise. Clicking it aims both cut knobs there.
+function SlicePeak({ captions }: { captions: FarFieldCaptions }) {
+  if (captions.peakDbi == null || captions.peakAngleDeg == null) return null;
+  const where = captions.cut === "xy" ? "az" : "el";
+  return (
+    <span
+      className="overlay-readout overlay-peak"
+      title={`The maximum of this ${captions.cut === "xy" ? "azimuth" : "elevation"} cut and where it is on the cut (EZNEC's "Slice Max Gain"). Over the far side of the zenith an elevation reads past 90°.`}
+    >
+      peak {signed(captions.peakDbi, 1)} dBi @ {where}{" "}
+      {Math.round(captions.peakAngleDeg)}°
+    </span>
+  );
+}
+
 function PeakReadout({
   captions,
+  alsoPeak,
   maxMetrics,
   maxPending,
   canFindMax,
@@ -314,6 +331,9 @@ function PeakReadout({
   onDismissMax,
 }: {
   captions: FarFieldCaptions;
+  /** The combined view's second cut (AK#1730): its slice peak, under the
+   *  first. The 3-D max and the captions below it are the solve's, shown once. */
+  alsoPeak?: FarFieldCaptions | null | undefined;
   maxMetrics: PatternMetrics | null;
   maxPending: boolean;
   canFindMax: boolean;
@@ -321,18 +341,10 @@ function PeakReadout({
   onAimAtMax: (m: PatternMetrics) => void;
   onDismissMax: () => void;
 }) {
-  const where = captions.cut === "xy" ? "az" : "el";
   return (
     <>
-      {captions.peakDbi != null && captions.peakAngleDeg != null && (
-        <span
-          className="overlay-readout overlay-peak"
-          title={`The maximum of this ${captions.cut === "xy" ? "azimuth" : "elevation"} cut and where it is on the cut (EZNEC's "Slice Max Gain"). Over the far side of the zenith an elevation reads past 90°.`}
-        >
-          peak {signed(captions.peakDbi, 1)} dBi @ {where}{" "}
-          {Math.round(captions.peakAngleDeg)}°
-        </span>
-      )}
+      <SlicePeak captions={captions} />
+      {alsoPeak && <SlicePeak captions={alsoPeak} />}
       {maxMetrics ? (
         <span className="overlay-max-row">
           <button
@@ -395,6 +407,8 @@ export function FarFieldOverlayControls({
   necOverlayEnabled,
   setNecOverlayEnabled,
   captions,
+  alsoPeak,
+  overlayToggles = true,
   maxMetrics,
   maxPending,
   canFindMax,
@@ -412,6 +426,11 @@ export function FarFieldOverlayControls({
   necOverlayEnabled: boolean;
   setNecOverlayEnabled: (v: boolean) => void;
   captions: FarFieldCaptions | null;
+  /** See PeakReadout's `alsoPeak` (the combined view). */
+  alsoPeak?: FarFieldCaptions | null;
+  /** The norm-check and NEC-rp switches. The combined view draws neither
+   *  overlay, so it hides them (the norm readout still shows while on). */
+  overlayToggles?: boolean;
   maxMetrics: PatternMetrics | null;
   maxPending: boolean;
   canFindMax: boolean;
@@ -424,6 +443,7 @@ export function FarFieldOverlayControls({
       {captions && (
         <PeakReadout
           captions={captions}
+          alsoPeak={alsoPeak}
           maxMetrics={maxMetrics}
           maxPending={maxPending}
           canFindMax={canFindMax}
@@ -432,7 +452,7 @@ export function FarFieldOverlayControls({
           onDismissMax={onDismissMax}
         />
       )}
-      {!isMobile && (
+      {!isMobile && overlayToggles && (
         <label
           className="overlay-checkbox"
           title="On dwell, renormalise the pattern by its own integrated radiated power (dotted) instead of the input power the solid line uses. Overlap ⇒ the solve conserves power; a visible gap is the solver's discretisation error (NEC's 'average gain' check)."
@@ -445,7 +465,7 @@ export function FarFieldOverlayControls({
           norm check
         </label>
       )}
-      {!isMobile && (backend === "pynec" || backend === "nec5") && (
+      {!isMobile && overlayToggles && (backend === "pynec" || backend === "nec5") && (
         <label
           className="overlay-checkbox"
           style={
@@ -520,53 +540,167 @@ export function CutAngleOverlay({
   elevAzDeg: number;
   setElevAzDeg: (v: number) => void;
 }) {
+  const elevationKnob = (
+    <div
+      className="cut-overlay-knob"
+      title="elevation at which the azimuth cut is taken"
+    >
+      <span className="cut-overlay-label">elevation</span>
+      <Knob
+        knobId="ff_cut_elevation"
+        value={azElevDeg}
+        min={0}
+        max={89}
+        step={1}
+        precision={0}
+        unit="°"
+        label="cut elevation"
+        onChange={setAzElevDeg}
+        startDeg={90}
+        sweepDeg={-89}
+      />
+      <span className="cut-overlay-value">{azElevDeg}°</span>
+    </div>
+  );
+  const azimuthKnob = (
+    <div
+      className="cut-overlay-knob"
+      title="azimuth bearing at which the elevation cut is taken"
+    >
+      <span className="cut-overlay-label">azimuth</span>
+      <Knob
+        knobId="ff_cut_azimuth"
+        value={elevAzDeg}
+        min={0}
+        max={359}
+        step={1}
+        precision={0}
+        unit="°"
+        label="cut azimuth"
+        onChange={setElevAzDeg}
+        startDeg={90}
+        sweepDeg={-359}
+      />
+      <span className="cut-overlay-value">{elevAzDeg}°</span>
+    </div>
+  );
+  if (v === "azimuth") return <div className="cut-overlay">{elevationKnob}</div>;
+  if (v === "elevation") return <div className="cut-overlay">{azimuthKnob}</div>;
+  // The combined view (AK#1730) draws both cuts, so it carries both knobs.
+  if (v === "combined") {
+    return (
+      <div className="cut-overlay cut-overlay-pair">
+        {elevationKnob}
+        {azimuthKnob}
+      </div>
+    );
+  }
+  return null;
+}
+
+// The combined view's legend (AK#1730), over the stage's lower-left corner
+// above the solve readout. Colour says which CUT a trace is, so with pins on
+// screen the colour alone no longer says which DESIGN: each row names one
+// (the live design, then each shown pin, with the pin's swatch from the
+// compare table), and clicking a row focuses it — its two traces stay at full
+// strength and everything else dims — until it is clicked again. Showing and
+// hiding a pin stays where it already is, in the compare table.
+//
+// The fill switch lives here too: it is this view's only setting.
+export function CombinedLegend({
+  pinnedPatterns,
+  focus,
+  setFocus,
+  fill,
+  setFill,
+}: {
+  pinnedPatterns: PinnedPattern[];
+  focus: string | null;
+  setFocus: (id: string | null) => void;
+  fill: CombinedFill;
+  setFill: (f: CombinedFill) => void;
+}) {
+  const shown = pinnedPatterns.filter((p) => p.enabled);
+  // A focus on a pin that is gone or hidden reads as no focus (the chart
+  // applies the same rule, see effectiveFocus).
+  const active =
+    focus === LIVE_ENTITY || shown.some((p) => p.id === focus) ? focus : null;
+  const row = (id: string, label: string, pinned: boolean, swatch?: string) => (
+    <li key={id}>
+      <button
+        type="button"
+        className={`combined-legend-row${active === id ? " is-focus" : ""}${
+          active != null && active !== id ? " is-dim" : ""
+        }`}
+        aria-pressed={active === id}
+        onClick={() => setFocus(active === id ? null : id)}
+        title={
+          active === id
+            ? "Show every trace again"
+            : `Focus ${label}: its two traces stay bright and the rest dim`
+        }
+      >
+        {swatch && (
+          <span className="compare-swatch" style={{ background: swatch }} />
+        )}
+        <span
+          className={`combined-legend-line combined-az${pinned ? " is-pinned" : ""}`}
+          aria-hidden="true"
+        />
+        <span
+          className={`combined-legend-line combined-el${pinned ? " is-pinned" : ""}`}
+          aria-hidden="true"
+        />
+        <span className="combined-legend-label">{label}</span>
+      </button>
+    </li>
+  );
   return (
-    <>
-      {v === "azimuth" && (
-        <div
-          className="cut-overlay"
-          title="elevation at which this azimuth cut is taken"
+    <div className="combined-legend" aria-label="Combined pattern legend">
+      <div className="combined-legend-head">
+        <span>
+          <span className="combined-legend-line combined-az" aria-hidden="true" />
+          az
+        </span>
+        <span>
+          <span className="combined-legend-line combined-el" aria-hidden="true" />
+          el
+        </span>
+        <span
+          className="combined-fill"
+          role="group"
+          aria-label="Fill"
+          title="Fill the live elevation half-lobe, for reading the low angles"
         >
-          <span className="cut-overlay-label">elevation</span>
-          <Knob
-            knobId="ff_cut_elevation"
-            value={azElevDeg}
-            min={0}
-            max={89}
-            step={1}
-            precision={0}
-            unit="°"
-            label="cut elevation"
-            onChange={setAzElevDeg}
-            startDeg={90}
-            sweepDeg={-89}
-          />
-          <span className="cut-overlay-value">{azElevDeg}°</span>
-        </div>
+          fill
+          {(["none", "elevation"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              className={`combined-fill-btn${fill === f ? " is-active" : ""}`}
+              aria-pressed={fill === f}
+              onClick={() => setFill(f)}
+            >
+              {f === "none" ? "none" : "el"}
+            </button>
+          ))}
+        </span>
+      </div>
+      {shown.length > 0 && (
+        <ul className="combined-legend-rows">
+          {row(LIVE_ENTITY, "live", false)}
+          {shown.map((p) => {
+            const i = p.colorIdx % GHOST_COLOR_COUNT;
+            return row(
+              p.id,
+              p.label,
+              true,
+              `rgba(var(--plot-ghost-${i}-rgb, ${GHOST_FALLBACK_RGB[i]}), 0.95)`,
+            );
+          })}
+        </ul>
       )}
-      {v === "elevation" && (
-        <div
-          className="cut-overlay"
-          title="azimuth bearing at which this elevation cut is taken"
-        >
-          <span className="cut-overlay-label">azimuth</span>
-          <Knob
-            knobId="ff_cut_azimuth"
-            value={elevAzDeg}
-            min={0}
-            max={359}
-            step={1}
-            precision={0}
-            unit="°"
-            label="cut azimuth"
-            onChange={setElevAzDeg}
-            startDeg={90}
-            sweepDeg={-359}
-          />
-          <span className="cut-overlay-value">{elevAzDeg}°</span>
-        </div>
-      )}
-    </>
+    </div>
   );
 }
 
