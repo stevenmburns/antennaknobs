@@ -6,6 +6,19 @@ import {
   type View,
   type ViewMeta,
 } from "../../lib/view";
+import {
+  AUTO_AXES,
+  DEFAULT_SWR_THRESHOLD,
+  sameChoice,
+  sanitizeChoice,
+  sanitizeThreshold,
+  SWR_THRESHOLD_MAX,
+  SWR_THRESHOLD_MIN,
+  type SweepAxes,
+  type SweepAxisChoice,
+  type SweepMode,
+  validChoice,
+} from "../../lib/sweepAxis";
 
 // The desktop view preferences: which views are PINNED (resident in the
 // thumbstrip) and which the user has already been shown in the picker.
@@ -61,6 +74,11 @@ type ViewPrefs = {
   // The combined Az + El view's fill (AK#1730). Kept here, with the rest of
   // the view prefs, and written only when it is not the default "none".
   combinedFill: CombinedFill;
+  // The VSWR and S11 charts' vertical ranges, and the SWR threshold their
+  // line and bandwidth readout use (AK#1738). Written only where they differ
+  // from Auto / 2:1.
+  sweepAxes: SweepAxes;
+  swrThreshold: number;
 };
 
 const KNOWN = new Set<string>(VIEWS.map((v) => v.id));
@@ -98,6 +116,18 @@ function sanitizeCombinedFill(raw: unknown): CombinedFill {
   return raw === "elevation" ? "elevation" : "none";
 }
 
+// The sweep charts' ranges, each distrusted on its own (sanitizeChoice).
+function sanitizeAxes(raw: unknown): SweepAxes {
+  const rec =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {};
+  return {
+    vswr: sanitizeChoice("vswr", rec.vswr),
+    gamma: sanitizeChoice("gamma", rec.gamma),
+  };
+}
+
 // Per-view readout choices. Unknown views and non-boolean values are dropped
 // one by one; a map that is garbage as a whole reads as "no choices", which
 // leaves every view on its registry default.
@@ -119,6 +149,8 @@ function defaultPrefs(): ViewPrefs {
     layout: "rail",
     readoutCollapsed: {},
     combinedFill: "none",
+    sweepAxes: AUTO_AXES,
+    swrThreshold: DEFAULT_SWR_THRESHOLD,
   };
 }
 
@@ -147,6 +179,8 @@ function parseStoredPrefs(raw: string): ViewPrefs | null {
           layout: sanitizeLayout(rec.layout),
           readoutCollapsed: sanitizeReadout(rec.readoutCollapsed),
           combinedFill: sanitizeCombinedFill(rec.combinedFill),
+          sweepAxes: sanitizeAxes(rec.sweepAxes),
+          swrThreshold: sanitizeThreshold(rec.swrThreshold),
         };
       }
     }
@@ -193,6 +227,14 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
+// Only the charts off Auto; nothing at all when both are on it.
+function sparseAxes(axes: SweepAxes): Partial<SweepAxes> | undefined {
+  const out: Partial<SweepAxes> = {};
+  if (axes.vswr.kind !== "auto") out.vswr = axes.vswr;
+  if (axes.gamma.kind !== "auto") out.gamma = axes.gamma;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function update(next: ViewPrefs): void {
   cached = next;
   try {
@@ -213,6 +255,11 @@ function update(next: ViewPrefs): void {
             : undefined,
         combinedFill:
           next.combinedFill === "none" ? undefined : next.combinedFill,
+        sweepAxes: sparseAxes(next.sweepAxes),
+        swrThreshold:
+          next.swrThreshold === DEFAULT_SWR_THRESHOLD
+            ? undefined
+            : next.swrThreshold,
       }),
     );
   } catch {
@@ -373,7 +420,15 @@ export function gridFix(
 
 export function useViewPrefs() {
   const prefs = useSyncExternalStore(subscribe, getSnapshot);
-  const { pinned, seen, layout, readoutCollapsed, combinedFill } = prefs;
+  const {
+    pinned,
+    seen,
+    layout,
+    readoutCollapsed,
+    combinedFill,
+    sweepAxes,
+    swrThreshold,
+  } = prefs;
 
   // Views the user has never been offered. Seeded (not empty) on a first run,
   // so the badge only ever fires for views added after the picker shipped.
@@ -468,6 +523,24 @@ export function useViewPrefs() {
     update({ ...cur, combinedFill: next });
   }, []);
 
+  // A sweep chart's range (AK#1738). An undrawable choice is refused rather
+  // than stored; an unchanged one keeps snapshot identity.
+  const setSweepAxis = useCallback((mode: SweepMode, choice: SweepAxisChoice) => {
+    const cur = getSnapshot();
+    if (!validChoice(mode, choice) || sameChoice(cur.sweepAxes[mode], choice)) return;
+    update({ ...cur, sweepAxes: { ...cur.sweepAxes, [mode]: choice } });
+  }, []);
+
+  // The SWR threshold, clamped into the range sanitizeThreshold accepts on
+  // the way back in; a non-number is ignored.
+  const setSwrThreshold = useCallback((t: number) => {
+    if (!Number.isFinite(t)) return;
+    const cur = getSnapshot();
+    const next = Math.min(SWR_THRESHOLD_MAX, Math.max(SWR_THRESHOLD_MIN, t));
+    if (cur.swrThreshold === next) return;
+    update({ ...cur, swrThreshold: next });
+  }, []);
+
   return {
     pinned,
     seen,
@@ -482,5 +555,9 @@ export function useViewPrefs() {
     setReadoutCollapsed,
     combinedFill,
     setCombinedFill,
+    sweepAxes,
+    setSweepAxis,
+    swrThreshold,
+    setSwrThreshold,
   };
 }

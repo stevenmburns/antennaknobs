@@ -81,6 +81,9 @@ export function plotColors() {
     // Measured-overlay locus (issue #595). Violet: unused elsewhere on the
     // Smith chart, so it never reads as another feed.
     measured: v("--plot-measured", "#b48cfa"),
+    // The sweep charts' SWR threshold line and below-threshold band
+    // (AK#1738). Green: the good-match side of the line.
+    thresholdRgb: v("--plot-threshold-rgb", "110, 210, 140"),
   };
 }
 

@@ -1,6 +1,7 @@
 import { reflectionCoefficient } from "./format";
 import { gammaDbFromMag, vswrFromGammaMag } from "./math";
 import type { SweepData } from "./api";
+import { AUTO_AXES, sweepAxisDomain, type SweepAxes } from "./sweepAxis";
 import { tunedFloat } from "./tuning";
 
 // Adaptive sampling refinement (issue #744).
@@ -259,12 +260,19 @@ export function planRefinement(
 
 // --- Freq sweep (SweepChart's linear-MHz x axis, SmithChart's Γ plane) ---
 
-// SweepChart's y domains (components/charts/SweepChart.tsx DOMAIN). Kept
-// here rather than imported so this module stays free of React/canvas
-// imports; the values are the chart's published axis contract, and the
-// vitest suite pins them against the chart.
-const VSWR_DOMAIN = { lo: 1, hi: 10 };
-const GAMMA_DB_DOMAIN = { lo: -30, hi: 0 };
+// SweepChart's y domains are no longer constants (AK#1738): each chart's
+// range is the viewer's choice — a preset, a custom min/max, or Auto, which
+// fits the sweep's dip. lib/sweepAxis.ts's sweepAxisDomain is the one rule,
+// and both sides call it — the chart over what it draws, this planner over
+// the sweep it refines — so a sample lands at the same height in both. The
+// vitest suite pins the chart's published domain (its data-y-lo/-hi) against
+// this function's.
+//
+// One deliberate gap: the chart's Auto only GROWS while a knob is live and
+// re-fits once the inputs have been quiet for a dwell. The planner always
+// plans against the fresh fit, which is what the chart shows once settled —
+// and refinement runs only after the settle, so the two agree whenever a
+// plan is made against a settled chart.
 
 /** Top of the S11 axis for a set of dB samples: 0 for anything passive, and
  *  ceil(max + 1 dB headroom) when any sample crosses 0 dB. A driven-array
@@ -316,6 +324,7 @@ export function sweepProjections(
   sweep: SweepData,
   z0: number,
   include: SweepProjectionSet = ALL_SWEEP_PROJECTIONS,
+  axes: SweepAxes = AUTO_AXES,
 ): DisplayPoint[][] {
   const f = sweep.freqs_mhz;
   const n = f.length;
@@ -337,20 +346,19 @@ export function sweepProjections(
   // over the whole sweep first, the same number SweepChart derives, so the
   // planner refines against the geometry actually drawn.
   const dbs = include.gamma ? gs.map((g) => gammaDbFromMag(g.gMag)) : [];
-  const dbHi = s11DbTop(dbs);
+  const vs = include.vswr ? gs.map((g) => vswrFromGammaMag(g.gMag)) : [];
+  // The drawn domains (AK#1738): the viewer's choice, Auto fitting these
+  // same values, exactly as SweepChart derives them.
+  const vDom = sweepAxisDomain("vswr", axes.vswr, vs);
+  const gDom = sweepAxisDomain("gamma", axes.gamma, dbs, s11DbTop(dbs));
   for (let i = 0; i < n; i++) {
     const x = (f[i] - f[0]) / span;
     const g = gs[i];
     if (include.vswr) {
-      const v = vswrFromGammaMag(g.gMag);
-      vswr.push(
-        edge(x, (v - VSWR_DOMAIN.lo) / (VSWR_DOMAIN.hi - VSWR_DOMAIN.lo)),
-      );
+      vswr.push(edge(x, (vs[i] - vDom.lo) / (vDom.hi - vDom.lo)));
     }
     if (include.gamma) {
-      gamma.push(
-        edge(x, (dbs[i] - GAMMA_DB_DOMAIN.lo) / (dbHi - GAMMA_DB_DOMAIN.lo)),
-      );
+      gamma.push(edge(x, (dbs[i] - gDom.lo) / (gDom.hi - gDom.lo)));
     }
     // Γ plane: the [0,1]² box the chart's circle inscribes, clamp-marked
     // outside it — |Γ| ≤ 1 for a passive port, but a driven-array port's
@@ -375,10 +383,11 @@ export function refineSweepFreqs(
   z0: number,
   budget: number,
   include: SweepProjectionSet = ALL_SWEEP_PROJECTIONS,
+  axes: SweepAxes = AUTO_AXES,
 ): number[] {
   const planned = planRefinement(
     sweep.freqs_mhz,
-    sweepProjections(sweep, z0, include),
+    sweepProjections(sweep, z0, include, axes),
     { budget },
   );
   // Relative tolerance: sweep spans run 1.8–54 MHz, so an absolute epsilon
