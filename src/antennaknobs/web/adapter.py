@@ -86,7 +86,9 @@ import math
 import os
 import pathlib
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from typing import Any, NamedTuple
@@ -2731,6 +2733,43 @@ def _readout_rows_results(builder, eng=None) -> dict:
     return {"readouts": rows} if rows else {}
 
 
+# AK#1727: the far-field metrics of a solve that just ran, handed to whoever
+# asked for them. The compare table asks for a design's metrics right after the
+# live row solved it, and a second engine for them filled Z a second time. A
+# caller that wants the solve's metrics opens `capture_solved_metrics()` around
+# `momwire_solve`; the solve then leaves a zero-argument callable in the box
+# that computes, on demand, exactly what `far_field_metrics` would for the same
+# request, off the solve's own state. A ContextVar rather than a parameter
+# because `momwire_solve`'s signature is shared with every hand-built example
+# (the tests' fakes take `(req, cancel=None)`), and the capture is the server's
+# business, not theirs. Without the box open, nothing is kept.
+_SOLVED_METRICS_SINK: ContextVar[list | None] = ContextVar(
+    "_SOLVED_METRICS_SINK", default=None
+)
+
+
+@contextmanager
+def capture_solved_metrics() -> Iterator[list]:
+    """Collect the metrics thunk of each `momwire_solve` run inside the block
+    (a list; normally one entry). See `_SOLVED_METRICS_SINK`."""
+    box: list = []
+    token = _SOLVED_METRICS_SINK.set(box)
+    try:
+        yield box
+    finally:
+        _SOLVED_METRICS_SINK.reset(token)
+
+
+def _metrics_from_gain(gain, meas_freq: float) -> dict:
+    """`far_field_metrics`' answer from a gain evaluator: the one place both
+    the fresh path and a solve's captured state (AK#1727) produce it."""
+    from antennaknobs.far_field import refined_pattern_metrics
+
+    metrics = refined_pattern_metrics(gain)
+    metrics["measurement_freq_mhz"] = meas_freq
+    return metrics
+
+
 def _make_momwire_engine(req: dict, builder, cancel=None):
     # "bspline" is the default and the fallback for unknown/retired model
     # names (a stale client may still send "triangular").
@@ -4605,6 +4644,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                 (f[2], "V") for f in (getattr(eng, "_feeds", None) or [])
             ]
             out["feeds"] = _pack_feeds(zs, drives)
+        sink = _SOLVED_METRICS_SINK.get()
+        if sink is not None:
+            # Last: the snapshot releases the engine's held Z (AK#1727).
+            build = eng.solved_gain_evaluator()
+            if build is not None:
+                sink.append(lambda: _metrics_from_gain(build(), meas_freq))
         return out
 
     def momwire_geometry(req: dict) -> dict:
@@ -5050,9 +5095,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # Uses the same builder setup as momwire_solve and the momwire engine
         # (so the numbers match the lobe on screen), then searches the pattern
         # for its peak: horizon included, the lower hemisphere in free space,
-        # refined off the 1° grid (issue #1669).
-        from antennaknobs.far_field import refined_pattern_metrics
-
+        # refined off the 1° grid (issue #1669). The live row usually gets
+        # these off its solve instead (AK#1727, `capture_solved_metrics`),
+        # which must stay the same builder setup as this.
         design_freq, meas_freq = _req_freqs(req)
         builder = _build_builder(cls, req)
         builder.freq = meas_freq
@@ -5060,9 +5105,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             builder.design_freq = design_freq
         _apply_plane(builder, req)
         eng = _make_momwire_engine(req, builder, cancel=cancel)
-        metrics = refined_pattern_metrics(eng.gain_evaluator())
-        metrics["measurement_freq_mhz"] = meas_freq
-        return metrics
+        return _metrics_from_gain(eng.gain_evaluator(), meas_freq)
 
     def nec_export(req: dict) -> str:
         # Same builder construction as pynec_solve, then serialise to a NEC2

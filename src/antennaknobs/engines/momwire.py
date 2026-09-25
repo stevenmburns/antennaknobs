@@ -2572,10 +2572,62 @@ class MomwireEngine(SimulationEngine):
         self._raise_if_cancelled()
 
         wavelength = self._wavelength_for(self.builder.freq)
+        sim, coeffs, _z = self._solved_excited(wavelength)
+        # Gain normaliser from the source input power (same convention as the
+        # web solve path): gain = 4π·U/P_in = η₀k²/(8π·P_in)·|M_perp|². Load
+        # loss lives inside P_in, so terminated antennas come out as GAIN with
+        # no efficiency multiply.
+        p_in = self.input_power()
+        return self._gain_evaluator_from(
+            sim, coeffs, p_in, getattr(self, "_excited_efficiency", 1.0), wavelength
+        )
+
+    def solved_gain_evaluator(self):
+        """A builder of `gain_evaluator`'s callable off the solve this engine
+        ALREADY ran, or None when it ran none at its current frequency
+        (AK#1727).
+
+        The live solve reads impedance, currents and input power; the compare
+        table then asks for the same design's far-field metrics, and building
+        a fresh engine for them filled Z again. What the evaluator needs from
+        the solve is the excited solver, its coefficients and the source input
+        power, all of which `_solved_excited` left behind; this snapshots them
+        without constructing another solver, so it costs no LU and no fill,
+        and the returned thunk builds the same evaluator `gain_evaluator` would
+        (one shared `_gain_evaluator_from`).
+
+        The snapshot is what outlives the request, so the engine's held Z
+        (`_share_z_fill`) is released here: nothing the thunk does reads it,
+        and the excited solver's fill wrapper would otherwise keep a full
+        n_basis² matrix alive between requests. The engine is not to be
+        solved again after this call (it would only refill, never go wrong).
+        """
+        cached = getattr(self, "_solved_cache", None)
+        wavelength = self._wavelength_for(self.builder.freq)
+        if cached is None or cached[0][0] != float(wavelength):
+            return None
+        sim, coeffs, z = cached[1]
+        # `input_power`'s answer, read off the state the last `_solved_excited`
+        # (at this wavelength, per the key above) left, instead of re-running
+        # the excitation that recomputes it.
+        p_in = getattr(self, "_excited_p_in", None)
+        p_in = float(p_in) if p_in is not None else self._p_in_from_excited(sim, z)
+        efficiency = getattr(self, "_excited_efficiency", 1.0)
+        held = self.__dict__.get("_z_fill_held")
+        if held is not None:
+            held[0] = None
+
+        def build():
+            return self._gain_evaluator_from(sim, coeffs, p_in, efficiency, wavelength)
+
+        return build
+
+    def _gain_evaluator_from(self, sim, coeffs, p_in, efficiency, wavelength):
+        """`gain_evaluator`'s callable from an excited solve's state: the
+        solver and coefficients, the source input power and the radiation
+        efficiency (read only by the p_in ≤ 0 fallback)."""
         k = 2.0 * np.pi / wavelength
         freq_hz = self.builder.freq * 1e6
-
-        sim, coeffs, _z = self._solved_excited(wavelength)
         mid, dr, i_mid = self._segment_dipoles(sim, coeffs)
 
         # Issue #1341: informational, not a caveat — `_evaluate_M_perp`
@@ -2586,11 +2638,6 @@ class MomwireEngine(SimulationEngine):
             dr, i_mid, in_medium.below_surface_mask(mid, self._ground_z)
         )
 
-        # Gain normaliser from the source input power (same convention as the
-        # web solve path): gain = 4π·U/P_in = η₀k²/(8π·P_in)·|M_perp|². Load
-        # loss lives inside P_in, so terminated antennas come out as GAIN with
-        # no efficiency multiply.
-        p_in = self.input_power()
         if p_in > 0:
             directivity_norm = ETA0 * k * k / (8.0 * np.pi * p_in)
         else:
@@ -2613,7 +2660,6 @@ class MomwireEngine(SimulationEngine):
             p_rad = float(np.sum(mag2_int * np.sin(theta_int)[:, None]) * dtheta * dphi)
             if p_rad <= 0:
                 raise RuntimeError("computed zero radiated power")
-            efficiency = getattr(self, "_excited_efficiency", 1.0)
             directivity_norm = 4 * np.pi / p_rad * efficiency
 
         def gain(theta_deg, phi_deg):
