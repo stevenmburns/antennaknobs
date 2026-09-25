@@ -84,8 +84,9 @@ class Builder(AntennaBuilder):
             "ui_params": MappingProxyType(
                 {
                     "target_z0": 50.0,
-                    # Footprint lies in the x-y plane -> xy view shows the box.
-                    "default_view": "xy",
+                    # Footprint lies in the x-y plane but the elements rise in
+                    # z -> iso shows the box AND the radiators.
+                    "default_view": "iso",
                     # Degenerate with length_factor (elem = elem_frac * wl *
                     # length_factor); pin it and keep length_factor as the knob.
                     "elem_frac": {"hidden": True},

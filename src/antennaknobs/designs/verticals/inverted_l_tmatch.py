@@ -89,7 +89,7 @@ class Builder(InvertedL):
                 {
                     # Matched to 50 Ω, so the SWR readout shows ~1:1.
                     "target_z0": 50.0,
-                    "default_view": "yz",
+                    "default_view": "iso",
                     "series_c1_pF": {"min": 5.0, "max": 60.0},
                     "shunt_l_uH": {"min": 0.1, "max": 2.0},
                     "series_c2_pF": {"min": 50.0, "max": 500.0},

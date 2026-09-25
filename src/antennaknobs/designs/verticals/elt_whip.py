@@ -163,7 +163,7 @@ class Builder(AntennaBuilder):
             "whip_upper_radius": 0.000889,
             "ui_params": MappingProxyType(
                 {
-                    "default_view": "xz",
+                    "default_view": "iso",
                     "meas_freq_range": (400.0, 412.0),
                     # 406 MHz sits outside every HF amateur band; without a
                     # containing band the UI's design-switch snap would drag

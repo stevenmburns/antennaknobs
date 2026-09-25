@@ -17,13 +17,11 @@ class Builder(AntennaBuilder):
             "design_freq": 28.57,
             "length": 2.619,
             "base": 0.5,
-            # Auto-view rule picks xy (x/y are the two largest spans
-            # since the three radials spread in x/y), but the radiator
-            # itself is vertical — yz reads the elevation profile
-            # naturally.
+            # Radials spread in x/y while the radiator rises in z — no
+            # single 2D projection shows both, so iso.
             "ui_params": MappingProxyType(
                 {
-                    "default_view": "yz",
+                    "default_view": "iso",
                     "design_freq": {"hidden": True},
                 }
             ),

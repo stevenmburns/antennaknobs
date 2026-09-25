@@ -76,7 +76,7 @@ class Builder(AntennaBuilder):
                 {
                     # Helically-loaded short whip -> low radiation resistance.
                     "target_z0": 50.0,
-                    "default_view": "xz",
+                    "default_view": "iso",
                     # Degenerate with length_factor (axial = axial_frac * wl *
                     # length_factor); pin it and keep length_factor as the knob.
                     "axial_frac": {"hidden": True},

@@ -471,12 +471,14 @@ class AntennaExample:
     # outrank `meas_freq_range_mhz` and `sweep_policy`. None when neither
     # declares one.
     sweep_range: Optional[dict] = None
-    # Initial 2D-view projection the wire-render canvas picks when the
+    # Initial camera projection the wire-render canvas picks when the
     # user first selects this example. "xy" = top-down (beam-in-xy
     # antennas like yagi/moxon/hexbeam); "yz" = side (antennas whose
     # arms run along y and droop in z, like inverted_v / fan_dipole;
-    # also the vertical-loop hentenna). The user can still override
-    # via the projection buttons; this just sets the starting view.
+    # also the vertical-loop hentenna); "iso" = isometric, for antennas
+    # that don't fit cleanly into one 2D plane (verticals with radials,
+    # helices, turnstiles). The user can still override via the
+    # projection buttons; this just sets the starting view.
     # None for a deferred (user) design with no override: the real view is
     # auto-detected and arrives with the first geometry/solve response, so the
     # frontend holds the current camera until then instead of snapping to a

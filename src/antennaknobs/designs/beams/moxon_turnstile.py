@@ -82,9 +82,9 @@ class Builder(AntennaBuilder):
             "ui_params": MappingProxyType(
                 {
                     "target_z0": 50.0,
-                    # The two driver runs span x and y; the xy view shows
-                    # the crossed outline.
-                    "default_view": "xy",
+                    # The two crossed driver runs span x and y AND stack in
+                    # z; no single 2D projection shows the turnstile, so iso.
+                    "default_view": "iso",
                     "length_factor": {
                         "min": 0.9,
                         "max": 1.1,

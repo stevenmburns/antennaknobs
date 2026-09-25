@@ -56,9 +56,9 @@ class Builder(AntennaBuilder):
                 {
                     # Quad driver feed is ~60-130 ohm; reference SWR to 50.
                     "target_z0": 50.0,
-                    # Boom along x, loops span y/z; the xz view shows the
-                    # driver-reflector spacing edge-on.
-                    "default_view": "xz",
+                    # Boom along x, loops span y/z; no single 2D projection
+                    # shows both the spacing and the loop shape, so iso.
+                    "default_view": "iso",
                     "driver_circ": {
                         "min": 0.95,
                         "max": 1.08,
