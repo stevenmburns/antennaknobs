@@ -269,3 +269,17 @@ def test_the_unused_notused_termination_is_not_reported():
 def test_any_other_load_is_still_reported(old, new):
     text = LC1.read_text().replace(old, new, 1)
     assert _parse(LC1, text).other_elements == ("LOAD",)
+
+
+def test_a_file_that_is_not_xml_is_said_not_to_be_a_ssn():
+    """AC6LA saved the N-block script from a post as a .ssn (QRZ 1003328
+    #157), and the import answered with the XML parser's "invalid token,
+    line 1, column 0". A file that doesn't start as XML is not a .ssn, and the
+    message says that. A broken XML document keeps the parser's detail."""
+    script = (
+        "//Three-wire inverted V\nP1 w1 gnd;\nNEC2\nGW 1 1 0 0 12 0 1 12 .001\nNECEND\n"
+    )
+    with pytest.raises(ValueError, match=r"not a \.ssn file"):
+        parse_ssn(script, name="pasted.ssn")
+    with pytest.raises(ValueError, match="not well-formed .ssn XML"):
+        parse_ssn("<SimNEC1p0><CIRCUIT>", name="truncated.ssn")
