@@ -1,0 +1,6150 @@
+{
+ "census": {
+  "tree": {
+   "momwire_file": "/home/smburns/stevenmburns/sweep/mw-v062/src/momwire/__init__.py",
+   "momwire_version": "0.62.0",
+   "momwire_sha": "df33d4915e97a69e392f65e66699e760a89b9f86",
+   "momwire_describe": "v0.62.0",
+   "ak_file": "/home/smburns/stevenmburns/sweep/ak-src/antennaknobs/__init__.py",
+   "ak_sha": "2a4cc9fb8a68f42c98a9a6cda2d123a3d67afef9"
+  },
+  "designs": [
+   {
+    "design": "arrays.bowtie16x1",
+    "ground_requirement": null,
+    "default_backend": "arrayblock",
+    "has_buried_wire": false,
+    "n_segs": 1376,
+    "zmin": 8.128934815620802,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.bowtie1x2_bl",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 188,
+    "zmin": 6.692663955823262,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.bowtie4x4",
+    "ground_requirement": null,
+    "default_backend": "arrayblock",
+    "has_buried_wire": false,
+    "n_segs": 1376,
+    "zmin": 2.128934815620802,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.bowtiearray",
+    "ground_requirement": null,
+    "default_backend": "arrayblock",
+    "has_buried_wire": false,
+    "n_segs": 360,
+    "zmin": 4.107770468991295,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.bowtiearray1x2",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 172,
+    "zmin": 6.076225021106624,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.bowtiearray2x4",
+    "ground_requirement": null,
+    "default_backend": "arrayblock",
+    "has_buried_wire": false,
+    "n_segs": 720,
+    "zmin": 4.110901098924659,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.delta_looparray",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 180,
+    "zmin": 3.736190501776869,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.delta_looparray_1x4",
+    "ground_requirement": null,
+    "default_backend": "arrayblock",
+    "has_buried_wire": false,
+    "n_segs": 364,
+    "zmin": 4.234643008694187,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.delta_looparray_1x4_grouped",
+    "ground_requirement": null,
+    "default_backend": "arrayblock",
+    "has_buried_wire": false,
+    "n_segs": 364,
+    "zmin": 4.234643008694187,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.delta_looparray_2x2",
+    "ground_requirement": null,
+    "default_backend": "arrayblock",
+    "has_buried_wire": false,
+    "n_segs": 376,
+    "zmin": 10.102667983536723,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.delta_looparray_network",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 180,
+    "zmin": 3.736190501776869,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.folded_invveearray",
+    "ground_requirement": null,
+    "default_backend": "arrayblock",
+    "has_buried_wire": false,
+    "n_segs": 344,
+    "zmin": 3.281576496730162,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.hentenna_array",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 246,
+    "zmin": 5.207743321538461,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.hourglass_array",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 294,
+    "zmin": 4.540484847521368,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.invveearray",
+    "ground_requirement": null,
+    "default_backend": "arrayblock",
+    "has_buried_wire": false,
+    "n_segs": 172,
+    "zmin": 3.3355292273202064,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.lumped_coupled_pair",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 80,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.moxonarray",
+    "ground_requirement": null,
+    "default_backend": "arrayblock",
+    "has_buried_wire": false,
+    "n_segs": 324,
+    "zmin": 5.0,
+    "ground_connected": false
+   },
+   {
+    "design": "arrays.yagiarray",
+    "ground_requirement": null,
+    "default_backend": "arrayblock",
+    "has_buried_wire": false,
+    "n_segs": 660,
+    "zmin": 3.863144210802398,
+    "ground_connected": false
+   },
+   {
+    "design": "beams.hb9cv",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 84,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "beams.hexbeam",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 88,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "beams.moxon",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 83,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "beams.moxon_turnstile",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 168,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "beams.owa_yagi",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 158,
+    "zmin": 10.0,
+    "ground_connected": false
+   },
+   {
+    "design": "beams.owa_yagi_6el",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 235,
+    "zmin": 10.0,
+    "ground_connected": false
+   },
+   {
+    "design": "beams.phased_driver_yagi",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 118,
+    "zmin": 15.0,
+    "ground_connected": false
+   },
+   {
+    "design": "beams.yagi",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 157,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "broadband.discone",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 361,
+    "zmin": 5.546393811250807,
+    "ground_connected": false
+   },
+   {
+    "design": "broadband.g5rv",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 127,
+    "zmin": 10.0,
+    "ground_connected": false
+   },
+   {
+    "design": "broadband.lpda",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 618,
+    "zmin": 10.0,
+    "ground_connected": false
+   },
+   {
+    "design": "broadband.t2fd",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 104,
+    "zmin": 8.426010896044803,
+    "ground_connected": false
+   },
+   {
+    "design": "dipoles.dipole_turnstile",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 82,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "dipoles.folded_invvee",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 84,
+    "zmin": 5.728067665247,
+    "ground_connected": false
+   },
+   {
+    "design": "dipoles.folded_invvee_balun",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 84,
+    "zmin": 5.728067665247,
+    "ground_connected": false
+   },
+   {
+    "design": "dipoles.invvee",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 41,
+    "zmin": 5.682398955738396,
+    "ground_connected": false
+   },
+   {
+    "design": "dipoles.invvee_apex",
+    "ground_requirement": null,
+    "default_backend": "bspline",
+    "has_buried_wire": false,
+    "n_segs": 40,
+    "zmin": 5.656136808214169,
+    "ground_connected": false
+   },
+   {
+    "design": "dipoles.invvee_catenary",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 29,
+    "zmin": 5.678167726572962,
+    "ground_connected": false
+   },
+   {
+    "design": "dipoles.invvee_coax_station",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 41,
+    "zmin": 8.682398955738396,
+    "ground_connected": false
+   },
+   {
+    "design": "dipoles.koch_dipole",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 65,
+    "zmin": 4.511595945208301,
+    "ground_connected": false
+   },
+   {
+    "design": "dipoles.ocf_dipole",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 41,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "dipoles.pota_invvee",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 41,
+    "zmin": 4.403260184315583,
+    "ground_connected": false
+   },
+   {
+    "design": "dipoles.short_dipole_loaded",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 21,
+    "zmin": 5.0,
+    "ground_connected": false
+   },
+   {
+    "design": "loops.bisquare",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 184,
+    "zmin": 4.0,
+    "ground_connected": false
+   },
+   {
+    "design": "loops.delta_loop",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 90,
+    "zmin": 3.6175446857009237,
+    "ground_connected": false
+   },
+   {
+    "design": "loops.delta_loop_flyby",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 90,
+    "zmin": 3.617544685700923,
+    "ground_connected": false
+   },
+   {
+    "design": "loops.delta_loop_reflected",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 90,
+    "zmin": 3.617544685700924,
+    "ground_connected": false
+   },
+   {
+    "design": "loops.delta_loop_slanted",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 184,
+    "zmin": 2.582231350086495,
+    "ground_connected": false
+   },
+   {
+    "design": "loops.delta_loop_topdown",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 90,
+    "zmin": 3.6175446857009237,
+    "ground_connected": false
+   },
+   {
+    "design": "loops.diamond_loop",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 91,
+    "zmin": 4.133722335021423,
+    "ground_connected": false
+   },
+   {
+    "design": "loops.diamond_loop_turnstile",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 182,
+    "zmin": 2.62396808938984,
+    "ground_connected": false
+   },
+   {
+    "design": "loops.horizontal_loop",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 89,
+    "zmin": 5.0,
+    "ground_connected": false
+   },
+   {
+    "design": "loops.horizontal_loop_drone",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 85,
+    "zmin": 5.0,
+    "ground_connected": false
+   },
+   {
+    "design": "loops.inv_delta_loop",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 91,
+    "zmin": 3.455591575625841,
+    "ground_connected": false
+   },
+   {
+    "design": "loops.quad",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 172,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "loops.skyloop_lmatch",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 90,
+    "zmin": 15.0,
+    "ground_connected": false
+   },
+   {
+    "design": "loops.triangular_skyloop",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 90,
+    "zmin": 15.0,
+    "ground_connected": false
+   },
+   {
+    "design": "multiband.fandipole",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 295,
+    "zmin": 4.786865872834023,
+    "ground_connected": false
+   },
+   {
+    "design": "multiband.hexbeam_5band",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 308,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "multiband.trap_dipole",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 64,
+    "zmin": 5.0,
+    "ground_connected": false
+   },
+   {
+    "design": "multiband.trap_fan_dipole",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 113,
+    "zmin": 5.0138312515862715,
+    "ground_connected": false
+   },
+   {
+    "design": "multiband.twoband_fan_dipole",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 105,
+    "zmin": 5.752942763665773,
+    "ground_connected": false
+   },
+   {
+    "design": "specialty.bowtie",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 86,
+    "zmin": 8.128934815620802,
+    "ground_connected": false
+   },
+   {
+    "design": "specialty.buried_dipole",
+    "ground_requirement": "sommerfeld",
+    "default_backend": null,
+    "has_buried_wire": true,
+    "n_segs": 51,
+    "zmin": -0.15,
+    "ground_connected": true
+   },
+   {
+    "design": "specialty.continuous_helix",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 108,
+    "zmin": 5.0,
+    "ground_connected": false
+   },
+   {
+    "design": "specialty.faceted_helix",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 117,
+    "zmin": 5.0,
+    "ground_connected": false
+   },
+   {
+    "design": "specialty.hentenna",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 119,
+    "zmin": 4.64964707025641,
+    "ground_connected": false
+   },
+   {
+    "design": "specialty.hentenna_slant",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 123,
+    "zmin": 4.421486067810068,
+    "ground_connected": false
+   },
+   {
+    "design": "specialty.hourglass",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 159,
+    "zmin": 3.454478683076923,
+    "ground_connected": false
+   },
+   {
+    "design": "specialty.hourglass_slant",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 153,
+    "zmin": 3.1324325758119653,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.bobtail",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 151,
+    "zmin": 3.0,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.bruce",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 189,
+    "zmin": 3.9999999999999996,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.buried_radial_vertical",
+    "ground_requirement": "sommerfeld",
+    "default_backend": null,
+    "has_buried_wire": true,
+    "n_segs": null,
+    "zmin": -0.15,
+    "ground_connected": true
+   },
+   {
+    "design": "verticals.challenger",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 42,
+    "zmin": 0.11999999999999988,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.dominator",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 69,
+    "zmin": 0.08000000000000007,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.elevated_buried_counterpoise",
+    "ground_requirement": "sommerfeld",
+    "default_backend": null,
+    "has_buried_wire": true,
+    "n_segs": null,
+    "zmin": -0.15,
+    "ground_connected": true
+   },
+   {
+    "design": "verticals.elt_whip",
+    "ground_requirement": null,
+    "default_backend": "sinusoidal",
+    "has_buried_wire": false,
+    "n_segs": 4392,
+    "zmin": 1.0,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.four_square",
+    "ground_requirement": null,
+    "default_backend": "arrayblock",
+    "has_buried_wire": false,
+    "n_segs": 164,
+    "zmin": 5.0,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.half_square",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 86,
+    "zmin": 3.0,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.inverted_l",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 106,
+    "zmin": 5.0,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.inverted_l_tmatch",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 106,
+    "zmin": 5.0,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.jpole",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 87,
+    "zmin": 4.0,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.phased_verticals",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 86,
+    "zmin": 5.0,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.pota_performer",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 59,
+    "zmin": 0.9144,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.raised_vertical",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 62,
+    "zmin": 1.2944189940606694,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.rectangle",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 87,
+    "zmin": 3.0,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.right_angle_delta",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 90,
+    "zmin": 3.0,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.stub_matched_vertical",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 85,
+    "zmin": 0.5,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.tri_moxon",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 252,
+    "zmin": 6.71,
+    "ground_connected": false
+   },
+   {
+    "design": "verticals.vertical",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 85,
+    "zmin": 0.5,
+    "ground_connected": false
+   },
+   {
+    "design": "wire.beverage",
+    "ground_requirement": "sommerfeld",
+    "default_backend": null,
+    "has_buried_wire": true,
+    "n_segs": 144,
+    "zmin": -1.8,
+    "ground_connected": true
+   },
+   {
+    "design": "wire.doublet_balanced_tuner",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 60,
+    "zmin": 10.630938226950356,
+    "ground_connected": false
+   },
+   {
+    "design": "wire.doublet_ladder_tuner",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 55,
+    "zmin": 10.0,
+    "ground_connected": false
+   },
+   {
+    "design": "wire.edz",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 105,
+    "zmin": 10.0,
+    "ground_connected": false
+   },
+   {
+    "design": "wire.efhw_sloper",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 42,
+    "zmin": 1.5,
+    "ground_connected": false
+   },
+   {
+    "design": "wire.expanded_lazy_h",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 210,
+    "zmin": 10.0,
+    "ground_connected": false
+   },
+   {
+    "design": "wire.lazy_h",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 170,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "wire.longwire",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 293,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "wire.rhombic",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 1010,
+    "zmin": 10.0,
+    "ground_connected": false
+   },
+   {
+    "design": "wire.sterba",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 756,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "wire.sterba_bl",
+    "ground_requirement": null,
+    "default_backend": "bspline",
+    "has_buried_wire": false,
+    "n_segs": 420,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "wire.sterba_tl",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 81,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "wire.terminated_longwire",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 1008,
+    "zmin": 0.0,
+    "ground_connected": true
+   },
+   {
+    "design": "wire.vbeam",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 169,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "wire.w8jk",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 106,
+    "zmin": 7.0,
+    "ground_connected": false
+   },
+   {
+    "design": "wire.zepp",
+    "ground_requirement": null,
+    "default_backend": null,
+    "has_buried_wire": false,
+    "n_segs": 41,
+    "zmin": 10.0,
+    "ground_connected": false
+   }
+  ]
+ },
+ "near_ground": [
+  "specialty.buried_dipole",
+  "verticals.buried_radial_vertical",
+  "verticals.elevated_buried_counterpoise",
+  "wire.beverage",
+  "wire.terminated_longwire"
+ ],
+ "cases": [
+  {
+   "id": "default|sommerfeld|arrays.bowtie16x1",
+   "kind": "catalog",
+   "design": "arrays.bowtie16x1",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.bowtie1x2_bl",
+   "kind": "catalog",
+   "design": "arrays.bowtie1x2_bl",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.bowtie4x4",
+   "kind": "catalog",
+   "design": "arrays.bowtie4x4",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.bowtiearray",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.bowtiearray1x2",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray1x2",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.bowtiearray2x4",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray2x4",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.delta_looparray",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.delta_looparray_1x4",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_1x4",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.delta_looparray_1x4_grouped",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_1x4_grouped",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.delta_looparray_2x2",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_2x2",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.delta_looparray_network",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_network",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.folded_invveearray",
+   "kind": "catalog",
+   "design": "arrays.folded_invveearray",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.hentenna_array",
+   "kind": "catalog",
+   "design": "arrays.hentenna_array",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.hourglass_array",
+   "kind": "catalog",
+   "design": "arrays.hourglass_array",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.invveearray",
+   "kind": "catalog",
+   "design": "arrays.invveearray",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.lumped_coupled_pair",
+   "kind": "catalog",
+   "design": "arrays.lumped_coupled_pair",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.moxonarray",
+   "kind": "catalog",
+   "design": "arrays.moxonarray",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|arrays.yagiarray",
+   "kind": "catalog",
+   "design": "arrays.yagiarray",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|beams.hb9cv",
+   "kind": "catalog",
+   "design": "beams.hb9cv",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|beams.hexbeam",
+   "kind": "catalog",
+   "design": "beams.hexbeam",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|beams.moxon",
+   "kind": "catalog",
+   "design": "beams.moxon",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|beams.moxon_turnstile",
+   "kind": "catalog",
+   "design": "beams.moxon_turnstile",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|beams.owa_yagi",
+   "kind": "catalog",
+   "design": "beams.owa_yagi",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|beams.owa_yagi_6el",
+   "kind": "catalog",
+   "design": "beams.owa_yagi_6el",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|beams.phased_driver_yagi",
+   "kind": "catalog",
+   "design": "beams.phased_driver_yagi",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|beams.yagi",
+   "kind": "catalog",
+   "design": "beams.yagi",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|broadband.discone",
+   "kind": "catalog",
+   "design": "broadband.discone",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|broadband.g5rv",
+   "kind": "catalog",
+   "design": "broadband.g5rv",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|broadband.lpda",
+   "kind": "catalog",
+   "design": "broadband.lpda",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|broadband.t2fd",
+   "kind": "catalog",
+   "design": "broadband.t2fd",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|dipoles.dipole_turnstile",
+   "kind": "catalog",
+   "design": "dipoles.dipole_turnstile",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|dipoles.folded_invvee",
+   "kind": "catalog",
+   "design": "dipoles.folded_invvee",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|dipoles.folded_invvee_balun",
+   "kind": "catalog",
+   "design": "dipoles.folded_invvee_balun",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|dipoles.invvee",
+   "kind": "catalog",
+   "design": "dipoles.invvee",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|dipoles.invvee_apex",
+   "kind": "catalog",
+   "design": "dipoles.invvee_apex",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|dipoles.invvee_catenary",
+   "kind": "catalog",
+   "design": "dipoles.invvee_catenary",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|dipoles.invvee_coax_station",
+   "kind": "catalog",
+   "design": "dipoles.invvee_coax_station",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|dipoles.koch_dipole",
+   "kind": "catalog",
+   "design": "dipoles.koch_dipole",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|dipoles.ocf_dipole",
+   "kind": "catalog",
+   "design": "dipoles.ocf_dipole",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|dipoles.pota_invvee",
+   "kind": "catalog",
+   "design": "dipoles.pota_invvee",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|dipoles.short_dipole_loaded",
+   "kind": "catalog",
+   "design": "dipoles.short_dipole_loaded",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|loops.bisquare",
+   "kind": "catalog",
+   "design": "loops.bisquare",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|loops.delta_loop",
+   "kind": "catalog",
+   "design": "loops.delta_loop",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|loops.delta_loop_flyby",
+   "kind": "catalog",
+   "design": "loops.delta_loop_flyby",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|loops.delta_loop_reflected",
+   "kind": "catalog",
+   "design": "loops.delta_loop_reflected",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|loops.delta_loop_slanted",
+   "kind": "catalog",
+   "design": "loops.delta_loop_slanted",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|loops.delta_loop_topdown",
+   "kind": "catalog",
+   "design": "loops.delta_loop_topdown",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|loops.diamond_loop",
+   "kind": "catalog",
+   "design": "loops.diamond_loop",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|loops.diamond_loop_turnstile",
+   "kind": "catalog",
+   "design": "loops.diamond_loop_turnstile",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|loops.horizontal_loop",
+   "kind": "catalog",
+   "design": "loops.horizontal_loop",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|loops.horizontal_loop_drone",
+   "kind": "catalog",
+   "design": "loops.horizontal_loop_drone",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|loops.inv_delta_loop",
+   "kind": "catalog",
+   "design": "loops.inv_delta_loop",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|loops.quad",
+   "kind": "catalog",
+   "design": "loops.quad",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|loops.skyloop_lmatch",
+   "kind": "catalog",
+   "design": "loops.skyloop_lmatch",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|loops.triangular_skyloop",
+   "kind": "catalog",
+   "design": "loops.triangular_skyloop",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|multiband.fandipole",
+   "kind": "catalog",
+   "design": "multiband.fandipole",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|multiband.hexbeam_5band",
+   "kind": "catalog",
+   "design": "multiband.hexbeam_5band",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|multiband.trap_dipole",
+   "kind": "catalog",
+   "design": "multiband.trap_dipole",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|multiband.trap_fan_dipole",
+   "kind": "catalog",
+   "design": "multiband.trap_fan_dipole",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|multiband.twoband_fan_dipole",
+   "kind": "catalog",
+   "design": "multiband.twoband_fan_dipole",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|specialty.bowtie",
+   "kind": "catalog",
+   "design": "specialty.bowtie",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|specialty.buried_dipole",
+   "kind": "catalog",
+   "design": "specialty.buried_dipole",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|specialty.continuous_helix",
+   "kind": "catalog",
+   "design": "specialty.continuous_helix",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|specialty.faceted_helix",
+   "kind": "catalog",
+   "design": "specialty.faceted_helix",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|specialty.hentenna",
+   "kind": "catalog",
+   "design": "specialty.hentenna",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|specialty.hentenna_slant",
+   "kind": "catalog",
+   "design": "specialty.hentenna_slant",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|specialty.hourglass",
+   "kind": "catalog",
+   "design": "specialty.hourglass",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|specialty.hourglass_slant",
+   "kind": "catalog",
+   "design": "specialty.hourglass_slant",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.bobtail",
+   "kind": "catalog",
+   "design": "verticals.bobtail",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.bruce",
+   "kind": "catalog",
+   "design": "verticals.bruce",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.buried_radial_vertical",
+   "kind": "catalog",
+   "design": "verticals.buried_radial_vertical",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.challenger",
+   "kind": "catalog",
+   "design": "verticals.challenger",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.dominator",
+   "kind": "catalog",
+   "design": "verticals.dominator",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.elevated_buried_counterpoise",
+   "kind": "catalog",
+   "design": "verticals.elevated_buried_counterpoise",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.elt_whip",
+   "kind": "catalog",
+   "design": "verticals.elt_whip",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.four_square",
+   "kind": "catalog",
+   "design": "verticals.four_square",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.half_square",
+   "kind": "catalog",
+   "design": "verticals.half_square",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.inverted_l",
+   "kind": "catalog",
+   "design": "verticals.inverted_l",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.inverted_l_tmatch",
+   "kind": "catalog",
+   "design": "verticals.inverted_l_tmatch",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.jpole",
+   "kind": "catalog",
+   "design": "verticals.jpole",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.phased_verticals",
+   "kind": "catalog",
+   "design": "verticals.phased_verticals",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.pota_performer",
+   "kind": "catalog",
+   "design": "verticals.pota_performer",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.raised_vertical",
+   "kind": "catalog",
+   "design": "verticals.raised_vertical",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.rectangle",
+   "kind": "catalog",
+   "design": "verticals.rectangle",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.right_angle_delta",
+   "kind": "catalog",
+   "design": "verticals.right_angle_delta",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.stub_matched_vertical",
+   "kind": "catalog",
+   "design": "verticals.stub_matched_vertical",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.tri_moxon",
+   "kind": "catalog",
+   "design": "verticals.tri_moxon",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|verticals.vertical",
+   "kind": "catalog",
+   "design": "verticals.vertical",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.beverage",
+   "kind": "catalog",
+   "design": "wire.beverage",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.doublet_balanced_tuner",
+   "kind": "catalog",
+   "design": "wire.doublet_balanced_tuner",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.doublet_ladder_tuner",
+   "kind": "catalog",
+   "design": "wire.doublet_ladder_tuner",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.edz",
+   "kind": "catalog",
+   "design": "wire.edz",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.efhw_sloper",
+   "kind": "catalog",
+   "design": "wire.efhw_sloper",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.expanded_lazy_h",
+   "kind": "catalog",
+   "design": "wire.expanded_lazy_h",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.lazy_h",
+   "kind": "catalog",
+   "design": "wire.lazy_h",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.longwire",
+   "kind": "catalog",
+   "design": "wire.longwire",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.rhombic",
+   "kind": "catalog",
+   "design": "wire.rhombic",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.sterba",
+   "kind": "catalog",
+   "design": "wire.sterba",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.sterba_bl",
+   "kind": "catalog",
+   "design": "wire.sterba_bl",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.sterba_tl",
+   "kind": "catalog",
+   "design": "wire.sterba_tl",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.terminated_longwire",
+   "kind": "catalog",
+   "design": "wire.terminated_longwire",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.vbeam",
+   "kind": "catalog",
+   "design": "wire.vbeam",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.w8jk",
+   "kind": "catalog",
+   "design": "wire.w8jk",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|wire.zepp",
+   "kind": "catalog",
+   "design": "wire.zepp",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1
+  },
+  {
+   "id": "default|sommerfeld|3el-inverted-V",
+   "kind": "file",
+   "design": "3el-inverted-V",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1,
+   "deck": "decks/3el-inverted-V.nec"
+  },
+  {
+   "id": "default|sommerfeld|3elYagiGain",
+   "kind": "file",
+   "design": "3elYagiGain",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1,
+   "deck": "decks/3elYagiGain.nec"
+  },
+  {
+   "id": "default|sommerfeld|GndScreen",
+   "kind": "file",
+   "design": "GndScreen",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1,
+   "deck": "decks/GndScreen.nec"
+  },
+  {
+   "id": "default|sommerfeld|moxon435_optimised",
+   "kind": "file",
+   "design": "moxon435_optimised",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1,
+   "deck": "decks/moxon435_optimised.nec"
+  },
+  {
+   "id": "default|sommerfeld|ground_rod_efhw_wa7ark",
+   "kind": "file",
+   "design": "ground_rod_efhw_wa7ark",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1,
+   "deck": "decks/ground_rod_efhw_wa7ark.nec"
+  },
+  {
+   "id": "default|sommerfeld|verticals.buried_radial_vertical|n_radials=48,variant=surface",
+   "kind": "catalog",
+   "design": "verticals.buried_radial_vertical",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1,
+   "params": {
+    "variant": "surface",
+    "n_radials": 48
+   }
+  },
+  {
+   "id": "default|sommerfeld|screen1131|radials=48",
+   "kind": "raw",
+   "design": "screen1131",
+   "ground": "sommerfeld",
+   "engine": "default",
+   "tier": 1,
+   "params": {
+    "radials": 48
+   }
+  },
+  {
+   "id": "default|free|arrays.bowtie16x1",
+   "kind": "catalog",
+   "design": "arrays.bowtie16x1",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.bowtie1x2_bl",
+   "kind": "catalog",
+   "design": "arrays.bowtie1x2_bl",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.bowtie4x4",
+   "kind": "catalog",
+   "design": "arrays.bowtie4x4",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.bowtiearray",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.bowtiearray1x2",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray1x2",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.bowtiearray2x4",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray2x4",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.delta_looparray",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.delta_looparray_1x4",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_1x4",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.delta_looparray_1x4_grouped",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_1x4_grouped",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.delta_looparray_2x2",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_2x2",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.delta_looparray_network",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_network",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.folded_invveearray",
+   "kind": "catalog",
+   "design": "arrays.folded_invveearray",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.hentenna_array",
+   "kind": "catalog",
+   "design": "arrays.hentenna_array",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.hourglass_array",
+   "kind": "catalog",
+   "design": "arrays.hourglass_array",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.invveearray",
+   "kind": "catalog",
+   "design": "arrays.invveearray",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.lumped_coupled_pair",
+   "kind": "catalog",
+   "design": "arrays.lumped_coupled_pair",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.moxonarray",
+   "kind": "catalog",
+   "design": "arrays.moxonarray",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|arrays.yagiarray",
+   "kind": "catalog",
+   "design": "arrays.yagiarray",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|beams.hb9cv",
+   "kind": "catalog",
+   "design": "beams.hb9cv",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|beams.hexbeam",
+   "kind": "catalog",
+   "design": "beams.hexbeam",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|beams.moxon",
+   "kind": "catalog",
+   "design": "beams.moxon",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|beams.moxon_turnstile",
+   "kind": "catalog",
+   "design": "beams.moxon_turnstile",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|beams.owa_yagi",
+   "kind": "catalog",
+   "design": "beams.owa_yagi",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|beams.owa_yagi_6el",
+   "kind": "catalog",
+   "design": "beams.owa_yagi_6el",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|beams.phased_driver_yagi",
+   "kind": "catalog",
+   "design": "beams.phased_driver_yagi",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|beams.yagi",
+   "kind": "catalog",
+   "design": "beams.yagi",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|broadband.discone",
+   "kind": "catalog",
+   "design": "broadband.discone",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|broadband.g5rv",
+   "kind": "catalog",
+   "design": "broadband.g5rv",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|broadband.lpda",
+   "kind": "catalog",
+   "design": "broadband.lpda",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|broadband.t2fd",
+   "kind": "catalog",
+   "design": "broadband.t2fd",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|dipoles.dipole_turnstile",
+   "kind": "catalog",
+   "design": "dipoles.dipole_turnstile",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|dipoles.folded_invvee",
+   "kind": "catalog",
+   "design": "dipoles.folded_invvee",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|dipoles.folded_invvee_balun",
+   "kind": "catalog",
+   "design": "dipoles.folded_invvee_balun",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|dipoles.invvee",
+   "kind": "catalog",
+   "design": "dipoles.invvee",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|dipoles.invvee_apex",
+   "kind": "catalog",
+   "design": "dipoles.invvee_apex",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|dipoles.invvee_catenary",
+   "kind": "catalog",
+   "design": "dipoles.invvee_catenary",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|dipoles.invvee_coax_station",
+   "kind": "catalog",
+   "design": "dipoles.invvee_coax_station",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|dipoles.koch_dipole",
+   "kind": "catalog",
+   "design": "dipoles.koch_dipole",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|dipoles.ocf_dipole",
+   "kind": "catalog",
+   "design": "dipoles.ocf_dipole",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|dipoles.pota_invvee",
+   "kind": "catalog",
+   "design": "dipoles.pota_invvee",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|dipoles.short_dipole_loaded",
+   "kind": "catalog",
+   "design": "dipoles.short_dipole_loaded",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|loops.bisquare",
+   "kind": "catalog",
+   "design": "loops.bisquare",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|loops.delta_loop",
+   "kind": "catalog",
+   "design": "loops.delta_loop",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|loops.delta_loop_flyby",
+   "kind": "catalog",
+   "design": "loops.delta_loop_flyby",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|loops.delta_loop_reflected",
+   "kind": "catalog",
+   "design": "loops.delta_loop_reflected",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|loops.delta_loop_slanted",
+   "kind": "catalog",
+   "design": "loops.delta_loop_slanted",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|loops.delta_loop_topdown",
+   "kind": "catalog",
+   "design": "loops.delta_loop_topdown",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|loops.diamond_loop",
+   "kind": "catalog",
+   "design": "loops.diamond_loop",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|loops.diamond_loop_turnstile",
+   "kind": "catalog",
+   "design": "loops.diamond_loop_turnstile",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|loops.horizontal_loop",
+   "kind": "catalog",
+   "design": "loops.horizontal_loop",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|loops.horizontal_loop_drone",
+   "kind": "catalog",
+   "design": "loops.horizontal_loop_drone",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|loops.inv_delta_loop",
+   "kind": "catalog",
+   "design": "loops.inv_delta_loop",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|loops.quad",
+   "kind": "catalog",
+   "design": "loops.quad",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|loops.skyloop_lmatch",
+   "kind": "catalog",
+   "design": "loops.skyloop_lmatch",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|loops.triangular_skyloop",
+   "kind": "catalog",
+   "design": "loops.triangular_skyloop",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|multiband.fandipole",
+   "kind": "catalog",
+   "design": "multiband.fandipole",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|multiband.hexbeam_5band",
+   "kind": "catalog",
+   "design": "multiband.hexbeam_5band",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|multiband.trap_dipole",
+   "kind": "catalog",
+   "design": "multiband.trap_dipole",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|multiband.trap_fan_dipole",
+   "kind": "catalog",
+   "design": "multiband.trap_fan_dipole",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|multiband.twoband_fan_dipole",
+   "kind": "catalog",
+   "design": "multiband.twoband_fan_dipole",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|specialty.bowtie",
+   "kind": "catalog",
+   "design": "specialty.bowtie",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|specialty.continuous_helix",
+   "kind": "catalog",
+   "design": "specialty.continuous_helix",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|specialty.faceted_helix",
+   "kind": "catalog",
+   "design": "specialty.faceted_helix",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|specialty.hentenna",
+   "kind": "catalog",
+   "design": "specialty.hentenna",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|specialty.hentenna_slant",
+   "kind": "catalog",
+   "design": "specialty.hentenna_slant",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|specialty.hourglass",
+   "kind": "catalog",
+   "design": "specialty.hourglass",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|specialty.hourglass_slant",
+   "kind": "catalog",
+   "design": "specialty.hourglass_slant",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.bobtail",
+   "kind": "catalog",
+   "design": "verticals.bobtail",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.bruce",
+   "kind": "catalog",
+   "design": "verticals.bruce",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.challenger",
+   "kind": "catalog",
+   "design": "verticals.challenger",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.dominator",
+   "kind": "catalog",
+   "design": "verticals.dominator",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.elt_whip",
+   "kind": "catalog",
+   "design": "verticals.elt_whip",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.four_square",
+   "kind": "catalog",
+   "design": "verticals.four_square",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.half_square",
+   "kind": "catalog",
+   "design": "verticals.half_square",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.inverted_l",
+   "kind": "catalog",
+   "design": "verticals.inverted_l",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.inverted_l_tmatch",
+   "kind": "catalog",
+   "design": "verticals.inverted_l_tmatch",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.jpole",
+   "kind": "catalog",
+   "design": "verticals.jpole",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.phased_verticals",
+   "kind": "catalog",
+   "design": "verticals.phased_verticals",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.pota_performer",
+   "kind": "catalog",
+   "design": "verticals.pota_performer",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.raised_vertical",
+   "kind": "catalog",
+   "design": "verticals.raised_vertical",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.rectangle",
+   "kind": "catalog",
+   "design": "verticals.rectangle",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.right_angle_delta",
+   "kind": "catalog",
+   "design": "verticals.right_angle_delta",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.stub_matched_vertical",
+   "kind": "catalog",
+   "design": "verticals.stub_matched_vertical",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.tri_moxon",
+   "kind": "catalog",
+   "design": "verticals.tri_moxon",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|verticals.vertical",
+   "kind": "catalog",
+   "design": "verticals.vertical",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|wire.doublet_balanced_tuner",
+   "kind": "catalog",
+   "design": "wire.doublet_balanced_tuner",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|wire.doublet_ladder_tuner",
+   "kind": "catalog",
+   "design": "wire.doublet_ladder_tuner",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|wire.edz",
+   "kind": "catalog",
+   "design": "wire.edz",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|wire.efhw_sloper",
+   "kind": "catalog",
+   "design": "wire.efhw_sloper",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|wire.expanded_lazy_h",
+   "kind": "catalog",
+   "design": "wire.expanded_lazy_h",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|wire.lazy_h",
+   "kind": "catalog",
+   "design": "wire.lazy_h",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|wire.longwire",
+   "kind": "catalog",
+   "design": "wire.longwire",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|wire.rhombic",
+   "kind": "catalog",
+   "design": "wire.rhombic",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|wire.sterba",
+   "kind": "catalog",
+   "design": "wire.sterba",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|wire.sterba_bl",
+   "kind": "catalog",
+   "design": "wire.sterba_bl",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|wire.sterba_tl",
+   "kind": "catalog",
+   "design": "wire.sterba_tl",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|wire.terminated_longwire",
+   "kind": "catalog",
+   "design": "wire.terminated_longwire",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|wire.vbeam",
+   "kind": "catalog",
+   "design": "wire.vbeam",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|wire.w8jk",
+   "kind": "catalog",
+   "design": "wire.w8jk",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|wire.zepp",
+   "kind": "catalog",
+   "design": "wire.zepp",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2
+  },
+  {
+   "id": "default|free|3el-inverted-V",
+   "kind": "file",
+   "design": "3el-inverted-V",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2,
+   "deck": "decks/3el-inverted-V.nec"
+  },
+  {
+   "id": "default|free|3elYagiGain",
+   "kind": "file",
+   "design": "3elYagiGain",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2,
+   "deck": "decks/3elYagiGain.nec"
+  },
+  {
+   "id": "default|free|GndScreen",
+   "kind": "file",
+   "design": "GndScreen",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2,
+   "deck": "decks/GndScreen.nec"
+  },
+  {
+   "id": "default|free|moxon435_optimised",
+   "kind": "file",
+   "design": "moxon435_optimised",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2,
+   "deck": "decks/moxon435_optimised.nec"
+  },
+  {
+   "id": "default|free|ground_rod_efhw_wa7ark",
+   "kind": "file",
+   "design": "ground_rod_efhw_wa7ark",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2,
+   "deck": "decks/ground_rod_efhw_wa7ark.nec"
+  },
+  {
+   "id": "default|free|screen1131|radials=48",
+   "kind": "raw",
+   "design": "screen1131",
+   "ground": "free",
+   "engine": "default",
+   "tier": 2,
+   "params": {
+    "radials": 48
+   }
+  },
+  {
+   "id": "razor-2p|sommerfeld|specialty.buried_dipole",
+   "kind": "catalog",
+   "design": "specialty.buried_dipole",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 3
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.buried_radial_vertical",
+   "kind": "catalog",
+   "design": "verticals.buried_radial_vertical",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 3
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.elevated_buried_counterpoise",
+   "kind": "catalog",
+   "design": "verticals.elevated_buried_counterpoise",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 3
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.beverage",
+   "kind": "catalog",
+   "design": "wire.beverage",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 3
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.terminated_longwire",
+   "kind": "catalog",
+   "design": "wire.terminated_longwire",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 3
+  },
+  {
+   "id": "razor-2p|free|wire.terminated_longwire",
+   "kind": "catalog",
+   "design": "wire.terminated_longwire",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 3
+  },
+  {
+   "id": "razor-2p|fast|wire.terminated_longwire",
+   "kind": "catalog",
+   "design": "wire.terminated_longwire",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 3
+  },
+  {
+   "id": "razor-2p|sommerfeld|3el-inverted-V",
+   "kind": "file",
+   "design": "3el-inverted-V",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 3,
+   "deck": "decks/3el-inverted-V.nec"
+  },
+  {
+   "id": "razor-2p|free|3el-inverted-V",
+   "kind": "file",
+   "design": "3el-inverted-V",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 3,
+   "deck": "decks/3el-inverted-V.nec"
+  },
+  {
+   "id": "razor-2p|fast|3el-inverted-V",
+   "kind": "file",
+   "design": "3el-inverted-V",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 3,
+   "deck": "decks/3el-inverted-V.nec"
+  },
+  {
+   "id": "razor-2p|sommerfeld|3elYagiGain",
+   "kind": "file",
+   "design": "3elYagiGain",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 3,
+   "deck": "decks/3elYagiGain.nec"
+  },
+  {
+   "id": "razor-2p|free|3elYagiGain",
+   "kind": "file",
+   "design": "3elYagiGain",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 3,
+   "deck": "decks/3elYagiGain.nec"
+  },
+  {
+   "id": "razor-2p|fast|3elYagiGain",
+   "kind": "file",
+   "design": "3elYagiGain",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 3,
+   "deck": "decks/3elYagiGain.nec"
+  },
+  {
+   "id": "razor-2p|sommerfeld|GndScreen",
+   "kind": "file",
+   "design": "GndScreen",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 3,
+   "deck": "decks/GndScreen.nec"
+  },
+  {
+   "id": "razor-2p|free|GndScreen",
+   "kind": "file",
+   "design": "GndScreen",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 3,
+   "deck": "decks/GndScreen.nec"
+  },
+  {
+   "id": "razor-2p|fast|GndScreen",
+   "kind": "file",
+   "design": "GndScreen",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 3,
+   "deck": "decks/GndScreen.nec"
+  },
+  {
+   "id": "razor-2p|sommerfeld|moxon435_optimised",
+   "kind": "file",
+   "design": "moxon435_optimised",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 3,
+   "deck": "decks/moxon435_optimised.nec"
+  },
+  {
+   "id": "razor-2p|free|moxon435_optimised",
+   "kind": "file",
+   "design": "moxon435_optimised",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 3,
+   "deck": "decks/moxon435_optimised.nec"
+  },
+  {
+   "id": "razor-2p|fast|moxon435_optimised",
+   "kind": "file",
+   "design": "moxon435_optimised",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 3,
+   "deck": "decks/moxon435_optimised.nec"
+  },
+  {
+   "id": "razor-2p|sommerfeld|ground_rod_efhw_wa7ark",
+   "kind": "file",
+   "design": "ground_rod_efhw_wa7ark",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 3,
+   "deck": "decks/ground_rod_efhw_wa7ark.nec"
+  },
+  {
+   "id": "razor-2p|free|ground_rod_efhw_wa7ark",
+   "kind": "file",
+   "design": "ground_rod_efhw_wa7ark",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 3,
+   "deck": "decks/ground_rod_efhw_wa7ark.nec"
+  },
+  {
+   "id": "razor-2p|fast|ground_rod_efhw_wa7ark",
+   "kind": "file",
+   "design": "ground_rod_efhw_wa7ark",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 3,
+   "deck": "decks/ground_rod_efhw_wa7ark.nec"
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.buried_radial_vertical|n_radials=48,variant=surface",
+   "kind": "catalog",
+   "design": "verticals.buried_radial_vertical",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 3,
+   "params": {
+    "variant": "surface",
+    "n_radials": 48
+   }
+  },
+  {
+   "id": "default|fast|arrays.bowtie16x1",
+   "kind": "catalog",
+   "design": "arrays.bowtie16x1",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.bowtie1x2_bl",
+   "kind": "catalog",
+   "design": "arrays.bowtie1x2_bl",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.bowtie4x4",
+   "kind": "catalog",
+   "design": "arrays.bowtie4x4",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.bowtiearray",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.bowtiearray1x2",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray1x2",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.bowtiearray2x4",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray2x4",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.delta_looparray",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.delta_looparray_1x4",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_1x4",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.delta_looparray_1x4_grouped",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_1x4_grouped",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.delta_looparray_2x2",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_2x2",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.delta_looparray_network",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_network",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.folded_invveearray",
+   "kind": "catalog",
+   "design": "arrays.folded_invveearray",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.hentenna_array",
+   "kind": "catalog",
+   "design": "arrays.hentenna_array",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.hourglass_array",
+   "kind": "catalog",
+   "design": "arrays.hourglass_array",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.invveearray",
+   "kind": "catalog",
+   "design": "arrays.invveearray",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.lumped_coupled_pair",
+   "kind": "catalog",
+   "design": "arrays.lumped_coupled_pair",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.moxonarray",
+   "kind": "catalog",
+   "design": "arrays.moxonarray",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|arrays.yagiarray",
+   "kind": "catalog",
+   "design": "arrays.yagiarray",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|beams.hb9cv",
+   "kind": "catalog",
+   "design": "beams.hb9cv",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|beams.hexbeam",
+   "kind": "catalog",
+   "design": "beams.hexbeam",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|beams.moxon",
+   "kind": "catalog",
+   "design": "beams.moxon",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|beams.moxon_turnstile",
+   "kind": "catalog",
+   "design": "beams.moxon_turnstile",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|beams.owa_yagi",
+   "kind": "catalog",
+   "design": "beams.owa_yagi",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|beams.owa_yagi_6el",
+   "kind": "catalog",
+   "design": "beams.owa_yagi_6el",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|beams.phased_driver_yagi",
+   "kind": "catalog",
+   "design": "beams.phased_driver_yagi",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|beams.yagi",
+   "kind": "catalog",
+   "design": "beams.yagi",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|broadband.discone",
+   "kind": "catalog",
+   "design": "broadband.discone",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|broadband.g5rv",
+   "kind": "catalog",
+   "design": "broadband.g5rv",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|broadband.lpda",
+   "kind": "catalog",
+   "design": "broadband.lpda",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|broadband.t2fd",
+   "kind": "catalog",
+   "design": "broadband.t2fd",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|dipoles.dipole_turnstile",
+   "kind": "catalog",
+   "design": "dipoles.dipole_turnstile",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|dipoles.folded_invvee",
+   "kind": "catalog",
+   "design": "dipoles.folded_invvee",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|dipoles.folded_invvee_balun",
+   "kind": "catalog",
+   "design": "dipoles.folded_invvee_balun",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|dipoles.invvee",
+   "kind": "catalog",
+   "design": "dipoles.invvee",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|dipoles.invvee_apex",
+   "kind": "catalog",
+   "design": "dipoles.invvee_apex",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|dipoles.invvee_catenary",
+   "kind": "catalog",
+   "design": "dipoles.invvee_catenary",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|dipoles.invvee_coax_station",
+   "kind": "catalog",
+   "design": "dipoles.invvee_coax_station",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|dipoles.koch_dipole",
+   "kind": "catalog",
+   "design": "dipoles.koch_dipole",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|dipoles.ocf_dipole",
+   "kind": "catalog",
+   "design": "dipoles.ocf_dipole",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|dipoles.pota_invvee",
+   "kind": "catalog",
+   "design": "dipoles.pota_invvee",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|dipoles.short_dipole_loaded",
+   "kind": "catalog",
+   "design": "dipoles.short_dipole_loaded",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|loops.bisquare",
+   "kind": "catalog",
+   "design": "loops.bisquare",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|loops.delta_loop",
+   "kind": "catalog",
+   "design": "loops.delta_loop",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|loops.delta_loop_flyby",
+   "kind": "catalog",
+   "design": "loops.delta_loop_flyby",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|loops.delta_loop_reflected",
+   "kind": "catalog",
+   "design": "loops.delta_loop_reflected",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|loops.delta_loop_slanted",
+   "kind": "catalog",
+   "design": "loops.delta_loop_slanted",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|loops.delta_loop_topdown",
+   "kind": "catalog",
+   "design": "loops.delta_loop_topdown",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|loops.diamond_loop",
+   "kind": "catalog",
+   "design": "loops.diamond_loop",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|loops.diamond_loop_turnstile",
+   "kind": "catalog",
+   "design": "loops.diamond_loop_turnstile",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|loops.horizontal_loop",
+   "kind": "catalog",
+   "design": "loops.horizontal_loop",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|loops.horizontal_loop_drone",
+   "kind": "catalog",
+   "design": "loops.horizontal_loop_drone",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|loops.inv_delta_loop",
+   "kind": "catalog",
+   "design": "loops.inv_delta_loop",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|loops.quad",
+   "kind": "catalog",
+   "design": "loops.quad",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|loops.skyloop_lmatch",
+   "kind": "catalog",
+   "design": "loops.skyloop_lmatch",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|loops.triangular_skyloop",
+   "kind": "catalog",
+   "design": "loops.triangular_skyloop",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|multiband.fandipole",
+   "kind": "catalog",
+   "design": "multiband.fandipole",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|multiband.hexbeam_5band",
+   "kind": "catalog",
+   "design": "multiband.hexbeam_5band",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|multiband.trap_dipole",
+   "kind": "catalog",
+   "design": "multiband.trap_dipole",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|multiband.trap_fan_dipole",
+   "kind": "catalog",
+   "design": "multiband.trap_fan_dipole",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|multiband.twoband_fan_dipole",
+   "kind": "catalog",
+   "design": "multiband.twoband_fan_dipole",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|specialty.bowtie",
+   "kind": "catalog",
+   "design": "specialty.bowtie",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|specialty.continuous_helix",
+   "kind": "catalog",
+   "design": "specialty.continuous_helix",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|specialty.faceted_helix",
+   "kind": "catalog",
+   "design": "specialty.faceted_helix",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|specialty.hentenna",
+   "kind": "catalog",
+   "design": "specialty.hentenna",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|specialty.hentenna_slant",
+   "kind": "catalog",
+   "design": "specialty.hentenna_slant",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|specialty.hourglass",
+   "kind": "catalog",
+   "design": "specialty.hourglass",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|specialty.hourglass_slant",
+   "kind": "catalog",
+   "design": "specialty.hourglass_slant",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.bobtail",
+   "kind": "catalog",
+   "design": "verticals.bobtail",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.bruce",
+   "kind": "catalog",
+   "design": "verticals.bruce",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.challenger",
+   "kind": "catalog",
+   "design": "verticals.challenger",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.dominator",
+   "kind": "catalog",
+   "design": "verticals.dominator",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.elt_whip",
+   "kind": "catalog",
+   "design": "verticals.elt_whip",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.four_square",
+   "kind": "catalog",
+   "design": "verticals.four_square",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.half_square",
+   "kind": "catalog",
+   "design": "verticals.half_square",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.inverted_l",
+   "kind": "catalog",
+   "design": "verticals.inverted_l",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.inverted_l_tmatch",
+   "kind": "catalog",
+   "design": "verticals.inverted_l_tmatch",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.jpole",
+   "kind": "catalog",
+   "design": "verticals.jpole",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.phased_verticals",
+   "kind": "catalog",
+   "design": "verticals.phased_verticals",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.pota_performer",
+   "kind": "catalog",
+   "design": "verticals.pota_performer",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.raised_vertical",
+   "kind": "catalog",
+   "design": "verticals.raised_vertical",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.rectangle",
+   "kind": "catalog",
+   "design": "verticals.rectangle",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.right_angle_delta",
+   "kind": "catalog",
+   "design": "verticals.right_angle_delta",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.stub_matched_vertical",
+   "kind": "catalog",
+   "design": "verticals.stub_matched_vertical",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.tri_moxon",
+   "kind": "catalog",
+   "design": "verticals.tri_moxon",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|verticals.vertical",
+   "kind": "catalog",
+   "design": "verticals.vertical",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|wire.doublet_balanced_tuner",
+   "kind": "catalog",
+   "design": "wire.doublet_balanced_tuner",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|wire.doublet_ladder_tuner",
+   "kind": "catalog",
+   "design": "wire.doublet_ladder_tuner",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|wire.edz",
+   "kind": "catalog",
+   "design": "wire.edz",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|wire.efhw_sloper",
+   "kind": "catalog",
+   "design": "wire.efhw_sloper",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|wire.expanded_lazy_h",
+   "kind": "catalog",
+   "design": "wire.expanded_lazy_h",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|wire.lazy_h",
+   "kind": "catalog",
+   "design": "wire.lazy_h",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|wire.longwire",
+   "kind": "catalog",
+   "design": "wire.longwire",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|wire.rhombic",
+   "kind": "catalog",
+   "design": "wire.rhombic",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|wire.sterba",
+   "kind": "catalog",
+   "design": "wire.sterba",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|wire.sterba_bl",
+   "kind": "catalog",
+   "design": "wire.sterba_bl",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|wire.sterba_tl",
+   "kind": "catalog",
+   "design": "wire.sterba_tl",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|wire.terminated_longwire",
+   "kind": "catalog",
+   "design": "wire.terminated_longwire",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|wire.vbeam",
+   "kind": "catalog",
+   "design": "wire.vbeam",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|wire.w8jk",
+   "kind": "catalog",
+   "design": "wire.w8jk",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|wire.zepp",
+   "kind": "catalog",
+   "design": "wire.zepp",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4
+  },
+  {
+   "id": "default|fast|3el-inverted-V",
+   "kind": "file",
+   "design": "3el-inverted-V",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4,
+   "deck": "decks/3el-inverted-V.nec"
+  },
+  {
+   "id": "default|fast|3elYagiGain",
+   "kind": "file",
+   "design": "3elYagiGain",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4,
+   "deck": "decks/3elYagiGain.nec"
+  },
+  {
+   "id": "default|fast|GndScreen",
+   "kind": "file",
+   "design": "GndScreen",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4,
+   "deck": "decks/GndScreen.nec"
+  },
+  {
+   "id": "default|fast|moxon435_optimised",
+   "kind": "file",
+   "design": "moxon435_optimised",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4,
+   "deck": "decks/moxon435_optimised.nec"
+  },
+  {
+   "id": "default|fast|ground_rod_efhw_wa7ark",
+   "kind": "file",
+   "design": "ground_rod_efhw_wa7ark",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4,
+   "deck": "decks/ground_rod_efhw_wa7ark.nec"
+  },
+  {
+   "id": "default|fast|screen1131|radials=48",
+   "kind": "raw",
+   "design": "screen1131",
+   "ground": "fast",
+   "engine": "default",
+   "tier": 4,
+   "params": {
+    "radials": 48
+   }
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.bowtie16x1",
+   "kind": "catalog",
+   "design": "arrays.bowtie16x1",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.bowtie16x1",
+   "kind": "catalog",
+   "design": "arrays.bowtie16x1",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.bowtie16x1",
+   "kind": "catalog",
+   "design": "arrays.bowtie16x1",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.bowtie1x2_bl",
+   "kind": "catalog",
+   "design": "arrays.bowtie1x2_bl",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.bowtie1x2_bl",
+   "kind": "catalog",
+   "design": "arrays.bowtie1x2_bl",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.bowtie1x2_bl",
+   "kind": "catalog",
+   "design": "arrays.bowtie1x2_bl",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.bowtie4x4",
+   "kind": "catalog",
+   "design": "arrays.bowtie4x4",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.bowtie4x4",
+   "kind": "catalog",
+   "design": "arrays.bowtie4x4",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.bowtie4x4",
+   "kind": "catalog",
+   "design": "arrays.bowtie4x4",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.bowtiearray",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.bowtiearray",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.bowtiearray",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.bowtiearray1x2",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray1x2",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.bowtiearray1x2",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray1x2",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.bowtiearray1x2",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray1x2",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.bowtiearray2x4",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray2x4",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.bowtiearray2x4",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray2x4",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.bowtiearray2x4",
+   "kind": "catalog",
+   "design": "arrays.bowtiearray2x4",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.delta_looparray",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.delta_looparray",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.delta_looparray",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.delta_looparray_1x4",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_1x4",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.delta_looparray_1x4",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_1x4",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.delta_looparray_1x4",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_1x4",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.delta_looparray_1x4_grouped",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_1x4_grouped",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.delta_looparray_1x4_grouped",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_1x4_grouped",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.delta_looparray_1x4_grouped",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_1x4_grouped",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.delta_looparray_2x2",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_2x2",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.delta_looparray_2x2",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_2x2",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.delta_looparray_2x2",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_2x2",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.delta_looparray_network",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_network",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.delta_looparray_network",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_network",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.delta_looparray_network",
+   "kind": "catalog",
+   "design": "arrays.delta_looparray_network",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.folded_invveearray",
+   "kind": "catalog",
+   "design": "arrays.folded_invveearray",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.folded_invveearray",
+   "kind": "catalog",
+   "design": "arrays.folded_invveearray",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.folded_invveearray",
+   "kind": "catalog",
+   "design": "arrays.folded_invveearray",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.hentenna_array",
+   "kind": "catalog",
+   "design": "arrays.hentenna_array",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.hentenna_array",
+   "kind": "catalog",
+   "design": "arrays.hentenna_array",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.hentenna_array",
+   "kind": "catalog",
+   "design": "arrays.hentenna_array",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.hourglass_array",
+   "kind": "catalog",
+   "design": "arrays.hourglass_array",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.hourglass_array",
+   "kind": "catalog",
+   "design": "arrays.hourglass_array",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.hourglass_array",
+   "kind": "catalog",
+   "design": "arrays.hourglass_array",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.invveearray",
+   "kind": "catalog",
+   "design": "arrays.invveearray",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.invveearray",
+   "kind": "catalog",
+   "design": "arrays.invveearray",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.invveearray",
+   "kind": "catalog",
+   "design": "arrays.invveearray",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.lumped_coupled_pair",
+   "kind": "catalog",
+   "design": "arrays.lumped_coupled_pair",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.lumped_coupled_pair",
+   "kind": "catalog",
+   "design": "arrays.lumped_coupled_pair",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.lumped_coupled_pair",
+   "kind": "catalog",
+   "design": "arrays.lumped_coupled_pair",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.moxonarray",
+   "kind": "catalog",
+   "design": "arrays.moxonarray",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.moxonarray",
+   "kind": "catalog",
+   "design": "arrays.moxonarray",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.moxonarray",
+   "kind": "catalog",
+   "design": "arrays.moxonarray",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|arrays.yagiarray",
+   "kind": "catalog",
+   "design": "arrays.yagiarray",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|arrays.yagiarray",
+   "kind": "catalog",
+   "design": "arrays.yagiarray",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|arrays.yagiarray",
+   "kind": "catalog",
+   "design": "arrays.yagiarray",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|beams.hb9cv",
+   "kind": "catalog",
+   "design": "beams.hb9cv",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|beams.hb9cv",
+   "kind": "catalog",
+   "design": "beams.hb9cv",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|beams.hb9cv",
+   "kind": "catalog",
+   "design": "beams.hb9cv",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|beams.hexbeam",
+   "kind": "catalog",
+   "design": "beams.hexbeam",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|beams.hexbeam",
+   "kind": "catalog",
+   "design": "beams.hexbeam",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|beams.hexbeam",
+   "kind": "catalog",
+   "design": "beams.hexbeam",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|beams.moxon",
+   "kind": "catalog",
+   "design": "beams.moxon",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|beams.moxon",
+   "kind": "catalog",
+   "design": "beams.moxon",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|beams.moxon",
+   "kind": "catalog",
+   "design": "beams.moxon",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|beams.moxon_turnstile",
+   "kind": "catalog",
+   "design": "beams.moxon_turnstile",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|beams.moxon_turnstile",
+   "kind": "catalog",
+   "design": "beams.moxon_turnstile",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|beams.moxon_turnstile",
+   "kind": "catalog",
+   "design": "beams.moxon_turnstile",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|beams.owa_yagi",
+   "kind": "catalog",
+   "design": "beams.owa_yagi",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|beams.owa_yagi",
+   "kind": "catalog",
+   "design": "beams.owa_yagi",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|beams.owa_yagi",
+   "kind": "catalog",
+   "design": "beams.owa_yagi",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|beams.owa_yagi_6el",
+   "kind": "catalog",
+   "design": "beams.owa_yagi_6el",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|beams.owa_yagi_6el",
+   "kind": "catalog",
+   "design": "beams.owa_yagi_6el",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|beams.owa_yagi_6el",
+   "kind": "catalog",
+   "design": "beams.owa_yagi_6el",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|beams.phased_driver_yagi",
+   "kind": "catalog",
+   "design": "beams.phased_driver_yagi",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|beams.phased_driver_yagi",
+   "kind": "catalog",
+   "design": "beams.phased_driver_yagi",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|beams.phased_driver_yagi",
+   "kind": "catalog",
+   "design": "beams.phased_driver_yagi",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|beams.yagi",
+   "kind": "catalog",
+   "design": "beams.yagi",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|beams.yagi",
+   "kind": "catalog",
+   "design": "beams.yagi",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|beams.yagi",
+   "kind": "catalog",
+   "design": "beams.yagi",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|broadband.discone",
+   "kind": "catalog",
+   "design": "broadband.discone",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|broadband.discone",
+   "kind": "catalog",
+   "design": "broadband.discone",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|broadband.discone",
+   "kind": "catalog",
+   "design": "broadband.discone",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|broadband.g5rv",
+   "kind": "catalog",
+   "design": "broadband.g5rv",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|broadband.g5rv",
+   "kind": "catalog",
+   "design": "broadband.g5rv",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|broadband.g5rv",
+   "kind": "catalog",
+   "design": "broadband.g5rv",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|broadband.lpda",
+   "kind": "catalog",
+   "design": "broadband.lpda",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|broadband.lpda",
+   "kind": "catalog",
+   "design": "broadband.lpda",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|broadband.lpda",
+   "kind": "catalog",
+   "design": "broadband.lpda",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|broadband.t2fd",
+   "kind": "catalog",
+   "design": "broadband.t2fd",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|broadband.t2fd",
+   "kind": "catalog",
+   "design": "broadband.t2fd",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|broadband.t2fd",
+   "kind": "catalog",
+   "design": "broadband.t2fd",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|dipoles.dipole_turnstile",
+   "kind": "catalog",
+   "design": "dipoles.dipole_turnstile",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|dipoles.dipole_turnstile",
+   "kind": "catalog",
+   "design": "dipoles.dipole_turnstile",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|dipoles.dipole_turnstile",
+   "kind": "catalog",
+   "design": "dipoles.dipole_turnstile",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|dipoles.folded_invvee",
+   "kind": "catalog",
+   "design": "dipoles.folded_invvee",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|dipoles.folded_invvee",
+   "kind": "catalog",
+   "design": "dipoles.folded_invvee",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|dipoles.folded_invvee",
+   "kind": "catalog",
+   "design": "dipoles.folded_invvee",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|dipoles.folded_invvee_balun",
+   "kind": "catalog",
+   "design": "dipoles.folded_invvee_balun",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|dipoles.folded_invvee_balun",
+   "kind": "catalog",
+   "design": "dipoles.folded_invvee_balun",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|dipoles.folded_invvee_balun",
+   "kind": "catalog",
+   "design": "dipoles.folded_invvee_balun",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|dipoles.invvee",
+   "kind": "catalog",
+   "design": "dipoles.invvee",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|dipoles.invvee",
+   "kind": "catalog",
+   "design": "dipoles.invvee",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|dipoles.invvee",
+   "kind": "catalog",
+   "design": "dipoles.invvee",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|dipoles.invvee_apex",
+   "kind": "catalog",
+   "design": "dipoles.invvee_apex",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|dipoles.invvee_apex",
+   "kind": "catalog",
+   "design": "dipoles.invvee_apex",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|dipoles.invvee_apex",
+   "kind": "catalog",
+   "design": "dipoles.invvee_apex",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|dipoles.invvee_catenary",
+   "kind": "catalog",
+   "design": "dipoles.invvee_catenary",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|dipoles.invvee_catenary",
+   "kind": "catalog",
+   "design": "dipoles.invvee_catenary",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|dipoles.invvee_catenary",
+   "kind": "catalog",
+   "design": "dipoles.invvee_catenary",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|dipoles.invvee_coax_station",
+   "kind": "catalog",
+   "design": "dipoles.invvee_coax_station",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|dipoles.invvee_coax_station",
+   "kind": "catalog",
+   "design": "dipoles.invvee_coax_station",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|dipoles.invvee_coax_station",
+   "kind": "catalog",
+   "design": "dipoles.invvee_coax_station",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|dipoles.koch_dipole",
+   "kind": "catalog",
+   "design": "dipoles.koch_dipole",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|dipoles.koch_dipole",
+   "kind": "catalog",
+   "design": "dipoles.koch_dipole",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|dipoles.koch_dipole",
+   "kind": "catalog",
+   "design": "dipoles.koch_dipole",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|dipoles.ocf_dipole",
+   "kind": "catalog",
+   "design": "dipoles.ocf_dipole",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|dipoles.ocf_dipole",
+   "kind": "catalog",
+   "design": "dipoles.ocf_dipole",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|dipoles.ocf_dipole",
+   "kind": "catalog",
+   "design": "dipoles.ocf_dipole",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|dipoles.pota_invvee",
+   "kind": "catalog",
+   "design": "dipoles.pota_invvee",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|dipoles.pota_invvee",
+   "kind": "catalog",
+   "design": "dipoles.pota_invvee",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|dipoles.pota_invvee",
+   "kind": "catalog",
+   "design": "dipoles.pota_invvee",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|dipoles.short_dipole_loaded",
+   "kind": "catalog",
+   "design": "dipoles.short_dipole_loaded",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|dipoles.short_dipole_loaded",
+   "kind": "catalog",
+   "design": "dipoles.short_dipole_loaded",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|dipoles.short_dipole_loaded",
+   "kind": "catalog",
+   "design": "dipoles.short_dipole_loaded",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|loops.bisquare",
+   "kind": "catalog",
+   "design": "loops.bisquare",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|loops.bisquare",
+   "kind": "catalog",
+   "design": "loops.bisquare",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|loops.bisquare",
+   "kind": "catalog",
+   "design": "loops.bisquare",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|loops.delta_loop",
+   "kind": "catalog",
+   "design": "loops.delta_loop",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|loops.delta_loop",
+   "kind": "catalog",
+   "design": "loops.delta_loop",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|loops.delta_loop",
+   "kind": "catalog",
+   "design": "loops.delta_loop",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|loops.delta_loop_flyby",
+   "kind": "catalog",
+   "design": "loops.delta_loop_flyby",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|loops.delta_loop_flyby",
+   "kind": "catalog",
+   "design": "loops.delta_loop_flyby",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|loops.delta_loop_flyby",
+   "kind": "catalog",
+   "design": "loops.delta_loop_flyby",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|loops.delta_loop_reflected",
+   "kind": "catalog",
+   "design": "loops.delta_loop_reflected",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|loops.delta_loop_reflected",
+   "kind": "catalog",
+   "design": "loops.delta_loop_reflected",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|loops.delta_loop_reflected",
+   "kind": "catalog",
+   "design": "loops.delta_loop_reflected",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|loops.delta_loop_slanted",
+   "kind": "catalog",
+   "design": "loops.delta_loop_slanted",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|loops.delta_loop_slanted",
+   "kind": "catalog",
+   "design": "loops.delta_loop_slanted",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|loops.delta_loop_slanted",
+   "kind": "catalog",
+   "design": "loops.delta_loop_slanted",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|loops.delta_loop_topdown",
+   "kind": "catalog",
+   "design": "loops.delta_loop_topdown",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|loops.delta_loop_topdown",
+   "kind": "catalog",
+   "design": "loops.delta_loop_topdown",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|loops.delta_loop_topdown",
+   "kind": "catalog",
+   "design": "loops.delta_loop_topdown",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|loops.diamond_loop",
+   "kind": "catalog",
+   "design": "loops.diamond_loop",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|loops.diamond_loop",
+   "kind": "catalog",
+   "design": "loops.diamond_loop",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|loops.diamond_loop",
+   "kind": "catalog",
+   "design": "loops.diamond_loop",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|loops.diamond_loop_turnstile",
+   "kind": "catalog",
+   "design": "loops.diamond_loop_turnstile",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|loops.diamond_loop_turnstile",
+   "kind": "catalog",
+   "design": "loops.diamond_loop_turnstile",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|loops.diamond_loop_turnstile",
+   "kind": "catalog",
+   "design": "loops.diamond_loop_turnstile",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|loops.horizontal_loop",
+   "kind": "catalog",
+   "design": "loops.horizontal_loop",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|loops.horizontal_loop",
+   "kind": "catalog",
+   "design": "loops.horizontal_loop",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|loops.horizontal_loop",
+   "kind": "catalog",
+   "design": "loops.horizontal_loop",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|loops.horizontal_loop_drone",
+   "kind": "catalog",
+   "design": "loops.horizontal_loop_drone",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|loops.horizontal_loop_drone",
+   "kind": "catalog",
+   "design": "loops.horizontal_loop_drone",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|loops.horizontal_loop_drone",
+   "kind": "catalog",
+   "design": "loops.horizontal_loop_drone",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|loops.inv_delta_loop",
+   "kind": "catalog",
+   "design": "loops.inv_delta_loop",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|loops.inv_delta_loop",
+   "kind": "catalog",
+   "design": "loops.inv_delta_loop",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|loops.inv_delta_loop",
+   "kind": "catalog",
+   "design": "loops.inv_delta_loop",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|loops.quad",
+   "kind": "catalog",
+   "design": "loops.quad",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|loops.quad",
+   "kind": "catalog",
+   "design": "loops.quad",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|loops.quad",
+   "kind": "catalog",
+   "design": "loops.quad",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|loops.skyloop_lmatch",
+   "kind": "catalog",
+   "design": "loops.skyloop_lmatch",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|loops.skyloop_lmatch",
+   "kind": "catalog",
+   "design": "loops.skyloop_lmatch",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|loops.skyloop_lmatch",
+   "kind": "catalog",
+   "design": "loops.skyloop_lmatch",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|loops.triangular_skyloop",
+   "kind": "catalog",
+   "design": "loops.triangular_skyloop",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|loops.triangular_skyloop",
+   "kind": "catalog",
+   "design": "loops.triangular_skyloop",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|loops.triangular_skyloop",
+   "kind": "catalog",
+   "design": "loops.triangular_skyloop",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|multiband.fandipole",
+   "kind": "catalog",
+   "design": "multiband.fandipole",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|multiband.fandipole",
+   "kind": "catalog",
+   "design": "multiband.fandipole",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|multiband.fandipole",
+   "kind": "catalog",
+   "design": "multiband.fandipole",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|multiband.hexbeam_5band",
+   "kind": "catalog",
+   "design": "multiband.hexbeam_5band",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|multiband.hexbeam_5band",
+   "kind": "catalog",
+   "design": "multiband.hexbeam_5band",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|multiband.hexbeam_5band",
+   "kind": "catalog",
+   "design": "multiband.hexbeam_5band",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|multiband.trap_dipole",
+   "kind": "catalog",
+   "design": "multiband.trap_dipole",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|multiband.trap_dipole",
+   "kind": "catalog",
+   "design": "multiband.trap_dipole",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|multiband.trap_dipole",
+   "kind": "catalog",
+   "design": "multiband.trap_dipole",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|multiband.trap_fan_dipole",
+   "kind": "catalog",
+   "design": "multiband.trap_fan_dipole",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|multiband.trap_fan_dipole",
+   "kind": "catalog",
+   "design": "multiband.trap_fan_dipole",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|multiband.trap_fan_dipole",
+   "kind": "catalog",
+   "design": "multiband.trap_fan_dipole",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|multiband.twoband_fan_dipole",
+   "kind": "catalog",
+   "design": "multiband.twoband_fan_dipole",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|multiband.twoband_fan_dipole",
+   "kind": "catalog",
+   "design": "multiband.twoband_fan_dipole",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|multiband.twoband_fan_dipole",
+   "kind": "catalog",
+   "design": "multiband.twoband_fan_dipole",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|specialty.bowtie",
+   "kind": "catalog",
+   "design": "specialty.bowtie",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|specialty.bowtie",
+   "kind": "catalog",
+   "design": "specialty.bowtie",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|specialty.bowtie",
+   "kind": "catalog",
+   "design": "specialty.bowtie",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|specialty.continuous_helix",
+   "kind": "catalog",
+   "design": "specialty.continuous_helix",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|specialty.continuous_helix",
+   "kind": "catalog",
+   "design": "specialty.continuous_helix",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|specialty.continuous_helix",
+   "kind": "catalog",
+   "design": "specialty.continuous_helix",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|specialty.faceted_helix",
+   "kind": "catalog",
+   "design": "specialty.faceted_helix",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|specialty.faceted_helix",
+   "kind": "catalog",
+   "design": "specialty.faceted_helix",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|specialty.faceted_helix",
+   "kind": "catalog",
+   "design": "specialty.faceted_helix",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|specialty.hentenna",
+   "kind": "catalog",
+   "design": "specialty.hentenna",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|specialty.hentenna",
+   "kind": "catalog",
+   "design": "specialty.hentenna",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|specialty.hentenna",
+   "kind": "catalog",
+   "design": "specialty.hentenna",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|specialty.hentenna_slant",
+   "kind": "catalog",
+   "design": "specialty.hentenna_slant",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|specialty.hentenna_slant",
+   "kind": "catalog",
+   "design": "specialty.hentenna_slant",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|specialty.hentenna_slant",
+   "kind": "catalog",
+   "design": "specialty.hentenna_slant",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|specialty.hourglass",
+   "kind": "catalog",
+   "design": "specialty.hourglass",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|specialty.hourglass",
+   "kind": "catalog",
+   "design": "specialty.hourglass",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|specialty.hourglass",
+   "kind": "catalog",
+   "design": "specialty.hourglass",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|specialty.hourglass_slant",
+   "kind": "catalog",
+   "design": "specialty.hourglass_slant",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|specialty.hourglass_slant",
+   "kind": "catalog",
+   "design": "specialty.hourglass_slant",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|specialty.hourglass_slant",
+   "kind": "catalog",
+   "design": "specialty.hourglass_slant",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.bobtail",
+   "kind": "catalog",
+   "design": "verticals.bobtail",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.bobtail",
+   "kind": "catalog",
+   "design": "verticals.bobtail",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.bobtail",
+   "kind": "catalog",
+   "design": "verticals.bobtail",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.bruce",
+   "kind": "catalog",
+   "design": "verticals.bruce",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.bruce",
+   "kind": "catalog",
+   "design": "verticals.bruce",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.bruce",
+   "kind": "catalog",
+   "design": "verticals.bruce",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.challenger",
+   "kind": "catalog",
+   "design": "verticals.challenger",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.challenger",
+   "kind": "catalog",
+   "design": "verticals.challenger",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.challenger",
+   "kind": "catalog",
+   "design": "verticals.challenger",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.dominator",
+   "kind": "catalog",
+   "design": "verticals.dominator",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.dominator",
+   "kind": "catalog",
+   "design": "verticals.dominator",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.dominator",
+   "kind": "catalog",
+   "design": "verticals.dominator",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.elt_whip",
+   "kind": "catalog",
+   "design": "verticals.elt_whip",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.elt_whip",
+   "kind": "catalog",
+   "design": "verticals.elt_whip",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.elt_whip",
+   "kind": "catalog",
+   "design": "verticals.elt_whip",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.four_square",
+   "kind": "catalog",
+   "design": "verticals.four_square",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.four_square",
+   "kind": "catalog",
+   "design": "verticals.four_square",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.four_square",
+   "kind": "catalog",
+   "design": "verticals.four_square",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.half_square",
+   "kind": "catalog",
+   "design": "verticals.half_square",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.half_square",
+   "kind": "catalog",
+   "design": "verticals.half_square",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.half_square",
+   "kind": "catalog",
+   "design": "verticals.half_square",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.inverted_l",
+   "kind": "catalog",
+   "design": "verticals.inverted_l",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.inverted_l",
+   "kind": "catalog",
+   "design": "verticals.inverted_l",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.inverted_l",
+   "kind": "catalog",
+   "design": "verticals.inverted_l",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.inverted_l_tmatch",
+   "kind": "catalog",
+   "design": "verticals.inverted_l_tmatch",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.inverted_l_tmatch",
+   "kind": "catalog",
+   "design": "verticals.inverted_l_tmatch",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.inverted_l_tmatch",
+   "kind": "catalog",
+   "design": "verticals.inverted_l_tmatch",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.jpole",
+   "kind": "catalog",
+   "design": "verticals.jpole",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.jpole",
+   "kind": "catalog",
+   "design": "verticals.jpole",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.jpole",
+   "kind": "catalog",
+   "design": "verticals.jpole",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.phased_verticals",
+   "kind": "catalog",
+   "design": "verticals.phased_verticals",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.phased_verticals",
+   "kind": "catalog",
+   "design": "verticals.phased_verticals",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.phased_verticals",
+   "kind": "catalog",
+   "design": "verticals.phased_verticals",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.pota_performer",
+   "kind": "catalog",
+   "design": "verticals.pota_performer",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.pota_performer",
+   "kind": "catalog",
+   "design": "verticals.pota_performer",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.pota_performer",
+   "kind": "catalog",
+   "design": "verticals.pota_performer",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.raised_vertical",
+   "kind": "catalog",
+   "design": "verticals.raised_vertical",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.raised_vertical",
+   "kind": "catalog",
+   "design": "verticals.raised_vertical",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.raised_vertical",
+   "kind": "catalog",
+   "design": "verticals.raised_vertical",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.rectangle",
+   "kind": "catalog",
+   "design": "verticals.rectangle",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.rectangle",
+   "kind": "catalog",
+   "design": "verticals.rectangle",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.rectangle",
+   "kind": "catalog",
+   "design": "verticals.rectangle",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.right_angle_delta",
+   "kind": "catalog",
+   "design": "verticals.right_angle_delta",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.right_angle_delta",
+   "kind": "catalog",
+   "design": "verticals.right_angle_delta",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.right_angle_delta",
+   "kind": "catalog",
+   "design": "verticals.right_angle_delta",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.stub_matched_vertical",
+   "kind": "catalog",
+   "design": "verticals.stub_matched_vertical",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.stub_matched_vertical",
+   "kind": "catalog",
+   "design": "verticals.stub_matched_vertical",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.stub_matched_vertical",
+   "kind": "catalog",
+   "design": "verticals.stub_matched_vertical",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.tri_moxon",
+   "kind": "catalog",
+   "design": "verticals.tri_moxon",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.tri_moxon",
+   "kind": "catalog",
+   "design": "verticals.tri_moxon",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.tri_moxon",
+   "kind": "catalog",
+   "design": "verticals.tri_moxon",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|verticals.vertical",
+   "kind": "catalog",
+   "design": "verticals.vertical",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|verticals.vertical",
+   "kind": "catalog",
+   "design": "verticals.vertical",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|verticals.vertical",
+   "kind": "catalog",
+   "design": "verticals.vertical",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.doublet_balanced_tuner",
+   "kind": "catalog",
+   "design": "wire.doublet_balanced_tuner",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|wire.doublet_balanced_tuner",
+   "kind": "catalog",
+   "design": "wire.doublet_balanced_tuner",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|wire.doublet_balanced_tuner",
+   "kind": "catalog",
+   "design": "wire.doublet_balanced_tuner",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.doublet_ladder_tuner",
+   "kind": "catalog",
+   "design": "wire.doublet_ladder_tuner",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|wire.doublet_ladder_tuner",
+   "kind": "catalog",
+   "design": "wire.doublet_ladder_tuner",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|wire.doublet_ladder_tuner",
+   "kind": "catalog",
+   "design": "wire.doublet_ladder_tuner",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.edz",
+   "kind": "catalog",
+   "design": "wire.edz",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|wire.edz",
+   "kind": "catalog",
+   "design": "wire.edz",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|wire.edz",
+   "kind": "catalog",
+   "design": "wire.edz",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.efhw_sloper",
+   "kind": "catalog",
+   "design": "wire.efhw_sloper",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|wire.efhw_sloper",
+   "kind": "catalog",
+   "design": "wire.efhw_sloper",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|wire.efhw_sloper",
+   "kind": "catalog",
+   "design": "wire.efhw_sloper",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.expanded_lazy_h",
+   "kind": "catalog",
+   "design": "wire.expanded_lazy_h",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|wire.expanded_lazy_h",
+   "kind": "catalog",
+   "design": "wire.expanded_lazy_h",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|wire.expanded_lazy_h",
+   "kind": "catalog",
+   "design": "wire.expanded_lazy_h",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.lazy_h",
+   "kind": "catalog",
+   "design": "wire.lazy_h",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|wire.lazy_h",
+   "kind": "catalog",
+   "design": "wire.lazy_h",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|wire.lazy_h",
+   "kind": "catalog",
+   "design": "wire.lazy_h",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.longwire",
+   "kind": "catalog",
+   "design": "wire.longwire",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|wire.longwire",
+   "kind": "catalog",
+   "design": "wire.longwire",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|wire.longwire",
+   "kind": "catalog",
+   "design": "wire.longwire",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.rhombic",
+   "kind": "catalog",
+   "design": "wire.rhombic",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|wire.rhombic",
+   "kind": "catalog",
+   "design": "wire.rhombic",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|wire.rhombic",
+   "kind": "catalog",
+   "design": "wire.rhombic",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.sterba",
+   "kind": "catalog",
+   "design": "wire.sterba",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|wire.sterba",
+   "kind": "catalog",
+   "design": "wire.sterba",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|wire.sterba",
+   "kind": "catalog",
+   "design": "wire.sterba",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.sterba_bl",
+   "kind": "catalog",
+   "design": "wire.sterba_bl",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|wire.sterba_bl",
+   "kind": "catalog",
+   "design": "wire.sterba_bl",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|wire.sterba_bl",
+   "kind": "catalog",
+   "design": "wire.sterba_bl",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.sterba_tl",
+   "kind": "catalog",
+   "design": "wire.sterba_tl",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|wire.sterba_tl",
+   "kind": "catalog",
+   "design": "wire.sterba_tl",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|wire.sterba_tl",
+   "kind": "catalog",
+   "design": "wire.sterba_tl",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.vbeam",
+   "kind": "catalog",
+   "design": "wire.vbeam",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|wire.vbeam",
+   "kind": "catalog",
+   "design": "wire.vbeam",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|wire.vbeam",
+   "kind": "catalog",
+   "design": "wire.vbeam",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.w8jk",
+   "kind": "catalog",
+   "design": "wire.w8jk",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|wire.w8jk",
+   "kind": "catalog",
+   "design": "wire.w8jk",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|wire.w8jk",
+   "kind": "catalog",
+   "design": "wire.w8jk",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|sommerfeld|wire.zepp",
+   "kind": "catalog",
+   "design": "wire.zepp",
+   "ground": "sommerfeld",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|free|wire.zepp",
+   "kind": "catalog",
+   "design": "wire.zepp",
+   "ground": "free",
+   "engine": "razor-2p",
+   "tier": 5
+  },
+  {
+   "id": "razor-2p|fast|wire.zepp",
+   "kind": "catalog",
+   "design": "wire.zepp",
+   "ground": "fast",
+   "engine": "razor-2p",
+   "tier": 5
+  }
+ ]
+}

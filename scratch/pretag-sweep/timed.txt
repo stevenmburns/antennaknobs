@@ -1,0 +1,61 @@
+# Cases run serially at 4 threads, idle-gated, in `driver.py fast`: the only
+# cases whose wall time is compared. Chosen 2026-09-24: every case at >= 2 s of
+# process wall in either stored arm (v0.62.0 Skylake / v0.63.0 Haswell), plus
+# every case of the named stress decks. Keep the set FIXED across releases, so
+# baseline and candidate time the same cases; add to it deliberately.
+default|fast|GndScreen  # stress deck
+default|fast|arrays.bowtie16x1  # 2.3s@candidate
+default|fast|arrays.bowtie4x4  # 3.1s@candidate
+default|fast|ground_rod_efhw_wa7ark  # stress deck
+default|fast|screen1131|radials=48  # stress deck
+default|fast|verticals.elt_whip  # 5.6s@v0.62.0, 8.1s@candidate
+default|free|GndScreen  # stress deck
+default|free|arrays.bowtie4x4  # 2.0s@candidate
+default|free|ground_rod_efhw_wa7ark  # stress deck
+default|free|screen1131|radials=48  # stress deck
+default|free|verticals.elt_whip  # 4.0s@v0.62.0, 5.7s@candidate
+default|sommerfeld|GndScreen  # 10.9s@candidate, 199.7s@v0.62.0, stress deck
+default|sommerfeld|arrays.bowtie16x1  # 3.1s@v0.62.0, 5.4s@candidate
+default|sommerfeld|arrays.bowtie4x4  # 3.9s@v0.62.0, 6.2s@candidate
+default|sommerfeld|arrays.bowtiearray2x4  # 2.8s@candidate
+default|sommerfeld|arrays.delta_looparray_1x4  # 2.2s@candidate
+default|sommerfeld|arrays.delta_looparray_2x2  # 2.2s@candidate
+default|sommerfeld|arrays.yagiarray  # 2.6s@candidate
+default|sommerfeld|beams.owa_yagi_6el  # 2.3s@candidate
+default|sommerfeld|broadband.lpda  # 2.0s@candidate
+default|sommerfeld|ground_rod_efhw_wa7ark  # 3.2s@candidate, stress deck
+default|sommerfeld|loops.triangular_skyloop  # 3.5s@candidate
+default|sommerfeld|screen1131|radials=48  # 18.8s@candidate, 247.4s@v0.62.0, stress deck
+default|sommerfeld|verticals.buried_radial_vertical  # 2.8s@candidate
+default|sommerfeld|verticals.buried_radial_vertical|n_radials=48,variant=surface  # 17.6s@candidate, 402.1s@v0.62.0, stress deck
+default|sommerfeld|verticals.elevated_buried_counterpoise  # 2.8s@candidate
+default|sommerfeld|verticals.elt_whip  # 12.1s@candidate, 9.0s@v0.62.0
+default|sommerfeld|wire.beverage  # 19.0s@candidate, stress deck
+default|sommerfeld|wire.longwire  # 2.0s@candidate
+default|sommerfeld|wire.rhombic  # 2.3s@v0.62.0, 3.2s@candidate
+default|sommerfeld|wire.sterba  # 2.5s@candidate
+default|sommerfeld|wire.sterba_bl  # 2.1s@candidate
+default|sommerfeld|wire.terminated_longwire  # 2.5s@v0.62.0, 3.6s@candidate
+razor-2p|fast|GndScreen  # stress deck
+razor-2p|fast|arrays.bowtie16x1  # 2.3s@candidate
+razor-2p|fast|arrays.bowtie4x4  # 2.3s@candidate
+razor-2p|fast|ground_rod_efhw_wa7ark  # stress deck
+razor-2p|fast|verticals.elt_whip  # 69.7s@v0.62.0, 92.7s@candidate
+razor-2p|free|GndScreen  # stress deck
+razor-2p|free|ground_rod_efhw_wa7ark  # stress deck
+razor-2p|free|verticals.elt_whip  # 33.9s@v0.62.0, 41.4s@candidate
+razor-2p|sommerfeld|GndScreen  # 5.2s@v0.62.0, 8.8s@candidate, stress deck
+razor-2p|sommerfeld|arrays.bowtie16x1  # 2.5s@v0.62.0, 3.9s@candidate
+razor-2p|sommerfeld|arrays.bowtie4x4  # 2.5s@v0.62.0, 3.7s@candidate
+razor-2p|sommerfeld|arrays.bowtiearray2x4  # 2.4s@candidate
+razor-2p|sommerfeld|beams.owa_yagi_6el  # 2.3s@candidate
+razor-2p|sommerfeld|ground_rod_efhw_wa7ark  # 3.0s@candidate, stress deck
+razor-2p|sommerfeld|loops.triangular_skyloop  # 3.5s@candidate
+razor-2p|sommerfeld|verticals.buried_radial_vertical  # 2.0s@v0.62.0, 2.9s@candidate
+razor-2p|sommerfeld|verticals.buried_radial_vertical|n_radials=48,variant=surface  # 5.6s@v0.62.0, 7.9s@candidate, stress deck
+razor-2p|sommerfeld|verticals.elevated_buried_counterpoise  # 3.0s@candidate
+razor-2p|sommerfeld|verticals.elt_whip  # 101.3s@candidate, 75.4s@v0.62.0
+razor-2p|sommerfeld|wire.beverage  # 33.5s@v0.62.0, 54.3s@candidate, stress deck
+razor-2p|sommerfeld|wire.rhombic  # 2.0s@v0.62.0, 3.0s@candidate
+razor-2p|sommerfeld|wire.sterba  # 2.4s@candidate
+razor-2p|sommerfeld|wire.terminated_longwire  # 2.1s@v0.62.0, 3.2s@candidate
