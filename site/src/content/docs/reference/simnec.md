@@ -220,7 +220,10 @@ Such a file keeps its parametrisation, the way a `.nec` deck's
 **constant** the cards read — a `dcl name = ...;` or `$name = ...;` statement
 of its own, outside any `{ }` block, assigned nowhere else — whose expression
 names no other constant becomes the knob `dcl_<name>` (`tmp_<name>` for a
-`$name` temporary). Its label is the name as the script spells it (SimNEC
+`$name` temporary). A `prm name = ...;` statement, or a plain
+`name = ...;` with no `dcl`, `$` or `prm` (`hgt = 9.144;`), is a constant by
+the same rule and becomes the knob `prm_<name>`: it is an element parameter
+(below) whose value the script sets. Its label is the name as the script spells it (SimNEC
 names are case-sensitive, so `Xc` stays `Xc`), and its tooltip is the line's
 `//` comment. A constant that names another follows the knobs; one that
 reaches only the `FR` card, or no card the design is built from, is not a
@@ -290,6 +293,22 @@ The prefix is `par_`, not `dcl_`, because the value lives in a different
 place in the file — on the element rather than in a `dcl` line — and a saved
 setting names the one it sets.
 
+`prm` is the explicit form of the same declaration (Anvil's "passive
+declaration", SimNEC 2.6 and later): `prm len;` is `len;`, and
+`prm len,hei,fp;` declares three parameters, each a `par_` knob when the
+cards read it. A `prm file[];` file parameter, and the
+`prm num; prm runs; prm logLvl;` lines many scripts carry, are declarations
+with nothing to apply, and change nothing.
+
+A parameter the script **assigns** a constant — `prm len = 10.2;`, or the
+plain `len = 10.2;`, at top level, once — is the knob `prm_<name>`. SimNEC
+saves its value on the element too, but the script sets it again on every
+run before the cards read it, so the script line is the value used, and
+moving the knob builds exactly what editing that line would. When the saved
+value disagrees with the script's, the import note says so. A `prm` or plain
+assignment from other constants (`prm wl = 300/f;`) follows them, as a
+`dcl` does.
+
 A parameter may also set a **segment count**: `JamSegments` takes an
 expression, so `JamSegments(segs)` makes `segs` a whole-number knob for that
 wire's count, honoured exactly as a literal count is. A count below 1 or a
@@ -300,8 +319,11 @@ switch the wire back to its `GW` count.
 Only an **input** is a knob. SimNEC saves a parameter's value whether the
 user set it or the script computed it — AC6LA's trap dipole saves
 `Trap23 = R2.z;` as a parameter too, and his Yagis save a `SegCnt` counted in
-an `at(finalValue) { }` block — so a parameter the script assigns anywhere is
-an output: never a knob, and a card that reads one is refused by name. So is
+an `at(finalValue) { }` block — so a parameter the script assigns from
+something other than a constant (a member such as `R2.z` or `G.MHz`, a
+string), more than once, or inside any `{ }` block or the brace-less body
+of an `if`, `else`, `while` or `for` is an output: never a
+knob, and a card that reads one is refused by name. So is
 a name that is neither a constant nor a saved parameter. A
 `NECOptions.segmentsPerWavelength` that names a parameter (`= segsWL`, in
 AC6LA's Synth conversions) takes its saved value, which, like any
