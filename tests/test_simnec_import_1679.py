@@ -80,6 +80,25 @@ def test_log_and_lin_spacing_are_honoured():
     assert log.sweep_points[1] / log.sweep_points[0] == pytest.approx(30 ** (1 / 99))
 
 
+def test_a_sweep_saved_suspended_is_the_same_sweep():
+    """``doSweep = (y)`` is an ENABLED sweep as SimNEC reopens it, suspended:
+    a file saved with ``y`` reopens as ``(y)`` ("No Sweep Parameters
+    Enabled") until the entry is clicked, and the UI toggles only between
+    ``y`` and ``n`` (checked in SimNEC on AC6LA's snDipoleVarLenSegs.ssn,
+    QRZ 1003328 #158, which is saved that way). So it imports as the same
+    sweep ``y`` does; ``n`` is the only off state."""
+    armed = "<p><n>doSweep</n><v>y</v></p>"
+    text = LC1.read_text()
+    assert armed in text
+    y = _parse(LC1, text)
+    suspended = _parse(LC1, text.replace(armed, "<p><n>doSweep</n><v>(y)</v></p>"))
+    off = _parse(LC1, text.replace(armed, "<p><n>doSweep</n><v>n</v></p>"))
+    assert suspended.sweep == y.sweep == pytest.approx((14.0, 14.35))
+    assert suspended.sweep_points == y.sweep_points
+    assert suspended.sweep_grid == y.sweep_grid
+    assert off.sweep is None and off.sweep_points is None
+
+
 def test_an_unreadable_sweep_expression_is_said_not_guessed():
     """``Vary`` spans a SimNEC preference the file does not carry."""
     c = _parse(LC1, LC1.read_text().replace("14 : 14.35 : 0.025", "Vary"))

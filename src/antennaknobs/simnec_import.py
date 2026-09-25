@@ -58,7 +58,8 @@ never an input.
 
 The solve frequency comes from the GENERATOR element's ``MHz`` — in SimNEC the
 deck's ``FR`` card is advisory; the Generator drives the solve — and an armed
-(``doSweep y``) Generator sweep surfaces as ``sweep=(lo, hi)``, with the
+(``doSweep y``, or ``(y)``: the same sweep as SimNEC reopens it, suspended)
+Generator sweep surfaces as ``sweep=(lo, hi)``, with the
 frequencies it visits in ``sweep_points``: ``points`` values over from..to for
 ``lin`` / ``log`` spacing, or the values of its sweep expression for ``expr``
 (``14 : 14.35 : 0.025``, AK#1679).
@@ -2033,7 +2034,8 @@ def _gen_sweep(gen):
     """``(sweep, points, grid, note)`` for the Generator's frequency sweep.
 
     SimNEC stores it in a ``<sweepParam>`` under the MHz param, and only
-    ``doSweep`` = y is live. Its ``log`` field picks the spacing: ``lin`` and
+    ``doSweep`` = y (or ``(y)``, the same sweep as SimNEC reopens it) is live.
+    Its ``log`` field picks the spacing: ``lin`` and
     ``log`` space ``points`` values over ``from``..``to``; ``expr`` ignores
     those two and evaluates the ``expr`` text instead (AK#1679: AC6LA's
     ``14 : 14.35 : 0.025`` was read as the stale 1-30 MHz ``from``/``to``).
@@ -2046,7 +2048,15 @@ def _gen_sweep(gen):
             continue
         for sp in p.findall("sweepParam"):
             q = {e.findtext("n"): e.findtext("v") for e in sp.findall("p")}
-            if q.get("doSweep") != "y":
+            # "(y)" is an ENABLED sweep that SimNEC opens suspended, so that
+            # opening a file does not start a sweep: a file saved with "y"
+            # reopens as "(y)" and shows "No Sweep Parameters Enabled" until
+            # the entry is clicked, which turns it back to "y" and draws the
+            # sweep. The UI toggles only between "y" and "n", so "(y)" is
+            # always the author's live sweep, never a choice to switch it off
+            # (Steve, SimNEC 5.x, on AC6LA's snDipoleVarLenSegs.ssn,
+            # 2026-09-25). "n" is the only off state.
+            if (q.get("doSweep") or "").strip() not in ("y", "(y)"):
                 continue
             mode = (q.get("log") or "lin").strip().lower()
             if mode == "expr":
