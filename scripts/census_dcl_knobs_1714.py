@@ -18,8 +18,9 @@ and why when it does not. For a design with knobs, check:
   2. MOVE == HAND EDIT. Each knob moved by +5 % (or to 0.5 from a zero
      default) either is refused with a ``ValueError`` naming the knob, or
      builds wires and network equal to the same file with that one ``dcl``
-     value edited in the text and imported with knobs OFF -- never the knob
-     path itself -- and different from the defaults.
+     value edited in the text (for an element parameter, AK#1716, its saved
+     ``<numericParam>`` value in the XML) and imported with knobs OFF --
+     never the knob path itself -- and different from the defaults.
 
 A mismatch in either is a FAILURE: the script prints each one and exits 1.
 Files with no NEC2 block (SimNEC-scripted antennas, RUSE blocks) are counted
@@ -62,6 +63,19 @@ def edit_dcl(text: str, spelling: str, new: str) -> str | None:
         line_start = text.rfind("\n", 0, m.start()) + 1
         if "//" not in text[line_start : m.start()]:
             hits.append(m)
+    if len(hits) != 1:
+        return None
+    m = hits[0]
+    return text[: m.start(2)] + new + text[m.end(2) :]
+
+
+def edit_param(text: str, name: str, new: str) -> str | None:
+    """``text`` with the element's saved value of parameter ``name`` set to
+    ``new`` (AK#1716), or None when it is not saved exactly once."""
+    pat = re.compile(
+        rf"(<numericParam>{re.escape(name)}</numericParam>\s*<v>)([^<]*)(</v>)"
+    )
+    hits = list(pat.finditer(text))
     if len(hits) != 1:
         return None
     m = hits[0]
@@ -123,7 +137,7 @@ def main(root: Path) -> int:
             failures.append(f"{rel}: knobs dropped (defaults do not reproduce)")
         if knobs is None:
             counts["frozen"] += 1
-            rows.append((rel, "y", "0", "no dcl constant in the cards"))
+            rows.append((rel, "y", "0", "no knob in the cards"))
             continue
         counts["with_knobs"] += 1
         counts["knobs"] += len(knobs.symbols)
@@ -151,7 +165,8 @@ def main(root: Path) -> int:
             if (mw, mn) == (wires, net):
                 failures.append(f"{rel}: moving {sym.param} changed nothing")
             literal = str(int(v)) if sym.integer else repr(float(v))
-            edited = edit_dcl(text, sym.spelling, literal)
+            edit = edit_param if sym.param.startswith("par_") else edit_dcl
+            edited = edit(text, sym.spelling, literal)
             if edited is None:
                 counts["move_uneditable"] += 1
                 continue
