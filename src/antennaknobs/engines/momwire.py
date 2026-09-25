@@ -6,8 +6,11 @@ momwire/web/server.py:_compute_directivity_norm.
 from __future__ import annotations
 
 import functools
+import hashlib
 import logging
+import pickle
 import warnings
+import weakref
 
 import numpy as np
 import momwire
@@ -672,6 +675,47 @@ class _AdvisoryRecorder:
                 continue
             self._seen.add(key)
             self.items.append({"category": w.category.__name__, "text": text})
+
+
+def _z_fill_shareable(solver) -> bool:
+    """Whether ``solver``'s Z fill may be shared (AK#1723): the B-spline dense
+    fill itself, not an override of it. `_compute_Z_operator` is a private
+    momwire seam; a solver class that does not inherit it unchanged keeps its
+    own fills."""
+    return getattr(type(solver), "_compute_Z_operator", None) is getattr(
+        BSplineSolver, "_compute_Z_operator", object()
+    )
+
+
+def _z_fill_key(solver_cls, kwargs):
+    """Digest of everything a solver's Z depends on: its class and the
+    constructor kwargs, less the cancel token and every port voltage.
+
+    The voltages are the only kwargs that differ between the port (Y) solver
+    and the excited solver of one configuration, and they enter the RHS, never
+    the operator; feed positions, junction ids and node-gap sites stay in the
+    key. Pickled bytes compare exactly (a NaN per-wire loading entry included,
+    where tuple equality would not), and anything that will not pickle
+    returns None -- no sharing -- rather than a key that could collide."""
+    stripped = {k: v for k, v in kwargs.items() if k != "cancel"}
+    stripped["feeds"] = [tuple(f[:-1]) for f in kwargs["feeds"]]
+    if kwargs.get("junction_ports"):
+        stripped["junction_ports"] = [j for j, _v in kwargs["junction_ports"]]
+    if kwargs.get("node_gaps"):
+        stripped["node_gaps"] = [(pl, end) for pl, end, _v in kwargs["node_gaps"]]
+    try:
+        blob = pickle.dumps(
+            (solver_cls.__module__, solver_cls.__qualname__, stripped), protocol=5
+        )
+    except Exception:  # noqa: BLE001 — an unpicklable kwarg means no key, i.e. no sharing
+        return None
+    return hashlib.sha256(blob).digest()
+
+
+def _z_fill_live(solver):
+    """The part of a Z fill's key read at FILL time, not construction: the
+    frequency triple momwire's sweeps rebind on the instance (`_set_k`)."""
+    return (float(solver.k), float(solver.omega), float(solver.wavelength))
 
 
 def _captures_advisories(fn):
@@ -1597,6 +1641,7 @@ class MomwireEngine(SimulationEngine):
         end_port_voltages=None,
         vertex_port_voltages=None,
         extended_kernel=None,
+        share_z=False,
     ):
         """Solver instance. ``end_port_voltages`` (issue #579): per-end-port
         complex voltages in `self._end_ports` order; None means 0 V on every
@@ -1605,7 +1650,7 @@ class MomwireEngine(SimulationEngine):
         for the series node gaps in `self._vertex_ports` order.
         ``extended_kernel`` overrides the engine's kernel setting for this
         one solver (issue #849 — the portal's per-group ``EK``); None keeps
-        it."""
+        it. ``share_z``: see `_share_z_fill`."""
         kw = {}
         if _solver_accepts_junctions_kwarg(self._solver):
             kw["junctions"] = self._junctions or None
@@ -1637,10 +1682,28 @@ class MomwireEngine(SimulationEngine):
                     self._vertex_port_members, v_volts, self._vertex_dirs, strict=True
                 )
             ]
-        solver = self._solver(
+        solver = self._construct_solver(
+            feeds=self._solver_feeds(),
+            wavelength=wavelength,
+            kw=kw,
+            extended_kernel=extended_kernel,
+            share_z=share_z,
+        )
+        self._note_feed_placements(solver)
+        return solver
+
+    def _construct_solver(
+        self, *, feeds, wavelength, kw, extended_kernel=None, share_z=False
+    ):
+        """The one place a solver is constructed from this engine's state, so
+        every solver of one configuration reaches the same Z fill (AK#1723).
+
+        ``kw`` carries the port kwargs (``junctions`` / ``junction_ports`` /
+        ``node_gaps``) the two call sites assemble differently."""
+        kwargs = dict(
             wires=self._polylines,
             n_per_edge_per_wire=self._edge_segments,
-            feeds=self._solver_feeds(),
+            feeds=feeds,
             wavelength=wavelength,
             wire_radius=self._wire_radius,
             ground_z=self._ground_z,
@@ -1651,8 +1714,73 @@ class MomwireEngine(SimulationEngine):
             **self._kernel_solver_kwargs(extended_kernel),
             **self._solver_kwargs,
         )
-        self._note_feed_placements(solver)
+        solver = self._solver(**kwargs)
+        if share_z:
+            self._share_z_fill(solver, _z_fill_key(self._solver, kwargs))
         return solver
+
+    def _share_z_fill(self, solver, key):
+        """Route ``solver``'s dense Z fill through this engine's one held Z.
+
+        One request drives impedance, currents and input power separately,
+        and the network path builds a port solver (for Y) and an excited
+        solver (for the currents) per call: four fills of one matrix on
+        sy-GndScreen before this. The drive differs between those solvers,
+        the operator does not -- Z is a function of the constructor kwargs
+        with every port VOLTAGE removed, which is exactly what ``key``
+        digests (`_z_fill_key`). Only a hit on that key reuses; anything
+        else fills and replaces, so the engine holds at most one Z.
+
+        A copy goes out on every return: both momwire consumers factor Z in
+        place (``overwrite=True``), so the held matrix must never be the one
+        handed over. The restricted-row fill (``rows=`` / ``compact=``, the
+        sector route) and a sweep's ``same_edge_prep`` pass straight through.
+
+        Opt-in per construction site, and only where one request builds
+        several solvers of one configuration: the Y solver of
+        `_compute_y_matrix` and the network/TL excited solver. The plain
+        excited solve fills once and `_solved_cache` serves the rest, so
+        holding a copy there would cost one Z of memory for nothing; a sweep
+        solver moves its own frequency and must fill per k.
+
+        The solver's live frequency triple is part of every hit, beside the
+        construction key: momwire's sweeps rebind ``k`` / ``omega`` /
+        ``wavelength`` on the instance (`_set_k`) and fill again, and a
+        construction-time key alone would hand each k the first k's Z.
+
+        Scope is the engine instance, which the server builds per request;
+        there is deliberately no cross-request cache."""
+        if key is None or not _z_fill_shareable(solver):
+            return
+        held = self.__dict__.setdefault("_z_fill_held", [None])
+        fill = type(solver)._compute_Z_operator
+        # Weak, so the instance attribute below does not make the solver a
+        # reference cycle that outlives the request until a gc pass.
+        solver_ref = weakref.ref(solver)
+
+        def shared(
+            geom, supp_seg, polys, same_edge_prep=None, rows=None, compact=False
+        ):
+            if same_edge_prep is not None or rows is not None or compact:
+                return fill(
+                    solver_ref(),
+                    geom,
+                    supp_seg,
+                    polys,
+                    same_edge_prep=same_edge_prep,
+                    rows=rows,
+                    compact=compact,
+                )
+            sim = solver_ref()
+            live = (key, _z_fill_live(sim))
+            if held[0] is not None and held[0][0] == live:
+                return held[0][1].copy()
+            held[0] = None  # release the old Z before the new fill peaks
+            Z = fill(sim, geom, supp_seg, polys)
+            held[0] = (live, Z.copy())
+            return Z
+
+        solver._compute_Z_operator = shared
 
     def _note_feed_placements(self, solver):
         """Record, once per engine, where the solver put each positioned port.
@@ -1761,7 +1889,9 @@ class MomwireEngine(SimulationEngine):
         to one row/column per port (issue #477)."""
         return self._contract_y(
             np.asarray(
-                self._make_solver(wavelength=wavelength).compute_y_matrix(),
+                self._make_solver(
+                    wavelength=wavelength, share_z=True
+                ).compute_y_matrix(),
                 dtype=np.complex128,
             )
         )
@@ -2105,19 +2235,8 @@ class MomwireEngine(SimulationEngine):
                     strict=True,
                 )
             ]
-        return self._solver(
-            wires=self._polylines,
-            n_per_edge_per_wire=self._edge_segments,
-            feeds=feeds_resolved,
-            wavelength=wavelength,
-            wire_radius=self._wire_radius,
-            ground_z=self._ground_z,
-            cancel=self._cancel,
-            **kw,
-            **self._loading_kwargs,
-            **self._ground_solver_kwargs(),
-            **self._kernel_solver_kwargs(),
-            **self._solver_kwargs,
+        return self._construct_solver(
+            feeds=feeds_resolved, wavelength=wavelength, kw=kw, share_z=True
         )
 
     @_captures_advisories
