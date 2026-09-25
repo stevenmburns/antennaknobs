@@ -221,18 +221,23 @@ def test_the_note_carries_the_advisory_and_points_at_the_live_one():
 # Knob corners — banked answers (AK#1131's shape)
 # ---------------------------------------------------------------------------
 #
-# Measured on momwire v0.55.0 (1ca8725, the recorded pointer), auto mesh,
-# quadrature omitted — exactly the call the web makes. See the module docstring for what these do NOT prove.
+# Measured on momwire v0.64.0 (2e09338, the recorded pointer), auto mesh,
+# quadrature omitted — exactly the call the web makes. Re-banked from v0.55.0:
+# momwire#1201's graded Sommerfeld remainder converges the grazing pairs these
+# mm-high radials are made of (0.3-3 % moves). v0.63.0 with its remainder cap
+# raised from 192 to 768 moves the same way (28awg 65.648+45.683j ->
+# 64.598+43.501j, against 64.556+43.409j here), so the old values were the
+# unconverged ones. See the module docstring for what these do NOT prove.
 
 BANKED = {
-    "default": ({}, 58.543 + 35.154j),
-    "n16": ({"n_radials": 16}, 46.718 + 16.872j),
-    "n1": ({"n_radials": 1}, 146.062 + 127.171j),
-    "rf1": ({"radial_factor": 1.0}, 117.351 + 27.283j),
-    "28awg": ({"wire_type": "28-awg-pvc"}, 65.647 + 45.682j),
-    "22awg": ({"wire_type": "22-awg-pvc"}, 60.496 + 38.465j),
-    "grass3mm": ({"surface_h_m": 0.003}, 52.999 + 14.101j),
-    "lf08": ({"length_factor": 0.8}, 37.227 - 159.833j),
+    "default": ({}, 58.459 + 34.947j),
+    "n16": ({"n_radials": 16}, 46.711 + 16.816j),
+    "n1": ({"n_radials": 1}, 145.499 + 126.402j),
+    "rf1": ({"radial_factor": 1.0}, 117.369 + 27.553j),
+    "28awg": ({"wire_type": "28-awg-pvc"}, 64.556 + 43.409j),
+    "22awg": ({"wire_type": "22-awg-pvc"}, 60.248 + 37.892j),
+    "grass3mm": ({"surface_h_m": 0.003}, 52.988 + 14.031j),
+    "lf08": ({"length_factor": 0.8}, 37.194 - 159.983j),
 }
 
 
