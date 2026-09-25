@@ -87,6 +87,7 @@ import {
   FarFieldOverlayControls,
   LayoutModeToggle,
   SmithOverlayControls,
+  SweepOverlayControls,
   SweepAdvisoryOverlay,
 } from "../results/StageOverlays";
 import { ViewGrid } from "../results/ViewGrid";
@@ -2461,6 +2462,15 @@ function DesignSessionBody({
           )}
           {v === "combined" && (
             <CombinedLegend fill={combinedFill} setFill={setCombinedFill} />
+          )}
+          {/* The Smith chart's freq-sweep switch on the VSWR and S11 charts
+              too (AK#1738): the SAME state, so turning the sweep on or off
+              on any of the three turns it on or off on all of them. */}
+          {(v === "vswr" || v === "gamma") && !isMobile && (
+            <SweepOverlayControls
+              sweepEnabled={sweepEnabled}
+              setSweepEnabled={setSweepEnabled}
+            />
           )}
           {(v === "smith" || v === "vswr" || v === "gamma") && (
             <SweepAdvisoryOverlay advisories={sweepAdvisories} />
