@@ -267,10 +267,16 @@ export type SolveResponse = {
   length_m?: number;
   del_y_m?: number;
   phase_lr_deg?: number;
-  /** Per-geometry SWR / Smith chart reference impedance. Falls back to
-   *  50 Ω when the server doesn't supply one. Bowtie array returns 100 Ω
-   *  because each element is designed for a 100 Ω feedline. */
+  /** The SWR / Smith chart reference impedance this response was measured
+   *  against: the request's `z0_ohms` override (AK#1735) when it carried one,
+   *  else the design's own. Falls back to 50 Ω when the server doesn't supply
+   *  one. Bowtie array returns 100 Ω because each element is designed for a
+   *  100 Ω feedline. */
   z0_ohms?: number;
+  /** The design's OWN reference impedance (AK#1735) — `ui_params
+   *  ["target_z0"]`, a `.ssn` Generator's Zo, or the array rule — whatever
+   *  the request overrode it with. What the gear menu's Zo field starts at. */
+  design_z0_ohms?: number;
   /** Geometry-derived UI hints folded into the solve/geometry response.
    *  User designs defer these (the builder runs lazily on selection), so the
    *  authoritative values arrive here rather than on the /examples descriptor;
@@ -375,6 +381,12 @@ export type SolveRequest = {
    *  bytes, so neither invalidates the other's cached sweep. The server
    *  clamps both numbers, so raw knob state is fine to send. */
   soil?: SoilParams;
+  /** The reference impedance to measure against (AK#1735): the gear menu's
+   *  Zo override. Omitted = the design's own, so a session that never sets
+   *  one sends the same bytes as before. A reference, not physics: the server
+   *  keeps it out of its cache key and the analyses keep it out of their
+   *  signatures. */
+  z0_ohms?: number;
   /** Cut angles for the server-attached polar traces (issue #547). */
   az_elev_deg?: number;
   elev_az_deg?: number;

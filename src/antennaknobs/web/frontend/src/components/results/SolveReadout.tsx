@@ -43,6 +43,7 @@ export function SolveReadout({
   className = "",
   collapsed = false,
   onCollapsedChange,
+  z0,
 }: {
   result: SolveResponse | null;
   rttMs: number | null;
@@ -72,7 +73,12 @@ export function SolveReadout({
    *  where the readout is the page rather than a card floating over one. */
   collapsed?: boolean | undefined;
   onCollapsedChange?: ((collapsed: boolean) => void) | undefined;
+  /** The session's reference impedance (AK#1735), which outranks the
+   *  response's echo: it is what the next solve will be measured against,
+   *  and it is known before any solve has landed. Absent = the response's. */
+  z0?: number | undefined;
 }) {
+  const ref = z0 ?? result?.z0_ohms ?? 50;
   const planes = result?.planes;
   const isCollapsed = collapsed && onCollapsedChange !== undefined;
   // Overflow guard for the floating stage HUD: with enough content (a
@@ -158,7 +164,7 @@ export function SolveReadout({
           <span className="readout-pill-key">SWR</span>{" "}
           <span className="val">
             {result
-              ? formatSwr(result.z_in_re, result.z_in_im, result.z0_ohms ?? 50)
+              ? formatSwr(result.z_in_re, result.z_in_im, ref)
               : "—"}
           </span>
         </span>
@@ -281,10 +287,10 @@ export function SolveReadout({
         </div>
       )}
       <div className="row">
-        <span>SWR ({(result?.z0_ohms ?? 50).toFixed(0)} Ω)</span>
+        <span>SWR ({Number(ref.toPrecision(4))} Ω)</span>
         <span className="val">
           {result
-            ? formatSwr(result.z_in_re, result.z_in_im, result.z0_ohms ?? 50)
+            ? formatSwr(result.z_in_re, result.z_in_im, ref)
             : "—"}
         </span>
       </div>

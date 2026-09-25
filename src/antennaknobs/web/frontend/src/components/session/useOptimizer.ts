@@ -87,6 +87,7 @@ export function useOptimizer({
   active,
   buildRequest,
   setParamAtPath,
+  zoOverride = null,
 }: {
   geometry: string;
   currentValues: ParamValueBag;
@@ -103,6 +104,10 @@ export function useOptimizer({
     path: (string | number)[],
     value: number | string | boolean,
   ) => void;
+  /** The gear menu's Zo override (AK#1735), null = the design's own. It
+   *  reaches the request through `buildRequest`; it is here only so a new
+   *  reference re-tunes, the way a new objective does. */
+  zoOverride?: number | null;
 }) {
   // Master enable + objective live in the compact control by meas-freq; per-knob
   // "vary" + extents + step live in each knob's right-click menu (knobOpt).
@@ -280,6 +285,7 @@ export function useOptimizer({
     return JSON.stringify({
       geometry,
       objective: optObjective,
+      zo: zoOverride,
       backend,
       designFreq,
       measFreq,
@@ -294,6 +300,7 @@ export function useOptimizer({
     geometry,
     optObjective,
     optSeed,
+    zoOverride,
     backend,
     designFreq,
     measFreq,
