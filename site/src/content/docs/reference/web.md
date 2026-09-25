@@ -243,8 +243,9 @@ all of them, and in the Settings menu.
 1–1.5, 1–2, 1–3, 1–5 and 1–10, S11 floors of −10, −20, −30 and −40 dB, and
 either takes a custom min and max; each chart remembers its own choice.
 **Auto**, the default, fits the dip: the smallest of 1.5, 2, 3, 5, 10 … that
-holds the lowest SWR with room above it, or the shallowest S11 floor the dip
-clears by 5 dB. Anything above a VSWR top pegs at the edge with the off-scale
+holds the lowest SWR with room above it and is no lower than the SWR
+threshold (so the threshold line is always on screen), or the shallowest S11
+floor the dip clears by 5 dB that still shows the threshold line. Anything above a VSWR top pegs at the edge with the off-scale
 tick. So that the axis never rescales under your hand, Auto only grows while
 a knob is moving or a sweep is landing, and fits again once things have been
 still for half a second. For a very wide range of SWR, the S11 chart is the

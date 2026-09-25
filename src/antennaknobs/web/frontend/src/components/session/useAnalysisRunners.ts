@@ -20,7 +20,11 @@ import {
   type SweepProjectionSet,
 } from "../../lib/refine";
 import { solveSignature } from "../../lib/solveSignature";
-import { AUTO_AXES, type SweepAxes } from "../../lib/sweepAxis";
+import {
+  AUTO_AXES,
+  DEFAULT_SWR_THRESHOLD,
+  type SweepAxes,
+} from "../../lib/sweepAxis";
 import {
   defaultSweepPoints,
   mergeSweepPoints,
@@ -188,6 +192,7 @@ export function useAnalysisRunners({
   refineEnabled = true,
   residentSweepViews = ALL_SWEEP_PROJECTIONS,
   sweepAxes = AUTO_AXES,
+  swrThreshold = DEFAULT_SWR_THRESHOLD,
   buildRequest,
   solveWithheld,
   seqRef,
@@ -255,6 +260,9 @@ export function useAnalysisRunners({
    *  Not an effect dep — a range is display, not physics, and changing it
    *  re-plans nothing already done. */
   sweepAxes?: SweepAxes;
+  /** The SWR threshold (AK#1738), which Auto keeps on screen and so moves
+   *  the drawn range; read per ROUND like sweepAxes. */
+  swrThreshold?: number;
   buildRequest: () => SolveRequest;
   solveWithheld: () => boolean;
   seqRef: MutableRefObject<number>;
@@ -341,6 +349,9 @@ export function useAnalysisRunners({
   // Per ROUND, as above.
   // eslint-disable-next-line react-hooks/refs
   sweepAxesRef.current = sweepAxes;
+  const swrThresholdRef = useRef(swrThreshold);
+  // eslint-disable-next-line react-hooks/refs
+  swrThresholdRef.current = swrThreshold;
   const patternTimerRef = useRef<number | null>(null);
   const patternAbortRef = useRef<AbortController | null>(null);
   const convergeTimerRef = useRef<number | null>(null);
@@ -733,6 +744,7 @@ export function useAnalysisRunners({
           Math.min(SWEEP_REFINE_ROUND_BUDGET, SWEEP_REFINE_BUDGET - spent),
           residentSweepViewsRef.current,
           sweepAxesRef.current,
+          swrThresholdRef.current,
         );
         if (want.length === 0) {
           concluded = true; // no visible kink left to remove

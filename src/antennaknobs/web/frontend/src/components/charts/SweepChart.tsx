@@ -217,7 +217,7 @@ export function SweepChart({
   // app: a 20 → 100 → 1.5 flash). Refinement rounds add points to a
   // finished sweep, which only ever deepens the dip, so they fit as usual.
   const fitValues = hasSweep && !running ? trails : markerVs;
-  const fresh = sweepAxisDomain(mode, axis, fitValues, s11Top);
+  const fresh = sweepAxisDomain(mode, axis, fitValues, s11Top, swrThreshold);
   const quiet = useQuiet(
     `${mode}:${fitValues.length}:${Math.min(...fitValues).toFixed(4)}:` +
       markerVs.map((v) => v.toFixed(4)).join(","),
@@ -311,9 +311,10 @@ export function SweepChart({
     ctx.fillText(TITLE[mode], marginL, 12);
 
     // The threshold line (AK#1738), dashed, labelled at its right end, drawn
-    // only when it is inside the range. The band readout shares the title
+    // only when it is inside the range, edges included: Auto may put the
+    // VSWR top exactly on it (threshold 2 ⇒ top 2). The band readout shares the title
     // row, right-aligned.
-    if (thresholdY > dom.lo && thresholdY < dom.hi) {
+    if (thresholdY >= dom.lo && thresholdY <= dom.hi) {
       const ty = yOf(thresholdY);
       ctx.strokeStyle = `rgb(${PC.thresholdRgb})`;
       ctx.lineWidth = 0.8;

@@ -60,41 +60,57 @@ export function sweepDip(values: readonly number[]): number | null {
   return f.length ? Math.min(...f) : null;
 }
 
-/** Auto's VSWR top: the smallest nice top that holds the dip with headroom. */
-export function autoVswrTop(values: readonly number[]): number {
+/** Auto's VSWR top: the smallest nice top that holds the dip with headroom
+ *  AND is at least the SWR threshold, so the threshold line is always on
+ *  screen under Auto (Steve, 2026-09-25: a sharp dip alone picks 1.5, which
+ *  hid the 2:1 line). Threshold 2 ⇒ at least 2; 2.5 ⇒ at least 3. */
+export function autoVswrTop(
+  values: readonly number[],
+  threshold = DEFAULT_SWR_THRESHOLD,
+): number {
   const dip = sweepDip(values);
-  if (dip === null) return VSWR_EMPTY.hi;
-  for (const top of VSWR_AUTO_TOPS) {
-    if (dip - 1 <= (1 - VSWR_AUTO_HEADROOM) * (top - 1)) return top;
-  }
-  return VSWR_AUTO_TOPS[VSWR_AUTO_TOPS.length - 1];
+  const fits = (top: number) =>
+    top >= threshold &&
+    (dip === null
+      ? top >= VSWR_EMPTY.hi
+      : dip - 1 <= (1 - VSWR_AUTO_HEADROOM) * (top - 1));
+  return VSWR_AUTO_TOPS.find(fits) ?? VSWR_AUTO_TOPS[VSWR_AUTO_TOPS.length - 1];
 }
 
 /** Auto's S11 floor: the shallowest nice floor the dip clears by
- *  S11_AUTO_CLEARANCE_DB — the VSWR rule mirrored onto the moving floor. */
-export function autoS11Floor(values: readonly number[]): number {
+ *  S11_AUTO_CLEARANCE_DB — the VSWR rule mirrored onto the moving floor —
+ *  and at or below the threshold's return loss, so the line stays on screen.
+ *  Every floor is ≤ −10 dB and a threshold's line is above that from 2:1 up
+ *  (−9.54 dB; 5:1 is −3.5), so this only bites for a tight threshold: 1.1:1
+ *  is −26.4 dB, which needs a −30 floor. */
+export function autoS11Floor(
+  values: readonly number[],
+  threshold = DEFAULT_SWR_THRESHOLD,
+): number {
   const dip = sweepDip(values);
-  if (dip === null) return S11_EMPTY_FLOOR;
-  for (const floor of S11_AUTO_FLOORS) {
-    if (dip - floor >= S11_AUTO_CLEARANCE_DB) return floor;
-  }
-  return S11_AUTO_FLOORS[S11_AUTO_FLOORS.length - 1];
+  const line = s11DbForSwr(threshold);
+  const fits = (floor: number) =>
+    floor <= line &&
+    (dip === null ? floor <= S11_EMPTY_FLOOR : dip - floor >= S11_AUTO_CLEARANCE_DB);
+  return S11_AUTO_FLOORS.find(fits) ?? S11_AUTO_FLOORS[S11_AUTO_FLOORS.length - 1];
 }
 
 /** The drawn domain for a mode, a choice and the values Auto fits.
  *
  *  `s11Top` is the S11 top the over-unity rule gives (s11DbTop: 0 for any
  *  passive port); it applies to Auto and to a preset floor. A custom range's
- *  own top wins, and a value above it pegs like VSWR's. */
+ *  own top wins, and a value above it pegs like VSWR's. `threshold` is the
+ *  SWR threshold, which Auto keeps on screen; fixed ranges ignore it. */
 export function sweepAxisDomain(
   mode: SweepMode,
   choice: SweepAxisChoice,
   values: readonly number[],
   s11Top = 0,
+  threshold = DEFAULT_SWR_THRESHOLD,
 ): AxisDomain {
   if (mode === "vswr") {
     if (choice.kind === "fixed") return { lo: choice.lo, hi: choice.hi };
-    return { lo: 1, hi: autoVswrTop(values) };
+    return { lo: 1, hi: autoVswrTop(values, threshold) };
   }
   if (choice.kind === "fixed") {
     // A preset is a floor under 0 dB; a custom range carries its own top.
@@ -102,7 +118,7 @@ export function sweepAxisDomain(
       ? { lo: choice.lo, hi: s11Top }
       : { lo: choice.lo, hi: choice.hi };
   }
-  return { lo: autoS11Floor(values), hi: s11Top };
+  return { lo: autoS11Floor(values, threshold), hi: s11Top };
 }
 
 /** The grow-only rule while a knob is live: the union of the range already
