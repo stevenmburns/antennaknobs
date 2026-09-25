@@ -234,7 +234,9 @@ Every key becomes a slider in the UI, accessed in `build_wires` as
   the tuning note under `build_wires` about pairing this with `design_freq`.
 - Lengths/positions are in **metres**.
 - Add a nested `"ui_params": MappingProxyType({...})` for UI hints. The most
-  useful is `"default_view"`: `"xy"` (top-down), `"xz"`, or `"yz"` (side).
+  useful is `"default_view"`: `"xy"` (top-down), `"xz"` or `"yz"` (side), or
+  `"iso"` (isometric — the right choice whenever the antenna doesn't fit
+  cleanly into one 2D plane, e.g. a vertical with radials or a helix).
 - A class-level `label = "Pretty Name"` sets the display name (optional).
 
 Slider bounds and step are auto-derived (±50% around the default, fine
