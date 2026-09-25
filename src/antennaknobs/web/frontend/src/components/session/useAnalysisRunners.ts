@@ -20,6 +20,7 @@ import {
   type SweepProjectionSet,
 } from "../../lib/refine";
 import { solveSignature } from "../../lib/solveSignature";
+import { AUTO_AXES, type SweepAxes } from "../../lib/sweepAxis";
 import {
   defaultSweepPoints,
   mergeSweepPoints,
@@ -186,6 +187,7 @@ export function useAnalysisRunners({
   z0 = 50,
   refineEnabled = true,
   residentSweepViews = ALL_SWEEP_PROJECTIONS,
+  sweepAxes = AUTO_AXES,
   buildRequest,
   solveWithheld,
   seqRef,
@@ -247,6 +249,12 @@ export function useAnalysisRunners({
    *  solves flattening a Smith locus nobody can see. Read per refinement
    *  ROUND via a ref, so mid-chain pin changes take effect immediately. */
   residentSweepViews?: SweepProjectionSet;
+  /** The sweep charts' vertical ranges (AK#1738), so refinement judges
+   *  curvature on the axes actually drawn. Read per ROUND via a ref, like
+   *  the projection set: a range change mid-chain applies at the next round.
+   *  Not an effect dep — a range is display, not physics, and changing it
+   *  re-plans nothing already done. */
+  sweepAxes?: SweepAxes;
   buildRequest: () => SolveRequest;
   solveWithheld: () => boolean;
   seqRef: MutableRefObject<number>;
@@ -329,6 +337,10 @@ export function useAnalysisRunners({
   // to the end of its budget (#768).
   // eslint-disable-next-line react-hooks/refs
   residentSweepViewsRef.current = residentSweepViews;
+  const sweepAxesRef = useRef(sweepAxes);
+  // Per ROUND, as above.
+  // eslint-disable-next-line react-hooks/refs
+  sweepAxesRef.current = sweepAxes;
   const patternTimerRef = useRef<number | null>(null);
   const patternAbortRef = useRef<AbortController | null>(null);
   const convergeTimerRef = useRef<number | null>(null);
@@ -720,6 +732,7 @@ export function useAnalysisRunners({
           z0,
           Math.min(SWEEP_REFINE_ROUND_BUDGET, SWEEP_REFINE_BUDGET - spent),
           residentSweepViewsRef.current,
+          sweepAxesRef.current,
         );
         if (want.length === 0) {
           concluded = true; // no visible kink left to remove

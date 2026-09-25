@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import type { ConvergeData, MeasuredData, SolveResponse, SweepData } from "../../lib/api";
 import type { SweepProgress } from "../../lib/sweep";
+import type { SweepAxes, SweepAxisChoice, SweepMode } from "../../lib/sweepAxis";
 import type {
   CanvasCamera,
   CombinedFill,
@@ -101,7 +102,26 @@ export type ViewRenderProps = {
    *  Optional: omitted, the plot is unfilled with nothing highlighted. */
   combinedFill?: CombinedFill;
   combinedHighlight?: readonly string[];
+  /** The VSWR / S11 charts' ranges and SWR threshold (AK#1738), from the
+   *  view prefs. Optional: omitted, both charts are on Auto at 2:1. */
+  sweepAxes?: SweepAxes;
+  swrThreshold?: number;
+  /** Given, the sweep charts' y axis opens the range popover. The stage
+   *  passes these; thumbnails do not (a thumb is a button). */
+  onSweepAxisChange?: (mode: SweepMode, c: SweepAxisChoice) => void;
+  onSwrThresholdChange?: (t: number) => void;
 };
+
+// The AK#1738 props a sweep chart takes from the bag, for either mode.
+function sweepAxisProps(p: ViewRenderProps, mode: SweepMode) {
+  const onChange = p.onSweepAxisChange;
+  return {
+    ...(p.sweepAxes ? { axis: p.sweepAxes[mode] } : {}),
+    ...(p.swrThreshold !== undefined ? { swrThreshold: p.swrThreshold } : {}),
+    ...(onChange ? { onAxisChange: (c: SweepAxisChoice) => onChange(mode, c) } : {}),
+    ...(p.onSwrThresholdChange ? { onThresholdChange: p.onSwrThresholdChange } : {}),
+  };
+}
 
 const NO_HIGHLIGHT: readonly string[] = [];
 
@@ -227,6 +247,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       settled={p.sweepSettled ?? true}
       feeds={p.result?.feeds}
       multiFeed={p.multiFeed}
+      {...sweepAxisProps(p, "gamma")}
     />
   ),
   vswr: (p) => (
@@ -243,6 +264,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       settled={p.sweepSettled ?? true}
       feeds={p.result?.feeds}
       multiFeed={p.multiFeed}
+      {...sweepAxisProps(p, "vswr")}
     />
   ),
   files: (p) => <FilesPanel data={p.files ?? null} size={p.size} fill={p.fill} />,

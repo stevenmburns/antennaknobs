@@ -87,6 +87,7 @@
   --plot-lobe-rgb: 207, 122, 34;     /* far-field radiation lobe (orange) */
   --plot-nec-rgb: 47, 95, 176;        /* NEC overlay (blueprint blue) */
   --plot-elev-rgb: 47, 95, 176;       /* combined view's elevation cut */
+  --plot-threshold-rgb: 38, 140, 84;  /* sweep charts' SWR threshold + band (AK#1738) */
   --plot-ground-rgb: 150, 116, 70;    /* ground line (brown) */
   --plot-envelope-rgb: 47, 95, 176;   /* |I| envelope (blue) */
   /* pinned-pattern ghosts: darker inks than the dark theme's pastels — a
@@ -163,6 +164,7 @@
   --plot-lobe-rgb: 255, 209, 102;
   --plot-nec-rgb: 110, 220, 255;
   --plot-elev-rgb: 110, 220, 255;
+  --plot-threshold-rgb: 110, 210, 140;
   --plot-ground-rgb: 140, 110, 70;
   --plot-envelope-rgb: 118, 208, 255;
   --plot-ghost-0-rgb: 140, 230, 140;
@@ -520,6 +522,54 @@ button:focus-visible,
 .help-link {
   box-sizing: border-box;
   text-decoration: none;
+}
+
+/* The sweep charts (AK#1738): the canvas's box, so the y-axis button can sit
+   over the tick-label strip. The button is invisible until hovered/focused,
+   when it tints the strip to say "this is a control". */
+.sweep-chart {
+  position: relative;
+}
+
+.sweep-axis-btn {
+  position: absolute;
+  left: 0;
+  width: 26px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.sweep-axis-btn:hover,
+.sweep-axis-btn:focus-visible,
+.sweep-axis-btn[aria-expanded="true"] {
+  background: var(--accent-soft);
+  outline: 1px solid var(--border-hover);
+}
+
+.sweep-axis-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+.sweep-axis-presets button {
+  font-size: var(--text-sm);
+  padding: 2px var(--space-2);
+  background: var(--inset);
+  color: var(--fg);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.sweep-axis-presets button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 /* Transparent full-screen catcher so a click anywhere closes the menu. */

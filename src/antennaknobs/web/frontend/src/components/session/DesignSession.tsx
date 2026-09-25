@@ -571,6 +571,10 @@ function DesignSessionBody({
     setReadoutCollapsed,
     combinedFill,
     setCombinedFill,
+    sweepAxes,
+    setSweepAxis,
+    swrThreshold,
+    setSwrThreshold,
   } = useViewPrefs();
   // The combined view's highlighted designs (AK#1730): the live design and/or
   // pin ids, toggled per row in the compare table; while any is highlighted
@@ -2003,6 +2007,8 @@ function DesignSessionBody({
       z0,
       refineEnabled,
       residentSweepViews,
+      // The VSWR / S11 ranges the charts draw (AK#1738), for the same reason.
+      sweepAxes,
       buildRequest,
       solveWithheld,
       seqRef,
@@ -2556,6 +2562,10 @@ function DesignSessionBody({
             combinedHighlight={shownHighlight}
             refineEnabled={refineEnabled}
             sweepSettled={sweepSettled}
+            sweepAxes={sweepAxes}
+            swrThreshold={swrThreshold}
+            onSweepAxisChange={setSweepAxis}
+            onSwrThresholdChange={setSwrThreshold}
             schematicSvg={schematicSvg}
             schematicUnavailable={schematicUnavailable}
             files={files}
@@ -2738,6 +2748,8 @@ function DesignSessionBody({
                       schematicSvg={schematicSvg}
                       schematicUnavailable={schematicUnavailable}
                       combinedFill={combinedFill}
+                      sweepAxes={sweepAxes}
+                      swrThreshold={swrThreshold}
                     />
                     </div>
                   </div>
