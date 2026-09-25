@@ -515,6 +515,13 @@ button:focus-visible,
   border-color: var(--border-hover);
 }
 
+/* The Help link wears .header-icon-btn; an <a> needs the underline off and
+   a <button>'s border-box sizing, or it draws 2px wider than its neighbours. */
+.help-link {
+  box-sizing: border-box;
+  text-decoration: none;
+}
+
 /* Transparent full-screen catcher so a click anywhere closes the menu. */
 .gear-menu-backdrop {
   position: fixed;

@@ -1,11 +1,12 @@
 import type { MeasuredData } from "../../lib/api";
 import type { useFullscreen } from "../hooks";
 import type { Theme } from "../hooks";
+import { helpUrl } from "../../lib/help";
 import { TabStrip } from "./TabStrip";
 
 // Sidebar header: brand + the tools (gear) dropdown, incl. the reactive
 // copies of the chart-overlay toggles (same state the overlays use, so the
-// two locations can never disagree), and the theme toggle.
+// two locations can never disagree), the Help link and the theme toggle.
 export function SessionGearMenu({
   versionLabel,
   gearMenuOpen,
@@ -304,6 +305,21 @@ export function SessionGearMenu({
               </>
             )}
           </div>
+          {/* A link, not a button that calls window.open: middle-click,
+              "copy link" and the status-bar URL all work, and a popup
+              blocker has nothing to block. noopener/noreferrer keep the
+              docs tab from reaching back into (or learning about) the
+              workbench. The URL is chosen in lib/help.ts (AK#1739). */}
+          <a
+            className="header-icon-btn help-link"
+            href={helpUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Help: the workbench guide on antennaknobs.dev (opens in a new tab)"
+            aria-label="Help (opens the workbench guide in a new tab)"
+          >
+            ?
+          </a>
           <button
             type="button"
             className="theme-toggle"
