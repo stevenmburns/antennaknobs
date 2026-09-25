@@ -3753,7 +3753,10 @@ def test_optimize_without_the_sse_header_is_todays_json_response(
             "residual_after",
             "improved",
             "geometry",
+            # AK#1741: the engine the objective was measured on.
+            "solver",
         ]
+        assert body["solver"] == "momwire"
         assert list(body["metrics_before"]) == ["z_in_re", "z_in_im", "z0_ohms", "swr"]
         assert body["geometry"] == "fake.opt"
         assert body["improved"] is True
