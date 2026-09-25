@@ -17,10 +17,11 @@ from __future__ import annotations
 import importlib
 import math
 
+import numpy as np
 import pytest
 
 import antennaknobs.web.examples  # noqa: F401 — primes the adapter
-from antennaknobs.network import Wire
+from antennaknobs.network import Wire, as_wire
 from antennaknobs.web.adapter import (
     _auto_default_view,
     _auto_paramspec,
@@ -28,6 +29,7 @@ from antennaknobs.web.adapter import (
     _make_example,
     _nice_step,
     _precision_for_step,
+    _ui_scalar,
 )
 from antennaknobs.web.examples import REGISTRY
 from antennaknobs.web.examples._base import (
@@ -114,8 +116,8 @@ def test_variant_values_serialise_for_every_variant(name):
 
 
 @pytest.mark.parametrize("name", DESIGN_NAMES)
-def test_default_view_is_a_valid_2d_plane(name):
-    assert REGISTRY[name].default_view in {"xy", "yz", "xz"}
+def test_default_view_is_a_valid_projection(name):
+    assert REGISTRY[name].default_view in {"xy", "yz", "xz", "iso"}
 
 
 def test_auto_default_view_reads_wire_idiom_entries():
@@ -155,6 +157,79 @@ def test_auto_default_view_reads_wire_idiom_entries():
 )
 def test_auto_default_view_pins(name, view):
     assert REGISTRY[name].default_view == view
+
+
+def _wire_spans(cls) -> list[float]:
+    """Sorted (ascending) x/y/z spans of a Builder's wires, min to max."""
+    b = cls()
+    pts = []
+    for t in b.build_wires():
+        w = as_wire(t)
+        pts.append(w.p0)
+        pts.append(w.p1)
+    a = np.asarray(pts, dtype=float)
+    spans = a.max(0) - a.min(0)
+    return sorted(float(s) for s in spans)
+
+
+@pytest.mark.parametrize("name", DESIGN_NAMES)
+def test_auto_default_view_iso_policy(name):
+    """Steve's rule, pinned across the whole registry: a design that doesn't
+    fit cleanly into a 2D plane defaults to Iso.
+
+    For designs with no ui_params['default_view'] override, the derived
+    view must be "iso" exactly when the wire spans' min/max ratio is
+    >= 0.2, and never "iso" otherwise. A design that hand-sets the value
+    is exempt — that is its own decision, checked separately by
+    test_auto_default_view_pins and the explicit-override designs above.
+    """
+    cls = _builder_cls(name)
+    if _ui_scalar(dict(cls.default_params), "default_view", None) is not None:
+        pytest.skip(f"{name}: explicit ui_params['default_view'] override")
+    lo, _mid, hi = _wire_spans(cls)
+    ratio = lo / hi if hi > 0 else 0.0
+    if ratio >= 0.2:
+        assert REGISTRY[name].default_view == "iso", (
+            f"{name}: min/max span ratio {ratio:.3f} >= 0.2 but view is "
+            f"{REGISTRY[name].default_view!r}"
+        )
+    else:
+        assert REGISTRY[name].default_view != "iso", (
+            f"{name}: min/max span ratio {ratio:.3f} < 0.2 but view is iso"
+        )
+
+
+def test_auto_default_view_non_planar_synthetic_builder_is_iso():
+    """Unit test of the rule in isolation: a genuinely 3D shape (all three
+    spans comparable) must autodetect "iso", not fall through to a 2D
+    plane just because x happens to be nonzero.
+    """
+
+    class Cube:
+        def build_wires(self):
+            return [
+                Wire((0, 0, 0), (1, 1, 1), 10, 1.0),
+                Wire((0, 1, 0), (1, 0, 1), 10, None),
+            ]
+
+    assert _auto_default_view(Cube) == "iso"
+
+    class BarelyPlanar:
+        # spans (x, y, z) = (1.0, 0.5, 0.19) — min/max = 0.19, just under
+        # the 0.2 threshold, so this must still fall through to the
+        # 2D-plane rule, not iso.
+        def build_wires(self):
+            return [Wire((0, 0, 0), (1.0, 0.5, 0.19), 10, 1.0)]
+
+    assert _auto_default_view(BarelyPlanar) != "iso"
+
+    class JustOverPlanar:
+        # spans (x, y, z) = (1.0, 0.5, 0.20) — min/max = 0.20, right at
+        # the threshold (>=), must be iso.
+        def build_wires(self):
+            return [Wire((0, 0, 0), (1.0, 0.5, 0.20), 10, 1.0)]
+
+    assert _auto_default_view(JustOverPlanar) == "iso"
 
 
 @pytest.mark.parametrize("name", DESIGN_NAMES)

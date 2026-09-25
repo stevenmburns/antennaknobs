@@ -522,7 +522,7 @@ def test_enum_options_always_serialize_as_value_label_dicts(client: TestClient):
 def test_examples_carry_default_view_in_valid_set(client: TestClient):
     payload = client.get("/examples").json()
     for ex in payload["examples"]:
-        assert ex["default_view"] in {"xy", "yz", "xz"}
+        assert ex["default_view"] in {"xy", "yz", "xz", "iso"}
 
 
 def test_examples_carry_sweep_policy_keys(client: TestClient):
@@ -1658,7 +1658,7 @@ def test_deferred_design_view_is_null_then_arrives_with_preview():
     ex = adapter._make_example("user.noview", NoView, defer_hints=True)
     assert ex.default_view is None  # schema holds; camera stays put
     g = ex.momwire_geometry({})  # the builder runs here
-    assert g["default_view"] in {"xy", "yz", "xz"}  # real view rides the preview
+    assert g["default_view"] in {"xy", "yz", "xz", "iso"}  # real view rides the preview
 
 
 def test_geometry_endpoint_refuses_an_unknown_geometry_with_400(client: TestClient):
