@@ -24,7 +24,8 @@ on the fly: ``build_wires`` returns the deck's wires with per-wire specs,
 ``build_network`` the deck's (or station ``.ssn``'s) translated network,
 ``freq`` is seeded from the file (the FR card / the Generator's MHz), the FR
 range or an armed Generator sweep seeds ``ui_params["meas_freq_range"]`` and,
-with its spacing, ``ui_params["sweep_range"]`` (AK#1682), and
+with its spacing, ``ui_params["sweep_range"]`` (AK#1682), a ``.ssn``
+Generator's Zo seeds ``ui_params["target_z0"]`` (AK#1735), and
 whatever the import left behind lands under ``ui_params["notes"]``.
 
 A ``.nec`` deck written in 4nec2's ``SY`` dialect keeps its parametrisation
@@ -120,8 +121,14 @@ def _make_builder(
     ground_card=None,
     sweep_grid=None,
     knobs=None,
+    target_z0=None,
 ):
     ui: dict = {}
+    # AK#1735: the reference impedance the file itself names (a `.ssn`
+    # Generator's Zo). It seeds the app's SWR reference and the optimizer's
+    # Zo field; a `.nec` deck has no such card, so the default applies.
+    if target_z0 is not None:
+        ui["target_z0"] = float(target_z0)
     # A zero-width range seeds nothing: one FR point, or an .ssn with no armed
     # sweep. It pinned both the measurement dial and the design slider to that
     # one value (#1487 for decks, #1489 for .ssn), so the adapter's ±1.5 %
@@ -745,7 +752,17 @@ def _ssn_builder(path: Path, text: str, refine: int = 1):
         file_deck=deck,
         sweep_grid=sweep_grid,
         knobs=knobs,
+        target_z0=_generator_zo(circuit.gen_zo),
     )
+
+
+def _generator_zo(zo):
+    """The Generator's Zo as a design reference impedance, or None when the
+    file carries none or one that is not a positive, finite number (the
+    parser already maps an unreadable Zo to None)."""
+    if zo is None or not math.isfinite(zo) or zo <= 0.0:
+        return None
+    return float(zo)
 
 
 # extension -> loader

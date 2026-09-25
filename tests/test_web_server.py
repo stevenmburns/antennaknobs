@@ -2397,6 +2397,9 @@ _IGNORED_FIELDS = frozenset(
         "_request_id",
         "_client_ts",
         "_seq",
+        # AK#1735: the reference impedance moves SWR, never Z; server.solve()
+        # re-stamps the response's z0_ohms from the request on a hit.
+        "z0_ohms",
     }
 )
 

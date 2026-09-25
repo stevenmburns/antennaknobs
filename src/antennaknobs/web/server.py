@@ -1593,6 +1593,10 @@ _CACHE_KEY_BLOCKLIST = frozenset(
         # invalidated cache hits for all subsequent knob scrubs.
         "az_elev_deg",
         "elev_az_deg",
+        # The reference impedance (AK#1735): it moves the SWR and the Smith
+        # centre, never Z, so a Zo edit must land on the same entry. `solve()`
+        # re-stamps the response's `z0_ohms` on a hit from the request.
+        "z0_ohms",
     }
 )
 
@@ -1847,6 +1851,8 @@ def _track_signature(req: dict) -> tuple:
         tuple((f.get("name"), f.get("min"), f.get("max")) for f in free),
         (t.get("drag") or {}).get("name"),
         float(req.get("freq") or 0.0),
+        # AK#1735: a match_z0 root is R = Z0, so a new reference is a new root.
+        req.get("z0_ohms"),
         # The client bumps this every time the mode is switched ON, which is
         # what makes re-enabling a FRESH ROOT FIND from the current point
         # (rule 4). Without it the server's tracker survives the toggle -- the
@@ -1950,6 +1956,13 @@ def solve(req: dict, cancel=None) -> dict:
         # tick first populated this cache entry.
         out["solve_ms"] = (time.perf_counter() - t0) * 1e3
         out["cache_hit"] = True
+        # AK#1735: z0_ohms is out of the key, so the entry carries whichever
+        # reference first filled it. The request's own (or the design's) is
+        # the one this response speaks for.
+        if "design_z0_ohms" in out:
+            from .adapter import request_z0
+
+            out["z0_ohms"] = request_z0(req, out["design_z0_ohms"])
         # solve_id (issue #551): the canonical key itself — already an opaque
         # 128-bit blake2b digest, so it doubles as the advisory cuts-cache
         # handle the client sends back instead of the full solve body. The
@@ -3180,6 +3193,17 @@ async def optimize_endpoint(req: dict, request: Request):
             # full MoM solve that skips the solve cache, so an unbounded
             # budget is a sustained-CPU lever (issue #346).
             max_evals = min(max_evals, _MAX_OPT_EVALS)
+
+    # AK#1735: the reference a swr / match_z0 run measures against. Checked
+    # here so a bad one is refused before any eval, in the same shape as the
+    # other refusals; every eval's solve then echoes it as `z0_ohms`.
+    if req.get("z0_ohms") is not None:
+        from .adapter import request_z0
+
+        try:
+            request_z0(req, 50.0)
+        except ValueError as exc:
+            return _reject({"error": str(exc)})
 
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     ex = example_for(geometry)
