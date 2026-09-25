@@ -39,7 +39,9 @@ constant is a knob ``dcl_<name>`` (``tmp_<name>`` for a ``$name``
 temporary), its line's ``//`` comment the tooltip; so is each input parameter
 SimNEC saved on the antenna element (a ``<numericParam>`` the script reads but
 never assigns, AK#1716), as ``par_<name>``, including one that sets a
-``JamSegments`` count. The file's topology is frozen at its own values: a
+``JamSegments`` count; and each parameter the script assigns a constant
+(``prm len = 10.2;`` or a plain ``len = 10.2;``, AK#1734), as ``prm_<name>``.
+The file's topology is frozen at its own values: a
 knob value that changes which wire ends meet, or makes the geometry invalid,
 is refused by name. A file with no such constant is frozen geometry, as
 before: port the design to a real ``AntennaBuilder`` when its dimensions
@@ -340,8 +342,9 @@ _SCRIPT_DIALECT = MappingProxyType(dict(_DCL_DIALECT, constant="script constant"
 
 def _ssn_dialect(symbols):
     """How a circuit's knobs speak in the note: dcl constants, element
-    parameters (``par_``), or both."""
-    kinds = {s.param.startswith("par_") for s in symbols if s.kind == "knob"}
+    parameters (``par_``, and ``prm_`` for one the script assigns, AK#1734),
+    or both."""
+    kinds = {s.param[:4] in ("par_", "prm_") for s in symbols if s.kind == "knob"}
     if kinds == {True}:
         return _PAR_DIALECT
     return _SCRIPT_DIALECT if kinds == {True, False} else _DCL_DIALECT

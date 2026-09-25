@@ -53,8 +53,20 @@ A bare name the script reads but never assigns (``len;`` ... ``GW 1 11 0 0 9
 saves its value there (``<numericParam>len</numericParam><v>10.2</v>``,
 AK#1716). Such an input parameter is a constant to the cards too, and to a
 ``$GW_<tag>.JamSegments(<expression>)`` count; `classify_dcl` publishes it as
-``par_<name>``. A parameter the script assigns is an output SimNEC computed,
-never an input.
+``par_<name>``. ``prm len;`` and ``prm len,hei,fp;`` are Anvil's explicit
+form of the same declaration (AK#1734), read the same way; a ``prm file[];``
+file parameter and the ``prm num; prm runs; prm logLvl;`` boilerplate are
+declarations with nothing to apply.
+
+A parameter the script assigns a constant -- ``prm len = 10.2;``, or a plain
+``len = 10.2;`` with no dcl, $ or prm -- at top level, once, is a constant of
+the script by the dcl rule, published as ``prm_<name>`` (AK#1734): the script
+line sets its value on every run, so that line, not the value the element
+saves, is the one used, and a saved value that disagrees is reported
+(``SsnCircuit.saved_param_notes``). A parameter assigned anything else (an
+output such as ``Trap23 = R2.z;``, a string), more than once, or inside a
+``{ }`` block or a brace-less ``if``/``else``/``while``/``for`` body is an output SimNEC computed, never an input: a card that reads
+one is refused by name.
 
 The solve frequency comes from the GENERATOR element's ``MHz`` — in SimNEC the
 deck's ``FR`` card is advisory; the Generator drives the solve — and an armed
@@ -508,6 +520,10 @@ class SsnCircuit:
     # FR cards not read because they name something the script does not set
     # as a constant (AK#1714; SimNEC's FR is advisory), as written, with why.
     dropped_fr: tuple[str, ...] = ()
+    # Parameters the script assigns (``prm len = 10.2;``, ``len = 10.2;``,
+    # AK#1734) whose value saved on the element disagrees with the script's:
+    # the script's is used, as SimNEC's next run would, and these say so.
+    saved_param_notes: tuple[str, ...] = ()
 
     def skipped_note(self) -> str | None:
         """One human-readable sentence naming what the file carries that the
@@ -530,6 +546,7 @@ class SsnCircuit:
             parts.append(self.sweep_note)
         for card in self.dropped_fr:
             parts.append(f"FR card not read: {card}")
+        parts.extend(self.saved_param_notes)
         for el in self.chain:
             if el.typ in _MATCH_CHAIN and _chain_f(el, "MHz", default=0.0) <= 0.0:
                 # AK#1646: SimNEC retunes an MHz = 0 XMATCH at every
@@ -1187,8 +1204,10 @@ def _sim_eval(tree, env: Mapping[str, float], what: str) -> float:
 class _Assign:
     """One assignment the script makes (AK#1714). ``expr`` is None for one
     that is not ``name = expr`` (an ``x++``, a ``+=``, a bare ``dcl x``).
-    ``constant`` marks the two constant forms: a top-level (outside any
-    ``{ }``) ``dcl name = expr`` or ``$name = expr`` statement of its own."""
+    ``constant`` marks the constant forms: a top-level (outside any ``{ }``)
+    ``dcl name = expr``, ``$name = expr``, ``prm name = expr`` or plain
+    ``name = expr`` statement of its own. ``form`` says which: ``"dcl"``,
+    ``"tmp"``, ``"prm"`` or ``"plain"`` (AK#1734), ``""`` for any other."""
 
     name: str
     expr: str | None
@@ -1197,12 +1216,25 @@ class _Assign:
     constant: bool
     stmt: str
     declares: bool = False
+    form: str = ""
 
 
 _NAME = r"\$?[A-Za-z_]\w*"
 _DCL_ASSIGN = re.compile(rf"^dcl\s+({_NAME})\s*=(?!=)\s*(.*)$", re.DOTALL)
 _DCL_BARE = re.compile(rf"^dcl\s+({_NAME})\s*$")
 _TMP_ASSIGN = re.compile(r"^(\$[A-Za-z_]\w*)\s*=(?!=)\s*(.*)$", re.DOTALL)
+# `prm name = expr` (AK#1734): Anvil's explicit passive declaration of an
+# element parameter, assigned. And the implicit form, a plain `name = expr`
+# with no dcl, $ or prm: the name is a parameter of the element all the same
+# (the Anvil manual, "Passive Declaration"), and the script sets it.
+_PRM_ASSIGN = re.compile(r"^prm\s+([A-Za-z_]\w*)\s*=(?!=)\s*(.*)$", re.DOTALL)
+_PLAIN_ASSIGN = re.compile(r"^([A-Za-z_]\w*)\s*=(?!=)\s*(.*)$", re.DOTALL)
+# `prm a;`, `prm a,b,c;`, `prm file[];` (AK#1734): declarations, no
+# assignment. Each plain name is an input parameter, as a bare `a;` is; a
+# `name[]` is a file parameter, not numeric, and not read here.
+_PRM_DECL = re.compile(
+    r"^prm\s+([A-Za-z_]\w*(?:\[\])?(?:\s*,\s*[A-Za-z_]\w*(?:\[\])?)*)$"
+)
 # Any other assignment inside a statement: `if (c) $x = 1`, `x += 2`,
 # `$i++`, `for($i=0` -- the name is assigned, so not a constant.
 _ANY_ASSIGN = re.compile(
@@ -1213,11 +1245,27 @@ _ANY_ASSIGN = re.compile(
 
 def _assignments(stmt: str, depth: int, comment: str, line: int) -> list[_Assign]:
     """The assignments one directive statement makes."""
-    for pat in (_DCL_ASSIGN, _TMP_ASSIGN):
+    for pat, form in (
+        (_DCL_ASSIGN, "dcl"),
+        (_TMP_ASSIGN, "tmp"),
+        (_PRM_ASSIGN, "prm"),
+        (_PLAIN_ASSIGN, "plain"),
+    ):
         m = pat.match(stmt)
+        if m and form in ("prm", "plain") and _ANY_ASSIGN.search(m.group(2)):
+            # `a = b = 3` assigns b too: not a constant form, read below.
+            break
         if m:
             return [
-                _Assign(m.group(1), m.group(2).strip(), comment, line, depth == 0, stmt)
+                _Assign(
+                    m.group(1),
+                    m.group(2).strip(),
+                    comment,
+                    line,
+                    depth == 0,
+                    stmt,
+                    form=form,
+                )
             ]
     m = _DCL_BARE.match(stmt)
     if m:
@@ -1226,6 +1274,49 @@ def _assignments(stmt: str, depth: int, comment: str, line: int) -> list[_Assign
         _Assign(next(g for g in m.groups() if g), None, comment, line, False, stmt)
         for m in _ANY_ASSIGN.finditer(stmt)
     ]
+
+
+_CONTROL = re.compile(r"^(?:\}\s*)?(?:(else)$|(?:if|while|else\s+if|for)\s*\()")
+
+
+def _closes_at_end(stmt: str, start: int) -> bool:
+    """Whether the ``(`` at ``stmt[start]`` is closed by the last character."""
+    level = 0
+    for k in range(start, len(stmt)):
+        level += {"(": 1, ")": -1}.get(stmt[k], 0)
+        if level == 0:
+            return k == len(stmt) - 1
+    return False
+
+
+def _control_header(stmt: str, in_for: bool) -> tuple[bool, bool]:
+    """``(body, in_for)`` after ``stmt`` (AK#1734): whether the next
+    statement is the brace-less body of a control header ``stmt`` ends
+    (``if (c)``, ``while (c)``, ``else``, the last part of ``for (a; b; c)``,
+    which the ``;`` split cuts in three), and whether a ``for`` header is
+    still open. A header that opens a ``{`` has its body counted by the
+    brace depth instead, and ``if (c) x = 1`` carries its own body."""
+    if "{" in stmt:
+        return False, False
+    if in_for:
+        # The rest of a `for (` header: it ends at its unmatched `)`.
+        level = 0
+        for k, ch in enumerate(stmt):
+            level += {"(": 1, ")": -1}.get(ch, 0)
+            if level < 0:
+                return k == len(stmt) - 1, False
+        return False, True
+    m = _CONTROL.match(stmt)
+    if m is None:
+        return False, False
+    if m.group(1):
+        return True, False
+    start = m.end() - 1
+    if _closes_at_end(stmt, start):
+        return True, False
+    # `for($i=0` -- the header goes on past this statement.
+    level = sum({"(": 1, ")": -1}.get(ch, 0) for ch in stmt[start:])
+    return False, level > 0 and stmt.lstrip("} ").startswith("for")
 
 
 def _card_mnemonic(fields: list[str]) -> tuple[str, list[str]]:
@@ -1258,6 +1349,9 @@ class _DclConstant:
     line: int
     stmt: str
     param: bool = False
+    # The `_Assign.form` of the constant's statement: "dcl", "tmp", "prm" or
+    # "plain" (AK#1734); "" for an input parameter.
+    form: str = ""
 
 
 @dataclass(frozen=True)
@@ -1344,6 +1438,36 @@ class _DclCards:
         return out
 
 
+def _saved_param_notes(script: _Script, dcl: _DclCards, where: str) -> tuple[str, ...]:
+    """Each parameter the script assigns (AK#1734) whose value saved on the
+    element is not the value the script gives it at the file's own
+    constants. SimNEC runs the assignment before it reads the cards, so the
+    script's value is the one solved, and the saved one is what an earlier
+    run left; a mismatch means the file was edited since, and is reported
+    rather than resolved silently."""
+    passive = [c for c in dcl.constants if c.form in ("prm", "plain")]
+    if not passive:
+        return ()
+    values = dcl.values(where)
+    out = []
+    for c in passive:
+        if c.name not in script.params:
+            continue
+        raw = (script.params[c.name] or "").strip()
+        try:
+            tree = _sim_parse(raw, "")
+            saved = None if _sim_names(tree) else _sim_eval(tree, {}, "")
+        except ValueError:
+            saved = None
+        if saved != values[c.name]:
+            out.append(
+                f"element parameter {c.name}'s saved value {raw or '(empty)'} is "
+                f"not used: the script sets it ({c.stmt!r} is "
+                f"{values[c.name]!r})"
+            )
+    return tuple(out)
+
+
 def _constant_what(where: str, c: _DclConstant) -> str:
     """Where a constant's own value is, for its refusals."""
     if c.param:
@@ -1386,6 +1510,10 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
     def constant(name: str) -> _Assign | None:
         hits = [a for a in assigned.get(name, ()) if not a.declares]
         if len(hits) == 1 and hits[0].constant and hits[0].expr:
+            if hits[0].form in ("prm", "plain") and not _readable(hits[0].expr):
+                # `Trap23 = R2.z;`: a parameter the script sets from what is
+                # no constant (a member, a string) -- an output (AK#1734).
+                return None
             return hits[0]
         return None
 
@@ -1394,7 +1522,15 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
 
     def why_not(name: str) -> str:
         hits = [a for a in assigned.get(name, ()) if not a.declares]
-        if name in script.params and not name.startswith("$") and hits:
+        # A name the script sets by `prm` or plain assignment, and never
+        # declares with dcl, is a parameter of the element whether or not
+        # the element saved it (AK#1734).
+        passive = (
+            len(hits) == 1
+            and hits[0].form in ("prm", "plain")
+            and not any(a.form == "dcl" or a.declares for a in assigned[name])
+        )
+        if (name in script.params or passive) and not name.startswith("$") and hits:
             return (
                 f"a parameter of the element that the script assigns "
                 f"({hits[0].stmt!r}), so an output SimNEC computes, not an input"
@@ -1416,8 +1552,9 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
                 f"which the script assigns {len(hits)} times, so it is not a constant"
             )
         return (
-            "which the script does not set as a constant (a `dcl` or `$` "
-            "assignment of its own, outside any { } block)"
+            "which the script does not set as a constant (a `dcl`, `$`, `prm` "
+            "or plain `name = value` assignment of its own, outside any { } "
+            "block)"
         )
 
     out: list = []
@@ -1491,7 +1628,7 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
                     f"{where}: {a.stmt!r} reads {ref!r} before the script defines it"
                 )
             todo.append(ref)
-        need[n] = _DclConstant(n, a.expr, tree, a.comment, a.line, a.stmt)
+        need[n] = _DclConstant(n, a.expr, tree, a.comment, a.line, a.stmt, form=a.form)
     constants = tuple(
         sorted(
             need.values(),
@@ -1599,10 +1736,44 @@ def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
                 reaches=reaches,
                 default=default,
                 integer=integer,
-                param_name=_element_param(c.name) if c.param else _dcl_param(c.name),
+                param_name=_param_name(c),
             )
         )
     return tuple(out)
+
+
+def _param_name(c: _DclConstant) -> str:
+    """The design param a constant is published as: `_element_param` for an
+    input parameter, `_assigned_param` for a parameter the script assigns
+    (``prm name = ...`` or a plain ``name = ...``, AK#1734), `_dcl_param`
+    for a ``dcl`` or ``$`` constant."""
+    if c.param:
+        return _element_param(c.name)
+    if c.form in ("prm", "plain"):
+        return _assigned_param(c.name)
+    return _dcl_param(c.name)
+
+
+def _assigned_param(spelling: str) -> str:
+    """The design param a parameter the script assigns a constant is
+    published as (AK#1734): ``prm_<name>``, for ``prm name = 10.2;`` and for
+    the plain ``name = 10.2;`` alike -- the explicit and the implicit form of
+    one thing, a parameter of the element (Anvil's "Passive Declaration")
+    whose value a script line sets. Not ``par_``: that knob stands for the
+    value saved on the element, which the script overwrites on every run, so
+    a hand edit of it moves nothing; this one stands for the script line.
+    Not ``dcl_``: there is no dcl line to find."""
+    return f"prm_{spelling}"
+
+
+def _readable(expr: str) -> bool:
+    """Whether ``expr`` is an expression this import can evaluate (the
+    `_sim_parse` subset), names aside."""
+    try:
+        _sim_parse(expr, "")
+    except ValueError:
+        return False
+    return True
 
 
 def _dcl_param(spelling: str) -> str:
@@ -1650,8 +1821,9 @@ class _Script:
         # the statement), evaluated by `_dcl_cards` (AK#1716). A tag's later
         # JamSegments replaces its earlier one, in either form.
         self.jam_exprs: dict[int, tuple[str, str]] = {}
-        # Statements that are one bare name (`len;`), by name: (the line's
-        # `//` comment, line number, the statement) of the first (AK#1716).
+        # Statements that are one bare name (`len;`), or a `prm` declaration
+        # naming it (`prm len,hei;`, AK#1734), by name: (the line's `//`
+        # comment, line number, the statement) of the first (AK#1716).
         self.bare: dict[str, tuple[str, int, str]] = {}
         # `NECOptions.segmentsPerWavelength = <name>`: the name, resolved
         # once the whole script is read (`_resolve_seg_per_wl`).
@@ -1667,6 +1839,11 @@ class _Script:
         self.assigns: list[_Assign] = []
         in_cards = False
         depth = 0  # `{ }` nesting of the directive text
+        # The next statement is the brace-less body of an `if (...)`,
+        # `while (...)`, `for (...)` or `else` (AK#1734): conditional, so
+        # never a constant, as if it sat inside `{ }`. `in_for` is inside a
+        # `for (` header, which the `;` split cuts into three statements.
+        body, in_for = False, False
         in_comment = False  # inside a /* */ block
         for line_no, raw in enumerate(text.splitlines(), 1):
             line = raw.strip()
@@ -1707,10 +1884,19 @@ class _Script:
                 if stmt:
                     if not prose:
                         self.assigns.extend(
-                            _assignments(stmt, depth, comment.strip(), line_no)
+                            _assignments(stmt, depth + body, comment.strip(), line_no)
                         )
+                        body, in_for = _control_header(stmt, in_for)
                         if _BARE_NAME.match(stmt):
                             self.bare.setdefault(stmt, (comment.strip(), line_no, stmt))
+                        m = _PRM_DECL.match(stmt)
+                        if m:
+                            for decl in m.group(1).split(","):
+                                decl = decl.strip()
+                                if not decl.endswith("[]"):
+                                    self.bare.setdefault(
+                                        decl, (comment.strip(), line_no, stmt)
+                                    )
                         depth = max(0, depth + stmt.count("{") - stmt.count("}"))
                     self._directive(stmt, where)
         if in_cards:
@@ -1793,6 +1979,11 @@ class _Script:
     def _directive(self, stmt: str, where: str) -> None:
         if _PORT_DECL.match(stmt):
             return  # port declaration (P1 w1 gnd) — circuit structure only
+        if _PRM_DECL.match(stmt):
+            # `prm len;`, `prm file[];`, `prm num; prm runs; prm logLvl;`
+            # (AK#1734): a declaration, nothing to apply. A parameter the
+            # cards read is read from the element's saved value.
+            return
         m = _JAM.match(stmt)
         if m:
             self.jam[int(m.group(1))] = (int(m.group(2)), stmt)
@@ -2359,6 +2550,7 @@ def parse_ssn(
         sweep_note=sweep_note,
         sweep_grid=sweep_grid,
         dropped_fr=dcl.dropped,
+        saved_param_notes=_saved_param_notes(script, dcl, name),
     )
 
 
