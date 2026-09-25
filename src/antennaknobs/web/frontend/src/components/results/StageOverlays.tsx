@@ -214,6 +214,50 @@ export function SweepAdvisoryOverlay({
   );
 }
 
+// The freq-sweep switch, one component for all three sweep charts (AK#1738):
+// the Smith chart renders it inside SmithOverlayControls, the VSWR and S11
+// charts through SweepOverlayControls below. Same session state everywhere.
+function FreqSweepCheckbox({
+  sweepEnabled,
+  setSweepEnabled,
+}: {
+  sweepEnabled: boolean;
+  setSweepEnabled: (v: boolean) => void;
+}) {
+  return (
+    <label
+      className="overlay-checkbox"
+      title="Sweep Z across the measurement band — the Smith locus and the VSWR and S11 curves, one switch for all three charts"
+    >
+      <input
+        type="checkbox"
+        checked={sweepEnabled}
+        onChange={(e) => setSweepEnabled(e.target.checked)}
+      />
+      freq sweep
+    </label>
+  );
+}
+
+// The VSWR and S11 charts' overlay: the shared freq-sweep switch. Desktop
+// only, like the Smith chart's (the gear menu carries it on mobile).
+export function SweepOverlayControls({
+  sweepEnabled,
+  setSweepEnabled,
+}: {
+  sweepEnabled: boolean;
+  setSweepEnabled: (v: boolean) => void;
+}) {
+  return (
+    <div className="smith-overlay">
+      <FreqSweepCheckbox
+        sweepEnabled={sweepEnabled}
+        setSweepEnabled={setSweepEnabled}
+      />
+    </div>
+  );
+}
+
 // Both smith-overlay children are checkboxes — nothing to keep on mobile
 // (the toggles live in the gear menu there).
 export function SmithOverlayControls({
@@ -237,17 +281,10 @@ export function SmithOverlayControls({
 }) {
   return (
     <div className="smith-overlay">
-      <label
-        className="overlay-checkbox"
-        title="Sweep Z across measurement freq and plot the locus on the Smith chart"
-      >
-        <input
-          type="checkbox"
-          checked={sweepEnabled}
-          onChange={(e) => setSweepEnabled(e.target.checked)}
-        />
-        freq sweep
-      </label>
+      <FreqSweepCheckbox
+        sweepEnabled={sweepEnabled}
+        setSweepEnabled={setSweepEnabled}
+      />
       <label
         className="overlay-checkbox"
         title={`Re-solve at N = ${convergeNValues.join(", ")} segments per λ/4 and Richardson-extrapolate Z to N→∞`}

@@ -256,7 +256,7 @@ export function SessionGearMenu({
                   <div className="gear-menu-section">smith chart</div>
                   <label
                     className="gear-menu-check"
-                    title="Sweep Z across measurement freq and plot the locus on the Smith chart"
+                    title="Sweep Z across the measurement band — the Smith locus and the VSWR and S11 curves, one switch for all three charts"
                   >
                     <input
                       type="checkbox"
