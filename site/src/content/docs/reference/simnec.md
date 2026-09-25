@@ -264,6 +264,49 @@ Constants used only outside the NEC block, such as the `L`/`C` values of an
 N-block trap (`R2 (L(L_23, Q_23) ||| C(C_23)) r2a r2b;`), are not read, and
 the statements that use them are listed as not applied, as before.
 
+### Element parameters are knobs
+
+A bare name in the script — no `dcl`, no `$` — is a **parameter** of the
+circuit element: SimNEC adds it to the element, lists it with the element's
+other values, and saves its value in the file. AC6LA's variable-length
+dipole is the whole idiom:
+
+```
+len;
+segs;
+NEC2
+GW 1 11 0. 0. 9. 0. len 9. 0.001
+...
+NECEND
+$GW_1.JamSegments(segs);
+```
+
+with `len` = 10.2 and `segs` = 30 saved on the element. Each such parameter
+the cards read becomes the knob `par_<name>` at its saved value, published
+exactly as a `dcl` constant is: labelled with its spelling, its bare
+statement's `//` comment the tooltip, bit for bit the import at its
+defaults, the topology frozen, a `dcl` constant that reads it following it.
+The prefix is `par_`, not `dcl_`, because the value lives in a different
+place in the file — on the element rather than in a `dcl` line — and a saved
+setting names the one it sets.
+
+A parameter may also set a **segment count**: `JamSegments` takes an
+expression, so `JamSegments(segs)` makes `segs` a whole-number knob for that
+wire's count, honoured exactly as a literal count is. A count below 1 or a
+fraction is refused, naming the parameter — a literal `JamSegments(0)` still
+means "auto-segment as usual", but a knob dragged to 0 does not silently
+switch the wire back to its `GW` count.
+
+Only an **input** is a knob. SimNEC saves a parameter's value whether the
+user set it or the script computed it — AC6LA's trap dipole saves
+`Trap23 = R2.z;` as a parameter too, and his Yagis save a `SegCnt` counted in
+an `at(finalValue) { }` block — so a parameter the script assigns anywhere is
+an output: never a knob, and a card that reads one is refused by name. So is
+a name that is neither a constant nor a saved parameter. A
+`NECOptions.segmentsPerWavelength` that names a parameter (`= segsWL`, in
+AC6LA's Synth conversions) takes its saved value, which, like any
+`segmentsPerWavelength`, only feeds the mesh note.
+
 ## The round-trip guarantee
 
 Export → import is pinned by identity tests: a transformer's turns ratio and
