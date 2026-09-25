@@ -2340,6 +2340,16 @@ def _nec_block(text: str, name: str):
     try:
         root = ET.fromstring(text)
     except ET.ParseError as e:
+        # A .ssn is SimNEC's saved circuit, an XML document. Text that does
+        # not even start as XML is not a malformed circuit but some other
+        # file saved under the name: AC6LA's was an N-block script copied
+        # from a post (QRZ 1003328 #157), which parsed as "invalid token,
+        # line 1, column 0". Say what the file is not, not where XML broke.
+        if not text.lstrip().startswith("<"):
+            raise ValueError(
+                f"{name}: not a .ssn file (a .ssn is a circuit saved by "
+                "SimNEC, an XML document)"
+            ) from None
         raise ValueError(f"{name}: not well-formed .ssn XML ({e})") from None
 
     elements = root.findall(".//CIRCUIT/element")
