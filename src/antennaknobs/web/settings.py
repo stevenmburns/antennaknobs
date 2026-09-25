@@ -1,15 +1,19 @@
 """Startup settings for the web workbench (AK#1492).
 
 A local ``settings.toml`` says where the workbench STARTS: the Settings-menu
-switches, the ground, and the A/B/C solver slots. It is read on every
-``/capabilities`` request, so an edit applies at the next page load, and it is
-validated here, once, against the catalogs the UI itself renders from: the
-solver roster and its knob specs, and the soil and terrain presets. A problem
+switches, the Antenna view's orientation, the ground, and the A/B/C solver
+slots. It is read on every ``/capabilities`` request, so an edit applies at
+the next page load, and it is validated here, once, against the catalogs the
+UI itself renders from: the solver roster and its knob specs, and the soil
+and terrain presets. A problem
 never stops the server. It comes back as a sentence beside the values that did
 apply, and the entry it names keeps its built-in default.
 
     [switches]
     freq_sweep = false
+
+    [antenna_view]
+    orientation = "iso"      # auto | top | front | side | iso
 
     [ground]
     enabled = true
@@ -75,11 +79,17 @@ GROUND_BUILTIN: dict = {
     "soil": None,
     "terrain_preset": None,
 }
+# The Antenna view's orientation on every design load (AK#1737). "auto" is
+# the per-design guess (adapter._auto_default_view, or a design's own
+# ui_params["default_view"]), which is today's behaviour and the default, so a
+# save leaves it out; any other value wins over that guess at EVERY load.
+ORIENTATIONS = ("auto", "top", "front", "side", "iso")
+ANTENNA_VIEW_BUILTIN: dict = {"orientation": "auto"}
 GROUND_TYPES = ("finite", "pec", "terrain")
 GROUND_METHODS = ("fast", "sommerfeld", "mininec")
 SLOTS = ("A", "B", "C")
 
-_TABLES = ("switches", "ground", "slots")
+_TABLES = ("switches", "antenna_view", "ground", "slots")
 # Tables only a person editing the file sets (antennaknobs.settings_file): a
 # path the server executes must never be settable by a web request.
 _FILE_TABLES = ("engines", "capture")
@@ -87,6 +97,7 @@ _ENGINE_KEYS = ("nec5_exe", "nec2_exe")
 _CAPTURE_KEYS = ("dir",)
 _GROUND_KEYS = ("enabled", "type", "method", "soil", "eps_r", "sigma", "terrain_preset")
 _SLOT_KEYS = ("backend", "n_per_wire", "model")
+_ANTENNA_VIEW_KEYS = ("orientation",)
 
 
 class SettingsError(ValueError):
@@ -174,13 +185,16 @@ def resolve(data, cat: Catalog, *, from_file: bool = True) -> tuple[dict, list[s
     problems: list[str] = []
     switches = {k: d for k, _, d in SWITCHES}
     switches_set: list[str] = []
+    antenna_view = dict(ANTENNA_VIEW_BUILTIN)
     ground = dict(GROUND_BUILTIN)
     ground_set: list[str] = []
     slots: dict[str, dict] = {}
 
     if not isinstance(data, Mapping):
-        return _resolved(switches, switches_set, ground, ground_set, slots), [
-            "settings must be a table of [switches], [ground] and [slots]"
+        return _resolved(
+            switches, switches_set, ground, ground_set, slots, antenna_view
+        ), [
+            "settings must be a table of [switches], [antenna_view], [ground] and [slots]"
         ]
     allowed = _TABLES + _FILE_TABLES if from_file else _TABLES
     for key in data:
@@ -205,6 +219,23 @@ def resolve(data, cat: Catalog, *, from_file: bool = True) -> tuple[dict, list[s
         else:
             switches[key] = value
             switches_set.append(key)
+
+    table = data.get("antenna_view", {})
+    if not isinstance(table, Mapping):
+        problems.append("[antenna_view] must be a table")
+        table = {}
+    for key, value in table.items():
+        if key not in _ANTENNA_VIEW_KEYS:
+            problems.append(
+                f"[antenna_view] {key}: not an antenna view setting "
+                f"(known: {_known(_ANTENNA_VIEW_KEYS)})"
+            )
+        elif value not in ORIENTATIONS:
+            problems.append(
+                f"[antenna_view] {key} = {value!r}: must be one of {_known(ORIENTATIONS)}"
+            )
+        else:
+            antenna_view[key] = value
 
     table = data.get("ground", {})
     if not isinstance(table, Mapping):
@@ -305,7 +336,16 @@ def resolve(data, cat: Catalog, *, from_file: bool = True) -> tuple[dict, list[s
         else {}
     )
     return (
-        _resolved(switches, switches_set, ground, ground_set, slots, engines, capture),
+        _resolved(
+            switches,
+            switches_set,
+            ground,
+            ground_set,
+            slots,
+            antenna_view,
+            engines,
+            capture,
+        ),
         problems,
     )
 
@@ -396,11 +436,19 @@ def _resolve_slot(slot, entry, stock, cat: Catalog, problems) -> dict:
 
 
 def _resolved(
-    switches, switches_set, ground, ground_set, slots, engines=None, capture=None
+    switches,
+    switches_set,
+    ground,
+    ground_set,
+    slots,
+    antenna_view=None,
+    engines=None,
+    capture=None,
 ) -> dict:
     return {
         "switches": switches,
         "switches_set": switches_set,
+        "antenna_view": antenna_view or dict(ANTENNA_VIEW_BUILTIN),
         "ground": ground,
         "ground_set": ground_set,
         "slots": slots,
@@ -491,6 +539,12 @@ def _differences(resolved: dict, cat: Catalog) -> dict:
         for key, _, default in SWITCHES
         if resolved["switches"][key] != default
     }
+    # "auto" is the built-in, so it is never written (AK#1737).
+    antenna_view = {
+        key: value
+        for key, value in resolved["antenna_view"].items()
+        if value != ANTENNA_VIEW_BUILTIN[key]
+    }
     given = resolved["ground"]
     ground = {
         key: given[key]
@@ -515,7 +569,12 @@ def _differences(resolved: dict, cat: Catalog) -> dict:
             diff = _slot_differences(resolved["slots"][slot], stock.get(slot), cat)
             if diff:
                 slots[slot] = diff
-    return {"switches": switches, "ground": ground, "slots": slots}
+    return {
+        "switches": switches,
+        "antenna_view": antenna_view,
+        "ground": ground,
+        "slots": slots,
+    }
 
 
 def _slot_differences(entry: Mapping, seed: Mapping | None, cat: Catalog) -> dict:
@@ -551,7 +610,7 @@ def _slot_differences(entry: Mapping, seed: Mapping | None, cat: Catalog) -> dic
 
 def dump(settings: dict, kept: Mapping | None = None) -> str:
     """TOML text for what a save writes (``_differences``): its switches,
-    ground and slots, then the hand-edited tables carried over verbatim. A
+    antenna view, ground and slots, then the hand-edited tables carried over verbatim. A
     table with nothing in it is left out."""
     stamp = _dt.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
     lines = [
@@ -561,8 +620,8 @@ def dump(settings: dict, kept: Mapping | None = None) -> str:
         "# follows the version you run. Hand edits are fine, and the file is",
         "# re-read at every page load.",
     ]
-    for table_name in ("switches", "ground"):
-        if settings[table_name]:
+    for table_name in ("switches", "antenna_view", "ground"):
+        if settings.get(table_name):
             lines += ["", f"[{table_name}]"]
             lines += [
                 f"{k} = {_toml_value(v)}" for k, v in settings[table_name].items()

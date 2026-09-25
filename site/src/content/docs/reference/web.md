@@ -124,8 +124,8 @@ measurement frequency that had drifted outside it back in.
 
 ## Where the workbench starts: `settings.toml`
 
-The Settings menu's switches, the ground and the three solver slots start
-from a file, so a workbench can open the way you use it, with the frequency
+The Settings menu's switches, the Antenna view's orientation, the ground and
+the three solver slots start from a file, so a workbench can open the way you use it, with the frequency
 sweep off, say. The file is `settings.toml` in the `.antennaknobs` folder in
 your home directory, the folder that holds `designs`:
 `~/.antennaknobs/settings.toml`, or `%USERPROFILE%\.antennaknobs\settings.toml`
@@ -143,6 +143,9 @@ heatmap_currents = true
 current_waveforms = false
 wire_labels = false
 feed_labels = true
+
+[antenna_view]
+orientation = "iso"         # auto, top, front, side or iso
 
 [ground]
 enabled = true
@@ -179,6 +182,13 @@ the slot picker offers, and its `model` knobs are the ones that solver's
 options panel shows. Naming a different solver starts that slot from the
 solver's own defaults.
 
+The Antenna view's `orientation` is `auto` unless the file says otherwise:
+each design opens on its own best view, Top, Front or Side, guessed from its
+shape. Any other value wins over that guess every time a design loads, not
+only the first. The view's own Top / Front / Side / Iso switch still changes it
+for the design on screen, until the next design loads. The Settings menu's
+*on load* choice sets the same thing for the session.
+
 - **When it applies.** The server reads the file at every page load, so edit
   it and reload; there is no need to restart. Whatever you change during a
   session changes as usual, and the next load starts from the file again.
@@ -187,7 +197,7 @@ solver's own defaults.
   the entry, and that entry keeps its built-in default. The server log says
   the same.
 - **Save as my defaults.** The Settings menu's *save as my defaults* writes the
-  session's switches, ground and slots to the file, but only where they differ
+  session's switches, antenna view on load, ground and slots to the file, but only where they differ
   from the built-in defaults. Everything you left alone stays out of the file,
   so it follows the defaults of whichever version you run next. A soil that
   matches a preset is written by its name. The previous file is kept beside it
