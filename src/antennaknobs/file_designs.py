@@ -36,11 +36,14 @@ symbols, segment counts written as ``int(...)`` and everything else follow as
 the author wrote them. A ``.ssn`` whose NEC cards name ``dcl`` constants
 (AK#1714, `simnec_import.classify_dcl`) gets the same treatment: each
 constant is a knob ``dcl_<name>`` (``tmp_<name>`` for a ``$name``
-temporary), its line's ``//`` comment the tooltip. The file's topology is
-frozen at its own values: a knob value that changes which wire ends meet, or
-makes the geometry invalid, is refused by name. A file with no such constant
-is frozen geometry, as before: port the design to a real ``AntennaBuilder``
-when its dimensions should tune.
+temporary), its line's ``//`` comment the tooltip; so is each input parameter
+SimNEC saved on the antenna element (a ``<numericParam>`` the script reads but
+never assigns, AK#1716), as ``par_<name>``, including one that sets a
+``JamSegments`` count. The file's topology is frozen at its own values: a
+knob value that changes which wire ends meet, or makes the geometry invalid,
+is refused by name. A file with no such constant is frozen geometry, as
+before: port the design to a real ``AntennaBuilder`` when its dimensions
+should tune.
 """
 
 from __future__ import annotations
@@ -181,8 +184,9 @@ def _make_builder(
         file_deck_parsed = file_deck
 
         # The file's knobs -- a deck's SY constants (AK#1705), a circuit's
-        # dcl constants (AK#1714) -- None for a frozen file. Not `sy_...` /
-        # `dcl_...`: those prefixes are the knobs' own.
+        # dcl constants (AK#1714) and element parameters (AK#1716) -- None
+        # for a frozen file. Not `sy_...` / `dcl_...` / `par_...`: those
+        # prefixes are the knobs' own.
         file_sy_knobs = knobs
 
         def build_wires(self):
@@ -328,14 +332,27 @@ _DCL_DIALECT = MappingProxyType(
         ),
     }
 )
+# A .ssn whose knobs are its element's parameters (AK#1716), and one that
+# mixes those with dcl constants.
+_PAR_DIALECT = MappingProxyType(dict(_DCL_DIALECT, constant="element parameter"))
+_SCRIPT_DIALECT = MappingProxyType(dict(_DCL_DIALECT, constant="script constant"))
+
+
+def _ssn_dialect(symbols):
+    """How a circuit's knobs speak in the note: dcl constants, element
+    parameters (``par_``), or both."""
+    kinds = {s.param.startswith("par_") for s in symbols if s.kind == "knob"}
+    if kinds == {True}:
+        return _PAR_DIALECT
+    return _SCRIPT_DIALECT if kinds == {True, False} else _DCL_DIALECT
 
 
 class _SyKnobs:
     """A file's constants as the design's knobs: a ``.nec`` deck's constant SY
-    symbols (AK#1705), or the dcl constants a ``.ssn``'s NEC cards read
-    (AK#1714). Both are `nec_import.SySymbol` records, classified by the same
-    rules (`classify_sy`, `simnec_import.classify_dcl`), so one machine
-    serves.
+    symbols (AK#1705), or the dcl constants and element parameters a
+    ``.ssn``'s NEC cards read (AK#1714, AK#1716). All are
+    `nec_import.SySymbol` records, classified by the same rules
+    (`classify_sy`, `simnec_import.classify_dcl`), so one machine serves.
 
     Every build re-parses the file with the knobs' values as overrides
     (``reparse``: ``parse_nec(..., sy_overrides=)`` for a deck,
@@ -420,15 +437,20 @@ class _SyKnobs:
 
     @classmethod
     def for_circuit(cls, path: Path, text: str, circuit, freq):
-        """A ``.ssn`` circuit's dcl knobs (AK#1714)."""
+        """A ``.ssn`` circuit's dcl knobs (AK#1714) and element-parameter
+        knobs (AK#1716)."""
+        try:
+            symbols = classify_dcl(text, name=path.name)
+        except ValueError:
+            return None, None
         return cls._for(
             path.stem,
             lambda overrides: _ssn_circuit(text, path.name, overrides),
-            lambda: classify_dcl(text, name=path.name),
+            lambda: symbols,
             circuit,
             freq,
             deck_of=lambda c: c.deck,
-            dialect=_DCL_DIALECT,
+            dialect=_ssn_dialect(symbols),
         )
 
     # -- values ------------------------------------------------------------

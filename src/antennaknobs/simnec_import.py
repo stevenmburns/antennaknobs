@@ -32,7 +32,8 @@ DISPLAYED in, and the NEC cards in the block are metres whatever it says
 as a 1/80-wave stub: 0.19 - j13972 ohms against SimNEC's 13.26 - j7.385.
 
 Segment counts are the deck's GW counts, and a ``$GW_<tag>.JamSegments(N)``
-sets that wire's count to exactly N (AK#1679). SimNEC's own re-mesh
+sets that wire's count to exactly N (AK#1679); N may be an expression of the
+script's constants and the element's parameters (AK#1716). SimNEC's own re-mesh
 (``NECOptions.segmentsPerWavelength`` and its segmentation pass) is not
 emulated, and ``SsnCircuit.mesh_note()`` says so.
 
@@ -43,8 +44,17 @@ of its Anvil language, the note above `_AnvilRules`) and hands ``parse_nec``
 the value. ``parse_ssn(..., dcl_overrides=)`` sets constants by name, and
 `classify_dcl` says which are knobs, so a ``.ssn`` file design publishes them
 as ``.nec`` SY constants are published (`file_designs._SyKnobs`). A card that
-names something the script never sets as a constant is refused by name; an FR
-card that does is dropped and reported, since SimNEC's FR is advisory.
+names something the script never sets as a constant, or saves as an input
+parameter (below), is refused by name; an FR card that does is dropped and
+reported, since SimNEC's FR is advisory.
+
+A bare name the script reads but never assigns (``len;`` ... ``GW 1 11 0 0 9
+0 len 9 0.001``) is a PARAMETER SimNEC added to the element, and the file
+saves its value there (``<numericParam>len</numericParam><v>10.2</v>``,
+AK#1716). Such an input parameter is a constant to the cards too, and to a
+``$GW_<tag>.JamSegments(<expression>)`` count; `classify_dcl` publishes it as
+``par_<name>``. A parameter the script assigns is an output SimNEC computed,
+never an input.
 
 The solve frequency comes from the GENERATOR element's ``MHz`` — in SimNEC the
 deck's ``FR`` card is advisory; the Generator drives the solve — and an armed
@@ -169,6 +179,14 @@ _NECOPTION = re.compile(r"^NECOptions\.(\w+)\s*=\s*(\S+)$", re.IGNORECASE)
 # and JamSegments fixes that wire's count (the NECPortal manual, "Suggesting
 # Wire Segmentation"). Applied exactly (AK#1679).
 _JAM = re.compile(r"^\$GW_(\d+)\s*\.\s*JamSegments\s*\(\s*(\d+)\s*\)$", re.IGNORECASE)
+# The same call with an expression for the count (`JamSegments(segs)`, AC6LA's
+# DipoleVarLenSegs.ssn, AK#1716): evaluated with the script's constants and
+# the element's parameters (`_DclCards.jam_counts`).
+_JAM_EXPR = re.compile(r"^\$GW_(\d+)\s*\.\s*JamSegments\s*\((.*)\)$", re.IGNORECASE)
+# A statement that is one bare name (`len;`): a reference, which makes SimNEC
+# add the name to the element as a parameter (SimNEC Manual, "Adding a
+# Parameter to the circuit Element"), never an assignment.
+_BARE_NAME = re.compile(r"^[A-Za-z_]\w*$")
 # A lumped load on a GW wire, the way SimNEC places one (AK#1683): an N-block
 # `R` component carrying the impedance between two nodes, and a NECSource
 # attaching those nodes to `$GW_<tag>` at a percentage of its length.
@@ -1228,7 +1246,9 @@ def _plain_number(field: str) -> bool:
 
 @dataclass(frozen=True)
 class _DclConstant:
-    """A script constant the cards read (AK#1714), in script order."""
+    """A script constant the cards read (AK#1714), in script order -- or an
+    input parameter of the element (AK#1716, ``param``), whose ``expr`` is
+    its saved value and ``stmt`` its bare ``name;`` statement, if any."""
 
     name: str  # as the script spells it (case-sensitive)
     expr: str
@@ -1236,6 +1256,7 @@ class _DclConstant:
     comment: str
     line: int
     stmt: str
+    param: bool = False
 
 
 @dataclass(frozen=True)
@@ -1251,6 +1272,9 @@ class _DclCards:
     constants: tuple[_DclConstant, ...]
     # FR cards not read (SimNEC's FR is advisory), with why.
     dropped: tuple[str, ...]
+    # `$GW_<tag>.JamSegments(<expression>)` (AK#1716): (tag, expression
+    # tree, the statement as written).
+    jams: tuple[tuple[int, tuple, str], ...] = ()
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -1265,8 +1289,35 @@ class _DclCards:
             if overrides and c.name in overrides:
                 env[c.name] = float(overrides[c.name])
             else:
-                env[c.name] = _sim_eval(c.tree, env, f"{where}: {c.stmt!r}")
+                env[c.name] = _sim_eval(c.tree, env, _constant_what(where, c))
         return env
+
+    def jam_counts(
+        self, where: str, overrides: Mapping[str, float] | None = None
+    ) -> dict[int, tuple[int, str]]:
+        """Each expression JamSegments as ``tag -> (count, statement)``, the
+        shape `_Script.jam` holds (AK#1716). The count must be a whole number
+        of 1 or more: a literal ``JamSegments(0)`` is SimNEC's "auto-segment
+        as usual" (the NECPortal manual), but a count a knob reaches 0 at, or
+        a fraction, is refused by name rather than read as that switch or
+        rounded."""
+        if not self.jams:
+            return {}
+        env = self.values(where, overrides)
+        out: dict[int, tuple[int, str]] = {}
+        for tag, tree, stmt in self.jams:
+            v = _sim_eval(tree, env, f"{where}: {stmt!r}")
+            if not (v >= 1 and v.is_integer()):
+                named = ", ".join(
+                    f"{n} = {env[n]:g}" for n in dict.fromkeys(_sim_names(tree))
+                )
+                raise ValueError(
+                    f"{where}: {stmt!r} asks for {v:g} segments"
+                    + (f" ({named})" if named else "")
+                    + "; JamSegments takes a whole count of 1 or more"
+                )
+            out[tag] = (int(v), stmt)
+        return out
 
     def render(self, where: str, overrides: Mapping[str, float] | None = None):
         """The cards `parse_nec` reads: every expression field replaced by
@@ -1290,6 +1341,13 @@ class _DclCards:
                 parts.append(str(int(v)) if k in ints and v.is_integer() else repr(v))
             out.append(" ".join(parts))
         return out
+
+
+def _constant_what(where: str, c: _DclConstant) -> str:
+    """Where a constant's own value is, for its refusals."""
+    if c.param:
+        return f"{where}: the element's parameter {c.name} = {c.expr!r}"
+    return f"{where}: {c.stmt!r}"
 
 
 def _dcl_cards(script: _Script, where: str) -> _DclCards:
@@ -1330,8 +1388,16 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
             return hits[0]
         return None
 
+    def known(name: str) -> bool:
+        return constant(name) is not None or script.input_param(name)
+
     def why_not(name: str) -> str:
         hits = [a for a in assigned.get(name, ()) if not a.declares]
+        if name in script.params and not name.startswith("$") and hits:
+            return (
+                f"a parameter of the element that the script assigns "
+                f"({hits[0].stmt!r}), so an output SimNEC computes, not an input"
+            )
         if not assigned.get(name):
             how = f"{name} = ...;" if name.startswith("$") else f"dcl {name} = ...;"
             spelled = _documented_spelling(_SIM_CONSTANTS, name)
@@ -1340,7 +1406,10 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
                 if spelled
                 else ""
             )
-            return f"which the script never defines (as `{how}` above NEC2){hint}"
+            param = "" if name.startswith("$") else " or saves as an element parameter"
+            return (
+                f"which the script never defines (as `{how}` above NEC2){param}{hint}"
+            )
         if len(hits) > 1:
             return (
                 f"which the script assigns {len(hits)} times, so it is not a constant"
@@ -1368,7 +1437,7 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
             out.append(card)
             continue
         names = [n for f in parsed if not isinstance(f, str) for n in _sim_names(f)]
-        bad = [n for n in dict.fromkeys(names) if constant(n) is None]
+        bad = [n for n in dict.fromkeys(names) if not known(n)]
         if bad and mnemonic == "FR":
             dropped.append(
                 f"{card} (names {', '.join(bad)}, not a constant of the script; "
@@ -1383,16 +1452,36 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
         out.append((mnemonic, tuple(parsed)))
         todo.extend(names)
 
+    # A JamSegments count may be an expression too (AK#1716).
+    jams = []
+    for tag, (arg, stmt) in script.jam_exprs.items():
+        tree = _sim_parse(arg, f"{where}: {stmt!r}")
+        names = _sim_names(tree)
+        bad = [n for n in dict.fromkeys(names) if not known(n)]
+        if bad:
+            raise ValueError(f"{where}: {stmt!r} names {bad[0]!r}, {why_not(bad[0])}")
+        jams.append((tag, tree, stmt))
+        todo.extend(names)
+
     # The constants the cards read, and the ones those read, in script order.
+    # An input parameter is set before the script runs, so any constant may
+    # read it; the parameters come first, in the element's order.
     order = {id(a): k for k, a in enumerate(script.assigns)}
+    param_order = {n: k for k, n in enumerate(script.params)}
     need: dict[str, _DclConstant] = {}
     while todo:
         n = todo.pop()
         if n in need:
             continue
         a = constant(n)
+        if a is None:
+            need[n] = _param_constant(script, n, where)
+            continue
         tree = _sim_parse(a.expr, f"{where}: {a.stmt!r}")
         for ref in _sim_names(tree):
+            if script.input_param(ref) and constant(ref) is None:
+                todo.append(ref)
+                continue
             ra = constant(ref)
             if ra is None:
                 raise ValueError(f"{where}: {a.stmt!r} reads {ref!r}, {why_not(ref)}")
@@ -1402,8 +1491,33 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
                 )
             todo.append(ref)
         need[n] = _DclConstant(n, a.expr, tree, a.comment, a.line, a.stmt)
-    constants = tuple(sorted(need.values(), key=lambda c: order[id(constant(c.name))]))
-    return _DclCards(tuple(out), constants, tuple(dropped))
+    constants = tuple(
+        sorted(
+            need.values(),
+            key=lambda c: (
+                (0, param_order[c.name])
+                if c.param
+                else (1, order[id(constant(c.name))])
+            ),
+        )
+    )
+    return _DclCards(tuple(out), constants, tuple(dropped), tuple(jams))
+
+
+def _param_constant(script: _Script, name: str, where: str) -> _DclConstant:
+    """An input parameter of the element (`_Script.input_param`) as the
+    constant it is to the cards (AK#1716): its saved ``<v>``, read by the
+    same number rules as a card field, naming nothing. Its tooltip is the
+    `//` comment on its bare ``name;`` statement, when it has one."""
+    raw = (script.params.get(name) or "").strip()
+    what = f"{where}: the element's parameter {name} = {raw!r}"
+    if not raw:
+        raise ValueError(f"{what} carries no value")
+    tree = _sim_parse(raw, what)
+    if _sim_names(tree):
+        raise ValueError(f"{what} is not a number")
+    comment, line, stmt = script.bare.get(name, ("", 0, name))
+    return _DclConstant(name, raw, tree, comment, line, stmt, param=True)
 
 
 def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
@@ -1413,7 +1527,9 @@ def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
     rebuilds (`_SY_REBUILT_CARDS`); one that names another is derived; one
     that reaches only FR is a frequency constant; one that sets the GS scale
     is a unit selector; the rest are inert. An integer knob is one that lands
-    directly in an integer card field with a whole value."""
+    directly in an integer card field with a whole value, or is named in a
+    JamSegments count, which is the GW card's count by another route
+    (AK#1716)."""
     values = dcl.values(where)
     direct: dict[str, set[str]] = {}
     int_use: set[str] = set()
@@ -1432,6 +1548,10 @@ def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
                     int_use.add(n)
                 if mnemonic == "GS" and k == 2:
                     gs_scale.add(n)
+    for _tag, tree, _stmt in dcl.jams:
+        for n in _sim_names(tree):
+            direct.setdefault(n, set()).add("GW")
+            int_use.add(n)
     dependents: dict[str, set[str]] = {}
     for c in dcl.constants:
         for ref in _sim_names(c.tree):
@@ -1473,12 +1593,12 @@ def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
                 label=c.comment or None,
                 kind=kind,
                 value=value,
-                assignments=1,
+                assignments=0 if c.param else 1,
                 refs=refs,
                 reaches=reaches,
                 default=default,
                 integer=integer,
-                param_name=_dcl_param(c.name),
+                param_name=_element_param(c.name) if c.param else _dcl_param(c.name),
             )
         )
     return tuple(out)
@@ -1493,11 +1613,26 @@ def _dcl_param(spelling: str) -> str:
     return f"dcl_{spelling}"
 
 
+def _element_param(spelling: str) -> str:
+    """The design param an element parameter is published as (AK#1716):
+    ``par_<name>``, SimNEC's own word for it ("Adding a Parameter to the
+    circuit Element"). Not ``dcl_``: the two are different mechanisms in the
+    file -- a ``dcl`` line the author edits, against a value SimNEC keeps on
+    the element and shows in its parameter list -- and settings.toml stores
+    a knob by this name, so it says which one the saved value sets."""
+    return f"par_{spelling}"
+
+
 class _Script:
     """The NEC-portal ``<equ>`` script pulled apart: NEC cards, translated
-    directives, the block name, and whatever was not understood."""
+    directives, the block name, and whatever was not understood. ``params``
+    are the element's saved parameters (`_numeric_params`), which a
+    directive may name (AK#1716)."""
 
-    def __init__(self, text: str, where: str):
+    def __init__(
+        self, text: str, where: str, params: Mapping[str, str | None] | None = None
+    ):
+        self.params: Mapping[str, str | None] = params or {}
         self.cards: list[str] = []
         self.ground: None | str | tuple = None
         self.conductivity: float | None = None
@@ -1510,6 +1645,16 @@ class _Script:
         # `$GW_<tag>.JamSegments(N)`: GW tag -> (segment count, the statement
         # as written) (AK#1679).
         self.jam: dict[int, tuple[int, str]] = {}
+        # `$GW_<tag>.JamSegments(<expression>)`: GW tag -> (the expression,
+        # the statement), evaluated by `_dcl_cards` (AK#1716). A tag's later
+        # JamSegments replaces its earlier one, in either form.
+        self.jam_exprs: dict[int, tuple[str, str]] = {}
+        # Statements that are one bare name (`len;`), by name: (the line's
+        # `//` comment, line number, the statement) of the first (AK#1716).
+        self.bare: dict[str, tuple[str, int, str]] = {}
+        # `NECOptions.segmentsPerWavelength = <name>`: the name, resolved
+        # once the whole script is read (`_resolve_seg_per_wl`).
+        self._seg_per_wl_name: str | None = None
         # Lumped loads on GW wires (AK#1683): the `R` components by their
         # node pair, and the NECSource statements attaching them.
         self._r_components: dict[tuple[str, str], tuple[str, str]] = {}
@@ -1563,11 +1708,40 @@ class _Script:
                         self.assigns.extend(
                             _assignments(stmt, depth, comment.strip(), line_no)
                         )
+                        if _BARE_NAME.match(stmt):
+                            self.bare.setdefault(stmt, (comment.strip(), line_no, stmt))
                         depth = max(0, depth + stmt.count("{") - stmt.count("}"))
                     self._directive(stmt, where)
         if in_cards:
             raise ValueError(f"{where}: NEC2 block is missing its NECEND")
         self._apply_loads(where)
+        self._resolve_seg_per_wl(where)
+
+    def input_param(self, name: str) -> bool:
+        """Whether ``name`` is an INPUT parameter of the element (AK#1716):
+        saved on it as a ``<numericParam>``, and never assigned by the script
+        -- not a `$` temporary (SimNEC Manual, "Variables and Basic
+        Parameters": a `$` name is a temporary, never a parameter), not
+        declared, not set anywhere. A parameter the script assigns
+        (`Trap23 = R2.z;`, `SegCnt = ...` in an `at(...) { }` block) is an
+        OUTPUT SimNEC computes and saves, and its saved value is a result."""
+        return (
+            not name.startswith("$")
+            and name in self.params
+            and not any(a.name == name for a in self.assigns)
+        )
+
+    def _resolve_seg_per_wl(self, where: str) -> None:
+        """A `segmentsPerWavelength` naming an input parameter takes its saved
+        value (AC6LA's Synth examples: `= segsWL`, a parameter of 10). It
+        only feeds `mesh_note`: SimNEC's re-mesh is not emulated."""
+        name = self._seg_per_wl_name
+        if name is None:
+            return
+        what = "NECOptions.segmentsPerWavelength"
+        if not self.input_param(name):
+            raise ValueError(f"{where}: bad {what} value {name!r}")
+        self.seg_per_wl = int(_fnum(self.params[name] or "", where, f"{what} ({name})"))
 
     def _apply_loads(self, where: str) -> None:
         """Each NECSource load (an `R` component on a `$GW_<tag>` wire,
@@ -1621,6 +1795,15 @@ class _Script:
         m = _JAM.match(stmt)
         if m:
             self.jam[int(m.group(1))] = (int(m.group(2)), stmt)
+            self.jam_exprs.pop(int(m.group(1)), None)
+            return
+        m = _JAM_EXPR.match(stmt)
+        if m:
+            # Not applied until `_dcl_cards` reads the expression, and
+            # reported as not applied when it does not (a block of SY cards).
+            self.jam_exprs[int(m.group(1))] = (m.group(2).strip(), stmt)
+            self.jam.pop(int(m.group(1)), None)
+            self.ignored.append(stmt)
             return
         m = _W7EL.match(stmt)
         if m:
@@ -1678,6 +1861,9 @@ class _Script:
                 self.conductivity = mhos if mhos > 0.0 else None
                 return
             if key == "segmentsperwavelength":
+                if _BARE_NAME.match(value.rstrip(";")):
+                    self._seg_per_wl_name = value.rstrip(";")
+                    return
                 self.seg_per_wl = int(_fnum(value, where, f"NECOptions.{option}"))
                 return
             if key == "fieldstep":
@@ -1744,6 +1930,17 @@ def _is_unused_termination(label: str | None, params: dict) -> bool:
 def _params(el) -> dict[str, str | None]:
     """An element's top-level ``<p><n>name</n><v>value</v></p>`` params."""
     return {p.findtext("n"): p.findtext("v") for p in el.findall("p")}
+
+
+def _numeric_params(el) -> dict[str, str | None]:
+    """The parameters SimNEC added to an element from its script (AK#1716),
+    saved as ``<p><numericParam>len</numericParam><v>10.2</v></p>``: name
+    (case-sensitive) -> the saved value text, in the element's order."""
+    return {
+        p.findtext("numericParam"): p.findtext("v")
+        for p in el.findall("p")
+        if p.find("numericParam") is not None
+    }
 
 
 # The most points a sweep may ask for. SimNEC prunes a sweep that is too
@@ -1990,13 +2187,17 @@ def _deck_text(
 
 
 def classify_dcl(text: str, *, name: str = "SimNEC circuit") -> tuple[SySymbol, ...]:
-    """The dcl / ``$`` constants a ``.ssn``'s NEC cards read (AK#1714), as
-    `SySymbol` records classified by `classify_sy`'s rules (see `_classify`):
-    ``name`` and ``spelling`` are the script's case-sensitive name, ``label``
-    its line's ``//`` comment, and ``param`` ``dcl_<name>`` (``tmp_<name>``
-    for ``$name``). Empty for a file whose cards name no constant."""
+    """The dcl / ``$`` constants and element parameters a ``.ssn``'s NEC
+    cards and JamSegments counts read (AK#1714, AK#1716), as `SySymbol`
+    records classified by `classify_sy`'s rules (see `_classify`): ``name``
+    and ``spelling`` are the script's case-sensitive name, ``label`` its
+    line's ``//`` comment, and ``param`` ``dcl_<name>`` (``tmp_<name>`` for
+    ``$name``, ``par_<name>`` for an element parameter). Empty for a file
+    whose cards name none."""
     _, infos, nec_pos = _nec_block(text, name)
-    script = _Script(infos[nec_pos][1]["equ"] or "", name)
+    script = _Script(
+        infos[nec_pos][1]["equ"] or "", name, _numeric_params(infos[nec_pos][2])
+    )
     return _classify(_dcl_cards(script, name), name)
 
 
@@ -2075,17 +2276,20 @@ def parse_ssn(
         chain_doc.reverse()
     chain = tuple(chain_doc)
 
-    script = _Script(infos[nec_pos][1]["equ"] or "", name)
+    script = _Script(
+        infos[nec_pos][1]["equ"] or "", name, _numeric_params(infos[nec_pos][2])
+    )
     dcl = _dcl_cards(script, name)
-    for c in dcl.constants:
-        # Read into the cards now, so no longer "not applied".
-        if c.stmt in script.ignored:
-            script.ignored.remove(c.stmt)
+    # Read into the cards now, so no longer "not applied": a constant's
+    # statement, a parameter's bare `name;`, an expression JamSegments.
+    for stmt in (*(c.stmt for c in dcl.constants), *(j[2] for j in dcl.jams)):
+        if stmt in script.ignored:
+            script.ignored.remove(stmt)
     for key, value in (dcl_overrides or {}).items():
         if key not in dcl.names:
             raise ValueError(
-                f"{name}: the NEC cards read no dcl constant {key!r} "
-                "(names are case-sensitive)"
+                f"{name}: the NEC cards read no dcl constant or element "
+                f"parameter {key!r} (names are case-sensitive)"
             )
         try:
             fv = float(value)
@@ -2100,7 +2304,8 @@ def parse_ssn(
         network=network,
         virtualize_anchors=virtualize_anchors,
     )
-    deck, unapplied = _jam_segments(deck, script.jam, name)
+    jam = {**script.jam, **dcl.jam_counts(name, dcl_overrides)}
+    deck, unapplied = _jam_segments(deck, jam, name)
     script.ignored.extend(unapplied)
     if script.insulation is not None:
         # The circuit's default insulation covers every wire (AK#1683): a
