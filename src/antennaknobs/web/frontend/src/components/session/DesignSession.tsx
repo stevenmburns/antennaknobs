@@ -42,6 +42,7 @@ import {
   type SchemaParamSpec,
 } from "../../lib/params";
 import { mobileScreens, VIEW_META, type View } from "../../lib/view";
+import { useZoOverride } from "../../lib/zoOverride";
 import {
   defaultSweepPoints,
   designSweepRange,
@@ -773,6 +774,31 @@ function DesignSessionBody({
     preview?.multi_feed ??
     currentExample?.multi_feed ??
     false;
+  // The reference impedance (AK#1735). The design's own comes on every solve
+  // and preview response (`design_z0_ohms`; an older server's `z0_ohms` is
+  // the same number), and the gear menu's Zo field overrides it per design.
+  // `z0` is THE reference this session measures against: it rides every
+  // request as `z0_ohms` when overridden, and every display of SWR / Γ reads
+  // it — through `shownResult` below — rather than the last response's echo,
+  // so a Zo edit re-draws at once instead of waiting on a solve.
+  const [zoOverride, setZoOverride] = useZoOverride(geometry);
+  const ownResponse =
+    result?.geometry === geometry
+      ? result
+      : preview?.geometry === geometry
+        ? preview
+        : null;
+  const designZ0 =
+    ownResponse?.design_z0_ohms ?? ownResponse?.z0_ohms ?? 50;
+  const z0 = zoOverride ?? designZ0;
+  // `result` with the session's reference stamped in, for the views and the
+  // readout. Same object when they already agree (every response after the
+  // first at a new Zo echoes it), so nothing keyed on identity re-runs.
+  const shownResult = useMemo(
+    () =>
+      result && result.z0_ohms !== z0 ? { ...result, z0_ohms: z0 } : result,
+    [result, z0],
+  );
   // Smith-chart overlay toggles. Both are debounced sweeps that re-fire
   // whenever any antenna/backend parameter changes; gating them with these
   // checkboxes lets the user pause an expensive sweep (e.g. BSpline d=2
@@ -1141,6 +1167,9 @@ function DesignSessionBody({
     // NOT holding, ask the server to hold the target across this tick. Absent
     // otherwise, so an ordinary solve stays an ordinary solve — which is also
     // what invalidates the tracker's tangent server-side.
+    // AK#1735: only an override travels — no override is the same bytes as
+    // before, and the server answers with the design's own.
+    if (zoOverride !== null) base.z0_ohms = zoOverride;
     if (trackOn && trackDragRef.current) {
       (base as SolveRequest & { _track?: unknown })._track = {
         objective: optObjective,
@@ -1189,6 +1218,7 @@ function DesignSessionBody({
     active,
     buildRequest,
     setParamAtPath,
+    zoOverride,
   });
 
   // #1007: the engine-timing fields froze for the whole of an optimiser run,
@@ -1949,10 +1979,10 @@ function DesignSessionBody({
       active,
       comboApproved,
       recommendedBackend,
-      // Same reference the sweep/Smith charts plot against (viewRegistry's
-      // `result?.z0_ohms ?? 50`), so refinement judges curvature on the
-      // curve the user is actually looking at.
-      z0: result?.z0_ohms ?? 50,
+      // Same reference the sweep/Smith charts plot against (the session's
+      // `z0`, AK#1735), so refinement judges curvature on the curve the user
+      // is actually looking at.
+      z0,
       refineEnabled,
       residentSweepViews,
       buildRequest,
@@ -2205,6 +2235,7 @@ function DesignSessionBody({
           optProgress={optProgress}
           optError={optError}
           optPausedBy={optPausedBy}
+          zo={{ value: z0, design: designZ0, set: setZoOverride }}
         />
 
 
@@ -2414,7 +2445,7 @@ function DesignSessionBody({
             view={v}
             size={size}
             fill={fill}
-            result={result}
+            result={shownResult}
             // An optimizer run never touches the knobs until it finishes, so
             // `result` holds the pre-run solve for its whole duration and the
             // Smith dot would sit frozen while the readout ticks (#773). The
@@ -2484,9 +2515,10 @@ function DesignSessionBody({
                 {s.id === "info" ? (
                   <>
                     <SolveReadout
+                      z0={z0}
                       live={liveSolve}
                       className="mobile-readout"
-                      result={result}
+                      result={shownResult}
                       rttMs={rttMs}
                       currentExample={currentExample}
                       effectiveMultiFeed={effectiveMultiFeed}
@@ -2556,13 +2588,14 @@ function DesignSessionBody({
                 than per-cell. `.stage` is the positioned ancestor here, same
                 role `.carousel-slide` plays in rail mode below. */}
             <SolveReadout
+              z0={z0}
               live={liveSolve}
               className="stage-readout"
               // One card for the whole grid, so it minimizes per the focused
               // cell's view, as the rail's card does per its primary view.
               collapsed={isReadoutCollapsed(view)}
               onCollapsedChange={(c) => setReadoutCollapsed(view, c)}
-              result={result}
+              result={shownResult}
               rttMs={rttMs}
               currentExample={currentExample}
               effectiveMultiFeed={effectiveMultiFeed}
@@ -2603,7 +2636,7 @@ function DesignSessionBody({
                       view={v.id}
                       size={thumbSize.width}
                       fill={false}
-                      result={result}
+                      result={shownResult}
                       // Same live trial point as the primary stage: the
                       // thumbnail is the same chart, so a frozen dot there
                       // would be the same defect at a smaller size.
@@ -2656,11 +2689,12 @@ function DesignSessionBody({
                   the slide's stale dim already covers it — no own stale class, or
                   the two opacities would compound. */}
               <SolveReadout
+                z0={z0}
                 live={liveSolve}
                 className="stage-readout"
                 collapsed={isReadoutCollapsed(view)}
                 onCollapsedChange={(c) => setReadoutCollapsed(view, c)}
-                result={result}
+                result={shownResult}
                 rttMs={rttMs}
                 currentExample={currentExample}
                 effectiveMultiFeed={effectiveMultiFeed}

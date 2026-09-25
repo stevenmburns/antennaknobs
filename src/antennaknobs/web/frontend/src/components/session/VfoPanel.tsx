@@ -3,6 +3,7 @@ import { Knob } from "../params/Knob";
 import { useEffect, useRef, useState } from "react";
 import type { BandSpec } from "../../lib/params";
 import type { SweepRange } from "../../lib/sweep";
+import { parseZo } from "../../lib/zoOverride";
 
 // Response from POST /optimize.
 //
@@ -92,6 +93,98 @@ const OPT_OBJECTIVE_HINTS: Record<OptObjective, string> = {
   match_z0: "exact match, with two knobs",
 };
 
+// The gear menu's reference impedance (AK#1735). `value` is the Zo this
+// session measures against — the override when there is one, else the
+// design's own `design` — and `set(null)` returns to the design's.
+export type ZoControl = {
+  value: number;
+  design: number;
+  set: (zo: number | null) => void;
+};
+
+const formatZo = (v: number) => String(Number(v.toPrecision(6)));
+
+// The Zo field. Commits on Enter or blur; text that is not a positive, finite
+// number of ohms is refused where it was typed (red, with the reason), and
+// the reference stays what it was — never quietly 50. Typing the design's
+// own value clears the override rather than storing a copy of it, so a
+// design whose file later names another Zo is not pinned to the old one.
+function ZoField({ zo }: { zo: ZoControl }) {
+  const [text, setText] = useState(() => formatZo(zo.value));
+  const [error, setError] = useState<string | null>(null);
+  // Re-seed when the reference moves under the field (a design's own Zo
+  // landing on its first response, or a reset) — the render-time reset
+  // idiom, not an effect, so there is no second render with stale text.
+  const [seededFrom, setSeededFrom] = useState(zo.value);
+  if (seededFrom !== zo.value) {
+    setSeededFrom(zo.value);
+    setText(formatZo(zo.value));
+    setError(null);
+  }
+  const overridden = zo.value !== zo.design;
+  function commit() {
+    const v = parseZo(text);
+    if (v === null) {
+      setError("Zo must be a number of ohms greater than 0");
+      return;
+    }
+    setError(null);
+    zo.set(v === zo.design ? null : v);
+    setText(formatZo(v));
+  }
+  return (
+    <div className="opt-zo" role="group" aria-label="Reference impedance">
+      <label className="opt-zo-row">
+        <span className="opt-zo-label">Z₀</span>
+        <input
+          className={`opt-zo-input${error ? " is-invalid" : ""}`}
+          type="text"
+          inputMode="decimal"
+          aria-label="Reference impedance Zo, ohms"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "opt-zo-error" : undefined}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            if (error) setError(null);
+          }}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            else if (e.key === "Escape") {
+              setText(formatZo(zo.value));
+              setError(null);
+            }
+          }}
+        />
+        <span className="opt-zo-unit">Ω</span>
+        {overridden && (
+          <button
+            type="button"
+            className="opt-zo-reset"
+            title={`Back to the design's own ${formatZo(zo.design)} Ω`}
+            onClick={() => zo.set(null)}
+          >
+            reset
+          </button>
+        )}
+      </label>
+      {error ? (
+        <div id="opt-zo-error" className="opt-zo-error" role="alert">
+          {error}
+        </div>
+      ) : (
+        <div className="gear-menu-hint opt-zo-hint">
+          {overridden
+            ? `design: ${formatZo(zo.design)} Ω`
+            : "the design's own"}
+          {" — SWR and Match Z₀ are measured against it"}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Why the optimizer auto-paused, for the transient cue. `knob` = the user grabbed
 // a marked knob by hand; `load` = a new design/variant was loaded (its marks and
 // ranges no longer apply).
@@ -122,6 +215,7 @@ function SimControls({
   optProgress,
   optError,
   optPausedBy,
+  zo,
 }: {
   autoSim: boolean;
   setAutoSim: (fn: (v: boolean) => boolean) => void;
@@ -149,6 +243,8 @@ function SimControls({
   optProgress: OptProgress | null;
   optError: string | null;
   optPausedBy: OptPause | null;
+  /** AK#1735. Absent: no Zo field (a caller with no session behind it). */
+  zo?: ZoControl | undefined;
 }) {
   const [optMenuOpen, setOptMenuOpen] = useState(false);
   return (
@@ -217,6 +313,15 @@ function SimControls({
                   <span className="gear-menu-hint"> — {OPT_OBJECTIVE_HINTS[k]}</span>
                 </button>
               ))}
+              {/* AK#1735: the reference the SWR and Match Z₀ objectives
+                  measure against — and the readout, the Smith chart and the
+                  sweeps with them, so no two places disagree about it. */}
+              {zo && (
+                <>
+                  <div className="opt-menu-title">Reference impedance</div>
+                  <ZoField zo={zo} />
+                </>
+              )}
               {/* #1176. OFF by default and deliberately: measured
                   neutral-to-slightly-negative from a TUNED start, and
                   decisive from a poor one (moxon's plain run is stuck at
@@ -302,7 +407,10 @@ function SimControls({
         </span>
       )}
       {optEnabled && !optRunning && optResult && (
-        <span className="opt-readout" title="SWR after optimisation">
+        <span
+          className="opt-readout"
+          title={`SWR after optimisation, against ${formatZo(optResult.metrics_after.z0_ohms)} Ω`}
+        >
           SWR {optResult.metrics_after.swr.toFixed(2)}
         </span>
       )}
@@ -374,6 +482,7 @@ export function VfoPanel({
   optProgress,
   optError,
   optPausedBy,
+  zo,
 }: {
   currentBands: BandSpec[];
   measLocked: boolean;
@@ -419,6 +528,8 @@ export function VfoPanel({
   optProgress: OptProgress | null;
   optError: string | null;
   optPausedBy: OptPause | null;
+  /** The gear menu's Zo field (AK#1735). */
+  zo?: ZoControl | undefined;
 }) {
   // Long press = the touch route to the range menu. The knobs have no touch
   // path of their own: their menu rides the browser's contextmenu event,
@@ -491,6 +602,7 @@ export function VfoPanel({
             optProgress={optProgress}
             optError={optError}
             optPausedBy={optPausedBy}
+            zo={zo}
           />
 
           <div

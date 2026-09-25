@@ -102,6 +102,9 @@ export interface MountDesignSessionOptions {
    *  undefined, which is a server predating it — the default, so most tests
    *  exercise the no-label render path without asking for it. */
   versionLabel?: string;
+  /** Extra localStorage entries, written after the harness clears storage —
+   *  what a previous page load left behind (AK#1735's per-design Zo). */
+  storage?: Record<string, string>;
 }
 
 // Mounts <DesignSession>: seeds the view prefs localStorage record, stubs
@@ -125,6 +128,7 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
     routes = {},
     uiDefaults,
     versionLabel,
+    storage = {},
   } = opts;
 
   localStorage.clear();
@@ -132,6 +136,7 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
     VIEW_PREFS_KEY,
     JSON.stringify({ pinned, seen: VIEWS.map((v) => v.id), layout }),
   );
+  for (const [k, v] of Object.entries(storage)) localStorage.setItem(k, v);
 
   // Every query matches (mobile) or none does (desktop) — the session reads
   // both the phone-breakpoint query and the portrait query through the same

@@ -45,13 +45,18 @@ export const CONVERGE_N_VALUES: number[] = [8, 12, 17, 24, 34, 48, 68];
 // the wire. Cut angles are attached per-request AFTER the solve (POST /cuts,
 // issue #547), so dragging a cut dial changes no analysis result: every
 // analysis exempts them, exactly as the server cache does.
-const CUT_ANGLE_EXEMPT = ["az_elev_deg", "elev_az_deg"] as const;
+//
+// The reference impedance (AK#1735) is exempt from every analysis for the
+// same reason: it moves the SWR, the Smith centre and the |Γ| a chart draws,
+// never an impedance a sweep computes, so a Zo edit re-draws rather than
+// re-solves (the charts take the reference as a prop, below).
+const DISPLAY_ONLY_EXEMPT = ["az_elev_deg", "elev_az_deg", "z0_ohms"] as const;
 
 // The freq sweep and convergence sweep are impedance-only, and every terrain
 // preset shares the crest medium the impedance solve uses — so the terrain
 // knobs are additionally exempt for those two. NOT for the norm check, whose
 // pattern integral runs over the facets.
-const IMPEDANCE_ANALYSIS_EXEMPT = [...CUT_ANGLE_EXEMPT, "terrain"] as const;
+const IMPEDANCE_ANALYSIS_EXEMPT = [...DISPLAY_ONLY_EXEMPT, "terrain"] as const;
 
 // Extra dwell between a completed base sweep and the first refinement round
 // (issue #744). The base sweep is already post-dwell — the 500 ms debounce
@@ -268,7 +273,7 @@ export function useAnalysisRunners({
   // exemption lists at the top of this module are the only opt-outs.
   const req = buildRequest();
   const impedanceSig = solveSignature(req, { exempt: IMPEDANCE_ANALYSIS_EXEMPT });
-  const solveSig = solveSignature(req, { exempt: CUT_ANGLE_EXEMPT });
+  const solveSig = solveSignature(req, { exempt: DISPLAY_ONLY_EXEMPT });
 
   const [sweep, setSweep] = useState<SweepData | null>(null);
   const [sweepRunning, setSweepRunning] = useState(false);
