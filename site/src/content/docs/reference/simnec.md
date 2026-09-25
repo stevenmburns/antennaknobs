@@ -137,7 +137,9 @@ python -m antennaknobs export --builder @dip.ssn --out dip.nec
 What the importer honours: the solve frequency comes from the **Generator's
 MHz** (in SimNEC the deck's `FR` card is advisory), the Generator's own sweep
 expression is read (`14 : 14.35 : 0.025`, lin or log spacing honoured) and
-becomes the design's measurement band, the daemon ground call surfaces as a
+becomes the design's measurement band (a sweep saved as `(y)`, which SimNEC
+shows suspended when a file reopens, is the same sweep as `y`; only `n` is
+off), the daemon ground call surfaces as a
 `--ground` hint (`PerfectGround`, `SommerfeldGround`, and `MiniNECGround` as
 the [MININEC-type ground](/reference/web/#the-mininec-type-ground)), and wire conductivity applies to every wire alike, one value for the circuit. `NECUnits` is read
 but not applied: in SimNEC it only sets the units wire dimensions are
