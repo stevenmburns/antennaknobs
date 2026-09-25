@@ -19,7 +19,8 @@ and why when it does not. For a design with knobs, check:
      default) either is refused with a ``ValueError`` naming the knob, or
      builds wires and network equal to the same file with that one ``dcl``
      value edited in the text (for an element parameter, AK#1716, its saved
-     ``<numericParam>`` value in the XML) and imported with knobs OFF --
+     ``<numericParam>`` value in the XML; for one the script assigns, AK#1734,
+     its ``prm name = ...;`` or ``name = ...;`` line) and imported with knobs OFF --
      never the knob path itself -- and different from the defaults.
 
 A mismatch in either is a FAILURE: the script prints each one and exits 1.
@@ -76,6 +77,26 @@ def edit_param(text: str, name: str, new: str) -> str | None:
         rf"(<numericParam>{re.escape(name)}</numericParam>\s*<v>)([^<]*)(</v>)"
     )
     hits = list(pat.finditer(text))
+    if len(hits) != 1:
+        return None
+    m = hits[0]
+    return text[: m.start(2)] + new + text[m.end(2) :]
+
+
+def edit_assigned(text: str, spelling: str, new: str) -> str | None:
+    """``text`` with the one uncommented ``prm spelling = ...;`` or plain
+    ``spelling = ...;`` statement (AK#1734) set to ``new``, or None when that
+    assignment is not found exactly once."""
+    pat = re.compile(
+        rf"((?:^|[;{{}}])[ \t]*(?:prm\s+)?{re.escape(spelling)}\s*=(?!=)\s*)"
+        r"([^;\n]+?)(\s*;)",
+        re.MULTILINE,
+    )
+    hits = []
+    for m in pat.finditer(text):
+        line_start = text.rfind("\n", 0, m.start()) + 1
+        if "//" not in text[line_start : m.start()]:
+            hits.append(m)
     if len(hits) != 1:
         return None
     m = hits[0]
@@ -165,7 +186,9 @@ def main(root: Path) -> int:
             if (mw, mn) == (wires, net):
                 failures.append(f"{rel}: moving {sym.param} changed nothing")
             literal = str(int(v)) if sym.integer else repr(float(v))
-            edit = edit_param if sym.param.startswith("par_") else edit_dcl
+            edit = {"par_": edit_param, "prm_": edit_assigned}.get(
+                sym.param[:4], edit_dcl
+            )
             edited = edit(text, sym.spelling, literal)
             if edited is None:
                 counts["move_uneditable"] += 1
