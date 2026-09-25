@@ -9,7 +9,9 @@ drive it without per-design glue.
 
 Reserved keys inside `ui_params`:
   default_view     : "xy" | "yz" | "xz"  — initial 2D projection
-  target_z0        : float — reference impedance for SWR (default 50)
+  target_z0        : float — reference impedance for SWR (default 50). The
+                     design's value; a request's `z0_ohms` outranks it for
+                     that request (AK#1735), see `request_z0`.
   meas_freq_range  : (lo, hi)  — measurement-freq slider span override. Since
                      AK#1682 the dial's travel IS the sweep range, so this is
                      also where the sweep runs (log-spaced, the app's density)
@@ -3699,6 +3701,25 @@ def _ui_sweep_range(default_params: dict) -> dict | None:
     return out
 
 
+def request_z0(req: dict, design_z0: float) -> float:
+    """The reference impedance a request is measured against (AK#1735).
+
+    The request's `z0_ohms` when it carries one, else the design's own
+    `target_z0` hint. It is a reference, not physics: it moves the SWR, the
+    Smith chart's centre and what a `match_z0` objective drives toward, never
+    the impedance. Every response echoes the value used here as `z0_ohms`, and
+    the design's own as `design_z0_ohms`, so the client can tell an override
+    from the design's value. An override that is not a positive, finite number
+    is refused by name rather than falling back silently.
+    """
+    raw = req.get("z0_ohms")
+    if raw is None:
+        return float(design_z0)
+    if isinstance(raw, bool):
+        raise ValueError(f"z0_ohms must be a number (got {raw!r})")
+    return _positive_finite("z0_ohms", raw)
+
+
 def _ui_scalar(default_params: dict, key: str, default):
     ui = default_params.get("ui_params") or {}
     if key in ui and not isinstance(ui[key], dict):
@@ -4552,6 +4573,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             return None
 
     def momwire_solve(req: dict, cancel=None) -> dict:
+        z0 = request_z0(req, hints()["target_z0"])
         design_freq, meas_freq = _req_freqs(req)
         builder = _build_builder(cls, req)
         builder.freq = meas_freq
@@ -4598,7 +4620,8 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # Ground constants + applied-model label (+ the packed terrain
             # when the spec is faceted) — see _momwire_ground_fields.
             **_momwire_ground_fields(eng, req),
-            "z0_ohms": hints()["target_z0"],
+            "z0_ohms": z0,
+            "design_z0_ohms": hints()["target_z0"],
             # Geometry-derived UI hints, folded into the response so user
             # designs (which defer them) get correct values the moment they're
             # selected, without running the builder at registration.
@@ -4660,6 +4683,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # waiting tens of seconds for the MoM solve. Mirrors momwire_solve's
         # builder setup but returns zero currents and omits impedance / far
         # field (the live solve fills those in).
+        z0 = request_z0(req, hints()["target_z0"])
         design_freq, meas_freq = _req_freqs(req)
         builder = _build_builder(cls, req)
         builder.freq = meas_freq
@@ -4717,7 +4741,8 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "measurement_freq_mhz": meas_freq,
             "lambda_design_m": C_LIGHT / (design_freq * 1e6),
             "ground": bool(req.get("ground", False)),
-            "z0_ohms": hints()["target_z0"],
+            "z0_ohms": z0,
+            "design_z0_ohms": hints()["target_z0"],
             # Carry the geometry-derived hints on the fast preview too: it's the
             # first request fired on selection, so a deferred user design gets
             # its multi_feed / default_view here, before the live solve lands.
@@ -4805,6 +4830,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         renders any engine's result unchanged; `server.solve()`'s outer wrapper
         stamps the `solver` field.
         """
+        z0 = request_z0(req, hints()["target_z0"])
         design_freq, meas_freq = _req_freqs(req)
         builder = _build_builder(cls, req)
         builder.freq = meas_freq
@@ -4863,7 +4889,8 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "ground_eps_r": ground_eps_r,
             "ground_sigma": ground_sigma,
             "ground_model_applied": seams.ground_applied(eng.ground),
-            "z0_ohms": hints()["target_z0"],
+            "z0_ohms": z0,
+            "design_z0_ohms": hints()["target_z0"],
             "multi_feed": hints()["multi_feed"],
             "default_view": hints()["default_view"],
             # Same fields as the momwire path, so switching engines in the UI

@@ -10,6 +10,7 @@
   "cuts.n_dir": "number",
   "default_view": "string",
   "design_freq_mhz": "number",
+  "design_z0_ohms": "number",
   "directivity_norm": "number",
   "feed_knot_index": "number",
   "feed_position[]": "number",
