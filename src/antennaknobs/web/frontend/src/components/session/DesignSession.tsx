@@ -966,6 +966,11 @@ function DesignSessionBody({
     setView,
     cameraProjection,
     setCameraProjection,
+    // Renamed here: `orientation` in this component is the screen's
+    // (portrait / landscape).
+    orientation: antennaOrientation,
+    setOrientation: setAntennaOrientation,
+    snapToDesignView,
     canvasCamera,
     showHeatmap,
     setShowHeatmap,
@@ -987,6 +992,7 @@ function DesignSessionBody({
       wireLabels: uiDefaults.switches.wire_labels,
       feedNames: uiDefaults.switches.feed_labels,
     },
+    orientation: uiDefaults.orientation,
   });
 
   // "Save as my defaults" (AK#1492): the session's switches, ground and slots
@@ -1012,6 +1018,7 @@ function DesignSessionBody({
         wire_labels: showWireLabels,
         feed_labels: showFeedNames,
       },
+      antenna_view: { orientation: antennaOrientation },
       ground: {
         enabled: groundEnabled,
         type: groundType,
@@ -1930,9 +1937,9 @@ function DesignSessionBody({
           // A deferred (user) design derives its natural view only when the
           // builder first runs — which is this preview. Snap the camera to it
           // here, once per selection or user-design reload (this effect is
-          // keyed on `geometry` + `reloadNonce`).
-          const dv = (data as SolveResponse).default_view;
-          if (dv) setCameraProjection(dv);
+          // keyed on `geometry` + `reloadNonce`). A fixed orientation setting
+          // wins over the guess (AK#1737); snapToDesignView decides.
+          snapToDesignView((data as SolveResponse).default_view);
         }
         // Release the gate. The solve effect then either solves or — if the
         // design/solver combo is a poor match — withholds and warns.
@@ -2056,6 +2063,8 @@ function DesignSessionBody({
           setShowWireLabels={setShowWireLabels}
           showFeedNames={showFeedNames}
           setShowFeedNames={setShowFeedNames}
+          orientation={antennaOrientation}
+          setOrientation={setAntennaOrientation}
           sweepEnabled={sweepEnabled}
           setSweepEnabled={setSweepEnabled}
           convergeEnabled={convergeEnabled}

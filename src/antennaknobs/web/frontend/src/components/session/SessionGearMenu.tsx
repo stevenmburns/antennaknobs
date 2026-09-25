@@ -2,7 +2,18 @@ import type { MeasuredData } from "../../lib/api";
 import type { useFullscreen } from "../hooks";
 import type { Theme } from "../hooks";
 import { helpUrl } from "../../lib/help";
+import { ORIENTATIONS, type Orientation } from "../../lib/settings";
 import { TabStrip } from "./TabStrip";
+
+// The orientation <select>'s words: the view switch's own labels
+// (lib/view.ts PROJECTIONS), so the menu and the chart name a view the same.
+const ORIENTATION_LABELS: Record<Orientation, string> = {
+  auto: "auto (per design)",
+  top: "Top (xy)",
+  front: "Front (xz)",
+  side: "Side (yz)",
+  iso: "Iso",
+};
 
 // Sidebar header: brand + the tools (gear) dropdown, incl. the reactive
 // copies of the chart-overlay toggles (same state the overlays use, so the
@@ -25,6 +36,8 @@ export function SessionGearMenu({
   setShowWireLabels,
   showFeedNames,
   setShowFeedNames,
+  orientation,
+  setOrientation,
   sweepEnabled,
   setSweepEnabled,
   convergeEnabled,
@@ -62,6 +75,9 @@ export function SessionGearMenu({
   setShowWireLabels: (v: boolean) => void;
   showFeedNames: boolean;
   setShowFeedNames: (v: boolean) => void;
+  /** The Antenna view's orientation on a design load (AK#1737). */
+  orientation: Orientation;
+  setOrientation: (o: Orientation) => void;
   sweepEnabled: boolean;
   setSweepEnabled: (v: boolean) => void;
   convergeEnabled: boolean;
@@ -217,6 +233,26 @@ export function SessionGearMenu({
                     />
                     feed labels
                   </label>
+                  {/* A <select>, not five radios: one line in a menu that is
+                      already long. "auto" is the design's own guess. */}
+                  <label
+                    className="gear-menu-check"
+                    title="The view the antenna chart turns to whenever a design loads. auto: the design's own guess (Top, Front or Side from its shape). Any other choice wins over that guess at every load; the view's own switch still changes it until the next load."
+                  >
+                    on load
+                    <select
+                      className="gear-menu-select"
+                      value={orientation}
+                      onChange={(e) => setOrientation(e.target.value as Orientation)}
+                      aria-label="antenna view on load"
+                    >
+                      {ORIENTATIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {ORIENTATION_LABELS[o]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <div className="gear-menu-section">smith chart</div>
                   <label
                     className="gear-menu-check"
@@ -294,7 +330,7 @@ export function SessionGearMenu({
                       <button
                         type="button"
                         className="gear-menu-check gear-menu-button"
-                        title="Write these switches, the ground and the A/B/C solver slots to settings.toml, so the workbench starts this way next time"
+                        title="Write these switches, the antenna view on load, the ground and the A/B/C solver slots to settings.toml, so the workbench starts this way next time"
                         onClick={onSaveDefaults}
                       >
                         save as my defaults
