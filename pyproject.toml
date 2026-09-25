@@ -343,4 +343,7 @@ ban-relative-imports = "all"
 # throwaway closures over sweep variables and consumes them on the next line.
 # 46 of the 60 findings audited were in one prototype. src/ keeps the rule.
 "scratch/**" = ["B023"]
+# The package's imports follow its thread-pool env block on purpose: the
+# block must run before NumPy/libgomp load (see the top of the file).
+"src/antennaknobs/__init__.py" = ["E402"]
 "scripts/**" = ["B023"]

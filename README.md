@@ -66,31 +66,23 @@ so one process serves the whole app:
 ```bash
 pip install "antennaknobs[web]"
 
-# On a multi-core box, keep the env prefix — see below. It is worth a lot.
-OMP_WAIT_POLICY=PASSIVE GOMP_SPINCOUNT=0 OPENBLAS_THREAD_TIMEOUT=1 \
-    uvicorn antennaknobs.web.server:app      # open http://127.0.0.1:8000
+uvicorn antennaknobs.web.server:app      # open http://127.0.0.1:8000
 ```
 
 The backend serves the UI at `/` and the JSON/`/ws` API on the same origin;
 `/docs` is the interactive API explorer.
 
-**Why the env prefix.** Both of the server's thread pools busy-spin when idle,
-burning cores — and, on a laptop, thermal budget — that the next solve needs.
-`OMP_WAIT_POLICY=PASSIVE GOMP_SPINCOUNT=0` parks libgomp's workers between
-solves (~15% lower knob-drag latency); `OPENBLAS_THREAD_TIMEOUT=1` parks
-OpenBLAS's, which otherwise keep spinning after each factorization and steal
-cores from the next solve's fill.
-
-The second one is not a rounding error. Measured across two machines, it is
-worth **+26% to +49%** on swept-ground solves and **+37% to +39%** on
-Sommerfeld — and *more* on a weaker machine, up to **5x** on a 15 W laptop,
-where the spinning workers also cost about 250 MHz of clock. Solves that do
-their work inside an external solver's C code (large pynec decks) see no
-change; nothing measured got slower.
-
-All three are read once at process start, so they only work as launch env —
-`threadpoolctl` cannot express them, and setting them from Python is too late.
-Everything else about threading the server configures itself.
+**Threading configures itself.** The server sizes its thread pools to the
+physical cores, and the package sets the three thread-pool wait variables
+(`OMP_WAIT_POLICY=PASSIVE`, `GOMP_SPINCOUNT=0`, `OPENBLAS_THREAD_TIMEOUT=1`)
+as it is imported, before NumPy loads, so a plain `uvicorn` launch gets them.
+Left at their defaults, idle OpenBLAS and OpenMP workers busy-spin after each
+solve and steal cores from the next one: measured per repeated solve at 4
+threads, that costs **29 % on Sommerfeld, 60 % on swept ground and 77 % in
+free space**, and more on a power-limited laptop. Your own values for any of
+them win. They are read once, when each library loads, so a script that
+imports NumPy *before* antennaknobs keeps the library defaults; set them in
+the launch environment there.
 
 **Development (two terminals, hot-reload).** When editing the frontend, run the
 Vite dev server alongside the backend so you get HMR:
@@ -98,8 +90,7 @@ Vite dev server alongside the backend so you get HMR:
 ```bash
 # Terminal 1 — backend (from the repo root, in your .venv)
 pip install -e ".[web]"
-OMP_WAIT_POLICY=PASSIVE GOMP_SPINCOUNT=0 OPENBLAS_THREAD_TIMEOUT=1 \
-    uvicorn antennaknobs.web.server:app --reload   # API on http://127.0.0.1:8000
+uvicorn antennaknobs.web.server:app --reload   # API on http://127.0.0.1:8000
 
 # Terminal 2 — frontend dev server
 cd src/antennaknobs/web/frontend
