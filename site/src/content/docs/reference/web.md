@@ -4,7 +4,8 @@ description: The browser-based simulator — driving the knobs, running several 
 ---
 
 The web workbench is the live, no-install face of antennaknobs: a panel of knobs
-per design, with the radiation pattern, SWR, and impedance re-solving as you drag.
+per design, with the radiation pattern, SWR, and impedance re-solving as you drag. The
+**?** in the header opens this page.
 
 ## Run it locally
 
@@ -336,6 +337,14 @@ envelope overlays) in one of four projections — **Top (xy)**, **Front (xz)**,
 recede left and right, z stays up) — switched by the buttons in the top-right
 overlay. The ground reference line appears on the two elevation views.
 
+Each design opens on its own best view. A design that lies in a plane opens
+on that plane: an inverted V on Side, a Yagi on Top. One with real depth in
+all three directions (a vertical over radials, an inverted L, a quad, a
+helix) opens in Iso, so no single flat projection hides part of it. The
+Tools menu's **View** choice overrides this for every design, and
+`settings.toml` can make it the default (see
+[`settings.toml`](#where-the-workbench-starts-settingstoml)).
+
 The view auto-fits the whole antenna, and you can navigate from there,
 map-style:
 
@@ -460,7 +469,9 @@ one is shown in full rather than collapsed.
 
 Next to Live is an **Optimize** toggle (same depressed-when-on look), with a
 **gear menu** beside it for the objective. The optimizer continuously tunes the
-knobs you've marked to hit a target:
+knobs you've marked to hit a target. It solves on the slot's own engine, so
+an optimization run on a NEC-5 slot tunes against NEC-5's answer, not the
+built-in B-spline one:
 
 1. **Pick an objective** in the gear menu — **SWR**, **Resonance** or
    **Match Z₀**. They differ in more than the target: see
@@ -1182,6 +1193,15 @@ The far-field views are calibrated **azimuth and elevation polar cuts** — the
 numbers-first presentation you read gain, takeoff angle, and beamwidth straight
 off. (The solver computes the full sphere on every basis; the cuts are how the
 workbench chooses to show it.)
+
+A **combined Az + El** view, the overlay EZNEC calls its combined 2D plot,
+draws both cuts on one polar plot. Colour says which cut is which (azimuth in
+the live pattern's hue, elevation in its own), and pinned patterns keep their
+cut's colour, dashed. The azimuth trace reads from 0° at +x; the elevation
+trace from 0° at the cut bearing's horizon to 90° at the zenith. Click a row
+in the legend to focus that design and dim the rest; show and hide stay in
+the compare table beneath. It is off by default: add it from the view
+picker.
 
 On the **azimuth** and **elevation** pattern views a **📌 Pin pattern** button
 (top-left of the plot) freezes the current radiation pattern as a dimmed,
