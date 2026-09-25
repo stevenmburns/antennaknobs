@@ -97,11 +97,13 @@ export type ViewRenderProps = {
   /** The Files view's texts (AK#1428). Optional: thumbnail call sites omit
    *  it, and the panel's thumb carries no text anyway. */
   files?: FilesViewData | null;
-  /** The combined Az + El view's fill and its legend's focus (AK#1730).
-   *  Optional: omitted, the plot is unfilled with nothing focused. */
+  /** The combined Az + El view's fill and its highlighted designs (AK#1730).
+   *  Optional: omitted, the plot is unfilled with nothing highlighted. */
   combinedFill?: CombinedFill;
-  combinedFocus?: string | null;
+  combinedHighlight?: readonly string[];
 };
+
+const NO_HIGHLIGHT: readonly string[] = [];
 
 // Plain functions, not components: ViewPanel calls the entry rather than
 // mounting it, so the rendered tree has exactly the depth it had when this
@@ -170,7 +172,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       azElevDeg={p.azElevDeg}
       elevAzDeg={p.elevAzDeg}
       fill={p.combinedFill ?? "none"}
-      focus={p.combinedFocus ?? null}
+      highlight={p.combinedHighlight ?? NO_HIGHLIGHT}
       onCaptions={p.onFarFieldCaptions}
     />
   ),

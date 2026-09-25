@@ -45,13 +45,40 @@ export function combinedDbiTop(traces: readonly CombinedTrace[]): number {
   return cutDbiTop(traces.map((t) => t.peakDbi));
 }
 
-/** The focus the chart honours: a pin that is gone (deleted or disabled) is
- *  no focus at all, so a stale selection can never dim everything. */
-export function effectiveFocus(
-  focus: string | null | undefined,
-  pins: readonly Pick<PinnedPattern, "id">[],
-): string | null {
-  if (!focus) return null;
-  if (focus === LIVE_ENTITY) return focus;
-  return pins.some((p) => p.id === focus) ? focus : null;
+/** The highlight the chart honours (AK#1730): the stored ids that still name
+ *  something drawn — the live design or a SHOWN pin. A pin since deleted or
+ *  hidden drops out, so a stale id can never dim everything. Empty means no
+ *  highlight: every trace at full strength. */
+export function effectiveHighlight(
+  stored: readonly string[],
+  shownPins: readonly Pick<PinnedPattern, "id">[],
+): string[] {
+  return stored.filter(
+    (id, i) =>
+      stored.indexOf(id) === i &&
+      (id === LIVE_ENTITY || shownPins.some((p) => p.id === id)),
+  );
+}
+
+/** One row's highlight switched, independently of the others (not a radio):
+ *  on if it was off, off if it was on. Works from the EFFECTIVE set, so stale
+ *  ids are dropped on every toggle and un-highlighting every row always lands
+ *  on the empty set, which draws everything at full strength. */
+export function toggleHighlight(
+  stored: readonly string[],
+  id: string,
+  shownPins: readonly Pick<PinnedPattern, "id">[],
+): string[] {
+  const eff = effectiveHighlight(stored, shownPins);
+  return eff.includes(id) ? eff.filter((x) => x !== id) : [...eff, id];
+}
+
+/** How strongly a design's traces draw under a highlight: "full" with no
+ *  highlight or when highlighted, "dim" when others are highlighted. */
+export function highlightState(
+  entity: string,
+  effective: readonly string[],
+): "normal" | "strong" | "dim" {
+  if (effective.length === 0) return "normal";
+  return effective.includes(entity) ? "strong" : "dim";
 }

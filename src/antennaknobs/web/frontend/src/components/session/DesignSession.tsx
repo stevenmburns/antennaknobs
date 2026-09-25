@@ -62,6 +62,7 @@ import type {
 } from "../../lib/ground";
 import { BackendConfigModal } from "../backend/BackendConfigModal";
 import { ParamForm } from "../params/ParamForm";
+import { effectiveHighlight, toggleHighlight } from "../charts/combined";
 import { setCutRefineEnabled } from "../charts/cuts";
 import type {
   FarFieldCaptions,
@@ -569,10 +570,10 @@ function DesignSessionBody({
     combinedFill,
     setCombinedFill,
   } = useViewPrefs();
-  // The combined view's legend focus (AK#1730): the live design or a pin id,
-  // whose traces stay bright while the rest dim. Session-only: a focus is a
-  // moment's reading aid, not a preference.
-  const [combinedFocus, setCombinedFocus] = useState<string | null>(null);
+  // The combined view's highlighted designs (AK#1730): the live design and/or
+  // pin ids, toggled per row in the compare table; while any is highlighted
+  // the rest dim. Session-only: a reading aid, not a preference.
+  const [combinedHighlight, setCombinedHighlight] = useState<string[]>([]);
 
   // When linked, design and measurement freq move together.
   function updateDesignFreq(v: number) {
@@ -2338,6 +2339,11 @@ function DesignSessionBody({
   // closure (not a component) so the ~30 captured locals need no props. The
   // solve-readout HUD stays OUT of it — mobile chart screens must not
   // inherit the floating readout.
+  // The combined view's highlight as drawn: stale ids (a pin since removed or
+  // hidden) dropped, so neither the chart nor the table can show a highlight
+  // that no row can switch off.
+  const shownPins = pinnedPatterns.filter((p) => p.enabled);
+  const shownHighlight = effectiveHighlight(combinedHighlight, shownPins);
   const renderOutput = (v: View, size: number, fill: boolean) => (
     <>
           {v === "antenna" && (
@@ -2414,13 +2420,7 @@ function DesignSessionBody({
             />
           )}
           {v === "combined" && (
-            <CombinedLegend
-              pinnedPatterns={pinnedPatterns}
-              focus={combinedFocus}
-              setFocus={setCombinedFocus}
-              fill={combinedFill}
-              setFill={setCombinedFill}
-            />
+            <CombinedLegend fill={combinedFill} setFill={setCombinedFill} />
           )}
           {(v === "smith" || v === "vswr" || v === "gamma") && (
             <SweepAdvisoryOverlay advisories={sweepAdvisories} />
@@ -2452,6 +2452,18 @@ function DesignSessionBody({
                   : (ffCaptions[v === "azimuth" ? "xy" : "yz"]?.cutLabel ??
                     null)
               }
+              // The row highlight is the combined view's alone (AK#1730): the
+              // one-cut views tell pins apart by colour and keep their table.
+              {...(v === "combined"
+                ? {
+                    highlight: shownHighlight,
+                    onToggleHighlight: (id: string) =>
+                      setCombinedHighlight((cur) =>
+                        toggleHighlight(cur, id, shownPins),
+                      ),
+                    onClearHighlight: () => setCombinedHighlight([]),
+                  }
+                : {})}
             />
           )}
           <ViewPanel
@@ -2491,7 +2503,7 @@ function DesignSessionBody({
             fineNorm={normCheck?.pattern_norm ?? null}
             onFarFieldCaptions={onFarFieldCaptions}
             combinedFill={combinedFill}
-            combinedFocus={combinedFocus}
+            combinedHighlight={shownHighlight}
             refineEnabled={refineEnabled}
             sweepSettled={sweepSettled}
             schematicSvg={schematicSvg}

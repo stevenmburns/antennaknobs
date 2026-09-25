@@ -5,8 +5,6 @@ import type { GroundModel } from "../../lib/ground";
 import type { ExampleDescriptor } from "../../lib/params";
 import type { CombinedFill, Projection, View } from "../../lib/view";
 import { PROJECTIONS } from "../../lib/view";
-import { LIVE_ENTITY } from "../charts/combined";
-import { GHOST_COLOR_COUNT, GHOST_FALLBACK_RGB } from "../charts/palette";
 import type { Layout } from "../session/useViewPrefs";
 import type {
   FarFieldCaptions,
@@ -598,108 +596,45 @@ export function CutAngleOverlay({
   return null;
 }
 
-// The combined view's legend (AK#1730), over the stage's lower-left corner
-// above the solve readout. Colour says which CUT a trace is, so with pins on
-// screen the colour alone no longer says which DESIGN: each row names one
-// (the live design, then each shown pin, with the pin's swatch from the
-// compare table), and clicking a row focuses it — its two traces stay at full
-// strength and everything else dims — until it is clicked again. Showing and
-// hiding a pin stays where it already is, in the compare table.
-//
-// The fill switch lives here too: it is this view's only setting.
+// The combined view's key and fill switch (AK#1730), small, over the stage's
+// lower-left corner above the solve readout. Colour says which CUT a trace is;
+// which DESIGN is the compare table's job, whose rows highlight designs.
 export function CombinedLegend({
-  pinnedPatterns,
-  focus,
-  setFocus,
   fill,
   setFill,
 }: {
-  pinnedPatterns: PinnedPattern[];
-  focus: string | null;
-  setFocus: (id: string | null) => void;
   fill: CombinedFill;
   setFill: (f: CombinedFill) => void;
 }) {
-  const shown = pinnedPatterns.filter((p) => p.enabled);
-  // A focus on a pin that is gone or hidden reads as no focus (the chart
-  // applies the same rule, see effectiveFocus).
-  const active =
-    focus === LIVE_ENTITY || shown.some((p) => p.id === focus) ? focus : null;
-  const row = (id: string, label: string, pinned: boolean, swatch?: string) => (
-    <li key={id}>
-      <button
-        type="button"
-        className={`combined-legend-row${active === id ? " is-focus" : ""}${
-          active != null && active !== id ? " is-dim" : ""
-        }`}
-        aria-pressed={active === id}
-        onClick={() => setFocus(active === id ? null : id)}
-        title={
-          active === id
-            ? "Show every trace again"
-            : `Focus ${label}: its two traces stay bright and the rest dim`
-        }
-      >
-        {swatch && (
-          <span className="compare-swatch" style={{ background: swatch }} />
-        )}
-        <span
-          className={`combined-legend-line combined-az${pinned ? " is-pinned" : ""}`}
-          aria-hidden="true"
-        />
-        <span
-          className={`combined-legend-line combined-el${pinned ? " is-pinned" : ""}`}
-          aria-hidden="true"
-        />
-        <span className="combined-legend-label">{label}</span>
-      </button>
-    </li>
-  );
   return (
-    <div className="combined-legend" aria-label="Combined pattern legend">
-      <div className="combined-legend-head">
-        <span>
-          <span className="combined-legend-line combined-az" aria-hidden="true" />
-          az
-        </span>
-        <span>
-          <span className="combined-legend-line combined-el" aria-hidden="true" />
-          el
-        </span>
-        <span
-          className="combined-fill"
-          role="group"
-          aria-label="Fill"
-          title="Fill the live elevation half-lobe, for reading the low angles"
-        >
-          fill
-          {(["none", "elevation"] as const).map((f) => (
-            <button
-              key={f}
-              type="button"
-              className={`combined-fill-btn${fill === f ? " is-active" : ""}`}
-              aria-pressed={fill === f}
-              onClick={() => setFill(f)}
-            >
-              {f === "none" ? "none" : "el"}
-            </button>
-          ))}
-        </span>
-      </div>
-      {shown.length > 0 && (
-        <ul className="combined-legend-rows">
-          {row(LIVE_ENTITY, "live", false)}
-          {shown.map((p) => {
-            const i = p.colorIdx % GHOST_COLOR_COUNT;
-            return row(
-              p.id,
-              p.label,
-              true,
-              `rgba(var(--plot-ghost-${i}-rgb, ${GHOST_FALLBACK_RGB[i]}), 0.95)`,
-            );
-          })}
-        </ul>
-      )}
+    <div className="combined-legend" aria-label="Combined pattern key">
+      <span>
+        <span className="combined-legend-line combined-az" aria-hidden="true" />
+        az
+      </span>
+      <span>
+        <span className="combined-legend-line combined-el" aria-hidden="true" />
+        el
+      </span>
+      <span
+        className="combined-fill"
+        role="group"
+        aria-label="Fill"
+        title="Fill the live elevation half-lobe, for reading the low angles"
+      >
+        fill
+        {(["none", "elevation"] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            className={`combined-fill-btn${fill === f ? " is-active" : ""}`}
+            aria-pressed={fill === f}
+            onClick={() => setFill(f)}
+          >
+            {f === "none" ? "none" : "el"}
+          </button>
+        ))}
+      </span>
     </div>
   );
 }
@@ -718,6 +653,9 @@ export function CompareOverlay({
   removePin,
   togglePin,
   cutLabel,
+  highlight,
+  onToggleHighlight,
+  onClearHighlight,
 }: {
   pinCurrentPattern: () => void;
   setCompareCollapsed: (v: boolean) => void;
@@ -733,7 +671,26 @@ export function CompareOverlay({
   togglePin: (id: string) => void;
   /** The chart's cut caption, shown above the Pin button (see PeakReadout). */
   cutLabel: string | null;
+  /** The combined view's row highlight (AK#1730; see PatternCompareTable).
+   *  Omitted on the one-cut views, whose table is unchanged. */
+  highlight?: readonly string[];
+  onToggleHighlight?: (id: string) => void;
+  onClearHighlight?: () => void;
 }) {
+  // "all": back to no highlight, every trace at full strength. Shown only
+  // while something is highlighted, beside the table or its collapsed chip, so
+  // the way back is on screen whenever there is somewhere to come back from.
+  const allButton =
+    onClearHighlight && highlight && highlight.length > 0 ? (
+      <button
+        type="button"
+        className="pin-clear"
+        onClick={onClearHighlight}
+        title="Un-highlight every design: all traces at full strength"
+      >
+        all
+      </button>
+    ) : null;
   return (
     <div className="compare-overlay">
       {cutLabel && <span className="overlay-caption">{cutLabel}</span>}
@@ -753,17 +710,21 @@ export function CompareOverlay({
       </button>
       {pinnedPatterns.length > 0 &&
         (compareCollapsed ? (
-          <button
-            type="button"
-            className="pin-btn pin-chip"
-            onClick={() => setCompareCollapsed(false)}
-            title="Show the pinned-pattern comparison table"
-          >
-            {pinnedPatterns.length} pinned ▾
-          </button>
+          <>
+            <button
+              type="button"
+              className="pin-btn pin-chip"
+              onClick={() => setCompareCollapsed(false)}
+              title="Show the pinned-pattern comparison table"
+            >
+              {pinnedPatterns.length} pinned ▾
+            </button>
+            {allButton}
+          </>
         ) : (
           <>
             <div className="pin-table-actions">
+              {allButton}
               <button
                 type="button"
                 className="pin-clear"
@@ -787,6 +748,9 @@ export function CompareOverlay({
               pinned={pinnedPatterns}
               onRemove={removePin}
               onToggle={togglePin}
+              {...(onToggleHighlight
+                ? { highlight: highlight ?? [], onToggleHighlight }
+                : {})}
             />
           </>
         ))}
