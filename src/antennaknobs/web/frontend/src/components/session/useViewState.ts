@@ -1,5 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { BUILTIN_SWITCHES } from "../../lib/settings";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  BUILTIN_ORIENTATION,
+  BUILTIN_SWITCHES,
+  ORIENTATION_PROJECTION,
+  type Orientation,
+} from "../../lib/settings";
 import { type ExampleDescriptor } from "../../lib/params";
 import { type CanvasCamera, fitCamera, type Projection, type View } from "../../lib/view";
 import { cycleOrder, gridCells, gridFix, type Layout } from "./useViewPrefs";
@@ -18,6 +23,7 @@ export function useViewState({
   layout = "rail",
   setLayout,
   overlays,
+  orientation: initialOrientation = BUILTIN_ORIENTATION,
 }: {
   currentExample: ExampleDescriptor | undefined;
   active: boolean;
@@ -44,6 +50,11 @@ export function useViewState({
     wireLabels: boolean;
     feedNames: boolean;
   };
+  // The Antenna view's orientation on a design load (AK#1737's
+  // settings.toml key). Where the session STARTS: the Tools menu can change
+  // it for the session, and "Save as my defaults" writes that back. Omitted,
+  // it is "auto": the per-design guess, exactly as before the setting.
+  orientation?: Orientation;
 }) {
   // Far-field cut angles. The azimuth plot slices the pattern at elevation
   // `azElevDeg`; the elevation plot slices the vertical plane at azimuth
@@ -84,21 +95,52 @@ export function useViewState({
   // state proper: the canvas writes it at pointer-event rate and repaints
   // itself, so a zoom re-renders nothing here, which is the point.
   const [canvasCamera] = useState<CanvasCamera>(fitCamera);
+
+  // The orientation setting (AK#1737). "auto" takes the design's own guess;
+  // anything else wins over it on EVERY design load, not only the first. A
+  // hand pick on the view's own switch is plain setCameraProjection and lasts
+  // until the next load, whichever the setting.
+  const [orientation, setOrientationState] =
+    useState<Orientation>(initialOrientation);
+  // The current design's guess, kept so switching the setting back to "auto"
+  // mid-session can return to it. A ref: nothing renders from it.
+  const guessRef = useRef<Projection | null>(null);
+  // Called at each design load with the design's guess (null while a deferred
+  // design has not yet reported one): the camera goes to the setting, or,
+  // under "auto", to the guess when there is one.
+  const snapToDesignView = useCallback(
+    (guess: Projection | null | undefined) => {
+      if (guess) guessRef.current = guess;
+      const p = orientation === "auto" ? guess : ORIENTATION_PROJECTION[orientation];
+      if (p) setCameraProjection(p);
+    },
+    [orientation],
+  );
+  // A change of the setting applies at once, so the menu shows what it does.
+  const setOrientation = useCallback((o: Orientation) => {
+    setOrientationState(o);
+    const p = o === "auto" ? guessRef.current : ORIENTATION_PROJECTION[o];
+    if (p) setCameraProjection(p);
+  }, []);
+
   // When the user switches antennas, reset the camera to that example's
-  // natural starting view (declared on the backend via default_view).
-  // Explicit user override sticks until the next geometry change.
+  // natural starting view (declared on the backend via default_view), or to
+  // the orientation setting when it is not "auto". Explicit user override
+  // sticks until the next geometry change.
   //
   // A deferred (user) design reports default_view === null — its real view is
   // auto-detected and arrives with the first geometry preview (handled where
-  // the preview lands, below). Holding the current camera until then avoids
-  // snapping to a wrong provisional view and flipping when the preview arrives.
+  // the preview lands, in DesignSession, through snapToDesignView). Under
+  // "auto", holding the current camera until then avoids snapping to a wrong
+  // provisional view and flipping when the preview arrives; a fixed setting
+  // needs no guess, so it applies here.
   useEffect(() => {
-    if (currentExample?.default_view) {
-      // Sets the camera to the new antenna's declared default view on an
-      // actual antenna switch; the user's later pick must survive re-renders
-      // (#768).
+    guessRef.current = currentExample?.default_view ?? null;
+    if (currentExample) {
+      // Sets the camera on an actual antenna switch; the user's later pick
+      // must survive re-renders (#768).
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCameraProjection(currentExample.default_view);
+      snapToDesignView(currentExample.default_view);
     }
     // Keyed on the name, not currentExample.default_view directly: a value
     // change for the same example (e.g. a data refresh) must not override
@@ -166,6 +208,9 @@ export function useViewState({
     setView,
     cameraProjection,
     setCameraProjection,
+    orientation,
+    setOrientation,
+    snapToDesignView,
     canvasCamera,
     showHeatmap,
     setShowHeatmap,

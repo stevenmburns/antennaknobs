@@ -9,6 +9,7 @@ import type {
   SoilParams,
 } from "./ground";
 import type { Slot } from "./backends";
+import type { Projection } from "./view";
 
 export type SwitchKey =
   | "live"
@@ -31,6 +32,29 @@ export const BUILTIN_SWITCHES: Record<SwitchKey, boolean> = {
   current_waveforms: false,
   wire_labels: false,
   feed_labels: true,
+};
+
+// The Antenna view's orientation on a design load (AK#1737). "auto" is the
+// per-design guess the server sends as `default_view`; any other value wins
+// over that guess at EVERY design load. The server's ORIENTATIONS table
+// (antennaknobs/web/settings.py) is the one list; the save writes nothing
+// for "auto".
+export type Orientation = "auto" | "top" | "front" | "side" | "iso";
+
+export const ORIENTATIONS: Orientation[] = ["auto", "top", "front", "side", "iso"];
+
+export const BUILTIN_ORIENTATION: Orientation = "auto";
+
+// The camera each fixed orientation means (lib/view.ts PROJECTIONS: Top (xy),
+// Front (xz), Side (yz), Iso).
+export const ORIENTATION_PROJECTION: Record<
+  Exclude<Orientation, "auto">,
+  Projection
+> = {
+  top: "xy",
+  front: "xz",
+  side: "yz",
+  iso: "iso",
 };
 
 export type GroundDefaults = {
@@ -60,6 +84,8 @@ export type UiDefaults = {
   switches: Record<SwitchKey, boolean>;
   /** The switches the file itself set, as opposed to built-in defaults. */
   switchesSet: SwitchKey[];
+  /** The Antenna view's orientation on a design load (AK#1737). */
+  orientation: Orientation;
   ground: GroundDefaults;
   problems: string[];
 };
@@ -70,6 +96,7 @@ export const BUILTIN_UI_DEFAULTS: UiDefaults = {
   writable: false,
   switches: BUILTIN_SWITCHES,
   switchesSet: [],
+  orientation: BUILTIN_ORIENTATION,
   ground: BUILTIN_GROUND,
   problems: [],
 };
@@ -97,6 +124,10 @@ export function parseUiDefaults(raw: unknown): UiDefaults {
         SWITCH_KEYS.includes(k as SwitchKey),
       ) as SwitchKey[])
     : [];
+  const av = isRecord(raw.antenna_view) ? raw.antenna_view : {};
+  const orientation = ORIENTATIONS.includes(av.orientation as Orientation)
+    ? (av.orientation as Orientation)
+    : BUILTIN_ORIENTATION;
   const g = isRecord(raw.ground) ? raw.ground : {};
   const soil =
     isRecord(g.soil) &&
@@ -122,6 +153,7 @@ export function parseUiDefaults(raw: unknown): UiDefaults {
     writable: raw.writable === true,
     switches,
     switchesSet: set,
+    orientation,
     ground,
     problems: Array.isArray(raw.problems)
       ? raw.problems.filter((p): p is string => typeof p === "string")
@@ -131,6 +163,7 @@ export function parseUiDefaults(raw: unknown): UiDefaults {
 
 export type SettingsSaveBody = {
   switches: Record<SwitchKey, boolean>;
+  antenna_view: { orientation: Orientation };
   ground: {
     enabled: boolean;
     type: GroundType;

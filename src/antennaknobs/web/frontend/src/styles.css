@@ -604,6 +604,12 @@ button:focus-visible,
   color: var(--accent);
 }
 
+/* The one <select> in the Tools menu (AK#1737's antenna view on load). */
+.gear-menu-select {
+  margin-left: auto;
+  font-size: var(--text-sm);
+}
+
 .geometry-tabs {
   display: flex;
   /* Wrap instead of clip: the solver roster is server-defined (#628) and
