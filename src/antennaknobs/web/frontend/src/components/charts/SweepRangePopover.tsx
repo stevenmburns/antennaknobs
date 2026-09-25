@@ -99,7 +99,7 @@ export function SweepRangePopover({
             aria-pressed={choice.kind === "auto"}
             title={
               mode === "vswr"
-                ? "Fit the sweep's dip: the smallest of 1.5, 2, 3, 5, 10 … that holds it with headroom. Grows while a knob moves, re-fits when it settles."
+                ? "Fit the sweep's dip: the smallest of 1.5, 2, 3, 5, 10 … that holds it with headroom and is no lower than the SWR threshold. Grows while a knob moves, re-fits when it settles."
                 : "Fit the sweep's dip: the shallowest of −10, −20, −30 … dB it clears by 5 dB. Deepens while a knob moves, re-fits when it settles."
             }
             onClick={() => onChoice(AUTO)}

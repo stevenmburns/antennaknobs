@@ -1,7 +1,12 @@
 import { reflectionCoefficient } from "./format";
 import { gammaDbFromMag, vswrFromGammaMag } from "./math";
 import type { SweepData } from "./api";
-import { AUTO_AXES, sweepAxisDomain, type SweepAxes } from "./sweepAxis";
+import {
+  AUTO_AXES,
+  DEFAULT_SWR_THRESHOLD,
+  sweepAxisDomain,
+  type SweepAxes,
+} from "./sweepAxis";
 import { tunedFloat } from "./tuning";
 
 // Adaptive sampling refinement (issue #744).
@@ -325,6 +330,7 @@ export function sweepProjections(
   z0: number,
   include: SweepProjectionSet = ALL_SWEEP_PROJECTIONS,
   axes: SweepAxes = AUTO_AXES,
+  swrThreshold = DEFAULT_SWR_THRESHOLD,
 ): DisplayPoint[][] {
   const f = sweep.freqs_mhz;
   const n = f.length;
@@ -349,8 +355,8 @@ export function sweepProjections(
   const vs = include.vswr ? gs.map((g) => vswrFromGammaMag(g.gMag)) : [];
   // The drawn domains (AK#1738): the viewer's choice, Auto fitting these
   // same values, exactly as SweepChart derives them.
-  const vDom = sweepAxisDomain("vswr", axes.vswr, vs);
-  const gDom = sweepAxisDomain("gamma", axes.gamma, dbs, s11DbTop(dbs));
+  const vDom = sweepAxisDomain("vswr", axes.vswr, vs, 0, swrThreshold);
+  const gDom = sweepAxisDomain("gamma", axes.gamma, dbs, s11DbTop(dbs), swrThreshold);
   for (let i = 0; i < n; i++) {
     const x = (f[i] - f[0]) / span;
     const g = gs[i];
@@ -384,10 +390,11 @@ export function refineSweepFreqs(
   budget: number,
   include: SweepProjectionSet = ALL_SWEEP_PROJECTIONS,
   axes: SweepAxes = AUTO_AXES,
+  swrThreshold = DEFAULT_SWR_THRESHOLD,
 ): number[] {
   const planned = planRefinement(
     sweep.freqs_mhz,
-    sweepProjections(sweep, z0, include, axes),
+    sweepProjections(sweep, z0, include, axes, swrThreshold),
     { budget },
   );
   // Relative tolerance: sweep spans run 1.8–54 MHz, so an absolute epsilon

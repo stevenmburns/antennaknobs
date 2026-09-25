@@ -2009,6 +2009,7 @@ function DesignSessionBody({
       residentSweepViews,
       // The VSWR / S11 ranges the charts draw (AK#1738), for the same reason.
       sweepAxes,
+      swrThreshold,
       buildRequest,
       solveWithheld,
       seqRef,
