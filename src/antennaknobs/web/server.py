@@ -30,6 +30,7 @@ import logging
 from datetime import datetime, timezone
 import math
 import os
+import threading
 import time
 from collections import OrderedDict
 from collections.abc import AsyncIterator
@@ -1746,12 +1747,92 @@ def _solve_uncached(req: dict, cancel=None) -> dict:
         out["solver"] = _BACKEND_NAME[backend]
     else:
         ex = example_for(geometry)
-        out = ex.momwire_solve(req, cancel=cancel)
+        # Imported here for the adapter <-> examples cycle (see /sweep).
+        from .adapter import capture_solved_metrics
+
+        with capture_solved_metrics() as kept:
+            out = ex.momwire_solve(req, cancel=cancel)
         out["solver"] = "momwire"
+        _keep_solved_metrics(req, kept)
     _attach_derived_em_fields(out)
     _attach_gain_norm(out)
     _attach_in_medium_fraction(out)
     return out
+
+
+# AK#1727: the compare table's metrics off the live row's own solve.
+#
+# With a comparison on screen, the live row sends /pattern_metrics after every
+# settled solve, for the design that solve just described. That request built
+# its own engine and filled Z again: two fills per settled change where one
+# answers both. So a momwire solve leaves behind a thunk that computes, from its
+# own state, exactly what `far_field_metrics` would (`capture_solved_metrics`),
+# and /pattern_metrics takes it instead of solving again -- only when all of
+# these hold, and otherwise solves as it always did:
+#
+# - the SAME session (one workbench tab; never shared across sessions);
+# - the SAME generation (the solve's `_seq` is the metrics request's `_gen`;
+#   a gen-less request -- a pinned row -- never takes one);
+# - the SAME request, exactly: every field that reaches the builder or the
+#   engine, compared as JSON without the result cache's float quantisation
+#   (a 1e-7 knob move is a different antenna here), less only the pure
+#   metadata `_CACHE_KEY_BLOCKLIST` names, plus the user-design refresh
+#   generation (#1312) because a design's file can change under an unchanged
+#   request.
+#
+# A stale answer for another design is far worse than a slow one (#1723), so a
+# miss is always the fresh solve. Bounded: one entry per session, the newest
+# _SOLVED_METRICS_MAX sessions, and each entry holds only the excited solver and
+# its coefficients -- the snapshot releases the engine's held Z.
+_SOLVED_METRICS: "OrderedDict[str, tuple[int, str, object]]" = OrderedDict()
+_SOLVED_METRICS_MAX = 8
+_SOLVED_METRICS_LOCK = threading.Lock()
+
+
+def _solved_metrics_key(req: dict) -> str:
+    """The exact request signature a solve's metrics are filed under."""
+
+    def strip(x):
+        if isinstance(x, dict):
+            return {k: strip(v) for k, v in x.items() if k not in _CACHE_KEY_BLOCKLIST}
+        if isinstance(x, (list, tuple)):
+            return [strip(v) for v in x]
+        return x
+
+    canon = strip(req)
+    if _is_user_geometry(req):
+        canon["_user_designs_generation"] = user_designs.generation()
+    return json.dumps(canon, sort_keys=True, default=repr)
+
+
+def _keep_solved_metrics(req: dict, kept: list) -> None:
+    """File a momwire solve's metrics thunk under its session (AK#1727)."""
+    session, gen = _lane_key(req)
+    if session is None or gen is None:
+        return
+    with _SOLVED_METRICS_LOCK:
+        if not kept:
+            # Nothing to reuse: drop the older entry rather than hold it.
+            _SOLVED_METRICS.pop(session, None)
+            return
+        _SOLVED_METRICS[session] = (gen, _solved_metrics_key(req), kept[-1])
+        _SOLVED_METRICS.move_to_end(session)
+        while len(_SOLVED_METRICS) > _SOLVED_METRICS_MAX:
+            _SOLVED_METRICS.popitem(last=False)
+
+
+def _solved_metrics_for(req: dict):
+    """The metrics thunk of the solve this request describes, or None."""
+    session, gen = _lane_key(req)
+    if session is None or gen is None:
+        return None
+    with _SOLVED_METRICS_LOCK:
+        entry = _SOLVED_METRICS.get(session)
+    if entry is None or entry[0] != gen:
+        return None
+    if entry[1] != _solved_metrics_key(req):
+        return None
+    return entry[2]
 
 
 def _track_signature(req: dict) -> tuple:
@@ -2876,9 +2957,17 @@ async def pattern_metrics_endpoint(req: dict, request: Request):
     try:
         async with _LANES.turn(session, "pattern_metrics", lane_gen) as token:
             async with cancel_on_disconnect(request, token):
-                metrics = await run_in_threadpool(
-                    _shed, ex.far_field_metrics, req, cancel=token
-                )
+                # Looked up INSIDE the turn: the live solve it pairs with runs
+                # on this lane too, so it has finished (and filed) by now.
+                solved = _solved_metrics_for(req)
+                if solved is not None:
+                    # The live solve's own state (AK#1727): no second fill.
+                    token.raise_if_cancelled()
+                    metrics = await run_in_threadpool(_shed, solved)
+                else:
+                    metrics = await run_in_threadpool(
+                        _shed, ex.far_field_metrics, req, cancel=token
+                    )
     except (Superseded, momwire.SolveAborted):
         return {"geometry": geometry, "available": False}
     except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise
