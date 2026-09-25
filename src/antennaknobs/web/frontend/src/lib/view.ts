@@ -2,6 +2,7 @@ export type View =
   | "antenna"
   | "azimuth"
   | "elevation"
+  | "combined"
   | "smith"
   | "schematic"
   | "gamma"
@@ -45,6 +46,11 @@ export const VIEWS: ViewMeta[] = [
   { id: "antenna", label: "Antenna", defaultPinned: true, staleWhileOptimizing: true, readoutStartsCollapsed: false },
   { id: "azimuth", label: "Azimuth (xy)", defaultPinned: true, staleWhileOptimizing: true, readoutStartsCollapsed: false },
   { id: "elevation", label: "Elevation (yz)", defaultPinned: true, staleWhileOptimizing: true, readoutStartsCollapsed: false },
+  // The combined Az + El plot (AK#1730): both principal cuts overlaid on one
+  // polar plot, EZNEC's combined 2D plot. An ALTERNATIVE to the two views
+  // above, not a replacement, so it ships unpinned and nobody's layout moves.
+  // Stale for the same reason they are: it draws the same pre-run solve.
+  { id: "combined", label: "Az + El (combined)", defaultPinned: false, staleWhileOptimizing: true, readoutStartsCollapsed: false },
   // NOT stale: the dot follows the run's per-eval frames (ViewRenderProps'
   // liveZ), so this is the one view that is live. Its sweep locus is still
   // pre-run, which is why the live point draws as a hollow ring rather than
@@ -88,6 +94,12 @@ export const VIEWS: ViewMeta[] = [
 export const VIEW_META = Object.fromEntries(
   VIEWS.map((v) => [v.id, v]),
 ) as Record<View, ViewMeta>;
+
+// The combined view's fill (AK#1730): "none" is EZNEC's look and the default;
+// "elevation" fills the live elevation half-lobe, for reading the low angles.
+// There is deliberately no "both" (the overlap of two tints went murky).
+export type CombinedFill = "none" | "elevation";
+export const COMBINED_FILLS: readonly CombinedFill[] = ["none", "elevation"];
 
 export type MobileScreen = { id: View | "info"; label: string };
 

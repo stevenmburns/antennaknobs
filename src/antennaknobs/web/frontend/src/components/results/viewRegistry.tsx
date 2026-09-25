@@ -1,7 +1,13 @@
 import type { ReactElement } from "react";
 import type { ConvergeData, MeasuredData, SolveResponse, SweepData } from "../../lib/api";
 import type { SweepProgress } from "../../lib/sweep";
-import type { CanvasCamera, Projection, View } from "../../lib/view";
+import type {
+  CanvasCamera,
+  CombinedFill,
+  Projection,
+  View,
+} from "../../lib/view";
+import { CombinedPatternChart } from "../charts/CombinedPatternChart";
 import { CurrentCanvas } from "../charts/CurrentCanvas";
 import { FarFieldChart } from "../charts/FarFieldChart";
 import { SmithChart } from "../charts/SmithChart";
@@ -91,6 +97,10 @@ export type ViewRenderProps = {
   /** The Files view's texts (AK#1428). Optional: thumbnail call sites omit
    *  it, and the panel's thumb carries no text anyway. */
   files?: FilesViewData | null;
+  /** The combined Az + El view's fill and its legend's focus (AK#1730).
+   *  Optional: omitted, the plot is unfilled with nothing focused. */
+  combinedFill?: CombinedFill;
+  combinedFocus?: string | null;
 };
 
 // Plain functions, not components: ViewPanel calls the entry rather than
@@ -148,6 +158,19 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       azElevDeg={p.azElevDeg}
       elevAzDeg={p.elevAzDeg}
       fineNorm={p.fineNorm}
+      onCaptions={p.onFarFieldCaptions}
+    />
+  ),
+  combined: (p) => (
+    <CombinedPatternChart
+      result={p.result}
+      pattern={p.pattern}
+      pinned={p.pinnedPatterns}
+      size={p.size}
+      azElevDeg={p.azElevDeg}
+      elevAzDeg={p.elevAzDeg}
+      fill={p.combinedFill ?? "none"}
+      focus={p.combinedFocus ?? null}
       onCaptions={p.onFarFieldCaptions}
     />
   ),

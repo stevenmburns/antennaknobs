@@ -71,6 +71,10 @@ export function plotColors() {
     spoke: v("--plot-spoke", "rgba(180, 140, 250, 0.7)"),
     lobeRgb: v("--plot-lobe-rgb", "255, 209, 102"),
     necRgb: v("--plot-nec-rgb", "110, 220, 255"),
+    // The combined view's elevation cut (AK#1730). Its own token although it
+    // starts at the NEC overlay's hue: the combined view draws no NEC overlay,
+    // so the two never meet on one plot, and a token lets either move alone.
+    elevRgb: v("--plot-elev-rgb", "110, 220, 255"),
     groundRgb: v("--plot-ground-rgb", "140, 110, 70"),
     envelopeRgb: v("--plot-envelope-rgb", "118, 208, 255"),
     feed: v("--plot-feed", "#ffd166"),

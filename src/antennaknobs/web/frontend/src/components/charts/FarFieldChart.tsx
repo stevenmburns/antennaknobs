@@ -3,12 +3,19 @@ import type { SolveResponse } from "../../lib/api";
 import { cutDbiTop, cutDbiToFrac } from "../../lib/refine";
 import { ThemeContext } from "../hooks";
 import {
+  buildFarFieldCaptions,
   cutsRedrawKey,
-  slicePeakAngleDeg,
   traceFor,
   useCutTraces,
 } from "./cuts";
 import { ghostRgb, plotColors } from "./palette";
+import {
+  drawDbiRings,
+  drawSpoke,
+  type PolarGeom,
+  strokeTrace as strokePolarTrace,
+  type TraceStyle,
+} from "./polar";
 import type {
   FarFieldCaptions,
   FarFieldCut,
@@ -67,28 +74,14 @@ export function FarFieldChart({
 
   // The captions, from the same trace the draw uses. Serialised so the effect
   // below fires when a caption CHANGES, not on every render.
-  const captionTrace = traceFor(cutTraces[0], cut);
-  const captions: FarFieldCaptions = {
+  const captions = buildFarFieldCaptions(
     cut,
-    cutLabel:
-      cut === "xy"
-        ? `az @ ${azElevDeg}° elev (dBi)`
-        : `elev @ ${elevAzDeg}° az (dBi)`,
-    peakDbi: result && captionTrace ? captionTrace.peakDbi : null,
-    peakAngleDeg:
-      result && captionTrace ? slicePeakAngleDeg(captionTrace, cut) : null,
-    field:
-      cutTraces[0] && result?.ground_terrain
-        ? cutTraces[0].diffraction
-          ? "with diffraction"
-          : "specular while dragging"
-        : null,
-    belowGroundPct:
-      result?.in_medium_moment_fraction != null
-        ? Math.round(result.in_medium_moment_fraction * 100)
-        : null,
-    necOverlay: !!(result && captionTrace && pattern),
-  };
+    cutTraces[0],
+    result,
+    azElevDeg,
+    elevAzDeg,
+    !!pattern,
+  );
   const captionsJson = JSON.stringify(captions);
   useEffect(() => {
     onCaptions?.(JSON.parse(captionsJson) as FarFieldCaptions);
@@ -165,23 +158,8 @@ export function FarFieldChart({
     // curvature against the exact geometry drawn here.
     const dbiTop = cutDbiTop(peaks);
     const dbiToFrac = cutDbiToFrac(dbiTop);
-    ctx.strokeStyle = PC.grid;
-    ctx.lineWidth = 0.6;
-    ctx.fillStyle = PC.labelDim;
-    ctx.font = "9px ui-monospace, monospace";
-    for (const db of [6, 0, -6, -12, -18]) {
-      const f = dbiToFrac(db);
-      ctx.beginPath();
-      ctx.arc(cx, cy, R * f, 0, 2 * Math.PI);
-      ctx.stroke();
-      ctx.fillText(`${db > 0 ? "+" : ""}${db}`, cx + 2, cy - R * f - 1);
-    }
-    ctx.beginPath();
-    ctx.moveTo(cx - R, cy);
-    ctx.lineTo(cx + R, cy);
-    ctx.moveTo(cx, cy - R);
-    ctx.lineTo(cx, cy + R);
-    ctx.stroke();
+    const geom: PolarGeom = { cx, cy, R, dbiToFrac };
+    drawDbiRings(ctx, geom, PC);
 
     // Axis labels: xy cut uses world x/y around the rim; yz cut shows the
     // azimuth bearing on the horizontal pair and zenith/nadir on vertical.
@@ -212,23 +190,14 @@ export function FarFieldChart({
 
     // Cross-reference: a single dashed spoke showing where the *other* cut
     // slices this plot. The opposite side is implied by symmetry.
-    const markerStyle = PC.spoke;
-    {
-      const canvasAngleRad =
-        cut === "xy"
-          ? (elevAzDeg * Math.PI) / 180 // azimuth plot: elevation cut's bearing
-          : (azElevDeg * Math.PI) / 180; // elevation plot: azimuth cut's elevation
-      const cosA = Math.cos(canvasAngleRad);
-      const sinA = Math.sin(canvasAngleRad);
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + cosA * R, cy - sinA * R);
-      ctx.strokeStyle = markerStyle;
-      ctx.lineWidth = 0.8;
-      ctx.setLineDash([3, 3]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
+    drawSpoke(
+      ctx,
+      geom,
+      cut === "xy"
+        ? (elevAzDeg * Math.PI) / 180 // azimuth plot: elevation cut's bearing
+        : (azElevDeg * Math.PI) / 180, // elevation plot: azimuth cut's elevation
+      PC.spoke,
+    );
 
     if (!result) return;
 
@@ -291,41 +260,8 @@ export function FarFieldChart({
     // needs because a densified cut is no longer uniform and the index no
     // longer determines the angle. The live lobe closes + fills; pinned
     // ghosts are an open dashed stroke so the live trace reads on top.
-    const strokeTrace = (
-      dbi: number[],
-      o: {
-        stroke: string;
-        fill?: string;
-        width: number;
-        dash?: number[];
-        anglesDeg?: number[] | undefined;
-      },
-    ) => {
-      const n = dbi.length;
-      ctx.beginPath();
-      for (let pi = 0; pi <= n; pi++) {
-        const i = pi % n;
-        const t = o.anglesDeg
-          ? (o.anglesDeg[i] * Math.PI) / 180
-          : (2 * Math.PI * pi) / n;
-        const frac = dbiToFrac(dbi[i]);
-        const px = cx + Math.cos(t) * frac * R;
-        // Canvas y flips: +y on canvas is down, so we negate to put +y at top.
-        const py = cy - Math.sin(t) * frac * R;
-        if (pi === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      if (o.fill) {
-        ctx.fillStyle = o.fill;
-        ctx.fill();
-      }
-      if (o.dash) ctx.setLineDash(o.dash);
-      ctx.strokeStyle = o.stroke;
-      ctx.lineWidth = o.width;
-      ctx.stroke();
-      if (o.dash) ctx.setLineDash([]);
-    };
+    const strokeTrace = (dbi: number[], o: TraceStyle) =>
+      strokePolarTrace(ctx, geom, dbi, o);
 
     // Pinned ghosts first (dimmed, dashed), so the live lobe sits on top. Each
     // shares the adaptive radial scale computed above, so it tracks the cut and

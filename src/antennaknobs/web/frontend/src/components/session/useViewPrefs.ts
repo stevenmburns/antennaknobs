@@ -1,5 +1,11 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
-import { VIEW_META, VIEWS, type View, type ViewMeta } from "../../lib/view";
+import {
+  type CombinedFill,
+  VIEW_META,
+  VIEWS,
+  type View,
+  type ViewMeta,
+} from "../../lib/view";
 
 // The desktop view preferences: which views are PINNED (resident in the
 // thumbstrip) and which the user has already been shown in the picker.
@@ -52,6 +58,9 @@ type ViewPrefs = {
   // kept, and an empty map is not written, so a session that never touches
   // the readout still persists `{pinned, seen}`.
   readoutCollapsed: Partial<Record<View, boolean>>;
+  // The combined Az + El view's fill (AK#1730). Kept here, with the rest of
+  // the view prefs, and written only when it is not the default "none".
+  combinedFill: CombinedFill;
 };
 
 const KNOWN = new Set<string>(VIEWS.map((v) => v.id));
@@ -84,6 +93,11 @@ function sanitizeLayout(raw: unknown): Layout {
   return raw === "grid" ? "grid" : "rail";
 }
 
+// Anything but the literal "elevation" is the default, as with `layout`.
+function sanitizeCombinedFill(raw: unknown): CombinedFill {
+  return raw === "elevation" ? "elevation" : "none";
+}
+
 // Per-view readout choices. Unknown views and non-boolean values are dropped
 // one by one; a map that is garbage as a whole reads as "no choices", which
 // leaves every view on its registry default.
@@ -99,7 +113,13 @@ function sanitizeReadout(raw: unknown): Partial<Record<View, boolean>> {
 // What loadPrefs falls back to on any of: missing key, corrupt JSON, wrong
 // shape, or an empty pin set post-sanitisation.
 function defaultPrefs(): ViewPrefs {
-  return { pinned: defaultPins(), seen: SEEN_SEED, layout: "rail", readoutCollapsed: {} };
+  return {
+    pinned: defaultPins(),
+    seen: SEEN_SEED,
+    layout: "rail",
+    readoutCollapsed: {},
+    combinedFill: "none",
+  };
 }
 
 // Parses and validates a raw stored string exactly as loadPrefs does, but
@@ -126,6 +146,7 @@ function parseStoredPrefs(raw: string): ViewPrefs | null {
           seen: seen.length > 0 ? seen : SEEN_SEED,
           layout: sanitizeLayout(rec.layout),
           readoutCollapsed: sanitizeReadout(rec.readoutCollapsed),
+          combinedFill: sanitizeCombinedFill(rec.combinedFill),
         };
       }
     }
@@ -190,6 +211,8 @@ function update(next: ViewPrefs): void {
           Object.keys(next.readoutCollapsed).length > 0
             ? next.readoutCollapsed
             : undefined,
+        combinedFill:
+          next.combinedFill === "none" ? undefined : next.combinedFill,
       }),
     );
   } catch {
@@ -350,7 +373,7 @@ export function gridFix(
 
 export function useViewPrefs() {
   const prefs = useSyncExternalStore(subscribe, getSnapshot);
-  const { pinned, seen, layout, readoutCollapsed } = prefs;
+  const { pinned, seen, layout, readoutCollapsed, combinedFill } = prefs;
 
   // Views the user has never been offered. Seeded (not empty) on a first run,
   // so the badge only ever fires for views added after the picker shipped.
@@ -437,6 +460,14 @@ export function useViewPrefs() {
     update({ ...cur, readoutCollapsed: next });
   }, []);
 
+  // The combined view's fill (AK#1730). No-ops on an unchanged value, keeping
+  // snapshot identity, as setLayout does.
+  const setCombinedFill = useCallback((next: CombinedFill) => {
+    const cur = getSnapshot();
+    if (cur.combinedFill === next) return;
+    update({ ...cur, combinedFill: next });
+  }, []);
+
   return {
     pinned,
     seen,
@@ -449,5 +480,7 @@ export function useViewPrefs() {
     setLayout,
     isReadoutCollapsed,
     setReadoutCollapsed,
+    combinedFill,
+    setCombinedFill,
   };
 }

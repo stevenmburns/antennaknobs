@@ -79,6 +79,7 @@ import {
 import { SolveReadout } from "../results/SolveReadout";
 import {
   AntennaOverlayControls,
+  CombinedLegend,
   CompareOverlay,
   CutAngleOverlay,
   FarFieldOverlayControls,
@@ -565,7 +566,13 @@ function DesignSessionBody({
     setLayout,
     isReadoutCollapsed,
     setReadoutCollapsed,
+    combinedFill,
+    setCombinedFill,
   } = useViewPrefs();
+  // The combined view's legend focus (AK#1730): the live design or a pin id,
+  // whose traces stay bright while the rest dim. Session-only: a focus is a
+  // moment's reading aid, not a preference.
+  const [combinedFocus, setCombinedFocus] = useState<string | null>(null);
 
   // When linked, design and measurement freq move together.
   function updateDesignFreq(v: number) {
@@ -1596,7 +1603,9 @@ function DesignSessionBody({
   // need a full far-field solve, so don't pay for it otherwise. Debounced so it
   // doesn't fire on every knob tick.
   const pinCount = pinnedPatterns.length;
-  const comparing = pinCount > 0 && (view === "azimuth" || view === "elevation");
+  const comparing =
+    pinCount > 0 &&
+    (view === "azimuth" || view === "elevation" || view === "combined");
   useEffect(() => {
     if (!comparing || !result || !active) {
       // Derived state cleared when its inputs change — the reset IS the
@@ -2381,6 +2390,38 @@ function DesignSessionBody({
               onDismissMax={() => setMaxDismissed(true)}
             />
           )}
+          {/* The combined view (AK#1730): both cuts' slice peaks, and none of
+              the one-cut overlays' switches, since it draws neither overlay. */}
+          {v === "combined" && (
+            <FarFieldOverlayControls
+              isMobile={isMobile}
+              normCheckEnabled={normCheckEnabled}
+              setNormCheckEnabled={setNormCheckEnabled}
+              normCheck={normCheck}
+              backend={backend.name}
+              groundModel={groundModel}
+              necOverlayEnabled={necOverlayEnabled}
+              setNecOverlayEnabled={setNecOverlayEnabled}
+              captions={ffCaptions.xy ?? null}
+              alsoPeak={ffCaptions.yz ?? null}
+              overlayToggles={false}
+              maxMetrics={maxMetrics}
+              maxPending={maxPending}
+              canFindMax={!!result && !stale}
+              onFindMax={findMax}
+              onAimAtMax={aimAtMax}
+              onDismissMax={() => setMaxDismissed(true)}
+            />
+          )}
+          {v === "combined" && (
+            <CombinedLegend
+              pinnedPatterns={pinnedPatterns}
+              focus={combinedFocus}
+              setFocus={setCombinedFocus}
+              fill={combinedFill}
+              setFill={setCombinedFill}
+            />
+          )}
           {(v === "smith" || v === "vswr" || v === "gamma") && (
             <SweepAdvisoryOverlay advisories={sweepAdvisories} />
           )}
@@ -2391,7 +2432,7 @@ function DesignSessionBody({
             elevAzDeg={elevAzDeg}
             setElevAzDeg={setElevAzDeg}
           />
-          {(v === "azimuth" || v === "elevation") && (
+          {(v === "azimuth" || v === "elevation" || v === "combined") && (
             <CompareOverlay
               pinCurrentPattern={pinCurrentPattern}
               setCompareCollapsed={setCompareCollapsed}
@@ -2406,7 +2447,10 @@ function DesignSessionBody({
               removePin={removePin}
               togglePin={togglePin}
               cutLabel={
-                ffCaptions[v === "azimuth" ? "xy" : "yz"]?.cutLabel ?? null
+                v === "combined"
+                  ? `az @ ${azElevDeg}° elev · el @ ${elevAzDeg}° az (dBi)`
+                  : (ffCaptions[v === "azimuth" ? "xy" : "yz"]?.cutLabel ??
+                    null)
               }
             />
           )}
@@ -2446,6 +2490,8 @@ function DesignSessionBody({
             multiFeed={effectiveMultiFeed}
             fineNorm={normCheck?.pattern_norm ?? null}
             onFarFieldCaptions={onFarFieldCaptions}
+            combinedFill={combinedFill}
+            combinedFocus={combinedFocus}
             refineEnabled={refineEnabled}
             sweepSettled={sweepSettled}
             schematicSvg={schematicSvg}
@@ -2627,6 +2673,7 @@ function DesignSessionBody({
                       multiFeed={effectiveMultiFeed}
                       schematicSvg={schematicSvg}
                       schematicUnavailable={schematicUnavailable}
+                      combinedFill={combinedFill}
                     />
                     </div>
                   </div>
