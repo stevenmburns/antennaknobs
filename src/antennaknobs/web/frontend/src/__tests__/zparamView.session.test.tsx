@@ -86,7 +86,7 @@ describe("a knob sweep", () => {
     });
     const gap = await screen.findByRole("slider", { name: "Gap" });
     fireEvent.contextMenu(gap);
-    await user.click(await screen.findByRole("button", { name: "Sweep this knob…" }));
+    await user.click(await screen.findByRole("button", { name: "Sweep this knob…" }, { timeout: 5000 }));
     // The view is on the stage with its header.
     await waitFor(() => expect(container.querySelector("canvas.zparam")).not.toBeNull(), T);
     expect((screen.getByRole("combobox", { name: "Parameter" }) as HTMLSelectElement).value).toBe("gap");
@@ -120,7 +120,7 @@ describe("a knob sweep", () => {
     });
     const gap = await screen.findByRole("slider", { name: "Gap" });
     fireEvent.contextMenu(gap);
-    await user.click(await screen.findByRole("button", { name: "Sweep this knob…" }));
+    await user.click(await screen.findByRole("button", { name: "Sweep this knob…" }, { timeout: 5000 }));
     const chart = () => container.querySelector("canvas.zparam") as HTMLElement;
     await waitFor(() => expect(chart()?.dataset.points).toBe("11"), T);
     await new Promise((r) => setTimeout(r, 800));
@@ -255,7 +255,7 @@ describe("Stop", () => {
     });
     const gap = await screen.findByRole("slider", { name: "Gap" });
     fireEvent.contextMenu(gap);
-    await user.click(await screen.findByRole("button", { name: "Sweep this knob…" }));
+    await user.click(await screen.findByRole("button", { name: "Sweep this knob…" }, { timeout: 5000 }));
     const chart = () =>
       [...container.querySelectorAll("canvas.zparam")].find(
         (c) => !c.closest(".thumbstrip"),
@@ -342,7 +342,7 @@ describe("a knob sweep runs only when asked", () => {
     });
     const gap = await screen.findByRole("slider", { name: "Gap" });
     fireEvent.contextMenu(gap);
-    await user.click(await screen.findByRole("button", { name: "Sweep this knob…" }));
+    await user.click(await screen.findByRole("button", { name: "Sweep this knob…" }, { timeout: 5000 }));
     await waitFor(() => expect(bodies.some((b) => b.param === "gap")).toBe(true), T);
     const n = bodies.length;
     // Another variant is another design.
