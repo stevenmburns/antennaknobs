@@ -7,8 +7,8 @@
 // which momwire refuses by name for conductors below z = 0 — while an
 // ordinary design keeps the refl-coef default untouched.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
-import { mountDesignSession, HARNESS_EXAMPLE } from "./designSessionHarness";
+import { screen } from "@testing-library/react";
+import { mountReady, HARNESS_EXAMPLE } from "./designSessionHarness";
 import type { ExampleDescriptor } from "../lib/params";
 
 const BURIED_EXAMPLE: ExampleDescriptor = {
@@ -24,48 +24,26 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const checked = (name: string | RegExp) =>
+  (screen.getByRole("radio", { name }) as HTMLInputElement).checked;
+
+// Synchronous after mountReady: the seed runs in the render that loads the
+// design (AK#1762), and the session's readiness is past that render — so
+// the ordinary design's absences below are about the LOADED design, not the
+// moment before the catalog arrived.
 describe("ground-requirement seeding (buried designs)", () => {
   it("seeds finite + Sommerfeld and shows the notice for a sommerfeld-requiring design", async () => {
-    mountDesignSession({ examples: [BURIED_EXAMPLE] });
-
-    // The catalog resolves, the design auto-selects, and the seeding effect
-    // lands: the notice renders and the Sommerfeld method radio is checked.
-    await screen.findByText(NOTICE);
-    await waitFor(() => {
-      expect(
-        (screen.getByRole("radio", { name: "Sommerfeld" }) as HTMLInputElement)
-          .checked,
-      ).toBe(true);
-    });
-    expect(
-      (
-        screen.getByRole("radio", {
-          name: /finite/,
-        }) as HTMLInputElement
-      ).checked,
-    ).toBe(true);
-    expect(
-      (screen.getByRole("radio", { name: /refl-coef/ }) as HTMLInputElement)
-        .checked,
-    ).toBe(false);
+    await mountReady({ examples: [BURIED_EXAMPLE] });
+    expect(screen.getByText(NOTICE)).toBeTruthy();
+    expect(checked("Sommerfeld")).toBe(true);
+    expect(checked(/finite/)).toBe(true);
+    expect(checked(/refl-coef/)).toBe(false);
   });
 
   it("leaves the refl-coef default (and no notice) on an ordinary design", async () => {
-    mountDesignSession({ examples: [HARNESS_EXAMPLE] });
-
-    // Same settling point as above without depending on the notice: the
-    // finite-method radiogroup is present once the catalog resolves.
-    await screen.findByRole("radiogroup", {
-      name: "Finite-ground solve method",
-    });
+    await mountReady({ examples: [HARNESS_EXAMPLE] });
     expect(screen.queryByText(NOTICE)).toBeNull();
-    expect(
-      (screen.getByRole("radio", { name: /refl-coef/ }) as HTMLInputElement)
-        .checked,
-    ).toBe(true);
-    expect(
-      (screen.getByRole("radio", { name: "Sommerfeld" }) as HTMLInputElement)
-        .checked,
-    ).toBe(false);
+    expect(checked(/refl-coef/)).toBe(true);
+    expect(checked("Sommerfeld")).toBe(false);
   });
 });

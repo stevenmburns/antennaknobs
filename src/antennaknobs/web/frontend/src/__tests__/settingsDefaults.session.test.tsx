@@ -7,9 +7,9 @@
  * choices back to it.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { mountDesignSession } from "./designSessionHarness";
+import { mountReady, untilDom } from "./designSessionHarness";
 import { SERVED_SLOT_SEEDS } from "./backendFixtures";
 
 const DEFAULTS = {
@@ -55,7 +55,7 @@ function activeProjections() {
 }
 
 async function openTools(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole("button", { name: "Tools menu" }));
+  await user.click(screen.getByRole("button", { name: "Tools menu" }));
 }
 
 describe("startup settings (AK#1492)", () => {
@@ -65,7 +65,7 @@ describe("startup settings (AK#1492)", () => {
 
   it("starts every switch and the ground where settings.toml says", async () => {
     const user = userEvent.setup();
-    mountDesignSession({ uiDefaults: DEFAULTS });
+    await mountReady({ uiDefaults: DEFAULTS });
     await openTools(user);
     expect(checkedStates("freq sweep").every((c) => !c)).toBe(true);
     expect(checkedStates("wire labels").every((c) => c)).toBe(true);
@@ -79,8 +79,8 @@ describe("startup settings (AK#1492)", () => {
 
   it("shows the file's problems once, and they dismiss", async () => {
     const user = userEvent.setup();
-    mountDesignSession({ uiDefaults: DEFAULTS });
-    const notice = await screen.findByRole("alert");
+    await mountReady({ uiDefaults: DEFAULTS });
+    const notice = screen.getByRole("alert");
     expect(notice.textContent).toContain("freq_swep: not a switch");
     await user.click(screen.getByRole("button", { name: "Dismiss the settings notice" }));
     expect(screen.queryByText(/freq_swep/)).toBeNull();
@@ -89,7 +89,7 @@ describe("startup settings (AK#1492)", () => {
   it("saves the session's switches, ground and slots as the defaults", async () => {
     const user = userEvent.setup();
     let posted: Record<string, unknown> | null = null;
-    mountDesignSession({
+    await mountReady({
       uiDefaults: DEFAULTS,
       routes: {
         "/settings": (_url, init) => {
@@ -104,7 +104,10 @@ describe("startup settings (AK#1492)", () => {
     });
     await openTools(user);
     await user.click(screen.getByRole("button", { name: "save as my defaults" }));
-    await waitFor(() => expect(posted).not.toBeNull());
+    // The save's own answer: the status line renders once the POST has
+    // come back, so the body it sent is in hand.
+    const status = await untilDom(() => screen.queryByRole("status"));
+    expect(posted).not.toBeNull();
     const body = posted as unknown as {
       switches: Record<string, boolean>;
       antenna_view: { orientation: string };
@@ -122,7 +125,7 @@ describe("startup settings (AK#1492)", () => {
     });
     expect(Object.keys(body.slots).sort()).toEqual(["A", "B", "C"]);
     expect(body.slots.A!.backend).toBe(SERVED_SLOT_SEEDS.find((s) => s.slot === "A")!.backend);
-    expect((await screen.findByRole("status")).textContent).toContain(
+    expect(status.textContent).toContain(
       "Saved as your defaults: /home/ham/.antennaknobs/settings.toml",
     );
   });
@@ -130,12 +133,8 @@ describe("startup settings (AK#1492)", () => {
   it("starts the Antenna view at the file's orientation, over the design's guess (AK#1737)", async () => {
     const user = userEvent.setup();
     // HARNESS_EXAMPLE guesses "xz" (Front); the file says Iso.
-    mountDesignSession({ uiDefaults: DEFAULTS });
-    // The catalog and the first design land asynchronously; a loaded full
-    // suite takes longer than waitFor's 1 s default.
-    await waitFor(() => expect(activeProjections()).toEqual(["Iso"]), {
-      timeout: 5000,
-    });
+    await mountReady({ uiDefaults: DEFAULTS });
+    expect(activeProjections()).toEqual(["Iso"]);
     await openTools(user);
     const select = screen.getByRole("combobox", {
       name: "antenna view on load",
@@ -147,12 +146,8 @@ describe("startup settings (AK#1492)", () => {
   });
 
   it("keeps the design's own guess when the file says nothing (auto)", async () => {
-    mountDesignSession();
-    // The catalog and the first design land asynchronously; a loaded full
-    // suite takes longer than waitFor's 1 s default.
-    await waitFor(() => expect(activeProjections()).toEqual(["Front (xz)"]), {
-      timeout: 5000,
-    });
+    await mountReady();
+    expect(activeProjections()).toEqual(["Front (xz)"]);
   });
 
   it("saves auto as auto, which the server then leaves out of the file", async () => {
@@ -160,7 +155,7 @@ describe("startup settings (AK#1492)", () => {
     let posted: { antenna_view?: unknown } | null = null;
     // A file with no [antenna_view] table: the served payload's default.
     const withoutView = { ...DEFAULTS, antenna_view: { orientation: "auto" } };
-    mountDesignSession({
+    await mountReady({
       uiDefaults: withoutView,
       routes: {
         "/settings": (_url, init) => {
@@ -175,20 +170,21 @@ describe("startup settings (AK#1492)", () => {
     });
     await openTools(user);
     await user.click(screen.getByRole("button", { name: "save as my defaults" }));
-    await waitFor(() => expect(posted).not.toBeNull());
+    await untilDom(() => screen.queryByRole("status"));
+    expect(posted).not.toBeNull();
     expect(posted!.antenna_view).toEqual({ orientation: "auto" });
   });
 
   it("offers no save on an instance that cannot write the file", async () => {
     const user = userEvent.setup();
-    mountDesignSession({ uiDefaults: { ...DEFAULTS, writable: false, problems: [] } });
+    await mountReady({ uiDefaults: { ...DEFAULTS, writable: false, problems: [] } });
     await openTools(user);
     expect(screen.queryByRole("button", { name: "save as my defaults" })).toBeNull();
   });
 
   it("starts at the built-in defaults on a server without ui_defaults", async () => {
     const user = userEvent.setup();
-    mountDesignSession();
+    await mountReady();
     await openTools(user);
     expect(checkedStates("freq sweep").every((c) => c)).toBe(true);
     expect(checkedStates("wire labels").every((c) => !c)).toBe(true);

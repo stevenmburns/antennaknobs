@@ -8,9 +8,9 @@
 // phone breakpoint) now lives in designSessionHarness.tsx (#718) — this file
 // supplied that recipe originally, so the only change here is calling it.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { VIEW_META, type View } from "../lib/view";
-import { mountDesignSession } from "./designSessionHarness";
+import { mountReady } from "./designSessionHarness";
 
 const PINNED: View[] = ["smith", "antenna", "gamma"];
 
@@ -20,10 +20,8 @@ afterEach(() => {
 
 describe("the session's mobile tree", () => {
   it("carries one carousel page and one dot per pinned view, plus Info", async () => {
-    const { container } = mountDesignSession({ mobile: true, pinned: PINNED });
-    await waitFor(() =>
-      expect(container.querySelector(".mobile-carousel")).not.toBeNull(),
-    );
+    const { container } = await mountReady({ mobile: true, pinned: PINNED });
+    expect(container.querySelector(".mobile-carousel")).not.toBeNull();
 
     // Pages: the pinned views in pin order, then the Info screen — NOT the
     // registry, which is four views longer here.

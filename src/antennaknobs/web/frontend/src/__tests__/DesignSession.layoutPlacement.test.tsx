@@ -17,8 +17,8 @@
 // `.readout`/`.stage-readout` element itself — the same fact, checked at the
 // component boundary instead of in DesignSession.tsx's source.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
-import { mountDesignSession } from "./designSessionHarness";
+import { screen } from "@testing-library/react";
+import { mountReady } from "./designSessionHarness";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -26,30 +26,24 @@ afterEach(() => {
 
 describe("DesignSession's mobile/desktop branch split", () => {
   it("shows the layout segmented control on desktop", async () => {
-    mountDesignSession({ mobile: false, layout: "rail" });
+    await mountReady({ mobile: false, layout: "rail" });
     // LayoutModeToggle renders as a single `role="group"` (StageOverlays.tsx)
     // — a stable, semantics-based query with no data-testid needed.
-    await waitFor(() =>
-      expect(screen.getByRole("group", { name: "Stage layout" })).toBeTruthy(),
-    );
+    expect(screen.getByRole("group", { name: "Stage layout" })).toBeTruthy();
   });
 
   it("never shows the layout segmented control on mobile", async () => {
-    const { container } = mountDesignSession({ mobile: true });
-    await waitFor(() =>
-      expect(container.querySelector(".mobile-carousel")).not.toBeNull(),
-    );
+    const { container } = await mountReady({ mobile: true });
+    expect(container.querySelector(".mobile-carousel")).not.toBeNull();
     expect(screen.queryByRole("group", { name: "Stage layout" })).toBeNull();
   });
 
   it("renders exactly one stage-level solve-readout HUD in grid layout, not one per cell", async () => {
-    const { container } = mountDesignSession({
+    const { container } = await mountReady({
       mobile: false,
       layout: "grid",
     });
-    await waitFor(() =>
-      expect(container.querySelector(".view-grid")).not.toBeNull(),
-    );
+    expect(container.querySelector(".view-grid")).not.toBeNull();
     // The harness's default pinned set is the four founding views, so grid
     // mode renders a full 2x2 (four cells, GRID_CELL_CAP) — if the HUD
     // rendered per cell instead of once at the stage, this count would be 4.

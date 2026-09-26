@@ -10,18 +10,13 @@
 // knob's wire key in `model_options`. Nothing in src/ names it — that is the
 // assertion. (The wire body is read off the /geometry preview POST, which is
 // buildRequest() verbatim.)
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DesignSession } from "../components/session/DesignSession";
 import type { BackendEntry } from "../lib/backends";
 import type { ExampleDescriptor } from "../lib/params";
-import {
-  SERVED_ROSTER,
-  SERVED_ALIASES,
-  SERVED_SLOT_SEEDS,
-} from "./backendFixtures";
-import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
+import { SERVED_ROSTER } from "./backendFixtures";
+import { mountDesignSession, sessionReady } from "./designSessionHarness";
 
 const FAKE: BackendEntry = {
   name: "fake-solver",
@@ -69,8 +64,6 @@ const EXAMPLE: ExampleDescriptor = {
 
 // Every POST body the session sent to /geometry — buildRequest() as JSON.
 let geometryPosts: Record<string, unknown>[] = [];
-// What /capabilities serves for the test at hand.
-let servedRoster: BackendEntry[] = [];
 
 function jsonResponse(body: unknown) {
   return {
@@ -81,33 +74,24 @@ function jsonResponse(body: unknown) {
   } as unknown as Response;
 }
 
-beforeEach(() => {
+// Mount through the harness (AK#1762) with the served roster at hand and
+// every /geometry POST recorded; resolve once the design has loaded, so the
+// slot clicks below are past its load path and every request refresh they
+// cause is sent from the effect their own act flushed.
+async function mountWith(roster: BackendEntry[]) {
   geometryPosts = [];
-  servedRoster = [...SERVED_ROSTER, FAKE];
-  // getContext/ResizeObserver/matchMedia/WebSocket provide-only defaults now
-  // live in setup.ts (#728) — every component test gets them unconditionally,
-  // including the never-matching matchMedia this file used to stub itself
-  // (this session doesn't care about layout, so the desktop tree is fine).
-  vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
-    const path = String(url);
-    if (path.startsWith("/capabilities"))
-      return jsonResponse({
-        have_pynec: true,
-        backends: servedRoster,
-        model_option_specs: SERVED_OPTION_SPECS,
-        backend_aliases: SERVED_ALIASES,
-        default_slots: SERVED_SLOT_SEEDS,
-        terrain_presets: [],
-      });
-    if (path.startsWith("/examples"))
-      return jsonResponse({ examples: [EXAMPLE], errors: [] });
-    if (path.startsWith("/geometry")) {
-      geometryPosts.push(JSON.parse(String(init?.body ?? "{}")));
-      return jsonResponse({ wires: [] });
-    }
-    return jsonResponse({});
+  const r = mountDesignSession({
+    roster,
+    examples: [EXAMPLE],
+    routes: {
+      "/geometry": (_url: string, init?: RequestInit) => {
+        geometryPosts.push(JSON.parse(String(init?.body ?? "{}")));
+        return jsonResponse({ wires: [] });
+      },
+    },
   });
-});
+  return r;
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -116,13 +100,12 @@ afterEach(() => {
 describe("a solver that exists only in the served roster (#628)", () => {
   it("gets a tab, its knob, and a correct request — with no frontend roster to edit", async () => {
     const user = userEvent.setup();
-    render(<DesignSession id={1} active />);
+    await mountWith([...SERVED_ROSTER, FAKE]);
 
     // The session waits for /capabilities: no hardcoded fallback roster.
     expect(screen.queryByRole("tablist")).toBeNull();
-    await waitFor(() =>
-      expect(screen.getByRole("tab", { name: /Solver slot A/ })).toBeTruthy(),
-    );
+    await sessionReady(document.body);
+    expect(screen.getByRole("tab", { name: /Solver slot A/ })).toBeTruthy();
 
     // Pause the live solve so the session's own request refresh goes out over
     // POST /geometry (buildRequest verbatim) instead of the solve socket.
@@ -163,7 +146,7 @@ describe("a solver that exists only in the served roster (#628)", () => {
 
     // (c) the request the session builds names it as a momwire model and
     //     forwards the knob under its served (wire) key.
-    await waitFor(() => {
+    {
       const req = geometryPosts.at(-1);
       expect(req?.momwire_model).toBe("fake-solver");
       expect(req?.solver).toBe("momwire");
@@ -171,18 +154,15 @@ describe("a solver that exists only in the served roster (#628)", () => {
       expect(req?.n_per_wire).toBe(12);
       // supports_ground: false is honoured all the way to the wire.
       expect(req?.ground).toBe(false);
-    });
+    }
   });
 
   // Negative control: the tab above is roster-driven, not a hardcoded entry
   // that happens to share the fixture's name.
   it("has no tab at all when the server doesn't serve it", async () => {
-    servedRoster = [...SERVED_ROSTER];
     const user = userEvent.setup();
-    render(<DesignSession id={1} active />);
-    await waitFor(() =>
-      expect(screen.getByRole("tab", { name: /Solver slot A/ })).toBeTruthy(),
-    );
+    await mountWith([...SERVED_ROSTER]);
+    await sessionReady(document.body);
     await user.click(screen.getByRole("button", { name: "Slot A options" }));
     expect(screen.queryByRole("tab", { name: "Fake Solver" })).toBeNull();
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(

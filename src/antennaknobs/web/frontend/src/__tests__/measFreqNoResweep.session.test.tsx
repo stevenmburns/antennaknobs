@@ -8,9 +8,9 @@
  * the field never changes a swept impedance.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import type { ExampleDescriptor } from "../lib/params";
-import { HARNESS_EXAMPLE, mountDesignSession } from "./designSessionHarness";
+import { HARNESS_EXAMPLE, mountReady, stageChart, sweepIdle } from "./designSessionHarness";
 
 // A deck: no design frequency, so the dial is never locked to one, and a
 // fixed file sweep range, so the band cannot follow the dial.
@@ -25,8 +25,6 @@ const DECK: ExampleDescriptor = {
   sweep_range: { lo: 14, hi: 14.35, spacing: "lin", step: 0.025, source: "file" },
 };
 
-const T = { timeout: 5000 };
-
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -34,7 +32,7 @@ afterEach(() => {
 describe("a measurement-frequency change inside the band", () => {
   it("sends no new /sweep request", async () => {
     const sweeps: { meas: number | undefined; lo: number; hi: number }[] = [];
-    mountDesignSession({
+    await mountReady({
       examples: [DECK],
       routes: {
         "/sweep": (_url: string, init?: RequestInit) => {
@@ -50,20 +48,19 @@ describe("a measurement-frequency change inside the band", () => {
       },
     });
     const dial = () => screen.getByRole("slider", { name: "measurement frequency" });
-    // The deck's own band has been swept (the session may sweep a default
-    // window first, before /examples lands).
-    await waitFor(() => {
-      expect(sweeps.length).toBeGreaterThan(0);
-      expect(sweeps[sweeps.length - 1].lo).toBeCloseTo(14, 9);
-    }, T);
-    // Let any trailing request settle, then count.
-    await new Promise((r) => setTimeout(r, 800));
+    // The deck's sweep has run and the runner is idle (the Smith chart, in
+    // the rail, publishes its phase): nothing queued, nothing streaming.
+    const smith = document.querySelector<HTMLElement>("canvas.smith") ?? stageChart("canvas.smith")!;
+    await sweepIdle(smith);
+    expect(sweeps.length).toBeGreaterThan(0);
+    expect(sweeps[sweeps.length - 1].lo).toBeCloseTo(14, 9);
     const before = sweeps.length;
     const at = Number(dial().getAttribute("aria-valuenow"));
     for (let i = 0; i < 4; i++) fireEvent.keyDown(dial(), { key: "ArrowUp" });
-    await waitFor(() => expect(Number(dial().getAttribute("aria-valuenow"))).toBeGreaterThan(at), T);
-    // Past the sweep's 500 ms debounce, with margin.
-    await new Promise((r) => setTimeout(r, 1200));
+    expect(Number(dial().getAttribute("aria-valuenow"))).toBeGreaterThan(at);
+    // The runner decided on these steps inside their act: still idle means
+    // no sweep is queued, so none will follow.
+    expect(smith.dataset.phase).toBe("idle");
     expect(sweeps.slice(before)).toEqual([]);
   });
 });

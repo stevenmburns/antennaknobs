@@ -42,17 +42,17 @@
  * which also fails if a second one appears. The descriptors below carry the
  * `has_stepped_radius_junction` the server measures for it.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DesignSession } from "../components/session/DesignSession";
 import type { ExampleDescriptor } from "../lib/params";
-import {
-  SERVED_ROSTER,
-  SERVED_ALIASES,
-  SERVED_SLOT_SEEDS,
-} from "./backendFixtures";
-import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
+import { mountReady, switchDesign } from "./designSessionHarness";
+
+// The file's budget (AK#1762): "gates on the stepped deck" is a correct,
+// long test — a cold mount plus three design switches and a solver modal,
+// each awaited on its cause. It needs more than vitest's default 5 s on a
+// loaded box; this says so, rather than any wait inside it guessing a clock.
+vi.setConfig({ testTimeout: 15_000 });
 
 const BASE: Omit<ExampleDescriptor, "name" | "label"> = {
   multi_feed: false,
@@ -131,54 +131,22 @@ const STEPPED: ExampleDescriptor = {
 // of a string this repo deliberately never retypes.
 const REFUSAL_FRAGMENT = /radius step at a junction/i;
 
-function jsonResponse(body: unknown) {
-  return {
-    ok: true,
-    status: 200,
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as unknown as Response;
-}
-
-beforeEach(() => {
-  localStorage.clear();
-  vi.stubGlobal("matchMedia", () => ({
-    matches: false,
-    addEventListener() {},
-    removeEventListener() {},
-  }));
-  vi.stubGlobal("fetch", async (url: string) => {
-    const path = String(url);
-    if (path.startsWith("/capabilities"))
-      return jsonResponse({
-        have_pynec: true,
-        backends: SERVED_ROSTER,
-        model_option_specs: SERVED_OPTION_SPECS,
-        backend_aliases: SERVED_ALIASES,
-        default_slots: SERVED_SLOT_SEEDS,
-        terrain_presets: [],
-      });
-    if (path.startsWith("/examples"))
-      return jsonResponse({
-        examples: [UNIFORM, STEPPED, BURIED, RESTRICTED],
-        errors: [],
-      });
-    if (path.startsWith("/geometry")) return jsonResponse({ wires: [] });
-    return jsonResponse({});
-  });
-});
-
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const EXAMPLES = [UNIFORM, STEPPED, BURIED, RESTRICTED];
+const NAME_OF: Record<string, string> = Object.fromEntries(
+  EXAMPLES.map((e) => [e.label, e.name]),
+);
+
 type User = ReturnType<typeof userEvent.setup>;
 
+// Pick a design and wait until the session has loaded it (switchDesign):
+// every assertion after a switch is then about the loaded design, so an
+// absence ("no gate") is a real answer, not one read before the switch.
 async function selectDesign(user: User, label: string) {
-  const box = screen.getByRole("combobox", { name: "antenna" });
-  await user.clear(box);
-  await user.type(box, label);
-  await user.click(await screen.findByRole("option", { name: new RegExp(label, "i") }));
+  await switchDesign(user, label, NAME_OF[label]);
 }
 
 /** Put slot A on sinusoidal-Galerkin with the extended kernel armed. */
@@ -198,8 +166,7 @@ function gate() {
 describe("switching design re-answers the cross-axis constraint", () => {
   it("gates on the stepped deck and clears when you switch back", async () => {
     const user = userEvent.setup();
-    render(<DesignSession id={1} active />);
-    await screen.findByRole("tab", { name: /Solver slot A/ });
+    await mountReady({ examples: EXAMPLES });
 
     await selectDesign(user, "Probe dipole");
     await armSinGalerkinEK(user);
@@ -207,13 +174,13 @@ describe("switching design re-answers the cross-axis constraint", () => {
     // (1) The uniform design solves: the same backend and the same option,
     // and no gate. Without this the test could pass on a gate that is always
     // on.
-    await waitFor(() => expect(gate()).toBeNull());
+    expect(gate()).toBeNull();
 
     // (2) Switch to the stepped deck. Nothing about the SLOT changed — same
     // solver, same kernel flag — so a gate appearing here can only be the
     // design being re-consulted.
     await selectDesign(user, "elt whip");
-    const shown = await screen.findByRole("alertdialog", {
+    const shown = screen.getByRole("alertdialog", {
       name: "Solver option unavailable for this design",
     });
     expect(shown.textContent).toMatch(REFUSAL_FRAGMENT);
@@ -227,7 +194,7 @@ describe("switching design re-answers the cross-axis constraint", () => {
 
     // (3) …and back. A latched gate passes step (2) and fails here.
     await selectDesign(user, "Probe dipole");
-    await waitFor(() => expect(gate()).toBeNull());
+    expect(gate()).toBeNull();
   });
 
   it("does not gate the same design when the kernel is off", async () => {
@@ -235,15 +202,14 @@ describe("switching design re-answers the cross-axis constraint", () => {
     // solvable at the reduced kernel, and greying it out unconditionally
     // would be a worse bug than not gating at all.
     const user = userEvent.setup();
-    render(<DesignSession id={1} active />);
-    await screen.findByRole("tab", { name: /Solver slot A/ });
+    await mountReady({ examples: EXAMPLES });
 
     await selectDesign(user, "elt whip");
     await user.click(screen.getByRole("button", { name: "Slot A options" }));
     await user.click(screen.getByRole("tab", { name: /Sin-Galerkin/ }));
     await user.click(screen.getByRole("button", { name: "Close" }));
 
-    await waitFor(() => expect(gate()).toBeNull());
+    expect(gate()).toBeNull();
   });
 });
 
@@ -256,21 +222,18 @@ describe("a buried deck on an accelerated backend shows ONE overlay", () => {
     // `backendDisallowed` but not `optionRefusal`, and this deck reaches the
     // gate through the second.
     const user = userEvent.setup();
-    render(<DesignSession id={1} active />);
-    await screen.findByRole("tab", { name: /Solver slot A/ });
+    await mountReady({ examples: EXAMPLES });
 
     await selectDesign(user, "buried radial vertical");
     await user.click(screen.getByRole("button", { name: "Slot A options" }));
     await user.click(screen.getByRole("tab", { name: /Array-block/ }));
     await user.click(screen.getByRole("button", { name: "Close" }));
 
-    await waitFor(() =>
-      expect(
-        screen.getByRole("alertdialog", {
-          name: "Solver option unavailable for this design",
-        }),
-      ).toBeTruthy(),
-    );
+    expect(
+      screen.getByRole("alertdialog", {
+        name: "Solver option unavailable for this design",
+      }),
+    ).toBeTruthy();
     // ONE dialog, and no override — the user's way out is a different
     // solver or a different option, not a button that asks anyway.
     expect(screen.getAllByRole("alertdialog")).toHaveLength(1);
@@ -292,20 +255,19 @@ describe("switching TO a buried design withholds the solve", () => {
     // solve fired and the banner showed
     // "ValueError: ArrayBlockSolver cannot solve this design's buried geometry".
     const user = userEvent.setup();
-    render(<DesignSession id={1} active />);
-    await screen.findByRole("tab", { name: /Solver slot A/ });
+    await mountReady({ examples: EXAMPLES });
 
     await selectDesign(user, "Probe dipole");
     await user.click(screen.getByRole("button", { name: "Slot A options" }));
     await user.click(screen.getByRole("tab", { name: /Array-block/ }));
     await user.click(screen.getByRole("button", { name: "Close" }));
     // Allowed here: nothing withheld on an above-ground deck.
-    await waitFor(() => expect(gate()).toBeNull());
+    expect(gate()).toBeNull();
 
     await selectDesign(user, "buried radial vertical");
 
     // ONE overlay, momwire's own sentence, and no override.
-    const shown = await screen.findByRole("alertdialog");
+    const shown = screen.getByRole("alertdialog");
     expect(screen.getAllByRole("alertdialog")).toHaveLength(1);
     expect(shown.textContent).toMatch(/buried|below the ground plane/i);
     expect(screen.queryByRole("button", { name: /solve anyway/i })).toBeNull();
@@ -316,8 +278,7 @@ describe("switching TO a buried design withholds the solve", () => {
 describe("Steve's exact repro: restricted design, slot B, then switch", () => {
   it("withholds when slot B's backend cannot take the new design", async () => {
     const user = userEvent.setup();
-    render(<DesignSession id={1} active />);
-    await screen.findByRole("tab", { name: /Solver slot A/ });
+    await mountReady({ examples: EXAMPLES });
 
     // Slot B, Array-block, on a design whose allowlist permits it.
     await selectDesign(user, "invvee apex");
@@ -325,12 +286,12 @@ describe("Steve's exact repro: restricted design, slot B, then switch", () => {
     await user.click(screen.getByRole("button", { name: "Slot B options" }));
     await user.click(screen.getByRole("tab", { name: /Array-block/ }));
     await user.click(screen.getByRole("button", { name: "Close" }));
-    await waitFor(() => expect(gate()).toBeNull());
+    expect(gate()).toBeNull();
 
     // ...then switch to a deck it cannot take at all.
     await selectDesign(user, "buried radial vertical");
 
-    const shown = await screen.findByRole("alertdialog");
+    const shown = screen.getByRole("alertdialog");
     expect(screen.getAllByRole("alertdialog")).toHaveLength(1);
     expect(shown.textContent).toMatch(/buried|below the ground plane/i);
     expect(screen.queryByRole("button", { name: /solve anyway/i })).toBeNull();
@@ -349,8 +310,7 @@ describe("switching AWAY from a showing soft mismatch (Steve's instrumented repr
     // starting from a design with no overlay is why the two earlier tests
     // here pass.
     const user = userEvent.setup();
-    render(<DesignSession id={1} active />);
-    await screen.findByRole("tab", { name: /Solver slot A/ });
+    await mountReady({ examples: EXAMPLES });
 
     await selectDesign(user, "invvee apex");
     await user.click(screen.getByRole("tab", { name: /Solver slot B/ }));
@@ -359,19 +319,15 @@ describe("switching AWAY from a showing soft mismatch (Steve's instrumented repr
     await user.click(screen.getByRole("button", { name: "Close" }));
 
     // The soft overlay is up and NOT approved.
-    await screen.findByRole("alertdialog", { name: "Solver mismatch" });
+    expect(screen.getByRole("alertdialog", { name: "Solver mismatch" })).toBeTruthy();
 
     await selectDesign(user, "buried radial vertical");
 
-    // Let every effect settle — the browser saw the gate appear and vanish
-    // within two ticks, so an immediate assertion would pass on the flash.
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("alertdialog", { name: "Solver mismatch" }),
-      ).toBeNull(),
-    );
-    await new Promise((r) => setTimeout(r, 50));
-
+    // The browser saw the gate appear and vanish within two ticks, so an
+    // assertion taken on the flash would pass. switchDesign waited for the
+    // buried design's whole load path (its preview released the solve gate),
+    // which is past every tick that cleared it: this is the settled state.
+    expect(screen.queryByRole("alertdialog", { name: "Solver mismatch" })).toBeNull();
     expect(
       screen.getByRole("alertdialog", {
         name: "Solver option unavailable for this design",
