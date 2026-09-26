@@ -56,8 +56,8 @@ beforeEach(() => {
   fetchMock = vi.fn((url: string) => {
     if (url === "/sweep")
       return streamResponse(JSON.stringify({ freq_mhz: 28.47, z_re: 44, z_im: -4 }));
-    if (url === "/converge")
-      return streamResponse(JSON.stringify({ n_per_wire: 8, z_re: 44, z_im: -4 }));
+    if (url === "/param_sweep")
+      return streamResponse(JSON.stringify({ param: "n_per_wire", value: 8, z_re: 44, z_im: -4 }));
     if (url === "/norm_check")
       return jsonResponse({
         available: true,
@@ -141,19 +141,19 @@ describe("request-signature invalidation (issue #692)", () => {
     });
     await settle();
     expect(countFor("/sweep")).toBe(1);
-    expect(countFor("/converge")).toBe(1);
+    expect(countFor("/param_sweep")).toBe(1);
     expect(countFor("/norm_check")).toBe(1);
     expect(countFor("/pattern")).toBe(1);
 
     rerender({ req: { ...req, az_elev_deg: 45, elev_az_deg: 15 } });
     await settle();
     expect(countFor("/sweep")).toBe(1);
-    expect(countFor("/converge")).toBe(1);
+    expect(countFor("/param_sweep")).toBe(1);
     expect(countFor("/norm_check")).toBe(1);
     expect(countFor("/pattern")).toBe(1);
     // The overlays were never cleared — the effects did not re-fire.
     expect(result.current.sweep).not.toBeNull();
-    expect(result.current.converge).not.toBeNull();
+    expect(result.current.paramSweep).not.toBeNull();
     expect(result.current.normCheck).not.toBeNull();
     expect(result.current.pattern).not.toBeNull();
   });
@@ -171,7 +171,7 @@ describe("request-signature invalidation (issue #692)", () => {
     });
     await settle();
     expect(countFor("/sweep")).toBe(1);
-    expect(countFor("/converge")).toBe(1);
+    expect(countFor("/param_sweep")).toBe(1);
     expect(countFor("/norm_check")).toBe(1);
 
     rerender({ req: { ...req, terrain: { preset: "levee", slope_deg: 12 } } });
@@ -179,9 +179,9 @@ describe("request-signature invalidation (issue #692)", () => {
     // Impedance-only analyses: every preset shares the crest medium, so the
     // curves are terrain-param-independent and must not clear or refetch.
     expect(countFor("/sweep")).toBe(1);
-    expect(countFor("/converge")).toBe(1);
+    expect(countFor("/param_sweep")).toBe(1);
     expect(result.current.sweep).not.toBeNull();
-    expect(result.current.converge).not.toBeNull();
+    expect(result.current.paramSweep).not.toBeNull();
     // The norm check integrates over the facets: it must refetch.
     expect(countFor("/norm_check")).toBe(2);
   });
@@ -194,7 +194,7 @@ describe("request-signature invalidation (issue #692)", () => {
     });
     await settle();
     expect(countFor("/sweep")).toBe(1);
-    expect(countFor("/converge")).toBe(1);
+    expect(countFor("/param_sweep")).toBe(1);
     expect(countFor("/norm_check")).toBe(1);
     expect(countFor("/pattern")).toBe(1);
 
@@ -202,7 +202,7 @@ describe("request-signature invalidation (issue #692)", () => {
     rerender({ req: { ...req, future_physics_knob: 1 } });
     await settle();
     expect(countFor("/sweep")).toBe(2);
-    expect(countFor("/converge")).toBe(2);
+    expect(countFor("/param_sweep")).toBe(2);
     expect(countFor("/norm_check")).toBe(2);
     expect(countFor("/pattern")).toBe(2);
   });

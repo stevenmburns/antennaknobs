@@ -41,6 +41,7 @@ const EVERY_VIEW: Record<View, true> = {
   gamma: true,
   vswr: true,
   files: true,
+  zparam: true,
 };
 const ALL_VIEWS = Object.keys(EVERY_VIEW) as View[];
 
@@ -74,6 +75,7 @@ describe("view metadata", () => {
       ["gamma", "S11 (dB) vs freq"],
       ["vswr", "VSWR vs freq"],
       ["files", "Files"],
+      ["zparam", "Z vs parameter"],
     ]);
   });
 
@@ -95,7 +97,7 @@ describe("view metadata", () => {
   it("marks every pre-run view stale while optimizing, and only those", () => {
     const stale = VIEWS.filter((v) => v.staleWhileOptimizing).map((v) => v.id);
     expect(stale.sort()).toEqual(
-      ["antenna", "azimuth", "combined", "elevation", "gamma", "vswr"],
+      ["antenna", "azimuth", "combined", "elevation", "gamma", "vswr", "zparam"],
     );
     expect(VIEW_META.smith.staleWhileOptimizing).toBe(false);
     expect(VIEW_META.schematic.staleWhileOptimizing).toBe(false);
@@ -103,10 +105,12 @@ describe("view metadata", () => {
 
   // The stage readout floats over every view. It starts minimized only where
   // the view's own content already carries the numbers and the card would
-  // cover it: the Files view's printout.
-  it("starts the readout minimized only on the Files view", () => {
+  // cover it: the Files view's printout, and the Z-vs-parameter chart, which
+  // draws R and X itself and whose left axis the card would sit on.
+  it("starts the readout minimized only on the Files and Z-vs-parameter views", () => {
     expect(VIEWS.filter((v) => v.readoutStartsCollapsed).map((v) => v.id)).toEqual([
       "files",
+      "zparam",
     ]);
   });
 });
@@ -120,13 +124,13 @@ const PROPS: Omit<ViewRenderProps, "showWireLabels" | "showFeedNames" | "schemat
   liveZ: null,
   preview: null,
   sweep: null,
-  converge: null,
+  paramSweep: null,
   measured: null,
   pattern: null,
   pinnedPatterns: [],
   measFreqMhz: 14.1,
   sweepRunning: false,
-  convergeRunning: false,
+  paramSweepRunning: false,
   azElevDeg: 0,
   elevAzDeg: 0,
   cameraProjection: "xy",
@@ -153,6 +157,7 @@ const MARKERS: Record<View, string> = {
   gamma: 'canvas.sweep[data-mode="gamma"]',
   vswr: 'canvas.sweep[data-mode="vswr"]',
   files: ".files-fill",
+  zparam: "canvas.zparam",
 };
 
 describe("dispatch", () => {

@@ -7,7 +7,8 @@ export type View =
   | "schematic"
   | "gamma"
   | "vswr"
-  | "files";
+  | "files"
+  | "zparam";
 
 // The view registry's metadata half. The render half — one function per id —
 // lives in components/results/viewRegistry.tsx, keyed by these same ids:
@@ -83,6 +84,21 @@ export const VIEWS: ViewMeta[] = [
     label: "Files",
     defaultPinned: false,
     staleWhileOptimizing: false,
+    readoutStartsCollapsed: true,
+  },
+  // Z against a parameter (docs/design/z-vs-param-view.md): the feed R and X,
+  // and the Smith trail, against the mesh density or any design knob — the
+  // old convergence sweep generalised. Unpinned, like the combined view: an
+  // addition nobody's layout should move for. Stale while optimizing: the
+  // sweep is of the pre-run design (the live dots on its guide do follow the
+  // run, as the Smith dot does, but the curve they sit on does not). The
+  // readout starts minimized: the chart carries R and X itself, and the
+  // floating card would cover its left axis.
+  {
+    id: "zparam",
+    label: "Z vs parameter",
+    defaultPinned: false,
+    staleWhileOptimizing: true,
     readoutStartsCollapsed: true,
   },
 ];

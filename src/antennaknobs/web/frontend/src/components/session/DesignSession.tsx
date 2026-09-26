@@ -102,10 +102,19 @@ import { copyParams, downloadNec, loadMeasured } from "./sessionActions";
 import { SessionGearMenu } from "./SessionGearMenu";
 import { SolveOverlays } from "./SolveOverlays";
 import { SolverSlotTabs } from "./SolverSlotTabs";
+import { useAnalysisRunners } from "./useAnalysisRunners";
 import {
-  CONVERGE_N_VALUES,
-  useAnalysisRunners,
-} from "./useAnalysisRunners";
+  DEFAULT_DENSITY_SPEC,
+  defaultKnobSpec,
+  DENSITY,
+  paramValues as paramLadder,
+  RX_AUTO,
+  type ParamSweepSpec,
+  type RxAxisChoice,
+  sameSpec,
+  sweepableKnobs,
+} from "../../lib/paramSweep";
+import { ZParamControls } from "../results/ZParamControls";
 import { useCapabilities } from "./useCapabilities";
 import {
   saveSettings,
@@ -822,6 +831,16 @@ function DesignSessionBody({
   const [convergeEnabled, setConvergeEnabled] = useState(
     uiDefaults.switches.convergence_sweep,
   );
+  // The Z-vs-parameter view (docs/design/z-vs-param-view.md): what it sweeps,
+  // its x axis (null = follow the spec's spacing) and its two y ranges.
+  // Session state, per tab. The old convergence switch draws the same
+  // sweep's trail on the Smith chart, so it follows this choice too.
+  const [zparamSpecRaw, setZparamSpec] = useState<ParamSweepSpec>(DEFAULT_DENSITY_SPEC);
+  const [zparamXLog, setZparamXLog] = useState<boolean | null>(null);
+  const [zparamAxes, setZparamAxes] = useState<{ r: RxAxisChoice; x: RxAxisChoice }>({
+    r: RX_AUTO,
+    x: RX_AUTO,
+  });
   // Adaptive resolution (issue #744): dwell-triggered display-space
   // refinement of the sweep and cut plots. Persisted, unlike the overlay
   // checkboxes above: turning it off is a per-machine capacity decision
@@ -1328,6 +1347,7 @@ function DesignSessionBody({
     smith: isResident("smith"),
   };
   const convergeResident = isResident("smith");
+  const paramViewResident = isResident("zparam");
   const patternResident = isResident("azimuth") || isResident("elevation");
 
   const { schematicSvg, schematicUnavailable } = useSchematic({
@@ -1963,6 +1983,59 @@ function DesignSessionBody({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geometry, reloadNonce]);
 
+  // The parameter sweep (docs/design/z-vs-param-view.md). A knob the design
+  // no longer has (a design or variant switch) falls back to density, so the
+  // chosen spec never names a knob the request does not carry.
+  const zparamKnobs = sweepableKnobs(currentSchema);
+  const zparamKnob = zparamKnobs.find((k) => k.name === zparamSpecRaw.param) ?? null;
+  const zparamSpec =
+    zparamSpecRaw.param === DENSITY || zparamKnob ? zparamSpecRaw : DEFAULT_DENSITY_SPEC;
+  const zparamIsDensity = zparamSpec.param === DENSITY;
+  const zparamValues = paramLadder(
+    zparamSpec,
+    zparamIsDensity || zparamKnob?.kind === "int",
+  );
+  const zparamLabel = zparamIsDensity ? "N" : (zparamKnob?.label ?? zparamSpec.param);
+  const paramSweepReq = {
+    param: zparamSpec.param,
+    values: zparamValues,
+    label: zparamLabel,
+  };
+  const zparamCurrentRaw = zparamIsDensity ? nPerWire : currentValues[zparamSpec.param];
+  const zparamCurrent = typeof zparamCurrentRaw === "number" ? zparamCurrentRaw : null;
+  // A knob's default spec from its own range and value; density's is the
+  // literal ladder.
+  const zparamDefaultFor = (param: string): ParamSweepSpec => {
+    if (param === DENSITY) return DEFAULT_DENSITY_SPEC;
+    const knob = zparamKnobs.find((k) => k.name === param);
+    const cur = currentValues[param];
+    return knob ? defaultKnobSpec(knob, typeof cur === "number" ? cur : 1) : DEFAULT_DENSITY_SPEC;
+  };
+  const selectZparamParam = (param: string) => {
+    setZparamSpec(zparamDefaultFor(param));
+    setZparamXLog(null);
+  };
+  // The knob menu's "Sweep this knob": that knob, its default range, and the
+  // view on the stage (a peek when it is not pinned).
+  const sweepKnob = (param: string) => {
+    selectZparamParam(param);
+    setKnobMenu(null);
+    setView("zparam");
+  };
+  const zparamSettings = {
+    param: zparamSpec.param,
+    label: zparamLabel,
+    unit: zparamIsDensity ? "segments per λ/4" : (zparamKnob?.unit ?? null),
+    total: zparamValues.length,
+    currentValue: zparamCurrent,
+    xLog: zparamXLog ?? zparamSpec.log,
+    rAxis: zparamAxes.r,
+    xAxis: zparamAxes.x,
+  };
+  const convergeTitle = zparamIsDensity
+    ? `Re-solve at N = ${zparamValues.join(", ")} segments per λ/4 and Richardson-extrapolate Z to N→∞ (the Z vs parameter view's sweep, drawn on the Smith chart)`
+    : `Draw the Z vs parameter view's sweep — ${zparamLabel} over ${zparamValues.length} values — as a trail on the Smith chart`;
+
   // The four background analyses (#642 seam 5b-3): freq sweep, convergence
   // sweep, far-field norm check and the NEC rp_card pattern. Called here, at
   // the debounce effects' old position, so all four keep their global order
@@ -1973,8 +2046,8 @@ function DesignSessionBody({
     sweepSettled,
     sweepProgress,
     sweepAdvisories,
-    converge,
-    convergeRunning,
+    paramSweep,
+    paramSweepRunning,
     normCheck,
     pattern,
     abortInFlight,
@@ -1996,6 +2069,8 @@ function DesignSessionBody({
       necOverlayEnabled,
       sweepResident,
       convergeResident,
+      paramViewResident,
+      paramSweep: paramSweepReq,
       patternResident,
       autoSim,
       active,
@@ -2077,7 +2152,7 @@ function DesignSessionBody({
           setSweepEnabled={setSweepEnabled}
           convergeEnabled={convergeEnabled}
           setConvergeEnabled={setConvergeEnabled}
-          convergeNValues={CONVERGE_N_VALUES}
+          convergeTitle={convergeTitle}
           measured={measured}
           onLoadMeasured={(f) =>
             loadMeasured(f, { setGearMenuOpen, setMeasured })
@@ -2203,6 +2278,9 @@ function DesignSessionBody({
             ko={knobOptFor(knobMenu.name)}
             onPatch={(patch) => updateKnobOpt(knobMenu.name, patch)}
             onClose={() => setKnobMenu(null)}
+            {...(zparamKnobs.some((k) => k.name === knobMenu.name)
+              ? { onSweep: () => sweepKnob(knobMenu.name) }
+              : {})}
           />
         )}
 
@@ -2415,7 +2493,7 @@ function DesignSessionBody({
               setSweepEnabled={setSweepEnabled}
               convergeEnabled={convergeEnabled}
               setConvergeEnabled={setConvergeEnabled}
-              convergeNValues={CONVERGE_N_VALUES}
+              convergeTitle={convergeTitle}
               measured={measured}
               onLoadMeasured={(f) =>
                 loadMeasured(f, { setGearMenuOpen, setMeasured })
@@ -2470,6 +2548,21 @@ function DesignSessionBody({
           {v === "combined" && (
             <CombinedLegend fill={combinedFill} setFill={setCombinedFill} />
           )}
+          {v === "zparam" && (
+            <ZParamControls
+              spec={zparamSpec}
+              knobs={zparamKnobs}
+              densityLabel="density (N per λ/4)"
+              onSpec={setZparamSpec}
+              onParam={selectZparamParam}
+              onReset={() => selectZparamParam(zparamSpec.param)}
+              isDefault={sameSpec(zparamSpec, zparamDefaultFor(zparamSpec.param))}
+              values={zparamValues}
+              advisories={
+                paramSweep?.param === zparamSpec.param ? paramSweep.advisories : undefined
+              }
+            />
+          )}
           {/* The Smith chart's freq-sweep switch on the VSWR and S11 charts
               too (AK#1738): the SAME state, so turning the sweep on or off
               on any of the three turns it on or off on all of them. */}
@@ -2480,7 +2573,16 @@ function DesignSessionBody({
             />
           )}
           {(v === "smith" || v === "vswr" || v === "gamma") && (
-            <SweepAdvisoryOverlay advisories={sweepAdvisories} />
+            <SweepAdvisoryOverlay
+              advisories={
+                // The Smith chart also draws the parameter sweep's trail when
+                // the switch is on, so its advisory (the gap-fed density
+                // warning) belongs beside that trail too.
+                v === "smith" && convergeEnabled && paramSweep?.advisories
+                  ? [...sweepAdvisories, ...paramSweep.advisories]
+                  : sweepAdvisories
+              }
+            />
           )}
           <CutAngleOverlay
             v={v}
@@ -2535,14 +2637,19 @@ function DesignSessionBody({
             liveZ={optRunning && optProgress ? optProgress.metrics : null}
             preview={preview}
             sweep={sweep}
-            converge={converge}
+            paramSweep={paramSweep}
             measured={measured}
             pattern={pattern}
             pinnedPatterns={pinnedPatterns}
             measFreqMhz={measFreq}
             sweepRunning={sweepRunning}
             sweepProgress={sweepProgress}
-            convergeRunning={convergeRunning}
+            paramSweepRunning={paramSweepRunning}
+            zparam={zparamSettings}
+            onZparamXLogChange={setZparamXLog}
+            onZparamAxisChange={(axis, c) =>
+              setZparamAxes((cur) => ({ ...cur, [axis]: c }))
+            }
             azElevDeg={azElevDeg}
             elevAzDeg={elevAzDeg}
             cameraProjection={cameraProjection}
@@ -2734,7 +2841,7 @@ function DesignSessionBody({
                       liveZ={optRunning && optProgress ? optProgress.metrics : null}
                       preview={preview}
                       sweep={sweep}
-                      converge={converge}
+                      paramSweep={paramSweep}
                       measured={measured}
                       pattern={pattern}
                       pinnedPatterns={[]}
@@ -2746,7 +2853,8 @@ function DesignSessionBody({
                       // resolution is on; without this the thumbnail drew
                       // dots until its chart took the stage.
                       refineEnabled={refineEnabled}
-                      convergeRunning={convergeRunning}
+                      paramSweepRunning={paramSweepRunning}
+                      zparam={zparamSettings}
                       azElevDeg={azElevDeg}
                       elevAzDeg={elevAzDeg}
                       cameraProjection={cameraProjection}

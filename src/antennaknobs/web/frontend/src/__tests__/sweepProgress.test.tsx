@@ -90,7 +90,7 @@ beforeEach(() => {
         else base = st;
         return st.response;
       }
-      if (url === "/converge") return eagerStream([]);
+      if (url === "/param_sweep") return eagerStream([]);
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ available: false }),
@@ -248,12 +248,12 @@ describe("the charts carry the progress they were handed", () => {
         z0={50}
         size={200}
         sweep={null}
-        converge={null}
+        paramSweep={null}
         measured={null}
         measFreqMhz={14}
         running
         progress={P}
-        convergeRunning={false}
+        paramSweepRunning={false}
         multiFeed={false}
       />,
     );

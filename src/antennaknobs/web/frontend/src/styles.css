@@ -88,6 +88,8 @@
   --plot-nec-rgb: 47, 95, 176;        /* NEC overlay (blueprint blue) */
   --plot-elev-rgb: 47, 95, 176;       /* combined view's elevation cut */
   --plot-threshold-rgb: 38, 140, 84;  /* sweep charts' SWR threshold + band (AK#1738) */
+  --plot-r-rgb: 200, 50, 50;    /* Z-vs-parameter chart: R (left axis) */
+  --plot-x-rgb: 40, 90, 200;    /* Z-vs-parameter chart: X (right axis) */
   --plot-ground-rgb: 150, 116, 70;    /* ground line (brown) */
   --plot-envelope-rgb: 47, 95, 176;   /* |I| envelope (blue) */
   /* pinned-pattern ghosts: darker inks than the dark theme's pastels — a
@@ -165,6 +167,8 @@
   --plot-nec-rgb: 110, 220, 255;
   --plot-elev-rgb: 110, 220, 255;
   --plot-threshold-rgb: 110, 210, 140;
+  --plot-r-rgb: 255, 110, 110;
+  --plot-x-rgb: 118, 170, 255;
   --plot-ground-rgb: 140, 110, 70;
   --plot-envelope-rgb: 118, 208, 255;
   --plot-ghost-0-rgb: 140, 230, 140;
@@ -553,6 +557,18 @@ button:focus-visible,
   background: transparent;
   outline: 1px solid var(--accent);
   outline-offset: -1px;
+}
+
+/* The Z-vs-parameter chart's two y axes (docs/design/z-vs-param-view.md): the
+   same invisible-until-hovered button as the sweep charts', one per side. */
+.zparam-axis-btn-r {
+  left: 0;
+  width: 40px;
+}
+.zparam-axis-btn-x {
+  left: auto;
+  right: 0;
+  width: 40px;
 }
 
 .sweep-axis-presets {
@@ -4301,4 +4317,115 @@ canvas {
   color: var(--muted-2);
   padding: 0 var(--space-2);
   white-space: nowrap;
+}
+
+/* ---- The Z-vs-parameter view (docs/design/z-vs-param-view.md) ---- */
+/* The header: parameter, range, points, spacing. Top-right of the stage like
+   the Smith chart's overlay; on a phone it sits in the page flow above the
+   chart and wraps. */
+.zparam-overlay {
+  position: absolute;
+  top: var(--space-6);
+  right: var(--space-6);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  max-width: min(30rem, calc(100% - 2 * var(--space-6)));
+}
+.layout-toggle ~ * .zparam-overlay {
+  top: calc(var(--space-6) + var(--layout-toggle-clearance, 44px));
+}
+.zparam-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.zparam-controls label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.zparam-controls input[type="number"] {
+  width: 4.6em;
+}
+.zparam-controls select {
+  max-width: 11em;
+}
+.zparam-reset {
+  padding: 0 var(--space-2);
+  background: var(--inset);
+  color: var(--fg);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.zparam-reset:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.zparam-values {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
+.zparam-advisories {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--space-2) var(--space-3);
+  box-shadow: 0 2px 10px var(--shadow);
+}
+/* The chart's lin/log x toggle, bottom-right under the X axis labels. */
+.zparam-xlog-btn {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  font-size: 9px;
+  font-family: ui-monospace, monospace;
+  padding: 1px 4px;
+  background: var(--inset);
+  color: var(--muted);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.zparam-xlog-btn[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.app-mobile .zparam-overlay {
+  position: static;
+  align-items: stretch;
+  max-width: none;
+  margin: 0 var(--space-3) var(--space-2);
+}
+.app-mobile .zparam-controls {
+  justify-content: flex-start;
+}
+/* The knob menu's "Sweep this knob" (the Z-vs-parameter view). */
+.knob-menu-sweep {
+  display: block;
+  width: 100%;
+  margin: var(--space-2) 0;
+  padding: 2px var(--space-2);
+  text-align: left;
+  font-size: var(--text-sm);
+  background: var(--inset);
+  color: var(--fg);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.knob-menu-sweep:hover {
+  border-color: var(--accent);
 }

@@ -464,24 +464,10 @@ export type MeasuredData = {
   z_im: number[];
 };
 
-export type ConvergeData = {
-  n_values: number[];
-  z_re: number[];
-  z_im: number[];
-  // Richardson extrapolation Z(1/N) → Z(0). Filled once ≥3 points are in.
-  z_re_extrap: number | null;
-  z_im_extrap: number | null;
-  /** Multi-feed convergence — per-N per-feed Z. Outer index aligns with
-   *  n_values; inner index aligns with feed order. Single-feed
-   *  geometries omit these and the chart falls back to the legacy
-   *  single-trail render driven by z_re/z_im. */
-  feeds_z_re?: number[][];
-  feeds_z_im?: number[][];
-  /** Per-feed Richardson Z*. Indexed by feed order, same length as a row
-   *  of feeds_z_re. Entries are null until ≥3 sample points are in. */
-  feeds_z_re_extrap?: (number | null)[];
-  feeds_z_im_extrap?: (number | null)[];
-};
+// The Z-vs-parameter sweep's result (docs/design/z-vs-param-view.md) — the
+// old convergence sweep is its density case. Defined with its ladder rules
+// in lib/paramSweep.ts.
+export type { ParamSweepData } from "./paramSweep";
 
 // Result of the far-field norm consistency check: the live gain norm comes
 // from the circuit side (input power); `pattern_norm` recomputes it from the

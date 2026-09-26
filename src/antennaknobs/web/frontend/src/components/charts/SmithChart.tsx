@@ -17,7 +17,8 @@ import {
   smithGrid,
   zoomAbout,
 } from "../../lib/smithView";
-import type { ConvergeData, FeedEntry, MeasuredData, SweepData } from "../../lib/api";
+import type { FeedEntry, MeasuredData, ParamSweepData, SweepData } from "../../lib/api";
+import { formatParam, isDensity } from "../../lib/paramSweep";
 import type { SweepProgress } from "../../lib/sweep";
 import { ThemeContext } from "../hooks";
 import { feedColor, feedSweepColor, plotColors } from "./palette";
@@ -33,12 +34,12 @@ export function SmithChart({
   z0,
   size,
   sweep,
-  converge,
+  paramSweep,
   measured,
   measFreqMhz,
   running,
   progress,
-  convergeRunning,
+  paramSweepRunning,
   feeds,
   multiFeed,
   connectSweep = false,
@@ -53,7 +54,10 @@ export function SmithChart({
   z0: number;
   size: number;
   sweep: SweepData | null;
-  converge: ConvergeData | null;
+  /** The parameter sweep (docs/design/z-vs-param-view.md): Z against the
+   *  density — the old convergence sweep — or a design knob, drawn as a
+   *  connected trail labelled with its end values. */
+  paramSweep: ParamSweepData | null;
   /** Uploaded VNA measurement drawn against the modeled locus (issue #595). */
   measured: MeasuredData | null;
   measFreqMhz: number;
@@ -62,7 +66,7 @@ export function SmithChart({
    *  reads "sweeping k/N" or "refining +k (≤B)" instead of a bare
    *  "sweeping…". Optional — a call site without it keeps the old label. */
   progress?: SweepProgress | null | undefined;
-  convergeRunning: boolean;
+  paramSweepRunning: boolean;
   /** Multi-feed geometries pass the per-feed Z list from the latest
    *  solve so the chart can also render N centre dots, one per port. */
   feeds?: FeedEntry[] | undefined;
@@ -589,11 +593,12 @@ export function SmithChart({
     // current-Z marker from the trail's interior dots. Smallest-N point
     // gets a hollow ring; largest-N gets a filled disc; Richardson-
     // extrapolated Z* gets a diamond (primary feed only).
-    if (converge && converge.n_values.length >= 1) {
+    const converge = paramSweep;
+    if (converge && converge.values.length >= 1) {
       const cHasMulti =
         !!converge.feeds_z_re &&
         !!converge.feeds_z_im &&
-        converge.feeds_z_re.length === converge.n_values.length &&
+        converge.feeds_z_re.length === converge.values.length &&
         converge.feeds_z_re[0].length > 1;
       const cNFeeds = cHasMulti ? converge.feeds_z_re![0].length : 1;
       const czAt = (fi: number, i: number) =>
@@ -607,7 +612,7 @@ export function SmithChart({
         ctx.strokeStyle = feedColor(fi);
         ctx.lineWidth = 1.2;
         ctx.beginPath();
-        for (let i = 0; i < converge.n_values.length; i++) {
+        for (let i = 0; i < converge.values.length; i++) {
           const z = czAt(fi, i);
           const g = reflectionCoefficient(z.re, z.im, z0);
           const { x: px, y: py } = S(g.gRe, g.gIm);
@@ -618,7 +623,7 @@ export function SmithChart({
 
         // Per-N dots along the trajectory.
         ctx.fillStyle = feedColor(fi);
-        for (let i = 0; i < converge.n_values.length; i++) {
+        for (let i = 0; i < converge.values.length; i++) {
           const z = czAt(fi, i);
           const g = reflectionCoefficient(z.re, z.im, z0);
           const { x: px, y: py } = S(g.gRe, g.gIm);
@@ -645,7 +650,26 @@ export function SmithChart({
       };
       for (let fi = 0; fi < cNFeeds; fi++) {
         drawNEndpoint(fi, 0, false);
-        drawNEndpoint(fi, converge.n_values.length - 1, true);
+        drawNEndpoint(fi, converge.values.length - 1, true);
+      }
+
+      // The trail's end values beside its end markers (feed 0), so the
+      // trail reads as "N=8 … N=68" or "0.9 … 1.1" without the caption.
+      // Offset away from the chart centre, where the other end and the
+      // current-Z dot usually sit.
+      if (converge.values.length >= 2) {
+        ctx.font = "9px ui-monospace, monospace";
+        ctx.fillStyle = feedColor(0);
+        for (const idx of [0, converge.values.length - 1]) {
+          const z = czAt(0, idx);
+          const g = reflectionCoefficient(z.re, z.im, z0);
+          const { x: px, y: py } = S(g.gRe, g.gIm);
+          const txt = formatParam(converge.values[idx]);
+          const w = ctx.measureText(txt).width;
+          const dx = px >= ox ? 6 : -6 - w;
+          const dy = py >= oy ? 12 : -6;
+          ctx.fillText(txt, px + dx, py + dy);
+        }
       }
 
       // Richardson Z* markers — one diamond per feed, each in the
@@ -690,12 +714,16 @@ export function SmithChart({
       }
 
     }
-    if (convergeRunning) {
+    if (paramSweepRunning) {
       ctx.fillStyle = PC.label;
       ctx.font = "10px ui-monospace, monospace";
       // Stack under the freq-sweep status if both are running.
       const yOff = status ? 18 : 6;
-      ctx.fillText("converging…", 6, size - yOff);
+      ctx.fillText(
+        !converge || isDensity(converge.param) ? "converging…" : `sweeping ${converge.label}…`,
+        6,
+        size - yOff,
+      );
     }
 
     // Current impedance marker(s). One bright dot per feed in the
@@ -798,7 +826,7 @@ export function SmithChart({
         const im = converge?.feeds_z_im_extrap?.[fi] ?? null;
         summaryFeeds.push({ fi, extrapRe: re, extrapIm: im });
       }
-    } else if (converge && converge.n_values.length >= 1) {
+    } else if (converge && converge.values.length >= 1) {
       summaryFeeds.push({
         fi: 0,
         extrapRe: converge.z_re_extrap,
@@ -841,15 +869,15 @@ export function SmithChart({
 
     // Bottom-left: N-range stays neutral since it's per-converge not
     // per-feed. Sits above the converging / sweeping status indicators.
-    if (converge && converge.n_values.length >= 1) {
-      const nLo = converge.n_values[0];
-      const nHi = converge.n_values[converge.n_values.length - 1];
+    if (converge && converge.values.length >= 1) {
+      const nLo = formatParam(converge.values[0]);
+      const nHi = formatParam(converge.values[converge.values.length - 1]);
       ctx.fillStyle = PC.labelBright;
       ctx.font = "10px ui-monospace, monospace";
-      const baseY = status && convergeRunning ? size - 30
-        : status || convergeRunning ? size - 18
+      const baseY = status && paramSweepRunning ? size - 30
+        : status || paramSweepRunning ? size - 18
         : size - 6;
-      ctx.fillText(`N: ${nLo} → ${nHi}`, 6, baseY);
+      ctx.fillText(`${isDensity(converge.param) ? "N" : converge.label}: ${nLo} → ${nHi}`, 6, baseY);
     }
 
     // Center match marker
@@ -872,7 +900,7 @@ export function SmithChart({
     // and `trialWorstFeed` likewise carry the whole per-eval picture (#789):
     // r/x still change every frame on a multi-feed run, but they are only
     // feed 0, so a run where feed 0 sat still would freeze every ring.
-  }, [r, x, z0, size, sweep, converge, measured, measFreqMhz, running, progress, convergeRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme, view]);
+  }, [r, x, z0, size, sweep, paramSweep, measured, measFreqMhz, running, progress, paramSweepRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme, view]);
 
   // data-connect mirrors the trail mode (locus vs. dot cloud) for tests —
   // canvas pixels are invisible to jsdom, the attribute is not (the same
@@ -886,6 +914,20 @@ export function SmithChart({
       data-connect={connectSweep ? "1" : "0"}
       data-progress={sweepProgressAttr(progress)}
       data-zoom={String(view.zoom)}
+      // The parameter trail for tests: "param:first→last:points", plus Z*
+      // when the sweep has one (density only).
+      data-trail={
+        paramSweep && paramSweep.values.length > 0
+          ? `${paramSweep.param}:${formatParam(paramSweep.values[0])}→${formatParam(
+              paramSweep.values[paramSweep.values.length - 1],
+            )}:${paramSweep.values.length}`
+          : ""
+      }
+      data-extrap={
+        paramSweep?.z_re_extrap != null && paramSweep.z_im_extrap != null
+          ? `${paramSweep.z_re_extrap.toFixed(3)},${paramSweep.z_im_extrap.toFixed(3)}`
+          : ""
+      }
       {...(interactive
         ? {
             tabIndex: 0,

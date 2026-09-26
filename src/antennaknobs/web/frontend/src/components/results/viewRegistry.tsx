@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
-import type { ConvergeData, MeasuredData, SolveResponse, SweepData } from "../../lib/api";
+import type { MeasuredData, ParamSweepData, SolveResponse, SweepData } from "../../lib/api";
+import { DENSITY, RX_AUTO, type RxAxisChoice } from "../../lib/paramSweep";
 import type { SweepProgress } from "../../lib/sweep";
 import type { SweepAxes, SweepAxisChoice, SweepMode } from "../../lib/sweepAxis";
 import type {
@@ -13,6 +14,7 @@ import { CurrentCanvas } from "../charts/CurrentCanvas";
 import { FarFieldChart } from "../charts/FarFieldChart";
 import { SmithChart } from "../charts/SmithChart";
 import { SweepChart } from "../charts/SweepChart";
+import { type RxAxis, ZParamChart } from "../charts/ZParamChart";
 import type {
   FarFieldCaptions,
   PatternData,
@@ -33,7 +35,9 @@ export type ViewRenderProps = {
   result: SolveResponse | null;
   preview: SolveResponse | null;
   sweep: SweepData | null;
-  converge: ConvergeData | null;
+  /** The parameter sweep (density or a knob, docs/design/z-vs-param-view.md):
+   *  the Smith chart's trail and the Z-vs-parameter view's chart. */
+  paramSweep: ParamSweepData | null;
   measured: MeasuredData | null;
   pattern: PatternData | null;
   pinnedPatterns: PinnedPattern[];
@@ -42,7 +46,14 @@ export type ViewRenderProps = {
   /** Points received by the sweep in flight (AK#1682). Optional so a call
    *  site that omits it keeps the bare "sweeping…" status. */
   sweepProgress?: SweepProgress | null;
-  convergeRunning: boolean;
+  paramSweepRunning: boolean;
+  /** The Z-vs-parameter view's settings. Optional: omitted, the view draws a
+   *  density sweep on a log axis with both ranges on Auto. */
+  zparam?: ZParamViewSettings;
+  /** Given, the view's chart opens its range popovers and the lin/log x
+   *  toggle. The stage passes these; thumbnails do not. */
+  onZparamAxisChange?: (axis: RxAxis, c: RxAxisChoice) => void;
+  onZparamXLogChange?: (log: boolean) => void;
   azElevDeg: number;
   elevAzDeg: number;
   cameraProjection: Projection;
@@ -114,6 +125,32 @@ export type ViewRenderProps = {
    *  passes these; thumbnails do not (a thumb is a button). */
   onSweepAxisChange?: (mode: SweepMode, c: SweepAxisChoice) => void;
   onSwrThresholdChange?: (t: number) => void;
+};
+
+/** What the Z-vs-parameter view draws against: the parameter chosen (the
+ *  sweep in hand may still be a previous one's), how to label it, where the
+ *  live solve sits on it, and the chart's axis choices. */
+export type ZParamViewSettings = {
+  param: string;
+  label: string;
+  unit: string | null;
+  /** Points the sweep asks for, for the "k/N" status. */
+  total: number;
+  currentValue: number | null;
+  xLog: boolean;
+  rAxis: RxAxisChoice;
+  xAxis: RxAxisChoice;
+};
+
+const DEFAULT_ZPARAM: ZParamViewSettings = {
+  param: DENSITY,
+  label: "N",
+  unit: null,
+  total: 7,
+  currentValue: null,
+  xLog: true,
+  rAxis: RX_AUTO,
+  xAxis: RX_AUTO,
 };
 
 // The AK#1738 props a sweep chart takes from the bag, for either mode.
@@ -214,12 +251,12 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       trialWorstFeed={p.liveZ?.worst_feed}
       size={p.size}
       sweep={p.sweep}
-      converge={p.converge}
+      paramSweep={p.paramSweep}
       measured={p.measured}
       measFreqMhz={p.measFreqMhz}
       running={p.sweepRunning}
       progress={p.sweepProgress}
-      convergeRunning={p.convergeRunning}
+      paramSweepRunning={p.paramSweepRunning}
       feeds={p.result?.feeds}
       multiFeed={p.multiFeed}
       connectSweep={(p.refineEnabled ?? false) && (p.sweepSettled ?? true)}
@@ -274,4 +311,31 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
     />
   ),
   files: (p) => <FilesPanel data={p.files ?? null} size={p.size} fill={p.fill} />,
+  // The Z-vs-parameter view (docs/design/z-vs-param-view.md). The live R/X
+  // ride on the current-value guide; liveZ wins while an optimizer run is
+  // proposing points, as on the Smith chart.
+  zparam: (p) => {
+    const z = p.zparam ?? DEFAULT_ZPARAM;
+    const r = p.liveZ?.z_in_re ?? p.result?.z_in_re ?? null;
+    const x = p.liveZ?.z_in_im ?? p.result?.z_in_im ?? null;
+    return (
+      <ZParamChart
+        data={p.paramSweep}
+        param={z.param}
+        label={z.label}
+        unit={z.unit}
+        total={z.total}
+        currentValue={z.currentValue}
+        liveR={r}
+        liveX={x}
+        size={p.size}
+        running={p.paramSweepRunning}
+        xLog={z.xLog}
+        rAxis={z.rAxis}
+        xAxis={z.xAxis}
+        {...(p.onZparamXLogChange ? { onXLogChange: p.onZparamXLogChange } : {})}
+        {...(p.onZparamAxisChange ? { onAxisChange: p.onZparamAxisChange } : {})}
+      />
+    );
+  },
 };

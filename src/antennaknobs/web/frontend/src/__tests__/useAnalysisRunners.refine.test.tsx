@@ -67,7 +67,7 @@ beforeEach(() => {
         freqs.map((f) => JSON.stringify({ freq_mhz: f, ...zAt(f) })),
       );
     }
-    if (url === "/converge") return ndjson([]);
+    if (url === "/param_sweep") return ndjson([]);
     return Promise.resolve({
       ok: true,
       json: () => Promise.resolve({ available: false }),
