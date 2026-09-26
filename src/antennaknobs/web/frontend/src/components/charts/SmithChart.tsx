@@ -915,6 +915,10 @@ export function SmithChart({
       {canvas}
       {zoomed && (
         <div className="schematic-zoom smith-zoom" role="group" aria-label="Smith chart zoom">
+          <span className="smith-zoom-level" title={step != null ? `Grid every ${step} Ω` : undefined}>
+            {view.zoom >= 10 ? Math.round(view.zoom) : view.zoom.toFixed(1)}×
+            {step != null && ` · ${step} Ω`}
+          </span>
           <button
             type="button"
             aria-label="Zoom out"
@@ -923,10 +927,6 @@ export function SmithChart({
           >
             −
           </button>
-          <span className="smith-zoom-level" title={step != null ? `Grid every ${step} Ω` : undefined}>
-            {view.zoom >= 10 ? Math.round(view.zoom) : view.zoom.toFixed(1)}×
-            {step != null && ` · ${step} Ω`}
-          </span>
           <button
             type="button"
             aria-label="Show the whole chart"
