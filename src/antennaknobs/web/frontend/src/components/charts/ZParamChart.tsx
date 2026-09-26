@@ -5,6 +5,7 @@ import {
   formatParam,
   isDensity,
   nearestIndex,
+  nudgeClear,
   type ParamSweepData,
   RX_AUTO,
   rxDomain,
@@ -34,6 +35,7 @@ import { RxRangePopover } from "./RxRangePopover";
 // Port 0 only on a multi-feed design (the Smith trail draws every port).
 
 export type RxAxis = "r" | "x";
+
 
 const MARGIN = { l: 46, r: 46, t: 18, b: 30 };
 
@@ -289,14 +291,26 @@ export function ZParamChart({
 
     // A value box: the parameter and one component, in that component's
     // colour, beside its point and kept inside the plot.
+    // Boxes already drawn: a new one that would land on one is nudged
+    // vertically clear of it (toward whichever side has room), so the R and
+    // X boxes at a shared end never stack when the traces meet there.
+    const placed: { x: number; y: number; w: number; h: number }[] = [];
     const box = (lines: string[], ax: number, ay: number, c: string, left: boolean) => {
       ctx.font = "9px ui-monospace, monospace";
       const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 8;
       const h = 12 * lines.length + 4;
       let bx = left ? ax - w - 8 : ax + 8;
       bx = Math.max(MARGIN.l + 2, Math.min(MARGIN.l + pw - w - 2, bx));
-      let by = ay - h / 2;
-      by = Math.max(MARGIN.t + 2, Math.min(MARGIN.t + ph - h - 2, by));
+      const top = MARGIN.t + 2;
+      const bottom = MARGIN.t + ph - h - 2;
+      const by = nudgeClear(
+        Math.max(top, Math.min(bottom, ay - h / 2)),
+        { x: bx, w, h },
+        placed,
+        top,
+        bottom,
+      );
+      placed.push({ x: bx, y: by, w, h });
       ctx.fillStyle = `rgba(${PC.bgRgb}, 0.9)`;
       ctx.fillRect(bx, by, w, h);
       ctx.strokeStyle = c;
@@ -405,7 +419,11 @@ export function ZParamChart({
             title={`${axisTitle(a)} (${axisChoice(a).kind === "auto" ? "Auto" : "fixed"})`}
             aria-haspopup="dialog"
             aria-expanded={menu?.axis === a}
-            onClick={(e) => setMenu({ axis: a, x: e.clientX + 8, y: e.clientY - 8 })}
+            // The X axis is on the right: its popover opens leftward, toward
+            // the chart; both are clamped to the viewport (useInViewport).
+            onClick={(e) =>
+              setMenu({ axis: a, x: a === "x" ? e.clientX - 8 : e.clientX + 8, y: e.clientY - 8 })
+            }
           />
         ))}
       {onXLogChange && (
@@ -428,6 +446,7 @@ export function ZParamChart({
         <RxRangePopover
           title={axisTitle(menu.axis)}
           at={menu}
+          side={menu.axis === "x" ? "left" : "right"}
           choice={axisChoice(menu.axis)}
           drawn={menu.axis === "r" ? rDom : xDom}
           onChoice={(c) => onAxisChange(menu.axis, c)}

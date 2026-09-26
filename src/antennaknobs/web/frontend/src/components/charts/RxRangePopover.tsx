@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useInViewport } from "./useInViewport";
 import { KnobMenuNumber } from "../backend/fields";
 import type { AxisDomain } from "../../lib/sweepAxis";
 import { RX_AUTO, type RxAxisChoice, validRxChoice } from "../../lib/paramSweep";
@@ -11,11 +12,15 @@ export function RxRangePopover({
   at,
   choice,
   drawn,
+  side = "right",
   onChoice,
   onClose,
 }: {
   title: string;
   at: { x: number; y: number };
+  /** Which way the box opens from the click: "left" from a right-hand axis,
+   *  toward the chart. Clamped to the viewport either way. */
+  side?: "left" | "right";
   choice: RxAxisChoice;
   /** The range on screen now: what the custom fields start from. */
   drawn: AxisDomain;
@@ -23,6 +28,7 @@ export function RxRangePopover({
   onClose: () => void;
 }) {
   const [invalid, setInvalid] = useState<"lo" | "hi" | null>(null);
+  const box = useInViewport<HTMLDivElement>(at, side);
   const custom = (patch: Partial<AxisDomain>, f: "lo" | "hi") => {
     const next: RxAxisChoice = { kind: "fixed", ...drawn, ...patch };
     const ok = validRxChoice(next);
@@ -44,6 +50,7 @@ export function RxRangePopover({
         className="knob-menu sweep-axis-menu"
         role="dialog"
         aria-label={title}
+        ref={box}
         style={{ left: at.x, top: at.y }}
       >
         <div className="knob-menu-title">{title}</div>

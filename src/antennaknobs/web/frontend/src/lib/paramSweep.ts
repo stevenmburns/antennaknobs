@@ -292,4 +292,30 @@ export function formatOhm(v: number): string {
   return v.toFixed(digits).replace("-", "−");
 }
 
+
+/** A value box's y, moved clear of every box already placed that it would
+ *  overlap: below it if that still fits above `bottom`, else above it (not
+ *  above `top`). (The Z-vs-parameter chart's value boxes.) */
+export function nudgeClear(
+  y: number,
+  b: { x: number; w: number; h: number },
+  placed: readonly { x: number; y: number; w: number; h: number }[],
+  top: number,
+  bottom: number,
+): number {
+  const gap = 2;
+  let out = y;
+  for (let pass = 0; pass < placed.length + 1; pass++) {
+    const hit = placed.find(
+      (p) =>
+        b.x < p.x + p.w && p.x < b.x + b.w && out < p.y + p.h + gap && p.y < out + b.h + gap,
+    );
+    if (!hit) return out;
+    const below = hit.y + hit.h + gap;
+    const above = hit.y - b.h - gap;
+    out = below <= bottom ? below : Math.max(top, above);
+  }
+  return out;
+}
+
 export { formatTick };

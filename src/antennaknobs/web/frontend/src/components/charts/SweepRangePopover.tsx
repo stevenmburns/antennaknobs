@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useInViewport } from "./useInViewport";
 import { KnobMenuNumber } from "../backend/fields";
 import {
   AUTO,
@@ -59,6 +60,7 @@ export function SweepRangePopover({
   onClose: () => void;
 }) {
   const [invalid, setInvalid] = useState<ReadonlySet<Field>>(new Set());
+  const box = useInViewport<HTMLDivElement>(at);
   const mark = (f: Field, bad: boolean) =>
     setInvalid((s) => {
       if (s.has(f) === bad) return s;
@@ -91,6 +93,7 @@ export function SweepRangePopover({
         className="knob-menu sweep-axis-menu"
         role="dialog"
         aria-label={title}
+        ref={box}
         style={{ left: at.x, top: at.y }}
       >
         <div className="knob-menu-title">{title}</div>
