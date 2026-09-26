@@ -249,8 +249,15 @@ threshold (so the threshold line is always on screen), or the shallowest S11
 floor the dip clears by 5 dB that still shows the threshold line. Anything above a VSWR top pegs at the edge with the off-scale
 tick. So that the axis never rescales under your hand, Auto only grows while
 a knob is moving or a sweep is landing, and fits again once things have been
-still for half a second. For a very wide range of SWR, the S11 chart is the
-better view.
+still for half a second.
+
+The VSWR chart's **1–∞** choice shows every SWR at once, none pegged: it plots
+1 − 1/SWR (which is 2|Γ|/(1+|Γ|)), so 1.5:1 sits a third of the way up, 2:1
+half way, 3:1 two thirds, 10:1 at 90 %, and ∞ is the top edge. The ticks are
+still labelled in SWR. It spends the chart's height where the match is and
+squeezes the bad end together, and the 2:1 line, the shaded band and the
+bandwidth readout work as on any other range. For a very wide range of SWR,
+the S11 chart remains the other good view.
 
 Both charts draw a dashed **SWR threshold** line, 2:1 unless you change it in
 the same menu (on S11 it is the matching return loss, −9.5 dB for 2:1). The

@@ -8,10 +8,16 @@
 export type SweepMode = "gamma" | "vswr";
 
 /** A chart's vertical range. "auto" fits the sweep's dip; "fixed" is a
- *  preset or a custom min/max, in the chart's own units (VSWR, or S11 dB). */
+ *  preset or a custom min/max, in the chart's own units (VSWR, or S11 dB).
+ *  "reciprocal" is VSWR only: the whole 1…∞ range on the compressed scale
+ *  y = 1 − 1/SWR (see swrReciprocalY). It is a range choice like the others,
+ *  not a scale toggle on top of one — the scale IS its range (1 to ∞, all of
+ *  it), so there is nothing left for a range to choose, and one choice per
+ *  chart keeps the popover, the stored prefs and the planner single-valued. */
 export type SweepAxisChoice =
   | { kind: "auto" }
-  | { kind: "fixed"; lo: number; hi: number };
+  | { kind: "fixed"; lo: number; hi: number }
+  | { kind: "reciprocal" };
 
 export type SweepAxes = Record<SweepMode, SweepAxisChoice>;
 
@@ -95,6 +101,38 @@ export function autoS11Floor(
   return S11_AUTO_FLOORS.find(fits) ?? S11_AUTO_FLOORS[S11_AUTO_FLOORS.length - 1];
 }
 
+// --- the compressed VSWR scale (y = 1 − 1/SWR) ------------------------------
+
+export const RECIPROCAL: SweepAxisChoice = { kind: "reciprocal" };
+
+/** SWR → the compressed scale's y: 1 − 1/SWR = 2|Γ|/(1 + |Γ|), mapping SWR
+ *  1…∞ onto 0…1 (1.5 → ⅓, 2 → ½, 3 → ⅔, 5 → 0.8, 10 → 0.9). Every SWR
+ *  fits below the top, so nothing ever pegs. A non-number or anything
+ *  below 1 reads as 1 (y = 0). */
+export function swrReciprocalY(swr: number): number {
+  if (!(swr > 1)) return 0;
+  return 1 - 1 / swr;
+}
+
+/** The compressed scale's tick marks, labelled in SWR, ∞ at the top. */
+export const RECIPROCAL_TICK_SWRS = [1, 1.5, 2, 3, 5, 10] as const;
+
+/** A tick: where it sits in the axis's own coordinates, and its label. */
+export type AxisTick = { at: number; label: string };
+
+/** Chart value → the axis coordinate the domain is measured in. The
+ *  identity for every choice but the compressed VSWR scale. The chart and
+ *  the refinement planner both place samples through this, so the planner
+ *  judges curvature on the geometry actually drawn. */
+export function axisProjector(
+  mode: SweepMode,
+  choice: SweepAxisChoice,
+): (v: number) => number {
+  return mode === "vswr" && choice.kind === "reciprocal"
+    ? swrReciprocalY
+    : (v) => v;
+}
+
 /** The drawn domain for a mode, a choice and the values Auto fits.
  *
  *  `s11Top` is the S11 top the over-unity rule gives (s11DbTop: 0 for any
@@ -110,8 +148,12 @@ export function sweepAxisDomain(
 ): AxisDomain {
   if (mode === "vswr") {
     if (choice.kind === "fixed") return { lo: choice.lo, hi: choice.hi };
+    // In axisProjector's coordinates: all of 1…∞.
+    if (choice.kind === "reciprocal") return { lo: 0, hi: 1 };
     return { lo: 1, hi: autoVswrTop(values, threshold) };
   }
+  // (A reciprocal choice is VSWR only; validChoice refuses it for S11, and
+  // it falls through to Auto here should one ever arrive.)
   if (choice.kind === "fixed") {
     // A preset is a floor under 0 dB; a custom range carries its own top.
     return choice.hi === 0
@@ -148,6 +190,23 @@ export function axisTicks(d: AxisDomain, target = 5): number[] {
   }
   if (out.length === 0 || Math.abs(out[0] - d.lo) > eps) out.unshift(d.lo);
   return out;
+}
+
+/** The tick marks a chart draws, in its axis coordinates. The compressed
+ *  VSWR scale gets SWR-labelled marks at RECIPROCAL_TICK_SWRS plus ∞ at the
+ *  top; everything else is axisTicks' numbers labelled as themselves. */
+export function axisTickMarks(
+  mode: SweepMode,
+  choice: SweepAxisChoice,
+  d: AxisDomain,
+): AxisTick[] {
+  if (mode === "vswr" && choice.kind === "reciprocal") {
+    return [
+      ...RECIPROCAL_TICK_SWRS.map((s) => ({ at: swrReciprocalY(s), label: formatTick(s) })),
+      { at: 1, label: "∞" },
+    ];
+  }
+  return axisTicks(d).map((t) => ({ at: t, label: formatTick(t) }));
 }
 
 /** A tick label: integers bare, the rest to at most two decimals. */
@@ -258,6 +317,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
  *  below its top, and a nonzero span. */
 export function validChoice(mode: SweepMode, c: SweepAxisChoice): boolean {
   if (c.kind === "auto") return true;
+  if (c.kind === "reciprocal") return mode === "vswr";
   if (!Number.isFinite(c.lo) || !Number.isFinite(c.hi) || !(c.hi > c.lo)) return false;
   return mode === "vswr" ? c.lo >= 1 : true;
 }
@@ -265,6 +325,9 @@ export function validChoice(mode: SweepMode, c: SweepAxisChoice): boolean {
 /** A stored choice, distrusted like everything in localStorage: anything
  *  that is not a drawable choice reads as Auto. */
 export function sanitizeChoice(mode: SweepMode, raw: unknown): SweepAxisChoice {
+  if (isRecord(raw) && raw.kind === "reciprocal") {
+    return validChoice(mode, RECIPROCAL) ? RECIPROCAL : AUTO;
+  }
   if (!isRecord(raw) || raw.kind !== "fixed") return AUTO;
   const c: SweepAxisChoice = {
     kind: "fixed",
@@ -282,6 +345,6 @@ export function sanitizeThreshold(raw: unknown): number {
 }
 
 export function sameChoice(a: SweepAxisChoice, b: SweepAxisChoice): boolean {
-  if (a.kind !== b.kind) return false;
-  return a.kind === "auto" || (b.kind === "fixed" && a.lo === b.lo && a.hi === b.hi);
+  if (a.kind === "fixed" && b.kind === "fixed") return a.lo === b.lo && a.hi === b.hi;
+  return a.kind === b.kind;
 }

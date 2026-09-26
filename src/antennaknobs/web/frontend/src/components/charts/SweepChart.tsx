@@ -6,7 +6,8 @@ import type { SweepProgress } from "../../lib/sweep";
 import {
   AUTO,
   type AxisDomain,
-  axisTicks,
+  axisProjector,
+  axisTickMarks,
   bandwidthReadout,
   DEFAULT_SWR_THRESHOLD,
   formatTick,
@@ -47,6 +48,12 @@ export type { SweepMode };
 // once they have been quiet for AUTO_SETTLE_MS. The refinement planner
 // (lib/refine.ts) computes the same domain from the same rule.
 const TITLE: Record<SweepMode, string> = { gamma: "S11 dB", vswr: "VSWR" };
+
+const AXIS_KIND_LABEL: Record<SweepAxisChoice["kind"], string> = {
+  auto: "Auto",
+  fixed: "fixed",
+  reciprocal: "1–∞, compressed",
+};
 
 // The same 500 ms as every other dwell in the app (useAnalysisRunners'
 // sweep debounce and refinement dwell): the inputs have been still this long
@@ -223,10 +230,21 @@ export function SweepChart({
       markerVs.map((v) => v.toFixed(4)).join(","),
   );
   const dom = useHeldDomain(mode, fresh, running || !quiet, axis.kind === "auto");
-  const ticks = axisTicks(dom);
+  // Chart value → axis coordinate: the identity, except on the compressed
+  // VSWR scale (1 − 1/SWR), where `dom` is 0…1 in that coordinate. The same
+  // function the refinement planner places samples with.
+  const project = axisProjector(mode, axis);
+  const ticks = axisTickMarks(mode, axis, dom);
   // The 0 dB line stays a tick when the S11 top grows past it, as before.
-  if (mode === "gamma" && dom.hi > 0 && !ticks.includes(0)) ticks.push(0);
-  if (mode === "gamma" && dom.hi > 0 && !ticks.includes(dom.hi)) ticks.push(dom.hi);
+  const hasTick = (at: number) => ticks.some((t) => t.at === at);
+  if (mode === "gamma" && dom.hi > 0 && !hasTick(0)) ticks.push({ at: 0, label: "0" });
+  if (mode === "gamma" && dom.hi > 0 && !hasTick(dom.hi)) {
+    ticks.push({ at: dom.hi, label: formatTick(dom.hi) });
+  }
+  // Where feed 0's samples sit, as a fraction of the plot height (0 bottom,
+  // 1 top): the drawn geometry, published for the chart-vs-planner pin.
+  const fracOf = (v: number) =>
+    Math.max(0, Math.min(1, (project(v) - dom.lo) / (dom.hi - dom.lo)));
 
   // The threshold (AK#1738): the SWR line, or the matching S11 line, and the
   // runs of feed 0's sweep below it, their edges interpolated between the
@@ -243,7 +261,9 @@ export function SweepChart({
       )
     : [];
   const readout = hasSweep ? bandwidthReadout(bands, measFreqMhz, swrThreshold) : "";
-  const domKey = `${dom.lo},${dom.hi}`;
+  // The axis kind is in the key: the compressed scale redraws everything
+  // through `project`, whatever the numbers of its domain.
+  const domKey = `${axis.kind}:${dom.lo},${dom.hi}`;
   const bandsKey = bands.map((b) => `${b.lo},${b.hi}`).join(";");
 
   // The range popover's anchor, while it is open.
@@ -277,28 +297,31 @@ export function SweepChart({
 
     // domain -> [0,1] -> canvas y (top = hi, bottom = lo, same sense as any
     // chart axis).
-    const frac = (v: number) =>
-      Math.max(0, Math.min(1, (v - dom.lo) / (dom.hi - dom.lo)));
-    const yOf = (v: number) => marginT + plotH * (1 - frac(v));
+    // Takes a chart value (SWR or dB); fracOf projects it onto the axis.
+    const yOf = (v: number) => marginT + plotH * (1 - fracOf(v));
+    // A tick is already in axis coordinates.
+    const yAt = (at: number) =>
+      marginT + plotH * (1 - Math.max(0, Math.min(1, (at - dom.lo) / (dom.hi - dom.lo))));
     // A value at/above the domain top for VSWR means "off the chart" (a real
     // SWR meter pins its needle rather than rescaling); gamma instead GROWS
     // its top when a driven-array port crosses 0 dB (see `dom` above), so
     // nothing is ever pinned there. Below the gamma floor the trace just
     // clamps to the bottom edge — an over-deep dip is good news, not a
-    // hazard worth a pinned-needle glyph.
-    const offScale = (v: number) => v > dom.hi;
+    // hazard worth a pinned-needle glyph. On the compressed VSWR scale every
+    // SWR projects below 1, so this never fires there.
+    const offScale = (v: number) => project(v) > dom.hi;
 
     ctx.strokeStyle = PC.grid;
     ctx.lineWidth = 0.6;
     ctx.fillStyle = PC.labelDim;
     ctx.font = "9px ui-monospace, monospace";
     for (const t of ticks) {
-      const y = yOf(t);
+      const y = yAt(t.at);
       ctx.beginPath();
       ctx.moveTo(marginL, y);
       ctx.lineTo(marginL + plotW, y);
       ctx.stroke();
-      ctx.fillText(formatTick(t), 2, y + 3);
+      ctx.fillText(t.label, 2, y + 3);
     }
     // Axis frame.
     ctx.strokeStyle = PC.axis;
@@ -314,7 +337,8 @@ export function SweepChart({
     // only when it is inside the range, edges included: Auto may put the
     // VSWR top exactly on it (threshold 2 ⇒ top 2). The band readout shares the title
     // row, right-aligned.
-    if (thresholdY >= dom.lo && thresholdY <= dom.hi) {
+    const thresholdAt = project(thresholdY);
+    if (thresholdAt >= dom.lo && thresholdAt <= dom.hi) {
       const ty = yOf(thresholdY);
       ctx.strokeStyle = `rgb(${PC.thresholdRgb})`;
       ctx.lineWidth = 0.8;
@@ -496,6 +520,8 @@ export function SweepChart({
         data-current={markerPoints.length > 0 ? markerPoints[0].v.toFixed(4) : ""}
         data-y-lo={dom.lo}
         data-y-hi={dom.hi}
+        data-y-frac={traceY.map((v) => fracOf(v).toFixed(4)).join(",")}
+        data-ticks={ticks.map((t) => t.label).join(",")}
         data-axis={axis.kind}
         data-bands={bands.length}
         data-readout={readout}
@@ -508,7 +534,7 @@ export function SweepChart({
           className="sweep-axis-btn"
           style={{ top: 16, height: size - 16 - 20 }}
           aria-label={title}
-          title={`${title} (${axis.kind === "auto" ? "Auto" : "fixed"})`}
+          title={`${title} (${AXIS_KIND_LABEL[axis.kind]})`}
           aria-haspopup="dialog"
           aria-expanded={menuAt !== null}
           onClick={(e) => setMenuAt({ x: e.clientX + 8, y: e.clientY - 8 })}
@@ -519,7 +545,10 @@ export function SweepChart({
           mode={mode}
           at={menuAt}
           choice={axis}
-          drawn={dom}
+          // The custom fields edit in SWR. The compressed scale's domain is
+          // 0…1 in 1 − 1/SWR, which would read as nonsense there, so they
+          // start from the old 1–10 instead (there is no number for ∞).
+          drawn={axis.kind === "reciprocal" ? { lo: 1, hi: 10 } : dom}
           threshold={swrThreshold}
           onChoice={onAxisChange}
           onThreshold={(t) => onThresholdChange?.(t)}

@@ -98,6 +98,8 @@ describe("the drawn range", () => {
       ["vswr", { kind: "auto" }, 1.5],
       ["vswr", { kind: "auto" }, 2.5],
       ["vswr", { kind: "fixed", lo: 1, hi: 2 }, 3],
+      // The compressed scale: samples sit at 1 − 1/SWR on a fixed 0…1.
+      ["vswr", { kind: "reciprocal" }, 2],
       ["gamma", { kind: "auto" }, 2],
       ["gamma", { kind: "auto" }, 1.05],
       ["gamma", { kind: "fixed", lo: -20, hi: 0 }, 2],
@@ -126,13 +128,22 @@ describe("the drawn range", () => {
       );
       seen.add(`${mode}:${d.lo},${d.hi}`);
       const clamp = (v: number) => Math.max(0, Math.min(1, v));
-      ys.forEach((y, i) =>
-        expect(proj[i].y).toBeCloseTo(clamp((y - d.lo) / (d.hi - d.lo)), 3),
-      );
+      // Worked out here, not through the library: 1 − 1/SWR on the
+      // compressed scale, the linear map onto the domain otherwise.
+      const want = (y: number) =>
+        axis.kind === "reciprocal" ? 1 - 1 / y : clamp((y - d.lo) / (d.hi - d.lo));
+      // The fraction the chart DRAWS each sample at (its yOf), published.
+      const drawn = (c.dataset.yFrac ?? "").split(",").map(Number);
+      expect(drawn).toHaveLength(ys.length);
+      ys.forEach((y, i) => {
+        expect(proj[i].y).toBeCloseTo(want(y), 3);
+        expect(drawn[i]).toBeCloseTo(want(y), 3);
+      });
       unmount();
     }
     // The thresholds really moved the Auto range (else this pins nothing).
     expect(seen.has("vswr:1,1.5") && seen.has("vswr:1,2") && seen.has("vswr:1,3")).toBe(true);
+    expect(seen.has("vswr:0,1")).toBe(true); // the compressed scale ran
   });
 });
 
@@ -273,5 +284,92 @@ describe("the axis popover", () => {
   it("a thumbnail (no callbacks) has no axis control", () => {
     render(<SweepChart {...BASE} sweep={notch(FREQS)} />);
     expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+describe("the compressed 1–∞ VSWR scale (1 − 1/SWR)", () => {
+  // A recording 2-D context: what the chart actually drew.
+  function recordingContext() {
+    const texts: { text: string; y: number }[] = [];
+    const lines: { y0: number; y1: number; dashed: boolean }[] = [];
+    let dashed = false;
+    let from: { x: number; y: number } | null = null;
+    const ctx = new Proxy(
+      {},
+      {
+        get: (_t, prop) => {
+          if (prop === "fillText")
+            return (text: string, _x: number, y: number) => texts.push({ text, y });
+          if (prop === "setLineDash") return (d: number[]) => (dashed = d.length > 0);
+          if (prop === "moveTo") return (x: number, y: number) => (from = { x, y });
+          if (prop === "lineTo")
+            return (_x: number, y: number) => {
+              if (from) lines.push({ y0: from.y, y1: y, dashed });
+            };
+          if (prop === "measureText") return () => ({ width: 10 });
+          return () => undefined;
+        },
+        set: () => true,
+      },
+    ) as unknown as CanvasRenderingContext2D;
+    return { ctx, texts, lines };
+  }
+
+  it("draws SWR-labelled ticks with ∞ on top, the 2:1 line half way, nothing pegged", () => {
+    const rec = recordingContext();
+    const real = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = (() => rec.ctx) as unknown as HTMLCanvasElement["getContext"];
+    try {
+      // R = 50 with X swinging to ±200 Ω: the band edges are SWR ~18, which
+      // a 1–10 scale pegs.
+      const sweep = notch(FREQS, 50);
+      const { container } = render(
+        <SweepChart {...BASE} size={236} sweep={sweep} axis={{ kind: "reciprocal" }} />,
+      );
+      const c = canvasOf(container);
+      expect(c.dataset.axis).toBe("reciprocal");
+      expect(domainOf(c)).toEqual({ lo: 0, hi: 1 });
+      expect(c.dataset.ticks).toBe("1,1.5,2,3,5,10,∞");
+      expect(c.dataset.readout).toBe("2:1 BW 174 kHz");
+      // Plot box: marginT 16, marginB 20 ⇒ plotH 200, y = 16 + 200·(1 − f).
+      const yAt = (f: number) => 16 + 200 * (1 - f);
+      const label = (t: string) => rec.texts.find((x) => x.text === t);
+      expect(label("∞")!.y).toBeCloseTo(yAt(1) + 3, 6);
+      expect(label("2")!.y).toBeCloseTo(yAt(0.5) + 3, 6);
+      expect(label("3")!.y).toBeCloseTo(yAt(2 / 3) + 3, 6);
+      expect(label("10")!.y).toBeCloseTo(yAt(0.9) + 3, 6);
+      // The dashed 2:1 threshold line at 1 − 1/2 = ½.
+      const dashes = rec.lines.filter((l) => l.dashed && l.y0 === l.y1);
+      expect(dashes.some((l) => Math.abs(l.y0 - yAt(0.5)) < 1e-6)).toBe(true);
+      // Every sample is on the plot: none drawn at the top edge (a peg).
+      const ys = (c.dataset.yValues ?? "").split(",").map(Number);
+      expect(Math.max(...ys)).toBeGreaterThan(10);
+      const fr = (c.dataset.yFrac ?? "").split(",").map(Number);
+      expect(Math.max(...fr)).toBeLessThan(1);
+    } finally {
+      HTMLCanvasElement.prototype.getContext = real;
+    }
+  });
+
+  it("is outside Auto's hold: a live drag never widens it", () => {
+    vi.useFakeTimers();
+    const axis: SweepAxisChoice = { kind: "reciprocal" };
+    const v = render(<SweepChart {...BASE} sweep={notch(FREQS)} axis={axis} />);
+    v.rerender(<SweepChart {...BASE} sweep={null} r={2000} x={0} axis={axis} />);
+    expect(domainOf(canvasOf(v.container))).toEqual({ lo: 0, hi: 1 });
+    act(() => vi.advanceTimersByTime(AUTO_SETTLE_MS * 2));
+    expect(domainOf(canvasOf(v.container))).toEqual({ lo: 0, hi: 1 });
+  });
+
+  it("is offered on the VSWR popover only", () => {
+    const onAxisChange = vi.fn();
+    const v = render(<SweepChart {...BASE} sweep={notch(FREQS)} onAxisChange={onAxisChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "VSWR range and SWR threshold" }));
+    fireEvent.click(screen.getByRole("button", { name: "1–∞" }));
+    expect(onAxisChange).toHaveBeenLastCalledWith({ kind: "reciprocal" });
+    v.unmount();
+    render(<SweepChart {...BASE} mode="gamma" sweep={notch(FREQS)} onAxisChange={onAxisChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "S11 range and SWR threshold" }));
+    expect(screen.queryByRole("button", { name: "1–∞" })).toBeNull();
   });
 });
