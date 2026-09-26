@@ -2552,6 +2552,9 @@ function DesignSessionBody({
             // canvas at a time in any of them. The thumbnail bag below passes
             // none, and thumbnails stay fitted.
             canvasCamera={canvasCamera}
+            // Same bag, same reasoning: the Smith chart zooms here and not in
+            // the thumbnail strip, whose bag omits it.
+            chartZoom
             showHeatmap={showHeatmap}
             showEnvelope={showEnvelope}
             showWireLabels={showWireLabels}

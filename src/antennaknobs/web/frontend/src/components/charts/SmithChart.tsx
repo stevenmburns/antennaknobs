@@ -1,5 +1,22 @@
-import { useContext, useEffect, useRef } from "react";
+import {
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { reflectionCoefficient } from "../../lib/format";
+import {
+  FIT_VIEW,
+  gammaToScreen,
+  isZoomed,
+  panBy,
+  screenToGamma,
+  type SmithView,
+  smithGrid,
+  zoomAbout,
+} from "../../lib/smithView";
 import type { ConvergeData, FeedEntry, MeasuredData, SweepData } from "../../lib/api";
 import type { SweepProgress } from "../../lib/sweep";
 import { ThemeContext } from "../hooks";
@@ -28,6 +45,8 @@ export function SmithChart({
   trial = false,
   trialFeeds,
   trialWorstFeed,
+  interactive = false,
+  designKey = "",
 }: {
   r: number;
   x: number;
@@ -72,9 +91,123 @@ export function SmithChart({
    *  (#785). That ring is drawn bright and the rest dimmed — without it eight
    *  equal rings say "something is moving" but not what is being optimised. */
   trialWorstFeed?: number | undefined;
+  /** The chart zooms and pans (wheel / pinch / drag / keys) — the stage's
+   *  chart. Off, it is a fixed picture of the whole chart: a thumbnail is a
+   *  button to pick the view, not a surface to navigate. */
+  interactive?: boolean;
+  /** Which design the chart shows. The zoom is kept across solves of one
+   *  design — dragging a knob moves the dot, not the view — and reset when
+   *  this changes, since the old view was aimed at the old design's locus.
+   *  "" (no result yet) never resets. */
+  designKey?: string;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // The chart's zoom and pan (lib/smithView.ts). State rather than a ref:
+  // the chart repaints from scratch on every change anyway, and the HUD needs
+  // the zoom. A design switch drops the view — adjusted during render (the
+  // React "state from props" idiom), not in an effect, so the first paint of
+  // the new design is already at fit.
+  const [viewState, setView] = useState<SmithView>(FIT_VIEW);
+  const [viewFor, setViewFor] = useState(designKey);
+  if (designKey !== "" && designKey !== viewFor) {
+    setViewFor(designKey);
+    setView(FIT_VIEW);
+  }
+  const view = interactive ? viewState : FIT_VIEW;
+  const zoomed = isZoomed(view);
+
+  // Geometry the handlers share with the draw: canvas centre and the unit
+  // circle's radius at fit.
+  const half = size / 2;
+  const rFit = size / 2 - 10;
+  const zoomBy = (factor: number, ax: number, ay: number) =>
+    setView((v) => zoomAbout(v, factor, ax, ay, half, half, rFit));
+
+  // Wheel zoom about the cursor, ~1.2× per detent, exponential so trackpads
+  // feel smooth — the antenna canvas's law, so the two views zoom alike. And
+  // like the antenna canvas, the chart takes EVERY wheel over it, plain or
+  // Ctrl (a trackpad pinch arrives as Ctrl+wheel): a mouse has no other way
+  // to magnify it, and letting plain wheel through would scroll the page out
+  // from under a user reaching for the zoom. Native and non-passive because
+  // React's onWheel cannot preventDefault the page scroll or page zoom.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !interactive) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY; // line-mode → px
+      const factor = Math.exp(-dy * 0.002);
+      const ax = e.clientX - rect.left;
+      const ay = e.clientY - rect.top;
+      setView((v) => zoomAbout(v, factor, ax, ay, size / 2, size / 2, size / 2 - 10));
+    };
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", onWheel);
+  }, [interactive, size]);
+
+  // Drag pans once zoomed (at fit a touch drag stays with the mobile
+  // carousel swipe); two pointers pinch-zoom about their midpoint.
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const posOf = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
+  const onPointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Capture is best-effort: a drag that leaves the canvas just ends.
+    }
+    pointersRef.current.set(e.pointerId, posOf(e));
+  };
+  const onPointerMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    const pointers = pointersRef.current;
+    const prev = pointers.get(e.pointerId);
+    if (!prev) return;
+    const p = posOf(e);
+    if (pointers.size === 2) {
+      const other = [...pointers.entries()].find(([id]) => id !== e.pointerId)![1];
+      const oldDist = Math.hypot(prev.x - other.x, prev.y - other.y) || 1;
+      const newDist = Math.hypot(p.x - other.x, p.y - other.y) || 1;
+      const oldMid = { x: (prev.x + other.x) / 2, y: (prev.y + other.y) / 2 };
+      const newMid = { x: (p.x + other.x) / 2, y: (p.y + other.y) / 2 };
+      setView((v) =>
+        zoomAbout(
+          panBy(v, newMid.x - oldMid.x, newMid.y - oldMid.y, rFit),
+          newDist / oldDist,
+          newMid.x,
+          newMid.y,
+          half,
+          half,
+          rFit,
+        ),
+      );
+    } else if (pointers.size === 1 && zoomed) {
+      setView((v) => panBy(v, p.x - prev.x, p.y - prev.y, rFit));
+    }
+    pointers.set(e.pointerId, p);
+  };
+  const onPointerUp = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    pointersRef.current.delete(e.pointerId);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // Never captured (see above) — nothing to release.
+    }
+  };
+  // + / − / 0 with the chart focused, about the view's centre.
+  const onKeyDown = (e: KeyboardEvent<HTMLCanvasElement>) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return; // leave page zoom alone
+    if (e.key === "+" || e.key === "=") zoomBy(1.25, half, half);
+    else if (e.key === "-" || e.key === "_") zoomBy(1 / 1.25, half, half);
+    else if (e.key === "0") setView(FIT_VIEW);
+    else return;
+    e.preventDefault();
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -95,45 +228,66 @@ export function SmithChart({
     const cy = size / 2;
     const R = size / 2 - 10;
 
+    // The chart's own zoom and pan (lib/smithView.ts) — identity on a
+    // thumbnail. Everything in the Γ plane goes through S(); stroke widths,
+    // marker radii and text stay in screen pixels, so zooming magnifies the
+    // chart and not the ink. The corner text (Z₀, summary rows, status) is
+    // HUD, not chart, and does not move.
+    const S = (gRe: number, gIm: number) => gammaToScreen(view, gRe, gIm, cx, cy, R);
+    const ox = cx + view.panX; // Γ = 0 on screen
+    const oy = cy + view.panY;
+    const Rz = R * view.zoom; // |Γ| = 1 on screen
+    const clipDisc = () => {
+      ctx.beginPath();
+      ctx.arc(ox, oy, Rz, 0, 2 * Math.PI);
+      ctx.clip();
+    };
+    // Whether a circle can put ink in the canvas: its box meets the canvas,
+    // and the canvas is not wholly inside it (a huge arc passing far off).
+    // Zoomed in, most of the fine grid is off-screen and this skips it.
+    const circleOnScreen = (x: number, y: number, rad: number): boolean => {
+      if (x + rad < 0 || x - rad > size || y + rad < 0 || y - rad > size) return false;
+      const far = Math.max(
+        Math.hypot(x, y),
+        Math.hypot(x - size, y),
+        Math.hypot(x, y - size),
+        Math.hypot(x - size, y - size),
+      );
+      return far > rad;
+    };
+
     ctx.fillStyle = PC.bg;
     ctx.fillRect(0, 0, size, size);
 
     // Constant-r circles in the Γ plane.
     // Each maps to a circle: center = (r/(r+1), 0), radius = 1/(r+1).
-    const rCircles: { r: number; label?: string }[] = [
-      { r: 0.2 },
-      { r: 0.5, label: "0.5" },
-      { r: 1, label: "1" },
-      { r: 2, label: "2" },
-      { r: 5 },
-    ];
+    // Constant-x arcs: center = (1, 1/x), radius = 1/|x|, clipped to the
+    // unit disk. Zoomed in, smithGrid() swaps the classic five for round-ohm
+    // steps fine enough to read the view (5 Ω at 10× on a 50 Ω chart).
+    const grid = smithGrid(view.zoom, z0);
     ctx.strokeStyle = PC.grid;
     ctx.lineWidth = 0.6;
-    for (const { r: rn } of rCircles) {
-      const cxN = rn / (rn + 1);
-      const radN = 1 / (rn + 1);
+    for (const { n: rn } of grid.r) {
+      const c = S(rn / (rn + 1), 0);
+      const rad = Rz / (rn + 1);
+      if (!circleOnScreen(c.x, c.y, rad)) continue;
       ctx.beginPath();
-      ctx.arc(cx + cxN * R, cy, radN * R, 0, 2 * Math.PI);
+      ctx.arc(c.x, c.y, rad, 0, 2 * Math.PI);
       ctx.stroke();
     }
 
-    // Constant-x arcs: center = (1, 1/x), radius = 1/|x|. Clip to unit disk.
-    const xArcs = [0.2, 0.5, 1, 2, 5];
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx, cy, R, 0, 2 * Math.PI);
-    ctx.clip();
-    for (const xn of xArcs) {
-      const arcCx = cx + R;
-      const rad = (1 / xn) * R;
-      // Inductive (X > 0)
-      ctx.beginPath();
-      ctx.arc(arcCx, cy - (1 / xn) * R, rad, 0, 2 * Math.PI);
-      ctx.stroke();
-      // Capacitive (X < 0)
-      ctx.beginPath();
-      ctx.arc(arcCx, cy + (1 / xn) * R, rad, 0, 2 * Math.PI);
-      ctx.stroke();
+    clipDisc();
+    for (const { n: xn } of grid.x) {
+      const rad = Rz / xn;
+      for (const sgn of [1, -1]) {
+        // sgn 1: inductive (X > 0), above the axis; −1: capacitive.
+        const c = S(1, sgn / xn);
+        if (!circleOnScreen(c.x, c.y, rad)) continue;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, rad, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
     }
     ctx.restore();
 
@@ -141,26 +295,86 @@ export function SmithChart({
     ctx.strokeStyle = PC.axis;
     ctx.lineWidth = 0.8;
     ctx.beginPath();
-    ctx.moveTo(cx - R, cy);
-    ctx.lineTo(cx + R, cy);
+    ctx.moveTo(ox - Rz, oy);
+    ctx.lineTo(ox + Rz, oy);
     ctx.stroke();
 
     // Outer boundary (|Γ| = 1)
     ctx.strokeStyle = PC.axis;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(cx, cy, R, 0, 2 * Math.PI);
+    ctx.arc(ox, oy, Rz, 0, 2 * Math.PI);
     ctx.stroke();
+
+    // Fine-grid labels, zoomed only (the classic grid never printed any).
+    // R circles are labelled where they cross the horizontal line through
+    // the view's centre, X arcs where they cross the vertical one — near the
+    // match point those are the directions each family runs across, so the
+    // labels form a readable ruler along each axis of the view. A label that
+    // would overlap the previous one on its ruler is dropped.
+    if (grid.stepOhms != null) {
+      const mid = screenToGamma(view, size / 2, size / 2, cx, cy, R);
+      const inView = (p: { x: number; y: number }) =>
+        p.x > 4 && p.x < size - 30 && p.y > 26 && p.y < size - 30;
+      ctx.fillStyle = PC.labelDim;
+      ctx.font = "9px ui-monospace, monospace";
+      const rMarks: Array<{ x: number; y: number; t: string }> = [];
+      for (const { n: rn, label } of grid.r) {
+        if (!label) continue;
+        const c = rn / (rn + 1);
+        const rad = 1 / (rn + 1);
+        const d2 = rad * rad - mid.gIm * mid.gIm;
+        if (d2 < 0) continue;
+        const d = Math.sqrt(d2);
+        const gRe = Math.abs(c - d - mid.gRe) < Math.abs(c + d - mid.gRe) ? c - d : c + d;
+        if (Math.hypot(gRe, mid.gIm) > 1) continue;
+        const p = S(gRe, mid.gIm);
+        if (inView(p)) rMarks.push({ ...p, t: label });
+      }
+      rMarks.sort((a, b) => a.x - b.x);
+      let lastRight = -Infinity;
+      for (const m of rMarks) {
+        if (m.x < lastRight) continue;
+        ctx.fillText(m.t, m.x + 2, m.y - 3);
+        lastRight = m.x + 2 + ctx.measureText(m.t).width + 6;
+      }
+      const xMarks: Array<{ x: number; y: number; t: string }> = [];
+      for (const { n: xn, label } of grid.x) {
+        if (!label) continue;
+        for (const sgn of [1, -1]) {
+          const cy0 = sgn / xn;
+          const rad = 1 / xn;
+          const d2 = rad * rad - (mid.gRe - 1) * (mid.gRe - 1);
+          if (d2 < 0) continue;
+          const d = Math.sqrt(d2);
+          const gIm =
+            Math.abs(cy0 - d - mid.gIm) < Math.abs(cy0 + d - mid.gIm) ? cy0 - d : cy0 + d;
+          if (Math.hypot(mid.gRe, gIm) > 1) continue;
+          const p = S(mid.gRe, gIm);
+          if (inView(p)) xMarks.push({ ...p, t: `${sgn > 0 ? "+" : "−"}j${label}` });
+        }
+      }
+      xMarks.sort((a, b) => a.y - b.y);
+      let lastBottom = -Infinity;
+      for (const m of xMarks) {
+        if (m.y < lastBottom) continue;
+        ctx.fillText(m.t, m.x + 3, m.y + 3);
+        lastBottom = m.y + 12;
+      }
+    }
 
     // Z0 label at center
     ctx.fillStyle = PC.labelDim;
     ctx.font = "10px ui-monospace, monospace";
     ctx.fillText(`Z₀ = ${z0}`, 6, 14);
 
-    // Reactance sign labels.
+    // Reactance sign labels, pinned to the disc's upper and lower right so
+    // they travel with the half-planes they name.
     ctx.fillStyle = PC.labelDim;
-    ctx.fillText("+jX", cx + R - 24, cy - R + 14);
-    ctx.fillText("−jX", cx + R - 24, cy + R - 4);
+    const jxUp = S((R - 24) / R, (R - 14) / R);
+    const jxDown = S((R - 24) / R, -(R - 4) / R);
+    ctx.fillText("+jX", jxUp.x, jxUp.y);
+    ctx.fillText("−jX", jxDown.x, jxDown.y);
 
     // Sweep locus: one colored trajectory per feed (or just the primary
     // for single-feed geometries). Multi-feed geometries (bowtie) ship
@@ -184,9 +398,7 @@ export function SmithChart({
           : { re: sweep.z_re[i], im: sweep.z_im[i] };
 
       ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, R, 0, 2 * Math.PI);
-      ctx.clip();
+      clipDisc();
       for (let fi = 0; fi < nFeeds; fi++) {
         // Darkened color so the sweep trail reads underneath the bright
         // current-Z primary marker (drawn later, full color). Same
@@ -203,8 +415,7 @@ export function SmithChart({
           for (let i = 0; i < sweep.freqs_mhz.length; i++) {
             const z = zAt(fi, i);
             const g = reflectionCoefficient(z.re, z.im, z0);
-            const px = cx + g.gRe * R;
-            const py = cy - g.gIm * R;
+            const { x: px, y: py } = S(g.gRe, g.gIm);
             if (i === 0) ctx.moveTo(px, py);
             else ctx.lineTo(px, py);
           }
@@ -214,8 +425,7 @@ export function SmithChart({
           for (let i = 0; i < sweep.freqs_mhz.length; i++) {
             const z = zAt(fi, i);
             const g = reflectionCoefficient(z.re, z.im, z0);
-            const px = cx + g.gRe * R;
-            const py = cy - g.gIm * R;
+            const { x: px, y: py } = S(g.gRe, g.gIm);
             ctx.beginPath();
             ctx.arc(px, py, 1.5, 0, 2 * Math.PI);
             ctx.fill();
@@ -230,8 +440,7 @@ export function SmithChart({
       const drawEndpoint = (fi: number, idx: number, filled: boolean) => {
         const z = zAt(fi, idx);
         const g = reflectionCoefficient(z.re, z.im, z0);
-        const px = cx + g.gRe * R;
-        const py = cy - g.gIm * R;
+        const { x: px, y: py } = S(g.gRe, g.gIm);
         const col = feedSweepColor(fi);
         ctx.lineWidth = 1.2;
         ctx.strokeStyle = col;
@@ -274,8 +483,7 @@ export function SmithChart({
       for (let fi = 0; fi < nFeeds; fi++) {
         const z = zAt(fi, nearestIdx);
         const g = reflectionCoefficient(z.re, z.im, z0);
-        const px = cx + g.gRe * R;
-        const py = cy - g.gIm * R;
+        const { x: px, y: py } = S(g.gRe, g.gIm);
         ctx.beginPath();
         ctx.arc(px, py, 6, 0, 2 * Math.PI);
         ctx.stroke();
@@ -319,9 +527,7 @@ export function SmithChart({
         ctx.fillText(txt, size - 6 - ctx.measureText(txt).width, size - 20);
       } else {
         ctx.save();
-        ctx.beginPath();
-        ctx.arc(cx, cy, R, 0, 2 * Math.PI);
-        ctx.clip();
+        clipDisc();
         // Dashed, to read as "other source" next to the solid convergence
         // trail and the scattered sweep dots.
         ctx.setLineDash([4, 3]);
@@ -330,8 +536,7 @@ export function SmithChart({
         ctx.beginPath();
         for (let k = 0; k < idx.length; k++) {
           const g = mGamma(idx[k]);
-          const px = cx + g.gRe * R;
-          const py = cy - g.gIm * R;
+          const { x: px, y: py } = S(g.gRe, g.gIm);
           if (k === 0) ctx.moveTo(px, py);
           else ctx.lineTo(px, py);
         }
@@ -347,7 +552,8 @@ export function SmithChart({
           ctx.strokeStyle = PC.measured;
           ctx.fillStyle = filled ? PC.measured : `rgba(${PC.bgRgb}, 0.95)`;
           ctx.beginPath();
-          ctx.arc(cx + g.gRe * R, cy - g.gIm * R, 3, 0, 2 * Math.PI);
+          const q = S(g.gRe, g.gIm);
+          ctx.arc(q.x, q.y, 3, 0, 2 * Math.PI);
           ctx.fill();
           ctx.stroke();
         }
@@ -396,9 +602,7 @@ export function SmithChart({
           : { re: converge.z_re[i], im: converge.z_im[i] };
 
       ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, R, 0, 2 * Math.PI);
-      ctx.clip();
+      clipDisc();
       for (let fi = 0; fi < cNFeeds; fi++) {
         ctx.strokeStyle = feedColor(fi);
         ctx.lineWidth = 1.2;
@@ -406,8 +610,7 @@ export function SmithChart({
         for (let i = 0; i < converge.n_values.length; i++) {
           const z = czAt(fi, i);
           const g = reflectionCoefficient(z.re, z.im, z0);
-          const px = cx + g.gRe * R;
-          const py = cy - g.gIm * R;
+          const { x: px, y: py } = S(g.gRe, g.gIm);
           if (i === 0) ctx.moveTo(px, py);
           else ctx.lineTo(px, py);
         }
@@ -418,8 +621,7 @@ export function SmithChart({
         for (let i = 0; i < converge.n_values.length; i++) {
           const z = czAt(fi, i);
           const g = reflectionCoefficient(z.re, z.im, z0);
-          const px = cx + g.gRe * R;
-          const py = cy - g.gIm * R;
+          const { x: px, y: py } = S(g.gRe, g.gIm);
           ctx.beginPath();
           ctx.arc(px, py, 1.8, 0, 2 * Math.PI);
           ctx.fill();
@@ -431,8 +633,7 @@ export function SmithChart({
       const drawNEndpoint = (fi: number, idx: number, filled: boolean) => {
         const z = czAt(fi, idx);
         const g = reflectionCoefficient(z.re, z.im, z0);
-        const px = cx + g.gRe * R;
-        const py = cy - g.gIm * R;
+        const { x: px, y: py } = S(g.gRe, g.gIm);
         const col = feedColor(fi);
         ctx.lineWidth = 1.2;
         ctx.strokeStyle = col;
@@ -463,8 +664,7 @@ export function SmithChart({
         // series can fly outside |Γ|=1 in early frames.
         const gMag = Math.hypot(ge.gRe, ge.gIm);
         const k = gMag > 0.98 ? 0.98 / gMag : 1;
-        const px = cx + ge.gRe * R * k;
-        const py = cy - ge.gIm * R * k;
+        const { x: px, y: py } = S(ge.gRe * k, ge.gIm * k);
         ctx.save();
         ctx.translate(px, py);
         ctx.rotate(Math.PI / 4);
@@ -544,8 +744,7 @@ export function SmithChart({
     for (const m of drawOrder) {
       if (m.re <= 0 && m.im === 0) continue;
       const { gRe, gIm } = reflectionCoefficient(m.re, m.im, z0);
-      const px = cx + gRe * R;
-      const py = cy - gIm * R;
+      const { x: px, y: py } = S(gRe, gIm);
       if (trial) {
         // Hollow ring, not a filled dot. The chart's grammar is already
         // filled = settled / hollow = the other end of a trail, so a ring
@@ -657,10 +856,10 @@ export function SmithChart({
     ctx.strokeStyle = PC.centerMark;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(cx - 4, cy);
-    ctx.lineTo(cx + 4, cy);
-    ctx.moveTo(cx, cy - 4);
-    ctx.lineTo(cx, cy + 4);
+    ctx.moveTo(ox - 4, oy);
+    ctx.lineTo(ox + 4, oy);
+    ctx.moveTo(ox, oy - 4);
+    ctx.lineTo(ox, oy + 4);
     ctx.stroke();
     // multiFeed is captured in the closure; without it in the deps the
     // chart wouldn't redraw when the descriptor flag flips from its
@@ -673,17 +872,79 @@ export function SmithChart({
     // and `trialWorstFeed` likewise carry the whole per-eval picture (#789):
     // r/x still change every frame on a multi-feed run, but they are only
     // feed 0, so a run where feed 0 sat still would freeze every ring.
-  }, [r, x, z0, size, sweep, converge, measured, measFreqMhz, running, progress, convergeRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme]);
+  }, [r, x, z0, size, sweep, converge, measured, measFreqMhz, running, progress, convergeRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme, view]);
 
   // data-connect mirrors the trail mode (locus vs. dot cloud) for tests —
   // canvas pixels are invisible to jsdom, the attribute is not (the same
   // seam SweepChart's data-* attributes provide).
-  return (
+  //
+  // data-zoom does the same for the view: 1 at fit, and on every thumbnail.
+  const canvas = (
     <canvas
       ref={canvasRef}
       className="smith"
       data-connect={connectSweep ? "1" : "0"}
       data-progress={sweepProgressAttr(progress)}
+      data-zoom={String(view.zoom)}
+      {...(interactive
+        ? {
+            tabIndex: 0,
+            "aria-label":
+              "Smith chart. Scroll or press + and − to zoom, drag to pan, " +
+              "double-click or press 0 to show the whole chart.",
+            onPointerDown,
+            onPointerMove,
+            onPointerUp,
+            onPointerCancel: onPointerUp,
+            onDoubleClick: () => setView(FIT_VIEW),
+            onKeyDown,
+            style: {
+              // At fit, touch drags belong to the page (mobile carousel
+              // swipe); zoomed, the chart owns them for panning.
+              touchAction: zoomed ? "none" : "pan-x pan-y",
+              cursor: zoomed ? "grab" : "zoom-in",
+            },
+          }
+        : {})}
     />
+  );
+  if (!interactive) return canvas;
+  const step = smithGrid(view.zoom, z0).stepOhms;
+  return (
+    <div className="smith-chart" style={{ width: size, height: size }}>
+      {canvas}
+      {zoomed && (
+        <div className="schematic-zoom smith-zoom" role="group" aria-label="Smith chart zoom">
+          <button
+            type="button"
+            aria-label="Zoom out"
+            title="Zoom out"
+            onClick={() => zoomBy(1 / 1.25, half, half)}
+          >
+            −
+          </button>
+          <span className="smith-zoom-level" title={step != null ? `Grid every ${step} Ω` : undefined}>
+            {view.zoom >= 10 ? Math.round(view.zoom) : view.zoom.toFixed(1)}×
+            {step != null && ` · ${step} Ω`}
+          </span>
+          <button
+            type="button"
+            aria-label="Show the whole chart"
+            title="Show the whole chart (or double-click it, or press 0)"
+            onClick={() => setView(FIT_VIEW)}
+          >
+            fit
+          </button>
+          <button
+            type="button"
+            aria-label="Zoom in"
+            title="Zoom in"
+            onClick={() => zoomBy(1.25, half, half)}
+          >
+            +
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

@@ -4265,3 +4265,32 @@ canvas {
 .compare-table tr.compare-lit td {
   font-weight: 600;
 }
+
+/* The Smith chart's own zoom (see lib/smithView.ts). The box is the canvas's,
+   so the control can sit in the chart's top-right corner, outside the disc;
+   it borrows the schematic's zoom-group look and only moves it. Shown only
+   while zoomed — at fit there is nothing to reset. */
+.smith-chart {
+  position: relative;
+}
+
+.smith-chart .smith:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.smith-zoom {
+  left: auto;
+  bottom: auto;
+  top: var(--space-2);
+  right: var(--space-2);
+  align-items: center;
+}
+
+.smith-zoom-level {
+  font: var(--text-xs) var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-2);
+  padding: 0 var(--space-2);
+  white-space: nowrap;
+}
