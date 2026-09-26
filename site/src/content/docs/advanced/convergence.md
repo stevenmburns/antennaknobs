@@ -276,3 +276,13 @@ the physics doesn't:
      geometry with healthy Δ/a, trust the flat d=2 value (#484).
 4. Report the value both bases agree on, at the coarsest mesh past the
    plateau — that is the defensible number, and the cheapest one.
+
+From the command line, `--overlay` draws every engine's R and X on one
+shared pair of axes, so an offset between bases reads at a glance:
+
+```bash
+python -m antennaknobs sweep --builder specialty.hentenna \
+    --param nominal_nsegs --range 8 160 --npoints 14 \
+    --engine momwire:bspline,momwire:razor-2p,momwire:sinusoidal \
+    --overlay --callouts --fn hentenna-overlay.png
+```

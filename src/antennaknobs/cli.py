@@ -394,6 +394,7 @@ def _check_chart_flags(args, *, multi_engine):
             ("--x-range", args.x_range is not None),
             ("--callouts", args.callouts),
             ("--panels", args.panels),
+            ("--overlay", args.overlay),
         )
         if on
     ]
@@ -417,12 +418,24 @@ def _check_chart_flags(args, *, multi_engine):
             f"{', '.join(named)} apply to the impedance chart; they do not "
             f"apply with {', '.join(other)}"
         )
+    if args.overlay and args.panels:
+        raise SystemExit(
+            "--overlay and --panels are two layouts for the same engines; "
+            "give one: --overlay draws them on one chart, --panels side by side"
+        )
+    if args.overlay and not multi_engine:
+        raise SystemExit(
+            "--overlay draws several engines on one chart; give two or more "
+            "--engine specs, or drop --overlay"
+        )
     density = args.param == "nominal_nsegs"
-    shared = [f for f in twin if f != "--panels"]
-    if multi_engine and not density and not args.panels and shared:
+    shared = [f for f in twin if f not in ("--panels", "--overlay")]
+    layout = args.panels or args.overlay
+    if multi_engine and not density and not layout and shared:
         raise SystemExit(
             f"{', '.join(shared)} need separate R and X axes; with several "
-            "engines add --panels (one twin-axis panel per engine)"
+            "engines add --panels (one twin-axis panel per engine) or "
+            "--overlay (all engines on one twin-axis chart)"
         )
 
 
@@ -1199,7 +1212,16 @@ def cli(arguments=None):
         action="store_true",
         help="With several --engine specs: one twin-axis R/X panel per "
         "engine, side by side, instead of one chart coloured by engine. A "
-        "nominal_nsegs study always draws panels.",
+        "nominal_nsegs study draws panels unless --overlay is given.",
+    )
+    p.add_argument(
+        "--overlay",
+        default=False,
+        action="store_true",
+        help="With several --engine specs: every engine on ONE twin-axis "
+        "chart, R (solid) on the left axis and X (dashed) on the right, each "
+        "axis shared by all engines so the curves compare directly; one "
+        "colour and marker per engine.",
     )
 
     def f(args):
@@ -1342,6 +1364,7 @@ def cli(arguments=None):
                 x_range=args.x_range,
                 callouts=args.callouts,
                 panels=args.panels,
+                overlay=args.overlay,
             )
 
     p.set_defaults(func=f)

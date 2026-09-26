@@ -91,19 +91,25 @@ def _fmt_x(x):
     return f"{int(x)}" if float(x).is_integer() else f"{x:.4g}"
 
 
-def _callout(ax, x, y, text, color, *, last):
+def _callout(ax, x, y, text, color, *, last, dx=None, stagger=0):
     """A SimNEC-style value box with an arrow to the point. The box goes to
     the point's right (first point) or left (``last``), and below a point in
     the upper half of the axis or above one in the lower half, so it stays
     inside the axes; X boxes sit further out than R boxes so the two do not
-    stack when the curves cross. Call after the y limits are final."""
+    stack when the curves cross. Call after the y limits are final.
+
+    ``dx`` overrides that horizontal offset; ``stagger`` pushes the box a
+    further box-height away from the point per step, so several engines'
+    boxes at one end of an overlay stack instead of covering each other."""
     lo, hi = ax.get_ylim()
     upper = y > 0.5 * (lo + hi)
-    dx = 60 if color == _X_COLOR else 12
+    if dx is None:
+        dx = 60 if color == _X_COLOR else 12
+    dy = (-30 - 26 * stagger) if upper else (16 + 26 * stagger)
     ax.annotate(
         text,
         xy=(x, y),
-        xytext=(-dx if last else dx, -30 if upper else 16),
+        xytext=(-dx if last else dx, dy),
         textcoords="offset points",
         ha="right" if last else "left",
         fontsize=7,
@@ -243,6 +249,198 @@ def _rx_panels(
         out.append((ax0, ax1))
     fig.tight_layout()
     return out
+
+
+def _spread(ys, gap, lo=0.04, hi=0.96):
+    """Box centres (axes fraction) as close to their targets ``ys`` as they
+    can be while at least ``gap`` apart and inside [lo, hi]. Returns them in
+    the order given."""
+    order = sorted(range(len(ys)), key=lambda k: ys[k])
+    placed = []
+    for k in order:
+        y = min(max(ys[k], lo), hi)
+        if placed and y < placed[-1] + gap:
+            y = placed[-1] + gap
+        placed.append(y)
+    overflow = placed[-1] - hi if placed else 0.0
+    if overflow > 0:
+        placed = [max(lo, y - overflow) for y in placed]
+        for n in range(1, len(placed)):
+            placed[n] = max(placed[n], placed[n - 1] + gap)
+    out = [0.0] * len(ys)
+    for k, y in zip(order, placed, strict=True):
+        out[k] = y
+    return out
+
+
+def _overlay_callouts(ax0, ax1, panels, mode, xname, log_x):
+    """Value boxes for an overlay. Each engine's first and last points get
+    ONE box (R and X together, in its colour), stacked in a column in a
+    margin opened beyond the data on that side, ordered by the R value and
+    spread so no two overlap; arrows run to the R point (solid) and the X
+    point (dashed). ``markers`` / ``all`` points inside the range get
+    ordinary staggered point callouts."""
+    xs_all = np.concatenate([np.asarray(p[1], dtype=float) for p in panels])
+    xmin, xmax = float(xs_all.min()), float(xs_all.max())
+    # Open a margin of ~24 % of the axis width on each side for the columns.
+    m = 0.24
+    if log_x and xmin > 0:
+        span = np.log10(xmax / xmin) or 1.0
+        pad = 10 ** (span * m / (1 - 2 * m))
+        ax0.set_xlim(xmin / pad, xmax * pad)
+    else:
+        span = (xmax - xmin) or 1.0
+        pad = span * m / (1 - 2 * m)
+        ax0.set_xlim(xmin - pad, xmax + pad)
+    ax0.get_ylim()  # settle the lazy autoscale before reading transData
+    to_frac = ax0.transAxes.inverted()
+    gap = 0.1
+    for last in (False, True):
+        entries = []
+        for i, (name, xs, zs, _marked, _z) in enumerate(panels):
+            if len(xs) == 0:
+                continue
+            k = len(xs) - 1 if last else 0
+            z = complex(zs[k])
+            fy = to_frac.transform(ax0.transData.transform((xs[k], z.real)))[1]
+            entries.append((i, name, xs[k], z, fy))
+        ys = _spread([e[4] for e in entries], gap)
+        for (i, name, x, z, _fy), by in zip(entries, ys, strict=True):
+            color = f"C{i % 10}"
+            box = (0.99, by) if last else (0.01, by)
+            text = f"{name} {xname}={_fmt_x(x)}\nR {z.real:.4g}  X {z.imag:.4g} Ω"
+            ax0.annotate(
+                text,
+                xy=(x, z.real),
+                xytext=box,
+                textcoords="axes fraction",
+                ha="right" if last else "left",
+                va="center",
+                fontsize=6.5,
+                color=color,
+                bbox=dict(boxstyle="round,pad=0.25", fc="white", ec=color, lw=0.6),
+                arrowprops=dict(arrowstyle="->", color=color, lw=0.6),
+            )
+            ax1.annotate(
+                "",
+                xy=(x, z.imag),
+                xytext=box,
+                textcoords="axes fraction",
+                arrowprops=dict(arrowstyle="->", color=color, lw=0.6, ls="--"),
+            )
+    if mode == "ends":
+        return
+    pivot = _pivot(xs_all, log_x)
+    for i, (name, xs, zs, marked_idx, _z) in enumerate(panels):
+        color = f"C{i % 10}"
+        inner = [
+            k
+            for k in _callout_indices(mode, len(xs), marked_idx)
+            if 0 < k < len(xs) - 1
+        ]
+        for k in inner:
+            z = complex(zs[k])
+            head = f"{name} {xname}={_fmt_x(xs[k])}"
+            last = xs[k] > pivot
+            _callout(
+                ax0,
+                xs[k],
+                z.real,
+                f"{head}\nR {z.real:.4g} Ω",
+                color,
+                last=last,
+                dx=12,
+                stagger=i,
+            )
+            _callout(
+                ax1,
+                xs[k],
+                z.imag,
+                f"{head}\nX {z.imag:.4g} Ω",
+                color,
+                last=last,
+                dx=90,
+                stagger=i,
+            )
+
+
+# One marker per engine on an overlay, so the curves stay apart in a
+# greyscale printout where the tab10 colours do not.
+_OVERLAY_MARKERS = ("o", "s", "^", "D", "v", "P", "X", "<", ">", "h")
+
+
+def _rx_overlay(
+    panels,
+    *,
+    xlabel,
+    title,
+    log_x=False,
+    r_range=None,
+    x_range=None,
+    callouts=False,
+    xname=None,
+):
+    """Every engine of ``panels`` (the ``_rx_panels`` rows) on ONE chart: R
+    on the left axis (solid) and X on a twin right axis (dashed), each axis
+    shared by all engines, so its range is the union and the curves compare
+    directly unless ``r_range`` / ``x_range`` pin it. Each engine has its own
+    colour and marker; its Richardson ``z_star`` is a dotted line in its
+    colour on each axis. Callouts label each engine's points (named), with
+    one engine's boxes staggered past the previous one's. Returns
+    ``(ax_r, ax_x)``."""
+    import matplotlib.pyplot as plt
+
+    fig, ax0 = plt.subplots(figsize=(9.0, 5.6))
+    ax1 = ax0.twinx()
+    handles = []
+    for i, (name, xs, zs, marked_idx, z_star) in enumerate(panels):
+        xs = np.asarray(xs)
+        zs = np.asarray(zs, dtype=complex)
+        color = f"C{i % 10}"
+        mk = _OVERLAY_MARKERS[i % len(_OVERLAY_MARKERS)]
+        style = dict(color=color, marker=mk, ms=4, markerfacecolor="none", lw=1.3)
+        handles += ax0.plot(xs, zs.real, linestyle="-", label=f"{name} R", **style)
+        handles += ax1.plot(xs, zs.imag, linestyle="--", label=f"{name} X", **style)
+        for k in marked_idx:
+            for ax, v in ((ax0, zs[k].real), (ax1, zs[k].imag)):
+                ax.plot(
+                    [xs[k]],
+                    [v],
+                    marker="s",
+                    ms=8,
+                    markerfacecolor="none",
+                    markeredgecolor=color,
+                    linestyle="None",
+                )
+        if z_star is not None:
+            ax0.axhline(z_star.real, color=color, linestyle=":", lw=1.0, alpha=0.8)
+            ax1.axhline(z_star.imag, color=color, linestyle=":", lw=1.0, alpha=0.8)
+    if log_x:
+        _log_x_axis(ax0)
+    ax0.set_xlabel(xlabel)
+    ax0.set_ylabel("R (Ω), solid")
+    ax1.set_ylabel("X (Ω), dashed")
+    for ax in (ax0, ax1):
+        ax.yaxis.get_major_formatter().set_useOffset(False)
+    _set_ylim(ax0, r_range)
+    _set_ylim(ax1, x_range)
+    mode = _callout_mode(callouts)
+    if mode:
+        _overlay_callouts(ax0, ax1, panels, mode, xname or xlabel, log_x)
+    # Below the axes, one column per engine (its R above its X), so it
+    # never sits on the curves or the callout columns.
+    ax0.legend(
+        handles=handles,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.13),
+        frameon=False,
+        fontsize=7,
+        ncol=len(panels),
+    )
+    _polish_axes(ax0, title=title)
+    ax1.spines["top"].set_visible(False)
+    fig.tight_layout()
+    return ax0, ax1
 
 
 def build_and_get_elevation(antenna_builder, *, engine=Antenna):
@@ -590,6 +788,7 @@ def _sweep_convergence(
     r_range=None,
     x_range=None,
     callouts=False,
+    overlay=False,
 ):
     """``sweep --param nominal_nsegs`` (#1554): one cold solve per rung per
     engine, port 0 only (multi-port trajectories are the app's own overlay,
@@ -724,7 +923,7 @@ def _sweep_convergence(
                     estimates[name][0],
                 )
             )
-        _rx_panels(
+        (_rx_overlay if overlay else _rx_panels)(
             panels,
             xlabel="segments achieved (log)",
             title=title,
@@ -758,6 +957,7 @@ def sweep(
     x_range=None,
     callouts=False,
     panels=False,
+    overlay=False,
 ):
     """Impedance against a swept knob (or frequency).
 
@@ -772,8 +972,11 @@ def sweep(
       at every point.
     - ``panels``: several engines drawn one twin-axis R/X panel each (port 0),
       instead of one shared-axis chart coloured by engine.
+    - ``overlay``: several engines on ONE twin-axis R/X chart (port 0), each
+      axis shared, one colour and marker per engine (``_rx_overlay``).
 
-    ``nominal_nsegs`` is always log-spaced and always drawn as panels.
+    ``nominal_nsegs`` is always log-spaced, and drawn as panels unless
+    ``overlay``.
     """
     import matplotlib.pyplot as plt
 
@@ -796,6 +999,7 @@ def sweep(
             r_range=r_range,
             x_range=x_range,
             callouts=callouts,
+            overlay=overlay,
         )
         return
 
@@ -985,7 +1189,7 @@ def sweep(
             nwidth = marker_zs.shape[1]
             break
 
-    if panels and not use_smithchart:
+    if (panels or overlay) and not use_smithchart:
         # One twin-axis panel per engine, port 0. Markers join each engine's
         # points (sorted into place) so a panel is one R and one X line.
         rows = []
@@ -1002,7 +1206,7 @@ def sweep(
         title = _z_title(antenna_builder, nm)
         if nwidth > 1:
             title += f" (port 1 of {nwidth})"
-        _rx_panels(
+        (_rx_overlay if overlay else _rx_panels)(
             rows,
             xlabel=_param_label(nm),
             title=title,
