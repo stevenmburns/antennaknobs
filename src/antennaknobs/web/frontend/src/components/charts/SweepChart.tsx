@@ -247,8 +247,8 @@ export function SweepChart({
   // everything that must stay on the plot (markers, dots, ticks).
   const rawFracOf = axisFraction(mode, axis, dom);
   const fracOf = (v: number) => Math.max(0, Math.min(1, rawFracOf(v)));
-  // Where feed 0's samples sit, as a fraction of the plot height: the drawn
-  // geometry, published for the chart-vs-planner pin.
+  // (data-y-frac below publishes feed 0's rawFracOf: the heights the trail
+  // is drawn through, for the chart-vs-planner pin.)
 
   // The threshold (AK#1738): the SWR line, or the matching S11 line, and the
   // runs of feed 0's sweep below it, their edges interpolated between the
@@ -537,7 +537,7 @@ export function SweepChart({
         data-current={markerPoints.length > 0 ? markerPoints[0].v.toFixed(4) : ""}
         data-y-lo={dom.lo}
         data-y-hi={dom.hi}
-        data-y-frac={traceY.map((v) => fracOf(v).toFixed(4)).join(",")}
+        data-y-frac={traceY.map((v) => rawFracOf(v).toFixed(4)).join(",")}
         data-ticks={ticks.map((t) => t.label).join(",")}
         data-axis={axis.kind}
         data-bands={bands.length}
