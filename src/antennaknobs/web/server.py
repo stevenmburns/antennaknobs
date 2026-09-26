@@ -2297,63 +2297,66 @@ def _solve_z_only(req: dict, cancel=None) -> tuple[complex, list[complex] | None
     return primary, feeds_z
 
 
-@app.post("/converge")
-async def converge_endpoint(req: dict, request: Request):
-    """Stream impedance vs segments/wire as NDJSON, one (n, Z) per line.
+def _param_sweep_stream(
+    req: dict,
+    request: Request,
+    param: str,
+    values: list,
+    *,
+    record_key: str,
+    advisories: bool,
+) -> StreamingResponse:
+    """The body shared by ``/param_sweep`` and its ``/converge`` alias: one
+    solve per value, ``param`` overridden, streamed as NDJSON.
 
-    The frontend passes `n_values: list[int]`; we re-solve the geometry at
-    each N (overriding `n_per_wire`) and yield the result before starting
-    the next solve. Streaming so the user sees the trajectory build up
-    incrementally — the largest-N solves take noticeably longer (~N³ for
-    the dense LU) and the user shouldn't have to wait for the whole sweep
-    to see early points.
-
-    Cancels on client disconnect (slider drag interrupts a stale sweep)
-    using the same pattern as /sweep.
+    Each point solves on the request's OWN engine (``_solve_z_only`` resolves
+    it, as the optimizer does since #1743), takes one lane turn and cancels
+    on disconnect. A point that fails (a degenerate geometry at a tiny N, a
+    hosted size refusal) is reported for that value and the sweep goes on.
+    ``record_key`` names the swept value in each record: ``"value"`` (with
+    ``param`` alongside) on ``/param_sweep``, ``"n_per_wire"`` on the alias,
+    whose records keep their old shape.
     """
-    try:
-        n_values = [int(n) for n in req.get("n_values", [])]
-    except (TypeError, ValueError, OverflowError):
-        raise HTTPException(
-            status_code=422, detail="n_values must be a list of integers"
-        ) from None
+    from .param_sweep import gap_fed_advisory, request_at
+
     use_pynec = _external_backend(req) is not None
     solver_name = req.get("solver") if use_pynec else "momwire"
     # Admission by cost (issue #382): point-count refuse (413) and the
-    # poor-match warn (403 without approval). The per-N matrix-size refuse
-    # stays inside the loop — est_basis moves with N.
+    # poor-match warn (403 without approval). The per-point matrix-size
+    # refuse stays inside the loop: a density sweep moves est_basis per point.
     _refuse_or_withhold(
-        _admit(req, kind="converge", use_pynec=use_pynec, points=len(n_values)),
+        _admit(req, kind="converge", use_pynec=use_pynec, points=len(values)),
         req,
     )
     session, lane_gen = _lane_key(req)
 
+    def _tag(value) -> dict:
+        if record_key == "value":
+            return {"param": param, "value": value}
+        return {record_key: value}
+
     async def gen():
-        for n in n_values:
+        for value in values:
             if await request.is_disconnected():
                 return
-            req_n = dict(req)
-            req_n["n_per_wire"] = n
+            req_v = request_at(req, param, value)
             try:
-                # Reject N values past the size cap (the convergence sweep is
-                # exactly where someone pushes N high); surfaced per-N below.
-                _check_solve_size(req_n, use_pynec=use_pynec)
+                # Reject points past the size cap (a density sweep is exactly
+                # where someone pushes N high); surfaced per point below.
+                _check_solve_size(req_v, use_pynec=use_pynec)
                 # One lane turn per point (see /sweep).
                 async with _LANES.turn(session, "converge", lane_gen) as token:
                     async with cancel_on_disconnect(request, token):
                         z, feeds_z = await run_in_threadpool(
-                            _shed, _solve_z_only, req_n, cancel=token
+                            _shed, _solve_z_only, req_v, cancel=token
                         )
             except (Superseded, momwire.SolveAborted):
                 return
-            except Exception as e:  # noqa: BLE001 — one-off solver failures must not abort the whole sweep; the error is noted per N
-                # One-off solver failures (e.g. degenerate geometry at very
-                # small N) or a size rejection shouldn't abort the whole sweep —
-                # note the error for this N and keep going.
+            except Exception as e:  # noqa: BLE001 — one-off solver failures must not abort the whole sweep; the error is noted per point
                 yield (
                     json.dumps(
                         {
-                            "n_per_wire": n,
+                            **_tag(value),
                             # Same formatter as every other endpoint: type +
                             # message + user-design basename only, never a
                             # raw path or traceback (issue #348).
@@ -2365,21 +2368,83 @@ async def converge_endpoint(req: dict, request: Request):
                 )
                 continue
             record: dict = {
-                "n_per_wire": n,
+                **_tag(value),
                 "z_re": float(z.real),
                 "z_im": float(z.imag),
                 "solver": solver_name,
             }
             # Multi-feed geometries (bowtie 1×2 array) ship per-feed Z so
-            # the frontend can plot one convergence trail per port. Single-
-            # feed geometries omit the field; the stream shape is unchanged.
+            # the frontend can plot one trail per port. Single-feed
+            # geometries omit the field; the stream shape is unchanged.
             if feeds_z is not None:
                 record["feeds_z_re"] = [float(z_.real) for z_ in feeds_z]
                 record["feeds_z_im"] = [float(z_.imag) for z_ in feeds_z]
             yield json.dumps(record) + "\n"
-        yield json.dumps({"done": True, "solver": solver_name}) + "\n"
+        done: dict = {"done": True, "solver": solver_name}
+        if advisories and values:
+            note = await run_in_threadpool(
+                gap_fed_advisory, req, param, values, solver_name
+            )
+            if note is not None:
+                done["advisories"] = [note]
+        yield json.dumps(done) + "\n"
 
     return StreamingResponse(gen(), media_type="application/x-ndjson")
+
+
+@app.post("/param_sweep")
+async def param_sweep_endpoint(req: dict, request: Request):
+    """Stream the feed impedance against one parameter, one record per value.
+
+    The request is a solve request plus ``param`` and ``values``: ``param``
+    is ``"n_per_wire"`` (the mesh density, segments per λ/4) or one of the
+    design's numeric knobs, and each point is the request with that field
+    set to the value, solved on the request's own engine at the request's
+    measurement frequency (docs/design/z-vs-param-view.md). Records are
+    ``{param, value, z_re, z_im, solver}`` (+ ``feeds_z_re``/``feeds_z_im``
+    on a multi-feed design), or ``{param, value, error, solver}`` for a
+    point that failed; the closing ``{done}`` record carries ``advisories``
+    when there is something to say (today the gap-fed density warning).
+
+    An unknown parameter or a non-numeric value is a 422 before any solve.
+    """
+    from .param_sweep import ParamSweepError, sweep_values
+
+    param = req.get("param")
+    try:
+        values = sweep_values(req, param, req.get("values", []))
+    except (ParamSweepError, UnknownGeometryError) as e:
+        raise HTTPException(status_code=422, detail=str(e)) from None
+    base = {k: v for k, v in req.items() if k not in ("param", "values")}
+    return _param_sweep_stream(
+        base, request, param, values, record_key="value", advisories=True
+    )
+
+
+@app.post("/converge")
+async def converge_endpoint(req: dict, request: Request):
+    """Stream impedance vs segments/wire as NDJSON, one (n, Z) per line.
+
+    A thin alias of ``/param_sweep`` with ``param = "n_per_wire"``: the
+    frontend moved to ``/param_sweep`` (docs/design/z-vs-param-view.md), and
+    this keeps a tab still running the old bundle, and any script, working.
+    Records keep their old ``n_per_wire`` key, and carry no advisories.
+    """
+    try:
+        n_values = [int(n) for n in req.get("n_values", [])]
+    except (TypeError, ValueError, OverflowError):
+        raise HTTPException(
+            status_code=422, detail="n_values must be a list of integers"
+        ) from None
+    base = {k: v for k, v in req.items() if k != "n_values"}
+    return _param_sweep_stream(
+        base,
+        request,
+        "n_per_wire",
+        n_values,
+        record_key="n_per_wire",
+        advisories=False,
+    )
 
 
 @app.post("/pattern")

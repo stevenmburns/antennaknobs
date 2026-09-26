@@ -94,9 +94,11 @@ def admit(
     if hosted and points > MAX_SWEEP_POINTS:
         return Admission(
             "refuse",
-            f"A {'convergence sweep' if kind == 'converge' else 'sweep'} of "
+            # "converge" is the parameter sweep's kind (/param_sweep and its
+            # /converge alias): density or a knob, so it names neither.
+            f"A {'parameter sweep' if kind == 'converge' else 'sweep'} of "
             f"{points} points is over the live limit of {MAX_SWEEP_POINTS}. "
-            f"Reduce the {'N' if kind == 'converge' else 'frequency'} count.",
+            f"Reduce the {'point' if kind == 'converge' else 'frequency'} count.",
             est,
         )
 
