@@ -176,3 +176,33 @@ describe("a density sweep is the old convergence sweep", () => {
     expect(smith().dataset.extrap).toBe("70.000,-10.000");
   });
 });
+
+describe("the server's refusal is shown, not clamped to", () => {
+  it("a hosted 413 appears in the view in its own words", async () => {
+    const detail =
+      "A parameter sweep of 600 points is over the live limit of 500. Reduce the point count.";
+    const { container } = mountDesignSession({
+      examples: [EXAMPLE],
+      pinned: ["antenna", "zparam"],
+      routes: {
+        "/param_sweep": () =>
+          ({
+            ok: false,
+            status: 413,
+            json: async () => ({ detail }),
+          }) as unknown as Response,
+      },
+    });
+    const thumb = await waitFor(() => {
+      const c = container.querySelector(".thumbstrip canvas.zparam");
+      expect(c).not.toBeNull();
+      return c as HTMLElement;
+    }, T);
+    fireEvent.click(thumb);
+    expect((await screen.findByRole("alert", {}, T)).textContent).toBe(detail);
+    const chart = [...container.querySelectorAll("canvas.zparam")].find(
+      (c) => !c.closest(".thumbstrip"),
+    ) as HTMLElement;
+    expect(chart.dataset.error).toBe(detail);
+  });
+});

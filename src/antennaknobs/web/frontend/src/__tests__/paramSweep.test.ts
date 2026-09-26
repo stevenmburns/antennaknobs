@@ -90,11 +90,12 @@ describe("a knob's ladder", () => {
     expect(paramValues(spec, false)).toEqual([-1, 0, 1]);
   });
 
-  it("clamps the point count to 2…41", () => {
+  it("clamps the point count to 2…201", () => {
     expect(clampPoints(1)).toBe(2);
-    expect(clampPoints(100)).toBe(41);
+    expect(clampPoints(101)).toBe(101);
+    expect(clampPoints(1000)).toBe(201);
     expect(clampPoints(Number.NaN)).toBe(2);
-    expect(paramValues({ param: "x", lo: 0, hi: 1, points: 500, log: false }, false)).toHaveLength(41);
+    expect(paramValues({ param: "x", lo: 0, hi: 1, points: 500, log: false }, false)).toHaveLength(201);
   });
 });
 

@@ -4424,3 +4424,24 @@ canvas {
 .knob-menu-sweep:hover {
   border-color: var(--accent);
 }
+/* The Z-vs-parameter header's commit-on-blur number boxes. */
+.commit-number {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.zparam-controls .commit-number input {
+  width: 4.6em;
+}
+.commit-number input[data-invalid] {
+  border-color: var(--danger, #c0392b);
+}
+.commit-number-hint,
+.zparam-actual {
+  font-size: var(--text-xs);
+  font-family: ui-monospace, monospace;
+  white-space: nowrap;
+}
+.commit-number-hint {
+  color: var(--danger, #c0392b);
+}
