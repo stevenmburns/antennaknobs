@@ -2739,6 +2739,10 @@ function DesignSessionBody({
                       sweepRunning={sweepRunning}
                       sweepProgress={sweepProgress}
                       sweepSettled={sweepSettled}
+                      // The stage connects the Smith sweep when adaptive
+                      // resolution is on; without this the thumbnail drew
+                      // dots until its chart took the stage.
+                      refineEnabled={refineEnabled}
                       convergeRunning={convergeRunning}
                       azElevDeg={azElevDeg}
                       elevAzDeg={elevAzDeg}
