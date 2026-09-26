@@ -9,7 +9,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { AUTO_SETTLE_MS, SweepChart } from "../components/charts/SweepChart";
 import type { SweepData } from "../lib/api";
 import { gammaMagFromZ, vswrFromGammaMag } from "../lib/math";
-import { sweepProjections } from "../lib/refine";
+import { SWEEP_SCORE_BAND, sweepProjections } from "../lib/refine";
 import { AUTO_AXES, type SweepAxisChoice, type SweepMode } from "../lib/sweepAxis";
 
 HTMLCanvasElement.prototype.getContext =
@@ -106,6 +106,7 @@ describe("the drawn range", () => {
       ["gamma", { kind: "fixed", lo: -20, hi: 0 }, 2],
     ];
     const seen = new Set<string>();
+    let offPlot = false;
     for (const [mode, axis, threshold] of cases) {
       const sweep = notch(FREQS);
       const { container, unmount } = render(
@@ -128,23 +129,30 @@ describe("the drawn range", () => {
         threshold,
       );
       seen.add(`${mode}:${d.lo},${d.hi}`);
-      const clamp = (v: number) => Math.max(0, Math.min(1, v));
       // Worked out here, not through the library: 1 − 1/SWR on the
-      // compressed scale, the linear map onto the domain otherwise.
+      // compressed scale, the linear map onto the domain otherwise, NOT
+      // clamped — the chart draws its trail through these and clips it.
       const want = (y: number) =>
-        axis.kind === "reciprocal" ? 1 - 1 / y : clamp((y - d.lo) / (d.hi - d.lo));
-      // The fraction the chart DRAWS each sample at (its yOf), published.
+        axis.kind === "reciprocal" ? 1 - 1 / y : (y - d.lo) / (d.hi - d.lo);
+      // The planner scores the same heights, saturated past the band.
+      const [bLo, bHi] = SWEEP_SCORE_BAND;
+      const band = (v: number) => Math.max(bLo, Math.min(bHi, v));
+      // The height the chart DRAWS each sample at, published.
       const drawn = (c.dataset.yFrac ?? "").split(",").map(Number);
       expect(drawn).toHaveLength(ys.length);
       ys.forEach((y, i) => {
-        expect(proj[i].y).toBeCloseTo(want(y), 3);
         expect(drawn[i]).toBeCloseTo(want(y), 3);
+        expect(proj[i].y).toBeCloseTo(band(want(y)), 3);
       });
+      // This sweep does leave the plot on the linear ranges, so the pin
+      // covers off-plot heights, not just on-plot ones.
+      if (axis.kind !== "reciprocal") offPlot ||= drawn.some((v) => v > 1 || v < 0);
       unmount();
     }
     // The thresholds really moved the Auto range (else this pins nothing).
     expect(seen.has("vswr:1,1.5") && seen.has("vswr:1,2") && seen.has("vswr:1,3")).toBe(true);
     expect(seen.has("vswr:0,1")).toBe(true); // the compressed scale ran
+    expect(offPlot).toBe(true);
   });
 });
 

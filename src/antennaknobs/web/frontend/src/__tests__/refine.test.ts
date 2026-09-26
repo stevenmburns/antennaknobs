@@ -16,11 +16,13 @@ import {
   refineSweepFreqs,
   s11DbTop,
   sweepProjections,
+  SWEEP_SCORE_BAND,
   turnAngles,
   type DisplayPoint,
 } from "../lib/refine";
 import { mergeSweepPoints } from "../lib/sweep";
 import type { SweepData } from "../lib/api";
+import type { SweepAxes } from "../lib/sweepAxis";
 
 const line = (n: number): DisplayPoint[] =>
   Array.from({ length: n }, (_, i) => ({ x: i / (n - 1), y: 0.5 }));
@@ -256,13 +258,16 @@ describe("sweepProjections / refineSweepFreqs", () => {
     expect(vswr[2].x).toBeCloseTo(1, 12);
   });
 
-  it("clamps to the charts' y domains so off-screen curvature is ignored", () => {
+  it("saturates far off-screen samples at SWEEP_SCORE_BAND, marked clamped", () => {
     const s = notchSweep([10, 14.2, 20]);
     const [vswr, gamma] = sweepProjections(s, 50);
-    // A wildly reactive endpoint pins at the VSWR ceiling and at 0 dB S11.
-    expect(vswr[0].y).toBe(1);
+    // A wildly reactive endpoint: far above the VSWR top, saturated and
+    // marked; at 0 dB on S11, the top edge exactly, which is on screen.
+    expect(vswr[0].y).toBe(SWEEP_SCORE_BAND[1]);
+    expect(vswr[0].clamped).toBe(true);
     expect(gamma[0].y).toBeCloseTo(1, 4);
-    // Perfect match at the notch: VSWR 1 (bottom) and S11 below −30 (bottom).
+    // Perfect match at the notch: VSWR 1 (bottom); S11 at its −60 dB math
+    // floor, which is Auto's floor too here.
     expect(vswr[1].y).toBe(0);
     expect(gamma[1].y).toBe(0);
   });
@@ -373,30 +378,40 @@ describe("sweepProjections / refineSweepFreqs", () => {
     expect(withoutSmith).toEqual([]);
   });
 
-  it("clamped vertices score zero: the corner where the curve meets the chart edge is not chased", () => {
-    // A spike clipping through the VSWR ceiling: mid samples pinned at y=1.
-    const freqs = Array.from({ length: 9 }, (_, i) => 14 + i * 0.05);
-    const s: SweepData = {
-      freqs_mhz: freqs,
-      z_re: freqs.map(() => 50),
-      // |X| huge in the middle third → VSWR far above 10, clamped flat.
-      z_im: freqs.map((_, i) => (i >= 3 && i <= 5 ? 5000 : 100)),
-    };
-    const [vswr] = sweepProjections(s, 50);
-    // The middle third really is clamped…
-    expect(vswr[4].clamped).toBe(true);
-    expect(vswr[4].y).toBe(1);
-    // …and the planner assigns those vertices no deviation: only the VSWR
-    // projection is offered, so any planned point must come from UNCLAMPED
-    // vertices' deviations, never from sharpening the ceiling corner
-    // between two clamped samples.
-    const planned = planRefinement(freqs, [vswr], { budget: 8 });
-    for (const f of planned) {
-      // No midpoint may land strictly inside the clamped run (between
-      // samples 3 and 5): both endpoints of those intervals are clamped
-      // and their drawn segment is the ceiling regardless of the truth.
-      expect(f < freqs[3] || f > freqs[5]).toBe(true);
-    }
+  // VSWR is set exactly by a real Z: Z = 50·v gives SWR v on a 50 Ω line.
+  function swrSweep(freqs: number[], swr: number[]): SweepData {
+    return { freqs_mhz: freqs, z_re: swr.map((v) => 50 * v), z_im: swr.map(() => 0) };
+  }
+  const ONE_TO_TWO: SweepAxes = { vswr: { kind: "fixed", lo: 1, hi: 2 }, gamma: { kind: "auto" } };
+  const VSWR_ONLY = { vswr: true, gamma: false, smith: false };
+
+  it("refines where the curve crosses the top edge (the chart clips there, at the true slope)", () => {
+    // Straight up the plot in steps of 0.1, then a bend just past the top:
+    // heights 0.2 … 0.9, 1.1, then far above. The bend is at the sample
+    // just OFF the plot, so the old rule (pin it to 1.0 and zero it) saw a
+    // straight line through the crossing and planned nothing.
+    const freqs = Array.from({ length: 11 }, (_, i) => 10 + i);
+    const h = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.1, 30, 50];
+    const s = swrSweep(freqs, h.map((y) => 1 + y));
+    const planned = refineSweepFreqs(s, 50, 8, VSWR_ONLY, ONE_TO_TWO);
+    // The crossing (height 1) is between 17 (0.9) and 18 (1.1).
+    expect(planned.some((f) => f > 17 && f < 18)).toBe(true);
+    // Nothing between the two far-above samples: both are saturated.
+    expect(planned.every((f) => f < 19 || f > 20)).toBe(true);
+  });
+
+  it("a curve pegged far above the plot does not spend the budget up there", () => {
+    // Half the sweep wildly varying at SWR 20–99 on a 1–2 range (heights
+    // 19–98): saturated, flat to the planner. The other half is a gentle
+    // bend on screen.
+    const freqs = Array.from({ length: 21 }, (_, i) => 10 + i * 0.5);
+    const swr = freqs.map((f, i) =>
+      i < 10 ? [99, 20, 80, 30, 95, 25, 70, 40, 90, 60][i] : 1.2 + 0.02 * (f - 15) ** 2,
+    );
+    const planned = refineSweepFreqs(swrSweep(freqs, swr), 50, 12, VSWR_ONLY, ONE_TO_TWO);
+    // No point strictly inside the pegged run (samples 0–9: 10 … 14.5).
+    expect(planned.every((f) => f > 14.5)).toBe(true);
+    expect(planned.length).toBeLessThanOrEqual(12);
   });
 });
 

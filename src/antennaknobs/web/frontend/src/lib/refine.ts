@@ -3,7 +3,7 @@ import { gammaDbFromMag, vswrFromGammaMag } from "./math";
 import type { SweepData } from "./api";
 import {
   AUTO_AXES,
-  axisProjector,
+  axisFraction,
   DEFAULT_SWR_THRESHOLD,
   sweepAxisDomain,
   type SweepAxes,
@@ -34,7 +34,8 @@ import { tunedFloat } from "./tuning";
  *  rect; a wildly non-square chart would want its own aspect factor.
  *
  *  `clamped` marks a vertex whose value was PINNED to the chart's domain
- *  edge (a VSWR above the axis ceiling, a cut sample at the radial floor).
+ *  edge (a cut sample at the radial floor), or, on the sweep charts, which
+ *  clip rather than pin, a vertex past SWEEP_SCORE_BAND.
  *  Its drawn position is exact — the chart really does put it on the edge —
  *  so subdividing around it cannot improve the picture: the corner where
  *  the curve enters the clamp is an artifact of clamping, not of sampling,
@@ -318,14 +319,21 @@ export const ALL_SWEEP_PROJECTIONS: SweepProjectionSet = {
   smith: true,
 };
 
+/** How far past the plot, as fractions of its height, a scalar sweep
+ *  chart's samples still count for refinement (see sweepProjections). A
+ *  quarter plot on each side: enough to see the segments that cross the
+ *  edge, not so far that an off-scale excursion competes with the curve on
+ *  screen. */
+export const SWEEP_SCORE_BAND: readonly [number, number] = [-0.25, 1.25];
+
 /** The display polylines a sweep feeds: VSWR vs f, S11 dB vs f, and the
  *  Smith Γ locus — only those `include` lists, in that order. x for the two
  *  scalar charts is LINEAR in MHz over the swept span — that is what
  *  SweepChart's `xOf` does, whatever the freq PLAN's spacing was.
- *  Out-of-domain samples clamp exactly as the charts draw them (a VSWR of
- *  40 sits pinned at the top edge) and carry the `clamped` mark, so
- *  refinement neither chases curvature that is off screen nor sharpens the
- *  corner where the curve meets the edge. */
+ *  The scalar charts' samples keep their true heights out to
+ *  SWEEP_SCORE_BAND, since the charts clip their trails at the plot edge
+ *  and the crossing segments are drawn; beyond it they saturate and carry
+ *  the `clamped` mark. */
 export function sweepProjections(
   sweep: SweepData,
   z0: number,
@@ -340,12 +348,21 @@ export function sweepProjections(
   const vswr: DisplayPoint[] = [];
   const gamma: DisplayPoint[] = [];
   const smith: DisplayPoint[] = [];
-  // y and its clamp mark in one place, so the two can never disagree.
-  const edge = (x: number, raw: number): DisplayPoint => ({
-    x,
-    y: clamp01(raw),
-    ...(raw <= 0 || raw >= 1 ? { clamped: true } : {}),
-  });
+  // A scalar chart's vertex. The chart CLIPS its trail at the plot edge
+  // rather than pinning off-range samples onto it, so the segment through
+  // the crossing is drawn at its true slope and is worth refining: a sample
+  // just off the plot keeps its real height and scores like any other. Past
+  // SWEEP_SCORE_BAND the height saturates and the vertex is marked clamped
+  // (its deviation zeroed), so a far off-scale stretch — SWR 99 regions on a
+  // 1–2 range — cannot eat the budget on a curve nobody can see.
+  const scored = (x: number, raw: number): DisplayPoint => {
+    const [lo, hi] = SWEEP_SCORE_BAND;
+    return {
+      x,
+      y: Math.min(hi, Math.max(lo, raw)),
+      ...(raw <= lo || raw >= hi ? { clamped: true } : {}),
+    };
+  };
   const gs = f.map((_, i) =>
     reflectionCoefficient(sweep.z_re[i], sweep.z_im[i], z0),
   );
@@ -357,18 +374,19 @@ export function sweepProjections(
   // The drawn domains (AK#1738): the viewer's choice, Auto fitting these
   // same values, exactly as SweepChart derives them.
   const vDom = sweepAxisDomain("vswr", axes.vswr, vs, 0, swrThreshold);
-  // The compressed VSWR scale places a sample at 1 − 1/SWR (the identity on
-  // every other choice): the chart's own axisProjector.
-  const vProj = axisProjector("vswr", axes.vswr);
   const gDom = sweepAxisDomain("gamma", axes.gamma, dbs, s11DbTop(dbs), swrThreshold);
+  // Each sample's drawn height, unclamped: the chart's own axisFraction
+  // (1 − 1/SWR on the compressed VSWR scale, linear otherwise).
+  const vFrac = axisFraction("vswr", axes.vswr, vDom);
+  const gFrac = axisFraction("gamma", axes.gamma, gDom);
   for (let i = 0; i < n; i++) {
     const x = (f[i] - f[0]) / span;
     const g = gs[i];
     if (include.vswr) {
-      vswr.push(edge(x, (vProj(vs[i]) - vDom.lo) / (vDom.hi - vDom.lo)));
+      vswr.push(scored(x, vFrac(vs[i])));
     }
     if (include.gamma) {
-      gamma.push(edge(x, (dbs[i] - gDom.lo) / (gDom.hi - gDom.lo)));
+      gamma.push(scored(x, gFrac(dbs[i])));
     }
     // Γ plane: the [0,1]² box the chart's circle inscribes, clamp-marked
     // outside it — |Γ| ≤ 1 for a passive port, but a driven-array port's
