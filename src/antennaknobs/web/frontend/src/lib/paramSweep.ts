@@ -256,7 +256,7 @@ export function xTicks(d: AxisDomain, log: boolean): number[] {
     const t = logTicks(d);
     if (t.length >= 2) return t;
   }
-  return axisTicks(d, 4).filter((v) => v >= d.lo && v <= d.hi);
+  return axisTicks(d).filter((v) => v >= d.lo && v <= d.hi);
 }
 
 /** The index of the swept point nearest a pointer's x fraction, or -1. */

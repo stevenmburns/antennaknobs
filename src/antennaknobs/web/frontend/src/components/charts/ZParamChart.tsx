@@ -212,6 +212,17 @@ export function ZParamChart({
         ctx.stroke();
       }
       ctx.setLineDash([]);
+      // "Z*" at the left end of each line, R's above it and X's below, so
+      // the two stay tellable apart when their auto ranges put them level.
+      ctx.font = "9px ui-monospace, monospace";
+      if (extrap.re != null) {
+        ctx.fillStyle = R(0.9);
+        ctx.fillText("Z* R", MARGIN.l + 4, py(extrap.re, rDom) - 3);
+      }
+      if (extrap.im != null) {
+        ctx.fillStyle = X(0.9);
+        ctx.fillText("Z* X", MARGIN.l + 4, py(extrap.im, xDom) + 10);
+      }
     }
 
     // The traces: a polyline and hollow circles at every point.

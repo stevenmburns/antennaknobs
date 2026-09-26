@@ -660,11 +660,23 @@ export function SmithChart({
       if (converge.values.length >= 2) {
         ctx.font = "9px ui-monospace, monospace";
         ctx.fillStyle = feedColor(0);
-        for (const idx of [0, converge.values.length - 1]) {
+        const at = (idx: number) => {
           const z = czAt(0, idx);
           const g = reflectionCoefficient(z.re, z.im, z0);
-          const { x: px, y: py } = S(g.gRe, g.gIm);
-          const txt = formatParam(converge.values[idx]);
+          return S(g.gRe, g.gIm);
+        };
+        const last = converge.values.length - 1;
+        const a = at(0);
+        const b = at(last);
+        // A converged trail can be a few pixels long: then one label for
+        // both ends ("10–500"), at the last point, rather than two on top
+        // of each other.
+        const close = Math.hypot(a.x - b.x, a.y - b.y) < 24;
+        for (const idx of close ? [last] : [0, last]) {
+          const { x: px, y: py } = at(idx);
+          const txt = close
+            ? `${formatParam(converge.values[0])}–${formatParam(converge.values[last])}`
+            : formatParam(converge.values[idx]);
           const w = ctx.measureText(txt).width;
           const dx = px >= ox ? 6 : -6 - w;
           const dy = py >= oy ? 12 : -6;
