@@ -141,6 +141,34 @@ def _log_x_axis(ax):
     ax.xaxis.set_minor_formatter(NullFormatter())
 
 
+CALLOUT_MODES = ("ends", "markers", "all")
+
+
+def _callout_mode(callouts):
+    """``callouts`` as one of CALLOUT_MODES, or None for none. ``True`` (the
+    bare flag) is ``"ends"``: the first and last points only."""
+    if not callouts:
+        return None
+    if callouts is True:
+        return "ends"
+    if callouts not in CALLOUT_MODES:
+        raise ValueError(f"callouts must be one of {CALLOUT_MODES}, got {callouts!r}")
+    return callouts
+
+
+def _callout_indices(mode, n, marked_idx):
+    """Which of ``n`` points get a value box: ``ends`` the first and last,
+    ``markers`` those plus every marked point, ``all`` every point."""
+    if mode is None or n == 0:
+        return []
+    if mode == "all":
+        return list(range(n))
+    idx = {0, n - 1}
+    if mode == "markers":
+        idx |= set(marked_idx)
+    return sorted(idx)
+
+
 def _set_ylim(ax, rng):
     if rng is not None:
         ax.set_ylim(*rng)
@@ -160,8 +188,8 @@ def _rx_panels(
     """R and X against a swept value, one panel per engine (Dan AC6LA's
     SimNEC layout, QRZ 1003328 #163): R in red on the LEFT axis and X in blue
     on a twin RIGHT axis, each auto-ranged on its own unless ``r_range`` /
-    ``x_range`` pin it, circles at every point, and — with ``callouts`` — a
-    value box at the first and last points and at every marked point.
+    ``x_range`` pin it, circles at every point, and value boxes where
+    ``callouts`` says (``_callout_indices``).
 
     ``panels`` is ``[(name, xs, zs, marked_idx, z_star), ...]``: ``zs`` one
     complex value per x (port 0), ``marked_idx`` the indices drawn as squares
@@ -206,8 +234,8 @@ def _rx_panels(
             ax.yaxis.get_major_formatter().set_useOffset(False)
         _set_ylim(ax0, r_range)
         _set_ylim(ax1, x_range)
-        if callouts and len(xs):
-            idx = sorted({0, len(xs) - 1, *marked_idx})
+        idx = _callout_indices(_callout_mode(callouts), len(xs), marked_idx)
+        if idx:
             _annotate_rx(ax0, ax1, xs, zs, idx, xname or xlabel, _pivot(xs, log_x))
         panel_title = title if name is None else f"{name}: {title}"
         _polish_axes(ax0, title=panel_title)
@@ -584,7 +612,12 @@ def _sweep_convergence(
         # `--markers` alone IS the ladder: "just these densities". Richardson
         # then reads them as its rungs, since they are the only rungs.
         ladder_rungs = set(marked)
+        # ...and then they are not observations beside it: no squares, and
+        # callouts treat the rungs as ordinary points, so a 20-rung
+        # --markers ladder with --callouts gets its two end boxes, not 20.
+        drawn_marks = set()
     else:
+        drawn_marks = marked
         ladder_rungs = set(_nominal_nsegs_rungs(rng, npoints))
     rungs = sorted(ladder_rungs | marked)
 
@@ -687,7 +720,7 @@ def _sweep_convergence(
                     name,
                     [achieved for _, achieved, _ in rows],
                     [z for _, _, z in rows],
-                    [k for k, (n, _, _) in enumerate(rows) if n in marked],
+                    [k for k, (n, _, _) in enumerate(rows) if n in drawn_marks],
                     estimates[name][0],
                 )
             )
@@ -734,8 +767,9 @@ def sweep(
     - ``log``: geometric spacing and a log x axis; an int knob's points are
       rounded to ints (``gen_xs``).
     - ``r_range`` / ``x_range``: pin the R (left) / X (right) axis.
-    - ``callouts``: value boxes at the first and last points and at every
-      ``markers`` point.
+    - ``callouts``: value boxes, ``"ends"`` (or ``True``) at the first and
+      last points, ``"markers"`` also at every ``markers`` point, ``"all"``
+      at every point.
     - ``panels``: several engines drawn one twin-axis R/X panel each (port 0),
       instead of one shared-axis chart coloured by engine.
 
@@ -901,13 +935,14 @@ def sweep(
                 _log_x_axis(ax0)
             _set_ylim(ax0, r_range)
             _set_ylim(ax1, x_range)
-            if callouts:
+            mode = _callout_mode(callouts)
+            if mode:
                 pivot = _pivot(np.concatenate([xs, marker_xs]), log)
                 for i in range(nwidth):
                     if zs.shape[0] > 0:
-                        ends = sorted({0, zs.shape[0] - 1})
-                        _annotate_rx(ax0, ax1, xs, zs[:, i], ends, nm, pivot)
-                    if marker_zs.shape[0] > 0:
+                        idx = _callout_indices(mode, zs.shape[0], ())
+                        _annotate_rx(ax0, ax1, xs, zs[:, i], idx, nm, pivot)
+                    if marker_zs.shape[0] > 0 and mode != "ends":
                         _annotate_rx(
                             ax0,
                             ax1,

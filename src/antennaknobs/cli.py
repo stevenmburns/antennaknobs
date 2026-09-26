@@ -1184,10 +1184,14 @@ def cli(arguments=None):
     )
     p.add_argument(
         "--callouts",
-        default=False,
-        action="store_true",
-        help="Label R and X with their values at the first and last points "
-        "and at every --markers point.",
+        nargs="?",
+        const="ends",
+        default=None,
+        choices=("ends", "markers", "all"),
+        help="Label R and X with their values: ends (the default when the "
+        "flag is bare) at the first and last points, markers also at every "
+        "--markers point, all at every point. A nominal_nsegs study whose "
+        "--markers are the whole ladder treats them as ordinary rungs.",
     )
     p.add_argument(
         "--panels",
