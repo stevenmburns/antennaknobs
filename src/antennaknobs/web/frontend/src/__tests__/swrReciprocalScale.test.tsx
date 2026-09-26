@@ -63,7 +63,11 @@ describe("the stored choice", () => {
     expect(validChoice("gamma", RECIPROCAL)).toBe(false);
     expect(sanitizeChoice("vswr", { kind: "reciprocal" })).toEqual(RECIPROCAL);
     expect(sanitizeChoice("gamma", { kind: "reciprocal" })).toEqual({ kind: "auto" });
-    expect(sanitizeChoice("vswr", { kind: "reciprocl" })).toEqual({ kind: "auto" });
+    // Garbage reads as the mode's default: 1–∞ on VSWR.
+    expect(sanitizeChoice("vswr", { kind: "reciprocl" })).toEqual(RECIPROCAL);
+    expect(sanitizeChoice("vswr", undefined)).toEqual(RECIPROCAL);
+    // An explicit Auto is kept: it is how a VSWR Auto is stored now.
+    expect(sanitizeChoice("vswr", { kind: "auto" })).toEqual({ kind: "auto" });
     expect(sameChoice(RECIPROCAL, { kind: "reciprocal" })).toBe(true);
     expect(sameChoice(RECIPROCAL, { kind: "auto" })).toBe(false);
   });
@@ -72,15 +76,35 @@ describe("the stored choice", () => {
 describe("the view-prefs round trip", () => {
   beforeEach(() => localStorage.clear());
 
-  it("writes {vswr: reciprocal} sparsely and reads it back on the next load", () => {
+  it("a fresh profile starts VSWR on 1–∞ and S11 on Auto", () => {
+    const h = renderHook(() => useViewPrefs());
+    expect(h.result.current.sweepAxes).toEqual({ vswr: RECIPROCAL, gamma: { kind: "auto" } });
+    h.unmount();
+  });
+
+  it("stores a VSWR Auto explicitly, reads it back, and omits the 1–∞ default", () => {
     const first = renderHook(() => useViewPrefs());
-    act(() => first.result.current.setSweepAxis("vswr", RECIPROCAL));
+    act(() => first.result.current.setSweepAxis("vswr", { kind: "auto" }));
     const stored = JSON.parse(localStorage.getItem(VIEW_PREFS_KEY) ?? "{}");
-    expect(stored.sweepAxes).toEqual({ vswr: { kind: "reciprocal" } });
+    expect(stored.sweepAxes).toEqual({ vswr: { kind: "auto" } });
     first.unmount(); // the module store drops its cache: the next mount reads storage
     const second = renderHook(() => useViewPrefs());
-    expect(second.result.current.sweepAxes).toEqual({ vswr: RECIPROCAL, gamma: { kind: "auto" } });
+    expect(second.result.current.sweepAxes.vswr).toEqual({ kind: "auto" });
+    // Back to 1–∞: the default, so the entry leaves storage.
+    act(() => second.result.current.setSweepAxis("vswr", RECIPROCAL));
+    const after = JSON.parse(localStorage.getItem(VIEW_PREFS_KEY) ?? "{}");
+    expect(after.sweepAxes).toBeUndefined();
     second.unmount();
+  });
+
+  it("an explicit preset still wins over the default", () => {
+    localStorage.setItem(
+      VIEW_PREFS_KEY,
+      JSON.stringify({ pinned: ["vswr"], seen: ["vswr"], sweepAxes: { vswr: { kind: "fixed", lo: 1, hi: 3 } } }),
+    );
+    const h = renderHook(() => useViewPrefs());
+    expect(h.result.current.sweepAxes.vswr).toEqual({ kind: "fixed", lo: 1, hi: 3 });
+    h.unmount();
   });
 
   it("refuses it for S11, and a hand-edited S11 entry reads back as Auto", () => {

@@ -105,6 +105,12 @@ export function autoS11Floor(
 
 export const RECIPROCAL: SweepAxisChoice = { kind: "reciprocal" };
 
+/** Where a fresh profile starts (Steve, 2026-09-26): VSWR on the 1–∞ scale,
+ *  S11 on Auto. The view prefs store a chart's choice only when it differs
+ *  from this, so picking Auto on VSWR is stored explicitly. AUTO_AXES stays
+ *  the pure functions' default for a caller that passes no choice. */
+export const DEFAULT_AXES: SweepAxes = { vswr: RECIPROCAL, gamma: AUTO };
+
 /** SWR → the compressed scale's y: 1 − 1/SWR = 2|Γ|/(1 + |Γ|), mapping SWR
  *  1…∞ onto 0…1 (1.5 → ⅓, 2 → ½, 3 → ⅔, 5 → 0.8, 10 → 0.9). Every SWR
  *  fits below the top, so nothing ever pegs. A non-number or anything
@@ -322,19 +328,24 @@ export function validChoice(mode: SweepMode, c: SweepAxisChoice): boolean {
   return mode === "vswr" ? c.lo >= 1 : true;
 }
 
-/** A stored choice, distrusted like everything in localStorage: anything
- *  that is not a drawable choice reads as Auto. */
+/** A stored choice, distrusted like everything in localStorage: an explicit
+ *  Auto, 1–∞ or drawable fixed range is kept; anything else (absent,
+ *  garbage, or a choice the mode cannot draw) reads as the mode's default,
+ *  DEFAULT_AXES. */
 export function sanitizeChoice(mode: SweepMode, raw: unknown): SweepAxisChoice {
-  if (isRecord(raw) && raw.kind === "reciprocal") {
-    return validChoice(mode, RECIPROCAL) ? RECIPROCAL : AUTO;
+  const fallback = DEFAULT_AXES[mode];
+  if (!isRecord(raw)) return fallback;
+  if (raw.kind === "auto") return AUTO;
+  if (raw.kind === "reciprocal") {
+    return validChoice(mode, RECIPROCAL) ? RECIPROCAL : fallback;
   }
-  if (!isRecord(raw) || raw.kind !== "fixed") return AUTO;
+  if (raw.kind !== "fixed") return fallback;
   const c: SweepAxisChoice = {
     kind: "fixed",
     lo: Number(raw.lo),
     hi: Number(raw.hi),
   };
-  return validChoice(mode, c) ? c : AUTO;
+  return validChoice(mode, c) ? c : fallback;
 }
 
 export function sanitizeThreshold(raw: unknown): number {

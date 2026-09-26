@@ -7,7 +7,7 @@ import {
   type ViewMeta,
 } from "../../lib/view";
 import {
-  AUTO_AXES,
+  DEFAULT_AXES,
   DEFAULT_SWR_THRESHOLD,
   sameChoice,
   sanitizeChoice,
@@ -149,7 +149,7 @@ function defaultPrefs(): ViewPrefs {
     layout: "rail",
     readoutCollapsed: {},
     combinedFill: "none",
-    sweepAxes: AUTO_AXES,
+    sweepAxes: DEFAULT_AXES,
     swrThreshold: DEFAULT_SWR_THRESHOLD,
   };
 }
@@ -227,11 +227,13 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
-// Only the charts off Auto; nothing at all when both are on it.
+// Only the charts off their default (DEFAULT_AXES: VSWR 1–∞, S11 Auto), so
+// a VSWR Auto is stored as {kind: "auto"}; nothing at all when both are on
+// their defaults.
 function sparseAxes(axes: SweepAxes): Partial<SweepAxes> | undefined {
   const out: Partial<SweepAxes> = {};
-  if (axes.vswr.kind !== "auto") out.vswr = axes.vswr;
-  if (axes.gamma.kind !== "auto") out.gamma = axes.gamma;
+  if (!sameChoice(axes.vswr, DEFAULT_AXES.vswr)) out.vswr = axes.vswr;
+  if (!sameChoice(axes.gamma, DEFAULT_AXES.gamma)) out.gamma = axes.gamma;
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
