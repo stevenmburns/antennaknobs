@@ -10,7 +10,7 @@ import { AUTO_SETTLE_MS, SweepChart } from "../components/charts/SweepChart";
 import type { SweepData } from "../lib/api";
 import { gammaMagFromZ, vswrFromGammaMag } from "../lib/math";
 import { SWEEP_SCORE_BAND, sweepProjections } from "../lib/refine";
-import { AUTO_AXES, type SweepAxisChoice, type SweepMode } from "../lib/sweepAxis";
+import { DEFAULT_AXES, type SweepAxisChoice, type SweepMode } from "../lib/sweepAxis";
 
 HTMLCanvasElement.prototype.getContext =
   (() => null) as unknown as HTMLCanvasElement["getContext"];
@@ -51,33 +51,20 @@ const domainOf = (c: HTMLCanvasElement) => ({
 });
 
 describe("the drawn range", () => {
-  it("Auto fits the sweep's dip: VSWR 1–2 (the 2:1 floor), S11 floor −40 for a 1.1 dip", () => {
+  it("defaults: VSWR on 1–∞, S11 on Auto fitting the dip (floor −40 for a 1.1 dip)", () => {
     const v = render(<SweepChart {...BASE} sweep={notch(FREQS)} />);
-    expect(domainOf(canvasOf(v.container))).toEqual({ lo: 1, hi: 2 });
-    // The same instance switched to S11, as the stage does: the VSWR range
-    // is not carried over.
+    expect(canvasOf(v.container).dataset.axis).toBe("reciprocal");
+    expect(domainOf(canvasOf(v.container))).toEqual({ lo: 0, hi: 1 });
+    // The same instance switched to S11, as the stage does.
     v.rerender(<SweepChart {...BASE} mode="gamma" sweep={notch(FREQS)} />);
     // |Γ| = 5/105 ⇒ −26.4 dB, which clears −30 by less than 5 dB ⇒ −40.
     expect(domainOf(canvasOf(v.container))).toEqual({ lo: -40, hi: 0 });
   });
 
-  it("the threshold sets Auto's least top: the dip alone picks 1.5, 2:1 forces 2", () => {
-    const v = render(<SweepChart {...BASE} sweep={notch(FREQS)} swrThreshold={1.5} />);
-    expect(domainOf(canvasOf(v.container))).toEqual({ lo: 1, hi: 1.5 });
-    v.rerender(<SweepChart {...BASE} sweep={notch(FREQS)} swrThreshold={2} />);
-    expect(domainOf(canvasOf(v.container))).toEqual({ lo: 1, hi: 2 });
-    v.rerender(<SweepChart {...BASE} sweep={notch(FREQS)} swrThreshold={2.5} />);
-    expect(domainOf(canvasOf(v.container))).toEqual({ lo: 1, hi: 3 });
-    // A fixed range ignores it.
-    v.rerender(
-      <SweepChart
-        {...BASE}
-        sweep={notch(FREQS)}
-        swrThreshold={2.5}
-        axis={{ kind: "fixed", lo: 1, hi: 1.5 }}
-      />,
-    );
-    expect(domainOf(canvasOf(v.container))).toEqual({ lo: 1, hi: 1.5 });
+  it("a VSWR Auto (an old profile's) draws as 1–∞", () => {
+    const { container } = render(<SweepChart {...BASE} sweep={notch(FREQS)} axis={{ kind: "auto" }} />);
+    expect(canvasOf(container).dataset.axis).toBe("reciprocal");
+    expect(domainOf(canvasOf(container))).toEqual({ lo: 0, hi: 1 });
   });
 
   it("a fixed choice is drawn exactly", () => {
@@ -92,17 +79,15 @@ describe("the drawn range", () => {
   it("the planner judges curvature on the same domain the chart draws", () => {
     // sweepProjections maps y to (v − lo)/(hi − lo) on ITS domain; the
     // chart's published domain must give the same fraction per sample.
-    // Thresholds included: under Auto the threshold moves the range (1.5
-    // leaves the 1.5 top, 2.5 forces 3; 1.1 deepens the S11 floor).
+    // Thresholds included: under S11's Auto the threshold moves the range
+    // (a tight 1.02:1, −40.1 dB, forces a −50 floor).
     const cases: [SweepMode, SweepAxisChoice, number][] = [
-      ["vswr", { kind: "auto" }, 2],
-      ["vswr", { kind: "auto" }, 1.5],
-      ["vswr", { kind: "auto" }, 2.5],
+      ["vswr", { kind: "fixed", lo: 1, hi: 1.5 }, 2],
       ["vswr", { kind: "fixed", lo: 1, hi: 2 }, 3],
       // The compressed scale: samples sit at 1 − 1/SWR on a fixed 0…1.
       ["vswr", { kind: "reciprocal" }, 2],
       ["gamma", { kind: "auto" }, 2],
-      ["gamma", { kind: "auto" }, 1.05],
+      ["gamma", { kind: "auto" }, 1.02],
       ["gamma", { kind: "fixed", lo: -20, hi: 0 }, 2],
     ];
     const seen = new Set<string>();
@@ -125,7 +110,7 @@ describe("the drawn range", () => {
         sweep,
         50,
         { vswr: mode === "vswr", gamma: mode === "gamma", smith: false },
-        { ...AUTO_AXES, [mode]: axis },
+        { ...DEFAULT_AXES, [mode]: axis },
         threshold,
       );
       seen.add(`${mode}:${d.lo},${d.hi}`);
@@ -149,69 +134,64 @@ describe("the drawn range", () => {
       if (axis.kind !== "reciprocal") offPlot ||= drawn.some((v) => v > 1 || v < 0);
       unmount();
     }
-    // The thresholds really moved the Auto range (else this pins nothing).
-    expect(seen.has("vswr:1,1.5") && seen.has("vswr:1,2") && seen.has("vswr:1,3")).toBe(true);
+    // The threshold really moved S11's Auto range (else this pins nothing).
+    expect(seen.has("gamma:-40,0") && seen.has("gamma:-50,0")).toBe(true);
     expect(seen.has("vswr:0,1")).toBe(true); // the compressed scale ran
     expect(offPlot).toBe(true);
   });
 });
 
-describe("Auto grows while live and re-fits once the inputs settle", () => {
-  it("a drag into a bad match grows the top; it shrinks back only after the dwell", () => {
-    vi.useFakeTimers();
-    // Settled on a good sweep: 1–2 (the 2:1 line is the least top).
-    const v = render(<SweepChart {...BASE} sweep={notch(FREQS)} r={55} x={0} />);
-    const c = () => canvasOf(v.container);
-    expect(domainOf(c())).toEqual({ lo: 1, hi: 2 });
+describe("S11's Auto deepens while live and re-fits once the inputs settle", () => {
+  // S11 values: a marker at R = 200 is −4.4 dB (floor −10); R = 55 is
+  // −26.4 dB (floor −40); a notch with R = 150 at its dip bottoms at −6 dB
+  // (floor −20).
+  const S11: Props = { ...BASE, mode: "gamma" };
 
-    // A knob step blanks the sweep and moves the marker to VSWR 4: grows to 10.
-    v.rerender(<SweepChart {...BASE} sweep={null} r={200} x={0} />);
-    expect(domainOf(c()).hi).toBe(10);
-    // The drag comes back to a good match: still 10 — never shrinks under
+  it("a drag into a deep match deepens the floor; it comes back only after the dwell", () => {
+    vi.useFakeTimers();
+    const v = render(<SweepChart {...S11} sweep={null} r={200} x={0} />);
+    const c = () => canvasOf(v.container);
+    expect(domainOf(c()).lo).toBe(-10);
+    v.rerender(<SweepChart {...S11} sweep={null} r={55} x={0} />);
+    expect(domainOf(c()).lo).toBe(-40);
+    // The drag comes back to a poor match: still −40, never shrinking under
     // the hand...
-    v.rerender(<SweepChart {...BASE} sweep={null} r={60} x={0} />);
-    expect(domainOf(c()).hi).toBe(10);
+    v.rerender(<SweepChart {...S11} sweep={null} r={200} x={0} />);
+    expect(domainOf(c()).lo).toBe(-40);
     act(() => vi.advanceTimersByTime(AUTO_SETTLE_MS - 50));
-    expect(domainOf(c()).hi).toBe(10);
-    // ...until the inputs have been still for the dwell: re-fit to 2.
+    expect(domainOf(c()).lo).toBe(-40);
+    // ...until the inputs have been still for the dwell.
     act(() => vi.advanceTimersByTime(100));
-    expect(domainOf(c()).hi).toBe(2);
+    expect(domainOf(c()).lo).toBe(-10);
   });
 
   it("holds while a sweep streams in, then re-fits to the finished sweep", () => {
     vi.useFakeTimers();
-    const v = render(<SweepChart {...BASE} sweep={null} r={200} x={0} />);
+    const v = render(<SweepChart {...S11} sweep={null} r={55} x={0} />);
     const c = () => canvasOf(v.container);
-    expect(domainOf(c()).hi).toBe(10); // the marker alone, VSWR 4
-    // Points land while running: the partial sweep's fit is 2, but a
-    // streaming sweep is live, so the 10 holds.
+    expect(domainOf(c()).lo).toBe(-40);
     v.rerender(
-      <SweepChart {...BASE} sweep={notch(FREQS.slice(0, 12))} running r={200} x={0} />,
+      <SweepChart {...S11} sweep={notch(FREQS.slice(0, 12), 150)} running r={55} x={0} />,
     );
-    expect(domainOf(c()).hi).toBe(10);
+    expect(domainOf(c()).lo).toBe(-40);
     act(() => vi.advanceTimersByTime(AUTO_SETTLE_MS * 2));
-    expect(domainOf(c()).hi).toBe(10); // still running
-    v.rerender(<SweepChart {...BASE} sweep={notch(FREQS)} r={200} x={0} />);
-    expect(domainOf(c()).hi).toBe(10); // the last point just landed
+    expect(domainOf(c()).lo).toBe(-40); // still running
+    v.rerender(<SweepChart {...S11} sweep={notch(FREQS, 150)} r={55} x={0} />);
+    expect(domainOf(c()).lo).toBe(-40); // the last point just landed
     act(() => vi.advanceTimersByTime(AUTO_SETTLE_MS));
-    expect(domainOf(c()).hi).toBe(2);
+    expect(domainOf(c()).lo).toBe(-20);
   });
 
-  it("a sweep's first streamed points (the band edge) do not grow the axis", () => {
-    // Found in the real app: the first points of a streaming sweep are the
-    // band edge, a mismatch; fitting them grew the axis to 100 until the
-    // settle. While running, Auto fits the marker instead.
+  it("fits the marker, not a sweep still streaming in", () => {
+    // A streaming sweep's first points are just the band edge; fitting them
+    // moved the axis until the settle. Here they are a deep match.
     vi.useFakeTimers();
-    const v = render(<SweepChart {...BASE} swrThreshold={1.5} sweep={null} r={55} x={0} />);
+    const v = render(<SweepChart {...S11} sweep={null} r={200} x={0} />);
     const c = () => canvasOf(v.container);
-    expect(domainOf(c()).hi).toBe(1.5);
-    v.rerender(
-      <SweepChart {...BASE} swrThreshold={1.5} sweep={notch(FREQS.slice(0, 3))} running r={55} x={0} />,
-    );
-    expect(domainOf(c()).hi).toBe(1.5);
-    v.rerender(<SweepChart {...BASE} swrThreshold={1.5} sweep={notch(FREQS)} r={55} x={0} />);
-    act(() => vi.advanceTimersByTime(AUTO_SETTLE_MS));
-    expect(domainOf(c()).hi).toBe(1.5);
+    expect(domainOf(c()).lo).toBe(-10);
+    const deepEdge: SweepData = { freqs_mhz: [13.7, 13.75, 13.8], z_re: [55, 55, 55], z_im: [0, 0, 0] };
+    v.rerender(<SweepChart {...S11} sweep={deepEdge} running r={200} x={0} />);
+    expect(domainOf(c()).lo).toBe(-10);
   });
 
   it("a fixed range never moves, live or not", () => {
@@ -252,7 +232,7 @@ describe("the threshold and the bandwidth readout", () => {
 });
 
 describe("the axis popover", () => {
-  it("opens from the y axis and picks a preset, Auto or a threshold", () => {
+  it("opens from the y axis and picks a preset, a custom range or a threshold", () => {
     const onAxisChange = vi.fn();
     const onThresholdChange = vi.fn();
     render(
@@ -266,7 +246,9 @@ describe("the axis popover", () => {
     fireEvent.click(screen.getByRole("button", { name: "VSWR range and SWR threshold" }));
     const dialog = screen.getByRole("dialog", { name: "VSWR range" });
     expect(dialog).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Auto" }).getAttribute("aria-pressed")).toBe("true");
+    // VSWR's default is 1–∞, and it has no Auto.
+    expect(screen.getByRole("button", { name: "1–∞" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "1–3" }));
     expect(onAxisChange).toHaveBeenLastCalledWith({ kind: "fixed", lo: 1, hi: 3 });
     // The custom max: typed into the second field, against the drawn floor.
@@ -286,6 +268,8 @@ describe("the axis popover", () => {
     const onAxisChange = vi.fn();
     render(<SweepChart {...BASE} mode="gamma" sweep={notch(FREQS)} onAxisChange={onAxisChange} />);
     fireEvent.click(screen.getByRole("button", { name: "S11 range and SWR threshold" }));
+    // S11 keeps its Auto (its default), and has no 1–∞.
+    expect(screen.getByRole("button", { name: "Auto" }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "-20 dB" }));
     expect(onAxisChange).toHaveBeenLastCalledWith({ kind: "fixed", lo: -20, hi: 0 });
   });

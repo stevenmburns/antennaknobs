@@ -3,7 +3,6 @@
 import { describe, it, expect } from "vitest";
 import {
   autoS11Floor,
-  autoVswrTop,
   axisTicks,
   bandwidthReadout,
   primaryBand,
@@ -15,34 +14,7 @@ import {
   widenDomain,
 } from "../lib/sweepAxis";
 
-describe("Auto: the smallest nice range that holds the dip with headroom", () => {
-  it("VSWR: the dip stays in the lower two thirds of 1..top", () => {
-    // A threshold low enough not to bind, so the headroom rule shows alone.
-    const T = 1.05;
-    expect(autoVswrTop([1.02, 3, 8], T)).toBe(1.5);
-    expect(autoVswrTop([1.33], T)).toBe(1.5); // 0.33 ≤ ⅔·0.5
-    expect(autoVswrTop([1.34], T)).toBe(2);
-    expect(autoVswrTop([1.9], T)).toBe(3);
-    expect(autoVswrTop([2.5], T)).toBe(5);
-    expect(autoVswrTop([4], T)).toBe(10);
-    expect(autoVswrTop([40], T)).toBe(100);
-    expect(autoVswrTop([99], T)).toBe(100); // the cap: the rest pegs
-  });
-
-  it("VSWR: the top is never below the SWR threshold, so its line stays on screen", () => {
-    // The dip alone would pick 1.5.
-    expect(autoVswrTop([1.02], 1.5)).toBe(1.5);
-    expect(autoVswrTop([1.02])).toBe(2); // the default 2:1
-    expect(autoVswrTop([1.02], 2)).toBe(2);
-    expect(autoVswrTop([1.02], 2.5)).toBe(3);
-    expect(autoVswrTop([1.02], 12)).toBe(20);
-    // A dip that already needs more than the threshold keeps its own top.
-    expect(autoVswrTop([4], 2)).toBe(10);
-    // Nothing to fit: the old 1–10, or the threshold's top above that.
-    expect(autoVswrTop([], 2)).toBe(10);
-    expect(autoVswrTop([], 15)).toBe(20);
-  });
-
+describe("S11 Auto: the shallowest nice floor that holds the dip with headroom", () => {
   it("S11: every Auto floor holds the threshold's line; a tight one deepens it", () => {
     // 5:1 is −3.5 dB and 20:1 −0.9 dB: above every floor (≤ −10), no change.
     expect(autoS11Floor([-3], 5)).toBe(-10);
@@ -50,11 +22,6 @@ describe("Auto: the smallest nice range that holds the dip with headroom", () =>
     // 1.1:1 is −26.4 dB: a −3 dB dip alone picks −10, the line needs −30.
     expect(autoS11Floor([-3], 1.1)).toBe(-30);
     expect(sweepAxisDomain("gamma", { kind: "auto" }, [-3], 0, 1.1)).toEqual({ lo: -30, hi: 0 });
-  });
-
-  it("VSWR with nothing to fit starts at the old fixed 1–10", () => {
-    expect(autoVswrTop([])).toBe(10);
-    expect(autoVswrTop([NaN])).toBe(10);
   });
 
   it("S11: the dip clears the floor by 5 dB, mirrored onto the moving floor", () => {
@@ -68,8 +35,8 @@ describe("Auto: the smallest nice range that holds the dip with headroom", () =>
   });
 
   it("sweepAxisDomain: presets, custom ranges and the over-unity S11 top", () => {
-    expect(sweepAxisDomain("vswr", { kind: "auto" }, [1.1], 0, 1.05)).toEqual({ lo: 1, hi: 1.5 });
-    expect(sweepAxisDomain("vswr", { kind: "auto" }, [1.1])).toEqual({ lo: 1, hi: 2 });
+    // VSWR has no Auto: one (an old profile's) draws as the 1–∞ scale.
+    expect(sweepAxisDomain("vswr", { kind: "auto" }, [1.1])).toEqual({ lo: 0, hi: 1 });
     // A fixed range is the viewer's: the threshold does not move it.
     expect(sweepAxisDomain("vswr", { kind: "fixed", lo: 1, hi: 1.5 }, [1.1], 0, 3)).toEqual({ lo: 1, hi: 1.5 });
     expect(sweepAxisDomain("vswr", { kind: "fixed", lo: 1, hi: 3 }, [1.1])).toEqual({ lo: 1, hi: 3 });

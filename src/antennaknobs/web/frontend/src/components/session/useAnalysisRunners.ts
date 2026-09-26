@@ -21,7 +21,7 @@ import {
 } from "../../lib/refine";
 import { solveSignature } from "../../lib/solveSignature";
 import {
-  AUTO_AXES,
+  DEFAULT_AXES,
   DEFAULT_SWR_THRESHOLD,
   type SweepAxes,
 } from "../../lib/sweepAxis";
@@ -191,7 +191,7 @@ export function useAnalysisRunners({
   z0 = 50,
   refineEnabled = true,
   residentSweepViews = ALL_SWEEP_PROJECTIONS,
-  sweepAxes = AUTO_AXES,
+  sweepAxes = DEFAULT_AXES,
   swrThreshold = DEFAULT_SWR_THRESHOLD,
   buildRequest,
   solveWithheld,

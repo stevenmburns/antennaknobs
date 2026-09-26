@@ -260,7 +260,11 @@ describe("sweepProjections / refineSweepFreqs", () => {
 
   it("saturates far off-screen samples at SWEEP_SCORE_BAND, marked clamped", () => {
     const s = notchSweep([10, 14.2, 20]);
-    const [vswr, gamma] = sweepProjections(s, 50);
+    // A linear VSWR range (the 1–∞ default has no "far above").
+    const [vswr, gamma] = sweepProjections(s, 50, undefined, {
+      vswr: { kind: "fixed", lo: 1, hi: 10 },
+      gamma: { kind: "auto" },
+    });
     // A wildly reactive endpoint: far above the VSWR top, saturated and
     // marked; at 0 dB on S11, the top edge exactly, which is on screen.
     expect(vswr[0].y).toBe(SWEEP_SCORE_BAND[1]);
