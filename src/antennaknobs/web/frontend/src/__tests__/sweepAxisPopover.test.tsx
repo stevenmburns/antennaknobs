@@ -70,7 +70,7 @@ const canvas = () => document.querySelector("canvas.sweep") as HTMLCanvasElement
 const dialogOpen = () => screen.queryByRole("dialog", { name: "VSWR range" }) !== null;
 
 describe("a choice applies while the popover stays open", () => {
-  it("presets, 1–∞ and Auto redraw the axis at once", () => {
+  it("presets and 1–∞ redraw the axis at once", () => {
     render(<Stateful start={RECIPROCAL} />);
     fireEvent.click(screen.getByRole("button", { name: "VSWR range and SWR threshold" }));
     expect(canvas().dataset.ticks).toBe("1,1.5,2,3,5,10,∞");
@@ -78,9 +78,6 @@ describe("a choice applies while the popover stays open", () => {
     expect(dialogOpen()).toBe(true);
     expect(canvas().dataset.yHi).toBe("3");
     expect(canvas().dataset.ticks).toBe("1,1.5,2,2.5,3");
-    fireEvent.click(screen.getByRole("button", { name: "Auto" }));
-    expect(dialogOpen()).toBe(true);
-    expect(canvas().dataset.axis).toBe("auto");
     fireEvent.click(screen.getByRole("button", { name: "1–∞" }));
     expect(dialogOpen()).toBe(true);
     expect(canvas().dataset.axis).toBe("reciprocal");

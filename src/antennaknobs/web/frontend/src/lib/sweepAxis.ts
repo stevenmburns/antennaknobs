@@ -24,7 +24,6 @@ export type SweepAxes = Record<SweepMode, SweepAxisChoice>;
 export type AxisDomain = { lo: number; hi: number };
 
 export const AUTO: SweepAxisChoice = { kind: "auto" };
-export const AUTO_AXES: SweepAxes = { vswr: AUTO, gamma: AUTO };
 
 /** The popover's presets. VSWR is a top over the fixed floor of 1; S11 is a
  *  floor under a 0 dB top (which still grows for an over-unity port, see
@@ -32,24 +31,17 @@ export const AUTO_AXES: SweepAxes = { vswr: AUTO, gamma: AUTO };
 export const VSWR_PRESET_TOPS = [1.5, 2, 3, 5, 10] as const;
 export const S11_PRESET_FLOORS = [-10, -20, -30, -40] as const;
 
-/** The "nice" edges Auto chooses among, smallest range first. Past the last
- *  one the axis stops growing and the rest pegs (VSWR) or clamps (S11), as
- *  the fixed scales always did. VSWR tops end at 100 because vswrFromGammaMag
- *  caps at 99. */
-export const VSWR_AUTO_TOPS = [1.5, 2, 3, 5, 10, 20, 50, 100] as const;
+/** Auto is the S11 chart's only (Steve, 2026-09-26): VSWR's 1–∞ scale shows
+ *  every SWR with nothing to fit, so VSWR has no Auto. S11's floors, in the
+ *  order Auto tries them; past the last the trail clips at the bottom. */
 export const S11_AUTO_FLOORS = [-10, -20, -30, -40, -50, -60] as const;
 
-/** Auto's headroom. Both charts put the good match at the bottom; what Auto
- *  moves differs. VSWR's floor is fixed at 1 and Auto moves the TOP: the dip
- *  stays in the lower two thirds, leaving room to see the curve climb out of
- *  it. S11's top is fixed at 0 dB and Auto moves the FLOOR: the dip clears it
- *  by at least 5 dB, so a dip reads as a dip and not as a clamp. */
-export const VSWR_AUTO_HEADROOM = 1 / 3;
+/** S11's Auto headroom: the dip clears the floor by at least this, so a dip
+ *  reads as a dip and not as a clamp. */
 export const S11_AUTO_CLEARANCE_DB = 5;
 
-/** Where the old fixed scales sat, and where Auto starts with nothing to fit
- *  (no sweep and no marker yet). */
-export const VSWR_EMPTY: AxisDomain = { lo: 1, hi: 10 };
+/** Where the old fixed S11 scale sat, and where Auto starts with nothing to
+ *  fit (no sweep and no marker yet). */
 export const S11_EMPTY_FLOOR = -30;
 
 /** The SWR threshold line's default: the 2:1 bandwidth hams quote. */
@@ -66,26 +58,8 @@ export function sweepDip(values: readonly number[]): number | null {
   return f.length ? Math.min(...f) : null;
 }
 
-/** Auto's VSWR top: the smallest nice top that holds the dip with headroom
- *  AND is at least the SWR threshold, so the threshold line is always on
- *  screen under Auto (Steve, 2026-09-25: a sharp dip alone picks 1.5, which
- *  hid the 2:1 line). Threshold 2 ⇒ at least 2; 2.5 ⇒ at least 3. */
-export function autoVswrTop(
-  values: readonly number[],
-  threshold = DEFAULT_SWR_THRESHOLD,
-): number {
-  const dip = sweepDip(values);
-  const fits = (top: number) =>
-    top >= threshold &&
-    (dip === null
-      ? top >= VSWR_EMPTY.hi
-      : dip - 1 <= (1 - VSWR_AUTO_HEADROOM) * (top - 1));
-  return VSWR_AUTO_TOPS.find(fits) ?? VSWR_AUTO_TOPS[VSWR_AUTO_TOPS.length - 1];
-}
-
 /** Auto's S11 floor: the shallowest nice floor the dip clears by
- *  S11_AUTO_CLEARANCE_DB — the VSWR rule mirrored onto the moving floor —
- *  and at or below the threshold's return loss, so the line stays on screen.
+ *  S11_AUTO_CLEARANCE_DB, and at or below the threshold's return loss, so the line stays on screen.
  *  Every floor is ≤ −10 dB and a threshold's line is above that from 2:1 up
  *  (−9.54 dB; 5:1 is −3.5), so this only bites for a tight threshold: 1.1:1
  *  is −26.4 dB, which needs a −30 floor. */
@@ -106,10 +80,17 @@ export function autoS11Floor(
 export const RECIPROCAL: SweepAxisChoice = { kind: "reciprocal" };
 
 /** Where a fresh profile starts (Steve, 2026-09-26): VSWR on the 1–∞ scale,
- *  S11 on Auto. The view prefs store a chart's choice only when it differs
- *  from this, so picking Auto on VSWR is stored explicitly. AUTO_AXES stays
- *  the pure functions' default for a caller that passes no choice. */
+ *  S11 on Auto — and every function's default when a caller passes none.
+ *  The view prefs store a chart's choice only when it differs from this. */
 export const DEFAULT_AXES: SweepAxes = { vswr: RECIPROCAL, gamma: AUTO };
+
+/** A choice as its chart draws it. VSWR has no Auto, so a VSWR Auto (a
+ *  profile saved before Auto left the VSWR popover, or a caller's stray
+ *  AUTO) is the 1–∞ scale that replaced it. Every function below reads a
+ *  choice through this, so no VSWR Auto path is left to drift. */
+export function effectiveChoice(mode: SweepMode, c: SweepAxisChoice): SweepAxisChoice {
+  return mode === "vswr" && c.kind === "auto" ? RECIPROCAL : c;
+}
 
 /** SWR → the compressed scale's y: 1 − 1/SWR = 2|Γ|/(1 + |Γ|), mapping SWR
  *  1…∞ onto 0…1 (1.5 → ⅓, 2 → ½, 3 → ⅔, 5 → 0.8, 10 → 0.9). Every SWR
@@ -134,7 +115,7 @@ export function axisProjector(
   mode: SweepMode,
   choice: SweepAxisChoice,
 ): (v: number) => number {
-  return mode === "vswr" && choice.kind === "reciprocal"
+  return mode === "vswr" && effectiveChoice(mode, choice).kind === "reciprocal"
     ? swrReciprocalY
     : (v) => v;
 }
@@ -153,7 +134,8 @@ export function axisFraction(
   return (v) => (project(v) - d.lo) / (d.hi - d.lo);
 }
 
-/** The drawn domain for a mode, a choice and the values Auto fits.
+/** The drawn domain for a mode, a choice and the values Auto (S11 only)
+ *  fits.
  *
  *  `s11Top` is the S11 top the over-unity rule gives (s11DbTop: 0 for any
  *  passive port); it applies to Auto and to a preset floor. A custom range's
@@ -167,10 +149,8 @@ export function sweepAxisDomain(
   threshold = DEFAULT_SWR_THRESHOLD,
 ): AxisDomain {
   if (mode === "vswr") {
-    if (choice.kind === "fixed") return { lo: choice.lo, hi: choice.hi };
-    // In axisProjector's coordinates: all of 1…∞.
-    if (choice.kind === "reciprocal") return { lo: 0, hi: 1 };
-    return { lo: 1, hi: autoVswrTop(values, threshold) };
+    // A fixed range, or else all of 1…∞ in axisProjector's coordinates.
+    return choice.kind === "fixed" ? { lo: choice.lo, hi: choice.hi } : { lo: 0, hi: 1 };
   }
   // (A reciprocal choice is VSWR only; validChoice refuses it for S11, and
   // it falls through to Auto here should one ever arrive.)
@@ -220,7 +200,7 @@ export function axisTickMarks(
   choice: SweepAxisChoice,
   d: AxisDomain,
 ): AxisTick[] {
-  if (mode === "vswr" && choice.kind === "reciprocal") {
+  if (mode === "vswr" && effectiveChoice(mode, choice).kind === "reciprocal") {
     return [
       ...RECIPROCAL_TICK_SWRS.map((s) => ({ at: swrReciprocalY(s), label: formatTick(s) })),
       { at: 1, label: "∞" },
@@ -336,20 +316,21 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 /** Whether a choice is drawable for its mode: VSWR at or above 1, S11 at or
  *  below its top, and a nonzero span. */
 export function validChoice(mode: SweepMode, c: SweepAxisChoice): boolean {
-  if (c.kind === "auto") return true;
+  if (c.kind === "auto") return mode === "gamma";
   if (c.kind === "reciprocal") return mode === "vswr";
   if (!Number.isFinite(c.lo) || !Number.isFinite(c.hi) || !(c.hi > c.lo)) return false;
   return mode === "vswr" ? c.lo >= 1 : true;
 }
 
-/** A stored choice, distrusted like everything in localStorage: an explicit
- *  Auto, 1–∞ or drawable fixed range is kept; anything else (absent,
- *  garbage, or a choice the mode cannot draw) reads as the mode's default,
- *  DEFAULT_AXES. */
+/** A stored choice, distrusted like everything in localStorage: a choice the
+ *  mode can draw is kept; anything else (absent, garbage, or a choice the
+ *  mode cannot draw) reads as the mode's default, DEFAULT_AXES. That is
+ *  also the migration for a VSWR Auto saved before VSWR lost its Auto: it
+ *  reads back as 1–∞. */
 export function sanitizeChoice(mode: SweepMode, raw: unknown): SweepAxisChoice {
   const fallback = DEFAULT_AXES[mode];
   if (!isRecord(raw)) return fallback;
-  if (raw.kind === "auto") return AUTO;
+  if (raw.kind === "auto") return validChoice(mode, AUTO) ? AUTO : fallback;
   if (raw.kind === "reciprocal") {
     return validChoice(mode, RECIPROCAL) ? RECIPROCAL : fallback;
   }

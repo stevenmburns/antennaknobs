@@ -2,7 +2,7 @@ import { reflectionCoefficient } from "./format";
 import { gammaDbFromMag, vswrFromGammaMag } from "./math";
 import type { SweepData } from "./api";
 import {
-  AUTO_AXES,
+  DEFAULT_AXES,
   axisFraction,
   DEFAULT_SWR_THRESHOLD,
   sweepAxisDomain,
@@ -338,7 +338,7 @@ export function sweepProjections(
   sweep: SweepData,
   z0: number,
   include: SweepProjectionSet = ALL_SWEEP_PROJECTIONS,
-  axes: SweepAxes = AUTO_AXES,
+  axes: SweepAxes = DEFAULT_AXES,
   swrThreshold = DEFAULT_SWR_THRESHOLD,
 ): DisplayPoint[][] {
   const f = sweep.freqs_mhz;
@@ -411,7 +411,7 @@ export function refineSweepFreqs(
   z0: number,
   budget: number,
   include: SweepProjectionSet = ALL_SWEEP_PROJECTIONS,
-  axes: SweepAxes = AUTO_AXES,
+  axes: SweepAxes = DEFAULT_AXES,
   swrThreshold = DEFAULT_SWR_THRESHOLD,
 ): number[] {
   const planned = planRefinement(

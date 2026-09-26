@@ -41,7 +41,9 @@ describe("the transform", () => {
 
   it("the projector applies it on VSWR's compressed choice only", () => {
     expect(axisProjector("vswr", RECIPROCAL)(2)).toBe(0.5);
-    expect(axisProjector("vswr", { kind: "auto" })(2)).toBe(2);
+    // VSWR has no Auto; a stray one projects as the 1–∞ scale.
+    expect(axisProjector("vswr", { kind: "auto" })(2)).toBe(0.5);
+    expect(axisProjector("vswr", { kind: "fixed", lo: 1, hi: 3 })(2)).toBe(2);
     expect(axisProjector("gamma", { kind: "auto" })(-10)).toBe(-10);
     expect(sweepAxisDomain("vswr", RECIPROCAL, [1.1, 40])).toEqual({ lo: 0, hi: 1 });
   });
@@ -66,8 +68,10 @@ describe("the stored choice", () => {
     // Garbage reads as the mode's default: 1–∞ on VSWR.
     expect(sanitizeChoice("vswr", { kind: "reciprocl" })).toEqual(RECIPROCAL);
     expect(sanitizeChoice("vswr", undefined)).toEqual(RECIPROCAL);
-    // An explicit Auto is kept: it is how a VSWR Auto is stored now.
-    expect(sanitizeChoice("vswr", { kind: "auto" })).toEqual({ kind: "auto" });
+    // VSWR has no Auto any more: a stored one migrates to 1–∞. S11 keeps it.
+    expect(validChoice("vswr", { kind: "auto" })).toBe(false);
+    expect(sanitizeChoice("vswr", { kind: "auto" })).toEqual(RECIPROCAL);
+    expect(sanitizeChoice("gamma", { kind: "auto" })).toEqual({ kind: "auto" });
     expect(sameChoice(RECIPROCAL, { kind: "reciprocal" })).toBe(true);
     expect(sameChoice(RECIPROCAL, { kind: "auto" })).toBe(false);
   });
@@ -82,19 +86,23 @@ describe("the view-prefs round trip", () => {
     h.unmount();
   });
 
-  it("stores a VSWR Auto explicitly, reads it back, and omits the 1–∞ default", () => {
-    const first = renderHook(() => useViewPrefs());
-    act(() => first.result.current.setSweepAxis("vswr", { kind: "auto" }));
-    const stored = JSON.parse(localStorage.getItem(VIEW_PREFS_KEY) ?? "{}");
-    expect(stored.sweepAxes).toEqual({ vswr: { kind: "auto" } });
-    first.unmount(); // the module store drops its cache: the next mount reads storage
-    const second = renderHook(() => useViewPrefs());
-    expect(second.result.current.sweepAxes.vswr).toEqual({ kind: "auto" });
-    // Back to 1–∞: the default, so the entry leaves storage.
-    act(() => second.result.current.setSweepAxis("vswr", RECIPROCAL));
+  it("migrates a stored VSWR Auto to 1–∞, and refuses to store a new one", () => {
+    // A profile saved while VSWR still had Auto (it was stored explicitly).
+    localStorage.setItem(
+      VIEW_PREFS_KEY,
+      JSON.stringify({ pinned: ["vswr"], seen: ["vswr"], sweepAxes: { vswr: { kind: "auto" } } }),
+    );
+    const h = renderHook(() => useViewPrefs());
+    expect(h.result.current.sweepAxes.vswr).toEqual(RECIPROCAL);
+    // Auto is not a VSWR choice: the setter refuses it.
+    act(() => h.result.current.setSweepAxis("vswr", { kind: "fixed", lo: 1, hi: 3 }));
+    act(() => h.result.current.setSweepAxis("vswr", { kind: "auto" }));
+    expect(h.result.current.sweepAxes.vswr).toEqual({ kind: "fixed", lo: 1, hi: 3 });
+    // Back to 1–∞, the default: the entry leaves storage.
+    act(() => h.result.current.setSweepAxis("vswr", RECIPROCAL));
     const after = JSON.parse(localStorage.getItem(VIEW_PREFS_KEY) ?? "{}");
     expect(after.sweepAxes).toBeUndefined();
-    second.unmount();
+    h.unmount();
   });
 
   it("an explicit preset still wins over the default", () => {

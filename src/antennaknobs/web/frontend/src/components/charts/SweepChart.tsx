@@ -4,13 +4,14 @@ import { gammaDbFromMag, gammaMagFromZ, vswrFromGammaMag } from "../../lib/math"
 import { s11DbTop } from "../../lib/refine";
 import type { SweepProgress } from "../../lib/sweep";
 import {
-  AUTO,
   type AxisDomain,
   axisFraction,
   axisProjector,
   axisTickMarks,
   bandwidthReadout,
+  DEFAULT_AXES,
   DEFAULT_SWR_THRESHOLD,
+  effectiveChoice,
   formatTick,
   s11DbForSwr,
   sweepAxisDomain,
@@ -91,14 +92,25 @@ function useHeldDomain(
 // the sweep, so a drag changes it at every solve; a streaming sweep changes
 // it at every point. A freshly mounted chart starts quiet — it shows the fit,
 // not a grown range from a previous life.
+//
+// Tracked as "the signature last seen" plus a quiet flag, not as "the
+// signature that last went quiet": the latter read a drag that came back to
+// exactly where it started as already quiet, and re-fitted mid-drag.
 function useQuiet(sig: string): boolean {
-  const [quietSig, setQuietSig] = useState(sig);
+  const [seen, setSeen] = useState(sig);
+  const [quiet, setQuiet] = useState(true);
+  // Adjusted during render (React's pattern for state derived from a
+  // changing prop): any change is live at once.
+  if (sig !== seen) {
+    setSeen(sig);
+    setQuiet(false);
+  }
   useEffect(() => {
-    if (quietSig === sig) return;
-    const t = window.setTimeout(() => setQuietSig(sig), AUTO_SETTLE_MS);
+    if (quiet) return;
+    const t = window.setTimeout(() => setQuiet(true), AUTO_SETTLE_MS);
     return () => window.clearTimeout(t);
-  }, [sig, quietSig]);
-  return quietSig === sig;
+  }, [sig, quiet]);
+  return quiet && sig === seen;
 }
 
 // Z -> this mode's y-value. Both modes go through gammaMagFromZ first (the
@@ -122,7 +134,7 @@ export function SweepChart({
   settled = true,
   feeds,
   multiFeed,
-  axis = AUTO,
+  axis: axisProp,
   swrThreshold = DEFAULT_SWR_THRESHOLD,
   onAxisChange,
   onThresholdChange,
@@ -149,7 +161,8 @@ export function SweepChart({
    *  takes for the same reason). */
   feeds?: FeedEntry[] | undefined;
   multiFeed: boolean;
-  /** This chart's vertical range (AK#1738); Auto when omitted. */
+  /** This chart's vertical range (AK#1738); the mode's default (VSWR 1–∞,
+   *  S11 Auto) when omitted. */
   axis?: SweepAxisChoice;
   /** The SWR threshold for the line and the bandwidth readout (2:1 when
    *  omitted). The S11 chart draws the matching return-loss line. */
@@ -159,6 +172,10 @@ export function SweepChart({
   onAxisChange?: (c: SweepAxisChoice) => void;
   onThresholdChange?: (t: number) => void;
 }) {
+  // The choice as drawn: the mode's default when none is passed, and a VSWR
+  // Auto read as the 1–∞ scale that replaced it. From here on `axis.kind`
+  // is "auto" only on S11, so Auto's grow-only hold is S11's alone.
+  const axis = effectiveChoice(mode, axisProp ?? DEFAULT_AXES[mode]);
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Pure derivation from props, computed outside the canvas effect so it's

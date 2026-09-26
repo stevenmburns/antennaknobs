@@ -240,25 +240,23 @@ The S11 and VSWR charts carry the Smith chart's **freq sweep** switch too, and
 it is one switch: turning the sweep off on any of the three turns it off on
 all of them, and in the Settings menu.
 
-**Their vertical range** is set by clicking the chart's y axis. VSWR offers
-1–1.5, 1–2, 1–3, 1–5 and 1–10, S11 floors of −10, −20, −30 and −40 dB, and
-either takes a custom min and max; each chart remembers its own choice.
-VSWR starts on the **1–∞** scale below, S11 on Auto. **Auto** fits the dip: the smallest of 1.5, 2, 3, 5, 10 … that
-holds the lowest SWR with room above it and is no lower than the SWR
-threshold (so the threshold line is always on screen), or the shallowest S11
-floor the dip clears by 5 dB that still shows the threshold line. Anything above a VSWR top pegs at the edge with the off-scale
-tick. So that the axis never rescales under your hand, Auto only grows while
-a knob is moving or a sweep is landing, and fits again once things have been
-still for half a second.
+**Their vertical range** is set by clicking the chart's y axis, and a choice
+shows on the chart at once, with the menu still open.
 
-The VSWR chart's **1–∞** scale, its default, shows every SWR at once, none
-pegged: it plots
-1 − 1/SWR (which is 2|Γ|/(1+|Γ|)), so 1.5:1 sits a third of the way up, 2:1
-half way, 3:1 two thirds, 10:1 at 90 %, and ∞ is the top edge. The ticks are
-still labelled in SWR. It spends the chart's height where the match is and
-squeezes the bad end together, and the 2:1 line, the shaded band and the
-bandwidth readout work as on any other range. For a very wide range of SWR,
-the S11 chart remains the other good view.
+The VSWR chart starts on its **1–∞** scale, which shows every SWR at once, none
+pegged: it plots 1 − 1/SWR (which is 2|Γ|/(1+|Γ|)), so 1.5:1 sits a third of
+the way up, 2:1 half way, 3:1 two thirds, 10:1 at 90 %, and ∞ is the top edge.
+The ticks are still labelled in SWR. It spends the chart's height where the
+match is and squeezes the bad end together. For a close look, VSWR also offers
+1–1.5, 1–2, 1–3, 1–5 and 1–10, and a custom min and max; above such a top the
+curve leaves the chart at the edge and the off-scale ticks mark where.
+
+The S11 chart offers floors of −10, −20, −30 and −40 dB, a custom min and max,
+and **Auto**, its default, which fits the dip: the shallowest floor the dip
+clears by 5 dB that still shows the threshold line. So that the axis never
+rescales under your hand, Auto only deepens while a knob is moving or a sweep
+is landing, and fits again once things have been still for half a second.
+Each chart remembers its own choice.
 
 Both charts draw a dashed **SWR threshold** line, 2:1 unless you change it in
 the same menu (on S11 it is the matching return loss, −9.5 dB for 2:1). The
