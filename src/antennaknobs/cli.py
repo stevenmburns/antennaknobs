@@ -380,6 +380,52 @@ def _with_params(factory, assignments):
     return make
 
 
+def _check_chart_flags(args, *, multi_engine):
+    """The new chart options refuse, by name, where they would draw nothing.
+    The twin-axis ones (ranges, callouts, panels) need the rectangular R/X
+    impedance chart, so not a Smith chart or an SWR/gain/pattern chart, and
+    with several engines they need --panels (the shared-axis chart has no
+    separate R and X axes). --log also spaces a Smith chart's points, so it
+    only refuses beside --swr/--gain/--patterns, which keep linear spacing."""
+    twin = [
+        flag
+        for flag, on in (
+            ("--r-range", args.r_range is not None),
+            ("--x-range", args.x_range is not None),
+            ("--callouts", args.callouts),
+            ("--panels", args.panels),
+        )
+        if on
+    ]
+    other = [
+        flag
+        for flag, on in (
+            ("--swr", args.swr),
+            ("--gain", args.gain),
+            ("--patterns", args.patterns),
+        )
+        if on
+    ]
+    if args.use_smithchart and twin:
+        raise SystemExit(
+            f"{', '.join(twin)} draw on the twin-axis R/X chart; they do not "
+            "apply with --use_smithchart"
+        )
+    named = twin + (["--log"] if args.log else [])
+    if other and named:
+        raise SystemExit(
+            f"{', '.join(named)} apply to the impedance chart; they do not "
+            f"apply with {', '.join(other)}"
+        )
+    density = args.param == "nominal_nsegs"
+    shared = [f for f in twin if f != "--panels"]
+    if multi_engine and not density and not args.panels and shared:
+        raise SystemExit(
+            f"{', '.join(shared)} need separate R and X axes; with several "
+            "engines add --panels (one twin-axis panel per engine)"
+        )
+
+
 def get_builders(nms):
     return (get_builder(nm) for nm in nms)
 
@@ -1110,6 +1156,47 @@ def cli(arguments=None):
         help="Set design knobs before sweeping, e.g. --set freq=14 "
         "design_freq=14. Only the design's own knobs are accepted.",
     )
+    p.add_argument(
+        "--log",
+        default=False,
+        action="store_true",
+        help="Space the --param points geometrically and draw a log x axis; "
+        "an integer knob's points are rounded to ints (duplicates dropped). "
+        "A nominal_nsegs study is always log-spaced.",
+    )
+    p.add_argument(
+        "--r-range",
+        dest="r_range",
+        nargs=2,
+        type=float,
+        default=None,
+        metavar=("LO", "HI"),
+        help="Pin the R (left) axis of a twin-axis impedance chart.",
+    )
+    p.add_argument(
+        "--x-range",
+        dest="x_range",
+        nargs=2,
+        type=float,
+        default=None,
+        metavar=("LO", "HI"),
+        help="Pin the X (right) axis of a twin-axis impedance chart.",
+    )
+    p.add_argument(
+        "--callouts",
+        default=False,
+        action="store_true",
+        help="Label R and X with their values at the first and last points "
+        "and at every --markers point.",
+    )
+    p.add_argument(
+        "--panels",
+        default=False,
+        action="store_true",
+        help="With several --engine specs: one twin-axis R/X panel per "
+        "engine, side by side, instead of one chart coloured by engine. A "
+        "nominal_nsegs study always draws panels.",
+    )
 
     def f(args):
         builder = get_builder(args.builder)
@@ -1118,6 +1205,7 @@ def cli(arguments=None):
         # flag, its ground) the engine setup reads.
         make = _with_params(builder, args.set_params)
         is_density_study = args.param == "nominal_nsegs"
+        _check_chart_flags(args, multi_engine=len(_engine_specs(args.engine)) > 1)
         engine_specs = _engine_specs(args.engine)
         # None means "not given": the density study reads that (its ladder);
         # every frequency-sweep path keeps its 21.
@@ -1245,6 +1333,11 @@ def cli(arguments=None):
                     else None
                 ),
                 measured=measured,
+                log=args.log,
+                r_range=args.r_range,
+                x_range=args.x_range,
+                callouts=args.callouts,
+                panels=args.panels,
             )
 
     p.set_defaults(func=f)
