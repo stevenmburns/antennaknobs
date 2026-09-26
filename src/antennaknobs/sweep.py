@@ -83,6 +83,140 @@ def _measured_legend(ax, label):
     ax.legend(loc="best", frameon=False, fontsize=8)
 
 
+_R_COLOR = "tab:red"
+_X_COLOR = "tab:blue"
+
+
+def _fmt_x(x):
+    return f"{int(x)}" if float(x).is_integer() else f"{x:.4g}"
+
+
+def _callout(ax, x, y, text, color, *, last):
+    """A SimNEC-style value box with an arrow to the point. The box goes to
+    the point's right (first point) or left (``last``), and below a point in
+    the upper half of the axis or above one in the lower half, so it stays
+    inside the axes; X boxes sit further out than R boxes so the two do not
+    stack when the curves cross. Call after the y limits are final."""
+    lo, hi = ax.get_ylim()
+    upper = y > 0.5 * (lo + hi)
+    dx = 60 if color == _X_COLOR else 12
+    ax.annotate(
+        text,
+        xy=(x, y),
+        xytext=(-dx if last else dx, -30 if upper else 16),
+        textcoords="offset points",
+        ha="right" if last else "left",
+        fontsize=7,
+        color=color,
+        bbox=dict(boxstyle="round,pad=0.25", fc="white", ec=color, lw=0.6),
+        arrowprops=dict(arrowstyle="->", color=color, lw=0.7),
+    )
+
+
+def _pivot(xs, log_x):
+    """The middle of the x span: a callout right of it gets its box on the
+    left, so first/last-point boxes both stay inside the axes."""
+    lo, hi = float(np.min(xs)), float(np.max(xs))
+    return float(np.sqrt(lo * hi)) if log_x and lo > 0 else 0.5 * (lo + hi)
+
+
+def _annotate_rx(ax_r, ax_x, xs, zs, positions, xname, pivot):
+    """Callouts on R (``ax_r``) and X (``ax_x``) at the given indices."""
+    for k in positions:
+        z = complex(zs[k])
+        label = f"{xname}={_fmt_x(xs[k])}"
+        last = xs[k] > pivot
+        _callout(ax_r, xs[k], z.real, f"{label}\nR {z.real:.4g} Ω", _R_COLOR, last=last)
+        _callout(ax_x, xs[k], z.imag, f"{label}\nX {z.imag:.4g} Ω", _X_COLOR, last=last)
+
+
+def _log_x_axis(ax):
+    """Log x with plain-number ticks at 1-2-5 per decade (10 20 50 100 200
+    500), since matplotlib's default labels only the decades."""
+    from matplotlib.ticker import LogLocator, NullFormatter, ScalarFormatter
+
+    ax.set_xscale("log")
+    ax.xaxis.set_major_locator(LogLocator(base=10, subs=(1.0, 2.0, 5.0)))
+    ax.xaxis.set_major_formatter(ScalarFormatter())
+    ax.xaxis.set_minor_formatter(NullFormatter())
+
+
+def _set_ylim(ax, rng):
+    if rng is not None:
+        ax.set_ylim(*rng)
+
+
+def _rx_panels(
+    panels,
+    *,
+    xlabel,
+    title,
+    log_x=False,
+    r_range=None,
+    x_range=None,
+    callouts=False,
+    xname=None,
+):
+    """R and X against a swept value, one panel per engine (Dan AC6LA's
+    SimNEC layout, QRZ 1003328 #163): R in red on the LEFT axis and X in blue
+    on a twin RIGHT axis, each auto-ranged on its own unless ``r_range`` /
+    ``x_range`` pin it, circles at every point, and — with ``callouts`` — a
+    value box at the first and last points and at every marked point.
+
+    ``panels`` is ``[(name, xs, zs, marked_idx, z_star), ...]``: ``zs`` one
+    complex value per x (port 0), ``marked_idx`` the indices drawn as squares
+    (``--markers``), ``z_star`` an optional Richardson estimate drawn as a
+    dotted line on each axis. Returns the figure's ``[(ax_r, ax_x), ...]``.
+    """
+    import matplotlib.pyplot as plt
+
+    n = len(panels)
+    fig, axes = plt.subplots(1, n, figsize=(6.2 * n, 4.6), squeeze=False)
+    out = []
+    for ax0, (name, xs, zs, marked_idx, z_star) in zip(axes[0], panels, strict=True):
+        xs = np.asarray(xs)
+        zs = np.asarray(zs, dtype=complex)
+        ax1 = ax0.twinx()
+        style = dict(marker="o", ms=4, markerfacecolor="none", linewidth=1.3)
+        ax0.plot(xs, zs.real, color=_R_COLOR, label="R", **style)
+        ax1.plot(xs, zs.imag, color=_X_COLOR, label="X", **style)
+        for k in marked_idx:
+            for ax, v, c in ((ax0, zs[k].real, _R_COLOR), (ax1, zs[k].imag, _X_COLOR)):
+                ax.plot(
+                    [xs[k]],
+                    [v],
+                    marker="s",
+                    ms=7,
+                    markerfacecolor="none",
+                    markeredgecolor=c,
+                    linestyle="None",
+                )
+        if z_star is not None:
+            ax0.axhline(z_star.real, color=_R_COLOR, linestyle=":", lw=1.0, alpha=0.7)
+            ax1.axhline(z_star.imag, color=_X_COLOR, linestyle=":", lw=1.0, alpha=0.7)
+        if log_x:
+            _log_x_axis(ax0)
+        ax0.set_xlabel(xlabel)
+        ax0.set_ylabel("R (Ω)", color=_R_COLOR)
+        ax0.tick_params(axis="y", labelcolor=_R_COLOR)
+        ax1.set_ylabel("X (Ω)", color=_X_COLOR)
+        ax1.tick_params(axis="y", labelcolor=_X_COLOR)
+        # A narrow R range (72.00..72.15) otherwise reads as "+7.2e1" offsets.
+        for ax in (ax0, ax1):
+            ax.yaxis.get_major_formatter().set_useOffset(False)
+        _set_ylim(ax0, r_range)
+        _set_ylim(ax1, x_range)
+        if callouts and len(xs):
+            idx = sorted({0, len(xs) - 1, *marked_idx})
+            _annotate_rx(ax0, ax1, xs, zs, idx, xname or xlabel, _pivot(xs, log_x))
+        panel_title = title if name is None else f"{name}: {title}"
+        _polish_axes(ax0, title=panel_title)
+        ax1.spines["top"].set_visible(False)
+        out.append((ax0, ax1))
+    fig.tight_layout()
+    return out
+
+
 def build_and_get_elevation(antenna_builder, *, engine=Antenna):
     a = engine(antenna_builder)
     return get_elevation(a)
@@ -101,13 +235,31 @@ def resolve_range(default_value, rng, center, fraction):
     return rng
 
 
-def gen_xs(default_value, rng, center, fraction, npoints):
+def _is_int_knob(value):
+    return isinstance(value, (int, np.integer)) and not isinstance(value, bool)
+
+
+def gen_xs(default_value, rng, center, fraction, npoints, log=False):
+    """The swept values. Linear by default; ``log=True`` spaces them
+    geometrically (a fixed step in log x, SimNEC's ``logStep``), and then an
+    INTEGER knob — one whose default is an int, like a segment count — is
+    rounded to ints and deduplicated, since rounding can collide two points
+    at the coarse end. A linear sweep is left exactly as it always was."""
     rng = resolve_range(default_value, rng, center, fraction)
     if npoints == 1 and rng[0] < rng[1]:
         print(
             "Range includes more than just a point and npoints == 1. Using the lower range bound."
         )
-    return np.linspace(rng[0], rng[1], npoints)
+    if not log:
+        return np.linspace(rng[0], rng[1], npoints)
+    if min(rng) <= 0:
+        raise ValueError(
+            f"--log needs a range above zero; got {rng[0]:g} .. {rng[1]:g}"
+        )
+    xs = np.geomspace(rng[0], rng[1], npoints)
+    if _is_int_knob(default_value):
+        xs = np.array(sorted({int(round(x)) for x in xs}))
+    return xs
 
 
 def sweep_swr(
@@ -407,6 +559,9 @@ def _sweep_convergence(
     fn,
     markers=(),
     ground_label=None,
+    r_range=None,
+    x_range=None,
+    callouts=False,
 ):
     """``sweep --param nominal_nsegs`` (#1554): one cold solve per rung per
     engine, port 0 only (multi-port trajectories are the app's own overlay,
@@ -523,43 +678,29 @@ def _sweep_convergence(
         ax0.set_title(title, fontsize=11)
         fig.tight_layout()
     else:
-        fig, ax0 = plt.subplots(figsize=(7.0, 4.5))
-        for i, (name, rows) in enumerate(per_engine.items()):
-            color = f"C{i}"
-            ns = [achieved for _, achieved, _ in rows]
-            re = [z.real for _, _, z in rows]
-            im = [z.imag for _, _, z in rows]
-            ax0.plot(
-                ns, re, color=color, linestyle="-", marker="o", ms=3, label=f"{name} R"
-            )
-            ax0.plot(
-                ns, im, color=color, linestyle="--", marker="^", ms=3, label=f"{name} X"
-            )
-            for nominal_n, achieved, z in rows:
-                if nominal_n in marked:
-                    ax0.plot(
-                        [achieved, achieved],
-                        [z.real, z.imag],
-                        marker="s",
-                        ms=6,
-                        markerfacecolor="none",
-                        markeredgecolor=color,
-                        linestyle="None",
-                    )
-            z_star, _shrinking = estimates[name]
-            if z_star is not None:
-                ax0.axhline(
-                    z_star.real, color=color, linestyle=":", linewidth=1.0, alpha=0.7
+        # One twin-axis panel per engine (R left, X right, each auto-ranged):
+        # on a shared Ω axis a ~70 Ω R flattened a few-ohm X into a line.
+        panels = []
+        for name, rows in per_engine.items():
+            panels.append(
+                (
+                    name,
+                    [achieved for _, achieved, _ in rows],
+                    [z for _, _, z in rows],
+                    [k for k, (n, _, _) in enumerate(rows) if n in marked],
+                    estimates[name][0],
                 )
-                ax0.axhline(
-                    z_star.imag, color=color, linestyle=":", linewidth=1.0, alpha=0.7
-                )
-        ax0.set_xscale("log")
-        ax0.set_xlabel("segments achieved (log)")
-        ax0.set_ylabel("Ω")
-        _polish_axes(ax0, title=title)
-        ax0.legend(loc="best", frameon=False, fontsize=7)
-        fig.tight_layout()
+            )
+        _rx_panels(
+            panels,
+            xlabel="segments achieved (log)",
+            title=title,
+            log_x=True,
+            r_range=r_range,
+            x_range=x_range,
+            callouts=callouts,
+            xname="N",
+        )
 
     save_or_show(plt, fn)
 
@@ -579,7 +720,27 @@ def sweep(
     engine=Antenna,
     measured=None,
     ground_label=None,
+    log=False,
+    r_range=None,
+    x_range=None,
+    callouts=False,
+    panels=False,
 ):
+    """Impedance against a swept knob (or frequency).
+
+    The keyword-only chart options (Dan AC6LA's SimNEC charts, QRZ 1003328
+    #163) all default off, and leave the chart exactly as it was when off:
+
+    - ``log``: geometric spacing and a log x axis; an int knob's points are
+      rounded to ints (``gen_xs``).
+    - ``r_range`` / ``x_range``: pin the R (left) / X (right) axis.
+    - ``callouts``: value boxes at the first and last points and at every
+      ``markers`` point.
+    - ``panels``: several engines drawn one twin-axis R/X panel each (port 0),
+      instead of one shared-axis chart coloured by engine.
+
+    ``nominal_nsegs`` is always log-spaced and always drawn as panels.
+    """
     import matplotlib.pyplot as plt
 
     engines = list(engine.items()) if isinstance(engine, dict) else [(None, engine)]
@@ -598,12 +759,15 @@ def sweep(
             fn=fn,
             markers=markers,
             ground_label=ground_label,
+            r_range=r_range,
+            x_range=x_range,
+            callouts=callouts,
         )
         return
 
     if npoints is None:
         npoints = 21
-    xs = gen_xs(getattr(antenna_builder, nm), rng, center, fraction, npoints)
+    xs = gen_xs(getattr(antenna_builder, nm), rng, center, fraction, npoints, log=log)
     # Align first so a disjoint measured band errors before any solving.
     meas = _align_measured(measured, nm, xs, z0)
 
@@ -733,6 +897,26 @@ def sweep(
                 ax1.plot(mxs, np.imag(mz), color=color, **_MEASURED_KW)
                 _measured_legend(ax0, measured.label)
 
+            if log:
+                _log_x_axis(ax0)
+            _set_ylim(ax0, r_range)
+            _set_ylim(ax1, x_range)
+            if callouts:
+                pivot = _pivot(np.concatenate([xs, marker_xs]), log)
+                for i in range(nwidth):
+                    if zs.shape[0] > 0:
+                        ends = sorted({0, zs.shape[0] - 1})
+                        _annotate_rx(ax0, ax1, xs, zs[:, i], ends, nm, pivot)
+                    if marker_zs.shape[0] > 0:
+                        _annotate_rx(
+                            ax0,
+                            ax1,
+                            marker_xs,
+                            marker_zs[:, i],
+                            range(marker_zs.shape[0]),
+                            nm,
+                            pivot,
+                        )
             _polish_axes(ax0, title=_z_title(antenna_builder, nm))
             ax1.spines["top"].set_visible(False)
             fig.tight_layout()
@@ -766,7 +950,35 @@ def sweep(
             nwidth = marker_zs.shape[1]
             break
 
-    if use_smithchart:
+    if panels and not use_smithchart:
+        # One twin-axis panel per engine, port 0. Markers join each engine's
+        # points (sorted into place) so a panel is one R and one X line.
+        rows = []
+        for name, zs, marker_zs in per_engine:
+            px = list(xs) + list(marker_xs)
+            pz = list(zs[:, 0] if zs.shape[0] else []) + list(
+                marker_zs[:, 0] if marker_zs.shape[0] else []
+            )
+            order = np.argsort(px, kind="stable")
+            px = np.asarray(px)[order]
+            pz = np.asarray(pz, dtype=complex)[order]
+            marked = [k for k, j in enumerate(order) if j >= len(xs)]
+            rows.append((name, px, pz, marked, None))
+        title = _z_title(antenna_builder, nm)
+        if nwidth > 1:
+            title += f" (port 1 of {nwidth})"
+        _rx_panels(
+            rows,
+            xlabel=_param_label(nm),
+            title=title,
+            log_x=log,
+            r_range=r_range,
+            x_range=x_range,
+            callouts=callouts,
+            xname=nm,
+        )
+
+    elif use_smithchart:
         from .smith_chart import draw_smith_chart, plot_reflection
 
         fig, ax0 = plt.subplots(figsize=(6.8, 6.8))
@@ -851,6 +1063,8 @@ def sweep(
             ax0.plot(mxs, np.real(mz), color="0.25", **_MEASURED_KW)
             _measured_legend(ax0, measured.label)
 
+        if log:
+            _log_x_axis(ax0)
         _polish_axes(ax0, title=_z_title(antenna_builder, nm))
         ax0.legend(loc="best", frameon=False, fontsize=8)
         fig.tight_layout()
