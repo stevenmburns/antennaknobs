@@ -51,6 +51,10 @@ export type ViewRenderProps = {
    *  Optional: a call site that omits it — every thumbnail — gets a canvas
    *  with its own camera, always at the fit view. */
   canvasCamera?: CanvasCamera | undefined;
+  /** The Smith chart zooms and pans (wheel, drag, keys). The stage passes
+   *  true; thumbnails omit it and draw the whole chart, unzoomed — a thumb is
+   *  a button. (`fill` cannot say this: the Smith chart never fills.) */
+  chartZoom?: boolean;
   showHeatmap: boolean;
   showEnvelope: boolean;
   showWireLabels: boolean;
@@ -219,6 +223,8 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       feeds={p.result?.feeds}
       multiFeed={p.multiFeed}
       connectSweep={(p.refineEnabled ?? false) && (p.sweepSettled ?? true)}
+      interactive={p.chartZoom ?? false}
+      designKey={p.result?.geometry ?? ""}
     />
   ),
   schematic: (p) => (
