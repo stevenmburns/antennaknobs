@@ -395,36 +395,56 @@ def test_brv_nec5_solves_the_connected_default_and_banks_its_print(record_proper
 # ---------------------------------------------------------------------------
 
 
+def _ebc_parts(b):
+    """(radiator, elevated radials, buried screen): gap + shaft first, then
+    the `n_elevated` counterpoise radials, then the screen."""
+    ws = _wires(b)
+    n_el = round(b.n_elevated)
+    return ws[:2], ws[2 : 2 + n_el], ws[2 + n_el :]
+
+
 def test_ebc_radiator_is_wholly_above_and_screen_wholly_below():
     b = ElevatedBuriedCounterpoise()
-    ws = _wires(b)
-    radiator, screen = ws[:2], ws[2:]
+    radiator, elevated, screen = _ebc_parts(b)
+    assert len(elevated) == 4 and len(screen) == 4
 
-    for w in radiator:
+    for w in radiator + elevated:
         assert w.p0[2] >= b.base > 0.0
         assert w.p1[2] >= b.base > 0.0
     for w in screen:
         assert w.p0[2] == w.p1[2] == -b.depth < 0.0
     # No conductor anywhere near the interface.
     assert min(w.p0[2] for w in radiator) == pytest.approx(b.base)
-    assert all(_is_horizontal(w) for w in screen)
+    assert all(_is_horizontal(w) for w in elevated + screen)
 
 
 def test_ebc_knobs_move_the_geometry():
     base = ElevatedBuriedCounterpoise()
-    assert len(_wires(base)) == 2 + 4
+    assert len(_wires(base)) == 2 + 4 + 4
 
     single = ElevatedBuriedCounterpoise()
     single.n_radials = 1
-    assert len(_wires(single)) == 2 + 1
+    assert len(_wires(single)) == 2 + 4 + 1
+
+    few = ElevatedBuriedCounterpoise()
+    few.n_elevated = 2
+    assert len(_wires(few)) == 2 + 2 + 4
 
     lifted = ElevatedBuriedCounterpoise()
     lifted.base = 2.0
-    assert _wires(lifted)[0].p0 == (0.0, 0.0, 2.0)
+    radiator, elevated, _ = _ebc_parts(lifted)
+    assert radiator[0].p0 == (0.0, 0.0, 2.0)
+    assert {w.p0[2] for w in elevated} == {w.p1[2] for w in elevated} == {2.0}
 
     deeper = ElevatedBuriedCounterpoise()
     deeper.depth = 0.35
-    assert {w.p0[2] for w in _wires(deeper)[2:]} == {-0.35}
+    assert {w.p0[2] for w in _ebc_parts(deeper)[2]} == {-0.35}
+
+    longer = ElevatedBuriedCounterpoise()
+    longer.elevated_factor = 1.2
+    quarter = 0.25 * longer.design_wavelength
+    for w in _ebc_parts(longer)[1]:
+        assert math.dist(w.p0, w.p1) == pytest.approx(1.2 * quarter)
 
 
 def test_ebc_feed_is_the_house_gap_at_the_radiator_foot():
@@ -437,34 +457,39 @@ def test_ebc_feed_is_the_house_gap_at_the_radiator_foot():
     assert arclength == pytest.approx(0.025)
 
 
+def _segment_lengths(w):
+    length = math.dist(w.p0, w.p1)
+    edges = [0.0, *w.n_seg.fracs, 1.0]
+    return length, [
+        (edges[k + 1] - edges[k]) * length / n
+        for k, n in enumerate(w.n_seg.counts)
+        for _ in range(n)
+    ]
+
+
 @pytest.mark.parametrize("nominal_nsegs", [21, 84, 641])
 def test_ebc_radiator_is_graded_from_the_feed(nominal_nsegs):
-    """AK#1455: the radiator starts at the gap's 25 mm halves (or at the
-    design's own segment, once that is finer), neighbouring segments stay
-    within 2x, and none is longer than the uniform radiator's segment. The
-    fed wire is untouched."""
+    """AK#1455: the radiator AND every elevated radial start at the gap's
+    25 mm halves (or at the design's own segment, once that is finer),
+    neighbouring segments stay within 2x, and none is longer than the
+    uniform wire's segment. The fed wire is untouched."""
     from antennaknobs.network import GradedSegments
 
     b = ElevatedBuriedCounterpoise()
     b.nominal_nsegs = nominal_nsegs
-    gap, rad = _wires(b)[:2]
+    (gap, rad), elevated, _ = _ebc_parts(b)
     assert gap.ex == 1 + 0j
     assert math.dist(gap.p0, gap.p1) == pytest.approx(0.05)
-    assert isinstance(rad.n_seg, GradedSegments)
-    length = math.dist(rad.p0, rad.p1)
-    cap = length / b.segs_for(length, 0.25 * b.design_wavelength)
-    edges = [0.0, *rad.n_seg.fracs, 1.0]
-    segs = [
-        (edges[k + 1] - edges[k]) * length / n
-        for k, n in enumerate(rad.n_seg.counts)
-        for _ in range(n)
-    ]
-    assert sum(segs) == pytest.approx(length)
-    assert segs[0] == pytest.approx(min(0.025, cap))
-    assert max(segs) <= cap * (1 + 1e-12)
-    steps = [hi / lo for lo, hi in itertools.pairwise(segs)]
-    assert 0.5 - 1e-9 <= min(steps)
-    assert max(steps) <= 2.0 + 1e-9
+    for w in (rad, *elevated):
+        assert isinstance(w.n_seg, GradedSegments)
+        length, segs = _segment_lengths(w)
+        cap = length / b.segs_for(length, 0.25 * b.design_wavelength)
+        assert sum(segs) == pytest.approx(length)
+        assert segs[0] == pytest.approx(min(0.025, cap))
+        assert max(segs) <= cap * (1 + 1e-12)
+        steps = [hi / lo for lo, hi in itertools.pairwise(segs)]
+        assert 0.5 - 1e-9 <= min(steps)
+        assert max(steps) <= 2.0 + 1e-9
 
 
 # ---------------------------------------------------------------------------
@@ -562,12 +587,14 @@ def test_ebc_labels_with_no_crossing_junction(n_radials):
     _engine, s = _solver(b)
 
     media = s._wire_media()
-    # Polyline 0 is the radiator (feed gap + shaft merge into one walk);
-    # the rest is screen. Two radials merge through their degree-2 hub
-    # into a single straight polyline, which is why the below count is not
-    # simply n_radials.
-    assert media[0] == _medium_spec.ABOVE
-    assert set(media[1:]) == {_medium_spec.BELOW}
+    # Polyline 0 is the radiator (feed gap + shaft merge into one walk), and
+    # the next four are the elevated radials, which leave its foot as a
+    # five-member junction; the rest is screen. Two radials merge through
+    # their degree-2 hub into a single straight polyline, which is why the
+    # below count is not simply n_radials.
+    n_el = round(b.n_elevated)
+    assert set(media[: 1 + n_el]) == {_medium_spec.ABOVE}
+    assert set(media[1 + n_el :]) == {_medium_spec.BELOW}
     assert s._crossing_junctions() == ()
 
 

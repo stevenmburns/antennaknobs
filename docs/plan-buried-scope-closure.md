@@ -45,7 +45,7 @@ Ground rules carried from the #956 arc, which are what made it converge:
 | 4 | "below/below pair separation R₁ = 136 m (8.9 in-medium λ), past the 4 in-medium λ the remainder is tabulated to" | range | 3 | — |
 | 5 | "crossing serve with per-wire radii: ρ_eff = √(ρ² + a²) regularizes the corner with ONE radius, and a mixed-radius convention is not pinned" (momwire#524 phase 2) | scope | 4 | every real screen: radials thinner than the mast |
 | 6 | "RP asks for the far field of a deck with a wire below the plane … the transmitted family's far-zone asymptotics" (momwire#570) | **closed form** (U8) | 1 → 0 | none: every buried design's pattern is served through the interface in the app (#1341) and `RP` prints on both momwire seams (momwire#1078) |
-| 7 | `elevated_buried_counterpoise` disagrees with NEC-5 by 27 % in R and 10 % in \|Z\| (+10 Ω R, −7.1 kΩ X on \|Z\| ≈ 61–69 kΩ) on its graded radiator, at nominal_nsegs 21, 42 and 84, with each engine's own fed segment (momwire 1 × 50 mm, NEC-5 2 × 25 mm). Most of it is that fed segment's size: with the fed segments near-matched, the R gap is 2.9 % (31 % at the engines' own sizes, measured on the uniform radiator, AK#1456) | **mostly fed-segment size** (AK#1443, AK#1456) | — | 1 design |
+| 7 | `elevated_buried_counterpoise` disagrees with NEC-5 by 27 % in R and 10 % in \|Z\| (+10 Ω R, −7.1 kΩ X on \|Z\| ≈ 61–69 kΩ) on its graded radiator, at nominal_nsegs 21, 42 and 84, with each engine's own fed segment (momwire 1 × 50 mm, NEC-5 2 × 25 mm). Most of it is that fed segment's size: with the fed segments near-matched, the R gap is 2.9 % (31 % at the engines' own sizes, measured on the uniform radiator, AK#1456) | **mostly fed-segment size** (AK#1443, AK#1456); **retired 2026-09-25**: the deck had no return path, see U6 | — | 1 design |
 | 8 | AK#1417's gate: no refinement path for an imported deck (every ladder tool is Builder-driven) | tooling | blocks per-deck ladders on all of the above | — |
 | 9 | a wholly buried vertical rod reads a constant −1.20 % of R against NEC-5, invariant in depth, conductivity and frequency (momwire#1027) | **open disagreement** | — | every wholly buried fed element |
 | 10 | "a deck with N crossing junctions … the crossing serve completes ONE crossing node per deck" (momwire#1054; before it, a bare assert in the fill, AK#1464) | scope | 3 (the lpma3r5 LPDA with 8 nodes; two cebik phased arrays with 3 and 4) | every multi-element buried array |
@@ -131,6 +131,14 @@ bit-identical (no regression), the mixed-radius ladder inside the equal-radius
 ladder's residual band.
 
 ### U6 — the open counterpoise disagreement (1 design, AK#1443)
+
+**Retired 2026-09-25: the near-open impedance was the design's own defect.**
+The feed gap's lower end connected to nothing (the screen is detached), so
+the source had no return path, and |Z| ≈ 61–69 kΩ was that open circuit read
+by two engines. The design now carries four elevated radials on the gap's
+lower end, still a pure `split` deck. At nominal_nsegs 21 over 13 / 0.005 it
+reads 38.17 + j0.81 Ω (bs2), 37.99 − j0.77 Ω (razor-2p) and 37.99 − j0.80 Ω
+(NEC-5, the exported deck). The analysis below is the record of the old deck.
 
 `elevated_buried_counterpoise` is a `split` deck (above and below, nothing at
 z = 0), so it goes through the transmitted **grid**, not the crossing fill.

@@ -1,47 +1,74 @@
-"""Elevated-feed vertical over a buried radial screen — the antenna whose
-counterpoise is capacitive, not galvanic (momwire#553, the buried serve).
+"""Elevated vertical with elevated radials over a DETACHED buried ground
+screen — every conductor wholly above or wholly below the soil, nothing at
+the interface (momwire#553, the buried serve).
 
-The radiator's foot stands clear of the ground, so no conductor touches or
-crosses the interface; the buried screen underneath is DETACHED, and works
-by improving the ground the radiator sees rather than by carrying conducted
-return current. That combination — every wire wholly on one side of the
-interface — is momwire's buried serve proper, and it is exactly the deck
-momwire#553 gated its integration unit on (an elevated monopole over a
-detached buried radial, no ground contact anywhere).
+The feed stands `base` clear of the surface. The radiator rises from the top
+of the feed gap, and `n_elevated` flat radials leave its bottom at the same
+height: an ordinary elevated ground-plane vertical, and the radials are its
+counterpoise. Below the surface, a buried radial screen lies at `depth`,
+joined at its own hub and touching nothing above. It carries no conducted
+return current; what it can do is change the ground the radiator and the
+elevated radials see, by coupling through the soil in their near field.
 
-    z = base+height  T        radiator, ~lambda/4
+At the defaults that effect is SMALL, and the design does not pretend
+otherwise: removing the screen moves momwire's Z from 38.17 + j0.81 to
+37.56 + j0.82 ohm and the peak gain by 0.03 dB (measured 2026-09-25). A
+four-radial screen at 0.6 lambda/4, 0.65 m below radials that are already
+a working counterpoise, is not a ground system that matters much. More and
+longer buried radials, or a lower `base`, give it more to do.
+
+    z = base+height  T          radiator, ~lambda/4
                      |
-    z = base         F        elevated feed, `base` clear of the surface
-    z = 0       ===========   air/soil interface — NOTHING touches it
-    z = -depth      -H-       buried hub; `n_radials` radials fan out
-                   /   \\      horizontally at `depth`, free at their tips
+    z = base    -----F-----     feed gap; `n_elevated` flat radials leave
+                                its lower end, `elevated_factor` * lambda/4
+    z = 0       ===========     air/soil interface — NOTHING touches it
+    z = -depth      -H-         buried hub; `n_radials` radials fan out
+                   /   \\        horizontally at `depth`, free at their tips
 
-Contrast `buried_radial_vertical`, which BONDS the radials to the radiator
-at z = 0 and therefore needs the much narrower crossing serve. Nothing here
-crosses, so the scope is wide: the radials may be tilted, may be any count,
-and the deck carries no crossing junction at all. What it costs is the
-conducted return path — the screen couples through the soil, so the
-driving-point impedance is a good deal more sensitive to `base` and to the
-soil constants than a bonded screen would be.
+Every wire is wholly on one side of the interface: a `split` deck, which is
+momwire's buried serve proper, and the reason the design exists. Contrast
+`buried_radial_vertical`, which BONDS its radials to the radiator at z = 0
+and therefore needs the much narrower crossing serve. Nothing here crosses,
+so the scope is wide: the screen may be any count and any length, and the
+deck carries no crossing junction at all.
 
-GEOMETRY CONVENTIONS. The radiator lives entirely at z >= `base` > 0 and
-the screen entirely at z = -`depth` < 0; the only thing the serve insists
-on is that neither reaches the plane. The radials share a buried hub at
-(0, 0, -depth), which is an ordinary wholly-below junction, and their tips
-are free.
+WHY THE ELEVATED RADIALS. Until 2026-09-25 this deck had none. The gap's lower
+end connected to nothing, so the source drove a quarter-wave against the
+gap's own 25 mm half, and the driving point read about 40 - j68,000 ohm on
+momwire and NEC-5 alike: a feed with no return path. A detached screen does
+not give a feed one — it is not connected to either terminal. The design
+came from momwire#553's serve-gate deck, which gated the fill (an elevated
+monopole over a detached buried radial) and never needed a sensible
+impedance. The elevated radials are the return path.
+
+DEFAULTS, 7.1 MHz over eps_r 13 / sigma 0.005, measured 2026-09-25. Four
+elevated radials at 0.95 lambda/4 bring the system to resonance with the
+full-length radiator: momwire's B-spline reads 38.2 + j0.8 ohm at
+nominal_nsegs 15 and at 21, and the
+elevated length moves X by about +19 ohm per 0.1 of `elevated_factor`
+(-28 ohm at 0.8, +20 ohm at 1.05). razor-2p and NEC-5 on the same nominal
+21 mesh read 37.99 - j0.77 and 37.99 - j0.80 ohm. One elevated radial is
+legal (58.5 + j2.6 ohm), eight read 36.7 + j4.5.
+
+GEOMETRY CONVENTIONS. The radiator and the elevated radials live entirely at
+z >= `base` > 0 and the screen entirely at z = -`depth` < 0; the only thing
+the serve insists on is that neither reaches the plane. The elevated radials
+meet the gap at its lower node (0, 0, base), which is an ordinary wholly-above
+junction. The buried radials share a hub at (0, 0, -depth), an ordinary
+wholly-below junction, and every radial's tip is free.
 
 FEED. The house eps-gap idiom at the radiator's foot, as `raised_vertical`
-and `vertical` spell it. There is no crossing junction to protect here, so
-nothing about the feed is unusual.
+and `vertical` spell it, with the elevated radials on the gap's lower end as
+`vertical`'s are. There is no crossing junction to protect here.
 
-MESH. The radiator is graded from the feed (AK#1455), as
-`buried_radial_vertical` grades its own: its first segments match the 25 mm
-halves of the fed gap, neighbouring segments stay within 2x of each other,
-and the far panels sit at the design's usual radiator segment for
+MESH. The radiator and every elevated radial are graded from the feed
+(AK#1455), as `buried_radial_vertical` grades its own: their first segments
+match the 25 mm halves of the fed gap, neighbouring segments stay within 2x
+of each other, and the far panels sit at the design's usual segment for
 `nominal_nsegs` (`doubling_graded_wire`); once that segment is finer than
-25 mm, the radiator starts at it and comes out near-uniform. A uniform
-radiator at the usual densities puts a half-metre segment against the 50 mm
-gap, and the driving-point resistance then moves by several percent with
+25 mm, a wire starts at it and comes out near-uniform. A uniform radiator at
+the usual densities puts a half-metre segment against the 50 mm gap, and the
+driving-point resistance then moves by several percent with
 `nominal_nsegs`; graded, it holds still.
 
 REQUIRES A FINITE GROUND. The buried screen only exists under a Sommerfeld
@@ -49,8 +76,7 @@ half-space, which antennaknobs chooses at SOLVE time, not in the design:
 pass ``--ground finite:13,0.005`` (or another eps_r/sigma pair). Under
 ``free`` the screen is a floating wire in the air; under ``pec`` it is
 shorted to a perfect plane above it. momwire and NEC-5 serve it; PyNEC and
-the NEC-2 deck export refuse a wire below z = 0. The mixed-medium fill makes
-it a slow design on either engine.
+the NEC-2 deck export refuse a wire below z = 0.
 """
 
 import math
@@ -91,6 +117,12 @@ class Builder(AntennaBuilder):
             "n_radials": 4,
             "radial_factor": 0.6,
             "depth": 0.15,
+            # The counterpoise: flat radials at `base` on the gap's lower end.
+            # 0.95 of the design quarter-wave resonates the system with the
+            # full-length radiator over the nominal soil (X +0.8 ohm; see
+            # DEFAULTS in the module docstring for the slope).
+            "n_elevated": 4,
+            "elevated_factor": 0.95,
             "ui_params": MappingProxyType(
                 {
                     # The buried screen exists only under a Sommerfeld
@@ -105,6 +137,10 @@ class Builder(AntennaBuilder):
                     # avoid, so a single radial is a legal (and instructive)
                     # screen — it is momwire#553's own serve-gate deck.
                     "n_radials": {"min": 1, "max": 4, "step": 1},
+                    # One elevated radial is a bent-feed L and still a
+                    # return path (~58 ohm); eight is plenty.
+                    "n_elevated": {"min": 1, "max": 8, "step": 1},
+                    "elevated_factor": {"min": 0.5, "max": 1.3},
                     "base": {"min": 0.2, "max": 3.0, "unit": "m"},
                     "depth": {"min": 0.05, "max": 0.5, "unit": "m"},
                     "length_factor": {"min": 0.8, "max": 1.2},
@@ -117,25 +153,27 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
 
-        height = 0.25 * self.design_wavelength * self.length_factor
+        quarter = 0.25 * self.design_wavelength
+        height = quarter * self.length_factor
         radial = height * self.radial_factor
+        elevated = quarter * self.elevated_factor
         base = self.base
         depth = self.depth
         n_radials = max(1, round(self.n_radials))
+        n_elevated = max(1, round(self.n_elevated))
 
+        feed = (0.0, 0.0, base)
         hub = (0.0, 0.0, -depth)
 
         tups = []
         # Driven gap at the radiator foot; the radiator stacks on top of it.
-        tups.append(Wire((0.0, 0.0, base), (0.0, 0.0, base + eps), ex=1 + 0j))
+        tups.append(Wire(feed, (0.0, 0.0, base + eps), ex=1 + 0j))
         # The radiator is GRADED away from the gap (AK#1455); see MESH above.
         # Its far panels keep the design's usual radiator segment. Its first
         # segments match the gap's 25 mm halves, unless that usual segment is
         # already shorter, when there is nothing to grade.
         radiator_length = height - eps
-        max_h = radiator_length / self.segs_for(
-            radiator_length, 0.25 * self.design_wavelength
-        )
+        max_h = radiator_length / self.segs_for(radiator_length, quarter)
         tups.append(
             doubling_graded_wire(
                 (0.0, 0.0, base + eps),
@@ -144,6 +182,20 @@ class Builder(AntennaBuilder):
                 max_h=max_h,
             )
         )
+
+        # The counterpoise: `n_elevated` flat radials leaving the gap's LOWER
+        # end, so the feed drives the radiator against them (see FEED). Each
+        # is authored feed-first and graded from the feed exactly as the
+        # radiator is, so both sides of the source see 25 mm segments.
+        elevated_h = elevated / self.segs_for(elevated, quarter)
+        for i in range(n_elevated):
+            theta = 2 * math.pi / n_elevated * i
+            tip = (elevated * math.cos(theta), elevated * math.sin(theta), base)
+            tups.append(
+                doubling_graded_wire(
+                    feed, tip, h0=min(eps / 2.0, elevated_h), max_h=elevated_h
+                )
+            )
 
         for i in range(n_radials):
             theta = 2 * math.pi / n_radials * i
