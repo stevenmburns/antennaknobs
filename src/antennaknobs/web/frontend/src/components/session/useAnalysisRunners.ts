@@ -63,6 +63,19 @@ const DISPLAY_ONLY_EXEMPT = ["az_elev_deg", "elev_az_deg", "z0_ohms"] as const;
 // pattern integral runs over the facets.
 const IMPEDANCE_ANALYSIS_EXEMPT = [...DISPLAY_ONLY_EXEMPT, "terrain"] as const;
 
+// The freq sweep alone is also exempt from the measurement frequency (Steve,
+// 2026-09-26: moving the dial redrew the whole VSWR curve). A sweep solves at
+// ITS OWN frequencies: every engine's sweep overrides measurement_freq_mhz
+// per point (adapter.momwire_sweep, the pynec/nec2/nec5 _sweep_at), and the
+// geometry is built at the design frequency, never the measurement one. So
+// the dial slides the marker along the curve already drawn. Where the BAND
+// follows the dial (a sweep_policy anchored on meas_freq), the band's own
+// edges arrive through sweepRangeKey and re-sweep as before; a design that
+// links a knob to the dial (link_meas_freq_to_param) changes that knob, which
+// the signature sees. The convergence sweep solves AT the measurement
+// frequency, so it keeps the field.
+const FREQ_SWEEP_EXEMPT = [...IMPEDANCE_ANALYSIS_EXEMPT, "measurement_freq_mhz"] as const;
+
 // Extra dwell between a completed base sweep and the first refinement round
 // (issue #744). The base sweep is already post-dwell — the 500 ms debounce
 // below gates it and a knob change aborts it — so this is a second settling
@@ -289,6 +302,7 @@ export function useAnalysisRunners({
   // exemption lists at the top of this module are the only opt-outs.
   const req = buildRequest();
   const impedanceSig = solveSignature(req, { exempt: IMPEDANCE_ANALYSIS_EXEMPT });
+  const freqSweepSig = solveSignature(req, { exempt: FREQ_SWEEP_EXEMPT });
   const solveSig = solveSignature(req, { exempt: DISPLAY_ONLY_EXEMPT });
 
   const [sweep, setSweep] = useState<SweepData | null>(null);
@@ -409,20 +423,22 @@ export function useAnalysisRunners({
       }
     };
     // runSweep is read but not listed: it's a plain, unmemoized closure
-    // recreated every render, and impedanceSig is the deliberate stand-in
+    // recreated every render, and freqSweepSig is the deliberate stand-in
     // signature for everything it would otherwise pull in (same idiom as
     // currentValuesKey) — listing it would re-fire this effect on every
     // render regardless of whether anything it reads actually changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    // Everything physics — knobs, freqs, ground, backend, variant, the
-    // measurement plane (#652 c / #691) — arrives through the signature.
-    impedanceSig,
-    // Not a request field: measLocked steers the range's anchor policy
-    // (lib/sweep.ts), so a lock toggle must re-plan the freqs even though
-    // the solve is unchanged.
-    measLocked,
-    // Not a request field either: the range itself (AK#1682) — a menu edit,
+    // Everything physics — knobs, the design freq, ground, backend, variant,
+    // the measurement plane (#652 c / #691) — arrives through the signature.
+    // Not the measurement frequency: see FREQ_SWEEP_EXEMPT.
+    freqSweepSig,
+    // measLocked is no longer listed: it steers the range's anchor policy
+    // (lib/sweep.ts), and the range it steers IS sweepRangeKey, so a lock
+    // toggle that moves the band re-sweeps and one that does not (the band
+    // already at the design frequency) no longer blanks the curve for
+    // nothing — which the real app showed on invvee.
+    // Not a request field: the range itself (AK#1682) — a menu edit,
     // "↺ design range" or a band pick re-plans the grid.
     sweepRangeKey,
     sweepEnabled,
