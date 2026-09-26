@@ -102,6 +102,41 @@ studies](#convergence-studies) below. `--engine` also takes a
 comma-separated list (or repeat the flag): one trajectory or line per engine
 on the same chart, most useful for that same convergence study.
 
+`--set NAME=VALUE ...` sets a design's knobs before the sweep, so a catalog
+design can be studied away from its defaults without copying it:
+`--set freq=14 design_freq=14`. Only the design's own knobs are accepted (an
+unknown name refuses and lists them), and each value keeps its knob's type,
+so an integer knob stays an integer.
+
+### R and X charts
+
+The impedance chart (without `--use_smithchart`) draws R in red on the left
+axis and X in blue on a twin right axis, each auto-ranged on its own. These
+options shape it the way SimNEC's charts are drawn:
+
+- `--log` spaces the `--param` points geometrically (a fixed step in log x,
+  SimNEC's `logStep`) and draws a log x axis. An integer knob's points are
+  rounded to integers, and duplicates dropped, so `--range 10 500 --npoints
+  20` over a segment-count knob solves only whole counts.
+- `--r-range LO HI` and `--x-range LO HI` pin the R and X axes, for example
+  to put two charts on the same scale.
+- `--callouts` labels R and X with their values at the first and last
+  points, and at every `--markers` point.
+- `--panels`, with several `--engine` specs, draws one twin-axis panel per
+  engine side by side, instead of one chart coloured by engine. Without it,
+  the multi-engine chart is unchanged, and the three options above refuse by
+  name (that chart has no separate R and X axes).
+
+```bash
+# A deck's own segment knob (a SY symbol), as a SimNEC-style convergence chart
+python -m antennaknobs sweep --builder @dipole.nec --param sy_segs \
+    --log --range 10 500 --npoints 20 --engine nec2,nec5 --panels --callouts
+```
+
+The options apply to the impedance chart only: they refuse with `--swr`,
+`--gain`, and `--patterns`, and the axis options refuse with
+`--use_smithchart` (where `--log` still spaces the points).
+
 ## Drawing the feed network
 
 `schematic` renders a design's `build_network()` — feedline, tuner, balun, and
@@ -419,10 +454,19 @@ On the Smith chart, each engine's trajectory carries a hollow ring at its
 coarsest rung, a filled disc at its finest, and a diamond at its `Z*`
 (clipped inside the unit circle, since an early-ladder extrapolation can fly
 past it) — the same conventions as the app's convergence overlay. Without
-`--use_smithchart`, the chart is R and X against the achieved segment count
-on a log axis, one line per engine, with `Z*` drawn as a dashed horizontal
-line. A multi-port design draws port 0 only, noted in the title; the app's
-own per-port convergence view is out of scope here.
+`--use_smithchart`, the chart is one panel per engine, side by side: R (left
+axis) and X (right axis) against the achieved segment count on a log axis,
+each axis ranged on its own, with `Z*` drawn as a dotted line on each.
+`--r-range`, `--x-range`, and `--callouts` apply here as in [R and X
+charts](#r-and-x-charts). A multi-port design draws port 0 only, noted in the
+title; the app's own per-port convergence view is out of scope here.
+
+```bash
+# AC6LA's free-space convergence chart, on the catalog dipole at 14 MHz
+python -m antennaknobs sweep --builder dipoles.invvee:dipole \
+    --set freq=14 design_freq=14 --param nominal_nsegs \
+    --range 10 500 --npoints 20 --engine nec2,nec5 --callouts --fn conv.png
+```
 
 `--nominal-nsegs`, `--swr`, `--gain`, and `--measured` are frequency-sweep or
 fixed-density notions and each refuses by name alongside `--param
