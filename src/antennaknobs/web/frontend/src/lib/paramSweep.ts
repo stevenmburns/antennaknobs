@@ -226,6 +226,25 @@ export function validRxChoice(c: RxAxisChoice): boolean {
   return c.kind === "auto" || (Number.isFinite(c.lo) && Number.isFinite(c.hi) && c.hi > c.lo);
 }
 
+/** Where a reference line (R = Z0, X = 0) falls on an axis: its height as a
+ *  fraction of the axis (0 bottom, 1 top) when inside, else which edge it is
+ *  past. The auto range is never widened to take it in — that would flatten
+ *  a converging curve into a line — so off the range it becomes an edge
+ *  marker instead. */
+export type RefPlacement = { at: "in"; frac: number } | { at: "above" | "below" };
+export function refPlacement(value: number, d: AxisDomain): RefPlacement {
+  if (value > d.hi) return { at: "above" };
+  if (value < d.lo) return { at: "below" };
+  return { at: "in", frac: (value - d.lo) / (d.hi - d.lo) };
+}
+
+/** The popover's "include the reference" preset: the trace's auto range
+ *  widened just enough to hold the reference value too. */
+export function rangeWithRef(values: readonly number[], ref: number): RxAxisChoice {
+  const d = autoRxDomain([...values, ref]);
+  return { kind: "fixed", lo: Number(d.lo.toPrecision(6)), hi: Number(d.hi.toPrecision(6)) };
+}
+
 /** Tick values for a y axis: lib/sweepAxis's 1-2-2.5-5 steps, without the
  *  off-grid floor tick it adds (an auto range's padded edge, which would
  *  crowd the first real tick). */

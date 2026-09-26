@@ -140,6 +140,9 @@ export type ZParamViewSettings = {
   xLog: boolean;
   rAxis: RxAxisChoice;
   xAxis: RxAxisChoice;
+  /** The reference impedance: the design's Zo or the session's override
+   *  (AK#1735), the value the VSWR chart measures against. */
+  z0: number;
 };
 
 const DEFAULT_ZPARAM: ZParamViewSettings = {
@@ -151,6 +154,7 @@ const DEFAULT_ZPARAM: ZParamViewSettings = {
   xLog: true,
   rAxis: RX_AUTO,
   xAxis: RX_AUTO,
+  z0: 50,
 };
 
 // The AK#1738 props a sweep chart takes from the bag, for either mode.
@@ -333,6 +337,9 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
         xLog={z.xLog}
         rAxis={z.rAxis}
         xAxis={z.xAxis}
+        // The trial point's reference during an optimizer run, as the Smith
+        // chart does; else the session's.
+        z0={p.liveZ?.z0_ohms ?? z.z0}
         {...(p.onZparamXLogChange ? { onXLogChange: p.onZparamXLogChange } : {})}
         {...(p.onZparamAxisChange ? { onAxisChange: p.onZparamAxisChange } : {})}
       />

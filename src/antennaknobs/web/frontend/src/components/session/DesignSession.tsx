@@ -2038,6 +2038,9 @@ function DesignSessionBody({
     xLog: zparamXLog ?? zparamSpec.log,
     rAxis: zparamAxes.r,
     xAxis: zparamAxes.x,
+    // The session's reference (the design's Zo, or the Zo field's override,
+    // AK#1735): what the VSWR chart measures against.
+    z0,
   };
   // A word on cost (docs/design/z-vs-param-view.md): a density sweep whose
   // top N is past twice the slot's own default density solves the fine end

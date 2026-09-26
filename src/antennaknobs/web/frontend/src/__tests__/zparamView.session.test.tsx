@@ -278,3 +278,41 @@ describe("Stop", () => {
     await waitFor(() => expect(bodies.length).toBe(m + 1), T);
   }, 15000);
 });
+
+describe("R = Z0 follows the session's Zo (AK#1735)", () => {
+  it("the design's own Zo from the preview, then the Zo field's override", async () => {
+    const { container } = mountDesignSession({
+      pinned: ["antenna", "zparam"],
+      routes: {
+        "/geometry": () =>
+          ({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              geometry: HARNESS_EXAMPLE.name,
+              wires: [],
+              z0_ohms: 75,
+              design_z0_ohms: 75,
+            }),
+          }) as unknown as Response,
+      },
+    });
+    const chart = () =>
+      [...container.querySelectorAll("canvas.zparam")].find(
+        (c) => !c.closest(".thumbstrip"),
+      ) as HTMLElement | undefined;
+    const thumb = await waitFor(() => {
+      const c = container.querySelector(".thumbstrip canvas.zparam");
+      expect(c).not.toBeNull();
+      return c as HTMLElement;
+    }, T);
+    fireEvent.click(thumb);
+    await waitFor(() => expect(chart()?.dataset.z0).toBe("75"), T);
+    fireEvent.click(screen.getByLabelText("Optimisation method"));
+    const zo = screen.getByLabelText("Reference impedance Zo, ohms") as HTMLInputElement;
+    fireEvent.change(zo, { target: { value: "60" } });
+    fireEvent.keyDown(zo, { key: "Enter" });
+    await waitFor(() => expect(chart()?.dataset.z0).toBe("60"), T);
+    localStorage.clear();
+  });
+});

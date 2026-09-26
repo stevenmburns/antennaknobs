@@ -13,6 +13,7 @@ export function RxRangePopover({
   choice,
   drawn,
   side = "right",
+  preset,
   onChoice,
   onClose,
 }: {
@@ -21,6 +22,8 @@ export function RxRangePopover({
   /** Which way the box opens from the click: "left" from a right-hand axis,
    *  toward the chart. Clamped to the viewport either way. */
   side?: "left" | "right";
+  /** A range that takes in the axis's reference line (R = Z0, X = 0). */
+  preset?: { label: string; title: string; choice: RxAxisChoice };
   choice: RxAxisChoice;
   /** The range on screen now: what the custom fields start from. */
   drawn: AxisDomain;
@@ -63,6 +66,15 @@ export function RxRangePopover({
           >
             Auto
           </button>
+          {preset && (
+            <button
+              type="button"
+              title={preset.title}
+              onClick={() => onChoice(preset.choice)}
+            >
+              {preset.label}
+            </button>
+          )}
         </div>
         <div className="knob-menu-row">
           <span>min / max (Ω)</span>
