@@ -4267,9 +4267,11 @@ canvas {
 }
 
 /* The Smith chart's own zoom (see lib/smithView.ts). The box is the canvas's,
-   so the control can sit in the chart's top-right corner, outside the disc;
-   it borrows the schematic's zoom-group look and only moves it. Shown only
-   while zoomed — at fit there is nothing to reset. */
+   so the control can sit in the chart's bottom-right corner — clear of the
+   stage's top-right overlay stack and the bottom-left solve readout, and
+   lifted over the canvas's freq-range / measured lines. It borrows the
+   schematic's zoom-group look and only moves it. Shown only while zoomed:
+   at fit there is nothing to reset. */
 .smith-chart {
   position: relative;
 }
@@ -4282,7 +4284,7 @@ canvas {
 .smith-zoom {
   left: auto;
   bottom: auto;
-  top: var(--space-2);
+  bottom: 34px;
   right: var(--space-2);
   align-items: center;
 }
