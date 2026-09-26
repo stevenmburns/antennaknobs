@@ -526,7 +526,7 @@ button:focus-visible,
 
 /* The sweep charts (AK#1738): the canvas's box, so the y-axis button can sit
    over the tick-label strip. The button is invisible until hovered/focused,
-   when it tints the strip to say "this is a control". */
+   when it outlines the strip to say "this is a control". */
 .sweep-chart {
   position: relative;
 }
@@ -542,11 +542,17 @@ button:focus-visible,
   cursor: pointer;
 }
 
+/* Hover, focus and open say "this is a control" with an outline only. It sits
+   OVER the canvas's tick labels, so it must never fill: --accent-soft is an
+   opaque tint in the light theme, and filling with it hid the ticks for as
+   long as the range popover was open — exactly when the viewer is watching
+   them change (Steve, 2026-09-26). */
 .sweep-axis-btn:hover,
 .sweep-axis-btn:focus-visible,
 .sweep-axis-btn[aria-expanded="true"] {
-  background: var(--accent-soft);
-  outline: 1px solid var(--border-hover);
+  background: transparent;
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
 }
 
 .sweep-axis-presets {

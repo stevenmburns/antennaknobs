@@ -24,6 +24,10 @@ export default defineConfig({
     // without it, mounted components from earlier tests stay in document.body
     // and getBy* queries hit duplicate matches.
     setupFiles: ["src/__tests__/setup.ts"],
+    // CSS is not processed in tests, so a `?raw` import of a stylesheet reads
+    // as "" — except styles.css, which sweepAxisPopover.test.tsx reads as
+    // text to pin a rule (the y-axis button must never fill over the ticks).
+    css: { include: [/styles\.css/] },
     // `npm run test:coverage` only (#736) — not part of CI's plain `npm test`,
     // which stays fast. No thresholds: this is a first measurement to find
     // gaps (see the issue), not a gate to enforce yet.
