@@ -124,9 +124,19 @@ options shape it the way SimNEC's charts are drawn:
   `--callouts ends`) at the first and last points, `--callouts markers` also
   at every `--markers` point, `--callouts all` at every point.
 - `--panels`, with several `--engine` specs, draws one twin-axis panel per
-  engine side by side, instead of one chart coloured by engine. Without it,
-  the multi-engine chart is unchanged, and the three options above refuse by
-  name (that chart has no separate R and X axes).
+  engine side by side, instead of one chart coloured by engine.
+- `--overlay`, with several `--engine` specs, draws every engine on ONE
+  twin-axis chart: R solid on the left axis, X dashed on the right, each
+  axis shared by all engines (its range is their union, unless `--r-range`
+  / `--x-range` pin it), with one colour and marker per engine. `--callouts`
+  gives each engine one box per end, holding both values, stacked in
+  columns in a margin beside the data so they never overlap. It works for a
+  general `--param` sweep and for a `nominal_nsegs` study, where each
+  engine's `Z*` is a dotted line in its colour. `--overlay` refuses beside
+  `--panels`, and with a single engine.
+- Without `--panels` or `--overlay`, the multi-engine chart is unchanged
+  (a `nominal_nsegs` study draws panels), and the three options above refuse
+  by name on a general sweep (that chart has no separate R and X axes).
 
 ```bash
 # A deck's own segment knob (a SY symbol), as a SimNEC-style convergence chart
