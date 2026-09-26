@@ -206,3 +206,75 @@ describe("the server's refusal is shown, not clamped to", () => {
     expect(chart.dataset.error).toBe(detail);
   });
 });
+
+// A /param_sweep that streams one record every 120 ms and honours the
+// request's AbortSignal the way fetch does: the reader rejects with an
+// AbortError once the signal trips.
+function slowRoute(bodies: Body[], signals: AbortSignal[]) {
+  return (_url: string, init?: RequestInit) => {
+    const b = JSON.parse(String(init?.body ?? "{}")) as Body;
+    bodies.push(b);
+    const signal = init?.signal as AbortSignal;
+    signals.push(signal);
+    let i = 0;
+    return {
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => ({
+          read: async () => {
+            await new Promise((r) => setTimeout(r, 120));
+            if (signal.aborted) throw new DOMException("aborted", "AbortError");
+            if (i >= b.values.length) return { done: true, value: undefined };
+            const v = b.values[i++];
+            const line = JSON.stringify({ param: b.param, value: v, z_re: 60 + v, z_im: v, solver: "momwire" });
+            return { done: false, value: new TextEncoder().encode(line + "\n") };
+          },
+        }),
+      },
+    } as unknown as Response;
+  };
+}
+
+describe("Stop", () => {
+  it("aborts, keeps the partial points, and re-solves nothing until a parameter changes or Run", async () => {
+    const user = userEvent.setup();
+    const bodies: Body[] = [];
+    const signals: AbortSignal[] = [];
+    const { container } = mountDesignSession({
+      examples: [EXAMPLE],
+      pinned: ["antenna", "zparam"],
+      routes: { "/param_sweep": slowRoute(bodies, signals) },
+    });
+    const gap = await screen.findByRole("slider", { name: "Gap" });
+    fireEvent.contextMenu(gap);
+    await user.click(await screen.findByRole("button", { name: "Sweep this knob…" }));
+    const chart = () =>
+      [...container.querySelectorAll("canvas.zparam")].find(
+        (c) => !c.closest(".thumbstrip"),
+      ) as HTMLElement;
+    await waitFor(() => expect(Number(chart()?.dataset.points)).toBeGreaterThanOrEqual(3), T);
+    const n = bodies.length;
+    await user.click(screen.getByRole("button", { name: /· stop$/ }));
+    expect(signals[signals.length - 1].aborted).toBe(true);
+    const kept = Number(chart().dataset.points);
+    expect(kept).toBeGreaterThanOrEqual(3);
+    expect(kept).toBeLessThan(11);
+    expect(chart().dataset.partial).toBe("1");
+    // Past the dwell, with margin: nothing restarted, the points stayed.
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(bodies.length).toBe(n);
+    expect(Number(chart().dataset.points)).toBe(kept);
+    expect(screen.getByRole("button", { name: `${kept}/11 · run` })).toBeTruthy();
+
+    // A parameter change is a new request: it sweeps again.
+    fireEvent.keyDown(screen.getByRole("slider", { name: "Height" }), { key: "ArrowUp" });
+    await waitFor(() => expect(bodies.length).toBe(n + 1), T);
+    await user.click(await screen.findByRole("button", { name: /· stop$/ }, T));
+    const m = bodies.length;
+    // ...and so does Run, at once.
+    // (Stopped before a point landed: the button reads a bare "run".)
+    await user.click(screen.getByRole("button", { name: /run$/ }));
+    await waitFor(() => expect(bodies.length).toBe(m + 1), T);
+  }, 15000);
+});

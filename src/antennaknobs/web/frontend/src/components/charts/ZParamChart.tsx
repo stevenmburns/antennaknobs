@@ -116,6 +116,8 @@ export function ZParamChart({
   // canvas line); the chart says only that there is one.
   const status = d?.error
     ? "sweep refused — see the note"
+    : d?.partial
+    ? `stopped at ${n}/${total} — partial`
     : running
     ? `sweeping ${label} ${n}/${total}…`
     : n === 0
@@ -357,7 +359,8 @@ export function ZParamChart({
     if (status) {
       ctx.font = "10px ui-monospace, monospace";
       ctx.fillStyle = PC.label;
-      ctx.fillText(status, MARGIN.l + 4, MARGIN.t + ph - 6);
+      // Bottom-right: the first point's value boxes sit at the left.
+      ctx.fillText(status, MARGIN.l + pw - ctx.measureText(status).width - 4, MARGIN.t + ph - 6);
     }
     // xs/rs/xsIm/rT/xT/xTk/fx are pure functions of `data` and the axis
     // choices below; domKey stands in for the domains as a string, so an
@@ -408,6 +411,7 @@ export function ZParamChart({
         data-hover={shownHover ?? ""}
         data-status={status ?? ""}
         data-error={d?.error ?? ""}
+        data-partial={d?.partial ? "1" : "0"}
         onPointerMove={onPointerMove}
         // A tap on a phone reads the nearest point too.
         onPointerDown={onPointerMove}

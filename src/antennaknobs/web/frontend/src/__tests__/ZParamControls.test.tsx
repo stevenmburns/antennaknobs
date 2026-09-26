@@ -29,6 +29,14 @@ function Harness({
       onReset={() => {}}
       isDefault={false}
       values={paramValues(spec, true)}
+      run={{
+        running: false,
+        received: 0,
+        partial: false,
+        done: false,
+        onStop: () => {},
+        onRun: () => {},
+      }}
     />
   );
 }

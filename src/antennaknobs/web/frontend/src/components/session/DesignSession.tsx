@@ -13,6 +13,7 @@ import {
   backendDisplayLabel,
   backendSupportsGround,
   comboInappropriate,
+  defaultNPerWireFor,
   modelOptionsForRequest,
   type Slot,
   normalizeBackend,
@@ -2038,6 +2039,16 @@ function DesignSessionBody({
     rAxis: zparamAxes.r,
     xAxis: zparamAxes.x,
   };
+  // A word on cost (docs/design/z-vs-param-view.md): a density sweep whose
+  // top N is past twice the slot's own default density solves the fine end
+  // on meshes several times what the engine needs, and the dense solve grows
+  // about as N³. Cheap: two numbers the session already holds.
+  const engineN = defaultNPerWireFor(backend, currentOpts.model.degree);
+  const zparamTopN = zparamIsDensity && zparamValues.length ? Math.max(...zparamValues) : 0;
+  const zparamCostHint =
+    zparamIsDensity && zparamTopN > 2 * engineN
+      ? `N up to ${zparamTopN}: ${(zparamTopN / engineN).toFixed(zparamTopN / engineN >= 10 ? 0 : 1)}× this engine's default N = ${engineN}, so the fine end is slow`
+      : null;
   const convergeTitle = zparamIsDensity
     ? `Re-solve at N = ${zparamValues.join(", ")} segments per λ/4 and Richardson-extrapolate Z to N→∞ (the Z vs parameter view's sweep, drawn on the Smith chart)`
     : `Draw the Z vs parameter view's sweep — ${zparamLabel} over ${zparamValues.length} values — as a trail on the Smith chart`;
@@ -2054,6 +2065,8 @@ function DesignSessionBody({
     sweepAdvisories,
     paramSweep,
     paramSweepRunning,
+    stopParamSweep,
+    runParamSweepNow,
     normCheck,
     pattern,
     abortInFlight,
@@ -2564,6 +2577,22 @@ function DesignSessionBody({
               onReset={() => selectZparamParam(zparamSpec.param)}
               isDefault={sameSpec(zparamSpec, zparamDefaultFor(zparamSpec.param))}
               values={zparamValues}
+              run={{
+                running: paramSweepRunning,
+                received:
+                  paramSweep?.param === zparamSpec.param ? paramSweep.values.length : 0,
+                partial: !!paramSweep?.partial,
+                done:
+                  !paramSweepRunning &&
+                  !!paramSweep &&
+                  !paramSweep.partial &&
+                  !paramSweep.error &&
+                  paramSweep.param === zparamSpec.param &&
+                  paramSweep.values.length > 0,
+                onStop: stopParamSweep,
+                onRun: runParamSweepNow,
+              }}
+              costHint={zparamCostHint}
             />
           )}
           {/* The Smith chart's freq-sweep switch on the VSWR and S11 charts
@@ -2583,6 +2612,14 @@ function DesignSessionBody({
             // gate), in its own words: the header does not clamp to it.
             <div className="sweep-advisory-overlay zparam-refusal" role="alert">
               {paramSweep.error}
+              {/* The poor-match gate's 403 is approvable, as for the live
+                  solve: the approval re-runs the sweep (comboApproved is
+                  one of its inputs). */}
+              {paramSweep.errorStatus === 403 && (
+                <button type="button" className="zparam-approve" onClick={solveAnyway}>
+                  Solve anyway
+                </button>
+              )}
             </div>
           )}
           {(v === "smith" || v === "vswr" || v === "gamma") && (

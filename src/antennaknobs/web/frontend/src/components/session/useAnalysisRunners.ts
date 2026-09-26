@@ -397,6 +397,11 @@ export function useAnalysisRunners({
   const patternAbortRef = useRef<AbortController | null>(null);
   const paramSweepTimerRef = useRef<number | null>(null);
   const paramSweepAbortRef = useRef<AbortController | null>(null);
+  // The signature a Stop (or the app's Cancel) left the parameter sweep
+  // stopped at: the effect below neither blanks nor restarts for it, so the
+  // partial points stay and nothing re-solves until a parameter changes (a
+  // new signature) or the user presses Run.
+  const paramSweepStoppedRef = useRef<string | null>(null);
   const normCheckTimerRef = useRef<number | null>(null);
   const normCheckAbortRef = useRef<AbortController | null>(null);
 
@@ -530,6 +535,9 @@ export function useAnalysisRunners({
   // slot's own value stays what the live /ws solve uses.
   const paramSweepWanted = (convergeEnabled && convergeResident) || paramViewResident;
   useEffect(() => {
+    // Stopped at exactly this request: keep the partial sweep, run nothing.
+    if (paramSweepStoppedRef.current === paramSweepSig) return;
+    paramSweepStoppedRef.current = null;
     paramSweepAbortRef.current?.abort();
     if (paramSweepTimerRef.current) {
       window.clearTimeout(paramSweepTimerRef.current);
@@ -900,6 +908,7 @@ export function useAnalysisRunners({
           : {}),
         ...(acc.advisories ? { advisories: acc.advisories.slice() } : {}),
         ...(acc.error ? { error: acc.error } : {}),
+        ...(acc.errorStatus ? { errorStatus: acc.errorStatus } : {}),
       });
     };
     try {
@@ -920,6 +929,7 @@ export function useAnalysisRunners({
           /* no JSON body: the status line above */
         }
         acc.error = detail;
+        acc.errorStatus = resp.status;
         publish();
         return;
       }
@@ -1068,7 +1078,33 @@ export function useAnalysisRunners({
   // timers stops a batch the user never saw start from starting a moment
   // after the cancel. What is already drawn stays drawn: the next knob change
   // re-runs everything through the effects above, as before.
+  // The header's Stop: abort the stream (the server sees the disconnect and
+  // stops solving), keep what landed, marked partial, and hold here until a
+  // parameter changes or Run.
+  function stopParamSweep() {
+    if (paramSweepTimerRef.current) window.clearTimeout(paramSweepTimerRef.current);
+    paramSweepTimerRef.current = null;
+    paramSweepAbortRef.current?.abort();
+    paramSweepStoppedRef.current = paramSweepSig;
+    setParamSweep((d) => (d ? { ...d, partial: true } : d));
+    setParamSweepRunning(false);
+  }
+
+  // The header's Run: the same sweep again, now (no dwell), whatever stopped
+  // it. Still behind the poor-match gate (runParamSweep checks it).
+  function runParamSweepNow() {
+    paramSweepStoppedRef.current = null;
+    if (paramSweepTimerRef.current) window.clearTimeout(paramSweepTimerRef.current);
+    setParamSweep(null);
+    void runParamSweep();
+  }
+
   function abortInFlight() {
+    // The app's Cancel stops the parameter sweep the way its own Stop does.
+    if (paramSweepAbortRef.current || paramSweepTimerRef.current) {
+      paramSweepStoppedRef.current = paramSweepSig;
+      setParamSweep((d) => (d ? { ...d, partial: true } : d));
+    }
     for (const timer of [
       sweepTimerRef,
       sweepRefineTimerRef,
@@ -1098,6 +1134,8 @@ export function useAnalysisRunners({
     sweepAdvisories,
     paramSweep,
     paramSweepRunning,
+    stopParamSweep,
+    runParamSweepNow,
     normCheck,
     pattern,
     abortInFlight,
