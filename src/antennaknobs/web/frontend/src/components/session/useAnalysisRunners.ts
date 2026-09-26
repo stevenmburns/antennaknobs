@@ -899,6 +899,7 @@ export function useAnalysisRunners({
           ? { feeds_z_im_extrap: acc.feeds_z_im_extrap.slice() }
           : {}),
         ...(acc.advisories ? { advisories: acc.advisories.slice() } : {}),
+        ...(acc.error ? { error: acc.error } : {}),
       });
     };
     try {
@@ -908,7 +909,21 @@ export function useAnalysisRunners({
         body: JSON.stringify(body),
         signal: controller.signal,
       });
-      if (!resp.ok || !resp.body) throw new Error(`param sweep failed: ${resp.status}`);
+      if (!resp.ok) {
+        // Admission speaks for itself (the hosted point cap's 413, the
+        // poor-match 403, a refused parameter's 422): show its detail.
+        let detail = `the server refused the sweep (${resp.status})`;
+        try {
+          const j = await resp.json();
+          if (j && typeof j.detail === "string") detail = j.detail;
+        } catch {
+          /* no JSON body: the status line above */
+        }
+        acc.error = detail;
+        publish();
+        return;
+      }
+      if (!resp.body) throw new Error(`param sweep failed: ${resp.status}`);
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";

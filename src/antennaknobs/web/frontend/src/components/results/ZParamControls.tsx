@@ -1,11 +1,12 @@
-import { KnobMenuNumber } from "../backend/fields";
 import {
-  clampPoints,
   DENSITY,
+  isDensity,
   MAX_POINTS,
   MIN_POINTS,
   type ParamSweepSpec,
+  pointsProblem,
 } from "../../lib/paramSweep";
+import { CommitNumber } from "./CommitNumber";
 import type { SchemaParamSpec } from "../../lib/params";
 
 // The Z-vs-parameter view's header (docs/design/z-vs-param-view.md): which
@@ -38,6 +39,10 @@ export function ZParamControls({
   values: readonly number[];
 }) {
   const set = (patch: Partial<ParamSweepSpec>) => onSpec({ ...spec, ...patch });
+  // The arrow keys step the range by a hundredth of its span, at a round
+  // magnitude (0.01 on 0.8…1.25, 1 on 8…68, 10 on 10…500).
+  const span = Math.abs(spec.hi - spec.lo) || Math.abs(spec.hi) || 1;
+  const rangeStep = 10 ** Math.floor(Math.log10(span / 10));
   return (
     <div className="zparam-overlay">
       <div className="zparam-controls" role="group" aria-label="Parameter sweep">
@@ -58,11 +63,11 @@ export function ZParamControls({
         </label>
         <label>
           <span>from</span>
-          <KnobMenuNumber value={spec.lo} onChange={(v) => set({ lo: v })} />
+          <CommitNumber label="from" value={spec.lo} step={rangeStep} onCommit={(v) => set({ lo: v })} />
         </label>
         <label>
           <span>to</span>
-          <KnobMenuNumber value={spec.hi} onChange={(v) => set({ hi: v })} />
+          <CommitNumber label="to" value={spec.hi} step={rangeStep} onCommit={(v) => set({ hi: v })} />
         </label>
         <label
           className="zparam-points"
@@ -71,10 +76,19 @@ export function ZParamControls({
           title={`${values.length} points (${MIN_POINTS}–${MAX_POINTS}): ${values.join(", ")}`}
         >
           <span>points</span>
-          <KnobMenuNumber
+          <CommitNumber
+            label="points"
             value={spec.points}
-            onChange={(v) => set({ points: clampPoints(v) })}
+            problem={pointsProblem}
+            onCommit={(v) => set({ points: v })}
           />
+          {/* A rounded integer ladder (density, an int knob) drops repeats,
+              so a big count over a narrow range solves fewer: say so. */}
+          {values.length !== spec.points && (
+            <span className="zparam-actual">
+              → {values.length} {isDensity(spec.param) ? "rungs" : "points"}
+            </span>
+          )}
         </label>
         <label
           className="zparam-log"

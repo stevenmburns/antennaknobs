@@ -2578,6 +2578,13 @@ function DesignSessionBody({
           {v === "zparam" && paramSweep?.param === zparamSpec.param && (
             <SweepAdvisoryOverlay advisories={paramSweep.advisories} />
           )}
+          {v === "zparam" && paramSweep?.error && (
+            // The server's refusal (the hosted point cap, the poor-match
+            // gate), in its own words: the header does not clamp to it.
+            <div className="sweep-advisory-overlay zparam-refusal" role="alert">
+              {paramSweep.error}
+            </div>
+          )}
           {(v === "smith" || v === "vswr" || v === "gamma") && (
             <SweepAdvisoryOverlay
               advisories={

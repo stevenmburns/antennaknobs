@@ -112,7 +112,11 @@ export function ZParamChart({
   const shownHover = hover != null && hover >= 0 && hover < n ? hover : null;
   const keyOf = (dd: { lo: number; hi: number }) => `${dd.lo},${dd.hi}`;
   const domKey = `${keyOf(dom)}|${keyOf(rDom)}|${keyOf(xDom)}|${logX}`;
-  const status = running
+  // The refusal's own words are a note over the stage (they do not fit a
+  // canvas line); the chart says only that there is one.
+  const status = d?.error
+    ? "sweep refused — see the note"
+    : running
     ? `sweeping ${label} ${n}/${total}…`
     : n === 0
       ? `no sweep yet — ${label}`
@@ -403,6 +407,7 @@ export function ZParamChart({
         }
         data-hover={shownHover ?? ""}
         data-status={status ?? ""}
+        data-error={d?.error ?? ""}
         onPointerMove={onPointerMove}
         // A tap on a phone reads the nearest point too.
         onPointerDown={onPointerMove}

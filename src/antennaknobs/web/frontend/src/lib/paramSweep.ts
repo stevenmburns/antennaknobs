@@ -16,7 +16,12 @@ export const DENSITY = "n_per_wire";
 export const DENSITY_LADDER: readonly number[] = [8, 12, 17, 24, 34, 48, 68];
 
 export const MIN_POINTS = 2;
-export const MAX_POINTS = 41;
+/** The header's cap. A local server admits any count (its cost model caps
+ *  only the hosted instance, at 500, and refuses there with a 413 the view
+ *  shows), so this is a UI bound on one edit, not the server's: 201 covers a
+ *  fine ladder over a decade or two without a typo queueing thousands of
+ *  solves. */
+export const MAX_POINTS = 201;
 /** A knob's default point count (linear). */
 export const KNOB_POINTS = 11;
 /** A knob without its own min/max sweeps this fraction either side. */
@@ -58,6 +63,10 @@ export type ParamSweepData = {
   feeds_z_im_extrap?: (number | null)[];
   /** The closing record's advisories (the gap-fed density warning). */
   advisories?: { category: string; text: string }[];
+  /** The server refused the sweep (a 413 over the hosted instance's point
+   *  cap, a 403 poor-match withhold, a 422): its own words, shown in the
+   *  view rather than the request being clamped quietly. */
+  error?: string;
 };
 
 export const isDensity = (param: string) => param === DENSITY;
@@ -106,6 +115,15 @@ export function sameSpec(a: ParamSweepSpec, b: ParamSweepSpec): boolean {
     a.points === b.points &&
     a.log === b.log
   );
+}
+
+/** Why a points count is refused, or null when it is fine: a whole number
+ *  in MIN_POINTS…MAX_POINTS. The header reverts a refused edit and shows
+ *  this. */
+export function pointsProblem(n: number): string | null {
+  return Number.isInteger(n) && n >= MIN_POINTS && n <= MAX_POINTS
+    ? null
+    : `${MIN_POINTS}–${MAX_POINTS}`;
 }
 
 export const clampPoints = (n: number) =>
