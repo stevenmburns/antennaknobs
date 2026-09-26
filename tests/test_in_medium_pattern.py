@@ -423,10 +423,15 @@ def test_buried_radial_vertical_moves_less_than_the_retired_note_allowed():
 
 @pytest.mark.antenna_computation_check
 def test_elevated_buried_counterpoise_is_served():
+    """The screen is detached and the radiator is driven against the elevated
+    radials, so the buried share of the moment is small: 3.5 % at the
+    defaults. The 0.1-0.3 band this pinned before 2026-09-25 (and its
+    -1.81 dBi peak) was measured on the deck with no return path, whose
+    radiator carried ~15 uA per volt."""
     eng = _engine("elevated_buried_counterpoise")
     ff = eng.far_field(n_theta=90, n_phi=360, del_theta=1, del_phi=1)
-    assert 0.1 < ff.in_medium_moment_fraction < 0.3
-    assert ff.max_gain == pytest.approx(-1.8077375863516376, abs=1e-6)
+    assert 0.02 < ff.in_medium_moment_fraction < 0.05
+    assert ff.max_gain == pytest.approx(-0.26095977200725007, abs=1e-6)
 
 
 @pytest.mark.antenna_computation_check
