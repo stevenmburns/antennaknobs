@@ -6,6 +6,8 @@ import {
   isDensity,
   nearestIndex,
   nudgeClear,
+  rangeWithRef,
+  refPlacement,
   type ParamSweepData,
   RX_AUTO,
   rxDomain,
@@ -55,6 +57,7 @@ export function ZParamChart({
   rAxis = RX_AUTO,
   xAxis = RX_AUTO,
   onAxisChange,
+  z0 = 50,
 }: {
   data: ParamSweepData | null;
   /** The parameter the view is set to sweep — the sweep in hand may still
@@ -78,6 +81,9 @@ export function ZParamChart({
   xAxis?: RxAxisChoice;
   /** Given, each y axis opens its range popover (stage only). */
   onAxisChange?: (axis: RxAxis, c: RxAxisChoice) => void;
+  /** The reference impedance (the design's Zo, or the session's override,
+   *  AK#1735): R = Z0 is the R axis's reference line. */
+  z0?: number;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -106,12 +112,18 @@ export function ZParamChart({
   const extrap = d && isDensity(d.param) ? { re: d.z_re_extrap, im: d.z_im_extrap } : null;
   const rDom = rxDomain(rAxis, extrap?.re != null ? [...rFit, extrap.re] : rFit);
   const xDom = rxDomain(xAxis, extrap?.im != null ? [...xFit, extrap.im] : xFit);
+  // The two lines that matter (Steve, 2026-09-26): R = Z0 and X = 0. Drawn
+  // where they fall, or marked at the edge they are past — never pulled into
+  // the auto range.
+  const rRef = refPlacement(z0, rDom);
+  const xRef = refPlacement(0, xDom);
+  const refAttr = (p: typeof rRef) => (p.at === "in" ? p.frac.toFixed(4) : p.at);
   const rT = rxTicks(rDom);
   const xT = rxTicks(xDom);
   const xTk = n > 0 ? xTicks(dom, logX) : [];
   const shownHover = hover != null && hover >= 0 && hover < n ? hover : null;
   const keyOf = (dd: { lo: number; hi: number }) => `${dd.lo},${dd.hi}`;
-  const domKey = `${keyOf(dom)}|${keyOf(rDom)}|${keyOf(xDom)}|${logX}`;
+  const domKey = `${keyOf(dom)}|${keyOf(rDom)}|${keyOf(xDom)}|${logX}|${z0}`;
   // The refusal's own words are a note over the stage (they do not fit a
   // canvas line); the chart says only that there is one.
   const status = d?.error
@@ -185,6 +197,50 @@ export function ZParamChart({
     ctx.strokeStyle = PC.axis;
     ctx.lineWidth = 1;
     ctx.strokeRect(MARGIN.l, MARGIN.t, pw, ph);
+
+    // Boxes (and off-scale reference markers) already drawn: a new one that would land on one is nudged
+    // vertically clear of it (toward whichever side has room), so the R and
+    // X boxes at a shared end never stack when the traces meet there.
+    const placed: { x: number; y: number; w: number; h: number }[] = [];
+
+    // The reference lines: R = Z0 in R's colour, X = 0 in X's, heavier and
+    // longer-dashed than the grid, labelled at their own axis's side. Past
+    // the range: a small arrow marker at that edge, labelled, on its side.
+    const refLine = (
+      p: typeof rRef,
+      label: string,
+      c: string,
+      side: "left" | "right",
+    ) => {
+      ctx.font = "9px ui-monospace, monospace";
+      const tw = ctx.measureText(label).width;
+      const lx = side === "left" ? MARGIN.l + 4 : MARGIN.l + pw - tw - 4;
+      if (p.at === "in") {
+        const y = MARGIN.t + ph * (1 - p.frac);
+        ctx.strokeStyle = c;
+        ctx.lineWidth = 1.3;
+        ctx.setLineDash([8, 4]);
+        ctx.beginPath();
+        ctx.moveTo(MARGIN.l, y);
+        ctx.lineTo(MARGIN.l + pw, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = c;
+        ctx.fillText(label, lx, y - 3);
+        return;
+      }
+      const up = p.at === "above";
+      const txt = `${label} ${up ? "↑" : "↓"}`;
+      const w = ctx.measureText(txt).width;
+      const mx = side === "left" ? MARGIN.l + 4 : MARGIN.l + pw - w - 4;
+      const my = up ? MARGIN.t + 10 : MARGIN.t + ph - 4;
+      ctx.fillStyle = c;
+      ctx.fillText(txt, mx, my);
+      // The value boxes steer clear of the marker.
+      placed.push({ x: mx - 2, y: my - 10, w: w + 4, h: 13 });
+    };
+    refLine(rRef, `Z0 = ${formatTick(Number(z0.toFixed(2)))} Ω`, R(0.95), "left");
+    refLine(xRef, "X = 0", X(0.95), "right");
 
     // Titles: "R Ω" over the left axis, "X Ω" over the right, the parameter
     // under the plot (with "(log)" when the axis is).
@@ -297,10 +353,6 @@ export function ZParamChart({
 
     // A value box: the parameter and one component, in that component's
     // colour, beside its point and kept inside the plot.
-    // Boxes already drawn: a new one that would land on one is nudged
-    // vertically clear of it (toward whichever side has room), so the R and
-    // X boxes at a shared end never stack when the traces meet there.
-    const placed: { x: number; y: number; w: number; h: number }[] = [];
     const box = (lines: string[], ax: number, ay: number, c: string, left: boolean) => {
       ctx.font = "9px ui-monospace, monospace";
       const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 8;
@@ -403,6 +455,9 @@ export function ZParamChart({
             ? formatParam(currentValue)
             : ""
         }
+        data-ref-r={refAttr(rRef)}
+        data-ref-x={refAttr(xRef)}
+        data-z0={z0}
         data-extrap={
           extrap && extrap.re != null && extrap.im != null
             ? `${extrap.re.toFixed(3)},${extrap.im.toFixed(3)}`
@@ -456,6 +511,19 @@ export function ZParamChart({
           title={axisTitle(menu.axis)}
           at={menu}
           side={menu.axis === "x" ? "left" : "right"}
+          preset={
+            menu.axis === "r"
+              ? {
+                  label: "take in Z0",
+                  title: `A range holding the trace and R = Z0 (${z0} Ω)`,
+                  choice: rangeWithRef(rs, z0),
+                }
+              : {
+                  label: "take in 0",
+                  title: "A range holding the trace and X = 0",
+                  choice: rangeWithRef(xsIm, 0),
+                }
+          }
           choice={axisChoice(menu.axis)}
           drawn={menu.axis === "r" ? rDom : xDom}
           onChoice={(c) => onAxisChange(menu.axis, c)}

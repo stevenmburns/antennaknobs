@@ -270,3 +270,49 @@ describe("value boxes never stack", () => {
     expect(nudgeClear(100, { x: 200, w: 80, h: 28 }, placed, 0, 400)).toBe(100);
   });
 });
+
+// Steve, 2026-09-26: the two lines that matter are R = Z0 and X = 0.
+describe("the reference lines", () => {
+  const SPANNING: ParamSweepData = {
+    ...KNOB_SWEEP,
+    z_re: [40, 50, 65],
+    z_im: [-20, 5, 30],
+  };
+  const knob = { param: "length_factor", label: "length factor", total: 3, currentValue: 1, xLog: false };
+
+  it("R = Z0 and X = 0 are drawn at their heights when inside the ranges", () => {
+    const c = mount({ data: SPANNING, ...knob, z0: 50 }).canvas();
+    const r = { lo: Number(c.dataset.rLo), hi: Number(c.dataset.rHi) };
+    const x = { lo: Number(c.dataset.xLo), hi: Number(c.dataset.xHi) };
+    expect(Number(c.dataset.refR)).toBeCloseTo((50 - r.lo) / (r.hi - r.lo), 3);
+    expect(Number(c.dataset.refX)).toBeCloseTo((0 - x.lo) / (x.hi - x.lo), 3);
+  });
+
+  it("out of range they become edge markers, and the auto ranges are not widened", () => {
+    const c = mount().canvas(); // R ≈ 70.7, X ≈ −10: Z0 = 50 below, 0 above
+    expect(c.dataset.refR).toBe("below");
+    expect(c.dataset.refX).toBe("above");
+    expect(Number(c.dataset.rLo)).toBeGreaterThan(70);
+    expect(Number(c.dataset.xHi)).toBeLessThan(0);
+  });
+
+  it("R's line follows Z0", () => {
+    const at50 = Number(mount({ data: SPANNING, ...knob, z0: 50 }).canvas().dataset.refR);
+    const c75 = mount({ data: SPANNING, ...knob, z0: 75 }).canvas();
+    expect(c75.dataset.z0).toBe("75");
+    expect(c75.dataset.refR).toBe("above");
+    expect(at50).toBeGreaterThan(0);
+  });
+
+  it("the R popover's preset takes in Z0", async () => {
+    const user = userEvent.setup();
+    const onAxisChange = vi.fn();
+    mount({ onAxisChange, z0: 50 });
+    await user.click(screen.getByRole("button", { name: "R range" }));
+    await user.click(screen.getByRole("button", { name: "take in Z0" }));
+    const [, c] = onAxisChange.mock.calls.at(-1)!;
+    expect(c.kind).toBe("fixed");
+    expect(c.lo).toBeLessThan(50);
+    expect(c.hi).toBeGreaterThan(70.78);
+  });
+});
