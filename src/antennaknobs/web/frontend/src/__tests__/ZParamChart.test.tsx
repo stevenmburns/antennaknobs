@@ -5,6 +5,8 @@ import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ZParamChart } from "../components/charts/ZParamChart";
+import { nudgeClear } from "../lib/paramSweep";
+import { SweepChart } from "../components/charts/SweepChart";
 import type { ParamSweepData } from "../lib/paramSweep";
 
 HTMLCanvasElement.prototype.getContext =
@@ -179,5 +181,92 @@ describe("the chart's controls", () => {
     });
     const btn = screen.getByRole("button", { name: "lin x" }) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
+  });
+});
+
+// Steve, 2026-09-26: at 125 % zoom the X axis's popover opened mostly off
+// screen. A narrow viewport and a click at the right-hand axis: the box must
+// land wholly inside the viewport.
+describe("the range popovers stay inside the viewport", () => {
+  const W = 360;
+  const H = 600;
+  const BOX = { width: 220, height: 150 };
+  function narrow() {
+    vi.stubGlobal("innerWidth", W);
+    vi.stubGlobal("innerHeight", H);
+    // jsdom lays nothing out: every element measures as the popover would.
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const left = parseFloat(this.style.left) || 0;
+      const top = parseFloat(this.style.top) || 0;
+      return {
+        left, top, x: left, y: top, width: BOX.width, height: BOX.height,
+        right: left + BOX.width, bottom: top + BOX.height, toJSON: () => ({}),
+      } as DOMRect;
+    });
+  }
+  const inside = (el: HTMLElement) => {
+    const left = parseFloat(el.style.left);
+    const top = parseFloat(el.style.top);
+    expect(left).toBeGreaterThanOrEqual(0);
+    expect(left + BOX.width).toBeLessThanOrEqual(W);
+    expect(top).toBeGreaterThanOrEqual(0);
+    expect(top + BOX.height).toBeLessThanOrEqual(H);
+  };
+
+  it("the X (right) axis popover, clicked at the viewport's right edge", () => {
+    narrow();
+    mount({ onAxisChange: vi.fn() });
+    fireEvent.click(screen.getByRole("button", { name: "X range" }), { clientX: W - 4, clientY: H - 20 });
+    inside(screen.getByRole("dialog", { name: "X range" }));
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("the R (left) axis popover, in a window narrower than the box's reach", () => {
+    narrow();
+    mount({ onAxisChange: vi.fn() });
+    fireEvent.click(screen.getByRole("button", { name: "R range" }), { clientX: W - 100, clientY: 10 });
+    inside(screen.getByRole("dialog", { name: "R range" }));
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("the VSWR chart's popover (#1738) shares the placement", () => {
+    narrow();
+    render(
+      <SweepChart
+        mode="vswr"
+        r={50}
+        x={0}
+        z0={50}
+        size={300}
+        sweep={null}
+        measFreqMhz={14}
+        running={false}
+        multiFeed={false}
+        onAxisChange={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "VSWR range and SWR threshold" }), {
+      clientX: W - 4,
+      clientY: H - 4,
+    });
+    inside(screen.getByRole("dialog", { name: "VSWR range" }));
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("value boxes never stack", () => {
+  it("a box landing on a placed one moves below it, or above when below has no room", () => {
+    const placed = [{ x: 10, y: 100, w: 80, h: 28 }];
+    expect(nudgeClear(105, { x: 20, w: 80, h: 28 }, placed, 0, 400)).toBe(130);
+    // No room below: above instead.
+    expect(nudgeClear(105, { x: 20, w: 80, h: 28 }, placed, 0, 110)).toBe(70);
+    // Clear already, or side by side: unchanged.
+    expect(nudgeClear(200, { x: 20, w: 80, h: 28 }, placed, 0, 400)).toBe(200);
+    expect(nudgeClear(100, { x: 200, w: 80, h: 28 }, placed, 0, 400)).toBe(100);
   });
 });

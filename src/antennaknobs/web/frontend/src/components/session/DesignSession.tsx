@@ -115,6 +115,12 @@ import {
   sweepableKnobs,
 } from "../../lib/paramSweep";
 import { ZParamControls } from "../results/ZParamControls";
+
+// The Z-vs-parameter header's height on a phone (two wrapped rows plus its
+// margin), which the chart below it gives up.
+const ZPARAM_MOBILE_HEADER_PX = 96;
+// ...and on a desktop stage, where it is one row floating at the top.
+const ZPARAM_DESKTOP_HEADER_PX = 48;
 import { useCapabilities } from "./useCapabilities";
 import {
   saveSettings,
@@ -2627,7 +2633,16 @@ function DesignSessionBody({
           )}
           <ViewPanel
             view={v}
-            size={size}
+            // The Z-vs-parameter header floats over the stage's top edge; on
+            // a desktop the chart gives up room so the centred square clears
+            // it — twice its height, but never more than a tenth of the
+            // chart, so a narrow stage keeps a readable chart (a phone
+            // stacks the header instead, sized at the carousel's call site).
+            size={
+              v === "zparam" && !isMobile
+                ? size - Math.round(Math.min(2 * ZPARAM_DESKTOP_HEADER_PX, 0.1 * size))
+                : size
+            }
             fill={fill}
             result={shownResult}
             // An optimizer run never touches the knobs until it finishes, so
@@ -2736,7 +2751,14 @@ function DesignSessionBody({
                     </div>
                   </>
                 ) : (
-                  renderOutput(s.id as View, mobChartSize, fillsStage(s.id as View))
+                  renderOutput(
+                    s.id as View,
+                    // The Z-vs-parameter view stacks its header above the
+                    // chart on a phone: the chart gives up the header's
+                    // height so the pair fits the screen.
+                    s.id === "zparam" ? Math.max(160, mobChartSize - ZPARAM_MOBILE_HEADER_PX) : mobChartSize,
+                    fillsStage(s.id as View),
+                  )
                 )}
               </div>
             ))}
