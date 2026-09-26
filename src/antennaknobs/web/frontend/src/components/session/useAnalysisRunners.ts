@@ -402,6 +402,13 @@ export function useAnalysisRunners({
   // partial points stay and nothing re-solves until a parameter changes (a
   // new signature) or the user presses Run.
   const paramSweepStoppedRef = useRef<string | null>(null);
+  // A knob sweep runs only when asked (ParamSweepRequest.auto). The request
+  // it was asked for — its signature — is "armed", and only an armed knob
+  // sweep runs; `armNext` arms whatever request the next effect run sees
+  // (a header edit or "Sweep this knob…" changes the spec, so its signature
+  // is not known until the next render).
+  const paramSweepArmedRef = useRef<string | null>(null);
+  const paramSweepArmNextRef = useRef(false);
   const normCheckTimerRef = useRef<number | null>(null);
   const normCheckAbortRef = useRef<AbortController | null>(null);
 
@@ -538,9 +545,32 @@ export function useAnalysisRunners({
     // Stopped at exactly this request: keep the partial sweep, run nothing.
     if (paramSweepStoppedRef.current === paramSweepSig) return;
     paramSweepStoppedRef.current = null;
+    const wasRunning = paramSweepAbortRef.current !== null || paramSweepTimerRef.current !== null;
     paramSweepAbortRef.current?.abort();
     if (paramSweepTimerRef.current) {
       window.clearTimeout(paramSweepTimerRef.current);
+      paramSweepTimerRef.current = null;
+    }
+    // Arming (a knob sweep only): the user's ask arms this request; leaving
+    // everything that draws the sweep disarms, so coming back to the view
+    // does not start it again.
+    if (paramSweepArmNextRef.current && paramSweepWanted) {
+      paramSweepArmedRef.current = paramSweepSig;
+    }
+    paramSweepArmNextRef.current = false;
+    if (!paramSweepWanted) paramSweepArmedRef.current = null;
+    if (paramSweepReq.auto === false && paramSweepArmedRef.current !== paramSweepSig) {
+      // A knob sweep nobody asked for at these inputs: run nothing. One
+      // already drawn for this knob stays, dimmed as stale ("re-run?");
+      // any other is cleared.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setParamSweep((d) =>
+        d && d.param === paramSweepReq.param
+          ? { ...d, stale: true, ...(wasRunning ? { partial: true } : {}) }
+          : null,
+      );
+      setParamSweepRunning(false);
+      return;
     }
     // Cancel-then-blank is the contract (#692/#715): the overlay must go blank
     // the instant its inputs change, or a stale curve reads as current while
@@ -1094,9 +1124,16 @@ export function useAnalysisRunners({
   // it. Still behind the poor-match gate (runParamSweep checks it).
   function runParamSweepNow() {
     paramSweepStoppedRef.current = null;
+    paramSweepArmedRef.current = paramSweepSig;
     if (paramSweepTimerRef.current) window.clearTimeout(paramSweepTimerRef.current);
     setParamSweep(null);
     void runParamSweep();
+  }
+
+  // Arm the next request the effect sees (a header edit, "Sweep this
+  // knob…"): the user asked for that sweep, so it runs even as a knob sweep.
+  function armParamSweep() {
+    paramSweepArmNextRef.current = true;
   }
 
   function abortInFlight() {
@@ -1136,6 +1173,7 @@ export function useAnalysisRunners({
     paramSweepRunning,
     stopParamSweep,
     runParamSweepNow,
+    armParamSweep,
     normCheck,
     pattern,
     abortInFlight,

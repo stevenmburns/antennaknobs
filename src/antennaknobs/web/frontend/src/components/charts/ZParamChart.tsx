@@ -128,6 +128,8 @@ export function ZParamChart({
   // canvas line); the chart says only that there is one.
   const status = d?.error
     ? "sweep refused — see the note"
+    : d?.stale
+    ? "stale — the design changed; re-run?"
     : d?.partial
     ? `stopped at ${n}/${total} — partial`
     : running
@@ -310,8 +312,11 @@ export function ZParamChart({
         ctx.stroke();
       });
     };
-    trace(rs, rDom, R());
-    trace(xsIm, xDom, X());
+    // A stale knob sweep (its inputs changed, and it waits to be asked):
+    // the old trace, dimmed.
+    const dim = d?.stale ? 0.35 : 1;
+    trace(rs, rDom, R(dim));
+    trace(xsIm, xDom, X(dim));
 
     // The current value: a dashed guide, and the live solve's R and X on it.
     if (currentValue != null && currentValue >= dom.lo && currentValue <= dom.hi) {
@@ -467,6 +472,7 @@ export function ZParamChart({
         data-status={status ?? ""}
         data-error={d?.error ?? ""}
         data-partial={d?.partial ? "1" : "0"}
+        data-stale={d?.stale ? "1" : "0"}
         onPointerMove={onPointerMove}
         // A tap on a phone reads the nearest point too.
         onPointerDown={onPointerMove}

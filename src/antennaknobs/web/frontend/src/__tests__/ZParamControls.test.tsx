@@ -33,6 +33,7 @@ function Harness({
         running: false,
         received: 0,
         partial: false,
+        stale: false,
         done: false,
         onStop: () => {},
         onRun: () => {},

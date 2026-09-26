@@ -44,6 +44,9 @@ export function ZParamControls({
     running: boolean;
     received: number;
     partial: boolean;
+    /** Drawn for inputs that have since changed (a knob sweep, which does
+     *  not re-run by itself): the button asks "re-run?". */
+    stale: boolean;
     done: boolean;
     onStop: () => void;
     onRun: () => void;
@@ -125,6 +128,15 @@ export function ZParamControls({
             onClick={run.onStop}
           >
             {run.received}/{values.length} · stop
+          </button>
+        ) : run.stale ? (
+          <button
+            type="button"
+            className="zparam-run is-stale"
+            title="The design changed since this sweep ran; a knob sweep re-runs only when asked"
+            onClick={run.onRun}
+          >
+            run · re-run?
           </button>
         ) : run.done ? (
           <span className="zparam-run-done" title="The sweep has finished">

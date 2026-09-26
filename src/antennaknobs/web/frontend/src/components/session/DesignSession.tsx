@@ -848,6 +848,19 @@ function DesignSessionBody({
     r: RX_AUTO,
     x: RX_AUTO,
   });
+  // A design switch (another example, variant or user design — not a knob
+  // change, not a reload of the same design) starts the view over: density,
+  // Auto ranges, the x axis following the spacing. Steve (2026-09-26): a
+  // length_factor sweep must not follow him onto the next design. State
+  // adjusted during render, React's pattern for state derived from a prop.
+  const zparamDesignKey = `${geometry}::${currentVariant}`;
+  const [zparamDesignFor, setZparamDesignFor] = useState(zparamDesignKey);
+  if (zparamDesignFor !== zparamDesignKey) {
+    setZparamDesignFor(zparamDesignKey);
+    setZparamSpec(DEFAULT_DENSITY_SPEC);
+    setZparamXLog(null);
+    setZparamAxes({ r: RX_AUTO, x: RX_AUTO });
+  }
   // Adaptive resolution (issue #744): dwell-triggered display-space
   // refinement of the sweep and cut plots. Persisted, unlike the overlay
   // checkboxes above: turning it off is a per-machine capacity decision
@@ -2007,6 +2020,9 @@ function DesignSessionBody({
     param: zparamSpec.param,
     values: zparamValues,
     label: zparamLabel,
+    // Density runs by itself, as the old convergence sweep did; a knob sweep
+    // only when asked (Run, "Sweep this knob…", an edit to its own range).
+    auto: zparamIsDensity,
   };
   const zparamCurrentRaw = zparamIsDensity ? nPerWire : currentValues[zparamSpec.param];
   const zparamCurrent = typeof zparamCurrentRaw === "number" ? zparamCurrentRaw : null;
@@ -2025,8 +2041,15 @@ function DesignSessionBody({
   // The knob menu's "Sweep this knob": that knob, its default range, and the
   // view on the stage (a peek when it is not pinned).
   const sweepKnob = (param: string) => {
-    selectZparamParam(param);
+    const next = zparamDefaultFor(param);
     setKnobMenu(null);
+    if (sameSpec(next, zparamSpec) && paramViewResident) {
+      // Already this sweep on screen: nothing will change to arm, so run it.
+      runParamSweepNow();
+    } else {
+      armParamSweep();
+      selectZparamParam(param);
+    }
     setView("zparam");
   };
   const zparamSettings = {
@@ -2070,6 +2093,7 @@ function DesignSessionBody({
     paramSweepRunning,
     stopParamSweep,
     runParamSweepNow,
+    armParamSweep,
     normCheck,
     pattern,
     abortInFlight,
@@ -2575,9 +2599,17 @@ function DesignSessionBody({
               spec={zparamSpec}
               knobs={zparamKnobs}
               densityLabel="density (N per λ/4)"
-              onSpec={setZparamSpec}
+              // An edit to the sweep's own range is asking for it: arm it.
+              // Picking another parameter is not (a knob sweep waits for Run).
+              onSpec={(next) => {
+                armParamSweep();
+                setZparamSpec(next);
+              }}
               onParam={selectZparamParam}
-              onReset={() => selectZparamParam(zparamSpec.param)}
+              onReset={() => {
+                armParamSweep();
+                selectZparamParam(zparamSpec.param);
+              }}
               isDefault={sameSpec(zparamSpec, zparamDefaultFor(zparamSpec.param))}
               values={zparamValues}
               run={{
@@ -2585,10 +2617,12 @@ function DesignSessionBody({
                 received:
                   paramSweep?.param === zparamSpec.param ? paramSweep.values.length : 0,
                 partial: !!paramSweep?.partial,
+                stale: !!paramSweep?.stale && paramSweep.param === zparamSpec.param,
                 done:
                   !paramSweepRunning &&
                   !!paramSweep &&
                   !paramSweep.partial &&
+                  !paramSweep.stale &&
                   !paramSweep.error &&
                   paramSweep.param === zparamSpec.param &&
                   paramSweep.values.length > 0,

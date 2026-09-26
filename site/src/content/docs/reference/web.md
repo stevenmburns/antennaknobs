@@ -1179,12 +1179,24 @@ The header at the top of the view picks what to sweep:
 Right-click a knob and pick **Sweep this knob…** to jump straight here with
 that knob over its range.
 
+**Only density runs by itself.** A density sweep starts whenever the view is
+on screen and re-runs whenever the design changes, as the convergence sweep
+always has. A **knob sweep runs only when you ask**: **Sweep this knob…**,
+the header's **run**, or an edit to its own from, to, points or spacing.
+Picking a knob in the **sweep** list, reloading the design, or coming back
+to the view does not start one. When anything else changes after a knob sweep
+has run (another knob, the engine, the ground), its curve stays, dimmed as
+stale, and the button offers **run · re-run?**. Switching to another design
+or variant puts the view back on density, with both axes on Auto. While a
+sweep runs, the button shows its progress and stops it; the points so far
+stay, marked partial.
+
 On the chart:
 
 - A **dashed guide** marks the knob's current value, with the live solve's
   R and X on it. Turning the swept knob slides the guide along the curve; it
   does not re-run the sweep, since every point sets that knob itself. Any
-  *other* knob, the engine, the ground or the frequency does re-run it.
+  *other* change re-runs a density sweep, and marks a knob sweep stale.
 - **Hover** (or tap) reads the nearest point: its value, R and X.
 - Click the **R** or **X** axis for its range: **Auto** fits that trace, or
   type a min and max — for instance, to put two engines' charts on the same
