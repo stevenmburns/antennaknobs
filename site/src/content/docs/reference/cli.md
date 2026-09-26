@@ -120,8 +120,9 @@ options shape it the way SimNEC's charts are drawn:
   20` over a segment-count knob solves only whole counts.
 - `--r-range LO HI` and `--x-range LO HI` pin the R and X axes, for example
   to put two charts on the same scale.
-- `--callouts` labels R and X with their values at the first and last
-  points, and at every `--markers` point.
+- `--callouts` labels R and X with their values: `--callouts` alone (or
+  `--callouts ends`) at the first and last points, `--callouts markers` also
+  at every `--markers` point, `--callouts all` at every point.
 - `--panels`, with several `--engine` specs, draws one twin-axis panel per
   engine side by side, instead of one chart coloured by engine. Without it,
   the multi-engine chart is unchanged, and the three options above refuse by
@@ -424,6 +425,14 @@ chart. Beside a ladder they are observations on the trajectory, not rungs
 of the Richardson estimate; given alone, with neither `--range` nor
 `--npoints`, they are the whole ladder: `--markers 15 16 20` solves just
 those three.
+A ladder given that way is ordinary rungs, not observations: no squares,
+and `--callouts` labels only its two ends.
+
+For a geometric ladder, prefer `--range LO HI --npoints N --log` to listing
+the rungs as `--markers`: the rungs are spaced by a fixed ratio and rounded
+to integers, which is what SimNEC's `logStep` sweep does (`--log` is implied
+for `nominal_nsegs`, and accepted so the same line works for any integer
+knob). Keep `--markers` for the few densities you want to see beside it.
 
 The table is grouped one block per engine:
 

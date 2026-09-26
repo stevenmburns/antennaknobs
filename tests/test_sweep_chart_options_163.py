@@ -126,7 +126,7 @@ def test_single_engine_log_ranges_and_callouts(capture):
     assert all(float(x).is_integer() for x in xs)
 
 
-def test_markers_get_callouts_too(capture):
+def test_markers_get_callouts_in_markers_mode(capture):
     sw.sweep(
         _Builder(),
         "length",
@@ -134,7 +134,7 @@ def test_markers_get_callouts_too(capture):
         npoints=3,
         markers=[4.5],
         engine=_stub_engine(),
-        callouts=True,
+        callouts="markers",
     )
     ax_r, ax_x = capture["fig"].axes
     labels = [t.get_text().split("\n")[0] for t in ax_r.texts]
@@ -198,6 +198,60 @@ def test_convergence_chart_is_twin_axis_per_engine(capture, monkeypatch, capsys)
         assert ax_x.get_ylim() == (-2.0, 0.5)
         texts = [t.get_text().split("\n")[0] for t in ax_r.texts]
         assert texts == ["N=21", "N=1001"]
+
+
+def test_bare_callouts_label_only_the_ends_and_all_labels_every_point(capture):
+    kw = dict(rng=(4, 6), npoints=5, markers=[4.5], engine=_stub_engine())
+    sw.sweep(_Builder(), "length", callouts=True, **kw)
+    assert len(capture["fig"].axes[0].texts) == 2
+    sw.sweep(_Builder(), "length", callouts="all", **kw)
+    # every sweep point, plus the marker
+    assert len(capture["fig"].axes[0].texts) == 6
+
+
+@pytest.mark.parametrize("mode", [True, "markers"])
+def test_markers_that_are_the_ladder_get_only_end_callouts(
+    capture, monkeypatch, capsys, mode
+):
+    """Steve's geometric ladders are `--markers` given alone: then they ARE
+    the rungs, and a 20-rung study must not get 20 value boxes."""
+    monkeypatch.setattr(sw, "_achieved_n", lambda eng, b: 2 * b.nominal_nsegs + 1)
+    ladder = [int(round(x)) for x in np.geomspace(10, 500, 20)]
+    engines = {"a": _stub_engine(), "b": _stub_engine(offset=1.0)}
+    # npoints=None: as the CLI passes it when --npoints is not given.
+    sw.sweep(
+        _Builder(),
+        "nominal_nsegs",
+        npoints=None,
+        markers=ladder,
+        engine=engines,
+        callouts=mode,
+    )
+    capsys.readouterr()
+    axes = capture["fig"].axes
+    assert len(axes) == 4
+    for ax in axes:
+        assert len(ax.texts) == 2
+    assert [t.get_text().split("\n")[0] for t in axes[0].texts] == ["N=21", "N=1001"]
+
+
+@pytest.mark.parametrize(
+    "flags,expected",
+    [("", None), ("--callouts", "ends"), ("--callouts all", "all")],
+)
+def test_cli_callouts_flag_values(monkeypatch, flags, expected):
+    cli_mod = sys.modules["antennaknobs.cli"]
+    seen = {}
+    monkeypatch.setattr(cli_mod, "sweep", lambda *a, **kw: seen.update(kw))
+    ant.cli(
+        f"sweep --builder dipoles.invvee:dipole --param length_factor {flags}".split()
+    )
+    assert seen["callouts"] == expected
+
+
+def test_cli_callouts_refuses_an_unknown_mode():
+    with pytest.raises(SystemExit):
+        ant.cli("sweep --param length_factor --callouts some".split())
 
 
 # --- CLI: refusals ---------------------------------------------------------
