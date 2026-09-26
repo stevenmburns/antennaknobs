@@ -54,9 +54,9 @@ beforeEach(() => {
       return streamResponse(
         JSON.stringify({ freq_mhz: 28.47, z_re: 44, z_im: -4 }),
       );
-    if (url === "/converge")
+    if (url === "/param_sweep")
       return streamResponse(
-        JSON.stringify({ n_per_wire: 8, z_re: 44, z_im: -4 }),
+        JSON.stringify({ param: "n_per_wire", value: 8, z_re: 44, z_im: -4 }),
       );
     if (url === "/norm_check")
       return Promise.resolve({
@@ -152,7 +152,7 @@ describe("view residency gating (issue #715)", () => {
     });
     await settle();
     expect(countFor("/sweep")).toBe(0);
-    expect(countFor("/converge")).toBe(0);
+    expect(countFor("/param_sweep")).toBe(0);
     expect(countFor("/pattern")).toBe(0);
     // The norm check has no residency gate: the HUD renders it everywhere.
     expect(countFor("/norm_check")).toBe(1);
@@ -209,7 +209,7 @@ describe("view residency gating (issue #715)", () => {
     );
     return settle().then(() => {
       expect(countFor("/sweep")).toBe(0);
-      expect(countFor("/converge")).toBe(0);
+      expect(countFor("/param_sweep")).toBe(0);
     });
   });
 
@@ -221,7 +221,7 @@ describe("view residency gating (issue #715)", () => {
     });
     await settle();
     expect(countFor("/sweep")).toBe(1);
-    expect(countFor("/converge")).toBe(0);
+    expect(countFor("/param_sweep")).toBe(0);
     expect(countFor("/pattern")).toBe(1);
   });
 });

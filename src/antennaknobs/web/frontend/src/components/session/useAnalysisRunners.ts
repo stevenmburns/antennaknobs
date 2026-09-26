@@ -5,14 +5,20 @@ import {
   type MutableRefObject,
 } from "react";
 import type {
-  ConvergeData,
   NormCheckData,
   SolveRequest,
   SweepData,
 } from "../../lib/api";
 import { type BackendEntry } from "../../lib/backends";
 import { type GroundModel } from "../../lib/ground";
-import { feedwiseRichardson, richardsonExtrap } from "../../lib/math";
+import {
+  DENSITY,
+  DENSITY_LADDER,
+  paramFeedRichardson,
+  paramRichardson,
+  type ParamSweepData,
+  type ParamSweepRequest,
+} from "../../lib/paramSweep";
 import { type BandSpec, type ExampleDescriptor } from "../../lib/params";
 import {
   ALL_SWEEP_PROJECTIONS,
@@ -38,13 +44,6 @@ import {
 import type { PatternData } from "../charts/types";
 import type { Advisory } from "../results/SolverAdvisories";
 
-// Log-spaced segments-per-wire ladder for the convergence sweep. Hentenna's
-// 8N+2 total segments at N=68 puts the dense LU at a ~550-cell matrix —
-// still snappy at this N range on all backends, but enough span to see
-// O(1/N) trajectories clearly. Same ladder across backends so the curves
-// are directly comparable when the user switches slots.
-export const CONVERGE_N_VALUES: number[] = [8, 12, 17, 24, 34, 48, 68];
-
 // Deliberate physics non-deps (issue #692), mirroring the server's
 // _CACHE_KEY_BLOCKLIST (web/server.py) — the same idea at the other end of
 // the wire. Cut angles are attached per-request AFTER the solve (POST /cuts,
@@ -57,7 +56,7 @@ export const CONVERGE_N_VALUES: number[] = [8, 12, 17, 24, 34, 48, 68];
 // re-solves (the charts take the reference as a prop, below).
 const DISPLAY_ONLY_EXEMPT = ["az_elev_deg", "elev_az_deg", "z0_ohms"] as const;
 
-// The freq sweep and convergence sweep are impedance-only, and every terrain
+// The freq sweep and the parameter sweep are impedance-only, and every terrain
 // preset shares the crest medium the impedance solve uses — so the terrain
 // knobs are additionally exempt for those two. NOT for the norm check, whose
 // pattern integral runs over the facets.
@@ -72,7 +71,7 @@ const IMPEDANCE_ANALYSIS_EXEMPT = [...DISPLAY_ONLY_EXEMPT, "terrain"] as const;
 // follows the dial (a sweep_policy anchored on meas_freq), the band's own
 // edges arrive through sweepRangeKey and re-sweep as before; a design that
 // links a knob to the dial (link_meas_freq_to_param) changes that knob, which
-// the signature sees. The convergence sweep solves AT the measurement
+// the signature sees. The parameter sweep solves AT the measurement
 // frequency, so it keeps the field.
 const FREQ_SWEEP_EXEMPT = [...IMPEDANCE_ANALYSIS_EXEMPT, "measurement_freq_mhz"] as const;
 
@@ -164,8 +163,16 @@ async function streamSweep(
   return snapshot();
 }
 
+// The parameter sweep a caller that names none runs: the density ladder of
+// the old convergence sweep (lib/paramSweep.ts DENSITY_LADDER).
+const DENSITY_SWEEP: ParamSweepRequest = {
+  param: DENSITY,
+  values: [...DENSITY_LADDER],
+  label: "N",
+};
+
 // The four background analyses that shadow the live solve — the freq sweep,
-// the segments-per-wire convergence sweep, the far-field norm check and the
+// the parameter sweep (density or a knob), the far-field norm check and the
 // NEC rp_card pattern — with their debounce effects, timer/abort refs and
 // streaming runners (#642 seam 5b-3).
 //
@@ -196,6 +203,8 @@ export function useAnalysisRunners({
   necOverlayEnabled,
   sweepResident,
   convergeResident,
+  paramViewResident = false,
+  paramSweep: paramSweepReq = DENSITY_SWEEP,
   patternResident,
   autoSim,
   active,
@@ -240,7 +249,17 @@ export function useAnalysisRunners({
    *  readout, resident in every layout (see docs/plan-view-residency-
    *  gating.md). */
   sweepResident: boolean;
+  /** The Smith chart is resident: with `convergeEnabled` (the old
+   *  "convergence sweep" switch) it draws the parameter sweep's trail. */
   convergeResident: boolean;
+  /** The Z-vs-parameter view is resident (docs/design/z-vs-param-view.md):
+   *  the parameter sweep runs for it whatever the switch says. Optional so a
+   *  caller that predates the view keeps the switch-only behaviour. */
+  paramViewResident?: boolean;
+  /** What the parameter sweep sweeps: the parameter, its values and its
+   *  display name. Omitted, it is the density ladder the old convergence
+   *  sweep ran. */
+  paramSweep?: ParamSweepRequest;
   patternResident: boolean;
   autoSim: boolean;
   active: boolean;
@@ -301,7 +320,15 @@ export function useAnalysisRunners({
   // NEW field someone adds next month — invalidates by default; the
   // exemption lists at the top of this module are the only opt-outs.
   const req = buildRequest();
-  const impedanceSig = solveSignature(req, { exempt: IMPEDANCE_ANALYSIS_EXEMPT });
+  // The parameter sweep overrides its own parameter at every point, so the
+  // request's value of it changes no point: dragging the swept knob (or the
+  // slot's density, for a density sweep) moves the chart's current-value
+  // guide and re-solves nothing (the #1755 lesson). The ladder itself is
+  // part of the key: a new range is a new sweep.
+  const paramSweepSig =
+    solveSignature(req, {
+      exempt: [...IMPEDANCE_ANALYSIS_EXEMPT, paramSweepReq.param],
+    }) + JSON.stringify([paramSweepReq.param, paramSweepReq.values]);
   const freqSweepSig = solveSignature(req, { exempt: FREQ_SWEEP_EXEMPT });
   const solveSig = solveSignature(req, { exempt: DISPLAY_ONLY_EXEMPT });
 
@@ -329,8 +356,8 @@ export function useAnalysisRunners({
   // inside it. Cleared with the sweep, so a stale note never outlives the
   // curve it was about.
   const [sweepAdvisories, setSweepAdvisories] = useState<Advisory[]>([]);
-  const [converge, setConverge] = useState<ConvergeData | null>(null);
-  const [convergeRunning, setConvergeRunning] = useState(false);
+  const [paramSweep, setParamSweep] = useState<ParamSweepData | null>(null);
+  const [paramSweepRunning, setParamSweepRunning] = useState(false);
   const [normCheck, setNormCheck] = useState<NormCheckData | null>(null);
   // NEC's rp_card pattern, fetched on a debounce so we don't fire one per
   // slider tick. Overlaid on the cuts as a comparison line.
@@ -368,13 +395,13 @@ export function useAnalysisRunners({
   swrThresholdRef.current = swrThreshold;
   const patternTimerRef = useRef<number | null>(null);
   const patternAbortRef = useRef<AbortController | null>(null);
-  const convergeTimerRef = useRef<number | null>(null);
-  const convergeAbortRef = useRef<AbortController | null>(null);
+  const paramSweepTimerRef = useRef<number | null>(null);
+  const paramSweepAbortRef = useRef<AbortController | null>(null);
   const normCheckTimerRef = useRef<number | null>(null);
   const normCheckAbortRef = useRef<AbortController | null>(null);
 
   // Debounced sweep across measurement freq. Re-runs whenever the solve
-  // request changes (impedanceSig) or the freq planning inputs move.
+  // request changes (freqSweepSig) or the freq planning inputs move.
   useEffect(() => {
     // Cancel any in-flight sweep fetch immediately. Without this the
     // previous sweep keeps streaming for hundreds of ms (PyNEC ground at
@@ -495,51 +522,52 @@ export function useAnalysisRunners({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [residentSweepKey, refineEnabled]);
 
-  // Debounced convergence sweep over segments-per-wire. Independent of the
-  // freq sweep above: re-runs on any antenna/backend change, gated by its
-  // own overlay checkbox. The active slot's `nPerWire` is *overridden* by
-  // the ladder values for the duration of the sweep — the per-slot opts
-  // stay untouched, so the live /ws solve keeps using the user's setting.
+  // Debounced parameter sweep (docs/design/z-vs-param-view.md): Z against
+  // the density or one design knob, on the active slot's engine. It runs for
+  // the Z-vs-parameter view, or for the Smith chart's trail when the old
+  // "convergence sweep" switch is on — one runner, one result, whichever of
+  // the two asks. The swept field is overridden per point on the server; the
+  // slot's own value stays what the live /ws solve uses.
+  const paramSweepWanted = (convergeEnabled && convergeResident) || paramViewResident;
   useEffect(() => {
-    convergeAbortRef.current?.abort();
-    if (convergeTimerRef.current) {
-      window.clearTimeout(convergeTimerRef.current);
+    paramSweepAbortRef.current?.abort();
+    if (paramSweepTimerRef.current) {
+      window.clearTimeout(paramSweepTimerRef.current);
     }
     // Cancel-then-blank is the contract (#692/#715): the overlay must go blank
     // the instant its inputs change, or a stale curve reads as current while
     // the new one dwells. Synchronous blanking is what makes 'stale'
     // unrepresentable.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setConverge(null);
-    setConvergeRunning(false);
+    setParamSweep(null);
+    setParamSweepRunning(false);
     // Held when Paused (issue #612) — see the sweep effect. autoSim is a dep so
-    // resuming Live restarts the convergence sweep.
-    if (!autoSim || !convergeEnabled || !convergeResident || !active) {
+    // resuming Live restarts the parameter sweep.
+    if (!autoSim || !paramSweepWanted || !active || paramSweepReq.values.length === 0) {
       return;
     }
     // Debounce only; the server lane orders it behind the live solve.
-    // `runConverge` is an async function DECLARATION, so the binding is live
+    // `runParamSweep` is an async function DECLARATION, so the binding is live
     // before this effect runs; the compiler cannot see hoisting (#768).
     // eslint-disable-next-line react-hooks/immutability
-    convergeTimerRef.current = window.setTimeout(runConverge, 500);
+    paramSweepTimerRef.current = window.setTimeout(runParamSweep, 500);
     return () => {
-      if (convergeTimerRef.current) window.clearTimeout(convergeTimerRef.current);
+      if (paramSweepTimerRef.current) window.clearTimeout(paramSweepTimerRef.current);
     };
-    // runConverge omitted — same reasoning as the sweep effect above: a
-    // plain unmemoized closure, with impedanceSig standing in for its actual
-    // inputs.
+    // runParamSweep omitted — same reasoning as the sweep effect above: a
+    // plain unmemoized closure, with paramSweepSig standing in for its
+    // actual inputs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    impedanceSig,
-    convergeEnabled,
-    convergeResident, // issue #715: the smith view is the only consumer
+    paramSweepSig,
+    paramSweepWanted, // issue #715: the Smith trail or the view consumes it
     autoSim,
     active,
     // Poor-match gate (see the sweep effect).
     comboApproved, recommendedBackend,
   ]);
 
-  // Debounced far-field norm consistency check. Same shape as the converge
+  // Debounced far-field norm consistency check. Same shape as the parameter
   // sweep: re-runs on any antenna/param change (which invalidates the norm),
   // gated by its own overlay checkbox. The server lane runs it after the
   // live solve (priority ordering), so it lands on that solve's cached
@@ -573,7 +601,7 @@ export function useAnalysisRunners({
   }, [
     // solveSig, not impedanceSig: the pattern integral runs over the facets,
     // so terrain knob changes invalidate the norm check (unlike the
-    // impedance-only sweep/converge effects above).
+    // impedance-only sweep/parameter-sweep effects above).
     solveSig,
     normCheckEnabled,
     autoSim,
@@ -822,41 +850,65 @@ export function useAnalysisRunners({
     }
   }
 
-  async function runConverge() {
+  async function runParamSweep() {
     // Same as runSweep: the server lane serializes and prioritizes; only the
     // poor-match gate holds this back (effect re-fires on approval).
     if (solveWithheld()) return;
-    convergeTimerRef.current = null;
-    convergeAbortRef.current?.abort();
+    paramSweepTimerRef.current = null;
+    paramSweepAbortRef.current?.abort();
     const controller = new AbortController();
-    convergeAbortRef.current = controller;
+    paramSweepAbortRef.current = controller;
 
-    // The active slot's nPerWire is irrelevant during a converge sweep —
-    // n_values overrides it on the server. We strip `n_per_wire` from the
-    // request anyway to make that explicit.
+    const { param, values, label } = paramSweepReq;
     const body = {
       ...buildRequest(),
-      n_values: CONVERGE_N_VALUES,
+      param,
+      values,
       _gen: seqRef.current,
       _approved: approvedComboRef.current,
     };
-    setConvergeRunning(true);
+    setParamSweepRunning(true);
     // feeds_* fields start OMITTED, same reasoning as runSweep's acc above.
-    const acc: ConvergeData = {
-      n_values: [],
+    const acc: ParamSweepData = {
+      param,
+      label,
+      values: [],
       z_re: [],
       z_im: [],
       z_re_extrap: null,
       z_im_extrap: null,
     };
+    const publish = () => {
+      if (controller.signal.aborted) return;
+      setParamSweep({
+        ...acc,
+        values: acc.values.slice(),
+        z_re: acc.z_re.slice(),
+        z_im: acc.z_im.slice(),
+        // Spread-conditional, not `: undefined` — see runSweep's setSweep.
+        ...(acc.feeds_z_re
+          ? { feeds_z_re: acc.feeds_z_re.map((row) => row.slice()) }
+          : {}),
+        ...(acc.feeds_z_im
+          ? { feeds_z_im: acc.feeds_z_im.map((row) => row.slice()) }
+          : {}),
+        ...(acc.feeds_z_re_extrap
+          ? { feeds_z_re_extrap: acc.feeds_z_re_extrap.slice() }
+          : {}),
+        ...(acc.feeds_z_im_extrap
+          ? { feeds_z_im_extrap: acc.feeds_z_im_extrap.slice() }
+          : {}),
+        ...(acc.advisories ? { advisories: acc.advisories.slice() } : {}),
+      });
+    };
     try {
-      const resp = await fetch("/converge", {
+      const resp = await fetch("/param_sweep", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
         signal: controller.signal,
       });
-      if (!resp.ok || !resp.body) throw new Error(`converge failed: ${resp.status}`);
+      if (!resp.ok || !resp.body) throw new Error(`param sweep failed: ${resp.status}`);
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";
@@ -870,66 +922,54 @@ export function useAnalysisRunners({
           buf = buf.slice(nl + 1);
           if (!line) continue;
           const pt = JSON.parse(line);
-          if (pt.done) continue;
-          // A solver failure for one N (rare — degenerate small-N geometry)
-          // is reported by the backend as {n_per_wire, error}; skip rather
-          // than poisoning the trajectory.
+          if (pt.done) {
+            // The closing record's advisories: the gap-fed density warning.
+            if (Array.isArray(pt.advisories) && pt.advisories.length > 0) {
+              acc.advisories = pt.advisories;
+              publish();
+            }
+            continue;
+          }
+          // A solver failure at one value (rare — a degenerate small-N
+          // geometry) is reported by the backend as {value, error}; skip
+          // rather than poisoning the trajectory.
           if (pt.error) continue;
-          acc.n_values.push(pt.n_per_wire);
+          // A record without a finite Z (never expected; JSON carries a
+          // non-finite float as null) would poison every axis: skip it.
+          if (!Number.isFinite(pt.z_re) || !Number.isFinite(pt.z_im)) continue;
+          acc.values.push(pt.value);
           acc.z_re.push(pt.z_re);
           acc.z_im.push(pt.z_im);
-          // Multi-feed convergence records ship per-feed Z alongside the
-          // primary; allocate the buffers lazily on first sight.
+          // Multi-feed records ship per-feed Z alongside the primary;
+          // allocate the buffers lazily on first sight.
           if (Array.isArray(pt.feeds_z_re) && Array.isArray(pt.feeds_z_im)) {
             if (!acc.feeds_z_re) acc.feeds_z_re = [];
             if (!acc.feeds_z_im) acc.feeds_z_im = [];
             acc.feeds_z_re.push(pt.feeds_z_re);
             acc.feeds_z_im.push(pt.feeds_z_im);
           }
-          const invN = acc.n_values.map((n) => 1 / n);
-          acc.z_re_extrap = richardsonExtrap(invN, acc.z_re);
-          acc.z_im_extrap = richardsonExtrap(invN, acc.z_im);
-          // Per-feed Richardson Z* — see feedwiseRichardson.
+          // Richardson Z* in 1/N — density only (paramRichardson is null for
+          // a knob), per feed too (see feedwiseRichardson).
+          const z = paramRichardson(param, acc.values, acc.z_re, acc.z_im);
+          acc.z_re_extrap = z.re;
+          acc.z_im_extrap = z.im;
           if (acc.feeds_z_re && acc.feeds_z_im) {
-            const { feedsRe, feedsIm } = feedwiseRichardson(
-              invN,
-              acc.feeds_z_re,
-              acc.feeds_z_im,
-            );
-            acc.feeds_z_re_extrap = feedsRe;
-            acc.feeds_z_im_extrap = feedsIm;
+            const f = paramFeedRichardson(param, acc.values, acc.feeds_z_re, acc.feeds_z_im);
+            if (f) {
+              acc.feeds_z_re_extrap = f.feedsRe;
+              acc.feeds_z_im_extrap = f.feedsIm;
+            }
           }
-          if (!controller.signal.aborted) {
-            setConverge({
-              n_values: acc.n_values.slice(),
-              z_re: acc.z_re.slice(),
-              z_im: acc.z_im.slice(),
-              z_re_extrap: acc.z_re_extrap,
-              z_im_extrap: acc.z_im_extrap,
-              // Spread-conditional, not `: undefined` — see runSweep's setSweep.
-              ...(acc.feeds_z_re
-                ? { feeds_z_re: acc.feeds_z_re.map((row) => row.slice()) }
-                : {}),
-              ...(acc.feeds_z_im
-                ? { feeds_z_im: acc.feeds_z_im.map((row) => row.slice()) }
-                : {}),
-              ...(acc.feeds_z_re_extrap
-                ? { feeds_z_re_extrap: acc.feeds_z_re_extrap.slice() }
-                : {}),
-              ...(acc.feeds_z_im_extrap
-                ? { feeds_z_im_extrap: acc.feeds_z_im_extrap.slice() }
-                : {}),
-            });
-          }
+          publish();
         }
       }
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;
-      console.error("converge error", e);
+      console.error("param sweep error", e);
     } finally {
-      if (convergeAbortRef.current === controller) {
-        convergeAbortRef.current = null;
-        setConvergeRunning(false);
+      if (paramSweepAbortRef.current === controller) {
+        paramSweepAbortRef.current = null;
+        setParamSweepRunning(false);
       }
     }
   }
@@ -1017,7 +1057,7 @@ export function useAnalysisRunners({
     for (const timer of [
       sweepTimerRef,
       sweepRefineTimerRef,
-      convergeTimerRef,
+      paramSweepTimerRef,
       normCheckTimerRef,
       patternTimerRef,
     ]) {
@@ -1027,7 +1067,7 @@ export function useAnalysisRunners({
     for (const ctrl of [
       sweepAbortRef,
       sweepRefineAbortRef,
-      convergeAbortRef,
+      paramSweepAbortRef,
       normCheckAbortRef,
       patternAbortRef,
     ]) {
@@ -1041,8 +1081,8 @@ export function useAnalysisRunners({
     sweepSettled,
     sweepProgress,
     sweepAdvisories,
-    converge,
-    convergeRunning,
+    paramSweep,
+    paramSweepRunning,
     normCheck,
     pattern,
     abortInFlight,

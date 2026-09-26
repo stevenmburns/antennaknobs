@@ -265,7 +265,7 @@ export function SmithOverlayControls({
   setSweepEnabled,
   convergeEnabled,
   setConvergeEnabled,
-  convergeNValues,
+  convergeTitle,
   measured,
   onLoadMeasured,
   onClearMeasured,
@@ -274,7 +274,8 @@ export function SmithOverlayControls({
   setSweepEnabled: (v: boolean) => void;
   convergeEnabled: boolean;
   setConvergeEnabled: (v: boolean) => void;
-  convergeNValues: number[];
+  /** The switch's tooltip: what the parameter sweep it draws re-solves. */
+  convergeTitle: string;
   measured: MeasuredData | null;
   onLoadMeasured: (f: File) => void;
   onClearMeasured: () => void;
@@ -287,7 +288,7 @@ export function SmithOverlayControls({
       />
       <label
         className="overlay-checkbox"
-        title={`Re-solve at N = ${convergeNValues.join(", ")} segments per λ/4 and Richardson-extrapolate Z to N→∞`}
+        title={convergeTitle}
       >
         <input
           type="checkbox"

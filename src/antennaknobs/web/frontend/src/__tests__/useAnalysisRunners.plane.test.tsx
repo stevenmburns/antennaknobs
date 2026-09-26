@@ -47,8 +47,8 @@ beforeEach(() => {
   vi.useFakeTimers();
   fetchMock = vi.fn((url: string) =>
     streamResponse(
-      url === "/converge"
-        ? JSON.stringify({ n: 8, z_re: 44, z_im: -4 })
+      url === "/param_sweep"
+        ? JSON.stringify({ param: "n_per_wire", value: 8, z_re: 44, z_im: -4 })
         : JSON.stringify({ freq_mhz: 28.47, z_re: 44, z_im: -4 }),
     ),
   );
@@ -121,9 +121,9 @@ describe("plane flip invalidates the background analyses", () => {
     const { result, rerender } = renderRunners();
     await settle();
     expect(bodiesFor("/sweep")).toHaveLength(1);
-    expect(bodiesFor("/converge")).toHaveLength(1);
+    expect(bodiesFor("/param_sweep")).toHaveLength(1);
     expect(result.current.sweep).not.toBeNull();
-    expect(result.current.converge).not.toBeNull();
+    expect(result.current.paramSweep).not.toBeNull();
     // No plane picked: the field is absent.
     expect("plane" in bodiesFor("/sweep")[0]).toBe(false);
 
@@ -131,12 +131,12 @@ describe("plane flip invalidates the background analyses", () => {
     // The previous plane's curves must not linger while the refetch runs —
     // they are wrong for the new plane, not merely stale.
     expect(result.current.sweep).toBeNull();
-    expect(result.current.converge).toBeNull();
+    expect(result.current.paramSweep).toBeNull();
 
     await settle();
     expect(bodiesFor("/sweep")).toHaveLength(2);
-    expect(bodiesFor("/converge")).toHaveLength(2);
+    expect(bodiesFor("/param_sweep")).toHaveLength(2);
     expect(bodiesFor("/sweep")[1].plane).toBe("feed");
-    expect(bodiesFor("/converge")[1].plane).toBe("feed");
+    expect(bodiesFor("/param_sweep")[1].plane).toBe("feed");
   });
 });

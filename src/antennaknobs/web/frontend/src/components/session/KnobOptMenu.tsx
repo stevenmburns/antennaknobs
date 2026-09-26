@@ -9,12 +9,16 @@ export function KnobOptMenu({
   ko,
   onPatch,
   onClose,
+  onSweep,
 }: {
   menu: { name: string; x: number; y: number };
   spec: SchemaParamSpec | undefined;
   ko: KnobOpt;
   onPatch: (patch: Partial<KnobOpt>) => void;
   onClose: () => void;
+  /** Given (a knob the Z-vs-parameter view can sweep), the menu offers
+   *  "Sweep this knob": that knob over its own range, on the view. */
+  onSweep?: () => void;
 }) {
   const name = menu.name;
   const s = spec;
@@ -72,6 +76,16 @@ export function KnobOptMenu({
             onChange={(v) => set({ dispMax: v })}
           />
         </div>
+        {onSweep && (
+          <button
+            type="button"
+            className="knob-menu-sweep"
+            title="Plot the feed R and X, and the Smith trail, against this knob over its range (the Z vs parameter view)"
+            onClick={onSweep}
+          >
+            Sweep this knob…
+          </button>
+        )}
         <div className="knob-menu-row">
           <span>Turn step</span>
           <KnobMenuNumber

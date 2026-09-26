@@ -114,11 +114,11 @@ function renderSmith(overrides: Partial<React.ComponentProps<typeof SmithChart>>
       z0={Z0}
       size={SIZE}
       sweep={null}
-      converge={null}
+      paramSweep={null}
       measured={null}
       measFreqMhz={14}
       running={false}
-      convergeRunning={false}
+      paramSweepRunning={false}
       multiFeed={false}
       {...overrides}
     />,
