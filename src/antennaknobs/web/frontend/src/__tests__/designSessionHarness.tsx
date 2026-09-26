@@ -13,7 +13,7 @@
 // asserts on a live solve landing, only on static mount-time placement/wiring,
 // and setup.ts's InertWebSocket never calls onmessage.
 import { vi } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { DesignSession } from "../components/session/DesignSession";
 import { VIEW_PREFS_KEY, type Layout } from "../components/session/useViewPrefs";
 import { VIEWS, type View } from "../lib/view";
@@ -211,4 +211,47 @@ export function sessionReady(root: HTMLElement, expected?: string): Promise<stri
     const v = root.querySelector<HTMLElement>(".app[data-ready]")?.dataset.ready ?? "";
     return (expected === undefined ? v !== "" : v === expected) ? v : null;
   }, root);
+}
+
+// Mount the session and wait until its design has loaded (sessionReady): the
+// one way every session test starts, so none races the cold mount's
+// /capabilities → /examples → /geometry chain on findBy's 1 s clock.
+export async function mountReady(opts: MountDesignSessionOptions = {}) {
+  const r = mountDesignSession(opts);
+  await sessionReady(document.body);
+  return r;
+}
+
+// Pick a design in the catalog picker by its label, then wait until the
+// session has loaded THAT design (`name`, whatever its reload generation).
+export async function switchDesign(
+  user: { clear: (el: Element) => Promise<void>; type: (el: Element, t: string) => Promise<void>; click: (el: Element) => Promise<void> },
+  label: string,
+  name: string,
+): Promise<void> {
+  const box = screen.getByRole("combobox", { name: "antenna" });
+  await user.clear(box);
+  await user.type(box, label);
+  await user.click(screen.getByRole("option", { name: new RegExp(label, "i") }));
+  await untilDom(() => {
+    const v = document.querySelector<HTMLElement>(".app[data-ready]")?.dataset.ready ?? "";
+    return v.startsWith(`${name}#`) ? v : null;
+  });
+}
+
+// The stage's chart (not a rail thumbnail's copy) matching `selector`.
+export function stageChart(selector: string): HTMLElement | null {
+  return (
+    [...document.querySelectorAll<HTMLElement>(selector)].find(
+      (c) => !c.closest(".thumbstrip"),
+    ) ?? null
+  );
+}
+
+// Resolves once the freq sweep runner is idle on `chart` (its data-phase:
+// no base sweep queued or streaming, no refinement pending). After that, a
+// change that should send no sweep is proved by the phase STAYING idle
+// through the change's own act — no sleep past the dwell.
+export function sweepIdle(chart: HTMLElement): Promise<true> {
+  return untilDom(() => chart.dataset.phase === "idle" || null);
 }
