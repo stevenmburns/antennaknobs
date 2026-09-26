@@ -2558,9 +2558,6 @@ function DesignSessionBody({
               onReset={() => selectZparamParam(zparamSpec.param)}
               isDefault={sameSpec(zparamSpec, zparamDefaultFor(zparamSpec.param))}
               values={zparamValues}
-              advisories={
-                paramSweep?.param === zparamSpec.param ? paramSweep.advisories : undefined
-              }
             />
           )}
           {/* The Smith chart's freq-sweep switch on the VSWR and S11 charts
@@ -2571,6 +2568,9 @@ function DesignSessionBody({
               sweepEnabled={sweepEnabled}
               setSweepEnabled={setSweepEnabled}
             />
+          )}
+          {v === "zparam" && paramSweep?.param === zparamSpec.param && (
+            <SweepAdvisoryOverlay advisories={paramSweep.advisories} />
           )}
           {(v === "smith" || v === "vswr" || v === "gamma") && (
             <SweepAdvisoryOverlay

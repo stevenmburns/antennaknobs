@@ -7,11 +7,13 @@ import {
   type ParamSweepSpec,
 } from "../../lib/paramSweep";
 import type { SchemaParamSpec } from "../../lib/params";
-import { type Advisory, SolverAdvisories } from "./SolverAdvisories";
 
 // The Z-vs-parameter view's header (docs/design/z-vs-param-view.md): which
 // parameter, over what range, how many points, lin or log spacing. Every
 // edit is a new spec, and a new spec is a new sweep (after the usual dwell).
+// One row, so it clears the chart below it; the ladder as solved is the
+// points field's tooltip, and the sweep's advisory sits bottom-left with
+// the other sweep advisories (SweepAdvisoryOverlay).
 export function ZParamControls({
   spec,
   knobs,
@@ -21,7 +23,6 @@ export function ZParamControls({
   onReset,
   isDefault,
   values,
-  advisories,
 }: {
   spec: ParamSweepSpec;
   /** The design's sweepable knobs (lib/paramSweep sweepableKnobs). */
@@ -35,7 +36,6 @@ export function ZParamControls({
   isDefault: boolean;
   /** The values the spec sweeps, for the tooltip. */
   values: readonly number[];
-  advisories: Advisory[] | undefined;
 }) {
   const set = (patch: Partial<ParamSweepSpec>) => onSpec({ ...spec, ...patch });
   return (
@@ -64,7 +64,12 @@ export function ZParamControls({
           <span>to</span>
           <KnobMenuNumber value={spec.hi} onChange={(v) => set({ hi: v })} />
         </label>
-        <label title={`${MIN_POINTS}–${MAX_POINTS} points`}>
+        <label
+          className="zparam-points"
+          // The ladder itself, as solved: a rounded integer ladder can hold
+          // fewer points than asked for.
+          title={`${values.length} points (${MIN_POINTS}–${MAX_POINTS}): ${values.join(", ")}`}
+        >
           <span>points</span>
           <KnobMenuNumber
             value={spec.points}
@@ -92,15 +97,6 @@ export function ZParamControls({
           ↺
         </button>
       </div>
-      <div className="zparam-values" title={values.join(", ")}>
-        {values.length} points
-        {values.length > 0 && `: ${values.length > 8 ? `${values.slice(0, 4).join(", ")} … ${values[values.length - 1]}` : values.join(", ")}`}
-      </div>
-      {advisories && advisories.length > 0 && (
-        <div className="zparam-advisories" role="note" aria-label="Sweep advisories">
-          <SolverAdvisories advisories={advisories} />
-        </div>
-      )}
     </div>
   );
 }
