@@ -38,6 +38,7 @@ import {
   setValueAtPath,
   snapForExample,
   type BandSpec,
+  type ExampleDescriptor,
   type ParamValueBag,
   type SchemaItem,
   type SchemaParamSpec,
@@ -1457,86 +1458,91 @@ function DesignSessionBody({
     return () => window.removeEventListener("keydown", onKey);
   }, [sweepMenu, active]);
 
-  // When the active example changes (or first loads), snap band /
-  // designFreq / measFreq to the band whose [min, max] window contains
-  // the design's native freq (from the schema's freq ParamSpec). If
-  // there's no freq param or it falls outside every band, fall back
-  // to the first band so the snap is still well-defined. Skipped
-  // entirely for examples that suppress the row (bands === []) —
-  // those own their design freq via their own schema controls.
-  useEffect(() => {
-    if (!currentExample) return;
+  // The design-load resets below run DURING RENDER, keyed on the design
+  // (currentExample's identity: a switch, or a reload's refreshed catalog),
+  // not in effects (AK#1762). An effect runs a Scheduler task after the
+  // commit that shows the new design, and the first interaction landing in
+  // that gap was overwritten by the late reset — reproduced for the ground
+  // switch and the camera pick (a click there was lost every time). Adjusting
+  // state during render, React's pattern for state derived from a changing
+  // input, puts each reset in the same render as the design it belongs to.
+  // `null` = never applied, so a session that mounts on a known design still
+  // gets them on its first render, as the effects did on mount.
+  const [designResetFor, setDesignResetFor] = useState<ExampleDescriptor | undefined | null>(
+    null,
+  );
+  if (designResetFor !== currentExample) {
+    setDesignResetFor(currentExample);
+    if (currentExample) applyDesignResets(currentExample);
+  }
+
+  function applyDesignResets(ex: ExampleDescriptor) {
+    // When the active example changes (or first loads), snap band /
+    // designFreq / measFreq to the band whose [min, max] window contains
+    // the design's native freq (from the schema's freq ParamSpec). If
+    // there's no freq param or it falls outside every band, fall back
+    // to the first band so the snap is still well-defined. Skipped
+    // entirely for examples that suppress the row (bands === []) —
+    // those own their design freq via their own schema controls.
+    //
     // A new design starts on its own sweep range (AK#1682): the last
     // design's edit is in the wrong place for this one.
-    // Derived state cleared when its inputs change — the reset IS the
-    // effect's purpose, not a sync that could be computed during render
-    // (#768). (The rule reports an effect's first setState only.)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSweepRangeEdit(null);
-    if (currentBands.length === 0) {
-      if (band !== "") setBand("");
-      return;
+    snapBand: {
+      if (currentBands.length === 0) {
+        if (band !== "") setBand("");
+        break snapBand;
+      }
+      // Always re-snap on geometry switch — every HF example shares the
+      // DEFAULT_AMATEUR_BANDS list, so a sticky band key (e.g. "10m" from the
+      // previous 28 MHz design) would otherwise survive a switch into a
+      // 14 MHz design and keep the slider parked on the wrong band.
+      // (The containing-band / native-freq logic lives in snapForExample,
+      // shared with the antenna-switch preview fetch — see there.)
+      const snap = snapForExample(ex)!;
+      setBand(snap.bandKey);
+      setDesignFreq(snap.freq);
+      // Off-band designs open with the measurement dial deliberately away
+      // from the design freq (that's the design's premise), so the
+      // follow-design lock must disengage or it would immediately drag the
+      // dial back.
+      if (snap.offBand) {
+        setLinkMeas(false);
+        setMeasFreq(snap.measFreq);
+        setMeasBand(snap.measBandKey);
+      } else if (linkMeas || !ex.has_design_freq) {
+        // Re-anchor the dial too: always when locked, and also for
+        // fixed-geometry designs — their lock is inert (see measLockable),
+        // so a measFreq left over from the previous design would strand the
+        // measurement outside this design's window entirely.
+        setMeasFreq(snap.measFreq);
+        setMeasBand(snap.measBandKey);
+      }
     }
-    // Always re-snap on geometry switch — every HF example shares the
-    // DEFAULT_AMATEUR_BANDS list, so a sticky band key (e.g. "10m" from the
-    // previous 28 MHz design) would otherwise survive a switch into a
-    // 14 MHz design and keep the slider parked on the wrong band.
-    // (The containing-band / native-freq logic lives in snapForExample,
-    // shared with the antenna-switch preview fetch — see there.)
-    const snap = snapForExample(currentExample)!;
-    setBand(snap.bandKey);
-    setDesignFreq(snap.freq);
-    // Off-band designs open with the measurement dial deliberately away
-    // from the design freq (that's the design's premise), so the
-    // follow-design lock must disengage or it would immediately drag the
-    // dial back.
-    if (snap.offBand) {
-      setLinkMeas(false);
-      setMeasFreq(snap.measFreq);
-      setMeasBand(snap.measBandKey);
-    } else if (linkMeas || !currentExample.has_design_freq) {
-      // Re-anchor the dial too: always when locked, and also for
-      // fixed-geometry designs — their lock is inert (see measLockable),
-      // so a measFreq left over from the previous design would strand the
-      // measurement outside this design's window entirely.
-      setMeasFreq(snap.measFreq);
-      setMeasBand(snap.measBandKey);
+
+    // Ground-requirement seed: the buried-wire designs declare
+    // ground_requirement="sommerfeld" (conductors below z=0 only exist under
+    // a Sommerfeld half-space — the refl-coef default refuses them by name),
+    // so seed finite + Sommerfeld on selection instead of letting the first
+    // solve hit the refusal wall. The user can still flip anything
+    // afterwards, and the solver's by-name refusal remains the enforcement.
+    // GroundPanel shows the one-line notice whenever the requirement is
+    // present.
+    if (ex.ground_requirement === "sommerfeld") {
+      setGroundEnabled(true);
+      setGroundType("finite");
+      setFiniteGroundMethod("sommerfeld");
     }
-    // band/currentBands.length/linkMeas are read, not listed: this effect's
-    // whole point is re-snapping only "on geometry switch" (see above) — band
-    // and linkMeas are the very state the user can change by hand between
-    // switches, and listing them would re-fire the snap on every band pick or
-    // lock toggle instead of only on a new currentExample. currentBands.length
-    // is itself derived from currentExample, already covered.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentExample]);
 
-  // Ground-requirement seed: the buried-wire designs declare
-  // ground_requirement="sommerfeld" (conductors below z=0 only exist under
-  // a Sommerfeld half-space — the refl-coef default refuses them by name),
-  // so seed finite + Sommerfeld on selection instead of letting the first
-  // solve hit the refusal wall. Keyed on the example switch, like the
-  // band-snap above: the user can still flip anything afterwards, and the
-  // solver's by-name refusal remains the enforcement. GroundPanel shows the
-  // one-line notice whenever the requirement is present.
-  useEffect(() => {
-    if (currentExample?.ground_requirement !== "sommerfeld") return;
-    setGroundEnabled(true);
-    setGroundType("finite");
-    setFiniteGroundMethod("sommerfeld");
-    // Setters are stable useState setters; currentExample is the switch key.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentExample]);
-
-  // Ground SEED (AK#1432): a file design's deck says what ground it models
-  // (GE 0 = free space, GE 1 / GN 1 = perfect, GN 0 / GN 2 = finite with the
-  // card's medium, a NEC-5 bare GD = MININEC-type, AK#1655), so the switch starts where the deck is instead of at the
-  // app's default finite ground — which had NEC-5 refusing a free-space
-  // dipole at z = 0 until the user unticked ground by hand. Same key and
-  // same contract as the requirement seed above: fires on the design switch
-  // only, and the user can change anything afterwards.
-  useEffect(() => {
-    const seed = currentExample?.ground_seed ?? null;
+    // Ground SEED (AK#1432): a file design's deck says what ground it models
+    // (GE 0 = free space, GE 1 / GN 1 = perfect, GN 0 / GN 2 = finite with
+    // the card's medium, a NEC-5 bare GD = MININEC-type, AK#1655), so the
+    // switch starts where the deck is instead of at the app's default finite
+    // ground — which had NEC-5 refusing a free-space dipole at z = 0 until
+    // the user unticked ground by hand. Same contract as the requirement seed
+    // above: on the design switch only, and the user can change anything
+    // afterwards.
+    const seed = ex.ground_seed ?? null;
     if (!seed) return;
     if (seed === "free") {
       setGroundEnabled(false);
@@ -1551,10 +1557,9 @@ function DesignSessionBody({
     setFiniteGroundMethod(
       seed === "fast" ? "fast" : seed === "mininec" ? "mininec" : "sommerfeld",
     );
-    const m = currentExample?.ground_medium ?? null;
+    const m = ex.ground_medium ?? null;
     if (m && setSoil) setSoil({ eps_r: m.eps_r, sigma: m.sigma });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentExample]);
+  }
 
   function selectBand(nextKey: string) {
     const nb = currentBands.find((b) => b.key === nextKey);
@@ -2371,14 +2376,19 @@ function DesignSessionBody({
           trackLatched={trackLatched}
           trackStatus={trackStatus?.status ?? null}
           currentBands={currentBands}
-          measLocked={measLocked}
+          // Until a design is loaded the dial and its range belong to no
+          // design: the load's band snap would replace any edit made there
+          // (AK#1762, reproduced), so both are inert until then.
+          measLocked={measLocked || !currentExample}
           measFreq={measFreq}
           bandContaining={bandContaining}
           measBand={measBand}
           selectMeasBand={selectMeasBand}
           onCustomMeasBand={selectCustomMeasBand}
           sweepRange={resolvedSweepRange.range}
-          onSweepMenu={(x, y, touch) => setSweepMenu({ x, y, touch })}
+          {...(currentExample
+            ? { onSweepMenu: (x: number, y: number, touch: boolean) => setSweepMenu({ x, y, touch }) }
+            : {})}
           setMeasFreq={setMeasFreq}
           measLockable={measLockable}
           linkMeas={linkMeas}

@@ -11,7 +11,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ExampleDescriptor } from "../lib/params";
 import { LONG_PRESS_MS } from "../components/session/VfoPanel";
-import { HARNESS_EXAMPLE, mountDesignSession } from "./designSessionHarness";
+import { HARNESS_EXAMPLE, mountDesignSession, sessionReady } from "./designSessionHarness";
 
 // A deck with `FR 0 15 0 0 14.0 0.025`, as /examples serves it.
 const DECK: ExampleDescriptor = {
@@ -330,7 +330,8 @@ describe("measFreq and the range it must sit in (AK#1682)", () => {
     // frequency does not move the measurement off it.
     const user = userEvent.setup();
     const { container } = mountCapturing([HARNESS_EXAMPLE]);
-    await waitFor(() => expect(lcd(container)).toBeTruthy(), T);
+    // The design loaded (the dial and its range are inert until then).
+    await sessionReady(document.body);
     const locked = lcd(container);
     const menu = openMenu(container);
     const [lo, hi] = within(menu).getAllByRole("spinbutton");

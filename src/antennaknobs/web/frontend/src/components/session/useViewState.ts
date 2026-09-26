@@ -103,14 +103,15 @@ export function useViewState({
   const [orientation, setOrientationState] =
     useState<Orientation>(initialOrientation);
   // The current design's guess, kept so switching the setting back to "auto"
-  // mid-session can return to it. A ref: nothing renders from it.
-  const guessRef = useRef<Projection | null>(null);
+  // mid-session can return to it. State rather than a ref: it is set by the
+  // render-time design-load snap below, and a render may not write a ref.
+  const [guess, setGuess] = useState<Projection | null>(null);
   // Called at each design load with the design's guess (null while a deferred
   // design has not yet reported one): the camera goes to the setting, or,
   // under "auto", to the guess when there is one.
   const snapToDesignView = useCallback(
     (guess: Projection | null | undefined) => {
-      if (guess) guessRef.current = guess;
+      if (guess) setGuess(guess);
       const p = orientation === "auto" ? guess : ORIENTATION_PROJECTION[orientation];
       if (p) setCameraProjection(p);
     },
@@ -119,9 +120,9 @@ export function useViewState({
   // A change of the setting applies at once, so the menu shows what it does.
   const setOrientation = useCallback((o: Orientation) => {
     setOrientationState(o);
-    const p = o === "auto" ? guessRef.current : ORIENTATION_PROJECTION[o];
+    const p = o === "auto" ? guess : ORIENTATION_PROJECTION[o];
     if (p) setCameraProjection(p);
-  }, []);
+  }, [guess]);
 
   // When the user switches antennas, reset the camera to that example's
   // natural starting view (declared on the backend via default_view), or to
@@ -134,19 +135,26 @@ export function useViewState({
   // "auto", holding the current camera until then avoids snapping to a wrong
   // provisional view and flipping when the preview arrives; a fixed setting
   // needs no guess, so it applies here.
-  useEffect(() => {
-    guessRef.current = currentExample?.default_view ?? null;
+  //
+  // Done DURING RENDER, keyed on the design's name (AK#1762), not in an
+  // effect: an effect runs a Scheduler task after the commit that shows the
+  // new design, and a projection picked in that gap was overwritten by the
+  // late snap (reproduced: the pick lost every time a click landed there).
+  // Adjusting state during render is React's pattern for state derived from
+  // a changing input; the snap then lands in the same render as the design.
+  const designName = currentExample?.name;
+  // null = never snapped, so a session that mounts with its design already
+  // known snaps on its first render, as the effect did on mount.
+  const [snappedFor, setSnappedFor] = useState<string | undefined | null>(null);
+  if (snappedFor !== designName) {
+    setSnappedFor(designName);
+    const g = currentExample?.default_view ?? null;
+    setGuess(g);
     if (currentExample) {
-      // Sets the camera on an actual antenna switch; the user's later pick
-      // must survive re-renders (#768).
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      snapToDesignView(currentExample.default_view);
+      const p = orientation === "auto" ? g : ORIENTATION_PROJECTION[orientation];
+      if (p) setCameraProjection(p);
     }
-    // Keyed on the name, not currentExample.default_view directly: a value
-    // change for the same example (e.g. a data refresh) must not override
-    // the user's camera pick — only an actual antenna switch should.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentExample?.name]);
+  }
 
   // Antenna-canvas current visualization is split into two independent
   // toggles: the per-segment current-magnitude heatmap (wire color/width)
