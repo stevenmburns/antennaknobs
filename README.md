@@ -98,7 +98,7 @@
 | src/antennaknobs/designs/verticals/buried\_radial\_vertical.py       |       56 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/challenger.py                     |       25 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/dominator.py                      |       23 |        0 |    100% |           |
-| src/antennaknobs/designs/verticals/elevated\_buried\_counterpoise.py |       26 |        0 |    100% |           |
+| src/antennaknobs/designs/verticals/elevated\_buried\_counterpoise.py |       35 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/elt\_whip.py                      |      115 |        2 |     98% |   328-329 |
 | src/antennaknobs/designs/verticals/four\_square.py                   |       26 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/half\_square.py                   |       20 |        0 |    100% |           |
@@ -188,7 +188,7 @@
 | src/antennaknobs/web/tracker.py                                      |      261 |       30 |     89% |213, 219, 269, 285-286, 315-316, 322, 333-335, 342-343, 349, 431, 454-458, 461-470, 497 |
 | src/antennaknobs/web/user\_designs.py                                |       68 |        6 |     91% |60-61, 92-93, 98-99 |
 | src/antennaknobs/wire\_catalog.py                                    |      188 |        0 |    100% |           |
-| **TOTAL**                                                            | **21401** | **1248** | **94%** |           |
+| **TOTAL**                                                            | **21410** | **1248** | **94%** |           |
 
 
 ## Setup coverage badge
