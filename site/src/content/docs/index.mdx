@@ -29,19 +29,19 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.88.0" icon="star">
-  **Radial screens, converged and fast.** momwire 0.64 fixes a 1 % error on
-  near-ground radial screens (the Sommerfeld remainder had not converged) and
-  makes them several times faster: a 48-radial screen solves in about 4 s
-  instead of 12.6 s, in a quarter of the memory, and 4nec2's GndScreen takes
-  2.7 s. The Beverage's first razor-2p solve takes 8 s instead of 33 s.
-  The workbench picks up a batch of AC6LA's requests: SimNEC `prm` and plain
-  constants are knobs, a sweep saved suspended as `(y)` imports, the
-  optimizer runs on the slot's own engine, and each design has its own Zo.
-  The VSWR and S11 charts get a clickable axis range, an Auto that fits the
-  dip, and a 2:1 line with a bandwidth readout. There is a combined Az + El
-  pattern view, 3-D designs open in Iso, the **View** setting fixes the
-  opening view, and the **?** in the header opens the docs.
+<Card title="New in v0.89.0" icon="star">
+  **Impedance against any knob.** A new **Z vs parameter** view plots R and X,
+  each on its own axis, and the Smith-chart trail, against any numeric knob or
+  the mesh density, with a log axis, readouts and reference lines at Z₀ and
+  X = 0. It is also the convergence sweep now, and the command line draws the
+  same charts, one panel per engine or every engine on one chart
+  (`sweep --log --panels` / `--overlay`). The Smith chart zooms and
+  pans with the mouse wheel, and the VSWR chart opens on a 1–∞ scale that
+  never pegs, with no kinks where a curve leaves the plot. Moving the
+  measurement frequency no longer re-sweeps. momwire 0.65 makes buried
+  radials and wires much faster: an inverted-L over buried radials solves
+  about 12× faster, and a warm Beverage solve about 4× faster. The elevated
+  buried-counterpoise design now has elevated radials at its feed.
 </Card>
 
 ## The whole pitch, in one line

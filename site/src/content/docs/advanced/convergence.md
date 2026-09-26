@@ -256,13 +256,74 @@ the physics doesn't:
   mutual limit where the pinned one left the bases permanently apart
   (issue #526). The old drift was the port readout, not the physics.
 
+## Charting a convergence study
+
+A convergence study is easiest to read as two curves against the segment
+count, on a log axis: resistance on one vertical scale and reactance on
+another. R and X usually sit tens of ohms apart and move by fractions of an
+ohm, so one shared scale flattens whichever moves less. Both the workbench
+and the command line draw it this way.
+
+**In the workbench**, add the **Z vs parameter** view from the view picker
+and choose **density (N per λ/4)** as the parameter. Set the range and the
+number of points in the view's header (for example 10 to 500, 20 points,
+log spacing). R sits on the left axis and X on the right, each with its own
+range (click an axis). Hover a point to read its values. The dotted line on
+each axis is the extrapolated converged value, and the dashed guide marks the
+design's current density. The Smith chart draws the same sweep as a labelled
+trail. **Stop** keeps the points you have. The same view sweeps any numeric
+knob, not only density: right-click a knob and choose **Sweep this knob…**.
+
+To compare engines, run the sweep once per solver slot. The fixed reference
+lines, R = Z₀ and X = 0, make it easy to see which way each curve is heading.
+
+**From the command line**, the same chart, one panel per engine:
+
+```sh
+python -m antennaknobs sweep --builder dipoles.invvee:dipole \
+    --set freq=14 design_freq=14 --param nominal_nsegs \
+    --log --range 10 500 --npoints 20 \
+    --engine nec2,nec5,momwire:razor-2p --panels --callouts
+```
+
+`--log` spaces the points geometrically and rounds integer parameters,
+`--panels` gives each engine its own twin-axis panel, and `--callouts` labels
+the first and last values. `--r-range` and `--x-range` fix an axis when you
+want several charts on the same scale. See [the CLI reference](/reference/cli/)
+for the rest.
+
+### What these charts showed on the catalog
+
+Charting a free-space dipole and a full-wave loop this way at 14 MHz, on the
+same geometry as a SimNEC model built for the purpose, reproduced SimNEC's
+NEC-2 and NEC-5 curves, to the printed digits at nearly every point. It also showed two things worth
+knowing before you trust a curve:
+
+- **A delta-gap engine measures the feed as well as the antenna.** On a
+  design fed through a short dedicated feed wire (most of the catalog's
+  dipoles and loops), NEC-2, PyNEC and momwire's sinusoidal solver move a long
+  way with N, and can jump where the feed wire first splits into more than
+  one segment. That movement is the feed model changing, not the antenna
+  converging. The workbench warns when this is the case. The same designs
+  move far less on the B-spline solver, razor-2p and NEC-5. At its default
+  28.47 MHz, between 10 and 500 segments per quarter-wave, the catalog
+  dipole's resistance changes by about 0.2 Ω on B-spline, while on PyNEC
+  (NEC-2) it climbs about 6 Ω and drops more than 1 Ω where the feed wire
+  splits.
+- **A loop's curve shape depends on the engine.** The same square loop's
+  resistance rises monotonically on NEC-2 but peaks and falls back on NEC-5
+  and razor-2p before settling. Both settle to the same value within a
+  fraction of an ohm. Judge convergence by where the curves end up, not by
+  their shape at coarse N.
+
 ## A working recipe
 
 1. Solve at the defaults (bs2, N=15). For most of the catalog you are
    already converged — the census says 80 % of scorable designs are
    within 2 % at coarse mesh on this basis.
-2. Run the **convergence sweep**. Flat within your tolerance across the
-   top rungs → done.
+2. Run a **convergence sweep**: the **Z vs parameter** view with density
+   as the parameter (see [Charting a convergence study](#charting-a-convergence-study)).
+   Flat within your tolerance across the top rungs → done.
 3. Not flat? Turn on **slot B** and compare trajectories:
    - B creeping toward a flat A → class 1, trust A;
    - both marching away together as N grows → check your geometry for
