@@ -230,6 +230,7 @@ views as thumbnails beside it. The roster is:
 | **S11 (dB) vs freq** | return loss against frequency, the log-magnitude form a VNA shows |
 | **VSWR vs freq** | SWR against frequency |
 | **Files** | the design's source, and the deck an external engine ran with the report it printed |
+| **Z vs parameter** | feed R and X against the mesh density or any knob — see [Z vs parameter](#z-vs-parameter) |
 
 Click a thumbnail to promote it to primary. The last two read the **same
 frequency sweep** the Smith chart plots — run a [sweep](#convergence-sweep)
@@ -1130,13 +1131,85 @@ The CLI has the same control on `fit` via `--plane`.
 
 To check that your chosen N is **converged** — i.e. adding more segments no
 longer moves the impedance — run a **convergence sweep**. It re-solves the
-current antenna across a range of N values and plots the resulting feed-point
-impedance, so you can see where the curve flattens out. (Like the freq
-sweep, it runs only while the Smith view that draws it is on screen —
-v0.43.0's view-residency gating.) Basics:
+current antenna across a ladder of densities (N = 8, 12, 17, 24, 34, 48, 68
+segments per λ/4) on the active slot's engine, and extrapolates Z to N → ∞
+(Richardson in 1/N, the diamond `Z*`), so you can see where the curve
+flattens out. Basics:
 [Segments & convergence](/reference/solver/#segments--convergence); the full
 method (ladders, cross-basis validation with a second solver slot, and what a
 non-settling curve is telling you): [How many segments?](/advanced/convergence/).
+
+It is drawn two ways, from one sweep:
+
+- **As R and X against N** in the [Z vs parameter](#z-vs-parameter) view,
+  with the parameter set to density. This is the chart to read convergence
+  from: R and X each on their own axis, a log N axis, and any ladder you like
+  (10 … 500 in 20 steps, say).
+- **As a trail on the Smith chart**, with the **converge sweep** switch under
+  the chart (or in the Tools menu on a phone): a ring at the coarsest N, a
+  disc at the finest, the end values beside them, and `Z*` as a diamond.
+
+The sweep runs only while something on screen draws it (v0.43.0's
+view-residency gating): the Z vs parameter view, or the Smith chart with the
+switch on. The switch draws whatever the Z vs parameter view is set to sweep,
+so with a knob chosen there the Smith trail is that knob's, labelled with its
+values.
+
+## Z vs parameter
+
+The **Z vs parameter** view (in **All views**; it starts unpinned) plots the
+feed impedance against one parameter, the way AC6LA's SimNEC convergence
+charts do: **R in red on the left axis, X in blue on the right**, each on its
+own range, with a circle at every point and the values boxed at both ends.
+
+The header at the top of the view picks what to sweep:
+
+- **sweep** — *density (N per λ/4)*, or any of the design's numeric knobs.
+  Knobs that set a frequency are not offered: the measurement frequency stays
+  where it is for the whole sweep.
+- **from / to / points** — the range and how many solves. A knob starts at
+  its own slider range and 11 points; density starts at the convergence
+  ladder above. ↺ puts the parameter's default back.
+- **log spacing** — points spaced by a fixed ratio (SimNEC's `logStep`)
+  instead of a fixed step. A whole-number parameter (density, a segment
+  count, a number of radials) is rounded to whole values and repeats are
+  dropped, so 10 … 500 in 20 steps solves 20 distinct segment counts. The
+  **points** field's tooltip lists the values actually solved.
+
+Right-click a knob and pick **Sweep this knob…** to jump straight here with
+that knob over its range.
+
+On the chart:
+
+- A **dashed guide** marks the knob's current value, with the live solve's
+  R and X on it. Turning the swept knob slides the guide along the curve; it
+  does not re-run the sweep, since every point sets that knob itself. Any
+  *other* knob, the engine, the ground or the frequency does re-run it.
+- **Hover** (or tap) reads the nearest point: its value, R and X.
+- Click the **R** or **X** axis for its range: **Auto** fits that trace, or
+  type a min and max — for instance, to put two engines' charts on the same
+  scale.
+- **lin x / log x** (bottom right) switches the x axis. It follows the
+  spacing until you choose.
+- On a density sweep, `Z*` is drawn as a dotted line on each axis and read
+  out at the top.
+
+The sweep solves on the **active slot's engine**. Switch slots to see
+another engine's curve (one panel per engine is planned).
+
+:::caution[A density sweep on a gap-fed design measures the feed gap]
+Many catalog dipoles and loops are fed across a short **feed wire** (0.1 m on
+the inverted V). On an engine that models the source as a **delta gap** —
+NEC-2, PyNEC, Sinusoidal, or a momwire model set to the segment-gap feed —
+the impedance then moves with the gap segment's size relative to its
+neighbours, which the density changes. On the catalog dipole (10 … 500 over
+the default ground) PyNEC's R climbs from 65.5 to 71.2 Ω up to N = 34, then
+drops to 70.0 Ω when the feed wire meshes to three segments, while B-spline
+moves 0.2 Ω over the whole ladder. The view says so in an advisory when the feed
+wire is shorter than one segment at the coarsest density swept. Read
+convergence from a point-gap engine (B-spline), or start the ladder where the
+feed wire already meshes like its neighbours.
+:::
 
 ## Measured overlay — your VNA on the Smith chart
 
