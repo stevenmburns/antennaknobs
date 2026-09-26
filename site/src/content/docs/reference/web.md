@@ -243,7 +243,7 @@ all of them, and in the Settings menu.
 **Their vertical range** is set by clicking the chart's y axis. VSWR offers
 1–1.5, 1–2, 1–3, 1–5 and 1–10, S11 floors of −10, −20, −30 and −40 dB, and
 either takes a custom min and max; each chart remembers its own choice.
-**Auto**, the default, fits the dip: the smallest of 1.5, 2, 3, 5, 10 … that
+VSWR starts on the **1–∞** scale below, S11 on Auto. **Auto** fits the dip: the smallest of 1.5, 2, 3, 5, 10 … that
 holds the lowest SWR with room above it and is no lower than the SWR
 threshold (so the threshold line is always on screen), or the shallowest S11
 floor the dip clears by 5 dB that still shows the threshold line. Anything above a VSWR top pegs at the edge with the off-scale
@@ -251,7 +251,8 @@ tick. So that the axis never rescales under your hand, Auto only grows while
 a knob is moving or a sweep is landing, and fits again once things have been
 still for half a second.
 
-The VSWR chart's **1–∞** choice shows every SWR at once, none pegged: it plots
+The VSWR chart's **1–∞** scale, its default, shows every SWR at once, none
+pegged: it plots
 1 − 1/SWR (which is 2|Γ|/(1+|Γ|)), so 1.5:1 sits a third of the way up, 2:1
 half way, 3:1 two thirds, 10:1 at 90 %, and ∞ is the top edge. The ticks are
 still labelled in SWR. It spends the chart's height where the match is and

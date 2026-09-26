@@ -184,9 +184,10 @@ describe("swrBands: the 2:1 bandwidth, interpolated between samples", () => {
 });
 
 describe("stored choices are distrusted", () => {
-  it("anything undrawable reads as Auto; the threshold falls back to 2", () => {
+  it("anything undrawable reads as the mode's default; the threshold falls back to 2", () => {
     expect(sanitizeChoice("vswr", { kind: "fixed", lo: 1, hi: 3 })).toEqual({ kind: "fixed", lo: 1, hi: 3 });
-    expect(sanitizeChoice("vswr", { kind: "fixed", lo: 0.5, hi: 3 })).toEqual({ kind: "auto" });
+    // VSWR's default is the 1–∞ scale, S11's is Auto.
+    expect(sanitizeChoice("vswr", { kind: "fixed", lo: 0.5, hi: 3 })).toEqual({ kind: "reciprocal" });
     expect(sanitizeChoice("gamma", { kind: "fixed", lo: -10, hi: -20 })).toEqual({ kind: "auto" });
     expect(sanitizeChoice("gamma", "garbage")).toEqual({ kind: "auto" });
     expect(sanitizeThreshold(3)).toBe(3);
