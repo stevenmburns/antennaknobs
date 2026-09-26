@@ -330,6 +330,56 @@ def get_builder(nm):
     return partial(cls, params=resolve_variant_params(cls, variant))
 
 
+def _parse_knob_value(default, text):
+    """``text`` as the type of the knob's default: an int knob stays an int
+    (a segment count), a bool takes true/false, a number a float, anything
+    else the string as given."""
+    if isinstance(default, bool):
+        low = text.strip().lower()
+        if low not in ("true", "false", "1", "0"):
+            raise SystemExit(f"--set: expected true/false, got {text!r}")
+        return low in ("true", "1")
+    if isinstance(default, int):
+        try:
+            return int(text)
+        except ValueError:
+            raise SystemExit(f"--set: expected an integer, got {text!r}") from None
+    if isinstance(default, float):
+        try:
+            return float(text)
+        except ValueError:
+            raise SystemExit(f"--set: expected a number, got {text!r}") from None
+    return text
+
+
+def _with_params(factory, assignments):
+    """``factory`` with ``NAME=VALUE`` assignments applied to every builder it
+    makes (`sweep --set`). An unknown name refuses, naming the knobs there
+    are, rather than silently sweeping the design's defaults."""
+    if not assignments:
+        return factory
+    probe = factory()
+    known = dict(getattr(probe, "_params", {}))
+    values = {}
+    for item in assignments:
+        name, sep, text = item.partition("=")
+        name = name.strip()
+        if not sep or not name:
+            raise SystemExit(f"--set takes NAME=VALUE, got {item!r}")
+        if name not in known or name == "ui_params":
+            knobs = ", ".join(sorted(k for k in known if k != "ui_params"))
+            raise SystemExit(f"--set: no knob {name!r} here; knobs: {knobs}")
+        values[name] = _parse_knob_value(known[name], text)
+
+    def make():
+        b = factory()
+        for name, v in values.items():
+            setattr(b, name, v)
+        return b
+
+    return make
+
+
 def get_builders(nms):
     return (get_builder(nm) for nm in nms)
 
@@ -1051,9 +1101,22 @@ def cli(arguments=None):
         action="store_true",
         help="Compare patterns generated for each swept value.",
     )
+    p.add_argument(
+        "--set",
+        dest="set_params",
+        metavar="NAME=VALUE",
+        nargs="+",
+        default=[],
+        help="Set design knobs before sweeping, e.g. --set freq=14 "
+        "design_freq=14. Only the design's own knobs are accepted.",
+    )
 
     def f(args):
         builder = get_builder(args.builder)
+        # --set applies to the instances the sweep solves; `builder` itself
+        # stays the resolved class/partial, whose attributes (a deck's EK
+        # flag, its ground) the engine setup reads.
+        make = _with_params(builder, args.set_params)
         is_density_study = args.param == "nominal_nsegs"
         engine_specs = _engine_specs(args.engine)
         # None means "not given": the density study reads that (its ladder);
@@ -1127,7 +1190,7 @@ def cli(arguments=None):
         )
         if args.patterns:
             sweep_patterns(
-                builder(),
+                make(),
                 args.param,
                 rng=args.range,
                 npoints=npoints,
@@ -1141,7 +1204,7 @@ def cli(arguments=None):
             )
         elif args.swr:
             sweep_swr(
-                builder(),
+                make(),
                 args.param,
                 z0=args.z0,
                 rng=args.range,
@@ -1154,7 +1217,7 @@ def cli(arguments=None):
             )
         elif args.gain:
             sweep_gain(
-                builder(),
+                make(),
                 args.param,
                 rng=args.range,
                 npoints=npoints,
@@ -1165,7 +1228,7 @@ def cli(arguments=None):
             )
         else:
             sweep(
-                builder(),
+                make(),
                 args.param,
                 rng=args.range,
                 npoints=npoints,
