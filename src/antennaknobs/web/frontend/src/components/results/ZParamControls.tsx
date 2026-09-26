@@ -24,6 +24,8 @@ export function ZParamControls({
   onReset,
   isDefault,
   values,
+  run,
+  costHint = null,
 }: {
   spec: ParamSweepSpec;
   /** The design's sweepable knobs (lib/paramSweep sweepableKnobs). */
@@ -37,6 +39,17 @@ export function ZParamControls({
   isDefault: boolean;
   /** The values the spec sweeps, for the tooltip. */
   values: readonly number[];
+  /** The sweep in hand: its progress, and the Stop / Run it offers. */
+  run: {
+    running: boolean;
+    received: number;
+    partial: boolean;
+    done: boolean;
+    onStop: () => void;
+    onRun: () => void;
+  };
+  /** A word on cost when the request is large, or null. */
+  costHint?: string | null;
 }) {
   const set = (patch: Partial<ParamSweepSpec>) => onSpec({ ...spec, ...patch });
   // The arrow keys step the range by a hundredth of its span, at a round
@@ -101,6 +114,32 @@ export function ZParamControls({
           />
           log spacing
         </label>
+        {/* Stop while it runs (the count is the progress); Run when it was
+            stopped, refused, or has not started — a stopped sweep does not
+            restart by itself. */}
+        {run.running ? (
+          <button
+            type="button"
+            className="zparam-run is-running"
+            title="Stop the sweep: keep the points so far, solve no more"
+            onClick={run.onStop}
+          >
+            {run.received}/{values.length} · stop
+          </button>
+        ) : run.done ? (
+          <span className="zparam-run-done" title="The sweep has finished">
+            {run.received}/{values.length}
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="zparam-run"
+            title={run.partial ? "Run the whole sweep again" : "Run the sweep"}
+            onClick={run.onRun}
+          >
+            {run.partial ? `${run.received}/${values.length} · run` : "run"}
+          </button>
+        )}
         <button
           type="button"
           className="zparam-reset"
@@ -110,6 +149,11 @@ export function ZParamControls({
         >
           ↺
         </button>
+        {costHint && (
+          <div className="zparam-cost" role="note">
+            {costHint}
+          </div>
+        )}
       </div>
     </div>
   );

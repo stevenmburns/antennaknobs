@@ -4445,3 +4445,29 @@ canvas {
 .commit-number-hint {
   color: var(--danger, #c0392b);
 }
+/* The Z-vs-parameter header's Stop / Run and its cost note. */
+.zparam-run {
+  padding: 0 var(--space-2);
+  font-family: ui-monospace, monospace;
+  font-size: var(--text-xs);
+  background: var(--inset);
+  color: var(--fg);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.zparam-run.is-running {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.zparam-run-done {
+  font-family: ui-monospace, monospace;
+}
+.zparam-cost {
+  flex-basis: 100%;
+  text-align: right;
+  font-size: var(--text-xs);
+}
+.zparam-approve {
+  margin-left: var(--space-2);
+}

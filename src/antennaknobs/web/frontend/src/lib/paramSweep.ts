@@ -67,6 +67,13 @@ export type ParamSweepData = {
    *  cap, a 403 poor-match withhold, a 422): its own words, shown in the
    *  view rather than the request being clamped quietly. */
   error?: string;
+  /** The refusal's HTTP status: 403 is the poor-match gate, which the
+   *  session's "Solve anyway" approves. */
+  errorStatus?: number;
+  /** Stopped before the ladder finished (the header's Stop, or the app's
+   *  Cancel): the points drawn are all there will be until a Run or a
+   *  parameter change. */
+  partial?: boolean;
 };
 
 export const isDensity = (param: string) => param === DENSITY;

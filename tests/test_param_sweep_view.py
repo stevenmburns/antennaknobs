@@ -243,3 +243,61 @@ def test_an_over_long_sweep_is_refused_when_hosted(client, monkeypatch):
     )
     assert r.status_code == 413
     assert "parameter sweep" in r.json()["detail"]
+
+
+def test_a_client_that_goes_away_stops_the_sweep(monkeypatch):
+    """The view's Stop aborts its fetch; the server must see the disconnect
+    and stop solving, not run out the ladder. A real socket (TestClient
+    buffers the whole response, so it can never disconnect mid-stream) and a
+    slow stub engine: far fewer solves than points."""
+    import socket
+    import threading
+    import time
+
+    import uvicorn
+
+    calls = []
+
+    def slow(req, cancel=None):
+        calls.append(req["length_factor"])
+        time.sleep(0.2)
+        return complex(50, 0), None
+
+    monkeypatch.setattr(server, "_solve_z_only", slow)
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    srv = uvicorn.Server(
+        uvicorn.Config(server.app, host="127.0.0.1", port=port, log_level="warning")
+    )
+    t = threading.Thread(target=srv.run, daemon=True)
+    t.start()
+    try:
+        deadline = time.time() + 20
+        while not srv.started and time.time() < deadline:
+            time.sleep(0.05)
+        values = [round(0.9 + 0.01 * i, 2) for i in range(20)]
+        body = json.dumps(
+            {**DIPOLE, "param": "length_factor", "values": values}
+        ).encode()
+        # A raw socket (stdlib only): send the POST, read until the first
+        # record has arrived, then hang up — the browser's abort.
+        with socket.create_connection(("127.0.0.1", port), timeout=30) as conn:
+            conn.sendall(
+                b"POST /param_sweep HTTP/1.1\r\nHost: x\r\n"
+                b"Content-Type: application/json\r\n"
+                + f"Content-Length: {len(body)}\r\n\r\n".encode()
+                + body
+            )
+            got = b""
+            while b'"value": 0.9' not in got:
+                chunk = conn.recv(4096)
+                assert chunk, got
+                got += chunk
+        # The whole ladder would take 4 s; give the server that long to show
+        # it stopped instead.
+        time.sleep(4.0)
+        assert 1 <= len(calls) <= 4, calls
+    finally:
+        srv.should_exit = True
+        t.join(timeout=10)
