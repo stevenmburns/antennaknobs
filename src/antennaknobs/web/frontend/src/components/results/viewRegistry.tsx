@@ -143,6 +143,9 @@ export type ZParamViewSettings = {
   /** The reference impedance: the design's Zo or the session's override
    *  (AK#1735), the value the VSWR chart measures against. */
   z0: number;
+  /** The runner's phase (idle / queued / running), published on the chart
+   *  for tests that must show no sweep follows. Optional. */
+  phase?: "idle" | "queued" | "running";
 };
 
 const DEFAULT_ZPARAM: ZParamViewSettings = {
@@ -340,6 +343,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
         // The trial point's reference during an optimizer run, as the Smith
         // chart does; else the session's.
         z0={p.liveZ?.z0_ohms ?? z.z0}
+        {...(z.phase ? { phase: z.phase } : {})}
         {...(p.onZparamXLogChange ? { onXLogChange: p.onZparamXLogChange } : {})}
         {...(p.onZparamAxisChange ? { onAxisChange: p.onZparamAxisChange } : {})}
       />

@@ -358,6 +358,11 @@ export function useAnalysisRunners({
   const [sweepAdvisories, setSweepAdvisories] = useState<Advisory[]>([]);
   const [paramSweep, setParamSweep] = useState<ParamSweepData | null>(null);
   const [paramSweepRunning, setParamSweepRunning] = useState(false);
+  // A sweep is waiting out its dwell (its timer is set). With `running`, the
+  // runner's phase as the view publishes it (idle / queued / running): a
+  // test that must show NO sweep follows a change waits for the decision
+  // (idle) instead of sleeping past the dwell.
+  const [paramSweepQueued, setParamSweepQueued] = useState(false);
   const [normCheck, setNormCheck] = useState<NormCheckData | null>(null);
   // NEC's rp_card pattern, fetched on a debounce so we don't fire one per
   // slider tick. Overlaid on the cuts as a comparison line.
@@ -551,6 +556,7 @@ export function useAnalysisRunners({
       window.clearTimeout(paramSweepTimerRef.current);
       paramSweepTimerRef.current = null;
     }
+    setParamSweepQueued(false);
     // Arming (a knob sweep only): the user's ask arms this request; leaving
     // everything that draws the sweep disarms, so coming back to the view
     // does not start it again.
@@ -589,6 +595,7 @@ export function useAnalysisRunners({
     // before this effect runs; the compiler cannot see hoisting (#768).
     // eslint-disable-next-line react-hooks/immutability
     paramSweepTimerRef.current = window.setTimeout(runParamSweep, 500);
+    setParamSweepQueued(true);
     return () => {
       if (paramSweepTimerRef.current) window.clearTimeout(paramSweepTimerRef.current);
     };
@@ -889,6 +896,7 @@ export function useAnalysisRunners({
   }
 
   async function runParamSweep() {
+    setParamSweepQueued(false);
     // Same as runSweep: the server lane serializes and prioritizes; only the
     // poor-match gate holds this back (effect re-fires on approval).
     if (solveWithheld()) return;
@@ -1114,6 +1122,7 @@ export function useAnalysisRunners({
   function stopParamSweep() {
     if (paramSweepTimerRef.current) window.clearTimeout(paramSweepTimerRef.current);
     paramSweepTimerRef.current = null;
+    setParamSweepQueued(false);
     paramSweepAbortRef.current?.abort();
     paramSweepStoppedRef.current = paramSweepSig;
     setParamSweep((d) => (d ? { ...d, partial: true } : d));
@@ -1138,6 +1147,7 @@ export function useAnalysisRunners({
 
   function abortInFlight() {
     // The app's Cancel stops the parameter sweep the way its own Stop does.
+    setParamSweepQueued(false);
     if (paramSweepAbortRef.current || paramSweepTimerRef.current) {
       paramSweepStoppedRef.current = paramSweepSig;
       setParamSweep((d) => (d ? { ...d, partial: true } : d));
@@ -1171,6 +1181,11 @@ export function useAnalysisRunners({
     sweepAdvisories,
     paramSweep,
     paramSweepRunning,
+    paramSweepPhase: (paramSweepRunning
+      ? "running"
+      : paramSweepQueued
+        ? "queued"
+        : "idle") as "idle" | "queued" | "running",
     stopParamSweep,
     runParamSweepNow,
     armParamSweep,
