@@ -42,6 +42,11 @@ export type ParamSweepRequest = {
   param: string;
   values: number[];
   label: string;
+  /** Runs by itself whenever its inputs change and something draws it —
+   *  density, as the old convergence sweep did. False for a knob sweep,
+   *  which runs only when asked (Steve, 2026-09-26: no length_factor sweep
+   *  starting on the next design unless he asks). Omitted = true. */
+  auto?: boolean;
 };
 
 /** One sweep's result, streamed point by point. `values` is the swept
@@ -74,6 +79,9 @@ export type ParamSweepData = {
    *  Cancel): the points drawn are all there will be until a Run or a
    *  parameter change. */
   partial?: boolean;
+  /** A knob sweep whose inputs have changed since it ran (another knob, the
+   *  engine, the ground): drawn dimmed, and re-run only when asked. */
+  stale?: boolean;
 };
 
 export const isDensity = (param: string) => param === DENSITY;

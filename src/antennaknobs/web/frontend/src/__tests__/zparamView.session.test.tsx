@@ -110,7 +110,7 @@ describe("a knob sweep", () => {
     expect(chart().dataset.guide).toBe("0.25");
   });
 
-  it("dragging the swept knob moves the guide and re-sweeps nothing; another knob re-sweeps", async () => {
+  it("dragging the swept knob moves the guide; another knob marks it stale; Run re-runs", async () => {
     const user = userEvent.setup();
     const bodies: Body[] = [];
     const { container } = mountDesignSession({
@@ -133,10 +133,17 @@ describe("a knob sweep", () => {
     expect(bodies.slice(before)).toEqual([]);
     expect(chart().dataset.points).toBe("11");
 
-    // Another knob is physics for every point: it re-sweeps.
+    // Another knob changes every point, but a knob sweep re-runs only when
+    // asked: the old trace stays, dimmed as stale, and "re-run?" is offered.
     fireEvent.keyDown(screen.getByRole("slider", { name: "Height" }), { key: "ArrowUp" });
-    await waitFor(() => expect(bodies.length).toBeGreaterThan(before), T);
+    await waitFor(() => expect(chart().dataset.stale).toBe("1"), T);
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(bodies.slice(before)).toEqual([]);
+    expect(chart().dataset.points).toBe("11");
+    await user.click(screen.getByRole("button", { name: "run · re-run?" }));
+    await waitFor(() => expect(bodies.length).toBe(before + 1), T);
     expect(bodies[bodies.length - 1].param).toBe("gap");
+    await waitFor(() => expect(chart().dataset.stale).toBe("0"), T);
   });
 });
 
@@ -267,15 +274,14 @@ describe("Stop", () => {
     expect(Number(chart().dataset.points)).toBe(kept);
     expect(screen.getByRole("button", { name: `${kept}/11 · run` })).toBeTruthy();
 
-    // A parameter change is a new request: it sweeps again.
+    // Another knob does not restart a knob sweep either (it waits to be
+    // asked): it goes stale. Run is what re-runs it.
     fireEvent.keyDown(screen.getByRole("slider", { name: "Height" }), { key: "ArrowUp" });
+    await waitFor(() => expect(chart().dataset.stale).toBe("1"), T);
+    await new Promise((r) => setTimeout(r, 900));
+    expect(bodies.length).toBe(n);
+    await user.click(screen.getByRole("button", { name: "run · re-run?" }));
     await waitFor(() => expect(bodies.length).toBe(n + 1), T);
-    await user.click(await screen.findByRole("button", { name: /· stop$/ }, T));
-    const m = bodies.length;
-    // ...and so does Run, at once.
-    // (Stopped before a point landed: the button reads a bare "run".)
-    await user.click(screen.getByRole("button", { name: /run$/ }));
-    await waitFor(() => expect(bodies.length).toBe(m + 1), T);
   }, 15000);
 });
 
@@ -314,5 +320,94 @@ describe("R = Z0 follows the session's Zo (AK#1735)", () => {
     fireEvent.keyDown(zo, { key: "Enter" });
     await waitFor(() => expect(chart()?.dataset.z0).toBe("60"), T);
     localStorage.clear();
+  });
+});
+
+// Steve, 2026-09-26: a length_factor sweep must not start on his next design
+// unless he asks. Only density runs by itself.
+const VARIANTS: ExampleDescriptor = {
+  ...EXAMPLE,
+  variants: ["default", "other"],
+  variant_values: { default: {}, other: {} },
+};
+
+describe("a knob sweep runs only when asked", () => {
+  it("a design switch resets the view to density, and density runs by itself", async () => {
+    const user = userEvent.setup();
+    const bodies: Body[] = [];
+    const { container } = mountDesignSession({
+      examples: [VARIANTS],
+      pinned: ["antenna", "zparam"],
+      routes: { "/param_sweep": paramSweepRoute(bodies) },
+    });
+    const gap = await screen.findByRole("slider", { name: "Gap" });
+    fireEvent.contextMenu(gap);
+    await user.click(await screen.findByRole("button", { name: "Sweep this knob…" }));
+    await waitFor(() => expect(bodies.some((b) => b.param === "gap")).toBe(true), T);
+    const n = bodies.length;
+    // Another variant is another design.
+    await user.selectOptions(screen.getByRole("combobox", { name: "variant" }), "other");
+    expect((screen.getByRole("combobox", { name: "Parameter" }) as HTMLSelectElement).value).toBe(
+      "n_per_wire",
+    );
+    // ...and the density sweep starts by itself; no gap sweep follows.
+    await waitFor(() => expect(bodies.length).toBeGreaterThan(n), T);
+    expect(bodies.slice(n).map((b) => b.param)).toEqual(
+      bodies.slice(n).map(() => "n_per_wire"),
+    );
+    const chart = [...container.querySelectorAll("canvas.zparam")].find(
+      (c) => !c.closest(".thumbstrip"),
+    ) as HTMLElement;
+    await waitFor(() => expect(chart.dataset.param).toBe("n_per_wire"), T);
+  });
+
+  it("picking a knob in the header does not start it; Run does", async () => {
+    const user = userEvent.setup();
+    const bodies: Body[] = [];
+    mountDesignSession({
+      examples: [EXAMPLE],
+      pinned: ["antenna", "zparam"],
+      routes: { "/param_sweep": paramSweepRoute(bodies) },
+    });
+    // Put the view on the stage: its header only shows there.
+    const thumb = await waitFor(() => {
+      const c = document.querySelector(".thumbstrip canvas.zparam");
+      expect(c).not.toBeNull();
+      return c as HTMLElement;
+    }, T);
+    fireEvent.click(thumb);
+    // Density ran on mount, by itself.
+    await waitFor(() => expect(bodies.some((b) => b.param === "n_per_wire")).toBe(true), T);
+    const n = bodies.length;
+    await user.selectOptions(screen.getByRole("combobox", { name: "Parameter" }), "gap");
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(bodies.length).toBe(n);
+    await user.click(screen.getByRole("button", { name: "run" }));
+    await waitFor(() => expect(bodies.length).toBe(n + 1), T);
+    expect(bodies[n].param).toBe("gap");
+  });
+
+  it("an edit to the knob sweep's own range runs it", async () => {
+    const user = userEvent.setup();
+    const bodies: Body[] = [];
+    mountDesignSession({
+      examples: [EXAMPLE],
+      pinned: ["antenna", "zparam"],
+      routes: { "/param_sweep": paramSweepRoute(bodies) },
+    });
+    const thumb = await waitFor(() => {
+      const c = document.querySelector(".thumbstrip canvas.zparam");
+      expect(c).not.toBeNull();
+      return c as HTMLElement;
+    }, T);
+    fireEvent.click(thumb);
+    await user.selectOptions(await screen.findByRole("combobox", { name: "Parameter" }), "gap");
+    const n = bodies.length;
+    const pts = screen.getByLabelText("points") as HTMLInputElement;
+    await user.clear(pts);
+    await user.type(pts, "5{Enter}");
+    await waitFor(() => expect(bodies.length).toBe(n + 1), T);
+    expect(bodies[n]).toMatchObject({ param: "gap" });
+    expect(bodies[n].values).toHaveLength(5);
   });
 });
