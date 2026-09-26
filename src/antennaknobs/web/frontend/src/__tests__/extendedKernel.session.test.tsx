@@ -7,36 +7,10 @@
 //
 // The wire body is read off the /geometry preview POST, which is buildRequest()
 // verbatim, the same seam newBackend.test.tsx uses.
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DesignSession } from "../components/session/DesignSession";
-import type { ExampleDescriptor } from "../lib/params";
-import {
-  SERVED_ROSTER,
-  SERVED_ALIASES,
-  SERVED_SLOT_SEEDS,
-} from "./backendFixtures";
-import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
-
-const EXAMPLE: ExampleDescriptor = {
-  name: "dipoles.probe",
-  label: "Probe dipole",
-  multi_feed: false,
-  param_schema: [],
-  result_schema: [],
-  bands: [],
-  meas_freq_range_mhz: null,
-  default_view: "xz",
-  default_freq: null,
-  default_design_freq: null,
-  default_backend: null,
-  requires_backends: null,
-  has_design_freq: true,
-  variants: ["default"],
-  variant_values: {},
-  sweep_policy: { anchor: "design_freq", lo_factor: 0.8, hi_factor: 1.25 },
-};
+import { mountReady } from "./designSessionHarness";
 
 let geometryPosts: Record<string, unknown>[] = [];
 
@@ -54,39 +28,26 @@ function lastModelOptions(): Record<string, unknown> {
   return (geometryPosts.at(-1)?.model_options ?? {}) as Record<string, unknown>;
 }
 
-beforeEach(() => {
-  geometryPosts = [];
-  vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
-    const path = String(url);
-    if (path.startsWith("/capabilities"))
-      return jsonResponse({
-        have_pynec: true,
-        backends: SERVED_ROSTER,
-        model_option_specs: SERVED_OPTION_SPECS,
-        backend_aliases: SERVED_ALIASES,
-        default_slots: SERVED_SLOT_SEEDS,
-        terrain_presets: [],
-      });
-    if (path.startsWith("/examples"))
-      return jsonResponse({ examples: [EXAMPLE], errors: [] });
-    if (path.startsWith("/geometry")) {
-      geometryPosts.push(JSON.parse(String(init?.body ?? "{}")));
-      return jsonResponse({ wires: [] });
-    }
-    return jsonResponse({});
-  });
-});
-
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/** Mount the session, wait for the served roster, and park the live solve so
- *  every request refresh goes out over POST /geometry. */
+/** Mount the session through the harness, wait until its design has loaded
+ *  (sessionReady, AK#1762: every slot click below is then past the
+ *  design-load path), and park the live solve so every request refresh goes
+ *  out over POST /geometry — synchronously, from the effect the click's act
+ *  flushes, which is why every check below is a plain read. */
 async function mountSession() {
+  geometryPosts = [];
   const user = userEvent.setup();
-  render(<DesignSession id={1} active />);
-  await screen.findByRole("tab", { name: /Solver slot A/ });
+  await mountReady({
+    routes: {
+      "/geometry": (_url: string, init?: RequestInit) => {
+        geometryPosts.push(JSON.parse(String(init?.body ?? "{}")));
+        return jsonResponse({ wires: [] });
+      },
+    },
+  });
   await user.click(screen.getByRole("button", { name: "Live" }));
   return user;
 }
@@ -102,14 +63,12 @@ describe("the extended-kernel toggle, slot by slot (#849)", () => {
     const user = await mountSession();
 
     // Baseline: the stock A slot (B-spline d=2, N=15) sends no kernel key.
-    await waitFor(() => expect(geometryPosts.length).toBeGreaterThan(0));
+    expect(geometryPosts.length).toBeGreaterThan(0);
     expect(lastModelOptions()).not.toHaveProperty("extended_kernel");
 
     // Arm slot A.
     await toggleExtendedKernel(user, "A");
-    await waitFor(() =>
-      expect(lastModelOptions()).toHaveProperty("extended_kernel", true),
-    );
+    expect(lastModelOptions()).toHaveProperty("extended_kernel", true);
     // The rest of the request is untouched: same basis, same mesh — which is
     // what makes the A/B difference readable as the kernel and nothing else.
     expect(geometryPosts.at(-1)?.momwire_model).toBe("bspline");
@@ -118,17 +77,13 @@ describe("the extended-kernel toggle, slot by slot (#849)", () => {
 
     // Slot B is a separate configuration and never saw the toggle.
     await user.click(screen.getByRole("tab", { name: /Solver slot B/ }));
-    await waitFor(() => {
-      expect(geometryPosts.at(-1)?.n_per_wire).toBe(20); // B is d=1 @ N=20
-      expect(lastModelOptions()).not.toHaveProperty("extended_kernel");
-    });
+        expect(geometryPosts.at(-1)?.n_per_wire).toBe(20); // B is d=1 @ N=20
+    expect(lastModelOptions()).not.toHaveProperty("extended_kernel");
 
     // …and coming back to A restores it: the flag is per-slot state, not a
     // session-wide mode.
     await user.click(screen.getByRole("tab", { name: /Solver slot A/ }));
-    await waitFor(() =>
-      expect(lastModelOptions()).toHaveProperty("extended_kernel", true),
-    );
+    expect(lastModelOptions()).toHaveProperty("extended_kernel", true);
   });
 
   it('says "+EK" on the armed slot\'s chip and nowhere else', async () => {
@@ -139,9 +94,9 @@ describe("the extended-kernel toggle, slot by slot (#849)", () => {
 
     await toggleExtendedKernel(user, "A");
 
-    await screen.findByRole("tab", {
-      name: /Solver slot A: B-spline d=2 \+EK, N=15/,
-    });
+    expect(
+      screen.getByRole("tab", { name: /Solver slot A: B-spline d=2 \+EK, N=15/ }),
+    ).toBeTruthy();
     // B is untouched — the affix marks a slot, not the session.
     expect(screen.getByRole("tab", { name: /Solver slot B: B-spline d=1, N=20/ })).toBeTruthy();
   });
@@ -149,9 +104,7 @@ describe("the extended-kernel toggle, slot by slot (#849)", () => {
   it("drops the flag when the slot's backend changes under it", async () => {
     const user = await mountSession();
     await toggleExtendedKernel(user, "A");
-    await waitFor(() =>
-      expect(lastModelOptions()).toHaveProperty("extended_kernel", true),
-    );
+    expect(lastModelOptions()).toHaveProperty("extended_kernel", true);
 
     // Swapping the backend resets that slot's model kwargs to the new
     // backend's defaults, the kernel among them — a new basis never inherits
@@ -165,9 +118,7 @@ describe("the extended-kernel toggle, slot by slot (#849)", () => {
     expect(box).toHaveProperty("checked", false);
     await user.click(screen.getByRole("button", { name: "Close" }));
 
-    await waitFor(() => {
-      expect(geometryPosts.at(-1)?.momwire_model).toBe("sinusoidal-galerkin");
-      expect(lastModelOptions()).not.toHaveProperty("extended_kernel");
-    });
+        expect(geometryPosts.at(-1)?.momwire_model).toBe("sinusoidal-galerkin");
+    expect(lastModelOptions()).not.toHaveProperty("extended_kernel");
   });
 });

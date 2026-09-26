@@ -12,8 +12,8 @@
 // the /geometry preview the PAUSED branch sends: the same buildRequest() body
 // the socket and /optimize get.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen, waitFor, fireEvent } from "@testing-library/react";
-import { mountDesignSession, HARNESS_EXAMPLE } from "./designSessionHarness";
+import { screen, fireEvent } from "@testing-library/react";
+import { mountReady, HARNESS_EXAMPLE } from "./designSessionHarness";
 import { ZO_STORAGE_KEY } from "../lib/zoOverride";
 
 const DESIGN_ZO = 75;
@@ -43,7 +43,9 @@ function geometryRoute(bodies: Record<string, unknown>[]) {
   };
 }
 
-const swrLabel = (ohms: number) => screen.findByText(`SWR (${ohms} Ω)`);
+// Synchronous: after mountReady the preview (which carries the design's Zo)
+// has landed, and an edit's effect on the label is inside its own act.
+const swrLabel = (ohms: number) => screen.getByText(`SWR (${ohms} Ω)`);
 const zoInput = () =>
   screen.getByLabelText("Reference impedance Zo, ohms") as HTMLInputElement;
 const openGear = () => fireEvent.click(screen.getByLabelText("Optimisation method"));
@@ -61,8 +63,8 @@ afterEach(() => {
 
 describe("the optimizer's Zo field (AK#1735)", () => {
   it("starts at the design's own Zo from the preview, and the readout says so", async () => {
-    mountDesignSession({ routes: geometryRoute([]) });
-    await swrLabel(DESIGN_ZO);
+    await mountReady({ routes: geometryRoute([]) });
+    swrLabel(DESIGN_ZO);
     openGear();
     expect(zoInput().value).toBe("75");
     expect(screen.getByText(/the design's own/)).toBeTruthy();
@@ -71,8 +73,8 @@ describe("the optimizer's Zo field (AK#1735)", () => {
 
   it("an edit becomes the reference: readout label, request body, storage", async () => {
     const bodies: Record<string, unknown>[] = [];
-    mountDesignSession({ routes: geometryRoute(bodies) });
-    await swrLabel(DESIGN_ZO);
+    await mountReady({ routes: geometryRoute(bodies) });
+    swrLabel(DESIGN_ZO);
     // Before any edit the request carries no override at all: the same bytes
     // a session sent before the field existed.
     expect(bodies.length).toBeGreaterThan(0);
@@ -80,27 +82,29 @@ describe("the optimizer's Zo field (AK#1735)", () => {
 
     openGear();
     typeZo("100");
-    await swrLabel(100);
+    swrLabel(100);
     expect(screen.getByText(/design: 75 Ω/)).toBeTruthy();
     expect(JSON.parse(stored() ?? "null")).toEqual({ [HARNESS_EXAMPLE.name]: 100 });
 
     // Pause: the paused branch re-previews with the current request.
     const before = bodies.length;
     fireEvent.click(screen.getByRole("button", { name: /Live/ }));
-    await waitFor(() => expect(bodies.length).toBeGreaterThan(before));
+    // The paused branch's re-preview is sent from the effect the click's act
+    // flushed.
+    expect(bodies.length).toBeGreaterThan(before);
     expect(bodies[bodies.length - 1].z0_ohms).toBe(100);
   });
 
   it.each(["abc", "0", "-50", "", "75 ohm", "Infinity"])(
     "refuses %j visibly and keeps the reference",
     async (bad) => {
-      mountDesignSession({ routes: geometryRoute([]) });
-      await swrLabel(DESIGN_ZO);
+      await mountReady({ routes: geometryRoute([]) });
+      swrLabel(DESIGN_ZO);
       openGear();
       typeZo("100");
-      await swrLabel(100);
+      swrLabel(100);
       typeZo(bad);
-      const alert = await screen.findByRole("alert");
+      const alert = screen.getByRole("alert");
       expect(alert.textContent).toMatch(/Zo must be a number of ohms greater than 0/);
       expect(zoInput().getAttribute("aria-invalid")).toBe("true");
       // Nothing moved: not 50, not the design's 75, still the last good one.
@@ -110,42 +114,42 @@ describe("the optimizer's Zo field (AK#1735)", () => {
   );
 
   it("persists per design across a reload", async () => {
-    mountDesignSession({
+    await mountReady({
       routes: geometryRoute([]),
       storage: { [ZO_STORAGE_KEY]: JSON.stringify({ [HARNESS_EXAMPLE.name]: 50 }) },
     });
-    await swrLabel(50);
+    swrLabel(50);
     openGear();
     expect(zoInput().value).toBe("50");
     // Once the preview has said what the design's own is, the field says the
     // 50 is an override of it — and the readout stays on the override.
-    await screen.findByText(/design: 75 Ω/);
+    expect(screen.getByText(/design: 75 Ω/)).toBeTruthy();
     expect(screen.getByText("SWR (50 Ω)")).toBeTruthy();
   });
 
   it("an override stored for ANOTHER design does not apply here", async () => {
-    mountDesignSession({
+    await mountReady({
       routes: geometryRoute([]),
       storage: { [ZO_STORAGE_KEY]: JSON.stringify({ "dipoles.other": 300 }) },
     });
-    await swrLabel(DESIGN_ZO);
+    swrLabel(DESIGN_ZO);
   });
 
   it("reset, or typing the design's own value, clears the override", async () => {
-    mountDesignSession({ routes: geometryRoute([]) });
-    await swrLabel(DESIGN_ZO);
+    await mountReady({ routes: geometryRoute([]) });
+    swrLabel(DESIGN_ZO);
     openGear();
     typeZo("100");
-    await swrLabel(100);
+    swrLabel(100);
     fireEvent.click(screen.getByRole("button", { name: "reset" }));
-    await swrLabel(DESIGN_ZO);
+    swrLabel(DESIGN_ZO);
     expect(stored()).toBeNull();
     expect(zoInput().value).toBe("75");
 
     typeZo("100");
-    await swrLabel(100);
+    swrLabel(100);
     typeZo("75");
-    await swrLabel(DESIGN_ZO);
+    swrLabel(DESIGN_ZO);
     expect(stored()).toBeNull();
   });
 });

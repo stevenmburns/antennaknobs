@@ -255,3 +255,13 @@ export function stageChart(selector: string): HTMLElement | null {
 export function sweepIdle(chart: HTMLElement): Promise<true> {
   return untilDom(() => chart.dataset.phase === "idle" || null);
 }
+
+// Resolves once the freq sweep's BASE sweep has been sent and streamed on
+// `chart` (data-phase idle, or refining: the refinement pass that follows
+// adds points to a curve already drawn, and it is not what a check of the
+// base sweep's grid is waiting for).
+export function sweepBaseDone(chart: HTMLElement): Promise<true> {
+  return untilDom(
+    () => chart.dataset.phase === "idle" || chart.dataset.phase === "refining" || null,
+  );
+}

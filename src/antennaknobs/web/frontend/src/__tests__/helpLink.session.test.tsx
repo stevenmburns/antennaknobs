@@ -4,8 +4,8 @@
 // the contract around it (new tab, no opener, a label) and that the button
 // takes its URL from there rather than carrying its own.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
-import { mountDesignSession } from "./designSessionHarness";
+import { screen } from "@testing-library/react";
+import { mountReady } from "./designSessionHarness";
 import { DOCS_ORIGIN, helpUrl } from "../lib/help";
 
 afterEach(() => {
@@ -14,10 +14,8 @@ afterEach(() => {
 
 describe("the header Help link", () => {
   it("opens the workbench guide on the docs site in a new tab, without an opener", async () => {
-    mountDesignSession();
-    const link = await waitFor(() =>
-      screen.getByRole("link", { name: /^Help/ }),
-    );
+    await mountReady();
+    const link = screen.getByRole("link", { name: /^Help/ });
     expect(link.getAttribute("href")).toBe(helpUrl());
     expect(link.getAttribute("target")).toBe("_blank");
     const rel = (link.getAttribute("rel") ?? "").split(/\s+/);

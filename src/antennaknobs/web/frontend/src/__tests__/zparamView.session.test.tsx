@@ -7,12 +7,17 @@
 //   - a density sweep is the old convergence sweep: with the switch on and
 //     the Smith chart on screen, the same ladder, trail and Z* as before.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HARNESS_EXAMPLE, mountDesignSession, sessionReady, untilDom } from "./designSessionHarness";
+import { HARNESS_EXAMPLE, mountDesignSession, mountReady, sessionReady, untilDom } from "./designSessionHarness";
 import type { ExampleDescriptor, SchemaParamSpec } from "../lib/params";
 
-const T = { timeout: 5000 };
+
+// The file's budget (AK#1762). "dragging…" and "Stop" are correct, long
+// tests: a cold mount, a streamed sweep, a knob change and a re-run, each
+// awaited on its cause. On a loaded box that is more than vitest's default
+// 5 s; this says so, rather than any wait inside them guessing a clock.
+vi.setConfig({ testTimeout: 15_000 });
 
 const knob = (over: Partial<SchemaParamSpec>): SchemaParamSpec => ({
   name: "gap",
@@ -80,20 +85,19 @@ describe("a knob sweep", () => {
   it("Sweep this knob opens the view and sweeps the knob over its range", async () => {
     const user = userEvent.setup();
     const bodies: Body[] = [];
-    const { container } = mountDesignSession({
+    const { container } = await mountReady({
       examples: [EXAMPLE],
       routes: { "/param_sweep": paramSweepRoute(bodies) },
     });
-    // The design's load path has settled (the harness's causal wait), so the
-    // knob and its menu are live: everything below is synchronous.
-    await sessionReady(document.body);
+    // mountReady waited for the design's load path, so the knob and its
+    // menu are live: everything below is synchronous.
     const gap = screen.getByRole("slider", { name: "Gap" });
     fireEvent.contextMenu(gap);
     await user.click(screen.getByRole("button", { name: "Sweep this knob…" }));
     // The view is on the stage with its header.
-    await waitFor(() => expect(container.querySelector("canvas.zparam")).not.toBeNull(), T);
+    expect(container.querySelector("canvas.zparam")).not.toBeNull();
     expect((screen.getByRole("combobox", { name: "Parameter" }) as HTMLSelectElement).value).toBe("gap");
-    await waitFor(() => expect(bodies.some((b) => b.param === "gap")).toBe(true), T);
+    await untilDom(() => bodies.some((b) => b.param === "gap") === true);
     const b = bodies.find((x) => x.param === "gap")!;
     // Its own min…max, 11 linear points.
     expect(b.values).toHaveLength(11);
@@ -108,7 +112,7 @@ describe("a knob sweep", () => {
     expect(typeof b.measurement_freq_mhz).toBe("number");
     // The chart drew it, with the guide at the knob's value.
     const chart = () => container.querySelector("canvas.zparam") as HTMLElement;
-    await waitFor(() => expect(chart().dataset.points).toBe("11"), T);
+    await untilDom(() => chart().dataset.points === "11");
     expect(chart().dataset.param).toBe("gap");
     expect(chart().dataset.guide).toBe("0.25");
   });
@@ -116,14 +120,13 @@ describe("a knob sweep", () => {
   it("dragging the swept knob moves the guide; another knob marks it stale; Run re-runs", async () => {
     const user = userEvent.setup();
     const bodies: Body[] = [];
-    const { container } = mountDesignSession({
+    const { container } = await mountReady({
       examples: [EXAMPLE],
       pinned: ["antenna", "zparam"],
       routes: { "/param_sweep": paramSweepRoute(bodies) },
     });
-    // The design's load path has settled (the harness's causal wait), so the
-    // knob and its menu are live: everything below is synchronous.
-    await sessionReady(document.body);
+    // mountReady waited for the design's load path, so the knob and its
+    // menu are live: everything below is synchronous.
     const gap = screen.getByRole("slider", { name: "Gap" });
     fireEvent.contextMenu(gap);
     await user.click(screen.getByRole("button", { name: "Sweep this knob…" }));
@@ -151,16 +154,16 @@ describe("a knob sweep", () => {
     expect(bodies.slice(before)).toEqual([]);
     expect(chart().dataset.points).toBe("11");
     await user.click(screen.getByRole("button", { name: "run · re-run?" }));
-    await waitFor(() => expect(bodies.length).toBe(before + 1), T);
+    await untilDom(() => bodies.length === before + 1);
     expect(bodies[bodies.length - 1].param).toBe("gap");
-    await waitFor(() => expect(chart().dataset.stale).toBe("0"), T);
+    await untilDom(() => chart().dataset.stale === "0");
   });
 });
 
 describe("a density sweep is the old convergence sweep", () => {
   it("the switch on, the Smith chart up: the same ladder, trail and Z*", async () => {
     const bodies: Body[] = [];
-    const { container } = mountDesignSession({
+    const { container } = await mountReady({
       examples: [EXAMPLE],
       routes: { "/param_sweep": paramSweepRoute(bodies) },
       uiDefaults: {
@@ -184,11 +187,11 @@ describe("a density sweep is the old convergence sweep", () => {
         problems: [],
       },
     });
-    await waitFor(() => expect(bodies.length).toBeGreaterThan(0), T);
+    await untilDom(() => bodies.length > 0);
     expect(bodies[0].param).toBe("n_per_wire");
     expect(bodies[0].values).toEqual([8, 12, 17, 24, 34, 48, 68]);
     const smith = () => container.querySelector("canvas.smith") as HTMLElement;
-    await waitFor(() => expect(smith().dataset.trail).toBe("n_per_wire:8→68:7"), T);
+    await untilDom(() => smith().dataset.trail === "n_per_wire:8→68:7");
     // Z = 70 + 10/N − j(10 − 5/N): Richardson in 1/N recovers the limit.
     expect(smith().dataset.extrap).toBe("70.000,-10.000");
   });
@@ -198,7 +201,7 @@ describe("the server's refusal is shown, not clamped to", () => {
   it("a hosted 413 appears in the view in its own words", async () => {
     const detail =
       "A parameter sweep of 600 points is over the live limit of 500. Reduce the point count.";
-    const { container } = mountDesignSession({
+    const { container } = await mountReady({
       examples: [EXAMPLE],
       pinned: ["antenna", "zparam"],
       routes: {
@@ -210,13 +213,9 @@ describe("the server's refusal is shown, not clamped to", () => {
           }) as unknown as Response,
       },
     });
-    const thumb = await waitFor(() => {
-      const c = container.querySelector(".thumbstrip canvas.zparam");
-      expect(c).not.toBeNull();
-      return c as HTMLElement;
-    }, T);
+    const thumb = container.querySelector(".thumbstrip canvas.zparam") as HTMLElement;
     fireEvent.click(thumb);
-    expect((await screen.findByRole("alert", {}, T)).textContent).toBe(detail);
+    expect((await untilDom(() => screen.queryByRole("alert")))!.textContent).toBe(detail);
     const chart = [...container.querySelectorAll("canvas.zparam")].find(
       (c) => !c.closest(".thumbstrip"),
     ) as HTMLElement;
@@ -258,14 +257,13 @@ describe("Stop", () => {
     const user = userEvent.setup();
     const bodies: Body[] = [];
     const signals: AbortSignal[] = [];
-    const { container } = mountDesignSession({
+    const { container } = await mountReady({
       examples: [EXAMPLE],
       pinned: ["antenna", "zparam"],
       routes: { "/param_sweep": slowRoute(bodies, signals) },
     });
-    // The design's load path has settled (the harness's causal wait), so the
-    // knob and its menu are live: everything below is synchronous.
-    await sessionReady(document.body);
+    // mountReady waited for the design's load path, so the knob and its
+    // menu are live: everything below is synchronous.
     const gap = screen.getByRole("slider", { name: "Gap" });
     fireEvent.contextMenu(gap);
     await user.click(screen.getByRole("button", { name: "Sweep this knob…" }));
@@ -273,7 +271,7 @@ describe("Stop", () => {
       [...container.querySelectorAll("canvas.zparam")].find(
         (c) => !c.closest(".thumbstrip"),
       ) as HTMLElement;
-    await waitFor(() => expect(Number(chart()?.dataset.points)).toBeGreaterThanOrEqual(3), T);
+    await untilDom(() => Number(chart()?.dataset.points) >= 3);
     const n = bodies.length;
     await user.click(screen.getByRole("button", { name: /· stop$/ }));
     expect(signals[signals.length - 1].aborted).toBe(true);
@@ -294,13 +292,13 @@ describe("Stop", () => {
     expect(chart().dataset.phase).toBe("idle");
     expect(bodies.length).toBe(n);
     await user.click(screen.getByRole("button", { name: "run · re-run?" }));
-    await waitFor(() => expect(bodies.length).toBe(n + 1), T);
-  }, 15000);
+    await untilDom(() => bodies.length === n + 1);
+  });
 });
 
 describe("R = Z0 follows the session's Zo (AK#1735)", () => {
   it("the design's own Zo from the preview, then the Zo field's override", async () => {
-    const { container } = mountDesignSession({
+    const { container } = await mountReady({
       pinned: ["antenna", "zparam"],
       routes: {
         "/geometry": () =>
@@ -320,18 +318,14 @@ describe("R = Z0 follows the session's Zo (AK#1735)", () => {
       [...container.querySelectorAll("canvas.zparam")].find(
         (c) => !c.closest(".thumbstrip"),
       ) as HTMLElement | undefined;
-    const thumb = await waitFor(() => {
-      const c = container.querySelector(".thumbstrip canvas.zparam");
-      expect(c).not.toBeNull();
-      return c as HTMLElement;
-    }, T);
+    const thumb = container.querySelector(".thumbstrip canvas.zparam") as HTMLElement;
     fireEvent.click(thumb);
-    await waitFor(() => expect(chart()?.dataset.z0).toBe("75"), T);
+    await untilDom(() => chart()?.dataset.z0 === "75");
     fireEvent.click(screen.getByLabelText("Optimisation method"));
     const zo = screen.getByLabelText("Reference impedance Zo, ohms") as HTMLInputElement;
     fireEvent.change(zo, { target: { value: "60" } });
     fireEvent.keyDown(zo, { key: "Enter" });
-    await waitFor(() => expect(chart()?.dataset.z0).toBe("60"), T);
+    await untilDom(() => chart()?.dataset.z0 === "60");
     localStorage.clear();
   });
 });
@@ -348,18 +342,17 @@ describe("a knob sweep runs only when asked", () => {
   it("a design switch resets the view to density, and density runs by itself", async () => {
     const user = userEvent.setup();
     const bodies: Body[] = [];
-    const { container } = mountDesignSession({
+    const { container } = await mountReady({
       examples: [VARIANTS],
       pinned: ["antenna", "zparam"],
       routes: { "/param_sweep": paramSweepRoute(bodies) },
     });
-    // The design's load path has settled (the harness's causal wait), so the
-    // knob and its menu are live: everything below is synchronous.
-    await sessionReady(document.body);
+    // mountReady waited for the design's load path, so the knob and its
+    // menu are live: everything below is synchronous.
     const gap = screen.getByRole("slider", { name: "Gap" });
     fireEvent.contextMenu(gap);
     await user.click(screen.getByRole("button", { name: "Sweep this knob…" }));
-    await waitFor(() => expect(bodies.some((b) => b.param === "gap")).toBe(true), T);
+    await untilDom(() => bodies.some((b) => b.param === "gap") === true);
     const n = bodies.length;
     // Another variant is another design.
     await user.selectOptions(screen.getByRole("combobox", { name: "variant" }), "other");
@@ -367,33 +360,29 @@ describe("a knob sweep runs only when asked", () => {
       "n_per_wire",
     );
     // ...and the density sweep starts by itself; no gap sweep follows.
-    await waitFor(() => expect(bodies.length).toBeGreaterThan(n), T);
+    await untilDom(() => bodies.length > n);
     expect(bodies.slice(n).map((b) => b.param)).toEqual(
       bodies.slice(n).map(() => "n_per_wire"),
     );
     const chart = [...container.querySelectorAll("canvas.zparam")].find(
       (c) => !c.closest(".thumbstrip"),
     ) as HTMLElement;
-    await waitFor(() => expect(chart.dataset.param).toBe("n_per_wire"), T);
+    await untilDom(() => chart.dataset.param === "n_per_wire");
   });
 
   it("picking a knob in the header does not start it; Run does", async () => {
     const user = userEvent.setup();
     const bodies: Body[] = [];
-    mountDesignSession({
+    await mountReady({
       examples: [EXAMPLE],
       pinned: ["antenna", "zparam"],
       routes: { "/param_sweep": paramSweepRoute(bodies) },
     });
     // Put the view on the stage: its header only shows there.
-    const thumb = await waitFor(() => {
-      const c = document.querySelector(".thumbstrip canvas.zparam");
-      expect(c).not.toBeNull();
-      return c as HTMLElement;
-    }, T);
+    const thumb = document.querySelector(".thumbstrip canvas.zparam") as HTMLElement;
     fireEvent.click(thumb);
     // Density ran on mount, by itself.
-    await waitFor(() => expect(bodies.some((b) => b.param === "n_per_wire")).toBe(true), T);
+    await untilDom(() => bodies.some((b) => b.param === "n_per_wire") === true);
     const n = bodies.length;
     await user.selectOptions(screen.getByRole("combobox", { name: "Parameter" }), "gap");
     // The runner has decided on the new spec: idle, nothing queued.
@@ -405,30 +394,26 @@ describe("a knob sweep runs only when asked", () => {
     expect(stage.dataset.phase).toBe("idle");
     expect(bodies.length).toBe(n);
     await user.click(screen.getByRole("button", { name: "run" }));
-    await waitFor(() => expect(bodies.length).toBe(n + 1), T);
+    await untilDom(() => bodies.length === n + 1);
     expect(bodies[n].param).toBe("gap");
   });
 
   it("an edit to the knob sweep's own range runs it", async () => {
     const user = userEvent.setup();
     const bodies: Body[] = [];
-    mountDesignSession({
+    await mountReady({
       examples: [EXAMPLE],
       pinned: ["antenna", "zparam"],
       routes: { "/param_sweep": paramSweepRoute(bodies) },
     });
-    const thumb = await waitFor(() => {
-      const c = document.querySelector(".thumbstrip canvas.zparam");
-      expect(c).not.toBeNull();
-      return c as HTMLElement;
-    }, T);
+    const thumb = document.querySelector(".thumbstrip canvas.zparam") as HTMLElement;
     fireEvent.click(thumb);
-    await user.selectOptions(await screen.findByRole("combobox", { name: "Parameter" }), "gap");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Parameter" }), "gap");
     const n = bodies.length;
     const pts = screen.getByLabelText("points") as HTMLInputElement;
     await user.clear(pts);
     await user.type(pts, "5{Enter}");
-    await waitFor(() => expect(bodies.length).toBe(n + 1), T);
+    await untilDom(() => bodies.length === n + 1);
     expect(bodies[n]).toMatchObject({ param: "gap" });
     expect(bodies[n].values).toHaveLength(5);
   });

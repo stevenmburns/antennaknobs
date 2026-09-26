@@ -5,9 +5,9 @@
 //   - a range picked on a chart's axis persists in the view prefs and is
 //     what that chart then draws; the other chart stays on Auto.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { mountDesignSession } from "./designSessionHarness";
+import { mountReady } from "./designSessionHarness";
 import { VIEW_PREFS_KEY } from "../components/session/useViewPrefs";
 
 afterEach(() => {
@@ -22,14 +22,10 @@ const sweepBoxes = () =>
 describe("the sweep charts share one freq-sweep switch (AK#1738)", () => {
   it("unchecking it on the VSWR chart unchecks it on Smith, S11 and the Tools menu", async () => {
     const user = userEvent.setup();
-    const { container } = mountDesignSession({
+    const { container } = await mountReady({
       layout: "grid",
       pinned: ["smith", "vswr", "gamma", "antenna"],
     });
-    await waitFor(
-      () => expect(container.querySelector('canvas.sweep[data-mode="vswr"]')).not.toBeNull(),
-      { timeout: 5000 },
-    );
     // Smith, VSWR and S11 each carry the switch.
     expect(sweepBoxes()).toEqual([true, true, true]);
     const vswrCell = container
@@ -41,7 +37,7 @@ describe("the sweep charts share one freq-sweep switch (AK#1738)", () => {
     expect(vswrBox).toBeTruthy();
     await user.click(vswrBox);
     expect(sweepBoxes()).toEqual([false, false, false]);
-    await user.click(await screen.findByRole("button", { name: "Tools menu" }));
+    await user.click(screen.getByRole("button", { name: "Tools menu" }));
     expect(sweepBoxes()).toEqual([false, false, false, false]);
   });
 });
@@ -49,14 +45,10 @@ describe("the sweep charts share one freq-sweep switch (AK#1738)", () => {
 describe("a chart's range persists in the view prefs", () => {
   it("a VSWR preset is stored sparsely and drawn; S11 stays on Auto", async () => {
     const user = userEvent.setup();
-    const { container } = mountDesignSession({
+    const { container } = await mountReady({
       layout: "grid",
       pinned: ["smith", "vswr", "gamma", "antenna"],
     });
-    await waitFor(
-      () => expect(container.querySelector('canvas.sweep[data-mode="vswr"]')).not.toBeNull(),
-      { timeout: 5000 },
-    );
     await user.click(
       screen.getByRole("button", { name: "VSWR range and SWR threshold" }),
     );

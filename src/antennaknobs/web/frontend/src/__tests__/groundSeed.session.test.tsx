@@ -7,8 +7,8 @@
 // and the slot label reads "deck's own" because the deck's counts are what
 // the solvers honour.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
-import { mountDesignSession, HARNESS_EXAMPLE } from "./designSessionHarness";
+import { screen } from "@testing-library/react";
+import { mountReady, HARNESS_EXAMPLE } from "./designSessionHarness";
 import type { ExampleDescriptor } from "../lib/params";
 
 const FREE: ExampleDescriptor = {
@@ -70,82 +70,70 @@ afterEach(() => {
 const groundBox = () =>
   screen.getByRole("checkbox", { name: /ground plane/ }) as HTMLInputElement;
 
+const radio = (name: string | RegExp) =>
+  (screen.getByRole("radio", { name }) as HTMLInputElement).checked;
+
+// Every assertion is synchronous after mountReady: the seed now runs in the
+// render that loads the design (AK#1762), so the switch, the type and the
+// method land together, and the session's readiness is past that render.
 describe("ground seed from a file design (AK#1432)", () => {
   it("GE 0: the ground plane comes up OFF, the panel says why, the slot label reads deck's own", async () => {
-    mountDesignSession({ examples: [FREE] });
-    await screen.findByText(/from the file: free space \(GE 0\)/);
-    await waitFor(() => expect(groundBox().checked).toBe(false));
+    await mountReady({ examples: [FREE] });
+    expect(screen.getByText(/from the file: free space \(GE 0\)/)).toBeTruthy();
+    expect(groundBox().checked).toBe(false);
     expect(screen.getByText(/N=deck's own/)).toBeTruthy();
   });
 
   it("GE 1 / GN 1: ground on with the PEC type", async () => {
-    mountDesignSession({ examples: [PEC] });
-    await screen.findByText(/from the file: perfect ground/);
-    await waitFor(() => expect(groundBox().checked).toBe(true));
-    // The radio settles in its own update, as in the GN 2 case below (CI
-    // caught this one a render behind too, on the v0.85.0 release PR).
-    await waitFor(() =>
-      expect(
-        (screen.getByRole("radio", { name: /perfect|pec/i }) as HTMLInputElement)
-          .checked,
-      ).toBe(true),
-    );
+    await mountReady({ examples: [PEC] });
+    expect(screen.getByText(/from the file: perfect ground/)).toBeTruthy();
+    expect(groundBox().checked).toBe(true);
+    expect(radio(/perfect|pec/i)).toBe(true);
   });
 
   it("GN 2: ground on, finite, Sommerfeld, with the card's medium in the notice", async () => {
-    mountDesignSession({ examples: [GN2] });
-    await screen.findByText(/from the file: finite ground, Sommerfeld \(GN 2\), εr 20, σ 0.02 S\/m/);
-    await waitFor(() => expect(groundBox().checked).toBe(true));
-    // The switch and the method radios settle in separate updates, so the
-    // radios wait too (CI caught the Sommerfeld radio a render behind).
-    await waitFor(() => {
-      expect(
-        (screen.getByRole("radio", { name: "Sommerfeld" }) as HTMLInputElement).checked,
-      ).toBe(true);
-      expect(
-        (screen.getByRole("radio", { name: /finite/ }) as HTMLInputElement).checked,
-      ).toBe(true);
-    });
+    await mountReady({ examples: [GN2] });
+    expect(
+      screen.getByText(/from the file: finite ground, Sommerfeld \(GN 2\), εr 20, σ 0.02 S\/m/),
+    ).toBeTruthy();
+    expect(groundBox().checked).toBe(true);
+    expect(radio("Sommerfeld")).toBe(true);
+    expect(radio(/finite/)).toBe(true);
   });
 
   it("GN 0: ground on, finite, the reflection-coefficient method", async () => {
-    mountDesignSession({ examples: [GN0] });
-    await screen.findByText(/from the file: finite ground, reflection coefficients \(GN 0\)/);
-    await waitFor(() => {
-      expect(
-        (screen.getByRole("radio", { name: /refl-coef/ }) as HTMLInputElement).checked,
-      ).toBe(true);
-    });
+    await mountReady({ examples: [GN0] });
+    expect(
+      screen.getByText(/from the file: finite ground, reflection coefficients \(GN 0\)/),
+    ).toBeTruthy();
+    expect(radio(/refl-coef/)).toBe(true);
   });
 
   it("NEC-5 GN 0: Sommerfeld, and the notice names the deck's own card (AC6LA)", async () => {
-    mountDesignSession({ examples: [NEC5_GN0] });
-    await screen.findByText(/from the file: finite ground, Sommerfeld \(NEC-5 GN 0\), εr 13, σ 0.005 S\/m/);
-    await waitFor(() => {
-      expect(
-        (screen.getByRole("radio", { name: "Sommerfeld" }) as HTMLInputElement).checked,
-      ).toBe(true);
-    });
+    await mountReady({ examples: [NEC5_GN0] });
+    expect(
+      screen.getByText(
+        /from the file: finite ground, Sommerfeld \(NEC-5 GN 0\), εr 13, σ 0.005 S\/m/,
+      ),
+    ).toBeTruthy();
+    expect(radio("Sommerfeld")).toBe(true);
   });
 
   it("NEC-5 GD: finite, the MININEC method, and the notice says which half the soil is for", async () => {
-    mountDesignSession({ examples: [NEC5_GD] });
-    await screen.findByText(
-      /from the file: MININEC-type ground \(NEC-5 GD\) — perfect ground for the currents and impedance, εr 13, σ 0.005 S\/m for the pattern/,
-    );
-    await waitFor(() => {
-      expect(
-        (screen.getByRole("radio", { name: "MININEC" }) as HTMLInputElement).checked,
-      ).toBe(true);
-      expect(
-        (screen.getByRole("radio", { name: /finite/ }) as HTMLInputElement).checked,
-      ).toBe(true);
-    });
+    await mountReady({ examples: [NEC5_GD] });
+    expect(
+      screen.getByText(
+        /from the file: MININEC-type ground \(NEC-5 GD\) — perfect ground for the currents and impedance, εr 13, σ 0.005 S\/m for the pattern/,
+      ),
+    ).toBeTruthy();
+    expect(radio("MININEC")).toBe(true);
+    expect(radio(/finite/)).toBe(true);
   });
 
   it("a catalog design (no seed) keeps the defaults, no notice, a numeric N", async () => {
-    mountDesignSession({ examples: [HARNESS_EXAMPLE] });
-    await screen.findByRole("radiogroup", { name: "Finite-ground solve method" });
+    // Ready first, so these absences are about the loaded design, not the
+    // moment before the catalog arrived.
+    await mountReady({ examples: [HARNESS_EXAMPLE] });
     expect(screen.queryByText(/from the file:/)).toBeNull();
     expect(screen.queryByText(/N=deck's own/)).toBeNull();
     expect(screen.getByText(/· N=\d+/)).toBeTruthy();
