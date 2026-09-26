@@ -6,6 +6,7 @@ import type { SweepProgress } from "../../lib/sweep";
 import {
   AUTO,
   type AxisDomain,
+  axisFraction,
   axisProjector,
   axisTickMarks,
   bandwidthReadout,
@@ -241,10 +242,13 @@ export function SweepChart({
   if (mode === "gamma" && dom.hi > 0 && !hasTick(dom.hi)) {
     ticks.push({ at: dom.hi, label: formatTick(dom.hi) });
   }
-  // Where feed 0's samples sit, as a fraction of the plot height (0 bottom,
-  // 1 top): the drawn geometry, published for the chart-vs-planner pin.
-  const fracOf = (v: number) =>
-    Math.max(0, Math.min(1, (project(v) - dom.lo) / (dom.hi - dom.lo)));
+  // A value's height as a fraction of the plot (0 bottom, 1 top). Unclamped
+  // for the trail, which is clipped to the plot instead; clamped for
+  // everything that must stay on the plot (markers, dots, ticks).
+  const rawFracOf = axisFraction(mode, axis, dom);
+  const fracOf = (v: number) => Math.max(0, Math.min(1, rawFracOf(v)));
+  // Where feed 0's samples sit, as a fraction of the plot height: the drawn
+  // geometry, published for the chart-vs-planner pin.
 
   // The threshold (AK#1738): the SWR line, or the matching S11 line, and the
   // runs of feed 0's sweep below it, their edges interpolated between the
@@ -386,8 +390,20 @@ export function SweepChart({
       // while refinement is still densifying the set (issue #866): then the
       // line's kinks are transients about to shift, so draw honest dots and
       // connect only once `settled`.
+      //
+      // The connected trail runs through each sample's TRUE height, off the
+      // plot or not, and is clipped to the plot rect: a segment then leaves
+      // through the edge where the straight line between its samples does,
+      // at its own slope. Pinning an off-range sample onto the edge at its
+      // own frequency (the old way) bent the last segment into a corner the
+      // curve does not have. The pinned-needle ticks below still mark every
+      // off-scale sample.
       for (let fi = 0; fi < nFeeds; fi++) {
         if (settled) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(marginL, marginT, plotW, plotH);
+          ctx.clip();
           ctx.strokeStyle = feedSweepColor(fi);
           ctx.lineWidth = 1.3;
           ctx.beginPath();
@@ -396,11 +412,12 @@ export function SweepChart({
             const z = zAt(fi, i);
             const v = valueFor(mode, z.re, z.im, z0);
             const px = xOf(freqs[i]);
-            const py = offScale(v) ? marginT : yOf(v);
+            const py = marginT + plotH * (1 - rawFracOf(v));
             if (!started) { ctx.moveTo(px, py); started = true; }
             else ctx.lineTo(px, py);
           }
           ctx.stroke();
+          ctx.restore();
         } else {
           // Same dot radius as SmithChart's unconnected trail, same color
           // grammar (off-scale samples still get the pinned-needle tick
