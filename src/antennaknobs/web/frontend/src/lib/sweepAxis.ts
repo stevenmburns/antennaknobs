@@ -139,6 +139,20 @@ export function axisProjector(
     : (v) => v;
 }
 
+/** Chart value → its height as a fraction of the plot (0 bottom, 1 top),
+ *  NOT clamped: a value off the range lands below 0 or above 1. The chart
+ *  draws its trail through these and clips to the plot, so a segment leaves
+ *  the plot where the true curve does; the refinement planner scores the
+ *  same numbers. One function, so the two cannot disagree. */
+export function axisFraction(
+  mode: SweepMode,
+  choice: SweepAxisChoice,
+  d: AxisDomain,
+): (v: number) => number {
+  const project = axisProjector(mode, choice);
+  return (v) => (project(v) - d.lo) / (d.hi - d.lo);
+}
+
 /** The drawn domain for a mode, a choice and the values Auto fits.
  *
  *  `s11Top` is the S11 top the over-unity rule gives (s11DbTop: 0 for any

@@ -8,6 +8,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { AUTO_SETTLE_MS, SweepChart } from "../components/charts/SweepChart";
 import type { SweepData } from "../lib/api";
+import { gammaMagFromZ, vswrFromGammaMag } from "../lib/math";
 import { sweepProjections } from "../lib/refine";
 import { AUTO_AXES, type SweepAxisChoice, type SweepMode } from "../lib/sweepAxis";
 
@@ -371,5 +372,70 @@ describe("the compressed 1–∞ VSWR scale (1 − 1/SWR)", () => {
     render(<SweepChart {...BASE} mode="gamma" sweep={notch(FREQS)} onAxisChange={onAxisChange} />);
     fireEvent.click(screen.getByRole("button", { name: "S11 range and SWR threshold" }));
     expect(screen.queryByRole("button", { name: "1–∞" })).toBeNull();
+  });
+});
+
+describe("the trail is clipped, not clamped, at the plot edge", () => {
+  // Records the calls that matter: the clip rect and the stroked polyline.
+  function recorder() {
+    const calls: { op: string; args: number[] }[] = [];
+    const ctx = new Proxy(
+      {},
+      {
+        get: (_t, prop) => {
+          if (prop === "measureText") return () => ({ width: 10 });
+          return (...args: unknown[]) =>
+            calls.push({ op: String(prop), args: args.filter((a): a is number => typeof a === "number") });
+        },
+        set: () => true,
+      },
+    ) as unknown as CanvasRenderingContext2D;
+    return { ctx, calls };
+  }
+
+  function drawn(mode: "vswr" | "gamma", axis: SweepAxisChoice, sweep: SweepData) {
+    const rec = recorder();
+    const real = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = (() => rec.ctx) as unknown as HTMLCanvasElement["getContext"];
+    try {
+      render(<SweepChart {...BASE} mode={mode} size={236} sweep={sweep} axis={axis} />);
+    } finally {
+      HTMLCanvasElement.prototype.getContext = real;
+    }
+    // The trail: the moveTo/lineTo run that follows the clip.
+    const clipAt = rec.calls.findIndex((c) => c.op === "clip");
+    const rect = rec.calls.slice(0, clipAt).reverse().find((c) => c.op === "rect");
+    const trail: number[] = [];
+    for (let i = clipAt + 1; i < rec.calls.length; i++) {
+      const c = rec.calls[i];
+      if (c.op === "stroke") break;
+      if (c.op === "moveTo" || c.op === "lineTo") trail.push(c.args[1]);
+    }
+    return { clipAt, rect, trail };
+  }
+
+  // Plot box at size 236: marginL 26, marginT 16, plotW 202, plotH 200.
+  const yAt = (f: number) => 16 + 200 * (1 - f);
+
+  it("VSWR: an off-range sample is drawn at its true height, and the stroke clipped to the plot", () => {
+    const sweep = notch(FREQS, 50); // band edges reach SWR ~18
+    const { clipAt, rect, trail } = drawn("vswr", { kind: "fixed", lo: 1, hi: 2 }, sweep);
+    expect(clipAt).toBeGreaterThan(-1);
+    expect(rect?.args).toEqual([26, 16, 202, 200]);
+    const vs = sweep.freqs_mhz.map((_, i) =>
+      vswrFromGammaMag(gammaMagFromZ(sweep.z_re[i], sweep.z_im[i], 50)),
+    );
+    expect(trail).toHaveLength(vs.length);
+    // Sample 0 is SWR ~18 on a 1–2 range: 17 plot-heights above the top,
+    // not pinned on the edge at y = 16.
+    trail.forEach((y, i) => expect(y).toBeCloseTo(yAt(vs[i] - 1), 6));
+    expect(trail[0]).toBeLessThan(16 - 1000);
+  });
+
+  it("S11: a sample below the floor is drawn below it, clipped, not flattened onto it", () => {
+    // R = 50 at the notch: S11 hits the −60 dB math floor, far under −20.
+    const sweep = notch(FREQS, 50);
+    const { trail } = drawn("gamma", { kind: "fixed", lo: -20, hi: 0 }, sweep);
+    expect(Math.max(...trail)).toBeGreaterThan(yAt(0) + 100);
   });
 });
