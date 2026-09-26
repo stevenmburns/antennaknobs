@@ -58,6 +58,7 @@ export function ZParamChart({
   xAxis = RX_AUTO,
   onAxisChange,
   z0 = 50,
+  phase = "idle",
 }: {
   data: ParamSweepData | null;
   /** The parameter the view is set to sweep — the sweep in hand may still
@@ -84,6 +85,8 @@ export function ZParamChart({
   /** The reference impedance (the design's Zo, or the session's override,
    *  AK#1735): R = Z0 is the R axis's reference line. */
   z0?: number;
+  /** The runner's phase, as data-phase: idle / queued (dwelling) / running. */
+  phase?: "idle" | "queued" | "running";
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -473,6 +476,7 @@ export function ZParamChart({
         data-error={d?.error ?? ""}
         data-partial={d?.partial ? "1" : "0"}
         data-stale={d?.stale ? "1" : "0"}
+        data-phase={phase}
         onPointerMove={onPointerMove}
         // A tap on a phone reads the nearest point too.
         onPointerDown={onPointerMove}

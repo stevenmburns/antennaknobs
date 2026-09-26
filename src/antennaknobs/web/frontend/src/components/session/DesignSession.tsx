@@ -794,6 +794,8 @@ function DesignSessionBody({
   // switch; the preview's .then sets it. Slider drags on the *same* antenna
   // keep solving freely (it stays equal to `geometry`).
   const [previewReady, setPreviewReady] = useState<string | null>(null);
+  // The reload generation (reloadNonce) the released preview was for.
+  const [previewNonce, setPreviewNonce] = useState(-1);
   // Whether to render the per-feed (multi-feed) UI. Prefer the value the
   // server folds into the live solve / geometry response — authoritative for
   // user designs, which derive it lazily — and fall back to the example
@@ -1944,6 +1946,10 @@ function DesignSessionBody({
     // Capture the geometry this run is for, so the gate is released for the
     // right antenna even if `geometry` changed by the time the fetch resolves.
     const forGeometry = geometry;
+    // ...and the reload generation, for the readiness signal (a reload keeps
+    // the geometry, so the geometry alone cannot tell the old preview's
+    // release from the new one's).
+    const forNonce = reloadNonce;
     const req = buildRequest();
     // The band-snap effect (on currentExample, above) runs in this same
     // commit, but its setDesignFreq/setMeasFreq only land NEXT render —
@@ -1989,12 +1995,16 @@ function DesignSessionBody({
         // Release the gate. The solve effect then either solves or — if the
         // design/solver combo is a poor match — withholds and warns.
         setPreviewReady(forGeometry);
+        setPreviewNonce(forNonce);
       })
       .catch(() => {
         // Aborted or offline. If this run wasn't superseded, still release the
         // gate so the live solve renders the antenna (its own error path
         // surfaces anything that goes wrong there).
-        if (!controller.signal.aborted) setPreviewReady(forGeometry);
+        if (!controller.signal.aborted) {
+          setPreviewReady(forGeometry);
+          setPreviewNonce(forNonce);
+        }
       });
     return () => controller.abort();
     // reloadNonce (issue #867): a user-design reload re-runs this full
@@ -2091,6 +2101,7 @@ function DesignSessionBody({
     sweepAdvisories,
     paramSweep,
     paramSweepRunning,
+    paramSweepPhase,
     stopParamSweep,
     runParamSweepNow,
     armParamSweep,
@@ -2496,6 +2507,17 @@ function DesignSessionBody({
   //    while the readout ticks through candidates. Per view, because the
   //    Smith chart follows the run live and the schematic stays accurate —
   //    dimming those would be the same lie in the other direction.
+  // The session's readiness, as a DOM signal tests wait on (the harness's
+  // sessionReady): the design's load path has settled — the catalog holds
+  // it, its design-load resets have run, and its preview has landed and
+  // released the solve gate — for this reload generation. "" until then.
+  // Read from the same state the product gates on, so a wait on it is a wait
+  // on the cause, not on a clock.
+  const sessionReadyKey =
+    currentExample && previewReady === geometry && previewNonce === reloadNonce
+      ? `${geometry}#${reloadNonce}`
+      : "";
+
   const outputStale =
     stale || (optRunning && VIEW_META[view].staleWhileOptimizing);
 
@@ -2741,7 +2763,7 @@ function DesignSessionBody({
             sweepRunning={sweepRunning}
             sweepProgress={sweepProgress}
             paramSweepRunning={paramSweepRunning}
-            zparam={zparamSettings}
+            zparam={{ ...zparamSettings, phase: paramSweepPhase }}
             onZparamXLogChange={setZparamXLog}
             onZparamAxisChange={(axis, c) =>
               setZparamAxes((cur) => ({ ...cur, [axis]: c }))
@@ -2788,7 +2810,7 @@ function DesignSessionBody({
   // hoisted consts above. All hooks already ran, so branching here is safe.
   if (isMobile) {
     return (
-      <div className="app app-mobile">
+      <div className="app app-mobile" data-ready={sessionReadyKey}>
         <aside className="sidebar mobile-knobs">{controls}</aside>
         <section
           className="mobile-output"
@@ -2861,7 +2883,7 @@ function DesignSessionBody({
   }
 
   return (
-    <div className="app">
+    <div className="app" data-ready={sessionReadyKey}>
       <aside className="sidebar">{controls}</aside>
 
       <main className="stage" aria-label="Antenna output views">
@@ -2957,7 +2979,7 @@ function DesignSessionBody({
                       // dots until its chart took the stage.
                       refineEnabled={refineEnabled}
                       paramSweepRunning={paramSweepRunning}
-                      zparam={zparamSettings}
+                      zparam={{ ...zparamSettings, phase: paramSweepPhase }}
                       azElevDeg={azElevDeg}
                       elevAzDeg={elevAzDeg}
                       cameraProjection={cameraProjection}

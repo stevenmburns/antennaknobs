@@ -9,9 +9,9 @@
 // (the design-switch path) and lives on the /ws socket, which setup.ts's
 // InertWebSocket keeps silent — same non-goal as the harness documents.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { mountDesignSession, HARNESS_EXAMPLE } from "./designSessionHarness";
+import { mountDesignSession, HARNESS_EXAMPLE, sessionReady, untilDom } from "./designSessionHarness";
 import type { ExampleDescriptor, SchemaParamSpec } from "../lib/params";
 
 const GAP_PARAM: SchemaParamSpec = {
@@ -75,26 +75,27 @@ describe("user-design reload (issue #867)", () => {
       },
     });
 
-    // Catalog resolved, the user design auto-selected, the button gated in.
-    const reload = await screen.findByRole("button", {
-      name: "reload design file",
-    });
+    // The session settled on the auto-selected user design (catalog loaded,
+    // its preview released): the reload button is gated in, synchronously.
+    await sessionReady(document.body, "user.probe#0");
+    const reload = screen.getByRole("button", { name: "reload design file" });
     expect(examplesCalls).toBe(1);
     // The design-switch preview for the auto-selected design.
-    await waitFor(() => expect(geometryCalls).toBe(1));
+    expect(geometryCalls).toBe(1);
     expect(screen.queryByText("Gap")).toBeNull();
 
     await userEvent.setup().click(reload);
 
-    // The reload re-fetched the catalog and re-ran the preview effect for the
-    // same (still-selected) geometry.
-    await waitFor(() => expect(examplesCalls).toBe(2));
-    await waitFor(() => expect(geometryCalls).toBe(2));
+    // The reload's own generation settled: the catalog was re-fetched and the
+    // preview effect re-ran for the same (still-selected) geometry.
+    await sessionReady(document.body, "user.probe#1");
+    expect(examplesCalls).toBe(2);
+    expect(geometryCalls).toBe(2);
 
     // The param the edit added rendered, seeded from its schema default —
     // merge-seed, not the old skip-if-seen (which would leave the bag without
     // a `gap` entry).
-    const gapLabel = await screen.findByText("Gap");
+    const gapLabel = screen.getByText("Gap");
     expect(gapLabel).toBeTruthy();
     const slider = screen.getByRole("slider", { name: "Gap" });
     expect(slider.getAttribute("aria-valuenow")).toBe("0.25");
@@ -122,16 +123,19 @@ describe("user-design reload (issue #867)", () => {
       },
     });
 
-    const rescan = await screen.findByRole("button", { name: "rescan my designs" });
-    await waitFor(() => expect(geometryCalls).toBe(1));
+    await sessionReady(document.body, `${HARNESS_EXAMPLE.name}#0`);
+    const rescan = screen.getByRole("button", { name: "rescan my designs" }) as HTMLButtonElement;
+    expect(geometryCalls).toBe(1);
     expect(screen.queryByRole("button", { name: "reload design file" })).toBeNull();
 
     await userEvent.setup().click(rescan);
-
-    await waitFor(() => expect(examplesCalls).toBe(2));
+    // The rescan holds the button disabled until its catalog fetch has
+    // landed (reloadBusy): its release is the rescan finishing.
+    await untilDom(() => !rescan.disabled);
+    expect(examplesCalls).toBe(2);
     // The new user design is in the catalog the picker lists...
     await userEvent.setup().click(screen.getByRole("combobox"));
-    expect(await screen.findByText("Probe (user file)")).toBeTruthy();
+    expect(screen.getByText("Probe (user file)")).toBeTruthy();
     // ...and the built-in selection was not re-previewed for it.
     expect(geometryCalls).toBe(1);
   });

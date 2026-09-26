@@ -9,7 +9,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HARNESS_EXAMPLE, mountDesignSession } from "./designSessionHarness";
+import { HARNESS_EXAMPLE, mountDesignSession, sessionReady, untilDom } from "./designSessionHarness";
 import type { ExampleDescriptor, SchemaParamSpec } from "../lib/params";
 
 const T = { timeout: 5000 };
@@ -84,9 +84,12 @@ describe("a knob sweep", () => {
       examples: [EXAMPLE],
       routes: { "/param_sweep": paramSweepRoute(bodies) },
     });
-    const gap = await screen.findByRole("slider", { name: "Gap" });
+    // The design's load path has settled (the harness's causal wait), so the
+    // knob and its menu are live: everything below is synchronous.
+    await sessionReady(document.body);
+    const gap = screen.getByRole("slider", { name: "Gap" });
     fireEvent.contextMenu(gap);
-    await user.click(await screen.findByRole("button", { name: "Sweep this knob…" }, { timeout: 5000 }));
+    await user.click(screen.getByRole("button", { name: "Sweep this knob…" }));
     // The view is on the stage with its header.
     await waitFor(() => expect(container.querySelector("canvas.zparam")).not.toBeNull(), T);
     expect((screen.getByRole("combobox", { name: "Parameter" }) as HTMLSelectElement).value).toBe("gap");
@@ -118,26 +121,33 @@ describe("a knob sweep", () => {
       pinned: ["antenna", "zparam"],
       routes: { "/param_sweep": paramSweepRoute(bodies) },
     });
-    const gap = await screen.findByRole("slider", { name: "Gap" });
+    // The design's load path has settled (the harness's causal wait), so the
+    // knob and its menu are live: everything below is synchronous.
+    await sessionReady(document.body);
+    const gap = screen.getByRole("slider", { name: "Gap" });
     fireEvent.contextMenu(gap);
-    await user.click(await screen.findByRole("button", { name: "Sweep this knob…" }, { timeout: 5000 }));
-    const chart = () => container.querySelector("canvas.zparam") as HTMLElement;
-    await waitFor(() => expect(chart()?.dataset.points).toBe("11"), T);
-    await new Promise((r) => setTimeout(r, 800));
+    await user.click(screen.getByRole("button", { name: "Sweep this knob…" }));
+    const chart = () =>
+      [...container.querySelectorAll("canvas.zparam")].find(
+        (c) => !c.closest(".thumbstrip"),
+      ) as HTMLElement;
+    // The sweep landed and the runner is idle: nothing queued, nothing out.
+    await untilDom(() => chart()?.dataset.points === "11" && chart().dataset.phase === "idle");
     const before = bodies.length;
 
     for (let i = 0; i < 3; i++) fireEvent.keyDown(gap, { key: "ArrowUp" });
-    await waitFor(() => expect(chart().dataset.guide).not.toBe("0.25"), T);
-    // Past the 500 ms dwell, with margin: no new sweep, the same points.
-    await new Promise((r) => setTimeout(r, 1200));
+    await untilDom(() => chart().dataset.guide !== "0.25");
+    // The runner decided on this change already (effects ran inside the
+    // event's act): idle means no sweep is queued, so none will follow.
+    expect(chart().dataset.phase).toBe("idle");
     expect(bodies.slice(before)).toEqual([]);
     expect(chart().dataset.points).toBe("11");
 
     // Another knob changes every point, but a knob sweep re-runs only when
     // asked: the old trace stays, dimmed as stale, and "re-run?" is offered.
     fireEvent.keyDown(screen.getByRole("slider", { name: "Height" }), { key: "ArrowUp" });
-    await waitFor(() => expect(chart().dataset.stale).toBe("1"), T);
-    await new Promise((r) => setTimeout(r, 1200));
+    await untilDom(() => chart().dataset.stale === "1");
+    expect(chart().dataset.phase).toBe("idle");
     expect(bodies.slice(before)).toEqual([]);
     expect(chart().dataset.points).toBe("11");
     await user.click(screen.getByRole("button", { name: "run · re-run?" }));
@@ -253,9 +263,12 @@ describe("Stop", () => {
       pinned: ["antenna", "zparam"],
       routes: { "/param_sweep": slowRoute(bodies, signals) },
     });
-    const gap = await screen.findByRole("slider", { name: "Gap" });
+    // The design's load path has settled (the harness's causal wait), so the
+    // knob and its menu are live: everything below is synchronous.
+    await sessionReady(document.body);
+    const gap = screen.getByRole("slider", { name: "Gap" });
     fireEvent.contextMenu(gap);
-    await user.click(await screen.findByRole("button", { name: "Sweep this knob…" }, { timeout: 5000 }));
+    await user.click(screen.getByRole("button", { name: "Sweep this knob…" }));
     const chart = () =>
       [...container.querySelectorAll("canvas.zparam")].find(
         (c) => !c.closest(".thumbstrip"),
@@ -268,8 +281,8 @@ describe("Stop", () => {
     expect(kept).toBeGreaterThanOrEqual(3);
     expect(kept).toBeLessThan(11);
     expect(chart().dataset.partial).toBe("1");
-    // Past the dwell, with margin: nothing restarted, the points stayed.
-    await new Promise((r) => setTimeout(r, 1200));
+    // Nothing restarted (the runner is idle), and the points stayed.
+    expect(chart().dataset.phase).toBe("idle");
     expect(bodies.length).toBe(n);
     expect(Number(chart().dataset.points)).toBe(kept);
     expect(screen.getByRole("button", { name: `${kept}/11 · run` })).toBeTruthy();
@@ -277,8 +290,8 @@ describe("Stop", () => {
     // Another knob does not restart a knob sweep either (it waits to be
     // asked): it goes stale. Run is what re-runs it.
     fireEvent.keyDown(screen.getByRole("slider", { name: "Height" }), { key: "ArrowUp" });
-    await waitFor(() => expect(chart().dataset.stale).toBe("1"), T);
-    await new Promise((r) => setTimeout(r, 900));
+    await untilDom(() => chart().dataset.stale === "1");
+    expect(chart().dataset.phase).toBe("idle");
     expect(bodies.length).toBe(n);
     await user.click(screen.getByRole("button", { name: "run · re-run?" }));
     await waitFor(() => expect(bodies.length).toBe(n + 1), T);
@@ -340,9 +353,12 @@ describe("a knob sweep runs only when asked", () => {
       pinned: ["antenna", "zparam"],
       routes: { "/param_sweep": paramSweepRoute(bodies) },
     });
-    const gap = await screen.findByRole("slider", { name: "Gap" });
+    // The design's load path has settled (the harness's causal wait), so the
+    // knob and its menu are live: everything below is synchronous.
+    await sessionReady(document.body);
+    const gap = screen.getByRole("slider", { name: "Gap" });
     fireEvent.contextMenu(gap);
-    await user.click(await screen.findByRole("button", { name: "Sweep this knob…" }, { timeout: 5000 }));
+    await user.click(screen.getByRole("button", { name: "Sweep this knob…" }));
     await waitFor(() => expect(bodies.some((b) => b.param === "gap")).toBe(true), T);
     const n = bodies.length;
     // Another variant is another design.
@@ -380,7 +396,13 @@ describe("a knob sweep runs only when asked", () => {
     await waitFor(() => expect(bodies.some((b) => b.param === "n_per_wire")).toBe(true), T);
     const n = bodies.length;
     await user.selectOptions(screen.getByRole("combobox", { name: "Parameter" }), "gap");
-    await new Promise((r) => setTimeout(r, 1200));
+    // The runner has decided on the new spec: idle, nothing queued.
+    const stage = [...document.querySelectorAll<HTMLElement>("canvas.zparam")].find(
+      (c) => !c.closest(".thumbstrip"),
+    )!;
+    // (The pick's effects ran inside its act; the old density data is gone.)
+    expect(stage.dataset.points).toBe("0");
+    expect(stage.dataset.phase).toBe("idle");
     expect(bodies.length).toBe(n);
     await user.click(screen.getByRole("button", { name: "run" }));
     await waitFor(() => expect(bodies.length).toBe(n + 1), T);
@@ -409,5 +431,24 @@ describe("a knob sweep runs only when asked", () => {
     await waitFor(() => expect(bodies.length).toBe(n + 1), T);
     expect(bodies[n]).toMatchObject({ param: "gap" });
     expect(bodies[n].values).toHaveLength(5);
+  });
+});
+
+// The flake's cause, pinned (2026-09-26): the design's knobs render in the
+// commit that selects it, and the design-load reset used to run in an effect
+// AFTER that commit — so a right-click landing in between opened the menu
+// and the late reset wiped it. A MutationObserver fires in that gap (a
+// microtask after the DOM changes, before React's passive effects), so this
+// right-click lands there every time. With the menu keyed to its design the
+// click is kept; with the old effect it is lost, deterministically.
+describe("a right-click the moment the knobs appear", () => {
+  it("opens the knob menu, not a menu the design-load reset then wipes", async () => {
+    mountDesignSession({ examples: [EXAMPLE] });
+    const gap = await untilDom(() =>
+      document.querySelector<HTMLElement>('[role="slider"][aria-label="Gap"]'),
+    );
+    fireEvent.contextMenu(gap);
+    await sessionReady(document.body);
+    expect(screen.getByRole("button", { name: "Sweep this knob…" })).toBeTruthy();
   });
 });

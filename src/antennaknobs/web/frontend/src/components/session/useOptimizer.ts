@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SolveRequest } from "../../lib/api";
 
 import {
@@ -118,9 +118,27 @@ export function useOptimizer({
   // statement about which they are in, not a default we can guess.
   const [optSeed, setOptSeed] = useState<boolean>(false);
   const [knobOpt, setKnobOpt] = useState<Record<string, Record<string, KnobOpt>>>({});
-  // Open knob context menu: which param + anchor position.
-  const [knobMenu, setKnobMenu] = useState<{ name: string; x: number; y: number } | null>(
-    null,
+  // Open knob context menu: which param + anchor position, and the design it
+  // was opened on. A menu belongs to its design: one left open across a
+  // design switch reads as closed (derived below), which is what the
+  // design-load reset used to do in an effect — and an effect runs AFTER the
+  // commit that shows the new design's knobs, so a right-click landing in
+  // that gap was opened and then wiped by the late reset (the zparamView
+  // session-test flake, reproduced 2026-09-26). Keyed state has no gap.
+  const [knobMenuAt, setKnobMenuAt] = useState<
+    { name: string; x: number; y: number; geometry: string } | null
+  >(null);
+  const knobMenu = useMemo(
+    () =>
+      knobMenuAt && knobMenuAt.geometry === geometry
+        ? { name: knobMenuAt.name, x: knobMenuAt.x, y: knobMenuAt.y }
+        : null,
+    [knobMenuAt, geometry],
+  );
+  const setKnobMenu = useCallback(
+    (m: { name: string; x: number; y: number } | null) =>
+      setKnobMenuAt(m ? { ...m, geometry } : null),
+    [geometry],
   );
   const [optRunning, setOptRunning] = useState(false);
   const [optResult, setOptResult] = useState<OptimizeResult | null>(null);
@@ -161,8 +179,8 @@ export function useOptimizer({
     optAbortRef.current?.abort();
     // Design-load reset: clears the optimizer's result/menu and shows the
     // pause cue. A reset on input change, not a derivable value (#768).
+    // (The knob menu needs no reset here: it is keyed to its design, above.)
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setKnobMenu(null);
     setOptResult(null);
     setOptProgress(null);
     setOptError(null);
@@ -352,7 +370,7 @@ export function useOptimizer({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [knobMenu, active]);
+  }, [knobMenu, active, setKnobMenu]);
 
   return {
     optEnabled,

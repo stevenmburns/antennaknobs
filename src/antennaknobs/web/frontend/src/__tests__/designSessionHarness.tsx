@@ -175,3 +175,40 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
 
   return render(<DesignSession id={id} active />);
 }
+
+// Resolves the first time `pred` holds over the DOM under `root`, checked
+// now and after every mutation there: a wait on the cause itself, with no
+// clock of its own (the test's timeout is the only bound).
+export function untilDom<T>(
+  pred: () => T | null | undefined | false,
+  root: HTMLElement = document.body,
+): Promise<T> {
+  return new Promise((resolve) => {
+    const now = pred();
+    if (now) {
+      resolve(now);
+      return;
+    }
+    const obs = new MutationObserver(() => {
+      const v = pred();
+      if (v) {
+        obs.disconnect();
+        resolve(v);
+      }
+    });
+    obs.observe(root, { subtree: true, childList: true, attributes: true, characterData: true });
+  });
+}
+
+// Resolves when the session's load path has settled for `expected` (the
+// session root's `data-ready`, "<geometry>#<reload generation>", or any
+// non-empty value when omitted): the catalog holds the design, its
+// design-load resets have run, and its preview has released the solve gate.
+// The product sets the attribute from the same state it gates on, so this
+// waits on the cause, not on a clock.
+export function sessionReady(root: HTMLElement, expected?: string): Promise<string> {
+  return untilDom(() => {
+    const v = root.querySelector<HTMLElement>(".app[data-ready]")?.dataset.ready ?? "";
+    return (expected === undefined ? v !== "" : v === expected) ? v : null;
+  }, root);
+}
