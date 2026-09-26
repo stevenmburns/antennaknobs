@@ -132,6 +132,7 @@ export function SweepChart({
   running,
   progress,
   settled = true,
+  phase = "idle",
   feeds,
   multiFeed,
   axis: axisProp,
@@ -156,6 +157,8 @@ export function SweepChart({
    *  transient kinks that then shift as points land. Defaults true so
    *  refinement-free call sites keep today's connected line. */
   settled?: boolean;
+  /** The freq sweep runner's phase (AK#1762), as data-phase for tests. */
+  phase?: "idle" | "queued" | "running" | "refining";
   /** Multi-feed geometries pass the per-feed Z list from the latest solve so
    *  the chart can mark N current points, one per port (same prop SmithChart
    *  takes for the same reason). */
@@ -547,6 +550,7 @@ export function SweepChart({
         className={`sweep sweep-${mode}`}
         data-mode={mode}
         data-settled={settled ? "1" : "0"}
+        data-phase={phase}
         data-progress={sweepProgressAttr(progress)}
         data-points={hasSweep ? sweep!.freqs_mhz.length : 0}
         data-feeds={nFeeds}

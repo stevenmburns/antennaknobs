@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import type { MeasuredData, ParamSweepData, SolveResponse, SweepData } from "../../lib/api";
 import { DENSITY, RX_AUTO, type RxAxisChoice } from "../../lib/paramSweep";
 import type { SweepProgress } from "../../lib/sweep";
+import type { SweepPhase } from "../session/useAnalysisRunners";
 import type { SweepAxes, SweepAxisChoice, SweepMode } from "../../lib/sweepAxis";
 import type {
   CanvasCamera,
@@ -43,6 +44,9 @@ export type ViewRenderProps = {
   pinnedPatterns: PinnedPattern[];
   measFreqMhz: number;
   sweepRunning: boolean;
+  /** The freq sweep runner's phase (AK#1762), published on the sweep charts
+   *  as data-phase. Optional: omitted, they say "idle". */
+  sweepPhase?: SweepPhase;
   /** Points received by the sweep in flight (AK#1682). Optional so a call
    *  site that omits it keeps the bare "sweeping…" status. */
   sweepProgress?: SweepProgress | null;
@@ -263,6 +267,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       measFreqMhz={p.measFreqMhz}
       running={p.sweepRunning}
       progress={p.sweepProgress}
+      phase={p.sweepPhase ?? "idle"}
       paramSweepRunning={p.paramSweepRunning}
       feeds={p.result?.feeds}
       multiFeed={p.multiFeed}
@@ -295,6 +300,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       running={p.sweepRunning}
       progress={p.sweepProgress}
       settled={p.sweepSettled ?? true}
+      phase={p.sweepPhase ?? "idle"}
       feeds={p.result?.feeds}
       multiFeed={p.multiFeed}
       {...sweepAxisProps(p, "gamma")}
@@ -312,6 +318,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       running={p.sweepRunning}
       progress={p.sweepProgress}
       settled={p.sweepSettled ?? true}
+      phase={p.sweepPhase ?? "idle"}
       feeds={p.result?.feeds}
       multiFeed={p.multiFeed}
       {...sweepAxisProps(p, "vswr")}

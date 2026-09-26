@@ -171,6 +171,9 @@ const DENSITY_SWEEP: ParamSweepRequest = {
   label: "N",
 };
 
+/** The freq sweep runner's phase, as the sweep charts publish it. */
+export type SweepPhase = "idle" | "queued" | "running" | "refining";
+
 // The four background analyses that shadow the live solve — the freq sweep,
 // the parameter sweep (density or a knob), the far-field norm check and the
 // NEC rp_card pattern — with their debounce effects, timer/abort refs and
@@ -334,6 +337,13 @@ export function useAnalysisRunners({
 
   const [sweep, setSweep] = useState<SweepData | null>(null);
   const [sweepRunning, setSweepRunning] = useState(false);
+  // The freq sweep's phase, published on the sweep charts (AK#1762): the base
+  // sweep waiting out its dwell (`queued`), streaming (`running`), a
+  // refinement pass waiting or streaming (`refining`), or none of those
+  // (`idle`). A test that must show NO sweep follows a change asserts the
+  // runner's decision (still idle) instead of sleeping past the dwell.
+  const [sweepQueued, setSweepQueued] = useState(false);
+  const [sweepRefining, setSweepRefining] = useState(false);
   // Whether the current sweep's shape is final (issue #866). False from the
   // moment a base sweep starts under refinement (its lean grid is destined
   // to be densified — a polyline through it would draw the transient kinks
@@ -445,6 +455,8 @@ export function useAnalysisRunners({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSweep(null);
     setSweepRunning(false);
+    setSweepQueued(false);
+    setSweepRefining(false);
     setSweepProgress(null);
     setSweepAdvisories([]);
     // Paused (Live off) holds the engine (issue #612): an enabled sweep must
@@ -460,6 +472,7 @@ export function useAnalysisRunners({
     // before this effect runs; the compiler cannot see hoisting (#768).
     // eslint-disable-next-line react-hooks/immutability
     sweepTimerRef.current = window.setTimeout(runSweep, 500);
+    setSweepQueued(true);
     return () => {
       if (sweepTimerRef.current) window.clearTimeout(sweepTimerRef.current);
       if (sweepRefineTimerRef.current) {
@@ -514,10 +527,16 @@ export function useAnalysisRunners({
   // eslint-disable-next-line react-hooks/refs
   sweepRef.current = sweep;
   useEffect(() => {
-    if (!refineEnabled || !sweepRef.current || sweepRunning) return;
+    if (!refineEnabled || !sweepRef.current || sweepRunning) {
+      // A pending round this effect's last run set (and its cleanup
+      // cleared) is gone; an in-flight one reports for itself.
+      if (!sweepRefineAbortRef.current) setSweepRefining(false);
+      return;
+    }
     if (sweepRefineTimerRef.current) {
       window.clearTimeout(sweepRefineTimerRef.current);
     }
+    setSweepRefining(true);
     const settled = sweepRef.current;
     sweepRefineTimerRef.current = window.setTimeout(
       // `runSweepRefine` is an async function DECLARATION, so the binding is
@@ -708,6 +727,7 @@ export function useAnalysisRunners({
     // the live solve first, so this just sends. While the poor-match gate is
     // withholding, don't issue batches of the very solves it's blocking — the
     // effect re-fires on approval (comboApproved is a dependency).
+    setSweepQueued(false);
     if (solveWithheld()) return;
     sweepTimerRef.current = null;
     sweepAbortRef.current?.abort();
@@ -786,6 +806,7 @@ export function useAnalysisRunners({
             () => runSweepRefine(settled),
             SWEEP_REFINE_DWELL_MS,
           );
+          setSweepRefining(true);
         }
       }
     }
@@ -802,8 +823,10 @@ export function useAnalysisRunners({
   // screen; nothing here is load-bearing for correctness of the curve.
   async function runSweepRefine(base: SweepData) {
     sweepRefineTimerRef.current = null;
-    if (!refineEnabledRef.current) return;
-    if (solveWithheld()) return;
+    if (!refineEnabledRef.current || solveWithheld()) {
+      setSweepRefining(false);
+      return;
+    }
     sweepRefineAbortRef.current?.abort();
     const controller = new AbortController();
     sweepRefineAbortRef.current = controller;
@@ -891,6 +914,9 @@ export function useAnalysisRunners({
       if (sweepRefineAbortRef.current === controller) {
         sweepRefineAbortRef.current = null;
         setSweepProgress(null);
+        // Done, unless a new round is already waiting (a resident chart's
+        // re-entry set a timer while this one streamed).
+        if (!sweepRefineTimerRef.current) setSweepRefining(false);
       }
     }
   }
@@ -1148,6 +1174,8 @@ export function useAnalysisRunners({
   function abortInFlight() {
     // The app's Cancel stops the parameter sweep the way its own Stop does.
     setParamSweepQueued(false);
+    setSweepQueued(false);
+    setSweepRefining(false);
     if (paramSweepAbortRef.current || paramSweepTimerRef.current) {
       paramSweepStoppedRef.current = paramSweepSig;
       setParamSweep((d) => (d ? { ...d, partial: true } : d));
@@ -1173,9 +1201,18 @@ export function useAnalysisRunners({
     }
   }
 
+  const sweepPhase: SweepPhase = sweepRunning
+    ? "running"
+    : sweepQueued
+      ? "queued"
+      : sweepRefining
+        ? "refining"
+        : "idle";
+
   return {
     sweep,
     sweepRunning,
+    sweepPhase,
     sweepSettled,
     sweepProgress,
     sweepAdvisories,

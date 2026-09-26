@@ -39,6 +39,7 @@ export function SmithChart({
   measFreqMhz,
   running,
   progress,
+  phase = "idle",
   paramSweepRunning,
   feeds,
   multiFeed,
@@ -66,6 +67,8 @@ export function SmithChart({
    *  reads "sweeping k/N" or "refining +k (≤B)" instead of a bare
    *  "sweeping…". Optional — a call site without it keeps the old label. */
   progress?: SweepProgress | null | undefined;
+  /** The freq sweep runner's phase (AK#1762), as data-phase for tests. */
+  phase?: "idle" | "queued" | "running" | "refining";
   paramSweepRunning: boolean;
   /** Multi-feed geometries pass the per-feed Z list from the latest
    *  solve so the chart can also render N centre dots, one per port. */
@@ -925,6 +928,7 @@ export function SmithChart({
       className="smith"
       data-connect={connectSweep ? "1" : "0"}
       data-progress={sweepProgressAttr(progress)}
+      data-phase={phase}
       data-zoom={String(view.zoom)}
       // The parameter trail for tests: "param:first→last:points", plus Z*
       // when the sweep has one (density only).

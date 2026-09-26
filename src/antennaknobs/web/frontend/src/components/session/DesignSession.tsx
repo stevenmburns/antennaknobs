@@ -797,6 +797,9 @@ function DesignSessionBody({
   const [previewReady, setPreviewReady] = useState<string | null>(null);
   // The reload generation (reloadNonce) the released preview was for.
   const [previewNonce, setPreviewNonce] = useState(-1);
+  // The design + reload generation whose released preview the solve effect
+  // has acted on (below): the last step of the load path.
+  const [loadSettledFor, setLoadSettledFor] = useState("");
   // Whether to render the per-feed (multi-feed) UI. Prefer the value the
   // server folds into the live solve / geometry response — authoritative for
   // user designs, which derive it lazily — and fall back to the example
@@ -1803,6 +1806,13 @@ function DesignSessionBody({
     // antenna keep solving freely — previewReady stays equal to geometry until
     // the next switch resets it to null.
     if (previewReady !== geometry) return;
+    // The readiness signal (sessionReady, AK#1762): this run decides what the
+    // released design does first (solve, withhold behind a gate, or warn),
+    // and every branch below sets its state in this same effect, so the
+    // render that publishes data-ready also shows that decision. Unchanged
+    // on later runs (a knob change), so React skips the update.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoadSettledFor(`${geometry}#${previewNonce}`);
     // Writing the latest request into controlsRef is this effect's whole job;
     // the channel reads it on send (#768).
     // eslint-disable-next-line react-hooks/immutability
@@ -1915,6 +1925,10 @@ function DesignSessionBody({
     active,
     autoSim,
     geometry, previewReady, backend, backendOptsKey,
+    // A reload's release (AK#1762): its null → geometry flip can batch into
+    // one render when the preview answers at once, leaving previewReady
+    // unchanged; the generation is what says a new release happened.
+    previewNonce,
     currentValuesKey,
     designFreq, measFreq, plane,
     groundEnabled, groundModel, terrainKey, soilKey,
@@ -2101,6 +2115,7 @@ function DesignSessionBody({
   const {
     sweep,
     sweepRunning,
+    sweepPhase,
     sweepSettled,
     sweepProgress,
     sweepAdvisories,
@@ -2519,12 +2534,17 @@ function DesignSessionBody({
   //    dimming those would be the same lie in the other direction.
   // The session's readiness, as a DOM signal tests wait on (the harness's
   // sessionReady): the design's load path has settled — the catalog holds
-  // it, its design-load resets have run, and its preview has landed and
-  // released the solve gate — for this reload generation. "" until then.
+  // it, its design-load resets have run, its preview has landed and released
+  // the solve gate, and the solve effect has acted on that release (solved,
+  // withheld behind a gate, or warned) — for this reload generation. ""
+  // until then.
   // Read from the same state the product gates on, so a wait on it is a wait
   // on the cause, not on a clock.
   const sessionReadyKey =
-    currentExample && previewReady === geometry && previewNonce === reloadNonce
+    currentExample &&
+    previewReady === geometry &&
+    previewNonce === reloadNonce &&
+    loadSettledFor === `${geometry}#${reloadNonce}`
       ? `${geometry}#${reloadNonce}`
       : "";
 
@@ -2771,6 +2791,7 @@ function DesignSessionBody({
             pinnedPatterns={pinnedPatterns}
             measFreqMhz={measFreq}
             sweepRunning={sweepRunning}
+            sweepPhase={sweepPhase}
             sweepProgress={sweepProgress}
             paramSweepRunning={paramSweepRunning}
             zparam={{ ...zparamSettings, phase: paramSweepPhase }}
@@ -2982,6 +3003,7 @@ function DesignSessionBody({
                       pinnedPatterns={[]}
                       measFreqMhz={measFreq}
                       sweepRunning={sweepRunning}
+            sweepPhase={sweepPhase}
                       sweepProgress={sweepProgress}
                       sweepSettled={sweepSettled}
                       // The stage connects the Smith sweep when adaptive
