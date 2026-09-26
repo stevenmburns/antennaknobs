@@ -5,6 +5,7 @@ import {
   type AxisDomain,
   DEFAULT_SWR_THRESHOLD,
   formatTick,
+  RECIPROCAL,
   S11_PRESET_FLOORS,
   s11DbForSwr,
   sameChoice,
@@ -116,6 +117,19 @@ export function SweepRangePopover({
               {p.label}
             </button>
           ))}
+          {/* The compressed scale: the whole of 1…∞ on y = 1 − 1/SWR. Named
+              as a range, like the presets beside it, because to a ham that
+              is what it is: every SWR on the chart, none pegged. */}
+          {mode === "vswr" && (
+            <button
+              type="button"
+              aria-pressed={choice.kind === "reciprocal"}
+              title="Every SWR from 1 to ∞ on one axis, none pegged: plotted as 1 − 1/SWR (= 2|Γ|/(1+|Γ|)), so 2:1 sits half way up and 3:1 two thirds. Spends the height where the match is, and squeezes the bad end toward ∞."
+              onClick={() => onChoice(RECIPROCAL)}
+            >
+              1–∞
+            </button>
+          )}
         </div>
         <div className="knob-menu-row">
           <span>{mode === "vswr" ? "min / max" : "min / max (dB)"}</span>

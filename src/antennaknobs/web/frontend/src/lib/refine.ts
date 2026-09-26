@@ -3,6 +3,7 @@ import { gammaDbFromMag, vswrFromGammaMag } from "./math";
 import type { SweepData } from "./api";
 import {
   AUTO_AXES,
+  axisProjector,
   DEFAULT_SWR_THRESHOLD,
   sweepAxisDomain,
   type SweepAxes,
@@ -356,12 +357,15 @@ export function sweepProjections(
   // The drawn domains (AK#1738): the viewer's choice, Auto fitting these
   // same values, exactly as SweepChart derives them.
   const vDom = sweepAxisDomain("vswr", axes.vswr, vs, 0, swrThreshold);
+  // The compressed VSWR scale places a sample at 1 − 1/SWR (the identity on
+  // every other choice): the chart's own axisProjector.
+  const vProj = axisProjector("vswr", axes.vswr);
   const gDom = sweepAxisDomain("gamma", axes.gamma, dbs, s11DbTop(dbs), swrThreshold);
   for (let i = 0; i < n; i++) {
     const x = (f[i] - f[0]) / span;
     const g = gs[i];
     if (include.vswr) {
-      vswr.push(edge(x, (vs[i] - vDom.lo) / (vDom.hi - vDom.lo)));
+      vswr.push(edge(x, (vProj(vs[i]) - vDom.lo) / (vDom.hi - vDom.lo)));
     }
     if (include.gamma) {
       gamma.push(edge(x, (dbs[i] - gDom.lo) / (gDom.hi - gDom.lo)));
