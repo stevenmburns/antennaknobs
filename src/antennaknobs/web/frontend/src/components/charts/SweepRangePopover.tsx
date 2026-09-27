@@ -7,6 +7,7 @@ import {
   DEFAULT_SWR_THRESHOLD,
   formatTick,
   RECIPROCAL,
+  RHO,
   S11_PRESET_FLOORS,
   s11DbForSwr,
   sameChoice,
@@ -131,6 +132,18 @@ export function SweepRangePopover({
               onClick={() => onChoice(RECIPROCAL)}
             >
               1–∞
+            </button>
+          )}
+          {/* EZNEC's scale: the same 1…∞, linear in the reflection
+              coefficient ρ and labelled in SWR (AC6LA, QRZ #166). */}
+          {mode === "vswr" && (
+            <button
+              type="button"
+              aria-pressed={choice.kind === "rho"}
+              title="EZNEC's SWR scale: every SWR from 1 to ∞, plotted linearly in the reflection coefficient ρ = (SWR − 1)/(SWR + 1) and labelled in SWR, so 3:1 sits half way up and 2:1 a third. Gives the bad end more height than 1–∞ does."
+              onClick={() => onChoice(RHO)}
+            >
+              ρ (EZNEC)
             </button>
           )}
         </div>

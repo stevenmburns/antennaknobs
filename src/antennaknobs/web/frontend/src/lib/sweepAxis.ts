@@ -13,11 +13,16 @@ export type SweepMode = "gamma" | "vswr";
  *  y = 1 − 1/SWR (see swrReciprocalY). It is a range choice like the others,
  *  not a scale toggle on top of one — the scale IS its range (1 to ∞, all of
  *  it), so there is nothing left for a range to choose, and one choice per
- *  chart keeps the popover, the stored prefs and the planner single-valued. */
+ *  chart keeps the popover, the stored prefs and the planner single-valued.
+ *  "rho" is the same whole range on EZNEC's scale instead: linear in the
+ *  reflection coefficient ρ = (SWR − 1)/(SWR + 1), labelled in SWR (see
+ *  swrRhoY). An alternative for readers used to EZNEC's SWR chart (AC6LA,
+ *  QRZ #166); "reciprocal" stays the default. */
 export type SweepAxisChoice =
   | { kind: "auto" }
   | { kind: "fixed"; lo: number; hi: number }
-  | { kind: "reciprocal" };
+  | { kind: "reciprocal" }
+  | { kind: "rho" };
 
 export type SweepAxes = Record<SweepMode, SweepAxisChoice>;
 
@@ -104,20 +109,49 @@ export function swrReciprocalY(swr: number): number {
 /** The compressed scale's tick marks, labelled in SWR, ∞ at the top. */
 export const RECIPROCAL_TICK_SWRS = [1, 1.5, 2, 3, 5, 10] as const;
 
+// --- EZNEC's VSWR scale (y = ρ = (SWR − 1)/(SWR + 1)) -----------------------
+
+export const RHO: SweepAxisChoice = { kind: "rho" };
+
+/** SWR → EZNEC's scale's y: the reflection coefficient's magnitude
+ *  ρ = (SWR − 1)/(SWR + 1), mapping SWR 1…∞ onto 0…1 linearly in ρ
+ *  (1.5 → 0.2, 2 → ⅓, 3 → ½, 5 → ⅔, 10 → 9/11). Against 1 − 1/SWR it gives
+ *  the good match less height (2:1 a third of the way up, not half) and the
+ *  bad end more. A non-number or anything below 1 reads as 1 (y = 0); ∞
+ *  is the top. */
+export function swrRhoY(swr: number): number {
+  if (!(swr > 1)) return 0;
+  if (swr === Infinity) return 1;
+  return (swr - 1) / (swr + 1);
+}
+
+/** EZNEC's scale's tick marks, labelled in SWR, ∞ at the top: the same SWRs
+ *  as the compressed scale, so switching between the two moves the lines,
+ *  not the labels. */
+export const RHO_TICK_SWRS = [1, 1.5, 2, 3, 5, 10] as const;
+
+/** Whether a choice is one of the whole-range (1…∞) VSWR scales, whose
+ *  domain is 0…1 in its own coordinate rather than in SWR. */
+export function isWholeRange(c: SweepAxisChoice): boolean {
+  return c.kind === "reciprocal" || c.kind === "rho";
+}
+
 /** A tick: where it sits in the axis's own coordinates, and its label. */
 export type AxisTick = { at: number; label: string };
 
 /** Chart value → the axis coordinate the domain is measured in. The
- *  identity for every choice but the compressed VSWR scale. The chart and
+ *  identity for every choice but the two whole-range VSWR scales. The chart and
  *  the refinement planner both place samples through this, so the planner
  *  judges curvature on the geometry actually drawn. */
 export function axisProjector(
   mode: SweepMode,
   choice: SweepAxisChoice,
 ): (v: number) => number {
-  return mode === "vswr" && effectiveChoice(mode, choice).kind === "reciprocal"
-    ? swrReciprocalY
-    : (v) => v;
+  if (mode !== "vswr") return (v) => v;
+  const kind = effectiveChoice(mode, choice).kind;
+  if (kind === "reciprocal") return swrReciprocalY;
+  if (kind === "rho") return swrRhoY;
+  return (v) => v;
 }
 
 /** Chart value → its height as a fraction of the plot (0 bottom, 1 top),
@@ -152,7 +186,7 @@ export function sweepAxisDomain(
     // A fixed range, or else all of 1…∞ in axisProjector's coordinates.
     return choice.kind === "fixed" ? { lo: choice.lo, hi: choice.hi } : { lo: 0, hi: 1 };
   }
-  // (A reciprocal choice is VSWR only; validChoice refuses it for S11, and
+  // (A reciprocal or rho choice is VSWR only; validChoice refuses it for S11, and
   // it falls through to Auto here should one ever arrive.)
   if (choice.kind === "fixed") {
     // A preset is a floor under 0 dB; a custom range carries its own top.
@@ -194,15 +228,22 @@ export function axisTicks(d: AxisDomain, target = 5): number[] {
 
 /** The tick marks a chart draws, in its axis coordinates. The compressed
  *  VSWR scale gets SWR-labelled marks at RECIPROCAL_TICK_SWRS plus ∞ at the
- *  top; everything else is axisTicks' numbers labelled as themselves. */
+ *  top, and EZNEC's scale the same at RHO_TICK_SWRS; everything else is axisTicks' numbers labelled as themselves. */
 export function axisTickMarks(
   mode: SweepMode,
   choice: SweepAxisChoice,
   d: AxisDomain,
 ): AxisTick[] {
-  if (mode === "vswr" && effectiveChoice(mode, choice).kind === "reciprocal") {
+  const kind = mode === "vswr" ? effectiveChoice(mode, choice).kind : null;
+  if (kind === "reciprocal") {
     return [
       ...RECIPROCAL_TICK_SWRS.map((s) => ({ at: swrReciprocalY(s), label: formatTick(s) })),
+      { at: 1, label: "∞" },
+    ];
+  }
+  if (kind === "rho") {
+    return [
+      ...RHO_TICK_SWRS.map((s) => ({ at: swrRhoY(s), label: formatTick(s) })),
       { at: 1, label: "∞" },
     ];
   }
@@ -317,7 +358,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
  *  below its top, and a nonzero span. */
 export function validChoice(mode: SweepMode, c: SweepAxisChoice): boolean {
   if (c.kind === "auto") return mode === "gamma";
-  if (c.kind === "reciprocal") return mode === "vswr";
+  if (c.kind === "reciprocal" || c.kind === "rho") return mode === "vswr";
   if (!Number.isFinite(c.lo) || !Number.isFinite(c.hi) || !(c.hi > c.lo)) return false;
   return mode === "vswr" ? c.lo >= 1 : true;
 }
@@ -334,6 +375,7 @@ export function sanitizeChoice(mode: SweepMode, raw: unknown): SweepAxisChoice {
   if (raw.kind === "reciprocal") {
     return validChoice(mode, RECIPROCAL) ? RECIPROCAL : fallback;
   }
+  if (raw.kind === "rho") return validChoice(mode, RHO) ? RHO : fallback;
   if (raw.kind !== "fixed") return fallback;
   const c: SweepAxisChoice = {
     kind: "fixed",
