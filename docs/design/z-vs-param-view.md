@@ -105,8 +105,9 @@ advisories, on this view and beside the Smith trail.
 
 It becomes this view's analysis with parameter = density. One runner, one
 result: it runs when the view is on screen, or when the switch is on and the
-Smith chart is (the old condition). The `convergence_sweep` settings key and
-the label stay, so no `settings.toml` breaks; with a knob chosen in the view,
+Smith chart is (the old condition). The `convergence_sweep` settings key stays,
+so no `settings.toml` breaks; the switch's label is **param sweep** (Dan
+AC6LA, QRZ #166: "converge" read as density-only once any knob could sweep); with a knob chosen in the view,
 the switch's trail follows it and its tooltip says so.
 
 ## Mobile

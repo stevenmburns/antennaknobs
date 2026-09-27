@@ -295,7 +295,7 @@ export function SmithOverlayControls({
           checked={convergeEnabled}
           onChange={(e) => setConvergeEnabled(e.target.checked)}
         />
-        converge sweep
+        param sweep
       </label>
       <label
         className="overlay-file"

@@ -58,7 +58,7 @@ _logger = logging.getLogger(__name__)
 SWITCHES: tuple[tuple[str, str, bool], ...] = (
     ("live", "Live", True),
     ("freq_sweep", "freq sweep", True),
-    ("convergence_sweep", "convergence sweep", False),
+    ("convergence_sweep", "param sweep", False),
     ("pattern_renorm", "norm check", True),
     ("refine", "adaptive resolution", True),
     ("heatmap_currents", "heatmapped currents", True),

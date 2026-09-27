@@ -275,7 +275,7 @@ export function SessionGearMenu({
                       checked={convergeEnabled}
                       onChange={(e) => setConvergeEnabled(e.target.checked)}
                     />
-                    converge sweep
+                    param sweep
                   </label>
                   <label
                     className="gear-menu-check gear-menu-file"
