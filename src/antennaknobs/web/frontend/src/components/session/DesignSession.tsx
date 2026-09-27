@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import {
   backendAllowed,
@@ -117,11 +118,13 @@ import {
   sweepableKnobs,
 } from "../../lib/paramSweep";
 import { ZParamControls } from "../results/ZParamControls";
+import { ZParamStage } from "../results/ZParamStage";
 
 // The Z-vs-parameter header's height on a phone (two wrapped rows plus its
 // margin), which the chart below it gives up.
 const ZPARAM_MOBILE_HEADER_PX = 96;
-// ...and on a desktop stage, where it is one row floating at the top.
+// ...and on a desktop stage, before ZParamStage has measured the real one
+// (the first frame): one row above the chart.
 const ZPARAM_DESKTOP_HEADER_PX = 48;
 import { useCapabilities } from "./useCapabilities";
 import {
@@ -2561,15 +2564,157 @@ function DesignSessionBody({
 
   // One output view: the per-view overlays plus the main <ViewPanel>. A
   // closure (not a component) so the ~30 captured locals need no props. The
-  // solve-readout HUD stays OUT of it — mobile chart screens must not
-  // inherit the floating readout.
+  // solve-readout HUD is passed IN only by the rail's slide — mobile chart
+  // screens must not inherit the floating readout, and the grid floats one
+  // over the whole stage.
   // The combined view's highlight as drawn: stale ids (a pin since removed or
   // hidden) dropped, so neither the chart nor the table can show a highlight
   // that no row can switch off.
   const shownPins = pinnedPatterns.filter((p) => p.enabled);
   const shownHighlight = effectiveHighlight(combinedHighlight, shownPins);
-  const renderOutput = (v: View, size: number, fill: boolean) => (
+  // The sweep bar (the header) of the Z-vs-parameter view.
+  const zparamControls = (
+    <ZParamControls
+      spec={zparamSpec}
+      knobs={zparamKnobs}
+      densityLabel="density (N per λ/4)"
+      // An edit to the sweep's own range is asking for it: arm it.
+      // Picking another parameter is not (a knob sweep waits for Run).
+      onSpec={(next) => {
+        armParamSweep();
+        setZparamSpec(next);
+      }}
+      onParam={selectZparamParam}
+      onReset={() => {
+        armParamSweep();
+        selectZparamParam(zparamSpec.param);
+      }}
+      isDefault={sameSpec(zparamSpec, zparamDefaultFor(zparamSpec.param))}
+      values={zparamValues}
+      run={{
+        running: paramSweepRunning,
+        received:
+          paramSweep?.param === zparamSpec.param ? paramSweep.values.length : 0,
+        partial: !!paramSweep?.partial,
+        stale: !!paramSweep?.stale && paramSweep.param === zparamSpec.param,
+        done:
+          !paramSweepRunning &&
+          !!paramSweep &&
+          !paramSweep.partial &&
+          !paramSweep.stale &&
+          !paramSweep.error &&
+          paramSweep.param === zparamSpec.param &&
+          paramSweep.values.length > 0,
+        onStop: stopParamSweep,
+        onRun: runParamSweepNow,
+      }}
+      costHint={zparamCostHint}
+    />
+  );
+  // The Z-vs-parameter view's sweep advisory and refusal: over the stage's
+  // lower-left on a phone, over the plot's (above the readout) on a desktop.
+  const zparamOverlays = (
     <>
+      {paramSweep?.param === zparamSpec.param && (
+        <SweepAdvisoryOverlay advisories={paramSweep.advisories} />
+      )}
+      {paramSweep?.error && (
+        // The server's refusal (the hosted point cap, the poor-match
+        // gate), in its own words: the header does not clamp to it.
+        <div className="sweep-advisory-overlay zparam-refusal" role="alert">
+          {paramSweep.error}
+          {/* The poor-match gate's 403 is approvable, as for the live
+              solve: the approval re-runs the sweep (comboApproved is
+              one of its inputs). */}
+          {paramSweep.errorStatus === 403 && (
+            <button type="button" className="zparam-approve" onClick={solveAnyway}>
+              Solve anyway
+            </button>
+          )}
+        </div>
+      )}
+    </>
+  );
+  const viewPanel = (v: View, size: number, fill: boolean) => (
+    <ViewPanel
+      view={v}
+      // On a desktop the Z-vs-parameter view's size comes from
+      // ZParamStage, which takes the sweep bar's measured height off
+      // it; a phone stacks the bar instead, sized at the carousel's
+      // call site.
+      size={size}
+      fill={fill}
+      result={shownResult}
+      // An optimizer run never touches the knobs until it finishes, so
+      // `result` holds the pre-run solve for its whole duration and the
+      // Smith dot would sit frozen while the readout ticks (#773). The
+      // per-eval frames carry the trial Z, so hand it to the chart.
+      liveZ={optRunning && optProgress ? optProgress.metrics : null}
+      preview={preview}
+      sweep={sweep}
+      paramSweep={paramSweep}
+      measured={measured}
+      pattern={pattern}
+      pinnedPatterns={pinnedPatterns}
+      measFreqMhz={measFreq}
+      sweepRunning={sweepRunning}
+      sweepPhase={sweepPhase}
+      sweepProgress={sweepProgress}
+      paramSweepRunning={paramSweepRunning}
+      zparam={{ ...zparamSettings, phase: paramSweepPhase }}
+      onZparamXLogChange={setZparamXLog}
+      onZparamAxisChange={(axis, c) =>
+        setZparamAxes((cur) => ({ ...cur, [axis]: c }))
+      }
+      azElevDeg={azElevDeg}
+      elevAzDeg={elevAzDeg}
+      cameraProjection={cameraProjection}
+      // The session's camera, so the antenna view is where you left it
+      // when you come back to it (AK#1542). This bag serves the rail's
+      // primary view, the grid cells and the mobile pages — one antenna
+      // canvas at a time in any of them. The thumbnail bag below passes
+      // none, and thumbnails stay fitted.
+      canvasCamera={canvasCamera}
+      // Same bag, same reasoning: the Smith chart zooms here and not in
+      // the thumbnail strip, whose bag omits it.
+      chartZoom
+      showHeatmap={showHeatmap}
+      showEnvelope={showEnvelope}
+      showWireLabels={showWireLabels}
+      showFeedNames={showFeedNames}
+      multiFeed={effectiveMultiFeed}
+      fineNorm={normCheck?.pattern_norm ?? null}
+      onFarFieldCaptions={onFarFieldCaptions}
+      combinedFill={combinedFill}
+      combinedHighlight={shownHighlight}
+      refineEnabled={refineEnabled}
+      sweepSettled={sweepSettled}
+      sweepAxes={sweepAxes}
+      swrThreshold={swrThreshold}
+      onSweepAxisChange={setSweepAxis}
+      onSwrThresholdChange={setSwrThreshold}
+      schematicSvg={schematicSvg}
+      schematicUnavailable={schematicUnavailable}
+      files={files}
+    />
+  );
+  // `readout` is the floating solve readout when this is the rail's primary
+  // view: rendered last, in the slide, as before — except on the desktop
+  // Z-vs-parameter view, whose stage pins it inside the chart (ZParamStage).
+  const renderOutput = (v: View, size: number, fill: boolean, readout?: ReactNode) =>
+    v === "zparam" && !isMobile ? (
+      <ZParamStage
+        size={size}
+        fallbackHead={Math.round(Math.min(2 * ZPARAM_DESKTOP_HEADER_PX, 0.1 * size))}
+        header={zparamControls}
+        overlays={zparamOverlays}
+        readout={readout}
+        chart={(s) => viewPanel(v, s, fill)}
+      />
+    ) : (
+    <>
+          {v === "zparam" && zparamControls}
+          {v === "zparam" && zparamOverlays}
           {v === "antenna" && (
             <AntennaOverlayControls
               cameraProjection={cameraProjection}
@@ -2646,44 +2791,6 @@ function DesignSessionBody({
           {v === "combined" && (
             <CombinedLegend fill={combinedFill} setFill={setCombinedFill} />
           )}
-          {v === "zparam" && (
-            <ZParamControls
-              spec={zparamSpec}
-              knobs={zparamKnobs}
-              densityLabel="density (N per λ/4)"
-              // An edit to the sweep's own range is asking for it: arm it.
-              // Picking another parameter is not (a knob sweep waits for Run).
-              onSpec={(next) => {
-                armParamSweep();
-                setZparamSpec(next);
-              }}
-              onParam={selectZparamParam}
-              onReset={() => {
-                armParamSweep();
-                selectZparamParam(zparamSpec.param);
-              }}
-              isDefault={sameSpec(zparamSpec, zparamDefaultFor(zparamSpec.param))}
-              values={zparamValues}
-              run={{
-                running: paramSweepRunning,
-                received:
-                  paramSweep?.param === zparamSpec.param ? paramSweep.values.length : 0,
-                partial: !!paramSweep?.partial,
-                stale: !!paramSweep?.stale && paramSweep.param === zparamSpec.param,
-                done:
-                  !paramSweepRunning &&
-                  !!paramSweep &&
-                  !paramSweep.partial &&
-                  !paramSweep.stale &&
-                  !paramSweep.error &&
-                  paramSweep.param === zparamSpec.param &&
-                  paramSweep.values.length > 0,
-                onStop: stopParamSweep,
-                onRun: runParamSweepNow,
-              }}
-              costHint={zparamCostHint}
-            />
-          )}
           {/* The Smith chart's freq-sweep switch on the VSWR and S11 charts
               too (AK#1738): the SAME state, so turning the sweep on or off
               on any of the three turns it on or off on all of them. */}
@@ -2692,24 +2799,6 @@ function DesignSessionBody({
               sweepEnabled={sweepEnabled}
               setSweepEnabled={setSweepEnabled}
             />
-          )}
-          {v === "zparam" && paramSweep?.param === zparamSpec.param && (
-            <SweepAdvisoryOverlay advisories={paramSweep.advisories} />
-          )}
-          {v === "zparam" && paramSweep?.error && (
-            // The server's refusal (the hosted point cap, the poor-match
-            // gate), in its own words: the header does not clamp to it.
-            <div className="sweep-advisory-overlay zparam-refusal" role="alert">
-              {paramSweep.error}
-              {/* The poor-match gate's 403 is approvable, as for the live
-                  solve: the approval re-runs the sweep (comboApproved is
-                  one of its inputs). */}
-              {paramSweep.errorStatus === 403 && (
-                <button type="button" className="zparam-approve" onClick={solveAnyway}>
-                  Solve anyway
-                </button>
-              )}
-            </div>
           )}
           {(v === "smith" || v === "vswr" || v === "gamma") && (
             <SweepAdvisoryOverlay
@@ -2764,72 +2853,8 @@ function DesignSessionBody({
                 : {})}
             />
           )}
-          <ViewPanel
-            view={v}
-            // The Z-vs-parameter header floats over the stage's top edge; on
-            // a desktop the chart gives up room so the centred square clears
-            // it — twice its height, but never more than a tenth of the
-            // chart, so a narrow stage keeps a readable chart (a phone
-            // stacks the header instead, sized at the carousel's call site).
-            size={
-              v === "zparam" && !isMobile
-                ? size - Math.round(Math.min(2 * ZPARAM_DESKTOP_HEADER_PX, 0.1 * size))
-                : size
-            }
-            fill={fill}
-            result={shownResult}
-            // An optimizer run never touches the knobs until it finishes, so
-            // `result` holds the pre-run solve for its whole duration and the
-            // Smith dot would sit frozen while the readout ticks (#773). The
-            // per-eval frames carry the trial Z, so hand it to the chart.
-            liveZ={optRunning && optProgress ? optProgress.metrics : null}
-            preview={preview}
-            sweep={sweep}
-            paramSweep={paramSweep}
-            measured={measured}
-            pattern={pattern}
-            pinnedPatterns={pinnedPatterns}
-            measFreqMhz={measFreq}
-            sweepRunning={sweepRunning}
-            sweepPhase={sweepPhase}
-            sweepProgress={sweepProgress}
-            paramSweepRunning={paramSweepRunning}
-            zparam={{ ...zparamSettings, phase: paramSweepPhase }}
-            onZparamXLogChange={setZparamXLog}
-            onZparamAxisChange={(axis, c) =>
-              setZparamAxes((cur) => ({ ...cur, [axis]: c }))
-            }
-            azElevDeg={azElevDeg}
-            elevAzDeg={elevAzDeg}
-            cameraProjection={cameraProjection}
-            // The session's camera, so the antenna view is where you left it
-            // when you come back to it (AK#1542). This bag serves the rail's
-            // primary view, the grid cells and the mobile pages — one antenna
-            // canvas at a time in any of them. The thumbnail bag below passes
-            // none, and thumbnails stay fitted.
-            canvasCamera={canvasCamera}
-            // Same bag, same reasoning: the Smith chart zooms here and not in
-            // the thumbnail strip, whose bag omits it.
-            chartZoom
-            showHeatmap={showHeatmap}
-            showEnvelope={showEnvelope}
-            showWireLabels={showWireLabels}
-            showFeedNames={showFeedNames}
-            multiFeed={effectiveMultiFeed}
-            fineNorm={normCheck?.pattern_norm ?? null}
-            onFarFieldCaptions={onFarFieldCaptions}
-            combinedFill={combinedFill}
-            combinedHighlight={shownHighlight}
-            refineEnabled={refineEnabled}
-            sweepSettled={sweepSettled}
-            sweepAxes={sweepAxes}
-            swrThreshold={swrThreshold}
-            onSweepAxisChange={setSweepAxis}
-            onSwrThresholdChange={setSwrThreshold}
-            schematicSvg={schematicSvg}
-            schematicUnavailable={schematicUnavailable}
-            files={files}
-          />
+          {viewPanel(v, size, fill)}
+          {readout}
     </>
   );
 
@@ -3045,26 +3070,32 @@ function DesignSessionBody({
               className={`carousel-slide${outputStale ? " stale" : ""}`}
               ref={slideRef}
             >
-              {renderOutput(view, chartSize, fillsStage(view))}
               {/* Solve readout, pinned to the lower-left of whichever view the
                   carousel is centered on. Floats over the canvas as a HUD so the
                   left input rail stays inputs-only. It sits INSIDE the slide, so
                   the slide's stale dim already covers it — no own stale class, or
-                  the two opacities would compound. */}
-              <SolveReadout
-                z0={z0}
-                live={liveSolve}
-                className="stage-readout"
-                collapsed={isReadoutCollapsed(view)}
-                onCollapsedChange={(c) => setReadoutCollapsed(view, c)}
-                result={shownResult}
-                rttMs={rttMs}
-                currentExample={currentExample}
-                effectiveMultiFeed={effectiveMultiFeed}
-                normCheck={normCheck}
-                normCheckEnabled={normCheckEnabled}
-                onPlaneChange={pickPlane}
-              />
+                  the two opacities would compound. renderOutput places it: last
+                  in the slide, or inside the chart on the Z-vs-parameter view
+                  (ZParamStage). */}
+              {renderOutput(
+                view,
+                chartSize,
+                fillsStage(view),
+                <SolveReadout
+                  z0={z0}
+                  live={liveSolve}
+                  className="stage-readout"
+                  collapsed={isReadoutCollapsed(view)}
+                  onCollapsedChange={(c) => setReadoutCollapsed(view, c)}
+                  result={shownResult}
+                  rttMs={rttMs}
+                  currentExample={currentExample}
+                  effectiveMultiFeed={effectiveMultiFeed}
+                  normCheck={normCheck}
+                  normCheckEnabled={normCheckEnabled}
+                  onPlaneChange={pickPlane}
+                />,
+              )}
             </div>
           </>
         )}
