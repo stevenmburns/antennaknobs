@@ -230,14 +230,14 @@ def test_lazy_h_broadside_horizontal():
 
 
 def test_lazy_h_two_in_phase_feeds():
-    """Two centre feeds, both at y=0, both driven in phase (1+0j); by
-    symmetry they present equal feed impedance."""
+    """Two centre feeds, each the middle of one wire (AK#1767) at y=0, both
+    driven in phase (1+0j); by symmetry they present equal feed impedance."""
     from antennaknobs.designs.wire.lazy_h import Builder
 
     feeds = [t for t in Builder().build_wires() if t[3] is not None]
     assert len(feeds) == 2
     assert all(f[3] == 1 + 0j for f in feeds)
-    assert all(f[0][1] == -0.05 and f[1][1] == 0.05 for f in feeds)
+    assert all(f[0][1] == -f[1][1] != 0.0 for f in feeds)
     zs = PyNECEngine(Builder(), ground=None).impedance()
     assert abs(zs[0] - zs[1]) < 1.0  # symmetric -> equal
 
