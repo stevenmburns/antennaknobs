@@ -184,10 +184,30 @@ def test_buried_refusals_are_present():
         cov = adapter.design_backend_coverage(design)
         assert "buried" in cov["needs"], design
         assert "bspline" not in cov["refusals"], design
-        for backend in ("hmatrix", "arrayblock", "sinusoidal", "pulse"):
+        for backend in ("hmatrix", "arrayblock", "pulse"):
             assert cov["refusals"][backend]["capability"] == "buried", (
                 f"{backend} on {design}"
             )
+    # sinusoidal serves wholly-buried and detached decks since momwire#1222
+    # (0.66.0) and refuses the crossing node by its own row until #1223 stage
+    # 2 lands; read from the row, as razor-2p and SG are below.
+    sin_caps = _spec("sinusoidal").solver.capabilities
+    for design in (
+        "specialty.buried_dipole",
+        "verticals.buried_radial_vertical",
+        "verticals.elevated_buried_counterpoise",
+    ):
+        cov = adapter.design_backend_coverage(design)
+        if not sin_caps.buried:
+            assert cov["refusals"]["sinusoidal"]["capability"] == "buried", design
+            continue
+        sentence = sin_caps.refusal("buried", adapter._CROSSING_NEED)
+        if adapter._CROSSING_NEED in cov["needs"] and sentence is not None:
+            row = cov["refusals"]["sinusoidal"]
+            assert row["capability"] == "buried+crossing_junction", design
+            assert row["reason"] == sentence, design
+        else:
+            assert "sinusoidal" not in cov["refusals"], design
     # razor-2p serves buried decks since momwire#1149 (wholly-below and
     # detached at U0/U1, the crossing node at U2). Read from its row, as the
     # SG cell below is, so the gate holds on either side of the pointer that
