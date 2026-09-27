@@ -134,9 +134,17 @@ options shape it the way SimNEC's charts are drawn:
   general `--param` sweep and for a `nominal_nsegs` study, where each
   engine's `Z*` is a dotted line in its colour. `--overlay` refuses beside
   `--panels`, and with a single engine.
+- `--only x` draws just the reactance, `--only r` just the resistance, on a
+  single y axis with no twin (X keeps its blue, R its red; on `--overlay` X
+  keeps its dashed line and R its solid one). It works on the single-engine
+  chart, with `--panels`, with `--overlay`, on a `nominal_nsegs` study and
+  on the default multi-engine chart. `--callouts` then label only that
+  quantity, and a range pin on the quantity it hides (`--only x --r-range`,
+  `--only r --x-range`) refuses rather than being silently ignored.
 - Without `--panels` or `--overlay`, the multi-engine chart is unchanged
-  (a `nominal_nsegs` study draws panels), and the three options above refuse
-  by name on a general sweep (that chart has no separate R and X axes).
+  (a `nominal_nsegs` study draws panels), and the range and callout options
+  refuse by name on a general sweep (that chart has no separate R and X
+  axes).
 
 ```bash
 # A deck's own segment knob (a SY symbol), as a SimNEC-style convergence chart
