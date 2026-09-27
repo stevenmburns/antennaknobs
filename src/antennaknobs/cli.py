@@ -385,7 +385,8 @@ def _check_chart_flags(args, *, multi_engine):
     The twin-axis ones (ranges, callouts, panels) need the rectangular R/X
     impedance chart, so not a Smith chart or an SWR/gain/pattern chart, and
     with several engines they need --panels (the shared-axis chart has no
-    separate R and X axes). --log also spaces a Smith chart's points, so it
+    separate R and X axes). --only needs the R/X chart too, but not separate
+    axes, and refuses a range pin on the quantity it hides. --log also spaces a Smith chart's points, so it
     only refuses beside --swr/--gain/--patterns, which keep linear spacing."""
     twin = [
         flag
@@ -395,6 +396,7 @@ def _check_chart_flags(args, *, multi_engine):
             ("--callouts", args.callouts),
             ("--panels", args.panels),
             ("--overlay", args.overlay),
+            ("--only", args.only is not None),
         )
         if on
     ]
@@ -428,8 +430,19 @@ def _check_chart_flags(args, *, multi_engine):
             "--overlay draws several engines on one chart; give two or more "
             "--engine specs, or drop --overlay"
         )
+    # --only draws one quantity, so a pin on the other one would be a flag
+    # that silently does nothing: refuse it by name instead.
+    hidden = {"r": ("--x-range", args.x_range), "x": ("--r-range", args.r_range)}
+    if args.only in hidden and hidden[args.only][1] is not None:
+        flag = hidden[args.only][0]
+        raise SystemExit(
+            f"{flag} pins the {flag[2].upper()} axis, which --only {args.only} "
+            f"does not draw; drop {flag}, or --only"
+        )
     density = args.param == "nominal_nsegs"
-    shared = [f for f in twin if f not in ("--panels", "--overlay")]
+    # --only also works on the shared-axis multi-engine chart (it drops the
+    # other quantity's lines), so it is not a separate-axes flag.
+    shared = [f for f in twin if f not in ("--panels", "--overlay", "--only")]
     layout = args.panels or args.overlay
     if multi_engine and not density and not layout and shared:
         raise SystemExit(
@@ -1223,6 +1236,15 @@ def cli(arguments=None):
         "axis shared by all engines so the curves compare directly; one "
         "colour and marker per engine.",
     )
+    p.add_argument(
+        "--only",
+        default=None,
+        choices=("r", "x"),
+        help="Draw just one quantity of the R/X impedance chart on a single y "
+        "axis (no twin): r for resistance, x for reactance. Works with one "
+        "engine, --panels and --overlay; callouts label only that quantity, "
+        "and the other quantity's --r-range / --x-range refuses.",
+    )
 
     def f(args):
         builder = get_builder(args.builder)
@@ -1365,6 +1387,7 @@ def cli(arguments=None):
                 callouts=args.callouts,
                 panels=args.panels,
                 overlay=args.overlay,
+                only=args.only,
             )
 
     p.set_defaults(func=f)

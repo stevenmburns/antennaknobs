@@ -127,13 +127,20 @@ def _pivot(xs, log_x):
 
 
 def _annotate_rx(ax_r, ax_x, xs, zs, positions, xname, pivot):
-    """Callouts on R (``ax_r``) and X (``ax_x``) at the given indices."""
+    """Callouts on R (``ax_r``) and X (``ax_x``) at the given indices. An
+    axis passed as None (``--only``) gets none; the one left drawn keeps its
+    boxes close in, since there is no second box to step around."""
+    dx = 12 if ax_r is None or ax_x is None else None
     for k in positions:
         z = complex(zs[k])
         label = f"{xname}={_fmt_x(xs[k])}"
         last = xs[k] > pivot
-        _callout(ax_r, xs[k], z.real, f"{label}\nR {z.real:.4g} Ω", _R_COLOR, last=last)
-        _callout(ax_x, xs[k], z.imag, f"{label}\nX {z.imag:.4g} Ω", _X_COLOR, last=last)
+        if ax_r is not None:
+            text = f"{label}\nR {z.real:.4g} Ω"
+            _callout(ax_r, xs[k], z.real, text, _R_COLOR, last=last, dx=dx)
+        if ax_x is not None:
+            text = f"{label}\nX {z.imag:.4g} Ω"
+            _callout(ax_x, xs[k], z.imag, text, _X_COLOR, last=last, dx=dx)
 
 
 def _log_x_axis(ax):
@@ -176,8 +183,30 @@ def _callout_indices(mode, n, marked_idx):
 
 
 def _set_ylim(ax, rng):
-    if rng is not None:
+    if ax is not None and rng is not None:
         ax.set_ylim(*rng)
+
+
+ONLY_CHOICES = ("r", "x")
+
+
+def _only_parts(only):
+    """``(show_r, show_x)`` for ``only`` (None, ``"r"`` or ``"x"``)."""
+    if only is None:
+        return True, True
+    if only not in ONLY_CHOICES:
+        raise ValueError(f"only must be one of {ONLY_CHOICES} or None, got {only!r}")
+    return only == "r", only == "x"
+
+
+def _rx_axes(ax0, only):
+    """``(ax_r, ax_x)`` on ``ax0``: R on it and X on a twin right axis, or,
+    with ``only``, the one quantity on ``ax0`` itself and None for the
+    other (no twin is made)."""
+    show_r, show_x = _only_parts(only)
+    if show_r and show_x:
+        return ax0, ax0.twinx()
+    return (ax0, None) if show_r else (None, ax0)
 
 
 def _rx_panels(
@@ -190,6 +219,7 @@ def _rx_panels(
     x_range=None,
     callouts=False,
     xname=None,
+    only=None,
 ):
     """R and X against a swept value, one panel per engine (Dan AC6LA's
     SimNEC layout, QRZ 1003328 #163): R in red on the LEFT axis and X in blue
@@ -200,7 +230,9 @@ def _rx_panels(
     ``panels`` is ``[(name, xs, zs, marked_idx, z_star), ...]``: ``zs`` one
     complex value per x (port 0), ``marked_idx`` the indices drawn as squares
     (``--markers``), ``z_star`` an optional Richardson estimate drawn as a
-    dotted line on each axis. Returns the figure's ``[(ax_r, ax_x), ...]``.
+    dotted line on each axis. ``only`` (``"r"`` / ``"x"``) draws that one
+    quantity on a single axis, no twin. Returns the figure's
+    ``[(ax_r, ax_x), ...]``, None for an axis ``only`` leaves out.
     """
     import matplotlib.pyplot as plt
 
@@ -210,15 +242,23 @@ def _rx_panels(
     for ax0, (name, xs, zs, marked_idx, z_star) in zip(axes[0], panels, strict=True):
         xs = np.asarray(xs)
         zs = np.asarray(zs, dtype=complex)
-        ax1 = ax0.twinx()
+        ax_r, ax_x = _rx_axes(ax0, only)
+        parts = [
+            (ax, vals, c, lab)
+            for ax, vals, c, lab in (
+                (ax_r, zs.real, _R_COLOR, "R"),
+                (ax_x, zs.imag, _X_COLOR, "X"),
+            )
+            if ax is not None
+        ]
         style = dict(marker="o", ms=4, markerfacecolor="none", linewidth=1.3)
-        ax0.plot(xs, zs.real, color=_R_COLOR, label="R", **style)
-        ax1.plot(xs, zs.imag, color=_X_COLOR, label="X", **style)
+        for ax, vals, c, lab in parts:
+            ax.plot(xs, vals, color=c, label=lab, **style)
         for k in marked_idx:
-            for ax, v, c in ((ax0, zs[k].real, _R_COLOR), (ax1, zs[k].imag, _X_COLOR)):
+            for ax, vals, c, _lab in parts:
                 ax.plot(
                     [xs[k]],
-                    [v],
+                    [vals[k]],
                     marker="s",
                     ms=7,
                     markerfacecolor="none",
@@ -226,27 +266,27 @@ def _rx_panels(
                     linestyle="None",
                 )
         if z_star is not None:
-            ax0.axhline(z_star.real, color=_R_COLOR, linestyle=":", lw=1.0, alpha=0.7)
-            ax1.axhline(z_star.imag, color=_X_COLOR, linestyle=":", lw=1.0, alpha=0.7)
+            star = {"R": z_star.real, "X": z_star.imag}
+            for ax, _vals, c, lab in parts:
+                ax.axhline(star[lab], color=c, linestyle=":", lw=1.0, alpha=0.7)
         if log_x:
             _log_x_axis(ax0)
         ax0.set_xlabel(xlabel)
-        ax0.set_ylabel("R (Ω)", color=_R_COLOR)
-        ax0.tick_params(axis="y", labelcolor=_R_COLOR)
-        ax1.set_ylabel("X (Ω)", color=_X_COLOR)
-        ax1.tick_params(axis="y", labelcolor=_X_COLOR)
-        # A narrow R range (72.00..72.15) otherwise reads as "+7.2e1" offsets.
-        for ax in (ax0, ax1):
+        for ax, _vals, c, lab in parts:
+            ax.set_ylabel(f"{lab} (Ω)", color=c)
+            ax.tick_params(axis="y", labelcolor=c)
+            # A narrow R range (72.00..72.15) otherwise reads as "+7.2e1".
             ax.yaxis.get_major_formatter().set_useOffset(False)
-        _set_ylim(ax0, r_range)
-        _set_ylim(ax1, x_range)
+        _set_ylim(ax_r, r_range)
+        _set_ylim(ax_x, x_range)
         idx = _callout_indices(_callout_mode(callouts), len(xs), marked_idx)
         if idx:
-            _annotate_rx(ax0, ax1, xs, zs, idx, xname or xlabel, _pivot(xs, log_x))
+            _annotate_rx(ax_r, ax_x, xs, zs, idx, xname or xlabel, _pivot(xs, log_x))
         panel_title = title if name is None else f"{name}: {title}"
         _polish_axes(ax0, title=panel_title)
-        ax1.spines["top"].set_visible(False)
-        out.append((ax0, ax1))
+        if ax_x is not None:
+            ax_x.spines["top"].set_visible(False)
+        out.append((ax_r, ax_x))
     fig.tight_layout()
     return out
 
@@ -273,13 +313,16 @@ def _spread(ys, gap, lo=0.04, hi=0.96):
     return out
 
 
-def _overlay_callouts(ax0, ax1, panels, mode, xname, log_x):
+def _overlay_callouts(ax_r, ax_x, panels, mode, xname, log_x):
     """Value boxes for an overlay. Each engine's first and last points get
     ONE box (R and X together, in its colour), stacked in a column in a
     margin opened beyond the data on that side, ordered by the R value and
     spread so no two overlap; arrows run to the R point (solid) and the X
     point (dashed). ``markers`` / ``all`` points inside the range get
-    ordinary staggered point callouts."""
+    ordinary staggered point callouts. An axis passed as None (``--only``)
+    is left out of the boxes and arrows, and the column orders by the one
+    quantity drawn."""
+    ax0 = ax_r if ax_r is not None else ax_x
     xs_all = np.concatenate([np.asarray(p[1], dtype=float) for p in panels])
     xmin, xmax = float(xs_all.min()), float(xs_all.max())
     # Open a margin of ~24 % of the axis width on each side for the columns.
@@ -302,16 +345,22 @@ def _overlay_callouts(ax0, ax1, panels, mode, xname, log_x):
                 continue
             k = len(xs) - 1 if last else 0
             z = complex(zs[k])
-            fy = to_frac.transform(ax0.transData.transform((xs[k], z.real)))[1]
+            y0 = z.real if ax0 is ax_r else z.imag
+            fy = to_frac.transform(ax0.transData.transform((xs[k], y0)))[1]
             entries.append((i, name, xs[k], z, fy))
         ys = _spread([e[4] for e in entries], gap)
         for (i, name, x, z, _fy), by in zip(entries, ys, strict=True):
             color = f"C{i % 10}"
             box = (0.99, by) if last else (0.01, by)
-            text = f"{name} {xname}={_fmt_x(x)}\nR {z.real:.4g}  X {z.imag:.4g} Ω"
+            values = []
+            if ax_r is not None:
+                values.append(f"R {z.real:.4g}")
+            if ax_x is not None:
+                values.append(f"X {z.imag:.4g}")
+            text = f"{name} {xname}={_fmt_x(x)}\n{'  '.join(values)} Ω"
             ax0.annotate(
                 text,
-                xy=(x, z.real),
+                xy=(x, z.real if ax0 is ax_r else z.imag),
                 xytext=box,
                 textcoords="axes fraction",
                 ha="right" if last else "left",
@@ -319,15 +368,21 @@ def _overlay_callouts(ax0, ax1, panels, mode, xname, log_x):
                 fontsize=6.5,
                 color=color,
                 bbox=dict(boxstyle="round,pad=0.25", fc="white", ec=color, lw=0.6),
-                arrowprops=dict(arrowstyle="->", color=color, lw=0.6),
+                arrowprops=dict(
+                    arrowstyle="->",
+                    color=color,
+                    lw=0.6,
+                    **({} if ax0 is ax_r else {"ls": "--"}),
+                ),
             )
-            ax1.annotate(
-                "",
-                xy=(x, z.imag),
-                xytext=box,
-                textcoords="axes fraction",
-                arrowprops=dict(arrowstyle="->", color=color, lw=0.6, ls="--"),
-            )
+            if ax_r is not None and ax_x is not None:
+                ax_x.annotate(
+                    "",
+                    xy=(x, z.imag),
+                    xytext=box,
+                    textcoords="axes fraction",
+                    arrowprops=dict(arrowstyle="->", color=color, lw=0.6, ls="--"),
+                )
     if mode == "ends":
         return
     pivot = _pivot(xs_all, log_x)
@@ -342,26 +397,28 @@ def _overlay_callouts(ax0, ax1, panels, mode, xname, log_x):
             z = complex(zs[k])
             head = f"{name} {xname}={_fmt_x(xs[k])}"
             last = xs[k] > pivot
-            _callout(
-                ax0,
-                xs[k],
-                z.real,
-                f"{head}\nR {z.real:.4g} Ω",
-                color,
-                last=last,
-                dx=12,
-                stagger=i,
-            )
-            _callout(
-                ax1,
-                xs[k],
-                z.imag,
-                f"{head}\nX {z.imag:.4g} Ω",
-                color,
-                last=last,
-                dx=90,
-                stagger=i,
-            )
+            if ax_r is not None:
+                _callout(
+                    ax_r,
+                    xs[k],
+                    z.real,
+                    f"{head}\nR {z.real:.4g} Ω",
+                    color,
+                    last=last,
+                    dx=12,
+                    stagger=i,
+                )
+            if ax_x is not None:
+                _callout(
+                    ax_x,
+                    xs[k],
+                    z.imag,
+                    f"{head}\nX {z.imag:.4g} Ω",
+                    color,
+                    last=last,
+                    dx=90 if ax_r is not None else 12,
+                    stagger=i,
+                )
 
 
 # One marker per engine on an overlay, so the curves stay apart in a
@@ -379,6 +436,7 @@ def _rx_overlay(
     x_range=None,
     callouts=False,
     xname=None,
+    only=None,
 ):
     """Every engine of ``panels`` (the ``_rx_panels`` rows) on ONE chart: R
     on the left axis (solid) and X on a twin right axis (dashed), each axis
@@ -386,12 +444,15 @@ def _rx_overlay(
     directly unless ``r_range`` / ``x_range`` pin it. Each engine has its own
     colour and marker; its Richardson ``z_star`` is a dotted line in its
     colour on each axis. Callouts label each engine's points (named), with
-    one engine's boxes staggered past the previous one's. Returns
-    ``(ax_r, ax_x)``."""
+    one engine's boxes staggered past the previous one's. ``only``
+    (``"r"`` / ``"x"``) draws that one quantity on a single axis, no twin,
+    keeping its line style. Returns ``(ax_r, ax_x)``, None for an axis
+    ``only`` leaves out."""
     import matplotlib.pyplot as plt
 
     fig, ax0 = plt.subplots(figsize=(9.0, 5.6))
-    ax1 = ax0.twinx()
+    ax_r, ax_x = _rx_axes(ax0, only)
+    both = ax_r is not None and ax_x is not None
     handles = []
     for i, (name, xs, zs, marked_idx, z_star) in enumerate(panels):
         xs = np.asarray(xs)
@@ -399,34 +460,45 @@ def _rx_overlay(
         color = f"C{i % 10}"
         mk = _OVERLAY_MARKERS[i % len(_OVERLAY_MARKERS)]
         style = dict(color=color, marker=mk, ms=4, markerfacecolor="none", lw=1.3)
-        handles += ax0.plot(xs, zs.real, linestyle="-", label=f"{name} R", **style)
-        handles += ax1.plot(xs, zs.imag, linestyle="--", label=f"{name} X", **style)
+        parts = [
+            (ax, vals, ls, lab, star)
+            for ax, vals, ls, lab, star in (
+                (ax_r, zs.real, "-", "R", None if z_star is None else z_star.real),
+                (ax_x, zs.imag, "--", "X", None if z_star is None else z_star.imag),
+            )
+            if ax is not None
+        ]
+        for ax, vals, ls, lab, _star in parts:
+            handles += ax.plot(xs, vals, linestyle=ls, label=f"{name} {lab}", **style)
         for k in marked_idx:
-            for ax, v in ((ax0, zs[k].real), (ax1, zs[k].imag)):
+            for ax, vals, _ls, _lab, _star in parts:
                 ax.plot(
                     [xs[k]],
-                    [v],
+                    [vals[k]],
                     marker="s",
                     ms=8,
                     markerfacecolor="none",
                     markeredgecolor=color,
                     linestyle="None",
                 )
-        if z_star is not None:
-            ax0.axhline(z_star.real, color=color, linestyle=":", lw=1.0, alpha=0.8)
-            ax1.axhline(z_star.imag, color=color, linestyle=":", lw=1.0, alpha=0.8)
+        for ax, _vals, _ls, _lab, star in parts:
+            if star is not None:
+                ax.axhline(star, color=color, linestyle=":", lw=1.0, alpha=0.8)
     if log_x:
         _log_x_axis(ax0)
     ax0.set_xlabel(xlabel)
-    ax0.set_ylabel("R (Ω), solid")
-    ax1.set_ylabel("X (Ω), dashed")
-    for ax in (ax0, ax1):
-        ax.yaxis.get_major_formatter().set_useOffset(False)
-    _set_ylim(ax0, r_range)
-    _set_ylim(ax1, x_range)
+    if ax_r is not None:
+        ax_r.set_ylabel("R (Ω), solid" if both else "R (Ω)")
+    if ax_x is not None:
+        ax_x.set_ylabel("X (Ω), dashed" if both else "X (Ω)")
+    for ax in (ax_r, ax_x):
+        if ax is not None:
+            ax.yaxis.get_major_formatter().set_useOffset(False)
+    _set_ylim(ax_r, r_range)
+    _set_ylim(ax_x, x_range)
     mode = _callout_mode(callouts)
     if mode:
-        _overlay_callouts(ax0, ax1, panels, mode, xname or xlabel, log_x)
+        _overlay_callouts(ax_r, ax_x, panels, mode, xname or xlabel, log_x)
     # Below the axes, one column per engine (its R above its X), so it
     # never sits on the curves or the callout columns.
     ax0.legend(
@@ -438,9 +510,10 @@ def _rx_overlay(
         ncol=len(panels),
     )
     _polish_axes(ax0, title=title)
-    ax1.spines["top"].set_visible(False)
+    if both:
+        ax_x.spines["top"].set_visible(False)
     fig.tight_layout()
-    return ax0, ax1
+    return ax_r, ax_x
 
 
 def build_and_get_elevation(antenna_builder, *, engine=Antenna):
@@ -789,6 +862,7 @@ def _sweep_convergence(
     x_range=None,
     callouts=False,
     overlay=False,
+    only=None,
 ):
     """``sweep --param nominal_nsegs`` (#1554): one cold solve per rung per
     engine, port 0 only (multi-port trajectories are the app's own overlay,
@@ -932,6 +1006,7 @@ def _sweep_convergence(
             x_range=x_range,
             callouts=callouts,
             xname="N",
+            only=only,
         )
 
     save_or_show(plt, fn)
@@ -958,6 +1033,7 @@ def sweep(
     callouts=False,
     panels=False,
     overlay=False,
+    only=None,
 ):
     """Impedance against a swept knob (or frequency).
 
@@ -974,6 +1050,9 @@ def sweep(
       instead of one shared-axis chart coloured by engine.
     - ``overlay``: several engines on ONE twin-axis R/X chart (port 0), each
       axis shared, one colour and marker per engine (``_rx_overlay``).
+    - ``only``: ``"r"`` or ``"x"`` draws just that quantity, on one y axis
+      (no twin), in every rectangular layout; its callouts name only it.
+      The Smith chart ignores it (the CLI refuses the pair).
 
     ``nominal_nsegs`` is always log-spaced, and drawn as panels unless
     ``overlay``.
@@ -1000,8 +1079,11 @@ def sweep(
             x_range=x_range,
             callouts=callouts,
             overlay=overlay,
+            only=only,
         )
         return
+
+    show_r, show_x = _only_parts(only)
 
     if npoints is None:
         npoints = 21
@@ -1083,73 +1165,58 @@ def sweep(
 
         else:
             fig, ax0 = plt.subplots(figsize=(7.0, 4.5))
-            color = "tab:red"
             ax0.set_xlabel(_param_label(nm))
-            ax0.set_ylabel("resistance R (Ω)", color=color)
-            ax0.tick_params(axis="y", labelcolor=color)
-            for i in range(nwidth):
-                if zs.shape[0] > 0:
-                    ax0.plot(
-                        xs,
-                        np.real(zs)[:, i],
-                        color=color,
-                        linestyle=_port_style(i),
-                        marker="o",
-                        ms=3,
-                    )
-                if marker_zs.shape[0] > 0:
-                    ax0.plot(
-                        marker_xs,
-                        np.real(marker_zs)[:, i],
-                        color=color,
-                        marker="s",
-                        linestyle="None",
-                    )
             if meas is not None:
                 mxs, mz = meas[0], z0 * (1.0 + meas[1]) / (1.0 - meas[1])
-                ax0.plot(mxs, np.real(mz), color=color, **_MEASURED_KW)
-
-            color = "tab:blue"
-            ax1 = ax0.twinx()
-            ax1.set_ylabel("reactance X (Ω)", color=color)
-            ax1.tick_params(axis="y", labelcolor=color)
-            for i in range(nwidth):
-                if zs.shape[0] > 0:
-                    ax1.plot(
-                        xs,
-                        np.imag(zs)[:, i],
-                        color=color,
-                        linestyle=_port_style(i),
-                        marker="o",
-                        ms=3,
-                    )
-                if marker_zs.shape[0] > 0:
-                    ax1.plot(
-                        marker_xs,
-                        np.imag(marker_zs)[:, i],
-                        color=color,
-                        marker="s",
-                        linestyle="None",
-                    )
+            # R in red on the left axis, X in blue on a twin right one; with
+            # --only, the one quantity drawn on ax0 alone (no twin).
+            ax_r, ax_x = _rx_axes(ax0, only)
+            for ax, part, color, label in (
+                (ax_r, np.real, _R_COLOR, "resistance R (Ω)"),
+                (ax_x, np.imag, _X_COLOR, "reactance X (Ω)"),
+            ):
+                if ax is None:
+                    continue
+                ax.set_ylabel(label, color=color)
+                ax.tick_params(axis="y", labelcolor=color)
+                for i in range(nwidth):
+                    if zs.shape[0] > 0:
+                        ax.plot(
+                            xs,
+                            part(zs)[:, i],
+                            color=color,
+                            linestyle=_port_style(i),
+                            marker="o",
+                            ms=3,
+                        )
+                    if marker_zs.shape[0] > 0:
+                        ax.plot(
+                            marker_xs,
+                            part(marker_zs)[:, i],
+                            color=color,
+                            marker="s",
+                            linestyle="None",
+                        )
+                if meas is not None:
+                    ax.plot(mxs, part(mz), color=color, **_MEASURED_KW)
             if meas is not None:
-                ax1.plot(mxs, np.imag(mz), color=color, **_MEASURED_KW)
                 _measured_legend(ax0, measured.label)
 
             if log:
                 _log_x_axis(ax0)
-            _set_ylim(ax0, r_range)
-            _set_ylim(ax1, x_range)
+            _set_ylim(ax_r, r_range)
+            _set_ylim(ax_x, x_range)
             mode = _callout_mode(callouts)
             if mode:
                 pivot = _pivot(np.concatenate([xs, marker_xs]), log)
                 for i in range(nwidth):
                     if zs.shape[0] > 0:
                         idx = _callout_indices(mode, zs.shape[0], ())
-                        _annotate_rx(ax0, ax1, xs, zs[:, i], idx, nm, pivot)
+                        _annotate_rx(ax_r, ax_x, xs, zs[:, i], idx, nm, pivot)
                     if marker_zs.shape[0] > 0 and mode != "ends":
                         _annotate_rx(
-                            ax0,
-                            ax1,
+                            ax_r,
+                            ax_x,
                             marker_xs,
                             marker_zs[:, i],
                             range(marker_zs.shape[0]),
@@ -1157,7 +1224,8 @@ def sweep(
                             pivot,
                         )
             _polish_axes(ax0, title=_z_title(antenna_builder, nm))
-            ax1.spines["top"].set_visible(False)
+            if ax_r is not None and ax_x is not None:
+                ax_x.spines["top"].set_visible(False)
             fig.tight_layout()
 
         save_or_show(plt, fn)
@@ -1215,6 +1283,7 @@ def sweep(
             x_range=x_range,
             callouts=callouts,
             xname=nm,
+            only=only,
         )
 
     elif use_smithchart:
@@ -1259,47 +1328,50 @@ def sweep(
     else:
         fig, ax0 = plt.subplots(figsize=(7.0, 4.5))
         ax0.set_xlabel(_param_label(nm))
-        ax0.set_ylabel("R solid / X dashed (Ω)")
+        if show_r and show_x:
+            ax0.set_ylabel("R solid / X dashed (Ω)")
+        else:
+            ax0.set_ylabel("resistance R (Ω)" if show_r else "reactance X (Ω)")
         for ei, (name, zs, marker_zs) in enumerate(per_engine):
             color = f"C{ei}"
             for i in range(nwidth):
                 label = f"{name} port {i + 1}" if nwidth > 1 else name
+                # R solid (per-port style) with circles, X dashed with
+                # triangles; --only keeps one. The first drawn carries the
+                # engine's legend label.
+                parts = [
+                    (part, ls, mk)
+                    for part, ls, mk, on in (
+                        (np.real, _port_style(i), "o", show_r),
+                        (np.imag, "--", "^", show_x),
+                    )
+                    if on
+                ]
                 if zs.shape[0] > 0:
-                    ax0.plot(
-                        xs,
-                        np.real(zs)[:, i],
-                        color=color,
-                        linestyle=_port_style(i),
-                        marker="o",
-                        ms=3,
-                        label=label,
-                    )
-                    ax0.plot(
-                        xs,
-                        np.imag(zs)[:, i],
-                        color=color,
-                        linestyle="--",
-                        marker="^",
-                        ms=3,
-                    )
+                    for part, ls, mk in parts:
+                        ax0.plot(
+                            xs,
+                            part(zs)[:, i],
+                            color=color,
+                            linestyle=ls,
+                            marker=mk,
+                            ms=3,
+                            label=label,
+                        )
+                        label = None
                 if marker_zs.shape[0] > 0:
-                    ax0.plot(
-                        marker_xs,
-                        np.real(marker_zs)[:, i],
-                        color=color,
-                        marker="s",
-                        linestyle="None",
-                    )
-                    ax0.plot(
-                        marker_xs,
-                        np.imag(marker_zs)[:, i],
-                        color=color,
-                        marker="s",
-                        linestyle="None",
-                    )
+                    for part, _ls, _mk in parts:
+                        ax0.plot(
+                            marker_xs,
+                            part(marker_zs)[:, i],
+                            color=color,
+                            marker="s",
+                            linestyle="None",
+                        )
         if meas is not None:
             mxs, mz = meas[0], z0 * (1.0 + meas[1]) / (1.0 - meas[1])
-            ax0.plot(mxs, np.real(mz), color="0.25", **_MEASURED_KW)
+            mpart = np.real if show_r else np.imag
+            ax0.plot(mxs, mpart(mz), color="0.25", **_MEASURED_KW)
             _measured_legend(ax0, measured.label)
 
         if log:
