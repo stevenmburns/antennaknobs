@@ -97,19 +97,20 @@ class Builder(AntennaBuilder):
         z = self.base
         it = int(self.iterations)
 
-        tups = []
-        # Centre feed: a short driven gap along y at the origin.
-        tups.append(Wire((0.0, -eps, z), (0.0, eps, z), ex=1 + 0j))
-
-        # Right arm: Koch curve from the feed edge (y=+eps) out to the tip,
-        # built in the (y, z) plane then emitted as straight chords.
+        # Each arm is a Koch curve from y = +/-eps out to the tip, built in
+        # the (y, z) plane and emitted as straight chords.
         right = _koch((eps, 0.0), (half, 0.0), it)
-        for (ya, za), (yb, zb) in itertools.pairwise(right):
-            tups.append(Wire((0.0, ya, z + za), (0.0, yb, z + zb)))
-
-        # Left arm: mirror of the right arm in y.
         left = _koch((-eps, 0.0), (-half, 0.0), it)
-        for (ya, za), (yb, zb) in itertools.pairwise(left):
-            tups.append(Wire((0.0, ya, z + za), (0.0, yb, z + zb)))
+
+        # Centre feed: every Koch curve's first chord lies on its baseline,
+        # so the two arms' first chords and the gap between them are one
+        # straight wire, fed at its middle (AK#1767: a separate short gap
+        # wire's segment count stepped the impedance as the mesh refined).
+        (yl, zl), (yr, zr) = left[1], right[1]
+        tups = [Wire((0.0, yl, z + zl), (0.0, yr, z + zr), ex=1 + 0j)]
+
+        for arm in (right, left):
+            for (ya, za), (yb, zb) in itertools.pairwise(arm[1:]):
+                tups.append(Wire((0.0, ya, z + za), (0.0, yb, z + zb)))
 
         return tups

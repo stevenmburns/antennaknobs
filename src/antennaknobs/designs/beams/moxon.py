@@ -42,7 +42,6 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        eps = 0.05
         base = self.base
 
         # short = aspect_ratio*long
@@ -72,9 +71,9 @@ class Builder(AntennaBuilder):
     |                    |
     |                    |
     |                    |
-    |                    S
     |                    |
-    |                    T
+    |                    ex
+    |                    |
     |                    |
     |                    |
     |                    |
@@ -84,12 +83,11 @@ class Builder(AntennaBuilder):
     E----------F   G-----H
 	"""
 
-        S = (short / 2, eps, base)
-        A = (S[0], long / 2, base)
+        A = (short / 2, long / 2, base)
         B = (A[0] - t0, A[1], base)
         C = (B[0] - tipspacer, B[1], base)
         D = rx(A)
-        E, F, G, H, T = ry(D), ry(C), ry(B), ry(A), ry(S)
+        E, F, G, H = ry(D), ry(C), ry(B), ry(A)
 
         # Uniform-density mesh (issue #522): giving each wire the full
         # nominal count put 6.7x-over-dense segments on the short folded
@@ -101,9 +99,12 @@ class Builder(AntennaBuilder):
             return [Wire(a, b) for a, b in itertools.pairwise(lst)]
 
         tups = []
-        tups.extend(path([S, A, B]))
+        tups.extend(path([A, B]))
         tups.extend(path([C, D, E, F]))
-        tups.extend(path([G, H, T]))
-        tups.append(Wire(T, S, ex=1 + 0j))
+        tups.extend(path([G, H]))
+        # The driven side is ONE wire H-A fed at its middle (AK#1767): a
+        # separate short gap wire's segment count stepped the impedance as
+        # the mesh refined.
+        tups.append(Wire(H, A, ex=1 + 0j))
 
         return tups

@@ -32,7 +32,6 @@ class Builder(AntennaBuilder):
     default_params = z50_params
 
     def build_wires(self):
-        eps = 0.05
         b = self.base
 
         wavelength = self.design_wavelength
@@ -49,7 +48,7 @@ class Builder(AntennaBuilder):
  |                            |
  |                            |
  |                            |
- D------------T--S------------B
+ D-------------ex-------------B
  |                            |
  |                            |
  |                            |
@@ -57,7 +56,6 @@ class Builder(AntennaBuilder):
  E----------------------------F
     """
 
-        S = (0, eps, wavelength * (self.mid_height_factor - self.top_height_factor))
         B = (
             0,
             wavelength * self.width_factor / 2,
@@ -70,7 +68,7 @@ class Builder(AntennaBuilder):
             wavelength * (-self.top_height_factor),
         )
 
-        C, D, T = ry(A), ry(B), ry(S)
+        C, D = ry(A), ry(B)
         E = ry(F)
 
         st = TransformStack()
@@ -85,9 +83,9 @@ class Builder(AntennaBuilder):
 
         tups.extend(build_path([B, A, C, D]))
         tups.extend(build_path([B, F, E, D]))
-        tups.extend(build_path([S, B]))
-        tups.extend(build_path([D, T]))
-        tups.extend(build_path([T, S], ex=1 + 0j))
+        # The feed is the middle of ONE wire D-B (AK#1767): a separate short
+        # gap wire's segment count stepped the impedance as the mesh refined.
+        tups.extend(build_path([D, B], ex=1 + 0j))
         # Uniform-density mesh (issue #521): None counts resolve to the
         # design density automatically (auto_mesh is part of the stack).
 

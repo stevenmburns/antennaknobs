@@ -95,7 +95,6 @@ class Builder(AntennaBuilder):
         return WireSpec(radius=0.001203 * wavelength)
 
     def build_wires(self):
-        eps = 0.05
         wavelength = self.design_wavelength
         b = self.base
 
@@ -105,11 +104,7 @@ class Builder(AntennaBuilder):
             if i == self.D1:
                 half *= self.d1_length_factor
             x = pos_frac * wavelength
-            if i == self.DRIVER:
-                # Driver: the short centre-gap wire carries the direct feed.
-                tups.append(Wire((x, -half, b), (x, -eps, b)))
-                tups.append(Wire((x, -eps, b), (x, eps, b), ex=1 + 0j))
-                tups.append(Wire((x, eps, b), (x, half, b)))
-            else:
-                tups.append(Wire((x, -half, b), (x, half, b)))
+            # The driver is one wire fed at its middle (AK#1767).
+            ex = 1 + 0j if i == self.DRIVER else None
+            tups.append(Wire((x, -half, b), (x, half, b), ex=ex))
         return tups

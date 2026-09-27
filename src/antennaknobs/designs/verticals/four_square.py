@@ -106,7 +106,6 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        eps = 0.05
         wavelength = self.design_wavelength
 
         elem = self.elem_frac * wavelength * self.length_factor
@@ -116,17 +115,11 @@ class Builder(AntennaBuilder):
         s2 = spacing / 2
 
         def vertical(x, y, voltage):
-            """A vertical (z-axis) half-wave dipole at (x, y), centre-fed by a
-            one-segment driven gap with the given complex excitation."""
+            """A vertical (z-axis) half-wave dipole at (x, y), one wire,
+            centre-fed with the given complex excitation (AK#1767)."""
             B = (x, y, zc - half)
             T = (x, y, zc + half)
-            C0 = (x, y, zc - eps)
-            C1 = (x, y, zc + eps)
-            return [
-                Wire(B, C0),
-                Wire(C0, C1, ex=voltage),
-                Wire(C1, T),
-            ]
+            return [Wire(B, T, ex=voltage)]  # one wire, centre-fed (AK#1767)
 
         side = complex(self.side_mag) * (-1j)
 
