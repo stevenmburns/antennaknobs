@@ -53,6 +53,7 @@ from momwire import (
 import argparse
 import math
 import logging
+import os
 import sys
 from importlib import import_module
 from types import ModuleType
@@ -290,6 +291,84 @@ def list_variants(cls):
     return sorted(out)
 
 
+_BUILDER_FORMS = (
+    "builder forms: family.design[:variant] (see `antennaknobs list`), "
+    "user.<name> (a design in your user folder), or @path/to/file.nec / "
+    "@file.ssn (load a file directly)"
+)
+
+# Extensions that mark a --builder value as a FILE name rather than a design
+# name. .nec/.ssn load with `@`; the others are named so their hint is right.
+_FILE_LIKE_SUFFIXES = (".nec", ".ssn", ".py", ".ez")
+
+
+def _unknown_builder_message(nm):
+    """The refusal for a --builder value that resolved to nothing.
+
+    The common near-miss is a FILE given where a design name goes (QRZ
+    1003328 #166: `--builder user.4n2loopsegs.nec` for `4n2LoopSegs.nec`).
+    That is refused, not reinterpreted — a design name and a path are two
+    namespaces, and guessing between them would let one shadow the other —
+    but the refusal spells the form that works, with the file's real name
+    when one is found in the working directory (case-insensitively) or a
+    user design matches the stem.
+    """
+    from pathlib import Path
+
+    head = f"unknown builder {nm!r}"
+    name = nm.partition(":")[0]
+    cand = name[len(USER_NS) + 1 :] if name.startswith(f"{USER_NS}.") else name
+    suffix = Path(cand).suffix.lower()
+    stem = Path(cand).stem if suffix in _FILE_LIKE_SUFFIXES else cand
+
+    found = None
+    given = Path(cand).expanduser()
+    if given.is_file():
+        found = given
+    else:
+        try:
+            parent = given.parent if given.parent != Path() else Path.cwd()
+            folded = given.name.casefold()
+            match = next(
+                (p for p in parent.iterdir() if p.name.casefold() == folded),
+                None,
+            )
+        except OSError:
+            match = None
+        # Keep the spelling the user gave for the folder, fix only the name.
+        found = None if match is None else given.with_name(match.name)
+        if found is not None and not found.is_file():
+            found = None
+    user_stem = next(
+        (s for s, _ in iter_design_files() if s.casefold() == stem.casefold()),
+        None,
+    )
+
+    if found is None and suffix not in _FILE_LIKE_SUFFIXES:
+        if user_stem is not None and name.startswith(f"{USER_NS}."):
+            # User design names are case-sensitive; `user.myloop` for MyLoop.
+            return (
+                f"{head}: no design is named that; did you mean "
+                f"--builder {USER_NS}.{user_stem}? {_BUILDER_FORMS}"
+            )
+        return f"{head}; {_BUILDER_FORMS}"
+
+    shown = found if found is not None else Path(cand)
+    loadable = shown.suffix.lower() in (".nec", ".ssn")
+    if loadable:
+        fix = f"to load a file use --builder @{shown}"
+    elif shown.suffix.lower() == ".py":
+        fix = (
+            f"a .py design lives in your user folder and is named without the "
+            f"extension: --builder {USER_NS}.{stem}"
+        )
+    else:
+        fix = "@ loads .nec and .ssn files; save the model as a .nec deck first"
+    if user_stem is not None and not fix.endswith(f"{USER_NS}.{user_stem}"):
+        fix += f" (or --builder {USER_NS}.{user_stem}, the user design of that name)"
+    return f"{head}: no design is named that; {fix}. {_BUILDER_FORMS}"
+
+
 def get_builder(nm):
     """Resolve a builder spec into a zero-arg factory.
 
@@ -311,9 +390,7 @@ def get_builder(nm):
         # caller would then call as `builder()` -> `TypeError: 'NoneType' object
         # is not callable` (a confusing crash for a simple typo). SystemExit
         # prints just the message to stderr and exits non-zero, no traceback.
-        raise SystemExit(
-            f"unknown builder {nm!r} — run `antennaknobs list` to see available designs"
-        )
+        raise SystemExit(_unknown_builder_message(nm))
     if not variant or variant == "default":
         return cls
     attr = f"{variant}_params"
@@ -510,6 +587,65 @@ def broadcast_pairs(builders, engines):
     )
 
 
+# Engines that are real roster names but join ENGINE_CLASSES only when
+# something outside the package is present (AK#1766): the external binaries
+# by environment variable or settings.toml, pynec by an optional package.
+# "unknown engine 'nec2'" misleads for these — the name is right, the machine
+# is missing a piece — so the refusal names the piece instead.
+_EXTERNAL_ENGINES = {
+    "nec2": (
+        "NEC2_EXE",
+        "NEC-2",
+        "a NEC-2 console binary (nec2c, nec2++, or 4nec2's nec2dxs*.exe)",
+    ),
+    "nec5": (
+        "NEC5_EXE",
+        "NEC-5",
+        "a licensed NEC-5 console binary (e.g. EZNEC's NEC5CL_x13.exe)",
+    ),
+}
+
+
+def _engine_unavailable_message(name):
+    """Why engine ``name`` is not on this machine's roster, as one line."""
+    available = ", ".join(sorted(ENGINE_CLASSES))
+    if name == "pynec":
+        return (
+            "engine 'pynec' needs the optional pynec-accel package, which is "
+            f"not installed (see the README); available: {available}"
+        )
+    if name not in _EXTERNAL_ENGINES:
+        optional = sorted(
+            n for n in ("pynec", *_EXTERNAL_ENGINES) if n not in ENGINE_CLASSES
+        )
+        extra = f" (also {', '.join(optional)}, once configured)" if optional else ""
+        return f"unknown engine {name!r}; available: {available}{extra}"
+
+    from .engines._external import find_exe
+    from .settings_file import ENGINE_KEYS, engine_exe, read_settings, settings_path
+
+    env_var, label, what = _EXTERNAL_ENGINES[name]
+    key = ENGINE_KEYS[env_var]
+    how = (
+        f"set the {env_var} environment variable to its path, or {key} under "
+        f"[engines] in {settings_path()}"
+    )
+    if os.environ.get(env_var):
+        source, cand = f"${env_var}", os.environ[env_var]
+    else:
+        source, cand = f"{key} in settings.toml", engine_exe(env_var)
+    if not cand:
+        _, err = read_settings()
+        why = f" ({err})" if err else ""
+        return f"engine {name!r} needs {what}: {how}{why}"
+    if find_exe(env_var) is None:
+        return f"engine {name!r}: {source} is {cand!r}, which is not an executable file"
+    return (
+        f"engine {name!r}: {source} is {cand!r}, which did not run as a {label} "
+        f"binary (see the '{label} unavailable' warning above)"
+    )
+
+
 def parse_engine_spec(spec):
     """Parse an engine spec into (engine_name, kwargs_to_bind).
 
@@ -523,9 +659,7 @@ def parse_engine_spec(spec):
     """
     name, _, basis = spec.partition(":")
     if name not in ENGINE_CLASSES:
-        raise argparse.ArgumentTypeError(
-            f"unknown engine {name!r}; available: {', '.join(sorted(ENGINE_CLASSES))}"
-        )
+        raise argparse.ArgumentTypeError(_engine_unavailable_message(name))
     if not basis:
         return name, {}
     if name != "momwire":
@@ -2201,6 +2335,14 @@ def cli(arguments=None):
     try:
         args.func(args)
         placements.flush(final=True)
+    except argparse.ArgumentTypeError as exc:
+        # AK#1766: engine specs (and --ground, the builder/engine broadcast,
+        # --extended-kernel on a non-momwire engine) are validated after
+        # parsing, when the subcommand builds its engines — outside argparse's
+        # own `type=` handling, which is what turns this error into a usage
+        # line. Do that conversion here, for every subcommand at once: one
+        # `prog command: error: ...` line and exit 2, never a traceback.
+        parser.exit(2, f"{parser.prog} {args.command}: error: {exc}\n")
     except DesignNotTrustedError as exc:
         # A design the user hasn't allowed yet: show the clean guidance, not a
         # traceback.

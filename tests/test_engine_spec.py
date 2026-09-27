@@ -318,11 +318,14 @@ def test_cli_compare_patterns_three_builders_one_engine():
     )
 
 
-def test_cli_compare_patterns_mismatch_rejected():
-    with pytest.raises(argparse.ArgumentTypeError):
+def test_cli_compare_patterns_mismatch_rejected(capsys):
+    # A usage error, exit 2, not a traceback (AK#1766).
+    with pytest.raises(SystemExit) as exc:
         ant.cli(
             f"compare_patterns --builders dipoles.invvee:dipole dipoles.invvee --engines pynec momwire:bspline momwire:sinusoidal{O}".split()
         )
+    assert exc.value.code == 2
+    assert "cannot broadcast 2 builders against 3 engines" in capsys.readouterr().err
 
 
 def test_cli_pattern_with_basis_spec():
@@ -472,12 +475,15 @@ def test_cli_extended_kernel_galerkin_runs():
 
 
 @needs_pynec
-def test_cli_extended_kernel_flag_rejected_for_pynec():
-    with pytest.raises(argparse.ArgumentTypeError):
+def test_cli_extended_kernel_flag_rejected_for_pynec(capsys):
+    # A usage error, exit 2, not a traceback (AK#1766).
+    with pytest.raises(SystemExit) as exc:
         ant.cli(
             f"pattern --builder dipoles.invvee:dipole --engine pynec "
             f"--extended-kernel{O}".split()
         )
+    assert exc.value.code == 2
+    assert "--extended-kernel only applies" in capsys.readouterr().err
 
 
 # --- @file.nec decks honoring their own EK card ---------------------------
