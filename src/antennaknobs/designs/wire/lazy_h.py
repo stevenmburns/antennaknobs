@@ -69,7 +69,6 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        eps = 0.05
 
         wavelength = self.design_wavelength
 
@@ -79,16 +78,10 @@ class Builder(AntennaBuilder):
 
         def element(z):
             """A 1 wl horizontal wire along y at height z, centre-fed in
-            phase (driven gap at y = 0)."""
+            phase: one wire, fed at y = 0 (AK#1767)."""
             L = (0.0, -half, z)
             R = (0.0, half, z)
-            C0 = (0.0, -eps, z)
-            C1 = (0.0, eps, z)
-            return [
-                Wire(L, C0),
-                Wire(C0, C1, ex=1 + 0j),
-                Wire(C1, R),
-            ]
+            return [Wire(L, R, ex=1 + 0j)]
 
         tups = []
         tups.extend(element(self.base))  # lower element

@@ -22,7 +22,6 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        eps = 0.05
 
         wavelength = self.design_wavelength
         length = wavelength * self.length_factor
@@ -34,11 +33,8 @@ class Builder(AntennaBuilder):
         z_lo = self.base
         z_hi = self.base + self.gap_z
 
+        # Each dipole is one wire fed at its middle (AK#1767).
         return [
-            Wire((-x, 0, z_lo), (-eps, 0, z_lo)),
-            Wire((eps, 0, z_lo), (x, 0, z_lo)),
-            Wire((-eps, 0, z_lo), (eps, 0, z_lo), ex=1 + 0j),
-            Wire((0, -x, z_hi), (0, -eps, z_hi)),
-            Wire((0, eps, z_hi), (0, x, z_hi)),
-            Wire((0, -eps, z_hi), (0, eps, z_hi), ex=0 + 1j),
+            Wire((-x, 0, z_lo), (x, 0, z_lo), ex=1 + 0j),
+            Wire((0, -x, z_hi), (0, x, z_hi), ex=0 + 1j),
         ]

@@ -79,7 +79,6 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        eps = 0.05
         wavelength = self.design_wavelength
 
         elem = self.elem_frac * wavelength
@@ -91,13 +90,7 @@ class Builder(AntennaBuilder):
             """A vertical (z-axis) half-wave dipole at x, centre-fed."""
             B = (x, 0.0, zc - half)
             T = (x, 0.0, zc + half)
-            C0 = (x, 0.0, zc - eps)
-            C1 = (x, 0.0, zc + eps)
-            return [
-                Wire(B, C0),
-                Wire(C0, C1, ex=voltage),
-                Wire(C1, T),
-            ]
+            return [Wire(B, T, ex=voltage)]  # one wire, centre-fed (AK#1767)
 
         tups = []
         tups.extend(vertical(0.0, 1 + 0j))  # rear, reference phase

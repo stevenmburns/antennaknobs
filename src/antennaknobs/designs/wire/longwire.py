@@ -73,8 +73,6 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        eps = 0.05
-
         wavelength = self.design_wavelength
 
         length = self.length_frac * wavelength * self.length_factor
@@ -82,20 +80,11 @@ class Builder(AntennaBuilder):
 
         z = self.base
 
-        # Single straight wire along y, with a driven gap at the centre (the
-        # current maximum). Split into a passive left half, the driven gap,
-        # and a passive right half (cf. half_square / lazy_h centre-feed
-        # idiom).
+        # Single straight wire along y, fed at its middle (the current
+        # maximum). One wire rather than two halves around a short driven gap
+        # (AK#1767): the gap wire's segment count stepped the impedance as
+        # the mesh refined.
         left_end = (0.0, -half, z)
-        gap_m = (0.0, -eps, z)
-        gap_p = (0.0, eps, z)
         right_end = (0.0, half, z)
 
-        return [
-            # Left half (end -> -eps), passive.
-            Wire(left_end, gap_m),
-            # Driven feed gap across the centre.
-            Wire(gap_m, gap_p, ex=1 + 0j),
-            # Right half (+eps -> end), passive.
-            Wire(gap_p, right_end),
-        ]
+        return [Wire(left_end, right_end, ex=1 + 0j)]

@@ -75,8 +75,6 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        eps = 0.05
-
         wavelength = self.design_wavelength
 
         side = self.side_frac * wavelength * self.length_factor
@@ -89,17 +87,11 @@ class Builder(AntennaBuilder):
         C = (h, h, z)
         D = (-h, h, z)
 
-        # Feed gap at the midpoint of side A->D (the wire runs along +y here).
-        feed = 2 * eps
-        F0 = (-h, -feed / 2.0, z)  # gap start, just below the midpoint
-        F1 = (-h, feed / 2.0, z)  # gap end, just above the midpoint
-
-        # Side A->D split into: A->gap-start (passive), gap (driven, 1 seg),
-        # gap-end->D (passive). The remaining three sides close the loop.
+        # Side A->D is ONE wire fed at its midpoint F (AK#1767: a separate
+        # short gap wire's segment count stepped the impedance as the mesh
+        # refined). The remaining three sides close the loop.
         return [
-            Wire(A, F0),
-            Wire(F0, F1, ex=1 + 0j),  # driven gap
-            Wire(F1, D),
+            Wire(A, D, ex=1 + 0j),  # driven side, fed at F
             Wire(D, C),  # top side
             Wire(C, B),  # right side
             Wire(B, A),  # bottom side, closes the loop
