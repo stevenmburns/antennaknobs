@@ -4337,6 +4337,56 @@ canvas {
 .layout-toggle ~ * .zparam-overlay {
   top: calc(var(--space-6) + var(--layout-toggle-clearance, 44px));
 }
+/* On a desktop the view is a ZParamStage (AC6LA, QRZ #166): the sweep bar
+   pinned to the chart's upper-left, in the flow above the plot, and the solve
+   readout to its lower-left, inside the axes — anchored to the chart's own
+   box at every window size and zoom, never to the slide's corners. The fit
+   box is the whole slide (or grid cell), below the rail/grid toggle. */
+.zparam-fit {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.layout-toggle ~ * .zparam-fit {
+  top: var(--layout-toggle-clearance, 44px);
+}
+/* The bar and the chart share a left edge; the pair is centred as a unit. */
+.zparam-area {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px; /* lib/zparamLayout's ZPARAM_HEAD_GAP */
+}
+.zparam-area .zparam-overlay {
+  position: static;
+  align-items: flex-start;
+  max-width: 100%;
+}
+.zparam-area .zparam-controls {
+  justify-content: flex-start;
+}
+.zparam-area .zparam-cost {
+  text-align: left;
+}
+/* The chart's box: the readout and the sweep's notes sit just inside its
+   axes (the canvas's margins, published by ZParamStage), so no axis label or
+   title is ever under them. */
+.zparam-plot {
+  position: relative;
+}
+.zparam-plot .stage-readout {
+  left: calc(var(--zparam-plot-l) + 4px);
+  bottom: calc(var(--zparam-plot-b) + 4px);
+  max-width: min(240px, calc(100% - var(--zparam-plot-l) - var(--zparam-plot-r) - 8px));
+  max-height: calc(100% - var(--zparam-plot-t) - var(--zparam-plot-b) - 8px);
+}
+.zparam-plot .sweep-advisory-overlay {
+  left: calc(var(--zparam-plot-l) + 4px);
+  bottom: calc(var(--zparam-plot-b) + 4px + var(--stage-readout-h, 0px) + var(--space-3));
+  max-width: calc(100% - var(--zparam-plot-l) - var(--zparam-plot-r) - 8px);
+}
 .zparam-controls {
   display: flex;
   flex-wrap: wrap;

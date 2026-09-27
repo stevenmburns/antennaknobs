@@ -18,6 +18,7 @@ import {
   xTicks,
 } from "../../lib/paramSweep";
 import { formatTick } from "../../lib/sweepAxis";
+import { ZPARAM_PLOT_MARGIN } from "../../lib/zparamLayout";
 import { ThemeContext } from "../hooks";
 import { plotColors } from "./palette";
 import { RxRangePopover } from "./RxRangePopover";
@@ -39,7 +40,9 @@ import { RxRangePopover } from "./RxRangePopover";
 export type RxAxis = "r" | "x";
 
 
-const MARGIN = { l: 46, r: 46, t: 18, b: 30 };
+// The plot's margins (lib/zparamLayout): ZParamStage pins the readout just
+// inside them.
+const MARGIN = ZPARAM_PLOT_MARGIN;
 
 export function ZParamChart({
   data,

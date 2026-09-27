@@ -110,6 +110,19 @@ so no `settings.toml` breaks; the switch's label is **param sweep** (Dan
 AC6LA, QRZ #166: "converge" read as density-only once any knob could sweep); with a knob chosen in the view,
 the switch's trail follows it and its tooltip says so.
 
+## Desktop layout
+
+The header (the sweep bar) and the solve readout are pinned to the CHART,
+not to the stage's corners (AC6LA, QRZ #166: at other window sizes and
+zooms they drifted onto the axes). `ZParamStage` puts the bar in the flow
+above the plot, its left edge on the chart's, and takes the bar's measured
+height off the chart; the readout sits inside the plot box at its lower-left,
+offset by the chart's own margins (`lib/zparamLayout`), so it never covers
+an axis label. The sweep's advisory and refusal stack above the readout
+there. The bar wraps at the stage's width rather than the chart's, since a
+bar whose height depended on the chart's size would shrink a short stage's
+chart to the floor.
+
 ## Mobile
 
 The view joins the carousel when pinned. The header sits in the page flow
