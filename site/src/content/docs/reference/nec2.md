@@ -165,8 +165,8 @@ Verified against `nec2c` 1.3.1 on a machine that has one, through
 | design | Z | efficiency | input power |
 |---|---|--:|--:|
 | `dipoles.invvee` | 48.5320 − 8.1039j | 100.00 % | 10.02 mW |
-| `beams.owa_yagi_6el` | 50.4920 + 9.0911j | 98.47 % | 9.59 mW |
-| `dipoles.pota_invvee` | 62.2190 − 7.5632j | 96.02 % | 7.92 mW |
+| `beams.owa_yagi_6el` | 50.3630 + 9.1763j | 98.47 % | 9.61 mW |
+| `dipoles.pota_invvee` | 62.4020 + 0.0779j | 96.00 % | 8.01 mW |
 
 The first row is 100 % because that design's wires are perfect conductors, which
 is the right answer rather than a missing one — the other two are what show the

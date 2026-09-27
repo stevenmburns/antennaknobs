@@ -222,7 +222,6 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        eps = 0.05
         base = self.base
 
         long = 2 * self.halfdriver / (1 + 2 * self.aspect_ratio * self.t0_factor)
@@ -239,19 +238,18 @@ class Builder(AntennaBuilder):
         def ry(p):
             return p[0], -p[1], p[2]  # mirror across y
 
-        S = (short / 2, eps, base)
-        A = (S[0], long / 2, base)
+        A = (short / 2, long / 2, base)
         B = (A[0] - t0, A[1], base)
         C = (B[0] - tipspacer, B[1], base)
         D = rx(A)
-        E, F, G, H, T = ry(D), ry(C), ry(B), ry(A), ry(S)
+        E, F, G, H = ry(D), ry(C), ry(B), ry(A)
 
-        n_seg0, n_seg1 = 21, 1
+        n_seg = 21
         tups = []
-        tups.extend(build_path([S, A, B], n_seg0, None))
-        tups.extend(build_path([C, D, E, F], n_seg0, None))
-        tups.extend(build_path([G, H, T], n_seg0, None))
-        tups.append((T, S, n_seg1, 1 + 0j))  # the driven segment
+        tups.extend(build_path([A, B], n_seg, None))
+        tups.extend(build_path([C, D, E, F], n_seg, None))
+        tups.extend(build_path([G, H], n_seg, None))
+        tups.append((H, A, 2 * n_seg + 1, 1 + 0j))  # driven side, fed at its middle
         return tups
 ```
 
