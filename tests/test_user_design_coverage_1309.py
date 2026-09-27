@@ -76,12 +76,18 @@ def test_a_user_design_reports_what_its_catalog_twin_reports(user_twin):
     # sides cannot pass this by making two nothings equal.
     assert "buried" in mine["needs"]
     assert mine["refusals"], "a buried design refuses somewhere"
-    for backend in ("hmatrix", "arrayblock", "sinusoidal", "pulse"):
+    for backend in ("hmatrix", "arrayblock", "pulse"):
         assert mine["refusals"][backend]["capability"] == "buried"
     assert "bspline" not in mine["refusals"]
-    # razor-2p serves this wholly-buried deck since momwire#1149 U0/U1; read
-    # from its row so the gate holds on either side of the pointer.
-    from momwire import RazorSolver
+    # razor-2p (momwire#1149 U0/U1) and sinusoidal (momwire#1222) serve this
+    # wholly-buried deck; read from their rows so the gate holds on either
+    # side of the pointer.
+    from momwire import RazorSolver, SinusoidalSolver
+
+    if SinusoidalSolver.capabilities.buried:
+        assert "sinusoidal" not in mine["refusals"]
+    else:
+        assert mine["refusals"]["sinusoidal"]["capability"] == "buried"
 
     if RazorSolver.capabilities.buried:
         assert "razor-2p" not in mine["refusals"]
