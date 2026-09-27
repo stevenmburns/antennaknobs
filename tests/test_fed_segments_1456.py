@@ -60,9 +60,11 @@ def test_every_legacy_feed_is_reported_in_wire_order():
     b = _builder("verticals.four_square")
     mw = MomwireEngine(b).fed_segments()
     n5 = NEC5Engine(b, require_exe=False).fed_segments()
-    assert [r[1:] for r in _summary(mw)] == [(1, 100.0, "centre")] * 4
-    assert [r[1:] for r in _summary(n5)] == [(2, 50.0, "knot")] * 4
-    assert [r["wire"] for r in n5] == [1, 4, 7, 10]
+    # Each vertical is one wire fed at its middle (AK#1767), so each engine
+    # reports the segment at its own legal middle site of that wire.
+    assert [r[1:] for r in _summary(mw)] == [(41, 121.57, "centre")] * 4
+    assert [r[1:] for r in _summary(n5)] == [(40, 124.61, "knot")] * 4
+    assert [r["wire"] for r in n5] == [0, 1, 2, 3]
 
 
 def test_network_ports_are_reported_by_name_on_every_engine():
