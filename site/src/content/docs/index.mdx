@@ -29,19 +29,20 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.89.0" icon="star">
-  **Impedance against any knob.** A new **Z vs parameter** view plots R and X,
-  each on its own axis, and the Smith-chart trail, against any numeric knob or
-  the mesh density, with a log axis, readouts and reference lines at Z₀ and
-  X = 0. It is also the convergence sweep now, and the command line draws the
-  same charts, one panel per engine or every engine on one chart
-  (`sweep --log --panels` / `--overlay`). The Smith chart zooms and
-  pans with the mouse wheel, and the VSWR chart opens on a 1–∞ scale that
-  never pegs, with no kinks where a curve leaves the plot. Moving the
-  measurement frequency no longer re-sweeps. momwire 0.65 makes buried
-  radials and wires much faster: an inverted-L over buried radials solves
-  about 12× faster, and a warm Beverage solve about 4× faster. The elevated
-  buried-counterpoise design now has elevated radials at its feed.
+<Card title="New in v0.90.0" icon="star">
+  **Smoother convergence curves, and SWR the way EZNEC draws it.** Catalog
+  designs with a straight centre feed now drive the middle of one wire
+  instead of a short gap wire, so a mesh-density study no longer steps when
+  that gap wire changes segment count. The VSWR chart gains an EZNEC-style
+  scale, linear in the reflection coefficient and labelled in SWR (3:1 at
+  mid-axis), beside the 1–∞ default. On the Z vs parameter view the sweep bar
+  and readout stay pinned to the chart at any window size or zoom, and the
+  Smith chart's trail switch reads "param sweep". On the command line,
+  `sweep --only x` (or `r`) draws just reactance or just resistance, and an
+  unconfigured NEC-2/NEC-5 engine or a file given as a design name is a
+  one-line error that says what to do. momwire 0.66 adds a NEC-5 engine
+  for SimNEC: point it at `momwire-nec5-razor-2p`, and SimNEC's N-port
+  measurements and multiport networks work against momwire.
 </Card>
 
 ## The whole pitch, in one line
