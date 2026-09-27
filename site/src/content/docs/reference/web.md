@@ -137,7 +137,7 @@ install reads the `ANTENNAKNOBS_SETTINGS` variable.
 [switches]
 live = true
 freq_sweep = false          # the Smith chart's frequency sweep
-convergence_sweep = false
+convergence_sweep = false   # "param sweep": the Z vs parameter trail on the Smith chart
 pattern_renorm = true       # "norm check"
 refine = true               # "adaptive resolution"
 heatmap_currents = true
@@ -1145,8 +1145,9 @@ It is drawn two ways, from one sweep:
   with the parameter set to density. This is the chart to read convergence
   from: R and X each on their own axis, a log N axis, and any ladder you like
   (10 … 500 in 20 steps, say).
-- **As a trail on the Smith chart**, with the **converge sweep** switch under
-  the chart (or in the Tools menu on a phone): a ring at the coarsest N, a
+- **As a trail on the Smith chart**, with the **param sweep** switch under
+  the chart (or in the Tools menu on a phone; it was called **converge
+  sweep** when density was the only thing it could sweep): a ring at the coarsest N, a
   disc at the finest, the end values beside them, and `Z*` as a diamond.
 
 The sweep runs only while something on screen draws it (v0.43.0's

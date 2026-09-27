@@ -75,6 +75,11 @@ describe("startup settings (AK#1492)", () => {
     // A file that names `refine` wins over the browser's memory.
     expect(checkedStates("adaptive resolution")).toEqual([false]);
     expect(checkedStates("ground plane").every((c) => !c)).toBe(true);
+    // The Smith trail's switch keeps its `convergence_sweep` key but reads
+    // "param sweep" (AC6LA, QRZ #166): it sweeps any knob, not just density.
+    expect(checkedStates("param sweep").length).toBeGreaterThan(0);
+    expect(checkedStates("param sweep").every((c) => !c)).toBe(true);
+    expect(screen.queryAllByRole("checkbox", { name: /converge/i })).toEqual([]);
   });
 
   it("shows the file's problems once, and they dismiss", async () => {
