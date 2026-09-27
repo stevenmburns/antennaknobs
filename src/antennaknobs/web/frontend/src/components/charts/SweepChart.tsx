@@ -12,6 +12,7 @@ import {
   DEFAULT_AXES,
   DEFAULT_SWR_THRESHOLD,
   effectiveChoice,
+  isWholeRange,
   formatTick,
   s11DbForSwr,
   sweepAxisDomain,
@@ -55,6 +56,7 @@ const AXIS_KIND_LABEL: Record<SweepAxisChoice["kind"], string> = {
   auto: "Auto",
   fixed: "fixed",
   reciprocal: "1–∞, compressed",
+  rho: "1–∞, reflection ρ (EZNEC)",
 };
 
 // The same 500 ms as every other dwell in the app (useAnalysisRunners'
@@ -583,10 +585,10 @@ export function SweepChart({
           mode={mode}
           at={menuAt}
           choice={axis}
-          // The custom fields edit in SWR. The compressed scale's domain is
-          // 0…1 in 1 − 1/SWR, which would read as nonsense there, so they
+          // The custom fields edit in SWR. The whole-range scales' domain is
+          // 0…1 in 1 − 1/SWR or ρ, which would read as nonsense there, so they
           // start from the old 1–10 instead (there is no number for ∞).
-          drawn={axis.kind === "reciprocal" ? { lo: 1, hi: 10 } : dom}
+          drawn={isWholeRange(axis) ? { lo: 1, hi: 10 } : dom}
           threshold={swrThreshold}
           onChoice={onAxisChange}
           onThreshold={(t) => onThresholdChange?.(t)}

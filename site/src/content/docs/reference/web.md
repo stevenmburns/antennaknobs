@@ -248,7 +248,10 @@ The VSWR chart starts on its **1–∞** scale, which shows every SWR at once, n
 pegged: it plots 1 − 1/SWR (which is 2|Γ|/(1+|Γ|)), so 1.5:1 sits a third of
 the way up, 2:1 half way, 3:1 two thirds, 10:1 at 90 %, and ∞ is the top edge.
 The ticks are still labelled in SWR. It spends the chart's height where the
-match is and squeezes the bad end together. For a close look, VSWR also offers
+match is and squeezes the bad end together. **ρ (EZNEC)** is the same 1 to ∞
+on EZNEC's scale instead: linear in the reflection coefficient
+ρ = (SWR − 1)/(SWR + 1), still labelled in SWR, so 1.5:1 sits a fifth of the
+way up, 2:1 a third, 3:1 half way and 10:1 at 82 %. For a close look, VSWR also offers
 1–1.5, 1–2, 1–3, 1–5 and 1–10, and a custom min and max; above such a top the
 curve leaves the chart at the edge and the off-scale ticks mark where.
 

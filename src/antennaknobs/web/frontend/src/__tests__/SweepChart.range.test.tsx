@@ -86,6 +86,8 @@ describe("the drawn range", () => {
       ["vswr", { kind: "fixed", lo: 1, hi: 2 }, 3],
       // The compressed scale: samples sit at 1 − 1/SWR on a fixed 0…1.
       ["vswr", { kind: "reciprocal" }, 2],
+      // EZNEC's scale: samples sit at ρ = (SWR − 1)/(SWR + 1) on 0…1.
+      ["vswr", { kind: "rho" }, 2],
       ["gamma", { kind: "auto" }, 2],
       ["gamma", { kind: "auto" }, 1.02],
       ["gamma", { kind: "fixed", lo: -20, hi: 0 }, 2],
@@ -118,7 +120,11 @@ describe("the drawn range", () => {
       // compressed scale, the linear map onto the domain otherwise, NOT
       // clamped — the chart draws its trail through these and clips it.
       const want = (y: number) =>
-        axis.kind === "reciprocal" ? 1 - 1 / y : (y - d.lo) / (d.hi - d.lo);
+        axis.kind === "reciprocal"
+          ? 1 - 1 / y
+          : axis.kind === "rho"
+            ? (y - 1) / (y + 1)
+            : (y - d.lo) / (d.hi - d.lo);
       // The planner scores the same heights, saturated past the band.
       const [bLo, bHi] = SWEEP_SCORE_BAND;
       const band = (v: number) => Math.max(bLo, Math.min(bHi, v));
@@ -131,7 +137,7 @@ describe("the drawn range", () => {
       });
       // This sweep does leave the plot on the linear ranges, so the pin
       // covers off-plot heights, not just on-plot ones.
-      if (axis.kind !== "reciprocal") offPlot ||= drawn.some((v) => v > 1 || v < 0);
+      if (axis.kind === "fixed" || axis.kind === "auto") offPlot ||= drawn.some((v) => v > 1 || v < 0);
       unmount();
     }
     // The threshold really moved S11's Auto range (else this pins nothing).
