@@ -10,7 +10,8 @@ import {
   DENSITY_LADDER,
   logTicks,
   nearestIndex,
-  paramRichardson,
+  paramZinf,
+  refinementX,
   paramValues,
   rxDomain,
   rxTicks,
@@ -115,13 +116,22 @@ describe("which knobs sweep", () => {
   });
 });
 
-describe("Richardson", () => {
-  it("is density-only, and null until three points are in", () => {
+describe("Z∞", () => {
+  it("is density-only, and has no estimate until three points are in", () => {
     const ns = [8, 12, 17];
     const re = ns.map((n) => 70 + 10 / n);
-    expect(paramRichardson(DENSITY, ns.slice(0, 2), re, re).re).toBeNull();
-    expect(paramRichardson(DENSITY, ns, re, re).re).toBeCloseTo(70, 9);
-    expect(paramRichardson("length_factor", ns, re, re)).toEqual({ re: null, im: null });
+    expect(paramZinf(DENSITY, ns.slice(0, 2), re.slice(0, 2), re.slice(0, 2))?.re).toBeNull();
+    // Three rungs: the first-order fallback, exact on a first-order series.
+    const z = paramZinf(DENSITY, ns, re, re)!;
+    expect(z.status).toBe("rough");
+    expect(z.re).toBeCloseTo(70, 9);
+    expect(paramZinf("length_factor", ns, re, re)).toBeNull();
+  });
+
+  it("extrapolates against the achieved segment count when every point has one", () => {
+    expect(refinementX([8, 12, 17], [17, 23, 33])).toEqual([17, 23, 33]);
+    expect(refinementX([8, 12, 17], [17, 23])).toEqual([8, 12, 17]);
+    expect(refinementX([8, 12, 17], undefined)).toEqual([8, 12, 17]);
   });
 });
 

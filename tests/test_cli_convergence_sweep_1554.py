@@ -2,12 +2,12 @@
 
 Ask: one command sweeps `nominal_nsegs` across several engines the way the
 app's convergence overlay is one checkbox — Smith-chart trajectories with a
-per-engine Richardson Z* marker, plus a table on stdout.
+per-engine extrapolated Z∞ marker, plus a table on stdout.
 
 What is gated here, matching the issue's own gate paragraph:
 
   1. a dipole ladder on momwire:bspline and momwire:razor-2p gives two
-     monotone trajectories whose Richardson estimates agree with each other
+     monotone trajectories whose Z∞ estimates agree with each other
      and with a high-N bspline solve, and the achieved-N column shows the
      parity rounding;
   2. a frequency sweep with two engines draws two loci;
@@ -42,14 +42,17 @@ _ROW_RE = re.compile(
 )
 _ZSTAR_RE = re.compile(
     r"^(?P<name>\S+)\s+Z∞ = (?P<re>[+-]?\d+\.\d+)(?P<im>[+-]\d+\.\d+)j\s+"
-    r"\(shrinking: (?P<shrink>yes|no)\)$"
+    r"\((?:p = (?P<p>\d+\.\d+), (?P<status>asymptotic)"
+    r"|(?P<rough>rough): not yet asymptotic, first order assumed"
+    r"|(?P<converged>converged))\)$"
 )
 _HEADER_RE = re.compile(r"^== nominal_nsegs convergence: (?P<name>\S+) ==$")
 
 
 def _parse_convergence_table(text):
     """{engine: {"rows": [(nominal, achieved, z), ...], "z_star": complex,
-    "shrinking": bool}} from the table `_print_convergence_table` writes."""
+    "status": str, "p": float | None}} from the table
+    `_print_convergence_table` writes."""
     out = {}
     current = None
     for line in text.splitlines():
@@ -70,7 +73,12 @@ def _parse_convergence_table(text):
             out[m.group("name")]["z_star"] = complex(
                 float(m.group("re")), float(m.group("im"))
             )
-            out[m.group("name")]["shrinking"] = m.group("shrink") == "yes"
+            out[m.group("name")]["status"] = (
+                m.group("status") or m.group("rough") or m.group("converged")
+            )
+            out[m.group("name")]["p"] = (
+                float(m.group("p")) if m.group("p") is not None else None
+            )
     return out
 
 
@@ -98,11 +106,12 @@ def test_density_ladder_two_engines_converge_and_agree(capsys):
         # three rungs.
         dists = [abs(z - z_star) for _, _, z in rows[-3:]]
         assert dists == sorted(dists, reverse=True), (name, dists)
-        assert table[name]["shrinking"]
+        # Four rungs of a smooth ladder: an estimate, with its status named.
+        assert table[name]["status"] in ("asymptotic", "rough", "converged")
 
     z_bs = table["momwire:bspline"]["z_star"]
     z_rz = table["momwire:razor-2p"]["z_star"]
-    # The two engines' Richardson estimates agree with each other...
+    # The two engines' Z∞ estimates agree with each other...
     assert abs(z_bs - z_rz) / abs(z_bs) < 0.02
 
     # ...and with a high-N (nominal 160) bspline reference solve, the same
@@ -260,7 +269,7 @@ def test_markers_add_rungs_at_exactly_the_densities_named(capsys):
 
 def test_markers_alone_are_the_whole_ladder(capsys):
     """`--markers 15 16 20` with neither --range nor --npoints solves ONLY those
-    densities, and Richardson reads them as its rungs."""
+    densities, and Z∞ reads them as its rungs."""
     import importlib
 
     from antennaknobs.engines.momwire import MomwireEngine

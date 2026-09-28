@@ -441,7 +441,7 @@ across `lo`..`hi`. Every rung is rounded to an int and duplicates are dropped.
 `--markers 15 16 20` solves those densities too — the served numbers a
 study usually wants to see — starred in the table and squared on the
 chart. Beside a ladder they are observations on the trajectory, not rungs
-of the Richardson estimate; given alone, with neither `--range` nor
+of the `Z∞` estimate; given alone, with neither `--range` nor
 `--npoints`, they are the whole ladder: `--markers 15 16 20` solves just
 those three.
 A ladder given that way is ordinary rungs, not observations: no squares,
@@ -463,7 +463,7 @@ nominal_N  N_ach     R (Ω)     X (Ω)      |ΔΓ|
        13     25    71.266    -5.388    0.0023
        21     41    71.291    -5.183    0.0009
        34     65    71.309    -5.051    0.0000
-momwire:bspline  Z∞ = 71.339-4.826j  (shrinking: yes)
+momwire:bspline  Z∞ = 71.339-4.826j  (rough: not yet asymptotic, first order assumed)
 ```
 
 `nominal_N` is the rung asked for; `N_ach` is the total segment count the
@@ -472,11 +472,23 @@ parity (razor-2p and nec5 even; bspline, nec2, and pynec odd), so two engines
 given the same `nominal_N` do not mesh at the same `N_ach`, and this column
 is where that shows up. `|ΔΓ|` is the reflection-coefficient distance to that
 engine's own finest rung, the same ladder metric the density studies (#1525)
-are judged on. `Z∞` is the first-order Richardson extrapolation from the
-last two rungs (the same math the `ladder` subcommand below uses, over
-`nominal_nsegs` instead of a deck's `GW` counts); `shrinking: no` means the
-last step did not get smaller than the one before it, so the ladder is not
-yet in its asymptotic range and `Z∞` should not be trusted.
+are judged on.
+
+`Z∞` is the extrapolated value as N grows without limit, computed against
+`N_ach` by the same estimator the workbench uses (see [Where the extrapolated
+value comes from](/advanced/convergence/#where-the-extrapolated-value-comes-from)).
+Its line ends with how it was reached:
+
+- `(p = 0.98, asymptotic)`: the step between rungs shrinks as a straight line
+  on log–log axes, so the observed order p is used, fitted through the last
+  three rungs.
+- `(rough: not yet asymptotic, first order assumed)`: the ladder is too short
+  (three rungs), its steps are not yet shrinking at a steady rate, or they
+  change direction. `Z∞` then extrapolates at first order from the last two
+  rungs; treat it as a rough figure and add finer rungs.
+- `(converged)`: the last step is below one part in a million of `|Z|`, and
+  `Z∞` is the finest rung's value.
+- `Z∞ unavailable (need >= 3 rungs)`: fewer than three rungs.
 
 On the Smith chart, each engine's trajectory carries a hollow ring at its
 coarsest rung, a filled disc at its finest, and a diamond at its `Z∞`
@@ -588,8 +600,10 @@ engine's pattern stops at the horizon, so its free-space row prints `—`.
 A catalog design refines through its own mesh knobs, but an imported `.nec`
 deck's only mesh is its `GW` segment counts. `ladder` multiplies every wire's
 count by each odd factor, re-solves on every engine you name, and prints the
-impedance at each rung, the step between rungs, and a first-order Richardson
-estimate from the last two:
+impedance at each rung, the step between rungs, and `Z∞` against the
+refinement factor, read the same way as the [density study's](#convergence-studies)
+line (three factors are the minimum, and three always give the rough,
+first-order figure):
 
 ```bash
 python -m antennaknobs ladder --builder @my_dipole.nec \

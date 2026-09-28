@@ -2108,7 +2108,7 @@ function DesignSessionBody({
       ? `N up to ${zparamTopN}: ${(zparamTopN / engineN).toFixed(zparamTopN / engineN >= 10 ? 0 : 1)}× this engine's default N = ${engineN}, so the fine end is slow`
       : null;
   const convergeTitle = zparamIsDensity
-    ? `Re-solve at N = ${zparamValues.join(", ")} segments per λ/4 and Richardson-extrapolate Z to N→∞ (the Z vs parameter view's sweep, drawn on the Smith chart)`
+    ? `Re-solve at N = ${zparamValues.join(", ")} segments per λ/4 and extrapolate Z to N→∞, Z∞ (the Z vs parameter view's sweep, drawn on the Smith chart)`
     : `Draw the Z vs parameter view's sweep — ${zparamLabel} over ${zparamValues.length} values — as a trail on the Smith chart`;
 
   // The four background analyses (#642 seam 5b-3): freq sweep, convergence

@@ -127,7 +127,7 @@ def test_a_simnec_circuit_has_no_refinement_path(tmp_path):
         builder_from_file(str(ssn), refine=3)
 
 
-def test_ladder_prints_one_rung_per_factor_and_a_richardson_line(tmp_path, capsys):
+def test_ladder_prints_one_rung_per_factor_and_a_z_inf_line(tmp_path, capsys):
     deck = tmp_path / "dip.nec"
     deck.write_text(
         "GW 1 11 0 0 -2.5 0 0 2.5 .001\nGE 0\nEX 0 1 6 0 1 0\nFR 0 1 0 0 28.4 0\nEN\n",
@@ -150,7 +150,8 @@ def test_ladder_prints_one_rung_per_factor_and_a_richardson_line(tmp_path, capsy
     out = capsys.readouterr().out
     rungs = [ln.split() for ln in out.splitlines() if ln.strip()[:1].isdigit()]
     assert [(row[0], row[1]) for row in rungs] == [("1", "11"), ("3", "33")], out
-    assert "Richardson" in out, out
+    # Two factors are too few for Z∞ (AK#1781: the estimator needs three).
+    assert "Z∞ unavailable (need >= 3 rungs)" in out, out
 
 
 def test_ladder_refuses_an_even_factor(tmp_path):
@@ -175,25 +176,20 @@ def test_a_live_symmetry_cell_scales_with_the_mesh(text):
     assert deck.refined(3).symmetry_cell == 3 * deck.symmetry_cell
 
 
-def test_ladder_estimate_is_first_order_richardson():
-    from antennaknobs.cli import ladder_estimate
+def test_ladder_z_inf_on_three_factors_is_first_order():
+    # Z(h) = 10 + 3 h with h = 1 / r: exact first order. Three rungs are too
+    # few to observe an order, so the estimator assumes the first (AK#1781),
+    # which is exact here.
+    from antennaknobs.zinf import zinf_estimate
 
-    # Z(h) = 10 + 3 h with h = 1 / r: exact first order, so the extrapolation is exact.
-    rungs = [(r, complex(10 + 3 / r, -2 + 1 / r)) for r in (1, 3, 9)]
-    z_inf, shrinking = ladder_estimate(rungs)
-    assert z_inf == pytest.approx(complex(10, -2))
-    assert shrinking is True
-
-
-def test_ladder_estimate_flags_a_step_that_did_not_shrink():
-    from antennaknobs.cli import ladder_estimate
-
-    rungs = [(1, 37.344 + 34.351j), (3, 37.358 + 33.633j), (9, 37.332 + 32.576j)]
-    _, shrinking = ladder_estimate(rungs)
-    assert shrinking is False
+    rs = (1, 3, 9)
+    est = zinf_estimate(rs, [complex(10 + 3 / r, -2 + 1 / r) for r in rs])
+    assert est.status == "rough"
+    assert est.z_inf == pytest.approx(complex(10, -2))
 
 
-def test_ladder_estimate_needs_two_rungs():
-    from antennaknobs.cli import ladder_estimate
+def test_ladder_z_inf_needs_three_rungs():
+    from antennaknobs.zinf import zinf_estimate
 
-    assert ladder_estimate([(1, 1 + 1j)]) is None
+    est = zinf_estimate([1, 3], [1 + 1j, 1 + 2j])
+    assert est.status == "insufficient" and est.z_inf is None

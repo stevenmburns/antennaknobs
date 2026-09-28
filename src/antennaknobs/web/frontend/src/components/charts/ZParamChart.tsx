@@ -18,6 +18,7 @@ import {
   xTicks,
 } from "../../lib/paramSweep";
 import { formatTick } from "../../lib/sweepAxis";
+import { zinfSuffix } from "../../lib/zinf";
 import { ZPARAM_PLOT_MARGIN } from "../../lib/zparamLayout";
 import { ThemeContext } from "../hooks";
 import { plotColors } from "./palette";
@@ -115,7 +116,15 @@ export function ZParamChart({
     currentValue != null && n > 1 && currentValue >= dom.lo && currentValue <= dom.hi;
   const rFit = inSpan && liveR != null ? [...rs, liveR] : rs;
   const xFit = inSpan && liveX != null ? [...xsIm, liveX] : xsIm;
-  const extrap = d && isDensity(d.param) ? { re: d.z_re_extrap, im: d.z_im_extrap } : null;
+  const extrap =
+    d && isDensity(d.param)
+      ? {
+          re: d.z_re_extrap,
+          im: d.z_im_extrap,
+          p: d.z_extrap_p ?? null,
+          status: d.z_extrap_status ?? null,
+        }
+      : null;
   const rDom = rxDomain(rAxis, extrap?.re != null ? [...rFit, extrap.re] : rFit);
   const xDom = rxDomain(xAxis, extrap?.im != null ? [...xFit, extrap.im] : xFit);
   // The two lines that matter (Steve, 2026-09-26): R = Z0 and X = 0. Drawn
@@ -267,13 +276,15 @@ export function ZParamChart({
     ctx.rect(MARGIN.l, MARGIN.t, pw, ph);
     ctx.clip();
 
-    // Richardson Z* (density): a dotted line on each axis.
+    // Z∞ (density): a dotted line on each axis, dimmer when rough (the
+    // ladder is not yet asymptotic, so the first order was assumed).
     if (extrap) {
       ctx.setLineDash([2, 3]);
       ctx.lineWidth = 1;
+      const a = extrap.status === "rough" ? 0.35 : 0.7;
       for (const [v, dd, c] of [
-        [extrap.re, rDom, R(0.7)],
-        [extrap.im, xDom, X(0.7)],
+        [extrap.re, rDom, R(a)],
+        [extrap.im, xDom, X(a)],
       ] as const) {
         if (v == null) continue;
         const y = py(v, dd);
@@ -411,12 +422,12 @@ export function ZParamChart({
       const hx = px(xs[i]);
       box(lines, hx, MARGIN.t + 24, PC.labelStrong, hx > MARGIN.l + pw / 2);
     }
-    // Z* readout, top of the plot (density).
+    // Z∞ readout, top of the plot (density), with how it was reached.
     if (extrap && extrap.re != null && extrap.im != null) {
       ctx.font = "10px ui-monospace, monospace";
       ctx.fillStyle = PC.labelBright;
       const sign = extrap.im >= 0 ? "+" : "−";
-      const txt = `Z∞ ≈ ${extrap.re.toFixed(2)} ${sign} j${Math.abs(extrap.im).toFixed(2)} Ω`;
+      const txt = `Z∞ ≈ ${extrap.re.toFixed(2)} ${sign} j${Math.abs(extrap.im).toFixed(2)} Ω${zinfSuffix(extrap.status, extrap.p)}`;
       ctx.fillText(txt, MARGIN.l + (pw - ctx.measureText(txt).width) / 2, 12);
     }
     if (status) {
@@ -474,6 +485,8 @@ export function ZParamChart({
             ? `${extrap.re.toFixed(3)},${extrap.im.toFixed(3)}`
             : ""
         }
+        data-extrap-status={extrap?.status ?? ""}
+        data-extrap-p={extrap?.p != null ? extrap.p.toFixed(3) : ""}
         data-hover={shownHover ?? ""}
         data-status={status ?? ""}
         data-error={d?.error ?? ""}

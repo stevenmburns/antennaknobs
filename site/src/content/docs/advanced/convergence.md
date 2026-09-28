@@ -319,12 +319,26 @@ The two panels answer different questions, and both are needed:
   the number an answer rather than a guess (see
   [Flat is not the same as right](#flat-is-not-the-same-as-right)).
 
-The two tools compute `Z∞` slightly differently today. The workbench fits a
-quadratic in 1/N through the last five rungs or fewer; the command line's
-table extrapolates at first order from its last two rungs. Both are estimates,
-and both are only as good as the right-hand check: if the steps are not yet
-shrinking at a steady rate, the rungs are too coarse and `Z∞` should not be
-trusted. (The figure is `scratch/richardson-demo/richardson_demo.py`,
+The workbench and the command line compute `Z∞` the same way, against the
+segment count each rung actually meshed, and both make the right-hand check
+before extrapolating:
+
+- **Asymptotic.** When the last two local slopes of the log–log chart agree
+  within 10 % (and the order they give is between 0.25 and 4), the observed
+  order p is used: `Z = Z∞ + C·N^−p` is fitted through the last three rungs.
+  The value is shown with its order, `p 0.98`. One p serves R and X, taken
+  from the complex step |ΔZ|.
+- **Rough.** With only three rungs, a bent log–log line, or steps that change
+  direction, the first order is assumed and `Z∞` comes from the last two
+  rungs. It is labelled rough: add finer rungs before quoting it.
+- **Converged.** When the last step is below one part in a million of |Z|,
+  there is nothing to extrapolate and `Z∞` is the finest rung.
+
+On the HenTenna, razor-2p's ladder is asymptotic, with p = 0.98 and
+X∞ = 38.836 Ω, 0.012 Ω from the first-order line in the figure. The buried
+radial vertical's point-matched ladder is not: its local slopes drift from 0.5
+toward 0.3, and an observed-order fit there lands more than 1 Ω from the
+independent answer, so it is reported rough, at first order. (The figure is `scratch/richardson-demo/richardson_demo.py`,
 from `sweep --param nominal_nsegs --markers 10 20 40 80 160 320 640` on the
 two engines.)
 

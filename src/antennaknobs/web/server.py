@@ -2271,13 +2271,28 @@ async def sweep_endpoint(req: dict, request: Request):
     return StreamingResponse(gen(), media_type="application/x-ndjson")
 
 
-def _solve_z_only(req: dict, cancel=None) -> tuple[complex, list[complex] | None]:
+def _mesh_segments(res: dict) -> int | None:
+    """Total segments the engine actually meshed, from a solve result's
+    packed wires (one knot more than segments per wire): the same count as
+    the CLI density study's ``N_ach`` (``sweep._achieved_n``), so the two
+    tools extrapolate Z∞ against the same refinement variable (AK#1781).
+    None when the result carries no wires."""
+    wires = res.get("wires")
+    if not wires:
+        return None
+    return sum(max(len(w["knot_positions"]) - 1, 0) for w in wires)
+
+
+def _solve_z_only(
+    req: dict, cancel=None
+) -> tuple[complex, list[complex] | None, int | None]:
     """Run the geometry-specific solver and return only the input impedance.
 
-    Returns (primary_z, feeds_z) where feeds_z is the per-feed Z list for
-    multi-feed geometries (bowtie 1×2 array) and None for single-feed
-    geometries. Skips solve()'s post-processing (derived EM fields, gain
-    norm) — for the /converge sweep we only need Z(N).
+    Returns (primary_z, feeds_z, n_seg) where feeds_z is the per-feed Z list
+    for multi-feed geometries (bowtie 1×2 array) and None for single-feed
+    geometries, and n_seg is the achieved total segment count
+    (``_mesh_segments``). Skips solve()'s post-processing (derived EM
+    fields, gain norm) — for the /converge sweep we only need Z(N).
     """
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     backend = _external_backend(req)
@@ -2294,7 +2309,7 @@ def _solve_z_only(req: dict, cancel=None) -> tuple[complex, list[complex] | None
         if feeds_list and len(feeds_list) > 1
         else None
     )
-    return primary, feeds_z
+    return primary, feeds_z, _mesh_segments(res)
 
 
 def _param_sweep_stream(
@@ -2347,7 +2362,7 @@ def _param_sweep_stream(
                 # One lane turn per point (see /sweep).
                 async with _LANES.turn(session, "converge", lane_gen) as token:
                     async with cancel_on_disconnect(request, token):
-                        z, feeds_z = await run_in_threadpool(
+                        z, feeds_z, n_seg = await run_in_threadpool(
                             _shed, _solve_z_only, req_v, cancel=token
                         )
             except (Superseded, momwire.SolveAborted):
@@ -2373,6 +2388,10 @@ def _param_sweep_stream(
                 "z_im": float(z.imag),
                 "solver": solver_name,
             }
+            # The achieved segment count: the workbench's Z∞ refinement
+            # variable, the CLI's N_ach (AK#1781).
+            if n_seg is not None:
+                record["n_seg"] = n_seg
             # Multi-feed geometries (bowtie 1×2 array) ship per-feed Z so
             # the frontend can plot one trail per port. Single-feed
             # geometries omit the field; the stream shape is unchanged.
@@ -2401,8 +2420,9 @@ async def param_sweep_endpoint(req: dict, request: Request):
     design's numeric knobs, and each point is the request with that field
     set to the value, solved on the request's own engine at the request's
     measurement frequency (docs/design/z-vs-param-view.md). Records are
-    ``{param, value, z_re, z_im, solver}`` (+ ``feeds_z_re``/``feeds_z_im``
-    on a multi-feed design), or ``{param, value, error, solver}`` for a
+    ``{param, value, z_re, z_im, n_seg, solver}`` (``n_seg`` the achieved
+    total segment count, + ``feeds_z_re``/``feeds_z_im`` on a multi-feed
+    design), or ``{param, value, error, solver}`` for a
     point that failed; the closing ``{done}`` record carries ``advisories``
     when there is something to say (today the gap-fed density warning).
 

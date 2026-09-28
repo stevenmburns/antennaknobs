@@ -2,7 +2,7 @@
 // parameters sweep, the ladder a spec asks for, and the chart's axis rules.
 // React-free, so the ladder and the axes are tested without a chart.
 
-import { richardsonExtrap, feedwiseRichardson } from "./math";
+import { feedwiseZinf, zinfEstimate, type ZInfEstimate, type ZInfStatus } from "./zinf";
 import { axisTicks, formatTick, type AxisDomain } from "./sweepAxis";
 import { isGroup, type SchemaItem, type SchemaParamSpec } from "./params";
 
@@ -51,21 +51,30 @@ export type ParamSweepRequest = {
 
 /** One sweep's result, streamed point by point. `values` is the swept
  *  parameter at each point (a failed point is skipped, so it may be shorter
- *  than the request's). `z_*_extrap` is the Richardson estimate, density
- *  only, and null until three points are in. */
+ *  than the request's). `z_*_extrap` is the Z∞ estimate (lib/zinf.ts, the
+ *  CLI's own), density only, and null until three points are in;
+ *  `z_extrap_p` / `z_extrap_status` say how it was reached. */
 export type ParamSweepData = {
   param: string;
   label: string;
   values: number[];
+  /** The achieved total segment count at each point (the server's `n_seg`,
+   *  the CLI density study's N_ach): Z∞'s refinement variable. Absent when
+   *  any point came without one, and then `values` stands in. */
+  n_seg?: number[];
   z_re: number[];
   z_im: number[];
   z_re_extrap: number | null;
   z_im_extrap: number | null;
+  z_extrap_p?: number | null;
+  z_extrap_status?: ZInfStatus | null;
   /** Multi-feed designs: per-point per-feed Z (outer index = point). */
   feeds_z_re?: number[][];
   feeds_z_im?: number[][];
   feeds_z_re_extrap?: (number | null)[];
   feeds_z_im_extrap?: (number | null)[];
+  feeds_z_extrap_p?: (number | null)[];
+  feeds_z_extrap_status?: ZInfStatus[];
   /** The closing record's advisories (the gap-fed density warning). */
   advisories?: { category: string; text: string }[];
   /** The server refused the sweep (a 413 over the hosted instance's point
@@ -175,31 +184,36 @@ export function paramValues(spec: ParamSweepSpec, integer: boolean): number[] {
   return out;
 }
 
-/** Richardson Z* in 1/N — density sweeps only (a knob has no limit to
- *  extrapolate to). Null until three points are in. */
-export function paramRichardson(
-  param: string,
+/** Z∞'s refinement variable for a sweep's points: the achieved segment
+ *  counts when every point carried one (the CLI's N_ach, so both tools
+ *  extrapolate against the same x — AK#1781), else the swept values. */
+export function refinementX(
   values: readonly number[],
-  zRe: readonly number[],
-  zIm: readonly number[],
-): { re: number | null; im: number | null } {
-  if (!isDensity(param)) return { re: null, im: null };
-  const inv = values.map((n) => 1 / n);
-  return { re: richardsonExtrap(inv, [...zRe]), im: richardsonExtrap(inv, [...zIm]) };
+  nSeg: readonly number[] | undefined,
+): readonly number[] {
+  return nSeg && nSeg.length === values.length ? nSeg : values;
 }
 
-export function paramFeedRichardson(
+/** Z∞ — density sweeps only (a knob has no limit to extrapolate to).
+ *  Status "insufficient" (no estimate) until three points are in. */
+export function paramZinf(
   param: string,
-  values: readonly number[],
+  x: readonly number[],
+  zRe: readonly number[],
+  zIm: readonly number[],
+): ZInfEstimate | null {
+  if (!isDensity(param)) return null;
+  return zinfEstimate(x, zRe, zIm);
+}
+
+export function paramFeedZinf(
+  param: string,
+  x: readonly number[],
   feedsRe: number[][],
   feedsIm: number[][],
-): { feedsRe: (number | null)[]; feedsIm: (number | null)[] } | null {
+): ZInfEstimate[] | null {
   if (!isDensity(param)) return null;
-  return feedwiseRichardson(
-    values.map((n) => 1 / n),
-    feedsRe,
-    feedsIm,
-  );
+  return feedwiseZinf(x, feedsRe, feedsIm);
 }
 
 // --- the chart's axes ---------------------------------------------------------
