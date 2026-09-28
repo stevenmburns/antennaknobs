@@ -106,6 +106,8 @@ import { SessionGearMenu } from "./SessionGearMenu";
 import { SolveOverlays } from "./SolveOverlays";
 import { SolverSlotTabs } from "./SolverSlotTabs";
 import { useAnalysisRunners } from "./useAnalysisRunners";
+import { useDesignAnalyses } from "./useDesignAnalyses";
+import { analysisBlocked, analysisSpec, type AnalysisEntry } from "../../lib/analyses";
 import {
   DEFAULT_DENSITY_SPEC,
   defaultKnobSpec,
@@ -863,9 +865,15 @@ function DesignSessionBody({
   // length_factor sweep must not follow him onto the next design. State
   // adjusted during render, React's pattern for state derived from a prop.
   const zparamDesignKey = `${geometry}::${currentVariant}`;
+  // The analysis last picked in the view's header (AK#1757) and the spec it
+  // set: the picker shows it while the view still sweeps that spec.
+  const [zparamPicked, setZparamPicked] = useState<{ name: string; spec: ParamSweepSpec } | null>(
+    null,
+  );
   const [zparamDesignFor, setZparamDesignFor] = useState(zparamDesignKey);
   if (zparamDesignFor !== zparamDesignKey) {
     setZparamDesignFor(zparamDesignKey);
+    setZparamPicked(null);
     setZparamSpec(DEFAULT_DENSITY_SPEC);
     setZparamXLog(null);
     setZparamAxes({ r: RX_AUTO, x: RX_AUTO });
@@ -2085,6 +2093,35 @@ function DesignSessionBody({
     }
     setView("zparam");
   };
+  // The design's analyses (AK#1757, sweep-framework step 3): the header's
+  // picker. A runnable one sets the view's spec to its parameter and values
+  // and runs it, as the header's Run does; the rest are listed with why.
+  const zparamAnalyses = useDesignAnalyses({
+    designKey: `${zparamDesignKey}#${reloadNonce}`,
+    // Not before the session has a design: the first render has none.
+    enabled: paramViewResident && !!geometry,
+    request: buildRequest,
+  });
+  const zparamSweepable = new Set(zparamKnobs.map((k) => k.name));
+  const zparamAnalysisBlocked = (a: AnalysisEntry) =>
+    analysisBlocked(a.workbench, zparamSweepable);
+  const pickAnalysis = (entry: AnalysisEntry) => {
+    const w = entry.workbench;
+    if (!w.runs || zparamAnalysisBlocked(entry)) return;
+    const knob = zparamKnobs.find((k) => k.name === w.param);
+    const next = analysisSpec(w, knob?.kind === "int");
+    setZparamPicked({ name: entry.name, spec: next });
+    if (sameSpec(next, zparamSpec) && paramViewResident) {
+      // Already this sweep: nothing will change to arm, so run it.
+      runParamSweepNow();
+    } else {
+      armParamSweep();
+      setZparamSpec(next);
+      setZparamXLog(null);
+    }
+  };
+  const zparamPickedName =
+    zparamPicked && sameSpec(zparamPicked.spec, zparamSpec) ? zparamPicked.name : null;
   const zparamSettings = {
     param: zparamSpec.param,
     label: zparamLabel,
@@ -2610,6 +2647,12 @@ function DesignSessionBody({
         onRun: runParamSweepNow,
       }}
       costHint={zparamCostHint}
+      analyses={{
+        entries: zparamAnalyses,
+        current: zparamPickedName,
+        blocked: zparamAnalysisBlocked,
+        onPick: pickAnalysis,
+      }}
     />
   );
   // The Z-vs-parameter view's sweep advisory and refusal: over the stage's

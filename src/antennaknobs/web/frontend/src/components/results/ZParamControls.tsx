@@ -7,6 +7,7 @@ import {
   pointsProblem,
 } from "../../lib/paramSweep";
 import { CommitNumber } from "./CommitNumber";
+import { AnalysisDetails, type AnalysisPickerProps, AnalysisSelect } from "./AnalysisPicker";
 import type { SchemaParamSpec } from "../../lib/params";
 
 // The Z-vs-parameter view's header (docs/design/z-vs-param-view.md): which
@@ -26,6 +27,7 @@ export function ZParamControls({
   values,
   run,
   costHint = null,
+  analyses = null,
 }: {
   spec: ParamSweepSpec;
   /** The design's sweepable knobs (lib/paramSweep sweepableKnobs). */
@@ -53,8 +55,17 @@ export function ZParamControls({
   };
   /** A word on cost when the request is large, or null. */
   costHint?: string | null;
+  /** The design's analyses (AK#1757): the picker, and under the row the
+   *  picked one's note and every one as Python. Null or empty: no picker. */
+  analyses?: AnalysisPickerProps | null;
 }) {
-  const set = (patch: Partial<ParamSweepSpec>) => onSpec({ ...spec, ...patch });
+  // An edit is the header's own ladder again: an analysis's explicit values
+  // (ParamSweepSpec.values) do not survive it.
+  const set = (patch: Partial<Omit<ParamSweepSpec, "values">>) => {
+    const next: ParamSweepSpec = { ...spec, ...patch };
+    delete next.values;
+    onSpec(next);
+  };
   // The arrow keys step the range by a hundredth of its span, at a round
   // magnitude (0.01 on 0.8…1.25, 1 on 8…68, 10 on 10…500).
   const span = Math.abs(spec.hi - spec.lo) || Math.abs(spec.hi) || 1;
@@ -62,6 +73,7 @@ export function ZParamControls({
   return (
     <div className="zparam-overlay">
       <div className="zparam-controls" role="group" aria-label="Parameter sweep">
+        {analyses && analyses.entries.length > 0 && <AnalysisSelect {...analyses} />}
         <label>
           <span>sweep</span>
           <select
@@ -167,6 +179,13 @@ export function ZParamControls({
           </div>
         )}
       </div>
+      {analyses && analyses.entries.length > 0 && (
+        <AnalysisDetails
+          entries={analyses.entries}
+          current={analyses.current}
+          blocked={analyses.blocked}
+        />
+      )}
     </div>
   );
 }

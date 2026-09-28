@@ -123,3 +123,23 @@ describe("the from / to boxes", () => {
     expect(onSpec).toHaveBeenLastCalledWith(expect.objectContaining({ lo: 0.8, hi: 500 }));
   });
 });
+
+describe("an analysis's explicit ladder (AK#1757)", () => {
+  it("an edit to the header drops it: the header's own ladder again", async () => {
+    const user = userEvent.setup();
+    const onSpec = vi.fn();
+    const ladder = [8, 12, 17, 24, 34, 48, 68];
+    render(
+      <Harness
+        initial={{ param: "tmp_segs", lo: 8, hi: 68, points: 7, log: true, values: ladder }}
+        onSpec={onSpec}
+      />,
+    );
+    await user.clear(box("points"));
+    await user.type(box("points"), "9");
+    await user.tab();
+    const next = onSpec.mock.lastCall![0] as ParamSweepSpec;
+    expect(next.points).toBe(9);
+    expect("values" in next).toBe(false);
+  });
+});

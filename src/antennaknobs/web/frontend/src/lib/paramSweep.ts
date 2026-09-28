@@ -42,6 +42,10 @@ export type ParamSweepSpec = {
   points: number;
   /** Geometric spacing (a fixed ratio, SimNEC's logStep) instead of linear. */
   log: boolean;
+  /** An explicit ladder that replaces the one lo…hi / points / log would
+   *  make: an analysis's own values (lib/analyses analysisSpec), when the
+   *  header's ladder over the same range differs. Any header edit drops it. */
+  values?: readonly number[];
 };
 
 /** What the runner sends: the parameter, its values, and how to name it. */
@@ -150,8 +154,14 @@ export function sameSpec(a: ParamSweepSpec, b: ParamSweepSpec): boolean {
     a.lo === b.lo &&
     a.hi === b.hi &&
     a.points === b.points &&
-    a.log === b.log
+    a.log === b.log &&
+    sameValues(a.values, b.values)
   );
+}
+
+function sameValues(a?: readonly number[], b?: readonly number[]): boolean {
+  if (!a || !b) return a === b;
+  return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
 /** Why a points count is refused, or null when it is fine: a whole number
@@ -168,13 +178,15 @@ export const clampPoints = (n: number) =>
 
 /** The values a spec sweeps, ascending in the order the spec runs.
  *
- *  The default density spec is the literal DENSITY_LADDER. Otherwise linear
+ *  A spec's explicit `values` are the ladder as given. The default density
+ *  spec is the literal DENSITY_LADDER. Otherwise linear
  *  or geometric from lo to hi (a geometric ladder needs both ends above
  *  zero, else it falls back to linear), and an integer parameter — density,
  *  or an `int` knob — rounded to integers with duplicates dropped, since
  *  rounding collides points at a coarse end (the CLI's gen_xs rule, so
  *  10…500 × 20 solves only whole counts). Density never goes below 1. */
 export function paramValues(spec: ParamSweepSpec, integer: boolean): number[] {
+  if (spec.values) return [...spec.values];
   if (isDensity(spec.param) && sameSpec(spec, DEFAULT_DENSITY_SPEC)) {
     return [...DENSITY_LADDER];
   }
