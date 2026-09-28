@@ -42,6 +42,8 @@ const NO_FR_DECK: ExampleDescriptor = {
 const DECK: ExampleDescriptor = {
   ...VHF,
   meas_freq_range_mhz: [144, 148],
+  // As /examples serves it: the dial span resolved into the sweep range.
+  sweep_range: { lo: 144, hi: 148, spacing: "log", source: "design" },
   has_design_freq: false,
 };
 

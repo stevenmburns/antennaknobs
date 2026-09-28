@@ -5,18 +5,26 @@ import { describe, it, expect } from "vitest";
 import {
   analysisBlocked,
   analysisSpec,
+  frequencyPick,
   parseAnalyses,
-  type AnalysisWorkbench,
+  type FrequencyWorkbench,
+  type KnobWorkbench,
 } from "../lib/analyses";
+import type { SweepRange } from "../lib/sweep";
+import { RECIPROCAL, RHO } from "../lib/sweepAxis";
 import { DEFAULT_DENSITY_SPEC, DENSITY_LADDER, paramValues, sameSpec } from "../lib/paramSweep";
 
 // E3 on the invvee, as the server serves it (tests/test_analyses_workbench_1757.py).
 const E3_VALUES = Array.from({ length: 37 }, (_, i) => 2 + 0.5 * i);
-const run = (over: Partial<Extract<AnalysisWorkbench, { runs: true }>>) =>
-  ({ runs: true, param: "base", values: E3_VALUES, log: false, note: null, ...over }) as Extract<
-    AnalysisWorkbench,
-    { runs: true }
-  >;
+const run = (over: Partial<KnobWorkbench>): KnobWorkbench => ({
+  runs: true,
+  kind: "knob",
+  param: "base",
+  values: E3_VALUES,
+  log: false,
+  note: null,
+  ...over,
+});
 
 describe("analysisSpec", () => {
   it("E3: base, 2…20, 37 linear points, and the header's ladder is the served one", () => {
@@ -74,8 +82,10 @@ describe("parseAnalyses", () => {
       ],
     });
     expect(got.map((a) => a.name)).toEqual(["height", "match"]);
+    // An entry without `kind` (a step-3 server) is a knob sweep.
     expect(got[0].workbench).toEqual({
       runs: true,
+      kind: "knob",
       param: "base",
       values: [2, 20],
       log: false,
@@ -86,5 +96,109 @@ describe("parseAnalyses", () => {
   it("no analyses on a body without them (an older server, a stub)", () => {
     expect(parseAnalyses({})).toEqual([]);
     expect(parseAnalyses(null)).toEqual([]);
+  });
+});
+
+// E4 as the server serves it: the deck's Generator sweep, 14.0-14.35 MHz by
+// 0.025 (tests/test_analyses_frequency_1757.py pins the served entry).
+const E4_RANGE = { lo: 14, hi: 14.35, spacing: "lin", step: 0.025, source: "file" } as const;
+const freq = (over: Partial<FrequencyWorkbench>): FrequencyWorkbench => ({
+  runs: true,
+  kind: "frequency",
+  range: E4_RANGE,
+  level: "file",
+  points: null,
+  views: ["Swr"],
+  swr: { scale: "rho", threshold: 2 },
+  note: null,
+  ...over,
+});
+const E4_OWN: SweepRange = { lo: 14, hi: 14.35, spacing: "lin", step: 0.025 };
+const POLICY: SweepRange = { lo: 14, hi: 14.35, spacing: "log" };
+
+describe("frequency analyses (step 4)", () => {
+  it("parses a frequency entry, and keeps only the views the workbench draws", () => {
+    const [a] = parseAnalyses({
+      analyses: [
+        {
+          name: "band SWR",
+          workbench: {
+            runs: true,
+            kind: "frequency",
+            range: E4_RANGE,
+            level: "file",
+            points: null,
+            views: ["Swr", "Map", "Smith"],
+            swr: { scale: "rho", threshold: 2 },
+            note: null,
+          },
+        },
+      ],
+    });
+    expect(a.workbench).toEqual(freq({ views: ["Swr", "Smith"] }));
+  });
+
+  it("a policy-level entry serves no range: the session's band policy places it", () => {
+    const [a] = parseAnalyses({
+      analyses: [
+        {
+          name: "band SWR",
+          workbench: {
+            runs: true,
+            kind: "frequency",
+            range: null,
+            level: "policy",
+            points: null,
+            views: ["Swr"],
+            swr: { scale: "auto", threshold: 2 },
+          },
+        },
+      ],
+    });
+    expect(a.workbench).toMatchObject({ runs: true, kind: "frequency", range: null });
+  });
+
+  it("is never blocked by the knob list: it is not a knob sweep", () => {
+    expect(analysisBlocked(freq({}), new Set())).toBeNull();
+  });
+
+  it("E4: the deck's own range clears the edit; the scale and threshold are the view's", () => {
+    expect(frequencyPick(freq({}), E4_OWN)).toEqual({
+      range: null,
+      view: "vswr",
+      vswr: RHO,
+      threshold: 2,
+    });
+  });
+
+  it("a range of its own, or a point count, is the session's edit", () => {
+    const own = { lo: 13.9, hi: 14.5, spacing: "lin", points: 25, source: "design" } as const;
+    expect(frequencyPick(freq({ range: own, level: "analysis" }), E4_OWN).range).toEqual({
+      lo: 13.9,
+      hi: 14.5,
+      spacing: "lin",
+      step: (14.5 - 13.9) / 24,
+    });
+    expect(frequencyPick(freq({ range: null, level: "policy", points: 31 }), POLICY).range).toEqual({
+      ...POLICY,
+      points: 31,
+    });
+  });
+
+  it("the policy with no count of its own is the design range, unedited", () => {
+    expect(frequencyPick(freq({ range: null, level: "policy" }), POLICY).range).toBeNull();
+  });
+
+  it("auto is the 1–∞ reciprocal scale; no Swr view leaves the scale alone; the threshold clamps", () => {
+    expect(frequencyPick(freq({ swr: { scale: "auto", threshold: 2 } }), E4_OWN).vswr).toEqual(
+      RECIPROCAL,
+    );
+    const smith = frequencyPick(
+      freq({ views: ["Smith"], swr: { scale: null, threshold: 50 } }),
+      E4_OWN,
+    );
+    expect(smith.vswr).toBeNull();
+    expect(smith.view).toBe("smith");
+    expect(smith.threshold).toBe(20);
   });
 });
