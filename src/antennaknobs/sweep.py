@@ -3,6 +3,7 @@ import logging
 from . import Antenna
 from .core import save_or_show
 from .far_field import get_elevation, get_pattern_rings, plot_patterns
+from .zinf import describe, zinf_estimate
 
 import numpy as np
 
@@ -723,35 +724,6 @@ def sweep_gain(
     save_or_show(plt, fn)
 
 
-def ladder_estimate(rungs):
-    """First-order Richardson from a refinement ladder's last two rungs.
-
-    ``rungs`` is [(refinement factor, Z), ...] in ascending factor order. Returns
-    ``(Z_inf, shrinking)``, or None with fewer than two rungs. ``Z_inf`` is
-    Z_hi + (Z_hi - Z_lo) / (r_hi / r_lo - 1), the first-order extrapolation in
-    the segment length. ``shrinking`` is False when the ladder has three or more
-    rungs and the last step is no smaller than the one before it. That means the
-    ladder is not yet in its asymptotic range and the extrapolation should not
-    be trusted. With two rungs there is nothing to compare, so it is True.
-
-    Shared by the CLI ``ladder`` subcommand (a card deck's own GW refinement)
-    and ``sweep --param nominal_nsegs`` (#1554, a catalog design's density
-    ladder) — the extrapolation is the same math over either refinement
-    axis, so it lives once, next to the convergence-sweep code that is its
-    other caller.
-    """
-    if len(rungs) < 2:
-        return None
-    (r_lo, z_lo), (r_hi, z_hi) = rungs[-2], rungs[-1]
-    z_inf = z_hi + (z_hi - z_lo) / (r_hi / r_lo - 1)
-    shrinking = True
-    if len(rungs) >= 3:
-        prev_step = abs(rungs[-2][1] - rungs[-3][1])
-        last_step = abs(z_hi - z_lo)
-        shrinking = last_step < prev_step
-    return z_inf, shrinking
-
-
 # The app's own convergence ladder (`DENSITY_LADDER`,
 # web/frontend/src/lib/paramSweep.ts). A CLI study run with no --range reproduces exactly
 # the rungs the UI's convergence overlay solves, so a number quoted from
@@ -839,15 +811,7 @@ def _print_convergence_table(
             )
         if marked:
             print("  * = a --markers rung")
-        z_star, shrinking = estimates[name]
-        if z_star is None:
-            print(f"{name}  Z∞ unavailable (need >= 2 rungs)")
-        else:
-            verdict = "yes" if shrinking else "no"
-            print(
-                f"{name}  Z∞ = {z_star.real:.3f}{z_star.imag:+.3f}j  "
-                f"(shrinking: {verdict})"
-            )
+        print(f"{name}  {describe(estimates[name])}")
 
 
 def _sweep_convergence(
@@ -909,17 +873,15 @@ def _sweep_convergence(
             rows.append((n, _achieved_n(eng, antenna_builder), complex(z[0])))
         per_engine[name] = rows
 
-    # Richardson reads the GEOMETRIC ladder only: a marker dropped between two
-    # rungs would shrink one step and grow the next, and the "shrinking"
-    # verdict compares adjacent steps. Markers are observations on the
-    # trajectory, not rungs of the extrapolation.
-    estimates = {
-        name: ladder_estimate(
-            [(achieved, z) for n, achieved, z in rows if n in ladder_rungs]
-        )
-        or (None, None)
-        for name, rows in per_engine.items()
-    }
+    # Z∞ reads the GEOMETRIC ladder only: a marker dropped between two rungs
+    # would shrink one step and grow the next, and the estimator's order
+    # comes from the slope of adjacent steps. Markers are observations on
+    # the trajectory, not rungs of the extrapolation. The refinement
+    # variable is the ACHIEVED segment count, as in the workbench (AK#1781).
+    estimates = {}
+    for name, rows in per_engine.items():
+        ladder = [(achieved, z) for n, achieved, z in rows if n in ladder_rungs]
+        estimates[name] = zinf_estimate([a for a, _ in ladder], [z for _, z in ladder])
 
     _print_convergence_table(
         per_engine, estimates, z0, marked=marked, ground_label=ground_label
@@ -972,7 +934,7 @@ def _sweep_convergence(
                         markeredgecolor=color,
                         linestyle="None",
                     )
-            z_star, _shrinking = estimates[name]
+            z_star = estimates[name].z_inf
             if z_star is not None:
                 g = _reflection(z_star, z0)
                 # Clip to the unit disc: an early-ladder Richardson estimate
@@ -997,7 +959,7 @@ def _sweep_convergence(
                     [achieved for _, achieved, _ in rows],
                     [z for _, _, z in rows],
                     [k for k, (n, _, _) in enumerate(rows) if n in drawn_marks],
-                    estimates[name][0],
+                    estimates[name].z_inf,
                 )
             )
         (_rx_overlay if overlay else _rx_panels)(

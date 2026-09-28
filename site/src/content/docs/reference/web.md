@@ -1138,8 +1138,9 @@ To check that your chosen N is **converged** — i.e. adding more segments no
 longer moves the impedance — run a **convergence sweep**. It re-solves the
 current antenna across a ladder of densities (N = 8, 12, 17, 24, 34, 48, 68
 segments per λ/4) on the active slot's engine, and extrapolates Z to N → ∞
-(Richardson in 1/N, the diamond `Z∞`), so you can see where the curve
-flattens out. Basics:
+(the diamond `Z∞`, by the same estimator as the command line's density
+study, against the segment count each rung actually meshed), so you can see
+where the curve flattens out. Basics:
 [Segments & convergence](/reference/solver/#segments--convergence); the full
 method (ladders, cross-basis validation with a second solver slot, and what a
 non-settling curve is telling you): [How many segments?](/advanced/convergence/).
@@ -1210,7 +1211,10 @@ On the chart:
 - **lin x / log x** (bottom right) switches the x axis. It follows the
   spacing until you choose.
 - On a density sweep, `Z∞` is drawn as a dotted line on each axis and read
-  out at the top.
+  out at the top. The readout ends with `· p 0.98` when the ladder is
+  asymptotic and the observed order p was used, or `· rough` when it is not
+  yet (first order assumed, and the dotted lines are drawn fainter). See
+  [Where the extrapolated value comes from](/advanced/convergence/#where-the-extrapolated-value-comes-from).
 
 The sweep solves on the **active slot's engine**. Switch slots to see
 another engine's curve (one panel per engine is planned).

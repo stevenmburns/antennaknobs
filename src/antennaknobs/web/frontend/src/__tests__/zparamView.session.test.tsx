@@ -44,19 +44,23 @@ const EXAMPLE: ExampleDescriptor = {
 type Body = Record<string, unknown> & { param: string; values: number[] };
 
 // A /param_sweep route that records each request and streams one record per
-// value (Z moving as 1/N for a density sweep, so Richardson has a limit).
+// value. Density: each record carries the achieved segment count
+// n_seg = 10·2^i at the i-th rung (a doubling ladder, unlike N), and Z moves
+// as 1/n_seg, so Z∞ is exact and asymptotic ONLY when the view extrapolates
+// against n_seg, as the CLI does (AK#1781).
 function paramSweepRoute(bodies: Body[]) {
   return (_url: string, init?: RequestInit) => {
     const b = JSON.parse(String(init?.body ?? "{}")) as Body;
     bodies.push(b);
-    const lines = b.values.map((v) =>
+    const lines = b.values.map((v, i) =>
       JSON.stringify({
         param: b.param,
         value: v,
-        // Density: Z = 70 + 10/N − j(10 − 5/N), a 1/N approach. A knob:
-        // a line through its range.
-        z_re: b.param === "n_per_wire" ? 70 + 10 / v : 60 + 20 * v,
-        z_im: b.param === "n_per_wire" ? -10 + 5 / v : -30 + 60 * v,
+        // Density: Z = 70 + 10/n − j(10 − 5/n), n = n_seg. A knob: a line
+        // through its range.
+        ...(b.param === "n_per_wire" ? { n_seg: 10 * 2 ** i } : {}),
+        z_re: b.param === "n_per_wire" ? 70 + 10 / (10 * 2 ** i) : 60 + 20 * v,
+        z_im: b.param === "n_per_wire" ? -10 + 5 / (10 * 2 ** i) : -30 + 60 * v,
         solver: "momwire",
       }),
     );
@@ -192,8 +196,10 @@ describe("a density sweep is the old convergence sweep", () => {
     expect(bodies[0].values).toEqual([8, 12, 17, 24, 34, 48, 68]);
     const smith = () => container.querySelector("canvas.smith") as HTMLElement;
     await untilDom(() => smith().dataset.trail === "n_per_wire:8→68:7");
-    // Z = 70 + 10/N − j(10 − 5/N): Richardson in 1/N recovers the limit.
+    // Z = 70 + 10/n − j(10 − 5/n) in the achieved count n: the estimator,
+    // run against n_seg, sees an exact first order and recovers the limit.
     expect(smith().dataset.extrap).toBe("70.000,-10.000");
+    expect(smith().dataset.extrapStatus).toBe("asymptotic");
   });
 });
 

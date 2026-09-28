@@ -163,7 +163,7 @@ def test_each_point_overrides_only_the_swept_field(client, monkeypatch):
 
     def fake(req, cancel=None):
         seen.append(dict(req))
-        return complex(50, 0), None
+        return complex(50, 0), None, None
 
     monkeypatch.setattr(server, "_solve_z_only", fake)
     base = {**DIPOLE, "solver": "momwire", "length_factor": 0.97}
@@ -221,7 +221,7 @@ def test_a_failed_point_is_reported_and_the_sweep_goes_on(client, monkeypatch):
     def flaky(req, cancel=None):
         if req["length_factor"] == 0.9:
             raise RuntimeError("degenerate")
-        return complex(60, 1), None
+        return complex(60, 1), None, None
 
     monkeypatch.setattr(server, "_solve_z_only", flaky)
     recs = _records(
@@ -261,7 +261,7 @@ def test_a_client_that_goes_away_stops_the_sweep(monkeypatch):
     def slow(req, cancel=None):
         calls.append(req["length_factor"])
         time.sleep(0.2)
-        return complex(50, 0), None
+        return complex(50, 0), None, None
 
     monkeypatch.setattr(server, "_solve_z_only", slow)
     with socket.socket() as s:
@@ -301,3 +301,26 @@ def test_a_client_that_goes_away_stops_the_sweep(monkeypatch):
     finally:
         srv.should_exit = True
         t.join(timeout=10)
+
+
+@pytest.mark.parametrize("model", ["bspline", "razor-2p"])
+def test_a_density_record_carries_the_clis_achieved_segment_count(client, model):
+    """AK#1781: the workbench extrapolates Z∞ against the achieved segment
+    count, so each record carries it, and it is the CLI density study's own
+    N_ach column (`sweep._achieved_n`) for the same design and rung — the two
+    tools' refinement variable is one quantity."""
+    from antennaknobs.cli import get_builder, make_engine_factory
+    from antennaknobs.sweep import _achieved_n
+
+    ns = [8, 17]
+    recs = _records(
+        client.post(
+            "/param_sweep",
+            json={**DIPOLE, "momwire_model": model, "param": DENSITY, "values": ns},
+        ).text
+    )[:-1]
+    for n, rec in zip(ns, recs, strict=True):
+        b = get_builder("dipoles.invvee:dipole")()
+        b.nominal_nsegs = n
+        eng = make_engine_factory(f"momwire:{model}", None)(b)
+        assert rec["n_seg"] == _achieved_n(eng, b), (model, n)

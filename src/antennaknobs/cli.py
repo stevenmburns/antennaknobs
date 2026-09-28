@@ -12,11 +12,9 @@ from . import (
     optimize,
 )
 
-# `ladder_estimate` lives in sweep.py (#1554): it is `sweep --param
-# nominal_nsegs`'s Richardson extrapolation as much as it is the `ladder`
-# subcommand's, so it moved next to its other caller rather than staying
-# here with only one.
-from .sweep import ladder_estimate
+# The `ladder` subcommand's Z∞ is the one estimator the density study and
+# the workbench share (AK#1781), in zinf.py.
+from .zinf import describe as describe_zinf, zinf_estimate
 from .engines import (
     PyNECEngine,
     MomwireEngine,
@@ -1250,8 +1248,9 @@ def cli(arguments=None):
         help="Variable to sweep. `nominal_nsegs` is a convergence study "
         "(#1554): int rungs, the app's own ladder [8, 12, 17, 24, 34, 48, "
         "68] by default, geometric spacing with --range/--npoints, one cold "
-        "solve per rung per --engine, a table on stdout, and a Richardson "
-        "Z∞ (the extrapolated value) per engine on the chart.",
+        "solve per rung per --engine, a table on stdout, and the extrapolated "
+        "Z∞ per engine (observed order p when the ladder is asymptotic, the "
+        "workbench's same estimator) on the chart and in the table.",
     )
     p.add_argument(
         "--range", nargs=2, default=None, type=float, help="Range for sweep."
@@ -2009,8 +2008,9 @@ def cli(arguments=None):
         "its own mesh knobs; a deck's only mesh is its GW counts, so this "
         "multiplies every wire's segment count by each odd factor in --refine "
         "(the source region included), re-solves every engine, and prints the "
-        "impedance per rung, the step between rungs, and a first-order "
-        "Richardson estimate from the last two. Odd factors keep a centre gap a "
+        "impedance per rung, the step between rungs, and the extrapolated Z∞ "
+        "(observed order when the ladder is asymptotic, first order otherwise; "
+        "needs three factors). Odd factors keep a centre gap a "
         "centre gap and a knot source a knot source (antennaknobs#1456).",
     )
     p.add_argument(
@@ -2099,18 +2099,9 @@ def cli(arguments=None):
                     f"{'' if step is None else f'{step.real:+10.4f}{step.imag:+10.4f}j':>22} "
                     f"{'' if ratio is None else f'{ratio:.2f}':>13}"
                 )
-            estimate = ladder_estimate([(r, z) for r, z, _ in rows])
-            if estimate is not None:
-                z_inf, shrinking = estimate
-                verdict = (
-                    "indicative"
-                    if shrinking
-                    else "UNRELIABLE: the last step did not shrink, so the ladder is not yet in its asymptotic range"
-                )
-                print(
-                    f"  Richardson (first order in h, last two rungs, {verdict}): "
-                    f"{z_inf.real:.4f}{z_inf.imag:+.4f}j"
-                )
+            # x is the refinement factor: segment length scales as 1/r.
+            estimate = zinf_estimate([r for r, _, _ in rows], [z for _, z, _ in rows])
+            print(f"  {describe_zinf(estimate, digits=4)}")
 
     p.set_defaults(func=f)
 

@@ -14,8 +14,9 @@ import { type GroundModel } from "../../lib/ground";
 import {
   DENSITY,
   DENSITY_LADDER,
-  paramFeedRichardson,
-  paramRichardson,
+  paramFeedZinf,
+  paramZinf,
+  refinementX,
   type ParamSweepData,
   type ParamSweepRequest,
 } from "../../lib/paramSweep";
@@ -955,6 +956,7 @@ export function useAnalysisRunners({
       setParamSweep({
         ...acc,
         values: acc.values.slice(),
+        ...(acc.n_seg ? { n_seg: acc.n_seg.slice() } : {}),
         z_re: acc.z_re.slice(),
         z_im: acc.z_im.slice(),
         // Spread-conditional, not `: undefined` — see runSweep's setSweep.
@@ -969,6 +971,12 @@ export function useAnalysisRunners({
           : {}),
         ...(acc.feeds_z_im_extrap
           ? { feeds_z_im_extrap: acc.feeds_z_im_extrap.slice() }
+          : {}),
+        ...(acc.feeds_z_extrap_p
+          ? { feeds_z_extrap_p: acc.feeds_z_extrap_p.slice() }
+          : {}),
+        ...(acc.feeds_z_extrap_status
+          ? { feeds_z_extrap_status: acc.feeds_z_extrap_status.slice() }
           : {}),
         ...(acc.advisories ? { advisories: acc.advisories.slice() } : {}),
         ...(acc.error ? { error: acc.error } : {}),
@@ -1027,6 +1035,14 @@ export function useAnalysisRunners({
           // non-finite float as null) would poison every axis: skip it.
           if (!Number.isFinite(pt.z_re) || !Number.isFinite(pt.z_im)) continue;
           acc.values.push(pt.value);
+          // The achieved segment count (AK#1781): Z∞'s x, as in the CLI.
+          // One point without it and the whole sweep falls back to the
+          // swept values, so x is never a mix of the two.
+          if (Number.isFinite(pt.n_seg) && (acc.n_seg || acc.values.length === 1)) {
+            (acc.n_seg ??= []).push(pt.n_seg);
+          } else {
+            delete acc.n_seg;
+          }
           acc.z_re.push(pt.z_re);
           acc.z_im.push(pt.z_im);
           // Multi-feed records ship per-feed Z alongside the primary;
@@ -1037,16 +1053,21 @@ export function useAnalysisRunners({
             acc.feeds_z_re.push(pt.feeds_z_re);
             acc.feeds_z_im.push(pt.feeds_z_im);
           }
-          // Richardson Z* in 1/N — density only (paramRichardson is null for
-          // a knob), per feed too (see feedwiseRichardson).
-          const z = paramRichardson(param, acc.values, acc.z_re, acc.z_im);
-          acc.z_re_extrap = z.re;
-          acc.z_im_extrap = z.im;
+          // Z∞ — density only (paramZinf is null for a knob), per feed too,
+          // one estimator with the CLI (lib/zinf.ts, AK#1781).
+          const x = refinementX(acc.values, acc.n_seg);
+          const z = paramZinf(param, x, acc.z_re, acc.z_im);
+          acc.z_re_extrap = z?.re ?? null;
+          acc.z_im_extrap = z?.im ?? null;
+          acc.z_extrap_p = z?.p ?? null;
+          acc.z_extrap_status = z?.status ?? null;
           if (acc.feeds_z_re && acc.feeds_z_im) {
-            const f = paramFeedRichardson(param, acc.values, acc.feeds_z_re, acc.feeds_z_im);
+            const f = paramFeedZinf(param, x, acc.feeds_z_re, acc.feeds_z_im);
             if (f) {
-              acc.feeds_z_re_extrap = f.feedsRe;
-              acc.feeds_z_im_extrap = f.feedsIm;
+              acc.feeds_z_re_extrap = f.map((e) => e.re);
+              acc.feeds_z_im_extrap = f.map((e) => e.im);
+              acc.feeds_z_extrap_p = f.map((e) => e.p);
+              acc.feeds_z_extrap_status = f.map((e) => e.status);
             }
           }
           publish();

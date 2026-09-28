@@ -20,6 +20,7 @@ import {
 import type { FeedEntry, MeasuredData, ParamSweepData, SweepData } from "../../lib/api";
 import { formatParam, isDensity } from "../../lib/paramSweep";
 import type { SweepProgress } from "../../lib/sweep";
+import { zinfSuffix, type ZInfStatus } from "../../lib/zinf";
 import { ThemeContext } from "../hooks";
 import { feedColor, feedSweepColor, plotColors } from "./palette";
 import {
@@ -687,7 +688,7 @@ export function SmithChart({
         }
       }
 
-      // Richardson Z* markers — one diamond per feed, each in the
+      // Z∞ markers (lib/zinf.ts) — one diamond per feed, each in the
       // matching bright feed color so the user can tell which trail
       // extrapolates to which Z*. The diamond shape distinguishes the
       // extrapolated value from the actual sampled per-N dots (small
@@ -699,7 +700,7 @@ export function SmithChart({
       ) => {
         if (zRe == null || zIm == null) return;
         const ge = reflectionCoefficient(zRe, zIm, z0);
-        // Clip to the unit Smith disc — Richardson on a not-yet-converging
+        // Clip to the unit Smith disc — Z∞ from a not-yet-converging
         // series can fly outside |Γ|=1 in early frames.
         const gMag = Math.hypot(ge.gRe, ge.gIm);
         const k = gMag > 0.98 ? 0.98 / gMag : 1;
@@ -834,28 +835,44 @@ export function SmithChart({
       fi: number;
       extrapRe: number | null;
       extrapIm: number | null;
+      extrapP: number | null;
+      extrapStatus: ZInfStatus | null;
     }> = [];
     if (multiFeed && feeds && feeds.length > 1) {
       for (let fi = 0; fi < feeds.length; fi++) {
         const re = converge?.feeds_z_re_extrap?.[fi] ?? null;
         const im = converge?.feeds_z_im_extrap?.[fi] ?? null;
-        summaryFeeds.push({ fi, extrapRe: re, extrapIm: im });
+        summaryFeeds.push({
+          fi,
+          extrapRe: re,
+          extrapIm: im,
+          extrapP: converge?.feeds_z_extrap_p?.[fi] ?? null,
+          extrapStatus: converge?.feeds_z_extrap_status?.[fi] ?? null,
+        });
       }
     } else if (converge && converge.values.length >= 1) {
       summaryFeeds.push({
         fi: 0,
         extrapRe: converge.z_re_extrap,
         extrapIm: converge.z_im_extrap,
+        extrapP: converge.z_extrap_p ?? null,
+        extrapStatus: converge.z_extrap_status ?? null,
       });
     } else if (feeds && feeds.length === 1) {
       // Sweep-only single-feed run: show the swatch row so the colors
       // on the chart are explained even without a converge.
-      summaryFeeds.push({ fi: 0, extrapRe: null, extrapIm: null });
+      summaryFeeds.push({
+        fi: 0,
+        extrapRe: null,
+        extrapIm: null,
+        extrapP: null,
+        extrapStatus: null,
+      });
     }
     if (summaryFeeds.length > 0) {
       ctx.font = "10px ui-monospace, monospace";
       for (let row = 0; row < summaryFeeds.length; row++) {
-        const { fi, extrapRe, extrapIm } = summaryFeeds[row];
+        const { fi, extrapRe, extrapIm, extrapP, extrapStatus } = summaryFeeds[row];
         const ly = 12 + row * 14;
         // Dim swatch (sweep trail color).
         ctx.fillStyle = feedSweepColor(fi);
@@ -875,7 +892,7 @@ export function SmithChart({
           summaryFeeds.length > 1 ? `feed ${fi}` : "";
         if (extrapRe != null && extrapIm != null) {
           const sign = extrapIm >= 0 ? "+" : "−";
-          const zText = `Z∞ ≈ ${extrapRe.toFixed(2)} ${sign} j${Math.abs(extrapIm).toFixed(2)} Ω`;
+          const zText = `Z∞ ≈ ${extrapRe.toFixed(2)} ${sign} j${Math.abs(extrapIm).toFixed(2)} Ω${zinfSuffix(extrapStatus, extrapP)}`;
           txt = txt ? `${txt}  ${zText}` : zText;
         }
         if (txt) ctx.fillText(txt, 28, ly + 3);
@@ -944,6 +961,7 @@ export function SmithChart({
           ? `${paramSweep.z_re_extrap.toFixed(3)},${paramSweep.z_im_extrap.toFixed(3)}`
           : ""
       }
+      data-extrap-status={paramSweep?.z_extrap_status ?? ""}
       {...(interactive
         ? {
             tabIndex: 0,
