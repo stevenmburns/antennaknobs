@@ -355,8 +355,11 @@ def _unknown_builder_message(nm):
 
     shown = found if found is not None else Path(cand)
     loadable = shown.suffix.lower() in (".nec", ".ssn")
-    if loadable:
+    if loadable and found is not None:
         fix = f"to load a file use --builder @{shown}"
+    elif loadable:
+        # No such file here: name the form, not a path that does not exist.
+        fix = f"to load a file use --builder @<path to {shown.name}>"
     elif shown.suffix.lower() == ".py":
         fix = (
             f"a .py design lives in your user folder and is named without the "
