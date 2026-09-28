@@ -1237,9 +1237,22 @@ the ground you have set, and a note under the header says so and that
 knob sweep over the density ladder, with `Z∞` on the command line only for
 now.
 
-What the view cannot draw yet is listed greyed out, with the reason as its
-tooltip: a frequency sweep, the SWR, S11 and Smith views, a map, a family
-over a second knob, and a match held at every point. Each reason names the
+A frequency analysis, such as **band SWR**, runs on the frequency sweep. Picking
+it sets the sweep's range, the VSWR chart's scale and its SWR threshold, then
+brings up the analysis's first chart: VSWR, S11 or Smith. The range comes from
+the rule the command line uses (see [Frequency
+analyses](/reference/cli/#frequency-analyses)). A deck's own sweep or a
+design's declared range puts the dial back on the design's range, and an
+analysis with a range of its own sets it as this session's edit. On a
+band-policy design, the dial follows the band you are on. The scale is the
+analysis's (`an.Swr(scale="rho")` is EZNEC's), and the threshold line and the
+bandwidth readout move to its `an.Ref(swr=...)`. The workbench has no R/X
+chart against frequency and no table, so an `an.Rx()` or `an.Table()` view is
+left out with a note.
+
+What the workbench cannot run yet is listed greyed out, with the reason as
+its tooltip: a map, a family over a second knob, a cross over measurement
+planes or designs, and a match held at every point. Each reason names the
 step of the sweep framework it is planned for.
 
 **analyses as Python**, under the header, shows every analysis as the Python
