@@ -605,12 +605,15 @@ def sweep_swr(
     rho = np.abs(reflection_coefficient)
     swr = (1 + rho) / (1 - rho)
 
-    rho_db = np.log10(rho) * 10.0
+    # |S11| in dB is 20·log10|Γ|, the workbench's S11 chart and every VNA's;
+    # this was 10·log10|Γ| (a power quantity's formula on a voltage ratio),
+    # which read half the return loss (the sweep inventory, 2026-09-27).
+    rho_db = np.log10(rho) * 20.0
 
     fig, ax0 = plt.subplots(figsize=(7.0, 4.5))
     color = "tab:red"
     ax0.set_xlabel(_param_label(nm))
-    ax0.set_ylabel("reflection 10·log₁₀|Γ| (dB)", color=color)
+    ax0.set_ylabel("S11 20·log₁₀|Γ| (dB)", color=color)
     ax0.tick_params(axis="y", labelcolor=color)
     for i in range(rho_db.shape[1]):
         ax0.plot(
@@ -749,8 +752,8 @@ def ladder_estimate(rungs):
     return z_inf, shrinking
 
 
-# The app's own convergence ladder (`CONVERGE_N_VALUES`,
-# useAnalysisRunners.ts). A CLI study run with no --range reproduces exactly
+# The app's own convergence ladder (`DENSITY_LADDER`,
+# web/frontend/src/lib/paramSweep.ts). A CLI study run with no --range reproduces exactly
 # the rungs the UI's convergence overlay solves, so a number quoted from
 # either side is the same measurement (#1554).
 NOMINAL_NSEGS_LADDER = (8, 12, 17, 24, 34, 48, 68)

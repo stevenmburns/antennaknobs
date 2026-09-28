@@ -76,7 +76,7 @@ type ViewPrefs = {
   combinedFill: CombinedFill;
   // The VSWR and S11 charts' vertical ranges, and the SWR threshold their
   // line and bandwidth readout use (AK#1738). Written only where they differ
-  // from Auto / 2:1.
+  // from DEFAULT_AXES (1–∞ on VSWR, Auto on S11) and 2:1.
   sweepAxes: SweepAxes;
   swrThreshold: number;
 };

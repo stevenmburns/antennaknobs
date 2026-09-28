@@ -233,7 +233,7 @@ views as thumbnails beside it. The roster is:
 | **Z vs parameter** | feed R and X against the mesh density or any knob — see [Z vs parameter](#z-vs-parameter) |
 
 Click a thumbnail to promote it to primary. The last two read the **same
-frequency sweep** the Smith chart plots — run a [sweep](#convergence-sweep)
+frequency sweep** the Smith chart plots — run a [sweep](#the-measurement-dial-is-the-sweep-range)
 and all three fill in together; the marker on each rides the measurement
 frequency.
 
@@ -1252,7 +1252,7 @@ reality?" view, and the same overlay the CLI draws with
   frequencies; the label under the chart reports the span actually drawn, and
   says `(clipped)` when the measurement reaches past the swept band. A
   measurement with no overlap at all says so rather than silently drawing
-  nothing — turn the [freq sweep](#convergence-sweep) onto that band, or move
+  nothing — turn the [freq sweep](#the-measurement-dial-is-the-sweep-range) onto that band, or move
   the measurement frequency there.
 - **Calibrate at the plane you're comparing.** The chart shows the feedpoint,
   so a measurement taken at the feedpoint is the like-for-like one; a
