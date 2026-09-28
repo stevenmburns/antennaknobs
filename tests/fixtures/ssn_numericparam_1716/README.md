@@ -9,6 +9,7 @@ unlike the AK#1714 fixtures they need no `-text` entry in `.gitattributes`.
 |---|---|
 | `DipoleVarLen.ssn` | `792255daf9bec6833bbbfd343bd23c494ff82383e2d8b4d5fd1c29c9f3e60412` |
 | `DipoleVarLenSegs.ssn` | `e262881e15155a8d27f8dfa7d84c421062b206e0c1d5bfd9cc6b9d78749ba2f9` |
+| `snDipoleVarLenSegs.ssn` | `5bd306af26fcecc2bd07d555ddb0614650bef450d9be0bc6c154c7e7349c3e77` |
 
 Both are a one-wire dipole whose length is a bare name in the GW card. The
 script names it in a statement of its own (`len;`), with no `dcl` and no
@@ -24,3 +25,9 @@ What each one exercises:
 - `DipoleVarLenSegs.ssn` — the same plus `segs;`, `segs` = 30 on the element,
   and `$GW_1.JamSegments(segs);`: a parameter that reaches a directive (the
   wire's segment count) rather than a card.
+
+`snDipoleVarLenSegs.ssn` is a third, added for AK#1757: AC6LA's circuit from
+QRZ 1003328 #158 (the sweep-framework spec's example E6), byte-exact, LF-only.
+The same dipole with the count in a script constant instead of a parameter,
+`dcl len=10.2;` and `$segs=30;` with `$GW_1.JamSegments($segs);`, so its
+knobs are `dcl_len` and `tmp_segs`, and `tmp_segs` plays the density role.

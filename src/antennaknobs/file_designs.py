@@ -572,6 +572,10 @@ class _SyKnobs:
                 meta["unit"] = s.unit
             if s.default == 0 and not s.integer:
                 meta.update(min=-span, max=span, step=_nice_step(span / 500.0))
+            if s.segment_count:
+                # A JamSegments count: the file's density knob, which a
+                # convergence analysis sweeps (AK#1757).
+                meta["role"] = "density"
             ui[s.param] = meta
         return ui
 

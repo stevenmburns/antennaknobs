@@ -1,6 +1,7 @@
 """Inverted-vee dipole — the default quickstart example."""
 
 from antennaknobs import AntennaBuilder
+from antennaknobs import analyses as an
 from antennaknobs.network import Wire
 import math
 
@@ -43,9 +44,12 @@ class Builder(AntennaBuilder):
                     # wavelength on 40 m and the top of a typical push-up
                     # mast, so the slider spans "on a mast" instead of
                     # stopping just short of it.
+                    # `base` is the apex height: the height role lets a
+                    # generic height analysis find it (AK#1757).
                     "base": {
                         "min": 1.0,
                         "max": 16.0,
+                        "role": "height",
                     },
                 }
             ),
@@ -103,6 +107,69 @@ class Builder(AntennaBuilder):
             "ui_params": MappingProxyType({"length_factor": {"min": 2.05, "max": 3.2}}),
         }
     )
+
+    def build_analyses(self):
+        """The sweep-framework spec's driving examples on this design
+        (docs/design/sweep-framework-spec.md, AK#1757): E1, E3, E2 and E7 as
+        the spec page writes them, and E8/E9, a hold at every point (data
+        only: nothing runs a hold yet). E7 is given a name of its own, since it is
+        a convergence study beside E1's; its engines x designs product (8) is
+        over the curve cap, and it lists as refused until the spec settles
+        that."""
+        lf = an.Sweep("length_factor", 0.90, 1.06, points=33)
+        refs = an.Ref(r=(50, 75), x=(0,))
+        return [
+            # E1: convergence on three engines.
+            an.convergence(
+                cross=an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec5")),
+                ground="finite:13,0.005",
+            ),
+            # E3: R/X against height, three grounds.
+            an.Analysis(
+                "height",
+                an.Sweep(an.HEIGHT, 2, 20, points=37),
+                cross=an.Cross(grounds=("free", "finite:13,0.005", "finite:5,0.001")),
+                references=an.Ref(r=(50,), x=(0,)),
+            ),
+            # E2: tuning two knobs to a Z0.
+            an.Analysis(
+                "tuning family",
+                lf,
+                cross=an.Cross(step=an.Sweep("angle_deg", values=(0, 15, 30, 45, 60))),
+                references=refs,
+            ),
+            an.Analysis(
+                "tuning map",
+                (lf, an.Sweep("angle_deg", 0, 60, points=25)),
+                views=(an.Map(),),
+                references=refs,
+            ),
+            # E7: two feed spellings on one convergence chart.
+            an.convergence(
+                name="feed spellings",
+                cross=(
+                    an.Cross(designs=("dipoles.invvee", "dipoles.invvee_apex")),
+                    an.Cross(
+                        engines=("momwire:bspline", "momwire:razor-2p", "nec5", "nec2")
+                    ),
+                ),
+            ),
+            # E8: the match held at every height, and the knobs that hold it.
+            an.Analysis(
+                "match vs height",
+                an.Sweep(an.HEIGHT, 2, 20, points=37),
+                hold=an.Hold("match_z0", adjust=("length_factor", "angle_deg"), z0=50),
+                views=(an.Rx(), an.Knobs()),
+            ),
+            # E9: resonance held across the droop angle.
+            an.Analysis(
+                "resonance vs angle",
+                an.Sweep("angle_deg", 0, 60, points=25),
+                hold=an.Hold("resonance", adjust=("length_factor",)),
+                views=(an.Rx(), an.Knobs()),
+                references=an.Ref(r=(50,)),
+            ),
+        ]
 
     def build_wires(self):
         eps = 0.05

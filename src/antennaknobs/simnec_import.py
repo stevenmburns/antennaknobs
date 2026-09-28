@@ -1686,24 +1686,33 @@ def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
                     int_use.add(n)
                 if mnemonic == "GS" and k == 2:
                     gs_scale.add(n)
+    # Names a JamSegments count reads directly: a knob that reaches one sets a
+    # wire's segment count, which is the density role (AK#1757).
+    jam_names: set[str] = set()
     for _tag, tree, _stmt in dcl.jams:
         for n in _sim_names(tree):
             direct.setdefault(n, set()).add("GW")
             int_use.add(n)
+            jam_names.add(n)
     dependents: dict[str, set[str]] = {}
     for c in dcl.constants:
         for ref in _sim_names(c.tree):
             dependents.setdefault(ref, set()).add(c.name)
 
-    def reach(name: str) -> frozenset[str]:
-        seen, stack, out = {name}, [name], set()
+    def closure(name: str) -> set[str]:
+        """``name`` and every constant derived from it, transitively."""
+        seen, stack = {name}, [name]
         while stack:
-            k = stack.pop()
-            out |= direct.get(k, set())
-            for d in dependents.get(k, ()):
+            for d in dependents.get(stack.pop(), ()):
                 if d not in seen:
                     seen.add(d)
                     stack.append(d)
+        return seen
+
+    def reach(name: str) -> frozenset[str]:
+        out: set[str] = set()
+        for k in closure(name):
+            out |= direct.get(k, set())
         return frozenset(out)
 
     out = []
@@ -1722,6 +1731,7 @@ def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
             kind = "knob"
             integer = c.name in int_use and value.is_integer()
             default = int(value) if integer else value
+        segment_count = kind == "knob" and bool(closure(c.name) & jam_names)
         out.append(
             SySymbol(
                 name=c.name,
@@ -1737,6 +1747,7 @@ def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
                 default=default,
                 integer=integer,
                 param_name=_param_name(c),
+                segment_count=segment_count,
             )
         )
     return tuple(out)
