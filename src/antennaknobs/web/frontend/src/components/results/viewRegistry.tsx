@@ -39,6 +39,11 @@ export type ViewRenderProps = {
   /** The parameter sweep (density or a knob, docs/design/z-vs-param-view.md):
    *  the Smith chart's trail and the Z-vs-parameter view's chart. */
   paramSweep: ParamSweepData | null;
+  /** The Smith chart draws `paramSweep` as a trail only when this is on: the
+   *  "param sweep" switch. The sweep can also run for the Z-vs-parameter
+   *  view with the switch off, and then the switch must still hide the
+   *  trail. Omitted, the trail is drawn (callers that predate the switch). */
+  paramTrail?: boolean;
   measured: MeasuredData | null;
   pattern: PatternData | null;
   pinnedPatterns: PinnedPattern[];
@@ -262,7 +267,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       trialWorstFeed={p.liveZ?.worst_feed}
       size={p.size}
       sweep={p.sweep}
-      paramSweep={p.paramSweep}
+      paramSweep={p.paramTrail === false ? null : p.paramSweep}
       measured={p.measured}
       measFreqMhz={p.measFreqMhz}
       running={p.sweepRunning}

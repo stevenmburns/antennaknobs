@@ -443,3 +443,49 @@ describe("a right-click the moment the knobs appear", () => {
     expect(screen.getByRole("button", { name: "Sweep this knob…" })).toBeTruthy();
   });
 });
+
+describe("the param sweep switch owns the Smith chart's trail", () => {
+  it("a knob sweep run for the view stays off the Smith chart until the switch is on", async () => {
+    // Steve, 2026-09-28: with a length_factor sweep up, toggling "param
+    // sweep" changed nothing. The view runs the sweep whatever the switch
+    // says, and the Smith chart drew any sweep it was handed.
+    const user = userEvent.setup();
+    const bodies: Body[] = [];
+    const { container } = await mountReady({
+      examples: [EXAMPLE],
+      pinned: ["smith", "zparam"],
+      routes: { "/param_sweep": paramSweepRoute(bodies) },
+    });
+    const gap = screen.getByRole("slider", { name: "Gap" });
+    fireEvent.contextMenu(gap);
+    await user.click(screen.getByRole("button", { name: "Sweep this knob…" }));
+    const onStage = (sel: string) =>
+      [...container.querySelectorAll(sel)].find((c) => !c.closest(".thumbstrip")) as
+        | HTMLElement
+        | undefined;
+    await untilDom(() => onStage("canvas.zparam")?.dataset.points === "11");
+    // On the stage or in the thumbnail strip: both ViewPanel sites take the
+    // switch, so either Smith chart speaks for it.
+    const smith = () => container.querySelector("canvas.smith") as HTMLElement;
+    expect(smith()).toBeTruthy();
+    expect(smith().dataset.trail).toBe("");
+
+    // The switch on: the same sweep, now drawn, with no second run.
+    // The switch sits in the Tools menu whenever the Smith chart is not the
+    // stage's own view.
+    const toggle = async () => {
+      if (screen.queryAllByRole("checkbox", { name: "param sweep" }).length === 0) {
+        await user.click(screen.getByRole("button", { name: "Tools menu" }));
+      }
+      await user.click(screen.getAllByRole("checkbox", { name: "param sweep" })[0]);
+    };
+    const before = bodies.length;
+    await toggle();
+    await untilDom(() => smith().dataset.trail === "gap:0→1:11");
+    expect(bodies.length).toBe(before);
+
+    // And off again: gone.
+    await toggle();
+    await untilDom(() => smith().dataset.trail === "");
+  });
+});

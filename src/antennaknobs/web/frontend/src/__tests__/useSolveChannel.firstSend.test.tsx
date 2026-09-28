@@ -11,7 +11,11 @@
 // DesignSession harness mounts with an InertWebSocket that never opens.
 import { renderHook, act } from "@testing-library/react";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { useSolveChannel } from "../components/session/useSolveChannel";
+import {
+  RECONNECT_BASE_MS,
+  RECONNECT_MAX_MS,
+  useSolveChannel,
+} from "../components/session/useSolveChannel";
 import type { SolveRequest } from "../lib/api";
 
 class FakeWebSocket {
@@ -118,7 +122,6 @@ describe("useSolveChannel first send", () => {
   });
 });
 
-
 // --------------------------------------------------------------------------
 // A refusal that lands between scheduling and sending must win
 // --------------------------------------------------------------------------
@@ -147,7 +150,9 @@ describe("a refusal between scheduling and sending", () => {
   });
 
   it("does not send when the solve is refused after the frame is scheduled", () => {
-    const controlsRef = { current: { geometry: "x" } as unknown as SolveRequest };
+    const controlsRef = {
+      current: { geometry: "x" } as unknown as SolveRequest,
+    };
     const withheld = { current: false };
     const { result } = mount(controlsRef, withheld);
     FakeWebSocket.last!.open();
@@ -165,7 +170,9 @@ describe("a refusal between scheduling and sending", () => {
   it("still sends when nothing refused it", () => {
     // The other half: without this, "never send" would satisfy the test above
     // and the app would simply stop solving.
-    const controlsRef = { current: { geometry: "x" } as unknown as SolveRequest };
+    const controlsRef = {
+      current: { geometry: "x" } as unknown as SolveRequest,
+    };
     const withheld = { current: false };
     const { result } = mount(controlsRef, withheld);
     FakeWebSocket.last!.open();
@@ -179,7 +186,9 @@ describe("a refusal between scheduling and sending", () => {
   it("does not resend on reconnect while refused", () => {
     // `onopen` resends the current request unconditionally. A reconnect must
     // not become the thing that fires a solve the gate already turned down.
-    const controlsRef = { current: { geometry: "x" } as unknown as SolveRequest };
+    const controlsRef = {
+      current: { geometry: "x" } as unknown as SolveRequest,
+    };
     const withheld = { current: true };
     mount(controlsRef, withheld);
     FakeWebSocket.last!.open();
@@ -233,5 +242,149 @@ describe("cancelSolve", () => {
     const next = JSON.parse(FakeWebSocket.last!.sent[2]);
     expect(next._seq).toBe(3);
     expect(result.current.solving).toBe(true);
+  });
+});
+
+// --------------------------------------------------------------------------
+// A dropped socket reconnects, and the gap is marked stale (AK#1783)
+// --------------------------------------------------------------------------
+//
+// Before: onclose set "closed" and stopped. Nothing re-created the socket, so
+// on the hosted app a drop left the page drawing its last result against
+// knobs the server never saw, until a reload (Steve's folded inverted vee: the
+// Z-vs-parameter dots sat at length_factor 0.955 while the knob read 1.007).
+
+describe("reconnect after a drop", () => {
+  const sockets: FakeWebSocket[] = [];
+  beforeEach(() => {
+    sockets.length = 0;
+    FakeWebSocket.last = null;
+    class Tracked extends FakeWebSocket {
+      constructor() {
+        super();
+        sockets.push(this);
+      }
+    }
+    globalThis.WebSocket = Tracked as unknown as typeof WebSocket;
+    frames.length = 0;
+    globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) =>
+      frames.push(cb)) as typeof requestAnimationFrame;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    globalThis.WebSocket = realWs;
+    globalThis.requestAnimationFrame = realRaf;
+  });
+
+  const drop = (ws: FakeWebSocket) => {
+    ws.readyState = 3;
+    // A failed socket fires both; the second must not schedule a second retry.
+    ws.onerror?.();
+    ws.onclose?.();
+  };
+
+  it("opens a new socket after the backoff, and resends the latest controls", () => {
+    const controlsRef = {
+      current: { geometry: "x" } as unknown as SolveRequest,
+    };
+    const { result } = mount(controlsRef);
+    act(() => sockets[0].open());
+    act(() => flushFrame());
+    expect(sockets[0].sent).toHaveLength(1);
+
+    act(() => drop(sockets[0]));
+    expect(result.current.status).toBe("closed");
+    expect(sockets).toHaveLength(1);
+
+    // The knob moves while the socket is down: nothing can be sent.
+    controlsRef.current = {
+      geometry: "x",
+      length_factor: 1.007,
+    } as unknown as SolveRequest;
+    act(() => result.current.requestSolve());
+    expect(result.current.waiting).toBe(true);
+    expect(result.current.stale).toBe(true);
+
+    act(() => vi.advanceTimersByTime(RECONNECT_BASE_MS - 1));
+    expect(sockets).toHaveLength(1);
+    act(() => vi.advanceTimersByTime(1));
+    expect(sockets).toHaveLength(2); // exactly one retry, though both events fired
+
+    act(() => sockets[1].open());
+    act(() => flushFrame());
+    expect(result.current.status).toBe("open");
+    expect(result.current.waiting).toBe(false);
+    const resent = JSON.parse(sockets[1].sent[0]);
+    expect(resent.length_factor).toBe(1.007);
+  });
+
+  it("backs off, doubling to the cap, and resets once a socket opens", () => {
+    mount({ current: { geometry: "x" } as unknown as SolveRequest });
+    act(() => sockets[0].open());
+    const waits: number[] = [];
+    for (let i = 0; i < 7; i++) {
+      const n = sockets.length;
+      act(() => drop(sockets[n - 1]));
+      let t = 0;
+      while (sockets.length === n) {
+        act(() => vi.advanceTimersByTime(100));
+        t += 100;
+      }
+      waits.push(t);
+    }
+    expect(waits).toEqual([
+      500,
+      1000,
+      2000,
+      4000,
+      8000,
+      RECONNECT_MAX_MS,
+      RECONNECT_MAX_MS,
+    ]);
+
+    act(() => sockets[sockets.length - 1].open());
+    const n = sockets.length;
+    act(() => drop(sockets[n - 1]));
+    act(() => vi.advanceTimersByTime(RECONNECT_BASE_MS));
+    expect(sockets).toHaveLength(n + 1);
+  });
+
+  it("a solve in flight when the socket drops leaves the page waiting", () => {
+    const { result } = mount({
+      current: { geometry: "x" } as unknown as SolveRequest,
+    });
+    act(() => sockets[0].open());
+    act(() => flushFrame()); // seq 1 in flight
+    act(() => drop(sockets[0]));
+    expect(result.current.solving).toBe(false);
+    expect(result.current.waiting).toBe(true);
+  });
+
+  it("a drop with nothing outstanding is not stale: the result is still current", () => {
+    const { result } = mount({
+      current: { geometry: "x" } as unknown as SolveRequest,
+    });
+    act(() => sockets[0].open());
+    act(() => flushFrame());
+    act(() =>
+      sockets[0].onmessage?.({
+        data: JSON.stringify({ _seq: 1, geometry: "dipoles.probe" }),
+      } as MessageEvent),
+    );
+    act(() => drop(sockets[0]));
+    expect(result.current.waiting).toBe(false);
+    expect(result.current.stale).toBe(false);
+  });
+
+  it("unmounting closes the socket and schedules no reconnect", () => {
+    const { unmount } = mount({
+      current: { geometry: "x" } as unknown as SolveRequest,
+    });
+    act(() => sockets[0].open());
+    unmount();
+    act(() => drop(sockets[0])); // the browser's async onclose after close()
+    act(() => vi.advanceTimersByTime(RECONNECT_MAX_MS * 2));
+    expect(sockets).toHaveLength(1);
   });
 });
