@@ -355,6 +355,9 @@ on the one before.
 
 ### A1. What `build_analyses()` returns
 
+*Step 1 proposal (2026-09-28): `sweep-framework-spec.md` answers A1 with (a),
+writes all seven driving examples in it, and lists five questions for Steve.*
+
 - **(a) Declarative specs.** Small frozen dataclasses, e.g.
   `Sweep(param="length_factor", lo=0.9, hi=1.1, points=11, views=("zparam",
   "smith"))`, or `Sweep.density()` for the convergence ladder. The UI lists
