@@ -61,7 +61,7 @@ export function RxRangePopover({
           <button
             type="button"
             aria-pressed={choice.kind === "auto"}
-            title="Fit this trace (and Z*, on a density sweep), whatever the other axis does"
+            title="Fit this trace (and Z∞, the extrapolated value, on a density sweep), whatever the other axis does"
             onClick={() => onChoice(RX_AUTO)}
           >
             Auto

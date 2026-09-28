@@ -41,7 +41,7 @@ _ROW_RE = re.compile(
     r"(?P<x>[+-]?\d+\.\d+)\s+(?P<dgamma>\d+\.\d+)\s*$"
 )
 _ZSTAR_RE = re.compile(
-    r"^(?P<name>\S+)\s+Z\* = (?P<re>[+-]?\d+\.\d+)(?P<im>[+-]\d+\.\d+)j\s+"
+    r"^(?P<name>\S+)\s+Z∞ = (?P<re>[+-]?\d+\.\d+)(?P<im>[+-]\d+\.\d+)j\s+"
     r"\(shrinking: (?P<shrink>yes|no)\)$"
 )
 _HEADER_RE = re.compile(r"^== nominal_nsegs convergence: (?P<name>\S+) ==$")
@@ -280,4 +280,4 @@ def test_markers_alone_are_the_whole_ladder(capsys):
     out = capsys.readouterr().out
     rows = [ln for ln in out.splitlines() if ln.rstrip().endswith("*")]
     assert [int(ln.split()[0]) for ln in rows] == [15, 16, 20]
-    assert "Z* =" in out and "Z* unavailable" not in out
+    assert "Z∞ =" in out and "Z∞ unavailable" not in out

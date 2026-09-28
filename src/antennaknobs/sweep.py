@@ -841,11 +841,11 @@ def _print_convergence_table(
             print("  * = a --markers rung")
         z_star, shrinking = estimates[name]
         if z_star is None:
-            print(f"{name}  Z* unavailable (need >= 2 rungs)")
+            print(f"{name}  Z∞ unavailable (need >= 2 rungs)")
         else:
             verdict = "yes" if shrinking else "no"
             print(
-                f"{name}  Z* = {z_star.real:.3f}{z_star.imag:+.3f}j  "
+                f"{name}  Z∞ = {z_star.real:.3f}{z_star.imag:+.3f}j  "
                 f"(shrinking: {verdict})"
             )
 
@@ -925,7 +925,7 @@ def _sweep_convergence(
         per_engine, estimates, z0, marked=marked, ground_label=ground_label
     )
 
-    title = "impedance vs nominal_nsegs, Richardson Z*"
+    title = "impedance vs nominal_nsegs, Richardson Z∞"
     if nports > 1:
         title += f" (port 0 of {nports})"
 

@@ -1251,7 +1251,7 @@ def cli(arguments=None):
         "(#1554): int rungs, the app's own ladder [8, 12, 17, 24, 34, 48, "
         "68] by default, geometric spacing with --range/--npoints, one cold "
         "solve per rung per --engine, a table on stdout, and a Richardson "
-        "Z* per engine on the chart.",
+        "Z∞ (the extrapolated value) per engine on the chart.",
     )
     p.add_argument(
         "--range", nargs=2, default=None, type=float, help="Range for sweep."
