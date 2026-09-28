@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type MutableRefObject,
-} from "react";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { SolveRequest, SolveResponse } from "../../lib/api";
 import {
   cutsWsSend,
@@ -26,6 +21,10 @@ const WS_URL = `${window.location.protocol === "https:" ? "wss" : "ws"}://${wind
 // (#736).
 const BUSY_DWELL_MS = 1000;
 const BUSY_MIN_VISIBLE_MS = 400;
+// Reconnect backoff after the socket drops (AK#1783): 0.5 s, 1 s, 2 s, …,
+// capped. Exported for the tests.
+export const RECONNECT_BASE_MS = 500;
+export const RECONNECT_MAX_MS = 10_000;
 
 // The /ws solve channel: the socket itself, the latest-wins `_seq` protocol,
 // the busy-chrome dwell, and the two imperative entry points the component
@@ -69,7 +68,9 @@ export function useSolveChannel({
   setResult: (r: SolveResponse | null) => void;
   setSolveError: (e: string | null) => void;
 }) {
-  const [status, setStatus] = useState<"connecting" | "open" | "closed">("connecting");
+  const [status, setStatus] = useState<"connecting" | "open" | "closed">(
+    "connecting",
+  );
   const [rttMs, setRttMs] = useState<number | null>(null);
   // True whenever a main solve is outstanding (in flight or queued) — i.e. the
   // displayed analysis isn't current yet. `showBusy` is the *debounced* view of
@@ -78,6 +79,11 @@ export function useSolveChannel({
   // without a flash of busy chrome.
   const [solving, setSolving] = useState(false);
   const [showBusy, setShowBusy] = useState(false);
+  // A change the server has not seen because the socket is down (AK#1783): a
+  // solve asked for while disconnected, or one in flight when it dropped.
+  // Cleared when a socket opens, whose onopen resends the latest controls
+  // (and `solving` takes over from there).
+  const [waiting, setWaiting] = useState(false);
 
   // Timestamp (performance.now) when the busy chrome last became visible, so
   // the reveal effect can enforce a minimum-visible window. null = not shown.
@@ -107,6 +113,7 @@ export function useSolveChannel({
   const canceledThroughSeqRef = useRef(0); // drop rendering for _seq <= this
   const sentAtRef = useRef<Map<number, number>>(new Map()); // _seq → send time (RTT)
   const solveRafRef = useRef<number | null>(null); // trailing-edge rAF throttle handle
+  const everOpenedRef = useRef(false); // has any socket opened (AK#1783)
 
   // Cancel an IN-FLIGHT solve: stop waiting, discard its result, and tell the
   // server to stop computing it (AK#1712).
@@ -194,13 +201,20 @@ export function useSolveChannel({
   // even while the bar lingers out its minimum. `solving` flips false
   // immediately on result-land, so `showBusy && solving` is exactly that: dim
   // only after the dwell (showBusy) AND while genuinely still solving.
-  const stale = showBusy && solving;
+  //
+  // Waiting on a dropped socket is stale at once, with no dwell: nothing is
+  // coming until it reconnects, and until then the knobs describe a design
+  // the on-screen result does not (AK#1783).
+  const stale = (showBusy && solving) || waiting;
 
   function requestSolve() {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       // Can't send now. onopen resends controlsRef.current on (re)connect, so
-      // the latest state is solved as soon as the socket comes up.
+      // the latest state is solved as soon as the socket comes up. Until then
+      // the result on screen is not the one these controls ask for — unless
+      // the socket has never opened, where there is no result to mislabel.
+      if (everOpenedRef.current) setWaiting(true);
       return;
     }
     // Trailing-edge rAF throttle: coalesce a burst of knob changes within one
@@ -239,111 +253,162 @@ export function useSolveChannel({
 
   useEffect(() => {
     if (!active) return;
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-    // This socket's cuts sender (issue #551). A stable identity per socket
-    // so the close/cleanup handlers only deregister their OWN sender — a
-    // stale socket's late onclose must not tear down the transport a newer
-    // socket just registered.
-    const cutsSender = (msg: string): boolean => {
-      if (ws.readyState !== WebSocket.OPEN) return false;
-      ws.send(msg);
-      return true;
+    // The socket is re-created after a drop (AK#1783): before that, a closed
+    // socket stayed closed until a reload, and every view drew the last
+    // result against knobs the server never saw. `current` is the live
+    // socket; a superseded one's late events are ignored.
+    let disposed = false;
+    let retryTimer: number | null = null;
+    let attempt = 0;
+    let current: WebSocket | null = null;
+    let dropCurrentSender = () => {};
+
+    const scheduleReconnect = () => {
+      if (disposed || retryTimer !== null) return;
+      const delay = Math.min(
+        RECONNECT_MAX_MS,
+        RECONNECT_BASE_MS * 2 ** attempt,
+      );
+      attempt += 1;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = null;
+        if (!disposed) connect();
+      }, delay);
     };
-    const dropCutsSender = () => {
-      if (cutsWsSend === cutsSender) setCutsWsSend(null);
-      flushCutsWsPending();
-    };
-    ws.onopen = () => {
-      setStatus("open");
-      setCutsWsSend(cutsSender);
-      // A prior socket's in-flight responses can never arrive on this new one.
-      // Treat everything sent so far as received so `solving` can't stick true,
-      // drop stale RTT timers, then send fresh current state. StrictMode and HMR
-      // both tear the socket down + recreate it; the seq counters survive in
-      // refs, so they must never rewind below what's already been received.
-      lastReceivedSeqRef.current = lastSentSeqRef.current;
-      sentAtRef.current.clear();
-      // Deliberately unguarded: `requestSolve` schedules the same frame the
-      // send-time check below guards, so a reconnect while refused schedules
-      // a frame that then declines to send. A second check here would be
-      // unreachable — mutating it away leaves every test green — and one gate
-      // at the boundary is easier to reason about than two that must agree.
-      requestSolve();
-    };
-    ws.onclose = () => {
-      setStatus("closed");
-      dropCutsSender();
-      // No solve can progress while disconnected — collapse the outstanding
-      // count so the busy bar can't spin under a "closed" status (reconnect
-      // re-arms it via onopen).
-      lastReceivedSeqRef.current = lastSentSeqRef.current;
-      setSolving(false);
-    };
-    ws.onerror = () => {
-      setStatus("closed");
-      dropCutsSender();
-      lastReceivedSeqRef.current = lastSentSeqRef.current;
-      setSolving(false);
-    };
-    ws.onmessage = (ev) => {
-      const data: SolveResponse & Partial<CutsWsMessage> = JSON.parse(ev.data);
-      if (data._kind === "cuts") {
-        // Cuts sidecar response (issue #551) — never a solve; route it
-        // before any _seq/solving bookkeeping.
-        resolveCutsWsMessage(data as CutsWsMessage);
-        return;
-      }
-      const seq = data._seq ?? 0;
-      // One socket delivers in order, and the server may skip-send superseded
-      // results — so a higher `_seq` implicitly acknowledges every lower one.
-      // Ignore a straggler/duplicate at or below the received watermark.
-      if (seq <= lastReceivedSeqRef.current) {
-        syncSolving();
-        return;
-      }
-      lastReceivedSeqRef.current = seq;
-      // RTT from this seq's send; prune every acked entry (≤ seq) from the map —
-      // seqs skipped server-side never get their own response, so a single
-      // higher-seq arrival clears the whole run of them.
-      const sentAt = sentAtRef.current;
-      const t0 = sentAt.get(seq);
-      if (t0 !== undefined) setRttMs(performance.now() - t0);
-      for (const k of sentAt.keys()) {
-        if (k <= seq) sentAt.delete(k);
-      }
-      // Cancelled through this seq: the user bailed on it (and everything
-      // before). The watermark advanced above so `solving` can clear; just drop
-      // the result rather than rendering it.
-      if (seq <= canceledThroughSeqRef.current) {
-        syncSolving();
-        return;
-      }
-      // Drop a response for an antenna the user already switched away from: a
-      // slow in-flight solve for the previous selection must not stomp the new
-      // antenna's geometry preview (and briefly show the wrong antenna).
-      const staleGeom = !!data.geometry && data.geometry !== geometryRef.current;
-      if (!staleGeom) {
-        if (data.error) {
-          // A solve that raised (e.g. a user design's build_wires) — show the
-          // message and clear stale plot data rather than rendering an empty
-          // result on top of the last antenna.
-          setSolveError(data.error);
-          setResultRef.current(null);
-        } else {
-          setSolveError(null);
-          setResultRef.current(data);
+
+    const connect = () => {
+      const ws = new WebSocket(WS_URL);
+      current = ws;
+      wsRef.current = ws;
+      setStatus("connecting");
+      // This socket's cuts sender (issue #551). A stable identity per socket
+      // so the close/cleanup handlers only deregister their OWN sender — a
+      // stale socket's late onclose must not tear down the transport a newer
+      // socket just registered.
+      const cutsSender = (msg: string): boolean => {
+        if (ws.readyState !== WebSocket.OPEN) return false;
+        ws.send(msg);
+        return true;
+      };
+      const dropCutsSender = () => {
+        if (cutsWsSend === cutsSender) setCutsWsSend(null);
+        flushCutsWsPending();
+      };
+      dropCurrentSender = dropCutsSender;
+      ws.onopen = () => {
+        if (ws !== current) return;
+        attempt = 0;
+        everOpenedRef.current = true;
+        setWaiting(false);
+        setStatus("open");
+        setCutsWsSend(cutsSender);
+        // A prior socket's in-flight responses can never arrive on this new one.
+        // Treat everything sent so far as received so `solving` can't stick true,
+        // drop stale RTT timers, then send fresh current state. StrictMode and HMR
+        // both tear the socket down + recreate it; the seq counters survive in
+        // refs, so they must never rewind below what's already been received.
+        lastReceivedSeqRef.current = lastSentSeqRef.current;
+        sentAtRef.current.clear();
+        // Deliberately unguarded: `requestSolve` schedules the same frame the
+        // send-time check below guards, so a reconnect while refused schedules
+        // a frame that then declines to send. A second check here would be
+        // unreachable — mutating it away leaves every test green — and one gate
+        // at the boundary is easier to reason about than two that must agree.
+        requestSolve();
+      };
+      // onerror and onclose both fire for a failed socket; the first one in
+      // retires it (current = null), so the second is a no-op.
+      const lost = () => {
+        if (ws !== current) return;
+        current = null;
+        setStatus("closed");
+        dropCutsSender();
+        // A solve in flight is lost with the socket: the result on screen is
+        // not the one the knobs asked for until the reconnect resends it. A
+        // cancelled one is not waited for.
+        if (
+          lastSentSeqRef.current > lastReceivedSeqRef.current &&
+          lastSentSeqRef.current > canceledThroughSeqRef.current
+        ) {
+          setWaiting(true);
         }
-      }
-      syncSolving();
+        // No solve can progress while disconnected — collapse the outstanding
+        // count so the busy bar can't spin under a "closed" status (reconnect
+        // re-arms it via onopen).
+        lastReceivedSeqRef.current = lastSentSeqRef.current;
+        setSolving(false);
+        scheduleReconnect();
+      };
+      ws.onclose = lost;
+      ws.onerror = lost;
+      ws.onmessage = (ev) => {
+        const data: SolveResponse & Partial<CutsWsMessage> = JSON.parse(
+          ev.data,
+        );
+        if (data._kind === "cuts") {
+          // Cuts sidecar response (issue #551) — never a solve; route it
+          // before any _seq/solving bookkeeping.
+          resolveCutsWsMessage(data as CutsWsMessage);
+          return;
+        }
+        const seq = data._seq ?? 0;
+        // One socket delivers in order, and the server may skip-send superseded
+        // results — so a higher `_seq` implicitly acknowledges every lower one.
+        // Ignore a straggler/duplicate at or below the received watermark.
+        if (seq <= lastReceivedSeqRef.current) {
+          syncSolving();
+          return;
+        }
+        lastReceivedSeqRef.current = seq;
+        // RTT from this seq's send; prune every acked entry (≤ seq) from the map —
+        // seqs skipped server-side never get their own response, so a single
+        // higher-seq arrival clears the whole run of them.
+        const sentAt = sentAtRef.current;
+        const t0 = sentAt.get(seq);
+        if (t0 !== undefined) setRttMs(performance.now() - t0);
+        for (const k of sentAt.keys()) {
+          if (k <= seq) sentAt.delete(k);
+        }
+        // Cancelled through this seq: the user bailed on it (and everything
+        // before). The watermark advanced above so `solving` can clear; just drop
+        // the result rather than rendering it.
+        if (seq <= canceledThroughSeqRef.current) {
+          syncSolving();
+          return;
+        }
+        // Drop a response for an antenna the user already switched away from: a
+        // slow in-flight solve for the previous selection must not stomp the new
+        // antenna's geometry preview (and briefly show the wrong antenna).
+        const staleGeom =
+          !!data.geometry && data.geometry !== geometryRef.current;
+        if (!staleGeom) {
+          if (data.error) {
+            // A solve that raised (e.g. a user design's build_wires) — show the
+            // message and clear stale plot data rather than rendering an empty
+            // result on top of the last antenna.
+            setSolveError(data.error);
+            setResultRef.current(null);
+          } else {
+            setSolveError(null);
+            setResultRef.current(data);
+          }
+        }
+        syncSolving();
+      };
     };
+
+    connect();
     return () => {
+      disposed = true;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
       if (solveRafRef.current !== null) {
         cancelAnimationFrame(solveRafRef.current);
         solveRafRef.current = null;
       }
-      dropCutsSender(); // ws.close() fires onclose async; don't leave a dead sender up
-      ws.close();
+      dropCurrentSender(); // ws.close() fires onclose async; don't leave a dead sender up
+      const ws = current;
+      current = null; // an unmount is not a drop: no reconnect, no waiting
+      ws?.close();
     };
     // Deliberately scoped to [active] alone — the socket's lifecycle, not the
     // request state. geometryRef/controlsRef/previewSigRef are refs (read via
@@ -363,6 +428,7 @@ export function useSolveChannel({
     solving,
     showBusy,
     stale,
+    waiting,
     requestSolve,
     cancelSolve,
     seqRef,

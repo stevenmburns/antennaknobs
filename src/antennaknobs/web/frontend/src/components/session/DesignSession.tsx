@@ -1659,6 +1659,7 @@ function DesignSessionBody({
     solving,
     showBusy,
     stale,
+    waiting,
     requestSolve,
     cancelSolve,
     seqRef,
@@ -2653,6 +2654,7 @@ function DesignSessionBody({
       preview={preview}
       sweep={sweep}
       paramSweep={paramSweep}
+      paramTrail={convergeEnabled}
       measured={measured}
       pattern={pattern}
       pinnedPatterns={pinnedPatterns}
@@ -2905,7 +2907,9 @@ function DesignSessionBody({
                     <div className="status">
                       ws: {status}
                       {stale && (
-                        <span className="status-busy"> · solving…</span>
+                        <span className="status-busy">
+                          {waiting ? " · not solved: reconnecting…" : " · solving…"}
+                        </span>
                       )}
                     </div>
                   </>
@@ -3023,6 +3027,7 @@ function DesignSessionBody({
                       preview={preview}
                       sweep={sweep}
                       paramSweep={paramSweep}
+                      paramTrail={convergeEnabled}
                       measured={measured}
                       pattern={pattern}
                       pinnedPatterns={[]}
@@ -3101,7 +3106,11 @@ function DesignSessionBody({
         )}
         <div className="status">
           ws: {status}
-          {stale && <span className="status-busy"> · solving…</span>}
+          {stale && (
+            <span className="status-busy">
+              {waiting ? " · not solved: reconnecting…" : " · solving…"}
+            </span>
+          )}
         </div>
       </main>
     </div>
