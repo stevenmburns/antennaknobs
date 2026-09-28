@@ -434,3 +434,26 @@ charts, a chart's pick, its dwell switch and its range edits last for the
 session only. They are not written to `settings.toml` or to a layout.
 Keeping a chart setup means putting it in the design's `build_analyses()`,
 which step 7's "copy as analysis" makes one click.
+
+**Ruling on the existing views (Steve, 2026-09-28).** The standalone VSWR,
+S11 and Smith views are removed. They become views of analyses in the
+picker charts. The default is a chart showing a **frequency sweep on the
+Smith chart**, so the workbench opens looking about as it does today.
+
+What this carries with it:
+
+- **The freq-sweep switch goes.** A chart's own Run and dwell switch
+  replace it.
+- **Today's per-view options become chart options:** the VSWR scales
+  (1–∞, ρ) and the range popover, the SWR threshold and 2:1 readout, Smith
+  zoom, and the Smith chart's pins and param-sweep trail.
+- **One tension to settle:** today's Smith and VSWR views follow a knob
+  drag, which is the product's core ("turn a knob, watch SWR move"). Under
+  "a chart runs on Run, or after a dwell", the default chart must not lose
+  that. The options:
+  - the default chart starts with its dwell switch on and a short dwell;
+  - a frequency sweep on the design's own band is cheap enough to follow
+    the drag, as the freq sweep does now, and only slower analyses wait
+    for Run;
+  - the live single point (the measurement frequency's Z marker, its SWR
+    readout) stays live in every chart, and only the sweep waits.
