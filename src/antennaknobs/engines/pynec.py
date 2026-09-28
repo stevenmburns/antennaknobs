@@ -42,7 +42,7 @@ from ..wire_catalog import (
 from ..auto_match import design_freq_mhz as _design_freq_mhz
 from ..auto_match import make_reducer
 from ..network_reduce import C_LIGHT, poison_singular_sample
-from ._nec_wire import nec_wire_material
+from ._nec_wire import effective_default_radius, nec_wire_material
 
 _logger = logging.getLogger(__name__)
 
@@ -241,6 +241,7 @@ class PyNECEngine(SimulationEngine):
         check_intersections=True,
         extended_thin_wire_kernel=False,
         _export_current_sources=False,
+        wire_radius=None,
     ):
         """
         ground:
@@ -304,6 +305,12 @@ class PyNECEngine(SimulationEngine):
           the comparison against nec2c is kernel-for-kernel (issue #414,
           found via the momwire#156 `1MHz_tower` analysis, where near-
           resonant loads amplified the kernel difference ~10×).
+
+        wire_radius: the web slot's "wire radius (m)" field (QRZ #170). A
+          value other than 0.0005 (the field's untouched "auto" value) is the
+          default conductor radius, beating the design's
+          ``build_wire_material()`` radius; a wire's own spec beats both.
+          Same precedence as MomwireEngine.
         """
         super().__init__(builder)
         self._check_intersections = check_intersections
@@ -351,9 +358,11 @@ class PyNECEngine(SimulationEngine):
         # NEC stacks LD cards on a segment in series, so type 2 composes with
         # the type 5 conductor loss. `_nec_wire` has the derivation.
         self._wire_spec = builder.build_wire_material()
-        self._wire_radius = (
-            self._wire_spec.radius if self._wire_spec is not None else WIRE_RADIUS
-        )
+        # QRZ #170: the web slot's `wire_radius` moves the DEFAULT radius
+        # with MomwireEngine's precedence (`effective_default_radius`); a
+        # wire's own spec still wins, and the material cards are computed at
+        # the radius the GW cards carry.
+        self._wire_radius = effective_default_radius(wire_radius, self._wire_spec)
         # build_tls() is only consulted when there's no Network spec; with a
         # Network, the engine drives ex_card/tl_card calls off the spec instead.
         self.tls = [] if self._network is not None else builder.build_tls()

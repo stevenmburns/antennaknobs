@@ -65,6 +65,7 @@ def export_nec5(
     header_freq=None,
     note: str = "",
     sources=None,
+    wire_radius=None,
 ) -> str:
     """Return a NEC-5 card deck (str) for ``builder``.
 
@@ -78,9 +79,11 @@ def export_nec5(
                    card's — the catalog export names the design's own frequency
                    while writing a rung-scaled builder. Defaults to ``freq``.
     sources      : passed through to `NEC5Engine.deck` for a per-port deck.
+    wire_radius  : the web slot's radius field (QRZ #170), NEC5Engine's
+                   ``wire_radius``: 0.0005 or None is "auto" (the design's own).
     """
     freq = float(builder.freq if freq is None else freq)
-    eng = NEC5Engine(builder, ground=ground, require_exe=False)
+    eng = NEC5Engine(builder, ground=ground, require_exe=False, wire_radius=wire_radius)
     if sources is None and _network_needs_reducer(builder.build_network()):
         raise NotImplementedError(
             "NEC-5 export of TL/virtual-driver networks (and distributed "

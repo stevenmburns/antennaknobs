@@ -531,6 +531,7 @@ def build_nec_portal_script(
     ground=DEFAULT_GROUND,
     seg_per_wl: int | None = None,
     name: str | None = None,
+    wire_radius: float | None = None,
 ) -> str:
     """The SimNEC NEC-portal daemon script (the ``<equ>`` body) for an
     antenna-only ``builder``: :func:`_antenna_portal`'s script. A load on the
@@ -538,7 +539,12 @@ def build_nec_portal_script(
     :func:`_wire_loads`), so a design with one is refused here; use
     :func:`export_ssn`, which writes the whole circuit."""
     script, feed_elements = _antenna_portal(
-        builder, freq_mhz=freq_mhz, ground=ground, seg_per_wl=seg_per_wl, name=name
+        builder,
+        freq_mhz=freq_mhz,
+        ground=ground,
+        seg_per_wl=seg_per_wl,
+        name=name,
+        wire_radius=wire_radius,
     )
     if feed_elements:
         raise SsnUnsupported(
@@ -556,6 +562,7 @@ def _antenna_portal(
     ground=DEFAULT_GROUND,
     seg_per_wl: int | None = None,
     name: str | None = None,
+    wire_radius: float | None = None,
 ) -> tuple[str, list[str]]:
     """The NEC-portal script for an antenna-only ``builder``, and the series
     circuit elements for any load on its fed segment (:func:`_wire_loads`).
@@ -581,9 +588,14 @@ def _antenna_portal(
     # `nec_export.export_nec` itself: this call IS that function, so its
     # `refuse_nec2_geometry` already refuses any below-z=0 wire before a
     # SimNEC script can be built.
-    eng = PyNECEngine(builder, ground=ground)
+    eng = PyNECEngine(builder, ground=ground, wire_radius=wire_radius)
     deck = export_nec(
-        builder, ground=ground, freq=freq_mhz, include_rp=False, jacket_pair=False
+        builder,
+        ground=ground,
+        freq=freq_mhz,
+        include_rp=False,
+        jacket_pair=False,
+        wire_radius=wire_radius,
     )
     cards = _nec_cards_for_portal(deck)
     conductivity = _uniform_conductivity(_wire_conductivities(eng))
@@ -1133,7 +1145,7 @@ def _gen_sweep_block(lo: float, hi: float) -> str:
     )
 
 
-def _tuner_spans(eng, builder, ground, freeze: bool):
+def _tuner_spans(eng, builder, ground, freeze: bool, wire_radius=None):
     """The network to walk and the tuner spans in it (AK#1662). No tuner:
     the engine's network, no spans.
 
@@ -1152,7 +1164,7 @@ def _tuner_spans(eng, builder, ground, freeze: bool):
     def tuned():
         from .engines.momwire import MomwireEngine
 
-        red = MomwireEngine(builder, ground=ground)._reducer
+        red = MomwireEngine(builder, ground=ground, wire_radius=wire_radius)._reducer
         red.tune()
         return red
 
@@ -1195,6 +1207,7 @@ def export_ssn(
     sweep: tuple[float, float] | None = None,
     name: str | None = None,
     freeze_tuners: bool = False,
+    wire_radius: float | None = None,
 ) -> str:
     """Return a SimNEC ``.ssn`` (str) for ``builder`` — antenna-only, or a
     differential-only station (issue #604; see the module Scope note).
@@ -1222,6 +1235,8 @@ def export_ssn(
                  writes the tuned parts as fixed elements instead: the answer
                  for a T, an "ll" / "cc" L, or a tuner with component ranges,
                  and it re-imports as fixed values, not a tuner.
+    wire_radius : the web slot's radius field (QRZ #170), as PyNECEngine's
+                 ``wire_radius``: 0.0005 or None is "auto" (the design's own).
 
     Raises :class:`SsnUnsupported` (a ``NotImplementedError``) for networked
     designs SimNEC cannot faithfully represent — common-mode constructs
@@ -1234,12 +1249,14 @@ def export_ssn(
     # PyNECEngine raises ValueError here for PortAtEnd / PortAtVertex
     # designs — NEC-2 (and therefore SimNEC's NEC block) has no
     # junction-node port and no segment-end source (issues #579, #898).
-    eng = PyNECEngine(builder, ground=ground)
+    eng = PyNECEngine(builder, ground=ground, wire_radius=wire_radius)
     if eng._use_reducer:
         # Station path (issue #604): circuit elements from the reducer
         # branches, the antenna alone in the NEC block, driven at the
         # station's feed port.
-        net, spans = _tuner_spans(eng, builder, ground, freeze_tuners)
+        net, spans = _tuner_spans(
+            eng, builder, ground, freeze_tuners, wire_radius=wire_radius
+        )
         feed_port, walk_elements, deck_loads = _station_chain(net, freq_mhz, spans)
         cards, statements, feed_elements = _station_cards(
             eng, feed_port, deck_loads, freq_mhz
@@ -1257,7 +1274,12 @@ def export_ssn(
         walk_elements = walk_elements + feed_elements
     else:
         script, walk_elements = _antenna_portal(
-            builder, freq_mhz=freq_mhz, ground=ground, seg_per_wl=seg_per_wl, name=name
+            builder,
+            freq_mhz=freq_mhz,
+            ground=ground,
+            seg_per_wl=seg_per_wl,
+            name=name,
+            wire_radius=wire_radius,
         )
     # File order is right-to-left (LOAD … GENERATOR), so the chain lands
     # after the antenna NETWORK element in antenna→generator order.
