@@ -231,8 +231,11 @@ def test_file_given_as_design_name_suggests_the_at_form(spec, deck_dir):
 
 
 def test_file_name_with_no_such_file_still_points_at_at(deck_dir):
+    """No other.nec is here, so the hint names the form, not a path that
+    does not exist."""
     msg = _builder_error("user.other.nec")
-    assert "to load a file use --builder @other.nec" in msg
+    assert "to load a file use --builder @<path to other.nec>" in msg
+    assert "@other.nec" not in msg
 
 
 def test_python_file_name_points_at_the_user_name(deck_dir):
