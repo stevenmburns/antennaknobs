@@ -4411,6 +4411,67 @@ canvas {
 .zparam-controls select {
   max-width: 11em;
 }
+/* The analysis picker (AK#1757): the picked one's note, and every analysis
+   as Python behind a disclosure, under the header's row. */
+.zparam-analysis-extra {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 100%;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.zparam-analysis-note {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--space-1) var(--space-3);
+}
+.zparam-analysis-code > summary {
+  cursor: pointer;
+}
+.zparam-analysis-code[open] {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--space-2) var(--space-3);
+  max-height: 40vh;
+  overflow: auto;
+}
+.zparam-analysis-item + .zparam-analysis-item {
+  margin-top: var(--space-2);
+}
+.zparam-analysis-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  color: var(--fg);
+}
+.zparam-analysis-summary {
+  color: var(--muted);
+  flex: 1;
+}
+.zparam-analysis-why {
+  font-style: italic;
+}
+.zparam-analysis-copy {
+  padding: 0 var(--space-2);
+  background: var(--inset);
+  color: var(--fg);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.zparam-analysis-item pre {
+  margin: var(--space-1) 0 0;
+  padding: var(--space-1) var(--space-2);
+  background: var(--inset);
+  border-radius: var(--r-sm);
+  font-size: 11px;
+  white-space: pre;
+  overflow-x: auto;
+  user-select: text;
+}
 .zparam-reset {
   padding: 0 var(--space-2);
   background: var(--inset);
