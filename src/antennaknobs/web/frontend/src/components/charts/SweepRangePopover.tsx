@@ -26,7 +26,9 @@ import {
 
 type Field = "lo" | "hi" | "threshold";
 
-const presetsFor = (mode: SweepMode): { label: string; choice: SweepAxisChoice }[] =>
+const presetsFor = (
+  mode: SweepMode,
+): { label: string; choice: SweepAxisChoice }[] =>
   mode === "vswr"
     ? VSWR_PRESET_TOPS.map((hi) => ({
         label: `1–${formatTick(hi)}`,
@@ -70,10 +72,17 @@ export function SweepRangePopover({
       else next.delete(f);
       return next;
     });
+  // The whole-range scales (1–∞, ρ) have ∞ on top, and no linear range
+  // does. Their fields read a greyed 1 / ∞; only the max can be typed, and a
+  // max makes the range linear from 1, after which min is editable too.
+  const wholeRange = choice.kind === "reciprocal" || choice.kind === "rho";
   // The custom range edits whichever range is on screen, so typing one end
-  // keeps the other where the viewer is looking.
+  // keeps the other where the viewer is looking (from a whole-range scale,
+  // the 1 it shows).
   const custom = (patch: Partial<AxisDomain>, f: Field) => {
-    const next: SweepAxisChoice = { kind: "fixed", ...drawn, ...patch };
+    const next: SweepAxisChoice = wholeRange
+      ? { kind: "fixed", lo: 1, hi: patch.hi ?? drawn.hi }
+      : { kind: "fixed", ...drawn, ...patch };
     const ok = validChoice(mode, next);
     mark(f, !ok);
     if (ok) onChoice(next);
@@ -98,7 +107,11 @@ export function SweepRangePopover({
         style={{ left: at.x, top: at.y }}
       >
         <div className="knob-menu-title">{title}</div>
-        <div className="sweep-axis-presets" role="group" aria-label="range presets">
+        <div
+          className="sweep-axis-presets"
+          role="group"
+          aria-label="range presets"
+        >
           {/* S11 only: VSWR's 1–∞ scale (its default, below) shows every
               SWR, so VSWR has nothing for an Auto to fit. */}
           {mode === "gamma" && (
@@ -147,6 +160,11 @@ export function SweepRangePopover({
             </button>
           )}
         </div>
+        {/* What the axis is now, and what to change it to. On the two
+            whole-range scales there is no linear min/max on screen, so the
+            fields read a greyed 1 / ∞ (Dan, QRZ #170: they said 1 / 10).
+            Only the max is editable there: typing one switches to the
+            linear range from 1. */}
         <div className="knob-menu-row">
           <span>{mode === "vswr" ? "min / max" : "min / max (dB)"}</span>
           <KnobMenuNumber
@@ -154,12 +172,14 @@ export function SweepRangePopover({
             onChange={(v) => custom({ lo: v }, "lo")}
             invalid={invalid.has("lo")}
             onRevert={() => mark("lo", false)}
+            {...(wholeRange ? { placeholder: "1", disabled: true } : {})}
           />
           <KnobMenuNumber
             value={round(drawn.hi)}
             onChange={(v) => custom({ hi: v }, "hi")}
             invalid={invalid.has("hi")}
             onRevert={() => mark("hi", false)}
+            {...(wholeRange ? { placeholder: "∞" } : {})}
           />
         </div>
         <div className="knob-menu-row">

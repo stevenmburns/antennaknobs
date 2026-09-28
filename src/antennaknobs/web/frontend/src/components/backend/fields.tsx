@@ -38,6 +38,8 @@ export function KnobMenuNumber({
   onChange,
   invalid,
   onRevert,
+  placeholder,
+  disabled,
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -46,6 +48,14 @@ export function KnobMenuNumber({
   /** Called after a blur/Escape revert, so the caller can clear its own
    *  `invalid` for this field along with the text. */
   onRevert?: () => void;
+  /** Show this greyed text instead of `value` until the user types, for a
+   *  field whose `value` is not what is on screen (the range popover's
+   *  whole-range scales: "1" and "∞"). Clearing the field returns to it
+   *  rather than reading as invalid. */
+  placeholder?: string;
+  /** Not editable (shown greyed, e.g. the range popover's min on a
+   *  whole-range scale). */
+  disabled?: boolean;
 }) {
   const [draft, setDraft] = useNumericDraft(value);
   const [textInvalid, setTextInvalid] = useState(false);
@@ -54,15 +64,23 @@ export function KnobMenuNumber({
     setTextInvalid(false);
     onRevert?.();
   };
+  // Untouched, a placeholder field shows its placeholder, not `value`.
+  const shown = placeholder != null && draft === String(value) ? "" : draft;
   return (
     <input
       type="number"
       step="any"
-      value={draft}
+      value={shown}
+      placeholder={placeholder}
+      disabled={disabled}
       data-invalid={invalid || textInvalid || undefined}
       aria-invalid={invalid || textInvalid || undefined}
       onChange={(e) => {
         const text = e.target.value;
+        if (placeholder != null && text.trim() === "") {
+          revert(); // cleared: back to the placeholder, not an error
+          return;
+        }
         setDraft(text); // allow "", partial, or leading-zero input while typing
         if (text.trim() === "") {
           setTextInvalid(true); // empty: don't commit (no snap to 0)
