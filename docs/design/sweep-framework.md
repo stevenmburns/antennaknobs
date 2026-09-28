@@ -1,6 +1,6 @@
 # The workbench sweep framework: a deliberate design arc
 
-Status: **step 1 (inventory) complete**, §1 and §2. Nothing in this document is decided yet.
+Status: **step 1 (inventory) complete** (§1, §2); §3 holds *candidate* principles for step 2. Nothing in this document is decided yet.
 
 This arc is about how the workbench's sweeps, the graphs that draw them, and
 comparison ("pinning") fit together. It continues AK#1757 phase 2: the
@@ -245,6 +245,50 @@ not decisions:
 
 ---
 
-## §3. Principles *(step 2, not started)*
+## §3. Principles *(step 2: candidates only, not agreed)*
+
+A starting list for Steve to accept, reject or rewrite. None of these is
+decided, and each names the tension it would settle. They are drawn from §1
+and §2; the order is not a ranking.
+
+1. **The workbench answers "what does turning this knob do?", and the CLI
+   answers "show everyone."** Keep the workbench's sweep surface to what an
+   interactive session needs. Leave publication charts (panels, overlays of
+   many engines, callouts) to the CLI and scripts, which already do them.
+   *Tension:* Dan asked for engine overlays in the workbench (#166).
+2. **One sweep concept, and several ways to draw it.** A sweep is (the
+   swept variable, its grid, a solve context). Frequency, density and a knob
+   differ only in the variable. VSWR, S11, R/X and the Smith trail are
+   projections of the same trace. (The VNA's channel/trace/window split;
+   SimSmith's one sweep menu.) *Tension:* frequency has refinement, band
+   anchoring and the dial; the parameter sweeps have Richardson and Stop/Run.
+3. **A pin says what it is.** A pinned sweep is a snapshot of data, taken
+   under a recorded context: design, knobs, engine, ground, z0. It is shown
+   with that context, and it is never silently recomputed. (VNA memory, ADS
+   Store, Shneiderman's "save the items" vs "save the settings".)
+   *Tension:* a recipe that recomputes stays comparable after an engine fix.
+4. **Stale is visible, never silent.** When the live context departs from a
+   pin's, the pin says so, like the VNA's invalidate-or-interpolate rule and
+   the Z-vs-param view's dimming. *Tension:* too many warnings become noise.
+5. **Superposition first, with a hard cap.** Comparison overlays on the same
+   axes, in a few fixed-colour slots (instruments 4; Gleicher: poor past 2
+   or 3), with an explicit-difference readout rather than more curves. The
+   pattern pins' 4 slots are the precedent. *Tension:* a family sweep
+   (knob × frequency) wants more than 4 curves.
+6. **One graph by default; more only when the axes differ.** A second graph
+   earns its place when its x or y cannot be shared (Wang Baldonado's
+   parsimony; TradingView's per-pane y over a shared x). *Tension:* your "one
+   to begin with, then split".
+7. **Nothing the user did not ask for runs.** Residency and switches start
+   sweeps today, and the knob sweep runs only when asked (#1759). Pins never
+   start solves. *Tension:* the density sweep runs automatically when its
+   view is resident.
+8. **The same numbers in both tools.** The workbench and the CLI compute S11,
+   Z* and the ladders one way (§1.6 items 9 and 10), so a number quoted from
+   either is the same measurement.
+9. **Words mean one thing.** Define "sweep", "trace", "pin", "reference" and
+   "stale" once, in this document, and use them in the UI and the docs
+   (§2 axis 12).
+
 
 ## §4. Decision axes *(step 3, not started)*
