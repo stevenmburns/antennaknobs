@@ -427,3 +427,10 @@ The line to watch: an analysis's sweep range is an input to the analysis
 but not to the design, so it belongs on the chart too. The measurement
 frequency dial, the design's own, stays left. Step 5's design should state
 which side every control lands on.
+
+**Ruling on persistence (Steve, 2026-09-28): only the `.py` file is
+remembered between sessions.** The analyses are specified there. Duplicated
+charts, a chart's pick, its dwell switch and its range edits last for the
+session only. They are not written to `settings.toml` or to a layout.
+Keeping a chart setup means putting it in the design's `build_analyses()`,
+which step 7's "copy as analysis" makes one click.
