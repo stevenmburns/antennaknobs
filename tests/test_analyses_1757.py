@@ -23,12 +23,14 @@ from __future__ import annotations
 
 import importlib
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 from antennaknobs import analyses as an
+from antennaknobs import analysis_run as ar
 from antennaknobs.builder import AntennaBuilder
 from antennaknobs.cli import cli, get_builder
 
@@ -565,3 +567,42 @@ def test_a_density_knob_named_directly_with_lin_is_refused_when_listed():
 
     a = an.Analysis("nsegs lin", an.Sweep("nominal_nsegs", 8, 68, spacing="lin"))
     assert any("plays the density role" in p for p in an.problems(a, Builder()))
+
+
+# ── a view the design defines itself ──────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class _Gain(an.View):
+    """A design's own view class: no view antennaknobs draws."""
+
+
+@dataclass(frozen=True)
+class _MyMap(an.Map):
+    """A subclass of a planned view is that view."""
+
+
+def test_a_views_own_class_is_refused_by_name_not_a_keyerror():
+    # Alone, it refuses the analysis in the CLI; beside Rx, it is left out
+    # and the rest runs. Both name it and list the views that exist, and
+    # neither claims `analyze` draws it (it was a bare KeyError, AK#1757).
+    alone = an.Analysis("g", an.Sweep("angle_deg", 0, 60, points=5), views=(_Gain(),))
+    mixed = an.Analysis(
+        "gm", an.Sweep("angle_deg", 0, 60, points=5), views=(an.Rx(), _Gain())
+    )
+    (gap,) = ar.cli_gaps(alone)
+    assert gap.startswith("the _Gain view: not a view antennaknobs draws")
+    assert "an.Rx()" in gap and "an.Knobs()" in gap
+    assert ar.skipped_views(mixed) == [gap]
+    assert ar.cli_gaps(mixed) == []
+    from antennaknobs.web import analyses_offer as ao
+
+    (why,) = ao.gaps(alone)
+    assert why == gap
+
+
+def test_a_subclass_of_a_planned_view_takes_that_views_step():
+    a = an.Analysis("m", an.Sweep("angle_deg", 0, 60, points=5), views=(_MyMap(),))
+    assert ar.cli_gaps(a) == [
+        "the _MyMap view: not in the CLI yet (sweep-framework step 5)"
+    ]

@@ -58,8 +58,12 @@ def _later(what: str, step: int) -> str:
 def _view_gap(v: an.View, sweep: str) -> str:
     """Why the workbench does not draw view ``v`` of a ``sweep`` sweep."""
     name = f"the {type(v).__name__} view"
-    if type(v) in _VIEW_STEP:
-        return _later(name, _VIEW_STEP[type(v)])
+    unknown = ar.not_a_view(v)
+    if unknown:
+        return unknown
+    step = next((s for cls, s in _VIEW_STEP.items() if isinstance(v, cls)), None)
+    if step is not None:
+        return _later(name, step)
     if sweep == "frequency":
         # Rx: R and X against a knob is the Z-vs-parameter view's; R and X
         # against frequency is a chart of its own, not drawn yet.
@@ -68,6 +72,12 @@ def _view_gap(v: an.View, sweep: str) -> str:
         f"{name} of a knob sweep: the Z-vs-parameter view draws R and X; "
         "`antennaknobs analyze` draws it"
     )
+
+
+def _frequency_view(v: an.View) -> str | None:
+    """The served name of a frequency-sweep view (a subclass is its base),
+    or None."""
+    return next((n for cls, n in _FREQUENCY_VIEWS.items() if isinstance(v, cls)), None)
 
 
 def _is_frequency(a: an.Analysis) -> bool:
@@ -131,12 +141,12 @@ def _frequency(a: an.Analysis, builder) -> dict:
     """A runnable frequency analysis as the workbench's frequency sweep."""
     r = ar.frequency_range(a.sweep, builder)
     absolute = r.level in ("analysis", "file", "design")
-    views = [_FREQUENCY_VIEWS[type(v)] for v in a.views if type(v) in _FREQUENCY_VIEWS]
+    views = [n for v in a.views if (n := _frequency_view(v))]
     swr = next((v for v in a.views if isinstance(v, an.Swr)), None)
     left = [
         f"left out: {_view_gap(v, 'frequency')}"
         for v in a.views
-        if type(v) not in _FREQUENCY_VIEWS
+        if not _frequency_view(v)
     ]
     note = "; ".join(filter(None, [_note(a, deck_density=False), *left])) or None
     return {

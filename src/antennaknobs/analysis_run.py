@@ -56,6 +56,28 @@ def _later(what: str, step: int) -> str:
     return f"{what}: not in the CLI yet (sweep-framework step {step})"
 
 
+def view_step(v: an.View) -> int | None:
+    """The step that brings view ``v``, or None when none plans it. By
+    isinstance, so a subclass of a planned view is that view."""
+    return next((step for cls, step in _VIEW_STEP.items() if isinstance(v, cls)), None)
+
+
+def not_a_view(v: an.View) -> str | None:
+    """Why ``v`` is no view antennaknobs draws or plans (a design's own
+    `analyses.View` subclass), or None when it is one."""
+    if isinstance(v, (*_RUNS, *_VIEW_STEP)):
+        return None
+    drawn = ", ".join(f"an.{c.__name__}()" for c in (*_RUNS, *_VIEW_STEP))
+    return (
+        f"the {type(v).__name__} view: not a view antennaknobs draws "
+        f"(the views are {drawn})"
+    )
+
+
+def _view_later(v: an.View) -> str:
+    return not_a_view(v) or _later(f"the {type(v).__name__} view", view_step(v))
+
+
 def cli_gaps(a: an.Analysis) -> list[str]:
     """What refuses ``a`` as a whole in the CLI."""
     out = []
@@ -67,9 +89,7 @@ def cli_gaps(a: an.Analysis) -> list[str]:
     if a.hold is not None:
         out.append(_later("hold (optimise at each point)", _HOLD_STEP))
     if not any(isinstance(v, _RUNS) for v in a.views):
-        out += [
-            _later(f"the {type(v).__name__} view", _VIEW_STEP[type(v)]) for v in a.views
-        ]
+        out += [_view_later(v) for v in a.views]
     return out
 
 
@@ -77,11 +97,7 @@ def skipped_views(a: an.Analysis) -> list[str]:
     """Views left out of a run that draws at least one view."""
     if not any(isinstance(v, _RUNS) for v in a.views):
         return []
-    return [
-        _later(f"the {type(v).__name__} view", _VIEW_STEP[type(v)])
-        for v in a.views
-        if not isinstance(v, _RUNS)
-    ]
+    return [_view_later(v) for v in a.views if not isinstance(v, _RUNS)]
 
 
 def _fmt(v) -> str:
