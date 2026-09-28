@@ -30,12 +30,15 @@ import numpy as np
 
 from . import analyses as an
 
-# The sweep-framework step each refused piece is planned for. A proposal:
-# the spec orders the work (CLI first) but does not number it past step 2.
-_VIEW_STEP = {an.Swr: 3, an.S11: 3, an.Smith: 3, an.Map: 4, an.Knobs: 5}
-_CROSS_STEP = {"planes": 4, "designs": 4, "step": 4}
-_FREQUENCY_STEP = 3
-_HOLD_STEP = 5
+# The sweep-framework step each refused piece is planned for (Steve,
+# 2026-09-28): 3 the workbench lists and runs analyses in today's views; 4
+# the frequency sweep and the SWR/S11/Smith views; 5 planes, designs,
+# families and the map; 6 hold; 7 the UI writes the Python, and the deck
+# stub.
+_VIEW_STEP = {an.Swr: 4, an.S11: 4, an.Smith: 4, an.Map: 5, an.Knobs: 6}
+_CROSS_STEP = {"planes": 5, "designs": 5, "step": 5}
+_FREQUENCY_STEP = 4
+_HOLD_STEP = 6
 _RUNS = (an.Rx, an.Table)
 
 

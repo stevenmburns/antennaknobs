@@ -200,7 +200,7 @@ def test_a_role_and_a_name_meeting_on_one_knob_is_refused_when_listed():
 
 
 def test_analyze_refuses_a_hold_by_name(capsys):
-    why = "hold (optimise at each point): not in the CLI yet (sweep-framework step 5)"
+    why = "hold (optimise at each point): not in the CLI yet (sweep-framework step 6)"
     with pytest.raises(SystemExit, match=re.escape(why)):
         cli(["analyze", "--builder", "dipoles.invvee", "--analysis", "match vs height"])
     cli(["analyze", "--builder", "dipoles.invvee", "--list"])
@@ -506,10 +506,10 @@ def test_an_engine_refusing_the_design_is_a_named_cell(monkeypatch, capsys, tmp_
     [
         (
             "tuning family",
-            "a cross over step: not in the CLI yet (sweep-framework step 4)",
+            "a cross over step: not in the CLI yet (sweep-framework step 5)",
         ),
-        ("tuning map", "a two-sweep map: not in the CLI yet (sweep-framework step 4)"),
-        ("band SWR", "the Swr view: not in the CLI yet (sweep-framework step 3)"),
+        ("tuning map", "a two-sweep map: not in the CLI yet (sweep-framework step 5)"),
+        ("band SWR", "the Swr view: not in the CLI yet (sweep-framework step 4)"),
     ],
 )
 def test_what_step_2_cannot_run_is_refused_by_name(name, why):
@@ -521,3 +521,48 @@ def test_code_prints_the_analysis(capsys):
     cli(["analyze", "--builder", "dipoles.invvee", "--analysis", "height", "--code"])
     code = capsys.readouterr().out
     assert eval(code, {"an": an}) == _examples()["E3"][0]
+
+
+# ── Steve's 2026-09-28 rulings: names and spacing ────────────────────────────
+
+
+def test_two_own_analyses_with_one_name_are_refused_with_the_fix(monkeypatch, capsys):
+    """Names pick one analysis, so two alike refuse, and say how to fix it."""
+    from antennaknobs.designs.dipoles.invvee import Builder
+
+    twins = [an.convergence(), an.convergence(cross=an.Cross(grounds=("free",)))]
+    monkeypatch.setattr(Builder, "build_analyses", lambda self: twins)
+    msg = an.problems(twins[0], Builder())
+    assert msg == [
+        "REFUSED: 2 analyses are named 'convergence'; give one a name= "
+        '(e.g. an.convergence(name="…", …))'
+    ]
+
+
+def test_a_design_analysis_replaces_the_library_one_of_its_name():
+    """E1 is the invvee's own "convergence": it replaces the generic one and
+    is not a duplicate of it."""
+    from antennaknobs.designs.dipoles.invvee import Builder
+
+    b = Builder()
+    conv = [a for a in an.offered(b) if a.name == "convergence"]
+    assert len(conv) == 1 and conv[0].crosses
+    assert not any("named" in p for p in an.problems(conv[0], b))
+
+
+def test_spacing_none_is_the_sweeps_own_and_prints_nothing():
+    s = an.Sweep(an.DENSITY, 10, 500, points=20)
+    assert s.spacing is None
+    assert "spacing" not in an.to_code(an.convergence(sweep=s))
+
+
+def test_a_linear_density_ladder_is_refused():
+    with pytest.raises(ValueError, match="density ladder is geometric"):
+        an.Sweep(an.DENSITY, 10, 500, points=20, spacing="lin")
+
+
+def test_a_density_knob_named_directly_with_lin_is_refused_when_listed():
+    from antennaknobs.designs.dipoles.invvee import Builder
+
+    a = an.Analysis("nsegs lin", an.Sweep("nominal_nsegs", 8, 68, spacing="lin"))
+    assert any("plays the density role" in p for p in an.problems(a, Builder()))
