@@ -509,7 +509,6 @@ def test_an_engine_refusing_the_design_is_a_named_cell(monkeypatch, capsys, tmp_
             "a cross over step: not in the CLI yet (sweep-framework step 5)",
         ),
         ("tuning map", "a two-sweep map: not in the CLI yet (sweep-framework step 5)"),
-        ("band SWR", "the Swr view: not in the CLI yet (sweep-framework step 4)"),
     ],
 )
 def test_what_step_2_cannot_run_is_refused_by_name(name, why):
