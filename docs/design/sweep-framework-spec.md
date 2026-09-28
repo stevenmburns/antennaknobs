@@ -217,8 +217,8 @@ def build_analyses(self):
     ]
 ```
 
-**E7, two feed spellings on one convergence chart** (NEC-2 × apex is a
-refused cell):
+**E7, two feed spellings on one convergence chart** (2 × 3 = 6 curves, the
+cap; razor-2p stands in for NEC-5; NEC-2 × apex is the refused cell):
 
 ```python
 def build_analyses(self):
@@ -226,9 +226,7 @@ def build_analyses(self):
         an.convergence(
             cross=(
                 an.Cross(designs=("dipoles.invvee", "dipoles.invvee_apex")),
-                an.Cross(
-                    engines=("momwire:bspline", "momwire:razor-2p", "nec5", "nec2")
-                ),
+                an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec2")),
             ),
         ),
     ]
