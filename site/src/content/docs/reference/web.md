@@ -1221,6 +1221,31 @@ On the chart:
 The sweep solves on the **active slot's engine**. Switch slots to see
 another engine's curve (one panel per engine is planned).
 
+### A design's analyses
+
+The header's **analysis** list holds the sweeps the design names as worth
+running: the same list as `antennaknobs analyze --list` (see
+[Analyses](/reference/cli/#analyses)). Pick one and the header takes its
+parameter, range, points and spacing, and runs it. On the inverted V,
+**height** sweeps `base` from 2 to 20 m in 37 points and **convergence** runs
+the density ladder, the same values the command line solves.
+
+The view draws one curve, so an analysis that compares several draws this
+session's one. **height** is crossed over three grounds; the workbench draws
+the ground you have set, and a note under the header says so and that
+`antennaknobs analyze` draws all three. A deck's own segment knob runs as a
+knob sweep over the density ladder, with `Z∞` on the command line only for
+now.
+
+What the view cannot draw yet is listed greyed out, with the reason as its
+tooltip: a frequency sweep, the SWR, S11 and Smith views, a map, a family
+over a second knob, and a match held at every point. Each reason names the
+step of the sweep framework it is planned for.
+
+**analyses as Python**, under the header, shows every analysis as the Python
+that makes it, with **copy**, ready to paste into a design's
+`build_analyses()`.
+
 :::caution[A density sweep on a gap-fed design measures the feed gap]
 Many catalog dipoles and loops are fed across a short **feed wire** (0.1 m on
 the inverted V). On an engine that models the source as a **delta gap** —
