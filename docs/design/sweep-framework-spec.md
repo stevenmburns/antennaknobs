@@ -379,3 +379,25 @@ Both shipped in v0.91.0.
    It is related to A3, where user analyses live: a quantity a user defines
    is only useful across antennas if something other than one design can
    hold it.
+
+**Ruling on question 1 (Steve, 2026-09-28).** Step 4's workbench shape is
+inconsistent. Picking "band SWR" in the Z vs parameter header jumps to a
+different chart, and that chart draws nothing when the freq-sweep switch is
+off in the Smith or VSWR view. The direction:
+
+- **A chart with its own analysis picker.** Picking an analysis draws it in
+  that chart, whatever it sweeps (a knob or the frequency). It does not hand
+  off to another view, and it does not depend on a switch elsewhere.
+- **Duplicate the chart window**, so a second, third or fourth chart can
+  each pick an analysis.
+
+This answers "more than one sweep graph": several charts, each with a
+picker. Questions it leaves for the design:
+
+- does a chart re-run live while a knob drags, or on Run as the Z vs
+  parameter view does today? Several charts under the one-solve-at-a-time
+  scheduler multiply the cost of live;
+- how does the picker chart relate to the existing VSWR / S11 / Smith views
+  and the freq-sweep switch: does it replace them, or do they stay as the
+  live views?
+- do duplicated charts persist in `settings.toml` or a layout?
