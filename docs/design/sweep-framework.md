@@ -1,6 +1,11 @@
 # The workbench sweep framework: a deliberate design arc
 
-Status: **step 1 (inventory) complete** (§1, §2); §3 holds *candidate* principles for step 2. Nothing in this document is decided yet.
+Status:
+
+- **Step 1 (inventory) is complete** (§1, §2).
+- **One principle is decided**, 2026-09-28: an analysis is Python (§3.1).
+- The rest of §3 is still *candidate* principles for step 2.
+- §4 opens the first decision axes that §3.1 creates. None of them is decided.
 
 This arc is about how the workbench's sweeps, the graphs that draw them, and
 comparison ("pinning") fit together. It continues AK#1757 phase 2: the
@@ -174,6 +179,13 @@ not design:
    workbench's S11 is 20·log10\|Γ\|. *(verified)*
 10. The two tools compute Z* differently (§1.5).
 
+*Addendum, 2026-09-28.* Three of these were fixed after the inventory:
+
+- **Item 3** (the Smith trail ignored its switch): #1784.
+- **Item 9** (the CLI's 10·log10\|Γ\|): #1775.
+- **Item 10** (two Z* estimators): #1782. Z* is now Z∞, one estimator in
+  both tools, against the achieved segment count.
+
 ---
 
 ## §2. How other interfaces do it
@@ -245,7 +257,51 @@ not decisions:
 
 ---
 
-## §3. Principles *(step 2: candidates only, not agreed)*
+## §3. Principles
+
+### §3.1 Decided: an analysis is Python (Steve, 2026-09-28, #1757)
+
+> A lot of work can go into setting up a plot, and with our UI there is no
+> good way to save that work so that it can be repeated later or reused to
+> generate the same chart on other antennas. SimNEC has a way to store this in
+> their data model. We don't really have one, and probably don't really want
+> one. I think we need to go back to our Python first principle and describe
+> the sweeps using Python commands. We can have the UI suggest the right
+> sequence of commands, but that is how it should be stored. This is a bit of
+> a departure from our work with Dan, but that is okay. We need a
+> build_analyses() method in our Builder class to set up the analyses we want,
+> and we can choose from them in the UI. The .nec and .ssn input paths should
+> create a stub that inputs the file, but allows us to add plot specs through
+> this new method.
+
+What follows from it:
+
+- **The recipe lives in Python.** A design's analyses come from
+  `Builder.build_analyses()`, in the design's own file. Designs, knobs and
+  variants are already Python, so analyses become diffable, reviewable and
+  shareable, with no stored data model to version.
+- **The UI chooses, runs and suggests; it does not store.** It lists a
+  design's analyses and runs the one picked. It can turn what the user set up
+  into code to paste, as the Tools menu's "copy the current knob values as a
+  paste-ready Python default_params block" already does for knobs.
+- **A deck gets a stub.** A `.nec` or `.ssn` input becomes a small Python
+  design that loads the file and adds `build_analyses()`.
+- **It retires two of §2's axes.** What a pin's recipe is (axis 1) is Python,
+  and where recipes persist (axis 10) is a file.
+- **Accepted cost:** users who do not write Python, Dan's side of the
+  workbench, depend on the UI generating the code for them.
+
+Consequences for the candidates below:
+
+- Principle 3 (a pin says what it is) now splits cleanly: the *analysis* is
+  the recipe, in Python, and a *pin* is data captured from one run of it,
+  under a recorded context.
+- Principle 7 (nothing runs unasked) constrains §3.1's shape: an analysis must
+  be a declarative spec that can be listed without solving (§4, axis A1).
+- Principle 8 (the same numbers in both tools) becomes structural if the CLI
+  can run the same named analysis.
+
+### §3.2 Candidates *(step 2: not agreed)*
 
 A starting list for Steve to accept, reject or rewrite. None of these is
 decided, and each names the tension it would settle. They are drawn from §1
@@ -291,4 +347,61 @@ and §2; the order is not a ranking.
    (§2 axis 12).
 
 
-## §4. Decision axes *(step 3, not started)*
+## §4. Decision axes *(step 3)*
+
+§3.1 opens these first. Each lists options and what they trade. None is
+decided; they are taken one at a time, in this order, because each depends
+on the one before.
+
+### A1. What `build_analyses()` returns
+
+- **(a) Declarative specs.** Small frozen dataclasses, e.g.
+  `Sweep(param="length_factor", lo=0.9, hi=1.1, points=11, views=("zparam",
+  "smith"))`, or `Sweep.density()` for the convergence ladder. The UI lists
+  them without solving, the CLI and the workbench read the same object, and a
+  spec prints back as the code that made it, which is what the UI's
+  "suggest the commands" needs.
+- **(b) Imperative calls** that run the sweeps when invoked. This is the most
+  flexible, but nothing can be listed or shown without executing it, which
+  breaks §3.2 principle 7 and makes the UI's picker a runner.
+- **(c) Specs plus an escape hatch.** Like (a), with an optional
+  `custom=callable` for what the spec language cannot say, which the
+  workbench shows only as "runs in the CLI".
+
+### A2. Reuse across antennas
+
+The comment asks for "the same chart on other antennas". A method on one
+design only reaches that design.
+
+- **(a) A shared library of named factories** (`analyses.convergence()`,
+  `analyses.band_swr("20m")`, `analyses.knob(name, span=0.2)`) that any
+  `build_analyses()` composes. The workbench can also offer the library's
+  generic analyses on any design, with no code.
+- **(b) Inheritance only.** A family base class defines the analyses and its
+  designs inherit them. This works within a family, not across them.
+- **(c) Both,** with (a) as the unit of reuse and (b) for family defaults.
+
+### A3. Where a user's analyses live for a design they cannot edit
+
+The catalog is installed read-only, and a deck is not Python.
+
+- **(a) A user design that subclasses the catalog one** (`user.<name>`) and
+  adds `build_analyses()`. It uses the existing user-design mechanism and
+  its trust gate.
+- **(b) A sidecar file per design** in the user config directory, beside
+  settings.toml, holding only a `build_analyses()`, merged with the design's
+  own.
+- **(c) The UI writes (a) or (b) for the user** ("save these analyses"), so
+  the Python is generated rather than typed.
+
+### A4. The deck stub
+
+- **(a) A generated `.py` next to the deck**: a `Builder` that loads the
+  deck through the existing importer (`builder_from_file`) and adds
+  `build_analyses()`.
+- **(b) An in-memory stub** with analyses from a sidecar (A3 b), so nothing
+  is written next to the user's deck.
+
+Later axes, not opened yet: pins as data captured from an analysis run (§2
+axes 2 and 3), engines and ground in a spec, and how many graphs an analysis
+may ask for (§3.2 principle 6).
