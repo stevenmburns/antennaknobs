@@ -324,3 +324,58 @@ The step-2 build (#1786) surfaced five questions:
 
    The CLI leads each capability, and the workbench follows it from step 3
    on.
+
+## Steps 3 and 4 done; questions before step 5 (2026-09-28)
+
+Step 3 merged as #1788 (the workbench's analysis picker) and step 4 as #1790
+(frequency analyses, the SWR / S11 / Smith views, one default-range rule).
+Both shipped in v0.91.0.
+
+**Rulings on #1790 (Steve):**
+
+1. **The band policy applies to `sweep --swr` too.** With no `--range`, a
+   band-locked design sweeps its band, the same rule `analyze` and the
+   workbench read.
+2. **The views no step planned get one, step 5:** the workbench's table,
+   R/X against frequency, and a frequency analysis given explicit values
+   rather than a range.
+
+**Open questions for step 5.** Each needs a ruling before code.
+
+1. **More than one sweep graph** (§3.2 principle 6). Today the workbench
+   draws one chart per view. Step 5's crosses and families need several
+   curves on one chart. Do we also want several charts at once, or does one
+   chart with a picker stay the rule?
+2. **A cross the workbench cannot draw whole.** Today it runs the session's
+   own cell, with a note. Step 5's crosses over planes, designs and families
+   draw every cell. Does the engines × grounds cross follow suit, or does
+   "the session's cell" remain the workbench's answer for those?
+3. **Views and quantities a design defines itself (A1 (c)).** Today the
+   declarative half of `an` is open and the computing half is closed:
+   - **Open:** a design can write its own library-style functions (anything
+     returning an `an.Analysis`) and its own roles (`an.Role("tilt")` with
+     `"role": "tilt"` on the knob).
+   - **Closed:** the views (Rx, Swr, S11, Smith, Table, Map, Knobs), the
+     kinds of cross, and the quantities, all derived from the driving-point
+     Z. There is no gain, F/B or pattern quantity, and no `custom=callable`.
+     A design's own `View` subclass is refused by name, "not a view
+     antennaknobs draws" (#1793; it was a bare `KeyError`).
+
+   Options:
+   - (a) **Stay closed.** Add built-in views as examples need them. Gain
+     against frequency or height is the obvious next one.
+   - (b) **A quantity view.** A design supplies a function from a solved
+     antenna to one number, with its label and unit, and the generic line
+     chart draws it against the sweep. This needs two rulings: what the
+     function is given (Z only is cheap; the far field costs a pattern per
+     point), and running design code in the workbench (the trust gate
+     already covers it, since a design is code).
+   - (c) **`custom=callable` per analysis.** The most general, and the
+     hardest to draw generically or print back as Python.
+
+   **Recommendation:** (b), after (a)'s built-in gain view. (b) keeps
+   analyses declarative, and gain gives it a first real example.
+
+   It is related to A3, where user analyses live: a quantity a user defines
+   is only useful across antennas if something other than one design can
+   hold it.
