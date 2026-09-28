@@ -97,9 +97,7 @@ def _examples() -> dict[str, list[an.Analysis]]:
             an.convergence(
                 cross=(
                     an.Cross(designs=("dipoles.invvee", "dipoles.invvee_apex")),
-                    an.Cross(
-                        engines=("momwire:bspline", "momwire:razor-2p", "nec5", "nec2")
-                    ),
+                    an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec2")),
                 ),
             )
         ],
