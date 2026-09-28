@@ -1,14 +1,25 @@
-"""What the workbench can run of a design's analyses (AK#1757, step 3).
+"""What the workbench can run of a design's analyses (AK#1757, steps 3-4).
 
 ``POST /analyses`` lists a design's offered analyses (`analyses.offered`),
 each with its one-line summary, its Python, its problems, and a
-``workbench`` entry saying how the Z-vs-parameter view runs it:
+``workbench`` entry saying how the workbench runs it:
 
-- ``{runs: True, param, values, log, note}``: ``param`` and ``values`` are
-  exactly what ``/param_sweep`` takes. The values come from the same
-  functions ``antennaknobs analyze`` sweeps (`analysis_run.knob_xs`,
+- ``{runs: True, kind: "knob", param, values, log, note}``: the
+  Z-vs-parameter view. ``param`` and ``values`` are exactly what
+  ``/param_sweep`` takes. The values come from the same functions
+  ``antennaknobs analyze`` sweeps (`analysis_run.knob_xs`,
   `analysis_run.density_rungs`), so a picked analysis and the CLI solve one
   ladder;
+- ``{runs: True, kind: "frequency", range, level, points, views, swr,
+  note}``: the frequency sweep (step 4). ``range`` is the span and grid
+  `analysis_run.frequency_range` resolves, in ``/examples``'
+  ``sweep_range`` shape, when it is absolute (the analysis's own, or the
+  design's: ``level`` "analysis", "file" or "design"); None when it is the
+  band policy (``level`` "policy" / "default"), which is relative to the
+  session's band and so is the frontend's to place. ``points`` is the
+  analysis's own count, or None. ``views`` are the ones the workbench draws
+  ("Swr", "S11", "Smith"), in the analysis's order; ``swr`` is the Swr
+  view's ``scale`` and the ``Ref`` threshold;
 - ``{runs: False, why}``: why the workbench cannot draw it yet, one
   string (reasons joined by "; "), each naming the sweep-framework step it
   is planned for, or the problem `analyses.problems` found.
@@ -27,9 +38,15 @@ from .. import analysis_run as ar
 from .param_sweep import DENSITY, ParamSweepError, sweep_values
 
 # The sweep-framework step each piece the workbench cannot draw yet is
-# planned for (Steve, 2026-09-28): 4 the frequency sweep and the SWR / S11 /
-# Smith views; 5 planes, designs, families and the map; 6 hold.
-_VIEW_STEP = {an.Swr: 4, an.S11: 4, an.Smith: 4, an.Map: 5, an.Knobs: 6, an.Table: 4}
+# planned for (Steve, 2026-09-28): 5 planes, designs, families and the map;
+# 6 hold.
+_VIEW_STEP = {an.Map: 5, an.Knobs: 6}
+# Views no step of the plan brings to the workbench, and what serves them.
+_UNPLANNED = {
+    an.Table: "the workbench has no table view; `antennaknobs analyze` prints it",
+}
+# The workbench's frequency-sweep views, by the names /analyses serves.
+_FREQUENCY_VIEWS = {an.Swr: "Swr", an.S11: "S11", an.Smith: "Smith"}
 _CROSS_STEP = {"planes": 5, "designs": 5, "step": 5}
 # The crosses the workbench draws one cell of: the session's own.
 _SESSION_CROSS = {"engines": "engine", "grounds": "ground"}
@@ -39,25 +56,52 @@ def _later(what: str, step: int) -> str:
     return f"{what}: not in the workbench yet (sweep-framework step {step})"
 
 
+def _view_gap(v: an.View, sweep: str) -> str:
+    """Why the workbench does not draw view ``v`` of a ``sweep`` sweep."""
+    name = f"the {type(v).__name__} view"
+    if type(v) in _VIEW_STEP:
+        return _later(name, _VIEW_STEP[type(v)])
+    if type(v) in _UNPLANNED:
+        return f"{name}: {_UNPLANNED[type(v)]}"
+    if sweep == "frequency":
+        # Rx: R and X against a knob is the Z-vs-parameter view's; there is
+        # no R/X-against-frequency chart.
+        return (
+            f"{name} of a frequency sweep: the workbench has no R/X-against-"
+            "frequency chart; `antennaknobs analyze` draws it"
+        )
+    return (
+        f"{name} of a knob sweep: the Z-vs-parameter view draws R and X; "
+        "`antennaknobs analyze` draws it"
+    )
+
+
+def _is_frequency(a: an.Analysis) -> bool:
+    return len(a.sweeps) == 1 and a.sweep.knob == an.FREQUENCY
+
+
 def gaps(a: an.Analysis) -> list[str]:
     """What keeps the workbench from running ``a`` (beyond `an.problems`)."""
     out = []
     if len(a.sweeps) > 1:
         out.append(_later("a two-sweep map", 5))
-    elif a.sweep.knob == an.FREQUENCY:
-        out.append(_later("a frequency sweep", 4))
     for c in a.crosses:
         if c.kind in _CROSS_STEP:
             out.append(_later(f"a cross over {c.kind}", _CROSS_STEP[c.kind]))
     if a.hold is not None:
         out.append(_later("hold (optimise at each point)", 6))
-    # The Z-vs-parameter view draws R and X; an analysis without Rx has
+    if _is_frequency(a):
+        if a.sweep.values is not None:
+            out.append(
+                "explicit frequencies: the workbench sweeps a range; give the "
+                "Sweep lo, hi and points"
+            )
+        if not any(isinstance(v, tuple(_FREQUENCY_VIEWS)) for v in a.views):
+            out += [_view_gap(v, "frequency") for v in a.views]
+    # The Z-vs-parameter view draws R and X; a knob analysis without Rx has
     # nothing the view can show.
-    if not any(isinstance(v, an.Rx) for v in a.views):
-        out += [
-            _later(f"the {type(v).__name__} view", _VIEW_STEP.get(type(v), 4))
-            for v in a.views
-        ]
+    elif not any(isinstance(v, an.Rx) for v in a.views):
+        out += [_view_gap(v, "knob") for v in a.views]
     return out
 
 
@@ -87,11 +131,40 @@ def _note(a: an.Analysis, *, deck_density: bool) -> str | None:
     return "; ".join(parts) or None
 
 
+def _frequency(a: an.Analysis, builder) -> dict:
+    """A runnable frequency analysis as the workbench's frequency sweep."""
+    r = ar.frequency_range(a.sweep, builder)
+    absolute = r.level in ("analysis", "file", "design")
+    views = [_FREQUENCY_VIEWS[type(v)] for v in a.views if type(v) in _FREQUENCY_VIEWS]
+    swr = next((v for v in a.views if isinstance(v, an.Swr)), None)
+    left = [
+        f"left out: {_view_gap(v, 'frequency')}"
+        for v in a.views
+        if type(v) not in _FREQUENCY_VIEWS
+    ]
+    note = "; ".join(filter(None, [_note(a, deck_density=False), *left])) or None
+    return {
+        "runs": True,
+        "kind": "frequency",
+        "range": r.as_spec() if absolute else None,
+        "level": r.level,
+        "points": a.sweep.points,
+        "views": views,
+        "swr": {
+            "scale": swr.scale if swr is not None else None,
+            "threshold": a.references.swr,
+        },
+        "note": note,
+    }
+
+
 def workbench(a: an.Analysis, builder, req: Mapping) -> dict:
     """How the workbench runs ``a`` on ``builder`` (built from ``req``)."""
     why = an.problems(a, builder) + gaps(a)
     if why:
         return {"runs": False, "why": "; ".join(why)}
+    if _is_frequency(a):
+        return _frequency(a, builder)
     s = a.sweep
     knob = an.resolve(s.knob, builder).knob
     density = knob == "nominal_nsegs" or knob == an.density_knob(builder)
@@ -113,6 +186,7 @@ def workbench(a: an.Analysis, builder, req: Mapping) -> dict:
         return {"runs": False, "why": str(e)}
     return {
         "runs": True,
+        "kind": "knob",
         "param": param,
         "values": values,
         "log": log,

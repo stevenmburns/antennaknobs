@@ -61,8 +61,19 @@ def test_every_entry_has_the_documented_shape(invvee):
         assert set(a) == {"name", "summary", "code", "problems", "workbench"}
         assert a["code"].startswith("an.")
         w = a["workbench"]
-        if w["runs"]:
-            assert set(w) == {"runs", "param", "values", "log", "note"}
+        if w["runs"] and w["kind"] == "frequency":
+            assert set(w) == {
+                "runs",
+                "kind",
+                "range",
+                "level",
+                "points",
+                "views",
+                "swr",
+                "note",
+            }
+        elif w["runs"]:
+            assert set(w) == {"runs", "kind", "param", "values", "log", "note"}
         else:
             assert set(w) == {"runs", "why"} and w["why"]
 
@@ -100,7 +111,6 @@ def test_e1_convergence_runs_as_the_density_ladder(invvee):
         ("tuning map", "step 5"),
         ("tuning family", "step 5"),
         ("feed spellings", "step 5"),
-        ("band SWR", "step 4"),
     ],
 )
 def test_what_the_workbench_cannot_draw_is_listed_with_its_step(invvee, name, step):

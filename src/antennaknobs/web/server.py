@@ -2488,8 +2488,11 @@ async def analyses_endpoint(req: dict):
     The request is a solve request (``geometry``, ``variant``, the knobs);
     the builder is made from it as ``/param_sweep`` makes it. Each entry is
     ``{name, summary, code, problems, workbench}``, ``workbench`` being
-    ``{runs: true, param, values, log, note}`` (``param`` and ``values`` as
-    ``/param_sweep`` takes them) or ``{runs: false, why}``. Nothing solves.
+    ``{runs: true, kind: "knob", param, values, log, note}`` (``param`` and
+    ``values`` as ``/param_sweep`` takes them), ``{runs: true, kind:
+    "frequency", range, level, points, views, swr, note}`` (what the
+    frequency sweep and its SWR / S11 / Smith charts take, step 4), or
+    ``{runs: false, why}``. Nothing solves.
     An unknown geometry or a bad knob value is a 422, as on ``/param_sweep``.
     Served on demand, not in ``/examples``: listing a design's analyses
     builds it.
