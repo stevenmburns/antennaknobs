@@ -113,9 +113,8 @@ class Builder(AntennaBuilder):
         (docs/design/sweep-framework-spec.md, AK#1757): E1, E3, E2 and E7 as
         the spec page writes them, and E8/E9, a hold at every point (data
         only: nothing runs a hold yet). E7 is given a name of its own, since it is
-        a convergence study beside E1's; its engines x designs product (8) is
-        over the curve cap, and it lists as refused until the spec settles
-        that."""
+        a convergence study beside E1's; its 2 designs x 3 engines are 6
+        curves, the cap (#1787)."""
         lf = an.Sweep("length_factor", 0.90, 1.06, points=33)
         refs = an.Ref(r=(50, 75), x=(0,))
         return [
