@@ -262,3 +262,18 @@ def test_pynec_engine_factory_takes_the_slot_radius():
     adapter, b = _adapter_builder()
     eng = adapter._make_pynec_engine({"wire_radius": OVERRIDE}, b)
     assert {eng._gw_radius_for(t) for t in eng.tups} == {OVERRIDE}
+
+
+def test_an_override_that_swallows_the_jacket_is_refused_as_momwire_refuses_it():
+    """18-awg-pvc's jacket is 1.05 mm; a 1.2 mm override leaves no jacket.
+    momwire refuses by name; every NEC writer now says the same sentence
+    rather than writing a GW radius smaller than the conductor."""
+    b = InvVee()
+    b.wire_type = "18-awg-pvc"
+    match = (
+        r"insulation_radius \(0\.00105\) must exceed the conductor radius \(0\.0012\)"
+    )
+    with pytest.raises(ValueError, match=match):
+        export_nec(b, ground="free", wire_radius=0.0012)
+    with pytest.raises(ValueError, match=match):
+        NEC5Engine(b, ground="free", require_exe=False, wire_radius=0.0012).deck()

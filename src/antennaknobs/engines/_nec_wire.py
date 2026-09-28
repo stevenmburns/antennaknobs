@@ -160,6 +160,14 @@ def nec_wire_material(
     if spec is None or not spec.insulation_radius:
         return NecWireMaterial(radius, conductivity, None)
     b, eps_r = spec.insulation_radius, spec.insulation_eps_r
+    # momwire's own refusal, verbatim, so every engine says the same thing when
+    # the slot's radius override (QRZ #170) swallows a jacket: without it the
+    # coated-wire pair has a negative thickness and writes a GW radius SMALLER
+    # than the conductor.
+    if not b > radius:
+        raise ValueError(
+            f"insulation_radius ({b}) must exceed the conductor radius ({radius})"
+        )
     inductance = float(insulation_inductance(radius, b, eps_r))
     if not pair:
         return NecWireMaterial(radius, conductivity, inductance)
