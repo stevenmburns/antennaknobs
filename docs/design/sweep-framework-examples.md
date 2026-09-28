@@ -1,8 +1,9 @@
 # Sweep framework: driving examples
 
-Companion to `sweep-framework.md`. These are the seven concrete analyses that
+Companion to `sweep-framework.md`. These are the nine concrete analyses that
 axes A1–A4 (§4 there) must serve, chosen with Steve on 2026-09-28: E1–E3
-from the catalog, E4–E7 from the last week's work with Dan. Each is real:
+from the catalog, E4–E7 from the last week's work with Dan, E8–E9 on holding
+an optimisation across a sweep. Each is real:
 the charts, the numbers and the commands were produced from the released
 antennaknobs 0.90.0 / momwire 0.66.0, except E7's first chart (momwire
 main, free space).
@@ -370,7 +371,71 @@ everywhere.
 
 ---
 
-## What the seven ask of A1–A4, together
+## E8. Sweep the height, hold a 50 Ω match
+
+*Steve, 2026-09-28: "sweeping the height of an invvee and trying to match 50
+by adjusting length_factor and angle as you go."*
+
+**The question.** As I raise the antenna, how must I re-tune it to keep a
+perfect 50 Ω match?
+
+**How.** At each of 37 heights (2–20 m), the workbench's own optimizer
+(`web.optimize.optimize`) solves `match_z0 = 50` with `length_factor` and
+`angle_deg` free: two equations (R = 50, X = 0) in two unknowns, a root.
+Each point is warm-started from the previous one's solution, as the
+workbench's track-while-drag does. Average ground
+(`scratch/sweep-examples/ex89_hold.py`).
+
+![E8 and E9](sweep-framework-examples/ex89_hold.png)
+
+**Results.**
+
+- All 37 heights reached 50 + j0 by Newton, at a median of 12 solves per
+  point (max 18).
+- The angle needed swings between **31° and 46°**, and length_factor
+  between 0.964 and 0.990. Both follow E3's λ/2 (~5.3 m) wiggle, which they
+  exist to cancel, and the swing narrows with height.
+- At 7 m the answer is 31.43° / 0.9773, agreeing with E2's map.
+
+**An implementation lesson.** The optimizer ran its surrogate seed (6
+solves) at EVERY point, even though the warm start was already next to the
+answer. A held sweep should go straight to Newton from the previous point,
+which would roughly halve E8's cost.
+
+## E9. Sweep the angle, hold resonance
+
+*Steve, 2026-09-28: "sweep angle and automatically adjust length factor to
+match 50".*
+
+**Why this holds resonance, not a match.** With ONE free knob, a match
+(R = 50 AND X = 0) is two equations in one unknown, so it has no solution at
+most angles. The optimizer's `match_z0` would quietly become "minimise SWR"
+and hide that. The honest hold is `resonance` (X = 0) with `length_factor`.
+R, plotted along the way, then shows where 50 Ω is reachable.
+
+**Results** (right panel above):
+
+- All 25 angles resonated by secant, at 4 solves per point.
+- R at resonance falls smoothly from 66 Ω (flat) to 21 Ω (60°) and crosses
+  50 Ω at about 32.5°, the same answer E2's tuning map gives by a different
+  method.
+
+**What E8 and E9 ask of the spec.** One new optional slot, `hold`: an
+optimisation re-solved at every sweep point.
+
+- It is written in the optimizer's OWN objective names (`swr`, `resonance`,
+  `match_z0`).
+- It has the free knobs, a Z0, and warm-start (continuation).
+- It gets a new view, `an.Knobs()`, the held knobs against x.
+- Holds must be square systems. `match_z0` needs exactly two free knobs and
+  `resonance` exactly one; anything else is refused by name when the analysis
+  is built. That refusal is E9's lesson in code.
+- A point where the hold fails is a named gap in the curve, as a refused
+  cell is.
+
+---
+
+## What the nine ask of A1–A4, together
 
 | need | examples | axis |
 |---|---|---|
@@ -387,6 +452,7 @@ everywhere.
 | generic across designs | E1 (no knobs) | A2 |
 | knob ROLES the design declares (height, density) | E3, E6 | A2 |
 | a deck stub generated from the deck's own sweep | E4 | A4 |
+| hold an optimisation at every point (square systems only) | E8, E9 | A1 (`hold`) |
 | one analysis leads to the next | E2 → E3 (75 Ω needs height), E5 → E7 (the match moves with the mesh and the feed spelling) | later |
 
 The seven cover every sweep the workbench runs today (frequency, density,

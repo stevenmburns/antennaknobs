@@ -60,9 +60,20 @@ an.Analysis(
     # an.S11(), an.Smith(), an.Map(), an.Table()
     views=(an.Rx(),),
     references=an.Ref(),
+    hold=None,  # an.Hold: optimise at every point (E8, E9)
     ground=None,
     engine=None,  # None: the session's own
 )
+
+# ── an optimisation held at every sweep point (E8, E9; added 2026-09-28) ─
+an.Hold(
+    objective,  # the optimizer's own names: "swr" | "resonance" | "match_z0"
+    adjust,  # the knobs re-solved at each point, e.g. ("length_factor",)
+    z0=None,  # None: the session's
+    warm_start=True,  # seed each point from the previous one (continuation)
+)
+# a square system only: match_z0 takes exactly 2 knobs, resonance exactly 1
+an.Knobs()  # a view: the held knobs against x
 
 # ── the library (A2): generic analyses for any design ──────────────────────
 # Analysis("convergence", Sweep(an.DENSITY), views=(Rx(), Table(), Smith()))
@@ -235,6 +246,40 @@ def build_analyses(self):
 - **The library carries most of the weight.** Four of the seven are one
   library call with keywords. That's A2's case for option (a), a shared
   library, over inheritance alone.
+
+## Addendum: `hold` (Steve, 2026-09-28)
+
+Steve asked to future-proof the spec for optimising at each sweep point:
+match 50 with length and angle while the height sweeps (E8), and hold the
+match with length while the angle sweeps (E9). Both are now driving examples,
+measured with the workbench's own optimizer.
+
+The spec gains:
+
+- one optional `Analysis.hold`: an `an.Hold`, written in the optimizer's own
+  objective names, with its free knobs, Z0 and warm start;
+- one view, `an.Knobs()`.
+
+Step 2 adds both as DATA only: they print back as code, and a held analysis
+is refused at run time by name. Running holds is a later step.
+
+```python
+# E8
+an.Analysis(
+    "match vs height",
+    an.Sweep(an.HEIGHT, 2, 20, points=37),
+    hold=an.Hold("match_z0", adjust=("length_factor", "angle_deg"), z0=50),
+    views=(an.Rx(), an.Knobs()),
+)
+# E9: with one free knob the square system is resonance, not a match
+an.Analysis(
+    "resonance vs angle",
+    an.Sweep("angle_deg", 0, 60, points=25),
+    hold=an.Hold("resonance", adjust=("length_factor",)),
+    views=(an.Rx(), an.Knobs()),
+    references=an.Ref(r=(50,)),
+)
+```
 
 ## Decisions (Steve, 2026-09-28)
 
