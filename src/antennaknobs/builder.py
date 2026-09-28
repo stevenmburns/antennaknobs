@@ -241,6 +241,14 @@ class AntennaBuilder:
         a dummy stub wire, branches refer to ports by name, etc."""
         return None
 
+    def build_analyses(self):
+        """This design's own analyses (``antennaknobs.analyses``, AK#1757):
+        declarative values, listed without solving. The library's generic
+        ones (convergence, band SWR, a height sweep where a height knob is
+        declared) are added by ``analyses.offered``, so a design returns only
+        what is its own."""
+        return ()
+
     def build_wire_material(self):
         """Return a `WireSpec` (see `antennaknobs.network.WIRES`) describing
         the antenna wire's conductor and insulation, or None for the classic

@@ -2925,6 +2925,10 @@ class SySymbol:
     integer: bool = False
     # The design param, when not ``sy_<name>`` (a .ssn dcl constant).
     param_name: str | None = None
+    # A knob that sets a wire's segment count by a route the design's mesh
+    # does not own -- a .ssn's ``JamSegments(<expression>)`` -- and so plays
+    # the density role (AK#1757).
+    segment_count: bool = False
 
     @property
     def param(self) -> str:
