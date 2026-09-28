@@ -29,20 +29,19 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.90.0" icon="star">
-  **Smoother convergence curves, and SWR the way EZNEC draws it.** Catalog
-  designs with a straight centre feed now drive the middle of one wire
-  instead of a short gap wire, so a mesh-density study no longer steps when
-  that gap wire changes segment count. The VSWR chart gains an EZNEC-style
-  scale, linear in the reflection coefficient and labelled in SWR (3:1 at
-  mid-axis), beside the 1–∞ default. On the Z vs parameter view the sweep bar
-  and readout stay pinned to the chart at any window size or zoom, and the
-  Smith chart's trail switch reads "param sweep". On the command line,
-  `sweep --only x` (or `r`) draws just reactance or just resistance, and an
-  unconfigured NEC-2/NEC-5 engine or a file given as a design name is a
-  one-line error that says what to do. momwire 0.66 adds a NEC-5 engine
-  for SimNEC: point it at `momwire-nec5-razor-2p`, and SimNEC's N-port
-  measurements and multiport networks work against momwire.
+<Card title="New in v0.91.0" icon="star">
+  **Analyses you write once, in Python.** A design can now declare its sweeps
+  with `build_analyses()`: a convergence study, a knob sweep, or band SWR, each
+  crossed over engines and grounds. `antennaknobs analyze` lists and runs them,
+  and the workbench's Z vs parameter view offers the same list in a picker.
+  Band SWR draws SWR, S11 and Smith charts with the 2:1 bandwidth, over the
+  design's own range, which for a SimNEC or NEC file is the file's own sweep;
+  `sweep --swr` now follows that range too. Z∞ has one estimator in the CLI
+  and the workbench, and reports the order it observed. A slot's wire radius
+  now reaches NEC-5, NEC-2 and PyNEC, the command line's S11 is 20·log₁₀|Γ|,
+  off-centre feeds sit on the wire itself, and a dropped connection to the
+  solver reconnects on its own. momwire 0.67 serves the buried radial vertical
+  on its point-matched lane, with leaner memory on buried screens.
 </Card>
 
 ## The whole pitch, in one line

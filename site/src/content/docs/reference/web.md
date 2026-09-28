@@ -719,8 +719,10 @@ spelling it greys, with momwire's own sentence, is N coincident rises meeting
 at the node (the catalog's retired `bundle` variant), which stays on the
 B-spline lane. **Razor (2-point)** serves the buried and crossing classes too,
 since momwire 0.62.0. **Sinusoidal** (point-matched) serves the wholly buried
-and mixed classes since momwire 0.66.0; the connected screen, where a wire
-crosses the plane, stays greyed with momwire's own sentence.
+and mixed classes since momwire 0.66.0, and since 0.67.0 the catalog's buried
+radial vertical too, where a near-normal rise meets its hub below the plane.
+An oblique crossing, or radials meeting the mast at the plane itself, stays
+greyed with momwire's own sentence.
 
 The solver's gear menu also exposes **segments per λ/4 (N)**, the mesh
 density: each wire gets N segments per quarter wavelength at the design
