@@ -212,6 +212,7 @@ def export_nec(
     include_rp=True,
     title=None,
     jacket_pair=True,
+    wire_radius=None,
 ):
     """Return a NEC2 card deck (str) for ``builder``.
 
@@ -226,6 +227,8 @@ def export_nec(
     jacket_pair: write an insulation jacket as momwire's coated-wire pair (the
                default, issue #1523). False writes the bare radius plus LD 2,
                for a consumer that drops the LD cards.
+    wire_radius: the web slot's radius field (QRZ #170), PyNECEngine's
+               ``wire_radius``: 0.0005 or None is "auto" (the design's own).
     """
     # Refused HERE rather than inside PyNECEngine, for two reasons the QRZ
     # thread made plain (#1389). The sentence must say "a NEC-2 deck", not
@@ -255,11 +258,16 @@ def export_nec(
     # NEC-2 spelling — the gyrator idiom EZNEC itself writes — so it is built
     # with the writer-only flag that takes the native path and records those
     # sources for `_gyrator_cards`. Every other reason still refuses.
-    probe = PyNECEngine(builder, ground=ground)
+    probe = PyNECEngine(builder, ground=ground, wire_radius=wire_radius)
     reasons = probe._reducer_reasons()
     gyrators = reasons == frozenset({"current-source"})
     eng = (
-        PyNECEngine(builder, ground=ground, _export_current_sources=True)
+        PyNECEngine(
+            builder,
+            ground=ground,
+            _export_current_sources=True,
+            wire_radius=wire_radius,
+        )
         if gyrators
         else probe
     )

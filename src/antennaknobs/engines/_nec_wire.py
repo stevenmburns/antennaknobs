@@ -111,6 +111,28 @@ def has_buried_jacketed_wire(wires, default_spec, *, ground_z: float = 0.0) -> b
     return False
 
 
+# The web slot's "wire radius (m)" field sends this when the user has not
+# touched it, so it means "auto" (the design's own radius), never an override.
+AUTO_WIRE_RADIUS = 0.0005
+
+
+def effective_default_radius(wire_radius: float | None, spec: WireSpec | None) -> float:
+    """The radius a spec-less wire gets — MomwireEngine's precedence, shared by
+    every NEC deck writer so the slot's field means the same thing on every
+    engine (QRZ #170).
+
+    A non-None ``wire_radius`` other than ``AUTO_WIRE_RADIUS`` wins; else the
+    design-level ``spec`` (``build_wire_material()``) radius; else
+    ``AUTO_WIRE_RADIUS``. A wire's own ``Wire.spec`` beats all three — callers
+    apply that per wire, since this only moves the default.
+    """
+    if wire_radius is not None and wire_radius != AUTO_WIRE_RADIUS:
+        return float(wire_radius)
+    if spec is not None:
+        return spec.radius
+    return AUTO_WIRE_RADIUS
+
+
 @dataclass(frozen=True)
 class NecWireMaterial:
     """One wire's material cards."""

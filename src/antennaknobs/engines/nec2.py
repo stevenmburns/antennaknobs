@@ -432,6 +432,7 @@ class NEC2Engine(SimulationEngine):
         nec2_exe: str | None = None,
         timeout: float = 120.0,
         capture_dir=None,
+        wire_radius: float | None = None,
     ):
         """`ground` takes PyNECEngine's spellings with PyNECEngine's meaning:
         None or "free" is free space, "pec", ("finite", eps_r, sigma)
@@ -439,8 +440,13 @@ class NEC2Engine(SimulationEngine):
         coefficient, ("mininec", eps_r, sigma) EZNEC's MININEC-type ground
         (`GN 1` + `GD`, patterns in cliff mode; AK#1655). The bare default is the finite ground, as on PyNEC.
         An explicit None used to be folded into that default — the one
-        engine on which `--ground free` silently meant finite (AK#1563)."""
+        engine on which `--ground free` silently meant finite (AK#1563).
+
+        `wire_radius` is the web slot's radius field (QRZ #170), threaded to
+        every `PyNECEngine` that writes or resolves this engine's decks, with
+        PyNEC's (= MomwireEngine's) precedence: 0.0005 means "auto"."""
         super().__init__(builder)
+        self._wire_radius_override = wire_radius
         if ground is _GROUND_DEFAULT:
             from .pynec import DEFAULT_GROUND
 
@@ -507,7 +513,9 @@ class NEC2Engine(SimulationEngine):
             return
         from .pynec import PyNECEngine
 
-        probe = PyNECEngine(self.builder, ground=self.ground)
+        probe = PyNECEngine(
+            self.builder, ground=self.ground, wire_radius=self._wire_radius_override
+        )
         reasons = probe._reducer_reasons()
         if not reasons or reasons == frozenset({"current-source"}):
             return
@@ -665,6 +673,7 @@ class NEC2Engine(SimulationEngine):
                 df=df,
                 npoints=npoints,
                 include_rp=False,
+                wire_radius=self._wire_radius_override,
             )
         if rp is None:
             return text

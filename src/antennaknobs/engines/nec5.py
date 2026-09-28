@@ -44,6 +44,7 @@ from ._external import find_exe, run_exe
 from ._nec_wire import (
     BURIED_JACKET_ADVISORY_CARDS,
     JACKET_COMMENT_CARDS,
+    effective_default_radius,
     has_buried_jacketed_wire,
     nec_wire_material,
 )
@@ -416,6 +417,7 @@ class NEC5Engine(SimulationEngine):
         timeout=120.0,
         capture_dir=None,
         require_exe=True,
+        wire_radius=None,
     ):
         super().__init__(builder)
         self.ground = self._normalise_ground(ground)
@@ -495,7 +497,12 @@ class NEC5Engine(SimulationEngine):
                 "source) — nothing to solve"
             )
         spec = builder.build_wire_material()
-        default_radius = spec.radius if spec is not None else 0.0005
+        # QRZ #170: the web slot's `wire_radius` moves the DEFAULT radius with
+        # MomwireEngine's precedence — 0.0005 (the field untouched) is "auto",
+        # anything else beats `build_wire_material()`; a wire's own spec beats
+        # both. The material cards below follow this effective radius.
+        default_radius = effective_default_radius(wire_radius, spec)
+        self._default_radius = default_radius
         self._radii = [
             w.spec.radius if w.spec is not None else default_radius for w in self._wires
         ]
@@ -567,7 +574,10 @@ class NEC5Engine(SimulationEngine):
             return lines
         if spec is None:
             return lines
-        mat = nec_wire_material(spec.radius, spec.conductivity, spec)
+        # QRZ #170: at the radius the GW cards actually carry (the slot's
+        # override when one is set), not the spec's own — the jacket's
+        # equivalent radius and the loss rescale both depend on it.
+        mat = nec_wire_material(self._default_radius, spec.conductivity, spec)
         if mat.conductivity is not None:
             lines.append(f"LD 5 0 0 0 {_num(mat.conductivity)} 0. 0.")
         if mat.inductance is not None:

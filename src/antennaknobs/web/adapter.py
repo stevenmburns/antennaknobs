@@ -2571,8 +2571,17 @@ def _nec5_ground_applied(ground) -> str:
     return "free"
 
 
+def _slot_wire_radius(req: dict) -> float:
+    """The slot's "wire radius (m)" field, validated. 0.0005 is the field's
+    untouched value and every engine reads it as "auto" (the design's own
+    radius); QRZ #170 made NEC-5, NEC-2 and PyNEC honour it as momwire does."""
+    return _positive_finite("wire_radius", req.get("wire_radius", 0.0005))
+
+
 def _make_nec5_engine(req: dict, builder):
-    return NEC5Engine(builder, ground=_nec5_ground_spec(req))
+    return NEC5Engine(
+        builder, ground=_nec5_ground_spec(req), wire_radius=_slot_wire_radius(req)
+    )
 
 
 def _wire_material_results(builder) -> dict:
@@ -2777,7 +2786,7 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
     # names (a stale client may still send "triangular").
     model = req.get("momwire_model", "bspline")
     solver_cls = _MOMWIRE_MODELS.get(model, BSplineSolver)
-    wire_radius = _positive_finite("wire_radius", req.get("wire_radius", 0.0005))
+    wire_radius = _slot_wire_radius(req)
     ground = _ground_for_engine(req)
     solver_kwargs = sanitize_model_options(req)
     # A roster entry's bound kwargs are applied AFTER the request's options and
@@ -2842,7 +2851,9 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
 
 
 def _make_pynec_engine(req: dict, builder):
-    return PyNECEngine(builder, ground=_pynec_ground_spec(req))
+    return PyNECEngine(
+        builder, ground=_pynec_ground_spec(req), wire_radius=_slot_wire_radius(req)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -3348,7 +3359,9 @@ def _catalog_ground_name(ground) -> str:
 def _make_nec2_engine(req: dict, builder):
     """A NEC-2 binary over the SAME ground spec PyNEC gets: this is NEC-2, so
     every ground PyNEC's mapping produces is one it can express."""
-    return NEC2Engine(builder, ground=_pynec_ground_spec(req))
+    return NEC2Engine(
+        builder, ground=_pynec_ground_spec(req), wire_radius=_slot_wire_radius(req)
+    )
 
 
 _NEC2_SEAMS = _SolveSeams(
@@ -5159,7 +5172,13 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # scripts/bench_levee_bracket.py): export the crest medium as
             # the flat finite ground the impedance solve uses.
             ground = ("finite",) + ground[1].crest_medium
-        return _export_nec(builder, ground=ground, freq=meas_freq)
+        # QRZ #170: the slot's radius too, so the deck is the antenna solved.
+        return _export_nec(
+            builder,
+            ground=ground,
+            freq=meas_freq,
+            wire_radius=_slot_wire_radius(req),
+        )
 
     def ssn_export(req: dict) -> str:
         # The design as a SimNEC circuit (AK#1539), so the round trip to SimNEC
@@ -5190,7 +5209,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # As in nec_export: SimNEC's NEC block cannot carry the facet
             # model, so the crest medium the impedance solve used goes in.
             ground = ("finite",) + ground[1].crest_medium
-        return _export_ssn(builder, freq_mhz=meas_freq, ground=ground)
+        return _export_ssn(
+            builder,
+            freq_mhz=meas_freq,
+            ground=ground,
+            wire_radius=_slot_wire_radius(req),
+        )
 
     def nec5_export(req: dict) -> str:
         # The NEC-5 twin of `nec_export` (#1389). Same builder construction, so
@@ -5211,6 +5235,11 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         if has_design_freq:
             builder.design_freq = design_freq
         ground = _nec5_ground_spec(req)
+        # QRZ #170: the slot's radius reaches the deck as it reaches the solve.
+        # At the field's untouched 0.0005 ("auto") nothing moves and no note is
+        # written, so the #1389 byte-equality with the catalog file holds; an
+        # override says so in the header, since the file is then no catalog's.
+        wire_radius = _slot_wire_radius(req)
         return _export_nec5(
             builder,
             ground=ground,
@@ -5218,6 +5247,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             design=name,
             rung=_catalog_rung(cls, builder),
             ground_name=_catalog_ground_name(ground),
+            note=(
+                ""
+                if wire_radius == 0.0005
+                else f"wire radius {wire_radius:g} m (the solver slot's override)"
+            ),
+            wire_radius=wire_radius,
         )
 
     def schematic_svg(req: dict) -> str | None:
