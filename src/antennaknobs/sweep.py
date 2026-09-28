@@ -438,6 +438,7 @@ def _rx_overlay(
     callouts=False,
     xname=None,
     only=None,
+    refused=(),
 ):
     """Every engine of ``panels`` (the ``_rx_panels`` rows) on ONE chart: R
     on the left axis (solid) and X on a twin right axis (dashed), each axis
@@ -448,7 +449,12 @@ def _rx_overlay(
     one engine's boxes staggered past the previous one's. ``only``
     (``"r"`` / ``"x"``) draws that one quantity on a single axis, no twin,
     keeping its line style. Returns ``(ax_r, ax_x)``, None for an axis
-    ``only`` leaves out."""
+    ``only`` leaves out.
+
+    A row's name is any label: an engine, a ground, or both (an analysis
+    crossed with grounds, AK#1757). ``refused`` names curves that were asked
+    for and could not be served: each is a legend entry with no line, so the
+    gap is named where the curve would have been."""
     import matplotlib.pyplot as plt
 
     fig, ax0 = plt.subplots(figsize=(9.0, 5.6))
@@ -500,6 +506,10 @@ def _rx_overlay(
     mode = _callout_mode(callouts)
     if mode:
         _overlay_callouts(ax_r, ax_x, panels, mode, xname or xlabel, log_x)
+    for name in refused:
+        handles += ax0.plot(
+            [], [], linestyle="None", marker="x", color="0.5", label=f"{name}: refused"
+        )
     # Below the axes, one column per engine (its R above its X), so it
     # never sits on the curves or the callout columns.
     ax0.legend(
@@ -508,7 +518,7 @@ def _rx_overlay(
         bbox_to_anchor=(0.5, -0.13),
         frameon=False,
         fontsize=7,
-        ncol=len(panels),
+        ncol=max(1, len(panels) + len(refused)),
     )
     _polish_axes(ax0, title=title)
     if both:
@@ -785,35 +795,143 @@ def _reflection(z, z0):
 
 
 def _print_convergence_table(
-    per_engine, estimates, z0, marked=frozenset(), ground_label=None, reasons=None
+    per_engine,
+    estimates,
+    z0,
+    marked=frozenset(),
+    ground_label=None,
+    reasons=None,
+    knob="nominal_nsegs",
 ):
     """The stdout table for ``sweep --param nominal_nsegs`` (#1554): grouped
     per engine so a single-engine study reads like a plain ladder printout,
     and a multi-engine one reads as N of those back to back. ΔΓ is against
     that engine's own FINEST rung (issue #1525's ladder metric — the density
     records are judged on ΔΓ against the finest rung, not against Z* itself,
-    since Z* is itself only an estimate)."""
+    since Z* is itself only an estimate).
+
+    ``knob`` is the knob playing the density role (``nominal_nsegs``, or a
+    deck's own, AK#1757). ``ground_label`` is one label for every curve, or a
+    ``{name: label}`` dict when the curves differ in ground (an analysis
+    crossed with grounds)."""
+    head = "nominal_N" if knob == "nominal_nsegs" else knob
+    width = max(9, len(head))
     for name, rows in per_engine.items():
-        print(f"== nominal_nsegs convergence: {name} ==")
-        if ground_label is not None:
+        print(f"== {knob} convergence: {name} ==")
+        label = (
+            ground_label.get(name) if isinstance(ground_label, dict) else ground_label
+        )
+        if label is not None:
             # Every engine of a CLI study runs on the SAME ground (AK#1563);
             # it is printed under each header so a table pasted on its own
             # still says which physics the numbers are.
-            print(f"ground: {ground_label}")
-        print(f"{'nominal_N':>9} {'N_ach':>6} {'R (Ω)':>9} {'X (Ω)':>9} {'|ΔΓ|':>9}")
+            print(f"ground: {label}")
+        print(f"{head:>{width}} {'N_ach':>6} {'R (Ω)':>9} {'X (Ω)':>9} {'|ΔΓ|':>9}")
         finest_gamma = _reflection(rows[-1][2], z0)
         for nominal_n, achieved_n, z in rows:
             dgamma = abs(_reflection(z, z0) - finest_gamma)
             star = " *" if nominal_n in marked else ""
             print(
-                f"{nominal_n:>9} {achieved_n:>6} {z.real:>9.3f} {z.imag:>+9.3f} "
-                f"{dgamma:>9.4f}{star}"
+                f"{nominal_n:>{width}} {achieved_n:>6} {z.real:>9.3f} "
+                f"{z.imag:>+9.3f} {dgamma:>9.4f}{star}"
             )
         if marked:
             print("  * = a --markers rung")
         print(f"{name}  {describe(estimates[name])}")
         if reasons and name in reasons:
             print(f"{' ' * len(name)}  {reasons[name]}")
+
+
+def _convergence_rungs(rng, npoints, markers=()):
+    """``(rungs, ladder_rungs, marked, drawn_marks)`` for a density study.
+
+    ``rungs`` are every value solved, ascending; ``ladder_rungs`` the ones
+    Z∞ reads; ``marked`` the ``--markers`` rungs, starred in the table;
+    ``drawn_marks`` the ones squared on the chart."""
+    # `--markers` on a density study are rungs at exactly the densities named
+    # (the served 15 / 16 / 20, say): solved like any rung, starred in the
+    # table and squared on the chart. Beside a ladder (--range / --npoints, or
+    # the default one) they are observations only, not rungs of the Richardson
+    # estimate (see `_convergence_estimates`); alone, they are the whole ladder.
+    marked = {int(round(m)) for m in markers}
+    if marked and rng is None and npoints is None:
+        # `--markers` alone IS the ladder: "just these densities". Richardson
+        # then reads them as its rungs, since they are the only rungs.
+        ladder_rungs = set(marked)
+        # ...and then they are not observations beside it: no squares, and
+        # callouts treat the rungs as ordinary points, so a 20-rung
+        # --markers ladder with --callouts gets its two end boxes, not 20.
+        drawn_marks = set()
+    else:
+        drawn_marks = marked
+        ladder_rungs = set(_nominal_nsegs_rungs(rng, npoints))
+    return sorted(ladder_rungs | marked), ladder_rungs, marked, drawn_marks
+
+
+def _convergence_rows(antenna_builder, factory, rungs, knob="nominal_nsegs"):
+    """One engine's ladder: ``(rows, fed_lengths, nports)``, one cold solve
+    per rung with ``knob`` set to it. ``rows`` are ``(rung, N achieved, Z at
+    port 0)``; ``fed_lengths`` the fed segment's length at each rung (port
+    0), the reason a rough Z∞ gives (AK#1781, feed_mesh_step). The ONE place
+    a density study solves: ``sweep --param`` and ``analyze`` both call it."""
+    rows = []
+    lens = []
+    nports = 1
+    for n in rungs:
+        setattr(antenna_builder, knob, n)
+        eng = factory(antenna_builder)
+        z = eng.impedance()
+        nports = max(nports, len(z))
+        rows.append((n, _achieved_n(eng, antenna_builder), complex(z[0])))
+        # Optional: an engine that cannot say (a test stub) gives no reason.
+        fed_segments = getattr(eng, "fed_segments", None)
+        fed = fed_segments() if fed_segments is not None else None
+        lens.append(fed[0]["length_m"] if fed else None)
+    return rows, lens, nports
+
+
+def _convergence_estimates(per_engine, fed_len, ladder_rungs):
+    """``(estimates, reasons)``: each curve's Z∞, and the feed-mesh reason
+    beside a rough one."""
+    # Z∞ reads the GEOMETRIC ladder only: a marker dropped between two rungs
+    # would shrink one step and grow the next, and the estimator's order
+    # comes from the slope of adjacent steps. Markers are observations on
+    # the trajectory, not rungs of the extrapolation. The refinement
+    # variable is the ACHIEVED segment count, as in the workbench (AK#1781).
+    estimates = {}
+    reasons = {}
+    for name, rows in per_engine.items():
+        on = [k for k, (n, _, _) in enumerate(rows) if n in ladder_rungs]
+        xs = [rows[k][1] for k in on]
+        estimates[name] = zinf_estimate(xs, [rows[k][2] for k in on])
+        lens = [fed_len[name][k] for k in on]
+        if estimates[name].status == "rough" and None not in lens:
+            step = feed_mesh_step(xs, lens)
+            if step is not None:
+                reasons[name] = describe_feed_mesh(xs, lens, step)
+    return estimates, reasons
+
+
+def _convergence_title(knob, nports):
+    title = f"impedance vs {knob}, Richardson Z∞"
+    if nports > 1:
+        title += f" (port 0 of {nports})"
+    return title
+
+
+def _convergence_panels(per_engine, estimates, drawn_marks):
+    """The ``_rx_panels`` / ``_rx_overlay`` rows of a density study: x is
+    the achieved segment count."""
+    return [
+        (
+            name,
+            [achieved for _, achieved, _ in rows],
+            [z for _, _, z in rows],
+            [k for k, (n, _, _) in enumerate(rows) if n in drawn_marks],
+            estimates[name].z_inf,
+        )
+        for name, rows in per_engine.items()
+    ]
 
 
 def _sweep_convergence(
@@ -832,6 +950,7 @@ def _sweep_convergence(
     callouts=False,
     overlay=False,
     only=None,
+    knob="nominal_nsegs",
 ):
     """``sweep --param nominal_nsegs`` (#1554): one cold solve per rung per
     engine, port 0 only (multi-port trajectories are the app's own overlay,
@@ -840,66 +959,26 @@ def _sweep_convergence(
     ``engines`` is ``[(name, factory), ...]``. The density wrapper from
     #1543 must already have stood down in the caller (``mesh_density=False``
     in ``cli.engine_factories_from_args``) — this function is the one thing
-    allowed to move ``antenna_builder.nominal_nsegs`` for the duration.
+    allowed to move the density knob for the duration.
+
+    ``knob`` is the knob playing the density role: ``nominal_nsegs`` on a
+    catalog design, or one a design declares (a SimNEC ``JamSegments`` count,
+    AK#1757), which gets the same table, Z∞ and feed-mesh reason.
     """
     import matplotlib.pyplot as plt
 
-    # `--markers` on a density study are rungs at exactly the densities named
-    # (the served 15 / 16 / 20, say): solved like any rung, starred in the
-    # table and squared on the chart. Beside a ladder (--range / --npoints, or
-    # the default one) they are observations only, not rungs of the Richardson
-    # estimate (see `estimates` below); alone, they are the whole ladder.
-    marked = {int(round(m)) for m in markers}
-    if marked and rng is None and npoints is None:
-        # `--markers` alone IS the ladder: "just these densities". Richardson
-        # then reads them as its rungs, since they are the only rungs.
-        ladder_rungs = set(marked)
-        # ...and then they are not observations beside it: no squares, and
-        # callouts treat the rungs as ordinary points, so a 20-rung
-        # --markers ladder with --callouts gets its two end boxes, not 20.
-        drawn_marks = set()
-    else:
-        drawn_marks = marked
-        ladder_rungs = set(_nominal_nsegs_rungs(rng, npoints))
-    rungs = sorted(ladder_rungs | marked)
+    rungs, ladder_rungs, marked, drawn_marks = _convergence_rungs(rng, npoints, markers)
 
     per_engine = {}
-    # The fed segment's length at each rung (port 0), beside `rows` rather
-    # than in them: the reason a rough Z∞ gives (AK#1781, feed_mesh_step).
     fed_len = {}
     nports = 1
     for name, factory in engines:
-        rows = []
-        lens = []
-        for n in rungs:
-            antenna_builder.nominal_nsegs = n
-            eng = factory(antenna_builder)
-            z = eng.impedance()
-            nports = max(nports, len(z))
-            rows.append((n, _achieved_n(eng, antenna_builder), complex(z[0])))
-            # Optional: an engine that cannot say (a test stub) gives no reason.
-            fed_segments = getattr(eng, "fed_segments", None)
-            fed = fed_segments() if fed_segments is not None else None
-            lens.append(fed[0]["length_m"] if fed else None)
+        rows, lens, n = _convergence_rows(antenna_builder, factory, rungs, knob)
         per_engine[name] = rows
         fed_len[name] = lens
+        nports = max(nports, n)
 
-    # Z∞ reads the GEOMETRIC ladder only: a marker dropped between two rungs
-    # would shrink one step and grow the next, and the estimator's order
-    # comes from the slope of adjacent steps. Markers are observations on
-    # the trajectory, not rungs of the extrapolation. The refinement
-    # variable is the ACHIEVED segment count, as in the workbench (AK#1781).
-    estimates = {}
-    reasons = {}
-    for name, rows in per_engine.items():
-        on = [k for k, (n, _, _) in enumerate(rows) if n in ladder_rungs]
-        xs = [rows[k][1] for k in on]
-        estimates[name] = zinf_estimate(xs, [rows[k][2] for k in on])
-        lens = [fed_len[name][k] for k in on]
-        if estimates[name].status == "rough" and None not in lens:
-            step = feed_mesh_step(xs, lens)
-            if step is not None:
-                reasons[name] = describe_feed_mesh(xs, lens, step)
+    estimates, reasons = _convergence_estimates(per_engine, fed_len, ladder_rungs)
 
     _print_convergence_table(
         per_engine,
@@ -908,11 +987,10 @@ def _sweep_convergence(
         marked=marked,
         ground_label=ground_label,
         reasons=reasons,
+        knob=knob,
     )
 
-    title = "impedance vs nominal_nsegs, Richardson Z∞"
-    if nports > 1:
-        title += f" (port 0 of {nports})"
+    title = _convergence_title(knob, nports)
 
     if use_smithchart:
         from .smith_chart import draw_smith_chart, plot_reflection
@@ -974,17 +1052,7 @@ def _sweep_convergence(
     else:
         # One twin-axis panel per engine (R left, X right, each auto-ranged):
         # on a shared Ω axis a ~70 Ω R flattened a few-ohm X into a line.
-        panels = []
-        for name, rows in per_engine.items():
-            panels.append(
-                (
-                    name,
-                    [achieved for _, achieved, _ in rows],
-                    [z for _, _, z in rows],
-                    [k for k, (n, _, _) in enumerate(rows) if n in drawn_marks],
-                    estimates[name].z_inf,
-                )
-            )
+        panels = _convergence_panels(per_engine, estimates, drawn_marks)
         (_rx_overlay if overlay else _rx_panels)(
             panels,
             xlabel="segments achieved (log)",
@@ -998,6 +1066,17 @@ def _sweep_convergence(
         )
 
     save_or_show(plt, fn)
+
+
+def _solve_at(antenna_builder, nm, xs, factory):
+    """One solve per value of ``xs`` with knob ``nm`` set to it: each
+    solve's impedance array (every port). The ONE place a knob sweep solves:
+    ``sweep --param`` and ``analyze`` both call it."""
+    out = []
+    for x in xs:
+        setattr(antenna_builder, nm, x)
+        out.append(factory(antenna_builder).impedance())
+    return out
 
 
 def sweep(
@@ -1042,14 +1121,17 @@ def sweep(
       (no twin), in every rectangular layout; its callouts name only it.
       The Smith chart ignores it (the CLI refuses the pair).
 
-    ``nominal_nsegs`` is always log-spaced, and drawn as panels unless
-    ``overlay``.
+    ``nominal_nsegs``, and the knob a design declares for the density role
+    (``analyses.density_knob``, AK#1757), is a convergence study: always
+    log-spaced, and drawn as panels unless ``overlay``.
     """
     import matplotlib.pyplot as plt
 
+    from .analyses import density_knob
+
     engines = list(engine.items()) if isinstance(engine, dict) else [(None, engine)]
 
-    if nm == "nominal_nsegs":
+    if nm == "nominal_nsegs" or nm == density_knob(antenna_builder):
         # A first-class case (#1554): int rungs, not gen_xs's float linspace,
         # and a fundamentally different table/chart — factored out entirely
         # rather than threaded through the branches below.
@@ -1068,6 +1150,7 @@ def sweep(
             callouts=callouts,
             overlay=overlay,
             only=only,
+            knob=nm,
         )
         return
 
@@ -1084,15 +1167,8 @@ def sweep(
         # by test_cli_sweep_single_engine_output_is_unchanged (#1554).
         engine = engines[0][1]
 
-        zs = []
-        for x in xs:
-            setattr(antenna_builder, nm, x)
-            zs.append(engine(antenna_builder).impedance())
-
-        marker_zs = []
-        for x in markers:
-            setattr(antenna_builder, nm, x)
-            marker_zs.append(engine(antenna_builder).impedance())
+        zs = _solve_at(antenna_builder, nm, xs, engine)
+        marker_zs = _solve_at(antenna_builder, nm, markers, engine)
 
         zs = np.array(zs)
         marker_xs = np.array(markers)
@@ -1225,14 +1301,8 @@ def sweep(
     # dashed, so a port still reads within an engine via `_port_style`.
     per_engine = []
     for name, factory in engines:
-        zs = []
-        for x in xs:
-            setattr(antenna_builder, nm, x)
-            zs.append(factory(antenna_builder).impedance())
-        marker_zs = []
-        for x in markers:
-            setattr(antenna_builder, nm, x)
-            marker_zs.append(factory(antenna_builder).impedance())
+        zs = _solve_at(antenna_builder, nm, xs, factory)
+        marker_zs = _solve_at(antenna_builder, nm, markers, factory)
         per_engine.append((name, np.array(zs), np.array(marker_zs)))
 
     marker_xs = np.array(markers)

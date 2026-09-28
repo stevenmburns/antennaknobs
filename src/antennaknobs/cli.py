@@ -458,7 +458,7 @@ def _with_params(factory, assignments):
     return make
 
 
-def _check_chart_flags(args, *, multi_engine):
+def _check_chart_flags(args, *, multi_engine, density=None):
     """The new chart options refuse, by name, where they would draw nothing.
     The twin-axis ones (ranges, callouts, panels) need the rectangular R/X
     impedance chart, so not a Smith chart or an SWR/gain/pattern chart, and
@@ -517,7 +517,8 @@ def _check_chart_flags(args, *, multi_engine):
             f"{flag} pins the {flag[2].upper()} axis, which --only {args.only} "
             f"does not draw; drop {flag}, or --only"
         )
-    density = args.param == "nominal_nsegs"
+    if density is None:
+        density = args.param == "nominal_nsegs"
     # --only also works on the shared-axis multi-engine chart (it drops the
     # other quantity's lines), so it is not a separate-axes flag.
     shared = [f for f in twin if f not in ("--panels", "--overlay", "--only")]
@@ -1388,8 +1389,18 @@ def cli(arguments=None):
         # stays the resolved class/partial, whose attributes (a deck's EK
         # flag, its ground) the engine setup reads.
         make = _with_params(builder, args.set_params)
-        is_density_study = args.param == "nominal_nsegs"
-        _check_chart_flags(args, multi_engine=len(_engine_specs(args.engine)) > 1)
+        from .analyses import density_knob
+
+        # `nominal_nsegs`, or the knob a design declares for the density role
+        # (a SimNEC JamSegments count, AK#1757): the same convergence study.
+        is_density_study = args.param == "nominal_nsegs" or args.param == (
+            density_knob(builder())
+        )
+        _check_chart_flags(
+            args,
+            multi_engine=len(_engine_specs(args.engine)) > 1,
+            density=is_density_study,
+        )
         engine_specs = _engine_specs(args.engine)
         # None means "not given": the density study reads that (its ladder);
         # every frequency-sweep path keeps its 21.
