@@ -401,3 +401,11 @@ picker. Questions it leaves for the design:
   and the freq-sweep switch: does it replace them, or do they stay as the
   live views?
 - do duplicated charts persist in `settings.toml` or a layout?
+
+**Ruling on "live or on Run" (Steve, 2026-09-28).** A chart runs its
+analysis on **Run**, because these can take a long time. A switch lets it
+re-run on its own **after a dwell** (the knobs have stopped moving), and an
+explicit click always works. Picking an analysis is itself an explicit act,
+so a pick runs it. Still open: whether the dwell switch is per chart or one
+for the session (the track-while-drag switch is one global switch,
+precedent), and the dwell's length.
