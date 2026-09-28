@@ -487,3 +487,16 @@ def test_no_drawable_view_or_explicit_frequencies_are_refused(monkeypatch):
     assert "no R/X-against-frequency chart" in got["rx"]["why"]
     assert got["listed"]["runs"] is False
     assert "explicit frequencies" in got["listed"]["why"]
+
+
+def test_rung_3_a_lock_off_every_band_keeps_its_own_anchor():
+    # design_freq 13.0 sits in no amateur band: the lock falls back to the
+    # policy's factors around design_freq, not the default window around freq.
+    r = fr.design_range(
+        _params(freq=14.2, design_freq=13.0, sweep_policy={"band_locked": True})
+    )
+    assert (r.lo, r.hi, r.level) == (
+        pytest.approx(10.4),
+        pytest.approx(16.25),
+        "policy",
+    )
