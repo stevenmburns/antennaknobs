@@ -289,11 +289,11 @@ export function ZParamChart({
       ctx.font = "9px ui-monospace, monospace";
       if (extrap.re != null) {
         ctx.fillStyle = R(0.9);
-        ctx.fillText("Z* R", MARGIN.l + 4, py(extrap.re, rDom) - 3);
+        ctx.fillText("Z∞ R", MARGIN.l + 4, py(extrap.re, rDom) - 3);
       }
       if (extrap.im != null) {
         ctx.fillStyle = X(0.9);
-        ctx.fillText("Z* X", MARGIN.l + 4, py(extrap.im, xDom) + 10);
+        ctx.fillText("Z∞ X", MARGIN.l + 4, py(extrap.im, xDom) + 10);
       }
     }
 
@@ -416,7 +416,7 @@ export function ZParamChart({
       ctx.font = "10px ui-monospace, monospace";
       ctx.fillStyle = PC.labelBright;
       const sign = extrap.im >= 0 ? "+" : "−";
-      const txt = `Z* ≈ ${extrap.re.toFixed(2)} ${sign} j${Math.abs(extrap.im).toFixed(2)} Ω`;
+      const txt = `Z∞ ≈ ${extrap.re.toFixed(2)} ${sign} j${Math.abs(extrap.im).toFixed(2)} Ω`;
       ctx.fillText(txt, MARGIN.l + (pw - ctx.measureText(txt).width) / 2, 12);
     }
     if (status) {

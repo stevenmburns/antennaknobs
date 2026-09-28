@@ -875,7 +875,7 @@ export function SmithChart({
           summaryFeeds.length > 1 ? `feed ${fi}` : "";
         if (extrapRe != null && extrapIm != null) {
           const sign = extrapIm >= 0 ? "+" : "−";
-          const zText = `Z* ≈ ${extrapRe.toFixed(2)} ${sign} j${Math.abs(extrapIm).toFixed(2)} Ω`;
+          const zText = `Z∞ ≈ ${extrapRe.toFixed(2)} ${sign} j${Math.abs(extrapIm).toFixed(2)} Ω`;
           txt = txt ? `${txt}  ${zText}` : zText;
         }
         if (txt) ctx.fillText(txt, 28, ly + 3);

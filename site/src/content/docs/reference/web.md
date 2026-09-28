@@ -1138,7 +1138,7 @@ To check that your chosen N is **converged** — i.e. adding more segments no
 longer moves the impedance — run a **convergence sweep**. It re-solves the
 current antenna across a ladder of densities (N = 8, 12, 17, 24, 34, 48, 68
 segments per λ/4) on the active slot's engine, and extrapolates Z to N → ∞
-(Richardson in 1/N, the diamond `Z*`), so you can see where the curve
+(Richardson in 1/N, the diamond `Z∞`), so you can see where the curve
 flattens out. Basics:
 [Segments & convergence](/reference/solver/#segments--convergence); the full
 method (ladders, cross-basis validation with a second solver slot, and what a
@@ -1153,7 +1153,7 @@ It is drawn two ways, from one sweep:
 - **As a trail on the Smith chart**, with the **param sweep** switch under
   the chart (or in the Tools menu on a phone; it was called **converge
   sweep** when density was the only thing it could sweep): a ring at the coarsest N, a
-  disc at the finest, the end values beside them, and `Z*` as a diamond.
+  disc at the finest, the end values beside them, and `Z∞` as a diamond.
 
 The sweep runs only while something on screen draws it (v0.43.0's
 view-residency gating): the Z vs parameter view, or the Smith chart with the
@@ -1209,7 +1209,7 @@ On the chart:
   scale.
 - **lin x / log x** (bottom right) switches the x axis. It follows the
   spacing until you choose.
-- On a density sweep, `Z*` is drawn as a dotted line on each axis and read
+- On a density sweep, `Z∞` is drawn as a dotted line on each axis and read
   out at the top.
 
 The sweep solves on the **active slot's engine**. Switch slots to see

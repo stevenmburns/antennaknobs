@@ -292,6 +292,42 @@ the first and last values. `--r-range` and `--x-range` fix an axis when you
 want several charts on the same scale. See [the CLI reference](/reference/cli/)
 for the rest.
 
+### Where the extrapolated value comes from
+
+The dotted line on each axis, and the `Z∞` in the chart's header, is an
+estimate of the value the curve is heading for as N grows without limit. It is
+**Richardson extrapolation**: once the mesh is fine enough, the answer follows
+a smooth low-order curve in h = 1/N, and following that curve to h = 0 gives
+the limit without solving an infinite mesh.
+
+![Two panels. Left: razor-2p's feed reactance on the HenTenna plotted against h = 1/N on linear axes, the fine rungs lying on a straight line that meets h = 0 at X∞ = 38.848 Ω, with B-spline's points flat at 38.915 Ω. Right: the change per doubling on log-log axes, razor-2p following a slope of −1 from about 230 segments on, B-spline's changes ten to a hundred times smaller.](../../../assets/advanced/richardson-hentenna.png)
+
+The two panels answer different questions, and both are needed:
+
+- **Right, log–log: is it safe to extrapolate?** Plot how much the value moves
+  per doubling of N, |Z(N) − Z(2N)|. On a log–log chart this is a straight
+  line of slope −p when the solver converges at order p. Here razor-2p (the
+  formulation NEC-5 uses) follows slope −1 from about 230 segments: each
+  doubling halves the step. The first two rungs sit off the line; that coarse
+  range is where no extrapolation should be trusted. The successive
+  differences need no knowledge of the answer, so the chart cannot assume its
+  own conclusion.
+- **Left, linear in h: what is the answer?** In that first-order range the
+  points lie on a straight line in h, and its intercept at h = 0 is the limit:
+  X∞ = 38.848 Ω. B-spline, an independent formulation, sits almost flat at
+  38.915 Ω. The two limits agree to 0.07 Ω, and that agreement is what makes
+  the number an answer rather than a guess (see
+  [Flat is not the same as right](#flat-is-not-the-same-as-right)).
+
+The two tools compute `Z∞` slightly differently today. The workbench fits a
+quadratic in 1/N through the last five rungs or fewer; the command line's
+table extrapolates at first order from its last two rungs. Both are estimates,
+and both are only as good as the right-hand check: if the steps are not yet
+shrinking at a steady rate, the rungs are too coarse and `Z∞` should not be
+trusted. (The figure is `scratch/richardson-demo/richardson_demo.py`,
+from `sweep --param nominal_nsegs --markers 10 20 40 80 160 320 640` on the
+two engines.)
+
 ### What these charts showed on the catalog
 
 Charting a free-space dipole and a full-wave loop this way at 14 MHz, on the

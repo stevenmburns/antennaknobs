@@ -133,7 +133,7 @@ options shape it the way SimNEC's charts are drawn:
   gives each engine one box per end, holding both values, stacked in
   columns in a margin beside the data so they never overlap. It works for a
   general `--param` sweep and for a `nominal_nsegs` study, where each
-  engine's `Z*` is a dotted line in its colour. `--overlay` refuses beside
+  engine's `Z∞` is a dotted line in its colour. `--overlay` refuses beside
   `--panels`, and with a single engine.
 - `--only x` draws just the reactance, `--only r` just the resistance, on a
   single y axis with no twin (X keeps its blue, R its red; on `--overlay` X
@@ -463,7 +463,7 @@ nominal_N  N_ach     R (Ω)     X (Ω)      |ΔΓ|
        13     25    71.266    -5.388    0.0023
        21     41    71.291    -5.183    0.0009
        34     65    71.309    -5.051    0.0000
-momwire:bspline  Z* = 71.339-4.826j  (shrinking: yes)
+momwire:bspline  Z∞ = 71.339-4.826j  (shrinking: yes)
 ```
 
 `nominal_N` is the rung asked for; `N_ach` is the total segment count the
@@ -472,19 +472,19 @@ parity (razor-2p and nec5 even; bspline, nec2, and pynec odd), so two engines
 given the same `nominal_N` do not mesh at the same `N_ach`, and this column
 is where that shows up. `|ΔΓ|` is the reflection-coefficient distance to that
 engine's own finest rung, the same ladder metric the density studies (#1525)
-are judged on. `Z*` is the first-order Richardson extrapolation from the
+are judged on. `Z∞` is the first-order Richardson extrapolation from the
 last two rungs (the same math the `ladder` subcommand below uses, over
 `nominal_nsegs` instead of a deck's `GW` counts); `shrinking: no` means the
 last step did not get smaller than the one before it, so the ladder is not
-yet in its asymptotic range and `Z*` should not be trusted.
+yet in its asymptotic range and `Z∞` should not be trusted.
 
 On the Smith chart, each engine's trajectory carries a hollow ring at its
-coarsest rung, a filled disc at its finest, and a diamond at its `Z*`
+coarsest rung, a filled disc at its finest, and a diamond at its `Z∞`
 (clipped inside the unit circle, since an early-ladder extrapolation can fly
 past it) — the same conventions as the app's convergence overlay. Without
 `--use_smithchart`, the chart is one panel per engine, side by side: R (left
 axis) and X (right axis) against the achieved segment count on a log axis,
-each axis ranged on its own, with `Z*` drawn as a dotted line on each.
+each axis ranged on its own, with `Z∞` drawn as a dotted line on each.
 `--r-range`, `--x-range`, and `--callouts` apply here as in [R and X
 charts](#r-and-x-charts). A multi-port design draws port 0 only, noted in the
 title; the app's own per-port convergence view is out of scope here.
