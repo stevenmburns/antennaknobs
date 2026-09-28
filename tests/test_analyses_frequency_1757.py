@@ -474,7 +474,10 @@ def test_a_view_the_workbench_lacks_is_left_out_by_name(monkeypatch):
     }
     assert w["level"] == "analysis" and w["points"] == 8
     assert "left out: the Rx view of a frequency sweep" in w["note"]
-    assert "left out: the Table view: the workbench has no table view" in w["note"]
+    assert (
+        "left out: the Table view: not in the workbench yet (sweep-framework step 5)"
+        in w["note"]
+    )
 
 
 def test_no_drawable_view_or_explicit_frequencies_are_refused(monkeypatch):
@@ -484,9 +487,15 @@ def test_no_drawable_view_or_explicit_frequencies_are_refused(monkeypatch):
     )
     got = _workbench("dipoles.invvee", [only_rx, listed], monkeypatch)
     assert got["rx"]["runs"] is False
-    assert "no R/X-against-frequency chart" in got["rx"]["why"]
+    assert (
+        "the Rx view of a frequency sweep: not in the workbench yet (sweep-framework step 5)"
+        in got["rx"]["why"]
+    )
     assert got["listed"]["runs"] is False
-    assert "explicit frequencies" in got["listed"]["why"]
+    assert (
+        "explicit frequencies (give the Sweep lo, hi and points): not in the workbench yet (sweep-framework step 5)"
+        in got["listed"]["why"]
+    )
 
 
 def test_rung_3_a_lock_off_every_band_keeps_its_own_anchor():
