@@ -1,11 +1,15 @@
 # Sweep framework: driving examples
 
-Companion to `sweep-framework.md`. These are the three concrete analyses that
-axes A1–A4 (§4 there) must serve, chosen by Steve on 2026-09-28. Each is real:
-the chart, the numbers and the commands below were produced from the released
-antennaknobs 0.90.0 / momwire 0.66.0 on the default inverted vee
-(`dipoles.invvee`, 28.47 MHz, 7 m apex, 31.7°) over average ground
-(εr 13, σ 0.005 S/m, Sommerfeld-Norton).
+Companion to `sweep-framework.md`. These are the seven concrete analyses that
+axes A1–A4 (§4 there) must serve, chosen with Steve on 2026-09-28: E1–E3
+from the catalog, E4–E7 from the last week's work with Dan. Each is real:
+the charts, the numbers and the commands were produced from the released
+antennaknobs 0.90.0 / momwire 0.66.0, except E7's chart (momwire main, free
+space).
+
+- **E1–E3** use the default inverted vee (`dipoles.invvee`, 28.47 MHz, 7 m
+  apex, 31.7°) over average ground (εr 13, σ 0.005 S/m, Sommerfeld-Norton).
+- **E4–E6** use Dan's own SimNEC files, on each file's own ground.
 
 For each example:
 
@@ -183,18 +187,178 @@ def build_analyses(self):
 
 ---
 
-## What the three ask of A1–A4, together
+## E4. The frequency sweep, read the way EZNEC reads it
 
-| need | E1 | E2 | E3 | axis |
-|---|---|---|---|---|
-| list without solving, print back as code | ✓ | ✓ | ✓ | A1 (a) |
-| cross a sweep with engines / grounds | engines | | grounds | A1 |
-| more than one swept knob; explicit values | | ✓ | | A1 |
-| name the views one sweep feeds (R/X, Smith, map) | | ✓ | | A1 |
-| reference lines (Z0, X = 0) | | ✓ | ✓ | A1 |
-| generic across designs | ✓ (no knobs) | | needs a height role | A2 |
-| one analysis leads to the next | | 75 Ω → height | | later |
+*From Dan, QRZ #158, #166 and #170. His SimNEC models carry their own
+Generator sweep.*
 
-Cost is not the obstacle on this design: E2's 825-solve grid takes 12 s.
-Larger designs will need the grid to be admitted by cost, as the hosted
-instance already does for sweeps.
+**The question.** What is my 2:1 bandwidth, and where is the minimum?
+
+**The antenna.** Dan's `snDipoleVarLenSegs.ssn`
+(`scratch/dan-1716-numericparam/`). Its SimNEC Generator sweep is armed at
+14.0–14.35 MHz in 15 points, and the workbench already reads it as the design's
+measurement range (#1679).
+
+![E4, default range](sweep-framework-examples/ex4_swr_default.png)
+![E4, the file's own range](sweep-framework-examples/ex4_swr_file_range.png)
+
+**Today.**
+
+- **The workbench** sweeps the file's own 14.0–14.35 MHz, on the 1−1/SWR or
+  ρ (EZNEC) scale, with the threshold line and the 2:1 BW readout.
+- **The CLI ignores the file's sweep.** `sweep --builder @file --swr` takes
+  its ×0.8–×1.25 default, 11.2–17.5 MHz (top chart). The file's range needs
+  `--range 14 14.35 --npoints 15` spelled out (bottom).
+- The CLI has no ρ scale, threshold or bandwidth readout, and on 0.90.0 its
+  reflection trace is still 10·log10\|Γ\| (20·log10 on main, #1775).
+
+**What it asks of the spec:**
+
+- the preset frequency sweep is an analysis like any other (#1757's first
+  comment);
+- its range may come FROM THE DESIGN (a deck's own sweep), so a spec's range
+  can be "the design's";
+- the scale, threshold and readouts are view options the spec can name.
+- This is also the natural A4 test: a deck stub whose `build_analyses()` is
+  generated from the deck's own Generator sweep.
+
+---
+
+## E5. One sweep, read at a network plane
+
+*From Dan, QRZ #142 and #143: the LC tuner, and the TL-Xfmr-CLC rig.*
+
+**The question.** What does the rig see across the band, compared with the
+bare antenna?
+
+![E5](sweep-framework-examples/ex5_planes.png)
+
+**The antenna.** Dan's `Bydipole-TL-Xfmr-CLC.ssn`, which offers eight
+measurement planes: `rig`, `C1`, `L1`, `C2`, `B`, `R1`, `T1` and `feed`. The
+chart draws three of them (`scratch/sweep-examples/ex5_planes.py`, momwire
+B-spline, the file's own ground).
+
+| plane | best SWR | where | Z there |
+|---|---|---|---|
+| `rig` | 1.19 | 14.450 MHz (the sweep's edge) | 43.12 − j4.33 |
+| `T1` (after the transformer) | 1.39 | 14.250 MHz | 37.59 − j7.39 |
+| `feed` (the antenna) | 1.45 | 14.250 MHz | 72.51 − j1.90 |
+
+Dan measured the rig at 50.01 + j0.003 Ω at 14.175 MHz in EZNEC. The
+difference is the #143 adjudication again: his CLC was tuned to a 20-segment
+antenna, and the match moves with the antenna's mesh (see E7).
+
+**Today.**
+
+- **The workbench** reads any one plane (its plane selector) but draws one at
+  a time.
+- **The CLI** has no plane option.
+
+**What it asks of the spec:**
+
+- WHERE Z is read is part of an analysis: a plane name, and possibly several
+  in one chart;
+- plane names become user-facing labels, and that is exactly where Dan was
+  confused (#143: "feed" is the node after a shunt C in that circuit, not the
+  bare antenna).
+
+---
+
+## E6. Convergence through a deck's own segment variable
+
+*From Dan, QRZ #154, #163 and #166: the command he asked us for.*
+
+**The question.** E1's question, on an imported deck whose density is ITS OWN
+knob, not `nominal_nsegs`.
+
+**The antenna.** Dan's `snDipoleVarLenSegs.ssn`. Its `JamSegments($segs)`
+becomes the knob `tmp_segs` (#1716). Swept 10 → 500 in 20 log-spaced points on
+three engines (33 s):
+
+```
+NEC5_EXE=~/bin/nec5-licensed antennaknobs sweep --builder @snDipoleVarLenSegs.ssn \
+  --param tmp_segs --range 10 500 --npoints 20 --log \
+  --engine momwire:bspline,momwire:razor-2p,nec5 --overlay
+```
+
+![E6](sweep-framework-examples/ex6_file_segs.png)
+
+**Results.**
+
+- razor-2p and NEC-5 lie on top of each other.
+- B-spline stays flat to about 0.35 Ω from 10 segments up.
+
+**Missing.** Because the knob is `tmp_segs`, the CLI gives no Z∞ and no
+convergence table. The convergence treatment is keyed to the parameter's
+NAME (`nominal_nsegs`), not to what the knob means.
+
+**What it asks of the spec:**
+
+- "convergence" is a ROLE a knob plays, which the design declares, like E3's
+  "height";
+- log spacing;
+- two examples now need knob roles, which makes it an A2 requirement rather
+  than a nicety.
+
+---
+
+## E7. Two segmentation methods on one convergence chart
+
+*Steve, 2026-09-28: "we will probably like to compare different
+segmentation methods on a convergence plot. That will really be comparing
+different antennas on the same convergence plot."*
+
+**The question.** Does the way I mesh the feed change what the ladder
+converges to, and how cleanly?
+
+**Spelling one: the catalog invvee.** A 0.1 m feed-gap wire, whose segment
+count steps by two (1 → 3 → 5 on B-spline, 2 → 4 → 6 on razor-2p) while the
+arms refine smoothly. The result is a sawtooth in R, and a "rough" Z∞ on the
+default ladder (#1782 names the step).
+
+![E7, spelling one](sweep-framework-examples/ex7_feed_mesh.png)
+
+(Free space, momwire main. Colour is the feed wire's segment count; the red X
+marks each step that changes it.)
+
+**Spelling two does not exist yet.** It is a feed that refines with the arms:
+a port on one bent wire, the vertex-feed case #1767 deferred. A one-wire
+spelling at angle 0 is not automatic either: the catalog invvee keeps its gap
+wire at 0°.
+
+**What it asks of the spec:**
+
+- the comparison dimension can be THE DESIGN ITSELF: two spellings of one
+  antenna, or two variants. That joins engines (E1, E6), grounds (E3) and
+  planes (E5) as a thing a sweep is crossed with;
+- the example also motivates the deferred #1767 vertex feed, since it is the
+  missing second curve.
+
+---
+
+## What the seven ask of A1–A4, together
+
+| need | examples | axis |
+|---|---|---|
+| list without solving, print back as code | all | A1 (a) |
+| cross a sweep with engines | E1, E6 | A1 |
+| … with grounds | E3 | A1 |
+| … with measurement planes | E5 | A1 |
+| … with designs / variants (spellings) | E7 | A1 |
+| more than one swept knob; explicit values | E2 | A1 |
+| name the views one sweep feeds (R/X, SWR scale, Smith, map) | E2, E4 | A1 |
+| reference lines (Z0, X = 0, SWR threshold) | E2, E3, E4 | A1 |
+| a range taken from the design (a deck's own sweep) | E4 | A1 / A4 |
+| log spacing | E6 | A1 |
+| generic across designs | E1 (no knobs) | A2 |
+| knob ROLES the design declares (height, density) | E3, E6 | A2 |
+| a deck stub generated from the deck's own sweep | E4 | A4 |
+| one analysis leads to the next | E2 → E3 (75 Ω needs height), E5 → E7 (the match moves with the mesh) | later |
+
+The seven cover every sweep the workbench runs today (frequency, density,
+knob). Every "cross with" dimension is one of four kinds: engine, ground,
+plane, or design.
+
+Cost is not the obstacle on these designs: E2's 825-solve grid takes 12 s,
+and E6's 60 solves on three engines take 33 s. Larger designs will need the
+grid admitted by cost, as the hosted instance already does for sweeps.
