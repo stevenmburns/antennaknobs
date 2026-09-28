@@ -94,6 +94,21 @@ python -m antennaknobs sweep --builder dipoles.invvee --swr --param angle_deg
 `--swr` frequency sweeps use the vectorized impedance sweep (one geometry,
 many frequencies), so they are much faster than scripting one solve per
 point; the R/X and Smith charts still solve one point at a time.
+
+With no `--range`, an `--swr` frequency sweep covers the design's own range,
+the same one `analyze` and the workbench use. That is, first match wins:
+
+1. a file's own sweep (a `.nec` deck's `FR` card, a SimNEC Generator sweep),
+   with its grid;
+2. a design's `ui_params["sweep_range"]`, else its `meas_freq_range`;
+3. its band policy: the amateur band holding its frequency when it is
+   band-locked, else its `sweep_policy` factors;
+4. ×0.8–×1.25 of `freq`, in 21 points.
+
+Dan's `snDipoleVarLenSegs.ssn` sweeps its Generator's 14.0–14.35 MHz in 15
+points. `--npoints` alone keeps that span and sets the count. `--center` or
+`--fraction` asks for the relative window around a centre, as before. The
+R/X, gain and pattern sweeps keep the ×0.8–×1.25 window.
 Note that knob sweeps in **free space** can be perfectly flat by design —
 translation-invariant knobs like a height `base` only matter over a ground
 (`--ground finite`).
@@ -180,8 +195,8 @@ draws, and its views. Under it go the reasons it cannot run here, if any:
   declares no height knob`;
 - `REFUSED`: the curves multiply past the cap of 6, e.g. `2 designs x 4
   engines = 8 curves`;
-- `not in the CLI yet (sweep-framework step N)`: a part this first step does
-  not run.
+- `not in the CLI yet (sweep-framework step N)`: a part the command line
+  does not run yet.
 
 `--code` prints the analysis as the Python that makes it, ready to paste into
 a design's `build_analyses()`:
@@ -234,13 +249,62 @@ legend keeps the gap:
 nec5: refused: engine 'nec5' needs a licensed NEC-5 console binary ...
 ```
 
-In this step `analyze` draws R/X and the table, and it sweeps a knob, the
-density and the height, crossed with engines and grounds. The Smith, SWR,
-S11 and map views, frequency sweeps, crosses over measurement planes,
+### Frequency analyses
+
+`band SWR` sweeps `an.FREQUENCY`, and every design offers it. With no range of
+its own it sweeps the design's, by the rule in [Sweeps](#sweeps): a deck's own
+sweep, the design's declared range, else its band policy. Its SWR values are
+exactly those of `sweep --swr` over the same frequencies, because both use the
+same solve:
+
+```bash
+# Dan's deck: its Generator's 14.0-14.35 MHz, 15 points
+python -m antennaknobs analyze --builder @snDipoleVarLenSegs.ssn --analysis "band SWR" --fn swr.png
+# the same numbers
+python -m antennaknobs sweep --builder @snDipoleVarLenSegs.ssn --swr --range 14 14.35 --npoints 15
+```
+
+It prints the frequencies it swept and where they came from. For each curve,
+it also prints the band where SWR stays below the analysis's threshold (2:1
+unless `an.Ref(swr=...)` says otherwise):
+
+```text
+  frequency 14..14.35 MHz, 15 points (the file's own range)
+momwire: 2:1 BW ≥ 303 kHz, 14.0474..14.35 MHz (runs off the high end of the sweep); minimum SWR 1.61 at 14.35 MHz (an end of the sweep: the true minimum may lie past it)
+```
+
+`≥` and "runs off the ... end" mean the band meets the edge of the sweep and
+may continue past it. `none` means SWR never drops below the threshold. When
+two dips each make a band, the readout reports the one holding the design's
+frequency and says how many there are.
+
+The views are panels of one chart:
+
+- `an.Swr(scale=...)` draws SWR on the workbench's 1-to-∞ scales:
+  `"reciprocal"` (1 − 1/SWR; `"auto"` is the same) or `"rho"` (EZNEC's, linear
+  in |Γ|). The threshold is a dash-dotted line.
+- `an.S11()` draws 20·log₁₀|Γ| in dB, with the threshold's return loss.
+- `an.Smith()` draws the trajectory on a Smith chart.
+
+`an.Rx()` draws R and X against frequency as its own chart. When an analysis
+has both, R/X goes to `--fn` and the panels go beside it as
+`<name>-views.png`. `an.Table()` prints frequency, R, X and SWR. The same
+panels draw a knob or density sweep's SWR, S11 and Smith views, which is how
+the `convergence` analysis gets its Smith chart.
+
+E4 in the sweep-framework examples is this analysis on Dan's deck, on EZNEC's
+scale:
+
+```python
+def build_analyses(self):
+    return [an.band_swr(views=(an.Swr(scale="rho"),))]
+```
+
+`analyze` sweeps a knob, the density, the height or the frequency, crossed
+with engines and grounds. The map view, crosses over measurement planes,
 designs and a second knob, and a *hold* (re-optimising knobs at every point)
-are declared in the same Python but refused by name for now. A view the step
-cannot draw is left out beside one it can, and noted: the `convergence`
-analysis runs without its Smith chart.
+are declared in the same Python but refused by name for now, each naming its
+step.
 
 ## Drawing the feed network
 
