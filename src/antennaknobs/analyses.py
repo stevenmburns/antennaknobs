@@ -82,14 +82,17 @@ def _set(obj, name: str, value) -> None:
 class Sweep:
     """The x axis: ``knob`` is a knob name or a `Role`. ``lo`` / ``hi`` /
     ``points`` None is the design's own (the knob's ``ui_params`` range, or
-    the density ladder); ``values`` replaces the range."""
+    the density ladder); ``values`` replaces the range. ``spacing`` None is
+    the sweep's own: geometric for `DENSITY` (a convergence ladder, whose
+    Z∞ reads a power law), linear otherwise (Steve, 2026-09-28). A linear
+    density ladder is refused: Z∞ cannot be read from one."""
 
     knob: str | Role
     lo: float | None = None
     hi: float | None = None
     points: int | None = None
     values: tuple[float, ...] | None = None
-    spacing: str = "lin"
+    spacing: str | None = None
 
     _positional: ClassVar[tuple[str, ...]] = ("knob", "lo", "hi")
 
@@ -98,8 +101,16 @@ class Sweep:
             isinstance(self.knob, str) and self.knob
         ):
             raise TypeError(f"Sweep: knob is a knob name or a role, got {self.knob!r}")
-        if self.spacing not in ("lin", "log"):
-            raise ValueError(f"Sweep: spacing is 'lin' or 'log', got {self.spacing!r}")
+        if self.spacing not in (None, "lin", "log"):
+            raise ValueError(
+                f"Sweep: spacing is 'lin', 'log' or None (the sweep's own), "
+                f"got {self.spacing!r}"
+            )
+        if self.knob == DENSITY and self.spacing == "lin":
+            raise ValueError(
+                "Sweep: a density ladder is geometric (Z∞ reads a power law); "
+                "drop spacing, or give 'log'"
+            )
         if (self.lo is None) != (self.hi is None):
             raise ValueError("Sweep: give lo and hi together, or neither")
         if self.values is not None:
@@ -498,10 +509,27 @@ def problems(analysis: Analysis, builder) -> list[str]:
     """Why ``analysis`` cannot run on ``builder``, as listed: an unresolved
     sweep (UNAVAILABLE) and a product over `CURVE_CAP`. Empty: it can."""
     out = []
+    same = sum(1 for a in builder.build_analyses() if a.name == analysis.name)
+    if same > 1:
+        # Names pick one analysis (`analyze --analysis NAME`); two alike is
+        # a spec to fix, not a choice to make silently (Steve, 2026-09-28).
+        # A library analysis of the same name is not counted: a design's
+        # own one replaces it on purpose (`offered`).
+        out.append(
+            f"REFUSED: {same} analyses are named {analysis.name!r}; give one "
+            f'a name= (e.g. an.convergence(name="…", …))'
+        )
     for s in analysis.sweeps:
         r = resolve(s.knob, builder)
         if r.knob is None:
             out.append(f"UNAVAILABLE: {r.reason}")
+        elif (
+            s.spacing == "lin" and s.knob != DENSITY and r.knob == density_knob(builder)
+        ):
+            out.append(
+                f"REFUSED: {r.knob} plays the density role, whose ladder is "
+                "geometric; drop spacing='lin'"
+            )
     for c in analysis.crosses:
         if c.step is not None:
             r = resolve(c.step.knob, builder)
