@@ -59,7 +59,7 @@
 | src/antennaknobs/designs/dipoles/invvee\_catenary.py                 |       64 |        1 |     98% |       400 |
 | src/antennaknobs/designs/dipoles/invvee\_coax\_station.py            |        9 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/koch\_dipole.py                     |       36 |        0 |    100% |           |
-| src/antennaknobs/designs/dipoles/ocf\_dipole.py                      |       18 |        0 |    100% |           |
+| src/antennaknobs/designs/dipoles/ocf\_dipole.py                      |       12 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/pota\_invvee.py                     |        5 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/short\_dipole\_loaded.py            |       11 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/\_\_init\_\_.py                       |        0 |        0 |    100% |           |
@@ -93,8 +93,8 @@
 | src/antennaknobs/designs/specialty/hourglass.py                      |       29 |        0 |    100% |           |
 | src/antennaknobs/designs/specialty/hourglass\_slant.py               |       37 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/\_\_init\_\_.py                   |        0 |        0 |    100% |           |
-| src/antennaknobs/designs/verticals/bobtail.py                        |       15 |        0 |    100% |           |
-| src/antennaknobs/designs/verticals/bruce.py                          |       35 |        0 |    100% |           |
+| src/antennaknobs/designs/verticals/bobtail.py                        |       20 |        0 |    100% |           |
+| src/antennaknobs/designs/verticals/bruce.py                          |       34 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/buried\_radial\_vertical.py       |       56 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/challenger.py                     |       25 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/dominator.py                      |       23 |        0 |    100% |           |
@@ -109,7 +109,7 @@
 | src/antennaknobs/designs/verticals/pota\_performer.py                |       30 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/raised\_vertical.py               |       22 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/rectangle.py                      |       24 |        0 |    100% |           |
-| src/antennaknobs/designs/verticals/right\_angle\_delta.py            |       25 |        0 |    100% |           |
+| src/antennaknobs/designs/verticals/right\_angle\_delta.py            |       23 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/stub\_matched\_vertical.py        |       12 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/tri\_moxon.py                     |       41 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/vertical.py                       |       19 |        0 |    100% |           |
@@ -189,7 +189,7 @@
 | src/antennaknobs/web/tracker.py                                      |      261 |       30 |     89% |213, 219, 269, 285-286, 315-316, 322, 333-335, 342-343, 349, 431, 454-458, 461-470, 497 |
 | src/antennaknobs/web/user\_designs.py                                |       68 |        6 |     91% |60-61, 92-93, 98-99 |
 | src/antennaknobs/wire\_catalog.py                                    |      188 |        0 |    100% |           |
-| **TOTAL**                                                            | **21856** | **1260** | **94%** |           |
+| **TOTAL**                                                            | **21852** | **1260** | **94%** |           |
 
 
 ## Setup coverage badge
