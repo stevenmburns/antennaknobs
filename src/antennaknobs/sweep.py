@@ -572,6 +572,31 @@ def gen_xs(default_value, rng, center, fraction, npoints, log=False):
     return xs
 
 
+def swr_curve(antenna_builder, nm, xs, engine, z0):
+    """``(zs, swr)`` at ``xs``, shaped (points, ports): the solve behind
+    ``sweep --swr`` and every `analyses.Swr` / `analyses.S11` view
+    (``analyze``), so the two are one computation. Sweeping ``freq`` is one
+    build and the engine's vectorized impedance_sweep; any other knob
+    rebuilds per point."""
+    if nm == "freq":
+        a = engine(antenna_builder)
+        zs = a.impedance_sweep(xs)
+        del a
+    else:
+        zs = []
+        for x in xs:
+            setattr(antenna_builder, nm, x)
+            zs.append(engine(antenna_builder).impedance())
+        zs = np.array(zs)
+    return zs, swr_of(zs, z0)
+
+
+def swr_of(zs, z0):
+    """SWR of impedances ``zs`` against ``z0``: (1 + |Γ|)/(1 − |Γ|)."""
+    rho = np.abs((zs - z0) / (zs + z0))
+    return (1 + rho) / (1 - rho)
+
+
 def sweep_swr(
     antenna_builder,
     nm="freq",
@@ -584,6 +609,7 @@ def sweep_swr(
     fn=None,
     engine=Antenna,
     measured=None,
+    xs=None,
 ):
     """SWR + reflection magnitude against any swept knob.
 
@@ -593,28 +619,21 @@ def sweep_swr(
 
     `measured` is an optional `MeasuredTrace` (a VNA `.s1p`, issue #595) drawn
     as a second, dashed trace on both axes over the band it covers.
+
+    `xs` given is the grid itself, and `rng`/`center`/`fraction`/`npoints`
+    are not read (the CLI passes a frequency sweep's default range this way,
+    `frequency_range.design_range`).
     """
     import matplotlib.pyplot as plt
 
-    xs = gen_xs(getattr(antenna_builder, nm), rng, center, fraction, npoints)
+    if xs is None:
+        xs = gen_xs(getattr(antenna_builder, nm), rng, center, fraction, npoints)
     # Align before solving: a disjoint measured band should fail immediately,
     # not after a full sweep's worth of matrix solves.
     meas = _align_measured(measured, nm, xs, z0)
 
-    if nm == "freq":
-        a = engine(antenna_builder)
-        zs = a.impedance_sweep(xs)
-        del a
-    else:
-        zs = []
-        for x in xs:
-            setattr(antenna_builder, nm, x)
-            zs.append(engine(antenna_builder).impedance())
-        zs = np.array(zs)
-
-    reflection_coefficient = (zs - z0) / (zs + z0)
-    rho = np.abs(reflection_coefficient)
-    swr = (1 + rho) / (1 - rho)
+    zs, swr = swr_curve(antenna_builder, nm, xs, engine, z0)
+    rho = np.abs((zs - z0) / (zs + z0))
 
     # |S11| in dB is 20·log10|Γ|, the workbench's S11 chart and every VNA's;
     # this was 10·log10|Γ| (a power quantity's formula on a voltage ratio),
