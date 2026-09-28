@@ -1213,7 +1213,9 @@ On the chart:
 - On a density sweep, `Z∞` is drawn as a dotted line on each axis and read
   out at the top. The readout ends with `· p 0.98` when the ladder is
   asymptotic and the observed order p was used, or `· rough` when it is not
-  yet (first order assumed, and the dotted lines are drawn fainter). See
+  yet (first order assumed, and the dotted lines are drawn fainter). When
+  the feed mesh is the reason, the readout names the step, e.g.
+  `· rough: fed segment 100.0→33.3 mm at N 65→95`. See
   [Where the extrapolated value comes from](/advanced/convergence/#where-the-extrapolated-value-comes-from).
 
 The sweep solves on the **active slot's engine**. Switch slots to see

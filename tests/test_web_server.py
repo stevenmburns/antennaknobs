@@ -2292,7 +2292,7 @@ def test_solve_aborted_propagates_uncached(monkeypatch):
 
 
 def test_solve_z_only_returns_primary_z_and_no_feeds_for_dipole():
-    z, feeds_z, n_seg = server._solve_z_only(
+    z, feeds_z, mesh = server._solve_z_only(
         {
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 28.47,
@@ -2302,8 +2302,10 @@ def test_solve_z_only_returns_primary_z_and_no_feeds_for_dipole():
     assert isinstance(z, complex)
     assert z.real > 0  # real-input dipole has positive real Z
     assert feeds_z is None  # single-feed
-    # AK#1781: the achieved mesh total, the CLI density study's N_ach.
-    assert isinstance(n_seg, int) and n_seg > 0
+    # AK#1781: the achieved mesh total, the CLI density study's N_ach, and
+    # the fed segment's length (the rough Z∞'s reason).
+    assert isinstance(mesh["n_seg"], int) and mesh["n_seg"] > 0
+    assert 0 < mesh["fed_seg_m"] <= 0.1  # inside the 0.1 m gap wire
 
 
 def test_compute_directivity_norm_ground_on_stays_finite_and_positive():

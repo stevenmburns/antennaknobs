@@ -168,3 +168,59 @@ export function zinfSuffix(status: ZInfStatus | null | undefined, p: number | nu
   if (status === "rough") return " · rough";
   return "";
 }
+
+// The reason beside "rough": the step, in the last FEED_MESH_WINDOW rungs,
+// where the fed segment least follows the ladder's 1/x scaling (a feed wire
+// whose count moves in steps of two, AK#1767). zinf.py's feed_mesh_step is
+// the spec; the shared vectors gate both. It never changes the estimate.
+export const FEED_MESH_WINDOW = 4;
+export const FEED_MESH_TOL = 1.25;
+
+function sameLength(a: number, b: number): boolean {
+  return Math.abs(a - b) <= 1e-9 * Math.max(a, b);
+}
+
+/** Index k of the step x[k] → x[k+1] to name, or null: a jump (the length
+ *  changed) before a held step, the first largest departure within each. */
+export function feedMeshStep(x: readonly number[], fedLen: readonly number[]): number | null {
+  const m = x.length;
+  if (m < 2 || fedLen.length !== m) return null;
+  const tol = Math.log(FEED_MESH_TOL);
+  let bestJump: number | null = null;
+  let jumpDev = tol;
+  let bestHeld: number | null = null;
+  let heldDev = tol;
+  for (let k = Math.max(0, m - FEED_MESH_WINDOW); k < m - 1; k++) {
+    const x0 = x[k];
+    const x1 = x[k + 1];
+    const l0 = fedLen[k];
+    const l1 = fedLen[k + 1];
+    if (!(x0 > 0 && x1 > x0 && l0 > 0 && l1 > 0)) return null;
+    const dev = Math.abs(Math.log(l0 / l1) - Math.log(x1 / x0));
+    if (sameLength(l0, l1)) {
+      if (dev > heldDev) {
+        bestHeld = k;
+        heldDev = dev;
+      }
+    } else if (dev > jumpDev) {
+      bestJump = k;
+      jumpDev = dev;
+    }
+  }
+  return bestJump ?? bestHeld;
+}
+
+/** The chart's short clause for a feedMeshStep hit at step k, e.g.
+ *  ": fed segment 100.0→33.3 mm at N 65→95". */
+export function feedMeshClause(
+  x: readonly number[],
+  fedLen: readonly number[],
+  k: number,
+): string {
+  const l0 = fedLen[k] * 1000;
+  const l1 = fedLen[k + 1] * 1000;
+  const len = sameLength(l0, l1)
+    ? `fixed at ${l0.toFixed(1)} mm`
+    : `${l0.toFixed(1)}→${l1.toFixed(1)} mm`;
+  return `: fed segment ${len} at N ${x[k]}→${x[k + 1]}`;
+}

@@ -506,5 +506,134 @@
         "status": "insufficient"
       }
     }
+  ],
+  "feed_mesh_cases": [
+    {
+      "name": "invvee bspline: 1 -> 3 segments between N 65 and 95",
+      "x": [
+        17,
+        23,
+        33,
+        47,
+        65,
+        95,
+        133
+      ],
+      "fed_len": [
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.03333333333333333,
+        0.03333333333333333
+      ],
+      "expected_step": 4
+    },
+    {
+      "name": "invvee razor-2p: the 2 -> 4 jump beats the held step",
+      "x": [
+        18,
+        24,
+        34,
+        48,
+        66,
+        94,
+        134
+      ],
+      "fed_len": [
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.025
+      ],
+      "expected_step": 5
+    },
+    {
+      "name": "held throughout the window",
+      "x": [
+        10,
+        14,
+        20,
+        28,
+        40
+      ],
+      "fed_len": [
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05
+      ],
+      "expected_step": 1
+    },
+    {
+      "name": "uniform refinement",
+      "x": [
+        10,
+        20,
+        40,
+        80,
+        160
+      ],
+      "fed_len": [
+        0.1,
+        0.05,
+        0.025,
+        0.0125,
+        0.00625
+      ],
+      "expected_step": null
+    },
+    {
+      "name": "a jump before the window is not named",
+      "x": [
+        10,
+        20,
+        40,
+        80,
+        160,
+        320
+      ],
+      "fed_len": [
+        0.1,
+        0.03333333333333333,
+        0.016666666666666666,
+        0.008333333333333333,
+        0.004166666666666667,
+        0.0020833333333333333
+      ],
+      "expected_step": null
+    },
+    {
+      "name": "a nonpositive length",
+      "x": [
+        10,
+        20,
+        40
+      ],
+      "fed_len": [
+        0.1,
+        0.0,
+        0.025
+      ],
+      "expected_step": null
+    },
+    {
+      "name": "misaligned",
+      "x": [
+        10,
+        20,
+        40
+      ],
+      "fed_len": [
+        0.1,
+        0.05
+      ],
+      "expected_step": null
+    }
   ]
 }

@@ -13,13 +13,20 @@ from pathlib import Path
 
 import pytest
 
-from antennaknobs.zinf import describe, zinf_estimate
+from antennaknobs.zinf import (
+    describe,
+    describe_feed_mesh,
+    feed_mesh_step,
+    zinf_estimate,
+)
 
 VECTORS = (
     Path(__file__).resolve().parent.parent
     / "src/antennaknobs/web/frontend/src/__tests__/fixtures/zinfVectors.json"
 )
-CASES = json.loads(VECTORS.read_text())["cases"]
+DOC = json.loads(VECTORS.read_text())
+CASES = DOC["cases"]
+FEED_MESH_CASES = DOC["feed_mesh_cases"]
 REL = 1e-12
 
 
@@ -73,3 +80,29 @@ def test_describe_lines():
     assert describe(est).endswith("(rough: not yet asymptotic, first order assumed)")
     est = zinf_estimate(xs, [complex(50, 10)] * 4)
     assert describe(est) == "Z∞ = 50.000+10.000j  (converged)"
+
+
+@pytest.mark.parametrize(
+    "case", FEED_MESH_CASES, ids=[c["name"] for c in FEED_MESH_CASES]
+)
+def test_feed_mesh_step_matches_the_shared_vectors(case):
+    assert feed_mesh_step(case["x"], case["fed_len"]) == case["expected_step"]
+
+
+def test_the_feed_mesh_vectors_name_a_jump_a_held_step_and_nothing():
+    steps = {c["name"]: c["expected_step"] for c in FEED_MESH_CASES}
+    assert steps["invvee bspline: 1 -> 3 segments between N 65 and 95"] == 4
+    assert steps["invvee razor-2p: the 2 -> 4 jump beats the held step"] == 5
+    assert steps["held throughout the window"] is not None
+    assert steps["uniform refinement"] is None
+
+
+def test_describe_feed_mesh_lines():
+    x = [47, 65, 95]
+    assert describe_feed_mesh(x, [0.1, 0.1, 0.1 / 3], 1) == (
+        "the fed segment went 100.0 → 33.3 mm between N = 65 and 95: "
+        "the feed mesh does not refine with the ladder (AK#1767)"
+    )
+    assert describe_feed_mesh(x, [0.05, 0.05, 0.05], 0).startswith(
+        "the fed segment stayed 50.0 mm from N = 47 to 65:"
+    )

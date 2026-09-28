@@ -3,7 +3,7 @@ import logging
 from . import Antenna
 from .core import save_or_show
 from .far_field import get_elevation, get_pattern_rings, plot_patterns
-from .zinf import describe, zinf_estimate
+from .zinf import describe, describe_feed_mesh, feed_mesh_step, zinf_estimate
 
 import numpy as np
 
@@ -785,7 +785,7 @@ def _reflection(z, z0):
 
 
 def _print_convergence_table(
-    per_engine, estimates, z0, marked=frozenset(), ground_label=None
+    per_engine, estimates, z0, marked=frozenset(), ground_label=None, reasons=None
 ):
     """The stdout table for ``sweep --param nominal_nsegs`` (#1554): grouped
     per engine so a single-engine study reads like a plain ladder printout,
@@ -812,6 +812,8 @@ def _print_convergence_table(
         if marked:
             print("  * = a --markers rung")
         print(f"{name}  {describe(estimates[name])}")
+        if reasons and name in reasons:
+            print(f"{' ' * len(name)}  {reasons[name]}")
 
 
 def _sweep_convergence(
@@ -862,16 +864,25 @@ def _sweep_convergence(
     rungs = sorted(ladder_rungs | marked)
 
     per_engine = {}
+    # The fed segment's length at each rung (port 0), beside `rows` rather
+    # than in them: the reason a rough Z∞ gives (AK#1781, feed_mesh_step).
+    fed_len = {}
     nports = 1
     for name, factory in engines:
         rows = []
+        lens = []
         for n in rungs:
             antenna_builder.nominal_nsegs = n
             eng = factory(antenna_builder)
             z = eng.impedance()
             nports = max(nports, len(z))
             rows.append((n, _achieved_n(eng, antenna_builder), complex(z[0])))
+            # Optional: an engine that cannot say (a test stub) gives no reason.
+            fed_segments = getattr(eng, "fed_segments", None)
+            fed = fed_segments() if fed_segments is not None else None
+            lens.append(fed[0]["length_m"] if fed else None)
         per_engine[name] = rows
+        fed_len[name] = lens
 
     # Z∞ reads the GEOMETRIC ladder only: a marker dropped between two rungs
     # would shrink one step and grow the next, and the estimator's order
@@ -879,12 +890,24 @@ def _sweep_convergence(
     # the trajectory, not rungs of the extrapolation. The refinement
     # variable is the ACHIEVED segment count, as in the workbench (AK#1781).
     estimates = {}
+    reasons = {}
     for name, rows in per_engine.items():
-        ladder = [(achieved, z) for n, achieved, z in rows if n in ladder_rungs]
-        estimates[name] = zinf_estimate([a for a, _ in ladder], [z for _, z in ladder])
+        on = [k for k, (n, _, _) in enumerate(rows) if n in ladder_rungs]
+        xs = [rows[k][1] for k in on]
+        estimates[name] = zinf_estimate(xs, [rows[k][2] for k in on])
+        lens = [fed_len[name][k] for k in on]
+        if estimates[name].status == "rough" and None not in lens:
+            step = feed_mesh_step(xs, lens)
+            if step is not None:
+                reasons[name] = describe_feed_mesh(xs, lens, step)
 
     _print_convergence_table(
-        per_engine, estimates, z0, marked=marked, ground_label=ground_label
+        per_engine,
+        estimates,
+        z0,
+        marked=marked,
+        ground_label=ground_label,
+        reasons=reasons,
     )
 
     title = "impedance vs nominal_nsegs, Richardson Z∞"

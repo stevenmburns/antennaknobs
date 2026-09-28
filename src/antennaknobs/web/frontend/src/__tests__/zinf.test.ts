@@ -5,7 +5,14 @@
 
 import { describe, expect, it } from "vitest";
 import vectors from "./fixtures/zinfVectors.json";
-import { feedwiseZinf, zinfEstimate, zinfSuffix, type ZInfStatus } from "../lib/zinf";
+import {
+  feedMeshClause,
+  feedMeshStep,
+  feedwiseZinf,
+  zinfEstimate,
+  zinfSuffix,
+  type ZInfStatus,
+} from "../lib/zinf";
 
 type Case = {
   name: string;
@@ -15,7 +22,11 @@ type Case = {
   expected: { re: number | null; im: number | null; p: number | null; status: ZInfStatus };
 };
 
+type FeedMeshCase = { name: string; x: number[]; fed_len: number[]; expected_step: number | null };
+
 const CASES = (vectors as { cases: Case[] }).cases;
+const FEED_MESH_CASES = (vectors as unknown as { feed_mesh_cases: FeedMeshCase[] })
+  .feed_mesh_cases;
 const REL = 1e-12;
 
 const close = (got: number, want: number, scale: number) =>
@@ -73,5 +84,25 @@ describe("zinfSuffix", () => {
     expect(zinfSuffix("rough", null)).toBe(" · rough");
     expect(zinfSuffix("converged", null)).toBe("");
     expect(zinfSuffix(null, null)).toBe("");
+  });
+});
+
+describe("feedMeshStep against the shared vectors", () => {
+  for (const c of FEED_MESH_CASES) {
+    it(c.name, () => {
+      expect(feedMeshStep(c.x, c.fed_len)).toBe(c.expected_step);
+    });
+  }
+});
+
+describe("feedMeshClause", () => {
+  it("names a jump and a held step", () => {
+    const x = [47, 65, 95];
+    expect(feedMeshClause(x, [0.1, 0.1, 0.1 / 3], 1)).toBe(
+      ": fed segment 100.0→33.3 mm at N 65→95",
+    );
+    expect(feedMeshClause(x, [0.05, 0.05, 0.05], 0)).toBe(
+      ": fed segment fixed at 50.0 mm at N 47→65",
+    );
   });
 });
