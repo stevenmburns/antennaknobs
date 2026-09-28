@@ -4,8 +4,8 @@ Companion to `sweep-framework.md`. These are the seven concrete analyses that
 axes A1–A4 (§4 there) must serve, chosen with Steve on 2026-09-28: E1–E3
 from the catalog, E4–E7 from the last week's work with Dan. Each is real:
 the charts, the numbers and the commands were produced from the released
-antennaknobs 0.90.0 / momwire 0.66.0, except E7's chart (momwire main, free
-space).
+antennaknobs 0.90.0 / momwire 0.66.0, except E7's first chart (momwire
+main, free space).
 
 - **E1–E3** use the default inverted vee (`dipoles.invvee`, 28.47 MHz, 7 m
   apex, 31.7°) over average ground (εr 13, σ 0.005 S/m, Sommerfeld-Norton).
@@ -318,21 +318,55 @@ default ladder (#1782 names the step).
 
 ![E7, spelling one](sweep-framework-examples/ex7_feed_mesh.png)
 
-(Free space, momwire main. Colour is the feed wire's segment count; the red X
-marks each step that changes it.)
+(Free space, momwire main: the dense ladder with the bridge's feed-wire count
+marked. Colour is the count; the red X marks each step that changes it.)
 
-**Spelling two does not exist yet.** It is a feed that refines with the arms:
-a port on one bent wire, the vertex-feed case #1767 deferred. A one-wire
-spelling at angle 0 is not automatic either: the catalog invvee keeps its gap
-wire at 0°.
+**Spelling two: the apex knot** (Steve: "we can also use the APEX feed for
+engines that can feed at knots"). `dipoles.invvee_apex` (#898) is the same vee
+with no bridge: a `PortAtVertex` at the apex. momwire serves it on every
+`PortAtVertex` backend and NEC-5 natively; NEC-2-shaped engines refuse it by
+name. Both spellings run over the same dense ladder (8 → 272 per λ/4) on three
+engines, in free space (34 s, `scratch/sweep-examples/ex7_spellings.py`):
+
+![E7, both spellings](sweep-framework-examples/ex7_spellings.png)
+
+- **The apex spelling is smooth on every engine.** The bridge keeps its
+  steps.
+- **The two spellings converge to different antennas.** At N ≈ 528 on
+  B-spline:
+  - R: 55.14 vs 54.50 Ω;
+  - X: −9.68 vs −11.91 Ω.
+
+  That's the bridge's extra 0.1 m of wire and its two junctions, a
+  modelling difference, not discretisation (`invvee_apex`'s docstring
+  measured 2.2 Ω in August).
+- **razor-2p and NEC-5 agree to about 0.04 Ω on each spelling**, so the
+  spelling moves the answer ~50× more than the engine does.
+
+The Z∞ estimator (#1782) on the app's default 7-rung ladder:
+
+| spelling | engine | Z∞ |
+|---|---|---|
+| bridge | momwire:bspline | 55.144 − j9.674, **rough**: fed segment 100 → 33 mm at N 65→95 |
+| bridge | momwire:razor-2p | 55.097 − j10.072, **rough**: fed segment 50 → 25 mm at N 94→134 |
+| bridge | NEC-5 | 55.095 − j10.112, **rough**: fed segment 50 → 25 mm at N 94→134 |
+| apex knot | momwire:bspline | 54.512 − j11.830, **asymptotic**, p = 0.61 |
+| apex knot | momwire:razor-2p | 54.464 − j12.271, **asymptotic**, p = 1.08 |
+| apex knot | NEC-5 | 54.459 − j12.311, **asymptotic**, p = 1.08 |
+
+This settles #1782's open product question, where the default invvee read
+"rough" on both engines. The roughness belongs to the bridge idiom, not to
+the estimator: the same antenna fed at its apex knot is asymptotic
+everywhere.
 
 **What it asks of the spec:**
 
 - the comparison dimension can be THE DESIGN ITSELF: two spellings of one
   antenna, or two variants. That joins engines (E1, E6), grounds (E3) and
   planes (E5) as a thing a sweep is crossed with;
-- the example also motivates the deferred #1767 vertex feed, since it is the
-  missing second curve.
+- an engine can refuse one spelling (NEC-2 cannot feed a knot), so crossing
+  designs with engines must handle a refused cell by name, not fail the
+  analysis.
 
 ---
 
@@ -344,7 +378,7 @@ wire at 0°.
 | cross a sweep with engines | E1, E6 | A1 |
 | … with grounds | E3 | A1 |
 | … with measurement planes | E5 | A1 |
-| … with designs / variants (spellings) | E7 | A1 |
+| … with designs / variants (spellings), with refused cells | E7 | A1 |
 | more than one swept knob; explicit values | E2 | A1 |
 | name the views one sweep feeds (R/X, SWR scale, Smith, map) | E2, E4 | A1 |
 | reference lines (Z0, X = 0, SWR threshold) | E2, E3, E4 | A1 |
@@ -353,7 +387,7 @@ wire at 0°.
 | generic across designs | E1 (no knobs) | A2 |
 | knob ROLES the design declares (height, density) | E3, E6 | A2 |
 | a deck stub generated from the deck's own sweep | E4 | A4 |
-| one analysis leads to the next | E2 → E3 (75 Ω needs height), E5 → E7 (the match moves with the mesh) | later |
+| one analysis leads to the next | E2 → E3 (75 Ω needs height), E5 → E7 (the match moves with the mesh and the feed spelling) | later |
 
 The seven cover every sweep the workbench runs today (frequency, density,
 knob). Every "cross with" dimension is one of four kinds: engine, ground,
