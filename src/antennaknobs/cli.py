@@ -1539,6 +1539,89 @@ def cli(arguments=None):
 
     p.set_defaults(func=f)
 
+    p = subparsers.add_parser(
+        "analyze",
+        help="List or run a design's analyses (sweep framework, step 1)",
+    )
+    add_common(p)
+    add_engine_args(p)
+    p.add_argument(
+        "--list",
+        dest="list_analyses",
+        default=False,
+        action="store_true",
+        help="List the design's analyses, one line each, with the reason any "
+        "of them cannot run here (UNAVAILABLE on this design, over the "
+        "curve cap, or not in the CLI yet).",
+    )
+    p.add_argument(
+        "--analysis",
+        default=None,
+        help="The analysis to run, by the name --list shows.",
+    )
+    p.add_argument(
+        "--code",
+        default=False,
+        action="store_true",
+        help="With --analysis: print its Python instead of running it.",
+    )
+    p.add_argument("--z0", default=50, type=float, help="Reference impedance.")
+
+    def f(args):
+        from . import analyses as an
+        from . import analysis_run
+
+        builder = get_builder(args.builder)
+        if args.list_analyses:
+            for line in analysis_run.list_lines(builder()):
+                print(line)
+            return
+        if args.analysis is None:
+            raise SystemExit("analyze: give --list, or --analysis NAME")
+        analysis = analysis_run.find(builder(), args.analysis)
+        if args.code:
+            print(an.to_code(analysis))
+            return
+        deck_ek = deck_extended_kernel_flag(builder)
+
+        def ground_for(spec):
+            # An analysis's own ground wins; None is the session's --ground,
+            # itself defaulting to a file design's own (AK#1432, AK#1563).
+            return resolve_ground(args.ground if spec is None else spec, builder)
+
+        def factory_for(engine_spec, ground_spec, density):
+            if density and args.nominal_nsegs is not None:
+                raise SystemExit(
+                    "--nominal-nsegs conflicts with a density analysis: the "
+                    "sweep sets the density itself, rung by rung"
+                )
+            # The seam `sweep` builds its engines through: a density study
+            # stands the #1543 density wrapper down, since it moves the
+            # density knob itself; any other sweep runs at the engine's own.
+            return placements.watch(
+                make_engine_factory(
+                    engine_spec,
+                    ground_for(ground_spec),
+                    extended_kernel=args.extended_kernel,
+                    deck_extended_kernel=deck_ek,
+                    nominal_nsegs=(
+                        None if density else density_from_args(args, engine_spec)
+                    ),
+                )
+            )
+
+        analysis_run.run(
+            analysis,
+            builder,
+            factory_for=factory_for,
+            ground_label_for=lambda spec: format_ground(ground_for(spec)),
+            session_engine=args.engine,
+            z0=args.z0,
+            fn=args.fn,
+        )
+
+    p.set_defaults(func=f)
+
     p = subparsers.add_parser("optimize", help="Optimize antenna")
     add_common(p)
     add_engine_args(p)

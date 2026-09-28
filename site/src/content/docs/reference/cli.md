@@ -1,12 +1,12 @@
 ---
 title: Command line
-description: Driving antennaknobs from the terminal — list, draw, sweep, pattern, optimize, compare, params, .nec export, and allowing user designs.
+description: Driving antennaknobs from the terminal — list, draw, sweep, analyze, pattern, optimize, compare, params, .nec export, and allowing user designs.
 ---
 
 antennaknobs has a command-line interface for batch work. The subcommands:
 
 ```text
-python -m antennaknobs {draw,sweep,optimize,pattern,compare_patterns,params,export,list,screen,allow,disallow}
+python -m antennaknobs {draw,sweep,analyze,optimize,pattern,compare_patterns,params,export,list,screen,allow,disallow}
 ```
 
 | Command | What it does |
@@ -14,6 +14,7 @@ python -m antennaknobs {draw,sweep,optimize,pattern,compare_patterns,params,expo
 | `list` | List available designs (built-in and user) |
 | `draw` | Draw the antenna geometry |
 | `sweep` | Sweep a parameter or frequency |
+| `analyze` | List or run a design's named analyses |
 | `pattern` | Plot the far-field pattern |
 | `compare_patterns` | Overlay the patterns of several antennas / engines |
 | `optimize` | Optimize an antenna's parameters |
@@ -99,7 +100,9 @@ translation-invariant knobs like a height `base` only matter over a ground
 
 `--param nominal_nsegs` is a different kind of sweep — a mesh-density
 convergence study rather than a geometry or frequency one; see [Convergence
-studies](#convergence-studies) below. `--engine` also takes a
+studies](#convergence-studies) below. So is a knob a design marks as its
+density knob: a SimNEC `.ssn`'s `JamSegments($segs)` count, which imports as
+`tmp_segs`, gets the same table and `Z∞` (see [Analyses](#analyses)). `--engine` also takes a
 comma-separated list (or repeat the flag): one trajectory or line per engine
 on the same chart, most useful for that same convergence study.
 
@@ -156,6 +159,88 @@ python -m antennaknobs sweep --builder @dipole.nec --param sy_segs \
 The options apply to the impedance chart only: they refuse with `--swr`,
 `--gain`, and `--patterns`, and the axis options refuse with
 `--use_smithchart` (where `--log` still spaces the points).
+
+## Analyses
+
+`analyze` is the first step of the sweep framework: a design names the sweeps
+worth running on it, and the command line lists and runs them by name. An
+analysis is a Python value, returned by the design's `build_analyses()`, so
+nothing solves until you ask for one:
+
+```bash
+python -m antennaknobs analyze --builder dipoles.invvee --list
+python -m antennaknobs analyze --builder dipoles.invvee --analysis height --fn height.png
+python -m antennaknobs analyze --builder dipoles.invvee --analysis height --code
+```
+
+`--list` prints one line per analysis: what it sweeps, how many curves it
+draws, and its views. Under it go the reasons it cannot run here, if any:
+
+- `UNAVAILABLE`: the design lacks what the analysis needs, e.g. `this design
+  declares no height knob`;
+- `REFUSED`: the curves multiply past the cap of 6, e.g. `2 designs x 4
+  engines = 8 curves`;
+- `not in the CLI yet (sweep-framework step N)`: a part this first step does
+  not run.
+
+`--code` prints the analysis as the Python that makes it, ready to paste into
+a design's `build_analyses()`:
+
+```python
+an.Analysis(
+    "height",
+    an.Sweep(an.HEIGHT, 2, 20, points=37),
+    cross=an.Cross(grounds=("free", "finite:13,0.005", "finite:5,0.001")),
+    references=an.Ref(r=(50,), x=(0,)),
+)
+```
+
+`an` is `antennaknobs.analyses`. An analysis sweeps one knob, or a *role* a
+knob plays: `an.DENSITY` (the mesh density), `an.HEIGHT`, `an.FREQUENCY`. A
+role is declared beside the knob's range in `ui_params`, e.g. `"base": {"min":
+1.0, "max": 16.0, "role": "height"}`, so one analysis serves every design that
+declares it. The density role is `nominal_nsegs` on a catalog design; an
+imported `.ssn` marks the knob its `JamSegments` count reads. Its crosses are
+compared as separate curves, one per combination: engines and grounds here.
+
+Every design also offers the library's generic analyses: `convergence` (a
+density ladder), `band SWR`, and `height` where a height knob is declared. A
+design's own analysis of the same name replaces the generic one. The inverted
+vee's `convergence` is the density ladder on three engines over average
+ground, and its `height` is R and X from 2 to 20 m over three grounds.
+
+`--engine` and `--ground` set what an analysis leaves open: an analysis that
+names no engine runs on `--engine`, and one that names no ground runs on
+`--ground` (a file design's own ground by default, as for `sweep`).
+
+The runs go through the same code as `sweep`, so the numbers are the same: the
+invvee's `convergence` gives exactly the table and `Z∞` of
+
+```bash
+python -m antennaknobs sweep --builder dipoles.invvee --param nominal_nsegs \
+    --engine momwire:bspline,momwire:razor-2p,nec5 --ground finite:13,0.005
+```
+
+and each curve of its `height` is `sweep --param base --range 2 20 --npoints
+37 --ground <g>`. All the curves are drawn on one [overlay](#r-and-x-charts)
+chart, with the analysis's reference lines (R = 50 Ω, X = 0) dash-dotted.
+
+A curve an engine cannot serve is *refused* and named, and the rest runs. That
+happens with `nec5` when no NEC-5 binary is configured, or with an engine that
+refuses the design (NEC-2 on a vertex feed). The reason is printed, and the
+legend keeps the gap:
+
+```text
+nec5: refused: engine 'nec5' needs a licensed NEC-5 console binary ...
+```
+
+In this step `analyze` draws R/X and the table, and it sweeps a knob, the
+density and the height, crossed with engines and grounds. The Smith, SWR,
+S11 and map views, frequency sweeps, crosses over measurement planes,
+designs and a second knob, and a *hold* (re-optimising knobs at every point)
+are declared in the same Python but refused by name for now. A view the step
+cannot draw is left out beside one it can, and noted: the `convergence`
+analysis runs without its Smith chart.
 
 ## Drawing the feed network
 
