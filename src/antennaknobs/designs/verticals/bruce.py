@@ -46,7 +46,7 @@ Geometry, in the framework's (x, y, z) convention:
 
 import itertools
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Wire
+from antennaknobs.network import Driven, Network, PortOnWire, Wire
 from types import MappingProxyType
 
 
@@ -98,7 +98,6 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        eps = 0.05
         wavelength = self.design_wavelength
 
         vert = self.vert_frac * wavelength * self.length_factor
@@ -120,21 +119,27 @@ class Builder(AntennaBuilder):
                 nodes.append((ycur + horiz, znew))
             up = not up
 
-        # Feed sits on the first (end) riser at feed_height_frac up from its
-        # bottom. The first riser always runs upward from z0.
+        # The feed sits on the first (end) riser, which always runs upward from
+        # z0 and is one wire; `build_network` places the feed on it.
         fa = riser_edge0[0]
-        y_feed, z_riser_bot = nodes[fa]
-        zf = z_riser_bot + self.feed_height_frac * vert
 
         tups = []
         for k, ((ya, za), (yb, zb)) in enumerate(itertools.pairwise(nodes)):
-            if k == fa:
-                # Split the end riser: passive below, 1-seg driven gap, passive
-                # above (a current-maximum-style tap, but on a current minimum).
-                tups.append(Wire((0.0, ya, za), (0.0, ya, zf)))
-                tups.append(Wire((0.0, ya, zf), (0.0, ya, zf + 2 * eps), ex=1 + 0j))
-                tups.append(Wire((0.0, ya, zf + 2 * eps), (0.0, yb, zb)))
-            else:
-                tups.append(Wire((0.0, ya, za), (0.0, yb, zb)))
+            name = "feed" if k == fa else None
+            tups.append(Wire((0.0, ya, za), (0.0, yb, zb), name=name))
 
         return tups
+
+    def build_network(self):
+        # `feed_height_frac` of the way up the end riser is the bottom of the
+        # 0.1 m gap wire this design used to drive, so the feed sits 0.05 m
+        # above it, at that gap's centre: the feed point does not move. It is
+        # a position on one continuous riser (AK#1767), so no short gap wire
+        # changes its segment count as the mesh refines.
+        eps = 0.05
+        vert = self.vert_frac * self.design_wavelength * self.length_factor
+        at = (self.feed_height_frac * vert + eps) / vert
+        return Network(
+            ports={"feed": PortOnWire("feed", at=at)},
+            sources=[Driven(port="feed", voltage=1 + 0j)],
+        )

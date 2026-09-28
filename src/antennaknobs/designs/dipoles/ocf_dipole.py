@@ -16,7 +16,7 @@ is the feedpoint impedance's dependence on feed POSITION, not the (ordinary
 dipole) pattern.
 
 Geometry, in the framework's (x, y, z) convention:
-  - y : the wire axis; total length ~half-wave, the feed gap offset toward -y
+  - y : the wire axis; total length ~half-wave, the feed offset toward -y
   - x, z : the wire sits at x = 0, z = base
   - HORIZONTALLY POLARISED, ordinary dipole figure-8 broadside off +/- x.
 
@@ -25,7 +25,7 @@ Geometry, in the framework's (x, y, z) convention:
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Wire
+from antennaknobs.network import Driven, Network, PortOnWire, Wire
 from types import MappingProxyType
 
 
@@ -62,25 +62,19 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        eps = 0.05
         wavelength = self.design_wavelength
 
         length = self.length_frac * wavelength
         z = self.base
 
-        # Wire spans y = -length/2 .. +length/2; feedpoint a fraction
-        # `feed_frac` of the length in from the -y end.
-        y_left = -length / 2
-        y_right = length / 2
-        y_feed = y_left + self.feed_frac * length
+        # One continuous wire, y = -length/2 .. +length/2. The feed is not a
+        # wire of its own: `build_network` places it `feed_frac` of the way
+        # along from the -y end (AK#1767), so no short gap wire changes its
+        # segment count as the mesh refines.
+        return [Wire((0.0, -length / 2, z), (0.0, length / 2, z), name="feed")]
 
-        L = (0.0, y_left, z)
-        F0 = (0.0, y_feed - eps, z)
-        F1 = (0.0, y_feed + eps, z)
-        R = (0.0, y_right, z)
-
-        return [
-            Wire(L, F0),  # short arm (to -y end)
-            Wire(F0, F1, ex=1 + 0j),  # off-centre feed
-            Wire(F1, R),  # long arm (to +y end)
-        ]
+    def build_network(self):
+        return Network(
+            ports={"feed": PortOnWire("feed", at=self.feed_frac)},
+            sources=[Driven(port="feed", voltage=1 + 0j)],
+        )
