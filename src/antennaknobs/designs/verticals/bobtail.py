@@ -44,7 +44,7 @@ The structure is planar in x = 0.
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Wire
+from antennaknobs.network import Driven, Network, PortOnWire, Wire
 from types import MappingProxyType
 
 
@@ -89,22 +89,17 @@ class Builder(AntennaBuilder):
         }
     )
 
-    def build_wires(self):
-        eps = 0.05
-
+    def _dims(self):
         wavelength = self.design_wavelength
-
         vert = self.vert_frac * wavelength * self.length_factor
         span = self.span_frac * wavelength * self.length_factor
+        return vert, span
+
+    def build_wires(self):
+        vert, span = self._dims()
 
         z_bot = self.base
         z_top = self.base + vert
-
-        # Centre vertical's driven gap taps `feed_height_frac` of the way up
-        # (a current maximum), with passive wire above and below. zf is the
-        # lower edge of the gap.
-        feed = 2 * eps
-        zf = z_bot + self.feed_height_frac * (vert - feed)
 
         return [
             # Top phasing wire: -span -> 0 -> +span, split at the centre so
@@ -114,8 +109,22 @@ class Builder(AntennaBuilder):
             # Outer verticals (passive, open at the bottom).
             Wire((0.0, -span, z_top), (0.0, -span, z_bot)),
             Wire((0.0, span, z_top), (0.0, span, z_bot)),
-            # Centre vertical: passive above, driven gap, passive below.
-            Wire((0.0, 0.0, z_top), (0.0, 0.0, zf + feed)),
-            Wire((0.0, 0.0, zf + feed), (0.0, 0.0, zf), ex=1 + 0j),
-            Wire((0.0, 0.0, zf), (0.0, 0.0, z_bot)),
+            # Centre vertical, top -> base: one wire, tapped by the feed.
+            Wire((0.0, 0.0, z_top), (0.0, 0.0, z_bot), name="feed"),
         ]
+
+    def build_network(self):
+        # The tap is a position on the one centre vertical (AK#1767), so no
+        # short gap wire changes its segment count as the mesh refines. It
+        # keeps the old placement exactly: the centre of a 0.1 m gap whose
+        # lower edge sat `feed_height_frac` of the way up (vert - 0.1 m). So
+        # the tap is 0.05 m above the base at 0, 0.05 m below the top at 1,
+        # and the exact middle at the default 0.5. `at` is measured from the
+        # wire's p0, the TOP.
+        vert, _span = self._dims()
+        gap = 0.1
+        at = 0.5 + (0.5 - self.feed_height_frac) * (vert - gap) / vert
+        return Network(
+            ports={"feed": PortOnWire("feed", at=at)},
+            sources=[Driven(port="feed", voltage=1 + 0j)],
+        )

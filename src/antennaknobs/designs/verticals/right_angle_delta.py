@@ -39,7 +39,7 @@ The structure is planar in x = 0.
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Wire
+from antennaknobs.network import Driven, Network, PortOnWire, Wire
 from types import MappingProxyType
 
 
@@ -87,7 +87,7 @@ class Builder(AntennaBuilder):
         lf = self.length_factor
 
         w = self.base_frac * wavelength * lf
-        s = self.side_frac * wavelength * lf
+        s = self._side()
         half_w = w / 2
         h = (s**2 - half_w**2) ** 0.5  # apex height above the base wire
 
@@ -96,29 +96,25 @@ class Builder(AntennaBuilder):
         B = (0.0, half_w, zb)  # right base corner
         T = (0.0, 0.0, zb + h)  # apex
 
-        # Feed a quarter-wave down the LEFT side from the apex, measured
-        # along the wire; a short one-segment driven edge (cf. half_square).
-        d = min(self.feed_frac * wavelength, s - 0.1)
-        pe = 0.1  # feed-edge length, m
-        t0 = (d - pe / 2) / s
-        t1 = (d + pe / 2) / s
-
-        def lerp(p, q, t):
-            return (
-                p[0] + (q[0] - p[0]) * t,
-                p[1] + (q[1] - p[1]) * t,
-                p[2] + (q[2] - p[2]) * t,
-            )
-
-        F0 = lerp(T, A, t0)
-        F1 = lerp(T, A, t1)
-
         return [
-            # Left side: apex -> feed edge -> base corner (driven mid-side).
-            Wire(T, F0),
-            Wire(F0, F1, ex=1 + 0j),
-            Wire(F1, A),
+            # Left side, apex -> base corner: one wire carrying the feed.
+            Wire(T, A, name="feed"),
             # Horizontal base and right side close the delta.
             Wire(A, B),
             Wire(B, T),
         ]
+
+    def _side(self):
+        return self.side_frac * self.design_wavelength * self.length_factor
+
+    def build_network(self):
+        # Feed a quarter-wave down the LEFT side from the apex, measured along
+        # the wire (the apex is the wire's p0). It is a position on the one
+        # side wire (AK#1767), not a short driven edge of its own, so no gap
+        # wire changes its segment count as the mesh refines.
+        s = self._side()
+        d = min(self.feed_frac * self.design_wavelength, s - 0.1)
+        return Network(
+            ports={"feed": PortOnWire("feed", at=d / s)},
+            sources=[Driven(port="feed", voltage=1 + 0j)],
+        )

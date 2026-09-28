@@ -9,6 +9,8 @@ shape (broadside vs end-on) is checked there too.
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pytest
 
@@ -30,6 +32,24 @@ def _far_field(builder, ground=None):
     return PyNECEngine(builder, ground=ground).far_field(
         n_theta=90, n_phi=360, del_theta=1, del_phi=1
     )
+
+
+def _positioned_feed(builder):
+    """The one positioned feed of a design driven through
+    `PortOnWire(at=)` (AK#1767): ``(wire, point)``, the named wire it sits on
+    and the point `at` of the way along it from its p0. Asserts there is one
+    driven port and no legacy ``ex`` wire besides it."""
+    from antennaknobs.network import PortOnWire, as_wire
+
+    wires = [as_wire(t) for t in builder.build_wires()]
+    assert not [w for w in wires if w.ex is not None]
+    net = builder.build_network()
+    (src,) = net.sources
+    port = net.ports[src.port]
+    assert isinstance(port, PortOnWire) and port.at is not None
+    (wire,) = [w for w in wires if w.name == (port.wire or port.name)]
+    point = tuple(a + port.at * (b - a) for a, b in zip(wire.p0, wire.p1, strict=True))
+    return wire, point
 
 
 # ---------------------------------------------------------------------------
@@ -148,15 +168,26 @@ def test_bobtail_tap_position_sets_impedance():
 
 
 def test_bobtail_only_centre_element_is_fed():
-    """Exactly one driven gap; the outer verticals are passive."""
+    """Exactly one feed; the outer verticals are passive."""
     from antennaknobs.designs.verticals.bobtail import Builder
-    from antennaknobs.network import as_wire
 
-    feeds = [w for w in map(as_wire, Builder().build_wires()) if w.ex is not None]
-    assert len(feeds) == 1
-    # The fed gap sits on the centre vertical (y = 0).
-    (_, y0, _), (_, y1, _) = feeds[0].p0, feeds[0].p1
+    wire, _point = _positioned_feed(Builder())
+    # The feed sits on the centre vertical (y = 0).
+    (_, y0, _), (_, y1, _) = wire.p0, wire.p1
     assert y0 == 0.0 and y1 == 0.0
+
+
+@pytest.mark.parametrize("frac", [0.25, 0.5, 0.85])
+def test_bobtail_tap_is_where_the_gap_wire_was(frac):
+    """The tap is a position on one continuous centre vertical (AK#1767) at
+    the exact point the old 0.1 m gap wire was centred: its lower edge sat
+    `feed_height_frac` of the way up (vert - 0.1 m)."""
+    from antennaknobs.designs.verticals.bobtail import Builder
+
+    b = Builder(dict(Builder.default_params, feed_height_frac=frac))
+    wire, (_, _, z) = _positioned_feed(b)
+    vert = wire.p0[2] - wire.p1[2]
+    assert z == pytest.approx(b.base + frac * (vert - 0.1) + 0.05, abs=1e-12)
 
 
 # ---------------------------------------------------------------------------
@@ -636,14 +667,14 @@ def test_ocf_near_resonant():
 
 
 def test_ocf_feed_is_off_center():
-    """Geometry: a single feed with unequal arms (short arm toward -y end)."""
+    """Geometry: a single feed with unequal arms (short arm toward -y end),
+    a position on one continuous wire (AK#1767) `feed_frac` of the way in."""
     from antennaknobs.designs.dipoles.ocf_dipole import Builder
 
-    tups = Builder().build_wires()
-    feeds = [t for t in tups if t[3] is not None]
-    assert len(feeds) == 1
-    y_feed = feeds[0][0][1]
+    b = Builder()
+    wire, (_, y_feed, _) = _positioned_feed(b)
     assert y_feed < -0.05  # offset from the centre (y = 0) toward -y
+    assert y_feed == pytest.approx(wire.p0[1] + b.feed_frac * 2 * wire.p1[1])
 
 
 # ---------------------------------------------------------------------------
@@ -1049,22 +1080,22 @@ def test_bruce_feed_is_high_z_reactive():
 
 
 def test_bruce_riser_count_and_single_feed():
-    """n_vert vertical risers (constant-y segments) and exactly one driven gap."""
+    """n_vert vertical risers (constant-y wires, one each) and exactly one
+    feed, on the end riser at the centre of the old 0.1 m gap (AK#1767)."""
     from antennaknobs.designs.verticals.bruce import Builder
 
     b = Builder()
     tups = b.build_wires()
-    feeds = [t for t in tups if t[3] is not None]
-    assert len(feeds) == 1
+    wire, (_, y_feed, z_feed) = _positioned_feed(b)
     verticals = [
         t
         for t in tups
         if abs(t[0][1] - t[1][1]) < 1e-9 and abs(t[0][2] - t[1][2]) > 1e-9
     ]
-    # each riser is split by neither feed except the fed one; count distinct
-    # riser y-columns instead.
-    ys = {round(t[0][1], 4) for t in verticals}
-    assert len(ys) == int(b.n_vert)
+    assert len(verticals) == int(b.n_vert)
+    assert y_feed == 0.0 and wire.p0 == (0.0, 0.0, b.base)
+    vert = wire.p1[2] - wire.p0[2]
+    assert z_feed == pytest.approx(b.base + b.feed_height_frac * vert + 0.05)
 
 
 # ---------------------------------------------------------------------------
@@ -1607,19 +1638,23 @@ def test_rad_length_factor_tunes_reactance():
 
 
 def test_rad_is_a_closed_right_angle_delta_one_feed():
-    """Topology: one driven gap on the left sloping side (not on the base),
+    """Topology: one feed on the left sloping side (not on the base),
     the loop closes, and the side/base proportions make the apex a right
     angle (side^2 + side^2 ~ diagonal relation: h = w/2)."""
     from antennaknobs.designs.verticals.right_angle_delta import Builder
 
     b = Builder()
     tups = b.build_wires()
-    feeds = [t for t in tups if t[3] is not None]
-    assert len(feeds) == 1
+    wire, (_, y_feed, z_feed) = _positioned_feed(b)
     zb = b.base
-    # The fed edge slopes: it is off the base wire and off y = 0.
-    assert feeds[0][0][2] > zb + 0.1
-    assert feeds[0][0][1] < 0.0  # on the left (-y) side
+    # The feed is on the sloping side: off the base wire and off y = 0, a
+    # quarter-wave down from the apex (the wire's p0) along the wire.
+    assert z_feed > zb + 0.1
+    assert y_feed < 0.0  # on the left (-y) side
+    wavelength = 299.792458 / b.design_freq
+    assert math.dist(wire.p0, (0.0, y_feed, z_feed)) == pytest.approx(
+        b.feed_frac * wavelength
+    )
     # Right angle at the apex: apex height equals half the base width.
     wavelength = 299.792458 / b.design_freq
     w = b.base_frac * wavelength * b.length_factor
