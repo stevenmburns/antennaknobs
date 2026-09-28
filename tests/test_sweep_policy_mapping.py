@@ -14,7 +14,8 @@ from types import MappingProxyType
 import pytest
 
 from antennaknobs.web.examples import REGISTRY
-from antennaknobs.web.adapter import DEFAULT_SWEEP_POLICY, _derive_sweep_policy
+from antennaknobs.frequency_range import DEFAULT_SWEEP_POLICY
+from antennaknobs.web.adapter import _derive_sweep_policy
 
 
 def test_a_frozen_policy_derives_like_the_same_dict():

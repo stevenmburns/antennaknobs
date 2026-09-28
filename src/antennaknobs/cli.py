@@ -1486,8 +1486,23 @@ def cli(arguments=None):
                 engine=engine,
             )
         elif args.swr:
+            antenna = make()
+            xs = None
+            if args.param == "freq" and (args.range, args.center, args.fraction) == (
+                None,
+                None,
+                None,
+            ):
+                # No span given: the design's own (a deck's FR card or
+                # Generator sweep, its declared range, its band policy), the
+                # rule `analyze` and the workbench read. --npoints alone keeps
+                # that span and replaces its density; --center / --fraction
+                # are the relative window they always were.
+                from .frequency_range import design_range
+
+                xs = design_range(antenna._params).grid(args.npoints)
             sweep_swr(
-                make(),
+                antenna,
                 args.param,
                 z0=args.z0,
                 rng=args.range,
@@ -1497,6 +1512,7 @@ def cli(arguments=None):
                 fn=args.fn,
                 engine=engine,
                 measured=measured,
+                xs=xs,
             )
         elif args.gain:
             sweep_gain(

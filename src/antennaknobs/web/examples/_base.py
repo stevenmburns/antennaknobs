@@ -15,6 +15,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, Tuple, Union
 
+# The band table and the sweep policy live with the rule that reads them
+# (`frequency_range.design_range`), which the CLI imports without this
+# registry; re-exported here, where the examples have always found them.
+from ...frequency_range import (
+    DEFAULT_AMATEUR_BANDS,
+    DEFAULT_SWEEP_POLICY,
+    BandSpec,
+    SweepPolicy,
+)
+
 # A pynec "build" returns the dict-of-context-plus-derived-geom that both
 # solve() and pattern() consume — see web/pynec_backend.py for the shape.
 PynecBuildFn = Callable[[dict], dict]
@@ -177,80 +187,6 @@ class ParamGroupSpec:
     # hexbeam_5band both use "freq".
     # Gated by the frontend's linkMeas toggle.
     link_meas_freq_to_param: Optional[str] = None
-
-
-@dataclass(frozen=True)
-class BandSpec:
-    """A frequency-preset tab the UI offers as a design-frequency selector.
-
-    The solver only sees the resulting `design_freq_mhz` float; bands are
-    purely a UI affordance. Examples that target HF amateur bands reuse
-    `DEFAULT_AMATEUR_BANDS`; others can supply their own list, or set bands=()
-    to suppress the row entirely (fan_dipole does this — its per-band
-    schema-driven controls own the design frequency).
-    """
-
-    key: str  # stable identifier; also used as the visible tab label today
-    label: str
-    freq_mhz: float  # tab default — slider snaps here when the band is selected
-    min_mhz: float  # slider lower bound while this band is active
-    max_mhz: float
-
-
-@dataclass(frozen=True)
-class SweepPolicy:
-    """Where to centre the freq sweep and how wide to make it.
-
-    `anchor` picks which scalar the sweep range is anchored to:
-      - "design_freq": sweep around the antenna's design frequency
-        (the wider out-of-band picture; default for single-band antennas).
-      - "meas_freq":   sweep around the current measurement frequency
-        (multi-band antennas like fan_dipole — keeps the trace focused
-        on the band the user is currently tuning, since the design
-        frequency stays pinned to band 0).
-
-    `lo_factor` / `hi_factor` are multiplicative bounds applied to the
-    anchor. Defaults give a broad resonance/out-of-band view; multi-band
-    antennas narrow to ±5% so the trace doesn't cross into neighbouring
-    bands the user isn't tuning.
-    """
-
-    anchor: str = "design_freq"  # "design_freq" | "meas_freq"
-    lo_factor: float = 0.8
-    hi_factor: float = 1.25
-    # When True, the frontend snaps the sweep range to the [min_mhz,
-    # max_mhz] of the band whose range contains the current anchor
-    # frequency (typically measFreq for multi-band antennas). Falls
-    # back to lo_factor/hi_factor multiplicatively if the anchor sits
-    # outside every band. Used by fandipole so the sweep trace stays
-    # inside the amateur band the user is currently tuning instead of
-    # bleeding into the adjacent bands.
-    band_locked: bool = False
-
-
-DEFAULT_SWEEP_POLICY = SweepPolicy()
-
-
-DEFAULT_AMATEUR_BANDS: tuple[BandSpec, ...] = (
-    # Full HF amateur set + 6m/2m/70cm, low to high (issue #497; formerly
-    # DEFAULT_HF_BANDS). The band dropdown scales to any number, so designs
-    # (especially design_freq-scaled ones) can be placed and tuned anywhere
-    # from 160m through UHF. Edges are US/ITU Region 2 (Region 1's 2m/70cm
-    # allocations fit inside them); snap freqs are the customary mid-band
-    # picks. (key, label, snap-freq, slider-min, -max MHz)
-    BandSpec("160m", "160m", 1.900, 1.800, 2.000),
-    BandSpec("80m", "80m", 3.750, 3.500, 4.000),
-    BandSpec("40m", "40m", 7.150, 7.000, 7.300),
-    BandSpec("30m", "30m", 10.125, 10.100, 10.150),
-    BandSpec("20m", "20m", 14.300, 14.000, 14.350),
-    BandSpec("17m", "17m", 18.1575, 18.068, 18.168),
-    BandSpec("15m", "15m", 21.383, 21.000, 21.450),
-    BandSpec("12m", "12m", 24.970, 24.890, 24.990),
-    BandSpec("10m", "10m", 28.470, 28.000, 29.700),
-    BandSpec("6m", "6m", 50.150, 50.000, 54.000),
-    BandSpec("2m", "2m", 146.000, 144.000, 148.000),
-    BandSpec("70cm", "70cm", 435.000, 420.000, 450.000),
-)
 
 
 @dataclass(frozen=True)

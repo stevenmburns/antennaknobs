@@ -147,15 +147,14 @@ from momwire import (
 from ..auto_match import tuner_advisories, tuner_holding_match, tuner_rows
 from ..geometry import flat_wires_to_polylines
 from .examples import REGISTRY, register
+from ..frequency_range import sweep_policy as _derive_sweep_policy
 from .examples._base import (
     DEFAULT_AMATEUR_BANDS,
-    DEFAULT_SWEEP_POLICY,
     AntennaExample,
     BandSpec,
     ParamGroupSpec,
     ParamSpec,
     ResultFieldSpec,
-    SweepPolicy,
 )
 
 C_LIGHT = 299_792_458.0
@@ -3659,59 +3658,27 @@ def _ui_medium(default_params: dict):
 
 
 def _ui_sweep_range(default_params: dict) -> dict | None:
-    """`ui_params["sweep_range"]` normalised for /examples (AK#1682), or None
-    when absent or malformed.
+    """`ui_params["sweep_range"]` normalised (AK#1682), or None when absent
+    or malformed: `frequency_range.normalise_sweep_range` in its wire shape,
+    {"lo", "hi", "spacing", "source"} plus whichever ONE density survives
+    ("step" on a lin range, else "points"). `source` is "file" for a file
+    design's own range and "design" otherwise."""
+    from ..frequency_range import normalise_sweep_range
 
-    Returns {"lo", "hi", "spacing", "source"} plus whichever ONE density was
-    given, in the order step > points_per_decade > points. `step` survives
-    only on a lin range (a `step` on a log range is converted to `points`).
-    `points_per_decade` is accepted for backward compatibility only -- the
-    wire format is now a plain point count -- and always converts to
-    `points`: points = round(ppd * log10(hi/lo)) + 1, at least 2. `source` is
-    "file" for a file design's own range and "design" otherwise -- the
-    frontend ranks the two."""
     ui = default_params.get("ui_params") or {}
-    raw = ui.get("sweep_range")
-    if not isinstance(raw, Mapping):
-        return None
-    try:
-        lo, hi = float(raw["lo"]), float(raw["hi"])
-    except (KeyError, TypeError, ValueError):
-        return None
-    if not (0.0 < lo < hi and math.isfinite(hi)):
-        return None
-    spacing = str(raw.get("spacing", "lin")).lower()
-    if spacing not in ("lin", "log"):
-        return None
-    out: dict[str, Any] = {
-        "lo": lo,
-        "hi": hi,
-        "spacing": spacing,
-        "source": "file" if raw.get("source") == "file" else "design",
-    }
+    r = normalise_sweep_range(ui.get("sweep_range"))
+    return None if r is None else r.as_spec()
 
-    def positive(key: str) -> float | None:
-        try:
-            v = float(raw[key])
-        except (KeyError, TypeError, ValueError):
-            return None
-        return v if v > 0.0 and math.isfinite(v) else None
 
-    step, ppd, points = (
-        positive("step"),
-        positive("points_per_decade"),
-        positive("points"),
-    )
-    if step is not None:
-        if spacing == "lin":
-            out["step"] = step
-        else:
-            out["points"] = int(math.floor((hi - lo) / step + 1e-9)) + 1
-    elif ppd is not None:
-        out["points"] = max(2, round(ppd * math.log10(hi / lo)) + 1)
-    elif points is not None and points >= 2:
-        out["points"] = int(points)
-    return out
+def _served_sweep_range(default_params: dict) -> dict | None:
+    """What /examples serves as `sweep_range`: the range the design states
+    outright (`frequency_range.declared`: its own sweep_range, else its
+    meas_freq_range), so the frontend ranks a session edit above it and its
+    band policy below it, and never re-derives the design's own rungs."""
+    from ..frequency_range import declared
+
+    r = declared(default_params)
+    return None if r is None else r.as_spec()
 
 
 def request_z0(req: dict, design_z0: float) -> float:
@@ -4342,49 +4309,6 @@ def _recommended_backend(cls) -> str | None:
         key = key[np.lexsort(key.T)]
         sigs.add(key.tobytes())
     return "arrayblock" if len(sigs) * 2 <= n_elem else None
-
-
-def _derive_sweep_policy(ui: dict) -> SweepPolicy:
-    """Build a SweepPolicy from a `ui_params` dict's `sweep_policy` entry.
-
-    Accepts the positional 3-tuple `(anchor, lo_factor, hi_factor)` form or the
-    mapping form (which can opt into named fields like `band_locked` without
-    supplying every positional; missing fields fall back to the dataclass
-    defaults). The mapping form is any Mapping: a design that freezes its
-    ui_params spells it as a MappingProxyType. No entry yields the default
-    policy; any other spelling — another type, or a key SweepPolicy does not
-    have — raises. A dict-only check once dropped Dominator's and Challenger's
-    band lock without a word (2026-07-12 to 2026-09-23), and a misspelt key
-    would do the same. Takes any ui dict, so the same derivation runs for the
-    default's ui_params and for each variant's deep-merged ui_params (see
-    `variant_ui` in `_make_example`)."""
-    raw = ui.get("sweep_policy")
-    if raw is None:
-        return DEFAULT_SWEEP_POLICY
-    if isinstance(raw, (tuple, list)) and len(raw) == 3:
-        return SweepPolicy(
-            anchor=str(raw[0]),
-            lo_factor=float(raw[1]),
-            hi_factor=float(raw[2]),
-        )
-    if isinstance(raw, Mapping):
-        unknown = set(raw) - {"anchor", "lo_factor", "hi_factor", "band_locked"}
-        if unknown:
-            raise ValueError(
-                f"sweep_policy has unknown keys {sorted(unknown)}; "
-                "expected anchor, lo_factor, hi_factor, band_locked"
-            )
-        d = DEFAULT_SWEEP_POLICY
-        return SweepPolicy(
-            anchor=str(raw.get("anchor", d.anchor)),
-            lo_factor=float(raw.get("lo_factor", d.lo_factor)),
-            hi_factor=float(raw.get("hi_factor", d.hi_factor)),
-            band_locked=bool(raw.get("band_locked", d.band_locked)),
-        )
-    raise ValueError(
-        f"sweep_policy must be a mapping or an (anchor, lo_factor, hi_factor) "
-        f"triple, got {type(raw).__name__}: {raw!r}"
-    )
 
 
 # Presentation fields a variant's explicit ui_params may move per-variant
@@ -5403,7 +5327,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         bands=bands,
         meas_freq_range_mhz=tuple(meas_range) if meas_range else None,
         sweep_policy=sweep_policy,
-        sweep_range=_ui_sweep_range(dp),
+        sweep_range=_served_sweep_range(dp),
         default_view=field_default_view,
         default_freq=float(dp["freq"]) if "freq" in dp else None,
         default_design_freq=(float(dp["design_freq"]) if has_design_freq else None),
