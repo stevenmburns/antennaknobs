@@ -144,14 +144,14 @@ class Builder(AntennaBuilder):
                 views=(an.Map(),),
                 references=refs,
             ),
-            # E7: two feed spellings on one convergence chart.
+            # E7: two feed spellings on one convergence chart. 2 designs x 3
+            # engines = 6 curves, the cap; NEC-2 cannot feed the apex knot, so
+            # that cell is refused by name (razor-2p stands in for NEC-5).
             an.convergence(
                 name="feed spellings",
                 cross=(
                     an.Cross(designs=("dipoles.invvee", "dipoles.invvee_apex")),
-                    an.Cross(
-                        engines=("momwire:bspline", "momwire:razor-2p", "nec5", "nec2")
-                    ),
+                    an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec2")),
                 ),
             ),
             # E8: the match held at every height, and the knobs that hold it.
