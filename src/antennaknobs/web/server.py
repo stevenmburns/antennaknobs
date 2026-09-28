@@ -2479,6 +2479,41 @@ async def param_sweep_endpoint(req: dict, request: Request):
     )
 
 
+@app.post("/analyses")
+async def analyses_endpoint(req: dict):
+    """The design's analyses (AK#1757, sweep-framework step 3): what its
+    ``build_analyses()`` and the library offer, and how the workbench runs
+    each (``web/analyses_offer.py``).
+
+    The request is a solve request (``geometry``, ``variant``, the knobs);
+    the builder is made from it as ``/param_sweep`` makes it. Each entry is
+    ``{name, summary, code, problems, workbench}``, ``workbench`` being
+    ``{runs: true, param, values, log, note}`` (``param`` and ``values`` as
+    ``/param_sweep`` takes them) or ``{runs: false, why}``. Nothing solves.
+    An unknown geometry or a bad knob value is a 422, as on ``/param_sweep``.
+    Served on demand, not in ``/examples``: listing a design's analyses
+    builds it.
+    """
+    from .analyses_offer import builder_for, offer
+
+    geometry = req.get("geometry")
+    try:
+        cls = getattr(example_for(geometry or ""), "builder_cls", None)
+    except UnknownGeometryError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from None
+    if cls is None:
+        return {"geometry": geometry, "analyses": []}
+
+    def _offer():
+        return offer(builder_for(cls, req), req)
+
+    try:
+        analyses = await run_in_threadpool(_offer)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from None
+    return {"geometry": geometry, "analyses": analyses}
+
+
 @app.post("/converge")
 async def converge_endpoint(req: dict, request: Request):
     """Stream impedance vs segments/wire as NDJSON, one (n, Z) per line.
