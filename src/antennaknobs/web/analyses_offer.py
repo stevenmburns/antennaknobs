@@ -38,13 +38,12 @@ from .. import analysis_run as ar
 from .param_sweep import DENSITY, ParamSweepError, sweep_values
 
 # The sweep-framework step each piece the workbench cannot draw yet is
-# planned for (Steve, 2026-09-28): 5 planes, designs, families and the map;
-# 6 hold.
-_VIEW_STEP = {an.Map: 5, an.Knobs: 6}
-# Views no step of the plan brings to the workbench, and what serves them.
-_UNPLANNED = {
-    an.Table: "the workbench has no table view; `antennaknobs analyze` prints it",
-}
+# planned for (Steve, 2026-09-28): 5 planes, designs, families and the map,
+# and (Steve, on #1790) the table, R/X against frequency and explicit
+# frequencies; 6 hold.
+_VIEW_STEP = {an.Map: 5, an.Knobs: 6, an.Table: 5}
+_FREQUENCY_RX_STEP = 5
+_FREQUENCY_VALUES_STEP = 5
 # The workbench's frequency-sweep views, by the names /analyses serves.
 _FREQUENCY_VIEWS = {an.Swr: "Swr", an.S11: "S11", an.Smith: "Smith"}
 _CROSS_STEP = {"planes": 5, "designs": 5, "step": 5}
@@ -61,15 +60,10 @@ def _view_gap(v: an.View, sweep: str) -> str:
     name = f"the {type(v).__name__} view"
     if type(v) in _VIEW_STEP:
         return _later(name, _VIEW_STEP[type(v)])
-    if type(v) in _UNPLANNED:
-        return f"{name}: {_UNPLANNED[type(v)]}"
     if sweep == "frequency":
-        # Rx: R and X against a knob is the Z-vs-parameter view's; there is
-        # no R/X-against-frequency chart.
-        return (
-            f"{name} of a frequency sweep: the workbench has no R/X-against-"
-            "frequency chart; `antennaknobs analyze` draws it"
-        )
+        # Rx: R and X against a knob is the Z-vs-parameter view's; R and X
+        # against frequency is a chart of its own, not drawn yet.
+        return _later(f"{name} of a frequency sweep", _FREQUENCY_RX_STEP)
     return (
         f"{name} of a knob sweep: the Z-vs-parameter view draws R and X; "
         "`antennaknobs analyze` draws it"
@@ -93,8 +87,10 @@ def gaps(a: an.Analysis) -> list[str]:
     if _is_frequency(a):
         if a.sweep.values is not None:
             out.append(
-                "explicit frequencies: the workbench sweeps a range; give the "
-                "Sweep lo, hi and points"
+                _later(
+                    "explicit frequencies (give the Sweep lo, hi and points)",
+                    _FREQUENCY_VALUES_STEP,
+                )
             )
         if not any(isinstance(v, tuple(_FREQUENCY_VIEWS)) for v in a.views):
             out += [_view_gap(v, "frequency") for v in a.views]

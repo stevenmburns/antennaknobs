@@ -1246,13 +1246,14 @@ design's declared range puts the dial back on the design's range, and an
 analysis with a range of its own sets it as this session's edit. On a
 band-policy design, the dial follows the band you are on. The scale is the
 analysis's (`an.Swr(scale="rho")` is EZNEC's), and the threshold line and the
-bandwidth readout move to its `an.Ref(swr=...)`. The workbench has no R/X
-chart against frequency and no table, so an `an.Rx()` or `an.Table()` view is
-left out with a note.
+bandwidth readout move to its `an.Ref(swr=...)`. The workbench doesn't draw
+R/X against frequency or a table yet, so an `an.Rx()` or `an.Table()` view is
+left out with a note naming the step that brings it.
 
 What the workbench cannot run yet is listed greyed out, with the reason as
 its tooltip: a map, a family over a second knob, a cross over measurement
-planes or designs, and a match held at every point. Each reason names the
+planes or designs, a frequency analysis given explicit frequencies rather
+than a range, and a match held at every point. Each reason names the
 step of the sweep framework it is planned for.
 
 **analyses as Python**, under the header, shows every analysis as the Python
