@@ -409,3 +409,21 @@ explicit click always works. Picking an analysis is itself an explicit act,
 so a pick runs it. Still open: whether the dwell switch is per chart or one
 for the session (the track-while-drag switch is one global switch,
 precedent), and the dwell's length.
+
+**Ruling on the dwell switch (Steve, 2026-09-28): per chart**, not one for
+the session. That fits the layout's split, which is already strained:
+
+- **The left side is inputs:** the design and its knobs.
+- **The right side is outputs:** the charts.
+- The view selector and the carousel already sit on the right, because they
+  configure what an output shows.
+
+So a chart's own controls live on the chart: its analysis picker, Run, the
+re-run-after-dwell switch, and its SWR scale and threshold. They say what
+that chart computes and draws. They are not design inputs and do not belong
+on the left.
+
+The line to watch: an analysis's sweep range is an input to the analysis
+but not to the design, so it belongs on the chart too. The measurement
+frequency dial, the design's own, stays left. Step 5's design should state
+which side every control lands on.
