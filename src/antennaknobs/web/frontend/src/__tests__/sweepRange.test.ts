@@ -117,8 +117,15 @@ describe("sweep range precedence (AK#1682)", () => {
   });
 
   it("level 3: a design's meas_freq_range (elt_whip) is now its sweep range too", () => {
-    // NEW — on main it moved only the dial; the sweep ran 324.8–507.5.
-    const elt = makeExample({ has_design_freq: false, meas_freq_range_mhz: [400, 412] });
+    // NEW — on main it moved only the dial; the sweep ran 324.8–507.5. The
+    // server resolves the dial span into `sweep_range` (AK#1757,
+    // frequency_range.declared): a design with no sweep_range of its own is
+    // served its meas_freq_range there, log-spaced, source "design".
+    const elt = makeExample({
+      has_design_freq: false,
+      meas_freq_range_mhz: [400, 412],
+      sweep_range: { lo: 400, hi: 412, spacing: "log", source: "design" },
+    });
     const freqs = sweep.planSweepFreqs(
       params({ currentExample: elt, measLocked: false, measFreq: 406, designFreq: 406, measBandAnchor: 406 }),
     );

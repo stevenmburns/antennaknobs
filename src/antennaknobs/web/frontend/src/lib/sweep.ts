@@ -21,6 +21,12 @@ import type { BandSpec, ExampleDescriptor, SweepRangeSpec } from "./params";
 //   4. "policy"  — the design's `sweep_policy` (band lock or factors).
 //   5. "default" — ×0.8–×1.25 of the anchor, log-spaced.
 //
+// Levels 2–3 are the server's (AK#1757): /examples serves them resolved, as
+// `sweep_range`, from `frequency_range.declared` — the rule the CLI's
+// `sweep --swr` and `analyze` read too — so this file only ranks them.
+// Levels 4–5 hang on session state (the band tab, the dial lock) and stay
+// here; the server's copy anchors them on the design's own frequency.
+//
 // "↺ design range" in the menu clears level 1, which lands on 2–5.
 //
 // Levels 4–5 are relative to an anchor. It must be STABLE while the dial
@@ -104,7 +110,7 @@ export const MAX_SWEEP_POINTS = 500;
 // `points` before it reaches /examples, so that fallback is for a spec built
 // some other way (a stale cache, a hand-built fixture) rather than the live
 // wire format.
-function specRange(spec: SweepRangeSpec): SweepRange {
+export function specRange(spec: SweepRangeSpec): SweepRange {
   const { lo, hi, spacing } = spec;
   const out: SweepRange = { lo, hi, spacing };
   if (spacing === "lin") {
@@ -138,10 +144,6 @@ export function designSweepRange(inp: SweepRangeInputs): ResolvedSweepRange {
     const spec = currentExample?.sweep_range ?? null;
     if (spec && spec.hi > spec.lo) {
       return { range: specRange(spec), level: spec.source === "file" ? "file" : "design" };
-    }
-    const dial = currentExample?.meas_freq_range_mhz ?? null;
-    if (dial && dial[1] > dial[0]) {
-      return { range: { lo: dial[0], hi: dial[1], spacing: "log" }, level: "design" };
     }
   }
   const policy =

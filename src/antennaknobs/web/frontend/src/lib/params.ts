@@ -86,8 +86,8 @@ export type ResultFieldSpec = {
   unit: string | null;
 };
 
-/** The served shape of an absolute sweep range (AK#1682; normalised by the
- *  adapter's `_ui_sweep_range`). At most one density is present: `step`
+/** The served shape of an absolute sweep range (AK#1682; resolved and
+ *  normalised by the server's `frequency_range`). At most one density is present: `step`
  *  (MHz, lin) or `points` (the total count across [lo, hi], either
  *  spacing); none means the app picks it. `points_per_decade` is the
  *  retired log density -- the adapter always converts a served one to
@@ -134,6 +134,8 @@ export type ExampleDescriptor = {
   param_schema: SchemaItem[];
   result_schema: ResultSchemaItem[];
   bands: BandSpec[];
+  /** The design's declared dial span. Read through `sweep_range`, which the
+   *  server resolves it into when nothing outranks it. */
   meas_freq_range_mhz: [number, number] | null;
   /** Null for a deferred (user) design with no override — the real view is
    *  auto-detected and arrives with the first geometry/solve response. */
@@ -225,9 +227,11 @@ export type ExampleDescriptor = {
   variant_values: { [variant: string]: { [key: string]: unknown } };
   sweep_policy: SweepPolicy;
   /** AK#1682: an absolute sweep range + grid — a file design's own sweep
-   *  (the FR card, the SimNEC Generator's) or a Python design's
-   *  `ui_params["sweep_range"]`. It is also the measurement dial's travel.
-   *  Absent/null when neither declares one. See `resolveSweepRange`. */
+   *  (the FR card, the SimNEC Generator's), else a Python design's
+   *  `ui_params["sweep_range"]`, else its `meas_freq_range` (AK#1757: the
+   *  server resolves the three, `frequency_range.declared`). It is also the
+   *  measurement dial's travel. Absent/null when the design declares none.
+   *  See `resolveSweepRange`. */
   sweep_range?: SweepRangeSpec | null;
   /** Informational note shown under the antenna selector — deck-backed
    *  designs list the NEC cards the import recorded but did not apply.

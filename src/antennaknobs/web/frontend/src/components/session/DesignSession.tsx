@@ -107,7 +107,12 @@ import { SolveOverlays } from "./SolveOverlays";
 import { SolverSlotTabs } from "./SolverSlotTabs";
 import { useAnalysisRunners } from "./useAnalysisRunners";
 import { useDesignAnalyses } from "./useDesignAnalyses";
-import { analysisBlocked, analysisSpec, type AnalysisEntry } from "../../lib/analyses";
+import {
+  analysisBlocked,
+  analysisSpec,
+  frequencyPick,
+  type AnalysisEntry,
+} from "../../lib/analyses";
 import {
   DEFAULT_DENSITY_SPEC,
   defaultKnobSpec,
@@ -2093,9 +2098,12 @@ function DesignSessionBody({
     }
     setView("zparam");
   };
-  // The design's analyses (AK#1757, sweep-framework step 3): the header's
-  // picker. A runnable one sets the view's spec to its parameter and values
-  // and runs it, as the header's Run does; the rest are listed with why.
+  // The design's analyses (AK#1757, sweep-framework steps 3-4): the header's
+  // picker. A runnable knob analysis sets the view's spec to its parameter
+  // and values and runs it, as the header's Run does. A frequency analysis
+  // sets the frequency sweep's range and the VSWR chart's scale and
+  // threshold, and shows its first chart: the sweep that chart already runs
+  // is the analysis. The rest are listed with why.
   const zparamAnalyses = useDesignAnalyses({
     designKey: `${zparamDesignKey}#${reloadNonce}`,
     // Not before the session has a design: the first render has none.
@@ -2108,6 +2116,14 @@ function DesignSessionBody({
   const pickAnalysis = (entry: AnalysisEntry) => {
     const w = entry.workbench;
     if (!w.runs || zparamAnalysisBlocked(entry)) return;
+    if (w.kind === "frequency") {
+      const pick = frequencyPick(w, designSweepRange(sweepRangeInputs).range);
+      applySweepRangeEdit(pick.range);
+      if (pick.vswr) setSweepAxis("vswr", pick.vswr);
+      if (pick.threshold !== null) setSwrThreshold(pick.threshold);
+      setView(pick.view);
+      return;
+    }
     const knob = zparamKnobs.find((k) => k.name === w.param);
     const next = analysisSpec(w, knob?.kind === "int");
     setZparamPicked({ name: entry.name, spec: next });
