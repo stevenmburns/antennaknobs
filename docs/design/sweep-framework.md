@@ -1,6 +1,6 @@
 # The workbench sweep framework: a deliberate design arc
 
-Status: **inventory** (step 1 of 4). Nothing in this document is decided yet.
+Status: **step 1 (inventory) complete**, §1 and §2. Nothing in this document is decided yet.
 
 This arc is about how the workbench's sweeps, the graphs that draw them, and
 comparison ("pinning") fit together. It continues AK#1757 phase 2: the
@@ -178,10 +178,70 @@ not design:
 
 ## §2. How other interfaces do it
 
-*(to come: antenna and RF tools; VNA, oscilloscope and spectrum-analyzer
-trace memory; stock charting; exploratory data analysis and experiment
-tracking; the visualization literature on comparison. Facts and precedents
-only, cited.)*
+The cited survey is `sweep-framework-survey.md`, beside this file. It covers
+five families:
+
+- antenna and RF tools: EZNEC, AutoEZ, Zplots, 4nec2, MMANA, SimSmith,
+  xnec2c, ADS, AWR, CST;
+- lab instruments: VNA trace memory, spectrum-analyzer trace modes,
+  oscilloscope references, NanoVNA-Saver;
+- financial charting: TradingView, Bloomberg;
+- exploratory data analysis and experiment tracking: JMP, Vega-Lite,
+  Observable, Grafana, Spotfire, Dash, ipywidgets, MATLAB, W&B,
+  TensorBoard;
+- the visualization literature: Gleicher, Tufte, Wang Baldonado, Shneiderman,
+  Heer, Bret Victor.
+
+What each family tends to do:
+
+- **Antenna tools** compare by overlaying data snapshots kept in files. The
+  caps are small (4nec2 5, Zplots 4), and staleness is silent. ADS alone
+  stores the recipe with the snapshot and can recall it. SimSmith's sweep is a
+  live recipe, with a small size while editing and a large size on demand.
+- **Instruments** keep the stimulus (the VNA "channel"), the displayed
+  quantity (the trace) and the layout (window, sheet) as separate objects. A
+  pin is a per-trace memory in a few fixed-colour slots. Explicit difference
+  (Data−Mem, Data/Mem, delta markers) is first class. Staleness has stated
+  rules: a VNA memory is invalidated, or interpolated, when the stimulus
+  changes.
+- **Financial charting** adds the comparand as a live recipe and normalizes to
+  make it comparable, against an implicit baseline that moves with the view.
+  Each series goes to the same pane and scale, a new scale, or a new pane. The
+  x axis is shared; y is per pane. Links are per dimension, in named groups.
+- **Data-analysis tools** compose charts with a small algebra: layer
+  (superposition), facet (small multiples) and concat. Each operator defaults
+  to shared or independent scales. The things compared vary: runs (W&B),
+  remembered settings (JMP), time shifts (Grafana), marked subsets
+  (Spotfire). JMP's Prediction Profiler is one-at-a-time sweeps around a
+  movable current point, which is the closest analogue to a knob sweep.
+- **The literature** gives the vocabulary. Gleicher: juxtaposition,
+  superposition and explicit encoding, with superposition poor past 2 or 3,
+  and a chosen reference vs reference-free designs. Wang Baldonado: parsimony,
+  since a single view is a stable context and each coupling adds complexity.
+  Shneiderman 1996 already names "save the items" vs "save the settings for
+  the control widgets". Victor: a sweep as "abstracting over" a knob, where
+  pointing at the curve steps back down to one value.
+
+**The design axes the precedents reveal.** These are the raw material for §4,
+not decisions:
+
+1. What a pin stores: data, a recipe, or both (with recall).
+2. What happens when it goes stale: invalidate, interpolate, freeze with a
+   warning, silent, or lost.
+3. Superposition, juxtaposition, or explicit difference, and whether one
+   placement switch moves between them.
+4. The baseline: explicit and user-chosen, implicit, or none.
+5. Linked or independent axes and cursors; dual y axes (contested).
+6. Where the sweep definition lives: a shared stimulus object, one dialog per
+   sweep type, or one sweep over any parameter, frequency included.
+7. A whole family of curves, or one selected member.
+8. Capacity and colour: a few fixed slots, or many with a display cap; colour
+   owned by the slot or by the run.
+9. Recompute cadence, and keeping the view state across recomputes.
+10. Scope and persistence: session, workspace, URL, file.
+11. Simple and built in, or pushed out to scripts and files.
+12. The same word naming different things: "pin", "hold", "memory",
+    "reference". Our vocabulary will need definitions.
 
 ---
 
