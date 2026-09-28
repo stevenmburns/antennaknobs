@@ -188,6 +188,41 @@ def _knob_range(s: an.Sweep, builder, knob: str) -> tuple[float, float]:
     return (d * 0.5, d * 1.5) if d > 0 else (d * 1.5, d * 0.5)
 
 
+def _sweep_module():
+    import importlib
+
+    # The module, not the package's `sweep` function of the same name.
+    return importlib.import_module(f"{__package__}.sweep")
+
+
+def density_rungs(s: an.Sweep):
+    """A density sweep's ``(rungs, ladder_rungs, marked, drawn_marks)``, as
+    ``sweep._convergence_rungs`` gives them: the app's ladder when the spec
+    gives no range, else a geometric one; explicit values are the ladder.
+    ``rungs`` is what solves. The workbench's ``/analyses`` reads the same
+    rungs, so both tools sweep one ladder."""
+    rng = (s.lo, s.hi) if s.lo is not None else None
+    return _sweep_module()._convergence_rungs(rng, s.points, s.values or ())
+
+
+def knob_xs(s: an.Sweep, builder, knob: str) -> np.ndarray:
+    """A knob sweep's values on ``builder``: the spec's explicit values, else
+    ``gen_xs`` over the spec's or the knob's own range (`_knob_range`),
+    ``DEFAULT_POINTS`` when the spec gives no count. The ONE place a knob
+    analysis's x values come from: ``analyze`` and the workbench's
+    ``/analyses`` both call it."""
+    if s.values is not None:
+        return np.asarray(s.values)
+    return _sweep_module().gen_xs(
+        getattr(builder, knob),
+        _knob_range(s, builder, knob),
+        None,
+        None,
+        s.points or an.DEFAULT_POINTS,
+        log=s.spacing == "log",
+    )
+
+
 def _print_sweep_table(knob, curves, ground_label):
     """The `Table` view of a knob sweep: x, R and X per curve (port 0)."""
     for name, xs, zs in curves:
@@ -229,12 +264,9 @@ def run(
     for the tests; the table goes to stdout and the chart to ``fn``."""
     import matplotlib.pyplot as plt
 
-    import importlib
-
     from .core import save_or_show
 
-    # The module, not the package's `sweep` function of the same name.
-    sw = importlib.import_module(f"{__package__}.sweep")
+    sw = _sweep_module()
 
     builder = builder_factory()
     probs = an.problems(a, builder) + cli_gaps(a)
@@ -265,10 +297,7 @@ def run(
     # which every engine raises as ValueError / NotImplementedError; any other
     # failure is a real error and propagates.
     if density:
-        rng = (s.lo, s.hi) if s.lo is not None else None
-        rungs, ladder, _marked, drawn = sw._convergence_rungs(
-            rng, s.points, s.values or ()
-        )
+        rungs, ladder, _marked, drawn = density_rungs(s)
         per, fed, nports = {}, {}, 1
         for label, factory in factories:
             try:
@@ -306,17 +335,7 @@ def run(
             _references(axes, a.references)
     else:
         log = s.spacing == "log"
-        if s.values is not None:
-            xs = np.asarray(s.values)
-        else:
-            xs = sw.gen_xs(
-                getattr(builder, knob),
-                _knob_range(s, builder, knob),
-                None,
-                None,
-                s.points or an.DEFAULT_POINTS,
-                log=log,
-            )
+        xs = knob_xs(s, builder, knob)
         curves = []
         nports = 1
         for label, factory in factories:
