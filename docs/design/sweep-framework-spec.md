@@ -291,3 +291,36 @@ an.Analysis(
    `antennaknobs.analyses`, imported as `an`: yes.
 
 Step 2 (the CLI-first implementation of E1, E3 and E6) starts from this page.
+
+## Rulings after step 2 (Steve, 2026-09-28)
+
+The step-2 build (#1786) surfaced five questions:
+
+1. **E7 and the cap.** E7 is 2 feed spellings × 3 engines (B-spline,
+   razor-2p, NEC-2) = 6 curves, the cap. NEC-5 isn't needed where razor-2p,
+   its formulation, is present. NEC-2 × the apex knot stays as E7's refused
+   cell (#1787).
+2. **Names.** An analysis's name defaults to its library name
+   ("convergence", "band SWR"). Name one explicitly (`name=`) only when a
+   design has two of the same kind. Two alike are refused when listed, with
+   that fix in the message. A design's own analysis replacing the library
+   one of its name is the intended override, not a clash.
+3. **Spacing.** `Sweep(spacing=None)`, the default, is the sweep's own:
+   geometric for density, linear otherwise. `"lin"` or `"log"` written
+   explicitly wins, except that a linear density ladder is refused, since
+   Z∞ reads a power law.
+4. **The deck stub stays late** (the last step). Steps 3–6 are testable on
+   catalog designs, which already have `build_analyses()`.
+5. **The step plan, with the workbench early:**
+
+   | step | what | driving examples |
+   |---|---|---|
+   | 2 ✅ | analyses in Python, roles, `analyze` (knob / density / height; crosses over engines and grounds) | E1, E3, E6 |
+   | 3 | the workbench lists a design's analyses and runs those today's views draw | E1, E3 |
+   | 4 | the frequency sweep as an analysis; SWR / S11 / Smith views (ρ scale, threshold, 2:1 BW); frequency's default range is the design's or deck's own | E4 |
+   | 5 | crosses over planes, designs and a second knob (families); the map view | E2, E5, E7 |
+   | 6 | hold: an optimisation at each point, warm-started, skipping the optimizer's seed after the first point | E8, E9 |
+   | 7 | the UI writes the Python ("copy as analysis"); the deck stub | E4, E5 on Dan's files |
+
+   The CLI leads each capability, and the workbench follows it from step 3
+   on.
