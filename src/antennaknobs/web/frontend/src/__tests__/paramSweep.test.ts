@@ -11,6 +11,7 @@ import {
   logTicks,
   nearestIndex,
   paramZinf,
+  paramZinfReason,
   refinementX,
   paramValues,
   rxDomain,
@@ -132,6 +133,21 @@ describe("Z∞", () => {
     expect(refinementX([8, 12, 17], [17, 23, 33])).toEqual([17, 23, 33]);
     expect(refinementX([8, 12, 17], [17, 23])).toEqual([8, 12, 17]);
     expect(refinementX([8, 12, 17], undefined)).toEqual([8, 12, 17]);
+  });
+
+  it("gives a rough estimate its feed-mesh reason, and nothing else one", () => {
+    // dipoles.invvee on bspline, the app ladder: the gap wire goes 1 → 3.
+    const nSeg = [17, 23, 33, 47, 65, 95, 133];
+    const fed = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1 / 3, 0.1 / 3];
+    const rough = { re: 55.14, im: -9.67, p: null, status: "rough" as const };
+    expect(paramZinfReason(rough, nSeg, fed)).toBe(": fed segment 100.0→33.3 mm at N 65→95");
+    // Not rough, no achieved N (x would be the swept values), or misaligned.
+    expect(paramZinfReason({ ...rough, p: 1, status: "asymptotic" }, nSeg, fed)).toBeNull();
+    expect(paramZinfReason(rough, undefined, fed)).toBeNull();
+    expect(paramZinfReason(rough, nSeg, fed.slice(1))).toBeNull();
+    expect(paramZinfReason(null, nSeg, fed)).toBeNull();
+    // A uniformly refined feed is not a reason.
+    expect(paramZinfReason(rough, nSeg, nSeg.map((n) => 1 / n))).toBeNull();
   });
 });
 

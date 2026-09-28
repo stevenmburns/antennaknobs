@@ -3,7 +3,8 @@
     PYTHONPATH=src python scripts/gen_zinf_vectors.py
 
 writes ``src/antennaknobs/web/frontend/src/__tests__/fixtures/zinfVectors.json``
-from the PYTHON estimator (``antennaknobs.zinf.zinf_estimate``). pytest
+from the PYTHON estimator (``antennaknobs.zinf.zinf_estimate``, and
+``feed_mesh_step`` for the ``feed_mesh_cases``). pytest
 (``tests/test_zinf_vectors_1781.py``) and vitest (``zinf.test.ts``) both
 iterate that file, so a case added to ``CASES`` below gates both languages.
 """
@@ -124,9 +125,53 @@ def _cases():
     return cases
 
 
+# AK#1781's reason beside "rough": (x, fed segment length) ladders and the
+# step feed_mesh_step names. The invvee rows are measured (dipoles.invvee,
+# free space, the app ladder); the rest pin the rule's edges.
+INV_BS_X = [17, 23, 33, 47, 65, 95, 133]
+INV_RZ_X = [18, 24, 34, 48, 66, 94, 134]
+
+
+def _feed_mesh_cases():
+    uniform = [10, 20, 40, 80, 160]
+    return [
+        {
+            "name": "invvee bspline: 1 -> 3 segments between N 65 and 95",
+            "x": INV_BS_X,
+            "fed_len": [0.1] * 5 + [0.1 / 3] * 2,
+        },
+        {
+            "name": "invvee razor-2p: the 2 -> 4 jump beats the held step",
+            "x": INV_RZ_X,
+            "fed_len": [0.05] * 6 + [0.025],
+        },
+        {
+            "name": "held throughout the window",
+            "x": [10, 14, 20, 28, 40],
+            "fed_len": [0.05] * 5,
+        },
+        {
+            "name": "uniform refinement",
+            "x": uniform,
+            "fed_len": [1 / x for x in uniform],
+        },
+        {
+            "name": "a jump before the window is not named",
+            "x": [10, 20, 40, 80, 160, 320],
+            "fed_len": [0.1, 0.1 / 3] + [0.1 / 3 / 2**k for k in range(1, 5)],
+        },
+        {
+            "name": "a nonpositive length",
+            "x": [10, 20, 40],
+            "fed_len": [0.1, 0.0, 0.025],
+        },
+        {"name": "misaligned", "x": [10, 20, 40], "fed_len": [0.1, 0.05]},
+    ]
+
+
 def main():
     sys.path.insert(0, str(ROOT / "src"))
-    from antennaknobs.zinf import zinf_estimate
+    from antennaknobs.zinf import feed_mesh_step, zinf_estimate
 
     out = []
     for c in _cases():
@@ -147,6 +192,10 @@ def main():
         "by hand: regenerate.",
         "generator": COMMAND,
         "cases": out,
+        "feed_mesh_cases": [
+            {**c, "expected_step": feed_mesh_step(c["x"], c["fed_len"])}
+            for c in _feed_mesh_cases()
+        ],
     }
     OUT.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
     for c in out:
@@ -154,6 +203,8 @@ def main():
         z = "—" if e["re"] is None else f"{e['re']:.4f}{e['im']:+.4f}j"
         p = "—" if e["p"] is None else f"{e['p']:.4f}"
         print(f"{c['name']:<48} {e['status']:<12} p={p:<8} Z∞={z}")
+    for c in doc["feed_mesh_cases"]:
+        print(f"{c['name']:<56} step={c['expected_step']}")
 
 
 if __name__ == "__main__":

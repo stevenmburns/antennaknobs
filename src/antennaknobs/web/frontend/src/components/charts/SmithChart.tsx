@@ -837,6 +837,7 @@ export function SmithChart({
       extrapIm: number | null;
       extrapP: number | null;
       extrapStatus: ZInfStatus | null;
+      extrapReason: string | null;
     }> = [];
     if (multiFeed && feeds && feeds.length > 1) {
       for (let fi = 0; fi < feeds.length; fi++) {
@@ -848,6 +849,8 @@ export function SmithChart({
           extrapIm: im,
           extrapP: converge?.feeds_z_extrap_p?.[fi] ?? null,
           extrapStatus: converge?.feeds_z_extrap_status?.[fi] ?? null,
+          // The reason reads the primary feed's segment only.
+          extrapReason: null,
         });
       }
     } else if (converge && converge.values.length >= 1) {
@@ -857,6 +860,7 @@ export function SmithChart({
         extrapIm: converge.z_im_extrap,
         extrapP: converge.z_extrap_p ?? null,
         extrapStatus: converge.z_extrap_status ?? null,
+        extrapReason: converge.z_extrap_reason ?? null,
       });
     } else if (feeds && feeds.length === 1) {
       // Sweep-only single-feed run: show the swatch row so the colors
@@ -867,12 +871,14 @@ export function SmithChart({
         extrapIm: null,
         extrapP: null,
         extrapStatus: null,
+        extrapReason: null,
       });
     }
     if (summaryFeeds.length > 0) {
       ctx.font = "10px ui-monospace, monospace";
       for (let row = 0; row < summaryFeeds.length; row++) {
-        const { fi, extrapRe, extrapIm, extrapP, extrapStatus } = summaryFeeds[row];
+        const { fi, extrapRe, extrapIm, extrapP, extrapStatus, extrapReason } =
+          summaryFeeds[row];
         const ly = 12 + row * 14;
         // Dim swatch (sweep trail color).
         ctx.fillStyle = feedSweepColor(fi);
@@ -892,7 +898,7 @@ export function SmithChart({
           summaryFeeds.length > 1 ? `feed ${fi}` : "";
         if (extrapRe != null && extrapIm != null) {
           const sign = extrapIm >= 0 ? "+" : "−";
-          const zText = `Z∞ ≈ ${extrapRe.toFixed(2)} ${sign} j${Math.abs(extrapIm).toFixed(2)} Ω${zinfSuffix(extrapStatus, extrapP)}`;
+          const zText = `Z∞ ≈ ${extrapRe.toFixed(2)} ${sign} j${Math.abs(extrapIm).toFixed(2)} Ω${zinfSuffix(extrapStatus, extrapP)}${extrapReason ?? ""}`;
           txt = txt ? `${txt}  ${zText}` : zText;
         }
         if (txt) ctx.fillText(txt, 28, ly + 3);

@@ -123,6 +123,7 @@ export function ZParamChart({
           im: d.z_im_extrap,
           p: d.z_extrap_p ?? null,
           status: d.z_extrap_status ?? null,
+          reason: d.z_extrap_reason ?? null,
         }
       : null;
   const rDom = rxDomain(rAxis, extrap?.re != null ? [...rFit, extrap.re] : rFit);
@@ -427,7 +428,7 @@ export function ZParamChart({
       ctx.font = "10px ui-monospace, monospace";
       ctx.fillStyle = PC.labelBright;
       const sign = extrap.im >= 0 ? "+" : "−";
-      const txt = `Z∞ ≈ ${extrap.re.toFixed(2)} ${sign} j${Math.abs(extrap.im).toFixed(2)} Ω${zinfSuffix(extrap.status, extrap.p)}`;
+      const txt = `Z∞ ≈ ${extrap.re.toFixed(2)} ${sign} j${Math.abs(extrap.im).toFixed(2)} Ω${zinfSuffix(extrap.status, extrap.p)}${extrap.reason ?? ""}`;
       ctx.fillText(txt, MARGIN.l + (pw - ctx.measureText(txt).width) / 2, 12);
     }
     if (status) {
@@ -486,6 +487,7 @@ export function ZParamChart({
             : ""
         }
         data-extrap-status={extrap?.status ?? ""}
+        data-extrap-reason={extrap?.reason ?? ""}
         data-extrap-p={extrap?.p != null ? extrap.p.toFixed(3) : ""}
         data-hover={shownHover ?? ""}
         data-status={status ?? ""}

@@ -16,6 +16,7 @@ import {
   DENSITY_LADDER,
   paramFeedZinf,
   paramZinf,
+  paramZinfReason,
   refinementX,
   type ParamSweepData,
   type ParamSweepRequest,
@@ -957,6 +958,7 @@ export function useAnalysisRunners({
         ...acc,
         values: acc.values.slice(),
         ...(acc.n_seg ? { n_seg: acc.n_seg.slice() } : {}),
+        ...(acc.fed_seg_m ? { fed_seg_m: acc.fed_seg_m.slice() } : {}),
         z_re: acc.z_re.slice(),
         z_im: acc.z_im.slice(),
         // Spread-conditional, not `: undefined` — see runSweep's setSweep.
@@ -1043,6 +1045,16 @@ export function useAnalysisRunners({
           } else {
             delete acc.n_seg;
           }
+          // The fed segment's length, on the same all-or-nothing rule: the
+          // reason a rough Z∞ gives (feedMeshStep).
+          if (
+            Number.isFinite(pt.fed_seg_m) &&
+            (acc.fed_seg_m || acc.values.length === 1)
+          ) {
+            (acc.fed_seg_m ??= []).push(pt.fed_seg_m);
+          } else {
+            delete acc.fed_seg_m;
+          }
           acc.z_re.push(pt.z_re);
           acc.z_im.push(pt.z_im);
           // Multi-feed records ship per-feed Z alongside the primary;
@@ -1061,6 +1073,7 @@ export function useAnalysisRunners({
           acc.z_im_extrap = z?.im ?? null;
           acc.z_extrap_p = z?.p ?? null;
           acc.z_extrap_status = z?.status ?? null;
+          acc.z_extrap_reason = paramZinfReason(z, acc.n_seg, acc.fed_seg_m);
           if (acc.feeds_z_re && acc.feeds_z_im) {
             const f = paramFeedZinf(param, x, acc.feeds_z_re, acc.feeds_z_im);
             if (f) {

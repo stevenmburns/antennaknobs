@@ -485,7 +485,12 @@ Its line ends with how it was reached:
 - `(rough: not yet asymptotic, first order assumed)`: the ladder is too short
   (three rungs), its steps are not yet shrinking at a steady rate, or they
   change direction. `Z∞` then extrapolates at first order from the last two
-  rungs; treat it as a rough figure and add finer rungs.
+  rungs; treat it as a rough figure and add finer rungs. When the feed mesh
+  is the reason, a second line names the step, e.g. `the fed segment went
+  100.0 → 33.3 mm between N = 65 and 95: the feed mesh does not refine with
+  the ladder (AK#1767)`. A short feed wire gains segments two at a time, so
+  the fed segment stays put for several rungs and then jumps (see
+  [Where the extrapolated value comes from](/advanced/convergence/#where-the-extrapolated-value-comes-from)).
 - `(converged)`: the last step is below one part in a million of `|Z|`, and
   `Z∞` is the finest rung's value.
 - `Z∞ unavailable (need >= 3 rungs)`: fewer than three rungs.

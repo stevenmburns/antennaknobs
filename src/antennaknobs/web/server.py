@@ -2283,16 +2283,48 @@ def _mesh_segments(res: dict) -> int | None:
     return sum(max(len(w["knot_positions"]) - 1, 0) for w in wires)
 
 
+def _fed_segment_m(res: dict) -> float | None:
+    """Length of the segment the primary feed sits on, as meshed: the
+    segment of the fed wire's knots nearest ``feed_position``. A source ON
+    a knot (an even-parity basis) touches two segments; the shorter is
+    taken, the CLI's ``fed_segments()`` ``length_m`` wherever the two are
+    equal, which a centred source's are. The reason a rough Z∞ gives
+    (AK#1781, ``zinf.feed_mesh_step``). None when the result lacks any of
+    the fields."""
+    wires = res.get("wires")
+    wi = res.get("feed_wire_index")
+    fp = res.get("feed_position")
+    if not wires or wi is None or fp is None or not 0 <= wi < len(wires):
+        return None
+    k = np.asarray(wires[wi]["knot_positions"], dtype=float)
+    if k.ndim != 2 or k.shape[0] < 2:
+        return None
+    a, ab = k[:-1], np.diff(k, axis=0)
+    ll = np.einsum("ij,ij->i", ab, ab)
+    t = np.clip(
+        np.einsum("ij,ij->i", np.asarray(fp, dtype=float) - a, ab)
+        / np.where(ll > 0, ll, 1.0),
+        0.0,
+        1.0,
+    )
+    dist = np.linalg.norm(a + t[:, None] * ab - np.asarray(fp, dtype=float), axis=1)
+    lens = np.sqrt(ll)
+    near = dist <= dist.min() + 1e-9 * max(float(lens.max()), 1.0)
+    return float(lens[near].min())
+
+
 def _solve_z_only(
     req: dict, cancel=None
-) -> tuple[complex, list[complex] | None, int | None]:
+) -> tuple[complex, list[complex] | None, dict | None]:
     """Run the geometry-specific solver and return only the input impedance.
 
-    Returns (primary_z, feeds_z, n_seg) where feeds_z is the per-feed Z list
+    Returns (primary_z, feeds_z, mesh) where feeds_z is the per-feed Z list
     for multi-feed geometries (bowtie 1×2 array) and None for single-feed
-    geometries, and n_seg is the achieved total segment count
-    (``_mesh_segments``). Skips solve()'s post-processing (derived EM
-    fields, gain norm) — for the /converge sweep we only need Z(N).
+    geometries, and mesh is ``{"n_seg", "fed_seg_m"}``: the achieved total
+    segment count (``_mesh_segments``) and the fed segment's length
+    (``_fed_segment_m``), either None when the result cannot say. Skips
+    solve()'s post-processing (derived EM fields, gain norm) — for the
+    /converge sweep we only need Z(N).
     """
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     backend = _external_backend(req)
@@ -2309,7 +2341,11 @@ def _solve_z_only(
         if feeds_list and len(feeds_list) > 1
         else None
     )
-    return primary, feeds_z, _mesh_segments(res)
+    return (
+        primary,
+        feeds_z,
+        {"n_seg": _mesh_segments(res), "fed_seg_m": _fed_segment_m(res)},
+    )
 
 
 def _param_sweep_stream(
@@ -2362,7 +2398,7 @@ def _param_sweep_stream(
                 # One lane turn per point (see /sweep).
                 async with _LANES.turn(session, "converge", lane_gen) as token:
                     async with cancel_on_disconnect(request, token):
-                        z, feeds_z, n_seg = await run_in_threadpool(
+                        z, feeds_z, mesh = await run_in_threadpool(
                             _shed, _solve_z_only, req_v, cancel=token
                         )
             except (Superseded, momwire.SolveAborted):
@@ -2388,10 +2424,12 @@ def _param_sweep_stream(
                 "z_im": float(z.imag),
                 "solver": solver_name,
             }
-            # The achieved segment count: the workbench's Z∞ refinement
-            # variable, the CLI's N_ach (AK#1781).
-            if n_seg is not None:
-                record["n_seg"] = n_seg
+            # The achieved segment count, the workbench's Z∞ refinement
+            # variable and the CLI's N_ach, and the fed segment's length, the
+            # reason a rough Z∞ gives (AK#1781).
+            for key in ("n_seg", "fed_seg_m"):
+                if mesh is not None and mesh.get(key) is not None:
+                    record[key] = mesh[key]
             # Multi-feed geometries (bowtie 1×2 array) ship per-feed Z so
             # the frontend can plot one trail per port. Single-feed
             # geometries omit the field; the stream shape is unchanged.
@@ -2420,10 +2458,10 @@ async def param_sweep_endpoint(req: dict, request: Request):
     design's numeric knobs, and each point is the request with that field
     set to the value, solved on the request's own engine at the request's
     measurement frequency (docs/design/z-vs-param-view.md). Records are
-    ``{param, value, z_re, z_im, n_seg, solver}`` (``n_seg`` the achieved
-    total segment count, + ``feeds_z_re``/``feeds_z_im`` on a multi-feed
-    design), or ``{param, value, error, solver}`` for a
-    point that failed; the closing ``{done}`` record carries ``advisories``
+    ``{param, value, z_re, z_im, n_seg, fed_seg_m, solver}`` (``n_seg`` the
+    achieved total segment count, ``fed_seg_m`` the fed segment's length,
+    + ``feeds_z_re``/``feeds_z_im`` on a multi-feed design), or
+    ``{param, value, error, solver}`` for a point that failed; the closing ``{done}`` record carries ``advisories``
     when there is something to say (today the gap-fed density warning).
 
     An unknown parameter or a non-numeric value is a 422 before any solve.

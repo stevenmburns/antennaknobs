@@ -37,6 +37,17 @@ refinement variable: segments achieved, or a refinement factor) and complex
 One p per ladder, from the complex step: R and X are not extrapolated
 separately. Plain ``math`` in double precision, no numpy, in the same
 operation order as the TypeScript, so the two agree to rounding.
+
+A reason beside "rough" (``feed_mesh_step``): the common cause is a feed
+mesh that does not refine with the ladder. A short feed wire's segment
+count moves in steps of two to keep the source centred (1 -> 3 on an
+odd-parity basis, 2 -> 4 on an even one), so the fed segment stays fixed
+for several rungs and then jumps, and each jump kinks the ladder (AK#1767's
+feed-gap wires). Given the fed segment's length at each rung, the helper
+finds the step, within the last ``FEED_MESH_WINDOW`` rungs (the ones the
+straightness test reads), where that length departs most from the ``1/x``
+scaling of a uniform refinement, and reports it when the departure exceeds
+``FEED_MESH_TOL``. It never changes the estimate.
 """
 
 from __future__ import annotations
@@ -159,6 +170,64 @@ def zinf_estimate(x, z) -> ZInfEstimate:
     re = z_last.real + (z_last.real - z_prev.real) / (ratio - 1)
     im = z_last.imag + (z_last.imag - z_prev.imag) / (ratio - 1)
     return ZInfEstimate(complex(re, im), None, "rough")
+
+
+#: ``feed_mesh_step``'s window: the last rungs, as the straightness test reads.
+FEED_MESH_WINDOW = 4
+#: ``feed_mesh_step``'s threshold: the factor by which one step's fed-segment
+#: ratio may differ from the ladder's own ratio before it is reported.
+FEED_MESH_TOL = 1.25
+
+
+def feed_mesh_step(x, fed_len) -> int | None:
+    """Index ``k`` of the step ``x_k -> x_{k+1}`` where the fed segment least
+    follows the ladder, or None (see the module docstring).
+
+    ``fed_len`` is the fed segment's length at each rung. The departure of a
+    step is ``|ln(len_k / len_{k+1}) - ln(x_{k+1} / x_k)|``: zero when the
+    fed segment shrinks with the mesh, ``ln 1.4`` when it stays put while x
+    grows 1.4x, and larger still at a jump. Only steps departing by more
+    than ``ln FEED_MESH_TOL`` count. A JUMP (the length changed) is preferred
+    over a step where it stayed put, being the one a user can find in the
+    mesh; within each kind the first step with the largest departure wins.
+    None when no step counts, or when the inputs are short, misaligned or
+    not positive."""
+    m = len(x)
+    if m < 2 or len(fed_len) != m:
+        return None
+    tol = math.log(FEED_MESH_TOL)
+    best_jump, jump_dev = None, tol
+    best_held, held_dev = None, tol
+    for k in range(max(0, m - FEED_MESH_WINDOW), m - 1):
+        x0, x1 = float(x[k]), float(x[k + 1])
+        l0, l1 = float(fed_len[k]), float(fed_len[k + 1])
+        if not (x0 > 0 and x1 > x0 and l0 > 0 and l1 > 0):
+            return None
+        dev = abs(math.log(l0 / l1) - math.log(x1 / x0))
+        if _same_length(l0, l1):
+            if dev > held_dev:
+                best_held, held_dev = k, dev
+        elif dev > jump_dev:
+            best_jump, jump_dev = k, dev
+    return best_jump if best_jump is not None else best_held
+
+
+def _same_length(a, b):
+    return abs(a - b) <= 1e-9 * max(a, b)
+
+
+def describe_feed_mesh(x, fed_len, k: int, x_name: str = "N") -> str:
+    """The CLI's line for a ``feed_mesh_step`` hit at step ``k``."""
+    l0, l1 = fed_len[k] * 1000.0, fed_len[k + 1] * 1000.0
+    x0, x1 = x[k], x[k + 1]
+    if _same_length(l0, l1):
+        where = f"stayed {l0:.1f} mm from {x_name} = {x0:g} to {x1:g}"
+    else:
+        where = f"went {l0:.1f} → {l1:.1f} mm between {x_name} = {x0:g} and {x1:g}"
+    return (
+        f"the fed segment {where}: the feed mesh does not refine with the "
+        "ladder (AK#1767)"
+    )
 
 
 def describe(est: ZInfEstimate, digits: int = 3) -> str:

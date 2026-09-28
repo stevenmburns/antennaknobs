@@ -334,6 +334,20 @@ before extrapolating:
 - **Converged.** When the last step is below one part in a million of |Z|,
   there is nothing to extrapolate and `Z∞` is the finest rung.
 
+A rough reading often has a cause you can see in the mesh. A short feed wire
+gains segments two at a time, which keeps the source centred: 1 → 3 on
+B-spline, 2 → 4 on razor-2p. So on a density ladder the fed segment stays the
+same length for several rungs while the rest of the mesh refines, then jumps,
+and each jump puts a kink in the ladder. When that happens within the last
+four rungs, the rough reading names the step. On the default inverted vee's
+0.1 m feed wire, for example, the app's ladder reads rough on both engines:
+
+- on B-spline, the fed segment goes 100 → 33 mm between N = 65 and 95;
+- on razor-2p, it goes 50 → 25 mm between N = 94 and 134.
+
+That is a property of the design's feed wire, not of the engine. The rough
+value is still the best first-order estimate the ladder supports.
+
 On the HenTenna, razor-2p's ladder is asymptotic, with p = 0.98 and
 X∞ = 38.836 Ω, 0.012 Ω from the first-order line in the figure. The buried
 radial vertical's point-matched ladder is not: its local slopes drift from 0.5

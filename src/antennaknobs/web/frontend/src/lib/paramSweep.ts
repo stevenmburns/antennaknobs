@@ -2,7 +2,14 @@
 // parameters sweep, the ladder a spec asks for, and the chart's axis rules.
 // React-free, so the ladder and the axes are tested without a chart.
 
-import { feedwiseZinf, zinfEstimate, type ZInfEstimate, type ZInfStatus } from "./zinf";
+import {
+  feedMeshClause,
+  feedMeshStep,
+  feedwiseZinf,
+  zinfEstimate,
+  type ZInfEstimate,
+  type ZInfStatus,
+} from "./zinf";
 import { axisTicks, formatTick, type AxisDomain } from "./sweepAxis";
 import { isGroup, type SchemaItem, type SchemaParamSpec } from "./params";
 
@@ -62,12 +69,18 @@ export type ParamSweepData = {
    *  the CLI density study's N_ach): Z∞'s refinement variable. Absent when
    *  any point came without one, and then `values` stands in. */
   n_seg?: number[];
+  /** The fed segment's length at each point (the server's `fed_seg_m`),
+   *  on the same all-or-nothing rule as `n_seg`. */
+  fed_seg_m?: number[];
   z_re: number[];
   z_im: number[];
   z_re_extrap: number | null;
   z_im_extrap: number | null;
   z_extrap_p?: number | null;
   z_extrap_status?: ZInfStatus | null;
+  /** Why a rough Z∞ is rough, when the feed mesh says so (paramZinfReason),
+   *  as a clause for the readout: ": fed segment 100.0→33.3 mm at N 65→95". */
+  z_extrap_reason?: string | null;
   /** Multi-feed designs: per-point per-feed Z (outer index = point). */
   feeds_z_re?: number[][];
   feeds_z_im?: number[][];
@@ -204,6 +217,22 @@ export function paramZinf(
 ): ZInfEstimate | null {
   if (!isDensity(param)) return null;
   return zinfEstimate(x, zRe, zIm);
+}
+
+/** The reason beside a rough Z∞ (AK#1781): the step where the fed segment
+ *  stopped following the mesh, as feedMeshClause words it, or null. Only
+ *  when x is the achieved N (every point carried `n_seg`), since the clause
+ *  names N, and only for the primary feed, whose segment `fed_seg_m` is. */
+export function paramZinfReason(
+  est: ZInfEstimate | null,
+  nSeg: readonly number[] | undefined,
+  fedLen: readonly number[] | undefined,
+): string | null {
+  if (est?.status !== "rough" || !nSeg || !fedLen || fedLen.length !== nSeg.length) {
+    return null;
+  }
+  const k = feedMeshStep(nSeg, fedLen);
+  return k == null ? null : feedMeshClause(nSeg, fedLen, k);
 }
 
 export function paramFeedZinf(
