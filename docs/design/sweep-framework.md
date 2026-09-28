@@ -3,7 +3,8 @@
 Status:
 
 - **Step 1 (inventory) is complete** (§1, §2).
-- **One principle is decided**, 2026-09-28: an analysis is Python (§3.1).
+- **Decided, 2026-09-28:** an analysis is Python (§3.1). A1 is declarative
+  specs, and A2's roles and library are settled (`sweep-framework-spec.md`).
 - The rest of §3 is still *candidate* principles for step 2.
 - §4 opens the first decision axes that §3.1 creates. None of them is decided.
 
@@ -355,8 +356,8 @@ on the one before.
 
 ### A1. What `build_analyses()` returns
 
-*Step 1 proposal (2026-09-28): `sweep-framework-spec.md` answers A1 with (a),
-writes all seven driving examples in it, and lists five questions for Steve.*
+**Decided 2026-09-28: (a), declarative specs.** See `sweep-framework-spec.md`,
+which also settles A2's roles (in `ui_params`) and library names.
 
 - **(a) Declarative specs.** Small frozen dataclasses, e.g.
   `Sweep(param="length_factor", lo=0.9, hi=1.1, points=11, views=("zparam",

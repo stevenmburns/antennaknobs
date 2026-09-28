@@ -1,6 +1,7 @@
 # Sweep framework, step 1: the analysis spec (proposal for A1 and A2)
 
-Status: **proposal, for Steve's decision.** Nothing here is built. This page
+Status: **decided, 2026-09-28** (the answers are recorded at the end). Nothing
+here is built yet: step 2 implements it, CLI-first. This page
 answers axis A1 (what `build_analyses()` returns) and the part of A2 that the
 examples force (knob roles). It is tested on paper against all seven driving
 examples in `sweep-framework-examples.md`: if an example needs a special
@@ -55,18 +56,21 @@ an.Analysis(
     name,  # shown in the workbench's picker and the CLI's list
     sweep,  # a Sweep, or (Sweep, Sweep) for a map
     cross=(),  # Cross or a tuple of them: their product
-    views=("rx",),  # "rx" | "swr" | "s11" | "smith" | "map" | "table"
+    # view OBJECTS with their own options: an.Rx(), an.Swr(scale="rho"),
+    # an.S11(), an.Smith(), an.Map(), an.Table()
+    views=(an.Rx(),),
     references=an.Ref(),
     ground=None,
     engine=None,  # None: the session's own
 )
 
 # ── the library (A2): generic analyses for any design ──────────────────────
-an.convergence(**kw)  # Analysis("convergence", Sweep(an.DENSITY),
-#          views=("rx", "table", "smith")) + **kw
-an.band_swr(**kw)  # Analysis("band SWR", Sweep(an.FREQUENCY),
-#          views=("swr",), references=Ref(swr=2.0)) + **kw
-an.knob(name, **kw)  # Analysis(name, Sweep(name), views=("rx", "smith")) + **kw
+# Analysis("convergence", Sweep(an.DENSITY), views=(Rx(), Table(), Smith()))
+an.convergence(**kw)
+# Analysis("band SWR", Sweep(an.FREQUENCY), views=(Swr(),), references=Ref(swr=2.0))
+an.band_swr(**kw)
+# Analysis(name, Sweep(name), views=(Rx(), Smith()))
+an.knob(name, **kw)
 ```
 
 ### Roles (A2)
@@ -104,9 +108,8 @@ default_params = {
 - A combination an engine cannot serve (NEC-2 on the apex knot, E7) is a
   **refused cell**. It is drawn as a named gap in the legend, and the rest
   of the analysis runs.
-- A curve cap applies (instruments use 4, Gleicher says superposition is
-  poor past 2–3). A product over the cap is refused when the analysis is
-  **listed**, not when it runs.
+- **The curve cap is 6.** A product over the cap is refused when the
+  analysis is **listed**, not when it runs.
 
 ### What the spec deliberately leaves out
 
@@ -147,7 +150,7 @@ def build_analyses(self):
         an.Analysis(
             "tuning map",
             (lf, an.Sweep("angle_deg", 0, 60, points=25)),
-            views=("map",),
+            views=(an.Map(),),
             references=refs,
         ),
     ]
@@ -174,7 +177,7 @@ would generate, since `an.FREQUENCY` with no range means the file's
 
 ```python
 def build_analyses(self):
-    return [an.band_swr(swr_scale="rho")]
+    return [an.band_swr(views=(an.Swr(scale="rho"),))]
 ```
 
 **E5, one sweep at three network planes:**
@@ -185,7 +188,7 @@ def build_analyses(self):
         an.band_swr(
             name="rig vs antenna",
             cross=an.Cross(planes=("rig", "T1", "feed")),
-            views=("swr", "rx"),
+            views=(an.Swr(), an.Rx()),
         ),
     ]
 ```
@@ -226,27 +229,22 @@ def build_analyses(self):
   and references.
 - **Two small additions came from the examples**, not from design ahead of
   them:
-  - `swr_scale` (E4) is a view option. It's the one keyword here that isn't
-    in the types above, so either views take options, or the SWR view is
-    `("swr", "rho")`. See Q2.
+  - E4's SWR scale is a view option. That's what settled Q2 in favour of
+    view objects.
   - `name=` overriding a library default (E5).
 - **The library carries most of the weight.** Four of the seven are one
   library call with keywords. That's A2's case for option (a), a shared
   library, over inheritance alone.
 
-## Questions for Steve (the decisions this step needs)
+## Decisions (Steve, 2026-09-28)
 
-1. **Declarative specs (A1 (a)).** Yes or no. This whole page assumes yes.
-2. **View options.** Should views take options (`views=(an.Swr(scale="rho"),
-   "rx")`), or stay strings with a few spelled variants? I lean to objects,
-   because E4's scale and E2's map both want parameters.
-3. **Roles in `ui_params`,** beside `min`/`max`/`hidden`, rather than a
-   separate class attribute. I lean `ui_params`, since it's one place per
-   knob.
-4. **Crossing multiplies.** Two crosses give their product, with a curve
-   cap enforced at listing time. Is the cap 4, as for pattern pins, or 6?
-5. **Library names:** `convergence`, `band_swr`, `knob`. And one module,
-   `antennaknobs.analyses`, imported as `an`?
+1. **Declarative specs (A1 (a)): yes.**
+2. **Views take options: yes.** Views are objects (`an.Rx()`,
+   `an.Swr(scale="rho")`, `an.Map()`, …), not strings.
+3. **Roles live in `ui_params`: yes.** It carries more per-knob information,
+   beside `min`/`max`/`hidden`.
+4. **Crosses multiply**, with a **curve cap of 6**.
+5. **Library names:** `convergence`, `band_swr`, `knob`, in the module
+   `antennaknobs.analyses`, imported as `an`: yes.
 
-When these are settled, step 2 (the CLI-first implementation of E1, E3 and
-E6) can start from this page.
+Step 2 (the CLI-first implementation of E1, E3 and E6) starts from this page.
