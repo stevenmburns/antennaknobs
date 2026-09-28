@@ -316,10 +316,11 @@ def design_range(params: Mapping) -> FrequencyRange:
             for band in _bands(ui):
                 if band.min_mhz <= anchor <= band.max_mhz:
                     return FrequencyRange(band.min_mhz, band.max_mhz, "policy")
-        if (policy.lo_factor, policy.hi_factor) != (0.8, 1.25):
-            return FrequencyRange(
-                anchor * policy.lo_factor, anchor * policy.hi_factor, "policy"
-            )
+        # Off every band, a lock falls back to its factors around ITS anchor
+        # (`SweepPolicy`), which need not be ``freq``.
+        return FrequencyRange(
+            anchor * policy.lo_factor, anchor * policy.hi_factor, "policy"
+        )
     return FrequencyRange(freq / _DEFAULT_FRACTION, freq * _DEFAULT_FRACTION, "default")
 
 
