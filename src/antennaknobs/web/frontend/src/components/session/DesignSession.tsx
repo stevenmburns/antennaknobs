@@ -130,6 +130,7 @@ import {
   pickedName,
   pickFrequency,
   pickKnob,
+  pickOwnFrequency,
   setChartView,
 } from "../../lib/analysisChart";
 import {
@@ -2109,13 +2110,29 @@ function DesignSessionBody({
     const cur = currentValues[param];
     return knob ? defaultKnobSpec(knob, typeof cur === "number" ? cur : 1) : DEFAULT_DENSITY_SPEC;
   };
+  // Choosing what to sweep is a pick, and a pick runs it (Steve's phone,
+  // 2026-09-29: he chose length_factor in the header, got "no sweep yet"
+  // and a small "run" among the wrapped controls, and never saw a curve).
+  // Unit 2 left a knob choice waiting for Run; the rulings say a pick runs.
   const selectZparamParam = (param: string) => {
+    if (param !== DENSITY) setLastKnob(param);
+    armParamSweep();
     setZparamSpec(zparamDefaultFor(param));
     setZparamXLog(null);
   };
+  // The knob the picker's "Sweep a knob" runs (Steve, 2026-09-29): the one
+  // in the chart's parameter list when that is a knob, else the last knob
+  // swept this session, else the design's first sweepable knob.
+  const [lastKnob, setLastKnob] = useState<string | null>(null);
+  const knobToSweep =
+    zparamKnobs.find((k) => k.name === zparamSpec.param)?.name ??
+    zparamKnobs.find((k) => k.name === lastKnob)?.name ??
+    zparamKnobs[0]?.name ??
+    DENSITY;
   // The knob menu's "Sweep this knob": that knob, its default range, and the
   // view on the stage (a peek when it is not pinned).
   const sweepKnob = (param: string) => {
+    setLastKnob(param);
     const next = zparamDefaultFor(param);
     setKnobMenu(null);
     if (chart.kind === "knob" && sameSpec(next, zparamSpec) && chartResident) {
@@ -2169,6 +2186,7 @@ function DesignSessionBody({
       return;
     }
     const next = knobAnalysisSpec(w);
+    if (w.param !== DENSITY) setLastKnob(w.param);
     if (chart.kind === "knob" && sameSpec(next, zparamSpec) && chartResident) {
       setChart((c) => pickKnob(c, entry.name, next));
       runParamSweepNow();
@@ -2192,6 +2210,13 @@ function DesignSessionBody({
             sameSpec(knobAnalysisSpec(a.workbench), zparamSpec),
         )?.name ?? null)
       : null);
+  // The knob sweep's end-value boxes (Steve's phone, 2026-09-29: four boxes
+  // on a phone-sized plot covered it). Off to start on a phone, on on a
+  // desktop as before; the chart's "values" toggle flips them. Session-only,
+  // like everything a chart shows: never in the browser's storage or in
+  // settings.toml.
+  const [calloutsFlip, setCalloutsFlip] = useState<boolean | null>(null);
+  const chartCallouts = calloutsFlip ?? !isMobile;
   const zparamSettings = {
     param: zparamSpec.param,
     label: zparamLabel,
@@ -2714,9 +2739,16 @@ function DesignSessionBody({
     current: zparamPickedName,
     blocked: zparamAnalysisBlocked,
     onPick: pickAnalysis,
-    // A new chart's frequency sweep is no analysis of the design's: the
-    // design's own band, as the standalone views swept it.
-    ...(chart.kind === "frequency" && chart.picked === null ? { placeholder: "freq sweep" } : {}),
+    // The picker's first entry: the design's own frequency sweep (a new
+    // chart's), and its "Sweep a knob" group, which runs the knob as the
+    // knob menu's "Sweep this knob…" does (the same path, sweepKnob).
+    own: chart.kind === "frequency" && chart.picked === null,
+    onPickOwn: () => {
+      armSweep();
+      setChart((c) => pickOwnFrequency(c, chartSeed));
+    },
+    ...(zparamKnobs.length > 0 ? { onSweepKnob: () => sweepKnob(knobToSweep) } : {}),
+    sweepingKnob: chart.kind === "knob" && zparamPickedName === null && !zparamIsDensity,
   };
   const chartChrome = {
     dwell: chartDwellOn,
@@ -2889,7 +2921,13 @@ function DesignSessionBody({
       pinnedPatterns={pinnedPatterns}
       measFreqMhz={measFreq}
       paramSweepRunning={paramSweepRunning}
-      zparam={{ ...zparamSettings, phase: paramSweepPhase, view: chart.knob.view }}
+      zparam={{
+        ...zparamSettings,
+        phase: paramSweepPhase,
+        view: chart.knob.view,
+        callouts: chartCallouts,
+        onCalloutsChange: setCalloutsFlip,
+      }}
       onZparamXLogChange={setZparamXLog}
       onZparamAxisChange={setZparamAxis}
       chartFrequency={
@@ -3226,7 +3264,12 @@ function DesignSessionBody({
                       // dots until its chart took the stage.
                       refineEnabled={refineEnabled}
                       paramSweepRunning={paramSweepRunning}
-                      zparam={{ ...zparamSettings, phase: paramSweepPhase, view: chart.knob.view }}
+                      zparam={{
+                        ...zparamSettings,
+                        phase: paramSweepPhase,
+                        view: chart.knob.view,
+                        callouts: chartCallouts,
+                      }}
                       chartFrequency={chartFrequencyRender}
                       azElevDeg={azElevDeg}
                       elevAzDeg={elevAzDeg}

@@ -4367,9 +4367,6 @@ canvas {
 .zparam-area .zparam-controls {
   justify-content: flex-start;
 }
-.zparam-area .zparam-cost {
-  text-align: left;
-}
 /* The chart's box: the readout and the sweep's notes sit just inside its
    axes (the canvas's margins, published by ZParamStage), so no axis label or
    title is ever under them. */
@@ -4413,19 +4410,70 @@ canvas {
 }
 /* The analysis picker (AK#1757): the picked one's note, and every analysis
    as Python behind a disclosure, under the header's row. */
+/* One line under a chart's controls, note or none (AK#1757, Steve's phone
+   2026-09-29): the note is a one-line button, ellipsized, and opens as a
+   panel laid over the chart (.chart-note-pop, absolute), so a note never
+   changes the header's height and so never the plot's. */
 .zparam-analysis-extra {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
   max-width: 100%;
+  min-height: 1.6em;
   font-size: var(--text-xs);
   color: var(--muted);
 }
-.zparam-analysis-note {
+.chart-note-btn {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 var(--space-2);
+  background: var(--inset);
+  color: var(--muted);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.chart-note-btn[aria-expanded="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.chart-note-pop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 6;
+  width: max-content;
+  max-width: min(28rem, calc(100vw - 2 * var(--space-5)));
+  margin-top: var(--space-1);
   background: var(--panel);
+  color: var(--fg);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  padding: var(--space-1) var(--space-3);
+  box-shadow: 0 6px 24px var(--shadow-strong);
+  padding: var(--space-2) var(--space-3);
+  white-space: normal;
+}
+.chart-note-pop p {
+  margin: 0;
+}
+.chart-note-pop p + p {
+  margin-top: var(--space-2);
+}
+.zparam-analysis-code {
+  flex: 0 0 auto;
+}
+/* Opening the Python list is asked for, and takes its own line. */
+.zparam-analysis-code[open] {
+  flex-basis: 100%;
 }
 .zparam-analysis-code > summary {
   cursor: pointer;
@@ -4497,6 +4545,11 @@ canvas {
   border: 1px solid var(--border-control);
   border-radius: var(--r-sm);
   cursor: pointer;
+}
+/* The end-value boxes' toggle (AK#1757 unit 3, Steve's phone): beside the
+   lin/log switch, the chart's own control. */
+.zparam-xlog-btn.zparam-callout-btn {
+  right: 44px;
 }
 .zparam-xlog-btn[aria-pressed="true"] {
   color: var(--accent);
@@ -4580,11 +4633,6 @@ canvas {
    so the live point on it stays bright. */
 .zparam-run.is-stale {
   border-color: var(--accent);
-}
-.zparam-cost {
-  flex-basis: 100%;
-  text-align: right;
-  font-size: var(--text-xs);
 }
 .zparam-approve {
   margin-left: var(--space-2);

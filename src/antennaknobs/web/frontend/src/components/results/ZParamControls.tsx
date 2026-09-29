@@ -7,7 +7,12 @@ import {
   pointsProblem,
 } from "../../lib/paramSweep";
 import { CommitNumber } from "./CommitNumber";
-import { AnalysisDetails, type AnalysisPickerProps, AnalysisSelect } from "./AnalysisPicker";
+import {
+  AnalysisDetails,
+  type AnalysisPickerProps,
+  AnalysisSelect,
+  chartNotes,
+} from "./AnalysisPicker";
 import { chartDataAttrs } from "../../lib/analysisChart";
 import {
   type ChartChrome,
@@ -97,7 +102,9 @@ export function ZParamControls({
         : {})}
     >
       <div className="zparam-controls" role="group" aria-label="Parameter sweep">
-        {analyses && analyses.entries.length > 0 && <AnalysisSelect {...analyses} />}
+        {analyses && (analyses.entries.length > 0 || !!analyses.onSweepKnob) && (
+          <AnalysisSelect {...analyses} />
+        )}
         {viewPick && <ChartViewPick {...viewPick} />}
         <label>
           <span>sweep</span>
@@ -206,17 +213,15 @@ export function ZParamControls({
         >
           ↺
         </button>
-        {costHint && (
-          <div className="zparam-cost" role="note">
-            {costHint}
-          </div>
-        )}
       </div>
-      {analyses && analyses.entries.length > 0 && (
+      {/* The cost hint is a chart note like an analysis's: on the one line
+          under the controls, opened on demand, never in the flow that sizes
+          the plot (AnalysisDetails). */}
+      {(chrome || costHint || (analyses && analyses.entries.length > 0)) && (
         <AnalysisDetails
-          entries={analyses.entries}
-          current={analyses.current}
-          blocked={analyses.blocked}
+          entries={analyses?.entries ?? []}
+          notes={chartNotes(analyses?.entries ?? [], analyses?.current ?? null, [costHint])}
+          blocked={analyses?.blocked ?? (() => null)}
         />
       )}
     </div>

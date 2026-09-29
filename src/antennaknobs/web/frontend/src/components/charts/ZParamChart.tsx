@@ -63,6 +63,8 @@ export function ZParamChart({
   onAxisChange,
   z0 = 50,
   phase = "idle",
+  callouts = true,
+  onCalloutsChange,
 }: {
   data: ParamSweepData | null;
   /** The parameter the view is set to sweep — the sweep in hand may still
@@ -91,6 +93,13 @@ export function ZParamChart({
   z0?: number;
   /** The runner's phase, as data-phase: idle / queued (dwelling) / running. */
   phase?: "idle" | "queued" | "running";
+  /** Draw the value boxes at the sweep's two ends. Off (a phone starts so:
+   *  four boxes on a ~280 px plot covered it, Steve 2026-09-29), the points'
+   *  own circles mark the ends and a tap still reads the nearest point. */
+  callouts?: boolean;
+  /** Given, the chart shows its one "values" toggle for the boxes (stage
+   *  only; the state is the session's, never stored). */
+  onCalloutsChange?: (on: boolean) => void;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -401,7 +410,7 @@ export function ZParamChart({
       lines.forEach((l, i) => ctx.fillText(l, bx + 4, by + 12 + 12 * i));
     };
     const name = d && isDensity(d.param) ? "N" : label;
-    if (n >= 2 && shownHover == null) {
+    if (callouts && n >= 2 && shownHover == null) {
       for (const i of [0, n - 1]) {
         const last = i === n - 1;
         const tag = `${name}=${formatParam(xs[i])}`;
@@ -441,7 +450,7 @@ export function ZParamChart({
     // choices below; domKey stands in for the domains as a string, so an
     // unchanged range does not redraw.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, param, label, unit, size, theme, domKey, currentValue, liveR, liveX, shownHover, status]);
+  }, [data, param, label, unit, size, theme, domKey, currentValue, liveR, liveX, shownHover, status, callouts]);
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (n === 0) return;
@@ -495,6 +504,7 @@ export function ZParamChart({
         data-partial={d?.partial ? "1" : "0"}
         data-stale={d?.stale ? "1" : "0"}
         data-phase={phase}
+        data-callouts={callouts && n >= 2 ? "1" : "0"}
         onPointerMove={onPointerMove}
         // A tap on a phone reads the nearest point too.
         onPointerDown={onPointerMove}
@@ -532,6 +542,18 @@ export function ZParamChart({
           onClick={() => onXLogChange(!xLog)}
         >
           {logX ? "log x" : "lin x"}
+        </button>
+      )}
+      {onCalloutsChange && (
+        <button
+          type="button"
+          className="zparam-xlog-btn zparam-callout-btn"
+          aria-pressed={callouts}
+          aria-label={callouts ? "Hide the end values" : "Show the end values"}
+          title="The R and X values boxed at the sweep's two ends"
+          onClick={() => onCalloutsChange(!callouts)}
+        >
+          values
         </button>
       )}
       {onAxisChange && menu && (
