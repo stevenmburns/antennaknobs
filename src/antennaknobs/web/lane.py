@@ -60,6 +60,21 @@ SAME_KIND_SUPERSEDES = frozenset(
     {"live", "sweep", "converge", "norm_check", "pattern", "engine_io"}
 )
 
+# A kind may carry a stream name, ``"sweep:c1r2"`` (AK#1757 step 5 unit 4):
+# the client runs several sweeps of one kind at once (an analysis chart's
+# curves, one per engine x ground cell, and a second chart's), and each is
+# its own job. Supersession compares the WHOLE kind, so a re-issued stream
+# still abandons its own predecessor and no other stream's; priority and
+# the supersedes-list read the base kind before the colon, so a named
+# stream schedules exactly as the plain kind does. Generations still cut
+# across every stream: a knob drag supersedes them all.
+STREAM_SEP = ":"
+
+
+def base_kind(kind: str) -> str:
+    """``kind`` without its stream name."""
+    return kind.split(STREAM_SEP, 1)[0]
+
 
 class Superseded(Exception):
     """Newer client intent overtook this turn before it ran; abandon the job.
@@ -90,7 +105,7 @@ class _Turn:
 
     @property
     def rank(self) -> tuple[int, int]:
-        return (PRIORITY.get(self.kind, _PRIORITY_DEFAULT), self.order)
+        return (PRIORITY.get(base_kind(self.kind), _PRIORITY_DEFAULT), self.order)
 
 
 class SolveLane:
@@ -192,7 +207,7 @@ class SolveLane:
             r.token.cancel()
 
     def _overtaken(self, old: _Turn, new: _Turn) -> bool:
-        if old.kind == new.kind and old.kind in SAME_KIND_SUPERSEDES:
+        if old.kind == new.kind and base_kind(old.kind) in SAME_KIND_SUPERSEDES:
             return True  # re-issued job: the old stream is abandoned
         return old.gen is not None and old.gen < self.gen
 
