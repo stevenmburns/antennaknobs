@@ -37,6 +37,12 @@ export function feedColor(i: number, alpha = 0.85): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+/** How much of a stale swept trace shows (the analysis chart's dwell switch
+ *  off and the inputs since moved, AK#1757 step 5 unit 3): the trace dims to
+ *  this, the live marker drawn over it does not. The old whole-canvas CSS
+ *  dim was 0.55; the trace alone reads as faded a little lower. */
+export const STALE_TRACE_ALPHA = 0.4;
+
 // Sweep trail uses a darkened variant of each feed's primary color so the
 // current-Z marker reads as "you are here" against a dimmer "trail". With
 // two feeds at identical Z (e.g. the in-phase symmetric case) the two
