@@ -1,7 +1,12 @@
 import { chartDataAttrs, type ChartView } from "../../lib/analysisChart";
 import type { MeasuredData } from "../../lib/api";
 import type { SweepRange } from "../../lib/sweep";
-import { AnalysisDetails, type AnalysisPickerProps, AnalysisSelect } from "./AnalysisPicker";
+import {
+  AnalysisDetails,
+  type AnalysisPickerProps,
+  AnalysisSelect,
+  chartNotes,
+} from "./AnalysisPicker";
 import { CommitNumber } from "./CommitNumber";
 
 // The analysis chart's own controls (AK#1757, sweep-framework step 5 unit 2).
@@ -209,7 +214,7 @@ export function FrequencyChartControls({
       </div>
       <AnalysisDetails
         entries={analyses.entries}
-        current={analyses.current}
+        notes={chartNotes(analyses.entries, analyses.current)}
         blocked={analyses.blocked}
       />
     </div>
