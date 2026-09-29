@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { useInViewport } from "./useInViewport";
 import { KnobMenuNumber } from "../backend/fields";
@@ -46,7 +47,11 @@ export function RxRangePopover({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
   const round = (v: number) => Number(v.toPrecision(5));
-  return (
+  // In a portal on <body>: fixed to the viewport whatever the chart sits in
+  // (a phone's carousel page clips and scrolls, and a stale dim makes a
+  // stacking context), so nothing between the chart and the page can clip
+  // it, re-anchor it or paint over it (Steve's phone, 2026-09-29).
+  return createPortal(
     <>
       <div className="knob-menu-backdrop" onClick={onClose} />
       <div
@@ -92,6 +97,7 @@ export function RxRangePopover({
           />
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
