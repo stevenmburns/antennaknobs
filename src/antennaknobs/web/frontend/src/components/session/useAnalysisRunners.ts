@@ -100,6 +100,11 @@ export type { SweepPhase };
 export type ChartCellRequest = {
   slot: string;
   ground: string;
+  /** The measurement plane, design and family step the cell sets (unit
+   *  4b, lib/chartCells.ts ChartCell); absent, the session's. */
+  plane?: string;
+  design?: string;
+  step?: { knob: string; value: number };
   stream: string | null;
   backend: BackendEntry;
   groundEnabled: boolean;

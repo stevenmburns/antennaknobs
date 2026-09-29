@@ -26,6 +26,9 @@ const run = (over: Partial<KnobWorkbench>): KnobWorkbench => ({
   ...over,
 });
 
+// What a server before unit 4b serves of the other crosses: nothing.
+const NO_CROSSES = { axes: [], planes: null, designs: null, step: null };
+
 describe("analysisSpec", () => {
   it("E3: base, 2…20, 37 linear points, and the header's ladder is the served one", () => {
     const spec = analysisSpec(run({}), false);
@@ -93,6 +96,7 @@ describe("parseAnalyses", () => {
       // session's active slot and ground.
       engines: null,
       grounds: null,
+      ...NO_CROSSES,
       note: "n",
     });
     expect(got[1].workbench).toEqual({ runs: false, why: "step 6" });
@@ -133,6 +137,53 @@ describe("parseAnalyses", () => {
       grounds: ["finite:13,0.005"],
     });
     expect(got[1].workbench).toMatchObject({ engines: null, grounds: null });
+  });
+  it("keeps an analysis's planes, designs and family in written order, and drops junk (unit 4b)", () => {
+    const got = parseAnalyses({
+      analyses: [
+        {
+          name: "feed spellings",
+          workbench: {
+            runs: true,
+            kind: "knob",
+            param: "n_per_wire",
+            values: [8, 12],
+            log: true,
+            engines: ["momwire:bspline"],
+            grounds: null,
+            axes: ["designs", "engines", "bogus"],
+            planes: [{ name: "rig", refused: null }, { name: "x", refused: "no plane 'x'" }],
+            designs: [{ name: "dipoles.invvee_apex", refused: null, param: "n_per_wire", values: [8, 12] }],
+            step: { knob: "angle_deg", values: [0, 30], labels: ["angle_deg = 0", "angle_deg = 30"] },
+            note: null,
+          },
+        },
+        {
+          name: "junk",
+          workbench: {
+            runs: true,
+            kind: "knob",
+            param: "n_per_wire",
+            values: [8],
+            log: true,
+            planes: [{ refused: null }],
+            designs: "dipoles.invvee",
+            step: { knob: "angle_deg", values: ["a"] },
+            note: null,
+          },
+        },
+      ],
+    });
+    expect(got[0].workbench).toMatchObject({
+      axes: ["designs", "engines"],
+      planes: [
+        { name: "rig", refused: null },
+        { name: "x", refused: "no plane 'x'" },
+      ],
+      designs: [{ name: "dipoles.invvee_apex", refused: null, param: "n_per_wire", values: [8, 12] }],
+      step: { knob: "angle_deg", values: [0, 30], labels: ["angle_deg = 0", "angle_deg = 30"] },
+    });
+    expect(got[1].workbench).toMatchObject(NO_CROSSES);
   });
   it("no analyses on a body without them (an older server, a stub)", () => {
     expect(parseAnalyses({})).toEqual([]);
@@ -176,7 +227,12 @@ describe("frequency analyses (step 4)", () => {
         },
       ],
     });
-    expect(a.workbench).toEqual({ ...freq({ views: ["Swr", "Smith"] }), engines: null, grounds: null });
+    expect(a.workbench).toEqual({
+      ...freq({ views: ["Swr", "Smith"] }),
+      engines: null,
+      grounds: null,
+      ...NO_CROSSES,
+    });
   });
 
   it("a policy-level entry serves no range: the session's band policy places it", () => {
