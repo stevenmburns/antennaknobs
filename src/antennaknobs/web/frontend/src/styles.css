@@ -4574,6 +4574,15 @@ canvas {
 .zparam-run-done {
   font-family: ui-monospace, monospace;
 }
+/* The analysis chart (AK#1757 step 5): its dwell switch off, a change leaves
+   the drawn curve for inputs that have since moved. The curve dims, the live
+   point on it does not wait, and Run asks "re-run?". */
+.zparam-run.is-stale {
+  border-color: var(--accent);
+}
+.analysis-chart-freq.is-stale canvas {
+  opacity: 0.55;
+}
 .zparam-cost {
   flex-basis: 100%;
   text-align: right;
