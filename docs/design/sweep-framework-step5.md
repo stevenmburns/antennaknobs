@@ -151,3 +151,24 @@ it needs a live visual pass, not only tests.
 3. Unit 3 removes three views that `settings.toml` and saved pins may
    name. Do those names map to the default chart with the right view
    (vswr → a band-SWR chart on the Swr view), or reset to the default?
+
+## Rulings on the review questions (Steve, 2026-09-28)
+
+1. **The rail's pinned-view preferences stay in the browser.** They say
+   which views are shown, not what any chart computes, a per-viewer
+   convenience like the theme. A chart's contents stay session-only: its
+   pick, its dwell switch, its range edits, and duplicated charts.
+2. **An analysis a chart cannot run yet is greyed in the picker, with its
+   reason**, as the Z vs parameter picker does today. Picking it does
+   nothing.
+3. **Saved pins that name the removed views map onto charts**, rather than
+   resetting:
+   - `smith` → the default frequency-sweep Smith chart;
+   - `vswr` → a band-SWR chart on the Swr view;
+   - `gamma` → a band-SWR chart on the S11 view.
+
+   Confirm while building that these ids appear only in the browser's rail
+   preferences and not in `settings.toml`.
+
+**The note is settled.** Step 5 starts with unit 1: CLI crosses over
+planes, designs and families, and the map.
