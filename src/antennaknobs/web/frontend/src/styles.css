@@ -4806,3 +4806,70 @@ canvas {
 .chart-legend-why {
   color: var(--danger);
 }
+
+/* The analysis chart's Table view (AK#1757 step 5 unit 5): the CLI's
+   numbers in the chart's square. The table scrolls inside it both ways, so a
+   wide multi-curve table on a phone never widens the page. */
+.chart-table {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  background: var(--panel);
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+.chart-table-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 4px;
+  color: var(--muted);
+}
+.chart-table-copy {
+  font: inherit;
+  padding: 1px 6px;
+  background: var(--inset);
+  color: var(--fg);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.chart-table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.chart-table table {
+  border-collapse: collapse;
+  white-space: nowrap;
+}
+.chart-table th,
+.chart-table td {
+  padding: 1px 6px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--border);
+}
+.chart-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  color: var(--muted);
+  font-weight: 600;
+}
+.chart-table thead tr + tr th {
+  top: 16px;
+}
+.chart-table .chart-table-group {
+  text-align: center;
+  color: var(--fg);
+  border-bottom: 1px solid var(--border-control);
+}
+.chart-table tbody th {
+  color: var(--fg);
+  font-weight: 500;
+}
