@@ -23,6 +23,9 @@
 //   - a frequency design cell on the chart's range (deriveChart's ownBand
 //     not applied): "each design cell sweeps its own band…" fails, the
 //     other design is swept over the session design's 14 MHz grid;
+//   - a range edit unpicking the analysis (pickedName back to comparing the
+//     whole spec, lib/analysisChart.ts): "an edit of the picked analysis…"
+//     fails, the picker reads "Sweep a knob" and the family is gone;
 //   - a refused engine cell dropped from the legend (the legend's
 //     engineRefusal branch removed): "NEC-2 declining…" fails, the row
 //     reads as a drawn curve with an error, not a refused cell.
@@ -519,5 +522,75 @@ describe("the legend on a phone", () => {
     await pick("planes SWR");
     await untilDom(() => document.querySelector(".chart-legend"));
     expect(screen.queryByRole("button", { name: /^Show the legend/ })).toBeNull();
+  });
+});
+
+const analysisBox = () => screen.getByRole("combobox", { name: "Analysis" }) as HTMLSelectElement;
+const optionText = () => analysisBox().selectedOptions[0]?.textContent ?? "";
+const editPoints = (n: number) => {
+  const input = screen.getByLabelText("points") as HTMLInputElement;
+  fireEvent.change(input, { target: { value: String(n) } });
+  fireEvent.blur(input);
+};
+
+describe("an edit of the picked knob analysis", () => {
+  it("keeps the analysis and its family, runs the edited points, and re-picking restores its own", async () => {
+    const r = await mount();
+    await chartOnStage(r);
+    await pick("len family");
+    await untilDom(() => (legendRows().length === 2 ? true : null));
+    expect(optionText()).toBe("len family");
+
+    editPoints(5);
+    // Both family cells run the five points; nothing was unpicked.
+    for (const gap of [0.25, 0.5]) {
+      await untilDom(() =>
+        r.params.find((b) => b.param === "len" && b.gap === gap && (b.values as number[]).length === 5),
+      );
+    }
+    expect(analysisBox().value).toBe("len family");
+    expect(optionText()).toBe("len family (edited)");
+    expect(legendRows()).toEqual([
+      ["gap = 0.25", "0"],
+      ["gap = 0.5", "0"],
+    ]);
+    const curves = document.querySelector("canvas.zparam") as HTMLElement;
+    await untilDom(() => (curves.dataset.points === "5" ? true : null));
+
+    // Another analysis leaves it, and its family with it.
+    await pick("len sweep");
+    await untilDom(() => (legendRows().length <= 1 ? true : null));
+    expect(optionText()).toBe("len sweep");
+
+    // Picking the analysis again is its own range.
+    await pick("len family");
+    await untilDom(() => (legendRows().length === 2 ? true : null));
+    expect(optionText()).toBe("len family");
+    expect((screen.getByLabelText("points") as HTMLInputElement).value).toBe("3");
+  });
+
+  it("moves the session design's cells with the edit and leaves the other design's on its served values", async () => {
+    const r = await mount();
+    await chartOnStage(r);
+    await pick("feed spellings");
+    await untilDom(() => r.params.find((b) => b.geometry === OTHER.name));
+    r.params.length = 0;
+    editPoints(4);
+    const mine = await untilDom(() => r.params.find((b) => b.geometry === DECK.name));
+    expect(mine.values).not.toEqual(LADDER);
+    // The other design's cells have nothing new to ask (its served ladder),
+    // and whatever they do ask is that ladder.
+    for (const b of r.params.filter((x) => x.geometry === OTHER.name)) expect(b.values).toEqual(LADDER);
+    expect(optionText()).toBe("feed spellings (edited)");
+  });
+
+  it("another knob leaves the analysis", async () => {
+    const r = await mount();
+    await chartOnStage(r);
+    await pick("len family");
+    await untilDom(() => (legendRows().length === 2 ? true : null));
+    fireEvent.change(screen.getByLabelText("Parameter"), { target: { value: "gap" } });
+    await untilDom(() => (optionText() !== "len family" && optionText() !== "len family (edited)" ? true : null));
+    expect(legendRows().length).toBeLessThanOrEqual(1);
   });
 });

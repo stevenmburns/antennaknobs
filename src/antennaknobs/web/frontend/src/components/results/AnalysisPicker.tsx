@@ -9,6 +9,9 @@ export type AnalysisPickerProps = {
   entries: readonly AnalysisEntry[];
   /** The picked analysis while the view's spec is still its own, else null. */
   current: string | null;
+  /** The picked knob analysis runs an edited range (points, from, to,
+   *  spacing): its option reads "(edited)"; picking it again restores it. */
+  edited?: boolean;
   /** Why an entry cannot run in this view, or null when it can. */
   blocked: (entry: AnalysisEntry) => string | null;
   onPick: (entry: AnalysisEntry) => void;
@@ -49,6 +52,7 @@ const KNOB = "\u0001knob";
 export function AnalysisSelect({
   entries,
   current,
+  edited = false,
   blocked,
   onPick,
   placeholder = "pick…",
@@ -89,7 +93,7 @@ export function AnalysisSelect({
         )}
         {runnable.map((a) => (
           <option key={a.name} value={a.name} title={a.summary}>
-            {a.name}
+            {edited && a.name === current ? `${a.name} (edited)` : a.name}
           </option>
         ))}
         {onSweepKnob && (
