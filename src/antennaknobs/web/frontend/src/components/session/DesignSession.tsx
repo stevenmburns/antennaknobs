@@ -2574,6 +2574,13 @@ function DesignSessionBody({
   // sweeps are the first chart's first curve (unit 4: on that cell's slot
   // and ground, `chartCell`).
   const primaryRun = m0.runs[0];
+  // The analyses wait on the design the way the live solve does (AK#1806):
+  // the catalog has resolved it and its preview has landed (the solve
+  // effect's `previewReady === geometry` gate). Before that `geometry` is ""
+  // on a cold load, and a sweep sent while /examples is still out names no
+  // design the server knows (the #1343 unknown-design 400). Every runner
+  // below reads it as its `active`.
+  const analysesActive = active && geometry !== "" && previewReady === geometry;
   const {
     normCheck,
     pattern,
@@ -2610,7 +2617,7 @@ function DesignSessionBody({
       paramSweep: primaryRun?.param.req ?? chartInputs.param.req,
       patternResident,
       autoSim,
-      active,
+      active: analysesActive,
       comboApproved,
       recommendedBackend,
       // Same reference the sweep/Smith charts plot against (the session's
@@ -2651,7 +2658,7 @@ function DesignSessionBody({
     z0,
     ...chartAxes(m0),
     autoSim,
-    active,
+    active: analysesActive,
     comboApproved,
     recommendedBackend,
     solveWithheld,
@@ -2666,7 +2673,7 @@ function DesignSessionBody({
     z0,
     ...chartAxes(chartModels[1]),
     autoSim,
-    active,
+    active: analysesActive,
     comboApproved,
     recommendedBackend,
     solveWithheld,
@@ -2681,7 +2688,7 @@ function DesignSessionBody({
     z0,
     ...chartAxes(chartModels[2]),
     autoSim,
-    active,
+    active: analysesActive,
     comboApproved,
     recommendedBackend,
     solveWithheld,
@@ -2696,7 +2703,7 @@ function DesignSessionBody({
     z0,
     ...chartAxes(chartModels[3]),
     autoSim,
-    active,
+    active: analysesActive,
     comboApproved,
     recommendedBackend,
     solveWithheld,
