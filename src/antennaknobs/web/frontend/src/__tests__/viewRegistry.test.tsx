@@ -234,6 +234,19 @@ describe("dispatch", () => {
     expect(trail.querySelector("canvas.smith")!.getAttribute("data-trail")).toBe("N:3→5:2");
   });
 
+  // Steve's laptop review of AK#1757 unit 4: the end-value callouts belong to
+  // the stage. A thumbnail (no axis handlers) draws none, whatever the
+  // session's callouts switch says.
+  it("draws the knob sweep's end-value callouts on the stage only", () => {
+    const sweep = { param: "N", label: "N", values: [3, 5, 7], z_re: [50, 51, 52], z_im: [0, 1, 2] } as ViewRenderProps["paramSweep"];
+    const zp = { param: "N", label: "N", unit: null, total: 3, currentValue: null, xLog: true, rAxis: RX_AUTO, xAxis: RX_AUTO, z0: 50, callouts: true };
+    const callouts = (o: Partial<React.ComponentProps<typeof ViewPanel>>) =>
+      mount("zparam", { zparam: zp, paramSweep: sweep, ...o }).querySelector("canvas.zparam")!.getAttribute("data-callouts");
+    expect(callouts({ fill: false, size: 96 })).toBe("0");
+    expect(callouts({ onZparamAxisChange: () => {} })).toBe("1");
+    expect(callouts({ onZparamAxisChange: () => {}, zparam: { ...zp, callouts: false } })).toBe("0");
+  });
+
   it("keys the Smith locus on refinement enabled AND settled (issue #866)", () => {
     const connect = (settled: boolean, o: Partial<React.ComponentProps<typeof ViewPanel>>) =>
       chartOn({ settled }, o).querySelector("canvas.smith")!.getAttribute("data-connect");
