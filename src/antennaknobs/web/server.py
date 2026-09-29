@@ -57,7 +57,7 @@ from . import nec2_backend, nec5_backend, pynec_backend, user_designs
 from .examples import REGISTRY as EXAMPLES
 from .examples import UnknownGeometryError, example_for
 from ..engines._external import cancel_scope as _engine_cancel_scope
-from .lane import LaneRegistry, Superseded, cancel_on_disconnect
+from .lane import STREAM_SEP, LaneRegistry, Superseded, cancel_on_disconnect
 from .progress_stream import ProgressStream, ProgressStreamClosed
 
 _logger = logging.getLogger(__name__)
@@ -1587,6 +1587,11 @@ _CACHE_KEY_BLOCKLIST = frozenset(
         # a refinement request without the flag must land on the same
         # per-freq entries the flagged base sweep wrote.
         "reuse_cached_z",
+        # The lane stream a batch runs on (AK#1757 step 5 unit 4): which of
+        # the client's concurrent sweeps this is (an analysis chart's curve).
+        # Scheduling only, so every curve of one engine and ground hits the
+        # same entries.
+        "_stream",
         # Polar-cut angles (issue #547): cuts are attached per-request AFTER
         # the cache, so the cached entry is angle-independent by design.
         # Leaving these in the key meant every cut-dial drag silently
@@ -1607,6 +1612,19 @@ _CACHE_KEY_BLOCKLIST = frozenset(
 # evals are cache-skipping and bounded by _MAX_OPT_EVALS, and one whole-run
 # turn would starve live solves — taking a turn per eval is the follow-up.
 _LANES = LaneRegistry()
+
+
+def _lane_kind(req: dict, kind: str) -> str:
+    """The lane kind a batch request runs as: ``kind``, or ``kind:<stream>``
+    when the request names a ``_stream`` (AK#1757 step 5 unit 4), so the
+    client's concurrent sweeps (an analysis chart's curves, one per engine x
+    ground cell, and a second chart's) do not supersede one another as
+    re-issues of one job. A junk value is ignored: the plain kind, as before
+    the field existed."""
+    stream = req.get("_stream")
+    if isinstance(stream, str) and 0 < len(stream) <= 64 and STREAM_SEP not in stream:
+        return f"{kind}{STREAM_SEP}{stream}"
+    return kind
 
 
 def _lane_key(req: dict) -> tuple[str | None, int | None]:
@@ -2055,16 +2073,14 @@ async def sweep_endpoint(req: dict, request: Request):
     # request kill the base sweep whose curve it is refining, regardless of
     # generation. It also sorts below "sweep" so a genuinely new sweep goes
     # first; refinement runs mostly out of the per-freq cache anyway.
-    lane_kind = "sweep_refine" if req.get("_refine") else "sweep"
+    lane_kind = _lane_kind(req, "sweep_refine" if req.get("_refine") else "sweep")
     # (design, freq) impedance cache: refinement reads it (a re-dwell asks
     # for the same deterministic plan it asked for last time), every sweep
     # writes it. See _SWEEP_Z_CACHE for why the read side is asymmetric.
     design_key = _sweep_design_key(req)
     if _is_user_geometry(req):
         _USER_CACHE_KEYS["sweep"].add(design_key)  # issue #1312
-    read_cache = lane_kind == "sweep_refine" or _base_sweep_may_read_cache(
-        req, design_key
-    )
+    read_cache = bool(req.get("_refine")) or _base_sweep_may_read_cache(req, design_key)
     # Every sweep writes the cache, so record the writing session (checked
     # first, stamped second: another session's scrub must miss THIS time
     # and only start hitting once its own sweep has written).
@@ -2380,6 +2396,7 @@ def _param_sweep_stream(
         req,
     )
     session, lane_gen = _lane_key(req)
+    converge_kind = _lane_kind(req, "converge")
 
     def _tag(value) -> dict:
         if record_key == "value":
@@ -2396,7 +2413,7 @@ def _param_sweep_stream(
                 # where someone pushes N high); surfaced per point below.
                 _check_solve_size(req_v, use_pynec=use_pynec)
                 # One lane turn per point (see /sweep).
-                async with _LANES.turn(session, "converge", lane_gen) as token:
+                async with _LANES.turn(session, converge_kind, lane_gen) as token:
                     async with cancel_on_disconnect(request, token):
                         z, feeds_z, mesh = await run_in_threadpool(
                             _shed, _solve_z_only, req_v, cancel=token

@@ -556,3 +556,173 @@ def test_newer_generation_supersedes_a_streaming_sweep(monkeypatch):
     # The gen-5 stream ended early: its remaining points were never solved.
     assert old_resp.status_code == 200
     assert len(_sweep_lines(old_resp)) < 4 + 1
+
+
+# ---------------------------------------------------------------------------
+# Named streams (AK#1757 step 5 unit 4): an analysis chart's curves, one per
+# engine x ground cell, are concurrent sweeps of one session, and a second
+# chart's are more. A `_stream` names each one, so they queue instead of
+# superseding one another as re-issues of a single job.
+# ---------------------------------------------------------------------------
+
+
+def test_named_streams_of_one_kind_queue_but_each_supersedes_itself():
+    async def main():
+        lane = _lane()
+        release = asyncio.Event()
+
+        async def holder():
+            async with lane.turn("live"):
+                await release.wait()
+
+        h = asyncio.create_task(holder())
+        await asyncio.sleep(0)
+
+        async def queued(kind):
+            async with lane.turn(kind):
+                pass
+
+        a_old = asyncio.create_task(queued("sweep:c0r1"))
+        b = asyncio.create_task(queued("sweep:c0r2"))
+        plain = asyncio.create_task(queued("sweep"))
+        await asyncio.sleep(0)
+        a_new = asyncio.create_task(queued("sweep:c0r1"))
+        await asyncio.sleep(0)
+        release.set()
+        results = await asyncio.gather(a_old, b, plain, a_new, return_exceptions=True)
+        assert isinstance(results[0], Superseded)  # its own re-issue wins
+        assert results[1] is None  # another stream is another job
+        assert results[2] is None  # and so is the unnamed one
+        assert results[3] is None
+        await h
+
+    asyncio.run(main())
+
+
+def test_a_named_stream_ranks_as_its_base_kind():
+    async def main():
+        lane = _lane()
+        release = asyncio.Event()
+        order = []
+
+        async def holder():
+            async with lane.turn("live"):
+                await release.wait()
+
+        h = asyncio.create_task(holder())
+        await asyncio.sleep(0)
+
+        async def job(kind):
+            async with lane.turn(kind):
+                order.append(kind)
+
+        tasks = [
+            asyncio.create_task(job("sweep_refine:c1r0")),
+            asyncio.create_task(job("sweep:c1r0")),
+            asyncio.create_task(job("pattern")),
+        ]
+        await asyncio.sleep(0)
+        release.set()
+        await asyncio.gather(*tasks)
+        await h
+        # pattern (1) before sweep (2) before refinement (3), stream or not.
+        assert order == ["pattern", "sweep:c1r0", "sweep_refine:c1r0"]
+
+    asyncio.run(main())
+
+
+def test_a_newer_generation_still_cuts_across_every_stream():
+    async def main():
+        lane = _lane()
+        release = asyncio.Event()
+
+        async def holder():
+            async with lane.turn("live", 1):
+                await release.wait()
+
+        h = asyncio.create_task(holder())
+        await asyncio.sleep(0)
+
+        async def queued(kind, gen):
+            async with lane.turn(kind, gen):
+                pass
+
+        a = asyncio.create_task(queued("sweep:c0r1", 1))
+        b = asyncio.create_task(queued("converge:c1r0", 1))
+        await asyncio.sleep(0)
+        newer = asyncio.create_task(queued("sweep", 2))
+        await asyncio.sleep(0)
+        release.set()
+        results = await asyncio.gather(a, b, newer, return_exceptions=True)
+        assert isinstance(results[0], Superseded)
+        assert isinstance(results[1], Superseded)
+        assert results[2] is None
+        await h
+
+    asyncio.run(main())
+
+
+def _one_gen_sweeps(streams):
+    """Two same-generation sweeps of one session, posted at once, each with
+    its `_stream` (None: the field left out)."""
+    base = {
+        "geometry": "fake.streams",
+        "_session": "tab-S",
+        "_gen": 3,
+        "freqs_mhz": [14.0, 14.1, 14.2, 14.3],
+    }
+    return _gather_posts(
+        *(
+            ("/sweep", {**base, **({"_stream": s} if s is not None else {})})
+            for s in streams
+        )
+    )
+
+
+def test_two_named_sweeps_of_one_session_both_finish_one_at_a_time(monkeypatch):
+    meter = _Meter()
+    monkeypatch.setitem(
+        server.EXAMPLES, "fake.streams", _fake_example(meter, dwell_s=0.01)
+    )
+    a, b = _one_gen_sweeps(["c0r1", "c0r2"])
+    assert a.status_code == 200 and b.status_code == 200
+    # Every point of both curves, not one curve killing the other…
+    assert len(_sweep_lines(a)) == 4 + 1
+    assert len(_sweep_lines(b)) == 4 + 1
+    # …and still one computation at a time for the session.
+    assert meter.peak == 1
+
+
+def test_two_unnamed_sweeps_of_one_session_still_supersede(monkeypatch):
+    # The control: without `_stream` a second sweep is a re-issue of the
+    # first, as it always was, so the two do not both finish.
+    meter = _Meter()
+    monkeypatch.setitem(
+        server.EXAMPLES, "fake.streams", _fake_example(meter, dwell_s=0.01)
+    )
+    a, b = _one_gen_sweeps([None, None])
+    assert a.status_code == 200 and b.status_code == 200
+    assert len(_sweep_lines(a)) + len(_sweep_lines(b)) < 2 * (4 + 1)
+
+
+def test_the_stream_is_not_part_of_the_cache_key():
+    body = {"geometry": "dipoles.invvee", "n_per_wire": 9}
+    assert server._canonical_solve_key(body) == server._canonical_solve_key(
+        {**body, "_stream": "c2r3"}
+    )
+
+
+@pytest.mark.parametrize(
+    ("stream", "kind"),
+    [
+        ("c0r1", "sweep:c0r1"),
+        (None, "sweep"),
+        ("", "sweep"),
+        (7, "sweep"),
+        ("a:b", "sweep"),
+        ("x" * 65, "sweep"),
+    ],
+)
+def test_lane_kind_names_a_stream_and_ignores_junk(stream, kind):
+    req = {} if stream is None else {"_stream": stream}
+    assert server._lane_kind(req, "sweep") == kind
