@@ -22,6 +22,7 @@ import {
   widenDomain,
 } from "../../lib/sweepAxis";
 import { ThemeContext } from "../hooks";
+import { curvesAttr, type ExtraCurve, NO_CURVES, sweepSpan } from "./curves";
 import { feedColor, feedSweepColor, plotColors, STALE_TRACE_ALPHA } from "./palette";
 import { SweepRangePopover } from "./SweepRangePopover";
 import {
@@ -142,6 +143,7 @@ export function SweepChart({
   onAxisChange,
   onThresholdChange,
   stale = false,
+  curves = NO_CURVES,
 }: {
   mode: SweepMode;
   r: number;
@@ -182,6 +184,10 @@ export function SweepChart({
    *  and its shaded bands dim; the current-Z marker, which follows every
    *  solve, stays bright. */
   stale?: boolean;
+  /** The analysis chart's other curves (AK#1757 step 5 unit 4), drawn in
+   *  their colours over the same frequency axis; Auto fits them too. The
+   *  bands and the bandwidth readout stay the chart's own curve's. */
+  curves?: readonly ExtraCurve[];
 }) {
   // The choice as drawn: the mode's default when none is passed, and a VSWR
   // Auto read as the 1–∞ scale that replaced it. From here on `axis.kind`
@@ -236,6 +242,17 @@ export function SweepChart({
       }
     }
   }
+  // The other curves' values (feed 0), which Auto and the S11 top take in
+  // as they do the chart's own.
+  const curveTrails: number[] = [];
+  for (const c of curves) {
+    const s = c.sweep;
+    if (!s || s.freqs_mhz.length < 2) continue;
+    for (let i = 0; i < s.freqs_mhz.length; i++) {
+      curveTrails.push(valueFor(mode, s.z_re[i], s.z_im[i], z0));
+    }
+  }
+  const curvesRunning = curves.length > 0 && !curves.every((c) => c.settled !== false);
   const markerVs = markerPoints.map((m) => m.v);
   // The S11 axis top ADAPTS when any drawn value crosses 0 dB (a driven
   // array's active Γ is not bounded by 1 — see s11DbTop, which is also what
@@ -244,7 +261,7 @@ export function SweepChart({
   // carries the over-unity port pushes the top up, headroom included, and
   // the 0 dB boundary stays as a tick — the line a healthy port never
   // crosses.
-  const s11Top = mode === "gamma" ? s11DbTop([...trails, ...markerVs]) : 0;
+  const s11Top = mode === "gamma" ? s11DbTop([...trails, ...curveTrails, ...markerVs]) : 0;
   // Auto fits the finished sweep when there is one, else the marker(s) — the
   // sweep alone, not the markers with it, so the planner (which sees only
   // the sweep) derives the same domain. Not a sweep still streaming in: its
@@ -252,7 +269,12 @@ export function SweepChart({
   // grow-only hold would lock that in until the settle (seen in the real
   // app: a 20 → 100 → 1.5 flash). Refinement rounds add points to a
   // finished sweep, which only ever deepens the dip, so they fit as usual.
-  const fitValues = hasSweep && !running ? trails : markerVs;
+  const fitValues =
+    hasSweep && !running
+      ? [...trails, ...curveTrails]
+      : curveTrails.length > 0 && !curvesRunning
+        ? curveTrails
+        : markerVs;
   const fresh = sweepAxisDomain(mode, axis, fitValues, s11Top, swrThreshold);
   const quiet = useQuiet(
     `${mode}:${fitValues.length}:${Math.min(...fitValues).toFixed(4)}:` +
@@ -395,8 +417,12 @@ export function SweepChart({
     // when there is no band to map against. Shared by the trail, the
     // current-freq guide line, and the current-Z marker's x position so all
     // three agree about where on the axis a given frequency sits.
-    const fLo = hasSweep ? sweep!.freqs_mhz[0] : null;
-    const fHi = hasSweep ? sweep!.freqs_mhz[sweep!.freqs_mhz.length - 1] : null;
+    // The span every curve drawn covers (the chart's own, else another's
+    // while its own has yet to land).
+    const span = sweepSpan([sweep, ...curves.map((c) => c.sweep)]);
+    const hasSpan = span !== null;
+    const fLo = span ? span.lo : null;
+    const fHi = span ? span.hi : null;
     const xOf = (f: number) =>
       marginL + plotW * ((f - fLo!) / ((fHi! - fLo!) || 1));
 
@@ -484,7 +510,46 @@ export function SweepChart({
         }
       }
       ctx.restore();
+    }
 
+    // The other curves, each in its colour: a line once its shape is final,
+    // dots before (as the chart's own), dimmed when stale.
+    if (hasSpan) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(marginL, marginT, plotW, plotH);
+      ctx.clip();
+      for (const c of curves) {
+        const s = c.sweep;
+        if (!s || s.freqs_mhz.length < 2) continue;
+        ctx.globalAlpha = c.stale ? STALE_TRACE_ALPHA : 1;
+        ctx.strokeStyle = c.color;
+        ctx.fillStyle = c.color;
+        ctx.lineWidth = 1.3;
+        if (c.settled !== false) {
+          ctx.beginPath();
+          for (let i = 0; i < s.freqs_mhz.length; i++) {
+            const v = valueFor(mode, s.z_re[i], s.z_im[i], z0);
+            const px = xOf(s.freqs_mhz[i]);
+            const py = marginT + plotH * (1 - rawFracOf(v));
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+        } else {
+          for (let i = 0; i < s.freqs_mhz.length; i++) {
+            const v = valueFor(mode, s.z_re[i], s.z_im[i], z0);
+            if (offScale(v)) continue;
+            ctx.beginPath();
+            ctx.arc(xOf(s.freqs_mhz[i]), yOf(v), 1.5, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+        }
+      }
+      ctx.restore();
+    }
+
+    if (hasSpan) {
       // Freq range label, bottom-right (same convention as SmithChart).
       ctx.fillStyle = PC.labelBright;
       ctx.font = "10px ui-monospace, monospace";
@@ -514,7 +579,7 @@ export function SweepChart({
     // reading is still valid, it just has nowhere better to sit on this
     // axis than the plot's horizontal middle).
     if (markerPoints.length > 0) {
-      const inBand = hasSweep && measFreqMhz >= fLo! && measFreqMhz <= fHi!;
+      const inBand = hasSpan && measFreqMhz >= fLo! && measFreqMhz <= fHi!;
       const gx = inBand ? xOf(measFreqMhz) : marginL + plotW / 2;
       for (const m of markerPoints) {
         const py = offScale(m.v) ? marginT : yOf(m.v);
@@ -551,7 +616,7 @@ export function SweepChart({
     // bands and the threshold line (AK#1738): strings, so an unchanged range
     // does not redraw.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, r, x, z0, size, sweep, measFreqMhz, running, progress, settled, feeds, multiFeed, theme, domKey, bandsKey, readout, swrThreshold, stale]);
+  }, [mode, r, x, z0, size, sweep, measFreqMhz, running, progress, settled, feeds, multiFeed, theme, domKey, bandsKey, readout, swrThreshold, stale, curves]);
 
   const title =
     mode === "vswr" ? "VSWR range and SWR threshold" : "S11 range and SWR threshold";
@@ -575,6 +640,7 @@ export function SweepChart({
         data-ticks={ticks.map((t) => t.label).join(",")}
         data-axis={axis.kind}
         data-bands={bands.length}
+        data-curves={curvesAttr(curves)}
         data-readout={readout}
       />
       {/* The y axis is the range control (AK#1738): a transparent button over

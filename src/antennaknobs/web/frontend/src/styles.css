@@ -4637,3 +4637,96 @@ canvas {
 .zparam-approve {
   margin-left: var(--space-2);
 }
+
+/* An analysis chart's engine and ground cross (AK#1757 step 5 unit 4): one
+   compact header button ("AB · 1", the ticked slots) that opens the boxes in
+   a portaled popover, so the header still fits a phone. */
+.chart-cross-btn.is-refused {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.chart-cross-menu {
+  max-width: min(320px, calc(100vw - 16px));
+  overflow-y: auto;
+}
+.chart-cross-axis {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.chart-cross-axis > legend {
+  color: var(--muted);
+  padding: 0;
+  margin-bottom: 2px;
+}
+.chart-cross-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--fg);
+  cursor: pointer;
+}
+.chart-cross-refusal {
+  color: var(--danger);
+  line-height: 1.3;
+}
+.chart-duplicate,
+.chart-close {
+  font-size: var(--text-xs);
+}
+
+/* Its legend: over the chart's upper right, below the canvas's own title
+   row, one row per curve in its colour and every refused cell with why. It
+   folds to its summary line (a <details>), which a phone may want. */
+.analysis-chart-cells {
+  position: relative;
+}
+.chart-legend {
+  position: absolute;
+  top: 18px;
+  right: 6px;
+  max-width: 60%;
+  max-height: 45%;
+  overflow-y: auto;
+  padding: 2px var(--space-2);
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--fg);
+  background: rgba(var(--plot-bg-rgb, 13, 16, 21), 0.82);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+.chart-legend summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.chart-legend ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.chart-legend-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.chart-legend-row.is-refused {
+  color: var(--muted);
+}
+.chart-legend-swatch {
+  flex: none;
+  width: 10px;
+  height: 3px;
+  align-self: center;
+  border: 1px dashed var(--muted);
+}
+.chart-legend-swatch[style] {
+  border: none;
+}
+.chart-legend-why {
+  color: var(--danger);
+}

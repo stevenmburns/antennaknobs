@@ -89,9 +89,50 @@ describe("parseAnalyses", () => {
       param: "base",
       values: [2, 20],
       log: false,
+      // Nothing listed (a server before unit 4): the chart follows the
+      // session's active slot and ground.
+      engines: null,
+      grounds: null,
       note: "n",
     });
     expect(got[1].workbench).toEqual({ runs: false, why: "step 6" });
+  });
+  it("keeps an analysis's listed engines and grounds, and drops junk lists (AK#1757 unit 4)", () => {
+    const got = parseAnalyses({
+      analyses: [
+        {
+          name: "convergence",
+          workbench: {
+            runs: true,
+            kind: "knob",
+            param: "n_per_wire",
+            values: [8, 12],
+            log: true,
+            engines: ["momwire:bspline", "nec5"],
+            grounds: ["finite:13,0.005"],
+            note: null,
+          },
+        },
+        {
+          name: "junk",
+          workbench: {
+            runs: true,
+            kind: "knob",
+            param: "n_per_wire",
+            values: [8],
+            log: true,
+            engines: ["nec5", 3],
+            grounds: [],
+            note: null,
+          },
+        },
+      ],
+    });
+    expect(got[0].workbench).toMatchObject({
+      engines: ["momwire:bspline", "nec5"],
+      grounds: ["finite:13,0.005"],
+    });
+    expect(got[1].workbench).toMatchObject({ engines: null, grounds: null });
   });
   it("no analyses on a body without them (an older server, a stub)", () => {
     expect(parseAnalyses({})).toEqual([]);
@@ -135,7 +176,7 @@ describe("frequency analyses (step 4)", () => {
         },
       ],
     });
-    expect(a.workbench).toEqual(freq({ views: ["Swr", "Smith"] }));
+    expect(a.workbench).toEqual({ ...freq({ views: ["Swr", "Smith"] }), engines: null, grounds: null });
   });
 
   it("a policy-level entry serves no range: the session's band policy places it", () => {

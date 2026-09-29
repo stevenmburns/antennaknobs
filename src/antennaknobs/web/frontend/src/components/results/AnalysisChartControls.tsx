@@ -7,6 +7,7 @@ import {
   AnalysisSelect,
   chartNotes,
 } from "./AnalysisPicker";
+import { ChartCrossPicker, type CrossPickerProps } from "./ChartCrossPicker";
 import { CommitNumber } from "./CommitNumber";
 
 // The analysis chart's own controls (AK#1757, sweep-framework step 5 unit 2).
@@ -22,11 +23,62 @@ export type ChartChrome = {
   /** The dwell switch: re-run after the knobs settle. */
   dwell: boolean;
   onDwell: (on: boolean) => void;
+  /** The engine and ground checkboxes (unit 4): what the chart compares.
+   *  Omitted, the chart draws the session's active slot and ground. */
+  cross?: CrossPickerProps;
+  /** Another chart like this one, in the grid (unit 4); omitted when four
+   *  charts are open already. */
+  onDuplicate?: () => void;
+  /** Close this chart: a duplicate's only (the first chart unpins). */
+  onClose?: () => void;
 };
+
+/** The chart's own chrome: the dwell switch, what it compares, and
+ *  duplicate / close. */
+export function ChartChromeControls(chrome: ChartChrome) {
+  return (
+    <>
+      <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />
+      {chrome.cross && <ChartCrossPicker {...chrome.cross} />}
+      {chrome.onDuplicate && (
+        <button
+          type="button"
+          className="zparam-reset chart-duplicate"
+          aria-label="Duplicate this chart"
+          title="Another chart like this one, with its own analysis, switch, range and views (up to four charts)"
+          // Not also a click on the grid cell under it, which would focus
+          // this chart instead of the new one.
+          onClick={(e) => {
+            e.stopPropagation();
+            chrome.onDuplicate?.();
+          }}
+        >
+          ⧉
+        </button>
+      )}
+      {chrome.onClose && (
+        <button
+          type="button"
+          className="zparam-reset chart-close"
+          aria-label="Close this chart"
+          title="Close this chart"
+          // Not also a click on the grid cell under it, which would focus
+          // the chart just closed.
+          onClick={(e) => {
+            e.stopPropagation();
+            chrome.onClose?.();
+          }}
+        >
+          ×
+        </button>
+      )}
+    </>
+  );
+}
 
 /** The per-chart dwell switch: today's freq-sweep checkbox, moved onto the
  *  chart and applied to whatever it shows. */
-export function DwellSwitch({ dwell, onDwell }: ChartChrome) {
+export function DwellSwitch({ dwell, onDwell }: Pick<ChartChrome, "dwell" | "onDwell">) {
   return (
     <label
       className="zparam-log chart-dwell"
@@ -201,7 +253,7 @@ export function FrequencyChartControls({
             {run.stale ? "run · re-run?" : "run"}
           </button>
         )}
-        <DwellSwitch {...chrome} />
+        <ChartChromeControls {...chrome} />
         <button
           type="button"
           className="zparam-reset"

@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   backendAllowed,
+  RESTRICTED_BACKEND_REASON,
   designRefusal,
   type DesignConstraintInputs,
   backendDisplayLabel,
@@ -44,7 +45,16 @@ import {
   type SchemaItem,
   type SchemaParamSpec,
 } from "../../lib/params";
-import { mobileScreens, VIEW_META, type View } from "../../lib/view";
+import {
+  CHART_COPIES,
+  CHART_VIEW_IDS,
+  chartIndex,
+  MAX_CHARTS,
+  mobileScreens,
+  prefView,
+  VIEW_META,
+  type View,
+} from "../../lib/view";
 import { useZoOverride } from "../../lib/zoOverride";
 import {
   defaultSweepPoints,
@@ -64,7 +74,22 @@ import type {
   SoilRanges,
   TerrainPresetSchema,
 } from "../../lib/ground";
-import { designGround } from "../../lib/groundSlots";
+import { designGround, groundSlotLabel } from "../../lib/groundSlots";
+import {
+  type ChartCross,
+  checkedGrounds,
+  checkedSlots,
+  type CrossEnv,
+  crossPlan,
+  engineSpecHeld,
+  groundSpecHeld,
+  type ListedCross,
+  preselect,
+} from "../../lib/chartCells";
+import { cellColor } from "../charts/palette";
+import type { ExtraCurve } from "../charts/curves";
+import type { ChartLegendData } from "../results/ChartLegend";
+import type { ChartChrome } from "../results/AnalysisChartControls";
 import { BackendConfigModal } from "../backend/BackendConfigModal";
 import { ParamForm } from "../params/ParamForm";
 import { effectiveHighlight, toggleHighlight } from "../charts/combined";
@@ -106,7 +131,8 @@ import { copyParams, downloadNec, loadMeasured } from "./sessionActions";
 import { SessionGearMenu } from "./SessionGearMenu";
 import { SolveOverlays } from "./SolveOverlays";
 import { SolverSlotTabs } from "./SolverSlotTabs";
-import { useAnalysisRunners } from "./useAnalysisRunners";
+import { type ChartCellRequest, useAnalysisRunners } from "./useAnalysisRunners";
+import { type CellRun, type CellRunners, useChartCells } from "./useChartCells";
 import { useDesignAnalyses } from "./useDesignAnalyses";
 import {
   analysisBlocked,
@@ -121,6 +147,7 @@ import {
   chartDwell,
   chartForNewDesign,
   chartFrequencyRange,
+  chartListed,
   chartRunInputs,
   chartView,
   chartViews,
@@ -132,6 +159,7 @@ import {
   pickKnob,
   pickOwnFrequency,
   setChartView,
+  withListed,
 } from "../../lib/analysisChart";
 import {
   DEFAULT_DENSITY_SPEC,
@@ -168,7 +196,7 @@ import { useEngineFiles } from "./useEngineFiles";
 import { useSchematic } from "./useSchematic";
 import { useSolveChannel } from "./useSolveChannel";
 import { useSolverSlots } from "./useSolverSlots";
-import { gridCells, gridShape, useViewPrefs } from "./useViewPrefs";
+import { gridCells, gridShape, useViewPrefs, withChartCopies } from "./useViewPrefs";
 import { useViewState } from "./useViewState";
 import { ViewPicker } from "./ViewPicker";
 import { VfoPanel } from "./VfoPanel";
@@ -509,7 +537,6 @@ function DesignSessionBody({
     backend,
     currentOpts,
     nPerWire,
-    wireRadius,
     densityNotes,
     backendOptsKey,
     updateSlotOpts,
@@ -575,6 +602,8 @@ function DesignSessionBody({
   // 5b-3). Pure state + derivations, so it adds no effects here.
   const {
     groundSlots,
+    groundRequestFor,
+    servedDefaultSoil,
     activeGroundSlot,
     designGroundSlot,
     setActiveGroundSlot,
@@ -594,7 +623,6 @@ function DesignSessionBody({
     groundSummary,
     soil,
     setSoil,
-    soilForRequest,
     soilKey,
   } = useGroundConfig({
     backend,
@@ -614,7 +642,6 @@ function DesignSessionBody({
   const {
     pinned,
     newIds,
-    railViews,
     togglePin: toggleViewPin,
     movePin,
     markRosterSeen,
@@ -876,14 +903,36 @@ function DesignSessionBody({
   // Smith, VSWR and S11 views folded into. Its pick, dwell switch, knob spec
   // and axes, or its frequency sweep's range, view and scales
   // (lib/analysisChart). Session state, per tab, and never persisted (Steve,
-  // 2026-09-28: only the .py is remembered). One chart today; unit 4 holds
-  // one of these per chart.
+  // 2026-09-28: only the .py is remembered). One per open chart (unit 4):
+  // index 0 is the `zparam` view, and a duplicate takes the first free index
+  // of the four (lib/view.ts CHART_VIEW_IDS); a closed duplicate's index is
+  // null. `chart` below is the first chart's, which the knob menu's "Sweep
+  // this knob…" drives.
   //
   // A new chart is the design's own frequency sweep on the Smith chart, or
   // on the view a migrated pin named (useViewPrefs' chartView), with the
   // viewer's Swr / S11 scales and threshold.
   const chartSeed: ChartSeed = { view: seededChartView, axes: sweepAxes, threshold: swrThreshold };
-  const [chart, setChart] = useState<AnalysisChartState>(() => initialChart(chartSeed));
+  const [charts, setCharts] = useState<(AnalysisChartState | null)[]>(() => [
+    initialChart(chartSeed),
+    ...Array.from({ length: MAX_CHARTS - 1 }, () => null),
+  ]);
+  // The views this session shows: the stored pins plus its open chart
+  // copies (unit 4), which the rail, the grid, the carousel and residency
+  // all read; the stored pins stay the viewer's preference and never hold a
+  // copy (useViewPrefs' withChartCopies).
+  const chartCopiesKey = charts.map((c) => (c ? "1" : "0")).join("");
+  const shownViews = useMemo(
+    () =>
+      withChartCopies(
+        pinned,
+        CHART_COPIES.filter((_, k) => chartCopiesKey[k + 1] === "1"),
+      ),
+    [pinned, chartCopiesKey],
+  );
+  const setChartAt = (i: number, f: (c: AnalysisChartState) => AnalysisChartState) =>
+    setCharts((cs) => cs.map((c, k) => (k === i && c ? f(c) : c)));
+  const chart = charts[0]!;
   // The dwell switch's default per kind (unit 3): settings.toml's
   // [switches] freq_sweep and convergence_sweep, the two checkboxes it
   // replaced, now seed a chart's switch for a frequency and for a knob or
@@ -894,13 +943,12 @@ function DesignSessionBody({
     frequency: uiDefaults.switches.freq_sweep,
     knob: uiDefaults.switches.convergence_sweep,
   };
-  const zparamSpecRaw = chart.knob.spec;
-  const setZparamSpec = (spec: ParamSweepSpec) =>
-    setChart((c) => ({ ...c, kind: "knob", knob: { ...c.knob, spec } }));
-  const setZparamXLog = (xLog: boolean | null) =>
-    setChart((c) => ({ ...c, knob: { ...c.knob, xLog } }));
-  const setZparamAxis = (axis: "r" | "x", choice: RxAxisChoice) =>
-    setChart((c) => ({ ...c, knob: { ...c.knob, axes: { ...c.knob.axes, [axis]: choice } } }));
+  const setZparamSpecAt = (i: number, spec: ParamSweepSpec) =>
+    setChartAt(i, (c) => ({ ...c, kind: "knob", knob: { ...c.knob, spec } }));
+  const setZparamXLogAt = (i: number, xLog: boolean | null) =>
+    setChartAt(i, (c) => ({ ...c, knob: { ...c.knob, xLog } }));
+  const setZparamAxisAt = (i: number, axis: "r" | "x", choice: RxAxisChoice) =>
+    setChartAt(i, (c) => ({ ...c, knob: { ...c.knob, axes: { ...c.knob.axes, [axis]: choice } } }));
   // A design switch (another example, variant or user design — not a knob
   // change, not a reload of the same design) starts the chart over on the
   // design's own frequency sweep, keeping only how the viewer looks at it:
@@ -912,7 +960,7 @@ function DesignSessionBody({
   const [zparamDesignFor, setZparamDesignFor] = useState(zparamDesignKey);
   if (zparamDesignFor !== zparamDesignKey) {
     setZparamDesignFor(zparamDesignKey);
-    setChart((c) => chartForNewDesign(c, chartSeed));
+    setCharts((cs) => cs.map((c) => (c ? chartForNewDesign(c, chartSeed) : c)));
   }
   // Adaptive resolution (issue #744): dwell-triggered display-space
   // refinement of the sweep and cut plots. Persisted, unlike the overlay
@@ -1080,7 +1128,7 @@ function DesignSessionBody({
   } = useViewState({
     currentExample,
     active,
-    pinned,
+    pinned: shownViews,
     layout: effectiveLayout,
     setLayout,
     overlays: {
@@ -1150,12 +1198,12 @@ function DesignSessionBody({
   const thumbStripRef = useRef<HTMLDivElement>(null);
   // The rail is the pinned set minus whatever is on the stage; peeking an
   // unpinned view subtracts nothing, so the count the sizer needs varies.
-  const rail = railViews(view);
+  const rail = shownViews.filter((id) => id !== view).map((id) => VIEW_META[id]);
   const thumbSize = useThumbColumnSize(thumbStripRef, rail.length, 280, railKey);
   // Grid mode's displayed cells (unit 3): the first ≤4 pins, in pin order.
   // gridCells/gridShape are pure (useViewPrefs.ts) so this and useViewState's
   // internal cycling can never disagree about "what's on screen".
-  const gridViewIds = gridCells(pinned);
+  const gridViewIds = gridCells(shownViews);
   const gridViews = gridViewIds.map((id) => VIEW_META[id]);
   const { rows: gridRows, cols: gridCols } = gridShape(gridViewIds.length);
   const { ref: gridRef, size: gridCellSize } = useGridCellSize(
@@ -1179,11 +1227,11 @@ function DesignSessionBody({
     mobChartSize,
     onMobileCarouselScroll,
     goToMobileScreen,
-  } = useMobileCarousel({ isMobile, orientation, pinned, view, setView });
+  } = useMobileCarousel({ isMobile, orientation, pinned: shownViews, view, setView });
   // The carousel's pages: the pinned views in pin order plus the trailing Info
   // screen. The dots row renders the SAME list, so a page can never exist
   // without a dot (or the reverse) — see MobileDots.
-  const screens = useMemo(() => mobileScreens(pinned), [pinned]);
+  const screens = useMemo(() => mobileScreens(shownViews), [shownViews]);
   // The pinned-pattern comparison table minimizes to a "{n} pinned" chip so
   // it can get off the chart — it grows a row per pin and swallows a phone
   // screen. Starts collapsed on mobile, expanded on desktop (the pre-existing
@@ -1221,22 +1269,45 @@ function DesignSessionBody({
       : `s-${Math.random().toString(36).slice(2)}`,
   );
 
+  // The session's solve request: the active solver slot's engine and the
+  // active ground slot's ground (buildRequestFor).
   function buildRequest(): SolveRequest {
+    return buildRequestFor(activeSlot, activeGroundSlot);
+  }
+
+  // An analysis chart curve's request (unit 4): its cell's slot and ground
+  // (buildRequestFor), on the lane stream the curve runs on.
+  function buildCellRequest(cell: ChartCellRequest): SolveRequest {
+    const r = buildRequestFor(cell.slot as Slot, cell.ground);
+    return cell.stream ? { ...r, _stream: cell.stream } : r;
+  }
+
+  // The solve request on solver slot `slotId`'s engine and ground slot
+  // `groundId`'s ground, with everything else the session's: what an
+  // analysis chart's curve for that cell sends (AK#1757 step 5 unit 4), and
+  // for the active pair exactly the session's own request, so a cell on
+  // (B, 2) is the request the session would send with B and 2 active. No
+  // slot is touched.
+  function buildRequestFor(slotId: Slot, groundId: string): SolveRequest {
+    const cfg = slots[slotId] ?? slots[activeSlot];
+    const backend = cfg.backend;
+    const g = groundRequestFor(groundId, backend);
+    const groundModel = g.model;
     // ground_model is shared across backends (εr=10, σ=0.002 for the finite
     // models): PyNEC honours it directly; momwire's B-spline family solves
     // the finite models with its reflection-coefficient ground, while
     // Sinusoidal folds them to the PEC image solve (the server
     // ships the real εr/σ for the pattern either way).
-    const groundActive = groundEnabled && backendSupportsGround(backend);
+    const groundActive = g.enabled && backendSupportsGround(backend);
     const base: SolveRequest = {
       _session: sessionId,
       geometry,
       variant: currentVariant,
       solver: backend.kind === "momwire" ? "momwire" : backend.kind,
-      n_per_wire: nPerWire,
+      n_per_wire: cfg.opts.nPerWire,
       design_freq_mhz: designFreq,
       measurement_freq_mhz: measFreq,
-      wire_radius: wireRadius,
+      wire_radius: cfg.opts.wireRadius,
       ground: groundActive,
       // ground_fast is the legacy boolean; ground_model is authoritative
       // server-side when present. Send both so either server version agrees.
@@ -1250,17 +1321,17 @@ function DesignSessionBody({
       elev_az_deg: elevAzDeg,
     };
     if (base.ground_model === "terrain") {
-      base.terrain = { preset: terrainPreset, ...terrainParams };
+      base.terrain = { preset: g.terrainPreset, ...g.terrainParams };
     }
-    // Soil constants (#1173). soilForRequest is already undefined for pec /
+    // Soil constants (#1173). The slot's soil is already undefined for pec /
     // terrain and for a default soil, so a request that carries no soil is
     // byte-identical to a pre-#1173 one.
-    if (soilForRequest) {
-      base.soil = soilForRequest;
+    if (g.soil) {
+      base.soil = g.soil;
     }
     if (backend.kind === "momwire") {
       base.momwire_model = backend.name;
-      const opts = modelOptionsForRequest(backend, currentOpts, modelOptionSpecs);
+      const opts = modelOptionsForRequest(backend, cfg.opts, modelOptionSpecs);
       // Enrichment now solves over ground (momwire #167: PEC image reaction,
       // refl-coef, and Sommerfeld), so this is no longer an error guard — it is
       // a UX choice. Enrichment is a validation-only knob that is redundant for
@@ -1416,13 +1487,12 @@ function DesignSessionBody({
   // layout-agnostic. The norm check is deliberately NOT residency-gated:
   // its consumer is the HUD readout, resident in every layout. Consumer
   // census + semantics: docs/plan-view-residency-gating.md.
-  const isResident = (v: View) => pinned.includes(v) || view === v;
-  // The analysis chart's view (the zparam id, AK#1757 step 5): the one view
-  // either sweep draws in since unit 3 folded the Smith / VSWR / S11 views
-  // into it. Which of its views is on screen (and so which projection
-  // refinement plans against, issue #744) is the chart's own
-  // (chartRunInputs).
-  const chartResident = isResident("zparam");
+  const isResident = (v: View) => shownViews.includes(v) || view === v;
+  // An analysis chart's view (the zparam id and its duplicates', AK#1757
+  // step 5): the one view either sweep draws in since unit 3 folded the
+  // Smith / VSWR / S11 views into it. Which of its views is on screen (and
+  // so which projection refinement plans against, issue #744) is the
+  // chart's own (chartRunInputs, in deriveChart).
   const patternResident = isResident("azimuth") || isResident("elevation");
 
   const { schematicSvg, schematicUnavailable } = useSchematic({
@@ -2064,44 +2134,11 @@ function DesignSessionBody({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geometry, reloadNonce]);
 
-  // The parameter sweep (docs/design/z-vs-param-view.md). A knob the design
-  // no longer has (a design or variant switch) falls back to density, so the
-  // chosen spec never names a knob the request does not carry.
+  // The parameter sweep (docs/design/z-vs-param-view.md): the knobs a chart
+  // can sweep. A knob the design no longer has (a design or variant switch)
+  // falls back to density, so a chart's spec never names a knob the request
+  // does not carry (deriveChart).
   const zparamKnobs = sweepableKnobs(currentSchema);
-  const zparamKnob = zparamKnobs.find((k) => k.name === zparamSpecRaw.param) ?? null;
-  const zparamSpec =
-    zparamSpecRaw.param === DENSITY || zparamKnob ? zparamSpecRaw : DEFAULT_DENSITY_SPEC;
-  const zparamIsDensity = zparamSpec.param === DENSITY;
-  const zparamValues = paramLadder(
-    zparamSpec,
-    zparamIsDensity || zparamKnob?.kind === "int",
-  );
-  const zparamLabel = zparamIsDensity ? "N" : (zparamKnob?.label ?? zparamSpec.param);
-  // The chart as it runs: its knob spec resolved against this design's
-  // knobs. What each of its two runners is asked for comes from here
-  // (chartRunInputs): the knob sweep's request, whose `auto` is the chart's
-  // dwell switch (by default on for density, which runs by itself as the old
-  // convergence sweep did, and off for a knob, which waits for Run, "Sweep
-  // this knob…" or an edit to its own range), and the frequency sweep's
-  // range and switch.
-  const chartNow: AnalysisChartState = { ...chart, knob: { ...chart.knob, spec: zparamSpec } };
-  const chartDwellOn = chartDwell(chartNow, dwellDefaults);
-  // The design's own range, for what a frequency analysis's pick counts as
-  // its own; and the range a chart with no range of its own sweeps: the
-  // session's, the measurement dial's travel with its range-menu edit, as
-  // the standalone sweep views did (AK#1682).
-  const chartDesignRange = designSweepRange(sweepRangeInputs).range;
-  const chartBaseRange = resolvedSweepRange.range;
-  const chartInputs = chartRunInputs(chartNow, {
-    resident: chartResident,
-    dwellDefaults,
-    designRange: chartBaseRange,
-    values: zparamValues,
-    label: zparamLabel,
-  });
-  const paramSweepReq = chartInputs.param.req;
-  const zparamCurrentRaw = zparamIsDensity ? nPerWire : currentValues[zparamSpec.param];
-  const zparamCurrent = typeof zparamCurrentRaw === "number" ? zparamCurrentRaw : null;
   // A knob's default spec from its own range and value; density's is the
   // literal ladder.
   const zparamDefaultFor = (param: string): ParamSweepSpec => {
@@ -2110,54 +2147,176 @@ function DesignSessionBody({
     const cur = currentValues[param];
     return knob ? defaultKnobSpec(knob, typeof cur === "number" ? cur : 1) : DEFAULT_DENSITY_SPEC;
   };
+  // The design's own range, for what a frequency analysis's pick counts as
+  // its own; and the range a chart with no range of its own sweeps: the
+  // session's, the measurement dial's travel with its range-menu edit, as
+  // the standalone sweep views did (AK#1682).
+  const chartDesignRange = designSweepRange(sweepRangeInputs).range;
+  const chartBaseRange = resolvedSweepRange.range;
+
+  // What a chart's engine and ground crosses draw from (unit 4,
+  // lib/chartCells.ts): the solver slots and ground slots as the session
+  // holds them, by whatever ids it has. A slot that cannot draw this design
+  // is a refused cell with the reason the session's own gate would give:
+  // the design's backend allowlist, a design-dependent option refusal, or
+  // (for any slot but the active one, which the session's gate governs) a
+  // poor match, whose "Solve anyway" belongs to the active slot.
+  const slotIds = (Object.keys(slots) as Slot[]).sort();
+  const slotRefusal = (id: Slot): string | null => {
+    const cfg = slots[id];
+    if (!backendAllowed(cfg.backend, requiredBackends)) return RESTRICTED_BACKEND_REASON;
+    const refused = designRefusal(cfg.backend, cfg.opts, designConstraintInputs);
+    if (refused) return refused.reason;
+    if (id !== activeSlot && comboInappropriate(cfg.backend, recommendedBackend)) {
+      return `a poor match for this design: make ${id} the active slot and Solve anyway to draw it`;
+    }
+    return null;
+  };
+  const crossEnv: CrossEnv = {
+    slots: slotIds.map((id) => ({
+      id,
+      label: `${id}: ${backendDisplayLabel(slots[id].backend, slots[id].opts)}`,
+      holds: (spec: string) =>
+        engineSpecHeld(
+          spec,
+          slots[id].backend,
+          slots[id].opts.model.degree as number | null | undefined,
+        ),
+      refusal: slotRefusal(id),
+    })),
+    activeSlot,
+    grounds: groundSlots.map((g) => ({
+      id: g.id,
+      label: `${g.id}: ${groundSlotLabel(g, soilPresets ?? [])}`,
+      holds: (spec: string) => groundSpecHeld(spec, g, servedDefaultSoil),
+    })),
+    activeGround: activeGroundSlot,
+  };
+  // One curve's solve inputs: that cell's slot and ground slot on the
+  // session's request (buildRequestFor), on a lane stream of its own so the
+  // curves do not supersede one another server-side. The first chart's
+  // first curve takes no stream, the request the chart always sent. Only a
+  // cell on the active slot carries the session's "Solve anyway" approval.
+  const cellRequest = (i: number, k: number, slot: Slot, ground: string): ChartCellRequest => {
+    const cfg = slots[slot];
+    const g = groundRequestFor(ground, cfg.backend);
+    return {
+      slot,
+      ground,
+      stream: i === 0 && k === 0 ? null : `c${i}r${k}`,
+      backend: cfg.backend,
+      groundEnabled: g.enabled,
+      groundModel: g.model,
+      onActiveSlot: slot === activeSlot,
+    };
+  };
+
+  // One chart as it runs: its knob spec resolved against this design's
+  // knobs, what each runner is asked for (chartRunInputs: the knob sweep's
+  // request, whose `auto` is the chart's dwell switch, and the frequency
+  // sweep's range and switch), and its cross: the cells, the runnable ones
+  // in order, and one runner input per runnable cell.
+  const deriveChart = (i: number, state: AnalysisChartState) => {
+    const knob = zparamKnobs.find((k) => k.name === state.knob.spec.param) ?? null;
+    const spec = state.knob.spec.param === DENSITY || knob ? state.knob.spec : DEFAULT_DENSITY_SPEC;
+    const isDensity = spec.param === DENSITY;
+    const values = paramLadder(spec, isDensity || knob?.kind === "int");
+    const label = isDensity ? "N" : (knob?.label ?? spec.param);
+    const now: AnalysisChartState = { ...state, knob: { ...state.knob, spec } };
+    const viewId = CHART_VIEW_IDS[i];
+    const resident = isResident(viewId);
+    const inputs = chartRunInputs(now, {
+      resident,
+      dwellDefaults,
+      designRange: chartBaseRange,
+      values,
+      label,
+    });
+    const plan = crossPlan(now.cross, chartListed(now), crossEnv);
+    const drawn = plan.cells.filter((c) => !c.refused && c.slot !== null && c.ground !== null);
+    const runs: CellRun[] = drawn.map((c, k) => ({
+      cell: cellRequest(i, k, c.slot as Slot, c.ground as string),
+      freq: inputs.freq,
+      param: inputs.param,
+    }));
+    const currentRaw = isDensity ? nPerWire : currentValues[spec.param];
+    return {
+      i,
+      viewId,
+      state,
+      now,
+      spec,
+      knob,
+      isDensity,
+      values,
+      label,
+      current: typeof currentRaw === "number" ? currentRaw : null,
+      dwellOn: chartDwell(now, dwellDefaults),
+      resident,
+      inputs,
+      plan,
+      drawn,
+      runs,
+    };
+  };
+  type ChartModel = ReturnType<typeof deriveChart>;
+  const chartModels: (ChartModel | null)[] = charts.map((c, i) => (c ? deriveChart(i, c) : null));
+  const m0 = chartModels[0]!;
+  // The first chart's run inputs: its first curve is the session's runner
+  // pair (useAnalysisRunners, below).
+  const chartInputs = m0.inputs;
   // Choosing what to sweep is a pick, and a pick runs it (Steve's phone,
   // 2026-09-29: he chose length_factor in the header, got "no sweep yet"
   // and a small "run" among the wrapped controls, and never saw a curve).
   // Unit 2 left a knob choice waiting for Run; the rulings say a pick runs.
-  const selectZparamParam = (param: string) => {
+  const selectZparamParam = (i: number, param: string) => {
     if (param !== DENSITY) setLastKnob(param);
-    armParamSweep();
-    setZparamSpec(zparamDefaultFor(param));
-    setZparamXLog(null);
+    chartControl(i).armParam();
+    setZparamSpecAt(i, zparamDefaultFor(param));
+    setZparamXLogAt(i, null);
   };
   // The knob the picker's "Sweep a knob" runs (Steve, 2026-09-29): the one
   // in the chart's parameter list when that is a knob, else the last knob
   // swept this session, else the design's first sweepable knob.
   const [lastKnob, setLastKnob] = useState<string | null>(null);
-  const knobToSweep =
-    zparamKnobs.find((k) => k.name === zparamSpec.param)?.name ??
+  const knobToSweep = (m: ChartModel) =>
+    zparamKnobs.find((k) => k.name === m.spec.param)?.name ??
     zparamKnobs.find((k) => k.name === lastKnob)?.name ??
     zparamKnobs[0]?.name ??
     DENSITY;
-  // The knob menu's "Sweep this knob": that knob, its default range, and the
-  // view on the stage (a peek when it is not pinned).
-  const sweepKnob = (param: string) => {
+  // "Sweep this knob": that knob, its default range, and the chart's view
+  // on the stage (a peek when it is not pinned). The knob menu's drives the
+  // first chart; a chart's own picker drives that chart.
+  const sweepKnob = (param: string, i = 0) => {
+    const m = chartModels[i];
+    if (!m) return;
     setLastKnob(param);
     const next = zparamDefaultFor(param);
     setKnobMenu(null);
-    if (chart.kind === "knob" && sameSpec(next, zparamSpec) && chartResident) {
+    if (m.state.kind === "knob" && sameSpec(next, m.spec) && m.resident) {
       // Already this sweep on screen: nothing will change to arm, so run it.
-      runParamSweepNow();
+      chartControl(i).runParamNow();
     } else {
-      armParamSweep();
-      setChart((c) => pickKnob(c, null, next));
+      chartControl(i).armParam();
+      setChartAt(i, (c) => pickKnob(c, null, next));
     }
     // The knob sweep as R/X against the knob, what "Sweep this knob…" asks
     // to see.
-    setChart((c) => setChartView(c, "Rx"));
-    setView("zparam");
+    setChartAt(i, (c) => setChartView(c, "Rx"));
+    setView(m.viewId);
   };
-  // The design's analyses (AK#1757): the chart's own picker. Picking one
-  // runs it IN the chart, whatever it sweeps (step 5 unit 2): a knob
+  // The design's analyses (AK#1757): every chart's own picker. Picking one
+  // runs it IN that chart, whatever it sweeps (step 5 unit 2): a knob
   // analysis sets the chart's spec to its parameter and values and runs it;
   // a frequency analysis runs the chart's own frequency sweep over its range
-  // and draws its first view. Neither touches another view, the session's
+  // and draws its first view. Either preselects the slots its listed engines
+  // and grounds name (unit 4). Neither touches another chart, the session's
   // sweep range or the viewer's saved chart preferences. What the chart
   // cannot run yet is listed with why, and picking it does nothing.
   const zparamAnalyses = useDesignAnalyses({
     designKey: `${zparamDesignKey}#${reloadNonce}`,
     // Not before the session has a design: the first render has none.
-    enabled: chartResident && !!geometry,
+    enabled: chartModels.some((m) => m?.resident) && !!geometry,
     request: buildRequest,
   });
   const zparamSweepable = new Set(zparamKnobs.map((k) => k.name));
@@ -2168,46 +2327,75 @@ function DesignSessionBody({
       { runs: true, kind: "knob", note: null, ...w },
       zparamKnobs.find((k) => k.name === w.param)?.kind === "int",
     );
-  const pickAnalysis = (entry: AnalysisEntry) => {
+  // What a pick lists, and the slots it preselects (lib/chartCells.ts).
+  const pickCross = (c: AnalysisChartState, w: { engines?: string[] | null; grounds?: string[] | null }) => {
+    const listed: ListedCross = { engines: w.engines ?? null, grounds: w.grounds ?? null };
+    return withListed(c, listed, preselect(listed, crossEnv));
+  };
+  // A pick runs what it picked, curve by curve: a curve whose cell and
+  // inputs the pick leaves as they were has nothing to arm (its runner
+  // would never see a change), so it runs now; every other curve (a new or
+  // moved cell, a new range or spec) is armed for the change the pick
+  // makes. `same` says the pick keeps the chart's range or spec.
+  const runPicked = (
+    i: number,
+    kind: "freq" | "param",
+    next: AnalysisChartState,
+    same: boolean,
+  ) => {
+    const m = chartModels[i];
+    if (!m) return;
+    const nextCells = crossPlan(next.cross, chartListed(next), crossEnv).cells.filter(
+      (c) => !c.refused && c.slot !== null && c.ground !== null,
+    );
+    allRunnersOf[i].forEach((r, k) => {
+      const runner = kind === "freq" ? r.freq : r.param;
+      if (same && m.resident && k < nextCells.length && m.drawn[k]?.key === nextCells[k].key) {
+        runner.runNow();
+      } else {
+        runner.arm();
+      }
+    });
+  };
+  const pickAnalysis = (i: number, entry: AnalysisEntry) => {
+    const m = chartModels[i];
     const w = entry.workbench;
-    if (!w.runs || zparamAnalysisBlocked(entry)) return;
+    if (!m || !w.runs || zparamAnalysisBlocked(entry)) return;
     if (w.kind === "frequency") {
-      const next = pickFrequency(chart, entry.name, w, chartDesignRange, {
-        axes: sweepAxes,
-        threshold: swrThreshold,
-      });
+      const next = pickCross(
+        pickFrequency(m.state, entry.name, w, chartDesignRange, {
+          axes: sweepAxes,
+          threshold: swrThreshold,
+        }),
+        w,
+      );
       const range = (c: AnalysisChartState) =>
         c.frequency ? JSON.stringify(chartFrequencyRange(c.frequency, chartBaseRange)) : "";
-      const same = chart.kind === "frequency" && chartResident && range(chart) === range(next);
-      setChart(next);
-      // Already this sweep: nothing will change to arm, so run it.
-      if (same) runSweepNow();
-      else armSweep();
+      // Already this sweep (the curves it keeps): nothing will change to
+      // arm, so run it.
+      runPicked(i, "freq", next, m.state.kind === "frequency" && range(m.state) === range(next));
+      setChartAt(i, () => next);
       return;
     }
     const next = knobAnalysisSpec(w);
     if (w.param !== DENSITY) setLastKnob(w.param);
-    if (chart.kind === "knob" && sameSpec(next, zparamSpec) && chartResident) {
-      setChart((c) => pickKnob(c, entry.name, next));
-      runParamSweepNow();
-    } else {
-      armParamSweep();
-      setChart((c) => pickKnob(c, entry.name, next));
-    }
+    const picked = pickCross(pickKnob(m.state, entry.name, next), w);
+    runPicked(i, "param", picked, m.state.kind === "knob" && sameSpec(next, m.spec));
+    setChartAt(i, () => picked);
   };
   // The picker's current entry: the analysis picked while the chart still
   // runs it, else (a knob sweep nobody picked, as the chart opens) the first
   // analysis that sweeps exactly the chart's spec, so a design whose own
   // default is its convergence analysis opens with it named.
-  const zparamPickedName =
-    pickedName(chartNow) ??
-    (chart.kind === "knob"
+  const pickedNameOf = (m: ChartModel) =>
+    pickedName(m.now) ??
+    (m.state.kind === "knob"
       ? (zparamAnalyses.find(
           (a) =>
             a.workbench.runs &&
             a.workbench.kind === "knob" &&
             !zparamAnalysisBlocked(a) &&
-            sameSpec(knobAnalysisSpec(a.workbench), zparamSpec),
+            sameSpec(knobAnalysisSpec(a.workbench), m.spec),
         )?.name ?? null)
       : null);
   // The knob sweep's end-value boxes (Steve's phone, 2026-09-29: four boxes
@@ -2217,54 +2405,44 @@ function DesignSessionBody({
   // settings.toml.
   const [calloutsFlip, setCalloutsFlip] = useState<boolean | null>(null);
   const chartCallouts = calloutsFlip ?? !isMobile;
-  const zparamSettings = {
-    param: zparamSpec.param,
-    label: zparamLabel,
-    unit: zparamIsDensity ? "segments per λ/4" : (zparamKnob?.unit ?? null),
-    total: zparamValues.length,
-    currentValue: zparamCurrent,
-    xLog: chart.knob.xLog ?? zparamSpec.log,
-    rAxis: chart.knob.axes.r,
-    xAxis: chart.knob.axes.x,
+  const zparamSettingsOf = (m: ChartModel) => ({
+    param: m.spec.param,
+    label: m.label,
+    unit: m.isDensity ? "segments per λ/4" : (m.knob?.unit ?? null),
+    total: m.values.length,
+    currentValue: m.current,
+    xLog: m.state.knob.xLog ?? m.spec.log,
+    rAxis: m.state.knob.axes.r,
+    xAxis: m.state.knob.axes.x,
     // The session's reference (the design's Zo, or the Zo field's override,
     // AK#1735): what the VSWR chart measures against.
     z0,
-  };
+  });
   // A word on cost (docs/design/z-vs-param-view.md): a density sweep whose
   // top N is past twice the slot's own default density solves the fine end
   // on meshes several times what the engine needs, and the dense solve grows
   // about as N³. Cheap: two numbers the session already holds.
   const engineN = defaultNPerWireFor(backend, currentOpts.model.degree);
-  const zparamTopN = zparamIsDensity && zparamValues.length ? Math.max(...zparamValues) : 0;
-  const zparamCostHint =
-    zparamIsDensity && zparamTopN > 2 * engineN
-      ? `N up to ${zparamTopN}: ${(zparamTopN / engineN).toFixed(zparamTopN / engineN >= 10 ? 0 : 1)}× this engine's default N = ${engineN}, so the fine end is slow`
+  const costHintOf = (m: ChartModel) => {
+    const topN = m.isDensity && m.values.length ? Math.max(...m.values) : 0;
+    return m.isDensity && topN > 2 * engineN
+      ? `N up to ${topN}: ${(topN / engineN).toFixed(topN / engineN >= 10 ? 0 : 1)}× this engine's default N = ${engineN}, so the fine end is slow`
       : null;
+  };
 
   // The four background analyses (#642 seam 5b-3): freq sweep, convergence
   // sweep, far-field norm check and the NEC rp_card pattern. Called here, at
   // the debounce effects' old position, so all four keep their global order
-  // behind the solve and preview effects above.
+  // behind the solve and preview effects above. Its frequency and parameter
+  // sweeps are the first chart's first curve (unit 4: on that cell's slot
+  // and ground, `chartCell`).
+  const primaryRun = m0.runs[0];
   const {
-    sweep,
-    sweepRunning,
-    sweepPhase,
-    sweepSettled,
-    sweepProgress,
-    sweepAdvisories,
-    sweepStale,
-    armSweep,
-    runSweepNow,
-    stopSweep,
-    paramSweep,
-    paramSweepRunning,
-    paramSweepPhase,
-    stopParamSweep,
-    runParamSweepNow,
-    armParamSweep,
     normCheck,
     pattern,
     abortInFlight,
+    freq: primaryFreq,
+    param: primaryParam,
   } = useAnalysisRunners({
       backend,
       currentVariant,
@@ -2275,22 +2453,23 @@ function DesignSessionBody({
       measFreq,
       measLocked,
       // The analysis chart's frequency sweep (AK#1757 step 5 unit 3): the
-      // session's one frequency runner IS the chart's, over the chart's
-      // range, wanted while the chart shows a frequency sweep on screen, and
-      // re-run after the dwell only while its switch is on. One runner, so a
-      // default chart sends exactly the /sweep traffic the standalone Smith
-      // view with its freq-sweep switch on did, and never a second sweep.
+      // session's one frequency runner IS the first chart's first curve,
+      // over the chart's range, wanted while the chart shows a frequency
+      // sweep on screen, and re-run after the dwell only while its switch
+      // is on. One runner, so a default chart sends exactly the /sweep
+      // traffic the standalone Smith view with its freq-sweep switch on did,
+      // and never a second sweep.
       sweepRange: chartInputs.freq.range,
       groundEnabled,
       groundModel,
-      sweepEnabled: chartInputs.freq.wanted,
+      sweepEnabled: chartInputs.freq.wanted && !!primaryRun,
       sweepAuto: chartInputs.freq.auto,
       normCheckEnabled,
       necOverlayEnabled,
-      sweepResident: chartInputs.freq.wanted,
+      sweepResident: chartInputs.freq.wanted && !!primaryRun,
       // The chart's knob sweep, on its R/X or Smith view.
-      paramViewResident: chartInputs.param.wanted,
-      paramSweep: paramSweepReq,
+      paramViewResident: chartInputs.param.wanted && !!primaryRun,
+      paramSweep: chartInputs.param.req,
       patternResident,
       autoSim,
       active,
@@ -2311,7 +2490,110 @@ function DesignSessionBody({
       solveWithheld,
       seqRef,
       approvedComboRef,
+      ...(primaryRun ? { chartCell: primaryRun.cell, buildCellRequest } : {}),
     });
+  // Every other curve (unit 4): the first chart's second to sixth, and each
+  // duplicate's six, a fixed set of runner pairs per chart (useChartCells)
+  // of which a chart's cells use the first few. The refinement ranges are
+  // each chart's own.
+  const idleRun: CellRun = {
+    cell: cellRequest(0, 0, activeSlot, activeGroundSlot),
+    freq: { ...chartInputs.freq, wanted: false },
+    param: { ...chartInputs.param, wanted: false },
+  };
+  const chartAxes = (m: ChartModel | null) => ({
+    sweepAxes: m?.state.frequency?.axes ?? sweepAxes,
+    swrThreshold: m?.state.frequency?.threshold ?? swrThreshold,
+  });
+  const firstChartRest = useChartCells({
+    runs: m0.runs.slice(1),
+    idle: idleRun,
+    build: buildCellRequest,
+    refineEnabled,
+    z0,
+    ...chartAxes(m0),
+    autoSim,
+    active,
+    comboApproved,
+    recommendedBackend,
+    solveWithheld,
+    seqRef,
+    approvedComboRef,
+  });
+  const chart1Cells = useChartCells({
+    runs: chartModels[1]?.runs ?? [],
+    idle: idleRun,
+    build: buildCellRequest,
+    refineEnabled,
+    z0,
+    ...chartAxes(chartModels[1]),
+    autoSim,
+    active,
+    comboApproved,
+    recommendedBackend,
+    solveWithheld,
+    seqRef,
+    approvedComboRef,
+  });
+  const chart2Cells = useChartCells({
+    runs: chartModels[2]?.runs ?? [],
+    idle: idleRun,
+    build: buildCellRequest,
+    refineEnabled,
+    z0,
+    ...chartAxes(chartModels[2]),
+    autoSim,
+    active,
+    comboApproved,
+    recommendedBackend,
+    solveWithheld,
+    seqRef,
+    approvedComboRef,
+  });
+  const chart3Cells = useChartCells({
+    runs: chartModels[3]?.runs ?? [],
+    idle: idleRun,
+    build: buildCellRequest,
+    refineEnabled,
+    z0,
+    ...chartAxes(chartModels[3]),
+    autoSim,
+    active,
+    comboApproved,
+    recommendedBackend,
+    solveWithheld,
+    seqRef,
+    approvedComboRef,
+  });
+  // Each chart's runner pairs, all of them (for arming a pick), and the
+  // ones its runnable cells use, in cell order.
+  const allRunnersOf: CellRunners[][] = [
+    [{ freq: primaryFreq, param: primaryParam }, ...firstChartRest],
+    chart1Cells,
+    chart2Cells,
+    chart3Cells,
+  ];
+  const runnersOf = (m: ChartModel): CellRunners[] => allRunnersOf[m.i].slice(0, m.runs.length);
+  // A chart's Run, Stop and arming, over all its curves.
+  const chartControl = (i: number) => {
+    const all = allRunnersOf[i];
+    const live = chartModels[i] ? all.slice(0, chartModels[i]!.runs.length) : [];
+    return {
+      armFreq: () => all.forEach((r) => r.freq.arm()),
+      runFreqNow: () => live.forEach((r) => r.freq.runNow()),
+      stopFreq: () => live.forEach((r) => r.freq.abort()),
+      armParam: () => all.forEach((r) => r.param.arm()),
+      runParamNow: () => live.forEach((r) => r.param.runNow()),
+      stopParam: () => live.forEach((r) => r.param.stop()),
+    };
+  };
+  // The app's Cancel (AK#1712) stops every curve of every chart, as it
+  // stops the session's own batches.
+  const abortAllInFlight = () => {
+    abortInFlight();
+    for (const rs of allRunnersOf.slice(1)) for (const r of rs) { r.freq.abort(); r.param.abort(); }
+    for (const r of firstChartRest) { r.freq.abort(); r.param.abort(); }
+  };
 
   // The Files view (AK#1428): the design's source file, plus the deck and
   // printout behind the solve on screen when an external engine produced it.
@@ -2653,7 +2935,7 @@ function DesignSessionBody({
         // AK#1712: the server stops the live solve and every batch on this
         // session's lane; the client drops its batch streams and dwells too.
         cancelSolve();
-        abortInFlight();
+        abortAllInFlight();
       }}
       solverWarning={solverWarning}
       backendDisallowed={backendDisallowed}
@@ -2699,18 +2981,27 @@ function DesignSessionBody({
       ? `${geometry}#${reloadNonce}`
       : "";
 
-  // The analysis chart's knob sweep on its R/X plot has no trace-only
-  // dimming, so while an optimizer run proposes points it dims whole, as the
-  // Z-vs-parameter view did; every other view of the chart dims only its
-  // swept curve (chartTraceStale below) and keeps the live point bright.
-  const chartRxShown = chart.kind === "knob" && chart.knob.view === "Rx";
+  // The analysis chart a view is (the first chart's `zparam`, or a
+  // duplicate's), or null.
+  const chartOfView = (v: View): ChartModel | null => {
+    const i = chartIndex(v);
+    return i >= 0 ? chartModels[i] : null;
+  };
+  // A chart's knob sweep on its R/X plot has no trace-only dimming, so
+  // while an optimizer run proposes points it dims whole, as the
+  // Z-vs-parameter view did; every other view of a chart dims only its
+  // swept curves (chartUi's trace stale rule) and keeps the live point bright.
+  const rxShown = (m: ChartModel | null) =>
+    !!m && m.state.kind === "knob" && m.state.knob.view === "Rx";
   const staleWhileOptimizing = (v: View) =>
-    VIEW_META[v].staleWhileOptimizing || (v === "zparam" && chartRxShown);
+    VIEW_META[v].staleWhileOptimizing || rxShown(chartOfView(v));
   const outputStale = stale || (optRunning && staleWhileOptimizing(view));
-  // The stage readout's minimized default: the chart's depends on its view
+  // The stage readout's minimized default: a chart's depends on its view
   // (open on the Smith / Swr / S11 views as on the old Smith view, minimized
-  // on the R/X plot, whose left axis it would cover).
-  const readoutFallback = (v: View) => (v === "zparam" ? chartRxShown : undefined);
+  // on the R/X plot, whose left axis it would cover). A duplicate reads and
+  // writes the chart's own preference (lib/view.ts prefView): nothing about
+  // a duplicate is stored.
+  const readoutFallback = (v: View) => (chartIndex(v) >= 0 ? rxShown(chartOfView(v)) : undefined);
 
   // Views that take the whole stage rather than a size×size square: the
   // antenna canvas, the Files view's text pane (AK#1428), which a square
@@ -2730,175 +3021,302 @@ function DesignSessionBody({
   // that no row can switch off.
   const shownPins = pinnedPatterns.filter((p) => p.enabled);
   const shownHighlight = effectiveHighlight(combinedHighlight, shownPins);
-  // The analysis chart's header (AK#1757 step 5 unit 2): the picker, Run and
-  // the dwell switch on every kind, and the kind's own inputs — a knob
-  // sweep's parameter, range and points (the Z-vs-parameter view's bar), or a
-  // frequency analysis's view and range.
-  const chartAnalyses = {
-    entries: zparamAnalyses,
-    current: zparamPickedName,
-    blocked: zparamAnalysisBlocked,
-    onPick: pickAnalysis,
-    // The picker's first entry: the design's own frequency sweep (a new
-    // chart's), and its "Sweep a knob" group, which runs the knob as the
-    // knob menu's "Sweep this knob…" does (the same path, sweepKnob).
-    own: chart.kind === "frequency" && chart.picked === null,
-    onPickOwn: () => {
-      armSweep();
-      setChart((c) => pickOwnFrequency(c, chartSeed));
-    },
-    ...(zparamKnobs.length > 0 ? { onSweepKnob: () => sweepKnob(knobToSweep) } : {}),
-    sweepingKnob: chart.kind === "knob" && zparamPickedName === null && !zparamIsDensity,
+
+  // Duplicate a chart (unit 4): the first free place of the four gets a
+  // copy of it, pick, switch, ranges, views and cross, with runners of its
+  // own, which are asked for what it shows (as a pick asks). It goes on
+  // the stage, and in the grid the charts take the cells first
+  // (useViewPrefs' gridCells). Session-only, like everything a chart holds.
+  const duplicateChart = (i: number) => {
+    const free = charts.findIndex((c) => c === null);
+    const src = charts[i];
+    if (free < 0 || !src) return;
+    setCharts((cs) => cs.map((c, k) => (k === free ? src : c)));
+    const ctl = chartControl(free);
+    ctl.armFreq();
+    ctl.armParam();
+    setView(CHART_VIEW_IDS[free]);
   };
-  const chartChrome = {
-    dwell: chartDwellOn,
-    onDwell: (on: boolean) => setChart((c) => ({ ...c, dwell: on })),
+  // A view left on a closed duplicate (a click that closed it can bubble to
+  // its grid cell, which focuses it again) moves to the first chart.
+  // State adjusted during render, React's pattern for state derived from
+  // other state.
+  if (chartIndex(view) > 0 && !charts[chartIndex(view)]) setView("zparam");
+  // Close a duplicate: its curves stop and its place is free again.
+  const closeChart = (i: number) => {
+    if (i === 0) return;
+    const ctl = chartControl(i);
+    ctl.stopFreq();
+    ctl.stopParam();
+    setCharts((cs) => cs.map((c, k) => (k === i ? null : c)));
+    if (view === CHART_VIEW_IDS[i]) setView("zparam");
   };
-  const chartFrequencyState = chart.kind === "frequency" ? chart.frequency : null;
-  // The swept curve is of inputs since changed: the dwell switch off and the
-  // knobs moved, or (on the SWR and S11 views, which dimmed whole while an
-  // optimizer run proposed points, #773) a run the curve predates. Only the
-  // curve dims (unit 3); the live point follows either way. The Smith view
-  // never dimmed during a run, and still does not.
-  const chartTraceStale =
-    sweepStale || (optRunning && chartFrequencyState?.view !== "Smith");
-  // What the chart draws for a frequency sweep: the session's frequency
-  // runner (which is the chart's), on the chart's view, with its own scales
-  // (viewRegistry's zparam entry).
-  const chartFrequencyRender: ChartFrequencyRender | null = chartFrequencyState && {
-    view: chartFrequencyState.view,
-    sweep,
-    running: sweepRunning,
-    phase: sweepPhase,
-    progress: sweepProgress,
-    settled: sweepSettled,
-    stale: chartTraceStale,
-    axes: chartFrequencyState.axes,
-    threshold: chartFrequencyState.threshold,
+
+  // Everything one chart shows and does (AK#1757 step 5 units 2 to 4): its
+  // header (the picker, Run and the dwell switch on every kind, the engine
+  // and ground checkboxes, duplicate / close, and the kind's own inputs — a
+  // knob sweep's parameter, range and points, or a frequency analysis's view
+  // and range), its advisory overlays, and the props its view draws from:
+  // its first curve as the chart always drew it, the other curves beside
+  // it, and the legend naming every cell.
+  const chartUi = (m: ChartModel) => {
+    const i = m.i;
+    const runners = runnersOf(m);
+    const own = runners[0] ?? null;
+    const ctl = chartControl(i);
+    const setAt = (f: (c: AnalysisChartState) => AnalysisChartState) => setChartAt(i, f);
+    const pickedNow = pickedNameOf(m);
+    const analyses = {
+      entries: zparamAnalyses,
+      current: pickedNow,
+      blocked: zparamAnalysisBlocked,
+      onPick: (e: AnalysisEntry) => pickAnalysis(i, e),
+      // The picker's first entry: the design's own frequency sweep (a new
+      // chart's), and its "Sweep a knob" group, which runs the knob as the
+      // knob menu's "Sweep this knob…" does (the same path, sweepKnob).
+      own: m.state.kind === "frequency" && m.state.picked === null,
+      onPickOwn: () => {
+        ctl.armFreq();
+        setAt((c) => pickOwnFrequency(c, chartSeed));
+      },
+      ...(zparamKnobs.length > 0 ? { onSweepKnob: () => sweepKnob(knobToSweep(m), i) } : {}),
+      sweepingKnob: m.state.kind === "knob" && pickedNow === null && !m.isDensity,
+    };
+    // A tick is asking for the curves it adds or moves: arm the runners
+    // whose cell changes, and only those, so an unchanged curve neither
+    // re-runs nor carries an ask over to some later change.
+    const setCross = (cross: ChartCross) => {
+      const next: AnalysisChartState = { ...m.now, cross };
+      const cells = crossPlan(cross, chartListed(next), crossEnv).cells.filter(
+        (c) => !c.refused && c.slot !== null && c.ground !== null,
+      );
+      const all = allRunnersOf[i];
+      cells.forEach((c, k) => {
+        if (m.drawn[k]?.key !== c.key) {
+          all[k]?.freq.arm();
+          all[k]?.param.arm();
+        }
+      });
+      setAt((c) => ({ ...c, cross }));
+    };
+    const chrome: ChartChrome = {
+      dwell: m.dwellOn,
+      onDwell: (on: boolean) => setAt((c) => ({ ...c, dwell: on })),
+      cross: {
+        slots: crossEnv.slots.map(({ id, label }) => ({ id, label })),
+        grounds: crossEnv.grounds.map(({ id, label }) => ({ id, label })),
+        checkedSlots: checkedSlots(m.now.cross, crossEnv),
+        checkedGrounds: checkedGrounds(m.now.cross, crossEnv),
+        onSlots: (ids: string[]) => setCross({ ...m.now.cross, slots: ids }),
+        onGrounds: (ids: string[]) => setCross({ ...m.now.cross, grounds: ids }),
+        refusal: m.plan.capRefusal,
+      },
+      ...(charts.some((c) => c === null) ? { onDuplicate: () => duplicateChart(i) } : {}),
+      ...(i > 0 ? { onClose: () => closeChart(i) } : {}),
+    };
+    const freqState = m.state.kind === "frequency" ? m.state.frequency : null;
+    const f0 = own?.freq ?? null;
+    const p0 = own?.param ?? null;
+    // A swept curve is of inputs since changed: the dwell switch off and the
+    // knobs moved, or (on the SWR and S11 views, which dimmed whole while an
+    // optimizer run proposed points, #773) a run the curve predates. Only
+    // the curves dim (unit 3); the live point follows either way. The Smith
+    // view never dimmed during a run, and still does not.
+    const runStale = optRunning && freqState?.view !== "Smith";
+    // The first curve, on the chart's view, with its own scales
+    // (viewRegistry's chart entry).
+    const freqRender: ChartFrequencyRender | null = freqState && {
+      view: freqState.view,
+      sweep: f0?.sweep ?? null,
+      running: runners.some((r) => r.freq.running),
+      phase: f0?.phase ?? "idle",
+      progress: f0?.progress ?? null,
+      settled: f0?.settled ?? true,
+      stale: (f0?.stale ?? false) || runStale,
+      axes: freqState.axes,
+      threshold: freqState.threshold,
+    };
+    // The other curves, in their legend colours.
+    const curves: ExtraCurve[] = runners.slice(1).map((r, k) => ({
+      key: m.drawn[k + 1].key,
+      color: cellColor(k + 1),
+      sweep: freqState ? r.freq.sweep : null,
+      settled: r.freq.settled,
+      stale: freqState ? r.freq.stale || runStale : !!r.param.data?.stale,
+      paramSweep:
+        m.state.kind === "knob" && r.param.data?.param === m.spec.param ? r.param.data : null,
+    }));
+    // Every cell by name, in the cross's order; a refused one with why.
+    const legend: ChartLegendData = {
+      entries: m.plan.cells.map((c) => {
+        if (c.refused) return { key: c.key, label: c.label, color: null, refused: c.refused };
+        const k = m.drawn.indexOf(c);
+        const r = runners[k];
+        const error = freqState ? r?.freq.error : (r?.param.data?.error ?? null);
+        return { key: c.key, label: c.label, color: cellColor(k), refused: null, error: error ?? null };
+      }),
+      capRefusal: m.plan.capRefusal,
+      rx: rxShown(m),
+    };
+    const setFrequency = (patch: Partial<NonNullable<AnalysisChartState["frequency"]>>) =>
+      setAt((c) => (c.frequency ? { ...c, frequency: { ...c.frequency, ...patch } } : c));
+    // The chart's view (Rx / Swr / S11 / Smith, as many as its kind can
+    // draw), and on the Smith chart the measured .s1p overlay the Smith view
+    // carried (issue #595): chart controls, on the chart (unit 3).
+    const viewPick = {
+      views: chartViews(m.state),
+      view: chartView(m.state),
+      onView: (v: ChartView) => setAt((c) => setChartView(c, v)),
+      measured:
+        chartView(m.state) === "Smith"
+          ? {
+              data: measured,
+              onLoad: (f: File) => loadMeasured(f, { setGearMenuOpen, setMeasured }),
+              onClear: () => setMeasured(null),
+            }
+          : null,
+    };
+    // Scale and threshold edits on the chart are the viewer's preference as
+    // well, as they were on the standalone VSWR / S11 views (AK#1738): they
+    // seed the next chart. A pick's own scale is not (pickFrequency).
+    const onAxisChange = (mode: SweepMode, c: SweepAxisChoice) => {
+      if (!freqState) return;
+      setFrequency({ axes: { ...freqState.axes, [mode]: c } });
+      setSweepAxis(mode, c);
+    };
+    const onThresholdChange = (t: number) => {
+      setFrequency({ threshold: t });
+      setSwrThreshold(t);
+    };
+    const range = m.inputs.freq.range;
+    const controls = freqState ? (
+      <FrequencyChartControls
+        analyses={analyses}
+        viewPick={viewPick}
+        range={range}
+        // An edit to the chart's own range is asking for it: arm it.
+        onRange={(lo, hi) => {
+          const next = editRange(range, lo, hi);
+          if (!next) return;
+          ctl.armFreq();
+          setFrequency({ rangeEdit: next });
+        }}
+        onResetRange={() => {
+          ctl.armFreq();
+          setFrequency({ rangeEdit: null });
+        }}
+        rangeIsOwn={freqState.rangeEdit === null}
+        run={{
+          running: runners.some((r) => r.freq.running),
+          received: f0?.sweep?.freqs_mhz.length ?? 0,
+          stale: runners.some((r) => r.freq.stale),
+          onStop: ctl.stopFreq,
+          onRun: ctl.runFreqNow,
+        }}
+        chrome={chrome}
+      />
+    ) : (
+      <ZParamControls
+        spec={m.spec}
+        knobs={zparamKnobs}
+        densityLabel="density (N per λ/4)"
+        // An edit to the sweep's own range is asking for it: arm it.
+        // Picking another parameter is not (a knob sweep waits for Run).
+        onSpec={(next) => {
+          ctl.armParam();
+          setZparamSpecAt(i, next);
+        }}
+        onParam={(param) => selectZparamParam(i, param)}
+        onReset={() => {
+          ctl.armParam();
+          selectZparamParam(i, m.spec.param);
+        }}
+        isDefault={sameSpec(m.spec, zparamDefaultFor(m.spec.param))}
+        values={m.values}
+        run={{
+          running: runners.some((r) => r.param.running),
+          received: p0?.data?.param === m.spec.param ? p0.data.values.length : 0,
+          partial: !!p0?.data?.partial,
+          stale:
+            runners.some((r) => !!r.param.data?.stale && r.param.data.param === m.spec.param),
+          done:
+            !!p0 &&
+            !runners.some((r) => r.param.running) &&
+            !!p0.data &&
+            !p0.data.partial &&
+            !p0.data.stale &&
+            !p0.data.error &&
+            p0.data.param === m.spec.param &&
+            p0.data.values.length > 0,
+          onStop: ctl.stopParam,
+          onRun: ctl.runParamNow,
+        }}
+        costHint={costHintOf(m)}
+        analyses={analyses}
+        viewPick={viewPick}
+        chrome={chrome}
+      />
+    );
+    // The chart's sweep advisory and refusal: over the stage's lower-left on
+    // a phone, over the plot's (above the readout) on a desktop.
+    const p0data = p0?.data ?? null;
+    const overlays = freqState ? (
+      <SweepAdvisoryOverlay advisories={f0?.advisories ?? []} />
+    ) : (
+      <>
+        {p0data?.param === m.spec.param && (
+          <SweepAdvisoryOverlay advisories={p0data.advisories} />
+        )}
+        {p0data?.error && (
+          // The server's refusal (the hosted point cap, the poor-match
+          // gate), in its own words: the header does not clamp to it.
+          <div className="sweep-advisory-overlay zparam-refusal" role="alert">
+            {p0data.error}
+            {/* The poor-match gate's 403 is approvable, as for the live
+                solve: the approval re-runs the sweep (comboApproved is
+                one of its inputs). */}
+            {p0data.errorStatus === 403 && (
+              <button type="button" className="zparam-approve" onClick={solveAnyway}>
+                Solve anyway
+              </button>
+            )}
+          </div>
+        )}
+      </>
+    );
+    const zparam = {
+      ...zparamSettingsOf(m),
+      phase: p0?.phase ?? "idle",
+      view: m.state.knob.view,
+      callouts: chartCallouts,
+    };
+    const chartCurves = curves.length > 0 ? curves : undefined;
+    // What the chart's view draws from: the stage's bag, with its edit
+    // callbacks and the legend, and the thumbnail's, without either.
+    const panel = {
+      paramSweep: p0data,
+      paramSweepRunning: runners.some((r) => r.param.running),
+      zparam: { ...zparam, onCalloutsChange: setCalloutsFlip },
+      onZparamXLogChange: (log: boolean) => setZparamXLogAt(i, log),
+      onZparamAxisChange: (axis: "r" | "x", c: RxAxisChoice) => setZparamAxisAt(i, axis, c),
+      chartFrequency: freqRender && { ...freqRender, onAxisChange, onThresholdChange },
+      ...(chartCurves ? { chartCurves } : {}),
+      chartLegend: legend,
+    };
+    const thumb = {
+      paramSweep: p0data,
+      paramSweepRunning: runners.some((r) => r.param.running),
+      zparam,
+      chartFrequency: freqRender,
+      ...(chartCurves ? { chartCurves } : {}),
+    };
+    return { controls, overlays, panel, thumb };
   };
-  const setChartFrequency = (patch: Partial<NonNullable<AnalysisChartState["frequency"]>>) =>
-    setChart((c) => (c.frequency ? { ...c, frequency: { ...c.frequency, ...patch } } : c));
-  // The chart's view (Rx / Swr / S11 / Smith, as many as its kind can draw),
-  // and on the Smith chart the measured .s1p overlay the Smith view carried
-  // (issue #595): chart controls, on the chart (unit 3).
-  const chartViewPick = {
-    views: chartViews(chart),
-    view: chartView(chart),
-    onView: (v: ChartView) => setChart((c) => setChartView(c, v)),
-    measured:
-      chartView(chart) === "Smith"
-        ? {
-            data: measured,
-            onLoad: (f: File) => loadMeasured(f, { setGearMenuOpen, setMeasured }),
-            onClear: () => setMeasured(null),
-          }
-        : null,
-  };
-  // Scale and threshold edits on the chart are the viewer's preference as
-  // well, as they were on the standalone VSWR / S11 views (AK#1738): they
-  // seed the next chart. A pick's own scale is not (pickFrequency).
-  const onChartAxisChange = (mode: SweepMode, c: SweepAxisChoice) => {
-    if (!chartFrequencyState) return;
-    setChartFrequency({ axes: { ...chartFrequencyState.axes, [mode]: c } });
-    setSweepAxis(mode, c);
-  };
-  const onChartThresholdChange = (t: number) => {
-    setChartFrequency({ threshold: t });
-    setSwrThreshold(t);
-  };
-  const zparamControls = chartFrequencyState ? (
-    <FrequencyChartControls
-      analyses={chartAnalyses}
-      viewPick={chartViewPick}
-      range={chartInputs.freq.range}
-      // An edit to the chart's own range is asking for it: arm it.
-      onRange={(lo, hi) => {
-        const next = editRange(chartInputs.freq.range, lo, hi);
-        if (!next) return;
-        armSweep();
-        setChartFrequency({ rangeEdit: next });
-      }}
-      onResetRange={() => {
-        armSweep();
-        setChartFrequency({ rangeEdit: null });
-      }}
-      rangeIsOwn={chartFrequencyState.rangeEdit === null}
-      run={{
-        running: sweepRunning,
-        received: sweep?.freqs_mhz.length ?? 0,
-        stale: sweepStale,
-        onStop: stopSweep,
-        onRun: runSweepNow,
-      }}
-      chrome={chartChrome}
-    />
-  ) : (
-    <ZParamControls
-      spec={zparamSpec}
-      knobs={zparamKnobs}
-      densityLabel="density (N per λ/4)"
-      // An edit to the sweep's own range is asking for it: arm it.
-      // Picking another parameter is not (a knob sweep waits for Run).
-      onSpec={(next) => {
-        armParamSweep();
-        setZparamSpec(next);
-      }}
-      onParam={selectZparamParam}
-      onReset={() => {
-        armParamSweep();
-        selectZparamParam(zparamSpec.param);
-      }}
-      isDefault={sameSpec(zparamSpec, zparamDefaultFor(zparamSpec.param))}
-      values={zparamValues}
-      run={{
-        running: paramSweepRunning,
-        received:
-          paramSweep?.param === zparamSpec.param ? paramSweep.values.length : 0,
-        partial: !!paramSweep?.partial,
-        stale: !!paramSweep?.stale && paramSweep.param === zparamSpec.param,
-        done:
-          !paramSweepRunning &&
-          !!paramSweep &&
-          !paramSweep.partial &&
-          !paramSweep.stale &&
-          !paramSweep.error &&
-          paramSweep.param === zparamSpec.param &&
-          paramSweep.values.length > 0,
-        onStop: stopParamSweep,
-        onRun: runParamSweepNow,
-      }}
-      costHint={zparamCostHint}
-      analyses={chartAnalyses}
-      viewPick={chartViewPick}
-      chrome={chartChrome}
-    />
-  );
-  // The Z-vs-parameter view's sweep advisory and refusal: over the stage's
-  // lower-left on a phone, over the plot's (above the readout) on a desktop.
-  const zparamOverlays = chartFrequencyState ? (
-    <SweepAdvisoryOverlay advisories={sweepAdvisories} />
-  ) : (
-    <>
-      {paramSweep?.param === zparamSpec.param && (
-        <SweepAdvisoryOverlay advisories={paramSweep.advisories} />
-      )}
-      {paramSweep?.error && (
-        // The server's refusal (the hosted point cap, the poor-match
-        // gate), in its own words: the header does not clamp to it.
-        <div className="sweep-advisory-overlay zparam-refusal" role="alert">
-          {paramSweep.error}
-          {/* The poor-match gate's 403 is approvable, as for the live
-              solve: the approval re-runs the sweep (comboApproved is
-              one of its inputs). */}
-          {paramSweep.errorStatus === 403 && (
-            <button type="button" className="zparam-approve" onClick={solveAnyway}>
-              Solve anyway
-            </button>
-          )}
-        </div>
-      )}
-    </>
-  );
+  const chartUis = chartModels.map((m) => (m ? chartUi(m) : null));
+  // A view's chart props, or none (only a chart's view draws a sweep).
+  const NO_CHART = { paramSweep: null, paramSweepRunning: false } as const;
+  const chartPanelOf = (v: View) => chartUis[chartIndex(v)]?.panel ?? NO_CHART;
+  const chartThumbOf = (v: View) => chartUis[chartIndex(v)]?.thumb ?? NO_CHART;
   const viewPanel = (v: View, size: number, fill: boolean) => (
     <ViewPanel
       view={v}
@@ -2915,28 +3333,12 @@ function DesignSessionBody({
       // per-eval frames carry the trial Z, so hand it to the chart.
       liveZ={optRunning && optProgress ? optProgress.metrics : null}
       preview={preview}
-      paramSweep={paramSweep}
       measured={measured}
       pattern={pattern}
       pinnedPatterns={pinnedPatterns}
       measFreqMhz={measFreq}
-      paramSweepRunning={paramSweepRunning}
-      zparam={{
-        ...zparamSettings,
-        phase: paramSweepPhase,
-        view: chart.knob.view,
-        callouts: chartCallouts,
-        onCalloutsChange: setCalloutsFlip,
-      }}
-      onZparamXLogChange={setZparamXLog}
-      onZparamAxisChange={setZparamAxis}
-      chartFrequency={
-        chartFrequencyRender && {
-          ...chartFrequencyRender,
-          onAxisChange: onChartAxisChange,
-          onThresholdChange: onChartThresholdChange,
-        }
-      }
+      // The chart this view is, if it is one (unit 4: each chart its own).
+      {...chartPanelOf(v)}
       azElevDeg={azElevDeg}
       elevAzDeg={elevAzDeg}
       cameraProjection={cameraProjection}
@@ -2967,20 +3369,21 @@ function DesignSessionBody({
   // `readout` is the floating solve readout when this is the rail's primary
   // view: rendered last, in the slide, as before — except on the desktop
   // Z-vs-parameter view, whose stage pins it inside the chart (ZParamStage).
-  const renderOutput = (v: View, size: number, fill: boolean, readout?: ReactNode) =>
-    v === "zparam" && !isMobile ? (
+  const renderOutput = (v: View, size: number, fill: boolean, readout?: ReactNode) => {
+    const ui = chartUis[chartIndex(v)] ?? null;
+    return ui && !isMobile ? (
       <ZParamStage
         size={size}
         fallbackHead={Math.round(Math.min(2 * ZPARAM_DESKTOP_HEADER_PX, 0.1 * size))}
-        header={zparamControls}
-        overlays={zparamOverlays}
+        header={ui.controls}
+        overlays={ui.overlays}
         readout={readout}
         chart={(s) => viewPanel(v, s, fill)}
       />
     ) : (
     <>
-          {v === "zparam" && zparamControls}
-          {v === "zparam" && zparamOverlays}
+          {ui?.controls}
+          {ui?.overlays}
           {v === "antenna" && (
             <AntennaOverlayControls
               cameraProjection={cameraProjection}
@@ -3088,6 +3491,7 @@ function DesignSessionBody({
           {readout}
     </>
   );
+  };
 
   // Mobile: knobs pane + a scroll-snap output carousel over the PINNED views
   // plus Info (#700 unit 4 — the roster lives behind the dots row's "⋯" sheet,
@@ -3148,7 +3552,7 @@ function DesignSessionBody({
                     // The Z-vs-parameter view stacks its header above the
                     // chart on a phone: the chart gives up the header's
                     // height so the pair fits the screen.
-                    s.id === "zparam" ? Math.max(160, mobChartSize - ZPARAM_MOBILE_HEADER_PX) : mobChartSize,
+                    chartIndex(s.id) >= 0 ? Math.max(160, mobChartSize - ZPARAM_MOBILE_HEADER_PX) : mobChartSize,
                     fillsStage(s.id as View),
                   )
                 )}
@@ -3205,8 +3609,8 @@ function DesignSessionBody({
               className="stage-readout"
               // One card for the whole grid, so it minimizes per the focused
               // cell's view, as the rail's card does per its primary view.
-              collapsed={isReadoutCollapsed(view, readoutFallback(view))}
-              onCollapsedChange={(c) => setReadoutCollapsed(view, c, readoutFallback(view))}
+              collapsed={isReadoutCollapsed(prefView(view), readoutFallback(view))}
+              onCollapsedChange={(c) => setReadoutCollapsed(prefView(view), c, readoutFallback(view))}
               result={shownResult}
               rttMs={rttMs}
               currentExample={currentExample}
@@ -3254,7 +3658,6 @@ function DesignSessionBody({
                       // would be the same defect at a smaller size.
                       liveZ={optRunning && optProgress ? optProgress.metrics : null}
                       preview={preview}
-                      paramSweep={paramSweep}
                       measured={measured}
                       pattern={pattern}
                       pinnedPatterns={[]}
@@ -3263,14 +3666,7 @@ function DesignSessionBody({
                       // resolution is on; without this the thumbnail drew
                       // dots until its chart took the stage.
                       refineEnabled={refineEnabled}
-                      paramSweepRunning={paramSweepRunning}
-                      zparam={{
-                        ...zparamSettings,
-                        phase: paramSweepPhase,
-                        view: chart.knob.view,
-                        callouts: chartCallouts,
-                      }}
-                      chartFrequency={chartFrequencyRender}
+                      {...chartThumbOf(v.id)}
                       azElevDeg={azElevDeg}
                       elevAzDeg={elevAzDeg}
                       cameraProjection={cameraProjection}
@@ -3317,8 +3713,8 @@ function DesignSessionBody({
                   z0={z0}
                   live={liveSolve}
                   className="stage-readout"
-                  collapsed={isReadoutCollapsed(view, readoutFallback(view))}
-                  onCollapsedChange={(c) => setReadoutCollapsed(view, c, readoutFallback(view))}
+                  collapsed={isReadoutCollapsed(prefView(view), readoutFallback(view))}
+                  onCollapsedChange={(c) => setReadoutCollapsed(prefView(view), c, readoutFallback(view))}
                   result={shownResult}
                   rttMs={rttMs}
                   currentExample={currentExample}

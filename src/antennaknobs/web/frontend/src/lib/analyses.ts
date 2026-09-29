@@ -24,6 +24,15 @@ export type KnobWorkbench = {
   values: number[];
   log: boolean;
   note: string | null;
+} & Listed;
+
+/** The engine and ground specs the analysis lists (its cross, else its one
+ *  engine or ground), or null where it names none: the analysis chart's
+ *  preselection (lib/chartCells.ts, AK#1757 step 5 unit 4). Optional: an
+ *  older server serves neither, and the chart then draws the active slot. */
+export type Listed = {
+  engines?: string[] | null;
+  grounds?: string[] | null;
 };
 
 /** The views a frequency analysis draws here, by the server's names. */
@@ -43,7 +52,7 @@ export type FrequencyWorkbench = {
   views: FrequencyView[];
   swr: { scale: "auto" | "reciprocal" | "rho" | null; threshold: number | null };
   note: string | null;
-};
+} & Listed;
 
 /** How the workbench runs an analysis, or the reason it cannot yet. */
 export type AnalysisWorkbench = KnobWorkbench | FrequencyWorkbench | { runs: false; why: string };
@@ -60,6 +69,17 @@ export type AnalysisEntry = {
 };
 
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+
+/** A served spec list: an array of strings, else null (absent, or junk). */
+function specList(v: unknown): string[] | null {
+  return Array.isArray(v) && v.every((x) => typeof x === "string") && v.length > 0
+    ? (v as string[])
+    : null;
+}
+
+function parseListed(o: Record<string, unknown>): { engines: string[] | null; grounds: string[] | null } {
+  return { engines: specList(o.engines), grounds: specList(o.grounds) };
+}
 
 const FREQUENCY_VIEWS: readonly FrequencyView[] = ["Swr", "S11", "Smith"];
 
@@ -97,6 +117,7 @@ function parseFrequency(o: Record<string, unknown>, note: string | null): Analys
     points: isNum(o.points) && o.points >= 2 ? Math.round(o.points) : null,
     views,
     swr: { scale, threshold: isNum(swr.threshold) ? swr.threshold : null },
+    ...parseListed(o),
     note,
   };
 }
@@ -110,7 +131,15 @@ function parseWorkbench(w: unknown): AnalysisWorkbench | null {
     if (typeof o.param !== "string" || !Array.isArray(o.values)) return null;
     const values = o.values.filter(isNum);
     if (values.length === 0 || values.length !== o.values.length) return null;
-    return { runs: true, kind: "knob", param: o.param, values, log: o.log === true, note };
+    return {
+      runs: true,
+      kind: "knob",
+      param: o.param,
+      values,
+      log: o.log === true,
+      ...parseListed(o),
+      note,
+    };
   }
   return { runs: false, why: typeof o.why === "string" ? o.why : "not runnable here" };
 }
