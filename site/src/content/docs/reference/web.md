@@ -271,10 +271,13 @@ it draws it:
   **sweep** list (the last knob you swept, else the design's first) over its
   own range, as **Sweep this knob…** does. Last, under **Not in the workbench
   yet**, the analyses it cannot run, greyed out, each with its reason;
-- **view** — **Smith**, **SWR** or **S11 (dB)** for a frequency sweep, all
-  three drawn from the one sweep, so switching re-solves nothing; **R / X**
-  or **Smith** for a knob sweep, where Smith draws the knob sweep as a trail
-  (what the old **param sweep** switch drew);
+- **view** — **Smith**, **SWR**, **S11 (dB)**, **R / X** or **Table** for a
+  frequency sweep, all drawn from the one sweep, so switching re-solves
+  nothing; **R / X**, **Smith** or **Table** for a knob sweep, where Smith
+  draws the knob sweep as a trail (what the old **param sweep** switch drew).
+  **R / X** of a frequency sweep is the knob sweep's R / X chart with
+  frequency across the bottom and the dashed guide at the measurement
+  frequency. **Table** prints the numbers (see [The Table](#the-table));
 - **from / to** and **↺**, **run**, and **auto re-run**;
 - **A · 1**, the engines and grounds it compares (see
   [Comparing engines and grounds](#comparing-engines-and-grounds));
@@ -291,6 +294,25 @@ measurement frequency, moves with every knob at once; only the curve waits.
 It starts on for a frequency sweep and off for a knob or density sweep, unless
 [`settings.toml`](#where-the-workbench-starts-settingstoml) says otherwise.
 The chart's pick, switch and range last for the session.
+
+### The Table
+
+The **Table** view prints what `antennaknobs analyze` prints for an
+analysis's `an.Table()` view, with the same columns and number formats: for
+a frequency sweep MHz, then R, X and SWR against the session's Z0; for a knob
+sweep the knob, then R and X; for the density ladder `nominal_N`, then the
+achieved segment count, R, X and |ΔΓ| against the finest rung. There is one
+row per swept value and one group of columns per curve, headed with the
+legend's name for it, so a chart comparing engines, grounds, designs or a
+family reads side by side. Where the curves were swept at different values (two
+designs on their own bands, say) the table has a row for each, and a curve
+with no point there leaves its cells blank. **copy** puts the table on the
+clipboard as tab-separated text, which a spreadsheet pastes as columns, or
+select the cells and copy them. On a phone the table scrolls sideways and
+down inside the chart's square rather than widening the page. The table lists
+the points the chart swept: on a frequency sweep with adaptive resolution on,
+the curves on the other views are refined between those points, and the table
+shows the base grid.
 
 The standalone **Smith**, **S11 (dB) vs freq** and **VSWR vs freq** views are
 gone; they are this chart's views now. Pins saved in the browser that named
@@ -1416,8 +1438,11 @@ segment knob runs as a knob sweep over the density ladder, with `Z∞` on the
 command line only for now.
 
 A frequency analysis, such as **band SWR**, draws in the same chart, on the
-analysis's first view: SWR, S11 or Smith. The **view** list offers the
-analysis's views first, then the other frequency views. The chart runs its
+analysis's first view: SWR, S11, Smith, R / X or Table. The **view** list
+offers the analysis's views first, then the other frequency views, R / X and
+Table included whether or not the analysis lists them. A knob analysis opens
+on the view on screen when it lists that view, else on its first, so an
+analysis that lists only `an.Table()` opens on its table. The chart runs its
 frequency sweep over the analysis's range, from the rule the command line uses (see [Frequency
 analyses](/reference/cli/#frequency-analyses)). A deck's own sweep or a
 design's declared range sweeps the design's range, and on a band-policy
@@ -1430,17 +1455,22 @@ on the chart's axis is remembered in the browser as the VSWR chart's was, an
 analysis's is not. **auto re-run** starts on (`freq_sweep` in
 `settings.toml` can turn it off), so the curve follows the knobs after the
 usual half second. Either way the marker
-at the measurement frequency, the live solve, moves with every knob. The
-workbench doesn't draw R/X against frequency or a table yet, so an `an.Rx()`
-or `an.Table()` view is left out with a note naming the step that brings it.
+at the measurement frequency, the live solve, moves with every knob.
+
+A frequency analysis given explicit frequencies, `an.Sweep(an.FREQUENCY,
+values=(...))`, sweeps exactly those frequencies, as the command line does,
+with no adaptive points added between them; the header says **3 values**
+beside **from / to**, and its tooltip lists them. Editing **from** or **to**
+makes it a range between the new ends with as many points as the list had.
+The analysis stays picked and the list reads **(edited)**. **↺** puts the
+list back.
 
 What you pick, the switch, the range and the scale last for the session.
 Only the design's `.py` is remembered: to keep a chart's setup, put it in the
 design's `build_analyses()`.
 
 What the workbench cannot run yet is listed greyed out, with the reason as
-its tooltip: a map over two knobs, a frequency analysis given explicit
-frequencies rather than a range, and a match held at every point. Each
+its tooltip: a map over two knobs, and a match held at every point. Each
 reason names the step of the sweep framework it is planned for. Crosses over
 planes, designs and families draw (see
 [Planes, designs and families](#planes-designs-and-families)).
