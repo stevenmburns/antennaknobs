@@ -23,7 +23,7 @@ import type {
 } from "../charts/types";
 import type { ExtraCurve } from "../charts/curves";
 import { ChartFrequency, ChartKnobSmith, knobTable } from "./ChartFrequency";
-import { ChartLegend, type ChartLegendData, legendShown } from "./ChartLegend";
+import { ChartLegend, type ChartLegendData, legendShown, refusedCount } from "./ChartLegend";
 import { FilesPanel, type FilesViewData } from "./FilesPanel";
 import { SchematicPanel } from "./SchematicPanel";
 
@@ -292,6 +292,13 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
 // is, so its DOM is the chart's as before crosses.
 function withLegend(p: ViewRenderProps, chart: ReactElement): ReactElement {
   if (!legendShown(p.chartLegend)) return chart;
+  // The Table names every drawn curve in its column groups, and the legend
+  // laid over it covered the header (AK#1757 unit 6); it stays only to name
+  // a refused cell, which has no column.
+  const table = p.chartFrequency
+    ? p.chartFrequency.view === "Table"
+    : (p.zparam ?? DEFAULT_ZPARAM).view === "Table";
+  if (table && refusedCount(p.chartLegend) === 0) return chart;
   return (
     <div className="analysis-chart-cells" style={{ width: p.size, height: p.size }}>
       {chart}
