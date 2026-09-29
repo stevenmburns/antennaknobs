@@ -497,21 +497,12 @@ export function ZParamChart({
       box(lines, hx, MARGIN.t + 24, PC.labelStrong, hx > MARGIN.l + pw / 2);
     }
     // Z∞ readout, top of the plot (density), with how it was reached.
-    if (zinfHead != null && zinfFull != null) {
+    // On a phone the line is DOM (below), so its ⓘ can follow the text
+    // instead of floating over a painted string (Steve: the ⓘ sat on Z∞).
+    if (zinfFull != null && !isMobile) {
       ctx.font = "10px ui-monospace, monospace";
       ctx.fillStyle = PC.labelBright;
-      let txt = zinfFull;
-      let left: number | null = null;
-      if (isMobile) {
-        // Between the "R Ω" and "X Ω" titles, past the ⓘ when there is one;
-        // wider than that, the value alone (the panel has the rest).
-        const from = zinfInfo ? 40 : 30;
-        const room = size - from - 30;
-        txt = zinfInfo ? zinfHead : zinfFull;
-        if (ctx.measureText(txt).width > room) txt = zinfHead.split(" · ")[0];
-        left = from;
-      }
-      ctx.fillText(txt, left ?? MARGIN.l + (pw - ctx.measureText(txt).width) / 2, 12);
+      ctx.fillText(zinfFull, MARGIN.l + (pw - ctx.measureText(zinfFull).width) / 2, 12);
     }
     if (status) {
       ctx.font = "10px ui-monospace, monospace";
@@ -523,7 +514,7 @@ export function ZParamChart({
     // choices below; domKey stands in for the domains as a string, so an
     // unchanged range does not redraw.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, param, label, unit, size, theme, isMobile, zinfHead, zinfInfo, dotR, domKey, currentValue, liveR, liveX, shownHover, status, callouts, curves]);
+  }, [data, param, label, unit, size, theme, isMobile, zinfFull, dotR, domKey, currentValue, liveR, liveX, shownHover, status, callouts, curves]);
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (n === 0) return;
@@ -587,16 +578,21 @@ export function ZParamChart({
         onPointerDown={onPointerMove}
         onPointerLeave={() => setHover(null)}
       />
-      {zinfInfo && (
-        <button
-          type="button"
-          className="zinf-info-btn"
-          aria-expanded={zinfOpen}
-          aria-label={zinfOpen ? "Hide the Z∞ note" : "Show the Z∞ note"}
-          onClick={() => setZinfOpen((o) => !o)}
-        >
-          ⓘ
-        </button>
+      {isMobile && zinfHead != null && (
+        <div className="zinf-line" data-zinf-dom="1">
+          <span className="zinf-text">{zinfInfo ? zinfHead : zinfFull}</span>
+          {zinfInfo && (
+            <button
+              type="button"
+              className="zinf-info-btn"
+              aria-expanded={zinfOpen}
+              aria-label={zinfOpen ? "Hide the Z∞ note" : "Show the Z∞ note"}
+              onClick={() => setZinfOpen((o) => !o)}
+            >
+              ⓘ
+            </button>
+          )}
+        </div>
       )}
       {zinfInfo && zinfOpen && (
         <div className="chart-note-pop zinf-pop" role="note" aria-label="Z∞ note">
