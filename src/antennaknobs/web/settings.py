@@ -1,9 +1,9 @@
 """Startup settings for the web workbench (AK#1492).
 
 A local ``settings.toml`` says where the workbench STARTS: the Settings-menu
-switches, the Antenna view's orientation, the ground, and the A/B/C solver
-slots. It is read on every ``/capabilities`` request, so an edit applies at
-the next page load, and it is validated here, once, against the catalogs the
+switches, the Antenna view's orientation, the ground slots, and the A/B/C
+solver slots. It is read on every ``/capabilities`` request, so an edit
+applies at the next page load, and it is validated here, once, against the catalogs the
 UI itself renders from: the solver roster and its knob specs, and the soil
 and terrain presets. A problem
 never stops the server. It comes back as a sentence beside the values that did
@@ -21,6 +21,9 @@ apply, and the entry it names keeps its built-in default.
     method = "sommerfeld"    # fast | sommerfeld | mininec
     soil = "average"         # a soil preset name, or eps_r = ... and sigma = ...
     terrain_preset = "levee"
+
+    [grounds.3]              # ground slots (AK#1794); [ground] is slot 1
+    method = "fast"
 
     [slots.A]
     backend = "bspline"
@@ -43,7 +46,7 @@ import shutil
 import tempfile
 import tomllib
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from ..settings_file import SETTINGS_ENV, settings_path
@@ -88,8 +91,22 @@ ANTENNA_VIEW_BUILTIN: dict = {"orientation": "auto"}
 GROUND_TYPES = ("finite", "pec", "terrain")
 GROUND_METHODS = ("fast", "sommerfeld", "mininec")
 SLOTS = ("A", "B", "C")
+# The stock ground slots (AK#1794), the twin of the A/B/C solver slots: each
+# row is a [grounds.N] table applied over GROUND_BUILTIN, so it goes through
+# the same validation as a file's. Ids are the slot numbers; a file's own
+# [grounds.N] tables can change these and add slots past the last one.
+#   1: the session default (GROUND_BUILTIN, or the file's [ground]); the page
+#      seeds it from a design's own ground (GE/GN) on load.
+#   2: free space.
+#   3: Sommerfeld over average soil, by preset name so it stays average if the
+#      served soil default ever moves.
+STOCK_GROUNDS: tuple[tuple[str, dict], ...] = (
+    ("1", {}),
+    ("2", {"enabled": False}),
+    ("3", {"method": "sommerfeld", "soil": "average"}),
+)
 
-_TABLES = ("switches", "antenna_view", "ground", "slots")
+_TABLES = ("switches", "antenna_view", "ground", "grounds", "slots")
 # Tables only a person editing the file sets (antennaknobs.settings_file): a
 # path the server executes must never be settable by a web request.
 _FILE_TABLES = ("engines", "capture")
@@ -125,6 +142,8 @@ class Catalog:
     terrain_default: str | None  # the terrain panel's first preset
     knob_defaults: Mapping[str, object]  # knob -> its served default
     n_per_wire_defaults: Mapping[str, int]  # backend name -> default_n_per_wire
+    # The resolved stock ground slots, each {"id": ..., **ground} (AK#1794).
+    stock_grounds: tuple[dict, ...] = ()
 
 
 def catalog(*, have_pynec: bool, have_nec5: bool, have_nec2: bool) -> Catalog:
@@ -148,7 +167,7 @@ def catalog(*, have_pynec: bool, have_nec5: bool, have_nec2: bool) -> Catalog:
     specs = model_option_specs()
     terrains = [p["name"] for p in terrain_presets_schema()]
     ranges = soil_ranges_schema()
-    return Catalog(
+    cat = Catalog(
         backends={b["name"]: tuple(b.get("model_kwargs") or ()) for b in roster},
         aliases=backend_aliases(),
         option_keys=frozenset(specs),
@@ -167,6 +186,23 @@ def catalog(*, have_pynec: bool, have_nec5: bool, have_nec2: bool) -> Catalog:
         knob_defaults={key: spec["default"] for key, spec in specs.items()},
         n_per_wire_defaults={b["name"]: b["default_n_per_wire"] for b in roster},
     )
+    return replace(cat, stock_grounds=stock_grounds(cat))
+
+
+def stock_grounds(cat: Catalog) -> tuple[dict, ...]:
+    """STOCK_GROUNDS resolved against this catalog. A stock row the catalog
+    cannot resolve (a renamed soil preset) is logged and keeps what did
+    resolve; tests/test_ground_slots_1794.py holds the table clean."""
+    problems: list[str] = []
+    out = []
+    for sid, table in STOCK_GROUNDS:
+        ground, _ = _resolve_ground(
+            table, GROUND_BUILTIN, f"stock [grounds.{sid}]", cat, problems
+        )
+        out.append({"id": sid, **ground})
+    for problem in problems:
+        _logger.warning("settings: %s", problem)
+    return tuple(out)
 
 
 def _is_number(v) -> bool:
@@ -192,9 +228,16 @@ def resolve(data, cat: Catalog, *, from_file: bool = True) -> tuple[dict, list[s
 
     if not isinstance(data, Mapping):
         return _resolved(
-            switches, switches_set, ground, ground_set, slots, antenna_view
+            switches,
+            switches_set,
+            ground,
+            ground_set,
+            slots,
+            antenna_view,
+            grounds=[dict(g) for g in cat.stock_grounds],
         ), [
-            "settings must be a table of [switches], [antenna_view], [ground] and [slots]"
+            "settings must be a table of [switches], [antenna_view], [ground], "
+            "[grounds] and [slots]"
         ]
     allowed = _TABLES + _FILE_TABLES if from_file else _TABLES
     for key in data:
@@ -241,71 +284,13 @@ def resolve(data, cat: Catalog, *, from_file: bool = True) -> tuple[dict, list[s
     if not isinstance(table, Mapping):
         problems.append("[ground] must be a table")
         table = {}
-    for key in table:
-        if key not in _GROUND_KEYS:
-            problems.append(
-                f"[ground] {key}: not a ground setting (known: {_known(_GROUND_KEYS)})"
-            )
-    if "enabled" in table:
-        if isinstance(table["enabled"], bool):
-            ground["enabled"] = table["enabled"]
-            ground_set.append("enabled")
-        else:
-            problems.append(
-                f"[ground] enabled = {table['enabled']!r}: must be true or false"
-            )
-    for key, allowed in (("type", GROUND_TYPES), ("method", GROUND_METHODS)):
-        if key in table:
-            if table[key] in allowed:
-                ground[key] = table[key]
-                ground_set.append(key)
-            else:
-                problems.append(
-                    f"[ground] {key} = {table[key]!r}: must be one of {_known(allowed)}"
-                )
-    has_pair = "eps_r" in table or "sigma" in table
-    if "soil" in table:
-        if has_pair:
-            problems.append(
-                "[ground] soil and eps_r/sigma both given: the soil preset is used"
-            )
-        name = table["soil"]
-        if name in cat.soils:
-            eps, sig = cat.soils[name]
-            ground["soil"] = {"eps_r": eps, "sigma": sig}
-            ground_set.append("soil")
-        else:
-            problems.append(
-                f"[ground] soil = {name!r}: not a soil preset (known: {_known(cat.soils)})"
-            )
-    elif has_pair:
-        eps, sig = table.get("eps_r"), table.get("sigma")
-        lo_e, hi_e = cat.eps_r_range
-        lo_s, hi_s = cat.sigma_range
-        if eps is None or sig is None:
-            problems.append(
-                "[ground] eps_r and sigma go together: give both, or neither"
-            )
-        elif not (_is_number(eps) and lo_e <= eps <= hi_e):
-            problems.append(
-                f"[ground] eps_r = {eps!r}: must be a number from {lo_e:g} to {hi_e:g}"
-            )
-        elif not (_is_number(sig) and lo_s <= sig <= hi_s):
-            problems.append(
-                f"[ground] sigma = {sig!r}: must be a number from {lo_s:g} to {hi_s:g} S/m"
-            )
-        else:
-            ground["soil"] = {"eps_r": float(eps), "sigma": float(sig)}
-            ground_set.append("soil")
-    if "terrain_preset" in table:
-        if table["terrain_preset"] in cat.terrains:
-            ground["terrain_preset"] = table["terrain_preset"]
-            ground_set.append("terrain_preset")
-        else:
-            problems.append(
-                f"[ground] terrain_preset = {table['terrain_preset']!r}: not a terrain preset "
-                f"(known: {_known(sorted(cat.terrains))})"
-            )
+    ground, ground_set = _resolve_ground(
+        table, GROUND_BUILTIN, "[ground]", cat, problems
+    )
+    grounds, spelling, ground_set = _resolve_grounds(
+        data, table, ground, ground_set, cat, problems
+    )
+    ground = {k: v for k, v in grounds[0].items() if k != "id"}
 
     table = data.get("slots", {})
     if not isinstance(table, Mapping):
@@ -345,9 +330,154 @@ def resolve(data, cat: Catalog, *, from_file: bool = True) -> tuple[dict, list[s
             antenna_view,
             engines,
             capture,
+            grounds=grounds,
+            ground_spelling=spelling,
         ),
         problems,
     )
+
+
+def _resolve_ground(table, base, where, cat: Catalog, problems) -> tuple[dict, list]:
+    """One ground (``[ground]`` or a ``[grounds.N]`` table) applied over
+    ``base``. Returns the ground and the keys the table set."""
+    ground = dict(base)
+    ground_set: list[str] = []
+    for key in table:
+        if key not in _GROUND_KEYS:
+            problems.append(
+                f"{where} {key}: not a ground setting (known: {_known(_GROUND_KEYS)})"
+            )
+    if "enabled" in table:
+        if isinstance(table["enabled"], bool):
+            ground["enabled"] = table["enabled"]
+            ground_set.append("enabled")
+        else:
+            problems.append(
+                f"{where} enabled = {table['enabled']!r}: must be true or false"
+            )
+    for key, allowed in (("type", GROUND_TYPES), ("method", GROUND_METHODS)):
+        if key in table:
+            if table[key] in allowed:
+                ground[key] = table[key]
+                ground_set.append(key)
+            else:
+                problems.append(
+                    f"{where} {key} = {table[key]!r}: must be one of {_known(allowed)}"
+                )
+    has_pair = "eps_r" in table or "sigma" in table
+    if "soil" in table:
+        if has_pair:
+            problems.append(
+                f"{where} soil and eps_r/sigma both given: the soil preset is used"
+            )
+        name = table["soil"]
+        if name in cat.soils:
+            eps, sig = cat.soils[name]
+            ground["soil"] = {"eps_r": eps, "sigma": sig}
+            ground_set.append("soil")
+        else:
+            problems.append(
+                f"{where} soil = {name!r}: not a soil preset (known: {_known(cat.soils)})"
+            )
+    elif has_pair:
+        eps, sig = table.get("eps_r"), table.get("sigma")
+        lo_e, hi_e = cat.eps_r_range
+        lo_s, hi_s = cat.sigma_range
+        if eps is None or sig is None:
+            problems.append(
+                f"{where} eps_r and sigma go together: give both, or neither"
+            )
+        elif not (_is_number(eps) and lo_e <= eps <= hi_e):
+            problems.append(
+                f"{where} eps_r = {eps!r}: must be a number from {lo_e:g} to {hi_e:g}"
+            )
+        elif not (_is_number(sig) and lo_s <= sig <= hi_s):
+            problems.append(
+                f"{where} sigma = {sig!r}: must be a number from {lo_s:g} to {hi_s:g} S/m"
+            )
+        else:
+            ground["soil"] = {"eps_r": float(eps), "sigma": float(sig)}
+            ground_set.append("soil")
+    if "terrain_preset" in table:
+        if table["terrain_preset"] in cat.terrains:
+            ground["terrain_preset"] = table["terrain_preset"]
+            ground_set.append("terrain_preset")
+        else:
+            problems.append(
+                f"{where} terrain_preset = {table['terrain_preset']!r}: not a terrain preset "
+                f"(known: {_known(sorted(cat.terrains))})"
+            )
+    return ground, ground_set
+
+
+def _ground_id(key) -> int | None:
+    """A ``[grounds.N]`` key as its slot number, or None: a whole number from
+    1 written without a sign or leading zeros, so ids and keys are one fact."""
+    if isinstance(key, str) and key.isdigit() and key[0] != "0":
+        return int(key)
+    return None
+
+
+def _resolve_grounds(data, legacy, legacy_ground, legacy_set, cat: Catalog, problems):
+    """The ground slots (AK#1794): the stock set with the file's
+    ``[grounds.N]`` tables applied, as a list ordered by id. Slot 1 is also
+    what the older ``[ground]`` table means; with both, ``[grounds.1]`` is
+    used and the clash is named. Returns the slots, which table spelled
+    slot 1 (``"grounds"`` or ``"ground"``), so a save writes it back the same
+    way it came, and the keys slot 1's table set."""
+    table = data.get("grounds", {})
+    if not isinstance(table, Mapping):
+        problems.append("[grounds] must be a table of [grounds.1], [grounds.2], ...")
+        table = {}
+    stock = {g["id"]: g for g in cat.stock_grounds}
+    wanted: dict[int, Mapping] = {}
+    for key, entry in table.items():
+        n = _ground_id(key)
+        if n is None:
+            problems.append(
+                f"[grounds.{key}]: not a ground slot (slots are numbered 1, 2, 3, ...)"
+            )
+        elif not isinstance(entry, Mapping):
+            problems.append(f"[grounds.{key}] must be a table")
+        else:
+            wanted[n] = entry
+    # Ids run 1..N without a gap: the tab strip numbers them, and a gap would
+    # be a slot nobody can see the settings of. Past the first gap nothing
+    # applies, and each table dropped there is named.
+    ids = {1} | {int(k) for k in stock} | set(wanted)
+    top = 0
+    while top + 1 in ids:
+        top += 1
+    for n in sorted(i for i in wanted if i > top):
+        problems.append(
+            f"[grounds.{n}]: ground slots are numbered without gaps, and there is "
+            f"no slot {top + 1}; this table is not used"
+        )
+    grounds = []
+    spelling = "ground"
+    slot1_set = legacy_set
+    for n in range(1, top + 1):
+        sid = str(n)
+        base = {k: v for k, v in stock.get(sid, {}).items() if k != "id"}
+        if n == 1 and 1 not in wanted:
+            ground = legacy_ground
+        elif n in wanted:
+            if n == 1:
+                spelling = "grounds"
+                if legacy:
+                    problems.append(
+                        "[ground] and [grounds.1] both given: [grounds.1] is used "
+                        "([ground] is the older spelling of ground slot 1)"
+                    )
+            ground, keys = _resolve_ground(
+                wanted[n], base or GROUND_BUILTIN, f"[grounds.{sid}]", cat, problems
+            )
+            if n == 1:
+                slot1_set = keys
+        else:
+            ground = base
+        grounds.append({"id": sid, **ground})
+    return grounds, spelling, slot1_set
 
 
 def _paths(data, table_name, keys, what, problems) -> dict:
@@ -444,13 +574,21 @@ def _resolved(
     antenna_view=None,
     engines=None,
     capture=None,
+    *,
+    grounds,
+    ground_spelling="ground",
 ) -> dict:
     return {
         "switches": switches,
         "switches_set": switches_set,
         "antenna_view": antenna_view or dict(ANTENNA_VIEW_BUILTIN),
+        # Ground slot 1, as a server before AK#1794 served it.
         "ground": ground,
         "ground_set": ground_set,
+        # Every ground slot, slot 1 first (AK#1794).
+        "grounds": grounds,
+        # Which table spelled slot 1, for the save to write it the same way.
+        "_ground_spelling": ground_spelling,
         "slots": slots,
         "engines": engines or {},
         "capture": capture or {},
@@ -500,8 +638,13 @@ def load(cat: Catalog, *, hosted: bool, path: Path | None = None) -> dict:
         for problem in problems:
             _logger.warning("settings: %s", problem)
         _last_logged = tuple(problems)
-    # The engine and capture paths are the library's, not the page's.
-    resolved = {k: v for k, v in resolved.items() if k not in _FILE_TABLES}
+    # The engine and capture paths are the library's, not the page's, and a
+    # leading underscore marks what only a save reads.
+    resolved = {
+        k: v
+        for k, v in resolved.items()
+        if k not in _FILE_TABLES and not k.startswith("_")
+    }
     return {
         "path": str(p) if p else None,
         "exists": exists,
@@ -545,23 +688,20 @@ def _differences(resolved: dict, cat: Catalog) -> dict:
         for key, value in resolved["antenna_view"].items()
         if value != ANTENNA_VIEW_BUILTIN[key]
     }
-    given = resolved["ground"]
-    ground = {
-        key: given[key]
-        for key in ("enabled", "type", "method")
-        if given[key] != GROUND_BUILTIN[key]
-    }
-    if given.get("soil"):
-        pair = (float(given["soil"]["eps_r"]), float(given["soil"]["sigma"]))
-        if pair != cat.soil_default:
-            # A preset by its name, so a corrected preset reaches the file.
-            name = next((n for n, p in cat.soils.items() if p == pair), None)
-            if name:
-                ground["soil"] = name
-            else:
-                ground["eps_r"], ground["sigma"] = pair
-    if given.get("terrain_preset") not in (None, cat.terrain_default):
-        ground["terrain_preset"] = given["terrain_preset"]
+    # Each ground slot against the slot it starts as (AK#1794). A stock slot
+    # left as it was writes nothing; a slot past the stock set is written even
+    # when empty, since the table's presence is what makes the slot exist.
+    stock_grounds = {g["id"]: g for g in cat.stock_grounds}
+    grounds: dict[str, dict] = {}
+    for given in resolved.get("grounds") or [{"id": "1", **resolved["ground"]}]:
+        sid = given["id"]
+        start = stock_grounds.get(sid)
+        diff = _ground_differences(given, start or GROUND_BUILTIN, cat)
+        if diff or start is None:
+            grounds[sid] = diff
+    ground = {}
+    if resolved.get("_ground_spelling", "ground") == "ground":
+        ground = grounds.pop("1", {})
     stock = {s["slot"]: s for s in cat.stock_slots}
     slots = {}
     for slot in SLOTS:
@@ -573,8 +713,38 @@ def _differences(resolved: dict, cat: Catalog) -> dict:
         "switches": switches,
         "antenna_view": antenna_view,
         "ground": ground,
+        "grounds": grounds,
         "slots": slots,
     }
+
+
+def _ground_differences(given: Mapping, start: Mapping, cat: Catalog) -> dict:
+    """A ground's entries that differ from the ground it starts as. A soil or
+    terrain preset left at None starts at the served soil / the terrain
+    panel's first preset, as the page seeds it."""
+    out = {
+        key: given[key]
+        for key in ("enabled", "type", "method")
+        if given[key] != start[key]
+    }
+
+    def pair(g):
+        soil = g.get("soil")
+        return (
+            (float(soil["eps_r"]), float(soil["sigma"])) if soil else cat.soil_default
+        )
+
+    if pair(given) != pair(start):
+        # A preset by its name, so a corrected preset reaches the file.
+        name = next((n for n, p in cat.soils.items() if p == pair(given)), None)
+        if name:
+            out["soil"] = name
+        else:
+            out["eps_r"], out["sigma"] = pair(given)
+    terrain = given.get("terrain_preset") or cat.terrain_default
+    if terrain != (start.get("terrain_preset") or cat.terrain_default):
+        out["terrain_preset"] = terrain
+    return out
 
 
 def _slot_differences(entry: Mapping, seed: Mapping | None, cat: Catalog) -> dict:
@@ -626,6 +796,12 @@ def dump(settings: dict, kept: Mapping | None = None) -> str:
             lines += [
                 f"{k} = {_toml_value(v)}" for k, v in settings[table_name].items()
             ]
+    # Written even when empty: a slot past the stock set exists by its table.
+    for sid, entry in sorted(
+        (settings.get("grounds") or {}).items(), key=lambda kv: int(kv[0])
+    ):
+        lines += ["", f"[grounds.{sid}]"]
+        lines += [f"{k} = {_toml_value(v)}" for k, v in entry.items()]
     for slot, entry in settings["slots"].items():
         lines += ["", f"[slots.{slot}]"]
         lines += [

@@ -75,6 +75,20 @@ export const BUILTIN_GROUND: GroundDefaults = {
   terrain_preset: null,
 };
 
+// A ground slot's starting ground (AK#1794): the twin of an A/B/C solver
+// slot. Ids are the slot numbers as strings ("1", "2", ...), the keys of the
+// file's [grounds.N] tables, and the list is however long the server says.
+export type GroundSlotDefaults = GroundDefaults & { id: string };
+
+// The stock set, for a payload without `grounds`: the server's STOCK_GROUNDS
+// (antennaknobs/web/settings.py), pinned by tests/test_ground_slots_1794.py.
+// Slot 3's soil is null, the served default, which is the stock's "average".
+export const BUILTIN_GROUND_SLOTS: GroundSlotDefaults[] = [
+  { id: "1", ...BUILTIN_GROUND },
+  { id: "2", ...BUILTIN_GROUND, enabled: false },
+  { id: "3", ...BUILTIN_GROUND, method: "sommerfeld" },
+];
+
 export type UiDefaults = {
   /** The settings file's path, or null on the hosted instance. */
   path: string | null;
@@ -86,7 +100,10 @@ export type UiDefaults = {
   switchesSet: SwitchKey[];
   /** The Antenna view's orientation on a design load (AK#1737). */
   orientation: Orientation;
+  /** Ground slot 1, as a server before AK#1794 served it. */
   ground: GroundDefaults;
+  /** Every ground slot, slot 1 first (AK#1794). Slot 1 is `ground`. */
+  grounds: GroundSlotDefaults[];
   problems: string[];
 };
 
@@ -98,6 +115,7 @@ export const BUILTIN_UI_DEFAULTS: UiDefaults = {
   switchesSet: [],
   orientation: BUILTIN_ORIENTATION,
   ground: BUILTIN_GROUND,
+  grounds: BUILTIN_GROUND_SLOTS,
   problems: [],
 };
 
@@ -107,6 +125,28 @@ const METHODS: FiniteGroundMethod[] = ["fast", "sommerfeld", "mininec"];
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function parseGround(raw: unknown): GroundDefaults {
+  const g = isRecord(raw) ? raw : {};
+  const soil =
+    isRecord(g.soil) &&
+    typeof g.soil.eps_r === "number" &&
+    typeof g.soil.sigma === "number"
+      ? { eps_r: g.soil.eps_r, sigma: g.soil.sigma }
+      : null;
+  return {
+    enabled: typeof g.enabled === "boolean" ? g.enabled : BUILTIN_GROUND.enabled,
+    type: GROUND_TYPES.includes(g.type as GroundType)
+      ? (g.type as GroundType)
+      : BUILTIN_GROUND.type,
+    method: METHODS.includes(g.method as FiniteGroundMethod)
+      ? (g.method as FiniteGroundMethod)
+      : BUILTIN_GROUND.method,
+    soil,
+    terrain_preset:
+      typeof g.terrain_preset === "string" ? g.terrain_preset : null,
+  };
 }
 
 // Tolerant by design: the server has already validated the file, so anything
@@ -128,25 +168,18 @@ export function parseUiDefaults(raw: unknown): UiDefaults {
   const orientation = ORIENTATIONS.includes(av.orientation as Orientation)
     ? (av.orientation as Orientation)
     : BUILTIN_ORIENTATION;
-  const g = isRecord(raw.ground) ? raw.ground : {};
-  const soil =
-    isRecord(g.soil) &&
-    typeof g.soil.eps_r === "number" &&
-    typeof g.soil.sigma === "number"
-      ? { eps_r: g.soil.eps_r, sigma: g.soil.sigma }
-      : null;
-  const ground: GroundDefaults = {
-    enabled: typeof g.enabled === "boolean" ? g.enabled : BUILTIN_GROUND.enabled,
-    type: GROUND_TYPES.includes(g.type as GroundType)
-      ? (g.type as GroundType)
-      : BUILTIN_GROUND.type,
-    method: METHODS.includes(g.method as FiniteGroundMethod)
-      ? (g.method as FiniteGroundMethod)
-      : BUILTIN_GROUND.method,
-    soil,
-    terrain_preset:
-      typeof g.terrain_preset === "string" ? g.terrain_preset : null,
-  };
+  const ground = parseGround(raw.ground);
+  // A server before AK#1794 serves `ground` alone: it is slot 1, and the
+  // other slots are the stock set.
+  const served = Array.isArray(raw.grounds)
+    ? raw.grounds.filter(
+        (g): g is Record<string, unknown> => isRecord(g) && typeof g.id === "string",
+      )
+    : [];
+  const grounds: GroundSlotDefaults[] =
+    served.length > 0
+      ? served.map((g) => ({ id: g.id as string, ...parseGround(g) }))
+      : [{ ...ground, id: BUILTIN_GROUND_SLOTS[0].id }, ...BUILTIN_GROUND_SLOTS.slice(1)];
   return {
     path: typeof raw.path === "string" ? raw.path : null,
     exists: raw.exists === true,
@@ -155,23 +188,30 @@ export function parseUiDefaults(raw: unknown): UiDefaults {
     switchesSet: set,
     orientation,
     ground,
+    grounds,
     problems: Array.isArray(raw.problems)
       ? raw.problems.filter((p): p is string => typeof p === "string")
       : [],
   };
 }
 
+export type GroundSaveEntry = {
+  enabled: boolean;
+  type: GroundType;
+  method: FiniteGroundMethod;
+  eps_r?: number;
+  sigma?: number;
+  terrain_preset?: string;
+};
+
 export type SettingsSaveBody = {
   switches: Record<SwitchKey, boolean>;
   antenna_view: { orientation: Orientation };
-  ground: {
-    enabled: boolean;
-    type: GroundType;
-    method: FiniteGroundMethod;
-    eps_r?: number;
-    sigma?: number;
-    terrain_preset?: string;
-  };
+  /** The older spelling of ground slot 1; the page posts `grounds`. The
+   *  server refuses a body carrying both. */
+  ground?: GroundSaveEntry;
+  /** Every ground slot by id (AK#1794), written as [grounds.N]. */
+  grounds?: Record<string, GroundSaveEntry>;
   slots: Record<
     Slot,
     { backend: string; n_per_wire: number; model: Record<string, unknown> }
