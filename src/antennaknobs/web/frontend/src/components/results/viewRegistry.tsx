@@ -318,7 +318,10 @@ function analysisChart(p: ViewRenderProps): ReactElement {
       // chart does; else the session's.
       z0={p.liveZ?.z0_ohms ?? z.z0}
       {...(z.phase ? { phase: z.phase } : {})}
-      {...(z.callouts !== undefined ? { callouts: z.callouts } : {})}
+      // The end-value callouts belong to the stage (Steve, laptop review of
+      // AK#1757 unit 4): a thumbnail is a button, and its boxes only clutter
+      // it. The stage is the call site that passes the axis handlers.
+      callouts={p.onZparamAxisChange ? (z.callouts ?? true) : false}
       {...(z.onCalloutsChange ? { onCalloutsChange: z.onCalloutsChange } : {})}
       {...(p.onZparamXLogChange ? { onXLogChange: p.onZparamXLogChange } : {})}
       {...(p.onZparamAxisChange ? { onAxisChange: p.onZparamAxisChange } : {})}
