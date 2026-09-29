@@ -439,6 +439,7 @@ def test_e4_is_served_as_the_decks_own_range_and_the_views_scale():
         "range": fr.design_range(get_builder(f"@{SSN}")()._params).as_spec(),
         "level": "file",
         "points": None,
+        "freqs": None,
         "views": ["Swr"],
         "swr": {"scale": "auto", "threshold": 2.0},
         "engines": None,
@@ -463,14 +464,16 @@ def test_a_band_policy_is_the_sessions_to_place(design, level):
     assert w["runs"] is True and w["range"] is None and w["level"] == level
 
 
-def test_a_view_the_workbench_lacks_is_left_out_by_name(monkeypatch):
+def test_every_view_of_a_frequency_sweep_is_served_in_its_order(monkeypatch):
+    # R/X against frequency and the Table draw since step 5 unit 5; nothing
+    # is left out.
     a = an.band_swr(
         name="e5ish",
         sweep=an.Sweep(an.FREQUENCY, 14.0, 14.35, points=8),
         views=(an.Swr(scale="rho"), an.Rx(), an.Table(), an.Smith()),
     )
     w = _workbench("dipoles.invvee", [a], monkeypatch)["e5ish"]
-    assert w["views"] == ["Swr", "Smith"]
+    assert w["views"] == ["Swr", "Rx", "Table", "Smith"]
     assert w["swr"] == {"scale": "rho", "threshold": 2.0}
     assert w["range"] == {
         "lo": 14.0,
@@ -480,29 +483,33 @@ def test_a_view_the_workbench_lacks_is_left_out_by_name(monkeypatch):
         "points": 8,
     }
     assert w["level"] == "analysis" and w["points"] == 8
-    assert "left out: the Rx view of a frequency sweep" in w["note"]
-    assert (
-        "left out: the Table view: not in the workbench yet (sweep-framework step 5)"
-        in w["note"]
-    )
+    assert w["freqs"] is None
+    assert w["note"] is None
 
 
-def test_no_drawable_view_or_explicit_frequencies_are_refused(monkeypatch):
+def test_rx_only_table_only_and_explicit_frequencies_run(monkeypatch):
+    # Step 5 unit 5 lifted all three refusals; a frequency analysis whose
+    # views the chart draws none of (a map view on one sweep) still refuses.
     only_rx = an.band_swr(name="rx", views=(an.Rx(),))
+    only_table = an.band_swr(name="table", views=(an.Table(),))
     listed = an.band_swr(
-        name="listed", sweep=an.Sweep(an.FREQUENCY, values=(14.0, 14.2))
+        name="listed", sweep=an.Sweep(an.FREQUENCY, values=(14.2, 14.0, 14.3))
     )
-    got = _workbench("dipoles.invvee", [only_rx, listed], monkeypatch)
-    assert got["rx"]["runs"] is False
-    assert (
-        "the Rx view of a frequency sweep: not in the workbench yet (sweep-framework step 5)"
-        in got["rx"]["why"]
-    )
-    assert got["listed"]["runs"] is False
-    assert (
-        "explicit frequencies (give the Sweep lo, hi and points): not in the workbench yet (sweep-framework step 5)"
-        in got["listed"]["why"]
-    )
+    got = _workbench("dipoles.invvee", [only_rx, only_table, listed], monkeypatch)
+    assert got["rx"]["runs"] is True and got["rx"]["views"] == ["Rx"]
+    assert got["table"]["runs"] is True and got["table"]["views"] == ["Table"]
+    w = got["listed"]
+    assert w["runs"] is True
+    # Exactly the values, in the analysis's order; the range spans them.
+    assert w["freqs"] == [14.2, 14.0, 14.3]
+    assert w["range"] == {
+        "lo": 14.0,
+        "hi": 14.3,
+        "spacing": "lin",
+        "source": "design",
+        "points": 3,
+    }
+    assert w["level"] == "analysis" and w["points"] is None
 
 
 def test_rung_3_a_lock_off_every_band_keeps_its_own_anchor():
