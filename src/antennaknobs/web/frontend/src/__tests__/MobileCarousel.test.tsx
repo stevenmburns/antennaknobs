@@ -144,9 +144,9 @@ const openSheet = (user: ReturnType<typeof userEvent.setup>) =>
 const sheetRow = (id: View) => screen.getByRole("menuitem", { name: label(id) });
 const dot = (name: string) => screen.getByRole("button", { name }) as HTMLButtonElement;
 
-const TWO: View[] = ["smith", "antenna"];
-const FOUR: View[] = ["smith", "antenna", "vswr", "azimuth"];
-const SIX: View[] = ["smith", "antenna", "vswr", "azimuth", "schematic", "gamma"];
+const TWO: View[] = ["zparam", "antenna"];
+const FOUR: View[] = ["zparam", "antenna", "combined", "azimuth"];
+const SIX: View[] = ["zparam", "antenna", "combined", "azimuth", "schematic", "files"];
 
 // --- 1. Pages and dots ------------------------------------------------------
 
@@ -167,7 +167,7 @@ describe("the carousel's pages", () => {
 
   it("gives an unpinned view no page at all", () => {
     seed(TWO);
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     for (const id of ROSTER.filter((v) => !TWO.includes(v))) {
       expect(screen.queryByRole("button", { name: `Show ${label(id)}` })).toBeNull();
     }
@@ -209,9 +209,9 @@ describe("a dot tap", () => {
   it("pages to that pin and scrolls there", async () => {
     const user = userEvent.setup();
     seed(FOUR);
-    render(<Mobile initialView="smith" />);
-    await user.click(screen.getByRole("button", { name: `Show ${label("vswr")}` }));
-    expect(probe("view")).toBe("vswr");
+    render(<Mobile initialView="zparam" />);
+    await user.click(screen.getByRole("button", { name: `Show ${label("combined")}` }));
+    expect(probe("view")).toBe("combined");
     expect(probe("index")).toBe("2");
     expect(scrolls.at(-1)).toBe(2 * W);
   });
@@ -219,7 +219,7 @@ describe("a dot tap", () => {
   it("reaches Info without moving `view` off the last chart", async () => {
     const user = userEvent.setup();
     seed(FOUR);
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     await user.click(screen.getByRole("button", { name: `Show ${label("azimuth")}` }));
     await user.click(screen.getByRole("button", { name: "Show Info" }));
     expect(probe("index")).toBe("4");
@@ -234,7 +234,7 @@ describe("the ⋯ affordance", () => {
   it("opens the whole roster as a sheet, in registry order", async () => {
     const user = userEvent.setup();
     seed(TWO);
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     expect(screen.queryByRole("menu")).toBeNull();
     await openSheet(user);
     expect(screen.getByRole("menu")).toBeTruthy();
@@ -246,7 +246,7 @@ describe("the ⋯ affordance", () => {
   it("closes on a backdrop click", async () => {
     const user = userEvent.setup();
     seed(TWO);
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     await openSheet(user);
     // document, not container: the sheet portals to <body> (a transformed
     // ancestor — .mobile-dots — would otherwise hijack its fixed
@@ -258,7 +258,7 @@ describe("the ⋯ affordance", () => {
   it("closes on the sheet's own ✕ — dismissal must not depend on backdrop real estate", async () => {
     const user = userEvent.setup();
     seed(TWO);
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     await openSheet(user);
     await user.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("menu")).toBeNull();
@@ -267,7 +267,7 @@ describe("the ⋯ affordance", () => {
   it("portals the sheet out of the transformed dots row", async () => {
     const user = userEvent.setup();
     seed(TWO);
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     await openSheet(user);
     // The regression this pins: .mobile-dots centers itself with a CSS
     // transform, and a transformed ancestor is the containing block for
@@ -286,45 +286,45 @@ describe("a sheet row tap", () => {
   it("pins the view — it does NOT peek it — and appends its page", async () => {
     const user = userEvent.setup();
     seed(TWO);
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     await swipeTo(1);
     scrolls = [];
     await openSheet(user);
     await user.click(sheetRow("schematic"));
-    expect(probe("pages")).toBe("smith,antenna,schematic,info");
+    expect(probe("pages")).toBe("zparam,antenna,schematic,info");
     // The page under the thumb neither moves nor is scrolled away from.
     expect(probe("view")).toBe("antenna");
     expect(probe("index")).toBe("1");
     expect(scrolls).toEqual([]);
     // Curating is a run of gestures: the sheet stays up.
     expect(screen.getByRole("menu")).toBeTruthy();
-    expect(dots()).toEqual([label("smith"), label("antenna"), label("schematic"), "Info"]);
+    expect(dots()).toEqual([label("zparam"), label("antenna"), label("schematic"), "Info"]);
   });
 
   // Hard case 2.
   it("unpins the page you are on, landing on its successor with the sheet still open", async () => {
     const user = userEvent.setup();
     seed(FOUR);
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     await swipeTo(1); // antenna
     await openSheet(user);
     await user.click(sheetRow("antenna"));
-    expect(probe("pages")).toBe("smith,vswr,azimuth,info");
+    expect(probe("pages")).toBe("zparam,combined,azimuth,info");
     // Same slot, new occupant — the page that slid into it.
     expect(probe("index")).toBe("1");
-    expect(probe("view")).toBe("vswr");
+    expect(probe("view")).toBe("combined");
     expect(screen.getByRole("menu")).toBeTruthy();
   });
 
   it("clamps onto the new last page when the unpinned one was last", async () => {
     const user = userEvent.setup();
     seed(FOUR);
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     await swipeTo(3); // azimuth, the last chart page
     await openSheet(user);
     await user.click(sheetRow("azimuth"));
     expect(probe("index")).toBe("2");
-    expect(probe("view")).toBe("vswr");
+    expect(probe("view")).toBe("combined");
     expect(scrolls.at(-1)).toBe(2 * W);
   });
 
@@ -332,7 +332,7 @@ describe("a sheet row tap", () => {
   it("moves Info under a user parked on it, without unparking them", async () => {
     const user = userEvent.setup();
     seed(TWO);
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     await swipeTo(1); // antenna
     await swipeTo(2); // Info, parked on antenna
     await openSheet(user);
@@ -347,13 +347,13 @@ describe("a sheet row tap", () => {
   it("re-parks `view` when the page Info parked it on is unpinned", async () => {
     const user = userEvent.setup();
     seed(FOUR);
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     await swipeTo(3); // azimuth
     await swipeTo(4); // Info, parked on azimuth
     await openSheet(user);
     await user.click(sheetRow("azimuth"));
     expect(probe("index")).toBe("3"); // Info, one page earlier
-    expect(probe("view")).toBe("vswr"); // the new last chart page
+    expect(probe("view")).toBe("combined"); // the new last chart page
   });
 });
 
@@ -366,18 +366,18 @@ describe("a sheet reorder", () => {
   it("moves a page earlier and the carousel's page order follows", async () => {
     const user = userEvent.setup();
     seed(FOUR);
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     await openSheet(user);
-    await user.click(dot(`Move ${label("vswr")} earlier`));
-    expect(probe("pages")).toBe(["smith", "vswr", "antenna", "azimuth", "info"].join(","));
-    const reordered: View[] = ["smith", "vswr", "antenna", "azimuth"];
+    await user.click(dot(`Move ${label("combined")} earlier`));
+    expect(probe("pages")).toBe(["zparam", "combined", "antenna", "azimuth", "info"].join(","));
+    const reordered: View[] = ["zparam", "combined", "antenna", "azimuth"];
     expect(dots()).toEqual([...reordered.map(label), "Info"]);
   });
 
   it("is absent for an unpinned row", async () => {
     const user = userEvent.setup();
     seed(TWO);
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     await openSheet(user);
     expect(
       screen.queryByRole("button", { name: `Move ${label("schematic")} earlier` }),
@@ -387,7 +387,7 @@ describe("a sheet reorder", () => {
   it("is disabled at the boundaries", async () => {
     const user = userEvent.setup();
     seed(FOUR);
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     await openSheet(user);
     expect(dot(`Move ${label(FOUR[0])} earlier`).disabled).toBe(true);
     expect(dot(`Move ${label(FOUR[FOUR.length - 1])} later`).disabled).toBe(true);
@@ -400,7 +400,7 @@ describe("the sheet's disabled states", () => {
   it(`refuses a ${PIN_CAP + 1}th page, on the row as well as the dot`, async () => {
     const user = userEvent.setup();
     seed(SIX);
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     await openSheet(user);
     const spare = ROSTER.filter((id) => !SIX.includes(id));
     expect(spare.length).toBeGreaterThan(0); // the roster can overrun the cap
@@ -415,14 +415,14 @@ describe("the sheet's disabled states", () => {
 
   it("refuses to drop the last page", async () => {
     const user = userEvent.setup();
-    seed(["gamma"]);
-    render(<Mobile initialView="gamma" />);
+    seed(["files"]);
+    render(<Mobile initialView="files" />);
     await openSheet(user);
-    expect((sheetRow("gamma") as HTMLButtonElement).disabled).toBe(true);
-    expect(sheetRow("gamma").getAttribute("title")).toBe("Keep at least one view pinned");
-    expect(dot(`Unpin ${label("gamma")}`).disabled).toBe(true);
-    await user.click(sheetRow("gamma"));
-    expect(probe("pages")).toBe("gamma,info");
+    expect((sheetRow("files") as HTMLButtonElement).disabled).toBe(true);
+    expect(sheetRow("files").getAttribute("title")).toBe("Keep at least one view pinned");
+    expect(dot(`Unpin ${label("files")}`).disabled).toBe(true);
+    await user.click(sheetRow("files"));
+    expect(probe("pages")).toBe("files,info");
   });
 });
 
@@ -431,12 +431,12 @@ describe("the sheet's disabled states", () => {
 describe("the sheet's NEW badges", () => {
   it("announces unseen views and marks the roster seen on open", async () => {
     const user = userEvent.setup();
-    const unseen: View[] = ["gamma", "vswr"];
+    const unseen: View[] = ["combined", "files"];
     seed(
       TWO,
       ROSTER.filter((id) => !unseen.includes(id)),
     );
-    render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="zparam" />);
     await openSheet(user);
     expect(screen.getAllByText("NEW").map((el) => el.parentElement?.textContent)).toEqual(
       unseen.map((id) => `${label(id)}NEW`),
@@ -460,7 +460,7 @@ describe("a `view` that is not pinned", () => {
     // Stored prefs that do not include the view the session starts on — the
     // carousel would otherwise sit on a page that has no dot.
     render(<Mobile initialView="elevation" />);
-    expect(probe("view")).toBe("smith");
+    expect(probe("view")).toBe("zparam");
     expect(probe("index")).toBe("0");
   });
 
@@ -473,7 +473,7 @@ describe("a `view` that is not pinned", () => {
     await act(async () => {
       rerender(<Mobile isMobile initialView="schematic" />);
     });
-    expect(probe("view")).toBe("smith");
+    expect(probe("view")).toBe("zparam");
     expect(probe("index")).toBe("0");
   });
 });

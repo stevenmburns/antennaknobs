@@ -16,7 +16,7 @@ import {
   useViewPrefs,
 } from "../components/session/useViewPrefs";
 
-const FOUNDING: View[] = ["antenna", "azimuth", "elevation", "smith"];
+const FOUNDING: View[] = ["antenna", "azimuth", "elevation", "zparam"];
 
 beforeEach(() => {
   localStorage.clear();
@@ -34,7 +34,7 @@ describe("movePinned", () => {
       "antenna",
       "elevation",
       "azimuth",
-      "smith",
+      "zparam",
     ]);
   });
 
@@ -43,7 +43,7 @@ describe("movePinned", () => {
       "antenna",
       "elevation",
       "azimuth",
-      "smith",
+      "zparam",
     ]);
   });
 
@@ -53,7 +53,7 @@ describe("movePinned", () => {
   });
 
   it("returns the SAME array reference at the back edge (no later neighbor)", () => {
-    const next = movePinned(FOUNDING, "smith", 1);
+    const next = movePinned(FOUNDING, "zparam", 1);
     expect(next).toBe(FOUNDING);
   });
 
@@ -84,26 +84,26 @@ describe("movePin", () => {
       "antenna",
       "elevation",
       "azimuth",
-      "smith",
+      "zparam",
     ]);
     expect(stored().pinned).toEqual([
       "antenna",
       "elevation",
       "azimuth",
-      "smith",
+      "zparam",
     ]);
   });
 
   it("round-trips a reorder through storage to the next mount", () => {
     const first = renderHook(() => useViewPrefs());
-    act(() => first.result.current.movePin("smith", -1));
+    act(() => first.result.current.movePin("zparam", -1));
     first.unmount();
 
     const second = renderHook(() => useViewPrefs());
     expect(second.result.current.pinned).toEqual([
       "antenna",
       "azimuth",
-      "smith",
+      "zparam",
       "elevation",
     ]);
   });
@@ -117,7 +117,7 @@ describe("movePin", () => {
 
   it("no-ops at the back edge, and writes nothing", () => {
     const { result } = renderHook(() => useViewPrefs());
-    act(() => result.current.movePin("smith", 1));
+    act(() => result.current.movePin("zparam", 1));
     expect(result.current.pinned).toEqual(FOUNDING);
     expect(localStorage.getItem(VIEW_PREFS_KEY)).toBeNull();
   });
@@ -142,7 +142,7 @@ describe("movePin", () => {
     act(() => result.current.movePin("antenna", -1)); // front edge
     act(() => result.current.movePin("schematic", 1)); // unpinned
     expect(spy).not.toHaveBeenCalled();
-    act(() => result.current.movePin("smith", -1)); // genuine
+    act(() => result.current.movePin("zparam", -1)); // genuine
     expect(spy).toHaveBeenCalledTimes(1);
     spy.mockRestore();
   });
@@ -162,7 +162,7 @@ describe("movePin", () => {
         new StorageEvent("storage", {
           key: VIEW_PREFS_KEY,
           newValue: JSON.stringify({
-            pinned: ["antenna", "elevation", "azimuth", "smith"],
+            pinned: ["antenna", "elevation", "azimuth", "zparam"],
             seen: FOUNDING,
           }),
         }),
@@ -172,7 +172,7 @@ describe("movePin", () => {
       "antenna",
       "elevation",
       "azimuth",
-      "smith",
+      "zparam",
     ]);
   });
 });

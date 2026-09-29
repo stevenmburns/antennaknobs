@@ -4575,13 +4575,11 @@ canvas {
   font-family: ui-monospace, monospace;
 }
 /* The analysis chart (AK#1757 step 5): its dwell switch off, a change leaves
-   the drawn curve for inputs that have since moved. The curve dims, the live
-   point on it does not wait, and Run asks "re-run?". */
+   the drawn curve for inputs that have since moved. Run asks "re-run?"; the
+   curve dims inside the chart's canvas (the charts' `stale` prop, unit 3),
+   so the live point on it stays bright. */
 .zparam-run.is-stale {
   border-color: var(--accent);
-}
-.analysis-chart-freq.is-stale canvas {
-  opacity: 0.55;
 }
 .zparam-cost {
   flex-basis: 100%;

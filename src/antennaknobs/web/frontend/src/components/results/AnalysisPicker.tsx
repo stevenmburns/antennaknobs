@@ -12,10 +12,19 @@ export type AnalysisPickerProps = {
   /** Why an entry cannot run in this view, or null when it can. */
   blocked: (entry: AnalysisEntry) => string | null;
   onPick: (entry: AnalysisEntry) => void;
+  /** What the select reads with nothing picked: "pick…", or what the chart
+   *  already shows (the design's own frequency sweep, a new chart's). */
+  placeholder?: string;
 };
 
 /** The select, one label in the header's row. */
-export function AnalysisSelect({ entries, current, blocked, onPick }: AnalysisPickerProps) {
+export function AnalysisSelect({
+  entries,
+  current,
+  blocked,
+  onPick,
+  placeholder = "pick…",
+}: AnalysisPickerProps) {
   return (
     <label className="zparam-analysis">
       <span>analysis</span>
@@ -27,7 +36,7 @@ export function AnalysisSelect({ entries, current, blocked, onPick }: AnalysisPi
           if (entry && !blocked(entry)) onPick(entry);
         }}
       >
-        <option value="">pick…</option>
+        <option value="">{placeholder}</option>
         {entries.map((a) => {
           const why = blocked(a);
           return (

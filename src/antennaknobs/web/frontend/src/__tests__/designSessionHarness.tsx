@@ -16,7 +16,7 @@ import { vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { DesignSession } from "../components/session/DesignSession";
 import { VIEW_PREFS_KEY, type Layout } from "../components/session/useViewPrefs";
-import { VIEWS, type View } from "../lib/view";
+import { type LegacyChartView, VIEWS, type View } from "../lib/view";
 import type { ExampleDescriptor } from "../lib/params";
 import type { BackendRoster } from "../lib/backends";
 import {
@@ -82,8 +82,11 @@ export interface MountDesignSessionOptions {
   /** Desktop stage layout preset; irrelevant (never reachable) on mobile —
    * see DesignSession's `effectiveLayout` comment. */
   layout?: Layout;
-  /** The desktop rail / grid / mobile carousel's resident view set. */
-  pinned?: View[];
+  /** The desktop rail / grid / mobile carousel's resident view set, as the
+   *  browser stored it: it may name the Smith / VSWR / S11 views removed in
+   *  AK#1757 step 5 unit 3, which useViewPrefs maps onto the analysis chart
+   *  as it would a real viewer's stored pins. */
+  pinned?: (View | LegacyChartView)[];
   /** Session tab id, forwarded to <DesignSession id={…} active />. */
   id?: number;
   /** /capabilities' served roster; defaults to the shared SERVED_ROSTER

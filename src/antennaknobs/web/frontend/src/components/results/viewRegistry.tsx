@@ -1,4 +1,5 @@
 import type { ReactElement } from "react";
+import type { KnobView } from "../../lib/analysisChart";
 import type { MeasuredData, ParamSweepData, SolveResponse, SweepData } from "../../lib/api";
 import { DENSITY, RX_AUTO, type RxAxisChoice } from "../../lib/paramSweep";
 import type { SweepProgress } from "../../lib/sweep";
@@ -14,15 +15,13 @@ import type {
 import { CombinedPatternChart } from "../charts/CombinedPatternChart";
 import { CurrentCanvas } from "../charts/CurrentCanvas";
 import { FarFieldChart } from "../charts/FarFieldChart";
-import { SmithChart } from "../charts/SmithChart";
-import { SweepChart } from "../charts/SweepChart";
 import { type RxAxis, ZParamChart } from "../charts/ZParamChart";
 import type {
   FarFieldCaptions,
   PatternData,
   PinnedPattern,
 } from "../charts/types";
-import { ChartFrequency } from "./ChartFrequency";
+import { ChartFrequency, ChartKnobSmith } from "./ChartFrequency";
 import { FilesPanel, type FilesViewData } from "./FilesPanel";
 import { SchematicPanel } from "./SchematicPanel";
 
@@ -37,26 +36,13 @@ export type ViewRenderProps = {
   fill: boolean;
   result: SolveResponse | null;
   preview: SolveResponse | null;
-  sweep: SweepData | null;
-  /** The parameter sweep (density or a knob, docs/design/z-vs-param-view.md):
-   *  the Smith chart's trail and the Z-vs-parameter view's chart. */
+  /** The analysis chart's knob or density sweep (docs/design/z-vs-param-view.md):
+   *  R/X against the knob, or its trail on the Smith chart. */
   paramSweep: ParamSweepData | null;
-  /** The Smith chart draws `paramSweep` as a trail only when this is on: the
-   *  "param sweep" switch. The sweep can also run for the Z-vs-parameter
-   *  view with the switch off, and then the switch must still hide the
-   *  trail. Omitted, the trail is drawn (callers that predate the switch). */
-  paramTrail?: boolean;
   measured: MeasuredData | null;
   pattern: PatternData | null;
   pinnedPatterns: PinnedPattern[];
   measFreqMhz: number;
-  sweepRunning: boolean;
-  /** The freq sweep runner's phase (AK#1762), published on the sweep charts
-   *  as data-phase. Optional: omitted, they say "idle". */
-  sweepPhase?: SweepPhase;
-  /** Points received by the sweep in flight (AK#1682). Optional so a call
-   *  site that omits it keeps the bare "sweeping…" status. */
-  sweepProgress?: SweepProgress | null;
   paramSweepRunning: boolean;
   /** The Z-vs-parameter view's settings. Optional: omitted, the view draws a
    *  density sweep on a log axis with both ranges on Auto. */
@@ -89,15 +75,10 @@ export type ViewRenderProps = {
   onFarFieldCaptions?: (c: FarFieldCaptions) => void;
   /** Adaptive resolution (issue #744) is ON for this session — the Smith
    *  chart uses it to draw the sweep as a connected locus (the refined,
-   *  frequency-sorted samples finally support one). Optional: thumbnail
-   *  call sites omit it and keep the dot trail. */
+   *  frequency-sorted samples finally support one), once the sweep has
+   *  settled (ChartFrequencyRender.settled). Optional: omitted, the dot
+   *  trail. */
   refineEnabled?: boolean;
-  /** The sweep's shape is final (issue #866): no refinement pass is running
-   *  or was cut short. While false, the sweep-trace views (smith / vswr /
-   *  gamma) draw unconnected dots — a polyline through a still-densifying
-   *  set renders transient kinks that shift as points land. Optional so
-   *  thumbnail call sites can omit it (defaults settled, today's look). */
-  sweepSettled?: boolean;
   // A trial impedance to plot INSTEAD of `result`'s, while something drives
   // the design faster than the solve channel can follow — today the streamed
   // optimizer (#773), whose per-eval frames carry Z but do not touch the
@@ -128,24 +109,15 @@ export type ViewRenderProps = {
    *  Optional: omitted, the plot is unfilled with nothing highlighted. */
   combinedFill?: CombinedFill;
   combinedHighlight?: readonly string[];
-  /** The VSWR / S11 charts' ranges and SWR threshold (AK#1738), from the
-   *  view prefs. Optional: omitted, both charts are on Auto at 2:1. */
-  sweepAxes?: SweepAxes;
-  swrThreshold?: number;
-  /** Given, the sweep charts' y axis opens the range popover. The stage
-   *  passes these; thumbnails do not (a thumb is a button). */
-  onSweepAxisChange?: (mode: SweepMode, c: SweepAxisChoice) => void;
-  onSwrThresholdChange?: (t: number) => void;
-  /** The analysis chart showing a frequency analysis (AK#1757, step 5 unit
-   *  2): the zparam view draws this chart's own sweep, on the analysis's
-   *  view, instead of R/X against a knob. Null or omitted: the knob sweep. */
+  /** The analysis chart showing a frequency sweep (AK#1757, step 5 units 2
+   *  and 3): the zparam view draws the chart's sweep on its Swr, S11 or
+   *  Smith view, instead of a knob sweep. Null or omitted: the knob sweep. */
   chartFrequency?: ChartFrequencyRender | null;
 };
 
-/** A frequency analysis as the analysis chart draws it: the chart's own
- *  sweep runner's output and the chart's own scales. Nothing here is the
- *  session's freq sweep, which the standalone Smith / VSWR / S11 views keep
- *  drawing. */
+/** A frequency sweep as the analysis chart draws it: the chart's sweep
+ *  runner's output and the chart's own scales (the standalone Smith / VSWR /
+ *  S11 views' options, moved onto the chart in unit 3). */
 export type ChartFrequencyRender = {
   view: FrequencyView;
   sweep: SweepData | null;
@@ -153,7 +125,9 @@ export type ChartFrequencyRender = {
   phase: SweepPhase;
   progress: SweepProgress | null;
   settled: boolean;
-  /** Drawn for inputs that have since changed (the dwell switch off). */
+  /** Drawn for inputs that have since changed (the dwell switch off), or of
+   *  the pre-run design while an optimizer run proposes points. Only the
+   *  swept curve dims; the live point does not (unit 3). */
   stale: boolean;
   axes: SweepAxes;
   threshold: number;
@@ -180,6 +154,10 @@ export type ZParamViewSettings = {
   /** The runner's phase (idle / queued / running), published on the chart
    *  for tests that must show no sweep follows. Optional. */
   phase?: "idle" | "queued" | "running";
+  /** R/X against the knob, or the sweep's trail on the Smith chart (the old
+   *  Smith view's "param sweep" switch, AK#1757 step 5 unit 3). Optional:
+   *  omitted, R/X. */
+  view?: KnobView;
 };
 
 const DEFAULT_ZPARAM: ZParamViewSettings = {
@@ -193,17 +171,6 @@ const DEFAULT_ZPARAM: ZParamViewSettings = {
   xAxis: RX_AUTO,
   z0: 50,
 };
-
-// The AK#1738 props a sweep chart takes from the bag, for either mode.
-function sweepAxisProps(p: ViewRenderProps, mode: SweepMode) {
-  const onChange = p.onSweepAxisChange;
-  return {
-    ...(p.sweepAxes ? { axis: p.sweepAxes[mode] } : {}),
-    ...(p.swrThreshold !== undefined ? { swrThreshold: p.swrThreshold } : {}),
-    ...(onChange ? { onAxisChange: (c: SweepAxisChoice) => onChange(mode, c) } : {}),
-    ...(p.onSwrThresholdChange ? { onThresholdChange: p.onSwrThresholdChange } : {}),
-  };
-}
 
 const NO_HIGHLIGHT: readonly string[] = [];
 
@@ -278,34 +245,6 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       onCaptions={p.onFarFieldCaptions}
     />
   ),
-  // liveZ wins over result while it is set: during an optimizer run it is the
-  // only current impedance there is (see ViewRenderProps.liveZ). The z0
-  // fallback chain still ends at result's, so a trial point is plotted on the
-  // same reference the settled dot uses.
-  smith: (p) => (
-    <SmithChart
-      r={p.liveZ?.z_in_re ?? p.result?.z_in_re ?? 0}
-      x={p.liveZ?.z_in_im ?? p.result?.z_in_im ?? 0}
-      z0={p.liveZ?.z0_ohms ?? p.result?.z0_ohms ?? 50}
-      trial={p.liveZ != null}
-      trialFeeds={p.liveZ?.feeds}
-      trialWorstFeed={p.liveZ?.worst_feed}
-      size={p.size}
-      sweep={p.sweep}
-      paramSweep={p.paramTrail === false ? null : p.paramSweep}
-      measured={p.measured}
-      measFreqMhz={p.measFreqMhz}
-      running={p.sweepRunning}
-      progress={p.sweepProgress}
-      phase={p.sweepPhase ?? "idle"}
-      paramSweepRunning={p.paramSweepRunning}
-      feeds={p.result?.feeds}
-      multiFeed={p.multiFeed}
-      connectSweep={(p.refineEnabled ?? false) && (p.sweepSettled ?? true)}
-      interactive={p.chartZoom ?? false}
-      designKey={p.result?.geometry ?? ""}
-    />
-  ),
   schematic: (p) => (
     <SchematicPanel
       svg={p.schematicSvg}
@@ -314,53 +253,16 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       fill={p.fill}
     />
   ),
-  // |Γ| vs. frequency and VSWR vs. frequency (issue #700 unit 5): one
-  // component, `mode` prop, same split FarFieldChart uses for azimuth vs.
-  // elevation above. z0 fallback matches the Smith chart's exact fallback —
-  // both read the same result field for the same reason.
-  gamma: (p) => (
-    <SweepChart
-      mode="gamma"
-      r={p.result?.z_in_re ?? 0}
-      x={p.result?.z_in_im ?? 0}
-      z0={p.result?.z0_ohms ?? 50}
-      size={p.size}
-      sweep={p.sweep}
-      measFreqMhz={p.measFreqMhz}
-      running={p.sweepRunning}
-      progress={p.sweepProgress}
-      settled={p.sweepSettled ?? true}
-      phase={p.sweepPhase ?? "idle"}
-      feeds={p.result?.feeds}
-      multiFeed={p.multiFeed}
-      {...sweepAxisProps(p, "gamma")}
-    />
-  ),
-  vswr: (p) => (
-    <SweepChart
-      mode="vswr"
-      r={p.result?.z_in_re ?? 0}
-      x={p.result?.z_in_im ?? 0}
-      z0={p.result?.z0_ohms ?? 50}
-      size={p.size}
-      sweep={p.sweep}
-      measFreqMhz={p.measFreqMhz}
-      running={p.sweepRunning}
-      progress={p.sweepProgress}
-      settled={p.sweepSettled ?? true}
-      phase={p.sweepPhase ?? "idle"}
-      feeds={p.result?.feeds}
-      multiFeed={p.multiFeed}
-      {...sweepAxisProps(p, "vswr")}
-    />
-  ),
   files: (p) => <FilesPanel data={p.files ?? null} size={p.size} fill={p.fill} />,
-  // The Z-vs-parameter view (docs/design/z-vs-param-view.md). The live R/X
-  // ride on the current-value guide; liveZ wins while an optimizer run is
-  // proposing points, as on the Smith chart.
+  // The analysis chart (AK#1757 step 5): a frequency sweep on its Swr, S11
+  // or Smith view (the old standalone views, unit 3), or a knob sweep as R/X
+  // against the knob (docs/design/z-vs-param-view.md) or as its trail on the
+  // Smith chart. The live R/X ride on the current-value guide; liveZ wins
+  // while an optimizer run is proposing points, as on the Smith chart.
   zparam: (p) => {
     if (p.chartFrequency) return <ChartFrequency p={p} f={p.chartFrequency} />;
     const z = p.zparam ?? DEFAULT_ZPARAM;
+    if (z.view === "Smith") return <ChartKnobSmith p={p} />;
     const r = p.liveZ?.z_in_re ?? p.result?.z_in_re ?? null;
     const x = p.liveZ?.z_in_im ?? p.result?.z_in_im ?? null;
     return (

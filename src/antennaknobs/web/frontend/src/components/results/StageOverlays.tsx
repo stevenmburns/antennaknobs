@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from "react";
-import type { MeasuredData, NormCheckData, SolveResponse } from "../../lib/api";
+import type { NormCheckData, SolveResponse } from "../../lib/api";
 import type { GroundModel } from "../../lib/ground";
 import type { ExampleDescriptor } from "../../lib/params";
 import type { CombinedFill, Projection, View } from "../../lib/view";
@@ -210,120 +210,6 @@ export function SweepAdvisoryOverlay({
   return (
     <div className="sweep-advisory-overlay" role="note" aria-label="Sweep advisories">
       <SolverAdvisories advisories={advisories} />
-    </div>
-  );
-}
-
-// The freq-sweep switch, one component for all three sweep charts (AK#1738):
-// the Smith chart renders it inside SmithOverlayControls, the VSWR and S11
-// charts through SweepOverlayControls below. Same session state everywhere.
-function FreqSweepCheckbox({
-  sweepEnabled,
-  setSweepEnabled,
-}: {
-  sweepEnabled: boolean;
-  setSweepEnabled: (v: boolean) => void;
-}) {
-  return (
-    <label
-      className="overlay-checkbox"
-      title="Sweep Z across the measurement band — the Smith locus and the VSWR and S11 curves, one switch for all three charts"
-    >
-      <input
-        type="checkbox"
-        checked={sweepEnabled}
-        onChange={(e) => setSweepEnabled(e.target.checked)}
-      />
-      freq sweep
-    </label>
-  );
-}
-
-// The VSWR and S11 charts' overlay: the shared freq-sweep switch. Desktop
-// only, like the Smith chart's (the gear menu carries it on mobile).
-export function SweepOverlayControls({
-  sweepEnabled,
-  setSweepEnabled,
-}: {
-  sweepEnabled: boolean;
-  setSweepEnabled: (v: boolean) => void;
-}) {
-  return (
-    <div className="smith-overlay">
-      <FreqSweepCheckbox
-        sweepEnabled={sweepEnabled}
-        setSweepEnabled={setSweepEnabled}
-      />
-    </div>
-  );
-}
-
-// Both smith-overlay children are checkboxes — nothing to keep on mobile
-// (the toggles live in the gear menu there).
-export function SmithOverlayControls({
-  sweepEnabled,
-  setSweepEnabled,
-  convergeEnabled,
-  setConvergeEnabled,
-  convergeTitle,
-  measured,
-  onLoadMeasured,
-  onClearMeasured,
-}: {
-  sweepEnabled: boolean;
-  setSweepEnabled: (v: boolean) => void;
-  convergeEnabled: boolean;
-  setConvergeEnabled: (v: boolean) => void;
-  /** The switch's tooltip: what the parameter sweep it draws re-solves. */
-  convergeTitle: string;
-  measured: MeasuredData | null;
-  onLoadMeasured: (f: File) => void;
-  onClearMeasured: () => void;
-}) {
-  return (
-    <div className="smith-overlay">
-      <FreqSweepCheckbox
-        sweepEnabled={sweepEnabled}
-        setSweepEnabled={setSweepEnabled}
-      />
-      <label
-        className="overlay-checkbox"
-        title={convergeTitle}
-      >
-        <input
-          type="checkbox"
-          checked={convergeEnabled}
-          onChange={(e) => setConvergeEnabled(e.target.checked)}
-        />
-        param sweep
-      </label>
-      <label
-        className="overlay-file"
-        title="Overlay a measured VNA sweep (one-port Touchstone .s1p, e.g. from a NanoVNA) against the modeled locus"
-      >
-        <input
-          type="file"
-          accept=".s1p,.S1P"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            // Reset the input so re-picking the same file (after a
-            // re-measure) fires onChange again.
-            e.target.value = "";
-            if (f) onLoadMeasured(f);
-          }}
-        />
-        {measured ? `measured: ${measured.label}` : "measured .s1p…"}
-      </label>
-      {measured && (
-        <button
-          type="button"
-          className="overlay-clear"
-          title="Remove the measured overlay"
-          onClick={onClearMeasured}
-        >
-          clear
-        </button>
-      )}
     </div>
   );
 }

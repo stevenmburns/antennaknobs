@@ -122,23 +122,27 @@ describe("the analysis picker", () => {
       [...container.querySelectorAll("canvas.zparam")].find(
         (c) => !c.closest(".thumbstrip"),
       ) as HTMLElement | undefined;
-    fireEvent.click(container.querySelector(".thumbstrip canvas.zparam") as HTMLElement);
+    // The chart's thumb: the Smith chart a new chart opens on (unit 3).
+    fireEvent.click(container.querySelector(".thumbstrip canvas.smith") as HTMLElement);
     const select = await untilDom(
       () => screen.queryByRole("combobox", { name: "Analysis" }) as HTMLSelectElement | null,
     );
     // Asked once, on the slot's own request.
     expect(asked).toHaveLength(1);
     expect(asked[0].geometry).toBe(EXAMPLE.name);
-    // The density sweep the view starts on runs by itself; let it land.
-    await untilDom(() => chart()?.dataset.phase === "idle" && bodies.length > 0);
+    // The chart opens on the design's own frequency sweep, so nothing has
+    // gone to /param_sweep yet.
     const before = bodies.length;
+    expect(before).toBe(0);
+    const head = () => screen.getByRole("group", { name: "Analysis chart" });
 
     // The hold is listed, disabled, with its reason as the tooltip.
     const hold = [...select.options].find((o) => o.value === "match vs height")!;
     expect(hold.disabled).toBe(true);
     expect(hold.title).toBe(HOLD_WHY);
     fireEvent.change(select, { target: { value: "match vs height" } });
-    expect(chart()!.dataset.phase).toBe("idle");
+    expect(head().dataset.chartKind).toBe("frequency");
+    expect(chart()).toBeUndefined();
     expect(bodies.length).toBe(before);
 
     // Height: base, 2…20, 37 points, as `antennaknobs analyze` sweeps it.

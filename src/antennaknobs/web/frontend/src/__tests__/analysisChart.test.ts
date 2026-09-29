@@ -1,17 +1,23 @@
 // The analysis chart's state rules (lib/analysisChart.ts, AK#1757 step 5
-// unit 2), React-free: the dwell switch's defaults, what a pick sets, which
-// range a frequency chart sweeps, and what each runner is asked for.
+// units 2 and 3), React-free: what a new chart is, the dwell switch's
+// defaults, what a pick sets, the views per kind, which range a frequency
+// chart sweeps, and what each runner is asked for.
 import { describe, it, expect } from "vitest";
 import type { FrequencyWorkbench } from "../lib/analyses";
 import {
+  type AnalysisChartState,
   chartDwell,
+  chartForNewDesign,
   chartFrequencyRange,
   chartRunInputs,
+  chartView,
+  chartViews,
   editRange,
-  initialChart,
+  initialChart as newChart,
   pickedName,
   pickFrequency,
   pickKnob,
+  setChartView,
 } from "../lib/analysisChart";
 import { DEFAULT_DENSITY_SPEC, type ParamSweepSpec } from "../lib/paramSweep";
 import type { SweepRange } from "../lib/sweep";
@@ -33,21 +39,103 @@ const freq = (over: Partial<FrequencyWorkbench> = {}): FrequencyWorkbench => ({
   ...over,
 });
 
-const env = (resident = true) => ({ resident, designRange: DESIGN, values: [1, 2], label: "x" });
+// settings.toml's built-in [switches]: freq_sweep on, convergence_sweep off.
+const DWELL = { frequency: true, knob: false };
+const SEED = { view: "Smith" as const, ...PREFS };
+const initialChart = (): AnalysisChartState => newChart(SEED);
+const env = (resident = true) => ({
+  resident,
+  dwellDefaults: DWELL,
+  designRange: DESIGN,
+  values: [1, 2],
+  label: "x",
+});
+const DENSITY_CHART = pickKnob(initialChart(), null, DEFAULT_DENSITY_SPEC);
 
-describe("the dwell switch", () => {
-  it("defaults to today's behaviour: density and frequency on, a knob off", () => {
+describe("a new chart (unit 3)", () => {
+  it("is the design's own frequency sweep on the Smith chart, every frequency view offered", () => {
     const c = initialChart();
-    expect(chartDwell(c)).toBe(true);
-    expect(chartDwell(pickKnob(c, "height", HEIGHT))).toBe(false);
-    expect(chartDwell(pickFrequency(c, "wide", freq(), DESIGN, PREFS))).toBe(true);
+    expect(c.kind).toBe("frequency");
+    expect(c.picked).toBeNull();
+    expect(chartView(c)).toBe("Smith");
+    expect(chartViews(c)).toEqual(["Smith", "Swr", "S11"]);
+    // Its range is the session's (the design's own, or the dial's edit).
+    expect(chartFrequencyRange(c.frequency!, DESIGN)).toBe(DESIGN);
+    const r = chartRunInputs(c, env());
+    expect(r.freq.wanted).toBe(true);
+    expect(r.freq.auto).toBe(true);
+    expect(r.freq.views).toEqual({ vswr: false, gamma: false, smith: true });
+    expect(r.param.wanted).toBe(false);
   });
 
-  it("once flipped, holds across picks", () => {
+  it("opens on the view a migrated pin named, with the viewer's scales", () => {
+    const c = newChart({ view: "Swr", axes: { ...DEFAULT_AXES, vswr: RHO }, threshold: 1.5 });
+    expect(chartView(c)).toBe("Swr");
+    expect(chartViews(c)).toEqual(["Swr", "Smith", "S11"]);
+    expect(c.frequency!.axes.vswr).toEqual(RHO);
+    expect(c.frequency!.threshold).toBe(1.5);
+    expect(chartRunInputs(c, env()).freq.views).toEqual({ vswr: true, gamma: false, smith: false });
+  });
+
+  it("a design switch starts over but keeps the view, the scales and a flipped switch", () => {
+    const flipped: AnalysisChartState = {
+      ...setChartView(pickFrequency(initialChart(), "wide", freq(), DESIGN, PREFS), "S11"),
+      dwell: false,
+    };
+    const next = chartForNewDesign(flipped, SEED);
+    expect(next.picked).toBeNull();
+    expect(next.frequency!.analysisRange).toBeNull();
+    expect(chartView(next)).toBe("S11");
+    expect(next.dwell).toBe(false);
+    // A knob sweep on its Smith view comes back to the Smith chart; on R/X,
+    // to the seed's view.
+    const knobSmith = setChartView(pickKnob(initialChart(), "height", HEIGHT), "Smith");
+    expect(chartView(chartForNewDesign(knobSmith, { ...SEED, view: "Swr" }))).toBe("Smith");
+    const knobRx = pickKnob(initialChart(), "height", HEIGHT);
+    expect(chartView(chartForNewDesign(knobRx, { ...SEED, view: "Swr" }))).toBe("Swr");
+    expect(chartForNewDesign(knobRx, SEED).knob.spec).toBe(DEFAULT_DENSITY_SPEC);
+  });
+});
+
+describe("the chart's views (unit 3)", () => {
+  it("are honest per kind: R/X or Smith for a knob sweep, SWR, S11 or Smith for a frequency one", () => {
+    const knob = pickKnob(initialChart(), "height", HEIGHT);
+    expect(chartViews(knob)).toEqual(["Rx", "Smith"]);
+    expect(chartView(knob)).toBe("Rx");
+    // A view the kind cannot draw is refused, the same chart back.
+    expect(setChartView(knob, "Swr")).toBe(knob);
+    expect(setChartView(initialChart(), "Rx").frequency!.view).toBe("Smith");
+    // The knob sweep on the Smith chart: still its parameter runner only.
+    const trail = setChartView(knob, "Smith");
+    expect(chartView(trail)).toBe("Smith");
+    const r = chartRunInputs(trail, env());
+    expect(r.param.wanted).toBe(true);
+    expect(r.freq.wanted).toBe(false);
+  });
+
+  it("a frequency pick leads with the analysis's own views, then the rest", () => {
+    const c = pickFrequency(initialChart(), "wide", freq(), DESIGN, PREFS);
+    expect(chartViews(c)).toEqual(["Swr", "Smith", "S11"]);
+    expect(chartView(c)).toBe("Swr");
+  });
+});
+
+describe("the dwell switch", () => {
+  it("defaults per kind from settings.toml: freq_sweep for frequency, convergence_sweep for knob and density", () => {
+    const c = initialChart();
+    expect(chartDwell(c, DWELL)).toBe(true);
+    expect(chartDwell(c, { frequency: false, knob: false })).toBe(false);
+    expect(chartDwell(pickKnob(c, "height", HEIGHT), DWELL)).toBe(false);
+    expect(chartDwell(DENSITY_CHART, DWELL)).toBe(false);
+    expect(chartDwell(DENSITY_CHART, { frequency: true, knob: true })).toBe(true);
+    expect(chartDwell(pickFrequency(c, "wide", freq(), DESIGN, PREFS), DWELL)).toBe(true);
+  });
+
+  it("once flipped, holds across picks, whatever the defaults", () => {
     const off = { ...initialChart(), dwell: false };
-    expect(chartDwell(pickFrequency(off, "wide", freq(), DESIGN, PREFS))).toBe(false);
+    expect(chartDwell(pickFrequency(off, "wide", freq(), DESIGN, PREFS), DWELL)).toBe(false);
     const on = { ...initialChart(), dwell: true };
-    expect(chartDwell(pickKnob(on, "height", HEIGHT))).toBe(true);
+    expect(chartDwell(pickKnob(on, "height", HEIGHT), DWELL)).toBe(true);
   });
 
   it("is each runner's `auto`", () => {
@@ -114,11 +202,11 @@ describe("a pick", () => {
 
 describe("what the runners are asked for", () => {
   it("a knob chart wants only its parameter runner, and nothing off screen", () => {
-    const r = chartRunInputs(initialChart(), env());
+    const r = chartRunInputs(DENSITY_CHART, env());
     expect(r.param.wanted).toBe(true);
-    expect(r.param.req).toEqual({ param: DEFAULT_DENSITY_SPEC.param, values: [1, 2], label: "x", auto: true });
+    expect(r.param.req).toEqual({ param: DEFAULT_DENSITY_SPEC.param, values: [1, 2], label: "x", auto: false });
     expect(r.freq.wanted).toBe(false);
-    expect(chartRunInputs(initialChart(), env(false)).param.wanted).toBe(false);
+    expect(chartRunInputs(DENSITY_CHART, env(false)).param.wanted).toBe(false);
   });
 
   it("a frequency chart wants only its frequency runner, refining the one view on screen", () => {
