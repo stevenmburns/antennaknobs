@@ -1,8 +1,127 @@
 import type { ReactElement } from "react";
+import type { SweepData } from "../../lib/api";
+import { chartTable, type TableCurve, type TableKind } from "../../lib/chartTable";
+import { isDensity, type ParamSweepData, RX_AUTO } from "../../lib/paramSweep";
 import type { SweepAxisChoice, SweepMode } from "../../lib/sweepAxis";
+import { ChartTable } from "../charts/ChartTable";
+import type { ExtraCurve } from "../charts/curves";
 import { SmithChart } from "../charts/SmithChart";
 import { SweepChart } from "../charts/SweepChart";
+import { ZParamChart } from "../charts/ZParamChart";
 import type { ChartFrequencyRender, ViewRenderProps } from "./viewRegistry";
+
+/** The x a frequency sweep is drawn against on the R/X plot (the knob
+ *  sweep's chart, AK#1757 step 5 unit 5): the name ZParamChart matches its
+ *  data on. */
+export const FREQUENCY_PARAM = "frequency";
+
+/** A frequency sweep as the R/X plot's data: frequency on x, Z at port 0. */
+export function frequencyAsParam(s: SweepData | null | undefined, stale = false): ParamSweepData | null {
+  if (!s) return null;
+  return {
+    param: FREQUENCY_PARAM,
+    label: "f",
+    values: s.freqs_mhz,
+    z_re: s.z_re,
+    z_im: s.z_im,
+    z_re_extrap: null,
+    z_im_extrap: null,
+    ...(stale ? { stale: true } : {}),
+  };
+}
+
+// A curve's label for the table: the drawn cells' labels, in runner order.
+function labelAt(p: ViewRenderProps, k: number): string {
+  return p.chartCellLabels?.[k] ?? "";
+}
+
+/** The Table view of a frequency sweep: MHz, and R, X and SWR per curve. */
+function frequencyTable(p: ViewRenderProps, f: ChartFrequencyRender): ReactElement {
+  const z0 = p.zparam?.z0 ?? p.result?.z0_ohms ?? 50;
+  const curves: TableCurve[] = [];
+  const add = (s: SweepData | null | undefined, k: number) => {
+    if (s && s.freqs_mhz.length > 0) {
+      curves.push({ label: labelAt(p, k), xs: s.freqs_mhz, re: s.z_re, im: s.z_im });
+    }
+  };
+  add(f.sweep, 0);
+  (p.chartCurves ?? []).forEach((c, k) => add(c.sweep, k + 1));
+  const n = f.sweep?.freqs_mhz.length ?? 0;
+  const status = f.running
+    ? `sweeping ${n}/${f.progress?.phase === "base" ? f.progress.planned : n}…`
+    : curves.length === 0
+      ? "no sweep yet"
+      : null;
+  return <ChartTable table={chartTable("frequency", FREQUENCY_PARAM, curves, z0)} size={p.size} status={status} />;
+}
+
+/** The Table view of a knob or density sweep: the knob (nominal_N), and R
+ *  and X (N_ach and |ΔΓ| for a density ladder) per curve. */
+export function knobTable(p: ViewRenderProps, param: string): ReactElement {
+  const z0 = p.zparam?.z0 ?? p.result?.z0_ohms ?? 50;
+  const curves: TableCurve[] = [];
+  const add = (d: ParamSweepData | null | undefined, k: number) => {
+    if (d && d.param === param && d.values.length > 0) {
+      curves.push({
+        label: labelAt(p, k),
+        xs: d.values,
+        re: d.z_re,
+        im: d.z_im,
+        ...(d.n_seg ? { nAch: d.n_seg } : {}),
+      });
+    }
+  };
+  add(p.paramSweep, 0);
+  (p.chartCurves ?? []).forEach((c, k) => add(c.paramSweep, k + 1));
+  const kind: TableKind = isDensity(param) ? "density" : "knob";
+  const status = p.paramSweepRunning
+    ? `sweeping ${p.paramSweep?.param === param ? p.paramSweep.values.length : 0}/${p.zparam?.total ?? "?"}…`
+    : curves.length === 0
+      ? "no sweep yet"
+      : null;
+  return <ChartTable table={chartTable(kind, param, curves, z0)} size={p.size} status={status} />;
+}
+
+/** R and X against frequency: the knob sweep's R/X chart with frequency
+ *  on x, the dashed guide at the measurement frequency with the live R and
+ *  X on it, and the other curves in their legend colours. */
+function frequencyRx(p: ViewRenderProps, f: ChartFrequencyRender): ReactElement {
+  const r = p.liveZ?.z_in_re ?? p.result?.z_in_re ?? null;
+  const x = p.liveZ?.z_in_im ?? p.result?.z_in_im ?? null;
+  const rx = f.rx ?? { r: RX_AUTO, x: RX_AUTO, xLog: false };
+  const curves: ExtraCurve[] | undefined = p.chartCurves?.map((c) => ({
+    ...c,
+    paramSweep: frequencyAsParam(c.sweep, c.stale),
+  }));
+  const n = f.sweep?.freqs_mhz.length ?? 0;
+  const z = p.zparam;
+  const onRxAxis = f.onRxAxisChange;
+  const onRxLog = f.onRxXLogChange;
+  return (
+    <ZParamChart
+      data={frequencyAsParam(f.sweep, f.stale)}
+      param={FREQUENCY_PARAM}
+      label="f"
+      unit="MHz"
+      total={f.progress?.phase === "base" ? f.progress.planned : n}
+      currentValue={p.measFreqMhz}
+      liveR={r}
+      liveX={x}
+      size={p.size}
+      running={f.running}
+      xLog={rx.xLog}
+      rAxis={rx.r}
+      xAxis={rx.x}
+      z0={p.liveZ?.z0_ohms ?? z?.z0 ?? p.result?.z0_ohms ?? 50}
+      phase={f.phase === "refining" ? "running" : f.phase}
+      callouts={onRxAxis ? (z?.callouts ?? true) : false}
+      {...(z?.onCalloutsChange && onRxAxis ? { onCalloutsChange: z.onCalloutsChange } : {})}
+      {...(onRxLog ? { onXLogChange: onRxLog } : {})}
+      {...(onRxAxis ? { onAxisChange: onRxAxis } : {})}
+      {...(curves ? { curves } : {})}
+    />
+  );
+}
 
 // The live point every view of the analysis chart draws: liveZ while an
 // optimizer run proposes points, else the last solve. It follows a drag
@@ -22,7 +141,11 @@ function livePoint(p: ViewRenderProps) {
 export function ChartFrequency({ p, f }: { p: ViewRenderProps; f: ChartFrequencyRender }) {
   const { r, x, z0 } = livePoint(p);
   let chart: ReactElement;
-  if (f.view === "Smith") {
+  if (f.view === "Rx") {
+    chart = frequencyRx(p, f);
+  } else if (f.view === "Table") {
+    chart = frequencyTable(p, f);
+  } else if (f.view === "Smith") {
     chart = (
       <SmithChart
         r={r}

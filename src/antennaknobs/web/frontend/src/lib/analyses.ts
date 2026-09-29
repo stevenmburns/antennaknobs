@@ -16,14 +16,20 @@ import {
   type SweepAxisChoice,
 } from "./sweepAxis";
 
+/** The views a knob analysis draws here, by the server's names: R/X against
+ *  the knob, its Smith trail, the numbers (AK#1757 step 5 unit 5). */
+export type KnobView = "Rx" | "Smith" | "Table";
+
 /** A knob sweep: `param` and `values` are what /param_sweep takes (the same
- *  ladder `antennaknobs analyze` sweeps). */
+ *  ladder `antennaknobs analyze` sweeps). `views` are the ones the analysis
+ *  lists that the chart draws, in its order (absent from an older server). */
 export type KnobWorkbench = {
   runs: true;
   kind: "knob";
   param: string;
   values: number[];
   log: boolean;
+  views?: KnobView[];
   note: string | null;
 } & Listed;
 
@@ -42,20 +48,25 @@ export type Listed = {
   step?: StepCross | null;
 };
 
-/** The views a frequency analysis draws here, by the server's names. */
-export type FrequencyView = "Swr" | "S11" | "Smith";
+/** The views a frequency analysis draws here, by the server's names: R/X
+ *  against frequency and the table since step 5 unit 5. */
+export type FrequencyView = "Swr" | "S11" | "Smith" | "Rx" | "Table";
 
 /** A frequency sweep (step 4). `range` is the span and grid the server
  *  resolved (`frequency_range`) when it is absolute — the analysis's own or
  *  the design's; null when it is the band policy, which is relative to this
  *  session's band and so is ours to place. `points` is the analysis's own
- *  count. `swr` is the Swr view's scale and the threshold line. */
+ *  count. `freqs` is its explicit frequency list (`Sweep(values=...)`), the
+ *  MHz `antennaknobs analyze` sweeps, in its order, or null for a range
+ *  (step 5 unit 5); `range` then spans it. `swr` is the Swr view's scale
+ *  and the threshold line. */
 export type FrequencyWorkbench = {
   runs: true;
   kind: "frequency";
   range: SweepRangeSpec | null;
   level: string;
   points: number | null;
+  freqs?: number[] | null;
   views: FrequencyView[];
   swr: { scale: "auto" | "reciprocal" | "rho" | null; threshold: number | null };
   note: string | null;
@@ -151,7 +162,15 @@ function parseListed(o: Record<string, unknown>): Required<ListedCross> {
   };
 }
 
-const FREQUENCY_VIEWS: readonly FrequencyView[] = ["Swr", "S11", "Smith"];
+const FREQUENCY_VIEWS: readonly FrequencyView[] = ["Swr", "S11", "Smith", "Rx", "Table"];
+const KNOB_VIEWS: readonly KnobView[] = ["Rx", "Smith", "Table"];
+
+/** A served frequency list: positive numbers, at least one, else null. */
+function freqList(v: unknown): number[] | null {
+  return Array.isArray(v) && v.length > 0 && v.every((f) => isNum(f) && f > 0)
+    ? (v as number[])
+    : null;
+}
 
 function parseRange(r: unknown): SweepRangeSpec | null | undefined {
   if (r === null) return null;
@@ -185,6 +204,7 @@ function parseFrequency(o: Record<string, unknown>, note: string | null): Analys
     range,
     level: typeof o.level === "string" ? o.level : "",
     points: isNum(o.points) && o.points >= 2 ? Math.round(o.points) : null,
+    freqs: freqList(o.freqs),
     views,
     swr: { scale, threshold: isNum(swr.threshold) ? swr.threshold : null },
     ...parseListed(o),
@@ -201,12 +221,16 @@ function parseWorkbench(w: unknown): AnalysisWorkbench | null {
     if (typeof o.param !== "string" || !Array.isArray(o.values)) return null;
     const values = o.values.filter(isNum);
     if (values.length === 0 || values.length !== o.values.length) return null;
+    const views = Array.isArray(o.views)
+      ? o.views.filter((v): v is KnobView => KNOB_VIEWS.includes(v as KnobView))
+      : [];
     return {
       runs: true,
       kind: "knob",
       param: o.param,
       values,
       log: o.log === true,
+      ...(views.length > 0 ? { views } : {}),
       ...parseListed(o),
       note,
     };
@@ -270,6 +294,14 @@ export function analysisBlocked(
   return `${w.param} is not a knob this view can sweep on this variant`;
 }
 
+/** An explicit frequency list as the range a chart sweeps: exactly those
+ *  frequencies (`exact`: no refinement adds any, as `analyze` adds none),
+ *  ascending so the curves draw left to right; `lo`/`hi` are its ends. */
+export function listRange(freqs: readonly number[]): SweepRange {
+  const sorted = [...freqs].sort((a, b) => a - b);
+  return { lo: sorted[0], hi: sorted[sorted.length - 1], spacing: "lin", freqs: sorted, exact: true };
+}
+
 /** What picking a frequency analysis sets: the sweep range edit (null: the
  *  design's own range, its band policy included, which `designRange` is),
  *  and the VSWR chart's scale and threshold (null: leave the viewer's). The
@@ -286,7 +318,8 @@ function sameRange(a: SweepRange, b: SweepRange): boolean {
     a.hi === b.hi &&
     a.spacing === b.spacing &&
     a.step === b.step &&
-    a.points === b.points
+    a.points === b.points &&
+    JSON.stringify(a.freqs ?? null) === JSON.stringify(b.freqs ?? null)
   );
 }
 
@@ -296,10 +329,13 @@ function sameRange(a: SweepRange, b: SweepRange): boolean {
  *  and `designRange` (this session's band policy) when it did not; the
  *  analysis's own point count replaces the range's density. "auto" is the
  *  1–∞ reciprocal scale, as a VSWR Auto reads everywhere else
- *  (`effectiveChoice`). */
+ *  (`effectiveChoice`). An explicit frequency list is swept exactly
+ *  (`listRange`). */
 export function frequencyPick(w: FrequencyWorkbench, designRange: SweepRange): FrequencyPick {
   let range = w.range ? specRange(w.range) : designRange;
-  if (w.points !== null) {
+  if (w.freqs) {
+    range = listRange(w.freqs);
+  } else if (w.points !== null) {
     range =
       range.spacing === "lin"
         ? { lo: range.lo, hi: range.hi, spacing: "lin", step: (range.hi - range.lo) / (w.points - 1) }
