@@ -22,7 +22,7 @@ import { formatParam, isDensity } from "../../lib/paramSweep";
 import type { SweepProgress } from "../../lib/sweep";
 import { zinfSuffix, type ZInfStatus } from "../../lib/zinf";
 import { ThemeContext } from "../hooks";
-import { feedColor, feedSweepColor, plotColors } from "./palette";
+import { feedColor, feedSweepColor, plotColors, STALE_TRACE_ALPHA } from "./palette";
 import {
   drawSweepProgressBar,
   sweepProgressAttr,
@@ -50,6 +50,7 @@ export function SmithChart({
   trialWorstFeed,
   interactive = false,
   designKey = "",
+  stale = false,
 }: {
   r: number;
   x: number;
@@ -108,6 +109,11 @@ export function SmithChart({
    *  this changes, since the old view was aimed at the old design's locus.
    *  "" (no result yet) never resets. */
   designKey?: string;
+  /** The swept locus (or the parameter trail) was drawn for inputs that
+   *  have since changed: the analysis chart's dwell switch off (AK#1757
+   *  step 5 unit 3). It dims; the current-Z marker, which follows every
+   *  solve, does not. */
+  stale?: boolean;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -390,6 +396,9 @@ export function SmithChart({
     // we render one color-distinct trajectory per port instead of the
     // single legacy blue locus. No connecting line — sparse samples
     // make a piecewise polyline read as artificial kinks.
+    // A stale locus and trail dim (restored before the current-Z marker).
+    ctx.save();
+    ctx.globalAlpha = stale ? STALE_TRACE_ALPHA : 1;
     if (sweep && sweep.freqs_mhz.length > 1) {
       const hasMulti =
         !!sweep.feeds_z_re &&
@@ -507,6 +516,8 @@ export function SmithChart({
 
     }
 
+    ctx.restore();
+
     // Measured overlay (issue #595): the locus a VNA actually saw, against the
     // one the model predicts. The measurement arrives as impedance and goes
     // through the same reflectionCoefficient() as the solved Z, so the file's
@@ -598,6 +609,8 @@ export function SmithChart({
     // gets a hollow ring; largest-N gets a filled disc; Richardson-
     // extrapolated Z* gets a diamond (primary feed only).
     const converge = paramSweep;
+    ctx.save();
+    ctx.globalAlpha = stale ? STALE_TRACE_ALPHA : 1;
     if (converge && converge.values.length >= 1) {
       const cHasMulti =
         !!converge.feeds_z_re &&
@@ -730,6 +743,7 @@ export function SmithChart({
       }
 
     }
+    ctx.restore();
     if (paramSweepRunning) {
       ctx.fillStyle = PC.label;
       ctx.font = "10px ui-monospace, monospace";
@@ -938,7 +952,7 @@ export function SmithChart({
     // and `trialWorstFeed` likewise carry the whole per-eval picture (#789):
     // r/x still change every frame on a multi-feed run, but they are only
     // feed 0, so a run where feed 0 sat still would freeze every ring.
-  }, [r, x, z0, size, sweep, paramSweep, measured, measFreqMhz, running, progress, paramSweepRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme, view]);
+  }, [r, x, z0, size, sweep, paramSweep, measured, measFreqMhz, running, progress, paramSweepRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme, view, stale]);
 
   // data-connect mirrors the trail mode (locus vs. dot cloud) for tests —
   // canvas pixels are invisible to jsdom, the attribute is not (the same
@@ -950,6 +964,7 @@ export function SmithChart({
       ref={canvasRef}
       className="smith"
       data-connect={connectSweep ? "1" : "0"}
+      data-stale={stale ? "1" : "0"}
       data-progress={sweepProgressAttr(progress)}
       data-phase={phase}
       data-zoom={String(view.zoom)}

@@ -22,7 +22,7 @@ import {
   widenDomain,
 } from "../../lib/sweepAxis";
 import { ThemeContext } from "../hooks";
-import { feedColor, feedSweepColor, plotColors } from "./palette";
+import { feedColor, feedSweepColor, plotColors, STALE_TRACE_ALPHA } from "./palette";
 import { SweepRangePopover } from "./SweepRangePopover";
 import {
   drawSweepProgressBar,
@@ -141,6 +141,7 @@ export function SweepChart({
   swrThreshold = DEFAULT_SWR_THRESHOLD,
   onAxisChange,
   onThresholdChange,
+  stale = false,
 }: {
   mode: SweepMode;
   r: number;
@@ -176,6 +177,11 @@ export function SweepChart({
    *  callbacks: a thumb is a button that selects its view. */
   onAxisChange?: (c: SweepAxisChoice) => void;
   onThresholdChange?: (t: number) => void;
+  /** The sweep was drawn for inputs that have since changed (the analysis
+   *  chart's dwell switch off, AK#1757 step 5 unit 3). Only the swept trace
+   *  and its shaded bands dim; the current-Z marker, which follows every
+   *  solve, stays bright. */
+  stale?: boolean;
 }) {
   // The choice as drawn: the mode's default when none is passed, and a VSWR
   // Auto read as the 1–∞ scale that replaced it. From here on `axis.kind`
@@ -396,6 +402,9 @@ export function SweepChart({
 
     if (hasSweep) {
       const freqs = sweep!.freqs_mhz;
+      // A stale sweep dims the trace and its bands, never the marker below.
+      ctx.save();
+      ctx.globalAlpha = stale ? STALE_TRACE_ALPHA : 1;
 
       // The below-threshold band(s), shaded under the trace.
       ctx.fillStyle = `rgba(${PC.thresholdRgb}, 0.12)`;
@@ -474,6 +483,7 @@ export function SweepChart({
           ctx.fill();
         }
       }
+      ctx.restore();
 
       // Freq range label, bottom-right (same convention as SmithChart).
       ctx.fillStyle = PC.labelBright;
@@ -541,7 +551,7 @@ export function SweepChart({
     // bands and the threshold line (AK#1738): strings, so an unchanged range
     // does not redraw.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, r, x, z0, size, sweep, measFreqMhz, running, progress, settled, feeds, multiFeed, theme, domKey, bandsKey, readout, swrThreshold]);
+  }, [mode, r, x, z0, size, sweep, measFreqMhz, running, progress, settled, feeds, multiFeed, theme, domKey, bandsKey, readout, swrThreshold, stale]);
 
   const title =
     mode === "vswr" ? "VSWR range and SWR threshold" : "S11 range and SWR threshold";
@@ -552,6 +562,7 @@ export function SweepChart({
         className={`sweep sweep-${mode}`}
         data-mode={mode}
         data-settled={settled ? "1" : "0"}
+        data-stale={stale ? "1" : "0"}
         data-phase={phase}
         data-progress={sweepProgressAttr(progress)}
         data-points={hasSweep ? sweep!.freqs_mhz.length : 0}
