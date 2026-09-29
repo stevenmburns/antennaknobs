@@ -1233,17 +1233,20 @@ The header at the top of the view picks what to sweep:
 Right-click a knob and pick **Sweep this knob…** to jump straight here with
 that knob over its range.
 
-**Only density runs by itself.** A density sweep starts whenever the view is
-on screen and re-runs whenever the design changes, as the convergence sweep
-always has. A **knob sweep runs only when you ask**: **Sweep this knob…**,
-the header's **run**, or an edit to its own from, to, points or spacing.
-Picking a knob in the **sweep** list, reloading the design, or coming back
-to the view does not start one. When anything else changes after a knob sweep
-has run (another knob, the engine, the ground), its curve stays, dimmed as
-stale, and the button offers **run · re-run?**. Switching to another design
-or variant puts the view back on density, with both axes on Auto. While a
-sweep runs, the button shows its progress and stops it; the points so far
-stay, marked partial.
+**auto re-run** is the chart's own switch for re-running after a change.
+With it on, the chart re-sweeps once the knobs have stopped moving (half a
+second), as the freq sweep does. With it off, a change leaves the curve
+dimmed as stale, and the button offers **run · re-run?**. It starts **on for
+density**, which re-runs whenever the design changes, as the convergence
+sweep always has. It starts **off for a knob**, because a knob sweep rebuilds
+the design at every point: it runs when you ask, through **Sweep this
+knob…**, the header's **run**, or an edit to its own from, to, points or
+spacing. Picking a knob in the **sweep** list, reloading the design, or
+coming back to the view does not start one. **run** always runs the sweep
+again, including a finished one. Switching to another design or variant puts
+the view back on density, with both axes on Auto and the switch at its
+default. While a sweep runs, the button shows its progress and stops it; the
+points so far stay, marked partial.
 
 On the chart:
 
@@ -1270,12 +1273,17 @@ another engine's curve (one panel per engine is planned).
 
 ### A design's analyses
 
-The header's **analysis** list holds the sweeps the design names as worth
-running: the same list as `antennaknobs analyze --list` (see
-[Analyses](/reference/cli/#analyses)). Pick one and the header takes its
-parameter, range, points and spacing, and runs it. On the inverted V,
+This view is the workbench's first **analysis chart**. It has its own
+**analysis** list, **run** and **auto re-run** switch on the chart, and it
+draws whatever it picked in place, whether that is a knob sweep or a
+frequency sweep. The list holds the sweeps the design names as worth running:
+the same list as `antennaknobs analyze --list` (see
+[Analyses](/reference/cli/#analyses)). Picking one runs it. A knob analysis
+sets the header's parameter, range, points and spacing. On the inverted V,
 **height** sweeps `base` from 2 to 20 m in 37 points and **convergence** runs
-the density ladder, the same values the command line solves.
+the density ladder, the same values the command line solves. When the chart
+opens on the density ladder and the design has an analysis that sweeps
+exactly that, the list names it.
 
 The view draws one curve, so an analysis that compares several draws this
 session's one. **height** is crossed over three grounds; the workbench draws
@@ -1284,18 +1292,26 @@ the ground you have set, and a note under the header says so and that
 knob sweep over the density ladder, with `Z∞` on the command line only for
 now.
 
-A frequency analysis, such as **band SWR**, runs on the frequency sweep. Picking
-it sets the sweep's range, the VSWR chart's scale and its SWR threshold, then
-brings up the analysis's first chart: VSWR, S11 or Smith. The range comes from
-the rule the command line uses (see [Frequency
+A frequency analysis, such as **band SWR**, draws in the same chart, on the
+analysis's first view: SWR, S11 or Smith. When it names more than one, a
+**view** list switches between them. The chart runs its own frequency sweep,
+over the analysis's range, from the rule the command line uses (see [Frequency
 analyses](/reference/cli/#frequency-analyses)). A deck's own sweep or a
-design's declared range puts the dial back on the design's range, and an
-analysis with a range of its own sets it as this session's edit. On a
-band-policy design, the dial follows the band you are on. The scale is the
-analysis's (`an.Swr(scale="rho")` is EZNEC's), and the threshold line and the
-bandwidth readout move to its `an.Ref(swr=...)`. The workbench doesn't draw
-R/X against frequency or a table yet, so an `an.Rx()` or `an.Table()` view is
-left out with a note naming the step that brings it.
+design's declared range sweeps the design's range, and on a band-policy
+design that follows the band you are on. **from / to** on the chart edit its
+range and **↺** puts the analysis's back. None of this moves the measurement
+dial or the standalone VSWR, S11 and Smith views, which keep their own sweep
+and the **freq sweep** switch. The SWR scale is the analysis's
+(`an.Swr(scale="rho")` is EZNEC's), and the threshold line and the bandwidth
+readout move to its `an.Ref(swr=...)`. **auto re-run** starts on, so the
+curve follows the knobs after the usual half second. Either way the marker
+at the measurement frequency, the live solve, moves with every knob. The
+workbench doesn't draw R/X against frequency or a table yet, so an `an.Rx()`
+or `an.Table()` view is left out with a note naming the step that brings it.
+
+What you pick, the switch, the range and the scale last for the session.
+Only the design's `.py` is remembered: to keep a chart's setup, put it in the
+design's `build_analyses()`.
 
 What the workbench cannot run yet is listed greyed out, with the reason as
 its tooltip: a map, a family over a second knob, a cross over measurement
