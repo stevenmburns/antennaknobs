@@ -3,7 +3,7 @@
 // The canvas has no 2-D context in jsdom, so the drawn choices are read from
 // data-* attributes set from the very values the drawing uses.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { ZParamChart } from "../components/charts/ZParamChart";
 import { traceDotRadius } from "../lib/paramSweep";
 import type { ParamSweepData } from "../lib/paramSweep";
@@ -12,6 +12,18 @@ import type { ExtraCurve } from "../components/charts/curves";
 HTMLCanvasElement.prototype.getContext =
   (() => null) as unknown as HTMLCanvasElement["getContext"];
 
+const REASON = ": fed segment 100.0→33.3 mm at N 65→95";
+const ROUGH: ParamSweepData = {
+  param: "n_per_wire",
+  label: "N",
+  values: [8, 12, 17, 24],
+  z_re: [70.7, 70.73, 70.75, 70.76],
+  z_im: [-10.3, -10.1, -10.0, -9.9],
+  z_re_extrap: 70.79,
+  z_im_extrap: -9.6,
+  z_extrap_status: "rough",
+  z_extrap_reason: REASON,
+};
 const KNOB: ParamSweepData = {
   param: "length_factor",
   label: "length factor",
@@ -51,6 +63,36 @@ function mount(data: ParamSweepData, p: Partial<React.ComponentProps<typeof ZPar
 }
 
 const curve = (key: string): ExtraCurve => ({ key, color: "#f00", paramSweep: KNOB });
+
+describe("the Z∞ readout's reason on a phone", () => {
+  it("phone: a short line and an ⓘ that shows the full sentence on tap", () => {
+    stubMedia(true);
+    const c = mount(ROUGH);
+    expect(c.dataset.zinfLine).toBe("short");
+    expect(screen.queryByRole("note")).toBeNull();
+    const btn = screen.getByRole("button", { name: "Show the Z∞ note" });
+    fireEvent.click(btn);
+    const note = screen.getByRole("note", { name: "Z∞ note" });
+    expect(note.textContent).toContain("Z∞ ≈ 70.79 − j9.60 Ω · rough");
+    expect(note.textContent).toContain(REASON);
+    fireEvent.click(screen.getByRole("button", { name: "Hide the Z∞ note" }));
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("phone: no reason, no ⓘ", () => {
+    stubMedia(true);
+    mount({ ...ROUGH, z_extrap_reason: null });
+    expect(screen.queryByRole("button", { name: /Z∞ note/ })).toBeNull();
+  });
+
+  it("desktop: the full line on the canvas and no ⓘ", () => {
+    stubMedia(false);
+    const c = mount(ROUGH);
+    expect(c.dataset.zinfLine).toBe("full");
+    expect(c.dataset.extrapReason).toBe(REASON);
+    expect(screen.queryByRole("button", { name: /Z∞ note/ })).toBeNull();
+  });
+});
 
 describe("the per-point dots", () => {
   it("the rule", () => {
