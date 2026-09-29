@@ -584,6 +584,16 @@ describe("an edit of the picked knob analysis", () => {
     expect(optionText()).toBe("feed spellings (edited)");
   });
 
+  it("\"Sweep a knob\" leaves the analysis and its family", async () => {
+    const r = await mount();
+    await chartOnStage(r);
+    await pick("len family");
+    await untilDom(() => (legendRows().length === 2 ? true : null));
+    await pick("\u0001knob");
+    await untilDom(() => (legendRows().length <= 1 ? true : null));
+    expect(optionText()).not.toMatch(/^len family/);
+  });
+
   it("another knob leaves the analysis", async () => {
     const r = await mount();
     await chartOnStage(r);
