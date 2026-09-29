@@ -137,6 +137,11 @@ licence.
 The NEC-2 tab appears in the solver panel the same way the NEC-5 one does, and
 `--engine nec2` reaches the same engine from the command line.
 
+A licensed NEC-4.2 binary of your own is reached the same way, through the
+`NEC42_EXE` variable or `nec42_exe` in `settings.toml` — see
+[NEC-4.2 as an external engine](/reference/nec42/). None is bundled: NEC-4.2 is
+licensed per user by LLNL.
+
 **If you run EZNEC Pro+, the engine is already on your disk.** EZNEC keeps it
 in its `Docs` folder — not under `Program Files`, where people look first —
 and the filename carries a build suffix, so it is `NEC5CL_x13.exe` rather

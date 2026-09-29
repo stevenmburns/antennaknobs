@@ -639,7 +639,7 @@ wavelength at the design frequency, so a long wire gets proportionally more:
 | `momwire:pulse` | 41 |
 | `momwire:sinusoidal-galerkin` | 20 |
 | `momwire:hmatrix` | 30 |
-| `momwire:sinusoidal`, `momwire:arrayblock`, `pynec`, `nec2` | 21 |
+| `momwire:sinusoidal`, `momwire:arrayblock`, `pynec`, `nec2`, `nec42` | 21 |
 | `momwire` (no basis) | 21 |
 
 The number is segments per quarter-wave at the design frequency, so it is
