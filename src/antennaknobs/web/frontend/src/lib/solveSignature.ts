@@ -24,6 +24,11 @@ const METADATA_EXEMPT = [
   // lockstep on purpose: the next field to travel both paths should not
   // have to rediscover this.
   "_refine",
+  // The lane stream a chart's curve runs on (AK#1757 step 5 unit 4):
+  // scheduling only, and it DOES ride buildRequest's output (a cell's
+  // request builder stamps it), so leaving it out of this list would key
+  // each curve's runner on its own stream name.
+  "_stream",
 ] as const;
 
 /** Stable stringification of a solve request minus the metadata fields and

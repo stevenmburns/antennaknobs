@@ -54,6 +54,28 @@ export function feedSweepColor(i: number, alpha = 0.85): string {
   return `rgba(${Math.round(r * f)}, ${Math.round(g * f)}, ${Math.round(b * f)}, ${alpha})`;
 }
 
+// An analysis chart's curves, one per engine x ground cell (AK#1757 step 5
+// unit 4). Cell 0 is the chart's own curve and keeps exactly the colour the
+// single-curve chart always drew (feed 0's sweep trail); the rest take hues
+// the chart draws nothing else in, one per cell up to the curve cap (6).
+// Darkened a little, as a trail is, so the bright live marker still reads
+// as "you are here" over every curve.
+const CELL_COLORS: [number, number, number][] = [
+  [118, 208, 255], // blue: feed 0's hue, cell 0
+  [255, 196, 102], // amber
+  [140, 230, 140], // green
+  [255, 130, 200], // pink
+  [180, 160, 255], // violet
+  [120, 220, 220], // teal
+];
+
+export function cellColor(i: number, alpha = 0.9): string {
+  if (i === 0) return feedSweepColor(0, alpha);
+  const [r, g, b] = CELL_COLORS[i % CELL_COLORS.length];
+  const f = 0.8;
+  return `rgba(${Math.round(r * f)}, ${Math.round(g * f)}, ${Math.round(b * f)}, ${alpha})`;
+}
+
 // Plot colors are pulled from CSS custom properties so the <canvas>
 // views theme from the same tokens as the DOM chrome. Fallbacks
 // reproduce the original dark palette, so missing vars are harmless.

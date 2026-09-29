@@ -89,6 +89,29 @@ const DENSITY_SWEEP: ParamSweepRequest = {
 
 export type { SweepPhase };
 
+/** One analysis chart curve's solve inputs (AK#1757 step 5 unit 4): its
+ *  cell's solver slot and ground slot (lib/chartCells.ts) and the lane
+ *  stream its batches run on (null: none, the first chart's first curve),
+ *  which the session's `buildCellRequest` turns into a request; the engine
+ *  and ground its frequency grid is planned for (defaultSweepPoints); and
+ *  whether it is on the active solver slot, whose "Solve anyway" approval
+ *  its batches then carry (any other slot's carry none). Plain data, so the
+ *  session derives it during render. */
+export type ChartCellRequest = {
+  slot: string;
+  ground: string;
+  stream: string | null;
+  backend: BackendEntry;
+  groundEnabled: boolean;
+  groundModel: GroundModel;
+  onActiveSlot: boolean;
+};
+
+/** The approval a curve on another slot than the active one carries: none.
+ *  The session's "Solve anyway" is for the active slot's engine; a poor
+ *  match on another slot is a refused cell instead (DesignSession). */
+export const NOT_APPROVED: MutableRefObject<boolean> = { current: false };
+
 
 // The four background analyses that shadow the live solve — the freq sweep,
 // the parameter sweep (density or a knob), the far-field norm check and the
@@ -137,6 +160,8 @@ export function useAnalysisRunners({
   solveWithheld,
   seqRef,
   approvedComboRef,
+  chartCell,
+  buildCellRequest,
 }: {
   backend: BackendEntry;
   currentVariant: string;
@@ -221,6 +246,17 @@ export function useAnalysisRunners({
   solveWithheld: () => boolean;
   seqRef: MutableRefObject<number>;
   approvedComboRef: MutableRefObject<boolean>;
+  /** The engine and ground the analysis chart's first curve solves on
+   *  (AK#1757 step 5 unit 4): its cell's request, the cell engine and
+   *  ground the sweep grid is planned for, and the approval that request
+   *  carries. The chart's frequency and parameter sweeps run on it; the
+   *  norm check and the NEC pattern stay on the session's own request.
+   *  Omitted, the chart's curve is the session's (the active slot and
+   *  ground), as before crosses. */
+  chartCell?: ChartCellRequest;
+  /** A cell's request (DesignSession's buildCellRequest); given with
+   *  `chartCell`. */
+  buildCellRequest?: (cell: ChartCellRequest) => SolveRequest;
 }) {
   // The range the sweep grids (AK#1682): the caller's, or the design's own.
   const effectiveSweepRange =
@@ -241,13 +277,21 @@ export function useAnalysisRunners({
   // NEW field someone adds next month — invalidates by default; the
   // exemption lists at the top of this module are the only opt-outs.
   const req = buildRequest();
+  // The chart's first curve: its cell's request, else the session's.
+  const cellBuild =
+    chartCell && buildCellRequest ? () => buildCellRequest(chartCell) : buildRequest;
+  const cellBackend = chartCell?.backend ?? backend;
+  const cellGroundEnabled = chartCell?.groundEnabled ?? groundEnabled;
+  const cellGroundModel = chartCell?.groundModel ?? groundModel;
+  const cellApprovedRef = chartCell && !chartCell.onActiveSlot ? NOT_APPROVED : approvedComboRef;
+  const cellReq = cellBuild === buildRequest ? req : cellBuild();
   // The parameter sweep overrides its own parameter at every point, so the
   // request's value of it changes no point: dragging the swept knob (or the
   // slot's density, for a density sweep) moves the chart's current-value
   // guide and re-solves nothing (the #1755 lesson). The ladder itself is
   // part of the key: a new range is a new sweep.
-  const paramSweepSig = paramSweepSignature(req, paramSweepReq);
-  const freqSweepSig = freqSweepSignature(req);
+  const paramSweepSig = paramSweepSignature(cellReq, paramSweepReq);
+  const freqSweepSig = freqSweepSignature(cellReq);
   const solveSig = solveSignature(req, { exempt: DISPLAY_ONLY_EXEMPT });
 
   // The freq sweep: the analysis chart's, when it shows a frequency sweep
@@ -261,9 +305,9 @@ export function useAnalysisRunners({
     enabled: sweepEnabled,
     resident: sweepResident,
     auto: sweepAuto,
-    backend,
-    groundEnabled,
-    groundModel,
+    backend: cellBackend,
+    groundEnabled: cellGroundEnabled,
+    groundModel: cellGroundModel,
     refineEnabled,
     z0,
     residentSweepViews,
@@ -273,10 +317,10 @@ export function useAnalysisRunners({
     active,
     comboApproved,
     recommendedBackend,
-    buildRequest,
+    buildRequest: cellBuild,
     solveWithheld,
     seqRef,
-    approvedComboRef,
+    approvedComboRef: cellApprovedRef,
   });
 
   // The parameter sweep: the analysis chart's knob or density sweep, drawn
@@ -290,10 +334,10 @@ export function useAnalysisRunners({
     active,
     comboApproved,
     recommendedBackend,
-    buildRequest,
+    buildRequest: cellBuild,
     solveWithheld,
     seqRef,
-    approvedComboRef,
+    approvedComboRef: cellApprovedRef,
   });
 
   const [normCheck, setNormCheck] = useState<NormCheckData | null>(null);
@@ -509,9 +553,12 @@ export function useAnalysisRunners({
     normCheck,
     pattern,
     abortInFlight,
-    /** This render's frequency sweep signature, for another frequency
-     *  runner (a second analysis chart's, unit 4) keyed on the same
-     *  request. */
+    /** This render's frequency sweep signature (the chart's first curve's
+     *  request). */
     freqSweepSig,
+    /** The two runners themselves, as the analysis chart's first curve
+     *  (AK#1757 step 5 unit 4 treats every curve as a runner pair). */
+    freq,
+    param,
   };
 }

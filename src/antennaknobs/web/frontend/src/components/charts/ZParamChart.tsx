@@ -21,7 +21,8 @@ import { formatTick } from "../../lib/sweepAxis";
 import { zinfSuffix } from "../../lib/zinf";
 import { ZPARAM_PLOT_MARGIN } from "../../lib/zparamLayout";
 import { ThemeContext } from "../hooks";
-import { plotColors } from "./palette";
+import { curvesAttr, type ExtraCurve, NO_CURVES } from "./curves";
+import { cellColor, plotColors } from "./palette";
 import { RxRangePopover } from "./RxRangePopover";
 
 // The Z-vs-parameter chart (docs/design/z-vs-param-view.md): the feed R and X
@@ -65,6 +66,7 @@ export function ZParamChart({
   phase = "idle",
   callouts = true,
   onCalloutsChange,
+  curves = NO_CURVES,
 }: {
   data: ParamSweepData | null;
   /** The parameter the view is set to sweep — the sweep in hand may still
@@ -100,6 +102,11 @@ export function ZParamChart({
   /** Given, the chart shows its one "values" toggle for the boxes (stage
    *  only; the state is the session's, never stored). */
   onCalloutsChange?: (on: boolean) => void;
+  /** The analysis chart's other curves (AK#1757 step 5 unit 4). With any,
+   *  every curve (this chart's own too, in cell 0's colour) draws its R
+   *  solid and its X dashed in its own colour, and the ranges take them in;
+   *  the end-value boxes and Z∞ stay the chart's own curve's. */
+  curves?: readonly ExtraCurve[];
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -116,15 +123,31 @@ export function ZParamChart({
   const rs = d ? d.z_re : [];
   const xsIm = d ? d.z_im : [];
   const n = xs.length;
-  const dom = xDomain(xs.length > 0 ? xs : currentValue != null ? [currentValue] : []);
+  // The other curves of the same parameter, which the ranges fit as well.
+  const others = curves.flatMap((c) =>
+    c.paramSweep && c.paramSweep.param === param && c.paramSweep.values.length > 0
+      ? [{ c, d: c.paramSweep }]
+      : [],
+  );
+  const multi = curves.length > 0;
+  const otherXs = others.flatMap((o) => o.d.values);
+  const dom = xDomain(
+    xs.length > 0 || otherXs.length > 0
+      ? [...xs, ...otherXs]
+      : currentValue != null
+        ? [currentValue]
+        : [],
+  );
   const logX = xLog && canLogX(dom);
   const fx = xFraction(dom, logX);
   // Auto fits the trace alone (with the live value when it is inside the
   // sweep's span, so the live dots stay on the plot).
   const inSpan =
     currentValue != null && n > 1 && currentValue >= dom.lo && currentValue <= dom.hi;
-  const rFit = inSpan && liveR != null ? [...rs, liveR] : rs;
-  const xFit = inSpan && liveX != null ? [...xsIm, liveX] : xsIm;
+  const otherR = others.flatMap((o) => o.d.z_re);
+  const otherX = others.flatMap((o) => o.d.z_im);
+  const rFit = [...(inSpan && liveR != null ? [...rs, liveR] : rs), ...otherR];
+  const xFit = [...(inSpan && liveX != null ? [...xsIm, liveX] : xsIm), ...otherX];
   const extrap =
     d && isDensity(d.param)
       ? {
@@ -148,7 +171,7 @@ export function ZParamChart({
   const xTk = n > 0 ? xTicks(dom, logX) : [];
   const shownHover = hover != null && hover >= 0 && hover < n ? hover : null;
   const keyOf = (dd: { lo: number; hi: number }) => `${dd.lo},${dd.hi}`;
-  const domKey = `${keyOf(dom)}|${keyOf(rDom)}|${keyOf(xDom)}|${logX}|${z0}`;
+  const domKey = `${keyOf(dom)}|${keyOf(rDom)}|${keyOf(xDom)}|${logX}|${z0}|${curvesAttr(curves)}`;
   // The refusal's own words are a note over the stage (they do not fit a
   // canvas line); the chart says only that there is one.
   const status = d?.error
@@ -319,20 +342,28 @@ export function ZParamChart({
     }
 
     // The traces: a polyline and hollow circles at every point.
-    const trace = (ys: number[], dd: { lo: number; hi: number }, c: string) => {
-      if (n === 0) return;
+    const trace = (
+      vx: number[],
+      ys: number[],
+      dd: { lo: number; hi: number },
+      c: string,
+      dash: number[] = [],
+    ) => {
+      if (vx.length === 0) return;
       ctx.strokeStyle = c;
       ctx.lineWidth = 1.4;
+      ctx.setLineDash(dash);
       ctx.beginPath();
-      xs.forEach((v, i) => {
+      vx.forEach((v, i) => {
         const x = px(v);
         const y = py(ys[i], dd);
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       });
       ctx.stroke();
+      ctx.setLineDash([]);
       ctx.fillStyle = PC.bg;
-      xs.forEach((v, i) => {
+      vx.forEach((v, i) => {
         ctx.beginPath();
         ctx.arc(px(v), py(ys[i], dd), 2.6, 0, 2 * Math.PI);
         ctx.fill();
@@ -342,8 +373,21 @@ export function ZParamChart({
     // A stale knob sweep (its inputs changed, and it waits to be asked):
     // the old trace, dimmed.
     const dim = d?.stale ? 0.35 : 1;
-    trace(rs, rDom, R(dim));
-    trace(xsIm, xDom, X(dim));
+    if (multi) {
+      // One colour per curve (the legend's), R solid and X dashed.
+      const own = cellColor(0, dim);
+      trace(xs, rs, rDom, own);
+      trace(xs, xsIm, xDom, own, [5, 3]);
+      for (const o of others) {
+        ctx.globalAlpha = o.c.stale || o.d.stale ? 0.35 : 1;
+        trace(o.d.values, o.d.z_re, rDom, o.c.color);
+        trace(o.d.values, o.d.z_im, xDom, o.c.color, [5, 3]);
+        ctx.globalAlpha = 1;
+      }
+    } else {
+      trace(xs, rs, rDom, R(dim));
+      trace(xs, xsIm, xDom, X(dim));
+    }
 
     // The current value: a dashed guide, and the live solve's R and X on it.
     if (currentValue != null && currentValue >= dom.lo && currentValue <= dom.hi) {
@@ -450,7 +494,7 @@ export function ZParamChart({
     // choices below; domKey stands in for the domains as a string, so an
     // unchanged range does not redraw.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, param, label, unit, size, theme, domKey, currentValue, liveR, liveX, shownHover, status, callouts]);
+  }, [data, param, label, unit, size, theme, domKey, currentValue, liveR, liveX, shownHover, status, callouts, curves]);
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (n === 0) return;
@@ -505,6 +549,7 @@ export function ZParamChart({
         data-stale={d?.stale ? "1" : "0"}
         data-phase={phase}
         data-callouts={callouts && n >= 2 ? "1" : "0"}
+        data-curves={curvesAttr(curves)}
         onPointerMove={onPointerMove}
         // A tap on a phone reads the nearest point too.
         onPointerDown={onPointerMove}

@@ -436,6 +436,11 @@ export type SolveRequest = {
   /** Set when the user clicked through the poor-match gate ("Solve anyway");
    *  the server refuses warned batches without it. */
   _approved?: boolean;
+  /** Which of the session's concurrent sweeps this is (AK#1757 step 5 unit
+   *  4): an analysis chart's curve, one per engine x ground cell, and a
+   *  second chart's. The lane runs each named stream as its own job instead
+   *  of a re-issue of one; scheduling only, never physics. */
+  _stream?: string;
 };
 
 export type SweepData = {

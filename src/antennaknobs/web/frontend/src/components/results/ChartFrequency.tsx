@@ -46,6 +46,7 @@ export function ChartFrequency({ p, f }: { p: ViewRenderProps; f: ChartFrequency
         interactive={p.chartZoom ?? false}
         designKey={p.result?.geometry ?? ""}
         stale={f.stale}
+        {...(p.chartCurves ? { curves: p.chartCurves } : {})}
       />
     );
   } else {
@@ -69,6 +70,7 @@ export function ChartFrequency({ p, f }: { p: ViewRenderProps; f: ChartFrequency
         axis={f.axes[mode]}
         swrThreshold={f.threshold}
         stale={f.stale}
+        {...(p.chartCurves ? { curves: p.chartCurves } : {})}
         {...(onAxis ? { onAxisChange: (c: SweepAxisChoice) => onAxis(mode, c) } : {})}
         {...(f.onThresholdChange ? { onThresholdChange: f.onThresholdChange } : {})}
       />
@@ -110,6 +112,7 @@ export function ChartKnobSmith({ p }: { p: ViewRenderProps }) {
         interactive={p.chartZoom ?? false}
         designKey={p.result?.geometry ?? ""}
         stale={stale}
+        {...(p.chartCurves ? { curves: p.chartCurves } : {})}
       />
     </div>
   );

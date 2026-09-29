@@ -21,7 +21,9 @@ import type {
   PatternData,
   PinnedPattern,
 } from "../charts/types";
+import type { ExtraCurve } from "../charts/curves";
 import { ChartFrequency, ChartKnobSmith } from "./ChartFrequency";
+import { ChartLegend, type ChartLegendData, legendShown } from "./ChartLegend";
 import { FilesPanel, type FilesViewData } from "./FilesPanel";
 import { SchematicPanel } from "./SchematicPanel";
 
@@ -113,6 +115,12 @@ export type ViewRenderProps = {
    *  and 3): the zparam view draws the chart's sweep on its Swr, S11 or
    *  Smith view, instead of a knob sweep. Null or omitted: the knob sweep. */
   chartFrequency?: ChartFrequencyRender | null;
+  /** The analysis chart's other curves, one per further engine x ground
+   *  cell (AK#1757 step 5 unit 4), drawn beside its own on whichever view it
+   *  shows; and its legend, which names every cell, refused ones with their
+   *  reason. Omitted: one curve, no legend. */
+  chartCurves?: readonly ExtraCurve[];
+  chartLegend?: ChartLegendData | null;
 };
 
 /** A frequency sweep as the analysis chart draws it: the chart's sweep
@@ -263,36 +271,58 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
   // against the knob (docs/design/z-vs-param-view.md) or as its trail on the
   // Smith chart. The live R/X ride on the current-value guide; liveZ wins
   // while an optimizer run is proposing points, as on the Smith chart.
-  zparam: (p) => {
-    if (p.chartFrequency) return <ChartFrequency p={p} f={p.chartFrequency} />;
-    const z = p.zparam ?? DEFAULT_ZPARAM;
-    if (z.view === "Smith") return <ChartKnobSmith p={p} />;
-    const r = p.liveZ?.z_in_re ?? p.result?.z_in_re ?? null;
-    const x = p.liveZ?.z_in_im ?? p.result?.z_in_im ?? null;
-    return (
-      <ZParamChart
-        data={p.paramSweep}
-        param={z.param}
-        label={z.label}
-        unit={z.unit}
-        total={z.total}
-        currentValue={z.currentValue}
-        liveR={r}
-        liveX={x}
-        size={p.size}
-        running={p.paramSweepRunning}
-        xLog={z.xLog}
-        rAxis={z.rAxis}
-        xAxis={z.xAxis}
-        // The trial point's reference during an optimizer run, as the Smith
-        // chart does; else the session's.
-        z0={p.liveZ?.z0_ohms ?? z.z0}
-        {...(z.phase ? { phase: z.phase } : {})}
-        {...(z.callouts !== undefined ? { callouts: z.callouts } : {})}
-        {...(z.onCalloutsChange ? { onCalloutsChange: z.onCalloutsChange } : {})}
-        {...(p.onZparamXLogChange ? { onXLogChange: p.onZparamXLogChange } : {})}
-        {...(p.onZparamAxisChange ? { onAxisChange: p.onZparamAxisChange } : {})}
-      />
-    );
-  },
+  zparam: (p) => withLegend(p, analysisChart(p)),
+  // A duplicated chart (AK#1757 step 5 unit 4) draws exactly as the chart:
+  // the session hands each its own props.
+  zparam2: (p) => withLegend(p, analysisChart(p)),
+  zparam3: (p) => withLegend(p, analysisChart(p)),
+  zparam4: (p) => withLegend(p, analysisChart(p)),
 };
+
+// The legend over a multi-curve chart; a one-curve chart is returned as it
+// is, so its DOM is the chart's as before crosses.
+function withLegend(p: ViewRenderProps, chart: ReactElement): ReactElement {
+  if (!legendShown(p.chartLegend)) return chart;
+  return (
+    <div className="analysis-chart-cells" style={{ width: p.size, height: p.size }}>
+      {chart}
+      <ChartLegend legend={p.chartLegend} />
+    </div>
+  );
+}
+
+// The analysis chart on its view (AK#1757 step 5): a frequency sweep on its
+// Swr, S11 or Smith view, or a knob sweep as R/X or its Smith trail.
+function analysisChart(p: ViewRenderProps): ReactElement {
+  if (p.chartFrequency) return <ChartFrequency p={p} f={p.chartFrequency} />;
+  const z = p.zparam ?? DEFAULT_ZPARAM;
+  if (z.view === "Smith") return <ChartKnobSmith p={p} />;
+  const r = p.liveZ?.z_in_re ?? p.result?.z_in_re ?? null;
+  const x = p.liveZ?.z_in_im ?? p.result?.z_in_im ?? null;
+  return (
+    <ZParamChart
+      data={p.paramSweep}
+      param={z.param}
+      label={z.label}
+      unit={z.unit}
+      total={z.total}
+      currentValue={z.currentValue}
+      liveR={r}
+      liveX={x}
+      size={p.size}
+      running={p.paramSweepRunning}
+      xLog={z.xLog}
+      rAxis={z.rAxis}
+      xAxis={z.xAxis}
+      // The trial point's reference during an optimizer run, as the Smith
+      // chart does; else the session's.
+      z0={p.liveZ?.z0_ohms ?? z.z0}
+      {...(z.phase ? { phase: z.phase } : {})}
+      {...(z.callouts !== undefined ? { callouts: z.callouts } : {})}
+      {...(z.onCalloutsChange ? { onCalloutsChange: z.onCalloutsChange } : {})}
+      {...(p.onZparamXLogChange ? { onXLogChange: p.onZparamXLogChange } : {})}
+      {...(p.onZparamAxisChange ? { onAxisChange: p.onZparamAxisChange } : {})}
+      {...(p.chartCurves ? { curves: p.chartCurves } : {})}
+    />
+  );
+}

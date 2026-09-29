@@ -18,7 +18,7 @@ import {
   type ChartChrome,
   ChartViewPick,
   type ChartViewPickProps,
-  DwellSwitch,
+  ChartChromeControls,
 } from "./AnalysisChartControls";
 import type { SchemaParamSpec } from "../../lib/params";
 
@@ -203,7 +203,7 @@ export function ZParamControls({
             {run.partial ? `${run.received}/${values.length} · run` : "run"}
           </button>
         )}
-        {chrome && <DwellSwitch {...chrome} />}
+        {chrome && <ChartChromeControls {...chrome} />}
         <button
           type="button"
           className="zparam-reset"
