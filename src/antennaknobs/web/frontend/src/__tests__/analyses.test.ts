@@ -228,7 +228,7 @@ describe("frequency analyses (step 4)", () => {
       ],
     });
     expect(a.workbench).toEqual({
-      ...freq({ views: ["Swr", "Smith"] }),
+      ...freq({ views: ["Swr", "Smith"], freqs: null }),
       engines: null,
       grounds: null,
       ...NO_CROSSES,
