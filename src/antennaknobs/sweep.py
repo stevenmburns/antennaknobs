@@ -1,4 +1,5 @@
 import logging
+import math
 
 from . import Antenna
 from .core import save_or_show
@@ -511,14 +512,20 @@ def _rx_overlay(
             [], [], linestyle="None", marker="x", color="0.5", label=f"{name}: refused"
         )
     # Below the axes, one column per engine (its R above its X), so it
-    # never sits on the curves or the callout columns.
+    # never sits on the curves or the callout columns. Past three curves
+    # the columns wrap, each holding whole R/X pairs: the legend fills
+    # column-major, so a column of an even number of rows never splits a
+    # pair, and refused entries come last. Six crossed curves (the cap,
+    # AK#1757) in one row would run off the figure.
+    per = 2 if both else 1
+    rows = per * math.ceil((len(panels) + len(refused)) / 3)
     ax0.legend(
         handles=handles,
         loc="upper center",
         bbox_to_anchor=(0.5, -0.13),
         frameon=False,
         fontsize=7,
-        ncol=max(1, len(panels) + len(refused)),
+        ncol=max(1, math.ceil(len(handles) / max(rows, 1))),
     )
     _polish_axes(ax0, title=title)
     if both:
