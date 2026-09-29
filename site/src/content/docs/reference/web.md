@@ -277,6 +277,10 @@ it draws it:
   or **Smith** for a knob sweep, where Smith draws the knob sweep as a trail
   (what the old **param sweep** switch drew);
 - **from / to** and **↺**, **run**, and **auto re-run**;
+- **A · 1**, the engines and grounds it compares (see
+  [Comparing engines and grounds](#comparing-engines-and-grounds));
+- **⧉** duplicates the chart, and **×** closes a duplicate (see
+  [More than one chart](#more-than-one-chart));
 - on the Smith view, **measured .s1p…**, the
   [measured overlay](#measured-overlay--your-vna-on-the-smith-chart).
 
@@ -293,7 +297,47 @@ The standalone **Smith**, **S11 (dB) vs freq** and **VSWR vs freq** views are
 gone; they are this chart's views now. Pins saved in the browser that named
 them become the chart: a Smith pin opens it on Smith, a VSWR pin on SWR and an
 S11 pin on S11, each in the old pin's place. Several of them together become
-one chart, until duplicated charts arrive.
+one chart; **⧉** makes more.
+
+### Comparing engines and grounds
+
+The **A · 1** button on a chart's header names the
+[solver slots](#choosing-a-solver--segment-count) and
+[ground slots](#ground-slots) the chart draws, and opens their checkboxes: one
+curve per ticked engine on each ticked ground. It starts on the active slot
+and ground alone, the one curve the chart always drew, and follows them as you
+switch until you tick a box. On a phone the boxes open over the page from
+that one button, so the header still fits.
+
+Each curve solves on its slot's engine and its ground slot's ground, exactly
+as the chart would with that slot and that ground active, and no slot changes:
+the active ones stay what the live solve and every other view use. The curves
+draw in their own colours on the Smith, SWR and S11 views and on a knob
+sweep's R / X (each curve's R solid and its X dashed) and Smith trail, with a
+legend naming each one, as `antennaknobs analyze` names its curves. The marker
+at the measurement frequency is the live solve's, and moves with every knob;
+the curves wait for **auto re-run** or **run** as one curve does.
+
+A chart draws at most **six** curves, the command line's cap: three engines
+on two grounds draw, three on three are refused (*"REFUSED: 3 engines x 3
+grounds = 9 curves, over the cap of 6"*), and nothing is dropped to fit.
+
+When an analysis you pick names its engines or grounds (a cross in its
+`build_analyses()`), their slots are ticked for you. One that no slot holds is
+a **refused** curve: the legend names it with the reason, e.g. *"nec5: no
+solver slot holds nec5"*, and the rest draw. Load the engine into a slot to
+draw it; the chart never rewrites a slot. A slot that cannot run the design
+at all, or is a poor match for it (which only the active slot's **Solve
+anyway** can override), is refused the same way.
+
+### More than one chart
+
+**⧉** on a chart's header opens another like it, up to four charts: its own
+analysis, **auto re-run**, range, view, scales and engines and grounds, and
+its own sweeps, so one chart can watch SWR across the band while another
+sweeps a knob. The copy opens on the stage, and in the grid the charts take
+the four cells first. **×** closes a copy. Copies last for the session and are
+never among the pins the browser remembers.
 
 **The SWR and S11 views' vertical range** is set by clicking the chart's y
 axis (tap it on a phone), and a choice shows on the chart at once, with the
@@ -1307,8 +1351,9 @@ On the chart:
   `· rough: fed segment 100.0→33.3 mm at N 65→95`. See
   [Where the extrapolated value comes from](/advanced/convergence/#where-the-extrapolated-value-comes-from).
 
-The sweep solves on the **active slot's engine**. Switch slots to see
-another engine's curve (one panel per engine is planned).
+The sweep solves on the **active slot's engine**. Tick more slots on the
+chart to draw another engine's curve beside it (see
+[Comparing engines and grounds](#comparing-engines-and-grounds)).
 
 ### A design's analyses
 
@@ -1324,12 +1369,12 @@ the density ladder, the same values the command line solves. When the chart
 shows a knob sweep and the design has an analysis that sweeps exactly that,
 the list names it.
 
-The view draws one curve, so an analysis that compares several draws this
-session's one. **height** is crossed over three grounds; the workbench draws
-the ground you have set, and the chart's note (ⓘ) says so and that
-`antennaknobs analyze` draws all three. A deck's own segment knob runs as a
-knob sweep over the density ladder, with `Z∞` on the command line only for
-now.
+An analysis that compares engines or grounds draws one curve per slot that
+holds one: **height** is crossed over three grounds, and picking it ticks the
+ground slots that hold them, naming any that none does in the legend (see
+[Comparing engines and grounds](#comparing-engines-and-grounds)). A deck's own
+segment knob runs as a knob sweep over the density ladder, with `Z∞` on the
+command line only for now.
 
 A frequency analysis, such as **band SWR**, draws in the same chart, on the
 analysis's first view: SWR, S11 or Smith. The **view** list offers the
@@ -1360,9 +1405,8 @@ planes or designs, a frequency analysis given explicit frequencies rather
 than a range, and a match held at every point. Each reason names the
 step of the sweep framework it is planned for.
 
-A note the chart has for what it draws (an analysis drawn for this
-session's engine and ground rather than all it names, or a word on cost)
-sits on the one line under the header as **ⓘ** and its first words; tap it
+A note the chart has for what it draws (a view it leaves out, or a word on
+cost) sits on the one line under the header as **ⓘ** and its first words; tap it
 to read the whole note over the chart. That line is there with a note or
 without one, so a note never takes height from the plot.
 
