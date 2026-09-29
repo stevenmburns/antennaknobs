@@ -4532,7 +4532,6 @@ canvas {
   opacity: 0.4;
   cursor: default;
 }
-/* The chart's lin/log x toggle, bottom-right under the X axis labels. */
 /* The Z∞ readout's reason, behind an ⓘ on a phone (AK#1757): the button sits
    at the top of the plot's left margin, beside the short canvas line; the
    panel is laid over the chart. */
@@ -4559,6 +4558,7 @@ canvas {
   max-width: calc(100% - 8px);
   font-size: var(--text-xs);
 }
+/* The chart's lin/log x toggle, bottom-right under the X axis labels. */
 .zparam-xlog-btn {
   position: absolute;
   right: 2px;

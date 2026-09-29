@@ -428,10 +428,11 @@ export function nudgeClear(
 export { formatTick };
 
 /** The radius of the per-point circles on a knob sweep's R and X traces:
- *  2 px on a phone and wherever three or more curves are drawn, 2.6 px for
- *  a lone curve on a desktop. Never applied to the live marker. */
+ *  1.2 px on a phone and wherever three or more curves are drawn (Steve:
+ *  "smaller dots or just lines"; a tap reads the nearest point either way),
+ *  2.6 px for a lone curve on a desktop. Never applied to the live marker. */
 export const TRACE_DOT_R = 2.6;
-export const TRACE_DOT_R_SMALL = 2;
+export const TRACE_DOT_R_SMALL = 1.2;
 export function traceDotRadius(isMobile: boolean, nCurves: number): number {
   return isMobile || nCurves >= 3 ? TRACE_DOT_R_SMALL : TRACE_DOT_R;
 }
