@@ -71,6 +71,13 @@ describe("the Z∞ readout's reason on a phone", () => {
     expect(c.dataset.zinfLine).toBe("short");
     expect(screen.queryByRole("note")).toBeNull();
     const btn = screen.getByRole("button", { name: "Show the Z∞ note" });
+    // One DOM row: the short text, then the ⓘ right after it, so the button
+    // can never sit on top of the value (Steve's phone, second pass).
+    const line = document.querySelector(".zinf-line") as HTMLElement;
+    expect(line).not.toBeNull();
+    const text = line.querySelector(".zinf-text") as HTMLElement;
+    expect(text.textContent).toBe("Z∞ ≈ 70.79 − j9.60 Ω · rough");
+    expect(text.nextElementSibling).toBe(btn);
     fireEvent.click(btn);
     const note = screen.getByRole("note", { name: "Z∞ note" });
     expect(note.textContent).toContain("Z∞ ≈ 70.79 − j9.60 Ω · rough");
@@ -91,6 +98,7 @@ describe("the Z∞ readout's reason on a phone", () => {
     expect(c.dataset.zinfLine).toBe("full");
     expect(c.dataset.extrapReason).toBe(REASON);
     expect(screen.queryByRole("button", { name: /Z∞ note/ })).toBeNull();
+    expect(document.querySelector(".zinf-line")).toBeNull();
   });
 });
 
