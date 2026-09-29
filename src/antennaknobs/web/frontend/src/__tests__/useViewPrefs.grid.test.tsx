@@ -18,7 +18,7 @@ import {
   useViewPrefs,
 } from "../components/session/useViewPrefs";
 
-const FOUNDING: View[] = ["antenna", "azimuth", "elevation", "smith"];
+const FOUNDING: View[] = ["antenna", "azimuth", "elevation", "zparam"];
 
 beforeEach(() => {
   localStorage.clear();
@@ -115,17 +115,17 @@ describe("layout validation", () => {
   it("still recovers the good pinned/seen fields alongside a bad layout", () => {
     localStorage.setItem(
       VIEW_PREFS_KEY,
-      '{"pinned":["smith"],"seen":["smith"],"layout":"bogus"}',
+      '{"pinned":["zparam"],"seen":["zparam"],"layout":"bogus"}',
     );
     const { result } = renderHook(() => useViewPrefs());
-    expect(result.current.pinned).toEqual(["smith"]);
+    expect(result.current.pinned).toEqual(["zparam"]);
     expect(result.current.layout).toBe("rail");
   });
 
   it("honours a stored grid value", () => {
     localStorage.setItem(
       VIEW_PREFS_KEY,
-      '{"pinned":["smith"],"seen":["smith"],"layout":"grid"}',
+      '{"pinned":["zparam"],"seen":["zparam"],"layout":"grid"}',
     );
     const { result } = renderHook(() => useViewPrefs());
     expect(result.current.layout).toBe("grid");
@@ -136,12 +136,12 @@ describe("layout validation", () => {
 
 describe("gridCells", () => {
   it("shows the first ≤4 pins, in pin order — mutation target: order", () => {
-    expect(gridCells(["smith", "antenna"])).toEqual(["smith", "antenna"]);
-    expect(gridCells(["elevation", "antenna", "azimuth", "smith"])).toEqual([
+    expect(gridCells(["zparam", "antenna"])).toEqual(["zparam", "antenna"]);
+    expect(gridCells(["elevation", "antenna", "azimuth", "zparam"])).toEqual([
       "elevation",
       "antenna",
       "azimuth",
-      "smith",
+      "zparam",
     ]);
   });
 
@@ -150,16 +150,16 @@ describe("gridCells", () => {
       "antenna",
       "azimuth",
       "elevation",
-      "smith",
+      "zparam",
       "schematic",
-      "gamma",
+      "files",
     ];
     expect(gridCells(six)).toEqual(FOUNDING);
     expect(gridCells(six)).toHaveLength(4);
   });
 
   it("passes a single pin through unchanged", () => {
-    expect(gridCells(["smith"])).toEqual(["smith"]);
+    expect(gridCells(["zparam"])).toEqual(["zparam"]);
   });
 });
 
@@ -186,7 +186,7 @@ describe("gridFix", () => {
   });
 
   it("is a no-op when the ring is already on a displayed cell", () => {
-    expect(gridFix("grid", true, "smith", FOUNDING)).toBeNull();
+    expect(gridFix("grid", true, "zparam", FOUNDING)).toBeNull();
   });
 
   it("snaps to cell 1 when ENTERING grid with a peeked view active", () => {
@@ -197,16 +197,16 @@ describe("gridFix", () => {
   });
 
   it("snaps to cell 1 when ENTERING grid with pin #5 active", () => {
-    const sixPins = [...FOUNDING, "schematic", "gamma"] as View[];
-    expect(gridFix("grid", false, "gamma", sixPins)).toEqual({
+    const sixPins = [...FOUNDING, "schematic", "files"] as View[];
+    expect(gridFix("grid", false, "files", sixPins)).toEqual({
       view: "antenna",
     });
   });
 
   it("snaps to cell 1 when ALREADY in grid and a pinned off-grid view (pin #5) is picked", () => {
-    const sixPins = [...FOUNDING, "schematic", "gamma"] as View[];
-    // wasGrid=true ⇒ grid did not just start; the picker activated "gamma".
-    expect(gridFix("grid", true, "gamma", sixPins)).toEqual({
+    const sixPins = [...FOUNDING, "schematic", "files"] as View[];
+    // wasGrid=true ⇒ grid did not just start; the picker activated "files".
+    expect(gridFix("grid", true, "files", sixPins)).toEqual({
       view: "antenna",
     });
   });

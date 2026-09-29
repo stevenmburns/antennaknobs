@@ -27,13 +27,13 @@ import {
 } from "../components/session/useViewPrefs";
 import { useViewState } from "../components/session/useViewState";
 
-const FOUNDING: View[] = ["antenna", "azimuth", "elevation", "smith"];
+const FOUNDING: View[] = ["antenna", "azimuth", "elevation", "zparam"];
 const ROSTER = VIEWS.map((v) => v.id);
 // A deliberate mirror of useViewPrefs' SEEN_SEED (not exported: it records a
 // frozen historical fact rather than offering a knob). Copying it here means a
 // change to the production seed surfaces as a failure in the badge tests,
 // which is exactly where the seed's meaning lives.
-const PRE_PICKER: View[] = ["antenna", "azimuth", "elevation", "smith", "schematic"];
+const PRE_PICKER: View[] = ["antenna", "azimuth", "elevation", "zparam", "schematic"];
 // Views that shipped after the picker did — the population the NEW badge
 // exists for. Empty on the day the picker shipped, non-empty ever since.
 const POST_PICKER = ROSTER.filter((id) => !PRE_PICKER.includes(id));
@@ -66,7 +66,7 @@ describe("defaults", () => {
     expect(result.current.railViews("antenna").map((v) => v.id)).toEqual([
       "azimuth",
       "elevation",
-      "smith",
+      "zparam",
     ]);
   });
 
@@ -77,8 +77,8 @@ describe("defaults", () => {
   it("badges the views that shipped after the picker, and only those", () => {
     const { result } = renderHook(() => useViewPrefs());
     expect([...result.current.newIds]).toEqual(POST_PICKER);
-    expect(POST_PICKER).toContain("gamma");
-    expect(POST_PICKER).toContain("vswr");
+    expect(POST_PICKER).toContain("files");
+    expect(POST_PICKER).toContain("combined");
     for (const id of PRE_PICKER) expect(result.current.newIds.has(id)).toBe(false);
   });
 });
@@ -111,7 +111,7 @@ describe("persistence", () => {
 
   it("round-trips an unpin too", () => {
     const first = renderHook(() => useViewPrefs());
-    act(() => first.result.current.togglePin("smith"));
+    act(() => first.result.current.togglePin("zparam"));
     first.unmount();
     const second = renderHook(() => useViewPrefs());
     expect(second.result.current.pinned).toEqual(["antenna", "azimuth", "elevation"]);
@@ -145,7 +145,7 @@ describe("persistence", () => {
 
 describe("stored-record validation", () => {
   // Ids no release will ever ship — a stale pin from a REMOVED view, or a
-  // hand-edited key. Asserted, not assumed: "gamma" was this file's stand-in
+  // hand-edited key. Asserted, not assumed: "files" was this file's stand-in
   // for an unknown id until the day it became a real view.
   it("uses id fixtures the registry really does not know", () => {
     for (const id of ["bogus", "no-such-view"]) expect(ROSTER).not.toContain(id);
@@ -172,23 +172,23 @@ describe("stored-record validation", () => {
   it("drops unknown ids and duplicates from a salvageable record", () => {
     localStorage.setItem(
       VIEW_PREFS_KEY,
-      '{"pinned":["smith","bogus","smith","antenna"],"seen":["antenna"]}',
+      '{"pinned":["zparam","bogus","zparam","antenna"],"seen":["antenna"]}',
     );
     const { result } = renderHook(() => useViewPrefs());
-    expect(result.current.pinned).toEqual(["smith", "antenna"]);
+    expect(result.current.pinned).toEqual(["zparam", "antenna"]);
   });
 
   // A `seen` that sanitises to nothing is indistinguishable from an absent
   // one, so it takes the seed — which leaves the same badges a first-time
   // user gets, not a blank slate and not the whole roster.
   it("re-seeds `seen` when the stored one has nothing usable left", () => {
-    localStorage.setItem(VIEW_PREFS_KEY, '{"pinned":["smith"],"seen":["bogus"]}');
+    localStorage.setItem(VIEW_PREFS_KEY, '{"pinned":["zparam"],"seen":["bogus"]}');
     const { result } = renderHook(() => useViewPrefs());
     expect([...result.current.newIds]).toEqual(POST_PICKER);
   });
 
   it("honours a partial `seen` — every other view badges", () => {
-    localStorage.setItem(VIEW_PREFS_KEY, '{"pinned":["smith"],"seen":["antenna"]}');
+    localStorage.setItem(VIEW_PREFS_KEY, '{"pinned":["zparam"],"seen":["antenna"]}');
     const { result } = renderHook(() => useViewPrefs());
     expect([...result.current.newIds]).toEqual(
       ROSTER.filter((id) => id !== "antenna"),
@@ -202,13 +202,13 @@ describe("pin floor", () => {
   // An empty pin set is what loadPrefs reads as corruption, so it must not be
   // reachable through the UI or the stored state stops being a fixed point.
   it("refuses to unpin the last pin", () => {
-    localStorage.setItem(VIEW_PREFS_KEY, '{"pinned":["smith"],"seen":["smith"]}');
+    localStorage.setItem(VIEW_PREFS_KEY, '{"pinned":["zparam"],"seen":["zparam"]}');
     const { result } = renderHook(() => useViewPrefs());
-    expect(pinBlockedReason(result.current.pinned, "smith")).toBe(
+    expect(pinBlockedReason(result.current.pinned, "zparam")).toBe(
       "Keep at least one view pinned",
     );
-    act(() => result.current.togglePin("smith"));
-    expect(result.current.pinned).toEqual(["smith"]);
+    act(() => result.current.togglePin("zparam"));
+    expect(result.current.pinned).toEqual(["zparam"]);
   });
 });
 
@@ -240,13 +240,13 @@ describe("arrow-key cycling", () => {
       seen.push(result.current.view);
     }
     // Four stops return to the start; the schematic is never among them.
-    expect(seen).toEqual(["azimuth", "elevation", "smith", "antenna"]);
+    expect(seen).toEqual(["azimuth", "elevation", "zparam", "antenna"]);
   });
 
   it("cycles in PIN order, not registry order", () => {
-    const { result } = renderCycler(["smith", "antenna"]);
+    const { result } = renderCycler(["zparam", "antenna"]);
     press("ArrowDown");
-    expect(result.current.view).toBe("smith");
+    expect(result.current.view).toBe("zparam");
     press("ArrowDown");
     expect(result.current.view).toBe("antenna");
   });
@@ -260,7 +260,7 @@ describe("arrow-key cycling", () => {
     // lands back on the peek rather than on the last pin.
     act(() => result.current.setView("antenna"));
     press("ArrowUp");
-    expect(result.current.view).toBe("smith");
+    expect(result.current.view).toBe("zparam");
   });
 
   it("leaves the arrows alone while an input or a knob has focus", () => {
@@ -279,7 +279,7 @@ describe("arrow-key cycling", () => {
 
 describe("cycleOrder", () => {
   it("appends the active view only when it is unpinned", () => {
-    expect(cycleOrder(FOUNDING, "smith")).toEqual(FOUNDING);
+    expect(cycleOrder(FOUNDING, "zparam")).toEqual(FOUNDING);
     expect(cycleOrder(FOUNDING, "schematic")).toEqual([...FOUNDING, "schematic"]);
   });
 });

@@ -18,10 +18,10 @@ import type { Advisory } from "../results/SolverAdvisories";
 // One frequency sweep runner: the debounced base sweep over a range, its
 // adaptive refinement rounds (issue #744) and their phase, progress and
 // advisories. Extracted from useAnalysisRunners (AK#1757 step 5 unit 2) so
-// that it can be instantiated more than once: the session's own sweep (the
-// standalone Smith / VSWR / S11 views and their freq-sweep switch) is one
-// instance, and every analysis chart that shows a frequency analysis holds
-// another, over its own range and gated by its own dwell switch.
+// that it can be instantiated once per analysis chart: the session's one
+// instance is the chart's since unit 3 folded the standalone Smith / VSWR /
+// S11 views and their freq-sweep switch into it, over the chart's range and
+// gated by its dwell switch; a second chart (unit 4) holds another.
 //
 // Two modes, by `auto`:
 //   - auto (the session's sweep, and a chart with its dwell switch on): any
@@ -128,8 +128,8 @@ export type FreqSweepOptions = {
   /** The sweep's physics signature (useAnalysisRunners' FREQ_SWEEP_EXEMPT
    *  over this render's request): any change is a new sweep. */
   sig: string;
-  /** The switch that runs it at all: the session's freq-sweep checkbox, or
-   *  true for a chart (whose switch is `auto`). */
+  /** It runs at all: the chart shows a frequency sweep (the chart's dwell
+   *  switch is `auto`). */
   enabled: boolean;
   /** Something that draws it is on screen (issue #715). */
   resident: boolean;

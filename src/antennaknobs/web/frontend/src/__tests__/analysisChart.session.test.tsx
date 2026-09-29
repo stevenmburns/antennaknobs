@@ -162,15 +162,16 @@ async function mount() {
   const saves: unknown[] = [];
   const r = await mountReady({
     examples: [DECK],
-    pinned: ["antenna", "zparam", "smith"],
+    pinned: ["antenna", "zparam"],
     uiDefaults: {
       path: "/x/settings.toml",
       exists: false,
       writable: true,
-      // The session's own freq sweep off: every /sweep below is the chart's.
+      // The built-in switches: freq_sweep (a frequency chart's dwell switch
+      // on, unit 3) and convergence_sweep off (a knob chart's off).
       switches: {
         live: true,
-        freq_sweep: false,
+        freq_sweep: true,
         convergence_sweep: false,
         pattern_renorm: false,
         refine: false,
@@ -216,14 +217,18 @@ async function mount() {
       },
     },
   });
-  // Put the chart on the stage.
-  fireEvent.click(r.container.querySelector(".thumbstrip canvas.zparam") as HTMLElement);
+  // Put the chart on the stage: a new chart is the design's own frequency
+  // sweep on the Smith chart (unit 3), so its thumb is a Smith chart.
+  fireEvent.click(r.container.querySelector(".thumbstrip canvas.smith") as HTMLElement);
   const select = await untilDom(
     () => screen.queryByRole("combobox", { name: "Analysis" }) as HTMLSelectElement | null,
   );
-  // The density sweep the chart opens on lands first.
-  await untilDom(() => paramSweeps.length > 0);
-  await untilDom(() => stageChart("canvas.zparam")?.dataset.phase === "idle" || null);
+  // The design's own sweep the chart opens on lands first (15 points over
+  // the deck's 14–14.35 MHz at 25 kHz), and no knob sweep with it.
+  await untilDom(() => sweeps.length > 0 || null);
+  await untilDom(() => stageChart("canvas.smith")?.dataset.phase === "idle" || null);
+  expect(sweeps[0]).toHaveLength(15);
+  expect(paramSweeps).toHaveLength(0);
   return { ...r, select, sweeps, paramSweeps, saves };
 }
 
@@ -386,8 +391,8 @@ describe("a greyed pick", () => {
     expect(hold.title).toBe(HOLD_WHY);
     const [s, p] = [sweeps.length, paramSweeps.length];
     fireEvent.change(select, { target: { value: "match vs height" } });
-    expect(rx()!.dataset.phase).toBe("idle");
-    expect(head().dataset.chartKind).toBe("knob");
+    expect(stageChart("canvas.smith")!.dataset.phase).toBe("idle");
+    expect(head().dataset.chartKind).toBe("frequency");
     expect(head().dataset.analysis).not.toBe("match vs height");
     expect(sweeps.length).toBe(s);
     expect(paramSweeps.length).toBe(p);

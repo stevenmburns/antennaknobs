@@ -67,7 +67,6 @@ describe("startup settings (AK#1492)", () => {
     const user = userEvent.setup();
     await mountReady({ uiDefaults: DEFAULTS });
     await openTools(user);
-    expect(checkedStates("freq sweep").every((c) => !c)).toBe(true);
     expect(checkedStates("wire labels").every((c) => c)).toBe(true);
     expect(checkedStates("heatmapped currents").every((c) => !c)).toBe(true);
     expect(checkedStates("current waveforms").every((c) => c)).toBe(true);
@@ -75,10 +74,11 @@ describe("startup settings (AK#1492)", () => {
     // A file that names `refine` wins over the browser's memory.
     expect(checkedStates("adaptive resolution")).toEqual([false]);
     expect(checkedStates("ground plane").every((c) => !c)).toBe(true);
-    // The Smith trail's switch keeps its `convergence_sweep` key but reads
-    // "param sweep" (AC6LA, QRZ #166): it sweeps any knob, not just density.
-    expect(checkedStates("param sweep").length).toBeGreaterThan(0);
-    expect(checkedStates("param sweep").every((c) => !c)).toBe(true);
+    // The freq-sweep and param-sweep switches are gone from the menu (AK#1757
+    // step 5 unit 3): their keys seed each analysis chart's dwell switch
+    // instead (settingsSweepKeys.session.test.tsx).
+    expect(screen.queryAllByRole("checkbox", { name: "freq sweep" })).toEqual([]);
+    expect(screen.queryAllByRole("checkbox", { name: "param sweep" })).toEqual([]);
     expect(screen.queryAllByRole("checkbox", { name: /converge/i })).toEqual([]);
   });
 
@@ -196,7 +196,6 @@ describe("startup settings (AK#1492)", () => {
     const user = userEvent.setup();
     await mountReady();
     await openTools(user);
-    expect(checkedStates("freq sweep").every((c) => c)).toBe(true);
     expect(checkedStates("wire labels").every((c) => !c)).toBe(true);
     expect(screen.queryByRole("button", { name: "save as my defaults" })).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();

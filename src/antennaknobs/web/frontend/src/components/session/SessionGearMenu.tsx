@@ -38,11 +38,6 @@ export function SessionGearMenu({
   setShowFeedNames,
   orientation,
   setOrientation,
-  sweepEnabled,
-  setSweepEnabled,
-  convergeEnabled,
-  setConvergeEnabled,
-  convergeTitle,
   measured,
   onLoadMeasured,
   onClearMeasured,
@@ -78,12 +73,6 @@ export function SessionGearMenu({
   /** The Antenna view's orientation on a design load (AK#1737). */
   orientation: Orientation;
   setOrientation: (o: Orientation) => void;
-  sweepEnabled: boolean;
-  setSweepEnabled: (v: boolean) => void;
-  convergeEnabled: boolean;
-  setConvergeEnabled: (v: boolean) => void;
-  /** The switch's tooltip: what the parameter sweep it draws re-solves. */
-  convergeTitle: string;
   measured: MeasuredData | null;
   onLoadMeasured: (f: File) => void;
   onClearMeasured: () => void;
@@ -254,29 +243,12 @@ export function SessionGearMenu({
                       ))}
                     </select>
                   </label>
-                  <div className="gear-menu-section">smith chart</div>
-                  <label
-                    className="gear-menu-check"
-                    title="Sweep Z across the measurement band — the Smith locus and the VSWR and S11 curves, one switch for all three charts"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={sweepEnabled}
-                      onChange={(e) => setSweepEnabled(e.target.checked)}
-                    />
-                    freq sweep
-                  </label>
-                  <label
-                    className="gear-menu-check"
-                    title={convergeTitle}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={convergeEnabled}
-                      onChange={(e) => setConvergeEnabled(e.target.checked)}
-                    />
-                    param sweep
-                  </label>
+                  {/* The freq-sweep and param-sweep switches that stood here
+                      are each analysis chart's own dwell switch now (AK#1757
+                      step 5 unit 3). The measured overlay stays: the chart
+                      carries it on its Smith view too, but on a phone this
+                      is where a file is picked. */}
+                  <div className="gear-menu-section">sweep chart</div>
                   <label
                     className="gear-menu-check gear-menu-file"
                     title="Overlay a measured VNA sweep (one-port Touchstone .s1p, e.g. from a NanoVNA) against the modeled locus"

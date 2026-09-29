@@ -3,12 +3,23 @@ export type View =
   | "azimuth"
   | "elevation"
   | "combined"
-  | "smith"
   | "schematic"
-  | "gamma"
-  | "vswr"
   | "files"
   | "zparam";
+
+// The ids of the standalone Smith, VSWR and S11 views, removed when they
+// folded into the analysis chart (AK#1757, sweep-framework step 5 unit 3).
+// They survive only in a viewer's stored rail preferences (useViewPrefs),
+// which map each onto the chart on the view it named (Steve's ruling,
+// 2026-09-28): smith -> the default frequency-sweep Smith chart, vswr -> a
+// band-SWR chart on the Swr view, gamma -> the same on the S11 view. Never
+// in settings.toml, whose [switches] name no view.
+export const LEGACY_CHART_VIEWS = {
+  smith: "Smith",
+  vswr: "Swr",
+  gamma: "S11",
+} as const;
+export type LegacyChartView = keyof typeof LEGACY_CHART_VIEWS;
 
 // The view registry's metadata half. The render half — one function per id —
 // lives in components/results/viewRegistry.tsx, keyed by these same ids:
@@ -52,26 +63,33 @@ export const VIEWS: ViewMeta[] = [
   // above, not a replacement, so it ships unpinned and nobody's layout moves.
   // Stale for the same reason they are: it draws the same pre-run solve.
   { id: "combined", label: "Az + El (combined)", defaultPinned: false, staleWhileOptimizing: true, readoutStartsCollapsed: false },
-  // NOT stale: the dot follows the run's per-eval frames (ViewRenderProps'
-  // liveZ), so this is the one view that is live. Its sweep locus is still
-  // pre-run, which is why the live point draws as a hollow ring rather than
-  // claiming to be a settled solve.
-  { id: "smith", label: "Smith", defaultPinned: true, staleWhileOptimizing: false, readoutStartsCollapsed: false },
+  // The analysis chart (AK#1757 step 5), in the place the Smith view held
+  // until unit 3 folded the Smith, VSWR and S11 views into it: it opens on a
+  // frequency sweep drawn on the Smith chart, so a fresh workbench looks as
+  // it did. The id stays `zparam` (the chart grew out of the Z-vs-parameter
+  // view), so stored pins and "Sweep this knob…" keep naming it.
+  //
+  // NOT stale while optimizing, as the Smith view was not: the live point
+  // follows the run's per-eval frames (liveZ) on every view of the chart.
+  // On the SWR and S11 views, which the old VSWR and S11 views dimmed whole,
+  // the session dims only the swept curve, of the pre-run design; the knob
+  // sweep's R/X plot, which has no trace-only dimming, still dims whole
+  // (DesignSession's chart stale rule).
+  //
+  // The readout starts open, as it did on the Smith view; the session keeps
+  // it minimized by default on the knob sweep's R/X plot, whose left axis it
+  // would cover (useViewPrefs' isReadoutCollapsed fallback).
+  {
+    id: "zparam",
+    label: "Sweep",
+    defaultPinned: true,
+    staleWhileOptimizing: false,
+    readoutStartsCollapsed: false,
+  },
   // NOT stale: built from `build_network()` on the CURRENT knob values, and
   // an optimizer run leaves those alone until it applies its result — so the
   // drawing on screen stays accurate for the whole run.
   { id: "schematic", label: "Schematic", defaultPinned: false, staleWhileOptimizing: false, readoutStartsCollapsed: false },
-  // Sweep-derived views (issue #700 unit 5, docs/plan-view-rail-scaling.md
-  // items 6/7): the sweep data already flows to the Smith chart, so these
-  // are a second and third presentation of it, not a new data path. Ship
-  // unpinned like schematic — the founding four stay the only defaults.
-  // "gamma" keeps its id (persisted pin sets store ids) but presents as S11
-  // in dB — the VNA/NanoVNA log-magnitude convention, which is what this
-  // audience reads; linear |Γ| only ever appears as a Smith-chart radius.
-  // Frequency sweeps of the pre-run geometry: the whole curve is stale for
-  // the duration, and unlike the Smith chart there is no live point on them.
-  { id: "gamma", label: "S11 (dB) vs freq", defaultPinned: false, staleWhileOptimizing: true, readoutStartsCollapsed: false },
-  { id: "vswr", label: "VSWR vs freq", defaultPinned: false, staleWhileOptimizing: true, readoutStartsCollapsed: false },
   // The Files view (AK#1428): the design's source file and, on a NEC-5 or
   // NEC-2 slot, the deck that engine ran plus its printout. Unpinned like
   // schematic. NOT stale: the source is the file as it stands, and a deck or
@@ -84,21 +102,6 @@ export const VIEWS: ViewMeta[] = [
     label: "Files",
     defaultPinned: false,
     staleWhileOptimizing: false,
-    readoutStartsCollapsed: true,
-  },
-  // Z against a parameter (docs/design/z-vs-param-view.md): the feed R and X,
-  // and the Smith trail, against the mesh density or any design knob — the
-  // old convergence sweep generalised. Unpinned, like the combined view: an
-  // addition nobody's layout should move for. Stale while optimizing: the
-  // sweep is of the pre-run design (the live dots on its guide do follow the
-  // run, as the Smith dot does, but the curve they sit on does not). The
-  // readout starts minimized: the chart carries R and X itself, and the
-  // floating card would cover its left axis.
-  {
-    id: "zparam",
-    label: "Z vs parameter",
-    defaultPinned: false,
-    staleWhileOptimizing: true,
     readoutStartsCollapsed: true,
   },
 ];

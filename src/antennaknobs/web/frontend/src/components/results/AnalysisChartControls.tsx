@@ -1,5 +1,5 @@
-import type { FrequencyView } from "../../lib/analyses";
-import { chartDataAttrs } from "../../lib/analysisChart";
+import { chartDataAttrs, type ChartView } from "../../lib/analysisChart";
+import type { MeasuredData } from "../../lib/api";
 import type { SweepRange } from "../../lib/sweep";
 import { AnalysisDetails, type AnalysisPickerProps, AnalysisSelect } from "./AnalysisPicker";
 import { CommitNumber } from "./CommitNumber";
@@ -33,16 +33,89 @@ export function DwellSwitch({ dwell, onDwell }: ChartChrome) {
   );
 }
 
-const VIEW_LABEL: Record<FrequencyView, string> = { Swr: "SWR", S11: "S11 (dB)", Smith: "Smith" };
+const VIEW_LABEL: Record<ChartView, string> = {
+  Rx: "R / X",
+  Swr: "SWR",
+  S11: "S11 (dB)",
+  Smith: "Smith",
+};
 
-/** The header of a chart showing a frequency analysis: the picker, the view
- *  (when the analysis names more than one), the range, Run / Stop, the dwell
- *  switch, and back to the analysis's own range. */
+/** The chart's view, and on the Smith chart its measured overlay: what the
+ *  standalone Smith / VSWR / S11 views were, as a choice on the chart
+ *  (AK#1757 step 5 unit 3). */
+export type ChartViewPickProps = {
+  /** The views the chart's kind can draw: R / X or Smith for a knob sweep,
+   *  SWR, S11 or Smith for a frequency sweep. */
+  views: readonly ChartView[];
+  view: ChartView;
+  onView: (v: ChartView) => void;
+  /** The measured .s1p overlay (issue #595), on the Smith view only (null
+   *  elsewhere): the file control the Smith view's overlay carried. */
+  measured: {
+    data: MeasuredData | null;
+    onLoad: (f: File) => void;
+    onClear: () => void;
+  } | null;
+};
+
+export function ChartViewPick({ views, view, onView, measured }: ChartViewPickProps) {
+  return (
+    <>
+      {views.length > 1 && (
+        <label>
+          <span>view</span>
+          <select
+            aria-label="Chart view"
+            value={view}
+            onChange={(e) => onView(e.target.value as ChartView)}
+          >
+            {views.map((v) => (
+              <option key={v} value={v}>
+                {VIEW_LABEL[v]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {measured && (
+        <label
+          className="overlay-file chart-measured"
+          title="Overlay a measured VNA sweep (one-port Touchstone .s1p, e.g. from a NanoVNA) against the modeled locus"
+        >
+          <input
+            type="file"
+            accept=".s1p,.S1P"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              // Reset the input so re-picking the same file (after a
+              // re-measure) fires onChange again.
+              e.target.value = "";
+              if (f) measured.onLoad(f);
+            }}
+          />
+          {measured.data ? `measured: ${measured.data.label}` : "measured .s1p…"}
+        </label>
+      )}
+      {measured?.data && (
+        <button
+          type="button"
+          className="overlay-clear"
+          title="Remove the measured overlay"
+          onClick={measured.onClear}
+        >
+          clear
+        </button>
+      )}
+    </>
+  );
+}
+
+/** The header of a chart showing a frequency sweep: the picker, the view,
+ *  the range, Run / Stop, the dwell switch, and back to the analysis's own
+ *  range. */
 export function FrequencyChartControls({
   analyses,
-  views,
-  view,
-  onView,
+  viewPick,
   range,
   onRange,
   onResetRange,
@@ -51,9 +124,7 @@ export function FrequencyChartControls({
   chrome,
 }: {
   analyses: AnalysisPickerProps;
-  views: readonly FrequencyView[];
-  view: FrequencyView;
-  onView: (v: FrequencyView) => void;
+  viewPick: ChartViewPickProps;
   range: SweepRange;
   onRange: (lo: number, hi: number) => void;
   onResetRange: () => void;
@@ -80,22 +151,7 @@ export function FrequencyChartControls({
     >
       <div className="zparam-controls" role="group" aria-label="Frequency sweep">
         <AnalysisSelect {...analyses} />
-        {views.length > 1 && (
-          <label>
-            <span>view</span>
-            <select
-              aria-label="Chart view"
-              value={view}
-              onChange={(e) => onView(e.target.value as FrequencyView)}
-            >
-              {views.map((v) => (
-                <option key={v} value={v}>
-                  {VIEW_LABEL[v]}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+        <ChartViewPick {...viewPick} />
         <label>
           <span>from</span>
           <CommitNumber

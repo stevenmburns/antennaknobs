@@ -9,10 +9,14 @@
 //
 // These tests drive the registry entry rather than the hook, because the
 // defect lived in which source the chart reads, not in how frames arrive.
+// The Smith chart is the analysis chart's Smith view since AK#1757 step 5
+// unit 3 folded the standalone view in, so the entry is `zparam` showing a
+// frequency sweep (its default) on Smith.
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { VIEW_RENDERERS, type ViewRenderProps } from "../components/results/viewRegistry";
 import type { SolveResponse } from "../lib/api";
+import { DEFAULT_AXES } from "../lib/sweepAxis";
 
 // The chart draws to a canvas, so assert on the props it receives rather than
 // on pixels: what is under test is the SOURCE the dot comes from.
@@ -41,13 +45,11 @@ function renderSmith(over: Partial<ViewRenderProps>) {
     result: null,
     liveZ: null,
     preview: null,
-    sweep: null,
     paramSweep: null,
     measured: null,
     pattern: null,
     pinnedPatterns: [],
     measFreqMhz: 28.5,
-    sweepRunning: false,
     paramSweepRunning: false,
     azElevDeg: 0,
     elevAzDeg: 0,
@@ -59,9 +61,20 @@ function renderSmith(over: Partial<ViewRenderProps>) {
     multiFeed: false,
     schematicSvg: null,
     schematicUnavailable: false,
+    chartFrequency: {
+      view: "Smith",
+      sweep: null,
+      running: false,
+      phase: "idle",
+      progress: null,
+      settled: true,
+      stale: false,
+      axes: DEFAULT_AXES,
+      threshold: 2,
+    },
     ...over,
   } as unknown as ViewRenderProps;
-  render(VIEW_RENDERERS.smith(props));
+  render(VIEW_RENDERERS.zparam(props));
   return smithSpy.mock.calls[0][0] as Record<string, unknown>;
 }
 
