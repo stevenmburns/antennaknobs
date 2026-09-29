@@ -64,6 +64,7 @@ import type {
   SoilRanges,
   TerrainPresetSchema,
 } from "../../lib/ground";
+import { designGround } from "../../lib/groundSlots";
 import { BackendConfigModal } from "../backend/BackendConfigModal";
 import { ParamForm } from "../params/ParamForm";
 import { effectiveHighlight, toggleHighlight } from "../charts/combined";
@@ -99,6 +100,7 @@ import { fetchMetrics, PinsContext, SessionsContext, ThemeControlContext } from 
 import { CatalogPanel } from "./CatalogPanel";
 import { DesignFreqRow } from "./DesignFreqRow";
 import { GroundPanel } from "./GroundPanel";
+import { GroundSlotTabs } from "./GroundSlotTabs";
 import { KnobOptMenu } from "./KnobOptMenu";
 import { SweepRangeMenu } from "./SweepRangeMenu";
 import { copyParams, downloadNec, loadMeasured } from "./sessionActions";
@@ -554,6 +556,11 @@ function DesignSessionBody({
   // Ground / terrain selection and its derived protocol values (#642 seam
   // 5b-3). Pure state + derivations, so it adds no effects here.
   const {
+    groundSlots,
+    activeGroundSlot,
+    designGroundSlot,
+    setActiveGroundSlot,
+    applyDesignGround,
     groundEnabled,
     setGroundEnabled,
     groundType,
@@ -575,8 +582,9 @@ function DesignSessionBody({
     backend,
     soilRanges,
     soilPresets,
-    defaults: uiDefaults.ground,
+    slots: uiDefaults.grounds,
   });
+  const onDesignGround = activeGroundSlot === designGroundSlot;
   const nLabel = currentExample?.fixed_segment_counts ? "deck's own" : String(nPerWire);
   const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${backendDisplayLabel(backend, currentOpts)} N=${nLabel} · ${groundSummary}`;
   useEffect(() => {
@@ -1085,13 +1093,19 @@ function DesignSessionBody({
         feed_labels: showFeedNames,
       },
       antenna_view: { orientation: antennaOrientation },
-      ground: {
-        enabled: groundEnabled,
-        type: groundType,
-        method: finiteGroundMethod,
-        ...(soil ? { eps_r: soil.eps_r, sigma: soil.sigma } : {}),
-        terrain_preset: terrainPreset,
-      },
+      // Every ground slot, written as [grounds.N] (AK#1794).
+      grounds: Object.fromEntries(
+        groundSlots.map((g) => [
+          g.id,
+          {
+            enabled: g.enabled,
+            type: g.type,
+            method: g.method,
+            ...(g.soil ? { eps_r: g.soil.eps_r, sigma: g.soil.sigma } : {}),
+            terrain_preset: g.terrainPreset,
+          },
+        ]),
+      ),
       slots: { A: slot("A"), B: slot("B"), C: slot("C") },
     };
     const outcome = await saveSettings(body);
@@ -1539,6 +1553,9 @@ function DesignSessionBody({
       }
     }
 
+    // The design's own ground goes in ground slot 1 (AK#1794), which becomes
+    // the active slot; see withDesignGround for a design without one.
+    //
     // Ground-requirement seed: the buried-wire designs declare
     // ground_requirement="sommerfeld" (conductors below z=0 only exist under
     // a Sommerfeld half-space — the refl-coef default refuses them by name),
@@ -1547,12 +1564,7 @@ function DesignSessionBody({
     // afterwards, and the solver's by-name refusal remains the enforcement.
     // GroundPanel shows the one-line notice whenever the requirement is
     // present.
-    if (ex.ground_requirement === "sommerfeld") {
-      setGroundEnabled(true);
-      setGroundType("finite");
-      setFiniteGroundMethod("sommerfeld");
-    }
-
+    //
     // Ground SEED (AK#1432): a file design's deck says what ground it models
     // (GE 0 = free space, GE 1 / GN 1 = perfect, GN 0 / GN 2 = finite with
     // the card's medium, a NEC-5 bare GD = MININEC-type, AK#1655), so the
@@ -1561,23 +1573,7 @@ function DesignSessionBody({
     // the user unticked ground by hand. Same contract as the requirement seed
     // above: on the design switch only, and the user can change anything
     // afterwards.
-    const seed = ex.ground_seed ?? null;
-    if (!seed) return;
-    if (seed === "free") {
-      setGroundEnabled(false);
-      return;
-    }
-    setGroundEnabled(true);
-    if (seed === "pec") {
-      setGroundType("pec");
-      return;
-    }
-    setGroundType("finite");
-    setFiniteGroundMethod(
-      seed === "fast" ? "fast" : seed === "mininec" ? "mininec" : "sommerfeld",
-    );
-    const m = ex.ground_medium ?? null;
-    if (m && setSoil) setSoil({ eps_r: m.eps_r, sigma: m.sigma });
+    applyDesignGround(designGround(ex));
   }
 
   function selectBand(nextKey: string) {
@@ -2496,6 +2492,13 @@ function DesignSessionBody({
           fixedSegmentCounts={currentExample?.fixed_segment_counts ?? false}
         />
 
+        <GroundSlotTabs
+          slots={groundSlots}
+          activeSlot={activeGroundSlot}
+          onSelect={setActiveGroundSlot}
+          soilPresets={soilPresets}
+        />
+
         <GroundPanel
           backend={backend}
           groundEnabled={groundEnabled}
@@ -2513,8 +2516,12 @@ function DesignSessionBody({
           setSoil={setSoil}
           soilPresets={soilPresets}
           soilRanges={soilRanges}
-          groundRequirement={currentExample?.ground_requirement ?? null}
-          groundSeed={currentExample?.ground_seed ?? null}
+          // The design's own ground is ground slot 1's (AK#1794): the notices
+          // saying so belong to that slot, not to free space in slot 2.
+          groundRequirement={
+            onDesignGround ? (currentExample?.ground_requirement ?? null) : null
+          }
+          groundSeed={onDesignGround ? (currentExample?.ground_seed ?? null) : null}
           groundMedium={currentExample?.ground_medium ?? null}
           groundCard={currentExample?.ground_card ?? null}
         />
