@@ -19,8 +19,10 @@ from .engines import (
     PyNECEngine,
     MomwireEngine,
     NEC2Engine,
+    NEC42Engine,
     NEC5Engine,
     probe_nec2,
+    probe_nec42,
     probe_nec5,
 )
 from .density import default_nsegs
@@ -74,6 +76,10 @@ if probe_nec5() is not None:
 # `$NEC2_EXE` pointing at any executable is not evidence it is a NEC-2.
 if probe_nec2() is not None:
     ENGINE_CLASSES["nec2"] = NEC2Engine
+# NEC-4.2 as NEC-5 is (AK#1603): licensed, user-supplied, found through
+# $NEC42_EXE or [engines] nec42_exe, and on the roster only once it RUNS.
+if probe_nec42() is not None:
+    ENGINE_CLASSES["nec42"] = NEC42Engine
 
 MOMWIRE_BASES = {
     "sinusoidal": SinusoidalSolver,
@@ -618,6 +624,11 @@ _EXTERNAL_ENGINES = {
         "NEC-5",
         "a licensed NEC-5 console binary (e.g. EZNEC's NEC5CL_x13.exe)",
     ),
+    "nec42": (
+        "NEC42_EXE",
+        "NEC-4.2",
+        "your licensed NEC-4.2 console binary (run as `nec42cl deck printout`)",
+    ),
 }
 
 
@@ -1037,7 +1048,7 @@ def cli(arguments=None):
                 help="One or more simulation backends. Each spec is "
                 '"momwire[:sinusoidal|sinusoidal-galerkin|bspline|'
                 'bspline-d1|hmatrix|arrayblock|pulse|razor-2p]", '
-                '"pynec", "nec5", or "nec2". sinusoidal is NEC-2\'s own formulation; '
+                '"pynec", "nec5", "nec2", or "nec42". sinusoidal is NEC-2\'s own formulation; '
                 "sinusoidal-galerkin is the same basis tested variationally "
                 "and with the point-gap feed model. bspline-d1 is bspline "
                 "with degree=1 (tent basis) "
@@ -1056,6 +1067,8 @@ def cli(arguments=None):
                 "for a NEC-2 console binary through $NEC2_EXE (nec2c, "
                 "nec2++, or 4nec2's nec2dxs*.exe): the same physics as "
                 "pynec, reached without linking to a GPL library. "
+                "nec42 drives a licensed LOCAL NEC-4.2 binary through "
+                "$NEC42_EXE, NEC-2's cards plus buried wires. "
                 "Cross-products with --builders.",
             )
         elif allow_multi:
@@ -1069,8 +1082,8 @@ def cli(arguments=None):
                 "sweep with one trajectory/line per engine (#1554) — a "
                 "single spec behaves exactly as --engine always has. Each "
                 "spec is momwire[:sinusoidal|sinusoidal-galerkin|bspline|"
-                "bspline-d1|hmatrix|arrayblock|pulse|razor-2p], pynec, nec5, or "
-                "nec2 — see the plain --engine's help for what each basis "
+                "bspline-d1|hmatrix|arrayblock|pulse|razor-2p], pynec, nec5, "
+                "nec2, or nec42 — see the plain --engine's help for what each basis "
                 "is. --swr/--gain/--patterns and a --param nominal_nsegs "
                 "convergence study each still take exactly one engine.",
             )
@@ -1083,7 +1096,8 @@ def cli(arguments=None):
                 "momwire:sinusoidal | momwire:sinusoidal-galerkin | "
                 "momwire:bspline | momwire:bspline-d1 | momwire:hmatrix | "
                 "momwire:arrayblock | momwire:razor-2p | "
-                "pynec | nec5 | nec2 (default: momwire). sinusoidal is NEC-2's own "
+                "pynec | nec5 | nec2 | nec42 (default: momwire). sinusoidal is "
+                "NEC-2's own "
                 "formulation; sinusoidal-galerkin is the same basis tested "
                 "variationally and with the point-gap feed model. "
                 "bspline-d1 is bspline with "
@@ -1102,7 +1116,10 @@ def cli(arguments=None):
                 "formulation twin. nec2 drives a NEC-2 console binary "
                 "through $NEC2_EXE (nec2c, nec2++, 4nec2's nec2dxs*.exe) — "
                 "the same physics as pynec without linking to a GPL "
-                "library, which is why the frozen workbench can offer it; "
+                "library, which is why the frozen workbench can offer it. "
+                "nec42 drives a licensed LOCAL NEC-4.2 binary through "
+                "$NEC42_EXE — NEC-2's cards, with buried wires served over "
+                "the Sommerfeld ground; "
                 "momwire is always available.",
             )
         p.add_argument(
@@ -1140,7 +1157,7 @@ def cli(arguments=None):
             "frequency, overriding the engine's own default (issue #1543). "
             "Naming a basis picks that basis's converged density — "
             "momwire:razor-2p and nec5 at 40, momwire:bspline at 15 (20 at "
-            "degree 1), pynec/nec2 at 21 — and a bare --engine momwire keeps "
+            "degree 1), pynec/nec2/nec42 at 21 — and a bare --engine momwire keeps "
             "the framework default of 21. A card deck carries its own GW "
             "segment counts, so neither the default nor this flag changes "
             "one.",

@@ -9,6 +9,7 @@ the same engines and capture folder:
     [engines]
     nec5_exe = 'C:\\EZNEC 7.0\\Docs\\NEC5CL_x13.exe'
     nec2_exe = 'C:\\4nec2\\exe\\nec2dxs11.exe'
+    nec42_exe = '/home/me/nec42/nec42cl'
 
     [capture]
     dir = 'C:\\ak-captures'
@@ -20,7 +21,7 @@ valid ones -- so the natural thing, pasting the path between double quotes,
 is a TOML syntax error that rejects the WHOLE file, engines and capture dir
 together. Double quotes work only with every backslash doubled.
 
-An environment variable (``NEC5_EXE``, ``NEC2_EXE``,
+An environment variable (``NEC5_EXE``, ``NEC2_EXE``, ``NEC42_EXE``,
 ``ANTENNAKNOBS_CAPTURE_DIR``, which the packaged workbench's flags set) always
 wins over the file. The hosted instance reads no file.
 
@@ -40,7 +41,11 @@ SETTINGS_ENV = "ANTENNAKNOBS_SETTINGS"
 HOSTED_ENV = "ANTENNAKNOBS_HOSTED"
 
 # The environment variable each file entry stands in for.
-ENGINE_KEYS = {"NEC5_EXE": "nec5_exe", "NEC2_EXE": "nec2_exe"}
+ENGINE_KEYS = {
+    "NEC5_EXE": "nec5_exe",
+    "NEC2_EXE": "nec2_exe",
+    "NEC42_EXE": "nec42_exe",
+}
 
 _cache: dict = {"key": None, "data": None, "error": None}
 

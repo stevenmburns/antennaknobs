@@ -48,7 +48,7 @@ WHERE EACH NUMBER COMES FROM
   AK#1553's re-cut), where bs2 is within a few percent of its limit at 15. EVEN because both want a source at a segment
   end / a knot at the wire's exact middle. The number itself is the #1525
   decision (2026-09-16).
-- ``arrayblock``, ``pynec``, ``nec2`` at 21 — the Builder framework default
+- ``arrayblock``, ``pynec``, ``nec2``, ``nec42`` at 21 — the Builder framework default
   (``AntennaBuilder.FRAMEWORK_PARAMS``), odd for the same feed-knot reason.
 - ``sinusoidal`` at 21: it is NEC-2's own basis, so it meshes as ``nec2`` and
   ``pynec`` do and an A/B across the three is not an A/B on the mesh.
@@ -78,6 +78,9 @@ DEFAULT_NSEGS: Mapping[str, int] = {
     "pynec": 21,
     "nec5": 40,
     "nec2": 21,
+    # NEC-4.2 (AK#1603) feeds at segment centres on NEC-2's basis family, so it
+    # meshes as nec2 does.
+    "nec42": 21,
 }
 
 # Engine name -> degree -> density, for the engines whose degree is their
