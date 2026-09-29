@@ -70,10 +70,21 @@ def test_every_entry_has_the_documented_shape(invvee):
                 "points",
                 "views",
                 "swr",
+                "engines",
+                "grounds",
                 "note",
             }
         elif w["runs"]:
-            assert set(w) == {"runs", "kind", "param", "values", "log", "note"}
+            assert set(w) == {
+                "runs",
+                "kind",
+                "param",
+                "values",
+                "log",
+                "engines",
+                "grounds",
+                "note",
+            }
         else:
             assert set(w) == {"runs", "why"} and w["why"]
 
@@ -84,10 +95,12 @@ def test_e3_height_runs_as_a_base_sweep_2_to_20_in_37_points(invvee):
     assert w["param"] == "base"
     assert w["values"] == [2 + 0.5 * i for i in range(37)]
     assert w["log"] is False
-    # One cell of three: the session's ground, and the CLI draws all three.
-    assert "crossed over grounds" in w["note"]
-    assert "this session's ground" in w["note"]
-    assert "`antennaknobs analyze` draws all 3" in w["note"]
+    # The ground cross is served for the chart to preselect its ground
+    # slots from (AK#1757 step 5 unit 4), in the analysis's order; it names
+    # no engine, so the chart draws the session's active slot.
+    assert w["grounds"] == ["free", "finite:13,0.005", "finite:5,0.001"]
+    assert w["engines"] is None
+    assert w["note"] is None
     assert invvee["height"]["summary"].startswith("height (base) 2..20, 37 points")
 
 
@@ -97,10 +110,12 @@ def test_e1_convergence_runs_as_the_density_ladder(invvee):
     assert w["param"] == "n_per_wire"
     assert w["values"] == list(sw.NOMINAL_NSEGS_LADDER) == [8, 12, 17, 24, 34, 48, 68]
     assert w["log"] is True
-    assert "crossed over engines" in w["note"]
-    assert "this session's engine" in w["note"]
-    # E1 names its ground; the workbench says it uses the session's.
-    assert "finite:13,0.005" in w["note"]
+    # The engine cross, and the one ground E1 names, as the chart's
+    # preselection (a listed engine no slot holds is the chart's refused
+    # cell, not the server's).
+    assert w["engines"] == ["momwire:bspline", "momwire:razor-2p", "nec5"]
+    assert w["grounds"] == ["finite:13,0.005"]
+    assert w["note"] is None
 
 
 @pytest.mark.parametrize(
