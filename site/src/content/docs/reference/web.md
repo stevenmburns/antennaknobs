@@ -125,8 +125,8 @@ measurement frequency that had drifted outside it back in.
 
 ## Where the workbench starts: `settings.toml`
 
-The Settings menu's switches, the Antenna view's orientation, the ground and
-the three solver slots start from a file, so a workbench can open the way you use it, with the frequency
+The Settings menu's switches, the Antenna view's orientation, the ground
+slots and the three solver slots start from a file, so a workbench can open the way you use it, with the frequency
 sweep off, say. The file is `settings.toml` in the `.antennaknobs` folder in
 your home directory, the folder that holds `designs`:
 `~/.antennaknobs/settings.toml`, or `%USERPROFILE%\.antennaknobs\settings.toml`
@@ -148,12 +148,16 @@ feed_labels = true
 [antenna_view]
 orientation = "iso"         # auto, top, front, side or iso
 
-[ground]
+[grounds.1]                 # ground slot 1; [ground] is its older spelling
 enabled = true
 type = "finite"             # finite, pec or terrain
-method = "sommerfeld"       # fast or sommerfeld
+method = "sommerfeld"       # fast, sommerfeld or mininec
 soil = "average"            # a soil preset, or eps_r = 13 and sigma = 0.005
 terrain_preset = "levee"    # cliff, hillside or levee
+
+[grounds.2]                 # free space in stock; this makes it PEC
+enabled = true
+type = "pec"
 
 [slots.A]
 backend = "bspline"
@@ -183,6 +187,17 @@ the slot picker offers, and its `model` knobs are the ones that solver's
 options panel shows. Naming a different solver starts that slot from the
 solver's own defaults.
 
+The ground slots are `[grounds.1]`, `[grounds.2]` and `[grounds.3]`, one table
+per [ground slot](#ground-slots), each taking the same five settings. A table
+changes only what it names, over that slot's stock ground: slot 1 the
+built-in ground (on, finite, refl-coef, the served soil), slot 2 free space,
+slot 3 Sommerfeld over average soil. A `[grounds.4]` adds a fourth slot, which
+starts at the built-in ground; the numbers run without gaps, so a
+`[grounds.6]` with no `[grounds.5]` is named as a mistake and left out. A file
+from before the ground slots has a `[ground]` table, and it still works: it is
+slot 1. A file with both `[ground]` and `[grounds.1]` uses `[grounds.1]` and
+says so.
+
 The Antenna view's `orientation` is `auto` unless the file says otherwise:
 each design opens on its own best view, Top, Front or Side, guessed from its
 shape. Any other value wins over that guess every time a design loads, not
@@ -198,8 +213,10 @@ for the design on screen, until the next design loads. The Settings menu's
   the entry, and that entry keeps its built-in default. The server log says
   the same.
 - **Save as my defaults.** The Settings menu's *save as my defaults* writes the
-  session's switches, antenna view on load, ground and slots to the file, but only where they differ
-  from the built-in defaults. Everything you left alone stays out of the file,
+  session's switches, antenna view on load, ground slots and solver slots to
+  the file, but only where they differ from the built-in defaults. A ground
+  slot is compared with its own stock ground, so an untouched slot 2 writes
+  nothing, and the ground slots are written as `[grounds.N]`. Everything you left alone stays out of the file,
   so it follows the defaults of whichever version you run next. A soil that
   matches a preset is written by its name. The previous file is kept beside it
   as `settings.toml.bak`. Hand edits to the saved file are fine, though a line
@@ -841,6 +858,31 @@ minutes-per-point solves only runs once you've clicked **Solve anyway**.
 
 Real antennas hang over real ground, so the workbench starts there: the
 **ground plane** checkbox is **on by default**, with free space one click away.
+
+### Ground slots
+
+The grounds work like the [solver slots](#choosing-a-solver--segment-count):
+the **ground slot** tabs under the solver slots hold one whole ground each,
+and one click switches the ground every solve, sweep and chart uses. The
+ground panel below the tabs edits the active slot, and each slot keeps its own
+settings. The three stock slots are:
+
+1. **the design's own ground, or the session default** — the checkbox, type,
+   method and soil described below, where the workbench starts;
+2. **free space**;
+3. **Sommerfeld over average soil**.
+
+Slot 1 is active when the workbench starts, so if you never click another
+slot, the workbench behaves as it did before ground slots. A design that
+brings its own ground, a deck's `GE` / `GN` cards or a buried design's
+Sommerfeld requirement (below), puts it in slot 1 when it loads and makes
+slot 1 active, so the design opens on the ground its file models. Slots 2 and
+3 keep their settings across a design switch. A design with no ground of its
+own leaves the active slot where it was. It also leaves slot 1 alone, unless
+slot 1 still holds the previous design's ground untouched: then the session
+default comes back. The stock set and any extra slots come from
+[`settings.toml`](#where-the-workbench-starts-settingstoml).
+
 The over-ground picture — takeoff angle, the ground-lobed elevation pattern,
 the shifted feed-point impedance — is usually the one your design decisions
 actually depend on.
@@ -901,8 +943,8 @@ One class of designs picks its own method: the **buried-wire designs**
 `specialty.buried_dipole`) declare that they require the Sommerfeld model —
 a conductor below the surface only exists under a Sommerfeld half-space,
 and the reflection-coefficient approximation refuses it by name. Loading
-one auto-selects finite ground with the Sommerfeld method and notes it in
-the ground panel; you can still flip the radio back, but the solver's
+one auto-selects finite ground with the Sommerfeld method in ground slot 1
+and notes it in the ground panel; you can still flip the radio back, but the solver's
 refusal is the answer you'll get.
 
 ### The MININEC-type ground
