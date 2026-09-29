@@ -195,8 +195,10 @@ draws, and its views. Under it go the reasons it cannot run here, if any:
   declares no height knob`;
 - `REFUSED`: the curves multiply past the cap of 6, e.g. `2 designs x 4
   engines = 8 curves`;
+- `REFUSED` also names a value a cross lists twice, and a knob that is both
+  swept and stepped;
 - `not in the CLI yet (sweep-framework step N)`: a part the command line
-  does not run yet.
+  does not run yet (a hold).
 
 `--code` prints the analysis as the Python that makes it, ready to paste into
 a design's `build_analyses()`:
@@ -216,7 +218,9 @@ role is declared beside the knob's range in `ui_params`, e.g. `"base": {"min":
 1.0, "max": 16.0, "role": "height"}`, so one analysis serves every design that
 declares it. The density role is `nominal_nsegs` on a catalog design; an
 imported `.ssn` marks the knob its `JamSegments` count reads. Its crosses are
-compared as separate curves, one per combination: engines and grounds here.
+compared as separate curves, one per combination: engines, grounds,
+measurement planes, designs, and a second knob's values (see [Planes, designs
+and families](#planes-designs-and-families)).
 
 Every design also offers the library's generic analyses: `convergence` (a
 density ladder), `band SWR`, and `height` where a height knob is declared. A
@@ -300,11 +304,103 @@ def build_analyses(self):
     return [an.band_swr(views=(an.Swr(scale="rho"),))]
 ```
 
-`analyze` sweeps a knob, the density, the height or the frequency, crossed
-with engines and grounds. The map view, crosses over measurement planes,
-designs and a second knob, and a *hold* (re-optimising knobs at every point)
-are declared in the same Python but refused by name for now, each naming its
-step.
+### Planes, designs and families
+
+Three more crosses, each one curve per value, multiply with each other and
+with engines and grounds under the same cap of 6:
+
+- `an.Cross(planes=("rig", "T1", "feed"))` reads Z at each named port of the
+  design's feed network, as a VNA clipped on there would: the chain upstream
+  of the port is cut away and the source moves to it, exactly as the
+  workbench's plane selector does. Each curve is labelled by the port's own
+  name in the design, and a name means only what the design wired to it: in
+  Dan's TL-Xfmr-CLC rig below, `feed` is the antenna end of the coax, while
+  in one of his tuner decks (QRZ #143) `feed` was the node after a shunt C,
+  not the bare antenna. A port the design does not have is a refused curve
+  that names the ports it does have.
+- `an.Cross(designs=("dipoles.invvee", "dipoles.invvee_apex"))` runs the same
+  sweep on other designs from the catalog, each on its own knobs and its own
+  file ground. Each curve is what `analyze` gives on that design alone.
+- `an.Cross(step=an.Sweep("angle_deg", values=(0, 15, 30, 45, 60)))` is a
+  *family*: the sweep runs once per value of the second knob, and each curve
+  is labelled `angle_deg = 15`. Each curve is `sweep --param ... --set
+  angle_deg=15`.
+
+A curve's label joins what makes it, in the order the crosses are written:
+`dipoles.invvee_apex, momwire:razor-2p`, or `rig, angle_deg = 30`. Tables print
+one block per curve, and a refused curve keeps its place in the legend.
+
+The inverted vee's `feed spellings` (E7) compares the stock bridge-fed vee
+with the apex-knot spelling on three engines, over the density ladder. NEC-2
+cannot feed a knot, so that one curve is refused and the other five run:
+
+```bash
+NEC2_EXE=$(command -v nec2c) python -m antennaknobs analyze --builder dipoles.invvee --analysis "feed spellings"
+```
+
+```text
+dipoles.invvee, momwire:bspline  Z∞ = 55.144-9.674j  (rough: not yet asymptotic, first order assumed)
+...
+dipoles.invvee_apex, momwire:razor-2p  Z∞ = 54.464-12.271j  (p = 1.08, asymptotic)
+dipoles.invvee_apex, nec2: refused: this design uses PortAtVertex (a series apex feed at a junction knot), which NEC-2 cannot represent ...
+```
+
+Its `tuning family` (E2) is R and X against `length_factor`, one pair per
+apex angle.
+
+A plane cross on Dan's rig, over 13.9–14.45 MHz in free space, reads:
+
+| plane | minimum SWR | at | Z there |
+|---|---|---|---|
+| `rig` | 1.19 | 14.450 MHz (the sweep's edge) | 43.12 − j4.33 |
+| `T1` | 1.39 | 14.250 MHz | 37.59 − j7.39 |
+| `feed` | 1.45 | 14.250 MHz | 72.51 − j1.90 |
+
+```python
+def build_analyses(self):
+    return [
+        an.band_swr(
+            name="rig vs antenna",
+            sweep=an.Sweep(an.FREQUENCY, 13.9, 14.45, points=23),
+            cross=an.Cross(planes=("rig", "T1", "feed")),
+            views=(an.Swr(), an.Rx()),
+        )
+    ]
+```
+
+Two knobs cannot be the same knob: a family that steps the swept knob, a map
+with one knob on both axes, and a cross that names a value twice are refused
+when listed. The density knob is not stepped or mapped (its ladder is
+`an.convergence`); cross the other knob as a family instead.
+
+### Maps
+
+An analysis with a pair of sweeps, `(x, y)`, is a map: every point of the
+grid is solved, and `an.Map()` draws |Γ| on `--z0` as a heat map, one panel
+per curve the crosses make. The analysis's reference lines become contours:
+R = each `r` and X = each `x` of its `an.Ref`, drawn from the same grid (with
+no `Ref`, X = 0 and R = `--z0`, resonance and the match). A level the grid
+never reaches is named in the legend as `(not reached)`. The run prints the
+grid's best cell, and `an.Table()` prints every cell.
+
+The inverted vee's `tuning map` (E2) is `length_factor` against the apex angle,
+825 solves:
+
+```bash
+python -m antennaknobs analyze --builder dipoles.invvee --analysis "tuning map" \
+    --ground finite:13,0.005 --fn map.png
+```
+
+```text
+momwire: least |Γ| 0.0235 (SWR 1.05) at length_factor 0.975, angle_deg 30: Z 50.96 -2.17j
+```
+
+X = 0 crosses R = 50 near 32.5° and 0.978. R = 75 never meets X = 0 at this
+height. A map draws `Map` and `Table`; for curves against one knob, cross the
+other as a family.
+
+A *hold* (re-optimising knobs at every point) is declared in the same Python
+but refused by name for now, naming its step.
 
 ## Drawing the feed network
 
