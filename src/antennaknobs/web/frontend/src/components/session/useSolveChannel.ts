@@ -65,7 +65,12 @@ export function useSolveChannel({
   withheldRef: MutableRefObject<boolean>;
   geometryRef: MutableRefObject<string>;
   previewSigRef: MutableRefObject<string | null>;
-  setResult: (r: SolveResponse | null) => void;
+  /** A result as it lands, with the request that produced it (AK#1796): a
+   *  response can answer an OLDER request than the latest one sent (the
+   *  latest-wins stream shows each as it arrives), so the caller can tell
+   *  whether it was solved for what the controls ask now. `req` is undefined
+   *  for a clear (null) or a response whose send this socket never saw. */
+  setResult: (r: SolveResponse | null, req?: SolveRequest) => void;
   setSolveError: (e: string | null) => void;
 }) {
   const [status, setStatus] = useState<"connecting" | "open" | "closed">(
@@ -112,6 +117,7 @@ export function useSolveChannel({
   const lastReceivedSeqRef = useRef(0); // highest _seq received or implicitly acked
   const canceledThroughSeqRef = useRef(0); // drop rendering for _seq <= this
   const sentAtRef = useRef<Map<number, number>>(new Map()); // _seq → send time (RTT)
+  const sentReqRef = useRef<Map<number, SolveRequest>>(new Map()); // _seq → its request (AK#1796)
   const solveRafRef = useRef<number | null>(null); // trailing-edge rAF throttle handle
   const everOpenedRef = useRef(false); // has any socket opened (AK#1783)
 
@@ -241,6 +247,7 @@ export function useSolveChannel({
       const seq = ++seqRef.current;
       lastSentSeqRef.current = seq;
       sentAtRef.current.set(seq, performance.now());
+      sentReqRef.current.set(seq, controls);
       sock.send(JSON.stringify({ ...controls, _seq: seq }));
       // Keep the preview signature current so that toggling Live *off* right
       // after a solve doesn't see a stale signature and needlessly refetch the
@@ -369,6 +376,11 @@ export function useSolveChannel({
         for (const k of sentAt.keys()) {
           if (k <= seq) sentAt.delete(k);
         }
+        const sentReq = sentReqRef.current;
+        const req = sentReq.get(seq);
+        for (const k of sentReq.keys()) {
+          if (k <= seq) sentReq.delete(k);
+        }
         // Cancelled through this seq: the user bailed on it (and everything
         // before). The watermark advanced above so `solving` can clear; just drop
         // the result rather than rendering it.
@@ -390,7 +402,7 @@ export function useSolveChannel({
             setResultRef.current(null);
           } else {
             setSolveError(null);
-            setResultRef.current(data);
+            setResultRef.current(data, req);
           }
         }
         syncSolving();
