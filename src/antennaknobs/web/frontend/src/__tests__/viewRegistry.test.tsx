@@ -7,7 +7,7 @@
 // renderer) typechecks fine, so only a mounted probe catches it.
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
-import { VIEWS, VIEW_META, type View } from "../lib/view";
+import { CHART_COPIES, isChartCopy, VIEWS, VIEW_META, type View } from "../lib/view";
 import {
   type ChartFrequencyRender,
   VIEW_RENDERERS,
@@ -45,15 +45,28 @@ const EVERY_VIEW: Record<View, true> = {
   schematic: true,
   files: true,
   zparam: true,
+  zparam2: true,
+  zparam3: true,
+  zparam4: true,
 };
 const ALL_VIEWS = Object.keys(EVERY_VIEW) as View[];
+// The roster: every view but a duplicated chart's (AK#1757 step 5 unit 4),
+// which the session adds while it is open and the picker never lists.
+const ROSTER = ALL_VIEWS.filter((v) => !isChartCopy(v));
 
 // --- 1. The two halves cover the union, once each ---------------------------
 
 describe("registry coverage", () => {
-  it("has exactly one VIEWS entry per member of the View union", () => {
-    expect(VIEWS.map((v) => v.id).sort()).toEqual([...ALL_VIEWS].sort());
+  it("has exactly one VIEWS entry per member of the View union but the chart copies", () => {
+    expect(VIEWS.map((v) => v.id).sort()).toEqual([...ROSTER].sort());
     expect(new Set(VIEWS.map((v) => v.id)).size).toBe(VIEWS.length);
+    expect(ALL_VIEWS.filter(isChartCopy)).toEqual([...CHART_COPIES]);
+  });
+
+  it("gives every chart copy the chart's metadata under its own label", () => {
+    for (const [i, id] of CHART_COPIES.entries()) {
+      expect(VIEW_META[id]).toEqual({ ...VIEW_META.zparam, id, label: `Sweep ${i + 2}`, defaultPinned: false });
+    }
   });
 
   it("has exactly one render entry per member of the View union", () => {
@@ -156,6 +169,9 @@ const MARKERS: Record<View, string> = {
   schematic: ".schematic-fill",
   files: ".files-fill",
   zparam: "canvas.zparam",
+  zparam2: "canvas.zparam",
+  zparam3: "canvas.zparam",
+  zparam4: "canvas.zparam",
 };
 
 describe("dispatch", () => {
@@ -163,7 +179,8 @@ describe("dispatch", () => {
     it(`renders only the ${view} view's component`, () => {
       const container = mount(view);
       expect(container.querySelector(MARKERS[view])).not.toBeNull();
-      for (const other of ALL_VIEWS) {
+      for (const other of ROSTER) {
+        if (MARKERS[other] === MARKERS[view]) continue;
         if (other === view) continue;
         expect(container.querySelector(MARKERS[other])).toBeNull();
       }

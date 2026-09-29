@@ -22,6 +22,7 @@ import { formatParam, isDensity } from "../../lib/paramSweep";
 import type { SweepProgress } from "../../lib/sweep";
 import { zinfSuffix, type ZInfStatus } from "../../lib/zinf";
 import { ThemeContext } from "../hooks";
+import { curvesAttr, type ExtraCurve, NO_CURVES } from "./curves";
 import { feedColor, feedSweepColor, plotColors, STALE_TRACE_ALPHA } from "./palette";
 import {
   drawSweepProgressBar,
@@ -51,6 +52,7 @@ export function SmithChart({
   interactive = false,
   designKey = "",
   stale = false,
+  curves = NO_CURVES,
 }: {
   r: number;
   x: number;
@@ -79,6 +81,10 @@ export function SmithChart({
    *  per-feed summary rows. Decoupled from feeds[].length so the chart
    *  reflects antenna type rather than guessing from response shape. */
   multiFeed: boolean;
+  /** The analysis chart's other curves (AK#1757 step 5 unit 4): each a
+   *  frequency locus (connected as `connectSweep` and its own settledness
+   *  say) or a knob sweep's trail, in its colour. */
+  curves?: readonly ExtraCurve[];
   /** Draw the sweep trail as a CONNECTED locus instead of a point cloud.
    *  On when adaptive resolution (issue #744) is on: the merged sweep is
    *  sorted by frequency and refinement has smoothed the display-space
@@ -744,6 +750,43 @@ export function SmithChart({
 
     }
     ctx.restore();
+
+    // The analysis chart's other curves (AK#1757 step 5 unit 4), under the
+    // live marker like the chart's own: a frequency locus as the own locus
+    // is drawn (a line when connected and settled, else dots), a knob
+    // sweep's trail as a line through its points.
+    if (curves.length > 0) {
+      ctx.save();
+      clipDisc();
+      for (const c of curves) {
+        ctx.globalAlpha = c.stale ? STALE_TRACE_ALPHA : 1;
+        ctx.strokeStyle = c.color;
+        ctx.fillStyle = c.color;
+        ctx.lineWidth = 1.2;
+        const pts: { x: number; y: number }[] = [];
+        const zs = c.sweep ?? c.paramSweep ?? null;
+        if (!zs) continue;
+        for (let i = 0; i < zs.z_re.length; i++) {
+          const g = reflectionCoefficient(zs.z_re[i], zs.z_im[i], z0);
+          pts.push(S(g.gRe, g.gIm));
+        }
+        const line = c.paramSweep ? true : connectSweep && c.settled !== false;
+        if (line && pts.length > 1) {
+          ctx.beginPath();
+          pts.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+          ctx.stroke();
+        }
+        if (!line || c.paramSweep) {
+          const r = c.paramSweep ? 1.8 : 1.5;
+          for (const p of pts) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+        }
+      }
+      ctx.restore();
+    }
     if (paramSweepRunning) {
       ctx.fillStyle = PC.label;
       ctx.font = "10px ui-monospace, monospace";
@@ -952,7 +995,7 @@ export function SmithChart({
     // and `trialWorstFeed` likewise carry the whole per-eval picture (#789):
     // r/x still change every frame on a multi-feed run, but they are only
     // feed 0, so a run where feed 0 sat still would freeze every ring.
-  }, [r, x, z0, size, sweep, paramSweep, measured, measFreqMhz, running, progress, paramSweepRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme, view, stale]);
+  }, [r, x, z0, size, sweep, paramSweep, measured, measFreqMhz, running, progress, paramSweepRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme, view, stale, curves]);
 
   // data-connect mirrors the trail mode (locus vs. dot cloud) for tests —
   // canvas pixels are invisible to jsdom, the attribute is not (the same
@@ -968,6 +1011,7 @@ export function SmithChart({
       data-progress={sweepProgressAttr(progress)}
       data-phase={phase}
       data-zoom={String(view.zoom)}
+      data-curves={curvesAttr(curves)}
       // The parameter trail for tests: "param:first→last:points", plus Z*
       // when the sweep has one (density only).
       data-trail={

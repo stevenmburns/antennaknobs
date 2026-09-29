@@ -3,6 +3,7 @@ import {
   activeGroundSlot,
   designSlotId,
   editActive,
+  groundRequest,
   withDesignGround,
   type GroundEdit,
   type GroundSlot,
@@ -13,7 +14,6 @@ import { type BackendEntry } from "../../lib/backends";
 import {
   defaultSoil,
   groundSummaryLabel,
-  resolveGroundModel,
   soilSummaryLabel,
   type FiniteGroundMethod,
   type GroundModel,
@@ -141,11 +141,8 @@ export function useGroundConfig({
   // terrain selection quietly degrades to the finite method on any future
   // backend without terrain support (all current ground-capable backends
   // have it — PyNEC via the #553 hybrid).
-  const groundModel: GroundModel = resolveGroundModel(
-    groundType,
-    backend,
-    finiteGroundMethod,
-  );
+  const activeRequest = groundRequest(active, backend, servedDefault);
+  const groundModel: GroundModel = activeRequest.model;
 
   // Solve-effect dep for the terrain knobs: only bites while terrain is
   // the active model, so parked levee state never re-solves a flat-ground
@@ -166,13 +163,7 @@ export function useGroundConfig({
   // What rides on the request, or undefined. Omitted when it equals the
   // served default so that a default-soil request is byte-identical to a
   // pre-#1173 one: same cache key, same curve, nothing shipped changes.
-  const soilForRequest: SoilParams | undefined =
-    soilApplies &&
-    soil &&
-    servedDefault &&
-    (soil.eps_r !== servedDefault.eps_r || soil.sigma !== servedDefault.sigma)
-      ? soil
-      : undefined;
+  const soilForRequest: SoilParams | undefined = activeRequest.soil;
 
   // Solve-effect dep, same shape as terrainKey: only bites while a finite
   // model is active, so a parked soil never re-solves a PEC setup. Keyed off
@@ -196,8 +187,16 @@ export function useGroundConfig({
     terrainPreset,
   );
 
+  // Any slot's ground on any engine, for an analysis chart's cell (AK#1757
+  // step 5 unit 4): the same derivation as the active one above. An id no
+  // slot has reads as the active slot.
+  const groundRequestFor = (id: GroundSlotId, b: BackendEntry) =>
+    groundRequest(state.slots.find((s) => s.id === id) ?? active, b, servedDefault);
+
   return {
     groundSlots: state.slots,
+    groundRequestFor,
+    servedDefaultSoil: servedDefault,
     activeGroundSlot: active.id,
     designGroundSlot: designSlotId(state),
     setActiveGroundSlot,

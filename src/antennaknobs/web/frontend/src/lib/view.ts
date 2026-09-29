@@ -5,7 +5,36 @@ export type View =
   | "combined"
   | "schematic"
   | "files"
-  | "zparam";
+  | "zparam"
+  | ChartCopyView;
+
+// A duplicated analysis chart (AK#1757, sweep-framework step 5 unit 4): the
+// second, third and fourth instances of the `zparam` chart, each with its own
+// pick, switch, ranges, view options and runners. Views so that the rail,
+// the grid and the phone's carousel place them like any other, but NOT in
+// the roster (VIEWS): the picker never lists them, and the rail's stored
+// preferences never hold one, since a chart's duplicates are session-only
+// by ruling (Steve, 2026-09-28). The session adds them to the views it shows
+// (useViewPrefs' withChartCopies) while they are open.
+export const CHART_COPIES = ["zparam2", "zparam3", "zparam4"] as const;
+export type ChartCopyView = (typeof CHART_COPIES)[number];
+/** Every analysis chart's view id, by chart index: the original, then the
+ *  copies. Up to four charts (the grid's four cells). */
+export const CHART_VIEW_IDS: readonly View[] = ["zparam", ...CHART_COPIES];
+export const MAX_CHARTS = CHART_VIEW_IDS.length;
+
+export function isChartCopy(v: string): v is ChartCopyView {
+  return (CHART_COPIES as readonly string[]).includes(v);
+}
+/** The analysis chart a view id is (0 for `zparam`), or -1. */
+export function chartIndex(v: string): number {
+  return CHART_VIEW_IDS.indexOf(v as View);
+}
+/** The view whose per-viewer preferences a view reads and writes: a copy
+ *  shares the original chart's, so nothing about a copy is ever stored. */
+export function prefView(v: View): View {
+  return isChartCopy(v) ? "zparam" : v;
+}
 
 // The ids of the standalone Smith, VSWR and S11 views, removed when they
 // folded into the analysis chart (AK#1757, sweep-framework step 5 unit 3).
@@ -110,8 +139,16 @@ export const VIEWS: ViewMeta[] = [
 // order (the pinned set) rather than registry order and still need labels.
 // The cast is the Record<View, …> exhaustiveness claim VIEWS already owes —
 // viewRegistry.test.tsx pins one entry per union member.
+// The copies ride along (AK#1757 step 5 unit 4), labelled by their number
+// and otherwise the chart's own metadata.
+const CHART_COPY_META: ViewMeta[] = CHART_COPIES.map((id, i) => ({
+  ...VIEWS.find((v) => v.id === "zparam")!,
+  id,
+  label: `Sweep ${i + 2}`,
+  defaultPinned: false,
+}));
 export const VIEW_META = Object.fromEntries(
-  VIEWS.map((v) => [v.id, v]),
+  [...VIEWS, ...CHART_COPY_META].map((v) => [v.id, v]),
 ) as Record<View, ViewMeta>;
 
 // The combined view's fill (AK#1730): "none" is EZNEC's look and the default;
