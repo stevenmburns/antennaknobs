@@ -3,6 +3,7 @@ import type { MeasuredData, ParamSweepData, SolveResponse, SweepData } from "../
 import { DENSITY, RX_AUTO, type RxAxisChoice } from "../../lib/paramSweep";
 import type { SweepProgress } from "../../lib/sweep";
 import type { SweepPhase } from "../session/useAnalysisRunners";
+import type { FrequencyView } from "../../lib/analyses";
 import type { SweepAxes, SweepAxisChoice, SweepMode } from "../../lib/sweepAxis";
 import type {
   CanvasCamera,
@@ -21,6 +22,7 @@ import type {
   PatternData,
   PinnedPattern,
 } from "../charts/types";
+import { ChartFrequency } from "./ChartFrequency";
 import { FilesPanel, type FilesViewData } from "./FilesPanel";
 import { SchematicPanel } from "./SchematicPanel";
 
@@ -134,6 +136,29 @@ export type ViewRenderProps = {
    *  passes these; thumbnails do not (a thumb is a button). */
   onSweepAxisChange?: (mode: SweepMode, c: SweepAxisChoice) => void;
   onSwrThresholdChange?: (t: number) => void;
+  /** The analysis chart showing a frequency analysis (AK#1757, step 5 unit
+   *  2): the zparam view draws this chart's own sweep, on the analysis's
+   *  view, instead of R/X against a knob. Null or omitted: the knob sweep. */
+  chartFrequency?: ChartFrequencyRender | null;
+};
+
+/** A frequency analysis as the analysis chart draws it: the chart's own
+ *  sweep runner's output and the chart's own scales. Nothing here is the
+ *  session's freq sweep, which the standalone Smith / VSWR / S11 views keep
+ *  drawing. */
+export type ChartFrequencyRender = {
+  view: FrequencyView;
+  sweep: SweepData | null;
+  running: boolean;
+  phase: SweepPhase;
+  progress: SweepProgress | null;
+  settled: boolean;
+  /** Drawn for inputs that have since changed (the dwell switch off). */
+  stale: boolean;
+  axes: SweepAxes;
+  threshold: number;
+  onAxisChange?: (mode: SweepMode, c: SweepAxisChoice) => void;
+  onThresholdChange?: (t: number) => void;
 };
 
 /** What the Z-vs-parameter view draws against: the parameter chosen (the
@@ -334,6 +359,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
   // ride on the current-value guide; liveZ wins while an optimizer run is
   // proposing points, as on the Smith chart.
   zparam: (p) => {
+    if (p.chartFrequency) return <ChartFrequency p={p} f={p.chartFrequency} />;
     const z = p.zparam ?? DEFAULT_ZPARAM;
     const r = p.liveZ?.z_in_re ?? p.result?.z_in_re ?? null;
     const x = p.liveZ?.z_in_im ?? p.result?.z_in_im ?? null;
