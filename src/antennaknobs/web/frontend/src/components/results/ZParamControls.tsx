@@ -8,6 +8,8 @@ import {
 } from "../../lib/paramSweep";
 import { CommitNumber } from "./CommitNumber";
 import { AnalysisDetails, type AnalysisPickerProps, AnalysisSelect } from "./AnalysisPicker";
+import { chartDataAttrs } from "../../lib/analysisChart";
+import { type ChartChrome, DwellSwitch } from "./AnalysisChartControls";
 import type { SchemaParamSpec } from "../../lib/params";
 
 // The Z-vs-parameter view's header (docs/design/z-vs-param-view.md): which
@@ -28,6 +30,7 @@ export function ZParamControls({
   run,
   costHint = null,
   analyses = null,
+  chrome = null,
 }: {
   spec: ParamSweepSpec;
   /** The design's sweepable knobs (lib/paramSweep sweepableKnobs). */
@@ -58,6 +61,9 @@ export function ZParamControls({
   /** The design's analyses (AK#1757): the picker, and under the row the
    *  picked one's note and every one as Python. Null or empty: no picker. */
   analyses?: AnalysisPickerProps | null;
+  /** The analysis chart's dwell switch (AK#1757 step 5): given, the header
+   *  is an analysis chart's and carries it. */
+  chrome?: ChartChrome | null;
 }) {
   // An edit is the header's own ladder again: an analysis's explicit values
   // (ParamSweepSpec.values) do not survive it.
@@ -71,7 +77,16 @@ export function ZParamControls({
   const span = Math.abs(spec.hi - spec.lo) || Math.abs(spec.hi) || 1;
   const rangeStep = 10 ** Math.floor(Math.log10(span / 10));
   return (
-    <div className="zparam-overlay">
+    <div
+      className="zparam-overlay"
+      {...(chrome
+        ? {
+            role: "group",
+            "aria-label": "Analysis chart",
+            ...chartDataAttrs("knob", chrome.dwell, analyses?.current ?? null),
+          }
+        : {})}
+    >
       <div className="zparam-controls" role="group" aria-label="Parameter sweep">
         {analyses && analyses.entries.length > 0 && <AnalysisSelect {...analyses} />}
         <label>
@@ -151,9 +166,16 @@ export function ZParamControls({
             run · re-run?
           </button>
         ) : run.done ? (
-          <span className="zparam-run-done" title="The sweep has finished">
-            {run.received}/{values.length}
-          </span>
+          // Finished: the count, and Run again (an analysis chart's Run
+          // always re-runs, AK#1757).
+          <button
+            type="button"
+            className="zparam-run zparam-run-done"
+            title="The sweep has finished: run it again"
+            onClick={run.onRun}
+          >
+            {run.received}/{values.length} · run
+          </button>
         ) : (
           <button
             type="button"
@@ -164,6 +186,7 @@ export function ZParamControls({
             {run.partial ? `${run.received}/${values.length} · run` : "run"}
           </button>
         )}
+        {chrome && <DwellSwitch {...chrome} />}
         <button
           type="button"
           className="zparam-reset"

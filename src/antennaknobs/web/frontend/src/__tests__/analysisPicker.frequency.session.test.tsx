@@ -1,10 +1,12 @@
-// A frequency analysis picked in the Z-vs-parameter header, through a real
-// <DesignSession> (AK#1757, sweep-framework step 4):
-//   - picking one with a range of its own sets the frequency sweep's range
-//     (the dial's travel and the /sweep grid), the VSWR chart's scale and
-//     threshold, and brings the VSWR chart up; the sweep is the frequency
-//     sweep's own /sweep, and nothing goes to /param_sweep;
-//   - picking one whose range is the deck's own clears the edit back to it;
+// A frequency analysis picked in the analysis chart's picker, through a real
+// <DesignSession> (AK#1757, sweep-framework steps 4 and 5):
+//   - picking one draws it IN the chart (step 5 unit 2), on its first view,
+//     from the chart's own frequency sweep over the analysis's range, with
+//     the analysis's SWR scale and threshold; nothing goes to /param_sweep,
+//     and the session is not switched to another view. Step 4 handed off to
+//     the standalone VSWR view and set the session's sweep range (the dial's
+//     travel) and the viewer's saved VSWR scale; the chart touches neither;
+//   - picking one whose range is the deck's own sweeps the file's grid;
 //   - a knob analysis still goes to /param_sweep, in the Z-vs-parameter view.
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
@@ -152,7 +154,7 @@ afterEach(() => {
 });
 
 describe("a frequency analysis in the picker", () => {
-  it("sets the sweep's range, the VSWR scale and threshold, and runs the frequency sweep", async () => {
+  it("draws in the chart itself: its range, its SWR scale and threshold, its own sweep", async () => {
     const { container, sweeps, paramSweeps } = await mount();
     expect(dial()).toEqual([14, 14.35]);
     let select = await picker(container);
@@ -162,36 +164,51 @@ describe("a frequency analysis in the picker", () => {
     // The density sweep the view starts on lands first.
     await untilDom(() => paramSweeps.length > 0);
     const knobSweeps = paramSweeps.length;
+    // The standalone VSWR view's scale, in the rail: the viewer's own.
+    const railVswr = () =>
+      container.querySelector(".thumbstrip canvas.sweep-vswr") as HTMLElement;
+    const railAxis = railVswr().dataset.axis;
 
     // Its own range: 13.9-14.5 MHz in 25 points, on the 1 − 1/SWR scale
-    // with a 1.5:1 threshold, on the VSWR chart.
+    // with a 1.5:1 threshold, drawn in the chart on the stage.
     fireEvent.change(select, { target: { value: "wide SWR" } });
     const chart = await untilDom(() => vswr());
-    expect(dial()).toEqual([13.9, 14.5]);
+    // In the chart: the zparam view's plot holds it, the R/X chart is gone,
+    // and the chart's header names the pick.
+    expect(chart.closest(".zparam-plot")).not.toBeNull();
+    expect(stageChart("canvas.zparam")).toBeNull();
+    const head = screen.getByRole("group", { name: "Analysis chart" });
+    expect(head.dataset.chartKind).toBe("frequency");
+    expect(head.dataset.analysis).toBe("wide SWR");
+    await untilDom(() => sweeps.some((f) => f.length === 25) || null);
     await sweepBaseDone(chart);
-    const last = sweeps[sweeps.length - 1];
-    expect(last).toHaveLength(25);
-    expect(last[0]).toBeCloseTo(13.9, 9);
-    expect(last[24]).toBeCloseTo(14.5, 9);
+    const own = sweeps.find((f) => f.length === 25)!;
+    expect(own[0]).toBeCloseTo(13.9, 9);
+    expect(own[24]).toBeCloseTo(14.5, 9);
     await untilDom(() => chart.dataset.readout?.startsWith("1.5:1 BW") || null);
     expect(chart.dataset.axis).toBe("reciprocal");
+    // The chart's range is the chart's: the dial's travel (the session's
+    // sweep range) is untouched.
+    expect(dial()).toEqual([14, 14.35]);
     // The frequency sweep's own path: nothing went to /param_sweep.
     expect(paramSweeps).toHaveLength(knobSweeps);
 
-    // E4: the deck's own range clears the edit back to the file's grid, on
-    // EZNEC's ρ scale at 2:1.
-    select = await picker(container);
+    // E4: the deck's own range, the file's grid, on EZNEC's ρ scale at 2:1.
+    select = screen.getByRole("combobox", { name: "Analysis" }) as HTMLSelectElement;
+    const before = sweeps.length;
     fireEvent.change(select, { target: { value: "band SWR" } });
+    await untilDom(() => sweeps.slice(before).some((f) => f.length === 15) || null);
     const again = await untilDom(() => vswr());
-    expect(dial()).toEqual([14, 14.35]);
     await sweepBaseDone(again);
-    expect(again.dataset.axis).toBe("rho");
-    const own = sweeps[sweeps.length - 1];
-    expect(own).toHaveLength(15);
-    expect(own[0]).toBeCloseTo(14, 9);
-    expect(own[14]).toBeCloseTo(14.35, 9);
+    await untilDom(() => again.dataset.axis === "rho" || null);
+    const file = sweeps.slice(before).find((f) => f.length === 15)!;
+    expect(file[0]).toBeCloseTo(14, 9);
+    expect(file[14]).toBeCloseTo(14.35, 9);
     await untilDom(() => again.dataset.readout?.startsWith("2:1 BW") || null);
     expect(paramSweeps).toHaveLength(knobSweeps);
+    // The chart's scale never became the viewer's: the standalone VSWR view
+    // still draws on its own.
+    expect(railVswr().dataset.axis).toBe(railAxis);
   });
 
   it("a knob analysis still sweeps its knob in the Z-vs-parameter view", async () => {

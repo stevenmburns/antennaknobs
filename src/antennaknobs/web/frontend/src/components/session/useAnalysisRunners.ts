@@ -499,5 +499,8 @@ export function useAnalysisRunners({
     normCheck,
     pattern,
     abortInFlight,
+    /** This render's frequency sweep signature, for another frequency
+     *  runner (an analysis chart's) keyed on the same request. */
+    freqSweepSig,
   };
 }
