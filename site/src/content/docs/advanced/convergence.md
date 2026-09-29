@@ -264,14 +264,14 @@ another. R and X usually sit tens of ohms apart and move by fractions of an
 ohm, so one shared scale flattens whichever moves less. Both the workbench
 and the command line draw it this way.
 
-**In the workbench**, add the **Z vs parameter** view from the view picker
-and choose **density (N per λ/4)** as the parameter. Set the range and the
-number of points in the view's header (for example 10 to 500, 20 points,
-log spacing). R sits on the left axis and X on the right, each with its own
+**In the workbench**, pick the **convergence** analysis on the **Sweep**
+chart (its header's analysis list), which sets the parameter to **density (N
+per λ/4)**. Set the range and the number of points in the chart's header (for
+example 10 to 500, 20 points, log spacing). R sits on the left axis and X on the right, each with its own
 range (click an axis). Hover a point to read its values. The dotted line on
 each axis is the extrapolated converged value, and the dashed guide marks the
-design's current density. The Smith chart draws the same sweep as a labelled
-trail. **Stop** keeps the points you have. The same view sweeps any numeric
+design's current density. The chart's **Smith** view draws the same sweep as
+a labelled trail. **Stop** keeps the points you have. The same view sweeps any numeric
 knob, not only density: right-click a knob and choose **Sweep this knob…**.
 
 To compare engines, run the sweep once per solver slot. The fixed reference
@@ -385,7 +385,7 @@ knowing before you trust a curve:
 1. Solve at the defaults (bs2, N=15). For most of the catalog you are
    already converged — the census says 80 % of scorable designs are
    within 2 % at coarse mesh on this basis.
-2. Run a **convergence sweep**: the **Z vs parameter** view with density
+2. Run a **convergence sweep**: the **Sweep** chart with density
    as the parameter (see [Charting a convergence study](#charting-a-convergence-study)).
    Flat within your tolerance across the top rungs → done.
 3. Not flat? Turn on **slot B** and compare trajectories:

@@ -91,7 +91,8 @@ swept range instead.
 ### The measurement dial is the sweep range
 
 There is one range, not two: the span the measurement dial travels **is** the
-span the frequency sweep, S11/VSWR charts and Smith locus solve over. Set it
+span a new [sweep chart](#the-sweep-chart)'s frequency sweep solves over, on
+its Smith, SWR and S11 views. Set it
 from the dial's own right-click menu (long-press on a touch screen):
 
 - **Sweep range lo / hi (MHz)** — the dial's endpoints.
@@ -136,8 +137,8 @@ install reads the `ANTENNAKNOBS_SETTINGS` variable.
 ```toml
 [switches]
 live = true
-freq_sweep = false          # the Smith chart's frequency sweep
-convergence_sweep = false   # "param sweep": the Z vs parameter trail on the Smith chart
+freq_sweep = false          # a new frequency chart's "auto re-run"
+convergence_sweep = false   # a new knob or density chart's "auto re-run"
 pattern_renorm = true       # "norm check"
 refine = true               # "adaptive resolution"
 heatmap_currents = true
@@ -230,6 +231,14 @@ for the design on screen, until the next design loads. The Settings menu's
   these two tables: a path the server runs is never set from a browser. An
   `[engines]` path with no program at it shows as a note like any other
   mistake, and the entry stays in the file.
+- **`freq_sweep` and `convergence_sweep`** were the Smith chart's **freq
+  sweep** and **param sweep** switches. The workbench no longer has either:
+  each [sweep chart](#the-sweep-chart) has its own **auto re-run** switch, and
+  these two keys set where that switch starts on a new chart, `freq_sweep`
+  for a frequency sweep and `convergence_sweep` for a knob or density sweep.
+  An older file that names them still loads without a note. Flipping a
+  chart's switch never changes them, and *save as my defaults* writes back
+  what the file said.
 - **The hosted simulator** reads no file and offers no save.
 
 ## The output stage — views, pins, and layout
@@ -242,24 +251,47 @@ views as thumbnails beside it. The roster is:
 | **Antenna** | the wires, current heat-map, standing-wave envelope |
 | **Azimuth (xy)** | far-field polar cut in azimuth |
 | **Elevation (yz)** | far-field polar cut in elevation |
-| **Smith** | feedpoint impedance, plus the sweep locus and any [measured overlay](#measured-overlay--your-vna-on-the-smith-chart) |
+| **Sweep** | the [sweep chart](#the-sweep-chart): a frequency sweep on the Smith chart to start, or on SWR or S11 (dB) against frequency; or a knob sweep as R and X against the knob, or its trail on the Smith chart |
 | **Schematic** | the [feed network as a chain](#the-schematic-view) |
-| **S11 (dB) vs freq** | return loss against frequency, the log-magnitude form a VNA shows |
-| **VSWR vs freq** | SWR against frequency |
 | **Files** | the design's source, and the deck an external engine ran with the report it printed |
-| **Z vs parameter** | feed R and X against the mesh density or any knob — see [Z vs parameter](#z-vs-parameter) |
 
-Click a thumbnail to promote it to primary. The last two read the **same
-frequency sweep** the Smith chart plots — run a [sweep](#the-measurement-dial-is-the-sweep-range)
-and all three fill in together; the marker on each rides the measurement
-frequency.
+Click a thumbnail to promote it to primary.
 
-The S11 and VSWR charts carry the Smith chart's **freq sweep** switch too, and
-it is one switch: turning the sweep off on any of the three turns it off on
-all of them, and in the Settings menu.
+### The sweep chart
 
-**Their vertical range** is set by clicking the chart's y axis, and a choice
-shows on the chart at once, with the menu still open.
+The **Sweep** view is the workbench's analysis chart. It opens on a
+**frequency sweep on the Smith chart**, over the
+[measurement dial's range](#the-measurement-dial-is-the-sweep-range), where the
+Smith view used to be. Its header, on the chart, holds what it computes and how
+it draws it:
+
+- **analysis** — the design's [analyses](#a-designs-analyses); it reads
+  *freq sweep* until you pick one;
+- **view** — **Smith**, **SWR** or **S11 (dB)** for a frequency sweep, all
+  three drawn from the one sweep, so switching re-solves nothing; **R / X**
+  or **Smith** for a knob sweep, where Smith draws the knob sweep as a trail
+  (what the old **param sweep** switch drew);
+- **from / to** and **↺**, **run**, and **auto re-run**;
+- on the Smith view, **measured .s1p…**, the
+  [measured overlay](#measured-overlay--your-vna-on-the-smith-chart).
+
+**auto re-run** is what the **freq sweep** switch was, moved onto the chart.
+With it on, the curve re-sweeps once the knobs have been still for half a
+second. With it off, a change leaves the curve drawn but faded as stale, and
+**run · re-run?** runs it again. Either way the live point, the marker at the
+measurement frequency, moves with every knob at once; only the curve waits.
+It starts on for a frequency sweep and off for a knob or density sweep, unless
+[`settings.toml`](#where-the-workbench-starts-settingstoml) says otherwise.
+The chart's pick, switch and range last for the session.
+
+The standalone **Smith**, **S11 (dB) vs freq** and **VSWR vs freq** views are
+gone; they are this chart's views now. Pins saved in the browser that named
+them become the chart: a Smith pin opens it on Smith, a VSWR pin on SWR and an
+S11 pin on S11, each in the old pin's place. Several of them together become
+one chart, until duplicated charts arrive.
+
+**The SWR and S11 views' vertical range** is set by clicking the chart's y
+axis, and a choice shows on the chart at once, with the menu still open.
 
 The VSWR chart starts on its **1–∞** scale, which shows every SWR at once, none
 pegged: it plots 1 − 1/SWR (which is 2|Γ|/(1+|Γ|)), so 1.5:1 sits a third of
@@ -277,7 +309,7 @@ and **Auto**, its default, which fits the dip: the shallowest floor the dip
 clears by 5 dB that still shows the threshold line. So that the axis never
 rescales under your hand, Auto only deepens while a knob is moving or a sweep
 is landing, and fits again once things have been still for half a second.
-Each chart remembers its own choice.
+Each view remembers its own choice, in the browser, as the pins are.
 
 Both charts draw a dashed **SWR threshold** line, 2:1 unless you change it in
 the same menu (on S11 it is the matching return loss, −9.5 dB for 2:1). The
@@ -320,7 +352,7 @@ moment that lies below ground, which says how much of the antenna is down
 there.
 
 - **Pin the views you watch.** The stage carries a *pinned set*, not the whole
-  roster — **Antenna, Azimuth, Elevation, Smith** to start, up to **six**
+  roster — **Antenna, Azimuth, Elevation, Sweep** to start, up to **six**
   pins. Six is a hard cap: more thumbnails than that and none of them is
   legible.
 - **The rest live in the picker.** **All views ⌄ +N** at the foot of the
@@ -350,10 +382,10 @@ there.
   order, grid-cell order, and phone-page order, so one reorder serves all
   three — and a second browser **window** picks up pin/order/layout changes
   live instead of on reload.
-- **Analyses follow the views** (v0.43.0): the freq sweep, convergence
-  sweep, and NEC pattern overlay only run while a view that renders them is
-  pinned or open — an enabled sweep with no Smith/S11/VSWR view on screen
-  costs nothing, and pinning one starts it. The norm check is the deliberate
+- **Analyses follow the views** (v0.43.0): the sweep chart's sweep and the
+  NEC pattern overlay only run while a view that renders them is pinned or
+  open — a sweep chart that is neither costs nothing, and pinning it starts
+  it. The norm check is the deliberate
   exception (its number lives in the always-present solve readout).
 
 ## The antenna viewer
@@ -1195,25 +1227,22 @@ It is drawn two ways, from one sweep:
   with the parameter set to density. This is the chart to read convergence
   from: R and X each on their own axis, a log N axis, and any ladder you like
   (10 … 500 in 20 steps, say).
-- **As a trail on the Smith chart**, with the **param sweep** switch under
-  the chart (or in the Tools menu on a phone; it was called **converge
-  sweep** when density was the only thing it could sweep): a ring at the coarsest N, a
-  disc at the finest, the end values beside them, and `Z∞` as a diamond.
+- **As a trail on the Smith chart**: the same chart's **Smith** view (the
+  **param sweep** switch under the old Smith view drew it): a ring at the
+  coarsest N, a disc at the finest, the end values beside them, and `Z∞` as a
+  diamond. A knob sweep's trail is labelled with its values.
 
-The sweep runs only while something on screen draws it (v0.43.0's
-view-residency gating): the Z vs parameter view, or the Smith chart with the
-switch on. The switch draws whatever the Z vs parameter view is set to sweep,
-so with a knob chosen there the Smith trail is that knob's, labelled with its
-values.
+The sweep runs only while the chart is on screen (v0.43.0's view-residency
+gating).
 
 ## Z vs parameter
 
-The **Z vs parameter** view (in **All views**; it starts unpinned) plots the
-feed impedance against one parameter, the way AC6LA's SimNEC convergence
-charts do: **R in red on the left axis, X in blue on the right**, each on its
+A knob sweep on the [sweep chart](#the-sweep-chart) (its **R / X** view)
+plots the feed impedance against one parameter, the way AC6LA's SimNEC
+convergence charts do: **R in red on the left axis, X in blue on the right**, each on its
 own range, with a circle at every point and the values boxed at both ends.
 
-The header at the top of the view picks what to sweep:
+The header at the top of the chart picks what to sweep:
 
 - **sweep** — *density (N per λ/4)*, or any of the design's numeric knobs.
   Knobs that set a frequency are not offered: the measurement frequency stays
@@ -1228,22 +1257,23 @@ The header at the top of the view picks what to sweep:
   **points** field's tooltip lists the values actually solved.
 
 Right-click a knob and pick **Sweep this knob…** to jump straight here with
-that knob over its range.
+that knob over its range. To reach the density ladder, pick the
+**convergence** analysis.
 
 **auto re-run** is the chart's own switch for re-running after a change.
 With it on, the chart re-sweeps once the knobs have stopped moving (half a
-second), as the freq sweep does. With it off, a change leaves the curve
-dimmed as stale, and the button offers **run · re-run?**. It starts **on for
-density**, which re-runs whenever the design changes, as the convergence
-sweep always has. It starts **off for a knob**, because a knob sweep rebuilds
-the design at every point: it runs when you ask, through **Sweep this
-knob…**, the header's **run**, or an edit to its own from, to, points or
-spacing. Picking a knob in the **sweep** list, reloading the design, or
-coming back to the view does not start one. **run** always runs the sweep
-again, including a finished one. Switching to another design or variant puts
-the view back on density, with both axes on Auto and the switch at its
-default. While a sweep runs, the button shows its progress and stops it; the
-points so far stay, marked partial.
+second). With it off, a change leaves the curve dimmed as stale, and the
+button offers **run · re-run?**. For a knob or density sweep it starts
+**off** (`convergence_sweep` in `settings.toml` turns it on), because a knob
+sweep rebuilds the design at every point: it runs when you ask, through
+**Sweep this knob…**, an analysis pick, the header's **run**, or an edit to
+its own from, to, points or spacing. Picking a knob in the **sweep** list,
+reloading the design, or coming back to the view does not start one. **run**
+always runs the sweep again, including a finished one. Switching to another
+design or variant puts the chart back on the design's own frequency sweep,
+keeping the view you had it on and a switch you flipped. While a sweep runs,
+the button shows its progress and stops it; the points so far stay, marked
+partial.
 
 On the chart:
 
@@ -1270,7 +1300,7 @@ another engine's curve (one panel per engine is planned).
 
 ### A design's analyses
 
-This view is the workbench's first **analysis chart**. It has its own
+The sweep chart is the workbench's **analysis chart**. It has its own
 **analysis** list, **run** and **auto re-run** switch on the chart, and it
 draws whatever it picked in place, whether that is a knob sweep or a
 frequency sweep. The list holds the sweeps the design names as worth running:
@@ -1279,8 +1309,8 @@ the same list as `antennaknobs analyze --list` (see
 sets the header's parameter, range, points and spacing. On the inverted V,
 **height** sweeps `base` from 2 to 20 m in 37 points and **convergence** runs
 the density ladder, the same values the command line solves. When the chart
-opens on the density ladder and the design has an analysis that sweeps
-exactly that, the list names it.
+shows a knob sweep and the design has an analysis that sweeps exactly that,
+the list names it.
 
 The view draws one curve, so an analysis that compares several draws this
 session's one. **height** is crossed over three grounds; the workbench draws
@@ -1290,18 +1320,20 @@ knob sweep over the density ladder, with `Z∞` on the command line only for
 now.
 
 A frequency analysis, such as **band SWR**, draws in the same chart, on the
-analysis's first view: SWR, S11 or Smith. When it names more than one, a
-**view** list switches between them. The chart runs its own frequency sweep,
-over the analysis's range, from the rule the command line uses (see [Frequency
+analysis's first view: SWR, S11 or Smith. The **view** list offers the
+analysis's views first, then the other frequency views. The chart runs its
+frequency sweep over the analysis's range, from the rule the command line uses (see [Frequency
 analyses](/reference/cli/#frequency-analyses)). A deck's own sweep or a
 design's declared range sweeps the design's range, and on a band-policy
 design that follows the band you are on. **from / to** on the chart edit its
 range and **↺** puts the analysis's back. None of this moves the measurement
-dial or the standalone VSWR, S11 and Smith views, which keep their own sweep
-and the **freq sweep** switch. The SWR scale is the analysis's
+dial. The SWR scale is the analysis's
 (`an.Swr(scale="rho")` is EZNEC's), and the threshold line and the bandwidth
-readout move to its `an.Ref(swr=...)`. **auto re-run** starts on, so the
-curve follows the knobs after the usual half second. Either way the marker
+readout move to its `an.Ref(swr=...)`, for this chart only: a scale you pick
+on the chart's axis is remembered in the browser as the VSWR chart's was, an
+analysis's is not. **auto re-run** starts on (`freq_sweep` in
+`settings.toml` can turn it off), so the curve follows the knobs after the
+usual half second. Either way the marker
 at the measurement frequency, the live solve, moves with every knob. The
 workbench doesn't draw R/X against frequency or a table yet, so an `an.Rx()`
 or `an.Table()` view is left out with a note naming the step that brings it.
@@ -1336,7 +1368,8 @@ feed wire already meshes like its neighbours.
 
 ## Measured overlay — your VNA on the Smith chart
 
-Under the Smith chart, **measured .s1p…** loads a one-port Touchstone file — a
+On the sweep chart's Smith view, **measured .s1p…** in the chart's header (in
+the Tools menu on a phone) loads a one-port Touchstone file — a
 NanoVNA export, or any VNA's — and draws the antenna you actually measured as a
 dashed violet locus against the modeled one. It is the "did my model match
 reality?" view, and the same overlay the CLI draws with
