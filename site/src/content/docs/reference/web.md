@@ -265,8 +265,12 @@ The **Sweep** view is the workbench's analysis chart. It opens on a
 Smith view used to be. Its header, on the chart, holds what it computes and how
 it draws it:
 
-- **analysis** — the design's [analyses](#a-designs-analyses); it reads
-  *freq sweep* until you pick one;
+- **analysis** — what the chart runs. First what runs here: **freq sweep
+  (the design's band)**, the design's [analyses](#a-designs-analyses) the
+  chart can run, and **Sweep a knob**, which runs the knob in the chart's
+  **sweep** list (the last knob you swept, else the design's first) over its
+  own range, as **Sweep this knob…** does. Last, under **Not in the workbench
+  yet**, the analyses it cannot run, greyed out, each with its reason;
 - **view** — **Smith**, **SWR** or **S11 (dB)** for a frequency sweep, all
   three drawn from the one sweep, so switching re-solves nothing; **R / X**
   or **Smith** for a knob sweep, where Smith draws the knob sweep as a trail
@@ -291,7 +295,9 @@ S11 pin on S11, each in the old pin's place. Several of them together become
 one chart, until duplicated charts arrive.
 
 **The SWR and S11 views' vertical range** is set by clicking the chart's y
-axis, and a choice shows on the chart at once, with the menu still open.
+axis (tap it on a phone), and a choice shows on the chart at once, with the
+menu still open. The menu opens inside what is on screen, a pinch-zoomed
+phone included.
 
 The VSWR chart starts on its **1–∞** scale, which shows every SWR at once, none
 pegged: it plots 1 − 1/SWR (which is 2|Γ|/(1+|Γ|)), so 1.5:1 sits a third of
@@ -1241,6 +1247,8 @@ A knob sweep on the [sweep chart](#the-sweep-chart) (its **R / X** view)
 plots the feed impedance against one parameter, the way AC6LA's SimNEC
 convergence charts do: **R in red on the left axis, X in blue on the right**, each on its
 own range, with a circle at every point and the values boxed at both ends.
+On a phone the boxes start hidden, since they would cover a small plot:
+**values** at the chart's lower right shows or hides them, for the session.
 
 The header at the top of the chart picks what to sweep:
 
@@ -1266,9 +1274,10 @@ second). With it off, a change leaves the curve dimmed as stale, and the
 button offers **run · re-run?**. For a knob or density sweep it starts
 **off** (`convergence_sweep` in `settings.toml` turns it on), because a knob
 sweep rebuilds the design at every point: it runs when you ask, through
-**Sweep this knob…**, an analysis pick, the header's **run**, or an edit to
-its own from, to, points or spacing. Picking a knob in the **sweep** list,
-reloading the design, or coming back to the view does not start one. **run**
+**Sweep this knob…**, an analysis pick, **Sweep a knob**, a knob chosen in
+the **sweep** list (choosing what to sweep is a pick, and a pick runs), the
+header's **run**, or an edit to its own from, to, points or spacing.
+Reloading the design or coming back to the view does not start one. **run**
 always runs the sweep again, including a finished one. Switching to another
 design or variant puts the chart back on the design's own frequency sweep,
 keeping the view you had it on and a switch you flipped. While a sweep runs,
@@ -1314,7 +1323,7 @@ the list names it.
 
 The view draws one curve, so an analysis that compares several draws this
 session's one. **height** is crossed over three grounds; the workbench draws
-the ground you have set, and a note under the header says so and that
+the ground you have set, and the chart's note (ⓘ) says so and that
 `antennaknobs analyze` draws all three. A deck's own segment knob runs as a
 knob sweep over the density ladder, with `Z∞` on the command line only for
 now.
@@ -1347,6 +1356,12 @@ its tooltip: a map, a family over a second knob, a cross over measurement
 planes or designs, a frequency analysis given explicit frequencies rather
 than a range, and a match held at every point. Each reason names the
 step of the sweep framework it is planned for.
+
+A note the chart has for what it draws (an analysis drawn for this
+session's engine and ground rather than all it names, or a word on cost)
+sits on the one line under the header as **ⓘ** and its first words; tap it
+to read the whole note over the chart. That line is there with a note or
+without one, so a note never takes height from the plot.
 
 **analyses as Python**, under the header, shows every analysis as the Python
 that makes it, with **copy**, ready to paste into a design's
