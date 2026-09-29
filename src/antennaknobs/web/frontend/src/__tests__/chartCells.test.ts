@@ -9,9 +9,11 @@ import {
   type CrossEnv,
   crossPlan,
   CURVE_CAP,
+  engineRefusal,
   engineSpecHeld,
   FOLLOW_ACTIVE,
   groundSpecHeld,
+  type ListedCross,
   NOTHING_LISTED,
   preselect,
   refusedLines,
@@ -157,8 +159,10 @@ describe("engines x grounds", () => {
     expect(plan.capRefusal).toBe("REFUSED: 5 engines x 2 grounds = 10 curves, over the cap of 6");
     expect(plan.cells).toEqual([]);
     expect(refusedLines(plan)).toEqual([plan.capRefusal]);
-    expect(capRefusal(7, 1)).toBe("REFUSED: 7 engines x 1 grounds = 7 curves, over the cap of 6");
-    expect(capRefusal(1, 6)).toBeNull();
+    expect(capRefusal([{ n: 7, kind: "engines" }])).toBe(
+      "REFUSED: 7 engines = 7 curves, over the cap of 6",
+    );
+    expect(capRefusal([{ n: 1, kind: "engines" }, { n: 6, kind: "grounds" }])).toBeNull();
   });
 
   it("counts a refused cell against the cap, as the CLI counts every listed curve", () => {
@@ -207,5 +211,116 @@ describe("which slot holds a spec", () => {
     expect(groundSpecHeld("finite", g({ type: "terrain" }), avg)).toBe(false);
     expect(groundSpecHeld("finite:x", g({}), avg)).toBe(false);
     expect(groundSpecHeld("sand", g({}), avg)).toBe(false);
+  });
+});
+
+// Unit 4b: the analysis's own crosses over planes, designs and a family,
+// multiplied with the slots, in the CLI's order and labels
+// (analysis_run.cells).
+describe("planes, designs and families", () => {
+  const E7: ListedCross = {
+    engines: ["momwire:bspline", "momwire:razor-2p", "pynec"],
+    grounds: null,
+    axes: ["designs", "engines"],
+    designs: [
+      { name: "dipoles.invvee", refused: null, param: "n_per_wire", values: [8, 12] },
+      { name: "dipoles.invvee_apex", refused: null, param: "n_per_wire", values: [8, 12] },
+    ],
+  };
+
+  it("multiplies in the order the analysis writes its crosses, labelled as the CLI labels", () => {
+    const plan = crossPlan(preselect(E7, env()), E7, env());
+    expect(plan.capRefusal).toBeNull();
+    expect(plan.cells.map((c) => [c.label, c.slot, c.design])).toEqual([
+      ["dipoles.invvee, momwire:bspline", "A", "dipoles.invvee"],
+      ["dipoles.invvee, momwire:razor-2p", "B", "dipoles.invvee"],
+      ["dipoles.invvee, pynec", "C", "dipoles.invvee"],
+      ["dipoles.invvee_apex, momwire:bspline", "A", "dipoles.invvee_apex"],
+      ["dipoles.invvee_apex, momwire:razor-2p", "B", "dipoles.invvee_apex"],
+      ["dipoles.invvee_apex, pynec", "C", "dipoles.invvee_apex"],
+    ]);
+    // Keys stay unique across the product, the slot|ground pair leading.
+    expect(new Set(plan.cells.map((c) => c.key)).size).toBe(6);
+    expect(plan.cells[3].key).toBe("A|1|d:dipoles.invvee_apex");
+  });
+
+  it("caps the whole product, naming every axis in the CLI's words", () => {
+    const four = { ...E7, engines: [...(E7.engines ?? []), "nec5"] };
+    const plan = crossPlan(preselect(four, env()), four, env());
+    expect(plan.capRefusal).toBe("REFUSED: 2 designs x 4 engines = 8 curves, over the cap of 6");
+    expect(plan.cells).toEqual([]);
+    // A family times two ticked slots: the slots' axis joins the wording.
+    const fam: ListedCross = {
+      ...NOTHING_LISTED,
+      axes: ["step"],
+      step: { knob: "angle_deg", values: [0, 15, 30, 45], labels: [] },
+    };
+    expect(crossPlan({ slots: ["A", "B"], grounds: null }, fam, env()).capRefusal).toBe(
+      "REFUSED: 4 values x 2 engines = 8 curves, over the cap of 6",
+    );
+    expect(crossPlan(FOLLOW_ACTIVE, fam, env()).capRefusal).toBeNull();
+  });
+
+  it("a family sets its knob per cell, labelled by the server, the ticked slots after it", () => {
+    const fam: ListedCross = {
+      ...NOTHING_LISTED,
+      axes: ["step"],
+      step: { knob: "angle_deg", values: [0, 30], labels: ["angle_deg = 0", "angle_deg = 30"] },
+    };
+    const one = crossPlan(FOLLOW_ACTIVE, fam, env());
+    expect(one.cells.map((c) => [c.label, c.step])).toEqual([
+      ["angle_deg = 0", { knob: "angle_deg", value: 0 }],
+      ["angle_deg = 30", { knob: "angle_deg", value: 30 }],
+    ]);
+    const two = crossPlan({ slots: ["A", "C"], grounds: null }, fam, env());
+    expect(two.cells.map((c) => c.label)).toEqual([
+      "angle_deg = 0, A: momwire:bspline",
+      "angle_deg = 0, C: pynec",
+      "angle_deg = 30, A: momwire:bspline",
+      "angle_deg = 30, C: pynec",
+    ]);
+  });
+
+  it("a plane the design lacks is a refused cell in the server's words, and the rest draw", () => {
+    const planes: ListedCross = {
+      ...NOTHING_LISTED,
+      axes: ["planes"],
+      planes: [
+        { name: "rig", refused: null },
+        { name: "nowhere", refused: "no plane 'nowhere' on this design; it offers rig, T1" },
+      ],
+    };
+    const plan = crossPlan(FOLLOW_ACTIVE, planes, env());
+    expect(plan.cells.map((c) => [c.label, c.plane, c.refused])).toEqual([
+      ["rig", "rig", null],
+      ["nowhere", "nowhere", "no plane 'nowhere' on this design; it offers rig, T1"],
+    ]);
+    expect(refusedLines(plan)).toEqual([
+      "nowhere: no plane 'nowhere' on this design; it offers rig, T1",
+    ]);
+  });
+
+  it("a slot's refusal is about the session's design, so another design's cell is the server's", () => {
+    const e = env({ design: "dipoles.invvee" });
+    e.slots[2].refusal = "restricted on this design";
+    const plan = crossPlan(preselect(E7, e), E7, e);
+    expect(plan.cells.map((c) => c.refused)).toEqual([
+      null,
+      null,
+      "restricted on this design",
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  it("an engine declining the design is a refusal in its own words; anything else is not", () => {
+    expect(engineRefusal("ValueError: this design uses PortAtVertex (...)")).toBe(
+      "this design uses PortAtVertex (...)",
+    );
+    expect(engineRefusal("NotImplementedError: no")).toBe("no");
+    expect(engineRefusal("RuntimeError: degenerate")).toBeNull();
+    expect(engineRefusal("a poor match for this design")).toBeNull();
+    expect(engineRefusal(null)).toBeNull();
   });
 });
