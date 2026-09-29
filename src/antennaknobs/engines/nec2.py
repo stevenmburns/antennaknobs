@@ -418,6 +418,11 @@ class NEC2Engine(SimulationEngine):
     """
 
     supports_far_field = True
+    # The seams a sibling card-deck engine overrides (AK#1603: `NEC42Engine`):
+    # its display name, its capture sub-folder, how the binary is found and
+    # run, the deck's dialect, and whether a z=0 end is bonded to the ground.
+    label = "NEC-2"
+    _capture_name = "nec2"
     # NEC-2 puts a voltage source at a segment CENTRE, so a centre feed wants
     # an odd count with the source on the middle segment — PyNECEngine's parity,
     # not NEC-5's "even" (whose source sits at a segment end).
@@ -461,7 +466,7 @@ class NEC2Engine(SimulationEngine):
         if capture_dir is None:
             from ..engine_capture import capture_dir_from_env
 
-            capture_dir = capture_dir_from_env("nec2")
+            capture_dir = capture_dir_from_env(self._capture_name)
         self._capture_dir = Path(capture_dir).expanduser() if capture_dir else None
         if self._capture_dir is not None:
             self._capture_dir.mkdir(parents=True, exist_ok=True)
@@ -469,21 +474,39 @@ class NEC2Engine(SimulationEngine):
         # memory for the web lane's Files view. A run the binary faulted on is
         # recorded too: its printout is where the reason is written.
         self.io_runs: list[dict] = []
-        exe = find_nec2(nec2_exe)
-        if exe is None:
-            raise NEC2Error(
-                "no NEC-2 binary: set $NEC2_EXE (or pass nec2_exe=) to a NEC-2 "
-                "console executable — nec2c, nec2++, or 4nec2's nec2dxs*.exe"
-            )
-        self.exe = exe
+        self.exe = self._resolve_exe(nec2_exe)
         # COERCED, not raw: `export_nec` builds its deck through a
         # `PyNECEngine`, which applies `segment_parity` to every fed or named
         # wire, so a raw `build_wires()` here would disagree with the deck the
         # binary actually ran and mis-map its currents wire by wire.
         self.tups = self._coerce_wire_tuples(builder.build_wires())
-        refuse_graded_wires(self.tups, "NEC-2")
+        refuse_graded_wires(self.tups, self.label)
         self._check_geometry_against_ground()
         self._init_route()
+
+    def _resolve_exe(self, explicit: str | None) -> str:
+        """The binary this engine runs, or `NEC2Error` saying how to name one."""
+        exe = find_nec2(explicit)
+        if exe is None:
+            raise NEC2Error(
+                "no NEC-2 binary: set $NEC2_EXE (or pass nec2_exe=) to a NEC-2 "
+                "console executable — nec2c, nec2++, or 4nec2's nec2dxs*.exe"
+            )
+        return exe
+
+    def _deck_dialect(self) -> dict:
+        """Keyword arguments for `nec_export`'s writers: none, for NEC-2 itself.
+        A sibling dialect (AK#1603) names its own spelling here, so both
+        engines' decks come from the one writer."""
+        return {}
+
+    def _run_binary(self, deck: str) -> str:
+        """One deck through the binary, returning the printout."""
+        return run_deck(self.exe, deck, timeout=self.timeout)
+
+    def _ground_bonds_z0(self) -> bool:
+        """Whether a wire end at z=0 is bonded to the ground (``GE 1``)."""
+        return self.ground not in (None, "free")
 
     # -- the multiport-Y route (AK#1678) ------------------------------------
     def _init_route(self) -> None:
@@ -511,9 +534,9 @@ class NEC2Engine(SimulationEngine):
         self._use_reducer = False
         if self.builder.build_network() is None:
             return
-        from .pynec import PyNECEngine
+        from ..nec_export import deck_engine_cls
 
-        probe = PyNECEngine(
+        probe = deck_engine_cls(self._deck_dialect().get("dialect", "nec2"))(
             self.builder, ground=self.ground, wire_radius=self._wire_radius_override
         )
         reasons = probe._reducer_reasons()
@@ -658,7 +681,12 @@ class NEC2Engine(SimulationEngine):
             if sources is None:
                 sources = self._excitation(freq)[0]
             text = export_nec_structure(
-                self._deck_engine, freq=freq, sources=sources, df=df, npoints=npoints
+                self._deck_engine,
+                freq=freq,
+                sources=sources,
+                df=df,
+                npoints=npoints,
+                **self._deck_dialect(),
             )
         elif sources is not None:
             raise ValueError(
@@ -674,6 +702,7 @@ class NEC2Engine(SimulationEngine):
                 npoints=npoints,
                 include_rp=False,
                 wire_radius=self._wire_radius_override,
+                **self._deck_dialect(),
             )
         if rp is None:
             return text
@@ -691,24 +720,34 @@ class NEC2Engine(SimulationEngine):
 
     def _run(self, deck: str) -> str:
         h = hashlib.sha256(deck.encode()).hexdigest()[:16]
+        name = self.label
         _log.debug(
-            "NEC-2 %s: deck for %s (%d lines)\n%s", h, self.exe, deck.count("\n"), deck
+            "%s %s: deck for %s (%d lines)\n%s",
+            name,
+            h,
+            self.exe,
+            deck.count("\n"),
+            deck,
         )
         t0 = time.perf_counter()
-        text = run_deck(self.exe, deck, timeout=self.timeout)
+        text = self._run_binary(deck)
         self.io_runs.append({"deck": deck, "printout": text, "cached": False})
         _log.info(
-            "NEC-2 %s: %.2f s, printout %d lines",
+            "%s %s: %.2f s, printout %d lines",
+            name,
             h,
             time.perf_counter() - t0,
             text.count("\n"),
         )
-        _log.debug("NEC-2 %s: printout\n%s", h, text)
+        _log.debug("%s %s: printout\n%s", name, h, text)
         if self._capture_dir is not None:
             (self._capture_dir / f"{h}.nec").write_text(deck)
             (self._capture_dir / f"{h}.out").write_text(text)
             _log.info(
-                "NEC-2 %s: deck and printout captured under %s", h, self._capture_dir
+                "%s %s: deck and printout captured under %s",
+                name,
+                h,
+                self._capture_dir,
             )
         if _AIP_HEADER not in text:
             # The binary ran and reported a fault. Say WHAT it said: without
@@ -1110,7 +1149,7 @@ class NEC2Engine(SimulationEngine):
         for t in self.tups:
             for p in (as_wire(t).p0, as_wire(t).p1):
                 endpoint_count[_key(p)] = endpoint_count.get(_key(p), 0) + 1
-        bonded = self.ground not in (None, "free")
+        bonded = self._ground_bonds_z0()
 
         def _joined(p):
             return endpoint_count.get(_key(p), 0) >= 2 or (

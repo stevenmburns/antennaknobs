@@ -68,6 +68,7 @@ def test_the_values():
         "pynec": 21,
         "nec5": 40,
         "nec2": 21,
+        "nec42": 21,
     }
     assert {k: dict(v) for k, v in NSEGS_BY_DEGREE.items()} == {
         "bspline": {1: 20, 2: 15, 3: 16},

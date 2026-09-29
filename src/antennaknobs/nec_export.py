@@ -38,6 +38,7 @@ the reporting deck, and it is one EZNEC itself wrote.
 from __future__ import annotations
 
 from .engines.nec2 import refuse_nec2_geometry
+from .engines.nec42 import refuse_nec42_geometry
 from .engines._nec_wire import JACKET_COMMENT_CARDS
 from .engines.pynec import DEFAULT_GROUND, PyNECEngine
 from .network import GradedSegments, Load, as_wire
@@ -152,9 +153,23 @@ def _gw(tag, n_seg, p0, p1, radius):
     )
 
 
-def _ground_cards(ground):
+# The deck dialects this writer spells (AK#1603). NEC-4.2 reads NEC-2's cards
+# with three differences the writer owns: its Sommerfeld ground caches tables to
+# files in the cwd unless the GN card ends NOFILE, it has a newer Sommerfeld
+# (GN 3) beside GN 2, and its GE -1 admits buried wires.
+DIALECTS = ("nec2", "nec42")
+
+
+def _ground_cards(ground, dialect="nec2", sommerfeld=2):
     """Ground cards matching PyNECEngine._apply_ground_card, as a list of
     lines. Empty for free space (no GN card).
+
+    NEC-4.2 (AK#1603): the Sommerfeld card takes `sommerfeld` as its type (2,
+    or 3 for 4.2's newer evaluation) and always ends ``NOFILE``, so the binary
+    writes no table file into whatever directory it runs in. The MININEC-type
+    pair is refused there, measured: NEC-4.2 accepts the ``GD`` card and a
+    cliff-mode ``RP 3``, and prints the PEC pattern to the digit — the medium
+    is not read the way NEC-2 reads it (antennaknobs#1803).
 
     The MININEC-type ground (AK#1655) is two cards in NEC-2: ``GN 1`` for the
     currents, then a ``GD`` second medium whose circular cliff sits at radius 0
@@ -167,6 +182,8 @@ def _ground_cards(ground):
     if ground == "pec":
         return ["GN 1 0 0 0 0 0"]
     if isinstance(ground, tuple) and len(ground) == 3 and ground[0] == "mininec":
+        if dialect == "nec42":
+            raise NotImplementedError(MININEC_NEC42_REFUSAL)
         _, eps_r, sigma = ground
         return [
             "GN 1 0 0 0 0 0",
@@ -184,8 +201,58 @@ def _ground_cards(ground):
         _, eps_r, sigma = ground
         # IPERF 2 = Sommerfeld-Norton, 0 = reflection-coefficient approximation.
         iperf = 2 if ground[0] == "finite" else 0
+        if dialect == "nec42" and iperf == 2:
+            return [f"GN {int(sommerfeld)} 0 0 0 {_num(eps_r)} {_num(sigma)} NOFILE"]
         return [f"GN {iperf} 0 0 0 {_num(eps_r)} {_num(sigma)}"]
     raise ValueError(f"unrecognised ground spec: {ground!r}")
+
+
+MININEC_NEC42_REFUSAL = (
+    "NEC-4.2 does not serve the MININEC-type ground as NEC-2's GN 1 + GD "
+    "spelling: measured, it accepts the cards and prints the perfect-ground "
+    "pattern to the digit, so the soil the pattern should reflect off is never "
+    "read. Use the Sommerfeld or reflection-coefficient ground on this tab, or "
+    "the NEC-2 / NEC-5 tab for the MININEC-type ground (antennaknobs#1803)"
+)
+
+
+class _NEC42DeckEngine(PyNECEngine):
+    """The resolving `PyNECEngine` for a NEC-4.2 deck (AK#1603). NEVER SOLVED:
+    it exists for its resolved wires, feeds and loads, like every engine this
+    writer builds.
+
+    One difference, and it is about nec2++ rather than the deck. Building the
+    PyNEC context with GE 1 over a design whose wires go below z=0 is refused
+    by nec2++ ("SEGMENT EXTENDS BELOW GROUND") before the deck text is ever
+    written — a rise from a buried hub touches z=0 and so asks for GE 1. The
+    context here is built with GE 0 whenever a wire is buried, which nec2++
+    accepts; the deck TEXT writes NEC-4.2's own flag (`_nec42_ge_flag`), -1.
+    """
+
+    def _ge_flag(self):
+        if _has_buried_wire(self):
+            return 0
+        return super()._ge_flag()
+
+
+def _has_buried_wire(eng) -> bool:
+    return eng.ground not in (None, "free") and any(
+        float(t[0][2]) < 0.0 or float(t[1][2]) < 0.0 for t in eng.tups
+    )
+
+
+def deck_engine_cls(dialect="nec2"):
+    """The `PyNECEngine` class that resolves a deck of `dialect`."""
+    return _NEC42DeckEngine if dialect == "nec42" else PyNECEngine
+
+
+def _check_dialect(dialect, sommerfeld):
+    if dialect not in DIALECTS:
+        raise ValueError(f"unknown NEC deck dialect {dialect!r}: one of {DIALECTS}")
+    if sommerfeld not in (2, 3):
+        raise ValueError(f"sommerfeld must be 2 or 3, not {sommerfeld!r}")
+    if sommerfeld == 3 and dialect != "nec42":
+        raise ValueError("GN 3 is NEC-4.2's; a NEC-2 deck has only GN 2")
 
 
 def rp_mode(ground) -> int:
@@ -213,6 +280,8 @@ def export_nec(
     title=None,
     jacket_pair=True,
     wire_radius=None,
+    dialect="nec2",
+    sommerfeld=2,
 ):
     """Return a NEC2 card deck (str) for ``builder``.
 
@@ -229,7 +298,14 @@ def export_nec(
                for a consumer that drops the LD cards.
     wire_radius: the web slot's radius field (QRZ #170), PyNECEngine's
                ``wire_radius``: 0.0005 or None is "auto" (the design's own).
+    dialect  : "nec2" (the default) or "nec42" (AK#1603): NEC-4.2's ground
+               cards (``GN ... NOFILE``, ``GE -1`` when a wire is buried), and
+               its geometry rules in place of NEC-2's, so a buried design is
+               written rather than refused.
+    sommerfeld: the NEC-4.2 Sommerfeld card's type for a "finite" ground, 2 or
+               3 (4.2's newer evaluation). NEC-2 has only 2.
     """
+    _check_dialect(dialect, sommerfeld)
     # Refused HERE rather than inside PyNECEngine, for two reasons the QRZ
     # thread made plain (#1389). The sentence must say "a NEC-2 deck", not
     # "PyNEC": a user with NEC-5 in every slot has not selected PyNEC and does
@@ -246,7 +322,10 @@ def export_nec(
                 "wire into chained GW cards and renumbers the references "
                 "(issue #1108)"
             )
-    refuse_nec2_geometry(tups, ground, suggest_download=True)
+    if dialect == "nec42":
+        refuse_nec42_geometry(tups, ground)
+    else:
+        refuse_nec2_geometry(tups, ground, suggest_download=True)
     # AK#1677 needs no separate handling here: `refuse_nec2_geometry` above
     # already refuses ANY wire dipping below z=0 under a real ground, jacketed
     # or bare, before a deck is ever assembled — so a NEC-2 download of a
@@ -258,11 +337,12 @@ def export_nec(
     # NEC-2 spelling — the gyrator idiom EZNEC itself writes — so it is built
     # with the writer-only flag that takes the native path and records those
     # sources for `_gyrator_cards`. Every other reason still refuses.
-    probe = PyNECEngine(builder, ground=ground, wire_radius=wire_radius)
+    engine_cls = deck_engine_cls(dialect)
+    probe = engine_cls(builder, ground=ground, wire_radius=wire_radius)
     reasons = probe._reducer_reasons()
     gyrators = reasons == frozenset({"current-source"})
     eng = (
-        PyNECEngine(
+        engine_cls(
             builder,
             ground=ground,
             _export_current_sources=True,
@@ -296,10 +376,14 @@ def export_nec(
         include_rp=include_rp,
         title=title,
         jacket_pair=jacket_pair,
+        dialect=dialect,
+        sommerfeld=sommerfeld,
     )
 
 
-def export_nec_structure(eng, *, freq, sources, df=0.0, npoints=1):
+def export_nec_structure(
+    eng, *, freq, sources, df=0.0, npoints=1, dialect="nec2", sommerfeld=2
+):
     """The deck of `eng`'s bare structure driven by `sources`, for the
     multiport-Y route (AK#1678). Never a download: see `export_nec`'s refusal.
 
@@ -310,8 +394,11 @@ def export_nec_structure(eng, *, freq, sources, df=0.0, npoints=1):
     stamp, exactly as PyNEC's real-geometry context carries none. What the
     deck does carry is everything that belongs to the structure — the wires,
     the ground, the wire material — written by the same lines `export_nec`
-    uses, so the two cannot disagree about the antenna.
+    uses, so the two cannot disagree about the antenna. `dialect` and
+    `sommerfeld` as `export_nec`'s; the engine has already refused whatever
+    its dialect cannot carry.
     """
+    _check_dialect(dialect, sommerfeld)
     builder = eng.builder
     return _deck_text(
         eng,
@@ -322,11 +409,32 @@ def export_nec_structure(eng, *, freq, sources, df=0.0, npoints=1):
         title=f"{type(builder).__module__}.{type(builder).__qualname__}",
         jacket_pair=True,
         excitations=[(int(t), int(g), complex(v)) for t, g, v in sources],
+        dialect=dialect,
+        sommerfeld=sommerfeld,
     )
 
 
+def _nec42_ge_flag(eng):
+    """NEC-4.2's GE flag (AK#1603): -1 when a real ground is present and any
+    wire goes below z=0 — the flag that admits buried wires, and leaves the
+    current expansion alone at z=0 — else NEC-2's `_ge_flag`."""
+    if _has_buried_wire(eng):
+        return -1
+    return eng._ge_flag()
+
+
 def _deck_text(
-    eng, *, freq, df, npoints, include_rp, title, jacket_pair, excitations=None
+    eng,
+    *,
+    freq,
+    df,
+    npoints,
+    include_rp,
+    title,
+    jacket_pair,
+    excitations=None,
+    dialect="nec2",
+    sommerfeld=2,
 ):
     """The card text for a resolved `PyNECEngine`. With `excitations` None,
     the engine's own feeds, loads and gyrators (`export_nec`); otherwise the
@@ -358,7 +466,8 @@ def _deck_text(
     # that end is silently insulated and the deck models a different antenna.
     # This writer's whole premise is to be a text twin of what PyNECEngine
     # hands PyNEC, and PyNECEngine has always used `_ge_flag()` here.
-    lines.append(f"GE {eng._ge_flag()}")
+    ge = _nec42_ge_flag(eng) if dialect == "nec42" else eng._ge_flag()
+    lines.append(f"GE {ge}")
 
     # --- Load branches -> LD cards (type 0 series / 1 parallel RLC, type 4
     # fixed R + jX): the cards `PyNECEngine._emit_load_card` hands PyNEC ---
@@ -412,7 +521,7 @@ def _deck_text(
         if mat.inductance is not None:
             lines.append(f"LD 2 0 0 0 0. {_num(mat.inductance)} 0.")
 
-    lines.extend(_ground_cards(eng.ground))
+    lines.extend(_ground_cards(eng.ground, dialect, sommerfeld))
 
     # --- networks (NT), then excitations (EX), frequency (FR), pattern (RP) ---
     # Order matters and is not cosmetic: NEC requires the network cards of one
