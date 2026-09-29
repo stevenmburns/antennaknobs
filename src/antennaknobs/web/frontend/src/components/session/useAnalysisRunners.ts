@@ -4,47 +4,26 @@ import {
   useState,
   type MutableRefObject,
 } from "react";
-import type {
-  NormCheckData,
-  SolveRequest,
-  SweepData,
-} from "../../lib/api";
+import type { NormCheckData, SolveRequest } from "../../lib/api";
 import { type BackendEntry } from "../../lib/backends";
 import { type GroundModel } from "../../lib/ground";
 import {
   DENSITY,
   DENSITY_LADDER,
-  paramFeedZinf,
-  paramZinf,
-  paramZinfReason,
-  refinementX,
-  type ParamSweepData,
   type ParamSweepRequest,
 } from "../../lib/paramSweep";
 import { type BandSpec, type ExampleDescriptor } from "../../lib/params";
-import {
-  ALL_SWEEP_PROJECTIONS,
-  refineSweepFreqs,
-  type SweepProjectionSet,
-} from "../../lib/refine";
+import { ALL_SWEEP_PROJECTIONS, type SweepProjectionSet } from "../../lib/refine";
 import { solveSignature } from "../../lib/solveSignature";
 import {
   DEFAULT_AXES,
   DEFAULT_SWR_THRESHOLD,
   type SweepAxes,
 } from "../../lib/sweepAxis";
-import {
-  defaultSweepPoints,
-  mergeSweepPoints,
-  resolveSweepRange,
-  sweepGrid,
-  type SweepRange,
-  SWEEP_REFINE_BUDGET,
-  SWEEP_REFINE_ROUND_BUDGET,
-  type SweepProgress,
-} from "../../lib/sweep";
+import { resolveSweepRange, type SweepRange } from "../../lib/sweep";
 import type { PatternData } from "../charts/types";
-import type { Advisory } from "../results/SolverAdvisories";
+import { type SweepPhase, useFreqSweep } from "./useFreqSweep";
+import { useParamSweep } from "./useParamSweep";
 
 // Deliberate physics non-deps (issue #692), mirroring the server's
 // _CACHE_KEY_BLOCKLIST (web/server.py) — the same idea at the other end of
@@ -77,92 +56,26 @@ const IMPEDANCE_ANALYSIS_EXEMPT = [...DISPLAY_ONLY_EXEMPT, "terrain"] as const;
 // frequency, so it keeps the field.
 const FREQ_SWEEP_EXEMPT = [...IMPEDANCE_ANALYSIS_EXEMPT, "measurement_freq_mhz"] as const;
 
-// Extra dwell between a completed base sweep and the first refinement round
-// (issue #744). The base sweep is already post-dwell — the 500 ms debounce
-// below gates it and a knob change aborts it — so this is a second settling
-// window, not the first: it buys the stretch where the user has stopped
-// dragging but is still deciding, during which the *next* knob move should
-// find the lane empty. Same 500 ms as every other dwell in this module.
-const SWEEP_REFINE_DWELL_MS = 500;
 
-/** Accumulate a /sweep NDJSON stream into a SweepData, publishing a fresh
- *  snapshot per point so the charts fill in as they land. Shared by the
- *  base sweep and its refinement rounds — they differ only in which freqs
- *  they ask for and what the caller does with the snapshots. Throws
- *  AbortError (via fetch) when the controller is tripped; the callers own
- *  that. `onDone` sees the closing record, which carries the sweep's
- *  `advisories` when the server has any (AK#1681/#1682). */
-async function streamSweep(
-  body: object,
-  controller: AbortController,
-  onPoint: (snapshot: SweepData) => void,
-  onDone?: (closing: { advisories?: Advisory[] }) => void,
-): Promise<SweepData> {
-  // feeds_z_re/feeds_z_im start OMITTED (not set to undefined): the type's
-  // doc comment says single-feed geometries omit them entirely, and
-  // exactOptionalPropertyTypes now enforces that distinction — `acc.feeds_z_re`
-  // still reads as undefined either way, so this is a no-op for behavior.
-  const acc: SweepData = { freqs_mhz: [], z_re: [], z_im: [] };
-  const snapshot = (): SweepData => ({
-    freqs_mhz: acc.freqs_mhz.slice(),
-    z_re: acc.z_re.slice(),
-    z_im: acc.z_im.slice(),
-    // Spread-conditional, not `: undefined`, so a single-feed sweep OMITS
-    // the key (matching SweepData's documented contract).
-    ...(acc.feeds_z_re
-      ? { feeds_z_re: acc.feeds_z_re.map((row) => row.slice()) }
-      : {}),
-    ...(acc.feeds_z_im
-      ? { feeds_z_im: acc.feeds_z_im.map((row) => row.slice()) }
-      : {}),
-  });
-  const resp = await fetch("/sweep", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: controller.signal,
-  });
-  if (!resp.ok || !resp.body) throw new Error(`sweep failed: ${resp.status}`);
-  const reader = resp.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    let nl;
-    while ((nl = buf.indexOf("\n")) >= 0) {
-      const line = buf.slice(0, nl).trim();
-      buf = buf.slice(nl + 1);
-      if (!line) continue;
-      const pt = JSON.parse(line);
-      if (pt.done) {
-        if (!controller.signal.aborted) onDone?.(pt);
-        continue;
-      }
-      // A failed point/chunk ends the stream with {error} instead of
-      // tearing the connection down (e.g. an approved poor-match combo
-      // whose dense fill can't allocate). Keep whatever points landed.
-      if (pt.error) {
-        console.error("sweep error", pt.error);
-        continue;
-      }
-      acc.freqs_mhz.push(pt.freq_mhz);
-      acc.z_re.push(pt.z_re);
-      acc.z_im.push(pt.z_im);
-      // Multi-feed sweep records (bowtie) ship per-feed Z alongside the
-      // primary. Allocate the per-feed buffers lazily on first sight so
-      // single-feed sweeps stay on the original code path.
-      if (Array.isArray(pt.feeds_z_re) && Array.isArray(pt.feeds_z_im)) {
-        if (!acc.feeds_z_re) acc.feeds_z_re = [];
-        if (!acc.feeds_z_im) acc.feeds_z_im = [];
-        acc.feeds_z_re.push(pt.feeds_z_re);
-        acc.feeds_z_im.push(pt.feeds_z_im);
-      }
-      if (!controller.signal.aborted) onPoint(snapshot());
-    }
-  }
-  return snapshot();
+/** The freq sweep's physics signature over one request (FREQ_SWEEP_EXEMPT):
+ *  what every frequency sweep runner keys on, the session's and a chart's. */
+export function freqSweepSignature(req: SolveRequest): string {
+  return solveSignature(req, { exempt: FREQ_SWEEP_EXEMPT });
+}
+
+/** A parameter sweep's signature. The sweep overrides its own parameter at
+ *  every point, so the request's value of it changes no point: dragging the
+ *  swept knob (or the slot's density, for a density sweep) moves the chart's
+ *  current-value guide and re-solves nothing (the #1755 lesson). The ladder
+ *  itself is part of the key: a new range is a new sweep. */
+export function paramSweepSignature(
+  req: SolveRequest,
+  sweep: Pick<ParamSweepRequest, "param" | "values">,
+): string {
+  return (
+    solveSignature(req, { exempt: [...IMPEDANCE_ANALYSIS_EXEMPT, sweep.param] }) +
+    JSON.stringify([sweep.param, sweep.values])
+  );
 }
 
 // The parameter sweep a caller that names none runs: the density ladder of
@@ -173,8 +86,9 @@ const DENSITY_SWEEP: ParamSweepRequest = {
   label: "N",
 };
 
-/** The freq sweep runner's phase, as the sweep charts publish it. */
-export type SweepPhase = "idle" | "queued" | "running" | "refining";
+
+export type { SweepPhase };
+
 
 // The four background analyses that shadow the live solve — the freq sweep,
 // the parameter sweep (density or a knob), the far-field norm check and the
@@ -317,7 +231,6 @@ export function useAnalysisRunners({
       currentBands,
       freqWindowCeiling,
     }).range;
-  const sweepRangeKey = JSON.stringify(effectiveSweepRange);
 
   // The physics dependency of each effect below (issue #692): a fresh
   // buildRequest() per render, hashed down to a stable string. Anything that
@@ -330,308 +243,62 @@ export function useAnalysisRunners({
   // slot's density, for a density sweep) moves the chart's current-value
   // guide and re-solves nothing (the #1755 lesson). The ladder itself is
   // part of the key: a new range is a new sweep.
-  const paramSweepSig =
-    solveSignature(req, {
-      exempt: [...IMPEDANCE_ANALYSIS_EXEMPT, paramSweepReq.param],
-    }) + JSON.stringify([paramSweepReq.param, paramSweepReq.values]);
-  const freqSweepSig = solveSignature(req, { exempt: FREQ_SWEEP_EXEMPT });
+  const paramSweepSig = paramSweepSignature(req, paramSweepReq);
+  const freqSweepSig = freqSweepSignature(req);
   const solveSig = solveSignature(req, { exempt: DISPLAY_ONLY_EXEMPT });
 
-  const [sweep, setSweep] = useState<SweepData | null>(null);
-  const [sweepRunning, setSweepRunning] = useState(false);
-  // The freq sweep's phase, published on the sweep charts (AK#1762): the base
-  // sweep waiting out its dwell (`queued`), streaming (`running`), a
-  // refinement pass waiting or streaming (`refining`), or none of those
-  // (`idle`). A test that must show NO sweep follows a change asserts the
-  // runner's decision (still idle) instead of sleeping past the dwell.
-  const [sweepQueued, setSweepQueued] = useState(false);
-  const [sweepRefining, setSweepRefining] = useState(false);
-  // Whether the current sweep's shape is final (issue #866). False from the
-  // moment a base sweep starts under refinement (its lean grid is destined
-  // to be densified — a polyline through it would draw the transient kinks
-  // refinement exists to remove) until a refinement pass concludes on its
-  // own terms (plan empty or budget spent). Toggling refinement off mid-run
-  // deliberately does NOT settle: the accumulated set is uneven, so the
-  // charts keep rendering dots rather than faking a finished curve. A sweep
-  // run with refinement disabled settles immediately — its uniform grid is
-  // the rendering, unchanged from the pre-#744 behavior.
-  const [sweepSettled, setSweepSettled] = useState(true);
-  // Points received so far by the sweep in flight (AK#1682): the base grid
-  // as k/N, then any refinement pass as its own count. Null when nothing is
-  // streaming — including the dwell between the base sweep and refinement,
-  // when no request is out and a counter would claim work that isn't.
-  const [sweepProgress, setSweepProgress] = useState<SweepProgress | null>(null);
-  // The base sweep's closing-record advisories (AK#1682) — today #1681's
-  // FixedFrequencyNT, raised when a deck's fixed-frequency NT cards do not
-  // hold across the swept range. Taken from the BASE sweep only: its record
-  // names the whole range, and a refinement round only ever inserts points
-  // inside it. Cleared with the sweep, so a stale note never outlives the
-  // curve it was about.
-  const [sweepAdvisories, setSweepAdvisories] = useState<Advisory[]>([]);
-  const [paramSweep, setParamSweep] = useState<ParamSweepData | null>(null);
-  const [paramSweepRunning, setParamSweepRunning] = useState(false);
-  // A sweep is waiting out its dwell (its timer is set). With `running`, the
-  // runner's phase as the view publishes it (idle / queued / running): a
-  // test that must show NO sweep follows a change waits for the decision
-  // (idle) instead of sleeping past the dwell.
-  const [paramSweepQueued, setParamSweepQueued] = useState(false);
+  // The freq sweep: the session's own (the standalone Smith / VSWR / S11
+  // views and their freq-sweep switch), one instance of the runner an
+  // analysis chart also holds (useFreqSweep).
+  const freq = useFreqSweep({
+    range: effectiveSweepRange,
+    sig: freqSweepSig,
+    enabled: sweepEnabled,
+    resident: sweepResident,
+    backend,
+    groundEnabled,
+    groundModel,
+    refineEnabled,
+    z0,
+    residentSweepViews,
+    sweepAxes,
+    swrThreshold,
+    autoSim,
+    active,
+    comboApproved,
+    recommendedBackend,
+    buildRequest,
+    solveWithheld,
+    seqRef,
+    approvedComboRef,
+  });
+
+  // The parameter sweep, for the Z-vs-parameter view or the Smith chart's
+  // trail when the old "convergence sweep" switch is on — one runner, one
+  // result, whichever of the two asks (useParamSweep).
+  const param = useParamSweep({
+    req: paramSweepReq,
+    sig: paramSweepSig,
+    wanted: (convergeEnabled && convergeResident) || paramViewResident,
+    autoSim,
+    active,
+    comboApproved,
+    recommendedBackend,
+    buildRequest,
+    solveWithheld,
+    seqRef,
+    approvedComboRef,
+  });
+
   const [normCheck, setNormCheck] = useState<NormCheckData | null>(null);
   // NEC's rp_card pattern, fetched on a debounce so we don't fire one per
   // slider tick. Overlaid on the cuts as a comparison line.
   const [pattern, setPattern] = useState<PatternData | null>(null);
 
-  const sweepTimerRef = useRef<number | null>(null);
-  const sweepAbortRef = useRef<AbortController | null>(null);
-  // Refinement gets its own timer/abort pair rather than sharing the base
-  // sweep's: the base sweep's finally-block clears its own ref, and a
-  // refinement scheduled from inside that block would immediately lose the
-  // handle the next knob change has to abort through.
-  const sweepRefineTimerRef = useRef<number | null>(null);
-  const sweepRefineAbortRef = useRef<AbortController | null>(null);
-  // Live mirrors of the refinement props, read per refinement ROUND rather
-  // than captured at chain start — a mid-chain toggle-off or pin change
-  // must not run a stale plan to the end of its budget.
-  const refineEnabledRef = useRef(refineEnabled);
-  // Mirrored every render so each refinement ROUND reads the current value;
-  // capturing at chain start would let a mid-chain toggle-off run a stale plan
-  // to the end of its budget (#768).
-  // eslint-disable-next-line react-hooks/refs
-  refineEnabledRef.current = refineEnabled;
-  const residentSweepViewsRef = useRef(residentSweepViews);
-  // Mirrored every render so each refinement ROUND reads the current value;
-  // capturing at chain start would let a mid-chain toggle-off run a stale plan
-  // to the end of its budget (#768).
-  // eslint-disable-next-line react-hooks/refs
-  residentSweepViewsRef.current = residentSweepViews;
-  const sweepAxesRef = useRef(sweepAxes);
-  // Per ROUND, as above.
-  // eslint-disable-next-line react-hooks/refs
-  sweepAxesRef.current = sweepAxes;
-  const swrThresholdRef = useRef(swrThreshold);
-  // eslint-disable-next-line react-hooks/refs
-  swrThresholdRef.current = swrThreshold;
   const patternTimerRef = useRef<number | null>(null);
   const patternAbortRef = useRef<AbortController | null>(null);
-  const paramSweepTimerRef = useRef<number | null>(null);
-  const paramSweepAbortRef = useRef<AbortController | null>(null);
-  // The signature a Stop (or the app's Cancel) left the parameter sweep
-  // stopped at: the effect below neither blanks nor restarts for it, so the
-  // partial points stay and nothing re-solves until a parameter changes (a
-  // new signature) or the user presses Run.
-  const paramSweepStoppedRef = useRef<string | null>(null);
-  // A knob sweep runs only when asked (ParamSweepRequest.auto). The request
-  // it was asked for — its signature — is "armed", and only an armed knob
-  // sweep runs; `armNext` arms whatever request the next effect run sees
-  // (a header edit or "Sweep this knob…" changes the spec, so its signature
-  // is not known until the next render).
-  const paramSweepArmedRef = useRef<string | null>(null);
-  const paramSweepArmNextRef = useRef(false);
   const normCheckTimerRef = useRef<number | null>(null);
   const normCheckAbortRef = useRef<AbortController | null>(null);
-
-  // Debounced sweep across measurement freq. Re-runs whenever the solve
-  // request changes (freqSweepSig) or the freq planning inputs move.
-  useEffect(() => {
-    // Cancel any in-flight sweep fetch immediately. Without this the
-    // previous sweep keeps streaming for hundreds of ms (PyNEC ground at
-    // 100 ms/point × 41 points = ~4 s) and starves the live /ws solve of
-    // CPU — the user moves a slider but the next impedance update is
-    // delayed behind the now-stale sweep finishing.
-    sweepAbortRef.current?.abort();
-    if (sweepTimerRef.current) {
-      window.clearTimeout(sweepTimerRef.current);
-    }
-    // Refinement points live in the same `sweep` state, so the clear below
-    // drops them with everything else — signature invalidation (issue #692)
-    // covers refined points for free, and must keep doing so. Killing the
-    // pending round and its in-flight stream here is what stops a
-    // superseded refinement from re-publishing them a moment later.
-    sweepRefineAbortRef.current?.abort();
-    if (sweepRefineTimerRef.current) {
-      window.clearTimeout(sweepRefineTimerRef.current);
-    }
-    // Cancel-then-blank is the contract (#692/#715): the overlay must go blank
-    // the instant its inputs change, or a stale curve reads as current while
-    // the new one dwells. Synchronous blanking is what makes 'stale'
-    // unrepresentable.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSweep(null);
-    setSweepRunning(false);
-    setSweepQueued(false);
-    setSweepRefining(false);
-    setSweepProgress(null);
-    setSweepAdvisories([]);
-    // Paused (Live off) holds the engine (issue #612): an enabled sweep must
-    // not keep solving while the user edits. Clearing above + returning here
-    // blanks the overlay while paused; resuming Live re-runs this effect
-    // (autoSim is a dep) and restarts the sweep from the current design.
-    if (!autoSim || !sweepEnabled || !sweepResident || !active) {
-      return;
-    }
-    // The 500 ms dwell only debounces network churn; ordering against the
-    // live solve is the server lane's job now (live outranks sweeps).
-    // `runSweep` is an async function DECLARATION, so the binding is live
-    // before this effect runs; the compiler cannot see hoisting (#768).
-    // eslint-disable-next-line react-hooks/immutability
-    sweepTimerRef.current = window.setTimeout(runSweep, 500);
-    setSweepQueued(true);
-    return () => {
-      if (sweepTimerRef.current) window.clearTimeout(sweepTimerRef.current);
-      if (sweepRefineTimerRef.current) {
-        window.clearTimeout(sweepRefineTimerRef.current);
-      }
-    };
-    // runSweep is read but not listed: it's a plain, unmemoized closure
-    // recreated every render, and freqSweepSig is the deliberate stand-in
-    // signature for everything it would otherwise pull in (same idiom as
-    // currentValuesKey) — listing it would re-fire this effect on every
-    // render regardless of whether anything it reads actually changed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    // Everything physics — knobs, the design freq, ground, backend, variant,
-    // the measurement plane (#652 c / #691) — arrives through the signature.
-    // Not the measurement frequency: see FREQ_SWEEP_EXEMPT.
-    freqSweepSig,
-    // measLocked is no longer listed: it steers the range's anchor policy
-    // (lib/sweep.ts), and the range it steers IS sweepRangeKey, so a lock
-    // toggle that moves the band re-sweeps and one that does not (the band
-    // already at the design frequency) no longer blanks the curve for
-    // nothing — which the real app showed on invvee.
-    // Not a request field: the range itself (AK#1682) — a menu edit,
-    // "↺ design range" or a band pick re-plans the grid.
-    sweepRangeKey,
-    sweepEnabled,
-    // Residency (issue #715): no smith/gamma/vswr view on screen means
-    // nobody can see the sweep — clear it and free the server lane.
-    sweepResident,
-    autoSim,
-    active,
-    // The poor-match gate: while it withholds, runSweep declines to issue the
-    // batch; approving ("Solve anyway") or a new recommendation re-fires this
-    // effect (issue #382 — replaces the old 200 ms re-poll loop).
-    comboApproved, recommendedBackend,
-  ]);
-
-  // A sweep chart pinned AFTER the sweep settled (or refinement switched
-  // back on) still deserves its refinement pass — the base flow's trigger
-  // (the tail of runSweep) has already come and gone. This effect fills
-  // that gap: on a growth of the resident-projection set, re-enter the
-  // refinement dwell against the CURRENT accumulated sweep. No base
-  // re-sweep (the data is fine, only the polish is missing), and already-
-  // refined projections converge immediately (their plan comes back empty
-  // or tiny, and the server's per-freq cache answers any overlap), so the
-  // marginal cost is the new projection's points alone.
-  const residentSweepKey = `${residentSweepViews.vswr},${residentSweepViews.gamma},${residentSweepViews.smith}`;
-  const sweepRef = useRef<SweepData | null>(null);
-  // Mirrored every render so each refinement ROUND reads the current value;
-  // capturing at chain start would let a mid-chain toggle-off run a stale plan
-  // to the end of its budget (#768).
-  // eslint-disable-next-line react-hooks/refs
-  sweepRef.current = sweep;
-  useEffect(() => {
-    if (!refineEnabled || !sweepRef.current || sweepRunning) {
-      // A pending round this effect's last run set (and its cleanup
-      // cleared) is gone; an in-flight one reports for itself.
-      if (!sweepRefineAbortRef.current) setSweepRefining(false);
-      return;
-    }
-    if (sweepRefineTimerRef.current) {
-      window.clearTimeout(sweepRefineTimerRef.current);
-    }
-    setSweepRefining(true);
-    const settled = sweepRef.current;
-    sweepRefineTimerRef.current = window.setTimeout(
-      // `runSweepRefine` is an async function DECLARATION, so the binding is
-      // live before this effect runs; the compiler cannot see hoisting (#768).
-      // eslint-disable-next-line react-hooks/immutability
-      () => runSweepRefine(settled),
-      SWEEP_REFINE_DWELL_MS,
-    );
-    return () => {
-      if (sweepRefineTimerRef.current) {
-        window.clearTimeout(sweepRefineTimerRef.current);
-      }
-    };
-    // sweep/sweepRunning are read via ref/guard, deliberately not deps: a
-    // COMPLETING sweep must not re-fire this effect (the runSweep tail owns
-    // that trigger); only the projection set growing or the toggle flipping
-    // on re-arms it. runSweepRefine: same unmemoized-closure idiom as
-    // runSweep above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [residentSweepKey, refineEnabled]);
-
-  // Debounced parameter sweep (docs/design/z-vs-param-view.md): Z against
-  // the density or one design knob, on the active slot's engine. It runs for
-  // the Z-vs-parameter view, or for the Smith chart's trail when the old
-  // "convergence sweep" switch is on — one runner, one result, whichever of
-  // the two asks. The swept field is overridden per point on the server; the
-  // slot's own value stays what the live /ws solve uses.
-  const paramSweepWanted = (convergeEnabled && convergeResident) || paramViewResident;
-  useEffect(() => {
-    // Stopped at exactly this request: keep the partial sweep, run nothing.
-    if (paramSweepStoppedRef.current === paramSweepSig) return;
-    paramSweepStoppedRef.current = null;
-    const wasRunning = paramSweepAbortRef.current !== null || paramSweepTimerRef.current !== null;
-    paramSweepAbortRef.current?.abort();
-    if (paramSweepTimerRef.current) {
-      window.clearTimeout(paramSweepTimerRef.current);
-      paramSweepTimerRef.current = null;
-    }
-    setParamSweepQueued(false);
-    // Arming (a knob sweep only): the user's ask arms this request; leaving
-    // everything that draws the sweep disarms, so coming back to the view
-    // does not start it again.
-    if (paramSweepArmNextRef.current && paramSweepWanted) {
-      paramSweepArmedRef.current = paramSweepSig;
-    }
-    paramSweepArmNextRef.current = false;
-    if (!paramSweepWanted) paramSweepArmedRef.current = null;
-    if (paramSweepReq.auto === false && paramSweepArmedRef.current !== paramSweepSig) {
-      // A knob sweep nobody asked for at these inputs: run nothing. One
-      // already drawn for this knob stays, dimmed as stale ("re-run?");
-      // any other is cleared.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setParamSweep((d) =>
-        d && d.param === paramSweepReq.param
-          ? { ...d, stale: true, ...(wasRunning ? { partial: true } : {}) }
-          : null,
-      );
-      setParamSweepRunning(false);
-      return;
-    }
-    // Cancel-then-blank is the contract (#692/#715): the overlay must go blank
-    // the instant its inputs change, or a stale curve reads as current while
-    // the new one dwells. Synchronous blanking is what makes 'stale'
-    // unrepresentable.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setParamSweep(null);
-    setParamSweepRunning(false);
-    // Held when Paused (issue #612) — see the sweep effect. autoSim is a dep so
-    // resuming Live restarts the parameter sweep.
-    if (!autoSim || !paramSweepWanted || !active || paramSweepReq.values.length === 0) {
-      return;
-    }
-    // Debounce only; the server lane orders it behind the live solve.
-    // `runParamSweep` is an async function DECLARATION, so the binding is live
-    // before this effect runs; the compiler cannot see hoisting (#768).
-    // eslint-disable-next-line react-hooks/immutability
-    paramSweepTimerRef.current = window.setTimeout(runParamSweep, 500);
-    setParamSweepQueued(true);
-    return () => {
-      if (paramSweepTimerRef.current) window.clearTimeout(paramSweepTimerRef.current);
-    };
-    // runParamSweep omitted — same reasoning as the sweep effect above: a
-    // plain unmemoized closure, with paramSweepSig standing in for its
-    // actual inputs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    paramSweepSig,
-    paramSweepWanted, // issue #715: the Smith trail or the view consumes it
-    autoSim,
-    active,
-    // Poor-match gate (see the sweep effect).
-    comboApproved, recommendedBackend,
-  ]);
 
   // Debounced far-field norm consistency check. Same shape as the parameter
   // sweep: re-runs on any antenna/param change (which invalidates the norm),
@@ -723,380 +390,6 @@ export function useAnalysisRunners({
     active,
   ]);
 
-  async function runSweep() {
-    // No competition with the live solve to time around anymore: the server's
-    // per-session solve lane (issue #382) runs everything one-at-a-time with
-    // the live solve first, so this just sends. While the poor-match gate is
-    // withholding, don't issue batches of the very solves it's blocking — the
-    // effect re-fires on approval (comboApproved is a dependency).
-    setSweepQueued(false);
-    if (solveWithheld()) return;
-    sweepTimerRef.current = null;
-    sweepAbortRef.current?.abort();
-    const controller = new AbortController();
-    sweepAbortRef.current = controller;
-
-    // The range's grid — see lib/sweep.ts for the precedence, anchor and
-    // band-lock policy. A range with its own density is solved exactly
-    // (refinement adds points between its points); one without gets the
-    // lean base grid when refinement will polish it, the historical dense
-    // grid when the toggle says the base IS the rendering.
-    const freqs = sweepGrid(
-      effectiveSweepRange,
-      defaultSweepPoints({ backend, groundEnabled, groundModel, refineEnabled }),
-    ).freqs;
-
-    const base = buildRequest();
-    const body = {
-      ...base,
-      freqs_mhz: freqs,
-      // Opt-in cache read-through (issue #763): a knob scrub back to an
-      // already-swept state may reuse the per-freq Z this session itself
-      // wrote. User designs are excluded — their file can change on disk
-      // under an unchanged request key (the server enforces both gates
-      // again regardless).
-      reuse_cached_z:
-        !String(base.geometry ?? "").startsWith("user.") &&
-        !String(base.geometry ?? "").startsWith("@"),
-      // Lane metadata (issue #382): issued-at generation (a newer knob drag
-      // supersedes this batch server-side) + the gate's approval, which the
-      // server requires for a warned batch (poor-match combo backstop).
-      _gen: seqRef.current,
-      _approved: approvedComboRef.current,
-    };
-    setSweepRunning(true);
-    // Settledness for this sweep (issue #866): with refinement on, the lean
-    // base grid is provisional until the refine pass lands; with it off, the
-    // dense grid IS the final shape.
-    setSweepSettled(!refineEnabledRef.current);
-    setSweepProgress({ phase: "base", received: 0, planned: freqs.length });
-    let planned: SweepData | null = null;
-    try {
-      // New object per point so React re-renders the Smith chart as the
-      // sweep fills in. The counter reads the snapshot's own length, so it
-      // is the number of points that actually landed (AK#1682).
-      planned = await streamSweep(body, controller, (snapshot) => {
-        setSweep(snapshot);
-        setSweepProgress({
-          phase: "base",
-          received: snapshot.freqs_mhz.length,
-          planned: freqs.length,
-        });
-      }, (closing) => setSweepAdvisories(closing.advisories ?? []));
-    } catch (e: unknown) {
-      if (e instanceof DOMException && e.name === "AbortError") return;
-      console.error("sweep error", e);
-    } finally {
-      if (sweepAbortRef.current === controller) {
-        sweepAbortRef.current = null;
-        setSweepRunning(false);
-        setSweepProgress(null);
-        // Adaptive refinement (issue #744) rides the tail of the base
-        // sweep rather than its own effect: reaching here IS the dwell
-        // signal — the design settled long enough for a whole sweep to
-        // stream without a knob aborting it. `planned` is null exactly
-        // when the stream threw (abort, transport failure), which is the
-        // case that must not refine; a stream that ended on a per-chunk
-        // {error} line still leaves a real curve worth polishing.
-        //
-        // sweepRunning stays false throughout: refinement adds points to a
-        // curve that is already drawn, and flickering the chart's busy
-        // indicator back on would read as "this result is provisional".
-        const settled = planned;
-        if (settled && !controller.signal.aborted && refineEnabledRef.current) {
-          sweepRefineTimerRef.current = window.setTimeout(
-            () => runSweepRefine(settled),
-            SWEEP_REFINE_DWELL_MS,
-          );
-          setSweepRefining(true);
-        }
-      }
-    }
-  }
-
-  // Densify the settled sweep where the rendered curve corners (issue
-  // #744). Iterative: each round asks the pure planner for the worst
-  // intervals, streams those freqs, merges them in, and re-plans against
-  // the densified curve — the planner cannot evaluate its own insertions,
-  // so re-evaluation only exists across rounds.
-  //
-  // Every round is optional. Running out of budget, an abort, or a plan
-  // that comes back empty all just stop, leaving the best-so-far merge on
-  // screen; nothing here is load-bearing for correctness of the curve.
-  async function runSweepRefine(base: SweepData) {
-    sweepRefineTimerRef.current = null;
-    if (!refineEnabledRef.current || solveWithheld()) {
-      setSweepRefining(false);
-      return;
-    }
-    sweepRefineAbortRef.current?.abort();
-    const controller = new AbortController();
-    sweepRefineAbortRef.current = controller;
-    let acc = base;
-    let spent = 0;
-    let refined = 0; // points RECEIVED across rounds, for the counter
-    // Unsettle here too, not just in runSweep (issue #866): a pass triggered
-    // by a chart becoming resident refines a sweep whose base flow settled
-    // long ago (or ran refine-disabled), and its insertions are about to
-    // reshape the curve.
-    setSweepSettled(false);
-    // Set exactly when the pass concludes on its own terms — the budget runs
-    // out or the planner finds nothing left to fix. A mid-run toggle-off
-    // (the break below) leaves it false: the accumulated set is uneven and
-    // the charts should keep saying so (dots, not a polyline).
-    let concluded = false;
-    try {
-      while (spent < SWEEP_REFINE_BUDGET && !controller.signal.aborted) {
-        // The toggle and the resident-projection set are read per ROUND:
-        // switching refinement off (or unpinning the last chart that wanted
-        // a projection) takes effect at the next round boundary instead of
-        // finishing the whole budget.
-        if (!refineEnabledRef.current) break;
-        const want = refineSweepFreqs(
-          acc,
-          z0,
-          Math.min(SWEEP_REFINE_ROUND_BUDGET, SWEEP_REFINE_BUDGET - spent),
-          residentSweepViewsRef.current,
-          sweepAxesRef.current,
-          swrThresholdRef.current,
-        );
-        if (want.length === 0) {
-          concluded = true; // no visible kink left to remove
-          break;
-        }
-        spent += want.length;
-        const settled = acc; // merge target for this round's snapshots
-        // Cumulative across rounds, counted per point received (AK#1682).
-        const before = refined;
-        setSweepProgress({
-          phase: "refine",
-          received: before,
-          budget: SWEEP_REFINE_BUDGET,
-        });
-        const extra = await streamSweep(
-          {
-            ...buildRequest(),
-            freqs_mhz: want,
-            // Lane metadata (issue #382) + the refinement marker the server
-            // reads for its lane kind (issue #744). `_refine` is pure
-            // scheduling — it is on the server's cache-key blocklist, so a
-            // refinement request hits the same per-freq entries a base
-            // sweep would.
-            _gen: seqRef.current,
-            _approved: approvedComboRef.current,
-            _refine: true,
-          },
-          controller,
-          (snapshot) => {
-            setSweep(mergeSweepPoints(settled, snapshot));
-            setSweepProgress({
-              phase: "refine",
-              received: before + snapshot.freqs_mhz.length,
-              budget: SWEEP_REFINE_BUDGET,
-            });
-          },
-        );
-        refined = before + extra.freqs_mhz.length;
-        acc = mergeSweepPoints(acc, extra);
-        if (controller.signal.aborted) return;
-        setSweep(acc);
-      }
-      // Exiting because the budget ran dry is as final as an empty plan —
-      // best-so-far is the shape we will render from here on. An abort
-      // (superseded by a new sweep) is not: that sweep resets settledness
-      // itself.
-      if (spent >= SWEEP_REFINE_BUDGET && !controller.signal.aborted) {
-        concluded = true;
-      }
-    } catch (e: unknown) {
-      if (e instanceof DOMException && e.name === "AbortError") return;
-      console.error("sweep refine error", e);
-    } finally {
-      if (concluded) setSweepSettled(true);
-      if (sweepRefineAbortRef.current === controller) {
-        sweepRefineAbortRef.current = null;
-        setSweepProgress(null);
-        // Done, unless a new round is already waiting (a resident chart's
-        // re-entry set a timer while this one streamed).
-        if (!sweepRefineTimerRef.current) setSweepRefining(false);
-      }
-    }
-  }
-
-  async function runParamSweep() {
-    setParamSweepQueued(false);
-    // Same as runSweep: the server lane serializes and prioritizes; only the
-    // poor-match gate holds this back (effect re-fires on approval).
-    if (solveWithheld()) return;
-    paramSweepTimerRef.current = null;
-    paramSweepAbortRef.current?.abort();
-    const controller = new AbortController();
-    paramSweepAbortRef.current = controller;
-
-    const { param, values, label } = paramSweepReq;
-    const body = {
-      ...buildRequest(),
-      param,
-      values,
-      _gen: seqRef.current,
-      _approved: approvedComboRef.current,
-    };
-    setParamSweepRunning(true);
-    // feeds_* fields start OMITTED, same reasoning as runSweep's acc above.
-    const acc: ParamSweepData = {
-      param,
-      label,
-      values: [],
-      z_re: [],
-      z_im: [],
-      z_re_extrap: null,
-      z_im_extrap: null,
-    };
-    const publish = () => {
-      if (controller.signal.aborted) return;
-      setParamSweep({
-        ...acc,
-        values: acc.values.slice(),
-        ...(acc.n_seg ? { n_seg: acc.n_seg.slice() } : {}),
-        ...(acc.fed_seg_m ? { fed_seg_m: acc.fed_seg_m.slice() } : {}),
-        z_re: acc.z_re.slice(),
-        z_im: acc.z_im.slice(),
-        // Spread-conditional, not `: undefined` — see runSweep's setSweep.
-        ...(acc.feeds_z_re
-          ? { feeds_z_re: acc.feeds_z_re.map((row) => row.slice()) }
-          : {}),
-        ...(acc.feeds_z_im
-          ? { feeds_z_im: acc.feeds_z_im.map((row) => row.slice()) }
-          : {}),
-        ...(acc.feeds_z_re_extrap
-          ? { feeds_z_re_extrap: acc.feeds_z_re_extrap.slice() }
-          : {}),
-        ...(acc.feeds_z_im_extrap
-          ? { feeds_z_im_extrap: acc.feeds_z_im_extrap.slice() }
-          : {}),
-        ...(acc.feeds_z_extrap_p
-          ? { feeds_z_extrap_p: acc.feeds_z_extrap_p.slice() }
-          : {}),
-        ...(acc.feeds_z_extrap_status
-          ? { feeds_z_extrap_status: acc.feeds_z_extrap_status.slice() }
-          : {}),
-        ...(acc.advisories ? { advisories: acc.advisories.slice() } : {}),
-        ...(acc.error ? { error: acc.error } : {}),
-        ...(acc.errorStatus ? { errorStatus: acc.errorStatus } : {}),
-      });
-    };
-    try {
-      const resp = await fetch("/param_sweep", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-      if (!resp.ok) {
-        // Admission speaks for itself (the hosted point cap's 413, the
-        // poor-match 403, a refused parameter's 422): show its detail.
-        let detail = `the server refused the sweep (${resp.status})`;
-        try {
-          const j = await resp.json();
-          if (j && typeof j.detail === "string") detail = j.detail;
-        } catch {
-          /* no JSON body: the status line above */
-        }
-        acc.error = detail;
-        acc.errorStatus = resp.status;
-        publish();
-        return;
-      }
-      if (!resp.body) throw new Error(`param sweep failed: ${resp.status}`);
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        let nl;
-        while ((nl = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, nl).trim();
-          buf = buf.slice(nl + 1);
-          if (!line) continue;
-          const pt = JSON.parse(line);
-          if (pt.done) {
-            // The closing record's advisories: the gap-fed density warning.
-            if (Array.isArray(pt.advisories) && pt.advisories.length > 0) {
-              acc.advisories = pt.advisories;
-              publish();
-            }
-            continue;
-          }
-          // A solver failure at one value (rare — a degenerate small-N
-          // geometry) is reported by the backend as {value, error}; skip
-          // rather than poisoning the trajectory.
-          if (pt.error) continue;
-          // A record without a finite Z (never expected; JSON carries a
-          // non-finite float as null) would poison every axis: skip it.
-          if (!Number.isFinite(pt.z_re) || !Number.isFinite(pt.z_im)) continue;
-          acc.values.push(pt.value);
-          // The achieved segment count (AK#1781): Z∞'s x, as in the CLI.
-          // One point without it and the whole sweep falls back to the
-          // swept values, so x is never a mix of the two.
-          if (Number.isFinite(pt.n_seg) && (acc.n_seg || acc.values.length === 1)) {
-            (acc.n_seg ??= []).push(pt.n_seg);
-          } else {
-            delete acc.n_seg;
-          }
-          // The fed segment's length, on the same all-or-nothing rule: the
-          // reason a rough Z∞ gives (feedMeshStep).
-          if (
-            Number.isFinite(pt.fed_seg_m) &&
-            (acc.fed_seg_m || acc.values.length === 1)
-          ) {
-            (acc.fed_seg_m ??= []).push(pt.fed_seg_m);
-          } else {
-            delete acc.fed_seg_m;
-          }
-          acc.z_re.push(pt.z_re);
-          acc.z_im.push(pt.z_im);
-          // Multi-feed records ship per-feed Z alongside the primary;
-          // allocate the buffers lazily on first sight.
-          if (Array.isArray(pt.feeds_z_re) && Array.isArray(pt.feeds_z_im)) {
-            if (!acc.feeds_z_re) acc.feeds_z_re = [];
-            if (!acc.feeds_z_im) acc.feeds_z_im = [];
-            acc.feeds_z_re.push(pt.feeds_z_re);
-            acc.feeds_z_im.push(pt.feeds_z_im);
-          }
-          // Z∞ — density only (paramZinf is null for a knob), per feed too,
-          // one estimator with the CLI (lib/zinf.ts, AK#1781).
-          const x = refinementX(acc.values, acc.n_seg);
-          const z = paramZinf(param, x, acc.z_re, acc.z_im);
-          acc.z_re_extrap = z?.re ?? null;
-          acc.z_im_extrap = z?.im ?? null;
-          acc.z_extrap_p = z?.p ?? null;
-          acc.z_extrap_status = z?.status ?? null;
-          acc.z_extrap_reason = paramZinfReason(z, acc.n_seg, acc.fed_seg_m);
-          if (acc.feeds_z_re && acc.feeds_z_im) {
-            const f = paramFeedZinf(param, x, acc.feeds_z_re, acc.feeds_z_im);
-            if (f) {
-              acc.feeds_z_re_extrap = f.map((e) => e.re);
-              acc.feeds_z_im_extrap = f.map((e) => e.im);
-              acc.feeds_z_extrap_p = f.map((e) => e.p);
-              acc.feeds_z_extrap_status = f.map((e) => e.status);
-            }
-          }
-          publish();
-        }
-      }
-    } catch (e: unknown) {
-      if (e instanceof DOMException && e.name === "AbortError") return;
-      console.error("param sweep error", e);
-    } finally {
-      if (paramSweepAbortRef.current === controller) {
-        paramSweepAbortRef.current = null;
-        setParamSweepRunning(false);
-      }
-    }
-  }
-
   async function runNormCheck() {
     // The pattern norm reuses the settled live solve (a server cache hit):
     // the lane's live-first priority guarantees that ordering now, no
@@ -1170,96 +463,39 @@ export function useAnalysisRunners({
   }
 
   // The user's "Cancel solve" (AK#1712): stop every batch this session has in
+
+  // The user's "Cancel solve" (AK#1712): stop every batch this session has in
   // flight or waiting on its dwell. The server's session cancel already trips
   // each one's lane token; aborting here as well closes the streams now rather
   // than when the server gets round to ending them, and clearing the dwell
   // timers stops a batch the user never saw start from starting a moment
   // after the cancel. What is already drawn stays drawn: the next knob change
   // re-runs everything through the effects above, as before.
-  // The header's Stop: abort the stream (the server sees the disconnect and
-  // stops solving), keep what landed, marked partial, and hold here until a
-  // parameter changes or Run.
-  function stopParamSweep() {
-    if (paramSweepTimerRef.current) window.clearTimeout(paramSweepTimerRef.current);
-    paramSweepTimerRef.current = null;
-    setParamSweepQueued(false);
-    paramSweepAbortRef.current?.abort();
-    paramSweepStoppedRef.current = paramSweepSig;
-    setParamSweep((d) => (d ? { ...d, partial: true } : d));
-    setParamSweepRunning(false);
-  }
-
-  // The header's Run: the same sweep again, now (no dwell), whatever stopped
-  // it. Still behind the poor-match gate (runParamSweep checks it).
-  function runParamSweepNow() {
-    paramSweepStoppedRef.current = null;
-    paramSweepArmedRef.current = paramSweepSig;
-    if (paramSweepTimerRef.current) window.clearTimeout(paramSweepTimerRef.current);
-    setParamSweep(null);
-    void runParamSweep();
-  }
-
-  // Arm the next request the effect sees (a header edit, "Sweep this
-  // knob…"): the user asked for that sweep, so it runs even as a knob sweep.
-  function armParamSweep() {
-    paramSweepArmNextRef.current = true;
-  }
-
   function abortInFlight() {
-    // The app's Cancel stops the parameter sweep the way its own Stop does.
-    setParamSweepQueued(false);
-    setSweepQueued(false);
-    setSweepRefining(false);
-    if (paramSweepAbortRef.current || paramSweepTimerRef.current) {
-      paramSweepStoppedRef.current = paramSweepSig;
-      setParamSweep((d) => (d ? { ...d, partial: true } : d));
-    }
-    for (const timer of [
-      sweepTimerRef,
-      sweepRefineTimerRef,
-      paramSweepTimerRef,
-      normCheckTimerRef,
-      patternTimerRef,
-    ]) {
+    param.abort();
+    freq.abort();
+    for (const timer of [normCheckTimerRef, patternTimerRef]) {
       if (timer.current) window.clearTimeout(timer.current);
       timer.current = null;
     }
-    for (const ctrl of [
-      sweepAbortRef,
-      sweepRefineAbortRef,
-      paramSweepAbortRef,
-      normCheckAbortRef,
-      patternAbortRef,
-    ]) {
+    for (const ctrl of [normCheckAbortRef, patternAbortRef]) {
       ctrl.current?.abort();
     }
   }
 
-  const sweepPhase: SweepPhase = sweepRunning
-    ? "running"
-    : sweepQueued
-      ? "queued"
-      : sweepRefining
-        ? "refining"
-        : "idle";
-
   return {
-    sweep,
-    sweepRunning,
-    sweepPhase,
-    sweepSettled,
-    sweepProgress,
-    sweepAdvisories,
-    paramSweep,
-    paramSweepRunning,
-    paramSweepPhase: (paramSweepRunning
-      ? "running"
-      : paramSweepQueued
-        ? "queued"
-        : "idle") as "idle" | "queued" | "running",
-    stopParamSweep,
-    runParamSweepNow,
-    armParamSweep,
+    sweep: freq.sweep,
+    sweepRunning: freq.running,
+    sweepPhase: freq.phase,
+    sweepSettled: freq.settled,
+    sweepProgress: freq.progress,
+    sweepAdvisories: freq.advisories,
+    paramSweep: param.data,
+    paramSweepRunning: param.running,
+    paramSweepPhase: param.phase,
+    stopParamSweep: param.stop,
+    runParamSweepNow: param.runNow,
+    armParamSweep: param.arm,
     normCheck,
     pattern,
     abortInFlight,
