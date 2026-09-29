@@ -76,6 +76,10 @@ export type SweepRange = {
    *  cell sweeps exactly the frequencies `antennaknobs analyze` sweeps on
    *  that design, which /analyses serves). `lo`/`hi` are its ends. */
   freqs?: number[];
+  /** `freqs` is an analysis's explicit list (`Sweep(values=...)`, AK#1757
+   *  step 5 unit 5): swept exactly, with no refinement between its points,
+   *  as `antennaknobs analyze` sweeps it. */
+  exact?: boolean;
 };
 
 /** Which rung of the precedence produced the range (see the header). */
