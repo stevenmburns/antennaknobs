@@ -237,17 +237,27 @@ bare antenna?
 **The antenna.** Dan's `Bydipole-TL-Xfmr-CLC.ssn`, which offers eight
 measurement planes: `rig`, `C1`, `L1`, `C2`, `B`, `R1`, `T1` and `feed`. The
 chart draws three of them (`scratch/sweep-examples/ex5_planes.py`, momwire
-B-spline, the file's own ground).
+B-spline, 13.9–14.45 MHz in 23 points, **free space**).
+
+*Corrected 2026-09-28 (step 5 unit 1, #1797):* this caption first said "the
+file's own ground". The script passed no ground, and momwire's no-ground
+default is free space, so the table below is free space. On the deck's own
+Sommerfeld ground (εr 20, σ 0.0303) the rig reads 51.24 − j4.16 at
+14.45 MHz, SWR 1.09. The range is also the script's own, not the deck's
+14.0–14.35.
 
 | plane | best SWR | where | Z there |
 |---|---|---|---|
 | `rig` | 1.19 | 14.450 MHz (the sweep's edge) | 43.12 − j4.33 |
-| `T1` (after the transformer) | 1.39 | 14.250 MHz | 37.59 − j7.39 |
-| `feed` (the antenna) | 1.45 | 14.250 MHz | 72.51 − j1.90 |
+| `T1` (the node after R1) | 1.39 | 14.250 MHz | 37.59 − j7.39 |
+| `feed` (the bare antenna, at the coax's far end) | 1.45 | 14.250 MHz | 72.51 − j1.90 |
 
 Dan measured the rig at 50.01 + j0.003 Ω at 14.175 MHz in EZNEC. The
 difference is the #143 adjudication again: his CLC was tuned to a 20-segment
 antenna, and the match moves with the antenna's mesh (see E7).
+The table above is free space, while Dan's EZNEC figure is on the file's
+ground, so part of this gap is the ground. Redo the comparison on the
+deck's own ground before quoting it.
 
 **Today.**
 
