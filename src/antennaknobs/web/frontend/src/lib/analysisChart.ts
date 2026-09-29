@@ -106,6 +106,10 @@ export type AnalysisChartState = {
    *  cells (and refuse the ones no slot holds) for as long as the chart
    *  still runs that pick (`chartListed`). */
   listed: ListedCross;
+  /** The legend expanded (true) or collapsed to its chip (false); absent
+   *  until the viewer flips it, and then collapsed on a phone and open on
+   *  a desktop (ChartLegend). */
+  legendOpen?: boolean;
 };
 
 /** The frequency sweep a new chart shows: the design's own range (the
@@ -153,7 +157,13 @@ export function chartForNewDesign(c: AnalysisChartState, seed: ChartSeed): Analy
     axes: f?.axes ?? seed.axes,
     threshold: f?.threshold ?? seed.threshold,
   });
-  return { ...next, dwell: c.dwell, cross: c.cross };
+  return {
+    ...next,
+    dwell: c.dwell,
+    cross: c.cross,
+    // How the viewer looks at the legend, like the scales, stays.
+    ...(c.legendOpen !== undefined ? { legendOpen: c.legendOpen } : {}),
+  };
 }
 
 /** Back to the design's own frequency sweep (the picker's first entry):
