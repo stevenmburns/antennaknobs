@@ -55,6 +55,21 @@ def test_no_file_means_the_builtin_defaults(cat, local):
     assert payload["path"] == str(local)
 
 
+def test_the_retired_sweep_switches_stay_valid_keys(cat, local):
+    """AK#1757 step 5 unit 3: the freq-sweep and param-sweep checkboxes left
+    the workbench for each analysis chart's dwell switch, which these two keys
+    now seed. A file that names them must keep loading with no problem, and a
+    save must keep writing what differs from the built-in, as before."""
+    local.write_text("[switches]\nfreq_sweep = false\nconvergence_sweep = true\n")
+    payload = ui_settings.load(cat, hosted=False)
+    assert payload["problems"] == []
+    assert payload["switches"]["freq_sweep"] is False
+    assert payload["switches"]["convergence_sweep"] is True
+    assert sorted(payload["switches_set"]) == ["convergence_sweep", "freq_sweep"]
+    keys = [k for k, _, _ in ui_settings.SWITCHES]
+    assert "freq_sweep" in keys and "convergence_sweep" in keys
+
+
 def test_the_mininec_method_is_a_ground_method(cat, local):
     """AK#1655: the MININEC-type ground rides the finite method, so a saved
     session that picked it opens with it again."""
