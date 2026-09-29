@@ -4532,16 +4532,36 @@ canvas {
   opacity: 0.4;
   cursor: default;
 }
-/* The Z∞ readout's reason, behind an ⓘ on a phone (AK#1757): the button sits
-   at the top of the plot's left margin, beside the short canvas line; the
-   panel is laid over the chart. */
-.zinf-info-btn {
+/* The Z∞ readout on a phone (AK#1757): a DOM row between the "R Ω" and
+   "X Ω" titles, the value and status word, then the ⓘ that opens the
+   reason, so the button always follows the text; the panel is laid over
+   the chart. On a desktop the canvas paints the whole line. */
+.zinf-line {
   position: absolute;
-  top: 0;
-  left: 26px;
+  top: 2px;
+  left: 30px;
+  right: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font: 10px ui-monospace, monospace;
+  line-height: 16px;
+  color: var(--fg);
+  pointer-events: none;
+}
+.zinf-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.zinf-info-btn {
+  flex: none;
+  pointer-events: auto;
   padding: 0 4px;
   font-size: 11px;
-  line-height: 16px;
+  line-height: 14px;
   background: var(--inset);
   color: var(--muted);
   border: 1px solid var(--border-control);
