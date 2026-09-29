@@ -355,7 +355,11 @@ from the session's slots, and the legend names every curve:
   leak into the comparison. An engine that cannot build a design is a
   refused curve in its own words: NEC-2 cannot feed
   `dipoles.invvee_apex`'s apex knot, so the **feed spellings** analysis
-  names that curve with NEC-2's reason and draws the rest;
+  names that curve with NEC-2's reason and draws the rest. In a frequency
+  analysis each design sweeps its own band, on the same frequencies
+  `antennaknobs analyze` sweeps for it, so a 7 MHz and a 28 MHz design each
+  stay on theirs; the chart's **from / to** moves only the curves of the
+  design you have loaded;
 - **a family** curve is your design with the second knob set to that value,
   on top of your other knobs, labelled `angle_deg = 30` as the command line
   labels it, while the swept knob moves along the x axis as usual.

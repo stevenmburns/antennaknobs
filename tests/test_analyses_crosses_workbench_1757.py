@@ -10,7 +10,10 @@ CLI's ``analyze`` number for the same cell:
 
 - planes: ``/sweep`` with that ``plane`` on the E5 deck (a user design);
 - designs: ``/param_sweep`` of the other design at its own defaults (E7);
-- families: ``/param_sweep`` with the step knob set to the cell's value (E2).
+- families: ``/param_sweep`` with the step knob set to the cell's value (E2);
+- designs of a frequency analysis: each design's served grid is exactly the
+  one ``analyze`` sweeps on it, on two catalog designs on different bands
+  (a mutation serving the session design's grid for both fails it).
 
 Everything solves in free space on both sides (``--ground free`` and
 ``ground: false``), at one pinned density where the sweep is not a density
@@ -348,3 +351,83 @@ def test_a_served_family_cell_is_the_clis_curve_at_that_step(
     assert worst <= REL, worst
     r_mid = [runs[0]["curves"][lab][1][1].real for lab in step["labels"]]
     assert min(abs(a - b) for a, b in itertools.pairwise(r_mid)) > 5.0
+
+
+# ── designs of a frequency analysis: each on its own band ─────────────────
+
+DOUBLET = "wire.doublet_ladder_tuner"
+
+
+def _design_freq(client, geometry) -> tuple[float, float]:
+    """A fresh session's design and measurement frequencies for
+    ``geometry`` (the catalog's stock ones, which its band holds)."""
+    (ex,) = [
+        e for e in client.get("/examples").json()["examples"] if e["name"] == geometry
+    ]
+    m = ex["default_freq"]
+    return ex["default_design_freq"] or m, m
+
+
+def test_a_frequency_design_cell_sweeps_the_clis_grid_on_its_own_band(
+    monkeypatch, client, capsys, tmp_path
+):
+    """Two catalog designs on different bands (28 MHz and 7 MHz): each
+    design cell's served grid is exactly what ``analyze`` sweeps for it, and
+    the served /sweep over it is the CLI's curve."""
+    a = an.band_swr(
+        name="bands",
+        cross=an.Cross(designs=(INVVEE, DOUBLET)),
+        views=(an.Swr(),),
+    )
+    _offer(monkeypatch, _invvee_cls(), [a])
+    w = _served(client, {"geometry": INVVEE}, "bands")
+    assert w["runs"] is True and w["axes"] == ["designs"]
+    runs = _capture_run(monkeypatch)
+    cli(["analyze", "--builder", INVVEE, "--analysis", "bands", "--ground", "free",
+         "--engine", "momwire:bspline", "--nominal-nsegs", "15",
+         "--fn", str(tmp_path / "b.png")])  # fmt: skip
+    capsys.readouterr()
+    worst = 0.0
+    centres = {}
+    for d in w["designs"]:
+        assert d["refused"] is None, d
+        xs, want = runs[0]["curves"][d["name"]]
+        # Exactly the CLI's grid for that design, not the chart's.
+        assert d["freqs"] == [float(x) for x in xs]
+        assert d["range"]["lo"] == pytest.approx(xs[0])
+        centres[d["name"]] = float(np.mean(xs))
+        design_f, meas_f = _design_freq(client, d["name"])
+        body = {
+            "geometry": d["name"],
+            "variant": "default",
+            **_defaults(client, d["name"]),
+            "design_freq_mhz": design_f,
+            "measurement_freq_mhz": meas_f,
+            "solver": "momwire",
+            "momwire_model": "bspline",
+            "n_per_wire": 15,
+            "ground": False,
+            "freqs_mhz": d["freqs"],
+        }
+        recs = [
+            r for r in _records(client.post("/sweep", json=body).text) if "z_re" in r
+        ]
+        assert [r["freq_mhz"] for r in recs] == d["freqs"]
+        got = [complex(r["z_re"], r["z_im"]) for r in recs]
+        worst = max(worst, _max_rel(got, want))
+    assert worst <= REL, worst
+    # Adversarial: the two bands are the designs' own, far apart.
+    assert centres[INVVEE] > 20 and centres[DOUBLET] < 10, centres
+
+
+def test_a_design_whose_range_cannot_resolve_is_refused_by_name(monkeypatch, client):
+    from antennaknobs.web import analyses_offer as ao
+
+    def boom(s, builder):
+        raise ValueError("no band")
+
+    monkeypatch.setattr(ar, "frequency_range", boom)
+    a = an.band_swr(name="bands", cross=an.Cross(designs=(DOUBLET,)))
+    got = ao._design_entry(a, DOUBLET, False)
+    assert got["refused"] == f"no frequency range on {DOUBLET}: no band"
+    assert got["freqs"] is None
