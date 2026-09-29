@@ -457,3 +457,19 @@ What this carries with it:
     for Run;
   - the live single point (the measurement frequency's Z marker, its SWR
     readout) stays live in every chart, and only the sweep waits.
+
+**Resolved (Steve, 2026-09-28): the tension above is today's freq sweep,
+generalised.**
+- The freq sweep has always worked this way. The single-point solve
+  follows the drag live, while the sweep waits for the knobs to settle
+  (`useAnalysisRunners.ts`: a 500 ms timer before the base sweep, and 500
+  ms more before refinement rounds). The freq-sweep checkbox is that
+  dwell's on/off.
+- **So a chart's dwell switch IS today's freq-sweep checkbox,** moved onto
+  the chart and applied to whatever analysis the chart shows.
+- **Knob (parameter) sweeps get the same behaviour.** With the switch on, a
+  Z vs parameter chart re-sweeps after the knobs settle, instead of only on
+  Run. A knob sweep rebuilds the design per point, so it costs more than a
+  frequency sweep's one build. That is exactly why the switch is per chart.
+- **The live point stays live in every chart:** the measurement frequency's
+  Z marker and SWR readout move with the drag. Only the swept curve waits.
