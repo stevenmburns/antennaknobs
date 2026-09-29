@@ -43,13 +43,11 @@ const PROPS = {
   result: null,
   liveZ: null,
   preview: null,
-  sweep: null,
   paramSweep: null,
   measured: null,
   pattern: null,
   pinnedPatterns: [],
   measFreqMhz: 14.1,
-  sweepRunning: false,
   paramSweepRunning: false,
   azElevDeg: 0,
   elevAzDeg: 0,
@@ -69,7 +67,7 @@ function Stage({
   showing,
   camera,
 }: {
-  showing: "antenna" | "smith";
+  showing: "antenna" | "zparam";
   camera?: CanvasCamera;
 }) {
   return <ViewPanel view={showing} {...PROPS} canvasCamera={camera} />;
@@ -96,7 +94,7 @@ describe("the antenna camera survives a rail view switch", () => {
     expect(camera.zoom).toBeGreaterThan(1);
 
     // Look at something else: the antenna canvas is unmounted.
-    utils.rerender(<Stage showing="smith" camera={camera} />);
+    utils.rerender(<Stage showing="zparam" camera={camera} />);
     expect(utils.container.querySelector(".canvas-viewport")).toBeNull();
 
     // ...and come back.
@@ -112,7 +110,7 @@ describe("the antenna camera survives a rail view switch", () => {
     const { container, rerender } = render(<Stage showing="antenna" />);
     zoomIn(container);
     expect(zoomChip(container)).not.toBeNull();
-    rerender(<Stage showing="smith" />);
+    rerender(<Stage showing="zparam" />);
     rerender(<Stage showing="antenna" />);
     expect(zoomChip(container)).toBeNull();
   });

@@ -117,11 +117,10 @@ export function useAnalysisRunners({
   groundEnabled,
   groundModel,
   sweepEnabled,
-  convergeEnabled,
+  sweepAuto = true,
   normCheckEnabled,
   necOverlayEnabled,
   sweepResident,
-  convergeResident,
   paramViewResident = false,
   paramSweep: paramSweepReq = DENSITY_SWEEP,
   patternResident,
@@ -155,8 +154,14 @@ export function useAnalysisRunners({
   sweepRange?: SweepRange;
   groundEnabled: boolean;
   groundModel: GroundModel;
+  /** The freq sweep runs at all: the analysis chart shows a frequency sweep
+   *  (AK#1757 step 5 unit 3; until then, the freq-sweep checkbox). */
   sweepEnabled: boolean;
-  convergeEnabled: boolean;
+  /** Re-sweep after the dwell by itself: the chart's dwell switch (the
+   *  freq-sweep checkbox's meaning, moved onto the chart). Off, a change
+   *  marks the sweep stale and it waits for `armSweep` / `runSweepNow`
+   *  (useFreqSweep's run-on-request mode). Optional: omitted, it is on. */
+  sweepAuto?: boolean;
   normCheckEnabled: boolean;
   necOverlayEnabled: boolean;
   /** View residency (issue #715): true when any view that RENDERS the
@@ -168,12 +173,10 @@ export function useAnalysisRunners({
    *  readout, resident in every layout (see docs/plan-view-residency-
    *  gating.md). */
   sweepResident: boolean;
-  /** The Smith chart is resident: with `convergeEnabled` (the old
-   *  "convergence sweep" switch) it draws the parameter sweep's trail. */
-  convergeResident: boolean;
-  /** The Z-vs-parameter view is resident (docs/design/z-vs-param-view.md):
-   *  the parameter sweep runs for it whatever the switch says. Optional so a
-   *  caller that predates the view keeps the switch-only behaviour. */
+  /** The analysis chart shows a knob or density sweep, on its R/X or Smith
+   *  view, and is on screen: the one thing the parameter sweep runs for now
+   *  that the Smith view's "param sweep" switch is gone (AK#1757 step 5 unit
+   *  3). Optional: omitted, the parameter sweep never runs. */
   paramViewResident?: boolean;
   /** What the parameter sweep sweeps: the parameter, its values and its
    *  display name. Omitted, it is the density ladder the old convergence
@@ -247,14 +250,17 @@ export function useAnalysisRunners({
   const freqSweepSig = freqSweepSignature(req);
   const solveSig = solveSignature(req, { exempt: DISPLAY_ONLY_EXEMPT });
 
-  // The freq sweep: the session's own (the standalone Smith / VSWR / S11
-  // views and their freq-sweep switch), one instance of the runner an
-  // analysis chart also holds (useFreqSweep).
+  // The freq sweep: the analysis chart's, when it shows a frequency sweep
+  // (AK#1757 step 5 unit 3, which folded the standalone Smith / VSWR / S11
+  // views and their freq-sweep switch into the chart), over the chart's
+  // range and under its dwell switch. One runner, so one /sweep per change,
+  // exactly the traffic the standalone views made (useFreqSweep).
   const freq = useFreqSweep({
     range: effectiveSweepRange,
     sig: freqSweepSig,
     enabled: sweepEnabled,
     resident: sweepResident,
+    auto: sweepAuto,
     backend,
     groundEnabled,
     groundModel,
@@ -273,13 +279,13 @@ export function useAnalysisRunners({
     approvedComboRef,
   });
 
-  // The parameter sweep, for the Z-vs-parameter view or the Smith chart's
-  // trail when the old "convergence sweep" switch is on — one runner, one
-  // result, whichever of the two asks (useParamSweep).
+  // The parameter sweep: the analysis chart's knob or density sweep, drawn
+  // as R/X against the knob or as its trail on the Smith chart
+  // (useParamSweep).
   const param = useParamSweep({
     req: paramSweepReq,
     sig: paramSweepSig,
-    wanted: (convergeEnabled && convergeResident) || paramViewResident,
+    wanted: paramViewResident,
     autoSim,
     active,
     comboApproved,
@@ -490,6 +496,10 @@ export function useAnalysisRunners({
     sweepSettled: freq.settled,
     sweepProgress: freq.progress,
     sweepAdvisories: freq.advisories,
+    sweepStale: freq.stale,
+    armSweep: freq.arm,
+    runSweepNow: freq.runNow,
+    stopSweep: freq.abort,
     paramSweep: param.data,
     paramSweepRunning: param.running,
     paramSweepPhase: param.phase,
@@ -500,7 +510,8 @@ export function useAnalysisRunners({
     pattern,
     abortInFlight,
     /** This render's frequency sweep signature, for another frequency
-     *  runner (an analysis chart's) keyed on the same request. */
+     *  runner (a second analysis chart's, unit 4) keyed on the same
+     *  request. */
     freqSweepSig,
   };
 }

@@ -9,7 +9,12 @@ import {
 import { CommitNumber } from "./CommitNumber";
 import { AnalysisDetails, type AnalysisPickerProps, AnalysisSelect } from "./AnalysisPicker";
 import { chartDataAttrs } from "../../lib/analysisChart";
-import { type ChartChrome, DwellSwitch } from "./AnalysisChartControls";
+import {
+  type ChartChrome,
+  ChartViewPick,
+  type ChartViewPickProps,
+  DwellSwitch,
+} from "./AnalysisChartControls";
 import type { SchemaParamSpec } from "../../lib/params";
 
 // The Z-vs-parameter view's header (docs/design/z-vs-param-view.md): which
@@ -30,6 +35,7 @@ export function ZParamControls({
   run,
   costHint = null,
   analyses = null,
+  viewPick = null,
   chrome = null,
 }: {
   spec: ParamSweepSpec;
@@ -61,6 +67,9 @@ export function ZParamControls({
   /** The design's analyses (AK#1757): the picker, and under the row the
    *  picked one's note and every one as Python. Null or empty: no picker. */
   analyses?: AnalysisPickerProps | null;
+  /** The analysis chart's view (R / X or Smith) and, on Smith, its measured
+   *  overlay (AK#1757 step 5 unit 3). Null: no view choice. */
+  viewPick?: ChartViewPickProps | null;
   /** The analysis chart's dwell switch (AK#1757 step 5): given, the header
    *  is an analysis chart's and carries it. */
   chrome?: ChartChrome | null;
@@ -89,6 +98,7 @@ export function ZParamControls({
     >
       <div className="zparam-controls" role="group" aria-label="Parameter sweep">
         {analyses && analyses.entries.length > 0 && <AnalysisSelect {...analyses} />}
+        {viewPick && <ChartViewPick {...viewPick} />}
         <label>
           <span>sweep</span>
           <select

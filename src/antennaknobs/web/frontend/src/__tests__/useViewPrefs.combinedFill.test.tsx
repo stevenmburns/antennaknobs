@@ -41,11 +41,11 @@ describe("combined view fill preference", () => {
     for (const bad of ["both", "az", 1, null, ["elevation"]]) {
       localStorage.setItem(
         VIEW_PREFS_KEY,
-        JSON.stringify({ pinned: ["smith"], seen: ["smith"], combinedFill: bad }),
+        JSON.stringify({ pinned: ["zparam"], seen: ["zparam"], combinedFill: bad }),
       );
       const { result, unmount } = renderHook(() => useViewPrefs());
       expect(result.current.combinedFill).toBe("none");
-      expect(result.current.pinned).toEqual(["smith"]);
+      expect(result.current.pinned).toEqual(["zparam"]);
       unmount();
     }
   });

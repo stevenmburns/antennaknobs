@@ -14,7 +14,7 @@ import type { ExampleDescriptor } from "../lib/params";
 import { useViewState } from "../components/session/useViewState";
 import { HARNESS_EXAMPLE } from "./designSessionHarness";
 
-const PINNED: View[] = ["antenna", "azimuth", "elevation", "smith"];
+const PINNED: View[] = ["antenna", "azimuth", "elevation", "zparam"];
 
 function design(
   name: string,

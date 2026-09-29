@@ -22,7 +22,7 @@ function renderGrid(overrides: Partial<Parameters<typeof ViewGrid>[0]> = {}) {
   ));
   const props = {
     gridRef: createRef<HTMLDivElement>(),
-    cells: cellsOf(["antenna", "azimuth", "elevation", "smith"]),
+    cells: cellsOf(["antenna", "azimuth", "elevation", "zparam"]),
     view: "antenna" as View,
     setView,
     onMaximize,
@@ -42,11 +42,11 @@ describe("cell order and shape", () => {
   // Mutation probe 4(a) target: reversing (or otherwise reordering) the
   // `cells` prop before it reaches ViewGrid must fail this.
   it("renders cells in exactly the given (pin) order", () => {
-    renderGrid({ cells: cellsOf(["smith", "antenna", "azimuth"]), rows: 2, cols: 2 });
+    renderGrid({ cells: cellsOf(["zparam", "antenna", "azimuth"]), rows: 2, cols: 2 });
     const ids = screen
       .getAllByRole("button", { name: /^Focus / })
       .map((el) => el.getAttribute("aria-label"));
-    expect(ids).toEqual(["Focus Smith", "Focus Antenna", "Focus Azimuth (xy)"]);
+    expect(ids).toEqual(["Focus Sweep", "Focus Antenna", "Focus Azimuth (xy)"]);
   });
 
   it("1x2 for two pins: two cells, no hint", () => {
@@ -56,7 +56,7 @@ describe("cell order and shape", () => {
   });
 
   it("2x2 for four pins: four cells, no hint", () => {
-    renderGrid({ cells: cellsOf(["antenna", "azimuth", "elevation", "smith"]), rows: 2, cols: 2 });
+    renderGrid({ cells: cellsOf(["antenna", "azimuth", "elevation", "zparam"]), rows: 2, cols: 2 });
     expect(screen.getAllByRole("button", { name: /^Focus / })).toHaveLength(4);
     expect(screen.queryByText("Pin a 4th view")).toBeNull();
   });
@@ -112,8 +112,8 @@ describe("cell click vs. maximize", () => {
   it("clicking the maximize glyph maximizes without also focusing", async () => {
     const user = userEvent.setup();
     const { setView, onMaximize } = renderGrid();
-    await user.click(screen.getByTitle("Maximize Smith"));
-    expect(onMaximize).toHaveBeenCalledWith("smith");
+    await user.click(screen.getByTitle("Maximize Sweep"));
+    expect(onMaximize).toHaveBeenCalledWith("zparam");
     expect(setView).not.toHaveBeenCalled();
   });
 

@@ -15,7 +15,7 @@ import { type View } from "../lib/view";
 import { useViewState } from "../components/session/useViewState";
 import { type Layout } from "../components/session/useViewPrefs";
 
-const FOUNDING: View[] = ["antenna", "azimuth", "elevation", "smith"];
+const FOUNDING: View[] = ["antenna", "azimuth", "elevation", "zparam"];
 
 function press(key: string, target?: HTMLElement) {
   act(() => {
@@ -37,11 +37,11 @@ describe("grid-mode arrow cycling", () => {
       press("ArrowDown");
       seen.push(result.current.view);
     }
-    expect(seen).toEqual(["azimuth", "elevation", "smith", "antenna"]);
+    expect(seen).toEqual(["azimuth", "elevation", "zparam", "antenna"]);
   });
 
   it("never lands on pin #5 or #6, even though they're pinned", () => {
-    const sixPins: View[] = [...FOUNDING, "schematic", "gamma"];
+    const sixPins: View[] = [...FOUNDING, "schematic", "files"];
     const { result } = renderHook(() =>
       useViewState({ currentExample: undefined, active: true, pinned: sixPins, layout: "grid" }),
     );
@@ -75,11 +75,11 @@ describe("off-grid ring recovery", () => {
     // renderHook's initial render already has layout="grid", so wasGridRef
     // inits to true and this exercises the "already in grid" branch instead;
     // see the next test for the true "just switched into grid" transition.
-    const sixPins: View[] = [...FOUNDING, "schematic", "gamma"];
+    const sixPins: View[] = [...FOUNDING, "schematic", "files"];
     const { result } = renderHook(() =>
       useViewState({ currentExample: undefined, active: true, pinned: sixPins, layout: "grid" }),
     );
-    act(() => result.current.setView("gamma"));
+    act(() => result.current.setView("files"));
     expect(result.current.view).toBe("antenna");
   });
 
@@ -106,7 +106,7 @@ describe("off-grid ring recovery", () => {
   });
 
   it("snaps to cell 1 on the rail→grid transition with pin #5 active", () => {
-    const sixPins: View[] = [...FOUNDING, "schematic", "gamma"];
+    const sixPins: View[] = [...FOUNDING, "schematic", "files"];
     const setLayout = vi.fn();
     const { result, rerender } = renderHook<ReturnType<typeof useViewState>, { layout: Layout }>(
       ({ layout }) =>
@@ -119,7 +119,7 @@ describe("off-grid ring recovery", () => {
         }),
       { initialProps: { layout: "rail" } },
     );
-    act(() => result.current.setView("gamma"));
+    act(() => result.current.setView("files"));
     rerender({ layout: "grid" });
     expect(result.current.view).toBe("antenna");
     expect(setLayout).not.toHaveBeenCalled();

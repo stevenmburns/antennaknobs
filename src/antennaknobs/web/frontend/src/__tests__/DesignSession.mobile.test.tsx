@@ -12,7 +12,7 @@ import { screen } from "@testing-library/react";
 import { VIEW_META, type View } from "../lib/view";
 import { mountReady } from "./designSessionHarness";
 
-const PINNED: View[] = ["smith", "antenna", "gamma"];
+const PINNED: View[] = ["zparam", "antenna", "files"];
 
 afterEach(() => {
   vi.unstubAllGlobals();

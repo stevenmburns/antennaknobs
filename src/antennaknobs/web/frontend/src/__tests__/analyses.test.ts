@@ -165,7 +165,6 @@ describe("frequency analyses (step 4)", () => {
   it("E4: the deck's own range clears the edit; the scale and threshold are the view's", () => {
     expect(frequencyPick(freq({}), E4_OWN)).toEqual({
       range: null,
-      view: "vswr",
       vswr: RHO,
       threshold: 2,
     });
@@ -198,7 +197,6 @@ describe("frequency analyses (step 4)", () => {
       E4_OWN,
     );
     expect(smith.vswr).toBeNull();
-    expect(smith.view).toBe("smith");
     expect(smith.threshold).toBe(20);
   });
 });

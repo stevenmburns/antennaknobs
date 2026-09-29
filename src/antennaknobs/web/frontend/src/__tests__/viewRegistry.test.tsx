@@ -8,7 +8,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { VIEWS, VIEW_META, type View } from "../lib/view";
-import { VIEW_RENDERERS, type ViewRenderProps } from "../components/results/viewRegistry";
+import {
+  type ChartFrequencyRender,
+  VIEW_RENDERERS,
+  type ViewRenderProps,
+} from "../components/results/viewRegistry";
+import { RX_AUTO } from "../lib/paramSweep";
+import { DEFAULT_AXES } from "../lib/sweepAxis";
 import { ViewPanel } from "../components/results/ViewPanel";
 import type { FilesViewData } from "../components/results/FilesPanel";
 
@@ -36,10 +42,7 @@ const EVERY_VIEW: Record<View, true> = {
   azimuth: true,
   elevation: true,
   combined: true,
-  smith: true,
   schematic: true,
-  gamma: true,
-  vswr: true,
   files: true,
   zparam: true,
 };
@@ -70,47 +73,47 @@ describe("view metadata", () => {
       ["azimuth", "Azimuth (xy)"],
       ["elevation", "Elevation (yz)"],
       ["combined", "Az + El (combined)"],
-      ["smith", "Smith"],
+      // The analysis chart in the Smith view's old place (AK#1757 step 5
+      // unit 3), which folded the Smith, VSWR and S11 views in.
+      ["zparam", "Sweep"],
       ["schematic", "Schematic"],
-      ["gamma", "S11 (dB) vs freq"],
-      ["vswr", "VSWR vs freq"],
       ["files", "Files"],
-      ["zparam", "Z vs parameter"],
     ]);
   });
 
   // The founding four are pinned by default; schematic and every later view
-  // ship unpinned (docs/plan-view-rail-scaling.md, "The pin model") — gamma
-  // and vswr are the roster's first test of that rule beyond schematic.
+  // ship unpinned (docs/plan-view-rail-scaling.md, "The pin model"). The
+  // fourth is the analysis chart now, which opens on the Smith chart the
+  // fourth used to be (AK#1757 step 5 unit 3).
   it("defaults exactly the founding four to pinned", () => {
-    expect(VIEWS.filter((v) => v.defaultPinned).map((v) => v.id).sort()).toEqual(
-      ["antenna", "azimuth", "elevation", "smith"],
+    expect(VIEWS.filter((v) => v.defaultPinned).map((v) => v.id)).toEqual(
+      ["antenna", "azimuth", "elevation", "zparam"],
     );
   });
 
   // An optimizer run leaves the knobs alone until it finishes, so anything
   // drawn from the last solve describes the PRE-RUN design while the readout
-  // ticks through candidates (#773). Those views dim; the two that stay
-  // honest must not, and that is the half worth pinning — dimming the Smith
-  // chart would hide the one live thing on screen, and dimming the schematic
-  // would disown a drawing that is still exactly right.
+  // ticks through candidates (#773). Those views dim; the ones that stay
+  // honest must not, and that is the half worth pinning — dimming the
+  // analysis chart would hide its live point (it dims only its swept curve,
+  // DesignSession's chart stale rule, as the Smith view it replaced never
+  // dimmed), and dimming the schematic would disown a drawing that is still
+  // exactly right.
   it("marks every pre-run view stale while optimizing, and only those", () => {
     const stale = VIEWS.filter((v) => v.staleWhileOptimizing).map((v) => v.id);
-    expect(stale.sort()).toEqual(
-      ["antenna", "azimuth", "combined", "elevation", "gamma", "vswr", "zparam"],
-    );
-    expect(VIEW_META.smith.staleWhileOptimizing).toBe(false);
+    expect(stale.sort()).toEqual(["antenna", "azimuth", "combined", "elevation"]);
+    expect(VIEW_META.zparam.staleWhileOptimizing).toBe(false);
     expect(VIEW_META.schematic.staleWhileOptimizing).toBe(false);
   });
 
   // The stage readout floats over every view. It starts minimized only where
   // the view's own content already carries the numbers and the card would
-  // cover it: the Files view's printout, and the Z-vs-parameter chart, which
-  // draws R and X itself and whose left axis the card would sit on.
-  it("starts the readout minimized only on the Files and Z-vs-parameter views", () => {
+  // cover it: the Files view's printout. The analysis chart's default is the
+  // session's, by what it shows (open on the Smith chart it opens on,
+  // minimized on a knob sweep's R/X plot).
+  it("starts the readout minimized only on the Files view", () => {
     expect(VIEWS.filter((v) => v.readoutStartsCollapsed).map((v) => v.id)).toEqual([
       "files",
-      "zparam",
     ]);
   });
 });
@@ -123,13 +126,11 @@ const PROPS: Omit<ViewRenderProps, "showWireLabels" | "showFeedNames" | "schemat
   result: null,
   liveZ: null,
   preview: null,
-  sweep: null,
   paramSweep: null,
   measured: null,
   pattern: null,
   pinnedPatterns: [],
   measFreqMhz: 14.1,
-  sweepRunning: false,
   paramSweepRunning: false,
   azElevDeg: 0,
   elevAzDeg: 0,
@@ -152,10 +153,7 @@ const MARKERS: Record<View, string> = {
   azimuth: 'canvas.farfield[data-cut="xy"]',
   elevation: 'canvas.farfield[data-cut="yz"]',
   combined: "canvas.farfield[data-fill]",
-  smith: "canvas.smith",
   schematic: ".schematic-fill",
-  gamma: 'canvas.sweep[data-mode="gamma"]',
-  vswr: 'canvas.sweep[data-mode="vswr"]',
   files: ".files-fill",
   zparam: "canvas.zparam",
 };
@@ -186,31 +184,71 @@ describe("dispatch", () => {
     expect(mount("antenna").querySelector(".viewport-fit")).not.toBeNull();
   });
 
-  it("keys the smith trail on refinement enabled AND settled (issue #866)", () => {
-    const connect = (o: Partial<React.ComponentProps<typeof ViewPanel>>) =>
-      mount("smith", o).querySelector("canvas.smith")!.getAttribute("data-connect");
-    // Refinement disabled (or omitted, the thumbnail case): dot cloud, as
-    // before #744 — regardless of settledness (the refinement-disabled
-    // rendering path must not change).
-    expect(connect({})).toBe("0");
-    expect(connect({ refineEnabled: false, sweepSettled: true })).toBe("0");
-    // Enabled + settled (or settledness omitted): the connected locus.
-    expect(connect({ refineEnabled: true })).toBe("1");
-    expect(connect({ refineEnabled: true, sweepSettled: true })).toBe("1");
-    // Enabled but still refining: dots — no polyline through a set whose
-    // points are still landing.
-    expect(connect({ refineEnabled: true, sweepSettled: false })).toBe("0");
-    // Toggled off mid-run (enabled false, unsettled): still dots.
-    expect(connect({ refineEnabled: false, sweepSettled: false })).toBe("0");
+  // The analysis chart's views (AK#1757 step 5 unit 3): the Smith, VSWR and
+  // S11 views folded in, drawn from the chart's own sweep.
+  const FREQ: ChartFrequencyRender = {
+    view: "Smith",
+    sweep: null,
+    running: false,
+    phase: "idle",
+    progress: null,
+    settled: true,
+    stale: false,
+    axes: DEFAULT_AXES,
+    threshold: 2,
+  };
+  const chartOn = (f: Partial<ChartFrequencyRender>, o: Partial<React.ComponentProps<typeof ViewPanel>> = {}) =>
+    mount("zparam", { chartFrequency: { ...FREQ, ...f }, ...o });
+
+  it("draws a frequency sweep on the chart's Smith, SWR or S11 view, and a knob sweep as R/X or its Smith trail", () => {
+    const smith = chartOn({ view: "Smith" });
+    expect(smith.querySelector("canvas.smith")).not.toBeNull();
+    expect(smith.querySelector("canvas.zparam")).toBeNull();
+    expect(chartOn({ view: "Swr" }).querySelector('canvas.sweep[data-mode="vswr"]')).not.toBeNull();
+    expect(chartOn({ view: "S11" }).querySelector('canvas.sweep[data-mode="gamma"]')).not.toBeNull();
+    // No frequency sweep: the knob sweep, R/X by default...
+    expect(mount("zparam").querySelector("canvas.zparam")).not.toBeNull();
+    // ...or on the Smith chart, as the trail the old "param sweep" switch drew.
+    const trail = mount("zparam", {
+      zparam: { param: "N", label: "N", unit: null, total: 2, currentValue: null, xLog: true, rAxis: RX_AUTO, xAxis: RX_AUTO, z0: 50, view: "Smith" },
+      paramSweep: { param: "N", label: "N", values: [3, 5], z_re: [50, 51], z_im: [0, 1] } as ViewRenderProps["paramSweep"],
+    });
+    expect(trail.querySelector("canvas.zparam")).toBeNull();
+    expect(trail.querySelector("canvas.smith")!.getAttribute("data-trail")).toBe("N:3→5:2");
   });
 
-  for (const view of ["gamma", "vswr"] as const) {
-    it(`passes settledness through to the ${view} chart (issue #866)`, () => {
-      const settledAttr = (o: Partial<React.ComponentProps<typeof ViewPanel>>) =>
-        mount(view, o).querySelector(MARKERS[view])!.getAttribute("data-settled");
-      expect(settledAttr({})).toBe("1"); // omitted: settled, today's line
-      expect(settledAttr({ sweepSettled: true })).toBe("1");
-      expect(settledAttr({ sweepSettled: false })).toBe("0");
+  it("keys the Smith locus on refinement enabled AND settled (issue #866)", () => {
+    const connect = (settled: boolean, o: Partial<React.ComponentProps<typeof ViewPanel>>) =>
+      chartOn({ settled }, o).querySelector("canvas.smith")!.getAttribute("data-connect");
+    // Refinement disabled (or omitted, the thumbnail case): dot cloud.
+    expect(connect(true, {})).toBe("0");
+    expect(connect(true, { refineEnabled: false })).toBe("0");
+    // Enabled + settled: the connected locus.
+    expect(connect(true, { refineEnabled: true })).toBe("1");
+    // Enabled but still refining: dots.
+    expect(connect(false, { refineEnabled: true })).toBe("0");
+    expect(connect(false, { refineEnabled: false })).toBe("0");
+  });
+
+  for (const [view, mode] of [["S11", "gamma"], ["Swr", "vswr"]] as const) {
+    it(`passes settledness through to the ${view} view (issue #866)`, () => {
+      const settledAttr = (settled: boolean) =>
+        chartOn({ view, settled }).querySelector(`canvas.sweep[data-mode="${mode}"]`)!.getAttribute("data-settled");
+      expect(settledAttr(true)).toBe("1");
+      expect(settledAttr(false)).toBe("0");
+    });
+  }
+
+  // Unit 2's follow-up: a stale curve dimmed the whole canvas, live marker
+  // included. The chart hands `stale` to the chart component, which dims
+  // the trace alone; nothing dims the canvas element.
+  for (const view of ["Smith", "Swr", "S11"] as const) {
+    it(`marks only the ${view} view's trace stale, not the canvas`, () => {
+      const c = chartOn({ view, stale: true });
+      const canvas = c.querySelector("canvas") as HTMLCanvasElement;
+      expect(canvas.dataset.stale).toBe("1");
+      expect(c.querySelector(".is-stale")).toBeNull();
+      expect(chartOn({ view }).querySelector("canvas")!.getAttribute("data-stale")).toBe("0");
     });
   }
 
