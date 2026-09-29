@@ -95,14 +95,15 @@ const VIEW_LABEL: Record<ChartView, string> = {
   Swr: "SWR",
   S11: "S11 (dB)",
   Smith: "Smith",
+  Table: "Table",
 };
 
 /** The chart's view, and on the Smith chart its measured overlay: what the
  *  standalone Smith / VSWR / S11 views were, as a choice on the chart
  *  (AK#1757 step 5 unit 3). */
 export type ChartViewPickProps = {
-  /** The views the chart's kind can draw: R / X or Smith for a knob sweep,
-   *  SWR, S11 or Smith for a frequency sweep. */
+  /** The views the chart's kind can draw: R / X, Smith or Table for a knob sweep,
+   *  SWR, S11, Smith, R / X or Table for a frequency sweep. */
   views: readonly ChartView[];
   view: ChartView;
   onView: (v: ChartView) => void;
@@ -230,6 +231,18 @@ export function FrequencyChartControls({
           />
           <span>MHz</span>
         </label>
+        {range.exact && range.freqs && (
+          // An analysis's explicit frequency list (step 5 unit 5): the
+          // sweep is these values, not a range; an edit of from / to makes
+          // it one, and ↺ brings the list back.
+          <span
+            className="chart-freq-list"
+            data-values={range.freqs.join(",")}
+            title={`Swept at exactly ${range.freqs.join(", ")} MHz. An edit of from / to makes it a range; ↺ brings the list back.`}
+          >
+            {range.freqs.length} value{range.freqs.length === 1 ? "" : "s"}
+          </span>
+        )}
         {run.running ? (
           <button
             type="button"

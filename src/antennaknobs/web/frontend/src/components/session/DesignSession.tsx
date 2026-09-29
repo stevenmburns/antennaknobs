@@ -142,6 +142,7 @@ import {
   analysisSpec,
   type AnalysisEntry,
   type Listed,
+  listRange,
 } from "../../lib/analyses";
 import type { SweepAxisChoice, SweepMode } from "../../lib/sweepAxis";
 import {
@@ -157,6 +158,7 @@ import {
   chartViews,
   type DwellDefaults,
   editRange,
+  frequencyRx,
   initialChart,
   pickedEdited,
   pickedName,
@@ -2341,6 +2343,9 @@ function DesignSessionBody({
       const d = listedNow.designs?.find((x) => x.name === c.design);
       const f = d?.freqs;
       if (!f || f.length === 0) return null;
+      // An explicit frequency list is swept exactly on every design, as
+      // the session design's own is (listRange, step 5 unit 5).
+      if (now.frequency?.analysisRange?.exact) return listRange(f);
       return { lo: f[0], hi: f[f.length - 1], spacing: d.spacing ?? "lin", freqs: f };
     };
     const runs: CellRun[] = drawn.map((c, k) => {
@@ -2505,7 +2510,7 @@ function DesignSessionBody({
     }
     const next = knobAnalysisSpec(w);
     if (w.param !== DENSITY) setLastKnob(w.param);
-    const picked = pickCross(pickKnob(m.state, entry.name, next), w);
+    const picked = pickCross(pickKnob(m.state, entry.name, next, w.views), w);
     runPicked(i, "param", picked, m.state.kind === "knob" && sameSpec(next, m.spec));
     setChartAt(i, () => picked);
   };
@@ -3125,6 +3130,12 @@ function DesignSessionBody({
   // swept curves (chartUi's trace stale rule) and keeps the live point bright.
   const rxShown = (m: ChartModel | null) =>
     !!m && m.state.kind === "knob" && m.state.knob.view === "Rx";
+  // An R/X plot of either kind (R solid and X dashed per curve, the left
+  // axis a readout would cover), or the Table (step 5 unit 5), which a
+  // floating readout would cover too.
+  const rxPlot = (m: ChartModel | null) => !!m && chartView(m.state) === "Rx";
+  const coveredByReadout = (m: ChartModel | null) =>
+    rxPlot(m) || (!!m && chartView(m.state) === "Table");
   const staleWhileOptimizing = (v: View) =>
     VIEW_META[v].staleWhileOptimizing || rxShown(chartOfView(v));
   const outputStale = stale || (optRunning && staleWhileOptimizing(view));
@@ -3133,7 +3144,8 @@ function DesignSessionBody({
   // on the R/X plot, whose left axis it would cover). A duplicate reads and
   // writes the chart's own preference (lib/view.ts prefView): nothing about
   // a duplicate is stored.
-  const readoutFallback = (v: View) => (chartIndex(v) >= 0 ? rxShown(chartOfView(v)) : undefined);
+  const readoutFallback = (v: View) =>
+    chartIndex(v) >= 0 ? coveredByReadout(chartOfView(v)) : undefined;
 
   // Views that take the whole stage rather than a size×size square: the
   // antenna canvas, the Files view's text pane (AK#1428), which a square
@@ -3266,6 +3278,12 @@ function DesignSessionBody({
       stale: (f0?.stale ?? false) || runStale,
       axes: freqState.axes,
       threshold: freqState.threshold,
+      rx: {
+        r: frequencyRx(freqState).r,
+        x: frequencyRx(freqState).x,
+        // Follow the range's spacing until the viewer flips it.
+        xLog: frequencyRx(freqState).xLog ?? m.inputs.freq.range.spacing === "log",
+      },
     };
     // The other curves, in their legend colours.
     const curves: ExtraCurve[] = runners.slice(1).map((r, k) => ({
@@ -3293,7 +3311,7 @@ function DesignSessionBody({
         return { key: c.key, label: c.label, color: cellColor(k), refused: null, error: error ?? null };
       }),
       capRefusal: m.plan.capRefusal,
-      rx: rxShown(m),
+      rx: rxPlot(m),
       // Collapsed to its chip on a phone until the viewer opens it, open on
       // a desktop (Steve's phone review of unit 4a), as the knob sweep's
       // value boxes are (chartCallouts); per chart, session-only, and a
@@ -3330,6 +3348,15 @@ function DesignSessionBody({
     const onThresholdChange = (t: number) => {
       setFrequency({ threshold: t });
       setSwrThreshold(t);
+    };
+    // The R/X view's ranges and x axis: the chart's own (never stored).
+    const onRxAxisChange = (axis: "r" | "x", c: RxAxisChoice) => {
+      if (!freqState) return;
+      setFrequency({ rx: { ...frequencyRx(freqState), [axis]: c } });
+    };
+    const onRxXLogChange = (log: boolean) => {
+      if (!freqState) return;
+      setFrequency({ rx: { ...frequencyRx(freqState), xLog: log } });
     };
     const range = m.inputs.freq.range;
     const controls = freqState ? (
@@ -3442,9 +3469,16 @@ function DesignSessionBody({
       zparam: { ...zparam, onCalloutsChange: setCalloutsFlip },
       onZparamXLogChange: (log: boolean) => setZparamXLogAt(i, log),
       onZparamAxisChange: (axis: "r" | "x", c: RxAxisChoice) => setZparamAxisAt(i, axis, c),
-      chartFrequency: freqRender && { ...freqRender, onAxisChange, onThresholdChange },
+      chartFrequency: freqRender && {
+        ...freqRender,
+        onAxisChange,
+        onThresholdChange,
+        onRxAxisChange,
+        onRxXLogChange,
+      },
       ...(chartCurves ? { chartCurves } : {}),
       chartLegend: legend,
+      chartCellLabels: m.drawn.map((c) => c.label),
     };
     const thumb = {
       paramSweep: p0data,
@@ -3452,6 +3486,7 @@ function DesignSessionBody({
       zparam,
       chartFrequency: freqRender,
       ...(chartCurves ? { chartCurves } : {}),
+      chartCellLabels: m.drawn.map((c) => c.label),
     };
     return { controls, overlays, panel, thumb };
   };

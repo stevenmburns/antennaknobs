@@ -18,7 +18,7 @@
 // to the browser's storage or to settings.toml. Only the design's .py file
 // is remembered between sessions.
 
-import type { FrequencyView, FrequencyWorkbench } from "./analyses";
+import type { FrequencyView, FrequencyWorkbench, KnobView } from "./analyses";
 import { frequencyPick } from "./analyses";
 import { type ChartCross, FOLLOW_ACTIVE, type ListedCross, NOTHING_LISTED } from "./chartCells";
 import {
@@ -34,14 +34,18 @@ import type { SweepAxes } from "./sweepAxis";
 
 export type ChartKind = "knob" | "frequency";
 
-/** A knob sweep's views: R/X against the knob, or the trail on the Smith
- *  chart. A frequency sweep's are FrequencyView (Swr, S11, Smith). */
-export type KnobView = "Rx" | "Smith";
-export const KNOB_VIEWS: readonly KnobView[] = ["Rx", "Smith"];
+/** A knob sweep's views: R/X against the knob, the trail on the Smith
+ *  chart, or the numbers (Table, step 5 unit 5). A frequency sweep's are
+ *  FrequencyView (Swr, S11, Smith, and R/X against frequency and the Table
+ *  since unit 5). */
+export type { KnobView };
+export const KNOB_VIEWS: readonly KnobView[] = ["Rx", "Smith", "Table"];
 /** Every frequency view, in the order a new chart offers them. Any frequency
- *  sweep can be drawn on all three (they are projections of one Z(f)), so an
- *  analysis's own views only lead the list. */
-export const FREQUENCY_VIEWS: readonly FrequencyView[] = ["Smith", "Swr", "S11"];
+ *  sweep can be drawn on all of them (they are projections of one Z(f), or
+ *  its numbers), so an analysis's own views only lead the list: R/X and the
+ *  Table are offered on every frequency sweep, not only one that lists them
+ *  (step 5 unit 5), as Swr / S11 / Smith always were. */
+export const FREQUENCY_VIEWS: readonly FrequencyView[] = ["Smith", "Swr", "S11", "Rx", "Table"];
 export type ChartView = KnobView | FrequencyView;
 
 /** An analysis's views first, then the rest of the frequency views. */
@@ -75,7 +79,20 @@ export type FrequencyChartState = {
    *  chart's own. Never written back to the preferences. */
   axes: SweepAxes;
   threshold: number;
+  /** The R/X-against-frequency view's ranges and x axis (null: follow the
+   *  range's spacing), the knob sweep's R/X controls on this view. Absent:
+   *  Auto, and the range's spacing. The chart's own; never stored. */
+  rx?: { r: RxAxisChoice; x: RxAxisChoice; xLog: boolean | null };
 };
+
+/** A frequency chart's R/X ranges and x axis, as they stand. */
+export function frequencyRx(f: FrequencyChartState): {
+  r: RxAxisChoice;
+  x: RxAxisChoice;
+  xLog: boolean | null;
+} {
+  return f.rx ?? { r: RX_AUTO, x: RX_AUTO, xLog: null };
+}
 
 export type AnalysisChartState = {
   kind: ChartKind;
@@ -215,19 +232,24 @@ export function chartFrequencyRange(f: FrequencyChartState, designRange: SweepRa
 }
 
 /** Picking a knob analysis (or the header's own spec): the chart shows that
- *  knob sweep. */
+ *  knob sweep. `views` are the ones the analysis lists (step 5 unit 5): the
+ *  view on screen stays when the analysis lists it, else the chart opens
+ *  on the analysis's first (a Table-only analysis opens on its table). */
 export function pickKnob(
   c: AnalysisChartState,
   name: string | null,
   spec: ParamSweepSpec,
+  views?: readonly KnobView[],
 ): AnalysisChartState {
+  const view =
+    views && views.length > 0 && !views.includes(c.knob.view) ? views[0] : c.knob.view;
   return {
     ...c,
     kind: "knob",
     // A null name is a pick of no analysis ("Sweep a knob", the knob menu):
     // it leaves the analysis, so the old pick and its crosses go.
     picked: name === null ? null : { name, kind: "knob", spec },
-    knob: { ...c.knob, spec, xLog: null },
+    knob: { ...c.knob, spec, xLog: null, view },
   };
 }
 
@@ -253,6 +275,9 @@ export function pickFrequency(
       view: w.views[0],
       axes: pick.vswr ? { ...prefs.axes, vswr: pick.vswr } : prefs.axes,
       threshold: pick.threshold ?? prefs.threshold,
+      // How the viewer set the R/X view's ranges stays, as the knob
+      // sweep's does across picks.
+      ...(c.frequency?.rx ? { rx: c.frequency.rx } : {}),
     },
   };
 }
@@ -295,14 +320,16 @@ export function pickedName(c: AnalysisChartState): string | null {
   return p.spec && p.spec.param === c.knob.spec.param ? p.name : null;
 }
 
-/** A picked knob analysis whose range, points or spacing the viewer has
- *  edited: still picked (its crosses stay), no longer its own range.
- *  Picking it again restores the range. */
+/** A picked analysis whose range the viewer has edited: a knob one's
+ *  range, points or spacing, or a frequency one's from / to (an explicit
+ *  frequency list edited becomes a range, step 5 unit 5). Still picked (its
+ *  crosses stay), no longer its own range. Picking it again, or the chart's
+ *  ↺, restores the range. */
 export function pickedEdited(c: AnalysisChartState): boolean {
   const p = c.picked;
-  return (
-    pickedName(c) !== null && p?.kind === "knob" && !!p.spec && !sameSpec(p.spec, c.knob.spec)
-  );
+  if (pickedName(c) === null || !p) return false;
+  if (p.kind === "frequency") return !!c.frequency?.rangeEdit;
+  return !!p.spec && !sameSpec(p.spec, c.knob.spec);
 }
 
 /** What a chart asks of its two runners this render.
@@ -343,19 +370,28 @@ export function chartRunInputs(
       range: f ? chartFrequencyRange(f, env.designRange) : env.designRange,
       wanted: shown,
       auto: dwell,
+      // R/X against frequency judges refinement on the Smith projection,
+      // which is Z itself; the Table judges none (it lists the points
+      // swept, and refinement would only add rows between them).
       views: {
         vswr: shown && f.view === "Swr",
         gamma: shown && f.view === "S11",
-        smith: shown && f.view === "Smith",
+        smith: shown && (f.view === "Smith" || f.view === "Rx"),
       },
     },
   };
 }
 
 /** A range edit from the chart's from / to: the same spacing and step (or
- *  count), new ends. Null when the ends are not a range. */
+ *  count), new ends. An explicit frequency list (step 5 unit 5) becomes a
+ *  linear range over the new ends with as many points as the list had: an
+ *  edit of the ends is a range. Null when the ends are not a range. */
 export function editRange(r: SweepRange, lo: number, hi: number): SweepRange | null {
   if (!(Number.isFinite(lo) && Number.isFinite(hi) && lo > 0 && hi > lo)) return null;
+  if (r.freqs) {
+    const n = r.freqs.length;
+    return n >= 2 ? { lo, hi, spacing: "lin", step: (hi - lo) / (n - 1) } : { lo, hi, spacing: "lin" };
+  }
   return { ...r, lo, hi };
 }
 

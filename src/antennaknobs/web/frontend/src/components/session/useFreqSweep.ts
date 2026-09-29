@@ -204,7 +204,7 @@ export function useFreqSweep({
   backend,
   groundEnabled,
   groundModel,
-  refineEnabled,
+  refineEnabled: refineSetting,
   z0,
   residentSweepViews,
   sweepAxes,
@@ -218,6 +218,10 @@ export function useFreqSweep({
   seqRef,
   approvedComboRef,
 }: FreqSweepOptions): FreqSweepHandle {
+  // An analysis's explicit frequency list is swept exactly (AK#1757 step 5
+  // unit 5): no refinement adds points between its points, as `antennaknobs
+  // analyze` adds none, so its curve is settled once the list lands.
+  const refineEnabled = refineSetting && !effectiveSweepRange.exact;
   const sweepRangeKey = JSON.stringify(effectiveSweepRange);
   const [sweep, setSweep] = useState<SweepData | null>(null);
   const [sweepRunning, setSweepRunning] = useState(false);

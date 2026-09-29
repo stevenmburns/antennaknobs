@@ -22,7 +22,7 @@ import type {
   PinnedPattern,
 } from "../charts/types";
 import type { ExtraCurve } from "../charts/curves";
-import { ChartFrequency, ChartKnobSmith } from "./ChartFrequency";
+import { ChartFrequency, ChartKnobSmith, knobTable } from "./ChartFrequency";
 import { ChartLegend, type ChartLegendData, legendShown } from "./ChartLegend";
 import { FilesPanel, type FilesViewData } from "./FilesPanel";
 import { SchematicPanel } from "./SchematicPanel";
@@ -121,6 +121,10 @@ export type ViewRenderProps = {
    *  reason. Omitted: one curve, no legend. */
   chartCurves?: readonly ExtraCurve[];
   chartLegend?: ChartLegendData | null;
+  /** The drawn curves' legend labels, in the order the chart's own curve
+   *  and `chartCurves` draw them: the Table view's column groups (AK#1757
+   *  step 5 unit 5). Omitted: the groups go unnamed. */
+  chartCellLabels?: readonly string[];
 };
 
 /** A frequency sweep as the analysis chart draws it: the chart's sweep
@@ -141,6 +145,11 @@ export type ChartFrequencyRender = {
   threshold: number;
   onAxisChange?: (mode: SweepMode, c: SweepAxisChoice) => void;
   onThresholdChange?: (t: number) => void;
+  /** The R/X view's ranges and x axis (step 5 unit 5), and their edits
+   *  (stage only). Omitted: Auto, linear x. */
+  rx?: { r: RxAxisChoice; x: RxAxisChoice; xLog: boolean };
+  onRxAxisChange?: (axis: RxAxis, c: RxAxisChoice) => void;
+  onRxXLogChange?: (log: boolean) => void;
 };
 
 /** What the Z-vs-parameter view draws against: the parameter chosen (the
@@ -297,6 +306,7 @@ function analysisChart(p: ViewRenderProps): ReactElement {
   if (p.chartFrequency) return <ChartFrequency p={p} f={p.chartFrequency} />;
   const z = p.zparam ?? DEFAULT_ZPARAM;
   if (z.view === "Smith") return <ChartKnobSmith p={p} />;
+  if (z.view === "Table") return knobTable(p, z.param);
   const r = p.liveZ?.z_in_re ?? p.result?.z_in_re ?? null;
   const x = p.liveZ?.z_in_im ?? p.result?.z_in_im ?? null;
   return (
