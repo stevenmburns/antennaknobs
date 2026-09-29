@@ -237,9 +237,10 @@ describe("a density sweep is the old convergence sweep", () => {
     expect(
       (screen.getByRole("checkbox", { name: "auto re-run" }) as HTMLInputElement).checked,
     ).toBe(true);
-    // The knob sweep's views: R/X, and its trail on the Smith chart.
+    // The knob sweep's views: R/X, its trail on the Smith chart, and the
+    // numbers (the Table, AK#1757 step 5 unit 5).
     const view = screen.getByRole("combobox", { name: "Chart view" }) as HTMLSelectElement;
-    expect([...view.options].map((o) => o.value)).toEqual(["Rx", "Smith"]);
+    expect([...view.options].map((o) => o.value)).toEqual(["Rx", "Smith", "Table"]);
     fireEvent.change(view, { target: { value: "Smith" } });
     const smith = () =>
       [...container.querySelectorAll<HTMLElement>("canvas.smith")].find(
