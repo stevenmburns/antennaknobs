@@ -8,6 +8,7 @@ import {
   traceFor,
   useCutTraces,
 } from "./cuts";
+import { CHART_FONT, fitChartCanvas, useChartScale } from "./chartScale";
 import { ghostRgb, plotColors } from "./palette";
 import {
   drawDbiRings,
@@ -54,6 +55,7 @@ export function FarFieldChart({
   onCaptions?: ((c: FarFieldCaptions) => void) | undefined;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
+  const k = useChartScale(); // the chart scale (./chartScale)
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Server-computed cut traces for the live solve + enabled pins (issue
@@ -94,21 +96,16 @@ export function FarFieldChart({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(size * dpr);
-    canvas.height = Math.floor(size * dpr);
-    canvas.style.width = `${size}px`;
-    canvas.style.height = `${size}px`;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const sz = fitChartCanvas(canvas, ctx, size, k);
 
     const PC = plotColors();
 
     ctx.fillStyle = PC.bg;
-    ctx.fillRect(0, 0, size, size);
+    ctx.fillRect(0, 0, sz, sz);
 
-    const cx = size / 2;
-    const cy = size / 2;
-    const R = size / 2 - 14;
+    const cx = sz / 2;
+    const cy = sz / 2;
+    const R = sz / 2 - 14;
 
     // Azimuth cut: cone above horizon at elevation azElevDeg. With ground
     // off, the conventional setting is 0° (the xy plane). With ground on,
@@ -164,14 +161,14 @@ export function FarFieldChart({
     // Axis labels: xy cut uses world x/y around the rim; yz cut shows the
     // azimuth bearing on the horizontal pair and zenith/nadir on vertical.
     ctx.fillStyle = PC.labelDim;
-    ctx.font = "10px ui-monospace, monospace";
+    ctx.font = CHART_FONT.label;
     const cutLabel =
       cut === "xy"
         ? `az @ ${azElevDeg}° elev (dBi)`
         : `elev @ ${elevAzDeg}° az (dBi)`;
     // A thumbnail too small for both corner labels keeps the peak; the view's
     // name is printed under it anyway.
-    if (drawCaptions && size >= 220) ctx.fillText(cutLabel, 6, 14);
+    if (drawCaptions && sz >= 220) ctx.fillText(cutLabel, 6, 14);
     ctx.fillStyle = PC.label;
     // A thumbnail (the chart that prints its own captions) has no room for
     // the axis labels: they collide with its peak and cut captions, and the
@@ -208,7 +205,7 @@ export function FarFieldChart({
     // downhill only wins below the first-lobe band).
     const terrainMarker = result.ground_terrain?.marker;
     if (terrainMarker) {
-      ctx.font = "10px ui-monospace, monospace";
+      ctx.font = CHART_FONT.label;
       if (cut === "xy") {
         // Inward tick + label at the bearing; dimmer label opposite.
         const a = (terrainMarker.bearing_deg * Math.PI) / 180;
@@ -367,10 +364,10 @@ export function FarFieldChart({
       // Legend swatch + label, bottom-right.
       if (drawCaptions) {
         ctx.fillStyle = `rgba(${PC.necRgb}, 0.9)`;
-        ctx.font = "10px ui-monospace, monospace";
+        ctx.font = CHART_FONT.label;
         const necText = "NEC rp_card";
         const necTw = ctx.measureText(necText).width;
-        ctx.fillText(necText, size - necTw - 6, size - 6);
+        ctx.fillText(necText, sz - necTw - 6, sz - 6);
       }
     }
 
@@ -381,10 +378,10 @@ export function FarFieldChart({
     // Peak dBi annotation (top-right corner).
     const peakDbi = liveTrace.peakDbi;
     ctx.fillStyle = PC.labelStrong;
-    ctx.font = "10px ui-monospace, monospace";
+    ctx.font = CHART_FONT.readout;
     const peakText = `peak ${peakDbi >= 0 ? "+" : ""}${peakDbi.toFixed(1)} dBi`;
     const tw = ctx.measureText(peakText).width;
-    ctx.fillText(peakText, size - tw - 6, 14);
+    ctx.fillText(peakText, sz - tw - 6, 14);
     // Which FIELD this trace is, over a faceted terrain (issue #1373). Always
     // shown when there are two to choose between, never when there is one: a
     // label that appears only while the two "differ" would be a label the user
@@ -399,11 +396,11 @@ export function FarFieldChart({
     if (cutTraces[0] && result?.ground_terrain) {
       const diffracted = cutTraces[0].diffraction;
       ctx.fillStyle = diffracted ? PC.labelStrong : PC.labelDim;
-      ctx.font = "10px ui-monospace, monospace";
+      ctx.font = CHART_FONT.label;
       ctx.fillText(
         diffracted ? "with diffraction" : "specular while dragging",
         6,
-        size - 6,
+        sz - 6,
       );
     }
     const frac = result?.in_medium_moment_fraction;
@@ -415,7 +412,7 @@ export function FarFieldChart({
       ctx.fillStyle = PC.labelDim;
       const medText = `${Math.round(frac * 100)}% of current below ground`;
       const mw = ctx.measureText(medText).width;
-      ctx.fillText(medText, size - mw - 6, 26);
+      ctx.fillText(medText, sz - mw - 6, 26);
     }
     // cutTracesKey stands in for the fetched trace contents (see above); the
     // other deps cover everything the draw reads directly.
@@ -425,6 +422,7 @@ export function FarFieldChart({
     pattern,
     pinned,
     size,
+    k,
     cut,
     azElevDeg,
     elevAzDeg,

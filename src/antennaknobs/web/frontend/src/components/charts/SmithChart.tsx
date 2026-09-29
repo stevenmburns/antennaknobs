@@ -22,6 +22,7 @@ import { formatParam, isDensity } from "../../lib/paramSweep";
 import type { SweepProgress } from "../../lib/sweep";
 import { zinfSuffix, type ZInfStatus } from "../../lib/zinf";
 import { ThemeContext } from "../hooks";
+import { CHART_FONT, fitChartCanvas, useChartScale } from "./chartScale";
 import { curvesAttr, type ExtraCurve, NO_CURVES } from "./curves";
 import { feedColor, feedSweepColor, plotColors, STALE_TRACE_ALPHA } from "./palette";
 import {
@@ -138,10 +139,15 @@ export function SmithChart({
   const view = interactive ? viewState : FIT_VIEW;
   const zoomed = isZoomed(view);
 
+  // The chart scale (./chartScale): the canvas draws in a logical square of
+  // sz = size / k px, and the handlers work in the same units (a pointer's
+  // offset divided by k), so the view's pan is in logical px too.
+  const k = useChartScale();
+  const sz = size / k;
   // Geometry the handlers share with the draw: canvas centre and the unit
   // circle's radius at fit.
-  const half = size / 2;
-  const rFit = size / 2 - 10;
+  const half = sz / 2;
+  const rFit = sz / 2 - 10;
   const zoomBy = (factor: number, ax: number, ay: number) =>
     setView((v) => zoomAbout(v, factor, ax, ay, half, half, rFit));
 
@@ -160,20 +166,20 @@ export function SmithChart({
       const rect = canvas.getBoundingClientRect();
       const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY; // line-mode → px
       const factor = Math.exp(-dy * 0.002);
-      const ax = e.clientX - rect.left;
-      const ay = e.clientY - rect.top;
-      setView((v) => zoomAbout(v, factor, ax, ay, size / 2, size / 2, size / 2 - 10));
+      const ax = (e.clientX - rect.left) / k;
+      const ay = (e.clientY - rect.top) / k;
+      setView((v) => zoomAbout(v, factor, ax, ay, sz / 2, sz / 2, sz / 2 - 10));
     };
     canvas.addEventListener("wheel", onWheel, { passive: false });
     return () => canvas.removeEventListener("wheel", onWheel);
-  }, [interactive, size]);
+  }, [interactive, sz, k]);
 
   // Drag pans once zoomed (at fit a touch drag stays with the mobile
   // carousel swipe); two pointers pinch-zoom about their midpoint.
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const posOf = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    return { x: (e.clientX - rect.left) / k, y: (e.clientY - rect.top) / k };
   };
   const onPointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -235,18 +241,13 @@ export function SmithChart({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(size * dpr);
-    canvas.height = Math.floor(size * dpr);
-    canvas.style.width = `${size}px`;
-    canvas.style.height = `${size}px`;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fitChartCanvas(canvas, ctx, size, k);
 
     const PC = plotColors();
 
-    const cx = size / 2;
-    const cy = size / 2;
-    const R = size / 2 - 10;
+    const cx = sz / 2;
+    const cy = sz / 2;
+    const R = sz / 2 - 10;
 
     // The chart's own zoom and pan (lib/smithView.ts) — identity on a
     // thumbnail. Everything in the Γ plane goes through S(); stroke widths,
@@ -266,18 +267,18 @@ export function SmithChart({
     // and the canvas is not wholly inside it (a huge arc passing far off).
     // Zoomed in, most of the fine grid is off-screen and this skips it.
     const circleOnScreen = (x: number, y: number, rad: number): boolean => {
-      if (x + rad < 0 || x - rad > size || y + rad < 0 || y - rad > size) return false;
+      if (x + rad < 0 || x - rad > sz || y + rad < 0 || y - rad > sz) return false;
       const far = Math.max(
         Math.hypot(x, y),
-        Math.hypot(x - size, y),
-        Math.hypot(x, y - size),
-        Math.hypot(x - size, y - size),
+        Math.hypot(x - sz, y),
+        Math.hypot(x, y - sz),
+        Math.hypot(x - sz, y - sz),
       );
       return far > rad;
     };
 
     ctx.fillStyle = PC.bg;
-    ctx.fillRect(0, 0, size, size);
+    ctx.fillRect(0, 0, sz, sz);
 
     // Constant-r circles in the Γ plane.
     // Each maps to a circle: center = (r/(r+1), 0), radius = 1/(r+1).
@@ -333,11 +334,11 @@ export function SmithChart({
     // labels form a readable ruler along each axis of the view. A label that
     // would overlap the previous one on its ruler is dropped.
     if (grid.stepOhms != null) {
-      const mid = screenToGamma(view, size / 2, size / 2, cx, cy, R);
+      const mid = screenToGamma(view, sz / 2, sz / 2, cx, cy, R);
       const inView = (p: { x: number; y: number }) =>
-        p.x > 4 && p.x < size - 30 && p.y > 26 && p.y < size - 30;
+        p.x > 4 && p.x < sz - 30 && p.y > 26 && p.y < sz - 30;
       ctx.fillStyle = PC.labelDim;
-      ctx.font = "9px ui-monospace, monospace";
+      ctx.font = CHART_FONT.tick;
       const rMarks: Array<{ x: number; y: number; t: string }> = [];
       for (const { n: rn, label } of grid.r) {
         if (!label) continue;
@@ -385,7 +386,7 @@ export function SmithChart({
 
     // Z0 label at center
     ctx.fillStyle = PC.labelDim;
-    ctx.font = "10px ui-monospace, monospace";
+    ctx.font = CHART_FONT.label;
     ctx.fillText(`Z₀ = ${z0}`, 6, 14);
 
     // Reactance sign labels, pinned to the disc's upper and lower right so
@@ -514,11 +515,11 @@ export function SmithChart({
 
       // Freq range label across the bottom of the panel.
       ctx.fillStyle = PC.labelBright;
-      ctx.font = "10px ui-monospace, monospace";
+      ctx.font = CHART_FONT.label;
       const fLoTxt = sweep.freqs_mhz[0].toFixed(2);
       const fHiTxt = sweep.freqs_mhz[sweep.freqs_mhz.length - 1].toFixed(2);
       const txt = `${fLoTxt} → ${fHiTxt} MHz`;
-      ctx.fillText(txt, size - 6 - ctx.measureText(txt).width, size - 6);
+      ctx.fillText(txt, sz - 6 - ctx.measureText(txt).width, sz - 6);
 
     }
 
@@ -543,13 +544,13 @@ export function SmithChart({
       }
       const mGamma = (i: number) =>
         reflectionCoefficient(measured.z_re[i], measured.z_im[i], z0);
-      ctx.font = "10px ui-monospace, monospace";
+      ctx.font = CHART_FONT.label;
       ctx.fillStyle = PC.measured;
       if (idx.length === 0) {
         // Disjoint bands. Say so — the user picked a file and would otherwise
         // see the chart not change at all.
         const txt = `measured ${mf[0].toFixed(2)}–${mf[mf.length - 1].toFixed(2)} MHz: outside the sweep`;
-        ctx.fillText(txt, size - 6 - ctx.measureText(txt).width, size - 20);
+        ctx.fillText(txt, sz - 6 - ctx.measureText(txt).width, sz - 20);
       } else {
         ctx.save();
         clipDisc();
@@ -591,7 +592,7 @@ export function SmithChart({
         const dHi = mf[idx[idx.length - 1]].toFixed(2);
         const partial = idx.length < mf.length ? " (clipped)" : "";
         const txt = `measured: ${measured.label}  ${dLo} → ${dHi} MHz${partial}`;
-        ctx.fillText(txt, size - 6 - ctx.measureText(txt).width, size - 20);
+        ctx.fillText(txt, sz - 6 - ctx.measureText(txt).width, sz - 20);
       }
     }
 
@@ -600,10 +601,10 @@ export function SmithChart({
     const status = sweepStatusText(running, progress);
     if (status) {
       ctx.fillStyle = PC.label;
-      ctx.font = "10px ui-monospace, monospace";
-      ctx.fillText(status, 6, size - 6);
+      ctx.font = CHART_FONT.label;
+      ctx.fillText(status, 6, sz - 6);
     }
-    drawSweepProgressBar(ctx, progress, size, PC.label);
+    drawSweepProgressBar(ctx, progress, sz, PC.label);
 
     // Convergence locus: Z(N) trajectory as N increases, drawn as a
     // connected polyline per feed so the sequence direction reads as
@@ -681,7 +682,7 @@ export function SmithChart({
       // Offset away from the chart centre, where the other end and the
       // current-Z dot usually sit.
       if (converge.values.length >= 2) {
-        ctx.font = "9px ui-monospace, monospace";
+        ctx.font = CHART_FONT.tick;
         ctx.fillStyle = feedColor(0);
         const at = (idx: number) => {
           const z = czAt(0, idx);
@@ -789,13 +790,13 @@ export function SmithChart({
     }
     if (paramSweepRunning) {
       ctx.fillStyle = PC.label;
-      ctx.font = "10px ui-monospace, monospace";
+      ctx.font = CHART_FONT.label;
       // Stack under the freq-sweep status if both are running.
       const yOff = status ? 18 : 6;
       ctx.fillText(
         !converge || isDensity(converge.param) ? "converging…" : `sweeping ${converge.label}…`,
         6,
-        size - yOff,
+        sz - yOff,
       );
     }
 
@@ -932,7 +933,7 @@ export function SmithChart({
       });
     }
     if (summaryFeeds.length > 0) {
-      ctx.font = "10px ui-monospace, monospace";
+      ctx.font = CHART_FONT.readout;
       for (let row = 0; row < summaryFeeds.length; row++) {
         const { fi, extrapRe, extrapIm, extrapP, extrapStatus, extrapReason } =
           summaryFeeds[row];
@@ -968,10 +969,10 @@ export function SmithChart({
       const nLo = formatParam(converge.values[0]);
       const nHi = formatParam(converge.values[converge.values.length - 1]);
       ctx.fillStyle = PC.labelBright;
-      ctx.font = "10px ui-monospace, monospace";
-      const baseY = status && paramSweepRunning ? size - 30
-        : status || paramSweepRunning ? size - 18
-        : size - 6;
+      ctx.font = CHART_FONT.label;
+      const baseY = status && paramSweepRunning ? sz - 30
+        : status || paramSweepRunning ? sz - 18
+        : sz - 6;
       ctx.fillText(`${isDensity(converge.param) ? "N" : converge.label}: ${nLo} → ${nHi}`, 6, baseY);
     }
 
@@ -995,7 +996,7 @@ export function SmithChart({
     // and `trialWorstFeed` likewise carry the whole per-eval picture (#789):
     // r/x still change every frame on a multi-feed run, but they are only
     // feed 0, so a run where feed 0 sat still would freeze every ring.
-  }, [r, x, z0, size, sweep, paramSweep, measured, measFreqMhz, running, progress, paramSweepRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme, view, stale, curves]);
+  }, [r, x, z0, size, sz, k, sweep, paramSweep, measured, measFreqMhz, running, progress, paramSweepRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme, view, stale, curves]);
 
   // data-connect mirrors the trail mode (locus vs. dot cloud) for tests —
   // canvas pixels are invisible to jsdom, the attribute is not (the same

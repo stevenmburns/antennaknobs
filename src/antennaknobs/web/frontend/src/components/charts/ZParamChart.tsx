@@ -23,6 +23,7 @@ import { zinfSuffix } from "../../lib/zinf";
 import { ZPARAM_PLOT_MARGIN } from "../../lib/zparamLayout";
 import { ThemeContext, useIsMobile } from "../hooks";
 import { curvesAttr, type ExtraCurve, NO_CURVES } from "./curves";
+import { CHART_FONT, fitChartCanvas, useChartScale } from "./chartScale";
 import { cellColor, plotColors } from "./palette";
 import { RxRangePopover } from "./RxRangePopover";
 
@@ -114,6 +115,9 @@ export function ZParamChart({
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const { isMobile } = useIsMobile();
+  // The chart scale (./chartScale): the canvas draws in a logical square of
+  // size / k, so its type, marks and margins grow by k together.
+  const k = useChartScale();
   const [zinfOpen, setZinfOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -211,27 +215,22 @@ export function ZParamChart({
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(size * dpr);
-    canvas.height = Math.floor(size * dpr);
-    canvas.style.width = `${size}px`;
-    canvas.style.height = `${size}px`;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const sz = fitChartCanvas(canvas, ctx, size, k);
 
     const PC = plotColors();
     const R = (a = 1) => `rgba(${PC.rRgb}, ${a})`;
     const X = (a = 1) => `rgba(${PC.xRgb}, ${a})`;
     ctx.fillStyle = PC.bg;
-    ctx.fillRect(0, 0, size, size);
+    ctx.fillRect(0, 0, sz, sz);
 
-    const pw = size - MARGIN.l - MARGIN.r;
-    const ph = size - MARGIN.t - MARGIN.b;
+    const pw = sz - MARGIN.l - MARGIN.r;
+    const ph = sz - MARGIN.t - MARGIN.b;
     const px = (v: number) => MARGIN.l + pw * fx(v);
     const py = (v: number, dd: { lo: number; hi: number }) =>
       MARGIN.t + ph * (1 - (v - dd.lo) / (dd.hi - dd.lo));
     const onPlot = (y: number) => y >= MARGIN.t - 0.5 && y <= MARGIN.t + ph + 0.5;
 
-    ctx.font = "9px ui-monospace, monospace";
+    ctx.font = CHART_FONT.tick;
     // R grid + left labels, X right labels (its grid would double the lines).
     ctx.lineWidth = 0.6;
     for (const t of rT) {
@@ -282,7 +281,7 @@ export function ZParamChart({
       c: string,
       side: "left" | "right",
     ) => {
-      ctx.font = "9px ui-monospace, monospace";
+      ctx.font = CHART_FONT.tick;
       const tw = ctx.measureText(label).width;
       const lx = side === "left" ? MARGIN.l + 4 : MARGIN.l + pw - tw - 4;
       if (p.at === "in") {
@@ -314,15 +313,15 @@ export function ZParamChart({
 
     // Titles: "R Ω" over the left axis, "X Ω" over the right, the parameter
     // under the plot (with "(log)" when the axis is).
-    ctx.font = "10px ui-monospace, monospace";
+    ctx.font = CHART_FONT.label;
     ctx.fillStyle = R();
     ctx.fillText("R Ω", 4, 12);
     ctx.fillStyle = X();
     const xt = "X Ω";
-    ctx.fillText(xt, size - 4 - ctx.measureText(xt).width, 12);
+    ctx.fillText(xt, sz - 4 - ctx.measureText(xt).width, 12);
     ctx.fillStyle = PC.labelBright;
     const xl = `${label}${unit ? ` (${unit})` : ""}${logX ? " · log" : ""}`;
-    ctx.fillText(xl, MARGIN.l + (pw - ctx.measureText(xl).width) / 2, size - 5);
+    ctx.fillText(xl, MARGIN.l + (pw - ctx.measureText(xl).width) / 2, sz - 5);
 
     ctx.save();
     ctx.beginPath();
@@ -350,7 +349,7 @@ export function ZParamChart({
       ctx.setLineDash([]);
       // "Z*" at the left end of each line, R's above it and X's below, so
       // the two stay tellable apart when their auto ranges put them level.
-      ctx.font = "9px ui-monospace, monospace";
+      ctx.font = CHART_FONT.tick;
       if (extrap.re != null) {
         ctx.fillStyle = R(0.9);
         ctx.fillText("Z∞ R", MARGIN.l + 4, py(extrap.re, rDom) - 3);
@@ -451,7 +450,7 @@ export function ZParamChart({
     // A value box: the parameter and one component, in that component's
     // colour, beside its point and kept inside the plot.
     const box = (lines: string[], ax: number, ay: number, c: string, left: boolean) => {
-      ctx.font = "9px ui-monospace, monospace";
+      ctx.font = CHART_FONT.tick;
       const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 8;
       const h = 12 * lines.length + 4;
       let bx = left ? ax - w - 8 : ax + 8;
@@ -501,12 +500,12 @@ export function ZParamChart({
     // On a phone the line is DOM (below), so its ⓘ can follow the text
     // instead of floating over a painted string (Steve: the ⓘ sat on Z∞).
     if (zinfFull != null && !isMobile) {
-      ctx.font = "10px ui-monospace, monospace";
+      ctx.font = CHART_FONT.readout;
       ctx.fillStyle = PC.labelBright;
       ctx.fillText(zinfFull, MARGIN.l + (pw - ctx.measureText(zinfFull).width) / 2, 12);
     }
     if (status) {
-      ctx.font = "10px ui-monospace, monospace";
+      ctx.font = CHART_FONT.label;
       ctx.fillStyle = PC.label;
       // Bottom-right: the first point's value boxes sit at the left.
       ctx.fillText(status, MARGIN.l + pw - ctx.measureText(status).width - 4, MARGIN.t + ph - 6);
@@ -515,13 +514,14 @@ export function ZParamChart({
     // choices below; domKey stands in for the domains as a string, so an
     // unchanged range does not redraw.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, param, label, unit, size, theme, isMobile, zinfFull, dotR, domKey, currentValue, liveR, liveX, shownHover, status, callouts, curves]);
+  }, [data, param, label, unit, size, k, theme, isMobile, zinfFull, dotR, domKey, currentValue, liveR, liveX, shownHover, status, callouts, curves]);
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (n === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const pw = size - MARGIN.l - MARGIN.r;
-    const at = (e.clientX - rect.left - MARGIN.l) / pw;
+    // In the canvas's logical px (size / k, ./chartScale).
+    const pw = size / k - MARGIN.l - MARGIN.r;
+    const at = ((e.clientX - rect.left) / k - MARGIN.l) / pw;
     if (at < -0.05 || at > 1.05) {
       setHover(null);
       return;
@@ -606,7 +606,7 @@ export function ZParamChart({
             key={a}
             type="button"
             className={`sweep-axis-btn zparam-axis-btn-${a}`}
-            style={{ top: MARGIN.t, height: size - MARGIN.t - MARGIN.b }}
+            style={{ top: MARGIN.t * k, height: size - (MARGIN.t + MARGIN.b) * k }}
             aria-label={axisTitle(a)}
             title={`${axisTitle(a)} (${axisChoice(a).kind === "auto" ? "Auto" : "fixed"})`}
             aria-haspopup="dialog"
