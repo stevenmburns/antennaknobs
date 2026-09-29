@@ -58,10 +58,19 @@ _logger = logging.getLogger(__name__)
 # (key, label, built-in default). The one copy of these defaults: the frontend
 # starts every switch from the served value, and the fallback in the frontend's
 # lib/settings.ts is pinned to this table by tests/test_settings_toml_1492.py.
+#
+# `freq_sweep` and `convergence_sweep` were the Smith view's "freq sweep" and
+# "param sweep" checkboxes. Since AK#1757 (sweep-framework step 5 unit 3) the
+# workbench has neither checkbox: each analysis chart has its own dwell switch
+# ("auto re-run"), and these two keys seed it for a new chart, `freq_sweep`
+# for a frequency sweep and `convergence_sweep` for a knob or density sweep.
+# They stay valid keys, so an existing file keeps loading without a problem,
+# and a save writes back what the file said, never a chart's switch (the
+# chart's state is the session's alone).
 SWITCHES: tuple[tuple[str, str, bool], ...] = (
     ("live", "Live", True),
-    ("freq_sweep", "freq sweep", True),
-    ("convergence_sweep", "param sweep", False),
+    ("freq_sweep", "frequency charts re-run by themselves", True),
+    ("convergence_sweep", "knob and density charts re-run by themselves", False),
     ("pattern_renorm", "norm check", True),
     ("refine", "adaptive resolution", True),
     ("heatmap_currents", "heatmapped currents", True),
