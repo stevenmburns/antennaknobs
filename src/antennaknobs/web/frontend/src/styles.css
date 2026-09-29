@@ -4700,9 +4700,39 @@ canvas {
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
 }
-.chart-legend summary {
-  cursor: pointer;
+.chart-legend-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
   color: var(--muted);
+}
+.chart-legend-collapse {
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+/* The collapsed legend (Steve's phone review of unit 4a): one small chip,
+   where the legend sat, that still counts the refused cells. */
+.chart-legend-chip {
+  position: absolute;
+  top: 18px;
+  right: 6px;
+  padding: 1px var(--space-2);
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--muted);
+  background: rgba(var(--plot-bg-rgb, 13, 16, 21), 0.82);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.chart-legend-chip[data-refused]:not([data-refused="0"]) {
+  color: var(--fg);
 }
 .chart-legend ul {
   list-style: none;

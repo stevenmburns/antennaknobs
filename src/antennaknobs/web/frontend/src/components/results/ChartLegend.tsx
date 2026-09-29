@@ -6,6 +6,13 @@
 //
 // A chart with one curve and nothing refused has no legend: it is the chart
 // as it was before crosses.
+//
+// It collapses to a chip, "<n> curves ▾", plus " · <k> refused" whenever a
+// cell (or the whole chart, over the cap) is refused, so collapsing never
+// hides a refusal (Steve's phone review of unit 4a: the legend covered too
+// much of a phone's chart). Collapsed by default on a phone, open on a
+// desktop, as the knob sweep's value boxes are (unit 3); per chart and
+// session-only, like the rest of a chart's state.
 
 export type ChartLegendEntry = {
   key: string;
@@ -24,7 +31,26 @@ export type ChartLegendData = {
   capRefusal: string | null;
   /** The R / X plot draws each curve's R solid and its X dashed. */
   rx?: boolean;
+  /** Expanded (true, the default) or collapsed to its chip; with
+   *  `onOpen`, the chip and the collapse control flip it. */
+  open?: boolean;
+  onOpen?: (open: boolean) => void;
 };
+
+/** How many cells the legend names as refused: the refused entries, or one
+ *  for a chart refused whole over the cap. */
+export function refusedCount(l: ChartLegendData): number {
+  if (l.capRefusal) return 1;
+  return l.entries.filter((e) => e.refused).length;
+}
+
+/** The collapsed legend's chip: "<n> curves ▾", and " · <k> refused" when
+ *  anything is refused. */
+export function chipText(l: ChartLegendData): string {
+  const drawn = l.capRefusal ? 0 : l.entries.filter((e) => !e.refused).length;
+  const k = refusedCount(l);
+  return `${drawn} curve${drawn === 1 ? "" : "s"} ▾` + (k > 0 ? ` · ${k} refused` : "");
+}
 
 export function legendShown(l: ChartLegendData | null | undefined): l is ChartLegendData {
   return (
@@ -34,12 +60,41 @@ export function legendShown(l: ChartLegendData | null | undefined): l is ChartLe
 
 export function ChartLegend({ legend }: { legend: ChartLegendData }) {
   const drawn = legend.entries.filter((e) => !e.refused).length;
+  const { onOpen } = legend;
+  if (legend.open === false && onOpen) {
+    return (
+      <button
+        type="button"
+        className="chart-legend-chip"
+        aria-expanded={false}
+        aria-label={`Show the legend: ${chipText(legend)}`}
+        data-curves={drawn}
+        data-refused={refusedCount(legend)}
+        onClick={() => onOpen(true)}
+      >
+        {chipText(legend)}
+      </button>
+    );
+  }
   return (
-    <details className="chart-legend" open data-curves={drawn}>
-      <summary>
-        {legend.capRefusal ? "refused" : `${drawn} curve${drawn === 1 ? "" : "s"}`}
-        {legend.rx && !legend.capRefusal ? " · R solid, X dashed" : ""}
-      </summary>
+    <div className="chart-legend" data-curves={drawn}>
+      <div className="chart-legend-head">
+        <span>
+          {legend.capRefusal ? "refused" : `${drawn} curve${drawn === 1 ? "" : "s"}`}
+          {legend.rx && !legend.capRefusal ? " · R solid, X dashed" : ""}
+        </span>
+        {onOpen && (
+          <button
+            type="button"
+            className="chart-legend-collapse"
+            aria-expanded={true}
+            aria-label="Collapse the legend"
+            onClick={() => onOpen(false)}
+          >
+            ▴
+          </button>
+        )}
+      </div>
       {legend.capRefusal ? (
         <div className="chart-legend-row is-refused" role="alert">
           {legend.capRefusal}
@@ -64,6 +119,6 @@ export function ChartLegend({ legend }: { legend: ChartLegendData }) {
           ))}
         </ul>
       )}
-    </details>
+    </div>
   );
 }
