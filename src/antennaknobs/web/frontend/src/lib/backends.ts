@@ -105,12 +105,12 @@ export type CompositionVocabulary = {
 export type BackendEntry = {
   name: string;
   label: string;
-  /** Non-momwire kinds ("pynec", "nec5", "nec2") ride the `solver` request
-   *  field and never `momwire_model`; everything else is a momwire model name.
-   *  "nec5" and "nec2" appear only when the serving machine resolves $NEC5_EXE
-   *  / $NEC2_EXE — user-supplied binaries (issues #825, #1354), never the
-   *  hosted box. */
-  kind: "momwire" | "pynec" | "nec5" | "nec2";
+  /** Non-momwire kinds ("pynec", "nec5", "nec2", "nec42") ride the `solver`
+   *  request field and never `momwire_model`; everything else is a momwire
+   *  model name. "nec5", "nec2" and "nec42" appear only when the serving
+   *  machine resolves $NEC5_EXE / $NEC2_EXE / $NEC42_EXE — user-supplied
+   *  binaries (issues #825, #1354, #1603), never the hosted box. */
+  kind: "momwire" | "pynec" | "nec5" | "nec2" | "nec42";
   supports_ground: boolean;
   options_schema: BackendOptionField[];
   /** Bespoke panel hint, as served. Nothing in this client reads it since

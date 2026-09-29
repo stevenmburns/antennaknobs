@@ -335,6 +335,10 @@ class AntennaExample:
     #: distributed bundle offer it.
     nec2_solve: Optional[SolveFn] = None
     nec2_pattern: Optional[SolveFn] = None
+    #: NEC-4.2 twins (AK#1603): the same contracts, backed by the user's
+    #: licensed NEC-4.2 binary via $NEC42_EXE.
+    nec42_solve: Optional[SolveFn] = None
+    nec42_pattern: Optional[SolveFn] = None
     #: Render the geometry as a NEC-5 card deck (str) for the current request
     #: (issue #1389). Offered ALWAYS, whatever engines are installed — the
     #: writer needs none — and it serves the buried / ground-contact / graded

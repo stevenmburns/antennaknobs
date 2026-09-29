@@ -131,6 +131,7 @@ def test_every_wrapper_serves_the_network():
         "pynec": (True, None, None),
         "nec5": (True, None, None),
         "nec2": (True, None, None),
+        "nec42": (True, None, None),  # NEC-2's route, inherited (AK#1603)
     }
 
 
