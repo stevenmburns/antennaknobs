@@ -4,22 +4,27 @@
 each with its one-line summary, its Python, its problems, and a
 ``workbench`` entry saying how the workbench runs it:
 
-- ``{runs: True, kind: "knob", param, values, log, note}``: the
+- ``{runs: True, kind: "knob", param, values, log, views, note}``: the
   Z-vs-parameter view. ``param`` and ``values`` are exactly what
   ``/param_sweep`` takes. The values come from the same functions
   ``antennaknobs analyze`` sweeps (`analysis_run.knob_xs`,
   `analysis_run.density_rungs`), so a picked analysis and the CLI solve one
-  ladder;
-- ``{runs: True, kind: "frequency", range, level, points, views, swr,
-  note}``: the frequency sweep (step 4). ``range`` is the span and grid
-  `analysis_run.frequency_range` resolves, in ``/examples``'
+  ladder. ``views`` are the ones the chart draws of a knob sweep ("Rx",
+  "Smith", "Table"), in the analysis's order;
+- ``{runs: True, kind: "frequency", range, level, points, freqs, views,
+  swr, note}``: the frequency sweep (step 4). ``range`` is the span and
+  grid `analysis_run.frequency_range` resolves, in ``/examples``'
   ``sweep_range`` shape, when it is absolute (the analysis's own, or the
   design's: ``level`` "analysis", "file" or "design"); None when it is the
   band policy (``level`` "policy" / "default"), which is relative to the
   session's band and so is the frontend's to place. ``points`` is the
-  analysis's own count, or None. ``views`` are the ones the workbench draws
-  ("Swr", "S11", "Smith"), in the analysis's order; ``swr`` is the Swr
-  view's ``scale`` and the ``Ref`` threshold;
+  analysis's own count, or None. ``freqs`` is the analysis's explicit
+  frequency list (``Sweep(values=...)``), exactly the MHz ``analyze``
+  sweeps (`analysis_run.frequency_xs`), in its order, and None for a range;
+  with a list, ``range`` spans it (lin, its count) and ``level`` is
+  "analysis" (step 5 unit 5). ``views`` are the ones the workbench draws
+  ("Swr", "S11", "Smith", "Rx", "Table"), in the analysis's order; ``swr``
+  is the Swr view's ``scale`` and the ``Ref`` threshold;
 - ``{runs: False, why}``: why the workbench cannot draw it yet, one
   string (reasons joined by "; "), each naming the sweep-framework step it
   is planned for, or the problem `analyses.problems` found.
@@ -66,14 +71,20 @@ from .. import analysis_run as ar
 from .param_sweep import DENSITY, ParamSweepError, sweep_values
 
 # The sweep-framework step each piece the workbench cannot draw yet is
-# planned for (Steve, 2026-09-28): 5 the map, and (Steve, on #1790) the
-# table, R/X against frequency and explicit frequencies; 6 hold. Crosses
-# over planes, designs and families draw since step 5 unit 4.
-_VIEW_STEP = {an.Map: 5, an.Knobs: 6, an.Table: 5}
-_FREQUENCY_RX_STEP = 5
-_FREQUENCY_VALUES_STEP = 5
+# planned for (Steve, 2026-09-28): 5 the map; 6 hold. Crosses over planes,
+# designs and families draw since step 5 unit 4; the table, R/X against
+# frequency and explicit frequencies since unit 5.
+_VIEW_STEP = {an.Map: 5, an.Knobs: 6}
 # The workbench's frequency-sweep views, by the names /analyses serves.
-_FREQUENCY_VIEWS = {an.Swr: "Swr", an.S11: "S11", an.Smith: "Smith"}
+_FREQUENCY_VIEWS = {
+    an.Swr: "Swr",
+    an.S11: "S11",
+    an.Smith: "Smith",
+    an.Rx: "Rx",
+    an.Table: "Table",
+}
+# A knob sweep's: R/X against the knob, its Smith trail, the numbers.
+_KNOB_VIEWS = {an.Rx: "Rx", an.Smith: "Smith", an.Table: "Table"}
 
 
 def _later(what: str, step: int) -> str:
@@ -89,20 +100,24 @@ def _view_gap(v: an.View, sweep: str) -> str:
     step = next((s for cls, s in _VIEW_STEP.items() if isinstance(v, cls)), None)
     if step is not None:
         return _later(name, step)
-    if sweep == "frequency":
-        # Rx: R and X against a knob is the Z-vs-parameter view's; R and X
-        # against frequency is a chart of its own, not drawn yet.
-        return _later(f"{name} of a frequency sweep", _FREQUENCY_RX_STEP)
     return (
-        f"{name} of a knob sweep: the Z-vs-parameter view draws R and X; "
+        f"{name} of a {sweep} sweep: the analysis chart does not draw it; "
         "`antennaknobs analyze` draws it"
     )
 
 
+def _served_view(v: an.View, views: Mapping) -> str | None:
+    """The served name of view ``v`` among ``views`` (a subclass is its
+    base), or None."""
+    return next((n for cls, n in views.items() if isinstance(v, cls)), None)
+
+
 def _frequency_view(v: an.View) -> str | None:
-    """The served name of a frequency-sweep view (a subclass is its base),
-    or None."""
-    return next((n for cls, n in _FREQUENCY_VIEWS.items() if isinstance(v, cls)), None)
+    return _served_view(v, _FREQUENCY_VIEWS)
+
+
+def _knob_view(v: an.View) -> str | None:
+    return _served_view(v, _KNOB_VIEWS)
 
 
 def _is_frequency(a: an.Analysis) -> bool:
@@ -117,18 +132,10 @@ def gaps(a: an.Analysis) -> list[str]:
     if a.hold is not None:
         out.append(_later("hold (optimise at each point)", 6))
     if _is_frequency(a):
-        if a.sweep.values is not None:
-            out.append(
-                _later(
-                    "explicit frequencies (give the Sweep lo, hi and points)",
-                    _FREQUENCY_VALUES_STEP,
-                )
-            )
-        if not any(isinstance(v, tuple(_FREQUENCY_VIEWS)) for v in a.views):
+        if not any(_frequency_view(v) for v in a.views):
             out += [_view_gap(v, "frequency") for v in a.views]
-    # The Z-vs-parameter view draws R and X; a knob analysis without Rx has
-    # nothing the view can show.
-    elif not any(isinstance(v, an.Rx) for v in a.views):
+    # A knob analysis the chart can show none of (only Swr, say) is refused.
+    elif not any(_knob_view(v) for v in a.views):
         out += [_view_gap(v, "knob") for v in a.views]
     return out
 
@@ -285,8 +292,25 @@ def _note(a: an.Analysis, *, deck_density: bool) -> str | None:
 
 def _frequency(a: an.Analysis, builder, crosses: dict) -> dict:
     """A runnable frequency analysis as the workbench's frequency sweep."""
-    r = ar.frequency_range(a.sweep, builder)
-    absolute = r.level in ("analysis", "file", "design")
+    s = a.sweep
+    freqs = None
+    if s.values is not None:
+        # An explicit list: exactly what `analyze` sweeps, in its order; the
+        # range spans it, so a chart showing it has ends to edit.
+        freqs = [float(f) for f in ar.frequency_xs(s, builder)]
+        spec = {
+            "lo": min(freqs),
+            "hi": max(freqs),
+            "spacing": "lin",
+            "source": "design",
+            "points": len(freqs),
+        }
+        level = "analysis"
+    else:
+        r = ar.frequency_range(s, builder)
+        absolute = r.level in ("analysis", "file", "design")
+        spec = r.as_spec() if absolute else None
+        level = r.level
     views = [n for v in a.views if (n := _frequency_view(v))]
     swr = next((v for v in a.views if isinstance(v, an.Swr)), None)
     left = [
@@ -298,9 +322,10 @@ def _frequency(a: an.Analysis, builder, crosses: dict) -> dict:
     return {
         "runs": True,
         "kind": "frequency",
-        "range": r.as_spec() if absolute else None,
-        "level": r.level,
-        "points": a.sweep.points,
+        "range": spec,
+        "level": level,
+        "points": s.points,
+        "freqs": freqs,
         "views": views,
         "swr": {
             "scale": swr.scale if swr is not None else None,
@@ -337,6 +362,7 @@ def workbench(a: an.Analysis, builder, req: Mapping) -> dict:
         "param": run["param"],
         "values": run["values"],
         "log": run["log"],
+        "views": [n for v in a.views if (n := _knob_view(v))],
         **_listed(a),
         **crosses,
         "note": _note(a, deck_density=density and run["param"] != DENSITY),
