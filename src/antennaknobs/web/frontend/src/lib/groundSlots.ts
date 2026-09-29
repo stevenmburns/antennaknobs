@@ -2,9 +2,12 @@
 // whole ground (on/off, type, finite method, soil, terrain preset and knobs),
 // one of them is active, and every solve and chart reads the active one. The
 // pure state steps live here; useGroundConfig holds the state.
+import type { BackendEntry } from "./backends";
 import {
+  resolveGroundModel,
   soilSummaryLabel,
   type FiniteGroundMethod,
+  type GroundModel,
   type GroundType,
   type SoilParams,
   type SoilPresetSchema,
@@ -119,4 +122,41 @@ export function groundSlotLabel(slot: GroundSlot, soilPresets: SoilPresetSchema[
   if (slot.type === "terrain") return `terrain · ${slot.terrainPreset}`;
   const soil = soilSummaryLabel(slot.soil, soilPresets);
   return soil ? `${METHOD_LABEL[slot.method]} · ${soil}` : METHOD_LABEL[slot.method];
+}
+
+/** What a slot's ground puts on a solve request, on `backend`: the wire
+ *  `ground_model` (resolveGroundModel), and the soil only where a finite
+ *  model applies AND it differs from the served default, so a default-soil
+ *  request stays byte-identical to a pre-#1173 one. The session's request
+ *  for its active slot and an analysis chart's cell for any slot (AK#1757
+ *  step 5 unit 4) both read it, so the two cannot drift. */
+export type GroundRequest = {
+  enabled: boolean;
+  model: GroundModel;
+  terrainPreset: string;
+  terrainParams: TerrainParams;
+  soil: SoilParams | undefined;
+};
+
+export function groundRequest(
+  slot: GroundSlot,
+  backend: BackendEntry,
+  servedDefault: SoilParams | null,
+): GroundRequest {
+  const model = resolveGroundModel(slot.type, backend, slot.method);
+  const soilApplies = model === "fast" || model === "sommerfeld" || model === "mininec";
+  const soil =
+    soilApplies &&
+    slot.soil &&
+    servedDefault &&
+    (slot.soil.eps_r !== servedDefault.eps_r || slot.soil.sigma !== servedDefault.sigma)
+      ? slot.soil
+      : undefined;
+  return {
+    enabled: slot.enabled,
+    model,
+    terrainPreset: slot.terrainPreset,
+    terrainParams: slot.terrainParams,
+    soil,
+  };
 }

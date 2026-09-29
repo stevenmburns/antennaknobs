@@ -76,7 +76,19 @@ async function streamSweep(
     body: JSON.stringify(body),
     signal: controller.signal,
   });
-  if (!resp.ok || !resp.body) throw new Error(`sweep failed: ${resp.status}`);
+  if (!resp.ok || !resp.body) {
+    // The server's refusal in its own words (the poor-match gate's 403, the
+    // hosted cap's 413), for a chart to name: a cell on another slot's
+    // engine has no "Solve anyway" of its own (AK#1757 step 5 unit 4).
+    let detail = "";
+    try {
+      const body = (await resp.json()) as { detail?: unknown };
+      if (typeof body.detail === "string") detail = body.detail;
+    } catch {
+      /* no JSON body */
+    }
+    throw new Error(detail || `sweep failed: ${resp.status}`);
+  }
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buf = "";
@@ -164,6 +176,9 @@ export type FreqSweepHandle = {
   advisories: Advisory[];
   /** Drawn for inputs that have since changed (not-auto mode only). */
   stale: boolean;
+  /** Why the last sweep failed (the server's refusal), until the next one
+   *  starts; null otherwise. */
+  error: string | null;
   /** The same sweep again, now, with no dwell. */
   runNow: () => void;
   /** Ask for whatever inputs the next render brings (a pick): with `auto`
@@ -229,6 +244,7 @@ export function useFreqSweep({
   // inside it. Cleared with the sweep, so a stale note never outlives the
   // curve it was about.
   const [sweepAdvisories, setSweepAdvisories] = useState<Advisory[]>([]);
+  const [sweepError, setSweepError] = useState<string | null>(null);
   const sweepTimerRef = useRef<number | null>(null);
   const sweepAbortRef = useRef<AbortController | null>(null);
   // Refinement gets its own timer/abort pair rather than sharing the base
@@ -318,6 +334,7 @@ export function useFreqSweep({
     setSweepRefining(false);
     setSweepProgress(null);
     setSweepAdvisories([]);
+    setSweepError(null);
     // Paused (Live off) holds the engine (issue #612): an enabled sweep must
     // not keep solving while the user edits. Clearing above + returning here
     // blanks the overlay while paused; resuming Live re-runs this effect
@@ -481,6 +498,7 @@ export function useFreqSweep({
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;
       console.error("sweep error", e);
+      if (!controller.signal.aborted) setSweepError(e instanceof Error ? e.message : String(e));
     } finally {
       if (sweepAbortRef.current === controller) {
         sweepAbortRef.current = null;
@@ -634,6 +652,7 @@ export function useFreqSweep({
     setSweepRefining(false);
     setSweepProgress(null);
     setSweepAdvisories([]);
+    setSweepError(null);
     void runSweep();
   }
 
@@ -668,6 +687,7 @@ export function useFreqSweep({
     progress: sweepProgress,
     advisories: sweepAdvisories,
     stale: sweepStale && sweep !== null,
+    error: sweepError,
     runNow,
     arm,
     abort,

@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 import type { FrequencyView } from "../../lib/analyses";
 import {
+  chartIndex,
   type CombinedFill,
+  isChartCopy,
   LEGACY_CHART_VIEWS,
   type LegacyChartView,
   VIEW_META,
@@ -420,8 +422,34 @@ export const GRID_CELL_CAP = 4;
 // Grid mode's displayed cells: the first ≤4 pins, in pin order. Pure slice —
 // used both for what renders (ViewGrid) and what the arrow keys cycle
 // (useViewState), so the two can never disagree about "what's on screen".
+//
+// With duplicated analysis charts open (AK#1757 step 5 unit 4) the charts
+// come first for the four cells: "the grid's four cells are the second,
+// third and fourth charts" (the step-5 note). Every chart in the list keeps
+// its cell, the other pins fill what is left in pin order, and the order on
+// screen is still pin order. With no copy open this is the plain slice.
 export function gridCells(pinned: View[]): View[] {
-  return pinned.slice(0, GRID_CELL_CAP);
+  if (!pinned.some(isChartCopy)) return pinned.slice(0, GRID_CELL_CAP);
+  const charts = pinned.filter((v) => chartIndex(v) >= 0).slice(0, GRID_CELL_CAP);
+  let room = GRID_CELL_CAP - charts.length;
+  return pinned.filter((v) => {
+    if (charts.includes(v)) return true;
+    if (chartIndex(v) >= 0 || room <= 0) return false;
+    room -= 1;
+    return true;
+  });
+}
+
+// The views a session shows: the stored pins, with the session's open chart
+// copies (AK#1757 step 5 unit 4) right after the chart they were duplicated
+// from (the original's place, else the end when it is not pinned). Never
+// stored: `pinned` stays the viewer's preference, and the copies live and
+// die with the session.
+export function withChartCopies(pinned: View[], copies: readonly View[]): View[] {
+  if (copies.length === 0) return pinned;
+  const at = pinned.indexOf("zparam");
+  if (at < 0) return [...pinned, ...copies];
+  return [...pinned.slice(0, at + 1), ...copies, ...pinned.slice(at + 1)];
 }
 
 // The grid's row/column count for a given number of displayed cells:
@@ -501,6 +529,8 @@ export function useViewPrefs() {
   // handler (a popover rendered before someone else's pin landed) still
   // toggles against current truth.
   const togglePin = useCallback((id: View) => {
+    // A chart copy is the session's, never a stored pin (it closes instead).
+    if (isChartCopy(id)) return;
     const cur = getSnapshot();
     if (pinBlockedReason(cur.pinned, id)) return;
     const pins = cur.pinned.includes(id)

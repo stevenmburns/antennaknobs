@@ -20,6 +20,7 @@
 
 import type { FrequencyView, FrequencyWorkbench } from "./analyses";
 import { frequencyPick } from "./analyses";
+import { type ChartCross, FOLLOW_ACTIVE, type ListedCross, NOTHING_LISTED } from "./chartCells";
 import {
   DEFAULT_DENSITY_SPEC,
   type ParamSweepRequest,
@@ -96,6 +97,15 @@ export type AnalysisChartState = {
   /** Null only while the chart has never held a frequency sweep, which a new
    *  chart always has (initialChart). */
   frequency: FrequencyChartState | null;
+  /** The solver slots and ground slots the chart compares (unit 4,
+   *  lib/chartCells.ts): null follows the session's active one. The
+   *  viewer's, or a pick's preselection; kept across picks and designs,
+   *  since it is about the session's slots, not the design. */
+  cross: ChartCross;
+  /** The engines and grounds the picked analysis lists, which name its
+   *  cells (and refuse the ones no slot holds) for as long as the chart
+   *  still runs that pick (`chartListed`). */
+  listed: ListedCross;
 };
 
 /** The frequency sweep a new chart shows: the design's own range (the
@@ -122,6 +132,8 @@ export function initialChart(seed: ChartSeed): AnalysisChartState {
     dwell: null,
     knob: { spec: DEFAULT_DENSITY_SPEC, xLog: null, axes: { r: RX_AUTO, x: RX_AUTO }, view: "Rx" },
     frequency: ownFrequency(seed),
+    cross: FOLLOW_ACTIVE,
+    listed: NOTHING_LISTED,
   };
 }
 
@@ -141,7 +153,7 @@ export function chartForNewDesign(c: AnalysisChartState, seed: ChartSeed): Analy
     axes: f?.axes ?? seed.axes,
     threshold: f?.threshold ?? seed.threshold,
   });
-  return { ...next, dwell: c.dwell };
+  return { ...next, dwell: c.dwell, cross: c.cross };
 }
 
 /** Back to the design's own frequency sweep (the picker's first entry):
@@ -231,6 +243,32 @@ export function pickFrequency(
       threshold: pick.threshold ?? prefs.threshold,
     },
   };
+}
+
+/** A pick's listed engines and grounds, and the slots they preselect
+ *  (lib/chartCells.ts preselect): an axis the analysis lists takes the
+ *  preselection, one it does not keeps the chart's own. */
+export function withListed(
+  c: AnalysisChartState,
+  listed: ListedCross,
+  preselected: ChartCross,
+): AnalysisChartState {
+  return {
+    ...c,
+    listed,
+    cross: {
+      slots: listed.engines ? preselected.slots : c.cross.slots,
+      grounds: listed.grounds ? preselected.grounds : c.cross.grounds,
+    },
+  };
+}
+
+/** What the picked analysis lists, while the chart still runs that pick;
+ *  nothing once the viewer has moved it off (another pick, a range edit of
+ *  a knob sweep), so a refused cell never outlives the analysis that
+ *  named it. */
+export function chartListed(c: AnalysisChartState): ListedCross {
+  return pickedName(c) !== null ? c.listed : NOTHING_LISTED;
 }
 
 /** The picked analysis's name while the chart still runs what it set. */
