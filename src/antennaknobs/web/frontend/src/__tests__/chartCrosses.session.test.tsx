@@ -20,6 +20,9 @@
 //     `over.step`): "a family cell…" fails, gap stays 0.25;
 //   - the cap ignoring the new axes (crossPlan's cap over the engine and
 //     ground axes only): "the cap…" fails, 4 values x 2 engines draws;
+//   - a frequency design cell on the chart's range (deriveChart's ownBand
+//     not applied): "each design cell sweeps its own band…" fails, the
+//     other design is swept over the session design's 14 MHz grid;
 //   - a refused engine cell dropped from the legend (the legend's
 //     engineRefusal branch removed): "NEC-2 declining…" fails, the row
 //     reads as a drawn curve with an error, not a refused cell.
@@ -155,6 +158,36 @@ const ANALYSES = [
     step: { knob: "gap", values: [0.1, 0.2, 0.3, 0.4], labels: ["gap = 0.1", "gap = 0.2", "gap = 0.3", "gap = 0.4"] },
   }),
 ];
+
+// A frequency analysis crossing two designs on different bands: each
+// design's own grid, as /analyses serves it (the CLI's frequency_xs).
+const DECK_GRID = [14, 14.05, 14.1, 14.15, 14.2];
+const OTHER_GRID = [21, 21.1125, 21.225, 21.3375, 21.45];
+ANALYSES.push({
+  name: "bands",
+  summary: "frequency; 2 curves (2 designs)",
+  code: "an.band_swr(cross=an.Cross(designs=(...)))",
+  problems: [],
+  workbench: {
+    runs: true,
+    kind: "frequency",
+    note: null,
+    views: ["Swr"],
+    range: null,
+    level: "default",
+    points: null,
+    swr: { scale: null, threshold: null },
+    engines: null,
+    grounds: null,
+    axes: ["designs"],
+    planes: null,
+    designs: [
+      { name: DECK.name, refused: null, param: null, values: null, range: { lo: 14, hi: 14.2, spacing: "lin" }, freqs: DECK_GRID },
+      { name: OTHER.name, refused: null, param: null, values: null, range: { lo: 21, hi: 21.45, spacing: "lin" }, freqs: OTHER_GRID },
+    ],
+    step: null,
+  },
+} as unknown as (typeof ANALYSES)[number]);
 
 const PLANES = ["rig", "T1", "feed"];
 
@@ -384,6 +417,32 @@ describe("the design cross", () => {
     ]);
     const legend = document.querySelector<HTMLElement>(".chart-legend");
     expect(legend?.dataset.curves).toBe("3");
+  });
+});
+
+describe("the design cross of a frequency analysis", () => {
+  it("each design cell sweeps its own band's served grid; a range edit moves only the session design's", async () => {
+    const r = await mount();
+    await chartOnStage(r);
+    await pick("bands");
+    const other = await untilDom(() => r.sweeps.find((b) => b.geometry === OTHER.name));
+    expect(other.freqs_mhz).toEqual(OTHER_GRID);
+    const own = await untilDom(() => r.sweeps.find((b) => b.geometry === DECK.name && b._stream === undefined));
+    expect(own.freqs_mhz).toEqual(DECK_GRID);
+    // A range edit on the chart: the session design's cell follows it, the
+    // other design keeps its own band.
+    const to = screen.getAllByLabelText("to MHz")[0];
+    fireEvent.change(to, { target: { value: "14.3" } });
+    fireEvent.keyDown(to, { key: "Enter" });
+    const edited = await untilDom(() =>
+      r.sweeps.find(
+        (b) => b.geometry === DECK.name && (b.freqs_mhz as number[]).at(-1) === 14.3,
+      ),
+    );
+    expect(edited._stream).toBeUndefined();
+    for (const b of r.sweeps.filter((x) => x.geometry === OTHER.name)) {
+      expect(b.freqs_mhz).toEqual(OTHER_GRID);
+    }
   });
 });
 

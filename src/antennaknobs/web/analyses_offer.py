@@ -41,11 +41,15 @@ chart multiplies with its slots into one curve per cell as
 - ``planes``: ``[{name, refused}]``, ``refused`` being the CLI's own words
   for a plane this design does not offer (`analysis_run.plane_refusal`), or
   that the workbench cannot measure at (a drive of several sources);
-- ``designs``: ``[{name, refused, param, values}]``, each design as its own
-  defaults build it (the CLI's design cell): ``refused`` names a design the
-  catalog lacks or whose sweep does not resolve there, and a knob sweep's
-  ``param`` and ``values`` are that design's own (a role may resolve to
-  another knob, and a range left to the knob is that design's range);
+- ``designs``: ``[{name, refused, param, values, range, freqs}]``, each
+  design as its own defaults build it (the CLI's design cell): ``refused``
+  names a design the catalog lacks or whose sweep does not resolve there; a
+  knob sweep's ``param`` and ``values`` are that design's own (a role may
+  resolve to another knob, and a range left to the knob is that design's
+  range); a frequency sweep's ``range`` (with its ``level``) and ``freqs``
+  are that design's own band and the exact grid ``analyze`` sweeps on it
+  (`analysis_run.frequency_xs`), so two designs on different bands each
+  sweep their own;
 - ``step``: ``{knob, values, labels}``, a family: the knob each cell sets,
   its values (coerced as ``/param_sweep`` coerces), and each cell's label
   part (`analysis_run.step_label`).
@@ -194,7 +198,14 @@ def _design_entry(a: an.Analysis, name: str, density: bool) -> dict:
     the catalog lacks it or the sweep does not resolve there."""
     from .examples import UnknownGeometryError, example_for
 
-    out = {"name": name, "refused": None, "param": None, "values": None}
+    out = {
+        "name": name,
+        "refused": None,
+        "param": None,
+        "values": None,
+        "range": None,
+        "freqs": None,
+    }
     try:
         cls = getattr(example_for(name), "builder_cls", None)
     except UnknownGeometryError as e:
@@ -206,12 +217,24 @@ def _design_entry(a: an.Analysis, name: str, density: bool) -> dict:
     why = ar.sweep_refusal(a, b, density) or ar.density_moved(a, b)
     if why:
         return {**out, "refused": why}
-    if not _is_frequency(a):
+    if _is_frequency(a):
+        # The design's own band, as the CLI's design cell sweeps it: the
+        # analysis's range, else that design's (`frequency_range`), on the
+        # grid `frequency_xs` makes, so each design stays on its band.
         try:
-            run = _knob_run(a, b, req)
-        except _Refusal as e:
-            return {**out, "refused": str(e)}
-        out.update(param=run["param"], values=run["values"])
+            r = ar.frequency_range(a.sweep, b)
+            freqs = [float(f) for f in ar.frequency_xs(a.sweep, b)]
+        except (SystemExit, ValueError) as e:
+            return {**out, "refused": f"no frequency range on {name}: {e}"}
+        if not freqs:
+            return {**out, "refused": f"no frequency range on {name}"}
+        out.update(range={**r.as_spec(), "level": r.level}, freqs=freqs)
+        return out
+    try:
+        run = _knob_run(a, b, req)
+    except _Refusal as e:
+        return {**out, "refused": str(e)}
+    out.update(param=run["param"], values=run["values"])
     return out
 
 

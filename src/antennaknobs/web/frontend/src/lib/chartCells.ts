@@ -53,12 +53,15 @@ export type CrossKind = "engines" | "grounds" | "planes" | "designs" | "step";
 export type PlaneCross = { name: string; refused: string | null };
 /** A design cell: refused where the catalog lacks it or its sweep does not
  *  resolve there; a knob sweep's parameter and values as that design
- *  resolves them (null for a frequency sweep). */
+ *  resolves them (null for a frequency sweep); a frequency sweep's spacing
+ *  and exact grid on that design's own band (null for a knob sweep). */
 export type DesignCross = {
   name: string;
   refused: string | null;
   param: string | null;
   values: number[] | null;
+  spacing?: "lin" | "log" | null;
+  freqs?: number[] | null;
 };
 /** A family: the knob each cell sets, its values, and each cell's label. */
 export type StepCross = { knob: string; values: number[]; labels: string[] };
