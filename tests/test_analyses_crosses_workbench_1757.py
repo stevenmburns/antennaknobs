@@ -140,20 +140,24 @@ def test_e2s_family_serves_its_knob_values_and_the_clis_labels(client):
 def test_a_design_the_catalog_lacks_or_whose_knob_does_not_resolve_is_refused(
     monkeypatch, client
 ):
+    radial = "verticals.buried_radial_vertical"
     a = an.Analysis(
         "d",
-        an.Sweep("length_factor", 0.95, 1.0, points=3),
-        cross=an.Cross(designs=(INVVEE, "nope.nope", "beams.yagi")),
+        an.Sweep("angle_deg", 0, 30, points=3),
+        cross=an.Cross(designs=(INVVEE, "nope.nope", radial)),
     )
     _offer(monkeypatch, _invvee_cls(), [a])
     w = _served(client, {"geometry": INVVEE}, "d")
     got = {d["name"]: d for d in w["designs"]}
     assert got[INVVEE]["refused"] is None
-    assert got[INVVEE]["values"] == pytest.approx([0.95, 0.975, 1.0])
+    assert got[INVVEE]["values"] == pytest.approx([0.0, 15.0, 30.0])
     assert got["nope.nope"]["refused"].startswith("unknown geometry 'nope.nope'")
-    # The CLI's own reason for the cell (an.resolve on that design).
-    yagi = get_builder("beams.yagi")()
-    assert got["beams.yagi"]["refused"] == an.resolve("length_factor", yagi).reason
+    # The CLI's own reason for the cell (an.resolve on that design), which
+    # must be a reason: this design has no such knob.
+    why = an.resolve("angle_deg", get_builder(radial)()).reason
+    assert why == "this design has no knob 'angle_deg'"
+    assert got[radial]["refused"] == why
+    assert got[radial]["values"] is None
 
 
 def test_a_density_family_stays_refused_in_the_workbench_as_in_the_cli(
