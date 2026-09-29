@@ -158,6 +158,7 @@ import {
   type DwellDefaults,
   editRange,
   initialChart,
+  pickedEdited,
   pickedName,
   pickFrequency,
   pickKnob,
@@ -2320,7 +2321,12 @@ function DesignSessionBody({
     // A design cell of a knob sweep sweeps that design's own parameter and
     // values, as /analyses resolved them on it (a role may name another
     // knob there, and a range left to the knob is that design's).
+    // A range / points / spacing edit of the picked analysis moves the
+    // session design's cells with it (as a frequency range edit does), and
+    // leaves the other designs on what the server served.
+    const edited = pickedEdited(now);
     const ownSweep = (c: ChartCell) => {
+      if (edited && c.design === geometry) return null;
       const d = c.design !== undefined ? listedNow.designs?.find((x) => x.name === c.design) : undefined;
       return d?.param && d.values ? { param: d.param, values: d.values } : null;
     };
@@ -2381,6 +2387,11 @@ function DesignSessionBody({
     chartControl(i).armParam();
     setZparamSpecAt(i, zparamDefaultFor(param));
     setZparamXLogAt(i, null);
+    // Another knob leaves the picked analysis (and its crosses); the same
+    // knob (Reset) is an edit of it and keeps it.
+    setChartAt(i, (c) =>
+      c.picked?.kind === "knob" && c.picked.spec?.param !== param ? { ...c, picked: null } : c,
+    );
   };
   // The knob the picker's "Sweep a knob" runs (Steve, 2026-09-29): the one
   // in the chart's parameter list when that is a knob, else the last knob
@@ -3182,6 +3193,7 @@ function DesignSessionBody({
     const analyses = {
       entries: zparamAnalyses,
       current: pickedNow,
+      edited: pickedEdited(m.now),
       blocked: zparamAnalysisBlocked,
       onPick: (e: AnalysisEntry) => pickAnalysis(i, e),
       // The picker's first entry: the design's own frequency sweep (a new
