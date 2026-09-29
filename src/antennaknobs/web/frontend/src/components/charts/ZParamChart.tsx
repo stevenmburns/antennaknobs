@@ -114,6 +114,7 @@ export function ZParamChart({
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const { isMobile } = useIsMobile();
+  const [zinfOpen, setZinfOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   const [menu, setMenu] = useState<{ axis: RxAxis; x: number; y: number } | null>(
@@ -167,6 +168,16 @@ export function ZParamChart({
           reason: d.z_extrap_reason ?? null,
         }
       : null;
+  // The Z∞ readout: its value and status word always; the reason clause
+  // ("(rough: ...): fed segment ...") is long, so on a phone it moves behind
+  // an ⓘ (AK#1757, Steve's phone) and the canvas line stays short.
+  const zinfHead =
+    extrap && extrap.re != null && extrap.im != null
+      ? `Z∞ ≈ ${extrap.re.toFixed(2)} ${extrap.im >= 0 ? "+" : "−"} j${Math.abs(extrap.im).toFixed(2)} Ω${zinfSuffix(extrap.status, extrap.p)}`
+      : null;
+  const zinfReason = extrap?.reason ?? "";
+  const zinfFull = zinfHead != null ? `${zinfHead}${zinfReason}` : null;
+  const zinfInfo = isMobile && zinfReason !== "";
   const rDom = rxDomain(rAxis, extrap?.re != null ? [...rFit, extrap.re] : rFit);
   const xDom = rxDomain(xAxis, extrap?.im != null ? [...xFit, extrap.im] : xFit);
   // The two lines that matter (Steve, 2026-09-26): R = Z0 and X = 0. Drawn
@@ -486,12 +497,21 @@ export function ZParamChart({
       box(lines, hx, MARGIN.t + 24, PC.labelStrong, hx > MARGIN.l + pw / 2);
     }
     // Z∞ readout, top of the plot (density), with how it was reached.
-    if (extrap && extrap.re != null && extrap.im != null) {
+    if (zinfHead != null && zinfFull != null) {
       ctx.font = "10px ui-monospace, monospace";
       ctx.fillStyle = PC.labelBright;
-      const sign = extrap.im >= 0 ? "+" : "−";
-      const txt = `Z∞ ≈ ${extrap.re.toFixed(2)} ${sign} j${Math.abs(extrap.im).toFixed(2)} Ω${zinfSuffix(extrap.status, extrap.p)}${extrap.reason ?? ""}`;
-      ctx.fillText(txt, MARGIN.l + (pw - ctx.measureText(txt).width) / 2, 12);
+      let txt = zinfFull;
+      let left: number | null = null;
+      if (isMobile) {
+        // Between the "R Ω" and "X Ω" titles, past the ⓘ when there is one;
+        // wider than that, the value alone (the panel has the rest).
+        const from = zinfInfo ? 40 : 30;
+        const room = size - from - 30;
+        txt = zinfInfo ? zinfHead : zinfFull;
+        if (ctx.measureText(txt).width > room) txt = zinfHead.split(" · ")[0];
+        left = from;
+      }
+      ctx.fillText(txt, left ?? MARGIN.l + (pw - ctx.measureText(txt).width) / 2, 12);
     }
     if (status) {
       ctx.font = "10px ui-monospace, monospace";
@@ -503,7 +523,7 @@ export function ZParamChart({
     // choices below; domKey stands in for the domains as a string, so an
     // unchanged range does not redraw.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, param, label, unit, size, theme, isMobile, dotR, domKey, currentValue, liveR, liveX, shownHover, status, callouts, curves]);
+  }, [data, param, label, unit, size, theme, isMobile, zinfHead, zinfInfo, dotR, domKey, currentValue, liveR, liveX, shownHover, status, callouts, curves]);
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (n === 0) return;
@@ -553,6 +573,7 @@ export function ZParamChart({
         data-extrap-p={extrap?.p != null ? extrap.p.toFixed(3) : ""}
         data-dot-r={dotR}
         data-live-r={LIVE_MARKER_R}
+        data-zinf-line={isMobile ? "short" : "full"}
         data-hover={shownHover ?? ""}
         data-status={status ?? ""}
         data-error={d?.error ?? ""}
@@ -566,6 +587,22 @@ export function ZParamChart({
         onPointerDown={onPointerMove}
         onPointerLeave={() => setHover(null)}
       />
+      {zinfInfo && (
+        <button
+          type="button"
+          className="zinf-info-btn"
+          aria-expanded={zinfOpen}
+          aria-label={zinfOpen ? "Hide the Z∞ note" : "Show the Z∞ note"}
+          onClick={() => setZinfOpen((o) => !o)}
+        >
+          ⓘ
+        </button>
+      )}
+      {zinfInfo && zinfOpen && (
+        <div className="chart-note-pop zinf-pop" role="note" aria-label="Z∞ note">
+          {zinfFull}
+        </div>
+      )}
       {onAxisChange &&
         (["r", "x"] as const).map((a) => (
           <button
