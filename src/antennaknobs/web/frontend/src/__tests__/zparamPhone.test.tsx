@@ -104,21 +104,46 @@ describe("the Z∞ readout's reason on a phone", () => {
 
 describe("the per-point dots", () => {
   it("the rule", () => {
-    expect(traceDotRadius(true, 1)).toBe(1.2);
+    expect(traceDotRadius(true, 1)).toBe(0);
+    expect(traceDotRadius(true, 5)).toBe(0);
     expect(traceDotRadius(false, 1)).toBe(2.6);
     expect(traceDotRadius(false, 2)).toBe(2.6);
     expect(traceDotRadius(false, 3)).toBe(1.2);
   });
 
-  it("a phone draws small dots even for one curve", () => {
+  it("a phone draws lines only, even for one curve", () => {
     stubMedia(true);
-    expect(mount(KNOB).dataset.dotR).toBe("1.2");
+    expect(mount(KNOB).dataset.dotR).toBe("0");
+  });
+
+  it("the drawing skips the circles on a phone (no zero-radius arcs), the live dots stay", () => {
+    const radii: number[] = [];
+    const orig = HTMLCanvasElement.prototype.getContext;
+    const noop = () => {};
+    const ctx = new Proxy(
+      { measureText: () => ({ width: 10 }), arc: (_x: number, _y: number, r: number) => radii.push(r) },
+      { get: (t, k) => (k in t ? (t as Record<string | symbol, unknown>)[k] : noop), set: () => true },
+    );
+    HTMLCanvasElement.prototype.getContext = (() => ctx) as unknown as typeof orig;
+    try {
+      stubMedia(true);
+      mount(KNOB);
+      expect(radii.filter((r) => r !== 4)).toEqual([]);
+      expect(radii.filter((r) => r === 4).length).toBe(2); // live R and X
+      radii.length = 0;
+      cleanupAll();
+      stubMedia(false);
+      mount(KNOB);
+      expect(radii.filter((r) => r === 2.6).length).toBe(6); // 3 points x R, X
+    } finally {
+      HTMLCanvasElement.prototype.getContext = orig;
+    }
   });
 
   it("the live marker keeps full size on a phone and with many curves", () => {
     stubMedia(true);
     const c = mount(KNOB, { curves: [curve("a"), curve("b"), curve("c")] });
-    expect(c.dataset.dotR).toBe("1.2");
+    expect(c.dataset.dotR).toBe("0");
     expect(c.dataset.liveR).toBe("4");
   });
 
