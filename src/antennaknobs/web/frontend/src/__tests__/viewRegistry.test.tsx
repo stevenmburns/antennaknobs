@@ -247,6 +247,24 @@ describe("dispatch", () => {
     expect(callouts({ onZparamAxisChange: () => {}, zparam: { ...zp, callouts: false } })).toBe("0");
   });
 
+  // AK#1757 unit 6: the legend laid over the Table covered its header, and
+  // the Table's column groups name every drawn curve. A refused cell has no
+  // column, so the legend stays to name it.
+  it("draws no legend over a Table unless a cell is refused", () => {
+    const sweep = { param: "N", label: "N", values: [3, 5], z_re: [50, 51], z_im: [0, 1] } as ViewRenderProps["paramSweep"];
+    const zp = { param: "N", label: "N", unit: null, total: 2, currentValue: null, xLog: true, rAxis: RX_AUTO, xAxis: RX_AUTO, z0: 50 };
+    const entry = (key: string, refused: string | null = null) => ({ key, label: key, color: refused ? null : "#f00", refused });
+    const legendOn = (view: "Rx" | "Table", refused: string | null) =>
+      mount("zparam", {
+        zparam: { ...zp, view },
+        paramSweep: sweep,
+        chartLegend: { entries: [entry("A, 1"), entry("B, 1", refused)], capRefusal: null },
+      }).querySelector(".chart-legend") !== null;
+    expect(legendOn("Rx", null)).toBe(true);
+    expect(legendOn("Table", null)).toBe(false);
+    expect(legendOn("Table", "no ground")).toBe(true);
+  });
+
   it("keys the Smith locus on refinement enabled AND settled (issue #866)", () => {
     const connect = (settled: boolean, o: Partial<React.ComponentProps<typeof ViewPanel>>) =>
       chartOn({ settled }, o).querySelector("canvas.smith")!.getAttribute("data-connect");
