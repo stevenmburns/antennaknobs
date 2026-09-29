@@ -103,8 +103,19 @@ ground is then one click.
   analysis. It can ship before step 5's workbench units, and it makes unit
   4's ground checkboxes a subset of slots, not a list of specs.
 
-Open: three ground slots, or as many as the solver slots have, for
-symmetry? And the stock set above?
+**Ruling (Steve, 2026-09-28): three ground slots to start.** Later, both
+the solver slots and the ground slots become a variable count: a **+** adds
+one, to four or five when you need them. Build for that from the start:
+
+- keep slot ids open-ended (engines A…E, grounds 1…5);
+- read `settings.toml`'s `[slots.X]` / `[grounds.N]` tables by whatever
+  keys are present;
+- never hard-code three in the chart's checkboxes.
+
+A cross's product is still held to the curve cap of 6, so five engines ×
+two grounds is refused when listed, as over-cap crosses are today.
+
+Still open: the stock set above.
 
 ## Units (CLI leads, then the workbench)
 
