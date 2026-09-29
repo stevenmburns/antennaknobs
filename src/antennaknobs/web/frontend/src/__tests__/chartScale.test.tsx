@@ -8,7 +8,7 @@
 // 2-D context is a recording stub: what the test reads is the transform the
 // chart set and the fonts it asked for.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, renderHook } from "@testing-library/react";
+import { fireEvent, render, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import {
   CHART_FONT,
@@ -130,6 +130,32 @@ describe("the charts draw on the scale", () => {
       onAxisChange={() => {}}
     />
   );
+
+  // Hover maps a screen x back into the canvas's logical px (size / k):
+  // without the / k the pointer lands several points off at 1.25 (review of
+  // unit 6: a mutation dropping it passed every other test).
+  it("the knob sweep: hover finds the point under the pointer at k = 1.25", () => {
+    const n = 11;
+    const data: ParamSweepData = {
+      ...KNOB,
+      values: Array.from({ length: n }, (_, i) => i),
+      z_re: Array.from({ length: n }, (_, i) => 50 + i),
+      z_im: Array.from({ length: n }, () => 0),
+    };
+    const { container } = render(
+      <ZParamChart data={data} param={data.param} label={data.label} total={n} currentValue={null}
+        liveR={null} liveX={null} size={400} running={false} xLog={false} />,
+    );
+    const c = container.querySelector("canvas.zparam") as HTMLCanvasElement;
+    c.getBoundingClientRect = () => ({ left: 0, top: 0, width: 400, height: 400 }) as DOMRect;
+    const k = 1.25;
+    const pw = 400 / k - ZPARAM_PLOT_MARGIN.l - ZPARAM_PLOT_MARGIN.r;
+    for (const i of [2, 4, 7]) {
+      const clientX = (ZPARAM_PLOT_MARGIN.l + (i / (n - 1)) * pw) * k;
+      fireEvent(c, new MouseEvent("pointermove", { clientX, clientY: 100, bubbles: true }));
+      expect(c.dataset.hover).toBe(String(i));
+    }
+  });
 
   it("the knob sweep: a k transform, the ramp's fonts, axis buttons in its margins", () => {
     const { container } = render(zparam());
