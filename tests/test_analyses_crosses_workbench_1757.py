@@ -431,3 +431,28 @@ def test_a_design_whose_range_cannot_resolve_is_refused_by_name(monkeypatch, cli
     got = ao._design_entry(a, DOUBLET, False)
     assert got["refused"] == f"no frequency range on {DOUBLET}: no band"
     assert got["freqs"] is None
+
+
+def test_a_plane_on_a_drive_of_several_sources_is_refused_by_the_workbench(
+    monkeypatch,
+):
+    """The plane selector's seam (`adapter._apply_plane`) moves ONE source, so
+    a plane cell on a drive of several is refused by name, pointing at the
+    CLI, which draws it. No catalog design has both a multi-source drive and
+    a named plane (a file design can), so the network is a stub; the plane
+    itself is offered (`plane_refusal` None), which is the case the branch
+    exists for."""
+    from types import SimpleNamespace
+
+    from antennaknobs.web import analyses_offer as ao
+
+    monkeypatch.setattr(ao.ar, "plane_refusal", lambda builder, plane: None)
+    two = SimpleNamespace(
+        build_network=lambda: SimpleNamespace(sources=[object(), object()])
+    )
+    one = SimpleNamespace(build_network=lambda: SimpleNamespace(sources=[object()]))
+
+    refused = ao._plane_entry(two, "T1")["refused"]
+    assert refused is not None
+    assert "drives 2 sources" in refused and "antennaknobs analyze" in refused
+    assert ao._plane_entry(one, "T1") == {"name": "T1", "refused": None}
