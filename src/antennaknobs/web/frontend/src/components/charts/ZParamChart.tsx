@@ -13,6 +13,7 @@ import {
   rxDomain,
   type RxAxisChoice,
   rxTicks,
+  traceDotRadius,
   xDomain,
   xFraction,
   xTicks,
@@ -20,7 +21,7 @@ import {
 import { formatTick } from "../../lib/sweepAxis";
 import { zinfSuffix } from "../../lib/zinf";
 import { ZPARAM_PLOT_MARGIN } from "../../lib/zparamLayout";
-import { ThemeContext } from "../hooks";
+import { ThemeContext, useIsMobile } from "../hooks";
 import { curvesAttr, type ExtraCurve, NO_CURVES } from "./curves";
 import { cellColor, plotColors } from "./palette";
 import { RxRangePopover } from "./RxRangePopover";
@@ -45,6 +46,9 @@ export type RxAxis = "r" | "x";
 // The plot's margins (lib/zparamLayout): ZParamStage pins the readout just
 // inside them.
 const MARGIN = ZPARAM_PLOT_MARGIN;
+
+/** The live marker's radius: full size on every screen and curve count. */
+const LIVE_MARKER_R = 4;
 
 export function ZParamChart({
   data,
@@ -109,6 +113,7 @@ export function ZParamChart({
   curves?: readonly ExtraCurve[];
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
+  const { isMobile } = useIsMobile();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   const [menu, setMenu] = useState<{ axis: RxAxis; x: number; y: number } | null>(
@@ -130,6 +135,10 @@ export function ZParamChart({
       : [],
   );
   const multi = curves.length > 0;
+  // Small dots on a phone and wherever three or more curves are drawn (a
+  // 5-curve family of 2.6 px circles is a smear); the live marker is not one
+  // of them and keeps its size.
+  const dotR = traceDotRadius(isMobile, 1 + others.length);
   const otherXs = others.flatMap((o) => o.d.values);
   const dom = xDomain(
     xs.length > 0 || otherXs.length > 0
@@ -365,7 +374,7 @@ export function ZParamChart({
       ctx.fillStyle = PC.bg;
       vx.forEach((v, i) => {
         ctx.beginPath();
-        ctx.arc(px(v), py(ys[i], dd), 2.6, 0, 2 * Math.PI);
+        ctx.arc(px(v), py(ys[i], dd), dotR, 0, 2 * Math.PI);
         ctx.fill();
         ctx.stroke();
       });
@@ -409,7 +418,7 @@ export function ZParamChart({
         ctx.strokeStyle = `rgba(${PC.bgRgb}, 0.9)`;
         ctx.lineWidth = 1.2;
         ctx.beginPath();
-        ctx.arc(gx, py(v, dd), 4, 0, 2 * Math.PI);
+        ctx.arc(gx, py(v, dd), LIVE_MARKER_R, 0, 2 * Math.PI);
         ctx.fill();
         ctx.stroke();
       }
@@ -494,7 +503,7 @@ export function ZParamChart({
     // choices below; domKey stands in for the domains as a string, so an
     // unchanged range does not redraw.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, param, label, unit, size, theme, domKey, currentValue, liveR, liveX, shownHover, status, callouts, curves]);
+  }, [data, param, label, unit, size, theme, isMobile, dotR, domKey, currentValue, liveR, liveX, shownHover, status, callouts, curves]);
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (n === 0) return;
@@ -542,6 +551,8 @@ export function ZParamChart({
         data-extrap-status={extrap?.status ?? ""}
         data-extrap-reason={extrap?.reason ?? ""}
         data-extrap-p={extrap?.p != null ? extrap.p.toFixed(3) : ""}
+        data-dot-r={dotR}
+        data-live-r={LIVE_MARKER_R}
         data-hover={shownHover ?? ""}
         data-status={status ?? ""}
         data-error={d?.error ?? ""}
