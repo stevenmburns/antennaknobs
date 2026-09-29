@@ -2413,6 +2413,9 @@ function DesignSessionBody({
     setKnobMenu(null);
     if (m.state.kind === "knob" && sameSpec(next, m.spec) && m.resident) {
       // Already this sweep on screen: nothing will change to arm, so run it.
+      // "Sweep a knob" still leaves a picked analysis, its crosses with it,
+      // even when the analysis swept this very knob and range.
+      if (m.state.picked) setChartAt(i, (c) => ({ ...c, picked: null }));
       chartControl(i).runParamNow();
     } else {
       chartControl(i).armParam();
@@ -2517,6 +2520,11 @@ function DesignSessionBody({
           (a) =>
             a.workbench.runs &&
             a.workbench.kind === "knob" &&
+            // Never one whose own crosses draw curves (planes, designs, a
+            // family): an unpicked chart draws none of them, so naming it
+            // after one would label curves it does not draw. An engine or
+            // ground cross is fine (the design default "convergence").
+            !(a.workbench.axes ?? []).some((k) => k === "planes" || k === "designs" || k === "step") &&
             !zparamAnalysisBlocked(a) &&
             sameSpec(knobAnalysisSpec(a.workbench), m.spec),
         )?.name ?? null)
