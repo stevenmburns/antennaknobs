@@ -224,7 +224,9 @@ export function pickKnob(
   return {
     ...c,
     kind: "knob",
-    picked: name === null ? c.picked : { name, kind: "knob", spec },
+    // A null name is a pick of no analysis ("Sweep a knob", the knob menu):
+    // it leaves the analysis, so the old pick and its crosses go.
+    picked: name === null ? null : { name, kind: "knob", spec },
     knob: { ...c.knob, spec, xLog: null },
   };
 }
@@ -281,12 +283,26 @@ export function chartListed(c: AnalysisChartState): ListedCross {
   return pickedName(c) !== null ? c.listed : NOTHING_LISTED;
 }
 
-/** The picked analysis's name while the chart still runs what it set. */
+/** The picked analysis's name while the chart still runs it. A knob
+ *  analysis stays picked through an edit of its range, points or spacing
+ *  (AK#1757, Steve's phone: 33 → 5 points on "tuning family" dropped the
+ *  family); it is left by picking something else or by sweeping another
+ *  knob (`knob.spec.param` no longer the pick's). */
 export function pickedName(c: AnalysisChartState): string | null {
   const p = c.picked;
   if (!p || p.kind !== c.kind) return null;
   if (p.kind === "frequency") return p.name;
-  return p.spec && sameSpec(p.spec, c.knob.spec) ? p.name : null;
+  return p.spec && p.spec.param === c.knob.spec.param ? p.name : null;
+}
+
+/** A picked knob analysis whose range, points or spacing the viewer has
+ *  edited: still picked (its crosses stay), no longer its own range.
+ *  Picking it again restores the range. */
+export function pickedEdited(c: AnalysisChartState): boolean {
+  const p = c.picked;
+  return (
+    pickedName(c) !== null && p?.kind === "knob" && !!p.spec && !sameSpec(p.spec, c.knob.spec)
+  );
 }
 
 /** What a chart asks of its two runners this render.
