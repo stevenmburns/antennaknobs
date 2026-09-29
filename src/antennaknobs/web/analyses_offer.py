@@ -30,7 +30,27 @@ grounds, else its one ``engine`` / ``ground``), in its order, or None when
 it names none. The analysis chart preselects the solver slots and ground
 slots that hold them, and names each one no slot holds as a refused cell
 (AK#1757 step 5 unit 4); with None it draws the session's active slot and
-ground. Framework-free, so it is tested without a server.
+ground.
+
+And the analysis's other crosses, each None when it has none, which the
+chart multiplies with its slots into one curve per cell as
+``antennaknobs analyze`` does (`analysis_run.cells`):
+
+- ``axes``: the kinds of its crosses, in the order they are written (the
+  order of the product, and of the parts of a cell's label);
+- ``planes``: ``[{name, refused}]``, ``refused`` being the CLI's own words
+  for a plane this design does not offer (`analysis_run.plane_refusal`), or
+  that the workbench cannot measure at (a drive of several sources);
+- ``designs``: ``[{name, refused, param, values}]``, each design as its own
+  defaults build it (the CLI's design cell): ``refused`` names a design the
+  catalog lacks or whose sweep does not resolve there, and a knob sweep's
+  ``param`` and ``values`` are that design's own (a role may resolve to
+  another knob, and a range left to the knob is that design's range);
+- ``step``: ``{knob, values, labels}``, a family: the knob each cell sets,
+  its values (coerced as ``/param_sweep`` coerces), and each cell's label
+  part (`analysis_run.step_label`).
+
+Framework-free, so it is tested without a server.
 """
 
 from __future__ import annotations
@@ -42,15 +62,14 @@ from .. import analysis_run as ar
 from .param_sweep import DENSITY, ParamSweepError, sweep_values
 
 # The sweep-framework step each piece the workbench cannot draw yet is
-# planned for (Steve, 2026-09-28): 5 planes, designs, families and the map,
-# and (Steve, on #1790) the table, R/X against frequency and explicit
-# frequencies; 6 hold.
+# planned for (Steve, 2026-09-28): 5 the map, and (Steve, on #1790) the
+# table, R/X against frequency and explicit frequencies; 6 hold. Crosses
+# over planes, designs and families draw since step 5 unit 4.
 _VIEW_STEP = {an.Map: 5, an.Knobs: 6, an.Table: 5}
 _FREQUENCY_RX_STEP = 5
 _FREQUENCY_VALUES_STEP = 5
 # The workbench's frequency-sweep views, by the names /analyses serves.
 _FREQUENCY_VIEWS = {an.Swr: "Swr", an.S11: "S11", an.Smith: "Smith"}
-_CROSS_STEP = {"planes": 5, "designs": 5, "step": 5}
 
 
 def _later(what: str, step: int) -> str:
@@ -91,9 +110,6 @@ def gaps(a: an.Analysis) -> list[str]:
     out = []
     if len(a.sweeps) > 1:
         out.append(_later("a two-sweep map", 5))
-    for c in a.crosses:
-        if c.kind in _CROSS_STEP:
-            out.append(_later(f"a cross over {c.kind}", _CROSS_STEP[c.kind]))
     if a.hold is not None:
         out.append(_later("hold (optimise at each point)", 6))
     if _is_frequency(a):
@@ -127,6 +143,113 @@ def _listed(a: an.Analysis) -> dict:
     return {"engines": listed(a, "engines"), "grounds": listed(a, "grounds")}
 
 
+class _Refusal(Exception):
+    """What refuses a whole analysis in the workbench, found while serving
+    its crosses."""
+
+
+def _plane_entry(builder, plane: str) -> dict:
+    why = ar.plane_refusal(builder, plane)
+    if why is None:
+        net = builder.build_network()
+        if len(net.sources) != 1:
+            # The plane selector's seam (`adapter._apply_plane`) moves a
+            # single source; a drive of several has no one plane to move.
+            why = (
+                f"plane {plane!r}: this design drives {len(net.sources)} "
+                "sources, and the workbench measures a plane on a single-"
+                "source drive only; `antennaknobs analyze` draws it"
+            )
+    return {"name": plane, "refused": why}
+
+
+def _knob_run(a: an.Analysis, builder, req: Mapping) -> dict:
+    """A knob analysis on ``builder`` as ``/param_sweep`` takes it:
+    ``{param, values, log, density}``, or `_Refusal` naming why not."""
+    s = a.sweep
+    knob = an.resolve(s.knob, builder).knob
+    density = knob == "nominal_nsegs" or knob == an.density_knob(builder)
+    if density:
+        values = list(ar.density_rungs(s)[0])
+        param = DENSITY if knob == "nominal_nsegs" else knob
+        log = True
+    else:
+        try:
+            values = [float(x) for x in ar.knob_xs(s, builder, knob)]
+        except SystemExit as e:  # `_knob_range`'s refusal, by name
+            raise _Refusal(str(e)) from None
+        param = knob
+        log = s.spacing == "log"
+    try:
+        # What /param_sweep would solve: an int knob's values as whole counts.
+        values = sweep_values(req, param, values)
+    except ParamSweepError as e:
+        raise _Refusal(str(e)) from None
+    return {"param": param, "values": values, "log": log, "density": density}
+
+
+def _design_entry(a: an.Analysis, name: str, density: bool) -> dict:
+    """One design cell: ``name`` built at its own defaults, as the CLI's
+    design cell builds it (`analysis_run._prepare`), refused by name where
+    the catalog lacks it or the sweep does not resolve there."""
+    from .examples import UnknownGeometryError, example_for
+
+    out = {"name": name, "refused": None, "param": None, "values": None}
+    try:
+        cls = getattr(example_for(name), "builder_cls", None)
+    except UnknownGeometryError as e:
+        return {**out, "refused": str(e)}
+    if cls is None:
+        return {**out, "refused": f"{name!r} has no builder to cross"}
+    req = {"geometry": name}
+    b = builder_for(cls, req)
+    why = ar.sweep_refusal(a, b, density) or ar.density_moved(a, b)
+    if why:
+        return {**out, "refused": why}
+    if not _is_frequency(a):
+        try:
+            run = _knob_run(a, b, req)
+        except _Refusal as e:
+            return {**out, "refused": str(e)}
+        out.update(param=run["param"], values=run["values"])
+    return out
+
+
+def _step_entry(s: an.Sweep, builder, req: Mapping) -> dict:
+    """A family: the knob each cell sets, its values as ``/param_sweep``
+    would take them, and each cell's label part."""
+    knob = an.resolve(s.knob, builder).knob
+    try:
+        raw = ar.step_values(s, builder)
+        values = sweep_values(req, knob, [float(v) for v in raw])
+    except (SystemExit, ParamSweepError) as e:
+        raise _Refusal(f"the family over {knob}: {e}") from None
+    return {
+        "knob": knob,
+        "values": values,
+        "labels": [ar.step_label(s, builder, v) for v in raw],
+    }
+
+
+def _crosses(a: an.Analysis, builder, req: Mapping, *, density: bool) -> dict:
+    """The analysis's crosses over planes, designs and a family, as the
+    chart multiplies them (module docstring), or `_Refusal`."""
+    out = {
+        "axes": [c.kind for c in a.crosses],
+        "planes": None,
+        "designs": None,
+        "step": None,
+    }
+    for c in a.crosses:
+        if c.kind == "planes":
+            out["planes"] = [_plane_entry(builder, p) for p in c.planes]
+        elif c.kind == "designs":
+            out["designs"] = [_design_entry(a, d, density) for d in c.designs]
+        elif c.kind == "step":
+            out["step"] = _step_entry(c.step, builder, req)
+    return out
+
+
 def _note(a: an.Analysis, *, deck_density: bool) -> str | None:
     parts = []
     if deck_density:
@@ -137,7 +260,7 @@ def _note(a: an.Analysis, *, deck_density: bool) -> str | None:
     return "; ".join(parts) or None
 
 
-def _frequency(a: an.Analysis, builder) -> dict:
+def _frequency(a: an.Analysis, builder, crosses: dict) -> dict:
     """A runnable frequency analysis as the workbench's frequency sweep."""
     r = ar.frequency_range(a.sweep, builder)
     absolute = r.level in ("analysis", "file", "design")
@@ -161,6 +284,7 @@ def _frequency(a: an.Analysis, builder) -> dict:
             "threshold": a.references.swr,
         },
         **_listed(a),
+        **crosses,
         "note": note,
     }
 
@@ -168,37 +292,31 @@ def _frequency(a: an.Analysis, builder) -> dict:
 def workbench(a: an.Analysis, builder, req: Mapping) -> dict:
     """How the workbench runs ``a`` on ``builder`` (built from ``req``)."""
     why = an.problems(a, builder) + gaps(a)
+    # A family or map axis on the density knob, refused as the CLI refuses
+    # it (the engine holds a non-ladder sweep at its own density).
+    moved = ar.density_moved(a, builder)
+    if moved:
+        why.append(moved)
     if why:
         return {"runs": False, "why": "; ".join(why)}
-    if _is_frequency(a):
-        return _frequency(a, builder)
-    s = a.sweep
-    knob = an.resolve(s.knob, builder).knob
-    density = knob == "nominal_nsegs" or knob == an.density_knob(builder)
-    if density:
-        values = list(ar.density_rungs(s)[0])
-        param = DENSITY if knob == "nominal_nsegs" else knob
-        log = True
-    else:
-        try:
-            values = [float(x) for x in ar.knob_xs(s, builder, knob)]
-        except SystemExit as e:  # `_knob_range`'s refusal, by name
-            return {"runs": False, "why": str(e)}
-        param = knob
-        log = s.spacing == "log"
+    frequency = _is_frequency(a)
     try:
-        # What /param_sweep would solve: an int knob's values as whole counts.
-        values = sweep_values(req, param, values)
-    except ParamSweepError as e:
+        run = None if frequency else _knob_run(a, builder, req)
+        density = run is not None and run["density"]
+        crosses = _crosses(a, builder, req, density=density)
+    except _Refusal as e:
         return {"runs": False, "why": str(e)}
+    if run is None:
+        return _frequency(a, builder, crosses)
     return {
         "runs": True,
         "kind": "knob",
-        "param": param,
-        "values": values,
-        "log": log,
+        "param": run["param"],
+        "values": run["values"],
+        "log": run["log"],
         **_listed(a),
-        "note": _note(a, deck_density=density and param != DENSITY),
+        **crosses,
+        "note": _note(a, deck_density=density and run["param"] != DENSITY),
     }
 
 

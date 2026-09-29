@@ -443,6 +443,11 @@ def test_e4_is_served_as_the_decks_own_range_and_the_views_scale():
         "swr": {"scale": "auto", "threshold": 2.0},
         "engines": None,
         "grounds": None,
+        # No cross over planes, designs or a family (AK#1757 step 5 unit 4b).
+        "axes": [],
+        "planes": None,
+        "designs": None,
+        "step": None,
         "note": None,
     }
     assert w["range"]["lo"] == 14.0 and w["range"]["hi"] == 14.35

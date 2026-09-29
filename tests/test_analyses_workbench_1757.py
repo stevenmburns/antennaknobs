@@ -38,6 +38,10 @@ INVVEE = {
 }
 
 
+# The crosses beyond engines and grounds (AK#1757 step 5 unit 4b).
+CROSSES = ("axes", "planes", "designs", "step")
+
+
 @pytest.fixture(scope="module")
 def client() -> TestClient:
     from antennaknobs.web import server
@@ -72,6 +76,7 @@ def test_every_entry_has_the_documented_shape(invvee):
                 "swr",
                 "engines",
                 "grounds",
+                *CROSSES,
                 "note",
             }
         elif w["runs"]:
@@ -83,6 +88,7 @@ def test_every_entry_has_the_documented_shape(invvee):
                 "log",
                 "engines",
                 "grounds",
+                *CROSSES,
                 "note",
             }
         else:
@@ -124,8 +130,6 @@ def test_e1_convergence_runs_as_the_density_ladder(invvee):
         ("match vs height", "step 6"),
         ("resonance vs angle", "step 6"),
         ("tuning map", "step 5"),
-        ("tuning family", "step 5"),
-        ("feed spellings", "step 5"),
     ],
 )
 def test_what_the_workbench_cannot_draw_is_listed_with_its_step(invvee, name, step):
