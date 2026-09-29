@@ -2324,11 +2324,25 @@ function DesignSessionBody({
       const d = c.design !== undefined ? listedNow.designs?.find((x) => x.name === c.design) : undefined;
       return d?.param && d.values ? { param: d.param, values: d.values } : null;
     };
+    // A design cell of a frequency sweep sweeps that design's own band, on
+    // exactly the grid `antennaknobs analyze` sweeps there (served by
+    // /analyses), so two designs on different bands each stay on theirs. A
+    // range edit on the chart moves only the session design's curves: its
+    // own cell in the cross, and every cell without one.
+    const ownBand = (c: ChartCell): SweepRange | null => {
+      if (c.design === undefined) return null;
+      if (c.design === geometry && now.frequency?.rangeEdit) return null;
+      const d = listedNow.designs?.find((x) => x.name === c.design);
+      const f = d?.freqs;
+      if (!f || f.length === 0) return null;
+      return { lo: f[0], hi: f[f.length - 1], spacing: d.spacing ?? "lin", freqs: f };
+    };
     const runs: CellRun[] = drawn.map((c, k) => {
       const own = now.kind === "knob" ? ownSweep(c) : null;
+      const band = now.kind === "frequency" ? ownBand(c) : null;
       return {
         cell: cellRequest(i, k, c.slot as Slot, c.ground as string, c),
-        freq: inputs.freq,
+        freq: band ? { ...inputs.freq, range: band } : inputs.freq,
         param: own ? { ...inputs.param, req: { ...inputs.param.req, ...own } } : inputs.param,
       };
     });
