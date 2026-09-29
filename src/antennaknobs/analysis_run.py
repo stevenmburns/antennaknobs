@@ -125,7 +125,7 @@ def _has(a: an.Analysis, cls) -> bool:
     return any(isinstance(v, cls) and _draws(v, a) for v in a.views)
 
 
-def _density_moved(a: an.Analysis, builder) -> str | None:
+def density_moved(a: an.Analysis, builder) -> str | None:
     """Why ``a`` moves the density knob other than as a ladder, or None. The
     CLI's engines hold every non-density sweep at the engine's own density
     (#1543), so a map axis or a family step on that knob would be undone at
@@ -154,7 +154,7 @@ def cli_gaps(a: an.Analysis, builder=None) -> list[str]:
     out = []
     if a.hold is not None:
         out.append(_later("hold (optimise at each point)", _HOLD_STEP))
-    moved = _density_moved(a, builder)
+    moved = density_moved(a, builder)
     if moved:
         out.append(moved)
     if not any(_draws(v, a) for v in a.views):
@@ -288,6 +288,12 @@ def _step_name(s: an.Sweep, builder) -> str:
     return an._knob_name(s.knob)
 
 
+def step_label(s: an.Sweep, builder, value) -> str:
+    """A family cell's label part, ``knob = value``: what `cells` names it
+    and the workbench's ``/analyses`` serves, so both tools label alike."""
+    return f"{_step_name(s, builder)} = {_fmt(value)}"
+
+
 def cells(a: an.Analysis, session_engine: str, builder=None) -> list[Cell]:
     """The product of ``a``'s crosses, in the order they are written. A
     label names what varies, each part as the spec spells it: the engine,
@@ -297,10 +303,9 @@ def cells(a: an.Analysis, session_engine: str, builder=None) -> list[Cell]:
     axes = []
     for c in a.crosses:
         if c.step is not None:
-            name = _step_name(c.step, builder)
             axes.append(
                 [
-                    ("step", (c.step.knob, v), f"{name} = {_fmt(v)}")
+                    ("step", (c.step.knob, v), step_label(c.step, builder, v))
                     for v in step_values(c.step, builder)
                 ]
             )
@@ -452,25 +457,12 @@ def at_plane(factory: Callable, plane: str) -> Callable:
     network value is cut afresh at each point. A plane the design does not
     offer (`plane.planes_of`) is a ValueError naming the ones it does: the
     cell is refused, and the rest run."""
-    from .plane import driven_at, planes_of
+    from .plane import driven_at
 
     def make(builder):
         # The design's own network, not a shadow an earlier build left.
         builder.__dict__.pop("build_network", None)
-        build = getattr(builder, "build_network", None)
-        net = build() if callable(build) else None
-        if net is None:
-            raise ValueError(
-                f"no plane {plane!r}: this design has no network, so no port "
-                "to measure at but its own feed"
-            )
-        planes = planes_of(net)
-        if plane not in planes:
-            raise ValueError(
-                f"no plane {plane!r} on this design; it offers "
-                f"{', '.join(planes) or 'none'}"
-            )
-        pruned = driven_at(net, plane)
+        pruned = driven_at(_plane_network(builder, plane), plane)
         # object.__setattr__, not assignment: Builder.__setattr__ files a
         # write into _params, where the class method still wins the lookup,
         # and every plane would quietly solve at the design's own.
@@ -478,6 +470,58 @@ def at_plane(factory: Callable, plane: str) -> Callable:
         return factory(builder)
 
     return make
+
+
+def _plane_network(builder, plane: str):
+    """``builder``'s network, when it offers port ``plane``; else a
+    ValueError naming why not (no network, or the planes it does offer)."""
+    from .plane import planes_of
+
+    build = getattr(builder, "build_network", None)
+    net = build() if callable(build) else None
+    if net is None:
+        raise ValueError(
+            f"no plane {plane!r}: this design has no network, so no port "
+            "to measure at but its own feed"
+        )
+    planes = planes_of(net)
+    if plane not in planes:
+        raise ValueError(
+            f"no plane {plane!r} on this design; it offers "
+            f"{', '.join(planes) or 'none'}"
+        )
+    return net
+
+
+def plane_refusal(builder, plane: str) -> str | None:
+    """Why a plane cell at ``plane`` is refused on ``builder`` (`at_plane`'s
+    words), or None when the design offers it. The workbench's ``/analyses``
+    serves it per plane."""
+    try:
+        _plane_network(builder, plane)
+    except ValueError as e:
+        return str(e)
+    return None
+
+
+def sweep_refusal(a: an.Analysis, builder, density: bool) -> str | None:
+    """Why ``a``'s sweep cannot run on ``builder`` (a design cell's own), or
+    None: a knob that does not resolve there, or a knob whose density role
+    differs from the analysis's (``density``: the session design's sweep is
+    a convergence ladder)."""
+    knobs = []
+    for s in a.sweeps:
+        r = an.resolve(s.knob, builder)
+        if r.knob is None:
+            return r.reason
+        knobs.append(r.knob)
+    if len(knobs) == 1 and _is_density(builder, knobs[0]) != density:
+        return f"on this design {knobs[0]} " + (
+            "is not the density knob, so its sweep is no convergence ladder"
+            if density
+            else "plays the density role, and the analysis sweeps a knob"
+        )
+    return None
 
 
 @dataclass
@@ -515,22 +559,11 @@ def _prepare(
             # one cell's reason, not the run's.
             raise _Refused(str(e)) from None
     b = builder_factory()
-    knobs = []
-    for s in a.sweeps:
-        r = an.resolve(s.knob, b)
-        if r.knob is None:
-            raise _Refused(r.reason)
-        knobs.append(r.knob)
-    if len(knobs) == 1 and _is_density(b, knobs[0]) != density:
-        raise _Refused(
-            f"on this design {knobs[0]} "
-            + (
-                "is not the density knob, so its sweep is no convergence ladder"
-                if density
-                else "plays the density role, and the analysis sweeps a knob"
-            )
-        )
-    moved = _density_moved(a, b) if cell.design is not None else None
+    why = sweep_refusal(a, b, density)
+    if why:
+        raise _Refused(why)
+    knobs = [an.resolve(s.knob, b).knob for s in a.sweeps]
+    moved = density_moved(a, b) if cell.design is not None else None
     if moved:
         raise _Refused(moved)
     if cell.step is not None:
