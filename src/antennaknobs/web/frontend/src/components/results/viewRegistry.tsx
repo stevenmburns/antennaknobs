@@ -154,6 +154,10 @@ export type ZParamViewSettings = {
   /** The runner's phase (idle / queued / running), published on the chart
    *  for tests that must show no sweep follows. Optional. */
   phase?: "idle" | "queued" | "running";
+  /** The end-value boxes on the R/X plot, and their toggle (stage only):
+   *  a phone starts with them off. Omitted, on and no toggle. */
+  callouts?: boolean;
+  onCalloutsChange?: (on: boolean) => void;
   /** R/X against the knob, or the sweep's trail on the Smith chart (the old
    *  Smith view's "param sweep" switch, AK#1757 step 5 unit 3). Optional:
    *  omitted, R/X. */
@@ -284,6 +288,8 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
         // chart does; else the session's.
         z0={p.liveZ?.z0_ohms ?? z.z0}
         {...(z.phase ? { phase: z.phase } : {})}
+        {...(z.callouts !== undefined ? { callouts: z.callouts } : {})}
+        {...(z.onCalloutsChange ? { onCalloutsChange: z.onCalloutsChange } : {})}
         {...(p.onZparamXLogChange ? { onXLogChange: p.onZparamXLogChange } : {})}
         {...(p.onZparamAxisChange ? { onAxisChange: p.onZparamAxisChange } : {})}
       />
