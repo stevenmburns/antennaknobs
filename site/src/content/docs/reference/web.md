@@ -318,6 +318,13 @@ legend naming each one, as `antennaknobs analyze` names its curves. The marker
 at the measurement frequency is the live solve's, and moves with every knob;
 the curves wait for **auto re-run** or **run** as one curve does.
 
+On a phone the legend starts folded into one small chip in the chart's
+corner, **3 curves ▾**, with **· 1 refused** after it whenever a curve is
+refused, so folding it never hides a refusal. Tap the chip to open the
+legend and **▴** to fold it again. On a desktop it starts open. Each chart
+keeps its own choice for the session, and a duplicate starts from its
+source's.
+
 A chart draws at most **six** curves, the command line's cap: three engines
 on two grounds draw, three on three are refused (*"REFUSED: 3 engines x 3
 grounds = 9 curves, over the cap of 6"*), and nothing is dropped to fit.

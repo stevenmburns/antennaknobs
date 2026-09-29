@@ -232,11 +232,12 @@ const UI_DEFAULTS = {
 const APEX_REFUSAL =
   "this design uses PortAtVertex (a series apex feed at a junction knot), which NEC-2 cannot represent";
 
-async function mount(examples: ExampleDescriptor[] = [DECK, OTHER]) {
+async function mount(examples: ExampleDescriptor[] = [DECK, OTHER], opts: { mobile?: boolean } = {}) {
   const sweeps: Body[] = [];
   const params: Body[] = [];
   const r = await mountReady({
     examples,
+    ...(opts.mobile ? { mobile: true } : {}),
     pinned: ["antenna", "zparam"],
     uiDefaults: UI_DEFAULTS,
     routes: {
@@ -431,5 +432,33 @@ describe("the cap", () => {
     await untilDom(() => document.querySelector(".chart-legend")?.textContent?.includes(refusal) || null);
     expect(within(dlg).getByRole("alert").textContent).toBe(refusal);
     expect(r.params.length).toBe(before);
+  });
+});
+
+// Steve's phone review of unit 4a: the legend covered too much of a phone's
+// chart. It collapses to a chip, collapsed by default on a phone.
+describe("the legend on a phone", () => {
+  it("starts as a chip that still counts the refused, and opens and closes on a tap", async () => {
+    await mount(undefined, { mobile: true });
+    await pick("planes SWR");
+    const chip = await untilDom(() =>
+      screen.queryByRole("button", { name: /^Show the legend/ }),
+    );
+    expect(chip.textContent).toBe("2 curves ▾ · 1 refused");
+    expect(document.querySelector(".chart-legend")).toBeNull();
+    fireEvent.click(chip);
+    const legend = await untilDom(() => document.querySelector<HTMLElement>(".chart-legend"));
+    expect(legend.textContent).toContain("nowhere: no plane 'nowhere'");
+    fireEvent.click(screen.getByRole("button", { name: "Collapse the legend" }));
+    await untilDom(() => screen.queryByRole("button", { name: /^Show the legend/ }));
+    expect(document.querySelector(".chart-legend")).toBeNull();
+  });
+
+  it("is open on a desktop", async () => {
+    const r = await mount();
+    await chartOnStage(r);
+    await pick("planes SWR");
+    await untilDom(() => document.querySelector(".chart-legend"));
+    expect(screen.queryByRole("button", { name: /^Show the legend/ })).toBeNull();
   });
 });
