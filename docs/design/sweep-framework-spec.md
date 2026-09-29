@@ -473,3 +473,21 @@ generalised.**
   frequency sweep's one build. That is exactly why the switch is per chart.
 - **The live point stays live in every chart:** the measurement frequency's
   Z marker and SWR readout move with the drag. Only the swept curve waits.
+
+**Ruling on question 2 (Steve, 2026-09-28, "for starters").** Engines and
+grounds stay in the `.py`. It names the comparison, and for the CLI it is
+the whole truth.
+
+- **In the workbench, an engine cross is a non-empty subset of the solver
+  slots A, B and C,** chosen on the chart as a chart control. A slot carries
+  its engine's options (degree, feed model, EK), which a spec string does
+  not. The `.py`'s list preselects: a slot holding a listed engine starts
+  checked. The cross is at most 3 curves, within the cap.
+- **A listed engine that no slot holds is a named refused cell** ("no slot
+  runs nec5; set one in a slot's gear menu"). The workbench never rewrites a
+  slot.
+- **A ground cross runs as written.** The chart offers the listed grounds
+  as checkboxes. Ground is one session setting, not per slot, and a ground
+  spec is complete on its own.
+- **Pins are the ad-hoc route to the same overlay:** run, pin, switch the
+  slot. They are session-only, like everything but the `.py`.
