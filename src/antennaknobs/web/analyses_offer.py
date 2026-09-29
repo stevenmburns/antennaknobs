@@ -24,9 +24,13 @@ each with its one-line summary, its Python, its problems, and a
   string (reasons joined by "; "), each naming the sweep-framework step it
   is planned for, or the problem `analyses.problems` found.
 
-A cross over engines or grounds runs ONE cell in the workbench, the
-session's own engine and ground, and ``note`` says so. Framework-free, so it
-is tested without a server.
+Both runnable shapes also carry ``engines`` and ``grounds``: the engine
+specs and ground specs the analysis lists (its cross over engines or
+grounds, else its one ``engine`` / ``ground``), in its order, or None when
+it names none. The analysis chart preselects the solver slots and ground
+slots that hold them, and names each one no slot holds as a refused cell
+(AK#1757 step 5 unit 4); with None it draws the session's active slot and
+ground. Framework-free, so it is tested without a server.
 """
 
 from __future__ import annotations
@@ -47,8 +51,6 @@ _FREQUENCY_VALUES_STEP = 5
 # The workbench's frequency-sweep views, by the names /analyses serves.
 _FREQUENCY_VIEWS = {an.Swr: "Swr", an.S11: "S11", an.Smith: "Smith"}
 _CROSS_STEP = {"planes": 5, "designs": 5, "step": 5}
-# The crosses the workbench draws one cell of: the session's own.
-_SESSION_CROSS = {"engines": "engine", "grounds": "ground"}
 
 
 def _later(what: str, step: int) -> str:
@@ -111,24 +113,22 @@ def gaps(a: an.Analysis) -> list[str]:
     return out
 
 
+def listed(a: an.Analysis, kind: str) -> list[str] | None:
+    """The specs ``a`` lists for ``kind`` ("engines" or "grounds"): its cross
+    over them, else its one ``engine`` / ``ground``, else None."""
+    for c in a.crosses:
+        if c.kind == kind:
+            return list(getattr(c, kind))
+    one = getattr(a, kind[:-1])
+    return [one] if one is not None else None
+
+
+def _listed(a: an.Analysis) -> dict:
+    return {"engines": listed(a, "engines"), "grounds": listed(a, "grounds")}
+
+
 def _note(a: an.Analysis, *, deck_density: bool) -> str | None:
     parts = []
-    crossed = [c for c in a.crosses if c.kind in _SESSION_CROSS]
-    if crossed:
-        kinds = " and ".join(c.kind for c in crossed)
-        own = " and ".join(_SESSION_CROSS[c.kind] for c in crossed)
-        parts.append(
-            f"crossed over {kinds}: the workbench draws this session's {own}; "
-            f"`antennaknobs analyze` draws all {a.curves}"
-        )
-    for field in ("engine", "ground"):
-        value = getattr(a, field)
-        crossed_here = any(_SESSION_CROSS[c.kind] == field for c in crossed)
-        if value is not None and not crossed_here:
-            parts.append(
-                f"the analysis names {field} {value}; the workbench uses this "
-                f"session's {field}"
-            )
     if deck_density:
         parts.append(
             "Z∞ for a deck's own density knob is CLI-only for now: the "
@@ -160,6 +160,7 @@ def _frequency(a: an.Analysis, builder) -> dict:
             "scale": swr.scale if swr is not None else None,
             "threshold": a.references.swr,
         },
+        **_listed(a),
         "note": note,
     }
 
@@ -196,6 +197,7 @@ def workbench(a: an.Analysis, builder, req: Mapping) -> dict:
         "param": param,
         "values": values,
         "log": log,
+        **_listed(a),
         "note": _note(a, deck_density=density and param != DENSITY),
     }
 

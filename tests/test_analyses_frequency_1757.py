@@ -441,6 +441,8 @@ def test_e4_is_served_as_the_decks_own_range_and_the_views_scale():
         "points": None,
         "views": ["Swr"],
         "swr": {"scale": "auto", "threshold": 2.0},
+        "engines": None,
+        "grounds": None,
         "note": None,
     }
     assert w["range"]["lo"] == 14.0 and w["range"]["hi"] == 14.35
