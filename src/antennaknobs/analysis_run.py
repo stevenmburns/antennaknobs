@@ -1,5 +1,5 @@
 """Running an `analyses.Analysis` from the command line (``antennaknobs
-analyze``, AK#1757): step 2 of the sweep framework, CLI first.
+analyze``, AK#1757): the sweep framework, CLI first.
 
 Nothing here solves or draws on its own account. A knob sweep solves through
 ``sweep._solve_at`` and a density sweep through ``sweep._convergence_rows``,
@@ -8,23 +8,39 @@ the equivalent ``sweep`` command are the same numbers by construction; the
 chart is ``sweep._rx_overlay`` and the table ``sweep._print_convergence_table``.
 
 What runs: a sweep over a knob, `analyses.DENSITY`, `analyses.HEIGHT` or
-`analyses.FREQUENCY` (step 4); crosses over engines and grounds (their
-product, one curve per cell); the `Rx`, `Table`, `Swr`, `S11` and `Smith`
-views; `Ref` lines on R and X and the SWR threshold. A frequency sweep solves
-through ``sweep.swr_curve``, the solve behind ``sweep --swr``, over
-`frequency_range.design_range` when the spec gives no range: the rule
-``sweep --swr`` and the workbench read. Everything else is refused by name,
-with the step it is planned for, when the analysis is listed and when it is
-asked to run.
+`analyses.FREQUENCY`, or a pair of them (a map); crosses over engines,
+grounds, measurement planes, designs and a second knob's values (a family),
+their product one curve (or one map) per cell; the `Rx`, `Table`, `Swr`,
+`S11`, `Smith` and `Map` views; `Ref` lines on R and X, the SWR threshold,
+and the map's contours. A frequency sweep solves through ``sweep.swr_curve``,
+the solve behind ``sweep --swr``, over `frequency_range.design_range` when
+the spec gives no range: the rule ``sweep --swr`` and the workbench read.
+Everything else is refused by name, with the step it is planned for, when
+the analysis is listed and when it is asked to run.
+
+How a cell is made (`cells`, `_prepare`): each cell is one combination of
+the crosses, in the order they are written, and solves on a builder of its
+own, so nothing one cell sets reaches the next:
+
+- a design cell builds that design through the caller's ``design_seam``
+  (the CLI's registry lookup and engine factory, with that design's own
+  file ground and deck flags), and resolves the sweep on it;
+- a family cell sets the step knob on its builder before the sweep moves x;
+- a plane cell solves the design as a VNA clipped on at that port would see
+  it: before each engine is built, the design's network is re-sourced there
+  by `plane.driven_at` and shadows ``build_network`` on the builder, the
+  workbench's plane selector's own seam (``web.adapter._apply_plane``).
 
 One chart per run: `Rx` is ``sweep._rx_overlay``'s chart, as ``sweep``
 draws it; `Swr`, `S11` and `Smith` are panels of one figure beside it
 (`_views_figure`), written to ``fn`` when there is no `Rx`, else to
-``<stem>-views<suffix>``.
+``<stem>-views<suffix>``. A map is its own figure (`_map_figure`), one panel
+per cell.
 
-A cross cell an engine cannot serve (an engine not on this machine's roster,
-or one that refuses the design) is a REFUSED cell: named in the output and in
-the legend, while the other cells run.
+A cross cell that cannot be served (an engine not on this machine's roster
+or refusing the design, a plane the design does not offer, a design lacking
+the swept knob) is a REFUSED cell: named in the output and in the legend,
+while the other cells run.
 """
 
 from __future__ import annotations
@@ -42,14 +58,14 @@ from . import analyses as an
 from . import frequency_range as fr
 
 # The sweep-framework step each refused piece is planned for (Steve,
-# 2026-09-28): 5 planes, designs, families and the map; 6 hold; 7 the UI
-# writes the Python, and the deck stub.
-_VIEW_STEP = {an.Map: 5, an.Knobs: 6}
-_CROSS_STEP = {"planes": 5, "designs": 5, "step": 5}
+# 2026-09-28): 6 hold; 7 the UI writes the Python, and the deck stub.
+_VIEW_STEP = {an.Knobs: 6}
 _HOLD_STEP = 6
-_RUNS = (an.Rx, an.Table, an.Swr, an.S11, an.Smith)
+_RUNS = (an.Rx, an.Table, an.Swr, an.S11, an.Smith, an.Map)
 # The views drawn as panels of one figure (`_views_figure`).
 _PANELS = (an.Swr, an.S11, an.Smith)
+# The views that draw a curve against one swept value.
+_CURVE_VIEWS = (an.Rx, *_PANELS)
 
 
 def _later(what: str, step: int) -> str:
@@ -74,30 +90,83 @@ def not_a_view(v: an.View) -> str | None:
     )
 
 
-def _view_later(v: an.View) -> str:
-    return not_a_view(v) or _later(f"the {type(v).__name__} view", view_step(v))
+def _misfit(v: an.View, a: an.Analysis) -> str | None:
+    """Why view ``v`` does not fit ``a``'s sweep: a map needs a pair of
+    sweeps, and a curve view one."""
+    name = f"the {type(v).__name__} view"
+    pair = len(a.sweeps) == 2
+    if isinstance(v, an.Map) and not pair:
+        return (
+            f"{name}: a map draws a pair of sweeps, an.Analysis(name, (x, y)); "
+            "this analysis sweeps one"
+        )
+    if pair and isinstance(v, _CURVE_VIEWS):
+        return (
+            f"{name} of a two-sweep map: a map draws Map and Table; cross the "
+            "second knob as a family (an.Cross(step=...)) to draw curves"
+        )
+    return None
 
 
-def cli_gaps(a: an.Analysis) -> list[str]:
-    """What refuses ``a`` as a whole in the CLI."""
+def _draws(v: an.View, a: an.Analysis) -> bool:
+    return isinstance(v, _RUNS) and _misfit(v, a) is None
+
+
+def _view_why(v: an.View, a: an.Analysis) -> str:
+    return (
+        not_a_view(v)
+        or _misfit(v, a)
+        or _later(f"the {type(v).__name__} view", view_step(v))
+    )
+
+
+def _has(a: an.Analysis, cls) -> bool:
+    """Whether ``a`` draws a view of ``cls`` (a subclass is that view)."""
+    return any(isinstance(v, cls) and _draws(v, a) for v in a.views)
+
+
+def _density_moved(a: an.Analysis, builder) -> str | None:
+    """Why ``a`` moves the density knob other than as a ladder, or None. The
+    CLI's engines hold every non-density sweep at the engine's own density
+    (#1543), so a map axis or a family step on that knob would be undone at
+    every solve and draw the same mesh throughout."""
+    dens = an.density_knob(builder) if builder is not None else None
+    moved = []
+    if len(a.sweeps) == 2:
+        moved += [s.knob for s in a.sweeps]
+    moved += [c.step.knob for c in a.crosses if c.step is not None]
+    for k in moved:
+        if k == an.DENSITY or (
+            dens is not None and an.resolve(k, builder).knob == dens
+        ):
+            return (
+                "a map axis or family over the density knob: not something "
+                "`analyze` runs (the engine holds a non-ladder sweep at its own "
+                "density); sweep the density (an.convergence) and cross the "
+                "other knob as a family"
+            )
+    return None
+
+
+def cli_gaps(a: an.Analysis, builder=None) -> list[str]:
+    """What refuses ``a`` as a whole in the CLI (on ``builder``, when
+    given, which resolves a knob named directly)."""
     out = []
-    if len(a.sweeps) > 1:
-        out.append(_later("a two-sweep map", _VIEW_STEP[an.Map]))
-    for c in a.crosses:
-        if c.kind in _CROSS_STEP:
-            out.append(_later(f"a cross over {c.kind}", _CROSS_STEP[c.kind]))
     if a.hold is not None:
         out.append(_later("hold (optimise at each point)", _HOLD_STEP))
-    if not any(isinstance(v, _RUNS) for v in a.views):
-        out += [_view_later(v) for v in a.views]
+    moved = _density_moved(a, builder)
+    if moved:
+        out.append(moved)
+    if not any(_draws(v, a) for v in a.views):
+        out += [_view_why(v, a) for v in a.views]
     return out
 
 
 def skipped_views(a: an.Analysis) -> list[str]:
     """Views left out of a run that draws at least one view."""
-    if not any(isinstance(v, _RUNS) for v in a.views):
+    if not any(_draws(v, a) for v in a.views):
         return []
-    return [_view_later(v) for v in a.views if not isinstance(v, _RUNS)]
+    return [_view_why(v, a) for v in a.views if not _draws(v, a)]
 
 
 def _fmt(v) -> str:
@@ -133,7 +202,10 @@ def summary(a: an.Analysis, builder) -> str:
     text = " x ".join(parts)
     crosses = " x ".join(_cross_words(c) for c in a.crosses)
     n = a.curves
-    text += f"; {n} curve{'s' if n != 1 else ''}" + (f" ({crosses})" if crosses else "")
+    unit = "map" if len(a.sweeps) == 2 else "curve"
+    text += f"; {n} {unit}{'s' if n != 1 else ''}" + (
+        f" ({crosses})" if crosses else ""
+    )
     if a.hold is not None:
         held = ", ".join(an._knob_name(k) for k in a.hold.adjust)
         text += f"; hold {a.hold.objective} on {held}"
@@ -160,7 +232,7 @@ def list_lines(builder) -> list[str]:
     width = max((len(a.name) for a in offered), default=0)
     lines = []
     for a in offered:
-        probs = an.problems(a, builder) + cli_gaps(a)
+        probs = an.problems(a, builder) + cli_gaps(a, builder)
         lines.append(f"{a.name:<{width}}  {summary(a, builder)}")
         for p in probs:
             lines.append(f"{'':<{width}}    {p}")
@@ -182,25 +254,73 @@ def find(builder, name: str) -> an.Analysis:
 
 @dataclass(frozen=True)
 class Cell:
-    """One curve: its label, its engine spec and ground spec (None: the
-    session's own)."""
+    """One curve (or one map): its label, and what makes it. ``engine`` is
+    an engine spec; ``ground`` a ground spec, None the session's; ``plane``
+    the port it is measured at, None the design's own; ``design`` a registry
+    name, None the analysis's own design; ``step`` a family's ``(knob or
+    role, value)``, None when there is no family."""
 
     label: str
     engine: str
     ground: str | None
+    plane: str | None = None
+    design: str | None = None
+    step: tuple[str | an.Role, float] | None = None
 
 
-def cells(a: an.Analysis, session_engine: str) -> list[Cell]:
+def step_values(s: an.Sweep, builder) -> list:
+    """A family's values: the spec's own, else `knob_xs` on ``builder``."""
+    if s.values is not None:
+        return list(s.values)
+    knob = an.resolve(s.knob, builder).knob
+    if knob is None:
+        raise SystemExit(an.resolve(s.knob, builder).reason)
+    return [x.item() if hasattr(x, "item") else x for x in knob_xs(s, builder, knob)]
+
+
+def _step_name(s: an.Sweep, builder) -> str:
+    """The knob a family's labels name: the resolved knob, as the design
+    names it, else the spec's own spelling."""
+    if builder is not None:
+        knob = an.resolve(s.knob, builder).knob
+        if knob is not None:
+            return knob
+    return an._knob_name(s.knob)
+
+
+def cells(a: an.Analysis, session_engine: str, builder=None) -> list[Cell]:
     """The product of ``a``'s crosses, in the order they are written. A
-    label names what varies: the engine, the ground, or both."""
-    axes = [c for c in a.crosses if c.kind in ("engines", "grounds")]
+    label names what varies, each part as the spec spells it: the engine,
+    the ground, the plane (as the design names its port), the design, and a
+    family's ``knob = value``, joined by ", ". ``builder`` (the analysis's
+    own design) gives a family's values when the spec gives a range."""
+    axes = []
+    for c in a.crosses:
+        if c.step is not None:
+            name = _step_name(c.step, builder)
+            axes.append(
+                [
+                    ("step", (c.step.knob, v), f"{name} = {_fmt(v)}")
+                    for v in step_values(c.step, builder)
+                ]
+            )
+        else:
+            axes.append([(c.kind, v, v) for v in getattr(c, c.kind)])
     out = []
-    for combo in itertools.product(*(getattr(c, c.kind) for c in axes)):
-        chosen = dict(zip((c.kind for c in axes), combo, strict=True))
+    for combo in itertools.product(*axes):
+        chosen = {kind: value for kind, value, _ in combo}
         engine = chosen.get("engines", a.engine or session_engine)
-        ground = chosen.get("grounds", a.ground)
-        label = ", ".join(chosen.values()) if chosen else engine
-        out.append(Cell(label, engine, ground))
+        label = ", ".join(part for _, _, part in combo) if combo else engine
+        out.append(
+            Cell(
+                label,
+                engine,
+                chosen.get("grounds", a.ground),
+                plane=chosen.get("planes"),
+                design=chosen.get("designs"),
+                step=chosen.get("step"),
+            )
+        )
     return out
 
 
@@ -313,6 +433,155 @@ def _references(axes, refs: an.Ref) -> None:
 # session's, density study?) -> factory. It raises argparse.ArgumentTypeError
 # for an engine this machine does not have.
 FactoryFor = Callable[[str, "str | None", bool], Callable]
+# A design cross's seam: registry name -> (builder factory, its FactoryFor,
+# its ground label for a ground spec). The CLI's is `cli.get_builder` and the
+# engine factory closed over that design (its own file ground, deck flags).
+DesignSeam = Callable[[str], "tuple[Callable, FactoryFor, Callable[[str | None], str]]"]
+
+
+class _Refused(Exception):
+    """A cell that cannot be served, and why."""
+
+
+def at_plane(factory: Callable, plane: str) -> Callable:
+    """``factory`` measuring at port ``plane``: each engine it builds solves
+    the design re-sourced there by `plane.driven_at`, the upstream chain cut
+    away, as the workbench's plane selector solves it
+    (``web.adapter._apply_plane``, the same instance shadow). The network is
+    re-read from the design at every build, so a knob sweep that moves a
+    network value is cut afresh at each point. A plane the design does not
+    offer (`plane.planes_of`) is a ValueError naming the ones it does: the
+    cell is refused, and the rest run."""
+    from .plane import driven_at, planes_of
+
+    def make(builder):
+        # The design's own network, not a shadow an earlier build left.
+        builder.__dict__.pop("build_network", None)
+        build = getattr(builder, "build_network", None)
+        net = build() if callable(build) else None
+        if net is None:
+            raise ValueError(
+                f"no plane {plane!r}: this design has no network, so no port "
+                "to measure at but its own feed"
+            )
+        planes = planes_of(net)
+        if plane not in planes:
+            raise ValueError(
+                f"no plane {plane!r} on this design; it offers "
+                f"{', '.join(planes) or 'none'}"
+            )
+        pruned = driven_at(net, plane)
+        # object.__setattr__, not assignment: Builder.__setattr__ files a
+        # write into _params, where the class method still wins the lookup,
+        # and every plane would quietly solve at the design's own.
+        object.__setattr__(builder, "build_network", lambda: pruned)
+        return factory(builder)
+
+    return make
+
+
+@dataclass
+class _Prepared:
+    """A cell ready to solve: its own builder with the family step set, the
+    sweep's knob(s) resolved on it, and its engine factory."""
+
+    label: str
+    builder: object
+    knobs: list[str]
+    factory: Callable
+    ground_label: str
+
+
+def _is_density(builder, knob: str) -> bool:
+    return knob == "nominal_nsegs" or knob == an.density_knob(builder)
+
+
+def _prepare(
+    cell: Cell,
+    a: an.Analysis,
+    session: tuple,
+    design_seam: DesignSeam | None,
+    density: bool,
+) -> _Prepared:
+    """``cell`` on a builder of its own, or `_Refused` naming why not."""
+    builder_factory, factory_for, label_for = session
+    if cell.design is not None:
+        if design_seam is None:
+            raise TypeError("a cross over designs needs run(design_seam=...)")
+        try:
+            builder_factory, factory_for, label_for = design_seam(cell.design)
+        except (SystemExit, ValueError) as e:
+            # The registry's "unknown builder" is a SystemExit: here it is
+            # one cell's reason, not the run's.
+            raise _Refused(str(e)) from None
+    b = builder_factory()
+    knobs = []
+    for s in a.sweeps:
+        r = an.resolve(s.knob, b)
+        if r.knob is None:
+            raise _Refused(r.reason)
+        knobs.append(r.knob)
+    if len(knobs) == 1 and _is_density(b, knobs[0]) != density:
+        raise _Refused(
+            f"on this design {knobs[0]} "
+            + (
+                "is not the density knob, so its sweep is no convergence ladder"
+                if density
+                else "plays the density role, and the analysis sweeps a knob"
+            )
+        )
+    moved = _density_moved(a, b) if cell.design is not None else None
+    if moved:
+        raise _Refused(moved)
+    if cell.step is not None:
+        target, value = cell.step
+        r = an.resolve(target, b)
+        if r.knob is None:
+            raise _Refused(r.reason)
+        if r.knob in knobs:
+            raise _Refused(f"the family steps {r.knob}, the swept knob on this design")
+        setattr(b, r.knob, value)
+    try:
+        factory = factory_for(cell.engine, cell.ground, density)
+    except argparse.ArgumentTypeError as e:
+        raise _Refused(str(e)) from None
+    if cell.plane is not None:
+        factory = at_plane(factory, cell.plane)
+    return _Prepared(cell.label, b, knobs, factory, label_for(cell.ground))
+
+
+def _xs(s: an.Sweep, builder, knob: str) -> np.ndarray:
+    return (
+        frequency_xs(s, builder)
+        if s.knob == an.FREQUENCY
+        else knob_xs(s, builder, knob)
+    )
+
+
+def _solve_line(builder, s: an.Sweep, knob: str, xs, factory, z0) -> np.ndarray:
+    """Z at every port, (points, ports), along one knob or frequency sweep:
+    ``sweep.swr_curve`` for frequency (one build, the engine's vectorized
+    sweep), ``sweep._solve_at`` for a knob (a build per point)."""
+    sw = _sweep_module()
+    if s.knob == an.FREQUENCY:
+        zs, _swr = sw.swr_curve(builder, "freq", xs, factory, z0)
+        return np.asarray(zs)
+    return np.array(sw._solve_at(builder, knob, xs, factory))
+
+
+def solve_map(p: _Prepared, a: an.Analysis, z0: float):
+    """One map cell: ``(xs, ys, Z)``, Z shaped (len(ys), len(xs)) at port 0.
+    Each row sets y on the cell's builder and runs x's own line solve, so a
+    map row IS the one-sweep analysis of x at that y."""
+    sx, sy = a.sweeps
+    kx, ky = p.knobs
+    xs = _xs(sx, p.builder, kx)
+    ys = _xs(sy, p.builder, ky)
+    rows = []
+    for y in ys:
+        setattr(p.builder, ky, y.item() if hasattr(y, "item") else y)
+        rows.append(_solve_line(p.builder, sx, kx, xs, p.factory, z0)[:, 0])
+    return xs, ys, np.array(rows)
 
 
 def run(
@@ -324,11 +593,14 @@ def run(
     session_engine: str,
     z0: float = 50.0,
     fn: str | None = None,
+    design_seam: DesignSeam | None = None,
 ) -> dict:
     """Run ``a`` on the design ``builder_factory`` makes. Returns what was
     computed, ``{"curves": {label: (xs, zs)}, "refused": {label: reason},
-    "estimates": {label: ZInfEstimate}}`` (estimates on a density sweep only),
-    for the tests; the table goes to stdout and the chart to ``fn``."""
+    "estimates": {label: ZInfEstimate}}`` (estimates on a density sweep
+    only; a map's cells are ``"maps": {label: (xs, ys, Z)}`` instead of
+    curves), for the tests; the table goes to stdout and the chart to
+    ``fn``. ``design_seam`` builds a design cross's other designs."""
     import matplotlib.pyplot as plt
 
     from .core import save_or_show
@@ -336,57 +608,62 @@ def run(
     sw = _sweep_module()
 
     builder = builder_factory()
-    probs = an.problems(a, builder) + cli_gaps(a)
+    probs = an.problems(a, builder) + cli_gaps(a, builder)
     if probs:
         raise SystemExit(f"analysis {a.name!r}: " + "; ".join(probs))
-    knob = an.resolve(a.sweep.knob, builder).knob
-    density = knob == "nominal_nsegs" or knob == an.density_knob(builder)
+    knob = an.resolve(a.sweeps[0].knob, builder).knob
+    is_map = len(a.sweeps) == 2
+    density = not is_map and _is_density(builder, knob)
     print(f"analysis {a.name!r}: {summary(a, builder)}")
     for p in skipped_views(a):
         print(f"  runs without {p}")
-    views = {type(v) for v in a.views}
 
     refused: dict[str, str] = {}
-    factories = []
-    ground_label = {}
-    for cell in cells(a, session_engine):
-        ground_label[cell.label] = ground_label_for(cell.ground)
+    prepared: list[_Prepared] = []
+    session = (builder_factory, factory_for, ground_label_for)
+    for cell in cells(a, session_engine, builder):
         try:
-            factories.append(
-                (cell.label, factory_for(cell.engine, cell.ground, density))
-            )
-        except argparse.ArgumentTypeError as e:
+            prepared.append(_prepare(cell, a, session, design_seam, density))
+        except _Refused as e:
             refused[cell.label] = str(e)
+    ground_label = {p.label: p.ground_label for p in prepared}
+
+    out: dict = {"curves": {}, "refused": refused}
+    if is_map:
+        return _run_map(a, prepared, refused, out, builder, z0=z0, fn=fn)
 
     s = a.sweep
-    out: dict = {"curves": {}, "refused": refused}
     frequency = s.knob == an.FREQUENCY
+    planes = any(c.kind == "planes" for c in a.crosses)
     # One (label, xs, Z at port 0) per curve that solved: what the Swr, S11
     # and Smith panels draw, whatever was swept.
     curves = []
     nports = 1
     # A refusal is the engine declining the design (NEC-2 and a vertex feed),
-    # which every engine raises as ValueError / NotImplementedError; any other
-    # failure is a real error and propagates.
+    # which every engine raises as ValueError / NotImplementedError, or a
+    # plane the design does not offer (`at_plane`); any other failure is a
+    # real error and propagates.
     if density:
         rungs, ladder, _marked, drawn = density_rungs(s)
         per, fed = {}, {}
-        for label, factory in factories:
+        for p in prepared:
             try:
-                rows, lens, n = sw._convergence_rows(builder, factory, rungs, knob)
+                rows, lens, n = sw._convergence_rows(
+                    p.builder, p.factory, rungs, p.knobs[0]
+                )
             except (ValueError, NotImplementedError) as e:
-                refused[label] = str(e)
+                refused[p.label] = str(e)
                 continue
-            per[label], fed[label] = rows, lens
+            per[p.label], fed[p.label] = rows, lens
             nports = max(nports, n)
-            out["curves"][label] = ([r[0] for r in rows], [r[2] for r in rows])
-            curves.append((label, [r[1] for r in rows], [r[2] for r in rows]))
+            out["curves"][p.label] = ([r[0] for r in rows], [r[2] for r in rows])
+            curves.append((p.label, [r[1] for r in rows], [r[2] for r in rows]))
         if not per:
             _report_refused(refused)
             raise SystemExit(f"analysis {a.name!r}: every curve was refused")
         estimates, reasons = sw._convergence_estimates(per, fed, ladder)
         out["estimates"] = estimates
-        if an.Table in views:
+        if _has(a, an.Table):
             sw._print_convergence_table(
                 per,
                 estimates,
@@ -401,7 +678,7 @@ def run(
             True,
             sw._convergence_title(knob, nports),
         )
-        if an.Rx in views:
+        if _has(a, an.Rx):
             axes = sw._rx_overlay(
                 sw._convergence_panels(per, estimates, drawn),
                 xlabel=xlabel,
@@ -414,37 +691,39 @@ def run(
     else:
         log = s.spacing == "log"
         if frequency:
-            xs = frequency_xs(s, builder)
-            print(f"  {_grid_words(s, builder, xs)}")
-        else:
-            xs = knob_xs(s, builder, knob)
-        for label, factory in factories:
+            session_xs = frequency_xs(s, builder)
+            print(f"  {_grid_words(s, builder, session_xs)}")
+        for p in prepared:
+            xs = _xs(s, p.builder, p.knobs[0])
+            if frequency and not np.array_equal(xs, session_xs):
+                print(f"  {p.label}: {_grid_words(s, p.builder, xs)}")
             try:
-                if frequency:
-                    zs, _swr = sw.swr_curve(builder, "freq", xs, factory, z0)
-                    zs = np.asarray(zs)
-                else:
-                    zs = np.array(sw._solve_at(builder, knob, xs, factory))
+                zs = _solve_line(p.builder, s, p.knobs[0], xs, p.factory, z0)
             except (ValueError, NotImplementedError) as e:
-                refused[label] = str(e)
+                refused[p.label] = str(e)
                 continue
             nports = max(nports, zs.shape[1])
-            curves.append((label, xs, zs[:, 0]))
-            out["curves"][label] = (list(xs), list(zs[:, 0]))
+            curves.append((p.label, xs, zs[:, 0]))
+            out["curves"][p.label] = (list(xs), list(zs[:, 0]))
         if not curves:
             _report_refused(refused)
             raise SystemExit(f"analysis {a.name!r}: every curve was refused")
-        if an.Table in views:
+        if _has(a, an.Table):
             if frequency:
                 _print_frequency_table(curves, ground_label, z0)
             else:
                 _print_sweep_table(knob, curves, ground_label)
         _report_refused(refused)
         xlabel = sw._param_label(knob)
-        title = sw._z_title(builder, knob)
+        # Planes crossed: no one port is "the" plane the title could name.
+        title = (
+            f"impedance per measurement plane vs {knob}"
+            if planes
+            else sw._z_title(builder, knob)
+        )
         if nports > 1:
             title += f" (port 1 of {nports})"
-        if an.Rx in views:
+        if _has(a, an.Rx):
             axes = sw._rx_overlay(
                 [(name, x, z, [], None) for name, x, z in curves],
                 xlabel=xlabel,
@@ -463,9 +742,9 @@ def run(
             print(
                 bandwidth_line(label, x, swr_of(z, z0), bands, threshold, builder.freq)
             )
-    if an.Rx in views:
+    if _has(a, an.Rx):
         save_or_show(plt, fn)
-    panels = [v for v in a.views if isinstance(v, _PANELS)]
+    panels = [v for v in a.views if isinstance(v, _PANELS) and _draws(v, a)]
     if panels:
         _views_figure(
             curves,
@@ -477,8 +756,149 @@ def run(
             threshold=threshold,
             refused=list(refused),
         )
-        save_or_show(plt, _views_fn(fn) if an.Rx in views else fn)
+        save_or_show(plt, _views_fn(fn) if _has(a, an.Rx) else fn)
     return out
+
+
+# ── the map ──────────────────────────────────────────────────────────────
+
+
+def _run_map(a, prepared, refused, out, builder, *, z0, fn) -> dict:
+    """A two-sweep analysis: one grid per cell (`solve_map`), its table, the
+    best cell's line, and the map figure."""
+    import matplotlib.pyplot as plt
+
+    from .core import save_or_show
+
+    sw = _sweep_module()
+    maps = {}
+    for p in prepared:
+        try:
+            maps[p.label] = solve_map(p, a, z0)
+        except (ValueError, NotImplementedError) as e:
+            refused[p.label] = str(e)
+    out["maps"] = maps
+    if not maps:
+        _report_refused(refused)
+        raise SystemExit(f"analysis {a.name!r}: every map was refused")
+    kx, ky = (an.resolve(s.knob, builder).knob for s in a.sweeps)
+    ground_label = {p.label: p.ground_label for p in prepared}
+    if _has(a, an.Table):
+        _print_map_table(maps, kx, ky, ground_label, z0)
+    for label, (xs, ys, z) in maps.items():
+        print(best_cell_line(label, xs, ys, z, kx, ky, z0))
+    _report_refused(refused)
+    if _has(a, an.Map):
+        _map_figure(
+            maps,
+            xlabel=sw._param_label(kx),
+            ylabel=sw._param_label(ky),
+            refs=a.references,
+            z0=z0,
+            title=f"{a.name}: |Γ| on {z0:g} Ω",
+            refused=list(refused),
+        )
+        save_or_show(plt, fn)
+    return out
+
+
+def best_cell_line(label, xs, ys, z, kx, ky, z0) -> str:
+    """Where a map's |Γ| is least: the grid's best cell, not an optimum
+    between cells (the optimizer's question, not the map's)."""
+    gamma = np.abs((z - z0) / (z + z0))
+    j, i = np.unravel_index(np.nanargmin(gamma), gamma.shape)
+    g = float(gamma[j, i])
+    swr = (1 + g) / (1 - g) if g < 1 else math.inf
+    return (
+        f"{label}: least |Γ| {g:.3g} (SWR {swr:.3g}) at {kx} {xs[i]:.6g}, "
+        f"{ky} {ys[j]:.6g}: Z {z[j, i].real:.2f} {z[j, i].imag:+.2f}j"
+    )
+
+
+def _print_map_table(maps, kx, ky, ground_label, z0):
+    """The `Table` view of a map: one row per grid cell, y outer, x inner."""
+    for name, (xs, ys, z) in maps.items():
+        print(f"== {kx} x {ky} map: {name} ==")
+        print(f"ground: {ground_label[name]}")
+        print(f"{kx:>12} {ky:>12} {'R (Ω)':>9} {'X (Ω)':>9} {'SWR':>8}")
+        swr = swr_of(z, z0)
+        for j, y in enumerate(ys):
+            for i, x in enumerate(xs):
+                zz = z[j, i]
+                print(
+                    f"{x:>12.6g} {y:>12.6g} {zz.real:>9.3f} {zz.imag:>+9.3f} "
+                    f"{swr[j, i]:>8.3f}"
+                )
+
+
+def map_contours(refs: an.Ref, z0: float) -> list[tuple[str, float]]:
+    """The map's contours, as ``(quantity, level)``: the `Ref` lines, R = r
+    and X = x, since a map's reference lines are where the grid crosses
+    them. With no Ref, X = 0 and R = z0: resonance, and the match."""
+    if not refs.r and not refs.x:
+        return [("X", 0.0), ("R", float(z0))]
+    return [("X", float(x)) for x in refs.x] + [("R", float(r)) for r in refs.r]
+
+
+def _map_figure(maps, *, xlabel, ylabel, refs, z0, title, refused):
+    """One panel per map cell: |Γ| on ``z0`` as a heat map, and the contours
+    `map_contours` names, each drawn from that cell's own grid. A level the
+    grid never reaches is named in the legend as such, not dropped."""
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+
+    n = len(maps)
+    ncols = min(n, 3)
+    nrows = math.ceil(n / ncols)
+    fig, axs = plt.subplots(
+        nrows, ncols, figsize=(6.2 * ncols, 5.0 * nrows), squeeze=False
+    )
+    contours = map_contours(refs, z0)
+    styles = {"X": ("black", "-"), "R": (None, "--")}
+    for k, (ax, (name, (xs, ys, z))) in enumerate(
+        zip(axs.flat, maps.items(), strict=False)
+    ):
+        gamma = np.abs((z - z0) / (z + z0))
+        mesh = ax.pcolormesh(
+            xs, ys, gamma, shading="nearest", cmap="viridis_r", vmin=0.0, vmax=1.0
+        )
+        fig.colorbar(mesh, ax=ax, label=f"|Γ| on {z0:g} Ω")
+        handles = []
+        r_i = 0
+        for quantity, level in contours:
+            field = z.imag if quantity == "X" else z.real
+            color, ls = styles[quantity]
+            if color is None:
+                color = ("tab:orange", "tab:red", "magenta", "tab:pink")[r_i % 4]
+                r_i += 1
+            label = f"{quantity} = {level:g} Ω"
+            finite = field[np.isfinite(field)]
+            if finite.size and finite.min() < level < finite.max():
+                ax.contour(
+                    xs, ys, field, levels=[level], colors=[color], linestyles=[ls]
+                )
+            else:
+                label += " (not reached)"
+            handles.append(Line2D([], [], color=color, linestyle=ls, label=label))
+        for r in refused:
+            handles.append(
+                Line2D(
+                    [],
+                    [],
+                    linestyle="None",
+                    marker="x",
+                    color="0.5",
+                    label=f"{r}: refused",
+                )  # fmt: skip
+            )
+        ax.legend(handles=handles, fontsize=7, loc="upper right", framealpha=0.8)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_title(name, fontsize=10)
+    for ax in list(axs.flat)[n:]:
+        ax.set_visible(False)
+    fig.suptitle(title, fontsize=11)
+    fig.tight_layout()
 
 
 def _views_fn(fn: str | None) -> str | None:

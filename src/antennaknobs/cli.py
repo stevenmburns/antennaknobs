@@ -1598,42 +1598,56 @@ def cli(arguments=None):
         if args.code:
             print(an.to_code(analysis))
             return
-        deck_ek = deck_extended_kernel_flag(builder)
 
-        def ground_for(spec):
-            # An analysis's own ground wins; None is the session's --ground,
-            # itself defaulting to a file design's own (AK#1432, AK#1563).
-            return resolve_ground(args.ground if spec is None else spec, builder)
+        def seam(design):
+            """``design``'s builder factory, engine factory and ground label:
+            the session's design, or one a design cross names, each with its
+            own file ground and deck flags."""
+            deck_ek = deck_extended_kernel_flag(design)
 
-        def factory_for(engine_spec, ground_spec, density):
-            if density and args.nominal_nsegs is not None:
-                raise SystemExit(
-                    "--nominal-nsegs conflicts with a density analysis: the "
-                    "sweep sets the density itself, rung by rung"
+            def ground_for(spec):
+                # An analysis's own ground wins; None is the session's
+                # --ground, itself defaulting to a file design's own
+                # (AK#1432, AK#1563).
+                return resolve_ground(args.ground if spec is None else spec, design)
+
+            def factory_for(engine_spec, ground_spec, density):
+                if density and args.nominal_nsegs is not None:
+                    raise SystemExit(
+                        "--nominal-nsegs conflicts with a density analysis: the "
+                        "sweep sets the density itself, rung by rung"
+                    )
+                # The seam `sweep` builds its engines through: a density study
+                # stands the #1543 density wrapper down, since it moves the
+                # density knob itself; any other sweep runs at the engine's own.
+                return placements.watch(
+                    make_engine_factory(
+                        engine_spec,
+                        ground_for(ground_spec),
+                        extended_kernel=args.extended_kernel,
+                        deck_extended_kernel=deck_ek,
+                        nominal_nsegs=(
+                            None if density else density_from_args(args, engine_spec)
+                        ),
+                    )
                 )
-            # The seam `sweep` builds its engines through: a density study
-            # stands the #1543 density wrapper down, since it moves the
-            # density knob itself; any other sweep runs at the engine's own.
-            return placements.watch(
-                make_engine_factory(
-                    engine_spec,
-                    ground_for(ground_spec),
-                    extended_kernel=args.extended_kernel,
-                    deck_extended_kernel=deck_ek,
-                    nominal_nsegs=(
-                        None if density else density_from_args(args, engine_spec)
-                    ),
-                )
+
+            return (
+                design,
+                factory_for,
+                lambda spec: format_ground(ground_for(spec)),
             )
 
+        _, factory_for, ground_label_for = seam(builder)
         analysis_run.run(
             analysis,
             builder,
             factory_for=factory_for,
-            ground_label_for=lambda spec: format_ground(ground_for(spec)),
+            ground_label_for=ground_label_for,
             session_engine=args.engine,
             z0=args.z0,
             fn=args.fn,
+            design_seam=lambda name: seam(get_builder(name)),
         )
 
     p.set_defaults(func=f)

@@ -231,7 +231,8 @@ class Smith(View):
 
 @dataclass(frozen=True)
 class Map(View):
-    """A two-sweep map (the sweep is a pair)."""
+    """A two-sweep map (the sweep is a pair): |Γ| on the session's z0 over
+    (x, y), with the `Ref` lines as contours of R and X."""
 
 
 @dataclass(frozen=True)
@@ -507,7 +508,8 @@ def offered(builder) -> tuple[Analysis, ...]:
 
 def problems(analysis: Analysis, builder) -> list[str]:
     """Why ``analysis`` cannot run on ``builder``, as listed: an unresolved
-    sweep (UNAVAILABLE) and a product over `CURVE_CAP`. Empty: it can."""
+    sweep (UNAVAILABLE), a product over `CURVE_CAP`, a cross naming one
+    value twice, and a knob both swept and stepped. Empty: it can."""
     out = []
     same = sum(1 for a in builder.build_analyses() if a.name == analysis.name)
     if same > 1:
@@ -530,13 +532,28 @@ def problems(analysis: Analysis, builder) -> list[str]:
                 f"REFUSED: {r.knob} plays the density role, whose ladder is "
                 "geometric; drop spacing='lin'"
             )
+    swept = [resolve(s.knob, builder).knob for s in analysis.sweeps]
+    if len(swept) == 2 and swept[0] is not None and swept[0] == swept[1]:
+        out.append(f"REFUSED: the map sweeps {swept[0]} on both axes")
     for c in analysis.crosses:
+        # A curve is found by its label, which is the value that makes it:
+        # a value named twice is two curves drawn over each other as one.
+        values = (c.step.values or ()) if c.step is not None else getattr(c, c.kind)
+        twice = sorted({v for v in values if values.count(v) > 1}, key=str)
+        if twice:
+            out.append(
+                f"REFUSED: the cross over {c.kind} names "
+                f"{', '.join(repr(v) for v in twice)} twice"
+            )
         if c.step is not None:
             r = resolve(c.step.knob, builder)
             if r.knob is None:
                 out.append(f"UNAVAILABLE: {r.reason}")
+            elif r.knob in swept:
+                out.append(
+                    f"REFUSED: the family steps {r.knob}, which is the swept knob"
+                )
     if analysis.hold is not None:
-        swept = {resolve(s.knob, builder).knob for s in analysis.sweeps}
         for k in analysis.hold.adjust:
             r = resolve(k, builder)
             if r.knob is None:

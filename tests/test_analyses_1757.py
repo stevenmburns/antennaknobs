@@ -503,21 +503,6 @@ def test_an_engine_refusing_the_design_is_a_named_cell(monkeypatch, capsys, tmp_
     assert "momwire:bspline  Z∞ =" in out
 
 
-@pytest.mark.parametrize(
-    ("name", "why"),
-    [
-        (
-            "tuning family",
-            "a cross over step: not in the CLI yet (sweep-framework step 5)",
-        ),
-        ("tuning map", "a two-sweep map: not in the CLI yet (sweep-framework step 5)"),
-    ],
-)
-def test_what_step_2_cannot_run_is_refused_by_name(name, why):
-    with pytest.raises(SystemExit, match=re.escape(why)):
-        cli(["analyze", "--builder", "dipoles.invvee", "--analysis", name])
-
-
 def test_code_prints_the_analysis(capsys):
     cli(["analyze", "--builder", "dipoles.invvee", "--analysis", "height", "--code"])
     code = capsys.readouterr().out
@@ -578,8 +563,13 @@ class _Gain(an.View):
 
 
 @dataclass(frozen=True)
-class _MyMap(an.Map):
+class _MyKnobs(an.Knobs):
     """A subclass of a planned view is that view."""
+
+
+@dataclass(frozen=True)
+class _MyMap(an.Map):
+    """A subclass of a view the CLI draws is that view."""
 
 
 def test_a_views_own_class_is_refused_by_name_not_a_keyerror():
@@ -602,7 +592,14 @@ def test_a_views_own_class_is_refused_by_name_not_a_keyerror():
 
 
 def test_a_subclass_of_a_planned_view_takes_that_views_step():
-    a = an.Analysis("m", an.Sweep("angle_deg", 0, 60, points=5), views=(_MyMap(),))
-    assert ar.cli_gaps(a) == [
-        "the _MyMap view: not in the CLI yet (sweep-framework step 5)"
-    ]
+    a = an.Analysis(
+        "k",
+        an.Sweep("angle_deg", 0, 60, points=5),
+        hold=an.Hold("resonance", adjust=("length_factor",)),
+        views=(_MyKnobs(),),
+    )
+    assert "the _MyKnobs view: not in the CLI yet (sweep-framework step 6)" in (
+        ar.cli_gaps(a)
+    )
+    pair = (an.Sweep("length_factor", 0.9, 1.0), an.Sweep("angle_deg", 0, 60))
+    assert ar.cli_gaps(an.Analysis("m", pair, views=(_MyMap(),))) == []
