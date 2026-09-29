@@ -46,7 +46,7 @@ Out of step 5:
     checkboxes on the chart; the `.py`'s list preselects;
   - a listed engine no slot holds is a named refused cell, and a slot is
     never rewritten;
-  - grounds run as written, as checkboxes.
+  - grounds are a subset of the ground slots, as checkboxes (see Ground slots).
 - **Refused cells** appear in the legend by name, and the rest draws.
 
 ## Which side every control lands on
@@ -73,6 +73,38 @@ to four cells, and per-viewer view preferences saved in the browser
   - Open for review: the rail's existing pinned-view preferences still
     persist in the browser. They say which views are shown, not what any
     chart computes. Keep them, or make the whole rail session-only?
+
+## Ground slots (Steve's idea, 2026-09-28)
+
+**Grounds get the same slot concept as engines:** a few ground slots beside
+the solver slots, each holding one complete ground. Selecting a different
+ground is then one click.
+
+- **What a slot holds.** Exactly today's session ground: `enabled` (off is
+  free space), `type` (finite / PEC / terrain), `method` (fast / Sommerfeld
+  / MININEC), the soil (a preset, or εr and σ) and the terrain preset.
+  `settings.toml`'s `[ground]` table becomes `[grounds.1]`…`[grounds.3]`,
+  parallel to `[slots.A]`…`[slots.C]`.
+- **It is an input.** It lives on the left beside the solver slots, and
+  every chart reads the active one.
+- **The ground cross becomes symmetric with the engine cross.**
+  - A chart's ground cross is a non-empty subset of the ground slots. This
+    replaces the "grounds run as written" ruling.
+  - The `.py`'s ground list preselects matching slots.
+  - A listed ground no slot holds is a named refused cell. A slot is never
+    rewritten.
+- **Seeding.** A deck's own ground (its GE/GN cards, today's ground seed)
+  lands in slot 1 on load, as it lands in the one ground today. The other
+  slots keep their settings, from `settings.toml` or the stock set.
+- **A proposed stock set:** 1 = the design's own or the session default,
+  2 = free space, 3 = Sommerfeld over average soil. Your three quick
+  comparisons.
+- **It stands alone.** One-click ground switching is useful without any
+  analysis. It can ship before step 5's workbench units, and it makes unit
+  4's ground checkboxes a subset of slots, not a list of specs.
+
+Open: three ground slots, or as many as the solver slots have, for
+symmetry? And the stock set above?
 
 ## Units (CLI leads, then the workbench)
 
