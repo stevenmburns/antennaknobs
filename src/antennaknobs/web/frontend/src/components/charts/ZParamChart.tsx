@@ -136,7 +136,7 @@ export function ZParamChart({
       : [],
   );
   const multi = curves.length > 0;
-  // Small dots on a phone and wherever three or more curves are drawn (a
+  // No dots on a phone (lines only), small ones from three curves (a
   // 5-curve family of 2.6 px circles is a smear); the live marker is not one
   // of them and keeps its size.
   const dotR = traceDotRadius(isMobile, 1 + others.length);
@@ -382,6 +382,7 @@ export function ZParamChart({
       });
       ctx.stroke();
       ctx.setLineDash([]);
+      if (dotR <= 0) return; // lines only
       ctx.fillStyle = PC.bg;
       vx.forEach((v, i) => {
         ctx.beginPath();
