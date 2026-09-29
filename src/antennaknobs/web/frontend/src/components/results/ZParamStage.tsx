@@ -1,5 +1,6 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 import { ZPARAM_PLOT_MARGIN, zparamChartSize } from "../../lib/zparamLayout";
+import { useChartScale } from "../charts/chartScale";
 
 // The Z-vs-parameter view's desktop stage (AC6LA, QRZ #166): the sweep bar
 // pinned to the chart's upper-left and the solve readout to its lower-left,
@@ -67,12 +68,15 @@ export function ZParamStage({
   const { ref: boxRef, w: boxW, h: boxH } = useBoxSize<HTMLDivElement>();
   const { ref: headRef, h: headH } = useBoxSize<HTMLDivElement>();
   const s = zparamChartSize(size, boxH, headH, fallbackHead);
+  // The canvas's margins on screen: logical px times the chart scale
+  // (../charts/chartScale), which the chart draws them at.
+  const k = useChartScale();
   const M = ZPARAM_PLOT_MARGIN;
   const plotVars = {
-    "--zparam-plot-l": `${M.l}px`,
-    "--zparam-plot-r": `${M.r}px`,
-    "--zparam-plot-t": `${M.t}px`,
-    "--zparam-plot-b": `${M.b}px`,
+    "--zparam-plot-l": `${M.l * k}px`,
+    "--zparam-plot-r": `${M.r * k}px`,
+    "--zparam-plot-t": `${M.t * k}px`,
+    "--zparam-plot-b": `${M.b * k}px`,
   } as CSSProperties;
   return (
     <div className="zparam-fit" ref={boxRef}>

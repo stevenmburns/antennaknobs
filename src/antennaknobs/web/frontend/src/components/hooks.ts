@@ -85,7 +85,7 @@ export function useGridCellSize(
 // branch and the CSS rules can never disagree about which viewports are
 // "mobile": max-width 700px catches portrait phones, and the short+coarse
 // clause catches landscape phones that are wider than 700px.
-const MOBILE_MEDIA_QUERY =
+export const MOBILE_MEDIA_QUERY =
   "(max-width: 700px), (max-height: 500px) and (pointer: coarse)";
 const PORTRAIT_MEDIA_QUERY = "(orientation: portrait)";
 

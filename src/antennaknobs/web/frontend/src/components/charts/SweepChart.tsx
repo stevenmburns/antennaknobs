@@ -22,6 +22,7 @@ import {
   widenDomain,
 } from "../../lib/sweepAxis";
 import { ThemeContext } from "../hooks";
+import { CHART_FONT, fitChartCanvas, useChartScale } from "./chartScale";
 import { curvesAttr, type ExtraCurve, NO_CURVES, sweepSpan } from "./curves";
 import { feedColor, feedSweepColor, plotColors, STALE_TRACE_ALPHA } from "./palette";
 import { SweepRangePopover } from "./SweepRangePopover";
@@ -194,6 +195,7 @@ export function SweepChart({
   // is "auto" only on S11, so Auto's grow-only hold is S11's alone.
   const axis = effectiveChoice(mode, axisProp ?? DEFAULT_AXES[mode]);
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
+  const k = useChartScale(); // the chart scale (./chartScale)
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Pure derivation from props, computed outside the canvas effect so it's
   // available for the data-* attributes below even when there is no 2-D
@@ -329,16 +331,11 @@ export function SweepChart({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(size * dpr);
-    canvas.height = Math.floor(size * dpr);
-    canvas.style.width = `${size}px`;
-    canvas.style.height = `${size}px`;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const sz = fitChartCanvas(canvas, ctx, size, k);
 
     const PC = plotColors();
     ctx.fillStyle = PC.bg;
-    ctx.fillRect(0, 0, size, size);
+    ctx.fillRect(0, 0, sz, sz);
 
     // Plot rectangle: left margin fits the y-axis tick labels, bottom margin
     // fits the freq-range / status text (same corner SmithChart uses).
@@ -346,8 +343,8 @@ export function SweepChart({
     const marginR = 8;
     const marginT = 16;
     const marginB = 20;
-    const plotW = size - marginL - marginR;
-    const plotH = size - marginT - marginB;
+    const plotW = sz - marginL - marginR;
+    const plotH = sz - marginT - marginB;
 
     // domain -> [0,1] -> canvas y (top = hi, bottom = lo, same sense as any
     // chart axis).
@@ -368,7 +365,7 @@ export function SweepChart({
     ctx.strokeStyle = PC.grid;
     ctx.lineWidth = 0.6;
     ctx.fillStyle = PC.labelDim;
-    ctx.font = "9px ui-monospace, monospace";
+    ctx.font = CHART_FONT.tick;
     for (const t of ticks) {
       const y = yAt(t.at);
       ctx.beginPath();
@@ -384,7 +381,7 @@ export function SweepChart({
 
     // Mode title, top-left (same corner SmithChart's Z0 label uses).
     ctx.fillStyle = PC.labelDim;
-    ctx.font = "10px ui-monospace, monospace";
+    ctx.font = CHART_FONT.label;
     ctx.fillText(TITLE[mode], marginL, 12);
 
     // The threshold line (AK#1738), dashed, labelled at its right end, drawn
@@ -403,14 +400,14 @@ export function SweepChart({
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = `rgb(${PC.thresholdRgb})`;
-      ctx.font = "9px ui-monospace, monospace";
+      ctx.font = CHART_FONT.tick;
       const lbl = `${formatTick(Number(swrThreshold.toFixed(2)))}:1`;
       ctx.fillText(lbl, marginL + plotW - ctx.measureText(lbl).width - 2, ty - 3);
     }
     if (readout) {
       ctx.fillStyle = PC.labelBright;
-      ctx.font = "10px ui-monospace, monospace";
-      ctx.fillText(readout, size - marginR - ctx.measureText(readout).width, 12);
+      ctx.font = CHART_FONT.label;
+      ctx.fillText(readout, sz - marginR - ctx.measureText(readout).width, 12);
     }
 
     // Maps a frequency to canvas x within the swept band; undefined (null)
@@ -552,9 +549,9 @@ export function SweepChart({
     if (hasSpan) {
       // Freq range label, bottom-right (same convention as SmithChart).
       ctx.fillStyle = PC.labelBright;
-      ctx.font = "10px ui-monospace, monospace";
+      ctx.font = CHART_FONT.label;
       const txt = `${fLo!.toFixed(2)} → ${fHi!.toFixed(2)} MHz`;
-      ctx.fillText(txt, size - 6 - ctx.measureText(txt).width, size - 6);
+      ctx.fillText(txt, sz - 6 - ctx.measureText(txt).width, sz - 6);
 
       // Current-frequency guide: a dashed vertical line at measFreqMhz (only
       // meaningful inside the swept band — outside it there is nothing on
@@ -596,10 +593,10 @@ export function SweepChart({
     const status = sweepStatusText(running, progress);
     if (status) {
       ctx.fillStyle = PC.label;
-      ctx.font = "10px ui-monospace, monospace";
-      ctx.fillText(status, marginL, size - 6);
+      ctx.font = CHART_FONT.label;
+      ctx.fillText(status, marginL, sz - 6);
     }
-    drawSweepProgressBar(ctx, progress, size, PC.label);
+    drawSweepProgressBar(ctx, progress, sz, PC.label);
     // multiFeed isn't read directly (nFeeds/hasMulti already derive the same
     // thing from the sweep payload's own shape) but is kept as a dep so a
     // descriptor flip that changes it without changing the sweep shape still
@@ -616,7 +613,7 @@ export function SweepChart({
     // bands and the threshold line (AK#1738): strings, so an unchanged range
     // does not redraw.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, r, x, z0, size, sweep, measFreqMhz, running, progress, settled, feeds, multiFeed, theme, domKey, bandsKey, readout, swrThreshold, stale, curves]);
+  }, [mode, r, x, z0, size, k, sweep, measFreqMhz, running, progress, settled, feeds, multiFeed, theme, domKey, bandsKey, readout, swrThreshold, stale, curves]);
 
   const title =
     mode === "vswr" ? "VSWR range and SWR threshold" : "S11 range and SWR threshold";
@@ -649,7 +646,7 @@ export function SweepChart({
         <button
           type="button"
           className="sweep-axis-btn"
-          style={{ top: 16, height: size - 16 - 20 }}
+          style={{ top: 16 * k, height: size - (16 + 20) * k }}
           aria-label={title}
           title={`${title} (${AXIS_KIND_LABEL[axis.kind]})`}
           aria-haspopup="dialog"

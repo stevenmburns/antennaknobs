@@ -11,6 +11,7 @@ import {
   LIVE_ENTITY,
 } from "./combined";
 import { buildFarFieldCaptions, cutsRedrawKey, useCutTraces } from "./cuts";
+import { CHART_FONT, fitChartCanvas, useChartScale } from "./chartScale";
 import { plotColors } from "./palette";
 import { drawDbiRings, drawSpoke, type PolarGeom, strokeTrace } from "./polar";
 import type {
@@ -64,6 +65,7 @@ export function CombinedPatternChart({
   onCaptions?: ((c: FarFieldCaptions) => void) | undefined;
 }) {
   const theme = useContext(ThemeContext);
+  const k = useChartScale(); // the chart scale (./chartScale)
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const enabledPins = pinned.filter((p) => p.enabled);
@@ -101,20 +103,15 @@ export function CombinedPatternChart({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(size * dpr);
-    canvas.height = Math.floor(size * dpr);
-    canvas.style.width = `${size}px`;
-    canvas.style.height = `${size}px`;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const sz = fitChartCanvas(canvas, ctx, size, k);
 
     const PC = plotColors();
     ctx.fillStyle = PC.bg;
-    ctx.fillRect(0, 0, size, size);
+    ctx.fillRect(0, 0, sz, sz);
 
-    const cx = size / 2;
-    const cy = size / 2;
-    const R = size / 2 - 14;
+    const cx = sz / 2;
+    const cy = sz / 2;
+    const R = sz / 2 - 14;
 
     const traces = combinedTraces(cutTraces, enabledPins);
     const geom: PolarGeom = {
@@ -142,7 +139,7 @@ export function CombinedPatternChart({
     // the cut bearing's horizon). A thumbnail has no room for them.
     if (stage) {
       ctx.fillStyle = PC.label;
-      ctx.font = "10px ui-monospace, monospace";
+      ctx.font = CHART_FONT.label;
       ctx.fillText("0°", cx + R - 16, cy + 12);
       ctx.fillText("90°", cx + 3, cy - R + 11);
       ctx.fillText("180°", cx - R + 2, cy + 12);
@@ -166,7 +163,7 @@ export function CombinedPatternChart({
       const toward = Math.abs(rel) <= 90;
       const rightLabel = toward ? terrainMarker.label : terrainMarker.opposite;
       const leftLabel = toward ? terrainMarker.opposite : terrainMarker.label;
-      ctx.font = "10px ui-monospace, monospace";
+      ctx.font = CHART_FONT.label;
       ctx.fillStyle = `rgba(${elevRgb}, 0.95)`;
       ctx.fillText(
         rightLabel,
@@ -211,6 +208,7 @@ export function CombinedPatternChart({
     result,
     pinned,
     size,
+    k,
     azElevDeg,
     elevAzDeg,
     fill,

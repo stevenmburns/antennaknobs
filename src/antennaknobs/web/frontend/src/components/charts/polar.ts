@@ -2,6 +2,7 @@
 // and the combined Az + El plot, AK#1730). Pulled out of FarFieldChart so the
 // two draw the grid, the traces and the cross-reference spoke the same way,
 // and so the geometry can be tested without a canvas.
+import { CHART_FONT } from "./chartScale";
 import { plotColors } from "./palette";
 
 /** Where a plot sits on the canvas, and the radial map it uses. */
@@ -52,7 +53,7 @@ export function drawDbiRings(
   ctx.strokeStyle = PC.grid;
   ctx.lineWidth = 0.6;
   ctx.fillStyle = PC.labelDim;
-  ctx.font = "9px ui-monospace, monospace";
+  ctx.font = CHART_FONT.tick;
   for (const db of [6, 0, -6, -12, -18]) {
     const f = g.dbiToFrac(db);
     ctx.beginPath();
