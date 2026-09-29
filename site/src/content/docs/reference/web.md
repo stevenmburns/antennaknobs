@@ -167,6 +167,7 @@ model = { degree = 2 }
 [engines]                   # edited by hand only; the page never writes these
 nec5_exe = 'C:\EZNEC 7.0\Docs\NEC5CL_x13.exe'
 nec2_exe = 'C:\4nec2\exe\nec2dxs11.exe'
+nec42_exe = 'C:\nec42\nec42cl.exe'   # your own licensed NEC-4.2, if you have one
 
 [capture]
 dir = 'C:\ak-captures'      # every NEC-5 / NEC-2 deck and printout
@@ -222,7 +223,7 @@ for the design on screen, until the next design loads. The Settings menu's
   as `settings.toml.bak`. Hand edits to the saved file are fine, though a line
   that only repeats a default is dropped at the next save.
 - **Engines and the capture folder.** `[engines]` and `[capture]` do what
-  `NEC5_EXE`, `NEC2_EXE` and `ANTENNAKNOBS_CAPTURE_DIR` do, for the workbench
+  `NEC5_EXE`, `NEC2_EXE`, `NEC42_EXE` and `ANTENNAKNOBS_CAPTURE_DIR` do, for the workbench
   and the command line alike. A variable, or the workbench's `--nec5-exe`,
   `--nec2-exe` or `--capture-dir` flag, wins over the file, and the file wins
   over a `NEC5_EXE.txt` beside the workbench. Write Windows paths in single
@@ -690,10 +691,12 @@ on a machine with a licensed binary, **NEC-5**
 server resolves `NEC5_EXE`, which is why the hosted simulator never shows
 it while your own local instance can — and, the same way, **NEC-2**
 ([setup](/reference/nec2/)) when the server resolves `NEC2_EXE` to any NEC-2
-console binary (nec2c, nec2++, the one 4nec2 ships). The list is **served by
+console binary (nec2c, nec2++, the one 4nec2 ships), and **NEC-4.2**
+([setup and terms](/reference/nec42/)) when it resolves `NEC42_EXE` to your own
+licensed NEC-4.2 binary. The list is **served by
 the backend you're pointed at**, so a server without an optional engine
 simply doesn't offer it, rather than offering a slot that fails on the first
-solve. NEC-5 and NEC-2 solves are one external run per request — right for
+solve. NEC-5, NEC-2 and NEC-4.2 solves are one external run per request — right for
 A/B snapshot checks against momwire in the next slot, heavier than the
 in-process engines for live dragging.
 

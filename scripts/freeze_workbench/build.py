@@ -286,6 +286,11 @@ names on standard input, or -i/-o arguments -- and the engine finds out which
 by running your binary once. No NEC-2 is bundled on purpose: nec2++ is GPLv2
 and shipping it would change this zip's licence.
 
+NEC-4.2 (optional, needs your own licence from LLNL): no NEC-4.2 is
+bundled, for licence reasons. Set the NEC42_EXE environment variable, or
+nec42_exe under [engines] in settings.toml, to your own binary and the
+NEC-4.2 tab appears in the solver panel.
+
 THE COMMAND LINE
 ================
 

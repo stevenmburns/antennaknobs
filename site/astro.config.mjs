@@ -112,6 +112,7 @@ export default defineConfig({
             { label: "SimNEC round-trip", slug: "reference/simnec" },
             { label: "NEC-5 engine", slug: "reference/nec5" },
             { label: "NEC-2 engine", slug: "reference/nec2" },
+            { label: "NEC-4.2 engine", slug: "reference/nec42" },
             { label: "Web workbench", slug: "reference/web" },
             { label: "Drone & Transform API", slug: "reference/drone-transform" },
             { label: "Command line", slug: "reference/cli" },
