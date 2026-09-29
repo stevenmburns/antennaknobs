@@ -329,6 +329,37 @@ draw it; the chart never rewrites a slot. A slot that cannot run the design
 at all, or is a poor match for it (which only the active slot's **Solve
 anyway** can override), is refused the same way.
 
+### Planes, designs and families
+
+An analysis can also compare measurement planes, designs, or values of a
+second knob (a *family*), with an `an.Cross(planes=…)`, `an.Cross(designs=…)`
+or `an.Cross(step=an.Sweep(knob, values=…))` in its `build_analyses()`.
+Picking one draws a curve for each, as `antennaknobs analyze` does; there are
+no boxes to tick for these, since they come from the analysis rather than
+from the session's slots, and the legend names every curve:
+
+- **a plane** curve is the design measured at that port, exactly what the
+  readout's **plane** selector shows when you pick it there. A plane the
+  design does not have is a refused curve, in the command line's words
+  (*"no plane 'nowhere' on this design; it offers rig, C1, …"*);
+- **a design** curve is that design at its own defaults, as a fresh session
+  would open it, on the chart's solver slot and ground slot. The design you
+  have loaded is drawn at its defaults too, so your knob settings do not
+  leak into the comparison. An engine that cannot build a design is a
+  refused curve in its own words: NEC-2 cannot feed
+  `dipoles.invvee_apex`'s apex knot, so the **feed spellings** analysis
+  names that curve with NEC-2's reason and draws the rest;
+- **a family** curve is your design with the second knob set to that value,
+  on top of your other knobs, labelled `angle_deg = 30` as the command line
+  labels it, while the swept knob moves along the x axis as usual.
+
+These multiply with the engines and grounds you tick: two designs on three
+engines are six curves, labelled `dipoles.invvee, momwire:bspline` and so
+on, in the order the analysis writes its crosses. The six-curve cap covers
+the whole product, in the command line's words (*"REFUSED: 4 values x 2
+engines = 8 curves, over the cap of 6"*). A family over the segment density
+stays refused, as on the command line.
+
 ### More than one chart
 
 **⧉** on a chart's header opens another like it, up to four charts: its own
@@ -1397,10 +1428,11 @@ Only the design's `.py` is remembered: to keep a chart's setup, put it in the
 design's `build_analyses()`.
 
 What the workbench cannot run yet is listed greyed out, with the reason as
-its tooltip: a map, a family over a second knob, a cross over measurement
-planes or designs, a frequency analysis given explicit frequencies rather
-than a range, and a match held at every point. Each reason names the
-step of the sweep framework it is planned for.
+its tooltip: a map over two knobs, a frequency analysis given explicit
+frequencies rather than a range, and a match held at every point. Each
+reason names the step of the sweep framework it is planned for. Crosses over
+planes, designs and families draw (see
+[Planes, designs and families](#planes-designs-and-families)).
 
 A note the chart has for what it draws (a view it leaves out, or a word on
 cost) sits on the one line under the header as **ⓘ** and its first words; tap it
