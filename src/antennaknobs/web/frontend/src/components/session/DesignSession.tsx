@@ -89,6 +89,7 @@ import {
   type ListedCross,
   preselect,
 } from "../../lib/chartCells";
+import { ChartScaleContext } from "../charts/chartScale";
 import { cellColor } from "../charts/palette";
 import type { ExtraCurve } from "../charts/curves";
 import type { ChartLegendData } from "../results/ChartLegend";
@@ -3826,6 +3827,10 @@ function DesignSessionBody({
                         })`,
                       }}
                     >
+                    {/* A thumbnail draws at chart scale 1 (./charts/chartScale):
+                        the miniature is a button, and the laptop's larger
+                        chart ramp would only crowd it. */}
+                    <ChartScaleContext.Provider value={1}>
                     <ViewPanel
                       view={v.id}
                       size={thumbSize.width}
@@ -3855,6 +3860,7 @@ function DesignSessionBody({
                       schematicUnavailable={schematicUnavailable}
                       combinedFill={combinedFill}
                     />
+                    </ChartScaleContext.Provider>
                     </div>
                   </div>
                   <div className="thumb-label">{v.label}</div>

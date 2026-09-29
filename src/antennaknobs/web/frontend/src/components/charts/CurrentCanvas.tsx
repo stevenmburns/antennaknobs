@@ -11,6 +11,7 @@ import {
   type Vec3,
 } from "../../lib/view";
 import { ThemeContext } from "../hooks";
+import { chartFontPx } from "./chartScale";
 import { currentColor, plotColors } from "./palette";
 
 // Viewport zoom ceiling. The motivating case (elt_whip, #384) hides 6.35 mm
@@ -307,7 +308,7 @@ export function CurrentCanvas({
         ctx!.stroke();
         ctx!.setLineDash([]);
         ctx!.fillStyle = `rgba(${PC.groundRgb}, 0.85)`;
-        ctx!.font = `${Math.max(8, Math.round(10 * s))}px ui-monospace, monospace`;
+        ctx!.font = chartFontPx(Math.max(8, Math.round(10 * s)));
         ctx!.fillText("ground (z = 0)", 8 * s, groundY - 4 * s);
       }
 
@@ -382,7 +383,7 @@ export function CurrentCanvas({
         if (showWireLabels && result.wires.length > 1) {
           const lp = project(wire.knot_positions[0]);
           ctx!.fillStyle = PC.label;
-          ctx!.font = `${labelFontPx}px ui-monospace, monospace`;
+          ctx!.font = chartFontPx(labelFontPx);
           ctx!.fillText(wire.label, lp.x - 8 * s - ctx!.measureText(wire.label).width, lp.y + 3 * s);
         }
       }
@@ -403,7 +404,7 @@ export function CurrentCanvas({
           ctx!.arc(feed.x, feed.y, 5 * s, 0, Math.PI * 2);
           ctx!.fill();
           if (showFeedNames) {
-            ctx!.font = `${feedFontPx}px ui-monospace, monospace`;
+            ctx!.font = chartFontPx(feedFontPx);
             const label = fps.length > 1 ? fps[fi].name : "feed";
             ctx!.fillText(label, feed.x + 8 * s, feed.y - 8 * s);
           }
@@ -430,7 +431,7 @@ export function CurrentCanvas({
           ctx!.arc(feed.x, feed.y, 5 * s, 0, Math.PI * 2);
           ctx!.fill();
           if (showFeedNames) {
-            ctx!.font = `${feedFontPx}px ui-monospace, monospace`;
+            ctx!.font = chartFontPx(feedFontPx);
             const label = feedList.length > 1
               ? `feed ${fi} ∠${Math.round(Math.atan2(f.v_im, f.v_re) * 180 / Math.PI)}°`
               : "feed";
@@ -466,7 +467,7 @@ export function CurrentCanvas({
       ctx!.lineTo(barX0 + barLenPx, barY + 4 * s);
       ctx!.stroke();
       ctx!.fillStyle = PC.labelBright;
-      ctx!.font = `${labelFontPx}px ui-monospace, monospace`;
+      ctx!.font = chartFontPx(labelFontPx);
       const labelW = ctx!.measureText(barLabel).width;
       ctx!.fillText(barLabel, (w - labelW) / 2, barY - 8 * s);
     }
