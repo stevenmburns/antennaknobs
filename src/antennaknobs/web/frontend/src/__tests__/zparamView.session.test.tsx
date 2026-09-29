@@ -4,8 +4,12 @@
 //     /param_sweep for that knob over its own range, on the slot's request;
 //   - dragging the swept knob moves the chart's guide and re-sweeps nothing
 //     (every point overrides it), while any OTHER knob re-sweeps;
-//   - a density sweep is the old convergence sweep: with the switch on and
-//     the Smith chart on screen, the same ladder, trail and Z* as before.
+//   - a density sweep is the old convergence sweep: picked in the analysis
+//     chart and drawn on its Smith view, the same ladder, trail and Z* as
+//     the Smith view's "param sweep" switch drew (AK#1757 step 5 unit 3,
+//     which folded that view and switch into the chart).
+// Since unit 3 a new chart is a frequency sweep, so a knob sweep here starts
+// from "Sweep this knob…" (or a knob analysis), never from the chart opening.
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -164,12 +168,39 @@ describe("a knob sweep", () => {
   });
 });
 
+// The design's generic convergence analysis, as /analyses serves it: the
+// density ladder the old convergence sweep ran.
+const CONVERGENCE = {
+  geometry: EXAMPLE.name,
+  analyses: [
+    {
+      name: "convergence",
+      summary: "density 8..68, 7 points; 1 curve; views Rx, Smith",
+      code: "an.convergence()",
+      problems: [],
+      workbench: {
+        runs: true,
+        kind: "knob",
+        param: "n_per_wire",
+        values: [8, 12, 17, 24, 34, 48, 68],
+        log: true,
+        note: null,
+      },
+    },
+  ],
+};
+
 describe("a density sweep is the old convergence sweep", () => {
-  it("the switch on, the Smith chart up: the same ladder, trail and Z*", async () => {
+  it("picked in the chart and shown on its Smith view: the same ladder, trail and Z*", async () => {
     const bodies: Body[] = [];
     const { container } = await mountReady({
       examples: [EXAMPLE],
-      routes: { "/param_sweep": paramSweepRoute(bodies) },
+      pinned: ["antenna", "zparam"],
+      routes: {
+        "/param_sweep": paramSweepRoute(bodies),
+        "/analyses": () =>
+          ({ ok: true, status: 200, json: async () => CONVERGENCE }) as unknown as Response,
+      },
       uiDefaults: {
         path: "/x/settings.toml",
         exists: false,
@@ -191,11 +222,31 @@ describe("a density sweep is the old convergence sweep", () => {
         problems: [],
       },
     });
+    // The chart opens on a frequency sweep: nothing goes to /param_sweep.
+    fireEvent.click(container.querySelector(".thumbstrip canvas.smith") as HTMLElement);
+    const select = await untilDom(
+      () => screen.queryByRole("combobox", { name: "Analysis" }) as HTMLSelectElement | null,
+    );
+    await untilDom(() => [...select.options].some((o) => o.value === "convergence") || null);
+    expect(bodies).toEqual([]);
+    fireEvent.change(select, { target: { value: "convergence" } });
     await untilDom(() => bodies.length > 0);
     expect(bodies[0].param).toBe("n_per_wire");
     expect(bodies[0].values).toEqual([8, 12, 17, 24, 34, 48, 68]);
-    const smith = () => container.querySelector("canvas.smith") as HTMLElement;
-    await untilDom(() => smith().dataset.trail === "n_per_wire:8→68:7");
+    // convergence_sweep = true seeds a knob chart's dwell switch on.
+    expect(
+      (screen.getByRole("checkbox", { name: "auto re-run" }) as HTMLInputElement).checked,
+    ).toBe(true);
+    // The knob sweep's views: R/X, and its trail on the Smith chart.
+    const view = screen.getByRole("combobox", { name: "Chart view" }) as HTMLSelectElement;
+    expect([...view.options].map((o) => o.value)).toEqual(["Rx", "Smith"]);
+    fireEvent.change(view, { target: { value: "Smith" } });
+    const smith = () =>
+      [...container.querySelectorAll<HTMLElement>("canvas.smith")].find(
+        (c) => !c.closest(".thumbstrip"),
+      ) as HTMLElement;
+    await untilDom(() => smith()?.dataset.trail === "n_per_wire:8→68:7" || null);
+    expect(bodies).toHaveLength(1);
     // Z = 70 + 10/n − j(10 − 5/n) in the achieved count n: the estimator,
     // run against n_seg, sees an exact first order and recovers the limit.
     expect(smith().dataset.extrap).toBe("70.000,-10.000");
@@ -219,8 +270,9 @@ describe("the server's refusal is shown, not clamped to", () => {
           }) as unknown as Response,
       },
     });
-    const thumb = container.querySelector(".thumbstrip canvas.zparam") as HTMLElement;
-    fireEvent.click(thumb);
+    // A knob sweep on the chart (a new chart is a frequency sweep, unit 3).
+    fireEvent.contextMenu(screen.getByRole("slider", { name: "Gap" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sweep this knob…" }));
     expect((await untilDom(() => screen.queryByRole("alert")))!.textContent).toBe(detail);
     const chart = [...container.querySelectorAll("canvas.zparam")].find(
       (c) => !c.closest(".thumbstrip"),
@@ -305,8 +357,10 @@ describe("Stop", () => {
 describe("R = Z0 follows the session's Zo (AK#1735)", () => {
   it("the design's own Zo from the preview, then the Zo field's override", async () => {
     const { container } = await mountReady({
+      examples: [EXAMPLE],
       pinned: ["antenna", "zparam"],
       routes: {
+        "/param_sweep": paramSweepRoute([]),
         "/geometry": () =>
           ({
             ok: true,
@@ -324,8 +378,9 @@ describe("R = Z0 follows the session's Zo (AK#1735)", () => {
       [...container.querySelectorAll("canvas.zparam")].find(
         (c) => !c.closest(".thumbstrip"),
       ) as HTMLElement | undefined;
-    const thumb = container.querySelector(".thumbstrip canvas.zparam") as HTMLElement;
-    fireEvent.click(thumb);
+    // The knob sweep's R/X plot draws the R = Z0 line.
+    fireEvent.contextMenu(screen.getByRole("slider", { name: "Gap" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sweep this knob…" }));
     await untilDom(() => chart()?.dataset.z0 === "75");
     fireEvent.click(screen.getByLabelText("Optimisation method"));
     const zo = screen.getByLabelText("Reference impedance Zo, ohms") as HTMLInputElement;
@@ -337,7 +392,8 @@ describe("R = Z0 follows the session's Zo (AK#1735)", () => {
 });
 
 // Steve, 2026-09-26: a length_factor sweep must not start on his next design
-// unless he asks. Only density runs by itself.
+// unless he asks. Since unit 3 the chart starts over on the design's own
+// frequency sweep, so no knob or density sweep runs by itself.
 const VARIANTS: ExampleDescriptor = {
   ...EXAMPLE,
   variants: ["default", "other"],
@@ -345,7 +401,7 @@ const VARIANTS: ExampleDescriptor = {
 };
 
 describe("a knob sweep runs only when asked", () => {
-  it("a design switch resets the view to density, and density runs by itself", async () => {
+  it("a design switch starts the chart over on the frequency sweep; no knob sweep follows", async () => {
     const user = userEvent.setup();
     const bodies: Body[] = [];
     const { container } = await mountReady({
@@ -362,18 +418,18 @@ describe("a knob sweep runs only when asked", () => {
     const n = bodies.length;
     // Another variant is another design.
     await user.selectOptions(screen.getByRole("combobox", { name: "variant" }), "other");
-    expect((screen.getByRole("combobox", { name: "Parameter" }) as HTMLSelectElement).value).toBe(
-      "n_per_wire",
+    const head = screen.getByRole("group", { name: "Analysis chart" });
+    expect(head.dataset.chartKind).toBe("frequency");
+    expect(screen.queryByRole("combobox", { name: "Parameter" })).toBeNull();
+    // The Smith chart on the stage, its sweep decided (it has no /sweep
+    // route here, so it ends idle), and nothing more went to /param_sweep.
+    const smith = await untilDom(() =>
+      [...container.querySelectorAll<HTMLElement>("canvas.smith")].find(
+        (c) => !c.closest(".thumbstrip"),
+      ) ?? null,
     );
-    // ...and the density sweep starts by itself; no gap sweep follows.
-    await untilDom(() => bodies.length > n);
-    expect(bodies.slice(n).map((b) => b.param)).toEqual(
-      bodies.slice(n).map(() => "n_per_wire"),
-    );
-    const chart = [...container.querySelectorAll("canvas.zparam")].find(
-      (c) => !c.closest(".thumbstrip"),
-    ) as HTMLElement;
-    await untilDom(() => chart.dataset.param === "n_per_wire");
+    await untilDom(() => smith.dataset.phase === "idle" || null);
+    expect(bodies.length).toBe(n);
   });
 
   it("picking a knob in the header does not start it; Run does", async () => {
@@ -384,18 +440,17 @@ describe("a knob sweep runs only when asked", () => {
       pinned: ["antenna", "zparam"],
       routes: { "/param_sweep": paramSweepRoute(bodies) },
     });
-    // Put the view on the stage: its header only shows there.
-    const thumb = document.querySelector(".thumbstrip canvas.zparam") as HTMLElement;
-    fireEvent.click(thumb);
-    // Density ran on mount, by itself.
-    await untilDom(() => bodies.some((b) => b.param === "n_per_wire") === true);
+    // A knob sweep on the chart: Height, asked for, runs.
+    fireEvent.contextMenu(screen.getByRole("slider", { name: "Height" }));
+    await user.click(screen.getByRole("button", { name: "Sweep this knob…" }));
+    await untilDom(() => bodies.some((b) => b.param === "height") === true);
     const n = bodies.length;
     await user.selectOptions(screen.getByRole("combobox", { name: "Parameter" }), "gap");
     // The runner has decided on the new spec: idle, nothing queued.
     const stage = [...document.querySelectorAll<HTMLElement>("canvas.zparam")].find(
       (c) => !c.closest(".thumbstrip"),
     )!;
-    // (The pick's effects ran inside its act; the old density data is gone.)
+    // (The pick's effects ran inside its act; the old Height data is gone.)
     expect(stage.dataset.points).toBe("0");
     expect(stage.dataset.phase).toBe("idle");
     expect(bodies.length).toBe(n);
@@ -412,8 +467,9 @@ describe("a knob sweep runs only when asked", () => {
       pinned: ["antenna", "zparam"],
       routes: { "/param_sweep": paramSweepRoute(bodies) },
     });
-    const thumb = document.querySelector(".thumbstrip canvas.zparam") as HTMLElement;
-    fireEvent.click(thumb);
+    fireEvent.contextMenu(screen.getByRole("slider", { name: "Height" }));
+    await user.click(screen.getByRole("button", { name: "Sweep this knob…" }));
+    await untilDom(() => bodies.some((b) => b.param === "height") === true);
     await user.selectOptions(screen.getByRole("combobox", { name: "Parameter" }), "gap");
     const n = bodies.length;
     const pts = screen.getByLabelText("points") as HTMLInputElement;
@@ -444,11 +500,12 @@ describe("a right-click the moment the knobs appear", () => {
   });
 });
 
-describe("the param sweep switch owns the Smith chart's trail", () => {
-  it("a knob sweep run for the view stays off the Smith chart until the switch is on", async () => {
-    // Steve, 2026-09-28: with a length_factor sweep up, toggling "param
-    // sweep" changed nothing. The view runs the sweep whatever the switch
-    // says, and the Smith chart drew any sweep it was handed.
+describe("a knob sweep on the chart's Smith view is the old param-sweep trail", () => {
+  it("the same sweep draws as R/X or as the Smith trail, with no second run", async () => {
+    // Steve, 2026-09-28 (unit 3): the Smith view's "param sweep" switch
+    // folded into the chart, whose Smith view draws its knob sweep's trail.
+    // Before, the switch decided whether the Smith chart drew a sweep the
+    // Z-vs-parameter view had run; now the chart's view is the choice.
     const user = userEvent.setup();
     const bodies: Body[] = [];
     const { container } = await mountReady({
@@ -456,6 +513,8 @@ describe("the param sweep switch owns the Smith chart's trail", () => {
       pinned: ["smith", "zparam"],
       routes: { "/param_sweep": paramSweepRoute(bodies) },
     });
+    // Both stored pins are the one chart now.
+    expect(container.querySelectorAll(".thumbstrip .thumb-label").length).toBeLessThanOrEqual(1);
     const gap = screen.getByRole("slider", { name: "Gap" });
     fireEvent.contextMenu(gap);
     await user.click(screen.getByRole("button", { name: "Sweep this knob…" }));
@@ -464,28 +523,20 @@ describe("the param sweep switch owns the Smith chart's trail", () => {
         | HTMLElement
         | undefined;
     await untilDom(() => onStage("canvas.zparam")?.dataset.points === "11");
-    // On the stage or in the thumbnail strip: both ViewPanel sites take the
-    // switch, so either Smith chart speaks for it.
-    const smith = () => container.querySelector("canvas.smith") as HTMLElement;
-    expect(smith()).toBeTruthy();
-    expect(smith().dataset.trail).toBe("");
-
-    // The switch on: the same sweep, now drawn, with no second run.
-    // The switch sits in the Tools menu whenever the Smith chart is not the
-    // stage's own view.
-    const toggle = async () => {
-      if (screen.queryAllByRole("checkbox", { name: "param sweep" }).length === 0) {
-        await user.click(screen.getByRole("button", { name: "Tools menu" }));
-      }
-      await user.click(screen.getAllByRole("checkbox", { name: "param sweep" })[0]);
-    };
+    expect(onStage("canvas.smith")).toBeUndefined();
     const before = bodies.length;
-    await toggle();
-    await untilDom(() => smith().dataset.trail === "gap:0→1:11");
+    const view = screen.getByRole("combobox", { name: "Chart view" }) as HTMLSelectElement;
+    fireEvent.change(view, { target: { value: "Smith" } });
+    await untilDom(() => onStage("canvas.smith")?.dataset.trail === "gap:0→1:11" || null);
+    expect(onStage("canvas.zparam")).toBeUndefined();
     expect(bodies.length).toBe(before);
-
-    // And off again: gone.
-    await toggle();
-    await untilDom(() => smith().dataset.trail === "");
+    // No param-sweep switch anywhere, the Tools menu included.
+    expect(screen.queryAllByRole("checkbox", { name: "param sweep" })).toEqual([]);
+    await user.click(screen.getByRole("button", { name: "Tools menu" }));
+    expect(screen.queryAllByRole("checkbox", { name: "param sweep" })).toEqual([]);
+    // And back to R/X: the same data.
+    fireEvent.change(view, { target: { value: "Rx" } });
+    await untilDom(() => onStage("canvas.zparam")?.dataset.points === "11" || null);
+    expect(bodies.length).toBe(before);
   });
 });

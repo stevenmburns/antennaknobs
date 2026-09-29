@@ -28,7 +28,7 @@ describe("readout minimize preference", () => {
     const { result } = renderHook(() => useViewPrefs());
     act(() => result.current.setReadoutCollapsed("antenna", true));
     expect(result.current.isReadoutCollapsed("antenna")).toBe(true);
-    expect(result.current.isReadoutCollapsed("smith")).toBe(false);
+    expect(result.current.isReadoutCollapsed("zparam")).toBe(false);
     expect(stored().readoutCollapsed).toEqual({ antenna: true });
   });
 
@@ -60,7 +60,7 @@ describe("readout minimize preference", () => {
     );
     const { result } = renderHook(() => useViewPrefs());
     expect(result.current.isReadoutCollapsed("antenna")).toBe(true);
-    expect(result.current.isReadoutCollapsed("smith")).toBe(false);
+    expect(result.current.isReadoutCollapsed("zparam")).toBe(false);
   });
 
   it("a map that is garbage as a whole leaves every view on its default", () => {

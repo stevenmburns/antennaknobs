@@ -86,7 +86,9 @@ afterEach(() => {
 
 type Residency = {
   sweepResident: boolean;
-  convergeResident: boolean;
+  /** The analysis chart shows a knob sweep, on screen (AK#1757 step 5 unit
+   *  3: the parameter sweep's one gate since the Smith trail switch went). */
+  paramViewResident: boolean;
   patternResident: boolean;
 };
 
@@ -105,11 +107,10 @@ function renderRunners(initial: Residency) {
         groundEnabled: false,
         groundModel: "fast",
         sweepEnabled: true,
-        convergeEnabled: true,
         normCheckEnabled: true,
         necOverlayEnabled: true,
         sweepResident: p.sweepResident,
-        convergeResident: p.convergeResident,
+        paramViewResident: p.paramViewResident,
         patternResident: p.patternResident,
         autoSim: true,
         active: true,
@@ -139,7 +140,7 @@ function countFor(url: string) {
 
 const ALL_RESIDENT: Residency = {
   sweepResident: true,
-  convergeResident: true,
+  paramViewResident: true,
   patternResident: true,
 };
 
@@ -147,7 +148,7 @@ describe("view residency gating (issue #715)", () => {
   it("non-resident analyses never fetch; the HUD norm check still does", async () => {
     renderRunners({
       sweepResident: false,
-      convergeResident: false,
+      paramViewResident: false,
       patternResident: false,
     });
     await settle();
@@ -177,9 +178,12 @@ describe("view residency gating (issue #715)", () => {
     expect(result.current.sweep).not.toBeNull();
   });
 
-  it("a switched-off checkbox still wins over residency", async () => {
-    // Residency is a second gate, not a replacement for the StageOverlays
-    // checkboxes: resident + disabled must stay silent.
+  it("a switched-off sweep still wins over residency", async () => {
+    // Residency is a second gate, not a replacement for `sweepEnabled` (the
+    // analysis chart showing a frequency sweep, AK#1757 step 5 unit 3; the
+    // freq-sweep checkbox before it): resident + disabled must stay silent.
+    // The parameter sweep has one gate now, the chart's knob sweep on
+    // screen, so it is off here the only way it can be.
     renderHook(() =>
       useAnalysisRunners({
         backend: PYNEC,
@@ -193,10 +197,10 @@ describe("view residency gating (issue #715)", () => {
         groundEnabled: false,
         groundModel: "fast",
         sweepEnabled: false,
-        convergeEnabled: false,
         normCheckEnabled: true,
         necOverlayEnabled: true,
         ...ALL_RESIDENT,
+        paramViewResident: false,
         autoSim: true,
         active: true,
         comboApproved: false,
@@ -216,7 +220,7 @@ describe("view residency gating (issue #715)", () => {
   it("the residency gates are independent per analysis", async () => {
     renderRunners({
       sweepResident: true,
-      convergeResident: false,
+      paramViewResident: false,
       patternResident: true,
     });
     await settle();

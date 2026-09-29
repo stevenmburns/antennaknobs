@@ -14,7 +14,6 @@ import {
   SWR_THRESHOLD_MIN,
   type SweepAxisChoice,
 } from "./sweepAxis";
-import type { View } from "./view";
 
 /** A knob sweep: `param` and `values` are what /param_sweep takes (the same
  *  ladder `antennaknobs analyze` sweeps). */
@@ -172,16 +171,12 @@ export function analysisBlocked(
   return `${w.param} is not a knob this view can sweep on this variant`;
 }
 
-/** The server's view names as this workbench's views. */
-const VIEW_OF: Record<FrequencyView, View> = { Swr: "vswr", S11: "gamma", Smith: "smith" };
-
 /** What picking a frequency analysis sets: the sweep range edit (null: the
  *  design's own range, its band policy included, which `designRange` is),
- *  the view to show, and the VSWR chart's scale and threshold (null: leave
- *  the viewer's). */
+ *  and the VSWR chart's scale and threshold (null: leave the viewer's). The
+ *  view it opens on is the analysis's first (lib/analysisChart.ts). */
 export type FrequencyPick = {
   range: SweepRange | null;
-  view: View;
   vswr: SweepAxisChoice | null;
   threshold: number | null;
 };
@@ -214,7 +209,6 @@ export function frequencyPick(w: FrequencyWorkbench, designRange: SweepRange): F
   const t = w.swr.threshold;
   return {
     range: sameRange(range, designRange) ? null : range,
-    view: VIEW_OF[w.views[0]],
     vswr: w.swr.scale === null ? null : w.swr.scale === "rho" ? RHO : RECIPROCAL,
     threshold:
       t === null ? null : Math.min(SWR_THRESHOLD_MAX, Math.max(SWR_THRESHOLD_MIN, t)),

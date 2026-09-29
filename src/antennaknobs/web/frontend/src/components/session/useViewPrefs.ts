@@ -1,6 +1,9 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
+import type { FrequencyView } from "../../lib/analyses";
 import {
   type CombinedFill,
+  LEGACY_CHART_VIEWS,
+  type LegacyChartView,
   VIEW_META,
   VIEWS,
   type View,
@@ -46,7 +49,9 @@ export const VIEW_PREFS_KEY = "akb.viewPrefs.v1";
 // first visit happens after that view ships — the NEW badge would never fire
 // for the users it exists for. A literal makes the badge mean "added after the
 // picker shipped", which is what the user reads it as.
-const SEEN_SEED: View[] = ["antenna", "azimuth", "elevation", "smith", "schematic"];
+// The Smith view's place in it is the analysis chart's now (AK#1757 step 5
+// unit 3): the chart took over the Smith view's pin, so it is not new either.
+const SEEN_SEED: View[] = ["antenna", "azimuth", "elevation", "zparam", "schematic"];
 
 // Unit 3 of docs/plan-view-rail-scaling.md: the desktop stage's two layout
 // presets over the same pinned set. "rail" is today's primary+thumbstrip;
@@ -79,6 +84,13 @@ type ViewPrefs = {
   // from DEFAULT_AXES (1–∞ on VSWR, Auto on S11) and 2:1.
   sweepAxes: SweepAxes;
   swrThreshold: number;
+  // The view the analysis chart opens on (AK#1757 step 5 unit 3). Set ONLY by
+  // the migration of a stored pin that named a removed view (vswr -> Swr,
+  // gamma -> S11; smith -> Smith, the default), so the chart that replaced
+  // someone's VSWR pin keeps opening on SWR after the first write drops the
+  // old id. A flip of the chart's view is session-only and never writes it;
+  // unpinning the chart clears it. Written only when it is not "Smith".
+  chartView: FrequencyView;
 };
 
 const KNOWN = new Set<string>(VIEWS.map((v) => v.id));
@@ -100,6 +112,31 @@ function sanitizeIds(raw: unknown): View[] {
     }
   }
   return out;
+}
+
+// The removed Smith / VSWR / S11 views (AK#1757 step 5 unit 3) in a stored
+// id list: each becomes the analysis chart's id, `zparam`, in place, so the
+// chart takes the pin's position and the viewer's other pins keep theirs.
+// sanitizeIds then collapses repeats to the FIRST, so a grid that pinned
+// smith, vswr and gamma (and zparam) gets one chart cell, not four cells of
+// one chart. `view` is what the first removed id named: the view the chart
+// opens on (Steve's ruling, 2026-09-28). Anything that is not an array
+// passes through for sanitizeIds to refuse.
+function isLegacy(v: unknown): v is LegacyChartView {
+  return typeof v === "string" && Object.hasOwn(LEGACY_CHART_VIEWS, v);
+}
+function migrateChartIds(raw: unknown): { ids: unknown; view: FrequencyView | null } {
+  if (!Array.isArray(raw)) return { ids: raw, view: null };
+  const first = raw.find(isLegacy);
+  return {
+    ids: raw.map((v) => (isLegacy(v) ? "zparam" : v)),
+    view: first === undefined ? null : LEGACY_CHART_VIEWS[first],
+  };
+}
+
+const FREQUENCY_VIEWS: readonly FrequencyView[] = ["Smith", "Swr", "S11"];
+function sanitizeChartView(raw: unknown): FrequencyView {
+  return FREQUENCY_VIEWS.includes(raw as FrequencyView) ? (raw as FrequencyView) : "Smith";
 }
 
 // Anything other than the literal "grid" reads as "rail" — an absent field
@@ -134,9 +171,14 @@ function sanitizeAxes(raw: unknown): SweepAxes {
 function sanitizeReadout(raw: unknown): Partial<Record<View, boolean>> {
   const out: Partial<Record<View, boolean>> = {};
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
-  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+  const rec = raw as Record<string, unknown>;
+  for (const [k, v] of Object.entries(rec)) {
     if (KNOWN.has(k) && typeof v === "boolean") out[k as View] = v;
   }
+  // The Smith view's choice carries to the chart that replaced it (AK#1757
+  // step 5 unit 3), unless the chart has one of its own; the VSWR and S11
+  // views' are dropped with them.
+  if (out.zparam === undefined && typeof rec.smith === "boolean") out.zparam = rec.smith;
   return out;
 }
 
@@ -151,6 +193,7 @@ function defaultPrefs(): ViewPrefs {
     combinedFill: "none",
     sweepAxes: DEFAULT_AXES,
     swrThreshold: DEFAULT_SWR_THRESHOLD,
+    chartView: "Smith",
   };
 }
 
@@ -167,8 +210,9 @@ function parseStoredPrefs(raw: string): ViewPrefs | null {
       const rec = parsed as Record<string, unknown>;
       // Clamp to the cap on the way in too: the cap can shrink between
       // releases, and the picker's disabled dots can only refuse NEW pins.
-      const pinned = sanitizeIds(rec.pinned).slice(0, PIN_CAP);
-      const seen = sanitizeIds(rec.seen);
+      const migrated = migrateChartIds(rec.pinned);
+      const pinned = sanitizeIds(migrated.ids).slice(0, PIN_CAP);
+      const seen = sanitizeIds(migrateChartIds(rec.seen).ids);
       // Everything surviving sanitisation was garbage ⇒ treat the record as
       // corrupt rather than honour an empty rail, which is never what a user
       // meant and leaves no visible way back.
@@ -181,6 +225,9 @@ function parseStoredPrefs(raw: string): ViewPrefs | null {
           combinedFill: sanitizeCombinedFill(rec.combinedFill),
           sweepAxes: sanitizeAxes(rec.sweepAxes),
           swrThreshold: sanitizeThreshold(rec.swrThreshold),
+          // A removed id in the pins decides it; else what the last write
+          // kept (a record already migrated).
+          chartView: migrated.view ?? sanitizeChartView(rec.chartView),
         };
       }
     }
@@ -262,6 +309,7 @@ function update(next: ViewPrefs): void {
           next.swrThreshold === DEFAULT_SWR_THRESHOLD
             ? undefined
             : next.swrThreshold,
+        chartView: next.chartView === "Smith" ? undefined : next.chartView,
       }),
     );
   } catch {
@@ -430,6 +478,7 @@ export function useViewPrefs() {
     combinedFill,
     sweepAxes,
     swrThreshold,
+    chartView,
   } = prefs;
 
   // Views the user has never been offered. Seeded (not empty) on a first run,
@@ -459,7 +508,10 @@ export function useViewPrefs() {
       : // A new pin always joins at the end — movePin (issue #714) is the
         // separate action that reorders after the fact.
         [...cur.pinned, id];
-    update({ ...cur, pinned: pins });
+    // Unpinning the chart forgets the view a migrated pin gave it, so pinning
+    // it again opens the default (the frequency sweep on the Smith chart).
+    const chartView = id === "zparam" && !pins.includes(id) ? "Smith" : cur.chartView;
+    update({ ...cur, pinned: pins, chartView });
   }, []);
 
   // Issue #714: the picker's up/down reorder buttons. Reads the store rather
@@ -499,17 +551,21 @@ export function useViewPrefs() {
 
   // The stage readout's minimize state for a view: the viewer's choice, else
   // the view's registry default (the Files view starts minimized).
+  // `fallback`, given, replaces the registry default: the analysis chart's
+  // depends on what it shows (open on the Smith chart, minimized on a knob
+  // sweep's R/X plot, whose left axis the card would cover).
   const isReadoutCollapsed = useCallback(
-    (v: View): boolean => readoutCollapsed[v] ?? VIEW_META[v].readoutStartsCollapsed,
+    (v: View, fallback?: boolean): boolean =>
+      readoutCollapsed[v] ?? fallback ?? VIEW_META[v].readoutStartsCollapsed,
     [readoutCollapsed],
   );
 
   // A choice equal to the view's default is removed rather than stored, so the
   // record stays sparse and a later change of default reaches the viewer.
   // No-ops (keeping snapshot identity) when the state would not change.
-  const setReadoutCollapsed = useCallback((v: View, collapsed: boolean) => {
+  const setReadoutCollapsed = useCallback((v: View, collapsed: boolean, given?: boolean) => {
     const cur = getSnapshot();
-    const fallback = VIEW_META[v].readoutStartsCollapsed;
+    const fallback = given ?? VIEW_META[v].readoutStartsCollapsed;
     if ((cur.readoutCollapsed[v] ?? fallback) === collapsed) return;
     const next = { ...cur.readoutCollapsed };
     if (collapsed === fallback) delete next[v];
@@ -561,5 +617,6 @@ export function useViewPrefs() {
     setSweepAxis,
     swrThreshold,
     setSwrThreshold,
+    chartView,
   };
 }

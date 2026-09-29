@@ -46,13 +46,13 @@ import {
 } from "../components/session/useViewPrefs";
 import { ViewPicker } from "../components/session/ViewPicker";
 
-const FOUNDING: View[] = ["antenna", "azimuth", "elevation", "smith"];
+const FOUNDING: View[] = ["antenna", "azimuth", "elevation", "zparam"];
 const ROSTER = VIEWS.map((v) => v.id);
 // A deliberate mirror of useViewPrefs' SEEN_SEED (not exported: it is a
 // frozen historical fact, not a knob). Copying it here means a change to the
 // production seed shows up as a failure in the badge tests, which is where
 // the seed's whole meaning lives.
-const PRE_PICKER: View[] = ["antenna", "azimuth", "elevation", "smith", "schematic"];
+const PRE_PICKER: View[] = ["antenna", "azimuth", "elevation", "zparam", "schematic"];
 const label = (id: View) => VIEW_META[id].label;
 
 beforeEach(() => {
@@ -119,12 +119,12 @@ describe("the picker popover", () => {
 
   it("marks the active row", async () => {
     const user = userEvent.setup();
-    render(<Harness initialView={"smith" as View} />);
+    render(<Harness initialView={"zparam" as View} />);
     await openPicker(user);
     const current = screen
       .getAllByRole("menuitem")
       .filter((el) => el.getAttribute("aria-current") === "true");
-    expect(current.map((el) => el.textContent)).toEqual(["Smith"]);
+    expect(current.map((el) => el.textContent)).toEqual(["Sweep"]);
   });
 
   it("closes on a backdrop click", async () => {
@@ -155,8 +155,8 @@ describe("row click", () => {
     const user = userEvent.setup();
     render(<Harness />);
     await openPicker(user);
-    await user.click(screen.getByRole("menuitem", { name: "Smith" }));
-    expect(probe("view")).toBe("smith");
+    await user.click(screen.getByRole("menuitem", { name: "Sweep" }));
+    expect(probe("view")).toBe("zparam");
     expect(probe("rail")).toBe("antenna,azimuth,elevation");
   });
 });
@@ -228,9 +228,9 @@ describe("pin reorder buttons", () => {
     render(<Harness />);
     await openPicker(user);
     await user.click(dot(`Move ${label(FOUNDING[2])} earlier`));
-    expect(probe("pinned")).toBe(["antenna", "elevation", "azimuth", "smith"].join(","));
+    expect(probe("pinned")).toBe(["antenna", "elevation", "azimuth", "zparam"].join(","));
     // The rail derives straight from `pinned` — no separate reorder path.
-    expect(probe("rail")).toBe(["elevation", "azimuth", "smith"].join(","));
+    expect(probe("rail")).toBe(["elevation", "azimuth", "zparam"].join(","));
   });
 
   it("moves the pin later and re-renders the new order", async () => {
@@ -238,7 +238,7 @@ describe("pin reorder buttons", () => {
     render(<Harness />);
     await openPicker(user);
     await user.click(dot(`Move ${label(FOUNDING[0])} later`));
-    expect(probe("pinned")).toBe(["azimuth", "antenna", "elevation", "smith"].join(","));
+    expect(probe("pinned")).toBe(["azimuth", "antenna", "elevation", "zparam"].join(","));
   });
 
   it("does not switch the view, close the popover, or toggle the pin", async () => {
@@ -258,9 +258,9 @@ describe("pin reorder buttons", () => {
     // Reorder first, then prove the row's other two gestures still work.
     await user.click(dot(`Move ${label(FOUNDING[2])} earlier`));
     await user.click(dot(`Pin ${label("schematic")}`));
-    expect(probe("pinned")).toBe(["antenna", "elevation", "azimuth", "smith", "schematic"].join(","));
-    await user.click(screen.getByRole("menuitem", { name: "Smith" }));
-    expect(probe("view")).toBe("smith");
+    expect(probe("pinned")).toBe(["antenna", "elevation", "azimuth", "zparam", "schematic"].join(","));
+    await user.click(screen.getByRole("menuitem", { name: "Sweep" }));
+    expect(probe("view")).toBe("zparam");
     expect(screen.queryByRole("menu")).toBeNull();
   });
 });

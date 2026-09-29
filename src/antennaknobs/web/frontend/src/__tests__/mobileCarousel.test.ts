@@ -15,9 +15,9 @@ const ids = (pinned: View[]) => mobileScreens(pinned).map((s) => s.id);
 
 // Deliberately NOT registry order: pin order is page order, and a mapping that
 // quietly re-sorted into registry order would still pass a same-order fixture.
-const TWO: View[] = ["smith", "antenna"];
-const FOUR: View[] = ["smith", "antenna", "vswr", "azimuth"];
-const SIX: View[] = ["smith", "antenna", "vswr", "azimuth", "schematic", "gamma"];
+const TWO: View[] = ["zparam", "antenna"];
+const FOUR: View[] = ["zparam", "antenna", "combined", "azimuth"];
+const SIX: View[] = ["zparam", "antenna", "combined", "azimuth", "schematic", "files"];
 
 describe("mobileScreens", () => {
   it.each([
@@ -39,7 +39,7 @@ describe("mobileScreens", () => {
   });
 
   it("still has a page and a dot at the pin floor of one", () => {
-    expect(ids(["gamma"])).toEqual(["gamma", "info"]);
+    expect(ids(["files"])).toEqual(["files", "info"]);
   });
 });
 
@@ -50,29 +50,29 @@ describe("reconcileCarousel", () => {
   it("snaps a view with no page onto the first pinned page", () => {
     expect(reconcileCarousel(FOUR, FOUR, 0, "elevation")).toEqual({
       index: 0,
-      view: "smith",
+      view: "zparam",
     });
   });
 
   // Hard case 2: the page under the thumb was unpinned from the open sheet.
   it("holds the slot when the current page is unpinned, adopting its successor", () => {
-    const after: View[] = ["smith", "vswr", "azimuth"]; // antenna dropped
+    const after: View[] = ["zparam", "combined", "azimuth"]; // antenna dropped
     expect(reconcileCarousel(FOUR, after, 1, "antenna")).toEqual({
       index: 1,
-      view: "vswr",
+      view: "combined",
     });
   });
 
   it("clamps when the unpinned page was the last one", () => {
-    const after: View[] = ["smith", "antenna", "vswr"]; // azimuth dropped
+    const after: View[] = ["zparam", "antenna", "combined"]; // azimuth dropped
     expect(reconcileCarousel(FOUR, after, 3, "azimuth")).toEqual({
       index: 2,
-      view: "vswr",
+      view: "combined",
     });
   });
 
   it("lands on the only remaining page at the floor", () => {
-    expect(reconcileCarousel(TWO, ["antenna"], 0, "smith")).toEqual({
+    expect(reconcileCarousel(TWO, ["antenna"], 0, "zparam")).toEqual({
       index: 0,
       view: "antenna",
     });
@@ -88,10 +88,10 @@ describe("reconcileCarousel", () => {
   });
 
   it("follows the current view when an EARLIER page is unpinned", () => {
-    const after: View[] = ["antenna", "vswr", "azimuth"]; // smith dropped
-    expect(reconcileCarousel(FOUR, after, 2, "vswr")).toEqual({
+    const after: View[] = ["antenna", "combined", "azimuth"]; // smith dropped
+    expect(reconcileCarousel(FOUR, after, 2, "combined")).toEqual({
       index: 1,
-      view: "vswr",
+      view: "combined",
     });
   });
 
@@ -107,7 +107,7 @@ describe("reconcileCarousel", () => {
     });
 
     it("follows Info back when some other page is unpinned", () => {
-      const after: View[] = ["smith", "vswr", "azimuth"];
+      const after: View[] = ["zparam", "combined", "azimuth"];
       expect(reconcileCarousel(FOUR, after, 4, "azimuth")).toEqual({
         index: 3,
         view: "azimuth",
@@ -115,15 +115,15 @@ describe("reconcileCarousel", () => {
     });
 
     it("re-parks `view` on the last page when the parked one is unpinned", () => {
-      const after: View[] = ["smith", "antenna", "vswr"];
+      const after: View[] = ["zparam", "antenna", "combined"];
       expect(reconcileCarousel(FOUR, after, 4, "azimuth")).toEqual({
         index: 3,
-        view: "vswr",
+        view: "combined",
       });
     });
 
     it("keeps Info reachable at the floor of one pin", () => {
-      expect(reconcileCarousel(TWO, ["antenna"], 2, "smith")).toEqual({
+      expect(reconcileCarousel(TWO, ["antenna"], 2, "zparam")).toEqual({
         index: 1,
         view: "antenna",
       });

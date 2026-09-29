@@ -17,7 +17,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { VIEW_PREFS_KEY, useViewPrefs } from "../components/session/useViewPrefs";
 
-const FOUNDING = ["antenna", "azimuth", "elevation", "smith"];
+const FOUNDING = ["antenna", "azimuth", "elevation", "zparam"];
 
 beforeEach(() => {
   localStorage.clear();
@@ -37,9 +37,9 @@ describe("storage event: valid payload from another window", () => {
     const { result } = renderHook(() => useViewPrefs());
     expect(result.current.pinned).toEqual(FOUNDING);
 
-    fireStorage(VIEW_PREFS_KEY, '{"pinned":["smith","antenna"],"seen":["antenna"]}');
+    fireStorage(VIEW_PREFS_KEY, '{"pinned":["zparam","antenna"],"seen":["antenna"]}');
 
-    expect(result.current.pinned).toEqual(["smith", "antenna"]);
+    expect(result.current.pinned).toEqual(["zparam", "antenna"]);
   });
 
   it("updates layout too", () => {
@@ -48,7 +48,7 @@ describe("storage event: valid payload from another window", () => {
 
     fireStorage(
       VIEW_PREFS_KEY,
-      '{"pinned":["smith"],"seen":["smith"],"layout":"grid"}',
+      '{"pinned":["zparam"],"seen":["zparam"],"layout":"grid"}',
     );
 
     expect(result.current.layout).toBe("grid");
@@ -60,7 +60,7 @@ describe("storage event: unrelated key", () => {
     const { result } = renderHook(() => useViewPrefs());
     const before = result.current.pinned;
 
-    fireStorage("some.other.key", '{"pinned":["smith"],"seen":["smith"]}');
+    fireStorage("some.other.key", '{"pinned":["zparam"],"seen":["zparam"]}');
 
     expect(result.current.pinned).toBe(before); // same array identity: no re-render fired
   });
@@ -113,9 +113,9 @@ describe("storage event: no echo", () => {
     const { result } = renderHook(() => useViewPrefs());
     const spy = vi.spyOn(Storage.prototype, "setItem");
 
-    fireStorage(VIEW_PREFS_KEY, '{"pinned":["smith","antenna"],"seen":["antenna"]}');
+    fireStorage(VIEW_PREFS_KEY, '{"pinned":["zparam","antenna"],"seen":["antenna"]}');
 
-    expect(result.current.pinned).toEqual(["smith", "antenna"]);
+    expect(result.current.pinned).toEqual(["zparam", "antenna"]);
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
   });

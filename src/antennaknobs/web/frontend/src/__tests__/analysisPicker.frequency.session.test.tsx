@@ -8,6 +8,11 @@
 //     travel) and the viewer's saved VSWR scale; the chart touches neither;
 //   - picking one whose range is the deck's own sweeps the file's grid;
 //   - a knob analysis still goes to /param_sweep, in the Z-vs-parameter view.
+// Unit 3: the chart opens on the design's own frequency sweep (the Smith view
+// it replaced), so the chart's thumb is a Smith chart and nothing goes to
+// /param_sweep until a knob is picked; the standalone VSWR view the first
+// test used as the viewer's own scale is gone, so the viewer's stored
+// preferences stand in for it.
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 import type { ExampleDescriptor, SchemaParamSpec } from "../lib/params";
@@ -105,7 +110,7 @@ async function mount() {
   const paramSweeps: { param: string; values: number[] }[] = [];
   const r = await mountReady({
     examples: [DECK],
-    pinned: ["antenna", "zparam", "vswr", "smith"],
+    pinned: ["antenna", "zparam"],
     routes: {
       "/sweep": (_url: string, init?: RequestInit) => {
         const body = JSON.parse(String(init?.body ?? "{}"));
@@ -139,9 +144,10 @@ function dial(): [number, number] {
   return [Number(k.getAttribute("aria-valuemin")), Number(k.getAttribute("aria-valuemax"))];
 }
 
-// Bring the Z-vs-parameter view up and return its analysis picker.
+// Bring the analysis chart up (its thumb: the Smith chart it opens on) and
+// return its analysis picker.
 async function picker(container: HTMLElement) {
-  fireEvent.click(container.querySelector(".thumbstrip canvas.zparam") as HTMLElement);
+  fireEvent.click(container.querySelector(".thumbstrip canvas.smith") as HTMLElement);
   return untilDom(
     () => screen.queryByRole("combobox", { name: "Analysis" }) as HTMLSelectElement | null,
   );
@@ -161,13 +167,13 @@ describe("a frequency analysis in the picker", () => {
     // The frequency analyses are offered, not disabled.
     const wide = [...select.options].find((o) => o.value === "wide SWR")!;
     expect(wide.disabled).toBe(false);
-    // The density sweep the view starts on lands first.
-    await untilDom(() => paramSweeps.length > 0);
+    // The design's own sweep the chart opens on lands first; no knob sweep.
+    await untilDom(() => sweeps.length > 0 || null);
     const knobSweeps = paramSweeps.length;
-    // The standalone VSWR view's scale, in the rail: the viewer's own.
-    const railVswr = () =>
-      container.querySelector(".thumbstrip canvas.sweep-vswr") as HTMLElement;
-    const railAxis = railVswr().dataset.axis;
+    expect(knobSweeps).toBe(0);
+    // The viewer's own scale: their stored view preferences.
+    const stored = () => localStorage.getItem("akb.viewPrefs.v1");
+    const storedBefore = stored();
 
     // Its own range: 13.9-14.5 MHz in 25 points, on the 1 − 1/SWR scale
     // with a 1.5:1 threshold, drawn in the chart on the stage.
@@ -206,16 +212,19 @@ describe("a frequency analysis in the picker", () => {
     expect(file[14]).toBeCloseTo(14.35, 9);
     await untilDom(() => again.dataset.readout?.startsWith("2:1 BW") || null);
     expect(paramSweeps).toHaveLength(knobSweeps);
-    // The chart's scale never became the viewer's: the standalone VSWR view
-    // still draws on its own.
-    expect(railVswr().dataset.axis).toBe(railAxis);
+    // The chart's scale never became the viewer's: their stored
+    // preferences are as they were.
+    expect(stored()).toBe(storedBefore);
   });
 
   it("a knob analysis still sweeps its knob in the Z-vs-parameter view", async () => {
     const { container, sweeps, paramSweeps } = await mount();
     const select = await picker(container);
-    await untilDom(() => paramSweeps.length > 0);
+    // The chart's own frequency sweep lands; nothing has gone to /param_sweep.
+    await untilDom(() => sweeps.length > 0 || null);
+    await sweepBaseDone(stageChart("canvas.smith")!);
     const before = paramSweeps.length;
+    expect(before).toBe(0);
     const freqSweeps = sweeps.length;
     fireEvent.change(select, { target: { value: "height" } });
     await untilDom(() => paramSweeps.length > before);

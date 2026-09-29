@@ -90,8 +90,6 @@ import {
   CutAngleOverlay,
   FarFieldOverlayControls,
   LayoutModeToggle,
-  SmithOverlayControls,
-  SweepOverlayControls,
   SweepAdvisoryOverlay,
 } from "../results/StageOverlays";
 import { ViewGrid } from "../results/ViewGrid";
@@ -110,22 +108,29 @@ import { SolveOverlays } from "./SolveOverlays";
 import { SolverSlotTabs } from "./SolverSlotTabs";
 import { useAnalysisRunners } from "./useAnalysisRunners";
 import { useDesignAnalyses } from "./useDesignAnalyses";
-import { useFreqSweep } from "./useFreqSweep";
 import {
   analysisBlocked,
   analysisSpec,
   type AnalysisEntry,
 } from "../../lib/analyses";
+import type { SweepAxisChoice, SweepMode } from "../../lib/sweepAxis";
 import {
   type AnalysisChartState,
+  type ChartSeed,
+  type ChartView,
   chartDwell,
+  chartForNewDesign,
   chartFrequencyRange,
   chartRunInputs,
+  chartView,
+  chartViews,
+  type DwellDefaults,
   editRange,
   initialChart,
   pickedName,
   pickFrequency,
   pickKnob,
+  setChartView,
 } from "../../lib/analysisChart";
 import {
   DEFAULT_DENSITY_SPEC,
@@ -622,6 +627,7 @@ function DesignSessionBody({
     setSweepAxis,
     swrThreshold,
     setSwrThreshold,
+    chartView: seededChartView,
   } = useViewPrefs();
   // The combined view's highlighted designs (AK#1730): the live design and/or
   // pin ids, toggled per row in the compare table; while any is highlighted
@@ -864,24 +870,29 @@ function DesignSessionBody({
       result && result.z0_ohms !== z0 ? { ...result, z0_ohms: z0 } : result,
     [result, z0],
   );
-  // Smith-chart overlay toggles. Both are debounced sweeps that re-fire
-  // whenever any antenna/backend parameter changes; gating them with these
-  // checkboxes lets the user pause an expensive sweep (e.g. BSpline d=2
-  // convergence on slow geometries) without leaving the Smith view.
-  // Both start where settings.toml says (AK#1492), else at the built-in
-  // defaults the server serves.
-  const [sweepEnabled, setSweepEnabled] = useState(uiDefaults.switches.freq_sweep);
-  const [convergeEnabled, setConvergeEnabled] = useState(
-    uiDefaults.switches.convergence_sweep,
-  );
-  // The analysis chart (AK#1757, sweep-framework step 5 unit 2), which the
-  // Z-vs-parameter view now is: its pick, dwell switch, knob spec and axes,
-  // or its frequency analysis's range, view and scales (lib/analysisChart).
-  // Session state, per tab, and never persisted (Steve, 2026-09-28: only the
-  // .py is remembered). One chart today; unit 4 holds one of these per chart.
-  // The old convergence switch draws this chart's knob sweep as the Smith
-  // chart's trail, so it follows the chart's spec too.
-  const [chart, setChart] = useState<AnalysisChartState>(initialChart);
+  // The analysis chart (AK#1757, sweep-framework step 5 units 2 and 3): the
+  // Z-vs-parameter view grown into THE sweep view, which the standalone
+  // Smith, VSWR and S11 views folded into. Its pick, dwell switch, knob spec
+  // and axes, or its frequency sweep's range, view and scales
+  // (lib/analysisChart). Session state, per tab, and never persisted (Steve,
+  // 2026-09-28: only the .py is remembered). One chart today; unit 4 holds
+  // one of these per chart.
+  //
+  // A new chart is the design's own frequency sweep on the Smith chart, or
+  // on the view a migrated pin named (useViewPrefs' chartView), with the
+  // viewer's Swr / S11 scales and threshold.
+  const chartSeed: ChartSeed = { view: seededChartView, axes: sweepAxes, threshold: swrThreshold };
+  const [chart, setChart] = useState<AnalysisChartState>(() => initialChart(chartSeed));
+  // The dwell switch's default per kind (unit 3): settings.toml's
+  // [switches] freq_sweep and convergence_sweep, the two checkboxes it
+  // replaced, now seed a chart's switch for a frequency and for a knob or
+  // density sweep. Read, never written: a flip of the switch is the
+  // chart's, session-only, and a settings save passes the file's own
+  // values through (saveDefaults).
+  const dwellDefaults: DwellDefaults = {
+    frequency: uiDefaults.switches.freq_sweep,
+    knob: uiDefaults.switches.convergence_sweep,
+  };
   const zparamSpecRaw = chart.knob.spec;
   const setZparamSpec = (spec: ParamSweepSpec) =>
     setChart((c) => ({ ...c, kind: "knob", knob: { ...c.knob, spec } }));
@@ -890,16 +901,17 @@ function DesignSessionBody({
   const setZparamAxis = (axis: "r" | "x", choice: RxAxisChoice) =>
     setChart((c) => ({ ...c, knob: { ...c.knob, axes: { ...c.knob.axes, [axis]: choice } } }));
   // A design switch (another example, variant or user design — not a knob
-  // change, not a reload of the same design) starts the chart over: density,
-  // Auto ranges, the x axis following the spacing, no pick, the dwell switch
-  // at its default. Steve (2026-09-26): a length_factor sweep must not follow
-  // him onto the next design. State adjusted during render, React's pattern
-  // for state derived from a prop.
+  // change, not a reload of the same design) starts the chart over on the
+  // design's own frequency sweep, keeping only how the viewer looks at it:
+  // the frequency view, the scales and a flipped dwell switch
+  // (chartForNewDesign). Steve (2026-09-26): a length_factor sweep must not
+  // follow him onto the next design. State adjusted during render, React's
+  // pattern for state derived from a prop.
   const zparamDesignKey = `${geometry}::${currentVariant}`;
   const [zparamDesignFor, setZparamDesignFor] = useState(zparamDesignKey);
   if (zparamDesignFor !== zparamDesignKey) {
     setZparamDesignFor(zparamDesignKey);
-    setChart(initialChart());
+    setChart((c) => chartForNewDesign(c, chartSeed));
   }
   // Adaptive resolution (issue #744): dwell-triggered display-space
   // refinement of the sweep and cut plots. Persisted, unlike the overlay
@@ -1093,8 +1105,11 @@ function DesignSessionBody({
     const body: SettingsSaveBody = {
       switches: {
         live: autoSim,
-        freq_sweep: sweepEnabled,
-        convergence_sweep: convergeEnabled,
+        // The two switches the analysis chart's dwell switch replaced (unit
+        // 3): no longer on screen, so what the file said passes through. A
+        // chart's own switch is session-only and never written here.
+        freq_sweep: uiDefaults.switches.freq_sweep,
+        convergence_sweep: uiDefaults.switches.convergence_sweep,
         pattern_renorm: normCheckEnabled,
         refine: refineEnabled,
         heatmap_currents: showHeatmap,
@@ -1401,19 +1416,11 @@ function DesignSessionBody({
   // its consumer is the HUD readout, resident in every layout. Consumer
   // census + semantics: docs/plan-view-residency-gating.md.
   const isResident = (v: View) => pinned.includes(v) || view === v;
-  const sweepResident =
-    isResident("smith") || isResident("gamma") || isResident("vswr");
-  // Per-view split of sweepResident, for refinement only (issue #744): the
-  // BASE sweep serves all three charts from one array, but refinement buys
-  // extra solves per PROJECTION, so it needs to know which of the three is
-  // actually on screen rather than merely "any".
-  const residentSweepViews = {
-    vswr: isResident("vswr"),
-    gamma: isResident("gamma"),
-    smith: isResident("smith"),
-  };
-  const convergeResident = isResident("smith");
-  // The analysis chart's view (the zparam id, AK#1757 step 5 unit 2).
+  // The analysis chart's view (the zparam id, AK#1757 step 5): the one view
+  // either sweep draws in since unit 3 folded the Smith / VSWR / S11 views
+  // into it. Which of its views is on screen (and so which projection
+  // refinement plans against, issue #744) is the chart's own
+  // (chartRunInputs).
   const chartResident = isResident("zparam");
   const patternResident = isResident("azimuth") || isResident("elevation");
 
@@ -2077,11 +2084,17 @@ function DesignSessionBody({
   // this knob…" or an edit to its own range), and the frequency sweep's
   // range and switch.
   const chartNow: AnalysisChartState = { ...chart, knob: { ...chart.knob, spec: zparamSpec } };
-  const chartDwellOn = chartDwell(chartNow);
+  const chartDwellOn = chartDwell(chartNow, dwellDefaults);
+  // The design's own range, for what a frequency analysis's pick counts as
+  // its own; and the range a chart with no range of its own sweeps: the
+  // session's, the measurement dial's travel with its range-menu edit, as
+  // the standalone sweep views did (AK#1682).
   const chartDesignRange = designSweepRange(sweepRangeInputs).range;
+  const chartBaseRange = resolvedSweepRange.range;
   const chartInputs = chartRunInputs(chartNow, {
     resident: chartResident,
-    designRange: chartDesignRange,
+    dwellDefaults,
+    designRange: chartBaseRange,
     values: zparamValues,
     label: zparamLabel,
   });
@@ -2112,6 +2125,9 @@ function DesignSessionBody({
       armParamSweep();
       setChart((c) => pickKnob(c, null, next));
     }
+    // The knob sweep as R/X against the knob, what "Sweep this knob…" asks
+    // to see.
+    setChart((c) => setChartView(c, "Rx"));
     setView("zparam");
   };
   // The design's analyses (AK#1757): the chart's own picker. Picking one
@@ -2144,12 +2160,12 @@ function DesignSessionBody({
         threshold: swrThreshold,
       });
       const range = (c: AnalysisChartState) =>
-        c.frequency ? JSON.stringify(chartFrequencyRange(c.frequency, chartDesignRange)) : "";
+        c.frequency ? JSON.stringify(chartFrequencyRange(c.frequency, chartBaseRange)) : "";
       const same = chart.kind === "frequency" && chartResident && range(chart) === range(next);
       setChart(next);
       // Already this sweep: nothing will change to arm, so run it.
-      if (same) chartFreq.runNow();
-      else chartFreq.arm();
+      if (same) runSweepNow();
+      else armSweep();
       return;
     }
     const next = knobAnalysisSpec(w);
@@ -2199,9 +2215,6 @@ function DesignSessionBody({
     zparamIsDensity && zparamTopN > 2 * engineN
       ? `N up to ${zparamTopN}: ${(zparamTopN / engineN).toFixed(zparamTopN / engineN >= 10 ? 0 : 1)}× this engine's default N = ${engineN}, so the fine end is slow`
       : null;
-  const convergeTitle = zparamIsDensity
-    ? `Re-solve at N = ${zparamValues.join(", ")} segments per λ/4 and extrapolate Z to N→∞, Z∞ (the Z vs parameter view's sweep, drawn on the Smith chart)`
-    : `Draw the Z vs parameter view's sweep — ${zparamLabel} over ${zparamValues.length} values — as a trail on the Smith chart`;
 
   // The four background analyses (#642 seam 5b-3): freq sweep, convergence
   // sweep, far-field norm check and the NEC rp_card pattern. Called here, at
@@ -2214,6 +2227,10 @@ function DesignSessionBody({
     sweepSettled,
     sweepProgress,
     sweepAdvisories,
+    sweepStale,
+    armSweep,
+    runSweepNow,
+    stopSweep,
     paramSweep,
     paramSweepRunning,
     paramSweepPhase,
@@ -2223,7 +2240,6 @@ function DesignSessionBody({
     normCheck,
     pattern,
     abortInFlight,
-    freqSweepSig,
   } = useAnalysisRunners({
       backend,
       currentVariant,
@@ -2233,17 +2249,21 @@ function DesignSessionBody({
       designFreq,
       measFreq,
       measLocked,
-      sweepRange: resolvedSweepRange.range,
+      // The analysis chart's frequency sweep (AK#1757 step 5 unit 3): the
+      // session's one frequency runner IS the chart's, over the chart's
+      // range, wanted while the chart shows a frequency sweep on screen, and
+      // re-run after the dwell only while its switch is on. One runner, so a
+      // default chart sends exactly the /sweep traffic the standalone Smith
+      // view with its freq-sweep switch on did, and never a second sweep.
+      sweepRange: chartInputs.freq.range,
       groundEnabled,
       groundModel,
-      sweepEnabled,
-      convergeEnabled,
+      sweepEnabled: chartInputs.freq.wanted,
+      sweepAuto: chartInputs.freq.auto,
       normCheckEnabled,
       necOverlayEnabled,
-      sweepResident,
-      convergeResident,
-      // The chart's knob sweep: the session's parameter runner is the
-      // chart's (and the Smith trail's, one result whichever asks).
+      sweepResident: chartInputs.freq.wanted,
+      // The chart's knob sweep, on its R/X or Smith view.
       paramViewResident: chartInputs.param.wanted,
       paramSweep: paramSweepReq,
       patternResident,
@@ -2256,46 +2276,17 @@ function DesignSessionBody({
       // is actually looking at.
       z0,
       refineEnabled,
-      residentSweepViews,
-      // The VSWR / S11 ranges the charts draw (AK#1738), for the same reason.
-      sweepAxes,
-      swrThreshold,
+      // Only the chart's view on screen: refinement buys solves per
+      // projection (issue #744).
+      residentSweepViews: chartInputs.freq.views,
+      // The chart's VSWR / S11 ranges (AK#1738), for the same reason.
+      sweepAxes: chart.frequency?.axes ?? sweepAxes,
+      swrThreshold: chart.frequency?.threshold ?? swrThreshold,
       buildRequest,
       solveWithheld,
       seqRef,
       approvedComboRef,
     });
-
-  // The analysis chart's own frequency sweep (AK#1757 step 5 unit 2): a
-  // second instance of the runner the session's sweep is, over the chart's
-  // range, re-run after the dwell only while the chart's switch is on, and
-  // wanted only while the chart shows a frequency analysis. The standalone
-  // Smith / VSWR / S11 views keep the session's sweep above, untouched. A
-  // second chart (unit 4) is another chart state and another of these, plus
-  // a parameter runner of its own (useParamSweep).
-  const chartFreq = useFreqSweep({
-    range: chartInputs.freq.range,
-    sig: freqSweepSig,
-    enabled: chartInputs.freq.wanted,
-    resident: chartInputs.freq.wanted,
-    auto: chartInputs.freq.auto,
-    backend,
-    groundEnabled,
-    groundModel,
-    refineEnabled,
-    z0,
-    residentSweepViews: chartInputs.freq.views,
-    sweepAxes: chart.frequency?.axes ?? sweepAxes,
-    swrThreshold: chart.frequency?.threshold ?? swrThreshold,
-    autoSim,
-    active,
-    comboApproved,
-    recommendedBackend,
-    buildRequest,
-    solveWithheld,
-    seqRef,
-    approvedComboRef,
-  });
 
   // The Files view (AK#1428): the design's source file, plus the deck and
   // printout behind the solve on screen when an external engine produced it.
@@ -2354,11 +2345,6 @@ function DesignSessionBody({
           setShowFeedNames={setShowFeedNames}
           orientation={antennaOrientation}
           setOrientation={setAntennaOrientation}
-          sweepEnabled={sweepEnabled}
-          setSweepEnabled={setSweepEnabled}
-          convergeEnabled={convergeEnabled}
-          setConvergeEnabled={setConvergeEnabled}
-          convergeTitle={convergeTitle}
           measured={measured}
           onLoadMeasured={(f) =>
             loadMeasured(f, { setGearMenuOpen, setMeasured })
@@ -2643,7 +2629,6 @@ function DesignSessionBody({
         // session's lane; the client drops its batch streams and dwells too.
         cancelSolve();
         abortInFlight();
-        chartFreq.abort();
       }}
       solverWarning={solverWarning}
       backendDisallowed={backendDisallowed}
@@ -2689,8 +2674,18 @@ function DesignSessionBody({
       ? `${geometry}#${reloadNonce}`
       : "";
 
-  const outputStale =
-    stale || (optRunning && VIEW_META[view].staleWhileOptimizing);
+  // The analysis chart's knob sweep on its R/X plot has no trace-only
+  // dimming, so while an optimizer run proposes points it dims whole, as the
+  // Z-vs-parameter view did; every other view of the chart dims only its
+  // swept curve (chartTraceStale below) and keeps the live point bright.
+  const chartRxShown = chart.kind === "knob" && chart.knob.view === "Rx";
+  const staleWhileOptimizing = (v: View) =>
+    VIEW_META[v].staleWhileOptimizing || (v === "zparam" && chartRxShown);
+  const outputStale = stale || (optRunning && staleWhileOptimizing(view));
+  // The stage readout's minimized default: the chart's depends on its view
+  // (open on the Smith / Swr / S11 views as on the old Smith view, minimized
+  // on the R/X plot, whose left axis it would cover).
+  const readoutFallback = (v: View) => (v === "zparam" ? chartRxShown : undefined);
 
   // Views that take the whole stage rather than a size×size square: the
   // antenna canvas, the Files view's text pane (AK#1428), which a square
@@ -2719,52 +2714,89 @@ function DesignSessionBody({
     current: zparamPickedName,
     blocked: zparamAnalysisBlocked,
     onPick: pickAnalysis,
+    // A new chart's frequency sweep is no analysis of the design's: the
+    // design's own band, as the standalone views swept it.
+    ...(chart.kind === "frequency" && chart.picked === null ? { placeholder: "freq sweep" } : {}),
   };
   const chartChrome = {
     dwell: chartDwellOn,
     onDwell: (on: boolean) => setChart((c) => ({ ...c, dwell: on })),
   };
   const chartFrequencyState = chart.kind === "frequency" ? chart.frequency : null;
-  // What the chart draws for a frequency analysis: its own runner's sweep,
-  // on the analysis's view, with its own scales (viewRegistry's zparam entry).
+  // The swept curve is of inputs since changed: the dwell switch off and the
+  // knobs moved, or (on the SWR and S11 views, which dimmed whole while an
+  // optimizer run proposed points, #773) a run the curve predates. Only the
+  // curve dims (unit 3); the live point follows either way. The Smith view
+  // never dimmed during a run, and still does not.
+  const chartTraceStale =
+    sweepStale || (optRunning && chartFrequencyState?.view !== "Smith");
+  // What the chart draws for a frequency sweep: the session's frequency
+  // runner (which is the chart's), on the chart's view, with its own scales
+  // (viewRegistry's zparam entry).
   const chartFrequencyRender: ChartFrequencyRender | null = chartFrequencyState && {
     view: chartFrequencyState.view,
-    sweep: chartFreq.sweep,
-    running: chartFreq.running,
-    phase: chartFreq.phase,
-    progress: chartFreq.progress,
-    settled: chartFreq.settled,
-    stale: chartFreq.stale,
+    sweep,
+    running: sweepRunning,
+    phase: sweepPhase,
+    progress: sweepProgress,
+    settled: sweepSettled,
+    stale: chartTraceStale,
     axes: chartFrequencyState.axes,
     threshold: chartFrequencyState.threshold,
   };
   const setChartFrequency = (patch: Partial<NonNullable<AnalysisChartState["frequency"]>>) =>
     setChart((c) => (c.frequency ? { ...c, frequency: { ...c.frequency, ...patch } } : c));
+  // The chart's view (Rx / Swr / S11 / Smith, as many as its kind can draw),
+  // and on the Smith chart the measured .s1p overlay the Smith view carried
+  // (issue #595): chart controls, on the chart (unit 3).
+  const chartViewPick = {
+    views: chartViews(chart),
+    view: chartView(chart),
+    onView: (v: ChartView) => setChart((c) => setChartView(c, v)),
+    measured:
+      chartView(chart) === "Smith"
+        ? {
+            data: measured,
+            onLoad: (f: File) => loadMeasured(f, { setGearMenuOpen, setMeasured }),
+            onClear: () => setMeasured(null),
+          }
+        : null,
+  };
+  // Scale and threshold edits on the chart are the viewer's preference as
+  // well, as they were on the standalone VSWR / S11 views (AK#1738): they
+  // seed the next chart. A pick's own scale is not (pickFrequency).
+  const onChartAxisChange = (mode: SweepMode, c: SweepAxisChoice) => {
+    if (!chartFrequencyState) return;
+    setChartFrequency({ axes: { ...chartFrequencyState.axes, [mode]: c } });
+    setSweepAxis(mode, c);
+  };
+  const onChartThresholdChange = (t: number) => {
+    setChartFrequency({ threshold: t });
+    setSwrThreshold(t);
+  };
   const zparamControls = chartFrequencyState ? (
     <FrequencyChartControls
       analyses={chartAnalyses}
-      views={chartFrequencyState.views}
-      view={chartFrequencyState.view}
-      onView={(v) => setChartFrequency({ view: v })}
+      viewPick={chartViewPick}
       range={chartInputs.freq.range}
       // An edit to the chart's own range is asking for it: arm it.
       onRange={(lo, hi) => {
         const next = editRange(chartInputs.freq.range, lo, hi);
         if (!next) return;
-        chartFreq.arm();
+        armSweep();
         setChartFrequency({ rangeEdit: next });
       }}
       onResetRange={() => {
-        chartFreq.arm();
+        armSweep();
         setChartFrequency({ rangeEdit: null });
       }}
       rangeIsOwn={chartFrequencyState.rangeEdit === null}
       run={{
-        running: chartFreq.running,
-        received: chartFreq.sweep?.freqs_mhz.length ?? 0,
-        stale: chartFreq.stale,
-        onStop: chartFreq.abort,
-        onRun: chartFreq.runNow,
+        running: sweepRunning,
+        received: sweep?.freqs_mhz.length ?? 0,
+        stale: sweepStale,
+        onStop: stopSweep,
+        onRun: runSweepNow,
       }}
       chrome={chartChrome}
     />
@@ -2805,13 +2837,14 @@ function DesignSessionBody({
       }}
       costHint={zparamCostHint}
       analyses={chartAnalyses}
+      viewPick={chartViewPick}
       chrome={chartChrome}
     />
   );
   // The Z-vs-parameter view's sweep advisory and refusal: over the stage's
   // lower-left on a phone, over the plot's (above the readout) on a desktop.
   const zparamOverlays = chartFrequencyState ? (
-    <SweepAdvisoryOverlay advisories={chartFreq.advisories} />
+    <SweepAdvisoryOverlay advisories={sweepAdvisories} />
   ) : (
     <>
       {paramSweep?.param === zparamSpec.param && (
@@ -2850,27 +2883,20 @@ function DesignSessionBody({
       // per-eval frames carry the trial Z, so hand it to the chart.
       liveZ={optRunning && optProgress ? optProgress.metrics : null}
       preview={preview}
-      sweep={sweep}
       paramSweep={paramSweep}
-      paramTrail={convergeEnabled}
       measured={measured}
       pattern={pattern}
       pinnedPatterns={pinnedPatterns}
       measFreqMhz={measFreq}
-      sweepRunning={sweepRunning}
-      sweepPhase={sweepPhase}
-      sweepProgress={sweepProgress}
       paramSweepRunning={paramSweepRunning}
-      zparam={{ ...zparamSettings, phase: paramSweepPhase }}
+      zparam={{ ...zparamSettings, phase: paramSweepPhase, view: chart.knob.view }}
       onZparamXLogChange={setZparamXLog}
       onZparamAxisChange={setZparamAxis}
       chartFrequency={
-        chartFrequencyRender &&
-        chartFrequencyState && {
+        chartFrequencyRender && {
           ...chartFrequencyRender,
-          onAxisChange: (mode, c) =>
-            setChartFrequency({ axes: { ...chartFrequencyState.axes, [mode]: c } }),
-          onThresholdChange: (t) => setChartFrequency({ threshold: t }),
+          onAxisChange: onChartAxisChange,
+          onThresholdChange: onChartThresholdChange,
         }
       }
       azElevDeg={azElevDeg}
@@ -2895,11 +2921,6 @@ function DesignSessionBody({
       combinedFill={combinedFill}
       combinedHighlight={shownHighlight}
       refineEnabled={refineEnabled}
-      sweepSettled={sweepSettled}
-      sweepAxes={sweepAxes}
-      swrThreshold={swrThreshold}
-      onSweepAxisChange={setSweepAxis}
-      onSwrThresholdChange={setSwrThreshold}
       schematicSvg={schematicSvg}
       schematicUnavailable={schematicUnavailable}
       files={files}
@@ -2935,20 +2956,6 @@ function DesignSessionBody({
               setShowWireLabels={setShowWireLabels}
               showFeedNames={showFeedNames}
               setShowFeedNames={setShowFeedNames}
-            />
-          )}
-          {v === "smith" && !isMobile && (
-            <SmithOverlayControls
-              sweepEnabled={sweepEnabled}
-              setSweepEnabled={setSweepEnabled}
-              convergeEnabled={convergeEnabled}
-              setConvergeEnabled={setConvergeEnabled}
-              convergeTitle={convergeTitle}
-              measured={measured}
-              onLoadMeasured={(f) =>
-                loadMeasured(f, { setGearMenuOpen, setMeasured })
-              }
-              onClearMeasured={() => setMeasured(null)}
             />
           )}
           {/* Always there on a pattern view now: it carries the chart's
@@ -2997,27 +3004,6 @@ function DesignSessionBody({
           )}
           {v === "combined" && (
             <CombinedLegend fill={combinedFill} setFill={setCombinedFill} />
-          )}
-          {/* The Smith chart's freq-sweep switch on the VSWR and S11 charts
-              too (AK#1738): the SAME state, so turning the sweep on or off
-              on any of the three turns it on or off on all of them. */}
-          {(v === "vswr" || v === "gamma") && !isMobile && (
-            <SweepOverlayControls
-              sweepEnabled={sweepEnabled}
-              setSweepEnabled={setSweepEnabled}
-            />
-          )}
-          {(v === "smith" || v === "vswr" || v === "gamma") && (
-            <SweepAdvisoryOverlay
-              advisories={
-                // The Smith chart also draws the parameter sweep's trail when
-                // the switch is on, so its advisory (the gap-fed density
-                // warning) belongs beside that trail too.
-                v === "smith" && convergeEnabled && paramSweep?.advisories
-                  ? [...sweepAdvisories, ...paramSweep.advisories]
-                  : sweepAdvisories
-              }
-            />
           )}
           <CutAngleOverlay
             v={v}
@@ -3181,8 +3167,8 @@ function DesignSessionBody({
               className="stage-readout"
               // One card for the whole grid, so it minimizes per the focused
               // cell's view, as the rail's card does per its primary view.
-              collapsed={isReadoutCollapsed(view)}
-              onCollapsedChange={(c) => setReadoutCollapsed(view, c)}
+              collapsed={isReadoutCollapsed(view, readoutFallback(view))}
+              onCollapsedChange={(c) => setReadoutCollapsed(view, c, readoutFallback(view))}
               result={shownResult}
               rttMs={rttMs}
               currentExample={currentExample}
@@ -3230,23 +3216,17 @@ function DesignSessionBody({
                       // would be the same defect at a smaller size.
                       liveZ={optRunning && optProgress ? optProgress.metrics : null}
                       preview={preview}
-                      sweep={sweep}
                       paramSweep={paramSweep}
-                      paramTrail={convergeEnabled}
                       measured={measured}
                       pattern={pattern}
                       pinnedPatterns={[]}
                       measFreqMhz={measFreq}
-                      sweepRunning={sweepRunning}
-            sweepPhase={sweepPhase}
-                      sweepProgress={sweepProgress}
-                      sweepSettled={sweepSettled}
                       // The stage connects the Smith sweep when adaptive
                       // resolution is on; without this the thumbnail drew
                       // dots until its chart took the stage.
                       refineEnabled={refineEnabled}
                       paramSweepRunning={paramSweepRunning}
-                      zparam={{ ...zparamSettings, phase: paramSweepPhase }}
+                      zparam={{ ...zparamSettings, phase: paramSweepPhase, view: chart.knob.view }}
                       chartFrequency={chartFrequencyRender}
                       azElevDeg={azElevDeg}
                       elevAzDeg={elevAzDeg}
@@ -3257,8 +3237,6 @@ function DesignSessionBody({
                       schematicSvg={schematicSvg}
                       schematicUnavailable={schematicUnavailable}
                       combinedFill={combinedFill}
-                      sweepAxes={sweepAxes}
-                      swrThreshold={swrThreshold}
                     />
                     </div>
                   </div>
@@ -3296,8 +3274,8 @@ function DesignSessionBody({
                   z0={z0}
                   live={liveSolve}
                   className="stage-readout"
-                  collapsed={isReadoutCollapsed(view)}
-                  onCollapsedChange={(c) => setReadoutCollapsed(view, c)}
+                  collapsed={isReadoutCollapsed(view, readoutFallback(view))}
+                  onCollapsedChange={(c) => setReadoutCollapsed(view, c, readoutFallback(view))}
                   result={shownResult}
                   rttMs={rttMs}
                   currentExample={currentExample}
