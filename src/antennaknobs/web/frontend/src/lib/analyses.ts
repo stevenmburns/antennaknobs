@@ -100,6 +100,11 @@ function namedList<T>(v: unknown, one: (o: Record<string, unknown>) => T | null)
   return out;
 }
 
+function rangeSpacing(r: unknown): "lin" | "log" | null {
+  const sp = r && typeof r === "object" ? (r as Record<string, unknown>).spacing : null;
+  return sp === "lin" || sp === "log" ? sp : null;
+}
+
 function parseStep(v: unknown): StepCross | null {
   if (!v || typeof v !== "object") return null;
   const o = v as Record<string, unknown>;
@@ -133,6 +138,11 @@ function parseListed(o: Record<string, unknown>): Required<ListedCross> {
             values:
               Array.isArray(d.values) && d.values.length > 0 && d.values.every(isNum)
                 ? (d.values as number[])
+                : null,
+            spacing: rangeSpacing(d.range),
+            freqs:
+              Array.isArray(d.freqs) && d.freqs.length > 0 && d.freqs.every((f) => isNum(f) && f > 0)
+                ? (d.freqs as number[])
                 : null,
           }
         : null,

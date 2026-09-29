@@ -72,6 +72,10 @@ export type SweepRange = {
   spacing: SweepSpacing;
   step?: number;
   points?: number;
+  /** An explicit grid, swept as given (AK#1757 step 5 unit 4b: a design
+   *  cell sweeps exactly the frequencies `antennaknobs analyze` sweeps on
+   *  that design, which /analyses serves). `lo`/`hi` are its ends. */
+  freqs?: number[];
 };
 
 /** Which rung of the precedence produced the range (see the header). */
@@ -259,6 +263,9 @@ export function sweepGrid(
   cap: number = MAX_SWEEP_POINTS,
 ): SweepGrid {
   const { lo, hi, spacing, step } = range;
+  if (range.freqs && range.freqs.length > 0 && range.freqs.length <= cap) {
+    return { freqs: [...range.freqs], requested: range.freqs.length, clamped: false };
+  }
   const requested = sweepPointCount(range, defaultN);
   if (requested > cap) {
     return {
