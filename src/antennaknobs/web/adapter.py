@@ -121,6 +121,7 @@ from antennaknobs.engines.momwire import (
     split_wires_at_plane,
 )
 from antennaknobs.engines.nec2 import NEC2Engine
+from antennaknobs.engines.nec42 import NEC42Engine
 from antennaknobs.engines.nec5 import (
     DISTRIBUTED_PORT_REFUSAL,
     NULL_GAIN_DB,
@@ -529,6 +530,18 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         kind="nec2",
         panel="pynec",
     ),
+    # A licensed NEC-4.2 binary the user supplies (AK#1603), served only when
+    # the machine running the server resolves $NEC42_EXE and the binary RUNS —
+    # NEC-5's contract, for NEC-5's reason: the licence is the operator's own
+    # use, so the hosted simulator never defines it. NEC-2's cards and NEC-2's
+    # panel, plus buried wires.
+    _BackendSpec(
+        name="nec42",
+        label="NEC-4.2",
+        solver=None,
+        kind="nec42",
+        panel="pynec",
+    ),
 )
 
 _MOMWIRE_MODELS = {b.name: b.solver for b in _BACKENDS if b.kind == "momwire"}
@@ -587,7 +600,11 @@ def design_backend_coverage(design: str) -> dict:
 
 
 def backend_roster(
-    *, have_pynec: bool, have_nec5: bool = False, have_nec2: bool = False
+    *,
+    have_pynec: bool,
+    have_nec5: bool = False,
+    have_nec2: bool = False,
+    have_nec42: bool = False,
 ) -> list[dict]:
     """The self-describing solver catalog served on GET /capabilities.
 
@@ -597,7 +614,12 @@ def backend_roster(
     the PyNEC entry follows pynec_backend.HAVE_PYNEC and the NEC-5 entry
     follows the $NEC5_EXE binary probe.
     """
-    availability = {"pynec": have_pynec, "nec5": have_nec5, "nec2": have_nec2}
+    availability = {
+        "pynec": have_pynec,
+        "nec5": have_nec5,
+        "nec2": have_nec2,
+        "nec42": have_nec42,
+    }
     return [
         {
             "name": b.name,
@@ -890,6 +912,8 @@ _WRAPPER_NETWORK_SCOPE = {
     "pynec": (True, None, None),
     "nec5": (True, None, None),
     "nec2": (True, None, None),
+    # NEC-2's route verbatim (AK#1603): `NEC42Engine` inherits it.
+    "nec42": (True, None, None),
 }
 
 # The two remaining wrapper rows (#1395), so the table is not half filled. Each
@@ -943,11 +967,16 @@ _WRAPPER_PORT_SCOPE = {
     "junction_ports": {
         "pynec": (False, _PYNEC_JUNCTION_REFUSAL, "antennaknobs#579"),
         "nec2": (False, _NEC2_JUNCTION_REFUSAL, "antennaknobs#579"),
+        # NEC-2's writer and NEC-2's sentence: NEC-4.2's deck is that writer's.
+        "nec42": (False, _NEC2_JUNCTION_REFUSAL, "antennaknobs#579"),
         "nec5": (None, None, None),  # not measured — see the note above
     },
     "node_gaps": {
         "pynec": (False, _PYNEC_VERTEX_REFUSAL, "antennaknobs#898"),
         "nec2": (False, _NEC2_VERTEX_REFUSAL, "antennaknobs#898"),
+        # The same writer again. NEC-4.2's own spelling of a vertex feed is
+        # part of its writer, antennaknobs#1803.
+        "nec42": (False, _NEC2_VERTEX_REFUSAL, "antennaknobs#1803"),
         "nec5": (True, None, None),
     },
     # `distributed_ports` -- a `PortOnWire(distributed=True)`, the finite-gap port
@@ -964,6 +993,7 @@ _WRAPPER_PORT_SCOPE = {
     "distributed_ports": {
         "pynec": (None, None, None),
         "nec2": (None, None, None),
+        "nec42": (None, None, None),
         "nec5": (False, "a port is " + DISTRIBUTED_PORT_REFUSAL, "antennaknobs#1410"),
     },
 }
@@ -1020,6 +1050,14 @@ _WRAPPER_BURIED_SCOPE = {
     # if it were in air without warning — so False with a sentence, and the
     # sentence names the engines that do serve it.
     "nec2": (False, _NEC2_BURIED_REFUSAL, "antennaknobs#1354"),
+    # NEC-4.2 SERVES buried geometry (AK#1603): GE -1 over its Sommerfeld
+    # ground, measured on the catalog's buried dipole with the licensed binary
+    # (tests/test_nec42_engine_1603.py runs it where $NEC42_EXE is set). Like
+    # NEC-5's True it means "the wrapper models the buried medium", not that
+    # every buried sub-class is served: a mid-span crossing and a conductor
+    # ending on the plane above buried wires are refused by name
+    # (`refuse_nec42_geometry`).
+    "nec42": (True, None, None),
 }
 
 
@@ -3388,6 +3426,20 @@ _NEC2_SEAMS = _SolveSeams(
 )
 
 
+def _make_nec42_engine(req: dict, builder):
+    """A NEC-4.2 binary over PyNEC's ground spec, as NEC-2 gets it: the
+    dialect is NEC-2's (AK#1603). The MININEC-type ground refuses in the
+    engine, by name."""
+    return NEC42Engine(
+        builder, ground=_pynec_ground_spec(req), wire_radius=_slot_wire_radius(req)
+    )
+
+
+# NEC-2's seams with NEC-4.2's factory: the solve body, the budget and the
+# feed drives are the inherited `NEC2Engine` surface.
+_NEC42_SEAMS = _NEC2_SEAMS._replace(make_engine=_make_nec42_engine)
+
+
 _NEC5_SEAMS = _SolveSeams(
     make_engine=_make_nec5_engine,
     # One subprocess run for impedances, currents and the power budget. The
@@ -4886,6 +4938,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
     def nec2_solve(req: dict) -> dict:
         return _engine_solve(req, _NEC2_SEAMS)
 
+    def nec42_solve(req: dict) -> dict:
+        return _engine_solve(req, _NEC42_SEAMS)
+
     def nec5_pattern(req: dict) -> dict:
         # Same response contract as pynec_backend.pattern (46 thetas
         # 0..90 x 73 phis 0..360, gains in dBi), from one RP deck run.
@@ -4938,8 +4993,17 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         }
 
     def nec2_pattern(req: dict) -> dict:
+        return _nec2_family_pattern(req, _make_nec2_engine)
+
+    def nec42_pattern(req: dict) -> dict:
+        # NEC-2's body with NEC-4.2's engine (AK#1603): the RP card and the
+        # RADIATION PATTERNS block are NEC-2's, verified on nec42cl printouts.
+        return _nec2_family_pattern(req, _make_nec42_engine)
+
+    def _nec2_family_pattern(req: dict, make_engine) -> dict:
         """The same response contract as `pynec_backend.pattern` (46 thetas
-        0..90 x 73 phis 0..360, gains in dBi), from one RP deck run.
+        0..90 x 73 phis 0..360, gains in dBi), from one RP deck run, on a
+        `NEC2Engine` or its NEC-4.2 subclass (`make_engine`).
 
         A near-twin of `nec5_pattern`, and DELIBERATELY not shared with it yet.
         The solve bodies were unified because their equality could be gated —
@@ -4957,7 +5021,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         if has_design_freq:
             builder.design_freq = design_freq
         _apply_plane(builder, req)
-        eng = _make_nec2_engine(req, builder)
+        eng = make_engine(req, builder)
         n_theta, n_phi = 46, 73
         del_theta = 90.0 / (n_theta - 1)
         del_phi = 360.0 / (n_phi - 1)
@@ -5315,6 +5379,8 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         nec5_pattern=nec5_pattern,
         nec2_solve=nec2_solve,
         nec2_pattern=nec2_pattern,
+        nec42_solve=nec42_solve,
+        nec42_pattern=nec42_pattern,
         nec5_export=nec5_export,
         nec_export=nec_export,
         ssn_export=ssn_export,

@@ -53,7 +53,7 @@ from antennaknobs import in_medium
 
 from . import cost as _cost
 from . import tracker
-from . import nec2_backend, nec5_backend, pynec_backend, user_designs
+from . import nec2_backend, nec42_backend, nec5_backend, pynec_backend, user_designs
 from .examples import REGISTRY as EXAMPLES
 from .examples import UnknownGeometryError, example_for
 from ..engines._external import cancel_scope as _engine_cancel_scope
@@ -1276,7 +1276,7 @@ _ENGINE_IO_CACHE_MAX = 16
 # The solvers that run a binary on a deck, and what the Files view calls each.
 # Served, so the frontend names no engine (#1006 G2-6). PyNEC is NEC-2
 # in-process: no deck.
-_ENGINE_IO_LABELS = {"nec5": "NEC-5", "nec2": "NEC-2"}
+_ENGINE_IO_LABELS = {"nec5": "NEC-5", "nec2": "NEC-2", "nec42": "NEC-4.2"}
 
 
 # The pattern run's deck and printout (AK#1506): the engine's own gain tables,
@@ -1706,6 +1706,8 @@ _EXTERNAL_BACKENDS = {
     "pynec": (pynec_backend, lambda: pynec_backend.HAVE_PYNEC),
     "nec5": (nec5_backend, nec5_backend.have_nec5),
     "nec2": (nec2_backend, nec2_backend.have_nec2),
+    # AK#1603: a licensed binary, present only where $NEC42_EXE resolves.
+    "nec42": (nec42_backend, nec42_backend.have_nec42),
 }
 _BACKEND_NAME = {mod: name for name, (mod, _avail) in _EXTERNAL_BACKENDS.items()}
 
@@ -3688,6 +3690,7 @@ def capabilities_endpoint():
         "have_pynec": pynec_backend.HAVE_PYNEC,
         "have_nec5": nec5_backend.have_nec5(),
         "have_nec2": nec2_backend.have_nec2(),
+        "have_nec42": nec42_backend.have_nec42(),
     }
     # The startup settings file (AK#1492), read per request so an edit applies
     # at the next page load. Its slots are applied to the served seeds here, so
@@ -3734,6 +3737,7 @@ def settings_save_endpoint(req: dict):
         have_pynec=pynec_backend.HAVE_PYNEC,
         have_nec5=nec5_backend.have_nec5(),
         have_nec2=nec2_backend.have_nec2(),
+        have_nec42=nec42_backend.have_nec42(),
     )
     try:
         return ui_settings.save(req, cat)

@@ -150,8 +150,9 @@ def test_the_server_names_the_three_external_backends_by_a_map_not_a_ternary():
     every nec2 answer "nec5"."""
     import antennaknobs.web.server as server
 
-    assert set(server._EXTERNAL_BACKENDS) == {"pynec", "nec5", "nec2"}
-    assert set(server._BACKEND_NAME.values()) == {"pynec", "nec5", "nec2"}
+    names = {"pynec", "nec5", "nec2", "nec42"}  # nec42: AK#1603
+    assert set(server._EXTERNAL_BACKENDS) == names
+    assert set(server._BACKEND_NAME.values()) == names
 
 
 # --------------------------------------------------------------------------

@@ -93,6 +93,8 @@ def _is_delta_gap(req: Mapping, solver_name: str) -> str | None:
     (a segment-wide gap), else None."""
     if solver_name == "nec2":
         return "NEC-2"
+    if solver_name == "nec42":
+        return "NEC-4.2"
     if solver_name == "pynec":
         return "PyNEC"
     if solver_name != "momwire":

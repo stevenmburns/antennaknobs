@@ -110,7 +110,7 @@ _TABLES = ("switches", "antenna_view", "ground", "grounds", "slots")
 # Tables only a person editing the file sets (antennaknobs.settings_file): a
 # path the server executes must never be settable by a web request.
 _FILE_TABLES = ("engines", "capture")
-_ENGINE_KEYS = ("nec5_exe", "nec2_exe")
+_ENGINE_KEYS = ("nec5_exe", "nec2_exe", "nec42_exe")
 _CAPTURE_KEYS = ("dir",)
 _GROUND_KEYS = ("enabled", "type", "method", "soil", "eps_r", "sigma", "terrain_preset")
 _SLOT_KEYS = ("backend", "n_per_wire", "model")
@@ -146,7 +146,9 @@ class Catalog:
     stock_grounds: tuple[dict, ...] = ()
 
 
-def catalog(*, have_pynec: bool, have_nec5: bool, have_nec2: bool) -> Catalog:
+def catalog(
+    *, have_pynec: bool, have_nec5: bool, have_nec2: bool, have_nec42: bool = False
+) -> Catalog:
     """The catalog for this request, from the same adapter functions
     ``/capabilities`` serves, so a file can name exactly what the UI offers."""
     from .adapter import (
@@ -162,7 +164,10 @@ def catalog(*, have_pynec: bool, have_nec5: bool, have_nec2: bool) -> Catalog:
     )
 
     roster = backend_roster(
-        have_pynec=have_pynec, have_nec5=have_nec5, have_nec2=have_nec2
+        have_pynec=have_pynec,
+        have_nec5=have_nec5,
+        have_nec2=have_nec2,
+        have_nec42=have_nec42,
     )
     specs = model_option_specs()
     terrains = [p["name"] for p in terrain_presets_schema()]
