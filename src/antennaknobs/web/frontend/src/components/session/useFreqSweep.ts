@@ -92,6 +92,10 @@ async function streamSweep(
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buf = "";
+  // The first failed point's reason: when no point lands at all, it is the
+  // engine refusing the design (NEC-2 and a vertex feed), which a chart
+  // names as that curve's refused cell (AK#1757 step 5 unit 4b).
+  let firstError: string | null = null;
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -111,6 +115,7 @@ async function streamSweep(
       // whose dense fill can't allocate). Keep whatever points landed.
       if (pt.error) {
         console.error("sweep error", pt.error);
+        firstError ??= String(pt.error);
         continue;
       }
       acc.freqs_mhz.push(pt.freq_mhz);
@@ -128,6 +133,7 @@ async function streamSweep(
       if (!controller.signal.aborted) onPoint(snapshot());
     }
   }
+  if (firstError !== null && acc.freqs_mhz.length === 0) throw new Error(firstError);
   return snapshot();
 }
 

@@ -239,6 +239,10 @@ export function useParamSweep({
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";
+      // The first failed point's reason: when no point lands at all, it is
+      // the engine refusing the design, which a chart names as that curve's
+      // refused cell (AK#1757 step 5 unit 4b).
+      let firstError: string | null = null;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -260,7 +264,10 @@ export function useParamSweep({
           // A solver failure at one value (rare — a degenerate small-N
           // geometry) is reported by the backend as {value, error}; skip
           // rather than poisoning the trajectory.
-          if (pt.error) continue;
+          if (pt.error) {
+            firstError ??= String(pt.error);
+            continue;
+          }
           // A record without a finite Z (never expected; JSON carries a
           // non-finite float as null) would poison every axis: skip it.
           if (!Number.isFinite(pt.z_re) || !Number.isFinite(pt.z_im)) continue;
@@ -313,6 +320,10 @@ export function useParamSweep({
           }
           publish();
         }
+      }
+      if (firstError !== null && acc.values.length === 0 && !controller.signal.aborted) {
+        acc.error = firstError;
+        publish();
       }
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;

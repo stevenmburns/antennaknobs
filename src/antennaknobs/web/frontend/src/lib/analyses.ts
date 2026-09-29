@@ -4,6 +4,7 @@
 // charts and SWR axis (a frequency sweep). React-free, so the mapping is
 // tested alone.
 
+import type { CrossKind, DesignCross, ListedCross, PlaneCross, StepCross } from "./chartCells";
 import { DENSITY, paramValues, type ParamSweepSpec } from "./paramSweep";
 import type { SweepRangeSpec } from "./params";
 import { specRange, type SweepRange } from "./sweep";
@@ -28,11 +29,17 @@ export type KnobWorkbench = {
 
 /** The engine and ground specs the analysis lists (its cross, else its one
  *  engine or ground), or null where it names none: the analysis chart's
- *  preselection (lib/chartCells.ts, AK#1757 step 5 unit 4). Optional: an
- *  older server serves neither, and the chart then draws the active slot. */
+ *  preselection (lib/chartCells.ts, AK#1757 step 5 unit 4). And its other
+ *  crosses (unit 4b): the order its crosses are written in, its planes,
+ *  designs and family, each null where it has none. Optional: an older
+ *  server serves none of them, and the chart then draws the active slot. */
 export type Listed = {
   engines?: string[] | null;
   grounds?: string[] | null;
+  axes?: CrossKind[];
+  planes?: PlaneCross[] | null;
+  designs?: DesignCross[] | null;
+  step?: StepCross | null;
 };
 
 /** The views a frequency analysis draws here, by the server's names. */
@@ -77,8 +84,61 @@ function specList(v: unknown): string[] | null {
     : null;
 }
 
-function parseListed(o: Record<string, unknown>): { engines: string[] | null; grounds: string[] | null } {
-  return { engines: specList(o.engines), grounds: specList(o.grounds) };
+const CROSS_KINDS: readonly CrossKind[] = ["engines", "grounds", "planes", "designs", "step"];
+const isStr = (v: unknown): v is string => typeof v === "string";
+const reason = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+
+/** A served list of named cells (planes, designs), else null. */
+function namedList<T>(v: unknown, one: (o: Record<string, unknown>) => T | null): T[] | null {
+  if (!Array.isArray(v) || v.length === 0) return null;
+  const out: T[] = [];
+  for (const item of v) {
+    const t = item && typeof item === "object" ? one(item as Record<string, unknown>) : null;
+    if (t === null) return null;
+    out.push(t);
+  }
+  return out;
+}
+
+function parseStep(v: unknown): StepCross | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  if (!isStr(o.knob) || !Array.isArray(o.values) || !o.values.every(isNum) || o.values.length === 0) {
+    return null;
+  }
+  const labels = Array.isArray(o.labels) && o.labels.every(isStr) ? (o.labels as string[]) : [];
+  return {
+    knob: o.knob,
+    values: o.values as number[],
+    labels: labels.length === o.values.length ? labels : [],
+  };
+}
+
+function parseListed(o: Record<string, unknown>): Required<ListedCross> {
+  return {
+    engines: specList(o.engines),
+    grounds: specList(o.grounds),
+    axes: Array.isArray(o.axes)
+      ? o.axes.filter((k): k is CrossKind => CROSS_KINDS.includes(k as CrossKind))
+      : [],
+    planes: namedList<PlaneCross>(o.planes, (p) =>
+      isStr(p.name) ? { name: p.name, refused: reason(p.refused) } : null,
+    ),
+    designs: namedList<DesignCross>(o.designs, (d) =>
+      isStr(d.name)
+        ? {
+            name: d.name,
+            refused: reason(d.refused),
+            param: isStr(d.param) ? d.param : null,
+            values:
+              Array.isArray(d.values) && d.values.length > 0 && d.values.every(isNum)
+                ? (d.values as number[])
+                : null,
+          }
+        : null,
+    ),
+    step: parseStep(o.step),
+  };
 }
 
 const FREQUENCY_VIEWS: readonly FrequencyView[] = ["Swr", "S11", "Smith"];

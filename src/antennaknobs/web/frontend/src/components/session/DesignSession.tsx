@@ -76,11 +76,14 @@ import type {
 } from "../../lib/ground";
 import { designGround, groundSlotLabel } from "../../lib/groundSlots";
 import {
+  type ChartCell,
   type ChartCross,
   checkedGrounds,
   checkedSlots,
   type CrossEnv,
+  type CrossPlan,
   crossPlan,
+  engineRefusal,
   engineSpecHeld,
   groundSpecHeld,
   type ListedCross,
@@ -138,6 +141,7 @@ import {
   analysisBlocked,
   analysisSpec,
   type AnalysisEntry,
+  type Listed,
 } from "../../lib/analyses";
 import type { SweepAxisChoice, SweepMode } from "../../lib/sweepAxis";
 import {
@@ -1275,11 +1279,39 @@ function DesignSessionBody({
     return buildRequestFor(activeSlot, activeGroundSlot);
   }
 
-  // An analysis chart curve's request (unit 4): its cell's slot and ground
-  // (buildRequestFor), on the lane stream the curve runs on.
+  // An analysis chart curve's request (unit 4): its cell's slot and ground,
+  // and its plane, design and family step (unit 4b), through
+  // buildRequestFor, on the lane stream the curve runs on.
   function buildCellRequest(cell: ChartCellRequest): SolveRequest {
-    const r = buildRequestFor(cell.slot as Slot, cell.ground);
+    const r = buildRequestFor(cell.slot as Slot, cell.ground, {
+      ...(cell.plane !== undefined ? { plane: cell.plane } : {}),
+      ...(cell.design !== undefined ? { design: cell.design } : {}),
+      ...(cell.step !== undefined ? { step: cell.step } : {}),
+    });
     return cell.stream ? { ...r, _stream: cell.stream } : r;
+  }
+
+  // A design cell's design as a fresh session loads it (unit 4b), which is
+  // how `antennaknobs analyze` builds a design cell: at that design's own
+  // defaults (the CLI's registry builder), whatever this session has done
+  // to its knobs. Its first variant and its schema's defaults, as the
+  // catalog seeds them (useDesignCatalog); its design and measurement
+  // frequencies where a design switch snaps them (applyDesignResets, then
+  // a knob linked to the design frequency). Null when this session's
+  // catalog does not hold it.
+  function designAtDefaults(name: string) {
+    const ex = examples.find((e) => e.name === name);
+    if (!ex) return null;
+    const values = seedDefaults(ex.param_schema);
+    const snap = snapForExample(ex);
+    const linked = findLinkedDesignFreq(ex.param_schema, values);
+    return {
+      geometry: ex.name,
+      variant: ex.variants?.[0] ?? "default",
+      values,
+      designFreq: linked ?? snap?.freq ?? designFreq,
+      measFreq: linked ?? snap?.measFreq ?? measFreq,
+    };
   }
 
   // The solve request on solver slot `slotId`'s engine and ground slot
@@ -1288,7 +1320,19 @@ function DesignSessionBody({
   // for the active pair exactly the session's own request, so a cell on
   // (B, 2) is the request the session would send with B and 2 active. No
   // slot is touched.
-  function buildRequestFor(slotId: Slot, groundId: string): SolveRequest {
+  //
+  // `over` is a chart cell's own (unit 4b): a measurement plane (the
+  // natural one is the field's absence, as pickPlane makes it), a design
+  // at its own defaults (designAtDefaults: its geometry, variant, knobs and
+  // frequencies replace the session's, and the session's plane, Zo
+  // override and tracker, which belong to the session's design, are left
+  // out), and a family's knob set to its step value on top of the knobs.
+  function buildRequestFor(
+    slotId: Slot,
+    groundId: string,
+    over: { plane?: string; design?: string; step?: { knob: string; value: number } } = {},
+  ): SolveRequest {
+    const design = over.design !== undefined ? designAtDefaults(over.design) : null;
     const cfg = slots[slotId] ?? slots[activeSlot];
     const backend = cfg.backend;
     const g = groundRequestFor(groundId, backend);
@@ -1301,12 +1345,12 @@ function DesignSessionBody({
     const groundActive = g.enabled && backendSupportsGround(backend);
     const base: SolveRequest = {
       _session: sessionId,
-      geometry,
-      variant: currentVariant,
+      geometry: design?.geometry ?? geometry,
+      variant: design?.variant ?? currentVariant,
       solver: backend.kind === "momwire" ? "momwire" : backend.kind,
       n_per_wire: cfg.opts.nPerWire,
-      design_freq_mhz: designFreq,
-      measurement_freq_mhz: measFreq,
+      design_freq_mhz: design?.designFreq ?? designFreq,
+      measurement_freq_mhz: design?.measFreq ?? measFreq,
       wire_radius: cfg.opts.wireRadius,
       ground: groundActive,
       // ground_fast is the legacy boolean; ground_model is authoritative
@@ -1346,12 +1390,24 @@ function DesignSessionBody({
     // Measurement plane (issue #652 c): only ever sent when picked — the
     // natural plane is the absence of the field, so designs with no
     // network never see it.
-    if (plane) base.plane = plane;
+    // A plane cell's plane (unit 4b) the same way: the natural plane, as
+    // pickPlane leaves it, is the field's absence.
+    const cellPlane =
+      over.plane !== undefined
+        ? over.plane === (design ? undefined : result?.planes?.[0])
+          ? null
+          : over.plane
+        : design
+          ? null
+          : plane;
+    if (cellPlane) base.plane = cellPlane;
     // Schema-driven antennas (all of them now): merge the active
     // paramValues straight in. For fan_dipole this includes a nested
     // `bands: [{band_id, freq, length_factor}, ...]` array; the backend
     // unpacks it in _bands_from_request().
-    Object.assign(base, currentValues);
+    Object.assign(base, design?.values ?? currentValues);
+    // A family cell's step (unit 4b): its knob at its value.
+    if (over.step) (base as Record<string, unknown>)[over.step.knob] = over.step.value;
     // hexbeam_5band's daisy_chain (single common feed) is now modelled with
     // build_network(), which the shared NetworkReducer solves on momwire and
     // PyNEC alike — so it is no longer greyed out or forced off on momwire.
@@ -1361,8 +1417,8 @@ function DesignSessionBody({
     // what invalidates the tracker's tangent server-side.
     // AK#1735: only an override travels — no override is the same bytes as
     // before, and the server answers with the design's own.
-    if (zoOverride !== null) base.z0_ohms = zoOverride;
-    if (trackOn && trackDragRef.current) {
+    if (zoOverride !== null && !design) base.z0_ohms = zoOverride;
+    if (trackOn && trackDragRef.current && !design) {
       (base as SolveRequest & { _track?: unknown })._track = {
         objective: optObjective,
         free: trackFree,
@@ -2191,18 +2247,44 @@ function DesignSessionBody({
       holds: (spec: string) => groundSpecHeld(spec, g, servedDefaultSoil),
     })),
     activeGround: activeGroundSlot,
+    design: geometry,
   };
+  // A chart's cells (lib/chartCells.ts crossPlan), with a design cell this
+  // session's catalog does not hold refused by name: its defaults are the
+  // catalog's (designAtDefaults), so there is nothing to build it from.
+  const planOf = (cross: ChartCross, listed: ListedCross): CrossPlan => {
+    const plan = crossPlan(cross, listed, crossEnv);
+    return {
+      ...plan,
+      cells: plan.cells.map((c) =>
+        c.design !== undefined && !c.refused && !examples.some((e) => e.name === c.design)
+          ? { ...c, refused: `no design ${c.design} in this session's catalog` }
+          : c,
+      ),
+    };
+  };
+  const drawable = (c: ChartCell) => !c.refused && c.slot !== null && c.ground !== null;
   // One curve's solve inputs: that cell's slot and ground slot on the
-  // session's request (buildRequestFor), on a lane stream of its own so the
-  // curves do not supersede one another server-side. The first chart's
-  // first curve takes no stream, the request the chart always sent. Only a
-  // cell on the active slot carries the session's "Solve anyway" approval.
-  const cellRequest = (i: number, k: number, slot: Slot, ground: string): ChartCellRequest => {
+  // session's request (buildRequestFor), with its plane, design and family
+  // step (unit 4b), on a lane stream of its own so the curves do not
+  // supersede one another server-side. The first chart's first curve takes
+  // no stream, the request the chart always sent. Only a cell on the active
+  // slot carries the session's "Solve anyway" approval.
+  const cellRequest = (
+    i: number,
+    k: number,
+    slot: Slot,
+    ground: string,
+    cell?: Pick<ChartCell, "plane" | "design" | "step">,
+  ): ChartCellRequest => {
     const cfg = slots[slot];
     const g = groundRequestFor(ground, cfg.backend);
     return {
       slot,
       ground,
+      ...(cell?.plane !== undefined ? { plane: cell.plane } : {}),
+      ...(cell?.design !== undefined ? { design: cell.design } : {}),
+      ...(cell?.step !== undefined ? { step: cell.step } : {}),
       stream: i === 0 && k === 0 ? null : `c${i}r${k}`,
       backend: cfg.backend,
       groundEnabled: g.enabled,
@@ -2232,13 +2314,24 @@ function DesignSessionBody({
       values,
       label,
     });
-    const plan = crossPlan(now.cross, chartListed(now), crossEnv);
-    const drawn = plan.cells.filter((c) => !c.refused && c.slot !== null && c.ground !== null);
-    const runs: CellRun[] = drawn.map((c, k) => ({
-      cell: cellRequest(i, k, c.slot as Slot, c.ground as string),
-      freq: inputs.freq,
-      param: inputs.param,
-    }));
+    const listedNow = chartListed(now);
+    const plan = planOf(now.cross, listedNow);
+    const drawn = plan.cells.filter(drawable);
+    // A design cell of a knob sweep sweeps that design's own parameter and
+    // values, as /analyses resolved them on it (a role may name another
+    // knob there, and a range left to the knob is that design's).
+    const ownSweep = (c: ChartCell) => {
+      const d = c.design !== undefined ? listedNow.designs?.find((x) => x.name === c.design) : undefined;
+      return d?.param && d.values ? { param: d.param, values: d.values } : null;
+    };
+    const runs: CellRun[] = drawn.map((c, k) => {
+      const own = now.kind === "knob" ? ownSweep(c) : null;
+      return {
+        cell: cellRequest(i, k, c.slot as Slot, c.ground as string, c),
+        freq: inputs.freq,
+        param: own ? { ...inputs.param, req: { ...inputs.param.req, ...own } } : inputs.param,
+      };
+    });
     const currentRaw = isDensity ? nPerWire : currentValues[spec.param];
     return {
       i,
@@ -2328,8 +2421,15 @@ function DesignSessionBody({
       zparamKnobs.find((k) => k.name === w.param)?.kind === "int",
     );
   // What a pick lists, and the slots it preselects (lib/chartCells.ts).
-  const pickCross = (c: AnalysisChartState, w: { engines?: string[] | null; grounds?: string[] | null }) => {
-    const listed: ListedCross = { engines: w.engines ?? null, grounds: w.grounds ?? null };
+  const pickCross = (c: AnalysisChartState, w: Listed) => {
+    const listed: ListedCross = {
+      engines: w.engines ?? null,
+      grounds: w.grounds ?? null,
+      axes: w.axes ?? [],
+      planes: w.planes ?? null,
+      designs: w.designs ?? null,
+      step: w.step ?? null,
+    };
     return withListed(c, listed, preselect(listed, crossEnv));
   };
   // A pick runs what it picked, curve by curve: a curve whose cell and
@@ -2345,9 +2445,7 @@ function DesignSessionBody({
   ) => {
     const m = chartModels[i];
     if (!m) return;
-    const nextCells = crossPlan(next.cross, chartListed(next), crossEnv).cells.filter(
-      (c) => !c.refused && c.slot !== null && c.ground !== null,
-    );
+    const nextCells = planOf(next.cross, chartListed(next)).cells.filter(drawable);
     allRunnersOf[i].forEach((r, k) => {
       const runner = kind === "freq" ? r.freq : r.param;
       if (same && m.resident && k < nextCells.length && m.drawn[k]?.key === nextCells[k].key) {
@@ -2459,7 +2557,7 @@ function DesignSessionBody({
       // is on. One runner, so a default chart sends exactly the /sweep
       // traffic the standalone Smith view with its freq-sweep switch on did,
       // and never a second sweep.
-      sweepRange: chartInputs.freq.range,
+      sweepRange: primaryRun?.freq.range ?? chartInputs.freq.range,
       groundEnabled,
       groundModel,
       sweepEnabled: chartInputs.freq.wanted && !!primaryRun,
@@ -2469,7 +2567,8 @@ function DesignSessionBody({
       sweepResident: chartInputs.freq.wanted && !!primaryRun,
       // The chart's knob sweep, on its R/X or Smith view.
       paramViewResident: chartInputs.param.wanted && !!primaryRun,
-      paramSweep: chartInputs.param.req,
+      // The first curve's own (a design cell sweeps its design's values).
+      paramSweep: primaryRun?.param.req ?? chartInputs.param.req,
       patternResident,
       autoSim,
       active,
@@ -3087,9 +3186,7 @@ function DesignSessionBody({
     // re-runs nor carries an ask over to some later change.
     const setCross = (cross: ChartCross) => {
       const next: AnalysisChartState = { ...m.now, cross };
-      const cells = crossPlan(cross, chartListed(next), crossEnv).cells.filter(
-        (c) => !c.refused && c.slot !== null && c.ground !== null,
-      );
+      const cells = planOf(cross, chartListed(next)).cells.filter(drawable);
       const all = allRunnersOf[i];
       cells.forEach((c, k) => {
         if (m.drawn[k]?.key !== c.key) {
@@ -3144,7 +3241,9 @@ function DesignSessionBody({
       settled: r.freq.settled,
       stale: freqState ? r.freq.stale || runStale : !!r.param.data?.stale,
       paramSweep:
-        m.state.kind === "knob" && r.param.data?.param === m.spec.param ? r.param.data : null,
+        m.state.kind === "knob" && r.param.data?.param === m.runs[k + 1].param.req.param
+          ? r.param.data
+          : null,
     }));
     // Every cell by name, in the cross's order; a refused one with why.
     const legend: ChartLegendData = {
@@ -3153,6 +3252,10 @@ function DesignSessionBody({
         const k = m.drawn.indexOf(c);
         const r = runners[k];
         const error = freqState ? r?.freq.error : (r?.param.data?.error ?? null);
+        // The engine declining this cell's design (NEC-2 and a vertex feed)
+        // is a refused cell, in the server's words, as the CLI names it.
+        const declined = engineRefusal(error);
+        if (declined) return { key: c.key, label: c.label, color: null, refused: declined };
         return { key: c.key, label: c.label, color: cellColor(k), refused: null, error: error ?? null };
       }),
       capRefusal: m.plan.capRefusal,
