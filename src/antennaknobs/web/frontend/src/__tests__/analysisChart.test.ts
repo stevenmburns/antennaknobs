@@ -58,7 +58,7 @@ describe("a new chart (unit 3)", () => {
     expect(c.kind).toBe("frequency");
     expect(c.picked).toBeNull();
     expect(chartView(c)).toBe("Smith");
-    expect(chartViews(c)).toEqual(["Smith", "Swr", "S11"]);
+    expect(chartViews(c)).toEqual(["Smith", "Swr", "S11", "Rx", "Table"]);
     // Its range is the session's (the design's own, or the dial's edit).
     expect(chartFrequencyRange(c.frequency!, DESIGN)).toBe(DESIGN);
     const r = chartRunInputs(c, env());
@@ -71,7 +71,7 @@ describe("a new chart (unit 3)", () => {
   it("opens on the view a migrated pin named, with the viewer's scales", () => {
     const c = newChart({ view: "Swr", axes: { ...DEFAULT_AXES, vswr: RHO }, threshold: 1.5 });
     expect(chartView(c)).toBe("Swr");
-    expect(chartViews(c)).toEqual(["Swr", "Smith", "S11"]);
+    expect(chartViews(c)).toEqual(["Swr", "Smith", "S11", "Rx", "Table"]);
     expect(c.frequency!.axes.vswr).toEqual(RHO);
     expect(c.frequency!.threshold).toBe(1.5);
     expect(chartRunInputs(c, env()).freq.views).toEqual({ vswr: true, gamma: false, smith: false });
@@ -98,13 +98,14 @@ describe("a new chart (unit 3)", () => {
 });
 
 describe("the chart's views (unit 3)", () => {
-  it("are honest per kind: R/X or Smith for a knob sweep, SWR, S11 or Smith for a frequency one", () => {
+  it("are honest per kind: R/X, Smith or Table for a knob sweep; SWR, S11, Smith, R/X or Table for a frequency one", () => {
     const knob = pickKnob(initialChart(), "height", HEIGHT);
-    expect(chartViews(knob)).toEqual(["Rx", "Smith"]);
+    expect(chartViews(knob)).toEqual(["Rx", "Smith", "Table"]);
     expect(chartView(knob)).toBe("Rx");
     // A view the kind cannot draw is refused, the same chart back.
     expect(setChartView(knob, "Swr")).toBe(knob);
-    expect(setChartView(initialChart(), "Rx").frequency!.view).toBe("Smith");
+    // R/X against frequency draws since unit 5.
+    expect(setChartView(initialChart(), "Rx").frequency!.view).toBe("Rx");
     // The knob sweep on the Smith chart: still its parameter runner only.
     const trail = setChartView(knob, "Smith");
     expect(chartView(trail)).toBe("Smith");
@@ -115,7 +116,7 @@ describe("the chart's views (unit 3)", () => {
 
   it("a frequency pick leads with the analysis's own views, then the rest", () => {
     const c = pickFrequency(initialChart(), "wide", freq(), DESIGN, PREFS);
-    expect(chartViews(c)).toEqual(["Swr", "Smith", "S11"]);
+    expect(chartViews(c)).toEqual(["Swr", "Smith", "S11", "Rx", "Table"]);
     expect(chartView(c)).toBe("Swr");
   });
 });

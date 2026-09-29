@@ -197,7 +197,7 @@ describe("the default workbench", () => {
     // The old views are the chart's views; the Smith view's measured overlay
     // is on the chart while it shows Smith.
     expect(chartView().value).toBe("Smith");
-    expect([...chartView().options].map((o) => o.value)).toEqual(["Smith", "Swr", "S11"]);
+    expect([...chartView().options].map((o) => o.value)).toEqual(["Smith", "Swr", "S11", "Rx", "Table"]);
     expect(screen.getByText("measured .s1p…")).toBeTruthy();
     // The readout is open on the chart's Smith view, as on the Smith view.
     expect(screen.queryByRole("button", { name: "Show the full solve readout" })).toBeNull();
