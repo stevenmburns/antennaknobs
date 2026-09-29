@@ -17,13 +17,17 @@
 //     fails on both the SWR and the R/X popovers;
 //   - the clamp ignoring the visual viewport's offset: the pinch-zoom unit
 //     test fails;
+//   - visibleRect() ignoring window.visualViewport's offsetLeft/offsetTop
+//     (the reviewer's, 2026-09-29): both window.visualViewport session tests
+//     fail, which the unit test alone did not catch; the scroll listener
+//     unregistered: the re-place test fails;
 //   - the open note put back in the flow (its CSS position static): the
 //     stylesheet test fails;
 //   - the callouts' phone default dropped (on everywhere): the phone test
 //     fails; the desktop one passes, as it should.
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import css from "../styles.css?raw";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { clampToViewport } from "../components/charts/useInViewport";
 import { AnalysisDetails } from "../components/results/AnalysisPicker";
@@ -182,6 +186,77 @@ describe("the axis popover on a phone (session)", () => {
     const menu = screen.getByRole("dialog", { name: "VSWR range" });
     // SweepChart anchors 8 px right of and above the click (unchanged).
     expect(placed(menu)).toEqual({ left: 208, top: 292 });
+  });
+});
+
+// A pinch-zoomed phone as the browser reports it: a visual viewport smaller
+// than the layout one, offset inside it, with resize and scroll events.
+// Through the production seam (useInViewport's visibleRect reading
+// window.visualViewport), not a hand-built rect.
+function zoomedPhone(vis: { offsetLeft: number; offsetTop: number; width: number; height: number }) {
+  phoneViewport();
+  const listeners: Record<string, Set<() => void>> = { resize: new Set(), scroll: new Set() };
+  const vv = {
+    ...vis,
+    scale: 2,
+    addEventListener: (t: string, f: () => void) => listeners[t]?.add(f),
+    removeEventListener: (t: string, f: () => void) => listeners[t]?.delete(f),
+  };
+  vi.stubGlobal("visualViewport", vv);
+  return {
+    vv,
+    fire: (t: "resize" | "scroll") => act(() => listeners[t].forEach((f) => f())),
+    count: (t: "resize" | "scroll") => listeners[t].size,
+  };
+}
+const inside = (
+  p: { left: number; top: number },
+  r: { offsetLeft: number; offsetTop: number; width: number; height: number },
+) =>
+  p.left >= r.offsetLeft &&
+  p.top >= r.offsetTop &&
+  p.left + BOX.width <= r.offsetLeft + r.width &&
+  p.top + BOX.height <= r.offsetTop + r.height;
+
+describe("the axis popover on a pinch-zoomed phone (session, window.visualViewport)", () => {
+  it("opens inside the visible region, not at the layout viewport's origin", async () => {
+    // Zoomed into the lower right: 330 × 400 visible from (60, 440).
+    const vis = { offsetLeft: 60, offsetTop: 440, width: 330, height: 400 };
+    zoomedPhone(vis);
+    const { container } = await mountReady({ mobile: true, pinned: ["vswr", "antenna"] });
+    const btn = await untilDom(() => container.querySelector<HTMLElement>(".sweep-axis-btn"));
+    // A tap near the top of what is visible, at the chart's left axis.
+    fireEvent.click(btn, { clientX: 70, clientY: 450 });
+    const menu = screen.getByRole("dialog", { name: "VSWR range" });
+    const p = placed(menu);
+    expect(inside(p, vis), JSON.stringify(p)).toBe(true);
+    // Capped to what is visible, and scrolls past it.
+    expect(menu.style.maxWidth).toBe(`${vis.width - 16}px`);
+    expect(menu.style.maxHeight).toBe(`${vis.height - 16}px`);
+  });
+
+  it("re-places an open popover when the visual viewport scrolls (a pan while zoomed)", async () => {
+    const vis = { offsetLeft: 0, offsetTop: 0, width: 330, height: 400 };
+    const phone = zoomedPhone(vis);
+    const { container } = await mountReady({ mobile: true, pinned: ["vswr", "antenna"] });
+    const btn = await untilDom(() => container.querySelector<HTMLElement>(".sweep-axis-btn"));
+    fireEvent.click(btn, { clientX: 100, clientY: 200 });
+    const menu = screen.getByRole("dialog", { name: "VSWR range" });
+    expect(inside(placed(menu), vis)).toBe(true);
+    expect(phone.count("scroll")).toBe(1);
+    expect(phone.count("resize")).toBe(1);
+    // The viewer pans down and right: the old spot is now above the view.
+    Object.assign(phone.vv, { offsetLeft: 50, offsetTop: 420 });
+    phone.fire("scroll");
+    const moved = placed(menu);
+    expect(inside(moved, phone.vv), JSON.stringify(moved)).toBe(true);
+    // And a zoom change (resize) re-caps it.
+    Object.assign(phone.vv, { width: 250, height: 300 });
+    phone.fire("resize");
+    expect(menu.style.maxWidth).toBe("234px");
+    // Closing removes the listeners.
+    fireEvent.click(document.body.querySelector(".knob-menu-backdrop") as HTMLElement);
+    expect(phone.count("scroll")).toBe(0);
   });
 });
 
