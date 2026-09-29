@@ -72,6 +72,7 @@ def test_every_entry_has_the_documented_shape(invvee):
                 "range",
                 "level",
                 "points",
+                "freqs",
                 "views",
                 "swr",
                 "engines",
@@ -86,6 +87,7 @@ def test_every_entry_has_the_documented_shape(invvee):
                 "param",
                 "values",
                 "log",
+                "views",
                 "engines",
                 "grounds",
                 *CROSSES,
@@ -122,6 +124,8 @@ def test_e1_convergence_runs_as_the_density_ladder(invvee):
     assert w["engines"] == ["momwire:bspline", "momwire:razor-2p", "nec5"]
     assert w["grounds"] == ["finite:13,0.005"]
     assert w["note"] is None
+    # Its views, the Table among them since step 5 unit 5.
+    assert w["views"] == ["Rx", "Table", "Smith"]
 
 
 @pytest.mark.parametrize(
