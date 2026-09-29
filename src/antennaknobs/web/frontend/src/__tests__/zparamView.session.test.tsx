@@ -400,7 +400,7 @@ const VARIANTS: ExampleDescriptor = {
   variant_values: { default: {}, other: {} },
 };
 
-describe("a knob sweep runs only when asked", () => {
+describe("a knob sweep runs only when asked (a pick, Run, or its own range)", () => {
   it("a design switch starts the chart over on the frequency sweep; no knob sweep follows", async () => {
     const user = userEvent.setup();
     const bodies: Body[] = [];
@@ -432,7 +432,10 @@ describe("a knob sweep runs only when asked", () => {
     expect(bodies.length).toBe(n);
   });
 
-  it("picking a knob in the header does not start it; Run does", async () => {
+  it("picking a knob in the header is a pick: it runs, and draws", async () => {
+    // Steve's phone, 2026-09-29: choosing length_factor here left "no sweep
+    // yet" and a small "run" he never found. Unit 2 made a knob choice wait
+    // for Run; the rulings say a pick runs, and choosing what to sweep is one.
     const user = userEvent.setup();
     const bodies: Body[] = [];
     await mountReady({
@@ -440,23 +443,18 @@ describe("a knob sweep runs only when asked", () => {
       pinned: ["antenna", "zparam"],
       routes: { "/param_sweep": paramSweepRoute(bodies) },
     });
-    // A knob sweep on the chart: Height, asked for, runs.
     fireEvent.contextMenu(screen.getByRole("slider", { name: "Height" }));
     await user.click(screen.getByRole("button", { name: "Sweep this knob…" }));
     await untilDom(() => bodies.some((b) => b.param === "height") === true);
     const n = bodies.length;
     await user.selectOptions(screen.getByRole("combobox", { name: "Parameter" }), "gap");
-    // The runner has decided on the new spec: idle, nothing queued.
-    const stage = [...document.querySelectorAll<HTMLElement>("canvas.zparam")].find(
-      (c) => !c.closest(".thumbstrip"),
-    )!;
-    // (The pick's effects ran inside its act; the old Height data is gone.)
-    expect(stage.dataset.points).toBe("0");
-    expect(stage.dataset.phase).toBe("idle");
-    expect(bodies.length).toBe(n);
-    await user.click(screen.getByRole("button", { name: "run" }));
+    const stage = () =>
+      [...document.querySelectorAll<HTMLElement>("canvas.zparam")].find((c) => !c.closest(".thumbstrip"))!;
+    // Decided inside the pick's act: queued (after the usual dwell).
+    expect(stage().dataset.phase).toBe("queued");
     await untilDom(() => bodies.length === n + 1);
     expect(bodies[n].param).toBe("gap");
+    await untilDom(() => (stage().dataset.param === "gap" && stage().dataset.points === "11") || null);
   });
 
   it("an edit to the knob sweep's own range runs it", async () => {

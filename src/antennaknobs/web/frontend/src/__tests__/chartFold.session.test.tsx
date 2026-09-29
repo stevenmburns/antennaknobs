@@ -189,10 +189,11 @@ describe("the default workbench", () => {
     expect(head().dataset.chartKind).toBe("frequency");
     expect(head().dataset.dwell).toBe("1");
     expect(dwellBox().checked).toBe(true);
-    // No analysis picked: the picker says what the chart shows.
+    // No analysis picked: the picker names what the chart shows.
     const picker = screen.getByRole("combobox", { name: "Analysis" }) as HTMLSelectElement;
-    expect(picker.value).toBe("");
-    expect(picker.selectedOptions[0].textContent).toBe("freq sweep");
+    // The picker's first entry, the chart's own frequency sweep, is selected.
+    expect(picker.selectedIndex).toBe(0);
+    expect(picker.selectedOptions[0].textContent).toBe("freq sweep (the design's band)");
     // The old views are the chart's views; the Smith view's measured overlay
     // is on the chart while it shows Smith.
     expect(chartView().value).toBe("Smith");

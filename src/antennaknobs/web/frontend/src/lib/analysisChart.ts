@@ -144,6 +144,21 @@ export function chartForNewDesign(c: AnalysisChartState, seed: ChartSeed): Analy
   return { ...next, dwell: c.dwell };
 }
 
+/** Back to the design's own frequency sweep (the picker's first entry):
+ *  a new chart's, on the frequency view on screen (or the seed's, from a
+ *  knob sweep on R/X), with the chart's scales and its dwell switch. */
+export function pickOwnFrequency(c: AnalysisChartState, seed: ChartSeed): AnalysisChartState {
+  const f = c.frequency;
+  const view: FrequencyView =
+    c.kind === "frequency" && f ? f.view : c.kind === "knob" && c.knob.view === "Smith" ? "Smith" : seed.view;
+  return {
+    ...c,
+    kind: "frequency",
+    picked: null,
+    frequency: ownFrequency({ view, axes: f?.axes ?? seed.axes, threshold: f?.threshold ?? seed.threshold }),
+  };
+}
+
 /** The dwell switch as it stands: the viewer's flip, else the kind's
  *  default from settings.toml (`defaults`; built in, a frequency sweep
  *  follows the knobs, as the freq-sweep checkbox did, and a knob or density
