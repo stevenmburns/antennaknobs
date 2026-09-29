@@ -3260,6 +3260,12 @@ function DesignSessionBody({
       }),
       capRefusal: m.plan.capRefusal,
       rx: rxShown(m),
+      // Collapsed to its chip on a phone until the viewer opens it, open on
+      // a desktop (Steve's phone review of unit 4a), as the knob sweep's
+      // value boxes are (chartCallouts); per chart, session-only, and a
+      // duplicate starts from its source's.
+      open: m.state.legendOpen ?? !isMobile,
+      onOpen: (open: boolean) => setAt((c) => ({ ...c, legendOpen: open })),
     };
     const setFrequency = (patch: Partial<NonNullable<AnalysisChartState["frequency"]>>) =>
       setAt((c) => (c.frequency ? { ...c, frequency: { ...c.frequency, ...patch } } : c));
