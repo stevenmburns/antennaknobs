@@ -111,7 +111,11 @@ function CrossPopover({
 
 export function ChartCrossPicker(p: CrossPickerProps) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
-  const n = p.checkedSlots.length * p.checkedGrounds.length;
+  // What the viewer ticked, not the chart's curve count: an analysis's own
+  // crosses (planes, designs, a family) multiply these, so "N curves" here
+  // read wrong beside a legend drawing more (AK#1757 unit 4b review).
+  const ne = p.checkedSlots.length;
+  const ng = p.checkedGrounds.length;
   return (
     <>
       <button
@@ -120,7 +124,7 @@ export function ChartCrossPicker(p: CrossPickerProps) {
         aria-haspopup="dialog"
         aria-expanded={at !== null}
         aria-label="Engines and grounds"
-        title={`Compare engines and grounds: ${n} curve${n === 1 ? "" : "s"}${p.refusal ? ` (${p.refusal})` : ""}`}
+        title={`Compare engines and grounds: ${ne} engine${ne === 1 ? "" : "s"} × ${ng} ground${ng === 1 ? "" : "s"}${p.refusal ? ` (${p.refusal})` : ""}`}
         data-slots={p.checkedSlots.join(",")}
         data-grounds={p.checkedGrounds.join(",")}
         onClick={(e) => {
