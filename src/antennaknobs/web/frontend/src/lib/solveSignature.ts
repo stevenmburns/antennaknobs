@@ -57,3 +57,32 @@ export function solveSignature(
   };
   return JSON.stringify(strip(req));
 }
+
+// The request fields that say WHICH ground and WHICH engine a solve was for
+// (AK#1796): the ground switch, model, terrain and soil, and the solver, its
+// momwire model and options. Not the knobs, frequencies or plane — a knob
+// drag streams intermediate results by design, and each is a fair answer
+// for a design one tick back.
+const GROUND_ENGINE_FIELDS = [
+  "ground",
+  "ground_fast",
+  "ground_model",
+  "terrain",
+  "soil",
+  "solver",
+  "momwire_model",
+  "model_options",
+] as const;
+
+/** The ground-and-engine part of a request, as a stable string: two requests
+ *  with equal signatures ask for the same ground on the same engine. The
+ *  readout compares the request that produced its result with the one the
+ *  controls ask for now, and shows no impedance for another ground's solve
+ *  (AK#1796). */
+export function groundEngineSignature(req: SolveRequest): string {
+  const rec = req as unknown as Record<string, unknown>;
+  const picked = Object.fromEntries(
+    GROUND_ENGINE_FIELDS.filter((k) => rec[k] !== undefined).map((k) => [k, rec[k]]),
+  );
+  return solveSignature(picked as unknown as SolveRequest);
+}

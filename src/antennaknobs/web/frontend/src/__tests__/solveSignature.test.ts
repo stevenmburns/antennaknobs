@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { solveSignature } from "../lib/solveSignature";
+import { groundEngineSignature, solveSignature } from "../lib/solveSignature";
 import type { SolveRequest } from "../lib/api";
 
 // The tests build partial requests; the helper only walks the object.
@@ -40,5 +40,28 @@ describe("solveSignature", () => {
     expect(solveSignature(req({ geometry: "g" }))).not.toBe(
       solveSignature(req({ geometry: "g", future_knob: 1 })),
     );
+  });
+});
+
+describe("groundEngineSignature (AK#1796)", () => {
+  const base = { geometry: "g", n_per_wire: 8, ground: true, ground_model: "fast", solver: "momwire", momwire_model: "bs2" };
+  it("ignores knobs, frequencies and the plane", () => {
+    expect(groundEngineSignature(req({ ...base, n_per_wire: 12, length: 3, measurement_freq_mhz: 14, plane: "p" }))).toBe(
+      groundEngineSignature(req(base)),
+    );
+  });
+  it("moves with the ground, its soil and terrain, and the engine", () => {
+    const sig = groundEngineSignature(req(base));
+    for (const change of [
+      { ground: false },
+      { ground_model: "sommerfeld" },
+      { soil: { eps_r: 13, sigma: 0.005 } },
+      { terrain: { preset: "slope" } },
+      { solver: "pynec" },
+      { momwire_model: "bs1" },
+      { model_options: { extended_kernel: true } },
+    ]) {
+      expect(groundEngineSignature(req({ ...base, ...change }))).not.toBe(sig);
+    }
   });
 });

@@ -112,6 +112,7 @@ import {
   useThumbColumnSize,
 } from "../hooks";
 import { SolveReadout } from "../results/SolveReadout";
+import { groundEngineSignature } from "../../lib/solveSignature";
 import {
   AntennaOverlayControls,
   CombinedLegend,
@@ -742,6 +743,11 @@ function DesignSessionBody({
     setTrackEnabled(on);
   }
   const [result, setResult] = useState<SolveResponse | null>(null);
+  // The ground and engine the shown result was solved for (AK#1796), as
+  // groundEngineSignature of the request that produced it; null when that
+  // request is unknown. The readout shows impedance only while this matches
+  // what the controls ask for now (`readoutResult`).
+  const [resultSolvedFor, setResultSolvedFor] = useState<string | null>(null);
   // #1220: the solve response carries the knob values the tracker moved, so
   // they are written here, on arrival, rather than mirrored in by an effect
   // watching `result` — that would be a setState inside an effect and a second
@@ -749,8 +755,9 @@ function DesignSessionBody({
   // handleUserParamChange: these are the tracker's OWN knobs, and routing them
   // through the user path would trip rule 1 and switch the mode off on its own
   // output.
-  function applyResult(next: SolveResponse | null) {
+  function applyResult(next: SolveResponse | null, req?: SolveRequest) {
     setResult(next);
+    setResultSolvedFor(next && req ? groundEngineSignature(req) : null);
     const tk = (next as { _track?: TrackStatus } | null)?._track;
     if (!tk) return;
     if (tk.status === "refused") {
@@ -3126,6 +3133,20 @@ function DesignSessionBody({
       ? `${geometry}#${reloadNonce}`
       : "";
 
+  // What the readout shows (AK#1796): the result, but only while it was
+  // solved for the ground and engine the controls ask for now. A ground or
+  // engine change re-solves, and until that solve lands the result on
+  // screen is the previous ground's: its R, X and SWR beside the current
+  // ground's radiated % (the norm check follows the controls) read as
+  // current and are not. So the readout shows "—" for that window instead,
+  // whichever view is the main one. The views themselves keep drawing the
+  // last result (dimmed by the busy chrome) — a pattern that morphs is
+  // readable; a number next to another ground's number is not.
+  const readoutResult =
+    shownResult && resultSolvedFor === groundEngineSignature(buildRequest())
+      ? shownResult
+      : null;
+
   // The analysis chart a view is (the first chart's `zparam`, or a
   // duplicate's), or null.
   const chartOfView = (v: View): ChartModel | null => {
@@ -3711,7 +3732,7 @@ function DesignSessionBody({
                       z0={z0}
                       live={liveSolve}
                       className="mobile-readout"
-                      result={shownResult}
+                      result={readoutResult}
                       rttMs={rttMs}
                       currentExample={currentExample}
                       effectiveMultiFeed={effectiveMultiFeed}
@@ -3797,7 +3818,7 @@ function DesignSessionBody({
               // cell's view, as the rail's card does per its primary view.
               collapsed={isReadoutCollapsed(prefView(view), readoutFallback(view))}
               onCollapsedChange={(c) => setReadoutCollapsed(prefView(view), c, readoutFallback(view))}
-              result={shownResult}
+              result={readoutResult}
               rttMs={rttMs}
               currentExample={currentExample}
               effectiveMultiFeed={effectiveMultiFeed}
@@ -3906,7 +3927,7 @@ function DesignSessionBody({
                   className="stage-readout"
                   collapsed={isReadoutCollapsed(prefView(view), readoutFallback(view))}
                   onCollapsedChange={(c) => setReadoutCollapsed(prefView(view), c, readoutFallback(view))}
-                  result={shownResult}
+                  result={readoutResult}
                   rttMs={rttMs}
                   currentExample={currentExample}
                   effectiveMultiFeed={effectiveMultiFeed}
