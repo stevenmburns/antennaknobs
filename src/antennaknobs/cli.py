@@ -1664,10 +1664,28 @@ def cli(arguments=None):
         help="The analysis to run, by the name --list shows.",
     )
     p.add_argument(
+        "--list-studies",
+        default=False,
+        action="store_true",
+        help="List the studies (analyses over several designs, from a "
+        "build_studies() in a catalog module or a .py in "
+        "~/.antennaknobs/studies/), with the reason any cannot run. With "
+        "--builder, the studies that design's tab lists: those crossing it, "
+        "and its Builder's own build_studies() method (this design against "
+        "its references), which is listed only there.",
+    )
+    p.add_argument(
+        "--study",
+        default=None,
+        help="The study to run, by the name --list-studies shows "
+        "(source:name), its source when that holds one study, or its bare "
+        "name when only one study has it.",
+    )
+    p.add_argument(
         "--code",
         default=False,
         action="store_true",
-        help="With --analysis: print its Python instead of running it.",
+        help="With --analysis or --study: print its Python instead of running it.",
     )
     p.add_argument("--z0", default=50, type=float, help="Reference impedance.")
     p.add_argument(
@@ -1682,18 +1700,65 @@ def cli(arguments=None):
         "no such form and refuses.",
     )
 
+    # None, not the shared default: `--list-studies --builder X` filters to
+    # the studies crossing X, and only an explicit --builder may do that.
+    p.set_defaults(builder=None)
+
     def run_analyze(args, csv):
         from . import analyses as an
-        from . import analysis_run
+        from . import analysis_run, studies
 
-        builder = get_builder(args.builder)
+        given = [
+            flag
+            for flag, on in (
+                ("--list", args.list_analyses),
+                ("--analysis", args.analysis is not None),
+                ("--list-studies", args.list_studies),
+                ("--study", args.study is not None),
+            )
+            if on
+        ]
+        if len(given) > 1:
+            raise SystemExit(f"analyze: give one of {' / '.join(given)}")
+        if args.list_studies:
+            for line in analysis_run.study_lines(args.builder, get_builder):
+                print(line)
+            return
+        if args.study is not None:
+            # A method study is its design's (AK#1757 step 7): found with
+            # --builder, or when the full name's source is that design.
+            spec = args.builder
+            if spec is None and studies.SEP in args.study:
+                spec = args.study.partition(studies.SEP)[0]
+            try:
+                found = studies.pool(spec, get_builder(spec)()) if spec else None
+            except (SystemExit, ValueError):
+                found = None  # a module or user-file source, not a design
+            study = studies.find(args.study, found)
+            analysis = study.analysis
+            # A study has no design of its own (AK#1757 step 7): its cells
+            # are all design cells, and the run is hosted by the design the
+            # --builder names when the study crosses it (as the workbench
+            # hosts it on that tab), else by its first design.
+            host = (
+                args.builder
+                if args.builder is not None and study.includes(args.builder)
+                else study.designs[0]
+            )
+            builder = get_builder(host)
+        else:
+            builder = get_builder(args.builder or "dipoles.invvee:dipole")
         if args.list_analyses:
             for line in analysis_run.list_lines(builder()):
                 print(line)
             return
-        if args.analysis is None:
-            raise SystemExit("analyze: give --list, or --analysis NAME")
-        analysis = analysis_run.find(builder(), args.analysis)
+        if args.study is None:
+            if args.analysis is None:
+                raise SystemExit(
+                    "analyze: give --list, --analysis NAME, --list-studies or "
+                    "--study NAME"
+                )
+            analysis = analysis_run.find(builder(), args.analysis)
         if args.code:
             print(an.to_code(analysis))
             return
@@ -1752,8 +1817,12 @@ def cli(arguments=None):
         )
 
     def f(args):
-        if args.csv is not None and (args.list_analyses or args.code):
-            raise SystemExit("analyze: --csv needs a run, not --list or --code")
+        if args.csv is not None and (
+            args.list_analyses or args.list_studies or args.code
+        ):
+            raise SystemExit(
+                "analyze: --csv needs a run, not --list, --list-studies or --code"
+            )
         with csv_output(args.csv) as csv:
             run_analyze(args, csv)
 
@@ -2514,11 +2583,15 @@ def cli(arguments=None):
     p.set_defaults(func=f)
 
     def _resolve_design_path(name_or_path):
-        """A `<name|path>` from an allow/screen command → the design file Path,
-        or None if it can't be found. Accepts a filesystem path, a `user.<name>`
-        design name, or a bare `<name>`."""
+        """A `<name|path>` from an allow/disallow command → the design or
+        study file Path, or None if it can't be found. Accepts a filesystem
+        path, a `user.<name>` design name, a bare `<name>`, or a study file's
+        name under the studies folder (`feeds/e7`, AK#1757 step 7). A bare
+        name that is both a design and a study is refused: allowing runs
+        code, so it never guesses which."""
         from pathlib import Path
 
+        from .studies import find_study_file
         from .user_designs import USER_NS, find_design_file
 
         p = Path(name_or_path)
@@ -2526,8 +2599,16 @@ def cli(arguments=None):
             return p
         stem = name_or_path
         if stem.startswith(f"{USER_NS}."):
-            stem = stem[len(USER_NS) + 1 :]
-        return find_design_file(stem)
+            return find_design_file(stem[len(USER_NS) + 1 :])
+        design = find_design_file(stem)
+        study = find_study_file(stem)
+        if design is not None and study is not None:
+            raise SystemExit(
+                f"{stem!r} is both a user design ({design}) and a study file "
+                f"({study}); give user.{stem} for the design, or the study "
+                "file's path"
+            )
+        return design or study
 
     p = subparsers.add_parser(
         "screen",
@@ -2569,7 +2650,11 @@ def cli(arguments=None):
         "allow",
         help="Allow a user design to run (it runs code on your machine).",
     )
-    p.add_argument("name", help="A design name (user.<name> or <name>) or a .py path.")
+    p.add_argument(
+        "name",
+        help="A design name (user.<name> or <name>), a study file's name under "
+        "the studies folder (feeds/e7), or a .py path.",
+    )
     p.add_argument(
         "--edits",
         action="store_true",
@@ -2595,7 +2680,11 @@ def cli(arguments=None):
     p.set_defaults(func=f)
 
     p = subparsers.add_parser("disallow", help="Stop allowing a user design to run.")
-    p.add_argument("name", help="A design name (user.<name> or <name>) or a .py path.")
+    p.add_argument(
+        "name",
+        help="A design name (user.<name> or <name>), a study file's name under "
+        "the studies folder (feeds/e7), or a .py path.",
+    )
 
     def f(args):
         from . import design_trust
