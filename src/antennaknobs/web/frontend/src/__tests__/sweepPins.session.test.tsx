@@ -188,10 +188,18 @@ async function mount() {
   return { ...r, bodies };
 }
 
-async function chartOnStage(r: { container: HTMLElement }) {
-  fireEvent.click(r.container.querySelector(".thumbstrip canvas.smith") as HTMLElement);
+// Put the chart on the rail's stage: its thumb is the "Sweep" view's.
+async function chartOnStage() {
+  fireEvent.click(screen.getByTitle("Switch to Sweep"));
   await untilDom(() => screen.queryByRole("button", { name: "Engines and grounds" }));
 }
+
+// The legend's pin rows, by role: the "Pinned sweeps" group's list items.
+const pinRows = (): HTMLElement[] => {
+  const g = screen.queryByRole("group", { name: "Pinned sweeps" });
+  return g ? within(g).queryAllByRole("listitem") : [];
+};
+const pinRowsOf = (n: number) => untilDom(() => (pinRows().length === n ? pinRows() : null));
 
 // The stage's SWR chart once every curve has landed: `curves` other curves
 // (as data-curves counts them) and the chart's own, all idle.
@@ -216,7 +224,7 @@ afterEach(() => {
 describe("pinning a frequency sweep", () => {
   it("Pin freezes the curve; a knob change re-runs the live one and both draw", async () => {
     const r = await mount();
-    await chartOnStage(r);
+    await chartOnStage();
     fireEvent.change(screen.getByRole("combobox", { name: "Chart view" }), { target: { value: "Swr" } });
     const before = await swrSettled();
     const liveBefore = before.dataset.yValues;
@@ -226,7 +234,7 @@ describe("pinning a frequency sweep", () => {
     // The pin draws on the chart, all 15 points, and is listed in the
     // legend (which a one-curve chart shows now that there is a pin).
     await untilDom(() => stageChart("canvas.sweep-vswr")?.dataset.pins?.endsWith(":15") || null);
-    const row = await untilDom(() => document.querySelector<HTMLElement>(".chart-legend-pin"));
+    const [row] = await pinRowsOf(1);
     expect(row.dataset.drawable).toBe("1");
     expect(row.textContent).toContain("B-spline d=2");
     // The live SWR curve and the pin agree until something changes.
@@ -256,20 +264,15 @@ describe("pinning a frequency sweep", () => {
     await untilDom(() => !pinButton().disabled || null);
     expect(row.textContent).not.toContain("gap");
     fireEvent.click(pinButton());
-    const rows = await untilDom(() => {
-      const all = document.querySelectorAll<HTMLElement>(".chart-legend-pin");
-      return all.length === 2 ? [...all] : null;
-    });
+    const rows = await pinRowsOf(2);
     // The second pin names the knob it was taken at.
     expect(rows[1].textContent).toContain("gap 0.35");
-    const swatch = (el: HTMLElement) =>
-      el.querySelector<HTMLElement>(".chart-legend-pin-swatch")!.style.borderColor;
-    expect(swatch(rows[0])).not.toBe(swatch(rows[1]));
+    expect(rows[0].dataset.color).not.toBe(rows[1].dataset.color);
   });
 
   it("the pin draws on every view but the Table, where it is greyed with why; hide is global", async () => {
-    const r = await mount();
-    await chartOnStage(r);
+    await mount();
+    await chartOnStage();
     await untilDom(() => {
       const c = stageChart("canvas.smith");
       return c?.dataset.phase === "idle" || null;
@@ -287,37 +290,31 @@ describe("pinning a frequency sweep", () => {
     // Hide: the one global flag; the pin stays listed and stops drawing.
     fireEvent.click(screen.getByRole("checkbox", { name: /^Show pin / }));
     await untilDom(() => stageChart("canvas.sweep-gamma")?.dataset.pins === "" || null);
-    const row = document.querySelector<HTMLElement>(".chart-legend-pin")!;
+    const [row] = pinRows();
     expect(row.dataset.enabled).toBe("0");
     fireEvent.click(within(row).getByRole("checkbox"));
     await untilDom(() => stageChart("canvas.sweep-gamma")?.dataset.pins?.endsWith(":15") || null);
 
     // Delete removes it from the list and the chart.
     fireEvent.click(within(row).getByRole("button", { name: /^Delete pin / }));
-    await untilDom(() => (document.querySelector(".chart-legend-pin") === null ? true : null));
+    await pinRowsOf(0);
     expect(stageChart("canvas.sweep-gamma")?.dataset.pins).toBe("");
   });
 });
 
 describe("a crossed chart", () => {
   it("makes one pin per drawn curve, each labelled by its cell's engine", async () => {
-    const r = await mount();
-    await chartOnStage(r);
+    await mount();
+    await chartOnStage();
     fireEvent.change(screen.getByRole("combobox", { name: "Chart view" }), { target: { value: "Swr" } });
     fireEvent.click(screen.getAllByRole("button", { name: "Engines and grounds" })[0]);
     const dlg = screen.getByRole("dialog", { name: "Engines and grounds" });
-    const boxB = within(dlg)
-      .getAllByRole("checkbox")
-      .find((c) => c.closest("label")?.textContent?.startsWith("B: "))!;
-    fireEvent.click(boxB);
+    fireEvent.click(within(dlg).getByRole("checkbox", { name: /^B: / }));
     fireEvent.keyDown(document.body, { key: "Escape" });
     await swrSettled("B|1:15");
     await untilDom(() => !pinButton().disabled || null);
     fireEvent.click(pinButton());
-    const rows = await untilDom(() => {
-      const all = document.querySelectorAll<HTMLElement>(".chart-legend-pin");
-      return all.length === 2 ? [...all] : null;
-    });
+    const rows = await pinRowsOf(2);
     expect(rows[0].textContent).toContain("B-spline d=2");
     expect(rows[1].textContent).toContain("B-spline d=1");
     expect(rows[1].title).toContain("B: B-spline d=1");
@@ -330,18 +327,18 @@ describe("a crossed chart", () => {
 describe("a pin outlives its tab", () => {
   it("closing the design tab keeps the pin; a new tab's chart lists and draws it", async () => {
     const r = await mount();
-    await chartOnStage(r);
+    await chartOnStage();
     await untilDom(() => stageChart("canvas.smith")?.dataset.phase === "idle" || null);
     await untilDom(() => !pinButton().disabled || null);
     fireEvent.click(pinButton());
-    await untilDom(() => document.querySelector(".chart-legend-pin"));
+    await pinRowsOf(1);
 
     // The tab closes (its session unmounts) and another opens: the shell's
     // provider, and its pins, stay.
     r.rerender(sessionTree(2));
     await sessionReady(document.body);
-    await chartOnStage(r);
-    const row = await untilDom(() => document.querySelector<HTMLElement>(".chart-legend-pin"));
+    await chartOnStage();
+    const [row] = await pinRowsOf(1);
     expect(row.dataset.drawable).toBe("1");
     await untilDom(() => stageChart("canvas.smith")?.dataset.pins?.endsWith(":15") || null);
   });
@@ -349,8 +346,8 @@ describe("a pin outlives its tab", () => {
 
 describe("a knob pin", () => {
   it("draws on a chart sweeping the same knob and is greyed with why on a frequency chart", async () => {
-    const r = await mount();
-    await chartOnStage(r);
+    await mount();
+    await chartOnStage();
     await untilDom(() => stageChart("canvas.smith")?.dataset.phase === "idle" || null);
     // The header is another component per kind: query the picker afresh.
     const pick = (name: string) =>
@@ -363,17 +360,15 @@ describe("a knob pin", () => {
     await untilDom(() => !pinButton().disabled || null);
     fireEvent.click(pinButton());
     await untilDom(() => stageChart("canvas.zparam")?.dataset.pins?.endsWith(":5") || null);
-    const row = await untilDom(() => document.querySelector<HTMLElement>(".chart-legend-pin"));
+    const [row] = await pinRowsOf(1);
     // The swept knob varies along x: the label does not name it.
     expect(row.textContent).not.toContain("gap");
 
     // On a frequency chart it cannot draw, and says why.
     pick("band SWR");
     await untilDom(() => stageChart("canvas.sweep-vswr"));
-    await untilDom(
-      () => document.querySelector<HTMLElement>(".chart-legend-pin")?.dataset.drawable === "0" || null,
-    );
-    expect(document.querySelector(".chart-legend-pin")?.textContent).toContain(
+    await untilDom(() => pinRows()[0]?.dataset.drawable === "0" || null);
+    expect(pinRows()[0].textContent).toContain(
       "sweeps gap; this chart sweeps frequency",
     );
     expect(stageChart("canvas.sweep-vswr")?.dataset.pins).toBe("");

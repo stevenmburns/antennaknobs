@@ -12,7 +12,7 @@
 //   - legendShown ignoring pins: "a one-curve chart with a pin shows its
 //     legend…" fails.
 import { describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useContext } from "react";
 import { SmithChart } from "../components/charts/SmithChart";
 import { SweepChart } from "../components/charts/SweepChart";
@@ -22,6 +22,7 @@ import { type SweepPinsCtx, SweepPinsContext } from "../components/session/conte
 import { SweepPinsProvider } from "../components/session/SweepPinsProvider";
 import type { SweepData } from "../lib/api";
 import { FREQUENCY_X, type PinCurve, pinsFromCurves, swrAt } from "../lib/sweepPins";
+import { stageChart } from "./designSessionHarness";
 
 HTMLCanvasElement.prototype.getContext = (() => null) as unknown as HTMLCanvasElement["getContext"];
 
@@ -43,9 +44,11 @@ const PIN50: PinCurve = {
 // jsdom has no PointerEvent: a MouseEvent of the pointer type carries the
 // coordinates React reads (ZParamChart.test.tsx's way).
 const move = (c: HTMLElement, clientX: number) =>
-  act(() => {
-    fireEvent(c, new MouseEvent("pointermove", { clientX, clientY: 50, bubbles: true }));
-  });
+  fireEvent(c, new MouseEvent("pointermove", { clientX, clientY: 50, bubbles: true }));
+
+// The chart's canvas: data-* attributes are its test seam (jsdom draws
+// nothing), and a canvas has no role to query it by.
+const canvas = (selector: string) => stageChart(selector) as HTMLCanvasElement;
 
 const sweepChart = (pins: PinCurve[], mode: "vswr" | "gamma" = "vswr") =>
   render(
@@ -65,8 +68,8 @@ const sweepChart = (pins: PinCurve[], mode: "vswr" | "gamma" = "vswr") =>
 
 describe("a pin on the Swr / S11 chart", () => {
   it("a 50 Ω pin on a 75 Ω chart reads its 50 Ω SWR, not the chart's", () => {
-    const { container } = sweepChart([PIN50]);
-    const c = container.querySelector<HTMLCanvasElement>("canvas.sweep")!;
+    sweepChart([PIN50]);
+    const c = canvas("canvas.sweep");
     expect(c.dataset.pins).toBe("p0:5");
     // SWR 1 at 50 Ω everywhere; 1.5 would be the chart's Z0.
     expect(c.dataset.pinY).toBe("1.0000,1.0000,1.0000,1.0000,1.0000");
@@ -77,16 +80,16 @@ describe("a pin on the Swr / S11 chart", () => {
 
   it("S11 too: a pin 75 Ω at 50 is −14 dB whatever the chart's reference", () => {
     const pin = { ...PIN50, zRe: FREQS.map(() => 75) };
-    const { container } = sweepChart([pin], "gamma");
-    const c = container.querySelector<HTMLCanvasElement>("canvas.sweep")!;
+    sweepChart([pin], "gamma");
+    const c = canvas("canvas.sweep");
     // |Γ| = 25/125 = 0.2 ⇒ 20·log10(0.2) = −13.98 dB.
     expect(c.dataset.pinY?.split(",")[0]).toBe("-13.9794");
   });
 
   it("the hover reads each pin at the hovered frequency beside the live curve", () => {
     const pin = { ...PIN50, zRe: [50, 50, 100, 100, 100] };
-    const { container } = sweepChart([pin]);
-    const c = container.querySelector<HTMLCanvasElement>("canvas.sweep")!;
+    sweepChart([pin]);
+    const c = canvas("canvas.sweep");
     // The plot's x runs from 26 px to 200 − 8 px (jsdom's rect is at 0):
     // halfway is 14.2 MHz, a third of the way from 14.1 to 14.2 is 14.1333.
     move(c, 26 + 166 * (1 / 3));
@@ -102,7 +105,7 @@ describe("a pin on the Swr / S11 chart", () => {
 describe("a pin on the R / X plot and the Smith chart", () => {
   it("draws on R / X, which fits it, and the hover reads it at the hovered x", () => {
     const pin = { ...PIN50, zRe: [200, 200, 200, 200, 200], zIm: [-100, -50, 0, 50, 100] };
-    const { container } = render(
+    render(
       <ZParamChart
         data={{ param: "frequency", label: "f", values: FREQS, z_re: LIVE.z_re, z_im: LIVE.z_im, z_re_extrap: null, z_im_extrap: null }}
         param="frequency"
@@ -118,7 +121,7 @@ describe("a pin on the R / X plot and the Smith chart", () => {
         pins={[pin]}
       />,
     );
-    const c = container.querySelector<HTMLCanvasElement>("canvas.zparam")!;
+    const c = canvas("canvas.zparam");
     expect(c.dataset.pins).toBe("p0:5");
     // The R range takes the pin's 200 Ω in.
     expect(Number(c.dataset.rHi)).toBeGreaterThanOrEqual(200);
@@ -133,7 +136,7 @@ describe("a pin on the R / X plot and the Smith chart", () => {
   });
 
   it("draws on the Smith chart", () => {
-    const { container } = render(
+    render(
       <SmithChart
         r={75}
         x={0}
@@ -149,7 +152,7 @@ describe("a pin on the R / X plot and the Smith chart", () => {
         pins={[PIN50]}
       />,
     );
-    expect(container.querySelector<HTMLCanvasElement>("canvas.smith")!.dataset.pins).toBe("p0:5");
+    expect(canvas("canvas.smith").dataset.pins).toBe("p0:5");
   });
 });
 
@@ -184,7 +187,7 @@ describe("the legend's pins section", () => {
     const b = pinRow({ id: "p1", label: "d · PyNEC", reason: "sweeps height; this chart sweeps frequency" });
     const c = pinRow({ id: "p2", label: "d · hidden", enabled: false });
     render(<ChartLegend legend={{ ...ONE, pins: [a, b, c] }} />);
-    const rows = [...document.querySelectorAll<HTMLElement>(".chart-legend-pin")];
+    const rows = within(screen.getByRole("group", { name: "Pinned sweeps" })).getAllByRole("listitem");
     expect(rows.map((r) => [r.dataset.pin, r.dataset.drawable, r.dataset.enabled, r.className])).toEqual([
       ["p0", "1", "1", "chart-legend-pin"],
       ["p1", "0", "1", "chart-legend-pin is-greyed"],
@@ -192,8 +195,8 @@ describe("the legend's pins section", () => {
     ]);
     expect(rows[0].textContent).toContain("d · NEC-5 · free space · Z0 50 Ω");
     expect(rows[1].textContent).toContain(": sweeps height; this chart sweeps frequency");
-    // The live curve's row is unchanged (the pin rows are their own class).
-    expect(document.querySelectorAll(".chart-legend-row")).toHaveLength(1);
+    // The live curve's row stays its own: one row beside the three pins.
+    expect(screen.getAllByRole("listitem")).toHaveLength(4);
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Show pin d · NEC-5 · free space" }));
     expect(a.onToggle).toHaveBeenCalledTimes(1);
