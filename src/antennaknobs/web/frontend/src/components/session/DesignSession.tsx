@@ -3682,6 +3682,7 @@ function DesignSessionBody({
       ...(chartCurves ? { chartCurves } : {}),
       chartLegend: legend,
       chartCellLabels: m.drawn.map((c) => c.label),
+      chartDesign: geometry,
       ...(chartPins.length > 0 ? { chartPins } : {}),
     };
     const thumb = {

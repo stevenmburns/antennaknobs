@@ -52,7 +52,7 @@ function frequencyTable(p: ViewRenderProps, f: ChartFrequencyRender): ReactEleme
     : curves.length === 0
       ? "no sweep yet"
       : null;
-  return <ChartTable table={chartTable("frequency", FREQUENCY_PARAM, curves, z0)} size={p.size} status={status} />;
+  return <ChartTable table={chartTable("frequency", FREQUENCY_PARAM, curves, z0)} size={p.size} status={status} design={p.chartDesign ?? ""} />;
 }
 
 /** The Table view of a knob or density sweep: the knob (nominal_N), and R
@@ -79,7 +79,7 @@ export function knobTable(p: ViewRenderProps, param: string): ReactElement {
     : curves.length === 0
       ? "no sweep yet"
       : null;
-  return <ChartTable table={chartTable(kind, param, curves, z0)} size={p.size} status={status} />;
+  return <ChartTable table={chartTable(kind, param, curves, z0)} size={p.size} status={status} design={p.chartDesign ?? ""} />;
 }
 
 /** R and X against frequency: the knob sweep's R/X chart with frequency
