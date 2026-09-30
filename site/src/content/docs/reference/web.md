@@ -450,6 +450,35 @@ can change a knob, an engine, a ground or the design itself and see what moved.
   greyed, with the reason.
 - **pin** waits while a curve is running, refused or stale.
 
+### Keeping a chart or pins
+
+Pins are gone when the page reloads. To keep what you built, turn it into
+Python, the only thing the workbench keeps:
+
+- **copy** on a chart's header (*copy as analysis*): the picked analysis as the
+  Python that builds it, with the engines and grounds you ticked and an edited
+  range, to paste into the design's `build_analyses()`. Only for a chart about
+  this design; a chart that compares named designs is kept as a study.
+- **keep** on a chart's header (*keep as study*): the same chart as a study
+  function. A study names its designs, so the tab's design (and the knobs you
+  moved on it) becomes a named state.
+- **keep as study** above the pinned sweeps in a chart's legend, and in the
+  pinned-pattern table's actions: the shown pins as a study. Each pin becomes
+  one cell, read from the exact request its curve was solved with: its design
+  and variant, the knobs that differ from that variant's defaults, the engine,
+  the ground and the plane. Pins that are a product are written as the plain
+  cross; pins that are not are written as `cells=` (see
+  [Cells](/reference/cli/#cells-comparing-settings-that-are-not-a-product)).
+  Every sweep pin must sweep the same thing, and at most six are kept.
+
+Each opens a dialog that shows the Python before it goes anywhere, with a name
+to edit. **copy** puts it on the clipboard. On a local workbench, **save as
+study** writes it as a new file under `~/.antennaknobs/studies/` (type
+`feeds/e7` for a subfolder) and allows it with your edits allowed, so it is in
+the **Studies** group of every tab it names at once; an existing file is
+replaced only when you say so. The hosted instance has no save: copy it
+instead.
+
 ### More than one chart
 
 **⧉** on a chart's header opens another like it, up to four charts: its own

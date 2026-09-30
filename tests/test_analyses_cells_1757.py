@@ -258,3 +258,20 @@ def test_a_study_of_cells_names_its_designs_through_them():
         "design' to set them on; give each its design=, or cross designs=(...) "
         "to set them on every design"
     )
+
+
+def test_the_docs_cells_example_is_a_study_that_prints_back():
+    from pathlib import Path
+
+    page = (
+        Path(__file__).resolve().parents[1] / "site/src/content/docs/reference/cli.md"
+    )
+    text = page.read_text(encoding="utf-8")
+    section = text[text.index("### Cells") :]
+    section = section[: section.index("\n## ", 1)]
+    block = section.split("```python\n")[1].split("```")[0]
+    a = eval(block, {"an": an})
+    assert [c.state.spec for c in an.cells_of(a)] == [INVVEE, f"{INVVEE}:dipole"]
+    assert eval(an.to_code(a), {"an": an}) == a
+    assert studies.refusal(a) is None
+    assert an.problems(a, get_builder(INVVEE)()) == []
