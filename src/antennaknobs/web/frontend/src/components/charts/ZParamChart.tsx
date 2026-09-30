@@ -3,6 +3,7 @@ import {
   canLogX,
   formatOhm,
   formatParam,
+  guideLabel,
   isDensity,
   nearestIndex,
   nudgeClear,
@@ -366,10 +367,22 @@ export function ZParamChart({
       if (extrap.re != null) {
         ctx.fillStyle = R(0.9);
         ctx.fillText("Z∞ R", MARGIN.l + 4, py(extrap.re, rDom) - 3);
+        placed.push({
+          x: MARGIN.l + 2,
+          y: py(extrap.re, rDom) - 13,
+          w: ctx.measureText("Z∞ R").width + 4,
+          h: 13,
+        });
       }
       if (extrap.im != null) {
         ctx.fillStyle = X(0.9);
         ctx.fillText("Z∞ X", MARGIN.l + 4, py(extrap.im, xDom) + 10);
+        placed.push({
+          x: MARGIN.l + 2,
+          y: py(extrap.im, xDom),
+          w: ctx.measureText("Z∞ X").width + 4,
+          h: 13,
+        });
       }
     }
 
@@ -454,6 +467,23 @@ export function ZParamChart({
       ctx.lineTo(gx, MARGIN.t + ph);
       ctx.stroke();
       ctx.setLineDash([]);
+      // Its label, at the guide's top on whichever side has room, clear of
+      // the reference markers and Z∞ labels already placed; the value boxes
+      // (drawn after) then steer clear of it.
+      ctx.font = CHART_FONT.tick;
+      ctx.fillStyle = PC.label;
+      const gl = guideLabel(d && isDensity(d.param) ? "N" : label, currentValue);
+      const gw = ctx.measureText(gl).width;
+      const glx = gx + 4 + gw <= MARGIN.l + pw - 2 ? gx + 4 : gx - 4 - gw;
+      const gly = nudgeClear(
+        MARGIN.t + 2,
+        { x: glx, w: gw, h: 13 },
+        placed,
+        MARGIN.t + 2,
+        MARGIN.t + ph - 15,
+      );
+      placed.push({ x: glx - 1, y: gly, w: gw + 2, h: 13 });
+      ctx.fillText(gl, glx, gly + 10);
       for (const [v, dd, c] of [
         [liveR, rDom, R()],
         [liveX, xDom, X()],
@@ -605,6 +635,11 @@ export function ZParamChart({
         data-guide={
           currentValue != null && currentValue >= dom.lo && currentValue <= dom.hi
             ? formatParam(currentValue)
+            : ""
+        }
+        data-guide-label={
+          currentValue != null && currentValue >= dom.lo && currentValue <= dom.hi
+            ? guideLabel(d && isDensity(d.param) ? "N" : label, currentValue)
             : ""
         }
         data-ref-r={refAttr(rRef)}

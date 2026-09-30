@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ZParamChart } from "../components/charts/ZParamChart";
-import { nudgeClear } from "../lib/paramSweep";
+import { guideLabel, nudgeClear } from "../lib/paramSweep";
 import { SweepChart } from "../components/charts/SweepChart";
 import type { ParamSweepData } from "../lib/paramSweep";
 
@@ -78,6 +78,14 @@ describe("what the chart draws", () => {
     expect(c.dataset.extrap).toBe("");
     expect(c.dataset.xLog).toBe("0");
     expect(c.dataset.guide).toBe("0.97");
+    expect(c.dataset.guideLabel).toBe("length factor = 0.97 (now)");
+  });
+
+  it("the guide is labelled: N for a density sweep, the knob's label for a knob", () => {
+    const r = mount({ currentValue: 15 });
+    expect(r.canvas().dataset.guideLabel).toBe("N = 15 (now)");
+    expect(guideLabel("height", 9.5)).toBe("height = 9.5 (now)");
+    expect(guideLabel("height", 9.123456)).toBe("height = 9.123 (now)");
   });
 
   it("the guide follows the current value and drops off outside the sweep", () => {
