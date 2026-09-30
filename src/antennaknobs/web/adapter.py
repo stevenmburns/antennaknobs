@@ -5168,6 +5168,29 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             wire_radius=_slot_wire_radius(req),
         )
 
+    def nec4_export(req: dict) -> str:
+        # The NEC-4 twin of `nec_export` (AK#1803): the same builder and ground
+        # construction, written in `export_nec`'s NEC-4.2 dialect, which serves
+        # the buried and graded designs the NEC-2 deck refuses. Writing a deck
+        # runs no NEC-4.2, so no binary is looked for, and the item is offered
+        # on the hosted app as everywhere else.
+        from antennaknobs.nec_export import export_nec as _export_nec
+
+        design_freq, meas_freq = _req_freqs(req)
+        builder = _build_builder(cls, req)
+        builder.freq = meas_freq
+        if has_design_freq:
+            builder.design_freq = design_freq
+        # The NEC-4.2 slot's own ground (`_make_nec42_engine`), so the file is
+        # the deck that slot would run; terrain is its crest medium there too.
+        return _export_nec(
+            builder,
+            ground=_pynec_ground_spec(req),
+            freq=meas_freq,
+            wire_radius=_slot_wire_radius(req),
+            dialect="nec42",
+        )
+
     def ssn_export(req: dict) -> str:
         # The design as a SimNEC circuit (AK#1539), so the round trip to SimNEC
         # needs no terminal — which on the packaged workbench means it is
@@ -5383,6 +5406,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         nec42_pattern=nec42_pattern,
         nec5_export=nec5_export,
         nec_export=nec_export,
+        nec4_export=nec4_export,
         ssn_export=ssn_export,
         schematic_svg=schematic_svg,
         params_source=params_source,

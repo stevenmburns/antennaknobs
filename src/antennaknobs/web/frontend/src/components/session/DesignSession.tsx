@@ -2778,6 +2778,14 @@ function DesignSessionBody({
           onDownloadNec={() =>
             downloadNec({ setGearMenuOpen, buildRequest, geometry })
           }
+          onDownloadNec4={() =>
+            downloadNec({
+              setGearMenuOpen,
+              buildRequest,
+              geometry,
+              dialect: "nec4",
+            })
+          }
           onDownloadNec5={() =>
             downloadNec({
               setGearMenuOpen,

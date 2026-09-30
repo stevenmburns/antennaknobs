@@ -10,13 +10,24 @@ import type { MeasuredData, SolveRequest } from "../../lib/api";
 // download. The backend reuses the same builder construction as the live
 // solve, so the deck matches what's on screen.
 //
-// `dialect` picks NEC-2 or NEC-5 (issue #1389). BOTH items are always offered,
-// whatever engines are installed: neither writer needs one, and the person who
-// most needs the file is the one without the engine on this machine. What varies
-// is whether the DESIGN can be said in that dialect — a buried, ground-contact
-// or graded design comes back 422 from nec2 with a sentence pointing at the
-// nec5 download, and a TL / virtual-driver network comes back 422 from both.
+// `dialect` picks NEC-2, NEC-4 (AK#1803) or NEC-5 (issue #1389). EVERY item is
+// always offered, whatever engines are installed: no writer needs one, and the
+// person who most needs the file is the one without the engine on this machine.
+// What varies is whether the DESIGN can be said in that dialect — a buried,
+// ground-contact or graded design comes back 422 from nec2 with a sentence
+// pointing at the nec4/nec5 downloads, and a TL / virtual-driver network comes
+// back 422 from all three.
 // Surface the server's message rather than downloading an error page.
+export type NecDialect = "nec2" | "nec4" | "nec5";
+
+// The server's filename when the Content-Disposition cannot be read: the three
+// dialects never overwrite each other in a download folder.
+export const NEC_FALLBACK_EXT: Record<NecDialect, string> = {
+  nec2: ".nec",
+  nec4: ".nec4.nec",
+  nec5: ".nec5.nec",
+};
+
 export async function downloadNec({
   setGearMenuOpen,
   buildRequest,
@@ -26,7 +37,7 @@ export async function downloadNec({
   setGearMenuOpen: (open: boolean) => void;
   buildRequest: () => SolveRequest;
   geometry: string;
-  dialect?: "nec2" | "nec5";
+  dialect?: NecDialect;
 }) {
   setGearMenuOpen(false);
   try {
@@ -48,7 +59,7 @@ export async function downloadNec({
     const blob = await resp.blob();
     const cd = resp.headers.get("Content-Disposition") ?? "";
     const m = cd.match(/filename="([^"]+)"/);
-    const fallbackExt = dialect === "nec5" ? ".nec5.nec" : ".nec";
+    const fallbackExt = NEC_FALLBACK_EXT[dialect];
     const filename = m
       ? m[1]
       : `${geometry.replace(/\./g, "_") || "antenna"}${fallbackExt}`;

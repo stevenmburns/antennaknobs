@@ -2720,7 +2720,8 @@ async def export_nec_endpoint(req: dict):
     """Render the current design as a downloadable .nec card deck.
 
     `dialect` picks the spelling: "nec2" (the default, so an old client that
-    sends no field keeps the file it always got) or "nec5". Both are offered
+    sends no field keeps the file it always got), "nec5", or "nec4" (NEC-4.2's
+    dialect, AK#1803, for EZNEC Pro/4 and 4nec2 users). All are offered
     ALWAYS, whatever engines this machine has — neither writer needs one, and
     the person who most needs the file is the one without the engine here
     (decision 1 on issue #1389).
@@ -2730,16 +2731,19 @@ async def export_nec_endpoint(req: dict):
     design the chosen dialect cannot express, with the reason as the detail:
     TL / virtual-driver networks have no single-deck spelling in EITHER dialect,
     while buried, ground-contact and graded designs refuse only as NEC-2 and the
-    sentence points at the NEC-5 download.
+    sentence points at the NEC-5 (and NEC-4) download. Writing a NEC-4 deck
+    runs no NEC-4.2, so it is served with no binary, on the hosted app too.
     """
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     ex = example_for(geometry)
     dialect = req.get("dialect") or "nec2"
-    if dialect not in ("nec2", "nec5"):
+    writers = {"nec2": ex.nec_export, "nec5": ex.nec5_export, "nec4": ex.nec4_export}
+    if dialect not in writers:
         raise HTTPException(
-            status_code=422, detail=f"unknown deck dialect {dialect!r}: nec2 or nec5"
+            status_code=422,
+            detail=f"unknown deck dialect {dialect!r}: nec2, nec4 or nec5",
         )
-    writer = ex.nec_export if dialect == "nec2" else ex.nec5_export
+    writer = writers[dialect]
     if writer is None:
         raise HTTPException(
             status_code=422,
@@ -2751,9 +2755,9 @@ async def export_nec_endpoint(req: dict):
         # ValueError: request validation (bad freq / radius / n_per_wire) —
         # a clean 422 rather than a 500 (issue #347).
         raise HTTPException(status_code=422, detail=str(e)) from e
-    # Distinct names so the two downloads never overwrite each other in a
+    # Distinct names so the downloads never overwrite each other in a
     # browser's download folder.
-    suffix = ".nec" if dialect == "nec2" else ".nec5.nec"
+    suffix = {"nec2": ".nec", "nec5": ".nec5.nec", "nec4": ".nec4.nec"}[dialect]
     filename = f"{ex.name.replace('.', '_')}{suffix}"
     return Response(
         content=deck,
