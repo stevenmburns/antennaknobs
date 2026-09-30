@@ -5,6 +5,7 @@ import { describe, it, expect } from "vitest";
 import {
   designGround,
   editActive,
+  editSlot,
   groundSlotLabel,
   withDesignGround,
   type GroundSlot,
@@ -110,6 +111,16 @@ describe("editActive", () => {
       terrainParams: { ...s.terrainParams, height_m: 4 },
     }));
     expect(next.slots[2].terrainParams).toEqual({ height_m: 4 });
+  });
+});
+
+describe("editSlot (AK#1801)", () => {
+  it("edits the named slot, not the active one, and keeps the active id", () => {
+    const next = editSlot(state("1"), "2", { enabled: true, type: "pec" });
+    expect(next.active).toBe("1");
+    expect(next.slots[1]).toMatchObject({ enabled: true, type: "pec", fromDesign: false });
+    expect(next.slots[0]).toEqual(state("1").slots[0]);
+    expect(next.slots[2]).toEqual(state("1").slots[2]);
   });
 });
 

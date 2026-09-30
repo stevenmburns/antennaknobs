@@ -3,6 +3,7 @@ import {
   activeGroundSlot,
   designSlotId,
   editActive,
+  editSlot,
   groundRequest,
   withDesignGround,
   type GroundEdit,
@@ -126,6 +127,25 @@ export function useGroundConfig({
   const setTerrainParams = (fn: (p: TerrainParams) => TerrainParams) =>
     edit((slot) => ({ terrainParams: fn(slot.terrainParams) }));
   const setSoil = (v: SoilParams) => edit({ soil: v });
+  // Slot `id`'s settings, as its ⚙ edits them (AK#1801): the values the
+  // ground panel shows and its setters, each an edit to THAT slot whether or
+  // not it is the active one. Null for an id no slot has.
+  const slotSettings = (id: GroundSlotId) => {
+    const slot = state.slots.find((s) => s.id === id);
+    if (!slot) return null;
+    const editIt = (e: GroundEdit | ((s: GroundSlot) => GroundEdit)) =>
+      setState((st) => editSlot(st, id, e));
+    return {
+      slot,
+      setGroundEnabled: (v: boolean) => editIt({ enabled: v }),
+      setGroundType: (v: GroundType) => editIt({ type: v }),
+      setFiniteGroundMethod: (v: FiniteGroundMethod) => editIt({ method: v }),
+      setTerrainPreset: (v: string) => editIt({ terrainPreset: v }),
+      setTerrainParams: (fn: (p: TerrainParams) => TerrainParams) =>
+        editIt((s) => ({ terrainParams: fn(s.terrainParams) })),
+      setSoil: (v: SoilParams) => editIt({ soil: v }),
+    };
+  };
   const setActiveGroundSlot = (id: GroundSlotId) =>
     setState((st) => (st.slots.some((s) => s.id === id) ? { ...st, active: id } : st));
 
@@ -196,6 +216,7 @@ export function useGroundConfig({
   return {
     groundSlots: state.slots,
     groundRequestFor,
+    groundSlotSettings: slotSettings,
     servedDefaultSoil: servedDefault,
     activeGroundSlot: active.id,
     designGroundSlot: designSlotId(state),

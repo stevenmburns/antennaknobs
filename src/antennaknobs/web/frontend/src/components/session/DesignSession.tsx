@@ -74,7 +74,7 @@ import type {
   SoilRanges,
   TerrainPresetSchema,
 } from "../../lib/ground";
-import { designGround, groundSlotLabel } from "../../lib/groundSlots";
+import { designGround, groundSlotLabel, type GroundSlotId } from "../../lib/groundSlots";
 import {
   type ChartCell,
   type ChartCross,
@@ -128,7 +128,8 @@ import type { ChartFrequencyRender } from "../results/viewRegistry";
 import { fetchMetrics, PinsContext, SessionsContext, ThemeControlContext } from "./contexts";
 import { CatalogPanel } from "./CatalogPanel";
 import { DesignFreqRow } from "./DesignFreqRow";
-import { GroundPanel } from "./GroundPanel";
+import { GroundNotices } from "./GroundPanel";
+import { GroundConfigModal } from "./GroundConfigModal";
 import { GroundSlotTabs } from "./GroundSlotTabs";
 import { KnobOptMenu } from "./KnobOptMenu";
 import { SweepRangeMenu } from "./SweepRangeMenu";
@@ -612,26 +613,16 @@ function DesignSessionBody({
   const {
     groundSlots,
     groundRequestFor,
+    groundSlotSettings,
     servedDefaultSoil,
     activeGroundSlot,
     designGroundSlot,
     setActiveGroundSlot,
     applyDesignGround,
     groundEnabled,
-    setGroundEnabled,
-    groundType,
-    setGroundType,
-    finiteGroundMethod,
-    setFiniteGroundMethod,
-    terrainPreset,
-    setTerrainPreset,
-    terrainParams,
-    setTerrainParams,
     groundModel,
     terrainKey,
     groundSummary,
-    soil,
-    setSoil,
     soilKey,
   } = useGroundConfig({
     backend,
@@ -640,6 +631,9 @@ function DesignSessionBody({
     slots: uiDefaults.grounds,
   });
   const onDesignGround = activeGroundSlot === designGroundSlot;
+  // The ground slot whose ⚙ settings are open (AK#1801), or null. Any slot,
+  // not only the active one.
+  const [groundGearOpen, setGroundGearOpen] = useState<GroundSlotId | null>(null);
   const nLabel = currentExample?.fixed_segment_counts ? "deck's own" : String(nPerWire);
   const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${backendDisplayLabel(backend, currentOpts)} N=${nLabel} · ${groundSummary}`;
   useEffect(() => {
@@ -3017,35 +3011,65 @@ function DesignSessionBody({
           slots={groundSlots}
           activeSlot={activeGroundSlot}
           onSelect={setActiveGroundSlot}
+          onOpenGear={setGroundGearOpen}
           soilPresets={soilPresets}
-        />
+        >
+          {/* The notices stay in view with the settings closed (AK#1801):
+              they explain a ground the user did not choose. The design's own
+              ground is ground slot 1's (AK#1794), so its notices belong to
+              that slot, not to free space in slot 2. */}
+          <GroundNotices
+            compact
+            backend={backend}
+            groundEnabled={groundEnabled}
+            groundRequirement={
+              onDesignGround ? (currentExample?.ground_requirement ?? null) : null
+            }
+            groundSeed={onDesignGround ? (currentExample?.ground_seed ?? null) : null}
+            groundMedium={currentExample?.ground_medium ?? null}
+            groundCard={currentExample?.ground_card ?? null}
+          />
+        </GroundSlotTabs>
 
-        <GroundPanel
-          backend={backend}
-          groundEnabled={groundEnabled}
-          setGroundEnabled={setGroundEnabled}
-          groundType={groundType}
-          setGroundType={setGroundType}
-          finiteGroundMethod={finiteGroundMethod}
-          setFiniteGroundMethod={setFiniteGroundMethod}
-          terrainPresets={terrainPresets}
-          terrainPreset={terrainPreset}
-          setTerrainPreset={setTerrainPreset}
-          terrainParams={terrainParams}
-          setTerrainParams={setTerrainParams}
-          soil={soil}
-          setSoil={setSoil}
-          soilPresets={soilPresets}
-          soilRanges={soilRanges}
-          // The design's own ground is ground slot 1's (AK#1794): the notices
-          // saying so belong to that slot, not to free space in slot 2.
-          groundRequirement={
-            onDesignGround ? (currentExample?.ground_requirement ?? null) : null
-          }
-          groundSeed={onDesignGround ? (currentExample?.ground_seed ?? null) : null}
-          groundMedium={currentExample?.ground_medium ?? null}
-          groundCard={currentExample?.ground_card ?? null}
-        />
+        {(() => {
+          // The open ⚙'s slot: its own values and setters, whichever slot
+          // is active (AK#1801).
+          const g = groundGearOpen === null ? null : groundSlotSettings(groundGearOpen);
+          if (!g) return null;
+          const onDesign = g.slot.id === designGroundSlot;
+          return (
+            <GroundConfigModal
+              slotId={g.slot.id}
+              label={groundSlotLabel(g.slot, soilPresets)}
+              onClose={() => setGroundGearOpen(null)}
+              backend={backend}
+              groundEnabled={g.slot.enabled}
+              setGroundEnabled={g.setGroundEnabled}
+              groundType={g.slot.type}
+              setGroundType={g.setGroundType}
+              finiteGroundMethod={g.slot.method}
+              setFiniteGroundMethod={g.setFiniteGroundMethod}
+              terrainPresets={terrainPresets}
+              terrainPreset={g.slot.terrainPreset}
+              setTerrainPreset={g.setTerrainPreset}
+              terrainParams={g.slot.terrainParams}
+              setTerrainParams={g.setTerrainParams}
+              soil={g.slot.soil}
+              setSoil={g.setSoil}
+              soilPresets={soilPresets}
+              soilRanges={soilRanges}
+              groundRequirement={
+                onDesign ? (currentExample?.ground_requirement ?? null) : null
+              }
+              groundSeed={onDesign ? (currentExample?.ground_seed ?? null) : null}
+              groundMedium={currentExample?.ground_medium ?? null}
+              groundCard={currentExample?.ground_card ?? null}
+              // The active slot's notices are already on screen, under
+              // the tab strip.
+              notices={g.slot.id !== activeGroundSlot}
+            />
+          );
+        })()}
 
         {gearOpen && (
           <BackendConfigModal

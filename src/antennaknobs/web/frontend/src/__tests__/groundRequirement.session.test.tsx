@@ -7,8 +7,8 @@
 // which momwire refuses by name for conductors below z = 0 — while an
 // ordinary design keeps the refl-coef default untouched.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen } from "@testing-library/react";
-import { mountReady, HARNESS_EXAMPLE } from "./designSessionHarness";
+import { screen, within } from "@testing-library/react";
+import { mountReady, HARNESS_EXAMPLE, groundSettings } from "./designSessionHarness";
 import type { ExampleDescriptor } from "../lib/params";
 
 const BURIED_EXAMPLE: ExampleDescriptor = {
@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 const checked = (name: string | RegExp) =>
-  (screen.getByRole("radio", { name }) as HTMLInputElement).checked;
+  (within(groundSettings()).getByRole("radio", { name }) as HTMLInputElement).checked;
 
 // Synchronous after mountReady: the seed runs in the render that loads the
 // design (AK#1762), and the session's readiness is past that render — so

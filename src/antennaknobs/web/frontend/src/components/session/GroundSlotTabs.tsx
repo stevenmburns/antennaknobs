@@ -1,20 +1,27 @@
+import type { ReactNode } from "react";
 import type { SoilPresetSchema } from "../../lib/ground";
 import { groundSlotLabel, type GroundSlot, type GroundSlotId } from "../../lib/groundSlots";
 
 // The ground slots' tab strip (AK#1794), the SolverSlotTabs twin: one click
-// switches the ground every solve and chart reads. No gear: the ground panel
-// right below it edits the active slot. Renders however many slots it is
-// given.
+// switches the ground every solve and chart reads, and each tab's ⚙ opens
+// THAT slot's ground settings (AK#1801), as a solver tab's ⚙ opens its
+// slot's options, so the input pane carries one line per slot instead of the
+// whole ground panel. `children` is the compact notices line for the active
+// slot, under the strip. Renders however many slots it is given.
 export function GroundSlotTabs({
   slots,
   activeSlot,
   onSelect,
+  onOpenGear,
   soilPresets = [],
+  children,
 }: {
   slots: GroundSlot[];
   activeSlot: GroundSlotId;
   onSelect: (id: GroundSlotId) => void;
+  onOpenGear: (id: GroundSlotId) => void;
   soilPresets?: SoilPresetSchema[];
+  children?: ReactNode;
 }) {
   const active = slots.find((s) => s.id === activeSlot) ?? slots[0];
   return (
@@ -39,10 +46,19 @@ export function GroundSlotTabs({
                 <span className="slot-letter">{slot.id}</span>
                 <span className="slot-sub">{label}</span>
               </button>
+              <button
+                className="backend-gear-btn"
+                title={`Ground slot ${slot.id} settings`}
+                aria-label={`Ground slot ${slot.id} settings`}
+                onClick={() => onOpenGear(slot.id)}
+              >
+                ⚙
+              </button>
             </div>
           );
         })}
       </div>
+      {children}
     </div>
   );
 }

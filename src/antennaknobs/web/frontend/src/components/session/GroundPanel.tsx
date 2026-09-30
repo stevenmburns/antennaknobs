@@ -34,6 +34,7 @@ export function GroundPanel({
   groundSeed = null,
   groundMedium = null,
   groundCard = null,
+  notices = true,
 }: {
   backend: BackendEntry;
   groundEnabled: boolean;
@@ -65,39 +66,21 @@ export function GroundPanel({
   groundMedium?: { eps_r: number; sigma: number } | null;
   /** The card the seed came from when it is not the NEC-2 reading. */
   groundCard?: string | null;
+  /** Render the notices above the controls (AK#1801): off in the active
+   *  slot's ⚙ settings, whose notices the compact line under the tab strip
+   *  already shows. */
+  notices?: boolean;
 }) {
-  const seedText = groundSeedText(groundSeed, groundMedium, groundCard);
   return (
     <>
-      {!backendSupportsGround(backend) && groundEnabled && (
-        <div className="field" title="This backend doesn't model ground; ignored until you switch to one that does.">
-          <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
-            ground plane ignored for {backend.label}
-          </em>
-        </div>
-      )}
-
-      {seedText && (
-        <div
-          className="field"
-          title="The file's GE/GN cards say what ground it models; the ground switch, model and medium were set from them when the design loaded. You can still change any of them."
-        >
-          <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
-            {seedText}
-          </em>
-        </div>
-      )}
-
-      {groundRequirement === "sommerfeld" && (
-        <div
-          className="field"
-          title="This design puts conductors below the surface, which only exist under a Sommerfeld half-space — the reflection-coefficient approximation refuses them by name. Selected automatically when the design loaded; you can still change it, but the solver will refuse anything else."
-        >
-          <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
-            buried design — Sommerfeld ground selected automatically
-          </em>
-        </div>
-      )}
+      {notices && <GroundNotices
+        backend={backend}
+        groundEnabled={groundEnabled}
+        groundRequirement={groundRequirement}
+        groundSeed={groundSeed}
+        groundMedium={groundMedium}
+        groundCard={groundCard}
+      />}
 
       <div className="field">
         <label
@@ -329,5 +312,74 @@ export function GroundPanel({
         )}
       </div>
     </>
+  );
+}
+
+/** The ground notices (AK#1801): what explains a ground the user did not
+ *  choose. The file's own ground, a buried design's automatic Sommerfeld,
+ *  and a ground the active solver ignores. Rendered at the top of a slot's
+ *  ⚙ settings, and as a compact line under the ground-slot tab strip for
+ *  the ACTIVE slot (`compact`), so they stay in view with the settings
+ *  closed. Null when none applies. */
+export function GroundNotices({
+  backend,
+  groundEnabled,
+  groundRequirement = null,
+  groundSeed = null,
+  groundMedium = null,
+  groundCard = null,
+  compact = false,
+}: {
+  backend: BackendEntry;
+  groundEnabled: boolean;
+  groundRequirement?: string | null;
+  groundSeed?: string | null;
+  groundMedium?: { eps_r: number; sigma: number } | null;
+  groundCard?: string | null;
+  compact?: boolean;
+}) {
+  const seedText = groundSeedText(groundSeed, groundMedium, groundCard);
+  const ignored = !backendSupportsGround(backend) && groundEnabled;
+  const buried = groundRequirement === "sommerfeld";
+  if (!ignored && !seedText && !buried) return null;
+  const notices = (
+    <>
+      {!backendSupportsGround(backend) && groundEnabled && (
+        <div className="field" title="This backend doesn't model ground; ignored until you switch to one that does.">
+          <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
+            ground plane ignored for {backend.label}
+          </em>
+        </div>
+      )}
+
+      {seedText && (
+        <div
+          className="field"
+          title="The file's GE/GN cards say what ground it models; the ground switch, model and medium were set from them when the design loaded. You can still change any of them."
+        >
+          <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
+            {seedText}
+          </em>
+        </div>
+      )}
+
+      {groundRequirement === "sommerfeld" && (
+        <div
+          className="field"
+          title="This design puts conductors below the surface, which only exist under a Sommerfeld half-space — the reflection-coefficient approximation refuses them by name. Selected automatically when the design loaded; you can still change it, but the solver will refuse anything else."
+        >
+          <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
+            buried design — Sommerfeld ground selected automatically
+          </em>
+        </div>
+      )}
+    </>
+  );
+  return compact ? (
+    <div className="ground-notices" aria-label="Ground notices">
+      {notices}
+    </div>
+  ) : (
+    notices
   );
 }

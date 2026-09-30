@@ -89,19 +89,30 @@ export function withDesignGround(
   return { ...state, slots: [{ ...sessionDefault, id: first.id, fromDesign: false }, ...rest] };
 }
 
-/** An edit to the active slot, from the ground panel. */
-export function editActive(
+/** An edit to slot `id`, from that slot's ⚙ settings (AK#1801): the slot
+ *  being edited need not be the active one, as the solver gear edits a named
+ *  solver slot. An edit makes the slot the user's own (`fromDesign` off). */
+export function editSlot(
   state: GroundSlotsState,
+  id: GroundSlotId,
   edit: GroundEdit | ((slot: GroundSlot) => GroundEdit),
 ): GroundSlotsState {
   return {
     ...state,
     slots: state.slots.map((s) =>
-      s.id === state.active
+      s.id === id
         ? { ...s, ...(typeof edit === "function" ? edit(s) : edit), fromDesign: false }
         : s,
     ),
   };
+}
+
+/** An edit to the active slot. */
+export function editActive(
+  state: GroundSlotsState,
+  edit: GroundEdit | ((slot: GroundSlot) => GroundEdit),
+): GroundSlotsState {
+  return editSlot(state, state.active, edit);
 }
 
 export function activeGroundSlot(state: GroundSlotsState): GroundSlot {

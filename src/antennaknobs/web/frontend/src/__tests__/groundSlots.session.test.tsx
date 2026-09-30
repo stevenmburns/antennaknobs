@@ -7,9 +7,9 @@
 // opens and records what it is sent: an assertion on the payload, not on the
 // tab strip's state.
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { mountReady, switchDesign, HARNESS_EXAMPLE } from "./designSessionHarness";
+import { mountReady, switchDesign, HARNESS_EXAMPLE, groundSettings } from "./designSessionHarness";
 import type { ExampleDescriptor } from "../lib/params";
 
 class RecordingWebSocket {
@@ -82,9 +82,9 @@ const tab = (id: string) => screen.getByRole("tab", { name: new RegExp(`^Ground 
 const tabs = () => screen.getAllByRole("tab", { name: /^Ground slot / });
 const selected = () => tabs().find((t) => t.getAttribute("aria-selected") === "true");
 const groundBox = () =>
-  screen.getByRole("checkbox", { name: /ground plane/ }) as HTMLInputElement;
+  within(groundSettings()).getByRole("checkbox", { name: /ground plane/ }) as HTMLInputElement;
 const radio = (name: string | RegExp) =>
-  (screen.getByRole("radio", { name }) as HTMLInputElement).checked;
+  (within(groundSettings()).getByRole("radio", { name }) as HTMLInputElement).checked;
 
 beforeEach(() => {
   RecordingWebSocket.all = [];
@@ -142,7 +142,7 @@ describe("ground slots (AK#1794)", () => {
     const user = userEvent.setup();
     await mountReady();
     await user.click(tab("3"));
-    await user.click(screen.getByRole("radio", { name: /PEC/ }));
+    await user.click(within(groundSettings()).getByRole("radio", { name: /PEC/ }));
     expect(tab("3").getAttribute("aria-label")).toBe("Ground slot 3: PEC");
     await user.click(tab("1"));
     expect(radio(/finite/)).toBe(true);
@@ -170,7 +170,7 @@ describe("ground slots (AK#1794)", () => {
     const user = userEvent.setup();
     await mountReady({ examples: [HARNESS_EXAMPLE, FREE] });
     await user.click(tab("3"));
-    await user.click(screen.getByRole("radio", { name: /PEC/ }));
+    await user.click(within(groundSettings()).getByRole("radio", { name: /PEC/ }));
 
     const n = solves().length;
     await switchDesign(user, "Free deck", FREE.name);
@@ -192,7 +192,7 @@ describe("ground slots (AK#1794)", () => {
     const user = userEvent.setup();
     const OTHER = { ...HARNESS_EXAMPLE, name: "dipoles.other", label: "Other dipole" };
     await mountReady({ examples: [HARNESS_EXAMPLE, OTHER] });
-    await user.click(screen.getByRole("radio", { name: "Sommerfeld" }));
+    await user.click(within(groundSettings()).getByRole("radio", { name: "Sommerfeld" }));
     await user.click(tab("2"));
     await switchDesign(user, "Other dipole", OTHER.name);
     expect(selected()).toBe(tab("2"));
@@ -223,7 +223,11 @@ describe("ground slots (AK#1794)", () => {
     for (const key of ["ground", "ground_fast", "soil", "terrain"]) {
       expect(slot2[key]).toEqual(unticked[key]);
     }
-    expect(screen.queryByText(/buried design — Sommerfeld ground selected/)).toBeNull();
+    // The notice line under the tab strip is the active slot's: slot 2 has
+    // none. (Slot 1's own settings, still open from the clicks above, keep
+    // theirs: they are slot 1's.)
+    expect(screen.queryByLabelText("Ground notices")).toBeNull();
+    expect(within(groundSettings("1")).getByText(/buried design — Sommerfeld ground selected/)).toBeTruthy();
   });
 
   it("renders however many slots the settings file has", async () => {
