@@ -61,7 +61,10 @@ def test_the_baseline_is_not_empty_and_covers_every_kwarg():
     """A fixture that lost its contents would make every case below vacuous —
     the failure mode where a check cannot tell "nothing wrong" from "nothing
     measured"."""
-    assert set(BASELINE) == set(_HOSTED_MODEL_OPTIONS) == set(_OPTION_SPECS)
+    # `sommerfeld` (the NEC-4.2 slot's GN card) postdates the recording; its
+    # own accept/reject cases are in test_nec42_sommerfeld_choice.py.
+    assert set(BASELINE) | {"sommerfeld"} == set(_HOSTED_MODEL_OPTIONS)
+    assert set(_HOSTED_MODEL_OPTIONS) == set(_OPTION_SPECS)
     assert len(BASELINE) == 14
     total = sum(len(v) for v in BASELINE.values())
     assert total >= 250, total
@@ -170,14 +173,14 @@ def test_the_labels_are_present_for_everything_a_panel_must_draw():
 # --------------------------------------------------------------------------
 
 
-def test_the_catalogue_serves_all_thirteen_and_is_json():
+def test_the_catalogue_serves_every_option_and_is_json():
     import json
 
     from antennaknobs.web.adapter import model_option_specs
 
     served = model_option_specs()
     assert set(served) == set(_OPTION_SPECS)
-    assert len(served) == 14
+    assert len(served) == 15
     assert json.loads(json.dumps(served)) == served
 
 
@@ -229,7 +232,7 @@ def test_the_roster_names_only_kwargs_the_catalogue_describes():
     from antennaknobs.web.adapter import backend_roster, model_option_specs
 
     described = set(model_option_specs())
-    rows = backend_roster(have_pynec=True, have_nec5=True)
+    rows = backend_roster(have_pynec=True, have_nec5=True, have_nec42=True)
     assert rows
     seen = set()
     for row in rows:

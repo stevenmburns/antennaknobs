@@ -779,6 +779,7 @@ def make_engine_factory(
     extended_kernel=False,
     deck_extended_kernel=False,
     nominal_nsegs=None,
+    nec42_sommerfeld=None,
 ):
     """Bind an engine spec (+ optional ground) into a builder->engine factory.
 
@@ -793,6 +794,11 @@ def make_engine_factory(
     unexposed constructor kwarg — not driven by this flag); a deck-only
     request on a non-momwire engine is silently left alone, matching the
     pre-#849 status quo for that engine.
+
+    ``nec42_sommerfeld`` (CLI ``--nec42-sommerfeld``, 2 or 3) is the NEC-4.2
+    engine's Sommerfeld ground card. None takes ``[engines] nec42_sommerfeld``
+    from the settings file, then 2. It binds only the ``nec42`` engine and is
+    ignored for the others, so one flag can ride along a multi-engine crossing.
 
     ``nominal_nsegs`` is the mesh density the builder should run at (#1543).
     ``None`` leaves the builder alone AND leaves the return value a bare class
@@ -823,6 +829,16 @@ def make_engine_factory(
             # isn't wired to a deck or this flag.
         else:
             kwargs["extended_kernel"] = True
+    if name == "nec42":
+        if nec42_sommerfeld is None:
+            from .settings_file import nec42_sommerfeld as file_sommerfeld
+
+            try:
+                nec42_sommerfeld = file_sommerfeld()
+            except ValueError as exc:
+                raise argparse.ArgumentTypeError(str(exc)) from None
+        if nec42_sommerfeld is not None:
+            kwargs["sommerfeld"] = int(nec42_sommerfeld)
     factory = cls if not kwargs else partial(cls, **kwargs)
     return factory if nominal_nsegs is None else _mesh_at(factory, int(nominal_nsegs))
 
@@ -1149,6 +1165,18 @@ def cli(arguments=None):
             "turns the kernel on (OR). Only applies to the momwire engine.",
         )
         p.add_argument(
+            "--nec42-sommerfeld",
+            dest="nec42_sommerfeld",
+            type=int,
+            choices=(2, 3),
+            default=None,
+            help="NEC-4.2's Sommerfeld ground card for the nec42 engine: 2 "
+            "(GN 2, the default) or 3 (GN 3, its newer Sommerfeld "
+            "evaluation, which can differ from GN 2 by around an ohm on "
+            "buried designs). Overrides [engines] nec42_sommerfeld in "
+            "settings.toml. Ignored by the other engines.",
+        )
+        p.add_argument(
             "--nominal-nsegs",
             dest="nominal_nsegs",
             type=int,
@@ -1212,6 +1240,7 @@ def cli(arguments=None):
                 args.engine,
                 ground,
                 extended_kernel=args.extended_kernel,
+                nec42_sommerfeld=getattr(args, "nec42_sommerfeld", None),
                 deck_extended_kernel=deck_extended_kernel,
                 nominal_nsegs=density_from_args(args, args.engine),
             )
@@ -1240,6 +1269,7 @@ def cli(arguments=None):
                     spec,
                     ground,
                     extended_kernel=args.extended_kernel,
+                    nec42_sommerfeld=getattr(args, "nec42_sommerfeld", None),
                     deck_extended_kernel=deck_extended_kernel,
                     nominal_nsegs=density,
                 )
@@ -1642,6 +1672,7 @@ def cli(arguments=None):
                         engine_spec,
                         ground_for(ground_spec),
                         extended_kernel=args.extended_kernel,
+                        nec42_sommerfeld=getattr(args, "nec42_sommerfeld", None),
                         deck_extended_kernel=deck_ek,
                         nominal_nsegs=(
                             None if density else density_from_args(args, engine_spec)
@@ -2117,6 +2148,7 @@ def cli(arguments=None):
                 espec,
                 file_ground_default(ground, builder_cls),  # AK#1432
                 extended_kernel=args.extended_kernel,
+                nec42_sommerfeld=getattr(args, "nec42_sommerfeld", None),
                 deck_extended_kernel=deck_extended_kernel_flag(builder_cls),
                 # Per SPEC, not per command: a cross-engine comparison whose
                 # engines meshed alike would be comparing meshes as much as
@@ -2203,6 +2235,7 @@ def cli(arguments=None):
                     espec,
                     file_ground_default(ground, builder_cls),
                     extended_kernel=args.extended_kernel,
+                    nec42_sommerfeld=getattr(args, "nec42_sommerfeld", None),
                     deck_extended_kernel=deck_extended_kernel_flag(builder_cls),
                 )
                 z = complex(placements.watch(eng)(builder_cls()).impedance()[0])
@@ -2275,6 +2308,16 @@ def cli(arguments=None):
         help="Ground model: free | pec | finite | finite:<eps_r>,<sigma> "
         "(default: finite, matching PyNECEngine).",
     )
+    p.add_argument(
+        "--nec42-sommerfeld",
+        dest="nec42_sommerfeld",
+        type=int,
+        choices=(2, 3),
+        default=None,
+        help="The Sommerfeld card of a --dialect nec4 deck: 2 (GN 2, the "
+        "default) or 3 (GN 3). Overrides [engines] nec42_sommerfeld in "
+        "settings.toml. A NEC-2 or NEC-5 deck has no GN 3.",
+    )
     p.add_argument("--out", default=None, help="Write the deck here (default: stdout).")
     p.add_argument(
         "--freq",
@@ -2294,6 +2337,11 @@ def cli(arguments=None):
         builder = get_builder(args.builder)
         built = builder()
         if args.dialect == "nec5":
+            if args.nec42_sommerfeld == 3:
+                raise SystemExit(
+                    "antennaknobs export: --nec42-sommerfeld 3 applies to "
+                    "--dialect nec4 only; NEC-5's deck has no GN 3"
+                )
             if not args.include_rp:
                 raise SystemExit(
                     "antennaknobs export: --no-pattern applies to the nec2 dialect "
@@ -2323,6 +2371,22 @@ def cli(arguments=None):
                 kwargs["ground"] = parse_ground(args.ground)
             if args.freq is not None:
                 kwargs["freq"] = args.freq
+            if dialect == "nec42":
+                sommerfeld = args.nec42_sommerfeld
+                if sommerfeld is None:
+                    from .settings_file import nec42_sommerfeld as file_sommerfeld
+
+                    try:
+                        sommerfeld = file_sommerfeld()
+                    except ValueError as exc:
+                        raise SystemExit(f"antennaknobs export: {exc}") from None
+                if sommerfeld is not None:
+                    kwargs["sommerfeld"] = sommerfeld
+            elif args.nec42_sommerfeld == 3:
+                raise SystemExit(
+                    "antennaknobs export: --nec42-sommerfeld 3 applies to "
+                    "--dialect nec4 only; a NEC-2 deck has only GN 2"
+                )
             deck = export_nec(built, dialect=dialect, **kwargs)
             meshed = partial(
                 deck_engine_cls(dialect) if dialect == "nec42" else PyNECEngine,

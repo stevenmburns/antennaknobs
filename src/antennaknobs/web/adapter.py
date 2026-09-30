@@ -379,6 +379,8 @@ _BSPLINE_FAMILY_KWARGS = (
 # the basis axis is ("tent",), and the razor panel has only ever shown the
 # kernel toggle. Exposing either would change the request payload.
 _RAZOR_KWARGS = ("extended_kernel",)
+# The NEC-4.2 slot's one knob. The other subprocess engines take none.
+_NEC42_KWARGS = ("sommerfeld",)
 
 
 _BACKENDS: tuple[_BackendSpec, ...] = (
@@ -541,6 +543,7 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         solver=None,
         kind="nec42",
         panel="pynec",
+        model_kwargs=_NEC42_KWARGS,
     ),
 )
 
@@ -1341,6 +1344,9 @@ def _sanitiser_for(name: str, spec: _OptionSpec):
     raise AssertionError(f"{name}: unknown option kind {spec.kind!r}")
 
 
+# The Sommerfeld choices as the menu words them; index + 2 is the GN card type.
+_SOMMERFELD_CHOICES = ("GN 2", "GN 3")
+
 _OPTION_SPECS: dict[str, _OptionSpec] = {
     "degree": _OptionSpec("int", 1, 3, label="degree", default=2),
     "n_qp_const": _OptionSpec(
@@ -1501,6 +1507,22 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
             "Solve a rotationally symmetric radial screen as one repeated "
             "sector instead of the whole structure. Refused, with a "
             "reason, on a design that is not built that way."
+        ),
+    ),
+    # NEC-4.2's Sommerfeld ground card (`NEC42Engine(sommerfeld=)`): the values
+    # are the card names because the generic enum renderer prints them as the
+    # menu's own words, and `_nec42_sommerfeld` reads them back to the engine's
+    # 2 / 3. The default here is the SEED, not a constant: `[engines]
+    # nec42_sommerfeld` moves it (`model_option_specs`), which is how the
+    # settings file reaches the slot's menu, its chip and its request at once.
+    "sommerfeld": _OptionSpec(
+        "enum",
+        values=_SOMMERFELD_CHOICES,
+        label="Sommerfeld ground",
+        default=_SOMMERFELD_CHOICES[0],
+        description=(
+            "GN 3 is NEC-4.2's newer Sommerfeld evaluation; it can differ "
+            "from GN 2 by around an ohm on buried designs."
         ),
     ),
 }
@@ -3426,12 +3448,38 @@ _NEC2_SEAMS = _SolveSeams(
 )
 
 
+def _nec42_sommerfeld(req: dict) -> int:
+    """The GN card type (2 or 3) this request's NEC-4.2 slot asks for.
+
+    The slot's `model_options["sommerfeld"]` wins, then `[engines]
+    nec42_sommerfeld`, then 2. Validated here rather than left to the hosted
+    sanitiser, which a local install skips: a value that is not one of the two
+    menu words must refuse by name, not fall through to GN 2 and report a
+    number for a ground nobody chose.
+    """
+    opts = sanitize_model_options(req) or {}
+    word = opts.get("sommerfeld")
+    if word is None:
+        from antennaknobs.settings_file import nec42_sommerfeld
+
+        return nec42_sommerfeld() or 2
+    if word not in _SOMMERFELD_CHOICES:
+        raise ValueError(
+            f"model_options.sommerfeld must be one of {list(_SOMMERFELD_CHOICES)}"
+        )
+    return _SOMMERFELD_CHOICES.index(word) + 2
+
+
 def _make_nec42_engine(req: dict, builder):
     """A NEC-4.2 binary over PyNEC's ground spec, as NEC-2 gets it: the
     dialect is NEC-2's (AK#1603). The MININEC-type ground refuses in the
-    engine, by name."""
+    engine, by name. The GN card type is the slot's own option
+    (`_nec42_sommerfeld`)."""
     return NEC42Engine(
-        builder, ground=_pynec_ground_spec(req), wire_radius=_slot_wire_radius(req)
+        builder,
+        ground=_pynec_ground_spec(req),
+        wire_radius=_slot_wire_radius(req),
+        sommerfeld=_nec42_sommerfeld(req),
     )
 
 
@@ -5189,6 +5237,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             freq=meas_freq,
             wire_radius=_slot_wire_radius(req),
             dialect="nec42",
+            sommerfeld=_nec42_sommerfeld(req),
         )
 
     def ssn_export(req: dict) -> str:
@@ -5706,5 +5755,21 @@ def model_option_specs() -> dict[str, dict]:
             row["accepts_max"] = spec.hi
         if spec.kind == "enum":
             row["values"] = list(spec.values)
+        if key == "sommerfeld":
+            row["default"] = _seeded_sommerfeld_word()
         out[key] = row
     return out
+
+
+def _seeded_sommerfeld_word() -> str:
+    """The menu word `[engines] nec42_sommerfeld` seeds. A bad value in the
+    file is reported by the settings loader (`web.settings`) and by the solve
+    (`_nec42_sommerfeld`); the menu stays on the stock word rather than break
+    /capabilities."""
+    from antennaknobs.settings_file import nec42_sommerfeld
+
+    try:
+        n = nec42_sommerfeld()
+    except ValueError:
+        n = None
+    return _SOMMERFELD_CHOICES[(n or 2) - 2]
