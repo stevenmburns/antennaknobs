@@ -325,7 +325,7 @@ def test_the_listing_serves_e7_after_the_designs_own_on_both_its_designs(
     got = _listing(client, geometry)
     names = [a["name"] for a in got]
     assert names[-1] == E7
-    own = [a["name"] for a in got if "study" not in a]
+    own = [a["name"] for a in got if a["study"] is None]
     assert own == names[: len(own)]
     (e7,) = [a for a in got if a["name"] == E7]
     assert e7["study"] == {"source": INVVEE, "name": "feed spelling (E7)"}
@@ -337,7 +337,7 @@ def test_the_listing_serves_e7_after_the_designs_own_on_both_its_designs(
 
 
 def test_the_listing_of_another_design_has_no_studies(client):
-    assert not [a for a in _listing(client, OTHER) if "study" in a]
+    assert not [a for a in _listing(client, OTHER) if a["study"] is not None]
 
 
 def test_a_user_study_is_served_once_allowed(client, folder, tmp_path):

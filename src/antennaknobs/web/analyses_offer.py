@@ -66,7 +66,7 @@ design (the design cross builds each of its designs at its own defaults, as
 for any analysis), with its ``name`` the study's full ``source:name`` (unique
 beside the design's own analyses, which the picker tells apart by name) and
 ``study: {source, name}``, the short name the picker shows under its Studies
-group. So E7 is on the invvee and the invvee_apex tabs, and on no other.
+group (``study`` is None on the design's own analyses). So E7 is on the invvee and the invvee_apex tabs, and on no other.
 
 Framework-free, so it is tested without a server.
 """
@@ -404,6 +404,8 @@ def offer(builder, req: Mapping) -> list[dict]:
                 "code": an.to_code(a),
                 "problems": an.problems(a, builder),
                 "workbench": workbench(a, builder, req),
+                # A design's own analysis: not a study (`offer_studies`).
+                "study": None,
             }
         )
     return out

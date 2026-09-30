@@ -2512,7 +2512,8 @@ async def analyses_endpoint(req: dict):
     "frequency", range, level, points, views, swr, note}`` (what the
     frequency sweep and its SWR / S11 / Smith charts take, step 4), or
     ``{runs: false, why}``. After them, the studies that cross the design
-    (step 7), each with ``study: {source, name}`` beside the same fields.
+    (step 7), each with ``study: {source, name}`` beside the same fields
+    (``study`` is None on the design's own).
     Nothing solves.
     An unknown geometry or a bad knob value is a 422, as on ``/param_sweep``.
     Served on demand, not in ``/examples``: listing a design's analyses
