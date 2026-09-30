@@ -873,6 +873,15 @@ export type SlotConfig = {
   opts: BackendOpts;
 };
 
+/** The menu word the served `sommerfeld` option carries for NEC-4.2's GN 3.
+ *  Read off `model_kwargs`, not the backend's name, like every other knob. */
+export const SOMMERFELD_GN3 = "GN 3";
+
+function sommerfeldWord(b: BackendEntry, opts: BackendOpts): unknown {
+  if (!(b.model_kwargs ?? []).includes("sommerfeld")) return undefined;
+  return opts.model.sommerfeld;
+}
+
 // Display label for a configured backend: B-spline-panel entries carry their
 // spline degree so two b-spline slots (the default A d=2 / B d=1 pair) stay
 // distinguishable at a glance.
@@ -894,6 +903,9 @@ export function backendDisplayLabel(b: BackendEntry, opts: BackendOpts): string 
   // that carries a suffix is the one asking for NEC's source.
   if (offersFeedModelChoice(b) && opts.model.feed_model === "segment")
     return `${b.label} (NEC gap)${ek}`;
+  // The Sommerfeld card, named only when it is the non-stock one, so a pinned
+  // NEC-4.2 result and its legend say which evaluation produced the number.
+  if (sommerfeldWord(b, opts) === SOMMERFELD_GN3) return `${b.label} (${SOMMERFELD_GN3})${ek}`;
   return `${b.label}${ek}`;
 }
 
@@ -982,15 +994,17 @@ export function defaultSlots(
 
 
 // Translates the frontend options into the snake_case kwargs the server
-// forwards to each Momwire model class constructor: the served generic knobs
-// under their own keys, then whatever the bespoke panel contributes. PyNEC
-// takes none — it isn't a momwire model.
+// forwards to each engine's constructor: the served generic knobs under their
+// own keys, then whatever the bespoke panel contributes. A backend whose
+// `model_kwargs` is empty (PyNEC, NEC-2, NEC-5) gets none.
 export function modelOptionsForRequest(
   b: BackendEntry,
   opts: BackendOpts,
   specs: ModelOptionSpecs,
 ): Record<string, unknown> {
-  if (b.kind !== "momwire") return {};
+  // Driven by the served `model_kwargs`, not by the backend's kind: PyNEC, NEC-2
+  // and NEC-5 expose none, so they still send nothing, and the NEC-4.2 slot's
+  // Sommerfeld choice rides this same channel.
   const out: Record<string, unknown> = {};
   for (const key of b.model_kwargs ?? []) {
     const spec = specs[key];
