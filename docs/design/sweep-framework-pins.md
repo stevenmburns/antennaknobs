@@ -107,3 +107,52 @@ Both units are frontend-only. The server already returns Z per point.
 3. **Knob pins match by knob name across designs,** with the design in the label.
 4. **A pin draws SWR and S11 at its own Z0.** When that differs from the chart's, its label says so ("Z0 50 Ω").
 5. **The palette grows to 8 sweep-pin colours** (question 1 can make 6 pins from one chart). Pattern pins keep their 4.
+
+## Story: E7 from scratch, with pins and no Python
+
+E7 asks whether the way the feed is meshed changes what the convergence ladder
+converges to. It compares the catalog invvee's 0.1 m bridge with the apex-knot
+spelling (`dipoles.invvee_apex`), on B-spline, razor-2p and NEC-5, in free
+space (`sweep-framework-examples.md`). Here is how a user builds it in the
+workbench, starting from nothing.
+
+1. **Slots.** Solver slots: A = momwire B-spline, B = momwire razor-2p,
+   C = NEC-5 (razor-2p stands in when NEC-5 is not installed). Ground slot:
+   free space.
+2. **The bridge tab.** Open `dipoles.invvee`. On the chart, pick
+   **Convergence** (the density sweep) and tick engine slots A, B and C. Run.
+   Three curves draw: each engine's ladder, with the bridge's sawtooth in R.
+3. **Pin.** Press **Pin** on the chart header. This makes **three pins**, one
+   per curve (ruling 1), labelled like "invvee:dipole · B-spline · free". They
+   appear dashed right away, over the live curves they copy.
+4. **The apex tab.** Open `dipoles.invvee_apex` in a second tab. Pins are
+   shell-level, so the three bridge pins come with it. Pick **Convergence**,
+   tick A, B and C, and run.
+5. **The comparison.** The chart now draws **six curves**: three live apex
+   curves (smooth) and three dashed bridge pins (stepped). Density pins draw
+   on density charts, so the x axes match. That is E7's figure: the spelling
+   moves the answer about 50× more than the engine does, and anyone can see it.
+6. **A refused cell stays a named gap.** If slot C were NEC-2, the apex tab's
+   C cell would be refused by name in the legend (NEC-2 cannot feed a knot),
+   while the NEC-2 bridge pin still draws. The chart shows what exists and
+   names what cannot.
+7. **Reading it.** Hover reads all six values at one N. The legend's pins
+   section can hide any pin (a global switch, ruling 2) or export it as CSV.
+8. **Making it permanent (step 7, later).** Every pin here differs from the
+   live chart only along a crossable axis: the design. So "copy as analysis"
+   can write E7's own strawman into the `.py`: a convergence analysis crossed
+   with `designs=("invvee", "invvee_apex")` and the three engines. Next
+   session it re-solves instead of relying on pins.
+
+### What the story asks that the rulings don't yet cover
+- **Z∞ per pin.** E7's table is Z∞ with its verdict (rough/asymptotic, p) per
+  curve. The live curves get Z∞ from the estimator (#1782); should a
+  convergence pin carry its Z∞ and verdict into the legend? Proposed: yes, at
+  pin time, because the ladder is frozen with the pin.
+- **The density x across designs.** Density is N per λ/4 at the design
+  frequency. Both invvee spellings share that frequency, so their rungs line
+  up. For two designs at different frequencies, a density pin would draw at
+  its own N values, and the label should name its design frequency.
+- **The step marks.** E7's first figure marks each rung where the feed wire's
+  count steps. A pin would need to keep those marks too, if they are to survive.
+  Proposed: later, not in the first build.
