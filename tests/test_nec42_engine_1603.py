@@ -35,7 +35,7 @@ from antennaknobs.engines.nec42 import (
     probe_nec42,
     refuse_nec42_geometry,
 )
-from antennaknobs.network import GradedSegments, Wire
+from antennaknobs.network import GradedSegments, Wire, as_wire
 
 SOIL = ("finite", 13.0, 0.005)
 
@@ -316,12 +316,23 @@ def test_free_space_has_no_plane_to_refuse_against():
     refuse_nec42_geometry(_dipole(z=0.0).build_wires(), None)
 
 
-def test_a_graded_wire_refuses_naming_nec42(standin):
+def test_a_graded_wire_is_served_as_chained_panels(standin):
+    """AK#1803: the engine's deck expands a graded wire into one GW per panel,
+    and `tups` is that list, so the currents are read tag for tag."""
     b = _builder(
-        [Wire((0, -2.5, 5), (0, 2.5, 5), GradedSegments((0.25, 0.75), (3, 5, 3)))]
+        [
+            Wire((0, -2.5, 5), (0, 2.5, 5), GradedSegments((0.25, 0.75), (3, 5, 3))),
+            Wire((0, 2.5, 5), (0, 2.5, 7), 11, ex=1 + 0j, name="feed"),
+        ]
     )
-    with pytest.raises(NotImplementedError, match="NEC-4.2: wire 0 uses the graded"):
-        NEC42Engine(b, ground="free")
+    eng = NEC42Engine(b, ground="free")
+    gw = _cards(eng.deck(14.0), "GW")
+    assert [int(c.split()[2]) for c in gw] == [3, 5, 3, 11]
+    # The feed moved from tag 2 to tag 4 with the expansion.
+    assert _cards(eng.deck(14.0), "EX") == ["EX 0 4 6 0 1 0"]
+    assert [int(as_wire(t).n_seg) for t in eng.tups] == [3, 5, 3, 11]
+    # The three panels are one authored wire again in the currents.
+    assert eng._tup_authored == [0, 0, 0, 1]
 
 
 # --------------------------------------------------------------------------

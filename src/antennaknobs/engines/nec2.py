@@ -363,13 +363,14 @@ def refuse_nec2_geometry(tups, ground, *, suggest_download: bool = False) -> Non
     With no ground there is no plane and nothing to refuse: a free-space model may
     sit anywhere, below z=0 included.
 
-    `suggest_download` adds the sentence the gear menu needs — the NEC-5 deck of
-    the same design, which is the one the user actually wanted.
+    `suggest_download` adds the sentence the gear menu needs — the NEC-5 (or
+    NEC-4) deck of the same design, which is the one the user actually wanted.
     """
     if ground is None or ground == "free":
         return
     instead = (
         " — download the NEC-5 deck instead, whose ground serves buried conductors"
+        " (or the NEC-4 deck, over the Sommerfeld ground; AK#1803)"
         if suggest_download
         else ""
     )
