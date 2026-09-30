@@ -36,6 +36,7 @@ from antennaknobs.network import (
     Network,
     PortOnWire,
     Wire,
+    as_wire,
 )
 from antennaknobs.web.examples import REGISTRY
 
@@ -284,9 +285,7 @@ def test_a_tl_networks_structure_decks_are_nec4():
     eng = deck_engine_cls("nec42")(Builder(), ground=SOIL)
     assert eng._use_reducer
     name = eng._real_port_names[0]
-    tag = 1 + [getattr(t, "name", None) for t in eng.tups].index(
-        eng._port_wire_of[name]
-    )
+    tag = 1 + [as_wire(t).name for t in eng.tups].index(eng._port_wire_of[name])
     ((seg, _w),) = eng._port_drive_points[name]
     deck = export_nec_structure(
         eng, freq=eng.builder.freq, sources=[(tag, seg, 1.0)], dialect="nec42"
@@ -383,3 +382,33 @@ def test_the_window_edge_is_measured_from_every_segment_and_its_image():
     # GN 2 and non-Sommerfeld grounds never refuse.
     refuse_gn3_near_field(SOIL, 2, inside, c)
     refuse_gn3_near_field("pec", 3, inside, c)
+
+
+# --------------------------------------------------------------------------
+# the CLI
+# --------------------------------------------------------------------------
+
+
+def test_the_cli_nec4_dialect_is_the_writers_deck(tmp_path):
+    import antennaknobs
+
+    out = tmp_path / "brv.nec"
+    antennaknobs.cli(
+        [
+            "export",
+            "--builder",
+            "verticals.buried_radial_vertical",
+            "--dialect",
+            "nec4",
+            "--ground",
+            "finite:13,0.005",
+            "--out",
+            str(out),
+        ]
+    )
+    expected = export_nec(
+        REGISTRY["verticals.buried_radial_vertical"].builder_cls(),
+        ground=SOIL,
+        dialect="nec42",
+    )
+    assert out.read_text() == expected
