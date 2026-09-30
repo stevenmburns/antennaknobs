@@ -307,8 +307,12 @@ export function pinCsv(pin: SweepPinSnapshot): string {
   return lines.join("\n") + "\n";
 }
 
+/** A string as one file-name part: anything outside [A-Za-z0-9_.-] becomes _. */
+export function fileSafe(s: string): string {
+  return s.replace(/[^A-Za-z0-9_.-]+/g, "_");
+}
+
 /** A file name for the pin's CSV: the design and what it sweeps. */
 export function pinCsvName(pin: SweepPinSnapshot, id: string): string {
-  const safe = (s: string) => s.replace(/[^A-Za-z0-9_.-]+/g, "_");
-  return `${safe(pin.design) || "pin"}-${safe(xPhrase(pin.x))}-${safe(id)}.csv`;
+  return `${fileSafe(pin.design) || "pin"}-${fileSafe(xPhrase(pin.x))}-${fileSafe(id)}.csv`;
 }

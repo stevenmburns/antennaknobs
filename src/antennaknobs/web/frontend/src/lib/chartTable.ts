@@ -18,6 +18,7 @@
 // has no point at is left blank.
 
 import { DENSITY } from "./paramSweep";
+import { fileSafe } from "./sweepPins";
 
 export type TableKind = "frequency" | "knob" | "density";
 
@@ -154,4 +155,28 @@ export function tableTsv(t: ChartTableData): string {
     ...t.groups.flatMap((g) => g.columns.map((c) => (named && g.label ? `${g.label} ${c}` : c))),
   ];
   return [head, ...t.rows].map((r) => r.join("\t")).join("\n") + "\n";
+}
+
+// RFC 4180: a field with a comma, a quote or a line break is quoted, and its
+// quotes doubled.
+function csvField(f: string): string {
+  return /[",\r\n]/.test(f) ? `"${f.replace(/"/g, '""')}"` : f;
+}
+
+/** The same table as comma-separated values: the heading and cells exactly
+ *  as tableTsv has them (no further rounding), CSV-quoted, CRLF-free. */
+export function tableCsv(t: ChartTableData): string {
+  const named = t.groups.length > 1 || (t.groups[0]?.label ?? "") !== "";
+  const head = [
+    t.xName,
+    ...t.groups.flatMap((g) => g.columns.map((c) => (named && g.label ? `${g.label} ${c}` : c))),
+  ];
+  return [head, ...t.rows].map((r) => r.map(csvField).join(",")).join("\n") + "\n";
+}
+
+/** The CSV's file name: `<design>-<what the chart sweeps>.csv`, the sweep
+ *  being "frequency", "density" or the knob's name. */
+export function tableCsvName(t: ChartTableData, design: string): string {
+  const what = t.kind === "knob" ? t.xName : t.kind;
+  return `${fileSafe(design) || "table"}-${fileSafe(what) || "sweep"}.csv`;
 }

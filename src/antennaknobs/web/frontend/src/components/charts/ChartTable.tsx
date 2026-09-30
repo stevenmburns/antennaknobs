@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { type ChartTableData, tableTsv } from "../../lib/chartTable";
+import { type ChartTableData, tableCsv, tableCsvName, tableTsv } from "../../lib/chartTable";
+import { saveTextFile } from "../session/sessionActions";
 
 // The analysis chart's Table view (AK#1757 step 5 unit 5): the numbers
 // `antennaknobs analyze` prints, one row per x value and one column group
@@ -7,17 +8,20 @@ import { type ChartTableData, tableTsv } from "../../lib/chartTable";
 // both ways, so a wide multi-curve table on a phone never widens the page.
 // "copy" puts it on the clipboard as tab-separated text (a spreadsheet
 // pastes it as columns); the cells are ordinary text, so a selection copies
-// too.
+// too. "Download CSV" saves the same cells as comma-separated values.
 
 export function ChartTable({
   table,
   size,
   status = null,
+  design = "",
 }: {
   table: ChartTableData;
   size: number;
   /** Why there are no rows yet, or that a sweep is running. */
   status?: string | null;
+  /** The design's name, for the CSV's file name. */
+  design?: string;
 }) {
   const [copied, setCopied] = useState<"ok" | "select" | null>(null);
   const tableRef = useRef<HTMLTableElement>(null);
@@ -53,15 +57,26 @@ export function ChartTable({
         <span className="chart-table-count">
           {status ?? `${table.rows.length} row${table.rows.length === 1 ? "" : "s"}`}
         </span>
-        <button
-          type="button"
-          className="chart-table-copy"
-          disabled={table.rows.length === 0}
-          title="Copy the table as tab-separated text (pastes as columns in a spreadsheet)"
-          onClick={() => void copy()}
-        >
-          {copied === "ok" ? "copied" : copied === "select" ? "selected: ⌘/Ctrl+C" : "copy"}
-        </button>
+        <span className="chart-table-actions">
+          <button
+            type="button"
+            className="chart-table-copy"
+            disabled={table.rows.length === 0}
+            title="Save the table as comma-separated values (a .csv file)"
+            onClick={() => saveTextFile(tableCsv(table), tableCsvName(table, design))}
+          >
+            Download CSV
+          </button>
+          <button
+            type="button"
+            className="chart-table-copy"
+            disabled={table.rows.length === 0}
+            title="Copy the table as tab-separated text (pastes as columns in a spreadsheet)"
+            onClick={() => void copy()}
+          >
+            {copied === "ok" ? "copied" : copied === "select" ? "selected: ⌘/Ctrl+C" : "copy"}
+          </button>
+        </span>
       </div>
       <div className="chart-table-scroll">
         <table ref={tableRef} aria-label="Analysis table">
