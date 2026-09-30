@@ -183,6 +183,7 @@ function PinRows({ pins, rx }: { pins: ChartLegendPin[]; rx: boolean }) {
               key={p.id}
               className={`chart-legend-pin${greyed ? " is-greyed" : ""}`}
               data-pin={p.id}
+              data-color={p.color}
               data-enabled={p.enabled ? "1" : "0"}
               data-drawable={p.reason === null ? "1" : "0"}
               title={p.cell ? `${p.label} (${p.cell})` : p.label}
