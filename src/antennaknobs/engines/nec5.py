@@ -39,7 +39,13 @@ from pathlib import Path
 
 import numpy as np
 
-from ..engine import FarField, SimulationEngine, WireCurrents, vertex_only_names
+from ..engine import (
+    FarField,
+    SimulationEngine,
+    WireCurrents,
+    graded_panels,
+    vertex_only_names,
+)
 from ._external import find_exe, run_exe
 from ._nec_wire import (
     BURIED_JACKET_ADVISORY_CARDS,
@@ -52,7 +58,6 @@ from ..wire_catalog import gap_knot, port_at, port_wire
 from ..network import (
     Driven,
     DrivenCurrent,
-    GradedSegments,
     Load,
     PortAtVertex,
     PortOnWire,
@@ -267,34 +272,9 @@ def _num(x) -> str:
     return f"{float(x):.6E}"
 
 
-def _expand_graded(w):
-    """One authored wire as the GW cards it needs: ``[(p0, p1, n_seg), ...]``.
-
-    An ordinary wire is one card and is emitted byte-identically to what this
-    writer emitted before the expansion existed. A `graded_wire`
-    (`GradedSegments`, momwire#674's node grading) becomes ONE CARD PER PANEL,
-    chained end to end at the panel boundaries, each with that panel's own
-    segment count — the same vertices and the same counts
-    `flat_wires_to_polylines` puts inside a momwire polyline, so all three
-    engines mesh the deck identically (issue #1108).
-
-    This is what a card deck can express and a polyline cannot: NEC has no
-    per-edge count within one GW, so the grading has to become geometry. The
-    cost is that tags no longer equal "authored wire index + 1", which is why
-    every tag-addressed site in this engine goes through `_tag_of`.
-    """
-    n_seg = w.n_seg
-    if not isinstance(n_seg, GradedSegments):
-        return [
-            (np.asarray(w.p0, dtype=float), np.asarray(w.p1, dtype=float), int(n_seg))
-        ]
-    p0 = np.asarray(w.p0, dtype=float)
-    p1 = np.asarray(w.p1, dtype=float)
-    bounds = [0.0, *n_seg.fracs, 1.0]
-    return [
-        (p0 + bounds[k] * (p1 - p0), p0 + bounds[k + 1] * (p1 - p0), int(c))
-        for k, c in enumerate(n_seg.counts)
-    ]
+# The per-panel expansion lives in `engine.graded_panels`, shared with the
+# NEC-4.2 writer (AK#1803); the name stays for this module's call sites.
+_expand_graded = graded_panels
 
 
 def _tent_knot_currents(centres, ends, kinds):
