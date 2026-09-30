@@ -27,7 +27,7 @@ const run = (over: Partial<KnobWorkbench>): KnobWorkbench => ({
 });
 
 // What a server before unit 4b serves of the other crosses: nothing.
-const NO_CROSSES = { axes: [], planes: null, designs: null, step: null };
+const NO_CROSSES = { axes: [], planes: null, designs: null, states: null, step: null };
 
 describe("analysisSpec", () => {
   it("E3: base, 2…20, 37 linear points, and the header's ladder is the served one", () => {
@@ -184,6 +184,70 @@ describe("parseAnalyses", () => {
       step: { knob: "angle_deg", values: [0, 30], labels: ["angle_deg = 0", "angle_deg = 30"] },
     });
     expect(got[1].workbench).toMatchObject(NO_CROSSES);
+  });
+  it("keeps an analysis's states with their knobs, labels and per-design cells, and drops junk (step 7)", () => {
+    const state = (o: Record<string, unknown>) => ({
+      refused: null,
+      param: "length_factor",
+      values: [0.95, 1],
+      design: null,
+      knobs: {},
+      on: null,
+      ...o,
+    });
+    const got = parseAnalyses({
+      analyses: [
+        {
+          name: "height states",
+          workbench: {
+            runs: true,
+            kind: "knob",
+            param: "length_factor",
+            values: [0.95, 1],
+            log: false,
+            axes: ["states"],
+            states: [
+              state({ name: "as built", label: "as built" }),
+              state({ name: "tall", label: "tall", knobs: { base: 12, flat: true, wire: "cu" } }),
+              state({
+                name: "apex",
+                label: "dipoles.invvee_apex, apex",
+                design: "dipoles.invvee_apex",
+                on: [{ name: "dipoles.invvee", refused: "no knob", param: null, values: null }],
+              }),
+            ],
+            note: null,
+          },
+        },
+        {
+          name: "junk knobs",
+          workbench: {
+            runs: true,
+            kind: "knob",
+            param: "length_factor",
+            values: [0.95, 1],
+            log: false,
+            axes: ["states"],
+            states: [state({ name: "x", label: "x", knobs: { bands: [1, 2] } })],
+            note: null,
+          },
+        },
+      ],
+    });
+    expect(got[0].workbench).toMatchObject({
+      axes: ["states"],
+      states: [
+        { name: "as built", label: "as built", design: null, knobs: {}, on: null, values: [0.95, 1] },
+        { name: "tall", knobs: { base: 12, flat: true, wire: "cu" } },
+        {
+          name: "apex",
+          design: "dipoles.invvee_apex",
+          on: [{ name: "dipoles.invvee", refused: "no knob", param: null, values: null }],
+        },
+      ],
+    });
+    // A knob value the chart cannot send (a group knob's list) is junk.
+    expect(got[1].workbench).toMatchObject({ axes: ["states"], states: null });
   });
   it("no analyses on a body without them (an older server, a stub)", () => {
     expect(parseAnalyses({})).toEqual([]);

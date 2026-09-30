@@ -28,7 +28,12 @@
 //  - a cell's label names what varies, the parts joined by ", " in that
 //    same order, as the CLI's cells do: each engine and ground as the
 //    analysis spells it when it listed it, a plane and a design by name,
-//    and a family's `knob = value` as the server labels it.
+//    a state by its name (after its design when it names one), and a
+//    family's `knob = value` as the server labels it;
+//  - a state (AK#1757 step 7) is one cell per named knob setting, set over
+//    its design's DEFAULTS: one naming a design is that design's cell, and
+//    an unnamed one beside a designs cross is set on each of them, refused
+//    per design where the server says (`on`).
 
 import type { BackendEntry } from "./backends";
 import type { SoilParams } from "./ground";
@@ -46,7 +51,7 @@ export type ChartCross = {
 };
 
 /** The kinds of cross an analysis writes (analyses._CROSS_KINDS). */
-export type CrossKind = "engines" | "grounds" | "planes" | "designs" | "step";
+export type CrossKind = "engines" | "grounds" | "planes" | "designs" | "states" | "step";
 
 /** A plane cell as /analyses serves it: refused (in the CLI's words) where
  *  the design does not offer it. */
@@ -63,6 +68,24 @@ export type DesignCross = {
   spacing?: "lin" | "log" | null;
   freqs?: number[] | null;
 };
+/** A knob value a state sets: what the design's knob holds. */
+export type KnobValue = number | boolean | string;
+/** A state (AK#1757 step 7): a named knob setting over its design's
+ *  defaults, as /analyses serves it. `design` null is the session's design
+ *  (at its variant's defaults, never its live knobs); `label` is the CLI's
+ *  label part. The cell's sweep and refusal are served as a design cell's
+ *  are; beside a designs cross an unnamed state is set on each design, and
+ *  `on` holds one such entry per design (the top-level ones then null). */
+export type StateCross = Omit<DesignCross, "name"> & {
+  name: string;
+  design: string | null;
+  knobs: Record<string, KnobValue>;
+  label: string;
+  on: DesignCross[] | null;
+};
+/** What a state cell sets: its knobs over its design's defaults. */
+export type CellState = { label: string; knobs: Record<string, KnobValue> };
+
 /** A family: the knob each cell sets, its values, and each cell's label. */
 export type StepCross = { knob: string; values: number[]; labels: string[] };
 
@@ -76,6 +99,7 @@ export type ListedCross = {
   axes?: CrossKind[];
   planes?: PlaneCross[] | null;
   designs?: DesignCross[] | null;
+  states?: StateCross[] | null;
   step?: StepCross | null;
 };
 
@@ -100,8 +124,8 @@ export type CrossEnv = {
 export type AxisEntry = { id: string | null; label: string; refused: string | null };
 
 /** One curve: its legend label, the slot and ground slot it solves on, the
- *  plane, design and family step it sets (absent: the session's), and why
- *  it cannot be drawn (then `slot` / `ground` may be null). */
+ *  plane, design, state and family step it sets (absent: the session's),
+ *  and why it cannot be drawn (then `slot` / `ground` may be null). */
 export type ChartCell = {
   key: string;
   label: string;
@@ -109,6 +133,7 @@ export type ChartCell = {
   ground: string | null;
   plane?: string;
   design?: string;
+  state?: CellState;
   step?: { knob: string; value: number };
   refused: string | null;
 };
@@ -211,8 +236,25 @@ type Part = {
   label: string;
   refused: string | null;
   key: string;
-  set: Partial<Pick<ChartCell, "slot" | "ground" | "plane" | "design" | "step">>;
+  set: Partial<Pick<ChartCell, "slot" | "ground" | "plane" | "design" | "state" | "step">>;
 };
+
+/** The served entry a cell's sweep and refusal come from: its state's (the
+ *  per-design one beside a designs cross), else its design's, else none
+ *  (the session's design, as the chart runs it). */
+export function servedCell(
+  c: Pick<ChartCell, "design" | "state">,
+  listed: ListedCross,
+): DesignCross | StateCross | null {
+  if (c.state) {
+    const st = listed.states?.find((s) => s.label === c.state!.label);
+    if (!st) return null;
+    if (st.on) return st.on.find((d) => d.name === c.design) ?? null;
+    return st;
+  }
+  if (c.design === undefined) return null;
+  return listed.designs?.find((d) => d.name === c.design) ?? null;
+}
 
 /** The chart's curves: the product of its axes (axisOrder), each labelled
  *  by the axes that vary (or that the analysis listed), refused where any
@@ -251,6 +293,16 @@ export function crossPlan(cross: ChartCross, listed: ListedCross, env: CrossEnv)
           refused: d.refused,
           key: `d:${d.name}`,
           set: { design: d.name },
+        }));
+      case "states":
+        return (listed.states ?? []).map((s) => ({
+          label: s.label,
+          refused: s.refused,
+          key: `st:${s.label}`,
+          set: {
+            state: { label: s.label, knobs: s.knobs },
+            ...(s.design !== null ? { design: s.design } : {}),
+          },
         }));
       case "step": {
         const st = listed.step;
@@ -291,6 +343,10 @@ export function crossPlan(cross: ChartCross, listed: ListedCross, env: CrossEnv)
     const slot = set.slot ?? null;
     const ownDesign = set.design === undefined || env.design === undefined || set.design === env.design;
     const slotRefusal = slot && ownDesign ? (env.slots.find((s) => s.id === slot)?.refusal ?? null) : null;
+    // An unnamed state beside a designs cross: refused on the designs the
+    // server refused it on (a knob that design lacks, say).
+    const onDesign =
+      set.state && set.design !== undefined ? (servedCell(set, listed)?.refused ?? null) : null;
     // The 4a key (slot|ground) leads, so an engine x ground cell keeps it.
     const key = [
       combo[order.indexOf("engines")].key,
@@ -305,8 +361,9 @@ export function crossPlan(cross: ChartCross, listed: ListedCross, env: CrossEnv)
       ...(set.plane !== undefined ? { plane: set.plane } : {}),
       ...(set.design !== undefined ? { design: set.design } : {}),
       ...(set.step !== undefined ? { step: set.step } : {}),
-      refused: combo.find((p) => p.refused)?.refused ?? slotRefusal,
+      refused: combo.find((p) => p.refused)?.refused ?? onDesign ?? slotRefusal,
     };
+    if (set.state !== undefined) cell.state = set.state;
     return cell;
   });
   return { engines, grounds, cells, capRefusal: null };

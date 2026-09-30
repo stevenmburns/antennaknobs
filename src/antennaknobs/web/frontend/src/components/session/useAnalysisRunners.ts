@@ -6,6 +6,7 @@ import {
 } from "react";
 import type { NormCheckData, SolveRequest } from "../../lib/api";
 import { type BackendEntry } from "../../lib/backends";
+import type { CellState } from "../../lib/chartCells";
 import { type GroundModel } from "../../lib/ground";
 import {
   DENSITY,
@@ -104,6 +105,8 @@ export type ChartCellRequest = {
    *  4b, lib/chartCells.ts ChartCell); absent, the session's. */
   plane?: string;
   design?: string;
+  /** A state's knobs, over its design's defaults (AK#1757 step 7). */
+  state?: CellState;
   step?: { knob: string; value: number };
   stream: string | null;
   backend: BackendEntry;
