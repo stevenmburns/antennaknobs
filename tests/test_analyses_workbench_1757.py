@@ -62,7 +62,9 @@ def invvee(client) -> dict[str, dict]:
 
 def test_every_entry_has_the_documented_shape(invvee):
     for a in invvee.values():
-        assert set(a) == {"name", "summary", "code", "problems", "workbench"}
+        assert set(a) == {"name", "summary", "code", "problems", "workbench", "study"}
+        # A study (AK#1757 step 7) says so; the design's own say None.
+        assert (a["study"] is not None) is (":" in a["name"]), a["name"]
         assert a["code"].startswith("an.")
         w = a["workbench"]
         if w["runs"] and w["kind"] == "frequency":
