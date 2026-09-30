@@ -12,6 +12,7 @@ the factory hands the constructor. The binary's own smoke is
 from __future__ import annotations
 
 import importlib
+import re
 
 import pytest
 from fastapi.testclient import TestClient
@@ -238,7 +239,9 @@ def test_the_flag_is_a_choice_of_2_or_3_on_every_engine_command(capsys):
     for cmd in ("sweep", "analyze", "pattern", "compare_patterns"):
         with pytest.raises(SystemExit):
             antennaknobs.cli([cmd, "--nec42-sommerfeld", "4"])
-        assert "invalid choice: 4" in capsys.readouterr().err
+        # Newer argparse quotes the value ("invalid choice: '4'"), older does not.
+        err = capsys.readouterr().err
+        assert re.search(r"--nec42-sommerfeld: invalid choice: '?4'?", err), err
 
 
 def test_export_writes_gn3_from_the_flag(tmp_path, settings_toml):
