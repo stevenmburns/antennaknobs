@@ -4,7 +4,7 @@ import type { MeasuredData, ParamSweepData, SolveResponse, SweepData } from "../
 import { DENSITY, RX_AUTO, type RxAxisChoice } from "../../lib/paramSweep";
 import type { SweepProgress } from "../../lib/sweep";
 import type { SweepPhase } from "../session/useAnalysisRunners";
-import type { FrequencyView } from "../../lib/analyses";
+import type { FrequencyView, PatternViewSpec } from "../../lib/analyses";
 import type { SweepAxes, SweepAxisChoice, SweepMode } from "../../lib/sweepAxis";
 import type {
   CanvasCamera,
@@ -12,6 +12,7 @@ import type {
   Projection,
   View,
 } from "../../lib/view";
+import { AnalysisPatternChart, type PatternCellTrace } from "../charts/AnalysisPatternChart";
 import { CombinedPatternChart } from "../charts/CombinedPatternChart";
 import { CurrentCanvas } from "../charts/CurrentCanvas";
 import { FarFieldChart } from "../charts/FarFieldChart";
@@ -25,6 +26,7 @@ import type { ExtraCurve, PinCurve } from "../charts/curves";
 import { ChartFrequency, ChartKnobSmith, knobTable } from "./ChartFrequency";
 import { ChartLegend, type ChartLegendData, legendShown, refusedCount } from "./ChartLegend";
 import { FilesPanel, type FilesViewData } from "./FilesPanel";
+import { type PatternCellRow, PatternCellsTable } from "./PatternCellsTable";
 import { SchematicPanel } from "./SchematicPanel";
 
 // The render half of the view registry (the metadata half — id, label,
@@ -115,6 +117,9 @@ export type ViewRenderProps = {
    *  and 3): the zparam view draws the chart's sweep on its Swr, S11 or
    *  Smith view, instead of a knob sweep. Null or omitted: the knob sweep. */
   chartFrequency?: ChartFrequencyRender | null;
+  /** The analysis chart showing a pattern (AK#1757 step 7): its view on
+   *  screen and its cells. Wins over the other two kinds when given. */
+  chartPattern?: ChartPatternRender | null;
   /** The analysis chart's other curves, one per further engine x ground
    *  cell (AK#1757 step 5 unit 4), drawn beside its own on whichever view it
    *  shows; and its legend, which names every cell, refused ones with their
@@ -156,6 +161,19 @@ export type ChartFrequencyRender = {
   rx?: { r: RxAxisChoice; x: RxAxisChoice; xLog: boolean };
   onRxAxisChange?: (axis: RxAxis, c: RxAxisChoice) => void;
   onRxXLogChange?: (log: boolean) => void;
+};
+
+/** A pattern as the analysis chart draws it (AK#1757 step 7): the view on
+ *  screen, the cut angles its cells' solves shipped with (a cut view at
+ *  another re-cuts them), a trace per drawn cell, and a table row per cell
+ *  (the refused ones by name). */
+export type ChartPatternRender = {
+  view: PatternViewSpec;
+  azElevDeg: number;
+  elevAzDeg: number;
+  cells: readonly PatternCellTrace[];
+  rows: readonly PatternCellRow[];
+  running: boolean;
 };
 
 /** What the Z-vs-parameter view draws against: the parameter chosen (the
@@ -301,6 +319,8 @@ function withLegend(p: ViewRenderProps, chart: ReactElement): ReactElement {
   // The Table names every drawn curve in its column groups, and the legend
   // laid over it covered the header (AK#1757 unit 6); it stays only to name
   // a refused cell, which has no column.
+  // A pattern's table names every cell, refused ones too, in its rows.
+  if (p.chartPattern?.view.view === "PatternTable") return chart;
   const table = p.chartFrequency
     ? p.chartFrequency.view === "Table"
     : (p.zparam ?? DEFAULT_ZPARAM).view === "Table";
@@ -313,9 +333,27 @@ function withLegend(p: ViewRenderProps, chart: ReactElement): ReactElement {
   );
 }
 
+// A pattern on its view (AK#1757 step 7): a cut through every cell's solve,
+// or the metrics table. An elevation cut at its bearing, an azimuth cut at
+// its elevation; the other angle is the one the solves shipped with.
+function patternChart(p: ViewRenderProps, c: ChartPatternRender): ReactElement {
+  const v = c.view;
+  if (v.view === "PatternTable") return <PatternCellsTable rows={c.rows} size={p.size} />;
+  return (
+    <AnalysisPatternChart
+      cut={v.view === "Elevation" ? "yz" : "xy"}
+      elevAzDeg={v.view === "Elevation" ? v.az : c.elevAzDeg}
+      azElevDeg={v.view === "Azimuth" ? v.el : c.azElevDeg}
+      cells={c.cells}
+      size={p.size}
+    />
+  );
+}
+
 // The analysis chart on its view (AK#1757 step 5): a frequency sweep on its
 // Swr, S11 or Smith view, or a knob sweep as R/X or its Smith trail.
 function analysisChart(p: ViewRenderProps): ReactElement {
+  if (p.chartPattern) return patternChart(p, p.chartPattern);
   if (p.chartFrequency) return <ChartFrequency p={p} f={p.chartFrequency} />;
   const z = p.zparam ?? DEFAULT_ZPARAM;
   if (z.view === "Smith") return <ChartKnobSmith p={p} />;

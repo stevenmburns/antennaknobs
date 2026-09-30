@@ -6,6 +6,8 @@
 // the old standalone views) — in place. A new chart is a frequency sweep of
 // the design's own band on the Smith chart: the workbench's first view, as
 // the standalone Smith view with the freq-sweep switch on was (unit 3).
+// A pattern (step 7 unit 3) is a third kind: no sweep, one solve per cell,
+// drawn as the analysis's cuts or its metrics table.
 //
 // This module is the chart's STATE and the pure rules over it, React-free:
 // what a pick sets, what the dwell switch defaults to, which range a
@@ -18,7 +20,13 @@
 // to the browser's storage or to settings.toml. Only the design's .py file
 // is remembered between sessions.
 
-import type { FrequencyView, FrequencyWorkbench, KnobView } from "./analyses";
+import type {
+  FrequencyView,
+  FrequencyWorkbench,
+  KnobView,
+  PatternViewSpec,
+  PatternWorkbench,
+} from "./analyses";
 import { frequencyPick } from "./analyses";
 import { type ChartCross, FOLLOW_ACTIVE, type ListedCross, NOTHING_LISTED } from "./chartCells";
 import {
@@ -32,7 +40,7 @@ import {
 import type { SweepRange } from "./sweep";
 import type { SweepAxes } from "./sweepAxis";
 
-export type ChartKind = "knob" | "frequency";
+export type ChartKind = "knob" | "frequency" | "pattern";
 
 /** A knob sweep's views: R/X against the knob, the trail on the Smith
  *  chart, or the numbers (Table, step 5 unit 5). A frequency sweep's are
@@ -46,7 +54,22 @@ export const KNOB_VIEWS: readonly KnobView[] = ["Rx", "Smith", "Table"];
  *  Table are offered on every frequency sweep, not only one that lists them
  *  (step 5 unit 5), as Swr / S11 / Smith always were. */
 export const FREQUENCY_VIEWS: readonly FrequencyView[] = ["Smith", "Swr", "S11", "Rx", "Table"];
-export type ChartView = KnobView | FrequencyView;
+/** A pattern's view on the chart, by its place among the analysis's views
+ *  (AK#1757 step 7): two elevation cuts at different bearings are two
+ *  views, so a view is not named by its kind alone. */
+export type PatternViewId = `pattern:${number}`;
+export type ChartView = KnobView | FrequencyView | PatternViewId;
+
+/** What a chart showing a pattern holds of its own: the analysis's views,
+ *  in its order, and the one on screen (an index into them). */
+export type PatternChartState = { views: PatternViewSpec[]; view: number };
+
+/** A pattern view's words, as the chart's view menu names it. */
+export function patternViewLabel(v: PatternViewSpec): string {
+  if (v.view === "Elevation") return `Elevation @ ${v.az}° az`;
+  if (v.view === "Azimuth") return `Azimuth @ ${v.el}° el`;
+  return "Table";
+}
 
 /** An analysis's views first, then the rest of the frequency views. */
 export function frequencyViews(named: readonly FrequencyView[]): FrequencyView[] {
@@ -114,6 +137,10 @@ export type AnalysisChartState = {
   /** Null only while the chart has never held a frequency sweep, which a new
    *  chart always has (initialChart). */
   frequency: FrequencyChartState | null;
+  /** The picked pattern's views and the one on screen (AK#1757 step 7);
+   *  absent until a pattern is picked, and kept across a later pick of
+   *  another kind like the other kinds' own state. */
+  pattern?: PatternChartState | null;
   /** The solver slots and ground slots the chart compares (unit 4,
    *  lib/chartCells.ts): null follows the session's active one. The
    *  viewer's, or a pick's preselection; kept across picks and designs,
@@ -204,21 +231,36 @@ export function pickOwnFrequency(c: AnalysisChartState, seed: ChartSeed): Analys
  *  sweep, which rebuilds or re-meshes per point, waits for Run). */
 export function chartDwell(c: AnalysisChartState, defaults: DwellDefaults): boolean {
   if (c.dwell !== null) return c.dwell;
-  return c.kind === "frequency" ? defaults.frequency : defaults.knob;
+  // A pattern is one solve per cell, as cheap as the live solve's: it
+  // follows the knobs as a frequency sweep does.
+  return c.kind === "knob" ? defaults.knob : defaults.frequency;
 }
 
 /** The views the chart can draw what it shows, and the one on screen. */
 export function chartViews(c: AnalysisChartState): readonly ChartView[] {
+  if (c.kind === "pattern") return (c.pattern?.views ?? []).map((_, k) => patternViewId(k));
   return c.kind === "knob" ? KNOB_VIEWS : (c.frequency?.views ?? FREQUENCY_VIEWS);
 }
 export function chartView(c: AnalysisChartState): ChartView {
+  if (c.kind === "pattern") return patternViewId(c.pattern?.view ?? 0);
   return c.kind === "knob" ? c.knob.view : (c.frequency?.view ?? "Smith");
+}
+
+const patternViewId = (k: number): PatternViewId => `pattern:${k}`;
+
+/** The pattern view on screen, or null when the chart shows no pattern. */
+export function chartPatternView(c: AnalysisChartState): PatternViewSpec | null {
+  if (c.kind !== "pattern" || !c.pattern) return null;
+  return c.pattern.views[c.pattern.view] ?? c.pattern.views[0] ?? null;
 }
 
 /** The chart on another of its views. A view its kind cannot draw is
  *  refused (the same chart back). */
 export function setChartView(c: AnalysisChartState, v: ChartView): AnalysisChartState {
   if (!chartViews(c).includes(v)) return c;
+  if (c.kind === "pattern") {
+    return c.pattern ? { ...c, pattern: { ...c.pattern, view: Number(v.slice("pattern:".length)) } } : c;
+  }
   if (c.kind === "knob") return { ...c, knob: { ...c.knob, view: v as KnobView } };
   return c.frequency ? { ...c, frequency: { ...c.frequency, view: v as FrequencyView } } : c;
 }
@@ -282,6 +324,17 @@ export function pickFrequency(
   };
 }
 
+/** Picking a pattern (AK#1757 step 7): its views, the first on screen. A
+ *  pattern has no range of its own to set; each cell is one solve. */
+export function pickPattern(c: AnalysisChartState, name: string, w: PatternWorkbench): AnalysisChartState {
+  return {
+    ...c,
+    kind: "pattern",
+    picked: { name, kind: "pattern", spec: null },
+    pattern: { views: [...w.views], view: 0 },
+  };
+}
+
 /** A pick's listed engines and grounds, and the slots they preselect
  *  (lib/chartCells.ts preselect): an axis the analysis lists takes the
  *  preselection, one it does not keeps the chart's own. */
@@ -316,7 +369,7 @@ export function chartListed(c: AnalysisChartState): ListedCross {
 export function pickedName(c: AnalysisChartState): string | null {
   const p = c.picked;
   if (!p || p.kind !== c.kind) return null;
-  if (p.kind === "frequency") return p.name;
+  if (p.kind === "frequency" || p.kind === "pattern") return p.name;
   return p.spec && p.spec.param === c.knob.spec.param ? p.name : null;
 }
 
@@ -328,6 +381,8 @@ export function pickedName(c: AnalysisChartState): string | null {
 export function pickedEdited(c: AnalysisChartState): boolean {
   const p = c.picked;
   if (pickedName(c) === null || !p) return false;
+  // A pattern has no range to edit.
+  if (p.kind === "pattern") return false;
   if (p.kind === "frequency") return !!c.frequency?.rangeEdit;
   return !!p.spec && !sameSpec(p.spec, c.knob.spec);
 }
@@ -357,11 +412,25 @@ export function chartRunInputs(
     auto: boolean;
     views: { vswr: boolean; gamma: boolean; smith: boolean };
   };
+  /** A pattern's one solve per cell (AK#1757 step 7), and the cut angles
+   *  its solve ships with: the chart's first elevation cut's bearing and
+   *  first azimuth cut's elevation (another view re-cuts off the same
+   *  solve, as a cut dial does). */
+  pattern: { wanted: boolean; auto: boolean; elevAzDeg: number; azElevDeg: number };
 } {
   const dwell = chartDwell(c, env.dwellDefaults);
   const f = c.kind === "frequency" ? c.frequency : null;
   const shown = env.resident && f !== null;
+  const pv = c.kind === "pattern" ? (c.pattern?.views ?? []) : [];
+  const el = pv.find((v) => v.view === "Elevation");
+  const az = pv.find((v) => v.view === "Azimuth");
   return {
+    pattern: {
+      wanted: env.resident && c.kind === "pattern" && pv.length > 0,
+      auto: dwell,
+      elevAzDeg: el?.view === "Elevation" ? el.az : 0,
+      azElevDeg: az?.view === "Azimuth" ? az.el : 15,
+    },
     param: {
       req: { param: c.knob.spec.param, values: env.values, label: env.label, auto: dwell },
       wanted: env.resident && c.kind === "knob",

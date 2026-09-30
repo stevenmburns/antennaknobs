@@ -2,6 +2,39 @@ import { LIVE_ENTITY } from "../charts/combined";
 import { GHOST_COLOR_COUNT, GHOST_FALLBACK_RGB } from "../charts/palette";
 import type { PatternMetrics, PinnedPattern } from "../charts/types";
 
+// The metric columns, shared with the analysis chart's pattern table
+// (AK#1757 step 7), so a pattern analysis's rows read exactly as the pins'.
+const fmt = (v: number | undefined, d: number) =>
+  v === undefined || v === null ? "—" : v.toFixed(d);
+
+/** The metric columns' headers: peak, takeoff, F/B, az bw, RDF. */
+export function MetricHeaders() {
+  return (
+    <>
+      <th>peak</th>
+      <th>takeoff</th>
+      <th>F/B</th>
+      <th>az bw</th>
+      <th title="Receiving directivity factor: peak gain over the average gain of the whole pattern">
+        RDF
+      </th>
+    </>
+  );
+}
+
+/** One row's metric cells, "—" where a value is missing. */
+export function MetricCells({ m }: { m: PatternMetrics | null }) {
+  return (
+    <>
+      <td>{fmt(m?.peak_gain_dbi, 1)}</td>
+      <td>{m ? `${fmt(m.takeoff_deg, 0)}°` : "—"}</td>
+      <td>{fmt(m?.front_to_back_db, 1)}</td>
+      <td>{m ? `${fmt(m.az_beamwidth_deg, 0)}°` : "—"}</td>
+      <td>{fmt(m?.rdf_db, 1)}</td>
+    </>
+  );
+}
+
 export function PatternCompareTable({
   live,
   liveLabel,
@@ -25,8 +58,6 @@ export function PatternCompareTable({
   onToggleHighlight?: (id: string) => void;
 }) {
   const highlighting = !!onToggleHighlight;
-  const fmt = (v: number | undefined, d: number) =>
-    v === undefined || v === null ? "—" : v.toFixed(d);
   // Live row's swatch reads the lobe CSS var so it matches the orange lobe in
   // either theme; pinned rows use their fixed canvas ghost colors.
   const rows = [
@@ -59,13 +90,7 @@ export function PatternCompareTable({
         <tr>
           {highlighting && <th className="compare-hl" title="Highlight" />}
           <th>design</th>
-          <th>peak</th>
-          <th>takeoff</th>
-          <th>F/B</th>
-          <th>az bw</th>
-          <th title="Receiving directivity factor: peak gain over the average gain of the whole pattern">
-            RDF
-          </th>
+          <MetricHeaders />
           <th />
         </tr>
       </thead>
@@ -145,11 +170,7 @@ export function PatternCompareTable({
                   </>
                 )}
               </td>
-              <td>{fmt(row.m?.peak_gain_dbi, 1)}</td>
-              <td>{row.m ? `${fmt(row.m.takeoff_deg, 0)}°` : "—"}</td>
-              <td>{fmt(row.m?.front_to_back_db, 1)}</td>
-              <td>{row.m ? `${fmt(row.m.az_beamwidth_deg, 0)}°` : "—"}</td>
-              <td>{fmt(row.m?.rdf_db, 1)}</td>
+              <MetricCells m={row.m} />
               <td>
                 {row.onX && (
                   <button

@@ -64,6 +64,15 @@ export function freqSweepSignature(req: SolveRequest): string {
   return solveSignature(req, { exempt: FREQ_SWEEP_EXEMPT });
 }
 
+/** A pattern cell's signature (AK#1757 step 7): the whole solve request but
+ *  the display-only fields. The cut angles are among them, so a view change
+ *  re-cuts the solve already drawn (charts/cuts.ts) and re-solves nothing;
+ *  the measurement frequency and the terrain are not, since the pattern is
+ *  solved at the one and drawn over the other. */
+export function patternSignature(req: SolveRequest): string {
+  return solveSignature(req, { exempt: DISPLAY_ONLY_EXEMPT });
+}
+
 /** A parameter sweep's signature. The sweep overrides its own parameter at
  *  every point, so the request's value of it changes no point: dragging the
  *  swept knob (or the slot's density, for a density sweep) moves the chart's

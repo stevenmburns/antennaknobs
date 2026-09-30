@@ -4925,6 +4925,27 @@ canvas {
   cursor: pointer;
 }
 
+/* A pattern analysis's metrics table (AK#1757 step 7): the pin compare
+   table's rows, one per cell, in the chart's square, scrolling inside it. A
+   refused cell's reason spans the numbers' columns, left-aligned and allowed
+   to wrap. */
+.analysis-pattern-table {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-3);
+  background: var(--panel);
+  box-sizing: border-box;
+}
+.analysis-pattern-table .compare-name {
+  max-width: 24ch;
+}
+.analysis-pattern-table .compare-refused {
+  text-align: left;
+  white-space: normal;
+  color: var(--muted-2);
+}
+
 /* The analysis chart's Table view (AK#1757 step 5 unit 5): the CLI's
    numbers in the chart's square. The table scrolls inside it both ways, so a
    wide multi-curve table on a phone never widens the page. */

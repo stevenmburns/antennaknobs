@@ -1,4 +1,5 @@
-import { chartDataAttrs, type ChartView } from "../../lib/analysisChart";
+import { chartDataAttrs, type ChartView, patternViewLabel } from "../../lib/analysisChart";
+import type { PatternViewSpec } from "../../lib/analyses";
 import type { MeasuredData } from "../../lib/api";
 import type { SweepRange } from "../../lib/sweep";
 import {
@@ -113,7 +114,7 @@ export function DwellSwitch({ dwell, onDwell }: Pick<ChartChrome, "dwell" | "onD
   );
 }
 
-const VIEW_LABEL: Record<ChartView, string> = {
+const VIEW_LABEL: Record<string, string> = {
   Rx: "R / X",
   Swr: "SWR",
   S11: "S11 (dB)",
@@ -137,9 +138,19 @@ export type ChartViewPickProps = {
     onLoad: (f: File) => void;
     onClear: () => void;
   } | null;
+  /** A pattern's views (AK#1757 step 7), which name their own: the view
+   *  id `pattern:<k>` is the k-th of these. */
+  patternViews?: readonly PatternViewSpec[];
 };
 
-export function ChartViewPick({ views, view, onView, measured }: ChartViewPickProps) {
+export function ChartViewPick({ views, view, onView, measured, patternViews }: ChartViewPickProps) {
+  const label = (v: ChartView): string => {
+    if (v.startsWith("pattern:")) {
+      const spec = patternViews?.[Number(v.slice("pattern:".length))];
+      return spec ? patternViewLabel(spec) : v;
+    }
+    return VIEW_LABEL[v] ?? v;
+  };
   return (
     <>
       {views.length > 1 && (
@@ -152,7 +163,7 @@ export function ChartViewPick({ views, view, onView, measured }: ChartViewPickPr
           >
             {views.map((v) => (
               <option key={v} value={v}>
-                {VIEW_LABEL[v]}
+                {label(v)}
               </option>
             ))}
           </select>
@@ -188,6 +199,72 @@ export function ChartViewPick({ views, view, onView, measured }: ChartViewPickPr
         </button>
       )}
     </>
+  );
+}
+
+/** The header of a chart showing a pattern (AK#1757 step 7): the picker,
+ *  the view (a cut or the table), Run / Stop and the chart's chrome. A
+ *  pattern has no range: each cell is one solve at its own frequency. */
+export function PatternChartControls({
+  analyses,
+  viewPick,
+  run,
+  chrome,
+}: {
+  analyses: AnalysisPickerProps;
+  viewPick: ChartViewPickProps;
+  run: {
+    running: boolean;
+    /** Cells solved so far, and how many there are. */
+    solved: number;
+    total: number;
+    stale: boolean;
+    onStop: () => void;
+    onRun: () => void;
+  };
+  chrome: ChartChrome;
+}) {
+  return (
+    <div
+      className="zparam-overlay"
+      role="group"
+      aria-label="Analysis chart"
+      {...chartDataAttrs("pattern", chrome.dwell, analyses.current)}
+    >
+      <div className="zparam-controls" role="group" aria-label="Pattern">
+        <AnalysisSelect {...analyses} />
+        <ChartViewPick {...viewPick} />
+        {run.running ? (
+          <button
+            type="button"
+            className="zparam-run is-running"
+            title="Stop: keep the patterns solved so far"
+            onClick={run.onStop}
+          >
+            {run.solved}/{run.total} · stop
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={run.stale ? "zparam-run is-stale" : "zparam-run"}
+            title={
+              run.stale
+                ? "The design changed since these patterns were solved: solve them again"
+                : "Solve this chart's patterns again"
+            }
+            onClick={run.onRun}
+          >
+            {run.stale ? "run · re-run?" : "run"}
+          </button>
+        )}
+        <ChartChromeControls {...chrome} />
+      </div>
+      <AnalysisDetails
+        entries={analyses.entries}
+        notes={chartNotes(analyses.entries, analyses.current)}
+        blocked={analyses.blocked}
+      />
+    </div>
   );
 }
 
