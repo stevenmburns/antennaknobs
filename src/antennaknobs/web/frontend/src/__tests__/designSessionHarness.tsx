@@ -15,6 +15,7 @@
 import { vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { DesignSession } from "../components/session/DesignSession";
+import { SweepPinsProvider } from "../components/session/SweepPinsProvider";
 import { VIEW_PREFS_KEY, type Layout } from "../components/session/useViewPrefs";
 import { type LegacyChartView, VIEWS, type View } from "../lib/view";
 import type { ExampleDescriptor } from "../lib/params";
@@ -176,7 +177,20 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
     },
   );
 
-  return render(<DesignSession id={id} active />);
+  return render(sessionTree(id));
+}
+
+// The tree the harness renders: the session under the shell's pinned-sweep
+// provider (AK#1757 item 1), as App mounts it. `rerender(sessionTree(2))`
+// replaces the session with a fresh one (keyed by id) while the provider,
+// and the pins it holds, stay: what closing a design tab and opening
+// another does in the app.
+export function sessionTree(id: number) {
+  return (
+    <SweepPinsProvider>
+      <DesignSession key={id} id={id} active />
+    </SweepPinsProvider>
+  );
 }
 
 // Resolves the first time `pred` holds over the DOM under `root`, checked

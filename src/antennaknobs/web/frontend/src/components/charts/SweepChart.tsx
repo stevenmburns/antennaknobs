@@ -23,8 +23,9 @@ import {
 } from "../../lib/sweepAxis";
 import { ThemeContext } from "../hooks";
 import { CHART_FONT, fitChartCanvas, useChartScale } from "./chartScale";
-import { curvesAttr, type ExtraCurve, NO_CURVES, sweepSpan } from "./curves";
-import { feedColor, feedSweepColor, plotColors, STALE_TRACE_ALPHA } from "./palette";
+import { pinZAt, valueAt } from "../../lib/sweepPins";
+import { curvesAttr, type ExtraCurve, NO_CURVES, NO_PINS, type PinCurve, pinsAttr, sweepSpan } from "./curves";
+import { feedColor, feedSweepColor, PIN_DASH, plotColors, STALE_TRACE_ALPHA } from "./palette";
 import { SweepRangePopover } from "./SweepRangePopover";
 import {
   drawSweepProgressBar,
@@ -145,6 +146,7 @@ export function SweepChart({
   onThresholdChange,
   stale = false,
   curves = NO_CURVES,
+  pins = NO_PINS,
 }: {
   mode: SweepMode;
   r: number;
@@ -189,6 +191,10 @@ export function SweepChart({
    *  their colours over the same frequency axis; Auto fits them too. The
    *  bands and the bandwidth readout stay the chart's own curve's. */
   curves?: readonly ExtraCurve[];
+  /** Pinned sweeps (AK#1757 item 1), already placed on this chart's range:
+   *  dashed, in their own colours, each at ITS OWN Z0 (ruling 4), no live
+   *  marker. Auto fits them too; the hover reads them. */
+  pins?: readonly PinCurve[];
 }) {
   // The choice as drawn: the mode's default when none is passed, and a VSWR
   // Auto read as the 1–∞ scale that replaced it. From here on `axis.kind`
@@ -254,6 +260,10 @@ export function SweepChart({
       curveTrails.push(valueFor(mode, s.z_re[i], s.z_im[i], z0));
     }
   }
+  // Each pin's values at its own reference (ruling 4): a pin taken at 50 Ω
+  // reads its 50 Ω SWR on a 75 Ω chart, as it read when it was pinned.
+  const pinYs = pins.map((p) => p.xs.map((_, i) => valueFor(mode, p.zRe[i], p.zIm[i], p.z0)));
+  const pinTrails = pinYs.flat();
   const curvesRunning = curves.length > 0 && !curves.every((c) => c.settled !== false);
   const markerVs = markerPoints.map((m) => m.v);
   // The S11 axis top ADAPTS when any drawn value crosses 0 dB (a driven
@@ -263,7 +273,7 @@ export function SweepChart({
   // carries the over-unity port pushes the top up, headroom included, and
   // the 0 dB boundary stays as a tick — the line a healthy port never
   // crosses.
-  const s11Top = mode === "gamma" ? s11DbTop([...trails, ...curveTrails, ...markerVs]) : 0;
+  const s11Top = mode === "gamma" ? s11DbTop([...trails, ...curveTrails, ...pinTrails, ...markerVs]) : 0;
   // Auto fits the finished sweep when there is one, else the marker(s) — the
   // sweep alone, not the markers with it, so the planner (which sees only
   // the sweep) derives the same domain. Not a sweep still streaming in: its
@@ -271,11 +281,13 @@ export function SweepChart({
   // grow-only hold would lock that in until the settle (seen in the real
   // app: a 20 → 100 → 1.5 flash). Refinement rounds add points to a
   // finished sweep, which only ever deepens the dip, so they fit as usual.
+  // A pin is fitted beside whatever curve is fitted, never alone over the
+  // markers: until the chart's own sweep lands, Auto reads the live point.
   const fitValues =
     hasSweep && !running
-      ? [...trails, ...curveTrails]
+      ? [...trails, ...curveTrails, ...pinTrails]
       : curveTrails.length > 0 && !curvesRunning
-        ? curveTrails
+        ? [...curveTrails, ...pinTrails]
         : markerVs;
   const fresh = sweepAxisDomain(mode, axis, fitValues, s11Top, swrThreshold);
   const quiet = useQuiet(
@@ -324,6 +336,38 @@ export function SweepChart({
 
   // The range popover's anchor, while it is open.
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
+
+  // The span every curve drawn covers (the chart's own, else another's
+  // while its own has yet to land), and the pins' (already inside the
+  // chart's range, so they only matter before any curve lands).
+  const curveSpan = sweepSpan([sweep, ...curves.map((c) => c.sweep)]);
+  const pinLo = Math.min(...pins.map((p) => p.xs[0] ?? Infinity));
+  const pinHi = Math.max(...pins.map((p) => p.xs[p.xs.length - 1] ?? -Infinity));
+  const span =
+    curveSpan ?? (pinLo < pinHi ? { lo: pinLo, hi: pinHi } : null);
+  const spanKey = span ? `${span.lo},${span.hi}` : "";
+
+  // Hover (AK#1757 item 1): the frequency under the pointer, and each
+  // curve's value there, the live curve's and each pin's (at its Z0).
+  const [hoverF, setHoverF] = useState<number | null>(null);
+  const shownHoverF = span && hoverF !== null && hoverF >= span.lo && hoverF <= span.hi ? hoverF : null;
+  const ownAt = (f: number): number | null => {
+    if (!hasSweep) return null;
+    const re = valueAt(sweep!.freqs_mhz, sweep!.z_re, f);
+    const im = valueAt(sweep!.freqs_mhz, sweep!.z_im, f);
+    return re === null || im === null ? null : valueFor(mode, re, im, z0);
+  };
+  const pinAt = (p: PinCurve, f: number): number | null => {
+    const z = pinZAt(p, f);
+    return z ? valueFor(mode, z.re, z.im, p.z0) : null;
+  };
+  const hoverOwn = shownHoverF !== null ? ownAt(shownHoverF) : null;
+  const hoverPins =
+    shownHoverF !== null ? pins.map((p) => ({ p, v: pinAt(p, shownHoverF) })) : [];
+  const hoverKey =
+    shownHoverF === null
+      ? ""
+      : `${shownHoverF}:${hoverOwn}:${hoverPins.map((h) => h.v).join(",")}`;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -416,7 +460,6 @@ export function SweepChart({
     // three agree about where on the axis a given frequency sits.
     // The span every curve drawn covers (the chart's own, else another's
     // while its own has yet to land).
-    const span = sweepSpan([sweep, ...curves.map((c) => c.sweep)]);
     const hasSpan = span !== null;
     const fLo = span ? span.lo : null;
     const fHi = span ? span.hi : null;
@@ -546,6 +589,39 @@ export function SweepChart({
       ctx.restore();
     }
 
+    // The pinned sweeps (AK#1757 item 1): dashed, in their colours, at
+    // their own Z0, never dimmed (a pin is not stale: it never re-solves).
+    if (hasSpan && pins.length > 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(marginL, marginT, plotW, plotH);
+      ctx.clip();
+      ctx.lineWidth = 1.3;
+      ctx.setLineDash(PIN_DASH);
+      pins.forEach((p, k) => {
+        const ys = pinYs[k];
+        if (ys.length === 0) return;
+        ctx.strokeStyle = p.color;
+        ctx.fillStyle = p.color;
+        if (ys.length === 1) {
+          ctx.beginPath();
+          ctx.arc(xOf(p.xs[0]), yOf(ys[0]), 2, 0, 2 * Math.PI);
+          ctx.fill();
+          return;
+        }
+        ctx.beginPath();
+        ys.forEach((v, i) => {
+          const px = xOf(p.xs[i]);
+          const py = marginT + plotH * (1 - rawFracOf(v));
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        });
+        ctx.stroke();
+      });
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
     if (hasSpan) {
       // Freq range label, bottom-right (same convention as SmithChart).
       ctx.fillStyle = PC.labelBright;
@@ -590,6 +666,37 @@ export function SweepChart({
       }
     }
 
+    // Hover: a hairline at the pointer's frequency and a box of each
+    // curve's value there, the live one's first, then each pin's in its
+    // colour.
+    if (hasSpan && shownHoverF !== null) {
+      const hx = xOf(shownHoverF);
+      ctx.strokeStyle = PC.labelBright;
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(hx, marginT);
+      ctx.lineTo(hx, marginT + plotH);
+      ctx.stroke();
+      const fmt = (v: number | null) =>
+        v === null ? "—" : mode === "vswr" ? v.toFixed(2) : `${v.toFixed(1)} dB`;
+      const rows: { text: string; color: string }[] = [
+        { text: `${shownHoverF.toFixed(3)} MHz`, color: PC.labelStrong },
+        ...(hoverOwn !== null ? [{ text: fmt(hoverOwn), color: feedColor(0) }] : []),
+        ...hoverPins.map((h) => ({ text: `pin ${fmt(h.v)}`, color: h.p.color })),
+      ];
+      ctx.font = CHART_FONT.tick;
+      const w = Math.max(...rows.map((r) => ctx.measureText(r.text).width)) + 8;
+      const h = 12 * rows.length + 4;
+      const bx = hx > marginL + plotW / 2 ? hx - w - 6 : hx + 6;
+      const by = marginT + 4;
+      ctx.fillStyle = `rgba(${PC.bgRgb}, 0.9)`;
+      ctx.fillRect(bx, by, w, h);
+      rows.forEach((r, i) => {
+        ctx.fillStyle = r.color;
+        ctx.fillText(r.text, bx + 4, by + 12 + 12 * i);
+      });
+    }
+
     const status = sweepStatusText(running, progress);
     if (status) {
       ctx.fillStyle = PC.label;
@@ -613,7 +720,17 @@ export function SweepChart({
     // bands and the threshold line (AK#1738): strings, so an unchanged range
     // does not redraw.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, r, x, z0, size, k, sweep, measFreqMhz, running, progress, settled, feeds, multiFeed, theme, domKey, bandsKey, readout, swrThreshold, stale, curves]);
+  }, [mode, r, x, z0, size, k, sweep, measFreqMhz, running, progress, settled, feeds, multiFeed, theme, domKey, bandsKey, readout, swrThreshold, stale, curves, pins, spanKey, hoverKey]);
+
+  // The pointer's frequency, in the canvas's logical px (./chartScale), on
+  // the plot's margins as the draw lays them out.
+  const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!span) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const plotW = size / k - 26 - 8;
+    const at = ((e.clientX - rect.left) / k - 26) / plotW;
+    setHoverF(!Number.isFinite(at) || at < 0 || at > 1 ? null : span.lo + at * (span.hi - span.lo));
+  };
 
   const title =
     mode === "vswr" ? "VSWR range and SWR threshold" : "S11 range and SWR threshold";
@@ -638,7 +755,17 @@ export function SweepChart({
         data-axis={axis.kind}
         data-bands={bands.length}
         data-curves={curvesAttr(curves)}
+        data-pins={pinsAttr(pins)}
+        data-pin-y={pinYs.map((ys) => ys.map((v) => v.toFixed(4)).join(",")).join(";")}
+        data-hover={shownHoverF !== null ? shownHoverF.toFixed(4) : ""}
+        data-hover-own={hoverOwn !== null ? hoverOwn.toFixed(4) : ""}
+        data-hover-pins={hoverPins
+          .map((h) => `${h.p.id}:${h.v !== null ? h.v.toFixed(4) : ""}`)
+          .join(";")}
         data-readout={readout}
+        onPointerMove={onPointerMove}
+        onPointerDown={onPointerMove}
+        onPointerLeave={() => setHoverF(null)}
       />
       {/* The y axis is the range control (AK#1738): a transparent button over
           the tick-label strip, the whole plot height. Stage charts only. */}

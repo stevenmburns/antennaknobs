@@ -21,7 +21,7 @@ import type {
   PatternData,
   PinnedPattern,
 } from "../charts/types";
-import type { ExtraCurve } from "../charts/curves";
+import type { ExtraCurve, PinCurve } from "../charts/curves";
 import { ChartFrequency, ChartKnobSmith, knobTable } from "./ChartFrequency";
 import { ChartLegend, type ChartLegendData, legendShown, refusedCount } from "./ChartLegend";
 import { FilesPanel, type FilesViewData } from "./FilesPanel";
@@ -125,6 +125,10 @@ export type ViewRenderProps = {
    *  and `chartCurves` draw them: the Table view's column groups (AK#1757
    *  step 5 unit 5). Omitted: the groups go unnamed. */
   chartCellLabels?: readonly string[];
+  /** The pinned sweeps that draw on this chart (AK#1757 item 1): the
+   *  enabled pins whose x matches its own, cut to its range, drawn dashed
+   *  outside the curve cap on every view but the Table. Omitted: none. */
+  chartPins?: readonly PinCurve[];
 };
 
 /** A frequency sweep as the analysis chart draws it: the chart's sweep
@@ -343,6 +347,7 @@ function analysisChart(p: ViewRenderProps): ReactElement {
       {...(p.onZparamXLogChange ? { onXLogChange: p.onZparamXLogChange } : {})}
       {...(p.onZparamAxisChange ? { onAxisChange: p.onZparamAxisChange } : {})}
       {...(p.chartCurves ? { curves: p.chartCurves } : {})}
+      {...(p.chartPins ? { pins: p.chartPins } : {})}
     />
   );
 }

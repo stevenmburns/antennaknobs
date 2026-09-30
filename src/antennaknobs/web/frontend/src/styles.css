@@ -116,6 +116,15 @@
   --plot-ghost-1-rgb: 190, 55, 135;   /* pink */
   --plot-ghost-2-rgb: 115, 85, 205;   /* violet */
   --plot-ghost-3-rgb: 26, 145, 150;   /* teal */
+  /* pinned sweeps (AK#1757 item 1): 8 inks, darker than the dark theme's */
+  --plot-sweep-pin-0-rgb: 205, 80, 50;
+  --plot-sweep-pin-1-rgb: 160, 135, 0;
+  --plot-sweep-pin-2-rgb: 90, 150, 20;
+  --plot-sweep-pin-3-rgb: 0, 140, 105;
+  --plot-sweep-pin-4-rgb: 40, 95, 200;
+  --plot-sweep-pin-5-rgb: 135, 70, 200;
+  --plot-sweep-pin-6-rgb: 195, 40, 160;
+  --plot-sweep-pin-7-rgb: 140, 100, 55;
 
   /* current heatmap ramp: faint where low, bold where high (reads on white) */
   --plot-current-0: 200, 212, 226;
@@ -193,6 +202,14 @@
   --plot-ghost-1-rgb: 255, 130, 200;
   --plot-ghost-2-rgb: 180, 160, 255;
   --plot-ghost-3-rgb: 120, 220, 220;
+  --plot-sweep-pin-0-rgb: 255, 140, 110;
+  --plot-sweep-pin-1-rgb: 230, 215, 90;
+  --plot-sweep-pin-2-rgb: 170, 235, 110;
+  --plot-sweep-pin-3-rgb: 100, 235, 185;
+  --plot-sweep-pin-4-rgb: 140, 185, 255;
+  --plot-sweep-pin-5-rgb: 215, 165, 255;
+  --plot-sweep-pin-6-rgb: 255, 110, 225;
+  --plot-sweep-pin-7-rgb: 215, 185, 145;
   --plot-current-0: 40, 64, 96;
   --plot-current-1: 60, 140, 200;
   --plot-current-2: 118, 208, 255;
@@ -4861,6 +4878,51 @@ canvas {
 }
 .chart-legend-why {
   color: var(--danger);
+}
+/* The legend's pinned sweeps (AK#1757 item 1): a dashed swatch in the
+   pin's colour; a pin hidden, or unable to draw here, greys with its reason
+   in the muted ink (a pin that cannot draw is not an error). */
+.chart-legend-pins {
+  margin-top: var(--space-1);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-1);
+}
+.chart-legend-pin {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.chart-legend-pin.is-greyed {
+  color: var(--muted);
+}
+.chart-legend-pin.is-greyed .chart-legend-pin-swatch {
+  opacity: 0.5;
+}
+.chart-legend-pin input {
+  margin: 0;
+}
+.chart-legend-swatch.chart-legend-pin-swatch {
+  height: 0;
+  border: none;
+  border-top: calc(2px * var(--chart-scale)) dashed;
+}
+.chart-legend-pin .chart-legend-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.chart-legend-z0,
+.chart-legend-pin-why {
+  color: var(--muted);
+}
+.chart-legend-pin-btn {
+  flex: none;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
 }
 
 /* The analysis chart's Table view (AK#1757 step 5 unit 5): the CLI's

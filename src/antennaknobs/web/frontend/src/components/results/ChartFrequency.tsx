@@ -119,6 +119,7 @@ function frequencyRx(p: ViewRenderProps, f: ChartFrequencyRender): ReactElement 
       {...(onRxLog ? { onXLogChange: onRxLog } : {})}
       {...(onRxAxis ? { onAxisChange: onRxAxis } : {})}
       {...(curves ? { curves } : {})}
+      {...(p.chartPins ? { pins: p.chartPins } : {})}
     />
   );
 }
@@ -170,6 +171,7 @@ export function ChartFrequency({ p, f }: { p: ViewRenderProps; f: ChartFrequency
         designKey={p.result?.geometry ?? ""}
         stale={f.stale}
         {...(p.chartCurves ? { curves: p.chartCurves } : {})}
+        {...(p.chartPins ? { pins: p.chartPins } : {})}
       />
     );
   } else {
@@ -194,6 +196,7 @@ export function ChartFrequency({ p, f }: { p: ViewRenderProps; f: ChartFrequency
         swrThreshold={f.threshold}
         stale={f.stale}
         {...(p.chartCurves ? { curves: p.chartCurves } : {})}
+        {...(p.chartPins ? { pins: p.chartPins } : {})}
         {...(onAxis ? { onAxisChange: (c: SweepAxisChoice) => onAxis(mode, c) } : {})}
         {...(f.onThresholdChange ? { onThresholdChange: f.onThresholdChange } : {})}
       />
@@ -236,6 +239,7 @@ export function ChartKnobSmith({ p }: { p: ViewRenderProps }) {
         designKey={p.result?.geometry ?? ""}
         stale={stale}
         {...(p.chartCurves ? { curves: p.chartCurves } : {})}
+        {...(p.chartPins ? { pins: p.chartPins } : {})}
       />
     </div>
   );

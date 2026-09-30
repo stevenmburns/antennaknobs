@@ -31,6 +31,10 @@ export type ChartChrome = {
   onDuplicate?: () => void;
   /** Close this chart: a duplicate's only (the first chart unpins). */
   onClose?: () => void;
+  /** Pin the chart's curves as they stand (AK#1757 item 1): one pin per
+   *  drawn curve. `blocked` is why it cannot now (a run in flight, a
+   *  refused curve, nothing drawn yet), or null. Omitted: no Pin button. */
+  pin?: { onPin: () => void; blocked: string | null };
 };
 
 /** The chart's own chrome: the dwell switch, what it compares, and
@@ -40,6 +44,25 @@ export function ChartChromeControls(chrome: ChartChrome) {
     <>
       <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />
       {chrome.cross && <ChartCrossPicker {...chrome.cross} />}
+      {chrome.pin && (
+        <button
+          type="button"
+          className="zparam-reset chart-pin"
+          aria-label="Pin this chart's curves"
+          disabled={chrome.pin.blocked !== null}
+          title={
+            chrome.pin.blocked ??
+            "Freeze this chart's curves as pins: dashed, never re-solved, to compare what you change next against"
+          }
+          // Not also a click on the grid cell under it (as duplicate).
+          onClick={(e) => {
+            e.stopPropagation();
+            chrome.pin?.onPin();
+          }}
+        >
+          pin
+        </button>
+      )}
       {chrome.onDuplicate && (
         <button
           type="button"

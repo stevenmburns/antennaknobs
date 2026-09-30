@@ -90,9 +90,23 @@ import {
   preselect,
 } from "../../lib/chartCells";
 import { ChartScaleContext } from "../charts/chartScale";
-import { cellColor } from "../charts/palette";
-import type { ExtraCurve } from "../charts/curves";
-import type { ChartLegendData } from "../results/ChartLegend";
+import { cellColor, sweepPinColor } from "../charts/palette";
+import type { ExtraCurve, PinCurve } from "../charts/curves";
+import type { ChartLegendData, ChartLegendPin } from "../results/ChartLegend";
+import {
+  changedKnobs,
+  type ChartX,
+  FREQUENCY_X,
+  knobX,
+  pinCsv,
+  pinCsvName,
+  pinCurve,
+  pinLabel,
+  type PinnableCurve,
+  pinsFromCurves,
+  placePin,
+  z0Note,
+} from "../../lib/sweepPins";
 import type { ChartChrome } from "../results/AnalysisChartControls";
 import { BackendConfigModal } from "../backend/BackendConfigModal";
 import { ParamForm } from "../params/ParamForm";
@@ -125,7 +139,13 @@ import {
 import { ViewGrid } from "../results/ViewGrid";
 import { ViewPanel } from "../results/ViewPanel";
 import type { ChartFrequencyRender } from "../results/viewRegistry";
-import { fetchMetrics, PinsContext, SessionsContext, ThemeControlContext } from "./contexts";
+import {
+  fetchMetrics,
+  PinsContext,
+  SessionsContext,
+  SweepPinsContext,
+  ThemeControlContext,
+} from "./contexts";
 import { CatalogPanel } from "./CatalogPanel";
 import { DesignFreqRow } from "./DesignFreqRow";
 import { GroundNotices } from "./GroundPanel";
@@ -133,7 +153,7 @@ import { GroundConfigModal } from "./GroundConfigModal";
 import { GroundSlotTabs } from "./GroundSlotTabs";
 import { KnobOptMenu } from "./KnobOptMenu";
 import { SweepRangeMenu } from "./SweepRangeMenu";
-import { copyParams, downloadNec, loadMeasured } from "./sessionActions";
+import { copyParams, downloadNec, loadMeasured, saveTextFile } from "./sessionActions";
 import { SessionGearMenu } from "./SessionGearMenu";
 import { SolveOverlays } from "./SolveOverlays";
 import { SolverSlotTabs } from "./SolverSlotTabs";
@@ -1019,6 +1039,14 @@ function DesignSessionBody({
     togglePin,
     clearPins,
   } = useContext(PinsContext);
+  // Pinned sweeps (AK#1757 item 1): the shell's too, shared across sessions
+  // as the pattern pins are, so a pin outlives the tab that made it.
+  const {
+    pins: sweepPins,
+    addPins: addSweepPins,
+    removePin: removeSweepPin,
+    togglePin: toggleSweepPin,
+  } = useContext(SweepPinsContext);
   // The live antenna's metrics for the compare table, held WITH the solve
   // they describe: a re-solve must not keep showing the previous design's
   // numbers while the new ones are fetched (AK#1632).
@@ -3257,6 +3285,41 @@ function DesignSessionBody({
     if (view === CHART_VIEW_IDS[i]) setView("zparam");
   };
 
+  // A pinned sweep's context label (AK#1757 item 1, lib/sweepPins.ts
+  // pinLabel): the cell's design and variant, its slot's engine, its ground
+  // slot, the knobs that differ from the design's defaults (not the one the
+  // chart sweeps; a family step's value), and its plane. Another design's
+  // cell is solved at that design's defaults (designAtDefaults), so it has
+  // no changed knobs but its step.
+  const knobDefaults = (): Record<string, unknown> => {
+    if (!currentExample) return {};
+    const base: Record<string, unknown> = seedDefaults(currentExample.param_schema);
+    const vv = currentExample.variant_values?.[currentVariant];
+    if (vv) for (const k of Object.keys(base)) if (k in vv) base[k] = vv[k];
+    return base;
+  };
+  const pinContext = (c: ChartCell, swept: string | null): string => {
+    const other = c.design !== undefined && c.design !== geometry;
+    const cfg = c.slot !== null ? slots[c.slot as Slot] : undefined;
+    const g = groundSlots.find((x) => x.id === c.ground);
+    const knobs = other ? [] : changedKnobs(currentValues, knobDefaults(), swept);
+    if (c.step && c.step.knob !== swept) {
+      const at = knobs.findIndex(([k]) => k === c.step!.knob);
+      if (at >= 0) knobs[at] = [c.step.knob, c.step.value];
+      else knobs.push([c.step.knob, c.step.value]);
+    }
+    return pinLabel({
+      design: c.design ?? geometry,
+      variant: other
+        ? (examples.find((e) => e.name === c.design)?.variants?.[0] ?? null)
+        : currentVariant,
+      engine: cfg ? backendDisplayLabel(cfg.backend, cfg.opts) : "",
+      ground: g ? groundSlotLabel(g, soilPresets ?? []) : "",
+      knobs,
+      plane: c.plane ?? (other ? null : plane),
+    });
+  };
+
   // Everything one chart shows and does (AK#1757 step 5 units 2 to 4): its
   // header (the picker, Run and the dwell switch on every kind, the engine
   // and ground checkboxes, duplicate / close, and the kind's own inputs — a
@@ -3303,6 +3366,80 @@ function DesignSessionBody({
       });
       setAt((c) => ({ ...c, cross }));
     };
+    // Pinned sweeps (AK#1757 item 1). What this chart sweeps (null on the
+    // Table, which draws against no x), the reference its SWR and S11 are
+    // drawn at (ChartFrequency's live point's), and its drawn curves as
+    // pins would hold them: one per curve (ruling 1).
+    const isFreq = m.state.kind === "frequency";
+    const knobUnit = m.isDensity ? null : (m.knob?.unit ?? null);
+    const chartX: ChartX | null =
+      chartView(m.state) === "Table"
+        ? null
+        : isFreq
+          ? { x: FREQUENCY_X, lo: m.inputs.freq.range.lo, hi: m.inputs.freq.range.hi }
+          : {
+              x: knobX(m.spec.param, m.label, knobUnit),
+              lo: Math.min(...m.values),
+              hi: Math.max(...m.values),
+            };
+    const chartZ0 = shownResult?.z0_ohms ?? z0;
+    const pinnable: PinnableCurve[] = m.drawn.flatMap((c, k) => {
+      const r = runners[k];
+      if (!r) return [];
+      const cell = m.drawn.length > 1 ? c.label : "";
+      const design = c.design ?? geometry;
+      if (isFreq) {
+        const sw = r.freq.sweep;
+        return sw && sw.freqs_mhz.length > 0
+          ? [{ xs: sw.freqs_mhz, zRe: sw.z_re, zIm: sw.z_im, x: FREQUENCY_X, label: pinContext(c, null), cell, design }]
+          : [];
+      }
+      const d = r.param.data;
+      if (!d || d.error || d.param !== m.runs[k].param.req.param || d.values.length === 0) return [];
+      const x = d.param === m.spec.param ? knobX(d.param, m.label, knobUnit) : knobX(d.param, d.label, null);
+      return [{ xs: d.values, zRe: d.z_re, zIm: d.z_im, x, label: pinContext(c, d.param), cell, design }];
+    });
+    // Pin snapshots the curves as they stand, so not while any is still
+    // moving (a run, a refinement, or a dwell about to re-run), refused, or
+    // of inputs since changed (its label would name the knobs as they are
+    // now, not as the curve was solved).
+    const pinBlocked: string | null = runners.some((r) =>
+      isFreq ? r.freq.running || r.freq.phase !== "idle" : r.param.running || r.param.phase !== "idle",
+    )
+      ? "A run is in flight: pin once it has finished"
+      : m.plan.capRefusal !== null ||
+          m.plan.cells.some((c) => c.refused) ||
+          runners.some((r) => (isFreq ? r.freq.error : r.param.data?.error))
+        ? "A curve is refused: only a chart whose every curve draws can be pinned"
+        : runners.some((r) => (isFreq ? r.freq.stale : !!r.param.data?.stale))
+          ? "The curves are stale: run them again, then pin"
+          : pinnable.length === 0
+            ? "Nothing drawn yet to pin"
+            : pinnable.length < m.drawn.length
+              ? "Not every curve has landed yet"
+              : null;
+    // Every pin in the session is listed; the enabled ones whose x matches
+    // this chart's draw here, cut to its range (placePin).
+    const pinRows: ChartLegendPin[] = sweepPins.map((p) => {
+      const at = placePin(p, chartX);
+      return {
+        id: p.id,
+        label: p.label,
+        cell: p.cell,
+        color: sweepPinColor(p.colorIdx),
+        enabled: p.enabled,
+        reason: at.drawable ? null : at.reason,
+        z0Note: z0Note(p.z0, chartZ0),
+        onToggle: () => toggleSweepPin(p.id),
+        onDelete: () => removeSweepPin(p.id),
+        onCsv: () => saveTextFile(pinCsv(p), pinCsvName(p, p.id)),
+      };
+    });
+    const chartPins: PinCurve[] = sweepPins.flatMap((p) => {
+      if (!p.enabled) return [];
+      const at = placePin(p, chartX);
+      return at.drawable ? [pinCurve(p, at.idx, sweepPinColor(p.colorIdx))] : [];
+    });
     const chrome: ChartChrome = {
       dwell: m.dwellOn,
       onDwell: (on: boolean) => setAt((c) => ({ ...c, dwell: on })),
@@ -3315,6 +3452,7 @@ function DesignSessionBody({
         onGrounds: (ids: string[]) => setCross({ ...m.now.cross, grounds: ids }),
         refusal: m.plan.capRefusal,
       },
+      pin: { onPin: () => addSweepPins(pinsFromCurves(pinnable, chartZ0)), blocked: pinBlocked },
       ...(charts.some((c) => c === null) ? { onDuplicate: () => duplicateChart(i) } : {}),
       ...(i > 0 ? { onClose: () => closeChart(i) } : {}),
     };
@@ -3372,6 +3510,7 @@ function DesignSessionBody({
         return { key: c.key, label: c.label, color: cellColor(k), refused: null, error: error ?? null };
       }),
       capRefusal: m.plan.capRefusal,
+      ...(pinRows.length > 0 ? { pins: pinRows } : {}),
       rx: rxPlot(m),
       // Collapsed to its chip on a phone until the viewer opens it, open on
       // a desktop (Steve's phone review of unit 4a), as the knob sweep's
@@ -3540,6 +3679,7 @@ function DesignSessionBody({
       ...(chartCurves ? { chartCurves } : {}),
       chartLegend: legend,
       chartCellLabels: m.drawn.map((c) => c.label),
+      ...(chartPins.length > 0 ? { chartPins } : {}),
     };
     const thumb = {
       paramSweep: p0data,
@@ -3548,6 +3688,7 @@ function DesignSessionBody({
       chartFrequency: freqRender,
       ...(chartCurves ? { chartCurves } : {}),
       chartCellLabels: m.drawn.map((c) => c.label),
+      ...(chartPins.length > 0 ? { chartPins } : {}),
     };
     return { controls, overlays, panel, thumb };
   };

@@ -22,9 +22,14 @@ import { formatTick } from "../../lib/sweepAxis";
 import { zinfSuffix } from "../../lib/zinf";
 import { ZPARAM_PLOT_MARGIN } from "../../lib/zparamLayout";
 import { ThemeContext, useIsMobile } from "../hooks";
-import { curvesAttr, type ExtraCurve, NO_CURVES } from "./curves";
+import { pinZAt } from "../../lib/sweepPins";
+import { curvesAttr, type ExtraCurve, NO_CURVES, NO_PINS, type PinCurve, pinsAttr } from "./curves";
 import { CHART_FONT, fitChartCanvas, useChartScale } from "./chartScale";
-import { cellColor, plotColors } from "./palette";
+import { cellColor, PIN_DASH, plotColors } from "./palette";
+
+/** A pinned sweep's X on the R/X plot: dotted, where its R is dashed (the
+ *  live curves draw R solid and X dashed). */
+const PIN_X_DASH = [2, 3];
 import { RxRangePopover } from "./RxRangePopover";
 
 // The Z-vs-parameter chart (docs/design/z-vs-param-view.md): the feed R and X
@@ -72,6 +77,7 @@ export function ZParamChart({
   callouts = true,
   onCalloutsChange,
   curves = NO_CURVES,
+  pins = NO_PINS,
 }: {
   data: ParamSweepData | null;
   /** The parameter the view is set to sweep — the sweep in hand may still
@@ -112,6 +118,10 @@ export function ZParamChart({
    *  solid and its X dashed in its own colour, and the ranges take them in;
    *  the end-value boxes and Z∞ stay the chart's own curve's. */
   curves?: readonly ExtraCurve[];
+  /** Pinned sweeps (AK#1757 item 1) of this chart's x, placed on its range:
+   *  R dashed and X dotted in the pin's colour, no dots, no live marker.
+   *  The ranges take them in; the hover reads them at the hovered x. */
+  pins?: readonly PinCurve[];
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const { isMobile } = useIsMobile();
@@ -144,7 +154,7 @@ export function ZParamChart({
   // 5-curve family of 2.6 px circles is a smear); the live marker is not one
   // of them and keeps its size.
   const dotR = traceDotRadius(isMobile, 1 + others.length);
-  const otherXs = others.flatMap((o) => o.d.values);
+  const otherXs = [...others.flatMap((o) => o.d.values), ...pins.flatMap((p) => p.xs)];
   const dom = xDomain(
     xs.length > 0 || otherXs.length > 0
       ? [...xs, ...otherXs]
@@ -158,8 +168,8 @@ export function ZParamChart({
   // sweep's span, so the live dots stay on the plot).
   const inSpan =
     currentValue != null && n > 1 && currentValue >= dom.lo && currentValue <= dom.hi;
-  const otherR = others.flatMap((o) => o.d.z_re);
-  const otherX = others.flatMap((o) => o.d.z_im);
+  const otherR = [...others.flatMap((o) => o.d.z_re), ...pins.flatMap((p) => p.zRe)];
+  const otherX = [...others.flatMap((o) => o.d.z_im), ...pins.flatMap((p) => p.zIm)];
   const rFit = [...(inSpan && liveR != null ? [...rs, liveR] : rs), ...otherR];
   const xFit = [...(inSpan && liveX != null ? [...xsIm, liveX] : xsIm), ...otherX];
   const extrap =
@@ -194,8 +204,11 @@ export function ZParamChart({
   const xT = rxTicks(xDom);
   const xTk = n > 0 ? xTicks(dom, logX) : [];
   const shownHover = hover != null && hover >= 0 && hover < n ? hover : null;
+  // Each pin's Z at the hovered x (AK#1757 item 1), beside the live curve's.
+  const hoverPins =
+    shownHover != null ? pins.map((p) => ({ p, z: pinZAt(p, xs[shownHover]) })) : [];
   const keyOf = (dd: { lo: number; hi: number }) => `${dd.lo},${dd.hi}`;
-  const domKey = `${keyOf(dom)}|${keyOf(rDom)}|${keyOf(xDom)}|${logX}|${z0}|${curvesAttr(curves)}`;
+  const domKey = `${keyOf(dom)}|${keyOf(rDom)}|${keyOf(xDom)}|${logX}|${z0}|${curvesAttr(curves)}|${pinsAttr(pins)}`;
   // The refusal's own words are a note over the stage (they do not fit a
   // canvas line); the chart says only that there is one.
   const status = d?.error
@@ -409,6 +422,27 @@ export function ZParamChart({
       trace(xs, xsIm, xDom, X(dim));
     }
 
+    // The pinned sweeps: R dashed, X dotted, in each pin's colour.
+    for (const p of pins) {
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 1.3;
+      for (const [ys, dd, dash] of [
+        [p.zRe, rDom, PIN_DASH],
+        [p.zIm, xDom, PIN_X_DASH],
+      ] as const) {
+        ctx.setLineDash(dash);
+        ctx.beginPath();
+        p.xs.forEach((v, i) => {
+          const x = px(v);
+          const y = py(ys[i], dd);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
+
     // The current value: a dashed guide, and the live solve's R and X on it.
     if (currentValue != null && currentValue >= dom.lo && currentValue <= dom.hi) {
       const gx = px(currentValue);
@@ -494,7 +528,28 @@ export function ZParamChart({
         `X ${formatOhm(xsIm[i])} Ω`,
       ];
       const hx = px(xs[i]);
-      box(lines, hx, MARGIN.t + 24, PC.labelStrong, hx > MARGIN.l + pw / 2);
+      const left = hx > MARGIN.l + pw / 2;
+      box(lines, hx, MARGIN.t + 24, PC.labelStrong, left);
+      // The pins at the same x, one line each in its colour, in a box of
+      // their own under the live one's.
+      const rows = hoverPins.map(({ p, z }) => ({
+        text: z ? `pin R ${formatOhm(z.re)} X ${formatOhm(z.im)}` : "pin —",
+        color: p.color,
+      }));
+      if (rows.length > 0) {
+        ctx.font = CHART_FONT.tick;
+        const w = Math.max(...rows.map((r) => ctx.measureText(r.text).width)) + 8;
+        const h = 12 * rows.length + 4;
+        let bx = left ? hx - w - 8 : hx + 8;
+        bx = Math.max(MARGIN.l + 2, Math.min(MARGIN.l + pw - w - 2, bx));
+        const by = Math.min(MARGIN.t + ph - h - 2, MARGIN.t + 24 + 12 * lines.length + 8);
+        ctx.fillStyle = `rgba(${PC.bgRgb}, 0.9)`;
+        ctx.fillRect(bx, by, w, h);
+        rows.forEach((r, k) => {
+          ctx.fillStyle = r.color;
+          ctx.fillText(r.text, bx + 4, by + 12 + 12 * k);
+        });
+      }
     }
     // Z∞ readout, top of the plot (density), with how it was reached.
     // On a phone the line is DOM (below), so its ⓘ can follow the text
@@ -514,7 +569,7 @@ export function ZParamChart({
     // choices below; domKey stands in for the domains as a string, so an
     // unchanged range does not redraw.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, param, label, unit, size, k, theme, isMobile, zinfFull, dotR, domKey, currentValue, liveR, liveX, shownHover, status, callouts, curves]);
+  }, [data, param, label, unit, size, k, theme, isMobile, zinfFull, dotR, domKey, currentValue, liveR, liveX, shownHover, status, callouts, curves, pins]);
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (n === 0) return;
@@ -574,6 +629,10 @@ export function ZParamChart({
         data-phase={phase}
         data-callouts={callouts && n >= 2 ? "1" : "0"}
         data-curves={curvesAttr(curves)}
+        data-pins={pinsAttr(pins)}
+        data-hover-pins={hoverPins
+          .map(({ p, z }) => `${p.id}:${z ? `${z.re.toFixed(3)},${z.im.toFixed(3)}` : ""}`)
+          .join(";")}
         onPointerMove={onPointerMove}
         // A tap on a phone reads the nearest point too.
         onPointerDown={onPointerMove}
