@@ -10,13 +10,16 @@ import {
   freqSweepSignature,
   NOT_APPROVED,
   paramSweepSignature,
+  patternSignature,
 } from "./useAnalysisRunners";
 import { type FreqSweepHandle, useFreqSweep } from "./useFreqSweep";
 import { type ParamSweepHandle, useParamSweep } from "./useParamSweep";
+import { type PatternCellHandle, usePatternCell } from "./usePatternCell";
 
 // The runners behind an analysis chart's curves (AK#1757, sweep-framework
 // step 5 unit 4): one frequency sweep runner and one parameter sweep runner
-// per engine x ground cell, up to the curve cap. React's hooks cannot be
+// per engine x ground cell, up to the curve cap, and one pattern cell runner
+// (step 7 unit 3), which a chart showing a pattern asks instead. React's hooks cannot be
 // called a variable number of times, so this holds a FIXED six pairs
 // (lib/chartCells.ts CURVE_CAP), unrolled, and the cells the chart has not
 // got are idle: not wanted, so they run nothing and hold nothing.
@@ -37,9 +40,15 @@ export type CellRun = {
     views: SweepProjectionSet;
   };
   param: { req: ParamSweepRequest; wanted: boolean };
+  /** A pattern's one solve (lib/analysisChart.ts chartRunInputs). */
+  pattern: { wanted: boolean; auto: boolean; elevAzDeg: number; azElevDeg: number };
 };
 
-export type CellRunners = { freq: FreqSweepHandle; param: ParamSweepHandle };
+export type CellRunners = {
+  freq: FreqSweepHandle;
+  param: ParamSweepHandle;
+  pattern: PatternCellHandle;
+};
 
 /** The number of runner pairs one chart holds: the curve cap. */
 export const CELL_RUNNERS = 6;
@@ -113,6 +122,25 @@ export function useChartCells(o: ChartCellsOptions): CellRunners[] {
       approvedComboRef: r.cell.onActiveSlot ? approvedComboRef : NOT_APPROVED,
     };
   };
+  const patternOptions = (run: CellRun | undefined) => {
+    const r = run ?? o.idle;
+    const on = run !== undefined;
+    return {
+      sig: on ? patternSignature(build(r.cell)) : "",
+      wanted: on && r.pattern.wanted,
+      auto: r.pattern.auto,
+      elevAzDeg: r.pattern.elevAzDeg,
+      azElevDeg: r.pattern.azElevDeg,
+      autoSim: o.autoSim,
+      active: o.active,
+      comboApproved: o.comboApproved,
+      recommendedBackend: o.recommendedBackend,
+      buildRequest: () => build(r.cell),
+      solveWithheld: o.solveWithheld,
+      seqRef: o.seqRef,
+      approvedComboRef: r.cell.onActiveSlot ? approvedComboRef : NOT_APPROVED,
+    };
+  };
   const f0 = useFreqSweep(freqOptions(o.runs[0]));
   const p0 = useParamSweep(paramOptions(o.runs[0]));
   const f1 = useFreqSweep(freqOptions(o.runs[1]));
@@ -125,12 +153,18 @@ export function useChartCells(o: ChartCellsOptions): CellRunners[] {
   const p4 = useParamSweep(paramOptions(o.runs[4]));
   const f5 = useFreqSweep(freqOptions(o.runs[5]));
   const p5 = useParamSweep(paramOptions(o.runs[5]));
+  const t0 = usePatternCell(patternOptions(o.runs[0]));
+  const t1 = usePatternCell(patternOptions(o.runs[1]));
+  const t2 = usePatternCell(patternOptions(o.runs[2]));
+  const t3 = usePatternCell(patternOptions(o.runs[3]));
+  const t4 = usePatternCell(patternOptions(o.runs[4]));
+  const t5 = usePatternCell(patternOptions(o.runs[5]));
   return [
-    { freq: f0, param: p0 },
-    { freq: f1, param: p1 },
-    { freq: f2, param: p2 },
-    { freq: f3, param: p3 },
-    { freq: f4, param: p4 },
-    { freq: f5, param: p5 },
+    { freq: f0, param: p0, pattern: t0 },
+    { freq: f1, param: p1, pattern: t1 },
+    { freq: f2, param: p2, pattern: t2 },
+    { freq: f3, param: p3, pattern: t3 },
+    { freq: f4, param: p4, pattern: t4 },
+    { freq: f5, param: p5, pattern: t5 },
   ];
 }

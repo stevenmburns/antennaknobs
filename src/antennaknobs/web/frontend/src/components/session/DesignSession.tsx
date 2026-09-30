@@ -160,8 +160,9 @@ import { copyParams, downloadNec, loadMeasured, saveTextFile } from "./sessionAc
 import { SessionGearMenu } from "./SessionGearMenu";
 import { SolveOverlays } from "./SolveOverlays";
 import { SolverSlotTabs } from "./SolverSlotTabs";
-import { type ChartCellRequest, useAnalysisRunners } from "./useAnalysisRunners";
+import { type ChartCellRequest, NOT_APPROVED, patternSignature, useAnalysisRunners } from "./useAnalysisRunners";
 import { type CellRun, type CellRunners, useChartCells } from "./useChartCells";
+import { usePatternCell } from "./usePatternCell";
 import { useDesignAnalyses } from "./useDesignAnalyses";
 import {
   analysisBlocked,
@@ -179,6 +180,7 @@ import {
   chartForNewDesign,
   chartFrequencyRange,
   chartListed,
+  chartPatternView,
   chartRunInputs,
   chartView,
   chartViews,
@@ -191,6 +193,7 @@ import {
   pickFrequency,
   pickKnob,
   pickOwnFrequency,
+  pickPattern,
   setChartView,
   withListed,
 } from "../../lib/analysisChart";
@@ -204,7 +207,7 @@ import {
   sameSpec,
   sweepableKnobs,
 } from "../../lib/paramSweep";
-import { FrequencyChartControls } from "../results/AnalysisChartControls";
+import { FrequencyChartControls, PatternChartControls } from "../results/AnalysisChartControls";
 import { ZParamControls } from "../results/ZParamControls";
 import { ZParamStage } from "../results/ZParamStage";
 
@@ -2427,6 +2430,8 @@ function DesignSessionBody({
         cell: cellRequest(i, k, c.slot as Slot, c.ground as string, c),
         freq: band ? { ...inputs.freq, range: band } : inputs.freq,
         param: own ? { ...inputs.param, req: { ...inputs.param.req, ...own } } : inputs.param,
+        // A pattern cell is one solve (step 7): its request is the cell's.
+        pattern: inputs.pattern,
       };
     });
     const currentRaw = isDensity ? nPerWire : currentValues[spec.param];
@@ -2545,7 +2550,7 @@ function DesignSessionBody({
   // makes. `same` says the pick keeps the chart's range or spec.
   const runPicked = (
     i: number,
-    kind: "freq" | "param",
+    kind: "freq" | "param" | "pattern",
     next: AnalysisChartState,
     same: boolean,
   ) => {
@@ -2553,7 +2558,7 @@ function DesignSessionBody({
     if (!m) return;
     const nextCells = planOf(next.cross, chartListed(next)).cells.filter(drawable);
     allRunnersOf[i].forEach((r, k) => {
-      const runner = kind === "freq" ? r.freq : r.param;
+      const runner = kind === "freq" ? r.freq : kind === "param" ? r.param : r.pattern;
       if (same && m.resident && k < nextCells.length && m.drawn[k]?.key === nextCells[k].key) {
         runner.runNow();
       } else {
@@ -2565,6 +2570,15 @@ function DesignSessionBody({
     const m = chartModels[i];
     const w = entry.workbench;
     if (!m || !w.runs || zparamAnalysisBlocked(entry)) return;
+    if (w.kind === "pattern") {
+      // A pattern (step 7): one solve per cell, drawn on its first view.
+      // Already this pattern (the cells it keeps): nothing will change to
+      // arm, so run it.
+      const next = pickCross(pickPattern(m.state, entry.name, w), w);
+      runPicked(i, "pattern", next, m.state.kind === "pattern" && pickedName(m.now) === entry.name);
+      setChartAt(i, () => next);
+      return;
+    }
     if (w.kind === "frequency") {
       const next = pickCross(
         pickFrequency(m.state, entry.name, w, chartDesignRange, {
@@ -2709,6 +2723,26 @@ function DesignSessionBody({
       approvedComboRef,
       ...(primaryRun ? { chartCell: primaryRun.cell, buildCellRequest } : {}),
     });
+  // The first chart's first pattern cell (AK#1757 step 7): the chart's
+  // other runners for that cell live in useAnalysisRunners, and this one
+  // beside them, on the same cell request (the session's own when there is
+  // no cell) and the same approval rule.
+  const primaryPatternBuild = primaryRun ? () => buildCellRequest(primaryRun.cell) : buildRequest;
+  const primaryPattern = usePatternCell({
+    sig: primaryRun ? patternSignature(primaryPatternBuild()) : "",
+    wanted: !!primaryRun && chartInputs.pattern.wanted,
+    auto: chartInputs.pattern.auto,
+    elevAzDeg: chartInputs.pattern.elevAzDeg,
+    azElevDeg: chartInputs.pattern.azElevDeg,
+    autoSim,
+    active: analysesActive,
+    comboApproved,
+    recommendedBackend,
+    buildRequest: primaryPatternBuild,
+    solveWithheld,
+    seqRef,
+    approvedComboRef: primaryRun && !primaryRun.cell.onActiveSlot ? NOT_APPROVED : approvedComboRef,
+  });
   // Every other curve (unit 4): the first chart's second to sixth, and each
   // duplicate's six, a fixed set of runner pairs per chart (useChartCells)
   // of which a chart's cells use the first few. The refinement ranges are
@@ -2717,6 +2751,7 @@ function DesignSessionBody({
     cell: cellRequest(0, 0, activeSlot, activeGroundSlot),
     freq: { ...chartInputs.freq, wanted: false },
     param: { ...chartInputs.param, wanted: false },
+    pattern: { ...chartInputs.pattern, wanted: false },
   };
   const chartAxes = (m: ChartModel | null) => ({
     sweepAxes: m?.state.frequency?.axes ?? sweepAxes,
@@ -2785,7 +2820,7 @@ function DesignSessionBody({
   // Each chart's runner pairs, all of them (for arming a pick), and the
   // ones its runnable cells use, in cell order.
   const allRunnersOf: CellRunners[][] = [
-    [{ freq: primaryFreq, param: primaryParam }, ...firstChartRest],
+    [{ freq: primaryFreq, param: primaryParam, pattern: primaryPattern }, ...firstChartRest],
     chart1Cells,
     chart2Cells,
     chart3Cells,
@@ -2802,14 +2837,18 @@ function DesignSessionBody({
       armParam: () => all.forEach((r) => r.param.arm()),
       runParamNow: () => live.forEach((r) => r.param.runNow()),
       stopParam: () => live.forEach((r) => r.param.stop()),
+      armPattern: () => all.forEach((r) => r.pattern.arm()),
+      runPatternNow: () => live.forEach((r) => r.pattern.runNow()),
+      stopPattern: () => live.forEach((r) => r.pattern.stop()),
     };
   };
   // The app's Cancel (AK#1712) stops every curve of every chart, as it
   // stops the session's own batches.
   const abortAllInFlight = () => {
     abortInFlight();
-    for (const rs of allRunnersOf.slice(1)) for (const r of rs) { r.freq.abort(); r.param.abort(); }
-    for (const r of firstChartRest) { r.freq.abort(); r.param.abort(); }
+    primaryPattern.abort();
+    for (const rs of allRunnersOf.slice(1)) for (const r of rs) { r.freq.abort(); r.param.abort(); r.pattern.abort(); }
+    for (const r of firstChartRest) { r.freq.abort(); r.param.abort(); r.pattern.abort(); }
   };
 
   // The Files view (AK#1428): the design's source file, plus the deck and
@@ -3328,6 +3367,7 @@ function DesignSessionBody({
     const ctl = chartControl(free);
     ctl.armFreq();
     ctl.armParam();
+    ctl.armPattern();
     setView(CHART_VIEW_IDS[free]);
   };
   // A view left on a closed duplicate (a click that closed it can bubble to
@@ -3341,6 +3381,7 @@ function DesignSessionBody({
     const ctl = chartControl(i);
     ctl.stopFreq();
     ctl.stopParam();
+    ctl.stopPattern();
     setCharts((cs) => cs.map((c, k) => (k === i ? null : c)));
     if (view === CHART_VIEW_IDS[i]) setView("zparam");
   };
@@ -3427,6 +3468,7 @@ function DesignSessionBody({
         if (m.drawn[k]?.key !== c.key) {
           all[k]?.freq.arm();
           all[k]?.param.arm();
+          all[k]?.pattern.arm();
         }
       });
       setAt((c) => ({ ...c, cross }));
@@ -3436,9 +3478,13 @@ function DesignSessionBody({
     // drawn at (ChartFrequency's live point's), and its drawn curves as
     // pins would hold them: one per curve (ruling 1).
     const isFreq = m.state.kind === "frequency";
+    // A pattern (AK#1757 step 7) draws against no x: no sweep pin places on
+    // it, and its own cells are not sweep pins (keeping them is unit 4's
+    // "keep as study").
+    const isPattern = m.state.kind === "pattern";
     const knobUnit = m.isDensity ? null : (m.knob?.unit ?? null);
     const chartX: ChartX | null =
-      chartView(m.state) === "Table"
+      chartView(m.state) === "Table" || isPattern
         ? null
         : isFreq
           ? { x: FREQUENCY_X, lo: m.inputs.freq.range.lo, hi: m.inputs.freq.range.hi }
@@ -3450,7 +3496,7 @@ function DesignSessionBody({
     const chartZ0 = shownResult?.z0_ohms ?? z0;
     const pinnable: PinnableCurve[] = m.drawn.flatMap((c, k) => {
       const r = runners[k];
-      if (!r) return [];
+      if (!r || isPattern) return [];
       const cell = m.drawn.length > 1 ? c.label : "";
       const design = c.design ?? geometry;
       if (isFreq) {
@@ -3517,7 +3563,9 @@ function DesignSessionBody({
         onGrounds: (ids: string[]) => setCross({ ...m.now.cross, grounds: ids }),
         refusal: m.plan.capRefusal,
       },
-      pin: { onPin: () => addSweepPins(pinsFromCurves(pinnable, chartZ0)), blocked: pinBlocked },
+      ...(isPattern
+        ? {}
+        : { pin: { onPin: () => addSweepPins(pinsFromCurves(pinnable, chartZ0)), blocked: pinBlocked } }),
       ...(charts.some((c) => c === null) ? { onDuplicate: () => duplicateChart(i) } : {}),
       ...(i > 0 ? { onClose: () => closeChart(i) } : {}),
     };
@@ -3567,7 +3615,11 @@ function DesignSessionBody({
         if (c.refused) return { key: c.key, label: c.label, color: null, refused: c.refused };
         const k = m.drawn.indexOf(c);
         const r = runners[k];
-        const error = freqState ? r?.freq.error : (r?.param.data?.error ?? null);
+        const error = isPattern
+          ? (r?.pattern.data?.error ?? null)
+          : freqState
+            ? r?.freq.error
+            : (r?.param.data?.error ?? null);
         // The engine declining this cell's design (NEC-2 and a vertex feed)
         // is a refused cell, in the server's words, as the CLI names it.
         const declined = engineRefusal(error);
@@ -3596,6 +3648,7 @@ function DesignSessionBody({
       views: chartViews(m.state),
       view: chartView(m.state),
       onView: (v: ChartView) => setAt((c) => setChartView(c, v)),
+      ...(m.state.pattern ? { patternViews: m.state.pattern.views } : {}),
       measured:
         chartView(m.state) === "Smith"
           ? {
@@ -3627,7 +3680,22 @@ function DesignSessionBody({
       setFrequency({ rx: { ...frequencyRx(freqState), xLog: log } });
     };
     const range = m.inputs.freq.range;
-    const controls = freqState ? (
+    const patternRunning = runners.some((r) => r.pattern.running);
+    const controls = isPattern ? (
+      <PatternChartControls
+        analyses={analyses}
+        viewPick={viewPick}
+        run={{
+          running: patternRunning,
+          solved: runners.filter((r) => !!r.pattern.data?.result).length,
+          total: runners.length,
+          stale: runners.some((r) => !!r.pattern.data?.stale),
+          onStop: ctl.stopPattern,
+          onRun: ctl.runPatternNow,
+        }}
+        chrome={chrome}
+      />
+    ) : freqState ? (
       <FrequencyChartControls
         analyses={analyses}
         viewPick={viewPick}
@@ -3698,7 +3766,21 @@ function DesignSessionBody({
     // The chart's sweep advisory and refusal: over the stage's lower-left on
     // a phone, over the plot's (above the readout) on a desktop.
     const p0data = p0?.data ?? null;
-    const overlays = freqState ? (
+    // A pattern cell the poor-match gate withheld (the server's 403, as for
+    // a sweep): its words, and the approval that re-runs it.
+    const withheld = isPattern
+      ? (runners.find((r) => r.pattern.data?.errorStatus === 403)?.pattern.data ?? null)
+      : null;
+    const overlays = isPattern ? (
+      withheld && (
+        <div className="sweep-advisory-overlay zparam-refusal" role="alert">
+          {withheld.error}
+          <button type="button" className="zparam-approve" onClick={solveAnyway}>
+            Solve anyway
+          </button>
+        </div>
+      )
+    ) : freqState ? (
       <SweepAdvisoryOverlay advisories={f0?.advisories ?? []} />
     ) : (
       <>
@@ -3729,6 +3811,36 @@ function DesignSessionBody({
       callouts: chartCallouts,
     };
     const chartCurves = curves.length > 0 ? curves : undefined;
+    // A pattern's cells as its view draws them (AK#1757 step 7): a trace per
+    // drawn cell in its legend colour, and a table row per cell, a refused
+    // one (or one whose solve the server refused) by name.
+    const pv = chartPatternView(m.state);
+    const chartPattern = pv && {
+      view: pv,
+      azElevDeg: m.inputs.pattern.azElevDeg,
+      elevAzDeg: m.inputs.pattern.elevAzDeg,
+      running: patternRunning,
+      cells: m.drawn.map((c, k) => ({
+        key: c.key,
+        label: c.label,
+        color: cellColor(k),
+        result: runners[k]?.pattern.data?.result ?? null,
+        stale: !!runners[k]?.pattern.data?.stale,
+      })),
+      rows: m.plan.cells.map((c) => {
+        const k = m.drawn.indexOf(c);
+        const d = k >= 0 ? runners[k]?.pattern.data : null;
+        const refused = c.refused ?? d?.error ?? null;
+        return {
+          key: c.key,
+          label: c.label,
+          color: refused ? null : cellColor(k),
+          metrics: d?.metrics ?? null,
+          refused,
+          stale: !!d?.stale,
+        };
+      }),
+    };
     // What the chart's view draws from: the stage's bag, with its edit
     // callbacks and the legend, and the thumbnail's, without either.
     const panel = {
@@ -3744,6 +3856,7 @@ function DesignSessionBody({
         onRxAxisChange,
         onRxXLogChange,
       },
+      chartPattern,
       ...(chartCurves ? { chartCurves } : {}),
       chartLegend: legend,
       chartCellLabels: m.drawn.map((c) => c.label),
@@ -3755,6 +3868,7 @@ function DesignSessionBody({
       paramSweepRunning: runners.some((r) => r.param.running),
       zparam,
       chartFrequency: freqRender,
+      chartPattern,
       ...(chartCurves ? { chartCurves } : {}),
       chartCellLabels: m.drawn.map((c) => c.label),
       ...(chartPins.length > 0 ? { chartPins } : {}),

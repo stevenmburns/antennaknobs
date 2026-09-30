@@ -1,7 +1,8 @@
 // A design's analyses in the workbench (AK#1757, sweep-framework steps 3-4):
 // what POST /analyses serves, and how a runnable one becomes the
 // Z-vs-parameter view's spec (a knob sweep) or the frequency sweep's range,
-// charts and SWR axis (a frequency sweep). React-free, so the mapping is
+// charts and SWR axis (a frequency sweep), or a pattern's cuts and table
+// (step 7). React-free, so the mapping is
 // tested alone.
 
 import type {
@@ -81,8 +82,32 @@ export type FrequencyWorkbench = {
   note: string | null;
 } & Listed;
 
+/** A pattern's views (AK#1757 step 7), as /analyses serves them: an
+ *  elevation cut through azimuth `az`, an azimuth cut at elevation `el`
+ *  (whole degrees, the far-field grid's), or the metrics table. */
+export type PatternViewSpec =
+  | { view: "Elevation"; az: number }
+  | { view: "Azimuth"; el: number }
+  | { view: "PatternTable" };
+
+/** A pattern (AK#1757 step 7): no sweep, one solve per cell at its
+ *  measurement frequency (`freq`, the tab's design's; a state may set its
+ *  own), drawn by its `views` in the analysis's order. Each cell is one
+ *  POST /pattern_cell. */
+export type PatternWorkbench = {
+  runs: true;
+  kind: "pattern";
+  views: PatternViewSpec[];
+  freq: number | null;
+  note: string | null;
+} & Listed;
+
 /** How the workbench runs an analysis, or the reason it cannot yet. */
-export type AnalysisWorkbench = KnobWorkbench | FrequencyWorkbench | { runs: false; why: string };
+export type AnalysisWorkbench =
+  | KnobWorkbench
+  | FrequencyWorkbench
+  | PatternWorkbench
+  | { runs: false; why: string };
 
 /** A study (AK#1757 step 7): an analysis over several designs, from a
  *  module-level `build_studies()`. `source` is where it is declared (a
@@ -274,12 +299,39 @@ function parseFrequency(o: Record<string, unknown>, note: string | null): Analys
   };
 }
 
+/** A served pattern view, else null (an unknown view, or an angle that is
+ *  no whole number of degrees). */
+function parsePatternView(v: unknown): PatternViewSpec | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const whole = (a: unknown): a is number => isNum(a) && Number.isInteger(a);
+  if (o.view === "Elevation" && whole(o.az)) return { view: "Elevation", az: o.az };
+  if (o.view === "Azimuth" && whole(o.el)) return { view: "Azimuth", el: o.el };
+  if (o.view === "PatternTable") return { view: "PatternTable" };
+  return null;
+}
+
+function parsePattern(o: Record<string, unknown>, note: string | null): AnalysisWorkbench | null {
+  if (!Array.isArray(o.views)) return null;
+  const views = o.views.map(parsePatternView).filter((v): v is PatternViewSpec => v !== null);
+  if (views.length === 0) return null;
+  return {
+    runs: true,
+    kind: "pattern",
+    views,
+    freq: isNum(o.freq) && o.freq > 0 ? o.freq : null,
+    ...parseListed(o),
+    note,
+  };
+}
+
 function parseWorkbench(w: unknown): AnalysisWorkbench | null {
   if (!w || typeof w !== "object") return null;
   const o = w as Record<string, unknown>;
   if (o.runs === true) {
     const note = typeof o.note === "string" && o.note ? o.note : null;
     if (o.kind === "frequency") return parseFrequency(o, note);
+    if (o.kind === "pattern") return parsePattern(o, note);
     if (typeof o.param !== "string" || !Array.isArray(o.values)) return null;
     const values = o.values.filter(isNum);
     if (values.length === 0 || values.length !== o.values.length) return null;
@@ -352,7 +404,8 @@ export function analysisBlocked(
   sweepable: ReadonlySet<string>,
 ): string | null {
   if (!w.runs) return w.why;
-  if (w.kind === "frequency") return null;
+  // A frequency sweep and a pattern (step 7) sweep no knob of the header's.
+  if (w.kind === "frequency" || w.kind === "pattern") return null;
   if (w.param === DENSITY || sweepable.has(w.param)) return null;
   return `${w.param} is not a knob this view can sweep on this variant`;
 }
