@@ -1,6 +1,6 @@
 # Sweep framework, step 7: studies, states, and keeping what you built (design note)
 
-Status: **draft for Steve's review, 2026-09-30.** No code yet. This takes Steve's
+Status: **settled 2026-09-30** (rulings at the end). Unit 1 building. This takes Steve's
 framing from 2026-09-30:
 
 > "We need a way to store cases like E7 that don't really belong in with a
@@ -172,3 +172,22 @@ Saving puts a Python file on disk, so it needs the trust question answered
 4. **The Studies group** in the workbench picker, and "copy as analysis" / "keep
    as study" on charts.
 5. **The deck stub** (unchanged from the plan: it comes last).
+
+## Rulings (Steve, 2026-09-30)
+
+1. **Where studies live: (a),** with **directory hierarchy**. A flat folder won't
+   scale. Subfolders of `~/.antennaknobs/studies/` become name parts, as the
+   catalog's `family.design` does: `feeds/e7.py` lists as `feeds/e7`. Trust
+   already keys files by their path relative to the folder, so nesting needs no
+   new trust model. The same hierarchy for `~/.antennaknobs/designs/` (flat
+   today) is a follow-on unit.
+2. **States: yes,** as proposed (named knob overrides, optional `design=`).
+3. **Pattern views: elevation cut, azimuth cut and a metrics table.** 3D may
+   never come.
+4. **Save as study file: yes, trusted, and edits allowed.** Trust exists only to
+   stop a `.py` that a stranger offers over the web from running on open. A file
+   the app wrote from the user's own chart is not that, so it is saved trusted
+   with edits allowed (the `allow --edits` state): the user can hand-edit it
+   without being asked again. A file that merely appears in the folder still
+   asks, as today.
+5. **Studies group in the picker: yes,** on every design tab a study includes.
