@@ -210,3 +210,25 @@ forms:
   module-level study is listed on every design tab it includes.
 - **Refusals:** a method study with no references is refused by name; that is
   just an analysis.
+
+## Ruling (Steve, 2026-09-30): pin sets are not products, so add `cells=`
+
+Unit 2's builder found that a set of pins generally is not a product: a pin at 5 m
+on NEC-5 plus a pin at 12 m on bs2 is 2 curves, while a cross would multiply them
+into 4 cells. **Ruled (b):** an explicit list of cells beside the cross kinds.
+
+```python
+an.Cross(cells=(
+    an.Cell(an.State("low", base=5.0), engine="nec5"),
+    an.Cell(an.State("tall", base=12.0), engine="momwire:bspline"),
+))
+```
+
+- Each `an.Cell` names its own state (and through it a design), engine, ground
+  and plane. What a cell leaves out follows the analysis, as a cross cell does.
+- It is a union, not a product. Under the same cap of 6.
+- "Keep as study" writes a pin set as `cells=` whenever it is not a product, and
+  as the plain cross when it is.
+- In the same unit: `an.State(..., variant=...)` for pins taken on a
+  non-default variant, and tuple values in states for group knobs (fan_dipole's
+  `bands`).
