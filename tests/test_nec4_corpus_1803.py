@@ -68,3 +68,31 @@ def test_a_design_nec4_cannot_carry_is_recorded_not_fatal(corpus):
     assert m["written"] == []
     assert len(m["skipped"]) == 4
     assert all("PortAtVertex" in s["why"] for s in m["skipped"])
+
+
+def test_catalog_gn3_twins_differ_only_in_the_ground_card(tmp_path):
+    """`--gn3-twins` (the NEC-4.2 regression corpus's catalog half): every
+    Sommerfeld deck twice, GN 2 and GN 3, differing in the GN card alone."""
+    spec = importlib.util.spec_from_file_location("export_catalog_nec4_twins", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert (
+        mod.main(
+            ["--out", str(tmp_path), "--only", "buried_radial_vertical", "--gn3-twins"]
+        )
+        == 0
+    )
+    m = json.loads((tmp_path / "manifest.json").read_text())
+    by = {w["file"]: w for w in m["written"]}
+    g2 = [f for f in by if f.endswith(".gn2.nec")]
+    assert g2, sorted(by)
+    for f in g2:
+        f3 = f.replace(".gn2.nec", ".gn3.nec")
+        assert by[f]["twin"] == f3 and by[f3]["twin"] == f and by[f3]["gn"] == "gn3"
+        a = (tmp_path / f).read_text().splitlines()
+        b = (tmp_path / f3).read_text().splitlines()
+        diff = [(x, y) for x, y in zip(a, b, strict=True) if x != y]
+        assert all(x.startswith("CM") or x.startswith("GN 2 ") for x, _ in diff)
+        assert any(y.startswith("GN 3 ") and y.endswith("NOFILE") for _, y in diff)
+    assert all(w["gn"] == "free" for w in m["written"] if w["ground"] == "free")
+    assert not any(".gn" in w["file"] for w in m["written"] if w["ground"] == "free")
