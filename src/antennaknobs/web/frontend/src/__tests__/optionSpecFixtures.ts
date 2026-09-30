@@ -229,5 +229,20 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_on_value": null,
     "shown_when_value": null,
     "description": "Solve a rotationally symmetric radial screen as one repeated sector instead of the whole structure. Refused, with a reason, on a design that is not built that way."
+  },
+  "sommerfeld": {
+    "kind": "enum",
+    "label": "Sommerfeld ground",
+    "default": "GN 2",
+    "auto_when_null": false,
+    "shown_when": null,
+    "gate_label": null,
+    "gate_on_value": null,
+    "shown_when_value": null,
+    "description": "GN 3 is NEC-4.2's newer Sommerfeld evaluation; it can differ from GN 2 by around an ohm on buried designs.",
+    "values": [
+      "GN 2",
+      "GN 3"
+    ]
   }
 };

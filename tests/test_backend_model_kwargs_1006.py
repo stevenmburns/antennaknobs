@@ -74,6 +74,7 @@ SAMPLE = {
     "enrichment_min_k": 3,
     "extended_kernel": False,
     "rotational_symmetry": False,
+    "sommerfeld": "GN 3",
 }
 
 MOMWIRE = [b for b in _BACKENDS if b.kind == "momwire" and b.solver is not None]

@@ -10,6 +10,7 @@ the same engines and capture folder:
     nec5_exe = 'C:\\EZNEC 7.0\\Docs\\NEC5CL_x13.exe'
     nec2_exe = 'C:\\4nec2\\exe\\nec2dxs11.exe'
     nec42_exe = '/home/me/nec42/nec42cl'
+    nec42_sommerfeld = 3
 
     [capture]
     dir = 'C:\\ak-captures'
@@ -24,6 +25,10 @@ together. Double quotes work only with every backslash doubled.
 An environment variable (``NEC5_EXE``, ``NEC2_EXE``, ``NEC42_EXE``,
 ``ANTENNAKNOBS_CAPTURE_DIR``, which the packaged workbench's flags set) always
 wins over the file. The hosted instance reads no file.
+
+``nec42_sommerfeld`` (2 or 3) is not a path: it seeds the NEC-4.2 engine's
+Sommerfeld ground card, ``GN 2`` (the default) or ``GN 3``. The workbench's
+slot option and the CLI's ``--nec42-sommerfeld`` override it.
 
 Only a person editing the file sets these two tables. The page's "Save as my
 defaults" never writes them, because a path the server executes must not be
@@ -131,3 +136,27 @@ def engine_exe(env_var: str) -> str | None:
 def capture_dir() -> str | None:
     """The file's ``[capture] dir``, or None."""
     return _string("capture", "dir")
+
+
+NEC42_SOMMERFELD_KEY = "nec42_sommerfeld"
+
+
+def nec42_sommerfeld() -> int | None:
+    """The file's ``[engines] nec42_sommerfeld`` (2 or 3), or None when unset.
+
+    A value that is not 2 or 3 raises ValueError naming the key and the file:
+    the setting picks which physics a solve runs, so a typo must refuse rather
+    than fall back to a ground the user did not ask for. ``True`` is refused
+    explicitly, since ``True == 1`` would otherwise be caught only by luck.
+    """
+    data, _ = read_settings()
+    section = data.get("engines") if isinstance(data, dict) else None
+    if not isinstance(section, dict) or NEC42_SOMMERFELD_KEY not in section:
+        return None
+    value = section[NEC42_SOMMERFELD_KEY]
+    if isinstance(value, bool) or value not in (2, 3):
+        raise ValueError(
+            f"[engines] {NEC42_SOMMERFELD_KEY} = {value!r} in {settings_path()}: "
+            "must be 2 or 3 (NEC-4.2's Sommerfeld ground card, GN 2 or GN 3)"
+        )
+    return int(value)

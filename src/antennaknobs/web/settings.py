@@ -120,6 +120,8 @@ _TABLES = ("switches", "antenna_view", "ground", "grounds", "slots")
 # path the server executes must never be settable by a web request.
 _FILE_TABLES = ("engines", "capture")
 _ENGINE_KEYS = ("nec5_exe", "nec2_exe", "nec42_exe")
+# The one [engines] entry that is a choice rather than a path.
+_ENGINE_CHOICE_KEYS = ("nec42_sommerfeld",)
 _CAPTURE_KEYS = ("dir",)
 _GROUND_KEYS = ("enabled", "type", "method", "soil", "eps_r", "sigma", "terrain_preset")
 _SLOT_KEYS = ("backend", "n_per_wire", "model")
@@ -329,6 +331,8 @@ def resolve(data, cat: Catalog, *, from_file: bool = True) -> tuple[dict, list[s
         if from_file
         else {}
     )
+    if from_file:
+        engines.update(_engine_choices(data, problems))
     capture = (
         _paths(data, "capture", _CAPTURE_KEYS, "a capture", problems)
         if from_file
@@ -502,6 +506,8 @@ def _paths(data, table_name, keys, what, problems) -> dict:
         return {}
     out = {}
     for key, value in table.items():
+        if table_name == "engines" and key in _ENGINE_CHOICE_KEYS:
+            continue  # validated by `_engine_choices`
         if key not in keys:
             problems.append(
                 f"[{table_name}] {key}: not {what} setting (known: {_known(keys)})"
@@ -520,6 +526,22 @@ def _paths(data, table_name, keys, what, problems) -> dict:
                     "this entry finds no engine"
                 )
     return out
+
+
+def _engine_choices(data, problems) -> dict:
+    """The ``[engines]`` entries that are a choice, not a path: today
+    ``nec42_sommerfeld`` = 2 or 3. A bad value is named and dropped."""
+    table = data.get("engines", {})
+    if not isinstance(table, Mapping) or "nec42_sommerfeld" not in table:
+        return {}
+    value = table["nec42_sommerfeld"]
+    if isinstance(value, bool) or value not in (2, 3):
+        problems.append(
+            f"[engines] nec42_sommerfeld = {value!r}: must be 2 or 3 "
+            "(NEC-4.2's Sommerfeld ground card, GN 2 or GN 3)"
+        )
+        return {}
+    return {"nec42_sommerfeld": int(value)}
 
 
 def _is_program(path: str) -> bool:
