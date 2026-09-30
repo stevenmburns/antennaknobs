@@ -55,6 +55,9 @@ export type ChartLegendData = {
   entries: ChartLegendEntry[];
   /** The session's pinned sweeps; absent or empty, no pins section. */
   pins?: ChartLegendPin[];
+  /** The chart is an R / X plot, where a pin draws R dashed and X dotted
+   *  (whatever the live curves' count; `rx` is about those). */
+  pinsRx?: boolean;
   capRefusal: string | null;
   /** The R / X plot draws each curve's R solid and its X dashed. */
   rx?: boolean;
@@ -159,7 +162,7 @@ export function ChartLegend({ legend }: { legend: ChartLegendData }) {
           ))}
         </ul>
       )}
-      {legend.pins && legend.pins.length > 0 && <PinRows pins={legend.pins} rx={!!legend.rx} />}
+      {legend.pins && legend.pins.length > 0 && <PinRows pins={legend.pins} rx={!!legend.pinsRx} />}
     </div>
   );
 }

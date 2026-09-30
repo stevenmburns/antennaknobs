@@ -98,6 +98,38 @@ function ndjson(lines: string[]): Response {
 }
 
 type Body = Record<string, unknown> & { freqs_mhz: number[] };
+type ParamBody = Record<string, unknown> & { param: string; values: number[] };
+
+const GAP_VALUES = [0.1, 0.2, 0.3, 0.4, 0.5];
+// A knob analysis on the gap, and a frequency one, for the chart's picker.
+const ANALYSES = {
+  geometry: DECK.name,
+  analyses: [
+    {
+      name: "gap sweep",
+      summary: "gap 0.1..0.5, 5 points; 1 curve; views Rx",
+      code: 'an.Analysis("gap sweep", an.Sweep("gap", 0.1, 0.5, points=5))',
+      problems: [],
+      workbench: { runs: true, kind: "knob", param: "gap", values: GAP_VALUES, log: false, note: null },
+    },
+    {
+      name: "band SWR",
+      summary: "frequency; 1 curve; views Swr",
+      code: "an.band_swr()",
+      problems: [],
+      workbench: {
+        runs: true,
+        kind: "frequency",
+        note: null,
+        views: ["Swr"],
+        range: null,
+        level: "default",
+        points: null,
+        swr: { scale: null, threshold: null },
+      },
+    },
+  ],
+};
 
 const UI_DEFAULTS = {
   path: "/x/settings.toml",
@@ -141,6 +173,16 @@ async function mount() {
         lines.push(JSON.stringify({ done: true }));
         return ndjson(lines);
       },
+      "/param_sweep": (_url: string, init?: RequestInit) => {
+        const b = JSON.parse(String(init?.body ?? "{}")) as ParamBody;
+        const lines = b.values.map((v) =>
+          JSON.stringify({ param: b.param, value: v, z_re: 60 + 100 * v, z_im: -30 + 10 * v, solver: "momwire" }),
+        );
+        lines.push(JSON.stringify({ done: true, solver: "momwire" }));
+        return ndjson(lines);
+      },
+      "/analyses": () =>
+        ({ ok: true, status: 200, json: async () => ANALYSES }) as unknown as Response,
     },
   });
   return { ...r, bodies };
@@ -302,5 +344,38 @@ describe("a pin outlives its tab", () => {
     const row = await untilDom(() => document.querySelector<HTMLElement>(".chart-legend-pin"));
     expect(row.dataset.drawable).toBe("1");
     await untilDom(() => stageChart("canvas.smith")?.dataset.pins?.endsWith(":15") || null);
+  });
+});
+
+describe("a knob pin", () => {
+  it("draws on a chart sweeping the same knob and is greyed with why on a frequency chart", async () => {
+    const r = await mount();
+    await chartOnStage(r);
+    await untilDom(() => stageChart("canvas.smith")?.dataset.phase === "idle" || null);
+    // The header is another component per kind: query the picker afresh.
+    const pick = (name: string) =>
+      fireEvent.change(screen.getByRole("combobox", { name: "Analysis" }), { target: { value: name } });
+    pick("gap sweep");
+    await untilDom(() => {
+      const c = stageChart("canvas.zparam");
+      return c?.dataset.points === "5" && c.dataset.phase === "idle" ? c : null;
+    });
+    await untilDom(() => !pinButton().disabled || null);
+    fireEvent.click(pinButton());
+    await untilDom(() => stageChart("canvas.zparam")?.dataset.pins?.endsWith(":5") || null);
+    const row = await untilDom(() => document.querySelector<HTMLElement>(".chart-legend-pin"));
+    // The swept knob varies along x: the label does not name it.
+    expect(row.textContent).not.toContain("gap");
+
+    // On a frequency chart it cannot draw, and says why.
+    pick("band SWR");
+    await untilDom(() => stageChart("canvas.sweep-vswr"));
+    await untilDom(
+      () => document.querySelector<HTMLElement>(".chart-legend-pin")?.dataset.drawable === "0" || null,
+    );
+    expect(document.querySelector(".chart-legend-pin")?.textContent).toContain(
+      "sweeps gap; this chart sweeps frequency",
+    );
+    expect(stageChart("canvas.sweep-vswr")?.dataset.pins).toBe("");
   });
 });
