@@ -391,6 +391,12 @@ export function formatParam(v: number): string {
   return String(Number(v.toPrecision(4)));
 }
 
+/** The dashed guide's label on the R/X chart: the parameter's name (N for a
+ *  density sweep) and the current value as the axis formats it. */
+export function guideLabel(name: string, value: number): string {
+  return `${name} = ${formatParam(value)} (now)`;
+}
+
 /** An impedance component as the chart prints it: enough digits to see a
  *  converging trace move (72.15 against 72.09), no more. */
 export function formatOhm(v: number): string {
