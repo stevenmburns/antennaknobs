@@ -702,6 +702,51 @@ design: give `--builder`, or its full name, whose source is that design.
 With `--builder` naming a design the study compares, the run is summarised
 on that design; otherwise on the study's first.
 
+### Cells: comparing settings that are not a product
+
+Every cross multiplies: two states and two engines are four curves. A set of
+settings you picked one by one usually is not a product (5 m on NEC-5 beside
+12 m on the B-spline is two curves, not four), so `an.Cross(cells=...)` lists
+whole cells instead. It is a union: one curve per `an.Cell`, in order, under
+the same cap of 6, and it is never multiplied with another cross.
+
+```python
+an.band_swr(
+    name="two masts, two engines",
+    cross=an.Cross(
+        cells=(
+            an.Cell(an.State("low", design="dipoles.invvee", base=5.0), engine="nec5"),
+            an.Cell(
+                an.State("tall", design="dipoles.invvee", variant="dipole", base=12.0),
+                engine="momwire:bspline",
+            ),
+        ),
+    ),
+    ground="finite-fast",
+)
+```
+
+- A cell names its state (and through it the design), its engine, its ground
+  and its plane. What it leaves out follows the analysis, as a cross cell's
+  does: `ground="finite-fast"` above is both cells' ground.
+- `variant=` sets a state over that variant's defaults
+  (`dipoles.invvee:dipole`, as the registry spells it). It needs `design=`.
+- A group knob takes a tuple of its entries, each a dict of the group's own
+  leaves: `bands=({"freq": 14.3, "length_factor": 0.49}, ...)` for
+  `multiband.fandipole`. A value of the wrong shape is refused by name.
+
+The workbench writes exactly these when it keeps what you built (see
+[keeping a chart or pins](/reference/web/#keeping-a-chart-or-pins)): pins
+that are a product become the plain cross, and pins that are not become
+`cells=`. A study it saves lands in the studies folder, **trusted with your
+edits allowed** (`allow --edits`), so it runs without asking and a hand edit
+does not ask again. A file that merely appears in the folder still asks. Run a
+kept study at the density its pins were solved at, which its header names:
+
+```bash
+python -m antennaknobs analyze --study "feeds/two:two pins" --nominal-nsegs 15
+```
+
 ## Drawing the feed network
 
 `schematic` renders a design's `build_network()` — feedline, tuner, balun, and
