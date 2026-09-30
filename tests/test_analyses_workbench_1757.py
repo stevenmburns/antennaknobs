@@ -39,7 +39,7 @@ INVVEE = {
 
 
 # The crosses beyond engines and grounds (AK#1757 step 5 unit 4b).
-CROSSES = ("axes", "planes", "designs", "states", "step")
+CROSSES = ("axes", "planes", "designs", "states", "cells", "step")
 
 
 @pytest.fixture(scope="module")
@@ -62,7 +62,17 @@ def invvee(client) -> dict[str, dict]:
 
 def test_every_entry_has_the_documented_shape(invvee):
     for a in invvee.values():
-        assert set(a) == {"name", "summary", "code", "problems", "workbench", "study"}
+        # `spec`: the analysis as data, which the chart sends back to keep
+        # what it built (AK#1757 step 7, unit 4).
+        assert set(a) == {
+            "name",
+            "summary",
+            "code",
+            "spec",
+            "problems",
+            "workbench",
+            "study",
+        }
         # A study (AK#1757 step 7) says so; the design's own say None.
         assert (a["study"] is not None) is (":" in a["name"]), a["name"]
         assert a["code"].startswith("an.")

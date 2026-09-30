@@ -2540,6 +2540,92 @@ async def analyses_endpoint(req: dict):
     return {"geometry": geometry, "analyses": analyses}
 
 
+def _kept(req: dict):
+    """A keep request's ``(analysis, form, origin, notes)`` (``/keep``,
+    ``/studies/save``; ``antennaknobs.keep.build``), or a 422 naming what is
+    wrong with it."""
+    from antennaknobs import keep
+
+    try:
+        return keep.build(req)
+    except keep.KeepError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from None
+
+
+@app.post("/keep")
+def keep_endpoint(req: dict):
+    """What "copy as analysis" and "keep as study" put on the clipboard
+    (AK#1757 step 7, unit 4; ``antennaknobs.keep``). In: ``{origin, form,
+    name?, notes?}`` and, for a chart (``origin`` "chart"), ``{spec, tab,
+    cells?, values?}`` (``spec`` the analysis ``/analyses`` served, as data;
+    ``tab`` the tab's solve request; ``cells`` its curves' solve requests,
+    whose engines and grounds it drew), for pins (``"sweep pins"`` /
+    ``"pattern pins"``) ``{pins: [{req, x?, xs?, label?}]}``, ``req`` the
+    solve request the pin was solved with. Out: ``{code, name, problems, study_refusal}``: ``code`` the
+    analysis's ``to_code`` text ("analysis") or a whole study file
+    ("study"); ``problems`` ``analyses.problems`` on the tab's design (a
+    chart's); ``study_refusal`` why it could not be kept as a study
+    (``studies.refusal``), or None. Nothing solves and nothing is written,
+    so the hosted instance serves it too."""
+    from antennaknobs import analyses as an
+    from antennaknobs import keep, studies
+
+    a, form, origin, notes = _kept(req)
+    code = keep.render(a, form=form, origin=origin, notes=notes)
+    problems: list[str] = []
+    tab = req.get("tab")
+    geometry = tab.get("geometry") if isinstance(tab, dict) else None
+    if isinstance(geometry, str) and geometry:
+        from .analyses_offer import builder_for
+
+        try:
+            cls = getattr(example_for(geometry), "builder_cls", None)
+        except UnknownGeometryError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from None
+        if cls is not None:
+            problems = an.problems(a, builder_for(cls, tab))
+    return {
+        "code": code,
+        "name": a.name,
+        "problems": problems,
+        "study_refusal": studies.refusal(a),
+    }
+
+
+@app.post("/studies/save")
+def studies_save_endpoint(req: dict):
+    """Save as study (AK#1757 step 7, unit 4; design note ruling 4): the
+    keep ``/keep`` would copy, written as a study file under the studies
+    folder at ``path`` (relative, subfolders allowed: ``feeds/e7``) and
+    recorded trusted with edits allowed, so it is in the picker on the next
+    ``/analyses`` (the folder is re-read per request). ``/keep``'s body plus
+    ``{path, overwrite?}`` in; ``{path, source, name}`` out. Refused: on the
+    hosted instance (403, server-side: a shared box writes no one's files);
+    a keep that is no study, or a path that is not a plain relative one
+    inside the folder (422); a file already there without ``overwrite``
+    (409)."""
+    if _HOSTED:
+        raise HTTPException(
+            status_code=403,
+            detail="saving a study is disabled on the hosted instance; copy it instead",
+        )
+    from antennaknobs import keep
+
+    a, _, origin, notes = _kept({**req, "form": "study"})
+    try:
+        return keep.save(
+            a,
+            str(req.get("path") or ""),
+            origin=origin,
+            notes=notes,
+            overwrite=req.get("overwrite") is True,
+        )
+    except keep.StudyExists as e:
+        raise HTTPException(status_code=409, detail=str(e)) from None
+    except keep.KeepError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from None
+
+
 @app.post("/converge")
 async def converge_endpoint(req: dict, request: Request):
     """Stream impedance vs segments/wire as NDJSON, one (n, Z) per line.
@@ -3794,6 +3880,9 @@ def capabilities_endpoint():
             default_slots(), ui_defaults["slots"]
         ),
         "ui_defaults": ui_defaults,
+        # "Save as study" writes a file (AK#1757 step 7 unit 4): a local
+        # workbench only; /studies/save refuses it hosted either way.
+        "can_save_studies": not _HOSTED,
         "terrain_presets": terrain_presets_schema(),
         "soil_presets": soil_presets_schema(),
         "soil_ranges": soil_ranges_schema(),
