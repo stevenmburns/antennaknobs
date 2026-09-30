@@ -244,6 +244,54 @@ def list_lines(builder) -> list[str]:
     return lines
 
 
+def study_lines(design: str | None, get_builder: Callable) -> list[str]:
+    """``analyze --list-studies``: one line per study (AK#1757 step 7), with
+    every reason it cannot run here, as `list_lines` lists a design's; then
+    what was found but cannot run (a user file not allowed yet, a study
+    refused by name). ``design`` keeps the studies its tab lists: the
+    module-level ones crossing it and its Builder's method studies (which
+    are listed nowhere else). The summary reads the study on its first
+    design, the design ``--study`` runs it on."""
+    from . import studies
+
+    if design is None:
+        found = studies.discover()
+        shown = found.studies
+    else:
+        # The design's own method studies too, as its tab lists them.
+        found = studies.pool(design, get_builder(design)())
+        shown = studies.including(design, found)
+    # What cannot run is listed under a filter too: a file not allowed yet
+    # is never imported, so which designs it crosses is not known, and a
+    # study refused for naming none crosses nothing to filter by.
+    blocked = found.blocked
+    width = max((len(s.name) for s in shown), default=0)
+    lines = []
+    for s in shown:
+        try:
+            host = get_builder(s.designs[0])()
+        except (SystemExit, ValueError) as e:
+            lines.append(f"{s.name:<{width}}  crosses {', '.join(s.designs)}")
+            lines.append(f"{'':<{width}}    REFUSED: its first design: {e}")
+            continue
+        probs = an.problems(s.analysis, host) + cli_gaps(s.analysis, host)
+        lines.append(f"{s.name:<{width}}  {summary(s.analysis, host)}")
+        lines.append(f"{'':<{width}}    crosses {', '.join(s.designs)}")
+        lines += [f"{'':<{width}}    {p}" for p in probs]
+        if not probs:
+            lines += [
+                f"{'':<{width}}    (runs without {p})"
+                for p in skipped_views(s.analysis)
+            ]
+    for b in blocked:
+        lines.append(f"{b.label}  (cannot run)")
+        lines.append(f"    {b.reason}")
+    if not lines:
+        where = f" crossing {design}" if design is not None else ""
+        lines.append(f"no studies{where}")
+    return lines
+
+
 def find(builder, name: str) -> an.Analysis:
     """The offered analysis called ``name``, or a SystemExit naming them."""
     offered = an.offered(builder)
