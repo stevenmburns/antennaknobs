@@ -25,6 +25,14 @@ each with its one-line summary, its Python, its problems, and a
   "analysis" (step 5 unit 5). ``views`` are the ones the workbench draws
   ("Swr", "S11", "Smith", "Rx", "Table"), in the analysis's order; ``swr``
   is the Swr view's ``scale`` and the ``Ref`` threshold;
+- ``{runs: True, kind: "pattern", views, freq, note}`` (AK#1757 step 7): a
+  pattern (``sweep=None``), one solve per cell at its measurement
+  frequency, the solve the live chart and the pattern pins draw from.
+  ``views`` are its views in order, each ``{view: "Elevation", az}``,
+  ``{view: "Azimuth", el}`` or ``{view: "PatternTable"}``; ``freq`` is the
+  tab's design's measurement frequency (a cell's own may differ: a state or
+  a family setting ``freq``). The chart asks ``POST /pattern_cell`` for each
+  cell (`server.pattern_cell_endpoint`);
 - ``{runs: False, why}``: why the workbench cannot draw it yet, one
   string (reasons joined by "; "), each naming the sweep-framework step it
   is planned for, or the problem `analyses.problems` found.
@@ -59,7 +67,8 @@ chart multiplies with its slots into one curve per cell as
   range, freqs, on}]`` (step 7): each named knob setting, set over its
   design's DEFAULTS (the tab's variant's for the tab's own design, never
   its live knobs, so a state is the same curve every session), with the
-  cell's sweep served as a design cell's is (`_state_entry`); ``on`` holds
+  cell's sweep served as a design cell's is (`_state_entry`; a pattern's
+  cells sweep nothing, so only ``refused`` says anything); ``on`` holds
   one design entry per design when an unnamed state multiplies with a
   designs cross;
 - ``step``: ``{knob, values, labels}``, a family: the knob each cell sets,
@@ -137,7 +146,18 @@ def _knob_view(v: an.View) -> str | None:
 
 
 def _is_frequency(a: an.Analysis) -> bool:
-    return len(a.sweeps) == 1 and a.sweep.knob == an.FREQUENCY
+    return len(a.sweeps) == 1 and a.sweeps[0].knob == an.FREQUENCY
+
+
+def _pattern_view(v: an.View) -> dict | None:
+    """A pattern view as ``/analyses`` serves it, or None for any other."""
+    if isinstance(v, an.Elevation):
+        return {"view": "Elevation", "az": v.az}
+    if isinstance(v, an.Azimuth):
+        return {"view": "Azimuth", "el": v.el}
+    if isinstance(v, an.PatternTable):
+        return {"view": "PatternTable"}
+    return None
 
 
 def gaps(a: an.Analysis) -> list[str]:
@@ -147,7 +167,12 @@ def gaps(a: an.Analysis) -> list[str]:
         out.append(_later("a two-sweep map", 5))
     if a.hold is not None:
         out.append(_later("hold (optimise at each point)", 6))
-    if _is_frequency(a):
+    if an.is_pattern(a):
+        # Every view of a pattern is a pattern view (`an.Analysis` refuses
+        # any other when built), and the chart draws each; a design's own
+        # View subclass is named as the CLI names it.
+        out += [why for v in a.views if (why := ar.not_a_view(v))]
+    elif _is_frequency(a):
         if not any(_frequency_view(v) for v in a.views):
             out += [_view_gap(v, "frequency") for v in a.views]
     # A knob analysis the chart can show none of (only Swr, say) is refused.
@@ -256,6 +281,10 @@ def _design_entry(
     if state is not None:
         for k, v in state.knobs:
             setattr(b, k, v)
+    if an.is_pattern(a):
+        # One solve at the cell's own frequency: nothing is swept, so the
+        # cell is its design (and its state) or its refusal.
+        return out
     if _is_frequency(a):
         # The design's own band, as the CLI's design cell sweeps it: the
         # analysis's range, else that design's (`frequency_range`), on the
@@ -411,6 +440,21 @@ def _frequency(a: an.Analysis, builder, crosses: dict) -> dict:
     }
 
 
+def _pattern(a: an.Analysis, builder, crosses: dict) -> dict:
+    """A runnable pattern (AK#1757 step 7), as the chart draws it."""
+    params = an._params(builder)
+    freq = params.get("freq") if "freq" in params else None
+    return {
+        "runs": True,
+        "kind": "pattern",
+        "views": [d for v in a.views if (d := _pattern_view(v))],
+        "freq": float(freq) if isinstance(freq, (int, float)) else None,
+        **_listed(a),
+        **crosses,
+        "note": None,
+    }
+
+
 def workbench(a: an.Analysis, builder, req: Mapping) -> dict:
     """How the workbench runs ``a`` on ``builder`` (built from ``req``)."""
     why = an.problems(a, builder) + gaps(a)
@@ -421,6 +465,11 @@ def workbench(a: an.Analysis, builder, req: Mapping) -> dict:
         why.append(moved)
     if why:
         return {"runs": False, "why": "; ".join(why)}
+    if an.is_pattern(a):
+        try:
+            return _pattern(a, builder, _crosses(a, builder, req, density=False))
+        except _Refusal as e:
+            return {"runs": False, "why": str(e)}
     frequency = _is_frequency(a)
     try:
         run = None if frequency else _knob_run(a, builder, req)
