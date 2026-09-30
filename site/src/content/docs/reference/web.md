@@ -271,8 +271,12 @@ it draws it:
   (the design's band)**, the design's [analyses](#a-designs-analyses) the
   chart can run, and **Sweep a knob**, which runs the knob in the chart's
   **sweep** list (the last knob you swept, else the design's first) over its
-  own range, as **Sweep this knob…** does. Last, under **Not in the workbench
-  yet**, the analyses it cannot run, greyed out, each with its reason;
+  own range, as **Sweep this knob…** does. Then, under **Studies**, the
+  [studies](/reference/cli/#studies) this design is in: the module-level
+  ones that name it, and its own Builder's comparisons with its references,
+  each by its short name. Picking one runs it just as an analysis that
+  crosses designs runs. Last, under **Not in the workbench yet**, the
+  analyses it cannot run, greyed out, each with its reason;
 - **view** — **Smith**, **SWR**, **S11 (dB)**, **R / X** or **Table** for a
   frequency sweep, all drawn from the one sweep, so switching re-solves
   nothing; **R / X**, **Smith** or **Table** for a knob sweep, where Smith
@@ -379,8 +383,9 @@ from the session's slots, and the legend names every curve:
   have loaded is drawn at its defaults too, so your knob settings do not
   leak into the comparison. An engine that cannot build a design is a
   refused curve in its own words: NEC-2 cannot feed
-  `dipoles.invvee_apex`'s apex knot, so the **feed spellings** analysis
-  names that curve with NEC-2's reason and draws the rest. In a frequency
+  `dipoles.invvee_apex`'s apex knot, so the **feed spelling (E7)** study,
+  under **Studies** on both of its designs, names that curve with NEC-2's
+  reason and draws the rest. In a frequency
   analysis each design sweeps its own band, on the same frequencies
   `antennaknobs analyze` sweeps for it, so a 7 MHz and a 28 MHz design each
   stay on theirs; the chart's **from / to** moves only the curves of the
