@@ -9,6 +9,10 @@ values differ (a cell on its own frequency grid) share the rows they have in
 common; a cell a curve has no point at is left empty. Numbers are written at
 full precision (``repr``), not at the printed table's ``%.3f``.
 
+A pattern analysis (AK#1757 step 7) has no swept x: its file is its cuts
+(`pattern_table`), one block of rows per cut, each row a ``cut`` name, the
+angle, and a ``gain_dBi`` column per cell.
+
 ``-`` writes to stdout. The command's own printed tables would corrupt that,
 so the CLI sends them to stderr for the run (``cli.csv_output``).
 """
@@ -17,7 +21,7 @@ from __future__ import annotations
 
 import csv
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import TextIO
 
 import numpy as np
@@ -98,6 +102,27 @@ def density_curve(name: str, rows, z0: float) -> Curve:
     )
 
 
+def pattern_table(
+    cuts: Mapping[str, Mapping[str, tuple[Sequence[float], Sequence[float]]]],
+    order: Sequence[str],
+) -> tuple[list[str], list[list[str]]]:
+    """``(header, rows)`` for a pattern analysis's cuts: ``cuts`` maps each
+    cell's label to ``{cut name: (angles, dBi)}``, ``order`` the cut names
+    in the analysis's order. One block of rows per cut, so two cuts are one
+    file whose ``cut`` column says which a row is (an elevation cut's angle
+    runs 1..179 over the zenith, an azimuth cut's 0..359): ``cut,
+    angle_deg, <cell> gain_dBi, ...``. Every cell is read on the same grid,
+    so a cut's rows line up across cells; a cell with no sample at an angle
+    is left empty, as `table` leaves one."""
+    header = ["cut", "angle_deg"] + [f"{label} gain_dBi" for label in cuts]
+    rows = []
+    for name in order:
+        curves = [(label, *per[name]) for label, per in cuts.items()]
+        _h, block = table("angle_deg", [(lab, xs, [("g", g)]) for lab, xs, g in curves])
+        rows += [[name, *r] for r in block]
+    return header, rows
+
+
 class CsvOut:
     """Where ``--csv`` writes: a file, or ``-`` for ``stdout``."""
 
@@ -106,7 +131,9 @@ class CsvOut:
         self.stdout = stdout if stdout is not None else sys.stdout
 
     def write(self, xname: str, curves: Sequence[Curve]) -> None:
-        header, rows = table(xname, curves)
+        self.write_rows(*table(xname, curves))
+
+    def write_rows(self, header: list[str], rows: list[list[str]]) -> None:
         if self.path == "-":
             csv.writer(self.stdout, lineterminator="\n").writerows([header, *rows])
             return
