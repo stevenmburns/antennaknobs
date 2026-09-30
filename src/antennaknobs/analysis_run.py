@@ -56,6 +56,8 @@ import numpy as np
 
 from . import analyses as an
 from . import frequency_range as fr
+from . import sweep_csv
+from .sweep_csv import CsvOut
 
 # The sweep-framework step each refused piece is planned for (Steve,
 # 2026-09-28): 6 hold; 7 the UI writes the Python, and the deck stub.
@@ -627,13 +629,17 @@ def run(
     z0: float = 50.0,
     fn: str | None = None,
     design_seam: DesignSeam | None = None,
+    csv: CsvOut | None = None,
 ) -> dict:
     """Run ``a`` on the design ``builder_factory`` makes. Returns what was
     computed, ``{"curves": {label: (xs, zs)}, "refused": {label: reason},
     "estimates": {label: ZInfEstimate}}`` (estimates on a density sweep
     only; a map's cells are ``"maps": {label: (xs, ys, Z)}`` instead of
     curves), for the tests; the table goes to stdout and the chart to
-    ``fn``. ``design_seam`` builds a design cross's other designs."""
+    ``fn``. ``design_seam`` builds a design cross's other designs. ``csv``
+    writes the sweep's numbers (``sweep_csv``): a frequency sweep's R, X and
+    SWR per curve, a knob sweep's R and X, a density study's table columns;
+    a two-sweep map has no such form and refuses."""
     import matplotlib.pyplot as plt
 
     from .core import save_or_show
@@ -646,6 +652,11 @@ def run(
         raise SystemExit(f"analysis {a.name!r}: " + "; ".join(probs))
     knob = an.resolve(a.sweeps[0].knob, builder).knob
     is_map = len(a.sweeps) == 2
+    if csv is not None and is_map:
+        raise SystemExit(
+            f"analysis {a.name!r}: --csv writes one row per swept point; a "
+            "two-sweep map is a grid, not a table of points"
+        )
     density = not is_map and _is_density(builder, knob)
     print(f"analysis {a.name!r}: {summary(a, builder)}")
     for p in skipped_views(a):
@@ -696,6 +707,11 @@ def run(
             raise SystemExit(f"analysis {a.name!r}: every curve was refused")
         estimates, reasons = sw._convergence_estimates(per, fed, ladder)
         out["estimates"] = estimates
+        if csv is not None:
+            csv.write(
+                "nominal_N" if knob == "nominal_nsegs" else knob,
+                [sweep_csv.density_curve(n, r, z0) for n, r in per.items()],
+            )
         if _has(a, an.Table):
             sw._print_convergence_table(
                 per,
@@ -741,6 +757,16 @@ def run(
         if not curves:
             _report_refused(refused)
             raise SystemExit(f"analysis {a.name!r}: every curve was refused")
+        if csv is not None:
+            csv.write(
+                "MHz" if frequency else knob,
+                [
+                    sweep_csv.impedance_curve(
+                        name, x, z, swr_of(z, z0) if frequency else None
+                    )
+                    for name, x, z in curves
+                ],
+            )
         if _has(a, an.Table):
             if frequency:
                 _print_frequency_table(curves, ground_label, z0)
