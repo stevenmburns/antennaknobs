@@ -410,6 +410,26 @@ the whole product, in the command line's words (*"REFUSED: 4 values x 2
 engines = 8 curves, over the cap of 6"*). A family over the segment density
 stays refused, as on the command line.
 
+### Patterns
+
+A [pattern](/reference/cli/#patterns) analysis (`sweep=None`) draws far-field
+cuts instead of curves. Pick one and each cell is solved once, at its
+measurement frequency, with the same solve the live far-field views use. The
+chart's **view** menu offers the analysis's own views, in its order:
+
+- **Elevation @ 0° az** or **Azimuth @ 10° el**: that cut on the far-field
+  charts' polar grid, one trace per cell in the legend's colours. Switching
+  between cuts re-cuts the solves already made, so nothing solves again;
+- **Table**: one row per cell with the pattern compare table's columns (peak,
+  take-off, F/B, azimuth beamwidth, RDF), computed by the same function. A
+  refused cell has a row too, with its reason.
+
+The inverted vee's **height patterns** draws the elevation cut and the table
+for its three mast heights. **Run**, **Stop** and **auto re-run** work as for
+a sweep, and the cells cross engines, grounds, designs and states in the same
+way, under the same cap. A pattern's cells are not pinned: its header has no
+**pin**.
+
 ### Pinned sweeps
 
 **pin** on a chart's header freezes what it draws: one pin per curve, holding
