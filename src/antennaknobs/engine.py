@@ -73,8 +73,10 @@ def refuse_graded_wires(tups, engine_name):
 
     NEC-5 expands a graded wire into consecutive GW cards since issue #1108 —
     one per panel, chained, each with its own count — and renumbers every
-    tag-addressed site through `NEC5Engine._tag_of`. **PyNEC is the caller
-    that is left**, and the reason is the one this docstring always gave: a
+    tag-addressed site through `NEC5Engine._tag_of`; the NEC-4.2 dialect does
+    the same through `expand_graded_wires` (AK#1803). **PyNEC and the NEC-2
+    lane are the callers that are left**, and the reason is the one this
+    docstring always gave: a
     NEC-2 deck's EX/LD/NT cards reference wires by tag, and this package does
     not renumber them, so expanding there would silently move every downstream
     reference. Doing for PyNEC what #1108 did for NEC-5 is a real change, not
