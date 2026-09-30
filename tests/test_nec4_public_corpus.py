@@ -372,9 +372,53 @@ def test_other_nec2_helices_become_gw_pieces_on_nec2_geometry(tool, gh):
     assert any("GW pieces on NEC-2's geometry" in n for n in notes)
 
 
-def test_a_gh_with_an_unknown_layout_is_skipped(tool):
+@pytest.mark.parametrize(
+    "gh",
+    [
+        "GH 1 180 9 2.7432 .099 .099 .001 .001 0",  # Cebik 4-6: last field 0
+        "GH 1 100 5 1 1 2 .001 .001 1",  # Cebik 4-9: wire radii << helix radii
+    ],
+)
+def test_a_gh_already_in_nec4_layout_passes_as_written(tool, gh):
+    deck, notes, *_ = _translate(tool, HELIX.format(gh=gh))
+    assert gh in _cards(deck)
+    assert not any("GH" in n for n in notes)
+
+
+@pytest.mark.parametrize(
+    "gh",
+    [
+        "GH 1 40 0.25 1.25 0.15915 0.15915 0.001",  # 7 fields
+        "GH 1 200 .238 2.38 .171 .171 .171 .171 .225",  # Cebik 7-0: fits neither
+    ],
+)
+def test_a_gh_with_an_unknown_layout_is_skipped(tool, gh):
     with pytest.raises(tool.Refused, match="neither NEC-2's"):
-        _translate(tool, HELIX.format(gh="GH 1 40 0.25 1.25 0.15915 0.15915 0.001"))
+        _translate(tool, HELIX.format(gh=gh))
+
+
+@pytest.mark.parametrize("span", ["0 360", "-180 180"])
+def test_a_closed_ga_loop_becomes_gw_pieces(tool, span):
+    deck, notes, *_ = _translate(
+        tool, f"GA 1 12 0.5 {span} 0.002\nGE 0\nEX 0 1 1 0 1 0\nXQ\nEN\n"
+    )
+    gw = [ln.split() for ln in _cards(deck) if ln.startswith("GW")]
+    assert len(gw) == 12 and not any(ln.startswith("GA") for ln in _cards(deck))
+    assert gw[0][3:6] == gw[-1][6:9]  # closed
+    assert all(float(g[4]) == 0.0 and g[9] == "0.002" for g in gw)
+    assert any("ARC ANGLE EXCEEDS 360" in n for n in notes)
+
+
+def test_an_open_ga_arc_passes_as_written(tool):
+    deck, *_ = _translate(
+        tool, "GA 1 6 0.5 0 180 0.002\nGE 0\nEX 0 1 1 0 1 0\nXQ\nEN\n"
+    )
+    assert "GA 1 6 0.5 0 180 0.002" in _cards(deck)
+
+
+def test_a_load_on_an_undefined_tag_is_invalid(tool):
+    with pytest.raises(tool.InvalidNEC, match="tag 851"):
+        _translate(tool, DIPOLE.format(cards="LD 4 851 2 2 50 0\nEX 0 1 6 0 1 0"))
 
 
 def test_an_invalid_deck_is_still_invalid(tool):
