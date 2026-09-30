@@ -109,10 +109,11 @@ def _max_rel(a, b) -> float:
 
 
 def test_e7_serves_its_designs_in_written_order_with_their_own_ladders(client):
+    # E7 is a study since step 7: served by its full name, source:name.
     w = _served(
         client,
         {"geometry": INVVEE, "design_freq_mhz": 28.47, "measurement_freq_mhz": 28.47},
-        "feed spellings",
+        "dipoles.invvee:feed spelling (E7)",
     )
     assert w["runs"] is True
     # The product's order, as written: designs, then engines.
