@@ -73,7 +73,18 @@ chart multiplies with its slots into one curve per cell as
   designs cross;
 - ``step``: ``{knob, values, labels}``, a family: the knob each cell sets,
   its values (coerced as ``/param_sweep`` coerces), and each cell's label
-  part (`analysis_run.step_label`).
+  part (`analysis_run.step_label`);
+- ``cells``: ``[{label, state, engine, ground, plane, refused, param,
+  values, range, freqs}]`` (step 7 unit 4), a ``cells=`` cross's listed
+  cells, in order: a UNION the chart draws one curve per entry of, never
+  multiplied with its slot checkboxes. ``state`` is ``{name, design,
+  variant, knobs, label}`` or None; ``engine`` / ``ground`` the cell's own
+  spec or None (the analysis's, else the chart's active slot); the sweep
+  and refusal are served as a state's are (`_cell_entry`).
+
+Every entry also carries ``spec``, the analysis as data (`analyses.to_data`),
+which the chart edits and sends back to keep what it built (``POST /keep``,
+unit 4); and a state's entry its ``variant``.
 
 Then the design's STUDIES (`offer_studies`, AK#1757 step 7): analyses over
 several designs, from a module-level ``build_studies()`` crossing it, or its
@@ -269,6 +280,11 @@ def _design_entry(
         return {**out, "refused": str(e)}
     if cls is None:
         return {**out, "refused": f"{name!r} has no builder to cross"}
+    if variant is not None and not _has_variant(cls, variant):
+        # `adapter._variant_params` falls back to the defaults for a name it
+        # does not know (a stale page); a state naming one is a spec to fix,
+        # refused by name as the CLI's registry refuses it.
+        return {**out, "refused": f"{name} has no variant {variant!r}"}
     req = {"geometry": name}
     if variant is not None:
         req["variant"] = variant
@@ -279,7 +295,7 @@ def _design_entry(
     if why:
         return {**out, "refused": why}
     if state is not None:
-        for k, v in state.knobs:
+        for k, v in state.settings.items():
             setattr(b, k, v)
     if an.is_pattern(a):
         # One solve at the cell's own frequency: nothing is swept, so the
@@ -304,6 +320,14 @@ def _design_entry(
         return {**out, "refused": str(e)}
     out.update(param=run["param"], values=run["values"])
     return out
+
+
+def _has_variant(cls, variant: str) -> bool:
+    """Whether ``cls`` has ``variant``: "default", or a ``<variant>_params``
+    mapping (`cli.list_variants`'s rule)."""
+    return variant == "default" or isinstance(
+        getattr(cls, f"{variant}_params", None), Mapping
+    )
 
 
 def _step_entry(s: an.Sweep, builder, req: Mapping) -> dict:
@@ -336,6 +360,7 @@ def _state_entry(a: an.Analysis, st: an.State, req: Mapping, density: bool) -> d
     head = {
         "name": st.name,
         "design": st.design,
+        "variant": st.variant,
         "knobs": st.settings,
         "label": st.label,
         "on": None,
@@ -352,13 +377,74 @@ def _state_entry(a: an.Analysis, st: an.State, req: Mapping, density: bool) -> d
             "on": [_design_entry(a, d, density, st) for d in designs],
         }
     if st.design is not None:
-        cell = _design_entry(a, st.design, density, st)
+        cell = _design_entry(a, st.design, density, st, variant=st.variant)
     else:
         cell = _design_entry(
             a, str(req.get("geometry") or ""), density, st, variant=req.get("variant")
         )
     cell.pop("name")
     return {**head, **cell}
+
+
+def _cell_entry(
+    a: an.Analysis, c: an.Cell, builder, req: Mapping, density: bool
+) -> dict:
+    """One listed cell (unit 4), as the chart sets it: its label, its state
+    (`_state_entry`'s head), engine, ground and plane, and where it is set.
+    A cell with a state is that state's cell (its design at its defaults,
+    the tab's for an unnamed one); one with none is the tab's design as the
+    chart runs it, whose sweep is the chart's own (``param`` and the rest
+    None). A plane the cell's design does not offer is its refusal."""
+    head = {
+        "label": c.label,
+        "state": None,
+        "engine": c.engine,
+        "ground": c.ground,
+        "plane": c.plane,
+    }
+    if c.state is None:
+        cell = {
+            "refused": None,
+            "param": None,
+            "values": None,
+            "range": None,
+            "freqs": None,
+        }
+        on = builder
+    else:
+        st = _state_entry(a, c.state, req, density)
+        head["state"] = {
+            k: st[k] for k in ("name", "design", "variant", "knobs", "label")
+        }
+        cell = {k: st[k] for k in ("refused", "param", "values", "range", "freqs")}
+        on = None
+    if c.plane is not None and cell["refused"] is None:
+        if on is None:
+            on = _cell_builder(c.state, req)
+        if on is not None:
+            cell["refused"] = _plane_entry(on, c.plane)["refused"]
+    return {**head, **cell}
+
+
+def _cell_builder(st: an.State, req: Mapping):
+    """The builder a state's cell is set on, its knobs set, for its plane."""
+    from .examples import UnknownGeometryError, example_for
+
+    name = st.design or str(req.get("geometry") or "")
+    try:
+        cls = getattr(example_for(name), "builder_cls", None)
+    except UnknownGeometryError:
+        return None
+    if cls is None:
+        return None
+    sub = {"geometry": name}
+    variant = st.variant if st.design is not None else req.get("variant")
+    if variant is not None:
+        sub["variant"] = variant
+    b = builder_for(cls, sub)
+    for k, v in st.settings.items():
+        setattr(b, k, v)
+    return b
 
 
 def _crosses(a: an.Analysis, builder, req: Mapping, *, density: bool) -> dict:
@@ -369,6 +455,7 @@ def _crosses(a: an.Analysis, builder, req: Mapping, *, density: bool) -> dict:
         "planes": None,
         "designs": None,
         "states": None,
+        "cells": None,
         "step": None,
     }
     for c in a.crosses:
@@ -378,6 +465,10 @@ def _crosses(a: an.Analysis, builder, req: Mapping, *, density: bool) -> dict:
             out["designs"] = [_design_entry(a, d, density) for d in c.designs]
         elif c.kind == "states":
             out["states"] = [_state_entry(a, st, req, density) for st in c.states]
+        elif c.kind == "cells":
+            out["cells"] = [
+                _cell_entry(a, cell, builder, req, density) for cell in c.cells
+            ]
         elif c.kind == "step":
             out["step"] = _step_entry(c.step, builder, req)
     return out
@@ -516,6 +607,7 @@ def offer(builder, req: Mapping) -> list[dict]:
                 "name": a.name,
                 "summary": ar.summary(a, builder),
                 "code": an.to_code(a),
+                "spec": an.to_data(a),
                 "problems": an.problems(a, builder),
                 "workbench": workbench(a, builder, req),
                 # A design's own analysis: not a study (`offer_studies`).
@@ -544,6 +636,7 @@ def offer_studies(builder, req: Mapping) -> list[dict]:
                 "study": {"source": st.source, "name": a.name},
                 "summary": ar.summary(a, builder),
                 "code": an.to_code(a),
+                "spec": an.to_data(a),
                 "problems": an.problems(a, builder),
                 "workbench": workbench(a, builder, req),
             }
