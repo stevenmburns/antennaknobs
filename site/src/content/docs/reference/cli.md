@@ -14,7 +14,7 @@ python -m antennaknobs {draw,sweep,analyze,optimize,pattern,compare_patterns,par
 | `list` | List available designs (built-in and user) |
 | `draw` | Draw the antenna geometry |
 | `sweep` | Sweep a parameter or frequency |
-| `analyze` | List or run a design's named analyses |
+| `analyze` | List or run a design's named analyses, and studies across designs |
 | `pattern` | Plot the far-field pattern |
 | `compare_patterns` | Overlay the patterns of several antennas / engines |
 | `optimize` | Optimize an antenna's parameters |
@@ -349,12 +349,13 @@ A curve's label joins what makes it, in the order the crosses are written:
 `dipoles.invvee_apex, momwire:razor-2p`, or `rig, angle_deg = 30`. Tables print
 one block per curve, and a refused curve keeps its place in the legend.
 
-The inverted vee's `feed spellings` (E7) compares the stock bridge-fed vee
-with the apex-knot spelling on three engines, over the density ladder. NEC-2
-cannot feed a knot, so that one curve is refused and the other five run:
+The study `feed spelling (E7)` (see [Studies](#studies)) compares the stock
+bridge-fed vee with the apex-knot spelling on three engines, over the density
+ladder. NEC-2 cannot feed a knot, so that one curve is refused and the other
+five run:
 
 ```bash
-NEC2_EXE=$(command -v nec2c) python -m antennaknobs analyze --builder dipoles.invvee --analysis "feed spellings"
+NEC2_EXE=$(command -v nec2c) python -m antennaknobs analyze --study "feed spelling (E7)"
 ```
 
 ```text
@@ -420,6 +421,100 @@ other as a family.
 
 A *hold* (re-optimising knobs at every point) is declared in the same Python
 but refused by name for now, naming its step.
+
+### Studies
+
+An analysis in `build_analyses()` belongs to its design: it can leave out
+`designs=` and mean "this design". A comparison of several designs belongs to
+none of them, so it is a **study**: the same `an.Analysis`, returned by a
+`build_studies()`, run by the same code and drawn with the same views. There
+are three places to put an analysis, side by side:
+
+| where | what it is | `designs=` | listed on |
+|---|---|---|---|
+| `Builder.build_analyses(self)` | an analysis of this design | optional; leave it out for "this design" | this design |
+| `Builder.build_studies(self)` | this design against a few references | the references only; this design is always the first cell | this design only |
+| a module-level `build_studies()` | a study of peers | every design, since a function has no "this design" | every design it names |
+
+The method form is for "how does my new antenna compare with the standard
+ones", and it stays on its own design: a Yagi that everyone compares against
+does not fill up with everyone's comparisons. Naming your own design among
+the references is harmless; it is still one curve, and still first.
+
+```python
+import antennaknobs.analyses as an
+
+
+class Builder(AntennaBuilder):
+    def build_studies(self):
+        # three curves: this design, then the two references
+        return [
+            an.band_swr(
+                name="vs the references",
+                cross=an.Cross(designs=("beams.yagi", "dipoles.invvee")),
+            )
+        ]
+```
+
+The function form is for peers. The inverted vee's module holds E7, beside
+the two feed spellings it compares, so it is offered on both of their tabs:
+
+```python
+# designs/dipoles/invvee.py, beside the Builder class
+def build_studies():
+    return [
+        an.convergence(
+            name="feed spelling (E7)",
+            cross=(
+                an.Cross(designs=("dipoles.invvee", "dipoles.invvee_apex")),
+                an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec2")),
+            ),
+        ),
+    ]
+```
+
+A study with no `designs=` is refused by name: in a function it has no design
+to fall back on, and in a method it is just an analysis of this design, which
+belongs in `build_analyses()`.
+
+Module-level studies are found in two places:
+
+- a `build_studies()` function in any catalog design module;
+- `.py` files in your studies folder, `~/.antennaknobs/studies/` (or
+  `$ANTENNAKNOBS_STUDIES_DIR`), beside the designs folder. Subfolders become
+  part of the name, as a catalog family does: `feeds/e7.py` is `feeds/e7`.
+  Files and folders starting with `_` or `.` are skipped, and a name part may
+  not hold a `.` or a `:`.
+
+A study file is Python, so it is gated like a user design: it **does not run
+until you allow it** (see [Allowing user designs to run](#allowing-user-designs-to-run)).
+Until then it is listed with the command that allows it, and it is never
+imported, so nothing in it runs to find out what it compares.
+
+A study's full name is its source, a colon, and its own name:
+`dipoles.invvee:feed spelling (E7)`, `feeds/e7:bridge vs apex`, or
+`user.my_vee:vs the references` for a method study. The source keeps names
+from colliding: two studies of one name in one source are both refused, and
+that includes a design module's function and its Builder's method.
+
+```bash
+# every study, with the reason any cannot run here
+python -m antennaknobs analyze --list-studies
+# what a design's tab lists: the studies naming it, and its own method studies
+python -m antennaknobs analyze --list-studies --builder dipoles.invvee_apex
+# run one: by its full name, by its source when that holds one study, or by
+# its own name when only one study has it
+python -m antennaknobs analyze --study "feed spelling (E7)" --fn e7.png
+python -m antennaknobs analyze --study feeds/e7 --csv e7.csv
+python -m antennaknobs analyze --study "feed spelling (E7)" --code
+```
+
+`--study` takes the same `--fn`, `--csv`, `--code`, `--ground` and `--z0` as
+`--analysis`. Each design in a study is solved at its own defaults, exactly
+as a `designs=` cross is in an analysis. A method study is found through its
+design: give `--builder`, or its full name, whose source is that design.
+With `--builder` naming a design the study compares, the run is summarised
+on that design; otherwise on the study's first.
 
 ## Drawing the feed network
 
@@ -967,6 +1062,18 @@ python -m antennaknobs allow my_dipole --edits
 # Stop allowing one
 python -m antennaknobs disallow their_design
 ```
+
+Study files in `~/.antennaknobs/studies/` (see [Studies](#studies)) go
+through the same gate. `allow`, `disallow` and `screen` take a study by its
+name under the folder, subfolders included, and its decision is kept in the
+studies folder's own `.trust.json`, keyed the same relative way:
+
+```bash
+python -m antennaknobs allow feeds/e7
+```
+
+A name that is both a user design and a top-level study file is not guessed
+at: give `user.<name>` for the design, or the study file's path.
 
 `screen` prints what the file does that's unusual (imports outside the
 antenna-modelling stack, file access, network use) *without running it*. The
