@@ -2,6 +2,7 @@ import { createContext } from "react";
 import type { SolveRequest, SolveResponse } from "../../lib/api";
 import type { Theme } from "../hooks";
 import type { PatternMetrics, PinnedPattern } from "../charts/types";
+import type { SweepPin, SweepPinSnapshot } from "../../lib/sweepPins";
 
 // Theme is global (owned by the shell) but the toggle button lives in each
 // session's sidebar header; sessions reach the setter through this context so
@@ -55,6 +56,27 @@ export const PinsContext = createContext<PinsCtx>({
   removePin: () => {},
   togglePin: () => {},
   clearPins: () => {},
+});
+
+// Pinned sweeps (AK#1757 item 1, lib/sweepPins.ts), shared across all design
+// sessions as the pattern pins are: pin a curve in one tab, compare against
+// it in another. A separate list and context from the pattern pins (a sweep
+// pin is solved Z along an x, a pattern pin a far field), owned by the shell
+// (SweepPinsProvider) and session-only.
+export type SweepPinsCtx = {
+  pins: SweepPin[];
+  /** One pin per snapshot (one per drawn curve, ruling 1), each enabled in
+   *  the smallest free colour slot. */
+  addPins: (snaps: SweepPinSnapshot[]) => void;
+  removePin: (id: string) => void;
+  /** Show / hide, global (ruling 2). */
+  togglePin: (id: string) => void;
+};
+export const SweepPinsContext = createContext<SweepPinsCtx>({
+  pins: [],
+  addPins: () => {},
+  removePin: () => {},
+  togglePin: () => {},
 });
 
 // Fetch the scalar far-field metrics for a request (peak gain, takeoff, F/B,
