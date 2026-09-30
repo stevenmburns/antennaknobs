@@ -169,6 +169,7 @@ model = { degree = 2 }
 nec5_exe = 'C:\EZNEC 7.0\Docs\NEC5CL_x13.exe'
 nec2_exe = 'C:\4nec2\exe\nec2dxs11.exe'
 nec42_exe = 'C:\nec42\nec42cl.exe'   # your own licensed NEC-4.2, if you have one
+nec42_sommerfeld = 3        # optional: the NEC-4.2 slot starts on GN 3 (default 2)
 
 [capture]
 dir = 'C:\ak-captures'      # every NEC-5 / NEC-2 deck and printout
@@ -309,7 +310,8 @@ family reads side by side. Where the curves were swept at different values (two
 designs on their own bands, say) the table has a row for each, and a curve
 with no point there leaves its cells blank. **copy** puts the table on the
 clipboard as tab-separated text, which a spreadsheet pastes as columns, or
-select the cells and copy them. On a phone the table scrolls sideways and
+select the cells and copy them. **Download CSV** saves the same table as a
+`.csv` file named for the design and what the chart sweeps. On a phone the table scrolls sideways and
 down inside the chart's square rather than widening the page. The table lists
 the points the chart swept: on a frequency sweep with adaptive resolution on,
 the curves on the other views are refined between those points, and the table
@@ -393,6 +395,26 @@ on, in the order the analysis writes its crosses. The six-curve cap covers
 the whole product, in the command line's words (*"REFUSED: 4 values x 2
 engines = 8 curves, over the cap of 6"*). A family over the segment density
 stays refused, as on the command line.
+
+### Pinned sweeps
+
+**pin** on a chart's header freezes what it draws: one pin per curve, holding
+the curve's R and X at each point, the Z0 it was drawn at, and a label naming
+the design, its changed knobs, the engine, the ground and the plane. A pin never
+re-solves. It draws dashed, in its own colour, beside the live curves, so you
+can change a knob, an engine, a ground or the design itself and see what moved.
+
+- A pin draws on any chart that sweeps the same thing: a frequency pin on every
+  frequency chart where the ranges overlap, a knob pin on any chart sweeping a
+  knob of the same name (in another design too), a density pin on density
+  charts. It draws on every view; on SWR and S11 it keeps the Z0 it was taken
+  at, and its label says so when that differs from the chart's.
+- Pins belong to the session, not the tab: pin in one design tab and compare in
+  another. They are gone when the page reloads.
+- The legend lists every pin with show/hide, **csv** (x, R, X and SWR at the
+  pin's Z0) and **×**. A pin that cannot draw on this chart stays listed,
+  greyed, with the reason.
+- **pin** waits while a curve is running, refused or stale.
 
 ### More than one chart
 
@@ -1405,8 +1427,8 @@ partial.
 
 On the chart:
 
-- A **dashed guide** marks the knob's current value, with the live solve's
-  R and X on it. Turning the swept knob slides the guide along the curve; it
+- A **dashed guide** marks the knob's current value, labelled at its top
+  ("N = 40 (now)", "height = 9.5 (now)"), with the live solve's R and X on it. Turning the swept knob slides the guide along the curve; it
   does not re-run the sweep, since every point sets that knob itself. Any
   *other* change re-runs a density sweep, and marks a knob sweep stale.
 - **Hover** (or tap) reads the nearest point: its value, R and X.
@@ -1682,9 +1704,10 @@ copies the current knob values to the clipboard as a paste-ready
 named variant). Drop it straight into a design file to bake in whatever you
 dialed in — no more transcribing values off the screen by hand.
 
-The same gear menu has two deck downloads: **Download NEC-2 .nec**, for xnec2c /
-4nec2 / EZNEC / nec2c, and **Download NEC-5 .nec**, for NEC5CL / EZNEC Pro+. Both
-are always offered, whatever engines the machine running the workbench has — the
+The same gear menu has three deck downloads: **Download NEC-2 .nec**, for xnec2c /
+4nec2 / EZNEC / nec2c; **Download NEC-4 .nec**, for a NEC-4.2 binary and EZNEC
+Pro/4 ([the NEC-4 deck](/reference/nec42/#the-nec-4-deck)); and **Download NEC-5
+.nec**, for NEC5CL / EZNEC Pro+. All are always offered, whatever engines the machine running the workbench has — the
 deck writers need none, and the person who most wants the file is usually the one
 without the engine there.
 
@@ -1692,14 +1715,13 @@ What varies is the **design**, not the engines. A NEC-2 deck cannot carry a buri
 wire, a wire lying in the ground plane, or a graded mesh (a card deck numbers
 wires by tag and a graded expansion would shift every `EX`/`LD`/`NT` reference),
 so those designs refuse the NEC-2 download with a sentence pointing at the NEC-5
-one — which does carry them. A design whose network is a transmission line or a
+and NEC-4 ones — which do carry them. A design whose network is a transmission line or a
 virtual driver refuses both: the app solves those by a multiport-Y reduction over
 one deck per driven port, and no single deck says that in either dialect.
 
 The NEC-5 deck is the same file the corpus tool's `catalog-nec5/` ships for that
 design at that mesh and ground — one writer, so the download and the published
-set cannot disagree. NEC-4.2 is deliberately not offered
-([why](/reference/nec5/#why-no-nec-42-download)).
+set cannot disagree.
 
 The reverse — bringing a `.nec` deck someone published *into* the workbench — is
 [Loading NEC decks](/reference/nec-import/).

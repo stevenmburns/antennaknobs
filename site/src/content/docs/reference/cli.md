@@ -19,7 +19,7 @@ python -m antennaknobs {draw,sweep,analyze,optimize,pattern,compare_patterns,par
 | `compare_patterns` | Overlay the patterns of several antennas / engines |
 | `optimize` | Optimize an antenna's parameters |
 | `params` | Print a design's knob values as paste-ready Python |
-| `export` | Export the design to a NEC-2 `.nec` card deck |
+| `export` | Export the design as a NEC-2, NEC-4 or NEC-5 `.nec` card deck |
 | `screen` | Show what a design file does that's unusual, without running it |
 | `allow` | Allow a user design to run (it runs code on your machine) |
 | `disallow` | Stop allowing a user design to run |
@@ -930,6 +930,7 @@ complete dict reproduces that dict — but the minimal delta form is the idiom.)
 ```bash
 python -m antennaknobs export --builder beams.yagi --out yagi.nec
 python -m antennaknobs export --builder beams.yagi --out yagi_nec5.nec --dialect nec5
+python -m antennaknobs export --builder beams.yagi --out yagi_nec4.nec --dialect nec4
 ```
 
 The default deck (`--dialect nec2`) is validated against `nec2c`, so designs
@@ -937,7 +938,11 @@ round-trip into other NEC tools. `--dialect nec5` writes the deck the
 [NEC-5 engine](/reference/nec5/) runs, with sources on knots, buried wires
 meshed in the soil and a header naming the design, mesh and ground; writing it
 needs no NEC-5 binary. That writer has no pattern switch, so `--no-pattern` is
-refused under it. The reverse direction — loading an existing `.nec` deck as a design —
+refused under it. `--dialect nec4` writes [NEC-4.2's deck](/reference/nec42/#the-nec-4-deck)
+(graded meshes as chained wires, `EX 6` current sources, `NOFILE` Sommerfeld
+cards), also without a binary; `--nec42-sommerfeld 3` makes its ground `GN 3`,
+and the same flag picks the NEC-4.2 engine's ground on `sweep`, `analyze` and the
+other engine commands. The reverse direction — loading an existing `.nec` deck as a design —
 is [`parse_nec` / `read_nec`](/reference/nec-import/).
 
 ## Allowing user designs to run
