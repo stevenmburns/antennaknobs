@@ -27,7 +27,7 @@ const run = (over: Partial<KnobWorkbench>): KnobWorkbench => ({
 });
 
 // What a server before unit 4b serves of the other crosses: nothing.
-const NO_CROSSES = { axes: [], planes: null, designs: null, states: null, step: null };
+const NO_CROSSES = { axes: [], planes: null, designs: null, states: null, cells: null, step: null };
 
 describe("analysisSpec", () => {
   it("E3: base, 2…20, 37 linear points, and the header's ladder is the served one", () => {

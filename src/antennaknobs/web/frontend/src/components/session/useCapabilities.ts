@@ -32,6 +32,9 @@ type CapabilitiesPayload = {
   /** "v0.77.0 · momwire v0.55.0" (AK#1517): one server-built string so this
    *  file never names an engine. Absent from a server predating it. */
   version_label?: string;
+  /** Whether "save as study" may write a file (AK#1757 step 7 unit 4):
+   *  false on the hosted instance, absent from a server predating it. */
+  can_save_studies?: boolean;
 };
 
 export type CapabilitiesState = {
@@ -68,6 +71,9 @@ export type CapabilitiesState = {
   /** The served version string, rendered under the brand as-is. Null from a
    *  server predating it (AK#1517), which renders no label at all. */
   versionLabel: string | null;
+  /** "Save as study" writes a file: a local workbench only (the server
+   *  refuses it hosted too). False until the server says otherwise. */
+  canSaveStudies: boolean;
   error: string | null;
 };
 
@@ -92,6 +98,7 @@ export function useCapabilities(): CapabilitiesState {
   });
   const [uiDefaults, setUiDefaults] = useState<UiDefaults>(BUILTIN_UI_DEFAULTS);
   const [versionLabel, setVersionLabel] = useState<string | null>(null);
+  const [canSaveStudies, setCanSaveStudies] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -139,6 +146,7 @@ export function useCapabilities(): CapabilitiesState {
         });
         setUiDefaults(parseUiDefaults(c.ui_defaults));
         setVersionLabel(typeof c.version_label === "string" ? c.version_label : null);
+        setCanSaveStudies(c.can_save_studies === true);
         // An empty roster is as unusable as a failed fetch — there would be
         // no solver to pick — so it takes the error path rather than
         // stranding the session on the loading note.
@@ -167,6 +175,7 @@ export function useCapabilities(): CapabilitiesState {
     compositionVocab,
     uiDefaults,
     versionLabel,
+    canSaveStudies,
     error,
   };
 }

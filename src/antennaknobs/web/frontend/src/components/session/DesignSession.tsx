@@ -82,12 +82,14 @@ import {
   checkedGrounds,
   checkedSlots,
   type CrossEnv,
+  CURVE_CAP,
   type CrossPlan,
   crossPlan,
   engineRefusal,
   engineSpecHeld,
   groundSpecHeld,
   type KnobValue,
+  type ScalarKnob,
   type ListedCross,
   preselect,
   servedCell,
@@ -210,6 +212,14 @@ import {
 import { FrequencyChartControls, PatternChartControls } from "../results/AnalysisChartControls";
 import { ZParamControls } from "../results/ZParamControls";
 import { ZParamStage } from "../results/ZParamStage";
+import { KeepDialog, type KeepDialogProps } from "../results/KeepDialog";
+import {
+  type KeepBody,
+  keepRequest,
+  patternPinsKeep,
+  type SweepPinKeep,
+  sweepPinsBlocked,
+} from "../../lib/keep";
 
 // The Z-vs-parameter header's height on a phone (two wrapped rows plus its
 // margin), which the chart below it gives up.
@@ -270,6 +280,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
     compositionVocab,
     uiDefaults,
     versionLabel,
+    canSaveStudies,
     error,
   } = useCapabilities();
   if (error !== null)
@@ -295,6 +306,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
       compositionVocab={compositionVocab}
       uiDefaults={uiDefaults}
       versionLabel={versionLabel}
+      canSaveStudies={canSaveStudies}
     />
   );
 }
@@ -312,6 +324,7 @@ function DesignSessionBody({
   compositionVocab,
   uiDefaults,
   versionLabel,
+  canSaveStudies,
 }: {
   id: number;
   active: boolean;
@@ -330,6 +343,8 @@ function DesignSessionBody({
   /** "v0.77.0 · momwire v0.55.0" (AK#1517), rendered under the brand as-is;
    *  null from a server predating it. */
   versionLabel: string | null;
+  /** "Save as study" may write a file (AK#1757 step 7 unit 4). */
+  canSaveStudies: boolean;
 }) {
   const [geometry, setGeometry] = useState<string>("");
 
@@ -388,6 +403,14 @@ function DesignSessionBody({
   // states ride along on the same fetch, so a broken edit surfaces in the
   // usual panels.
   const [reloadNonce, setReloadNonce] = useState(0);
+  // "Copy as analysis" / "keep as study" (AK#1757 step 7 unit 4): the open
+  // dialog's title, what it keeps and its starting name, or null; and a
+  // generation bumped by a save, so the tab re-reads its analyses and the
+  // new study appears in its picker's Studies group.
+  const [keeping, setKeeping] = useState<Pick<KeepDialogProps, "title" | "body" | "initialName"> | null>(
+    null,
+  );
+  const [studiesNonce, setStudiesNonce] = useState(0);
   const [reloadBusy, setReloadBusy] = useState(false);
   // The catalog button: a re-fetch always (the server rescans the user-design
   // folder on every GET /examples). Only a selected USER design is also
@@ -1386,7 +1409,7 @@ function DesignSessionBody({
   ): SolveRequest {
     const design =
       over.design !== undefined
-        ? designAtDefaults(over.design)
+        ? designAtDefaults(over.design, over.state?.variant)
         : over.state !== undefined
           ? designAtDefaults(geometry, currentVariant)
           : null;
@@ -1910,6 +1933,17 @@ function DesignSessionBody({
   function pickPlane(p: string) {
     setPlane(p === result?.planes?.[0] ? null : p);
   }
+
+  // "Keep as study" for the shown pinned patterns (AK#1757 step 7 unit 4):
+  // each the request its pattern was solved with (lib/keep.ts).
+  const patternKeep = patternPinsKeep(pinnedPatterns, CURVE_CAP);
+  const keepPatternPinsBlocked = patternKeep.blocked;
+  const keepPatternPins = () =>
+    setKeeping({
+      title: "Keep pinned patterns as study",
+      body: { origin: "pattern pins", form: "study", pins: patternKeep.pins },
+      initialName: "pinned patterns",
+    });
 
   function pinCurrentPattern() {
     // A result exists only because a solve was sent, which fills controlsRef —
@@ -2517,7 +2551,7 @@ function DesignSessionBody({
   // sweep range or the viewer's saved chart preferences. What the chart
   // cannot run yet is listed with why, and picking it does nothing.
   const zparamAnalyses = useDesignAnalyses({
-    designKey: `${zparamDesignKey}#${reloadNonce}`,
+    designKey: `${zparamDesignKey}#${reloadNonce}#${studiesNonce}`,
     // Not before the session has a design: the first render has none.
     enabled: chartModels.some((m) => m?.resident) && !!geometry,
     request: buildRequest,
@@ -2539,6 +2573,7 @@ function DesignSessionBody({
       planes: w.planes ?? null,
       designs: w.designs ?? null,
       states: w.states ?? null,
+      cells: w.cells ?? null,
       step: w.step ?? null,
     };
     return withListed(c, listed, preselect(listed, crossEnv));
@@ -3166,6 +3201,14 @@ function DesignSessionBody({
           />
         </GroundSlotTabs>
 
+        {keeping && (
+          <KeepDialog
+            {...keeping}
+            canSave={canSaveStudies}
+            onClose={() => setKeeping(null)}
+            onSaved={() => setStudiesNonce((n) => n + 1)}
+          />
+        )}
         {(() => {
           // The open ⚙'s slot: its own values and setters, whichever slot
           // is active (AK#1801).
@@ -3403,9 +3446,12 @@ function DesignSessionBody({
     const other = c.design !== undefined && c.design !== geometry;
     const cfg = c.slot !== null ? slots[c.slot as Slot] : undefined;
     const g = groundSlots.find((x) => x.id === c.ground);
-    // A state cell's knobs are the state's, over the defaults (step 7).
-    const knobs: [string, KnobValue][] = c.state
-      ? Object.entries(c.state.knobs).filter(([k]) => k !== swept)
+    // A state cell's knobs are the state's, over the defaults (step 7); a
+    // group knob's value (unit 4) reads as "set", having no one word.
+    const knobs: [string, ScalarKnob][] = c.state
+      ? Object.entries(c.state.knobs)
+          .filter(([k]) => k !== swept)
+          .map(([k, v]: [string, KnobValue]): [string, ScalarKnob] => [k, Array.isArray(v) ? "set" : v])
       : other
         ? []
         : changedKnobs(currentValues, knobDefaults(), swept);
@@ -3416,9 +3462,9 @@ function DesignSessionBody({
     }
     return pinLabel({
       design: c.design ?? geometry,
-      variant: other
-        ? (examples.find((e) => e.name === c.design)?.variants?.[0] ?? null)
-        : currentVariant,
+      variant:
+        c.state?.variant ??
+        (other ? (examples.find((e) => e.name === c.design)?.variants?.[0] ?? null) : currentVariant),
       engine: cfg ? backendDisplayLabel(cfg.backend, cfg.opts) : "",
       ground: g ? groundSlotLabel(g, soilPresets ?? []) : "",
       knobs,
@@ -3499,16 +3545,19 @@ function DesignSessionBody({
       if (!r || isPattern) return [];
       const cell = m.drawn.length > 1 ? c.label : "";
       const design = c.design ?? geometry;
+      // The request the curve was solved with: what "keep as study" keeps
+      // (AK#1757 step 7 unit 4, lib/keep.ts).
+      const req = keepRequest(buildCellRequest(m.runs[k].cell));
       if (isFreq) {
         const sw = r.freq.sweep;
         return sw && sw.freqs_mhz.length > 0
-          ? [{ xs: sw.freqs_mhz, zRe: sw.z_re, zIm: sw.z_im, x: FREQUENCY_X, label: pinContext(c, null), cell, design }]
+          ? [{ xs: sw.freqs_mhz, zRe: sw.z_re, zIm: sw.z_im, x: FREQUENCY_X, label: pinContext(c, null), cell, design, req }]
           : [];
       }
       const d = r.param.data;
       if (!d || d.error || d.param !== m.runs[k].param.req.param || d.values.length === 0) return [];
       const x = d.param === m.spec.param ? knobX(d.param, m.label, knobUnit) : knobX(d.param, d.label, null);
-      return [{ xs: d.values, zRe: d.z_re, zIm: d.z_im, x, label: pinContext(c, d.param), cell, design }];
+      return [{ xs: d.values, zRe: d.z_re, zIm: d.z_im, x, label: pinContext(c, d.param), cell, design, req }];
     });
     // Pin snapshots the curves as they stand, so not while any is still
     // moving (a run, a refinement, or a dwell about to re-run), refused, or
@@ -3546,11 +3595,71 @@ function DesignSessionBody({
         onCsv: () => saveTextFile(pinCsv(p), pinCsvName(p, p.id)),
       };
     });
+    // "Keep as study" for the pins shown here (AK#1757 step 7 unit 4): the
+    // enabled pins this chart draws, each the request its curve was solved
+    // with, what it sweeps and at which x (lib/keep.ts).
+    const drawnPins = sweepPins.filter((p) => p.enabled && placePin(p, chartX).drawable);
+    const pinKeeps: SweepPinKeep[] = drawnPins.flatMap((p) =>
+      p.req ? [{ req: p.req, x: { kind: p.x.kind, name: p.x.name }, xs: [...p.xs], label: p.label }] : [],
+    );
+    const keepPinsBlocked =
+      drawnPins.length === 0
+        ? "No shown pin draws on this chart: show one to keep it"
+        : pinKeeps.length < drawnPins.length
+          ? "A shown pin has no solve request to keep: pin it again"
+          : sweepPinsBlocked(pinKeeps, CURVE_CAP);
+    const keepPins = () =>
+      setKeeping({
+        title: "Keep pins as study",
+        body: { origin: "sweep pins", form: "study", pins: pinKeeps },
+        initialName: "pinned sweeps",
+      });
     const chartPins: PinCurve[] = sweepPins.flatMap((p) => {
       if (!p.enabled) return [];
       const at = placePin(p, chartX);
       return at.drawable ? [pinCurve(p, at.idx, sweepPinColor(p.colorIdx))] : [];
     });
+    // Keeping this chart (AK#1757 step 7 unit 4, lib/keep.ts): the picked
+    // analysis as /analyses served it, the tab's own request, the requests
+    // its curves were solved with (the engines and grounds it draws: always
+    // for a study, which should re-solve what is drawn; for a copy only when
+    // the viewer ticked slots, so an analysis naming no engine stays so), and
+    // its x values when the viewer edited the range.
+    const keepPicked = pickedNow !== null ? (zparamAnalyses.find((a) => a.name === pickedNow) ?? null) : null;
+    const noPick =
+      "Pick an analysis first: the chart's own sweep is not one (pin its curves to keep them)";
+    const copyBlocked =
+      keepPicked?.study || (keepPicked?.workbench.runs && keepPicked.workbench.axes?.includes("designs"))
+        ? "This chart compares named designs: keep it as a study"
+        : null;
+    const editedValues: number[] | null = !pickedEdited(m.now)
+      ? null
+      : m.state.kind === "knob"
+        ? [...m.inputs.param.req.values]
+        : (own?.freq.sweep?.freqs_mhz.slice() ?? []);
+    const keepValuesBlocked =
+      editedValues !== null && editedValues.length === 0
+        ? "Run the edited range first: a study keeps the points it solved"
+        : null;
+    const openChartKeep = (form: "analysis" | "study") => {
+      if (!keepPicked) return;
+      const ticked = m.now.cross.slots !== null || m.now.cross.grounds !== null;
+      const body: KeepBody = {
+        origin: "chart",
+        form,
+        spec: keepPicked.spec ?? null,
+        tab: keepRequest(buildRequest()),
+        ...(form === "study" || ticked
+          ? { cells: m.runs.map((r) => keepRequest(buildCellRequest(r.cell))) }
+          : {}),
+        ...(editedValues ? { values: editedValues } : {}),
+      };
+      setKeeping({
+        title: form === "analysis" ? "Copy as analysis" : "Keep as study",
+        body,
+        initialName: keepPicked.study?.name ?? keepPicked.name,
+      });
+    };
     const chrome: ChartChrome = {
       dwell: m.dwellOn,
       onDwell: (on: boolean) => setAt((c) => ({ ...c, dwell: on })),
@@ -3566,6 +3675,12 @@ function DesignSessionBody({
       ...(isPattern
         ? {}
         : { pin: { onPin: () => addSweepPins(pinsFromCurves(pinnable, chartZ0)), blocked: pinBlocked } }),
+      keep: {
+        onCopy: () => openChartKeep("analysis"),
+        copyBlocked: keepPicked ? copyBlocked : noPick,
+        onKeep: () => openChartKeep("study"),
+        keepBlocked: keepPicked ? keepValuesBlocked : noPick,
+      },
       ...(charts.some((c) => c === null) ? { onDuplicate: () => duplicateChart(i) } : {}),
       ...(i > 0 ? { onClose: () => closeChart(i) } : {}),
     };
@@ -3627,7 +3742,9 @@ function DesignSessionBody({
         return { key: c.key, label: c.label, color: cellColor(k), refused: null, error: error ?? null };
       }),
       capRefusal: m.plan.capRefusal,
-      ...(pinRows.length > 0 ? { pins: pinRows, pinsRx: rxPlot(m) } : {}),
+      ...(pinRows.length > 0
+        ? { pins: pinRows, pinsRx: rxPlot(m), onKeepPins: keepPins, keepPinsBlocked }
+        : {}),
       // R solid and X dashed per curve holds only with more than one live
       // curve; one draws R red and X blue (ZParamChart), and a pin can now
       // show the legend over a one-curve chart.
@@ -4030,6 +4147,8 @@ function DesignSessionBody({
               measFreq={measFreq}
               removePin={removePin}
               togglePin={togglePin}
+              onKeepPins={keepPatternPins}
+              keepPinsBlocked={keepPatternPinsBlocked}
               cutLabel={
                 v === "combined"
                   ? `az @ ${azElevDeg}° elev · el @ ${elevAzDeg}° az (dBi)`

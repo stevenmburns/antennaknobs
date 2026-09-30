@@ -9,8 +9,10 @@ import type {
   CrossKind,
   DesignCross,
   KnobValue,
+  ListedCell,
   ListedCross,
   PlaneCross,
+  ScalarKnob,
   StateCross,
   StepCross,
 } from "./chartCells";
@@ -55,6 +57,7 @@ export type Listed = {
   planes?: PlaneCross[] | null;
   designs?: DesignCross[] | null;
   states?: StateCross[] | null;
+  cells?: ListedCell[] | null;
   step?: StepCross | null;
 };
 
@@ -127,6 +130,9 @@ export type AnalysisEntry = {
   problems: string[];
   workbench: AnalysisWorkbench;
   study?: StudyTag | null;
+  /** The analysis as data (`analyses.to_data`), which "copy as analysis"
+   *  and "keep as study" send back (AK#1757 step 7 unit 4); opaque here. */
+  spec?: unknown;
 };
 
 /** What a picker shows for an entry: a study's short name (the Studies
@@ -150,7 +156,15 @@ function specList(v: unknown): string[] | null {
     : null;
 }
 
-const CROSS_KINDS: readonly CrossKind[] = ["engines", "grounds", "planes", "designs", "states", "step"];
+const CROSS_KINDS: readonly CrossKind[] = [
+  "engines",
+  "grounds",
+  "planes",
+  "designs",
+  "states",
+  "cells",
+  "step",
+];
 const isStr = (v: unknown): v is string => typeof v === "string";
 const reason = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 
@@ -191,16 +205,33 @@ function parseDesign(d: Record<string, unknown>): DesignCross | null {
     : null;
 }
 
-const isKnobValue = (v: unknown): v is KnobValue =>
+const isScalarKnob = (v: unknown): v is ScalarKnob =>
   isNum(v) || typeof v === "boolean" || typeof v === "string";
+
+/** A state's knob value: a scalar, or a group knob's entries (unit 4), each
+ *  a record of scalars. */
+const isKnobValue = (v: unknown): v is KnobValue =>
+  isScalarKnob(v) ||
+  (Array.isArray(v) &&
+    v.length > 0 &&
+    v.every(
+      (e) =>
+        !!e && typeof e === "object" && !Array.isArray(e) && Object.values(e).every(isScalarKnob),
+    ));
+
+/** A served state's knobs: a record of knob values, else null. */
+function knobRecord(v: unknown): Record<string, KnobValue> | null {
+  const knobs = v && typeof v === "object" && !Array.isArray(v) ? v : null;
+  return knobs && Object.values(knobs).every(isKnobValue) ? (knobs as Record<string, KnobValue>) : null;
+}
 
 /** A state as served (AK#1757 step 7): its knobs a flat record of numbers,
  *  booleans or strings; the cell's sweep as a design cell's; `on` one
  *  design cell per design beside a designs cross. */
 function parseState(o: Record<string, unknown>): StateCross | null {
   if (!isStr(o.name) || !isStr(o.label)) return null;
-  const knobs = o.knobs && typeof o.knobs === "object" && !Array.isArray(o.knobs) ? o.knobs : null;
-  if (!knobs || !Object.values(knobs).every(isKnobValue)) return null;
+  const knobs = knobRecord(o.knobs);
+  if (!knobs) return null;
   const cell = parseDesign({ ...o, name: o.name });
   if (!cell) return null;
   const on = o.on === null || o.on === undefined ? null : namedList<DesignCross>(o.on, parseDesign);
@@ -213,10 +244,42 @@ function parseState(o: Record<string, unknown>): StateCross | null {
     freqs: cell.freqs ?? null,
     name: o.name,
     design: isStr(o.design) ? o.design : null,
-    knobs: knobs as Record<string, KnobValue>,
+    variant: isStr(o.variant) ? o.variant : null,
+    knobs,
     label: o.label,
     on,
   };
+}
+
+/** A listed cell as served (`cells=`, unit 4): its label, its state or
+ *  null, its own specs or null, and its sweep and refusal as a design
+ *  cell's. */
+function parseCell(o: Record<string, unknown>): ListedCell | null {
+  if (!isStr(o.label)) return null;
+  const sweep = parseDesign({ ...o, name: o.label });
+  if (!sweep) return null;
+  const optStr = (v: unknown): string | null | undefined =>
+    v === null || v === undefined ? null : isStr(v) && v ? v : undefined;
+  const engine = optStr(o.engine);
+  const ground = optStr(o.ground);
+  const plane = optStr(o.plane);
+  if (engine === undefined || ground === undefined || plane === undefined) return null;
+  let state: ListedCell["state"] = null;
+  if (o.state !== null && o.state !== undefined) {
+    const st = o.state as Record<string, unknown>;
+    const knobs = knobRecord(st.knobs);
+    if (!st || typeof st !== "object" || !isStr(st.name) || !isStr(st.label) || !knobs) return null;
+    state = {
+      name: st.name,
+      design: isStr(st.design) ? st.design : null,
+      variant: isStr(st.variant) ? st.variant : null,
+      knobs,
+      label: st.label,
+    };
+  }
+  const { name: _name, ...rest } = sweep;
+  void _name;
+  return { ...rest, label: o.label, state, engine, ground, plane };
 }
 
 function parseStep(v: unknown): StepCross | null {
@@ -245,6 +308,7 @@ function parseListed(o: Record<string, unknown>): Required<ListedCross> {
     ),
     designs: namedList<DesignCross>(o.designs, parseDesign),
     states: namedList<StateCross>(o.states, parseState),
+    cells: namedList<ListedCell>(o.cells, parseCell),
     step: parseStep(o.step),
   };
 }
@@ -372,6 +436,7 @@ export function parseAnalyses(body: unknown): AnalysisEntry[] {
         : [],
       workbench,
       study: parseStudy(o.study),
+      ...(o.spec !== undefined ? { spec: o.spec } : {}),
     });
   }
   return out;

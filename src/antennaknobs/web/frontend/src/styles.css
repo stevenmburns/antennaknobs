@@ -4588,6 +4588,56 @@ canvas {
   overflow-x: auto;
   user-select: text;
 }
+/* "Copy as analysis" / "keep as study" (AK#1757 step 7 unit 4): the
+   solver gear's modal shell, a name, the Python it keeps, copy and save. */
+.keep-dialog {
+  width: min(720px, calc(100vw - 32px));
+}
+.keep-dialog-field {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+.keep-dialog-field input {
+  flex: 1;
+  min-width: 8em;
+}
+.keep-dialog-code {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: var(--inset);
+  border-radius: var(--r-sm);
+  font-size: 11px;
+  white-space: pre;
+  overflow: auto;
+  max-height: 50vh;
+  user-select: text;
+}
+.keep-dialog-actions,
+.keep-dialog-save {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+.keep-dialog-save .keep-dialog-field {
+  flex: 1 1 100%;
+  margin-bottom: 0;
+}
+.keep-dialog-note {
+  color: var(--muted);
+  flex: 1 1 100%;
+}
+.keep-dialog-why {
+  color: var(--muted);
+  font-style: italic;
+  flex: 1 1 100%;
+  margin: 0 0 var(--space-2);
+}
 .zparam-reset {
   padding: 0 var(--space-2);
   background: var(--inset);

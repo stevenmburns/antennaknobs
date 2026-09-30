@@ -65,6 +65,10 @@ export type ChartLegendData = {
    *  `onOpen`, the chip and the collapse control flip it. */
   open?: boolean;
   onOpen?: (open: boolean) => void;
+  /** "Keep as study" for the pins drawn here (AK#1757 step 7 unit 4):
+   *  opens its dialog; `keepPinsBlocked` is why it cannot, or null. */
+  onKeepPins?: () => void;
+  keepPinsBlocked?: string | null;
 };
 
 /** How many cells the legend names as refused: the refused entries, or one
@@ -162,18 +166,50 @@ export function ChartLegend({ legend }: { legend: ChartLegendData }) {
           ))}
         </ul>
       )}
-      {legend.pins && legend.pins.length > 0 && <PinRows pins={legend.pins} rx={!!legend.pinsRx} />}
+      {legend.pins && legend.pins.length > 0 && (
+        <PinRows
+          pins={legend.pins}
+          rx={!!legend.pinsRx}
+          {...(legend.onKeepPins ? { onKeep: legend.onKeepPins } : {})}
+          keepBlocked={legend.keepPinsBlocked ?? null}
+        />
+      )}
     </div>
   );
 }
 
 // The pins section: a row per pin. The swatch is dashed in the pin's
 // colour, as the chart draws it.
-function PinRows({ pins, rx }: { pins: ChartLegendPin[]; rx: boolean }) {
+function PinRows({
+  pins,
+  rx,
+  onKeep,
+  keepBlocked,
+}: {
+  pins: ChartLegendPin[];
+  rx: boolean;
+  onKeep?: () => void;
+  keepBlocked: string | null;
+}) {
   return (
     <div className="chart-legend-pins" role="group" aria-label="Pinned sweeps">
       <div className="chart-legend-head">
         <span>pinned{rx ? " · R dashed, X dotted" : ", dashed"}</span>
+        {onKeep && (
+          <button
+            type="button"
+            className="chart-legend-pin-btn chart-legend-keep"
+            aria-label="Keep the pins drawn here as a study"
+            disabled={keepBlocked !== null}
+            title={
+              keepBlocked ??
+              "Keep as study: the pins drawn here, re-solved next session as a study function"
+            }
+            onClick={onKeep}
+          >
+            keep as study
+          </button>
+        )}
       </div>
       <ul>
         {pins.map((p) => {
