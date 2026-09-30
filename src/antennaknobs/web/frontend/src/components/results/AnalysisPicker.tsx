@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AnalysisEntry } from "../../lib/analyses";
+import { type AnalysisEntry, entryLabel } from "../../lib/analyses";
 
 // The Z-vs-parameter header's "analysis" picker (AK#1757, sweep-framework
 // step 3): the design's analyses (POST /analyses), one pick running the one
@@ -44,8 +44,13 @@ const KNOB = "\u0001knob";
  *     in that list (the last knob swept, else the design's first) over its
  *     own range, as the knob menu's "Sweep this knob…" does; changing the
  *     list then re-runs for the new knob;
- *   - "Not in the workbench yet": the analyses it cannot run, disabled, each
- *     with its reason.
+ *   - "Studies" (AK#1757 step 7): the studies that cross this design,
+ *     analyses over several designs, by their short name (the group says
+ *     what they are; the tooltip says where each is declared). Below the
+ *     design's own, since they are about more than it; one it cannot run
+ *     stays in its group, disabled, with its reason;
+ *   - "Not in the workbench yet": the design's analyses it cannot run,
+ *     disabled, each with its reason.
  *  A native <select> with an <optgroup> for the last part: a phone draws it
  *  as its own picker, group and disabled rows included, with nothing to lay
  *  out on a 390 px screen. */
@@ -61,8 +66,10 @@ export function AnalysisSelect({
   onSweepKnob,
   sweepingKnob = false,
 }: AnalysisPickerProps) {
-  const runnable = entries.filter((a) => blocked(a) === null);
-  const later = entries.filter((a) => blocked(a) !== null);
+  const designs = entries.filter((a) => !a.study);
+  const studies = entries.filter((a) => a.study);
+  const runnable = designs.filter((a) => blocked(a) === null);
+  const later = designs.filter((a) => blocked(a) !== null);
   const value =
     current ?? (own && onPickOwn ? OWN : sweepingKnob && onSweepKnob ? KNOB : "");
   return (
@@ -100,6 +107,25 @@ export function AnalysisSelect({
           <option value={KNOB} title="R and X against the knob in the chart's parameter list, over its own range">
             Sweep a knob
           </option>
+        )}
+        {studies.length > 0 && (
+          <optgroup label="Studies">
+            {studies.map((a) => {
+              const why = blocked(a);
+              const label = entryLabel(a);
+              const shown = edited && a.name === current ? `${label} (edited)` : label;
+              return (
+                <option
+                  key={a.name}
+                  value={a.name}
+                  disabled={why !== null}
+                  title={why ?? `${a.summary} (a study in ${a.study?.source})`}
+                >
+                  {why === null ? shown : `${label} (not here yet)`}
+                </option>
+              );
+            })}
+          </optgroup>
         )}
         {later.length > 0 && (
           <optgroup label="Not in the workbench yet">
@@ -195,19 +221,22 @@ function AnalysisCode({ entry, why }: { entry: AnalysisEntry; why: string | null
   return (
     <div className="zparam-analysis-item">
       <div className="zparam-analysis-head">
-        <strong>{entry.name}</strong>
+        <strong>{entryLabel(entry)}</strong>
+        {entry.study && (
+          <span className="zparam-analysis-summary">{`study in ${entry.study.source}`}</span>
+        )}
         <span className="zparam-analysis-summary">{entry.summary}</span>
         <button
           type="button"
           className="zparam-analysis-copy"
-          aria-label={`Copy ${entry.name} as Python`}
+          aria-label={`Copy ${entryLabel(entry)} as Python`}
           onClick={copy}
         >
           {copied ? "copied" : "copy"}
         </button>
       </div>
       {why && <div className="zparam-analysis-why">{why}</div>}
-      <pre aria-label={`${entry.name} as Python`}>{entry.code}</pre>
+      <pre aria-label={`${entryLabel(entry)} as Python`}>{entry.code}</pre>
     </div>
   );
 }

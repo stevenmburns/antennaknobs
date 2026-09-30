@@ -2511,12 +2511,14 @@ async def analyses_endpoint(req: dict):
     ``values`` as ``/param_sweep`` takes them), ``{runs: true, kind:
     "frequency", range, level, points, views, swr, note}`` (what the
     frequency sweep and its SWR / S11 / Smith charts take, step 4), or
-    ``{runs: false, why}``. Nothing solves.
+    ``{runs: false, why}``. After them, the studies that cross the design
+    (step 7), each with ``study: {source, name}`` beside the same fields.
+    Nothing solves.
     An unknown geometry or a bad knob value is a 422, as on ``/param_sweep``.
     Served on demand, not in ``/examples``: listing a design's analyses
     builds it.
     """
-    from .analyses_offer import builder_for, offer
+    from .analyses_offer import builder_for, offer, offer_studies
 
     geometry = req.get("geometry")
     try:
@@ -2527,7 +2529,8 @@ async def analyses_endpoint(req: dict):
         return {"geometry": geometry, "analyses": []}
 
     def _offer():
-        return offer(builder_for(cls, req), req)
+        builder = builder_for(cls, req)
+        return offer(builder, req) + offer_studies(builder, req)
 
     try:
         analyses = await run_in_threadpool(_offer)

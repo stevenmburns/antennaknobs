@@ -75,7 +75,15 @@ export type FrequencyWorkbench = {
 /** How the workbench runs an analysis, or the reason it cannot yet. */
 export type AnalysisWorkbench = KnobWorkbench | FrequencyWorkbench | { runs: false; why: string };
 
-/** One of the design's analyses, as /analyses serves it. */
+/** A study (AK#1757 step 7): an analysis over several designs, from a
+ *  module-level `build_studies()`. `source` is where it is declared (a
+ *  catalog module's `family.design`, or a user file's path under the studies
+ *  folder); `name` its own, short, name. */
+export type StudyTag = { source: string; name: string };
+
+/** One of the design's analyses, as /analyses serves it. A study's `name`
+ *  is its full `source:name`, unique beside the design's own analyses (the
+ *  picker tells entries apart by name); `study` says it is one. */
 export type AnalysisEntry = {
   name: string;
   /** One line: what is swept, over what, into how many curves. */
@@ -84,7 +92,20 @@ export type AnalysisEntry = {
   code: string;
   problems: string[];
   workbench: AnalysisWorkbench;
+  study?: StudyTag | null;
 };
+
+/** What a picker shows for an entry: a study's short name (the Studies
+ *  group already says it is one), else the analysis's name. */
+export const entryLabel = (a: AnalysisEntry): string => a.study?.name ?? a.name;
+
+function parseStudy(v: unknown): StudyTag | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  return typeof o.source === "string" && typeof o.name === "string"
+    ? { source: o.source, name: o.name }
+    : null;
+}
 
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
@@ -257,6 +278,7 @@ export function parseAnalyses(body: unknown): AnalysisEntry[] {
         ? o.problems.filter((p): p is string => typeof p === "string")
         : [],
       workbench,
+      study: parseStudy(o.study),
     });
   }
   return out;
