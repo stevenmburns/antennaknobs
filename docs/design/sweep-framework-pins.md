@@ -1,6 +1,6 @@
 # Sweep framework: pinned sweeps (design note)
 
-Status: **draft for Steve's review, 2026-09-29.** No code yet. Pins were
+Status: **settled 2026-09-30** (Steve took every recommendation; rulings at the end). Building. Pins were
 item 1 of AK#1757 ("the ability to pin a sweep from a previous run: a
 different engine, ground model, or design") and were set aside in step 5
 ("pins come after"). This note brings them back on top of step 5's charts.
@@ -99,3 +99,11 @@ noted here.
    hover values, CSV export.
 
 Both units are frontend-only. The server already returns Z per point.
+
+## Rulings (Steve, 2026-09-30: every recommendation taken)
+
+1. **One pin per curve.** Pinning a multi-curve chart makes one pin per drawn curve, each labelled by its cell.
+2. **Show/hide is global,** as pattern pins are. The per-chart x match decides where a pin can draw.
+3. **Knob pins match by knob name across designs,** with the design in the label.
+4. **A pin draws SWR and S11 at its own Z0.** When that differs from the chart's, its label says so ("Z0 50 Ω").
+5. **The palette grows to 8 sweep-pin colours** (question 1 can make 6 pins from one chart). Pattern pins keep their 4.
