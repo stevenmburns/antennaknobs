@@ -365,11 +365,12 @@ draw it; the chart never rewrites a slot. A slot that cannot run the design
 at all, or is a poor match for it (which only the active slot's **Solve
 anyway** can override), is refused the same way.
 
-### Planes, designs and families
+### Planes, designs, states and families
 
-An analysis can also compare measurement planes, designs, or values of a
-second knob (a *family*), with an `an.Cross(planes=…)`, `an.Cross(designs=…)`
-or `an.Cross(step=an.Sweep(knob, values=…))` in its `build_analyses()`.
+An analysis can also compare measurement planes, designs, named knob
+settings (*states*), or values of a second knob (a *family*), with an
+`an.Cross(planes=…)`, `an.Cross(designs=…)`, `an.Cross(states=…)` or
+`an.Cross(step=an.Sweep(knob, values=…))` in its `build_analyses()`.
 Picking one draws a curve for each, as `antennaknobs analyze` does; there are
 no boxes to tick for these, since they come from the analysis rather than
 from the session's slots, and the legend names every curve:
@@ -392,7 +393,15 @@ from the session's slots, and the legend names every curve:
   design you have loaded;
 - **a family** curve is your design with the second knob set to that value,
   on top of your other knobs, labelled `angle_deg = 30` as the command line
-  labels it, while the swept knob moves along the x axis as usual.
+  labels it, while the swept knob moves along the x axis as usual;
+- **a state** curve (`an.Cross(states=…)`, see
+  [States](/reference/cli/#states)) is a design with a few named knobs set
+  over its **defaults**, labelled by the state's name. Your own knob settings
+  do not leak into it, so the inverted vee's **height states** draws its 5 m,
+  7 m and 12 m masts wherever you have dragged the base. A state that names
+  another design is that design's curve. A knob the design lacks is a
+  refused curve, in the command line's words. States come from the `.py`;
+  the chart does not author them yet.
 
 These multiply with the engines and grounds you tick: two designs on three
 engines are six curves, labelled `dipoles.invvee, momwire:bspline` and so
@@ -1510,8 +1519,8 @@ design's `build_analyses()`.
 What the workbench cannot run yet is listed greyed out, with the reason as
 its tooltip: a map over two knobs, and a match held at every point. Each
 reason names the step of the sweep framework it is planned for. Crosses over
-planes, designs and families draw (see
-[Planes, designs and families](#planes-designs-and-families)).
+planes, designs, states and families draw (see
+[Planes, designs, states and families](#planes-designs-states-and-families)).
 
 A note the chart has for what it draws (a view it leaves out, or a word on
 cost) sits on the one line under the header as **ⓘ** and its first words; tap it
