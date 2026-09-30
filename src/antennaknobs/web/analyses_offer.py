@@ -59,6 +59,15 @@ chart multiplies with its slots into one curve per cell as
   its values (coerced as ``/param_sweep`` coerces), and each cell's label
   part (`analysis_run.step_label`).
 
+Then the design's STUDIES (`offer_studies`, AK#1757 step 7): analyses over
+several designs, from a module-level ``build_studies()`` crossing it, or its
+own Builder's ``build_studies()`` method (`studies`). Each is served as a design analysis is, hosted by the tab's
+design (the design cross builds each of its designs at its own defaults, as
+for any analysis), with its ``name`` the study's full ``source:name`` (unique
+beside the design's own analyses, which the picker tells apart by name) and
+``study: {source, name}``, the short name the picker shows under its Studies
+group. So E7 is on the invvee and the invvee_apex tabs, and on no other.
+
 Framework-free, so it is tested without a server.
 """
 
@@ -391,6 +400,32 @@ def offer(builder, req: Mapping) -> list[dict]:
         out.append(
             {
                 "name": a.name,
+                "summary": ar.summary(a, builder),
+                "code": an.to_code(a),
+                "problems": an.problems(a, builder),
+                "workbench": workbench(a, builder, req),
+            }
+        )
+    return out
+
+
+def offer_studies(builder, req: Mapping) -> list[dict]:
+    """The studies the tab of the design ``req`` names lists, as
+    ``/analyses`` serves them (module docstring): the module-level studies
+    crossing it, and its own Builder's method studies (this design against
+    its references, on this tab only). A user study file not allowed yet is
+    never imported, so which designs it crosses is not known: it is not
+    served here, and ``analyze --list-studies`` names it."""
+    from .. import studies
+
+    geometry = str(req.get("geometry") or "")
+    out = []
+    for st in studies.including(geometry, studies.pool(geometry, builder)):
+        a = st.analysis
+        out.append(
+            {
+                "name": st.name,
+                "study": {"source": st.source, "name": a.name},
                 "summary": ar.summary(a, builder),
                 "code": an.to_code(a),
                 "problems": an.problems(a, builder),
