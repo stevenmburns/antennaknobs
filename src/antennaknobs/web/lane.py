@@ -30,6 +30,9 @@ PRIORITY = {
     "norm_check": 1,
     "pattern": 1,
     "pattern_metrics": 1,
+    # A pattern analysis's cell (AK#1757 step 7): one solve and its metrics,
+    # dwell-triggered like the two above.
+    "pattern_cell": 1,
     # The Files view's re-run (AK#1428): one solve, asked for only when the
     # solve's own printout has aged out of the server's cache.
     "engine_io": 1,
@@ -57,7 +60,7 @@ _PRIORITY_DEFAULT = 9
 # genuinely newer knob generation still supersedes them by the generation
 # rule, like every other batch.
 SAME_KIND_SUPERSEDES = frozenset(
-    {"live", "sweep", "converge", "norm_check", "pattern", "engine_io"}
+    {"live", "sweep", "converge", "norm_check", "pattern", "engine_io", "pattern_cell"}
 )
 
 # A kind may carry a stream name, ``"sweep:c1r2"`` (AK#1757 step 5 unit 4):

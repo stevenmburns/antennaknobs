@@ -82,6 +82,18 @@ def test_every_entry_has_the_documented_shape(invvee):
                 *CROSSES,
                 "note",
             }
+        elif w["runs"] and w["kind"] == "pattern":
+            # A pattern (AK#1757 step 7): no sweep, one solve per cell.
+            assert set(w) == {
+                "runs",
+                "kind",
+                "views",
+                "freq",
+                "engines",
+                "grounds",
+                *CROSSES,
+                "note",
+            }
         elif w["runs"]:
             assert set(w) == {
                 "runs",

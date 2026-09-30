@@ -3176,6 +3176,61 @@ async def pattern_metrics_endpoint(req: dict, request: Request):
     return {"geometry": geometry, "available": True, "metrics": metrics}
 
 
+def _pattern_cell(req: dict, cancel=None) -> dict:
+    """One pattern analysis cell (AK#1757 step 7): the live solve's response
+    for this request, cuts attached at its ``az_elev_deg`` / ``elev_az_deg``
+    (`solve`, the function ``/ws`` answers with, so the cut traces are the
+    live chart's and the pattern pins' own and re-cut through ``/cuts`` the
+    same way), plus ``metrics``: the compare table's, from ``/pattern_metrics``'
+    two sources in its order, the solve's own state when a momwire solve just
+    filed it (AK#1727: no second fill), else ``far_field_metrics``. None when
+    the design has no metrics function, as the table then shows none."""
+    out = solve(dict(req), cancel=cancel)
+    geometry = req.get("geometry", next(iter(EXAMPLES)))
+    ex = example_for(geometry)
+    metrics = None
+    if ex.far_field_metrics is not None:
+        solved = _solved_metrics_for(req)
+        metrics = (
+            solved() if solved is not None else ex.far_field_metrics(req, cancel=cancel)
+        )
+    out["metrics"] = metrics
+    return out
+
+
+@app.post("/pattern_cell")
+async def pattern_cell_endpoint(req: dict, request: Request):
+    """One cell of a pattern analysis (AK#1757 step 7): its solve response
+    and its pattern metrics, ``{available, solve, metrics}``, or
+    ``{available: False, error}``.
+
+    A new endpoint because neither existing one serves a chart of several
+    designs: the live solve is the ``/ws`` socket's size-1, latest-wins
+    mailbox, one design per session (the chart's cells would supersede one
+    another and the live solve), and ``/pattern_metrics`` returns only the
+    scalars. This is the same solve on the session's lane, as a batch turn
+    of its own stream (``_stream``, one per chart cell, so the cells do not
+    supersede one another), admitted as a sweep of one point is (the hosted
+    size cap, the poor-match gate's 403 without ``_approved``)."""
+    use_pynec = _external_backend(req) is not None
+    _refuse_or_withhold(_admit(req, kind="converge", use_pynec=use_pynec), req)
+    session, lane_gen = _lane_key(req)
+    try:
+        async with _LANES.turn(
+            session, _lane_kind(req, "pattern_cell"), lane_gen
+        ) as token:
+            async with cancel_on_disconnect(request, token):
+                out = await run_in_threadpool(_shed, _pattern_cell, req, cancel=token)
+    except (Superseded, momwire.SolveAborted):
+        return {"available": False}
+    except SolveTooLargeError as e:
+        return {"available": False, "error": str(e)}
+    except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise; the chart names the cell's error
+        return {"available": False, "error": user_designs.format_solve_error(exc)}
+    metrics = out.pop("metrics", None)
+    return {"available": True, "solve": out, "metrics": metrics}
+
+
 @app.post("/geometry")
 async def geometry_endpoint(req: dict):
     """Fast geometry-only snapshot of the selected antenna: wire positions +
