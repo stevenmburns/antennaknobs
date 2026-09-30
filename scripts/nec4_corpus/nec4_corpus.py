@@ -50,7 +50,8 @@ NEC-4.2 binary (black box, probe decks) rather than taken from anything else:
     constant-radius helix is respelled in NEC-4's fields, any other helix is
     written as its GW pieces on NEC-2's geometry, and 4nec2's flat one-turn
     loop (NEC-4.2 stops, "DATAGN: SEGMENT DATA ERROR") likewise -- same
-    segments, same tag;
+    segments, same tag; a closed 360-degree GA (NEC-4.2 stops, ARC ANGLE
+    EXCEEDS 360. DEGREES) likewise;
   * a deck with no execution request gets ``XQ 0`` (NEC-4.2 computes nothing);
   * EK and KH are kept, noted: NEC-4.2 prints "THE EK AND KH COMMANDS HAVE NO
     EFFECT IN NEC-4".
@@ -140,7 +141,7 @@ def _wire_points(c: Card) -> list:
         ]
     if c.mn == "GH":
         # NEC-4's layout: `_nec2_gh` has rewritten every NEC-2 helix by now.
-        turns, hl = c.num(2), abs(c.num(3))
+        turns, hl = c.num(2), c.num(3)
         r1, r2 = c.num(4), c.num(5)
         pts = []
         for i in range(n + 1):
@@ -457,39 +458,69 @@ def _gyrator_nt(cards: list) -> int:
     return k
 
 
+def _gh_layout(c: Card) -> str:
+    """``"nec2"``, ``"nec4"`` or ``"?"`` for a 9-field GH card.
+
+    NEC-2: ``GH tag ns S HL A1 B1 A2 B2 RAD``; NEC-4.2 (read off its own geometry
+    printout): ``GH tag ns TURNS LENGTH RH1 RH2 RW1 RW2 F7``. The corpus carries
+    both (Cebik ships a -nec2 and a -nec4 file of one helix), with the same
+    field count, so the values decide: NEC-2's last field is the wire radius,
+    thinner than every helix radius; NEC-4's F5 / F6 are wire radii, thinner than
+    the helix radii F3 / F4, and its last field is 0 in 49 of 50 corpus cards
+    (NEC-2 would read that as a wire of zero radius). A card that fits neither
+    (Cebik's 7-0, a deliberately flawed example) is "?"."""
+    try:
+        f3, f4, f5, f6, f7 = (c.num(k) for k in range(4, 9))
+    except DeckError:
+        return "?"
+    if 0.0 < f7 < min(abs(f3), abs(f4), abs(f5), abs(f6)):
+        return "nec2"
+    if 0.0 < f5 < min(abs(f3), abs(f4)) and 0.0 < f6 < min(abs(f3), abs(f4)):
+        return "nec4"
+    return "?"
+
+
 def _nec2_gh(cards: list, notes: list) -> list:
-    """NEC-2's GH as NEC-4.2 reads it, or refused.
+    """Every GH as NEC-4.2 reads it, or refused.
 
-    The two programs share the mnemonic and not the fields. NEC-2's GH is
-    ``GH tag ns S HL A1 B1 A2 B2 RAD`` (turn spacing, axial length -- negative
-    for a left-handed helix -- and the x/y radii at each end); NEC-4.2's,
-    measured from its own geometry printout, is ``GH tag ns TURNS LENGTH RH1 RH2
-    RW1 RW2`` (turns, length, helix radius and wire radius at each end, a taper
-    being a log spiral). Passed through, a NEC-2 helix is silently another
-    antenna: Cebik's conical 4-5a became a wire of 0.16 m radius and printed an
-    impedance of 1e-7 ohm. So:
+    The two programs share the mnemonic and not the fields (`_gh_layout`).
+    Passed through, a NEC-2 helix is silently another antenna: Cebik's conical
+    4-5a became a wire of 0.16 m radius and printed an impedance of 1e-7 ohm.
+    So, for a card in NEC-2's layout:
 
-    * a right-handed helix of one constant circular radius is written as
-      NEC-4.2's GH (``TURNS = HL / S``), measured to reproduce nec2c's segment
-      centres exactly;
+    * 4nec2's flat one-turn loop becomes its GW pieces (`_expand_flat_gh`);
+    * a right-handed helix of one constant circular radius is written in
+      NEC-4.2's GH fields (``TURNS = HL / S``), measured to reproduce nec2c's
+      segment centres exactly;
     * any other NEC-2 helix (left-handed, tapered, elliptical) is written as
       its ``ns`` straight GW pieces on NEC-2's own geometry -- z = |HL| t, radii
       linear in t, phi = 2 pi z / S, (A cos phi, B sin phi) right-handed and
       (B sin phi, A cos phi) left-handed, checked against nec2c's segment
       table -- one segment each on the GH's tag, so (tag, seg) addressing is
-      unchanged (NEC-4.2's own left-handed helix is NEC-2's turned 90 degrees);
-    * a GH with neither layout's field count is refused.
+      unchanged (NEC-4.2's own left-handed helix is NEC-2's turned 90 degrees).
+
+    A card already in NEC-4's layout passes as written; one in neither, or with
+    another field count, is refused.
     """
     out = []
     for c in cards:
         if c.mn != "GH":
             out.append(c)
             continue
-        if len(c.f) != 9:
+        layout = _gh_layout(c) if len(c.f) == 9 else "?"
+        if layout == "nec4":
+            out.append(c)
+            continue
+        if layout == "?":
             raise Refused(
-                f"GH on line {c.line} has {len(c.f) - 2} real fields, neither NEC-2's "
-                "7 (S HL A1 B1 A2 B2 RAD) nor NEC-4's 6: its geometry is ambiguous"
+                f"GH on line {c.line} ({c.text()!r}) reads as neither NEC-2's layout "
+                "(S HL A1 B1 A2 B2 RAD) nor NEC-4's (TURNS LENGTH RH1 RH2 RW1 RW2): "
+                "its geometry is ambiguous"
             )
+        flat = n5._expand_flat_gh([c], notes)
+        if flat != [c]:
+            out.extend(flat)
+            continue
         ns = c.int(1)
         s, hl = c.num(2), c.num(3)
         a1, b1, a2, b2 = (c.num(k) for k in range(4, 8))
@@ -499,16 +530,8 @@ def _nec2_gh(cards: list, notes: list) -> list:
             out.append(
                 Card(
                     "GH",
-                    [
-                        c.f[0],
-                        c.f[1],
-                        n5._format_field(hl / s),
-                        c.f[3],
-                        c.f[4],
-                        c.f[4],
-                        c.f[8],
-                        c.f[8],
-                    ],
+                    [c.f[0], c.f[1], n5._format_field(hl / s), c.f[3]]
+                    + [c.f[4], c.f[4], c.f[8], c.f[8]],
                     c.line,
                 )
             )
@@ -546,6 +569,56 @@ def _nec2_gh(cards: list, notes: list) -> list:
     return out
 
 
+def _closed_ga(cards: list, notes: list) -> list:
+    """A GA spanning a full 360 degrees as its GW pieces.
+
+    NEC-2 draws a closed loop with ``GA tag ns r 0 360 rad``; NEC-4.2 stops on
+    it, "ARCNEC: ERROR - ARC ANGLE EXCEEDS 360. DEGREES" (measured: 0..360,
+    -180..180 and 90..450 all stop; 0..359.99999 runs). A GA is ``ns`` straight
+    segments between points on the arc -- (r cos a, 0, r sin a), a stepped
+    evenly from ANG1 to ANG2, checked against nec2c's segment table -- so the
+    loop is written as those pieces, one segment each on the GA's tag, and the
+    mesh and (tag, seg) addressing are the author's."""
+    out = []
+    for c in cards:
+        if c.mn != "GA" or len(c.f) < 6:
+            out.append(c)
+            continue
+        ns = c.int(1)
+        r, a1, a2 = c.num(2), c.num(3), c.num(4)
+        if ns <= 0 or abs(abs(a2 - a1) - 360.0) > 1e-9:
+            out.append(c)
+            continue
+        pts = [
+            (
+                r * math.cos(math.radians(a1 + (a2 - a1) * i / ns)),
+                0.0,
+                r * math.sin(math.radians(a1 + (a2 - a1) * i / ns)),
+            )
+            for i in range(ns + 1)
+        ]
+        # Closed exactly (cos 360 is not quite 1 in floating point), with the
+        # roundoff at the axes flushed to zero.
+        tiny = 1e-12 * abs(r)
+        pts = [tuple(0.0 if abs(v) < tiny else v for v in p) for p in pts[:-1]]
+        pts.append(pts[0])
+        for i in range(ns):
+            out.append(
+                Card(
+                    "GW",
+                    [c.f[0], "1"]
+                    + [n5._format_field(v) for v in (*pts[i], *pts[i + 1])]
+                    + [c.f[5]],
+                    c.line,
+                )
+            )
+        notes.append(
+            f"GA tag {c.f[0]}: a closed {a1:g}..{a2:g} degree arc written as its {ns} "
+            "GW pieces (NEC-4.2 stops, ARC ANGLE EXCEEDS 360. DEGREES)"
+        )
+    return out
+
+
 def translate_deck(comments: list, cards: list, name: str) -> tuple:
     """``(deck text, notes, ground types, twin)`` for ONE structure.
     ``twin`` is True when the deck is on GN 2 and gets a GN 3 twin."""
@@ -557,7 +630,8 @@ def translate_deck(comments: list, cards: list, name: str) -> tuple:
             "moment matrix singular"
         )
     notes = []
-    cards = n5._expand_flat_gh(cards, notes)
+    cards = _nec2_gh(cards, notes)
+    cards = _closed_ga(cards, notes)
     notes = [
         n.replace(
             "NEC-5's GH gives it zero wire length",
@@ -565,7 +639,6 @@ def translate_deck(comments: list, cards: list, name: str) -> tuple:
         )
         for n in notes
     ]
-    cards = _nec2_gh(cards, notes)
     # Tag resolution on COPIES: the NEC-5 Geometry gives an untagged wire a
     # synthetic tag, which NEC-4.2 does not need, so the deck keeps tag 0.
     geo = n5.Geometry()
@@ -589,6 +662,22 @@ def translate_deck(comments: list, cards: list, name: str) -> tuple:
         elif c.mn in ("TL", "NT") and len(c.f) >= 4 and geo.order:
             geo.resolve(c.int(0), c.int(1), c.mn + " port 1", c.line)
             geo.resolve(c.int(2), c.int(3), c.mn + " port 2", c.line)
+        elif c.mn == "LD" and len(c.f) > 1 and geo.order and c.int(0) in range(-1, 8):
+            tag = c.int(1)
+            a = c.int(2) if len(c.f) > 2 else 0
+            b = c.int(3) if len(c.f) > 3 else 0
+            if tag != 0 and a == 0:
+                if tag not in geo.groups:
+                    raise InvalidNEC(
+                        n5._INVALID + f"LD on line {c.line} addresses tag {tag}, "
+                        "which no geometry card defines"
+                    )
+            elif a != 0 and c.int(0) in (0, 1, 4):
+                # Lumped loads only, as the NEC-5 tool: a distributed range
+                # running past the wire's end is clipped by NEC, not refused.
+                geo.resolve(tag, a, "LD", c.line)
+                if b:
+                    geo.resolve(tag, b, "LD", c.line)
     ld4 = {}
     for c in cards:
         if c.mn == "LD" and c.f and c.int(0) not in (-1, 0, 1, 2, 3, 4, 5):
