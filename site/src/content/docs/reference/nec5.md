@@ -29,16 +29,11 @@ the same writer — so a deck you download and a deck from the published set can
 disagree. It is also the dialect that carries what NEC-2 cannot: buried wires,
 wires in the ground plane, and momwire's graded meshes.
 
-### Why no NEC-4.2 download
+### The NEC-4.2 download
 
-NEC-4.2 could carry buried wires too, and it is deliberately absent. We have no
-NEC-4 binary to verify a dialect against, and the rule CW taught is that a
-convention is claimed only after a probe deck has been through the engine. The
-NEC-4 population now has NEC-5 beside it, and the hard part — expanding a graded
-mesh into chained wires with the tag references renumbered — would be that work
-done a second time. If you own a NEC-4 binary and want one, start from the NEC-5
-writer with the NEC-5-only cards withheld and the ground card in NEC-4's
-spelling, and verify it against your engine.
+NEC-4.2 carries buried wires too, and it has its own deck download: see
+[the NEC-4 deck](/reference/nec42/#the-nec-4-deck). It was verified against a
+licensed NEC-4.2 before it was offered.
 
 ## Licensing, and where the engine will not run
 

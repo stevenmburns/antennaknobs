@@ -49,9 +49,12 @@ is the NEC-2 engine with four differences:
   the working directory unless told otherwise, so every `GN 2` card is written
   with `NOFILE` — and each run happens in a fresh temporary directory that is
   removed afterwards, never the directory you started antennaknobs in.
-- **A newer Sommerfeld evaluation** (`GN 3`) is available from Python as
-  `NEC42Engine(builder, ground=..., sommerfeld=3)`; the tab and the command
-  line use `GN 2`.
+- **A choice of Sommerfeld ground.** The slot's ⚙ offers **GN 2** (the default)
+  or **GN 3**, NEC-4.2's newer evaluation, which can differ from GN 2 by around
+  an ohm on buried designs. The same choice is `[engines] nec42_sommerfeld = 3`
+  in `settings.toml`, `--nec42-sommerfeld 3` on the command line, and
+  `NEC42Engine(builder, ground=..., sommerfeld=3)` from Python. The chip reads
+  "NEC-4.2 (GN 3)" when it is on.
 - **The MININEC-type ground is refused.** NEC-4.2 accepts the NEC-2 spelling
   (`GN 1` plus a `GD` card) but prints the perfect-ground pattern to the
   digit, so the soil the pattern should reflect off is never read. Use the
@@ -71,16 +74,29 @@ Each refusal names itself rather than letting the binary answer:
   wires. The flag buried wires need gives that end no current there, so the
   conductor would read as open-circuited. A conductor that continues below the
   plane — a rise from a buried hub — is served;
-- a graded mesh, a junction-node port and a series apex feed, for the NEC-2
-  tab's reasons.
+- a junction-node port and a series apex feed, for the NEC-2 tab's reasons;
+- under GN 3, a near-field request with a point near the zenith of the
+  structure: stock NEC-4.2's GN 3 gets the near field wrong there (GN 2 is
+  clean). The workbench asks NEC-4.2 for no near field, so this bites only a
+  deck you write yourself.
 
-## Not yet
+## The NEC-4 deck
 
-NEC-4.2's native current source (`EX 6`), graded meshes, a writer of its own
-and a "Download NEC-4.2 deck" button are
-[antennaknobs#1803](https://github.com/stevenmburns/antennaknobs/issues/1803).
-Until then a current source is written as NEC-2's gyrator, which NEC-4.2 runs
-unchanged.
+NEC-4.2's decks come from the same writer as the NEC-2 deck, in its NEC-4
+dialect, so the two describe the same antenna and differ only in the cards that
+spell it:
+
+- **Graded meshes** are served: a graded wire is written as chained `GW` cards,
+  one per panel, as the NEC-5 writer does;
+- **a current source** is NEC-4.2's own `EX 6` on the feed segment, not NEC-2's
+  phantom-wire gyrator (the licensed binary gives the same impedance as the
+  `EX 0` twin to every printed digit);
+- **Sommerfeld cards** end `NOFILE`, and buried wires carry `GE -1`, as above.
+
+The workbench's gear menu has **Download NEC-4 .nec** beside the NEC-2 and NEC-5
+downloads, and the command line has `antennaknobs export --dialect nec4`. Writing
+a deck needs no NEC-4.2 binary. The download follows the NEC-4.2 slot's GN 2 /
+GN 3 choice.
 
 ## Citing it
 
