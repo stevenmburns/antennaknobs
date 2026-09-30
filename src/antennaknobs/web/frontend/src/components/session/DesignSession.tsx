@@ -3510,8 +3510,11 @@ function DesignSessionBody({
         return { key: c.key, label: c.label, color: cellColor(k), refused: null, error: error ?? null };
       }),
       capRefusal: m.plan.capRefusal,
-      ...(pinRows.length > 0 ? { pins: pinRows } : {}),
-      rx: rxPlot(m),
+      ...(pinRows.length > 0 ? { pins: pinRows, pinsRx: rxPlot(m) } : {}),
+      // R solid and X dashed per curve holds only with more than one live
+      // curve; one draws R red and X blue (ZParamChart), and a pin can now
+      // show the legend over a one-curve chart.
+      rx: rxPlot(m) && m.drawn.length > 1,
       // Collapsed to its chip on a phone until the viewer opens it, open on
       // a desktop (Steve's phone review of unit 4a), as the knob sweep's
       // value boxes are (chartCallouts); per chart, session-only, and a
