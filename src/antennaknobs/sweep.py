@@ -1,7 +1,7 @@
 import logging
 import math
 
-from . import Antenna
+from . import Antenna, sweep_csv
 from .core import save_or_show
 from .far_field import get_elevation, get_pattern_rings, plot_patterns
 from .zinf import describe, describe_feed_mesh, feed_mesh_step, zinf_estimate
@@ -617,6 +617,7 @@ def sweep_swr(
     engine=Antenna,
     measured=None,
     xs=None,
+    csv=None,
 ):
     """SWR + reflection magnitude against any swept knob.
 
@@ -640,6 +641,8 @@ def sweep_swr(
     meas = _align_measured(measured, nm, xs, z0)
 
     zs, swr = swr_curve(antenna_builder, nm, xs, engine, z0)
+    if csv is not None:
+        csv.write(nm, [sweep_csv.impedance_curve(None, xs, zs, swr)])
     rho = np.abs((zs - z0) / (zs + z0))
 
     # |S11| in dB is 20·log10|Γ|, the workbench's S11 chart and every VNA's;
@@ -977,6 +980,7 @@ def _sweep_convergence(
     overlay=False,
     only=None,
     knob="nominal_nsegs",
+    csv=None,
 ):
     """``sweep --param nominal_nsegs`` (#1554): one cold solve per rung per
     engine, port 0 only (multi-port trajectories are the app's own overlay,
@@ -1015,6 +1019,11 @@ def _sweep_convergence(
         reasons=reasons,
         knob=knob,
     )
+    if csv is not None:
+        csv.write(
+            "nominal_N" if knob == "nominal_nsegs" else knob,
+            [sweep_csv.density_curve(n, rows, z0) for n, rows in per_engine.items()],
+        )
 
     title = _convergence_title(knob, nports)
 
@@ -1127,6 +1136,7 @@ def sweep(
     panels=False,
     overlay=False,
     only=None,
+    csv=None,
 ):
     """Impedance against a swept knob (or frequency).
 
@@ -1150,6 +1160,11 @@ def sweep(
     ``nominal_nsegs``, and the knob a design declares for the density role
     (``analyses.density_knob``, AK#1757), is a convergence study: always
     log-spaced, and drawn as panels unless ``overlay``.
+
+    ``csv`` (a `sweep_csv.CsvOut`) writes the numbers: R and X per port at
+    every swept point (one column group per engine when several), or the
+    density table's rows. ``markers`` are chart annotations, not swept
+    points, and are not written.
     """
     import matplotlib.pyplot as plt
 
@@ -1177,6 +1192,7 @@ def sweep(
             overlay=overlay,
             only=only,
             knob=nm,
+            csv=csv,
         )
         return
 
@@ -1197,6 +1213,8 @@ def sweep(
         marker_zs = _solve_at(antenna_builder, nm, markers, engine)
 
         zs = np.array(zs)
+        if csv is not None:
+            csv.write(nm, [sweep_csv.impedance_curve(None, xs, zs)])
         marker_xs = np.array(markers)
         marker_zs = np.array(marker_zs)
 
@@ -1330,6 +1348,12 @@ def sweep(
         zs = _solve_at(antenna_builder, nm, xs, factory)
         marker_zs = _solve_at(antenna_builder, nm, markers, factory)
         per_engine.append((name, np.array(zs), np.array(marker_zs)))
+
+    if csv is not None:
+        csv.write(
+            nm,
+            [sweep_csv.impedance_curve(name, xs, zs) for name, zs, _m in per_engine],
+        )
 
     marker_xs = np.array(markers)
     nwidth = 1

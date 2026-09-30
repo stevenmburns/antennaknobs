@@ -175,6 +175,25 @@ The options apply to the impedance chart only: they refuse with `--swr`,
 `--gain`, and `--patterns`, and the axis options refuse with
 `--use_smithchart` (where `--log` still spaces the points).
 
+### Saving the numbers: `--csv`
+
+`sweep --csv PATH` and `analyze --analysis NAME --csv PATH` write the run's
+numbers as a CSV file, with or without `--fn`: one row per swept point, the
+swept parameter first, then `R_ohm` and `X_ohm` for each curve (a column group
+per engine, prefixed with its name, when there are several; per port on a
+multi-port design). `--swr` and an `analyze` frequency sweep add `SWR` at
+`--z0`; a `nominal_nsegs` study writes its table's `N_ach` and `dGamma`. Values
+are at full precision, not the printed `%.3f`. Curves on different grids (an
+`analyze` cell on its own band) share the rows they have in common and leave the
+rest empty. `--markers` points are not written, and `--gain`, `--patterns` and a
+two-sweep map have no such form and refuse. `--csv -` writes to stdout, and the
+printed tables go to stderr for that run:
+
+```bash
+python -m antennaknobs sweep --builder dipoles.invvee:dipole --param freq \
+    --engine momwire:bspline --csv - --fn /dev/null > dipole.csv
+```
+
 ## Analyses
 
 `analyze` is the first step of the sweep framework: a design names the sweeps

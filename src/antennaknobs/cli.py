@@ -29,6 +29,7 @@ from .density import default_nsegs
 from .serialize import builder_params_source
 from .fit import MAX_FREE_PARAMS, LineEmbedding, fit, plot_fit
 from .measured import read_measured
+from .sweep_csv import CsvOut
 from .touchstone import format_s1p
 from .vna import DRIVERS, VNAError, capture, list_candidate_ports
 from .user_designs import USER_NS, iter_design_files, resolve_user_design
@@ -51,6 +52,7 @@ from momwire import (
 # the app both named `pulse` and the CLI could not (AK#1554 follow-up).
 
 import argparse
+import contextlib
 import math
 import logging
 import os
@@ -991,6 +993,21 @@ def _tolerant_console() -> None:
                 reconfigure(encoding="utf-8", errors="replace")
 
 
+@contextlib.contextmanager
+def csv_output(path):
+    """``--csv PATH``'s sink (``sweep_csv.CsvOut``), or None when not given.
+    ``-`` is stdout, which the command's printed tables would corrupt: for the
+    run they go to stderr, and the CSV to the stdout of the moment it began."""
+    if path is None:
+        yield None
+    elif path == "-":
+        out = CsvOut("-", sys.stdout)
+        with contextlib.redirect_stdout(sys.stderr):
+            yield out
+    else:
+        yield CsvOut(path)
+
+
 def cli(arguments=None):
     # AK#1428: `ANTENNAKNOBS_LOG_LEVEL` turns on the engine run log here too.
     from .engine_capture import configure_logging_from_env
@@ -1308,6 +1325,18 @@ def cli(arguments=None):
     )
     p.add_argument("--z0", default=50, type=float, help="Reference impedance.")
     p.add_argument(
+        "--csv",
+        default=None,
+        metavar="PATH",
+        help="Also write the sweep's numbers as CSV: one row per swept point, "
+        "the swept parameter then R_ohm and X_ohm per curve (a column group "
+        "per engine when several; per port on a multi-port design), plus SWR "
+        "at --z0 with --swr, and a nominal_nsegs study's table columns "
+        "(N_ach, dGamma). Full precision; --markers points are not written. "
+        "`-` writes to stdout and sends the printed tables to stderr. Works "
+        "with or without --fn; not with --gain or --patterns.",
+    )
+    p.add_argument(
         "--measured",
         default=None,
         help="Overlay a measured one-port Touchstone (.s1p, e.g. a NanoVNA "
@@ -1400,7 +1429,7 @@ def cli(arguments=None):
         "and the other quantity's --r-range / --x-range refuses.",
     )
 
-    def f(args):
+    def run_sweep(args, csv):
         builder = get_builder(args.builder)
         # --set applies to the instances the sweep solves; `builder` itself
         # stays the resolved class/partial, whose attributes (a deck's EK
@@ -1458,6 +1487,12 @@ def cli(arguments=None):
                 "--swr/--gain/--patterns take exactly one engine; drop "
                 "--engine to a single spec, or use the plain impedance "
                 "sweep for a multi-engine chart"
+            )
+
+        if args.csv is not None and (args.patterns or args.gain):
+            raise SystemExit(
+                "--csv writes impedance rows; drop --patterns/--gain (a "
+                "gain or pattern sweep has no R/X to write)"
             )
 
         measured = read_measured(args.measured, z0=args.z0) if args.measured else None
@@ -1530,6 +1565,7 @@ def cli(arguments=None):
                 engine=engine,
                 measured=measured,
                 xs=xs,
+                csv=csv,
             )
         elif args.gain:
             sweep_gain(
@@ -1568,7 +1604,12 @@ def cli(arguments=None):
                 panels=args.panels,
                 overlay=args.overlay,
                 only=args.only,
+                csv=csv,
             )
+
+    def f(args):
+        with csv_output(args.csv) as csv:
+            run_sweep(args, csv)
 
     p.set_defaults(func=f)
 
@@ -1599,8 +1640,19 @@ def cli(arguments=None):
         help="With --analysis: print its Python instead of running it.",
     )
     p.add_argument("--z0", default=50, type=float, help="Reference impedance.")
+    p.add_argument(
+        "--csv",
+        default=None,
+        metavar="PATH",
+        help="With --analysis: also write the swept numbers as CSV, one row "
+        "per swept point and a column group per curve (engine / ground / "
+        "design cell): R_ohm and X_ohm, plus SWR on a frequency sweep, and "
+        "N_ach and dGamma on a density study. Full precision. `-` writes to "
+        "stdout and sends the printed tables to stderr. A two-sweep map has "
+        "no such form and refuses.",
+    )
 
-    def f(args):
+    def run_analyze(args, csv):
         from . import analyses as an
         from . import analysis_run
 
@@ -1665,7 +1717,14 @@ def cli(arguments=None):
             z0=args.z0,
             fn=args.fn,
             design_seam=lambda name: seam(get_builder(name)),
+            csv=csv,
         )
+
+    def f(args):
+        if args.csv is not None and (args.list_analyses or args.code):
+            raise SystemExit("analyze: --csv needs a run, not --list or --code")
+        with csv_output(args.csv) as csv:
+            run_analyze(args, csv)
 
     p.set_defaults(func=f)
 
