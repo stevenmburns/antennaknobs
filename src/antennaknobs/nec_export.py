@@ -37,8 +37,13 @@ the reporting deck, and it is one EZNEC itself wrote.
 
 from __future__ import annotations
 
+from typing import NamedTuple
+
+import numpy as np
+
+from .engine import expand_graded_wires
 from .engines.nec2 import refuse_nec2_geometry
-from .engines.nec42 import refuse_nec42_geometry
+from .engines.nec42 import refuse_gn3_near_field, refuse_nec42_geometry
 from .engines._nec_wire import JACKET_COMMENT_CARDS
 from .engines.pynec import DEFAULT_GROUND, PyNECEngine
 from .network import GradedSegments, Load, as_wire
@@ -111,6 +116,59 @@ def _gyrator_cards(eng, tups, freq_mhz):
         v = 1j * complex(current)
         ex.append(f"EX 0 {ptag} {j} 0 {_num(v.real)} {_num(v.imag)}")
     return gw, nt, ex
+
+
+def _ex6_cards(eng):
+    """One NEC-4 ``EX 6`` card per forced current in ``eng`` (AK#1803).
+
+    ``EX 6`` is NEC-4.2's segment current source: I2/I3 the tag and segment,
+    F1/F2 the current in amps, and the source sits at the segment CENTRE, as
+    ``EX 0`` does. Measured on the licensed binary: a dipole driven ``EX 6``
+    prints the same impedance, to every printed digit, as its ``EX 0`` twin.
+    `nec_import` reads the card back as a `DrivenCurrent` (issue #442)."""
+    return [
+        f"EX 6 {tag} {seg} 0 {_num(complex(i).real)} {_num(complex(i).imag)}"
+        for tag, seg, i in eng.current_sources
+    ]
+
+
+class NearField(NamedTuple):
+    """A rectangular near-field grid: NEC's ``NE 0`` (electric) or ``NH 0``
+    (magnetic) card. ``counts`` points along x, y, z from ``start`` in steps of
+    ``step`` (metres), NEC's own parametrisation, so the card is the grid."""
+
+    counts: tuple[int, int, int]
+    start: tuple[float, float, float]
+    step: tuple[float, float, float]
+    magnetic: bool = False
+
+    def points(self) -> np.ndarray:
+        """Every field point, ``(n, 3)``."""
+        axes = [
+            s0 + d * np.arange(int(n))
+            for n, s0, d in zip(self.counts, self.start, self.step, strict=True)
+        ]
+        grid = np.meshgrid(*axes, indexing="ij")
+        return np.stack([g.ravel() for g in grid], axis=1)
+
+
+def near_field_card(nf: NearField) -> str:
+    nx, ny, nz = (int(n) for n in nf.counts)
+    vals = " ".join(_num(v) for v in (*nf.start, *nf.step))
+    return f"{'NH' if nf.magnetic else 'NE'} 0 {nx} {ny} {nz} {vals}"
+
+
+def _segment_centres(tups) -> np.ndarray:
+    """Every segment centre of the uniform wires `tups`, ``(n, 3)``."""
+    out = []
+    for t in tups:
+        w = as_wire(t)
+        p0 = np.asarray(w.p0, dtype=float)
+        p1 = np.asarray(w.p1, dtype=float)
+        n = int(w.n_seg)
+        f = (np.arange(n) + 0.5) / n
+        out.append(p0 + f[:, None] * (p1 - p0))
+    return np.concatenate(out) if out else np.zeros((0, 3))
 
 
 # NEC-2 reads a card as an 80-column record (AK#1628). The Fortran builds read
@@ -221,7 +279,10 @@ class _NEC42DeckEngine(PyNECEngine):
     it exists for its resolved wires, feeds and loads, like every engine this
     writer builds.
 
-    One difference, and it is about nec2++ rather than the deck. Building the
+    Two differences. A graded wire (`GradedSegments`) is expanded into its
+    panels, one uniform wire each, where PyNEC refuses it (AK#1803; see
+    `engine.expand_graded_wires` for why no reference has to be renumbered).
+    The other is about nec2++ rather than the deck. Building the
     PyNEC context with GE 1 over a design whose wires go below z=0 is refused
     by nec2++ ("SEGMENT EXTENDS BELOW GROUND") before the deck text is ever
     written — a rise from a buried hub touches z=0 and so asks for GE 1. The
@@ -233,6 +294,16 @@ class _NEC42DeckEngine(PyNECEngine):
         if _has_buried_wire(self):
             return 0
         return super()._ge_flag()
+
+    def _coerce_wire_tuples(self, tups):
+        # A graded wire becomes its panels before any tag exists (AK#1803),
+        # so every tag this engine resolves — feeds, loads, the structure
+        # decks' ports — is already a panel-aware list position.
+        out = super()._coerce_wire_tuples(tups)
+        out, self._tup_authored = expand_graded_wires(
+            out, getattr(self, "_tup_authored", None)
+        )
+        return out
 
 
 def _has_buried_wire(eng) -> bool:
@@ -282,6 +353,7 @@ def export_nec(
     wire_radius=None,
     dialect="nec2",
     sommerfeld=2,
+    near_field=None,
 ):
     """Return a NEC2 card deck (str) for ``builder``.
 
@@ -304,6 +376,16 @@ def export_nec(
                written rather than refused.
     sommerfeld: the NEC-4.2 Sommerfeld card's type for a "finite" ground, 2 or
                3 (4.2's newer evaluation). NEC-2 has only 2.
+    near_field: a `NearField` grid, written as one ``NE`` (or ``NH``) card
+               after ``FR``. Under ``GN 3`` a grid with a point near the
+               zenith of any segment is refused (`refuse_gn3_near_field`).
+
+    The NEC-4.2 dialect is this writer's, not a patch over the NEC-2 deck
+    (AK#1803): besides the ground cards above it expands a graded wire into
+    chained GW cards (`engine.expand_graded_wires`), drives a current source
+    with NEC-4's native ``EX 6`` instead of NEC-2's gyrator, and serves buried
+    wires under ``GE -1`` (`refuse_nec42_geometry` holds what it refuses).
+    Feeds stay on segment centres, the NEC-2/4 convention.
     """
     _check_dialect(dialect, sommerfeld)
     # Refused HERE rather than inside PyNECEngine, for two reasons the QRZ
@@ -312,7 +394,7 @@ def export_nec(
     # not know this writer borrows its name. And it must point at the NEC-5
     # download, which serves exactly the designs this refuses.
     tups = list(builder.build_wires())
-    for i, t in enumerate(tups):
+    for i, t in enumerate(tups if dialect == "nec2" else ()):
         if isinstance(as_wire(t).n_seg, GradedSegments):
             raise NotImplementedError(
                 f"a NEC-2 deck cannot express wire {i}'s graded mesh "
@@ -320,10 +402,12 @@ def export_nec(
                 "graded expansion would shift every EX/LD/NT reference — "
                 "download the NEC-5 deck instead, whose writer expands a graded "
                 "wire into chained GW cards and renumbers the references "
-                "(issue #1108)"
+                "(issue #1108), or the NEC-4 deck, which does the same (AK#1803)"
             )
     if dialect == "nec42":
-        refuse_nec42_geometry(tups, ground)
+        # Against the panels, which are what the deck carries: a graded wire
+        # whose panel boundary sits on z=0 does not cross the plane mid-span.
+        refuse_nec42_geometry(expand_graded_wires(tups)[0], ground)
     else:
         refuse_nec2_geometry(tups, ground, suggest_download=True)
     # AK#1677 needs no separate handling here: `refuse_nec2_geometry` above
@@ -359,7 +443,8 @@ def export_nec(
         # used to end "The NEC-5 deck cannot express them either", which a user
         # whose NEC-5 tab had just solved the same design read as nonsense.
         raise NotImplementedError(
-            "a single NEC-2 deck cannot express TL/virtual-driver networks (or "
+            f"a single {'NEC-4' if dialect == 'nec42' else 'NEC-2'} deck cannot "
+            "express TL/virtual-driver networks (or "
             "distributed finite-gap ports, issue #477): there are no native NEC "
             "cards for them, so there is no faithful single-deck representation "
             "to download, and a single NEC-5 deck has none either. The NEC-2 and "
@@ -368,6 +453,10 @@ def export_nec(
         )
     freq = builder.freq if freq is None else float(freq)
     title = title or f"{type(builder).__module__}.{type(builder).__qualname__}"
+    if near_field is not None and dialect == "nec42":
+        refuse_gn3_near_field(
+            eng.ground, sommerfeld, near_field.points(), _segment_centres(eng.tups)
+        )
     return _deck_text(
         eng,
         freq=freq,
@@ -378,6 +467,7 @@ def export_nec(
         jacket_pair=jacket_pair,
         dialect=dialect,
         sommerfeld=sommerfeld,
+        near_field=near_field,
     )
 
 
@@ -435,6 +525,7 @@ def _deck_text(
     excitations=None,
     dialect="nec2",
     sommerfeld=2,
+    near_field=None,
 ):
     """The card text for a resolved `PyNECEngine`. With `excitations` None,
     the engine's own feeds, loads and gyrators (`export_nec`); otherwise the
@@ -456,9 +547,14 @@ def _deck_text(
         lines.append(_gw(tag, t[2], t[0], t[1], eng._gw_radius_for(t)))
     # AK#1597: the phantom wires carrying forced currents. LAST, so no real
     # wire's absolute segment number moves and the NT addresses below stay put.
-    gy_gw, gy_nt, gy_ex = (
-        ([], [], []) if structure_only else _gyrator_cards(eng, eng.tups, freq)
-    )
+    if structure_only:
+        gy_gw, gy_nt, gy_ex = [], [], []
+    elif dialect == "nec42":
+        # NEC-4.2 has the current source NEC-2 lacks (AK#1803): one native
+        # `EX 6` per forced current, on the real feed segment, and no phantom.
+        gy_gw, gy_nt, gy_ex = [], [], _ex6_cards(eng)
+    else:
+        gy_gw, gy_nt, gy_ex = _gyrator_cards(eng, eng.tups, freq)
     lines.extend(gy_gw)
     # The engine's own flag, not a constant (AK#1597). GE 1 is what tells NEC
     # a wire END standing at z=0 is CONNECTED to the ground plane, so the
@@ -539,7 +635,10 @@ def _deck_text(
         # RP triggers the solve and prints input parameters + the pattern.
         # Hemisphere cut matching PyNECEngine._collect_pattern defaults.
         lines.append(f"RP {rp_mode(eng.ground)} 19 37 1000 0 0 10 10")
-    else:
+    if near_field is not None:
+        # NE / NH execute the solve themselves, so no XQ is needed beside one.
+        lines.append(near_field_card(near_field))
+    elif not include_rp:
         # No pattern requested: an explicit XQ still triggers the solve so the
         # deck reports ANTENNA INPUT PARAMETERS (impedance). Without an XQ/RP
         # card NEC reads the geometry but never executes.
