@@ -127,6 +127,11 @@ export function OptionField({
             ))}
           </select>
         </label>
+        {spec.description && (
+          <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
+            {spec.description}
+          </em>
+        )}
       </div>
     );
   }

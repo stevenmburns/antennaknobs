@@ -1419,6 +1419,12 @@ function DesignSessionBody({
         opts.use_singular_enrichment = false;
       }
       base.model_options = opts;
+    } else {
+      // An engine that exposes kwargs (the NEC-4.2 slot's Sommerfeld card)
+      // carries them the same way; one that exposes none sends no field, so
+      // PyNEC, NEC-2 and NEC-5 requests are unchanged.
+      const opts = modelOptionsForRequest(backend, cfg.opts, modelOptionSpecs);
+      if (Object.keys(opts).length > 0) base.model_options = opts;
     }
     // Measurement plane (issue #652 c): only ever sent when picked — the
     // natural plane is the absence of the field, so designs with no
@@ -2809,7 +2815,24 @@ function DesignSessionBody({
           onDownloadNec4={() =>
             downloadNec({
               setGearMenuOpen,
-              buildRequest,
+              // The deck is the NEC-4.2 slot's, so it carries that slot's
+              // options (its Sommerfeld card) even when a momwire slot is the
+              // active one: the active slot's own request when it is NEC-4.2,
+              // else the first slot that holds it, else the active request.
+              buildRequest: () => {
+                const req = buildRequest();
+                if (req.model_options?.sommerfeld !== undefined) return req;
+                const holder = (["A", "B", "C"] as Slot[]).find(
+                  (s) => slots[s].backend.kind === "nec42",
+                );
+                if (holder === undefined) return req;
+                const opts = modelOptionsForRequest(
+                  slots[holder].backend,
+                  slots[holder].opts,
+                  modelOptionSpecs,
+                );
+                return { ...req, model_options: { ...req.model_options, ...opts } };
+              },
               geometry,
               dialect: "nec4",
             })

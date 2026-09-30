@@ -117,6 +117,20 @@ def test_the_workbench_loader_accepts_the_key_and_names_a_bad_one(settings_toml)
     assert any("nec42_sommerfeld = 5" in p for p in payload["problems"])
 
 
+def test_a_saved_nec42_slot_may_carry_the_choice(settings_toml):
+    """ "Save as my defaults" writes the slot's model, so a NEC-4.2 slot on GN 3
+    round-trips through the loader instead of being reported as a bad knob."""
+    cat = ui_settings.catalog(
+        have_pynec=False, have_nec5=False, have_nec2=False, have_nec42=True
+    )
+    settings_toml.write_text(
+        '[slots.A]\nbackend = "nec42"\nmodel = { sommerfeld = "GN 3" }\n'
+    )
+    payload = ui_settings.load(cat, hosted=False)
+    assert payload["problems"] == []
+    assert payload["slots"]["A"]["model"] == {"sommerfeld": "GN 3"}
+
+
 # --- the engine the slot builds ---------------------------------------------
 
 

@@ -81,6 +81,8 @@ const SIN_GALERKIN_KWARGS = ["n_qp_const", "feed_model", "extended_kernel"];
 const BSPLINE_FAMILY_KWARGS = ["degree", "feed_model", "n_qp_pair", "n_qp_source", "feed_smoothing_factor", "use_singular_enrichment", "enrichment_variant", "tikhonov_lambda", "auto_tap_ratio_threshold", "n_qp_sing", "enrichment_min_k", "extended_kernel"];
 const BSPLINE_KWARGS = ["degree", "feed_model", "n_qp_pair", "n_qp_source", "feed_smoothing_factor", "use_singular_enrichment", "enrichment_variant", "tikhonov_lambda", "auto_tap_ratio_threshold", "n_qp_sing", "enrichment_min_k", "extended_kernel", "rotational_symmetry"];
 const RAZOR_KWARGS = ["extended_kernel"];
+// The NEC-4.2 slot's one knob (pinned Python-side beside the others).
+const NEC42_KWARGS = ["sommerfeld"];
 
 
 // Each entry's `constraints` come from the generated fixture, keyed by name,
@@ -193,6 +195,21 @@ export const ROSTER_WITH_NEC5: BackendRoster = [
     kind: "nec5",
     panel: "nec5",
     default_n_per_wire: 40,
+  }),
+];
+
+/** The roster a machine with a licensed NEC-4.2 binary serves: the nec42 entry
+ *  appears only when the server resolves $NEC42_EXE, and it alone exposes the
+ *  Sommerfeld choice. */
+export const ROSTER_WITH_NEC42: BackendRoster = [
+  ...SERVED_ROSTER,
+  backendEntry({
+    name: "nec42",
+    label: "NEC-4.2",
+    kind: "nec42",
+    panel: "pynec",
+    default_n_per_wire: 21,
+    model_kwargs: NEC42_KWARGS,
   }),
 ];
 
