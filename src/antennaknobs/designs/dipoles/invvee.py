@@ -180,6 +180,23 @@ class Builder(AntennaBuilder):
                 ),
                 ground="finite-fast",
             ),
+            # A pattern (AK#1757 step 7): what the same three heights do to
+            # the take-off angle, one solve each at the design's frequency.
+            # The elevation cut runs along +x, the wire's broadside (it lies
+            # along y), and the table is the pattern pins' own metrics. Same
+            # ground slot as above: in free space the three are one pattern.
+            an.patterns(
+                name="height patterns",
+                cross=an.Cross(
+                    states=(
+                        an.State("as built"),
+                        an.State("low mast", base=5.0),
+                        an.State("tall mast", base=12.0),
+                    )
+                ),
+                views=(an.Elevation(az=0), an.PatternTable()),
+                ground="finite-fast",
+            ),
             # E8: the match held at every height, and the knobs that hold it.
             an.Analysis(
                 "match vs height",

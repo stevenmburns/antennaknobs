@@ -500,6 +500,114 @@ other as a family.
 A *hold* (re-optimising knobs at every point) is declared in the same Python
 but refused by name for now, naming its step.
 
+### Patterns
+
+An analysis with no sweep, `sweep=None`, is a *pattern*: each cell is solved
+once, at its measurement frequency, and drawn as far-field cuts instead of
+curves against x. Three views draw it, and only them:
+
+- `an.Elevation(az=0)`: the elevation cut through azimuth `az`, from that
+  horizon over the zenith to the opposite one;
+- `an.Azimuth(el=10)`: the azimuth cut at `el` degrees above the horizon;
+- `an.PatternTable()`: the metrics the workbench's pattern compare table
+  shows, per cell: peak gain, take-off angle, F/B, both beamwidths and RDF.
+
+A pattern crosses designs, states, engines, grounds, planes and a family like
+any analysis, one pattern per cell under the same cap of 6.
+`an.patterns(...)` is the library's form, with all three views (the
+elevation cut along +x, the azimuth cut at 10°). The inverted vee's `height
+patterns` is its three mast heights over average ground:
+
+```python
+an.patterns(
+    name="height patterns",
+    cross=an.Cross(
+        states=(
+            an.State("as built"),
+            an.State("low mast", base=5.0),
+            an.State("tall mast", base=12.0),
+        ),
+    ),
+    views=(an.Elevation(az=0), an.PatternTable()),
+    ground="finite-fast",
+)
+```
+
+```bash
+python -m antennaknobs analyze --builder dipoles.invvee --analysis "height patterns" \
+    --fn heights.png --csv heights.csv
+```
+
+```text
+analysis 'height patterns': pattern at 28.47 MHz (freq); 3 patterns (3 states); views Elevation, PatternTable
+  as built: 28.47 MHz, ground: finite-fast 13/0.005 (reflection-coefficient)
+  low mast: 28.47 MHz, ground: finite-fast 13/0.005 (reflection-coefficient)
+  tall mast: 28.47 MHz, ground: finite-fast 13/0.005 (reflection-coefficient)
+design     peak dBi  takeoff°    F/B dB    az bw°    el bw°    RDF dB
+---------------------------------------------------------------------
+as built       7.55        22       0.0        86        25       9.1
+low mast       6.28        33       0.0        94        42       7.7
+tall mast      7.69        13       0.0        83        13       9.1
+```
+
+The chart is one polar panel per cut view, on `compare_patterns`' dBi axes,
+with a trace per cell and one legend below. Each cut is read straight off the
+engine's far-field grid, the one `compare_patterns` draws (1° steps, θ 0–89°
+from the zenith), so a cell's cut is that design's pattern sample for sample.
+That grid sets the angles a cut may take: whole degrees, an azimuth of 0–359
+and an elevation of 1–89 (the grid has no horizon row). The table is the
+compare table's own measure, which finds the peak off the 1° grid on momwire.
+On PyNEC, NEC-2 and NEC-5, which have no gain evaluator, it is
+`compare_patterns`' grid measure.
+
+The measurement frequency is the design's `freq`, the knob `an.FREQUENCY`
+names. A state can set it, `an.State("20 m", freq=14.2)`, and a family can step
+it, `an.Cross(step=an.Sweep(an.FREQUENCY, values=(28.0, 29.0)))`, for one
+pattern per frequency.
+
+`--csv` writes the cuts: one block of rows per cut view, in the analysis's
+order. Each row is `cut, angle_deg`, then a `<cell> gain_dBi` column per cell:
+
+```text
+cut,angle_deg,as built gain_dBi,low mast gain_dBi,tall mast gain_dBi
+elevation az=0,1,-14.82…,-18.83…,-10.20…
+...
+azimuth el=10,0,...
+```
+
+An elevation cut's angle runs 1–179 over the zenith (90), and an azimuth
+cut's 0–359. A pattern with no cut view (only the table) has nothing to write,
+and `--csv` refuses it.
+
+Refused by name when the analysis is built: a pattern view on a swept
+analysis, a sweep's view (`Rx`, `Swr`, `Table`, …) on a pattern, a hold on a
+pattern, and a cut angle off the grid.
+
+A study can be a pattern too. This one, saved as a `.py` in the studies
+folder, compares the vee with the Yagi on its tab and on the Yagi's:
+
+```python
+import antennaknobs.analyses as an
+
+
+def build_studies():
+    return [
+        an.patterns(
+            name="vee vs yagi",
+            cross=an.Cross(designs=("dipoles.invvee", "beams.yagi")),
+            views=(an.Elevation(az=0), an.Azimuth(el=15), an.PatternTable()),
+            ground="finite-fast",
+        ),
+    ]
+```
+
+```text
+design          peak dBi  takeoff°    F/B dB    az bw°    el bw°    RDF dB
+--------------------------------------------------------------------------
+dipoles.invvee      7.55        22       0.0        86        25       9.1
+beams.yagi         13.45        20       8.9        61        22      14.4
+```
+
 ### Studies
 
 An analysis in `build_analyses()` belongs to its design: it can leave out
