@@ -10,8 +10,9 @@ chart is ``sweep._rx_overlay`` and the table ``sweep._print_convergence_table``.
 What runs: a sweep over a knob, `analyses.DENSITY`, `analyses.HEIGHT` or
 `analyses.FREQUENCY`, or a pair of them (a map); crosses over engines,
 grounds, measurement planes, designs, named knob settings (`analyses.State`,
-step 7) and a second knob's values (a family),
-their product one curve (or one map) per cell; the `Rx`, `Table`, `Swr`,
+step 7) and a second knob's values (a family), their product one curve (or
+one map) per cell; or a list of whole cells (``cells=``, step 7 unit 4), one
+curve per listed cell; the `Rx`, `Table`, `Swr`,
 `S11`, `Smith` and `Map` views; `Ref` lines on R and X, the SWR threshold,
 and the map's contours. A frequency sweep solves through ``sweep.swr_curve``,
 the solve behind ``sweep --swr``, over `frequency_range.design_range` when
@@ -378,7 +379,16 @@ def cells(a: an.Analysis, session_engine: str, builder=None) -> list[Cell]:
     label names what varies, each part as the spec spells it: the engine,
     the ground, the plane (as the design names its port), the design, and a
     family's ``knob = value``, joined by ", ". ``builder`` (the analysis's
-    own design) gives a family's values when the spec gives a range."""
+    own design) gives a family's values when the spec gives a range.
+
+    A ``cells=`` cross (AK#1757 step 7, unit 4) is its listed cells instead,
+    in order, a union: each cell's own state (its design and variant with
+    it), engine, ground and plane, what it leaves out the analysis's, its
+    label the cell's own (`analyses.Cell.label`), or its engine's for a cell
+    that sets nothing."""
+    listed = an.cells_of(a)
+    if listed:
+        return [_listed_cell(c, a, session_engine) for c in listed]
     axes = []
     for c in a.crosses:
         if c.step is not None:
@@ -398,9 +408,10 @@ def cells(a: an.Analysis, session_engine: str, builder=None) -> list[Cell]:
         engine = chosen.get("engines", a.engine or session_engine)
         label = ", ".join(part for _, _, part in combo) if combo else engine
         state = chosen.get("states")
-        # A state naming its design is that design's cell; `an.problems`
-        # refuses one beside a designs cross, so the two never compete.
-        design = chosen.get("designs") or (state.design if state else None)
+        # A state naming its design is that design's cell (at its variant,
+        # the registry's ``name:variant``); `an.problems` refuses one beside
+        # a designs cross, so the two never compete.
+        design = chosen.get("designs") or (state.spec if state else None)
         out.append(
             Cell(
                 label,
@@ -413,6 +424,19 @@ def cells(a: an.Analysis, session_engine: str, builder=None) -> list[Cell]:
             )
         )
     return out
+
+
+def _listed_cell(c: an.Cell, a: an.Analysis, session_engine: str) -> Cell:
+    """One cell of a ``cells=`` cross, as `cells` makes a product's."""
+    engine = c.engine or a.engine or session_engine
+    return Cell(
+        c.label or engine,
+        engine,
+        c.ground or a.ground,
+        plane=c.plane,
+        design=c.state.spec if c.state is not None else None,
+        state=c.state,
+    )
 
 
 def _knob_range(s: an.Sweep, builder, knob: str) -> tuple[float, float]:
@@ -658,8 +682,9 @@ def _prepare(
         if why:
             raise _Refused(why)
         # The refusals keep a state off every knob the sweep, the family and
-        # the hold move, so the order they are set in cannot matter.
-        for k, v in cell.state.knobs:
+        # the hold move, so the order they are set in cannot matter. A group
+        # knob is set as plain data, the shape its default is written in.
+        for k, v in cell.state.settings.items():
             setattr(b, k, v)
     knobs = [an.resolve(s.knob, b).knob for s in a.sweeps]
     moved = density_moved(a, b) if cell.design is not None else None

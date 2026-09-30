@@ -116,7 +116,10 @@ def test_a_state_keeps_its_knobs_in_the_order_written():
     [
         (lambda: an.State(""), TypeError, "name is a non-empty string"),
         (lambda: an.State("x", design=""), TypeError, "design is a registry name"),
-        (lambda: an.State("x", base=[1, 2]), TypeError, "base takes a number"),
+        # A tuple is a group knob's value since unit 4; an empty one, or one
+        # mixing entries and plain values, is no value at all.
+        (lambda: an.State("x", base=[]), TypeError, "base takes a number"),
+        (lambda: an.State("x", base=[{"f": 1}, 2]), TypeError, "base takes a number"),
         (lambda: an.State("x", base=float("nan")), TypeError, "base takes a number"),
         (lambda: an.State("x", ui_params={}), ValueError, "ui_params is not a knob"),
         (
@@ -127,7 +130,7 @@ def test_a_state_keeps_its_knobs_in_the_order_written():
         (
             lambda: an.Cross(states=(an.State("a"),), designs=(INVVEE,)),
             ValueError,
-            "give exactly one of engines, grounds, planes, designs, states or step",
+            "give exactly one of engines, grounds, planes, designs, states, cells or step",
         ),
     ],
 )
