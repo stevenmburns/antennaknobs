@@ -78,11 +78,13 @@ def test_the_served_spec_carries_the_description_as_a_tooltip():
 
 def test_every_other_served_spec_keeps_its_description_field_and_it_is_usually_none():
     """Adding the field to the NamedTuple must not disturb an existing spec's
-    served row — `description` is optional and most options carry none."""
+    served row — `description` is optional and most options carry none. The
+    ones that do: this file's checkbox, and NEC-4.2's Sommerfeld choice (its
+    GN 2 / GN 3 hint)."""
     rows = model_option_specs()
     for key, row in rows.items():
         assert "description" in row
-        if key != "rotational_symmetry":
+        if key not in ("rotational_symmetry", "sommerfeld"):
             assert row["description"] is None
 
 
