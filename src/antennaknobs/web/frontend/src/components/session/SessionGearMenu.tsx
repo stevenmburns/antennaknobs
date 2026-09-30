@@ -25,6 +25,7 @@ export function SessionGearMenu({
   copiedParams,
   onCopyParams,
   onDownloadNec,
+  onDownloadNec4,
   onDownloadNec5,
   isMobile,
   fullscreen,
@@ -59,6 +60,7 @@ export function SessionGearMenu({
   copiedParams: boolean;
   onCopyParams: () => void;
   onDownloadNec: () => void;
+  onDownloadNec4: () => void;
   onDownloadNec5: () => void;
   isMobile: boolean;
   fullscreen: ReturnType<typeof useFullscreen>;
@@ -126,20 +128,29 @@ export function SessionGearMenu({
                   >
                     {copiedParams ? "Copied ✓" : "Copy params (Python)"}
                   </button>
-                  {/* Two dialects, both always offered (issue #1389). Neither
-                      writer needs an engine, so hiding one behind an installed
-                      binary would withhold the file from the person who most
-                      needs it. Which one a DESIGN can be said in is the
-                      server's answer: a buried or graded design refuses NEC-2
-                      with a sentence pointing here. */}
+                  {/* Three dialects, all always offered (issue #1389; NEC-4
+                      AK#1803). No writer needs an engine, so hiding one behind
+                      an installed binary would withhold the file from the
+                      person who most needs it. Which one a DESIGN can be said
+                      in is the server's answer: a buried or graded design
+                      refuses NEC-2 with a sentence pointing at the other two. */}
                   <button
                     type="button"
                     className="gear-menu-item"
                     role="menuitem"
                     onClick={onDownloadNec}
-                    title="Download this design as a NEC-2 .nec card deck (for xnec2c, 4nec2, EZNEC, nec2c, …). Buried and graded designs cannot be written as NEC-2 — use the NEC-5 deck for those."
+                    title="Download this design as a NEC-2 .nec card deck (for xnec2c, 4nec2, EZNEC, nec2c, …). Buried and graded designs cannot be written as NEC-2 — use the NEC-4 or NEC-5 deck for those."
                   >
                     Download NEC-2 .nec
+                  </button>
+                  <button
+                    type="button"
+                    className="gear-menu-item"
+                    role="menuitem"
+                    onClick={onDownloadNec4}
+                    title="Download this design as a NEC-4 .nec card deck (for NEC-4.2, EZNEC Pro/4, 4nec2). Carries buried wires (Sommerfeld ground), graded meshes and EX 6 current sources; no NEC-4 binary is needed to write it."
+                  >
+                    Download NEC-4 .nec
                   </button>
                   <button
                     type="button"

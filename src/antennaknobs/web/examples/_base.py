@@ -348,6 +348,10 @@ class AntennaExample:
     # request (params/variant/freq/ground). None when the design has no
     # faithful native-NEC representation (TL/virtual-driver networks).
     nec_export: Optional[Callable[[dict], str]] = None
+    #: The same deck in the NEC-4.2 dialect (AK#1803): NOFILE Sommerfeld cards,
+    #: buried wires under GE -1, graded meshes as chained GW cards, EX 6
+    #: current sources. Offered always; the writer needs no binary.
+    nec4_export: Optional[Callable[[dict], str]] = None
     # Render the design as a SimNEC .ssn circuit (str) for the current request
     # (AK#1539), so the workbench can hand the antenna to SimNEC without a
     # terminal. Needs no PyNEC and no engine. Raises SsnUnsupported (a

@@ -101,10 +101,10 @@ def test_the_default_dialect_is_nec2_so_an_old_client_is_unchanged(client):
     assert old.headers["Content-Disposition"] == new.headers["Content-Disposition"]
 
 
-def test_an_unknown_dialect_is_a_422_that_names_the_two(client):
-    r = _post(client, "dipoles.invvee", "nec4")
+def test_an_unknown_dialect_is_a_422_that_names_the_known_ones(client):
+    r = _post(client, "dipoles.invvee", "nec3")
     assert r.status_code == 422
-    assert "nec2 or nec5" in r.json()["detail"]
+    assert "nec2, nec4 or nec5" in r.json()["detail"]
 
 
 def test_a_tl_network_refuses_in_both_dialects(client):
