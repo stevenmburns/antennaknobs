@@ -580,6 +580,8 @@ export function CompareOverlay({
   highlight,
   onToggleHighlight,
   onClearHighlight,
+  onKeepPins,
+  keepPinsBlocked,
 }: {
   pinCurrentPattern: () => void;
   setCompareCollapsed: (v: boolean) => void;
@@ -600,6 +602,10 @@ export function CompareOverlay({
   highlight?: readonly string[];
   onToggleHighlight?: (id: string) => void;
   onClearHighlight?: () => void;
+  /** "Keep as study" for the shown pins (AK#1757 step 7 unit 4): opens its
+   *  dialog; `keepPinsBlocked` is why it cannot, or null. */
+  onKeepPins?: () => void;
+  keepPinsBlocked?: string | null;
 }) {
   // "all": back to no highlight, every trace at full strength. Shown only
   // while something is highlighted, beside the table or its collapsed chip, so
@@ -649,6 +655,21 @@ export function CompareOverlay({
           <>
             <div className="pin-table-actions">
               {allButton}
+              {onKeepPins && (
+                <button
+                  type="button"
+                  className="pin-clear pin-keep"
+                  onClick={onKeepPins}
+                  disabled={!!keepPinsBlocked}
+                  aria-label="Keep the shown pinned patterns as a study"
+                  title={
+                    keepPinsBlocked ??
+                    "Keep as study: the shown pins, re-solved next session as a pattern study"
+                  }
+                >
+                  keep as study
+                </button>
+              )}
               <button
                 type="button"
                 className="pin-clear"

@@ -67,4 +67,7 @@ export type PinnedPattern = {
   // table draws all pins; positional colors would desynchronize the two, and
   // already shifted every later pin's color on delete.
   colorIdx: number;
+  /** The request the pinned solve was made with (AK#1757 step 7 unit 4):
+   *  what "keep as study" keeps, read server-side into a cell. */
+  req?: Record<string, unknown>;
 };

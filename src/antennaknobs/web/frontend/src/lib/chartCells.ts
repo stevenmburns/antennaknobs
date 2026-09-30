@@ -33,7 +33,12 @@
 //  - a state (AK#1757 step 7) is one cell per named knob setting, set over
 //    its design's DEFAULTS: one naming a design is that design's cell, and
 //    an unnamed one beside a designs cross is set on each of them, refused
-//    per design where the server says (`on`).
+//    per design where the server says (`on`);
+//  - listed cells (`cells=`, step 7 unit 4) are a UNION, not a product: one
+//    curve per listed cell, in order, each on the slot and ground slot that
+//    hold ITS engine and ground (else the analysis's, else the active
+//    ones), refused by name where no slot holds them. The checkboxes do
+//    not multiply them.
 
 import type { BackendEntry } from "./backends";
 import type { SoilParams } from "./ground";
@@ -51,7 +56,7 @@ export type ChartCross = {
 };
 
 /** The kinds of cross an analysis writes (analyses._CROSS_KINDS). */
-export type CrossKind = "engines" | "grounds" | "planes" | "designs" | "states" | "step";
+export type CrossKind = "engines" | "grounds" | "planes" | "designs" | "states" | "cells" | "step";
 
 /** A plane cell as /analyses serves it: refused (in the CLI's words) where
  *  the design does not offer it. */
@@ -68,8 +73,11 @@ export type DesignCross = {
   spacing?: "lin" | "log" | null;
   freqs?: number[] | null;
 };
-/** A knob value a state sets: what the design's knob holds. */
-export type KnobValue = number | boolean | string;
+/** A scalar knob value: a number, a bool or a string. */
+export type ScalarKnob = number | boolean | string;
+/** A knob value a state sets: what the design's knob holds, a group knob's
+ *  (fan_dipole's `bands`, unit 4) a list of its entries. */
+export type KnobValue = ScalarKnob | Record<string, ScalarKnob>[];
 /** A state (AK#1757 step 7): a named knob setting over its design's
  *  defaults, as /analyses serves it. `design` null is the session's design
  *  (at its variant's defaults, never its live knobs); `label` is the CLI's
@@ -79,12 +87,33 @@ export type KnobValue = number | boolean | string;
 export type StateCross = Omit<DesignCross, "name"> & {
   name: string;
   design: string | null;
+  /** The variant whose defaults it is set over (unit 4), or null: the
+   *  design's default (the session's own variant for an unnamed state). */
+  variant?: string | null;
   knobs: Record<string, KnobValue>;
   label: string;
   on: DesignCross[] | null;
 };
-/** What a state cell sets: its knobs over its design's defaults. */
-export type CellState = { label: string; knobs: Record<string, KnobValue> };
+/** What a state cell sets: its knobs over its design's defaults (its
+ *  `variant`'s, when it names one). */
+export type CellState = { label: string; knobs: Record<string, KnobValue>; variant?: string };
+/** A listed cell (`cells=`, AK#1757 step 7 unit 4), as /analyses serves
+ *  it: its label, its state (null: the session's design as the chart runs
+ *  it), its own engine, ground and plane specs (null: the analysis's, else
+ *  the active slot's), and its sweep and refusal as a design cell's. */
+export type ListedCell = Omit<DesignCross, "name"> & {
+  label: string;
+  state: {
+    name: string;
+    design: string | null;
+    variant: string | null;
+    knobs: Record<string, KnobValue>;
+    label: string;
+  } | null;
+  engine: string | null;
+  ground: string | null;
+  plane: string | null;
+};
 
 /** A family: the knob each cell sets, its values, and each cell's label. */
 export type StepCross = { knob: string; values: number[]; labels: string[] };
@@ -100,6 +129,7 @@ export type ListedCross = {
   planes?: PlaneCross[] | null;
   designs?: DesignCross[] | null;
   states?: StateCross[] | null;
+  cells?: ListedCell[] | null;
   step?: StepCross | null;
 };
 
@@ -135,6 +165,8 @@ export type ChartCell = {
   design?: string;
   state?: CellState;
   step?: { knob: string; value: number };
+  /** Which listed cell it is (`cells=`), its index in `ListedCross.cells`. */
+  listed?: number;
   refused: string | null;
 };
 
@@ -243,9 +275,10 @@ type Part = {
  *  per-design one beside a designs cross), else its design's, else none
  *  (the session's design, as the chart runs it). */
 export function servedCell(
-  c: Pick<ChartCell, "design" | "state">,
+  c: Pick<ChartCell, "design" | "state" | "listed">,
   listed: ListedCross,
-): DesignCross | StateCross | null {
+): DesignCross | StateCross | ListedCell | null {
+  if (c.listed !== undefined) return listed.cells?.[c.listed] ?? null;
   if (c.state) {
     const st = listed.states?.find((s) => s.label === c.state!.label);
     if (!st) return null;
@@ -262,6 +295,7 @@ export function servedCell(
 export function crossPlan(cross: ChartCross, listed: ListedCross, env: CrossEnv): CrossPlan {
   const engines = axis(listed.engines, env.slots, checkedSlots(cross, env), "solver");
   const grounds = axis(listed.grounds, env.grounds, checkedGrounds(cross, env), "ground");
+  if (listed.cells) return listedPlan(cross, listed, listed.cells, env, engines, grounds);
   const order = axisOrder(listed);
   const crossed = new Set(listed.axes ?? []);
   const parts = (kind: CrossKind): Part[] => {
@@ -300,10 +334,17 @@ export function crossPlan(cross: ChartCross, listed: ListedCross, env: CrossEnv)
           refused: s.refused,
           key: `st:${s.label}`,
           set: {
-            state: { label: s.label, knobs: s.knobs },
+            state: {
+              label: s.label,
+              knobs: s.knobs,
+              ...(s.variant ? { variant: s.variant } : {}),
+            },
             ...(s.design !== null ? { design: s.design } : {}),
           },
         }));
+      case "cells":
+        // Listed cells are a union (listedPlan), never an axis of a product.
+        return [];
       case "step": {
         const st = listed.step;
         if (!st) return [];
@@ -367,6 +408,67 @@ export function crossPlan(cross: ChartCross, listed: ListedCross, env: CrossEnv)
     return cell;
   });
   return { engines, grounds, cells, capRefusal: null };
+}
+
+/** A `cells=` chart (unit 4): one cell per listed cell, a union. Each is
+ *  on the slot holding its engine spec (else the analysis's one engine,
+ *  else the first ticked slot) and the ground slot holding its ground spec
+ *  (likewise), refused by name where no slot holds it; the checkboxes pick
+ *  the slots a cell that names nothing draws on, and multiply nothing. */
+function listedPlan(
+  cross: ChartCross,
+  listed: ListedCross,
+  cells: ListedCell[],
+  env: CrossEnv,
+  engines: AxisEntry[],
+  grounds: AxisEntry[],
+): CrossPlan {
+  if (cells.length > CURVE_CAP) {
+    return {
+      engines,
+      grounds,
+      cells: [],
+      capRefusal: `REFUSED: ${cells.length} cells = ${cells.length} curves, over the cap of ${CURVE_CAP}`,
+    };
+  }
+  const oneEngine = listed.engines && listed.engines.length === 1 ? listed.engines[0] : null;
+  const oneGround = listed.grounds && listed.grounds.length === 1 ? listed.grounds[0] : null;
+  const pick = (
+    spec: string | null,
+    slots: { id: string; holds: (spec: string) => boolean }[],
+    fallback: string,
+    what: "solver" | "ground",
+  ): { id: string | null; refused: string | null } => {
+    if (spec === null) return { id: fallback, refused: null };
+    const s = slots.find((x) => x.holds(spec));
+    return s ? { id: s.id, refused: null } : { id: null, refused: `no ${what} slot holds ${spec}` };
+  };
+  const out = cells.map((c, k): ChartCell => {
+    const e = pick(c.engine ?? oneEngine, env.slots, checkedSlots(cross, env)[0], "solver");
+    const g = pick(c.ground ?? oneGround, env.grounds, checkedGrounds(cross, env)[0], "ground");
+    const design = c.state?.design ?? undefined;
+    const ownDesign = design === undefined || env.design === undefined || design === env.design;
+    const slotRefusal = e.id && ownDesign ? (env.slots.find((s) => s.id === e.id)?.refusal ?? null) : null;
+    const cell: ChartCell = {
+      key: `${e.id ?? "?"}|${g.id ?? "?"}|cell:${k}`,
+      label: c.label || (env.slots.find((s) => s.id === e.id)?.label ?? ""),
+      slot: e.id,
+      ground: g.id,
+      ...(c.plane !== null ? { plane: c.plane } : {}),
+      ...(design !== undefined ? { design } : {}),
+      listed: k,
+      refused: e.refused ?? g.refused ?? c.refused ?? slotRefusal,
+    };
+    if (c.state) {
+      cell.state = {
+        label: c.state.label,
+        knobs: c.state.knobs,
+        ...(c.state.variant !== null ? { variant: c.state.variant } : {}),
+      };
+    }
+    return cell;
+  });
+  return { engines, grounds, cells: out, capRefusal: null };
 }
 
 /** Whether a solver slot holds an engine spec, as `--engine` spells one

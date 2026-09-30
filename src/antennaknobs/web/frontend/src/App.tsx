@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import type { SolveRequest, SolveResponse } from "./lib/api";
 import { GHOST_COLOR_COUNT } from "./components/charts/palette";
 import type { PinnedPattern } from "./components/charts/types";
+import { keepRequest } from "./lib/keep";
 import { ThemeContext, type Theme } from "./components/hooks";
 import {
   fetchMetrics,
@@ -113,7 +114,10 @@ export function App() {
         let colorIdx = 0;
         while (used.has(colorIdx) && colorIdx < GHOST_COLOR_COUNT) colorIdx++;
         if (colorIdx >= GHOST_COLOR_COUNT) colorIdx = ps.length % GHOST_COLOR_COUNT;
-        return [...ps, { id, label, result, metrics: null, enabled: true, colorIdx }];
+        return [
+          ...ps,
+          { id, label, result, metrics: null, enabled: true, colorIdx, req: keepRequest(req) },
+        ];
       });
       fetchMetrics(req).then((m) =>
         setPins((ps) => ps.map((p) => (p.id === id ? { ...p, metrics: m } : p))),

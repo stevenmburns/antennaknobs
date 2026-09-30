@@ -106,6 +106,12 @@ export interface MountDesignSessionOptions {
    *  undefined, which is a server predating it — the default, so most tests
    *  exercise the no-label render path without asking for it. */
   versionLabel?: string;
+  /** /capabilities' `can_save_studies` (AK#1757 step 7 unit 4); omitted
+   *  from the payload when undefined, which is a server predating it. */
+  canSaveStudies?: boolean;
+  /** /capabilities' `soil_ranges` (#1173); omitted when undefined, which is
+   *  a server predating it (no served default soil). */
+  soilRanges?: unknown;
   /** Extra localStorage entries, written after the harness clears storage —
    *  what a previous page load left behind (AK#1735's per-design Zo). */
   storage?: Record<string, string>;
@@ -132,6 +138,8 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
     routes = {},
     uiDefaults,
     versionLabel,
+    canSaveStudies,
+    soilRanges,
     storage = {},
   } = opts;
 
@@ -169,6 +177,8 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
           terrain_presets: [],
           ...(uiDefaults === undefined ? {} : { ui_defaults: uiDefaults }),
           ...(versionLabel === undefined ? {} : { version_label: versionLabel }),
+          ...(canSaveStudies === undefined ? {} : { can_save_studies: canSaveStudies }),
+          ...(soilRanges === undefined ? {} : { soil_ranges: soilRanges }),
         });
       if (path.startsWith("/examples"))
         return jsonResponse({ examples, errors: [] });

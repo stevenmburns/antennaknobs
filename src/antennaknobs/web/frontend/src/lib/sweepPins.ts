@@ -65,6 +65,9 @@ export type SweepPinSnapshot = {
   cell: string;
   /** The design it was solved on: the label names it; nothing matches on it. */
   design: string;
+  /** The request its curve was solved with (AK#1757 step 7 unit 4), as a
+   *  keep sends it: what "keep as study" reads the pin's cell from. */
+  req?: Record<string, unknown>;
 };
 
 export type SweepPin = SweepPinSnapshot & {
@@ -113,6 +116,7 @@ export type PinnableCurve = {
   label: string;
   cell: string;
   design: string;
+  req?: Record<string, unknown>;
 };
 
 /** The chart's curves as pins: one per curve with points (ruling 1), each
@@ -133,6 +137,7 @@ export function pinsFromCurves(curves: readonly PinnableCurve[], z0: number): Sw
       label: c.label,
       cell: c.cell,
       design: c.design,
+      ...(c.req ? { req: c.req } : {}),
     });
   }
   return out;

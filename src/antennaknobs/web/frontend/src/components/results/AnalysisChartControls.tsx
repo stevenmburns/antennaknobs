@@ -36,6 +36,15 @@ export type ChartChrome = {
    *  drawn curve. `blocked` is why it cannot now (a run in flight, a
    *  refused curve, nothing drawn yet), or null. Omitted: no Pin button. */
   pin?: { onPin: () => void; blocked: string | null };
+  /** "Copy as analysis" and "keep as study" (AK#1757 step 7 unit 4): each
+   *  opens its dialog; `*Blocked` is why it cannot (no analysis picked, a
+   *  chart of other designs for a copy), or null. Omitted: no buttons. */
+  keep?: {
+    onCopy: () => void;
+    copyBlocked: string | null;
+    onKeep: () => void;
+    keepBlocked: string | null;
+  };
 };
 
 /** The chart's own chrome: the dwell switch, what it compares, and
@@ -63,6 +72,42 @@ export function ChartChromeControls(chrome: ChartChrome) {
         >
           pin
         </button>
+      )}
+      {chrome.keep && (
+        <>
+          <button
+            type="button"
+            className="zparam-reset chart-copy-analysis"
+            aria-label="Copy this chart as an analysis"
+            disabled={chrome.keep.copyBlocked !== null}
+            title={
+              chrome.keep.copyBlocked ??
+              "Copy as analysis: this chart as Python, to paste into the design's build_analyses()"
+            }
+            onClick={(e) => {
+              e.stopPropagation();
+              chrome.keep?.onCopy();
+            }}
+          >
+            copy
+          </button>
+          <button
+            type="button"
+            className="zparam-reset chart-keep-study"
+            aria-label="Keep this chart as a study"
+            disabled={chrome.keep.keepBlocked !== null}
+            title={
+              chrome.keep.keepBlocked ??
+              "Keep as study: this chart as a study function, copied or saved to your studies folder"
+            }
+            onClick={(e) => {
+              e.stopPropagation();
+              chrome.keep?.onKeep();
+            }}
+          >
+            keep
+          </button>
+        </>
       )}
       {chrome.onDuplicate && (
         <button
