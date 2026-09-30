@@ -2248,15 +2248,18 @@ def cli(arguments=None):
 
     p = subparsers.add_parser(
         "export",
-        help="Export antenna to a .nec card deck (NEC-2 by default, NEC-5 with --dialect nec5)",
+        help="Export antenna to a .nec card deck (NEC-2 by default, NEC-4 or NEC-5 "
+        "with --dialect)",
     )
     p.add_argument(
         "--dialect",
-        choices=("nec2", "nec5"),
+        choices=("nec2", "nec4", "nec5"),
         default="nec2",
-        help="Card dialect: nec2 (default) or nec5, NEC5Engine's own deck with "
-        "knot-placed sources and in-medium meshing, so a deck that leaves this "
-        "repo is written from the model and never by hand (issue #1328).",
+        help="Card dialect: nec2 (default); nec4, NEC-4.2's cards (NOFILE "
+        "Sommerfeld, buried wires under GE -1, graded meshes, EX 6; AK#1803); or "
+        "nec5, NEC5Engine's own deck with knot-placed sources and in-medium "
+        "meshing, so a deck that leaves this repo is written from the model and "
+        "never by hand (issue #1328).",
     )
     p.add_argument(
         "--builder",
@@ -2312,16 +2315,18 @@ def cli(arguments=None):
             # deck's (AK#1510).
             meshed = partial(NEC5Engine, ground=parse_ground(ground), require_exe=False)
         else:
-            from .nec_export import export_nec
+            from .nec_export import deck_engine_cls, export_nec
 
+            dialect = "nec42" if args.dialect == "nec4" else "nec2"
             kwargs = {"include_rp": args.include_rp}
             if args.ground is not _GROUND_UNSET:
                 kwargs["ground"] = parse_ground(args.ground)
             if args.freq is not None:
                 kwargs["freq"] = args.freq
-            deck = export_nec(built, **kwargs)
+            deck = export_nec(built, dialect=dialect, **kwargs)
             meshed = partial(
-                PyNECEngine, **{k: kwargs[k] for k in ("ground",) if k in kwargs}
+                deck_engine_cls(dialect) if dialect == "nec42" else PyNECEngine,
+                **{k: kwargs[k] for k in ("ground",) if k in kwargs},
             )
         placements.watch(meshed)(built)
         if args.out:
