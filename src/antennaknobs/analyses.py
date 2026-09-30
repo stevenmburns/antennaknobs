@@ -10,6 +10,9 @@ the decided spec, ``docs/design/sweep-framework-spec.md``:
   values (the curves compared: their PRODUCT, capped at `CURVE_CAP`), the
   views it draws (`Rx`, `Swr`, `S11`, `Smith`, `Map`, `Table`, `Knobs`:
   objects with their own options), and the `Ref` lines drawn on them;
+- a `State` is a named setting of a design, knob overrides over its
+  defaults; ``an.Cross(states=(...))`` crosses them like any other kind,
+  one cell per state (AK#1757 step 7);
 - an optional `Hold` optimises at every sweep point: the knobs it adjusts
   are re-solved for one of the optimizer's objectives as x moves;
 - `convergence`, `band_swr` and `knob` are the library: generic analyses any
@@ -134,19 +137,79 @@ class Sweep:
         return self.points
 
 
-_CROSS_KINDS = ("engines", "grounds", "planes", "designs", "step")
+# `step` stays last: every other kind is a tuple (`Cross.__post_init__`).
+_CROSS_KINDS = ("engines", "grounds", "planes", "designs", "states", "step")
+
+# What a state may set a knob to: the scalars a knob holds and ``to_code``
+# prints back exactly (a nested knob, fan_dipole's ``bands``, is not one).
+_STATE_VALUE = (bool, int, float, str)
+
+
+@dataclass(frozen=True, init=False)
+class State:
+    """A named setting of a design (AK#1757 step 7): knob overrides applied
+    over the design's DEFAULTS (its variant's, where one is named), not over
+    whatever the knobs happen to be, so a state means the same curve in
+    every session and on every machine. ``an.State("as built")`` is the
+    defaults themselves. ``design`` names the state's design (a registry
+    name): a study can compare specific settings of different designs;
+    None is the design the analysis runs on (the tab's, ``--builder``'s),
+    or each design of a ``designs=`` cross it multiplies with.
+
+    ``an.State("tall", base=12.0)``: the knobs are keyword arguments, kept
+    in the order written, so `to_code` prints the state back as it was
+    typed. Which knobs a design has is not known here: a knob the design
+    lacks, or one the analysis sweeps, steps or holds, is refused when the
+    analysis is listed (`problems`) or its cell prepared, by name."""
+
+    name: str
+    design: str | None
+    knobs: tuple[tuple[str, bool | int | float | str], ...]
+
+    def __init__(self, name: str, design: str | None = None, **knobs):
+        if not isinstance(name, str) or not name:
+            raise TypeError(f"State: name is a non-empty string, got {name!r}")
+        if design is not None and not (isinstance(design, str) and design):
+            raise TypeError(
+                f"State {name!r}: design is a registry name or None, got {design!r}"
+            )
+        for k, v in knobs.items():
+            if k == "ui_params":
+                raise ValueError(f"State {name!r}: ui_params is not a knob")
+            # bool is an int: both are fine, a finite number is required.
+            if not isinstance(v, _STATE_VALUE) or (
+                isinstance(v, float) and not math.isfinite(v)
+            ):
+                raise TypeError(
+                    f"State {name!r}: {k} takes a number, bool or string, got {v!r}"
+                )
+        _set(self, "name", name)
+        _set(self, "design", design)
+        _set(self, "knobs", tuple(knobs.items()))
+
+    @property
+    def label(self) -> str:
+        """The state's part of a cell label: its name, after its design when
+        it names one, as a ``designs x states`` cell would read."""
+        return self.name if self.design is None else f"{self.design}, {self.name}"
+
+    @property
+    def settings(self) -> dict:
+        return dict(self.knobs)
 
 
 @dataclass(frozen=True)
 class Cross:
     """The curves compared: exactly one of engine specs (as ``--engine``
     takes them), ground specs (as ``--ground`` takes them), measurement
-    planes, designs, or a second knob's values (``step``, a family)."""
+    planes, designs, named knob settings (`State`, step 7), or a second
+    knob's values (``step``, a family)."""
 
     engines: tuple[str, ...] = ()
     grounds: tuple[str, ...] = ()
     planes: tuple[str, ...] = ()
     designs: tuple[str, ...] = ()
+    states: tuple[State, ...] = ()
     step: Sweep | None = None
 
     _positional: ClassVar[tuple[str, ...]] = ()
@@ -156,12 +219,14 @@ class Cross:
             _set(self, f, _as_tuple(getattr(self, f), f"Cross {f}"))
         if self.step is not None and not isinstance(self.step, Sweep):
             raise TypeError(f"Cross: step is a Sweep, got {self.step!r}")
+        if not all(isinstance(s, State) for s in self.states):
+            raise TypeError(f"Cross: states holds an.State values, got {self.states!r}")
         given = [f for f in _CROSS_KINDS if getattr(self, f)]
         if len(given) != 1:
             raise ValueError(
-                "Cross: give exactly one of engines, grounds, planes, designs or "
-                f"step (got {', '.join(given) or 'none'}); several Cross values "
-                "multiply"
+                "Cross: give exactly one of engines, grounds, planes, designs, "
+                f"states or step (got {', '.join(given) or 'none'}); several "
+                "Cross values multiply"
             )
 
     @property
@@ -506,6 +571,110 @@ def offered(builder) -> tuple[Analysis, ...]:
     return own + tuple(a for a in generic if a.name not in names)
 
 
+def states_of(analysis: Analysis) -> tuple[State, ...]:
+    """The analysis's states, in order (its cross over states), or ()."""
+    return next((c.states for c in analysis.crosses if c.kind == "states"), ())
+
+
+def crosses_designs(analysis: Analysis) -> bool:
+    return any(c.kind == "designs" for c in analysis.crosses)
+
+
+def named_designs(analysis: Analysis) -> tuple[str, ...]:
+    """The designs ``analysis`` names: its ``designs=`` cross, else the
+    designs its states name, each once, in the order written. A study names
+    its designs one of these two ways (AK#1757 step 7)."""
+    for c in analysis.crosses:
+        if c.kind == "designs":
+            return c.designs
+    return tuple(dict.fromkeys(s.design for s in states_of(analysis) if s.design))
+
+
+def state_refusal(state: State, analysis: Analysis, builder) -> str | None:
+    """Why ``state`` cannot be set on ``builder`` (an instance of the design
+    it is set on) in ``analysis``, or None. Each is a setting the run would
+    silently undo or never make, so each is refused by name:
+
+    - a knob the design does not have (a typo, or another design's knob);
+    - the density knob: on a ladder it is the swept knob, and on any other
+      sweep the engine holds the solve at its own density (#1543), so the
+      state's value would be overwritten at every solve;
+    - the knob the analysis sweeps (a state is one setting, the sweep moves
+      it through many), the one its family steps, or one its hold adjusts.
+
+    Roles resolve on ``builder``: a height sweep's knob is ``base`` on one
+    design and something else on another, so a clash is a property of the
+    (state, design) pair, not of the spec alone."""
+    params = _params(builder)
+    who = f"state {state.name!r}"
+    dens = density_knob(builder)
+    for k, _ in state.knobs:
+        if k == "nominal_nsegs" or k == dens:
+            ladder = any(resolve(s.knob, builder).knob == k for s in analysis.sweeps)
+            return f"{who} sets {k}, the density knob: " + (
+                "the ladder sweeps it; a state is one setting of the other knobs"
+                if ladder
+                else "the engine holds a sweep at its own density, so the "
+                "setting would be undone at every solve"
+            )
+        if k not in params:
+            return f"{who} sets {k}, and this design has no knob {k!r}"
+    for s in analysis.sweeps:
+        swept = resolve(s.knob, builder).knob
+        if swept in state.settings:
+            return (
+                f"{who} sets {swept}, which the analysis sweeps; a knob is "
+                "swept or set by a state, not both"
+            )
+    for c in analysis.crosses:
+        if c.step is not None:
+            stepped = resolve(c.step.knob, builder).knob
+            if stepped in state.settings:
+                return (
+                    f"{who} sets {stepped}, which the family steps; a knob is "
+                    "stepped or set by a state, not both"
+                )
+    if analysis.hold is not None:
+        for k in analysis.hold.adjust:
+            held = resolve(k, builder).knob
+            if held in state.settings:
+                return (
+                    f"{who} sets {held}, which the hold adjusts at every point; "
+                    "a knob is held or set by a state, not both"
+                )
+    return None
+
+
+def _states_problems(analysis: Analysis, builder) -> list[str]:
+    """The states' own refusals (`problems`): a named design re-multiplied by
+    a ``designs=`` cross, and, for the states set on ``builder`` itself,
+    `state_refusal`. A state on another design (its ``design=``, or a design
+    of a ``designs=`` cross) is refused per cell, when that design is built
+    (`analysis_run._prepare`, the workbench's ``/analyses``)."""
+    states = states_of(analysis)
+    if not states:
+        return []
+    named = [s for s in states if s.design is not None]
+    if named and crosses_designs(analysis):
+        # Two readings, neither safe: a named state as its own cell (then
+        # the product is not a product), or its design crossed again with
+        # every design of the cross (then "apex, tall" is also drawn on the
+        # invvee). Refused, so the spec says which it means.
+        return [
+            f"REFUSED: the states {', '.join(repr(s.label) for s in named)} name "
+            "their design, and the analysis also crosses designs=, which would "
+            "multiply them again; give every state its design= and drop the "
+            "designs cross, or drop design= and let the cross carry the designs"
+        ]
+    if crosses_designs(analysis):
+        return []
+    return [
+        f"REFUSED: {why}"
+        for s in states
+        if s.design is None and (why := state_refusal(s, analysis, builder))
+    ]
+
+
 def problems(analysis: Analysis, builder) -> list[str]:
     """Why ``analysis`` cannot run on ``builder``, as listed: an unresolved
     sweep (UNAVAILABLE), a product over `CURVE_CAP`, a cross naming one
@@ -538,7 +707,14 @@ def problems(analysis: Analysis, builder) -> list[str]:
     for c in analysis.crosses:
         # A curve is found by its label, which is the value that makes it:
         # a value named twice is two curves drawn over each other as one.
-        values = (c.step.values or ()) if c.step is not None else getattr(c, c.kind)
+        if c.step is not None:
+            values = c.step.values or ()
+        elif c.kind == "states":
+            # A state is found by its label (its design and name), whatever
+            # knobs it sets: two alike are one legend entry for two curves.
+            values = tuple(s.label for s in c.states)
+        else:
+            values = getattr(c, c.kind)
         twice = sorted({v for v in values if values.count(v) > 1}, key=str)
         if twice:
             out.append(
@@ -563,6 +739,7 @@ def problems(analysis: Analysis, builder) -> list[str]:
                 out.append(
                     f"REFUSED: the hold adjusts {r.knob}, which is the swept knob"
                 )
+    out += _states_problems(analysis, builder)
     if analysis.curves > CURVE_CAP:
         sizes = " x ".join(
             f"{c.size} {'values' if c.kind == 'step' else c.kind}"
@@ -596,6 +773,14 @@ def _node(value):
     if isinstance(value, tuple):
         items = [(None, _node(v)) for v in value]
         return ("", "(", ")", items, len(items) == 1)
+    if isinstance(value, State):
+        # Its own form: the knobs are keyword arguments of their own, not a
+        # field (`State.__init__`), in the order written.
+        items = [(None, _node(value.name))]
+        if value.design is not None:
+            items.append(("design", _node(value.design)))
+        items += [(k, _node(v)) for k, v in value.knobs]
+        return ("an.State", "(", ")", items, False)
     if dataclasses.is_dataclass(value) and type(value).__module__ == __name__:
         return _call(f"an.{type(value).__name__}", value, _defaults(type(value)))
     raise TypeError(f"no code form for {value!r}")

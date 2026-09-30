@@ -448,6 +448,7 @@ def test_e4_is_served_as_the_decks_own_range_and_the_views_scale():
         "axes": [],
         "planes": None,
         "designs": None,
+        "states": None,
         "step": None,
         "note": None,
     }
