@@ -224,17 +224,19 @@ def test_the_map_view_and_the_curve_views_refuse_the_other_sweep_shape():
 
 @pytest.mark.parametrize(
     ("name", "refused"),
-    [("tuning family", False), ("tuning map", True), ("feed spellings", False)],
+    [("tuning family", False), ("tuning map", True), ("feed spelling (E7)", False)],
 )
 def test_step5_analyses_run_in_the_cli_and_the_map_stays_refused_in_the_workbench(
     name, refused
 ):
     """The workbench draws crosses over planes, designs and families since
-    step 5 unit 4b; the two-sweep map is still refused there."""
+    step 5 unit 4b; the two-sweep map is still refused there. E7 is a study
+    since step 7 (`studies.find`), read on its first design."""
+    from antennaknobs import studies
     from antennaknobs.web import analyses_offer as ao
 
     b = get_builder("dipoles.invvee")()
-    a = ar.find(b, name)
+    a = studies.find(name).analysis if name.endswith("(E7)") else ar.find(b, name)
     assert an.problems(a, b) == [] and ar.cli_gaps(a, b) == []
     later = [g for g in ao.gaps(a) if "not in the workbench yet" in g]
     assert bool(later) is refused, later
@@ -489,12 +491,13 @@ E7_ZINF = {
 }
 
 
-def test_e7_as_the_invvee_declares_it(monkeypatch, capsys, tmp_path):
-    """ "feed spellings" itself: the four momwire cells run and reproduce
-    E7's Z∞ table; NEC-2 x apex is refused (by the engine where NEC-2 is on
-    the roster, else with both NEC-2 cells by the roster)."""
+def test_e7_as_the_invvee_module_declares_it(monkeypatch, capsys, tmp_path):
+    """E7 itself, the study in invvee's ``build_studies`` (step 7): the four
+    momwire cells run and reproduce E7's Z∞ table; NEC-2 x apex is refused
+    (by the engine where NEC-2 is on the roster, else with both NEC-2 cells
+    by the roster)."""
     runs = _capture_run(monkeypatch)
-    _analyze(["--builder", "dipoles.invvee", "--analysis", "feed spellings"], tmp_path)
+    _analyze(["--study", "feed spelling (E7)"], tmp_path)
     out = capsys.readouterr().out
     est = runs[0]["estimates"]
     for label, z in E7_ZINF.items():
