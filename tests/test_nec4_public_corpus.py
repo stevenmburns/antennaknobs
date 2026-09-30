@@ -9,6 +9,7 @@ black-box probes; these tests hold the translator to them.
 from __future__ import annotations
 
 import importlib.util
+import itertools
 import json
 import os
 import sys
@@ -333,6 +334,49 @@ def test_flat_gh_loop_is_written_as_gw_pieces(tool):
     assert any("NEC-4.2 stops on it" in n for n in notes)
 
 
+HELIX = "{gh}\nGE 0\nEX 0 1 1 0 1 0\nFR 0 1 0 0 300 0\nXQ\nEN\n"
+
+
+def test_a_right_handed_circular_nec2_helix_is_respelled_in_nec4_fields(tool):
+    # NEC-2: spacing 0.1, length 0.5, radius 0.05 -> NEC-4: 5 turns, length 0.5,
+    # helix radius twice, wire radius twice (measured: identical segment centres).
+    deck, notes, *_ = _translate(
+        tool, HELIX.format(gh="GH 1 20 0.1 0.5 0.05 0.05 0.05 0.05 0.001")
+    )
+    assert "GH 1 20 5 0.5 0.05 0.05 0.001 0.001" in _cards(deck)
+    assert any("NEC-4's GH fields" in n for n in notes)
+
+
+@pytest.mark.parametrize(
+    "gh",
+    [
+        "GH 1 8 0.1 -0.1 0.05 0.03 0.05 0.03 0.001",  # left-handed, elliptical
+        "GH 1 8 0.1 0.1 0.05 0.05 0.08 0.08 0.001",  # tapered
+    ],
+)
+def test_other_nec2_helices_become_gw_pieces_on_nec2_geometry(tool, gh):
+    deck, notes, *_ = _translate(tool, HELIX.format(gh=gh))
+    gw = [ln.split() for ln in _cards(deck) if ln.startswith("GW")]
+    assert len(gw) == 8 and not any(ln.startswith("GH") for ln in _cards(deck))
+    assert all(g[1:3] == ["1", "1"] for g in gw)
+    # Pieces chain end to end, rising |HL| over the helix.
+    for a, b in itertools.pairwise(gw):
+        assert a[6:9] == b[3:6]
+    assert float(gw[-1][8]) == pytest.approx(0.1)
+    if "-0.1" in gh:
+        # NEC-2's left-handed helix starts at (B sin 0, A cos 0) = (0, A, 0):
+        # read off nec2c's segment table (segment 1 centre 0.0106, 0.0427).
+        assert [float(v) for v in gw[0][3:6]] == [0.0, 0.05, 0.0]
+        mid = [(float(gw[0][k]) + float(gw[0][k + 3])) / 2 for k in (3, 4)]
+        assert mid == pytest.approx([0.0106, 0.0427], abs=1e-4)
+    assert any("GW pieces on NEC-2's geometry" in n for n in notes)
+
+
+def test_a_gh_with_an_unknown_layout_is_skipped(tool):
+    with pytest.raises(tool.Refused, match="neither NEC-2's"):
+        _translate(tool, HELIX.format(gh="GH 1 40 0.25 1.25 0.15915 0.15915 0.001"))
+
+
 def test_an_invalid_deck_is_still_invalid(tool):
     with pytest.raises(tool.InvalidNEC, match="above GE"):
         _translate(tool, "GW 1 5 0 0 0 0 0 1 0.001\nGN 1\nGE 1\nEX 0 1 3 0 1 0\nEN\n")
@@ -493,6 +537,25 @@ def test_check_parses_classifies_and_keeps_only_failures(
     assert rows["public/coll/bad.nec"]["status"] == "error"
     assert "DATA ERROR" in rows["public/coll/bad.nec"]["error"]
     assert rows["public/coll/crash.nec"]["status"] == "crash"
+    # --resume on a finished report runs nothing and duplicates no row.
+    n_rows = len(report.read_text().splitlines())
+    assert (
+        tool.main(
+            [
+                "check",
+                "--exe",
+                str(fake_exe),
+                "--src",
+                str(corpus),
+                "--report",
+                str(report),
+                "--resume",
+            ]
+        )
+        == 0
+    )
+    lines = report.read_text().splitlines()
+    assert len(lines) == n_rows + 1 and '"check-resume"' in lines[-1]
     kept = sorted(p.relative_to(keep).as_posix() for p in keep.rglob("*.out"))
     assert kept == ["public/coll/bad.out", "public/coll/crash.out"]
 

@@ -46,8 +46,11 @@ NEC-4.2 binary (black box, probe decks) rather than taken from anything else:
     an LD 1 parallel RLC (`_ld_4nec2`); NEC-4.2 stops on both as written;
   * nec2++'s MP and NEC-2's GF (a Green's function file this corpus does not
     have) are skipped: NEC-4.2 stops on each;
-  * 4nec2's flat one-turn GH loop is written as its straight GW pieces
-    (NEC-4.2 stops, "DATAGN: SEGMENT DATA ERROR"), same segments, same tag;
+  * NEC-2's GH has other fields than NEC-4.2's (`_nec2_gh`): a right-handed
+    constant-radius helix is respelled in NEC-4's fields, any other helix is
+    written as its GW pieces on NEC-2's geometry, and 4nec2's flat one-turn
+    loop (NEC-4.2 stops, "DATAGN: SEGMENT DATA ERROR") likewise -- same
+    segments, same tag;
   * a deck with no execution request gets ``XQ 0`` (NEC-4.2 computes nothing);
   * EK and KH are kept, noted: NEC-4.2 prints "THE EK AND KH COMMANDS HAVE NO
     EFFECT IN NEC-4".
@@ -116,8 +119,8 @@ def _rot(p, ax, ay, az):
 
 def _wire_points(c: Card) -> list:
     """The segment end points of one geometry card, before any transform.
-    CW is taken as its chord and GH as NEC-2's helix: both are only ever asked
-    which side of z=0 they are on."""
+    CW is taken as its chord and GH (in NEC-4's fields) as a linear-radius
+    helix: both are only ever asked which side of z=0 they are on."""
     n = max(c.int(1), 1)
     if c.mn in ("GW", "CW"):
         a = (c.num(2), c.num(3), c.num(4))
@@ -136,20 +139,15 @@ def _wire_points(c: Card) -> list:
             for i in range(n + 1)
         ]
     if c.mn == "GH":
-        s, hl = c.num(2), abs(c.num(3))
-        a1, b1, a2, b2 = c.num(4), c.num(5), c.num(6), c.num(7)
+        # NEC-4's layout: `_nec2_gh` has rewritten every NEC-2 helix by now.
+        turns, hl = c.num(2), abs(c.num(3))
+        r1, r2 = c.num(4), c.num(5)
         pts = []
         for i in range(n + 1):
             t = i / n
-            z = hl * t
-            ang = 2.0 * math.pi * z / s if s else 0.0
-            pts.append(
-                (
-                    (a1 + (a2 - a1) * t) * math.cos(ang),
-                    (b1 + (b2 - b1) * t) * math.sin(ang),
-                    z,
-                )
-            )
+            ang = 2.0 * math.pi * turns * t
+            r = r1 + (r2 - r1) * t
+            pts.append((r * math.cos(ang), r * math.sin(ang), hl * t))
         return pts
     return []
 
@@ -459,6 +457,95 @@ def _gyrator_nt(cards: list) -> int:
     return k
 
 
+def _nec2_gh(cards: list, notes: list) -> list:
+    """NEC-2's GH as NEC-4.2 reads it, or refused.
+
+    The two programs share the mnemonic and not the fields. NEC-2's GH is
+    ``GH tag ns S HL A1 B1 A2 B2 RAD`` (turn spacing, axial length -- negative
+    for a left-handed helix -- and the x/y radii at each end); NEC-4.2's,
+    measured from its own geometry printout, is ``GH tag ns TURNS LENGTH RH1 RH2
+    RW1 RW2`` (turns, length, helix radius and wire radius at each end, a taper
+    being a log spiral). Passed through, a NEC-2 helix is silently another
+    antenna: Cebik's conical 4-5a became a wire of 0.16 m radius and printed an
+    impedance of 1e-7 ohm. So:
+
+    * a right-handed helix of one constant circular radius is written as
+      NEC-4.2's GH (``TURNS = HL / S``), measured to reproduce nec2c's segment
+      centres exactly;
+    * any other NEC-2 helix (left-handed, tapered, elliptical) is written as
+      its ``ns`` straight GW pieces on NEC-2's own geometry -- z = |HL| t, radii
+      linear in t, phi = 2 pi z / S, (A cos phi, B sin phi) right-handed and
+      (B sin phi, A cos phi) left-handed, checked against nec2c's segment
+      table -- one segment each on the GH's tag, so (tag, seg) addressing is
+      unchanged (NEC-4.2's own left-handed helix is NEC-2's turned 90 degrees);
+    * a GH with neither layout's field count is refused.
+    """
+    out = []
+    for c in cards:
+        if c.mn != "GH":
+            out.append(c)
+            continue
+        if len(c.f) != 9:
+            raise Refused(
+                f"GH on line {c.line} has {len(c.f) - 2} real fields, neither NEC-2's "
+                "7 (S HL A1 B1 A2 B2 RAD) nor NEC-4's 6: its geometry is ambiguous"
+            )
+        ns = c.int(1)
+        s, hl = c.num(2), c.num(3)
+        a1, b1, a2, b2 = (c.num(k) for k in range(4, 8))
+        if s == 0.0:
+            raise Refused(f"GH on line {c.line} has zero turn spacing")
+        if hl > 0 and a1 == b1 == a2 == b2:
+            out.append(
+                Card(
+                    "GH",
+                    [
+                        c.f[0],
+                        c.f[1],
+                        n5._format_field(hl / s),
+                        c.f[3],
+                        c.f[4],
+                        c.f[4],
+                        c.f[8],
+                        c.f[8],
+                    ],
+                    c.line,
+                )
+            )
+            notes.append(
+                f"GH tag {c.f[0]}: NEC-2 helix (spacing {s:g}, length {hl:g}) written in "
+                f"NEC-4's GH fields ({hl / s:.10g} turns; helix and wire radius twice)"
+            )
+            continue
+        pts = []
+        for i in range(ns + 1):
+            t = i / ns
+            z = abs(hl) * t
+            a, b = a1 + (a2 - a1) * t, b1 + (b2 - b1) * t
+            ph = 2.0 * math.pi * z / s
+            pts.append(
+                (a * math.cos(ph), b * math.sin(ph), z)
+                if hl >= 0
+                else (b * math.sin(ph), a * math.cos(ph), z)
+            )
+        for i in range(ns):
+            out.append(
+                Card(
+                    "GW",
+                    [c.f[0], "1"]
+                    + [n5._format_field(v) for v in (*pts[i], *pts[i + 1])]
+                    + [c.f[8]],
+                    c.line,
+                )
+            )
+        kind = "left-handed" if hl < 0 else "tapered or elliptical"
+        notes.append(
+            f"GH tag {c.f[0]}: {kind} NEC-2 helix written as its {ns} GW pieces on "
+            "NEC-2's geometry (NEC-4.2's GH has other fields and no such shape)"
+        )
+    return out
+
+
 def translate_deck(comments: list, cards: list, name: str) -> tuple:
     """``(deck text, notes, ground types, twin)`` for ONE structure.
     ``twin`` is True when the deck is on GN 2 and gets a GN 3 twin."""
@@ -478,6 +565,7 @@ def translate_deck(comments: list, cards: list, name: str) -> tuple:
         )
         for n in notes
     ]
+    cards = _nec2_gh(cards, notes)
     # Tag resolution on COPIES: the NEC-5 Geometry gives an untagged wire a
     # synthetic tag, which NEC-4.2 does not need, so the deck keeps tag 0.
     geo = n5.Geometry()
@@ -967,6 +1055,15 @@ def cmd_check(args) -> int:
     environment["engine_threads"] = threads
     report_path = Path(args.report) if args.report else src / "check-report.jsonl"
     keep_dir = Path(args.keep_dir) if args.keep_dir else None
+    resuming = bool(getattr(args, "resume", False)) and report_path.is_file()
+    if resuming:
+        # Keep the rows already written (a run stopped part-way) and run only
+        # the decks the report does not have; the new rows are appended.
+        _, done = n5._read_report(report_path)
+        decks = [p for p in decks if p.relative_to(src).as_posix() not in done]
+        _log(
+            f"--resume: {len(done)} decks already in {report_path}, {len(decks)} to run"
+        )
     counts, errors = {}, {}
     t0 = time.perf_counter()
 
@@ -984,10 +1081,10 @@ def cmd_check(args) -> int:
         rec["file"] = rel.as_posix()
         return rec
 
-    with open(report_path, "w", encoding="utf-8") as report:
+    with open(report_path, "a" if resuming else "w", encoding="utf-8") as report:
         report.write(
             _meta_row(
-                "check",
+                "check-resume" if resuming else "check",
                 exe=exe,
                 timeout_s=args.timeout,
                 max_mem_mb=args.max_mem_mb,
@@ -1127,6 +1224,11 @@ def main(argv=None) -> int:
     )
     c.add_argument("--only", default=None)
     c.add_argument("--limit", type=int, default=0)
+    c.add_argument(
+        "--resume",
+        action="store_true",
+        help="append to an existing --report, running only the decks it lacks",
+    )
     c.set_defaults(fn=cmd_check)
 
     w = sub.add_parser(
