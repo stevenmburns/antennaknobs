@@ -32,6 +32,31 @@ export function ghostRgb(colorIdx: number): string {
   return v || GHOST_FALLBACK_RGB[i];
 }
 
+// Pinned sweeps (AK#1757 item 1): their own palette of 8 (ruling 5; a full
+// cross pins 6 curves at once), themed via CSS vars as the ghosts are, and
+// drawn dashed (PIN_DASH) so a pin never reads as a live curve even where
+// its hue is near one. Pattern pins keep their 4 above.
+export const SWEEP_PIN_FALLBACK_RGB = [
+  "255, 140, 110", // coral
+  "230, 215, 90", // gold
+  "170, 235, 110", // lime
+  "100, 235, 185", // mint
+  "140, 185, 255", // sky
+  "215, 165, 255", // lavender
+  "255, 110, 225", // magenta
+  "215, 185, 145", // sand
+];
+export const PIN_DASH = [6, 4];
+/** A sweep pin's colour slot in the current theme, as a CSS colour. */
+export function sweepPinColor(colorIdx: number, alpha = 0.95): string {
+  const n = SWEEP_PIN_FALLBACK_RGB.length;
+  const i = ((colorIdx % n) + n) % n;
+  const v = getComputedStyle(document.documentElement)
+    .getPropertyValue(`--plot-sweep-pin-${i}-rgb`)
+    .trim();
+  return `rgba(${v || SWEEP_PIN_FALLBACK_RGB[i]}, ${alpha})`;
+}
+
 export function feedColor(i: number, alpha = 0.85): string {
   const [r, g, b] = FEED_COLORS[i % FEED_COLORS.length];
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;

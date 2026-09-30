@@ -13,6 +13,7 @@ import {
   ThemeControlContext,
 } from "./components/session/contexts";
 import { DesignSession } from "./components/session/DesignSession";
+import { SweepPinsProvider } from "./components/session/SweepPinsProvider";
 
 // App shell. Owns the two pieces of truly global state — the light/dark theme
 // and the list of open design sessions — and nothing else. Every session is a
@@ -143,20 +144,23 @@ export function App() {
       <ThemeControlContext.Provider value={applyTheme}>
         <SessionsContext.Provider value={sessionsCtx}>
           <PinsContext.Provider value={pinsCtx}>
-            <div className="sessions">
-              {sessions.map((s) => (
-                <div
-                  key={s.id}
-                  className="session-mount"
-                  // Hidden — not unmounted — so an inactive session keeps its
-                  // inputs. `hidden` also removes it from the a11y tree and stops
-                  // its canvases painting.
-                  hidden={s.id !== activeId}
-                >
-                  <DesignSession id={s.id} active={s.id === activeId} />
-                </div>
-              ))}
-            </div>
+            {/* Pinned sweeps (AK#1757 item 1): shell-level, as pattern pins. */}
+            <SweepPinsProvider>
+              <div className="sessions">
+                {sessions.map((s) => (
+                  <div
+                    key={s.id}
+                    className="session-mount"
+                    // Hidden — not unmounted — so an inactive session keeps its
+                    // inputs. `hidden` also removes it from the a11y tree and stops
+                    // its canvases painting.
+                    hidden={s.id !== activeId}
+                  >
+                    <DesignSession id={s.id} active={s.id === activeId} />
+                  </div>
+                ))}
+              </div>
+            </SweepPinsProvider>
           </PinsContext.Provider>
         </SessionsContext.Provider>
       </ThemeControlContext.Provider>
