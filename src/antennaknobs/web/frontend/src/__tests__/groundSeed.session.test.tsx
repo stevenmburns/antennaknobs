@@ -7,8 +7,8 @@
 // and the slot label reads "deck's own" because the deck's counts are what
 // the solvers honour.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen } from "@testing-library/react";
-import { mountReady, HARNESS_EXAMPLE } from "./designSessionHarness";
+import { screen, within } from "@testing-library/react";
+import { mountReady, HARNESS_EXAMPLE, groundSettings } from "./designSessionHarness";
 import type { ExampleDescriptor } from "../lib/params";
 
 const FREE: ExampleDescriptor = {
@@ -68,10 +68,10 @@ afterEach(() => {
 });
 
 const groundBox = () =>
-  screen.getByRole("checkbox", { name: /ground plane/ }) as HTMLInputElement;
+  within(groundSettings()).getByRole("checkbox", { name: /ground plane/ }) as HTMLInputElement;
 
 const radio = (name: string | RegExp) =>
-  (screen.getByRole("radio", { name }) as HTMLInputElement).checked;
+  (within(groundSettings()).getByRole("radio", { name }) as HTMLInputElement).checked;
 
 // Every assertion is synchronous after mountReady: the seed now runs in the
 // render that loads the design (AK#1762), so the switch, the type and the

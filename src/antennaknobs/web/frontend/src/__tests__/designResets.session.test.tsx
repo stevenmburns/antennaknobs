@@ -13,9 +13,9 @@
 // exactly where the old code lost the action: a MutationObserver callback
 // (untilDom) runs after the commit and before React's passive effects.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import type { ExampleDescriptor } from "../lib/params";
-import { HARNESS_EXAMPLE, mountDesignSession, sessionReady, untilDom } from "./designSessionHarness";
+import { HARNESS_EXAMPLE, mountDesignSession, sessionReady, untilDom, groundSettings } from "./designSessionHarness";
 
 const DECK: ExampleDescriptor = {
   ...HARNESS_EXAMPLE,
@@ -46,7 +46,7 @@ const designShown = () =>
   untilDom(() => document.querySelector('[role="slider"][aria-label="Gap"]'));
 
 const groundBox = () =>
-  screen.getAllByRole("checkbox", { name: /ground plane/ })[0] as HTMLInputElement;
+  within(groundSettings()).getByRole("checkbox", { name: /ground plane/ }) as HTMLInputElement;
 
 const activeProjection = () =>
   ["Top (xy)", "Front (xz)", "Side (yz)", "Iso"].filter((l) =>

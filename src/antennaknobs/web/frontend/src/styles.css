@@ -1839,6 +1839,26 @@ input[type=checkbox] {
   border-color: var(--border-hover);
 }
 
+/* The ground notices under the ground-slot tab strip (AK#1801): the file's
+   own ground, a buried design's automatic Sommerfeld, a ground the solver
+   ignores. One compact muted line each, in view with the ⚙ settings closed. */
+.ground-notices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  line-height: 1.35;
+}
+.ground-notices .field {
+  gap: 0;
+}
+/* A slot's ⚙ settings (AK#1801) hold the ground panel in the solver gear's
+   modal. The panel's number fields are width: 100% content-box, which the
+   sidebar's overflow hid; inside the card the padding would push them past
+   its right edge, so the box includes it here. */
+.ground-config-modal .field input[type=number] {
+  box-sizing: border-box;
+}
+
 .backend-config-overlay {
   position: fixed;
   inset: 0;

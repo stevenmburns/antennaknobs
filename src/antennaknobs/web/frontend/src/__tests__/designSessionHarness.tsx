@@ -13,7 +13,7 @@
 // asserts on a live solve landing, only on static mount-time placement/wiring,
 // and setup.ts's InertWebSocket never calls onmessage.
 import { vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { DesignSession } from "../components/session/DesignSession";
 import { VIEW_PREFS_KEY, type Layout } from "../components/session/useViewPrefs";
 import { type LegacyChartView, VIEWS, type View } from "../lib/view";
@@ -267,4 +267,28 @@ export function sweepBaseDone(chart: HTMLElement): Promise<true> {
   return untilDom(
     () => chart.dataset.phase === "idle" || chart.dataset.phase === "refining" || null,
   );
+}
+
+// A ground slot's ⚙ settings (AK#1801), opened if they are not already:
+// slot `id`'s, or the ACTIVE slot's when omitted (the one the ground panel
+// used to edit inline). Another slot's open settings are closed first.
+// Returns the dialog, for `within(...)` or plain screen queries (it holds
+// the only ground panel on the page).
+export function groundSettings(id?: string): HTMLElement {
+  const slot =
+    id ??
+    screen
+      .getAllByRole("tab")
+      .find(
+        (t) =>
+          t.getAttribute("aria-selected") === "true" &&
+          (t.getAttribute("aria-label") ?? "").startsWith("Ground slot "),
+      )!
+      .getAttribute("aria-label")!
+      .replace(/^Ground slot ([^:]+):.*$/, "$1");
+  const open = screen.queryByRole("dialog", { name: /^Ground slot .* settings$/ });
+  if (open && open.getAttribute("aria-label") === `Ground slot ${slot} settings`) return open;
+  if (open) fireEvent.click(within(open).getByRole("button", { name: "Close" }));
+  fireEvent.click(screen.getByRole("button", { name: `Ground slot ${slot} settings` }));
+  return screen.getByRole("dialog", { name: `Ground slot ${slot} settings` });
 }

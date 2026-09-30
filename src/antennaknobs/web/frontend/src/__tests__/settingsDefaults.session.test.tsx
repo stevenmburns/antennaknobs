@@ -9,7 +9,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { mountReady, untilDom } from "./designSessionHarness";
+import { groundSettings, mountReady, untilDom } from "./designSessionHarness";
 import { SERVED_SLOT_SEEDS } from "./backendFixtures";
 
 const DEFAULTS = {
@@ -73,6 +73,8 @@ describe("startup settings (AK#1492)", () => {
     expect(checkedStates("feed labels").every((c) => !c)).toBe(true);
     // A file that names `refine` wins over the browser's memory.
     expect(checkedStates("adaptive resolution")).toEqual([false]);
+    // The ground plane lives behind the active ground slot's ⚙ (AK#1801).
+    groundSettings();
     expect(checkedStates("ground plane").every((c) => !c)).toBe(true);
     // The freq-sweep and param-sweep switches are gone from the menu (AK#1757
     // step 5 unit 3): their keys seed each analysis chart's dwell switch
