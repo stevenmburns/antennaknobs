@@ -254,10 +254,10 @@ Those cards are recorded in `deck.ignored` rather than translated:
   a deck in the designs folder opens with the ground switch set from its
   cards (`GE 0` off; `GE 1` or `GN 1` perfect; `GN 2` finite + Sommerfeld
   and `GN 0` finite + reflection coefficients, each with the card's own
-  ε<sub>r</sub> and σ in the soil fields), the ground panel says "from the
-  file", and the CLI's `@file.nec` route applies the same unless `--ground`
+  ε<sub>r</sub> and σ in the soil fields), the line under the ground-slot tabs
+  says "from the file", and the CLI's `@file.nec` route applies the same unless `--ground`
   is given. A NEC-5 deck is the exception for `GN 0`: NEC-5 has no
-  reflection-coefficient ground, so its `GN 0` is Sommerfeld, and the panel
+  reflection-coefficient ground, so its `GN 0` is Sommerfeld, and that line
   says "Sommerfeld (NEC-5 GN 0)". A deck reads as NEC-5 when its `GN` card
   ends in NEC-5's `NOFILE`, when a source sits at a segment end, or when
   EZNEC's stamp says it wrote NEC-5.
