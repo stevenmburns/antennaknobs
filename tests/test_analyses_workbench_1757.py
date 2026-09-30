@@ -39,7 +39,7 @@ INVVEE = {
 
 
 # The crosses beyond engines and grounds (AK#1757 step 5 unit 4b).
-CROSSES = ("axes", "planes", "designs", "step")
+CROSSES = ("axes", "planes", "designs", "states", "step")
 
 
 @pytest.fixture(scope="module")

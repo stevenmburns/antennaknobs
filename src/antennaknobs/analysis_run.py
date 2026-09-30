@@ -9,7 +9,8 @@ chart is ``sweep._rx_overlay`` and the table ``sweep._print_convergence_table``.
 
 What runs: a sweep over a knob, `analyses.DENSITY`, `analyses.HEIGHT` or
 `analyses.FREQUENCY`, or a pair of them (a map); crosses over engines,
-grounds, measurement planes, designs and a second knob's values (a family),
+grounds, measurement planes, designs, named knob settings (`analyses.State`,
+step 7) and a second knob's values (a family),
 their product one curve (or one map) per cell; the `Rx`, `Table`, `Swr`,
 `S11`, `Smith` and `Map` views; `Ref` lines on R and X, the SWR threshold,
 and the map's contours. A frequency sweep solves through ``sweep.swr_curve``,
@@ -26,6 +27,9 @@ own, so nothing one cell sets reaches the next:
   (the CLI's registry lookup and engine factory, with that design's own
   file ground and deck flags), and resolves the sweep on it;
 - a family cell sets the step knob on its builder before the sweep moves x;
+- a state cell sets the state's knobs on its builder, its design's (the
+  state's own ``design=``, a design cross's, else the session's) at its
+  defaults, refused by name where `analyses.state_refusal` says;
 - a plane cell solves the design as a VNA clipped on at that port would see
   it: before each engine is built, the design's network is re-sourced there
   by `plane.driven_at` and shadows ``build_network`` on the builder, the
@@ -308,7 +312,10 @@ class Cell:
     an engine spec; ``ground`` a ground spec, None the session's; ``plane``
     the port it is measured at, None the design's own; ``design`` a registry
     name, None the analysis's own design; ``step`` a family's ``(knob or
-    role, value)``, None when there is no family."""
+    role, value)``, None when there is no family; ``state`` the `an.State`
+    whose knobs the cell sets over its design's defaults, None when the
+    analysis crosses no states. A state naming its design makes that design
+    the cell's."""
 
     label: str
     engine: str
@@ -316,6 +323,7 @@ class Cell:
     plane: str | None = None
     design: str | None = None
     step: tuple[str | an.Role, float] | None = None
+    state: an.State | None = None
 
 
 def step_values(s: an.Sweep, builder) -> list:
@@ -359,6 +367,8 @@ def cells(a: an.Analysis, session_engine: str, builder=None) -> list[Cell]:
                     for v in step_values(c.step, builder)
                 ]
             )
+        elif c.kind == "states":
+            axes.append([("states", st, st.label) for st in c.states])
         else:
             axes.append([(c.kind, v, v) for v in getattr(c, c.kind)])
     out = []
@@ -366,14 +376,19 @@ def cells(a: an.Analysis, session_engine: str, builder=None) -> list[Cell]:
         chosen = {kind: value for kind, value, _ in combo}
         engine = chosen.get("engines", a.engine or session_engine)
         label = ", ".join(part for _, _, part in combo) if combo else engine
+        state = chosen.get("states")
+        # A state naming its design is that design's cell; `an.problems`
+        # refuses one beside a designs cross, so the two never compete.
+        design = chosen.get("designs") or (state.design if state else None)
         out.append(
             Cell(
                 label,
                 engine,
                 chosen.get("grounds", a.ground),
                 plane=chosen.get("planes"),
-                design=chosen.get("designs"),
+                design=design,
                 step=chosen.get("step"),
+                state=state,
             )
         )
     return out
@@ -608,10 +623,23 @@ def _prepare(
             # The registry's "unknown builder" is a SystemExit: here it is
             # one cell's reason, not the run's.
             raise _Refused(str(e)) from None
+    # A state cell's builder is its design at its DEFAULTS, the state's
+    # knobs set over them (AK#1757 step 7): the factory is the registry's
+    # (`analyze` takes no --set), so a state names the same curve wherever
+    # it runs. The workbench builds it the same way, from the tab's variant
+    # defaults and never its live knobs.
     b = builder_factory()
     why = sweep_refusal(a, b, density)
     if why:
         raise _Refused(why)
+    if cell.state is not None:
+        why = an.state_refusal(cell.state, a, b)
+        if why:
+            raise _Refused(why)
+        # The refusals keep a state off every knob the sweep, the family and
+        # the hold move, so the order they are set in cannot matter.
+        for k, v in cell.state.knobs:
+            setattr(b, k, v)
     knobs = [an.resolve(s.knob, b).knob for s in a.sweeps]
     moved = density_moved(a, b) if cell.design is not None else None
     if moved:

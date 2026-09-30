@@ -104,8 +104,15 @@ class Study:
 
     @property
     def designs(self) -> tuple[str, ...]:
-        """The designs it crosses, as written."""
-        return next(c.designs for c in self.analysis.crosses if c.kind == "designs")
+        """The designs it crosses, as written: its ``designs=`` cross, else
+        the designs its states name (`analyses.named_designs`). A method
+        study's own design is first either way."""
+        named = an.named_designs(self.analysis)
+        if self.host is not None and self.host not in named:
+            # States naming only the references: the unnamed ones are this
+            # design's, so it is a design of the study too.
+            named = (self.host, *named)
+        return named
 
     def includes(self, design: str) -> bool:
         """Whether ``design``'s tab lists this study (a registry name,
@@ -144,7 +151,19 @@ class Found:
 
 
 def _names_designs(a: an.Analysis) -> bool:
-    return any(c.kind == "designs" for c in a.crosses)
+    """A study names its designs by a ``designs=`` cross, or by states that
+    name theirs (``an.State("apex, tall", design=..., base=12.0)``, AK#1757
+    step 7)."""
+    return bool(an.named_designs(a))
+
+
+def _unhosted(a: an.Analysis) -> list[an.State]:
+    """A module-level study's states with no design to be set on: no
+    ``design=`` of their own and no ``designs=`` cross to carry them. A
+    function has no "this design" to fall back on."""
+    if an.crosses_designs(a):
+        return []
+    return [s for s in an.states_of(a) if s.design is None]
 
 
 def self_name(design: str) -> str:
@@ -160,6 +179,10 @@ def _with_self(a: an.Analysis, me: str) -> an.Analysis:
     design first, then the references as written, an explicit ``me`` among
     them dropped (it is already the first cell, and a design named twice is
     two curves drawn over each other)."""
+    if not an.crosses_designs(a):
+        # Its references are named by its states (`_names_designs`); an
+        # unnamed state is this design's, as in build_analyses().
+        return a
     crosses = tuple(
         an.Cross(designs=(me, *(d for d in c.designs if d != me)))
         if c.kind == "designs"
@@ -205,9 +228,18 @@ def _collect(
             )
         elif not _names_designs(a):
             reason = (
-                "REFUSED: a study names its designs, an.Cross(designs=(...)); "
-                "it is a function, with no 'this design' to fall back on "
-                "(an analysis of one design belongs in its build_analyses())"
+                "REFUSED: a study names its designs, an.Cross(designs=(...)) "
+                "or states with design=; it is a function, with no 'this "
+                "design' to fall back on (an analysis of one design belongs in "
+                "its build_analyses())"
+            )
+        elif host is None and _unhosted(a):
+            reason = (
+                "REFUSED: the states "
+                + ", ".join(repr(st.name) for st in _unhosted(a))
+                + " name no design, and a study has no 'this design' to set "
+                "them on; give each its design=, or cross designs=(...) to "
+                "set them on every design"
             )
         elif host is not None:
             studies.append(Study(source, _with_self(a, host), path, host=host))

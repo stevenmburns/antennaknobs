@@ -55,6 +55,13 @@ chart multiplies with its slots into one curve per cell as
   are that design's own band and the exact grid ``analyze`` sweeps on it
   (`analysis_run.frequency_xs`), so two designs on different bands each
   sweep their own;
+- ``states``: ``[{name, design, knobs, label, refused, param, values,
+  range, freqs, on}]`` (step 7): each named knob setting, set over its
+  design's DEFAULTS (the tab's variant's for the tab's own design, never
+  its live knobs, so a state is the same curve every session), with the
+  cell's sweep served as a design cell's is (`_state_entry`); ``on`` holds
+  one design entry per design when an unnamed state multiplies with a
+  designs cross;
 - ``step``: ``{knob, values, labels}``, a family: the knob each cell sets,
   its values (coerced as ``/param_sweep`` coerces), and each cell's label
   part (`analysis_run.step_label`).
@@ -208,10 +215,19 @@ def _knob_run(a: an.Analysis, builder, req: Mapping) -> dict:
     return {"param": param, "values": values, "log": log, "density": density}
 
 
-def _design_entry(a: an.Analysis, name: str, density: bool) -> dict:
-    """One design cell: ``name`` built at its own defaults, as the CLI's
-    design cell builds it (`analysis_run._prepare`), refused by name where
-    the catalog lacks it or the sweep does not resolve there."""
+def _design_entry(
+    a: an.Analysis,
+    name: str,
+    density: bool,
+    state: an.State | None = None,
+    variant: str | None = None,
+) -> dict:
+    """One design cell: ``name`` built at its own defaults (``variant``'s,
+    when given), as the CLI's design cell builds it (`analysis_run._prepare`),
+    refused by name where the catalog lacks it or the sweep does not resolve
+    there. With ``state``, the state's knobs are set over those defaults
+    first, refused by name where `analyses.state_refusal` says, so the
+    sweep's values and band are the ones ``analyze`` sweeps on that cell."""
     from .examples import UnknownGeometryError, example_for
 
     out = {
@@ -229,10 +245,17 @@ def _design_entry(a: an.Analysis, name: str, density: bool) -> dict:
     if cls is None:
         return {**out, "refused": f"{name!r} has no builder to cross"}
     req = {"geometry": name}
+    if variant is not None:
+        req["variant"] = variant
     b = builder_for(cls, req)
     why = ar.sweep_refusal(a, b, density) or ar.density_moved(a, b)
+    if why is None and state is not None:
+        why = an.state_refusal(state, a, b)
     if why:
         return {**out, "refused": why}
+    if state is not None:
+        for k, v in state.knobs:
+            setattr(b, k, v)
     if _is_frequency(a):
         # The design's own band, as the CLI's design cell sweeps it: the
         # analysis's range, else that design's (`frequency_range`), on the
@@ -270,13 +293,53 @@ def _step_entry(s: an.Sweep, builder, req: Mapping) -> dict:
     }
 
 
+def _state_entry(a: an.Analysis, st: an.State, req: Mapping, density: bool) -> dict:
+    """One state (AK#1757 step 7), as the chart sets it (module docstring):
+    its name, its design (None: the tab's), its knobs, and its label part;
+    then where it is set. A state naming a design, or one on the tab's own
+    design, is ONE cell: `_design_entry` on that design at its defaults
+    (the tab's variant's, for the tab's design: never its live knobs) with
+    the knobs set, so its ``refused``, ``param`` / ``values`` and
+    ``range`` / ``freqs`` are that cell's. Beside a designs cross, an
+    unnamed state is set on each of those designs: ``on`` holds one such
+    entry per design, in the cross's order, and the top-level fields are
+    None."""
+    head = {
+        "name": st.name,
+        "design": st.design,
+        "knobs": st.settings,
+        "label": st.label,
+        "on": None,
+    }
+    if st.design is None and an.crosses_designs(a):
+        designs = an.named_designs(a)
+        return {
+            **head,
+            "refused": None,
+            "param": None,
+            "values": None,
+            "range": None,
+            "freqs": None,
+            "on": [_design_entry(a, d, density, st) for d in designs],
+        }
+    if st.design is not None:
+        cell = _design_entry(a, st.design, density, st)
+    else:
+        cell = _design_entry(
+            a, str(req.get("geometry") or ""), density, st, variant=req.get("variant")
+        )
+    cell.pop("name")
+    return {**head, **cell}
+
+
 def _crosses(a: an.Analysis, builder, req: Mapping, *, density: bool) -> dict:
-    """The analysis's crosses over planes, designs and a family, as the
-    chart multiplies them (module docstring), or `_Refusal`."""
+    """The analysis's crosses over planes, designs, states and a family, as
+    the chart multiplies them (module docstring), or `_Refusal`."""
     out = {
         "axes": [c.kind for c in a.crosses],
         "planes": None,
         "designs": None,
+        "states": None,
         "step": None,
     }
     for c in a.crosses:
@@ -284,6 +347,8 @@ def _crosses(a: an.Analysis, builder, req: Mapping, *, density: bool) -> dict:
             out["planes"] = [_plane_entry(builder, p) for p in c.planes]
         elif c.kind == "designs":
             out["designs"] = [_design_entry(a, d, density) for d in c.designs]
+        elif c.kind == "states":
+            out["states"] = [_state_entry(a, st, req, density) for st in c.states]
         elif c.kind == "step":
             out["step"] = _step_entry(c.step, builder, req)
     return out
