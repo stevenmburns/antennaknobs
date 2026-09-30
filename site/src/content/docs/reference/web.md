@@ -1012,9 +1012,13 @@ Real antennas hang over real ground, so the workbench starts there: the
 
 The grounds work like the [solver slots](#choosing-a-solver--segment-count):
 the **ground slot** tabs under the solver slots hold one whole ground each,
-and one click switches the ground every solve, sweep and chart uses. The
-ground panel below the tabs edits the active slot, and each slot keeps its own
-settings. The three stock slots are:
+and one click switches the ground every solve, sweep and chart uses. Each
+slot's settings (the ground plane, its type and method, the soil or terrain,
+all described below) sit behind the **⚙** on its tab, which edits that slot
+whether or not it is the active one; the tab itself shows a one-line summary.
+Notes about the active slot (a ground taken from the file, a buried design's
+Sommerfeld requirement) show on a line under the tabs. The three stock slots
+are:
 
 1. **the design's own ground, or the session default** — the checkbox, type,
    method and soil described below, where the workbench starts;
@@ -1093,7 +1097,8 @@ One class of designs picks its own method: the **buried-wire designs**
 a conductor below the surface only exists under a Sommerfeld half-space,
 and the reflection-coefficient approximation refuses it by name. Loading
 one auto-selects finite ground with the Sommerfeld method in ground slot 1
-and notes it in the ground panel; you can still flip the radio back, but the solver's
+and notes it on the line under the ground-slot tabs; you can still flip the radio
+back in the slot's ⚙, but the solver's
 refusal is the answer you'll get.
 
 ### The MININEC-type ground
@@ -1357,9 +1362,12 @@ gating).
 A knob sweep on the [sweep chart](#the-sweep-chart) (its **R / X** view)
 plots the feed impedance against one parameter, the way AC6LA's SimNEC
 convergence charts do: **R in red on the left axis, X in blue on the right**, each on its
-own range, with a circle at every point and the values boxed at both ends.
-On a phone the boxes start hidden, since they would cover a small plot:
-**values** at the chart's lower right shows or hides them, for the session.
+own range, with a dot at every point and the values boxed at both ends.
+On a phone the curves are drawn as lines, with no dots, and the boxes start
+hidden, since they would cover a small plot: **values** at the chart's lower
+right shows or hides them, for the session. When a chart draws three or more
+curves the dots shrink, and the boxes appear on the main view only, never in
+the rail's thumbnails.
 
 The header at the top of the chart picks what to sweep:
 

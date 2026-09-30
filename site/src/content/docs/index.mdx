@@ -29,19 +29,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.91.0" icon="star">
-  **Analyses you write once, in Python.** A design can now declare its sweeps
-  with `build_analyses()`: a convergence study, a knob sweep, or band SWR, each
-  crossed over engines and grounds. `antennaknobs analyze` lists and runs them,
-  and the workbench's Z vs parameter view offers the same list in a picker.
-  Band SWR draws SWR, S11 and Smith charts with the 2:1 bandwidth, over the
-  design's own range, which for a SimNEC or NEC file is the file's own sweep;
-  `sweep --swr` now follows that range too. Z∞ has one estimator in the CLI
-  and the workbench, and reports the order it observed. A slot's wire radius
-  now reaches NEC-5, NEC-2 and PyNEC, the command line's S11 is 20·log₁₀|Γ|,
-  off-centre feeds sit on the wire itself, and a dropped connection to the
-  solver reconnects on its own. momwire 0.67 serves the buried radial vertical
-  on its point-matched lane, with leaner memory on buried screens.
+<Card title="New in v0.92.0" icon="star">
+  **Charts that pick their own analysis.** The workbench's Sweep chart runs any
+  analysis a design declares, or any knob or frequency sweep, and you can
+  duplicate it into up to four charts, each with its own pick, range and view.
+  A chart can draw one curve per engine and per ground slot (tick them in its
+  header), and an analysis's own crosses over measurement planes, designs and
+  a knob family, as `antennaknobs analyze` computes them; R/X against
+  frequency, explicit frequency lists and a copyable Table are there too.
+  Grounds now live in slots, one click to switch, with each slot's settings
+  behind its ⚙. A licensed NEC-4.2 binary can drive a solver slot of its own
+  (`NEC42_EXE`), buried designs included, and the charts read at 100 % zoom on
+  a laptop. momwire 0.68 adds the NEC-5 dialect's spherical near field
+  (`NE 1`), continues the Sommerfeld ground past its table for long-range
+  fields, and cuts the point-matched lane's buried inverted-L from ~110× to
+  ~3× threaded NEC-5.
 </Card>
 
 ## The whole pitch, in one line
