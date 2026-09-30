@@ -15,8 +15,12 @@ the decided spec, ``docs/design/sweep-framework-spec.md``:
   (`Elevation`, `Azimuth`, `PatternTable`) and crossed like any other
   (AK#1757 step 7);
 - a `State` is a named setting of a design, knob overrides over its
-  defaults; ``an.Cross(states=(...))`` crosses them like any other kind,
+  defaults (its variant's, ``variant=``; a group knob's value a tuple of its
+  entries); ``an.Cross(states=(...))`` crosses them like any other kind,
   one cell per state (AK#1757 step 7);
+- ``an.Cross(cells=(an.Cell(...), ...))`` lists whole cells instead, each
+  naming its own state, engine, ground and plane: a UNION, not a product,
+  which is what a set of pins is (AK#1757 step 7, unit 4);
 - an optional `Hold` optimises at every sweep point: the knobs it adjusts
   are re-solved for one of the optimizer's objectives as x moves;
 - `convergence`, `band_swr`, `knob` and `patterns` are the library: generic
@@ -39,8 +43,9 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import keyword
 import math
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from typing import ClassVar
 
@@ -142,11 +147,86 @@ class Sweep:
 
 
 # `step` stays last: every other kind is a tuple (`Cross.__post_init__`).
-_CROSS_KINDS = ("engines", "grounds", "planes", "designs", "states", "step")
+_CROSS_KINDS = ("engines", "grounds", "planes", "designs", "states", "cells", "step")
 
 # What a state may set a knob to: the scalars a knob holds and ``to_code``
-# prints back exactly (a nested knob, fan_dipole's ``bands``, is not one).
+# prints back exactly, or a GROUP knob's value (fan_dipole's ``bands``): a
+# tuple of its entries, each a mapping of the group's leaves to scalars
+# (AK#1757 step 7, unit 4), or a tuple of scalars.
 _STATE_VALUE = (bool, int, float, str)
+
+
+def _scalar(v) -> bool:
+    # bool is an int: both are fine, a finite number is required.
+    return isinstance(v, _STATE_VALUE) and not (
+        isinstance(v, float) and not math.isfinite(v)
+    )
+
+
+class Entry(Mapping):
+    """One entry of a group knob's value in a `State` (a band of
+    fan_dipole's ``bands``): a read-only mapping of the group's leaves to
+    scalars, kept in the order written and hashable, so a state holding one
+    stays a frozen, hashable spec value like any other. It prints back as
+    the dict literal it was written as (`to_code`)."""
+
+    __slots__ = ("_items",)
+
+    def __init__(self, items: Mapping):
+        self._items = tuple(items.items())
+
+    def __getitem__(self, k):
+        for key, v in self._items:
+            if key == k:
+                return v
+        raise KeyError(k)
+
+    def __iter__(self) -> Iterator:
+        return (k for k, _ in self._items)
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __hash__(self) -> int:
+        return hash(frozenset(self._items))
+
+    def __repr__(self) -> str:
+        return repr(dict(self._items))
+
+
+def _knob_value(owner: str, k: str, v):
+    """``v`` as a state stores it: a scalar as given, a group's tuple with
+    each entry an `Entry`; a TypeError naming the knob otherwise."""
+    if _scalar(v):
+        return v
+    what = (
+        f"{owner}: {k} takes a number, bool or string, or a group knob's "
+        f"tuple of entries (dicts of numbers, bools or strings); got {v!r}"
+    )
+    # A str is a scalar (above); any other sequence is a group's value.
+    if not isinstance(v, (tuple, list)) or not v:
+        raise TypeError(what)
+    if all(_scalar(e) for e in v):
+        return tuple(v)
+    out = []
+    for e in v:
+        if not isinstance(e, Mapping) or not e:
+            raise TypeError(what)
+        if not all(isinstance(key, str) and key for key in e) or not all(
+            _scalar(x) for x in e.values()
+        ):
+            raise TypeError(what)
+        out.append(Entry(e))
+    return tuple(out)
+
+
+def plain(v):
+    """A state's knob value as plain data: an `Entry` as a dict, a group as
+    a tuple of them. What a builder is set to and what ``/analyses`` serves:
+    the shape a design's own ``default_params`` writes a group in."""
+    if isinstance(v, tuple):
+        return tuple(dict(e) if isinstance(e, Entry) else e for e in v)
+    return v
 
 
 @dataclass(frozen=True, init=False)
@@ -160,60 +240,165 @@ class State:
     None is the design the analysis runs on (the tab's, ``--builder``'s),
     or each design of a ``designs=`` cross it multiplies with.
 
+    ``variant`` (unit 4) builds the state's design at that variant's
+    defaults (``dipoles.invvee:apex``, as the registry spells it), which is
+    how a pin taken on a non-default variant is kept. It names a variant OF
+    ``design``, so it needs ``design=``: a variant name means nothing until
+    its design is named, and one design's variant set on every design of a
+    cross would be refused on most of them.
+
     ``an.State("tall", base=12.0)``: the knobs are keyword arguments, kept
     in the order written, so `to_code` prints the state back as it was
-    typed. Which knobs a design has is not known here: a knob the design
-    lacks, or one the analysis sweeps, steps or holds, is refused when the
-    analysis is listed (`problems`) or its cell prepared, by name."""
+    typed. A group knob takes a tuple of its entries, ``bands=({"freq":
+    14.3, "length_factor": 0.49}, ...)``. Which knobs a design has is not
+    known here: a knob the design lacks, one the analysis sweeps, steps or
+    holds, or a value that does not fit the knob's shape (a group given a
+    number, a number given a tuple) is refused when the analysis is listed
+    (`problems`) or its cell prepared, by name."""
 
     name: str
     design: str | None
-    knobs: tuple[tuple[str, bool | int | float | str], ...]
+    variant: str | None
+    knobs: tuple[tuple[str, object], ...]
 
-    def __init__(self, name: str, design: str | None = None, **knobs):
+    def __init__(
+        self,
+        name: str,
+        design: str | None = None,
+        *,
+        variant: str | None = None,
+        **knobs,
+    ):
         if not isinstance(name, str) or not name:
             raise TypeError(f"State: name is a non-empty string, got {name!r}")
         if design is not None and not (isinstance(design, str) and design):
             raise TypeError(
                 f"State {name!r}: design is a registry name or None, got {design!r}"
             )
+        if variant is not None:
+            if not (isinstance(variant, str) and variant) or ":" in variant:
+                raise TypeError(
+                    f"State {name!r}: variant is a variant's name or None, "
+                    f"got {variant!r}"
+                )
+            if design is None:
+                raise ValueError(
+                    f"State {name!r}: variant= names a variant of the state's "
+                    "design; give design= too"
+                )
+        values = []
         for k, v in knobs.items():
             if k == "ui_params":
                 raise ValueError(f"State {name!r}: ui_params is not a knob")
-            # bool is an int: both are fine, a finite number is required.
-            if not isinstance(v, _STATE_VALUE) or (
-                isinstance(v, float) and not math.isfinite(v)
-            ):
-                raise TypeError(
-                    f"State {name!r}: {k} takes a number, bool or string, got {v!r}"
+            # `to_code` prints a knob as a keyword argument, so its name must
+            # be one: anything else could not be written back, and would
+            # carry text into the generated file (unit 4 writes it to disk).
+            if not k.isidentifier() or keyword.iskeyword(k):
+                raise ValueError(
+                    f"State {name!r}: {k!r} is not a knob name (a Python identifier)"
                 )
+            values.append((k, _knob_value(f"State {name!r}", k, v)))
         _set(self, "name", name)
         _set(self, "design", design)
-        _set(self, "knobs", tuple(knobs.items()))
+        _set(self, "variant", variant)
+        _set(self, "knobs", tuple(values))
+
+    @property
+    def spec(self) -> str | None:
+        """The state's design as the registry spells it (``name:variant``),
+        or None: what ``cli.get_builder`` and a design seam take."""
+        if self.design is None:
+            return None
+        return self.design if self.variant is None else f"{self.design}:{self.variant}"
 
     @property
     def label(self) -> str:
-        """The state's part of a cell label: its name, after its design when
-        it names one, as a ``designs x states`` cell would read."""
-        return self.name if self.design is None else f"{self.design}, {self.name}"
+        """The state's part of a cell label: its name, after its design (and
+        variant) when it names one, as a ``designs x states`` cell would
+        read."""
+        return self.name if self.design is None else f"{self.spec}, {self.name}"
 
     @property
     def settings(self) -> dict:
-        return dict(self.knobs)
+        """The knobs as plain data (`plain`): what a builder is set to."""
+        return {k: plain(v) for k, v in self.knobs}
+
+
+@dataclass(frozen=True, init=False)
+class Cell:
+    """One whole cell of an ``an.Cross(cells=...)`` (AK#1757 step 7, unit
+    4): its `State` (and through it its design and variant), its engine
+    spec, its ground spec and its plane. What a cell leaves out follows the
+    analysis, as a cross cell's does: no state is the analysis's design at
+    the knobs it runs on, no engine the analysis's (else the session's), no
+    ground the analysis's (else the session's), no plane the design's own.
+
+    A cell names its design THROUGH its state, one rule with no second
+    spelling to disagree with it: ``an.Cell(an.State("as built",
+    design="beams.yagi"), engine="nec5")``. ``design=`` on the cell itself is
+    refused by name, pointing at that spelling."""
+
+    state: State | None = None
+    engine: str | None = None
+    ground: str | None = None
+    plane: str | None = None
+
+    _positional: ClassVar[tuple[str, ...]] = ("state",)
+
+    def __init__(
+        self,
+        state: State | None = None,
+        *,
+        engine: str | None = None,
+        ground: str | None = None,
+        plane: str | None = None,
+        design: str | None = None,
+    ):
+        if design is not None:
+            raise TypeError(
+                "Cell: a cell names its design through its state, "
+                f"an.Cell(an.State('as built', design={design!r}), ...); "
+                "give the state design= instead"
+            )
+        if state is not None and not isinstance(state, State):
+            raise TypeError(f"Cell: state is an an.State or None, got {state!r}")
+        for field, v in (("engine", engine), ("ground", ground), ("plane", plane)):
+            if v is not None and not (isinstance(v, str) and v):
+                raise TypeError(f"Cell: {field} is a spec string or None, got {v!r}")
+        _set(self, "state", state)
+        _set(self, "engine", engine)
+        _set(self, "ground", ground)
+        _set(self, "plane", plane)
+
+    @property
+    def parts(self) -> tuple[str, ...]:
+        """What the cell sets, as its label names it: the state's label, the
+        engine, the ground and the plane, each as the spec spells it."""
+        head = (self.state.label,) if self.state is not None else ()
+        return head + tuple(v for v in (self.engine, self.ground, self.plane) if v)
+
+    @property
+    def label(self) -> str:
+        """The cell's legend label, its `parts` joined by ", " as a product
+        cell's are; "" for a cell that sets nothing (the analysis's own,
+        which the runner names by its engine)."""
+        return ", ".join(self.parts)
 
 
 @dataclass(frozen=True)
 class Cross:
     """The curves compared: exactly one of engine specs (as ``--engine``
     takes them), ground specs (as ``--ground`` takes them), measurement
-    planes, designs, named knob settings (`State`, step 7), or a second
-    knob's values (``step``, a family)."""
+    planes, designs, named knob settings (`State`, step 7), whole cells
+    (`Cell`, step 7 unit 4: a union, never multiplied with another cross),
+    or a second knob's values (``step``, a family)."""
 
     engines: tuple[str, ...] = ()
     grounds: tuple[str, ...] = ()
     planes: tuple[str, ...] = ()
     designs: tuple[str, ...] = ()
     states: tuple[State, ...] = ()
+    cells: tuple[Cell, ...] = ()
     step: Sweep | None = None
 
     _positional: ClassVar[tuple[str, ...]] = ()
@@ -225,12 +410,14 @@ class Cross:
             raise TypeError(f"Cross: step is a Sweep, got {self.step!r}")
         if not all(isinstance(s, State) for s in self.states):
             raise TypeError(f"Cross: states holds an.State values, got {self.states!r}")
+        if not all(isinstance(c, Cell) for c in self.cells):
+            raise TypeError(f"Cross: cells holds an.Cell values, got {self.cells!r}")
         given = [f for f in _CROSS_KINDS if getattr(self, f)]
         if len(given) != 1:
             raise ValueError(
                 "Cross: give exactly one of engines, grounds, planes, designs, "
-                f"states or step (got {', '.join(given) or 'none'}); several "
-                "Cross values multiply"
+                f"states, cells or step (got {', '.join(given) or 'none'}); "
+                "several Cross values multiply"
             )
 
     @property
@@ -474,6 +661,18 @@ class Analysis:
                 f"Analysis {self.name!r}: crosses over {', '.join(twice)} twice; "
                 "one Cross per kind"
             )
+        if "cells" in kinds and len(kinds) > 1:
+            # A cell is whole: its state, engine, ground and plane are all
+            # its own. Crossed with anything, each cell would be multiplied
+            # into several, which is the product cells= exists to avoid (a
+            # set of pins is not one), and the cells' own engine or ground
+            # would fight the other cross's. So one or the other, by name.
+            others = ", ".join(k for k in kinds if k != "cells")
+            raise ValueError(
+                f"Analysis {self.name!r}: cells= lists whole cells, a union, and "
+                f"does not multiply with another cross (got cells and {others}); "
+                "give each cell its own engine, ground, plane and state instead"
+            )
         # One Cross is stored bare, as written: it prints back the same way.
         _set(self, "cross", cross[0] if len(cross) == 1 else cross)
         views = (self.views,) if isinstance(self.views, View) else self.views
@@ -693,8 +892,17 @@ def offered(builder) -> tuple[Analysis, ...]:
     return own + tuple(a for a in generic if a.name not in names)
 
 
+def cells_of(analysis: Analysis) -> tuple[Cell, ...]:
+    """The analysis's listed cells (its ``cells=`` cross), or ()."""
+    return next((c.cells for c in analysis.crosses if c.kind == "cells"), ())
+
+
 def states_of(analysis: Analysis) -> tuple[State, ...]:
-    """The analysis's states, in order (its cross over states), or ()."""
+    """The analysis's states, in order: its cross over states, or the states
+    its listed cells name (unit 4), or ()."""
+    cells = cells_of(analysis)
+    if cells:
+        return tuple(c.state for c in cells if c.state is not None)
     return next((c.states for c in analysis.crosses if c.kind == "states"), ())
 
 
@@ -704,8 +912,10 @@ def crosses_designs(analysis: Analysis) -> bool:
 
 def named_designs(analysis: Analysis) -> tuple[str, ...]:
     """The designs ``analysis`` names: its ``designs=`` cross, else the
-    designs its states name, each once, in the order written. A study names
-    its designs one of these two ways (AK#1757 step 7)."""
+    designs its states name (a ``states=`` cross's, or its listed cells'),
+    each once, in the order written, without their variants (a variant is a
+    setting of its design, and a tab lists a study by design). A study names
+    its designs one of these ways (AK#1757 step 7)."""
     for c in analysis.crosses:
         if c.kind == "designs":
             return c.designs
@@ -730,7 +940,7 @@ def state_refusal(state: State, analysis: Analysis, builder) -> str | None:
     params = _params(builder)
     who = f"state {state.name!r}"
     dens = density_knob(builder)
-    for k, _ in state.knobs:
+    for k, v in state.knobs:
         if k == "nominal_nsegs" or k == dens:
             ladder = any(resolve(s.knob, builder).knob == k for s in analysis.sweeps)
             return f"{who} sets {k}, the density knob: " + (
@@ -741,6 +951,9 @@ def state_refusal(state: State, analysis: Analysis, builder) -> str | None:
             )
         if k not in params:
             return f"{who} sets {k}, and this design has no knob {k!r}"
+        why = _shape_refusal(k, v, params[k])
+        if why:
+            return f"{who} sets {why}"
     for s in analysis.sweeps:
         swept = resolve(s.knob, builder).knob
         if swept in state.settings:
@@ -764,6 +977,48 @@ def state_refusal(state: State, analysis: Analysis, builder) -> str | None:
                     f"{who} sets {held}, which the hold adjusts at every point; "
                     "a knob is held or set by a state, not both"
                 )
+    return None
+
+
+def _shape_refusal(k: str, value, default) -> str | None:
+    """Why ``value`` does not fit knob ``k`` whose default is ``default``, or
+    None (unit 4). A group knob (a tuple of entries, fan_dipole's ``bands``)
+    takes a tuple of entries with exactly the group's leaves, at most as many
+    as the design's own tuple holds (the group's ``max_repeats``: the
+    workbench preallocates that many); a scalar knob takes a scalar. The
+    builder would take either shape without a word and fail, or quietly
+    misread it, deep inside the geometry, so the shape is refused here, by
+    name."""
+    group = isinstance(default, (tuple, list))
+    if not isinstance(value, tuple):
+        if group:
+            return (
+                f"{k} to {value!r}, and {k} is a group knob: give a tuple of its "
+                "entries"
+            )
+        return None
+    if not group:
+        return f"{k} to a tuple, and {k} is a single value, not a group knob"
+    if len(value) > len(default):
+        return (
+            f"{k} to {len(value)} entries, and the design's {k} holds at most "
+            f"{len(default)}"
+        )
+    first = default[0] if default else None
+    if isinstance(first, Mapping):
+        want = list(first)
+        for i, e in enumerate(value, start=1):
+            if not isinstance(e, Mapping):
+                return (
+                    f"{k} entry {i} to {e!r}; each entry is a dict of {', '.join(want)}"
+                )
+            if sorted(e) != sorted(want):
+                return (
+                    f"{k} entry {i} with the leaves {', '.join(e)}; the group's "
+                    f"leaves are {', '.join(want)}"
+                )
+    elif any(isinstance(e, Entry) for e in value):
+        return f"{k} to entries of leaves, and {k} is a tuple of plain values"
     return None
 
 
@@ -835,6 +1090,11 @@ def problems(analysis: Analysis, builder) -> list[str]:
             # A state is found by its label (its design and name), whatever
             # knobs it sets: two alike are one legend entry for two curves.
             values = tuple(s.label for s in c.states)
+        elif c.kind == "cells":
+            # A listed cell too (unit 4): its label is everything it sets, so
+            # two alike are the same cell listed twice, or two cells the
+            # legend could not tell apart.
+            values = tuple(cell.label or "(the analysis's own)" for cell in c.cells)
         else:
             values = getattr(c, c.kind)
         twice = sorted({v for v in values if values.count(v) > 1}, key=str)
@@ -880,7 +1140,8 @@ _WIDTH = 88
 
 def _node(value):
     """``value`` as a render tree: a str leaf, or ``(head, open, close,
-    [(key, node), ...])``."""
+    [(prefix, node), ...], single)``, a prefix being ``"key="`` for a
+    keyword argument, ``'"key": '`` for a dict entry, or "" positionally."""
     if isinstance(value, Role):
         name = _ROLE_CONSTANTS.get(value)
         return f"an.{name}" if name else f"an.Role({json.dumps(value.name)})"
@@ -893,15 +1154,24 @@ def _node(value):
     if isinstance(value, float):
         return repr(float(value))
     if isinstance(value, tuple):
-        items = [(None, _node(v)) for v in value]
+        items = [("", _node(v)) for v in value]
         return ("", "(", ")", items, len(items) == 1)
+    if isinstance(value, Mapping):
+        # A group knob's entry (`Entry`): the dict literal it was written as.
+        items = [
+            (f"{json.dumps(k, ensure_ascii=False)}: ", _node(v))
+            for k, v in value.items()
+        ]
+        return ("", "{", "}", items, False)
     if isinstance(value, State):
         # Its own form: the knobs are keyword arguments of their own, not a
         # field (`State.__init__`), in the order written.
-        items = [(None, _node(value.name))]
+        items = [("", _node(value.name))]
         if value.design is not None:
-            items.append(("design", _node(value.design)))
-        items += [(k, _node(v)) for k, v in value.knobs]
+            items.append(("design=", _node(value.design)))
+        if value.variant is not None:
+            items.append(("variant=", _node(value.variant)))
+        items += [(f"{k}=", _node(v)) for k, v in value.knobs]
         return ("an.State", "(", ")", items, False)
     if dataclasses.is_dataclass(value) and type(value).__module__ == __name__:
         return _call(f"an.{type(value).__name__}", value, _defaults(type(value)))
@@ -930,10 +1200,10 @@ def _call(head: str, value, defaults: Mapping, positional=None, skip=()):
             as_kw = True
             continue
         if f.name in positional and not as_kw:
-            args.append((None, _node(v)))
+            args.append(("", _node(v)))
         else:
             as_kw = True
-            args.append((f.name, _node(v)))
+            args.append((f"{f.name}=", _node(v)))
     return (head, "(", ")", args, False)
 
 
@@ -941,7 +1211,7 @@ def _render(node, indent: int = 0) -> str:
     if isinstance(node, str):
         return node
     head, open_, close, items, single = node
-    parts = [(f"{k}=" if k else "") + _render(v, indent + 4) for k, v in items]
+    parts = [k + _render(v, indent + 4) for k, v in items]
     flat = head + open_ + ", ".join(parts) + ("," if single else "") + close
     if "\n" not in flat and indent + len(flat) <= _WIDTH:
         return flat
@@ -950,14 +1220,16 @@ def _render(node, indent: int = 0) -> str:
     return f"{head}{open_}\n{body}{' ' * indent}{close}"
 
 
-def to_code(value) -> str:
+def to_code(value, indent: int = 0) -> str:
     """``value`` as the Python that constructs it, ``an`` being this module.
     An `Analysis` prints as whichever of ``an.Analysis(...)`` or a library
     call (``an.convergence(...)``, ``an.band_swr(...)``, ``an.patterns(...)``,
-    ``an.knob(...)``) is shortest: each passes only what differs from its own defaults, so
-    ``eval`` of any of them is the same value."""
+    ``an.knob(...)``) is shortest: each passes only what differs from its own
+    defaults, so ``eval`` of any of them is the same value. ``indent`` is the
+    column the text starts at (a study file's list, unit 4): its lines are
+    wrapped to fit the width from there."""
     if not isinstance(value, Analysis):
-        return _render(_node(value))
+        return _render(_node(value), indent)
     # A pattern's sweep is None, which reads as nothing positionally: it is
     # printed by name, as the spec spells it (``sweep=None``).
     positional = ("name",) if value.sweep is None else None
@@ -967,10 +1239,135 @@ def to_code(value) -> str:
         forms.append(_call(f"an.{fn.__name__}", value, _fields(base), positional=()))
     base = knob(value.name)
     k = _call("an.knob", value, _fields(base), positional=(), skip=("name",))
-    forms.append((k[0], k[1], k[2], [(None, _node(value.name)), *k[3]], False))
-    texts = [_render(f) for f in forms]
+    forms.append((k[0], k[1], k[2], [("", _node(value.name)), *k[3]], False))
+    texts = [_render(f, indent) for f in forms]
     return min(texts, key=len)
 
 
 def _fields(a: Analysis) -> dict:
     return {f.name: getattr(a, f.name) for f in dataclasses.fields(a)}
+
+
+# ── as data (AK#1757 step 7, unit 4) ─────────────────────────────────────────
+#
+# The workbench keeps what it built by sending the spec back as JSON: it edits
+# the analysis ``/analyses`` served (`to_data`) or builds one from its pins,
+# and the server rebuilds the VALUE (`from_data`) and prints it (`to_code`).
+# So the file the workbench saves is always ``to_code`` of a spec value, never
+# text the page sent: `from_data` constructs only this module's own classes,
+# through their own constructors (every refusal they make applies), from
+# strings, numbers, booleans and None. That is what lets the saved file be
+# trusted as written (design note, ruling 4).
+
+#: The classes `from_data` may construct, by the name `to_data` writes.
+_DATA_CLASSES = {
+    c.__name__: c
+    for c in (
+        Analysis,
+        Sweep,
+        Cross,
+        Cell,
+        State,
+        Ref,
+        Hold,
+        Role,
+        Rx,
+        Swr,
+        S11,
+        Smith,
+        Map,
+        Table,
+        Knobs,
+        Elevation,
+        Azimuth,
+        PatternTable,
+    )
+}
+
+
+def to_data(value):
+    """``value`` as JSON-ready data: a spec value as ``{"an": <class>,
+    <field>: ...}``, a `State` with its knobs as ``[[name, value], ...]`` (in
+    the order written; a group's entries as dicts), a tuple as a list.
+    `from_data` reads it back to an equal value."""
+    if isinstance(value, Role):
+        return {"an": "Role", "name": value.name}
+    if isinstance(value, State):
+        return {
+            "an": "State",
+            "name": value.name,
+            "design": value.design,
+            "variant": value.variant,
+            "knobs": [[k, _plain_data(v)] for k, v in value.knobs],
+        }
+    if isinstance(value, tuple):
+        return [to_data(v) for v in value]
+    if dataclasses.is_dataclass(value) and type(value).__module__ == __name__:
+        out = {"an": type(value).__name__}
+        for f in dataclasses.fields(value):
+            out[f.name] = to_data(getattr(value, f.name))
+        return out
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    raise TypeError(f"no data form for {value!r}")
+
+
+def _plain_data(v):
+    if isinstance(v, tuple):
+        return [dict(e) if isinstance(e, Mapping) else e for e in v]
+    return v
+
+
+def _knob_data(v):
+    """A state's knob value from data: a list is a group's tuple (its
+    entries dicts, which `State` validates); anything else as given."""
+    if isinstance(v, list):
+        return tuple(dict(e) if isinstance(e, dict) else e for e in v)
+    return v
+
+
+def from_data(data):
+    """The spec value `to_data` wrote (module comment above): a ValueError or
+    TypeError, by name, for anything that is not one."""
+    if isinstance(data, list):
+        return tuple(from_data(v) for v in data)
+    if not isinstance(data, dict):
+        if data is None or isinstance(data, (bool, int, float, str)):
+            return data
+        raise TypeError(f"spec data: no value of type {type(data).__name__}")
+    kind = data.get("an")
+    cls = _DATA_CLASSES.get(kind) if isinstance(kind, str) else None
+    if cls is None:
+        raise ValueError(f"spec data: {kind!r} is not a spec value (an.{kind})")
+    fields = {k: v for k, v in data.items() if k != "an"}
+    if cls is Role:
+        if set(fields) != {"name"}:
+            raise ValueError("spec data: a Role has one field, name")
+        return Role(fields["name"])
+    if cls is State:
+        extra = set(fields) - {"name", "design", "variant", "knobs"}
+        if extra:
+            raise ValueError(f"spec data: State has no field {sorted(extra)[0]!r}")
+        knobs = fields.get("knobs") or []
+        if not isinstance(knobs, list) or not all(
+            isinstance(kv, list) and len(kv) == 2 and isinstance(kv[0], str)
+            for kv in knobs
+        ):
+            raise ValueError("spec data: a State's knobs are [[name, value], ...]")
+        names = [k for k, _ in knobs]
+        if len(set(names)) != len(names):
+            raise ValueError("spec data: a State sets a knob twice")
+        reserved = [k for k in names if k in ("name", "design", "variant")]
+        if reserved:
+            raise ValueError(f"spec data: {reserved[0]!r} is not a knob name")
+        return State(
+            fields.get("name"),
+            fields.get("design"),
+            variant=fields.get("variant"),
+            **{k: _knob_data(v) for k, v in knobs},
+        )
+    names = {f.name for f in dataclasses.fields(cls)}
+    extra = set(fields) - names
+    if extra:
+        raise ValueError(f"spec data: an.{kind} has no field {sorted(extra)[0]!r}")
+    return cls(**{k: from_data(v) for k, v in fields.items()})

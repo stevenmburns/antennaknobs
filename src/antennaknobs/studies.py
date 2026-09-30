@@ -157,13 +157,54 @@ def _names_designs(a: an.Analysis) -> bool:
     return bool(an.named_designs(a))
 
 
-def _unhosted(a: an.Analysis) -> list[an.State]:
-    """A module-level study's states with no design to be set on: no
-    ``design=`` of their own and no ``designs=`` cross to carry them. A
-    function has no "this design" to fall back on."""
+def _unhosted(a: an.Analysis) -> list[str]:
+    """What in a module-level study has no design to be set on, by name: its
+    states with no ``design=`` of their own and no ``designs=`` cross to
+    carry them, and its listed cells with no state naming a design (unit 4).
+    A function has no "this design" to fall back on."""
     if an.crosses_designs(a):
         return []
-    return [s for s in an.states_of(a) if s.design is None]
+    cells = an.cells_of(a)
+    if cells:
+        return [
+            repr(c.label or "(the analysis's own)")
+            for c in cells
+            if c.state is None or c.state.design is None
+        ]
+    return [repr(s.name) for s in an.states_of(a) if s.design is None]
+
+
+def _unhosted_words(a: an.Analysis) -> str:
+    what = "the cells" if an.cells_of(a) else "the states"
+    return f"{what} {', '.join(_unhosted(a))}"
+
+
+def refusal(a: an.Analysis, host: str | None = None) -> str | None:
+    """Why ``a`` cannot be a study, or None: the rules `_collect` applies to
+    every study found, one at a time (a name used twice is `_collect`'s,
+    since it needs the whole list). ``host`` set: a Builder's method study.
+    The workbench's "keep as study" (unit 4) asks the same before it
+    writes a file, so it never saves one that would be refused when found."""
+    if not _names_designs(a) and host is not None:
+        return (
+            "REFUSED: a Builder's study names the designs it compares "
+            "this one with, an.Cross(designs=(...)); without them it is "
+            "an analysis of this design, which belongs in build_analyses()"
+        )
+    if not _names_designs(a):
+        return (
+            "REFUSED: a study names its designs, an.Cross(designs=(...)) "
+            "or states with design=; it is a function, with no 'this "
+            "design' to fall back on (an analysis of one design belongs in "
+            "its build_analyses())"
+        )
+    if host is None and _unhosted(a):
+        return (
+            f"REFUSED: {_unhosted_words(a)} name no design, and a study has no "
+            "'this design' to set them on; give each its design=, or cross "
+            "designs=(...) to set them on every design"
+        )
+    return None
 
 
 def self_name(design: str) -> str:
@@ -220,32 +261,14 @@ def _collect(
                 f"REFUSED: {names.count(a.name)} studies in {source} are named "
                 f"{a.name!r}; give one a name="
             )
-        elif not _names_designs(a) and host is not None:
-            reason = (
-                "REFUSED: a Builder's study names the designs it compares "
-                "this one with, an.Cross(designs=(...)); without them it is "
-                "an analysis of this design, which belongs in build_analyses()"
-            )
-        elif not _names_designs(a):
-            reason = (
-                "REFUSED: a study names its designs, an.Cross(designs=(...)) "
-                "or states with design=; it is a function, with no 'this "
-                "design' to fall back on (an analysis of one design belongs in "
-                "its build_analyses())"
-            )
-        elif host is None and _unhosted(a):
-            reason = (
-                "REFUSED: the states "
-                + ", ".join(repr(st.name) for st in _unhosted(a))
-                + " name no design, and a study has no 'this design' to set "
-                "them on; give each its design=, or cross designs=(...) to "
-                "set them on every design"
-            )
-        elif host is not None:
-            studies.append(Study(source, _with_self(a, host), path, host=host))
-            continue
         else:
-            studies.append(Study(source, a, path))
+            reason = refusal(a, host)
+        if reason is None:
+            studies.append(
+                Study(source, _with_self(a, host), path, host=host)
+                if host is not None
+                else Study(source, a, path)
+            )
             continue
         blocked.append(Blocked(source, reason, path, name=a.name))
     return studies, blocked
