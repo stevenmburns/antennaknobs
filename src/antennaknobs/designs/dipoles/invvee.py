@@ -163,6 +163,23 @@ class Builder(AntennaBuilder):
                 views=(an.Map(),),
                 references=refs,
             ),
+            # States (AK#1757 step 7): the band's SWR at three mast heights,
+            # each a named setting over this design's defaults, so the chart
+            # means the same heights whatever the base slider says. Over the
+            # session's default ground slot (refl-coef, average soil): in
+            # free space the three would be one curve.
+            an.band_swr(
+                name="height states",
+                sweep=an.Sweep(an.FREQUENCY, 27.5, 30.0, points=26),
+                cross=an.Cross(
+                    states=(
+                        an.State("as built"),
+                        an.State("low mast", base=5.0),
+                        an.State("tall mast", base=12.0),
+                    )
+                ),
+                ground="finite-fast",
+            ),
             # E8: the match held at every height, and the knobs that hold it.
             an.Analysis(
                 "match vs height",
