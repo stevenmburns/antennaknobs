@@ -191,3 +191,22 @@ Saving puts a Python file on disk, so it needs the trust question answered
    without being asked again. A file that merely appears in the folder still
    asks, as today.
 5. **Studies group in the picker: yes,** on every design tab a study includes.
+
+## Addendum (Steve, 2026-09-30): a study attached to a Builder
+
+"A study that is attached to a Builder class would make sense if you wanted to
+compare a new antenna to a couple of standard references (3 element Yagi or
+Invvee)", without the study having to name itself as E7 must. So there are three
+forms:
+
+| form | what it is | designs |
+|---|---|---|
+| `Builder.build_analyses()` (method) | this design's own analyses | implicit: this design |
+| `Builder.build_studies()` (method, new) | this design compared with references | `self` implicit and first; `designs=` lists only the references |
+| module-level `build_studies()` (function) | a study of peers, with no owner (E7) | names every design |
+
+- **Placement:** a method study is listed only on its own design's tab, so a
+  reference design's picker doesn't fill up with other people's comparisons. A
+  module-level study is listed on every design tab it includes.
+- **Refusals:** a method study with no references is refused by name; that is
+  just an analysis.
