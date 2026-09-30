@@ -1,4 +1,5 @@
 import type { ParamSweepData, SweepData } from "../../lib/api";
+import type { PinCurve } from "../../lib/sweepPins";
 
 /** One more curve on a chart that already draws its own (AK#1757 step 5
  *  unit 4): an analysis chart's second to sixth engine x ground cell, in
@@ -38,4 +39,12 @@ export function curvesAttr(curves: readonly ExtraCurve[]): string {
   return curves
     .map((c) => `${c.key}:${c.sweep?.freqs_mhz.length ?? c.paramSweep?.values.length ?? 0}`)
     .join(";");
+}
+
+export type { PinCurve };
+export const NO_PINS: readonly PinCurve[] = [];
+
+/** The pinned sweeps drawn (AK#1757 item 1), "id:points" each, for tests. */
+export function pinsAttr(pins: readonly PinCurve[]): string {
+  return pins.map((p) => `${p.id}:${p.xs.length}`).join(";");
 }

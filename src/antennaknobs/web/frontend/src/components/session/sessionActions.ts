@@ -152,3 +152,16 @@ export async function copyParams({
     window.alert(`Copy params failed: ${e}`);
   }
 }
+
+/** Save `text` as a file the browser downloads (a pinned sweep's CSV,
+ *  AK#1757 item 1): made here, so no server round trip. */
+export function saveTextFile(text: string, filename: string, type = "text/csv"): void {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

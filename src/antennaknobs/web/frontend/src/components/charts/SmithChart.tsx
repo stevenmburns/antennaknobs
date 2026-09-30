@@ -23,8 +23,8 @@ import type { SweepProgress } from "../../lib/sweep";
 import { zinfSuffix, type ZInfStatus } from "../../lib/zinf";
 import { ThemeContext } from "../hooks";
 import { CHART_FONT, fitChartCanvas, useChartScale } from "./chartScale";
-import { curvesAttr, type ExtraCurve, NO_CURVES } from "./curves";
-import { feedColor, feedSweepColor, plotColors, STALE_TRACE_ALPHA } from "./palette";
+import { curvesAttr, type ExtraCurve, NO_CURVES, NO_PINS, type PinCurve, pinsAttr } from "./curves";
+import { feedColor, feedSweepColor, PIN_DASH, plotColors, STALE_TRACE_ALPHA } from "./palette";
 import {
   drawSweepProgressBar,
   sweepProgressAttr,
@@ -54,6 +54,7 @@ export function SmithChart({
   designKey = "",
   stale = false,
   curves = NO_CURVES,
+  pins = NO_PINS,
 }: {
   r: number;
   x: number;
@@ -86,6 +87,12 @@ export function SmithChart({
    *  frequency locus (connected as `connectSweep` and its own settledness
    *  say) or a knob sweep's trail, in its colour. */
   curves?: readonly ExtraCurve[];
+  /** Pinned sweeps (AK#1757 item 1), placed on this chart's range: each a
+   *  dashed locus in its colour, no live marker. The Smith chart plots Z
+   *  itself, normalised to the chart's Z0 like every curve on it; a pin's
+   *  own Z0 governs its SWR and S11 (ruling 4), which this view does not
+   *  draw. */
+  pins?: readonly PinCurve[];
   /** Draw the sweep trail as a CONNECTED locus instead of a point cloud.
    *  On when adaptive resolution (issue #744) is on: the merged sweep is
    *  sorted by frequency and refinement has smoothed the display-space
@@ -788,6 +795,32 @@ export function SmithChart({
       }
       ctx.restore();
     }
+    // The pinned sweeps, dashed over the curves and under the live marker.
+    if (pins.length > 0) {
+      ctx.save();
+      clipDisc();
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash(PIN_DASH);
+      for (const p of pins) {
+        ctx.strokeStyle = p.color;
+        ctx.fillStyle = p.color;
+        const pts = p.xs.map((_, i) => {
+          const g = reflectionCoefficient(p.zRe[i], p.zIm[i], z0);
+          return S(g.gRe, g.gIm);
+        });
+        if (pts.length === 1) {
+          ctx.beginPath();
+          ctx.arc(pts[0].x, pts[0].y, 2, 0, 2 * Math.PI);
+          ctx.fill();
+          continue;
+        }
+        ctx.beginPath();
+        pts.forEach((q, i) => (i === 0 ? ctx.moveTo(q.x, q.y) : ctx.lineTo(q.x, q.y)));
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
     if (paramSweepRunning) {
       ctx.fillStyle = PC.label;
       ctx.font = CHART_FONT.label;
@@ -996,7 +1029,7 @@ export function SmithChart({
     // and `trialWorstFeed` likewise carry the whole per-eval picture (#789):
     // r/x still change every frame on a multi-feed run, but they are only
     // feed 0, so a run where feed 0 sat still would freeze every ring.
-  }, [r, x, z0, size, sz, k, sweep, paramSweep, measured, measFreqMhz, running, progress, paramSweepRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme, view, stale, curves]);
+  }, [r, x, z0, size, sz, k, sweep, paramSweep, measured, measFreqMhz, running, progress, paramSweepRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme, view, stale, curves, pins]);
 
   // data-connect mirrors the trail mode (locus vs. dot cloud) for tests —
   // canvas pixels are invisible to jsdom, the attribute is not (the same
@@ -1013,6 +1046,7 @@ export function SmithChart({
       data-phase={phase}
       data-zoom={String(view.zoom)}
       data-curves={curvesAttr(curves)}
+      data-pins={pinsAttr(pins)}
       // The parameter trail for tests: "param:first→last:points", plus Z*
       // when the sweep has one (density only).
       data-trail={
