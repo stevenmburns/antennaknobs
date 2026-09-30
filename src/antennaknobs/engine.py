@@ -89,6 +89,73 @@ def refuse_graded_wires(tups, engine_name):
             )
 
 
+def graded_panels(w):
+    """One authored wire as the GW cards it needs: ``[(p0, p1, n_seg), ...]``.
+
+    An ordinary wire is one card. A `graded_wire` (`GradedSegments`,
+    momwire#674's node grading) becomes ONE CARD PER PANEL, chained end to end
+    at the panel boundaries, each with that panel's own segment count — the
+    same vertices and the same counts `flat_wires_to_polylines` puts inside a
+    momwire polyline, so every engine meshes the deck identically (issue
+    #1108). NEC has no per-edge count within one GW, so the grading has to
+    become geometry.
+
+    Shared by the two card writers that expand rather than refuse: NEC-5's
+    (`NEC5Engine`, #1108) and NEC-4.2's (`expand_graded_wires`, AK#1803).
+    """
+    n_seg = w.n_seg
+    if not isinstance(n_seg, GradedSegments):
+        return [
+            (np.asarray(w.p0, dtype=float), np.asarray(w.p1, dtype=float), int(n_seg))
+        ]
+    p0 = np.asarray(w.p0, dtype=float)
+    p1 = np.asarray(w.p1, dtype=float)
+    bounds = [0.0, *n_seg.fracs, 1.0]
+    return [
+        (p0 + bounds[k] * (p1 - p0), p0 + bounds[k + 1] * (p1 - p0), int(c))
+        for k, c in enumerate(n_seg.counts)
+    ]
+
+
+def expand_graded_wires(tups, owners=None):
+    """``(tups, owners)`` with every graded wire replaced by its panels, each
+    an ordinary uniform `Wire` in the authored direction (AK#1803).
+
+    What makes this safe for a writer whose cards address wires by TAG: a
+    graded wire can host nothing — the geometry walk rejects an ``ex`` or a
+    port name on one — so no EX/LD/NT card ever names a panel, and every other
+    wire keeps its place in the list. Expanding the tuples BEFORE any tag is
+    assigned is therefore the whole renumbering: tags are list positions, and
+    every tag-addressed card is resolved from the expanded list. Panels are
+    unnamed, carry the wire's spec, and meet at bit-identical points (both
+    ends of a boundary are the same expression), so a reader re-joins them.
+
+    ``owners`` is the authored index of each entry (an engine's
+    ``_tup_authored``); each panel inherits its wire's, which is what lets
+    `SimulationEngine._authored_currents` join a graded wire's panels back
+    into the one wire the design wrote. Defaults to the list positions.
+    """
+    owners = list(range(len(tups))) if owners is None else list(owners)
+    out, out_owners = [], []
+    for t, owner in zip(tups, owners, strict=True):
+        w = as_wire(t)
+        if not isinstance(w.n_seg, GradedSegments):
+            out.append(t)
+            out_owners.append(owner)
+            continue
+        for p0, p1, n in graded_panels(w):
+            out.append(
+                Wire(
+                    tuple(float(c) for c in p0),
+                    tuple(float(c) for c in p1),
+                    int(n),
+                    spec=w.spec,
+                )
+            )
+            out_owners.append(owner)
+    return out, out_owners
+
+
 class WireCurrents(NamedTuple):
     """Per-wire knot positions + complex currents at the solve frequency.
 
@@ -630,7 +697,9 @@ class SimulationEngine(ABC):
         the design wrote it. The knot at each cut takes the mean of the two
         pieces' end currents, the rule every interior knot follows."""
         owners = getattr(self, "_tup_authored", None)
-        if not getattr(self, "_split_wires", None) or owners is None:
+        # A wire split at its ports (AK#1510) or a graded wire expanded into
+        # panels (AK#1803) is the only way an owner repeats.
+        if owners is None or len(set(owners)) == len(owners):
             return currents
         out, last = [], None
         for owner, wc in zip(owners, currents, strict=True):
