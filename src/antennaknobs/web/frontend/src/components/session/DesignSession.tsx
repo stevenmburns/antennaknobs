@@ -76,6 +76,7 @@ import type {
 } from "../../lib/ground";
 import { designGround, groundSlotLabel, type GroundSlotId } from "../../lib/groundSlots";
 import {
+  type CellState,
   type ChartCell,
   type ChartCross,
   checkedGrounds,
@@ -86,8 +87,10 @@ import {
   engineRefusal,
   engineSpecHeld,
   groundSpecHeld,
+  type KnobValue,
   type ListedCross,
   preselect,
+  servedCell,
 } from "../../lib/chartCells";
 import { ChartScaleContext } from "../charts/chartScale";
 import { cellColor, sweepPinColor } from "../charts/palette";
@@ -1319,6 +1322,7 @@ function DesignSessionBody({
     const r = buildRequestFor(cell.slot as Slot, cell.ground, {
       ...(cell.plane !== undefined ? { plane: cell.plane } : {}),
       ...(cell.design !== undefined ? { design: cell.design } : {}),
+      ...(cell.state !== undefined ? { state: cell.state } : {}),
       ...(cell.step !== undefined ? { step: cell.step } : {}),
     });
     return cell.stream ? { ...r, _stream: cell.stream } : r;
@@ -1331,16 +1335,19 @@ function DesignSessionBody({
   // catalog seeds them (useDesignCatalog); its design and measurement
   // frequencies where a design switch snaps them (applyDesignResets, then
   // a knob linked to the design frequency). Null when this session's
-  // catalog does not hold it.
-  function designAtDefaults(name: string) {
+  // catalog does not hold it. `variant` (a state on the loaded design, AK#1757
+  // step 7) takes that variant's defaults instead, as knobDefaults does.
+  function designAtDefaults(name: string, variant?: string) {
     const ex = examples.find((e) => e.name === name);
     if (!ex) return null;
     const values = seedDefaults(ex.param_schema);
+    const vv = variant !== undefined ? ex.variant_values?.[variant] : undefined;
+    if (vv) for (const k of Object.keys(values)) if (k in vv) values[k] = vv[k] as (typeof values)[string];
     const snap = snapForExample(ex);
     const linked = findLinkedDesignFreq(ex.param_schema, values);
     return {
       geometry: ex.name,
-      variant: ex.variants?.[0] ?? "default",
+      variant: variant ?? ex.variants?.[0] ?? "default",
       values,
       designFreq: linked ?? snap?.freq ?? designFreq,
       measFreq: linked ?? snap?.measFreq ?? measFreq,
@@ -1360,12 +1367,26 @@ function DesignSessionBody({
   // frequencies replace the session's, and the session's plane, Zo
   // override and tracker, which belong to the session's design, are left
   // out), and a family's knob set to its step value on top of the knobs.
+  // A state (AK#1757 step 7) is a design at its defaults too, the loaded one
+  // at its variant's when the state names no design, never at the live
+  // knobs, so a state is the same curve every session; its knobs are set
+  // over those defaults (a frequency knob through the request's own field).
   function buildRequestFor(
     slotId: Slot,
     groundId: string,
-    over: { plane?: string; design?: string; step?: { knob: string; value: number } } = {},
+    over: {
+      plane?: string;
+      design?: string;
+      state?: CellState;
+      step?: { knob: string; value: number };
+    } = {},
   ): SolveRequest {
-    const design = over.design !== undefined ? designAtDefaults(over.design) : null;
+    const design =
+      over.design !== undefined
+        ? designAtDefaults(over.design)
+        : over.state !== undefined
+          ? designAtDefaults(geometry, currentVariant)
+          : null;
     const cfg = slots[slotId] ?? slots[activeSlot];
     const backend = cfg.backend;
     const g = groundRequestFor(groundId, backend);
@@ -1445,6 +1466,16 @@ function DesignSessionBody({
     // `bands: [{band_id, freq, length_factor}, ...]` array; the backend
     // unpacks it in _bands_from_request().
     Object.assign(base, design?.values ?? currentValues);
+    // A state cell's knobs, over its design's defaults. The request carries
+    // the measurement and design frequencies in fields of their own, which
+    // the server sets over the knobs, so a state setting one sets that too.
+    if (over.state) {
+      for (const [k, v] of Object.entries(over.state.knobs)) {
+        (base as Record<string, unknown>)[k] = v;
+        if (k === "freq" && typeof v === "number") base.measurement_freq_mhz = v;
+        if (k === "design_freq" && typeof v === "number") base.design_freq_mhz = v;
+      }
+    }
     // A family cell's step (unit 4b): its knob at its value.
     if (over.step) (base as Record<string, unknown>)[over.step.knob] = over.step.value;
     // hexbeam_5band's daisy_chain (single common feed) is now modelled with
@@ -2314,7 +2345,7 @@ function DesignSessionBody({
     k: number,
     slot: Slot,
     ground: string,
-    cell?: Pick<ChartCell, "plane" | "design" | "step">,
+    cell?: Pick<ChartCell, "plane" | "design" | "state" | "step">,
   ): ChartCellRequest => {
     const cfg = slots[slot];
     const g = groundRequestFor(ground, cfg.backend);
@@ -2323,6 +2354,7 @@ function DesignSessionBody({
       ground,
       ...(cell?.plane !== undefined ? { plane: cell.plane } : {}),
       ...(cell?.design !== undefined ? { design: cell.design } : {}),
+      ...(cell?.state !== undefined ? { state: cell.state } : {}),
       ...(cell?.step !== undefined ? { step: cell.step } : {}),
       stream: i === 0 && k === 0 ? null : `c${i}r${k}`,
       backend: cfg.backend,
@@ -2362,10 +2394,14 @@ function DesignSessionBody({
     // A range / points / spacing edit of the picked analysis moves the
     // session design's cells with it (as a frequency range edit does), and
     // leaves the other designs on what the server served.
+    // A state cell (step 7) sweeps what /analyses served for it, on its
+    // design at its defaults with its knobs set; one on the loaded design is
+    // the session design's for an edit, as that design's own cell is.
     const edited = pickedEdited(now);
+    const sessionDesign = (c: ChartCell) => c.design === geometry || (c.design === undefined && !!c.state);
     const ownSweep = (c: ChartCell) => {
-      if (edited && c.design === geometry) return null;
-      const d = c.design !== undefined ? listedNow.designs?.find((x) => x.name === c.design) : undefined;
+      if (edited && sessionDesign(c)) return null;
+      const d = servedCell(c, listedNow);
       return d?.param && d.values ? { param: d.param, values: d.values } : null;
     };
     // A design cell of a frequency sweep sweeps that design's own band, on
@@ -2374,9 +2410,9 @@ function DesignSessionBody({
     // range edit on the chart moves only the session design's curves: its
     // own cell in the cross, and every cell without one.
     const ownBand = (c: ChartCell): SweepRange | null => {
-      if (c.design === undefined) return null;
-      if (c.design === geometry && now.frequency?.rangeEdit) return null;
-      const d = listedNow.designs?.find((x) => x.name === c.design);
+      if (c.design === undefined && !c.state) return null;
+      if (sessionDesign(c) && now.frequency?.rangeEdit) return null;
+      const d = servedCell(c, listedNow);
       const f = d?.freqs;
       if (!f || f.length === 0) return null;
       // An explicit frequency list is swept exactly on every design, as
@@ -2497,6 +2533,7 @@ function DesignSessionBody({
       axes: w.axes ?? [],
       planes: w.planes ?? null,
       designs: w.designs ?? null,
+      states: w.states ?? null,
       step: w.step ?? null,
     };
     return withListed(c, listed, preselect(listed, crossEnv));
@@ -3325,7 +3362,12 @@ function DesignSessionBody({
     const other = c.design !== undefined && c.design !== geometry;
     const cfg = c.slot !== null ? slots[c.slot as Slot] : undefined;
     const g = groundSlots.find((x) => x.id === c.ground);
-    const knobs = other ? [] : changedKnobs(currentValues, knobDefaults(), swept);
+    // A state cell's knobs are the state's, over the defaults (step 7).
+    const knobs: [string, KnobValue][] = c.state
+      ? Object.entries(c.state.knobs).filter(([k]) => k !== swept)
+      : other
+        ? []
+        : changedKnobs(currentValues, knobDefaults(), swept);
     if (c.step && c.step.knob !== swept) {
       const at = knobs.findIndex(([k]) => k === c.step!.knob);
       if (at >= 0) knobs[at] = [c.step.knob, c.step.value];

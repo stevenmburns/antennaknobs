@@ -17,6 +17,7 @@ import {
   NOTHING_LISTED,
   preselect,
   refusedLines,
+  servedCell,
 } from "../lib/chartCells";
 
 // Five solver slots and four ground slots: ids are open-ended (A…E, 1…5),
@@ -322,5 +323,115 @@ describe("planes, designs and families", () => {
     expect(engineRefusal("RuntimeError: degenerate")).toBeNull();
     expect(engineRefusal("a poor match for this design")).toBeNull();
     expect(engineRefusal(null)).toBeNull();
+  });
+});
+
+// AK#1757 step 7 unit 2: states, a cross over named knob settings. Each
+// state is one cell labelled by its name (after its design when it names
+// one), multiplied with the other axes under the cap, carrying its knobs.
+describe("states", () => {
+  const cell = { refused: null, param: "length_factor", values: [0.95, 1] };
+  const HEIGHTS: ListedCross = {
+    engines: null,
+    grounds: ["finite:13,0.005"],
+    axes: ["states"],
+    states: [
+      { ...cell, name: "as built", design: null, knobs: {}, label: "as built", on: null },
+      { ...cell, name: "low mast", design: null, knobs: { base: 5 }, label: "low mast", on: null },
+      { ...cell, name: "tall mast", design: null, knobs: { base: 12 }, label: "tall mast", on: null },
+    ],
+  };
+
+  it("is one cell per state, labelled by its name, carrying its knobs", () => {
+    const plan = crossPlan(preselect(HEIGHTS, env()), HEIGHTS, env());
+    expect(plan.capRefusal).toBeNull();
+    expect(plan.cells.map((c) => [c.label, c.slot, c.ground, c.design, c.state])).toEqual([
+      ["as built, finite:13,0.005", "A", "1", undefined, { label: "as built", knobs: {} }],
+      ["low mast, finite:13,0.005", "A", "1", undefined, { label: "low mast", knobs: { base: 5 } }],
+      ["tall mast, finite:13,0.005", "A", "1", undefined, { label: "tall mast", knobs: { base: 12 } }],
+    ]);
+    expect(new Set(plan.cells.map((c) => c.key)).size).toBe(3);
+    expect(plan.cells[1].key).toBe("A|1|st:low mast");
+    expect(servedCell(plan.cells[2], HEIGHTS)?.values).toEqual([0.95, 1]);
+  });
+
+  it("multiplies with the ticked slots under the cap, in the CLI's words", () => {
+    const two = crossPlan({ slots: ["A", "B"], grounds: null }, HEIGHTS, env());
+    expect(two.cells.map((c) => c.label)).toEqual([
+      "as built, A: momwire:bspline, finite:13,0.005",
+      "as built, B: momwire:razor-2p, finite:13,0.005",
+      "low mast, A: momwire:bspline, finite:13,0.005",
+      "low mast, B: momwire:razor-2p, finite:13,0.005",
+      "tall mast, A: momwire:bspline, finite:13,0.005",
+      "tall mast, B: momwire:razor-2p, finite:13,0.005",
+    ]);
+    const three = crossPlan({ slots: ["A", "B", "C"], grounds: null }, HEIGHTS, env());
+    expect(three.capRefusal).toBe("REFUSED: 3 states x 3 engines = 9 curves, over the cap of 6");
+    expect(three.cells).toEqual([]);
+  });
+
+  it("a state naming its design is that design's cell, and a served refusal is the cell's", () => {
+    const named: ListedCross = {
+      ...NOTHING_LISTED,
+      axes: ["states"],
+      states: [
+        { ...cell, name: "tall", design: null, knobs: { base: 12 }, label: "tall", on: null },
+        {
+          ...cell,
+          refused: "state 'apex' sets hieght, and this design has no knob 'hieght'",
+          name: "apex",
+          design: "dipoles.invvee_apex",
+          knobs: { hieght: 12 },
+          label: "dipoles.invvee_apex, apex",
+          on: null,
+        },
+      ],
+    };
+    const plan = crossPlan(FOLLOW_ACTIVE, named, env({ design: "dipoles.invvee" }));
+    expect(plan.cells.map((c) => [c.label, c.design, c.refused])).toEqual([
+      ["tall", undefined, null],
+      [
+        "dipoles.invvee_apex, apex",
+        "dipoles.invvee_apex",
+        "state 'apex' sets hieght, and this design has no knob 'hieght'",
+      ],
+    ]);
+    expect(refusedLines(plan)).toEqual([
+      "dipoles.invvee_apex, apex: state 'apex' sets hieght, and this design has no knob 'hieght'",
+    ]);
+  });
+
+  it("an unnamed state beside a designs cross is set on each design, refused where served so", () => {
+    const why = "state 'long line' sets line_len_m, and this design has no knob 'line_len_m'";
+    const crossed: ListedCross = {
+      ...NOTHING_LISTED,
+      axes: ["designs", "states"],
+      designs: [
+        { name: "dipoles.invvee", refused: null, param: "length_factor", values: [0.9, 1] },
+        { name: "wire.doublet_ladder_tuner", refused: null, param: "length_factor", values: [0.9, 1] },
+      ],
+      states: [
+        {
+          refused: null,
+          param: null,
+          values: null,
+          name: "long line",
+          design: null,
+          knobs: { line_len_m: 20 },
+          label: "long line",
+          on: [
+            { name: "dipoles.invvee", refused: why, param: null, values: null },
+            { name: "wire.doublet_ladder_tuner", refused: null, param: "length_factor", values: [0.8, 1.2] },
+          ],
+        },
+      ],
+    };
+    const plan = crossPlan(FOLLOW_ACTIVE, crossed, env());
+    expect(plan.cells.map((c) => [c.label, c.design, c.state?.knobs, c.refused])).toEqual([
+      ["dipoles.invvee, long line", "dipoles.invvee", { line_len_m: 20 }, why],
+      ["wire.doublet_ladder_tuner, long line", "wire.doublet_ladder_tuner", { line_len_m: 20 }, null],
+    ]);
+    // The cell sweeps what was served for the state on that design.
+    expect(servedCell(plan.cells[1], crossed)?.values).toEqual([0.8, 1.2]);
   });
 });

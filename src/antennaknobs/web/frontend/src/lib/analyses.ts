@@ -4,7 +4,15 @@
 // charts and SWR axis (a frequency sweep). React-free, so the mapping is
 // tested alone.
 
-import type { CrossKind, DesignCross, ListedCross, PlaneCross, StepCross } from "./chartCells";
+import type {
+  CrossKind,
+  DesignCross,
+  KnobValue,
+  ListedCross,
+  PlaneCross,
+  StateCross,
+  StepCross,
+} from "./chartCells";
 import { DENSITY, paramValues, type ParamSweepSpec } from "./paramSweep";
 import type { SweepRangeSpec } from "./params";
 import { specRange, type SweepRange } from "./sweep";
@@ -45,6 +53,7 @@ export type Listed = {
   axes?: CrossKind[];
   planes?: PlaneCross[] | null;
   designs?: DesignCross[] | null;
+  states?: StateCross[] | null;
   step?: StepCross | null;
 };
 
@@ -116,7 +125,7 @@ function specList(v: unknown): string[] | null {
     : null;
 }
 
-const CROSS_KINDS: readonly CrossKind[] = ["engines", "grounds", "planes", "designs", "step"];
+const CROSS_KINDS: readonly CrossKind[] = ["engines", "grounds", "planes", "designs", "states", "step"];
 const isStr = (v: unknown): v is string => typeof v === "string";
 const reason = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 
@@ -135,6 +144,54 @@ function namedList<T>(v: unknown, one: (o: Record<string, unknown>) => T | null)
 function rangeSpacing(r: unknown): "lin" | "log" | null {
   const sp = r && typeof r === "object" ? (r as Record<string, unknown>).spacing : null;
   return sp === "lin" || sp === "log" ? sp : null;
+}
+
+/** A design cell as served (a design cross's, or a state's own). */
+function parseDesign(d: Record<string, unknown>): DesignCross | null {
+  return isStr(d.name)
+    ? {
+        name: d.name,
+        refused: reason(d.refused),
+        param: isStr(d.param) ? d.param : null,
+        values:
+          Array.isArray(d.values) && d.values.length > 0 && d.values.every(isNum)
+            ? (d.values as number[])
+            : null,
+        spacing: rangeSpacing(d.range),
+        freqs:
+          Array.isArray(d.freqs) && d.freqs.length > 0 && d.freqs.every((f) => isNum(f) && f > 0)
+            ? (d.freqs as number[])
+            : null,
+      }
+    : null;
+}
+
+const isKnobValue = (v: unknown): v is KnobValue =>
+  isNum(v) || typeof v === "boolean" || typeof v === "string";
+
+/** A state as served (AK#1757 step 7): its knobs a flat record of numbers,
+ *  booleans or strings; the cell's sweep as a design cell's; `on` one
+ *  design cell per design beside a designs cross. */
+function parseState(o: Record<string, unknown>): StateCross | null {
+  if (!isStr(o.name) || !isStr(o.label)) return null;
+  const knobs = o.knobs && typeof o.knobs === "object" && !Array.isArray(o.knobs) ? o.knobs : null;
+  if (!knobs || !Object.values(knobs).every(isKnobValue)) return null;
+  const cell = parseDesign({ ...o, name: o.name });
+  if (!cell) return null;
+  const on = o.on === null || o.on === undefined ? null : namedList<DesignCross>(o.on, parseDesign);
+  if (o.on !== null && o.on !== undefined && on === null) return null;
+  return {
+    refused: cell.refused,
+    param: cell.param,
+    values: cell.values,
+    spacing: cell.spacing ?? null,
+    freqs: cell.freqs ?? null,
+    name: o.name,
+    design: isStr(o.design) ? o.design : null,
+    knobs: knobs as Record<string, KnobValue>,
+    label: o.label,
+    on,
+  };
 }
 
 function parseStep(v: unknown): StepCross | null {
@@ -161,24 +218,8 @@ function parseListed(o: Record<string, unknown>): Required<ListedCross> {
     planes: namedList<PlaneCross>(o.planes, (p) =>
       isStr(p.name) ? { name: p.name, refused: reason(p.refused) } : null,
     ),
-    designs: namedList<DesignCross>(o.designs, (d) =>
-      isStr(d.name)
-        ? {
-            name: d.name,
-            refused: reason(d.refused),
-            param: isStr(d.param) ? d.param : null,
-            values:
-              Array.isArray(d.values) && d.values.length > 0 && d.values.every(isNum)
-                ? (d.values as number[])
-                : null,
-            spacing: rangeSpacing(d.range),
-            freqs:
-              Array.isArray(d.freqs) && d.freqs.length > 0 && d.freqs.every((f) => isNum(f) && f > 0)
-                ? (d.freqs as number[])
-                : null,
-          }
-        : null,
-    ),
+    designs: namedList<DesignCross>(o.designs, parseDesign),
+    states: namedList<StateCross>(o.states, parseState),
     step: parseStep(o.step),
   };
 }
