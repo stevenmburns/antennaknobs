@@ -10,13 +10,17 @@ the decided spec, ``docs/design/sweep-framework-spec.md``:
   values (the curves compared: their PRODUCT, capped at `CURVE_CAP`), the
   views it draws (`Rx`, `Swr`, `S11`, `Smith`, `Map`, `Table`, `Knobs`:
   objects with their own options), and the `Ref` lines drawn on them;
+- or it has no sweep (``sweep=None``): a PATTERN, one far-field solve per
+  cell at the measurement frequency, drawn by the pattern views
+  (`Elevation`, `Azimuth`, `PatternTable`) and crossed like any other
+  (AK#1757 step 7);
 - a `State` is a named setting of a design, knob overrides over its
   defaults; ``an.Cross(states=(...))`` crosses them like any other kind,
   one cell per state (AK#1757 step 7);
 - an optional `Hold` optimises at every sweep point: the knobs it adjusts
   are re-solved for one of the optimizer's objectives as x moves;
-- `convergence`, `band_swr` and `knob` are the library: generic analyses any
-  design composes. `offered` is a design's own list plus the library's
+- `convergence`, `band_swr`, `knob` and `patterns` are the library: generic
+  analyses any design composes. `offered` is a design's own list plus the library's
   generic ones that resolve on it.
 
 Every value prints back as the Python that constructs it (`to_code`), and
@@ -311,6 +315,71 @@ class Knobs(View):
     solution at each point)."""
 
 
+# ── the pattern views (AK#1757 step 7) ─────────────────────────────────────
+#
+# What the pattern pins draw, as views of an analysis with no swept x. The
+# angles are WHOLE degrees, and each on the range both tools can sample: the
+# CLI's engines return NEC's far-field grid (`far_field.compare_patterns`'s:
+# theta 0..89 from the zenith, phi 0..360, 1-degree steps), which has no
+# horizon row (elevation 0 is theta 90) and whose zenith is one direction, not
+# a cut; the workbench's azimuth-cut dial runs 0..89. So an azimuth cut is at
+# an elevation of 1..89, and an elevation cut at an azimuth of 0..359.
+
+
+def _whole_degrees(owner: str, field: str, value, lo: int, hi: int) -> None:
+    # bool is an int, and never an angle.
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or not float(value).is_integer()
+        or not lo <= value <= hi
+    ):
+        raise ValueError(
+            f"{owner}: {field} is a whole number of degrees, {lo}..{hi} (the "
+            f"far-field grid's 1-degree steps), got {value!r}"
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
+class Elevation(View):
+    """An elevation cut: the vertical great circle through azimuth ``az``
+    (degrees from +x, as the workbench's cut dial reads), from that horizon
+    over the zenith to the opposite one."""
+
+    az: int
+
+    def __post_init__(self):
+        _whole_degrees("Elevation", "az", self.az, 0, 359)
+
+
+@dataclass(frozen=True, kw_only=True)
+class Azimuth(View):
+    """An azimuth cut: the cone at elevation ``el`` degrees above the
+    horizon, all the way round."""
+
+    el: int
+
+    def __post_init__(self):
+        _whole_degrees("Azimuth", "el", self.el, 1, 89)
+
+
+@dataclass(frozen=True)
+class PatternTable(View):
+    """The pattern metrics per cell: the pattern-pin compare table's (peak
+    gain, take-off angle, azimuth, F/B, both beamwidths, RDF)."""
+
+
+#: The views of a pattern (``sweep=None``); every other view draws against a
+#: swept x.
+PATTERN_VIEWS = (Elevation, Azimuth, PatternTable)
+
+
+def is_pattern(analysis) -> bool:
+    """Whether ``analysis`` is a pattern: no swept x (AK#1757 step 7)."""
+    return analysis.sweep is None
+
+
 # The square systems the optimizer solves as roots (`web.optimize`, the
 # scalar-root and two-component Newton paths): as many knobs as equations.
 _SQUARE = {
@@ -367,12 +436,13 @@ class Hold:
 
 @dataclass(frozen=True)
 class Analysis:
-    """One analysis. ``sweep`` is a `Sweep`, or a pair of them for a map;
+    """One analysis. ``sweep`` is a `Sweep`, or a pair of them for a map,
+    or None for a pattern (one solve per cell, drawn by `PATTERN_VIEWS`);
     ``cross`` a `Cross` or a tuple of them (their product); ``ground`` /
     ``engine`` None is the session's own."""
 
     name: str
-    sweep: Sweep | tuple[Sweep, Sweep]
+    sweep: Sweep | tuple[Sweep, Sweep] | None
     cross: Cross | tuple[Cross, ...] = ()
     views: tuple[View, ...] = (Rx(),)
     references: Ref = Ref()
@@ -385,10 +455,13 @@ class Analysis:
     def __post_init__(self):
         if not isinstance(self.name, str) or not self.name:
             raise TypeError(f"Analysis: name is a non-empty string, got {self.name!r}")
-        sweeps = self.sweep if isinstance(self.sweep, tuple) else (self.sweep,)
-        if not 1 <= len(sweeps) <= 2 or not all(isinstance(s, Sweep) for s in sweeps):
+        sweeps = self.sweeps
+        if self.sweep is not None and (
+            not 1 <= len(sweeps) <= 2 or not all(isinstance(s, Sweep) for s in sweeps)
+        ):
             raise TypeError(
-                f"Analysis {self.name!r}: sweep is a Sweep or a pair of them"
+                f"Analysis {self.name!r}: sweep is a Sweep, a pair of them, or "
+                "None (a pattern)"
             )
         cross = (self.cross,) if isinstance(self.cross, Cross) else self.cross
         cross = _as_tuple(cross, f"Analysis {self.name!r} cross")
@@ -410,6 +483,7 @@ class Analysis:
                 f"Analysis {self.name!r}: views holds view objects (an.Rx(), ...)"
             )
         _set(self, "views", views)
+        self._check_pattern_views(views)
         if not isinstance(self.references, Ref):
             raise TypeError(f"Analysis {self.name!r}: references is an an.Ref")
         if self.hold is not None:
@@ -428,12 +502,46 @@ class Analysis:
                 "give a hold, or drop the view"
             )
 
+    def _check_pattern_views(self, views: tuple[View, ...]) -> None:
+        """A pattern view needs a pattern, and a pattern only pattern views
+        (AK#1757 step 7): the two kinds of view draw against different axes
+        (an angle round a cut, or a swept x), so a view of the other kind
+        has nothing to draw, and is refused by name when the value is built.
+        So is a hold on a pattern: it optimises at every sweep point, and a
+        pattern has none."""
+        who = f"Analysis {self.name!r}"
+        if self.sweep is None:
+            wrong = [v for v in views if not isinstance(v, PATTERN_VIEWS)]
+            if wrong:
+                raise ValueError(
+                    f"{who}: the {type(wrong[0]).__name__} view draws against a "
+                    "swept x, and this analysis sweeps nothing (sweep=None, a "
+                    "pattern); a pattern's views are an.Elevation(az=...), "
+                    "an.Azimuth(el=...) and an.PatternTable()"
+                )
+            if self.hold is not None:
+                raise ValueError(
+                    f"{who}: a hold optimises at every sweep point, and a "
+                    "pattern (sweep=None) has none"
+                )
+            return
+        wrong = [v for v in views if isinstance(v, PATTERN_VIEWS)]
+        if wrong:
+            raise ValueError(
+                f"{who}: the {type(wrong[0]).__name__} view draws a far-field "
+                "pattern, one solve per cell with no swept x; give sweep=None "
+                "for a pattern, or drop the view"
+            )
+
     @property
     def crosses(self) -> tuple[Cross, ...]:
         return (self.cross,) if isinstance(self.cross, Cross) else self.cross
 
     @property
     def sweeps(self) -> tuple[Sweep, ...]:
+        """The swept axes: one, a map's pair, or none for a pattern."""
+        if self.sweep is None:
+            return ()
         return self.sweep if isinstance(self.sweep, tuple) else (self.sweep,)
 
     @property
@@ -478,6 +586,20 @@ def knob(name: str, **kw) -> Analysis:
     """R/X and the Smith trail against one knob, over its own range."""
     return Analysis(
         **{"name": name, "sweep": Sweep(name), "views": (Rx(), Smith()), **kw}
+    )
+
+
+def patterns(**kw) -> Analysis:
+    """The far field at the measurement frequency (AK#1757 step 7): the
+    elevation cut along +x, the azimuth cut at 10 degrees, and the metrics
+    the pattern pins' compare table shows, one solve per cell."""
+    return Analysis(
+        **{
+            "name": "patterns",
+            "sweep": None,
+            "views": (Elevation(az=0), Azimuth(el=10), PatternTable()),
+            **kw,
+        }
     )
 
 
@@ -831,13 +953,16 @@ def _render(node, indent: int = 0) -> str:
 def to_code(value) -> str:
     """``value`` as the Python that constructs it, ``an`` being this module.
     An `Analysis` prints as whichever of ``an.Analysis(...)`` or a library
-    call (``an.convergence(...)``, ``an.band_swr(...)``, ``an.knob(...)``)
-    is shortest: each passes only what differs from its own defaults, so
+    call (``an.convergence(...)``, ``an.band_swr(...)``, ``an.patterns(...)``,
+    ``an.knob(...)``) is shortest: each passes only what differs from its own defaults, so
     ``eval`` of any of them is the same value."""
     if not isinstance(value, Analysis):
         return _render(_node(value))
-    forms = [_call("an.Analysis", value, _defaults(Analysis))]
-    for fn in (convergence, band_swr):
+    # A pattern's sweep is None, which reads as nothing positionally: it is
+    # printed by name, as the spec spells it (``sweep=None``).
+    positional = ("name",) if value.sweep is None else None
+    forms = [_call("an.Analysis", value, _defaults(Analysis), positional=positional)]
+    for fn in (convergence, band_swr, patterns):
         base = fn()
         forms.append(_call(f"an.{fn.__name__}", value, _fields(base), positional=()))
     base = knob(value.name)

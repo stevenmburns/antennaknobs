@@ -362,6 +362,20 @@ def refined_pattern_metrics(gain, *, beamwidth_db=3.0, tol_deg=0.01):
     }
 
 
+def engine_pattern_metrics(engine, ff):
+    """The pattern metrics of one solved engine, for a pattern analysis's
+    `PatternTable` (AK#1757 step 7): the workbench compare table's own
+    function where the engine can evaluate its gain off the solve (momwire:
+    `refined_pattern_metrics` on `gain_evaluator`, exactly what the table's
+    ``/pattern_metrics`` computes, `web.adapter._metrics_from_gain`), else
+    `compare_patterns`' grid measure of the NEC-convention pattern ``ff`` it
+    returned (PyNEC, NEC-2, NEC-5 expose no evaluator). Same keys either
+    way."""
+    if hasattr(engine, "gain_evaluator"):
+        return refined_pattern_metrics(engine.gain_evaluator())
+    return pattern_metrics(ff, has_ground=_engine_has_ground(engine))
+
+
 def radiated_fraction(ff):
     """Fraction of input power that leaves as far-field radiation.
 

@@ -19,6 +19,16 @@ the spec gives no range: the rule ``sweep --swr`` and the workbench read.
 Everything else is refused by name, with the step it is planned for, when
 the analysis is listed and when it is asked to run.
 
+A PATTERN (``sweep=None``, AK#1757 step 7) solves each cell once, at its
+builder's measurement frequency (``freq``: the design's own, a state's or a
+family's), and reads the far field exactly as ``compare_patterns`` does
+(``far_field(n_theta=90, n_phi=360, del_theta=1, del_phi=1)``, NEC's 1-degree
+grid): an `an.Elevation` cut is that grid's column at the cut's azimuth and the
+one opposite, an `an.Azimuth` cut its row at the cut's elevation, so a cell's
+cut IS the design's pattern, sample for sample (`pattern_cut`). The
+`an.PatternTable` is `far_field.engine_pattern_metrics`: the workbench compare
+table's own function on a momwire cell.
+
 How a cell is made (`cells`, `_prepare`): each cell is one combination of
 the crosses, in the order they are written, and solves on a builder of its
 own, so nothing one cell sets reaches the next:
@@ -67,7 +77,7 @@ from .sweep_csv import CsvOut
 # 2026-09-28): 6 hold; 7 the UI writes the Python, and the deck stub.
 _VIEW_STEP = {an.Knobs: 6}
 _HOLD_STEP = 6
-_RUNS = (an.Rx, an.Table, an.Swr, an.S11, an.Smith, an.Map)
+_RUNS = (an.Rx, an.Table, an.Swr, an.S11, an.Smith, an.Map, *an.PATTERN_VIEWS)
 # The views drawn as panels of one figure (`_views_figure`).
 _PANELS = (an.Swr, an.S11, an.Smith)
 # The views that draw a curve against one swept value.
@@ -187,7 +197,8 @@ def _cross_words(c: an.Cross) -> str:
 
 
 def summary(a: an.Analysis, builder) -> str:
-    """One line: what is swept, over what, into how many curves."""
+    """One line: what is swept, over what, into how many curves (a pattern:
+    at what frequency, into how many patterns)."""
     parts = []
     for s in a.sweeps:
         r = an.resolve(s.knob, builder)
@@ -206,9 +217,11 @@ def summary(a: an.Analysis, builder) -> str:
             what += ", log"
         parts.append(what)
     text = " x ".join(parts)
+    if an.is_pattern(a):
+        text = "pattern" + _pattern_freq_words(builder)
     crosses = " x ".join(_cross_words(c) for c in a.crosses)
     n = a.curves
-    unit = "map" if len(a.sweeps) == 2 else "curve"
+    unit = "pattern" if an.is_pattern(a) else "map" if len(a.sweeps) == 2 else "curve"
     text += f"; {n} {unit}{'s' if n != 1 else ''}" + (
         f" ({crosses})" if crosses else ""
     )
@@ -216,6 +229,14 @@ def summary(a: an.Analysis, builder) -> str:
         held = ", ".join(an._knob_name(k) for k in a.hold.adjust)
         text += f"; hold {a.hold.objective} on {held}"
     return text + f"; views {', '.join(type(v).__name__ for v in a.views)}"
+
+
+def _pattern_freq_words(builder) -> str:
+    """Where a pattern is solved: the design's measurement frequency, which a
+    state or a family may set on a cell (``freq``, the knob `an.FREQUENCY`
+    names)."""
+    f = getattr(builder, "freq", None) if "freq" in an._params(builder) else None
+    return f" at {_fmt(f)} MHz (freq)" if isinstance(f, (int, float)) else ""
 
 
 def _own_range_words(s: an.Sweep, builder) -> str:
@@ -726,6 +747,16 @@ def run(
     probs = an.problems(a, builder) + cli_gaps(a, builder)
     if probs:
         raise SystemExit(f"analysis {a.name!r}: " + "; ".join(probs))
+    if an.is_pattern(a):
+        return _run_patterns(
+            a,
+            builder,
+            session=(builder_factory, factory_for, ground_label_for),
+            session_engine=session_engine,
+            design_seam=design_seam,
+            fn=fn,
+            csv=csv,
+        )
     knob = an.resolve(a.sweeps[0].knob, builder).knob
     is_map = len(a.sweeps) == 2
     if csv is not None and is_map:
@@ -893,6 +924,198 @@ def run(
         )
         save_or_show(plt, _views_fn(fn) if _has(a, an.Rx) else fn)
     return out
+
+
+# ── patterns (AK#1757 step 7) ────────────────────────────────────────────
+
+# The far-field grid every cell is read on: `far_field.compare_patterns`'s,
+# which every engine returns (theta 0..89 from the zenith, phi 0..360 with the
+# seam duplicated, 1-degree steps).
+PATTERN_GRID = {"n_theta": 90, "n_phi": 360, "del_theta": 1, "del_phi": 1}
+
+
+@dataclass(frozen=True)
+class PatternCell:
+    """One solved pattern cell: its measurement frequency, the engine's
+    `FarField` on `PATTERN_GRID`, its metrics, and its ground's label."""
+
+    freq: float
+    ff: object
+    metrics: dict
+    ground_label: str
+
+
+def cut_name(v: an.View) -> str:
+    """A cut view's name, as the CSV's ``cut`` column and the figure say it."""
+    if isinstance(v, an.Elevation):
+        return f"elevation az={_fmt(v.az)}"
+    return f"azimuth el={_fmt(v.el)}"
+
+
+def _grid_index(axis, deg: float, what: str) -> int:
+    hit = np.flatnonzero(np.isclose(np.asarray(axis, float), deg, atol=1e-9))
+    if hit.size == 0:
+        raise ValueError(f"the far-field grid has no {what} = {deg:g} degrees")
+    return int(hit[0])
+
+
+def pattern_cut(ff, v: an.View) -> tuple[np.ndarray, np.ndarray]:
+    """``(angles, dBi)``: cut ``v`` read off the grid ``ff``, sample for
+    sample, never interpolated.
+
+    - `an.Elevation`: angle is the elevation from the cut's horizon (its
+      azimuth ``az``) up over the zenith (90) to the opposite horizon
+      (``az`` + 180), 1..179: the column at ``az`` for 1..90 and the one
+      opposite for 91..179, as ``far_field.plot_patterns`` draws it (less
+      its second copy of the zenith, one direction sampled twice);
+    - `an.Azimuth`: angle is the azimuth 0..359 of the row at the cut's
+      elevation (less the grid's duplicated 360 seam)."""
+    rings = np.asarray(ff.rings, float)
+    thetas = np.asarray(ff.thetas, float)
+    phis = np.asarray(ff.phis, float)
+    if isinstance(v, an.Elevation):
+        front = _grid_index(phis, v.az % 360, "azimuth")
+        back = _grid_index(phis, (v.az + 180) % 360, "azimuth")
+        up = rings[::-1, front]  # theta 89..0: elevation 1..90
+        down = rings[1:, back]  # theta 1..89: elevation 91..179
+        angles = np.concatenate([90.0 - thetas[::-1], 90.0 + thetas[1:]])
+        return angles, np.concatenate([up, down])
+    row = _grid_index(thetas, 90.0 - v.el, "elevation")
+    seam = len(phis) - 1 if np.isclose(phis[-1] - phis[0], 360.0) else len(phis)
+    return phis[:seam].copy(), rings[row, :seam].copy()
+
+
+def _cut_views(a: an.Analysis) -> list[an.View]:
+    return [v for v in a.views if isinstance(v, (an.Elevation, an.Azimuth))]
+
+
+def _run_patterns(
+    a: an.Analysis,
+    builder,
+    *,
+    session: tuple,
+    session_engine: str,
+    design_seam: DesignSeam | None,
+    fn: str | None,
+    csv: CsvOut | None,
+) -> dict:
+    """A pattern analysis: each cell solved once on its own builder and
+    engine (`_prepare`, as every analysis's cell), its far field read on
+    `PATTERN_GRID`, the cuts drawn one panel per cut view with a trace per
+    cell, the metrics table printed. Returns ``{"patterns": {label:
+    PatternCell}, "cuts": {label: {cut name: (angles, dBi)}}, "refused":
+    {label: reason}}``."""
+    from .far_field import engine_pattern_metrics
+
+    cut_views = _cut_views(a)
+    if csv is not None and not cut_views:
+        raise SystemExit(
+            f"analysis {a.name!r}: --csv writes the cuts, and this pattern "
+            "draws none (only an.PatternTable); add an.Elevation or an.Azimuth"
+        )
+    print(f"analysis {a.name!r}: {summary(a, builder)}")
+    refused: dict[str, str] = {}
+    prepared: list[_Prepared] = []
+    for cell in cells(a, session_engine, builder):
+        try:
+            prepared.append(_prepare(cell, a, session, design_seam, False))
+        except _Refused as e:
+            refused[cell.label] = str(e)
+    solved: dict[str, PatternCell] = {}
+    for p in prepared:
+        # As for a curve: an engine declining the design is a refused cell,
+        # any other failure a real error that propagates.
+        try:
+            eng = p.factory(p.builder)
+            ff = eng.far_field(**PATTERN_GRID)
+            metrics = engine_pattern_metrics(eng, ff)
+        except (ValueError, NotImplementedError) as e:
+            refused[p.label] = str(e)
+            continue
+        solved[p.label] = PatternCell(
+            float(p.builder.freq), ff, metrics, p.ground_label
+        )
+    if not solved:
+        _report_refused(refused)
+        raise SystemExit(f"analysis {a.name!r}: every pattern was refused")
+    cuts = {
+        label: {cut_name(v): pattern_cut(c.ff, v) for v in cut_views}
+        for label, c in solved.items()
+    }
+    for label, c in solved.items():
+        print(f"  {label}: {_fmt(c.freq)} MHz, ground: {c.ground_label}")
+    if _has(a, an.PatternTable):
+        from .far_field import _print_metrics_table
+
+        _print_metrics_table(list(solved), [c.metrics for c in solved.values()])
+    _report_refused(refused)
+    if csv is not None:
+        csv.write_rows(*sweep_csv.pattern_table(cuts, [cut_name(v) for v in cut_views]))
+    if cut_views:
+        import matplotlib.pyplot as plt
+
+        from .core import save_or_show
+
+        _pattern_figure(a, cut_views, cuts, list(refused))
+        save_or_show(plt, fn)
+    return {"patterns": solved, "cuts": cuts, "refused": refused}
+
+
+def _pattern_figure(a: an.Analysis, cut_views, cuts, refused) -> None:
+    """One polar panel per cut view, in the analysis's order, a trace per
+    cell in one colour across every panel, and one legend below them:
+    ``far_field.plot_patterns``' dBi axes (its fixed floor and rings), so a
+    pattern analysis reads as ``compare_patterns`` does."""
+    import matplotlib.pyplot as plt
+
+    from .far_field import _finalise_dbi_polar, _init_dbi_polar
+
+    n = len(cut_views)
+    # An elevation cut is a half-disc: a figure of elevation cuts alone is
+    # about half as tall as one holding a full azimuth circle.
+    tall = any(isinstance(v, an.Azimuth) for v in cut_views)
+    fig, axes = plt.subplots(
+        ncols=n,
+        subplot_kw={"projection": "polar"},
+        figsize=(6 * n, 6.5 if tall else 4.4),
+        squeeze=False,
+    )
+    for ax, v in zip(axes[0], cut_views, strict=True):
+        _init_dbi_polar(ax)
+        name = cut_name(v)
+        for i, (label, per) in enumerate(cuts.items()):
+            angles, dbi = per[name]
+            if isinstance(v, an.Azimuth):
+                # Closed round the circle, as the grid's own ring is.
+                angles = np.append(angles, angles[0] + 360.0)
+                dbi = np.append(dbi, dbi[0])
+            ax.plot(np.deg2rad(angles), dbi, color=f"C{i}", label=label)
+        if isinstance(v, an.Elevation):
+            # The classic half-disc: the cut's horizon (0) over the zenith
+            # to the opposite horizon (180).
+            ax.set_thetamin(0)
+            ax.set_thetamax(180)
+            title = f"elevation cut, az {_fmt(v.az)}°→{_fmt((v.az + 180) % 360)}° (dBi)"
+        else:
+            title = f"azimuth cut @ {_fmt(v.el)}° elevation (dBi)"
+        _finalise_dbi_polar(ax, title=title)
+    handles, labels = axes[0][0].get_legend_handles_labels()
+    for r in refused:
+        (h,) = axes[0][0].plot([], [], linestyle="None", marker="x", color="0.5")
+        handles.append(h)
+        labels.append(f"{r}: refused")
+    fig.legend(
+        handles,
+        labels,
+        loc="lower center",
+        ncol=min(len(labels), 3),
+        frameon=False,
+        fontsize=9,
+    )
+    fig.suptitle(a.name, fontsize=11)
+    # Room below the panels for the legend's rows (inches, then a fraction).
+    rows = math.ceil(len(labels) / 3)
+    fig.subplots_adjust(bottom=(0.45 + 0.3 * rows) / fig.get_figheight())
 
 
 # ── the map ──────────────────────────────────────────────────────────────
