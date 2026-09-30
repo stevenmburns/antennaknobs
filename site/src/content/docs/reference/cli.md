@@ -214,8 +214,8 @@ draws, and its views. Under it go the reasons it cannot run here, if any:
   declares no height knob`;
 - `REFUSED`: the curves multiply past the cap of 6, e.g. `2 designs x 4
   engines = 8 curves`;
-- `REFUSED` also names a value a cross lists twice, and a knob that is both
-  swept and stepped;
+- `REFUSED` also names a value a cross lists twice, a knob that is both
+  swept and stepped, and a [state](#states) that sets a knob it may not;
 - `not in the CLI yet (sweep-framework step N)`: a part the command line
   does not run yet (a hold).
 
@@ -238,8 +238,9 @@ role is declared beside the knob's range in `ui_params`, e.g. `"base": {"min":
 declares it. The density role is `nominal_nsegs` on a catalog design; an
 imported `.ssn` marks the knob its `JamSegments` count reads. Its crosses are
 compared as separate curves, one per combination: engines, grounds,
-measurement planes, designs, and a second knob's values (see [Planes, designs
-and families](#planes-designs-and-families)).
+measurement planes, designs, named knob settings, and a second knob's values
+(see [Planes, designs and families](#planes-designs-and-families) and
+[States](#states)).
 
 Every design also offers the library's generic analyses: `convergence` (a
 density ladder), `band SWR`, and `height` where a height knob is declared. A
@@ -392,6 +393,83 @@ Two knobs cannot be the same knob: a family that steps the swept knob, a map
 with one knob on both axes, and a cross that names a value twice are refused
 when listed. The density knob is not stepped or mapped (its ladder is
 `an.convergence`); cross the other knob as a family instead.
+
+### States
+
+A *state* is a named setting of a design: a few knobs, set over the design's
+**defaults**. `an.Cross(states=(...))` crosses them like any other kind, one
+curve per state, multiplied with the other crosses under the same cap of 6.
+The inverted vee's `height states` is the band's SWR at three mast heights:
+
+```python
+an.band_swr(
+    name="height states",
+    sweep=an.Sweep(an.FREQUENCY, 27.5, 30.0, points=26),
+    cross=an.Cross(
+        states=(
+            an.State("as built"),
+            an.State("low mast", base=5.0),
+            an.State("tall mast", base=12.0),
+        ),
+    ),
+    ground="finite-fast",
+)
+```
+
+```bash
+python -m antennaknobs analyze --builder dipoles.invvee --analysis "height states" --fn h.png
+```
+
+```text
+as built: 2:1 BW 1.316 MHz, 27.9976..29.3134 MHz; minimum SWR 1.03 at 28.6 MHz
+low mast: 2:1 BW 1.486 MHz, 28.0969..29.5826 MHz; minimum SWR 1.23 at 28.8 MHz
+tall mast: 2:1 BW 1.353 MHz, 28.011..29.3639 MHz; minimum SWR 1.07 at 28.7 MHz
+```
+
+`an.State("as built")`, with no knobs, is the design as it ships. A state is
+set over the defaults and not over whatever the knobs happen to be, so it
+names the same antenna in every session, on the command line and in the
+workbench alike. Each curve is the design with those knobs set, as `sweep
+--set base=5.0` sets them: the same numbers, to the last bit.
+The curves are labelled by the state's name, and `--csv` writes a column group
+per state (`low mast R_ohm`, `low mast X_ohm`, `low mast SWR`).
+
+A state can name its design, which makes it that design's curve. A study
+can then compare specific settings of different designs, not only their
+defaults, without a `designs=` cross:
+
+```python
+def build_studies():
+    return [
+        an.band_swr(
+            name="feeds at 12 m",
+            cross=an.Cross(
+                states=(
+                    an.State("bridge", design="dipoles.invvee", base=12.0),
+                    an.State("apex", design="dipoles.invvee_apex", base=12.0),
+                )
+            ),
+        ),
+    ]
+```
+
+Such a curve is labelled with its design first, `dipoles.invvee_apex, apex`.
+A state without `design=` is set on the design the analysis runs on. Beside a
+`designs=` cross it is set on every design of the cross, so two designs and
+three states make six curves. A state that names its design *and* a `designs=`
+cross in the same analysis is refused, since the cross would multiply it
+again. In a module-level study, which has no design of its own, every state
+needs a `design=` unless a `designs=` cross carries them.
+
+Refused by name, when listed or, for another design's knob, when that curve
+is built:
+
+- a knob the design does not have;
+- the knob the analysis sweeps (a height sweep and a state setting `base`),
+  the knob its family steps, or one its hold adjusts;
+- the density knob (`nominal_nsegs`): a ladder sweeps it, and any other sweep
+  runs at the engine's own density, so the setting would be undone;
+- two states with the same name (on the same design).
 
 ### Maps
 
