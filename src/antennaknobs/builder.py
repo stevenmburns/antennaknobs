@@ -249,6 +249,15 @@ class AntennaBuilder:
         what is its own."""
         return ()
 
+    def build_studies(self):
+        """This design compared with others (``antennaknobs.studies``,
+        AK#1757 step 7): analyses whose ``an.Cross(designs=(...))`` lists
+        only the OTHER designs, the references. This design is implicit and
+        is always the first cell. Listed on this design's tab only; a study
+        of peers that names every design is a module-level
+        ``build_studies()`` function instead."""
+        return ()
+
     def build_wire_material(self):
         """Return a `WireSpec` (see `antennaknobs.network.WIRES`) describing
         the antenna wire's conductor and insulation, or None for the classic

@@ -82,6 +82,12 @@ os.environ.setdefault(
     "ANTENNAKNOBS_USER_DIR",
     tempfile.mkdtemp(prefix="antennaknobs_userdesigns_test_"),
 )
+# The same for the user studies folder (AK#1757 step 7): a developer's own
+# ~/.antennaknobs/studies must never reach a test's listing.
+os.environ.setdefault(
+    "ANTENNAKNOBS_STUDIES_DIR",
+    tempfile.mkdtemp(prefix="antennaknobs_userstudies_test_"),
+)
 
 # Blanket-trust user designs for the suite so tests that load them don't each
 # have to grant trust (the trust gate is exercised specifically in

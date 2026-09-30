@@ -42,6 +42,15 @@ already edit ``.trust.json`` itself — store integrity is assumed either way.)
 Legacy absolute keys are migrated to relative on load; a design outside the
 store's directory (``$ANTENNAKNOBS_TRUST_FILE`` pointing elsewhere) still
 keys by absolute path.
+
+Study files (``~/.antennaknobs/studies/``, AK#1757 step 7) are Python too, and
+go through this same gate with a store of their OWN, ``.trust.json`` in the
+studies folder (`_store_for`). That is the relative-key rule above applied to
+a second folder, not a new model: a study's record is keyed by its path
+relative to the studies folder, nested folders included (``"feeds/e7.py"``),
+so the folder travels as the designs folder does. One shared store could not
+do that, since a studies file lies outside the designs store's directory and
+would key by absolute path.
 """
 
 from __future__ import annotations
@@ -93,30 +102,47 @@ def store_path() -> Path:
     return default_user_dir() / ".trust.json"
 
 
+def _store_for(path: Path) -> Path:
+    """The store that records ``path``: the studies folder's own when the
+    file lives under it (module docstring), else the design store."""
+    # Local import, as `store_path` does: `studies` imports this module.
+    from .studies import default_studies_dir
+
+    studies = default_studies_dir().expanduser().resolve()
+    try:
+        Path(path).resolve().relative_to(studies)
+    except ValueError:
+        return store_path()
+    return studies / ".trust.json"
+
+
 def content_hash(path: Path) -> str:
     """SHA-256 of a file's bytes — the identity a ``pinned`` record checks."""
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def _resolved_key(path: Path) -> str:
+def _resolved_key(path: Path, store: Path | None = None) -> str:
     """The store key for a design: its path relative to the store's own
     directory when it lives there (portable across mount points — see the
-    module docstring), else its resolved absolute path."""
+    module docstring), else its resolved absolute path. A nested study keys
+    with forward slashes on every platform, so a store moved between
+    machines still matches."""
+    store = _store_for(path) if store is None else store
     resolved = Path(path).resolve()
     try:
-        return str(resolved.relative_to(store_path().resolve().parent))
+        return resolved.relative_to(store.resolve().parent).as_posix()
     except ValueError:
         return str(resolved)
 
 
-def _migrate_keys(designs: dict) -> dict:
+def _migrate_keys(designs: dict, store: Path | None = None) -> dict:
     """Rewrite legacy absolute keys that point inside the store's directory
     to the relative form (pre-portability stores; a folder that has been
     mounted at several paths may carry SEVERAL absolute spellings of the
     same file). On collision an ``always`` record wins over ``pinned`` —
     both were explicit user grants, and ``always`` is the broader one the
     user has stated for the file."""
-    store_dir = store_path().resolve().parent
+    store_dir = (store_path() if store is None else store).resolve().parent
     migrated: dict = {}
     for key, rec in designs.items():
         p = Path(key)
@@ -144,20 +170,20 @@ def _migrate_keys(designs: dict) -> dict:
     return migrated
 
 
-def _load_store() -> dict:
-    p = store_path()
+def _load_store(p: Path | None = None) -> dict:
+    p = store_path() if p is None else p
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
     except (FileNotFoundError, ValueError, OSError):
         return {"version": _STORE_VERSION, "designs": {}}
     if not isinstance(data, dict) or "designs" not in data:
         return {"version": _STORE_VERSION, "designs": {}}
-    data["designs"] = _migrate_keys(data["designs"])
+    data["designs"] = _migrate_keys(data["designs"], p)
     return data
 
 
-def _save_store(store: dict) -> None:
-    p = store_path()
+def _save_store(store: dict, p: Path | None = None) -> None:
+    p = store_path() if p is None else p
     p.parent.mkdir(parents=True, exist_ok=True)
     # Write-then-rename so a crash can't leave a half-written store.
     tmp = p.with_suffix(p.suffix + ".tmp")
@@ -171,7 +197,8 @@ def is_trusted(path: Path) -> bool:
     ``pinned`` record whose hash matches the file's current contents."""
     if trust_all_enabled():
         return True
-    rec = _load_store()["designs"].get(_resolved_key(path))
+    where = _store_for(path)
+    rec = _load_store(where)["designs"].get(_resolved_key(path, where))
     if not rec:
         return False
     if rec.get("mode") == "always":
@@ -190,28 +217,31 @@ def trust(path: Path, *, mode: str = "pinned") -> None:
     edits (for a file you author). Raises ``ValueError`` on an unknown mode."""
     if mode not in ("pinned", "always"):
         raise ValueError(f"unknown trust mode {mode!r}; use 'pinned' or 'always'")
-    store = _load_store()
+    where = _store_for(path)
+    store = _load_store(where)
     if mode == "always":
         rec = {"mode": "always"}
     else:
         rec = {"mode": "pinned", "sha256": content_hash(path)}
-    store["designs"][_resolved_key(path)] = rec
-    _save_store(store)
+    store["designs"][_resolved_key(path, where)] = rec
+    _save_store(store, where)
 
 
 def untrust(path: Path) -> bool:
     """Remove any trust record for a design. Returns True if one was removed."""
-    store = _load_store()
-    if store["designs"].pop(_resolved_key(path), None) is None:
+    where = _store_for(path)
+    store = _load_store(where)
+    if store["designs"].pop(_resolved_key(path, where), None) is None:
         return False
-    _save_store(store)
+    _save_store(store, where)
     return True
 
 
 def trust_status(path: Path) -> str:
     """One of ``"always"``, ``"pinned"`` (current contents trusted),
     ``"stale"`` (a pinned record exists but the file changed), or ``"none"``."""
-    rec = _load_store()["designs"].get(_resolved_key(path))
+    where = _store_for(path)
+    rec = _load_store(where)["designs"].get(_resolved_key(path, where))
     if not rec:
         return "none"
     if rec.get("mode") == "always":
