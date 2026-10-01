@@ -471,6 +471,13 @@ is built:
   runs at the engine's own density, so the setting would be undone;
 - two states with the same name (on the same design).
 
+One state may set the swept, stepped and held knobs: a `MetricPlot`'s
+fixed reference (its `relative_to` cell, when that state sets the swept knob
+or its design has no such knob; see [Metrics you define](#metrics-you-define)).
+It is solved once at its own setting, outside the sweep, the family and the
+hold, so a knob any of them moves is its own to set. M0AGP's `vertical` sets
+both the swept `vert_ft` and the held `horiz_ft`.
+
 ### Holds
 
 An analysis can hold an objective at every point while its knob sweeps: keep
@@ -730,7 +737,11 @@ an.Analysis(
 - A reference whose state sets the swept knob (as here), or whose design has
   no such knob, is *fixed*. It is solved once at its own setting, drawn flat,
   and subtracted at every x. That is how a new antenna is compared with a
-  standard one while one of its own knobs moves.
+  standard one while one of its own knobs moves. Being outside the sweep, the
+  family and the hold, a fixed reference's state may set the swept knob, the
+  stepped knob and a held knob, which any other state is refused (see
+  [States](#states)): M0AGP's `vertical` sets `vert_ft` and the held
+  `horiz_ft`.
 
 `analyze` prints a table per cell, writes the plot (as `<fn>-metrics.png`
 beside an `Rx` chart), and `--csv` adds `<cell> <metric> (unit)` and
