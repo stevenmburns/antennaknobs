@@ -17,6 +17,11 @@ curve per listed cell; the `Rx`, `Table`, `Swr`,
 and the map's contours. A frequency sweep solves through ``sweep.swr_curve``,
 the solve behind ``sweep --swr``, over `frequency_range.design_range` when
 the spec gives no range: the rule ``sweep --swr`` and the workbench read.
+A HOLD (AK#1757 step 6) on a knob sweep runs the workbench's optimizer at
+every point of every cell (`hold_cell`, ``antennaknobs.hold``), each cell on
+its own builder from its own defaults: a point's Z is the optimum's, a point
+the optimizer does not converge at is a gap (NaN on the curve, its reason
+printed), and `an.Knobs` draws the held knobs against x.
 Everything else is refused by name, with the step it is planned for, when
 the analysis is listed and when it is asked to run.
 
@@ -73,13 +78,12 @@ import numpy as np
 
 from . import analyses as an
 from . import frequency_range as fr
-from . import sweep_csv
+from . import hold, sweep_csv
 from .sweep_csv import CsvOut
 
 # The sweep-framework step each refused piece is planned for (Steve,
-# 2026-09-28): 6 hold; 7 the UI writes the Python, and the deck stub.
-_VIEW_STEP = {an.Knobs: 6}
-_HOLD_STEP = 6
+# 2026-09-28). Every view has landed: holds and the Knobs view in step 6.
+_VIEW_STEP: dict = {}
 _RUNS = (
     an.Rx,
     an.Table,
@@ -88,6 +92,7 @@ _RUNS = (
     an.Smith,
     an.Map,
     an.MetricPlot,
+    an.Knobs,
     *an.PATTERN_VIEWS,
 )
 # The views drawn as panels of one figure (`_views_figure`).
@@ -192,8 +197,9 @@ def cli_gaps(a: an.Analysis, builder=None) -> list[str]:
     """What refuses ``a`` as a whole in the CLI (on ``builder``, when
     given, which resolves a knob named directly)."""
     out = []
-    if a.hold is not None:
-        out.append(_later("hold (optimise at each point)", _HOLD_STEP))
+    held = hold.analysis_refusal(a, builder)
+    if held:
+        out.append(held)
     moved = density_moved(a, builder)
     if moved:
         out.append(moved)
@@ -922,6 +928,10 @@ def run(
     # One (label, xs, Z at port 0) per curve that solved: what the Swr, S11
     # and Smith panels draw, whatever was swept.
     curves = []
+    # A held analysis's points per curve (step 6): the knobs and verdicts.
+    held: dict[str, list[hold.HeldPoint]] = {}
+    if a.hold is not None:
+        out["held"] = held
     nports = 1
     # A refusal is the engine declining the design (NEC-2 and a vertex feed),
     # which every engine raises as ValueError / NotImplementedError, or a
@@ -987,8 +997,22 @@ def run(
             if frequency and not np.array_equal(xs, session_xs):
                 print(f"  {p.label}: {_grid_words(s, p.builder, xs)}")
             try:
-                zs = _solve_line(p.builder, s, p.knobs[0], xs, p.factory, z0)
+                if a.hold is not None:
+                    # A held line (step 6): the optimizer at every point,
+                    # each point's Z at its optimised knobs, a gap a NaN.
+                    pts = hold_cell(p, a, xs, z0)
+                    held[p.label] = pts
+                    zs = np.array(
+                        [
+                            [pt.z if pt.converged else complex(np.nan, np.nan)]
+                            for pt in pts
+                        ]
+                    )
+                else:
+                    zs = _solve_line(p.builder, s, p.knobs[0], xs, p.factory, z0)
             except (ValueError, NotImplementedError) as e:
+                # HoldRefused is a ValueError: a cell the hold cannot serve
+                # (a knob with no range there, a multi-feed design).
                 refused[p.label] = str(e)
                 continue
             nports = max(nports, zs.shape[1])
@@ -1001,7 +1025,9 @@ def run(
             csv.write(
                 "MHz" if frequency else knob,
                 [
-                    sweep_csv.impedance_curve(
+                    held_csv_curve(name, held[name])
+                    if name in held
+                    else sweep_csv.impedance_curve(
                         name, x, z, swr_of(z, z0) if frequency else None
                     )
                     for name, x, z in curves
@@ -1013,8 +1039,13 @@ def run(
         if _has(a, an.Table):
             if frequency:
                 _print_frequency_table(curves, ground_label, z0)
+            elif held:
+                _print_held_table(knob, held, ground_label)
             else:
                 _print_sweep_table(knob, curves, ground_label)
+        for label, pts in held.items():
+            for line in held_lines(label, knob, pts, a.hold):
+                print(line)
         _report_refused(refused)
         xlabel = sw._param_label(knob)
         # Planes crossed: no one port is "the" plane the title could name.
@@ -1062,7 +1093,135 @@ def run(
     if plots:
         _metric_figure(a, plots, out["metrics"], builder, knob, list(refused))
         save_or_show(plt, _views_fn(fn, "-metrics"))
+    if a.hold is not None and _has(a, an.Knobs) and not density:
+        _knobs_figure(held, xlabel=xlabel, log_x=log, a=a, refused=list(refused))
+        first = _has(a, an.Rx) or bool(panels) or bool(plots)
+        save_or_show(plt, _views_fn(fn, "-knobs") if first else fn)
     return out
+
+
+# ── holds (AK#1757 step 6) ───────────────────────────────────────────────
+
+
+def hold_cell(p: _Prepared, a: an.Analysis, xs, z0: float) -> list[hold.HeldPoint]:
+    """One cell's held line: the hold's knobs on the cell's own builder,
+    bounded by their ``ui_params`` (`hold.free_of`), starting from that
+    builder's values (its design's defaults, a state's or family's settings
+    over them), each point solved through the cell's engine factory at the
+    hold's Z0 (the session's when it names none). `hold.HoldRefused` names a
+    cell the hold cannot serve."""
+    free = hold.free_of(a.hold, p.builder)
+    z0h = a.hold.z0 if a.hold.z0 is not None else z0
+    return hold.hold_line(
+        [float(x) for x in xs],
+        p.knobs[0],
+        free,
+        a.hold.objective,
+        solve_fn=hold.builder_solve_fn(p.builder, p.factory, z0h),
+        defaults=hold.defaults_of(p.builder, free),
+        warm_start=a.hold.warm_start,
+    )
+
+
+def held_lines(label: str, knob: str, pts, h: an.Hold) -> list[str]:
+    """What a held curve says beside its numbers: one summary line, then
+    every gap with its reason, and where the recovery cold-started."""
+    gaps = [pt for pt in pts if not pt.converged]
+    names = ", ".join(an._knob_name(k) for k in h.adjust)
+    solves = sum(pt.n_solves for pt in pts)
+    resid = [pt.residual for pt in pts if pt.converged and pt.residual is not None]
+    worst = f", worst residual {max(resid):.3g} ohm" if resid else ""
+    lines = [
+        f"{label}: held {h.objective} on {names}: {len(pts) - len(gaps)} of "
+        f"{len(pts)} points held, {len(gaps)} gap{'s' if len(gaps) != 1 else ''}, "
+        f"{solves} solves{worst}"
+    ]
+    for i, pt in enumerate(pts):
+        restart = pt.cold and i > 0 and h.warm_start
+        if not pt.converged:
+            lines.append(f"  gap at {knob} = {_fmt(pt.x)}: {pt.reason}")
+        if restart:
+            lines.append(
+                f"  {knob} = {_fmt(pt.x)}: cold start from the defaults "
+                f"({'held' if pt.converged else 'given up'})"
+            )
+    return lines
+
+
+def _print_held_table(knob, held, ground_label):
+    """The `Table` view of a held sweep: x, R, X and the held knobs per
+    curve, a gap's row its reason."""
+    for name, pts in held.items():
+        print(f"== {knob} sweep, held: {name} ==")
+        print(f"ground: {ground_label[name]}")
+        names = list(pts[0].params) if pts else []
+        head = f"{knob:>12} {'R (Ω)':>9} {'X (Ω)':>9}"
+        print(head + "".join(f" {n:>14}" for n in names))
+        for pt in pts:
+            if not pt.converged:
+                print(f"{pt.x:>12.6g}  gap: {pt.reason}")
+                continue
+            z = pt.z
+            row = f"{pt.x:>12.6g} {z.real:>9.3f} {z.imag:>+9.3f}"
+            print(row + "".join(f" {pt.params[n]:>14.6g}" for n in names))
+
+
+def held_csv_curve(label, pts) -> sweep_csv.Curve:
+    """A held curve's CSV columns: R and X, then each held knob, a gap's
+    cells left empty (never a value the hold did not reach)."""
+    names = list(pts[0].params) if pts else []
+
+    def col(f):
+        return [f(pt) if pt.converged else None for pt in pts]
+
+    cols = [("R_ohm", col(lambda pt: pt.z.real)), ("X_ohm", col(lambda pt: pt.z.imag))]
+    cols += [(n, col(lambda pt, n=n: pt.params[n])) for n in names]
+    return label, [pt.x for pt in pts], cols
+
+
+def _knobs_figure(held, *, xlabel, log_x, a: an.Analysis, refused) -> None:
+    """The `Knobs` view: each held knob against x, one panel per knob, one
+    line per curve; a gap breaks the line and is marked on the x axis."""
+    import matplotlib.pyplot as plt
+
+    names = []
+    for pts in held.values():
+        for n in pts[0].params if pts else ():
+            if n not in names:
+                names.append(n)
+    rows = max(1, len(names))
+    fig, axes = plt.subplots(rows, 1, figsize=(9.0, 2.8 + 2.4 * rows), sharex=True)
+    axes = list(np.atleast_1d(axes))
+    for ax, n in zip(axes, names, strict=False):
+        for i, (label, pts) in enumerate(held.items()):
+            xs = [pt.x for pt in pts]
+            ys = [pt.params[n] if pt.converged else np.nan for pt in pts]
+            color = f"C{i % 10}"
+            ax.plot(xs, ys, color=color, marker="o", ms=3, lw=1.3, label=label)
+            gx = [pt.x for pt in pts if not pt.converged]
+            if gx:
+                ax.plot(
+                    gx,
+                    [0.03] * len(gx),
+                    linestyle="None",
+                    marker="x",
+                    color=color,
+                    transform=ax.get_xaxis_transform(),
+                    label=f"{label}: gap",
+                )
+        ax.set_ylabel(n)
+        ax.yaxis.get_major_formatter().set_useOffset(False)
+        ax.grid(True, alpha=0.3)
+    if log_x:
+        axes[-1].set_xscale("log")
+    axes[-1].set_xlabel(xlabel)
+    for name in refused:
+        axes[0].plot(
+            [], [], linestyle="None", marker="x", color="0.5", label=f"{name}: refused"
+        )
+    axes[0].legend(fontsize=7, frameon=False)
+    axes[0].set_title(f"{a.name}: the knobs that hold {a.hold.objective}", fontsize=10)
+    fig.tight_layout()
 
 
 # ── patterns (AK#1757 step 7) ────────────────────────────────────────────

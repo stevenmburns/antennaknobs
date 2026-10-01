@@ -201,13 +201,29 @@ def test_a_role_and_a_name_meeting_on_one_knob_is_refused_when_listed():
     ]
 
 
-def test_analyze_refuses_a_hold_by_name(capsys):
-    why = "hold (optimise at each point): not in the CLI yet (sweep-framework step 6)"
-    with pytest.raises(SystemExit, match=re.escape(why)):
-        cli(["analyze", "--builder", "dipoles.invvee", "--analysis", "match vs height"])
+def test_analyze_lists_the_holds_as_runnable_and_refuses_what_v1_cannot_hold(capsys):
+    # Step 6: E8 and E9 run (tests/test_hold_1757.py runs them); --list names
+    # no problem under either. What v1 cannot hold is refused by name.
     cli(["analyze", "--builder", "dipoles.invvee", "--list"])
     out = capsys.readouterr().out
-    assert re.search(r"^resonance vs angle .*\n +" + re.escape(why), out, re.M), out
+    for name in ("match vs height", "resonance vs angle"):
+        line = re.search(rf"^{re.escape(name)} .*\n(?P<next>.*)", out, re.M)
+        assert line, out
+        assert "not in the CLI yet" not in line["next"]
+    b = get_builder("dipoles.invvee")()
+    hold = an.Hold("resonance", adjust=("length_factor",))
+    freq = an.Analysis("f", an.Sweep(an.FREQUENCY), hold=hold)
+    assert any(
+        "a hold on a frequency sweep: not in v1" in w for w in ar.cli_gaps(freq, b)
+    )
+    dens = an.Analysis("d", an.Sweep(an.DENSITY), hold=hold)
+    assert any(
+        "a hold on a density ladder: not in v1" in w for w in ar.cli_gaps(dens, b)
+    )
+    swr = an.Analysis(
+        "s", an.Sweep("angle_deg"), hold=an.Hold("swr", adjust=("length_factor",))
+    )
+    assert any(w.startswith("hold swr:") for w in ar.cli_gaps(swr, b))
 
 
 def test_a_malformed_spec_refuses_at_construction_by_name():
@@ -564,7 +580,7 @@ class _Gain(an.View):
 
 @dataclass(frozen=True)
 class _MyKnobs(an.Knobs):
-    """A subclass of a planned view is that view."""
+    """A subclass of a view is that view."""
 
 
 @dataclass(frozen=True)
@@ -591,15 +607,14 @@ def test_a_views_own_class_is_refused_by_name_not_a_keyerror():
     assert why == gap
 
 
-def test_a_subclass_of_a_planned_view_takes_that_views_step():
+def test_a_subclass_of_a_view_is_that_view():
+    # Knobs was planned for step 6 and draws since: a subclass draws too.
     a = an.Analysis(
         "k",
         an.Sweep("angle_deg", 0, 60, points=5),
         hold=an.Hold("resonance", adjust=("length_factor",)),
         views=(_MyKnobs(),),
     )
-    assert "the _MyKnobs view: not in the CLI yet (sweep-framework step 6)" in (
-        ar.cli_gaps(a)
-    )
+    assert ar.cli_gaps(a) == []
     pair = (an.Sweep("length_factor", 0.9, 1.0), an.Sweep("angle_deg", 0, 60))
     assert ar.cli_gaps(an.Analysis("m", pair, views=(_MyMap(),))) == []

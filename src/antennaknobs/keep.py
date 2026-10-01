@@ -351,16 +351,26 @@ def ground_of(req: Mapping, who: str) -> str:
     return f"{kind}:{_fmt(soil[0])},{_fmt(soil[1])}"
 
 
-def pin_cell(pin: Mapping, *, swept: str | None, who: str, notes: list[str]) -> an.Cell:
+def pin_cell(
+    pin: Mapping,
+    *,
+    swept: str | None,
+    who: str,
+    notes: list[str],
+    moved: set | None = None,
+) -> an.Cell:
     """One pin as one cell (module docstring): ``pin["req"]`` is the solve
     request its curve was solved with, and everything the cell says comes
     from it: the design, variant and changed knobs (`changed_knobs`), the
     engine (`engine_of`), the ground (`ground_of`) and the plane. ``swept``
-    is the knob the pins sweep, left out of the state (the sweep sets it)."""
+    is the knob the pins sweep, left out of the state (the sweep sets it);
+    ``moved`` every knob the analysis moves (the swept one, a hold's), when
+    given in its place."""
     req = pin.get("req")
     if not isinstance(req, Mapping):
         raise KeepError(f"{who}: no solve request to keep")
-    design, variant, knobs = changed_knobs(req, {swept} if swept else ())
+    skip = moved if moved is not None else ({swept} if swept else set())
+    design, variant, knobs = changed_knobs(req, skip)
     plane = req.get("plane")
     if plane is not None and not (isinstance(plane, str) and plane):
         raise KeepError(f"{who}: plane is a port name, got {plane!r}")
@@ -583,11 +593,17 @@ def analysis_from_pins(pins, *, kind: str, name) -> tuple[an.Analysis, list[str]
         swept = None
     else:
         raise KeepError(f"pins are sweep or pattern pins, got {kind!r}")
+    held = _pins_hold(pins, x_kind)
+    moved = {swept} if swept else set()
+    if held is not None:
+        # The held knobs move at every point (and start from the design's
+        # defaults), so they are no part of a pin's state either.
+        moved |= {k for k in held.adjust if isinstance(k, str)}
     cells: list[an.Cell] = []
     for i, p in enumerate(pins, start=1):
         label = p.get("label")
         who = f"pin {i}" + (f" ({label})" if isinstance(label, str) and label else "")
-        cell = pin_cell(p, swept=swept, who=who, notes=notes)
+        cell = pin_cell(p, swept=swept, who=who, notes=notes, moved=moved)
         if cell in cells:
             notes.append(f"{who} is the same cell as an earlier pin; it is kept once.")
             continue
@@ -604,6 +620,8 @@ def analysis_from_pins(pins, *, kind: str, name) -> tuple[an.Analysis, list[str]
         target = {"frequency": an.FREQUENCY, "density": an.DENSITY}.get(x_kind, x_name)
         sweep = an.Sweep(target, values=values)
         views = (an.Swr(), an.Rx()) if x_kind == "frequency" else (an.Rx(),)
+        if held is not None:
+            views = (an.Rx(), an.Knobs())
         default = "pinned sweeps"
     else:
         sweep = None
@@ -615,9 +633,38 @@ def analysis_from_pins(pins, *, kind: str, name) -> tuple[an.Analysis, list[str]
         name=(name or "").strip() or default,
         sweep=sweep,
         views=views,
+        hold=held,
         **_cross_of(cells),
     )
     return a, notes
+
+
+def _pins_hold(pins, x_kind) -> an.Hold | None:
+    """The hold the pins were drawn under (AK#1757 step 6): a pin of a held
+    curve carries it in its request (``req["hold"]``, as ``/analyses``
+    served it), and its Z at each x is the optimum's, not the request's
+    knobs'. Kept as a plain knob sweep it would be another curve, silently;
+    so every pin holds the same, or the keep is refused by name."""
+    holds = [
+        p["req"].get("hold") if isinstance(p.get("req"), Mapping) else None
+        for p in pins
+    ]
+    if all(h is None for h in holds):
+        return None
+    if any(h != holds[0] for h in holds):
+        raise KeepError(
+            "some pins were drawn under a hold and some not, or under different "
+            "holds; a study holds one way: keep each set on its own"
+        )
+    if x_kind != "knob":
+        raise KeepError("a held pin sweeps a knob; these sweep " + str(x_kind))
+    try:
+        h = an.from_data(holds[0])
+    except (TypeError, ValueError) as e:
+        raise KeepError(f"the pins' hold: {e}") from None
+    if not isinstance(h, an.Hold):
+        raise KeepError("the pins' hold is not an an.Hold")
+    return h
 
 
 # ── a chart ──────────────────────────────────────────────────────────────────
