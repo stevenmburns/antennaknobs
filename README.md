@@ -107,6 +107,7 @@
 | src/antennaknobs/designs/verticals/inverted\_l.py                    |       25 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/inverted\_l\_tmatch.py            |       10 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/jpole.py                          |       16 |        0 |    100% |           |
+| src/antennaknobs/designs/verticals/m0agp\_invl.py                    |       28 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/phased\_verticals.py              |       19 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/pota\_performer.py                |       30 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/raised\_vertical.py               |       22 |        0 |    100% |           |
@@ -203,7 +204,7 @@
 | src/antennaknobs/web/user\_designs.py                                |       68 |        6 |     91% |60-61, 92-93, 98-99 |
 | src/antennaknobs/wire\_catalog.py                                    |      188 |        0 |    100% |           |
 | src/antennaknobs/zinf.py                                             |      123 |        2 |     98% |   80, 135 |
-| **TOTAL**                                                            | **26578** | **1667** | **94%** |           |
+| **TOTAL**                                                            | **26606** | **1667** | **94%** |           |
 
 
 ## Setup coverage badge
