@@ -30,6 +30,9 @@ apply, and the entry it names keeps its built-in default.
     n_per_wire = 15
     model = { degree = 2 }
 
+    [workbench.run_on_pick]  # does picking an analysis start it?
+    knob = true              # frequency, pattern, knob, held, convergence, map
+
 The path is ``$ANTENNAKNOBS_SETTINGS`` when set (the packaged workbench's
 ``--settings PATH`` sets it), else ``~/.antennaknobs/settings.toml``. The hosted
 instance reads no file and writes none.
@@ -115,7 +118,29 @@ STOCK_GROUNDS: tuple[tuple[str, dict], ...] = (
     ("3", {"method": "sommerfeld", "soil": "average"}),
 )
 
-_TABLES = ("switches", "antenna_view", "ground", "grounds", "slots")
+# Does picking an analysis in a chart's picker start it (AC6LA, QRZ 1003328
+# #179)? Per KIND of analysis, as the frontend classifies it
+# (lib/analysisChart.ts runOnPickKind): a study counts as the kind of analysis
+# it is. A frequency sweep and a pattern are a few seconds and start at once,
+# as they always have; a knob sweep, a held one (an optimisation at every
+# point), a density ladder and a 2-D map are minutes, so the pick only selects
+# them and the chart waits for Run, where its settings can be changed first.
+# `map` is a valid key before the workbench draws a map (sweep-framework step
+# 5), so a file can say it now. A deep link's run=1 always runs (AK#1838).
+# Pinned to lib/settings.ts's BUILTIN_RUN_ON_PICK by
+# tests/test_settings_run_on_pick.py.
+RUN_ON_PICK: tuple[tuple[str, bool], ...] = (
+    ("frequency", True),
+    ("pattern", True),
+    ("knob", False),
+    ("held", False),
+    ("convergence", False),
+    ("map", False),
+)
+_RUN_ON_PICK_KINDS = tuple(k for k, _ in RUN_ON_PICK)
+_WORKBENCH_KEYS = ("run_on_pick",)
+
+_TABLES = ("switches", "antenna_view", "ground", "grounds", "slots", "workbench")
 # Tables only a person editing the file sets (antennaknobs.settings_file): a
 # path the server executes must never be settable by a web request.
 _FILE_TABLES = ("engines", "capture")
@@ -229,12 +254,16 @@ def _known(keys) -> str:
     return ", ".join(keys)
 
 
-def resolve(data, cat: Catalog, *, from_file: bool = True) -> tuple[dict, list[str]]:
+def resolve(
+    data, cat: Catalog, *, from_file: bool = True, source: Path | str | None = None
+) -> tuple[dict, list[str]]:
     """Validate a settings mapping (a parsed file or, with ``from_file=False``,
     a posted body). Returns the resolved settings and the problems found; every
     entry a problem names is dropped, so what comes back is always safe to
-    apply. A posted body may not carry ``[engines]`` or ``[capture]``."""
+    apply. A posted body may not carry ``[engines]`` or ``[capture]``.
+    ``source`` (the file's path) is named by the problems that name a file."""
     problems: list[str] = []
+    run_on_pick = dict(RUN_ON_PICK)
     switches = {k: d for k, _, d in SWITCHES}
     switches_set: list[str] = []
     antenna_view = dict(ANTENNA_VIEW_BUILTIN)
@@ -251,9 +280,10 @@ def resolve(data, cat: Catalog, *, from_file: bool = True) -> tuple[dict, list[s
             slots,
             antenna_view,
             grounds=[dict(g) for g in cat.stock_grounds],
+            run_on_pick=run_on_pick,
         ), [
             "settings must be a table of [switches], [antenna_view], [ground], "
-            "[grounds] and [slots]"
+            "[grounds], [slots] and [workbench]"
         ]
     allowed = _TABLES + _FILE_TABLES if from_file else _TABLES
     for key in data:
@@ -326,6 +356,8 @@ def resolve(data, cat: Catalog, *, from_file: bool = True) -> tuple[dict, list[s
         if override:
             slots[slot] = override
 
+    run_on_pick.update(_run_on_pick(data, source, problems))
+
     engines = (
         _paths(data, "engines", _ENGINE_KEYS, "an engine", problems)
         if from_file
@@ -350,6 +382,7 @@ def resolve(data, cat: Catalog, *, from_file: bool = True) -> tuple[dict, list[s
             capture,
             grounds=grounds,
             ground_spelling=spelling,
+            run_on_pick=run_on_pick,
         ),
         problems,
     )
@@ -498,6 +531,45 @@ def _resolve_grounds(data, legacy, legacy_ground, legacy_set, cat: Catalog, prob
     return grounds, spelling, slot1_set
 
 
+def _run_on_pick(data, source, problems) -> dict:
+    """The ``[workbench.run_on_pick]`` entries that are valid: a kind of
+    analysis (RUN_ON_PICK) set to true or false. An unknown kind or a value
+    that is not a boolean is named, with the file, and keeps its default,
+    so a typo never silently starts (or stops starting) a sweep."""
+    where = f" in {source}" if source else ""
+    workbench = data.get("workbench", {})
+    if not isinstance(workbench, Mapping):
+        problems.append(f"[workbench] must be a table{where}")
+        return {}
+    for key in workbench:
+        if key not in _WORKBENCH_KEYS:
+            problems.append(
+                f"[workbench] {key}{where}: not a workbench setting "
+                f"(known: {_known(_WORKBENCH_KEYS)})"
+            )
+    table = workbench.get("run_on_pick", {})
+    if not isinstance(table, Mapping):
+        problems.append(
+            f"[workbench] run_on_pick{where} must be a table, "
+            "e.g. [workbench.run_on_pick] with knob = true"
+        )
+        return {}
+    out = {}
+    for key, value in table.items():
+        if key not in _RUN_ON_PICK_KINDS:
+            problems.append(
+                f"[workbench.run_on_pick] {key}{where}: not a kind of analysis "
+                f"(known: {_known(_RUN_ON_PICK_KINDS)})"
+            )
+        elif not isinstance(value, bool):
+            problems.append(
+                f"[workbench.run_on_pick] {key} = {value!r}{where}: must be true or false"
+            )
+        else:
+            out[key] = value
+    return out
+
+
 def _paths(data, table_name, keys, what, problems) -> dict:
     """A table of path strings (``[engines]``, ``[capture]``)."""
     table = data.get(table_name, {})
@@ -613,6 +685,7 @@ def _resolved(
     *,
     grounds,
     ground_spelling="ground",
+    run_on_pick=None,
 ) -> dict:
     return {
         "switches": switches,
@@ -626,6 +699,9 @@ def _resolved(
         # Which table spelled slot 1, for the save to write it the same way.
         "_ground_spelling": ground_spelling,
         "slots": slots,
+        # Does picking an analysis start it, per kind (AC6LA #179): always
+        # every kind, the file's over the defaults.
+        "workbench": {"run_on_pick": run_on_pick or dict(RUN_ON_PICK)},
         "engines": engines or {},
         "capture": capture or {},
     }
@@ -669,7 +745,7 @@ def load(cat: Catalog, *, hosted: bool, path: Path | None = None) -> dict:
         except OSError as exc:
             problems = [f"{p} could not be read ({exc}); the built-in defaults apply"]
         else:
-            resolved, problems = resolve(data, cat)
+            resolved, problems = resolve(data, cat, source=p)
     if tuple(problems) != _last_logged:
         for problem in problems:
             _logger.warning("settings: %s", problem)
@@ -745,12 +821,18 @@ def _differences(resolved: dict, cat: Catalog) -> dict:
             diff = _slot_differences(resolved["slots"][slot], stock.get(slot), cat)
             if diff:
                 slots[slot] = diff
+    run_on_pick = {
+        key: resolved["workbench"]["run_on_pick"][key]
+        for key, default in RUN_ON_PICK
+        if resolved["workbench"]["run_on_pick"][key] != default
+    }
     return {
         "switches": switches,
         "antenna_view": antenna_view,
         "ground": ground,
         "grounds": grounds,
         "slots": slots,
+        "run_on_pick": run_on_pick,
     }
 
 
@@ -816,7 +898,8 @@ def _slot_differences(entry: Mapping, seed: Mapping | None, cat: Catalog) -> dic
 
 def dump(settings: dict, kept: Mapping | None = None) -> str:
     """TOML text for what a save writes (``_differences``): its switches,
-    antenna view, ground and slots, then the hand-edited tables carried over verbatim. A
+    antenna view, ground and slots, which kinds of analysis a pick starts,
+    then the hand-edited tables carried over verbatim. A
     table with nothing in it is left out."""
     stamp = _dt.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
     lines = [
@@ -850,6 +933,9 @@ def dump(settings: dict, kept: Mapping | None = None) -> str:
                 f"{k} = {_toml_value(v)}" for k, v in entry["model"].items()
             )
             lines.append(f"model = {{ {inner} }}")
+    if settings.get("run_on_pick"):
+        lines += ["", "[workbench.run_on_pick]"]
+        lines += [f"{k} = {_toml_value(v)}" for k, v in settings["run_on_pick"].items()]
     # The hand-edited tables the page never writes, carried over verbatim.
     for table_name in _FILE_TABLES:
         table = (kept or {}).get(table_name) or {}
