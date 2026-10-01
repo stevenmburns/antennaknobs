@@ -128,6 +128,37 @@ semantics momwire's knot-addressed `node_gaps` has to match.
 
 5. **Uninstall** when done: `pwsh scripts/eznec_spy/uninstall.ps1`.
 
+### When a click produces no capture, confirm WHICH process ran
+
+This has bitten three times in different disguises, and the filesystem alone
+never tells you which one you are in:
+
+| symptom | actual cause | the tell in `LastRun.log` |
+| --- | --- | --- |
+| good FF Plot, no capture | EZNEC used its **internal** engine | `Running EZCalcD_70_x64.EXE` |
+| same, after a `Save As` | the new model came up internal | `edit load(s)` → `SA` → `EZCalcD…` |
+| a refusal dialog, no capture | **AutoEZ** refused; EZNEC never ran | AutoEZ queries (`99`, `7\|1`, `9`, `8\|1`, `10`, `11\|1`) and **no `MM CR`** |
+
+The last one is the subtle one, and it produced a wrong conclusion on
+2026-09-18 that had to be withdrawn: a split-source model was refused, and
+because `EZN5.NEC` had not changed it looked as though *EZNEC* refuses before
+writing a deck. It does not — the dialog was an **Excel** popup and EZNEC was
+never asked to calculate, so the unchanged file said nothing about EZNEC at all.
+
+**The rule: a filesystem check proves something about the process that was
+actually invoked. Establishing which process ran belongs in the method, not in
+the interpretation.** Read `LastRun.log` *first*, confirm the engine actually
+launched, and only then read anything into what did or did not appear on disk.
+
+Two corollaries worth having:
+
+- A dialog's **owner** is evidence. EZNEC's own dialogs and AutoEZ's Excel
+  popups mean different things about how far a run got.
+- "No file appeared" has at least three explanations — never written, written
+  and deleted, or written somewhere else. The 4.2 slot writing `EZ.NEC` beside
+  the engine rather than `EZN5.NEC` in `Docs` is the third case, and it was
+  found by looking rather than by inferring.
+
 ### Engine slots other than NEC-5
 
 `NEC-2` has **no external-engine slot** in Pro/2+ — it runs on the built-in

@@ -1079,11 +1079,78 @@ equivalent: the trap became `LD 4`, a parallel load became an `NT`, insulation
 became a rewritten radius plus `LD 2`. Split sources are the first feature where
 it **refuses instead of reducing**.
 
-So the reduction strategy has a boundary, and the useful consequence is that
-**a NEC-5 deck will never contain a split source** — a drop-in need not handle
-the case at all. `Split_Source.htm` is a real help topic, so this is a
+**⚠ The refusal is AUTOEZ'S, not EZNEC's** — and that undoes the conclusion
+first drawn here.
+
+The dialog is an **Excel** popup. `LastRun.log` for the attempt shows AutoEZ
+only *querying* EZNEC — requests `99`, `7|1`, `9`, `8|1`, `10`, `11|1`, which
+return version and path information — and then stopping. There is **no `MM CR`**
+and no `Running ext engine` line: EZNEC was never asked to calculate. AutoEZ
+knows the constraint and blocks in its own sheet first.
+
+`Docs\EZN5.NEC` was indeed byte-identical to a baseline taken minutes earlier
+(sha `666172fd…`), and no capture directory appeared — but that is **not
+evidence about EZNEC**, because EZNEC never got as far as writing a deck.
+AutoEZ's own `$AutoEZ$.ez` *was* written (17:16), so the model reached AutoEZ
+and stopped there.
+
+So **nothing is established about EZNEC's own behaviour**, and two earlier
+claims are withdrawn:
+
+- ~~the first feature EZNEC refuses rather than reduces~~ — it is AutoEZ
+  refusing, so this is not a boundary of EZNEC's reduction strategy at all;
+- ~~a NEC-5 deck will never contain a split source~~ — untested. EZNEC might
+  refuse likewise, or might write one happily when driven directly.
+
+**The real test** is a split source created in EZNEC itself (`Split_Source.htm`
+is a real help topic, so the feature exists independently of AutoEZ) on a simple
+model, External NEC-5 selected, calculated directly — no AutoEZ in the path.
+Until that runs, a drop-in should assume it **may** be handed a split-source
+deck. `Split_Source.htm` is a real help topic, so this is a
 documented EZNEC feature that simply does not survive the seam. Two of fourteen
 bundled AutoEZ samples hit it, so it is not a rarity.
+
+## Insulation + wire loss — the `(a/a′)²` rule is EZNEC's too
+
+`0219`, `Dipole1-insulated.ez` with **Wire Loss = Copper** added and nothing
+else changed. Against `0206` (insulation alone) the whole diff is one added
+line; against `0184` (copper alone) it is the radius, the conductivity and the
+added `LD 2`.
+
+```
+GW 1,11,0.,-.25,0.,0.,.25,0.,9.666E-4
+LD 5,0,1,11,1.5378E+7,1.
+LD 2,1,0,0,1.655357,1.3184E-7,0.
+```
+
+**EZNEC scales the conductivity by (a/a′)².** The three predictions were
+mutually exclusive and only one survives:
+
+| | value | verdict |
+|---|---|---|
+| raw, no compensation | 5.7471E+7 | ruled out |
+| **(a/a′)²** | **1.53781e7** | **matches the deck's `1.5378E+7`** |
+| linear (a/a′) | 2.9729e7 | ruled out |
+
+So AK#1523's rule is not merely AK's own — EZNEC does the same thing, and
+AK#1587 can drop the "not EZNEC-verified" caveat.
+
+**The scaling uses the EXACT equivalent radius, not the rounded one in the
+deck.** From a′ = 9.665910e-4 the product is 1.53781e7, matching to five
+figures; from the `GW` card's own `9.666E-4` it is 1.53778e7, which differs in
+the fifth. A consumer recomputing the scaling *from the deck* cannot reproduce
+EZNEC's figure exactly, because the radius it would use has already been
+rounded. Fine for physics, a trap for byte-comparison.
+
+Why the compensation is needed at all: the `GW` radius is the insulation's
+equivalent radius (0.9666 mm), not the physical conductor (0.5 mm), so a
+conductivity applied to that cross-section would describe roughly 3.7× too much
+metal. The square is the area ratio.
+
+**`LD 5` and `LD 2` coexist on one wire, and they address it differently** —
+`LD 5,0,1,11` is tag 0 with an absolute segment span, `LD 2,1,0,0` is tag 1 with
+`0,0` for the whole wire. `LD 5` is written **first**. That combination is new to
+the corpus and gates independently of the conductivity question.
 
 ## Still to run
 
@@ -1119,18 +1186,22 @@ bundled AutoEZ samples hit it, so it is not a rarity.
 4. Item 4's confirmation run — AutoEZ Calculate against AutoEZ's own export.
    Corroboration only; the question below is already answered.
 
-## Who writes a one-field `GE` — closed, from files already in the repo
+## Who writes a one-field `GE` — ⚠ the "second writer" reading was WRONG
 
-momwire#1116 asked which writer emits a bare `GE 0`. **Two do**, and Mike
-WA7ARK's decks are the second:
+**Corrected by AC6LA, who wrote AutoEZ (QRZ 1003328 #107): EZNEC writes every
+`.nec`. There is no AutoEZ writer.** AutoEZ instructs EZNEC to open a `.ez` that
+AutoEZ created, and EZNEC then writes the deck. So `CM Created from AutoEZ` is
+provenance of the **`.ez`** — "just a comment" — and says nothing about who
+wrote the `.nec`.
 
-- **EZNEC's own NEC-2 export** — `Save As` with a `.nec` type (above).
-- **AutoEZ**, writing the deck itself. Its decks say so in their first line:
-  `CM Created from AutoEZ`, then EZNEC's NEC-5 stamp copied verbatim, then
-  `GE 0`, and no version/date line.
+~~momwire#1116 asked which writer emits a bare `GE 0`. Two do, and Mike WA7ARK's
+decks are AutoEZ's own writer, identified by the triple: `Created from AutoEZ`
+and no version/date line and the bare `GE`.~~ **Withdrawn.** There is only one
+writer, and the triple identifies nothing — it describes a shape EZNEC itself
+produces under conditions not yet known.
 
-**But `Created from AutoEZ` is NOT a discriminator on its own** — it marks the
-MODEL's origin and appears on both paths. AK#1577's three fixtures settle it:
+The three AK#1577 fixtures are still worth having, but as a record of shapes
+rather than of writers:
 
 | fixture | `Created from AutoEZ` | `CM EZNEC Pro/… v. 7.0.x <date>` | `GE` |
 |---|---|---|---|
@@ -1138,11 +1209,15 @@ MODEL's origin and appears on both paths. AK#1577's three fixtures settle it:
 | `WA7ARK-OCF-Load-Xfmr-TL.nec` | yes | — | `GE 0` |
 | `failEZN5.nec` | yes | **yes** | `GE 0,-1` |
 
-`failEZN5.nec` is AutoEZ building the model and then *driving EZNEC*, which
-wrote the deck — so it gets EZNEC's version line and EZNEC's two-field `GE`.
-**AutoEZ's own writer is the triple:** `Created from AutoEZ` **and** no version/
-date line **and** the bare `GE`. Mike's two files have all three; Dan's has only
-the first. Counting on the comment alone over-counts.
+All three came from EZNEC. What still wants explaining is why the first two
+carry a bare one-field `GE` and no version line while the third carries both —
+**the CONDITION under which EZNEC writes that shape is not known**, and guessing
+at a second writer was the wrong way to account for it. Those decks are accepted
+(momwire#1116); the zero-field `GE` stays refused.
+
+The methodological lesson matches the split-source one below: a comment naming a
+tool is evidence about the tool's involvement, not about which program emitted
+the bytes. Ask the process, not the label.
 
 ## `! NT #N is EZNEC <thing>` — a family, not a one-off
 
@@ -1162,3 +1237,48 @@ docstring.
 That AutoEZ-written fixture carries both the virtual-wire comment and the `NT`
 annotations, so AutoEZ reproduces EZNEC's whole comment idiom, not just the
 stamp.
+
+---
+
+# EZNEC capture session — 2026-09-23 (AC6LA's CLC drift check, QRZ #140–#144)
+
+Not a dialect sitting — a measurement for Dan AC6LA, captured incidentally
+because the spy was still armed. **Captures `0220`–`0222`.** Model
+`Bydipole-TL-Xfmr-CLC` (sha256 `b015b351…d410`), `Src Dat` on External NEC-5 at
+14.175 MHz, Wire 1 re-segmented between runs.
+
+## The drift
+
+| `0220`–`0222` | Wire 1 segs | Z at the rig | predicted |
+|---|---|---|---|
+| `0220` | 20 | 50.010 + j0.003 | ≈ 50.01 + j0.00 |
+| `0221` | 60 | 48.281 − j2.240 | ≈ 48.2 − j2.2 |
+| `0222` | 180 | 47.755 − j2.840 | ≈ 47.6 − j2.7 |
+
+Drift **−1.729 Ω R** by 60 segments and **−2.255 Ω** by 180, against a prediction
+of −1.8 and −2.3 — both within 0.08 Ω. X runs slightly deeper than predicted at
+180 (−2.84 against −2.5); the shape is right and monotonic. Confirmed.
+
+The source is on wire 2 (the virtual wire), and the printout's `SEG.` column is
+an **absolute index across wires**, which is why it reads 21 / 61 / 181 as wire
+1's count changes. These are rig-side numbers; `Src Dat` reports only the source,
+so no feedpoint Z was obtained.
+
+## What the captures bought for free
+
+The decks EZNEC wrote match hand-built `.nec` equivalents on **every
+physics-bearing card** — `GW` ×2, `LD 5`, `FR`, `GN`, `EX`, and all four `NT`
+cards, at both 60 and 180. Three differences, none affecting the answer:
+
+- EZNEC writes **`GE 1,-1`** where the reference has `GE 1`.
+- EZNEC adds four **`LD 4,2,n,0,1.E+10,0.`** — the 1e10 open-circuit
+  terminations on the virtual wire's segments 1–4.
+- EZNEC emits **`PQ 0` + `XQ 0`** where the reference has `RP` — that is `Src
+  Dat` against `FF Plot`, nothing more.
+
+So EZNEC independently produced `NT 2,3,1,30` at 60 segments and `NT 2,3,1,90`
+at 180, matching a hand renumbering exactly.
+
+**This says nothing about momwire#1116.** EZNEC wrote the TWO-field `GE 1,-1`
+here; the one-field `GE` in the reference is a hand-built spelling, not EZNEC
+output. The condition under which EZNEC emits the bare form remains unknown.
