@@ -581,3 +581,191 @@ def test_held_pins_keep_their_hold_and_rerun_bit_equal(
     }
     r = client.post("/keep", json={"origin": "sweep pins", "pins": [pin, other]})
     assert r.status_code == 422 and "holds one way" in r.json()["detail"]
+
+
+# ── 6. a hold composed with a MetricPlot (AK#1828) ────────────────────────
+#
+# M0AGP's study shape: resonance held with the length while a knob sweeps,
+# and a far-field metric (the DX gain window) drawn against it, relative to a
+# FIXED reference (a state that sets the swept knob, solved once at its own
+# setting and never held). The metric is read at each point's OPTIMISED knobs.
+
+BSPLINE = "momwire:bspline"
+DX = an.ElevationWindow("DX gain", 2, 10, step=0.1)
+ANGLES = (0.0, 20.0, 40.0)
+
+
+def _held_dx(**kw) -> an.Analysis:
+    return an.Analysis(
+        **{
+            "name": "held dx",
+            "sweep": an.Sweep("angle_deg", values=ANGLES),
+            "cross": an.Cross(
+                states=(an.State("as built"), an.State("flat", angle_deg=0.0))
+            ),
+            "hold": an.Hold("resonance", adjust=("length_factor",)),
+            "views": (an.MetricPlot(DX, relative_to="flat"), an.Knobs()),
+            **kw,
+        }
+    )
+
+
+def _offer_analyses(monkeypatch, analyses):
+    monkeypatch.setattr(
+        type(get_builder(INVVEE)()), "build_analyses", lambda self: list(analyses)
+    )
+
+
+def _bspline_builder_solve():
+    """The CLI's solve at N, built here: a fresh builder and B-spline factory."""
+    b = get_builder(INVVEE)()
+    factory = make_engine_factory(BSPLINE, None, nominal_nsegs=N)
+
+    def solve(req):
+        for k, v in req.items():
+            setattr(b, k, v)
+        z = complex(factory(b).impedance()[0])
+        return {"z_in_re": z.real, "z_in_im": z.imag, "z0_ohms": 50.0}
+
+    return solve, b, factory
+
+
+def _dx_at(**knobs) -> float:
+    from antennaknobs import metrics as mx
+
+    b = get_builder(INVVEE)()
+    for k, v in knobs.items():
+        setattr(b, k, v)
+    eng = make_engine_factory(BSPLINE, None, nominal_nsegs=N)(b)
+    return mx.evaluate(DX, mx.source_for(eng))
+
+
+def _run_held_dx(monkeypatch, capsys, tmp_path, *extra) -> dict:
+    runs = _record(monkeypatch, ar, "_run_metric_plots")
+    cli(["analyze", "--builder", INVVEE, "--analysis", "held dx", "--engine", BSPLINE,
+         "--nominal-nsegs", str(N), "--fn", str(tmp_path / "dx.png"), *extra])  # fmt: skip
+    capsys.readouterr()
+    return runs[-1][2][0]["DX gain"]
+
+
+def test_a_held_metric_is_the_metric_at_the_standalone_optimum_bit_equal(
+    monkeypatch, capsys, tmp_path
+):
+    _offer_analyses(monkeypatch, [_held_dx()])
+    points = _record(monkeypatch, hd, "hold_point")
+    cells = _record(monkeypatch, ar, "hold_cell")
+    held_reads = _record(monkeypatch, ar, "_held_metric_values")
+    per = _run_held_dx(monkeypatch, capsys, tmp_path)
+    # Only the swept cell is held; the fixed reference is not.
+    assert [c[0][0].label for c in cells] == ["as built"]
+    assert len(held_reads) == 1 and len(points) == len(ANGLES)
+    curve, ref = per["as built"], per["flat"]
+    assert curve.xs == ANGLES and ref.fixed and curve.reference == "flat"
+    solve, _b, _f = _bspline_builder_solve()
+    for k, (args, kwargs, (_req, res)) in enumerate(points):
+        x, knob, start, free, objective = args
+        alone = optimize({knob: x, **start}, [dict(f) for f in free], objective,
+                         solve_fn=solve, warm=kwargs["warm"], fallback=False)  # fmt: skip
+        assert alone["params"] == res["params"]
+        # The metric at the standalone optimum, solved afresh: ==.
+        want = _dx_at(angle_deg=x, **alone["params"])
+        assert curve.values[k] == want
+        assert curve.relative[k] == want - ref.values[0]
+    # The fixed reference is its own setting, never held: the defaults' length.
+    assert ref.values == (_dx_at(angle_deg=0.0),)
+    # Adversarial: the held metric is not the un-held one at the same x.
+    assert curve.values[2] != _dx_at(angle_deg=40.0)
+
+
+def test_a_gap_is_a_gap_in_the_metric_curve_too(monkeypatch, capsys, tmp_path, tight):
+    _offer_analyses(
+        monkeypatch, [_held_dx(sweep=an.Sweep("angle_deg", values=(0.0, 55.0, 60.0)))]
+    )
+    csv = tmp_path / "dx.csv"
+    per = _run_held_dx(monkeypatch, capsys, tmp_path, "--csv", str(csv))
+    curve = per["as built"]
+    assert curve.values[0] is not None
+    assert curve.values[1:] == (None, None) and curve.relative[1:] == (None, None)
+    rows = csv.read_text().splitlines()
+    head = rows[0].split(",")
+    i = head.index("as built DX gain (dBi)")
+    assert [r.split(",")[i] for r in rows[1:]] == [rows[1].split(",")[i], "", ""]
+
+
+def test_workbench_held_metric_is_the_metric_at_the_standalone_optimum(
+    monkeypatch, client
+):
+    from antennaknobs.web.adapter import capture_solved_metrics
+
+    _offer_analyses(monkeypatch, [_held_dx()])
+    e = _entry(client, "held dx")
+    w = e["workbench"]
+    assert w["views"] == ["Metric", "Knobs"] and w["metric"]["relative_to"] == "flat"
+    built, flat = w["states"]
+    assert flat["fixed"] is True and built["fixed"] is False
+    points = _record(monkeypatch, hd, "hold_point")
+    r = client.post(
+        "/param_sweep",
+        json={
+            **_req(),
+            "param": "angle_deg",
+            "values": built["values"],
+            "hold": w["hold"]["spec"],
+            "metric": w["metric"]["spec"],
+        },  # fmt: skip
+    )
+    assert r.status_code == 200, r.text
+    recs = _lines(r.text)[:-1]
+    ex = example_for(INVVEE)
+    for (args, kwargs, (_sent, res)), rec in zip(points, recs, strict=True):
+        x, knob, start, free, objective = args
+        alone = optimize({**kwargs["base"], knob: x, **start}, [dict(f) for f in free],
+                         objective, solve_fn=ex.momwire_solve, warm=kwargs["warm"],
+                         fallback=False)  # fmt: skip
+        assert rec["held"] == alone["params"]
+        with capture_solved_metrics() as box:
+            ex.momwire_solve({**kwargs["base"], knob: x, **alone["params"]})
+        want, why = hd.metric_off(DX, box[-1].gain(), box[-1].freq)
+        assert why is None and rec["metric"] == want
+    assert len(points) == len(recs) == len(ANGLES)
+
+
+def test_a_kept_held_metric_plot_chart_reruns_bit_equal(
+    monkeypatch, capsys, tmp_path, client, folder
+):
+    _offer_analyses(monkeypatch, [_held_dx()])
+    e = _entry(client, "held dx")
+    w = e["workbench"]
+    drawn = {}
+    for st in w["states"]:
+        req = {**_req(), **st["knobs"]}
+        body = {**req, "param": st["param"], "values": st["values"],
+                "metric": w["metric"]["spec"]}  # fmt: skip
+        if not st["fixed"]:
+            # The chart sends the hold with every curve but the fixed reference.
+            body["hold"] = w["hold"]["spec"]
+        r = client.post("/param_sweep", json=body)
+        assert r.status_code == 200, r.text
+        recs = _lines(r.text)[:-1]
+        drawn[st["name"]] = (req, [x["metric"] for x in recs], recs)
+    body = {"origin": "chart", "form": "study", "name": "kept held dx",
+            "spec": e["spec"], "tab": _req(),
+            "cells": [drawn["as built"][0], drawn["flat"][0]]}  # fmt: skip
+    r = client.post("/studies/save", json={**body, "path": "holds/dx"})
+    assert r.status_code == 200, r.text
+    (st,) = [s for s in studies.discover().studies if s.source == "holds/dx"]
+    assert st.analysis.hold is not None
+    assert an.metric_plots(st.analysis) == (an.MetricPlot(DX, relative_to="flat"),)
+    runs = _record(monkeypatch, ar, "_run_metric_plots")
+    cli(["analyze", "--study", "holds/dx:kept held dx", "--nominal-nsegs", str(N),
+         "--fn", str(tmp_path / "kept.png")])  # fmt: skip
+    capsys.readouterr()
+    per = runs[-1][2][0]["DX gain"]
+    (built,) = [c for label, c in per.items() if label.endswith("as built")]
+    (ref,) = [c for label, c in per.items() if label.endswith("flat")]
+    assert built.xs == ANGLES
+    assert list(built.values) == drawn["as built"][1]
+    assert ref.fixed and list(ref.values) == drawn["flat"][1]
+    assert list(built.relative) == [
+        v - drawn["flat"][1][0] for v in drawn["as built"][1]
+    ]

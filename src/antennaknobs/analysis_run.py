@@ -893,6 +893,20 @@ def run(
     if is_map:
         return _run_map(a, prepared, refused, out, builder, z0=z0, fn=fn)
 
+    # A held analysis (step 6): each cell's held line, ONCE, before anything
+    # draws, so the metric plots read their metric at the same optimised
+    # knobs the impedance views draw (AK#1828 composes with the hold).
+    held: dict[str, list[hold.HeldPoint]] = {}
+    if a.hold is not None:
+        out["held"] = held
+        for p in list(prepared):
+            try:
+                held[p.label] = hold_cell(p, a, _xs(a.sweep, p.builder, p.knobs[0]), z0)
+            except (ValueError, NotImplementedError) as e:
+                # HoldRefused is a ValueError: a cell the hold cannot serve
+                # (a knob with no range there, a multi-feed design).
+                refused[p.label] = str(e)
+                prepared.remove(p)
     plots = [v for v in a.views if isinstance(v, an.MetricPlot) and _draws(v, a)]
     if plots and density:
         print(f"  runs without {_DENSITY_METRIC}")
@@ -908,6 +922,7 @@ def run(
             session=session,
             design_seam=design_seam,
             builder=builder,
+            held=held,
         )
         if not any(_has(a, cls) for cls in _Z_VIEWS):
             # A metric plot alone reads no impedance: nothing else solves.
@@ -917,9 +932,21 @@ def run(
                     knob_name,
                     [(label, xs, cols) for label, (xs, cols) in metric_cols.items()],
                 )
+            for label, pts in held.items():
+                for line in held_lines(label, knob, pts, a.hold):
+                    print(line)
             _report_refused(refused)
             _metric_figure(a, plots, out["metrics"], builder, knob, list(refused))
             save_or_show(plt, fn)
+            if a.hold is not None and _has(a, an.Knobs):
+                _knobs_figure(
+                    held,
+                    xlabel=_sweep_module()._param_label(knob),
+                    log_x=a.sweep.spacing == "log",
+                    a=a,
+                    refused=list(refused),
+                )
+                save_or_show(plt, _views_fn(fn, "-knobs"))
             return out
 
     s = a.sweep
@@ -928,10 +955,6 @@ def run(
     # One (label, xs, Z at port 0) per curve that solved: what the Swr, S11
     # and Smith panels draw, whatever was swept.
     curves = []
-    # A held analysis's points per curve (step 6): the knobs and verdicts.
-    held: dict[str, list[hold.HeldPoint]] = {}
-    if a.hold is not None:
-        out["held"] = held
     nports = 1
     # A refusal is the engine declining the design (NEC-2 and a vertex feed),
     # which every engine raises as ValueError / NotImplementedError, or a
@@ -998,10 +1021,10 @@ def run(
                 print(f"  {p.label}: {_grid_words(s, p.builder, xs)}")
             try:
                 if a.hold is not None:
-                    # A held line (step 6): the optimizer at every point,
-                    # each point's Z at its optimised knobs, a gap a NaN.
-                    pts = hold_cell(p, a, xs, z0)
-                    held[p.label] = pts
+                    # A held line (step 6, solved above): the optimizer at
+                    # every point, each point's Z at its optimised knobs, a
+                    # gap a NaN.
+                    pts = held[p.label]
                     zs = np.array(
                         [
                             [pt.z if pt.converged else complex(np.nan, np.nan)]
@@ -1626,10 +1649,17 @@ class MetricCurve:
     relative: tuple | None = None
 
 
-def _metric_values(p: _Prepared, a: an.Analysis, metrics) -> tuple[list, list]:
+def _metric_values(
+    p: _Prepared, a: an.Analysis, metrics, held=None
+) -> tuple[list, list]:
     """``(xs, rows)``: each metric at every x of ``a``'s sweep on prepared
     cell ``p``, one solve per point (a far-field cut per metric on it). A
-    fixed reference (no knobs) is solved once: ``xs`` empty, one row."""
+    fixed reference (no knobs) is solved once: ``xs`` empty, one row.
+
+    ``held`` (AK#1757 step 6): the cell's held line. Each point is then read
+    at ITS OPTIMISED knobs (the swept value and the hold's solution), and a
+    point the hold did not reach is a row of None: a gap in the metric curve
+    too, never a value read at knobs the hold did not settle."""
     from . import metrics as mx
 
     def read():
@@ -1638,6 +1668,8 @@ def _metric_values(p: _Prepared, a: an.Analysis, metrics) -> tuple[list, list]:
 
     if not p.knobs:
         return [], [read()]
+    if held is not None:
+        return _held_metric_values(p, held, read, len(metrics))
     s = a.sweep
     knob = p.knobs[0]
     xs = list(_xs(s, p.builder, knob))
@@ -1654,8 +1686,32 @@ def _metric_values(p: _Prepared, a: an.Analysis, metrics) -> tuple[list, list]:
     return xs, rows
 
 
+def _held_metric_values(p: _Prepared, held, read, n: int) -> tuple[list, list]:
+    """`_metric_values` along a held line: at each converged point the swept
+    knob and the held knobs are set to that point's own values, and the
+    metrics read off a solve there; a gap is a row of None. The knobs are
+    put back after."""
+    knob = p.knobs[0]
+    names = list(held[0].params) if held else []
+    own = {k: getattr(p.builder, k) for k in (knob, *names)}
+    rows = []
+    try:
+        for pt in held:
+            if not pt.converged:
+                rows.append([None] * n)
+                continue
+            setattr(p.builder, knob, pt.x)
+            for k, v in pt.params.items():
+                setattr(p.builder, k, v)
+            rows.append(read())
+    finally:
+        for k, v in own.items():
+            setattr(p.builder, k, v)
+    return [pt.x for pt in held], rows
+
+
 def _run_metric_plots(
-    a, plots, all_cells, prepared, refused, *, session, design_seam, builder
+    a, plots, all_cells, prepared, refused, *, session, design_seam, builder, held=None
 ):
     """Every `MetricPlot` of ``a``: each prepared cell's metrics against x
     (`_metric_values`, one solve per point for all the plots at once), each
@@ -1689,7 +1745,10 @@ def _run_metric_plots(
     solved: dict[str, tuple] = {}
     for label, p in ready.items():
         try:
-            solved[label] = _metric_values(p, a, metrics)
+            # A held cell reads its metric at each point's optimum; a fixed
+            # reference is never held (solved once at its own setting, the
+            # hold's knobs its own): it has no held line.
+            solved[label] = _metric_values(p, a, metrics, (held or {}).get(label))
         except (ValueError, NotImplementedError) as e:
             # An engine declining the design, or a metric it cannot read
             # (`metrics.MetricError`), refuses the cell by name.
@@ -1807,12 +1866,13 @@ def _metric_figure(a, plots, results, builder, knob, refused) -> None:
                     ax.plot([min(span), max(span)], [ys[0], ys[0]], color=f"C{i}",
                             linestyle="--", label=f"{label} (fixed)")  # fmt: skip
                 continue
-            pts = [
-                (float(x), y) for x, y in zip(c.xs, ys, strict=True) if y is not None
-            ]
-            if pts:
-                ax.plot(*zip(*pts, strict=True), color=f"C{i}", marker="o", ms=3,
-                        label=label)  # fmt: skip
+            # A point with no value (a held gap, AK#1757 step 6; a reference
+            # with no point there) is NaN: the line breaks, never bridging
+            # it with a value nothing was read at.
+            if any(y is not None for y in ys):
+                ax.plot([float(x) for x in c.xs],
+                        [np.nan if y is None else y for y in ys],
+                        color=f"C{i}", marker="o", ms=3, label=label)  # fmt: skip
         if v.relative_to is not None:
             ax.axhline(0.0, color="0.35", lw=0.8)
             ax.set_ylabel(f"{v.metric.name} vs {v.relative_to} ({_unit(v)})")

@@ -11,6 +11,23 @@ import { axisTicks, formatTick } from "../../lib/sweepAxis";
 
 const M = { l: 52, r: 14, t: 26, b: 40 };
 
+/** The runs of consecutive values in `ys`, each as its (x, y) pairs. */
+function segments(xs: readonly number[], ys: readonly (number | null)[]): [number, number][][] {
+  const out: [number, number][][] = [];
+  let cur: [number, number][] = [];
+  xs.forEach((v, i) => {
+    const w = ys[i];
+    if (w === null || w === undefined) {
+      if (cur.length > 0) out.push(cur);
+      cur = [];
+    } else {
+      cur.push([v, w]);
+    }
+  });
+  if (cur.length > 0) out.push(cur);
+  return out;
+}
+
 export function MetricPlotChart({
   metric,
   series,
@@ -99,14 +116,17 @@ export function MetricPlotChart({
             )
           ) : (
             <g key={s.key} className={s.stale ? "metric-plot-curve stale" : "metric-plot-curve"}>
-              <polyline
-                fill="none"
-                stroke={s.color}
-                points={s.xs
-                  .map((v, i) => (s.ys[i] === null ? null : `${x(v)},${y(s.ys[i] as number)}`))
-                  .filter((p) => p !== null)
-                  .join(" ")}
-              />
+              {/* A point with no value (a held gap, AK#1757 step 6; a
+                  reference with no point there) breaks the line: one
+                  polyline per run of values, never bridging it. */}
+              {segments(s.xs, s.ys).map((seg, n) => (
+                <polyline
+                  key={n}
+                  fill="none"
+                  stroke={s.color}
+                  points={seg.map(([v, w]) => `${x(v)},${y(w)}`).join(" ")}
+                />
+              ))}
               {s.xs.map((v, i) =>
                 s.ys[i] === null ? null : (
                   <circle key={i} cx={x(v)} cy={y(s.ys[i] as number)} r={2.5} fill={s.color} />

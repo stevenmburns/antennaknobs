@@ -3,7 +3,7 @@
 // (its views, its dwell switch, the hold riding on every curve's request),
 // what makes a held curve stale, where it breaks, and its table.
 import { describe, it, expect } from "vitest";
-import { type HoldRun, parseAnalyses } from "../lib/analyses";
+import { type HoldRun, type MetricSpec, parseAnalyses } from "../lib/analyses";
 import {
   chartDwell,
   chartHold,
@@ -15,6 +15,7 @@ import {
   setChartView,
 } from "../lib/analysisChart";
 import { chartTable } from "../lib/chartTable";
+import { type MetricCell, metricSeries } from "../lib/metricPlot";
 import { gapBetween, type ParamSweepSpec } from "../lib/paramSweep";
 import { DEFAULT_AXES } from "../lib/sweepAxis";
 import { paramSweepSignature } from "../components/session/useAnalysisRunners";
@@ -149,5 +150,63 @@ describe("a held curve", () => {
       ["30", "gap", "no resonance held (budget)", ""],
       ["60", "60.500", "-0.000", "1.00563"],
     ]);
+  });
+});
+
+describe("a held MetricPlot (AK#1828 with step 6)", () => {
+  const DX: MetricSpec = {
+    name: "DX gain",
+    unit: "dBi",
+    relativeTo: "flat",
+    relativeUnit: "dB",
+    spec: { an: "ElevationWindow", name: "DX gain", lo: 2, hi: 10 },
+  };
+
+  it("a pick with both runs both: the metric and the hold ride on the request, both views offered", () => {
+    const c = pickKnob(initialChart(SEED), "held dx", ANGLE, ["Rx", "Metric", "Knobs"], DX, HOLD);
+    const req = chartRunInputs(c, ENV).param.req;
+    expect(req.hold).toEqual(HOLD);
+    expect(req.metric).toEqual(DX.spec);
+    expect(chartViews(c)).toEqual(["Rx", "Smith", "Table", "Knobs", "Metric"]);
+    expect(chartView(setChartView(c, "Knobs"))).toBe("Knobs");
+    expect(chartView(setChartView(c, "Metric"))).toBe("Metric");
+  });
+
+  it("a gap is a gap in the metric curve too, absolute and relative to a fixed reference", () => {
+    const cell = (key: string, over: Partial<MetricCell> = {}): MetricCell => ({
+      key,
+      label: key,
+      color: "red",
+      reference: false,
+      fixed: false,
+      slot: "A",
+      ground: "1",
+      ...over,
+    });
+    const held = {
+      param: "angle_deg",
+      label: "angle",
+      values: [0, 40],
+      z_re: [70, 40],
+      z_im: [0, 0],
+      z_re_extrap: null,
+      z_im_extrap: null,
+      metric: [1.2, 0.4],
+      held: { length_factor: [0.967, 0.984] },
+      gaps: [{ value: 20, reason: "no resonance held" }],
+    };
+    const { held: _h, gaps: _g, ...plain } = held;
+    void _h;
+    void _g;
+    const flat = { ...plain, values: [0], metric: [1.25] };
+    const cells = [cell("as built"), cell("flat", { reference: true, fixed: true })];
+    const [abs] = metricSeries(cells, [held, flat], false);
+    expect(abs.xs).toEqual([0, 20, 40]);
+    expect(abs.ys).toEqual([1.2, null, 0.4]);
+    const [rel, ref] = metricSeries(cells, [held, flat], true);
+    expect(rel.xs).toEqual([0, 20, 40]);
+    expect(rel.ys[1]).toBeNull();
+    expect(rel.ys[0]).toBeCloseTo(-0.05, 12);
+    expect(ref.fixed && ref.level).toBe(0);
   });
 });

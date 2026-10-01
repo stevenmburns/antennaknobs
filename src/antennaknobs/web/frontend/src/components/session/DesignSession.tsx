@@ -2464,10 +2464,19 @@ function DesignSessionBody({
     const runs: CellRun[] = drawn.map((c, k) => {
       const own = now.kind === "knob" ? ownSweep(c) : null;
       const band = now.kind === "frequency" ? ownBand(c) : null;
+      let paramReq = own ? { ...inputs.param.req, ...own } : inputs.param.req;
+      // A MetricPlot's FIXED reference (AK#1828) is solved once at its own
+      // setting, its knobs its own: never held (AK#1757 step 6), as
+      // `antennaknobs analyze` solves it.
+      if (paramReq.hold && servedCell(c, listedNow)?.fixed) {
+        const { hold: _hold, ...unheld } = paramReq;
+        void _hold;
+        paramReq = unheld;
+      }
       return {
         cell: cellRequest(i, k, c.slot as Slot, c.ground as string, c),
         freq: band ? { ...inputs.freq, range: band } : inputs.freq,
-        param: own ? { ...inputs.param, req: { ...inputs.param.req, ...own } } : inputs.param,
+        param: paramReq === inputs.param.req ? inputs.param : { ...inputs.param, req: paramReq },
         // A pattern cell is one solve (step 7): its request is the cell's.
         pattern: inputs.pattern,
       };
