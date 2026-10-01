@@ -19,6 +19,7 @@ import {
   ChartViewPick,
   type ChartViewPickProps,
   ChartChromeControls,
+  DwellSwitch,
 } from "./AnalysisChartControls";
 import type { SchemaParamSpec } from "../../lib/params";
 
@@ -129,80 +130,85 @@ export function ZParamControls({
           <span>to</span>
           <CommitNumber label="to" value={spec.hi} step={rangeStep} onCommit={(v) => set({ hi: v })} />
         </label>
-        <label
-          className="zparam-points"
-          // The ladder itself, as solved: a rounded integer ladder can hold
-          // fewer points than asked for.
-          title={`${values.length} points (${MIN_POINTS}–${MAX_POINTS}): ${values.join(", ")}`}
-        >
-          <span>points</span>
-          <CommitNumber
-            label="points"
-            value={spec.points}
-            problem={pointsProblem}
-            onCommit={(v) => set({ points: v })}
-          />
-          {/* A rounded integer ladder (density, an int knob) drops repeats,
-              so a big count over a narrow range solves fewer: say so. */}
-          {values.length !== spec.points && (
-            <span className="zparam-actual">
-              → {values.length} {isDensity(spec.param) ? "rungs" : "points"}
-            </span>
-          )}
-        </label>
-        <label
-          className="zparam-log"
-          title="Space the points by a fixed ratio (SimNEC's logStep) instead of a fixed step. An integer parameter is rounded to whole values."
-        >
-          <input
-            type="checkbox"
-            checked={spec.log}
-            onChange={(e) => set({ log: e.target.checked })}
-          />
-          log spacing
-        </label>
+        <span className="zparam-group">
+          <label
+            className="zparam-points"
+            // The ladder itself, as solved: a rounded integer ladder can hold
+            // fewer points than asked for.
+            title={`${values.length} points (${MIN_POINTS}–${MAX_POINTS}): ${values.join(", ")}`}
+          >
+            <span>points</span>
+            <CommitNumber
+              label="points"
+              value={spec.points}
+              problem={pointsProblem}
+              onCommit={(v) => set({ points: v })}
+            />
+            {/* A rounded integer ladder (density, an int knob) drops repeats,
+                so a big count over a narrow range solves fewer: say so. */}
+            {values.length !== spec.points && (
+              <span className="zparam-actual">
+                → {values.length} {isDensity(spec.param) ? "rungs" : "points"}
+              </span>
+            )}
+          </label>
+          <label
+            className="zparam-log"
+            title="Space the points by a fixed ratio (SimNEC's logStep) instead of a fixed step. An integer parameter is rounded to whole values."
+          >
+            <input
+              type="checkbox"
+              checked={spec.log}
+              onChange={(e) => set({ log: e.target.checked })}
+            />
+            log spacing
+          </label>
+        </span>
         {/* Stop while it runs (the count is the progress); Run when it was
             stopped, refused, or has not started — a stopped sweep does not
             restart by itself. */}
-        {run.running ? (
-          <button
-            type="button"
-            className="zparam-run is-running"
-            title="Stop the sweep: keep the points so far, solve no more"
-            onClick={run.onStop}
-          >
-            {run.received}/{values.length} · stop
-          </button>
-        ) : run.stale ? (
-          <button
-            type="button"
-            className="zparam-run is-stale"
-            title="The design changed since this sweep ran; a knob sweep re-runs only when asked"
-            onClick={run.onRun}
-          >
-            run · re-run?
-          </button>
-        ) : run.done ? (
-          // Finished: the count, and Run again (an analysis chart's Run
-          // always re-runs, AK#1757).
-          <button
-            type="button"
-            className="zparam-run zparam-run-done"
-            title="The sweep has finished: run it again"
-            onClick={run.onRun}
-          >
-            {run.received}/{values.length} · run
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="zparam-run"
-            title={run.partial ? "Run the whole sweep again" : "Run the sweep"}
-            onClick={run.onRun}
-          >
-            {run.partial ? `${run.received}/${values.length} · run` : "run"}
-          </button>
-        )}
+        <span className="zparam-group">
+          {run.running ? (
+            <button
+              type="button"
+              className="zparam-run is-running"
+              title="Stop the sweep: keep the points so far, solve no more"
+              onClick={run.onStop}
+            >
+              {run.received}/{values.length} · stop
+            </button>
+          ) : run.stale ? (
+            <button
+              type="button"
+              className="zparam-run is-stale"
+              title="The design changed since this sweep ran; a knob sweep re-runs only when asked"
+              onClick={run.onRun}
+            >
+              run · re-run?
+            </button>
+          ) : run.done ? (
+            // Finished: the count, and Run again (an analysis chart's Run
+            // always re-runs, AK#1757).
+            <button
+              type="button"
+              className="zparam-run zparam-run-done"
+              title="The sweep has finished: run it again"
+              onClick={run.onRun}
+            >
+              {run.received}/{values.length} · run
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="zparam-run"
+              title={run.partial ? "Run the whole sweep again" : "Run the sweep"}
+              onClick={run.onRun}
+            >
+              {run.partial ? `${run.received}/${values.length} · run` : "run"}
+            </button>
+          )}
+          {chrome && <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />}
+        </span>
         {chrome && <ChartChromeControls {...chrome} />}
         <button
           type="button"
