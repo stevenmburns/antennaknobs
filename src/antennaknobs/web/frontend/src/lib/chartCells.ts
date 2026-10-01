@@ -14,8 +14,17 @@
 //  - slot ids are open-ended (engines A…E, grounds X, Y, Z, U…): everything here
 //    reads the ids it is handed and never assumes three;
 //  - an analysis's listed engines and grounds (its `.py`) preselect the
-//    slots that hold them; one no slot holds is a REFUSED cell, named in the
-//    legend with its reason, and no slot is ever rewritten to hold it;
+//    slots that hold them, and no slot is ever rewritten to hold one. A
+//    listed ENGINE no slot holds is SKIPPED (Steve, 2026-10-01: "just skip
+//    those engines listed in the analysis that are not in slots"): no cell,
+//    no curve, only the legend's note naming it (`skippedNote`). If every
+//    listed engine is skipped the chart would be empty, so the pick ticks
+//    every slot instead and the note says so. A listed GROUND no slot holds
+//    is still a REFUSED cell, named in the legend with its reason, and so is
+//    a cell refused for any other reason (a slot that cannot draw the
+//    design, an engine that cannot feed it): those are cells the viewer has,
+//    not engines they lack. The CLI's `analyze` runs exactly what is listed;
+//    the skip is the workbench's, about the viewer's slots;
 //  - its crosses over planes, designs and a family come from the analysis
 //    alone (they are not session slots, so there are no checkboxes): one
 //    cell per plane, per design and per step value, as /analyses serves
@@ -37,8 +46,12 @@
 //  - listed cells (`cells=`, step 7 unit 4) are a UNION, not a product: one
 //    curve per listed cell, in order, each on the slot and ground slot that
 //    hold ITS engine and ground (else the analysis's, else the active
-//    ones), refused by name where no slot holds them. The checkboxes do
-//    not multiply them.
+//    ones). A cell whose engine no slot holds is skipped as a listed
+//    engine is; if every cell is, and the cells say nothing else that
+//    tells them apart (no state, one ground, one plane), they are only an
+//    engine list and the chart draws the slots instead (`cellsFallback`);
+//    otherwise the chart draws nothing but the note. A cell whose ground no
+//    slot holds is refused by name. The checkboxes do not multiply them.
 
 import type { BackendEntry } from "./backends";
 import type { SoilParams } from "./ground";
@@ -155,7 +168,7 @@ export type CrossEnv = {
   design?: string;
 };
 
-/** One entry on an axis: a slot, or a listed spec no slot holds. */
+/** One entry on an axis: a slot, or a listed ground no slot holds. */
 export type AxisEntry = { id: string | null; label: string; refused: string | null };
 
 /** One curve: its legend label, the slot and ground slot it solves on, the
@@ -182,6 +195,12 @@ export type CrossPlan = {
   cells: ChartCell[];
   /** The CLI's over-cap refusal, or null. */
   capRefusal: string | null;
+  /** The listed engine specs no slot holds, skipped: no cell, no curve,
+   *  named once each in the analysis's order (`skippedNote`). */
+  skipped: string[];
+  /** Every listed engine (or listed cell) was skipped, so the chart draws
+   *  the ticked slots in their place (a pick ticks every slot). */
+  fallback: boolean;
 };
 
 /** The ids ticked on one axis: the cross's list (those that still exist,
@@ -200,21 +219,27 @@ export function checkedGrounds(cross: ChartCross, env: CrossEnv): string[] {
 }
 
 /** One axis: each listed spec in the analysis's order (the ticked slot that
- *  holds it, or a refused entry naming it), then the ticked slots no listed
- *  spec claimed, in id order. A listed spec whose slot the viewer unticked
- *  is left out; it is not refused, the viewer chose. */
+ *  holds it; for a ground no slot holds, a refused entry naming it; for an
+ *  engine, nothing, the spec skipped), then the ticked slots no listed spec
+ *  claimed, in id order. A listed spec whose slot the viewer unticked is
+ *  left out; it is not refused, the viewer chose. */
 function axis(
   listed: string[] | null,
   slots: { id: string; label: string; holds: (spec: string) => boolean }[],
   checked: string[],
   what: "solver" | "ground",
+  skipped: string[],
 ): AxisEntry[] {
   const out: AxisEntry[] = [];
   const used = new Set<string>();
   for (const spec of listed ?? []) {
     const slot = slots.find((s) => !used.has(s.id) && s.holds(spec));
     if (!slot) {
-      out.push({ id: null, label: spec, refused: `no ${what} slot holds ${spec}` });
+      if (what === "solver") {
+        if (!skipped.includes(spec)) skipped.push(spec);
+      } else {
+        out.push({ id: null, label: spec, refused: `no ${what} slot holds ${spec}` });
+      }
       continue;
     }
     used.add(slot.id);
@@ -230,8 +255,12 @@ function axis(
 
 /** The slots a pick preselects: those holding the analysis's listed specs
  *  (null when it lists none, so the chart follows the active slot). A pick
- *  that lists specs no slot holds still selects what it can, and if it can
- *  select nothing, the active slot draws beside the refused cells. */
+ *  that lists specs no slot holds still selects what it can. One whose
+ *  every listed engine is skipped selects EVERY solver slot (the chart
+ *  draws the viewer's slots in their place), and so does a `cells=` pick
+ *  whose every cell is skipped and says nothing but its engine
+ *  (`cellsFallback`); a ground pick that selects nothing leaves the active
+ *  ground slot beside the refused cells. */
 export function preselect(listed: ListedCross, env: CrossEnv): ChartCross {
   const pick = (specs: string[] | null, slots: CrossEnv["slots"] | CrossEnv["grounds"]) => {
     if (specs === null) return null;
@@ -242,7 +271,70 @@ export function preselect(listed: ListedCross, env: CrossEnv): ChartCross {
     }
     return used;
   };
-  return { slots: pick(listed.engines, env.slots), grounds: pick(listed.grounds, env.grounds) };
+  const all = env.slots.map((s) => s.id);
+  let slots = pick(listed.engines, env.slots);
+  if (listed.cells) {
+    if (cellsFallback(listed, listed.cells, env)) slots = all;
+  } else if (slots !== null && slots.length === 0 && (listed.engines?.length ?? 0) > 0) {
+    slots = all;
+  }
+  return { slots, grounds: pick(listed.grounds, env.grounds) };
+}
+
+/** A `cells=` list's engine specs, one per cell: its own, else the
+ *  analysis's one engine, else null (the chart's slot). */
+function cellEngines(listed: ListedCross, cells: ListedCell[]): (string | null)[] {
+  const oneEngine = listed.engines && listed.engines.length === 1 ? listed.engines[0] : null;
+  return cells.map((c) => c.engine ?? oneEngine);
+}
+
+/** Whether a `cells=` list falls back to the viewer's slots: every cell
+ *  names an engine no slot holds (so every one is skipped), and the cells
+ *  say nothing else that tells them apart — no state, one ground and one
+ *  plane among them — so they are an engine list written as cells, and the
+ *  slots in their place keep what they say. A list whose cells carry a
+ *  state, or differ in ground or plane, has no slot each cell would go on:
+ *  it falls back to nothing, and the chart draws only the note. */
+export function cellsFallback(listed: ListedCross, cells: ListedCell[], env: CrossEnv): boolean {
+  if (cells.length === 0) return false;
+  const specs = cellEngines(listed, cells);
+  if (!specs.every((s) => s !== null && !env.slots.some((x) => x.holds(s)))) return false;
+  return (
+    cells.every((c) => c.state === null) &&
+    new Set(cells.map((c) => c.ground)).size === 1 &&
+    new Set(cells.map((c) => c.plane)).size === 1
+  );
+}
+
+// An engine spec as the note names it: the engine's own name, a momwire
+// basis by its basis (the analysis's spelling for anything else).
+const ENGINE_NAMES: Record<string, string> = {
+  nec5: "NEC-5",
+  nec2: "NEC-2",
+  pynec: "PyNEC",
+  momwire: "B-spline",
+  "momwire:bspline": "B-spline",
+  "momwire:bspline-d1": "B-spline d=1",
+  "momwire:razor-nec5": "razor-2p",
+};
+export function engineSpecName(spec: string): string {
+  const named = ENGINE_NAMES[spec];
+  if (named) return named;
+  return spec.startsWith("momwire:") ? spec.slice("momwire:".length) : spec;
+}
+
+/** The legend's note for the skipped engines, or null when none was:
+ *  "skipped: razor-2p, NEC-5, which no slot holds. Put one in a slot to
+ *  include it.", and when every one was, that the chart draws the slots in
+ *  their place. A note, not a refusal: the viewer lacks the engine, which
+ *  is no fault of the cell. */
+export function skippedNote(plan: Pick<CrossPlan, "skipped" | "fallback">): string | null {
+  const n = plan.skipped.length;
+  if (n === 0) return null;
+  const names = [...new Set(plan.skipped.map(engineSpecName))].join(", ");
+  const instead = plan.fallback ? ", so the chart draws your slots instead" : "";
+  const put = n === 1 ? "Put it in a slot to include it." : "Put one in a slot to include it.";
+  return `skipped: ${names}, which no slot holds${instead}. ${put}`;
 }
 
 /** One axis of the product, for the cap's wording: its size and kind. */
@@ -298,9 +390,13 @@ export function servedCell(
  *  by the axes that vary (or that the analysis listed), refused where any
  *  of its parts is, or where its slot cannot draw this design. */
 export function crossPlan(cross: ChartCross, listed: ListedCross, env: CrossEnv): CrossPlan {
-  const engines = axis(listed.engines, env.slots, checkedSlots(cross, env), "solver");
-  const grounds = axis(listed.grounds, env.grounds, checkedGrounds(cross, env), "ground");
+  const skipped: string[] = [];
+  const engines = axis(listed.engines, env.slots, checkedSlots(cross, env), "solver", skipped);
+  const grounds = axis(listed.grounds, env.grounds, checkedGrounds(cross, env), "ground", []);
   if (listed.cells) return listedPlan(cross, listed, listed.cells, env, engines, grounds);
+  // Every listed engine skipped: the engine axis is the ticked slots alone
+  // (the pick ticked them all), which the note says.
+  const fallback = skipped.length > 0 && skipped.length === new Set(listed.engines ?? []).size;
   const order = axisOrder(listed);
   const crossed = new Set(listed.axes ?? []);
   const parts = (kind: CrossKind): Part[] => {
@@ -371,7 +467,7 @@ export function crossPlan(cross: ChartCross, listed: ListedCross, env: CrossEnv)
       .filter((a) => crossed.has(a.kind) || a.parts.length > 1)
       .map((a) => ({ n: a.parts.length, kind: a.kind })),
   );
-  if (over) return { engines, grounds, cells: [], capRefusal: over };
+  if (over) return { engines, grounds, cells: [], capRefusal: over, skipped, fallback };
   // Which axes a label names: a plane, a design or a family always; an
   // engine or ground when there are several or the analysis listed them.
   const named = (kind: CrossKind, n: number) =>
@@ -412,14 +508,18 @@ export function crossPlan(cross: ChartCross, listed: ListedCross, env: CrossEnv)
     if (set.state !== undefined) cell.state = set.state;
     return cell;
   });
-  return { engines, grounds, cells, capRefusal: null };
+  return { engines, grounds, cells, capRefusal: null, skipped, fallback };
 }
 
 /** A `cells=` chart (unit 4): one cell per listed cell, a union. Each is
  *  on the slot holding its engine spec (else the analysis's one engine,
  *  else the first ticked slot) and the ground slot holding its ground spec
- *  (likewise), refused by name where no slot holds it; the checkboxes pick
- *  the slots a cell that names nothing draws on, and multiply nothing. */
+ *  (likewise). A cell whose engine no slot holds is skipped (no cell, named
+ *  in the note); one whose ground no slot holds is refused by name. Every
+ *  cell skipped and nothing else told apart (`cellsFallback`): one cell per
+ *  ticked slot instead, on the cells' one ground and plane. The checkboxes
+ *  pick the slots a cell that names nothing draws on, and multiply
+ *  nothing. */
 function listedPlan(
   cross: ChartCross,
   listed: ListedCross,
@@ -434,9 +534,10 @@ function listedPlan(
       grounds,
       cells: [],
       capRefusal: `REFUSED: ${cells.length} cells = ${cells.length} curves, over the cap of ${CURVE_CAP}`,
+      skipped: [],
+      fallback: false,
     };
   }
-  const oneEngine = listed.engines && listed.engines.length === 1 ? listed.engines[0] : null;
   const oneGround = listed.grounds && listed.grounds.length === 1 ? listed.grounds[0] : null;
   const pick = (
     spec: string | null,
@@ -448,8 +549,16 @@ function listedPlan(
     const s = slots.find((x) => x.holds(spec));
     return s ? { id: s.id, refused: null } : { id: null, refused: `no ${what} slot holds ${spec}` };
   };
-  const out = cells.map((c, k): ChartCell => {
-    const e = pick(c.engine ?? oneEngine, env.slots, checkedSlots(cross, env)[0], "solver");
+  const specs = cellEngines(listed, cells);
+  const skipped: string[] = [];
+  const out: ChartCell[] = [];
+  cells.forEach((c, k) => {
+    const spec = specs[k];
+    if (spec !== null && !env.slots.some((x) => x.holds(spec))) {
+      if (!skipped.includes(spec)) skipped.push(spec);
+      return;
+    }
+    const e = pick(spec, env.slots, checkedSlots(cross, env)[0], "solver");
     const g = pick(c.ground ?? oneGround, env.grounds, checkedGrounds(cross, env)[0], "ground");
     const design = c.state?.design ?? undefined;
     const ownDesign = design === undefined || env.design === undefined || design === env.design;
@@ -471,9 +580,27 @@ function listedPlan(
         ...(c.state.variant !== null ? { variant: c.state.variant } : {}),
       };
     }
-    return cell;
+    out.push(cell);
   });
-  return { engines, grounds, cells: out, capRefusal: null };
+  // Every cell skipped, and they are only an engine list: the ticked slots
+  // in their place, on the cells' one ground and plane.
+  const fallback = out.length === 0 && cellsFallback(listed, cells, env);
+  if (fallback) {
+    const g = pick(cells[0].ground ?? oneGround, env.grounds, checkedGrounds(cross, env)[0], "ground");
+    const plane = cells[0].plane;
+    for (const id of checkedSlots(cross, env)) {
+      const s = env.slots.find((x) => x.id === id);
+      out.push({
+        key: `${id}|${g.id ?? "?"}|cells`,
+        label: s?.label ?? id,
+        slot: id,
+        ground: g.id,
+        ...(plane !== null ? { plane } : {}),
+        refused: g.refused ?? s?.refusal ?? null,
+      });
+    }
+  }
+  return { engines, grounds, cells: out, capRefusal: null, skipped, fallback };
 }
 
 /** Whether a solver slot holds an engine spec, as `--engine` spells one

@@ -4,7 +4,16 @@
 // its engine) and lib/analyses.ts parsing a served `cells=` study.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseAnalyses } from "../lib/analyses";
-import { type CrossEnv, crossPlan, FOLLOW_ACTIVE, type ListedCell, servedCell } from "../lib/chartCells";
+import {
+  type CrossEnv,
+  crossPlan,
+  FOLLOW_ACTIVE,
+  type ListedCell,
+  preselect,
+  refusedLines,
+  servedCell,
+  skippedNote,
+} from "../lib/chartCells";
 import {
   fetchKeep,
   keepRequest,
@@ -103,14 +112,56 @@ describe("listed cells are a union", () => {
     expect(crossPlan(FOLLOW_ACTIVE, { ...listed, engines: null }, env()).cells[0].slot).toBe("A");
   });
 
-  it("a spec no slot holds refuses its cell by name; the rest draw", () => {
+  it("a cell whose engine no slot holds is skipped and noted; a ground no slot holds refuses its cell", () => {
     const cells = [cell({ label: "x", engine: "nec2" }), cell({ label: "y", ground: "pec" }), cell({ label: "z" })];
     const plan = crossPlan(FOLLOW_ACTIVE, { engines: null, grounds: null, cells }, env());
-    expect(plan.cells.map((c) => c.refused)).toEqual([
-      "no solver slot holds nec2",
-      "no ground slot holds pec",
-      null,
+    expect(plan.cells.map((c) => [c.label, c.listed, c.refused])).toEqual([
+      ["y", 1, "no ground slot holds pec"],
+      ["z", 2, null],
     ]);
+    expect(plan.skipped).toEqual(["nec2"]);
+    expect(plan.fallback).toBe(false);
+    expect(skippedNote(plan)).toBe("skipped: NEC-2, which no slot holds. Put it in a slot to include it.");
+  });
+
+  it("cells that are only an engine list, every one skipped, fall back to the slots", () => {
+    // No state, one ground, one plane: nothing tells the cells apart but
+    // the engine, so the slots stand in for them.
+    const cells = [
+      cell({ label: "two-pole", engine: "nec2", ground: "free" }),
+      cell({ label: "pynec", engine: "pynec", ground: "free" }),
+    ];
+    const listed = { engines: null, grounds: null, axes: ["cells" as const], cells };
+    const cross = preselect(listed, env());
+    expect(cross.slots).toEqual(["A", "B", "C"]);
+    const plan = crossPlan(cross, listed, env());
+    expect(plan.cells.map((c) => [c.label, c.slot, c.ground, c.listed, c.refused])).toEqual([
+      ["A: momwire:bspline", "A", "2", undefined, null],
+      ["B: momwire:razor-2p", "B", "2", undefined, null],
+      ["C: nec5", "C", "2", undefined, null],
+    ]);
+    expect(refusedLines(plan)).toEqual([]);
+    expect(skippedNote(plan)).toBe(
+      "skipped: NEC-2, PyNEC, which no slot holds, so the chart draws your slots instead. Put one in a slot to include it.",
+    );
+  });
+
+  it("cells that say more than their engine, every one skipped, draw nothing but the note", () => {
+    // Two states: no slot could stand in for either without dropping what
+    // the cell says, so there is no fallback.
+    const cells = [
+      cell({ label: "low, nec2", state: state("low", { knobs: { base: 5 } }), engine: "nec2" }),
+      cell({ label: "tall, nec2", state: state("tall", { knobs: { base: 12 } }), engine: "nec2" }),
+    ];
+    const listed = { engines: null, grounds: null, axes: ["cells" as const], cells };
+    expect(preselect(listed, env()).slots).toBeNull();
+    const plan = crossPlan(preselect(listed, env()), listed, env());
+    expect(plan.cells).toEqual([]);
+    expect(plan.fallback).toBe(false);
+    expect(skippedNote(plan)).toBe("skipped: NEC-2, which no slot holds. Put it in a slot to include it.");
+    // Different grounds tell them apart too.
+    const grounds = [cell({ engine: "nec2", ground: "free" }), cell({ engine: "nec2", ground: "finite-fast" })];
+    expect(crossPlan(FOLLOW_ACTIVE, { engines: null, grounds: null, cells: grounds }, env()).cells).toEqual([]);
   });
 
   it("the checkboxes multiply nothing, and over the cap the chart is refused whole", () => {

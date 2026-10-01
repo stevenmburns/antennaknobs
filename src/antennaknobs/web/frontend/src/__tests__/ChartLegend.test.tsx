@@ -8,7 +8,7 @@
 // fails "the chip counts the refused cells…".
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { ChartLegend, type ChartLegendData, chipText } from "../components/results/ChartLegend";
+import { ChartLegend, type ChartLegendData, chipText, legendShown } from "../components/results/ChartLegend";
 
 const entry = (key: string, refused: string | null = null) => ({
   key,
@@ -18,7 +18,7 @@ const entry = (key: string, refused: string | null = null) => ({
 });
 
 const LEGEND: ChartLegendData = {
-  entries: [entry("A"), entry("B"), entry("nec5", "no solver slot holds nec5")],
+  entries: [entry("A"), entry("B"), entry("pec", "no ground slot holds pec")],
   capRefusal: null,
 };
 
@@ -31,7 +31,7 @@ describe("the chart legend", () => {
     expect([...legend.querySelectorAll(".chart-legend-row")].map((r) => r.textContent)).toEqual([
       "A",
       "B",
-      "nec5: no solver slot holds nec5",
+      "pec: no ground slot holds pec",
     ]);
     expect(document.querySelector(".chart-legend-chip")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Collapse the legend" }));
@@ -68,5 +68,18 @@ describe("the chart legend", () => {
     render(<ChartLegend legend={{ ...LEGEND, open: false }} />);
     expect(document.querySelector(".chart-legend")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Collapse the legend" })).toBeNull();
+  });
+
+  it("a skipped engine's note shows the legend over one curve, muted, and is no refusal", () => {
+    const note = "skipped: razor-2p, NEC-5, which no slot holds. Put one in a slot to include it.";
+    const one: ChartLegendData = { entries: [entry("momwire:bspline")], capRefusal: null };
+    expect(legendShown(one)).toBe(false);
+    expect(legendShown({ ...one, note })).toBe(true);
+    render(<ChartLegend legend={{ ...one, note, open: true, onOpen: () => {} }} />);
+    const legend = document.querySelector<HTMLElement>(".chart-legend")!;
+    expect(legend.querySelector('[role="note"]')?.textContent).toBe(note);
+    expect(legend.querySelector('[role="note"]')?.className).toBe("chart-legend-note");
+    expect(legend.querySelector(".is-refused, .chart-legend-why, [role='alert']")).toBeNull();
+    expect(chipText({ ...one, note })).toBe("1 curve ▾");
   });
 });

@@ -18,6 +18,7 @@ import {
   preselect,
   refusedLines,
   servedCell,
+  skippedNote,
 } from "../lib/chartCells";
 
 // Five solver slots and four ground slots: ids are open-ended (A…E, 1…5),
@@ -90,24 +91,35 @@ describe("the engine cross", () => {
     ]);
   });
 
-  it("names a listed engine no slot holds as a refused cell, and draws the rest", () => {
+  it("skips a listed engine no slot holds: no cell, no refusal, named in the note; the rest draw", () => {
     const listed = { engines: ["momwire:bspline", "nec2", "nec5"], grounds: null };
     const plan = crossPlan(preselect(listed, env()), listed, env());
     expect(plan.cells.map((c) => [c.label, c.slot, c.refused])).toEqual([
       ["momwire:bspline", "A", null],
-      ["nec2", null, "no solver slot holds nec2"],
       ["nec5", "D", null],
     ]);
-    expect(refusedLines(plan)).toEqual(["nec2: no solver slot holds nec2"]);
+    expect(refusedLines(plan)).toEqual([]);
+    expect(plan.skipped).toEqual(["nec2"]);
+    expect(plan.fallback).toBe(false);
+    expect(skippedNote(plan)).toBe("skipped: NEC-2, which no slot holds. Put it in a slot to include it.");
   });
 
-  it("draws the active slot beside refused cells when a pick names nothing held", () => {
+  it("draws every slot in place of a pick whose every listed engine is skipped, and says so", () => {
     const listed = { engines: ["nec2"], grounds: null };
-    const plan = crossPlan(preselect(listed, env()), listed, env());
+    const cross = preselect(listed, env());
+    expect(cross.slots).toEqual(["A", "B", "C", "D", "E"]);
+    const plan = crossPlan(cross, listed, env());
     expect(plan.cells.map((c) => [c.label, c.slot, c.refused])).toEqual([
-      ["nec2", null, "no solver slot holds nec2"],
       ["A: momwire:bspline", "A", null],
+      ["B: momwire:razor-2p", "B", null],
+      ["C: pynec", "C", null],
+      ["D: nec5", "D", null],
+      ["E: momwire:sinusoidal", "E", null],
     ]);
+    expect(plan.fallback).toBe(true);
+    expect(skippedNote(plan)).toBe(
+      "skipped: NEC-2, which no slot holds, so the chart draws your slots instead. Put it in a slot to include it.",
+    );
   });
 
   it("refuses a slot that cannot draw the design, with the slot's reason", () => {
@@ -166,10 +178,117 @@ describe("engines x grounds", () => {
     expect(capRefusal([{ n: 1, kind: "engines" }, { n: 6, kind: "grounds" }])).toBeNull();
   });
 
-  it("counts a refused cell against the cap, as the CLI counts every listed curve", () => {
-    const listed = { engines: ["momwire:bspline", "nec2", "nec5", "pynec"], grounds: ["free", "pec"] };
+  it("counts a refused ground against the cap, and a skipped engine not, since it draws no curve", () => {
+    // nec2 is skipped: 3 engines x 2 grounds, the second refused, is 6.
+    const listed = { engines: ["momwire:bspline", "nec2", "nec5", "pynec"], grounds: ["free", "finite:20,0.03"] };
     const plan = crossPlan(preselect(listed, env()), listed, env());
-    expect(plan.capRefusal).toBe("REFUSED: 4 engines x 2 grounds = 8 curves, over the cap of 6");
+    expect(plan.capRefusal).toBeNull();
+    expect(plan.cells).toHaveLength(6);
+    expect(plan.cells.filter((c) => c.refused).map((c) => c.refused)).toEqual([
+      "no ground slot holds finite:20,0.03",
+      "no ground slot holds finite:20,0.03",
+      "no ground slot holds finite:20,0.03",
+    ]);
+    const four = { engines: ["momwire:bspline", "nec2", "nec5", "pynec", "momwire:razor-2p"], grounds: ["free", "pec"] };
+    expect(crossPlan(preselect(four, env()), four, env()).capRefusal).toBe(
+      "REFUSED: 4 engines x 2 grounds = 8 curves, over the cap of 6",
+    );
+  });
+});
+
+// Steve's slots (2026-10-01): B-spline d=2, B-spline d=1 and PyNEC, held as
+// the session holds them (engineSpecHeld on the slot's backend and degree).
+const steve = (): CrossEnv => {
+  const slot = (id: string, kind: "momwire" | "pynec", name: string, degree: number | null) => ({
+    id,
+    label: `${id}: ${name}${degree ? ` d=${degree}` : ""}`,
+    holds: (spec: string) => engineSpecHeld(spec, { kind, name }, degree),
+    refusal: null,
+  });
+  return {
+    slots: [slot("A", "momwire", "bspline", 2), slot("B", "momwire", "bspline", 1), slot("C", "pynec", "pynec", null)],
+    activeSlot: "A",
+    grounds: [{ id: "1", label: "1: finite:13,0.005", holds: (s: string) => s === "finite:13,0.005" }],
+    activeGround: "1",
+  };
+};
+
+describe("listed engines on Steve's slots (skipped, not refused)", () => {
+  // E1, invvee's convergence: three engines, one ground.
+  const E1: ListedCross = {
+    engines: ["momwire:bspline", "momwire:razor-2p", "nec5"],
+    grounds: ["finite:13,0.005"],
+  };
+
+  it("E1 draws its one held engine, B-spline on A, with a note naming the two skipped", () => {
+    const cross = preselect(E1, steve());
+    expect(cross.slots).toEqual(["A"]);
+    const plan = crossPlan(cross, E1, steve());
+    // Mutation check: with the skip reverted to a refused cell (axis()
+    // pushing `{ id: null, refused }` for a solver spec again), this reads
+    // two lines and the test fails here; checked by hand, 2026-10-01.
+    expect(refusedLines(plan)).toEqual([]);
+    expect(plan.cells.some((c) => c.refused)).toBe(false);
+    expect(plan.cells.map((c) => [c.label, c.slot, c.ground, c.refused])).toEqual([
+      ["momwire:bspline, finite:13,0.005", "A", "1", null],
+    ]);
+    expect(skippedNote(plan)).toBe(
+      "skipped: razor-2p, NEC-5, which no slot holds. Put one in a slot to include it.",
+    );
+  });
+
+  it("an analysis whose every engine is unslotted draws every slot, with the note saying so", () => {
+    const listed: ListedCross = { engines: ["momwire:razor-2p", "nec5"], grounds: null };
+    const cross = preselect(listed, steve());
+    expect(cross.slots).toEqual(["A", "B", "C"]);
+    const plan = crossPlan(cross, listed, steve());
+    expect(plan.cells.map((c) => [c.label, c.slot, c.refused])).toEqual([
+      ["A: bspline d=2", "A", null],
+      ["B: bspline d=1", "B", null],
+      ["C: pynec", "C", null],
+    ]);
+    expect(skippedNote(plan)).toBe(
+      "skipped: razor-2p, NEC-5, which no slot holds, so the chart draws your slots instead. Put one in a slot to include it.",
+    );
+    // The checkboxes still choose among the slots.
+    const two = crossPlan({ slots: ["A", "C"], grounds: null }, listed, steve());
+    expect(two.cells.map((c) => c.slot)).toEqual(["A", "C"]);
+    expect(two.fallback).toBe(true);
+  });
+
+  it("E7 on Steve's slots: B-spline on both designs, razor-2p and NEC-2 skipped", () => {
+    const listed: ListedCross = {
+      engines: ["momwire:bspline", "momwire:razor-2p", "nec2"],
+      grounds: null,
+      axes: ["designs", "engines"],
+      designs: [
+        { name: "dipoles.invvee", refused: null, param: "n_per_wire", values: [5, 7] },
+        { name: "dipoles.invvee_apex", refused: null, param: "n_per_wire", values: [5, 7] },
+      ],
+    };
+    const plan = crossPlan(preselect(listed, steve()), listed, steve());
+    expect(plan.cells.map((c) => [c.label, c.slot, c.refused])).toEqual([
+      ["dipoles.invvee, momwire:bspline", "A", null],
+      ["dipoles.invvee_apex, momwire:bspline", "A", null],
+    ]);
+    expect(skippedNote(plan)).toBe(
+      "skipped: razor-2p, NEC-2, which no slot holds. Put one in a slot to include it.",
+    );
+  });
+
+  it("a held engine's own refusal (a slot that cannot draw the design) stays a named refusal", () => {
+    const e = steve();
+    e.slots[2] = { ...e.slots[2], refusal: "a poor match for this design" };
+    const listed: ListedCross = { engines: ["pynec", "nec5"], grounds: null };
+    const plan = crossPlan(preselect(listed, e), listed, e);
+    expect(refusedLines(plan)).toEqual(["pynec: a poor match for this design"]);
+    expect(plan.skipped).toEqual(["nec5"]);
+  });
+
+  it("an analysis naming no engines skips nothing and has no note", () => {
+    const plan = crossPlan(FOLLOW_ACTIVE, NOTHING_LISTED, steve());
+    expect(plan.skipped).toEqual([]);
+    expect(skippedNote(plan)).toBeNull();
   });
 });
 

@@ -168,8 +168,8 @@ export type AnalysisChartState = {
    *  since it is about the session's slots, not the design. */
   cross: ChartCross;
   /** The engines and grounds the picked analysis lists, which name its
-   *  cells (and refuse the ones no slot holds) for as long as the chart
-   *  still runs that pick (`chartListed`). */
+   *  cells (skip the engines no slot holds, refuse the grounds) for as
+   *  long as the chart still runs that pick (`chartListed`). */
   listed: ListedCross;
   /** The legend expanded (true) or collapsed to its chip (false); absent
    *  until the viewer flips it, and then collapsed on a phone and open on
@@ -425,7 +425,9 @@ export function pickPattern(c: AnalysisChartState, name: string, w: PatternWorkb
 
 /** A pick's listed engines and grounds, and the slots they preselect
  *  (lib/chartCells.ts preselect): an axis the analysis lists takes the
- *  preselection, one it does not keeps the chart's own. */
+ *  preselection, one it does not keeps the chart's own. A `cells=` pick
+ *  whose every cell is skipped (`cellsFallback`) preselects every slot,
+ *  and takes that too. */
 export function withListed(
   c: AnalysisChartState,
   listed: ListedCross,
@@ -435,7 +437,8 @@ export function withListed(
     ...c,
     listed,
     cross: {
-      slots: listed.engines ? preselected.slots : c.cross.slots,
+      slots:
+        listed.engines || (listed.cells && preselected.slots !== null) ? preselected.slots : c.cross.slots,
       grounds: listed.grounds ? preselected.grounds : c.cross.grounds,
     },
   };

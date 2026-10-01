@@ -5,7 +5,10 @@
 // over-cap cross is refused as a whole, in the CLI's words.
 //
 // A chart with one curve and nothing refused has no legend: it is the chart
-// as it was before crosses.
+// as it was before crosses. A listed engine no slot holds is not refused but
+// skipped (Steve, 2026-10-01): it has no row, only the legend's note in the
+// muted ink, naming it and how to include it (lib/chartCells.ts
+// skippedNote); a note shows the legend on a one-curve chart too.
 //
 // It collapses to a chip, "<n> curves ▾", plus " · <k> refused" whenever a
 // cell (or the whole chart, over the cap) is refused, so collapsing never
@@ -59,6 +62,9 @@ export type ChartLegendData = {
    *  (whatever the live curves' count; `rx` is about those). */
   pinsRx?: boolean;
   capRefusal: string | null;
+  /** The skipped engines' note (lib/chartCells.ts skippedNote), or absent
+   *  / null: nothing was skipped. Not a refusal: no error ink. */
+  note?: string | null;
   /** The R / X plot draws each curve's R solid and its X dashed. */
   rx?: boolean;
   /** Expanded (true, the default) or collapsed to its chip; with
@@ -100,6 +106,7 @@ export function legendShown(l: ChartLegendData | null | undefined): l is ChartLe
     (l.capRefusal !== null ||
       l.entries.length > 1 ||
       l.entries.some((e) => e.refused) ||
+      !!l.note ||
       (l.pins?.length ?? 0) > 0)
   );
 }
@@ -116,6 +123,7 @@ export function ChartLegend({ legend }: { legend: ChartLegendData }) {
         aria-label={`Show the legend: ${chipText(legend)}`}
         data-curves={drawn}
         data-refused={refusedCount(legend)}
+        {...(legend.note ? { title: legend.note } : {})}
         onClick={() => onOpen(true)}
       >
         {chipText(legend)}
@@ -165,6 +173,11 @@ export function ChartLegend({ legend }: { legend: ChartLegendData }) {
             </li>
           ))}
         </ul>
+      )}
+      {legend.note && (
+        <div className="chart-legend-note" role="note">
+          {legend.note}
+        </div>
       )}
       {legend.pins && legend.pins.length > 0 && (
         <PinRows
