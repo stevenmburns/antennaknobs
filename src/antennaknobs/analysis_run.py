@@ -28,7 +28,9 @@ grid): an `an.Elevation` cut is that grid's column at the cut's azimuth and the
 one opposite, an `an.Azimuth` cut its row at the cut's elevation, so a cell's
 cut IS the design's pattern, sample for sample (`pattern_cut`). The
 `an.PatternTable` is `far_field.engine_pattern_metrics`: the workbench compare
-table's own function on a momwire cell.
+table's own function on a momwire cell, read as metrics
+(`analyses.TABLE_METRICS` through `metrics.table_values`, AK#1828, the same
+numbers bit for bit), then a column per metric the table names.
 
 How a cell is made (`cells`, `_prepare`): each cell is one combination of
 the crosses, in the order they are written, and solves on a builder of its
@@ -962,12 +964,16 @@ PATTERN_GRID = {"n_theta": 90, "n_phi": 360, "del_theta": 1, "del_phi": 1}
 @dataclass(frozen=True)
 class PatternCell:
     """One solved pattern cell: its measurement frequency, the engine's
-    `FarField` on `PATTERN_GRID`, its metrics, and its ground's label."""
+    `FarField` on `PATTERN_GRID`, its metrics (the pattern table's,
+    `analyses.TABLE_METRICS`, keyed as ``engine_pattern_metrics`` keys
+    them), its ground's label, and the user's metrics (AK#1828: every
+    `PatternTable`'s ``metrics``, by name)."""
 
     freq: float
     ff: object
     metrics: dict
     ground_label: str
+    values: dict = dataclasses.field(default_factory=dict)
 
 
 def cut_name(v: an.View) -> str:
@@ -1014,6 +1020,16 @@ def _cut_views(a: an.Analysis) -> list[an.View]:
     return [v for v in a.views if isinstance(v, (an.Elevation, an.Azimuth))]
 
 
+def table_metrics(a: an.Analysis) -> tuple[an.PatternMetric, ...]:
+    """The user's metrics every `PatternTable` of ``a`` asks for, each once,
+    in order (AK#1828): the table's columns after its fixed ones."""
+    out: list[an.PatternMetric] = []
+    for v in a.views:
+        if isinstance(v, an.PatternTable):
+            out += [m for m in v.metrics if m not in out]
+    return tuple(out)
+
+
 def _run_patterns(
     a: an.Analysis,
     builder,
@@ -1030,14 +1046,10 @@ def _run_patterns(
     cell, the metrics table printed. Returns ``{"patterns": {label:
     PatternCell}, "cuts": {label: {cut name: (angles, dBi)}}, "refused":
     {label: reason}}``."""
-    from .far_field import engine_pattern_metrics
+    from . import metrics as mx
 
     cut_views = _cut_views(a)
-    if csv is not None and not cut_views:
-        raise SystemExit(
-            f"analysis {a.name!r}: --csv writes the cuts, and this pattern "
-            "draws none (only an.PatternTable); add an.Elevation or an.Azimuth"
-        )
+    user = table_metrics(a)
     print(f"analysis {a.name!r}: {summary(a, builder)}")
     refused: dict[str, str] = {}
     prepared: list[_Prepared] = []
@@ -1053,12 +1065,18 @@ def _run_patterns(
         try:
             eng = p.factory(p.builder)
             ff = eng.far_field(**PATTERN_GRID)
-            metrics = engine_pattern_metrics(eng, ff)
+            # The table's columns are metrics (AK#1828): one path, the same
+            # numbers as `far_field.engine_pattern_metrics` (pinned).
+            src = mx.source_for(eng, ff)
+            metrics = mx.table_values(src)
+            values = mx.values(user, src)
         except (ValueError, NotImplementedError) as e:
+            # A MetricError is a ValueError: a metric this engine cannot
+            # read refuses its cell by name, as an engine declining does.
             refused[p.label] = str(e)
             continue
         solved[p.label] = PatternCell(
-            float(p.builder.freq), ff, metrics, p.ground_label
+            float(p.builder.freq), ff, metrics, p.ground_label, values
         )
     if not solved:
         _report_refused(refused)
@@ -1072,10 +1090,34 @@ def _run_patterns(
     if _has(a, an.PatternTable):
         from .far_field import _print_metrics_table
 
-        _print_metrics_table(list(solved), [c.metrics for c in solved.values()])
+        _print_metrics_table(
+            list(solved),
+            [c.metrics for c in solved.values()],
+            extra=[
+                (mx.column_heading(m), [c.values[m.name] for c in solved.values()])
+                for m in user
+            ],
+        )
     _report_refused(refused)
     if csv is not None:
-        csv.write_rows(*sweep_csv.pattern_table(cuts, [cut_name(v) for v in cut_views]))
+        if cut_views:
+            csv.write_rows(
+                *sweep_csv.pattern_table(cuts, [cut_name(v) for v in cut_views])
+            )
+            if user:
+                print(
+                    "  --csv writes the cuts; the table's metric columns are in "
+                    "the printed table (a pattern of only an.PatternTable writes "
+                    "the table)"
+                )
+        else:
+            csv.write_rows(
+                *sweep_csv.metrics_table(
+                    {label: c.metrics for label, c in solved.items()},
+                    [(mx.column_heading(m), m.name) for m in user],
+                    {label: c.values for label, c in solved.items()},
+                )
+            )
     if cut_views:
         import matplotlib.pyplot as plt
 

@@ -21,6 +21,10 @@ the decided spec, ``docs/design/sweep-framework-spec.md``:
 - ``an.Cross(cells=(an.Cell(...), ...))`` lists whole cells instead, each
   naming its own state, engine, ground and plane: a UNION, not a product,
   which is what a set of pins is (AK#1757 step 7, unit 4);
+- a METRIC is a number read off a far-field pattern (AK#1828, step 8):
+  `ElevationWindow`, `GainAt`, `TakeOff`, `PeakGain`, the pattern table's
+  own columns (`TABLE_METRICS`). A pattern's `PatternTable(metrics=...)`
+  adds a column per metric;
 - an optional `Hold` optimises at every sweep point: the knobs it adjusts
   are re-solved for one of the optimizer's objectives as x moves;
 - `convergence`, `band_swr`, `knob` and `patterns` are the library: generic
@@ -502,6 +506,258 @@ class Knobs(View):
     solution at each point)."""
 
 
+# ── metrics (AK#1828, sweep-framework step 8) ──────────────────────────────
+#
+# A METRIC is a number read off a far-field pattern: a figure of merit the
+# user defines (M0AGP's "DX gain", the power average of gain over 2-10 degrees
+# of elevation), or one of the pattern table's own columns, which are metrics
+# too (`TABLE_METRICS`), so the table has one path. A metric is a frozen value
+# like every other spec object: it prints back (`to_code`), goes to data and
+# back (`to_data` / `from_data`), and declares only WHAT it reads; the numbers
+# are `antennaknobs.metrics`', which this module never imports (a design
+# imports this one to declare its analyses).
+#
+# Angles are degrees: elevation above the horizon (0..90), azimuth from +x
+# (as the workbench's cut dial reads). ``az=`` picks the elevation cut a
+# metric reads: a number fixes it, `PEAK_AZ` is the azimuth of the pattern's
+# peak gain (the pattern table's azimuth column: the cut through the main
+# lobe, what an EZNEC/AutoEZ elevation plot usually shows), and `MEAN_AZ`
+# power-averages each elevation over azimuth (1-degree steps round the
+# circle) instead of reading one cut.
+
+
+@dataclass(frozen=True)
+class AzMode:
+    """How a metric picks its azimuth when no number fixes it: `PEAK_AZ`
+    or `MEAN_AZ`, the only two."""
+
+    name: str
+
+    def __post_init__(self):
+        if self.name not in ("peak", "mean"):
+            raise ValueError(
+                f"AzMode: an.PEAK_AZ or an.MEAN_AZ, got AzMode({self.name!r})"
+            )
+
+
+PEAK_AZ = AzMode("peak")
+MEAN_AZ = AzMode("mean")
+
+_AZ_CONSTANTS = {PEAK_AZ: "PEAK_AZ", MEAN_AZ: "MEAN_AZ"}
+
+
+def _is_number(v) -> bool:
+    # bool is an int, and never an angle or a step.
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def _check_az(owner: str, az) -> None:
+    if isinstance(az, AzMode):
+        return
+    if not _is_number(az) or not 0 <= az < 360:
+        raise ValueError(
+            f"{owner}: az is an azimuth in degrees, 0 <= az < 360, or an.PEAK_AZ "
+            f"or an.MEAN_AZ; got {az!r}"
+        )
+
+
+def _check_el(owner: str, field: str, el) -> None:
+    if not _is_number(el) or not 0 <= el <= 90:
+        raise ValueError(
+            f"{owner}: {field} is an elevation in degrees, 0..90; got {el!r}"
+        )
+
+
+def _check_name(owner: str, name) -> None:
+    if not isinstance(name, str) or not name.strip():
+        raise TypeError(f"{owner}: name is a non-empty string, got {name!r}")
+
+
+def _check_step(owner: str, step, lo: float, hi: float) -> None:
+    """A positive step that lands on ``hi`` from ``lo`` (to 1e-9 degrees):
+    the metric reads exactly the angles ``lo + i * step``, ends included."""
+    if not _is_number(step) or step <= 0:
+        raise ValueError(f"{owner}: step is a positive number of degrees, got {step!r}")
+    n = round((hi - lo) / step)
+    if abs(lo + n * step - hi) > 1e-9 * max(1.0, abs(hi)):
+        raise ValueError(
+            f"{owner}: step {step!r} does not divide {lo!r}..{hi!r}; the "
+            "angles are lo + i*step, ends included"
+        )
+
+
+@dataclass(frozen=True)
+class PatternMetric:
+    """A number read off a far-field pattern (the module comment above).
+    ``unit`` names what it reads in, for a table's heading and a plot's
+    axis; ``key`` is the pattern table's own key for a column it computes
+    (`TABLE_METRICS`), None for a metric only the user asks for."""
+
+    _positional: ClassVar[tuple[str, ...]] = ("name",)
+    unit = "dBi"
+    key: ClassVar[str | None] = None
+
+    @property
+    def table_key(self) -> str | None:
+        """The pattern table's key this metric IS, or None: a fixed
+        column's, and `PeakGain` / `TakeOff` at `PEAK_AZ` (the cut through
+        the peak holds the peak)."""
+        return self.key
+
+
+@dataclass(frozen=True)
+class ElevationWindow(PatternMetric):
+    """Gain over elevations ``lo``..``hi`` (degrees, ``step`` apart, ends
+    included) on the cut ``az`` picks, reduced by ``mean``: "power" averages
+    the power ratios and converts back to dB (M0AGP's DX gain: averaging dB
+    values is meaningless), "db" averages the dB values, "max" takes the
+    largest. ``an.ElevationWindow("DX gain", 2, 10, step=0.1)``."""
+
+    name: str
+    lo: float
+    hi: float
+    step: float = 1.0
+    mean: str = "power"
+    az: float | AzMode = PEAK_AZ
+
+    _positional: ClassVar[tuple[str, ...]] = ("name", "lo", "hi")
+
+    def __post_init__(self):
+        who = f"ElevationWindow {self.name!r}"
+        _check_name(who, self.name)
+        _check_el(who, "lo", self.lo)
+        _check_el(who, "hi", self.hi)
+        if self.lo > self.hi:
+            raise ValueError(f"{who}: lo {self.lo!r} is above hi {self.hi!r}")
+        _check_step(who, self.step, self.lo, self.hi)
+        if self.mean not in ("power", "db", "max"):
+            raise ValueError(
+                f"{who}: mean is 'power', 'db' or 'max', got {self.mean!r}"
+            )
+        _check_az(who, self.az)
+
+
+@dataclass(frozen=True)
+class GainAt(PatternMetric):
+    """The gain at elevation ``el`` (degrees) on the cut ``az`` picks."""
+
+    name: str
+    el: float
+    az: float | AzMode = PEAK_AZ
+
+    _positional: ClassVar[tuple[str, ...]] = ("name", "el")
+
+    def __post_init__(self):
+        who = f"GainAt {self.name!r}"
+        _check_name(who, self.name)
+        _check_el(who, "el", self.el)
+        _check_az(who, self.az)
+
+
+@dataclass(frozen=True)
+class PeakGain(PatternMetric):
+    """The peak gain. At `PEAK_AZ` (the default) the pattern's own, the
+    pattern table's column; at a fixed azimuth or `MEAN_AZ`, the largest
+    gain on that cut, over 0..90 degrees ``step`` apart."""
+
+    name: str = "peak gain"
+    az: float | AzMode = PEAK_AZ
+    step: float = 1.0
+
+    key: ClassVar[str | None] = "peak_gain_dbi"
+
+    def __post_init__(self):
+        who = f"PeakGain {self.name!r}"
+        _check_name(who, self.name)
+        _check_az(who, self.az)
+        _check_step(who, self.step, 0.0, 90.0)
+
+    @property
+    def table_key(self) -> str | None:
+        return self.key if self.az == PEAK_AZ else None
+
+
+@dataclass(frozen=True)
+class TakeOff(PeakGain):
+    """The take-off angle: the elevation of `PeakGain` on the same cut."""
+
+    name: str = "take-off"
+
+    unit = "deg"
+    key: ClassVar[str | None] = "takeoff_deg"
+
+
+@dataclass(frozen=True)
+class PeakAzimuth(PatternMetric):
+    """The azimuth of the pattern's peak gain: `PEAK_AZ` as a number."""
+
+    name: str = "azimuth"
+
+    _positional: ClassVar[tuple[str, ...]] = ()
+    unit = "deg"
+    key: ClassVar[str | None] = "azimuth_deg"
+
+    def __post_init__(self):
+        _check_name("PeakAzimuth", self.name)
+
+
+@dataclass(frozen=True)
+class FrontToBack(PeakAzimuth):
+    """The peak gain less the gain 180 degrees round in azimuth, at the
+    peak's elevation."""
+
+    name: str = "F/B"
+
+    unit = "dB"
+    key: ClassVar[str | None] = "front_to_back_db"
+
+
+@dataclass(frozen=True)
+class AzBeamwidth(PeakAzimuth):
+    """The -3 dB width through the peak in the azimuth ring at its
+    elevation."""
+
+    name: str = "az beamwidth"
+
+    unit = "deg"
+    key: ClassVar[str | None] = "az_beamwidth_deg"
+
+
+@dataclass(frozen=True)
+class ElBeamwidth(PeakAzimuth):
+    """The -3 dB width through the peak in the elevation column at its
+    azimuth (a lower bound when the lobe meets the horizon or zenith)."""
+
+    name: str = "el beamwidth"
+
+    unit = "deg"
+    key: ClassVar[str | None] = "el_beamwidth_deg"
+
+
+@dataclass(frozen=True)
+class Rdf(PeakAzimuth):
+    """The receiving directivity factor at the peak (`far_field.rdf_db`)."""
+
+    name: str = "RDF"
+
+    unit = "dB"
+    key: ClassVar[str | None] = "rdf_db"
+
+
+#: The pattern table's columns, as metrics, in the order the workbench's
+#: compare table and ``/pattern_metrics`` key them: ONE path, so a column
+#: the table shows and the same metric asked for by name are one number.
+TABLE_METRICS = (
+    PeakGain(),
+    TakeOff(),
+    PeakAzimuth(),
+    FrontToBack(),
+    AzBeamwidth(),
+    ElBeamwidth(),
+    Rdf(),
+)
+
+
 # ── the pattern views (AK#1757 step 7) ─────────────────────────────────────
 #
 # What the pattern pins draw, as views of an analysis with no swept x. The
@@ -554,7 +810,34 @@ class Azimuth(View):
 @dataclass(frozen=True)
 class PatternTable(View):
     """The pattern metrics per cell: the pattern-pin compare table's (peak
-    gain, take-off angle, azimuth, F/B, both beamwidths, RDF)."""
+    gain, take-off angle, azimuth, F/B, both beamwidths, RDF: `TABLE_METRICS`),
+    then a column per metric in ``metrics`` (AK#1828): the user's own,
+    ``an.PatternTable(metrics=(an.ElevationWindow("DX gain", 2, 10,
+    step=0.1),))``."""
+
+    metrics: tuple[PatternMetric, ...] = ()
+
+    def __post_init__(self):
+        metrics = (
+            (self.metrics,) if isinstance(self.metrics, PatternMetric) else self.metrics
+        )
+        metrics = _as_tuple(metrics, "PatternTable metrics")
+        if not all(isinstance(m, PatternMetric) for m in metrics):
+            raise TypeError(
+                "PatternTable: metrics holds metrics (an.ElevationWindow(...), "
+                f"an.GainAt(...), ...), got {metrics!r}"
+            )
+        _check_metric_names("PatternTable", metrics)
+        _set(self, "metrics", metrics)
+
+
+def _check_metric_names(owner: str, metrics) -> None:
+    """A metric is found by its name (a column, a curve's label): two alike
+    would be two columns the reader cannot tell apart."""
+    names = [m.name for m in metrics]
+    twice = sorted({n for n in names if names.count(n) > 1})
+    if twice:
+        raise ValueError(f"{owner}: two metrics are named {twice[0]!r}")
 
 
 #: The views of a pattern (``sweep=None``); every other view draws against a
@@ -1145,6 +1428,8 @@ def _node(value):
     if isinstance(value, Role):
         name = _ROLE_CONSTANTS.get(value)
         return f"an.{name}" if name else f"an.Role({json.dumps(value.name)})"
+    if isinstance(value, AzMode):
+        return f"an.{_AZ_CONSTANTS[value]}"
     if isinstance(value, bool) or value is None:
         return repr(value)
     if isinstance(value, str):
@@ -1281,6 +1566,16 @@ _DATA_CLASSES = {
         Elevation,
         Azimuth,
         PatternTable,
+        AzMode,
+        ElevationWindow,
+        GainAt,
+        PeakGain,
+        TakeOff,
+        PeakAzimuth,
+        FrontToBack,
+        AzBeamwidth,
+        ElBeamwidth,
+        Rdf,
     )
 }
 

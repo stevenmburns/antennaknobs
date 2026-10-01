@@ -474,10 +474,13 @@ def plot_patterns(
     save_or_show(plt, fn)
 
 
-def _print_metrics_table(names, metrics_lst):
+def _print_metrics_table(names, metrics_lst, extra=()):
     """Print an aligned metrics table comparing the antennas, so a
     `compare_patterns` run (and the optimize before/after) reports the numbers
-    that make the overlaid plot actionable, not just the shapes."""
+    that make the overlaid plot actionable, not just the shapes. ``extra``:
+    further columns after the fixed ones, ``(heading, values)`` each with a
+    value per name (AK#1828: a pattern analysis's own metrics), printed to
+    two decimals and as wide as their heading."""
     cols = [
         ("peak dBi", "peak_gain_dbi", "{:.2f}"),
         ("takeoff°", "takeoff_deg", "{:.0f}"),
@@ -488,13 +491,20 @@ def _print_metrics_table(names, metrics_lst):
     ]
     name_w = max([len("design")] + [len(str(n)) for n in names])
     header = "design".ljust(name_w) + "  " + "  ".join(h.rjust(8) for h, _, _ in cols)
+    widths = [max(8, len(h)) for h, _ in extra]
+    header += "".join(
+        f"  {h.rjust(w)}" for (h, _), w in zip(extra, widths, strict=True)
+    )
     print(header)
     print("-" * len(header))
-    for nm, m in zip(names, metrics_lst, strict=True):
+    for i, (nm, m) in enumerate(zip(names, metrics_lst, strict=True)):
         row = str(nm).ljust(name_w)
         for _, key, fmt in cols:
             v = m.get(key)
             row += "  " + ("—" if v is None else fmt.format(v)).rjust(8)
+        for (_h, vals), w in zip(extra, widths, strict=True):
+            v = vals[i]
+            row += "  " + ("—" if v is None else f"{v:.2f}").rjust(w)
         print(row)
 
 

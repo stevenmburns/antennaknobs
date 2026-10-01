@@ -1697,8 +1697,10 @@ def cli(arguments=None):
         "design cell): R_ohm and X_ohm, plus SWR on a frequency sweep, and "
         "N_ach and dGamma on a density study. A pattern (sweep=None) writes its "
         "cuts instead: cut, angle_deg, and a gain_dBi column per cell, one block "
-        "of rows per cut. Full precision. `-` writes to stdout and sends the "
-        "printed tables to stderr. A two-sweep map has no such form and refuses.",
+        "of rows per cut; a pattern of only an.PatternTable writes the table, a "
+        "row per cell with its metric columns. Full precision. `-` writes to "
+        "stdout and sends the printed tables to stderr. A two-sweep map has no "
+        "such form and refuses.",
     )
 
     # None, not the shared default: `--list-studies --builder X` filters to

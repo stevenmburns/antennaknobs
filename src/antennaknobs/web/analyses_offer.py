@@ -536,6 +536,17 @@ def _pattern(a: an.Analysis, builder, crosses: dict) -> dict:
     """A runnable pattern (AK#1757 step 7), as the chart draws it."""
     params = an._params(builder)
     freq = params.get("freq") if "freq" in params else None
+    user = ar.table_metrics(a)
+    # The chart's table is the compare table's; a metric column the table
+    # names is `analyze`'s for now (AK#1828), and said so, never dropped
+    # without a word.
+    note = (
+        "left out: the table's metric columns "
+        + ", ".join(repr(m.name) for m in user)
+        + " (`antennaknobs analyze` prints them)"
+        if user
+        else None
+    )
     return {
         "runs": True,
         "kind": "pattern",
@@ -543,7 +554,7 @@ def _pattern(a: an.Analysis, builder, crosses: dict) -> dict:
         "freq": float(freq) if isinstance(freq, (int, float)) else None,
         **_listed(a),
         **crosses,
-        "note": None,
+        "note": note,
     }
 
 

@@ -2353,7 +2353,7 @@ class MomwireEngine(SimulationEngine):
             _, eps_r, sigma = self._ground
         return complex(eps_r) - 1j * float(sigma) / (2.0 * np.pi * freq_hz * EPS0)
 
-    def _evaluate_M_perp(self, mid, dr, i_mid, k, theta, phi, freq_hz):
+    def _evaluate_M_perp(self, mid, dr, i_mid, k, theta, phi, freq_hz, vector=False):
         """|M_perp(θ,φ)|² on the (theta, phi) grids (radians).
 
         Elements ABOVE the ground plane radiate directly and through the
@@ -2368,7 +2368,12 @@ class MomwireEngine(SimulationEngine):
         specular terrain, UTD terrain — acts on an image the buried
         elements never entered.
 
-        Returns a real (n_theta, n_phi) array."""
+        Returns a real (n_theta, n_phi) array. ``vector``: the complex
+        M_perp itself, (n_theta, n_phi, 3), instead of its squared magnitude
+        (AK#1828: a metric's vertical and horizontal gain). The total path
+        is untouched by it: every return below sums the same array it always
+        did. Not over terrain with diffraction, whose UTD branch returns
+        power only."""
         sin_t, cos_t = np.sin(theta), np.cos(theta)
         cos_p, sin_p = np.cos(phi), np.sin(phi)
 
@@ -2406,6 +2411,8 @@ class MomwireEngine(SimulationEngine):
         if self._ground is None or mid.shape[0] == 0:
             # Nothing above the plane means nothing to image; the buried
             # elements are already placed through the interface.
+            if vector:
+                return M_perp
             return np.sum(M_perp.real**2 + M_perp.imag**2, axis=-1)
 
         # Geometric image — horizontal current flipped, vertical preserved,
@@ -2423,6 +2430,8 @@ class MomwireEngine(SimulationEngine):
 
         if self._ground[0] == "pec":
             M_perp = M_perp + M_img_perp
+            if vector:
+                return M_perp
             return np.sum(M_perp.real**2 + M_perp.imag**2, axis=-1)
 
         # ("finite" / "finite-fast" / "mininec", eps_r, sigma) and
@@ -2467,6 +2476,10 @@ class MomwireEngine(SimulationEngine):
                 - z0
             )
             sec_idx = terrain.sector_for(np.degrees(phi))
+            if terrain.diffraction and vector:
+                raise NotImplementedError(
+                    "polarised gain over terrain with diffraction"
+                )
             if terrain.diffraction:
                 # Issue #1373: shadowing, the exact tilted-mirror reflection
                 # and UTD wedge diffraction at the facet breaks. This is the
@@ -2532,6 +2545,8 @@ class MomwireEngine(SimulationEngine):
             ..., None
         ] * h_hat
         M_perp = M_perp + M_refl
+        if vector:
+            return M_perp
         return np.sum(M_perp.real**2 + M_perp.imag**2, axis=-1)
 
     @_captures_advisories
@@ -2682,6 +2697,40 @@ class MomwireEngine(SimulationEngine):
             # nulls below quantisation) don't produce −inf.
             return 10.0 * np.log10(np.maximum(directivity_norm * mag2, 1e-30))
 
+        def polarized(theta_deg, phi_deg):
+            # AK#1828: the vertical (E_theta) and horizontal (E_phi) parts of
+            # `gain`, the same normaliser on the two components of M_perp,
+            # which is perpendicular to r and so lies in their plane. Their
+            # powers sum to `gain`'s to rounding, never bit for bit: `gain`
+            # is the one the pattern table and every total reads.
+            theta = np.deg2rad(np.atleast_1d(np.asarray(theta_deg, float)))
+            phi = np.deg2rad(np.atleast_1d(np.asarray(phi_deg, float)))
+            rows = max(1, _GAIN_BLOCK // max(1, phi.size * mid.shape[0]))
+            vec = np.concatenate(
+                [
+                    self._evaluate_M_perp(
+                        mid,
+                        dr,
+                        i_mid,
+                        k,
+                        theta[r : r + rows],
+                        phi,
+                        freq_hz,
+                        vector=True,
+                    )  # fmt: skip
+                    for r in range(0, theta.size, rows)
+                ]
+            )
+            st, ct = np.sin(theta)[:, None], np.cos(theta)[:, None]
+            sp, cp = np.sin(phi)[None, :], np.cos(phi)[None, :]
+            m_th = vec[..., 0] * ct * cp + vec[..., 1] * ct * sp - vec[..., 2] * st
+            m_ph = -vec[..., 0] * sp + vec[..., 1] * cp
+            return tuple(
+                10.0 * np.log10(np.maximum(directivity_norm * np.abs(m) ** 2, 1e-30))
+                for m in (m_th, m_ph)
+            )
+
         gain.has_ground = self._ground is not None
         gain.moment_below = moment_below
+        gain.polarized = polarized
         return gain

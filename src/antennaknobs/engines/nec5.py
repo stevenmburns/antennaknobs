@@ -1143,7 +1143,7 @@ class NEC5Engine(SimulationEngine):
         assert knot == "p1", knot
         return n_seg, 2
 
-    def deck(self, freqs, *, rp=None, sources=None) -> str:
+    def deck(self, freqs, *, rp=None, sources=None, rp_grid=None) -> str:
         """The NEC-5 input deck for this model at the given frequencies
         (MHz). Multiple frequencies must be uniformly spaced (NEC-5's FR
         does linear stepping); callers with a ragged grid run one deck per
@@ -1158,7 +1158,11 @@ class NEC5Engine(SimulationEngine):
         same ``(wire_index, ex_type, value, knot)`` shape `_sources` carries.
         The multiport-Y route (#1280) uses it to drive one port at a time
         without mutating the engine; every other caller passes nothing and
-        gets today's deck byte for byte."""
+        gets today's deck byte for byte.
+
+        ``rp_grid=(n_theta, theta0, del_theta, n_phi, phi0, del_phi)`` asks
+        for exactly that grid instead (AK#1828, `gain_grid`): ``n_phi``
+        points from ``phi0``, no seam added."""
         freqs = np.atleast_1d(np.asarray(freqs, dtype=float))
         if freqs.size > 1:
             steps = np.diff(freqs)
@@ -1214,7 +1218,12 @@ class NEC5Engine(SimulationEngine):
                 f"{_num(value.real)} {_num(value.imag)}"
             )
         lines.append(f"FR 0 {freqs.size} 0 0 {_num(freqs[0])} {_num(df)}")
-        if rp is None:
+        if rp_grid is not None:
+            n_th, th0, dth, n_ph, ph0, dph = rp_grid
+            lines.append(
+                f"RP 0 {n_th} {n_ph} 0 {_num(th0)} {_num(ph0)} {_num(dth)} {_num(dph)}"
+            )
+        elif rp is None:
             lines.append("XQ 0")
         else:
             n_theta, n_phi, del_theta, del_phi = rp
@@ -1428,6 +1437,79 @@ class NEC5Engine(SimulationEngine):
             thetas=thetas,
             phis=phis,
         )
+
+    def gain_grid(self, thetas, phis):
+        """``(total, vertical, horizontal)`` gain in dBi on the grid
+        ``thetas`` x ``phis`` (degrees, theta from the zenith), each
+        (n_theta, n_phi), from ONE run whose ``RP`` card asks for exactly
+        those directions (AK#1828: a metric's window 0.1 degree apart, which
+        the 1-degree `far_field` grid never samples). Each axis is evenly
+        spaced, in any order, on 0.01-degree steps (the printout's
+        precision). Gain is per source watt, as `far_field`'s; the
+        polarised parts split the total by ``|E_theta|^2`` and ``|E_phi|^2``
+        (vertical is E_theta, NEC's convention). Null rows stay at the
+        printout's -999.99."""
+        th = np.atleast_1d(np.asarray(thetas, float))
+        ph = np.atleast_1d(np.asarray(phis, float))
+        th_axis, ph_axis = _even_axis(th, "theta"), _even_axis(ph, "phi")
+        f = self.builder.freq
+        sources, p_source = self._excitation(f)
+        text = self._run(self.deck([f], sources=sources, rp_grid=(*th_axis, *ph_axis)))
+        rows = self._parse_radiation_fields(text)
+        shift_db = 10.0 * np.log10(self._to_source_gain(text, p_source))
+        total = np.empty((th.size, ph.size))
+        vert = np.empty_like(total)
+        horiz = np.empty_like(total)
+        for i, t in enumerate(th):
+            for j, p in enumerate(ph):
+                key = (round(float(t), 2), round(float(p), 2))
+                if key not in rows:
+                    raise NEC5Error(f"pattern grid point {key} missing from printout")
+                g, e_th, e_ph = rows[key]
+                if g <= NULL_GAIN_DB:
+                    total[i, j] = vert[i, j] = horiz[i, j] = g
+                    continue
+                g = g + shift_db
+                total[i, j] = g
+                p2 = e_th * e_th + e_ph * e_ph
+                with np.errstate(divide="ignore"):
+                    vert[i, j] = g + 10.0 * np.log10(e_th * e_th / p2) if p2 > 0 else g
+                    horiz[i, j] = g + 10.0 * np.log10(e_ph * e_ph / p2) if p2 > 0 else g
+        return total, vert, horiz
+
+    @staticmethod
+    def _parse_radiation_fields(text: str) -> dict:
+        """The RADIATION PATTERNS section as {(theta, phi): (total dB,
+        |E_theta|, |E_phi|)}: `_parse_radiation_patterns`' rows with the two
+        field magnitudes, the fourth and second tokens from the end (the
+        row's E(TH) and E(PHI) magnitude, then phase, whether or not the
+        SENSE word is printed)."""
+        try:
+            chunk = text.split(_PATTERN_HEADER, 1)[1]
+        except IndexError:
+            raise NEC5Error(
+                "no RADIATION PATTERNS in NEC-5 printout; tail: " + text[-500:]
+            ) from None
+        rows: dict = {}
+        started = False
+        for line in chunk.splitlines():
+            toks = line.split()
+            if len(toks) not in (11, 12, 13):
+                if started:
+                    break
+                continue
+            try:
+                key = (round(float(toks[0]), 2), round(float(toks[1]), 2))
+                row = (float(toks[4]), float(toks[-4]), float(toks[-2]))
+            except ValueError:
+                if started:
+                    break
+                continue
+            started = True
+            rows[key] = row
+        if not rows:
+            raise NEC5Error("unparseable RADIATION PATTERNS section")
+        return rows
 
     @staticmethod
     def _parse_power_budget(text: str) -> dict:
@@ -1699,3 +1781,22 @@ class NEC5Engine(SimulationEngine):
             for k, c in zip(knot_positions, knot_currents, strict=True)
         ]
         return self._authored_currents(out)
+
+
+def _even_axis(values, what: str) -> tuple[int, float, float]:
+    """``(count, start, step)`` of an evenly spaced axis given in any order,
+    for an ``RP`` card; a ValueError naming why not (uneven, or finer than
+    the printout's 0.01 degree)."""
+    v = np.unique(np.round(np.asarray(values, float), 9))
+    if v.size == 1:
+        return 1, float(v[0]), 1.0
+    steps = np.diff(v)
+    step = float(steps[0])
+    if not np.allclose(steps, step, rtol=0.0, atol=1e-7):
+        raise ValueError(f"gain_grid: the {what} angles are not evenly spaced")
+    if abs(round(step, 2) - step) > 1e-7 or abs(round(v[0], 2) - v[0]) > 1e-7:
+        raise ValueError(
+            f"gain_grid: the {what} angles are finer than 0.01 degree, the "
+            "printout's precision"
+        )
+    return int(v.size), float(v[0]), round(step, 2)
