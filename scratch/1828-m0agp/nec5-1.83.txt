@@ -1,0 +1,11 @@
+nec5: vertical resonant at 131.22 ft, Z [42.574, 0.00017059]
+ 100 ft  top   33.07 ft  M0AGP  -0.26  PEAK_AZ  -0.08  MEAN_AZ  -0.18  az0  -0.20  az90  -0.26  az270  -0.07  (peak az 265.0, take-off 24.0)
+  90 ft  top   43.43 ft  M0AGP  -0.45  PEAK_AZ  -0.15  MEAN_AZ  -0.33  az0  -0.36  az90  -0.47  az270  -0.15  (peak az 267.0, take-off 24.0)
+  80 ft  top   53.73 ft  M0AGP  -0.72  PEAK_AZ  -0.26  MEAN_AZ  -0.56  az0  -0.61  az90  -0.77  az270  -0.26  (peak az 268.0, take-off 26.0)
+  70 ft  top   63.90 ft  M0AGP  -1.10  PEAK_AZ  -0.46  MEAN_AZ  -0.90  az0  -0.98  az90  -1.21  az270  -0.45  (peak az 267.0, take-off 27.0)
+  60 ft  top   73.96 ft  M0AGP  -1.66  PEAK_AZ  -0.76  MEAN_AZ  -1.40  az0  -1.53  az90  -1.83  az270  -0.76  (peak az 269.0, take-off 28.0)
+  50 ft  top   83.91 ft  M0AGP  -2.51  PEAK_AZ  -1.26  MEAN_AZ  -2.15  az0  -2.36  az90  -2.76  az270  -1.26  (peak az 267.0, take-off 30.0)
+  40 ft  top   93.67 ft  M0AGP  -3.84  PEAK_AZ  -2.09  MEAN_AZ  -3.34  az0  -3.68  az90  -4.19  az270  -2.09  (peak az 267.0, take-off 34.0)
+  30 ft  top  103.22 ft  M0AGP  -6.54  PEAK_AZ  -3.49  MEAN_AZ  -5.26  az0  -5.83  az90  -6.44  az270  -3.49  (peak az 270.0, take-off 43.0)
+  20 ft  top  112.34 ft  M0AGP  -9.64  PEAK_AZ  -5.86  MEAN_AZ  -8.41  az0  -9.48  az90 -10.06  az270  -5.86  (peak az 267.0, take-off 61.0)
+115 s

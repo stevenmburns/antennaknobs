@@ -1,0 +1,6 @@
+baseline               vertical 131.22 ft  70 ft (top  63.90): az0 -0.98 az90 -1.21 mean -0.90 [M0AGP -1.10]  20 ft (top 112.34): az0 -9.48 az90 -10.06 mean -8.41 [M0AGP -9.64]
+nominal_nsegs 63       vertical 131.13 ft  70 ft (top  63.88): az0 -0.98 az90 -1.21 mean -0.90 [M0AGP -1.10]  20 ft (top 112.39): az0 -9.49 az90 -10.07 mean -8.41 [M0AGP -9.64]
+radials along top      vertical 131.22 ft  70 ft (top  63.93): az0 -0.75 az90 -1.14 mean -0.79 [M0AGP -1.10]  20 ft (top 113.81): az0 -4.47 az90 -6.29 mean -4.56 [M0AGP -9.64]
+feed gap 1 m           vertical 131.25 ft  70 ft (top  63.93): az0 -0.98 az90 -1.21 mean -0.90 [M0AGP -1.10]  20 ft (top 112.39): az0 -9.48 az90 -10.06 mean -8.41 [M0AGP -9.64]
+freq 1.8 MHz           vertical 134.36 ft  70 ft (top  67.12): az0 -1.04 az90 -1.28 mean -0.95 [M0AGP -1.10]  20 ft (top 115.50): az0 -9.61 az90 -10.17 mean -8.50 [M0AGP -9.64]
+freq 1.85 MHz          vertical 129.18 ft  70 ft (top  61.81): az0 -0.95 az90 -1.16 mean -0.87 [M0AGP -1.10]  20 ft (top 110.29): az0 -9.40 az90 -9.99 mean -8.35 [M0AGP -9.64]

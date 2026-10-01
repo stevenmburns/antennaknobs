@@ -94,6 +94,11 @@ class Builder(InvertedL):
                     "shunt_l_uH": {"min": 0.1, "max": 2.0},
                     "series_c2_pF": {"min": 50.0, "max": 500.0},
                     "coil_q": {"min": 0.0, "max": 400.0},
+                    # The inherited feet mode is the 160 m variant's, not
+                    # this design's (AK#1828).
+                    "in_feet": {"hidden": True},
+                    "vert_ft": {"hidden": True},
+                    "horiz_ft": {"hidden": True},
                     # Display names for the power-budget rows (issue #489).
                     # Keys are the STRUCTURAL labels the solver emits —
                     # keep in sync with the "tuner" instance in
@@ -107,6 +112,11 @@ class Builder(InvertedL):
             ),
         }
     )
+
+    # The inverted L's 160 m variant and its M0AGP study are the plain L's
+    # (AK#1828): this T-match is tuned for 12 m, so neither is inherited.
+    topband_params = None
+    build_studies = None
 
     def build_wires(self):
         # Reuse the inverted-L geometry verbatim; rename the driven base gap

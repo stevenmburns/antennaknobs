@@ -152,7 +152,7 @@ whole shape with a `Drone` — see
 | `verticals.elt_whip` | Parametric rebuild of the ELT whip on a 96-inch rounded ground-plane grid — the heavier of the two classic NEC performance benchmarks (``whip_antenna_8ft_groundplane.nec`` from the W8IO NEC benchmarks page, http://www.w8io.com/nec-benchmarks.htm): 434 deck wires, ~4,400 segments · variants: `coarse` |
 | `verticals.four_square` | Four-square phased vertical array -- the diagonal-firing quadrature box (L. B. Cebik, W4RNL) |
 | `verticals.half_square` | Half-square: a vertically-polarised wire antenna (L. B. Cebik, W4RNL) |
-| `verticals.inverted_l` | Inverted-L: a bent, top-loaded vertical (L. B. Cebik, W4RNL) |
+| `verticals.inverted_l` | Inverted-L: a bent, top-loaded vertical (L. B. Cebik, W4RNL) · variants: `topband` |
 | `verticals.inverted_l_tmatch` | 10 m inverted-L worked on the 12 m band through a T-network tuner — the first design with a pure interior circuit node (series C, shunt L, series C), exercising the MNA network core on the classic "wire antenna + T-match" situation |
 | `verticals.jpole` | J-pole: an end-fed half-wave matched by a quarter-wave stub (L. B. Cebik, W4RNL) |
 | `verticals.phased_verticals` | Two-element phased vertical array -- the 90-degree cardioid (L. B. Cebik, W4RNL) |

@@ -1,0 +1,11 @@
+momwire:bspline: vertical resonant at 131.10 ft, Z [42.694794563472826, -0.00046992406708652794]
+ 100 ft  top   32.98 ft  M0AGP  -0.26  PEAK_AZ  -0.07  MEAN_AZ  -0.18  az0  -0.19  az90  -0.25  az270  -0.07  (peak az 270.0, take-off 23.2)
+  90 ft  top   43.37 ft  M0AGP  -0.45  PEAK_AZ  -0.14  MEAN_AZ  -0.33  az0  -0.36  az90  -0.47  az270  -0.14  (peak az 270.0, take-off 23.8)
+  80 ft  top   53.68 ft  M0AGP  -0.72  PEAK_AZ  -0.26  MEAN_AZ  -0.56  az0  -0.61  az90  -0.77  az270  -0.26  (peak az 270.0, take-off 24.6)
+  70 ft  top   63.88 ft  M0AGP  -1.10  PEAK_AZ  -0.45  MEAN_AZ  -0.90  az0  -0.98  az90  -1.21  az270  -0.45  (peak az 270.0, take-off 25.7)
+  60 ft  top   73.98 ft  M0AGP  -1.66  PEAK_AZ  -0.76  MEAN_AZ  -1.40  az0  -1.53  az90  -1.84  az270  -0.76  (peak az 270.0, take-off 27.3)
+  50 ft  top   83.94 ft  M0AGP  -2.51  PEAK_AZ  -1.26  MEAN_AZ  -2.16  az0  -2.37  az90  -2.77  az270  -1.26  (peak az 270.0, take-off 29.6)
+  40 ft  top   93.73 ft  M0AGP  -3.84  PEAK_AZ  -2.09  MEAN_AZ  -3.35  az0  -3.69  az90  -4.19  az270  -2.09  (peak az 270.0, take-off 33.3)
+  30 ft  top  103.28 ft  M0AGP  -6.54  PEAK_AZ  -3.49  MEAN_AZ  -5.27  az0  -5.84  az90  -6.45  az270  -3.49  (peak az 270.0, take-off 40.5)
+  20 ft  top  112.42 ft  M0AGP  -9.64  PEAK_AZ  -5.86  MEAN_AZ  -8.42  az0  -9.49  az90 -10.07  az270  -5.86  (peak az 270.0, take-off 58.5)
+14 s
