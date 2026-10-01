@@ -98,9 +98,14 @@ def _analysis(**fields) -> an.Analysis:
 
 def analysis_of(data) -> an.Analysis:
     """The `an.Analysis` ``data`` describes (`analyses.from_data`), or a
-    `KeepError` in the constructor's own words."""
+    `KeepError` in the constructor's own words. A callable metric's function
+    is resolved only through the functions the workbench served (AK#1828,
+    `analyses_offer.SERVED_FUNCTIONS`): a kept file names no function the
+    workbench did not offer from a file it trusts."""
+    from .web.analyses_offer import SERVED_FUNCTIONS
+
     try:
-        value = an.from_data(data)
+        value = an.from_data(data, SERVED_FUNCTIONS)
     except (TypeError, ValueError) as e:
         raise KeepError(str(e)) from None
     if not isinstance(value, an.Analysis):
@@ -851,8 +856,12 @@ def render(
     if origin not in ORIGINS:
         raise KeepError(f"origin is one of {', '.join(ORIGINS)}, got {origin!r}")
     notes = _notes(notes)
+    copy = _copy_notes(a)
     if form == "analysis":
-        return "\n".join([*_comment(notes), an.to_code(a)]) + "\n"
+        return (
+            "\n".join([*_comment(notes), *_comment(copy), an.code_with_imports(a)])
+            + "\n"
+        )
     day = (today or _dt.datetime.now(_dt.UTC).astimezone().date()).isoformat()
     head = [
         f"Written by the antennaknobs workbench on {day}, from {ORIGINS[origin]}",
@@ -869,13 +878,14 @@ def render(
         ),
     ]
     lines = _comment(head)
-    if notes:
-        lines += ["#", *_comment(notes)]
+    if notes or copy:
+        lines += ["#", *_comment(notes), *_comment(copy)]
     return "\n".join(
         [
             *lines,
             "",
             "import antennaknobs.analyses as an",
+            *an.imports(a),
             "",
             "",
             "def build_studies():",
@@ -885,6 +895,34 @@ def render(
             "",
         ]
     )
+
+
+def _copy_notes(a: an.Analysis) -> list[str]:
+    """A note per callable metric whose function cannot be imported by name
+    (AK#1828): one from a user design or study file, loaded by its path. The
+    text calls it by its bare name, so it must be copied into the file."""
+    out = []
+    for m in an.metrics_of(a):
+        if an.importable(m.fn):
+            continue
+        out.append(
+            f"The metric {m.name!r} calls {m.fn.__qualname__}() from "
+            f"{_where(m.fn)}, which cannot be imported by name: copy the "
+            "function into this file, above the code that calls it."
+        )
+    return out
+
+
+def _where(fn) -> str:
+    """Where a function that cannot be imported by name is defined: its
+    file when it has one."""
+    import inspect
+
+    try:
+        path = inspect.getsourcefile(fn)
+    except TypeError:
+        path = None
+    return path or fn.__module__
 
 
 # ── the file ─────────────────────────────────────────────────────────────────

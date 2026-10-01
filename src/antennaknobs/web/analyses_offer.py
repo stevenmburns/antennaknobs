@@ -115,6 +115,34 @@ from .. import analyses as an
 from .. import analysis_run as ar
 from .param_sweep import DENSITY, ParamSweepError, sweep_values
 
+#: The callable metrics' functions this process has served (AK#1828), by
+#: reference (``module.qualname``): what ``/param_sweep`` and ``/keep`` read a
+#: page's metric data back through (`analyses.from_data`'s ``functions``).
+#: Filled only by `offer` / `offer_studies`, from trusted files, so a page can
+#: name a function only if this workbench offered it; on the hosted instance
+#: only the catalog's own are ever offered (`hosted_refusal`).
+SERVED_FUNCTIONS: dict = {}
+
+
+def hosted_refusal(a: an.Analysis) -> str | None:
+    """Why the hosted instance does not offer ``a`` (AK#1828 ruling): it
+    calls a metric function that is not the catalog's. A callable is code
+    from a file; the hosted instance runs only the catalog's (ours)."""
+    foreign = [m for m in an.metrics_of(a) if not an.is_catalog_function(m.fn)]
+    if not foreign:
+        return None
+    names = ", ".join(f"{m.name!r} ({m.fn.__qualname__})" for m in foreign)
+    return (
+        f"the metric {names} calls a function of its own, which runs only on a "
+        "local workbench (the hosted instance runs the catalog's code only)"
+    )
+
+
+def _serve_functions(a: an.Analysis) -> None:
+    for m in an.metrics_of(a):
+        SERVED_FUNCTIONS[m.ref] = m.fn
+
+
 # The sweep-framework step each piece the workbench cannot draw yet is
 # planned for (Steve, 2026-09-28): 5 the map; 6 hold. Crosses over planes,
 # designs and families draw since step 5 unit 4; the table, R/X against
@@ -638,9 +666,13 @@ def _pattern(a: an.Analysis, builder, crosses: dict) -> dict:
     }
 
 
-def workbench(a: an.Analysis, builder, req: Mapping) -> dict:
-    """How the workbench runs ``a`` on ``builder`` (built from ``req``)."""
+def workbench(a: an.Analysis, builder, req: Mapping, *, hosted: bool = False) -> dict:
+    """How the workbench runs ``a`` on ``builder`` (built from ``req``).
+    ``hosted``: the shared instance, which offers no callable metric but
+    the catalog's (`hosted_refusal`)."""
     why = an.problems(a, builder) + gaps(a)
+    if hosted and (refusal := hosted_refusal(a)):
+        why.append(refusal)
     # A family or map axis on the density knob, refused as the CLI refuses
     # it (the engine holds a non-ladder sweep at its own density).
     moved = ar.density_moved(a, builder)
@@ -708,26 +740,31 @@ def builder_for(cls, req: Mapping):
     return builder
 
 
-def offer(builder, req: Mapping) -> list[dict]:
+def _entry(a: an.Analysis, builder, req: Mapping, hosted: bool) -> dict:
+    """One analysis as ``/analyses`` serves it, its callable metrics' functions
+    recorded as served (`SERVED_FUNCTIONS`) when this instance may run them."""
+    w = workbench(a, builder, req, hosted=hosted)
+    if not (hosted and hosted_refusal(a)):
+        _serve_functions(a)
+    return {
+        "name": a.name,
+        "summary": ar.summary(a, builder),
+        "code": an.code_with_imports(a),
+        "spec": an.to_data(a),
+        "problems": an.problems(a, builder),
+        "workbench": w,
+    }
+
+
+def offer(builder, req: Mapping, *, hosted: bool = False) -> list[dict]:
     """Every offered analysis on ``builder``, as ``/analyses`` serves it."""
-    out = []
-    for a in an.offered(builder):
-        out.append(
-            {
-                "name": a.name,
-                "summary": ar.summary(a, builder),
-                "code": an.to_code(a),
-                "spec": an.to_data(a),
-                "problems": an.problems(a, builder),
-                "workbench": workbench(a, builder, req),
-                # A design's own analysis: not a study (`offer_studies`).
-                "study": None,
-            }
-        )
-    return out
+    # A design's own analysis: not a study (`offer_studies`).
+    return [
+        {**_entry(a, builder, req, hosted), "study": None} for a in an.offered(builder)
+    ]
 
 
-def offer_studies(builder, req: Mapping) -> list[dict]:
+def offer_studies(builder, req: Mapping, *, hosted: bool = False) -> list[dict]:
     """The studies the tab of the design ``req`` names lists, as
     ``/analyses`` serves them (module docstring): the module-level studies
     crossing it, and its own Builder's method studies (this design against
@@ -742,13 +779,9 @@ def offer_studies(builder, req: Mapping) -> list[dict]:
         a = st.analysis
         out.append(
             {
+                **_entry(a, builder, req, hosted),
                 "name": st.name,
                 "study": {"source": st.source, "name": a.name},
-                "summary": ar.summary(a, builder),
-                "code": an.to_code(a),
-                "spec": an.to_data(a),
-                "problems": an.problems(a, builder),
-                "workbench": workbench(a, builder, req),
             }
         )
     return out

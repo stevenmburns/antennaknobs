@@ -1,7 +1,7 @@
 """The numbers behind `analyses`' metrics (AK#1828, sweep-framework step 8).
 
 `analyses` declares WHAT a metric reads (`analyses.ElevationWindow`,
-`analyses.GainAt`, the pattern table's columns); this
+`analyses.GainAt`, `analyses.Metric`, the pattern table's columns); this
 module reads it off one solved engine. Everything goes through a `Source`,
 the engine's far field as a function of direction:
 
@@ -238,6 +238,44 @@ def _peak_on_cut(metric, source: Source) -> tuple[float, float]:
     return float(g[i]), float(els[i])
 
 
+def cut_for(metric: an.Metric, source: Source) -> an.Cut:
+    """The `analyses.Cut` a callable metric's function is called with: its
+    angles and total gain now, its polarised parts when the function reads
+    them (another evaluation of the cut)."""
+    if metric.over == "elevation":
+        lo = 0.0 if metric.lo is None else metric.lo
+        hi = 90.0 if metric.hi is None else metric.hi
+        els = angle_grid(lo, hi, metric.step)
+        total, _ = elevation_cut(source, els, metric.az)
+
+        def split():
+            return elevation_cut(source, els, metric.az, polarized=True)[1]
+
+        return an.Cut(
+            over="elevation",
+            angles=els,
+            gain_dbi=total,
+            freq_mhz=source.freq_mhz,
+            fixed_deg=resolve_az(metric.az, source),
+            polarized=split,
+        )
+    azs = angle_grid(0.0, 360.0, metric.step)[:-1]
+    thetas = np.array([90.0 - metric.el])
+
+    def split_ring():
+        got = source.polarized(thetas, azs)
+        return None if got is None else (got[0][0], got[1][0])
+
+    return an.Cut(
+        over="azimuth",
+        angles=azs,
+        gain_dbi=source.gain(thetas, azs)[0],
+        freq_mhz=source.freq_mhz,
+        fixed_deg=float(metric.el),
+        polarized=split_ring,
+    )
+
+
 # ── evaluating ───────────────────────────────────────────────────────────────
 
 
@@ -264,6 +302,15 @@ def evaluate(metric: an.PatternMetric, source: Source) -> float | None:
         return _peak_on_cut(metric, source)[1]
     if isinstance(metric, an.PeakGain):
         return _peak_on_cut(metric, source)[0]
+    if isinstance(metric, an.Metric):
+        value = metric.fn(cut_for(metric, source))
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            raise MetricError(
+                f"the metric {metric.name!r} ({metric.ref}) returned {value!r}, "
+                "not a number"
+            ) from None
     raise MetricError(f"no way to read the metric {metric!r}")
 
 

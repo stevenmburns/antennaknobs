@@ -23,7 +23,8 @@ the decided spec, ``docs/design/sweep-framework-spec.md``:
   which is what a set of pins is (AK#1757 step 7, unit 4);
 - a METRIC is a number read off a far-field pattern (AK#1828, step 8):
   `ElevationWindow`, `GainAt`, `TakeOff`, `PeakGain`, the pattern table's
-  own columns (`TABLE_METRICS`). A pattern's `PatternTable(metrics=...)` adds a column per
+  own columns (`TABLE_METRICS`), or the user's own function (`Metric`, called
+  with a `Cut`). A pattern's `PatternTable(metrics=...)` adds a column per
   metric, and the swept view `MetricPlot` draws one against x, a far-field
   cut per sweep point, optionally relative to a named cell;
 - an optional `Hold` optimises at every sweep point: the knobs it adjusts
@@ -759,6 +760,253 @@ TABLE_METRICS = (
 )
 
 
+@dataclass(frozen=True, eq=False, init=False)
+class Metric(PatternMetric):
+    """A metric the user writes (the escape hatch): ``fn(cut) -> float``, a
+    NAMED MODULE-LEVEL function, called with an `Cut`. A lambda or a
+    nested function is refused by name: `to_code` writes the function by
+    reference (``module.qualname``, the import with it), and has no text for
+    one with no name.
+
+    ``over="elevation"``: the cut is elevations ``lo``..``hi`` (default
+    0..90) ``step`` apart at the azimuth ``az`` picks (None: `PEAK_AZ`).
+    ``over="azimuth"``: azimuths 0..360-``step`` at elevation ``el``.
+    ``unit`` is what ``fn`` returns, for a table heading and a plot axis.
+
+    Equal when everything but the function is, and the function is the same
+    one by reference: what `from_data` resolves a served function to."""
+
+    name: str
+    fn: object
+    over: str = "elevation"
+    step: float = 1.0
+    az: float | AzMode | None = None
+    el: float | None = None
+    lo: float | None = None
+    hi: float | None = None
+    unit: str = "dBi"
+
+    _positional: ClassVar[tuple[str, ...]] = ("name", "fn")
+
+    def __init__(
+        self,
+        name: str,
+        fn,
+        *,
+        over: str = "elevation",
+        step: float = 1.0,
+        az: float | AzMode | None = None,
+        el: float | None = None,
+        lo: float | None = None,
+        hi: float | None = None,
+        unit: str = "dBi",
+    ):
+        who = f"Metric {name!r}"
+        _check_name(who, name)
+        why = function_refusal(fn)
+        if why:
+            raise TypeError(f"{who}: {why}")
+        if over not in ("elevation", "azimuth"):
+            raise ValueError(
+                f"{who}: over is 'elevation' or 'azimuth' (a whole-pattern "
+                f"metric is not in v1), got {over!r}"
+            )
+        if over == "elevation":
+            if el is not None:
+                raise ValueError(
+                    f"{who}: el= is an azimuth cut's elevation; an elevation "
+                    "cut takes lo= / hi= and az="
+                )
+            if az is not None:
+                _check_az(who, az)
+            a, b = 0.0 if lo is None else lo, 90.0 if hi is None else hi
+            _check_el(who, "lo", a)
+            _check_el(who, "hi", b)
+            if a > b:
+                raise ValueError(f"{who}: lo {a!r} is above hi {b!r}")
+            _check_step(who, step, a, b)
+        else:
+            if az is not None or lo is not None or hi is not None:
+                raise ValueError(
+                    f"{who}: an azimuth cut runs all the way round at el=; "
+                    "az=, lo= and hi= are an elevation cut's"
+                )
+            if el is None:
+                raise ValueError(f"{who}: an azimuth cut needs el= (degrees)")
+            _check_el(who, "el", el)
+            if el == 90:
+                raise ValueError(
+                    f"{who}: el=90 is the zenith, one direction, not a cut"
+                )
+            _check_step(who, step, 0.0, 360.0)
+        if not isinstance(unit, str):
+            raise TypeError(f"{who}: unit is a string, got {unit!r}")
+        for f, v in (
+            ("name", name),
+            ("fn", fn),
+            ("over", over),
+            ("step", step),
+            ("az", az),
+            ("el", el),
+            ("lo", lo),
+            ("hi", hi),
+            ("unit", unit),
+        ):
+            _set(self, f, v)
+
+    @property
+    def ref(self) -> str:
+        """The function by reference: ``module.qualname``."""
+        return function_ref(self.fn)
+
+    def _key(self) -> tuple:
+        return (
+            self.name,
+            self.ref,
+            self.over,
+            self.step,
+            self.az,
+            self.el,
+            self.lo,
+            self.hi,
+            self.unit,
+        )
+
+    def __eq__(self, other):
+        if not isinstance(other, Metric):
+            return NotImplemented
+        return self._key() == other._key()
+
+    def __hash__(self):
+        return hash(self._key())
+
+    def __repr__(self) -> str:
+        return f"Metric({self.name!r}, {self.ref}, over={self.over!r})"
+
+
+def function_ref(fn) -> str:
+    """``fn`` by reference, ``module.qualname``."""
+    return f"{fn.__module__}.{fn.__qualname__}"
+
+
+def function_refusal(fn) -> str | None:
+    """Why ``fn`` cannot be a `Metric`'s function, or None: it must be a
+    named, module-level Python function, since `to_code` writes it by
+    reference and a lambda or a nested function has none."""
+    import types
+
+    if not isinstance(fn, types.FunctionType):
+        return f"fn is a named module-level function (def f(cut): ...), got {fn!r}"
+    qual = fn.__qualname__
+    if fn.__name__ == "<lambda>":
+        return (
+            "fn is a lambda, which has no name to write back; define it with "
+            "def at module level and pass it by name"
+        )
+    if "<locals>" in qual or "." in qual:
+        return (
+            f"fn {qual} is defined inside another function or a class; a "
+            "metric's function is a module-level def, which to_code writes "
+            "by reference"
+        )
+    if not isinstance(fn.__module__, str) or not fn.__module__:
+        return f"fn {qual} has no module to be imported from"
+    return None
+
+
+#: The modules a function written by reference can never be imported from by
+#: name: a user design or study is loaded by its path under a synthetic name.
+_UNIMPORTABLE = ("__main__", "antennaknobs._user_designs", "antennaknobs._user_studies")
+
+
+def importable(fn) -> bool:
+    """Whether ``fn`` can be imported by its qualified name in another
+    process (`to_code` writes ``module.qualname`` with ``import module``):
+    not a script's ``__main__``, nor a user design or study file, which is
+    loaded by path; a keep of one writes a comment saying to copy it."""
+    mod = fn.__module__
+    return not any(mod == p or mod.startswith(p + ".") for p in _UNIMPORTABLE)
+
+
+def is_catalog_function(fn) -> bool:
+    """Whether ``fn`` ships with antennaknobs (the catalog's, ours): the only
+    callable metrics the hosted instance offers."""
+    return fn.__module__.startswith("antennaknobs.") and importable(fn)
+
+
+class Cut:
+    """What a `Metric`'s function is called with: one cut of the pattern.
+
+    - ``over``: "elevation" or "azimuth"; ``angles`` the cut's angles in
+      degrees (``el`` / ``az`` name them by what they are);
+    - ``gain_dbi``: total gain, dBi, at each angle; ``gain_v_dbi`` /
+      ``gain_h_dbi`` its vertically and horizontally polarised parts,
+      computed when first read (None where the engine cannot split them);
+    - ``freq_mhz``: the frequency the pattern was solved at;
+    - ``fixed_deg``: the cut's fixed angle, the azimuth of an elevation cut
+      (`PEAK_AZ` resolved to its number) or the elevation of an azimuth cut;
+      None for `MEAN_AZ`, which averages over azimuth instead of cutting.
+
+    The arrays are numpy arrays; ``10 ** (cut.gain_dbi / 10)`` is the power
+    ratio at each angle."""
+
+    __slots__ = (
+        "over",
+        "angles",
+        "gain_dbi",
+        "freq_mhz",
+        "fixed_deg",
+        "_split",
+        "_parts",
+    )
+
+    def __init__(
+        self,
+        *,
+        over: str,
+        angles,
+        gain_dbi,
+        freq_mhz: float,
+        fixed_deg: float | None,
+        polarized=None,
+    ):
+        self.over = over
+        self.angles = angles
+        self.gain_dbi = gain_dbi
+        self.freq_mhz = freq_mhz
+        self.fixed_deg = fixed_deg
+        # A thunk for the two polarised parts: read only when a function asks,
+        # since they cost another evaluation of the whole cut.
+        self._split = polarized
+        self._parts = None
+
+    def _polarized(self):
+        if self._parts is None:
+            got = self._split() if self._split is not None else None
+            self._parts = got if got is not None else (None, None)
+        return self._parts
+
+    @property
+    def gain_v_dbi(self):
+        return self._polarized()[0]
+
+    @property
+    def gain_h_dbi(self):
+        return self._polarized()[1]
+
+    @property
+    def el(self):
+        if self.over != "elevation":
+            raise AttributeError("an azimuth cut's angles are cut.az")
+        return self.angles
+
+    @property
+    def az(self):
+        if self.over != "azimuth":
+            raise AttributeError("an elevation cut's angles are cut.el")
+        return self.angles
+
+
 # ── the pattern views (AK#1757 step 7) ─────────────────────────────────────
 #
 # What the pattern pins draw, as views of an analysis with no swept x. The
@@ -826,7 +1074,7 @@ class PatternTable(View):
         if not all(isinstance(m, PatternMetric) for m in metrics):
             raise TypeError(
                 "PatternTable: metrics holds metrics (an.ElevationWindow(...), "
-                f"an.GainAt(...), ...), got {metrics!r}"
+                f"an.Metric(...), ...), got {metrics!r}"
             )
         _check_metric_names("PatternTable", metrics)
         _set(self, "metrics", metrics)
@@ -865,7 +1113,7 @@ class MetricPlot(View):
         if not isinstance(self.metric, PatternMetric):
             raise TypeError(
                 "MetricPlot: metric is a metric (an.ElevationWindow(...), "
-                f"an.GainAt(...), ...), got {self.metric!r}"
+                f"an.Metric(...), ...), got {self.metric!r}"
             )
         if self.relative_to is not None and not (
             isinstance(self.relative_to, str) and self.relative_to
@@ -1552,6 +1800,16 @@ def _node(value):
         return f"an.{name}" if name else f"an.Role({json.dumps(value.name)})"
     if isinstance(value, AzMode):
         return f"an.{_AZ_CONSTANTS[value]}"
+    if isinstance(value, Metric):
+        # The function by reference (AK#1828): ``module.qualname``, its
+        # import listed by `imports`; one that cannot be imported by name (a
+        # user design's or study's) as its bare name, which a keep says to
+        # copy into the file (`keep.render`).
+        call = _call("an.Metric", value, _METRIC_DEFAULTS, skip=("fn",))
+        fn = value.ref if importable(value.fn) else value.fn.__qualname__
+        args = list(call[3])
+        args.insert(1, ("", fn))
+        return (call[0], call[1], call[2], args, False)
     if isinstance(value, bool) or value is None:
         return repr(value)
     if isinstance(value, str):
@@ -1591,6 +1849,57 @@ def _defaults(cls) -> dict:
         for f in dataclasses.fields(cls)
         if f.default is not dataclasses.MISSING
     }
+
+
+# `Metric` takes its options by keyword in a constructor of its own, so the
+# dataclass fields carry no defaults: these are the constructor's.
+_METRIC_DEFAULTS = {
+    "over": "elevation",
+    "step": 1.0,
+    "az": None,
+    "el": None,
+    "lo": None,
+    "hi": None,
+    "unit": "dBi",
+}
+
+
+def metrics_of(value) -> list[Metric]:
+    """Every callable `Metric` inside ``value`` (an analysis, a view, a
+    metric), in the order met."""
+    out: list[Metric] = []
+
+    def walk(v):
+        if isinstance(v, Metric):
+            if v not in out:
+                out.append(v)
+        elif isinstance(v, tuple):
+            for x in v:
+                walk(x)
+        elif dataclasses.is_dataclass(v) and not isinstance(v, type):
+            for f in dataclasses.fields(v):
+                walk(getattr(v, f.name))
+
+    walk(value)
+    return out
+
+
+def imports(value) -> list[str]:
+    """The import lines `to_code`'s text of ``value`` needs beyond ``an``:
+    one per module a callable metric's function is written from (AK#1828),
+    sorted. A function that cannot be imported by name needs none: its
+    bare name is written, and it must be copied in."""
+    return sorted(
+        {f"import {m.fn.__module__}" for m in metrics_of(value) if importable(m.fn)}
+    )
+
+
+def code_with_imports(value, indent: int = 0) -> str:
+    """`to_code` of ``value`` after the imports it needs (`imports`), as the
+    analysis panel and ``analyze --code`` print it: paste-ready."""
+    head = imports(value)
+    code = to_code(value, indent)
+    return "\n".join([*head, "", code]) if head else code
 
 
 def _call(head: str, value, defaults: Mapping, positional=None, skip=()):
@@ -1699,6 +2008,7 @@ _DATA_CLASSES = {
         AzBeamwidth,
         ElBeamwidth,
         Rdf,
+        Metric,
     )
 }
 
@@ -1710,6 +2020,13 @@ def to_data(value):
     `from_data` reads it back to an equal value."""
     if isinstance(value, Role):
         return {"an": "Role", "name": value.name}
+    if isinstance(value, Metric):
+        # The function by reference only: `from_data` resolves it through
+        # the functions its caller says it served, never by importing.
+        out = {"an": "Metric", "name": value.name, "fn": value.ref}
+        for k in _METRIC_DEFAULTS:
+            out[k] = to_data(getattr(value, k))
+        return out
     if isinstance(value, State):
         return {
             "an": "State",
@@ -1744,11 +2061,18 @@ def _knob_data(v):
     return v
 
 
-def from_data(data):
+def from_data(data, functions: Mapping | None = None):
     """The spec value `to_data` wrote (module comment above): a ValueError or
-    TypeError, by name, for anything that is not one."""
+    TypeError, by name, for anything that is not one.
+
+    A callable `Metric`'s function is data as its reference
+    (``module.qualname``), and is resolved ONLY through ``functions``, the
+    caller's map of the references it served (the workbench's: the functions
+    of the analyses ``/analyses`` listed): never by importing what the data
+    names. So data can name only a function this process already offered
+    from a file it trusts, and a reference it did not is refused by name."""
     if isinstance(data, list):
-        return tuple(from_data(v) for v in data)
+        return tuple(from_data(v, functions) for v in data)
     if not isinstance(data, dict):
         if data is None or isinstance(data, (bool, int, float, str)):
             return data
@@ -1762,6 +2086,27 @@ def from_data(data):
         if set(fields) != {"name"}:
             raise ValueError("spec data: a Role has one field, name")
         return Role(fields["name"])
+    if cls is Metric:
+        extra = set(fields) - {"name", "fn", *_METRIC_DEFAULTS}
+        if extra:
+            raise ValueError(f"spec data: Metric has no field {sorted(extra)[0]!r}")
+        ref = fields.get("fn")
+        fn = (functions or {}).get(ref) if isinstance(ref, str) else None
+        if fn is None:
+            raise ValueError(
+                f"spec data: the metric {fields.get('name')!r} calls {ref!r}, "
+                "which is not a function this workbench served; a callable "
+                "metric comes from a design or study file, never from data"
+            )
+        return Metric(
+            fields.get("name"),
+            fn,
+            **{
+                k: from_data(fields[k], functions)
+                for k in _METRIC_DEFAULTS
+                if k in fields
+            },
+        )
     if cls is State:
         extra = set(fields) - {"name", "design", "variant", "knobs"}
         if extra:
@@ -1788,4 +2133,4 @@ def from_data(data):
     extra = set(fields) - names
     if extra:
         raise ValueError(f"spec data: an.{kind} has no field {sorted(extra)[0]!r}")
-    return cls(**{k: from_data(v) for k, v in fields.items()})
+    return cls(**{k: from_data(v, functions) for k, v in fields.items()})

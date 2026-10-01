@@ -2558,10 +2558,14 @@ def _request_metric(data):
     naming what is wrong with it."""
     from antennaknobs import analyses as an
 
+    from .analyses_offer import SERVED_FUNCTIONS
+
     if data is None:
         return None
     try:
-        metric = an.from_data(data)
+        # A callable metric's function only as this workbench served it
+        # (AK#1828): never resolved from what the page names.
+        metric = an.from_data(data, SERVED_FUNCTIONS)
     except (TypeError, ValueError) as e:
         raise HTTPException(status_code=422, detail=f"bad metric: {e}") from None
     if not isinstance(metric, an.PatternMetric):
@@ -2602,7 +2606,9 @@ async def analyses_endpoint(req: dict):
 
     def _offer():
         builder = builder_for(cls, req)
-        return offer(builder, req) + offer_studies(builder, req)
+        return offer(builder, req, hosted=_HOSTED) + offer_studies(
+            builder, req, hosted=_HOSTED
+        )
 
     try:
         analyses = await run_in_threadpool(_offer)

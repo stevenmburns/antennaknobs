@@ -1763,7 +1763,8 @@ def cli(arguments=None):
                 )
             analysis = analysis_run.find(builder(), args.analysis)
         if args.code:
-            print(an.to_code(analysis))
+            # With the imports a callable metric's function needs (AK#1828).
+            print(an.code_with_imports(analysis))
             return
 
         def seam(design):
