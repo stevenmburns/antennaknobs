@@ -113,8 +113,14 @@ export function metricSeries(
                 : null;
       return { ...base, xs: [], ys: [], fixed: true, level };
     }
-    const xs = d ? d.values.slice() : [];
-    const ys = xs.map((x, i) => {
+    // A held sweep's gaps (AK#1757 step 6) are points with no value: null
+    // at their x, so the curve breaks there instead of bridging them.
+    const gapXs = (d?.gaps ?? []).map((g) => g.value);
+    const xs = d ? [...d.values, ...gapXs].sort((a, b) => a - b) : [];
+    const at = (x: number) => (d ? d.values.indexOf(x) : -1);
+    const ys = xs.map((x) => {
+      const i = at(x);
+      if (i < 0) return null;
       const v = d?.metric?.[i];
       if (v === undefined || v === null || !Number.isFinite(v)) return null;
       if (!relative) return v;
