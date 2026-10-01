@@ -695,6 +695,36 @@ def test_a_gap_is_a_gap_in_the_metric_curve_too(monkeypatch, capsys, tmp_path, t
     assert [r.split(",")[i] for r in rows[1:]] == [rows[1].split(",")[i], "", ""]
 
 
+def test_a_held_metric_plot_csv_carries_the_held_knobs(monkeypatch, capsys, tmp_path):
+    """With no impedance view (MetricPlot + Knobs, M0AGP's shape) the CSV
+    still writes each held cell's R, X and held knob at every point, as it
+    does beside an `Rx` chart: it wrote only the metric columns before."""
+    import csv as csvmod
+
+    _offer_analyses(monkeypatch, [_held_dx()])
+    cells = _record(monkeypatch, ar, "hold_cell")
+    out = tmp_path / "dx.csv"
+    _run_held_dx(monkeypatch, capsys, tmp_path, "--csv", str(out))
+    with out.open(newline="") as f:
+        head, *rows = list(csvmod.reader(f))
+    assert head == [
+        "angle_deg",
+        "as built R_ohm",
+        "as built X_ohm",
+        "as built length_factor",
+        "as built DX gain (dBi)",
+        "as built DX gain vs flat (dB)",
+    ]
+    (pts,) = [c[2] for c in cells]
+    assert [float(r[0]) for r in rows] == list(ANGLES)
+    for r, pt in zip(rows, pts, strict=True):
+        assert pt.converged
+        assert float(r[3]) == pt.params["length_factor"]
+        assert complex(float(r[1]), float(r[2])) == pt.z
+    # The fixed reference is never held: no knob columns of its own.
+    assert not any(h.startswith("flat ") for h in head)
+
+
 def test_workbench_held_metric_is_the_metric_at_the_standalone_optimum(
     monkeypatch, client
 ):

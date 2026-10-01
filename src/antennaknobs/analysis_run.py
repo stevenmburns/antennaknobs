@@ -930,7 +930,11 @@ def run(
                 knob_name = "MHz" if a.sweep.knob == an.FREQUENCY else knob
                 csv.write(
                     knob_name,
-                    [(label, xs, cols) for label, (xs, cols) in metric_cols.items()],
+                    # A held cell's columns whatever the views: R, X and the
+                    # held knobs at each optimised point, as beside an `Rx`
+                    # chart, so the CSV says what the hold reached.
+                    [held_csv_curve(label, pts) for label, pts in held.items()]
+                    + [(label, xs, cols) for label, (xs, cols) in metric_cols.items()],
                 )
             for label, pts in held.items():
                 for line in held_lines(label, knob, pts, a.hold):
