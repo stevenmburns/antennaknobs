@@ -139,6 +139,8 @@ type ParamBody = Record<string, unknown> & { param: string; values: number[]; ho
 async function mount() {
   const paramSweeps: ParamBody[] = [];
   const r = await mountReady({
+    // A pick starts its analysis, as before [workbench.run_on_pick] (AC6LA #179).
+    pickRuns: true,
     examples: [DECK],
     pinned: ["antenna", "zparam"],
     routes: {

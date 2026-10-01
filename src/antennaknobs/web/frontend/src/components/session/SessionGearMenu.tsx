@@ -2,7 +2,7 @@ import type { MeasuredData } from "../../lib/api";
 import type { useFullscreen } from "../hooks";
 import type { Theme } from "../hooks";
 import { helpUrl } from "../../lib/help";
-import { ORIENTATIONS, type Orientation } from "../../lib/settings";
+import { ORIENTATIONS, type Orientation, type RunOnPickKind } from "../../lib/settings";
 import { TabStrip } from "./TabStrip";
 
 // The orientation <select>'s words: the view switch's own labels
@@ -14,6 +14,26 @@ const ORIENTATION_LABELS: Record<Orientation, string> = {
   side: "Side (yz)",
   iso: "Iso",
 };
+
+// The run-on-pick switches the menu shows (AC6LA, QRZ 1003328 #179), with
+// their words and tooltips. `map` is a valid settings.toml key, but the
+// workbench draws no map yet (sweep-framework step 5), so a switch for it
+// would do nothing; a save passes the file's value through.
+const RUN_ON_PICK_MENU: readonly { kind: RunOnPickKind; label: string; title: string }[] = [
+  { kind: "frequency", label: "frequency sweeps", title: "A frequency sweep or band SWR: seconds." },
+  { kind: "pattern", label: "patterns", title: "A pattern: one solve per curve." },
+  { kind: "knob", label: "knob sweeps", title: "A sweep of a design knob (a height sweep): a solve per point." },
+  {
+    kind: "held",
+    label: "held sweeps",
+    title: "A knob sweep with a hold (an.Hold): an optimisation at every point.",
+  },
+  {
+    kind: "convergence",
+    label: "density ladders",
+    title: "A density ladder (the convergence analysis): a re-mesh and solve per point.",
+  },
+];
 
 // Sidebar header: brand + the tools (gear) dropdown, incl. the reactive
 // copies of the chart-overlay toggles (same state the overlays use, so the
@@ -46,6 +66,8 @@ export function SessionGearMenu({
   setNormCheckEnabled,
   refineEnabled,
   setRefineEnabled,
+  runOnPick,
+  setRunOnPick,
   canSaveDefaults,
   onSaveDefaults,
   theme,
@@ -82,6 +104,9 @@ export function SessionGearMenu({
   setNormCheckEnabled: (v: boolean) => void;
   refineEnabled: boolean;
   setRefineEnabled: (v: boolean) => void;
+  /** Whether picking an analysis starts it, per kind (AC6LA #179). */
+  runOnPick: Record<RunOnPickKind, boolean>;
+  setRunOnPick: (kind: RunOnPickKind, v: boolean) => void;
   /** Local installs only: write these as the startup settings (AK#1492). */
   canSaveDefaults: boolean;
   onSaveDefaults: () => void;
@@ -308,13 +333,35 @@ export function SessionGearMenu({
                     />
                     adaptive resolution
                   </label>
+                  {/* Does picking an analysis start it (AC6LA #179)? Off,
+                      the pick only selects it and the chart waits for Run,
+                      so its settings can be changed before minutes of
+                      solving. A chart's own "auto re-run" governs what
+                      happens after the pick either way. */}
+                  <div
+                    className="gear-menu-section"
+                    title="Off: picking it in a chart's picker only selects it, and the chart waits for Run. A link with run=1 always runs."
+                  >
+                    picking an analysis runs it
+                  </div>
+                  {RUN_ON_PICK_MENU.map(({ kind, label, title }) => (
+                    <label key={kind} className="gear-menu-check" title={title}>
+                      <input
+                        type="checkbox"
+                        aria-label={`picking runs ${label}`}
+                        checked={runOnPick[kind]}
+                        onChange={(e) => setRunOnPick(kind, e.target.checked)}
+                      />
+                      {label}
+                    </label>
+                  ))}
                   {canSaveDefaults && (
                     <>
                       <div className="gear-menu-section">startup</div>
                       <button
                         type="button"
                         className="gear-menu-check gear-menu-button"
-                        title="Write these switches, the antenna view on load, the ground and the A/B/C solver slots to settings.toml, so the workbench starts this way next time"
+                        title="Write these switches, which analyses a pick runs, the antenna view on load, the ground and the A/B/C solver slots to settings.toml, so the workbench starts this way next time"
                         onClick={onSaveDefaults}
                       >
                         save as my defaults

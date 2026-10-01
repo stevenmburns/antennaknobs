@@ -210,6 +210,7 @@ import {
   pickKnob,
   pickOwnFrequency,
   pickPattern,
+  pickRuns,
   setChartView,
   withListed,
 } from "../../lib/analysisChart";
@@ -243,6 +244,7 @@ const ZPARAM_MOBILE_HEADER_PX = 96;
 const ZPARAM_DESKTOP_HEADER_PX = 48;
 import { useCapabilities } from "./useCapabilities";
 import {
+  type RunOnPickKind,
   saveSettings,
   type SettingsSaveBody,
   type UiDefaults,
@@ -412,6 +414,10 @@ function DesignSessionBody({
   // This replaces the old fire-and-forget "Cancel" on the solver-mismatch prompt,
   // which left the plots blank with no obvious way back. Defaults on.
   const [autoSim, setAutoSim] = useState(uiDefaults.switches.live);
+  // Does picking an analysis start it, per kind (AC6LA, QRZ 1003328 #179):
+  // settings.toml's [workbench.run_on_pick], flipped in the gear menu for
+  // this session and written by "save as my defaults".
+  const [runOnPick, setRunOnPick] = useState<Record<RunOnPickKind, boolean>>(uiDefaults.runOnPick);
 
   const {
     examples,
@@ -1285,6 +1291,9 @@ function DesignSessionBody({
         ]),
       ),
       slots: { A: slot("A"), B: slot("B"), C: slot("C") },
+      // Every kind, `map` included (not in the menu until the workbench
+      // draws a map): the server writes only what differs from its defaults.
+      workbench: { run_on_pick: runOnPick },
     };
     const outcome = await saveSettings(body);
     setSettingsNote(
@@ -2648,19 +2657,42 @@ function DesignSessionBody({
       }
     });
   };
-  // `run` false (a deep link without run=1, AK#1838) selects without
-  // asking: a chart whose dwell switch is off (a knob sweep, a held one)
-  // then waits for Run, and one whose switch is on follows it as ever.
-  const pickAnalysis = (i: number, entry: AnalysisEntry, run = true) => {
+  // A pick that only selects: every curve the pick changes waits for Run,
+  // even on a chart whose dwell switch is on (the switch governs what
+  // happens AFTER the pick). A curve the pick leaves as it was sees no
+  // change, so there is nothing to hold, and holding it would swallow the
+  // next real change instead.
+  const holdPicked = (
+    i: number,
+    kind: "freq" | "param" | "pattern",
+    next: AnalysisChartState,
+    same: boolean,
+  ) => {
+    const m = chartModels[i];
+    if (!m) return;
+    const nextCells = planOf(next.cross, chartListed(next)).cells.filter(drawable);
+    allRunnersOf[i].forEach((r, k) => {
+      if (same && m.resident && k < nextCells.length && m.drawn[k]?.key === nextCells[k].key) return;
+      (kind === "freq" ? r.freq : kind === "param" ? r.param : r.pattern).hold();
+    });
+  };
+  // `run` says whether the pick starts the analysis: absent (the picker),
+  // settings.toml's [workbench.run_on_pick] for its kind (AC6LA #179); a
+  // deep link's run=1 passes true, whatever the setting (AK#1838). False
+  // only selects: the chart shows the analysis, ready, and waits for Run.
+  const pickAnalysis = (i: number, entry: AnalysisEntry, runArg?: boolean) => {
     const m = chartModels[i];
     const w = entry.workbench;
     if (!m || !w.runs || zparamAnalysisBlocked(entry)) return;
+    const run = runArg ?? pickRuns(w, runOnPick);
+    const start = (kind: "freq" | "param" | "pattern", next: AnalysisChartState, same: boolean) =>
+      (run ? runPicked : holdPicked)(i, kind, next, same);
     if (w.kind === "pattern") {
       // A pattern (step 7): one solve per cell, drawn on its first view.
       // Already this pattern (the cells it keeps): nothing will change to
       // arm, so run it.
       const next = pickCross(pickPattern(m.state, entry.name, w), w);
-      if (run) runPicked(i, "pattern", next, m.state.kind === "pattern" && pickedName(m.now) === entry.name);
+      start("pattern", next, m.state.kind === "pattern" && pickedName(m.now) === entry.name);
       setChartAt(i, () => next);
       return;
     }
@@ -2676,7 +2708,7 @@ function DesignSessionBody({
         c.frequency ? JSON.stringify(chartFrequencyRange(c.frequency, chartBaseRange)) : "";
       // Already this sweep (the curves it keeps): nothing will change to
       // arm, so run it.
-      if (run) runPicked(i, "freq", next, m.state.kind === "frequency" && range(m.state) === range(next));
+      start("freq", next, m.state.kind === "frequency" && range(m.state) === range(next));
       setChartAt(i, () => next);
       return;
     }
@@ -2688,7 +2720,7 @@ function DesignSessionBody({
       pickKnob(m.state, entry.name, next, w.views, w.metric, w.hold ?? null),
       w,
     );
-    if (run) runPicked(i, "param", picked, m.state.kind === "knob" && sameSpec(next, m.spec));
+    start("param", picked, m.state.kind === "knob" && sameSpec(next, m.spec));
     setChartAt(i, () => picked);
   };
   // The picker's current entry: the analysis picked while the chart still
@@ -3007,9 +3039,9 @@ function DesignSessionBody({
       setLinkStage("done");
       return;
     }
-    // run=1 asks for it as a pick in the picker does (exactly one run);
-    // without it the pick only selects.
-    pickAnalysis(0, r.value, deepLink.run);
+    // run=1 starts it (exactly one run), whatever [workbench.run_on_pick]
+    // says; without it the link picks as the picker does, by that setting.
+    pickAnalysis(0, r.value, deepLink.run ? true : undefined);
     setLinkStage(deepLink.view ? "view" : "done");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLink, linkStage, zparamAnalysesLoaded, zparamAnalyses, currentExample, linkDesign]);
@@ -3152,6 +3184,8 @@ function DesignSessionBody({
           setNormCheckEnabled={setNormCheckEnabled}
           refineEnabled={refineEnabled}
           setRefineEnabled={setRefineEnabled}
+          runOnPick={runOnPick}
+          setRunOnPick={(kind, v) => setRunOnPick((t) => ({ ...t, [kind]: v }))}
           canSaveDefaults={uiDefaults.writable}
           onSaveDefaults={() => {
             setGearMenuOpen(false);

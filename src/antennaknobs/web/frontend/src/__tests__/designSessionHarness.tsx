@@ -20,6 +20,7 @@ import { SweepPinsProvider } from "../components/session/SweepPinsProvider";
 import { VIEW_PREFS_KEY, type Layout } from "../components/session/useViewPrefs";
 import { type LegacyChartView, VIEWS, type View } from "../lib/view";
 import type { ExampleDescriptor } from "../lib/params";
+import { RUN_ON_PICK_KINDS } from "../lib/settings";
 import type { BackendRoster } from "../lib/backends";
 import {
   SERVED_ROSTER,
@@ -103,6 +104,12 @@ export interface MountDesignSessionOptions {
   /** /capabilities' `ui_defaults` (AK#1492); omitted from the payload when
    *  undefined, which is a server predating it. */
   uiDefaults?: unknown;
+  /** Serve [workbench.run_on_pick] with every kind true (AC6LA #179), over
+   *  `uiDefaults`: a pick of any analysis then starts it, as every pick did
+   *  before the setting. For a test whose subject is what a run draws or
+   *  sends, with the pick only its way in; what a pick does by default is
+   *  runOnPick.session.test.tsx's. */
+  pickRuns?: boolean;
   /** /capabilities' `version_label` (AK#1517); omitted from the payload when
    *  undefined, which is a server predating it — the default, so most tests
    *  exercise the no-label render path without asking for it. */
@@ -141,13 +148,21 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
     roster = SERVED_ROSTER,
     examples = [HARNESS_EXAMPLE],
     routes = {},
-    uiDefaults,
+    uiDefaults: servedDefaults,
+    pickRuns = false,
     versionLabel,
     canSaveStudies,
     soilRanges,
     storage = {},
     url,
   } = opts;
+
+  const uiDefaults = pickRuns
+    ? {
+        ...(typeof servedDefaults === "object" && servedDefaults !== null ? servedDefaults : {}),
+        workbench: { run_on_pick: Object.fromEntries(RUN_ON_PICK_KINDS.map((k) => [k, true])) },
+      }
+    : servedDefaults;
 
   localStorage.clear();
   localStorage.setItem(

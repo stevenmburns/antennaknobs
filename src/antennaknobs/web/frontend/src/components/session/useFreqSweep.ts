@@ -190,6 +190,10 @@ export type FreqSweepHandle = {
   /** Ask for whatever inputs the next render brings (a pick): with `auto`
    *  off, that sweep runs after the dwell as if `auto` were on. */
   arm: () => void;
+  /** Hold the change the next render brings: it does not run by itself,
+   *  whatever the dwell switch says, and waits (dimmed) for Run. A pick
+   *  that only selects (`[workbench.run_on_pick]`, AC6LA #179). */
+  hold: () => void;
   /** The app's Cancel: stop the stream and any pending round; what is drawn
    *  stays drawn. */
   abort: () => void;
@@ -291,6 +295,8 @@ export function useFreqSweep({
   // The same bookkeeping as the knob sweep's (useParamSweep).
   const armedRef = useRef<string | null>(null);
   const armNextRef = useRef(false);
+  // A pick that only selects (useParamSweep's `hold`).
+  const holdNextRef = useRef(false);
   const [sweepStale, setSweepStale] = useState(false);
   const armKey = freqSweepSig + sweepRangeKey;
 
@@ -320,8 +326,10 @@ export function useFreqSweep({
     const wanted = sweepEnabled && sweepResident;
     if (armNextRef.current && wanted) armedRef.current = armKey;
     armNextRef.current = false;
-    if (!wanted) armedRef.current = null;
-    if (!auto && armedRef.current !== armKey) {
+    const held = holdNextRef.current && wanted;
+    holdNextRef.current = false;
+    if (!wanted || held) armedRef.current = null;
+    if (held || (!auto && armedRef.current !== armKey)) {
       // Inputs nobody asked to sweep: run nothing. What is drawn stays,
       // dimmed as stale, until Run (a knob sweep's rule, AK#1757).
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -670,6 +678,10 @@ export function useFreqSweep({
     armNextRef.current = true;
   }
 
+  function hold() {
+    holdNextRef.current = true;
+  }
+
   function abort() {
     setSweepQueued(false);
     setSweepRefining(false);
@@ -700,6 +712,7 @@ export function useFreqSweep({
     error: sweepError,
     runNow,
     arm,
+    hold,
     abort,
   };
 }

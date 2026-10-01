@@ -55,6 +55,10 @@ export type PatternCellHandle = {
   stop: () => void;
   runNow: () => void;
   arm: () => void;
+  /** Hold the change the next render brings: it does not run by itself,
+   *  whatever the dwell switch says, and waits (dimmed) for Run. A pick
+   *  that only selects (`[workbench.run_on_pick]`, AC6LA #179). */
+  hold: () => void;
   abort: () => void;
 };
 
@@ -84,6 +88,8 @@ export function usePatternCell({
   const stoppedRef = useRef<string | null>(null);
   const armedRef = useRef<string | null>(null);
   const armNextRef = useRef(false);
+  // A pick that only selects (useParamSweep's `hold`).
+  const holdNextRef = useRef(false);
 
   useEffect(() => {
     if (stoppedRef.current === sig) return;
@@ -96,8 +102,10 @@ export function usePatternCell({
     setQueued(false);
     if (armNextRef.current && wanted) armedRef.current = sig;
     armNextRef.current = false;
-    if (!wanted) armedRef.current = null;
-    if (!auto && armedRef.current !== sig) {
+    const held = holdNextRef.current && wanted;
+    holdNextRef.current = false;
+    if (!wanted || held) armedRef.current = null;
+    if (held || (!auto && armedRef.current !== sig)) {
       // Nobody asked at these inputs: what is drawn stays, dimmed as stale.
       setData((d) => (d ? { ...d, stale: true } : null));
       setRunning(false);
@@ -199,6 +207,10 @@ export function usePatternCell({
     armNextRef.current = true;
   }
 
+  function hold() {
+    holdNextRef.current = true;
+  }
+
   function abort() {
     setQueued(false);
     if (abortRef.current || timerRef.current) stoppedRef.current = sig;
@@ -214,6 +226,7 @@ export function usePatternCell({
     stop,
     runNow,
     arm,
+    hold,
     abort,
   };
 }

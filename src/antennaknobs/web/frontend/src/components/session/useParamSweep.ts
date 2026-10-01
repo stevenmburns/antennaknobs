@@ -42,6 +42,10 @@ export type ParamSweepHandle = {
   stop: () => void;
   runNow: () => void;
   arm: () => void;
+  /** Hold the change the next render brings: it does not run by itself,
+   *  whatever the dwell switch says, and waits (dimmed) for Run. A pick
+   *  that only selects (`[workbench.run_on_pick]`, AC6LA #179). */
+  hold: () => void;
   /** The app's Cancel: stops it the way its own Stop does. */
   abort: () => void;
 };
@@ -81,6 +85,9 @@ export function useParamSweep({
   // is not known until the next render).
   const paramSweepArmedRef = useRef<string | null>(null);
   const paramSweepArmNextRef = useRef(false);
+  // A pick that only selects (`hold`): the next request the effect sees runs
+  // nothing by itself, even with the dwell switch on; Run runs it.
+  const paramSweepHoldNextRef = useRef(false);
   // Debounced parameter sweep: Z against the density or one design knob, on
   // the active slot's engine, whenever something that draws it (`wanted`) is
   // on screen. The swept field is overridden per point on the server; the
@@ -103,8 +110,10 @@ export function useParamSweep({
       paramSweepArmedRef.current = paramSweepSig;
     }
     paramSweepArmNextRef.current = false;
-    if (!paramSweepWanted) paramSweepArmedRef.current = null;
-    if (paramSweepReq.auto === false && paramSweepArmedRef.current !== paramSweepSig) {
+    const held = paramSweepHoldNextRef.current && paramSweepWanted;
+    paramSweepHoldNextRef.current = false;
+    if (!paramSweepWanted || held) paramSweepArmedRef.current = null;
+    if (held || (paramSweepReq.auto === false && paramSweepArmedRef.current !== paramSweepSig)) {
       // A knob sweep nobody asked for at these inputs: run nothing. One
       // already drawn for this knob stays, dimmed as stale ("re-run?");
       // any other is cleared.
@@ -404,6 +413,11 @@ export function useParamSweep({
     paramSweepArmNextRef.current = true;
   }
 
+  // A pick that only selects: the next request waits for Run.
+  function holdParamSweep() {
+    paramSweepHoldNextRef.current = true;
+  }
+
   // The app's Cancel stops the parameter sweep the way its own Stop does.
   function abort() {
     setParamSweepQueued(false);
@@ -423,6 +437,7 @@ export function useParamSweep({
     stop: stopParamSweep,
     runNow: runParamSweepNow,
     arm: armParamSweep,
+    hold: holdParamSweep,
     abort,
   };
 }

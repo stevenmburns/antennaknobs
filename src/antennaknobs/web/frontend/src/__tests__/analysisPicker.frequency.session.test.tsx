@@ -109,6 +109,8 @@ async function mount() {
   const sweeps: number[][] = [];
   const paramSweeps: { param: string; values: number[] }[] = [];
   const r = await mountReady({
+    // A pick starts its analysis, as before [workbench.run_on_pick] (AC6LA #179).
+    pickRuns: true,
     examples: [DECK],
     pinned: ["antenna", "zparam"],
     routes: {
