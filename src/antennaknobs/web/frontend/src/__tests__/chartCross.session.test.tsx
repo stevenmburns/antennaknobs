@@ -18,7 +18,17 @@
 //   - the cap off by one (chartCells' capRefusal `n <= CURVE_CAP` made
 //     `n < CURVE_CAP`): "the cross is capped…" fails, 3 x 2 is refused;
 //   - a refused cell dropped from the legend (ChartLegend filtering the
-//     refused entries out): "a listed engine no slot holds…" fails.
+//     refused entries out): the cap test's refusal row and "chartCrosses'
+//     NEC-2 declining…" fail.
+//
+// Mutation notes (run by hand, 2026-10-01; each reverted after), the skip:
+//   - the skip reverted to a refusal (chartCells' axis() pushing a refused
+//     entry for an unslotted solver spec again): "E1 on Steve's slots…"
+//     fails, the legend reads two refused rows beside the B-spline;
+//   - the all-skipped fallback off (preselect leaving `[]`): "every listed
+//     engine unslotted…" fails, one curve (the active slot) is drawn;
+//   - the note dropped (DesignSession passing no `note`): both fail, the
+//     legend is absent on the one-curve E1 chart.
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -55,29 +65,32 @@ const DECK: ExampleDescriptor = {
   param_schema: [knob({})],
 };
 
-// A frequency analysis that lists two engines, one of which no slot holds
-// (the harness's slots are B-spline d=2, B-spline d=1 and PyNEC).
+// Frequency analyses listing engines (the harness's slots are Steve's:
+// B-spline d=2, B-spline d=1 and PyNEC): E1's three, of which only the
+// B-spline is in a slot, and two of which none is.
+const listing = (name: string, engines: string[]) => ({
+  name,
+  summary: `frequency; ${engines.length} curves (${engines.length} engines); views Swr`,
+  code: "an.band_swr(cross=an.Cross(engines=(...)))",
+  problems: [],
+  workbench: {
+    runs: true,
+    kind: "frequency",
+    note: null,
+    views: ["Swr"],
+    range: null,
+    level: "default",
+    points: null,
+    swr: { scale: null, threshold: null },
+    engines,
+    grounds: null,
+  },
+});
 const ANALYSES = {
   geometry: DECK.name,
   analyses: [
-    {
-      name: "engines SWR",
-      summary: "frequency; 2 curves (2 engines); views Swr",
-      code: "an.band_swr(cross=an.Cross(engines=(...)))",
-      problems: [],
-      workbench: {
-        runs: true,
-        kind: "frequency",
-        note: null,
-        views: ["Swr"],
-        range: null,
-        level: "default",
-        points: null,
-        swr: { scale: null, threshold: null },
-        engines: ["momwire:bspline", "nec5"],
-        grounds: null,
-      },
-    },
+    listing("engines SWR", ["momwire:bspline", "momwire:razor-2p", "nec5"]),
+    listing("unslotted SWR", ["momwire:razor-2p", "nec5"]),
   ],
 };
 
@@ -314,24 +327,67 @@ describe("engines x grounds", () => {
 });
 
 describe("the legend", () => {
-  it("a listed engine no slot holds is a refused cell, named with its reason, and the rest draws", async () => {
+  const pickAnalysis = async (r: { bodies: Body[] }, name: string) => {
+    const before = r.bodies.length;
+    fireEvent.change(screen.getByRole("combobox", { name: "Analysis" }), { target: { value: name } });
+    await untilDom(() => r.bodies.length > before || null);
+    return before;
+  };
+
+  it("E1 on Steve's slots: one B-spline curve, the unslotted engines skipped in a note, nothing refused", async () => {
     const r = await mount();
     await chartOnStage(r);
     await firstSweep(r.bodies);
-    const before = r.bodies.length;
-    fireEvent.change(screen.getByRole("combobox", { name: "Analysis" }), {
-      target: { value: "engines SWR" },
-    });
-    await untilDom(() => r.bodies.length > before || null);
+    const before = await pickAnalysis(r, "engines SWR");
     const legend = await untilDom(() => document.querySelector<HTMLElement>(".chart-legend"));
+    // No refusal anywhere: no refused row, no error ink. (Asserted first, so
+    // the mutation check in the header fails HERE, not on the rows below.)
+    expect(legend.querySelectorAll('[data-refused="1"]')).toHaveLength(0);
+    expect(legend.querySelector(".chart-legend-why")).toBeNull();
+    expect(legend.querySelector(".is-refused")).toBeNull();
+    const rows = [...legend.querySelectorAll<HTMLElement>(".chart-legend-row")];
+    expect(rows.map((row) => [row.textContent, row.dataset.refused])).toEqual([["momwire:bspline", "0"]]);
+    expect(legend.querySelector('[role="note"]')?.textContent).toBe(
+      "skipped: razor-2p, NEC-5, which no slot holds. Put one in a slot to include it.",
+    );
+    expect(legend.dataset.curves).toBe("1");
+    // One curve, on slot A (B-spline d=2's density), and no other stream.
+    const sent = r.bodies.slice(before);
+    expect(sent.every((b) => b._stream === undefined && b.n_per_wire === 15)).toBe(true);
+  });
+
+  it("every listed engine unslotted: a curve on every slot, and the note says so", async () => {
+    const r = await mount();
+    await chartOnStage(r);
+    await firstSweep(r.bodies);
+    await pickAnalysis(r, "unslotted SWR");
+    await untilDom(() => (["c0r1", "c0r2"].every((s) => r.bodies.some((b) => b._stream === s)) ? true : null));
+    const legend = await untilDom(() =>
+      document.querySelector<HTMLElement>(".chart-legend")?.dataset.curves === "3"
+        ? document.querySelector<HTMLElement>(".chart-legend")
+        : null,
+    );
     const rows = [...legend.querySelectorAll<HTMLElement>(".chart-legend-row")];
     expect(rows.map((row) => [row.textContent, row.dataset.refused])).toEqual([
-      ["momwire:bspline", "0"],
-      ["nec5: no solver slot holds nec5", "1"],
+      ["A: B-spline d=2", "0"],
+      ["B: B-spline d=1", "0"],
+      ["C: PyNEC", "0"],
     ]);
-    // The slot that holds the listed B-spline draws, and it is slot A.
-    expect(r.bodies[r.bodies.length - 1].n_per_wire).toBe(15);
-    expect(legend.dataset.curves).toBe("1");
+    expect(legend.querySelector('[role="note"]')?.textContent).toBe(
+      "skipped: razor-2p, NEC-5, which no slot holds, so the chart draws your slots instead. Put one in a slot to include it.",
+    );
+    // The three curves are the three slots.
+    const last = (stream: string | undefined) => [...r.bodies].reverse().find((b) => b._stream === stream);
+    expect(
+      [undefined, "c0r1", "c0r2"].map((s) => {
+        const b = last(s);
+        return [b?.solver, b?.n_per_wire];
+      }),
+    ).toEqual([
+      ["momwire", 15],
+      ["momwire", 20],
+      ["pynec", 21],
+    ]);
   });
 });
 

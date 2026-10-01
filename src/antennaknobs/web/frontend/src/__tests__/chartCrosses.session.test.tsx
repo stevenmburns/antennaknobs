@@ -28,7 +28,8 @@
 //     fails, the picker reads "Sweep a knob" and the family is gone;
 //   - a refused engine cell dropped from the legend (the legend's
 //     engineRefusal branch removed): "NEC-2 declining…" fails, the row
-//     reads as a drawn curve with an error, not a refused cell.
+//     reads as a drawn curve with an error, not a refused cell. Re-run
+//     2026-10-01 with razor-2p listed and skipped beside it: still fails.
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import type { ExampleDescriptor, SchemaParamSpec } from "../lib/params";
@@ -139,7 +140,10 @@ const ANALYSES = [
     param: "n_per_wire",
     values: LADDER,
     log: true,
-    engines: ["momwire:bspline", "pynec"],
+    // E7's engines, PyNEC standing in for NEC-2 (the harness has no NEC-2
+    // slot) and razor-2p in no slot: skipped, while PyNEC's refusal of the
+    // other design's feed stays a named refusal.
+    engines: ["momwire:bspline", "momwire:razor-2p", "pynec"],
     axes: ["designs", "engines"],
     designs: [
       { name: DECK.name, refused: null, param: "n_per_wire", values: LADDER },
@@ -422,6 +426,10 @@ describe("the design cross", () => {
     ]);
     const legend = document.querySelector<HTMLElement>(".chart-legend");
     expect(legend?.dataset.curves).toBe("3");
+    // The engine no slot holds is skipped, not refused: a note, no row.
+    expect(legend?.querySelector('[role="note"]')?.textContent).toBe(
+      "skipped: razor-2p, which no slot holds. Put it in a slot to include it.",
+    );
   });
 });
 

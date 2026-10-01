@@ -92,6 +92,7 @@ import {
   type ScalarKnob,
   type ListedCross,
   preselect,
+  skippedNote,
   servedCell,
 } from "../../lib/chartCells";
 import { ChartScaleContext } from "../charts/chartScale";
@@ -3970,6 +3971,9 @@ function DesignSessionBody({
         return { key: c.key, label: c.label, color: cellColor(k), refused: null, error: error ?? null };
       }),
       capRefusal: m.plan.capRefusal,
+      // The listed engines no slot holds, skipped rather than refused
+      // (Steve, 2026-10-01), named in a muted note.
+      note: skippedNote(m.plan),
       ...(pinRows.length > 0
         ? { pins: pinRows, pinsRx: rxPlot(m), onKeepPins: keepPins, keepPinsBlocked }
         : {}),

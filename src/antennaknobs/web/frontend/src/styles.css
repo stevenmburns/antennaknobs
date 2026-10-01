@@ -4941,6 +4941,12 @@ canvas {
 .chart-legend-why {
   color: var(--danger);
 }
+/* The skipped engines' note: the muted ink, as a pin that cannot draw here
+   is, since an engine no slot holds is no error of the chart's. */
+.chart-legend-note {
+  margin-top: var(--space-1);
+  color: var(--muted);
+}
 /* The legend's pinned sweeps (AK#1757 item 1): a dashed swatch in the
    pin's colour; a pin hidden, or unable to draw here, greys with its reason
    in the muted ink (a pin that cannot draw is not an error). */
