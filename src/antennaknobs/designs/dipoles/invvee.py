@@ -111,8 +111,8 @@ class Builder(AntennaBuilder):
     def build_analyses(self):
         """The sweep-framework spec's driving examples on this design
         (docs/design/sweep-framework-spec.md, AK#1757): E1, E3 and E2 as the
-        spec page writes them, and E8/E9, a hold at every point (data only:
-        nothing runs a hold yet). E7 compares this design with another, so
+        spec page writes them, and E8/E9, a hold at every point (step 6:
+        ``antennaknobs.hold``). E7 compares this design with another, so
         it is a study, in ``studies/dipoles/apex_feed_on_invvee.py`` (step 7)."""
         lf = an.Sweep("length_factor", 0.90, 1.06, points=33)
         refs = an.Ref(r=(50, 75), x=(0,))

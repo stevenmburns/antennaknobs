@@ -576,6 +576,8 @@ def optimize(
     on_progress: Callable[[dict], None] | None = None,
     seed_surrogate: bool = False,
     seed_state: int = 0,
+    warm: bool = False,
+    fallback: bool = True,
 ) -> dict:
     """Optimise ``objective`` over the ``free`` params within their bounds.
 
@@ -586,6 +588,26 @@ def optimize(
     ``on_progress``, if given, is called once per solve (see ``_solve_at``) with
     ``{"n_evals", "params", "objective", "metrics"}``. ``None`` (the default)
     leaves behaviour identical to no callback support at all.
+
+    Two switches for a HELD sweep (AK#1757 step 6, ``antennaknobs.hold``),
+    both off by default so the workbench's /optimize runs exactly as before:
+
+    - ``warm``: the start is a neighbouring point's solution (continuation),
+      so the two-knob path tries Newton from it FIRST and samples the box
+      (the seed) only if that fails. From a solution one sweep step away the
+      seed's global sample buys nothing and costs six solves a point. The
+      one-knob secant already starts from the start; ``warm`` changes nothing
+      there.
+    - ``fallback``: False skips the Nelder-Mead polish after a root path
+      that failed. A held point is a ROOT or a gap: a simplex's best effort
+      at a point with no root would be drawn as a plausible wrong value, so
+      it is not worth its ~40 solves. The result then carries the best
+      SOLVED point of the root path, ``converged`` False.
+
+    ``converged`` is True exactly when a root path found its root (the
+    secant, the bracket, or Newton): the optimizer's own verdict, which a
+    hold reads. ``root_reason`` is that path's last word ("ftol", "xtol",
+    "no-sign-change", "stalled", ...), None when no root path ran.
     """
     if not free:
         raise ValueError("no free params selected to optimise")
@@ -801,6 +823,7 @@ def optimize(
         seed_index = 0
         seed_total = 0
 
+    root_ran = (objective == "resonance" and len(free) == 1) or newton_path
     if newton_path:
         box2 = list(zip(lo, hi, strict=True))
         total2 = int(max_evals) if max_evals else min(200, 40 * len(free))
@@ -823,31 +846,41 @@ def optimize(
         # global sample is part of the method here rather than a toggle. The
         # `seed_surrogate` toggle keeps its meaning for the Nelder-Mead path,
         # which is the only place it ever applied.
-        phase = "seeding"
-        n_coef2 = 1 + 2 + 3
-        seed_index, seed_total = 0, n_coef2
-        x_pred, ranked = _surrogate_root_start(
-            _probe_z, box2, n_coef2, rng2, float(out0.get("z0_ohms", 50.0) or 50.0)
-        )
-        n_seed = n_coef2
-        seed_index, seed_total = 0, 0
-
-        # Try the predicted crossing first, then the best solved samples. A
-        # restart costs only its own steps -- the samples are already paid for,
-        # and the memo answers them free.
-        starts = [x for x in ([x_pred] if x_pred else []) + ranked[:2] if x]
-        phase = "newton"
         xr, ok, root_reason = None, False, "no-start"
-        for st in starts:
-            budget_n = total2 - n_evals
-            if budget_n < 4:
-                root_reason = "budget"
-                break
-            xr, ok, root_reason = _newton_root2(_probe_f, st, box2, budget_n)
+        if warm:
+            # A held sweep's continuation (AK#1757 step 6): the start is the
+            # previous point's root, one sweep step away, so Newton from it
+            # is tried before the seed spends six solves sampling the box.
+            phase = "newton"
+            xr, ok, root_reason = _newton_root2(_probe_f, x0, box2, total2 - n_evals)
             if ok:
-                break
+                x_root, method = xr, "warm newton"
+        if not ok:
+            phase = "seeding"
+            n_coef2 = 1 + 2 + 3
+            seed_index, seed_total = 0, n_coef2
+            x_pred, ranked = _surrogate_root_start(
+                _probe_z, box2, n_coef2, rng2, float(out0.get("z0_ohms", 50.0) or 50.0)
+            )
+            n_seed = n_coef2
+            seed_index, seed_total = 0, 0
+
+            # Try the predicted crossing first, then the best solved samples.
+            # A restart costs only its own steps -- the samples are already
+            # paid for, and the memo answers them free.
+            starts = [x for x in ([x_pred] if x_pred else []) + ranked[:2] if x]
+            phase = "newton"
+            for st in starts:
+                budget_n = total2 - n_evals
+                if budget_n < 4:
+                    root_reason = "budget"
+                    break
+                xr, ok, root_reason = _newton_root2(_probe_f, st, box2, budget_n)
+                if ok:
+                    break
         if ok:
-            x_root, method = xr, "seed + newton"
+            if x_root is None:  # the seeded starts found it, not the warm try
+                x_root, method = xr, "seed + newton"
         else:
             # Stalled, singular, or out of budget. Hand the best SOLVED point
             # to Nelder-Mead and say why -- never present a bound as a root.
@@ -869,6 +902,14 @@ def optimize(
         x_best = [
             min(max(float(v), lob), hib)
             for v, lob, hib in zip(x_root, lo, hi, strict=True)
+        ]
+    elif root_ran and not fallback:
+        # A held point (``fallback=False``): no root, so no polish. The best
+        # SOLVED point of the root path stands, and the result says it did
+        # not converge.
+        method = f"no root ({root_reason})"
+        x_best = [
+            min(max(float(v), lob), hib) for v, lob, hib in zip(x0, lo, hi, strict=True)
         ]
     else:
         phase = "nelder-mead" if phase == "search" else phase
@@ -922,4 +963,8 @@ def optimize(
         "residual_before": _residual(out0, objective),
         "residual_after": _residual(out1 if after <= before else out0, objective),
         "improved": after < before,
+        # The root path's own verdict and last word (AK#1757 step 6): what a
+        # held sweep reads to draw a point or a gap.
+        "converged": x_root is not None,
+        "root_reason": root_reason,
     }
