@@ -149,14 +149,14 @@ feed_labels = true
 [antenna_view]
 orientation = "iso"         # auto, top, front, side or iso
 
-[grounds.1]                 # ground slot 1; [ground] is its older spelling
+[grounds.X]                 # ground slot X; [ground] is its older spelling
 enabled = true
 type = "finite"             # finite, pec or terrain
 method = "sommerfeld"       # fast, sommerfeld or mininec
 soil = "average"            # a soil preset, or eps_r = 13 and sigma = 0.005
 terrain_preset = "levee"    # cliff, hillside or levee
 
-[grounds.2]                 # free space in stock; this makes it PEC
+[grounds.Y]                 # free space in stock; this makes it PEC
 enabled = true
 type = "pec"
 
@@ -198,16 +198,25 @@ the slot picker offers, and its `model` knobs are the ones that solver's
 options panel shows. Naming a different solver starts that slot from the
 solver's own defaults.
 
-The ground slots are `[grounds.1]`, `[grounds.2]` and `[grounds.3]`, one table
+The ground slots are `[grounds.X]`, `[grounds.Y]` and `[grounds.Z]`, one table
 per [ground slot](#ground-slots), each taking the same five settings. A table
-changes only what it names, over that slot's stock ground: slot 1 the
-built-in ground (on, finite, refl-coef, the served soil), slot 2 free space,
-slot 3 Sommerfeld over average soil. A `[grounds.4]` adds a fourth slot, which
-starts at the built-in ground; the numbers run without gaps, so a
-`[grounds.6]` with no `[grounds.5]` is named as a mistake and left out. A file
+changes only what it names, over that slot's stock ground: slot X the
+built-in ground (on, finite, refl-coef, the served soil), slot Y free space,
+slot Z Sommerfeld over average soil. Past Z the slots run in threes, each read
+forwards: U, V, W, then R, S, T, and so on down to F, G, H, so they never
+meet the solver slots' letters. A `[grounds.U]` adds a fourth slot, which
+starts at the built-in ground; the slots run without gaps, so a
+`[grounds.W]` with no `[grounds.V]` is named as a mistake and left out. A file
 from before the ground slots has a `[ground]` table, and it still works: it is
-slot 1. A file with both `[ground]` and `[grounds.1]` uses `[grounds.1]` and
+slot X. A file with both `[ground]` and `[grounds.X]` uses `[grounds.X]` and
 says so.
+
+Before the slots had letters they had numbers, `[grounds.1]`, `[grounds.2]`
+and so on. A file that numbers them still loads: each number is the slot at
+that place, so 1, 2, 3 are X, Y, Z and 4 is U, and the note under the header
+says how each was read. The next *save as my defaults* writes the letters. A
+file that names one slot both ways, say `[grounds.1]` and `[grounds.X]`, uses
+neither and says so, rather than guess which you meant.
 
 The Antenna view's `orientation` is `auto` unless the file says otherwise:
 each design opens on its own best view, Top, Front or Side, guessed from its
@@ -226,8 +235,9 @@ for the design on screen, until the next design loads. The Settings menu's
 - **Save as my defaults.** The Settings menu's *save as my defaults* writes the
   session's switches, which analyses a pick runs, antenna view on load, ground slots and solver slots to
   the file, but only where they differ from the built-in defaults. A ground
-  slot is compared with its own stock ground, so an untouched slot 2 writes
-  nothing, and the ground slots are written as `[grounds.N]`. Everything you left alone stays out of the file,
+  slot is compared with its own stock ground, so an untouched slot Y writes
+  nothing, and the ground slots are written as `[grounds.X]`, `[grounds.Y]`
+  and so on. Everything you left alone stays out of the file,
   so it follows the defaults of whichever version you run next. A soil that
   matches a preset is written by its name. The previous file is kept beside it
   as `settings.toml.bak`. Hand edits to the saved file are fine, though a line
@@ -307,7 +317,7 @@ it draws it:
   frequency across the bottom and the dashed guide at the measurement
   frequency. **Table** prints the numbers (see [The Table](#the-table));
 - **from / to** and **↺**, **run**, and **auto re-run**;
-- **A · 1**, the engines and grounds it compares (see
+- **A · X**, the engines and grounds it compares (see
   [Comparing engines and grounds](#comparing-engines-and-grounds));
 - **⧉** duplicates the chart, and **×** closes a duplicate (see
   [More than one chart](#more-than-one-chart));
@@ -366,7 +376,7 @@ one chart; **⧉** makes more.
 
 ### Comparing engines and grounds
 
-The **A · 1** button on a chart's header names the
+The **A · X** button on a chart's header names the
 [solver slots](#choosing-a-solver--segment-count) and
 [ground slots](#ground-slots) the chart draws, and opens their checkboxes: one
 curve per ticked engine on each ticked ground. It starts on the active slot
@@ -1170,22 +1180,23 @@ slot's settings (the ground plane, its type and method, the soil or terrain,
 all described below) sit behind the **⚙** on its tab, which edits that slot
 whether or not it is the active one; the tab itself shows a one-line summary.
 Notes about the active slot (a ground taken from the file, a buried design's
-Sommerfeld requirement) show on a line under the tabs. The three stock slots
-are:
+Sommerfeld requirement) show on a line under the tabs. The ground slots are
+lettered X, Y and Z, their own family beside the solver slots' A, B and C.
+The three stock slots are:
 
-1. **the design's own ground, or the session default** — the checkbox, type,
-   method and soil described below, where the workbench starts;
-2. **free space**;
-3. **Sommerfeld over average soil**.
+- **X: the design's own ground, or the session default** — the checkbox,
+  type, method and soil described below, where the workbench starts;
+- **Y: free space**;
+- **Z: Sommerfeld over average soil**.
 
-Slot 1 is active when the workbench starts, so if you never click another
+Slot X is active when the workbench starts, so if you never click another
 slot, the workbench behaves as it did before ground slots. A design that
 brings its own ground, a deck's `GE` / `GN` cards or a buried design's
-Sommerfeld requirement (below), puts it in slot 1 when it loads and makes
-slot 1 active, so the design opens on the ground its file models. Slots 2 and
-3 keep their settings across a design switch. A design with no ground of its
-own leaves the active slot where it was. It also leaves slot 1 alone, unless
-slot 1 still holds the previous design's ground untouched: then the session
+Sommerfeld requirement (below), puts it in slot X when it loads and makes
+slot X active, so the design opens on the ground its file models. Slots Y and
+Z keep their settings across a design switch. A design with no ground of its
+own leaves the active slot where it was. It also leaves slot X alone, unless
+slot X still holds the previous design's ground untouched: then the session
 default comes back. The stock set and any extra slots come from
 [`settings.toml`](#where-the-workbench-starts-settingstoml).
 
@@ -1249,7 +1260,7 @@ One class of designs picks its own method: the **buried-wire designs**
 `specialty.buried_dipole`) declare that they require the Sommerfeld model —
 a conductor below the surface only exists under a Sommerfeld half-space,
 and the reflection-coefficient approximation refuses it by name. Loading
-one auto-selects finite ground with the Sommerfeld method in ground slot 1
+one auto-selects finite ground with the Sommerfeld method in ground slot X
 and notes it on the line under the ground-slot tabs; you can still flip the radio
 back in the slot's ⚙, but the solver's
 refusal is the answer you'll get.
