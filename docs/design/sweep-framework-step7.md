@@ -232,3 +232,32 @@ an.Cross(cells=(
 - In the same unit: `an.State(..., variant=...)` for pins taken on a
   non-default variant, and tuple values in states for group knobs (fan_dipole's
   `bands`).
+
+## Addendum (Steve, 2026-09-30): catalog studies get a directory of their own
+
+"We need catalog studies that live in a studies directory, probably parallel to
+designs and not under it. Whatever we do in the catalog we should do in the user
+directory too." This replaces ruling 1's catalog half (a `build_studies()`
+beside the Builder in a design module). One rule per kind, the same in both
+places:
+
+| | designs | module-level studies |
+|---|---|---|
+| catalog | `src/antennaknobs/designs/<family>/<design>.py` → `family.design` | `src/antennaknobs/studies/<family>/<name>.py` → `family.name` |
+| user | `~/.antennaknobs/designs/` (as today) | `~/.antennaknobs/studies/` → `path/under/folder` (as today) |
+
+- **The catalog studies directory is the package `antennaknobs/studies/`**, a
+  sibling of `designs/`; the discovery code that was `studies.py` is its
+  `__init__.py`, so `from antennaknobs import studies` is unchanged. Its files
+  are found at any depth, private names skipped as in the user folder, and each
+  sits in a family folder, so a catalog source always holds a dot and a user
+  source never does. Catalog study files ship with the package and are trusted;
+  user ones still go through the trust gate.
+- **E7 moved** from `designs/dipoles/invvee.py` to
+  `studies/dipoles/apex_feed_on_invvee.py`. Its full name is now
+  `dipoles.apex_feed_on_invvee:feed spelling (E7)`; it is still listed under
+  Studies on both the `dipoles.invvee` and `dipoles.invvee_apex` tabs.
+- **A module-level `build_studies()` in a design module, catalog or user, is
+  refused by name**, saying it belongs in the studies directory (a text check,
+  so no design is imported to find it). The `Builder.build_studies(self)`
+  method form stays on the Builder, for catalog and user designs alike.
