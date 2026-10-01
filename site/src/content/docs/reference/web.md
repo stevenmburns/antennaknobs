@@ -472,7 +472,7 @@ chart's **view** menu offers the analysis's own views, in its order:
   refused cell has a row too, with its reason.
 
 The inverted vee's **height patterns** draws the elevation cut and the table
-for its three mast heights. **Run**, **Stop** and **auto re-run** work as for
+for its three mast heights. **run**, **Stop** and **auto re-run** work as for
 a sweep, and the cells cross engines, grounds, designs and states in the same
 way, under the same cap. A pattern's cells are not pinned: its header has no
 **pin**.
@@ -545,10 +545,10 @@ chart. Opening such a link opens the design and selects the analysis:
   only one study answers to it: the same rule as `analyze --study`.
 - `view=` is the chart's view (`Rx`, `Smith`, `Table`, `Knobs`, `Metric`,
   `Swr`, `S11`); optional.
-- `run=1` presses **Run** once the analysis is selected, whatever
+- `run=1` presses **run** once the analysis is selected, whatever
   `[workbench.run_on_pick]` says. Without it, the link picks the analysis as
   the **analysis** list does: a frequency sweep or a pattern runs, and a knob
-  sweep, a held one or a density ladder waits for you to press Run, unless
+  sweep, a held one or a density ladder waits for you to press **run**, unless
   [`run_on_pick`](#where-the-workbench-starts-settingstoml) says otherwise. A
   copied link never carries it.
 
