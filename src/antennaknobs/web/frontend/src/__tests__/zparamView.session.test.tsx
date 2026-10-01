@@ -194,6 +194,8 @@ describe("a density sweep is the old convergence sweep", () => {
   it("picked in the chart and shown on its Smith view: the same ladder, trail and Z*", async () => {
     const bodies: Body[] = [];
     const { container } = await mountReady({
+      // A pick starts its analysis, as before [workbench.run_on_pick] (AC6LA #179).
+      pickRuns: true,
       examples: [EXAMPLE],
       pinned: ["antenna", "zparam"],
       routes: {

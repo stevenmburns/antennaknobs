@@ -187,6 +187,8 @@ async function mount(opts: { canSave?: boolean } = {}) {
   const saves: Body[] = [];
   const analyses: { extra: unknown[]; asked: number } = { extra: [], asked: 0 };
   const r = await mountReady({
+    // A pick starts its analysis, as before [workbench.run_on_pick] (AC6LA #179).
+    pickRuns: true,
     examples: [DECK],
     pinned: ["antenna", "zparam"],
     uiDefaults: UI_DEFAULTS,

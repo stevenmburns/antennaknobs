@@ -21,6 +21,7 @@
 // is remembered between sessions.
 
 import type {
+  AnalysisWorkbench,
   FrequencyView,
   FrequencyWorkbench,
   HoldRun,
@@ -33,12 +34,14 @@ import { frequencyPick } from "./analyses";
 import { type ChartCross, FOLLOW_ACTIVE, type ListedCross, NOTHING_LISTED } from "./chartCells";
 import {
   DEFAULT_DENSITY_SPEC,
+  DENSITY,
   type ParamSweepRequest,
   type ParamSweepSpec,
   RX_AUTO,
   type RxAxisChoice,
   sameSpec,
 } from "./paramSweep";
+import type { RunOnPickKind } from "./settings";
 import type { SweepRange } from "./sweep";
 import type { SweepAxes } from "./sweepAxis";
 
@@ -259,6 +262,28 @@ export function chartDwell(c: AnalysisChartState, defaults: DwellDefaults): bool
 }
 
 /** The views the chart can draw what it shows, and the one on screen. */
+/** The kind of analysis a pick is, as settings.toml's
+ *  [workbench.run_on_pick] names it (AC6LA, QRZ 1003328 #179), from what
+ *  /analyses serves: a frequency sweep, a pattern, and a knob sweep split
+ *  three ways by what it costs — a held one (an.Hold: an optimisation at
+ *  every point), a density ladder (the knob is n_per_wire, DENSITY: the
+ *  convergence analysis), else a plain knob sweep. A study is classified by
+ *  its own workbench, so it is the kind of analysis it is. Null for one the
+ *  workbench cannot run (a two-sweep map today, until step 5 draws it):
+ *  there is nothing to start. */
+export function runOnPickKind(w: AnalysisWorkbench): RunOnPickKind | null {
+  if (!w.runs) return null;
+  if (w.kind === "frequency" || w.kind === "pattern") return w.kind;
+  if (w.hold) return "held";
+  return w.param === DENSITY ? "convergence" : "knob";
+}
+
+/** Whether picking `w` starts it, by the served table. */
+export function pickRuns(w: AnalysisWorkbench, runOnPick: Record<RunOnPickKind, boolean>): boolean {
+  const kind = runOnPickKind(w);
+  return kind !== null && runOnPick[kind];
+}
+
 export function chartViews(c: AnalysisChartState): readonly ChartView[] {
   if (c.kind === "pattern") return (c.pattern?.views ?? []).map((_, k) => patternViewId(k));
   if (c.kind === "knob") {

@@ -57,6 +57,27 @@ export const ORIENTATION_PROJECTION: Record<
   iso: "iso",
 };
 
+// Does picking an analysis start it (AC6LA, QRZ 1003328 #179)? Per kind of
+// analysis (lib/analysisChart.ts runOnPickKind; a study is the kind of
+// analysis it is), from settings.toml's [workbench.run_on_pick]. The server's
+// RUN_ON_PICK (antennaknobs/web/settings.py) is the one table, pinned here by
+// tests/test_settings_run_on_pick.py. A frequency sweep and a pattern take
+// seconds and start at once; the rest take minutes, so a pick only selects
+// them and the chart waits for Run. `map` is valid before the workbench draws
+// a map (sweep-framework step 5).
+export type RunOnPickKind = "frequency" | "pattern" | "knob" | "held" | "convergence" | "map";
+
+export const BUILTIN_RUN_ON_PICK: Record<RunOnPickKind, boolean> = {
+  frequency: true,
+  pattern: true,
+  knob: false,
+  held: false,
+  convergence: false,
+  map: false,
+};
+
+export const RUN_ON_PICK_KINDS = Object.keys(BUILTIN_RUN_ON_PICK) as RunOnPickKind[];
+
 export type GroundDefaults = {
   enabled: boolean;
   type: GroundType;
@@ -104,6 +125,8 @@ export type UiDefaults = {
   ground: GroundDefaults;
   /** Every ground slot, slot 1 first (AK#1794). Slot 1 is `ground`. */
   grounds: GroundSlotDefaults[];
+  /** Whether a pick starts an analysis, per kind (AC6LA #179). */
+  runOnPick: Record<RunOnPickKind, boolean>;
   problems: string[];
 };
 
@@ -116,6 +139,7 @@ export const BUILTIN_UI_DEFAULTS: UiDefaults = {
   orientation: BUILTIN_ORIENTATION,
   ground: BUILTIN_GROUND,
   grounds: BUILTIN_GROUND_SLOTS,
+  runOnPick: BUILTIN_RUN_ON_PICK,
   problems: [],
 };
 
@@ -169,6 +193,11 @@ export function parseUiDefaults(raw: unknown): UiDefaults {
     ? (av.orientation as Orientation)
     : BUILTIN_ORIENTATION;
   const ground = parseGround(raw.ground);
+  const wb = isRecord(raw.workbench) && isRecord(raw.workbench.run_on_pick) ? raw.workbench.run_on_pick : {};
+  const runOnPick = { ...BUILTIN_RUN_ON_PICK };
+  for (const k of RUN_ON_PICK_KINDS) {
+    if (typeof wb[k] === "boolean") runOnPick[k] = wb[k] as boolean;
+  }
   // A server before AK#1794 serves `ground` alone: it is slot 1, and the
   // other slots are the stock set.
   const served = Array.isArray(raw.grounds)
@@ -189,6 +218,7 @@ export function parseUiDefaults(raw: unknown): UiDefaults {
     orientation,
     ground,
     grounds,
+    runOnPick,
     problems: Array.isArray(raw.problems)
       ? raw.problems.filter((p): p is string => typeof p === "string")
       : [],
@@ -216,6 +246,9 @@ export type SettingsSaveBody = {
     Slot,
     { backend: string; n_per_wire: number; model: Record<string, unknown> }
   >;
+  /** Every kind's run-on-pick (AC6LA #179); the server writes only those
+   *  that differ from its defaults. */
+  workbench?: { run_on_pick: Record<RunOnPickKind, boolean> };
 };
 
 export type SaveOutcome =

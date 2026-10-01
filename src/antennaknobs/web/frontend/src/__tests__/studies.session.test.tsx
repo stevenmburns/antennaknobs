@@ -159,6 +159,8 @@ async function mount(examples: ExampleDescriptor[]) {
   const params: Body[] = [];
   const listed: string[] = [];
   const r = await mountReady({
+    // A pick starts its analysis, as before [workbench.run_on_pick] (AC6LA #179).
+    pickRuns: true,
     examples,
     pinned: ["antenna", "zparam"],
     uiDefaults: UI_DEFAULTS,

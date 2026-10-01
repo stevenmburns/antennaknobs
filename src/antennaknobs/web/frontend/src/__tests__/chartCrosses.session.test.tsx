@@ -272,6 +272,8 @@ async function mount(examples: ExampleDescriptor[] = [DECK, OTHER], opts: { mobi
   const sweeps: Body[] = [];
   const params: Body[] = [];
   const r = await mountReady({
+    // A pick starts its analysis, as before [workbench.run_on_pick] (AC6LA #179).
+    pickRuns: true,
     examples,
     ...(opts.mobile ? { mobile: true } : {}),
     pinned: ["antenna", "zparam"],
