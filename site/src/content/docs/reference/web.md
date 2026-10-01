@@ -493,6 +493,35 @@ the **Studies** group of every tab it names at once; an existing file is
 replaced only when you say so. The hosted instance has no save: copy it
 instead.
 
+### Linking to a chart
+
+The address bar follows the tab you are on: its design, and the first chart's
+analysis and view. **link** on a chart's header copies the same for that
+chart. Opening such a link opens the design and selects the analysis:
+
+```
+/?design=dipoles.invvee&analysis=resonance%20vs%20angle&view=Knobs
+/?design=dipoles.invvee&analysis=feed%20spelling%20(E7)
+```
+
+- `design=` is the design's `family.name`, with `:variant` after it for
+  another variant than its first. A bare name works when one family has it,
+  as on the command line.
+- `analysis=` is one of the design's analyses or a study that includes it. A
+  study goes by its full `source:name`, or by its source or short name when
+  only one study answers to it: the same rule as `analyze --study`.
+- `view=` is the chart's view (`Rx`, `Smith`, `Table`, `Knobs`, `Metric`,
+  `Swr`, `S11`); optional.
+- `run=1` presses **Run** once the analysis is selected. Without it, a chart
+  whose **auto re-run** is off (a knob sweep, a held one) waits for you to
+  press Run, since a held sweep runs an optimisation at every point. A copied
+  link never carries it.
+
+A name the workbench does not know is reported by name above the knobs and
+otherwise ignored. A link to a user design (`user.…`) opens only on the
+machine that has that design. The link is one tab's: the other tabs (**D2**,
+…) are not in it.
+
 ### More than one chart
 
 **⧉** on a chart's header opens another like it, up to four charts: its own
