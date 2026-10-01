@@ -511,7 +511,9 @@ python -m antennaknobs analyze --builder dipoles.invvee --analysis "match vs hei
   point's solution; with `False` every point starts from the defaults.
 - **`an.Knobs()`** draws the held knobs against the swept one, written beside
   the chart as `<fn stem>-knobs<suffix>`. `an.Table()` prints them as columns,
-  and `--csv` writes them.
+  and `--csv` writes them, with each point's R and X, whatever the views: a
+  held cell's `<cell> R_ohm`, `<cell> X_ohm` and `<cell> <knob>` columns are
+  there beside a `MetricPlot`'s too.
 - **A point that does not converge is a gap**, never a value: the optimizer's
   root search did not find its root within the bounds, or its solved
   residual is over 1 ohm. The line breaks there, the CSV leaves its cells
