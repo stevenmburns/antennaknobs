@@ -136,9 +136,9 @@ describe("listed cells are a union", () => {
     expect(cross.slots).toEqual(["A", "B", "C"]);
     const plan = crossPlan(cross, listed, env());
     expect(plan.cells.map((c) => [c.label, c.slot, c.ground, c.listed, c.refused])).toEqual([
-      ["A: momwire:bspline", "A", "2", undefined, null],
-      ["B: momwire:razor-2p", "B", "2", undefined, null],
-      ["C: nec5", "C", "2", undefined, null],
+      ["A: momwire:bspline", "A", "Y", undefined, null],
+      ["B: momwire:razor-2p", "B", "Y", undefined, null],
+      ["C: nec5", "C", "Y", undefined, null],
     ]);
     expect(refusedLines(plan)).toEqual([]);
     expect(skippedNote(plan)).toBe(
