@@ -155,6 +155,7 @@ whole shape with a `Drone` — see
 | `verticals.inverted_l` | Inverted-L: a bent, top-loaded vertical (L. B. Cebik, W4RNL) |
 | `verticals.inverted_l_tmatch` | 10 m inverted-L worked on the 12 m band through a T-network tuner — the first design with a pure interior circuit node (series C, shunt L, series C), exercising the MNA network core on the classic "wire antenna + T-match" situation |
 | `verticals.jpole` | J-pole: an end-fed half-wave matched by a quarter-wave stub (L. B. Cebik, W4RNL) |
+| `verticals.m0agp_invl` | M0AGP's 160 m inverted L, and his "DX gain" comparison with a full-size vertical |
 | `verticals.phased_verticals` | Two-element phased vertical array -- the 90-degree cardioid (L. B. Cebik, W4RNL) |
 | `verticals.pota_performer` | KJ6ER's "POTA PERformer" — elevated quarter-wave with tuned radials · variants: `band10`, `band12`, `band17`, `band20`, `band6`, `omni`, `single_radial` |
 | `verticals.raised_vertical` | Elevated quarter-wave vertical, fed above ground |
