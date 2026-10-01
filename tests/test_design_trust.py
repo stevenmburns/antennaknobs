@@ -300,3 +300,42 @@ def test_cli_draw_untrusted_shows_guidance(userdir, capsys):
         ant.cli(["draw", "--builder", "user.d", "--fn", "/dev/null"])
     assert ei.value.code == 1
     assert "allow" in capsys.readouterr().out
+
+
+def test_cli_analyze_untrusted_shows_guidance(userdir, tmp_path, monkeypatch, capsys):
+    # `analyze` raises the refusal inside `cli.csv_output`'s `with`; contextlib
+    # sets `__traceback__` on the way out, which a frozen dataclass refused,
+    # so this printed a FrozenInstanceError traceback instead of the guidance.
+    studies = tmp_path / "studies"
+    studies.mkdir()
+    monkeypatch.setenv("ANTENNAKNOBS_STUDIES_DIR", str(studies))
+    monkeypatch.setenv("ANTENNAKNOBS_SETTINGS", str(tmp_path / "settings.toml"))
+    (userdir / "x.py").write_text(CLEAN)
+    with pytest.raises(SystemExit) as ei:
+        ant.cli(["analyze", "--list-studies", "--builder", "user.x"])
+    assert ei.value.code == 1
+    captured = capsys.readouterr()
+    assert "x.py: not allowed to run yet." in captured.out
+    assert "antennaknobs allow x" in captured.out
+    assert "Traceback" not in captured.out + captured.err
+    assert "FrozenInstanceError" not in captured.out + captured.err
+
+
+def test_untrusted_error_survives_contextmanager_reraise(userdir):
+    import contextlib
+
+    @contextlib.contextmanager
+    def passthrough():
+        yield
+
+    (userdir / "d.py").write_text(CLEAN)
+    with pytest.raises(DesignNotTrustedError) as ei:
+        with passthrough():
+            user_designs.resolve_user_design("d")
+    exc = ei.value
+    assert exc.__traceback__ is not None
+    assert exc.path.name == "d.py"
+    assert "allow" in str(exc)
+    # Identity semantics, like any exception: hashable, equal only to itself.
+    assert {exc} == {exc}
+    assert exc != DesignNotTrustedError(exc.path, exc.report)
