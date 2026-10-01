@@ -27,6 +27,7 @@ from antennaknobs import analysis_run as ar
 from antennaknobs import studies
 from antennaknobs.cli import cli, get_builder
 from antennaknobs.designs.verticals import m0agp_invl
+from antennaknobs.web import server  # first: user_designs' import order needs it
 
 DESIGN = "verticals.m0agp_invl"
 NAME = "DX gain vs the vertical"
@@ -54,8 +55,6 @@ TOL_DB = 0.01
 
 @pytest.fixture(scope="module")
 def client() -> TestClient:
-    from antennaknobs.web import server
-
     return TestClient(server.app)
 
 
@@ -109,8 +108,6 @@ def test_the_hold_knob_is_bounded_by_its_ui_range():
 
 
 def _solve(**kw):
-    from antennaknobs.web import server
-
     return server.solve({"geometry": DESIGN, **kw})
 
 
