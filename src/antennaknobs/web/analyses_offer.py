@@ -47,9 +47,11 @@ Both runnable shapes also carry ``engines`` and ``grounds``: the engine
 specs and ground specs the analysis lists (its cross over engines or
 grounds, else its one ``engine`` / ``ground``), in its order, or None when
 it names none. The analysis chart preselects the solver slots and ground
-slots that hold them, and names each one no slot holds as a refused cell
-(AK#1757 step 5 unit 4); with None it draws the session's active slot and
-ground.
+slots that hold them (AK#1757 step 5 unit 4). It skips an engine no slot
+holds, naming it in a note, and draws every slot when it would skip them all
+(Steve, 2026-10-01); a ground no slot holds is a refused cell. With None it
+draws the session's active slot and ground. All of that is the page's:
+these lists are what the analysis names, as ``analyze`` runs them.
 
 And the analysis's other crosses, each None when it has none, which the
 chart multiplies with its slots into one curve per cell as
