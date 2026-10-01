@@ -126,8 +126,8 @@ measurement frequency that had drifted outside it back in.
 
 ## Where the workbench starts: `settings.toml`
 
-The Settings menu's switches, the Antenna view's orientation, the ground
-slots and the three solver slots start from a file, so a workbench can open the way you use it, with the frequency
+The Settings menu's switches, which analyses a pick runs, the Antenna view's
+orientation, the ground slots and the three solver slots start from a file, so a workbench can open the way you use it, with the frequency
 sweep off, say. The file is `settings.toml` in the `.antennaknobs` folder in
 your home directory, the folder that holds `designs`:
 `~/.antennaknobs/settings.toml`, or `%USERPROFILE%\.antennaknobs\settings.toml`
@@ -164,6 +164,14 @@ type = "pec"
 backend = "bspline"
 n_per_wire = 15
 model = { degree = 2 }
+
+[workbench.run_on_pick]     # does picking an analysis start it?
+frequency   = true          # frequency sweep / band SWR
+pattern     = true          # pattern analyses
+knob        = false         # sweeps of a knob
+held        = false         # sweeps with an.Hold
+convergence = false         # density ladders
+map         = false         # 2-D maps
 
 [engines]                   # edited by hand only; the page never writes these
 nec5_exe = 'C:\EZNEC 7.0\Docs\NEC5CL_x13.exe'
@@ -216,7 +224,7 @@ for the design on screen, until the next design loads. The Settings menu's
   the entry, and that entry keeps its built-in default. The server log says
   the same.
 - **Save as my defaults.** The Settings menu's *save as my defaults* writes the
-  session's switches, antenna view on load, ground slots and solver slots to
+  session's switches, which analyses a pick runs, antenna view on load, ground slots and solver slots to
   the file, but only where they differ from the built-in defaults. A ground
   slot is compared with its own stock ground, so an untouched slot 2 writes
   nothing, and the ground slots are written as `[grounds.N]`. Everything you left alone stays out of the file,
@@ -241,6 +249,19 @@ for the design on screen, until the next design loads. The Settings menu's
   An older file that names them still loads without a note. Flipping a
   chart's switch never changes them, and *save as my defaults* writes back
   what the file said.
+- **`[workbench.run_on_pick]`** says, per kind of analysis, whether picking
+  it in a chart's **analysis** list starts it. Off, the pick only selects it:
+  the chart shows the analysis with its **run** button and solves nothing until
+  you press it, so you can change its range or the knobs first. A frequency
+  sweep and a pattern start at once, as they always have, because they take
+  seconds; a knob sweep, a held one, a density ladder and a 2-D map default to
+  waiting, because each point is a rebuild, an optimisation or a re-mesh and
+  the whole sweep can take minutes. A study counts as the kind of analysis it
+  is. The Settings menu's **picking an analysis runs it** switches set the same
+  thing for the session (`map` is not among them until the workbench draws
+  maps). A [link](#linking-to-a-chart) with `run=1` always runs. After the
+  pick, the chart's own **auto re-run** switch decides as before whether a
+  knob change re-runs it.
 - **The hosted simulator** reads no file and offers no save.
 
 ## The output stage — views, pins, and layout
@@ -274,8 +295,9 @@ it draws it:
   own range, as **Sweep this knob…** does. Then, under **Studies**, the
   [studies](/reference/cli/#studies) this design is in: the module-level
   ones that name it, and its own Builder's comparisons with its references,
-  each by its short name. Picking one runs it just as an analysis that
-  crosses designs runs. Last, under **Not in the workbench yet**, the
+  each by its short name. Picking one selects it just as an analysis that
+  crosses designs is selected, and it runs on the same terms (see
+  [`run_on_pick`](#where-the-workbench-starts-settingstoml)). Last, under **Not in the workbench yet**, the
   analyses it cannot run, greyed out, each with its reason;
 - **view** — **Smith**, **SWR**, **S11 (dB)**, **R / X** or **Table** for a
   frequency sweep, all drawn from the one sweep, so switching re-solves
@@ -304,7 +326,8 @@ The chart's pick, switch and range last for the session.
 An analysis with a [hold](/reference/cli/#holds), such as the inverted vee's
 **resonance vs angle** and **match vs height**, runs the optimizer at every
 point of its sweep, on the server, exactly as `antennaknobs analyze` does.
-Each point is several solves, so it runs when you pick it or press **run**,
+Each point is several solves, so picking it only selects it (unless
+`held = true` in `[workbench.run_on_pick]`) and it runs when you press **run**,
 and **auto re-run** starts off for it whatever `settings.toml` says. Turn it
 on and the chart re-runs after the dwell like any other. **stop** cancels it.
 Its views add **Knobs**: the held knobs against the swept one, the first
@@ -512,10 +535,12 @@ chart. Opening such a link opens the design and selects the analysis:
   only one study answers to it: the same rule as `analyze --study`.
 - `view=` is the chart's view (`Rx`, `Smith`, `Table`, `Knobs`, `Metric`,
   `Swr`, `S11`); optional.
-- `run=1` presses **Run** once the analysis is selected. Without it, a chart
-  whose **auto re-run** is off (a knob sweep, a held one) waits for you to
-  press Run, since a held sweep runs an optimisation at every point. A copied
-  link never carries it.
+- `run=1` presses **Run** once the analysis is selected, whatever
+  `[workbench.run_on_pick]` says. Without it, the link picks the analysis as
+  the **analysis** list does: a frequency sweep or a pattern runs, and a knob
+  sweep, a held one or a density ladder waits for you to press Run, unless
+  [`run_on_pick`](#where-the-workbench-starts-settingstoml) says otherwise. A
+  copied link never carries it.
 
 A name the workbench does not know is reported by name above the knobs and
 otherwise ignored. A link to a user design (`user.…`) opens only on the
@@ -1562,8 +1587,11 @@ The sweep chart is the workbench's **analysis chart**. It has its own
 draws whatever it picked in place, whether that is a knob sweep or a
 frequency sweep. The list holds the sweeps the design names as worth running:
 the same list as `antennaknobs analyze --list` (see
-[Analyses](/reference/cli/#analyses)). Picking one runs it. A knob analysis
-sets the header's parameter, range, points and spacing. On the inverted V,
+[Analyses](/reference/cli/#analyses)). Picking a frequency analysis or a
+pattern runs it; picking a knob sweep, a held one or the density ladder
+selects it and waits for **run**, as `[workbench.run_on_pick]` in
+[`settings.toml`](#where-the-workbench-starts-settingstoml) can change. A knob
+analysis sets the header's parameter, range, points and spacing. On the inverted V,
 **height** sweeps `base` from 2 to 20 m in 37 points and **convergence** runs
 the density ladder, the same values the command line solves. When the chart
 shows a knob sweep and the design has an analysis that sweeps exactly that,

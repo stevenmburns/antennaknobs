@@ -64,8 +64,8 @@ antennaknobs-workbench.exe --nec2-exe PATH   use the NEC-2 engine at PATH
 antennaknobs-workbench.exe --settings PATH   start from this settings.toml
 ```
 
-A `settings.toml` sets where the workbench starts: its switches, ground,
-solver slots and engine paths. See [Where the workbench starts](/reference/web/#where-the-workbench-starts-settingstoml).
+A `settings.toml` sets where the workbench starts: its switches, which
+analyses a pick runs, ground, solver slots and engine paths. See [Where the workbench starts](/reference/web/#where-the-workbench-starts-settingstoml).
 
 The port is worth leaving alone. Your browser keeps what *it* remembers about
 the workbench — which views are pinned to the rail, rail or grid, light or
