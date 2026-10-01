@@ -30,11 +30,11 @@ reproduces his table, so the study states it.
 The study, `verticals.m0agp_invl:DX gain vs the vertical`, sweeps the
 vertical section over 20-100 ft and holds the top wire at resonance at every
 height. Each inverted L reads relative to the vertical (a FIXED reference: it
-sets the swept knob, so it is solved once and drawn flat). On momwire at
-azimuth 0, the DX gain relative to the vertical (dB):
+sets the swept knob, so it is solved once and drawn flat). On momwire 0.69.0
+at azimuth 0, the DX gain relative to the vertical (dB):
 
     vert_ft   100     90     80     70     60     50     40     30     20
-    dB     -0.196 -0.365 -0.615 -0.984 -1.532 -2.367 -3.689 -5.845 -9.495
+    dB     -0.196 -0.365 -0.616 -0.984 -1.533 -2.369 -3.687 -5.843 -9.494
 
 Run it with `antennaknobs analyze --study "verticals.m0agp_invl:DX gain vs
 the vertical"`, or from the design's Studies tab in the app.
