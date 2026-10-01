@@ -743,8 +743,10 @@ an.Analysis(
   [States](#states)): M0AGP's `vertical` sets `vert_ft` and the held
   `horiz_ft`.
 
-`analyze` prints a table per cell, writes the plot (as `<fn>-metrics.png`
-beside an `Rx` chart), and `--csv` adds `<cell> <metric> (unit)` and
+`analyze` prints a table per cell and writes the plot. With no impedance view
+in the analysis (`Rx`, `Swr`, `S11`, `Smith` or `Table`) the metric plot is
+`--fn` itself; beside one it is written as `<fn stem>-metrics<suffix>`.
+`--csv` adds `<cell> <metric> (unit)` and
 `<cell> <metric> vs <reference> (dB)` columns. On the workbench the chart has
 a **Metric** view, read off each point's own momwire solve. A frequency sweep's
 metric plot, and any engine but momwire, are `analyze`'s for now.
