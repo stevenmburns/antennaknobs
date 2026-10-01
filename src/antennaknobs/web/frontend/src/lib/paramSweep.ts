@@ -12,6 +12,7 @@ import {
 } from "./zinf";
 import { axisTicks, formatTick, type AxisDomain } from "./sweepAxis";
 import { isGroup, type SchemaItem, type SchemaParamSpec } from "./params";
+import type { HoldRun } from "./analyses";
 
 /** The density parameter: the request's `n_per_wire` (segments per λ/4 at the
  *  design frequency), the same name on the wire as in the request. */
@@ -61,7 +62,15 @@ export type ParamSweepRequest = {
   /** A metric to read off each point's solve (AK#1828), as /analyses
    *  served it (`an.to_data`), for a MetricPlot chart; absent: none. */
   metric?: unknown;
+  /** A held sweep (AK#1757 step 6): the optimizer re-solves these knobs at
+   *  every point, on the server, as `antennaknobs analyze` does. Absent or
+   *  null: a plain knob sweep. */
+  hold?: HoldRun | null;
 };
+
+/** A held point the optimizer did not converge at: drawn as a GAP at its x,
+ *  never as a value, with its reason in the tooltip (AK#1757 step 6). */
+export type HeldGap = { value: number; reason: string };
 
 /** One sweep's result, streamed point by point. `values` is the swept
  *  parameter at each point (a failed point is skipped, so it may be shorter
@@ -116,7 +125,23 @@ export type ParamSweepData = {
   /** A knob sweep whose inputs have changed since it ran (another knob, the
    *  engine, the ground): drawn dimmed, and re-run only when asked. */
   stale?: boolean;
+  /** A held sweep (AK#1757 step 6): each held knob's value at every point
+   *  of `values` (index aligned, converged points only), and the points that
+   *  did not converge, which `values` leaves out and every view draws as a
+   *  gap. Absent on a plain knob sweep. */
+  held?: Record<string, number[]>;
+  gaps?: HeldGap[];
 };
+
+/** The gaps strictly between two drawn x values: a line between them would
+ *  pass through a point the hold never reached, so a held curve breaks
+ *  there (AK#1757 step 6). */
+export function gapBetween(gaps: readonly HeldGap[] | undefined, a: number, b: number): boolean {
+  if (!gaps || gaps.length === 0) return false;
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  return gaps.some((g) => g.value > lo && g.value < hi);
+}
 
 export const isDensity = (param: string) => param === DENSITY;
 

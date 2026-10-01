@@ -3,7 +3,9 @@ import {
   canLogX,
   formatOhm,
   formatParam,
+  gapBetween,
   guideLabel,
+  type HeldGap,
   isDensity,
   nearestIndex,
   nudgeClear,
@@ -144,6 +146,10 @@ export function ZParamChart({
   const rs = d ? d.z_re : [];
   const xsIm = d ? d.z_im : [];
   const n = xs.length;
+  // A held sweep's gaps (AK#1757 step 6): points the optimizer did not
+  // converge at, drawn as a break in the line and a mark on the x axis,
+  // their reasons in the hover, never as a value.
+  const gaps: readonly HeldGap[] = d?.gaps ?? [];
   // The other curves of the same parameter, which the ranges fit as well.
   const others = curves.flatMap((c) =>
     c.paramSweep && c.paramSweep.param === param && c.paramSweep.values.length > 0
@@ -155,7 +161,12 @@ export function ZParamChart({
   // 5-curve family of 2.6 px circles is a smear); the live marker is not one
   // of them and keeps its size.
   const dotR = traceDotRadius(isMobile, 1 + others.length);
-  const otherXs = [...others.flatMap((o) => o.d.values), ...pins.flatMap((p) => p.xs)];
+  const otherXs = [
+    ...others.flatMap((o) => o.d.values),
+    ...others.flatMap((o) => (o.d.gaps ?? []).map((g) => g.value)),
+    ...gaps.map((g) => g.value),
+    ...pins.flatMap((p) => p.xs),
+  ];
   const dom = xDomain(
     xs.length > 0 || otherXs.length > 0
       ? [...xs, ...otherXs]
@@ -205,6 +216,9 @@ export function ZParamChart({
   const xT = rxTicks(xDom);
   const xTk = n > 0 ? xTicks(dom, logX) : [];
   const shownHover = hover != null && hover >= 0 && hover < n ? hover : null;
+  // A hover nearer a gap than a drawn point reads the gap's reason.
+  const [gapHover, setGapHover] = useState<number | null>(null);
+  const shownGap = gapHover != null && gapHover >= 0 && gapHover < gaps.length ? gaps[gapHover] : null;
   // Each pin's Z at the hovered x (AK#1757 item 1), beside the live curve's.
   const hoverPins =
     shownHover != null ? pins.map((p) => ({ p, z: pinZAt(p, xs[shownHover]) })) : [];
@@ -212,17 +226,22 @@ export function ZParamChart({
   const domKey = `${keyOf(dom)}|${keyOf(rDom)}|${keyOf(xDom)}|${logX}|${z0}|${curvesAttr(curves)}|${pinsAttr(pins)}`;
   // The refusal's own words are a note over the stage (they do not fit a
   // canvas line); the chart says only that there is one.
+  // Points landed, gaps included: a held sweep's progress counts both.
+  const landed = n + gaps.length;
+  const gapWords = gaps.length > 0 ? ` · ${gaps.length} not held` : "";
   const status = d?.error
     ? "sweep refused — see the note"
     : d?.stale
     ? "stale — the design changed; re-run?"
     : d?.partial
-    ? `stopped at ${n}/${total} — partial`
+    ? `stopped at ${landed}/${total} — partial${gapWords}`
     : running
-    ? `sweeping ${label} ${n}/${total}…`
-    : n === 0
+    ? `${d?.held ? "holding" : "sweeping"} ${label} ${landed}/${total}…`
+    : n === 0 && gaps.length === 0
       ? `no sweep yet — ${label}`
-      : null;
+      : gaps.length > 0
+        ? `${gaps.length} point${gaps.length === 1 ? "" : "s"} not held — hover the marks`
+        : null;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -393,6 +412,7 @@ export function ZParamChart({
       dd: { lo: number; hi: number },
       c: string,
       dash: number[] = [],
+      breaks: readonly HeldGap[] = [],
     ) => {
       if (vx.length === 0) return;
       ctx.strokeStyle = c;
@@ -402,7 +422,9 @@ export function ZParamChart({
       vx.forEach((v, i) => {
         const x = px(v);
         const y = py(ys[i], dd);
-        if (i === 0) ctx.moveTo(x, y);
+        // A held sweep breaks at a gap: no line through a point the hold
+        // never reached (step 6).
+        if (i === 0 || gapBetween(breaks, vx[i - 1], v)) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       });
       ctx.stroke();
@@ -419,20 +441,39 @@ export function ZParamChart({
     // A stale knob sweep (its inputs changed, and it waits to be asked):
     // the old trace, dimmed.
     const dim = d?.stale ? 0.35 : 1;
+    // A gap's mark: an × on the x axis at its x, in its curve's colour.
+    const gapMarks = (gs: readonly HeldGap[], c: string) => {
+      ctx.strokeStyle = c;
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([]);
+      for (const g of gs) {
+        const gx = px(g.value);
+        const gy = MARGIN.t + ph - 6;
+        ctx.beginPath();
+        ctx.moveTo(gx - 4, gy - 4);
+        ctx.lineTo(gx + 4, gy + 4);
+        ctx.moveTo(gx + 4, gy - 4);
+        ctx.lineTo(gx - 4, gy + 4);
+        ctx.stroke();
+      }
+    };
     if (multi) {
       // One colour per curve (the legend's), R solid and X dashed.
       const own = cellColor(0, dim);
-      trace(xs, rs, rDom, own);
-      trace(xs, xsIm, xDom, own, [5, 3]);
+      trace(xs, rs, rDom, own, [], gaps);
+      trace(xs, xsIm, xDom, own, [5, 3], gaps);
+      gapMarks(gaps, own);
       for (const o of others) {
         ctx.globalAlpha = o.c.stale || o.d.stale ? 0.35 : 1;
-        trace(o.d.values, o.d.z_re, rDom, o.c.color);
-        trace(o.d.values, o.d.z_im, xDom, o.c.color, [5, 3]);
+        trace(o.d.values, o.d.z_re, rDom, o.c.color, [], o.d.gaps ?? []);
+        trace(o.d.values, o.d.z_im, xDom, o.c.color, [5, 3], o.d.gaps ?? []);
+        gapMarks(o.d.gaps ?? [], o.c.color);
         ctx.globalAlpha = 1;
       }
     } else {
-      trace(xs, rs, rDom, R(dim));
-      trace(xs, xsIm, xDom, X(dim));
+      trace(xs, rs, rDom, R(dim), [], gaps);
+      trace(xs, xsIm, xDom, X(dim), [], gaps);
+      gapMarks(gaps, PC.labelStrong);
     }
 
     // The pinned sweeps: R dashed, X dotted, in each pin's colour.
@@ -550,6 +591,12 @@ export function ZParamChart({
         box([tag, `X ${formatOhm(xsIm[i])}`], px(xs[i]), yx - apart, X(), last);
       }
     }
+    if (shownGap != null) {
+      // A gap's hover: its x and the optimizer's reason, never a value.
+      const hx = px(shownGap.value);
+      const words = shownGap.reason.length > 60 ? `${shownGap.reason.slice(0, 59)}…` : shownGap.reason;
+      box([`${name}=${formatParam(shownGap.value)}: not held`, words], hx, MARGIN.t + 24, PC.labelStrong, hx > MARGIN.l + pw / 2);
+    }
     if (shownHover != null) {
       const i = shownHover;
       const lines = [
@@ -599,20 +646,26 @@ export function ZParamChart({
     // choices below; domKey stands in for the domains as a string, so an
     // unchanged range does not redraw.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, param, label, unit, size, k, theme, isMobile, zinfFull, dotR, domKey, currentValue, liveR, liveX, shownHover, status, callouts, curves, pins]);
+  }, [data, param, label, unit, size, k, theme, isMobile, zinfFull, dotR, domKey, currentValue, liveR, liveX, shownHover, shownGap, status, callouts, curves, pins]);
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (n === 0) return;
+    if (n === 0 && gaps.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     // In the canvas's logical px (size / k, ./chartScale).
     const pw = size / k - MARGIN.l - MARGIN.r;
     const at = ((e.clientX - rect.left) / k - MARGIN.l) / pw;
     if (at < -0.05 || at > 1.05) {
       setHover(null);
+      setGapHover(null);
       return;
     }
     const i = nearestIndex(xs, fx, at);
-    setHover(i >= 0 ? i : null);
+    const g = nearestIndex(gaps.map((x) => x.value), fx, at);
+    // The gap wins when it is the nearer of the two.
+    const gapNearer =
+      g >= 0 && (i < 0 || Math.abs(fx(gaps[g].value) - at) < Math.abs(fx(xs[i]) - at));
+    setGapHover(gapNearer ? g : null);
+    setHover(!gapNearer && i >= 0 ? i : null);
   };
 
   const axisTitle = (a: RxAxis) => (a === "r" ? "R range" : "X range");
@@ -657,6 +710,9 @@ export function ZParamChart({
         data-live-r={LIVE_MARKER_R}
         data-zinf-line={isMobile ? "short" : "full"}
         data-hover={shownHover ?? ""}
+        data-gaps={gaps.map((g) => `${formatParam(g.value)}:${g.reason}`).join(";")}
+        data-gap-hover={shownGap ? shownGap.reason : ""}
+        data-held={d?.held ? "1" : "0"}
         data-status={status ?? ""}
         data-error={d?.error ?? ""}
         data-partial={d?.partial ? "1" : "0"}
@@ -671,7 +727,10 @@ export function ZParamChart({
         onPointerMove={onPointerMove}
         // A tap on a phone reads the nearest point too.
         onPointerDown={onPointerMove}
-        onPointerLeave={() => setHover(null)}
+        onPointerLeave={() => {
+          setHover(null);
+          setGapHover(null);
+        }}
       />
       {isMobile && zinfHead != null && (
         <div className="zinf-line" data-zinf-dom="1">

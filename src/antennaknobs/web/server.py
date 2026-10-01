@@ -2540,7 +2540,13 @@ async def param_sweep_endpoint(req: dict, request: Request):
     except (ParamSweepError, UnknownGeometryError) as e:
         raise HTTPException(status_code=422, detail=str(e)) from None
     metric = _request_metric(req.get("metric"))
-    base = {k: v for k, v in req.items() if k not in ("param", "values", "metric")}
+    base = {
+        k: v for k, v in req.items() if k not in ("param", "values", "metric", "hold")
+    }
+    if req.get("hold") is not None:
+        return _held_sweep_stream(
+            base, request, param, values, req["hold"], metric=metric
+        )
     return _param_sweep_stream(
         base,
         request,
@@ -2571,6 +2577,229 @@ def _request_metric(data):
     if not isinstance(metric, an.PatternMetric):
         raise HTTPException(status_code=422, detail="metric is not a metric")
     return metric
+
+
+def _held_setup(req: dict, param: str, hold_data) -> tuple:
+    """A held sweep's ``(hold, free, defaults)`` on the design ``req`` names,
+    or a 422 naming why not (AK#1757 step 6). The hold comes as the data
+    ``/analyses`` served (``workbench.hold.spec``) and is resolved HERE, on
+    this curve's own design, as ``antennaknobs analyze`` resolves it on each
+    cell's builder: its knobs bounded by their ``ui_params`` min/max, and its
+    start the design's defaults (its variant's), never the tab's live knobs,
+    so a curve is the same whatever the sliders say and a kept study
+    reproduces it."""
+    from antennaknobs import analyses as an
+    from antennaknobs import hold as hd
+
+    from .analyses_offer import builder_for
+
+    try:
+        h = an.from_data(hold_data)
+    except (TypeError, ValueError) as e:
+        raise HTTPException(status_code=422, detail=f"hold: {e}") from None
+    if not isinstance(h, an.Hold):
+        raise HTTPException(status_code=422, detail="hold is an an.Hold, as data")
+    if h.objective == "swr":
+        raise HTTPException(
+            status_code=422,
+            detail="hold swr: SWR is a minimisation, not a root; hold resonance "
+            "or match_z0",
+        )
+    geometry = req.get("geometry", next(iter(EXAMPLES)))
+    cls = getattr(example_for(geometry), "builder_cls", None)
+    if cls is None:
+        raise HTTPException(
+            status_code=422, detail=f"{geometry!r} has no knobs to hold"
+        )
+    builder = builder_for(cls, req)
+    try:
+        free = hd.free_of(h, builder)
+    except hd.HoldRefused as e:
+        raise HTTPException(status_code=422, detail=str(e)) from None
+    if param in {f["name"] for f in free}:
+        raise HTTPException(
+            status_code=422,
+            detail=f"the hold adjusts {param}, the swept knob; a knob is swept "
+            "or held, not both",
+        )
+    sub = {"geometry": geometry}
+    if req.get("variant") is not None:
+        sub["variant"] = req["variant"]
+    defaults = hd.defaults_of(builder_for(cls, sub), free)
+    return h, free, defaults
+
+
+def _held_sweep_stream(
+    req: dict, request: Request, param: str, values: list, hold_data, *, metric=None
+) -> StreamingResponse:
+    """``/param_sweep`` with a ``hold`` (AK#1757 step 6): at each value the
+    hold's knobs are re-solved by the workbench's own optimizer
+    (`antennaknobs.hold.hold_line`, the CLI's function), on the request's own
+    engine as ``/optimize`` evaluates, and the point's Z is the optimum's.
+
+    Records, NDJSON as ``/param_sweep``'s: ``{param, value, z_re, z_im,
+    held, converged: true, method, n_solves, residual, cold, solver}`` for a
+    held point, ``{param, value, gap, held, converged: false, method, cold,
+    solver}`` for one the optimizer did not converge at (``gap`` its reason;
+    ``held`` where the search stopped, never drawn), then ``{done, solver,
+    held_points, gaps}``. A refusal before any solve is a 422; one at a solve
+    (a multi-feed design) is ``{error}`` and the stream ends.
+
+    With a ``metric`` (AK#1828, a held `MetricPlot`), a held point's record
+    also carries ``metric``: that metric read off the solve AT THE OPTIMUM,
+    the very solve whose Z the record carries (each solve's state is
+    captured, `adapter.capture_solved_metrics`, and the optimum's read once
+    the point lands), or ``metric_error`` naming why not (`_solve_z_and_metric`'s
+    words). A gap carries no metric: it stays a gap in the metric curve too.
+
+    Like ``/optimize`` it takes no lane turn: a point is several solves, and
+    one turn per point would hold the live solve behind a whole optimisation.
+    Its own token trips when the client goes away (the chart's Stop, a new
+    pick), and every solve carries it, so the run stops at the next solver
+    checkpoint. Cost is admitted as a ``/param_sweep`` of the same points."""
+    from antennaknobs import hold as hd
+
+    h, free, defaults = _held_setup(req, param, hold_data)
+    backend = _external_backend(req)
+    use_pynec = backend is not None
+    solver_name = _BACKEND_NAME[backend] if backend is not None else "momwire"
+    _refuse_or_withhold(
+        _admit(req, kind="converge", use_pynec=use_pynec, points=len(values)),
+        req,
+    )
+    try:
+        _check_solve_size(req, use_pynec=use_pynec)
+    except SolveTooLargeError as e:
+        raise HTTPException(status_code=413, detail=str(e)) from None
+    ex = example_for(req.get("geometry", next(iter(EXAMPLES))))
+    token = momwire.CancelToken()
+    names = [f["name"] for f in free]
+    # A held MetricPlot: each solve's captured state, by the point it solved
+    # (the swept value and the held knobs, exactly as the optimizer set them),
+    # for the optimum's to be read off once its point lands. Cleared per
+    # point: a captured state holds the solve's currents.
+    thunks: dict = {}
+
+    def _key(x, held) -> tuple:
+        return (float(x), *(float(held[n]) for n in names))
+
+    def solve_fn(r: dict) -> dict:
+        if backend is None and metric is not None:
+            from .adapter import capture_solved_metrics
+
+            with capture_solved_metrics() as box:
+                out = ex.momwire_solve(r, cancel=token)
+            if box:
+                thunks[_key(r[param], r)] = box[-1]
+        elif backend is None:
+            out = ex.momwire_solve(r, cancel=token)
+        else:
+            out = _external_call(backend.solve, r, cancel=token)
+        feeds = out.get("feeds")
+        if feeds and len(feeds) > 1:
+            raise hd.HoldRefused(
+                f"this design drives {len(feeds)} feeds: a hold drives one "
+                "feed's Z to its target (the optimizer's root paths are "
+                "single-feed)"
+            )
+        z0 = h.z0 if h.z0 is not None else float(out.get("z0_ohms") or 50.0)
+        return {"z_in_re": out["z_in_re"], "z_in_im": out["z_in_im"], "z0_ohms": z0}
+
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+
+    def record(pt) -> dict:
+        rec = {
+            "param": param,
+            "value": pt.x,
+            "held": {k: float(v) for k, v in pt.params.items()},
+            "converged": pt.converged,
+            "method": pt.method,
+            "cold": pt.cold,
+            "n_solves": pt.n_solves,
+            "solver": solver_name,
+        }
+        if pt.converged:
+            rec.update(z_re=pt.z.real, z_im=pt.z.imag, residual=pt.residual)
+            if metric is not None:
+                value, why = held_metric(pt)
+                if why is None:
+                    rec["metric"] = value
+                else:
+                    rec["metric_error"] = why
+        else:
+            rec["gap"] = pt.reason
+        thunks.clear()
+        return rec
+
+    def held_metric(pt) -> tuple:
+        """``metric`` at the point's optimum, off the solve that gave its Z
+        (`hold.held_metric`'s words on an engine that files no state)."""
+        from antennaknobs import hold as hd
+
+        thunk = thunks.get(_key(pt.x, pt.params))
+        build = getattr(thunk, "gain", None)
+        if build is None:
+            return None, (
+                "a metric is read off a momwire solve in the workbench; on "
+                f"{req.get('solver') or 'this engine'}, `antennaknobs analyze` draws it"
+            )
+        return hd.metric_off(metric, build(), thunk.freq)
+
+    def work() -> list:
+        return hd.hold_line(
+            values,
+            param,
+            free,
+            h.objective,
+            solve_fn=solve_fn,
+            defaults=defaults,
+            warm_start=h.warm_start,
+            base=req,
+            on_point=lambda pt: loop.call_soon_threadsafe(queue.put_nowait, record(pt)),
+        )
+
+    async def gen():
+        async with cancel_on_disconnect(request, token):
+            task = asyncio.ensure_future(run_in_threadpool(_shed, work))
+            try:
+                while True:
+                    getter = asyncio.ensure_future(queue.get())
+                    done, _ = await asyncio.wait(
+                        {getter, task}, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    if getter in done:
+                        yield json.dumps(getter.result()) + "\n"
+                        continue
+                    getter.cancel()
+                    while not queue.empty():
+                        yield json.dumps(queue.get_nowait()) + "\n"
+                    break
+                try:
+                    pts = task.result()
+                except momwire.SolveAborted:
+                    return
+                except Exception as e:  # noqa: BLE001 — a refusal at a solve (multi-feed) or a user design's build error ends the stream by name
+                    yield (
+                        json.dumps({"error": user_designs.format_solve_error(e)}) + "\n"
+                    )
+                    return
+                yield (
+                    json.dumps(
+                        {
+                            "done": True,
+                            "solver": solver_name,
+                            "held_points": sum(p.converged for p in pts),
+                            "gaps": sum(not p.converged for p in pts),
+                        }
+                    )
+                    + "\n"
+                )
+            finally:
+                if not task.done():
+                    token.cancel()
+
+    return StreamingResponse(gen(), media_type="application/x-ndjson")
 
 
 @app.post("/analyses")

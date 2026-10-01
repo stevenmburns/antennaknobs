@@ -181,6 +181,7 @@ import {
   type KnobView,
   type ChartView,
   chartDwell,
+  chartHold,
   chartForNewDesign,
   chartFrequencyRange,
   chartListed,
@@ -2635,7 +2636,12 @@ function DesignSessionBody({
     }
     const next = knobAnalysisSpec(w);
     if (w.param !== DENSITY) setLastKnob(w.param);
-    const picked = pickCross(pickKnob(m.state, entry.name, next, w.views, w.metric), w);
+    // A held analysis (step 6) carries its hold onto the chart: every curve
+    // re-solves the hold's knobs at each point, on Run.
+    const picked = pickCross(
+      pickKnob(m.state, entry.name, next, w.views, w.metric, w.hold ?? null),
+      w,
+    );
     runPicked(i, "param", picked, m.state.kind === "knob" && sameSpec(next, m.spec));
     setChartAt(i, () => picked);
   };
@@ -2678,6 +2684,8 @@ function DesignSessionBody({
     // The session's reference (the design's Zo, or the Zo field's override,
     // AK#1735): what the VSWR chart measures against.
     z0,
+    // A held pick's knobs (AK#1757 step 6): what its Knobs view draws.
+    ...(chartHold(m.now) ? { heldKnobs: chartHold(m.now)!.knobs } : {}),
   });
   // A word on cost (docs/design/z-vs-param-view.md): a density sweep whose
   // top N is past twice the slot's own default density solves the fine end
@@ -3560,7 +3568,11 @@ function DesignSessionBody({
       const d = r.param.data;
       if (!d || d.error || d.param !== m.runs[k].param.req.param || d.values.length === 0) return [];
       const x = d.param === m.spec.param ? knobX(d.param, m.label, knobUnit) : knobX(d.param, d.label, null);
-      return [{ xs: d.values, zRe: d.z_re, zIm: d.z_im, x, label: pinContext(c, d.param), cell, design, req }];
+      // A held curve's pin carries its hold (step 6): its Z at each x is the
+      // optimum's, which a study keeping it must re-solve the same way.
+      const held = m.runs[k].param.req.hold;
+      const pinReq = held ? { ...req, hold: held.spec } : req;
+      return [{ xs: d.values, zRe: d.z_re, zIm: d.z_im, x, label: pinContext(c, d.param), cell, design, req: pinReq }];
     });
     // Pin snapshots the curves as they stand, so not while any is still
     // moving (a run, a refinement, or a dwell about to re-run), refused, or
@@ -3928,7 +3940,8 @@ function DesignSessionBody({
       ...zparamSettingsOf(m),
       phase: p0?.phase ?? "idle",
       // The knob view on screen; the Metric view only while the analysis
-      // that has a MetricPlot is still picked (lib/analysisChart chartView).
+      // that has a MetricPlot is still picked, the Knobs view only while its
+      // hold is (lib/analysisChart chartView).
       view: m.state.kind === "knob" ? (chartView(m.now) as KnobView) : m.state.knob.view,
       callouts: chartCallouts,
     };

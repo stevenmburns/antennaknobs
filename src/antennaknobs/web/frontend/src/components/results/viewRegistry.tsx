@@ -20,6 +20,7 @@ import { CombinedPatternChart } from "../charts/CombinedPatternChart";
 import { CurrentCanvas } from "../charts/CurrentCanvas";
 import { FarFieldChart } from "../charts/FarFieldChart";
 import { type RxAxis, ZParamChart } from "../charts/ZParamChart";
+import { KnobsChart } from "../charts/KnobsChart";
 import type {
   FarFieldCaptions,
   PatternData,
@@ -209,6 +210,9 @@ export type ZParamViewSettings = {
    *  Smith view's "param sweep" switch, AK#1757 step 5 unit 3). Optional:
    *  omitted, R/X. */
   view?: KnobView;
+  /** A held sweep's knobs (AK#1757 step 6), which the Knobs view draws
+   *  against the swept one. Omitted: no hold. */
+  heldKnobs?: readonly string[];
 };
 
 const DEFAULT_ZPARAM: ZParamViewSettings = {
@@ -375,6 +379,22 @@ function analysisChart(p: ViewRenderProps): ReactElement {
   }
   if (z.view === "Smith") return <ChartKnobSmith p={p} />;
   if (z.view === "Table") return knobTable(p, z.param);
+  if (z.view === "Knobs") {
+    return (
+      <KnobsChart
+        data={p.paramSweep}
+        param={z.param}
+        label={z.label}
+        unit={z.unit}
+        knobs={z.heldKnobs ?? []}
+        total={z.total}
+        size={p.size}
+        running={p.paramSweepRunning}
+        xLog={z.xLog}
+        {...(p.chartCurves ? { curves: p.chartCurves } : {})}
+      />
+    );
+  }
   const r = p.liveZ?.z_in_re ?? p.result?.z_in_re ?? null;
   const x = p.liveZ?.z_in_im ?? p.result?.z_in_im ?? null;
   return (

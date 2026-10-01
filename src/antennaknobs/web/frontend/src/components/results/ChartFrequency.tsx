@@ -61,13 +61,16 @@ export function knobTable(p: ViewRenderProps, param: string): ReactElement {
   const z0 = p.zparam?.z0 ?? p.result?.z0_ohms ?? 50;
   const curves: TableCurve[] = [];
   const add = (d: ParamSweepData | null | undefined, k: number) => {
-    if (d && d.param === param && d.values.length > 0) {
+    if (d && d.param === param && (d.values.length > 0 || (d.gaps?.length ?? 0) > 0)) {
       curves.push({
         label: labelAt(p, k),
         xs: d.values,
         re: d.z_re,
         im: d.z_im,
         ...(d.n_seg ? { nAch: d.n_seg } : {}),
+        // A held sweep's knobs and gaps (AK#1757 step 6).
+        ...(d.held ? { held: d.held } : {}),
+        ...(d.gaps && d.gaps.length > 0 ? { gaps: d.gaps } : {}),
       });
     }
   };

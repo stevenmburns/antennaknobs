@@ -23,6 +23,7 @@
 import type {
   FrequencyView,
   FrequencyWorkbench,
+  HoldRun,
   KnobView,
   MetricSpec,
   PatternViewSpec,
@@ -51,6 +52,9 @@ export type { KnobView };
 /** The views every knob sweep can draw; a picked analysis with a MetricPlot
  *  adds "Metric" (AK#1828, `chartViews`). */
 export const KNOB_VIEWS: readonly KnobView[] = ["Rx", "Smith", "Table"];
+/** A held knob sweep's views (AK#1757 step 6): the knob sweep's, and the
+ *  held knobs against the swept one. */
+export const HELD_VIEWS: readonly KnobView[] = [...KNOB_VIEWS, "Knobs"];
 /** Every frequency view, in the order a new chart offers them. Any frequency
  *  sweep can be drawn on all of them (they are projections of one Z(f), or
  *  its numbers), so an analysis's own views only lead the list: R/X and the
@@ -143,6 +147,10 @@ export type AnalysisChartState = {
     xLog: boolean | null;
     axes: { r: RxAxisChoice; x: RxAxisChoice };
     view: KnobView;
+    /** The picked analysis's hold (AK#1757 step 6), or absent / null: a
+     *  plain knob sweep. It runs for as long as the chart runs that pick
+     *  (`chartHold`). */
+    hold?: HoldRun | null;
   };
   /** Null only while the chart has never held a frequency sweep, which a new
    *  chart always has (initialChart). */
@@ -241,6 +249,10 @@ export function pickOwnFrequency(c: AnalysisChartState, seed: ChartSeed): Analys
  *  sweep, which rebuilds or re-meshes per point, waits for Run). */
 export function chartDwell(c: AnalysisChartState, defaults: DwellDefaults): boolean {
   if (c.dwell !== null) return c.dwell;
+  // A held sweep (AK#1757 step 6) is an optimisation at every point: it
+  // runs on Run, never by itself after a drag, unless the viewer flips this
+  // chart's switch on (the step-5 dwell, per chart, as for any analysis).
+  if (chartHold(c)) return false;
   // A pattern is one solve per cell, as cheap as the live solve's: it
   // follows the knobs as a frequency sweep does.
   return c.kind === "knob" ? defaults.knob : defaults.frequency;
@@ -249,14 +261,29 @@ export function chartDwell(c: AnalysisChartState, defaults: DwellDefaults): bool
 /** The views the chart can draw what it shows, and the one on screen. */
 export function chartViews(c: AnalysisChartState): readonly ChartView[] {
   if (c.kind === "pattern") return (c.pattern?.views ?? []).map((_, k) => patternViewId(k));
-  if (c.kind === "knob") return chartMetric(c) ? [...KNOB_VIEWS, "Metric"] : KNOB_VIEWS;
+  if (c.kind === "knob") {
+    // A picked MetricPlot adds "Metric" (AK#1828), a picked hold "Knobs"
+    // (AK#1757 step 6).
+    const base = chartHold(c) ? HELD_VIEWS : KNOB_VIEWS;
+    return chartMetric(c) ? [...base, "Metric"] : base;
+  }
   return c.frequency?.views ?? FREQUENCY_VIEWS;
+}
+
+/** The hold the chart runs (AK#1757 step 6): the picked analysis's, while
+ *  the chart still runs that pick (an edit of its range keeps it); null
+ *  once the viewer sweeps another knob or picks something else. */
+export function chartHold(c: AnalysisChartState): HoldRun | null {
+  return c.kind === "knob" && pickedName(c) !== null ? (c.knob.hold ?? null) : null;
 }
 export function chartView(c: AnalysisChartState): ChartView {
   if (c.kind === "pattern") return patternViewId(c.pattern?.view ?? 0);
   if (c.kind === "knob") {
-    // The metric view leaves with the analysis that drew it.
-    return c.knob.view === "Metric" && !chartMetric(c) ? "Rx" : c.knob.view;
+    // The metric view leaves with the analysis that drew it, and the Knobs
+    // view with its hold (step 6): off either, R/X again.
+    if (c.knob.view === "Metric" && !chartMetric(c)) return "Rx";
+    if (c.knob.view === "Knobs" && !chartHold(c)) return "Rx";
+    return c.knob.view;
   }
   return c.frequency?.view ?? "Smith";
 }
@@ -305,10 +332,14 @@ export function pickKnob(
   spec: ParamSweepSpec,
   views?: readonly KnobView[],
   metric?: MetricSpec | null,
+  hold?: HoldRun | null,
 ): AnalysisChartState {
-  // The metric view only with a metric to draw (AK#1828).
-  const own = views?.filter((v) => v !== "Metric" || !!metric);
-  const was = c.knob.view === "Metric" && !metric ? "Rx" : c.knob.view;
+  const held = name === null ? null : (hold ?? null);
+  // The metric view only with a metric to draw (AK#1828), the Knobs view
+  // only with a hold (AK#1757 step 6).
+  const own = views?.filter((v) => (v !== "Metric" || !!metric) && (v !== "Knobs" || !!held));
+  const was =
+    (c.knob.view === "Metric" && !metric) || (c.knob.view === "Knobs" && !held) ? "Rx" : c.knob.view;
   // A metric analysis that leads with its MetricPlot opens on it: the view
   // is new with the pick, so staying on the old one would hide it.
   const leads = !!metric && own?.[0] === "Metric";
@@ -317,12 +348,13 @@ export function pickKnob(
     ...c,
     kind: "knob",
     // A null name is a pick of no analysis ("Sweep a knob", the knob menu):
-    // it leaves the analysis, so the old pick and its crosses go.
+    // it leaves the analysis, so the old pick and its crosses go, and its
+    // hold (step 6) with them.
     picked:
       name === null
         ? null
         : { name, kind: "knob", spec, ...(metric ? { metric } : {}) },
-    knob: { ...c.knob, spec, xLog: null, view },
+    knob: { ...c.knob, spec, xLog: null, view, hold: held },
   };
 }
 
@@ -472,6 +504,8 @@ export function chartRunInputs(
         // Read off every point while the chart can show it (AK#1828), so
         // flipping to the Metric view needs no second sweep.
         ...(metric ? { metric: metric.spec } : {}),
+        // A held pick's hold rides with every curve's request (step 6).
+        ...(chartHold(c) ? { hold: chartHold(c) } : {}),
       },
       wanted: env.resident && c.kind === "knob",
     },
