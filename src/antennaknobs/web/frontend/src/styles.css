@@ -4470,6 +4470,18 @@ canvas {
   align-items: center;
   gap: var(--space-1);
 }
+/* Controls that belong together wrap as one: Run with its auto re-run
+   switch, points with log spacing. */
+.zparam-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+/* A point count is at most 4 digits. */
+.zparam-controls .zparam-points .commit-number input {
+  width: 4.5ch;
+}
 .zparam-controls input[type="number"] {
   width: 4.6em;
 }

@@ -56,12 +56,12 @@ export const COPY_LINK_TITLE =
   "Copy link: opens this design with this chart's analysis and view. " +
   "It covers this tab only, not the other open tabs (D1, D2…), and never runs on its own";
 
-/** The chart's own chrome: the dwell switch, what it compares, and
- *  duplicate / close. */
+/** The chart's own chrome: what it compares, pin / copy / keep / link, and
+ *  duplicate / close. The dwell switch sits beside each chart's Run instead
+ *  (`DwellSwitch`), so the two wrap as one. */
 export function ChartChromeControls(chrome: ChartChrome) {
   return (
     <>
-      <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />
       {chrome.cross && <ChartCrossPicker {...chrome.cross} />}
       {chrome.pin && (
         <button
@@ -319,29 +319,32 @@ export function PatternChartControls({
       <div className="zparam-controls" role="group" aria-label="Pattern">
         <AnalysisSelect {...analyses} />
         <ChartViewPick {...viewPick} />
-        {run.running ? (
-          <button
-            type="button"
-            className="zparam-run is-running"
-            title="Stop: keep the patterns solved so far"
-            onClick={run.onStop}
-          >
-            {run.solved}/{run.total} · stop
-          </button>
-        ) : (
-          <button
-            type="button"
-            className={run.stale ? "zparam-run is-stale" : "zparam-run"}
-            title={
-              run.stale
-                ? "The design changed since these patterns were solved: solve them again"
-                : "Solve this chart's patterns again"
-            }
-            onClick={run.onRun}
-          >
-            {run.stale ? "run · re-run?" : "run"}
-          </button>
-        )}
+        <span className="zparam-group">
+          {run.running ? (
+            <button
+              type="button"
+              className="zparam-run is-running"
+              title="Stop: keep the patterns solved so far"
+              onClick={run.onStop}
+            >
+              {run.solved}/{run.total} · stop
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={run.stale ? "zparam-run is-stale" : "zparam-run"}
+              title={
+                run.stale
+                  ? "The design changed since these patterns were solved: solve them again"
+                  : "Solve this chart's patterns again"
+              }
+              onClick={run.onRun}
+            >
+              {run.stale ? "run · re-run?" : "run"}
+            </button>
+          )}
+          <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />
+        </span>
         <ChartChromeControls {...chrome} />
       </div>
       <AnalysisDetails
@@ -428,29 +431,32 @@ export function FrequencyChartControls({
             {range.freqs.length} value{range.freqs.length === 1 ? "" : "s"}
           </span>
         )}
-        {run.running ? (
-          <button
-            type="button"
-            className="zparam-run is-running"
-            title="Stop the sweep: keep the points so far"
-            onClick={run.onStop}
-          >
-            {run.received} · stop
-          </button>
-        ) : (
-          <button
-            type="button"
-            className={run.stale ? "zparam-run is-stale" : "zparam-run"}
-            title={
-              run.stale
-                ? "The design changed since this sweep ran: run it again"
-                : "Run this chart's analysis again"
-            }
-            onClick={run.onRun}
-          >
-            {run.stale ? "run · re-run?" : "run"}
-          </button>
-        )}
+        <span className="zparam-group">
+          {run.running ? (
+            <button
+              type="button"
+              className="zparam-run is-running"
+              title="Stop the sweep: keep the points so far"
+              onClick={run.onStop}
+            >
+              {run.received} · stop
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={run.stale ? "zparam-run is-stale" : "zparam-run"}
+              title={
+                run.stale
+                  ? "The design changed since this sweep ran: run it again"
+                  : "Run this chart's analysis again"
+              }
+              onClick={run.onRun}
+            >
+              {run.stale ? "run · re-run?" : "run"}
+            </button>
+          )}
+          <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />
+        </span>
         <ChartChromeControls {...chrome} />
         <button
           type="button"
