@@ -576,8 +576,11 @@ azimuth el=10,0,...
 ```
 
 An elevation cut's angle runs 1–179 over the zenith (90), and an azimuth
-cut's 0–359. A pattern with no cut view (only the table) has nothing to write,
-and `--csv` refuses it.
+cut's 0–359. A pattern with no cut view (only the table) writes the table
+instead: a row per cell, `cell`, the table's columns
+(`peak_gain_dBi, takeoff_deg, azimuth_deg, front_to_back_dB,
+az_beamwidth_deg, el_beamwidth_deg, rdf_dB`), then a column per metric the
+table names (below).
 
 Refused by name when the analysis is built: a pattern view on a swept
 analysis, a sweep's view (`Rx`, `Swr`, `Table`, …) on a pattern, a hold on a
@@ -607,6 +610,108 @@ design          peak dBi  takeoff°    F/B dB    az bw°    el bw°    RDF dB
 dipoles.invvee      7.55        22       0.0        86        25       9.1
 beams.yagi         13.45        20       8.9        61        22      14.4
 ```
+
+### Metrics you define
+
+A *metric* is a number read off a far-field pattern. The pattern table's
+columns are metrics, and you can define your own. M0AGP's "DX gain", the
+power average of the gain over 2–10° of elevation in 0.1° steps, is one line:
+
+```python
+DX = an.ElevationWindow("DX gain", 2, 10, step=0.1)
+```
+
+The declarative metrics are:
+
+- `an.ElevationWindow(name, lo, hi, step=1, mean="power", az=an.PEAK_AZ)`:
+  the gain over elevations `lo`..`hi` (`step` apart, both ends included),
+  reduced by `mean`. `"power"` averages the power ratios and converts back to
+  dB, `"db"` averages the dB values, and `"max"` takes the largest.
+- `an.GainAt(name, el, az=an.PEAK_AZ)`: the gain at one elevation.
+- `an.PeakGain()` and `an.TakeOff()`: the peak and its elevation. At
+  `an.PEAK_AZ` these are the table's own; on any other cut they are the cut's,
+  0–90° `step` apart.
+- The table's other columns: `an.PeakAzimuth()`, `an.FrontToBack()`,
+  `an.AzBeamwidth()`, `an.ElBeamwidth()` and `an.Rdf()`. `an.TABLE_METRICS`
+  lists all seven, and the table reads its columns through them, so a column
+  and the same metric asked for by name are one number.
+
+`az=` picks the elevation cut a metric reads:
+
+- a number (degrees from +x) fixes it;
+- `an.PEAK_AZ` (the default) is the azimuth of the pattern's peak gain, the
+  table's azimuth column, which is the cut through the main lobe;
+- `an.MEAN_AZ` power-averages each elevation over the whole azimuth ring,
+  1° apart.
+
+An asymmetric antenna reads differently on each, so say which you mean.
+
+**In a pattern's table.** `an.PatternTable(metrics=(DX,))` adds a column per
+metric after the fixed ones, in the printed table and in a table-only
+`--csv`.
+
+**Against a swept knob.** `an.MetricPlot(metric, relative_to=None)` is a
+swept view. It solves the far field at every sweep point of every cell, and
+plots the metric against x:
+
+```python
+an.Analysis(
+    "DX gain vs mast",
+    an.Sweep("base", values=(5.0, 7.0, 9.0, 12.0)),
+    cross=an.Cross(states=(an.State("as built"), an.State("reference", base=7.0))),
+    views=(an.MetricPlot(DX, relative_to="reference"),),
+    ground="finite",
+)
+```
+
+- `relative_to=` names a cell by its state's name, its design or its label,
+  and the plot is each curve less that cell, in dB for a gain. When the cross
+  names several (one per engine, say), a curve's reference is the one that
+  matches it on engine, ground, plane and family step.
+- A reference whose state sets the swept knob (as here), or whose design has
+  no such knob, is *fixed*. It is solved once at its own setting, drawn flat,
+  and subtracted at every x. That is how a new antenna is compared with a
+  standard one while one of its own knobs moves.
+
+`analyze` prints a table per cell, writes the plot (as `<fn>-metrics.png`
+beside an `Rx` chart), and `--csv` adds `<cell> <metric> (unit)` and
+`<cell> <metric> vs <reference> (dB)` columns. On the workbench the chart has
+a **Metric** view, read off each point's own momwire solve. A frequency sweep's
+metric plot, and any engine but momwire, are `analyze`'s for now.
+
+**Your own function.** When no declarative metric says it, write the
+function:
+
+```python
+import numpy as np
+import antennaknobs.analyses as an
+
+
+def dx_gain(cut):
+    lin = 10 ** (cut.gain_dbi[(cut.el >= 2) & (cut.el <= 10)] / 10)
+    return 10 * np.log10(lin.mean())
+
+
+DX = an.Metric("DX gain", dx_gain, step=0.1)
+```
+
+`an.Metric(name, fn, over="elevation", step=1, az=None, lo=None, hi=None,
+el=None, unit="dBi")` calls `fn` with an `an.Cut`:
+
+- `cut.el` (or `cut.az` for `over="azimuth"`, which needs `el=`) holds the
+  angles in degrees;
+- `cut.gain_dbi` holds the total gain, and `cut.gain_v_dbi` and
+  `cut.gain_h_dbi` its vertical and horizontal parts;
+- `cut.freq_mhz` is the frequency, and `cut.fixed_deg` the cut's fixed angle
+  (None for `MEAN_AZ`).
+
+`fn` must be a named, module-level function. A lambda or a nested function is
+refused by name, because `--code` and "keep as study" write the function by
+reference (`module.dx_gain`, with its `import`). A function from your own
+design or study file can't be imported by name, so a kept study writes a
+comment saying to copy it in. The hosted workbench offers no function but the
+catalog's. A callable written to equal `ElevationWindow(2, 10, step=0.1)` gives
+the same number, to the bit, on the same pattern.
 
 ### Studies
 
