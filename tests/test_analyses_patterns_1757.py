@@ -37,6 +37,7 @@ from fastapi.testclient import TestClient
 from antennaknobs import analyses as an
 from antennaknobs import analysis_run as ar
 from antennaknobs import far_field, studies
+from antennaknobs import metrics as mx
 from antennaknobs.cli import cli, get_builder, make_engine_factory, parse_ground
 
 INVVEE = "dipoles.invvee"
@@ -233,16 +234,20 @@ def test_each_state_cell_is_the_engines_pattern_with_those_knobs_set(
     cuts = (an.Elevation(az=0), an.Azimuth(el=20))
     a = an.patterns(name="hp", cross=an.Cross(states=HEIGHTS), views=(*cuts,))
     _offer(monkeypatch, [a])
-    metrics = _record(monkeypatch, far_field, "engine_pattern_metrics")
+    # The table's columns are metrics (AK#1828), read through one source per
+    # cell: the run's path is counted, not assumed.
+    metrics = _record(monkeypatch, mx, "table_values")
     got = _run(monkeypatch, capsys, ["--builder", INVVEE, "--analysis", "hp",
                "--ground", "finite-fast", "--engine", ENGINE, "--nominal-nsegs", "15",
                "--fn", str(tmp_path / "p.png")])  # fmt: skip
     assert list(got["patterns"]) == ["as built", "low mast", "tall mast"]
     assert got["refused"] == {}
-    for (eng, ff), _kw, m in (c for c in metrics):
+    assert len(metrics) == 3
+    for (src,), _kw, m in metrics:
         # The compare table's function on the same solve (`web.adapter.
         # _metrics_from_gain` is refined_pattern_metrics, plus the freq).
-        assert m == far_field.refined_pattern_metrics(eng.gain_evaluator())
+        assert isinstance(src, mx.EvaluatorSource)
+        assert m == far_field.refined_pattern_metrics(src._gain)
     for st in HEIGHTS:
         b = _invvee()
         for k, v in st.knobs:
@@ -315,14 +320,21 @@ def test_analyze_csv_writes_one_block_per_cut_and_a_column_per_cell(
             assert [float(r[2 + i]) for r in block] == list(want)
 
 
-def test_csv_of_a_pattern_with_no_cut_is_refused_by_name(monkeypatch, tmp_path):
+def test_csv_of_a_pattern_with_no_cut_writes_its_table(monkeypatch, capsys, tmp_path):
+    """A pattern of only its table writes the table (AK#1828: it was refused
+    while the table had no columns of the user's): a row per cell, the fixed
+    columns at full precision."""
     a = an.patterns(name="t", views=(an.PatternTable(),))
     _offer(monkeypatch, [a])
-    with pytest.raises(
-        SystemExit, match="--csv writes the cuts, and this pattern draws none"
-    ):
-        cli(["analyze", "--builder", INVVEE, "--analysis", "t", "--engine", ENGINE,
-             "--csv", str(tmp_path / "t.csv"), "--fn", "/dev/null"])  # fmt: skip
+    out = tmp_path / "t.csv"
+    got = _run(monkeypatch, capsys, ["--builder", INVVEE, "--analysis", "t",
+               "--engine", ENGINE, "--csv", str(out), "--fn", "/dev/null"])  # fmt: skip
+    with open(out, newline="", encoding="utf-8") as f:
+        rows = list(csv.reader(f))
+    assert rows[0][:3] == ["cell", "peak_gain_dBi", "takeoff_deg"]
+    (cell,) = got["patterns"].values()
+    assert rows[1][0] == ENGINE
+    assert float(rows[1][1]) == cell.metrics["peak_gain_dbi"]
 
 
 def test_a_frequency_family_solves_each_pattern_at_its_own_frequency(

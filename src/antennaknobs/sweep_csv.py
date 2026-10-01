@@ -11,7 +11,9 @@ full precision (``repr``), not at the printed table's ``%.3f``.
 
 A pattern analysis (AK#1757 step 7) has no swept x: its file is its cuts
 (`pattern_table`), one block of rows per cut, each row a ``cut`` name, the
-angle, and a ``gain_dBi`` column per cell.
+angle, and a ``gain_dBi`` column per cell; one that draws only its
+`PatternTable` writes the table instead (`metrics_table`, AK#1828), a row per
+cell with the fixed columns and the user's metrics.
 
 ``-`` writes to stdout. The command's own printed tables would corrupt that,
 so the CLI sends them to stderr for the run (``cli.csv_output``).
@@ -120,6 +122,45 @@ def pattern_table(
         curves = [(label, *per[name]) for label, per in cuts.items()]
         _h, block = table("angle_deg", [(lab, xs, [("g", g)]) for lab, xs, g in curves])
         rows += [[name, *r] for r in block]
+    return header, rows
+
+
+#: The pattern table's fixed columns as the CSV names them, in the order the
+#: printed table shows them (`far_field._print_metrics_table`), each with the
+#: key ``engine_pattern_metrics`` gives it. The azimuth of the peak is the
+#: compare table's own, which the printed one leaves out.
+_TABLE_COLUMNS = (
+    ("peak_gain_dBi", "peak_gain_dbi"),
+    ("takeoff_deg", "takeoff_deg"),
+    ("azimuth_deg", "azimuth_deg"),
+    ("front_to_back_dB", "front_to_back_db"),
+    ("az_beamwidth_deg", "az_beamwidth_deg"),
+    ("el_beamwidth_deg", "el_beamwidth_deg"),
+    ("rdf_dB", "rdf_db"),
+)
+
+
+def metrics_table(
+    table: Mapping[str, Mapping],
+    user: Sequence[tuple[str, str]],
+    values: Mapping[str, Mapping],
+) -> tuple[list[str], list[list[str]]]:
+    """``(header, rows)`` for a pattern analysis that draws only its
+    `PatternTable` (AK#1828): one row per cell, ``cell``, the fixed columns
+    (`_TABLE_COLUMNS`), then a column per user metric. ``table`` maps each
+    cell's label to its fixed metrics, ``values`` to its user metrics by
+    name, ``user`` is ``(heading, name)`` per user metric. A value the
+    table has none of (an RDF it cannot take) is left empty."""
+    header = ["cell", *(h for h, _ in _TABLE_COLUMNS), *(h for h, _ in user)]
+    rows = []
+    for label, m in table.items():
+        rows.append(
+            [
+                label,
+                *(_cell(m.get(k)) for _, k in _TABLE_COLUMNS),
+                *(_cell(values[label].get(n)) for _, n in user),
+            ]
+        )
     return header, rows
 
 
