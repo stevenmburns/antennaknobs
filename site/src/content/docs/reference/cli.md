@@ -642,11 +642,17 @@ class Builder(AntennaBuilder):
         ]
 ```
 
-The function form is for peers. The inverted vee's module holds E7, beside
-the two feed spellings it compares, so it is offered on both of their tabs:
+The function form is for peers, and it lives in a studies directory, never
+in a design module. The catalog's is `studies/`, beside `designs/`: E7, which
+compares the inverted vee's two feed spellings, is
+`studies/dipoles/apex_feed_on_invvee.py`, and it is offered on both of their
+tabs:
 
 ```python
-# designs/dipoles/invvee.py, beside the Builder class
+# src/antennaknobs/studies/dipoles/apex_feed_on_invvee.py
+import antennaknobs.analyses as an
+
+
 def build_studies():
     return [
         an.convergence(
@@ -663,14 +669,25 @@ A study with no `designs=` is refused by name: in a function it has no design
 to fall back on, and in a method it is just an analysis of this design, which
 belongs in `build_analyses()`.
 
-Module-level studies are found in two places:
+Designs and studies each have one home, and the catalog and your own
+folders follow the same rule:
 
-- a `build_studies()` function in any catalog design module;
-- `.py` files in your studies folder, `~/.antennaknobs/studies/` (or
-  `$ANTENNAKNOBS_STUDIES_DIR`), beside the designs folder. Subfolders become
-  part of the name, as a catalog family does: `feeds/e7.py` is `feeds/e7`.
-  Files and folders starting with `_` or `.` are skipped, and a name part may
-  not hold a `.` or a `:`.
+| | designs | module-level studies |
+|---|---|---|
+| the catalog | `designs/<family>/<design>.py`, named `family.design` | `studies/<family>/<name>.py`, named `family.name` |
+| your folders | `~/.antennaknobs/designs/<name>.py`, named `user.name` | `~/.antennaknobs/studies/<path>.py`, named by its path |
+
+- The catalog's studies are the `.py` files under `studies/`, at any depth,
+  each inside a family folder. They ship with antennaknobs, so they run
+  without being allowed.
+- Your studies are the `.py` files in your studies folder,
+  `~/.antennaknobs/studies/` (or `$ANTENNAKNOBS_STUDIES_DIR`), beside the
+  designs folder. Subfolders become part of the name: `feeds/e7.py` is
+  `feeds/e7`. A name part may not hold a `.` or a `:`.
+- In both, files and folders starting with `_` or `.` are skipped.
+- A module-level `build_studies()` in a design file, the catalog's or yours,
+  is refused by name, with a message saying it belongs in the studies
+  directory. A Builder's `build_studies(self)` method stays in the design.
 
 A study file is Python, so it is gated like a user design: it **does not run
 until you allow it** (see [Allowing user designs to run](#allowing-user-designs-to-run)).
@@ -678,10 +695,11 @@ Until then it is listed with the command that allows it, and it is never
 imported, so nothing in it runs to find out what it compares.
 
 A study's full name is its source, a colon, and its own name:
-`dipoles.invvee:feed spelling (E7)`, `feeds/e7:bridge vs apex`, or
+`dipoles.apex_feed_on_invvee:feed spelling (E7)`, `feeds/e7:bridge vs apex`, or
 `user.my_vee:vs the references` for a method study. The source keeps names
 from colliding: two studies of one name in one source are both refused, and
-that includes a design module's function and its Builder's method.
+that includes a catalog study file named like a design and that design's
+Builder method.
 
 ```bash
 # every study, with the reason any cannot run here
