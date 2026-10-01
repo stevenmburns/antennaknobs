@@ -96,6 +96,7 @@ import {
 } from "../../lib/chartCells";
 import { ChartScaleContext } from "../charts/chartScale";
 import { cellColor, sweepPinColor } from "../charts/palette";
+import { metricSeries } from "../../lib/metricPlot";
 import type { ExtraCurve, PinCurve } from "../charts/curves";
 import type { ChartLegendData, ChartLegendPin } from "../results/ChartLegend";
 import {
@@ -177,11 +178,13 @@ import type { SweepAxisChoice, SweepMode } from "../../lib/sweepAxis";
 import {
   type AnalysisChartState,
   type ChartSeed,
+  type KnobView,
   type ChartView,
   chartDwell,
   chartForNewDesign,
   chartFrequencyRange,
   chartListed,
+  chartMetric,
   chartPatternView,
   chartRunInputs,
   chartView,
@@ -2632,7 +2635,7 @@ function DesignSessionBody({
     }
     const next = knobAnalysisSpec(w);
     if (w.param !== DENSITY) setLastKnob(w.param);
-    const picked = pickCross(pickKnob(m.state, entry.name, next, w.views), w);
+    const picked = pickCross(pickKnob(m.state, entry.name, next, w.views, w.metric), w);
     runPicked(i, "param", picked, m.state.kind === "knob" && sameSpec(next, m.spec));
     setChartAt(i, () => picked);
   };
@@ -3530,7 +3533,7 @@ function DesignSessionBody({
     const isPattern = m.state.kind === "pattern";
     const knobUnit = m.isDensity ? null : (m.knob?.unit ?? null);
     const chartX: ChartX | null =
-      chartView(m.state) === "Table" || isPattern
+      chartView(m.state) === "Table" || chartView(m.state) === "Metric" || isPattern
         ? null
         : isFreq
           ? { x: FREQUENCY_X, lo: m.inputs.freq.range.lo, hi: m.inputs.freq.range.hi }
@@ -3924,8 +3927,35 @@ function DesignSessionBody({
     const zparam = {
       ...zparamSettingsOf(m),
       phase: p0?.phase ?? "idle",
-      view: m.state.knob.view,
+      // The knob view on screen; the Metric view only while the analysis
+      // that has a MetricPlot is still picked (lib/analysisChart chartView).
+      view: m.state.kind === "knob" ? (chartView(m.now) as KnobView) : m.state.knob.view,
       callouts: chartCallouts,
+    };
+    // A knob analysis's MetricPlot (AK#1828): each drawn cell's curve, off
+    // its own knob sweep, paired with its reference as /analyses marks it.
+    const metricSpec = chartMetric(m.now);
+    const listedHere = chartListed(m.now);
+    const chartMetricRender = metricSpec && {
+      metric: metricSpec,
+      series: metricSeries(
+        m.drawn.map((c, k) => {
+          const served = servedCell(c, listedHere);
+          return {
+            key: c.key,
+            label: c.label,
+            color: cellColor(k),
+            reference: !!served?.reference,
+            fixed: !!served?.fixed,
+            slot: c.slot,
+            ground: c.ground,
+            ...(c.plane !== undefined ? { plane: c.plane } : {}),
+            ...(c.step !== undefined ? { step: c.step } : {}),
+          };
+        }),
+        m.drawn.map((_, k) => runners[k]?.param.data ?? null),
+        metricSpec.relativeTo !== null,
+      ),
     };
     const chartCurves = curves.length > 0 ? curves : undefined;
     // A pattern's cells as its view draws them (AK#1757 step 7): a trace per
@@ -3974,6 +4004,7 @@ function DesignSessionBody({
         onRxXLogChange,
       },
       chartPattern,
+      chartMetric: chartMetricRender,
       ...(chartCurves ? { chartCurves } : {}),
       chartLegend: legend,
       chartCellLabels: m.drawn.map((c) => c.label),
@@ -3986,6 +4017,7 @@ function DesignSessionBody({
       zparam,
       chartFrequency: freqRender,
       chartPattern,
+      chartMetric: chartMetricRender,
       ...(chartCurves ? { chartCurves } : {}),
       chartCellLabels: m.drawn.map((c) => c.label),
       ...(chartPins.length > 0 ? { chartPins } : {}),

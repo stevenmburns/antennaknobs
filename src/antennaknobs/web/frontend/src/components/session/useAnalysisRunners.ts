@@ -80,11 +80,15 @@ export function patternSignature(req: SolveRequest): string {
  *  itself is part of the key: a new range is a new sweep. */
 export function paramSweepSignature(
   req: SolveRequest,
-  sweep: Pick<ParamSweepRequest, "param" | "values">,
+  sweep: Pick<ParamSweepRequest, "param" | "values" | "metric">,
 ): string {
+  // A metric (AK#1828) is part of what the sweep returns: another one is
+  // another sweep. None leaves the signature exactly as it was.
+  const metric = sweep.metric === undefined ? "" : JSON.stringify(sweep.metric);
   return (
     solveSignature(req, { exempt: [...IMPEDANCE_ANALYSIS_EXEMPT, sweep.param] }) +
-    JSON.stringify([sweep.param, sweep.values])
+    JSON.stringify([sweep.param, sweep.values]) +
+    metric
   );
 }
 

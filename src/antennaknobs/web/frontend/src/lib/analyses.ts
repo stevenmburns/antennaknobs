@@ -28,8 +28,21 @@ import {
 } from "./sweepAxis";
 
 /** The views a knob analysis draws here, by the server's names: R/X against
- *  the knob, its Smith trail, the numbers (AK#1757 step 5 unit 5). */
-export type KnobView = "Rx" | "Smith" | "Table";
+ *  the knob, its Smith trail, the numbers (AK#1757 step 5 unit 5), and a
+ *  metric against the knob (AK#1828, `an.MetricPlot`). */
+export type KnobView = "Rx" | "Smith" | "Table" | "Metric";
+
+/** A MetricPlot as /analyses serves it (AK#1828): the metric's name and
+ *  unit, the cell its curves are drawn relative to (null: none) and the unit
+ *  of that difference, and the metric as data, which /param_sweep reads off
+ *  each point's solve. */
+export type MetricSpec = {
+  name: string;
+  unit: string;
+  relativeTo: string | null;
+  relativeUnit: string;
+  spec: unknown;
+};
 
 /** A knob sweep: `param` and `values` are what /param_sweep takes (the same
  *  ladder `antennaknobs analyze` sweeps). `views` are the ones the analysis
@@ -41,6 +54,8 @@ export type KnobWorkbench = {
   values: number[];
   log: boolean;
   views?: KnobView[];
+  /** Its MetricPlot, when it has one (AK#1828). */
+  metric?: MetricSpec | null;
   note: string | null;
 } & Listed;
 
@@ -202,8 +217,24 @@ function parseDesign(d: Record<string, unknown>): DesignCross | null {
           Array.isArray(d.freqs) && d.freqs.length > 0 && d.freqs.every((f) => isNum(f) && f > 0)
             ? (d.freqs as number[])
             : null,
+        ...(d.reference === true ? { reference: true } : {}),
+        ...(d.fixed === true ? { fixed: true } : {}),
       }
     : null;
+}
+
+/** A served MetricPlot, else null. */
+export function parseMetric(v: unknown): MetricSpec | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  if (!isStr(o.name) || !isStr(o.unit) || o.spec === undefined) return null;
+  return {
+    name: o.name,
+    unit: o.unit,
+    relativeTo: isStr(o.relative_to) && o.relative_to ? o.relative_to : null,
+    relativeUnit: isStr(o.relative_unit) ? o.relative_unit : o.unit,
+    spec: o.spec,
+  };
 }
 
 const isScalarKnob = (v: unknown): v is ScalarKnob =>
@@ -243,6 +274,8 @@ function parseState(o: Record<string, unknown>): StateCross | null {
     values: cell.values,
     spacing: cell.spacing ?? null,
     freqs: cell.freqs ?? null,
+    ...(cell.reference ? { reference: true } : {}),
+    ...(cell.fixed ? { fixed: true } : {}),
     name: o.name,
     design: isStr(o.design) ? o.design : null,
     variant: isStr(o.variant) ? o.variant : null,
@@ -315,7 +348,7 @@ function parseListed(o: Record<string, unknown>): Required<ListedCross> {
 }
 
 const FREQUENCY_VIEWS: readonly FrequencyView[] = ["Swr", "S11", "Smith", "Rx", "Table"];
-const KNOB_VIEWS: readonly KnobView[] = ["Rx", "Smith", "Table"];
+const KNOB_VIEWS: readonly KnobView[] = ["Rx", "Smith", "Table", "Metric"];
 
 /** A served frequency list: positive numbers, at least one, else null. */
 function freqList(v: unknown): number[] | null {
@@ -403,13 +436,17 @@ function parseWorkbench(w: unknown): AnalysisWorkbench | null {
     const views = Array.isArray(o.views)
       ? o.views.filter((v): v is KnobView => KNOB_VIEWS.includes(v as KnobView))
       : [];
+    const metric = parseMetric(o.metric);
+    // A Metric view with no metric served has nothing to draw.
+    const drawn = metric ? views : views.filter((v) => v !== "Metric");
     return {
       runs: true,
       kind: "knob",
       param: o.param,
       values,
       log: o.log === true,
-      ...(views.length > 0 ? { views } : {}),
+      ...(drawn.length > 0 ? { views: drawn } : {}),
+      ...(metric ? { metric } : {}),
       ...parseListed(o),
       note,
     };

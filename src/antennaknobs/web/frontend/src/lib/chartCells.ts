@@ -72,6 +72,11 @@ export type DesignCross = {
   values: number[] | null;
   spacing?: "lin" | "log" | null;
   freqs?: number[] | null;
+  /** A MetricPlot's reference cell (AK#1828): the cell its `relative_to`
+   *  names. `fixed`: solved once at its own setting (its `values` the one
+   *  value of the swept knob it sets), drawn flat. */
+  reference?: boolean;
+  fixed?: boolean;
 };
 /** A scalar knob value: a number, a bool or a string. */
 export type ScalarKnob = number | boolean | string;

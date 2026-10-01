@@ -58,6 +58,9 @@ export type ParamSweepRequest = {
    *  which runs only when asked (Steve, 2026-09-26: no length_factor sweep
    *  starting on the next design unless he asks). Omitted = true. */
   auto?: boolean;
+  /** A metric to read off each point's solve (AK#1828), as /analyses
+   *  served it (`an.to_data`), for a MetricPlot chart; absent: none. */
+  metric?: unknown;
 };
 
 /** One sweep's result, streamed point by point. `values` is the swept
@@ -78,6 +81,11 @@ export type ParamSweepData = {
   fed_seg_m?: number[];
   z_re: number[];
   z_im: number[];
+  /** The request's metric at each point (AK#1828), null where the server
+   *  could not read it there (`metric_error`, the first kept); absent when
+   *  the request asked for none. */
+  metric?: (number | null)[];
+  metric_error?: string;
   z_re_extrap: number | null;
   z_im_extrap: number | null;
   z_extrap_p?: number | null;

@@ -234,6 +234,32 @@ describe("dispatch", () => {
     expect(trail.querySelector("canvas.smith")!.getAttribute("data-trail")).toBe("N:3→5:2");
   });
 
+  // AK#1828: a knob analysis's MetricPlot draws on the chart's Metric view,
+  // each curve as lib/metricPlot.ts made it, a fixed reference flat.
+  it("draws a MetricPlot on the knob chart's Metric view", () => {
+    const zp = { param: "base", label: "base", unit: "m", total: 2, currentValue: null, xLog: false,
+      rAxis: RX_AUTO, xAxis: RX_AUTO, z0: 50, view: "Metric" as const };
+    const metric = { name: "DX gain", unit: "dBi", relativeTo: "ref", relativeUnit: "dB", spec: {} };
+    const series = [
+      { key: "a", label: "as built", color: "#f00", xs: [5, 12], ys: [-1, 2], fixed: false, level: null, stale: false, error: null },
+      { key: "r", label: "ref", color: "#00f", xs: [], ys: [], fixed: true, level: 0, stale: false, error: null },
+    ];
+    const el = mount("zparam", { zparam: zp, chartMetric: { metric, series } });
+    const plot = el.querySelector(".metric-plot")!;
+    expect(plot.getAttribute("data-metric")).toBe("DX gain");
+    expect(plot.getAttribute("data-relative")).toBe("ref");
+    expect(JSON.parse(plot.getAttribute("data-series")!)).toEqual([
+      { label: "as built", xs: [5, 12], ys: [-1, 2] },
+      { label: "ref", level: 0 },
+    ]);
+    expect(el.querySelectorAll(".metric-plot-curve circle").length).toBe(2);
+    expect(el.querySelector(".metric-plot-fixed")).not.toBeNull();
+    expect(el.querySelector("canvas.zparam")).toBeNull();
+    // Without its metric (the pick gone) the view has nothing of its own:
+    // R/X, never an empty Metric plot.
+    expect(mount("zparam", { zparam: zp }).querySelector(".metric-plot")).toBeNull();
+  });
+
   // Steve's laptop review of AK#1757 unit 4: the end-value callouts belong to
   // the stage. A thumbnail (no axis handlers) draws none, whatever the
   // session's callouts switch says.

@@ -2366,6 +2366,40 @@ def _solve_z_only(
     )
 
 
+def _solve_z_and_metric(req: dict, metric, cancel=None):
+    """`_solve_z_only` and the metric ``metric`` read off THAT solve
+    (AK#1828): momwire files its solved state (`adapter.
+    capture_solved_metrics`), whose gain evaluator is the engine's own
+    `gain_evaluator`, bit for bit (AK#1727), so the metric costs no second
+    fill. Returns ``(z, feeds_z, mesh, value, why)``: ``why`` names a metric
+    that cannot be read here (an external engine's solve files no state; a
+    metric the engine cannot read), with ``value`` None."""
+    from antennaknobs import metrics as mx
+
+    from .adapter import capture_solved_metrics
+
+    with capture_solved_metrics() as box:
+        z, feeds_z, mesh = _solve_z_only(req, cancel=cancel)
+    thunk = box[-1] if box else None
+    build = getattr(thunk, "gain", None)
+    if build is None:
+        return (
+            z,
+            feeds_z,
+            mesh,
+            None,
+            (
+                "a metric is read off a momwire solve in the workbench; on "
+                f"{req.get('solver') or 'this engine'}, `antennaknobs analyze` draws it"
+            ),
+        )
+    try:
+        src = mx.EvaluatorSource(build(), thunk.freq)
+        return z, feeds_z, mesh, mx.evaluate(metric, src), None
+    except (ValueError, NotImplementedError) as e:
+        return z, feeds_z, mesh, None, str(e)
+
+
 def _param_sweep_stream(
     req: dict,
     request: Request,
@@ -2374,6 +2408,7 @@ def _param_sweep_stream(
     *,
     record_key: str,
     advisories: bool,
+    metric=None,
 ) -> StreamingResponse:
     """The body shared by ``/param_sweep`` and its ``/converge`` alias: one
     solve per value, ``param`` overridden, streamed as NDJSON.
@@ -2384,7 +2419,9 @@ def _param_sweep_stream(
     hosted size refusal) is reported for that value and the sweep goes on.
     ``record_key`` names the swept value in each record: ``"value"`` (with
     ``param`` alongside) on ``/param_sweep``, ``"n_per_wire"`` on the alias,
-    whose records keep their old shape.
+    whose records keep their old shape. ``metric`` (AK#1828): each record
+    also carries ``metric``, that metric read off the point's own solve, or
+    ``metric_error`` naming why it could not be.
     """
     from .param_sweep import gap_fed_advisory, request_at
 
@@ -2417,9 +2454,14 @@ def _param_sweep_stream(
                 # One lane turn per point (see /sweep).
                 async with _LANES.turn(session, converge_kind, lane_gen) as token:
                     async with cancel_on_disconnect(request, token):
-                        z, feeds_z, mesh = await run_in_threadpool(
-                            _shed, _solve_z_only, req_v, cancel=token
-                        )
+                        if metric is None:
+                            z, feeds_z, mesh = await run_in_threadpool(
+                                _shed, _solve_z_only, req_v, cancel=token
+                            )
+                        else:
+                            z, feeds_z, mesh, m_value, m_why = await run_in_threadpool(
+                                _shed, _solve_z_and_metric, req_v, metric, cancel=token
+                            )
             except (Superseded, momwire.SolveAborted):
                 return
             except Exception as e:  # noqa: BLE001 — one-off solver failures must not abort the whole sweep; the error is noted per point
@@ -2443,6 +2485,11 @@ def _param_sweep_stream(
                 "z_im": float(z.imag),
                 "solver": solver_name,
             }
+            if metric is not None:
+                if m_why is None:
+                    record["metric"] = m_value
+                else:
+                    record["metric_error"] = m_why
             # The achieved segment count, the workbench's Z∞ refinement
             # variable and the CLI's N_ach, and the fed segment's length, the
             # reason a rough Z∞ gives (AK#1781).
@@ -2492,10 +2539,34 @@ async def param_sweep_endpoint(req: dict, request: Request):
         values = sweep_values(req, param, req.get("values", []))
     except (ParamSweepError, UnknownGeometryError) as e:
         raise HTTPException(status_code=422, detail=str(e)) from None
-    base = {k: v for k, v in req.items() if k not in ("param", "values")}
+    metric = _request_metric(req.get("metric"))
+    base = {k: v for k, v in req.items() if k not in ("param", "values", "metric")}
     return _param_sweep_stream(
-        base, request, param, values, record_key="value", advisories=True
+        base,
+        request,
+        param,
+        values,
+        record_key="value",
+        advisories=True,
+        metric=metric,
     )
+
+
+def _request_metric(data):
+    """A ``/param_sweep`` request's ``metric`` (AK#1828): None when it sends
+    none, else the metric its data describes (`analyses.from_data`), a 422
+    naming what is wrong with it."""
+    from antennaknobs import analyses as an
+
+    if data is None:
+        return None
+    try:
+        metric = an.from_data(data)
+    except (TypeError, ValueError) as e:
+        raise HTTPException(status_code=422, detail=f"bad metric: {e}") from None
+    if not isinstance(metric, an.PatternMetric):
+        raise HTTPException(status_code=422, detail="metric is not a metric")
+    return metric
 
 
 @app.post("/analyses")

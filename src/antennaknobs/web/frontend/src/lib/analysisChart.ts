@@ -24,6 +24,7 @@ import type {
   FrequencyView,
   FrequencyWorkbench,
   KnobView,
+  MetricSpec,
   PatternViewSpec,
   PatternWorkbench,
 } from "./analyses";
@@ -47,6 +48,8 @@ export type ChartKind = "knob" | "frequency" | "pattern";
  *  FrequencyView (Swr, S11, Smith, and R/X against frequency and the Table
  *  since unit 5). */
 export type { KnobView };
+/** The views every knob sweep can draw; a picked analysis with a MetricPlot
+ *  adds "Metric" (AK#1828, `chartViews`). */
 export const KNOB_VIEWS: readonly KnobView[] = ["Rx", "Smith", "Table"];
 /** Every frequency view, in the order a new chart offers them. Any frequency
  *  sweep can be drawn on all of them (they are projections of one Z(f), or
@@ -121,7 +124,14 @@ export type AnalysisChartState = {
   kind: ChartKind;
   /** The analysis last picked, and (for a knob one) the spec it set: the
    *  picker names it while the chart still runs that. */
-  picked: { name: string; kind: ChartKind; spec: ParamSweepSpec | null } | null;
+  picked: {
+    name: string;
+    kind: ChartKind;
+    spec: ParamSweepSpec | null;
+    /** A knob analysis's MetricPlot (AK#1828): what its "Metric" view
+     *  draws and its sweep reads off each point. */
+    metric?: MetricSpec | null;
+  } | null;
   /** The dwell switch: re-run after the knobs settle. Null until the viewer
    *  flips it, and then the kind's default (`chartDwell`). */
   dwell: boolean | null;
@@ -239,11 +249,23 @@ export function chartDwell(c: AnalysisChartState, defaults: DwellDefaults): bool
 /** The views the chart can draw what it shows, and the one on screen. */
 export function chartViews(c: AnalysisChartState): readonly ChartView[] {
   if (c.kind === "pattern") return (c.pattern?.views ?? []).map((_, k) => patternViewId(k));
-  return c.kind === "knob" ? KNOB_VIEWS : (c.frequency?.views ?? FREQUENCY_VIEWS);
+  if (c.kind === "knob") return chartMetric(c) ? [...KNOB_VIEWS, "Metric"] : KNOB_VIEWS;
+  return c.frequency?.views ?? FREQUENCY_VIEWS;
 }
 export function chartView(c: AnalysisChartState): ChartView {
   if (c.kind === "pattern") return patternViewId(c.pattern?.view ?? 0);
-  return c.kind === "knob" ? c.knob.view : (c.frequency?.view ?? "Smith");
+  if (c.kind === "knob") {
+    // The metric view leaves with the analysis that drew it.
+    return c.knob.view === "Metric" && !chartMetric(c) ? "Rx" : c.knob.view;
+  }
+  return c.frequency?.view ?? "Smith";
+}
+
+/** The MetricPlot the chart draws (AK#1828): the picked knob analysis's,
+ *  while the chart still runs it; null otherwise. */
+export function chartMetric(c: AnalysisChartState): MetricSpec | null {
+  if (c.kind !== "knob" || pickedName(c) === null) return null;
+  return c.picked?.metric ?? null;
 }
 
 const patternViewId = (k: number): PatternViewId => `pattern:${k}`;
@@ -282,15 +304,24 @@ export function pickKnob(
   name: string | null,
   spec: ParamSweepSpec,
   views?: readonly KnobView[],
+  metric?: MetricSpec | null,
 ): AnalysisChartState {
-  const view =
-    views && views.length > 0 && !views.includes(c.knob.view) ? views[0] : c.knob.view;
+  // The metric view only with a metric to draw (AK#1828).
+  const own = views?.filter((v) => v !== "Metric" || !!metric);
+  const was = c.knob.view === "Metric" && !metric ? "Rx" : c.knob.view;
+  // A metric analysis that leads with its MetricPlot opens on it: the view
+  // is new with the pick, so staying on the old one would hide it.
+  const leads = !!metric && own?.[0] === "Metric";
+  const view = leads ? "Metric" : own && own.length > 0 && !own.includes(was) ? own[0] : was;
   return {
     ...c,
     kind: "knob",
     // A null name is a pick of no analysis ("Sweep a knob", the knob menu):
     // it leaves the analysis, so the old pick and its crosses go.
-    picked: name === null ? null : { name, kind: "knob", spec },
+    picked:
+      name === null
+        ? null
+        : { name, kind: "knob", spec, ...(metric ? { metric } : {}) },
     knob: { ...c.knob, spec, xLog: null, view },
   };
 }
@@ -419,6 +450,7 @@ export function chartRunInputs(
   pattern: { wanted: boolean; auto: boolean; elevAzDeg: number; azElevDeg: number };
 } {
   const dwell = chartDwell(c, env.dwellDefaults);
+  const metric = chartMetric(c);
   const f = c.kind === "frequency" ? c.frequency : null;
   const shown = env.resident && f !== null;
   const pv = c.kind === "pattern" ? (c.pattern?.views ?? []) : [];
@@ -432,7 +464,15 @@ export function chartRunInputs(
       azElevDeg: az?.view === "Azimuth" ? az.el : 15,
     },
     param: {
-      req: { param: c.knob.spec.param, values: env.values, label: env.label, auto: dwell },
+      req: {
+        param: c.knob.spec.param,
+        values: env.values,
+        label: env.label,
+        auto: dwell,
+        // Read off every point while the chart can show it (AK#1828), so
+        // flipping to the Metric view needs no second sweep.
+        ...(metric ? { metric: metric.spec } : {}),
+      },
       wanted: env.resident && c.kind === "knob",
     },
     freq: {

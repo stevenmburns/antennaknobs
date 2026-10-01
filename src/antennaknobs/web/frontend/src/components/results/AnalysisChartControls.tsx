@@ -165,6 +165,8 @@ const VIEW_LABEL: Record<string, string> = {
   S11: "S11 (dB)",
   Smith: "Smith",
   Table: "Table",
+  // A knob analysis's MetricPlot (AK#1828).
+  Metric: "Metric",
 };
 
 /** The chart's view, and on the Smith chart its measured overlay: what the
