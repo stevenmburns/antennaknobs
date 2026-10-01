@@ -188,6 +188,9 @@ def test_e9_cli_points_are_the_optimizer_standalone_bit_equal(
     print("E9 seam branches:", dict(branches))
 
 
+# 37 two-knob Newton points (~5 s): main-only. The PR lane keeps the hold seam
+# through E9's CLI test and the workbench test below.
+@pytest.mark.antenna_computation_check
 def test_e8_cli_points_are_the_optimizer_standalone_bit_equal(
     monkeypatch, capsys, tmp_path
 ):
