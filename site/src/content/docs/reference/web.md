@@ -405,12 +405,26 @@ on two grounds draw, three on three are refused (*"REFUSED: 3 engines x 3
 grounds = 9 curves, over the cap of 6"*), and nothing is dropped to fit.
 
 When an analysis you pick names its engines or grounds (a cross in its
-`build_analyses()`), their slots are ticked for you. One that no slot holds is
-a **refused** curve: the legend names it with the reason, e.g. *"nec5: no
-solver slot holds nec5"*, and the rest draw. Load the engine into a slot to
-draw it; the chart never rewrites a slot. A slot that cannot run the design
-at all, or is a poor match for it (which only the active slot's **Solve
-anyway** can override), is refused the same way.
+`build_analyses()`), their slots are ticked for you. An engine that no slot
+holds is **skipped**: it draws no curve, and a quiet note under the legend's
+curves names it, e.g. *"skipped: razor-2p, NEC-5, which no slot holds. Put one
+in a slot to include it."* With B-spline, B-spline d=1 and PyNEC in your
+slots, the inverted vee's **convergence** (which names B-spline, razor-2p and
+NEC-5) draws the one B-spline curve and that note. If *none* of the engines it
+names is in a slot, the chart draws every slot instead, and the note says so.
+Load an engine into a slot to draw it; the chart never rewrites a slot, and
+the boxes still choose among your slots. A skipped engine is the workbench's
+call about your slots only: `antennaknobs analyze` runs exactly the engines the
+analysis names. A `cells=` analysis skips a cell whose engine no slot holds the
+same way; if every cell is skipped and they differ only by engine, the chart
+draws your slots instead, and otherwise draws only the note.
+
+A ground that no slot holds is still a **refused** curve: the legend names it
+with the reason, e.g. *"free: no ground slot holds free"*, and the rest draw.
+So is a curve on a slot you have that cannot run the design at all, or is a
+poor match for it (which only the active slot's **Solve anyway** can
+override), or an engine that declines this design's feed: these are curves
+you asked for, so they are named rather than skipped.
 
 ### Planes, designs, states and families
 
@@ -503,8 +517,9 @@ Pins are gone when the page reloads. To keep what you built, turn it into
 Python, the only thing the workbench keeps:
 
 - **copy** on a chart's header (*copy as analysis*): the picked analysis as the
-  Python that builds it, with the engines and grounds you ticked and an edited
-  range, to paste into the design's `build_analyses()`. Only for a chart about
+  Python that builds it, with the engines and grounds it drew (a skipped
+  engine is not among them) and an edited range, to paste into the design's
+  `build_analyses()`. Only for a chart about
   this design; a chart that compares named designs is kept as a study.
 - **keep** on a chart's header (*keep as study*): the same chart as a study
   function. A study names its designs, so the tab's design (and the knobs you

@@ -148,8 +148,8 @@ def test_e1_convergence_runs_as_the_density_ladder(invvee):
     assert w["values"] == list(sw.NOMINAL_NSEGS_LADDER) == [8, 12, 17, 24, 34, 48, 68]
     assert w["log"] is True
     # The engine cross, and the one ground E1 names, as the chart's
-    # preselection (a listed engine no slot holds is the chart's refused
-    # cell, not the server's).
+    # preselection (a listed engine no slot holds is the chart's to skip,
+    # not the server's: the list is served whole).
     assert w["engines"] == ["momwire:bspline", "momwire:razor-2p", "nec5"]
     assert w["grounds"] == ["finite:13,0.005"]
     assert w["note"] is None
