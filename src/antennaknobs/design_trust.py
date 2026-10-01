@@ -254,13 +254,19 @@ def trust_status(path: Path) -> str:
     return "none"
 
 
-@dataclass(frozen=True)
+@dataclass(eq=False)
 class DesignNotTrustedError(Exception):
     """Raised by the loader when a user design isn't trusted to execute.
 
     Carries the advisory ``report`` (what the design does that's unusual) so a
     UI or the CLI can show it alongside the trust prompt, and the ``path`` so a
     "Trust" action knows what to record.
+
+    Not ``frozen``: an exception has to accept attribute assignment, because
+    the interpreter and ``contextlib`` set ``__traceback__`` on it as it passes
+    through a ``with`` block, and a frozen dataclass refuses that assignment
+    (``FrozenInstanceError`` in place of this message). ``eq=False`` keeps the
+    identity equality and hashing every other exception has.
     """
 
     path: Path
