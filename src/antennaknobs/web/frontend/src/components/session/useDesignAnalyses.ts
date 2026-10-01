@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { type AnalysisEntry, parseAnalyses } from "../../lib/analyses";
 
+const NONE: AnalysisEntry[] = [];
+
 // The design's analyses for the Z-vs-parameter view's picker (AK#1757,
 // sweep-framework step 3), fetched from POST /analyses once per design (a
 // design, variant or reload key), and only while the view is on screen:
@@ -18,7 +20,7 @@ export function useDesignAnalyses({
   enabled: boolean;
   /** The solve request the builder is made from (read when fetching). */
   request: () => object;
-}): AnalysisEntry[] {
+}): { entries: AnalysisEntry[]; loaded: boolean } {
   const [got, setGot] = useState<{ key: string; entries: AnalysisEntry[] } | null>(null);
   const have = got?.key === designKey;
   useEffect(() => {
@@ -47,5 +49,7 @@ export function useDesignAnalyses({
     // the design's, and a knob drag must not re-fetch it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [designKey, enabled, have]);
-  return have ? got.entries : [];
+  // `loaded`: /analyses has answered for this design (a deep link waits on
+  // it, AK#1838, since an empty list is also what a pending fetch shows).
+  return have ? { entries: got.entries, loaded: true } : { entries: NONE, loaded: false };
 }

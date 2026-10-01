@@ -14,6 +14,7 @@
 // and setup.ts's InertWebSocket never calls onmessage.
 import { vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { App } from "../App";
 import { DesignSession } from "../components/session/DesignSession";
 import { SweepPinsProvider } from "../components/session/SweepPinsProvider";
 import { VIEW_PREFS_KEY, type Layout } from "../components/session/useViewPrefs";
@@ -115,6 +116,10 @@ export interface MountDesignSessionOptions {
   /** Extra localStorage entries, written after the harness clears storage —
    *  what a previous page load left behind (AK#1735's per-design Zo). */
   storage?: Record<string, string>;
+  /** The page's address (AK#1838): set with replaceState before mounting,
+   *  and the session is then mounted as the app shell mounts it (`<App>`),
+   *  which reads its deep link from that address for the first tab. */
+  url?: string;
 }
 
 // Mounts <DesignSession>: seeds the view prefs localStorage record, stubs
@@ -141,6 +146,7 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
     canSaveStudies,
     soilRanges,
     storage = {},
+    url,
   } = opts;
 
   localStorage.clear();
@@ -187,6 +193,10 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
     },
   );
 
+  if (url !== undefined) {
+    window.history.replaceState(null, "", url);
+    return render(<App />);
+  }
   return render(sessionTree(id));
 }
 

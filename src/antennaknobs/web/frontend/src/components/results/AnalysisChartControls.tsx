@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { chartDataAttrs, type ChartView, patternViewLabel } from "../../lib/analysisChart";
 import type { PatternViewSpec } from "../../lib/analyses";
 import type { MeasuredData } from "../../lib/api";
@@ -45,7 +46,15 @@ export type ChartChrome = {
     onKeep: () => void;
     keepBlocked: string | null;
   };
+  /** "Copy link" (AK#1838): a link to this tab's design with this chart's
+   *  analysis and view. Resolves once copied. Omitted: no button. */
+  onCopyLink?: () => Promise<void> | undefined;
 };
+
+/** The link button's tooltip: the link is one tab's, never the set. */
+export const COPY_LINK_TITLE =
+  "Copy link: opens this design with this chart's analysis and view. " +
+  "It covers this tab only, not the other open tabs (D1, D2…), and never runs on its own";
 
 /** The chart's own chrome: the dwell switch, what it compares, and
  *  duplicate / close. */
@@ -109,6 +118,7 @@ export function ChartChromeControls(chrome: ChartChrome) {
           </button>
         </>
       )}
+      {chrome.onCopyLink && <CopyLinkButton onCopy={chrome.onCopyLink} />}
       {chrome.onDuplicate && (
         <button
           type="button"
@@ -142,6 +152,33 @@ export function ChartChromeControls(chrome: ChartChrome) {
         </button>
       )}
     </>
+  );
+}
+
+/** The chart's "link" button (AK#1838): copies the link and says so. */
+function CopyLinkButton({ onCopy }: { onCopy: () => Promise<void> | undefined }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(t);
+  }, [copied]);
+  return (
+    <button
+      type="button"
+      className="zparam-reset chart-copy-link"
+      aria-label="Copy a link to this chart"
+      title={COPY_LINK_TITLE}
+      onClick={(e) => {
+        e.stopPropagation();
+        void onCopy()?.then(
+          () => setCopied(true),
+          () => {},
+        );
+      }}
+    >
+      {copied ? "copied" : "link"}
+    </button>
   );
 }
 

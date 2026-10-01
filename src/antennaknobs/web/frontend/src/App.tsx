@@ -15,6 +15,7 @@ import {
 } from "./components/session/contexts";
 import { DesignSession } from "./components/session/DesignSession";
 import { SweepPinsProvider } from "./components/session/SweepPinsProvider";
+import { parseDeepLink } from "./lib/deepLink";
 
 // App shell. Owns the two pieces of truly global state — the light/dark theme
 // and the list of open design sessions — and nothing else. Every session is a
@@ -51,6 +52,9 @@ export function App() {
   // each session to a fixed mount for its whole lifetime — the whole point:
   // a session's inputs live in its component instance, so it must never be
   // reconciled onto a different session's tree.
+  // The page's deep link (AK#1838), read once: the first tab opens on it,
+  // and a tab opened later starts on the session's own defaults.
+  const [deepLink] = useState(() => parseDeepLink(window.location.search));
   const [sessions, setSessions] = useState<SessionMeta[]>([{ id: 1 }]);
   const [activeId, setActiveId] = useState(1);
   const nextIdRef = useRef(2);
@@ -160,7 +164,11 @@ export function App() {
                     // its canvases painting.
                     hidden={s.id !== activeId}
                   >
-                    <DesignSession id={s.id} active={s.id === activeId} />
+                    <DesignSession
+                      id={s.id}
+                      active={s.id === activeId}
+                      deepLink={s.id === 1 ? deepLink : null}
+                    />
                   </div>
                 ))}
               </div>
