@@ -27,10 +27,15 @@ export function useDesignCatalog({
   geometry,
   setGeometry,
   setParamValues,
+  preferred,
 }: {
   geometry: string;
   setGeometry: (name: string) => void;
   setParamValues: Dispatch<SetStateAction<Record<string, ParamValueBag>>>;
+  /** The design the session opens on, when it names one the catalog holds
+   *  (a deep link's, AK#1838); null or absent, dipoles.invvee. Asked only
+   *  for the first pick, never to recover a vanished selection. */
+  preferred?: (examples: ExampleDescriptor[]) => string | null;
 }) {
   const [examples, setExamples] = useState<ExampleDescriptor[]>([]);
   const [examplesError, setExamplesError] = useState<string | null>(null);
@@ -111,12 +116,15 @@ export function useDesignCatalog({
   // Auto-select a sensible default once /examples resolves, and recover if
   // the current selection disappears (e.g. backend dropped an example).
   // dipoles.invvee is the canonical simple antenna (also the CLI default);
-  // fall back to the first example if it isn't registered.
+  // fall back to the first example if it isn't registered. A deep link's
+  // design (`preferred`) wins on the first pick, so the session never opens
+  // on invvee first and then switches.
   useEffect(() => {
     if (examples.length === 0) return;
     if (!examples.some((e) => e.name === geometry)) {
-      const preferred = examples.find((e) => e.name === "dipoles.invvee");
-      setGeometry((preferred ?? examples[0]).name);
+      const linked = geometry === "" ? (preferred?.(examples) ?? null) : null;
+      const fallback = examples.find((e) => e.name === "dipoles.invvee");
+      setGeometry(linked ?? (fallback ?? examples[0]).name);
     }
     // setGeometry is a stable useState setter; the literal deps are unchanged
     // from the pre-extraction effect.

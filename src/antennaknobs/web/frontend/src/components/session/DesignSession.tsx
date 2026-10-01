@@ -168,6 +168,16 @@ import { type CellRun, type CellRunners, useChartCells } from "./useChartCells";
 import { usePatternCell } from "./usePatternCell";
 import { useDesignAnalyses } from "./useDesignAnalyses";
 import {
+  type DeepLink,
+  linkHref,
+  linkSearch,
+  type LinkState,
+  resolveAnalysis,
+  resolveDesign,
+  resolveVariant,
+  resolveView,
+} from "../../lib/deepLink";
+import {
   analysisBlocked,
   analysisSpec,
   type AnalysisEntry,
@@ -272,7 +282,17 @@ type TrackStatus = {
   residual: number | null;
 };
 
-export function DesignSession({ id, active }: { id: number; active: boolean }) {
+export function DesignSession({
+  id,
+  active,
+  deepLink = null,
+}: {
+  id: number;
+  active: boolean;
+  /** The link the page was opened with (AK#1838), for the first tab only:
+   *  what it opens on. Null: the session's own defaults. */
+  deepLink?: DeepLink | null;
+}) {
   const {
     roster,
     terrainPresets,
@@ -311,6 +331,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
       uiDefaults={uiDefaults}
       versionLabel={versionLabel}
       canSaveStudies={canSaveStudies}
+      deepLink={deepLink}
     />
   );
 }
@@ -318,6 +339,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
 function DesignSessionBody({
   id,
   active,
+  deepLink,
   roster,
   terrainPresets,
   soilPresets,
@@ -332,6 +354,7 @@ function DesignSessionBody({
 }: {
   id: number;
   active: boolean;
+  deepLink: DeepLink | null;
   roster: BackendRoster;
   terrainPresets: TerrainPresetSchema[];
   /** Served soil catalog + knob bounds (#1173). */
@@ -397,7 +420,18 @@ function DesignSessionBody({
     trustBusy,
     trustDesign,
     reloadCatalog,
-  } = useDesignCatalog({ geometry, setGeometry, setParamValues });
+  } = useDesignCatalog({
+    geometry,
+    setGeometry,
+    setParamValues,
+    // A deep link's design, when the catalog holds it (AK#1838): the
+    // session opens on it rather than on invvee.
+    preferred: (list) => {
+      if (!deepLink?.design) return null;
+      const r = resolveDesign(deepLink.design, list);
+      return r.ok ? r.value : null;
+    },
+  });
 
   // Reload the selected user design from disk (issue #867). Re-fetching
   // /examples makes the server re-register user designs; bumping the nonce
@@ -2563,7 +2597,7 @@ function DesignSessionBody({
   // and grounds name (unit 4). Neither touches another chart, the session's
   // sweep range or the viewer's saved chart preferences. What the chart
   // cannot run yet is listed with why, and picking it does nothing.
-  const zparamAnalyses = useDesignAnalyses({
+  const { entries: zparamAnalyses, loaded: zparamAnalysesLoaded } = useDesignAnalyses({
     designKey: `${zparamDesignKey}#${reloadNonce}#${studiesNonce}`,
     // Not before the session has a design: the first render has none.
     enabled: chartModels.some((m) => m?.resident) && !!geometry,
@@ -2614,7 +2648,10 @@ function DesignSessionBody({
       }
     });
   };
-  const pickAnalysis = (i: number, entry: AnalysisEntry) => {
+  // `run` false (a deep link without run=1, AK#1838) selects without
+  // asking: a chart whose dwell switch is off (a knob sweep, a held one)
+  // then waits for Run, and one whose switch is on follows it as ever.
+  const pickAnalysis = (i: number, entry: AnalysisEntry, run = true) => {
     const m = chartModels[i];
     const w = entry.workbench;
     if (!m || !w.runs || zparamAnalysisBlocked(entry)) return;
@@ -2623,7 +2660,7 @@ function DesignSessionBody({
       // Already this pattern (the cells it keeps): nothing will change to
       // arm, so run it.
       const next = pickCross(pickPattern(m.state, entry.name, w), w);
-      runPicked(i, "pattern", next, m.state.kind === "pattern" && pickedName(m.now) === entry.name);
+      if (run) runPicked(i, "pattern", next, m.state.kind === "pattern" && pickedName(m.now) === entry.name);
       setChartAt(i, () => next);
       return;
     }
@@ -2639,7 +2676,7 @@ function DesignSessionBody({
         c.frequency ? JSON.stringify(chartFrequencyRange(c.frequency, chartBaseRange)) : "";
       // Already this sweep (the curves it keeps): nothing will change to
       // arm, so run it.
-      runPicked(i, "freq", next, m.state.kind === "frequency" && range(m.state) === range(next));
+      if (run) runPicked(i, "freq", next, m.state.kind === "frequency" && range(m.state) === range(next));
       setChartAt(i, () => next);
       return;
     }
@@ -2651,7 +2688,7 @@ function DesignSessionBody({
       pickKnob(m.state, entry.name, next, w.views, w.metric, w.hold ?? null),
       w,
     );
-    runPicked(i, "param", picked, m.state.kind === "knob" && sameSpec(next, m.spec));
+    if (run) runPicked(i, "param", picked, m.state.kind === "knob" && sameSpec(next, m.spec));
     setChartAt(i, () => picked);
   };
   // The picker's current entry: the analysis picked while the chart still
@@ -2897,6 +2934,124 @@ function DesignSessionBody({
       stopPattern: () => live.forEach((r) => r.pattern.stop()),
     };
   };
+  // The deep link (AK#1838): the page's ?design=…&analysis=…&view=…&run=1,
+  // which the first tab opens on. It is applied in stages, each waiting on
+  // what the one before it set: the design (picked by the catalog's first
+  // pick, useDesignCatalog's `preferred`), its variant once that design is
+  // the current one, the analysis once /analyses has answered for that
+  // design and variant, and the chart's view once the pick has landed. A
+  // name that resolves to nothing is reported by name in the notice below
+  // and otherwise ignored; an unknown design ends the link there, since its
+  // analysis and view were for that design.
+  type LinkStage = "design" | "variant" | "analysis" | "view" | "done";
+  const [linkStage, setLinkStage] = useState<LinkStage>(deepLink ? "design" : "done");
+  const [linkProblems, setLinkProblems] = useState<string[]>([]);
+  const linkProblem = (p: string) => setLinkProblems((ps) => [...ps, p]);
+  // The chart is where an analysis or a view lands, and listing the
+  // design's analyses waits for it to be on screen (useDesignAnalyses).
+  useEffect(() => {
+    if (deepLink && (deepLink.analysis || deepLink.view)) setView("zparam");
+    // On mount: the link is the page's, and never changes.
+  }, [deepLink, setView]);
+  useEffect(() => {
+    if (!deepLink || linkStage !== "design" || examples.length === 0) return;
+    if (deepLink.design) {
+      const r = resolveDesign(deepLink.design, examples);
+      if (!r.ok) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        linkProblem(r.problem);
+        setLinkStage("done");
+        return;
+      }
+    }
+    setLinkStage("variant");
+  }, [deepLink, linkStage, examples]);
+  // The design the link named (resolved), else whichever the session opened.
+  const linkDesign = (() => {
+    if (!deepLink?.design || examples.length === 0) return geometry;
+    const r = resolveDesign(deepLink.design, examples);
+    return r.ok ? r.value : geometry;
+  })();
+  useEffect(() => {
+    if (!deepLink || linkStage !== "variant") return;
+    if (!currentExample || currentExample.name !== linkDesign) return;
+    if (deepLink.variant) {
+      const r = resolveVariant(deepLink.variant, currentExample);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (!r.ok) linkProblem(r.problem);
+      else if (r.value !== currentVariant) selectVariant(r.value);
+    }
+    setLinkStage(deepLink.analysis || deepLink.view ? "analysis" : "done");
+    // Runs when the stage or the design changes; the rest is read as it
+    // stands then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLink, linkStage, currentExample, linkDesign]);
+  useEffect(() => {
+    if (!deepLink || linkStage !== "analysis") return;
+    if (!deepLink.analysis) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLinkStage(deepLink.view ? "view" : "done");
+      return;
+    }
+    if (!zparamAnalysesLoaded || currentExample?.name !== linkDesign) return;
+    const r = resolveAnalysis(deepLink.analysis, zparamAnalyses);
+    if (!r.ok) {
+      linkProblem(r.problem);
+      // Its view was for that analysis: the chart's own stays.
+      setLinkStage("done");
+      return;
+    }
+    const why = zparamAnalysisBlocked(r.value);
+    if (why !== null) {
+      linkProblem(`analysis "${r.value.name}" cannot run here: ${why}`);
+      setLinkStage("done");
+      return;
+    }
+    // run=1 asks for it as a pick in the picker does (exactly one run);
+    // without it the pick only selects.
+    pickAnalysis(0, r.value, deepLink.run);
+    setLinkStage(deepLink.view ? "view" : "done");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLink, linkStage, zparamAnalysesLoaded, zparamAnalyses, currentExample, linkDesign]);
+  useEffect(() => {
+    if (!deepLink || linkStage !== "view") return;
+    if (deepLink.view) {
+      const r = resolveView(deepLink.view, chartViews(chart));
+      if (!r.ok) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        linkProblem(r.problem);
+      } else {
+        setChartAt(0, (c) => setChartView(c, r.value));
+      }
+    }
+    setLinkStage("done");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLink, linkStage]);
+  // What the URL records of this tab (AK#1838): its design and variant
+  // (the design's first left out), and the first chart's analysis and view.
+  const linkStateOf = (m: ChartModel | null): LinkState => ({
+    design: geometry,
+    variant: currentVariant === (currentExample?.variants?.[0] ?? "default") ? null : currentVariant,
+    analysis: m ? pickedNameOf(m) : null,
+    view: m ? chartView(m.state) : null,
+  });
+  const urlState = linkStateOf(chartModels[0]);
+  const urlSearch =
+    currentExample && currentExample.name === geometry ? linkSearch(window.location.search, urlState) : null;
+  // The URL follows the active tab, by replaceState (no history entry per
+  // change), once its link has been applied: until then the address bar
+  // keeps the link as it was given.
+  useEffect(() => {
+    if (!active || linkStage !== "done" || urlSearch === null) return;
+    if (urlSearch === window.location.search) return;
+    const { pathname, hash } = window.location;
+    window.history.replaceState(window.history.state, "", `${pathname}${urlSearch}${hash}`);
+  }, [active, linkStage, urlSearch]);
+  // The chart's "link" button: this tab's design with the chart's analysis
+  // and view, at this page's address.
+  const copyChartLink = (m: ChartModel) =>
+    navigator.clipboard?.writeText(linkHref(window.location, linkStateOf(m)));
+
   // The app's Cancel (AK#1712) stops every curve of every chart, as it
   // stops the session's own batches.
   const abortAllInFlight = () => {
@@ -3015,6 +3170,20 @@ function DesignSessionBody({
               type="button"
               aria-label="Dismiss the settings notice"
               onClick={() => setSettingsProblemsDismissed(true)}
+            >
+              ×
+            </button>
+          </div>
+        )}
+        {linkProblems.length > 0 && (
+          <div className="settings-notice" role="alert" aria-label="Link problems">
+            <span>
+              <strong>link:</strong> {linkProblems.join(" · ")}
+            </span>
+            <button
+              type="button"
+              aria-label="Dismiss the link notice"
+              onClick={() => setLinkProblems([])}
             >
               ×
             </button>
@@ -3705,6 +3874,7 @@ function DesignSessionBody({
         onKeep: () => openChartKeep("study"),
         keepBlocked: keepPicked ? keepValuesBlocked : noPick,
       },
+      onCopyLink: () => copyChartLink(m),
       ...(charts.some((c) => c === null) ? { onDuplicate: () => duplicateChart(i) } : {}),
       ...(i > 0 ? { onClose: () => closeChart(i) } : {}),
     };
