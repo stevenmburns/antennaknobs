@@ -13,7 +13,6 @@ import {
   HARNESS_EXAMPLE,
   mountReady,
   stageChart,
-  sweepBaseDone,
   untilDom,
 } from "./designSessionHarness";
 
