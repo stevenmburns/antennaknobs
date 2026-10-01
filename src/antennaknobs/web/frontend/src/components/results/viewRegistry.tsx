@@ -12,7 +12,10 @@ import type {
   Projection,
   View,
 } from "../../lib/view";
+import type { MetricSpec } from "../../lib/analyses";
+import type { MetricSeries } from "../../lib/metricPlot";
 import { AnalysisPatternChart, type PatternCellTrace } from "../charts/AnalysisPatternChart";
+import { MetricPlotChart } from "../charts/MetricPlotChart";
 import { CombinedPatternChart } from "../charts/CombinedPatternChart";
 import { CurrentCanvas } from "../charts/CurrentCanvas";
 import { FarFieldChart } from "../charts/FarFieldChart";
@@ -120,6 +123,9 @@ export type ViewRenderProps = {
   /** The analysis chart showing a pattern (AK#1757 step 7): its view on
    *  screen and its cells. Wins over the other two kinds when given. */
   chartPattern?: ChartPatternRender | null;
+  /** A knob analysis's MetricPlot (AK#1828): the metric and its curves,
+   *  one per drawn cell, which the knob chart's Metric view draws. */
+  chartMetric?: { metric: MetricSpec; series: readonly MetricSeries[] } | null;
   /** The analysis chart's other curves, one per further engine x ground
    *  cell (AK#1757 step 5 unit 4), drawn beside its own on whichever view it
    *  shows; and its legend, which names every cell, refused ones with their
@@ -356,6 +362,17 @@ function analysisChart(p: ViewRenderProps): ReactElement {
   if (p.chartPattern) return patternChart(p, p.chartPattern);
   if (p.chartFrequency) return <ChartFrequency p={p} f={p.chartFrequency} />;
   const z = p.zparam ?? DEFAULT_ZPARAM;
+  if (z.view === "Metric" && p.chartMetric) {
+    return (
+      <MetricPlotChart
+        metric={p.chartMetric.metric}
+        series={p.chartMetric.series}
+        xLabel={z.unit ? `${z.label} (${z.unit})` : z.label}
+        size={p.size}
+        running={p.paramSweepRunning}
+      />
+    );
+  }
   if (z.view === "Smith") return <ChartKnobSmith p={p} />;
   if (z.view === "Table") return knobTable(p, z.param);
   const r = p.liveZ?.z_in_re ?? p.result?.z_in_re ?? null;

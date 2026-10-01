@@ -161,11 +161,12 @@ export function useParamSweep({
     const controller = new AbortController();
     paramSweepAbortRef.current = controller;
 
-    const { param, values, label } = paramSweepReq;
+    const { param, values, label, metric } = paramSweepReq;
     const body = {
       ...buildRequest(),
       param,
       values,
+      ...(metric !== undefined ? { metric } : {}),
       _gen: seqRef.current,
       _approved: approvedComboRef.current,
     };
@@ -179,12 +180,14 @@ export function useParamSweep({
       z_im: [],
       z_re_extrap: null,
       z_im_extrap: null,
+      ...(metric !== undefined ? { metric: [] } : {}),
     };
     const publish = () => {
       if (controller.signal.aborted) return;
       setParamSweep({
         ...acc,
         values: acc.values.slice(),
+        ...(acc.metric ? { metric: acc.metric.slice() } : {}),
         ...(acc.n_seg ? { n_seg: acc.n_seg.slice() } : {}),
         ...(acc.fed_seg_m ? { fed_seg_m: acc.fed_seg_m.slice() } : {}),
         z_re: acc.z_re.slice(),
@@ -292,6 +295,11 @@ export function useParamSweep({
           }
           acc.z_re.push(pt.z_re);
           acc.z_im.push(pt.z_im);
+          // The metric read off this point's solve (AK#1828), or why not.
+          if (acc.metric) {
+            acc.metric.push(Number.isFinite(pt.metric) ? pt.metric : null);
+            if (typeof pt.metric_error === "string") acc.metric_error ??= pt.metric_error;
+          }
           // Multi-feed records ship per-feed Z alongside the primary;
           // allocate the buffers lazily on first sight.
           if (Array.isArray(pt.feeds_z_re) && Array.isArray(pt.feeds_z_im)) {

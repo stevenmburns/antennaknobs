@@ -80,11 +80,22 @@ from .sweep_csv import CsvOut
 # 2026-09-28): 6 hold; 7 the UI writes the Python, and the deck stub.
 _VIEW_STEP = {an.Knobs: 6}
 _HOLD_STEP = 6
-_RUNS = (an.Rx, an.Table, an.Swr, an.S11, an.Smith, an.Map, *an.PATTERN_VIEWS)
+_RUNS = (
+    an.Rx,
+    an.Table,
+    an.Swr,
+    an.S11,
+    an.Smith,
+    an.Map,
+    an.MetricPlot,
+    *an.PATTERN_VIEWS,
+)
 # The views drawn as panels of one figure (`_views_figure`).
 _PANELS = (an.Swr, an.S11, an.Smith)
 # The views that draw a curve against one swept value.
-_CURVE_VIEWS = (an.Rx, *_PANELS)
+_CURVE_VIEWS = (an.Rx, *_PANELS, an.MetricPlot)
+# The views that read the feed impedance (a MetricPlot reads the far field).
+_Z_VIEWS = (an.Rx, an.Table, *_PANELS)
 
 
 def _later(what: str, step: int) -> str:
@@ -124,7 +135,17 @@ def _misfit(v: an.View, a: an.Analysis) -> str | None:
             f"{name} of a two-sweep map: a map draws Map and Table; cross the "
             "second knob as a family (an.Cross(step=...)) to draw curves"
         )
+    if isinstance(v, an.MetricPlot) and any(s.knob == an.DENSITY for s in a.sweeps):
+        return _DENSITY_METRIC
     return None
+
+
+# A metric against the density ladder (its convergence) needs the ladder's
+# own solve route, which reads impedance only.
+_DENSITY_METRIC = (
+    "the MetricPlot view of a density ladder: a metric's convergence is not "
+    "in v1 (AK#1828); sweep a knob or the frequency"
+)
 
 
 def _draws(v: an.View, a: an.Analysis) -> bool:
@@ -658,29 +679,25 @@ def _prepare(
     session: tuple,
     design_seam: DesignSeam | None,
     density: bool,
+    fixed: bool = False,
 ) -> _Prepared:
-    """``cell`` on a builder of its own, or `_Refused` naming why not."""
-    builder_factory, factory_for, label_for = session
-    if cell.design is not None:
-        if design_seam is None:
-            raise TypeError("a cross over designs needs run(design_seam=...)")
-        try:
-            builder_factory, factory_for, label_for = design_seam(cell.design)
-        except (SystemExit, ValueError) as e:
-            # The registry's "unknown builder" is a SystemExit: here it is
-            # one cell's reason, not the run's.
-            raise _Refused(str(e)) from None
+    """``cell`` on a builder of its own, or `_Refused` naming why not.
+    ``fixed``: a `MetricPlot`'s fixed reference (AK#1828), solved once at
+    its own setting: the sweep need not resolve on it, its state may set
+    what the sweep, the family or the hold moves, and its ``knobs`` are
+    empty (nothing is swept on it)."""
+    builder_factory, factory_for, label_for = _cell_seam(cell, session, design_seam)
     # A state cell's builder is its design at its DEFAULTS, the state's
     # knobs set over them (AK#1757 step 7): the factory is the registry's
     # (`analyze` takes no --set), so a state names the same curve wherever
     # it runs. The workbench builds it the same way, from the tab's variant
     # defaults and never its live knobs.
     b = builder_factory()
-    why = sweep_refusal(a, b, density)
+    why = None if fixed else sweep_refusal(a, b, density)
     if why:
         raise _Refused(why)
     if cell.state is not None:
-        why = an.state_refusal(cell.state, a, b)
+        why = an.state_refusal(cell.state, a, b, fixed=fixed)
         if why:
             raise _Refused(why)
         # The refusals keep a state off every knob the sweep, the family and
@@ -688,7 +705,7 @@ def _prepare(
         # knob is set as plain data, the shape its default is written in.
         for k, v in cell.state.settings.items():
             setattr(b, k, v)
-    knobs = [an.resolve(s.knob, b).knob for s in a.sweeps]
+    knobs = [] if fixed else [an.resolve(s.knob, b).knob for s in a.sweeps]
     moved = density_moved(a, b) if cell.design is not None else None
     if moved:
         raise _Refused(moved)
@@ -707,6 +724,65 @@ def _prepare(
     if cell.plane is not None:
         factory = at_plane(factory, cell.plane)
     return _Prepared(cell.label, b, knobs, factory, label_for(cell.ground))
+
+
+def _cell_seam(cell: Cell, session: tuple, design_seam: DesignSeam | None) -> tuple:
+    """The (builder factory, engine factory, ground label) ``cell`` is made
+    with: the session's, or its design's through ``design_seam``; a design
+    the registry lacks is `_Refused` by name."""
+    if cell.design is None:
+        return session
+    if design_seam is None:
+        raise TypeError("a cross over designs needs run(design_seam=...)")
+    try:
+        return design_seam(cell.design)
+    except (SystemExit, ValueError) as e:
+        # The registry's "unknown builder" is a SystemExit: here it is one
+        # cell's reason, not the run's.
+        raise _Refused(str(e)) from None
+
+
+def reference_fixed(cell: Cell, a: an.Analysis, builder) -> bool:
+    """Whether a `MetricPlot` reference ``cell`` (AK#1828), on ``builder``
+    (its design at its defaults), is FIXED: its sweep does not resolve there
+    (its design has no such knob), or its state sets the knob the sweep
+    moves. Then it is solved once, at its own setting, and drawn flat."""
+    for s in a.sweeps:
+        knob = an.resolve(s.knob, builder).knob
+        if knob is None:
+            return True
+        if cell.state is not None and knob in cell.state.settings:
+            return True
+    return False
+
+
+def references(a: an.Analysis, plot: an.MetricPlot, cells_: list[Cell]) -> dict:
+    """``{label: reference label}`` for ``plot``'s ``relative_to``: each
+    cell's reference is the cell it names (`analyses.reference_matches`),
+    the one that matches it on engine, ground, plane and family step when it
+    names several (one per engine, say). A cell with none maps to None."""
+    if plot.relative_to is None:
+        return {c.label: None for c in cells_}
+    named = [
+        c
+        for c in cells_
+        if an.reference_matches(
+            plot.relative_to, state=c.state, design=c.design, label=c.label
+        )
+    ]
+    out = {}
+    for c in cells_:
+        if len(named) == 1:
+            out[c.label] = named[0].label
+            continue
+        same = [
+            r
+            for r in named
+            if (r.engine, r.ground, r.plane, r.step)
+            == (c.engine, c.ground, c.plane, c.step)
+        ]
+        out[c.label] = same[0].label if len(same) == 1 else None
+    return out
 
 
 def _xs(s: an.Sweep, builder, knob: str) -> np.ndarray:
@@ -799,7 +875,8 @@ def run(
     refused: dict[str, str] = {}
     prepared: list[_Prepared] = []
     session = (builder_factory, factory_for, ground_label_for)
-    for cell in cells(a, session_engine, builder):
+    all_cells = cells(a, session_engine, builder)
+    for cell in all_cells:
         try:
             prepared.append(_prepare(cell, a, session, design_seam, density))
         except _Refused as e:
@@ -809,6 +886,35 @@ def run(
     out: dict = {"curves": {}, "refused": refused}
     if is_map:
         return _run_map(a, prepared, refused, out, builder, z0=z0, fn=fn)
+
+    plots = [v for v in a.views if isinstance(v, an.MetricPlot) and _draws(v, a)]
+    if plots and density:
+        print(f"  runs without {_DENSITY_METRIC}")
+        plots = []
+    metric_cols: dict[str, list] = {}
+    if plots:
+        out["metrics"], metric_cols = _run_metric_plots(
+            a,
+            plots,
+            all_cells,
+            prepared,
+            refused,
+            session=session,
+            design_seam=design_seam,
+            builder=builder,
+        )
+        if not any(_has(a, cls) for cls in _Z_VIEWS):
+            # A metric plot alone reads no impedance: nothing else solves.
+            if csv is not None:
+                knob_name = "MHz" if a.sweep.knob == an.FREQUENCY else knob
+                csv.write(
+                    knob_name,
+                    [(label, xs, cols) for label, (xs, cols) in metric_cols.items()],
+                )
+            _report_refused(refused)
+            _metric_figure(a, plots, out["metrics"], builder, knob, list(refused))
+            save_or_show(plt, fn)
+            return out
 
     s = a.sweep
     frequency = s.knob == an.FREQUENCY
@@ -899,7 +1005,10 @@ def run(
                         name, x, z, swr_of(z, z0) if frequency else None
                     )
                     for name, x, z in curves
-                ],
+                ]
+                # A MetricPlot's columns, a curve per cell beside them
+                # (AK#1828): their own x, which `sweep_csv.table` aligns.
+                + [(label, xs, cols) for label, (xs, cols) in metric_cols.items()],
             )
         if _has(a, an.Table):
             if frequency:
@@ -950,6 +1059,9 @@ def run(
             refused=list(refused),
         )
         save_or_show(plt, _views_fn(fn) if _has(a, an.Rx) else fn)
+    if plots:
+        _metric_figure(a, plots, out["metrics"], builder, knob, list(refused))
+        save_or_show(plt, _views_fn(fn, "-metrics"))
     return out
 
 
@@ -1326,14 +1438,239 @@ def _map_figure(maps, *, xlabel, ylabel, refs, z0, title, refused):
     fig.tight_layout()
 
 
-def _views_fn(fn: str | None) -> str | None:
-    """Where the panels go beside an Rx chart written to ``fn``."""
+def _views_fn(fn: str | None, tag: str = "-views") -> str | None:
+    """Where the panels (``tag`` "-views") or the metric plots ("-metrics")
+    go beside another figure written to ``fn``."""
     if fn is None or fn == "/dev/null":
         return fn
     from pathlib import Path
 
     p = Path(fn)
-    return str(p.with_name(f"{p.stem}-views{p.suffix}"))
+    return str(p.with_name(f"{p.stem}{tag}{p.suffix}"))
+
+
+# ── metric plots (AK#1828) ───────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class MetricCurve:
+    """One cell's curve on a `MetricPlot`: ``xs`` and the metric there;
+    ``fixed`` for a fixed reference (one solve, ``xs`` empty, ``values`` its
+    one value); ``reference`` the label of the cell it is drawn relative to
+    and ``relative`` the differences (None when the plot names none, or
+    this cell's reference did not solve)."""
+
+    xs: tuple
+    values: tuple
+    fixed: bool = False
+    reference: str | None = None
+    relative: tuple | None = None
+
+
+def _metric_values(p: _Prepared, a: an.Analysis, metrics) -> tuple[list, list]:
+    """``(xs, rows)``: each metric at every x of ``a``'s sweep on prepared
+    cell ``p``, one solve per point (a far-field cut per metric on it). A
+    fixed reference (no knobs) is solved once: ``xs`` empty, one row."""
+    from . import metrics as mx
+
+    def read():
+        src = mx.source_for(p.factory(p.builder))
+        return [mx.evaluate(m, src) for m in metrics]
+
+    if not p.knobs:
+        return [], [read()]
+    s = a.sweep
+    knob = p.knobs[0]
+    xs = list(_xs(s, p.builder, knob))
+    rows = []
+    # The knob is put back after: the impedance views solve on the same
+    # builder next, and a knob's own range is read off its value.
+    own = getattr(p.builder, knob)
+    try:
+        for x in xs:
+            setattr(p.builder, knob, x.item() if hasattr(x, "item") else x)
+            rows.append(read())
+    finally:
+        setattr(p.builder, knob, own)
+    return xs, rows
+
+
+def _run_metric_plots(
+    a, plots, all_cells, prepared, refused, *, session, design_seam, builder
+):
+    """Every `MetricPlot` of ``a``: each prepared cell's metrics against x
+    (`_metric_values`, one solve per point for all the plots at once), each
+    plot's references (`references`; a fixed one solved once, `_prepare`'s
+    ``fixed``), the differences, and the table printed. Returns ``({metric
+    name: {label: MetricCurve}}, {label: CSV columns})``."""
+    metrics = []
+    for v in plots:
+        if v.metric not in metrics:
+            metrics.append(v.metric)
+    by_label = {c.label: c for c in all_cells}
+    ready = {p.label: p for p in prepared}
+    # A reference the impedance views refused because it is fixed (its state
+    # sets the swept knob, its design lacks it) is solved once for the plot.
+    for v in plots:
+        for ref in set(references(a, v, all_cells).values()) - {None}:
+            if ref in ready or ref not in by_label:
+                continue
+            cell = by_label[ref]
+            try:
+                b = _cell_seam(cell, session, design_seam)[0]()
+                if not reference_fixed(cell, a, b):
+                    continue
+                ready[ref] = _prepare(cell, a, session, design_seam, False, fixed=True)
+                if not any(_has(a, cls) for cls in _Z_VIEWS):
+                    # Nothing else draws it: it is not refused. Beside R/X it
+                    # stays refused THERE, by name, and the plot says fixed.
+                    refused.pop(ref, None)
+            except _Refused as e:
+                refused[ref] = str(e)
+    solved: dict[str, tuple] = {}
+    for label, p in ready.items():
+        try:
+            solved[label] = _metric_values(p, a, metrics)
+        except (ValueError, NotImplementedError) as e:
+            # An engine declining the design, or a metric it cannot read
+            # (`metrics.MetricError`), refuses the cell by name.
+            refused[label] = str(e)
+    if not solved:
+        _report_refused(refused)
+        raise SystemExit(f"analysis {a.name!r}: every curve was refused")
+    out: dict = {}
+    cols: dict[str, list] = {label: ([], []) for label in solved}
+    for v in plots:
+        i = metrics.index(v.metric)
+        refs = references(a, v, all_cells)
+        per: dict[str, MetricCurve] = {}
+        for label, (xs, rows) in solved.items():
+            per[label] = MetricCurve(tuple(xs), tuple(r[i] for r in rows), fixed=not xs)
+        for label, curve in list(per.items()):
+            ref = refs.get(label)
+            base = per.get(ref) if ref is not None else None
+            rel = None
+            if base is not None and not curve.fixed:
+                rel = tuple(
+                    _diff(curve.values[k], _ref_at(base, curve.xs[k]))
+                    for k in range(len(curve.xs))
+                )
+            elif base is not None:
+                rel = (_diff(curve.values[0], base.values[0] if base.fixed else None),)
+            per[label] = dataclasses.replace(curve, reference=ref, relative=rel)
+        out[v.metric.name] = per
+        _print_metric_table(a, v, per, builder)
+        for label, curve in per.items():
+            if curve.fixed:
+                continue
+            xs_col, c = cols[label]
+            if not xs_col:
+                xs_col.extend(curve.xs)
+            c.append((_metric_heading(v.metric), curve.values))
+            if curve.relative is not None:
+                c.append((f"{v.metric.name} vs {curve.reference} ({_unit(v)})",
+                          curve.relative))  # fmt: skip
+    return out, {label: (xs, c) for label, (xs, c) in cols.items() if xs}
+
+
+def _ref_at(base: MetricCurve, x) -> float | None:
+    """The reference's value at ``x``: its one value when fixed, else its
+    point at that x (None when it has none there)."""
+    if base.fixed:
+        return base.values[0]
+    for bx, bv in zip(base.xs, base.values, strict=True):
+        if float(bx) == float(x):
+            return bv
+    return None
+
+
+def _diff(v, ref) -> float | None:
+    return None if v is None or ref is None else float(v) - float(ref)
+
+
+def _unit(v: an.MetricPlot) -> str:
+    # A difference of gains is in dB, not dBi.
+    return "dB" if v.metric.unit == "dBi" else v.metric.unit
+
+
+def _metric_heading(m: an.PatternMetric) -> str:
+    return f"{m.name} ({m.unit})" if m.unit else m.name
+
+
+def _print_metric_table(a, v: an.MetricPlot, per: dict, builder) -> None:
+    """A metric plot's numbers: one block per cell, x and the metric (and
+    the difference from its reference), or a fixed reference's one value."""
+    xname = "MHz" if a.sweep.knob == an.FREQUENCY else _step_name(a.sweep, builder)
+    for label, c in per.items():
+        print(f"== {_metric_heading(v.metric)} vs {xname}: {label} ==")
+        if c.reference is not None and c.reference != label:
+            print(f"relative to {c.reference}")
+        if c.fixed:
+            line = f"fixed reference, solved once: {_fmt_metric(c.values[0])}"
+            print(line)
+            continue
+        head = f"{xname:>12} {v.metric.name:>14}"
+        if c.relative is not None:
+            head += f" {'vs ' + str(c.reference):>14}"
+        print(head)
+        for k, x in enumerate(c.xs):
+            row = f"{float(x):>12.6g} {_fmt_metric(c.values[k]):>14}"
+            if c.relative is not None:
+                row += f" {_fmt_metric(c.relative[k]):>14}"
+            print(row)
+
+
+def _fmt_metric(v) -> str:
+    return "—" if v is None else f"{v:.3f}"
+
+
+def _metric_figure(a, plots, results, builder, knob, refused) -> None:
+    """One panel per `MetricPlot`: each cell's metric (or its difference
+    from its reference) against x, a fixed reference as a flat line."""
+    import matplotlib.pyplot as plt
+
+    sw = _sweep_module()
+    fig, axs = plt.subplots(
+        1, len(plots), figsize=(6.2 * len(plots), 4.6), squeeze=False
+    )
+    xlabel = (
+        "frequency (MHz)" if a.sweep.knob == an.FREQUENCY else sw._param_label(knob)
+    )
+    for ax, v in zip(axs[0], plots, strict=True):
+        per = results[v.metric.name]
+        span = [float(x) for c in per.values() for x in c.xs]
+        for i, (label, c) in enumerate(per.items()):
+            ys = c.relative if v.relative_to is not None else c.values
+            if ys is None:
+                continue
+            if c.fixed:
+                if span:
+                    ax.plot([min(span), max(span)], [ys[0], ys[0]], color=f"C{i}",
+                            linestyle="--", label=f"{label} (fixed)")  # fmt: skip
+                continue
+            pts = [
+                (float(x), y) for x, y in zip(c.xs, ys, strict=True) if y is not None
+            ]
+            if pts:
+                ax.plot(*zip(*pts, strict=True), color=f"C{i}", marker="o", ms=3,
+                        label=label)  # fmt: skip
+        if v.relative_to is not None:
+            ax.axhline(0.0, color="0.35", lw=0.8)
+            ax.set_ylabel(f"{v.metric.name} vs {v.relative_to} ({_unit(v)})")
+        else:
+            ax.set_ylabel(_metric_heading(v.metric))
+        ax.set_xlabel(xlabel)
+        if a.sweep.spacing == "log":
+            ax.set_xscale("log")
+        for r in refused:
+            if r in per:
+                continue  # refused by the impedance views only
+            ax.plot([], [], linestyle="None", marker="x", color="0.5",
+                    label=f"{r}: refused")  # fmt: skip
+        ax.legend(frameon=False, fontsize=7)
+        ax.grid(alpha=0.3)
+    fig.suptitle(a.name, fontsize=11)
+    fig.tight_layout()
 
 
 def _grid_words(s: an.Sweep, builder, xs) -> str:

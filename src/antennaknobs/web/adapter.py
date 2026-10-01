@@ -2830,6 +2830,20 @@ def capture_solved_metrics() -> Iterator[list]:
         _SOLVED_METRICS_SINK.reset(token)
 
 
+def _solved_thunk(build, meas_freq: float):
+    """A solve's captured metrics thunk (`_SOLVED_METRICS_SINK`): called, the
+    compare table's metrics; its ``gain`` builds the evaluator itself and
+    ``freq`` is the frequency it was solved at, which a metric plot reads
+    (AK#1828, ``/param_sweep`` with ``metric``)."""
+
+    def thunk():
+        return _metrics_from_gain(build(), meas_freq)
+
+    thunk.gain = build
+    thunk.freq = meas_freq
+    return thunk
+
+
 def _metrics_from_gain(gain, meas_freq: float) -> dict:
     """`far_field_metrics`' answer from a gain evaluator: the one place both
     the fresh path and a solve's captured state (AK#1727) produce it."""
@@ -4716,7 +4730,8 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # Last: the snapshot releases the engine's held Z (AK#1727).
             build = eng.solved_gain_evaluator()
             if build is not None:
-                sink.append(lambda: _metrics_from_gain(build(), meas_freq))
+                thunk = _solved_thunk(build, meas_freq)
+                sink.append(thunk)
         return out
 
     def momwire_geometry(req: dict) -> dict:

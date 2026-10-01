@@ -23,8 +23,9 @@ the decided spec, ``docs/design/sweep-framework-spec.md``:
   which is what a set of pins is (AK#1757 step 7, unit 4);
 - a METRIC is a number read off a far-field pattern (AK#1828, step 8):
   `ElevationWindow`, `GainAt`, `TakeOff`, `PeakGain`, the pattern table's
-  own columns (`TABLE_METRICS`). A pattern's `PatternTable(metrics=...)`
-  adds a column per metric;
+  own columns (`TABLE_METRICS`). A pattern's `PatternTable(metrics=...)` adds a column per
+  metric, and the swept view `MetricPlot` draws one against x, a far-field
+  cut per sweep point, optionally relative to a named cell;
 - an optional `Hold` optimises at every sweep point: the knobs it adjusts
   are re-solved for one of the optimizer's objectives as x moves;
 - `convergence`, `band_swr`, `knob` and `patterns` are the library: generic
@@ -840,6 +841,41 @@ def _check_metric_names(owner: str, metrics) -> None:
         raise ValueError(f"{owner}: two metrics are named {twice[0]!r}")
 
 
+@dataclass(frozen=True)
+class MetricPlot(View):
+    """A metric against the swept x (AK#1828): one far-field cut per sweep
+    point, per cell. ``relative_to`` names a cell, by its state's name, its
+    design or its label, and the plot is each curve LESS that cell's (in the
+    metric's unit: dB for a gain), M0AGP's "vertical = 0". A curve's
+    reference is the named cell that matches it on everything else the cells
+    vary over (engine, ground, plane, family step).
+
+    A reference whose state sets the swept knob, or whose design has no such
+    knob, is a FIXED reference: solved once at its own setting and drawn
+    flat. That is how a new antenna is compared with a standard one while
+    one of its knobs moves (a full vertical against shortening inverted
+    Ls)."""
+
+    metric: PatternMetric
+    relative_to: str | None = None
+
+    _positional: ClassVar[tuple[str, ...]] = ("metric",)
+
+    def __post_init__(self):
+        if not isinstance(self.metric, PatternMetric):
+            raise TypeError(
+                "MetricPlot: metric is a metric (an.ElevationWindow(...), "
+                f"an.GainAt(...), ...), got {self.metric!r}"
+            )
+        if self.relative_to is not None and not (
+            isinstance(self.relative_to, str) and self.relative_to
+        ):
+            raise TypeError(
+                "MetricPlot: relative_to names a cell (a state's name, a design, "
+                f"or a cell's label), got {self.relative_to!r}"
+            )
+
+
 #: The views of a pattern (``sweep=None``); every other view draws against a
 #: swept x.
 PATTERN_VIEWS = (Elevation, Azimuth, PatternTable)
@@ -1205,7 +1241,9 @@ def named_designs(analysis: Analysis) -> tuple[str, ...]:
     return tuple(dict.fromkeys(s.design for s in states_of(analysis) if s.design))
 
 
-def state_refusal(state: State, analysis: Analysis, builder) -> str | None:
+def state_refusal(
+    state: State, analysis: Analysis, builder, *, fixed: bool = False
+) -> str | None:
     """Why ``state`` cannot be set on ``builder`` (an instance of the design
     it is set on) in ``analysis``, or None. Each is a setting the run would
     silently undo or never make, so each is refused by name:
@@ -1219,7 +1257,11 @@ def state_refusal(state: State, analysis: Analysis, builder) -> str | None:
 
     Roles resolve on ``builder``: a height sweep's knob is ``base`` on one
     design and something else on another, so a clash is a property of the
-    (state, design) pair, not of the spec alone."""
+    (state, design) pair, not of the spec alone.
+
+    ``fixed``: the state is a `MetricPlot`'s fixed reference (AK#1828),
+    solved once at its own setting, outside the sweep, the family and the
+    hold, so a knob any of them moves is its own to set."""
     params = _params(builder)
     who = f"state {state.name!r}"
     dens = density_knob(builder)
@@ -1237,6 +1279,8 @@ def state_refusal(state: State, analysis: Analysis, builder) -> str | None:
         why = _shape_refusal(k, v, params[k])
         if why:
             return f"{who} sets {why}"
+    if fixed:
+        return None
     for s in analysis.sweeps:
         swept = resolve(s.knob, builder).knob
         if swept in state.settings:
@@ -1261,6 +1305,67 @@ def state_refusal(state: State, analysis: Analysis, builder) -> str | None:
                     "a knob is held or set by a state, not both"
                 )
     return None
+
+
+def metric_plots(analysis: Analysis) -> tuple[MetricPlot, ...]:
+    """The analysis's `MetricPlot` views, in order (AK#1828)."""
+    return tuple(v for v in analysis.views if isinstance(v, MetricPlot))
+
+
+def reference_matches(
+    name: str, *, state: State | None, design: str | None, label: str
+) -> bool:
+    """Whether a cell is the one a `MetricPlot`'s ``relative_to`` names: by
+    its state's name or label, its design (as a designs cross or a state
+    names it, with or without its variant), or its whole label."""
+    if name == label:
+        return True
+    if state is not None and name in (state.name, state.label):
+        return True
+    return design is not None and name in (design, design.partition(":")[0])
+
+
+def _cell_names(analysis: Analysis) -> list[tuple]:
+    """``(state, design, label)`` for every value a reference can name: each
+    listed cell, each state, each design of a designs cross."""
+    cells = cells_of(analysis)
+    if cells:
+        return [(c.state, c.state.spec if c.state else None, c.label) for c in cells]
+    out = []
+    for c in analysis.crosses:
+        if c.kind == "states":
+            out += [(st, st.spec, st.label) for st in c.states]
+        elif c.kind == "designs":
+            out += [(None, d, d) for d in c.designs]
+    return out
+
+
+def _metric_problems(analysis: Analysis) -> list[str]:
+    """A `MetricPlot` whose ``relative_to`` names no cell of the analysis,
+    or names more than one on the axis it picks from (AK#1828)."""
+    out = []
+    names = _cell_names(analysis)
+    for v in metric_plots(analysis):
+        if v.relative_to is None:
+            continue
+        hits = [
+            label
+            for st, d, label in names
+            if reference_matches(v.relative_to, state=st, design=d, label=label)
+        ]
+        if not hits:
+            out.append(
+                f"REFUSED: the MetricPlot of {v.metric.name!r} is relative to "
+                f"{v.relative_to!r}, and no state, design or cell of the "
+                "analysis is named that"
+            )
+        elif len(hits) > 1:
+            out.append(
+                f"REFUSED: the MetricPlot of {v.metric.name!r} is relative to "
+                f"{v.relative_to!r}, which names {len(hits)} cells "
+                f"({', '.join(repr(h) for h in hits)}); name one by its label"
+            )
+    return out
 
 
 def _shape_refusal(k: str, value, default) -> str | None:
@@ -1331,8 +1436,24 @@ def _states_problems(analysis: Analysis, builder) -> list[str]:
     return [
         f"REFUSED: {why}"
         for s in states
-        if s.design is None and (why := state_refusal(s, analysis, builder))
+        if s.design is None
+        and (
+            why := state_refusal(s, analysis, builder, fixed=is_reference(s, analysis))
+        )
     ]
+
+
+def is_reference(state: State, analysis: Analysis) -> bool:
+    """Whether ``state`` is a cell some `MetricPlot` of ``analysis`` is drawn
+    relative to (AK#1828): then a knob it sets is its own, even one the
+    sweep moves (a fixed reference, solved once)."""
+    return any(
+        v.relative_to is not None
+        and reference_matches(
+            v.relative_to, state=state, design=state.spec, label=state.label
+        )
+        for v in metric_plots(analysis)
+    )
 
 
 def problems(analysis: Analysis, builder) -> list[str]:
@@ -1405,6 +1526,7 @@ def problems(analysis: Analysis, builder) -> list[str]:
                     f"REFUSED: the hold adjusts {r.knob}, which is the swept knob"
                 )
     out += _states_problems(analysis, builder)
+    out += _metric_problems(analysis)
     if analysis.curves > CURVE_CAP:
         sizes = " x ".join(
             f"{c.size} {'values' if c.kind == 'step' else c.kind}"
@@ -1566,6 +1688,7 @@ _DATA_CLASSES = {
         Elevation,
         Azimuth,
         PatternTable,
+        MetricPlot,
         AzMode,
         ElevationWindow,
         GainAt,

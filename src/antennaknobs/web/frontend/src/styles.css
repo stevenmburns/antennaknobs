@@ -5070,3 +5070,48 @@ canvas {
   color: var(--fg);
   font-weight: 500;
 }
+
+/* The analysis chart's Metric view (AK#1828): a metric against the swept
+   knob, an SVG of its own. */
+.metric-plot {
+  position: relative;
+  color: var(--fg);
+}
+.metric-plot-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: calc(10px * var(--chart-scale));
+  text-align: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+.metric-plot-grid line {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.metric-plot-zero {
+  stroke: var(--muted);
+  stroke-width: 1.2;
+}
+.metric-plot-ticks text {
+  fill: var(--muted);
+  font-size: calc(9px * var(--chart-scale));
+}
+.metric-plot-label {
+  font-size: calc(10px * var(--chart-scale));
+}
+.metric-plot-label {
+  fill: var(--fg);
+}
+.metric-plot-curve polyline {
+  stroke-width: 1.8;
+}
+.metric-plot-curve.stale {
+  opacity: 0.45;
+}
+.metric-plot-fixed {
+  stroke-width: 1.6;
+  stroke-dasharray: 6 4;
+}

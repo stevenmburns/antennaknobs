@@ -105,6 +105,8 @@ def test_every_entry_has_the_documented_shape(invvee):
                 "note",
             }
         elif w["runs"]:
+            # `metric`: its MetricPlot as the chart draws it, or None
+            # (AK#1828).
             assert set(w) == {
                 "runs",
                 "kind",
@@ -112,6 +114,7 @@ def test_every_entry_has_the_documented_shape(invvee):
                 "values",
                 "log",
                 "views",
+                "metric",
                 "engines",
                 "grounds",
                 *CROSSES,

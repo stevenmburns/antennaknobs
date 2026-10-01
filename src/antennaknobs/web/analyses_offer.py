@@ -4,13 +4,16 @@
 each with its one-line summary, its Python, its problems, and a
 ``workbench`` entry saying how the workbench runs it:
 
-- ``{runs: True, kind: "knob", param, values, log, views, note}``: the
-  Z-vs-parameter view. ``param`` and ``values`` are exactly what
+- ``{runs: True, kind: "knob", param, values, log, views, metric, note}``:
+  the Z-vs-parameter view. ``param`` and ``values`` are exactly what
   ``/param_sweep`` takes. The values come from the same functions
   ``antennaknobs analyze`` sweeps (`analysis_run.knob_xs`,
   `analysis_run.density_rungs`), so a picked analysis and the CLI solve one
   ladder. ``views`` are the ones the chart draws of a knob sweep ("Rx",
-  "Smith", "Table"), in the analysis's order;
+  "Smith", "Table", and "Metric" for an `analyses.MetricPlot`, AK#1828), in
+  the analysis's order; ``metric`` is the first MetricPlot as the chart
+  draws it, ``{name, unit, relative_to, relative_unit, spec}`` (``spec`` the
+  metric as data, which ``/param_sweep`` reads off each point), or None;
 - ``{runs: True, kind: "frequency", range, level, points, freqs, views,
   swr, note}``: the frequency sweep (step 4). ``range`` is the span and
   grid `analysis_run.frequency_range` resolves, in ``/examples``'
@@ -82,6 +85,11 @@ chart multiplies with its slots into one curve per cell as
   spec or None (the analysis's, else the chart's active slot); the sweep
   and refusal are served as a state's are (`_cell_entry`).
 
+Every design, state and listed cell entry also says whether it is a
+MetricPlot's ``reference`` (the cell its ``relative_to`` names) and ``fixed``
+(solved once at its own setting: ``param`` the swept knob and ``values`` its
+one value of it, which it sets).
+
 Every entry also carries ``spec``, the analysis as data (`analyses.to_data`),
 which the chart edits and sends back to keep what it built (``POST /keep``,
 unit 4); and a state's entry its ``variant``.
@@ -120,8 +128,14 @@ _FREQUENCY_VIEWS = {
     an.Rx: "Rx",
     an.Table: "Table",
 }
-# A knob sweep's: R/X against the knob, its Smith trail, the numbers.
-_KNOB_VIEWS = {an.Rx: "Rx", an.Smith: "Smith", an.Table: "Table"}
+# A knob sweep's: R/X against the knob, its Smith trail, the numbers, and
+# a metric against the knob (AK#1828).
+_KNOB_VIEWS = {
+    an.Rx: "Rx",
+    an.Smith: "Smith",
+    an.Table: "Table",
+    an.MetricPlot: "Metric",
+}
 
 
 def _later(what: str, step: int) -> str:
@@ -274,6 +288,8 @@ def _design_entry(
         "values": None,
         "range": None,
         "freqs": None,
+        "reference": False,
+        "fixed": False,
     }
     try:
         cls = getattr(example_for(name), "builder_cls", None)
@@ -290,6 +306,30 @@ def _design_entry(
     if variant is not None:
         req["variant"] = variant
     b = builder_for(cls, req)
+    reference = state is not None and an.is_reference(state, a)
+    out["reference"] = reference
+    fixed = reference and not an.is_pattern(a) and _fixed_reference(a, state, b)
+    if fixed:
+        # A MetricPlot's fixed reference (AK#1828): one solve at its own
+        # setting. The chart sweeps it at its one value of the swept knob,
+        # which it sets; one whose design lacks the knob has nothing the
+        # chart's knob sweep could set, and `analyze` draws it.
+        knob = an.resolve(a.sweep.knob, b).knob
+        why = an.state_refusal(state, a, b, fixed=True)
+        if why is None and (knob is None or knob not in state.settings):
+            why = (
+                f"the reference {state.label!r} has no {an._knob_name(a.sweep.knob)} "
+                "to hold fixed; `antennaknobs analyze` draws it"
+            )
+        if why:
+            return {**out, "refused": why}
+        for k, v in state.settings.items():
+            setattr(b, k, v)
+        try:
+            values = sweep_values(req, knob, [float(getattr(b, knob))])
+        except ParamSweepError as e:
+            return {**out, "refused": str(e)}
+        return {**out, "param": knob, "values": values, "fixed": True}
     why = ar.sweep_refusal(a, b, density) or ar.density_moved(a, b)
     if why is None and state is not None:
         why = an.state_refusal(state, a, b)
@@ -321,6 +361,31 @@ def _design_entry(
         return {**out, "refused": str(e)}
     out.update(param=run["param"], values=run["values"])
     return out
+
+
+def _fixed_reference(a: an.Analysis, state: an.State, builder) -> bool:
+    """Whether a reference state is FIXED on ``builder`` (`analysis_run.
+    reference_fixed`'s rule: it sets the swept knob, or its design lacks
+    it)."""
+    return ar.reference_fixed(ar.Cell(state.label, "", None, state=state), a, builder)
+
+
+def _metric_view(a: an.Analysis) -> dict | None:
+    """The first `MetricPlot` as the chart draws it (AK#1828): the metric's
+    name, unit and data (`analyses.to_data`, which ``/param_sweep`` reads
+    back), the cell it is relative to, and the unit of a difference."""
+    plots = an.metric_plots(a)
+    if not plots:
+        return None
+    v = plots[0]
+    m = v.metric
+    return {
+        "name": m.name,
+        "unit": m.unit,
+        "relative_to": v.relative_to,
+        "relative_unit": "dB" if m.unit == "dBi" else m.unit,
+        "spec": an.to_data(m),
+    }
 
 
 def _has_variant(cls, variant: str) -> bool:
@@ -375,6 +440,8 @@ def _state_entry(a: an.Analysis, st: an.State, req: Mapping, density: bool) -> d
             "values": None,
             "range": None,
             "freqs": None,
+            "reference": an.is_reference(st, a),
+            "fixed": False,
             "on": [_design_entry(a, d, density, st) for d in designs],
         }
     if st.design is not None:
@@ -410,6 +477,8 @@ def _cell_entry(
             "values": None,
             "range": None,
             "freqs": None,
+            "reference": False,
+            "fixed": False,
         }
         on = builder
     else:
@@ -417,7 +486,18 @@ def _cell_entry(
         head["state"] = {
             k: st[k] for k in ("name", "design", "variant", "knobs", "label")
         }
-        cell = {k: st[k] for k in ("refused", "param", "values", "range", "freqs")}
+        cell = {
+            k: st[k]
+            for k in (
+                "refused",
+                "param",
+                "values",
+                "range",
+                "freqs",
+                "reference",
+                "fixed",
+            )
+        }
         on = None
     if c.plane is not None and cell["refused"] is None:
         if on is None:
@@ -588,11 +668,29 @@ def workbench(a: an.Analysis, builder, req: Mapping) -> dict:
         "param": run["param"],
         "values": run["values"],
         "log": run["log"],
-        "views": [n for v in a.views if (n := _knob_view(v))],
+        # A density ladder's metric is not drawn, as `analyze` does not
+        # draw it (`analysis_run._DENSITY_METRIC`).
+        "views": [
+            n
+            for v in a.views
+            if (n := _knob_view(v)) and not (n == "Metric" and run["density"])
+        ],
+        "metric": None if run["density"] else _metric_view(a),
         **_listed(a),
         **crosses,
-        "note": _note(a, deck_density=density and run["param"] != DENSITY),
+        "note": _note(a, deck_density=density and run["param"] != DENSITY)
+        or _metric_note(a),
     }
+
+
+def _metric_note(a: an.Analysis) -> str | None:
+    """What the chart leaves out of an analysis's metric plots: it draws the
+    first; `analyze` draws every one."""
+    plots = an.metric_plots(a)
+    if len(plots) < 2:
+        return None
+    rest = ", ".join(repr(v.metric.name) for v in plots[1:])
+    return f"left out: the MetricPlot of {rest} (the chart draws the first; `antennaknobs analyze` draws each)"
 
 
 def builder_for(cls, req: Mapping):
