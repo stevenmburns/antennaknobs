@@ -9,6 +9,7 @@ import type {
   SoilParams,
 } from "./ground";
 import type { Slot } from "./backends";
+import { groundSlotId } from "./groundSlots";
 import type { Projection } from "./view";
 
 export type SwitchKey =
@@ -97,17 +98,18 @@ export const BUILTIN_GROUND: GroundDefaults = {
 };
 
 // A ground slot's starting ground (AK#1794): the twin of an A/B/C solver
-// slot. Ids are the slot numbers as strings ("1", "2", ...), the keys of the
-// file's [grounds.N] tables, and the list is however long the server says.
+// slot. Ids are the slot letters ("X", "Y", "Z", then "U", ...: lib/
+// groundSlots.ts's GROUND_SLOT_IDS, AK#1801), the keys of the file's
+// [grounds.X] tables, and the list is however long the server says.
 export type GroundSlotDefaults = GroundDefaults & { id: string };
 
 // The stock set, for a payload without `grounds`: the server's STOCK_GROUNDS
 // (antennaknobs/web/settings.py), pinned by tests/test_ground_slots_1794.py.
-// Slot 3's soil is null, the served default, which is the stock's "average".
+// Slot Z's soil is null, the served default, which is the stock's "average".
 export const BUILTIN_GROUND_SLOTS: GroundSlotDefaults[] = [
-  { id: "1", ...BUILTIN_GROUND },
-  { id: "2", ...BUILTIN_GROUND, enabled: false },
-  { id: "3", ...BUILTIN_GROUND, method: "sommerfeld" },
+  { id: "X", ...BUILTIN_GROUND },
+  { id: "Y", ...BUILTIN_GROUND, enabled: false },
+  { id: "Z", ...BUILTIN_GROUND, method: "sommerfeld" },
 ];
 
 export type UiDefaults = {
@@ -121,9 +123,9 @@ export type UiDefaults = {
   switchesSet: SwitchKey[];
   /** The Antenna view's orientation on a design load (AK#1737). */
   orientation: Orientation;
-  /** Ground slot 1, as a server before AK#1794 served it. */
+  /** Ground slot X, as a server before AK#1794 served it. */
   ground: GroundDefaults;
-  /** Every ground slot, slot 1 first (AK#1794). Slot 1 is `ground`. */
+  /** Every ground slot, slot X first (AK#1794). Slot X is `ground`. */
   grounds: GroundSlotDefaults[];
   /** Whether a pick starts an analysis, per kind (AC6LA #179). */
   runOnPick: Record<RunOnPickKind, boolean>;
@@ -198,16 +200,18 @@ export function parseUiDefaults(raw: unknown): UiDefaults {
   for (const k of RUN_ON_PICK_KINDS) {
     if (typeof wb[k] === "boolean") runOnPick[k] = wb[k] as boolean;
   }
-  // A server before AK#1794 serves `ground` alone: it is slot 1, and the
-  // other slots are the stock set.
+  // A server before AK#1794 serves `ground` alone: it is slot X, and the
+  // other slots are the stock set. One before AK#1801 numbers the slots,
+  // which read as their letters (groundSlotId).
   const served = Array.isArray(raw.grounds)
-    ? raw.grounds.filter(
-        (g): g is Record<string, unknown> => isRecord(g) && typeof g.id === "string",
-      )
+    ? raw.grounds.flatMap((g) => {
+        const id = isRecord(g) && typeof g.id === "string" ? groundSlotId(g.id) : null;
+        return id !== null && isRecord(g) ? [{ id, ...parseGround(g) }] : [];
+      })
     : [];
   const grounds: GroundSlotDefaults[] =
     served.length > 0
-      ? served.map((g) => ({ id: g.id as string, ...parseGround(g) }))
+      ? served
       : [{ ...ground, id: BUILTIN_GROUND_SLOTS[0].id }, ...BUILTIN_GROUND_SLOTS.slice(1)];
   return {
     path: typeof raw.path === "string" ? raw.path : null,
@@ -237,10 +241,10 @@ export type GroundSaveEntry = {
 export type SettingsSaveBody = {
   switches: Record<SwitchKey, boolean>;
   antenna_view: { orientation: Orientation };
-  /** The older spelling of ground slot 1; the page posts `grounds`. The
+  /** The older spelling of ground slot X; the page posts `grounds`. The
    *  server refuses a body carrying both. */
   ground?: GroundSaveEntry;
-  /** Every ground slot by id (AK#1794), written as [grounds.N]. */
+  /** Every ground slot by id (AK#1794), written as [grounds.X]. */
   grounds?: Record<string, GroundSaveEntry>;
   slots: Record<
     Slot,

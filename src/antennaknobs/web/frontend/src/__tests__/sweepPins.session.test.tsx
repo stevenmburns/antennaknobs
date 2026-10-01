@@ -313,7 +313,7 @@ describe("a crossed chart", () => {
     const dlg = screen.getByRole("dialog", { name: "Engines and grounds" });
     fireEvent.click(within(dlg).getByRole("checkbox", { name: /^B: / }));
     fireEvent.keyDown(document.body, { key: "Escape" });
-    await swrSettled("B|1:15");
+    await swrSettled("B|X:15");
     await untilDom(() => !pinButton().disabled || null);
     fireEvent.click(pinButton());
     const rows = await pinRowsOf(2);
@@ -322,7 +322,7 @@ describe("a crossed chart", () => {
     expect(rows[1].title).toContain("B: B-spline d=1");
     // Pins sit outside the curve cap: both draw beside the two live curves.
     await untilDom(() => (stageChart("canvas.sweep-vswr")?.dataset.pins?.split(";").length === 2 ? true : null));
-    expect(stageChart("canvas.sweep-vswr")?.dataset.curves).toBe("B|1:15");
+    expect(stageChart("canvas.sweep-vswr")?.dataset.curves).toBe("B|X:15");
   });
 });
 

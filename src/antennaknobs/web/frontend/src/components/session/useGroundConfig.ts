@@ -57,13 +57,13 @@ export function useGroundConfig({
   /** Served bounds+defaults, null on a server predating #1173. */
   soilRanges?: SoilRanges | null;
   soilPresets?: SoilPresetSchema[];
-  /** Where each ground slot starts (AK#1794, settings.toml's [grounds.N],
-   *  slot 1 also [ground]); the stock set if omitted. */
+  /** Where each ground slot starts (AK#1794, settings.toml's [grounds.X],
+   *  slot X also [ground]); the stock set if omitted. */
   slots?: GroundSlotDefaults[];
 }) {
   // The ground slots (AK#1794), the A/B/C solver slots' twin: each holds a
   // whole ground, the active one is what every solve and chart reads, and
-  // the ground panel edits the active one. Slot 1 starts active, so a
+  // the ground panel edits the active one. Slot X starts active, so a
   // session that never touches the slots is the single ground it always was.
   //
   // What a slot holds, field by field (the notes the single ground carried):
@@ -80,7 +80,7 @@ export function useGroundConfig({
   //    presets so values survive preset flips.
   const [state, setState] = useState<GroundSlotsState>(() => ({
     slots: slotDefaults.map(slotFromDefaults),
-    active: slotDefaults[0]?.id ?? "1",
+    active: slotDefaults[0]?.id ?? BUILTIN_GROUND_SLOTS[0].id,
   }));
 
   // Soil constants for the finite models (issue #1173). Seeded from the
@@ -150,7 +150,7 @@ export function useGroundConfig({
     setState((st) => (st.slots.some((s) => s.id === id) ? { ...st, active: id } : st));
 
   // A design load (DesignSession's design resets): see withDesignGround. The
-  // session default is slot 1 as the settings file starts it.
+  // session default is slot X as the settings file starts it.
   function applyDesignGround(own: GroundEdit | null) {
     const start = slotFromDefaults(slotDefaults[0] ?? BUILTIN_GROUND_SLOTS[0]);
     const sessionDefault = { ...start, soil: start.soil ?? servedDefault };

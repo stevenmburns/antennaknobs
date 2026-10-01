@@ -16,7 +16,7 @@ import {
 } from "../lib/keep";
 
 const ENGINES: Record<string, string> = { A: "momwire:bspline", B: "momwire:razor-2p", C: "nec5" };
-const GROUNDS: Record<string, string> = { "1": "finite-fast", "2": "free" };
+const GROUNDS: Record<string, string> = { "X": "finite-fast", "Y": "free" };
 const env = (over: Partial<CrossEnv> = {}): CrossEnv => ({
   slots: Object.entries(ENGINES).map(([id, spec]) => ({
     id,
@@ -30,7 +30,7 @@ const env = (over: Partial<CrossEnv> = {}): CrossEnv => ({
     label: `${id}: ${spec}`,
     holds: (s: string) => s === spec,
   })),
-  activeGround: "1",
+  activeGround: "X",
   design: "dipoles.invvee",
   ...over,
 });
@@ -71,20 +71,20 @@ describe("listed cells are a union", () => {
     expect(plan.capRefusal).toBeNull();
     expect(plan.cells).toEqual([
       {
-        key: "C|1|cell:0",
+        key: "C|X|cell:0",
         label: "low, nec5",
         slot: "C",
-        ground: "1",
+        ground: "X",
         design: "dipoles.invvee",
         listed: 0,
         refused: null,
         state: { label: "dipoles.invvee, low", knobs: { base: 5 } },
       },
       {
-        key: "B|2|cell:1",
+        key: "B|Y|cell:1",
         label: "tall, razor",
         slot: "B",
-        ground: "2",
+        ground: "Y",
         plane: "feed",
         design: "dipoles.invvee",
         listed: 1,
@@ -115,7 +115,7 @@ describe("listed cells are a union", () => {
 
   it("the checkboxes multiply nothing, and over the cap the chart is refused whole", () => {
     const cells = [cell({ label: "a" }), cell({ label: "b", engine: "nec5" })];
-    const ticked = crossPlan({ slots: ["A", "B"], grounds: ["1", "2"] }, { engines: null, grounds: null, cells }, env());
+    const ticked = crossPlan({ slots: ["A", "B"], grounds: ["X", "Y"] }, { engines: null, grounds: null, cells }, env());
     expect(ticked.cells.length).toBe(2);
     const seven = Array.from({ length: 7 }, (_, k) => cell({ label: `c${k}` }));
     const over = crossPlan(FOLLOW_ACTIVE, { engines: null, grounds: null, cells: seven }, env());

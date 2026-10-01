@@ -14,7 +14,7 @@
 //     carries slot A's n_per_wire and model options;
 //   - a ground cell ignoring its slot (buildCellRequest passing the active
 //     ground slot instead of `cell.ground`): "a ticked ground…" fails, the
-//     slot-3 curve's request is slot 1's ground_model;
+//     slot-Z curve's request is slot X's ground_model;
 //   - the cap off by one (chartCells' capRefusal `n <= CURVE_CAP` made
 //     `n < CURVE_CAP`): "the cross is capped…" fails, 3 x 2 is refused;
 //   - a refused cell dropped from the legend (ChartLegend filtering the
@@ -257,19 +257,19 @@ describe("the ground cross", () => {
     expect(own.ground_model).toBe("fast");
 
     openCross();
-    fireEvent.click(crossBox("3: "));
+    fireEvent.click(crossBox("Z: "));
     const cell3 = await untilDom(() => r.bodies.find((b) => b._stream === "c0r1"));
     expect(cell3.ground_model).toBe("sommerfeld");
     // The active ground slot is untouched.
     expect(
-      screen.getByRole("tab", { name: /^Ground slot 1/ }).getAttribute("aria-selected"),
+      screen.getByRole("tab", { name: /^Ground slot X/ }).getAttribute("aria-selected"),
     ).toBe("true");
 
     cleanup();
     vi.unstubAllGlobals();
     vi.stubGlobal("WebSocket", EchoWebSocket);
     const r2 = await mount();
-    fireEvent.click(screen.getByRole("tab", { name: /^Ground slot 3/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Ground slot Z/ }));
     await chartOnStage(r2);
     const single = await untilDom(() =>
       r2.bodies.find((b) => b._stream === undefined && b.ground_model === "sommerfeld"),
@@ -286,7 +286,7 @@ describe("engines x grounds", () => {
     openCross();
     fireEvent.click(crossBox("B: "));
     fireEvent.click(crossBox("C: "));
-    fireEvent.click(crossBox("2: "));
+    fireEvent.click(crossBox("Y: "));
     // Six curves: the chart's own and five streams.
     await untilDom(
       () =>
@@ -301,7 +301,7 @@ describe("engines x grounds", () => {
     expect(cells.size).toBe(6);
 
     const before = r.bodies.length;
-    fireEvent.click(crossBox("3: "));
+    fireEvent.click(crossBox("Z: "));
     const refusal = "REFUSED: 3 engines x 3 grounds = 9 curves, over the cap of 6";
     await untilDom(() => document.querySelector(".chart-legend")?.textContent?.includes(refusal) || null);
     // Refused, not truncated: the popover says so, and nothing more is sent.
@@ -361,7 +361,7 @@ describe("the live point", () => {
     await untilDom(() => stageChart("canvas.sweep-vswr")?.dataset.current === "1.2299" || null);
     // The marker moved; both curves stay, stale, and nothing re-sweeps.
     expect(stageChart("canvas.sweep-vswr")?.dataset.stale).toBe("1");
-    expect(stageChart("canvas.sweep-vswr")?.dataset.curves).toBe("B|1:15");
+    expect(stageChart("canvas.sweep-vswr")?.dataset.curves).toBe("B|X:15");
     expect(stageChart("canvas.sweep-vswr")?.dataset.phase).toBe("idle");
     expect(r.bodies.length).toBe(before);
   });

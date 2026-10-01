@@ -12,7 +12,7 @@ import { useInViewport } from "../charts/useInViewport";
 // portaled to <body> and clamped to the visible viewport, as the axis-range
 // popovers are (unit 3), so no carousel page or stale dim can clip it.
 //
-// The slots are whatever the session holds (ids open-ended, A…E and 1…5):
+// The slots are whatever the session holds (ids open-ended, A…E and X, Y, Z, U…):
 // the boxes are drawn from the lists handed in, never a fixed three. The
 // last ticked box on an axis cannot be unticked: a chart draws at least one
 // engine on at least one ground.

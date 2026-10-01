@@ -292,7 +292,7 @@ describe("keep pins as a study", () => {
     fireEvent.keyDown(document.body, { key: "Escape" });
     await untilDom(() => {
       const c = stageChart("canvas.sweep-vswr");
-      return c && c.dataset.phase === "idle" && c.dataset.curves === "B|1:15" ? c : null;
+      return c && c.dataset.phase === "idle" && c.dataset.curves === "B|X:15" ? c : null;
     });
     await untilDom(() => !pinButton().disabled || null);
     fireEvent.click(pinButton());

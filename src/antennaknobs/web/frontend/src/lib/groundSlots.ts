@@ -16,8 +16,26 @@ import {
 
 export type GroundSlotId = string;
 
+/** The ground slots' names, in order (AK#1801): letters, so they read as
+ *  their own family beside the A/B/C solver slots. Chunks of three, each
+ *  read forwards, stepping back through the alphabet: X Y Z, then U V W,
+ *  then R S T, ... down to F G H; the chunk after that would reach the
+ *  solver slots' A–E. The twin of settings.py's GROUND_SLOT_IDS, pinned by
+ *  tests/test_ground_slots_xyz_1801.py. */
+export const GROUND_SLOT_IDS: readonly GroundSlotId[] = [..."XYZUVWRSTOPQLMNIJKFGH"];
+
+/** A served slot id as the slot's letter, or null: a letter of the sequence
+ *  as it is, and a number, the spelling before AK#1801, as the letter at
+ *  that place (1 → X, 2 → Y, 3 → Z, 4 → U), as the settings reader takes a
+ *  numbered [grounds.N] table. */
+export function groundSlotId(raw: string): GroundSlotId | null {
+  if (GROUND_SLOT_IDS.includes(raw)) return raw;
+  if (/^[1-9]\d*$/.test(raw)) return GROUND_SLOT_IDS[Number(raw) - 1] ?? null;
+  return null;
+}
+
 export type GroundSlot = {
-  /** "1", "2", ...: the key of the settings file's [grounds.N] table. */
+  /** "X", "Y", "Z", ...: the key of the settings file's [grounds.X] table. */
   id: GroundSlotId;
   enabled: boolean;
   type: GroundType;
@@ -65,7 +83,7 @@ export function designGround(ex: {
   return m ? { ...own, soil: { eps_r: m.eps_r, sigma: m.sigma } } : own;
 }
 
-/** The design slot: the first, "1" in the stock set. */
+/** The design slot: the first, "X" in the stock set. */
 export function designSlotId(state: GroundSlotsState): GroundSlotId {
   return state.slots[0].id;
 }
