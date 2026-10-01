@@ -216,8 +216,8 @@ draws, and its views. Under it go the reasons it cannot run here, if any:
   engines = 8 curves`;
 - `REFUSED` also names a value a cross lists twice, a knob that is both
   swept and stepped, and a [state](#states) that sets a knob it may not;
-- `not in the CLI yet (sweep-framework step N)`: a part the command line
-  does not run yet (a hold).
+- a [hold](#holds) the command line cannot run, named with why (`hold swr`,
+  or a hold on a frequency or density sweep).
 
 `--code` prints the analysis as the Python that makes it, ready to paste into
 a design's `build_analyses()`:
@@ -470,6 +470,63 @@ is built:
 - the density knob (`nominal_nsegs`): a ladder sweeps it, and any other sweep
   runs at the engine's own density, so the setting would be undone;
 - two states with the same name (on the same design).
+
+### Holds
+
+An analysis can hold an objective at every point while its knob sweeps: keep
+the antenna resonant (or matched to Z0) and see what that takes. At each
+swept value the hold's knobs are re-solved by the workbench's own optimizer,
+and the views are drawn at the optimised point. The inverted vee has two:
+
+```python
+# E9: the resonant length as the droop angle sweeps
+an.Analysis(
+    "resonance vs angle",
+    an.Sweep("angle_deg", 0, 60, points=25),
+    hold=an.Hold("resonance", adjust=("length_factor",)),
+    views=(an.Rx(), an.Knobs()),
+    references=an.Ref(r=(50,)),
+)
+# E8: a 50-ohm match held with length and angle as the height sweeps
+an.Analysis(
+    "match vs height",
+    an.Sweep(an.HEIGHT, 2, 20, points=37),
+    hold=an.Hold("match_z0", adjust=("length_factor", "angle_deg"), z0=50),
+    views=(an.Rx(), an.Knobs()),
+)
+```
+
+```bash
+python -m antennaknobs analyze --builder dipoles.invvee --analysis "resonance vs angle" --fn e9.png
+python -m antennaknobs analyze --builder dipoles.invvee --analysis "match vs height" --ground finite-fast --fn e8.png
+```
+
+- **Objectives** are the optimizer's: `resonance` (X = 0) takes exactly one
+  knob, `match_z0` (R = Z0, X = 0) exactly two. `z0=None` is the session's
+  (`--z0`).
+- **Bounds** are each held knob's own `ui_params` `min` and `max`, as in the
+  workbench's optimizer. A held knob without both is refused by name.
+- **Start.** The first point starts from the design's defaults. With
+  `warm_start=True` (the default) each later point starts from the previous
+  point's solution; with `False` every point starts from the defaults.
+- **`an.Knobs()`** draws the held knobs against the swept one, written beside
+  the chart as `<fn stem>-knobs<suffix>`. `an.Table()` prints them as columns,
+  and `--csv` writes them.
+- **A point that does not converge is a gap**, never a value: the optimizer's
+  root search did not find its root within the bounds, or its solved
+  residual is over 1 ohm. The line breaks there, the CSV leaves its cells
+  empty, and the output names the reason, e.g.
+  `gap at angle_deg = 52.5: no resonance held (...); length_factor at its
+  ui_params max 0.99`. The next point warm-starts from the last point that
+  did converge. After three gaps in a row, each remaining point starts once
+  from the defaults; one that converges resumes the warm start, and one that
+  does not stays a gap.
+- **Not in this version:** a hold on a frequency sweep, a density ladder or a
+  map, and `swr` (a minimisation, with no root to call converged). Each is
+  refused by name.
+
+Each crossed cell is held on its own: its design, state, family step, engine
+and ground, starting from that cell's defaults.
 
 ### Maps
 

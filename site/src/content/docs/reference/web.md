@@ -301,6 +301,20 @@ It starts on for a frequency sweep and off for a knob or density sweep, unless
 [`settings.toml`](#where-the-workbench-starts-settingstoml) says otherwise.
 The chart's pick, switch and range last for the session.
 
+An analysis with a [hold](/reference/cli/#holds), such as the inverted vee's
+**resonance vs angle** and **match vs height**, runs the optimizer at every
+point of its sweep, on the server, exactly as `antennaknobs analyze` does.
+Each point is several solves, so it runs when you pick it or press **run**,
+and **auto re-run** starts off for it whatever `settings.toml` says. Turn it
+on and the chart re-runs after the dwell like any other. **stop** cancels it.
+Its views add **Knobs**: the held knobs against the swept one, the first
+knob on the left axis and a second on the right. A point the optimizer did not
+converge at is drawn as a gap, a break in the line with an × on the axis. Hover
+it for the reason. It is never drawn as a value. The **Table** adds a column
+per held knob, and a gap's row gives its reason. The held knobs start from
+the design's defaults, not from their sliders, so moving one does not make
+the curve stale. Moving any other knob does.
+
 ### The Table
 
 The **Table** view prints what `antennaknobs analyze` prints for an
