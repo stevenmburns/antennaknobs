@@ -3,9 +3,13 @@ designs declared by a module-level ``build_studies()`` (`antennaknobs.studies`).
 
 What is pinned:
 
-- discovery from catalog modules (E7 moved out of ``invvee.build_analyses()``
-  into that module's ``build_studies()``) and from a NESTED user studies
+- discovery from the catalog studies directory ``antennaknobs/studies/``, a
+  sibling of ``designs/``, at any depth (E7 is
+  ``studies/dipoles/apex_feed_on_invvee.py``), and from a NESTED user studies
   folder, whose subfolders are name parts (``feeds/e7.py`` is ``feeds/e7``);
+- a module-level ``build_studies()`` in a design module, catalog or user, is
+  refused by name, saying it belongs in a studies directory (Steve,
+  2026-09-30: the catalog and the user folder follow the same rules);
 - the trust gate: a user study file not allowed yet is listed as needing
   ``allow`` and is never imported, proven by a sentinel its import would
   write; ``allow`` takes a nested name and keys the record by its path
@@ -23,6 +27,7 @@ What is pinned:
 from __future__ import annotations
 
 import json
+import sys
 
 import pytest
 from starlette.testclient import TestClient
@@ -36,7 +41,8 @@ from antennaknobs.cli import cli, get_builder
 INVVEE = "dipoles.invvee"
 APEX = "dipoles.invvee_apex"
 OTHER = "dipoles.ocf_dipole"
-E7 = "dipoles.invvee:feed spelling (E7)"
+E7_SOURCE = "dipoles.apex_feed_on_invvee"
+E7 = f"{E7_SOURCE}:feed spelling (E7)"
 
 # A small momwire-only study over both feed spellings: two rungs, one engine.
 PAIR = f"""
@@ -94,10 +100,10 @@ def _write(root, rel, text):
 # ── the catalog: E7 moved ────────────────────────────────────────────────
 
 
-def test_e7_is_a_study_of_the_invvee_module_and_no_longer_an_analysis():
+def test_e7_is_a_catalog_study_file_and_no_longer_an_analysis():
     found = studies.discover()
     (e7,) = [s for s in found.studies if s.name == E7]
-    assert e7.source == INVVEE and e7.path is None
+    assert e7.source == E7_SOURCE and e7.path is None
     assert e7.designs == (INVVEE, APEX)
     assert e7.analysis.curves == 6
     names = {a.name for a in get_builder(INVVEE)().build_analyses()}
@@ -105,13 +111,38 @@ def test_e7_is_a_study_of_the_invvee_module_and_no_longer_an_analysis():
     # invvee_apex inherits invvee's Builder, and so its build_analyses; the
     # study was never a method, so it is on neither design's own list.
     assert "feed spelling (E7)" not in {a.name for a in an.offered(get_builder(APEX)())}
+    # The design module no longer carries it, and nothing is refused.
+    import antennaknobs.designs.dipoles.invvee as invvee
+
+    assert not hasattr(invvee, "build_studies")
+    assert not [b for b in found.blocked if b.source.startswith("dipoles.")]
 
 
-def test_only_modules_that_define_build_studies_are_imported_for_it():
-    mods = studies._catalog_modules()
-    assert INVVEE in mods
-    # invvee_apex imports invvee's Builder, not its function: not a source.
-    assert APEX not in mods
+def test_e7_resolves_by_its_full_name_its_source_and_its_bare_name():
+    for name in (E7, E7_SOURCE, "feed spelling (E7)"):
+        assert studies.find(name).name == E7
+    # The old name is gone, and says so with the candidates.
+    with pytest.raises(SystemExit, match="no study 'dipoles.invvee:feed spelling"):
+        studies.find("dipoles.invvee:feed spelling (E7)")
+
+
+def test_the_studies_package_sits_beside_designs_and_is_a_regular_package():
+    """What ships: the discovery code is the package ``antennaknobs.studies``
+    (so ``from antennaknobs import studies`` is unchanged), a sibling of
+    ``designs/``, its families regular packages as ``designs/<family>/`` are,
+    and E7 imports from its installed location."""
+    from pathlib import Path
+
+    import antennaknobs.designs as designs
+    import antennaknobs.studies.dipoles.apex_feed_on_invvee as e7mod
+
+    (root,) = map(Path, studies.__path__)
+    (droot,) = map(Path, designs.__path__)
+    assert root.parent == droot.parent and root.name == "studies"
+    assert (root / "__init__.py").is_file()
+    assert (root / "dipoles" / "__init__.py").is_file()
+    assert Path(e7mod.__file__).parent == root / "dipoles"
+    assert [a.name for a in e7mod.build_studies()] == ["feed spelling (E7)"]
 
 
 @pytest.mark.parametrize(
@@ -328,7 +359,7 @@ def test_the_listing_serves_e7_after_the_designs_own_on_both_its_designs(
     own = [a["name"] for a in got if a["study"] is None]
     assert own == names[: len(own)]
     (e7,) = [a for a in got if a["name"] == E7]
-    assert e7["study"] == {"source": INVVEE, "name": "feed spelling (E7)"}
+    assert e7["study"] == {"source": E7_SOURCE, "name": "feed spelling (E7)"}
     assert e7["problems"] == []
     w = e7["workbench"]
     assert w["runs"] is True and w["axes"] == ["designs", "engines"]
@@ -454,17 +485,126 @@ def test_a_method_study_is_served_on_its_own_tab_only(client, cmp_design):
 
 
 def test_a_name_both_forms_give_in_one_source_is_refused_in_both(monkeypatch):
+    """A catalog study file named like a design (``studies/dipoles/invvee.py``)
+    shares that design's source with its Builder's method studies: a name
+    the two give is refused, both of them, by name."""
     e7 = studies.find(E7).analysis
+    clashing = studies.Study(INVVEE, e7)
+    monkeypatch.setattr(studies, "_catalog", lambda: studies.Found((clashing,), ()))
     cls = type(get_builder(INVVEE)())
     monkeypatch.setattr(
         cls,
         "build_studies",
         lambda self: [an.convergence(name=e7.name, cross=an.Cross(designs=(APEX,)))],
     )
+    name = f"{INVVEE}:{e7.name}"
     found = studies.pool(INVVEE, get_builder(INVVEE)())
-    assert E7 not in {s.name for s in found.studies}
-    clash = [b for b in found.blocked if b.label == E7]
+    assert name not in {s.name for s in found.studies}
+    clash = [b for b in found.blocked if b.label == name]
     assert len(clash) == 2
     assert "its module's build_studies() and its Builder's" in clash[0].reason
     # Another design's tab is untouched: the method study is not its.
-    assert E7 in {s.name for s in studies.pool(APEX, get_builder(APEX)()).studies}
+    assert name in {s.name for s in studies.pool(APEX, get_builder(APEX)()).studies}
+
+
+# ── one rule, the catalog and the user folder alike (Steve, 2026-09-30) ──
+
+METHOD_ONLY = """
+from antennaknobs.designs.dipoles.invvee import Builder as InvVee
+
+
+class Builder(InvVee):
+    def build_studies(self):
+        return []
+"""
+
+
+@pytest.fixture
+def fake_catalog(tmp_path, monkeypatch):
+    """A tmp package laid out as the shipped one: ``studies/`` beside
+    ``designs/``, scanned by the same code (`studies._scan_catalog`)."""
+    import uuid
+
+    pkg = f"fakecat_{uuid.uuid4().hex[:8]}"
+    top = tmp_path / "pkgs" / pkg
+    for d in ("", "studies", "studies/feeds", "studies/feeds/deep", "designs",
+              "designs/dipoles"):  # fmt: skip
+        (top / d).mkdir(parents=True, exist_ok=True)
+        (top / d / "__init__.py").write_text("")
+    _write(top, "studies/feeds/deep/pair.py", PAIR)
+    _write(top, "studies/feeds/flat.py", PAIR.replace('"pair"', '"flat"'))
+    _write(top, "studies/feeds/_draft.py", PAIR)
+    _write(top, "studies/_private/x.py", PAIR)
+    _write(top, "studies/loose.py", PAIR)
+    _write(top, "studies/feeds/nothing.py", "x = 1\n")
+    _write(top, "designs/dipoles/stray.py", PAIR + METHOD_ONLY)
+    _write(top, "designs/dipoles/method.py", METHOD_ONLY)
+    monkeypatch.syspath_prepend(str(tmp_path / "pkgs"))
+    found = studies._scan_catalog(top / "studies", f"{pkg}.studies", top / "designs")
+    yield found
+    for m in [m for m in sys.modules if m.startswith(pkg)]:
+        del sys.modules[m]
+
+
+def test_catalog_studies_come_from_the_studies_directory_at_any_depth(fake_catalog):
+    assert sorted(s.name for s in fake_catalog.studies) == [
+        "feeds.deep.pair:pair",
+        "feeds.flat:flat",
+    ]
+    # Catalog sources are dotted, as catalog designs are; never a path.
+    assert all("/" not in s.source and s.path is None for s in fake_catalog.studies)
+    by = {b.source: b.reason for b in fake_catalog.blocked}
+    # Private names skipped, as in the user folder.
+    assert not [k for k in by if "draft" in k or "private" in k or k == "x"]
+    assert "family folder" in by["loose.py"]
+    assert by["feeds.nothing"] == "defines no build_studies() function"
+
+
+def test_a_catalog_design_modules_build_studies_is_refused_by_name(
+    fake_catalog, monkeypatch, capsys
+):
+    by = {b.source: b for b in fake_catalog.blocked}
+    stray = by["dipoles.stray"]
+    assert stray.reason.startswith(
+        "REFUSED: a design module defines a module-level build_studies()"
+    )
+    assert "src/antennaknobs/studies/<family>/<name>.py" in stray.reason
+    # A Builder's method is the design's own form: not refused.
+    assert "dipoles.method" not in by
+    # Listed, and found by name, through the real discovery.
+    monkeypatch.setattr(studies, "_catalog", lambda: fake_catalog)
+    cli(["analyze", "--list-studies"])
+    out = capsys.readouterr().out
+    assert "dipoles.stray  (cannot run)" in out
+    with pytest.raises(SystemExit, match="belongs in the catalog studies directory"):
+        studies.find("dipoles.stray:pair")
+
+
+def test_the_shipped_designs_carry_no_module_level_studies():
+    assert not [b for b in studies._catalog().blocked if "design module" in b.reason]
+
+
+def test_a_user_design_files_build_studies_is_refused_by_name_never_imported(
+    folder, tmp_path
+):
+    import os
+    from pathlib import Path
+
+    sentinel = tmp_path / "ran.txt"
+    designs = Path(os.environ["ANTENNAKNOBS_USER_DIR"])
+    _write(designs, "myvee.py", _sentinel_study(sentinel) + METHOD_ONLY)
+    _write(designs, "plain.py", METHOD_ONLY)
+    found = studies.discover()
+    (b,) = [b for b in found.blocked if b.source.startswith("user.")]
+    assert b.source == "user.myvee" and b.name is None
+    assert b.reason.startswith(
+        "REFUSED: a design module defines a module-level build_studies()"
+    )
+    assert f"your studies folder, {folder}" in b.reason
+    with pytest.raises(SystemExit, match="REFUSED: a design module"):
+        studies.find("user.myvee:pair", found)
+    assert not sentinel.exists()
+    # The same file in the studies folder is a study (once allowed).
+    _write(folder, "myvee.py", PAIR)
+    dt.trust(folder / "myvee.py")
+    assert "myvee:pair" in {s.name for s in studies.discover().studies}

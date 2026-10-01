@@ -491,8 +491,9 @@ E7_ZINF = {
 }
 
 
-def test_e7_as_the_invvee_module_declares_it(monkeypatch, capsys, tmp_path):
-    """E7 itself, the study in invvee's ``build_studies`` (step 7): the four
+def test_e7_as_its_study_file_declares_it(monkeypatch, capsys, tmp_path):
+    """E7 itself, the catalog study ``studies/dipoles/apex_feed_on_invvee.py``
+    (step 7): the four
     momwire cells run and reproduce E7's Z∞ table; NEC-2 x apex is refused
     (by the engine where NEC-2 is on the roster, else with both NEC-2 cells
     by the roster)."""

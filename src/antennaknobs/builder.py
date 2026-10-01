@@ -255,7 +255,9 @@ class AntennaBuilder:
         only the OTHER designs, the references. This design is implicit and
         is always the first cell. Listed on this design's tab only; a study
         of peers that names every design is a module-level
-        ``build_studies()`` function instead."""
+        ``build_studies()`` function instead, in a studies directory (the
+        catalog's ``studies/`` or the user studies folder), never in a design
+        module."""
         return ()
 
     def build_wire_material(self):

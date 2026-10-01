@@ -641,7 +641,7 @@ def test_copy_as_analysis_is_the_charts_code_for_its_own_design(client):
 
 
 def test_copy_as_analysis_is_refused_for_a_chart_of_named_designs(client):
-    e = _entry(client, INVVEE, "dipoles.invvee:feed spelling (E7)")
+    e = _entry(client, INVVEE, "dipoles.apex_feed_on_invvee:feed spelling (E7)")
     body = {
         "origin": "chart",
         "form": "analysis",

@@ -20,38 +20,59 @@ A study has two forms (Steve, 2026-09-30):
   --list-studies --builder <that design>``.
 
 Where module-level studies are found (docs/design/sweep-framework-step7.md,
-ruling 1):
+ruling 1, and its addendum, Steve 2026-09-30: "Whatever we do in the catalog
+we should do in the user directory too"). One rule per kind, the same in
+the catalog and the user folder:
 
-- a ``build_studies()`` in a catalog design module (E7 sits beside the two
-  designs it compares, in ``designs/dipoles/invvee.py``);
+==========  ======================================  ===========================================
+            designs                                 module-level studies
+==========  ======================================  ===========================================
+catalog     ``designs/<family>/<design>.py``        ``studies/<family>/<name>.py``
+            → ``family.design``                     → ``family.name``
+user        ``~/.antennaknobs/designs/<name>.py``   ``~/.antennaknobs/studies/<path>.py``
+            → ``user.name``                         → ``path/under/folder``
+==========  ======================================  ===========================================
+
+- the catalog studies directory is THIS package, ``antennaknobs/studies/``,
+  a sibling of ``designs/``: its ``.py`` files at any depth, private names
+  skipped (as the user folder's are), each under a family folder (E7 is
+  ``studies/dipoles/apex_feed_on_invvee.py``). They ship with the package,
+  so they are trusted;
 - ``.py`` files in the user **studies folder**, ``~/.antennaknobs/studies/``
   (``$ANTENNAKNOBS_STUDIES_DIR``), a sibling of the designs folder. Subfolders
-  are name parts, as the catalog's ``family.design`` is: ``feeds/e7.py`` is
-  the source ``feeds/e7``. A study file is Python, so it goes through the
-  user designs' trust gate (`design_trust`, with the studies folder's own
-  store) and is never imported until allowed.
+  are name parts: ``feeds/e7.py`` is the source ``feeds/e7``. A study file is
+  Python, so it goes through the user designs' trust gate (`design_trust`,
+  with the studies folder's own store) and is never imported until allowed.
 
-Names. A study is ``<source>:<analysis name>``: ``dipoles.invvee:feed
-spelling (E7)``, ``feeds/e7:my study``, and a method study's source is its
-design (``user.my_vee:vs yagi``). Unique by construction, because a catalog
-source is ``family.design`` (a dot, never a slash), a user source is the
+A module-level ``build_studies()`` lives only in a studies directory: one
+in a design module, catalog or user, is refused by name, saying where it
+belongs (`_design_refusals`; a text check, so no design is imported for
+it). The ``Builder.build_studies(self)`` method stays on the Builder, for
+catalog and user designs alike.
+
+Names. A study is ``<source>:<analysis name>``:
+``dipoles.apex_feed_on_invvee:feed spelling (E7)``, ``feeds/e7:my study``,
+and a method study's source is its design (``user.my_vee:vs yagi``). Unique
+by construction, because a catalog study's source is its dotted path under
+``studies/``, which always holds a dot (a file outside a family folder is
+refused, `_catalog_source`) and never a slash; a user study's source is the
 file's path under the folder, whose parts may hold neither a dot nor a colon
-(`_user_source`), a method study's source is a design name, which only that
-design module's own module-level studies share, and the name after the FIRST
+(`_user_source`); a method study's source is a design name, which only a
+catalog study file of the same ``family.name`` (or, for ``user.x``, a
+catalog family named ``user``) shares, and `pool` refuses a name the two
+forms share in one source, both of them; and the name after the FIRST
 colon is the analysis's own, unique within its source (two alike are both
-refused, as `analyses.problems` refuses two alike in one design; `pool`
-applies that across the two forms). The colon is the split
-because a source can never contain one, while an analysis name may contain
-anything. The picker shows the short part (the analysis name) under its
-Studies group, since the group and the tab already say where it is from;
-`find` takes the full name, the source when it holds one study, or the bare
-analysis name when only one study has it.
+refused, as `analyses.problems` refuses two alike in one design). The colon
+is the split because a source can never contain one, while an analysis
+name may contain anything. The picker shows the short part (the analysis
+name) under its Studies group, since the group and the tab already say
+where it is from; `find` takes the full name, the source when it holds one
+study, or the bare analysis name when only one study has it.
 
-Listing is cheap: a catalog module is imported only when its source text
-defines ``build_studies`` at module level (a text check, not an import of all
-113 catalog modules), and the catalog's studies are cached for the process,
-since the installed package does not change under it. The user folder is
-re-read on every call, as the user designs are, so an edit is seen live.
+The catalog's studies (and its design-module refusals) are read once and
+cached for the process, since the installed package does not change under
+it. The user folders are re-read on every call, as the user designs are, so
+an edit is seen live.
 """
 
 from __future__ import annotations
@@ -66,8 +87,8 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
-from . import analyses as an
-from . import design_screen, design_trust
+from .. import analyses as an
+from .. import design_screen, design_trust
 
 #: Separates a study's source from its analysis name (module docstring).
 SEP = ":"
@@ -277,39 +298,89 @@ def _collect(
 # ── the catalog ────────────────────────────────────────────────────────────
 
 
-def _catalog_modules() -> list[str]:
-    """``family.design`` of each catalog module whose source defines
-    ``build_studies`` at module level. A text check, so listing does not
-    import the whole catalog (module docstring)."""
-    import antennaknobs.designs as designs
-
-    out = []
-    for root in map(Path, designs.__path__):
-        for f in sorted(root.glob("*/*.py")):
-            if f.name.startswith("_") or f.parent.name.startswith(("_", ".")):
-                continue
-            try:
-                text = f.read_text(encoding="utf-8")
-            except OSError:
-                continue
-            if _DEFINES.search(text):
-                out.append(f"{f.parent.name}.{f.stem}")
-    return sorted(set(out))
+def _catalog_source(path: Path, root: Path) -> tuple[str | None, str | None]:
+    """A catalog study file's source: its path under ``studies/``, dotted
+    (``dipoles/apex_feed_on_invvee.py`` is ``dipoles.apex_feed_on_invvee``),
+    as a catalog design's ``family.design`` is. A file directly in
+    ``studies/`` has no family, and its source would hold no dot, the user
+    folder's shape, so it is refused (module docstring, Names)."""
+    parts = path.relative_to(root).with_suffix("").parts
+    if len(parts) < 2:
+        return None, (
+            "a catalog study sits in a family folder, "
+            "studies/<family>/<name>.py, as a catalog design does"
+        )
+    return ".".join(parts), None
 
 
-@cache
-def _catalog() -> Found:
+def _scan_catalog(studies_root: Path, package: str, designs_root: Path) -> Found:
+    """Every study in the catalog studies directory ``studies_root`` (the
+    package ``package``), at any depth, private names skipped as the user
+    folder's are (`study_files`); then a module-level ``build_studies()``
+    in a design module under ``designs_root``, refused by name
+    (`_design_refusals`)."""
     studies, blocked = [], []
-    for source in _catalog_modules():
-        mod = importlib.import_module(f"antennaknobs.designs.{source}")
+    for _, path, why in study_files(studies_root):
+        source, why_not = _catalog_source(path, studies_root)
+        why = why or why_not
+        if source is None or why:
+            blocked.append(Blocked(source or path.name, str(why), path))
+            continue
+        try:
+            mod = importlib.import_module(f"{package}.{source}")
+        except Exception as e:  # noqa: BLE001 — reported by name, not fatal to the listing
+            blocked.append(Blocked(source, f"failed to load: {e!r}", path))
+            continue
         fn = getattr(mod, "build_studies", None)
         # A module that imports another's function is not its source.
         if fn is None or getattr(fn, "__module__", None) != mod.__name__:
+            blocked.append(Blocked(source, "defines no build_studies() function", path))
             continue
         s, b = _collect(source, fn, None)
         studies += s
         blocked += b
+    for f in sorted(designs_root.glob("*/*.py")):
+        if f.name.startswith("_") or f.parent.name.startswith(("_", ".")):
+            continue
+        blocked += _design_refusals(f"{f.parent.name}.{f.stem}", f, catalog=True)
     return Found(tuple(studies), tuple(blocked))
+
+
+def _design_refusals(source: str, path: Path, *, catalog: bool) -> list[Blocked]:
+    """A design module that defines ``build_studies`` at module level,
+    refused by name: a module-level study lives in a studies directory, the
+    catalog's ``studies/`` or the user's studies folder, never in a design
+    module (Steve, 2026-09-30). A text check, so a design is not imported
+    to find it (and an untrusted user design never is)."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    if not _DEFINES.search(text):
+        return []
+    where = (
+        "the catalog studies directory, src/antennaknobs/studies/<family>/<name>.py"
+        if catalog
+        else f"your studies folder, {default_studies_dir()}"
+    )
+    return [
+        Blocked(
+            source,
+            "REFUSED: a design module defines a module-level build_studies(); "
+            f"a module-level study belongs in {where}. A Builder's "
+            "build_studies(self) method stays in the design",
+            path,
+        )
+    ]
+
+
+@cache
+def _catalog() -> Found:
+    import antennaknobs.designs as designs
+
+    (root,) = map(Path, __path__)
+    (designs_root,) = map(Path, designs.__path__)
+    return _scan_catalog(root, __name__, designs_root)
 
 
 # ── the user folder ────────────────────────────────────────────────────────
@@ -467,7 +538,23 @@ def discover() -> Found:
     """Every module-level study, the catalog's first, then the user
     folder's. Method studies are per design (`of_builder`, `pool`)."""
     cat, user = _catalog(), _user()
-    return Found(cat.studies + user.studies, cat.blocked + user.blocked)
+    return Found(
+        cat.studies + user.studies,
+        cat.blocked + user.blocked + tuple(_user_design_refusals()),
+    )
+
+
+def _user_design_refusals() -> list[Blocked]:
+    """A user design file with a module-level ``build_studies()``, refused by
+    name as a catalog design module's is (`_design_refusals`). Re-read every
+    call, as the user designs are."""
+    from .. import user_designs
+
+    out = []
+    for stem, path in user_designs.iter_design_files():
+        if path.suffix == ".py":
+            out += _design_refusals(f"user.{stem}", path, catalog=False)
+    return out
 
 
 def including(design: str, found: Found | None = None) -> list[Study]:

@@ -8,27 +8,6 @@ import math
 from types import MappingProxyType
 
 
-def build_studies():
-    """Studies over this design and others (AK#1757 step 7): analyses that
-    name their designs, so they belong to no one Builder. E7 lives here,
-    beside the two feed spellings it compares, and is offered on both their
-    tabs.
-
-    E7: the bridge-wire feed and the exact apex feed on one convergence
-    chart. 2 designs x 3 engines = 6 curves, the cap (#1787); NEC-2 cannot
-    feed the apex knot, so that cell is refused by name (razor-2p stands in
-    for NEC-5)."""
-    return [
-        an.convergence(
-            name="feed spelling (E7)",
-            cross=(
-                an.Cross(designs=("dipoles.invvee", "dipoles.invvee_apex")),
-                an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec2")),
-            ),
-        ),
-    ]
-
-
 class Builder(AntennaBuilder):
     default_params = MappingProxyType(
         {
@@ -134,7 +113,7 @@ class Builder(AntennaBuilder):
         (docs/design/sweep-framework-spec.md, AK#1757): E1, E3 and E2 as the
         spec page writes them, and E8/E9, a hold at every point (data only:
         nothing runs a hold yet). E7 compares this design with another, so
-        it is a study, in this module's `build_studies` (step 7)."""
+        it is a study, in ``studies/dipoles/apex_feed_on_invvee.py`` (step 7)."""
         lf = an.Sweep("length_factor", 0.90, 1.06, points=33)
         refs = an.Ref(r=(50, 75), x=(0,))
         return [

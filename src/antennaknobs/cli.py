@@ -1668,7 +1668,7 @@ def cli(arguments=None):
         default=False,
         action="store_true",
         help="List the studies (analyses over several designs, from a "
-        "build_studies() in a catalog module or a .py in "
+        "build_studies() in a .py in the catalog's studies/ directory or in "
         "~/.antennaknobs/studies/), with the reason any cannot run. With "
         "--builder, the studies that design's tab lists: those crossing it, "
         "and its Builder's own build_studies() method (this design against "
