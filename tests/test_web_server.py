@@ -3759,6 +3759,10 @@ def test_optimize_without_the_sse_header_is_todays_json_response(
             "residual_before",
             "residual_after",
             "improved",
+            # AK#1757 step 6: the root path's own verdict and last word, which
+            # a held sweep reads to draw a point or a gap.
+            "converged",
+            "root_reason",
             "geometry",
             # AK#1741: the engine the objective was measured on.
             "solver",
