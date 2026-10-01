@@ -29,16 +29,18 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.93.0" icon="star">
-  **Pinned sweeps.** **pin** on a chart freezes its curves, one pin per curve,
-  dashed: change a knob, the design, an engine or a ground, and compare against
-  what you had. Pins stay put across design tabs, draw on every view (SWR and S11
-  at the pin's own Z0), and each exports as CSV. The Table view gains **Download
-  CSV**, and `antennaknobs sweep` / `analyze` take `--csv`. A licensed NEC-4.2
-  now has a writer of its own: **Download NEC-4 .nec** (and `export --dialect
-  nec4`) carries buried wires, graded meshes and native current sources, and the
-  NEC-4.2 slot offers its newer `GN 3` Sommerfeld ground as an opt-in. The
-  convergence chart's dashed guide now says what it marks.
+<Card title="New in v0.94.0" icon="star">
+  **Studies you can keep.** An analysis can now span designs and settings (a
+  *study*), hold the antenna resonant or matched at every sweep point, and plot
+  a figure of merit you define. The worked example is M0AGP's inverted L against
+  a full-size vertical on 160 m, which reproduces his DX-gain table: see
+  [Your own study](/advanced/your-own-study/), or open `verticals.m0agp_invl` in
+  the workbench. A chart or a set of pins can be kept as a study file, a chart
+  can be linked to directly, and picking an analysis now runs it only for the
+  kinds you choose (`[workbench.run_on_pick]`). Ground slots are named X, Y, Z,
+  and an analysis's engines that no slot holds are skipped with a note. These
+  are new, so feedback is welcome. Runs on momwire 0.69.0, whose EZNEC drop-in
+  now says which release answered.
 </Card>
 
 ## The whole pitch, in one line
