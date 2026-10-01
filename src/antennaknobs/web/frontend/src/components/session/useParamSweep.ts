@@ -162,11 +162,15 @@ export function useParamSweep({
     paramSweepAbortRef.current = controller;
 
     const { param, values, label, metric } = paramSweepReq;
+    const hold = paramSweepReq.hold ?? null;
     const body = {
       ...buildRequest(),
       param,
       values,
       ...(metric !== undefined ? { metric } : {}),
+      // A held sweep (AK#1757 step 6): the server re-solves the hold's knobs
+      // at every point, resolving the hold on this curve's own design.
+      ...(hold ? { hold: hold.spec } : {}),
       _gen: seqRef.current,
       _approved: approvedComboRef.current,
     };
@@ -181,6 +185,7 @@ export function useParamSweep({
       z_re_extrap: null,
       z_im_extrap: null,
       ...(metric !== undefined ? { metric: [] } : {}),
+      ...(hold ? { held: Object.fromEntries(hold.knobs.map((k) => [k, [] as number[]])), gaps: [] } : {}),
     };
     const publish = () => {
       if (controller.signal.aborted) return;
@@ -212,6 +217,10 @@ export function useParamSweep({
           ? { feeds_z_extrap_status: acc.feeds_z_extrap_status.slice() }
           : {}),
         ...(acc.advisories ? { advisories: acc.advisories.slice() } : {}),
+        ...(acc.held
+          ? { held: Object.fromEntries(Object.entries(acc.held).map(([k, v]) => [k, v.slice()])) }
+          : {}),
+        ...(acc.gaps ? { gaps: acc.gaps.slice() } : {}),
         ...(acc.error ? { error: acc.error } : {}),
         ...(acc.errorStatus ? { errorStatus: acc.errorStatus } : {}),
       });
@@ -269,6 +278,19 @@ export function useParamSweep({
           // rather than poisoning the trajectory.
           if (pt.error) {
             firstError ??= String(pt.error);
+            // A held sweep's refusal at a solve (a multi-feed design) ends
+            // its stream: say so on the chart, whatever already landed.
+            if (hold && pt.value === undefined) {
+              acc.error = String(pt.error);
+              publish();
+            }
+            continue;
+          }
+          // A held point the optimizer did not converge at (step 6): a gap
+          // at its x with its reason, never a value on the curve.
+          if (acc.gaps && typeof pt.gap === "string" && Number.isFinite(pt.value)) {
+            acc.gaps.push({ value: pt.value, reason: pt.gap });
+            publish();
             continue;
           }
           // A record without a finite Z (never expected; JSON carries a
@@ -295,10 +317,19 @@ export function useParamSweep({
           }
           acc.z_re.push(pt.z_re);
           acc.z_im.push(pt.z_im);
-          // The metric read off this point's solve (AK#1828), or why not.
+          // The metric read off this point's solve (AK#1828), or why not; a
+          // held point's, off the solve at its optimum (AK#1757 step 6).
           if (acc.metric) {
             acc.metric.push(Number.isFinite(pt.metric) ? pt.metric : null);
             if (typeof pt.metric_error === "string") acc.metric_error ??= pt.metric_error;
+          }
+          // A held point's knobs, aligned with `values`.
+          if (acc.held) {
+            const h = (pt.held ?? {}) as Record<string, unknown>;
+            for (const k of Object.keys(acc.held)) {
+              const v = h[k];
+              acc.held[k].push(typeof v === "number" ? v : Number.NaN);
+            }
           }
           // Multi-feed records ship per-feed Z alongside the primary;
           // allocate the buffers lazily on first sight.

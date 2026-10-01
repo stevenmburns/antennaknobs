@@ -336,3 +336,16 @@ def builder_solve_fn(builder, factory: Callable, z0: float) -> Callable[[dict], 
 def defaults_of(builder, free: Sequence[Mapping]) -> dict:
     """The held knobs' values on ``builder``: where a cold point starts."""
     return {f["name"]: float(getattr(builder, f["name"])) for f in free}
+
+
+def metric_off(metric, gain, freq) -> tuple:
+    """``(value, why)``: ``metric`` read off a solved gain evaluator at
+    ``freq`` (the workbench's captured state, `adapter.capture_solved_metrics`),
+    as ``/param_sweep`` reads a plain point's; ``why`` names a metric the
+    engine cannot read, with ``value`` None."""
+    from . import metrics as mx
+
+    try:
+        return mx.evaluate(metric, mx.EvaluatorSource(gain, freq)), None
+    except (ValueError, NotImplementedError) as e:
+        return None, str(e)

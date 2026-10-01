@@ -80,14 +80,20 @@ export function patternSignature(req: SolveRequest): string {
  *  itself is part of the key: a new range is a new sweep. */
 export function paramSweepSignature(
   req: SolveRequest,
-  sweep: Pick<ParamSweepRequest, "param" | "values" | "metric">,
+  sweep: Pick<ParamSweepRequest, "param" | "values" | "metric" | "hold">,
 ): string {
   // A metric (AK#1828) is part of what the sweep returns: another one is
   // another sweep. None leaves the signature exactly as it was.
   const metric = sweep.metric === undefined ? "" : JSON.stringify(sweep.metric);
+  // A held sweep (AK#1757 step 6) re-solves its held knobs at every point
+  // from the design's defaults, so their live values are not its inputs: a
+  // drag of one does not stale the curve. The hold itself is.
+  const held = sweep.hold?.knobs ?? [];
   return (
-    solveSignature(req, { exempt: [...IMPEDANCE_ANALYSIS_EXEMPT, sweep.param] }) +
-    JSON.stringify([sweep.param, sweep.values]) +
+    solveSignature(req, { exempt: [...IMPEDANCE_ANALYSIS_EXEMPT, sweep.param, ...held] }) +
+    JSON.stringify(
+      sweep.hold ? [sweep.param, sweep.values, sweep.hold.spec] : [sweep.param, sweep.values],
+    ) +
     metric
   );
 }

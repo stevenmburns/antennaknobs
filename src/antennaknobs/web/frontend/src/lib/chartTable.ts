@@ -30,6 +30,12 @@ export type TableCurve = {
   re: readonly number[];
   im: readonly number[];
   nAch?: readonly number[];
+  /** A held knob sweep (AK#1757 step 6): each held knob's value at every
+   *  x (index aligned), a column of its own after R and X, as the CLI's
+   *  held table prints them; and the points the hold did not reach, each a
+   *  row reading "gap" and its reason, never a value. */
+  held?: Readonly<Record<string, readonly number[]>>;
+  gaps?: readonly { value: number; reason: string }[];
 };
 
 export type ChartTableData = {
@@ -111,6 +117,7 @@ export function chartTable(
 ): ChartTableData {
   const xs: number[] = [];
   for (const c of curves) for (const x of c.xs) xs.push(x);
+  for (const c of curves) for (const g of c.gaps ?? []) xs.push(g.value);
   xs.sort((a, b) => a - b);
   const rowXs: number[] = [];
   for (const x of xs) if (rowXs.length === 0 || !sameX(rowXs[rowXs.length - 1], x)) rowXs.push(x);
@@ -122,14 +129,20 @@ export function chartTable(
       if (finest < 0 || x > c.xs[finest]) finest = i;
     });
     const g0 = finest >= 0 ? gammaOf(c.re[finest], c.im[finest], z0) : null;
+    const knobs = kind === "knob" ? Object.keys(c.held ?? {}) : [];
+    const width = COLUMNS[kind].length + knobs.length;
     return (x: number): string[] => {
       const i = c.xs.findIndex((v) => sameX(v, x));
-      if (i < 0) return COLUMNS[kind].map(() => "");
+      if (i < 0) {
+        const gap = (c.gaps ?? []).find((g) => sameX(g.value, x));
+        if (gap && kind === "knob") return ["gap", gap.reason, ...knobs.map(() => "")];
+        return Array.from({ length: width }, () => "");
+      }
       const r = c.re[i];
       const im = c.im[i];
       const rx = [formatF(r, 3), formatF(im, 3, true)];
       if (kind === "frequency") return [...rx, formatF(swrAt(r, im, z0), 3)];
-      if (kind === "knob") return rx;
+      if (kind === "knob") return [...rx, ...knobs.map((k) => formatG(c.held?.[k]?.[i] ?? Number.NaN, 6))];
       const g = gammaOf(r, im, z0);
       const dg = g0 ? Math.hypot(g.re - g0.re, g.im - g0.im) : NaN;
       const n = c.nAch?.[i];
@@ -140,7 +153,10 @@ export function chartTable(
   return {
     kind,
     xName: tableXName(kind, param),
-    groups: curves.map((c) => ({ label: c.label, columns: COLUMNS[kind] })),
+    groups: curves.map((c) => ({
+      label: c.label,
+      columns: kind === "knob" ? [...COLUMNS[kind], ...Object.keys(c.held ?? {})] : COLUMNS[kind],
+    })),
     rows: rowXs.map((x) => [xCell(x), ...cells.flatMap((cell) => cell(x))]),
   };
 }

@@ -4,8 +4,11 @@
 each with its one-line summary, its Python, its problems, and a
 ``workbench`` entry saying how the workbench runs it:
 
-- ``{runs: True, kind: "knob", param, values, log, views, metric, note}``:
-  the Z-vs-parameter view. ``param`` and ``values`` are exactly what
+- ``{runs: True, kind: "knob", param, values, log, views, metric, hold,
+  note}``: the Z-vs-parameter view. ``hold`` is None, or the analysis's hold
+  (AK#1757 step 6: ``{objective, knobs, bounds, z0, warm_start, spec}``,
+  `_hold_entry`), which each curve's ``/param_sweep`` sends back as
+  ``spec``. ``param`` and ``values`` are exactly what
   ``/param_sweep`` takes. The values come from the same functions
   ``antennaknobs analyze`` sweeps (`analysis_run.knob_xs`,
   `analysis_run.density_rungs`), so a picked analysis and the CLI solve one
@@ -113,6 +116,7 @@ from collections.abc import Mapping
 
 from .. import analyses as an
 from .. import analysis_run as ar
+from .. import hold as hd
 from .param_sweep import DENSITY, ParamSweepError, sweep_values
 
 #: The callable metrics' functions this process has served (AK#1828), by
@@ -144,10 +148,11 @@ def _serve_functions(a: an.Analysis) -> None:
 
 
 # The sweep-framework step each piece the workbench cannot draw yet is
-# planned for (Steve, 2026-09-28): 5 the map; 6 hold. Crosses over planes,
-# designs and families draw since step 5 unit 4; the table, R/X against
-# frequency and explicit frequencies since unit 5.
-_VIEW_STEP = {an.Map: 5, an.Knobs: 6}
+# planned for (Steve, 2026-09-28): 5 the map. Crosses over planes, designs
+# and families draw since step 5 unit 4; the table, R/X against frequency
+# and explicit frequencies since unit 5; holds and the Knobs view since
+# step 6.
+_VIEW_STEP = {an.Map: 5}
 # The workbench's frequency-sweep views, by the names /analyses serves.
 _FREQUENCY_VIEWS = {
     an.Swr: "Swr",
@@ -156,13 +161,15 @@ _FREQUENCY_VIEWS = {
     an.Rx: "Rx",
     an.Table: "Table",
 }
-# A knob sweep's: R/X against the knob, its Smith trail, the numbers, and
-# a metric against the knob (AK#1828).
+# A knob sweep's: R/X against the knob, its Smith trail, the numbers, a
+# metric against the knob (AK#1828), and a held sweep's knobs (AK#1757 step
+# 6; `an.Analysis` refuses Knobs without a hold).
 _KNOB_VIEWS = {
     an.Rx: "Rx",
     an.Smith: "Smith",
     an.Table: "Table",
     an.MetricPlot: "Metric",
+    an.Knobs: "Knobs",
 }
 
 
@@ -214,13 +221,15 @@ def _pattern_view(v: an.View) -> dict | None:
     return None
 
 
-def gaps(a: an.Analysis) -> list[str]:
-    """What keeps the workbench from running ``a`` (beyond `an.problems`)."""
+def gaps(a: an.Analysis, builder=None) -> list[str]:
+    """What keeps the workbench from running ``a`` (beyond `an.problems`);
+    ``builder`` (the tab's design) tells a hold on its density knob."""
     out = []
     if len(a.sweeps) > 1:
         out.append(_later("a two-sweep map", 5))
-    if a.hold is not None:
-        out.append(_later("hold (optimise at each point)", 6))
+    held = hd.analysis_refusal(a, builder)
+    if held:
+        out.append(held)
     if an.is_pattern(a):
         # Every view of a pattern is a pattern view (`an.Analysis` refuses
         # any other when built), and the chart draws each; a design's own
@@ -670,7 +679,7 @@ def workbench(a: an.Analysis, builder, req: Mapping, *, hosted: bool = False) ->
     """How the workbench runs ``a`` on ``builder`` (built from ``req``).
     ``hosted``: the shared instance, which offers no callable metric but
     the catalog's (`hosted_refusal`)."""
-    why = an.problems(a, builder) + gaps(a)
+    why = an.problems(a, builder) + gaps(a, builder)
     if hosted and (refusal := hosted_refusal(a)):
         why.append(refusal)
     # A family or map axis on the density knob, refused as the CLI refuses
@@ -690,6 +699,7 @@ def workbench(a: an.Analysis, builder, req: Mapping, *, hosted: bool = False) ->
         run = None if frequency else _knob_run(a, builder, req)
         density = run is not None and run["density"]
         crosses = _crosses(a, builder, req, density=density)
+        held = _hold_entry(a, builder)
     except _Refusal as e:
         return {"runs": False, "why": str(e)}
     if run is None:
@@ -708,6 +718,7 @@ def workbench(a: an.Analysis, builder, req: Mapping, *, hosted: bool = False) ->
             if (n := _knob_view(v)) and not (n == "Metric" and run["density"])
         ],
         "metric": None if run["density"] else _metric_view(a),
+        "hold": held,
         **_listed(a),
         **crosses,
         "note": _note(a, deck_density=density and run["param"] != DENSITY)
@@ -723,6 +734,30 @@ def _metric_note(a: an.Analysis) -> str | None:
         return None
     rest = ", ".join(repr(v.metric.name) for v in plots[1:])
     return f"left out: the MetricPlot of {rest} (the chart draws the first; `antennaknobs analyze` draws each)"
+
+
+def _hold_entry(a: an.Analysis, builder) -> dict | None:
+    """A knob analysis's hold as the chart runs it (AK#1757 step 6), or None:
+    its objective, its knobs on the tab's design with their bounds (the
+    ``ui_params`` min/max, `hold.free_of`), its Z0 (None: the session's),
+    warm start, and ``spec``, the hold as data, which the chart sends back
+    with each curve's ``/param_sweep`` so the server resolves it on that
+    cell's own design. A knob the hold cannot bound is the analysis's
+    refusal, by name."""
+    if a.hold is None:
+        return None
+    try:
+        free = hd.free_of(a.hold, builder)
+    except hd.HoldRefused as e:
+        raise _Refusal(str(e)) from None
+    return {
+        "objective": a.hold.objective,
+        "knobs": [f["name"] for f in free],
+        "bounds": {f["name"]: [f["min"], f["max"]] for f in free},
+        "z0": a.hold.z0,
+        "warm_start": a.hold.warm_start,
+        "spec": an.to_data(a.hold),
+    }
 
 
 def builder_for(cls, req: Mapping):

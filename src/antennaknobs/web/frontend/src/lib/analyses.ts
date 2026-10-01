@@ -29,8 +29,9 @@ import {
 
 /** The views a knob analysis draws here, by the server's names: R/X against
  *  the knob, its Smith trail, the numbers (AK#1757 step 5 unit 5), and a
- *  metric against the knob (AK#1828, `an.MetricPlot`). */
-export type KnobView = "Rx" | "Smith" | "Table" | "Metric";
+ *  metric against the knob (AK#1828, `an.MetricPlot`), and a held sweep's
+ *  knobs against the knob (AK#1757 step 6). */
+export type KnobView = "Rx" | "Smith" | "Table" | "Metric" | "Knobs";
 
 /** A MetricPlot as /analyses serves it (AK#1828): the metric's name and
  *  unit, the cell its curves are drawn relative to (null: none) and the unit
@@ -41,6 +42,21 @@ export type MetricSpec = {
   unit: string;
   relativeTo: string | null;
   relativeUnit: string;
+  spec: unknown;
+};
+
+/** A knob analysis's hold (AK#1757 step 6), as /analyses serves it: the
+ *  optimizer's objective, the knobs it re-solves at every point (resolved on
+ *  the tab's design) with their bounds (their ui_params min/max), its Z0
+ *  (null: the session's), warm start, and `spec`, the hold as data, which
+ *  each curve's /param_sweep sends back for the server to resolve on that
+ *  curve's own design. Opaque here. */
+export type HoldRun = {
+  objective: string;
+  knobs: string[];
+  bounds: Record<string, [number, number]>;
+  z0: number | null;
+  warmStart: boolean;
   spec: unknown;
 };
 
@@ -56,6 +72,8 @@ export type KnobWorkbench = {
   views?: KnobView[];
   /** Its MetricPlot, when it has one (AK#1828). */
   metric?: MetricSpec | null;
+  /** The hold at every point (step 6), or absent / null: none. */
+  hold?: HoldRun | null;
   note: string | null;
 } & Listed;
 
@@ -348,7 +366,36 @@ function parseListed(o: Record<string, unknown>): Required<ListedCross> {
 }
 
 const FREQUENCY_VIEWS: readonly FrequencyView[] = ["Swr", "S11", "Smith", "Rx", "Table"];
-const KNOB_VIEWS: readonly KnobView[] = ["Rx", "Smith", "Table", "Metric"];
+const KNOB_VIEWS: readonly KnobView[] = ["Rx", "Smith", "Table", "Metric", "Knobs"];
+
+/** A served hold, else null (absent, or junk: the analysis then runs as a
+ *  plain knob sweep would be wrong, so a malformed one is dropped with the
+ *  whole entry by the caller). */
+function parseHold(v: unknown): HoldRun | null | undefined {
+  if (v === null || v === undefined) return null;
+  if (typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  if (typeof o.objective !== "string" || !Array.isArray(o.knobs) || !o.knobs.every(isStr)) {
+    return undefined;
+  }
+  if (o.knobs.length === 0 || o.spec === undefined || o.spec === null) return undefined;
+  const bounds: Record<string, [number, number]> = {};
+  const b = (o.bounds ?? {}) as Record<string, unknown>;
+  for (const k of o.knobs as string[]) {
+    const pair = b[k];
+    if (Array.isArray(pair) && pair.length === 2 && isNum(pair[0]) && isNum(pair[1])) {
+      bounds[k] = [pair[0], pair[1]];
+    }
+  }
+  return {
+    objective: o.objective,
+    knobs: o.knobs as string[],
+    bounds,
+    z0: isNum(o.z0) ? o.z0 : null,
+    warmStart: o.warm_start !== false,
+    spec: o.spec,
+  };
+}
 
 /** A served frequency list: positive numbers, at least one, else null. */
 function freqList(v: unknown): number[] | null {
@@ -433,8 +480,12 @@ function parseWorkbench(w: unknown): AnalysisWorkbench | null {
     if (typeof o.param !== "string" || !Array.isArray(o.values)) return null;
     const values = o.values.filter(isNum);
     if (values.length === 0 || values.length !== o.values.length) return null;
+    const hold = parseHold(o.hold);
+    if (hold === undefined) return null;
     const views = Array.isArray(o.views)
-      ? o.views.filter((v): v is KnobView => KNOB_VIEWS.includes(v as KnobView))
+      ? o.views.filter(
+          (v): v is KnobView => KNOB_VIEWS.includes(v as KnobView) && (v !== "Knobs" || hold !== null),
+        )
       : [];
     const metric = parseMetric(o.metric);
     // A Metric view with no metric served has nothing to draw.
@@ -447,6 +498,7 @@ function parseWorkbench(w: unknown): AnalysisWorkbench | null {
       log: o.log === true,
       ...(drawn.length > 0 ? { views: drawn } : {}),
       ...(metric ? { metric } : {}),
+      ...(hold ? { hold } : {}),
       ...parseListed(o),
       note,
     };

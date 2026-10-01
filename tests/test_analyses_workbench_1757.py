@@ -115,6 +115,8 @@ def test_every_entry_has_the_documented_shape(invvee):
                 "log",
                 "views",
                 "metric",
+                # The hold at every point (step 6), None on a plain sweep.
+                "hold",
                 "engines",
                 "grounds",
                 *CROSSES,
@@ -155,22 +157,38 @@ def test_e1_convergence_runs_as_the_density_ladder(invvee):
     assert w["views"] == ["Rx", "Table", "Smith"]
 
 
-@pytest.mark.parametrize(
-    ("name", "step"),
-    [
-        ("match vs height", "step 6"),
-        ("resonance vs angle", "step 6"),
-        ("tuning map", "step 5"),
-    ],
-)
+@pytest.mark.parametrize(("name", "step"), [("tuning map", "step 5")])
 def test_what_the_workbench_cannot_draw_is_listed_with_its_step(invvee, name, step):
     w = invvee[name]["workbench"]
     assert w["runs"] is False
     assert step in w["why"]
 
 
-def test_a_hold_says_hold(invvee):
-    assert "hold" in invvee["match vs height"]["workbench"]["why"]
+def test_a_hold_runs_with_its_knobs_bounds_and_spec(invvee):
+    # Step 6: E8 and E9 run in the chart. The hold rides on the knob entry,
+    # its knobs bounded by their ui_params, its spec the data each curve's
+    # /param_sweep sends back.
+    w = invvee["match vs height"]["workbench"]
+    assert w["runs"] is True and w["kind"] == "knob" and w["param"] == "base"
+    assert w["views"] == ["Rx", "Knobs"]
+    assert w["hold"] == {
+        "objective": "match_z0",
+        "knobs": ["length_factor", "angle_deg"],
+        "bounds": {"length_factor": [0.8, 1.25], "angle_deg": [0.0, 60.0]},
+        "z0": 50,
+        "warm_start": True,
+        "spec": {
+            "an": "Hold",
+            "objective": "match_z0",
+            "adjust": ["length_factor", "angle_deg"],
+            "z0": 50,
+            "warm_start": True,
+        },
+    }
+    e9 = invvee["resonance vs angle"]["workbench"]
+    assert e9["runs"] is True and e9["hold"]["knobs"] == ["length_factor"]
+    # A plain knob analysis carries no hold.
+    assert invvee["height"]["workbench"]["hold"] is None
 
 
 def test_code_is_the_analysis_as_python(invvee):
