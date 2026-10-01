@@ -87,8 +87,9 @@ which the chart edits and sends back to keep what it built (``POST /keep``,
 unit 4); and a state's entry its ``variant``.
 
 Then the design's STUDIES (`offer_studies`, AK#1757 step 7): analyses over
-several designs, from a module-level ``build_studies()`` crossing it, or its
-own Builder's ``build_studies()`` method (`studies`). Each is served as a design analysis is, hosted by the tab's
+several designs, from a module-level ``build_studies()`` in a studies
+directory crossing it, or its own Builder's ``build_studies()`` method
+(`studies`). Each is served as a design analysis is, hosted by the tab's
 design (the design cross builds each of its designs at its own defaults, as
 for any analysis), with its ``name`` the study's full ``source:name`` (unique
 beside the design's own analyses, which the picker tells apart by name) and

@@ -114,8 +114,9 @@ export type AnalysisWorkbench =
 
 /** A study (AK#1757 step 7): an analysis over several designs, from a
  *  module-level `build_studies()`. `source` is where it is declared (a
- *  catalog module's `family.design`, or a user file's path under the studies
- *  folder); `name` its own, short, name. */
+ *  catalog study file's `family.name` under `studies/`, a user file's path
+ *  under the studies folder, or, for a Builder's method study, its design);
+ *  `name` its own, short, name. */
 export type StudyTag = { source: string; name: string };
 
 /** One of the design's analyses, as /analyses serves it. A study's `name`

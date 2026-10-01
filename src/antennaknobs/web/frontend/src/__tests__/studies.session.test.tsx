@@ -50,7 +50,7 @@ const APEX = design("dipoles.invvee_apex", "Inverted vee, apex fed");
 const OTHER = design("dipoles.ocf_dipole", "OCF dipole");
 
 const LADDER = [8, 12, 17];
-const E7_NAME = "dipoles.invvee:feed spelling (E7)";
+const E7_NAME = "dipoles.apex_feed_on_invvee:feed spelling (E7)";
 
 const knobEntry = (name: string, over: Record<string, unknown>) => ({
   name,
@@ -84,7 +84,7 @@ const E7 = {
     ],
   }),
   summary: "density; 4 curves (2 designs x 2 engines)",
-  study: { source: "dipoles.invvee", name: "feed spelling (E7)" },
+  study: { source: "dipoles.apex_feed_on_invvee", name: "feed spelling (E7)" },
 };
 const E7_DESIGNS = [INVVEE.name, APEX.name];
 
@@ -235,7 +235,7 @@ describe("studies in the analysis picker", () => {
     expect(await studiesOn(r, INVVEE.name)).toEqual(e7Row);
     const box = await picker();
     const e7 = [...box.options].find((o) => o.value === E7_NAME) as HTMLOptionElement;
-    expect(e7.title).toContain("a study in dipoles.invvee");
+    expect(e7.title).toContain("a study in dipoles.apex_feed_on_invvee");
     // Below the design's own analyses.
     const all = [...box.options].map((o) => o.value);
     expect(all.indexOf(E7_NAME)).toBeGreaterThan(all.indexOf("convergence"));

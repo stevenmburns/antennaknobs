@@ -113,7 +113,7 @@ def test_e7_serves_its_designs_in_written_order_with_their_own_ladders(client):
     w = _served(
         client,
         {"geometry": INVVEE, "design_freq_mhz": 28.47, "measurement_freq_mhz": 28.47},
-        "dipoles.invvee:feed spelling (E7)",
+        "dipoles.apex_feed_on_invvee:feed spelling (E7)",
     )
     assert w["runs"] is True
     # The product's order, as written: designs, then engines.
