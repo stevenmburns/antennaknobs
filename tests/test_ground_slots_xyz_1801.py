@@ -89,11 +89,11 @@ def test_the_sequence_is_chunks_of_three_read_forwards():
 def test_the_frontend_names_the_same_sequence():
     """lib/groundSlots.ts's GROUND_SLOT_IDS is the twin of the Python one."""
     ts = (ROOT / "src/antennaknobs/web/frontend/src/lib/groundSlots.ts").read_text()
-    block = re.search(r"GROUND_SLOT_IDS: readonly string\[\] = \[(.*?)\];", ts, re.S)
-    assert block, "GROUND_SLOT_IDS not found in lib/groundSlots.ts"
-    assert tuple(re.findall(r'"([A-Z])"', block.group(1))) == (
-        ui_settings.GROUND_SLOT_IDS
+    block = re.search(
+        r'GROUND_SLOT_IDS: readonly GroundSlotId\[\] = \[\.\.\."([A-Z]+)"\];', ts
     )
+    assert block, "GROUND_SLOT_IDS not found in lib/groundSlots.ts"
+    assert tuple(block.group(1)) == ui_settings.GROUND_SLOT_IDS
 
 
 def test_letters_round_trip(cat, local):
