@@ -29,7 +29,7 @@ const ENGINES: Record<string, string> = {
   D: "nec5",
   E: "momwire:sinusoidal",
 };
-const GROUNDS: Record<string, string> = { "1": "finite:13,0.005", "2": "free", "3": "pec", "4": "finite:5,0.001" };
+const GROUNDS: Record<string, string> = { "X": "finite:13,0.005", "Y": "free", "Z": "pec", "U": "finite:5,0.001" };
 
 const env = (over: Partial<CrossEnv> = {}): CrossEnv => ({
   slots: Object.entries(ENGINES).map(([id, spec]) => ({
@@ -44,24 +44,24 @@ const env = (over: Partial<CrossEnv> = {}): CrossEnv => ({
     label: `${id}: ${spec}`,
     holds: (s: string) => s === spec,
   })),
-  activeGround: "1",
+  activeGround: "X",
   ...over,
 });
 
 describe("the default cross follows the active slots", () => {
   it("is one cell: the active slot on the active ground, named by its engine", () => {
-    const plan = crossPlan(FOLLOW_ACTIVE, NOTHING_LISTED, env({ activeSlot: "C", activeGround: "2" }));
+    const plan = crossPlan(FOLLOW_ACTIVE, NOTHING_LISTED, env({ activeSlot: "C", activeGround: "Y" }));
     expect(plan.cells).toEqual([
-      { key: "C|2", label: "C: pynec", slot: "C", ground: "2", refused: null },
+      { key: "C|Y", label: "C: pynec", slot: "C", ground: "Y", refused: null },
     ]);
     expect(plan.capRefusal).toBeNull();
   });
 
   it("never ticks nothing: an empty or stale list falls back to the active slot", () => {
-    const e = env({ activeSlot: "B", activeGround: "3" });
+    const e = env({ activeSlot: "B", activeGround: "Z" });
     expect(checkedSlots({ slots: [], grounds: null }, e)).toEqual(["B"]);
     expect(checkedSlots({ slots: ["Z"], grounds: null }, e)).toEqual(["B"]);
-    expect(checkedGrounds({ slots: null, grounds: ["9"] }, e)).toEqual(["3"]);
+    expect(checkedGrounds({ slots: null, grounds: ["W"] }, e)).toEqual(["Z"]);
   });
 
   it("reads the ticked ids in id order, whatever order they were ticked in", () => {
@@ -73,8 +73,8 @@ describe("the engine cross", () => {
   it("draws one cell per ticked slot, each named by its slot, on the ground each", () => {
     const plan = crossPlan({ slots: ["A", "E"], grounds: null }, NOTHING_LISTED, env());
     expect(plan.cells.map((c) => [c.slot, c.ground, c.label])).toEqual([
-      ["A", "1", "A: momwire:bspline"],
-      ["E", "1", "E: momwire:sinusoidal"],
+      ["A", "X", "A: momwire:bspline"],
+      ["E", "X", "E: momwire:sinusoidal"],
     ]);
   });
 
@@ -120,10 +120,10 @@ describe("the engine cross", () => {
 
 describe("the ground cross", () => {
   it("draws one cell per ticked ground slot, on the chart's engine", () => {
-    const plan = crossPlan({ slots: null, grounds: ["2", "4"] }, NOTHING_LISTED, env({ activeSlot: "B" }));
+    const plan = crossPlan({ slots: null, grounds: ["Y", "U"] }, NOTHING_LISTED, env({ activeSlot: "B" }));
     expect(plan.cells.map((c) => [c.slot, c.ground, c.label])).toEqual([
-      ["B", "2", "2: free"],
-      ["B", "4", "4: finite:5,0.001"],
+      ["B", "Y", "Y: free"],
+      ["B", "U", "U: finite:5,0.001"],
     ]);
   });
 
@@ -131,7 +131,7 @@ describe("the ground cross", () => {
     const listed = { engines: null, grounds: ["free", "finite:20,0.03"] };
     const plan = crossPlan(preselect(listed, env()), listed, env());
     expect(plan.cells.map((c) => [c.label, c.ground, c.refused])).toEqual([
-      ["free", "2", null],
+      ["free", "Y", null],
       ["finite:20,0.03", null, "no ground slot holds finite:20,0.03"],
     ]);
   });
@@ -139,24 +139,24 @@ describe("the ground cross", () => {
 
 describe("engines x grounds", () => {
   it("is engine-major, each label naming both, joined by ', ' as the CLI's", () => {
-    const plan = crossPlan({ slots: ["A", "B"], grounds: ["1", "2"] }, NOTHING_LISTED, env());
+    const plan = crossPlan({ slots: ["A", "B"], grounds: ["X", "Y"] }, NOTHING_LISTED, env());
     expect(plan.cells.map((c) => c.label)).toEqual([
-      "A: momwire:bspline, 1: finite:13,0.005",
-      "A: momwire:bspline, 2: free",
-      "B: momwire:razor-2p, 1: finite:13,0.005",
-      "B: momwire:razor-2p, 2: free",
+      "A: momwire:bspline, X: finite:13,0.005",
+      "A: momwire:bspline, Y: free",
+      "B: momwire:razor-2p, X: finite:13,0.005",
+      "B: momwire:razor-2p, Y: free",
     ]);
   });
 
   it("takes up to the cap: 3 x 2 = 6 curves draw", () => {
-    const plan = crossPlan({ slots: ["A", "B", "C"], grounds: ["1", "2"] }, NOTHING_LISTED, env());
+    const plan = crossPlan({ slots: ["A", "B", "C"], grounds: ["X", "Y"] }, NOTHING_LISTED, env());
     expect(CURVE_CAP).toBe(6);
     expect(plan.capRefusal).toBeNull();
     expect(plan.cells).toHaveLength(6);
   });
 
   it("refuses over the cap with the CLI's wording, and draws nothing rather than truncate", () => {
-    const plan = crossPlan({ slots: ["A", "B", "C", "D", "E"], grounds: ["1", "2"] }, NOTHING_LISTED, env());
+    const plan = crossPlan({ slots: ["A", "B", "C", "D", "E"], grounds: ["X", "Y"] }, NOTHING_LISTED, env());
     expect(plan.capRefusal).toBe("REFUSED: 5 engines x 2 grounds = 10 curves, over the cap of 6");
     expect(plan.cells).toEqual([]);
     expect(refusedLines(plan)).toEqual([plan.capRefusal]);
@@ -242,7 +242,7 @@ describe("planes, designs and families", () => {
     ]);
     // Keys stay unique across the product, the slot|ground pair leading.
     expect(new Set(plan.cells.map((c) => c.key)).size).toBe(6);
-    expect(plan.cells[3].key).toBe("A|1|d:dipoles.invvee_apex");
+    expect(plan.cells[3].key).toBe("A|X|d:dipoles.invvee_apex");
   });
 
   it("caps the whole product, naming every axis in the CLI's words", () => {
@@ -346,12 +346,12 @@ describe("states", () => {
     const plan = crossPlan(preselect(HEIGHTS, env()), HEIGHTS, env());
     expect(plan.capRefusal).toBeNull();
     expect(plan.cells.map((c) => [c.label, c.slot, c.ground, c.design, c.state])).toEqual([
-      ["as built, finite:13,0.005", "A", "1", undefined, { label: "as built", knobs: {} }],
-      ["low mast, finite:13,0.005", "A", "1", undefined, { label: "low mast", knobs: { base: 5 } }],
-      ["tall mast, finite:13,0.005", "A", "1", undefined, { label: "tall mast", knobs: { base: 12 } }],
+      ["as built, finite:13,0.005", "A", "X", undefined, { label: "as built", knobs: {} }],
+      ["low mast, finite:13,0.005", "A", "X", undefined, { label: "low mast", knobs: { base: 5 } }],
+      ["tall mast, finite:13,0.005", "A", "X", undefined, { label: "tall mast", knobs: { base: 12 } }],
     ]);
     expect(new Set(plan.cells.map((c) => c.key)).size).toBe(3);
-    expect(plan.cells[1].key).toBe("A|1|st:low mast");
+    expect(plan.cells[1].key).toBe("A|X|st:low mast");
     expect(servedCell(plan.cells[2], HEIGHTS)?.values).toEqual([0.95, 1]);
   });
 

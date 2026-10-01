@@ -90,8 +90,8 @@ describe("the readout's R / X follow the active ground on a pattern view (AK#179
   it("Antenna → Azimuth → change ground: never the previous ground's R, then the new one", async () => {
     const user = userEvent.setup();
     await mountReady({ examples: [HARNESS_EXAMPLE] });
-    // Slot 1 (the session default: finite ground) solved on the Antenna view.
-    expect(groundTab("1").getAttribute("aria-selected")).toBe("true");
+    // Slot X (the session default: finite ground) solved on the Antenna view.
+    expect(groundTab("X").getAttribute("aria-selected")).toBe("true");
     await untilDom(() => rValue()?.includes("48.78") || null);
 
     await toAzimuth(user);
@@ -100,9 +100,9 @@ describe("the readout's R / X follow the active ground on a pattern view (AK#179
     // Free space: its solve is held, so the result on screen is still the
     // finite ground's.
     GroundWebSocket.hold = true;
-    await user.click(groundTab("2"));
+    await user.click(groundTab("Y"));
     await vi.waitFor(() => expect(GroundWebSocket.held.length).toBeGreaterThan(0));
-    expect(groundTab("2").getAttribute("aria-selected")).toBe("true");
+    expect(groundTab("Y").getAttribute("aria-selected")).toBe("true");
     expect(rValue()).not.toContain("48.78");
     expect(rValue()).toBe("—");
 
@@ -111,7 +111,7 @@ describe("the readout's R / X follow the active ground on a pattern view (AK#179
 
     // And back: the free-space number goes the moment the ground changes.
     GroundWebSocket.hold = true;
-    await user.click(groundTab("1"));
+    await user.click(groundTab("X"));
     await vi.waitFor(() => expect(GroundWebSocket.held.length).toBeGreaterThan(0));
     expect(rValue()).toBe("—");
     GroundWebSocket.release();
@@ -130,7 +130,7 @@ describe("the readout's R / X follow the active ground on a pattern view (AK#179
 
     // A ground change straight on the pattern view, its solve held.
     GroundWebSocket.hold = true;
-    await user.click(groundTab("2"));
+    await user.click(groundTab("Y"));
     await vi.waitFor(() => expect(GroundWebSocket.held.length).toBeGreaterThan(0));
     expect(rValue()).toBe("—");
     GroundWebSocket.release();

@@ -22,8 +22,8 @@ apply, and the entry it names keeps its built-in default.
     soil = "average"         # a soil preset name, or eps_r = ... and sigma = ...
     terrain_preset = "levee"
 
-    [grounds.3]              # ground slots (AK#1794); [ground] is slot 1
-    method = "fast"
+    [grounds.Z]              # ground slots X, Y, Z (AK#1794, AK#1801);
+    method = "fast"          # [ground] is the older spelling of slot X
 
     [slots.A]
     backend = "bspline"
@@ -103,19 +103,29 @@ ANTENNA_VIEW_BUILTIN: dict = {"orientation": "auto"}
 GROUND_TYPES = ("finite", "pec", "terrain")
 GROUND_METHODS = ("fast", "sommerfeld", "mininec")
 SLOTS = ("A", "B", "C")
+# The ground slots' names, in order (AK#1801): letters, so they read as their
+# own family beside the A/B/C solver slots. Chunks of three, each read
+# forwards, stepping back through the alphabet: X Y Z, then U V W, then R S T,
+# ... down to F G H. The chunk after that would reach the solver slots' A-E,
+# so the family stops at 21. The one copy of the sequence in Python; its twin
+# is GROUND_SLOT_IDS in the frontend's lib/groundSlots.ts, pinned to this by
+# tests/test_ground_slots_1794.py.
+GROUND_SLOT_IDS: tuple[str, ...] = tuple(
+    chr(ord("X") - 3 * chunk + k) for chunk in range(7) for k in range(3)
+)
 # The stock ground slots (AK#1794), the twin of the A/B/C solver slots: each
-# row is a [grounds.N] table applied over GROUND_BUILTIN, so it goes through
-# the same validation as a file's. Ids are the slot numbers; a file's own
-# [grounds.N] tables can change these and add slots past the last one.
-#   1: the session default (GROUND_BUILTIN, or the file's [ground]); the page
+# row is a [grounds.X] table applied over GROUND_BUILTIN, so it goes through
+# the same validation as a file's. A file's own [grounds.X] tables can change
+# these and add slots past the last one (U, V, W, ...).
+#   X: the session default (GROUND_BUILTIN, or the file's [ground]); the page
 #      seeds it from a design's own ground (GE/GN) on load.
-#   2: free space.
-#   3: Sommerfeld over average soil, by preset name so it stays average if the
+#   Y: free space.
+#   Z: Sommerfeld over average soil, by preset name so it stays average if the
 #      served soil default ever moves.
 STOCK_GROUNDS: tuple[tuple[str, dict], ...] = (
-    ("1", {}),
-    ("2", {"enabled": False}),
-    ("3", {"method": "sommerfeld", "soil": "average"}),
+    ("X", {}),
+    ("Y", {"enabled": False}),
+    ("Z", {"method": "sommerfeld", "soil": "average"}),
 )
 
 # Does picking an analysis in a chart's picker start it (AC6LA, QRZ 1003328
@@ -334,7 +344,7 @@ def resolve(
         table, GROUND_BUILTIN, "[ground]", cat, problems
     )
     grounds, spelling, ground_set = _resolve_grounds(
-        data, table, ground, ground_set, cat, problems
+        data, table, ground, ground_set, cat, problems, from_file=from_file
     )
     ground = {k: v for k, v in grounds[0].items() if k != "id"}
 
@@ -389,7 +399,7 @@ def resolve(
 
 
 def _resolve_ground(table, base, where, cat: Catalog, problems) -> tuple[dict, list]:
-    """One ground (``[ground]`` or a ``[grounds.N]`` table) applied over
+    """One ground (``[ground]`` or a ``[grounds.X]`` table) applied over
     ``base``. Returns the ground and the keys the table set."""
     ground = dict(base)
     ground_set: list[str] = []
@@ -461,74 +471,106 @@ def _resolve_ground(table, base, where, cat: Catalog, problems) -> tuple[dict, l
     return ground, ground_set
 
 
-def _ground_id(key) -> int | None:
-    """A ``[grounds.N]`` key as its slot number, or None: a whole number from
-    1 written without a sign or leading zeros, so ids and keys are one fact."""
-    if isinstance(key, str) and key.isdigit() and key[0] != "0":
-        return int(key)
+def _ground_slot_index(key) -> tuple[int, bool] | None:
+    """A ``[grounds.X]`` key as its place in GROUND_SLOT_IDS and whether it
+    was the older numeric spelling, or None. Before AK#1801 the slots were
+    numbered (``[grounds.1]``, ...), on main though in no release; a whole
+    number from 1, without a sign or leading zeros, still names the slot at
+    that place, so 1, 2, 3 are X, Y, Z and 4 is U."""
+    key = str(key)
+    if key in GROUND_SLOT_IDS:
+        return GROUND_SLOT_IDS.index(key), False
+    if key.isdigit() and key[0] != "0" and int(key) <= len(GROUND_SLOT_IDS):
+        return int(key) - 1, True
     return None
 
 
-def _resolve_grounds(data, legacy, legacy_ground, legacy_set, cat: Catalog, problems):
+def _resolve_grounds(
+    data, legacy, legacy_ground, legacy_set, cat: Catalog, problems, *, from_file
+):
     """The ground slots (AK#1794): the stock set with the file's
-    ``[grounds.N]`` tables applied, as a list ordered by id. Slot 1 is also
-    what the older ``[ground]`` table means; with both, ``[grounds.1]`` is
-    used and the clash is named. Returns the slots, which table spelled
-    slot 1 (``"grounds"`` or ``"ground"``), so a save writes it back the same
-    way it came, and the keys slot 1's table set."""
+    ``[grounds.X]`` tables applied, as a list in GROUND_SLOT_IDS order. Slot X
+    is also what the older ``[ground]`` table means; with both, ``[grounds.X]``
+    is used and the clash is named. A numeric key is read as its letter
+    (AK#1801), with a note when it came from the file; a slot spelled both
+    ways is refused by name rather than guessed. Returns the slots, which
+    table spelled slot X (``"grounds"`` or ``"ground"``), so a save writes it
+    back the same way it came, and the keys slot X's table set."""
     table = data.get("grounds", {})
     if not isinstance(table, Mapping):
-        problems.append("[grounds] must be a table of [grounds.1], [grounds.2], ...")
+        problems.append("[grounds] must be a table of [grounds.X], [grounds.Y], ...")
         table = {}
     stock = {g["id"]: g for g in cat.stock_grounds}
-    wanted: dict[int, Mapping] = {}
+    spellings: dict[int, list[tuple[str, bool, Mapping]]] = {}
     for key, entry in table.items():
-        n = _ground_id(key)
-        if n is None:
+        found = _ground_slot_index(key)
+        if found is None:
             problems.append(
-                f"[grounds.{key}]: not a ground slot (slots are numbered 1, 2, 3, ...)"
+                f"[grounds.{key}]: not a ground slot (slots are X, Y, Z, then "
+                f"U, V, W, then R, S, T, ...: {len(GROUND_SLOT_IDS)} at most)"
             )
         elif not isinstance(entry, Mapping):
             problems.append(f"[grounds.{key}] must be a table")
         else:
-            wanted[n] = entry
-    # Ids run 1..N without a gap: the tab strip numbers them, and a gap would
-    # be a slot nobody can see the settings of. Past the first gap nothing
-    # applies, and each table dropped there is named.
-    ids = {1} | {int(k) for k in stock} | set(wanted)
+            spellings.setdefault(found[0], []).append((str(key), found[1], entry))
+    wanted: dict[int, Mapping] = {}
+    for i, given in sorted(spellings.items()):
+        if len(given) > 1:
+            names = " and ".join(f"[grounds.{key}]" for key, _, _ in given)
+            problems.append(
+                f"{names} both given: they name the same ground slot "
+                f"{GROUND_SLOT_IDS[i]}, so neither is used"
+            )
+        else:
+            wanted[i] = given[0][2]
+    # Slots run X, Y, Z, U, ... without a gap: a gap would be a slot nobody
+    # can see the settings of. Past the first gap nothing applies, and each
+    # table dropped there is named.
+    ids = {0} | {GROUND_SLOT_IDS.index(k) for k in stock} | set(wanted)
     top = 0
-    while top + 1 in ids:
+    while top in ids:
         top += 1
-    for n in sorted(i for i in wanted if i > top):
+    for i in sorted(i for i in wanted if i >= top):
+        key = spellings[i][0][0]
         problems.append(
-            f"[grounds.{n}]: ground slots are numbered without gaps, and there is "
-            f"no slot {top + 1}; this table is not used"
+            f"[grounds.{key}]: ground slots run X, Y, Z, U, V, W, ... without "
+            f"gaps, and there is no slot {GROUND_SLOT_IDS[top]}; this table is "
+            "not used"
         )
+    # A numbered table that does apply says what it is read as.
+    for i in sorted(i for i in wanted if i < top):
+        key, numeric, _ = spellings[i][0]
+        if numeric and from_file:
+            problems.append(
+                f"[grounds.{key}] is read as [grounds.{GROUND_SLOT_IDS[i]}]: ground "
+                "slots are named X, Y, Z, ... now, and a save writes the letter"
+            )
     grounds = []
     spelling = "ground"
-    slot1_set = legacy_set
-    for n in range(1, top + 1):
-        sid = str(n)
+    first_set = legacy_set
+    for i in range(top):
+        sid = GROUND_SLOT_IDS[i]
         base = {k: v for k, v in stock.get(sid, {}).items() if k != "id"}
-        if n == 1 and 1 not in wanted:
+        if i == 0 and 0 not in wanted:
             ground = legacy_ground
-        elif n in wanted:
-            if n == 1:
+        elif i in wanted:
+            if i == 0:
                 spelling = "grounds"
                 if legacy:
                     problems.append(
-                        "[ground] and [grounds.1] both given: [grounds.1] is used "
-                        "([ground] is the older spelling of ground slot 1)"
+                        f"[ground] and [grounds.{spellings[0][0][0]}] both given: "
+                        f"[grounds.{sid}] is used ([ground] is the older spelling "
+                        f"of ground slot {sid})"
                     )
             ground, keys = _resolve_ground(
-                wanted[n], base or GROUND_BUILTIN, f"[grounds.{sid}]", cat, problems
+                wanted[i], base or GROUND_BUILTIN, f"[grounds.{sid}]", cat, problems
             )
-            if n == 1:
-                slot1_set = keys
+            if i == 0:
+                first_set = keys
         else:
             ground = base
         grounds.append({"id": sid, **ground})
-    return grounds, spelling, slot1_set
+    return grounds, spelling, first_set
 
 
 def _run_on_pick(data, source, problems) -> dict:
@@ -691,12 +733,12 @@ def _resolved(
         "switches": switches,
         "switches_set": switches_set,
         "antenna_view": antenna_view or dict(ANTENNA_VIEW_BUILTIN),
-        # Ground slot 1, as a server before AK#1794 served it.
+        # Ground slot X, as a server before AK#1794 served it.
         "ground": ground,
         "ground_set": ground_set,
-        # Every ground slot, slot 1 first (AK#1794).
+        # Every ground slot, slot X first (AK#1794, AK#1801).
         "grounds": grounds,
-        # Which table spelled slot 1, for the save to write it the same way.
+        # Which table spelled slot X, for the save to write it the same way.
         "_ground_spelling": ground_spelling,
         "slots": slots,
         # Does picking an analysis start it, per kind (AC6LA #179): always
@@ -805,7 +847,7 @@ def _differences(resolved: dict, cat: Catalog) -> dict:
     # when empty, since the table's presence is what makes the slot exist.
     stock_grounds = {g["id"]: g for g in cat.stock_grounds}
     grounds: dict[str, dict] = {}
-    for given in resolved.get("grounds") or [{"id": "1", **resolved["ground"]}]:
+    for given in resolved.get("grounds") or [{"id": "X", **resolved["ground"]}]:
         sid = given["id"]
         start = stock_grounds.get(sid)
         diff = _ground_differences(given, start or GROUND_BUILTIN, cat)
@@ -813,7 +855,7 @@ def _differences(resolved: dict, cat: Catalog) -> dict:
             grounds[sid] = diff
     ground = {}
     if resolved.get("_ground_spelling", "ground") == "ground":
-        ground = grounds.pop("1", {})
+        ground = grounds.pop("X", {})
     stock = {s["slot"]: s for s in cat.stock_slots}
     slots = {}
     for slot in SLOTS:
@@ -917,7 +959,8 @@ def dump(settings: dict, kept: Mapping | None = None) -> str:
             ]
     # Written even when empty: a slot past the stock set exists by its table.
     for sid, entry in sorted(
-        (settings.get("grounds") or {}).items(), key=lambda kv: int(kv[0])
+        (settings.get("grounds") or {}).items(),
+        key=lambda kv: GROUND_SLOT_IDS.index(kv[0]),
     ):
         lines += ["", f"[grounds.{sid}]"]
         lines += [f"{k} = {_toml_value(v)}" for k, v in entry.items()]

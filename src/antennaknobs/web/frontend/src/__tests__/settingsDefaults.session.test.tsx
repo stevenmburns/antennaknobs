@@ -124,11 +124,11 @@ describe("startup settings (AK#1492)", () => {
     };
     expect(body.switches).toEqual(DEFAULTS.switches);
     expect(body.antenna_view).toEqual({ orientation: "iso" });
-    // The file's [ground] is ground slot 1 (AK#1794), and the page posts
+    // The file's [ground] is ground slot X (AK#1794), and the page posts
     // every slot under `grounds`, never the older `ground` beside it.
     expect(body.ground).toBeUndefined();
-    expect(Object.keys(body.grounds)).toEqual(["1", "2", "3"]);
-    expect(body.grounds["1"]).toMatchObject({
+    expect(Object.keys(body.grounds)).toEqual(["X", "Y", "Z"]);
+    expect(body.grounds["X"]).toMatchObject({
       enabled: false,
       type: "finite",
       method: "sommerfeld",

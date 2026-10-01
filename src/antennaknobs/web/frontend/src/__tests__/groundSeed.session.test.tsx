@@ -130,15 +130,15 @@ describe("ground seed from a file design (AK#1432)", () => {
     expect(radio(/finite/)).toBe(true);
   });
 
-  it("the seed lands in ground slot 1, which is the active slot (AK#1794)", async () => {
+  it("the seed lands in ground slot X, which is the active slot (AK#1794)", async () => {
     await mountReady({ examples: [PEC] });
-    const slot1 = screen.getByRole("tab", { name: /^Ground slot 1:/ });
-    expect(slot1.getAttribute("aria-label")).toBe("Ground slot 1: PEC");
-    expect(slot1.getAttribute("aria-selected")).toBe("true");
-    // The deck's ground is slot 1's alone: slot 2 is still free space.
+    const slotX = screen.getByRole("tab", { name: /^Ground slot X:/ });
+    expect(slotX.getAttribute("aria-label")).toBe("Ground slot X: PEC");
+    expect(slotX.getAttribute("aria-selected")).toBe("true");
+    // The deck's ground is slot X's alone: slot Y is still free space.
     expect(
-      screen.getByRole("tab", { name: /^Ground slot 2:/ }).getAttribute("aria-label"),
-    ).toBe("Ground slot 2: free space");
+      screen.getByRole("tab", { name: /^Ground slot Y:/ }).getAttribute("aria-label"),
+    ).toBe("Ground slot Y: free space");
   });
 
   it("a catalog design (no seed) keeps the defaults, no notice, a numeric N", async () => {

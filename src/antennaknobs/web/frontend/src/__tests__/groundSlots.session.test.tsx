@@ -80,6 +80,8 @@ const BURIED: ExampleDescriptor = {
 
 const tab = (id: string) => screen.getByRole("tab", { name: new RegExp(`^Ground slot ${id}:`) });
 const tabs = () => screen.getAllByRole("tab", { name: /^Ground slot / });
+// What each tab reads as its name (AK#1801): the slot's letter.
+const letters = () => tabs().map((t) => within(t).getByText(/^[A-Z]$/).textContent);
 const selected = () => tabs().find((t) => t.getAttribute("aria-selected") === "true");
 const groundBox = () =>
   within(groundSettings()).getByRole("checkbox", { name: /ground plane/ }) as HTMLInputElement;
@@ -95,15 +97,17 @@ afterEach(() => {
 });
 
 describe("ground slots (AK#1794)", () => {
-  it("offers the stock set beside the solver slots, slot 1 active", async () => {
+  it("offers the stock set beside the solver slots, slot X active", async () => {
     await mountReady();
     expect(tabs().map((t) => t.getAttribute("aria-label"))).toEqual([
-      "Ground slot 1: refl-coef",
-      "Ground slot 2: free space",
-      "Ground slot 3: Sommerfeld",
+      "Ground slot X: refl-coef",
+      "Ground slot Y: free space",
+      "Ground slot Z: Sommerfeld",
     ]);
-    expect(selected()).toBe(tab("1"));
-    // Slot 1 is today's single ground: on, finite, refl-coef.
+    // The tabs read X, Y, Z (AK#1801), their own family beside A, B, C.
+    expect(letters()).toEqual(["X", "Y", "Z"]);
+    expect(selected()).toBe(tab("X"));
+    // Slot X is today's single ground: on, finite, refl-coef.
     expect(groundBox().checked).toBe(true);
     expect(radio(/refl-coef/)).toBe(true);
   });
@@ -115,8 +119,8 @@ describe("ground slots (AK#1794)", () => {
     expect(first).toMatchObject({ ground: true, ground_model: "fast", ground_fast: true });
 
     let n = solves().length;
-    await user.click(tab("2"));
-    expect(selected()).toBe(tab("2"));
+    await user.click(tab("Y"));
+    expect(selected()).toBe(tab("Y"));
     expect(groundBox().checked).toBe(false);
     expect(await nextSolve(n, (m) => m.ground === false)).toMatchObject({
       ground: false,
@@ -124,15 +128,15 @@ describe("ground slots (AK#1794)", () => {
     });
 
     n = solves().length;
-    await user.click(tab("3"));
+    await user.click(tab("Z"));
     expect(radio("Sommerfeld")).toBe(true);
     expect(
       await nextSolve(n, (m) => m.ground === true && m.ground_model === "sommerfeld"),
     ).toMatchObject({ ground: true, ground_fast: false });
 
-    // And back: slot 1 is still what it was.
+    // And back: slot X is still what it was.
     n = solves().length;
-    await user.click(tab("1"));
+    await user.click(tab("X"));
     expect(await nextSolve(n, (m) => m.ground_model === "fast")).toMatchObject({
       ground: true,
     });
@@ -141,62 +145,62 @@ describe("ground slots (AK#1794)", () => {
   it("the ground panel edits the active slot only", async () => {
     const user = userEvent.setup();
     await mountReady();
-    await user.click(tab("3"));
+    await user.click(tab("Z"));
     await user.click(within(groundSettings()).getByRole("radio", { name: /PEC/ }));
-    expect(tab("3").getAttribute("aria-label")).toBe("Ground slot 3: PEC");
-    await user.click(tab("1"));
+    expect(tab("Z").getAttribute("aria-label")).toBe("Ground slot Z: PEC");
+    await user.click(tab("X"));
     expect(radio(/finite/)).toBe(true);
     expect(radio(/refl-coef/)).toBe(true);
-    await user.click(tab("3"));
+    await user.click(tab("Z"));
     expect(radio(/PEC/)).toBe(true);
   });
 
-  it("a deck's own ground lands in slot 1, which opens active", async () => {
+  it("a deck's own ground lands in slot X, which opens active", async () => {
     await mountReady({ examples: [GN2] });
-    expect(selected()).toBe(tab("1"));
-    expect(tab("1").getAttribute("aria-label")).toBe(
-      "Ground slot 1: Sommerfeld · εr 20, σ 0.02 S/m",
+    expect(selected()).toBe(tab("X"));
+    expect(tab("X").getAttribute("aria-label")).toBe(
+      "Ground slot X: Sommerfeld · εr 20, σ 0.02 S/m",
     );
     // The other slots keep their stock.
-    expect(tab("2").getAttribute("aria-label")).toBe("Ground slot 2: free space");
-    expect(tab("3").getAttribute("aria-label")).toBe("Ground slot 3: Sommerfeld");
-    // The notice about the deck's ground is slot 1's, not free space's.
+    expect(tab("Y").getAttribute("aria-label")).toBe("Ground slot Y: free space");
+    expect(tab("Z").getAttribute("aria-label")).toBe("Ground slot Z: Sommerfeld");
+    // The notice about the deck's ground is slot X's, not free space's.
     expect(screen.getByText(/from the file: finite ground, Sommerfeld/)).toBeTruthy();
-    await userEvent.setup().click(tab("2"));
+    await userEvent.setup().click(tab("Y"));
     expect(screen.queryByText(/from the file:/)).toBeNull();
   });
 
-  it("a design switch: the deck's ground takes slot 1 and the active slot; slots 2+ keep theirs", async () => {
+  it("a design switch: the deck's ground takes slot X and the active slot; slots Y, Z keep theirs", async () => {
     const user = userEvent.setup();
     await mountReady({ examples: [HARNESS_EXAMPLE, FREE] });
-    await user.click(tab("3"));
+    await user.click(tab("Z"));
     await user.click(within(groundSettings()).getByRole("radio", { name: /PEC/ }));
 
     const n = solves().length;
     await switchDesign(user, "Free deck", FREE.name);
-    expect(selected()).toBe(tab("1"));
-    expect(tab("1").getAttribute("aria-label")).toBe("Ground slot 1: free space");
-    expect(tab("3").getAttribute("aria-label")).toBe("Ground slot 3: PEC");
+    expect(selected()).toBe(tab("X"));
+    expect(tab("X").getAttribute("aria-label")).toBe("Ground slot X: free space");
+    expect(tab("Z").getAttribute("aria-label")).toBe("Ground slot Z: PEC");
     expect(
       await nextSolve(n, (m) => m.geometry === FREE.name && m.ground === false),
     ).toBeTruthy();
 
-    // Back to a design with no ground of its own: slot 1 held only the
+    // Back to a design with no ground of its own: slot X held only the
     // deck's ground, so the session default comes back.
     await switchDesign(user, "Probe dipole", HARNESS_EXAMPLE.name);
-    expect(tab("1").getAttribute("aria-label")).toBe("Ground slot 1: refl-coef");
-    expect(tab("3").getAttribute("aria-label")).toBe("Ground slot 3: PEC");
+    expect(tab("X").getAttribute("aria-label")).toBe("Ground slot X: refl-coef");
+    expect(tab("Z").getAttribute("aria-label")).toBe("Ground slot Z: PEC");
   });
 
-  it("a design with no ground of its own keeps the active slot and a hand-edited slot 1", async () => {
+  it("a design with no ground of its own keeps the active slot and a hand-edited slot X", async () => {
     const user = userEvent.setup();
     const OTHER = { ...HARNESS_EXAMPLE, name: "dipoles.other", label: "Other dipole" };
     await mountReady({ examples: [HARNESS_EXAMPLE, OTHER] });
     await user.click(within(groundSettings()).getByRole("radio", { name: "Sommerfeld" }));
-    await user.click(tab("2"));
+    await user.click(tab("Y"));
     await switchDesign(user, "Other dipole", OTHER.name);
-    expect(selected()).toBe(tab("2"));
-    expect(tab("1").getAttribute("aria-label")).toBe("Ground slot 1: Sommerfeld");
+    expect(selected()).toBe(tab("Y"));
+    expect(tab("X").getAttribute("aria-label")).toBe("Ground slot X: Sommerfeld");
   });
 
   it("a buried design on the free-space slot sends what unticking the ground did", async () => {
@@ -214,7 +218,7 @@ describe("ground slots (AK#1794)", () => {
     await nextSolve(n, (m) => m.ground === true);
 
     n = solves().length;
-    await user.click(tab("2"));
+    await user.click(tab("Y"));
     const slot2 = await nextSolve(n, (m) => m.ground === false);
     // The two differ only in `ground_model`, the finite method each slot
     // parks, which the server reads only while `ground` is true
@@ -223,11 +227,11 @@ describe("ground slots (AK#1794)", () => {
     for (const key of ["ground", "ground_fast", "soil", "terrain"]) {
       expect(slot2[key]).toEqual(unticked[key]);
     }
-    // The notice line under the tab strip is the active slot's: slot 2 has
-    // none. (Slot 1's own settings, still open from the clicks above, keep
-    // theirs: they are slot 1's.)
+    // The notice line under the tab strip is the active slot's: slot Y has
+    // none. (Slot X's own settings, still open from the clicks above, keep
+    // theirs: they are slot X's.)
     expect(screen.queryByLabelText("Ground notices")).toBeNull();
-    expect(within(groundSettings("1")).getByText(/buried design — Sommerfeld ground selected/)).toBeTruthy();
+    expect(within(groundSettings("X")).getByText(/buried design — Sommerfeld ground selected/)).toBeTruthy();
   });
 
   it("renders however many slots the settings file has", async () => {
@@ -237,19 +241,41 @@ describe("ground slots (AK#1794)", () => {
         switches: {},
         ground: g,
         grounds: [
-          { id: "1", ...g },
-          { id: "2", ...g, enabled: false },
-          { id: "3", ...g, method: "sommerfeld" },
-          { id: "4", ...g, type: "pec" },
+          { id: "X", ...g },
+          { id: "Y", ...g, enabled: false },
+          { id: "Z", ...g, method: "sommerfeld" },
+          { id: "U", ...g, type: "pec" },
         ],
         problems: [],
       },
     });
     expect(tabs().map((t) => t.getAttribute("aria-label"))).toEqual([
-      "Ground slot 1: refl-coef",
-      "Ground slot 2: free space",
-      "Ground slot 3: Sommerfeld",
-      "Ground slot 4: PEC",
+      "Ground slot X: refl-coef",
+      "Ground slot Y: free space",
+      "Ground slot Z: Sommerfeld",
+      "Ground slot U: PEC",
+    ]);
+  });
+
+  it("numbered slots from a server before AK#1801 read as X, Y, Z (AK#1801)", async () => {
+    const g = { enabled: true, type: "finite", method: "fast", soil: null, terrain_preset: null };
+    await mountReady({
+      uiDefaults: {
+        switches: {},
+        ground: g,
+        grounds: [
+          { id: "1", ...g },
+          { id: "2", ...g, enabled: false },
+          { id: "3", ...g, method: "sommerfeld" },
+        ],
+        problems: [],
+      },
+    });
+    expect(letters()).toEqual(["X", "Y", "Z"]);
+    expect(tabs().map((t) => t.getAttribute("aria-label"))).toEqual([
+      "Ground slot X: refl-coef",
+      "Ground slot Y: free space",
+      "Ground slot Z: Sommerfeld",
     ]);
   });
 });

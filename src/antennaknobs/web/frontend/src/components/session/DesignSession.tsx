@@ -1277,7 +1277,7 @@ function DesignSessionBody({
         feed_labels: showFeedNames,
       },
       antenna_view: { orientation: antennaOrientation },
-      // Every ground slot, written as [grounds.N] (AK#1794).
+      // Every ground slot, written as [grounds.X] (AK#1794).
       grounds: Object.fromEntries(
         groundSlots.map((g) => [
           g.id,
@@ -1841,7 +1841,7 @@ function DesignSessionBody({
       }
     }
 
-    // The design's own ground goes in ground slot 1 (AK#1794), which becomes
+    // The design's own ground goes in ground slot X (AK#1794), which becomes
     // the active slot; see withDesignGround for a design without one.
     //
     // Ground-requirement seed: the buried-wire designs declare
@@ -3409,8 +3409,8 @@ function DesignSessionBody({
         >
           {/* The notices stay in view with the settings closed (AK#1801):
               they explain a ground the user did not choose. The design's own
-              ground is ground slot 1's (AK#1794), so its notices belong to
-              that slot, not to free space in slot 2. */}
+              ground is ground slot X's (AK#1794), so its notices belong to
+              that slot, not to free space in slot Y. */}
           <GroundNotices
             compact
             backend={backend}

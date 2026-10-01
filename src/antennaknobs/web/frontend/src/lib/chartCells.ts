@@ -11,7 +11,7 @@
 //    grounds a non-empty subset of the ground slots, as checkboxes; both
 //    default to the ACTIVE slot only, which is the chart as it was before
 //    crosses, and follow the active slot until the viewer ticks a box;
-//  - slot ids are open-ended (engines A…E, grounds 1…5): everything here
+//  - slot ids are open-ended (engines A…E, grounds X, Y, Z, U…): everything here
 //    reads the ids it is handed and never assumes three;
 //  - an analysis's listed engines and grounds (its `.py`) preselect the
 //    slots that hold them; one no slot holds is a REFUSED cell, named in the
