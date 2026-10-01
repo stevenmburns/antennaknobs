@@ -88,7 +88,9 @@ def test_the_catalog_split_is_what_the_arrayblock_advisory_was_argued_from():
     # 73 and 3 since AK#1464: `wire.terminated_longwire` has nothing buried,
     # and it used to refuse at construction under finite ground because the
     # below/below pre-flight counted its two ground terminations as buried.
-    assert len(no_repeats) == 73, len(no_repeats)
+    # 74 since `verticals.m0agp_invl`: one element, one shape.
+    assert len(no_repeats) == 74, len(no_repeats)
+    assert "verticals.m0agp_invl" in no_repeats
     # 4 since AK#1707: `wire.beverage`'s ground rods are buried, and the
     # array-block operator refuses a buried deck.
     assert len(errors) == 4, sorted(errors)
