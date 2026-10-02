@@ -10,9 +10,7 @@ sequence past Z) are in ``test_ground_slots_xyz_1801.py``. What the frontend doe
 
 from __future__ import annotations
 
-import re
 import tomllib
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,7 +18,6 @@ from fastapi.testclient import TestClient
 from antennaknobs.web import server
 from antennaknobs.web import settings as ui_settings
 
-ROOT = Path(__file__).resolve().parents[1]
 BUILTIN_SWITCHES = {k: d for k, _, d in ui_settings.SWITCHES}
 
 
@@ -240,26 +237,3 @@ def test_a_body_with_both_spellings_of_slot_x_is_refused(client, local):
     assert r.status_code == 422
     assert any("[grounds.X] is used" in p for p in r.json()["detail"]["problems"])
     assert not local.exists()
-
-
-def test_the_frontend_fallback_is_the_stock_set(cat):
-    """lib/settings.ts's BUILTIN_GROUND_SLOTS covers a payload without
-    `grounds`. Its slot Z leaves the soil at null, the served default, which
-    is only the stock's "average" while the two are the same soil."""
-    ts = (ROOT / "src/antennaknobs/web/frontend/src/lib/settings.ts").read_text()
-    block = re.search(
-        r"BUILTIN_GROUND_SLOTS: GroundSlotDefaults\[\] = \[(.*?)\n\];", ts, re.S
-    )
-    assert block, "BUILTIN_GROUND_SLOTS not found in lib/settings.ts"
-    rows = re.findall(r'\{ id: "([A-Z])",(.*?)\}', block.group(1), re.S)
-    assert [sid for sid, _ in rows] == [g["id"] for g in cat.stock_grounds]
-    for (_, text), stock in zip(rows, cat.stock_grounds, strict=True):
-        expect = {**ui_settings.GROUND_BUILTIN, **stock}
-        for key in ("enabled", "type", "method"):
-            value = expect[key]
-            lit = str(value).lower() if isinstance(value, bool) else f'"{value}"'
-            if f"{key}:" in text:
-                assert f"{key}: {lit}" in text, (key, text)
-            else:
-                assert value == ui_settings.GROUND_BUILTIN[key], (key, text)
-    assert cat.soils["average"] == cat.soil_default

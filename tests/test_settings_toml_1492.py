@@ -290,24 +290,19 @@ def test_save_is_refused_on_the_hosted_instance(client, local, monkeypatch):
     assert not local.exists()
 
 
-def test_the_frontend_fallback_is_this_table():
-    """lib/settings.ts carries a fallback for a payload without ui_defaults;
-    it must be the same defaults, or the two would drift."""
+def test_the_frontend_reads_these_switches():
+    """lib/settings.ts names the switches it reads, and refuses a payload
+    missing any of them (AK#1858), so its list must be this table's keys.
+    Their defaults are served, never restated there."""
     ts = (ROOT / "src/antennaknobs/web/frontend/src/lib/settings.ts").read_text()
-    block = re.search(
-        r"BUILTIN_SWITCHES: Record<SwitchKey, boolean> = \{(.*?)\};", ts, re.S
-    )
-    assert block, "BUILTIN_SWITCHES not found in lib/settings.ts"
-    parsed = dict(re.findall(r"(\w+): (true|false),", block.group(1)))
-    assert {k: v == "true" for k, v in parsed.items()} == BUILTIN_SWITCHES
-    ground = re.search(r"BUILTIN_GROUND: GroundDefaults = \{(.*?)\};", ts, re.S)
-    assert ground, "BUILTIN_GROUND not found in lib/settings.ts"
-    g = ground.group(1)
-    assert f"enabled: {str(ui_settings.GROUND_BUILTIN['enabled']).lower()}," in g
-    assert f'type: "{ui_settings.GROUND_BUILTIN["type"]}",' in g
-    assert f'method: "{ui_settings.GROUND_BUILTIN["method"]}",' in g
-    # A save leaves out the terrain preset the panel starts on (#1497), so the
-    # panel's fallback must be the catalog's first preset.
+    block = re.search(r"SWITCH_KEYS = \[(.*?)\] as const;", ts, re.S)
+    assert block, "SWITCH_KEYS not found in lib/settings.ts"
+    assert re.findall(r'"(\w+)"', block.group(1)) == list(BUILTIN_SWITCHES)
+
+
+def test_the_terrain_preset_fallback_is_the_catalogs_first():
+    """A save leaves out the terrain preset the panel starts on (#1497), so
+    the panel's fallback must be the catalog's first preset."""
     hook = (
         ROOT / "src/antennaknobs/web/frontend/src/components/session/useGroundConfig.ts"
     )
