@@ -28,6 +28,7 @@ What this refuses, and it is a different list from the NEC-2 writer's:
 
 from __future__ import annotations
 
+from .card_text import card_text
 from .engines.nec5 import NEC5Engine, _network_needs_reducer
 
 # The engine stamps its own comment line; the exported deck carries a header
@@ -45,12 +46,12 @@ def catalog_header(design: str, rung: str, ground_name: str, freq_mhz, note: str
     the same file the corpus tool's zip ships for it — that equality is the gate
     on #1389, and it only holds if there is one spelling of this text.
     """
-    header = (
+    header = card_text(
         f"CM antennaknobs catalog design {design} ({rung} mesh, {ground_name} ground)\n"
         f"CM {freq_mhz} MHz; {_LICENCE_CM}\n"
     )
     if note:
-        header += f"CM {note}\n"
+        header += f"CM {card_text(note)}\n"
     return header
 
 

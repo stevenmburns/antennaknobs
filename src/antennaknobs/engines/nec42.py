@@ -98,7 +98,7 @@ def run_deck(exe: str, deck: str, *, timeout: float) -> str:
     """
     with tempfile.TemporaryDirectory(prefix="nec42_") as td:
         tdp = Path(td)
-        (tdp / "model.nec").write_text(deck)
+        (tdp / "model.nec").write_text(deck, encoding="ascii", errors="replace")
         try:
             proc = run_exe(
                 [exe, "model.nec", "model.out"], stdin_text="", cwd=td, timeout=timeout
