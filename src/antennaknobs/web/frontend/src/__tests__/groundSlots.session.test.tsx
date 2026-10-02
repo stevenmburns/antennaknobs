@@ -96,13 +96,19 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// Slot Z as the server serves it, with no soil presets to name its soil by.
+const Z_LABEL = "refl-coef · εr 13, σ 0.005 S/m";
+
 describe("ground slots (AK#1794)", () => {
   it("offers the stock set beside the solver slots, slot X active", async () => {
     await mountReady();
+    // The server names slot Z's soil (the stock "average", resolved), where
+    // slot X's is null, the served default: with no soil presets served
+    // here, Z's reads as its numbers.
     expect(tabs().map((t) => t.getAttribute("aria-label"))).toEqual([
       "Ground slot X: Sommerfeld",
       "Ground slot Y: free space",
-      "Ground slot Z: refl-coef",
+      `Ground slot Z: ${Z_LABEL}`,
     ]);
     // The tabs read X, Y, Z (AK#1801), their own family beside A, B, C.
     expect(letters()).toEqual(["X", "Y", "Z"]);
@@ -164,7 +170,7 @@ describe("ground slots (AK#1794)", () => {
     );
     // The other slots keep their stock.
     expect(tab("Y").getAttribute("aria-label")).toBe("Ground slot Y: free space");
-    expect(tab("Z").getAttribute("aria-label")).toBe("Ground slot Z: refl-coef");
+    expect(tab("Z").getAttribute("aria-label")).toBe(`Ground slot Z: ${Z_LABEL}`);
     // The notice about the deck's ground is slot X's, not free space's.
     expect(screen.getByText(/from the file: finite ground, Sommerfeld/)).toBeTruthy();
     await userEvent.setup().click(tab("Y"));
