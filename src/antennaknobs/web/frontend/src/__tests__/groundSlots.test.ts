@@ -167,7 +167,7 @@ describe("parseUiDefaults: ground slots", () => {
   // Strict (AK#1858): the page has no stock set of its own to fall back to,
   // and the shipped server serves letters only (it reads a numbered table
   // as its letter itself, tests/test_ground_slots_xyz_1801.py).
-  it.each([
+  it.each<[string, Record<string, unknown>]>([
     ["no grounds", { grounds: undefined }],
     ["an empty list", { grounds: [] }],
     ["a numbered slot", { grounds: [{ id: "1", ...g }] }],
