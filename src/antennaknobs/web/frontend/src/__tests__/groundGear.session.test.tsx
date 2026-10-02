@@ -92,9 +92,9 @@ describe("ground settings behind each ground slot's ⚙ (AK#1801)", () => {
     await user.click(gear("Z"));
     let d = dialog()!;
     expect(d.getAttribute("aria-label")).toBe("Ground slot Z settings");
-    expect(d.textContent).toContain("Ground slot Z — Sommerfeld");
+    expect(d.textContent).toContain("Ground slot Z — refl-coef");
     expect(checked(d, "checkbox", /ground plane/)).toBe(true);
-    expect(checked(d, "radio", "Sommerfeld")).toBe(true);
+    expect(checked(d, "radio", /refl-coef/)).toBe(true);
     // Opening it switched nothing: slot X is still the active one.
     expect(tab("X").getAttribute("aria-selected")).toBe("true");
 
@@ -112,7 +112,7 @@ describe("ground settings behind each ground slot's ⚙ (AK#1801)", () => {
   it("editing slot Y while slot X is active changes slot Y only; the solve follows the active slot", async () => {
     const user = userEvent.setup();
     await mountReady();
-    await nextSolve(0, (m) => m.ground === true && m.ground_model === "fast");
+    await nextSolve(0, (m) => m.ground === true && m.ground_model === "sommerfeld");
     const before = solves().length;
 
     await user.click(gear("Y"));
@@ -121,14 +121,14 @@ describe("ground settings behind each ground slot's ⚙ (AK#1801)", () => {
     await user.click(within(d).getByRole("radio", { name: /PEC/ }));
     expect(checked(d, "radio", /PEC/)).toBe(true);
     expect(tab("Y").getAttribute("aria-label")).toBe("Ground slot Y: PEC");
-    expect(tab("X").getAttribute("aria-label")).toBe("Ground slot X: refl-coef");
+    expect(tab("X").getAttribute("aria-label")).toBe("Ground slot X: Sommerfeld");
     expect(tab("X").getAttribute("aria-selected")).toBe("true");
 
     // Slot X's own settings are untouched.
     await user.click(within(d).getByRole("button", { name: "Close" }));
     await user.click(gear("X"));
     expect(checked(dialog()!, "radio", /finite/)).toBe(true);
-    expect(checked(dialog()!, "radio", /refl-coef/)).toBe(true);
+    expect(checked(dialog()!, "radio", "Sommerfeld")).toBe(true);
     await user.click(within(dialog()!).getByRole("button", { name: "Close" }));
 
     // Nothing the edit did reached a solve: the active slot is still slot X.
@@ -145,9 +145,9 @@ describe("ground settings behind each ground slot's ⚙ (AK#1801)", () => {
     await nextSolve(0, (m) => m.ground === true);
     const n = solves().length;
     await user.click(gear("X"));
-    await user.click(within(dialog()!).getByRole("radio", { name: "Sommerfeld" }));
-    expect(tab("X").getAttribute("aria-label")).toBe("Ground slot X: Sommerfeld");
-    expect(await nextSolve(n, (m) => m.ground_model === "sommerfeld")).toMatchObject({
+    await user.click(within(dialog()!).getByRole("radio", { name: /refl-coef/ }));
+    expect(tab("X").getAttribute("aria-label")).toBe("Ground slot X: refl-coef");
+    expect(await nextSolve(n, (m) => m.ground_model === "fast")).toMatchObject({
       ground: true,
     });
   });

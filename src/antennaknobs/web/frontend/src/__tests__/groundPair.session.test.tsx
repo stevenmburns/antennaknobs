@@ -28,9 +28,9 @@ describe("the solver x ground pair (AK#1854)", () => {
   it("names the active pair and follows both strips", async () => {
     const user = userEvent.setup();
     await mountReady({ roster: ROSTER_WITH_NEC5, slotSeeds: SEEDS });
-    expect(pair()).toMatch(/^solving on A \(B-spline d=2\) × X \(refl-coef/);
+    expect(pair()).toMatch(/^solving on A \(B-spline d=2\) × X \(Sommerfeld/);
     await user.click(groundTab("Z"));
-    expect(pair()).toMatch(/× Z \(Sommerfeld/);
+    expect(pair()).toMatch(/× Z \(refl-coef/);
     await user.click(solverTab("B"));
     expect(pair()).toMatch(/^solving on B \(B-spline d=1\) × Z/);
   });
@@ -38,18 +38,20 @@ describe("the solver x ground pair (AK#1854)", () => {
   it("under NEC-5 the refl-coef ground tab says it is solved as Sommerfeld", async () => {
     const user = userEvent.setup();
     await mountReady({ roster: ROSTER_WITH_NEC5, slotSeeds: SEEDS });
-    expect(groundTab("X").getAttribute("aria-label")).toMatch(/^Ground slot X: refl-coef(?! →)/);
+    // Slot Z is the stock refl-coef ground (AK#1856).
+    expect(groundTab("Z").getAttribute("aria-label")).toMatch(/^Ground slot Z: refl-coef(?! →)/);
     await user.click(solverTab("C"));
-    expect(groundTab("X").getAttribute("aria-label")).toMatch(
-      /^Ground slot X: refl-coef → Sommerfeld/,
+    expect(groundTab("Z").getAttribute("aria-label")).toMatch(
+      /^Ground slot Z: refl-coef → Sommerfeld/,
     );
-    expect(groundTab("X").getAttribute("title")).toMatch(/solved as Sommerfeld on NEC-5/);
+    expect(groundTab("Z").getAttribute("title")).toMatch(/solved as Sommerfeld on NEC-5/);
     // A Sommerfeld slot needs no arrow, and free space none either.
-    expect(groundTab("Z").getAttribute("aria-label")).not.toMatch(/→/);
+    expect(groundTab("X").getAttribute("aria-label")).not.toMatch(/→/);
     expect(groundTab("Y").getAttribute("aria-label")).toBe("Ground slot Y: free space");
-    expect(pair()).toMatch(/^solving on C \(NEC-5\) × X \(refl-coef → Sommerfeld/);
+    await user.click(groundTab("Z"));
+    expect(pair()).toMatch(/^solving on C \(NEC-5\) × Z \(refl-coef → Sommerfeld/);
     // Back on a momwire slot the arrow goes.
     await user.click(solverTab("A"));
-    expect(within(groundTab("X")).queryByText(/→/)).toBeNull();
+    expect(within(groundTab("Z")).queryByText(/→/)).toBeNull();
   });
 });

@@ -3041,9 +3041,9 @@ def test_momwire_bspline_ground_model_drives_sommerfeld_solve():
 
     assert somm["ground_model_applied"] == "sommerfeld"
     assert fast["ground_model_applied"] == "refl-coef"
-    # Sommerfeld costs seconds per solve, so it is opt-in: the default is
-    # the reflection-coefficient model.
-    assert default["ground_model_applied"] == "refl-coef"
+    # A bare ground=True is the built-in ground, Sommerfeld since AK#1856
+    # (it was the reflection-coefficient model).
+    assert default["ground_model_applied"] == "sommerfeld"
     assert pec["ground_model_applied"] == "pec-image"
     assert somm["ground_eps_r"] == 13.0
     assert somm["ground_sigma"] == 0.005
@@ -3073,7 +3073,7 @@ def test_momwire_sinusoidal_ground_model_drives_refl_coef_solve():
         "measurement_freq_mhz": 28.47,
         "ground": True,
     }
-    fin = server.solve(base)  # default ground_model = fast (refl-coef)
+    fin = server.solve({**base, "ground_model": "fast"})  # refl-coef, by name
     pec = server.solve({**base, "ground_model": "pec"})
 
     assert fin["ground_model_applied"] == "refl-coef"

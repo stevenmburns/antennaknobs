@@ -182,7 +182,7 @@ describe("ground slots: + and remove (AK#1801)", () => {
     const n = solves().length;
     await user.click(within(dialog).getByRole("radio", { name: /PEC/ }));
     expect(groundTab("U").getAttribute("aria-label")).toBe("Ground slot U: PEC");
-    expect(holds(groundTab("Z"))).toMatch(/^Sommerfeld/);
+    expect(holds(groundTab("Z"))).toMatch(/^refl-coef/);
     expect(await nextSolve(n, (m) => m.ground_model === "pec")).toMatchObject({ ground: true });
   });
 
