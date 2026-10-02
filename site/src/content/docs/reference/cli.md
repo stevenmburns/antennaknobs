@@ -1334,7 +1334,10 @@ reflection-coefficient ground), and the MININEC-type ground for a NEC-5
 deck's bare `GD`, NEC-2's `GN 1` + `GD` cliff at 0, or 4nec2's `GN 3` — and
 an explicit `--ground` still wins.
 Since v0.81.0 the ground is settled ONCE per run and handed to every engine
-named: an explicit `--ground`, else the file design's own, else free space.
+named: an explicit `--ground`, else the file design's own, else `finite`
+(Sommerfeld over average soil, ε<sub>r</sub> 13, σ 0.005 S/m), the same
+ground the workbench starts on. Before v0.95.0 that last default was free
+space; pass `--ground free` for it.
 The engines' own defaults disagree (PyNEC and NEC-2 assume a finite ground,
 momwire and NEC-5 free space), and a multi-engine study that let each engine
 pick was comparing two physics without saying so; the convergence table now

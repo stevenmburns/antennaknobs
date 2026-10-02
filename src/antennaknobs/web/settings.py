@@ -87,10 +87,15 @@ _SWITCH_KEYS = tuple(k for k, _, _ in SWITCHES)
 # `terrain_preset` are None: the soil then starts at the served soil default
 # (DEFAULT_GROUND, which the request path also falls back to) and the terrain
 # panel at its own first preset.
+# Sommerfeld, not refl-coef, since AK#1856: the catalog run (2026-10-02, 101
+# designs) put refl-coef 10 % off Sommerfeld at the median for antennas whose
+# lowest point is under 0.05 wavelength (62 % on verticals.m0agp_invl), for a
+# warm per-drag cost of 3 ms at the median. The CLI's default is the same
+# ground (cli.CLI_DEFAULT_GROUND).
 GROUND_BUILTIN: dict = {
     "enabled": True,
     "type": "finite",
-    "method": "fast",
+    "method": "sommerfeld",
     "soil": None,
     "terrain_preset": None,
 }
@@ -126,12 +131,14 @@ GROUND_SLOT_IDS: tuple[str, ...] = tuple(
 #   X: the session default (GROUND_BUILTIN, or the file's [ground]); the page
 #      seeds it from a design's own ground (GE/GN) on load.
 #   Y: free space.
-#   Z: Sommerfeld over average soil, by preset name so it stays average if the
-#      served soil default ever moves.
+#   Z: the reflection-coefficient approximation over average soil, by preset
+#      name so it stays average if the served soil default ever moves. It was
+#      Sommerfeld until AK#1856 made Sommerfeld the default (slot X), and the
+#      slots stay three distinct grounds.
 STOCK_GROUNDS: tuple[tuple[str, dict], ...] = (
     ("X", {}),
     ("Y", {"enabled": False}),
-    ("Z", {"method": "sommerfeld", "soil": "average"}),
+    ("Z", {"method": "fast", "soil": "average"}),
 )
 
 # Does picking an analysis in a chart's picker start it (AC6LA, QRZ 1003328

@@ -207,8 +207,8 @@ solver the slot picker lists. Like the ground slots they run without gaps, so a
 The ground slots are `[grounds.X]`, `[grounds.Y]` and `[grounds.Z]`, one table
 per [ground slot](#ground-slots), each taking the same five settings. A table
 changes only what it names, over that slot's stock ground: slot X the
-built-in ground (on, finite, refl-coef, the served soil), slot Y free space,
-slot Z Sommerfeld over average soil. Past Z the slots run in threes, each read
+built-in ground (on, finite, Sommerfeld, the served soil), slot Y free space,
+slot Z the reflection-coefficient model over average soil. Past Z the slots run in threes, each read
 forwards: U, V, W, then R, S, T, and so on down to F, G, H, so they never
 meet the solver slots' letters. A `[grounds.U]` adds a fourth slot, which
 starts at the built-in ground; the slots run without gaps, so a
@@ -1200,7 +1200,12 @@ minutes-per-point solves only runs once you've clicked **Solve anyway**.
 ## The ground plane
 
 Real antennas hang over real ground, so the workbench starts there: the
-**ground plane** checkbox is **on by default**, with free space one click away.
+**ground plane** checkbox is **on by default**, solved with the Sommerfeld
+method over average soil, with free space one click away. Sommerfeld has been
+the default since v0.95.0: across the catalog it costs a few milliseconds per
+knob drag at the median, while the reflection-coefficient model is off by 10 %
+at the median for antennas whose lowest point is under 0.05 wavelength. The
+command line uses the same default ground.
 
 ### Ground slots
 
@@ -1218,7 +1223,9 @@ The three stock slots are:
 - **X: the design's own ground, or the session default** — the checkbox,
   type, method and soil described below, where the workbench starts;
 - **Y: free space**;
-- **Z: Sommerfeld over average soil**.
+- **Z: the reflection-coefficient model over average soil** — the quick
+  approximation, for a comparison or a large array where speed matters more
+  than the last few percent.
 
 Slot X is active when the workbench starts, so if you never click another
 slot, the workbench behaves as it did before ground slots. A design that

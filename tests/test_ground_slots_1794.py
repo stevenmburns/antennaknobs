@@ -62,11 +62,13 @@ def test_the_stock_set(cat, local):
     assert grounds["X"] == ui_settings.GROUND_BUILTIN == payload["ground"]
     # Y: free space.
     assert grounds["Y"] == {**ui_settings.GROUND_BUILTIN, "enabled": False}
-    # Z: Sommerfeld over average soil, the preset's own numbers.
+    # X is Sommerfeld since AK#1856 (the CLI's default too).
+    assert grounds["X"]["method"] == "sommerfeld"
+    # Z: refl-coef over average soil, the preset's own numbers.
     eps, sig = cat.soils["average"]
     assert grounds["Z"] == {
         **ui_settings.GROUND_BUILTIN,
-        "method": "sommerfeld",
+        "method": "fast",
         "soil": {"eps_r": eps, "sigma": sig},
     }
 
@@ -90,7 +92,7 @@ def test_the_older_ground_table_is_slot_x(cat, local):
     assert sorted(payload["ground_set"]) == ["enabled", "method"]
     # The other slots keep their stock.
     assert grounds["Y"]["enabled"] is False
-    assert grounds["Z"]["method"] == "sommerfeld"
+    assert grounds["Z"]["method"] == "fast"
 
 
 def test_grounds_tables_set_each_slot(cat, local):
@@ -108,9 +110,9 @@ def test_grounds_tables_set_each_slot(cat, local):
     eps, sig = cat.soils["poor"]
     assert grounds["Y"]["enabled"] is True
     assert grounds["Y"]["soil"] == {"eps_r": eps, "sigma": sig}
-    # A table applies over its slot's stock: slot Z keeps its Sommerfeld.
+    # A table applies over its slot's stock: slot Z keeps its refl-coef.
     assert grounds["Z"]["type"] == "terrain"
-    assert grounds["Z"]["method"] == "sommerfeld"
+    assert grounds["Z"]["method"] == "fast"
     assert grounds["Z"]["terrain_preset"] == "cliff"
 
 
@@ -118,14 +120,14 @@ def test_both_spellings_of_slot_x_use_grounds_x_and_say_so(cat, local):
     payload = _load(
         cat,
         local,
-        '[ground]\nmethod = "mininec"\n\n[grounds.X]\nmethod = "sommerfeld"\n',
+        '[ground]\nmethod = "mininec"\n\n[grounds.X]\nmethod = "fast"\n',
     )
     assert payload["problems"] == [
         "[ground] and [grounds.X] both given: [grounds.X] is used "
         "([ground] is the older spelling of ground slot X)"
     ]
-    assert _by_id(payload)["X"]["method"] == "sommerfeld"
-    assert payload["ground"]["method"] == "sommerfeld"
+    assert _by_id(payload)["X"]["method"] == "fast"
+    assert payload["ground"]["method"] == "fast"
 
 
 def test_slots_are_read_by_whatever_keys_exist(cat, local):
@@ -200,16 +202,16 @@ def test_an_untouched_set_of_ground_slots_writes_nothing(cat, local):
 
 def test_a_save_writes_only_the_slots_that_differ_and_reads_back(cat, local):
     body = _body(cat)
-    body["grounds"]["X"]["method"] = "sommerfeld"
+    body["grounds"]["X"]["method"] = "fast"
     body["grounds"]["Y"]["type"] = "pec"
     eps, sig = cat.soils["good"]
     body["grounds"]["Z"].update(eps_r=eps, sigma=sig)
     # A fourth slot, as a later "+" would add it, left at the built-in ground.
-    body["grounds"]["U"] = {**body["grounds"]["X"], "method": "fast"}
+    body["grounds"]["U"] = {**body["grounds"]["X"], "method": "sommerfeld"}
     ui_settings.save(body, cat, path=local)
     assert tomllib.loads(local.read_text()) == {
         "grounds": {
-            "X": {"method": "sommerfeld"},
+            "X": {"method": "fast"},
             "Y": {"type": "pec"},
             "Z": {"soil": "good"},
             # Present though empty: the table is what makes slot U exist.
@@ -218,7 +220,7 @@ def test_a_save_writes_only_the_slots_that_differ_and_reads_back(cat, local):
     }
     loaded = _by_id(ui_settings.load(cat, hosted=False, path=local))
     assert list(loaded) == ["X", "Y", "Z", "U"]
-    assert loaded["X"]["method"] == "sommerfeld"
+    assert loaded["X"]["method"] == "fast"
     assert loaded["Y"]["type"] == "pec"
     assert loaded["Z"]["soil"] == {"eps_r": eps, "sigma": sig}
     assert loaded["U"] == ui_settings.GROUND_BUILTIN
