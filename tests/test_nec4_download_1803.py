@@ -69,9 +69,10 @@ def test_a_free_space_nec4_deck_is_the_nec2_deck_with_no_dialect_cards(client):
 
 
 def test_a_buried_design_over_the_fast_ground_refuses_by_name(client):
-    """The UI's default ground model is the reflection-coefficient one, which
-    has no medium below the plane: the sentence says to choose Sommerfeld."""
-    r = _post(client, BURIED, ground=True)
+    """The reflection-coefficient ground has no medium below the plane: the
+    sentence says to choose Sommerfeld. (Asked for by name since AK#1856 made
+    Sommerfeld the default.)"""
+    r = _post(client, BURIED, ground=True, ground_model="fast")
     assert r.status_code == 422
     assert "only over its Sommerfeld ground" in r.json()["detail"]
 

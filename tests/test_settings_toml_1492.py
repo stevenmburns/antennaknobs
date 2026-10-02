@@ -257,7 +257,8 @@ def test_save_writes_a_file_that_reads_back_the_same(client, local, monkeypatch)
     data = tomllib.loads(local.read_text())
     # Only what differs from the built-in defaults is written (#1497).
     assert data["switches"] == {"freq_sweep": False, "wire_labels": True}
-    assert data["ground"] == {"method": "sommerfeld", "eps_r": 20.0, "sigma": 0.03}
+    # Sommerfeld is the built-in method since AK#1856, so only the soil differs.
+    assert data["ground"] == {"eps_r": 20.0, "sigma": 0.03}
     # Degree 2 is where slot A starts and a knob left at null (the solver
     # decides) is absent too; slot B is exactly its stock seed.
     assert data["slots"] == {

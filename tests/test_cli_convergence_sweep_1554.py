@@ -84,7 +84,7 @@ def _parse_convergence_table(text):
 
 def test_density_ladder_two_engines_converge_and_agree(capsys):
     ant.cli(
-        f"sweep --builder {DIPOLE} --param nominal_nsegs {RANGE} "
+        f"sweep --builder {DIPOLE} --param nominal_nsegs {RANGE} --ground free "
         f"--engine momwire:bspline,momwire:razor-2p --fn /dev/null".split()
     )
     out = capsys.readouterr().out

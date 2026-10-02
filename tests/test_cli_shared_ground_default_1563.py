@@ -152,8 +152,9 @@ def test_frequency_sweep_stays_silent(capsys):
 
 def test_no_ground_means_the_same_physics_on_pynec_and_momwire(capsys):
     """Before #1563 this pair silently ran finite (pynec) against free
-    (momwire). Now both run free, and a dipole's Z agrees to the size of the
-    basis difference — not the ~10 % a ground model is worth at this height."""
+    (momwire). Now both run the CLI's one default (Sommerfeld over average soil
+    since AK#1856), and a dipole's Z agrees to the size of the basis
+    difference — not the ~10 % a ground model is worth at this height."""
     pytest.importorskip("PyNEC")
     ant.cli(
         f"sweep --builder {DIPOLE} --param nominal_nsegs --markers 16 "
@@ -161,7 +162,10 @@ def test_no_ground_means_the_same_physics_on_pynec_and_momwire(capsys):
     )
     plt.close("all")
     out = capsys.readouterr().out
-    assert [g for _, g in _ground_lines(out)] == ["free space", "free space"]
+    assert [g for _, g in _ground_lines(out)] == [
+        "finite 13/0.005 (Sommerfeld-Norton)",
+        "finite 13/0.005 (Sommerfeld-Norton)",
+    ]
     zs = _first_rows(out)
     z_mw, z_py = zs["momwire:sinusoidal"], zs["pynec"]
     assert abs(z_mw - z_py) < 0.02 * abs(z_py), (z_mw, z_py)

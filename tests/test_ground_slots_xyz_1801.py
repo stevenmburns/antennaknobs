@@ -134,9 +134,9 @@ def test_numbered_tables_are_read_as_their_letters_with_a_note(cat, local):
     assert payload["ground"]["method"] == "mininec"
     assert payload["ground_set"] == ["method"]
     assert grounds["Y"]["enabled"] is True
-    # Over the stock: Z keeps its Sommerfeld.
+    # Over the stock: Z keeps its refl-coef (AK#1856).
     assert grounds["Z"]["type"] == "pec"
-    assert grounds["Z"]["method"] == "sommerfeld"
+    assert grounds["Z"]["method"] == "fast"
 
 
 def test_numbers_past_three_map_onto_the_sequence(cat, local):

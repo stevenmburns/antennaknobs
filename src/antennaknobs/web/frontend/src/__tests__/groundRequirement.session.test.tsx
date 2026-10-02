@@ -3,9 +3,9 @@
 // (notice rendering); what those cannot show is the seeding effect actually
 // seeding: a design whose /examples descriptor declares
 // ground_requirement: "sommerfeld" must mount with the finite ground type
-// AND the Sommerfeld method selected — not the "fast" refl-coef default,
-// which momwire refuses by name for conductors below z = 0 — while an
-// ordinary design keeps the refl-coef default untouched.
+// AND the Sommerfeld method selected — which momwire needs for conductors
+// below z = 0 — and say so in a notice, while an ordinary design keeps the
+// session default (Sommerfeld too since AK#1856) with no notice.
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import { mountReady, HARNESS_EXAMPLE, groundSettings } from "./designSessionHarness";
@@ -40,10 +40,12 @@ describe("ground-requirement seeding (buried designs)", () => {
     expect(checked(/refl-coef/)).toBe(false);
   });
 
-  it("leaves the refl-coef default (and no notice) on an ordinary design", async () => {
+  it("leaves the session default (and no notice) on an ordinary design", async () => {
     await mountReady({ examples: [HARNESS_EXAMPLE] });
     expect(screen.queryByText(NOTICE)).toBeNull();
-    expect(checked(/refl-coef/)).toBe(true);
-    expect(checked("Sommerfeld")).toBe(false);
+    // The default is Sommerfeld since AK#1856, so the method alone no longer
+    // tells seeded from default: the notice is what says it was seeded.
+    expect(checked("Sommerfeld")).toBe(true);
+    expect(checked(/refl-coef/)).toBe(false);
   });
 });

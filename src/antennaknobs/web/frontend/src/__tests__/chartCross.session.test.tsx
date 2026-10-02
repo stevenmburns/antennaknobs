@@ -267,12 +267,12 @@ describe("the ground cross", () => {
     const r = await mount();
     await chartOnStage(r);
     const own = await firstSweep(r.bodies);
-    expect(own.ground_model).toBe("fast");
+    expect(own.ground_model).toBe("sommerfeld");
 
     openCross();
     fireEvent.click(crossBox("Z: "));
     const cell3 = await untilDom(() => r.bodies.find((b) => b._stream === "c0r1"));
-    expect(cell3.ground_model).toBe("sommerfeld");
+    expect(cell3.ground_model).toBe("fast");
     // The active ground slot is untouched.
     expect(
       screen.getByRole("tab", { name: /^Ground slot X/ }).getAttribute("aria-selected"),
@@ -285,7 +285,7 @@ describe("the ground cross", () => {
     fireEvent.click(screen.getByRole("tab", { name: /^Ground slot Z/ }));
     await chartOnStage(r2);
     const single = await untilDom(() =>
-      r2.bodies.find((b) => b._stream === undefined && b.ground_model === "sommerfeld"),
+      r2.bodies.find((b) => b._stream === undefined && b.ground_model === "fast"),
     );
     expect(physics(cell3)).toEqual(physics(single));
   });

@@ -355,7 +355,8 @@ def test_a_pin_is_its_design_variant_changed_knobs_engine_ground_and_plane():
         ({"solver": "nec5"}, "nec5", "free"),
         ({"ground": True, "ground_model": "pec"}, "momwire:bspline", "pec"),
         ({"ground": True, "ground_model": "fast"}, "momwire:bspline", "finite-fast"),
-        ({"ground": True}, "momwire:bspline", "finite-fast"),
+        # A bare ground=True is the built-in ground, Sommerfeld (AK#1856).
+        ({"ground": True}, "momwire:bspline", "finite"),
         (
             {"ground": True, "ground_model": "sommerfeld", "soil": {"eps_r": 5, "sigma": 0.001}},
             "momwire:bspline",

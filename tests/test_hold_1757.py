@@ -645,8 +645,11 @@ def _dx_at(**knobs) -> float:
 
 def _run_held_dx(monkeypatch, capsys, tmp_path, *extra) -> dict:
     runs = _record(monkeypatch, ar, "_run_metric_plots")
+    # Free space, the ground `_bspline_builder_solve` and `_dx_at` solve on
+    # (the engine factory's own); the CLI's default is Sommerfeld (AK#1856).
     cli(["analyze", "--builder", INVVEE, "--analysis", "held dx", "--engine", BSPLINE,
-         "--nominal-nsegs", str(N), "--fn", str(tmp_path / "dx.png"), *extra])  # fmt: skip
+         "--nominal-nsegs", str(N), "--ground", "free",
+         "--fn", str(tmp_path / "dx.png"), *extra])  # fmt: skip
     capsys.readouterr()
     return runs[-1][2][0]["DX gain"]
 
