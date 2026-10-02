@@ -1840,6 +1840,13 @@ input[type=checkbox] {
 /* The ground tabs size to their own labels instead of sharing the solver
    strip's columns, so a ground tab never sits under "its" solver tab: the two
    strips are chosen independently (AK#1854). */
+.ground-slot-tabs {
+  /* Wrap rather than truncate: a ground's label ("refl-coef → Sommerfeld ·
+     average") is the information, and a narrow pane would cut it to a few
+     letters. */
+  flex-wrap: wrap;
+}
+
 .ground-slot-tabs .backend-tab-cell {
   flex: 0 1 auto;
 }
