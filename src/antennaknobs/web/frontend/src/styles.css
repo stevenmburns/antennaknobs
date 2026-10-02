@@ -1809,7 +1809,8 @@ input[type=checkbox] {
   color: var(--muted);
   border: 1px solid var(--border-control);
   border-radius: var(--r-sm) 0 0 var(--r-sm);
-  padding: var(--space-3) var(--space-4);
+  /* Narrow sides, so five slots' labels still show a word (AK#1801). */
+  padding: var(--space-3) var(--space-2);
   font: inherit;
   font-size: var(--text-sm);
   cursor: pointer;
@@ -1843,7 +1844,7 @@ input[type=checkbox] {
   color: var(--muted);
   border: 1px dashed var(--border-control);
   border-radius: var(--r-sm);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-3);
   font: inherit;
   font-size: var(--text-base);
   cursor: pointer;
@@ -1872,7 +1873,7 @@ input[type=checkbox] {
   border: 1px solid var(--border-control);
   border-left: none;
   border-radius: 0 var(--r-sm) var(--r-sm) 0;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-2);
   font-size: 14px;
   cursor: pointer;
   line-height: 1;
