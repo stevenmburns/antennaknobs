@@ -865,12 +865,15 @@ def file_ground_default(ground, builder):
     return "free" if fg is None else fg
 
 
-# The CLI's one ground when nothing else names it (AK#1563). Free space, not
-# a finite ground: the app defaults to ground off, momwire and NEC-5 already
-# default to free, it is the cheapest model on every engine, and a deck that
-# carries GE/GN cards still wins through `file_ground_default`. The point is
-# that it is ONE value for every engine, stated in the output.
-CLI_DEFAULT_GROUND = "free"
+# The CLI's one ground when nothing else names it (AK#1563): ONE value for
+# every engine, stated in the output. Sommerfeld over average soil since
+# AK#1856, the same ground as the workbench's default slot X, so a CLI run and
+# the workbench answer alike out of the box. It was free space, when the app
+# started with the ground off; the catalog run (2026-10-02) put free space and
+# refl-coef double digits off on the low antennas and verticals people model.
+# A deck that carries GE/GN cards still wins through `file_ground_default`,
+# and `--ground free` is one flag away.
+CLI_DEFAULT_GROUND = ("finite", 13.0, 0.005)
 
 
 def resolve_ground(ground_arg, builder=None):
@@ -1163,7 +1166,8 @@ def cli(arguments=None):
             "(reflection-coefficient approximation) | mininec[:<eps_r>,<sigma>] "
             "(EZNEC's MININEC type: perfect ground for the currents and "
             "impedance, the real ground for the pattern). Default: a file design's "
-            "own GE/GN ground, else free space — ONE value handed to every "
+            "own GE/GN ground, else finite (Sommerfeld over average soil, the "
+            "workbench's default ground, AK#1856) — ONE value handed to every "
             "engine named, never an engine's own default (AK#1563).",
         )
         p.add_argument(

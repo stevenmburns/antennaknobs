@@ -7,7 +7,8 @@ camps 9 Ω apart — not a solver disagreement but the engines' own defaults
 Pinned here:
 
   1. `resolve_ground` never yields the unset marker: explicit --ground, else a
-     file design's own ground (AK#1432), else free space;
+     file design's own ground (AK#1432), else Sommerfeld over average soil,
+     the workbench's default ground (AK#1856; free space before it);
   2. the convergence table prints that ground under every engine header;
   3. a study with no --ground puts pynec and momwire on the SAME physics.
 """
@@ -65,9 +66,13 @@ def _first_rows(out):
 
 
 def test_unset_resolves_to_the_one_cli_default():
-    assert CLI_DEFAULT_GROUND == "free"
-    assert resolve_ground(_GROUND_UNSET) == "free"
-    assert resolve_ground(_GROUND_UNSET, builder=None) == "free"
+    # The workbench's default ground slot X (AK#1856): Sommerfeld over the
+    # served average soil, which is PyNEC's DEFAULT_GROUND too.
+    from antennaknobs.engines.pynec import DEFAULT_GROUND
+
+    assert CLI_DEFAULT_GROUND == ("finite", 13.0, 0.005) == DEFAULT_GROUND
+    assert resolve_ground(_GROUND_UNSET) == CLI_DEFAULT_GROUND
+    assert resolve_ground(_GROUND_UNSET, builder=None) == CLI_DEFAULT_GROUND
     assert resolve_ground(_GROUND_UNSET) is not _GROUND_UNSET
 
 
@@ -90,8 +95,9 @@ def test_a_file_design_ground_is_the_default_and_an_explicit_one_still_wins():
 
     assert resolve_ground(_GROUND_UNSET, Deck) == ("finite", 20.0, 0.03)
     assert resolve_ground(_GROUND_UNSET, Deck()) == ("finite", 20.0, 0.03)
+    # A deck with no ground cards says free space, and keeps it.
     assert resolve_ground(_GROUND_UNSET, FreeDeck) == "free"
-    assert resolve_ground(_GROUND_UNSET, Catalog) == "free"
+    assert resolve_ground(_GROUND_UNSET, Catalog) == CLI_DEFAULT_GROUND
     assert resolve_ground("pec", Deck) == "pec"
 
 
@@ -118,8 +124,8 @@ def test_convergence_table_prints_the_shared_ground_under_each_header(capsys):
     plt.close("all")
     pairs = _ground_lines(capsys.readouterr().out)
     assert pairs == [
-        ("momwire:bspline", "free space"),
-        ("momwire:sinusoidal", "free space"),
+        ("momwire:bspline", "finite 13/0.005 (Sommerfeld-Norton)"),
+        ("momwire:sinusoidal", "finite 13/0.005 (Sommerfeld-Norton)"),
     ]
 
 

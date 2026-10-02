@@ -89,10 +89,12 @@ export type GroundDefaults = {
   terrain_preset: string | null;
 };
 
+// Sommerfeld since AK#1856 (the server's GROUND_BUILTIN, and the CLI's
+// default ground too).
 export const BUILTIN_GROUND: GroundDefaults = {
   enabled: true,
   type: "finite",
-  method: "fast",
+  method: "sommerfeld",
   soil: null,
   terrain_preset: null,
 };
@@ -106,10 +108,11 @@ export type GroundSlotDefaults = GroundDefaults & { id: string };
 // The stock set, for a payload without `grounds`: the server's STOCK_GROUNDS
 // (antennaknobs/web/settings.py), pinned by tests/test_ground_slots_1794.py.
 // Slot Z's soil is null, the served default, which is the stock's "average".
+// X is Sommerfeld and Z refl-coef since AK#1856 (it was the other way round).
 export const BUILTIN_GROUND_SLOTS: GroundSlotDefaults[] = [
   { id: "X", ...BUILTIN_GROUND },
   { id: "Y", ...BUILTIN_GROUND, enabled: false },
-  { id: "Z", ...BUILTIN_GROUND, method: "sommerfeld" },
+  { id: "Z", ...BUILTIN_GROUND, method: "fast" },
 ];
 
 export type UiDefaults = {
