@@ -18,10 +18,10 @@ def build_studies():
             cross=(
                 an.Cross(designs=("dipoles.invvee", "dipoles.invvee_apex")),
                 an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec2")),
-                # E7 is a free-space study: its Z table was measured there,
-                # and it says so rather than inherit the CLI's default ground
-                # (Sommerfeld since AK#1856, free space before).
-                an.Cross(grounds=("free",)),
             ),
+            # E7 is a free-space study: its Z table was measured there, and it
+            # says so rather than inherit the CLI's default ground (Sommerfeld
+            # since AK#1856, free space before).
+            ground="free",
         ),
     ]
