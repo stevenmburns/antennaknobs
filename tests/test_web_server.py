@@ -1721,9 +1721,9 @@ def test_pynec_ground_on_solves_over_finite_ground():
     free = server.solve(base)
     grounded = server.solve({**base, "ground": True, "ground_model": "sommerfeld"})
     default = server.solve({**base, "ground": True})
-    # Sommerfeld is opt-in (expensive); a bare ground=True defaults to the
-    # reflection-coefficient model.
-    assert default["ground_model_applied"] == "refl-coef"
+    # A bare ground=True gets the built-in ground's method, Sommerfeld since
+    # AK#1856 (it was the reflection-coefficient model).
+    assert default["ground_model_applied"] == "sommerfeld"
     # ground=True + sommerfeld routes PyNEC to the Sommerfeld finite ground
     # (εr=13, σ=0.005, the ARRL average row) rather than silently staying PEC/free, and the
     # response carries the real constants so the frontend's Fresnel cut

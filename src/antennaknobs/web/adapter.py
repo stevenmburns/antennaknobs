@@ -2086,16 +2086,19 @@ def _build_builder(cls, req: dict):
 
 
 def _requested_ground_model(req: dict):
-    """The frontend's three-way ground model when ground is on, else None.
-    Defaults to "fast" (reflection-coefficient) when `ground_model` is
-    absent — Sommerfeld is opt-in everywhere because it is the expensive
-    model (seconds per solve on the bspline backend, and PyNEC's own gn 2
-    is ~2x slower). The legacy boolean `ground_fast` remains accepted."""
+    """The frontend's ground model when ground is on, else None. With no
+    `ground_model`, the legacy boolean `ground_fast` asks for "fast"
+    (reflection-coefficient), and otherwise the request gets the built-in
+    ground's method (`settings.GROUND_BUILTIN`, Sommerfeld since AK#1856) —
+    one default for the stock slot X, a bare request and the CLI, read from
+    the one table rather than restated here."""
     if not req.get("ground", False):
         return None
     model = req.get("ground_model")
     if model is None:
-        model = "fast"
+        from .settings import GROUND_BUILTIN
+
+        model = "fast" if req.get("ground_fast") else GROUND_BUILTIN["method"]
     return model
 
 
