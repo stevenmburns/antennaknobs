@@ -185,10 +185,38 @@ const APPLIED_LABEL: Record<string, string> = {
   free: "free space",
 };
 
+/** Why `backend` refuses `slot`'s ground, in the server's words, else null
+ *  (AK#1856): NEC-5 on a refl-coef slot. Read off the roster's served
+ *  `ground_refusals`, keyed by the `ground_model` the request would carry,
+ *  so it follows the solve's own rule; a server predating it answers null
+ *  and the solve's own error says so instead. */
+export function groundRefusal(slot: GroundSlot, backend: BackendEntry): string | null {
+  if (!slot.enabled) return null;
+  return backend.ground_refusals?.[resolveGroundModel(slot.type, backend, slot.method)] ?? null;
+}
+
+/** The way out of a refused pair (AK#1856): the first slot holding a finite
+ *  Sommerfeld ground that `backend` does not refuse, else null (the caller
+ *  then sets the active slot's method to Sommerfeld). */
+export function sommerfeldSlotFor(
+  slots: readonly GroundSlot[],
+  backend: BackendEntry,
+): GroundSlotId | null {
+  const s = slots.find(
+    (g) =>
+      g.enabled &&
+      g.type === "finite" &&
+      g.method === "sommerfeld" &&
+      groundRefusal(g, backend) === null,
+  );
+  return s ? s.id : null;
+}
+
 /** What `backend` actually solves for `slot` when that differs from what the
- *  slot holds, in display words (NEC-5 has no refl-coef: "Sommerfeld"), else
- *  null. Read off the roster's served `ground_applied` (AK#1854), so it
- *  follows the solve's own rule; a server predating it answers null. */
+ *  slot holds, in display words (a momwire solver without the refl-coef
+ *  model: "PEC image"), else null. Read off the roster's served
+ *  `ground_applied` (AK#1854), so it follows the solve's own rule; a server
+ *  predating it, or a method the backend refuses, answers null. */
 export function appliedGroundChange(slot: GroundSlot, backend: BackendEntry): string | null {
   if (!slot.enabled || slot.type !== "finite") return null;
   const applied = backend.ground_applied?.[slot.method];
@@ -196,10 +224,14 @@ export function appliedGroundChange(slot: GroundSlot, backend: BackendEntry): st
   return APPLIED_LABEL[applied] ?? applied;
 }
 
-/** A slot's tab label: what ground it holds and, when the active solver runs
- *  something else for it, that too (AK#1854): "refl-coef → Sommerfeld ·
- *  average" under NEC-5, which has no reflection-coefficient model. Without
- *  `backend` it is what the slot holds. */
+/** The mark a refused ground carries on its tab and in the pair line. */
+export const REFUSED_MARK = "⊘";
+
+/** A slot's tab label: what ground it holds and, under the active solver,
+ *  what that solver makes of it: refused (AK#1856), "refl-coef ⊘ · average"
+ *  under NEC-5, which has no reflection-coefficient model; or run as
+ *  something else (AK#1854), "refl-coef → PEC image" under a momwire solver
+ *  without it. Without `backend` it is what the slot holds. */
 export function groundSlotLabel(
   slot: GroundSlot,
   soilPresets: SoilPresetSchema[],
@@ -209,18 +241,23 @@ export function groundSlotLabel(
   if (slot.type === "pec") return "PEC";
   if (slot.type === "terrain") return `terrain · ${slot.terrainPreset}`;
   const soil = soilSummaryLabel(slot.soil, soilPresets);
-  const changed = backend ? appliedGroundChange(slot, backend) : null;
-  const method = changed
-    ? `${METHOD_LABEL[slot.method]} → ${changed}`
-    : METHOD_LABEL[slot.method];
+  const refused = backend ? groundRefusal(slot, backend) : null;
+  const changed = backend && !refused ? appliedGroundChange(slot, backend) : null;
+  const method = refused
+    ? `${METHOD_LABEL[slot.method]} ${REFUSED_MARK}`
+    : changed
+      ? `${METHOD_LABEL[slot.method]} → ${changed}`
+      : METHOD_LABEL[slot.method];
   return soil ? `${method} · ${soil}` : method;
 }
 
 /** A chart's note when one ground slot is solved as DIFFERENT ground models
  *  across its curves' engines (AK#1854), else null: an engine cross on a
- *  refl-coef slot with NEC-5 in it draws NEC-5 over Sommerfeld beside the
- *  others over refl-coef, and without this the legend names one ground for
- *  both. `cells` are the curves drawn, by solver slot and ground slot. */
+ *  refl-coef slot with a momwire solver that lacks the model draws that
+ *  curve over the PEC image beside the others over refl-coef, and without
+ *  this the legend names one ground for both. A pair the backend refuses
+ *  (AK#1856) draws nothing and is the legend's refused cell, not this. `cells`
+ *  are the curves drawn, by solver slot and ground slot. */
 export function mixedGroundNote(
   cells: readonly { slot: string | null; ground: string | null }[],
   backendOf: (slot: string) => BackendEntry | undefined,
@@ -232,6 +269,7 @@ export function mixedGroundNote(
     const g = groundOf(c.ground);
     const b = backendOf(c.slot);
     if (!g || !b || !g.enabled || g.type !== "finite") continue;
+    if (groundRefusal(g, b) !== null) continue;
     const applied = appliedGroundChange(g, b) ?? METHOD_LABEL[g.method];
     const models = byGround.get(g.id) ?? new Map<string, string[]>();
     const engines = models.get(applied) ?? [];
@@ -252,7 +290,8 @@ export function mixedGroundNote(
 
 /** The one line naming the pair every solve and chart runs on (AK#1854):
  *  the active solver slot and the active ground slot, which are chosen
- *  independently — the two strips are not paired by position. */
+ *  independently — the two strips are not paired by position. A pair the
+ *  solver refuses (AK#1856) reads "refused:", since nothing solves on it. */
 export function solvePairLabel(
   solverSlot: string,
   backend: BackendEntry,
@@ -260,8 +299,9 @@ export function solvePairLabel(
   ground: GroundSlot,
   soilPresets: SoilPresetSchema[],
 ): string {
+  const verb = groundRefusal(ground, backend) ? "refused:" : "solving on";
   return (
-    `solving on ${solverSlot} (${backendDisplayLabel(backend, opts)}) × ` +
+    `${verb} ${solverSlot} (${backendDisplayLabel(backend, opts)}) × ` +
     `${ground.id} (${groundSlotLabel(ground, soilPresets, backend)})`
   );
 }

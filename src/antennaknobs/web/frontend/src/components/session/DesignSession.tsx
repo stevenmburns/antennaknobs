@@ -79,9 +79,11 @@ import type {
 import {
   designGround,
   GROUND_SLOTS,
+  groundRefusal,
   groundSlotLabel,
   mixedGroundNote,
   solvePairLabel,
+  sommerfeldSlotFor,
   type GroundSlotId,
 } from "../../lib/groundSlots";
 import {
@@ -744,6 +746,24 @@ function DesignSessionBody({
     slots: uiDefaults.grounds,
   });
   const onDesignGround = activeGroundSlot === designGroundSlot;
+  // The active pair's ground refusal (AK#1856), in the roster's served words:
+  // NEC-5 on a refl-coef slot. The solve is withheld like the option refusal
+  // below (the server would refuse it), and the way out is one click: the
+  // first Sommerfeld slot this solver serves, else the active slot's own
+  // method set to Sommerfeld when no slot holds one.
+  const activeGround = groundSlots.find((g) => g.id === activeGroundSlot) ?? groundSlots[0];
+  const pairRefusal = groundRefusal(activeGround, backend);
+  const groundWayOut: { label: string; go: () => void } | null = (() => {
+    if (pairRefusal === null) return null;
+    const target = sommerfeldSlotFor(groundSlots, backend);
+    if (target !== null) {
+      return { label: `Switch to ground ${target} (Sommerfeld)`, go: () => setActiveGroundSlot(target) };
+    }
+    return {
+      label: `Solve ground ${activeGround.id} as Sommerfeld`,
+      go: () => groundSlotSettings(activeGround.id)?.setFiniteGroundMethod("sommerfeld"),
+    };
+  })();
   // The ground slot whose ⚙ settings are open (AK#1801), or null. Any slot,
   // not only the active one.
   const [groundGearOpen, setGroundGearOpen] = useState<GroundSlotId | null>(null);
@@ -966,6 +986,8 @@ function DesignSessionBody({
       // way out is the option, not an override — which is why the overlay
       // names the option rather than offering a button.
       optionRefusal !== null ||
+      // NEC-5 on refl-coef (AK#1856): refused by name, no override either.
+      pairRefusal !== null ||
       (comboInappropriate(backend, recommendedBackend) &&
         !approvedComboRef.current)
     );
@@ -2222,6 +2244,13 @@ function DesignSessionBody({
       withhold();
       return;
     }
+    // The ground refusal (AK#1856): the same withhold, and the banner offers
+    // the ground slot that solves rather than an override. Its inputs,
+    // `backend` and the active slot's ground model, are deps already.
+    if (pairRefusal !== null) {
+      withhold();
+      return;
+    }
     // Withhold the solve when the design/solver combo is a poor match and the
     // user hasn't approved it — show a warning instead. The app never switches
     // the solver itself; the user does that in the gear menu, which changes
@@ -2424,6 +2453,11 @@ function DesignSessionBody({
     })),
     activeGround: activeGroundSlot,
     design: geometry,
+    groundRefusal: (slotId: string, groundId: string) => {
+      const g = groundSlots.find((x) => x.id === groundId);
+      const cfg = slots[slotId as Slot];
+      return g && cfg ? groundRefusal(g, cfg.backend) : null;
+    },
   };
   // A chart's cells (lib/chartCells.ts crossPlan), with a design cell this
   // session's catalog does not hold refused by name: its defaults are the
@@ -3418,10 +3452,18 @@ function DesignSessionBody({
             activeSlot,
             backend,
             currentOpts,
-            groundSlots.find((g) => g.id === activeGroundSlot) ?? groundSlots[0],
+            activeGround,
             soilPresets,
           )}
         </p>
+        {pairRefusal && groundWayOut && (
+          <p className="solve-pair-refusal" role="alert" data-testid="solve-pair-refusal">
+            {pairRefusal}
+            <button type="button" onClick={groundWayOut.go}>
+              {groundWayOut.label}
+            </button>
+          </p>
+        )}
 
         <SolverSlotTabs
           slots={slots}
@@ -3585,6 +3627,11 @@ function DesignSessionBody({
       requiredBackends={requiredBackends}
       aliases={backendAliases}
       optionRefusal={optionRefusal}
+      groundRefusal={
+        pairRefusal && groundWayOut
+          ? { reason: pairRefusal, wayOut: groundWayOut.label, onWayOut: groundWayOut.go }
+          : null
+      }
       onSwitchBackend={(target) => {
         backendTouchedRef.current = true;
         setSlotBackend(activeSlot, target);
