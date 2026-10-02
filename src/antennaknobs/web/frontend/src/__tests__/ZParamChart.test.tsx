@@ -124,6 +124,22 @@ describe("what the chart draws", () => {
     expect(c.dataset.status).toBe("sweeping N 2/7…");
   });
 
+  it("a fresh sweep's range takes the live value in", () => {
+    // The trace is 70.72..70.78; a live R of 85 inside the sweep's span widens it.
+    const c = mount({ liveR: 85 }).canvas();
+    expect(Number(c.dataset.rHi)).toBeGreaterThan(85);
+    expect(c.dataset.liveAtR).not.toBe("above");
+  });
+
+  it("a stale sweep keeps its own range; the live value past it sits at the edge", () => {
+    // The live dots were solved on other inputs (another ground slot): fitting
+    // both would squash the trace into the gap between them.
+    const c = mount({ data: { ...DENSITY_SWEEP, stale: true }, liveR: 85 }).canvas();
+    expect(Number(c.dataset.rHi)).toBeLessThan(71);
+    expect(c.dataset.liveAtR).toBe("above");
+    expect(c.dataset.status).toBe("stale — the design, solver or ground changed; re-run?");
+  });
+
   it("a fixed range is drawn as given", () => {
     const c = mount({ rAxis: { kind: "fixed", lo: 70, hi: 71 } }).canvas();
     expect(c.dataset.rLo).toBe("70.0000");
