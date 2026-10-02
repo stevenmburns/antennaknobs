@@ -26,6 +26,15 @@ os.environ["ANTENNAKNOBS_SETTINGS"] = os.path.join(
 
 os.environ.setdefault("MPLBACKEND", "Agg")
 
+# momwire's persistent Sommerfeld grid store (momwire#1224, #1287) writes
+# ~/.cache/momwire by default. Off for the whole suite, and pointed at a
+# throwaway directory besides, as momwire's own conftest does: a test must
+# neither read a developer's warm grids nor write to them. Set here, at
+# import, before any test imports momwire, and in os.environ so a spawned
+# server or CLI subprocess inherits it.
+os.environ["MOMWIRE_SOMM_CACHE"] = "0"
+os.environ["MOMWIRE_SOMM_CACHE_DIR"] = tempfile.mkdtemp(prefix="momwire-somm-cache-")
+
 
 def pytest_collection(session):
     """Fail fast when the collected tests and the imported packages come from
