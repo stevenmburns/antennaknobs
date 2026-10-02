@@ -125,15 +125,18 @@ DISTRIBUTED_PORT_REFUSAL = (
 # it for ("finite-fast", ...), which is what `--engine nec5 --ground
 # finite-fast` reaches, and the workbench's ground spec raises it for a
 # refl-coef slot before any engine is built, so the three front doors say the
-# same thing. NEC-2's GN 0 is the reflection-coefficient model, but NEC-5's
+# same thing. The engine adds the command line's spelling of the way out
+# (REFL_COEF_CLI_HINT): the workbench offers it as a button instead.
+# NEC-2's GN 0 is the reflection-coefficient model, but NEC-5's
 # IPERF 0 is a full Sommerfeld solution, so serving the request would be an
 # upgrade nobody asked for, and a curve on different physics beside the
 # engines that honour it.
 REFL_COEF_REFUSAL = (
     "NEC-5 has no reflection-coefficient ground: its only finite ground "
     "(IPERF 0) is a full Sommerfeld solution. Solve NEC-5 on a Sommerfeld "
-    "ground instead (`finite` on the command line)."
+    "ground instead."
 )
+REFL_COEF_CLI_HINT = "On the command line that is --ground finite."
 
 
 def _network_needs_reducer(net) -> bool:
@@ -898,7 +901,7 @@ class NEC5Engine(SimulationEngine):
             # and the near-free-space corner above cannot degenerate.
             return ("mininec", float(ground[1]), float(ground[2]))
         if isinstance(ground, tuple) and ground and ground[0] == "finite-fast":
-            raise NotImplementedError(REFL_COEF_REFUSAL)
+            raise NotImplementedError(f"{REFL_COEF_REFUSAL} {REFL_COEF_CLI_HINT}")
         raise ValueError(f"unrecognised ground spec: {ground!r}")
 
     def _check_no_coincident_wires(self):
