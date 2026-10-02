@@ -177,13 +177,19 @@ export function ZParamChart({
   const logX = xLog && canLogX(dom);
   const fx = xFraction(dom, logX);
   // Auto fits the trace alone (with the live value when it is inside the
-  // sweep's span, so the live dots stay on the plot).
+  // sweep's span, so the live dots stay on the plot). Not while the sweep is
+  // stale: the live dots are then solved on inputs the trace was not (another
+  // ground slot, say), and fitting both spans the gap between two physics —
+  // on a low inverted-L, refl-coef vs Sommerfeld is 14 ohms, which flattened
+  // a converged trace into a line. The stale trace keeps its own range and a
+  // live dot past it sits at that edge, as a reference line does.
   const inSpan =
     currentValue != null && n > 1 && currentValue >= dom.lo && currentValue <= dom.hi;
+  const liveFits = inSpan && !d?.stale;
   const otherR = [...others.flatMap((o) => o.d.z_re), ...pins.flatMap((p) => p.zRe)];
   const otherX = [...others.flatMap((o) => o.d.z_im), ...pins.flatMap((p) => p.zIm)];
-  const rFit = [...(inSpan && liveR != null ? [...rs, liveR] : rs), ...otherR];
-  const xFit = [...(inSpan && liveX != null ? [...xsIm, liveX] : xsIm), ...otherX];
+  const rFit = [...(liveFits && liveR != null ? [...rs, liveR] : rs), ...otherR];
+  const xFit = [...(liveFits && liveX != null ? [...xsIm, liveX] : xsIm), ...otherX];
   const extrap =
     d && isDensity(d.param)
       ? {
@@ -232,7 +238,7 @@ export function ZParamChart({
   const status = d?.error
     ? "sweep refused — see the note"
     : d?.stale
-    ? "stale — the design changed; re-run?"
+    ? "stale — the design, solver or ground changed; re-run?"
     : d?.partial
     ? `stopped at ${landed}/${total} — partial${gapWords}`
     : running
@@ -534,7 +540,20 @@ export function ZParamChart({
         ctx.strokeStyle = `rgba(${PC.bgRgb}, 0.9)`;
         ctx.lineWidth = 1.2;
         ctx.beginPath();
-        ctx.arc(gx, py(v, dd), LIVE_MARKER_R, 0, 2 * Math.PI);
+        const at = refPlacement(v, dd).at;
+        if (at === "in") {
+          ctx.arc(gx, py(v, dd), LIVE_MARKER_R, 0, 2 * Math.PI);
+        } else {
+          // Past the range (a stale trace's, which the live value does not
+          // widen): a triangle at that edge pointing the way it lies.
+          const s = at === "above" ? -1 : 1;
+          const ey = at === "above" ? MARGIN.t : MARGIN.t + ph;
+          const r = LIVE_MARKER_R + 1;
+          ctx.moveTo(gx, ey);
+          ctx.lineTo(gx - r, ey - 2 * s * r);
+          ctx.lineTo(gx + r, ey - 2 * s * r);
+          ctx.closePath();
+        }
         ctx.fill();
         ctx.stroke();
       }
@@ -708,6 +727,8 @@ export function ZParamChart({
         data-extrap-p={extrap?.p != null ? extrap.p.toFixed(3) : ""}
         data-dot-r={dotR}
         data-live-r={LIVE_MARKER_R}
+        data-live-at-r={liveR == null ? "" : refAttr(refPlacement(liveR, rDom))}
+        data-live-at-x={liveX == null ? "" : refAttr(refPlacement(liveX, xDom))}
         data-zinf-line={isMobile ? "short" : "full"}
         data-hover={shownHover ?? ""}
         data-gaps={gaps.map((g) => `${formatParam(g.value)}:${g.reason}`).join(";")}
