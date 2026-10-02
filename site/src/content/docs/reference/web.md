@@ -1227,6 +1227,14 @@ The three stock slots are:
   approximation, for a comparison or a large array where speed matters more
   than the last few percent.
 
+NEC-5 has no reflection-coefficient model (its only finite ground is a full
+Sommerfeld solution), so on a NEC-5 solver slot a reflection-coefficient
+ground slot, stock slot Z included, is refused rather than quietly solved as
+Sommerfeld, as `--engine nec5 --ground finite-fast` is on the command line.
+Its tab carries **⊘**, the line naming the solving pair says why, and one
+click switches to the first Sommerfeld ground slot. A chart that crosses
+NEC-5 with that ground names the cell as refused in its legend.
+
 Slot X is active when the workbench starts, so if you never click another
 slot, the workbench behaves as it did before ground slots. A design that
 brings its own ground, a deck's `GE` / `GN` cards or a buried design's
