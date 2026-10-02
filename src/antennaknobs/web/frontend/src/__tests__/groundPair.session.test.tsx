@@ -7,7 +7,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import { mountReady } from "./designSessionHarness";
-import { SERVED_SLOT_SEEDS } from "./backendFixtures";
+import { ROSTER_WITH_NEC5, SERVED_SLOT_SEEDS } from "./backendFixtures";
 
 // Slot C holds NEC-5 (the served roster carries its row on a NEC-5 machine).
 const SEEDS = SERVED_SLOT_SEEDS.map((s) =>
@@ -27,7 +27,7 @@ afterEach(() => {
 describe("the solver x ground pair (AK#1854)", () => {
   it("names the active pair and follows both strips", async () => {
     const user = userEvent.setup();
-    await mountReady({ slotSeeds: SEEDS });
+    await mountReady({ roster: ROSTER_WITH_NEC5, slotSeeds: SEEDS });
     expect(pair()).toMatch(/^solving on A \(B-spline d=2\) × X \(refl-coef/);
     await user.click(groundTab("Z"));
     expect(pair()).toMatch(/× Z \(Sommerfeld/);
@@ -37,7 +37,7 @@ describe("the solver x ground pair (AK#1854)", () => {
 
   it("under NEC-5 the refl-coef ground tab says it is solved as Sommerfeld", async () => {
     const user = userEvent.setup();
-    await mountReady({ slotSeeds: SEEDS });
+    await mountReady({ roster: ROSTER_WITH_NEC5, slotSeeds: SEEDS });
     expect(groundTab("X").getAttribute("aria-label")).toMatch(/^Ground slot X: refl-coef(?! →)/);
     await user.click(solverTab("C"));
     expect(groundTab("X").getAttribute("aria-label")).toMatch(
