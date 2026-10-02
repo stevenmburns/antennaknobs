@@ -127,7 +127,7 @@ measurement frequency that had drifted outside it back in.
 ## Where the workbench starts: `settings.toml`
 
 The Settings menu's switches, which analyses a pick runs, the Antenna view's
-orientation, the ground slots and the three solver slots start from a file, so a workbench can open the way you use it, with the frequency
+orientation, the ground slots and the solver slots start from a file, so a workbench can open the way you use it, with the frequency
 sweep off, say. The file is `settings.toml` in the `.antennaknobs` folder in
 your home directory, the folder that holds `designs`:
 `~/.antennaknobs/settings.toml`, or `%USERPROFILE%\.antennaknobs\settings.toml`
@@ -198,6 +198,12 @@ the slot picker offers, and its `model` knobs are the ones that solver's
 options panel shows. Naming a different solver starts that slot from the
 solver's own defaults.
 
+The solver slots are `[slots.A]`, `[slots.B]` and `[slots.C]`, and up to two
+more, `[slots.D]` and `[slots.E]`, which the slot strip's **+** adds. A
+`[slots.D]` table, even an empty one, makes slot D, which starts on the first
+solver the slot picker lists. Like the ground slots they run without gaps, so a
+`[slots.E]` with no `[slots.D]` is named as a mistake and left out.
+
 The ground slots are `[grounds.X]`, `[grounds.Y]` and `[grounds.Z]`, one table
 per [ground slot](#ground-slots), each taking the same five settings. A table
 changes only what it names, over that slot's stock ground: slot X the
@@ -237,7 +243,9 @@ for the design on screen, until the next design loads. The Settings menu's
   the file, but only where they differ from the built-in defaults. A ground
   slot is compared with its own stock ground, so an untouched slot Y writes
   nothing, and the ground slots are written as `[grounds.X]`, `[grounds.Y]`
-  and so on. Everything you left alone stays out of the file,
+  and so on. A slot you added with **+** is written even when it changes
+  nothing, as an empty `[grounds.U]` or `[slots.D]`, since the table is what
+  makes it exist; one you removed is left out. Everything you left alone stays out of the file,
   so it follows the defaults of whichever version you run next. A soil that
   matches a preset is written by its name. The previous file is kept beside it
   as `settings.toml.bak`. Hand edits to the saved file are fine, though a line
@@ -1024,6 +1032,14 @@ solve. NEC-5, NEC-2 and NEC-4.2 solves are one external run per request — righ
 A/B snapshot checks against momwire in the next slot, heavier than the
 in-process engines for live dragging.
 
+There are three slots, A, B and C, to start. The **+** at the end of the tabs
+adds slot D, then E: a copy of the active slot, made active with its gear menu
+open, so "the same solver with one change" is one click and one edit. An added
+slot has **remove slot** in its gear menu; A, B and C stay, and only the last
+slot can go, the same rule as the [ground slots](#ground-slots). An added slot
+lasts the session unless you *save as my defaults*, which writes it as
+`[slots.D]` in [`settings.toml`](#where-the-workbench-starts-settingstoml).
+
 Under the tab strip in that gear menu, each engine states **what it is made
 of** in one line — basis, testing, kernel, quadrature, solve strategy, feed
 model — for instance *B-spline · degree 2 · Galerkin · reduced kernel ·
@@ -1214,6 +1230,14 @@ own leaves the active slot where it was. It also leaves slot X alone, unless
 slot X still holds the previous design's ground untouched: then the session
 default comes back. The stock set and any extra slots come from
 [`settings.toml`](#where-the-workbench-starts-settingstoml).
+
+The **+** at the end of the ground slot tabs adds a slot: a copy of the active
+one, under the next letter (U, then V, W, R, ...), made active with its
+settings open, so "the same ground with one change" is one click and one edit.
+An added slot has **remove slot** in its settings. The stock X, Y and Z stay,
+and only the last slot can go, because the slots run without gaps and charts
+name them by letter; the settings of an earlier added slot say which to remove
+first. An added slot lasts the session unless you *save as my defaults*.
 
 The over-ground picture — takeoff angle, the ground-lobed elevation pattern,
 the shifted feed-point impedance — is usually the one your design decisions
