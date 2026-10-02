@@ -55,7 +55,9 @@ export function useSolverSlots({
   // on SlotConfig because it is about the last EDIT, not about the solver —
   // nothing that reads a slot to build a request or save a settings file has
   // any use for it.
-  const [densityNotes, setDensityNotes] = useState<Record<Slot, string | null>>({});
+  const [densityNotes, setDensityNotes] = useState<Record<Slot, string | null>>(() =>
+    Object.fromEntries(slotOrder(slots).map((id) => [id, null])),
+  );
   const [gearOpen, setGearOpen] = useState<Slot | null>(null);
   const activeConfig = slots[activeSlot];
   const backend = activeConfig.backend;
@@ -143,6 +145,7 @@ export function useSolverSlots({
       ...prev,
       [nextSlot]: { backend: from.backend, opts: { ...from.opts, model: { ...from.opts.model } } },
     }));
+    setDensityNotes((notes) => ({ ...notes, [nextSlot]: null }));
     setActiveSlot(nextSlot);
     setGearOpen(nextSlot);
   }
@@ -155,7 +158,11 @@ export function useSolverSlots({
       delete next[slot];
       return next;
     });
-    setDensityNotes((notes) => ({ ...notes, [slot]: null }));
+    setDensityNotes((notes) => {
+      const next = { ...notes };
+      delete next[slot];
+      return next;
+    });
     if (activeSlot === slot) setActiveSlot(slotBefore(SOLVER_SLOTS, slot));
     setGearOpen(null);
   }

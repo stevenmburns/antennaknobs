@@ -169,7 +169,7 @@ n_per_wire = 0
 [slots.C]
 backend = "nec9"
 
-[slots.D]
+[slots.F]
 backend = "bspline"
 
 [display]
@@ -187,7 +187,7 @@ theme = "dark"
         "[slots.A] model.no_such_knob: not a knob the bspline solver takes",
         "[slots.B] n_per_wire = 0: must be a whole number of at least 1",
         "[slots.C] backend = 'nec9': not a solver this server offers",
-        "[slots.D]: not a solver slot",
+        "[slots.F]: not a solver slot",
     ):
         assert fragment in problems, fragment
     assert len(payload["problems"]) == 9
