@@ -76,7 +76,10 @@ describe("startup is unchanged (#1543 changes the swap, not the seeds)", () => {
       useSolverSlots({
         roster: ROSTER,
         specs: SERVED_OPTION_SPECS,
-        seeds: [{ slot: "A", backend: "bspline", n_per_wire: null, model: { degree: 1 } }],
+        seeds: [
+          { slot: "A", backend: "bspline", n_per_wire: null, model: { degree: 1 } },
+          ...SERVED_SLOT_SEEDS.filter((s) => s.slot !== "A"),
+        ],
       }),
     );
     expect(result.current.slots.A.opts.nPerWire).toBe(20);

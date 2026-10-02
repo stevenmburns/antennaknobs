@@ -26,6 +26,7 @@ import {
   useViewPrefs,
 } from "../components/session/useViewPrefs";
 import { useViewState } from "../components/session/useViewState";
+import { servedViewDefaults } from "./designSessionHarness";
 
 const FOUNDING: View[] = ["antenna", "azimuth", "elevation", "zparam"];
 const ROSTER = VIEWS.map((v) => v.id);
@@ -227,7 +228,7 @@ function press(key: string, target?: HTMLElement) {
 
 function renderCycler(pinned: View[]) {
   return renderHook(() =>
-    useViewState({ currentExample: undefined, active: true, pinned }),
+    useViewState({ ...servedViewDefaults(), currentExample: undefined, active: true, pinned }),
   );
 }
 

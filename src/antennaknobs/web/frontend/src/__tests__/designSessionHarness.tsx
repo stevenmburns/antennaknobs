@@ -20,7 +20,8 @@ import { SweepPinsProvider } from "../components/session/SweepPinsProvider";
 import { VIEW_PREFS_KEY, type Layout } from "../components/session/useViewPrefs";
 import { type LegacyChartView, VIEWS, type View } from "../lib/view";
 import type { ExampleDescriptor } from "../lib/params";
-import { RUN_ON_PICK_KINDS } from "../lib/settings";
+import { parseUiDefaults, RUN_ON_PICK_KINDS, type UiDefaults } from "../lib/settings";
+import { SERVED_UI_DEFAULTS } from "./uiDefaultsFixtures";
 import type { BackendRoster } from "../lib/backends";
 import {
   SERVED_ROSTER,
@@ -101,9 +102,13 @@ export interface MountDesignSessionOptions {
    * and /geometry defaults — e.g. to capture POST /geometry bodies, or to
    * answer a route the defaults don't know about. */
   routes?: FetchRouteOverrides;
-  /** /capabilities' `ui_defaults` (AK#1492); omitted from the payload when
-   *  undefined, which is a server predating it. */
-  uiDefaults?: unknown;
+  /** /capabilities' `ui_defaults` (AK#1492): what the test's settings file
+   *  changes, laid over SERVED_UI_DEFAULTS (uiDefaultsFixtures.ts, generated
+   *  off the server) table by table, the switches, the Antenna view and
+   *  run-on-pick key by key, as a file overlays the server's defaults. The
+   *  served payload itself when undefined; null omits `ui_defaults`, a
+   *  payload the session refuses (AK#1858). */
+  uiDefaults?: Record<string, unknown> | null;
   /** Serve [workbench.run_on_pick] with every kind true (AC6LA #179), over
    *  `uiDefaults`: a pick of any analysis then starts it, as every pick did
    *  before the setting. For a test whose subject is what a run draws or
@@ -130,6 +135,50 @@ export interface MountDesignSessionOptions {
    *  and the session is then mounted as the app shell mounts it (`<App>`),
    *  which reads its deep link from that address for the first tab. */
   url?: string;
+}
+
+const asTable = (v: unknown): Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+
+// A test's settings over the served payload (see `uiDefaults`): every
+// top-level field replaced, the three keyed tables merged key by key.
+export function overServed(over: Record<string, unknown> = {}): Record<string, unknown> {
+  const served: Record<string, unknown> = SERVED_UI_DEFAULTS;
+  const runOnPick = (v: unknown) => asTable(asTable(v).run_on_pick);
+  return {
+    ...served,
+    ...over,
+    switches: { ...asTable(served.switches), ...asTable(over.switches) },
+    antenna_view: { ...asTable(served.antenna_view), ...asTable(over.antenna_view) },
+    workbench: {
+      ...asTable(served.workbench),
+      ...asTable(over.workbench),
+      run_on_pick: { ...runOnPick(served.workbench), ...runOnPick(over.workbench) },
+    },
+  };
+}
+
+/** The served startup settings, parsed as the session parses them, with a
+ *  test's settings laid over (overServed). */
+export function servedUiDefaults(over: Record<string, unknown> = {}): UiDefaults {
+  const ui = parseUiDefaults(overServed(over));
+  if (ui === null) throw new Error("the served ui_defaults fixture no longer parses");
+  return ui;
+}
+
+/** What useViewState takes from the startup settings, as DesignSession
+ *  passes it: for a test that renders the hook alone. */
+export function servedViewDefaults() {
+  const ui = servedUiDefaults();
+  return {
+    overlays: {
+      heatmap: ui.switches.heatmap_currents,
+      envelope: ui.switches.current_waveforms,
+      wireLabels: ui.switches.wire_labels,
+      feedNames: ui.switches.feed_labels,
+    },
+    orientation: ui.orientation,
+  };
 }
 
 // Mounts <DesignSession>: seeds the view prefs localStorage record, stubs
@@ -161,12 +210,15 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
     url,
   } = opts;
 
-  const uiDefaults = pickRuns
-    ? {
-        ...(typeof servedDefaults === "object" && servedDefaults !== null ? servedDefaults : {}),
-        workbench: { run_on_pick: Object.fromEntries(RUN_ON_PICK_KINDS.map((k) => [k, true])) },
-      }
-    : servedDefaults;
+  const uiDefaults =
+    servedDefaults === null
+      ? undefined
+      : overServed({
+          ...servedDefaults,
+          ...(pickRuns
+            ? { workbench: { run_on_pick: Object.fromEntries(RUN_ON_PICK_KINDS.map((k) => [k, true])) } }
+            : {}),
+        });
 
   localStorage.clear();
   localStorage.setItem(

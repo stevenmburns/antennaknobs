@@ -240,15 +240,12 @@ describe("ground slots (AK#1794)", () => {
     const g = { enabled: true, type: "finite", method: "fast", soil: null, terrain_preset: null };
     await mountReady({
       uiDefaults: {
-        switches: {},
-        ground: g,
         grounds: [
           { id: "X", ...g },
           { id: "Y", ...g, enabled: false },
           { id: "Z", ...g, method: "sommerfeld" },
           { id: "U", ...g, type: "pec" },
         ],
-        problems: [],
       },
     });
     expect(tabs().map((t) => t.getAttribute("aria-label"))).toEqual([
@@ -256,28 +253,6 @@ describe("ground slots (AK#1794)", () => {
       "Ground slot Y: free space",
       "Ground slot Z: Sommerfeld",
       "Ground slot U: PEC",
-    ]);
-  });
-
-  it("numbered slots from a server before AK#1801 read as X, Y, Z (AK#1801)", async () => {
-    const g = { enabled: true, type: "finite", method: "fast", soil: null, terrain_preset: null };
-    await mountReady({
-      uiDefaults: {
-        switches: {},
-        ground: g,
-        grounds: [
-          { id: "1", ...g },
-          { id: "2", ...g, enabled: false },
-          { id: "3", ...g, method: "sommerfeld" },
-        ],
-        problems: [],
-      },
-    });
-    expect(letters()).toEqual(["X", "Y", "Z"]);
-    expect(tabs().map((t) => t.getAttribute("aria-label"))).toEqual([
-      "Ground slot X: refl-coef",
-      "Ground slot Y: free space",
-      "Ground slot Z: Sommerfeld",
     ]);
   });
 });

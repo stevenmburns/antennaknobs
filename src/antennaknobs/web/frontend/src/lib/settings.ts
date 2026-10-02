@@ -1,39 +1,34 @@
 // Startup settings (AK#1492): where the workbench starts, served on
 // /capabilities as `ui_defaults` from the server's settings.toml. The server
-// owns these defaults (antennaknobs/web/settings.py); the fallback below only
-// covers a payload without `ui_defaults`, and
-// tests/test_settings_toml_1492.py pins it to the server's table.
+// owns every default (antennaknobs/web/settings.py), and this file restates
+// none of them (AK#1858): the frontend ships in the same wheel as its server,
+// so a payload without them is a broken install, and the page says so
+// (useCapabilities) rather than guessing. The key lists below are vocabulary,
+// not defaults; tests/test_settings_toml_1492.py and its siblings hold each
+// one equal to the server's table.
 import type {
   FiniteGroundMethod,
   GroundType,
   SoilParams,
 } from "./ground";
 import type { Slot } from "./backends";
-import { groundSlotId } from "./groundSlots";
+import { GROUND_SLOT_IDS } from "./groundSlots";
 import type { Projection } from "./view";
 
-export type SwitchKey =
-  | "live"
-  | "freq_sweep"
-  | "convergence_sweep"
-  | "pattern_renorm"
-  | "refine"
-  | "heatmap_currents"
-  | "current_waveforms"
-  | "wire_labels"
-  | "feed_labels";
+// The server's SWITCHES keys, in its order.
+export const SWITCH_KEYS = [
+  "live",
+  "freq_sweep",
+  "convergence_sweep",
+  "pattern_renorm",
+  "refine",
+  "heatmap_currents",
+  "current_waveforms",
+  "wire_labels",
+  "feed_labels",
+] as const;
 
-export const BUILTIN_SWITCHES: Record<SwitchKey, boolean> = {
-  live: true,
-  freq_sweep: true,
-  convergence_sweep: false,
-  pattern_renorm: true,
-  refine: true,
-  heatmap_currents: true,
-  current_waveforms: false,
-  wire_labels: false,
-  feed_labels: true,
-};
+export type SwitchKey = (typeof SWITCH_KEYS)[number];
 
 // The Antenna view's orientation on a design load (AK#1737). "auto" is the
 // per-design guess the server sends as `default_view`; any other value wins
@@ -43,8 +38,6 @@ export const BUILTIN_SWITCHES: Record<SwitchKey, boolean> = {
 export type Orientation = "auto" | "top" | "front" | "side" | "iso";
 
 export const ORIENTATIONS: Orientation[] = ["auto", "top", "front", "side", "iso"];
-
-export const BUILTIN_ORIENTATION: Orientation = "auto";
 
 // The camera each fixed orientation means (lib/view.ts PROJECTIONS: Top (xy),
 // Front (xz), Side (yz), Iso).
@@ -60,24 +53,21 @@ export const ORIENTATION_PROJECTION: Record<
 
 // Does picking an analysis start it (AC6LA, QRZ 1003328 #179)? Per kind of
 // analysis (lib/analysisChart.ts runOnPickKind; a study is the kind of
-// analysis it is), from settings.toml's [workbench.run_on_pick]. The server's
-// RUN_ON_PICK (antennaknobs/web/settings.py) is the one table, pinned here by
-// tests/test_settings_run_on_pick.py. A frequency sweep and a pattern take
-// seconds and start at once; the rest take minutes, so a pick only selects
-// them and the chart waits for Run. `map` is valid before the workbench draws
-// a map (sweep-framework step 5).
-export type RunOnPickKind = "frequency" | "pattern" | "knob" | "held" | "convergence" | "map";
+// analysis it is), from settings.toml's [workbench.run_on_pick]. The kinds
+// are the server's RUN_ON_PICK keys, in its order
+// (tests/test_settings_run_on_pick.py); which of them run is the server's
+// table alone. `map` is valid before the workbench draws a map
+// (sweep-framework step 5).
+export const RUN_ON_PICK_KINDS = [
+  "frequency",
+  "pattern",
+  "knob",
+  "held",
+  "convergence",
+  "map",
+] as const;
 
-export const BUILTIN_RUN_ON_PICK: Record<RunOnPickKind, boolean> = {
-  frequency: true,
-  pattern: true,
-  knob: false,
-  held: false,
-  convergence: false,
-  map: false,
-};
-
-export const RUN_ON_PICK_KINDS = Object.keys(BUILTIN_RUN_ON_PICK) as RunOnPickKind[];
+export type RunOnPickKind = (typeof RUN_ON_PICK_KINDS)[number];
 
 export type GroundDefaults = {
   enabled: boolean;
@@ -89,31 +79,11 @@ export type GroundDefaults = {
   terrain_preset: string | null;
 };
 
-// Sommerfeld since AK#1856 (the server's GROUND_BUILTIN, and the CLI's
-// default ground too).
-export const BUILTIN_GROUND: GroundDefaults = {
-  enabled: true,
-  type: "finite",
-  method: "sommerfeld",
-  soil: null,
-  terrain_preset: null,
-};
-
 // A ground slot's starting ground (AK#1794): the twin of an A/B/C solver
 // slot. Ids are the slot letters ("X", "Y", "Z", then "U", ...: lib/
 // groundSlots.ts's GROUND_SLOT_IDS, AK#1801), the keys of the file's
 // [grounds.X] tables, and the list is however long the server says.
 export type GroundSlotDefaults = GroundDefaults & { id: string };
-
-// The stock set, for a payload without `grounds`: the server's STOCK_GROUNDS
-// (antennaknobs/web/settings.py), pinned by tests/test_ground_slots_1794.py.
-// Slot Z's soil is null, the served default, which is the stock's "average".
-// X is Sommerfeld and Z refl-coef since AK#1856 (it was the other way round).
-export const BUILTIN_GROUND_SLOTS: GroundSlotDefaults[] = [
-  { id: "X", ...BUILTIN_GROUND },
-  { id: "Y", ...BUILTIN_GROUND, enabled: false },
-  { id: "Z", ...BUILTIN_GROUND, method: "fast" },
-];
 
 export type UiDefaults = {
   /** The settings file's path, or null on the hosted instance. */
@@ -126,29 +96,13 @@ export type UiDefaults = {
   switchesSet: SwitchKey[];
   /** The Antenna view's orientation on a design load (AK#1737). */
   orientation: Orientation;
-  /** Ground slot X, as a server before AK#1794 served it. */
-  ground: GroundDefaults;
-  /** Every ground slot, slot X first (AK#1794). Slot X is `ground`. */
+  /** Every ground slot, slot X first (AK#1794). */
   grounds: GroundSlotDefaults[];
   /** Whether a pick starts an analysis, per kind (AC6LA #179). */
   runOnPick: Record<RunOnPickKind, boolean>;
   problems: string[];
 };
 
-export const BUILTIN_UI_DEFAULTS: UiDefaults = {
-  path: null,
-  exists: false,
-  writable: false,
-  switches: BUILTIN_SWITCHES,
-  switchesSet: [],
-  orientation: BUILTIN_ORIENTATION,
-  ground: BUILTIN_GROUND,
-  grounds: BUILTIN_GROUND_SLOTS,
-  runOnPick: BUILTIN_RUN_ON_PICK,
-  problems: [],
-};
-
-const SWITCH_KEYS = Object.keys(BUILTIN_SWITCHES) as SwitchKey[];
 const GROUND_TYPES: GroundType[] = ["finite", "pec", "terrain"];
 const METHODS: FiniteGroundMethod[] = ["fast", "sommerfeld", "mininec"];
 
@@ -156,80 +110,123 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-function parseGround(raw: unknown): GroundDefaults {
-  const g = isRecord(raw) ? raw : {};
-  const soil =
-    isRecord(g.soil) &&
-    typeof g.soil.eps_r === "number" &&
-    typeof g.soil.sigma === "number"
-      ? { eps_r: g.soil.eps_r, sigma: g.soil.sigma }
-      : null;
+const isStringList = (v: unknown): v is string[] =>
+  Array.isArray(v) && v.every((x) => typeof x === "string");
+
+/** A served table of booleans, every key present, or the first key that is
+ *  missing or not a boolean. */
+function readFlags<K extends string>(
+  raw: unknown,
+  keys: readonly K[],
+): { flags: Record<K, boolean> } | { bad: string } {
+  if (!isRecord(raw)) return { bad: "" };
+  const flags = {} as Record<K, boolean>;
+  for (const k of keys) {
+    if (typeof raw[k] !== "boolean") return { bad: k };
+    flags[k] = raw[k] as boolean;
+  }
+  return { flags };
+}
+
+function readGroundSlot(raw: unknown): GroundSlotDefaults | null {
+  if (!isRecord(raw)) return null;
+  const { id, enabled, type, method, soil, terrain_preset } = raw;
+  if (typeof id !== "string" || !GROUND_SLOT_IDS.includes(id)) return null;
+  if (typeof enabled !== "boolean") return null;
+  if (!GROUND_TYPES.includes(type as GroundType)) return null;
+  if (!METHODS.includes(method as FiniteGroundMethod)) return null;
+  let soilParams: SoilParams | null = null;
+  if (soil !== null) {
+    if (!isRecord(soil) || typeof soil.eps_r !== "number" || typeof soil.sigma !== "number")
+      return null;
+    soilParams = { eps_r: soil.eps_r, sigma: soil.sigma };
+  }
+  const preset = typeof terrain_preset === "string" ? terrain_preset : null;
+  if (preset === null && terrain_preset !== null) return null;
   return {
-    enabled: typeof g.enabled === "boolean" ? g.enabled : BUILTIN_GROUND.enabled,
-    type: GROUND_TYPES.includes(g.type as GroundType)
-      ? (g.type as GroundType)
-      : BUILTIN_GROUND.type,
-    method: METHODS.includes(g.method as FiniteGroundMethod)
-      ? (g.method as FiniteGroundMethod)
-      : BUILTIN_GROUND.method,
-    soil,
-    terrain_preset:
-      typeof g.terrain_preset === "string" ? g.terrain_preset : null,
+    id,
+    enabled,
+    type: type as GroundType,
+    method: method as FiniteGroundMethod,
+    soil: soilParams,
+    terrain_preset: preset,
   };
 }
 
-// Tolerant by design: the server has already validated the file, so anything
-// malformed here is a server this frontend predates, and each field falls
-// back to its built-in value on its own.
-export function parseUiDefaults(raw: unknown): UiDefaults {
-  if (!isRecord(raw)) return BUILTIN_UI_DEFAULTS;
-  const sw = isRecord(raw.switches) ? raw.switches : {};
-  const switches = { ...BUILTIN_SWITCHES };
-  for (const k of SWITCH_KEYS) {
-    if (typeof sw[k] === "boolean") switches[k] = sw[k] as boolean;
+export type UiDefaultsRead =
+  | { defaults: UiDefaults; refusal: null }
+  | { defaults: null; refusal: string };
+
+const refuse = (what: string): UiDefaultsRead => ({ defaults: null, refusal: what });
+
+/** The served `ui_defaults`, or the sentence naming what it lacks. Strict
+ *  (AK#1858): the server resolves every field, so anything absent or
+ *  ill-typed is a payload this page cannot start from, and no field falls
+ *  back to a value of the page's own. */
+export function readUiDefaults(raw: unknown): UiDefaultsRead {
+  if (!isRecord(raw)) return refuse("the server sent no startup settings (ui_defaults)");
+  const sw = readFlags(raw.switches, SWITCH_KEYS);
+  if ("bad" in sw)
+    return refuse(
+      sw.bad
+        ? `the server's startup settings give no value for the switch "${sw.bad}"`
+        : "the server's startup settings carry no switches",
+    );
+  const switchesSet = raw.switches_set;
+  if (!isStringList(switchesSet))
+    return refuse("the server's startup settings do not say which switches the file set");
+  const av = raw.antenna_view;
+  if (!isRecord(av) || !ORIENTATIONS.includes(av.orientation as Orientation))
+    return refuse("the server's startup settings give no Antenna view orientation");
+  const wb = isRecord(raw.workbench) ? raw.workbench.run_on_pick : undefined;
+  const rp = readFlags(wb, RUN_ON_PICK_KINDS);
+  if ("bad" in rp)
+    return refuse(
+      rp.bad
+        ? `the server's startup settings do not say whether picking a "${rp.bad}" analysis runs it`
+        : "the server's startup settings carry no run-on-pick table",
+    );
+  if (!Array.isArray(raw.grounds) || raw.grounds.length === 0)
+    return refuse("the server's startup settings carry no ground slots");
+  const grounds: GroundSlotDefaults[] = [];
+  for (const g of raw.grounds) {
+    const slot = readGroundSlot(g);
+    if (slot === null)
+      return refuse(`the server's startup settings carry a ground slot this page cannot read (${JSON.stringify(g)})`);
+    if (grounds.some((s) => s.id === slot.id))
+      return refuse(`the server's startup settings name ground slot ${slot.id} twice`);
+    grounds.push(slot);
   }
-  const set = Array.isArray(raw.switches_set)
-    ? (raw.switches_set.filter((k) =>
-        SWITCH_KEYS.includes(k as SwitchKey),
-      ) as SwitchKey[])
-    : [];
-  const av = isRecord(raw.antenna_view) ? raw.antenna_view : {};
-  const orientation = ORIENTATIONS.includes(av.orientation as Orientation)
-    ? (av.orientation as Orientation)
-    : BUILTIN_ORIENTATION;
-  const ground = parseGround(raw.ground);
-  const wb = isRecord(raw.workbench) && isRecord(raw.workbench.run_on_pick) ? raw.workbench.run_on_pick : {};
-  const runOnPick = { ...BUILTIN_RUN_ON_PICK };
-  for (const k of RUN_ON_PICK_KINDS) {
-    if (typeof wb[k] === "boolean") runOnPick[k] = wb[k] as boolean;
-  }
-  // A server before AK#1794 serves `ground` alone: it is slot X, and the
-  // other slots are the stock set. One before AK#1801 numbers the slots,
-  // which read as their letters (groundSlotId).
-  const served = Array.isArray(raw.grounds)
-    ? raw.grounds.flatMap((g) => {
-        const id = isRecord(g) && typeof g.id === "string" ? groundSlotId(g.id) : null;
-        return id !== null && isRecord(g) ? [{ id, ...parseGround(g) }] : [];
-      })
-    : [];
-  const grounds: GroundSlotDefaults[] =
-    served.length > 0
-      ? served
-      : [{ ...ground, id: BUILTIN_GROUND_SLOTS[0].id }, ...BUILTIN_GROUND_SLOTS.slice(1)];
+  const { exists, writable, problems } = raw;
+  const path = typeof raw.path === "string" ? raw.path : null;
+  if (path === null && raw.path !== null)
+    return refuse("the server's startup settings give no settings-file path");
+  if (typeof exists !== "boolean" || typeof writable !== "boolean")
+    return refuse("the server's startup settings do not say whether the settings file exists or is writable");
+  if (!isStringList(problems))
+    return refuse("the server's startup settings carry no problems list");
   return {
-    path: typeof raw.path === "string" ? raw.path : null,
-    exists: raw.exists === true,
-    writable: raw.writable === true,
-    switches,
-    switchesSet: set,
-    orientation,
-    ground,
-    grounds,
-    runOnPick,
-    problems: Array.isArray(raw.problems)
-      ? raw.problems.filter((p): p is string => typeof p === "string")
-      : [],
+    defaults: {
+      path,
+      exists,
+      writable,
+      switches: sw.flags,
+      switchesSet: switchesSet.filter((k): k is SwitchKey =>
+        (SWITCH_KEYS as readonly string[]).includes(k),
+      ),
+      orientation: av.orientation as Orientation,
+      grounds,
+      runOnPick: rp.flags,
+      problems,
+    },
+    refusal: null,
   };
+}
+
+/** The served `ui_defaults`, or null when it is absent or incomplete (the
+ *  sentence saying which is readUiDefaults'). */
+export function parseUiDefaults(raw: unknown): UiDefaults | null {
+  return readUiDefaults(raw).defaults;
 }
 
 export type GroundSaveEntry = {
@@ -258,8 +255,11 @@ export type SettingsSaveBody = {
   workbench?: { run_on_pick: Record<RunOnPickKind, boolean> };
 };
 
+/** A save's outcome. A success names the file it wrote: the reply is the
+ *  re-read `ui_defaults`, but the session it came from already holds what it
+ *  saved, so the path is all the page reads back. */
 export type SaveOutcome =
-  | { ok: true; uiDefaults: UiDefaults }
+  | { ok: true; path: string | null }
   | { ok: false; problems: string[] };
 
 // POST /settings: writes the settings file on a local install. A refusal
@@ -272,7 +272,8 @@ export async function saveSettings(body: SettingsSaveBody): Promise<SaveOutcome>
       body: JSON.stringify(body),
     });
     const data: unknown = await r.json().catch(() => null);
-    if (r.ok) return { ok: true, uiDefaults: parseUiDefaults(data) };
+    if (r.ok)
+      return { ok: true, path: isRecord(data) && typeof data.path === "string" ? data.path : null };
     const detail = isRecord(data) ? data.detail : null;
     if (isRecord(detail) && Array.isArray(detail.problems)) {
       return {

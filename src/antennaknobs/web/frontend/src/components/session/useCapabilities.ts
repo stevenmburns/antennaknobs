@@ -1,20 +1,17 @@
 import { useEffect, useState } from "react";
-import type {
-  BackendRoster,
-  ModelOptionSpecs,
-  ServedSlotSeed,
-  CompositionVocabulary,
+import {
+  SOLVER_SLOTS,
+  type BackendRoster,
+  type ModelOptionSpecs,
+  type ServedSlotSeed,
+  type CompositionVocabulary,
 } from "../../lib/backends";
 import type {
   SoilPresetSchema,
   SoilRanges,
   TerrainPresetSchema,
 } from "../../lib/ground";
-import {
-  BUILTIN_UI_DEFAULTS,
-  parseUiDefaults,
-  type UiDefaults,
-} from "../../lib/settings";
+import { readUiDefaults, type UiDefaults } from "../../lib/settings";
 
 /** GET /capabilities, typed. `have_pynec` is still served for compatibility
  *  but is no longer read: PyNEC's availability is roster membership (#628). */
@@ -58,16 +55,18 @@ export type CapabilitiesState = {
   /** Retired backend names -> what supersedes each (#1006 G2-6). Empty from a
    *  server predating it, which simply means no name is rewritten. */
   backendAliases: Record<string, string>;
-  /** The stock A/B/C seeds. Empty falls back to the roster's first entry for
-   *  every slot — the same tolerance an absent seeded backend already got. */
+  /** The stock A/B/C seeds, then any slot the settings file adds. A payload
+   *  without a seed for every stock slot takes the error path (AK#1858):
+   *  which solver a slot starts on is the server's choice alone. */
   defaultSlotSeeds: ServedSlotSeed[];
   /** The composition line's vocabulary (#1006 G2-7). Empty axes from a server
    *  predating it, which renders no line rather than a guessed one. */
   compositionVocab: CompositionVocabulary;
   /** Where the session starts (AK#1492): the Settings-menu switches and the
-   *  ground, from the server's settings.toml. The built-in defaults from a
-   *  server predating it. */
-  uiDefaults: UiDefaults;
+   *  ground, from the server's settings.toml. Null until the fetch resolves;
+   *  a payload without them takes the error path (AK#1858), since the page
+   *  restates none of the server's defaults. */
+  uiDefaults: UiDefaults | null;
   /** The served version string, rendered under the brand as-is. Null from a
    *  server predating it (AK#1517), which renders no label at all. */
   versionLabel: string | null;
@@ -96,7 +95,7 @@ export function useCapabilities(): CapabilitiesState {
     axes: [],
     labels: {},
   });
-  const [uiDefaults, setUiDefaults] = useState<UiDefaults>(BUILTIN_UI_DEFAULTS);
+  const [uiDefaults, setUiDefaults] = useState<UiDefaults | null>(null);
   const [versionLabel, setVersionLabel] = useState<string | null>(null);
   const [canSaveStudies, setCanSaveStudies] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,9 +133,11 @@ export function useCapabilities(): CapabilitiesState {
             ? c.backend_aliases
             : {},
         );
-        setDefaultSlotSeeds(
-          Array.isArray(c.default_slots) ? c.default_slots : [],
-        );
+        const seeds = Array.isArray(c.default_slots) ? c.default_slots : [];
+        const unseeded = SOLVER_SLOTS.ids
+          .slice(0, SOLVER_SLOTS.stock)
+          .filter((id) => !seeds.some((s) => s.slot === id));
+        setDefaultSlotSeeds(seeds);
         setCompositionVocab({
           axes: Array.isArray(c.composition_axes) ? c.composition_axes : [],
           labels:
@@ -144,16 +145,26 @@ export function useCapabilities(): CapabilitiesState {
               ? c.axis_value_labels
               : {},
         });
-        setUiDefaults(parseUiDefaults(c.ui_defaults));
         setVersionLabel(typeof c.version_label === "string" ? c.version_label : null);
         setCanSaveStudies(c.can_save_studies === true);
-        // An empty roster is as unusable as a failed fetch — there would be
-        // no solver to pick — so it takes the error path rather than
-        // stranding the session on the loading note.
-        if (Array.isArray(c.backends) && c.backends.length > 0) {
-          setRoster(c.backends);
-        } else {
+        // Each of these is a payload the session cannot start from, so each
+        // takes the error path with its own sentence rather than stranding
+        // the session on the loading note or starting it on a guess. An
+        // empty roster leaves no solver to pick; the startup settings and
+        // the stock slots' seeds are the server's defaults, which this page
+        // never restates (AK#1858).
+        const ui = readUiDefaults(c.ui_defaults);
+        if (!(Array.isArray(c.backends) && c.backends.length > 0)) {
           setError("the server reported no solver backends");
+        } else if (ui.defaults === null) {
+          setError(ui.refusal);
+        } else if (unseeded.length > 0) {
+          setError(
+            `the server sent no starting solver for slot${unseeded.length > 1 ? "s" : ""} ${unseeded.join(", ")}`,
+          );
+        } else {
+          setUiDefaults(ui.defaults);
+          setRoster(c.backends);
         }
       } catch (e: unknown) {
         if (!cancelled) setError(String((e as Error)?.message ?? e));

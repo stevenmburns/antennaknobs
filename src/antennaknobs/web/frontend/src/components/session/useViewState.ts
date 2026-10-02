@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  BUILTIN_ORIENTATION,
-  BUILTIN_SWITCHES,
-  ORIENTATION_PROJECTION,
-  type Orientation,
-} from "../../lib/settings";
+import { ORIENTATION_PROJECTION, type Orientation } from "../../lib/settings";
 import { type ExampleDescriptor } from "../../lib/params";
 import { type CanvasCamera, fitCamera, type Projection, type View } from "../../lib/view";
 import { cycleOrder, gridCells, gridFix, type Layout } from "./useViewPrefs";
@@ -23,7 +18,7 @@ export function useViewState({
   layout = "rail",
   setLayout,
   overlays,
-  orientation: initialOrientation = BUILTIN_ORIENTATION,
+  orientation: initialOrientation,
 }: {
   currentExample: ExampleDescriptor | undefined;
   active: boolean;
@@ -42,9 +37,9 @@ export function useViewState({
   // Only the grid-mode off-grid-peek fix (see the effect below) ever calls
   // this. Omit it and that one branch is simply inert.
   setLayout?: (l: Layout) => void;
-  // Where the four canvas overlays start (AK#1492's settings.toml). Omitted,
-  // they start at the built-in defaults.
-  overlays?: {
+  // Where the four canvas overlays start (AK#1492's settings.toml): the
+  // served switches, which this hook restates no default for (AK#1858).
+  overlays: {
     heatmap: boolean;
     envelope: boolean;
     wireLabels: boolean;
@@ -52,9 +47,9 @@ export function useViewState({
   };
   // The Antenna view's orientation on a design load (AK#1737's
   // settings.toml key). Where the session STARTS: the Tools menu can change
-  // it for the session, and "Save as my defaults" writes that back. Omitted,
-  // it is "auto": the per-design guess, exactly as before the setting.
-  orientation?: Orientation;
+  // it for the session, and "Save as my defaults" writes that back. The
+  // served value; "auto" is the per-design guess.
+  orientation: Orientation;
 }) {
   // Far-field cut angles. The azimuth plot slices the pattern at elevation
   // `azElevDeg`; the elevation plot slices the vertical plane at azimuth
@@ -160,21 +155,12 @@ export function useViewState({
   // toggles: the per-segment current-magnitude heatmap (wire color/width)
   // and the |I| envelope curve overlay. Either or both can be turned off;
   // the wires and feed marker are always drawn.
-  const [showHeatmap, setShowHeatmap] = useState(
-    overlays?.heatmap ?? BUILTIN_SWITCHES.heatmap_currents,
-  );
-  const [showEnvelope, setShowEnvelope] = useState(
-    overlays?.envelope ?? BUILTIN_SWITCHES.current_waveforms,
-  );
+  const [showHeatmap, setShowHeatmap] = useState(overlays.heatmap);
+  const [showEnvelope, setShowEnvelope] = useState(overlays.envelope);
   // Wire labels and feed names can crowd dense geometries (and PyNEC returns
-  // many more wires than the momwire engines), so let them be toggled. Wire
-  // labels default OFF — they're the noisiest, especially on PyNEC.
-  const [showWireLabels, setShowWireLabels] = useState(
-    overlays?.wireLabels ?? BUILTIN_SWITCHES.wire_labels,
-  );
-  const [showFeedNames, setShowFeedNames] = useState(
-    overlays?.feedNames ?? BUILTIN_SWITCHES.feed_labels,
-  );
+  // many more wires than the momwire engines), so let them be toggled.
+  const [showWireLabels, setShowWireLabels] = useState(overlays.wireLabels);
+  const [showFeedNames, setShowFeedNames] = useState(overlays.feedNames);
 
   useEffect(() => {
     if (!active) return;

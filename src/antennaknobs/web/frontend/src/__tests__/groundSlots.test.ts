@@ -7,13 +7,13 @@ import {
   editActive,
   editSlot,
   GROUND_SLOT_IDS,
-  groundSlotId,
   groundSlotLabel,
   withDesignGround,
   type GroundSlot,
   type GroundSlotsState,
 } from "../lib/groundSlots";
-import { BUILTIN_GROUND_SLOTS, parseUiDefaults } from "../lib/settings";
+import { parseUiDefaults } from "../lib/settings";
+import { overServed } from "./designSessionHarness";
 
 const slot = (id: string, over: Partial<GroundSlot> = {}): GroundSlot => ({
   id,
@@ -146,42 +146,38 @@ describe("parseUiDefaults: ground slots", () => {
   const g = { enabled: true, type: "finite", method: "fast", soil: null, terrain_preset: null };
 
   it("takes the served slots, as many as there are", () => {
-    const ui = parseUiDefaults({
-      ground: g,
-      grounds: [
-        { id: "X", ...g },
-        { id: "Y", ...g, enabled: false },
-        { id: "Z", ...g, method: "sommerfeld" },
-        { id: "U", ...g, type: "pec", soil: { eps_r: 5, sigma: 0.001 } },
-      ],
-    });
-    expect(ui.grounds.map((s) => s.id)).toEqual(["X", "Y", "Z", "U"]);
-    expect(ui.grounds[3]).toMatchObject({ type: "pec", soil: { eps_r: 5, sigma: 0.001 } });
+    const ui = parseUiDefaults(
+      overServed({
+        grounds: [
+          { id: "X", ...g },
+          { id: "Y", ...g, enabled: false },
+          { id: "Z", ...g, method: "sommerfeld" },
+          { id: "U", ...g, type: "pec", soil: { eps_r: 5, sigma: 0.001 } },
+        ],
+      }),
+    );
+    expect(ui?.grounds.map((s) => s.id)).toEqual(["X", "Y", "Z", "U"]);
+    expect(ui?.grounds[3]).toMatchObject({ type: "pec", soil: { eps_r: 5, sigma: 0.001 } });
   });
 
-  it("a server before AK#1794: its `ground` is slot X, the rest are stock", () => {
-    const ui = parseUiDefaults({ ground: { ...g, method: "mininec" } });
-    expect(ui.grounds[0]).toEqual({ id: "X", ...g, method: "mininec" });
-    expect(ui.grounds.slice(1)).toEqual(BUILTIN_GROUND_SLOTS.slice(1));
+  it("the served stock set is X, Y, Z", () => {
+    expect(parseUiDefaults(overServed())?.grounds.map((s) => s.id)).toEqual(["X", "Y", "Z"]);
   });
 
-  it("no payload at all: the stock set", () => {
-    expect(parseUiDefaults(undefined).grounds).toEqual(BUILTIN_GROUND_SLOTS);
-  });
-
-  it("a server before AK#1801 numbers its slots: they read as X, Y, Z, U (AK#1801)", () => {
-    const ui = parseUiDefaults({
-      ground: g,
-      grounds: [
-        { id: "1", ...g },
-        { id: "2", ...g, enabled: false },
-        { id: "3", ...g, method: "sommerfeld" },
-        { id: "4", ...g, type: "pec" },
-        { id: "nope", ...g },
-      ],
-    });
-    expect(ui.grounds.map((s) => s.id)).toEqual(["X", "Y", "Z", "U"]);
-    expect(ui.grounds[1].enabled).toBe(false);
+  // Strict (AK#1858): the page has no stock set of its own to fall back to,
+  // and the shipped server serves letters only (it reads a numbered table
+  // as its letter itself, tests/test_ground_slots_xyz_1801.py).
+  it.each([
+    ["no grounds", { grounds: undefined }],
+    ["an empty list", { grounds: [] }],
+    ["a numbered slot", { grounds: [{ id: "1", ...g }] }],
+    ["a slot that is not a ground slot", { grounds: [{ id: "A", ...g }] }],
+    ["an unknown method", { grounds: [{ id: "X", ...g, method: "exact" }] }],
+    ["a slot missing its enabled flag", { grounds: [{ id: "X", type: "finite", method: "fast", soil: null, terrain_preset: null }] }],
+    ["a half soil", { grounds: [{ id: "X", ...g, soil: { eps_r: 13 } }] }],
+    ["one slot twice", { grounds: [{ id: "X", ...g }, { id: "X", ...g }] }],
+  ])("refuses %s", (_what, over) => {
+    expect(parseUiDefaults(overServed(over))).toBeNull();
   });
 });
 
@@ -190,14 +186,5 @@ describe("ground slot names (AK#1801)", () => {
     expect(GROUND_SLOT_IDS.join("")).toBe("XYZUVWRSTOPQLMNIJKFGH");
     // Never a solver slot's letter.
     for (const s of ["A", "B", "C", "D", "E"]) expect(GROUND_SLOT_IDS).not.toContain(s);
-    expect(BUILTIN_GROUND_SLOTS.map((s) => s.id)).toEqual(["X", "Y", "Z"]);
-  });
-
-  it("a number is the letter at that place; anything else is no slot", () => {
-    expect(["1", "2", "3", "4", "5", "6", "7", "21"].map(groundSlotId)).toEqual([
-      "X", "Y", "Z", "U", "V", "W", "R", "H",
-    ]);
-    expect(groundSlotId("U")).toBe("U");
-    for (const raw of ["0", "01", "22", "A", "x", ""]) expect(groundSlotId(raw)).toBeNull();
   });
 });
