@@ -1,5 +1,6 @@
-import { backendDisplayLabel, SLOT_ORDER } from "../../lib/backends";
+import { backendDisplayLabel, slotOrder } from "../../lib/backends";
 import type { BackendEntry, BackendOpts, Slot, SlotConfig } from "../../lib/backends";
+import { AddSlotButton } from "./SlotStripControls";
 
 export function SolverSlotTabs({
   slots,
@@ -10,6 +11,8 @@ export function SolverSlotTabs({
   currentOpts,
   nPerWire,
   fixedSegmentCounts = false,
+  nextSlot = null,
+  onAdd = () => {},
 }: {
   slots: Record<Slot, SlotConfig>;
   activeSlot: Slot;
@@ -21,6 +24,9 @@ export function SolverSlotTabs({
   /** AK#1432: the design's wires carry their own counts (file designs), so
    *  the label says so instead of showing an N that does nothing. */
   fixedSegmentCounts?: boolean;
+  /** The id the strip's + adds (AK#1801), or null: no + (the family is full). */
+  nextSlot?: Slot | null;
+  onAdd?: () => void;
 }) {
   const nLabel = (n: number) => (fixedSegmentCounts ? "deck's own" : String(n));
   return (
@@ -30,7 +36,7 @@ export function SolverSlotTabs({
         <span>{backendDisplayLabel(backend, currentOpts)} · N={nLabel(nPerWire)}</span>
       </label>
       <div className="backend-tabs" role="tablist">
-        {SLOT_ORDER.map((s) => {
+        {slotOrder(slots).map((s) => {
           const cfg = slots[s];
           return (
             <div key={s} className="backend-tab-cell">
@@ -56,6 +62,7 @@ export function SolverSlotTabs({
             </div>
           );
         })}
+        <AddSlotButton noun="solver" next={nextSlot} onAdd={onAdd} />
       </div>
     </div>
   );

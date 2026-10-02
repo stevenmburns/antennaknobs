@@ -1,19 +1,23 @@
 import type { ReactNode } from "react";
 import type { SoilPresetSchema } from "../../lib/ground";
 import { groundSlotLabel, type GroundSlot, type GroundSlotId } from "../../lib/groundSlots";
+import { AddSlotButton } from "./SlotStripControls";
 
 // The ground slots' tab strip (AK#1794), the SolverSlotTabs twin: one click
 // switches the ground every solve and chart reads, and each tab's ⚙ opens
 // THAT slot's ground settings (AK#1801), as a solver tab's ⚙ opens its
 // slot's options, so the input pane carries one line per slot instead of the
 // whole ground panel. `children` is the compact notices line for the active
-// slot, under the strip. Renders however many slots it is given.
+// slot, under the strip. Renders however many slots it is given, then the +
+// that adds one (AK#1801).
 export function GroundSlotTabs({
   slots,
   activeSlot,
   onSelect,
   onOpenGear,
   soilPresets = [],
+  nextSlot = null,
+  onAdd = () => {},
   children,
 }: {
   slots: GroundSlot[];
@@ -21,6 +25,9 @@ export function GroundSlotTabs({
   onSelect: (id: GroundSlotId) => void;
   onOpenGear: (id: GroundSlotId) => void;
   soilPresets?: SoilPresetSchema[];
+  /** The id the strip's + adds (AK#1801), or null: no + (the family is full). */
+  nextSlot?: GroundSlotId | null;
+  onAdd?: () => void;
   children?: ReactNode;
 }) {
   const active = slots.find((s) => s.id === activeSlot) ?? slots[0];
@@ -57,6 +64,7 @@ export function GroundSlotTabs({
             </div>
           );
         })}
+        <AddSlotButton noun="ground" next={nextSlot} onAdd={onAdd} />
       </div>
       {children}
     </div>

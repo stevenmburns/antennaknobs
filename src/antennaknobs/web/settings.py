@@ -1,8 +1,8 @@
 """Startup settings for the web workbench (AK#1492).
 
 A local ``settings.toml`` says where the workbench STARTS: the Settings-menu
-switches, the Antenna view's orientation, the ground slots, and the A/B/C
-solver slots. It is read on every ``/capabilities`` request, so an edit
+switches, the Antenna view's orientation, the ground slots, and the solver
+slots. It is read on every ``/capabilities`` request, so an edit
 applies at the next page load, and it is validated here, once, against the catalogs the
 UI itself renders from: the solver roster and its knob specs, and the soil
 and terrain presets. A problem
@@ -25,7 +25,7 @@ apply, and the entry it names keeps its built-in default.
     [grounds.Z]              # ground slots X, Y, Z (AK#1794, AK#1801);
     method = "fast"          # [ground] is the older spelling of slot X
 
-    [slots.A]
+    [slots.A]                # solver slots A, B, C; D and E when added (AK#1801)
     backend = "bspline"
     n_per_wire = 15
     model = { degree = 2 }
@@ -102,7 +102,13 @@ ORIENTATIONS = ("auto", "top", "front", "side", "iso")
 ANTENNA_VIEW_BUILTIN: dict = {"orientation": "auto"}
 GROUND_TYPES = ("finite", "pec", "terrain")
 GROUND_METHODS = ("fast", "sommerfeld", "mininec")
-SLOTS = ("A", "B", "C")
+# The solver slots' names, in order (AK#1801): A, B and C are the stock set
+# (adapter._DEFAULT_SLOTS), and the workbench's + adds D, then E. Five at most,
+# so the family never reaches the ground slots' last chunk (F G H). A slot past
+# the stock set exists by its [slots.D] table, empty or not, and starts on the
+# roster's first solver. The twin of SOLVER_SLOT_IDS in the frontend's
+# lib/backends.ts, pinned to this by tests/test_slot_add_remove_1801.py.
+SOLVER_SLOT_IDS: tuple[str, ...] = ("A", "B", "C", "D", "E")
 # The ground slots' names, in order (AK#1801): letters, so they read as their
 # own family beside the A/B/C solver slots. Chunks of three, each read
 # forwards, stepping back through the alphabet: X Y Z, then U V W, then R S T,
@@ -348,23 +354,7 @@ def resolve(
     )
     ground = {k: v for k, v in grounds[0].items() if k != "id"}
 
-    table = data.get("slots", {})
-    if not isinstance(table, Mapping):
-        problems.append("[slots] must be a table of [slots.A], [slots.B], [slots.C]")
-        table = {}
-    stock = {s["slot"]: s for s in cat.stock_slots}
-    for slot, entry in table.items():
-        if slot not in SLOTS:
-            problems.append(
-                f"[slots.{slot}]: not a solver slot (known: {_known(SLOTS)})"
-            )
-            continue
-        if not isinstance(entry, Mapping):
-            problems.append(f"[slots.{slot}] must be a table")
-            continue
-        override = _resolve_slot(slot, entry, stock.get(slot), cat, problems)
-        if override:
-            slots[slot] = override
+    slots = _resolve_slots(data, cat, problems)
 
     run_on_pick.update(_run_on_pick(data, source, problems))
 
@@ -664,6 +654,49 @@ def _is_program(path: str) -> bool:
     return p.is_file() and os.access(p, os.X_OK)
 
 
+def _resolve_slots(data, cat: Catalog, problems) -> dict[str, dict]:
+    """The file's ``[slots.A]`` ... tables, each as its override of the slot's
+    seed, in SOLVER_SLOT_IDS order. A stock slot appears only when its table
+    changes something; a slot past the stock set (AK#1801) appears whenever
+    its table is given, empty or not, since the table is what makes it exist.
+    Slots run A, B, C, D, E without a gap, as the ground slots do: a table
+    past the first gap is named and not used."""
+    table = data.get("slots", {})
+    if not isinstance(table, Mapping):
+        problems.append("[slots] must be a table of [slots.A], [slots.B], ...")
+        return {}
+    stock = {s["slot"]: s for s in cat.stock_slots}
+    wanted: dict[str, Mapping] = {}
+    for slot, entry in table.items():
+        if slot not in SOLVER_SLOT_IDS:
+            problems.append(
+                f"[slots.{slot}]: not a solver slot (known: {_known(SOLVER_SLOT_IDS)})"
+            )
+        elif not isinstance(entry, Mapping):
+            problems.append(f"[slots.{slot}] must be a table")
+        else:
+            wanted[slot] = entry
+    top = 0
+    while top < len(SOLVER_SLOT_IDS) and (
+        SOLVER_SLOT_IDS[top] in stock or SOLVER_SLOT_IDS[top] in wanted
+    ):
+        top += 1
+    out: dict[str, dict] = {}
+    for slot in SOLVER_SLOT_IDS:
+        if slot not in wanted:
+            continue
+        if SOLVER_SLOT_IDS.index(slot) >= top:
+            problems.append(
+                f"[slots.{slot}]: solver slots run A, B, C, D, E without gaps, and "
+                f"there is no slot {SOLVER_SLOT_IDS[top]}; this table is not used"
+            )
+            continue
+        override = _resolve_slot(slot, wanted[slot], stock.get(slot), cat, problems)
+        if override or slot not in stock:
+            out[slot] = override
+    return out
+
+
 def _resolve_slot(slot, entry, stock, cat: Catalog, problems) -> dict:
     where = f"[slots.{slot}]"
     for key in entry:
@@ -749,12 +782,22 @@ def _resolved(
     }
 
 
-def overlay_slots(stock: list[dict], overrides: Mapping[str, dict]) -> list[dict]:
-    """The served A/B/C seeds with the file's slots applied. A new backend
-    starts from that backend's own defaults; the same backend keeps the stock
-    seed's knobs and takes the file's on top."""
+def overlay_slots(
+    stock: list[dict], overrides: Mapping[str, dict], first: str | None = None
+) -> list[dict]:
+    """The served solver-slot seeds with the file's slots applied. A new
+    backend starts from that backend's own defaults; the same backend keeps
+    the stock seed's knobs and takes the file's on top. A slot past the stock
+    set (AK#1801) is seeded as the roster's ``first`` solver, as a save
+    measures it (``_slot_differences``), with the file's entries on top."""
+    have = {seed["slot"] for seed in stock}
+    extra = [
+        {"slot": slot, "backend": first, "n_per_wire": None, "model": {}}
+        for slot in SOLVER_SLOT_IDS
+        if slot in overrides and slot not in have
+    ]
     out = []
-    for seed in stock:
+    for seed in [*stock, *extra]:
         o = overrides.get(seed["slot"])
         s = {**seed, "model": dict(seed.get("model") or {})}
         if o:
@@ -856,12 +899,14 @@ def _differences(resolved: dict, cat: Catalog) -> dict:
     ground = {}
     if resolved.get("_ground_spelling", "ground") == "ground":
         ground = grounds.pop("X", {})
+    # Each solver slot against its seed, the same way: a slot past the stock
+    # set (AK#1801) is written even when empty.
     stock = {s["slot"]: s for s in cat.stock_slots}
     slots = {}
-    for slot in SLOTS:
-        if resolved["slots"].get(slot):
+    for slot in SOLVER_SLOT_IDS:
+        if slot in resolved["slots"]:
             diff = _slot_differences(resolved["slots"][slot], stock.get(slot), cat)
-            if diff:
+            if diff or slot not in stock:
                 slots[slot] = diff
     run_on_pick = {
         key: resolved["workbench"]["run_on_pick"][key]

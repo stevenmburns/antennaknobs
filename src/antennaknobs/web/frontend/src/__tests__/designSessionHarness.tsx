@@ -120,6 +120,9 @@ export interface MountDesignSessionOptions {
   /** /capabilities' `soil_ranges` (#1173); omitted when undefined, which is
    *  a server predating it (no served default soil). */
   soilRanges?: unknown;
+  /** /capabilities' `default_slots`; SERVED_SLOT_SEEDS when undefined. A
+   *  settings file that adds solver slot D serves a fourth seed (AK#1801). */
+  slotSeeds?: unknown[];
   /** Extra localStorage entries, written after the harness clears storage —
    *  what a previous page load left behind (AK#1735's per-design Zo). */
   storage?: Record<string, string>;
@@ -153,6 +156,7 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
     versionLabel,
     canSaveStudies,
     soilRanges,
+    slotSeeds = SERVED_SLOT_SEEDS,
     storage = {},
     url,
   } = opts;
@@ -194,7 +198,7 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
           backends: roster,
           model_option_specs: SERVED_OPTION_SPECS,
           backend_aliases: SERVED_ALIASES,
-          default_slots: SERVED_SLOT_SEEDS,
+          default_slots: slotSeeds,
           terrain_presets: [],
           ...(uiDefaults === undefined ? {} : { ui_defaults: uiDefaults }),
           ...(versionLabel === undefined ? {} : { version_label: versionLabel }),

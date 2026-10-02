@@ -8,6 +8,7 @@
 // Per-backend `model_options` are forwarded to the server's _make_momwire_sim;
 // the served option keys ARE the snake_case constructor kwargs, so a generic
 // knob cannot land under the wrong wire key.
+import type { SlotFamily } from "./slotFamily";
 
 /** One generic numeric solver knob, rendered by the options-schema loop in
  *  BackendConfigModal. `key` is both the client-side opts key and the wire
@@ -860,13 +861,25 @@ export function offersExtendedKernel(b: BackendEntry): boolean {
 }
 
 
-// Three abstract solver slots. Each holds one backend choice and its
-// options; the user picks A/B/C with the row of buttons, configures the
-// inhabitants from the per-slot gear menu. Lets the same UI compare
-// e.g. "B-spline d=2 @ N=15" against "B-spline d=1 @ N=20" without
-// losing either setup.
-export type Slot = "A" | "B" | "C";
-export const SLOT_ORDER: Slot[] = ["A", "B", "C"];
+// Abstract solver slots. Each holds one backend choice and its options; the
+// user picks one with the row of buttons, configures the inhabitants from the
+// per-slot gear menu. Lets the same UI compare e.g. "B-spline d=2 @ N=15"
+// against "B-spline d=1 @ N=20" without losing either setup. A, B and C are
+// the stock set; the strip's + adds D, then E (AK#1801).
+export type Slot = string;
+
+/** The solver slots' ids, in order: the twin of settings.py's
+ *  SOLVER_SLOT_IDS, pinned by tests/test_slot_add_remove_1801.py. */
+export const SOLVER_SLOTS: SlotFamily = {
+  ids: ["A", "B", "C", "D", "E"],
+  stock: 3,
+  noun: "solver",
+};
+
+/** The slots a session has, in order. */
+export function slotOrder(slots: Record<Slot, SlotConfig>): Slot[] {
+  return SOLVER_SLOTS.ids.filter((id) => id in slots);
+}
 
 export type SlotConfig = {
   backend: BackendEntry;
@@ -989,7 +1002,12 @@ export function defaultSlots(
       specs,
     );
   };
-  return { A: one("A"), B: one("B"), C: one("C") };
+  // The stock A/B/C always, then a slot the settings file adds (D, E:
+  // AK#1801), which the server serves as a seed of its own.
+  const ids = SOLVER_SLOTS.ids.filter(
+    (id, i) => i < SOLVER_SLOTS.stock || bySlot.has(id),
+  );
+  return Object.fromEntries(ids.map((id) => [id, one(id)]));
 }
 
 
