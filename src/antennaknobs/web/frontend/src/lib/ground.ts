@@ -17,8 +17,9 @@ export type GroundType = "finite" | "pec" | "terrain";
 // Finite-ground solve method, shown for every finite-ground backend:
 // PyNEC (NEC ITYPE=2 vs ITYPE=0) and, since momwire 0.8.0, every momwire
 // solver (true Sommerfeld on bspline dense, sinusoidal field-based, and
-// the hmatrix/arrayblock fast paths). "fast" is the default everywhere;
-// Sommerfeld is opt-in because it is more expensive: the first solve at a
+// the hmatrix/arrayblock fast paths). Which method a session starts on is
+// the server's (settings.GROUND_BUILTIN, Sommerfeld since AK#1856), not this
+// file's. Sommerfeld costs more on a cold start: the first solve at a
 // new frequency fills an interpolation grid (~0.2-0.5 s on a small box;
 // the first sweep pays that per point), and repeat solves at seen
 // frequencies reuse cached grids (tens of ms). "mininec" is EZNEC's
