@@ -1,6 +1,12 @@
 import type { ReactNode } from "react";
+import type { BackendEntry } from "../../lib/backends";
 import type { SoilPresetSchema } from "../../lib/ground";
-import { groundSlotLabel, type GroundSlot, type GroundSlotId } from "../../lib/groundSlots";
+import {
+  appliedGroundChange,
+  groundSlotLabel,
+  type GroundSlot,
+  type GroundSlotId,
+} from "../../lib/groundSlots";
 import { AddSlotButton } from "./SlotStripControls";
 
 // The ground slots' tab strip (AK#1794), the SolverSlotTabs twin: one click
@@ -9,13 +15,18 @@ import { AddSlotButton } from "./SlotStripControls";
 // slot's options, so the input pane carries one line per slot instead of the
 // whole ground panel. `children` is the compact notices line for the active
 // slot, under the strip. Renders however many slots it is given, then the +
-// that adds one (AK#1801).
+// that adds one (AK#1801). With `backend` (the ACTIVE solver slot's), each tab
+// also says when that solver runs something other than what the slot holds
+// (AK#1854): NEC-5 has no refl-coef, so its tab reads "refl-coef →
+// Sommerfeld". The tabs size to their own labels rather than to the solver
+// strip's columns above, so the two strips do not read as pairs.
 export function GroundSlotTabs({
   slots,
   activeSlot,
   onSelect,
   onOpenGear,
   soilPresets = [],
+  backend,
   nextSlot = null,
   onAdd = () => {},
   children,
@@ -25,6 +36,8 @@ export function GroundSlotTabs({
   onSelect: (id: GroundSlotId) => void;
   onOpenGear: (id: GroundSlotId) => void;
   soilPresets?: SoilPresetSchema[];
+  /** The active solver slot's backend: what each ground is solved as. */
+  backend?: BackendEntry | undefined;
   /** The id the strip's + adds (AK#1801), or null: no + (the family is full). */
   nextSlot?: GroundSlotId | null;
   onAdd?: () => void;
@@ -35,11 +48,13 @@ export function GroundSlotTabs({
     <div className="field">
       <label>
         <span>ground slot</span>
-        <span>{groundSlotLabel(active, soilPresets)}</span>
+        <span>{groundSlotLabel(active, soilPresets, backend)}</span>
       </label>
-      <div className="backend-tabs" role="tablist" aria-label="Ground slots">
+      <div className="backend-tabs ground-slot-tabs" role="tablist" aria-label="Ground slots">
         {slots.map((slot) => {
-          const label = groundSlotLabel(slot, soilPresets);
+          const label = groundSlotLabel(slot, soilPresets, backend);
+          const changed = backend ? appliedGroundChange(slot, backend) : null;
+          const title = changed ? `${label} (solved as ${changed} on ${backend!.label})` : label;
           return (
             <div key={slot.id} className="backend-tab-cell">
               <button
@@ -47,7 +62,7 @@ export function GroundSlotTabs({
                 aria-selected={activeSlot === slot.id}
                 aria-label={`Ground slot ${slot.id}: ${label}`}
                 className={`backend-tab-btn ${activeSlot === slot.id ? "active" : ""}`}
-                title={label}
+                title={title}
                 onClick={() => onSelect(slot.id)}
               >
                 <span className="slot-letter">{slot.id}</span>

@@ -80,6 +80,8 @@ import {
   designGround,
   GROUND_SLOTS,
   groundSlotLabel,
+  mixedGroundNote,
+  solvePairLabel,
   type GroundSlotId,
 } from "../../lib/groundSlots";
 import {
@@ -3407,6 +3409,18 @@ function DesignSessionBody({
 
         <h2 className="group-label">simulation</h2>
 
+        {/* The pair every solve and chart runs on (AK#1854): the solver and
+            ground strips below are chosen independently, never by column. */}
+        <p className="solve-pair" data-testid="solve-pair">
+          {solvePairLabel(
+            activeSlot,
+            backend,
+            currentOpts,
+            groundSlots.find((g) => g.id === activeGroundSlot) ?? groundSlots[0],
+            soilPresets,
+          )}
+        </p>
+
         <SolverSlotTabs
           slots={slots}
           activeSlot={activeSlot}
@@ -3426,6 +3440,7 @@ function DesignSessionBody({
           onSelect={setActiveGroundSlot}
           onOpenGear={setGroundGearOpen}
           soilPresets={soilPresets}
+          backend={backend}
           nextSlot={nextGroundSlot}
           onAdd={() => {
             // The new slot opens its settings, as a new solver slot does
@@ -3469,7 +3484,7 @@ function DesignSessionBody({
           return (
             <GroundConfigModal
               slotId={g.slot.id}
-              label={groundSlotLabel(g.slot, soilPresets)}
+              label={groundSlotLabel(g.slot, soilPresets, backend)}
               onClose={() => setGroundGearOpen(null)}
               backend={backend}
               groundEnabled={g.slot.enabled}
@@ -4019,7 +4034,19 @@ function DesignSessionBody({
       capRefusal: m.plan.capRefusal,
       // The listed engines no slot holds, skipped rather than refused
       // (Steve, 2026-10-01), named in a muted note.
-      note: skippedNote(m.plan),
+      // ...and, when one ground slot is solved as different ground models
+      // across the curves' engines (NEC-5 has no refl-coef), says so (AK#1854).
+      note:
+        [
+          skippedNote(m.plan),
+          mixedGroundNote(
+            m.plan.cells.filter((c) => !c.refused),
+            (id) => slots[id]?.backend,
+            (id) => groundSlots.find((g) => g.id === id),
+          ),
+        ]
+          .filter(Boolean)
+          .join(" ") || null,
       ...(pinRows.length > 0
         ? { pins: pinRows, pinsRx: rxPlot(m), onKeepPins: keepPins, keepPinsBlocked }
         : {}),

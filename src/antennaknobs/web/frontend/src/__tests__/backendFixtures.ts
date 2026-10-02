@@ -195,6 +195,9 @@ export const ROSTER_WITH_NEC5: BackendRoster = [
     kind: "nec5",
     panel: "nec5",
     default_n_per_wire: 40,
+    // NEC-5 has no reflection-coefficient model (AK#1854), pinned Python-side
+    // by test_backend_roster.py::test_backend_roster_served_shape.
+    ground_applied: { fast: "sommerfeld", sommerfeld: "sommerfeld", mininec: "mininec" },
   }),
 ];
 

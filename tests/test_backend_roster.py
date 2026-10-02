@@ -150,6 +150,14 @@ def test_backend_roster_served_shape(client):
     # Every current solver models a ground; the flag exists so a future one
     # that doesn't can say so without a frontend change.
     assert all(e["supports_ground"] for e in roster)
+    # What each solve RUNS per requested method (AK#1854): only NEC-5 differs
+    # today, serving refl-coef as its native Sommerfeld. The frontend fixture
+    # (backendFixtures.ts) carries NEC-5's row.
+    honoured = {"fast": "refl-coef", "sommerfeld": "sommerfeld", "mininec": "mininec"}
+    assert {n: e["ground_applied"] for n, e in by_name.items()} == {
+        **{n: honoured for n in by_name if n != "nec5"},
+        "nec5": {**honoured, "fast": "sommerfeld"},
+    }
     assert {n: e["panel"] for n, e in by_name.items()} == {
         "sinusoidal": None,
         "sinusoidal-galerkin": "sin-galerkin",

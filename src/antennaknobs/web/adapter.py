@@ -118,6 +118,7 @@ except ImportError:
 from antennaknobs.engines.momwire import (
     MomwireEngine,
     _ends_in_the_plane,
+    _solver_supports_ground_eps,
     split_wires_at_plane,
 )
 from antennaknobs.engines.nec2 import NEC2Engine
@@ -629,6 +630,10 @@ def backend_roster(
             "label": b.label,
             "kind": b.kind,
             "supports_ground": b.supports_ground,
+            # What this backend's impedance solve RUNS for each finite method
+            # the ground panel offers (AK#1854), so a ground tab can say
+            # "refl-coef -> Sommerfeld" under NEC-5 before anything solves.
+            "ground_applied": _ground_applied_map(b),
             # Which knobs this backend's constructor takes (#1006 G2-6),
             # measured by construction. The SPECS for them are served once on
             # the capabilities payload rather than repeated per row — thirteen
@@ -2567,6 +2572,42 @@ def _pynec_ground_applied(ground) -> str:
             return "mininec"
         return "refl-coef" if ground[0] == "finite-fast" else "sommerfeld"
     return "pec-image" if ground == "pec" else "free"
+
+
+# The finite methods the ground panel offers, as the request spells them.
+_GROUND_METHODS = ("fast", "sommerfeld", "mininec")
+
+
+def _ground_applied_map(b: _BackendSpec) -> dict[str, str]:
+    """``{requested method: what the impedance solve runs}`` for backend `b`,
+    in `ground_model_applied`'s words (AK#1854). Read off the SAME rules the
+    solve applies, never a second table: a momwire solver runs a finite
+    method only where its capability cell serves it and the PEC image
+    otherwise (`MomwireEngine`'s ground selection); an external lane maps the
+    request through its own ground spec and labels it with its own
+    `ground_applied`. tests/test_ground_applied_1854.py holds each entry
+    equal to what a solve reports."""
+    if b.solver is not None:
+        cells = {"fast": "refl-coef", "sommerfeld": "sommerfeld"}
+        out = {
+            method: cell if _solver_supports_ground_eps(b.solver, cell) else "pec-image"
+            for method, cell in cells.items()
+        }
+        out["mininec"] = "mininec"
+        return out
+    lane = {
+        "pynec": (_pynec_ground_spec, _pynec_ground_applied),
+        "nec2": (_pynec_ground_spec, _pynec_ground_applied),
+        "nec42": (_pynec_ground_spec, _pynec_ground_applied),
+        "nec5": (_nec5_ground_spec, _nec5_ground_applied),
+    }.get(b.kind)
+    if lane is None:
+        return {}
+    spec, applied = lane
+    return {
+        method: applied(spec({"ground": True, "ground_model": method}))
+        for method in _GROUND_METHODS
+    }
 
 
 def _pynec_ground_spec(req: dict):
