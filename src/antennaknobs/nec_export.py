@@ -41,6 +41,7 @@ from typing import NamedTuple
 
 import numpy as np
 
+from .card_text import card_text
 from .engine import expand_graded_wires
 from .engines.nec2 import refuse_nec2_geometry
 from .engines.nec42 import refuse_gn3_near_field, refuse_nec42_geometry
@@ -535,7 +536,7 @@ def _deck_text(
     # Read only by the card text below; the PyNEC context the engine built is
     # never solved here.
     eng._jacket_pair = jacket_pair
-    lines = [f"CM {title}", "CM exported by antennaknobs.nec_export"]
+    lines = [f"CM {card_text(title)}", "CM exported by antennaknobs.nec_export"]
     if any(eng._gw_radius_for(t) != eng._radius_for(t) for t in eng.tups):
         lines.extend(JACKET_COMMENT_CARDS)
     lines.append("CE")

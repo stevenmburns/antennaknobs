@@ -207,7 +207,7 @@ def _printout(td: Path, out_name: str, proc) -> str | None:
 def _run_form(exe: str, deck: str, form: str, timeout: float) -> str | None:
     with tempfile.TemporaryDirectory(prefix="nec2_") as td:
         tdp = Path(td)
-        (tdp / "model.nec").write_text(deck)
+        (tdp / "model.nec").write_text(deck, encoding="ascii", errors="replace")
         argv = [exe]
         stdin_text = ""
         if form == FORM_ARGS:
@@ -742,8 +742,10 @@ class NEC2Engine(SimulationEngine):
         )
         _log.debug("%s %s: printout\n%s", name, h, text)
         if self._capture_dir is not None:
-            (self._capture_dir / f"{h}.nec").write_text(deck)
-            (self._capture_dir / f"{h}.out").write_text(text)
+            (self._capture_dir / f"{h}.nec").write_text(
+                deck, encoding="ascii", errors="replace"
+            )
+            (self._capture_dir / f"{h}.out").write_text(text, encoding="utf-8")
             _log.info(
                 "%s %s: deck and printout captured under %s",
                 name,

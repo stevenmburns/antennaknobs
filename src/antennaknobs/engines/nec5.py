@@ -168,7 +168,7 @@ def run_deck(exe: str, deck: str, *, timeout: float) -> str:
     """
     with tempfile.TemporaryDirectory(prefix="nec5_") as td:
         tdp = Path(td)
-        (tdp / "model.nec").write_text(deck)
+        (tdp / "model.nec").write_text(deck, encoding="ascii", errors="replace")
         try:
             # run_exe, not subprocess.run: a solve's cancel kills the binary
             # (AK#1712) instead of letting a stale fill run to completion.
@@ -1277,8 +1277,10 @@ class NEC5Engine(SimulationEngine):
         _log.info("NEC-5 %s: %.2f s, printout %d lines", h, seconds, text.count("\n"))
         _log.debug("NEC-5 %s: printout\n%s", h, text)
         if self._capture_dir is not None:
-            (self._capture_dir / f"{h}.nec").write_text(deck)
-            (self._capture_dir / f"{h}.out").write_text(text)
+            (self._capture_dir / f"{h}.nec").write_text(
+                deck, encoding="ascii", errors="replace"
+            )
+            (self._capture_dir / f"{h}.out").write_text(text, encoding="utf-8")
             _log.info(
                 "NEC-5 %s: deck and printout captured under %s", h, self._capture_dir
             )
