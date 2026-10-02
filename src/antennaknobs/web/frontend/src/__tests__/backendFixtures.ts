@@ -186,7 +186,7 @@ export const ROSTER_NO_PYNEC: BackendRoster = SERVED_ROSTER.filter(
 /** NEC-5's refusal of a refl-coef ground, as the roster serves it
  *  (engines/nec5.py REFL_COEF_REFUSAL, verbatim). */
 export const NEC5_REFL_COEF_REFUSAL =
-  "NEC-5 has no reflection-coefficient ground: its only finite ground (IPERF 0) is a full Sommerfeld solution. Solve NEC-5 on a Sommerfeld ground instead (`finite` on the command line).";
+  "NEC-5 has no reflection-coefficient ground: its only finite ground (IPERF 0) is a full Sommerfeld solution. Solve NEC-5 on a Sommerfeld ground instead.";
 
 /** The roster a machine with a licensed NEC-5 binary serves (issue #825):
  *  the nec5 entry appears only when the server resolves $NEC5_EXE, so the

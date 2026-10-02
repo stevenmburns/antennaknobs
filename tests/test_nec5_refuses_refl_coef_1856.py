@@ -24,7 +24,7 @@ from fastapi.testclient import TestClient
 # trips the adapter <-> examples circular import.
 from antennaknobs.web import server
 
-from antennaknobs.engines.nec5 import REFL_COEF_REFUSAL, NEC5Engine
+from antennaknobs.engines.nec5 import REFL_COEF_CLI_HINT, REFL_COEF_REFUSAL, NEC5Engine
 from antennaknobs.web import adapter, nec5_backend
 from antennaknobs.web.adapter import (
     DEFAULT_GROUND,
@@ -86,8 +86,11 @@ def test_the_engine_refuses_with_the_same_sentence():
     """What `--engine nec5 --ground finite-fast` reaches: one sentence for
     the engine, the CLI and the workbench. The ground is checked before the
     builder or the binary is touched."""
-    with pytest.raises(NotImplementedError, match=REFUSED):
+    with pytest.raises(NotImplementedError, match=REFUSED) as e:
         NEC5Engine(object(), ground=("finite-fast", *SOIL), require_exe=False)
+    # The command line's spelling of the way out, which the web leaves to its
+    # button.
+    assert str(e.value).endswith(REFL_COEF_CLI_HINT)
 
 
 # --- the served refusal is the spec's ------------------------------------
