@@ -124,11 +124,9 @@ def test_save_refuses_a_bad_orientation_and_writes_nothing(client, local):
 
 
 def test_the_frontend_list_is_this_table():
-    """lib/settings.ts carries the same orientations and the same default."""
+    """lib/settings.ts names the same orientations; the default is served
+    (AK#1858)."""
     ts = (ROOT / "src/antennaknobs/web/frontend/src/lib/settings.ts").read_text()
     listed = re.search(r"ORIENTATIONS: Orientation\[\] = \[(.*?)\];", ts, re.S)
     assert listed, "ORIENTATIONS not found in lib/settings.ts"
     assert tuple(re.findall(r'"(\w+)"', listed.group(1))) == ui_settings.ORIENTATIONS
-    default = re.search(r'BUILTIN_ORIENTATION: Orientation = "(\w+)"', ts)
-    assert default, "BUILTIN_ORIENTATION not found in lib/settings.ts"
-    assert default.group(1) == ui_settings.ANTENNA_VIEW_BUILTIN["orientation"]

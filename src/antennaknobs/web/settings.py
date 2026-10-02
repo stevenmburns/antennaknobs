@@ -59,8 +59,9 @@ __all__ = ["SETTINGS_ENV", "settings_path"]
 _logger = logging.getLogger(__name__)
 
 # (key, label, built-in default). The one copy of these defaults: the frontend
-# starts every switch from the served value, and the fallback in the frontend's
-# lib/settings.ts is pinned to this table by tests/test_settings_toml_1492.py.
+# starts every switch from the served value and restates none (AK#1858); its
+# lib/settings.ts names the keys, pinned to this table by
+# tests/test_settings_toml_1492.py.
 #
 # `freq_sweep` and `convergence_sweep` were the Smith view's "freq sweep" and
 # "param sweep" checkboxes. Since AK#1757 (sweep-framework step 5 unit 3) the
@@ -150,7 +151,8 @@ STOCK_GROUNDS: tuple[tuple[str, dict], ...] = (
 # them and the chart waits for Run, where its settings can be changed first.
 # `map` is a valid key before the workbench draws a map (sweep-framework step
 # 5), so a file can say it now. A deep link's run=1 always runs (AK#1838).
-# Pinned to lib/settings.ts's BUILTIN_RUN_ON_PICK by
+# The one copy of these defaults (AK#1858); lib/settings.ts's
+# RUN_ON_PICK_KINDS names the keys, pinned to this by
 # tests/test_settings_run_on_pick.py.
 RUN_ON_PICK: tuple[tuple[str, bool], ...] = (
     ("frequency", True),

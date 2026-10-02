@@ -172,12 +172,13 @@ def test_save_refuses_a_bad_kind_and_writes_nothing(client, local):
     assert not local.exists()
 
 
-def test_the_frontend_fallback_is_this_table():
-    """lib/settings.ts carries the fallback for a server without the table."""
+def test_the_frontend_reads_these_kinds():
+    """lib/settings.ts names the kinds it reads, and refuses a payload
+    missing any of them (AK#1858), so its list must be this table's keys, in
+    its order. Which of them run is served, never restated there."""
     ts = (ROOT / "src/antennaknobs/web/frontend/src/lib/settings.ts").read_text()
-    block = re.search(
-        r"BUILTIN_RUN_ON_PICK: Record<RunOnPickKind, boolean> = \{(.*?)\};", ts, re.S
-    )
-    assert block, "BUILTIN_RUN_ON_PICK not found in lib/settings.ts"
-    parsed = re.findall(r"(\w+): (true|false),", block.group(1))
-    assert [(k, v == "true") for k, v in parsed] == list(ui_settings.RUN_ON_PICK)
+    block = re.search(r"RUN_ON_PICK_KINDS = \[(.*?)\] as const;", ts, re.S)
+    assert block, "RUN_ON_PICK_KINDS not found in lib/settings.ts"
+    assert re.findall(r'"(\w+)"', block.group(1)) == [
+        k for k, _ in ui_settings.RUN_ON_PICK
+    ]
