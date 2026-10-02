@@ -82,14 +82,14 @@ def test_requested_soil_reaches_every_engine(name, fn):
     assert spec == ("finite", 20.0, 0.0303), name
 
 
-@pytest.mark.parametrize("name,fn", GROUND_SPECS)
+@pytest.mark.parametrize("name,fn", [g for g in GROUND_SPECS if g[0] != "nec5"])
 def test_soil_reaches_the_fast_model_too(name, fn):
     """The reflection-coefficient path takes the same constants. NEC-5 is
-    the documented exception — it has no refl-coef model, so "fast" is
-    served by its native Sommerfeld — but the SOIL must survive either
-    way, which is what this asserts rather than the model name."""
+    the documented exception: it has no refl-coef model and refuses the
+    request (AK#1856, tests/test_nec5_refuses_refl_coef_1856.py), so there
+    is no spec for the soil to reach."""
     spec = fn(_req(ground_model="fast", soil={"eps_r": 20.0, "sigma": 0.0303}))
-    assert spec[1:] == (20.0, 0.0303), name
+    assert spec == ("finite-fast", 20.0, 0.0303), name
 
 
 def test_terrain_is_untouched_by_the_soil_knobs():

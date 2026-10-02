@@ -84,9 +84,11 @@ def test_live_web_solve_via_nec5(client):
 
 
 @needs_nec5
-def test_live_web_solve_fast_ground_served_as_sommerfeld(client):
+def test_live_web_solve_refuses_the_fast_ground(client):
     # NEC-5 has no reflection-coefficient model: the UI's "fast" request is
-    # served by the full Sommerfeld solve and the applied label says so.
+    # refused by name (AK#1856) rather than served by the Sommerfeld solve.
+    from antennaknobs.engines.nec5 import REFL_COEF_REFUSAL
+
     res = _ws_solve(
         client,
         {
@@ -94,6 +96,20 @@ def test_live_web_solve_fast_ground_served_as_sommerfeld(client):
             "solver": "nec5",
             "ground": True,
             "ground_model": "fast",
+        },
+    )
+    assert res["error"] == f"NotImplementedError: {REFL_COEF_REFUSAL}"
+
+
+@needs_nec5
+def test_live_web_solve_on_sommerfeld_is_unchanged(client):
+    res = _ws_solve(
+        client,
+        {
+            "geometry": "dipoles.invvee",
+            "solver": "nec5",
+            "ground": True,
+            "ground_model": "sommerfeld",
         },
     )
     assert res["solver"] == "nec5"

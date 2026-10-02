@@ -23,6 +23,7 @@ from fastapi.testclient import TestClient
 from antennaknobs.web import server as _server
 
 import antennaknobs.web.adapter as adapter
+from antennaknobs.engines.nec5 import REFL_COEF_REFUSAL
 from antennaknobs.web.adapter import (
     _BACKENDS,
     _HOSTED_MODEL_OPTIONS,
@@ -150,13 +151,18 @@ def test_backend_roster_served_shape(client):
     # Every current solver models a ground; the flag exists so a future one
     # that doesn't can say so without a frontend change.
     assert all(e["supports_ground"] for e in roster)
-    # What each solve RUNS per requested method (AK#1854): only NEC-5 differs
-    # today, serving refl-coef as its native Sommerfeld. The frontend fixture
-    # (backendFixtures.ts) carries NEC-5's row.
+    # What each solve RUNS per requested method (AK#1854), and what it
+    # refuses (AK#1856): only NEC-5 differs today, refusing refl-coef, which
+    # it has no model for. The frontend fixture (backendFixtures.ts) carries
+    # NEC-5's rows, the refusal sentence verbatim.
     honoured = {"fast": "refl-coef", "sommerfeld": "sommerfeld", "mininec": "mininec"}
     assert {n: e["ground_applied"] for n, e in by_name.items()} == {
         **{n: honoured for n in by_name if n != "nec5"},
-        "nec5": {**honoured, "fast": "sommerfeld"},
+        "nec5": {"sommerfeld": "sommerfeld", "mininec": "mininec"},
+    }
+    assert {n: e["ground_refusals"] for n, e in by_name.items()} == {
+        **{n: {} for n in by_name if n != "nec5"},
+        "nec5": {"fast": REFL_COEF_REFUSAL},
     }
     assert {n: e["panel"] for n, e in by_name.items()} == {
         "sinusoidal": None,
