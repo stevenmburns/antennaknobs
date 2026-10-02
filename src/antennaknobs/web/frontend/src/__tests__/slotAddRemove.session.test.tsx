@@ -171,7 +171,6 @@ describe("ground slots: + and remove (AK#1801)", () => {
     const user = userEvent.setup();
     await mountReady();
     await user.click(groundTab("Z"));
-    let n = solves().length;
     await user.click(addGround()!);
     expect(groundIds()).toEqual(["X", "Y", "Z", "U"]);
     expect(isActive(groundTab("U"))).toBe(true);
@@ -180,7 +179,7 @@ describe("ground slots: + and remove (AK#1801)", () => {
     expect(dialog).not.toBeNull();
 
     // Its settings edit slot U only, and the solve follows U.
-    n = solves().length;
+    const n = solves().length;
     await user.click(within(dialog).getByRole("radio", { name: /PEC/ }));
     expect(groundTab("U").getAttribute("aria-label")).toBe("Ground slot U: PEC");
     expect(holds(groundTab("Z"))).toMatch(/^Sommerfeld/);
