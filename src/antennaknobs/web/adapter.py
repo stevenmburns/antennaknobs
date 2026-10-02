@@ -126,6 +126,7 @@ from antennaknobs.engines.nec42 import NEC42Engine
 from antennaknobs.engines.nec5 import (
     DISTRIBUTED_PORT_REFUSAL,
     NULL_GAIN_DB,
+    REFL_COEF_REFUSAL,
     NEC5Engine,
     _network_needs_reducer,
 )
@@ -632,8 +633,13 @@ def backend_roster(
             "supports_ground": b.supports_ground,
             # What this backend's impedance solve RUNS for each finite method
             # the ground panel offers (AK#1854), so a ground tab can say
-            # "refl-coef -> Sommerfeld" under NEC-5 before anything solves.
-            "ground_applied": _ground_applied_map(b),
+            # "refl-coef -> PEC image" under a momwire solver without the
+            # model before anything solves; and the sentence it REFUSES each
+            # other method with (AK#1856: NEC-5 on refl-coef), so the page
+            # marks the pair and offers the way out without a round trip.
+            # One derivation for both (`_ground_answers`).
+            "ground_applied": _ground_answers(b)[0],
+            "ground_refusals": _ground_answers(b)[1],
             # Which knobs this backend's constructor takes (#1006 G2-6),
             # measured by construction. The SPECS for them are served once on
             # the capabilities payload rather than repeated per row — thirteen
@@ -2581,15 +2587,20 @@ def _pynec_ground_applied(ground) -> str:
 _GROUND_METHODS = ("fast", "sommerfeld", "mininec")
 
 
-def _ground_applied_map(b: _BackendSpec) -> dict[str, str]:
-    """``{requested method: what the impedance solve runs}`` for backend `b`,
-    in `ground_model_applied`'s words (AK#1854). Read off the SAME rules the
+def _ground_answers(b: _BackendSpec) -> tuple[dict[str, str], dict[str, str]]:
+    """``(applied, refusals)`` for backend `b`, over the finite methods the
+    ground panel offers: what the impedance solve runs for each method it
+    serves, in `ground_model_applied`'s words (AK#1854), and the sentence it
+    refuses each other method with (AK#1856). Read off the SAME rules the
     solve applies, never a second table: a momwire solver runs a finite
     method only where its capability cell serves it and the PEC image
-    otherwise (`MomwireEngine`'s ground selection); an external lane maps the
-    request through its own ground spec and labels it with its own
-    `ground_applied`. tests/test_ground_applied_1854.py holds each entry
-    equal to what a solve reports."""
+    otherwise (`MomwireEngine`'s ground selection), and refuses none; an
+    external lane maps the request through its own ground spec, labels what
+    comes back with its own `ground_applied`, and a spec that raises
+    NotImplementedError is that lane's refusal of the method, in its words.
+    A method lands in exactly one of the two maps.
+    tests/test_ground_applied_1854.py holds each entry equal to what a solve
+    reports or refuses."""
     if b.solver is not None:
         cells = {"fast": "refl-coef", "sommerfeld": "sommerfeld"}
         out = {
@@ -2597,7 +2608,7 @@ def _ground_applied_map(b: _BackendSpec) -> dict[str, str]:
             for method, cell in cells.items()
         }
         out["mininec"] = "mininec"
-        return out
+        return out, {}
     lane = {
         "pynec": (_pynec_ground_spec, _pynec_ground_applied),
         "nec2": (_pynec_ground_spec, _pynec_ground_applied),
@@ -2605,12 +2616,18 @@ def _ground_applied_map(b: _BackendSpec) -> dict[str, str]:
         "nec5": (_nec5_ground_spec, _nec5_ground_applied),
     }.get(b.kind)
     if lane is None:
-        return {}
+        return {}, {}
     spec, applied = lane
-    return {
-        method: applied(spec({"ground": True, "ground_model": method}))
-        for method in _GROUND_METHODS
-    }
+    served: dict[str, str] = {}
+    refused: dict[str, str] = {}
+    for method in _GROUND_METHODS:
+        try:
+            ground = spec({"ground": True, "ground_model": method})
+        except NotImplementedError as e:
+            refused[method] = str(e)
+            continue
+        served[method] = applied(ground)
+    return served, refused
 
 
 def _pynec_ground_spec(req: dict):
@@ -2644,23 +2661,26 @@ def _pynec_ground_spec(req: dict):
 
 def _nec5_ground_spec(req: dict):
     """Map the frontend's ground knobs to NEC5Engine's ground spec. NEC-5
-    has no reflection-coefficient model (its IPERF 0 IS full Sommerfeld),
-    so the UI's "fast" request is served by the full Sommerfeld solve and
-    `ground_model_applied` reports "sommerfeld" — the engine's honest
-    upgrade, same convention as a momwire solver falling back to its best
-    available model. Terrain rides the crest-medium hybrid exactly like
-    the PyNEC path."""
+    has no reflection-coefficient model (its IPERF 0 IS full Sommerfeld), so
+    a "fast" request, or the legacy `ground_fast` that means it, refuses with
+    the engine's own sentence (AK#1856) rather than being served by the
+    Sommerfeld solve: that upgrade put a curve on different physics beside
+    the engines that honour the request. Raised here, before any engine or
+    binary, so the roster can serve the refusal from this same function
+    (`_ground_answers`) and a deck export refuses as the solve does. Terrain
+    rides the crest-medium hybrid exactly like the PyNEC path."""
     model = _requested_ground_model(req)
     if model is None:
         return None
     if model == "pec":
         return "pec"
+    if model == "fast":
+        raise NotImplementedError(REFL_COEF_REFUSAL)
     if model == "terrain":
         return ("finite",) + _terrain_from_request(req).crest_medium
     if model == "mininec":
         # A bare GD after GE 1: NEC-5's own spelling of it (AK#1655).
         return ("mininec",) + _soil_from_request(req)
-    # "fast" and "sommerfeld" both land on NEC-5's native Sommerfeld.
     return ("finite",) + _soil_from_request(req)
 
 

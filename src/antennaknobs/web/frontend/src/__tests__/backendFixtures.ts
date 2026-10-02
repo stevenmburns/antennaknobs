@@ -183,6 +183,11 @@ export const ROSTER_NO_PYNEC: BackendRoster = SERVED_ROSTER.filter(
   (b) => b.kind !== "pynec",
 );
 
+/** NEC-5's refusal of a refl-coef ground, as the roster serves it
+ *  (engines/nec5.py REFL_COEF_REFUSAL, verbatim). */
+export const NEC5_REFL_COEF_REFUSAL =
+  "NEC-5 has no reflection-coefficient ground: its only finite ground (IPERF 0) is a full Sommerfeld solution. Solve NEC-5 on a Sommerfeld ground instead (`finite` on the command line).";
+
 /** The roster a machine with a licensed NEC-5 binary serves (issue #825):
  *  the nec5 entry appears only when the server resolves $NEC5_EXE, so the
  *  DEFAULT SERVED_ROSTER above deliberately omits it — absence is the
@@ -195,9 +200,12 @@ export const ROSTER_WITH_NEC5: BackendRoster = [
     kind: "nec5",
     panel: "nec5",
     default_n_per_wire: 40,
-    // NEC-5 has no reflection-coefficient model (AK#1854), pinned Python-side
-    // by test_backend_roster.py::test_backend_roster_served_shape.
-    ground_applied: { fast: "sommerfeld", sommerfeld: "sommerfeld", mininec: "mininec" },
+    // NEC-5 has no reflection-coefficient model, so it refuses "fast"
+    // (AK#1856) in the engine's own sentence. Pinned Python-side by
+    // test_backend_roster.py::test_backend_roster_served_shape, and the
+    // sentence by test_nec5_refuses_refl_coef_1856.py.
+    ground_applied: { sommerfeld: "sommerfeld", mininec: "mininec" },
+    ground_refusals: { fast: NEC5_REFL_COEF_REFUSAL },
   }),
 ];
 
