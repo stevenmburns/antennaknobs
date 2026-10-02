@@ -113,11 +113,18 @@ export type BackendEntry = {
    *  binaries (issues #825, #1354, #1603), never the hosted box. */
   kind: "momwire" | "pynec" | "nec5" | "nec2" | "nec42";
   supports_ground: boolean;
-  /** What this backend's impedance solve RUNS for each finite method the
-   *  ground panel offers, in `ground_model_applied`'s words (AK#1854): NEC-5
-   *  serves "fast" as "sommerfeld". Absent on a server predating it, where a
-   *  ground tab shows only what the slot holds. */
+  /** What this backend's impedance solve RUNS for each finite method it
+   *  serves, in `ground_model_applied`'s words (AK#1854): a momwire solver
+   *  without the reflection-coefficient model serves "fast" as "pec-image".
+   *  Absent on a server predating it, where a ground tab shows only what the
+   *  slot holds. */
   ground_applied?: Record<string, string> | null;
+  /** The sentence this backend refuses each other finite method with, keyed
+   *  as the request spells it (AK#1856): NEC-5 refuses "fast". Derived on
+   *  the server from the same ground spec the solve runs, so the page marks
+   *  a refused pair and withholds its solve without restating the rule.
+   *  Absent on a server predating it. */
+  ground_refusals?: Record<string, string> | null;
   options_schema: BackendOptionField[];
   /** Bespoke panel hint, as served. Nothing in this client reads it since
    *  #1170 — every knob is drawn from the catalogue and the axes — and it is

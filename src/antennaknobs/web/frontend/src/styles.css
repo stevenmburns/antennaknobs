@@ -1841,7 +1841,7 @@ input[type=checkbox] {
    strip's columns, so a ground tab never sits under "its" solver tab: the two
    strips are chosen independently (AK#1854). */
 .ground-slot-tabs {
-  /* Wrap rather than truncate: a ground's label ("refl-coef → Sommerfeld ·
+  /* Wrap rather than truncate: a ground's label ("refl-coef → PEC image ·
      average") is the information, and a narrow pane would cut it to a few
      letters. */
   flex-wrap: wrap;
@@ -1857,6 +1857,21 @@ input[type=checkbox] {
   color: var(--muted);
   font-size: var(--text-xs);
   line-height: 1.4;
+}
+
+/* A ground the active solver refuses (AK#1856): its tab's sub-label in the
+   refusal ink, and the sentence and the way out under the pair line. */
+.ground-slot-tabs .backend-tab-btn.is-refused .slot-sub {
+  color: var(--danger);
+}
+.solve-pair-refusal {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+  color: var(--danger);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+.solve-pair-refusal button {
+  margin-left: var(--space-2);
 }
 
 /* The + that adds a slot, at the end of a slot tab strip (AK#1801). */

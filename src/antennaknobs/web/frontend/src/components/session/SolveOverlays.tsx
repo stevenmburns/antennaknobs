@@ -13,6 +13,7 @@ export function SolveOverlays({
   solverWarning,
   backendDisallowed,
   optionRefusal,
+  groundRefusal = null,
   backend,
   roster,
   requiredBackends,
@@ -34,6 +35,10 @@ export function SolveOverlays({
    *  solver can, but not with the OPTION currently set — so the fix is the
    *  option, and offering a solver switch would be the wrong advice. */
   optionRefusal: BackendConstraint | null;
+  /** The active solver's refusal of the active ground slot (AK#1856: NEC-5
+   *  on refl-coef), in the roster's served words, and the one-click way out
+   *  (a Sommerfeld ground slot). Null when the pair solves. */
+  groundRefusal?: { reason: string; wayOut: string; onWayOut: () => void } | null;
   backend: BackendEntry;
   /** The served roster (#628) — needed to resolve `requires_backends` names
    *  (which may include the retired "triangular") into offerable entries. */
@@ -98,6 +103,39 @@ export function SolveOverlays({
             </div>
           </div>
         )}
+        {solverWarning && !backendDisallowed && !optionRefusal && groundRefusal && (
+          <div
+            className="solver-suggest"
+            role="alertdialog"
+            aria-label="Ground refused by this solver"
+          >
+            <span className="solver-suggest-title">
+              {backend.label} refuses this ground
+            </span>
+            {/* The server's sentence, verbatim: the CLI and the engine refuse
+                with the same words. */}
+            <span className="solver-suggest-sub">{groundRefusal.reason}</span>
+            <div className="solver-suggest-actions">
+              {/* No "Solve anyway": the server refuses the pair, so an
+                  override would buy an error rather than a result. */}
+              <button
+                type="button"
+                className="solver-suggest-primary"
+                onClick={groundRefusal.onWayOut}
+              >
+                {groundRefusal.wayOut}
+              </button>
+              <button
+                type="button"
+                className="solver-suggest-secondary"
+                onClick={onPause}
+                title="Stop auto-solving so you can keep editing; click Live to resume."
+              >
+                Pause solving
+              </button>
+            </div>
+          </div>
+        )}
         {solverWarning && backendDisallowed && (
           <div
             className="solver-suggest"
@@ -144,12 +182,13 @@ export function SolveOverlays({
         )}
         {/* The SOFT mismatch: a performance mismatch the user may override.
             Excluded while a HARD refusal is showing — `backendDisallowed` (the
-            solver cannot run this design) or `optionRefusal` (momwire refuses
-            these options on this deck). Without the second exclusion both
+            solver cannot run this design), `optionRefusal` (momwire refuses
+            these options on this deck) or `groundRefusal` (the solver refuses
+            this ground, AK#1856). Without the second exclusion both
             overlays rendered, soft on top, and its "Solve anyway" offered an
             override for a combination that RAISES. An override button is a
             promise that the solve can proceed. */}
-        {solverWarning && !backendDisallowed && !optionRefusal && (
+        {solverWarning && !backendDisallowed && !optionRefusal && !groundRefusal && (
           <div
             className="solver-suggest"
             role="alertdialog"

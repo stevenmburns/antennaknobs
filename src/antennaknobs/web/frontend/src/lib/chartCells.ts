@@ -52,6 +52,9 @@
 //    engine list and the chart draws the slots instead (`cellsFallback`);
 //    otherwise the chart draws nothing but the note. A cell whose ground no
 //    slot holds is refused by name. The checkboxes do not multiply them.
+//  - a cell whose engine refuses its ground (AK#1856: NEC-5 has no refl-coef)
+//    is refused in the roster's served sentence, as the CLI refuses
+//    `--engine nec5 --ground finite-fast`, never drawn on other physics.
 
 import type { BackendEntry } from "./backends";
 import type { SoilParams } from "./ground";
@@ -166,7 +169,17 @@ export type CrossEnv = {
    *  cells of that design only; another design's cell is the server's to
    *  refuse. Absent: every cell is the session's design. */
   design?: string;
+  /** Why solver slot `slot` refuses ground slot `ground`, or null (AK#1856:
+   *  NEC-5 on a refl-coef slot, in the roster's served words). About the
+   *  pair, not the design, so it refuses that pair's cells on every design.
+   *  Absent: no pair is refused. */
+  groundRefusal?: (slot: string, ground: string) => string | null;
 };
+
+/** `env.groundRefusal` for a cell's pair, or null when either is unset. */
+function pairRefusal(env: CrossEnv, slot: string | null, ground: string | null): string | null {
+  return slot !== null && ground !== null ? (env.groundRefusal?.(slot, ground) ?? null) : null;
+}
 
 /** One entry on an axis: a slot, or a listed ground no slot holds. */
 export type AxisEntry = { id: string | null; label: string; refused: string | null };
@@ -503,7 +516,11 @@ export function crossPlan(cross: ChartCross, listed: ListedCross, env: CrossEnv)
       ...(set.plane !== undefined ? { plane: set.plane } : {}),
       ...(set.design !== undefined ? { design: set.design } : {}),
       ...(set.step !== undefined ? { step: set.step } : {}),
-      refused: combo.find((p) => p.refused)?.refused ?? onDesign ?? slotRefusal,
+      refused:
+        combo.find((p) => p.refused)?.refused ??
+        onDesign ??
+        slotRefusal ??
+        pairRefusal(env, slot, set.ground ?? null),
     };
     if (set.state !== undefined) cell.state = set.state;
     return cell;
@@ -571,7 +588,7 @@ function listedPlan(
       ...(c.plane !== null ? { plane: c.plane } : {}),
       ...(design !== undefined ? { design } : {}),
       listed: k,
-      refused: e.refused ?? g.refused ?? c.refused ?? slotRefusal,
+      refused: e.refused ?? g.refused ?? c.refused ?? slotRefusal ?? pairRefusal(env, e.id, g.id),
     };
     if (c.state) {
       cell.state = {
@@ -596,7 +613,7 @@ function listedPlan(
         slot: id,
         ground: g.id,
         ...(plane !== null ? { plane } : {}),
-        refused: g.refused ?? s?.refusal ?? null,
+        refused: g.refused ?? s?.refusal ?? pairRefusal(env, id, g.id),
       });
     }
   }

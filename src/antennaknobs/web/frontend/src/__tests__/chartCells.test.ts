@@ -130,6 +130,36 @@ describe("the engine cross", () => {
   });
 });
 
+describe("a pair the engine refuses (AK#1856)", () => {
+  // Slot D's NEC-5 refuses ground U, as NEC-5 refuses a refl-coef slot.
+  const refusing = env({
+    groundRefusal: (slot, ground) => (slot === "D" && ground === "U" ? "no refl-coef on NEC-5" : null),
+  });
+
+  it("refuses that cell in the served words and draws the rest", () => {
+    const plan = crossPlan({ slots: ["A", "D"], grounds: ["X", "U"] }, NOTHING_LISTED, refusing);
+    expect(plan.cells.map((c) => [c.slot, c.ground, c.refused])).toEqual([
+      ["A", "X", null],
+      ["A", "U", null],
+      ["D", "X", null],
+      ["D", "U", "no refl-coef on NEC-5"],
+    ]);
+    expect(refusedLines(plan)).toEqual(["D: nec5, U: finite:5,0.001: no refl-coef on NEC-5"]);
+  });
+
+  it("refuses a listed cell on that pair", () => {
+    const listed: ListedCross = {
+      engines: null,
+      grounds: null,
+      cells: [
+        { label: "nec5 on U", state: null, engine: "nec5", ground: "finite:5,0.001", plane: null, refused: null, param: null, values: null },
+      ],
+    };
+    const plan = crossPlan(FOLLOW_ACTIVE, listed, refusing);
+    expect(plan.cells.map((c) => c.refused)).toEqual(["no refl-coef on NEC-5"]);
+  });
+});
+
 describe("the ground cross", () => {
   it("draws one cell per ticked ground slot, on the chart's engine", () => {
     const plan = crossPlan({ slots: null, grounds: ["Y", "U"] }, NOTHING_LISTED, env({ activeSlot: "B" }));
