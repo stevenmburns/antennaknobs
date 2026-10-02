@@ -10,10 +10,10 @@ import {
   type GroundSlot,
 } from "../lib/groundSlots";
 import { defaultOptsFor } from "../lib/backends";
-import { backendEntry, SERVED_ROSTER } from "./backendFixtures";
+import { backendEntry, ROSTER_WITH_NEC5 } from "./backendFixtures";
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
-const nec5 = SERVED_ROSTER.find((b) => b.name === "nec5")!;
+const nec5 = ROSTER_WITH_NEC5.find((b) => b.name === "nec5")!;
 const bspline = backendEntry({
   ground_applied: { fast: "refl-coef", sommerfeld: "sommerfeld", mininec: "mininec" },
 });
@@ -69,7 +69,7 @@ describe("the pair line", () => {
 });
 
 describe("a chart whose engines solve one ground differently", () => {
-  const backends: Record<string, (typeof SERVED_ROSTER)[number]> = { A: bspline, B: nec5 };
+  const backends: Record<string, (typeof ROSTER_WITH_NEC5)[number]> = { A: bspline, B: nec5 };
   const grounds: Record<string, GroundSlot> = {
     X: slot(),
     Z: slot({ id: "Z", method: "sommerfeld" }),
