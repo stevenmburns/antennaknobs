@@ -12,7 +12,7 @@ import { type View } from "../lib/view";
 import { type Orientation } from "../lib/settings";
 import type { ExampleDescriptor } from "../lib/params";
 import { useViewState } from "../components/session/useViewState";
-import { HARNESS_EXAMPLE } from "./designSessionHarness";
+import { HARNESS_EXAMPLE, servedViewDefaults } from "./designSessionHarness";
 
 const PINNED: View[] = ["antenna", "azimuth", "elevation", "zparam"];
 
@@ -32,6 +32,7 @@ function mount(orientation: Orientation | undefined, first: ExampleDescriptor) {
   return renderHook(
     ({ ex }: { ex: ExampleDescriptor }) =>
       useViewState({
+        ...servedViewDefaults(),
         currentExample: ex,
         active: true,
         pinned: PINNED,

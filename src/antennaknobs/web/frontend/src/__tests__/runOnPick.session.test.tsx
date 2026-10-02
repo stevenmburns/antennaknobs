@@ -8,9 +8,17 @@ import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ExampleDescriptor, SchemaParamSpec } from "../lib/params";
-import { BUILTIN_RUN_ON_PICK } from "../lib/settings";
 import { invveeShape } from "./fixtures/solveShapes";
-import { HARNESS_EXAMPLE, mountDesignSession, sessionReady, untilDom } from "./designSessionHarness";
+import {
+  HARNESS_EXAMPLE,
+  mountDesignSession,
+  servedUiDefaults,
+  sessionReady,
+  untilDom,
+} from "./designSessionHarness";
+
+// The served table (settings.py's RUN_ON_PICK, via uiDefaultsFixtures.ts).
+const SERVED_RUN_ON_PICK = servedUiDefaults().runOnPick;
 
 vi.setConfig({ testTimeout: 20_000 });
 
@@ -144,7 +152,7 @@ const uiDefaults = (runOnPick: Record<string, boolean>, convergenceSweep = false
   },
   switches_set: [],
   antenna_view: { orientation: "auto" },
-  workbench: { run_on_pick: { ...BUILTIN_RUN_ON_PICK, ...runOnPick } },
+  workbench: { run_on_pick: { ...SERVED_RUN_ON_PICK, ...runOnPick } },
   problems: [],
 });
 
@@ -299,7 +307,7 @@ describe("a kind set true", () => {
     await untilDom(() => screen.queryByRole("status"));
     // Every kind is posted; the server writes only what differs.
     expect((posted as unknown as { workbench: unknown }).workbench).toEqual({
-      run_on_pick: { ...BUILTIN_RUN_ON_PICK, convergence: true },
+      run_on_pick: { ...SERVED_RUN_ON_PICK, convergence: true },
     });
     await pick("convergence");
     await untilDom(() => paramSweeps.length > 0 || null);

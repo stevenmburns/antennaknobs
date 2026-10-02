@@ -13,6 +13,7 @@ import { describe, it, expect, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { type View } from "../lib/view";
 import { useViewState } from "../components/session/useViewState";
+import { servedViewDefaults } from "./designSessionHarness";
 import { type Layout } from "../components/session/useViewPrefs";
 
 const FOUNDING: View[] = ["antenna", "azimuth", "elevation", "zparam"];
@@ -30,7 +31,7 @@ function press(key: string, target?: HTMLElement) {
 describe("grid-mode arrow cycling", () => {
   it("cycles exactly the displayed cells (first ≤4 pins) and wraps", () => {
     const { result } = renderHook(() =>
-      useViewState({ currentExample: undefined, active: true, pinned: FOUNDING, layout: "grid" }),
+      useViewState({ ...servedViewDefaults(), currentExample: undefined, active: true, pinned: FOUNDING, layout: "grid" }),
     );
     const seen: View[] = [];
     for (let i = 0; i < FOUNDING.length; i++) {
@@ -43,7 +44,7 @@ describe("grid-mode arrow cycling", () => {
   it("never lands on pin #5 or #6, even though they're pinned", () => {
     const sixPins: View[] = [...FOUNDING, "schematic", "files"];
     const { result } = renderHook(() =>
-      useViewState({ currentExample: undefined, active: true, pinned: sixPins, layout: "grid" }),
+      useViewState({ ...servedViewDefaults(), currentExample: undefined, active: true, pinned: sixPins, layout: "grid" }),
     );
     const seen = new Set<View>([result.current.view]);
     for (let i = 0; i < 8; i++) {
@@ -55,7 +56,7 @@ describe("grid-mode arrow cycling", () => {
 
   it("does not affect rail mode's pinned ∪ active cycle (default layout)", () => {
     const { result } = renderHook(() =>
-      useViewState({ currentExample: undefined, active: true, pinned: FOUNDING }),
+      useViewState({ ...servedViewDefaults(), currentExample: undefined, active: true, pinned: FOUNDING }),
     );
     act(() => result.current.setView("schematic"));
     press("ArrowDown");
@@ -77,7 +78,7 @@ describe("off-grid ring recovery", () => {
     // see the next test for the true "just switched into grid" transition.
     const sixPins: View[] = [...FOUNDING, "schematic", "files"];
     const { result } = renderHook(() =>
-      useViewState({ currentExample: undefined, active: true, pinned: sixPins, layout: "grid" }),
+      useViewState({ ...servedViewDefaults(), currentExample: undefined, active: true, pinned: sixPins, layout: "grid" }),
     );
     act(() => result.current.setView("files"));
     expect(result.current.view).toBe("antenna");
@@ -88,6 +89,7 @@ describe("off-grid ring recovery", () => {
     const { result, rerender } = renderHook<ReturnType<typeof useViewState>, { layout: Layout }>(
       ({ layout }) =>
         useViewState({
+          ...servedViewDefaults(),
           currentExample: undefined,
           active: true,
           pinned: FOUNDING,
@@ -111,6 +113,7 @@ describe("off-grid ring recovery", () => {
     const { result, rerender } = renderHook<ReturnType<typeof useViewState>, { layout: Layout }>(
       ({ layout }) =>
         useViewState({
+          ...servedViewDefaults(),
           currentExample: undefined,
           active: true,
           pinned: sixPins,
@@ -129,6 +132,7 @@ describe("off-grid ring recovery", () => {
     const setLayout = vi.fn();
     const { result } = renderHook(() =>
       useViewState({
+        ...servedViewDefaults(),
         currentExample: undefined,
         active: true,
         pinned: FOUNDING,
@@ -146,7 +150,7 @@ describe("off-grid ring recovery", () => {
 
   it("does nothing when setLayout is omitted (the branch is simply inert)", () => {
     const { result } = renderHook(() =>
-      useViewState({ currentExample: undefined, active: true, pinned: FOUNDING, layout: "grid" }),
+      useViewState({ ...servedViewDefaults(), currentExample: undefined, active: true, pinned: FOUNDING, layout: "grid" }),
     );
     expect(() => act(() => result.current.setView("schematic"))).not.toThrow();
   });

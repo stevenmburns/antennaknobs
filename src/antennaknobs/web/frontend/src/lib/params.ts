@@ -192,7 +192,7 @@ export type ExampleDescriptor = {
   converged_feed_suggested?: boolean;
   /** Ground model this design REQUIRES to mean anything ("sommerfeld" for
    *  the buried-wire designs — conductors below z = 0 only exist under a
-   *  Sommerfeld half-space; the refl-coef default refuses them by name).
+   *  Sommerfeld half-space; the refl-coef method refuses them by name).
    *  On selection the UI auto-selects finite ground + the Sommerfeld
    *  method and notes it in the ground panel. Absent/null = no
    *  requirement. Declared statically in the design's ui_params. */

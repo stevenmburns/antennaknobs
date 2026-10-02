@@ -945,9 +945,8 @@ export type SlotSeed = {
  *  they are a served TABLE rather than something derived from the roster:
  *  "the first dense backend" would be an accident, not a choice.
  *
- *  Empty from a server that predates this, which yields the roster's own
- *  first entry for every slot — the same fallback a seed naming an absent
- *  backend already got (#429).
+ *  Every stock slot has one (useCapabilities refuses a payload that lacks
+ *  any, AK#1858); there is no client-side choice to fall back to.
  */
 export type ServedSlotSeed = {
   slot: Slot;
@@ -987,16 +986,16 @@ export function slotFromSeed(
 export function defaultSlots(
   roster: BackendRoster,
   specs: ModelOptionSpecs,
-  seeds: ServedSlotSeed[] = [],
+  seeds: ServedSlotSeed[],
 ): Record<Slot, SlotConfig> {
-  // A slot the server said nothing about falls back to the roster's FIRST
-  // entry — the server puts its plainest solver there, and falling back to
-  // the head of the served order is what keeps this file free of a second
-  // roster (#429/#560's precedent).
+  // Every slot starts from its served seed. A stock slot without one is a
+  // payload useCapabilities has already refused (AK#1858), so reaching this
+  // without one is a broken invariant, not a choice to make here.
   const bySlot = new Map(seeds.map((s) => [s.slot, s]));
   const one = (slot: Slot): SlotConfig => {
     const seed = bySlot.get(slot);
-    if (!seed) return { backend: roster[0]!, opts: defaultOptsFor(roster[0]!, specs) };
+    if (!seed)
+      throw new Error(`solver slot ${slot} has no served seed; the server's default_slots must name every stock slot`);
     return slotFromSeed(
       {
         backend: seed.backend,

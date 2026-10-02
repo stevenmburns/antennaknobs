@@ -322,11 +322,13 @@ export function DesignSession({
   if (error !== null)
     return (
       <div className="app app-capabilities" role="alert">
-        Could not load the server’s solver catalog ({error}). Reload once the
-        server is reachable.
+        Could not start the workbench: {error}. Reload once the server is
+        reachable; if this persists, the page and its server do not match.
       </div>
     );
-  if (roster === null)
+  // useCapabilities sets the roster and the startup settings together, or
+  // neither and an error.
+  if (roster === null || uiDefaults === null)
     return <div className="app app-capabilities">loading solver catalog…</div>;
   return (
     <DesignSessionBody
@@ -1318,7 +1320,7 @@ function DesignSessionBody({
     const outcome = await saveSettings(body);
     setSettingsNote(
       outcome.ok
-        ? `Saved as your defaults: ${outcome.uiDefaults.path ?? "settings.toml"}`
+        ? `Saved as your defaults: ${outcome.path ?? "settings.toml"}`
         : `Not saved: ${outcome.problems.join(" · ")}`,
     );
   }
@@ -1866,7 +1868,7 @@ function DesignSessionBody({
     //
     // Ground-requirement seed: the buried-wire designs declare
     // ground_requirement="sommerfeld" (conductors below z=0 only exist under
-    // a Sommerfeld half-space — the refl-coef default refuses them by name),
+    // a Sommerfeld half-space — the refl-coef method refuses them by name),
     // so seed finite + Sommerfeld on selection instead of letting the first
     // solve hit the refusal wall. The user can still flip anything
     // afterwards, and the solver's by-name refusal remains the enforcement.

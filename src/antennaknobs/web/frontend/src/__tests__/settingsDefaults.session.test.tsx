@@ -9,8 +9,9 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { groundSettings, mountReady, untilDom } from "./designSessionHarness";
+import { groundSettings, mountDesignSession, mountReady, untilDom } from "./designSessionHarness";
 import { SERVED_SLOT_SEEDS } from "./backendFixtures";
+import { SERVED_UI_DEFAULTS } from "./uiDefaultsFixtures";
 
 const DEFAULTS = {
   path: "/home/ham/.antennaknobs/settings.toml",
@@ -29,13 +30,18 @@ const DEFAULTS = {
   },
   switches_set: ["freq_sweep", "refine", "heatmap_currents", "current_waveforms", "wire_labels", "feed_labels"],
   antenna_view: { orientation: "iso" },
-  ground: {
-    enabled: false,
-    type: "finite",
-    method: "sommerfeld",
-    soil: { eps_r: 20, sigma: 0.03 },
-    terrain_preset: null,
-  },
+  // Slot X as the file sets it; Y and Z as served.
+  grounds: [
+    {
+      id: "X",
+      enabled: false,
+      type: "finite",
+      method: "sommerfeld",
+      soil: { eps_r: 20, sigma: 0.03 },
+      terrain_preset: null,
+    },
+    ...SERVED_UI_DEFAULTS.grounds.slice(1),
+  ],
   problems: ["[switches] freq_swep: not a switch (known: live, freq_sweep)"],
 };
 
@@ -194,11 +200,26 @@ describe("startup settings (AK#1492)", () => {
     expect(screen.queryByRole("button", { name: "save as my defaults" })).toBeNull();
   });
 
-  it("starts at the built-in defaults on a server without ui_defaults", async () => {
+  it("refuses a server without ui_defaults, with a sentence and no workbench (AK#1858)", async () => {
+    mountDesignSession({ uiDefaults: null });
+    const alert = await untilDom(() => screen.queryByRole("alert"));
+    expect(alert.textContent).toContain("the server sent no startup settings (ui_defaults)");
+    expect(screen.queryByRole("button", { name: "Tools menu" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: /Solver slot A/ })).toBeNull();
+  });
+
+  it("refuses a payload without a stock slot's starting solver (AK#1858)", async () => {
+    mountDesignSession({ slotSeeds: SERVED_SLOT_SEEDS.filter((s) => s.slot !== "C") });
+    const alert = await untilDom(() => screen.queryByRole("alert"));
+    expect(alert.textContent).toContain("the server sent no starting solver for slot C");
+    expect(screen.queryByRole("button", { name: "Tools menu" })).toBeNull();
+  });
+
+  it("starts at the served defaults on a server with no settings file", async () => {
     const user = userEvent.setup();
     await mountReady();
     await openTools(user);
-    expect(checkedStates("wire labels").every((c) => !c)).toBe(true);
+    expect(checkedStates("wire labels").every((c) => c === SERVED_UI_DEFAULTS.switches.wire_labels)).toBe(true);
     expect(screen.queryByRole("button", { name: "save as my defaults" })).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
   });

@@ -54,7 +54,7 @@ describe("slot families", () => {
 
 describe("solver slot seeds (AK#1801)", () => {
   it("A, B, C always; a served seed past C adds its slot", () => {
-    expect(slotOrder(defaultSlots(SERVED_ROSTER, SERVED_OPTION_SPECS, []))).toEqual([
+    expect(slotOrder(defaultSlots(SERVED_ROSTER, SERVED_OPTION_SPECS, SERVED_SLOT_SEEDS))).toEqual([
       "A",
       "B",
       "C",
@@ -125,5 +125,14 @@ describe("addGroundSlot / removeGroundSlot (AK#1801)", () => {
     expect(one.active).toBe("U");
     const kept = removeGroundSlot({ ...one, active: "Y" }, "U");
     expect(kept.active).toBe("Y");
+  });
+});
+
+describe("a stock slot without a served seed (AK#1858)", () => {
+  it("is refused by name, never seeded from the roster's head", () => {
+    const seeds = SERVED_SLOT_SEEDS.filter((s) => s.slot !== "B");
+    expect(() => defaultSlots(SERVED_ROSTER, SERVED_OPTION_SPECS, seeds)).toThrow(
+      /solver slot B has no served seed/,
+    );
   });
 });

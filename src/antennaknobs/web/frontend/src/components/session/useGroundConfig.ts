@@ -29,7 +29,7 @@ import {
   type SoilRanges,
   type TerrainParams,
 } from "../../lib/ground";
-import { BUILTIN_GROUND_SLOTS, type GroundSlotDefaults } from "../../lib/settings";
+import type { GroundSlotDefaults } from "../../lib/settings";
 
 /** A slot's starting state from its served defaults. The terrain preset
  *  falls back to the panel's first preset, which a save leaves out (#1497). */
@@ -56,15 +56,16 @@ export function useGroundConfig({
   backend,
   soilRanges,
   soilPresets,
-  slots: slotDefaults = BUILTIN_GROUND_SLOTS,
+  slots: slotDefaults,
 }: {
   backend: BackendEntry;
   /** Served bounds+defaults, null on a server predating #1173. */
   soilRanges?: SoilRanges | null;
   soilPresets?: SoilPresetSchema[];
   /** Where each ground slot starts (AK#1794, settings.toml's [grounds.X],
-   *  slot X also [ground]); the stock set if omitted. */
-  slots?: GroundSlotDefaults[];
+   *  slot X also [ground]): the served list, never empty (useCapabilities
+   *  refuses a payload without one, AK#1858). */
+  slots: GroundSlotDefaults[];
 }) {
   // The ground slots (AK#1794), the A/B/C solver slots' twin: each holds a
   // whole ground, the active one is what every solve and chart reads, and
@@ -80,12 +81,13 @@ export function useGroundConfig({
   //    every backend solves it as best it can (see the GroundType note).
   //  - method: the finite-ground method; hidden (and inert) on backends with
   //    a single finite model, but kept so it survives backend flips during
-  //    engine comparison. "fast" is the default — Sommerfeld is opt-in.
+  //    engine comparison. Which method a slot starts on is the server's
+  //    (settings.py's GROUND_BUILTIN and STOCK_GROUNDS).
   //  - terrainPreset / terrainParams: one flat params object for both
   //    presets so values survive preset flips.
   const [state, setState] = useState<GroundSlotsState>(() => ({
     slots: slotDefaults.map(slotFromDefaults),
-    active: slotDefaults[0]?.id ?? BUILTIN_GROUND_SLOTS[0].id,
+    active: slotDefaults[0].id,
   }));
 
   // Soil constants for the finite models (issue #1173). Seeded from the
@@ -162,7 +164,7 @@ export function useGroundConfig({
   // A design load (DesignSession's design resets): see withDesignGround. The
   // session default is slot X as the settings file starts it.
   function applyDesignGround(own: GroundEdit | null) {
-    const start = slotFromDefaults(slotDefaults[0] ?? BUILTIN_GROUND_SLOTS[0]);
+    const start = slotFromDefaults(slotDefaults[0]);
     const sessionDefault = { ...start, soil: start.soil ?? servedDefault };
     setState((st) => withDesignGround(st, own, sessionDefault));
   }

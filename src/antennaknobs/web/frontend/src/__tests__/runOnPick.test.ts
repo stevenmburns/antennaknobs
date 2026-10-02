@@ -5,7 +5,11 @@
 import { describe, it, expect } from "vitest";
 import { parseAnalyses, type AnalysisEntry } from "../lib/analyses";
 import { pickRuns, runOnPickKind } from "../lib/analysisChart";
-import { BUILTIN_RUN_ON_PICK, parseUiDefaults } from "../lib/settings";
+import { parseUiDefaults } from "../lib/settings";
+import { overServed, servedUiDefaults } from "./designSessionHarness";
+
+// The served table: settings.py's RUN_ON_PICK, through uiDefaultsFixtures.ts.
+const SERVED_RUN_ON_PICK = servedUiDefaults().runOnPick;
 
 const knob = (param: string, hold = false) => ({
   runs: true,
@@ -79,11 +83,11 @@ describe("runOnPickKind: the kind of analysis a pick is", () => {
   it("an analysis the workbench cannot run (a map today) has no kind, and never runs", () => {
     const e = byName(list, "map");
     expect(runOnPickKind(e.workbench)).toBeNull();
-    expect(pickRuns(e.workbench, { ...BUILTIN_RUN_ON_PICK, map: true })).toBe(false);
+    expect(pickRuns(e.workbench, { ...SERVED_RUN_ON_PICK, map: true })).toBe(false);
   });
 
-  it("the built-in table: frequency sweeps and patterns run, the rest wait for Run", () => {
-    const runs = Object.fromEntries(list.map((e) => [e.name, pickRuns(e.workbench, BUILTIN_RUN_ON_PICK)]));
+  it("the served table: frequency sweeps and patterns run, the rest wait for Run", () => {
+    const runs = Object.fromEntries(list.map((e) => [e.name, pickRuns(e.workbench, SERVED_RUN_ON_PICK)]));
     expect(runs).toEqual({
       "band SWR": true,
       pattern: true,
@@ -98,7 +102,7 @@ describe("runOnPickKind: the kind of analysis a pick is", () => {
   });
 
   it("a kind set true runs, and only that kind", () => {
-    const table = { ...BUILTIN_RUN_ON_PICK, knob: true };
+    const table = { ...SERVED_RUN_ON_PICK, knob: true };
     expect(pickRuns(byName(list, "height").workbench, table)).toBe(true);
     expect(pickRuns(byName(list, "match vs height").workbench, table)).toBe(false);
     expect(pickRuns(byName(list, "convergence").workbench, table)).toBe(false);
@@ -106,15 +110,19 @@ describe("runOnPickKind: the kind of analysis a pick is", () => {
 });
 
 describe("parseUiDefaults: [workbench.run_on_pick]", () => {
-  it("a server without it serves the built-in table", () => {
-    expect(parseUiDefaults({}).runOnPick).toEqual(BUILTIN_RUN_ON_PICK);
-    expect(parseUiDefaults(undefined).runOnPick).toEqual(BUILTIN_RUN_ON_PICK);
+  it("takes the served table as it is", () => {
+    const ui = parseUiDefaults(overServed({ workbench: { run_on_pick: { knob: true, frequency: false } } }));
+    expect(ui?.runOnPick).toEqual({ ...SERVED_RUN_ON_PICK, knob: true, frequency: false });
   });
 
-  it("takes each served boolean, and the built-in for anything else", () => {
-    const ui = parseUiDefaults({
-      workbench: { run_on_pick: { knob: true, frequency: false, held: "yes", study: true } },
-    });
-    expect(ui.runOnPick).toEqual({ ...BUILTIN_RUN_ON_PICK, knob: true, frequency: false });
+  // Strict (AK#1858): the page restates no default to fill a gap with.
+  it("refuses a payload without the table, or with a kind missing or not a boolean", () => {
+    const served = overServed();
+    expect(parseUiDefaults({ ...served, workbench: {} })).toBeNull();
+    const withoutHeld = Object.fromEntries(Object.entries(SERVED_RUN_ON_PICK).filter(([k]) => k !== "held"));
+    expect(parseUiDefaults({ ...served, workbench: { run_on_pick: withoutHeld } })).toBeNull();
+    expect(
+      parseUiDefaults({ ...served, workbench: { run_on_pick: { ...SERVED_RUN_ON_PICK, held: "yes" } } }),
+    ).toBeNull();
   });
 });

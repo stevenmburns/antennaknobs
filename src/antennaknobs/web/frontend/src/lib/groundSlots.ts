@@ -29,16 +29,6 @@ export const GROUND_SLOT_IDS: readonly GroundSlotId[] = [..."XYZUVWRSTOPQLMNIJKF
  *  set (settings.py's STOCK_GROUNDS), and the strip's + adds U, V, W, ... */
 export const GROUND_SLOTS: SlotFamily = { ids: GROUND_SLOT_IDS, stock: 3, noun: "ground" };
 
-/** A served slot id as the slot's letter, or null: a letter of the sequence
- *  as it is, and a number, the spelling before AK#1801, as the letter at
- *  that place (1 → X, 2 → Y, 3 → Z, 4 → U), as the settings reader takes a
- *  numbered [grounds.N] table. */
-export function groundSlotId(raw: string): GroundSlotId | null {
-  if (GROUND_SLOT_IDS.includes(raw)) return raw;
-  if (/^[1-9]\d*$/.test(raw)) return GROUND_SLOT_IDS[Number(raw) - 1] ?? null;
-  return null;
-}
-
 export type GroundSlot = {
   /** "X", "Y", "Z", ...: the key of the settings file's [grounds.X] table. */
   id: GroundSlotId;
