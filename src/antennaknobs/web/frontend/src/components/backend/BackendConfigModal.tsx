@@ -1,3 +1,4 @@
+import { RemoveSlotButton } from "../session/SlotStripControls";
 import { useEffect } from "react";
 import {
   backendAllowed,
@@ -115,6 +116,9 @@ export type BackendConfigProps = {
   onPatch: (patch: Partial<BackendOpts>) => void;
   onReset: () => void;
   onClose: () => void;
+  /** The slot's remove (AK#1801): why it cannot go (null when it can) and
+   *  the action. Absent: no remove button (a stock slot). */
+  remove?: { refusal: string | null; onRemove: () => void } | undefined;
 };
 
 
@@ -137,6 +141,7 @@ export function BackendConfigModal({
   onPatch,
   onReset,
   onClose,
+  remove,
 }: BackendConfigProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -372,6 +377,14 @@ export function BackendConfigModal({
         </div>
 
         <div className="backend-config-footer">
+          {remove && (
+            <RemoveSlotButton
+              noun="solver"
+              id={slot}
+              refusal={remove.refusal}
+              onRemove={remove.onRemove}
+            />
+          )}
           <button className="backend-config-reset" onClick={onReset}>
             reset to defaults
           </button>

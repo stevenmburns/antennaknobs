@@ -1,7 +1,11 @@
 import { useState } from "react";
 import {
   activeGroundSlot,
+  addGroundSlot,
   designSlotId,
+  GROUND_SLOTS,
+  groundSlotRemovalRefusal,
+  removeGroundSlot,
   editActive,
   editSlot,
   groundRequest,
@@ -11,6 +15,7 @@ import {
   type GroundSlotId,
   type GroundSlotsState,
 } from "../../lib/groundSlots";
+import { nextSlotId } from "../../lib/slotFamily";
 import { type BackendEntry } from "../../lib/backends";
 import {
   defaultSoil,
@@ -148,6 +153,11 @@ export function useGroundConfig({
   };
   const setActiveGroundSlot = (id: GroundSlotId) =>
     setState((st) => (st.slots.some((s) => s.id === id) ? { ...st, active: id } : st));
+  // The strip's + and a slot's remove (AK#1801).
+  const nextGroundSlot = nextSlotId(GROUND_SLOTS, state.slots.map((s) => s.id));
+  const addSlot = () => setState(addGroundSlot);
+  const removalRefusal = (id: GroundSlotId) => groundSlotRemovalRefusal(state, id);
+  const removeSlot = (id: GroundSlotId) => setState((st) => removeGroundSlot(st, id));
 
   // A design load (DesignSession's design resets): see withDesignGround. The
   // session default is slot X as the settings file starts it.
@@ -221,6 +231,10 @@ export function useGroundConfig({
     activeGroundSlot: active.id,
     designGroundSlot: designSlotId(state),
     setActiveGroundSlot,
+    nextGroundSlot,
+    addGroundSlot: addSlot,
+    groundSlotRemovalRefusal: removalRefusal,
+    removeGroundSlot: removeSlot,
     applyDesignGround,
     groundEnabled,
     setGroundEnabled,

@@ -1797,10 +1797,14 @@ input[type=checkbox] {
   display: flex;
   gap: var(--space-1);
   flex: 1;
+  /* Up to five solver slots, or more ground slots (AK#1801), share the row:
+     a cell may shrink below its label, which then ellipsises. */
+  min-width: 0;
 }
 
 .backend-tab-btn {
   flex: 1;
+  min-width: 0;
   background: var(--inset);
   color: var(--muted);
   border: 1px solid var(--border-control);
@@ -1826,6 +1830,29 @@ input[type=checkbox] {
   font-size: var(--text-xs);
   opacity: 0.7;
   text-transform: lowercase;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The + that adds a slot, at the end of a slot tab strip (AK#1801). */
+.slot-add-btn {
+  flex: none;
+  background: var(--inset);
+  color: var(--muted);
+  border: 1px dashed var(--border-control);
+  border-radius: var(--r-sm);
+  padding: var(--space-3) var(--space-4);
+  font: inherit;
+  font-size: var(--text-base);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.slot-add-btn:hover {
+  color: var(--accent);
+  border-color: var(--border-hover);
 }
 
 .backend-tab-btn:hover {
@@ -1964,6 +1991,19 @@ input[type=checkbox] {
   border-top: 1px solid var(--border);
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* A slot's remove (AK#1801), left of reset; the reason it cannot go yet
+   sits before it. */
+.slot-remove-note {
+  margin-right: auto;
+}
+
+.backend-config-reset:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .backend-config-reset {

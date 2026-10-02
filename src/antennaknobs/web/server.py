@@ -4168,7 +4168,8 @@ def capabilities_endpoint():
     # at the next page load. Its slots are applied to the served seeds here, so
     # the frontend seeds slots exactly as before; its switches and ground ride
     # in `ui_defaults`, with any problems as sentences.
-    ui_defaults = ui_settings.load(ui_settings.catalog(**have), hosted=_HOSTED)
+    ui_cat = ui_settings.catalog(**have)
+    ui_defaults = ui_settings.load(ui_cat, hosted=_HOSTED)
     ak_version = pkg_version("antennaknobs")
     mw_version = pkg_version("momwire")
     return {
@@ -4182,8 +4183,9 @@ def capabilities_endpoint():
         "backend_aliases": backend_aliases(),
         "composition_axes": composition_axes(),
         "axis_value_labels": axis_value_labels(),
+        # The stock A/B/C seeds, then any slot the file adds (D, E: AK#1801).
         "default_slots": ui_settings.overlay_slots(
-            default_slots(), ui_defaults["slots"]
+            default_slots(), ui_defaults["slots"], next(iter(ui_cat.backends), None)
         ),
         "ui_defaults": ui_defaults,
         # "Save as study" writes a file (AK#1757 step 7 unit 4): a local

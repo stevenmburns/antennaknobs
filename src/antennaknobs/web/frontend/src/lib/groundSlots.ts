@@ -13,6 +13,7 @@ import {
   type SoilPresetSchema,
   type TerrainParams,
 } from "./ground";
+import { nextSlotId, slotBefore, slotRemovalRefusal, type SlotFamily } from "./slotFamily";
 
 export type GroundSlotId = string;
 
@@ -23,6 +24,10 @@ export type GroundSlotId = string;
  *  solver slots' A–E. The twin of settings.py's GROUND_SLOT_IDS, pinned by
  *  tests/test_ground_slots_xyz_1801.py. */
 export const GROUND_SLOT_IDS: readonly GroundSlotId[] = [..."XYZUVWRSTOPQLMNIJKFGH"];
+
+/** The ground slots as a slot family (AK#1801): X, Y and Z are the stock
+ *  set (settings.py's STOCK_GROUNDS), and the strip's + adds U, V, W, ... */
+export const GROUND_SLOTS: SlotFamily = { ids: GROUND_SLOT_IDS, stock: 3, noun: "ground" };
 
 /** A served slot id as the slot's letter, or null: a letter of the sequence
  *  as it is, and a number, the spelling before AK#1801, as the letter at
@@ -131,6 +136,38 @@ export function editActive(
   edit: GroundEdit | ((slot: GroundSlot) => GroundEdit),
 ): GroundSlotsState {
   return editSlot(state, state.active, edit);
+}
+
+/** The strip's + (AK#1801): the next slot, a copy of the ACTIVE one (the
+ *  natural start for "the same ground, one change"), made active. A copy of
+ *  a design's ground is the user's own: a later design leaves it alone. */
+export function addGroundSlot(state: GroundSlotsState): GroundSlotsState {
+  const id = nextSlotId(GROUND_SLOTS, state.slots.map((s) => s.id));
+  if (id === null) return state;
+  const from = activeGroundSlot(state);
+  const copy: GroundSlot = {
+    ...from,
+    id,
+    soil: from.soil ? { ...from.soil } : null,
+    terrainParams: { ...from.terrainParams },
+    fromDesign: false,
+  };
+  return { slots: [...state.slots, copy], active: id };
+}
+
+/** Why ground slot `id` cannot be removed, or null when it can. */
+export function groundSlotRemovalRefusal(state: GroundSlotsState, id: GroundSlotId): string | null {
+  return slotRemovalRefusal(GROUND_SLOTS, state.slots.map((s) => s.id), id);
+}
+
+/** A slot's remove (AK#1801): the last slot past the stock set only. When it
+ *  was the active one, the slot before it becomes active. */
+export function removeGroundSlot(state: GroundSlotsState, id: GroundSlotId): GroundSlotsState {
+  if (groundSlotRemovalRefusal(state, id) !== null) return state;
+  return {
+    slots: state.slots.filter((s) => s.id !== id),
+    active: state.active === id ? slotBefore(GROUND_SLOTS, id) : state.active,
+  };
 }
 
 export function activeGroundSlot(state: GroundSlotsState): GroundSlot {

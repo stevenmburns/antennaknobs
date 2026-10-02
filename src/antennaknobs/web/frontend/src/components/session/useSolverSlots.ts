@@ -6,16 +6,19 @@ import {
   defaultSlots,
   densityAdoptionNote,
   perDegreeNPerWire,
+  SOLVER_SLOTS,
+  slotOrder,
   type BackendEntry,
   type BackendOpts,
   type BackendRoster,
   type Slot,
   type SlotConfig,
 } from "../../lib/backends";
+import { nextSlotId, slotBefore, slotRemovalRefusal } from "../../lib/slotFamily";
 
-// The A/B/C solver slots: each slot's backend + per-backend options, the
-// derived view of the active one, and the three mutators the gear modal
-// drives (#642 seam 5b-3).
+// The solver slots: each slot's backend + per-backend options, the derived
+// view of the active one, the three mutators the gear modal drives (#642 seam
+// 5b-3), and the strip's + and the gear's remove (AK#1801).
 //
 // Seeded from the SERVED roster (#628), which is why this hook has no effects
 // any more: the session only mounts once /capabilities has answered, so the
@@ -34,12 +37,12 @@ export function useSolverSlots({
   roster: BackendRoster;
   /** The served knob catalogue — slot defaults come from it (#1006 G2-6). */
   specs: ModelOptionSpecs;
-  /** The served A/B/C seeds (#1006 G2-6). */
+  /** The served seeds (#1006 G2-6): A/B/C, then any the settings file adds. */
   seeds: ServedSlotSeed[];
 }) {
-  // Solver slots A / B / C — each one holds its own backend + options so
-  // the user can switch between configured solvers with a single click
-  // and tune each one independently from its gear menu.
+  // Solver slots A / B / C (D, E when added) — each one holds its own
+  // backend + options so the user can switch between configured solvers
+  // with a single click and tune each one independently from its gear menu.
   const [activeSlot, setActiveSlot] = useState<Slot>("A");
   const [slots, setSlots] = useState<Record<Slot, SlotConfig>>(() =>
     defaultSlots(roster, specs, seeds),
@@ -52,11 +55,7 @@ export function useSolverSlots({
   // on SlotConfig because it is about the last EDIT, not about the solver —
   // nothing that reads a slot to build a request or save a settings file has
   // any use for it.
-  const [densityNotes, setDensityNotes] = useState<Record<Slot, string | null>>({
-    A: null,
-    B: null,
-    C: null,
-  });
+  const [densityNotes, setDensityNotes] = useState<Record<Slot, string | null>>({});
   const [gearOpen, setGearOpen] = useState<Slot | null>(null);
   const activeConfig = slots[activeSlot];
   const backend = activeConfig.backend;
@@ -119,10 +118,46 @@ export function useSolverSlots({
     }));
   }
   function resetSlot(slot: Slot) {
-    setSlots((prev) => ({ ...prev, [slot]: defaultSlots(roster, specs, seeds)[slot] }));
+    // A slot added this session has no seed: it resets to the roster's first
+    // solver, as a slot past the stock set starts in the settings file.
+    const seeded = defaultSlots(roster, specs, [
+      ...seeds,
+      ...(seeds.some((s) => s.slot === slot)
+        ? []
+        : [{ slot, backend: roster[0]!.name, n_per_wire: null, model: {} }]),
+    ]);
+    setSlots((prev) => ({ ...prev, [slot]: seeded[slot] }));
     // Reset returns the slot to its SEED, which is not an adoption — the note
     // would be naming a number the seed chose, not the engine.
     setDensityNotes((notes) => ({ ...notes, [slot]: null }));
+  }
+
+  // The strip's + (AK#1801): the next slot, a copy of the ACTIVE one (the
+  // natural start for "the same solver, one change"), made active with its
+  // gear open.
+  const nextSlot = nextSlotId(SOLVER_SLOTS, slotOrder(slots));
+  function addSlot() {
+    if (nextSlot === null) return;
+    const from = slots[activeSlot];
+    setSlots((prev) => ({
+      ...prev,
+      [nextSlot]: { backend: from.backend, opts: { ...from.opts, model: { ...from.opts.model } } },
+    }));
+    setActiveSlot(nextSlot);
+    setGearOpen(nextSlot);
+  }
+  // A slot's gear remove: why it cannot go, or null.
+  const removalRefusal = (slot: Slot) => slotRemovalRefusal(SOLVER_SLOTS, slotOrder(slots), slot);
+  function removeSlot(slot: Slot) {
+    if (removalRefusal(slot) !== null) return;
+    setSlots((prev) => {
+      const next = { ...prev };
+      delete next[slot];
+      return next;
+    });
+    setDensityNotes((notes) => ({ ...notes, [slot]: null }));
+    if (activeSlot === slot) setActiveSlot(slotBefore(SOLVER_SLOTS, slot));
+    setGearOpen(null);
   }
 
   return {
@@ -141,5 +176,9 @@ export function useSolverSlots({
     updateSlotOpts,
     setSlotBackend,
     resetSlot,
+    nextSlot,
+    addSlot,
+    removalRefusal,
+    removeSlot,
   };
 }

@@ -17,7 +17,9 @@ import {
   comboInappropriate,
   defaultNPerWireFor,
   modelOptionsForRequest,
+  SOLVER_SLOTS,
   type Slot,
+  slotOrder,
   normalizeBackend,
   type BackendRoster,
   type ModelOptionSpecs,
@@ -74,7 +76,12 @@ import type {
   SoilRanges,
   TerrainPresetSchema,
 } from "../../lib/ground";
-import { designGround, groundSlotLabel, type GroundSlotId } from "../../lib/groundSlots";
+import {
+  designGround,
+  GROUND_SLOTS,
+  groundSlotLabel,
+  type GroundSlotId,
+} from "../../lib/groundSlots";
 import {
   type CellState,
   type ChartCell,
@@ -629,7 +636,7 @@ function DesignSessionBody({
   // paramValues["fan_dipole"], seeded from the schema's defaults +
   // default_overrides. The deletion removed ~25 lines of state plus the
   // setFanBandSlot / setFanBandFreq / setFanHalfdriverFactor helpers.
-  // Solver slots A / B / C (#642 seam 5b-3). Called at the cluster's own
+  // Solver slots A / B / C, D / E when added (#642 seam 5b-3). Called at the cluster's own
   // position, so its PyNEC-remap effect keeps its global order.
   const {
     activeSlot,
@@ -646,6 +653,10 @@ function DesignSessionBody({
     updateSlotOpts,
     setSlotBackend,
     resetSlot,
+    nextSlot,
+    addSlot,
+    removalRefusal: slotRemovalRefusal,
+    removeSlot,
   } = useSolverSlots({
     roster,
     specs: modelOptionSpecs,
@@ -712,6 +723,10 @@ function DesignSessionBody({
     activeGroundSlot,
     designGroundSlot,
     setActiveGroundSlot,
+    nextGroundSlot,
+    addGroundSlot,
+    groundSlotRemovalRefusal,
+    removeGroundSlot,
     applyDesignGround,
     groundEnabled,
     groundModel,
@@ -1291,7 +1306,9 @@ function DesignSessionBody({
           },
         ]),
       ),
-      slots: { A: slot("A"), B: slot("B"), C: slot("C") },
+      // Every solver slot, written as [slots.A] ...; one added this session
+      // (D, E: AK#1801) is written even when it changes nothing.
+      slots: Object.fromEntries(slotOrder(slots).map((s) => [s, slot(s)])),
       // Every kind, `map` included (not in the menu until the workbench
       // draws a map): the server writes only what differs from its defaults.
       workbench: { run_on_pick: runOnPick },
@@ -3141,7 +3158,7 @@ function DesignSessionBody({
               buildRequest: () => {
                 const req = buildRequest();
                 if (req.model_options?.sommerfeld !== undefined) return req;
-                const holder = (["A", "B", "C"] as Slot[]).find(
+                const holder = slotOrder(slots).find(
                   (s) => slots[s].backend.kind === "nec42",
                 );
                 if (holder === undefined) return req;
@@ -3399,6 +3416,8 @@ function DesignSessionBody({
           currentOpts={currentOpts}
           nPerWire={nPerWire}
           fixedSegmentCounts={currentExample?.fixed_segment_counts ?? false}
+          nextSlot={nextSlot}
+          onAdd={addSlot}
         />
 
         <GroundSlotTabs
@@ -3407,6 +3426,14 @@ function DesignSessionBody({
           onSelect={setActiveGroundSlot}
           onOpenGear={setGroundGearOpen}
           soilPresets={soilPresets}
+          nextSlot={nextGroundSlot}
+          onAdd={() => {
+            // The new slot opens its settings, as a new solver slot does
+            // (AK#1801): a copy is the start of "one change".
+            if (nextGroundSlot === null) return;
+            addGroundSlot();
+            setGroundGearOpen(nextGroundSlot);
+          }}
         >
           {/* The notices stay in view with the settings closed (AK#1801):
               they explain a ground the user did not choose. The design's own
@@ -3469,6 +3496,17 @@ function DesignSessionBody({
               // The active slot's notices are already on screen, under
               // the tab strip.
               notices={g.slot.id !== activeGroundSlot}
+              remove={
+                GROUND_SLOTS.ids.indexOf(g.slot.id) < GROUND_SLOTS.stock
+                  ? undefined
+                  : {
+                      refusal: groundSlotRemovalRefusal(g.slot.id),
+                      onRemove: () => {
+                        removeGroundSlot(g.slot.id);
+                        setGroundGearOpen(null);
+                      },
+                    }
+              }
             />
           );
         })()}
@@ -3500,6 +3538,14 @@ function DesignSessionBody({
             onPatch={(patch) => updateSlotOpts(gearOpen, patch)}
             onReset={() => resetSlot(gearOpen)}
             onClose={() => setGearOpen(null)}
+            remove={
+              SOLVER_SLOTS.ids.indexOf(gearOpen) < SOLVER_SLOTS.stock
+                ? undefined
+                : {
+                    refusal: slotRemovalRefusal(gearOpen),
+                    onRemove: () => removeSlot(gearOpen),
+                  }
+            }
           />
         )}
     </>
