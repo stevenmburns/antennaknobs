@@ -10,6 +10,7 @@ The audit (2026-10-01) exported every catalog design in all three dialects
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -80,7 +81,17 @@ def test_the_nec5_header_is_ascii():
 def test_every_engine_deck_write_names_its_encoding():
     """The engines hand decks to Windows console programs: a write that leans
     on the platform default is the bug this file is about."""
+    calls = 0
     for path in sorted((ROOT / "src/antennaknobs/engines").glob("*.py")):
-        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if ".write_text(" in line:
-                assert "encoding=" in line, f"{path.name}:{n}: {line.strip()}"
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "write_text"
+            ):
+                calls += 1
+                assert any(k.arg == "encoding" for k in node.keywords), (
+                    f"{path.name}:{node.lineno}"
+                )
+    # The deck and printout writes of the NEC-2, NEC-4.2 and NEC-5 engines.
+    assert calls >= 7
