@@ -2,7 +2,7 @@
 // whole ground (on/off, type, finite method, soil, terrain preset and knobs),
 // one of them is active, and every solve and chart reads the active one. The
 // pure state steps live here; useGroundConfig holds the state.
-import type { BackendEntry } from "./backends";
+import { backendDisplayLabel, type BackendEntry, type BackendOpts } from "./backends";
 import {
   resolveGroundModel,
   soilSummaryLabel,
@@ -180,14 +180,100 @@ const METHOD_LABEL: Record<FiniteGroundMethod, string> = {
   mininec: "MININEC",
 };
 
-/** A slot's tab label: what ground it holds, whatever the active solver does
- *  with it (the panel says when a solver ignores the ground). */
-export function groundSlotLabel(slot: GroundSlot, soilPresets: SoilPresetSchema[]): string {
+// `ground_model_applied`'s words for each method as the request spells it,
+// and the display words for what a solve can run instead (AK#1854).
+const REQUESTED_APPLIED: Record<FiniteGroundMethod, string> = {
+  fast: "refl-coef",
+  sommerfeld: "sommerfeld",
+  mininec: "mininec",
+};
+const APPLIED_LABEL: Record<string, string> = {
+  sommerfeld: "Sommerfeld",
+  "refl-coef": "refl-coef",
+  mininec: "MININEC",
+  "pec-image": "PEC image",
+  free: "free space",
+};
+
+/** What `backend` actually solves for `slot` when that differs from what the
+ *  slot holds, in display words (NEC-5 has no refl-coef: "Sommerfeld"), else
+ *  null. Read off the roster's served `ground_applied` (AK#1854), so it
+ *  follows the solve's own rule; a server predating it answers null. */
+export function appliedGroundChange(slot: GroundSlot, backend: BackendEntry): string | null {
+  if (!slot.enabled || slot.type !== "finite") return null;
+  const applied = backend.ground_applied?.[slot.method];
+  if (!applied || applied === REQUESTED_APPLIED[slot.method]) return null;
+  return APPLIED_LABEL[applied] ?? applied;
+}
+
+/** A slot's tab label: what ground it holds and, when the active solver runs
+ *  something else for it, that too (AK#1854): "refl-coef → Sommerfeld ·
+ *  average" under NEC-5, which has no reflection-coefficient model. Without
+ *  `backend` it is what the slot holds. */
+export function groundSlotLabel(
+  slot: GroundSlot,
+  soilPresets: SoilPresetSchema[],
+  backend?: BackendEntry,
+): string {
   if (!slot.enabled) return "free space";
   if (slot.type === "pec") return "PEC";
   if (slot.type === "terrain") return `terrain · ${slot.terrainPreset}`;
   const soil = soilSummaryLabel(slot.soil, soilPresets);
-  return soil ? `${METHOD_LABEL[slot.method]} · ${soil}` : METHOD_LABEL[slot.method];
+  const changed = backend ? appliedGroundChange(slot, backend) : null;
+  const method = changed
+    ? `${METHOD_LABEL[slot.method]} → ${changed}`
+    : METHOD_LABEL[slot.method];
+  return soil ? `${method} · ${soil}` : method;
+}
+
+/** A chart's note when one ground slot is solved as DIFFERENT ground models
+ *  across its curves' engines (AK#1854), else null: an engine cross on a
+ *  refl-coef slot with NEC-5 in it draws NEC-5 over Sommerfeld beside the
+ *  others over refl-coef, and without this the legend names one ground for
+ *  both. `cells` are the curves drawn, by solver slot and ground slot. */
+export function mixedGroundNote(
+  cells: readonly { slot: string | null; ground: string | null }[],
+  backendOf: (slot: string) => BackendEntry | undefined,
+  groundOf: (id: string) => GroundSlot | undefined,
+): string | null {
+  const byGround = new Map<string, Map<string, string[]>>();
+  for (const c of cells) {
+    if (c.slot === null || c.ground === null) continue;
+    const g = groundOf(c.ground);
+    const b = backendOf(c.slot);
+    if (!g || !b || !g.enabled || g.type !== "finite") continue;
+    const applied = appliedGroundChange(g, b) ?? METHOD_LABEL[g.method];
+    const models = byGround.get(g.id) ?? new Map<string, string[]>();
+    const engines = models.get(applied) ?? [];
+    if (!engines.includes(b.label)) engines.push(b.label);
+    models.set(applied, engines);
+    byGround.set(g.id, models);
+  }
+  const lines = [...byGround]
+    .filter(([, models]) => models.size > 1)
+    .map(
+      ([id, models]) =>
+        `Ground ${id} is solved as ` +
+        [...models].map(([m, engines]) => `${m} on ${engines.join(", ")}`).join(" but as ") +
+        ": those curves differ in ground model, not only in engine.",
+    );
+  return lines.length > 0 ? lines.join(" ") : null;
+}
+
+/** The one line naming the pair every solve and chart runs on (AK#1854):
+ *  the active solver slot and the active ground slot, which are chosen
+ *  independently — the two strips are not paired by position. */
+export function solvePairLabel(
+  solverSlot: string,
+  backend: BackendEntry,
+  opts: BackendOpts,
+  ground: GroundSlot,
+  soilPresets: SoilPresetSchema[],
+): string {
+  return (
+    `solving on ${solverSlot} (${backendDisplayLabel(backend, opts)}) × ` +
+    `${ground.id} (${groundSlotLabel(ground, soilPresets, backend)})`
+  );
 }
 
 /** What a slot's ground puts on a solve request, on `backend`: the wire

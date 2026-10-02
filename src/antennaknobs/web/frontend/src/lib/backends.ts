@@ -113,6 +113,11 @@ export type BackendEntry = {
    *  binaries (issues #825, #1354, #1603), never the hosted box. */
   kind: "momwire" | "pynec" | "nec5" | "nec2" | "nec42";
   supports_ground: boolean;
+  /** What this backend's impedance solve RUNS for each finite method the
+   *  ground panel offers, in `ground_model_applied`'s words (AK#1854): NEC-5
+   *  serves "fast" as "sommerfeld". Absent on a server predating it, where a
+   *  ground tab shows only what the slot holds. */
+  ground_applied?: Record<string, string> | null;
   options_schema: BackendOptionField[];
   /** Bespoke panel hint, as served. Nothing in this client reads it since
    *  #1170 — every knob is drawn from the catalogue and the axes — and it is
