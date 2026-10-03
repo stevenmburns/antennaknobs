@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import type { SweepData } from "../../lib/api";
 import { chartTable, type TableCurve, type TableKind } from "../../lib/chartTable";
+import { metricColumns, relativeAt } from "../../lib/metricPlot";
 import { isDensity, type ParamSweepData, RX_AUTO } from "../../lib/paramSweep";
 import type { SweepAxisChoice, SweepMode } from "../../lib/sweepAxis";
 import { ChartTable } from "../charts/ChartTable";
@@ -56,12 +57,20 @@ function frequencyTable(p: ViewRenderProps, f: ChartFrequencyRender): ReactEleme
 }
 
 /** The Table view of a knob or density sweep: the knob (nominal_N), and R
- *  and X (N_ach and |ΔΓ| for a density ladder) per curve. */
+ *  and X (N_ach and |ΔΓ| for a density ladder) per curve, and a MetricPlot's
+ *  metric (AK#1867). */
 export function knobTable(p: ViewRenderProps, param: string): ReactElement {
   const z0 = p.zparam?.z0 ?? p.result?.z0_ohms ?? 50;
   const curves: TableCurve[] = [];
-  const add = (d: ParamSweepData | null | undefined, k: number) => {
+  // A MetricPlot's columns (AK#1867): each curve's metric off its own
+  // sweep, and its difference off the plot's series, which already paired
+  // it with its reference (lib/metricPlot.ts). The series are the drawn
+  // cells in order: the chart's own curve is the first, every other is
+  // found by its key.
+  const cm = p.chartMetric ?? null;
+  const add = (d: ParamSweepData | null | undefined, k: number, key: string | null) => {
     if (d && d.param === param && (d.values.length > 0 || (d.gaps?.length ?? 0) > 0)) {
+      const s = cm ? (key === null ? cm.series[0] : cm.series.find((x) => x.key === key)) : undefined;
       curves.push({
         label: labelAt(p, k),
         xs: d.values,
@@ -71,18 +80,21 @@ export function knobTable(p: ViewRenderProps, param: string): ReactElement {
         // A held sweep's knobs and gaps (AK#1757 step 6).
         ...(d.held ? { held: d.held } : {}),
         ...(d.gaps && d.gaps.length > 0 ? { gaps: d.gaps } : {}),
+        ...(cm ? { metric: d.values.map((_, i) => d.metric?.[i] ?? null) } : {}),
+        ...(cm && cm.metric.relativeTo !== null ? { relative: relativeAt(s, d.values) } : {}),
       });
     }
   };
-  add(p.paramSweep, 0);
-  (p.chartCurves ?? []).forEach((c, k) => add(c.paramSweep, k + 1));
+  add(p.paramSweep, 0, null);
+  (p.chartCurves ?? []).forEach((c, k) => add(c.paramSweep, k + 1, c.key));
   const kind: TableKind = isDensity(param) ? "density" : "knob";
   const status = p.paramSweepRunning
     ? `sweeping ${p.paramSweep?.param === param ? p.paramSweep.values.length : 0}/${p.zparam?.total ?? "?"}…`
     : curves.length === 0
       ? "no sweep yet"
       : null;
-  return <ChartTable table={chartTable(kind, param, curves, z0)} size={p.size} status={status} design={p.chartDesign ?? ""} />;
+  const table = chartTable(kind, param, curves, z0, cm ? metricColumns(cm.metric) : null);
+  return <ChartTable table={table} size={p.size} status={status} design={p.chartDesign ?? ""} />;
 }
 
 /** R and X against frequency: the knob sweep's R/X chart with frequency

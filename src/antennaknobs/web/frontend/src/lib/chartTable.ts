@@ -12,7 +12,11 @@
 //     SWR against the session's Z0 (%.3f, (1 + |Γ|)/(1 − |Γ|), sweep.swr_of);
 //   - a knob sweep: the knob (%.6g), then R and X;
 //   - a density ladder: nominal_N, then per curve N_ach, R, X and |ΔΓ|
-//     against that curve's finest rung (%.4f).
+//     against that curve's finest rung (%.4f);
+//   - a knob sweep with a MetricPlot (AK#1867): after R and X, the metric
+//     and, relative to a reference, the difference from it, as the CLI's
+//     metric table prints them (analysis_run._print_metric_table, %.3f,
+//     "—" where there is no value).
 // Curves whose x values differ (a design cell on its own band, a refined
 // frequency sweep) share the rows they have in common, and a cell a curve
 // has no point at is left blank.
@@ -36,7 +40,15 @@ export type TableCurve = {
    *  row reading "gap" and its reason, never a value. */
   held?: Readonly<Record<string, readonly number[]>>;
   gaps?: readonly { value: number; reason: string }[];
+  /** A MetricPlot's metric at every x and, on a relative plot, its
+   *  difference from the curve's reference (index aligned; null: none). */
+  metric?: readonly (number | null)[];
+  relative?: readonly (number | null)[];
 };
+
+/** A knob table's metric columns (AK#1867): the metric's heading and, on a
+ *  relative plot, the difference's. */
+export type MetricColumns = { metric: string; relative: string | null };
 
 export type ChartTableData = {
   kind: TableKind;
@@ -114,7 +126,12 @@ export function chartTable(
   param: string,
   curves: readonly TableCurve[],
   z0: number,
+  metric: MetricColumns | null = null,
 ): ChartTableData {
+  const metricCols =
+    kind === "knob" && metric ? [metric.metric, ...(metric.relative ? [metric.relative] : [])] : [];
+  const metricCell = (v: number | null | undefined) =>
+    v === null || v === undefined || !Number.isFinite(v) ? "—" : formatF(v, 3);
   const xs: number[] = [];
   for (const c of curves) for (const x of c.xs) xs.push(x);
   for (const c of curves) for (const g of c.gaps ?? []) xs.push(g.value);
@@ -130,19 +147,27 @@ export function chartTable(
     });
     const g0 = finest >= 0 ? gammaOf(c.re[finest], c.im[finest], z0) : null;
     const knobs = kind === "knob" ? Object.keys(c.held ?? {}) : [];
-    const width = COLUMNS[kind].length + knobs.length;
+    const width = COLUMNS[kind].length + knobs.length + metricCols.length;
+    const metricAt = (i: number) =>
+      metricCols.length === 0
+        ? []
+        : [metricCell(c.metric?.[i]), ...(metric?.relative ? [metricCell(c.relative?.[i])] : [])];
     return (x: number): string[] => {
       const i = c.xs.findIndex((v) => sameX(v, x));
       if (i < 0) {
         const gap = (c.gaps ?? []).find((g) => sameX(g.value, x));
-        if (gap && kind === "knob") return ["gap", gap.reason, ...knobs.map(() => "")];
+        if (gap && kind === "knob") {
+          return ["gap", gap.reason, ...knobs.map(() => ""), ...metricCols.map(() => "")];
+        }
         return Array.from({ length: width }, () => "");
       }
       const r = c.re[i];
       const im = c.im[i];
       const rx = [formatF(r, 3), formatF(im, 3, true)];
       if (kind === "frequency") return [...rx, formatF(swrAt(r, im, z0), 3)];
-      if (kind === "knob") return [...rx, ...knobs.map((k) => formatG(c.held?.[k]?.[i] ?? Number.NaN, 6))];
+      if (kind === "knob") {
+        return [...rx, ...knobs.map((k) => formatG(c.held?.[k]?.[i] ?? Number.NaN, 6)), ...metricAt(i)];
+      }
       const g = gammaOf(r, im, z0);
       const dg = g0 ? Math.hypot(g.re - g0.re, g.im - g0.im) : NaN;
       const n = c.nAch?.[i];
@@ -155,7 +180,8 @@ export function chartTable(
     xName: tableXName(kind, param),
     groups: curves.map((c) => ({
       label: c.label,
-      columns: kind === "knob" ? [...COLUMNS[kind], ...Object.keys(c.held ?? {})] : COLUMNS[kind],
+      columns:
+        kind === "knob" ? [...COLUMNS[kind], ...Object.keys(c.held ?? {}), ...metricCols] : COLUMNS[kind],
     })),
     rows: rowXs.map((x) => [xCell(x), ...cells.flatMap((cell) => cell(x))]),
   };
