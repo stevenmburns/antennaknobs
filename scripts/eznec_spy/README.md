@@ -144,6 +144,12 @@ this host to rename — so point the slot straight at
   snapshots, writes no printout, exits 0, and sets `mode=capture-only` in
   `meta.tsv`. The delegate path is unchanged when a real engine is present
   (`mode=delegate`).
+
+  **It is opt-in by file name**: the shim enters capture-only only when its own
+  name contains `capture`, e.g. `momwire-nec4-capture.exe`. Anywhere else a
+  missing `.real.exe` still means a broken install and still fails loudly with
+  `9009` — otherwise a typo'd rename or a fresh drop-in folder would turn a broken
+  install into a quiet one that computes nothing and reports success.
 - **The deck lands beside the shim.** The 4.2 slot writes **`EZ.NEC` in the
   ENGINE's own directory** — not `EZN5.NEC` in `Docs` the way the NEC-5 slot does.
   So in capture-only mode `WatchedDirs` watches the *shim's* folder in place of the
