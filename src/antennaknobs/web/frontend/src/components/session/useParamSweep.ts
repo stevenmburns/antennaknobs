@@ -50,6 +50,10 @@ export type ParamSweepHandle = {
   abort: () => void;
 };
 
+/** How many times one request is asked for again after the server dropped
+ *  its stream (runParamSweep). */
+export const PARAM_SWEEP_REISSUES = 2;
+
 export function useParamSweep({
   req: paramSweepReq,
   sig: paramSweepSig,
@@ -88,6 +92,10 @@ export function useParamSweep({
   // A pick that only selects (`hold`): the next request the effect sees runs
   // nothing by itself, even with the dwell switch on; Run runs it.
   const paramSweepHoldNextRef = useRef(false);
+  // Re-issues of the current request after the server dropped its stream
+  // (see runParamSweep's end): bounded, so a server that keeps dropping it
+  // cannot loop the runner.
+  const paramSweepReissuesRef = useRef(0);
   // Debounced parameter sweep: Z against the density or one design knob, on
   // the active slot's engine, whenever something that draws it (`wanted`) is
   // on screen. The swept field is overridden per point on the server; the
@@ -110,6 +118,7 @@ export function useParamSweep({
       paramSweepArmedRef.current = paramSweepSig;
     }
     paramSweepArmNextRef.current = false;
+    paramSweepReissuesRef.current = 0;
     const held = paramSweepHoldNextRef.current && paramSweepWanted;
     paramSweepHoldNextRef.current = false;
     if (!paramSweepWanted || held) paramSweepArmedRef.current = null;
@@ -232,8 +241,10 @@ export function useParamSweep({
         ...(acc.gaps ? { gaps: acc.gaps.slice() } : {}),
         ...(acc.error ? { error: acc.error } : {}),
         ...(acc.errorStatus ? { errorStatus: acc.errorStatus } : {}),
+        ...(acc.partial ? { partial: true } : {}),
       });
     };
+    let dropped = false;
     try {
       const resp = await fetch("/param_sweep", {
         method: "POST",
@@ -264,6 +275,10 @@ export function useParamSweep({
       // the engine refusing the design, which a chart names as that curve's
       // refused cell (AK#1757 step 5 unit 4b).
       let firstError: string | null = null;
+      // The closing `{done}` record. The server ends a stream without it
+      // when its lane drops the job (a newer generation superseded it, or
+      // the solve was aborted): what landed is then not the sweep.
+      let closed = false;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -275,6 +290,7 @@ export function useParamSweep({
           if (!line) continue;
           const pt = JSON.parse(line);
           if (pt.done) {
+            closed = true;
             // The closing record's advisories: the gap-fed density warning.
             if (Array.isArray(pt.advisories) && pt.advisories.length > 0) {
               acc.advisories = pt.advisories;
@@ -373,6 +389,8 @@ export function useParamSweep({
         acc.error = firstError;
         publish();
       }
+      dropped = !closed && firstError === null && !acc.error && !controller.signal.aborted;
+      if (closed) paramSweepReissuesRef.current = 0;
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;
       console.error("param sweep error", e);
@@ -382,6 +400,25 @@ export function useParamSweep({
         setParamSweepRunning(false);
       }
     }
+    // A dropped stream (AK#1876). The server's lane supersedes a queued or
+    // running point by generation (any newer live solve, such as the
+    // session's first, which can follow a deep link's run), but this runner
+    // re-issues only when its own signature changes, and a curve whose
+    // request does not follow the live knobs (a state or design cell, the
+    // swept knob itself) keeps its signature: dropped, it would end as a
+    // curve with nothing in it, never asked for again. Still the request on
+    // screen (a newer one or a Stop aborts this controller): ask again, at
+    // the generation current now. Past the bound, what landed stays, partial.
+    if (!dropped || controller.signal.aborted) return;
+    if (paramSweepAbortRef.current !== null || paramSweepTimerRef.current !== null) return;
+    if (paramSweepStoppedRef.current === paramSweepSig) return;
+    if (paramSweepReissuesRef.current < PARAM_SWEEP_REISSUES) {
+      paramSweepReissuesRef.current += 1;
+      await runParamSweep();
+      return;
+    }
+    acc.partial = true;
+    publish();
   }
 
   // The header's Stop: abort the stream (the server sees the disconnect and
@@ -401,6 +438,7 @@ export function useParamSweep({
   // it. Still behind the poor-match gate (runParamSweep checks it).
   function runParamSweepNow() {
     paramSweepStoppedRef.current = null;
+    paramSweepReissuesRef.current = 0;
     paramSweepArmedRef.current = paramSweepSig;
     if (paramSweepTimerRef.current) window.clearTimeout(paramSweepTimerRef.current);
     setParamSweep(null);
