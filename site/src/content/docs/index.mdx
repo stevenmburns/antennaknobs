@@ -29,20 +29,17 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.95.0" icon="star">
-  **Sommerfeld by default.** The workbench and the command line now solve over
-  Sommerfeld average soil unless you choose otherwise. It costs a few
-  milliseconds per knob drag on a typical design, and the reflection-coefficient
-  model it replaces was off by about 10 % on low verticals and by 62 % on
-  M0AGP's inverted L with its elevated radials. A line in the simulation panel
-  names the solver and ground every solve runs on, each ground tab says what the
-  active engine makes of it, and NEC-5, which has no reflection-coefficient
-  ground, refuses one with a one-click switch to Sommerfeld. Solver and ground
-  slots can be added and removed (`+`). Runs on momwire 0.70.0: a source can sit
-  on a buried junction at the ground plane, a wire that crosses the ground is
-  cut exactly where it crosses, and buried solves on bspline and razor-2p run
-  about a fifth faster, with the Sommerfeld tables kept on disk so a fresh
-  session's first solve skips rebuilding them.
+<Card title="New in v0.95.1" icon="star">
+  **A metric reads as a table, and every label names its ground.** A study
+  with a metric, like M0AGP's DX gain of an inverted L against a full-size
+  vertical, now shows that metric in the Table view (with the difference from
+  the reference) and in its CSV, the Metric chart marks the knob's current value
+  and reads out every curve under the pointer, and the reference curve is
+  labelled as the 0 dB reference. Chart legends, tables and the command line
+  name the ground model ("Sommerfeld · average", "refl-coef · …") rather than
+  only the soil. Imported NEC-5 decks with two loads or a source and a load at
+  the same two-wire junction now solve, in series, as NEC-5 does. Builds on
+  v0.95.0: Sommerfeld by default, and momwire 0.70.0.
 </Card>
 
 ## The whole pitch, in one line
