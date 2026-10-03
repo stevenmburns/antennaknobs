@@ -135,12 +135,17 @@ def test_the_runner_makes_one_cell_per_listed_cell_in_order():
     assert [(c.label, c.engine, c.ground, c.design) for c in got] == [
         (f"{INVVEE}, low, nec5", "nec5", None, INVVEE),
         (
-            f"{INVVEE}:dipole, tall, momwire:bspline, finite-fast:13.0,0.005",
+            # The ground part in the ground tabs' words, as the workbench
+            # labels it; the spec stays what a reference names it by.
+            f"{INVVEE}:dipole, tall, momwire:bspline, refl-coef · average",
             "momwire:bspline",
             "finite-fast:13.0,0.005",
             f"{INVVEE}:dipole",
         ),
     ]
+    assert got[1].spelled == (
+        f"{INVVEE}:dipole, tall, momwire:bspline, finite-fast:13.0,0.005"
+    )
     # What a cell leaves out follows the analysis.
     loose = an.Analysis(
         "loose",
