@@ -377,7 +377,10 @@ this to its address:
 /?design=verticals.m0agp_invl&analysis=DX%20gain%20vs%20the%20vertical&view=Metric
 ```
 
-Add `&run=1` to press **run** as well. A link to `user.m0agp_invl` opens only
+Add `&run=1` to press **run** as well. Switch the view to **Table** for the
+numbers: each curve's DX gain in dBi and its difference from the vertical in
+dB, with the vertical's own row labelled as the reference, and **Download CSV**
+takes the same columns. A link to `user.m0agp_invl` opens only
 on the machine that has that file.
 
 ## Building one in the workbench instead
