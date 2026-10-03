@@ -57,7 +57,11 @@ beforeEach(() => {
     if (url === "/sweep")
       return streamResponse(JSON.stringify({ freq_mhz: 28.47, z_re: 44, z_im: -4 }));
     if (url === "/param_sweep")
-      return streamResponse(JSON.stringify({ param: "n_per_wire", value: 8, z_re: 44, z_im: -4 }));
+      // Closed by its `{done}` record, as the server closes a sweep it ran
+      // to the end (an unclosed one is re-issued, AK#1876).
+      return streamResponse(
+        `${JSON.stringify({ param: "n_per_wire", value: 8, z_re: 44, z_im: -4 })}\n${JSON.stringify({ done: true })}`,
+      );
     if (url === "/norm_check")
       return jsonResponse({
         available: true,
