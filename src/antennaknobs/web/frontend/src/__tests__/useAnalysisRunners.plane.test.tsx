@@ -48,7 +48,8 @@ beforeEach(() => {
   fetchMock = vi.fn((url: string) =>
     streamResponse(
       url === "/param_sweep"
-        ? JSON.stringify({ param: "n_per_wire", value: 8, z_re: 44, z_im: -4 })
+        ? // Closed by its `{done}` record (an unclosed sweep is re-issued, AK#1876).
+          `${JSON.stringify({ param: "n_per_wire", value: 8, z_re: 44, z_im: -4 })}\n${JSON.stringify({ done: true })}`
         : JSON.stringify({ freq_mhz: 28.47, z_re: 44, z_im: -4 }),
     ),
   );
