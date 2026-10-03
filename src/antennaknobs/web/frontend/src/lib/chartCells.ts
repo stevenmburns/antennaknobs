@@ -35,8 +35,11 @@
 //    analyses.CURVE_CAP); over the cap the whole chart is refused with the
 //    CLI's wording, never truncated;
 //  - a cell's label names what varies, the parts joined by ", " in that
-//    same order, as the CLI's cells do: each engine and ground as the
-//    analysis spells it when it listed it, a plane and a design by name,
+//    same order, as the CLI's cells do: each engine as the analysis spells
+//    it when it listed it, a listed ground in the ground tabs' words
+//    (`groundSpecWords`: the CLI's `finite:13,0.005` names the soil but
+//    not the model, and Sommerfeld against refl-coef is a ~3 dB split on
+//    a low vertical, AK#1867), a plane and a design by name,
 //    a state by its name (after its design when it names one), and a
 //    family's `knob = value` as the server labels it;
 //  - a state (AK#1757 step 7) is one cell per named knob setting, set over
@@ -57,8 +60,8 @@
 //    `--engine nec5 --ground finite-fast`, never drawn on other physics.
 
 import type { BackendEntry } from "./backends";
-import type { SoilParams } from "./ground";
-import type { GroundSlot } from "./groundSlots";
+import { type SoilParams, type SoilPresetSchema, soilSummaryLabel } from "./ground";
+import { type GroundSlot, METHOD_LABEL } from "./groundSlots";
 
 /** The most curves one chart draws: the CLI's `analyses.CURVE_CAP`. */
 export const CURVE_CAP = 6;
@@ -174,6 +177,9 @@ export type CrossEnv = {
    *  pair, not the design, so it refuses that pair's cells on every design.
    *  Absent: no pair is refused. */
   groundRefusal?: (slot: string, ground: string) => string | null;
+  /** The soil presets a listed ground's soil is named by ("average");
+   *  absent, its numbers. */
+  soilPresets?: readonly SoilPresetSchema[];
 };
 
 /** `env.groundRefusal` for a cell's pair, or null when either is unset. */
@@ -242,6 +248,7 @@ function axis(
   checked: string[],
   what: "solver" | "ground",
   skipped: string[],
+  words: (spec: string) => string = (spec) => spec,
 ): AxisEntry[] {
   const out: AxisEntry[] = [];
   const used = new Set<string>();
@@ -251,12 +258,12 @@ function axis(
       if (what === "solver") {
         if (!skipped.includes(spec)) skipped.push(spec);
       } else {
-        out.push({ id: null, label: spec, refused: `no ${what} slot holds ${spec}` });
+        out.push({ id: null, label: words(spec), refused: `no ${what} slot holds ${spec}` });
       }
       continue;
     }
     used.add(slot.id);
-    if (checked.includes(slot.id)) out.push({ id: slot.id, label: spec, refused: null });
+    if (checked.includes(slot.id)) out.push({ id: slot.id, label: words(spec), refused: null });
   }
   for (const s of slots) {
     if (checked.includes(s.id) && !used.has(s.id)) {
@@ -405,7 +412,9 @@ export function servedCell(
 export function crossPlan(cross: ChartCross, listed: ListedCross, env: CrossEnv): CrossPlan {
   const skipped: string[] = [];
   const engines = axis(listed.engines, env.slots, checkedSlots(cross, env), "solver", skipped);
-  const grounds = axis(listed.grounds, env.grounds, checkedGrounds(cross, env), "ground", []);
+  const grounds = axis(listed.grounds, env.grounds, checkedGrounds(cross, env), "ground", [], (spec) =>
+    groundSpecWords(spec, env.soilPresets ?? []),
+  );
   if (listed.cells) return listedPlan(cross, listed, listed.cells, env, engines, grounds);
   // Every listed engine skipped: the engine axis is the ticked slots alone
   // (the pick ticked them all), which the note says.
@@ -528,6 +537,19 @@ export function crossPlan(cross: ChartCross, listed: ListedCross, env: CrossEnv)
   return { engines, grounds, cells, capRefusal: null, skipped, fallback };
 }
 
+/** A listed cell's served label (`an.Cell.label`: its parts, the ground as
+ *  the spec spells it, joined by ", ") with that ground part in the ground
+ *  tabs' words, as a product cell's is (AK#1867). A spec has no ", " in it,
+ *  so it is one part; the last match is the ground's, after any state. */
+function listedLabel(c: ListedCell, env: CrossEnv): string {
+  if (!c.ground) return c.label;
+  const parts = c.label.split(", ");
+  const at = parts.lastIndexOf(c.ground);
+  if (at < 0) return c.label;
+  parts[at] = groundSpecWords(c.ground, env.soilPresets ?? []);
+  return parts.join(", ");
+}
+
 /** A `cells=` chart (unit 4): one cell per listed cell, a union. Each is
  *  on the slot holding its engine spec (else the analysis's one engine,
  *  else the first ticked slot) and the ground slot holding its ground spec
@@ -582,7 +604,7 @@ function listedPlan(
     const slotRefusal = e.id && ownDesign ? (env.slots.find((s) => s.id === e.id)?.refusal ?? null) : null;
     const cell: ChartCell = {
       key: `${e.id ?? "?"}|${g.id ?? "?"}|cell:${k}`,
-      label: c.label || (env.slots.find((s) => s.id === e.id)?.label ?? ""),
+      label: listedLabel(c, env) || (env.slots.find((s) => s.id === e.id)?.label ?? ""),
       slot: e.id,
       ground: g.id,
       ...(c.plane !== null ? { plane: c.plane } : {}),
@@ -650,6 +672,25 @@ const GROUND_KINDS: Record<string, GroundSlot["method"]> = {
 const CLI_SOIL: SoilParams = { eps_r: 13.0, sigma: 0.005 };
 
 const close = (a: number, b: number) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
+
+/** A ground spec as the ground tabs word what a slot holds
+ *  (groundSlotLabel): "Sommerfeld · average" for `finite:13,0.005`,
+ *  "refl-coef · εr 5, σ 0.001 S/m" for `finite-fast:5,0.001`, "free space",
+ *  "PEC". A spec the CLI would not parse reads as written. */
+export function groundSpecWords(spec: string, presets: readonly SoilPresetSchema[] = []): string {
+  if (spec === "free") return "free space";
+  if (spec === "pec") return "PEC";
+  const [kind, soilText] = spec.split(":", 2);
+  const method = GROUND_KINDS[kind];
+  if (!method) return spec;
+  let soil = CLI_SOIL;
+  if (soilText !== undefined) {
+    const nums = soilText.split(",").map(Number);
+    if (nums.length !== 2 || !nums.every(Number.isFinite)) return spec;
+    soil = { eps_r: nums[0], sigma: nums[1] };
+  }
+  return `${METHOD_LABEL[method]} · ${soilSummaryLabel(soil, [...presets])}`;
+}
 
 /** Whether a ground slot holds a ground spec, as `--ground` spells one
  *  (cli.parse_ground): "free", "pec", or "finite" / "finite-fast" /

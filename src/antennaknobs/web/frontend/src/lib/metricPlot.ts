@@ -14,6 +14,7 @@
 //  - a difference is taken at the same x, never interpolated: a point the
 //    reference has no value at has no difference.
 
+import type { MetricSpec } from "./analyses";
 import type { ParamSweepData } from "./paramSweep";
 
 /** One drawn cell as the metric plot pairs it. */
@@ -46,6 +47,39 @@ export type MetricSeries = {
   /** Why the server could not read the metric, when it could not. */
   error: string | null;
 };
+
+/** A cell's caption on a metric analysis (AK#1867): a reference of a
+ *  relative plot says so and that it is 0 by construction, since its flat
+ *  line otherwise reads as a curve that happens not to move. The same on
+ *  every view of the analysis, so the legend does not change under a view
+ *  switch. Any other cell, or no relative plot: the label as it is. */
+export function metricCaption(label: string, metric: MetricSpec | null, reference: boolean): string {
+  if (!metric || metric.relativeTo === null || !reference) return label;
+  return `${label} (reference, 0 ${metric.relativeUnit})`;
+}
+
+/** The Table's metric columns (AK#1867): the metric as the CLI heads it
+ *  (`_metric_heading`), and on a relative plot the difference, headed as
+ *  the Metric view's y axis is. */
+export function metricColumns(metric: MetricSpec): { metric: string; relative: string | null } {
+  return {
+    metric: metric.unit ? `${metric.name} (${metric.unit})` : metric.name,
+    relative:
+      metric.relativeTo !== null ? `${metric.name} vs ${metric.relativeTo} (${metric.relativeUnit})` : null,
+  };
+}
+
+/** A curve's metric differences at `xs` (index aligned), off its series: a
+ *  fixed reference's level at its one x, a curve's value at the same x,
+ *  else null. */
+export function relativeAt(s: MetricSeries | undefined, xs: readonly number[]): (number | null)[] {
+  if (!s) return xs.map(() => null);
+  if (s.fixed) return xs.map(() => s.level);
+  return xs.map((x) => {
+    const i = s.xs.indexOf(x);
+    return i >= 0 ? (s.ys[i] ?? null) : null;
+  });
+}
 
 const sameCell = (a: MetricCell, b: MetricCell) =>
   a.slot === b.slot &&

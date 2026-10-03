@@ -164,7 +164,7 @@ export function activeGroundSlot(state: GroundSlotsState): GroundSlot {
   return state.slots.find((s) => s.id === state.active) ?? state.slots[0];
 }
 
-const METHOD_LABEL: Record<FiniteGroundMethod, string> = {
+export const METHOD_LABEL: Record<FiniteGroundMethod, string> = {
   fast: "refl-coef",
   sommerfeld: "Sommerfeld",
   mininec: "MININEC",

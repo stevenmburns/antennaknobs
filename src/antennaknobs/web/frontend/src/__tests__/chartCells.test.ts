@@ -173,8 +173,10 @@ describe("the ground cross", () => {
     const listed = { engines: null, grounds: ["free", "finite:20,0.03"] };
     const plan = crossPlan(preselect(listed, env()), listed, env());
     expect(plan.cells.map((c) => [c.label, c.ground, c.refused])).toEqual([
-      ["free", "Y", null],
-      ["finite:20,0.03", null, "no ground slot holds finite:20,0.03"],
+      // A listed ground in the ground tabs' words (AK#1867); its reason in
+      // the spec the analysis wrote.
+      ["free space", "Y", null],
+      ["Sommerfeld · εr 20, σ 0.03 S/m", null, "no ground slot holds finite:20,0.03"],
     ]);
   });
 });
@@ -260,7 +262,7 @@ describe("listed engines on Steve's slots (skipped, not refused)", () => {
     expect(refusedLines(plan)).toEqual([]);
     expect(plan.cells.some((c) => c.refused)).toBe(false);
     expect(plan.cells.map((c) => [c.label, c.slot, c.ground, c.refused])).toEqual([
-      ["momwire:bspline, finite:13,0.005", "A", "1", null],
+      ["momwire:bspline, Sommerfeld · εr 13, σ 0.005 S/m", "A", "1", null],
     ]);
     expect(skippedNote(plan)).toBe(
       "skipped: razor-2p, NEC-5, which no slot holds. Put one in a slot to include it.",
@@ -495,9 +497,9 @@ describe("states", () => {
     const plan = crossPlan(preselect(HEIGHTS, env()), HEIGHTS, env());
     expect(plan.capRefusal).toBeNull();
     expect(plan.cells.map((c) => [c.label, c.slot, c.ground, c.design, c.state])).toEqual([
-      ["as built, finite:13,0.005", "A", "X", undefined, { label: "as built", knobs: {} }],
-      ["low mast, finite:13,0.005", "A", "X", undefined, { label: "low mast", knobs: { base: 5 } }],
-      ["tall mast, finite:13,0.005", "A", "X", undefined, { label: "tall mast", knobs: { base: 12 } }],
+      ["as built, Sommerfeld · εr 13, σ 0.005 S/m", "A", "X", undefined, { label: "as built", knobs: {} }],
+      ["low mast, Sommerfeld · εr 13, σ 0.005 S/m", "A", "X", undefined, { label: "low mast", knobs: { base: 5 } }],
+      ["tall mast, Sommerfeld · εr 13, σ 0.005 S/m", "A", "X", undefined, { label: "tall mast", knobs: { base: 12 } }],
     ]);
     expect(new Set(plan.cells.map((c) => c.key)).size).toBe(3);
     expect(plan.cells[1].key).toBe("A|X|st:low mast");
@@ -507,12 +509,12 @@ describe("states", () => {
   it("multiplies with the ticked slots under the cap, in the CLI's words", () => {
     const two = crossPlan({ slots: ["A", "B"], grounds: null }, HEIGHTS, env());
     expect(two.cells.map((c) => c.label)).toEqual([
-      "as built, A: momwire:bspline, finite:13,0.005",
-      "as built, B: momwire:razor-2p, finite:13,0.005",
-      "low mast, A: momwire:bspline, finite:13,0.005",
-      "low mast, B: momwire:razor-2p, finite:13,0.005",
-      "tall mast, A: momwire:bspline, finite:13,0.005",
-      "tall mast, B: momwire:razor-2p, finite:13,0.005",
+      "as built, A: momwire:bspline, Sommerfeld · εr 13, σ 0.005 S/m",
+      "as built, B: momwire:razor-2p, Sommerfeld · εr 13, σ 0.005 S/m",
+      "low mast, A: momwire:bspline, Sommerfeld · εr 13, σ 0.005 S/m",
+      "low mast, B: momwire:razor-2p, Sommerfeld · εr 13, σ 0.005 S/m",
+      "tall mast, A: momwire:bspline, Sommerfeld · εr 13, σ 0.005 S/m",
+      "tall mast, B: momwire:razor-2p, Sommerfeld · εr 13, σ 0.005 S/m",
     ]);
     const three = crossPlan({ slots: ["A", "B", "C"], grounds: null }, HEIGHTS, env());
     expect(three.capRefusal).toBe("REFUSED: 3 states x 3 engines = 9 curves, over the cap of 6");
