@@ -200,6 +200,21 @@ def test_the_closing_record_carries_the_gap_fed_advisory(client):
     assert [a["category"] for a in done["advisories"]] == ["DeltaGapFeedConvergence"]
 
 
+def test_a_failing_advisory_still_closes_the_stream(client, monkeypatch):
+    """AK#1876: the client asks again for a stream that ends without its
+    closing record, so the advisory's failure must not take it away."""
+    from antennaknobs.web import param_sweep
+
+    def boom(*a, **k):
+        raise RuntimeError("advisory")
+
+    monkeypatch.setattr(param_sweep, "gap_fed_advisory", boom)
+    req = {**DIPOLE, "momwire_model": "sinusoidal", "param": DENSITY, "values": [8]}
+    *points, done = _records(client.post("/param_sweep", json=req).text)
+    assert len(points) == 1
+    assert done == {"done": True, "solver": "momwire"}
+
+
 def test_an_unknown_param_is_422_before_any_solve(client, monkeypatch):
     def boom(*a, **k):
         raise AssertionError("solved")
