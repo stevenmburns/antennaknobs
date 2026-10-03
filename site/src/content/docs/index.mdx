@@ -29,18 +29,20 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.94.0" icon="star">
-  **Studies you can keep.** An analysis can now span designs and settings (a
-  *study*), hold the antenna resonant or matched at every sweep point, and plot
-  a figure of merit you define. The worked example is M0AGP's inverted L against
-  a full-size vertical on 160 m, which reproduces his DX-gain table: see
-  [Your own study](/advanced/your-own-study/), or open `verticals.m0agp_invl` in
-  the workbench. A chart or a set of pins can be kept as a study file, a chart
-  can be linked to directly, and picking an analysis now runs it only for the
-  kinds you choose (`[workbench.run_on_pick]`). Ground slots are named X, Y, Z,
-  and an analysis's engines that no slot holds are skipped with a note. These
-  are new, so feedback is welcome. Runs on momwire 0.69.0, whose EZNEC drop-in
-  now says which release answered.
+<Card title="New in v0.95.0" icon="star">
+  **Sommerfeld by default.** The workbench and the command line now solve over
+  Sommerfeld average soil unless you choose otherwise. It costs a few
+  milliseconds per knob drag on a typical design, and the reflection-coefficient
+  model it replaces was off by about 10 % on low verticals and by 62 % on
+  M0AGP's inverted L with its elevated radials. A line in the simulation panel
+  names the solver and ground every solve runs on, each ground tab says what the
+  active engine makes of it, and NEC-5, which has no reflection-coefficient
+  ground, refuses one with a one-click switch to Sommerfeld. Solver and ground
+  slots can be added and removed (`+`). Runs on momwire 0.70.0: a source can sit
+  on a buried junction at the ground plane, a wire that crosses the ground is
+  cut exactly where it crosses, and buried solves on bspline and razor-2p run
+  about a fifth faster, with the Sommerfeld tables kept on disk so a fresh
+  session's first solve skips rebuilding them.
 </Card>
 
 ## The whole pitch, in one line

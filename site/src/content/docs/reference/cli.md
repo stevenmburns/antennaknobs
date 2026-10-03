@@ -76,7 +76,9 @@ Useful `pattern` flags: `--fn out.png` (write to a file instead of the screen),
 (`finite-fast` for the reflection-coefficient model, and `mininec` for
 EZNEC's [MININEC-type ground](/reference/web/#the-mininec-type-ground):
 perfect-ground currents and impedance, a real-ground pattern), `--wireframe`, and
-`--elevation_angle`.
+`--elevation_angle`. With no `--ground`, a catalog design is solved over
+Sommerfeld average soil (`finite:13,0.005`), the same default the workbench
+starts on.
 
 ## Sweeps
 

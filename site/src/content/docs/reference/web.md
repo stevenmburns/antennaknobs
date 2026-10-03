@@ -1284,7 +1284,7 @@ The selector describes what the ground **is**, independent of solver:
 
 Every solver then offers the same method sub-choice — full
 **Sommerfeld/Norton** (most accurate, the reference below ~0.1λ heights)
-vs. the **reflection-coefficient** approximation (the default: much
+vs. the **reflection-coefficient** approximation (much
 faster per solve, and fine above ~0.1λ; Sommerfeld's first solve of a
 session builds an interpolation grid, but since momwire 0.15.0 that grid
 is reused across a band's frequencies — a sweep pays a few fills on its
@@ -1722,7 +1722,7 @@ the inverted V). On an engine that models the source as a **delta gap** —
 NEC-2, PyNEC, Sinusoidal, or a momwire model set to the segment-gap feed —
 the impedance then moves with the gap segment's size relative to its
 neighbours, which the density changes. On the catalog dipole (10 … 500 over
-the default ground) PyNEC's R climbs from 65.5 to 71.2 Ω up to N = 34, then
+average soil) PyNEC's R climbs from 65.5 to 71.2 Ω up to N = 34, then
 drops to 70.0 Ω when the feed wire meshes to three segments, while B-spline
 moves 0.2 Ω over the whole ladder. The view says so in an advisory when the feed
 wire is shorter than one segment at the coarsest density swept. Read
