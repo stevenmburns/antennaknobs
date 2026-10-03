@@ -47,15 +47,29 @@ internal static class Nec5Spy
         {
             realExe = ResolveRealEngine();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // Without the real engine there is nothing to delegate to. Say so loudly
-            // on stderr — EZNEC will surface a failed calculation rather than hang.
-            Console.Error.WriteLine("NEC5SPY: cannot locate the real engine: " + ex.Message);
-            return 9009;
+            // CAPTURE-ONLY MODE (momwire#1295).
+            //
+            // No <name>.real.exe beside us. Until now that returned 9009 *before*
+            // capturing, which made every slot with no real engine on this box
+            // unobservable — EZNEC's External NEC-4.2 among them, since there is no
+            // Windows NEC-4.2 engine here to rename.
+            //
+            // The deck is the prize, and the host has already written it by the time
+            // we are launched. So record everything we otherwise would, write no
+            // printout, and exit 0. The host then reports "Unable to read NEC output
+            // file"; that is expected, and is not a failure of the capture.
+            realExe = null;
         }
 
         try { BeginCapture(realExe); } catch { /* capture is best-effort */ }
+
+        if (realExe == null)
+        {
+            try { EndCapture(null, 0, 0); } catch { }
+            return 0;
+        }
 
         int exitCode;
         var sw = Stopwatch.StartNew();
@@ -414,12 +428,17 @@ internal static class Nec5Spy
         if (_captureDir == null) return;
 
         Note("shim_version", "1");
+        Note("mode", realExe == null ? "capture-only" : "delegate");
         Note("started_utc", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture));
         Note("command_line", Environment.CommandLine);
         Note("argument_tail", ArgumentTail(Environment.CommandLine));
         Note("cwd", Directory.GetCurrentDirectory());
-        Note("real_engine", realExe);
-        Note("real_engine_sha256", Sha256(realExe));
+        Note("shim_path", ShimDir());
+        if (realExe != null)
+        {
+            Note("real_engine", realExe);
+            Note("real_engine_sha256", Sha256(realExe));
+        }
         Note("stdin_redirected", Console.IsInputRedirected.ToString());
         Note("stdout_redirected", Console.IsOutputRedirected.ToString());
         Note("parent_pid", ParentPid());
@@ -472,7 +491,11 @@ internal static class Nec5Spy
     private static IEnumerable<string> WatchedDirs(string realExe)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var roots = new List<string> { Directory.GetCurrentDirectory(), Path.GetDirectoryName(realExe) };
+        // In capture-only mode there is no real engine, so watch the SHIM's folder
+        // instead: the host launched us from there, and EZNEC's NEC-4.2 slot writes
+        // its deck as EZ.NEC beside the engine rather than into Docs.
+        string engineDir = realExe == null ? ShimDir() : Path.GetDirectoryName(realExe);
+        var roots = new List<string> { Directory.GetCurrentDirectory(), engineDir };
         try { roots.AddRange(ExtraWatchedDirs()); } catch { }
         foreach (var d in roots)
         {
@@ -485,8 +508,13 @@ internal static class Nec5Spy
 
     private static void SnapshotWatchedDirs(string phase)
     {
+        // A missing real engine is capture-only mode, not a reason to skip the
+        // snapshot — it is the only record we get of what the host wrote. Pass null
+        // through; WatchedDirs falls back to the shim's own folder, which is where
+        // EZNEC's External NEC-4.2 slot drops EZ.NEC (momwire#1295).
         string realExe;
-        try { realExe = ResolveRealEngine(); } catch { return; }
+        try { realExe = ResolveRealEngine(); } catch { realExe = null; }
+        if (_captureDir == null) return;
 
         string outDir = Path.Combine(_captureDir, phase);
         Directory.CreateDirectory(outDir);

@@ -138,18 +138,30 @@ NEC-2 deck instead, with no format choice offered.
 this host to rename — so point the slot straight at
 `scripts/eznec_spy/NEC42W64CL.exe`, no `install.ps1` dance. Two things follow:
 
-- **The shim will not capture it.** It resolves `<name>.real.exe` *before* it
-  starts capturing and returns `9009` when that is missing, so EZNEC launches it
-  and no capture directory appears. A pass-through mode would fix this and does
-  not exist yet.
-- **You do not need the capture.** The 4.2 slot writes its deck as **`EZ.NEC` in
-  the ENGINE's own directory** — not `EZN5.NEC` in `Docs` the way the NEC-5 slot
-  does — so the deck is simply sitting next to the shim afterwards.
+- **CAPTURE-ONLY MODE now covers this** (momwire#1295). With no `<name>.real.exe`
+  beside it the shim used to return `9009` *before* capturing, so no capture
+  directory appeared. It now records argv, cwd, stdin and the pre/post file
+  snapshots, writes no printout, exits 0, and sets `mode=capture-only` in
+  `meta.tsv`. The delegate path is unchanged when a real engine is present
+  (`mode=delegate`).
+- **The deck lands beside the shim.** The 4.2 slot writes **`EZ.NEC` in the
+  ENGINE's own directory** — not `EZN5.NEC` in `Docs` the way the NEC-5 slot does.
+  So in capture-only mode `WatchedDirs` watches the *shim's* folder in place of the
+  real engine's, which is how `EZ.NEC` reaches the snapshot.
 
-Expect EZNEC to report `Unable to read ..` after the run; that is its NEC-4.2
-reader, and it happens *after* the deck is written. Nothing needs cleaning up
-afterwards either: the slot's selection is per-model like any other, so it dies
-with an unsaved model and is not persisted anywhere on disk.
+Expect EZNEC to report `Unable to read ..` after a capture-only run — it asked for
+a printout and got none. That is expected, and is not a failure of the capture.
+
+Do **not** read that message as evidence about EZNEC's NEC-4.2 reader: the one
+time it was cited that way, the shim had returned `9009` without launching
+anything, so there was simply no file to read. Whether the reader accepts a
+genuine 4.2 printout is a separate question, answerable by putting a real engine
+behind the shim — at which point the licence matters, because NEC-4.2 printouts
+must not reach a repo with a remote.
+
+Nothing needs cleaning up afterwards either: the slot's selection is per-model
+like any other, so it dies with an unsaved model and is not persisted anywhere on
+disk.
 
 ### Driving the sitting with AutoEZ
 
