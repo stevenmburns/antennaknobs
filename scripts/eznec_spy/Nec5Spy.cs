@@ -47,19 +47,33 @@ internal static class Nec5Spy
         {
             realExe = ResolveRealEngine();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // CAPTURE-ONLY MODE (momwire#1295).
+            // CAPTURE-ONLY MODE (momwire#1295) — but only when it was ASKED FOR.
             //
-            // No <name>.real.exe beside us. Until now that returned 9009 *before*
-            // capturing, which made every slot with no real engine on this box
-            // unobservable — EZNEC's External NEC-4.2 among them, since there is no
-            // Windows NEC-4.2 engine here to rename.
+            // No <name>.real.exe beside us. For a slot that has a real engine, that
+            // is a broken install — a typo'd rename, a fresh drop-in folder — and it
+            // must keep failing loudly, or a broken install becomes a quiet one that
+            // silently computes nothing.
+            //
+            // So capture-only is opt-in by NAME: install the shim as something
+            // containing "capture" and it records instead of delegating. That covers
+            // the case the mode exists for — EZNEC's External NEC-4.2 slot, where
+            // there is no Windows NEC-4.2 engine on this box to rename — without
+            // changing what a missing engine means anywhere else.
             //
             // The deck is the prize, and the host has already written it by the time
             // we are launched. So record everything we otherwise would, write no
             // printout, and exit 0. The host then reports "Unable to read NEC output
             // file"; that is expected, and is not a failure of the capture.
+            if (!CaptureOnlyRequested())
+            {
+                // Without the real engine there is nothing to delegate to. Say so
+                // loudly on stderr — EZNEC will surface a failed calculation rather
+                // than hang.
+                Console.Error.WriteLine("NEC5SPY: cannot locate the real engine: " + ex.Message);
+                return 9009;
+            }
             realExe = null;
         }
 
@@ -254,6 +268,21 @@ internal static class Nec5Spy
         if (!File.Exists(candidate))
             throw new FileNotFoundException("expected " + candidate);
         return candidate;
+    }
+
+    /// Capture-only is opt-in by the shim's OWN file name carrying "capture", so a
+    /// missing real engine still means a broken install everywhere else. Install as
+    /// e.g. momwire-nec4-capture.exe to ask for it.
+    private static bool CaptureOnlyRequested()
+    {
+        try
+        {
+            string stem = Path.GetFileNameWithoutExtension(
+                Process.GetCurrentProcess().MainModule.FileName);
+            return stem != null &&
+                   stem.IndexOf("capture", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+        catch { return false; }   // can't tell who we are: take the loud path
     }
 
     /// .NET builds the child's stdin writer from Console.InputEncoding and auto-flushes
