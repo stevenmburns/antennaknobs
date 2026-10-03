@@ -1,0 +1,13 @@
+shim_version	1
+mode	capture-only
+started_utc	2026-10-03T14:53:56.3531178Z
+command_line	"C:\EZNEC 7.0\Docs\momwire-nec4-capture.exe" "EZ.NEC" "NEC.OUT"
+argument_tail	"EZ.NEC" "NEC.OUT"
+cwd	C:\EZNEC 7.0\Docs
+shim_path	C:\EZNEC 7.0\Docs
+stdin_redirected	False
+stdout_redirected	False
+parent_pid	16680 (self)
+exit_code	0
+elapsed_ms	0
+finished_utc	2026-10-03T14:53:56.5234072Z
