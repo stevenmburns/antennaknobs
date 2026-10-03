@@ -71,8 +71,10 @@ import argparse
 import dataclasses
 import itertools
 import math
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
+from decimal import Decimal
 
 import numpy as np
 
@@ -375,6 +377,95 @@ class Cell:
     design: str | None = None
     step: tuple[str | an.Role, float] | None = None
     state: an.State | None = None
+    # The label with every part as its spec spells it, when that differs
+    # from ``label`` (a ground part, which ``label`` words as the ground tabs
+    # do, `ground_words`). A reference (``relative_to``) names a cell in
+    # these words, so `references` matches on them; None: ``label`` is it.
+    spec_label: str | None = None
+
+    @property
+    def spelled(self) -> str:
+        """The label as the specs spell it: what a reference names."""
+        return self.label if self.spec_label is None else self.spec_label
+
+
+# What each ground kind (`cli.parse_ground`) means in the ground tabs' words
+# (the frontend's `METHOD_LABEL` through `chartCells.GROUND_KINDS`).
+_GROUND_METHOD_WORDS = {
+    "finite-fast": "refl-coef",
+    "finite": "Sommerfeld",
+    "mininec": "MININEC",
+}
+# `cli.parse_ground`'s soil when a spec gives none.
+_CLI_SOIL = (13.0, 0.005)
+
+
+def _js_number(x: float) -> str:
+    """``x`` as JavaScript's ``String(x)`` writes it, which is how the
+    workbench writes a soil's numbers (``soilSummaryLabel``): ``13``, not
+    ``13.0``, and ``0.00005`` rather than Python's ``5e-05``."""
+    r = repr(float(x))
+    if "e" in r:
+        mantissa, exp = r.split("e")
+        if x != 0 and 1e-7 <= abs(x) < 1e21:
+            r = format(Decimal(r), "f")
+        else:
+            return f"{mantissa.removesuffix('.0')}e{int(exp):+d}"
+    return r.removesuffix(".0")
+
+
+def _soil_words(eps_r: float, sigma: float) -> str:
+    """A soil as the ground tabs word it (``soilSummaryLabel``): the preset's
+    name when the values are one, else ``εr …, σ … S/m``."""
+    from .soil_presets import SOIL_PRESETS
+
+    def near(a: float, b: float) -> bool:
+        return abs(a - b) <= 1e-9 * max(1.0, abs(b))
+
+    for _name, label, p_eps_r, p_sigma, _tip in SOIL_PRESETS:
+        if near(eps_r, p_eps_r) and near(sigma, p_sigma):
+            return label
+    return f"εr {_js_number(eps_r)}, σ {_js_number(sigma)} S/m"
+
+
+def ground_words(spec: str) -> str:
+    """A ground spec as the workbench's ground tabs word what a slot holds
+    (``chartCells.groundSpecWords``, AK#1867): ``finite:13,0.005`` is
+    "Sommerfeld · average", ``finite-fast:5,0.002`` "refl-coef · εr 5, σ
+    0.002 S/m", ``free`` "free space", ``pec`` "PEC". The spec names the
+    soil but not the model, and Sommerfeld against refl-coef is a ~3 dB
+    split on a low vertical, so a cell label names the model. A spec
+    ``--ground`` would not parse reads as written."""
+    if spec == "free":
+        return "free space"
+    if spec == "pec":
+        return "PEC"
+    kind, sep, soil = spec.partition(":")
+    method = _GROUND_METHOD_WORDS.get(kind)
+    if method is None:
+        return spec
+    eps_r, sigma = _CLI_SOIL
+    if sep:
+        try:
+            eps_r, sigma = (float(x) for x in soil.split(","))
+        except ValueError:
+            return spec
+        if not (math.isfinite(eps_r) and math.isfinite(sigma)):
+            return spec
+    return f"{method} · {_soil_words(eps_r, sigma)}"
+
+
+def _worded(cells_: list[Cell]) -> list[Cell]:
+    """``cells_`` with any worded label two cells share spelled out again:
+    "finite" and "finite:13,0.005" are one soil and one model in words, and
+    a label is what tells two curves apart."""
+    seen = Counter(c.label for c in cells_)
+    return [
+        dataclasses.replace(c, label=c.spec_label, spec_label=None)
+        if c.spec_label is not None and seen[c.label] > 1
+        else c
+        for c in cells_
+    ]
 
 
 def step_values(s: an.Sweep, builder) -> list:
@@ -414,10 +505,15 @@ def cells(a: an.Analysis, session_engine: str, builder=None) -> list[Cell]:
     in order, a union: each cell's own state (its design and variant with
     it), engine, ground and plane, what it leaves out the analysis's, its
     label the cell's own (`analyses.Cell.label`), or its engine's for a cell
-    that sets nothing."""
+    that sets nothing.
+
+    A ground part is worded as the workbench's ground tabs word it
+    (`ground_words`), in a product's label and a listed cell's alike, so
+    the two tools label a curve alike; ``spec_label`` keeps the spelling a
+    reference names it by."""
     listed = an.cells_of(a)
     if listed:
-        return [_listed_cell(c, a, session_engine) for c in listed]
+        return _worded([_listed_cell(c, a, session_engine) for c in listed])
     axes = []
     for c in a.crosses:
         if c.step is not None:
@@ -436,6 +532,14 @@ def cells(a: an.Analysis, session_engine: str, builder=None) -> list[Cell]:
         chosen = {kind: value for kind, value, _ in combo}
         engine = chosen.get("engines", a.engine or session_engine)
         label = ", ".join(part for _, _, part in combo) if combo else engine
+        shown = (
+            ", ".join(
+                ground_words(part) if kind == "grounds" else part
+                for kind, _, part in combo
+            )
+            if combo
+            else engine
+        )
         state = chosen.get("states")
         # A state naming its design is that design's cell (at its variant,
         # the registry's ``name:variant``); `an.problems` refuses one beside
@@ -443,28 +547,36 @@ def cells(a: an.Analysis, session_engine: str, builder=None) -> list[Cell]:
         design = chosen.get("designs") or (state.spec if state else None)
         out.append(
             Cell(
-                label,
+                shown,
                 engine,
                 chosen.get("grounds", a.ground),
                 plane=chosen.get("planes"),
                 design=design,
                 step=chosen.get("step"),
                 state=state,
+                spec_label=None if shown == label else label,
             )
         )
-    return out
+    return _worded(out)
 
 
 def _listed_cell(c: an.Cell, a: an.Analysis, session_engine: str) -> Cell:
-    """One cell of a ``cells=`` cross, as `cells` makes a product's."""
+    """One cell of a ``cells=`` cross, as `cells` makes a product's: its
+    label `analyses.Cell.parts` with the ground part worded."""
     engine = c.engine or a.engine or session_engine
+    label = c.label or engine
+    head = (c.state.label,) if c.state is not None else ()
+    ground = ground_words(c.ground) if c.ground else None
+    shown = ", ".join(head + tuple(v for v in (c.engine, ground, c.plane) if v))
+    shown = shown or engine
     return Cell(
-        c.label or engine,
+        shown,
         engine,
         c.ground or a.ground,
         plane=c.plane,
         design=c.state.spec if c.state is not None else None,
         state=c.state,
+        spec_label=None if shown == label else label,
     )
 
 
@@ -773,7 +885,7 @@ def references(a: an.Analysis, plot: an.MetricPlot, cells_: list[Cell]) -> dict:
         c
         for c in cells_
         if an.reference_matches(
-            plot.relative_to, state=c.state, design=c.design, label=c.label
+            plot.relative_to, state=c.state, design=c.design, label=c.spelled
         )
     ]
     out = {}

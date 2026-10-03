@@ -37,9 +37,10 @@
 //  - a cell's label names what varies, the parts joined by ", " in that
 //    same order, as the CLI's cells do: each engine as the analysis spells
 //    it when it listed it, a listed ground in the ground tabs' words
-//    (`groundSpecWords`: the CLI's `finite:13,0.005` names the soil but
+//    (`groundSpecWords`: the spec `finite:13,0.005` names the soil but
 //    not the model, and Sommerfeld against refl-coef is a ~3 dB split on
-//    a low vertical, AK#1867), a plane and a design by name,
+//    a low vertical, AK#1867; the CLI words it alike,
+//    `analysis_run.ground_words`), a plane and a design by name,
 //    a state by its name (after its design when it names one), and a
 //    family's `knob = value` as the server labels it;
 //  - a state (AK#1757 step 7) is one cell per named knob setting, set over
