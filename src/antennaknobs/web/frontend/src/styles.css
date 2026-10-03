@@ -5211,3 +5211,24 @@ canvas {
   stroke-width: 1.6;
   stroke-dasharray: 6 4;
 }
+/* The current knob value and the pointer's readout (AK#1867), as the R/X
+   chart draws them. */
+.metric-plot-guide line {
+  stroke: var(--muted);
+  stroke-width: 0.9;
+  stroke-dasharray: 4 3;
+}
+.metric-plot-guide text,
+.metric-plot-hover text {
+  fill: var(--fg);
+  font-size: calc(9px * var(--chart-scale));
+}
+.metric-plot-hover line {
+  stroke: var(--fg);
+  stroke-width: 0.6;
+}
+.metric-plot-hover rect {
+  fill: var(--bg);
+  fill-opacity: 0.9;
+  stroke: var(--border);
+}

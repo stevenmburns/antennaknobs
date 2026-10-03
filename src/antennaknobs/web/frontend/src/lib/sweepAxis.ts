@@ -206,8 +206,11 @@ export function widenDomain(held: AxisDomain | null, next: AxisDomain): AxisDoma
 }
 
 /** Tick values for a domain: a 1-2-2.5-5 step giving about five intervals,
- *  plus the domain's own floor (VSWR 1 is always labelled). */
-export function axisTicks(d: AxisDomain, target = 5): number[] {
+ *  plus the domain's own floor (VSWR 1 is always labelled). `floor` false
+ *  leaves the floor out when a step tick exists: a padded auto range's floor
+ *  is no value of its own, and labelled it draws over the step tick just
+ *  above it (the Metric view's "-10.3" on "-10", AK#1867). */
+export function axisTicks(d: AxisDomain, target = 5, floor = true): number[] {
   const span = d.hi - d.lo;
   if (!(span > 0)) return [d.lo];
   const raw = span / target;
@@ -222,7 +225,7 @@ export function axisTicks(d: AxisDomain, target = 5): number[] {
     // 1.2 and not 1.2000000000000002.
     out.push(Number((Math.round(t / step) * step).toPrecision(12)));
   }
-  if (out.length === 0 || Math.abs(out[0] - d.lo) > eps) out.unshift(d.lo);
+  if (out.length === 0 || (floor && Math.abs(out[0] - d.lo) > eps)) out.unshift(d.lo);
   return out;
 }
 
