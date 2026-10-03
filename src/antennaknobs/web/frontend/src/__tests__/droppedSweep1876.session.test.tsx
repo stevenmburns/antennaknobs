@@ -159,11 +159,31 @@ function ndjson(lines: string[]): Response {
 
 type SweepBody = { param: string; values: number[]; hold?: unknown; _stream?: string };
 
+/** A stream that stays open until `gate` settles, then ends with no record
+ *  and no `{done}`. */
+function heldOpen(gate: Promise<void>): Response {
+  let ended = false;
+  return {
+    ok: true,
+    status: 200,
+    body: {
+      getReader: () => ({
+        read: async () => {
+          if (!ended) await gate;
+          ended = true;
+          return { done: true, value: undefined };
+        },
+      }),
+    },
+  } as unknown as Response;
+}
+
 /** Opens `url` with the second curve's (stream c0r1) first `drops` streams
- *  ended as the lane ends a superseded job: no record, no `{done}`. */
-async function open(url: string, drops: number) {
+ *  ended as the lane ends a superseded job: no record, no `{done}`. With a
+ *  `gate`, those streams stay open until it settles. */
+async function open(url: string, drops: number, gate?: Promise<void>) {
   const second: SweepBody[] = [];
-  mountDesignSession({
+  const view = mountDesignSession({
     url,
     examples: [DECK],
     pinned: ["antenna"],
@@ -172,7 +192,7 @@ async function open(url: string, drops: number) {
         const body = JSON.parse(String(init?.body ?? "{}")) as SweepBody;
         if (body._stream === "c0r1") {
           second.push(body);
-          if (second.length <= drops) return ndjson([]);
+          if (second.length <= drops) return gate ? heldOpen(gate) : ndjson([]);
         }
         // The metric is twice the knob; a held point's top sits at 0.4.
         const lines = body.values.map((v) =>
@@ -193,7 +213,7 @@ async function open(url: string, drops: number) {
     },
   });
   await sessionReady(document.body);
-  return second;
+  return { second, unmount: () => view.unmount() };
 }
 
 const table = () => screen.queryByRole("table", { name: "Analysis table" });
@@ -216,7 +236,7 @@ afterEach(() => {
 
 describe("a curve whose stream the server dropped is asked for again", () => {
   it("fills the metric Table's reference after a view=Table&run=1 link", async () => {
-    const second = await open("/?design=dipoles.deck&analysis=dx&view=Table&run=1", 1);
+    const { second } = await open("/?design=dipoles.deck&analysis=dx&view=Table&run=1", 1);
     const t = await untilDom(() => {
       const el = table();
       return el && rows(el).length === 4 ? el : null;
@@ -234,7 +254,7 @@ describe("a curve whose stream the server dropped is asked for again", () => {
   });
 
   it("fills a plain cross's other column group on the Table", async () => {
-    const second = await open("/?design=dipoles.deck&analysis=two%20states&view=Table&run=1", 1);
+    const { second } = await open("/?design=dipoles.deck&analysis=two%20states&view=Table&run=1", 1);
     const t = await untilDom(() => {
       const el = table();
       return el && groups(el).length === 3 && rows(el).every((r) => r[3] !== "") ? el : null;
@@ -249,12 +269,27 @@ describe("a curve whose stream the server dropped is asked for again", () => {
   });
 
   it("stops asking after a bounded number of drops", async () => {
-    const second = await open("/?design=dipoles.deck&analysis=two%20states&view=Table&run=1", 99);
+    const { second } = await open("/?design=dipoles.deck&analysis=two%20states&view=Table&run=1", 99);
     await untilDom(() => (second.length === 1 + PARAM_SWEEP_REISSUES ? true : null));
     await pastDwell();
     expect(second).toHaveLength(1 + PARAM_SWEEP_REISSUES);
     // The chart's own curve still drew; the dropped one did not.
     const t = table()!;
     expect(groups(t)).toEqual(["", "short"]);
+  });
+
+  it("never asks again from a session torn down while its stream was open", async () => {
+    let release = () => {};
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const { second, unmount } = await open("/?design=dipoles.deck&analysis=two%20states&view=Table&run=1", 99, gate);
+    await untilDom(() => (second.length === 1 ? true : null));
+    // The stream ends unclosed only after its session is gone: an abandoned
+    // sweep, not a dropped one.
+    unmount();
+    release();
+    await pastDwell();
+    expect(second).toHaveLength(1);
   });
 });

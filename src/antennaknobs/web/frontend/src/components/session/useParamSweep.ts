@@ -169,6 +169,18 @@ export function useParamSweep({
     comboApproved, recommendedBackend,
   ]);
 
+  // Unmounting (a closed tab or chart, a torn-down session) abandons the
+  // sweep in flight: it is aborted, as a Stop aborts it, so its end never
+  // reads as a dropped stream and asks again from a runner nothing draws.
+  useEffect(
+    () => () => {
+      if (paramSweepTimerRef.current) window.clearTimeout(paramSweepTimerRef.current);
+      paramSweepTimerRef.current = null;
+      paramSweepAbortRef.current?.abort();
+    },
+    [],
+  );
+
   async function runParamSweep() {
     setParamSweepQueued(false);
     // Same as runSweep: the server lane serializes and prioritizes; only the
