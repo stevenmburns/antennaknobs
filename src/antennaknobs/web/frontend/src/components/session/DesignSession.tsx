@@ -108,7 +108,7 @@ import {
 } from "../../lib/chartCells";
 import { ChartScaleContext } from "../charts/chartScale";
 import { cellColor, sweepPinColor } from "../charts/palette";
-import { metricSeries } from "../../lib/metricPlot";
+import { metricCaption, metricSeries } from "../../lib/metricPlot";
 import type { ExtraCurve, PinCurve } from "../charts/curves";
 import type { ChartLegendData, ChartLegendPin } from "../results/ChartLegend";
 import {
@@ -2453,6 +2453,7 @@ function DesignSessionBody({
     })),
     activeGround: activeGroundSlot,
     design: geometry,
+    soilPresets: soilPresets ?? [],
     groundRefusal: (slotId: string, groundId: string) => {
       const g = groundSlots.find((x) => x.id === groundId);
       const cfg = slots[slotId as Slot];
@@ -4051,6 +4052,13 @@ function DesignSessionBody({
         xLog: frequencyRx(freqState).xLog ?? m.inputs.freq.range.spacing === "log",
       },
     };
+    // A knob analysis's MetricPlot (AK#1828), and each cell's caption: a
+    // reference of a relative plot named as one (AK#1867) in the legend,
+    // the Table's column groups and the plot's own curves alike.
+    const metricSpec = chartMetric(m.now);
+    const listedHere = chartListed(m.now);
+    const caption = (c: ChartCell) =>
+      metricCaption(c.label, metricSpec, !!servedCell(c, listedHere)?.reference);
     // The other curves, in their legend colours.
     const curves: ExtraCurve[] = runners.slice(1).map((r, k) => ({
       key: m.drawn[k + 1].key,
@@ -4066,7 +4074,7 @@ function DesignSessionBody({
     // Every cell by name, in the cross's order; a refused one with why.
     const legend: ChartLegendData = {
       entries: m.plan.cells.map((c) => {
-        if (c.refused) return { key: c.key, label: c.label, color: null, refused: c.refused };
+        if (c.refused) return { key: c.key, label: caption(c), color: null, refused: c.refused };
         const k = m.drawn.indexOf(c);
         const r = runners[k];
         const error = isPattern
@@ -4077,8 +4085,8 @@ function DesignSessionBody({
         // The engine declining this cell's design (NEC-2 and a vertex feed)
         // is a refused cell, in the server's words, as the CLI names it.
         const declined = engineRefusal(error);
-        if (declined) return { key: c.key, label: c.label, color: null, refused: declined };
-        return { key: c.key, label: c.label, color: cellColor(k), refused: null, error: error ?? null };
+        if (declined) return { key: c.key, label: caption(c), color: null, refused: declined };
+        return { key: c.key, label: caption(c), color: cellColor(k), refused: null, error: error ?? null };
       }),
       capRefusal: m.plan.capRefusal,
       // The listed engines no slot holds, skipped rather than refused
@@ -4286,8 +4294,6 @@ function DesignSessionBody({
     };
     // A knob analysis's MetricPlot (AK#1828): each drawn cell's curve, off
     // its own knob sweep, paired with its reference as /analyses marks it.
-    const metricSpec = chartMetric(m.now);
-    const listedHere = chartListed(m.now);
     const chartMetricRender = metricSpec && {
       metric: metricSpec,
       series: metricSeries(
@@ -4295,7 +4301,7 @@ function DesignSessionBody({
           const served = servedCell(c, listedHere);
           return {
             key: c.key,
-            label: c.label,
+            label: caption(c),
             color: cellColor(k),
             reference: !!served?.reference,
             fixed: !!served?.fixed,
@@ -4359,7 +4365,7 @@ function DesignSessionBody({
       chartMetric: chartMetricRender,
       ...(chartCurves ? { chartCurves } : {}),
       chartLegend: legend,
-      chartCellLabels: m.drawn.map((c) => c.label),
+      chartCellLabels: m.drawn.map(caption),
       chartDesign: geometry,
       ...(chartPins.length > 0 ? { chartPins } : {}),
     };
@@ -4371,7 +4377,7 @@ function DesignSessionBody({
       chartPattern,
       chartMetric: chartMetricRender,
       ...(chartCurves ? { chartCurves } : {}),
-      chartCellLabels: m.drawn.map((c) => c.label),
+      chartCellLabels: m.drawn.map(caption),
       ...(chartPins.length > 0 ? { chartPins } : {}),
     };
     return { controls, overlays, panel, thumb };
