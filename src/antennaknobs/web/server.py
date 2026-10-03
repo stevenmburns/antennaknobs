@@ -2505,9 +2505,17 @@ def _param_sweep_stream(
             yield json.dumps(record) + "\n"
         done: dict = {"done": True, "solver": solver_name}
         if advisories and values:
-            note = await run_in_threadpool(
-                gap_fed_advisory, req, param, values, solver_name
-            )
+            # The advisory builds the geometry again; a failure there loses
+            # the advisory, never the closing record. A stream without
+            # `{done}` reads to the client as one the lane dropped, which it
+            # asks for again (AK#1876).
+            try:
+                note = await run_in_threadpool(
+                    gap_fed_advisory, req, param, values, solver_name
+                )
+            except Exception:
+                _logger.warning("gap-fed advisory failed", exc_info=True)
+                note = None
             if note is not None:
                 done["advisories"] = [note]
         yield json.dumps(done) + "\n"
