@@ -372,6 +372,8 @@ function analysisChart(p: ViewRenderProps): ReactElement {
         metric={p.chartMetric.metric}
         series={p.chartMetric.series}
         xLabel={z.unit ? `${z.label} (${z.unit})` : z.label}
+        name={z.label}
+        currentValue={z.currentValue}
         size={p.size}
         running={p.paramSweepRunning}
       />
