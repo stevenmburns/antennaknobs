@@ -1457,6 +1457,103 @@ class NecDeck:
             k for ends in at_place.values() if len(set(ends)) > 1 for k in ends
         )
 
+    @property
+    def _knot_folds(self) -> dict[tuple[int, int], tuple[int, int]]:
+        return self._knot_fold_plan[0]
+
+    @cached_property
+    def _knot_fold_plan(
+        self,
+    ) -> tuple[dict[tuple[int, int], tuple[int, int]], str | None]:
+        """``(folds, refusal)``. ``folds`` maps ``(wire, knot)`` → the
+        ``(wire, knot)`` whose port it shares, for every ``EX``/``LD`` knot
+        address folded onto another wire's end at the same TWO-wire node
+        (AK#1869, the AK side of momwire#1300).
+
+        NEC-5 puts an object on the wire its card names. At a node where
+        exactly two wire ends meet that is no choice at all: the two ends carry
+        one through-current, so ``LD 4,1,10`` (end 2 of wire 1) and
+        ``LD 4,2,-1`` (end 1 of wire 2) are the SAME series gap, and two loads
+        named through the two wires add — measured on the licensed NEC-5, 50 Ω
+        on one wire plus j100 on the other answers a single 50+j100 load to the
+        printed digit. ``momwire.eznec.serve`` does the same: its
+        ``_assign_columns`` gives the second address the first's column. Here
+        each address used to become its own `PortAtVertex`, i.e. its own node
+        gap, and momwire refuses a second gap at one junction.
+
+        So every address at such a node maps to ONE key, and everything that
+        lands on it lands on one port, where `Load`\\ s sum in series and a
+        `Driven` sees the sum — the same port a single card at that address
+        gets. The key is the source's when there is one, so its drive and
+        current keep the reference direction its own card gave them; a load
+        has no polarity, and with loads only the first card's key wins.
+
+        Refused by name rather than folded — ``refusal`` says why, and
+        `network` raises it, as it does `_lone_end_refusal` (the geometry
+        still loads):
+
+        - two ``EX`` cards on the two sides of one node — one port carries one
+          drive, and the seam's sum of two EMFs has no spelling here;
+        - two objects on different wires at a node where THREE or more wire
+          ends meet. There NEC-5 puts each object in its own wire's branch,
+          which is one node gap per wire end, and momwire allows one per
+          junction until momwire#1300's core change ships.
+        """
+        if not self.network_mode:
+            return {}, None
+        at_node: dict[tuple, list[tuple[str, int, int]]] = {}
+        for f in self.feeds:
+            if self._knot_end(f.wire, f.seg, f.edge):
+                knot = _knot_of(f.seg, f.edge)
+                key = _node_key(_knot_point(self.wires[f.wire], knot))
+                at_node.setdefault(key, []).append(("EX", f.wire, knot))
+        for ld in self.loads:
+            if self._knot_end(ld.wire, ld.seg, ld.edge):
+                knot = _knot_of(ld.seg, ld.edge)
+                key = _node_key(_knot_point(self.wires[ld.wire], knot))
+                at_node.setdefault(key, []).append(("LD", ld.wire, knot))
+
+        def where(wi, kn):
+            # The card's own NEC-5 spelling: knot 0 is ``tag,-1``, knot k > 0
+            # is end 2 of segment k, ``tag,k``.
+            return f"{self.wires[wi].tag},{kn if kn else -1}"
+
+        folds: dict[tuple[int, int], tuple[int, int]] = {}
+        refusal = None
+        for node, items in at_node.items():
+            keys = list(dict.fromkeys((wi, kn) for _c, wi, kn in items))
+            if len(keys) < 2:
+                continue
+            members = self._knot_nodes.get(node, ())
+            degree = sum(1 if k in (0, self.wires[i].n_seg) else 2 for i, k in members)
+
+            if degree != 2:
+                refusal = refusal or (
+                    f"cards at {' and '.join(where(*k) for k in keys)} put "
+                    "objects on different wires at one node where "
+                    f"{degree} wire ends meet; NEC-5 puts each object in its "
+                    "own wire's branch there, which needs one series gap per "
+                    "wire end, and momwire serves one per junction until "
+                    "momwire#1300 ships. Move all of them onto one wire's "
+                    "address at that node, or move one of them a segment away"
+                )
+                continue
+            driven = list(dict.fromkeys((wi, kn) for c, wi, kn in items if c == "EX"))
+            if len(driven) > 1:
+                refusal = refusal or (
+                    f"EX cards at {' and '.join(where(*k) for k in driven)} "
+                    "drive the two sides of one node; one port carries one "
+                    "drive, so give the node one EX card"
+                )
+                continue
+            canon = driven[0] if driven else keys[0]
+            if any(k[0] not in self._vertex_wires for k in keys):
+                continue  # not the node-gap spelling: nothing to collide
+            for k in keys:
+                if k != canon:
+                    folds[k] = canon
+        return folds, refusal
+
     @cached_property
     def _site_plan(self) -> dict[int, dict]:
         """wire index -> the positioned spelling of its attachments (AK#1469
@@ -1619,11 +1716,12 @@ class NecDeck:
         plan: dict[tuple[int, int], str] = {}
         passive: dict[tuple[int, int], bool] = {}
         single = len(self.feeds) == 1
+        folds = self._knot_folds
         for k, f in enumerate(self.feeds, 1):
             if not f.edge or f.wire not in self._vertex_wires:
                 continue
             knot = _knot_of(f.seg, f.edge)
-            key = (f.wire, knot)
+            key = folds.get((f.wire, knot), (f.wire, knot))
             if key in plan:
                 raise ValueError(
                     f"NEC deck drives knot {knot} of wire {f.wire + 1} "
@@ -1634,8 +1732,10 @@ class NecDeck:
         for k, ld in enumerate(self.loads, 1):
             if not ld.edge or ld.wire not in self._vertex_wires:
                 continue
-            # A load on a source's knot shares its port (AK#1483).
+            # A load on a source's knot shares its port (AK#1483), and so
+            # does one on the other wire's end at a two-wire node (AK#1869).
             key = (ld.wire, _knot_of(ld.seg, ld.edge))
+            key = folds.get(key, key)
             plan.setdefault(key, f"load{k}")
             passive.setdefault(key, True)
         # ... and so does a NEC-5 network end on that knot (AK#1579): `TL
@@ -2099,7 +2199,7 @@ class NecDeck:
                 "deck was not parsed for network translation — call "
                 "parse_nec/read_nec with network=True"
             )
-        refusal = self._lone_end_refusal()
+        refusal = self._lone_end_refusal() or self._knot_fold_plan[1]
         if refusal is not None:
             raise ValueError(refusal)
         plan = self._port_plan
@@ -2135,8 +2235,9 @@ class NecDeck:
             if not edge:
                 return plan[(wire, seg)]
             knot = _knot_of(seg, edge)
-            if (wire, knot) in self._vertex_plan:
-                return self._vertex_plan[(wire, knot)][0]
+            key = self._knot_folds.get((wire, knot), (wire, knot))
+            if key in self._vertex_plan:
+                return self._vertex_plan[key][0]
             return self._site_plan[wire]["knots"][knot]
 
         def load_port(ld):
@@ -2256,8 +2357,9 @@ class NecDeck:
         def feed_port(k, f):
             if self._knot_end(f.wire, f.seg, f.edge):
                 knot = _knot_of(f.seg, f.edge)
-                if (f.wire, knot) in self._vertex_plan:
-                    return self._vertex_plan[(f.wire, knot)][0]
+                key = self._knot_folds.get((f.wire, knot), (f.wire, knot))
+                if key in self._vertex_plan:
+                    return self._vertex_plan[key][0]
                 name = "feed" if single else f"feed{k}"
             else:
                 name = plan[(f.wire, f.seg)]
