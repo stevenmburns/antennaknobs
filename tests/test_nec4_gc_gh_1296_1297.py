@@ -127,8 +127,13 @@ def test_cebiks_decks_are_nec42s_segment_for_segment(stem):
     if not out.is_file():
         pytest.skip(f"no local printout; run {CEBIK_PRINTOUTS}/make_printouts.sh")
     _assert_matches(_parse(deck, "nec4"), out)
+    # Detection reads them as NEC-4 by the GH/GC card alone (option (b)).
+    auto = _parse(deck, None)
+    assert (auto.dialect, auto.dialect_detected) == ("nec4", "nec4")
+    assert "uses NEC-4's layout" in auto.dialect_reason
+    _assert_matches(auto, out)
     with pytest.raises(ValueError, match="read the deck as NEC-4"):
-        _parse(deck, None)
+        _parse(deck, "nec2")
 
 
 def test_gc_2_computes_its_own_segment_count():
@@ -161,8 +166,6 @@ def test_nec2s_gc_in_nine_fields_reads_in_every_dialect():
 )
 def test_a_nec4_gc_read_as_nec2_is_refused_by_name(stem):
     with pytest.raises(ValueError, match="NEC-2's GC has only the ratio form.*NEC-4"):
-        _read(stem, None)
-    with pytest.raises(ValueError, match="read the deck as NEC-4"):
         _read(stem, "nec2")
 
 
@@ -171,7 +174,7 @@ def test_a_nec4_gc_read_as_nec2_is_refused_by_name(stem):
 )
 def test_a_nec4_gh_read_as_nec2_is_refused_by_name(stem):
     with pytest.raises(ValueError, match="NEC-4 and NEC-5's GH layout"):
-        _read(stem, None)
+        _read(stem, "nec2")
 
 
 def test_a_nec2_gh_short_of_its_radius_keeps_the_plain_refusal():
@@ -215,3 +218,113 @@ def test_the_limits_see_the_count_gc_2_computes():
     deck = "GW 1 4 0 0 0 0 0 1 0\nGC 2 0 0 .001 .001 1e-9 1e-9\nGE 0\nEN\n"
     with pytest.raises(ValueError, match="segments"):
         parse_nec(deck, dialect="nec4", limits=limits)
+
+
+# --- detection: a NEC-4 layout leans NEC-4 (option (b), 2026-10-04) --------
+# A GH or GC only the NEC-4/NEC-5 layout spells rules NEC-2 out and leans
+# NEC-4; an unambiguous NEC-5 marker still wins, and the card outranks NOFILE.
+
+HELIX = "GH 1 60 3 .9144 .099 .099 .001 .001 0"
+GC1 = "GW 1 9 0 0 0 0 0 1 0\nGC 1 0 0 .001 .001 .05"
+GC2 = "GW 1 9 0 0 0 0 0 1 0\nGC 2 0 0 .001 .001 .05 .2"
+
+
+def _lean_note(mnemonic, line):
+    return (
+        "Read as NEC-4 (sources and loads at segment centres): the "
+        f"{mnemonic} card on line {line} uses NEC-4's layout, which NEC-5 "
+        "shares, and nothing else in the deck says which — choose Read as "
+        "NEC-5 if it came from a NEC-5 program."
+    )
+
+
+def _probe(geometry, *, ex="EX 0 1 5 0 1 0", before="", after=""):
+    text = f"{before}CE\n{geometry}\nGE 0\n{after}{ex}\nFR 0 1 0 0 30 0\nEN\n"
+    return parse_nec(text, network=True)
+
+
+@pytest.mark.parametrize(
+    ("geometry", "mnemonic", "line"),
+    [(HELIX, "GH", 2), (GC1, "GC", 3), (GC2, "GC", 3)],
+)
+def test_a_nec4_layout_alone_reads_as_nec4_at_the_centre(geometry, mnemonic, line):
+    deck = _probe(geometry)
+    assert (deck.dialect, deck.dialect_detected) == ("nec4", "nec4")
+    assert deck.dialect_note() == _lean_note(mnemonic, line)
+    (feed,) = deck.feeds
+    assert (feed.seg, feed.edge) == (1, 0)  # a segment centre, not a knot
+
+
+@pytest.mark.parametrize(
+    ("geometry", "mnemonic"),
+    [
+        ("GH,1,60,3,.9144,.099,.099,.001,.001,0", "GH"),
+        ("GW,1,9,0,0,0,0,0,1,0\nGC,2,0,0,.001,.001,.05,.2", "GC"),
+        ("GH1,60,3,.9144,.099,.099,.001,.001,0", "GH"),
+    ],
+)
+def test_the_comma_spelling_leans_too(geometry, mnemonic):
+    deck = _probe(geometry)
+    assert deck.dialect == "nec4"
+    assert f"the {mnemonic} card on line" in deck.dialect_reason
+
+
+@pytest.mark.parametrize("geometry", [HELIX, GC2])
+def test_the_layout_outranks_nofile(geometry):
+    deck = _probe(geometry, after="GN 2 0 0 0 13 .005 NOFILE\n")
+    assert deck.dialect == "nec4"
+    assert "uses NEC-4's layout" in deck.dialect_reason
+    assert deck.feeds[0].edge == 0
+
+
+@pytest.mark.parametrize("geometry", [HELIX, GC2])
+@pytest.mark.parametrize("ex", ["EX 0 1 5 2 1 0", "EX 4 1 5 2 1 0", "EX 0 1 -5 0 1 0"])
+def test_a_nec5_segment_end_source_still_reads_nec5(geometry, ex):
+    """The layout is NEC-5's too, so the card reads either way; the EX says
+    which."""
+    deck = _probe(geometry, ex=ex)
+    assert (deck.dialect, deck.dialect_detected) == ("nec5", "nec5")
+    assert "segment-end form" in deck.dialect_reason
+    assert deck.feeds[0].edge in (1, 2)
+
+
+@pytest.mark.parametrize("geometry", [HELIX, GC1])
+def test_a_cm_nec5_still_reads_nec5(geometry):
+    deck = _probe(geometry, before="CM NEC-5\n")
+    assert deck.dialect == "nec5"
+    assert deck.dialect_reason == "a CM NEC-5 card on line 1"
+
+
+def test_a_cm_nec4_is_the_reason_over_the_lean():
+    deck = _probe(HELIX, before="CM NEC-4.2\n")
+    assert deck.dialect == "nec4"
+    assert deck.dialect_reason == "a CM NEC-4.2 card on line 1"
+
+
+def test_a_source_before_the_card_is_read_the_nec4_way():
+    """Decided ahead of the card loop: an EX read before the GH still sits
+    at its segment centre."""
+    text = (
+        "CE\nGW 2 9 1 0 0 1 0 1 .001\nEX 0 2 5 0 1 0\n"
+        f"{HELIX}\nGE 0\nFR 0 1 0 0 30 0\nEN\n"
+    )
+    deck = parse_nec(text, network=True)
+    assert deck.dialect == "nec4" and deck.feeds[0].edge == 0
+
+
+def test_a_chosen_dialect_reports_what_detection_would_do():
+    text = f"CE\n{HELIX}\nGE 0\nEX 0 1 30 0 1 0\nFR 0 1 0 0 30 0\nEN\n"
+    deck = parse_nec(text, network=True, dialect="nec5")
+    assert deck.dialect == "nec5" and deck.dialect_detected == "nec4"
+    assert "detection reads it as NEC-4 (the GH card on line 2" in deck.dialect_note()
+
+
+def test_ispx_1_and_plain_nec2_cards_do_not_lean():
+    """ISPX = 1 reads in NEC-2 as a 1 m wire radius, so it is no tell, and a
+    NEC-2 GH or GC is no tell either."""
+    for geometry in (
+        "GH 1 60 3 .9144 .099 .099 .001 .001 1",
+        "GH 1 8 0.3 0.9 0.1 0.1 0.1 0.1 0.001",
+        "GW 1 9 0 0 0 0 0 1 0\nGC 0 0 1.2 .001 .002",
+    ):
+        assert _probe(geometry).dialect == "nec2", geometry

@@ -461,7 +461,8 @@ ends): EZNEC's stamp on line 1 says NEC-5 format.* or *Read as NEC-2 (sources
 and loads at segment centres): no NEC-4 or NEC-5 marker found.* The four
 markers that read a deck as NEC-5 are EZNEC's NEC-5 stamp, a `CM NEC-5` card,
 and an `EX` in NEC-5's segment-end form; the note names the first one in the
-deck, by line. A `GN` card ending in `NOFILE` is weaker: NEC-4 and NEC-5 both
+deck, by line. Two markers are weaker, the NEC-4 `GH`/`GC` layout below
+(which leans NEC-4) and a `GN` card ending in `NOFILE`: NEC-4 and NEC-5 both
 write it, so it only rules NEC-2 out. A deck whose only marker it is reads
 wholly as NEC-5 — its plain `EX` cards included, at end 2 of their segment —
 and the note says the choice was a default: *…ends in NOFILE, which NEC-4 and
@@ -474,9 +475,17 @@ NEC-4.2's newer Sommerfeld (not 4nec2's MININEC-type ground), `EX 6` its
 segment current source, `GE -1` admits buried wires, and a `GN` that names a
 ground-table file (or `NOFILE`) is accepted, the file not read (it is NEC-4's
 cache; the ground is computed from the card, and the note says so). `GH` and
-`GC` take NEC-4's layouts (shared by NEC-5); read as NEC-2, a NEC-4 helix (a
-zero in NEC-2's radius field) or a `GC 1`/`GC 2` is refused, naming the
-NEC-4 reading that spells it. A NEC-5
+`GC` take NEC-4's layouts (shared by NEC-5). A card only that layout spells,
+a `GH` whose ninth field is a literal 0 (ISPX; NEC-2's radius there would be
+zero) or a `GC 1`/`GC 2`, rules NEC-2 out and leans NEC-4, the dialect of the
+decks that carry it: with no unambiguous marker the deck reads wholly as
+NEC-4, sources and loads at segment centres, and the note says it was a
+lean: *…the GH card on line 4 uses NEC-4's layout, which NEC-5 shares, and
+nothing else in the deck says which — choose Read as NEC-5 if it came from a
+NEC-5 program.* It outranks `NOFILE` (which says nothing between NEC-4 and
+NEC-5) and yields to every unambiguous marker, a NEC-5 segment-end `EX`
+included. Read as NEC-2 by choice, such a card is refused, naming the NEC-4
+reading that spells it. A NEC-5
 deck with no marker reads as NEC-2, every source and load half a segment from
 where its author put it, so the dialect can be chosen: **Read as** under an
 opened deck's name (auto / NEC-2 / NEC-4 / NEC-5) re-opens it read that way,

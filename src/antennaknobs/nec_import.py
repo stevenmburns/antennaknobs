@@ -5571,6 +5571,85 @@ def _nofile_gn_line(text: str) -> int | None:
     return None
 
 
+def _literal(token: str) -> float | None:
+    """A card field written as a plain number, else None (an SY expression
+    or a 4nec2 percentage cannot be judged before the card loop)."""
+    try:
+        return float(token)
+    except ValueError:
+        return None
+
+
+def _nec4_layout_lean(text: str) -> tuple[int, str, bool] | None:
+    """``(line, mnemonic, leans)`` of the first card only NEC-4/NEC-5's layout
+    can spell, or None (AK#1296, AK#1297; Steve's option (b), 2026-10-04).
+    ``leans`` is False when something in the deck says NEC-5 outright: the
+    card still takes the NEC-4/5 layout, but no longer leans NEC-4.
+
+    Read ahead of the card loop, as `_nofile_gn_line` is, because it decides
+    how an ``EX`` read before the card addresses its segment. The cards:
+
+    - ``GH`` whose ninth field is a literal zero: NEC-2's RAD, which NEC-2
+      cannot spell, and NEC-4's ISPX = 0 (a log spiral or a helix). ISPX = 1
+      reads in NEC-2 as a 1 m wire radius, so it is no tell;
+    - ``GC 1`` / ``GC 2`` with I2 = 0: NEC-4's fixed-length forms; NEC-2's GC
+      has no IX.
+
+    Both dialects that spell them, NEC-4 and NEC-5, share the layout, so the
+    card leans NEC-4 (the dialect of the decks that carry it) and yields to
+    any NEC-5 marker: a whole-comment ``CM NEC-5``, EZNEC's NEC-5 stamp, or
+    an ``EX`` in NEC-5's segment-end form (type 4, a negative segment, or
+    I4 = 2). Fields are split as the card loop splits them, commas included.
+    Only literal numbers are judged; a field written as an SY expression is
+    left to the card loop, which refuses a NEC-4 layout read as NEC-2 by
+    name."""
+    lean: tuple[int, str] | None = None
+    nec5 = False
+    for line_no, raw in _logical_lines(text):
+        s = raw.strip()
+        if not s or s.startswith("'"):
+            continue
+        if s[:2].upper() == "CM":
+            body = s[2:].strip()
+            try:
+                stamp = _eznec_stamp_dialect(body, "")
+            except ValueError:
+                stamp = None
+            if body.upper() in ("NEC-5", "NEC5") or stamp == "nec5":
+                nec5 = True
+            continue
+        if s[:2].upper() == "CE":
+            continue
+        s = s.split("'", 1)[0].strip()
+        if not s:
+            continue
+        tokens = _split_card_fields(s)
+        if (
+            len(tokens[0]) > 2
+            and tokens[0][:2].isalpha()
+            and tokens[0][2] in "0123456789.+-"
+        ):
+            tokens = [tokens[0][:2], tokens[0][2:], *tokens[1:]]
+        mnemonic = tokens[0].upper()
+        if mnemonic == "EN":
+            break
+        fields = [_literal(t) for t in tokens[1:]]
+
+        def field(k, fields=fields):
+            return fields[k] if k < len(fields) else 0.0
+
+        if mnemonic == "EX":
+            if field(0) == 4 or (field(2) or 0.0) < 0 or field(3) == 2:
+                nec5 = True
+        elif lean is None and mnemonic == "GH":
+            if len(fields) >= 9 and fields[8] == 0.0:
+                lean = (line_no, "GH")
+        elif lean is None and mnemonic == "GC":
+            if field(0) in (1.0, 2.0) and field(1) == 0.0:
+                lean = (line_no, "GC")
+    return None if lean is None else (*lean, not nec5)
+
+
 def parse_nec(
     text: str,
     *,
@@ -5677,6 +5756,23 @@ def parse_nec(
     # default. `weak` is that reason; `tell` is an unambiguous marker.
     nofile_line = None if dialect is not None else _nofile_gn_line(text)
     weak: str | None = None
+    # A GH or GC only NEC-4/NEC-5's layout spells leans NEC-4 (AK#1296,
+    # AK#1297): it rules NEC-2 out like NOFILE, and unlike NOFILE it names the
+    # dialect whose decks carry it, so it outranks NOFILE and yields only to
+    # an unambiguous marker. Computed whether or not a reader chose the
+    # dialect, so the note can say what detection would have done.
+    lean = _nec4_layout_lean(text)
+    lean_reason = (
+        None
+        if lean is None or not lean[2]
+        else (
+            f"the {lean[1]} card on line {lean[0]} uses NEC-4's layout, which "
+            "NEC-5 shares, and nothing else in the deck says which — choose "
+            "Read as NEC-5 if it came from a NEC-5 program"
+        )
+    )
+    if dialect is None and lean is not None and lean[2]:
+        nec4_declared = True
     # ...or why detection would have refused the deck, when a chosen dialect
     # is what let it read.
     refused: str | None = None
@@ -5944,14 +6040,16 @@ def parse_nec(
             if mnemonic in ("GC", "GH"):
                 # NEC-4 and NEC-5 lay these two cards out differently from
                 # NEC-2 (AK#1296, AK#1297). The reading is settled by now for
-                # every marker but a later EX's segment-end form, and a
-                # NEC-4 layout read as NEC-2 refuses by name.
+                # every marker but a later EX's segment-end form, which the
+                # look-ahead (`_nec4_layout_lean`) has seen; a NEC-4 layout
+                # read as NEC-2 (chosen, or symbolic fields) refuses by name.
                 geometry[mnemonic](
                     card,
                     wires,
                     nec45=nec4_declared
                     or nec5_declared
-                    or (nofile_line is not None and not nec4_declared),
+                    or (nofile_line is not None and not nec4_declared)
+                    or (dialect is None and lean is not None),
                 )
             else:
                 geometry[mnemonic](card, wires)
@@ -6170,6 +6268,8 @@ def parse_nec(
     if dialect is None and nofile_line is not None and not nec4_declared:
         nec5_declared = True
         nec5_dialect = True
+    if tell is None and lean_reason is not None:
+        tell = ("nec4", lean_reason)
     if tell is None and weak is not None:
         tell = ("nec5", weak)
     detected = None if refused else (tell[0] if tell else "nec2")
