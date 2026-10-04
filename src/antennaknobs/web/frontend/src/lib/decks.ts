@@ -16,6 +16,7 @@
 // React-free, so the link grammar and the store are tested alone.
 
 import type { ExampleDescriptor } from "./params";
+import { apiFetch } from "./pin";
 
 export const DECK_NS = "deck.";
 
@@ -149,7 +150,7 @@ export class DeckOpenError extends Error {
 
 /** Open a deck on the server: its key and catalog record, remembered. */
 export async function openDeck(payload: DeckPayload): Promise<OpenedDeck> {
-  const resp = await fetch("/deck", {
+  const resp = await apiFetch("/deck", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

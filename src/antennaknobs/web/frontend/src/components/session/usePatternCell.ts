@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { SolveRequest, SolveResponse } from "../../lib/api";
 import type { BackendEntry } from "../../lib/backends";
 import type { PatternMetrics } from "../charts/types";
+import { apiFetch } from "../../lib/pin";
 
 // One pattern cell runner (AK#1757, sweep-framework step 7 unit 3): a
 // pattern analysis's cell is ONE solve, at its measurement frequency, and the
@@ -136,7 +137,7 @@ export function usePatternCell({
     abortRef.current = controller;
     setRunning(true);
     try {
-      const resp = await fetch("/pattern_cell", {
+      const resp = await apiFetch("/pattern_cell", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

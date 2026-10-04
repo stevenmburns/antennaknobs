@@ -3,6 +3,7 @@ import type { SolveRequest, SolveResponse } from "../../lib/api";
 import type { Theme } from "../hooks";
 import type { PatternMetrics, PinnedPattern } from "../charts/types";
 import type { SweepPin, SweepPinSnapshot } from "../../lib/sweepPins";
+import { apiFetch } from "../../lib/pin";
 
 // Theme is global (owned by the shell) but the toggle button lives in each
 // session's sidebar header; sessions reach the setter through this context so
@@ -97,7 +98,7 @@ export async function fetchMetrics(
 ): Promise<PatternMetrics | null> {
   try {
     const body = opts.gen === undefined ? req : { ...req, _gen: opts.gen };
-    const resp = await fetch("/pattern_metrics", {
+    const resp = await apiFetch("/pattern_metrics", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

@@ -432,6 +432,42 @@ class _DeckRequestMiddleware:
 
 app.add_middleware(_DeckRequestMiddleware)
 
+
+# The hosted instance's usage counters and the fleet's session pinning
+# (AK#405; web/hosting.py has the design and what is counted). The counters
+# are inert off the hosted instance, and the pinning off Fly.
+_METRICS = _hosting.UsageCounters(enabled=_HOSTED)
+_METRICS_SERVER: list = []
+
+
+def _start_metrics_endpoint() -> None:
+    """Serve the counters on their own port (fly.toml's ``[metrics]``), once,
+    at the server's startup and only when hosted."""
+    if not _METRICS.enabled or _METRICS_SERVER:
+        return
+    try:
+        _METRICS_SERVER.append(_hosting.serve_metrics(_METRICS))
+    except OSError as exc:
+        # A taken port costs the counters, never the app.
+        logging.getLogger(__name__).warning("metrics endpoint not started: %s", exc)
+
+
+def _count_live_solve(req: dict) -> None:
+    if not _METRICS.enabled:
+        return
+    # Imported here for the adapter <-> examples cycle (see /sweep).
+    from . import adapter
+
+    _METRICS.inc(
+        "ak_solves_total",
+        _hosting.design_label(req.get("geometry"), EXAMPLES),
+        _hosting.engine_label(req, adapter._BACKENDS_BY_NAME),
+        _hosting.ground_label(req, adapter._requested_ground_model(req)),
+    )
+
+
+app.add_middleware(_hosting.HostingMiddleware, on_startup=_start_metrics_endpoint)
+
 C_LIGHT = 299_792_458.0  # m/s, matches the momwire solvers' eps*mu derivation to ~1e-9
 _EPS0 = 8.854187817e-12  # F/m
 
@@ -4571,6 +4607,13 @@ async def deck_open_endpoint(req: dict, request: Request):
         key, _new = await run_in_threadpool(_open_deck, req, ip)
         entry = await run_in_threadpool(_example_entry, key, EXAMPLES[key])
     except _decks.DeckError as exc:
+        _METRICS.inc(
+            "ak_deck_opens_total",
+            _hosting.dialect_label(
+                req.get("dialect") if isinstance(req, dict) else None
+            ),
+            "busy" if exc.status in (429, 503) else "refused",
+        )
         return _deck_refusal(exc)
     if _HOSTED:
         # PyNEC cannot be stopped mid-solve, so the solve budget cannot hold
@@ -4583,10 +4626,16 @@ async def deck_open_endpoint(req: dict, request: Request):
         }
         entry["backend_coverage"] = {**entry["backend_coverage"], "refusals": refusals}
     lim = _DECK_SETTINGS
+    read = _deck_dialect(EXAMPLES[key])
+    _METRICS.inc(
+        "ak_deck_opens_total",
+        _hosting.dialect_label(read["read_as"] if read else "ssn"),
+        "ok",
+    )
     return {
         "key": key,
         "example": entry,
-        "dialect": _deck_dialect(EXAMPLES[key]),
+        "dialect": read,
         "limits": {
             "max_bytes": lim.max_bytes,
             "max_segments": lim.max_segments,
@@ -4776,6 +4825,11 @@ async def ws_endpoint(ws: WebSocket):
     # never travels. The client renders monotonically by `_seq`, so a higher
     # `_seq` response implicitly acknowledges every lower one.
     await ws.accept()
+    # On Fly, the machine this channel reached, so the page pins its HTTP
+    # requests to the same one (AK#405). Nothing is sent off Fly.
+    hello = _hosting.machine_hello()
+    if hello is not None:
+        await ws.send_text(hello)
     # The client's address, for the opened-deck rate limit.
     ws_ip = _decks.client_ip(
         {k.lower(): v for k, v in ws.headers.items()},
@@ -4813,6 +4867,8 @@ async def ws_endpoint(ws: WebSocket):
     # were solves -- a client-side tick would undercount exactly when the user
     # is dragging fastest, which is the same trap the progress stream sets.
     solve_count = {"n": 0}
+    # Counted once per connection, at its first solve (AK#405's sessions).
+    session_counted = False
 
     async def reader() -> None:
         # Starlette requires a single reader on the socket, so *all*
@@ -4958,6 +5014,12 @@ async def ws_endpoint(ws: WebSocket):
                 continue
             req = mailbox.pop()
             session, lane_gen = _lane_key(req)
+            if not session_counted:
+                session_counted = True
+                _METRICS.inc(
+                    "ak_sessions_total",
+                    _hosting.session_kind(req.get("geometry"), EXAMPLES),
+                )
             try:
                 if _decks.is_deck(req.get("geometry")):
                     # An opened deck: registered from the request's
@@ -5029,6 +5091,8 @@ async def ws_endpoint(ws: WebSocket):
             result["_seq"] = req.get("_seq")
             if not result.get("cache_hit"):
                 solve_count["n"] += 1
+                if "error" not in result:
+                    _count_live_solve(req)
             result["_solves"] = solve_count["n"]
             # Superseded while we solved? A newer request is already queued, so
             # skip this send entirely — its response will carry a higher `_seq`

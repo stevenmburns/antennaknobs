@@ -15,6 +15,7 @@ import {
   type ParamValueBag,
 } from "../../lib/params";
 import { type DesignLoadError } from "../AwaitingTrustPanel";
+import { apiFetch } from "../../lib/pin";
 
 // The design catalog: everything DesignSession learns from the server about
 // which antennas exist and what this backend can run (#642 seam 5b-3). The
@@ -52,7 +53,7 @@ export function useDesignCatalog({
   // moves it out of the "awaiting trust" list into the selector.
   const loadExamples = useCallback(async () => {
     try {
-      const j = await (await fetch("/examples")).json();
+      const j = await (await apiFetch("/examples")).json();
       const list: ExampleDescriptor[] = j.examples ?? [];
       setExamples(list);
       setExamplesError(null);
@@ -99,7 +100,7 @@ export function useDesignCatalog({
     async (stem: string, allowEdits: boolean) => {
       setTrustBusy(stem);
       try {
-        const r = await fetch("/trust", {
+        const r = await apiFetch("/trust", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ stem, allow_edits: allowEdits }),

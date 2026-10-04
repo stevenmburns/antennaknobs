@@ -26,7 +26,18 @@ primary_region = 'sjc'
 [http_service]
   internal_port = 8000
   force_https = true
-  auto_stop_machines = 'off'
+  # Idle machines suspend (AK#405): a region with no visitors sleeps, and the
+  # next request resumes it from its memory snapshot in well under a second,
+  # warm Sommerfeld tables and opened-deck cache intact. Suspend needs a VM of
+  # at most 2 GB, which this one is exactly. The primary region never sleeps:
+  # min_machines_running is "the number of Machines to keep running, in the
+  # primary region only, when auto_stop_machines is 'stop' or 'suspend'"
+  # (https://fly.io/docs/reference/configuration/), so sjc's one machine stays
+  # on, as it always has. Only regions added beside it (ams, nrt) suspend.
+  # After a deploy an idle machine is left STOPPED on the new image, not
+  # suspended (its snapshot was the old image's), so its first visitor gets
+  # a cold start; scripts/verify_fly_fleet.sh accepts it (see there).
+  auto_stop_machines = 'suspend'
   auto_start_machines = true
   min_machines_running = 1
 
@@ -40,3 +51,12 @@ primary_region = 'sjc'
 [[vm]]
   size = 'shared-cpu-1x'
   memory = '2gb'
+
+# The usage counters (AK#405; web/hosting.py): Prometheus text on their own
+# port, which Fly's scraper reads every 15 s on the machine's private address
+# (https://fly.io/docs/monitoring/metrics/). Not an http_service port, so the
+# public edge never serves it. The port must match ANTENNAKNOBS_METRICS_PORT's
+# default (9091); tests/test_hosting_405.py holds them equal.
+[metrics]
+  port = 9091
+  path = '/metrics'

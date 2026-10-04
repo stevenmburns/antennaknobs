@@ -18,6 +18,7 @@
 //    x values it was solved at.
 
 import type { SolveRequest } from "./api";
+import { apiFetch } from "./pin";
 
 export type KeepOrigin = "chart" | "sweep pins" | "pattern pins";
 export type KeepForm = "analysis" | "study";
@@ -118,7 +119,7 @@ async function detail(resp: Response): Promise<string> {
 /** POST /keep: the text a keep puts on the clipboard, or an Error naming
  *  why it cannot be kept. */
 export async function fetchKeep(body: KeepBody, signal?: AbortSignal): Promise<KeepText> {
-  const resp = await fetch("/keep", {
+  const resp = await apiFetch("/keep", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -149,7 +150,7 @@ export async function saveStudy(
   path: string,
   overwrite: boolean,
 ): Promise<SavedStudy> {
-  const resp = await fetch("/studies/save", {
+  const resp = await apiFetch("/studies/save", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...body, form: "study", path, overwrite }),

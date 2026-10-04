@@ -25,6 +25,7 @@ import { resolveSweepRange, type SweepRange } from "../../lib/sweep";
 import type { PatternData } from "../charts/types";
 import { type SweepPhase, useFreqSweep } from "./useFreqSweep";
 import { useParamSweep } from "./useParamSweep";
+import { apiFetch } from "../../lib/pin";
 
 // Deliberate physics non-deps (issue #692), mirroring the server's
 // _CACHE_KEY_BLOCKLIST (web/server.py) — the same idea at the other end of
@@ -477,7 +478,7 @@ export function useAnalysisRunners({
     const controller = new AbortController();
     normCheckAbortRef.current = controller;
     try {
-      const resp = await fetch("/norm_check", {
+      const resp = await apiFetch("/norm_check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -518,7 +519,7 @@ export function useAnalysisRunners({
     const controller = new AbortController();
     patternAbortRef.current = controller;
     try {
-      const resp = await fetch("/pattern", {
+      const resp = await apiFetch("/pattern", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...buildRequest(), _gen: seqRef.current }),

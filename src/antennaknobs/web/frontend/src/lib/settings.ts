@@ -14,6 +14,7 @@ import type {
 import type { Slot } from "./backends";
 import { GROUND_SLOT_IDS } from "./groundSlots";
 import type { Projection } from "./view";
+import { apiFetch } from "./pin";
 
 // The server's SWITCHES keys, in its order.
 export const SWITCH_KEYS = [
@@ -266,7 +267,7 @@ export type SaveOutcome =
 // comes back with its problems (422) or the server's own sentence (403).
 export async function saveSettings(body: SettingsSaveBody): Promise<SaveOutcome> {
   try {
-    const r = await fetch("/settings", {
+    const r = await apiFetch("/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

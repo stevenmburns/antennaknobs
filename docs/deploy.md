@@ -187,7 +187,18 @@ tag to roll back, or a fix branch) without cutting a new version.
 | Tail logs | `fly logs -a antennaknobs` |
 | Open a shell in the machine | `fly ssh console -a antennaknobs` |
 | Scale memory / CPU | edit `[[vm]]` in `fly.toml`, then `fly deploy` |
-| Add a region replica | `fly scale count 2 --region <r>` |
+| Add a region replica | `fly scale count 1 --region <r>` (keeps sjc; idle regions suspend, AK#405) |
+| Read the usage counters | Fly's Prometheus (`api.fly.io/prometheus/<org>`): `sum by (design) (increase(ak_solves_total[7d]))` |
+| Check a crash report | `fly logs -a antennaknobs \| grep client-error:` (`?crash-test` on the page throws one on purpose) |
+
+**Several regions (AK#405).** `sjc` is the primary region and stays on
+(`min_machines_running = 1` holds machines in the primary region only); every
+other region's machine suspends when idle (`auto_stop_machines = 'suspend'`).
+A page pins itself to the machine it first reached (the `fly-force-instance-id`
+header, and `fly-replay` for the `/ws` upgrade), so per-machine state (the
+session lane, an opened deck's parse, the caches) is never split. The counters
+are per machine; sum across them. A deploy leaves an idle machine stopped on
+the new image, and the post-deploy convergence check accepts that.
 
 ## Latency note
 

@@ -1,4 +1,5 @@
 import type { MeasuredData, SolveRequest } from "../../lib/api";
+import { apiFetch } from "../../lib/pin";
 
 // Imperative one-shot session actions lifted out of DesignSession (#642 seam
 // 5b-3). Deliberately plain async functions, not hooks: each one runs entirely
@@ -41,7 +42,7 @@ export async function downloadNec({
 }) {
   setGearMenuOpen(false);
   try {
-    const resp = await fetch("/export_nec", {
+    const resp = await apiFetch("/export_nec", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...buildRequest(), dialect }),
@@ -94,7 +95,7 @@ export async function loadMeasured(
   setGearMenuOpen(false);
   try {
     const text = await file.text();
-    const resp = await fetch("/measured", {
+    const resp = await apiFetch("/measured", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: file.name, text }),
@@ -128,7 +129,7 @@ export async function copyParams({
   setCopiedParams: (copied: boolean) => void;
 }) {
   try {
-    const resp = await fetch("/params_source", {
+    const resp = await apiFetch("/params_source", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(buildRequest()),

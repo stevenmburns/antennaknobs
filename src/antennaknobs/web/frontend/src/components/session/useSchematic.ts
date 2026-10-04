@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { SolveRequest } from "../../lib/api";
+import { apiFetch } from "../../lib/pin";
 
 // The feed-network schematic (issue #652): server-rendered SVG from
 // POST /schematic. No solve happens server-side — build_network() plus the
@@ -60,7 +61,7 @@ export function useSchematic({
         body.budget = budget;
         if (inputPowerW) body.input_power_w = inputPowerW;
       }
-      fetch("/schematic", {
+      apiFetch("/schematic", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

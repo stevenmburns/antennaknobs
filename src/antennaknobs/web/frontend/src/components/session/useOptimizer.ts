@@ -13,6 +13,7 @@ import {
   type OptPause,
   type OptProgress,
 } from "./VfoPanel";
+import { apiFetch } from "../../lib/pin";
 
 // One decoded `event: X\ndata: Y` frame off an SSE byte stream.
 type SseFrame = { event: string; data: string };
@@ -227,7 +228,7 @@ export function useOptimizer({
     setOptFrameMs(null);
     lastFrameAtRef.current = null;
     try {
-      const resp = await fetch("/optimize", {
+      const resp = await apiFetch("/optimize", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

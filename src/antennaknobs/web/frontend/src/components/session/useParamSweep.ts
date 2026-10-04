@@ -9,6 +9,7 @@ import {
   type ParamSweepData,
   type ParamSweepRequest,
 } from "../../lib/paramSweep";
+import { apiFetch } from "../../lib/pin";
 
 // One parameter sweep runner (docs/design/z-vs-param-view.md): Z against the
 // density or one design knob, streamed from /param_sweep, with Stop, Run and
@@ -258,7 +259,7 @@ export function useParamSweep({
     };
     let dropped = false;
     try {
-      const resp = await fetch("/param_sweep", {
+      const resp = await apiFetch("/param_sweep", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

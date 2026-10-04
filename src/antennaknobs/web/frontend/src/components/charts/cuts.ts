@@ -3,6 +3,7 @@ import type { PatternCuts, SolveResponse } from "../../lib/api";
 import { cutDbiTop, refineCutAngles } from "../../lib/refine";
 import { tunedInt } from "../../lib/tuning";
 import type { FarFieldCaptions, FarFieldCut } from "./types";
+import { apiFetch } from "../../lib/pin";
 
 // --- Server-side polar cuts (issue #547) -----------------------------------
 // The per-direction cut physics lives in server.py (_pattern_cuts); every
@@ -246,7 +247,7 @@ function requestCuts(
   extra?: CutExtra,
 ): Promise<PatternCuts | null> {
   const postCuts = (body: object): Promise<Response> =>
-    fetch("/cuts", {
+    apiFetch("/cuts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
