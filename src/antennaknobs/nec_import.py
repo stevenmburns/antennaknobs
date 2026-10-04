@@ -1622,8 +1622,9 @@ class NecDeck:
                     "objects on different wires at one node where "
                     f"{degree} wire ends meet; NEC-5 puts each object in its "
                     "own wire's branch there, which needs one series gap per "
-                    "wire end, and momwire 0.70.0 serves one per junction "
-                    "(momwire#1300 lifts that in a later release). Move all of "
+                    "wire end; momwire's EZNEC drop-in serves that since "
+                    "0.71.0 (momwire#1300), but this route still serves one "
+                    "per junction (AK#1886). Move all of "
                     "them onto one wire's address at that node, or move one "
                     "of them a segment away"
                 )

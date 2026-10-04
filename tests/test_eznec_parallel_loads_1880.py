@@ -166,4 +166,4 @@ def test_loads_on_two_wires_at_a_three_wire_node_are_refused(tmp_path):
         deck.network()
     assert "2,3 and 3,-1" in str(e.value)
     assert "3 wire ends meet" in str(e.value)
-    assert "momwire 0.70.0" in str(e.value)
+    assert "AK#1886" in str(e.value)
