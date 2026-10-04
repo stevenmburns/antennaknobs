@@ -208,7 +208,7 @@ the trap dipole and station designs use), wherever it can express them
 
 | Card | Translation |
 | --- | --- |
-| `LD` type 0/1 (lumped series/parallel RLC) | A `Load` per segment in the card's range (expanded up to 8 segments), each a port positioned at its segment's centre on the uncut host wire. On a NEC-5 deck the card names one knot instead (see [the NEC-5 dialect](#the-nec-5-dialect)) |
+| `LD` type 0/1 (lumped series/parallel RLC) | A `Load` per segment in the card's range (up to 64 segments per card), each a port positioned at its segment's centre on the uncut host wire. Two or more cards on one segment add in series, as NEC adds them (nec2c and NEC-5 print "LOADED TWICE - IMPEDANCES ADDED"). On a NEC-5 deck the card names one knot instead (see [the NEC-5 dialect](#the-nec-5-dialect)) |
 | `LD` type 4 (fixed impedance) | `Load(r=…)` when X = 0; a fixed complex-Z `Load` when reactive |
 | `LD` type 5 over the whole structure (wire conductivity) | `deck.conductivity`, baked into every `wire_tuples(specs=True)` spec (or feed it to `WireSpec` in `build_wire_material`) |
 | `LD` type 5 on a tag/range covering whole wires | Per-wire conductivity (`deck.wire_conductivity`), baked into those wires' `specs=True` specs — a ranged card wins over the whole-structure one |

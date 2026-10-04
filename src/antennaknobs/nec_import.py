@@ -4022,12 +4022,17 @@ def _locate_segment(wires, tag, seg, card):
     )
 
 
-# How many segments an LD 0/1/4 range may cover before the importer refuses
-# to expand it into per-segment Load branches: each expanded segment becomes
-# its own named 1-segment wire + MoM port + MNA row, so a wide range (which
-# usually means "the whole element" — really distributed loading) would
-# shred the mesh for no fidelity gain.
-_LD_EXPAND_MAX = 8
+# How many segments one LD 0/1/4/6 card may load before the importer refuses
+# to expand it into per-segment Load branches. NEC's lumped load is per
+# segment, so a range IS that many loads, and since AK#1469 part B each one
+# is a port positioned on its uncut wire: the cost is a port (one more column
+# of the engine's port solve) and a circuit row and a plane per segment, not
+# a cut mesh. 8 used to be the limit, from when each loaded segment was cut
+# out as its own wire, and it dropped whole capacitively loaded antennas
+# (`36ccd`: 12 per wire, AK#1708). Across the nec-wild corpus nothing lies
+# between 12 and 1764 (G1OJS's `Chimney`, a capacitor in every segment of a
+# wire grid), so the limit keeps loaded elements and refuses meshes.
+_LD_EXPAND_MAX = 64
 
 
 def _seg_mid(w, seg: int, at: float | None = None):
@@ -5085,9 +5090,24 @@ def _translate_network_cards(
                     )
                     continue
                 where = (*pair, edge)
-                if where in loaded:
-                    skip("LD", "a second load on one segment is not merged")
+                if where in loaded and at_connection:
+                    # Each load at a connection is a series branch from the
+                    # wire's port to ONE node the line moved to (AK#1584), so
+                    # a second one would sit in parallel with the first.
+                    skip(
+                        "LD",
+                        "a second load at a TL/NT connection point -- each is "
+                        "a series branch to the same node, which would put "
+                        "them in parallel",
+                    )
                     continue
+                # A second load on one segment ADDS in series (AK#1708): nec2c
+                # and the licensed NEC-5 both print "LOADED TWICE - IMPEDANCES
+                # ADDED" and answer the single summed load to the digit, in
+                # either card order and for a parallel trap beside a series C.
+                # Both land on one port, and the network's Loads on one port
+                # are one series termination (momwire's reducer; the native
+                # NEC writers emit both cards, which NEC adds the same way).
                 loaded.add(where)
                 loads.append(
                     NecLoad(

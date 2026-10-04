@@ -487,12 +487,18 @@ def test_ld_range_expands_per_segment_up_to_cap():
     net = deck.network()
     assert sorted(br.port for br in net.branches) == ["feed", "load1", "load2"]
 
-    # A whole-tag range (12 segments > the 8-segment cap) is refused.
-    wide = "GW 1 12 0 -3 10 0 3 10 0.001\nGE\nEX 0 1 6 0 1 0\nLD 0 1 0 0 1.0 0 0\nEN\n"
-    deck = parse_nec(wide, network=True)
+    # A whole-tag range of 12 is a load on each (AK#1708); one wider than the
+    # 64-segment cap is refused, naming both numbers.
+    wide = "GW 1 {n} 0 -3 10 0 3 10 0.001\nGE\nEX 0 1 6 0 1 0\nLD 0 1 0 0 1.0 0 0\nEN\n"
+    deck = parse_nec(wide.format(n=12), network=True)
+    assert [ld.seg for ld in deck.loads] == list(range(1, 13))
+    assert "LD" not in deck.ignored
+    deck = parse_nec(wide.format(n=65), network=True)
     assert deck.loads == ()
     assert "LD" in deck.ignored
-    assert any("12 segments" in why for _m, why in deck.ignored_detail)
+    assert any(
+        "65 segments" in why and "at most 64" in why for _m, why in deck.ignored_detail
+    )
 
 
 def test_ld4_resistance_and_reactance_both_translate():
@@ -537,9 +543,11 @@ def test_ld_distributed_and_duplicate_are_ignored_with_reasons():
     assert deck.loads == () and any(
         "per-metre" in why for _m, why in deck.ignored_detail
     )
+    # Two loads on one segment add in series, as NEC adds them (AK#1708):
+    # both are kept, on one port (`test_ld_ranges_stacked_1708`).
     deck = parse_nec(_dipole7("LD 0 1 2 2 5.0 0 0", "LD 0 1 2 2 7.0 0 0"), network=True)
-    assert len(deck.loads) == 1 and deck.loads[0].r == 5.0
-    assert any("not merged" in why for _m, why in deck.ignored_detail)
+    assert [ld.r for ld in deck.loads] == [5.0, 7.0]
+    assert not deck.ignored_detail
 
 
 TWO_VERTICALS = """\
