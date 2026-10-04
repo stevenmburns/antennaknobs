@@ -2992,6 +2992,33 @@ button.overlay-readout:disabled {
   align-items: flex-start;
   gap: var(--space-4);
 }
+/* The combined view on a phone (AK#1732): side by side over the lower right,
+   the pair covered the plot's own lower right at ~390 px. There it stacks
+   into a column at the right edge, centred top to bottom (clear of the dots
+   row), and the plot stands left of it, sized by combinedPhoneChartSize
+   (charts/combined.ts), whose CUT_PAIR_PHONE_COLUMN_PX is this column's
+   90 px width plus its 8 px inset, the gap and the plot's own inset. */
+.mobile-screen-combined {
+  /* The inset stays inside the slide's 100 % basis, or the carousel's snap
+     points drift by it. */
+  box-sizing: border-box;
+  justify-content: flex-start;
+  padding-left: var(--space-4);
+}
+.mobile-screen-combined .cut-overlay-pair {
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  box-sizing: border-box;
+  width: 90px;
+  top: 50%;
+  bottom: auto;
+  right: var(--space-4);
+  transform: translateY(-50%);
+}
+.mobile-screen-combined .cut-overlay-label {
+  white-space: nowrap;
+}
 .cut-overlay-label {
   font-size: var(--text-xs);
   text-transform: uppercase;

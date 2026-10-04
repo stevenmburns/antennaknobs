@@ -82,3 +82,19 @@ export function highlightState(
   if (effective.length === 0) return "normal";
   return effective.includes(entity) ? "strong" : "dim";
 }
+
+// The combined view's knob pair on a phone (AK#1732). At ~390 px the pair,
+// side by side over the lower right, covered the plot's own lower right; on a
+// phone it stacks into a column at the right edge (styles.css,
+// .mobile-screen-combined) and the plot, left-aligned, gives up that column.
+// The column is the ELEVATION label's width (9 uppercase 11 px letters,
+// ~72 px, wider than the 54 px knob) + 2 × 8 px padding + 2 px border = 90,
+// at 8 px from the edge, with 8 px between it and the plot and the plot's own
+// 8 px inset: 114, rounded up.
+export const CUT_PAIR_PHONE_COLUMN_PX = 116;
+
+/** The combined view's plot size on a phone: the slide's square, narrowed so
+ *  the knob column beside it has room. `paneWidth` is the carousel's. */
+export function combinedPhoneChartSize(slide: number, paneWidth: number): number {
+  return Math.max(160, Math.min(slide, paneWidth - CUT_PAIR_PHONE_COLUMN_PX));
+}

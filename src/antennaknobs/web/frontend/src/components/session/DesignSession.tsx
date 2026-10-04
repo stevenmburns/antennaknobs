@@ -128,7 +128,7 @@ import {
 import type { ChartChrome } from "../results/AnalysisChartControls";
 import { BackendConfigModal } from "../backend/BackendConfigModal";
 import { ParamForm } from "../params/ParamForm";
-import { effectiveHighlight, toggleHighlight } from "../charts/combined";
+import { combinedPhoneChartSize, effectiveHighlight, toggleHighlight } from "../charts/combined";
 import { setCutRefineEnabled } from "../charts/cuts";
 import type {
   FarFieldCaptions,
@@ -1391,6 +1391,7 @@ function DesignSessionBody({
     mobileCarouselRef,
     mobRef,
     mobChartSize,
+    mobPaneWidth,
     onMobileCarouselScroll,
     goToMobileScreen,
   } = useMobileCarousel({ isMobile, orientation, pinned: shownViews, view, setView });
@@ -4639,7 +4640,9 @@ function DesignSessionBody({
             {screens.map((s) => (
               <div
                 key={s.id}
-                className={`mobile-screen${s.id === "info" ? " mobile-screen-info" : ""}`}
+                className={`mobile-screen${s.id === "info" ? " mobile-screen-info" : ""}${
+                  s.id === "combined" ? " mobile-screen-combined" : ""
+                }`}
               >
                 {s.id === "info" ? (
                   <>
@@ -4674,7 +4677,13 @@ function DesignSessionBody({
                     // The Z-vs-parameter view stacks its header above the
                     // chart on a phone: the chart gives up the header's
                     // height so the pair fits the screen.
-                    chartIndex(s.id) >= 0 ? Math.max(160, mobChartSize - ZPARAM_MOBILE_HEADER_PX) : mobChartSize,
+                    chartIndex(s.id) >= 0
+                      ? Math.max(160, mobChartSize - ZPARAM_MOBILE_HEADER_PX)
+                      : // The combined view's two cut knobs stand beside its
+                        // plot on a phone, not over it (AK#1732).
+                        s.id === "combined"
+                        ? combinedPhoneChartSize(mobChartSize, mobPaneWidth)
+                        : mobChartSize,
                     fillsStage(s.id as View),
                   )
                 )}
