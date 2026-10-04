@@ -1,0 +1,203 @@
+// Opened decks (AC6LA, QRZ 1005128 #40/#42): a visitor's own .nec / .ssn,
+// studied in the workbench with nothing installed, and shared by its link.
+//
+// The deck travels as its TEXT, never parsed here. The browser compresses it
+// (CompressionStream "deflate-raw", base64url) into the page's address,
+// `?deck=<z>&name=<file name>`, and POSTs it to /deck, which parses it with the
+// same importer `@path` uses and answers with the design key
+// (`deck.<hash12>`) and the catalog record. Every later request for that
+// design carries the deck again (`_deck`) so a server that has never seen it
+// — a restart, a second machine, an evicted entry — rebuilds it on the spot:
+// the link is the whole state. `withDeck` adds it; `ensureDeckTransport`
+// wraps `fetch` so every POST naming a deck carries it without each of the
+// workbench's two dozen request sites knowing decks exist, and the /ws solve
+// channel calls `withDeck` itself.
+//
+// React-free, so the link grammar and the store are tested alone.
+
+import type { ExampleDescriptor } from "./params";
+
+export const DECK_NS = "deck.";
+
+/** The longest compressed deck a shareable link carries (~8 KB). Past it the
+ *  deck still opens in this tab; the page says the link cannot share it. */
+export const MAX_SHARE_CHARS = 8000;
+
+export type DeckPayload = { name: string; z: string };
+
+export type OpenedDeck = DeckPayload & {
+  key: string;
+  example: ExampleDescriptor;
+};
+
+export const isDeck = (g: unknown): g is string =>
+  typeof g === "string" && g.startsWith(DECK_NS);
+
+/** Whether a deck's compressed form fits a link someone can share. */
+export const shareable = (d: DeckPayload): boolean => d.z.length <= MAX_SHARE_CHARS;
+
+// --- The store (module-level: every tab of the page shares it) -------------
+
+const decks = new Map<string, OpenedDeck>();
+const listeners = new Set<() => void>();
+let snapshot: readonly OpenedDeck[] = [];
+
+export function subscribeDecks(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
+
+/** Every deck opened in this page, oldest first (a stable snapshot for
+ *  useSyncExternalStore). */
+export function openedDecks(): readonly OpenedDeck[] {
+  return snapshot;
+}
+
+export function deckFor(key: string): OpenedDeck | undefined {
+  return decks.get(key);
+}
+
+export function rememberDeck(d: OpenedDeck): void {
+  decks.set(d.key, d);
+  snapshot = [...decks.values()];
+  ensureDeckTransport();
+  for (const fn of listeners) fn();
+}
+
+/** Tests only: forget every deck. */
+export function clearDecks(): void {
+  decks.clear();
+  snapshot = [];
+  for (const fn of listeners) fn();
+}
+
+// --- Compression -----------------------------------------------------------
+
+function toBase64Url(bytes: Uint8Array): string {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function drain(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+  const reader = stream.getReader();
+  const parts: Uint8Array[] = [];
+  let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    parts.push(value);
+    n += value.length;
+  }
+  const out = new Uint8Array(n);
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
+}
+
+/** A deck's text as the link carries it: deflate-raw, base64url. */
+export async function compressDeck(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text);
+  const input = new ReadableStream<BufferSource>({
+    start(c) {
+      c.enqueue(bytes);
+      c.close();
+    },
+  });
+  return toBase64Url(await drain(input.pipeThrough(new CompressionStream("deflate-raw"))));
+}
+
+// --- The server ------------------------------------------------------------
+
+/** What /deck refused, in its words, and its kind ("refused", "rate", ...). */
+export class DeckOpenError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly deckStatus: string | null,
+  ) {
+    super(message);
+  }
+}
+
+/** Open a deck on the server: its key and catalog record, remembered. */
+export async function openDeck(payload: DeckPayload): Promise<OpenedDeck> {
+  const resp = await fetch("/deck", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  let body: { key?: string; example?: ExampleDescriptor; detail?: string; deck_status?: string } = {};
+  try {
+    body = await resp.json();
+  } catch {
+    /* no JSON: the status says it */
+  }
+  if (!resp.ok || !body.key || !body.example) {
+    throw new DeckOpenError(
+      body.detail ?? `Could not open ${payload.name} (${resp.status}).`,
+      resp.status,
+      body.deck_status ?? null,
+    );
+  }
+  const d: OpenedDeck = { ...payload, key: body.key, example: body.example };
+  rememberDeck(d);
+  return d;
+}
+
+/** Read a chosen file and open it: the browser reads the text, nothing
+ *  parses it here. */
+export async function openDeckFile(file: File): Promise<OpenedDeck> {
+  const text = await file.text();
+  return openDeck({ name: file.name, z: await compressDeck(text) });
+}
+
+// --- Carrying the deck on every request ------------------------------------
+
+/** `body` with its design's deck added as `_deck`, when it names an opened
+ *  deck this page holds; `body` itself otherwise. */
+export function withDeck<T extends Record<string, unknown>>(body: T): T {
+  const g = body.geometry;
+  if (!isDeck(g) || "_deck" in body) return body;
+  const d = decks.get(g);
+  return d ? { ...body, _deck: { name: d.name, z: d.z } } : body;
+}
+
+/** A JSON request body string with `_deck` added (see `withDeck`); any
+ *  other body is returned as it was. */
+export function withDeckBody(body: unknown): unknown {
+  if (typeof body !== "string" || !body.includes(`"${DECK_NS}`)) return body;
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return body;
+    const out = withDeck(parsed as Record<string, unknown>);
+    return out === parsed ? body : JSON.stringify(out);
+  } catch {
+    return body;
+  }
+}
+
+const WRAPPED = Symbol.for("antennaknobs.deckFetch");
+
+/** Wrap the page's `fetch` (once) so a POST naming an opened deck carries
+ *  it. Idempotent; re-wraps a `fetch` someone replaced since. */
+export function ensureDeckTransport(): void {
+  const current = globalThis.fetch as typeof fetch & { [WRAPPED]?: true };
+  if (typeof current !== "function" || current[WRAPPED]) return;
+  const wrapped = ((input: RequestInfo | URL, init?: RequestInit) => {
+    if (init && init.body !== undefined && decks.size > 0) {
+      const body = withDeckBody(init.body);
+      if (body !== init.body) init = { ...init, body: body as BodyInit };
+    }
+    return current(input, init);
+  }) as typeof fetch & { [WRAPPED]?: true };
+  wrapped[WRAPPED] = true;
+  globalThis.fetch = wrapped;
+}

@@ -1,10 +1,13 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
+  useSyncExternalStore,
   type Dispatch,
   type SetStateAction,
 } from "react";
+import { openedDecks, subscribeDecks } from "../../lib/decks";
 import {
   mergeSeededDefaults,
   seedDefaults,
@@ -37,7 +40,8 @@ export function useDesignCatalog({
    *  for the first pick, never to recover a vanished selection. */
   preferred?: (examples: ExampleDescriptor[]) => string | null;
 }) {
-  const [examples, setExamples] = useState<ExampleDescriptor[]>([]);
+  // The server's catalog, and (below) it with the decks this page opened.
+  const [served, setExamples] = useState<ExampleDescriptor[]>([]);
   const [examplesError, setExamplesError] = useState<string | null>(null);
   // User designs that failed to load (bad Python, no Builder, geometry error).
   // Surfaced from /examples so the author / Claude can see and fix them.
@@ -113,6 +117,30 @@ export function useDesignCatalog({
     [loadExamples],
   );
 
+  // Opened decks (lib/decks.ts) join the catalog in every tab of the page:
+  // the server never lists them (they are the opening browser's), so they
+  // ride after the served designs, each under its `deck.<hash>` key.
+  const opened = useSyncExternalStore(subscribeDecks, openedDecks);
+  const examples = useMemo(() => {
+    if (opened.length === 0) return served;
+    const have = new Set(served.map((e) => e.name));
+    return [...served, ...opened.filter((d) => !have.has(d.key)).map((d) => d.example)];
+  }, [served, opened]);
+  useEffect(() => {
+    // An opened deck's knobs start at its own values, as a served design's.
+    setParamValues((prev) => {
+      let next = prev;
+      for (const d of opened) {
+        if (next[d.key]) continue;
+        if (next === prev) next = { ...prev };
+        next[d.key] = seedDefaults(d.example.param_schema);
+      }
+      return next;
+    });
+    // setParamValues is the caller's stable useState setter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened]);
+
   // Auto-select a sensible default once /examples resolves, and recover if
   // the current selection disappears (e.g. backend dropped an example).
   // dipoles.invvee is the canonical simple antenna (also the CLI default);
@@ -120,7 +148,9 @@ export function useDesignCatalog({
   // design (`preferred`) wins on the first pick, so the session never opens
   // on invvee first and then switches.
   useEffect(() => {
-    if (examples.length === 0) return;
+    // Waits for the server's catalog: an opened deck alone is no reason to
+    // pick (the default design is a served one).
+    if (served.length === 0) return;
     if (!examples.some((e) => e.name === geometry)) {
       const linked = geometry === "" ? (preferred?.(examples) ?? null) : null;
       const fallback = examples.find((e) => e.name === "dipoles.invvee");
@@ -129,7 +159,7 @@ export function useDesignCatalog({
     // setGeometry is a stable useState setter; the literal deps are unchanged
     // from the pre-extraction effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [examples, geometry]);
+  }, [examples, served, geometry]);
 
   return {
     examples,

@@ -29,6 +29,9 @@ const METADATA_EXEMPT = [
   // request builder stamps it), so leaving it out of this list would key
   // each curve's runner on its own stream name.
   "_stream",
+  // An opened deck's text (lib/decks.ts): transport only, added on the way
+  // out (withDeck); the design key already names the deck by its hash.
+  "_deck",
 ] as const;
 
 /** Stable stringification of a solve request minus the metadata fields and

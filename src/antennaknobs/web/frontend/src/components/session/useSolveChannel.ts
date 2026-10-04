@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { withDeck } from "../../lib/decks";
 import type { SolveRequest, SolveResponse } from "../../lib/api";
 import {
   cutsWsSend,
@@ -248,7 +249,10 @@ export function useSolveChannel({
       lastSentSeqRef.current = seq;
       sentAtRef.current.set(seq, performance.now());
       sentReqRef.current.set(seq, controls);
-      sock.send(JSON.stringify({ ...controls, _seq: seq }));
+      // An opened deck's text rides every solve (lib/decks.ts): the server
+      // may not hold it (a restart, another machine) and the link is the
+      // whole state.
+      sock.send(JSON.stringify(withDeck({ ...controls, _seq: seq })));
       // Keep the preview signature current so that toggling Live *off* right
       // after a solve doesn't see a stale signature and needlessly refetch the
       // wireframe / drop the just-solved result — the solved geometry already

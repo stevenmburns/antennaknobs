@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SolveRequest, SolveResponse } from "./lib/api";
 import { GHOST_COLOR_COUNT } from "./components/charts/palette";
 import type { PinnedPattern } from "./components/charts/types";
@@ -15,7 +15,8 @@ import {
 } from "./components/session/contexts";
 import { DesignSession } from "./components/session/DesignSession";
 import { SweepPinsProvider } from "./components/session/SweepPinsProvider";
-import { parseDeepLink } from "./lib/deepLink";
+import { parseDeepLink, type DeepLink } from "./lib/deepLink";
+import { openDeck } from "./lib/decks";
 
 // App shell. Owns the two pieces of truly global state — the light/dark theme
 // and the list of open design sessions — and nothing else. Every session is a
@@ -54,7 +55,38 @@ export function App() {
   // reconciled onto a different session's tree.
   // The page's deep link (AK#1838), read once: the first tab opens on it,
   // and a tab opened later starts on the session's own defaults.
-  const [deepLink] = useState(() => parseDeepLink(window.location.search));
+  const [deepLink, setDeepLink] = useState<DeepLink | null>(() =>
+    parseDeepLink(window.location.search),
+  );
+  // A link that carries a deck (`?deck=…&name=…`, lib/decks.ts) is opened on
+  // the server BEFORE any tab mounts, so the first tab's catalog already
+  // holds it and the session opens straight onto it, as on a catalog link.
+  // A deck that does not open (over a limit, a broken link) is reported by
+  // the session's link notice, and the tab opens on its default design.
+  const [deckBoot, setDeckBoot] = useState<"pending" | "done">(() =>
+    deepLink?.deck ? "pending" : "done",
+  );
+  useEffect(() => {
+    const link = deepLink;
+    if (!link?.deck || deckBoot !== "pending") return;
+    let live = true;
+    openDeck(link.deck).then(
+      (d) => {
+        if (!live) return;
+        setDeepLink({ ...link, design: d.key });
+        setDeckBoot("done");
+      },
+      (e: unknown) => {
+        if (!live) return;
+        const why = e instanceof Error ? e.message : String(e);
+        setDeepLink({ ...link, design: null, deck: null, problem: `the link's deck did not open: ${why}` });
+        setDeckBoot("done");
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [deepLink, deckBoot]);
   const [sessions, setSessions] = useState<SessionMeta[]>([{ id: 1 }]);
   const [activeId, setActiveId] = useState(1);
   const nextIdRef = useRef(2);
@@ -155,7 +187,12 @@ export function App() {
             {/* Pinned sweeps (AK#1757 item 1): shell-level, as pattern pins. */}
             <SweepPinsProvider>
               <div className="sessions">
-                {sessions.map((s) => (
+                {deckBoot === "pending" && (
+                  <div className="deck-boot" role="status">
+                    Opening {deepLink?.deck?.name ?? "the deck"}…
+                  </div>
+                )}
+                {deckBoot === "done" && sessions.map((s) => (
                   <div
                     key={s.id}
                     className="session-mount"

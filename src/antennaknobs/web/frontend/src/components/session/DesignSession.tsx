@@ -274,6 +274,8 @@ import { gridCells, gridShape, useViewPrefs, withChartCopies } from "./useViewPr
 import { useViewState } from "./useViewState";
 import { ViewPicker } from "./ViewPicker";
 import { VfoPanel } from "./VfoPanel";
+import { DeckNotice } from "./DeckNotice";
+import { deckFor, isDeck, openDeckFile } from "../../lib/decks";
 
 // One antenna design session: the entire left sidebar + right stage plus all
 // the state, effects, and the WebSocket that drive them. The shell (`App`,
@@ -3034,8 +3036,22 @@ function DesignSessionBody({
   // analysis and view were for that design.
   type LinkStage = "design" | "variant" | "analysis" | "view" | "done";
   const [linkStage, setLinkStage] = useState<LinkStage>(deepLink ? "design" : "done");
-  const [linkProblems, setLinkProblems] = useState<string[]>([]);
+  // Seeded with the shell's report when the link's deck did not open.
+  const [linkProblems, setLinkProblems] = useState<string[]>(() =>
+    deepLink?.problem ? [deepLink.problem] : [],
+  );
   const linkProblem = (p: string) => setLinkProblems((ps) => [...ps, p]);
+  // Opening the user's own deck (lib/decks.ts): read here, opened on the
+  // server, and then simply the design this tab is on. Its refusal (over a
+  // limit, a card the importer cannot model) is the server's own sentence.
+  const [deckError, setDeckError] = useState<string | null>(null);
+  const openDeckFromFile = (file: File) => {
+    setDeckError(null);
+    openDeckFile(file).then(
+      (d) => setGeometry(d.key),
+      (e: unknown) => setDeckError(e instanceof Error ? e.message : String(e)),
+    );
+  };
   // The chart is where an analysis or a view lands, and listing the
   // design's analyses waits for it to be on screen (useDesignAnalyses).
   useEffect(() => {
@@ -3120,6 +3136,8 @@ function DesignSessionBody({
   // (the design's first left out), and the first chart's analysis and view.
   const linkStateOf = (m: ChartModel | null): LinkState => ({
     design: geometry,
+    // An opened deck: the link carries the deck itself (when it fits).
+    deck: isDeck(geometry) ? (deckFor(geometry) ?? null) : null,
     variant: currentVariant === (currentExample?.variants?.[0] ?? "default") ? null : currentVariant,
     analysis: m ? pickedNameOf(m) : null,
     view: m ? chartView(m.state) : null,
@@ -3280,6 +3298,11 @@ function DesignSessionBody({
             </button>
           </div>
         )}
+        <DeckNotice
+          deck={isDeck(geometry) ? (deckFor(geometry) ?? null) : null}
+          error={deckError}
+          onDismissError={() => setDeckError(null)}
+        />
         {settingsNote && (
           <div className="settings-notice" role="status">
             <span>{settingsNote}</span>
@@ -3309,6 +3332,7 @@ function DesignSessionBody({
           trustDesign={trustDesign}
           onReloadDesign={reloadDesigns}
           reloadBusy={reloadBusy}
+          onOpenDeck={openDeckFromFile}
         />
 
         {currentExample && (

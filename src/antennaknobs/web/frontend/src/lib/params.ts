@@ -268,11 +268,11 @@ export type ExampleDescriptor = {
 // groups by that family prefix; this fixes display order + labels and keeps
 // any unknown family rendering last under its bare name.
 export const FAMILY_ORDER = [
-  "user", "dipoles", "loops", "verticals", "beams", "wire",
+  "deck", "user", "dipoles", "loops", "verticals", "beams", "wire",
   "broadband", "multiband", "specialty", "arrays",
 ] as const;
 export const FAMILY_LABELS: Record<string, string> = {
-  user: "Your designs", dipoles: "Dipoles", loops: "Loops",
+  deck: "Opened decks", user: "Your designs", dipoles: "Dipoles", loops: "Loops",
   verticals: "Verticals", beams: "Beams", wire: "Wire / traveling-wave",
   broadband: "Broadband", multiband: "Multiband", specialty: "Specialty",
   arrays: "Arrays",

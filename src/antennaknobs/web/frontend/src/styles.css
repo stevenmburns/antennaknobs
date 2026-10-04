@@ -1049,6 +1049,21 @@ button:focus-visible,
   cursor: default;
 }
 
+/* "Open…" beside the design picker (opened decks): a label styled as the
+   reload button, its file input hidden — the label opens the picker. */
+.deck-open-btn {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-sm);
+}
+.deck-open-btn input[type="file"] {
+  display: none;
+}
+.deck-boot {
+  padding: var(--space-6);
+  color: var(--muted);
+}
+
 .geometry-filter-hint {
   color: var(--muted);
   font-family: var(--font-mono);
