@@ -3371,6 +3371,79 @@ class _Card:
         return ValueError(f"{self.where}: {self.mnemonic} card: {msg}")
 
 
+@dataclass(frozen=True)
+class GeometryLimits:
+    """Upper bounds on the structure a deck may build, checked BEFORE a card
+    builds it (the hosted workbench's opened decks, AC6LA, QRZ 1005128 #40).
+
+    ``parse_nec`` has no bounds of its own: a ``GW`` holds its segment count
+    as a number, but ``GA`` / ``GH`` / a ``GC`` taper expand into one wire per
+    segment, and ``GM`` / ``GR`` / ``GX`` multiply the whole wire list, all in
+    Python, before anything downstream could judge the size. With limits, each
+    geometry card's growth is projected from its fields (SY-evaluated, so a
+    symbol or a knob override is caught the same way) and refused by name
+    before the card runs; the deck's totals are checked again at the end.
+    ``note`` is appended to the refusal (where the limit comes from, and what
+    to do instead)."""
+
+    max_segments: int
+    max_wires: int
+    note: str = ""
+
+    def check(self, n_wires: float, n_segs: float, where: str) -> None:
+        over = []
+        if not n_segs <= self.max_segments:
+            over.append(f"{_count(n_segs)} segments (the limit is {self.max_segments})")
+        if not n_wires <= self.max_wires:
+            over.append(f"{_count(n_wires)} wires (the limit is {self.max_wires})")
+        if over:
+            raise ValueError(
+                f"{where}: this deck builds {' and '.join(over)}"
+                + (f"; {self.note}" if self.note else "")
+            )
+
+    def admit_card(self, mnemonic: str, card, wires) -> None:
+        """Refuse ``card`` if the structure it would build is over a limit.
+        Counts are read as floats, so a field of 1e300 (or an infinity an SY
+        expression reaches) is compared, never turned into a list length."""
+        n_w = len(wires)
+        n_s = sum(w[1] for w in wires)
+        add_w = add_s = 0.0
+        if mnemonic == "GW":
+            add_w, add_s = 1.0, card.f(1)
+        elif mnemonic in ("GA", "GH"):
+            add_w = add_s = card.f(1)
+        elif mnemonic == "GC":
+            # The parked zero-radius GW becomes one wire per segment.
+            add_w = float(wires[-1][1] - 1) if wires else 0.0
+        elif mnemonic == "GM":
+            nrpt = card.f(1)
+            if nrpt >= 1.0:
+                i1 = _first_wire_with_tag(wires, int(card.f(8) + 0.5), card)
+                block = wires[i1:]
+                add_w = nrpt * len(block)
+                add_s = nrpt * sum(w[1] for w in block)
+        elif mnemonic == "GX":
+            code = card.i(1)
+            flags = sum(1 for d in (code // 100, code // 10, code) if d % 10)
+            add_w, add_s = n_w * (2.0**flags - 1.0), n_s * (2.0**flags - 1.0)
+        elif mnemonic == "GR":
+            nop = card.f(1)
+            if nop > 1.0:
+                add_w, add_s = n_w * (nop - 1.0), n_s * (nop - 1.0)
+        self.check(n_w + add_w, n_s + add_s, f"{card.where}: {mnemonic} card")
+
+    def check_wires(self, wires, where: str) -> None:
+        """The totals of a finished wire list (``[tag, n_seg, ...]`` lists or
+        :class:`NecWire`)."""
+        segs = sum(w.n_seg if isinstance(w, NecWire) else w[1] for w in wires)
+        self.check(len(wires), segs, where)
+
+
+def _count(x: float) -> str:
+    return f"{x:.0f}" if x < 1e15 else f"{x:.3g}"
+
+
 # Internal mutable wire: [tag, n_seg, [x,y,z], [x,y,z], radius].
 
 
@@ -5219,6 +5292,7 @@ def parse_nec(
     network: bool = False,
     virtualize_anchors: bool = True,
     sy_overrides: Mapping[str, float] | None = None,
+    limits: GeometryLimits | None = None,
 ) -> NecDeck:
     """Parse the text of a NEC2 card deck into a :class:`NecDeck`.
 
@@ -5246,6 +5320,9 @@ def parse_nec(
     and card field is evaluated from it, exactly as if the deck's text had
     been edited there. A name the deck does not define, or defines more than
     once, is refused. ``classify_sy`` says which symbols are knobs.
+
+    ``limits`` (opened decks) bounds the structure: each geometry card's growth is
+    checked before it runs, the totals after the last (`GeometryLimits`).
 
     Raises ``ValueError`` (with ``name`` and the line number) on cards that
     are malformed or describe things antennaknobs cannot model — patches,
@@ -5473,6 +5550,8 @@ def parse_nec(
         card = _Card(mnemonic, tokens[1:], where, syms)
 
         if mnemonic in geometry:
+            if limits is not None:
+                limits.admit_card(mnemonic, card, wires)
             segs_before = sum(w[1] for w in wires)
             geometry[mnemonic](card, wires)
             # GX/GR leave the structure symmetric, which changes how NEC
@@ -5635,6 +5714,8 @@ def parse_nec(
     _check_sy_overrides(overrides, sy_used, name)
     if not wires:
         raise ValueError(f"{name}: deck defines no wires")
+    if limits is not None:
+        limits.check_wires(wires, name)
 
     _snap_nec_connections(wires)
 

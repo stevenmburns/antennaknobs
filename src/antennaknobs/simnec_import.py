@@ -144,6 +144,7 @@ from .design_data import read_data
 from .nec_import import (
     _SY_INT_FIELDS,
     _SY_REBUILT_CARDS,
+    GeometryLimits,
     NecDeck,
     SySymbol,
     _split_card_fields,
@@ -2430,6 +2431,7 @@ def parse_ssn(
     network: bool = False,
     virtualize_anchors: bool = True,
     dcl_overrides: Mapping[str, float] | None = None,
+    limits: GeometryLimits | None = None,
 ) -> SsnCircuit:
     """Parse the text of a SimNEC ``.ssn`` file into an :class:`SsnCircuit`.
 
@@ -2525,9 +2527,13 @@ def parse_ssn(
         name=f"{name} NEC block",
         network=network,
         virtualize_anchors=virtualize_anchors,
+        limits=limits,
     )
     jam = {**script.jam, **dcl.jam_counts(name, dcl_overrides)}
     deck, unapplied = _jam_segments(deck, jam, name)
+    if limits is not None:
+        # JamSegments re-counts wires after the cards are read.
+        limits.check_wires(deck.wires, name)
     script.ignored.extend(unapplied)
     if script.insulation is not None:
         # The circuit's default insulation covers every wire (AK#1683): a
