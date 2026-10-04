@@ -34,22 +34,7 @@ from .touchstone import format_s1p
 from .vna import DRIVERS, VNAError, capture, list_candidate_ports
 from .user_designs import USER_NS, iter_design_files, resolve_user_design
 
-from momwire import (
-    SinusoidalSolver,
-    SinusoidalGalerkinSolver,
-    BSplineSolver,
-    HMatrixSolver,
-    ArrayBlockSolver,
-    RazorSolver,
-    HarringtonSolver,
-)
-
-# `pulse` below is HarringtonSolver — the point-matched pulse expansion the
-# app's Pulse tab serves (AK#1148) and the row `density.py` gives 41 to. The
-# bare PulseSolver (the d=0 probe, momwire#432's sibling) stays library-only,
-# as the momwire-0.32.0 coordinated release decided; the CLI roster carried
-# that exclusion over to Harrington by accident until the density table and
-# the app both named `pulse` and the CLI could not (AK#1554 follow-up).
+from . import momwire_bases
 
 import argparse
 import contextlib
@@ -83,83 +68,22 @@ if probe_nec2() is not None:
 if probe_nec42() is not None:
     ENGINE_CLASSES["nec42"] = NEC42Engine
 
+# The CLI's view of `momwire_bases`, the one roster the app and the density
+# table share (AK#1560): roster names that bind nothing map to their class,
+# and every name that binds kwargs — a roster name such as `razor-2p` or a
+# CLI alias such as `bspline-d1` — to (class, kwargs). Derived, never edited
+# here; `keep.engine_of` and the tests read them under these names.
 MOMWIRE_BASES = {
-    "sinusoidal": SinusoidalSolver,
-    # Same three-term basis as `sinusoidal`, tested variationally instead of
-    # point-matched (momwire#182).
-    "sinusoidal-galerkin": SinusoidalGalerkinSolver,
-    "bspline": BSplineSolver,
-    "hmatrix": HMatrixSolver,
-    "arrayblock": ArrayBlockSolver,
-    # The app's Pulse tab (AK#1148): point-matched pulse expansion, odd parity,
-    # served at 41 per wire (density.py). Refuses wire loading by name.
-    "pulse": HarringtonSolver,
+    name: b.solver for name, b in momwire_bases.BASES.items() if not b.bound
 }
-
-# RazorSolver (momwire#309/#432) is a tent basis tested by NEC-5's own
-# razor-blade (mixed-potential path) rule rather than point matching or
-# Galerkin testing — see momwire/docs/razor-solver.md and
-# `/reference/solver` for the measured performance guidance. Plain `razor`
-# (RazorSolver's default, converged Gauss-Legendre quadrature) retired from
-# this roster in momwire#753 (2026-09-02): it costs ~20x the wall time of
-# `razor-2p` below for a 0.001 Ω difference (momwire#654's "a roster entry
-# must be worth ordering"), so it's no longer a menu item — the class stays
-# for tests and studies, reached by constructing `RazorSolver(...)`
-# directly. `razor-2p` is the identified-quadrature lane and the only
-# orderable razor entry.
-
-# Roster variants: a basis name bound to solver kwargs.
-#
-# There is no longer a `-converged` entry (momwire#654). It bound
-# `feed_model="point"`, which is now `SinusoidalGalerkinSolver`'s DEFAULT, so
-# the suffix meant nothing the plain name did not — and the point gap is what
-# you want: it converges to the B-spline answer (momwire#192), it is exactly
-# self-dual under the default centre readout, and it removes up to 992× of the
-# cross-basis disagreement on the antennaknobs#478 class (momwire#213).
-#
-# The comment here used to call the segment-gap configuration "NEC-compatible
-# — reproduces NEC/EZNEC behaviour". That overclaimed. NEC-2's formulation is
-# `sinusoidal`: the same three-term basis, the same POINT MATCHING, the same
-# segment gap. Galerkin-with-a-segment-gap reproduces NEC's reactance WALK,
-# because the walk comes from the source, but not NEC's formulation — it is a
-# control for isolating the testing axis, not a compatibility lane. For NEC
-# cross-checks use `momwire:sinusoidal`.
-#
-# The feed model itself is still a choice, and the web app is where it belongs:
-# the Sin-Galerkin backend's panel renders it as a toggle (issue #640). What
-# went is asking a CLI user to pick between two basis NAMES for it.
-#
-# `bspline-d1` is the degree axis, not the feed-model axis: same BSplineSolver
-# class as plain `bspline` (d=2) with `degree=1` bound, so an intra-family
-# d1-vs-d2 comparison is one flag away (issue #821) — it's the basis half the
-# convergence census ran on.
-#
-# `razor-2p`/`razor-nec5` bind RazorSolver's identified quadrature
-# (`nec5_quadrature=True`) — the same "one class, one extra kwarg" shape
-# `bspline-d1` uses for its degree axis, and the same names momwire's own
-# deck front end (`momwire.deck.BASES`) uses, so a deck solved through
-# either front end is asked for the same physics by the same word. This is
-# the interactive lane (sub-second to N≈300-400 free / N≈200-400 grounded,
-# 2-4× behind `bspline-d2` beyond). RazorSolver's other quadrature (its
-# default, converged Gauss-Legendre) is NOT in this roster (momwire#753,
-# 2026-09-02): 12-80× slower than `bspline-d2`, >1 s even at N=100 under
-# any ground, and it exceeds an 8 GB memory cap by N≈800 grounded /
-# N≈1600 free — construct `RazorSolver(...)` directly for
-# convergence/certification work; see `/reference/solver` for the full
-# guidance.
 MOMWIRE_BASIS_VARIANTS = {
-    "bspline-d1": (BSplineSolver, {"degree": 1}),
-    # `razor-2p` is the current spelling: it names the RULE (the two-point
-    # centroid trapezoid momwire#316 identified) rather than another vendor's
-    # product. It is also the only razor lane the web engine picker offers,
-    # because the Gauss-Legendre lane's advantage evaporates by N~192 while
-    # costing ~10x the wall time (momwire#780, and the ByDipole1 sweep in
-    # scripts/bench_bydipole1_bases.py).
-    "razor-2p": (RazorSolver, {"nec5_quadrature": True}),
-    # Deprecated spelling of razor-2p, kept because it shipped. Identical
-    # binding, so an existing command line keeps working unchanged.
-    "razor-nec5": (RazorSolver, {"nec5_quadrature": True}),
+    name: (cls, kwargs)
+    for name in momwire_bases.cli_names()
+    for _roster, cls, kwargs in [momwire_bases.resolve(name)]
+    if kwargs
 }
+# `momwire[:a|b|...]`, for the --engine help strings.
+_MOMWIRE_SPEC_HELP = f"momwire[:{'|'.join(momwire_bases.cli_names())}]"
 
 
 def resolve_class(s):
@@ -683,13 +607,12 @@ def _engine_unavailable_message(name):
 def parse_engine_spec(spec):
     """Parse an engine spec into (engine_name, kwargs_to_bind).
 
-    Forms: "pynec", "momwire",
-    "momwire:sinusoidal|sinusoidal-galerkin|bspline|bspline-d1|hmatrix|
-    arrayblock|razor-2p|razor-nec5". `bspline-d1` is bspline with degree=1
-    bound (issue #821); `razor-2p` binds RazorSolver's identified quadrature
-    (`razor-nec5` is the deprecated spelling of the same binding). Both are
-    in MOMWIRE_BASIS_VARIANTS. Plain `razor` is off the roster (momwire#753)
-    and always raises the unknown-basis error.
+    Forms: "pynec", "momwire", and "momwire:<basis>" for every name in
+    `momwire_bases` (its roster and the CLI's aliases): `bspline-d1` is
+    bspline with degree=1 bound (issue #821); `razor-2p` binds RazorSolver's
+    identified quadrature (`razor-nec5` is the deprecated spelling of the same
+    binding). Plain `razor` is off the roster (momwire#753) and always raises
+    the unknown-basis error.
     """
     name, _, basis = spec.partition(":")
     if name not in ENGINE_CLASSES:
@@ -700,24 +623,16 @@ def parse_engine_spec(spec):
         raise argparse.ArgumentTypeError(
             f"engine {name!r} does not accept a basis suffix (got {basis!r})"
         )
-    if basis in MOMWIRE_BASIS_VARIANTS:
-        solver, solver_kwargs = MOMWIRE_BASIS_VARIANTS[basis]
-        return name, {"solver": solver, "solver_kwargs": dict(solver_kwargs)}
-    if basis not in MOMWIRE_BASES:
-        available = sorted(MOMWIRE_BASES) + sorted(MOMWIRE_BASIS_VARIANTS)
+    found = momwire_bases.resolve(basis)
+    if found is None:
         raise argparse.ArgumentTypeError(
-            f"unknown momwire basis {basis!r}; available: {', '.join(available)}"
+            f"unknown momwire basis {basis!r}; available: "
+            f"{', '.join(sorted(momwire_bases.cli_names()))}"
         )
-    return name, {"solver": MOMWIRE_BASES[basis]}
-
-
-# CLI basis spellings that are not roster names. A name bound to kwargs is
-# still the same ENGINE, so it reads the same density row rather than growing
-# one of its own (#1543) — two rows would be two numbers to move.
-_DENSITY_ALIASES = {
-    "bspline-d1": ("bspline", 1),
-    "razor-nec5": ("razor-2p", None),
-}
+    _roster, solver, solver_kwargs = found
+    if solver_kwargs:
+        return name, {"solver": solver, "solver_kwargs": solver_kwargs}
+    return name, {"solver": solver}
 
 
 def engine_density(engine_spec):
@@ -737,8 +652,13 @@ def engine_density(engine_spec):
         return default_nsegs(name)
     if not basis:
         return None
-    key, degree = _DENSITY_ALIASES.get(basis, (basis, None))
-    return default_nsegs(key, degree=degree)
+    found = momwire_bases.resolve(basis)
+    if found is None:
+        return None
+    # A CLI alias is a spelling of its roster name's ENGINE, so it reads that
+    # row rather than growing one (#1543); `bspline-d1` reads its degree's.
+    roster, _cls, kwargs = found
+    return default_nsegs(roster, degree=kwargs.get("degree"))
 
 
 def _engine_specs(raw):
@@ -1120,8 +1040,7 @@ def cli(arguments=None):
                 nargs="+",
                 default=["momwire"],
                 help="One or more simulation backends. Each spec is "
-                '"momwire[:sinusoidal|sinusoidal-galerkin|bspline|'
-                'bspline-d1|hmatrix|arrayblock|pulse|razor-2p]", '
+                f'"{_MOMWIRE_SPEC_HELP}", '
                 '"pynec", "nec5", "nec2", or "nec42". sinusoidal is NEC-2\'s own formulation; '
                 "sinusoidal-galerkin is the same basis tested variationally "
                 "and with the point-gap feed model. bspline-d1 is bspline "
@@ -1155,8 +1074,7 @@ def cli(arguments=None):
                 "comma-separated list, or --engine repeated, crosses the "
                 "sweep with one trajectory/line per engine (#1554) — a "
                 "single spec behaves exactly as --engine always has. Each "
-                "spec is momwire[:sinusoidal|sinusoidal-galerkin|bspline|"
-                "bspline-d1|hmatrix|arrayblock|pulse|razor-2p], pynec, nec5, "
+                f"spec is {_MOMWIRE_SPEC_HELP}, pynec, nec5, "
                 "nec2, or nec42 — see the plain --engine's help for what each basis "
                 "is. --swr/--gain/--patterns and a --param nominal_nsegs "
                 "convergence study each still take exactly one engine.",
@@ -1166,10 +1084,7 @@ def cli(arguments=None):
                 "--engine",
                 type=str,
                 default="momwire",
-                help="Simulation backend: momwire | "
-                "momwire:sinusoidal | momwire:sinusoidal-galerkin | "
-                "momwire:bspline | momwire:bspline-d1 | momwire:hmatrix | "
-                "momwire:arrayblock | momwire:razor-2p | "
+                help=f"Simulation backend: {_MOMWIRE_SPEC_HELP} | "
                 "pynec | nec5 | nec2 | nec42 (default: momwire). sinusoidal is "
                 "NEC-2's own "
                 "formulation; sinusoidal-galerkin is the same basis tested "
