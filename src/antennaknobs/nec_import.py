@@ -267,8 +267,26 @@ _EZNEC_FORMAT = re.compile(r"\bin\s+(\S+)\s+format\s*\.?\s*\Z", re.IGNORECASE)
 # Only NEC-5 is a DECLARATION; the other two are the reading this importer
 # already had. A word we have never seen refuses rather than guessing which.
 _EZNEC_NEC5_WRITER = ("NEC-5", "NEC5")
-_DIALECT_WORD = {"nec2": "NEC-2", "nec5": "NEC-5"}
+#: The dialects a deck can be read in (`parse_nec`'s ``dialect``).
+DIALECTS = ("nec2", "nec4", "nec5")
+_DIALECT_WORD = {"nec2": "NEC-2", "nec4": "NEC-4", "nec5": "NEC-5"}
+_DIALECT_STAMP_WORD = {"nec4": "NEC-4.2", "nec5": "NEC-5"}
+_NO_MARKER = "no NEC-4 or NEC-5 marker found"
 _EZNEC_NEC2_WRITERS = ("NEC-2", "NEC2", "NEC-4.2", "NEC4.2")
+
+
+def _eznec_stamp_dialect(text: str, where: str) -> str | None:
+    """The dialect EZNEC's writer stamp in this ``CM`` comment names: "nec5"
+    for its NEC-5 writer, "nec4" for its External NEC-4.2 slot, "nec2" for
+    File > Save As, None for a comment that is not a stamp. Any other format
+    word raises (see `_eznec_declares_nec5`)."""
+    if not _EZNEC_STAMP.search(text):
+        return None
+    m = _EZNEC_FORMAT.search(text)
+    word = (m.group(1) if m else "").upper()
+    if word in ("NEC-4.2", "NEC4.2"):
+        return "nec4"
+    return "nec5" if _eznec_declares_nec5(text, where) else "nec2"
 
 
 def _eznec_declares_nec5(text: str, where: str) -> bool:
@@ -605,10 +623,13 @@ class NecDeck:
     # / `dialect_detected_reason` are what detection alone reads, so an
     # override can say what it overrode; `dialect_chosen` is the override.
     dialect: str = "nec2"
-    dialect_reason: str = "no NEC-5 marker found"
+    dialect_reason: str = "no NEC-4 or NEC-5 marker found"
     dialect_detected: str | None = "nec2"  # None: detection refuses it
-    dialect_detected_reason: str = "no NEC-5 marker found"
+    dialect_detected_reason: str = "no NEC-4 or NEC-5 marker found"
     dialect_chosen: str | None = None
+    # A NEC-4 deck's GN tabulated-ground file name, not read (the ground is
+    # computed from the card's own medium; the file is NEC-4's cache).
+    ground_file: str | None = None
     tls: tuple[NecTL, ...] = ()
     nts: tuple[NecNT, ...] = ()
     conductivity: float | None = None  # whole-structure LD 5, S/m
@@ -946,20 +967,27 @@ class NecDeck:
         between a source and where its author meant it."""
         where = {
             "nec2": "sources and loads at segment centres",
+            "nec4": "sources and loads at segment centres",
             "nec5": "sources and loads at segment ends",
         }
         head = f"Read as {_DIALECT_WORD[self.dialect]} ({where[self.dialect]})"
+        tail = (
+            f" The GN card's ground table file {self.ground_file} is not read; "
+            "the ground is computed from the GN card."
+            if self.ground_file
+            else ""
+        )
         if self.dialect_chosen is None:
-            return f"{head}: {self.dialect_reason}."
+            return f"{head}: {self.dialect_reason}.{tail}"
         if self.dialect_detected is None:
             return (
                 f"{head}, as chosen; detection refuses it "
-                f"({self.dialect_detected_reason})."
+                f"({self.dialect_detected_reason}).{tail}"
             )
         auto = _DIALECT_WORD[self.dialect_detected]
         return (
             f"{head}, as chosen; detection reads it as {auto} "
-            f"({self.dialect_detected_reason})."
+            f"({self.dialect_detected_reason}).{tail}"
         )
 
     def skipped_note(self) -> str | None:
@@ -5364,10 +5392,13 @@ def parse_nec(
 
     ``dialect`` overrides the detected dialect: ``"nec5"`` reads the deck as
     a declared NEC-5 deck (as a ``CM NEC-5`` would), ``"nec2"`` as NEC-2 even
-    when a comment declares NEC-5; None (the default) detects it. A deck whose
+    when a comment declares NEC-5, ``"nec4"`` as NEC-4.2 (NEC-2's segment
+    centres; ``GN 3`` is Sommerfeld, and a ``GN`` ground-table file name is
+    accepted and not read) as EZNEC's NEC-4.2 stamp would; None (the
+    default) detects it. A deck whose
     cards only one dialect can spell is refused by name under the other:
     NEC-5's segment-end ``EX`` (a negative segment, ``I4 = 2``, ``EX 4``)
-    under ``"nec2"``, 4nec2's percentage position under ``"nec5"``. A ``GN
+    under ``"nec2"`` and ``"nec4"``, 4nec2's percentage position under ``"nec5"``. A ``GN
     ... NOFILE`` is not refused under ``"nec2"`` — NEC-4.2 writes it too.
     Either way the deck records what it was read as and why
     (``dialect``, ``dialect_reason``, ``dialect_detected``,
@@ -5397,19 +5428,27 @@ def parse_nec(
     # there. A GN resets it in both dialects: NEC-2's GN clears the second
     # medium, and in NEC-5 the last ground card wins.
     gd_card: _Card | None = None
-    if dialect not in (None, "nec2", "nec5"):
+    if dialect not in (None, *DIALECTS):
         raise ValueError(
-            f"{name}: dialect must be 'nec2', 'nec5' or None (detect), not {dialect!r}"
+            f"{name}: dialect must be one of {', '.join(DIALECTS)} or None "
+            f"(detect), not {dialect!r}"
         )
     nec5_dialect = False
     # A `CM NEC-5` card declares the deck NEC-5 (AK#1476). It is the only
     # way a deck with no NOFILE and no explicit EX end field can say so.
     # A reader who CHOSE NEC-5 declares it for the deck.
     nec5_declared = dialect == "nec5"
-    # The first NEC-5 tell auto-detection reads, in words the app shows: it
-    # is recorded whether or not a chosen dialect overrides it, so a note can
-    # say what detection would have done.
-    tell: str | None = None
+    # NEC-4(.2): NEC-2's segment-CENTRE addressing with NEC-4's own cards --
+    # GN 3 is its newer Sommerfeld, and a GN may name a tabulated-ground
+    # file, which is a cache and is not read. EZNEC's NEC-4.2 stamp declares
+    # it, as does a reader who chose it.
+    nec4_declared = dialect == "nec4"
+    # The first tell auto-detection reads, ``(dialect, words the app
+    # shows)``: recorded whether or not a chosen dialect overrides it, so a
+    # note can say what detection would have done.
+    tell: tuple[str, str] | None = None
+    # A GN card's tabulated-ground file a NEC-4 reading did not read.
+    ground_file: str | None = None
     # ...or why detection would have refused the deck, when a chosen dialect
     # is what let it read.
     refused: str | None = None
@@ -5453,10 +5492,10 @@ def parse_nec(
             # the format it wrote (AK#1579), which refuses by name for a
             # writer we have never captured.
             if text.upper() in ("NEC-5", "NEC5"):
-                said = f"a CM NEC-5 card on line {line_no}"
+                said = ("nec5", f"a CM NEC-5 card on line {line_no}")
             else:
                 try:
-                    stamp = _eznec_declares_nec5(text, where)
+                    stamp = _eznec_stamp_dialect(text, where)
                 except ValueError:
                     # A writer we have no capture for: detection refuses to
                     # guess, but a reader who chose the dialect has answered
@@ -5467,16 +5506,22 @@ def parse_nec(
                         f"EZNEC's stamp on line {line_no} names a format "
                         "it has no capture for"
                     )
-                    stamp = False
+                    stamp = None
                 said = (
-                    f"EZNEC's stamp on line {line_no} says NEC-5 format"
-                    if stamp
+                    (
+                        stamp,
+                        f"EZNEC's stamp on line {line_no} says "
+                        f"{_DIALECT_STAMP_WORD[stamp]} format",
+                    )
+                    if stamp in ("nec4", "nec5")
                     else None
                 )
             if said is not None:
                 tell = tell or said
-                if dialect is None:
+                if dialect is None and said[0] == "nec5":
                     nec5_declared = True
+                elif dialect is None:
+                    nec4_declared = True
             continue
         if stripped[:2].upper() == "CE":
             # Like CM, identified by its first two columns: "CEFOR THIS RUN"
@@ -5539,9 +5584,23 @@ def parse_nec(
             # NEC-5 decks carry it (NEC5Engine, the corpus tool), so a deck
             # saved from a capture must open again (AC6LA, 2026-09-13). NEC-2
             # has no such field, so it also settles the dialect.
-            if tokens[-1].upper() == "NOFILE":
+            if (
+                nec4_declared
+                and len(tokens) > 1
+                and (
+                    tokens[-1].upper() == "NOFILE" or _FILENAME_RE.fullmatch(tokens[-1])
+                )
+            ):
+                # NEC-4's tabulated Sommerfeld ground is a CACHE of what the
+                # GN card's own medium computes (NOFILE: write none), so a
+                # NEC-4 reading computes the ground from the card and says
+                # it did not read the file.
+                if tokens[-1].upper() != "NOFILE":
+                    ground_file = tokens[-1]
                 tokens = tokens[:-1]
-                tell = tell or f"the GN card on line {line_no} ends in NOFILE"
+            elif tokens[-1].upper() == "NOFILE":
+                tokens = tokens[:-1]
+                tell = tell or ("nec5", f"the GN card on line {line_no} ends in NOFILE")
                 if dialect is None:
                     nec5_dialect = True
             # A trailing filename is NEC-4's tabulated Sommerfeld ground
@@ -5554,7 +5613,8 @@ def parse_nec(
                 raise ValueError(
                     f"{where}: GN card names a Sommerfeld ground file ({fname}): "
                     "NEC-4's tabulated ground is not supported here; use the "
-                    "GN card's own eps_r / sigma fields instead"
+                    "GN card's own eps_r / sigma fields instead, or read the "
+                    "deck as NEC-4, which computes the ground from them"
                 )
             # The type field decides (#1066): GN -1 is NEC's "nullify the
             # ground parameters and set the free-space condition", the same
@@ -5574,6 +5634,12 @@ def parse_nec(
                 ground_card = f"GN {gtype}"
                 if gtype == 1:
                     ground_spec, ground_method = "pec", None
+                elif gtype == 3 and nec4_declared:
+                    # NEC-4.2's newer Sommerfeld evaluation: the same ground
+                    # as GN 2 (EZNEC's NEC-4.2 captures 0231/0232 solve to
+                    # identical Z), never 4nec2's MININEC spelling below.
+                    ground_spec = ("finite", card.f(4), card.f(5))
+                    ground_method = "sommerfeld"
                 elif gtype == 3:
                     # 4nec2's MININEC ground (AK#1655), which its own manual
                     # defines as GN 1 plus a GD circular cliff at radius 0 and
@@ -5750,17 +5816,21 @@ def parse_nec(
                 )
             seg_field = 1 if pct is not None else card.i(2)
             if ex_type == 4 or seg_field < 0 or card.i(3) == 2:
-                if dialect == "nec2":
+                centre = (
+                    "nec4" if nec4_declared else "nec2" if dialect == "nec2" else None
+                )
+                if centre is not None:
+                    word = _DIALECT_WORD[centre]
                     raise card.error(
-                        "this is NEC-5's segment-end source form (EX 4, a "
-                        "negative segment number, or I4 = 2), which NEC-2 "
-                        "has no spelling for: the deck cannot be read as "
-                        "NEC-2 -- read it as NEC-5, or let the dialect be "
-                        "detected"
+                        f"this is NEC-5's segment-end source form (EX 4, a "
+                        f"negative segment number, or I4 = 2), which {word} "
+                        f"has no spelling for: the deck cannot be read as "
+                        f"{word} -- read it as NEC-5, or let the dialect be "
+                        f"detected"
                     )
-                tell = (
-                    tell
-                    or f"the EX card on line {line_no} is in NEC-5's segment-end form"
+                tell = tell or (
+                    "nec5",
+                    f"the EX card on line {line_no} is in NEC-5's segment-end form",
                 )
             if ex_type == 4:
                 if card.i(3) in (1, 2):
@@ -5845,12 +5915,12 @@ def parse_nec(
     # AK#1483).
     if nec5_declared:
         nec5_dialect = True
-    detected = None if refused else ("nec5" if tell else "nec2")
-    read_as = "nec5" if nec5_dialect else "nec2"
+    detected = None if refused else (tell[0] if tell else "nec2")
+    read_as = "nec5" if nec5_dialect else "nec4" if nec4_declared else "nec2"
     if dialect is not None:
         dialect_reason = "chosen by the reader"
     else:
-        dialect_reason = tell or "no NEC-5 marker found"
+        dialect_reason = tell[1] if tell else _NO_MARKER
     if gd_card is not None:
         resolved = _mininec_ground_from_gd(
             gd_card, nec5_dialect, ground_spec, ground_card
@@ -5918,7 +5988,8 @@ def parse_nec(
         dialect=read_as,
         dialect_reason=dialect_reason,
         dialect_detected=detected,
-        dialect_detected_reason=refused or tell or "no NEC-5 marker found",
+        dialect_detected_reason=refused or (tell[1] if tell else _NO_MARKER),
+        ground_file=ground_file,
         dialect_chosen=dialect,
         comments=tuple(comments),
         ignored=tuple(sorted(ignored)),

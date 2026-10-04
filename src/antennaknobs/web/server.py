@@ -4525,7 +4525,7 @@ def _deck_dialect(ex) -> dict | None:
 async def deck_open_endpoint(req: dict, request: Request):
     """Open a NEC deck the user brings: ``{name, z}`` (``z`` the
     file's text, deflate-raw compressed and base64url'd, as the link carries
-    it) or ``{name, text}``, and optionally ``dialect`` ("nec2" / "nec5";
+    it) or ``{name, text}``, and optionally ``dialect`` ("nec2" / "nec4" / "nec5";
     absent or "auto" detects it). Answers ``{key, example, dialect, limits}``
     -- the design
     key every later request names it by (``deck.<hash12>``) and its catalog

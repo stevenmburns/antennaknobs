@@ -11,7 +11,8 @@ import {
 // The opened-deck notices (lib/decks.ts): a deck that did not open, in the
 // server's own words, and a deck that opened but is too long for the page's
 // link to carry, so the link cannot share it (it still works in this page).
-// And the dialect an opened .nec deck is read in: detected ("auto") unless
+// And the dialect an opened .nec deck is read in (NEC-2 / NEC-4 / NEC-5):
+// detected ("auto") unless
 // the reader chooses one, which re-opens the deck read that way (the design
 // note above the knobs says what it was read as, and why).
 export function DeckNotice({
@@ -40,7 +41,7 @@ export function DeckNotice({
             <select
               aria-label="read the deck as"
               value={deck.dialect ?? "auto"}
-              title="Which NEC dialect the deck is read in: NEC-2 puts sources and loads at segment centres, NEC-5 at segment ends"
+              title="Which NEC dialect the deck is read in: NEC-2 and NEC-4 put sources and loads at segment centres, NEC-5 at segment ends"
               onChange={(e) => onReadAs(isDialect(e.target.value) ? e.target.value : null)}
             >
               <option value="auto">

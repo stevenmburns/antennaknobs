@@ -25,9 +25,9 @@ export const MAX_SHARE_CHARS = 8000;
 
 /** The NEC dialects a reader may choose to read a deck in (the server's
  *  `nec_import.parse_nec(dialect=...)`); absent means detect. */
-export const DIALECTS = ["nec2", "nec5"] as const;
+export const DIALECTS = ["nec2", "nec4", "nec5"] as const;
 export type Dialect = (typeof DIALECTS)[number];
-export const DIALECT_LABEL: Record<Dialect, string> = { nec2: "NEC-2", nec5: "NEC-5" };
+export const DIALECT_LABEL: Record<Dialect, string> = { nec2: "NEC-2", nec4: "NEC-4", nec5: "NEC-5" };
 
 export const isDialect = (v: unknown): v is Dialect =>
   typeof v === "string" && (DIALECTS as readonly string[]).includes(v);

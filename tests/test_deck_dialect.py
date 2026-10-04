@@ -68,9 +68,9 @@ def test_each_tell_reads_nec5_and_names_itself(text, reason):
 
 def test_no_marker_reads_nec2_and_says_so():
     d = _deck()
-    assert (d.dialect, d.dialect_reason) == ("nec2", "no NEC-5 marker found")
+    assert (d.dialect, d.dialect_reason) == ("nec2", "no NEC-4 or NEC-5 marker found")
     assert d.dialect_note() == (
-        "Read as NEC-2 (sources and loads at segment centres): no NEC-5 marker found."
+        "Read as NEC-2 (sources and loads at segment centres): no NEC-4 or NEC-5 marker found."
     )
 
 
@@ -88,7 +88,7 @@ def test_forcing_nec5_moves_the_source_to_the_segment_end():
     assert nec5.dialect == "nec5" and nec5.dialect_chosen == "nec5"
     assert nec5.dialect_note() == (
         "Read as NEC-5 (sources and loads at segment ends), as chosen; "
-        "detection reads it as NEC-2 (no NEC-5 marker found)."
+        "detection reads it as NEC-2 (no NEC-4 or NEC-5 marker found)."
     )
 
 
@@ -220,7 +220,7 @@ def test_deck_answers_what_it_read_and_carries_the_choice(client):
     auto = client.post("/deck", json=_payload()).json()
     assert auto["dialect"] == {
         "read_as": "nec2",
-        "reason": "no NEC-5 marker found",
+        "reason": "no NEC-4 or NEC-5 marker found",
         "detected": "nec2",
         "chosen": None,
     }
@@ -256,3 +256,156 @@ def test_deck_refuses_by_name(client):
     )
     assert end.status_code == 422
     assert "cannot be read as NEC-2" in end.json()["detail"]
+
+
+# --------------------------------------------------------------------------
+# NEC-4(.2): segment centres, NEC-4's own cards
+# --------------------------------------------------------------------------
+# EZNEC's External NEC-4.2 slot, captured 2026-10-03 (momwire#1295): every
+# deck NEC-4.2-stamped, solved on the licensed NEC-4.2 for these targets
+# (scratch/eznec-capture/NEC42-SOLVE-NOTES-2026-10-03.md). Inlined: the
+# captures are CRLF byte oracles under scratch/, not test fixtures.
+NEC42_HEAD = """CM Dipole in free space
+CM
+CM EZNEC Pro/2+ v. 7.0.4  2026-10-03 07:53:56
+CM
+CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-4.2 format.
+CE
+"""
+NEC42_CAPTURES = {
+    # capture: (cards after CE, NEC-4.2's Z)
+    "0223": (
+        "GW 1,11,0.,-.25,0.,0.,.25,0.,.0005\nGE 0,-1\nFR 0,1,0,0,299.7925\n"
+        "GN -1\nEX 6,1,6,0,1.414214,0.\nPQ 0\nRP 0,1,361,1000,90.,0.,0.,1.,0.\nEN\n",
+        81.7499 + 46.0034j,
+    ),
+    "0224": (
+        "GW 1,11,0.,-.25,0.,0.,.25,0.,.0005\nGE 0,-1\nFR 0,1,0,0,299.7925\n"
+        "GN -1\nEX 0,1,6,0,1.414214,0.\nPQ 0\nRP 0,1,361,1000,90.,0.,0.,1.,0.\nEN\n",
+        81.7499 + 46.0034j,
+    ),
+    "0228": (
+        "GW 1,11,0.,-.25,10.,0.,.25,10.,.0005\nGE 0,-1\nFR 0,1,0,0,299.7925\n"
+        "GN -1\nEX 0,1,6,0,1.414214,0.\nPQ 0\nRP 0,1,361,1000,90.,0.,0.,1.,0.\nEN\n",
+        81.7499 + 46.0034j,
+    ),
+    "0230": (
+        "GW 1,11,0.,-.25,10.,0.,.25,10.,.0005\nGE 1,-1\nFR 0,1,0,0,299.7925\n"
+        "GN 1,0,0,0,0.,0.\nEX 0,1,6,0,1.414214,0.\nGD 2,0,0,0,13.,.005,0.,0.\n"
+        "PQ 0\nRP 0,1,361,1000,75.,0.,0.,1.,0.\nEN\n",
+        81.6310 + 44.9372j,
+    ),
+    "0231": (
+        "GW 1,11,0.,-.25,10.,0.,.25,10.,.0005\nGE 1,-1\nFR 0,1,0,0,299.7925\n"
+        "GN 2,0,0,0,13.,.005\nEX 0,1,6,0,1.414214,0.\nPQ 0\n"
+        "RP 0,1,361,1000,75.,0.,0.,1.,0.\nEN\n",
+        81.6784 + 45.4004j,
+    ),
+    "0232": (
+        "GW 1,11,0.,-.25,10.,0.,.25,10.,.0005\nGE 1,-1\nFR 0,1,0,0,299.7925\n"
+        "GN 3,0,0,0,13.,.005\nEX 0,1,6,0,1.414214,0.\nPQ 0\n"
+        "RP 0,1,361,1000,75.,0.,0.,1.,0.\nEN\n",
+        81.6784 + 45.4004j,
+    ),
+    # Buried 1 m in soil: mesh-unconverged at 11 segments, so no 5 % bar.
+    "0239": (
+        "GW 1,11,0.,-.25,-1.,0.,.25,-1.,.0005\nGE -1,-1\nFR 0,1,0,0,299.7925\n"
+        "GN 3,0,0,0,13.,.005\nEX 6,1,6,0,1.414214,0.\nPQ 0\nXQ 0\nEN\n",
+        149.7710 + 143.2080j,
+    ),
+}
+
+
+def _nec42_z(text, **kw):
+    from momwire import BSplineSolver
+
+    cls = builder_from_text("cap.nec", text, **kw)
+    eng = MomwireEngine(cls(), ground=cls.file_ground, solver=BSplineSolver)
+    return cls, complex(eng.impedance()[0])
+
+
+@pytest.mark.parametrize("cap", sorted(NEC42_CAPTURES))
+def test_eznec_nec42_captures_read_as_nec4_and_solve_near_nec42(cap):
+    cards, target = NEC42_CAPTURES[cap]
+    cls, z = _nec42_z(NEC42_HEAD + cards)
+    d = cls.file_deck_parsed
+    assert (d.dialect, d.dialect_reason) == (
+        "nec4",
+        "EZNEC's stamp on line 5 says NEC-4.2 format",
+    )
+    assert _notes(cls).startswith(
+        "Read as NEC-4 (sources and loads at segment centres): EZNEC's stamp"
+    )
+    assert all(f.edge == 0 for f in d.feeds)
+    if cap != "0239":
+        assert abs(z - target) / abs(target) < 0.05, (cap, z, target)
+    else:
+        assert z.real > 0  # solves; the 11-segment buried mesh is unconverged
+
+
+def test_nec4_gn3_is_sommerfeld_where_nec2_reads_4nec2s_mininec():
+    text = NEC42_HEAD + NEC42_CAPTURES["0232"][0]
+    nec4 = _deck(text)
+    assert nec4.ground_spec == ("finite", 13.0, 0.005)
+    assert nec4.ground_method == "sommerfeld"
+    # Forced NEC-2, the deck reads by NEC-2's (4nec2's) rules: GN 3 is the
+    # MININEC-type ground. A decision, not a refusal: the cards are legal
+    # NEC-2 (4nec2) cards.
+    nec2 = _deck(text, dialect="nec2")
+    assert nec2.dialect == "nec2" and nec2.ground_method == "mininec"
+    ui = dict(builder_from_text("cap.nec", text).default_params)["ui_params"]
+    assert ui["ground_card"] == "NEC-4 GN 3"
+
+
+def test_nec4_reads_a_ground_table_file_name_and_says_it_did_not_read_it():
+    text = DIPOLE.replace("GE 0", "GE 1\nGN 2 0 0 0 13 0.005 SOMEX10.NEC")
+    with pytest.raises(ValueError, match="read the deck as NEC-4"):
+        _deck(text)
+    d = _deck(text, dialect="nec4")
+    assert d.ground_spec == ("finite", 13.0, 0.005) and d.ground_file == "SOMEX10.NEC"
+    assert d.dialect_note().endswith(
+        "The GN card's ground table file SOMEX10.NEC is not read; the ground "
+        "is computed from the GN card."
+    )
+
+
+def test_nec4_reads_nofile_as_no_file_and_not_as_nec5():
+    stamped = NEC42_HEAD + DIPOLE.replace("GE 0", "GE 1\nGN 2 0 0 0 13 0.005 NOFILE")
+    d = _deck(stamped)
+    assert d.dialect == "nec4" and not d.nec5_dialect and d.ground_file is None
+    # Without the stamp, NOFILE still declares NEC-5 under detection.
+    assert (
+        _deck(DIPOLE.replace("GE 0", "GE 1\nGN 2 0 0 0 13 0.005 NOFILE")).dialect
+        == "nec5"
+    )
+
+
+def test_nec4_refuses_nec5s_segment_end_source():
+    with pytest.raises(ValueError, match="cannot be read as NEC-4"):
+        _deck(DIPOLE.replace("EX 0 1 6 0", "EX 0 1 -6 0"), dialect="nec4")
+
+
+def test_nec4_ex6_is_a_current_source_at_the_centre():
+    d = _deck(NEC42_HEAD + NEC42_CAPTURES["0223"][0])
+    (f,) = d.feeds
+    assert f.current and f.edge == 0 and f.seg == 6
+
+
+@pytest.mark.parametrize("sommerfeld", [2, 3])
+def test_nec42_export_round_trips_through_a_nec4_import(sommerfeld):
+    from antennaknobs.nec_export import export_nec
+
+    ground = ("finite", 13.0, 0.005)
+    src = builder_from_text("d.nec", DIPOLE)
+    z0 = complex(MomwireEngine(src(), ground=ground).impedance()[0])
+    text = export_nec(src(), ground=ground, dialect="nec42", sommerfeld=sommerfeld)
+    cls = builder_from_text("e.nec", text, dialect="nec4")
+    assert cls.file_ground == ground
+    z = complex(MomwireEngine(cls(), ground=cls.file_ground).impedance()[0])
+    assert z == pytest.approx(z0, rel=1e-9)
+
+
+def test_deck_takes_nec4(client):
+    nec4 = client.post("/deck", json=_payload(dialect="nec4")).json()
+    assert nec4["dialect"]["read_as"] == "nec4" and nec4["dialect"]["chosen"] == "nec4"
+    assert nec4["key"] != client.post("/deck", json=_payload()).json()["key"]
