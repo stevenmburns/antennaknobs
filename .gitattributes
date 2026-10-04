@@ -16,3 +16,7 @@ tests/fixtures/eznec_parallel_loads_1880/*.nec -text
 # The opened-deck fixtures are verbatim copies of decks people sent (one is
 # CRLF, as EZNEC writes it): keep git from normalising them.
 tests/fixtures/opened_decks/*.nec -text
+# AK#1296/#1297's NEC-4 probes: each printout is what NEC-4.2 wrote for
+# those exact deck bytes; keep git from normalising either.
+tests/fixtures/nec4_gc_gh_1296_1297/*.nec -text
+tests/fixtures/nec4_gc_gh_1296_1297/*.out -text

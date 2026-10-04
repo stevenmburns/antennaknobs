@@ -1,0 +1,7 @@
+CM gh_left_log_spiral
+CE
+GH 1 10 -2 1 1 2 .001 .001 0
+GE 0
+FR 0 1 0 0 30 0
+EX 0 1 1 0 1 0
+EN
