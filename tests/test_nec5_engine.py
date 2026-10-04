@@ -837,7 +837,7 @@ def test_material_deck_lines(monkeypatch):
     expected = insulation_inductance(0.0005, 0.0009, 3.5)
     assert float(ld2[0].split()[6]) == pytest.approx(expected, rel=1e-5)
     # The deck says why its GW radius is not the wire's.
-    assert lines[1].startswith("CM jacketed wire")
+    assert lines[1] == "CM NEC-5" and lines[2].startswith("CM jacketed wire")
 
 
 def test_bare_wire_deck_keeps_the_conductor(monkeypatch):
@@ -857,7 +857,7 @@ def test_bare_wire_deck_keeps_the_conductor(monkeypatch):
     assert float(gw[0].split()[-1]) == 0.0005
     assert float(ld5[0].split()[5]) == 5.8e7
     assert not any(ln.startswith("LD 2") for ln in lines)
-    assert lines[:2] == ["CM antennaknobs NEC5Engine deck", "CE"]
+    assert lines[:3] == ["CM antennaknobs NEC5Engine deck", "CM NEC-5", "CE"]
 
 
 def test_parse_power_budget_fixture():

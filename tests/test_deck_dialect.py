@@ -48,7 +48,9 @@ def _deck(text=DIPOLE, **kw):
         ("CM NEC-5\n" + DIPOLE, "a CM NEC-5 card on line 1"),
         (
             DIPOLE.replace("GE 0", "GE 1\nGN 2 0 0 0 13 0.005 NOFILE"),
-            "the GN card on line 5 ends in NOFILE",
+            "the GN card on line 5 ends in NOFILE, which NEC-4 and NEC-5 both "
+            "write, and nothing else in the deck says which — choose Read as "
+            "NEC-4 if it came from a NEC-4 program",
         ),
         (
             DIPOLE.replace("EX 0 1 6 0", "EX 0 1 -6 0"),
@@ -451,3 +453,135 @@ def test_the_nec2_export_carries_no_nec4_declaration():
     text = export_nec(src(), ground=("finite", 13.0, 0.005))
     assert "CM NEC-4.2" not in text.splitlines()
     assert builder_from_text("e.nec", text).file_deck_parsed.dialect == "nec2"
+
+
+# --------------------------------------------------------------------------
+# NOFILE rules out NEC-2 but does not say NEC-4 or NEC-5
+# --------------------------------------------------------------------------
+NOFILE = DIPOLE.replace("GE 0", "GE 1\nGN 2 0 0 0 13 0.005 NOFILE")
+
+
+def test_a_nofile_only_deck_reads_wholly_as_nec5_and_says_it_was_a_default():
+    d = _deck(NOFILE)
+    assert d.dialect == "nec5" and d.nec5_dialect
+    # The plain EX now reads the declared-NEC-5 way (end 2 of segment 6), as
+    # loads and GN 0 already did: no more half-and-half reading.
+    assert d.feeds[0].edge == 2
+    assert d.dialect_note() == (
+        "Read as NEC-5 (sources and loads at segment ends): the GN card on line "
+        "5 ends in NOFILE, which NEC-4 and NEC-5 both write, and nothing else in "
+        "the deck says which — choose Read as NEC-4 if it came from a NEC-4 "
+        "program."
+    )
+
+
+def test_nofile_before_or_after_the_ex_reads_the_same():
+    after = NOFILE.replace(
+        "GN 2 0 0 0 13 0.005 NOFILE\nEX 0 1 6 0 1 0",
+        "EX 0 1 6 0 1 0\nGN 2 0 0 0 13 0.005 NOFILE",
+    )
+    assert after != NOFILE
+    assert _deck(after).feeds[0].edge == 2
+
+
+@pytest.mark.parametrize(
+    "marker",
+    ["CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-4.2 format.\n", "CM NEC-4\n"],
+    ids=["eznec-nec42-stamp", "cm-nec4"],
+)
+def test_nofile_with_a_nec4_marker_reads_as_nec4(marker):
+    d = _deck(marker + NOFILE)
+    assert d.dialect == "nec4" and not d.nec5_dialect and d.feeds[0].edge == 0
+    assert d.ground_method == "sommerfeld"
+
+
+def test_the_nofile_only_plain_ex_solves_as_the_declared_nec5_deck():
+    def z(text):
+        cls = builder_from_text("d.nec", text)
+        return complex(MomwireEngine(cls(), ground=cls.file_ground).impedance()[0])
+
+    now, declared, centre = (
+        z(NOFILE),
+        z("CM NEC-5\n" + NOFILE),
+        z("CM NEC-4\n" + NOFILE),
+    )
+    assert now == declared
+    assert abs(now - centre) > 1.0, (now, centre)
+
+
+# --------------------------------------------------------------------------
+# every export reads back in its own dialect under detection
+# --------------------------------------------------------------------------
+GROUND = ("finite", 13.0, 0.005)
+
+
+def _z_of(cls, ground):
+    return complex(MomwireEngine(cls(), ground=ground).impedance()[0])
+
+
+def test_the_nec2_export_round_trips_under_detection():
+    from antennaknobs.nec_export import export_nec
+
+    src = builder_from_text("d.nec", DIPOLE)
+    text = export_nec(src(), ground=GROUND)
+    cls = builder_from_text("e.nec", text)
+    assert cls.file_deck_parsed.dialect == "nec2"
+    assert _z_of(cls, cls.file_ground) == pytest.approx(_z_of(src, GROUND), rel=1e-9)
+
+
+def test_the_nec5_export_declares_itself_and_round_trips_under_detection():
+    """NEC5Engine's deck carries CM NEC-5 (the export keeps it under its own
+    header), so a source at end 1 (I4 = 1, ambiguous without a declaration)
+    and a NOFILE ground both read back NEC-5's way."""
+    from antennaknobs.nec5_export import export_nec5
+
+    # 12 segments: the middle is a knot, end 2 of segment 6.
+    deck12 = "CM NEC-5\n" + DIPOLE.replace(" 11 0 -5.1", " 12 0 -5.1").replace(
+        "EX 0 1 6 0", "EX 0 1 6 2"
+    )
+    src = builder_from_text("d.nec", deck12)
+    for ground, name in ((None, "free"), (GROUND, "somm13")):
+        text = export_nec5(
+            src(), ground=ground, design="d", rung="default", ground_name=name
+        )
+        assert "CM NEC-5" in text.splitlines()
+        cls = builder_from_text("e.nec", text)
+        d = cls.file_deck_parsed
+        assert d.dialect == "nec5" and d.dialect_reason.startswith("a CM NEC-5 card")
+        assert _z_of(cls, cls.file_ground) == pytest.approx(
+            _z_of(src, ground), rel=1e-9
+        )
+
+
+# Dan's vertical dipole (AC6LA, AK scratch/dan-176-bump/som-dan.nec): GN 2 ...
+# NOFILE is its only marker, and the licensed NEC-5 (x13) solved it to
+# 87.321 - j2.6375 with the source at the END of segment 11 (20 segments, so
+# 0.55 of the wire). Read half-and-half (the source at the segment centre, as
+# before), razor-2p -- NEC-5's own formulation -- lands 1.65 ohm off; read
+# wholly NEC-5 it lands within 0.01.
+DAN_VERTICAL = """CM Dan AC6LA NE0 XYZ Dipole: vertical 20.4 m dipole, centre 12 m, 7.2 MHz
+CE
+GW 1 20 0 0 1.8 0 0 22.2 1.000000e-03
+GE -1
+GN 2 0 0 0 13.0 0.005 0 0 NOFILE
+FR 0 1 0 0 7.2 1
+EX 0 1 11 0 1.000000e+00
+XQ
+EN
+"""
+
+
+def test_a_nofile_only_nec5_deck_now_matches_nec5():
+    from momwire import RazorSolver
+
+    cls = builder_from_text("som-dan.nec", DAN_VERTICAL)
+    assert cls.file_deck_parsed.feeds[0].edge == 2
+    z = complex(
+        MomwireEngine(
+            cls(),
+            ground=cls.file_ground,
+            solver=RazorSolver,
+            solver_kwargs={"nec5_quadrature": True},
+        ).impedance()[0]
+    )
+    assert abs(z - (87.321 - 2.6375j)) < 0.1, z

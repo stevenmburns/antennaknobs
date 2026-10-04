@@ -5351,6 +5351,22 @@ def ge_minus_one_contact_refusal(deck, ground):
     )
 
 
+def _nofile_gn_line(text: str) -> int | None:
+    """The line of the first ``GN`` card whose last field is ``NOFILE``, or
+    None: read ahead of the card loop, because it decides how an ``EX`` read
+    before it addresses its segment."""
+    for line_no, raw in _logical_lines(text):
+        s = raw.strip()
+        if not s or s.startswith("'") or s[:2].upper() in ("CM", "CE"):
+            continue
+        s = s.split("'", 1)[0].strip()
+        if s[:2].upper() == "EN":
+            return None
+        if s[:2].upper() == "GN" and s.split()[-1].upper().rstrip(",") == "NOFILE":
+            return line_no
+    return None
+
+
 def parse_nec(
     text: str,
     *,
@@ -5450,6 +5466,13 @@ def parse_nec(
     tell: tuple[str, str] | None = None
     # A GN card's tabulated-ground file a NEC-4 reading did not read.
     ground_file: str | None = None
+    # A GN ending NOFILE rules NEC-2 out but does not say which of NEC-4 and
+    # NEC-5 wrote the deck: both do. With no other marker the deck reads as
+    # NEC-5 throughout -- sources included, so an EX read before the GN card
+    # needs to know it is coming -- and the note says the choice was a
+    # default. `weak` is that reason; `tell` is an unambiguous marker.
+    nofile_line = None if dialect is not None else _nofile_gn_line(text)
+    weak: str | None = None
     # ...or why detection would have refused the deck, when a chosen dialect
     # is what let it read.
     refused: str | None = None
@@ -5605,7 +5628,11 @@ def parse_nec(
                 tokens = tokens[:-1]
             elif tokens[-1].upper() == "NOFILE":
                 tokens = tokens[:-1]
-                tell = tell or ("nec5", f"the GN card on line {line_no} ends in NOFILE")
+                weak = weak or (
+                    f"the GN card on line {line_no} ends in NOFILE, which NEC-4 "
+                    "and NEC-5 both write, and nothing else in the deck says "
+                    "which — choose Read as NEC-4 if it came from a NEC-4 program"
+                )
                 if dialect is None:
                     nec5_dialect = True
             # A trailing filename is NEC-4's tabulated Sommerfeld ground
@@ -5813,8 +5840,11 @@ def parse_nec(
             # end 1 when negative and end 2 when positive. There is no
             # center reading to fall back on — NEC-5 has no center source.
             edge = 0
+            # Read as declared NEC-5: a declaration, a chosen NEC-5, or a
+            # NOFILE GN with nothing saying NEC-4 (`nofile_line`).
+            declared5 = nec5_declared or (nofile_line is not None and not nec4_declared)
             pct = card.percent(2)
-            if pct is not None and (ex_type == 4 or nec5_declared or card.i(3) == 2):
+            if pct is not None and (ex_type == 4 or declared5 or card.i(3) == 2):
                 raise card.error(
                     "a percentage position is 4nec2's spelling and cannot also "
                     "name a NEC-5 segment end"
@@ -5842,7 +5872,7 @@ def parse_nec(
                     edge = card.i(3)
                 else:
                     edge = 1 if seg_field < 0 else 2
-            elif nec5_declared or seg_field < 0 or card.i(3) == 2:
+            elif declared5 or seg_field < 0 or card.i(3) == 2:
                 if not network:
                     raise card.error(
                         "this is the NEC-5 edge-source form (a source at a "
@@ -5851,7 +5881,7 @@ def parse_nec(
                         "PortAtVertex, which needs the network path — parse "
                         "with network=True (issue #824)"
                     )
-                if nec5_declared and card.i(3) in (1, 2):
+                if declared5 and card.i(3) in (1, 2):
                     # A declared NEC-5 deck (AK#1476) takes the manual's full
                     # rule, as EX 4 does: I4 = 1/2 names the end. I4 = 1 is
                     # ambiguous only while the dialect is unknown.
@@ -5920,6 +5950,11 @@ def parse_nec(
     # AK#1483).
     if nec5_declared:
         nec5_dialect = True
+    if dialect is None and nofile_line is not None and not nec4_declared:
+        nec5_declared = True
+        nec5_dialect = True
+    if tell is None and weak is not None:
+        tell = ("nec5", weak)
     detected = None if refused else (tell[0] if tell else "nec2")
     read_as = "nec5" if nec5_dialect else "nec4" if nec4_declared else "nec2"
     if dialect is not None:
