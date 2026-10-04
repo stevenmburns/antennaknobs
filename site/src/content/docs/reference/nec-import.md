@@ -162,7 +162,8 @@ _seed_defaults_from_deck(Builder)
 | Cards | Meaning |
 | --- | --- |
 | `GW` | Straight wires (tag, segments, endpoints, radius) |
-| `GA`, `GH` | Arcs and helices, generated as per-segment chords exactly as NEC does internally |
+| `GA`, `GH` | Arcs and helices, generated as per-segment chords exactly as NEC does internally. A deck read as NEC-4 or NEC-5 takes their `GH` layout (`TURNS ZLEN HR1 HR2 WR1 WR2 ISPX`: log or Archimedes spirals, tapered wire) |
+| `GC` | Tapered wires: the zero-radius `GW` before it becomes a run of 1-segment wires with geometric lengths and radii. Read as NEC-4 or NEC-5 it also takes their `IX` forms, a fixed first segment (`GC 1`) or first and last (`GC 2`, which computes its own segment count) |
 | `GM` | Move / replicate — repetitions compound, each copy transforming the previous one |
 | `GX` | Reflect in the Z, Y, X planes, tag increment doubling per plane |
 | `GR` | Rotate about Z into a cylindrical array |
@@ -290,8 +291,8 @@ workbench seeds its ground from the deck as described above. Deck-backed design 
 so the mismatch is explained right where the deck is viewed.
 
 Decks the wire-model genuinely cannot represent are rejected with a clear
-error rather than silently approximated: surface patches (`SP`/`SM`), tapered
-wires (`GC`), Green's-function files (`GF`), and plane-wave excitation.
+error rather than silently approximated: surface patches (`SP`/`SM`),
+Green's-function files (`GF`), and plane-wave excitation.
 
 ## The 4nec2 dialect
 
@@ -472,7 +473,10 @@ is. EZNEC's NEC-4.2 stamp (or a
 NEC-4.2's newer Sommerfeld (not 4nec2's MININEC-type ground), `EX 6` its
 segment current source, `GE -1` admits buried wires, and a `GN` that names a
 ground-table file (or `NOFILE`) is accepted, the file not read (it is NEC-4's
-cache; the ground is computed from the card, and the note says so). A NEC-5
+cache; the ground is computed from the card, and the note says so). `GH` and
+`GC` take NEC-4's layouts (shared by NEC-5); read as NEC-2, a NEC-4 helix (a
+zero in NEC-2's radius field) or a `GC 1`/`GC 2` is refused, naming the
+NEC-4 reading that spells it. A NEC-5
 deck with no marker reads as NEC-2, every source and load half a segment from
 where its author put it, so the dialect can be chosen: **Read as** under an
 opened deck's name (auto / NEC-2 / NEC-4 / NEC-5) re-opens it read that way,

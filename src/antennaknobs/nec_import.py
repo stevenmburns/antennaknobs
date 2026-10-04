@@ -3481,8 +3481,15 @@ class GeometryLimits:
         elif mnemonic in ("GA", "GH"):
             add_w = add_s = card.f(1)
         elif mnemonic == "GC":
-            # The parked zero-radius GW becomes one wire per segment.
-            add_w = float(wires[-1][1] - 1) if wires else 0.0
+            # The parked zero-radius GW becomes one wire per segment -- as
+            # many as NEC-4's GC 2 computes, when that is the form (AK#1297).
+            n = float(wires[-1][1]) if wires else 1.0
+            if card.i(0) == 2:
+                computed = _gc_ix2_count(card, wires)
+                if computed == computed:  # not NaN; `_gc` refuses NaN
+                    add_s = computed - n
+                    n = computed
+            add_w = n - 1.0
         elif mnemonic == "GM":
             nrpt = card.f(1)
             if nrpt >= 1.0:
@@ -3553,35 +3560,137 @@ def _taper_steps(n_seg, total, rdel, rad1, rad2):
     return lengths, radii
 
 
-def _gc(card, wires):
+def _wire_span(w) -> float:
+    """A parked GW's length, in the expression `_gc` has always used (so an
+    IX = 0 taper stays bit-identical)."""
+    d = [w[3][k] - w[2][k] for k in range(3)]
+    return math.sqrt(sum(c * c for c in d))
+
+
+def _ratio_for_first(n_seg: int, total: float, first: float) -> float:
+    """The segment-length ratio R that makes ``n_seg`` geometric segments
+    starting at ``first`` span ``total``: the root of
+    ``1 + R + ... + R**(n_seg - 1) = total / first``.
+
+    R = 1 is a root of the cleared form ``first·(1 - R**n) = total·(1 - R)``
+    for every deck, so the sum is solved instead: it is strictly increasing
+    in R > 0, and bisection runs it to the last bit. The NEC-4.2 manual says
+    only "by iteration"; NEC-4.2 prints 1.22536 for Cebik's ``3-1d-nec4``."""
+    target = total / first
+    if n_seg == 1 or abs(target - n_seg) <= 1e-12 * n_seg:
+        return 1.0
+
+    def span(r: float) -> float:
+        # Stops once past the target: R**i overflows a float long before a
+        # count NEC would build is reached.
+        acc, term = 0.0, 1.0
+        for _ in range(n_seg):
+            acc += term
+            if acc > target:
+                return math.inf
+            term *= r
+        return acc
+
+    lo, hi = (1.0, 2.0) if target > n_seg else (0.0, 1.0)
+    while span(hi) < target:
+        lo, hi = hi, 2.0 * hi
+    while True:
+        mid = 0.5 * (lo + hi)
+        if mid in (lo, hi):
+            return mid
+        if span(mid) < target:
+            lo = mid
+        else:
+            hi = mid
+
+
+def _gc_ix2_count(card, wires) -> float:
+    """The segment count NEC-4's ``GC 2`` computes for the parked GW (NEC-4.2
+    User's Manual, GC): ``R = (L - DEL1) / (L - DEL2)`` and ``N = 1 +
+    log(DEL2 / DEL1) / log R``, rounded; equal lengths give ``L / DEL1``
+    (what NEC-4.2 prints for that case, where the manual's formula is 0/0).
+    A float, so `GeometryLimits` judges a field like 1e-300 before anything
+    is built from it. NaN when the fields cannot define a count; `_gc` says
+    why."""
+    if not wires:
+        return math.nan
+    total = _wire_span(wires[-1])
+    d1, d2 = card.f(5), card.f(6)
+    if not (0.0 < d1 < total and 0.0 < d2 < total):
+        return math.nan
+    if d1 == d2:
+        n = total / d1
+    else:
+        n = 1.0 + math.log(d2 / d1) / math.log((total - d1) / (total - d2))
+    # Fortran's NINT: half away from zero (Python's round() is half-even).
+    return max(1.0, math.floor(n + 0.5))
+
+
+def _gc(card, wires, *, nec45=False):
     """Tapered-wire continuation: expand the preceding zero-radius GW into a
-    run of 1-segment wires with stepped radii and RDEL-progressed lengths.
+    run of 1-segment wires with stepped radii and geometrically progressed
+    lengths.
 
     They keep the GW's tag, so NEC's ``(tag, segment)`` addressing on EX / LD
     / TL still resolves -- `_locate_segment` accumulates across every wire
     carrying the tag, which is the same thing `_gh` relies on.
+
+    NEC-2's GC has one form, ``GC 0 0 RDEL RAD1 RAD2``. NEC-4 and NEC-5
+    (``nec45``; both User's Manuals) give I1 a meaning, ``GC IX 0 RDEL RAD1
+    RAD2 DEL1 DEL2`` (AK#1297): IX = 0 is NEC-2's form, IX = 1 fixes the
+    FIRST segment's length on the GW's own count, and IX = 2 fixes the first
+    and last and computes the count, so the GW's NS has no effect. Both solve
+    for the ratio, then lay the run out exactly as IX = 0 does. Checked
+    segment by segment against NEC-4.2's printout of Cebik's ``3-1a``,
+    ``3-1d``, ``3-2a-nec4`` and ``11-11`` (`test_gc_nec4_forms_1297`).
     """
     if not wires or wires[-1][4] > 0.0:
         raise card.error(
             "a GC continuation must follow a GW with zero radius, which is "
             "how NEC announces a tapered wire"
         )
-    itg, ns = card.i(0), card.i(1)
-    if itg != 0 or ns != 0:
+    ix, ns = card.i(0), card.i(1)
+    if not nec45 and (ix != 0 or ns != 0):
+        if ix in (1, 2) and ns == 0:
+            given = (
+                "first segment's length"
+                if ix == 1
+                else "first and last segments' lengths"
+            )
+            raise card.error(
+                f"GC {ix} gives the tapered wire's {given}, which is NEC-4 and "
+                "NEC-5's GC (GC IX 0 RDEL RAD1 RAD2 DEL1 DEL2); NEC-2's GC has "
+                "only the ratio form (GC 0 0 RDEL RAD1 RAD2) -- read the deck "
+                "as NEC-4"
+            )
         raise card.error(
             f"only the plain continuation form (GC 0 0 RDEL RAD1 RAD2) is "
-            f"translated, got tag {itg} and segment count {ns}"
+            f"translated, got {ix} and {ns} in its integer fields"
+        )
+    if ix not in (0, 1, 2):
+        raise card.error(
+            f"IX must be 0 (a length ratio), 1 (the first segment's length) or "
+            f"2 (the first and last segments' lengths), got {ix}"
         )
     rdel, rad1, rad2 = card.f(2), card.f(3), card.f(4)
-    if rdel <= 0.0:
+    if ix == 0 and rdel <= 0.0:
         raise card.error(f"segment-length ratio must be > 0, got {rdel}")
     if rad1 <= 0.0 or rad2 <= 0.0:
         raise card.error(f"both taper radii must be > 0, got {rad1} and {rad2}")
-    tag, n_seg, p1, p2, _zero = wires.pop()
-    d = [p2[k] - p1[k] for k in range(3)]
-    total = math.sqrt(sum(c * c for c in d))
+    total = _wire_span(wires[-1])
     if total <= 0.0:
         raise card.error("the tapered wire has zero length")
+    for k, field in ((5, "DEL1"), (6, "DEL2"))[:ix]:
+        if not 0.0 < card.f(k) < total:
+            raise card.error(
+                f"{field} must be greater than zero and less than the wire's "
+                f"length, {total:g} m; got {card.f(k):g}"
+            )
+    n_seg = int(_gc_ix2_count(card, wires)) if ix == 2 else wires[-1][1]
+    if ix:
+        rdel = _ratio_for_first(n_seg, total, card.f(5))
+    tag, _ns, p1, p2, _zero = wires.pop()
+    d = [p2[k] - p1[k] for k in range(3)]
     unit = [c / total for c in d]
     lengths, radii = _taper_steps(n_seg, total, rdel, rad1, rad2)
     at = list(p1)
@@ -3728,14 +3837,86 @@ def _ga(card, wires):
         x1, z1 = x2, z2
 
 
-def _gh(card, wires):
-    """Helix/spiral about +Z (nec2c ``helix``): ``n_seg`` 1-segment chords."""
+def _gh_nec45(card, wires):
+    """NEC-4 and NEC-5's helix or spiral, ``GH ITG NS TURNS ZLEN HR1 HR2 WR1
+    WR2 ISPX`` (both User's Manuals; AK#1296): ``n_seg`` 1-segment chords.
+
+    The manual fixes the fields; the curve between them was measured off
+    NEC-4.2's own segmentation table (Cebik's ``4-6``, ``4-6a``, ``4-9a`` and
+    ``17-11-nec4``, plus Archimedes, flat and tapered-wire probes), every
+    centre, length and radius to the printed digits:
+
+    * the knots subtend equal angles, ``θ_i = 2π·TURNS·i/NS``; a negative
+      TURNS winds the other way (left-handed);
+    * the curve radius is ``HR1·(HR2/HR1)**(i/NS)`` for a log spiral (ISPX
+      0) and ``HR1 + (HR2 - HR1)·i/NS`` for an Archimedes one (ISPX 1);
+      HR2 = 0 means HR1;
+    * z rises with the RADIUS, ``ZLEN·(r_i - HR1)/(HR2 - HR1)`` -- a cone --
+      and with the index, ``ZLEN·i/NS``, when HR1 = HR2;
+    * the wire radius steps geometrically from WR1 to WR2 over the segments,
+      as a GC taper's does; WR2 = 0 means WR1.
+    """
+    tag, n_seg = card.i(0), card.i(1)
+    turns, zlen = card.f(2), card.f(3)
+    hr1, hr2 = card.f(4), card.f(5) or card.f(4)
+    wr1, wr2 = card.f(6), card.f(7) or card.f(6)
+    ispx = card.f(8)
+    if n_seg < 1:
+        raise card.error(f"segment count must be >= 1, got {n_seg}")
+    if wr1 <= 0.0 or wr2 <= 0.0:
+        raise card.error(f"wire radii must be > 0, got {wr1} and {wr2}")
+    if ispx not in (0.0, 1.0):
+        raise card.error(
+            f"ISPX must be 0 (a log spiral) or 1 (an Archimedes spiral), got {ispx:g}"
+        )
+    if ispx == 0.0 and hr1 != hr2 and (hr1 <= 0.0 or hr2 <= 0.0):
+        raise card.error(f"a log spiral needs both radii > 0, got {hr1:g} and {hr2:g}")
+
+    def point(i):
+        t = i / n_seg
+        if hr1 == hr2:
+            r, z = hr1, zlen * t
+        else:
+            r = hr1 * (hr2 / hr1) ** t if ispx == 0.0 else hr1 + (hr2 - hr1) * t
+            z = zlen * (r - hr1) / (hr2 - hr1)
+        th = 2.0 * math.pi * turns * t
+        return [r * math.cos(th), r * math.sin(th), z]
+
+    _lengths, radii = _taper_steps(n_seg, 1.0, 1.0, wr1, wr2)
+    p = point(0)
+    for i in range(1, n_seg + 1):
+        q = point(i)
+        if q == p:
+            raise card.error(f"segment {i} of the spiral has zero length")
+        wires.append([tag, 1, p, q, radii[i - 1]])
+        p = q
+
+
+def _gh(card, wires, *, nec45=False):
+    """Helix/spiral about +Z (nec2c ``helix``): ``n_seg`` 1-segment chords.
+
+    NEC-2's layout, ``GH ITG NS S HL A1 B1 A2 B2 RAD``. NEC-4 and NEC-5 lay
+    the card out differently (`_gh_nec45`), and a deck read in either takes
+    theirs."""
+    if nec45:
+        return _gh_nec45(card, wires)
     tag, n_seg = card.i(0), card.i(1)
     s, hl = card.f(2), card.f(3)
     a1, b1, a2, b2 = card.f(4), card.f(5), card.f(6), card.f(7)
     radius = card.f(8)
     if n_seg < 1:
         raise card.error(f"segment count must be >= 1, got {n_seg}")
+    if radius == 0.0 and len(card.vals) >= 9:
+        # NEC-4/5's layout puts the wire radii in F5/F6 and ISPX (0 or 1) in
+        # F7, NEC-2's RAD: a NEC-4 helix read as NEC-2 has a zero radius
+        # (AK#1296; Cebik's NEC-4 tutorial decks). NEC-2 cannot spell it. A
+        # card that stops short of the ninth field is not that layout either.
+        raise card.error(
+            "the wire radius (NEC-2's ninth field) is zero; this is NEC-4 and "
+            "NEC-5's GH layout (GH ITG NS TURNS ZLEN HR1 HR2 WR1 WR2 ISPX), "
+            "where that field is ISPX and the wire radii come before it -- "
+            "read the deck as NEC-4"
+        )
     if radius <= 0.0:
         raise card.error("wire radius must be > 0")
     if s == 0.0 or hl == 0.0:
@@ -5760,7 +5941,20 @@ def parse_nec(
             if limits is not None:
                 limits.admit_card(mnemonic, card, wires)
             segs_before = sum(w[1] for w in wires)
-            geometry[mnemonic](card, wires)
+            if mnemonic in ("GC", "GH"):
+                # NEC-4 and NEC-5 lay these two cards out differently from
+                # NEC-2 (AK#1296, AK#1297). The reading is settled by now for
+                # every marker but a later EX's segment-end form, and a
+                # NEC-4 layout read as NEC-2 refuses by name.
+                geometry[mnemonic](
+                    card,
+                    wires,
+                    nec45=nec4_declared
+                    or nec5_declared
+                    or (nofile_line is not None and not nec4_declared),
+                )
+            else:
+                geometry[mnemonic](card, wires)
             # GX/GR leave the structure symmetric, which changes how NEC
             # resolves anything entering the matrix (#946).
             sym_cell = _symmetry_after(mnemonic, card, wires, segs_before, sym_cell)

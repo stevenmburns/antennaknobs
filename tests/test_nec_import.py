@@ -292,7 +292,7 @@ def test_errors_are_specific():
     # arrives, and a GC spelling we do not read.
     with pytest.raises(ValueError, match="no GC continuation followed it"):
         parse_nec("GW 1 3 0 0 0 1 0 0 0.0\nGE\nEN\n")
-    with pytest.raises(ValueError, match="only the plain continuation form"):
+    with pytest.raises(ValueError, match="NEC-2's GC has only the ratio form"):
         parse_nec("GW 1 3 0 0 0 1 0 0 0.0\nGC 2 0 0 .001 .001 .004 .1\nGE\nEN\n")
     with pytest.raises(ValueError, match="surface patch"):
         parse_nec("SP 0 0 1 0 0 0 0 0\nGE\nEN\n")

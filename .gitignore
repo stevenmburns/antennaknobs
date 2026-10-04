@@ -120,3 +120,7 @@ scratch/**/nec5-ab/nec5cl
 # Named because a wide `git add` would otherwise bank 8 MB of it.
 scratch/nec5-wild-phase5.jsonl
 scratch/nec5-wild-phase5.jsonl.pre-ek
+# AK#1296/#1297: Cebik's decks and their NEC-4.2 printouts are unlicensed
+# corpus material, generated locally by make_printouts.sh and never committed.
+scratch/nec4-gc-gh-cebik/*.nec
+scratch/nec4-gc-gh-cebik/*.out
