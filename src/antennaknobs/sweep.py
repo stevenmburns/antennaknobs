@@ -823,6 +823,41 @@ def _reflection(z, z0):
     return (z - z0) / (z + z0)
 
 
+def _print_sweep_table(nm, curves, ground_label=None):
+    """The stdout table for an impedance sweep over any knob (AK#1769): one
+    block per engine, a row per swept value, R and X per port, in the shape
+    `analyze`'s knob-sweep table prints (`analysis_run._print_sweep_table`).
+    The density study had a table and an ordinary knob sweep printed nothing,
+    so the numbers a user compares across engines were only on the chart.
+
+    ``curves`` is ``[(name, xs, zs, marker_xs, marker_zs)]``, ``name`` None
+    for a single-engine sweep; ``zs`` and ``marker_zs`` are (points, ports).
+    A ``--markers`` point is a row in place, starred, as in the density
+    table."""
+    width = max(12, len(nm))
+    starred = False
+    for name, xs, zs, marker_xs, marker_zs in curves:
+        print(f"== {nm} sweep ==" if name is None else f"== {nm} sweep: {name} ==")
+        if ground_label is not None:
+            print(f"ground: {ground_label}")
+        rows = [(x, z, False) for x, z in zip(xs, zs, strict=True)] + [
+            (x, z, True) for x, z in zip(marker_xs, marker_zs, strict=True)
+        ]
+        rows.sort(key=lambda r: float(r[0]))
+        nport = len(rows[0][1]) if rows else 1
+        tags = [""] if nport == 1 else [str(k) for k in range(1, nport + 1)]
+        print(
+            f"{nm:>{width}}"
+            + "".join(f" {f'R{t} (Ω)':>9} {f'X{t} (Ω)':>9}" for t in tags)
+        )
+        for x, z, marked in rows:
+            cells = "".join(f" {zp.real:>9.3f} {zp.imag:>+9.3f}" for zp in z)
+            print(f"{float(x):>{width}.6g}{cells}{' *' if marked else ''}")
+            starred = starred or marked
+    if starred:
+        print("  * = a --markers point")
+
+
 def _print_convergence_table(
     per_engine,
     estimates,
@@ -1205,8 +1240,8 @@ def sweep(
     meas = _align_measured(measured, nm, xs, z0)
 
     if len(engines) == 1 and engines[0][0] is None:
-        # The pre-#1554 single-engine path, UNCHANGED — pinned byte-identical
-        # by test_cli_sweep_single_engine_output_is_unchanged (#1554).
+        # The pre-#1554 single-engine path: its chart is pinned unchanged
+        # (#1554); its stdout is the AK#1769 table.
         engine = engines[0][1]
 
         zs = _solve_at(antenna_builder, nm, xs, engine)
@@ -1217,6 +1252,9 @@ def sweep(
             csv.write(nm, [sweep_csv.impedance_curve(None, xs, zs)])
         marker_xs = np.array(markers)
         marker_zs = np.array(marker_zs)
+        _print_sweep_table(
+            nm, [(None, xs, zs, marker_xs, marker_zs)], ground_label=ground_label
+        )
 
         nwidth = zs.shape[1] if npoints > 0 else marker_zs.shape[1]
         logger.debug(
@@ -1356,6 +1394,11 @@ def sweep(
         )
 
     marker_xs = np.array(markers)
+    _print_sweep_table(
+        nm,
+        [(name, xs, zs, marker_xs, mzs) for name, zs, mzs in per_engine],
+        ground_label=ground_label,
+    )
     nwidth = 1
     for _name, zs, marker_zs in per_engine:
         if zs.shape[0] > 0:

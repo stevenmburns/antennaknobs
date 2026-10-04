@@ -139,12 +139,16 @@ def test_convergence_table_prints_an_explicit_ground(capsys):
     assert pairs == [("momwire:bspline", "finite 13/0.005 (Sommerfeld-Norton)")]
 
 
-def test_frequency_sweep_stays_silent(capsys):
-    """The ground line is a convergence-table thing; the single-engine
-    frequency sweep's byte-identical silence (#1554 gate 3) is untouched."""
+def test_frequency_sweep_names_its_one_ground(capsys):
+    """A single-engine frequency sweep prints its table since AK#1769, under
+    the run's one ground, as the convergence table does."""
     ant.cli(f"sweep --builder {DIPOLE} --npoints 3 --fn /dev/null".split())
     plt.close("all")
-    assert capsys.readouterr().out == ""
+    out = capsys.readouterr().out.splitlines()
+    assert out[:2] == [
+        "== freq sweep ==",
+        "ground: finite 13/0.005 (Sommerfeld-Norton)",
+    ]
 
 
 # --- 3. same physics on every engine ----------------------------------------

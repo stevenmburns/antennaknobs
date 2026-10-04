@@ -11,8 +11,8 @@ What is gated here, matching the issue's own gate paragraph:
      and with a high-N bspline solve, and the achieved-N column shows the
      parity rounding;
   2. a frequency sweep with two engines draws two loci;
-  3. the existing single-engine sweeps are unchanged: they still print
-     nothing to stdout;
+  3. the existing single-engine sweeps print no convergence table (their
+     stdout is AK#1769's plain sweep table);
   4. the usage errors from the design decisions fire with one-sentence
      messages.
 
@@ -151,11 +151,17 @@ def test_two_engine_frequency_sweep_draws_two_loci(monkeypatch):
 
 
 def test_single_engine_sweep_output_is_unchanged(capsys):
-    """Requirement 2 (#1554): a single-engine sweep prints nothing new to
-    stdout, in Smith or rectangular mode, exactly as before this issue."""
+    """Requirement 2 (#1554): a single-engine sweep prints no convergence
+    table, in Smith or rectangular mode. Its stdout is the plain sweep table
+    AK#1769 added — three rows, the same in either chart mode."""
+    outs = []
     for extra in ("", " --use_smithchart"):
         ant.cli(f"sweep --builder {DIPOLE} --npoints 3{extra} --fn /dev/null".split())
-        assert capsys.readouterr().out == ""
+        out = capsys.readouterr().out
+        assert "convergence" not in out and "Z∞" not in out
+        assert out.splitlines()[0] == "== freq sweep =="
+        outs.append(out)
+    assert outs[0] == outs[1]
 
 
 def test_nominal_nsegs_refuses_nominal_nsegs_flag():

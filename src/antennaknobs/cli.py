@@ -297,11 +297,17 @@ def list_variants(cls):
     return sorted(out)
 
 
-_BUILDER_FORMS = (
-    "builder forms: family.design[:variant] (see `antennaknobs list`), "
-    "user.<name> (a design in your user folder), or @path/to/file.nec / "
-    "@file.ssn (load a file directly)"
-)
+def _builder_forms():
+    """The --builder forms, naming the list command as the user can type it:
+    `.\\antennaknobs-cli.exe list` from the workbench zip (AK#1769)."""
+    from .program_name import invoked_command
+
+    return (
+        f"builder forms: family.design[:variant] (see `{invoked_command()} "
+        "list`), user.<name> (a design in your user folder), or "
+        "@path/to/file.nec / @file.ssn (load a file directly)"
+    )
+
 
 # Extensions that mark a --builder value as a FILE name rather than a design
 # name. .nec/.ssn load with `@`; the others are named so their hint is right.
@@ -355,9 +361,9 @@ def _unknown_builder_message(nm):
             # User design names are case-sensitive; `user.myloop` for MyLoop.
             return (
                 f"{head}: no design is named that; did you mean "
-                f"--builder {USER_NS}.{user_stem}? {_BUILDER_FORMS}"
+                f"--builder {USER_NS}.{user_stem}? {_builder_forms()}"
             )
-        return f"{head}; {_BUILDER_FORMS}"
+        return f"{head}; {_builder_forms()}"
 
     shown = found if found is not None else Path(cand)
     loadable = shown.suffix.lower() in (".nec", ".ssn")
@@ -375,7 +381,7 @@ def _unknown_builder_message(nm):
         fix = "@ loads .nec and .ssn files; save the model as a .nec deck first"
     if user_stem is not None and not fix.endswith(f"{USER_NS}.{user_stem}"):
         fix += f" (or --builder {USER_NS}.{user_stem}, the user design of that name)"
-    return f"{head}: no design is named that; {fix}. {_BUILDER_FORMS}"
+    return f"{head}: no design is named that; {fix}. {_builder_forms()}"
 
 
 def get_builder(nm):
@@ -942,6 +948,17 @@ def _solve_for_budget(eng) -> None:
         eng.current_distribution()
 
 
+def _fixed_segment_counts(builder) -> bool:
+    """True for a file design, whose wires carry the file's own segment
+    counts so that no density re-meshes it (`file_designs._make_builder`)."""
+    if builder is None:
+        return False
+    cls = builder if isinstance(builder, type) else getattr(builder, "func", builder)
+    cls = cls if isinstance(cls, type) else type(cls)
+    ui = getattr(cls, "default_params", {}).get("ui_params") or {}
+    return bool(ui.get("fixed_segment_counts"))
+
+
 def deck_extended_kernel_flag(builder_cls) -> bool:
     """True if `builder_cls` came from an `@file.nec`/`@file.ssn` spec whose
     deck carries an EK card (issue #849) — see `file_designs._make_builder`'s
@@ -1027,6 +1044,20 @@ def csv_output(path):
         yield CsvOut(path)
 
 
+def _version_line() -> str:
+    """``antennaknobs X (momwire Y)``: the versions a report should quote,
+    from installed package metadata as the workbench's banner reads them."""
+    from importlib.metadata import PackageNotFoundError, version
+
+    def of(pkg):
+        try:
+            return version(pkg)
+        except PackageNotFoundError:
+            return "unknown"
+
+    return f"antennaknobs {of('antennaknobs')} (momwire {of('momwire')})"
+
+
 def cli(arguments=None):
     # AK#1428: `ANTENNAKNOBS_LOG_LEVEL` turns on the engine run log here too.
     from .engine_capture import configure_logging_from_env
@@ -1043,6 +1074,13 @@ def cli(arguments=None):
         default=0,
         help="Increase log verbosity: -v for INFO, -vv for DEBUG "
         "(e.g. design-resolution and sweep tracing).",
+    )
+    parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=_version_line(),
+        help="Print the antennaknobs and momwire versions and exit.",
     )
 
     subparsers = parser.add_subparsers(dest="command")
@@ -1232,25 +1270,41 @@ def cli(arguments=None):
             help="Azimuth angle (rear) for the elevation plot.",
         )
 
-    # (engine spec, N) pairs already announced this run, so a command that
+    # (engine spec, N, file mesh) already announced this run, so a command that
     # builds many engines from one spec says it once.
     announced_density = set()
 
-    def density_from_args(args, engine_spec):
+    def density_from_args(args, engine_spec, builder=None):
         """The density `engine_spec` runs at, announced once per (spec, N).
 
         The line goes to STDERR beside the engine name (#1543) so that a
         number quoted from a run carries the N that produced it, and so that
         stdout stays the command's own output — the same split the
         feed-placement advisories use.
+
+        A file design meshes at its own segment counts whatever the density
+        says (`ui_params["fixed_segment_counts"]`), so for one the line says
+        that instead: "N=40 (engine default)" on a deck read as though the
+        engine had thrown the deck's segmentation away (AK#1769).
         """
         n = getattr(args, "nominal_nsegs", None)
         why = "--nominal-nsegs"
         if n is None:
             n = engine_density(engine_spec)
             why = "engine default"
-        if n is not None and (engine_spec, n) not in announced_density:
-            announced_density.add((engine_spec, n))
+        fixed = _fixed_segment_counts(builder)
+        if n is None or (engine_spec, n, fixed) in announced_density:
+            return n
+        announced_density.add((engine_spec, n, fixed))
+        if fixed:
+            unused = (
+                "; --nominal-nsegs does not re-mesh a file" if why[0] == "-" else ""
+            )
+            print(
+                f"engine {engine_spec}: the file's own segment counts{unused}",
+                file=sys.stderr,
+            )
+        else:
             print(f"engine {engine_spec}: N={n} segments/wire ({why})", file=sys.stderr)
         return n
 
@@ -1263,7 +1317,7 @@ def cli(arguments=None):
                 extended_kernel=args.extended_kernel,
                 nec42_sommerfeld=getattr(args, "nec42_sommerfeld", None),
                 deck_extended_kernel=deck_extended_kernel,
-                nominal_nsegs=density_from_args(args, args.engine),
+                nominal_nsegs=density_from_args(args, args.engine, builder),
             )
         )
 
@@ -1284,7 +1338,7 @@ def cli(arguments=None):
         ground = resolve_ground(args.ground, builder)  # AK#1432, AK#1563
         out = {}
         for spec in _engine_specs(args.engine):
-            density = density_from_args(args, spec) if mesh_density else None
+            density = density_from_args(args, spec, builder) if mesh_density else None
             out[spec] = placements.watch(
                 make_engine_factory(
                     spec,
@@ -1625,11 +1679,7 @@ def cli(arguments=None):
                 z0=args.z0,
                 markers=args.markers,
                 engine=engine,
-                ground_label=(
-                    format_ground(resolve_ground(args.ground, builder))
-                    if is_density_study
-                    else None
-                ),
+                ground_label=format_ground(resolve_ground(args.ground, builder)),
                 measured=measured,
                 log=args.log,
                 r_range=args.r_range,
@@ -1800,7 +1850,9 @@ def cli(arguments=None):
                         nec42_sommerfeld=getattr(args, "nec42_sommerfeld", None),
                         deck_extended_kernel=deck_ek,
                         nominal_nsegs=(
-                            None if density else density_from_args(args, engine_spec)
+                            None
+                            if density
+                            else density_from_args(args, engine_spec, design)
                         ),
                     )
                 )
@@ -2289,7 +2341,7 @@ def cli(arguments=None):
                 # Per SPEC, not per command: a cross-engine comparison whose
                 # engines meshed alike would be comparing meshes as much as
                 # formulations (#1543).
-                nominal_nsegs=density_from_args(args, espec),
+                nominal_nsegs=density_from_args(args, espec, builder_cls),
             )
             instances.append(placements.watch(eng)(builder_cls()))
             if multi_engine and multi_builder:
@@ -2632,6 +2684,7 @@ def cli(arguments=None):
         from pathlib import Path
 
         from .design_screen import screen_file
+        from .program_name import invoked_command
 
         path = Path(args.path)
         if not path.is_file():
@@ -2647,8 +2700,8 @@ def cli(arguments=None):
         print(report.summary())
         print(
             "\nThat doesn't mean it's malicious, but review it before you allow "
-            "it. To let it run: `antennaknobs allow <name>` (add --edits if it's "
-            "your own file)."
+            f"it. To let it run: `{invoked_command()} allow <name>` (add --edits "
+            "if it's your own file)."
         )
         raise SystemExit(1)
 
@@ -2710,6 +2763,11 @@ def cli(arguments=None):
     p.set_defaults(func=f)
 
     args = parser.parse_args(args=arguments)
+    if args.command is None:
+        # `-v` alone (AK#1769) parsed as verbosity with no command, and then
+        # `args.func` did not exist: a traceback for a user checking the
+        # version. Name what is missing and how to get the version instead.
+        parser.error("name a command (--help lists them; --version prints the version)")
     level = logging.WARNING - 10 * min(args.verbose, 2)
     logging.basicConfig(level=level, format="%(name)s: %(message)s")
 

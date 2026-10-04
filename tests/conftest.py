@@ -103,6 +103,11 @@ os.environ.setdefault(
 # test_design_trust.py, which turns this flag off per-test).
 os.environ.setdefault("ANTENNAKNOBS_TRUST_USER_DESIGNS", "1")
 
+# A hint names the program as invoked (AK#1769, `program_name`); under pytest
+# that is `pytest` or `python -m pytest`, so the suite pins the console
+# script's name. tests/test_cli_papercuts_1769.py clears it to gate the rest.
+os.environ.setdefault("ANTENNAKNOBS_CLI_COMMAND", "antennaknobs")
+
 HAS_PYNEC = importlib.util.find_spec("PyNEC") is not None
 
 needs_pynec = pytest.mark.skipif(

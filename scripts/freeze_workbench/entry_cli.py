@@ -55,6 +55,10 @@ CLI_FLAG = "--cli"
 # reads it; both spellings live apart on purpose (see the note above about
 # what this file may import).
 PROG_ENV = "ANTENNAKNOBS_CLI_PROG"
+# How the user TYPED this program, path and all (`.\antennaknobs-cli.exe` in
+# PowerShell), so a hint naming a command to run next names one that runs
+# (AK#1769). `antennaknobs.program_name` reads it under the same name.
+COMMAND_ENV = "ANTENNAKNOBS_CLI_COMMAND"
 
 
 def _target() -> list[str]:
@@ -80,7 +84,10 @@ def _target() -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else list(argv)
-    env = dict(os.environ, **{PROG_ENV: Path(sys.argv[0]).name or NAME})
+    env = dict(
+        os.environ,
+        **{PROG_ENV: Path(sys.argv[0]).name or NAME, COMMAND_ENV: sys.argv[0] or NAME},
+    )
     proc = subprocess.Popen([*_target(), CLI_FLAG, *args], env=env)  # noqa: S603 — our own sibling program
     try:
         return proc.wait()
