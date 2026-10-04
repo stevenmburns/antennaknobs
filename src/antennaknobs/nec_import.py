@@ -272,6 +272,7 @@ DIALECTS = ("nec2", "nec4", "nec5")
 _DIALECT_WORD = {"nec2": "NEC-2", "nec4": "NEC-4", "nec5": "NEC-5"}
 _DIALECT_STAMP_WORD = {"nec4": "NEC-4.2", "nec5": "NEC-5"}
 _NO_MARKER = "no NEC-4 or NEC-5 marker found"
+_CM_NEC4 = ("NEC-4", "NEC4", "NEC-4.2", "NEC4.2")
 _EZNEC_NEC2_WRITERS = ("NEC-2", "NEC2", "NEC-4.2", "NEC4.2")
 
 
@@ -5493,6 +5494,10 @@ def parse_nec(
             # writer we have never captured.
             if text.upper() in ("NEC-5", "NEC5"):
                 said = ("nec5", f"a CM NEC-5 card on line {line_no}")
+            elif text.upper() in _CM_NEC4:
+                # NEC-4's declaration, by the same whole-comment rule: what
+                # antennaknobs' own NEC-4.2 writer stamps (`nec_export`).
+                said = ("nec4", f"a CM {text} card on line {line_no}")
             else:
                 try:
                     stamp = _eznec_stamp_dialect(text, where)
