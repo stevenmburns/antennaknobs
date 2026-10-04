@@ -5295,3 +5295,21 @@ canvas {
   fill-opacity: 0.9;
   stroke: var(--border);
 }
+
+/* The error boundary's panel (AK#1851): what a render error shows instead of
+   a blank page. */
+.crash-panel {
+  max-width: 28rem;
+  margin: 15vh auto 0;
+  padding: var(--space-7);
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: 0 2px 10px var(--shadow);
+  font-family: var(--font-sans);
+}
+.crash-panel-note {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
