@@ -185,3 +185,70 @@ describe("the hosted server's answers for an opened deck", () => {
     );
   });
 });
+
+describe("the dialect an opened deck is read in", () => {
+  const NEC5_KEY = "deck.nec5nec5nec5";
+  const record = (chosen: "nec2" | "nec5" | null) => ({
+    read_as: chosen ?? "nec2",
+    reason: chosen ? "chosen by the reader" : "no NEC-5 marker found",
+    detected: "nec2",
+    chosen,
+  });
+  function mountDialects(url: string) {
+    const opened: Body[] = [];
+    mountDesignSession({
+      url,
+      examples: [HARNESS_EXAMPLE],
+      routes: {
+        "/deck": (_u: string, init?: RequestInit) => {
+          const body = JSON.parse(String(init?.body ?? "{}")) as Body;
+          opened.push(body);
+          const nec5 = body.dialect === "nec5";
+          const key = nec5 ? NEC5_KEY : KEY;
+          return json({
+            key,
+            example: { ...DECK_EXAMPLE, name: key },
+            dialect: record(nec5 ? "nec5" : null),
+            limits: {},
+          });
+        },
+        "/geometry": () => json({ wires: [] }),
+      },
+    });
+    return opened;
+  }
+
+  it("re-opens the deck read as the reader chooses, and the link carries the choice", async () => {
+    const opened = mountDialects("/");
+    await sessionReady(document.body);
+    openFile(DECK_TEXT);
+    await waitFor(() => expect(ready()).toMatch(/^deck\.0123456789ab#/), { timeout: 5000 });
+    const select = (await screen.findByLabelText("read the deck as", {}, { timeout: 5000 })) as HTMLSelectElement;
+    expect(select.value).toBe("auto");
+    expect(select.options[0].textContent).toBe("auto (NEC-2)");
+    expect(query().get("dialect")).toBeNull();
+    fireEvent.change(select, { target: { value: "nec5" } });
+    await waitFor(() => expect(ready()).toMatch(/^deck\.nec5nec5nec5#/), { timeout: 5000 });
+    expect(opened[1]).toEqual({ name: "mydeck.nec", z: opened[0].z, dialect: "nec5" });
+    await waitFor(() => expect(query().get("dialect")).toBe("nec5"), { timeout: 5000 });
+    expect(query().get("deck")).toBe(opened[0].z);
+    // Every request for the NEC-5 reading carries the choice with the deck.
+    await waitFor(() => expect(sent.some((m) => m.geometry === NEC5_KEY)).toBe(true), { timeout: 5000 });
+    expect(sent.find((m) => m.geometry === NEC5_KEY)?._deck).toEqual(opened[1]);
+    // Back to detection: the link drops the choice again.
+    fireEvent.change(screen.getByLabelText("read the deck as"), { target: { value: "auto" } });
+    await waitFor(() => expect(ready()).toMatch(/^deck\.0123456789ab#/), { timeout: 5000 });
+    expect(opened[2]).toEqual({ name: "mydeck.nec", z: opened[0].z });
+    await waitFor(() => expect(query().get("dialect")).toBeNull(), { timeout: 5000 });
+  });
+
+  it("a link with &dialect= opens the deck read that way", async () => {
+    const z = await compressDeck(DECK_TEXT);
+    const opened = mountDialects(`/?deck=${z}&name=mydeck.nec&dialect=nec5`);
+    await sessionReady(document.body);
+    await waitFor(() => expect(ready()).toMatch(/^deck\.nec5nec5nec5#/), { timeout: 5000 });
+    expect(opened[0]).toEqual({ name: "mydeck.nec", z, dialect: "nec5" });
+    const select = (await screen.findByLabelText("read the deck as", {}, { timeout: 5000 })) as HTMLSelectElement;
+    expect(select.value).toBe("nec5");
+  });
+});

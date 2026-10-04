@@ -4345,6 +4345,16 @@ canvas {
   line-height: 1;
 }
 
+/* An opened .nec deck's dialect: auto (detected) / NEC-2 / NEC-5. */
+.deck-dialect {
+  margin: var(--space-2) 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.deck-dialect select {
+  font-size: var(--text-xs);
+}
+
 /* The measurement dial's sweep-range menu (AK#1682), in the knob menu's
    frame: a point-count / clamp note and the revert button. */
 .sweep-range-menu select {

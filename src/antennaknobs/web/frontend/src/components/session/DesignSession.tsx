@@ -275,7 +275,7 @@ import { useViewState } from "./useViewState";
 import { ViewPicker } from "./ViewPicker";
 import { VfoPanel } from "./VfoPanel";
 import { DeckNotice } from "./DeckNotice";
-import { deckFor, isDeck, openDeckFile } from "../../lib/decks";
+import { deckFor, isDeck, openDeck, openDeckFile, type Dialect } from "../../lib/decks";
 
 // One antenna design session: the entire left sidebar + right stage plus all
 // the state, effects, and the WebSocket that drive them. The shell (`App`,
@@ -3052,6 +3052,18 @@ function DesignSessionBody({
       (e: unknown) => setDeckError(e instanceof Error ? e.message : String(e)),
     );
   };
+  // The dialect control (DeckNotice): the same deck, re-opened read in the
+  // chosen dialect, is another design (its key carries the choice) and the
+  // link follows it (`&dialect=`).
+  const reopenDeckAs = (dialect: Dialect | null) => {
+    const d = isDeck(geometry) ? deckFor(geometry) : undefined;
+    if (!d) return;
+    setDeckError(null);
+    openDeck({ name: d.name, z: d.z, ...(dialect ? { dialect } : {}) }).then(
+      (o) => setGeometry(o.key),
+      (e: unknown) => setDeckError(e instanceof Error ? e.message : String(e)),
+    );
+  };
   // The chart is where an analysis or a view lands, and listing the
   // design's analyses waits for it to be on screen (useDesignAnalyses).
   useEffect(() => {
@@ -3302,6 +3314,7 @@ function DesignSessionBody({
           deck={isDeck(geometry) ? (deckFor(geometry) ?? null) : null}
           error={deckError}
           onDismissError={() => setDeckError(null)}
+          onReadAs={reopenDeckAs}
         />
         {settingsNote && (
           <div className="settings-notice" role="status">

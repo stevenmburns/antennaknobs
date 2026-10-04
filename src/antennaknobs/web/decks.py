@@ -70,12 +70,37 @@ def is_deck(geometry) -> bool:
     return isinstance(geometry, str) and geometry.startswith(_PREFIX)
 
 
-def deck_key(name: str, text: str) -> str:
+def deck_key(name: str, text: str, dialect: str | None = None) -> str:
     """The design key for a deck: its file name and text, hashed. The name is
     in the hash because it is the design's label, so the same text opened
-    under two names is two designs that look different."""
-    h = hashlib.sha256(f"{name}\0{text}".encode("utf-8", "surrogatepass"))
+    under two names is two designs that look different. A chosen dialect is
+    in it too: the same deck read as NEC-2 and as NEC-5 is two designs (its
+    sources half a segment apart). Detection (None) hashes as it always did,
+    so a link from before the choice existed names the same design."""
+    tail = "" if dialect is None else f"\0{dialect}"
+    h = hashlib.sha256(f"{name}\0{text}{tail}".encode("utf-8", "surrogatepass"))
     return f"{_PREFIX}{h.hexdigest()[:12]}"
+
+
+#: The dialects a deck may be read in when the reader chooses
+#: (`nec_import.parse_nec`'s ``dialect``); absent means detect.
+DIALECTS = ("nec2", "nec5")
+
+
+def payload_dialect(payload) -> str | None:
+    """The dialect a deck payload chooses (``dialect``), None to detect.
+    ``"auto"`` and an empty value are detection too; anything else not in
+    `DIALECTS` is refused by name."""
+    if not isinstance(payload, dict):
+        return None
+    d = payload.get("dialect")
+    if d is None or d == "" or d == "auto":
+        return None
+    if d not in DIALECTS:
+        raise DeckError(
+            f"dialect must be one of {', '.join(DIALECTS)} (or auto), not {d!r}"
+        )
+    return d
 
 
 class DeckError(RuntimeError):
@@ -446,16 +471,20 @@ class DeckStore:
         with self._lock:
             return key in self._decks
 
-    def open(self, name: str, text: str) -> tuple[str, bool]:
+    def open(
+        self, name: str, text: str, dialect: str | None = None
+    ) -> tuple[str, bool]:
         """Parse and register a deck; ``(key, new)``. A deck already open is
-        only touched. Parse errors and limit refusals raise `DeckError`."""
+        only touched. Parse errors and limit refusals raise `DeckError`.
+        ``dialect`` is the reader's choice (`payload_dialect`), None to
+        detect; it is part of the key."""
         from antennaknobs.file_designs import builder_from_text
 
-        key = deck_key(name, text)
+        key = deck_key(name, text, dialect)
         if self.get(key) is not None:
             return key, False
         try:
-            cls = builder_from_text(name, text, limits=self.limits())
+            cls = builder_from_text(name, text, limits=self.limits(), dialect=dialect)
             cls()  # default_params construct, as user designs are checked
         except DeckError:
             raise
