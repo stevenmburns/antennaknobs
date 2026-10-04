@@ -72,6 +72,8 @@ jobs:
       # machine's update seconds after flyctl declares it healthy, leaving the
       # edge load-balancing between app versions (issue #403 — it took three
       # "successful" releases to notice). Verify what is actually running.
+      # A machine an idle region has suspended or stopped counts if it is on
+      # the new image (AK#405); the script's header cites Fly's behaviour.
       - name: Verify fleet convergence
         if: steps.token.outputs.skip != 'true'
         env:
