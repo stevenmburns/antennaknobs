@@ -293,7 +293,10 @@ def test_errors_are_specific():
     with pytest.raises(ValueError, match="no GC continuation followed it"):
         parse_nec("GW 1 3 0 0 0 1 0 0 0.0\nGE\nEN\n")
     with pytest.raises(ValueError, match="NEC-2's GC has only the ratio form"):
-        parse_nec("GW 1 3 0 0 0 1 0 0 0.0\nGC 2 0 0 .001 .001 .004 .1\nGE\nEN\n")
+        parse_nec(
+            "GW 1 3 0 0 0 1 0 0 0.0\nGC 2 0 0 .001 .001 .004 .1\nGE\nEN\n",
+            dialect="nec2",
+        )
     with pytest.raises(ValueError, match="surface patch"):
         parse_nec("SP 0 0 1 0 0 0 0 0\nGE\nEN\n")
     # NEC-5's NL card names a mesh FILE; the refusal must name the surface

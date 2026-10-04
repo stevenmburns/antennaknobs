@@ -139,11 +139,12 @@ def test_g1294_6_a_GC_without_a_pending_taper_is_refused_by_name():
 
 
 def test_g1294_7_a_nonplain_GC_form_is_refused_by_name():
-    """NEC-4's GC IX forms read as NEC-4 (AK#1297,
-    `test_nec4_gc_gh_1296_1297`); read as NEC-2 they refuse, saying so."""
+    """NEC-4's GC IX forms read as NEC-4, and detection reads a deck that
+    carries one as NEC-4 (AK#1297, `test_nec4_gc_gh_1296_1297`); read as
+    NEC-2 they refuse, saying so."""
     deck = "CM t\nCE\nGW 1 4 0 0 0 0 0 1 0\nGC 2 0 0 .001 .001 .004 .1\nGE 0\nEN\n"
     with pytest.raises(ValueError, match="NEC-2's GC has only the ratio form"):
-        parse_nec(deck, name="t.nec")
+        parse_nec(deck, name="t.nec", dialect="nec2")
     deck = "CM t\nCE\nGW 1 4 0 0 0 0 0 1 0\nGC 0 3 1 .001 .001\nGE 0\nEN\n"
     with pytest.raises(ValueError, match="only the plain continuation form"):
         parse_nec(deck, name="t.nec")
