@@ -76,6 +76,8 @@ def test_the_note_no_longer_calls_the_ground_unapplied(tmp_path):
     p.write_text(CATALOG_NEC5, encoding="utf-8")
     ui = dict(builder_from_file(str(p)).default_params)["ui_params"]
     assert ui["notes"] == (
+        "Read as NEC-5 (sources and loads at segment ends): the GN card on "
+        "line 7 ends in NOFILE. "
         "Deck cards not applied: XQ (execute request) — the app's own settings "
         "are used instead."
     )
