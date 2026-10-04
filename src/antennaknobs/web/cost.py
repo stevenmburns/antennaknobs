@@ -21,7 +21,8 @@ backend). This module is the single mapping they all consult:
   machine is doing the computing.
 - **run**: everything else, including anything whose size can't be estimated
   (no ``count_basis`` hook / geometry won't build) — the solve path surfaces
-  the real error.
+  the real error. Except an opened deck on the hosted server, which
+  fails CLOSED: unsized is refused, with the reason.
 """
 
 from __future__ import annotations
@@ -80,6 +81,16 @@ def estimate_basis(req: dict, example) -> int | None:
     return example.count_basis(req)
 
 
+# An opened deck on the hosted server: every solve runs under a
+# wall-time budget enforced through momwire's CancelToken, and PyNEC has no
+# mid-solve checkpoint for the token to stop.
+PYNEC_DECK_REFUSAL = (
+    "PyNEC cannot be stopped mid-solve, so the hosted server solves an opened "
+    "deck on the momwire engines only. Pick another solver tab, or run the "
+    "deck locally (pip install antennaknobs) to use PyNEC."
+)
+
+
 def admit(
     req: dict,
     *,
@@ -88,8 +99,28 @@ def admit(
     hosted: bool,
     example,
     points: int = 1,
+    why_unsized=None,
 ) -> Admission:
+    from .decks import RUN_LOCALLY, is_deck
+
+    # An opened deck on the hosted server is a stranger's model: refused
+    # where its cost cannot be bounded, never run on the benefit of the doubt.
+    upload = hosted and is_deck(req.get("geometry"))
+    if upload and req.get("solver") == "pynec":
+        return Admission("refuse", PYNEC_DECK_REFUSAL, None)
+
     est = estimate_basis(req, example)
+    if upload and est is None:
+        # Fails CLOSED, where every other design fails open: the
+        # size estimate is the only bound admission has on it.
+        why = why_unsized() if why_unsized is not None else None
+        return Admission(
+            "refuse",
+            "The size of this opened deck could not be judged"
+            + (f" ({why})" if why else "")
+            + f", so the hosted server will not solve it; {RUN_LOCALLY}.",
+            None,
+        )
 
     if hosted and points > MAX_SWEEP_POINTS:
         return Admission(
