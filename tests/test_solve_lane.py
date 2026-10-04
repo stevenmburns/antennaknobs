@@ -461,6 +461,77 @@ def test_one_session_never_computes_twice_at_once(monkeypatch):
     assert meter.peak == 1
 
 
+def _optimize_example(meter: _Meter, dwell_s: float = 0.03):
+    """`_fake_example` whose Z moves with the knob, so an optimize run takes
+    several evals (a flat Z is optimal at the start and ends the run)."""
+    ex = _fake_example(meter, dwell_s=dwell_s)
+    ex.evals = 0
+
+    def momwire_solve(req, cancel=None):
+        with meter:
+            ex.evals += 1
+            time.sleep(dwell_s)
+        if cancel is not None:
+            cancel.raise_if_cancelled()
+        lf = float(req.get("length_factor", 1.0))
+        return {"z_in_re": 50.0 + 400.0 * (lf - 0.97), "z_in_im": 0.0}
+
+    ex.momwire_solve = momwire_solve
+    return ex
+
+
+def _optimize_body(session: str) -> dict:
+    return {
+        "geometry": "fake.lane",
+        "_session": session,
+        "length_factor": 1.05,
+        "optimize": {
+            "free": [{"name": "length_factor", "min": 0.9, "max": 1.1}],
+            "objective": "swr",
+            "max_evals": 6,
+        },
+    }
+
+
+def test_optimize_evals_take_the_session_lane(monkeypatch):
+    # /optimize used to take no lane turn: two runs (or a run and a sweep) of
+    # one session computed side by side. Each eval now takes a turn, so the
+    # session never computes twice at once.
+    meter = _Meter()
+    ex = _optimize_example(meter)
+    monkeypatch.setitem(server.EXAMPLES, "fake.lane", ex)
+    a, b, sweep = _gather_posts(
+        ("/optimize", _optimize_body("tab-A")),
+        ("/optimize", _optimize_body("tab-A")),
+        (
+            "/sweep",
+            {
+                "geometry": "fake.lane",
+                "_session": "tab-A",
+                "freqs_mhz": [14.0, 14.1, 14.2, 14.3],
+            },
+        ),
+    )
+    for r in (a, b):
+        assert r.status_code == 200
+        assert "error" not in r.json(), r.json()
+    assert sweep.status_code == 200
+    assert ex.evals >= 4  # both runs really iterated
+    assert meter.peak == 1
+
+
+def test_optimize_runs_of_two_sessions_still_overlap(monkeypatch):
+    # The lane is per session: another tab's run is not held behind this one.
+    meter = _Meter()
+    monkeypatch.setitem(server.EXAMPLES, "fake.lane", _optimize_example(meter, 0.05))
+    a, b = _gather_posts(
+        ("/optimize", _optimize_body("tab-A")),
+        ("/optimize", _optimize_body("tab-B")),
+    )
+    assert a.status_code == 200 and b.status_code == 200
+    assert meter.peak == 2
+
+
 def test_two_sessions_may_compute_concurrently(monkeypatch):
     # The inverse guard: the lane must serialize per session, not globally.
     meter = _Meter()
