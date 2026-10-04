@@ -5,12 +5,16 @@
 //   &analysis=<name>                      the chart's analysis (own or a study)
 //   &view=<view id>                       the chart's view (Rx, Knobs, Smith, …)
 //   &run=1                                press Run once it is selected
+//   ?deck=<z>&name=<file name>            an opened deck (lib/decks.ts): the
+//                                         file's text, compressed, in place
+//                                         of `design`
 //
 // React-free, so the grammar and the resolution are tested alone. The
 // session (DesignSession) applies a parsed link in stages and reports what it
 // could not resolve by name; nothing here touches the page.
 
 import type { AnalysisEntry } from "./analyses";
+import { DECK_NS, shareable, type DeckPayload } from "./decks";
 import type { ExampleDescriptor } from "./params";
 
 /** A parsed link. Every field is optional: an absent one is not part of the
@@ -21,10 +25,15 @@ export type DeepLink = {
   analysis: string | null;
   view: string | null;
   run: boolean;
+  /** An opened deck the link carries (`deck` + `name`); the shell opens it
+   *  and sets `design` to its key before the session reads the link. */
+  deck?: DeckPayload | null;
+  /** What went wrong opening the link's deck, for the link notice. */
+  problem?: string | null;
 };
 
 /** The query parameters a link owns; any other is left as it is. */
-export const LINK_PARAMS = ["design", "analysis", "view", "run"] as const;
+export const LINK_PARAMS = ["design", "analysis", "view", "run", "deck", "name"] as const;
 
 /** A non-empty, trimmed parameter, else null. */
 function param(q: URLSearchParams, k: string): string | null {
@@ -45,14 +54,18 @@ export function parseDeepLink(search: string): DeepLink | null {
     design = at < 0 ? raw : raw.slice(0, at).trim() || null;
     variant = at < 0 ? null : raw.slice(at + 1).trim() || null;
   }
+  const z = param(q, "deck");
   const link: DeepLink = {
     design,
     variant,
     analysis: param(q, "analysis"),
     view: param(q, "view"),
     run: q.get("run") === "1",
+    ...(z === null ? {} : { deck: { z, name: param(q, "name") ?? "deck.nec" } }),
   };
-  return link.design || link.variant || link.analysis || link.view || link.run ? link : null;
+  return link.design || link.variant || link.analysis || link.view || link.run || link.deck
+    ? link
+    : null;
 }
 
 /** What a link resolves to, or why it does not, in words the UI shows. */
@@ -82,6 +95,14 @@ export function resolveDesign(name: string, examples: readonly ExampleDescriptor
     return {
       ok: false,
       problem: `design "${name}" is not here: a user design opens only on the machine that has it`,
+    };
+  }
+  if (name.startsWith(DECK_NS)) {
+    return {
+      ok: false,
+      problem:
+        `design "${name}" is an opened deck this page does not hold: its link was too long ` +
+        "to carry the deck, so open the file again",
     };
   }
   return { ok: false, problem: `no design "${name}" in this workbench's catalog` };
@@ -147,6 +168,9 @@ export type LinkState = {
   variant: string | null;
   analysis: string | null;
   view: string | null;
+  /** The opened deck the design is, when it is one: the link carries it in
+   *  place of the design's key, when it fits (`decks.shareable`). */
+  deck?: DeckPayload | null;
 };
 
 /** `search` with the link's parameters replaced by `state`'s (any other
@@ -155,7 +179,15 @@ export type LinkState = {
 export function linkSearch(search: string, state: LinkState): string {
   const q = new URLSearchParams(search);
   for (const k of LINK_PARAMS) q.delete(k);
-  q.set("design", state.variant ? `${state.design}:${state.variant}` : state.design);
+  if (state.deck && shareable(state.deck)) {
+    // The deck itself: any browser that opens the link rebuilds the design
+    // from it. (Too long to carry, the key stands in: this page still opens
+    // it, and the session says the link cannot share it.)
+    q.set("deck", state.deck.z);
+    q.set("name", state.deck.name);
+  } else {
+    q.set("design", state.variant ? `${state.design}:${state.variant}` : state.design);
+  }
   if (state.analysis) {
     q.set("analysis", state.analysis);
     if (state.view) q.set("view", state.view);
