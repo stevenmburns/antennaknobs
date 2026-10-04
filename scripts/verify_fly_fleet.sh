@@ -12,6 +12,8 @@
 # Usage: verify_fly_fleet.sh <fly-app-name> <public-base-url>
 # Needs: flyctl (authed via FLY_API_TOKEN), jq, curl.
 # FLEET_SETTLE_SECONDS overrides the post-deploy settle wait (default 30).
+# tests/test_verify_fly_fleet.py runs this script against a fake flyctl and
+# curl; it never talks to Fly.
 set -euo pipefail
 
 app=$1
@@ -26,13 +28,37 @@ tag=${want##*:}
 machines=$(flyctl machines list -a "$app" --json)
 
 echo "release image: $want"
-jq -r '.[] | "machine \(.id) state=\(.state) image=\(.image_ref.tag)"' <<<"$machines"
+jq -r '.[] | "machine \(.id) region=\(.region) state=\(.state) image=\(.image_ref.tag)"' <<<"$machines"
 
-# .image_ref is the image the machine is ACTUALLY running (post-revert it
-# differs from .config.image, which only records what the update requested).
-if ! jq -e --arg tag "$tag" 'length > 0 and all(.[]; .image_ref.tag == $tag)' \
-    <<<"$machines" >/dev/null; then
-  echo "::error::fleet did not converge: a machine is not running $tag (flyd revert? see issue #403 — replace the stuck machine with 'fly machine clone' + 'fly machine destroy', then re-run this workflow)"
+# Which machines count as converged (AK#405, for a fleet whose idle regions
+# suspend). A rolling deploy updates EVERY machine's image, including one that
+# is not running: a stopped machine is updated and stays stopped, and a
+# suspended one is updated and left stopped, its memory snapshot discarded
+# because it belongs to the old image. Fly:
+#   https://fly.io/docs/reference/suspend-resume/ ("deployments rebuild the
+#     machine image, which invalidates the old snapshot" -- a cold start next)
+#   https://community.fly.io/t/dashboard-fly-toml-not-updating-after-deploy-machines-still-stopping-instead-of-suspending/27115
+#     (Fly staff, 2026-02-12: "Stopped Machines stay stopped, and ones in
+#     the suspended state transition to stopped")
+# So a machine converged if it is ON the release image, whatever its state
+# among started / stopped / suspended (or on the way between them). The image
+# is the test, not the state: a reverted machine (#403) is back on the OLD
+# image, running or not, and fails here either way. A machine in any other
+# state (failed, replacing, destroying, created) has not settled and fails.
+#
+# .image_ref is the image the machine is ACTUALLY on (post-revert it differs
+# from .config.image, which only records what the update requested).
+settled='["started","stopped","suspended","starting","stopping","suspending"]'
+bad=$(jq -r --arg tag "$tag" --argjson settled "$settled" '
+  .[] | select(.image_ref.tag != $tag or (.state as $s | $settled | index($s) | not))
+  | "\(.id) (\(.region)): state=\(.state) image=\(.image_ref.tag)"' <<<"$machines")
+if [ "$(jq 'length' <<<"$machines")" -eq 0 ]; then
+  echo "::error::fleet did not converge: the app lists no machines"
+  exit 1
+fi
+if [ -n "$bad" ]; then
+  echo "::error::fleet did not converge on $tag; these machines are not on it, or have not settled (flyd revert? see issue #403 -- replace the stuck machine with 'fly machine clone' + 'fly machine destroy', then re-run this workflow):"
+  echo "$bad"
   exit 1
 fi
 
