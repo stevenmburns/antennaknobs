@@ -306,7 +306,7 @@ export function BackendConfigModal({
               it is reduced-kernel only — so the predicate is derived from the
               served row now. See `offersExtendedKernel` (#1255). */}
           {offersExtendedKernel(backend) && (
-            <ExtendedKernelField backend={backend} opts={opts} onPatch={onPatch} />
+            <ExtendedKernelField backend={backend} opts={opts} design={design} onPatch={onPatch} />
           )}
 
           {/* Degree tabs, from the `basis` axis (#1006 G2-5). Rendered
@@ -405,10 +405,12 @@ const NOTE_STYLE = { color: "var(--muted)", fontSize: "var(--text-sm)" };
 function ExtendedKernelField({
   backend,
   opts,
+  design,
   onPatch,
 }: {
   backend: BackendEntry;
   opts: BackendOpts;
+  design: DesignConstraintInputs;
   onPatch: (patch: Partial<BackendOpts>) => void;
 }) {
   // The enrichment exclusion is momwire's and arrives in `constraints`
@@ -422,13 +424,25 @@ function ExtendedKernelField({
       <label className="link-toggle" title={EK_HINT}>
         <input
           type="checkbox"
-          checked={extendedKernelActive(backend, opts)}
+          checked={extendedKernelActive(backend, opts, design)}
           onChange={(e) =>
-            onPatch({ model: { ...opts.model, extended_kernel: e.target.checked } })
+            // AK#1891: an OFF is recorded only against a design whose default
+            // is on (a deck read as NEC-4 or NEC-5); elsewhere unchecking is
+            // just "not on", so a later NEC-4/5 deck still gets its default.
+            onPatch({
+              model: { ...opts.model, extended_kernel: e.target.checked },
+              ekOff: !e.target.checked && !!design.extended_kernel_default,
+            })
           }
         />
         extended kernel (EK)
       </label>
+      {design.extended_kernel_default && (
+        <em style={NOTE_STYLE}>
+          {"On by default: the deck is read as NEC-4 or NEC-5, whose thin-wire " +
+            "model is the extended one."}
+        </em>
+      )}
       <em style={NOTE_STYLE}>
         {"For fat wires — segments not much longer than the radius (Δ/a " +
           "below ~10). Thin-wire designs move a fraction of a percent."}

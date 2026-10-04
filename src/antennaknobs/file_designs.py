@@ -115,6 +115,7 @@ def _make_builder(
     network_fn,
     *,
     extended_kernel=False,
+    extended_kernel_by_dialect=False,
     ground=None,
     ground_method=None,
     file_deck=None,
@@ -154,6 +155,11 @@ def _make_builder(
         if ground_card:
             ui["ground_card"] = ground_card
     ui["fixed_segment_counts"] = True
+    # AK#1891: a deck read as NEC-4 or NEC-5 solves with the extended kernel
+    # unless the user's switch says otherwise; the app's per-slot toggle shows
+    # it on, and the server applies it to a request that does not say.
+    if extended_kernel_by_dialect:
+        ui["extended_kernel_default"] = True
     note = " ".join(n for n in notes if n)
     if note:
         ui["notes"] = note
@@ -179,12 +185,18 @@ def _make_builder(
         # loader for a format that is NOT NEC cards must say so here.
         c_light_mhz_m = NEC_C_LIGHT_MHZ_M
 
-        # The file's own EK card (NecDeck.extended_kernel), issue #849: the
-        # CLI's `--extended-kernel` handling ORs this in for a momwire engine
-        # (see `cli.engine_factory_from_args`) so a deck that asks for the
-        # extended thin-wire kernel gets it without an extra flag, and a
-        # deck that doesn't still honors an explicit `--extended-kernel`.
+        # The file's own EK card in a NEC-2 reading (NecDeck.extended_kernel),
+        # issue #849: the CLI turns the momwire kernel on for it
+        # (`cli.make_engine_factory`) so a deck that asks for the extended
+        # thin-wire kernel gets it without an extra flag, and a deck that
+        # doesn't still honours an explicit `--extended-kernel`.
         file_extended_kernel = extended_kernel
+        # The kernel this deck's DIALECT defaults to (AK#1891): True for a
+        # NEC-4 or NEC-5 reading. A default, not a request: the user's switch
+        # overrides it either way, and a basis that refuses the extended
+        # kernel falls back to the reduced one with an advisory instead of
+        # refusing the solve.
+        file_extended_kernel_default = extended_kernel_by_dialect
         # The deck's ground in the CLI's `--ground` shape (AK#1432): the
         # `@file` route applies it when `--ground` is not given.
         file_ground = ground
@@ -669,6 +681,7 @@ def _nec_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=No
         lambda: deck.wire_tuples(specs=True),
         deck.network,
         extended_kernel=deck.extended_kernel,
+        extended_kernel_by_dialect=deck.extended_kernel_by_dialect,
         ground=deck.ground_spec,
         ground_method=deck.ground_method,
         ground_card=(

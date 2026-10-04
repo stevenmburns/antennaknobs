@@ -1201,6 +1201,19 @@ from momwire's own table of couplings, never retyped here.
 - **A buried wire** cannot be solved under it (momwire#553): on a deck with
   a conductor below the interface the tab says so and withholds the solve.
 
+**A deck read as NEC-4 or NEC-5 opens with the check on.** NEC-5's kernel
+behaves as the extended one, and NEC-4's single thin-wire model is
+equivalent to it, so a deck in either dialect — detected, or chosen with
+**Read as** — is solved the way its own program solved it; the gear says
+so under the check. Turning it off is honoured, and changing **Read as** to
+NEC-2 turns it back off unless you set it yourself (a NEC-2 deck's `EK`
+card is the card's word, as before). A NEC-4 deck's `EK` card is ignored,
+as NEC-4 ignores it, and the import note says so; a `VC` card is noted as
+not modelled. On a solver that cannot run the kernel here — the
+reduced-only Pulse tab, a buried wire — the default quietly stays off and
+the solve's advisory names the reason, rather than refusing a solve you
+never asked to be extended.
+
 **PyNEC** has no such check — the toggle drives momwire's kernel. Changing a
 slot's solver resets the check along with that solver's other options, so an
 armed kernel never rides silently onto a basis you just switched to.

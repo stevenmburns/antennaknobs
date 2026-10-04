@@ -170,6 +170,9 @@ _IGNORED_CARDS = {
     "ZO": "impedance normalisation (xnec2c)",
     "IS": "insulated-wire sheath",
     "NX": "next structure -- only the first structure in the file was imported",
+    # NEC-4's source and end-cap option (AK#1891): NEC-4 caps wire ends as
+    # part of its own thin-wire model, which the solvers here do not carry.
+    "VC": "NEC-4's source and end-cap option, not modelled",
 }
 
 _UNSUPPORTED_CARDS = {
@@ -660,8 +663,14 @@ class NecDeck:
     # by the PyNEC engine (`extended_thin_wire_kernel=True`) so fat-wire
     # decks compare kernel-for-kernel against nec2c; momwire's kernels are
     # its own formulation, so this is reference fidelity, not a momwire knob.
-    # Deck-level: True if any EK card other than `EK -1` (off) appears.
+    # Deck-level: True if any EK card other than `EK -1` (off) appears, in a
+    # deck read as NEC-2. A NEC-4 or NEC-5 reading ignores the card
+    # (`ek_card_ignored`): NEC-4.2 prints that EK has no effect, and NEC-5
+    # has no such card. Those two readings take the extended kernel by
+    # default instead (`extended_kernel_by_dialect`, AK#1891).
     extended_kernel: bool = False
+    # An EK card a NEC-4 or NEC-5 reading ignored; `dialect_note` says so.
+    ek_card_ignored: bool = False
     # Wire indices (into ``wires``) whose geometry was replaced by virtual
     # circuit nodes. They are dropped from wire_tuples() and every port on
     # them is a PortVirtual in network(). Empty unless parsed with
@@ -960,6 +969,15 @@ class NecDeck:
             length_by_radius[w.radius] = length_by_radius.get(w.radius, 0.0) + ln
         return max(length_by_radius.items(), key=lambda kv: kv[1])[0]
 
+    @property
+    def extended_kernel_by_dialect(self) -> bool:
+        """Whether this reading solves with the extended kernel by default
+        (AK#1891): NEC-4's single thin-wire model is equivalent to NEC-3's
+        extended one, and NEC-5's kernel behaves as EK-on, so a deck read as
+        either is solved EK-on unless the user's switch says otherwise. A
+        NEC-2 reading keeps the card's word (`extended_kernel`)."""
+        return self.dialect in ("nec4", "nec5")
+
     def dialect_note(self) -> str:
         """One sentence saying which dialect the deck was read in and why,
         e.g. "Read as NEC-5 (sources and loads at segment ends): EZNEC's stamp
@@ -978,6 +996,12 @@ class NecDeck:
             if self.ground_file
             else ""
         )
+        if self.ek_card_ignored:
+            tail += (
+                " NEC-4 ignores EK; the extended kernel is used."
+                if self.dialect == "nec4"
+                else " NEC-5 has no EK card; the extended kernel is used."
+            )
         if self.dialect_chosen is None:
             return f"{head}: {self.dialect_reason}.{tail}"
         if self.dialect_detected is None:
@@ -5777,6 +5801,7 @@ def parse_nec(
     # is what let it read.
     refused: str | None = None
     extended_kernel = False
+    ek_card_seen = False
     syms: dict[str, float] = {}  # SY symbol table (#417)
     overrides = _lower_overrides(sy_overrides)
     sy_used: dict[str, int] = {}
@@ -6020,6 +6045,7 @@ def parse_nec(
             # decks in the wild use it globally, so one deck-level flag.
             card = _Card(mnemonic, tokens[1:], where, syms)
             extended_kernel = card.i(0) != -1
+            ek_card_seen = True
             continue
         if mnemonic == "GD":
             # Recorded as not applied until the dialect says otherwise
@@ -6274,6 +6300,11 @@ def parse_nec(
         tell = ("nec5", weak)
     detected = None if refused else (tell[0] if tell else "nec2")
     read_as = "nec5" if nec5_dialect else "nec4" if nec4_declared else "nec2"
+    # The kernel follows the reading (AK#1891): NEC-2 takes the card's word;
+    # NEC-4 and NEC-5 ignore an EK card and default to the extended kernel.
+    ek_card_ignored = ek_card_seen and read_as != "nec2"
+    if read_as != "nec2":
+        extended_kernel = False
     if dialect is not None:
         dialect_reason = "chosen by the reader"
     else:
@@ -6360,6 +6391,7 @@ def parse_nec(
         ignored_detail=tuple(detail),
         network_mode=network,
         extended_kernel=extended_kernel,
+        ek_card_ignored=ek_card_ignored,
         virtual_anchors=virtual_anchors,
         virtual_segment_wires=virtual_segment_wires,
         virtual_pins=virtual_pins,

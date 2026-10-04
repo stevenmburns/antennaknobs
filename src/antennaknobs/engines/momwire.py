@@ -976,6 +976,7 @@ class MomwireEngine(SimulationEngine):
         ground=None,
         ground_z=0.0,
         extended_kernel=False,
+        extended_kernel_default=False,
         cancel=None,
     ):
         """
@@ -1021,6 +1022,13 @@ class MomwireEngine(SimulationEngine):
           One combination refuses (singular enrichment) — see
           `_extended_kernel_refusal`; the refusal is raised HERE, at engine
           construction, not from inside a fill.
+        extended_kernel_default:
+          The extended kernel as a DEFAULT rather than a request (AK#1891: a
+          deck read as NEC-4 or NEC-5). On, unless this basis or this deck
+          refuses it — the basis itself, singular enrichment, a buried wire,
+          a radius step at a junction — and then the reduced kernel, with an
+          "ExtendedKernel" advisory naming the refusal. Ignored when
+          `extended_kernel` is on, which still refuses.
         ground:
           None or "free"           — no ground (default)
           "pec"                    — PEC plane at z=ground_z (image method)
@@ -1277,6 +1285,25 @@ class MomwireEngine(SimulationEngine):
                 self._wire_radius = radii
         else:
             self._wire_radius = default_radius
+        # AK#1891: a dialect's default kernel, resolved once the geometry is
+        # known, since two of its refusals are about the deck.
+        self._kernel_notes = []
+        if extended_kernel_default and not self._extended_kernel:
+            why = self._extended_kernel_default_refusal()
+            if why is None:
+                self._extended_kernel = True
+            else:
+                name = getattr(self._solver, "__name__", self._solver)
+                self._kernel_notes.append(
+                    {
+                        "category": "ExtendedKernel",
+                        "text": (
+                            "This deck's dialect solves with the extended "
+                            f"kernel by default, which {name} cannot serve "
+                            f"here, so it solved with the reduced kernel: {why}"
+                        ),
+                    }
+                )
         # Distributed loading rides only the solvers that model it; warn
         # once (not raise) so a matched-basis sinusoidal comparison of a
         # lossy design still solves — as the ideal wire, stated plainly.
@@ -1617,6 +1644,37 @@ class MomwireEngine(SimulationEngine):
         reason = _extended_kernel_refusal(self._solver, self._solver_kwargs)
         if reason is not None:
             raise NotImplementedError(reason)
+
+    def _extended_kernel_default_refusal(self):
+        """Why the extended kernel cannot be this engine's DEFAULT, or None:
+        the basis's own refusal (`_extended_kernel_refusal`), then the two
+        that depend on the deck — a wire below the ground plane, and a
+        radius step at a junction — each in the solver's own words
+        (`Capabilities.refusal`). The request form of the kernel meets the
+        same refusals from momwire; a default must not, so it asks first."""
+        reason = _extended_kernel_refusal(self._solver, self._solver_kwargs)
+        if reason is not None:
+            return reason
+        if self._ground_z is not None:
+            from momwire import ground_touch_tol
+
+            gz = float(self._ground_z)
+            if any(
+                float(np.asarray(pl)[:, 2].min()) < gz - ground_touch_tol(pl)
+                for pl in self._polylines
+            ):
+                reason = _capability_refusal(self._solver, "buried", "extended_kernel")
+                if reason is not None:
+                    return reason
+        radii = self._wire_radius
+        if isinstance(radii, (list, tuple)) and any(
+            len({radii[w] for w, _end in members}) > 1
+            for members in self._junctions or ()
+        ):
+            return _capability_refusal(
+                self._solver, "extended_kernel", "stepped_radius_junction"
+            )
+        return None
 
     def _kernel_solver_kwargs(self, extended_kernel=None):
         """Extra kernel kwargs for solver construction.
@@ -1994,6 +2052,7 @@ class MomwireEngine(SimulationEngine):
             items
             + SimulationEngine.advisories.fget(self)
             + list(getattr(self, "_placement_notes", None) or [])
+            + list(getattr(self, "_kernel_notes", None) or [])
         )
 
     def _parity_exempt_names(self):

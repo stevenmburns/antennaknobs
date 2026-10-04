@@ -213,6 +213,9 @@ export type ExampleDescriptor = {
    *  the solvers honour whatever the slot's N says; the slot label reads
    *  "deck's own" instead of a number that does nothing. */
   fixed_segment_counts?: boolean;
+  /** AK#1891: a deck read as NEC-4 or NEC-5 solves with the extended kernel
+   *  unless the slot's switch says otherwise. */
+  extended_kernel_default?: boolean;
   /** True when the Builder has a `design_freq` param that scales
    *  geometry (design_freq-sized designs). When false, the design-freq
    *  band-tab row is hidden because dragging it would be a no-op. */

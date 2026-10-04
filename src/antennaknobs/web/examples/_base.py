@@ -323,6 +323,11 @@ class AntennaExample:
     # deck's GW does), which the solvers honour whatever the slot's N says;
     # the slot label reads "deck's own" instead of a number that does nothing.
     fixed_segment_counts: bool = False
+    # AK#1891 — a deck read as NEC-4 or NEC-5 solves with the extended kernel
+    # unless the user's switch says otherwise. The frontend's per-slot EK
+    # toggle shows this as its default; the server applies it to a request
+    # that does not say (`adapter._make_momwire_engine`).
+    extended_kernel_default: bool = False
     pynec_build: Optional[PynecBuildFn] = None
     pynec_solve: Optional[SolveFn] = None
     #: NEC-5 twins (issue #825): same request/response contracts as the

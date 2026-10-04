@@ -2874,10 +2874,18 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
     # above) or local (model_options forwarded verbatim, sanitize_model_options
     # skips the whitelist). MomwireEngine folds either spelling identically,
     # but the named kwarg is the explicit, testable path.
-    extended_kernel = False
+    asked = None
     if solver_kwargs and "extended_kernel" in solver_kwargs:
         solver_kwargs = dict(solver_kwargs)
-        extended_kernel = bool(solver_kwargs.pop("extended_kernel"))
+        asked = bool(solver_kwargs.pop("extended_kernel"))
+    # AK#1891: a deck read as NEC-4 or NEC-5 solves with the extended kernel
+    # by default. A request that does not say gets it, and so does one that
+    # says on: the slot's toggle shows the default on, so "on" there is the
+    # default, which falls back to the reduced kernel with an advisory where
+    # the basis or the deck refuses it. Only an explicit off turns it off.
+    by_dialect = bool(getattr(builder, "file_extended_kernel_default", False))
+    extended_kernel = bool(asked) and not by_dialect
+    extended_kernel_default = by_dialect and asked is not False
     # Rotational symmetry (momwire#1029 sector route), gated the same way on
     # BOTH paths — hosted (already whitelisted through _OPTION_SPECS above)
     # and local (model_options forwarded verbatim, sanitize_model_options
@@ -2919,6 +2927,7 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
         solver_kwargs=solver_kwargs,
         ground=ground,
         extended_kernel=extended_kernel,
+        extended_kernel_default=extended_kernel_default,
         cancel=cancel,
     )
 
@@ -5459,6 +5468,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         ground_medium=_ui_medium(dp),
         ground_card=(str(gc) if (gc := _ui_scalar(dp, "ground_card", None)) else None),
         fixed_segment_counts=bool(_ui_scalar(dp, "fixed_segment_counts", False)),
+        extended_kernel_default=bool(_ui_scalar(dp, "extended_kernel_default", False)),
         pynec_solve=pynec_solve,
         pynec_build=pynec_build,
         pynec_pattern_excite=pynec_pattern_excite,

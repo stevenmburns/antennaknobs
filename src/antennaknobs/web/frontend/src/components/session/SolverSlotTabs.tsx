@@ -1,5 +1,11 @@
 import { backendDisplayLabel, slotOrder } from "../../lib/backends";
-import type { BackendEntry, BackendOpts, Slot, SlotConfig } from "../../lib/backends";
+import type {
+  BackendEntry,
+  BackendOpts,
+  DesignConstraintInputs,
+  Slot,
+  SlotConfig,
+} from "../../lib/backends";
 import { AddSlotButton } from "./SlotStripControls";
 
 export function SolverSlotTabs({
@@ -13,6 +19,7 @@ export function SolverSlotTabs({
   fixedSegmentCounts = false,
   nextSlot = null,
   onAdd = () => {},
+  design = null,
 }: {
   slots: Record<Slot, SlotConfig>;
   activeSlot: Slot;
@@ -27,13 +34,16 @@ export function SolverSlotTabs({
   /** The id the strip's + adds (AK#1801), or null: no + (the family is full). */
   nextSlot?: Slot | null;
   onAdd?: () => void;
+  /** The loaded design, so a chip says "+EK" where a deck's dialect turns
+   *  the kernel on (AK#1891). */
+  design?: DesignConstraintInputs | null;
 }) {
   const nLabel = (n: number) => (fixedSegmentCounts ? "deck's own" : String(n));
   return (
     <div className="field">
       <label>
         <span>solver slot</span>
-        <span>{backendDisplayLabel(backend, currentOpts)} · N={nLabel(nPerWire)}</span>
+        <span>{backendDisplayLabel(backend, currentOpts, design)} · N={nLabel(nPerWire)}</span>
       </label>
       <div className="backend-tabs" role="tablist">
         {slotOrder(slots).map((s) => {
@@ -43,13 +53,13 @@ export function SolverSlotTabs({
               <button
                 role="tab"
                 aria-selected={activeSlot === s}
-                aria-label={`Solver slot ${s}: ${backendDisplayLabel(cfg.backend, cfg.opts)}, N=${nLabel(cfg.opts.nPerWire)}`}
+                aria-label={`Solver slot ${s}: ${backendDisplayLabel(cfg.backend, cfg.opts, design)}, N=${nLabel(cfg.opts.nPerWire)}`}
                 className={`backend-tab-btn ${activeSlot === s ? "active" : ""}`}
-                title={`${backendDisplayLabel(cfg.backend, cfg.opts)}, N=${nLabel(cfg.opts.nPerWire)}`}
+                title={`${backendDisplayLabel(cfg.backend, cfg.opts, design)}, N=${nLabel(cfg.opts.nPerWire)}`}
                 onClick={() => onSelect(s)}
               >
                 <span className="slot-letter">{s}</span>
-                <span className="slot-sub">{backendDisplayLabel(cfg.backend, cfg.opts)}</span>
+                <span className="slot-sub">{backendDisplayLabel(cfg.backend, cfg.opts, design)}</span>
               </button>
               <button
                 className="backend-gear-btn"
