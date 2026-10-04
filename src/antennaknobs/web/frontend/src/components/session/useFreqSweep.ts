@@ -15,6 +15,7 @@ import {
 } from "../../lib/sweep";
 import type { SweepAxes } from "../../lib/sweepAxis";
 import type { Advisory } from "../results/SolverAdvisories";
+import { apiFetch } from "../../lib/pin";
 
 // One frequency sweep runner: the debounced base sweep over a range, its
 // adaptive refinement rounds (issue #744) and their phase, progress and
@@ -71,7 +72,7 @@ async function streamSweep(
       ? { feeds_z_im: acc.feeds_z_im.map((row) => row.slice()) }
       : {}),
   });
-  const resp = await fetch("/sweep", {
+  const resp = await apiFetch("/sweep", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

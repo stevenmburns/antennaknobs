@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { withDeck } from "../../lib/decks";
+import {
+  dropFailedPin,
+  machinePin,
+  noteChannelMachine,
+  onMachinePinChange,
+  pinnedWsUrl,
+} from "../../lib/pin";
 import type { SolveRequest, SolveResponse } from "../../lib/api";
 import {
   cutsWsSend,
@@ -272,6 +279,9 @@ export function useSolveChannel({
     let retryTimer: number | null = null;
     let attempt = 0;
     let current: WebSocket | null = null;
+    // The machine the live socket reached, from its first message (AK#405;
+    // on Fly only, null elsewhere).
+    let currentMachine: string | null = null;
     let dropCurrentSender = () => {};
 
     const scheduleReconnect = () => {
@@ -288,8 +298,13 @@ export function useSolveChannel({
     };
 
     const connect = () => {
-      const ws = new WebSocket(WS_URL);
+      // Pinned (AK#405), the socket asks for its machine in the URL; off Fly
+      // nothing is ever pinned and this is WS_URL itself.
+      const attemptedPin = machinePin();
+      const ws = new WebSocket(pinnedWsUrl(WS_URL));
+      let opened = false;
       current = ws;
+      currentMachine = null;
       wsRef.current = ws;
       setStatus("connecting");
       // This socket's cuts sender (issue #551). A stable identity per socket
@@ -308,6 +323,7 @@ export function useSolveChannel({
       dropCurrentSender = dropCutsSender;
       ws.onopen = () => {
         if (ws !== current) return;
+        opened = true;
         attempt = 0;
         everOpenedRef.current = true;
         setWaiting(false);
@@ -332,6 +348,9 @@ export function useSolveChannel({
       const lost = () => {
         if (ws !== current) return;
         current = null;
+        // A pinned socket that never opened: its machine is gone, so the
+        // reconnect goes unpinned and re-pins from wherever it lands.
+        if (!opened) dropFailedPin(attemptedPin);
         setStatus("closed");
         dropCutsSender();
         // A solve in flight is lost with the socket: the result on screen is
@@ -353,9 +372,14 @@ export function useSolveChannel({
       ws.onclose = lost;
       ws.onerror = lost;
       ws.onmessage = (ev) => {
-        const data: SolveResponse & Partial<CutsWsMessage> = JSON.parse(
-          ev.data,
-        );
+        const raw: { _kind?: string; id?: unknown } = JSON.parse(ev.data);
+        if (raw._kind === "machine") {
+          // The machine this channel reached (AK#405): the session's pin.
+          currentMachine = typeof raw.id === "string" && raw.id ? raw.id : null;
+          noteChannelMachine(currentMachine);
+          return;
+        }
+        const data = raw as SolveResponse & Partial<CutsWsMessage>;
         if (data._kind === "cuts") {
           // Cuts sidecar response (issue #551) — never a solve; route it
           // before any _seq/solving bookkeeping.
@@ -414,7 +438,15 @@ export function useSolveChannel({
     };
 
     connect();
+    // Re-pinned elsewhere (a pinned request failed over): follow the pin, so
+    // the live solves and the batch work share one machine's lane again.
+    const unpin = onMachinePinChange((pin) => {
+      if (pin !== null && currentMachine !== null && pin !== currentMachine) {
+        current?.close();
+      }
+    });
     return () => {
+      unpin();
       disposed = true;
       if (retryTimer !== null) window.clearTimeout(retryTimer);
       if (solveRafRef.current !== null) {

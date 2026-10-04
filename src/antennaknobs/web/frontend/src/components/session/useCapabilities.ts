@@ -12,6 +12,7 @@ import type {
   TerrainPresetSchema,
 } from "../../lib/ground";
 import { readUiDefaults, type UiDefaults } from "../../lib/settings";
+import { apiFetch } from "../../lib/pin";
 
 /** GET /capabilities, typed. `have_pynec` is still served for compatibility
  *  but is no longer read: PyNEC's availability is roster membership (#628). */
@@ -104,7 +105,7 @@ export function useCapabilities(): CapabilitiesState {
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch("/capabilities");
+        const r = await apiFetch("/capabilities");
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const c: CapabilitiesPayload = await r.json();
         if (cancelled) return;

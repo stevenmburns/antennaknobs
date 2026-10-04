@@ -37,6 +37,42 @@ FastAPI process serving the API, the `/ws` live-solve channel, and the built
 React SPA). It's deployed as a container on Fly.io; the repo's `docs/deploy.md`
 is the runbook.
 
+### More than one machine
+
+The hosted app can run on more than one machine, in different regions, so
+that a page talks to one near you. A page keeps to the machine it first reached for everything it does: its live
+solves, its sweeps and an opened deck all go to that one machine, so "one
+solve at a time" still holds for your tab, and a deck you opened is parsed
+once. If that machine goes away, the page moves to another and carries on;
+the new one starts with a cold cache.
+
+Each machine has its own limits: the opened-deck slot, the new-decks-per-minute
+count and the solve cache are per machine, not shared across them. A region
+with no visitors sleeps, and the first request wakes it, usually in well under
+a second; just after a release it starts cold instead, which takes a few
+seconds.
+
+On a local workbench none of this applies: there is one process, and nothing
+is pinned or sent.
+
+### What is counted
+
+To see which designs and engines get used, the hosted app counts, per machine:
+
+- **solves**: each live solve the server actually ran (not a cached answer),
+  by design, engine and ground model;
+- **sessions**: each live-solve connection, by whether its first solve was of
+  a catalog design, an opened deck or a design from a designs folder;
+- **opened decks**: each **Open…**, by the NEC dialect it was read in and
+  whether it opened, was refused or was turned away for the rate limit.
+
+The design is named only when it is a catalog design; an opened deck is
+counted as `deck` and a designs-folder design as `user`, never by file name.
+Nothing that identifies a person is counted or kept: no address, no session
+or browser identifier, no deck contents and no knob values. The counts are
+plain totals, which the hosting provider's own monitoring reads; they are not
+served to the public. A local workbench counts nothing.
+
 ### Crash reports
 
 If the page itself breaks, it shows **Something broke on this page** and a

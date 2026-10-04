@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { type AnalysisEntry, parseAnalyses } from "../../lib/analyses";
+import { apiFetch } from "../../lib/pin";
 
 const NONE: AnalysisEntry[] = [];
 
@@ -30,7 +31,7 @@ export function useDesignAnalyses({
     // lands in the catch like any other failure.
     Promise.resolve()
       .then(() =>
-        fetch("/analyses", {
+        apiFetch("/analyses", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(request()),

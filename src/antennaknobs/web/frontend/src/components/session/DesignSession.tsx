@@ -247,6 +247,7 @@ import {
   type SweepPinKeep,
   sweepPinsBlocked,
 } from "../../lib/keep";
+import { apiFetch } from "../../lib/pin";
 
 // The Z-vs-parameter header's height on a phone (two wrapped rows plus its
 // margin), which the chart below it gives up.
@@ -2215,7 +2216,7 @@ function DesignSessionBody({
         previewAbortRef.current?.abort();
         const controller = new AbortController();
         previewAbortRef.current = controller;
-        fetch("/geometry", {
+        apiFetch("/geometry", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: sig,
@@ -2364,7 +2365,7 @@ function DesignSessionBody({
       }
     }
     previewSigRef.current = JSON.stringify(req);
-    fetch("/geometry", {
+    apiFetch("/geometry", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),

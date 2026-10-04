@@ -6,6 +6,7 @@ import type {
   SolveRequest,
 } from "../../lib/api";
 import type { FilesViewData } from "../results/FilesPanel";
+import { apiFetch } from "../../lib/pin";
 
 // The Files view's data (AK#1428): the file the design was written as, and the
 // deck an external engine was given plus the report it printed.
@@ -68,7 +69,7 @@ export function useEngineFiles({
   useEffect(() => {
     if (!active || !geometry) return;
     const controller = new AbortController();
-    fetch("/design_source", {
+    apiFetch("/design_source", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ geometry }),
@@ -88,7 +89,7 @@ export function useEngineFiles({
     // Debounced like the engine texts below: a drag lands a solve per tick,
     // and only the antenna the drag settles on is worth writing a circuit for.
     const t = setTimeout(() => {
-      fetch("/design_ssn", {
+      apiFetch("/design_ssn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildRequest()),
@@ -120,7 +121,7 @@ export function useEngineFiles({
     // Debounced like the schematic: a drag lands a solve per tick, and only
     // the one the drag settles on is worth a printout.
     const t = setTimeout(() => {
-      fetch("/engine_io", {
+      apiFetch("/engine_io", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...buildRequest(), solve_id: solveId }),
