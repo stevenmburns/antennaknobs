@@ -72,7 +72,7 @@ export function useMobileCarousel({
   const [mobileIndex, setMobileIndex] = useState(0);
   const mobileCarouselRef = useRef<HTMLDivElement>(null);
   const mobileScrollRafRef = useRef<number | null>(null);
-  const { ref: mobRef, size: mobChartSize } = useSlideSize(720, isMobile);
+  const { ref: mobRef, size: mobChartSize, width: mobPaneWidth } = useSlideSize(720, isMobile);
   // The pinned list `mobileIndex` was last valid against. null while the
   // desktop tree is up, so entering mobile always re-reconciles: a desktop
   // peek leaves `view` unpinned, and an unpinned view has no page here.
@@ -166,6 +166,7 @@ export function useMobileCarousel({
     mobileCarouselRef,
     mobRef,
     mobChartSize,
+    mobPaneWidth,
     onMobileCarouselScroll,
     goToMobileScreen,
   };

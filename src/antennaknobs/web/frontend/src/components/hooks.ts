@@ -24,9 +24,12 @@ export const ThemeContext = createContext<Theme>("light");
 // `reattachKey` must change whenever the ref'd box is REPLACED (unmounted and
 // mounted anew): the observer is attached once per key, and a detached box
 // measures 0, so a stale key pins the size at the 160 px floor.
+// `width` is the box's own width, for a caller that lays something beside
+// the square (the phone's combined view, AK#1732).
 export function useSlideSize(maxSize = 720, reattachKey?: unknown) {
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(maxSize);
+  const [width, setWidth] = useState(maxSize);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -34,13 +37,14 @@ export function useSlideSize(maxSize = 720, reattachKey?: unknown) {
       const rect = el.getBoundingClientRect();
       const s = Math.min(rect.width, rect.height, maxSize);
       setSize(Math.max(160, Math.floor(s) - 16));
+      setWidth(Math.floor(rect.width));
     };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
   }, [maxSize, reattachKey]);
-  return { ref, size };
+  return { ref, size, width };
 }
 
 // Grid mode's per-cell chart size (unit 3, docs/plan-view-rail-scaling.md):
