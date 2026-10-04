@@ -232,6 +232,27 @@ in `fly.toml`'s `[env]` if the VM grows:
 | `ANTENNAKNOBS_MAX_BASIS_COMPRESSED` | `9000` | `arrayblock` / `hmatrix` (block-low-rank, ~0.6× dense memory) |
 | `ANTENNAKNOBS_MAX_BASIS_PYNEC` | `7000` | PyNEC (full dense N×N, same as dense momwire) |
 
+## Opened decks (a visitor's own `.nec` / `.ssn`)
+
+A visitor can open their own NEC deck on the workbench (`POST /deck`; see
+`web/decks.py`). The link carries the deck, so the server keeps only an
+in-memory LRU of parsed decks and nothing on disk. Its limits follow
+`ANTENNAKNOBS_HOSTED` for their defaults and are each env-overridable:
+
+| Env var | Default hosted / local | Applies to |
+|---|---|---|
+| `ANTENNAKNOBS_DECK_MAX_BYTES` | `65536` / same | deck text, refused before it parses |
+| `ANTENNAKNOBS_DECK_MAX_SEGMENTS` | `3000` / same | segments after GM/GR/GX copies and at any knob value, refused before a card builds |
+| `ANTENNAKNOBS_DECK_MAX_WIRES` | `200` / same | wires, likewise |
+| `ANTENNAKNOBS_DECK_BUDGET_S` | `60` / `0` (off) | wall time of one solve-shaped turn; a watchdog trips the solve's CancelToken |
+| `ANTENNAKNOBS_DECK_BUSY_WAIT_S` | `10` / — | hosted: one opened-deck solve at a time; a turn that would wait longer for another client's answers 503 / "busy" at once |
+| `ANTENNAKNOBS_DECK_OPENS_PER_MIN` | `10` / `0` (off) | new decks per client address (`Fly-Client-IP`) per minute |
+
+Hosted, PyNEC is refused for an opened deck (it cannot be cancelled
+mid-solve), and its admission fails closed: a deck whose size cannot be
+estimated is refused rather than run. The one-at-a-time slot is per process;
+a deploy that runs more than one machine gets one slot per machine.
+
 ## Sweep memory budget (`ANTENNAKNOBS_SWEPT_MEM_MB`)
 
 Separate from the size caps (and **not** gated on `ANTENNAKNOBS_HOSTED`):
