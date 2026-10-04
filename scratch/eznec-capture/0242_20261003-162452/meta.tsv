@@ -1,0 +1,15 @@
+shim_version	1
+mode	delegate
+started_utc	2026-10-03T23:24:52.6423014Z
+command_line	"C:\EZNEC 7.0\Docs\momwire-nec4.exe" "EZ.NEC" "NEC.OUT"
+argument_tail	"EZ.NEC" "NEC.OUT"
+cwd	C:\EZNEC 7.0\Docs
+shim_path	C:\EZNEC 7.0\Docs
+real_engine	C:\EZNEC 7.0\Docs\momwire-nec4.real.exe
+real_engine_sha256	56e33632e5980b028aed7c39f677ce899e17b59ff26006633ee4b2d466f57501
+stdin_redirected	False
+stdout_redirected	False
+parent_pid	21884 (self)
+exit_code	0
+elapsed_ms	20
+finished_utc	2026-10-03T23:24:52.7276824Z

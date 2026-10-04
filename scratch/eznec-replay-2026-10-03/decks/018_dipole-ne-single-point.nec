@@ -1,0 +1,14 @@
+CM Dipole in free space
+CM
+CM EZNEC Pro/2+ v. 7.0.4  2026-10-03 17:13:09
+CM
+CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-4.2 format.
+CE
+GW 1,11,0.,-.25,10.,0.,.25,10.,.0005
+GE 0,-1
+FR 0,1,0,0,299.7925
+GN -1
+EX 6,1,6,0,1.414214,0.
+PQ 0
+NE 0,1,1,1,0.,0.,0.,0.,0.,0.
+EN

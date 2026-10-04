@@ -1,0 +1,18 @@
+CM Dipole in free space
+CM
+CM EZNEC Pro/2+ v. 7.0.4  2026-10-03 17:10:25
+CM
+CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-4.2 format.
+CM 
+CM ! WARNING: MININEC-type ground may not work properly with standard
+CM !          NEC-2 or -4 program.
+CE
+GW 1,11,0.,-.25,10.,0.,.25,10.,.0005
+GE 1,-1
+FR 0,1,0,0,299.7925
+GN 1,0,0,0,0.,0.
+EX 6,1,6,0,1.414214,0.
+GD 2,0,0,0,13.,.005,0.,0.
+PQ 0
+XQ 0
+EN
