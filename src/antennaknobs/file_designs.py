@@ -433,12 +433,18 @@ class _SyKnobs:
         return knobs, knobs.note(freq)
 
     @classmethod
-    def for_deck(cls, path: Path, text: str, refine: int, deck, freq):
-        """A ``.nec`` deck's SY knobs (AK#1705)."""
+    def for_deck(cls, path: Path, text: str, refine: int, deck, freq, limits=None):
+        """A ``.nec`` deck's SY knobs (AK#1705). ``limits`` bounds every
+        re-parse as it bounded the import: a knob that grows the
+        structure past them is refused like any other value that breaks it."""
 
         def reparse(overrides):
             return parse_nec(
-                text, name=path.name, network=True, sy_overrides=overrides
+                text,
+                name=path.name,
+                network=True,
+                sy_overrides=overrides,
+                limits=limits,
             ).refined(refine)
 
         return cls._for(
@@ -446,7 +452,7 @@ class _SyKnobs:
         )
 
     @classmethod
-    def for_circuit(cls, path: Path, text: str, circuit, freq):
+    def for_circuit(cls, path: Path, text: str, circuit, freq, limits=None):
         """A ``.ssn`` circuit's dcl knobs (AK#1714) and element-parameter
         knobs (AK#1716)."""
         try:
@@ -455,7 +461,7 @@ class _SyKnobs:
             return None, None
         return cls._for(
             path.stem,
-            lambda overrides: _ssn_circuit(text, path.name, overrides),
+            lambda overrides: _ssn_circuit(text, path.name, overrides, limits),
             lambda: symbols,
             circuit,
             freq,
@@ -635,10 +641,10 @@ class _DeckAtParams:
         return self.deck if obj is None else self.knobs.deck_for(obj)
 
 
-def _nec_builder(path: Path, text: str, refine: int = 1):
-    deck = parse_nec(text, name=path.name, network=True).refined(refine)
+def _nec_builder(path: Path, text: str, refine: int = 1, limits=None):
+    deck = parse_nec(text, name=path.name, network=True, limits=limits).refined(refine)
     freq, meas_range, freq_note = _seed_freq(deck.freq_mhz)
-    knobs, knob_note = _SyKnobs.for_deck(path, text, refine, deck, freq)
+    knobs, knob_note = _SyKnobs.for_deck(path, text, refine, deck, freq, limits)
     return _make_builder(
         path.stem,
         freq,
@@ -695,11 +701,13 @@ def _ground_note(ground) -> str | None:
     return f"The file models {desc} ground — run with --ground {arg} to match."
 
 
-def _ssn_circuit(text: str, name: str, dcl_overrides=None):
+def _ssn_circuit(text: str, name: str, dcl_overrides=None, limits=None):
     """The circuit a ``.ssn`` design builds from: `parse_ssn` with the
     wire material applied. The import and every knob re-parse (AK#1714) go
     through here, so the two cannot differ by the material step."""
-    circuit = parse_ssn(text, name=name, network=True, dcl_overrides=dcl_overrides)
+    circuit = parse_ssn(
+        text, name=name, network=True, dcl_overrides=dcl_overrides, limits=limits
+    )
     if circuit.conductivity is not None and circuit.deck.conductivity is None:
         # NECOptions.mhosPerMeter is the wire material; bake it into the deck
         # so wire_tuples(specs=True) carries it per wire, exactly as a deck
@@ -711,13 +719,13 @@ def _ssn_circuit(text: str, name: str, dcl_overrides=None):
     return circuit
 
 
-def _ssn_builder(path: Path, text: str, refine: int = 1):
+def _ssn_builder(path: Path, text: str, refine: int = 1, limits=None):
     if refine != 1:
         raise SystemExit(
             f"{path.name}: a SimNEC circuit has no refinement path; "
             "export it to .nec and refine the deck"
         )
-    circuit = _ssn_circuit(text, path.name)
+    circuit = _ssn_circuit(text, path.name, limits=limits)
     deck = circuit.deck
     # The Generator's MHz is the authoritative solve frequency; the deck's FR
     # is advisory. Either can seed the measurement range (an armed sweep wins).
@@ -727,7 +735,7 @@ def _ssn_builder(path: Path, text: str, refine: int = 1):
         freq, _, freq_note = _seed_freq(deck.freq_mhz)
     meas_range = circuit.sweep or deck.freq_mhz
     sweep_grid = circuit.sweep_grid if circuit.sweep else deck.freq_grid
-    knobs, knob_note = _SyKnobs.for_circuit(path, text, circuit, freq)
+    knobs, knob_note = _SyKnobs.for_circuit(path, text, circuit, freq, limits)
     return _make_builder(
         path.stem,
         freq,
@@ -794,3 +802,23 @@ def builder_from_file(spec: str, refine: int = 1):
     # are ASCII, so replace rather than refuse on a stray comment byte.
     text = path.read_text(encoding="utf-8", errors="replace")
     return loader(path, text, refine=refine)
+
+
+def builder_from_text(name: str, text: str, *, limits=None):
+    """The builder class for a design file's TEXT, named ``name``:
+    the hosted workbench's opened decks, which never touch the disk.
+
+    The same loader `builder_from_file` dispatches to, on the same text, so a
+    deck opened this way is the design ``@path`` imports. ``name`` is only a
+    file name -- its extension picks the loader and its stem labels the design;
+    no path in it is ever read. ``limits`` (`nec_import.GeometryLimits`)
+    bounds the import and every knob re-parse."""
+    path = Path(Path(name).name)
+    loader = _LOADERS.get(path.suffix.lower())
+    if loader is None:
+        raise ValueError(
+            f"{path.name}: unsupported design-file extension "
+            f"{path.suffix.lower() or '(none)'!r} -- opens "
+            f"{' / '.join(sorted(_LOADERS))} antenna files"
+        )
+    return loader(path, text, limits=limits)
