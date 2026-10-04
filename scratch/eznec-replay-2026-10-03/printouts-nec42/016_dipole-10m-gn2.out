@@ -1,0 +1,185 @@
+1
+
+
+
+                                ***********************************************
+                                *                                             *
+                                *  NUMERICAL ELECTROMAGNETICS CODE (NEC-4.2)  *
+                                *                                             *
+                                ***********************************************
+
+
+
+
+                      **********************************************************
+
+                          Dipole in free space                                                         
+                                                                                                       
+                          EZNEC Pro/2+ v. 7.0.4  2026-10-03 17:10:10                                   
+                                                                                                       
+                          ! Written by EZNEC/Pro+ v. 7.0 in NEC-4.2 format.                            
+                                                                                                       
+
+                      **********************************************************
+
+
+
+
+
+                                 - - - STRUCTURE SPECIFICATION - - -
+
+                                     COORDINATES MUST BE INPUT IN
+                                     METERS OR BE SCALED TO METERS
+                                     BEFORE STRUCTURE INPUT IS ENDED
+
+
+  WIRE                                                                               NO. OF    FIRST  LAST     TAG
+  NO.        X1         Y1         Z1          X2         Y2         Z2      RADIUS   SEG.     SEG.   SEG.     NO.
+     1    0.00000   -0.25000   10.00000     0.00000    0.25000   10.00000    0.00050     11        1    11       1
+
+   GROUND PLANE SPECIFIED.
+
+   WHERE WIRE ENDS TOUCH GROUND, CURRENT WILL BE INTERPOLATED TO IMAGE IN GROUND PLANE.
+
+
+   TOTAL SEGMENTS USED=   11     NO. SEG. IN A SYMMETRIC CELL=   11     SYMMETRY FLAG=  0
+
+
+         - MULTIPLE WIRE JUNCTIONS -
+ JUNCTION    SEGMENTS  (- FOR END 1, + FOR END 2)
+  NONE
+
+
+
+
+                                 - - - - SEGMENTATION DATA - - - -
+
+                                        COORDINATES IN METERS
+
+                         I+ AND I- INDICATE THE SEGMENTS BEFORE AND AFTER I
+
+
+  SEG.   COORDINATES OF SEG. CENTER     SEG.     ORIENTATION ANGLES    WIRE    CONNECTION DATA   TAG
+  NO.       X         Y         Z       LENGTH     ALPHA     BETA      RADIUS    I-   I    I+    NO.
+     1   0.00000  -0.22727  10.00000   0.04545    0.00000  90.00000   0.00050     0    1    2      1
+     2   0.00000  -0.18182  10.00000   0.04545    0.00000  90.00000   0.00050     1    2    3      1
+     3   0.00000  -0.13636  10.00000   0.04545    0.00000  90.00000   0.00050     2    3    4      1
+     4   0.00000  -0.09091  10.00000   0.04545    0.00000  90.00000   0.00050     3    4    5      1
+     5   0.00000  -0.04545  10.00000   0.04545    0.00000  90.00000   0.00050     4    5    6      1
+     6   0.00000   0.00000  10.00000   0.04545    0.00000  90.00000   0.00050     5    6    7      1
+     7   0.00000   0.04545  10.00000   0.04545    0.00000  90.00000   0.00050     6    7    8      1
+     8   0.00000   0.09091  10.00000   0.04545    0.00000  90.00000   0.00050     7    8    9      1
+     9   0.00000   0.13636  10.00000   0.04545    0.00000  90.00000   0.00050     8    9   10      1
+    10   0.00000   0.18182  10.00000   0.04545    0.00000  90.00000   0.00050     9   10   11      1
+    11   0.00000   0.22727  10.00000   0.04545    0.00000  90.00000   0.00050    10   11    0      1
+
+
+
+
+ ***** INPUT LINE  1  FR   0    1    0    0  2.99793E+02  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  2  GN   2    0    0    0  1.30000E+01  5.00000E-03  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  3  EX   6    1    6    0  1.41421E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  4  PQ   0    0    0    0  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  5  XQ   0    0    0    0  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+
+
+
+
+                                 - - - - - - FREQUENCY - - - - - -
+
+                                    FREQUENCY= 2.9979E+02 MHZ
+                                    WAVELENGTH= 1.0000E+00 METERS
+
+
+
+                                  - - - ANTENNA ENVIRONMENT - - -
+
+
+ GNDINO: UNABLE TO OPEN FILE SOMD.NEC                                
+ WILL COMPUTE SOMMERFELD-GROUND TABLES
+
+ Time to generate Sommerfeld ground tables =   0.06 seconds
+
+                                        FINITE GROUND.  SOMMERFELD SOLUTION GN2
+                                        RELATIVE DIELECTRIC CONST.= 13.000
+                                        CONDUCTIVITY= 5.000E-03 MHOS/METER
+                                        COMPLEX DIELECTRIC CONSTANT= 1.30000E+01-2.99799E-01
+
+
+
+                               - - - STRUCTURE IMPEDANCE LOADING - - -
+
+                                   THIS STRUCTURE IS NOT LOADED
+
+
+
+                                - - - MATRIX TIMING - - -
+
+                        FILL=    0.001 SEC.,  FACTOR=    0.000 SEC.
+
+
+
+                                          - - - ANTENNA INPUT PARAMETERS - - -
+
+   TAG   SEG.    VOLTAGE (VOLTS)         CURRENT (AMPS)         IMPEDANCE (OHMS)        ADMITTANCE (MHOS)      POWER
+   NO.   NO.    REAL        IMAG.       REAL        IMAG.       REAL        IMAG.       REAL        IMAG.     (WATTS)
+     1     6 1.15511E+02 6.42059E+01 1.41421E+00 0.00000E+00 8.16784E+01 4.54004E+01 9.35332E-03-5.19898E-03 8.16785E+01
+
+
+
+                             - - - CURRENTS AND LOCATION - - -
+
+                     LENGTHS NORMALIZED BY WAVELENGTH (OR 2.*PI/CABS(K))
+
+  SEG.  TAG    COORD. OF SEG. CENTER     SEG.            - - - CURRENT (AMPS) - - -
+  NO.   NO.     X        Y        Z      LENGTH     REAL        IMAG.       MAG.        PHASE
+     1    1   0.0000  -0.2273   9.9997  0.04545   2.5460E-01 -2.6965E-02  2.5603E-01   -6.046
+     2    1   0.0000  -0.1818   9.9997  0.04545   6.6814E-01 -6.1155E-02  6.7093E-01   -5.230
+     3    1   0.0000  -0.1364   9.9997  0.04545   1.0002E+00 -7.4903E-02  1.0030E+00   -4.283
+     4    1   0.0000  -0.0909   9.9997  0.04545   1.2438E+00 -6.8193E-02  1.2457E+00   -3.138
+     5    1   0.0000  -0.0455   9.9997  0.04545   1.3830E+00 -3.9085E-02  1.3835E+00   -1.619
+     6    1   0.0000   0.0000   9.9997  0.04545   1.4142E+00 -9.9747E-17  1.4142E+00    0.000
+     7    1   0.0000   0.0455   9.9997  0.04545   1.3830E+00 -3.9085E-02  1.3835E+00   -1.619
+     8    1   0.0000   0.0909   9.9997  0.04545   1.2438E+00 -6.8193E-02  1.2457E+00   -3.138
+     9    1   0.0000   0.1364   9.9997  0.04545   1.0002E+00 -7.4903E-02  1.0030E+00   -4.283
+    10    1   0.0000   0.1818   9.9997  0.04545   6.6814E-01 -6.1155E-02  6.7093E-01   -5.230
+    11    1   0.0000   0.2273   9.9997  0.04545   2.5460E-01 -2.6965E-02  2.5603E-01   -6.046
+
+
+
+                                  - - - CHARGE DENSITIES - - -
+
+                       LENGTHS NORMALIZED TO WAVELENGTH (OR 2.*PI/CABS(K))
+
+
+  SEG.  TAG    COORD. OF SEG. CENTER     SEG.          CHARGE DENSITY (COULOMBS/METER)
+  NO.   NO.     X        Y        Z      LENGTH     REAL        IMAG.       MAG.        PHASE
+     1E   1   0.0000  -0.2500   9.9997  0.04545   6.9587E-10  6.2165E-09  6.2553E-09   83.613
+     1    1   0.0000  -0.2273   9.9997  0.04545   5.4646E-10  5.5212E-09  5.5482E-09   84.348
+     2    1   0.0000  -0.1818   9.9997  0.04545   2.7627E-10  4.3386E-09  4.3474E-09   86.356
+     3    1   0.0000  -0.1364   9.9997  0.04545   4.2899E-11  3.3972E-09  3.3974E-09   89.277
+     4    1   0.0000  -0.0909   9.9997  0.04545  -2.0370E-10  2.2655E-09  2.2746E-09   95.138
+     5    1   0.0000  -0.0455   9.9997  0.04545  -4.9951E-10  9.5336E-10  1.0763E-09  117.652
+     6    1   0.0000   0.0000   9.9997  0.04545  -5.5548E-25 -5.9251E-24  5.9511E-24  -95.356
+     7    1   0.0000   0.0455   9.9997  0.04545   4.9951E-10 -9.5336E-10  1.0763E-09  -62.348
+     8    1   0.0000   0.0909   9.9997  0.04545   2.0370E-10 -2.2655E-09  2.2746E-09  -84.862
+     9    1   0.0000   0.1364   9.9997  0.04545  -4.2899E-11 -3.3972E-09  3.3974E-09  -90.723
+    10    1   0.0000   0.1818   9.9997  0.04545  -2.7627E-10 -4.3386E-09  4.3474E-09  -93.644
+    11    1   0.0000   0.2273   9.9997  0.04545  -5.4646E-10 -5.5212E-09  5.5482E-09  -95.652
+    11E   1   0.0000   0.2500   9.9997  0.04545  -6.9587E-10 -6.2165E-09  6.2553E-09  -96.387
+
+
+
+                                        - - - POWER BUDGET - - -
+
+                                           INPUT POWER   = 8.1678E+01 WATTS
+                                           RADIATED POWER= 8.1678E+01 WATTS
+                                           WIRE LOSS     = 0.0000E+00 WATTS
+                                           EFFICIENCY    = 100.00 PERCENT
+
+
+
+
+ ***** INPUT LINE  6  EN   0    0    0    0  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+
+ RUN TIME =     0.072
