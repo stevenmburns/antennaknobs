@@ -38,6 +38,9 @@ PRIORITY = {
     "engine_io": 1,
     "sweep": 2,
     "converge": 2,
+    # One /optimize eval per turn: a batch like a sweep point, so a live
+    # solve still gets the lane between evals rather than after the run.
+    "optimize": 2,
     # Adaptive refinement (issue #744) is cosmetic — the curve is already
     # drawn, refinement only removes its corners — so it sorts BELOW the
     # batches that produce data nobody has yet. It also runs mostly out of

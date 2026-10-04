@@ -23,6 +23,7 @@ OpenBLAS half on the swept-ground path.)
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import hashlib
 import inspect
 import json
@@ -34,6 +35,7 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import AsyncIterator
+from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 
@@ -1607,11 +1609,76 @@ _CACHE_KEY_BLOCKLIST = frozenset(
 
 # Per-session solve lanes (issue #382): every solve-producing compute — the
 # live /ws solve, each /sweep chunk, each /converge point, /norm_check,
-# /pattern, /pattern_metrics — takes a turn on its session's lane, so no two
-# ever run concurrently for one client. /optimize stays outside for now: its
-# evals are cache-skipping and bounded by _MAX_OPT_EVALS, and one whole-run
-# turn would starve live solves — taking a turn per eval is the follow-up.
+# /pattern, /pattern_metrics, each /optimize eval — takes a turn on its
+# session's lane, so no two ever run concurrently for one client. /optimize
+# takes one turn PER EVAL (`_turn_from_thread`), not one for the run: a
+# whole-run turn would hold every live solve behind up to _MAX_OPT_EVALS
+# solves, where a turn per eval lets a live solve in between two evals.
 _LANES = LaneRegistry()
+
+# How often a worker thread waiting on a lane grant re-checks its own run's
+# token (`_turn_from_thread`), and how often a granted turn's link between the
+# run's token and the lane's is polled. Both only bound how late a stop lands.
+_THREAD_TURN_POLL_S = 0.05
+
+
+@contextmanager
+def _turn_from_thread(loop, session, kind: str, run_token):
+    """A lane turn taken FROM A WORKER THREAD, for the duration of a ``with``.
+
+    /optimize's run is one synchronous call in the threadpool (the optimizer
+    calls ``solve_fn`` per eval), so its evals cannot ``async with`` a turn.
+    This holds the turn in a coroutine on the server's loop, granted to the
+    thread through a future, and released when the block exits.
+
+    The turn is gen-less on purpose: a knob drag (a newer generation) must not
+    kill an optimize run that the user started, as it does a sweep. The user's
+    Cancel (``LaneRegistry.cancel``) still trips the turn's token, and the
+    run's own token (the client went away) is linked into it, so the eval's
+    solve — which runs on the yielded token — stops on either. Raises
+    ``Superseded`` (cancel while queued) or ``momwire.SolveAborted`` (the run
+    stopped while queued) instead of yielding.
+    """
+    granted: concurrent.futures.Future = concurrent.futures.Future()
+    box: dict = {}
+
+    async def hold() -> None:
+        release = box["release"] = asyncio.Event()
+        async with _LANES.turn(session, kind, None) as token:
+            granted.set_result(token)
+            # Link the run's token into the turn's while the eval runs.
+            while not release.is_set():
+                if run_token is not None and run_token.cancelled:
+                    token.cancel()
+                try:
+                    await asyncio.wait_for(release.wait(), _THREAD_TURN_POLL_S)
+                except TimeoutError:
+                    pass
+
+    fut = asyncio.run_coroutine_threadsafe(hold(), loop)
+    try:
+        while True:
+            done, _ = concurrent.futures.wait(
+                [granted, fut],
+                timeout=_THREAD_TURN_POLL_S,
+                return_when=concurrent.futures.FIRST_COMPLETED,
+            )
+            if granted in done:
+                token = granted.result()
+                break
+            if fut in done:
+                fut.result()  # Superseded (the user's cancel) re-raises here
+                raise RuntimeError("lane turn ended before it was granted")
+            if run_token is not None and run_token.cancelled:
+                raise momwire.SolveAborted()
+    except BaseException:
+        fut.cancel()
+        raise
+    try:
+        yield token
+    finally:
+        loop.call_soon_threadsafe(box["release"].set)
+        fut.result()
 
 
 def _lane_kind(req: dict, kind: str) -> str:
@@ -3864,18 +3931,24 @@ async def optimize_endpoint(req: dict, request: Request):
     except SolveTooLargeError as e:
         return _reject({"geometry": geometry, "error": str(e)})
 
-    # The run's own token (AK#1712): /optimize takes no lane turn, so nothing
-    # else would ever trip it. The client going away does — the SSE body on
-    # its way out, the watcher on the plain-JSON path — and every eval's solve
-    # carries it, so a stopped run abandons the eval in flight too.
+    # The run's own token (AK#1712). The client going away trips it — the SSE
+    # body on its way out, the watcher on the plain-JSON path — and each
+    # eval's lane turn links it into the turn's token, so a stopped run
+    # abandons the eval in flight too.
     token = momwire.CancelToken()
+    # Each eval takes a turn on the session's lane (`_turn_from_thread`), so
+    # an optimize run never computes beside the session's live solve, its
+    # sweeps, or a second optimize run: two runs interleave eval by eval.
+    session, _ = _lane_key(req)
+    loop = asyncio.get_running_loop()
 
     def _eval_solve(r: dict) -> dict:
-        if backend is None:
-            return ex.momwire_solve(r, cancel=token)
-        # Start gate + subprocess kill switch under the run's token, as for a
-        # live external solve (AK#1712).
-        out = _external_call(backend.solve, r, cancel=token)
+        with _turn_from_thread(loop, session, "optimize", token) as turn:
+            if backend is None:
+                return ex.momwire_solve(r, cancel=turn)
+            # Start gate + subprocess kill switch under the turn's token, as
+            # for a live external solve (AK#1712).
+            out = _external_call(backend.solve, r, cancel=turn)
         # An eval's deck/printout are not a Files-view answer: nothing keys
         # them, and holding one per eval would grow with the run.
         out.pop("_engine_runs", None)
@@ -3902,7 +3975,7 @@ async def optimize_endpoint(req: dict, request: Request):
         try:
             async with cancel_on_disconnect(request, token):
                 result = await _run(None)
-        except momwire.SolveAborted:
+        except (momwire.SolveAborted, Superseded):
             return {"geometry": geometry, "error": "cancelled"}
         except DegenerateObjective as exc:
             # AK#1664: refused by name, in the user's words, not as a traceback.
@@ -3929,6 +4002,10 @@ async def optimize_endpoint(req: dict, request: Request):
                     raise
                 except DegenerateObjective as exc:
                     stream.fail(str(exc))
+                    return
+                except (momwire.SolveAborted, Superseded):
+                    # The user's Cancel reached an eval's lane turn.
+                    stream.fail("cancelled")
                     return
                 except Exception as exc:  # noqa: BLE001 — user design build_wires
                     stream.fail(user_designs.format_solve_error(exc))
