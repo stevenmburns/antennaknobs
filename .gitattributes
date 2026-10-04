@@ -11,3 +11,5 @@ tests/fixtures/sy_knobs_1705/*.nec -text
 # AK#1714's driving circuits are byte-exact copies of AC6LA's SimNEC examples
 # (both mix CRLF and LF line ends); keep git from normalising them.
 tests/fixtures/ssn_dcl_knobs_1714/*.ssn -text
+# AK#1880's deck is the byte-exact CRLF file EZNEC wrote for Dan AC6LA.
+tests/fixtures/eznec_parallel_loads_1880/*.nec -text
