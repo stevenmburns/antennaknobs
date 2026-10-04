@@ -974,19 +974,26 @@ class NecDeck:
             # A gyrator drive (AK#1595) leaves no node behind: the phantom and
             # the NT collapse into a forced current on the segment they drive,
             # so the count here would otherwise name nodes the solve never sees.
-            collapsed = self._network_parts()[3]
+            net_ports, _b, _s, collapsed = self._network_parts()
             gyr = len(collapsed)
-            nodes = (
-                sum(
-                    1
-                    for (wi, _seg) in self._port_plan
-                    if wi in self.virtual_segment_wires
-                )
-                - gyr
-            )
+            on_virtual = [
+                pname
+                for (wi, _seg), pname in self._port_plan.items()
+                if wi in self.virtual_segment_wires and pname not in collapsed
+            ]
+            # AK#1880: a node only a one-port NT's all-zero half lands on is
+            # left out of the circuit (`_unheld_virtual_nodes`), so it is not
+            # one the solve carries either.
+            nodes = sum(1 for p in on_virtual if p in net_ports)
+            unheld = len(on_virtual) - nodes
             became = []
             if nodes:
                 became.append(f"{nodes} virtual circuit node{'s' if nodes > 1 else ''}")
+            if unheld:
+                became.append(
+                    f"{unheld} unconnected NT end{'s' if unheld > 1 else ''} "
+                    "(EZNEC's parallel-connected loads: Y12 = Y22 = 0)"
+                )
             if gyr:
                 became.append(
                     f"{gyr} NT-gyrator current source{'s' if gyr > 1 else ''} "
@@ -2371,6 +2378,8 @@ class NecDeck:
             else _net.Driven(port=feed_port(k, f), voltage=f.voltage)
             for k, f in enumerate(self.feeds, 1)
         ]
+        unheld = _unheld_virtual_nodes(ports, branches, sources)
+        ports = {n: p for n, p in ports.items() if n not in unheld}
         return _collapse_gyrator_drives(ports, branches, sources)
 
 
@@ -3948,6 +3957,33 @@ def _rank_one_transformer(y11: float, y12: float, y22: float):
 # reading it as a current source would be reading float noise as a drive.
 # EZNEC and 4nec2 both write Y12 = ±j exactly.
 _GYRATOR_MIN_B = 1e-12
+
+
+def _unheld_virtual_nodes(ports, branches, sources) -> frozenset[str]:
+    """The virtual circuit nodes that no branch and no source touches
+    (AK#1880) -- left out of the network rather than handed to the reducer.
+
+    EZNEC writes a "parallel connected load" as a ONE-port ``NT``: only Y11 is
+    set, and port 2 sits on its virtual wire with Y12 = Y22 = 0. That half is
+    no element at all, so `NecDeck._network_parts` emits no branch there, and
+    the node's KCL row is identically zero: its voltage is undetermined, and
+    the reducer is right to call the system singular (``SingularNetworkError``,
+    reciprocal condition 0). Nothing else depends on that voltage -- Y12 = 0
+    is exactly "port 1 does not see it" -- so leaving the node out is exact,
+    not an approximation. It is the circuit the idiom's ``LD 4 ... 1.E+10``
+    pin gives when EZNEC writes one: momwire's corpus deck 0017 is Dan's
+    ``ezLoadPositionsB.nec`` (QRZ 1003328 #190) with those two pins added and
+    the two ``NT`` cards' loads swapped, and it always solved, because each
+    pin is a 1e-10 S branch holding a node nothing reads.
+
+    Only a ``PortVirtual`` is eligible. A port on real geometry is the
+    antenna's own, and an open circuit there is a legitimate termination the
+    solver's admittance holds."""
+    held = {p for br in branches for p in _net._branch_port_refs(br)}
+    held |= {s.port for s in sources}
+    return frozenset(
+        n for n, p in ports.items() if isinstance(p, _net.PortVirtual) and n not in held
+    )
 
 
 def _collapse_gyrator_drives(ports, branches, sources):
