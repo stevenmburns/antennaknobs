@@ -466,6 +466,16 @@ def _fed_record(port, index, wire, site):
     return rec
 
 
+def gap_site(port, site):
+    """The `fed_segments` site of a gap port in a family whose gaps sit at
+    ``site``: ``"end"`` for a `PortOnWire` AT its wire's end (``at`` 0 or 1),
+    which is a port at the wire's end however the family addresses its
+    interior, else ``site`` (AK#1620)."""
+    if isinstance(port, PortOnWire) and port_at(port) in (0.0, 1.0):
+        return "end"
+    return site
+
+
 def _builder_network(builder):
     """The builder's `build_network()`, or None when it has none."""
     build = getattr(builder, "build_network", None)
@@ -498,7 +508,7 @@ def fed_records(wires, network, parity, owners=None):
     by_name = {w.name: i for i, w in enumerate(wires) if w.name is not None}
     for name, port in network.ports.items():
         if isinstance(port, PortOnWire):
-            index, where = by_name.get(port_wire(port)), site
+            index, where = by_name.get(port_wire(port)), gap_site(port, site)
         elif isinstance(port, (PortAtVertex, PortAtEnd)):
             index, where = by_name.get(port.wire), "end"
         else:
@@ -734,7 +744,9 @@ class SimulationEngine(ABC):
 
         ``site`` is ``"centre"`` (a gap in the middle of a segment
         ``length_m`` long), ``"knot"`` (a source between two such segments)
-        or ``"end"`` (a port at the wire's end). ``port`` is the network
+        or ``"end"`` (a port at the wire's end: a vertex or end port, or a
+        gap port positioned at 0 or 1, AK#1620, whose ``length_m`` is the
+        segment it stands at the edge of). ``port`` is the network
         port's name, or None for a legacy ``ex`` feed; ``wire`` indexes the
         engine's coerced wire list, or is None where the engine keeps none.
         A knot record also carries ``length_after_m``, the segment on the
