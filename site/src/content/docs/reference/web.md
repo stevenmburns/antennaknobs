@@ -37,6 +37,16 @@ FastAPI process serving the API, the `/ws` live-solve channel, and the built
 React SPA). It's deployed as a container on Fly.io; the repo's `docs/deploy.md`
 is the runbook.
 
+### Crash reports
+
+If the page itself breaks, it shows **Something broke on this page** and a
+**Reload** button instead of going blank, and the hosted app writes one line
+to its server log: the error's message, the list of page components it broke
+in, and the app version. Nothing else is sent: no address, no browser
+details, no deck and no knob values, and anything shaped like a link's query
+(where an opened deck travels) is cut out before the line is written. A few
+reports at most per page load, and a local workbench never sends one.
+
 ## Your own deck
 
 **Open…** beside the design picker opens your own model: a NEC card deck

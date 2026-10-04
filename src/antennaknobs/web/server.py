@@ -56,6 +56,7 @@ from antennaknobs import in_medium
 
 from . import cost as _cost
 from . import decks as _decks
+from . import hosting as _hosting
 from . import tracker
 from . import nec2_backend, nec42_backend, nec5_backend, pynec_backend, user_designs
 from .examples import REGISTRY as EXAMPLES
@@ -4324,6 +4325,35 @@ def healthz():
     return {"ok": True}
 
 
+# Crash reports from visitors' browsers (AK#1851): one scrubbed log line each,
+# hosted only. See web/hosting.py for exactly what the line carries.
+_CLIENT_ERRORS = _hosting.ClientErrorSink()
+
+
+@app.post("/client-error")
+async def client_error_endpoint(request: Request):
+    """Log a browser crash report as one ``client-error:`` line: its message,
+    React component stack and app version, bounded and with any URL query
+    cut out. 404 on a local workbench, which reports nowhere; 413 over the
+    size cap, 429 over the per-client or fleet-wide rate; else 204."""
+    if not _HOSTED:
+        raise HTTPException(status_code=404)
+    body = await request.body()
+    if len(body) > _hosting.BODY_MAX:
+        return Response(status_code=413)
+    try:
+        payload = json.loads(body)
+    except ValueError:
+        return Response(status_code=400)
+    ip = _decks.client_ip(
+        {k.lower(): v for k, v in request.headers.items()},
+        request.client.host if request.client else None,
+    )
+    if not _CLIENT_ERRORS.report(payload, ip):
+        return Response(status_code=429)
+    return Response(status_code=204)
+
+
 def _sweep_policy_json(p) -> dict:
     return {
         "anchor": p.anchor,
@@ -4644,6 +4674,9 @@ def capabilities_endpoint():
         # "Save as study" writes a file (AK#1757 step 7 unit 4): a local
         # workbench only; /studies/save refuses it hosted either way.
         "can_save_studies": not _HOSTED,
+        # The page reports its crashes to /client-error (AK#1851) only where
+        # this says so: the hosted instance. A local workbench reports nowhere.
+        "client_error_reports": _HOSTED,
         "terrain_presets": terrain_presets_schema(),
         "soil_presets": soil_presets_schema(),
         "soil_ranges": soil_ranges_schema(),
