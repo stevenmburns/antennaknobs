@@ -103,7 +103,12 @@ export function CatalogPanel({
             Open…
           </label>
         )}
-        {currentExample && currentExample.variants.length > 1 && (
+      </div>
+      {/* Its own line, so the search box keeps the antenna row's slack now
+          that ⟳ and Open… share it; only designs with variants have it. */}
+      {currentExample && currentExample.variants.length > 1 && (
+        <div className="variant-row">
+          <label htmlFor="variant-select">Variant</label>
           <select
             id="variant-select"
             className="geometry-select variant-select"
@@ -118,8 +123,8 @@ export function CatalogPanel({
               </option>
             ))}
           </select>
-        )}
-      </div>
+        </div>
+      )}
       {currentExample?.notes && (
         <div className="design-note">{currentExample.notes}</div>
       )}

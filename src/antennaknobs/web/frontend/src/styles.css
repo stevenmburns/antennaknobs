@@ -1018,12 +1018,23 @@ button:focus-visible,
   color: var(--muted);
   font-size: var(--text-sm);
 }
-.variant-select {
-  flex: 0 0 auto;
-  min-width: 104px; /* always fits "default" + the dropdown arrow */
-  max-width: 45%;
+/* The variant picker's own line under the antenna row: a label, then the
+   select taking the rest of the width. */
+.variant-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: calc(-1 * var(--space-2)) 0 var(--space-4);
+}
+.variant-row label {
+  color: var(--muted);
   font-size: var(--text-sm);
-  padding: var(--space-4) var(--space-3);
+}
+.variant-select {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: var(--text-sm);
+  padding: var(--space-3) var(--space-3);
 }
 
 /* Reload the selected user design file from disk (issue #867). Only rendered
