@@ -305,6 +305,14 @@ engines — momwire builds the solver with its own O(a²) tube expansion, PyNEC
 with NEC's — so fat-wire decks solve kernel-for-kernel with NEC without a flag
 (`EK -1`, like an absent card, stays reduced; see
 [the extended thin-wire kernel](/reference/solver/#the-extended-thin-wire-kernel-ek)).
+That is the NEC-2 reading. A deck read as **NEC-4 or NEC-5** solves with the
+extended kernel by default instead, as its own program does — NEC-5's kernel
+behaves as the extended one and NEC-4's thin-wire model is equivalent to it —
+and ignores an `EK` card (*NEC-4 ignores EK; the extended kernel is used.*
+closes the dialect sentence). The user's switch (`--extended-kernel` /
+`--no-extended-kernel`, the slot's **EK** check) still decides either way. A
+NEC-4 `VC` card (its source and end-cap option) is read and listed as a card
+not applied.
 A remote
 1-segment wire parked hundreds of wavelengths away purely to terminate a
 `TL` card is recognised and replaced by a virtual circuit node (the deck

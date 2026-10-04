@@ -11,6 +11,7 @@ from antennaknobs.cli import (
     make_engine_factory,
     broadcast_pairs,
     deck_extended_kernel_flag,
+    EK_BY_DIALECT,
     get_builder,
     _GROUND_UNSET,
 )
@@ -375,13 +376,39 @@ def test_make_factory_extended_kernel_binds_kwarg():
 
 @pytest.mark.parametrize(
     "flag,deck",
-    [(True, False), (False, True), (True, True)],
+    [(True, False), (None, True), (True, True)],
 )
 def test_make_factory_extended_kernel_ors_flag_and_deck(flag, deck):
     """Either the explicit --extended-kernel flag or a deck's own EK card
-    turns the kernel on — the combination rule is OR (issue #849)."""
+    turns the kernel on (issue #849)."""
     factory = make_engine_factory(
         "momwire", _GROUND_UNSET, extended_kernel=flag, deck_extended_kernel=deck
+    )
+    assert factory.keywords == {"extended_kernel": True}
+
+
+def test_make_factory_no_extended_kernel_overrides_the_deck():
+    """--no-extended-kernel (AK#1891) beats a deck's EK card and a deck's
+    dialect default alike."""
+    for deck in (True, EK_BY_DIALECT):
+        factory = make_engine_factory(
+            "momwire", _GROUND_UNSET, extended_kernel=False, deck_extended_kernel=deck
+        )
+        assert factory is MomwireEngine
+
+
+def test_make_factory_binds_a_dialect_default_as_a_default():
+    """A deck read as NEC-4 or NEC-5 (AK#1891) binds the kernel as a
+    default the engine can fall back from, not as a request."""
+    factory = make_engine_factory(
+        "momwire", _GROUND_UNSET, deck_extended_kernel=EK_BY_DIALECT
+    )
+    assert factory.keywords == {"extended_kernel_default": True}
+    factory = make_engine_factory(
+        "momwire",
+        _GROUND_UNSET,
+        extended_kernel=True,
+        deck_extended_kernel=EK_BY_DIALECT,
     )
     assert factory.keywords == {"extended_kernel": True}
 

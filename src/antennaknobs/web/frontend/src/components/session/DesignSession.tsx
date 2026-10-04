@@ -487,6 +487,17 @@ function DesignSessionBody({
   }, [reloadCatalog, geometry]);
 
   const currentExample = examples.find((e) => e.name === geometry);
+  // What the loaded design tells a solver slot (#1006 G2-5, AK#1891): its
+  // geometry's refusal inputs and its kernel default, from the descriptor.
+  const designConstraintInputs: DesignConstraintInputs = useMemo(
+    () => ({
+      has_stepped_radius_junction:
+        currentExample?.has_stepped_radius_junction ?? false,
+      buried: currentExample?.has_buried_wire ?? false,
+      extended_kernel_default: currentExample?.extended_kernel_default ?? false,
+    }),
+    [currentExample],
+  );
   // currentValues is deliberately a fresh reference whenever paramValues[geometry]
   // is unset (the `?? {}` fallback) — currentValuesKey (below) is the stable
   // primitive signature every downstream effect/memo actually keys off, so the
@@ -770,7 +781,7 @@ function DesignSessionBody({
   // not only the active one.
   const [groundGearOpen, setGroundGearOpen] = useState<GroundSlotId | null>(null);
   const nLabel = currentExample?.fixed_segment_counts ? "deck's own" : String(nPerWire);
-  const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${backendDisplayLabel(backend, currentOpts)} N=${nLabel} · ${groundSummary}`;
+  const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${backendDisplayLabel(backend, currentOpts, designConstraintInputs)} N=${nLabel} · ${groundSummary}`;
   useEffect(() => {
     reportSummary(id, tabSummary);
   }, [id, tabSummary, reportSummary]);
@@ -945,12 +956,8 @@ function DesignSessionBody({
   //
   // The inputs come from the descriptor rather than being re-derived here:
   // whether the deck has a stepped-radius junction is a fact about geometry
-  // the server already computed while building it.
-  const designConstraintInputs: DesignConstraintInputs = {
-    has_stepped_radius_junction:
-      currentExample?.has_stepped_radius_junction ?? false,
-    buried: currentExample?.has_buried_wire ?? false,
-  };
+  // the server already computed while building it (`designConstraintInputs`,
+  // declared beside `currentExample`).
   const optionRefusal = designRefusal(
     backend,
     currentOpts,
@@ -1548,7 +1555,12 @@ function DesignSessionBody({
     }
     if (backend.kind === "momwire") {
       base.momwire_model = backend.name;
-      const opts = modelOptionsForRequest(backend, cfg.opts, modelOptionSpecs);
+      const opts = modelOptionsForRequest(
+        backend,
+        cfg.opts,
+        modelOptionSpecs,
+        designConstraintInputs,
+      );
       // Enrichment now solves over ground (momwire #167: PEC image reaction,
       // refl-coef, and Sommerfeld), so this is no longer an error guard — it is
       // a UX choice. Enrichment is a validation-only knob that is redundant for
@@ -2438,7 +2450,7 @@ function DesignSessionBody({
   const crossEnv: CrossEnv = {
     slots: slotIds.map((id) => ({
       id,
-      label: `${id}: ${backendDisplayLabel(slots[id].backend, slots[id].opts)}`,
+      label: `${id}: ${backendDisplayLabel(slots[id].backend, slots[id].opts, designConstraintInputs)}`,
       holds: (spec: string) =>
         engineSpecHeld(
           spec,
@@ -3514,6 +3526,7 @@ function DesignSessionBody({
           fixedSegmentCounts={currentExample?.fixed_segment_counts ?? false}
           nextSlot={nextSlot}
           onAdd={addSlot}
+          design={designConstraintInputs}
         />
 
         <GroundSlotTabs

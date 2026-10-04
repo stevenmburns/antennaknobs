@@ -328,7 +328,10 @@ describe("BackendConfigModal — extended kernel (#849)", () => {
   it("patches extendedKernel on and off", async () => {
     const off = renderModal({ backend: "bspline" });
     await off.user.click(screen.getByRole("checkbox", { name: EK }));
-    expect(off.onPatch).toHaveBeenCalledWith({ model: expect.objectContaining({ extended_kernel: true }) });
+    expect(off.onPatch).toHaveBeenCalledWith({
+      model: expect.objectContaining({ extended_kernel: true }),
+      ekOff: false,
+    });
     off.unmount();
 
     const on = renderModal({
@@ -337,7 +340,11 @@ describe("BackendConfigModal — extended kernel (#849)", () => {
     });
     expect(screen.getByRole("checkbox", { name: EK })).toHaveProperty("checked", true);
     await on.user.click(screen.getByRole("checkbox", { name: EK }));
-    expect(on.onPatch).toHaveBeenCalledWith({ model: expect.objectContaining({ extended_kernel: false }) });
+    // Off on a design with no kernel default is just "not on" (AK#1891).
+    expect(on.onPatch).toHaveBeenCalledWith({
+      model: expect.objectContaining({ extended_kernel: false }),
+      ekOff: false,
+    });
   });
 
   it("serves the toggle on Sin-Galerkin (momwire 0.27.0 un-refusal)", async () => {
@@ -352,7 +359,10 @@ describe("BackendConfigModal — extended kernel (#849)", () => {
     expect(box).toHaveProperty("disabled", false);
     expect(box).toHaveProperty("checked", true);
     await user.click(box);
-    expect(onPatch).toHaveBeenCalledWith({ model: expect.objectContaining({ extended_kernel: false }) });
+    expect(onPatch).toHaveBeenCalledWith({
+      model: expect.objectContaining({ extended_kernel: false }),
+      ekOff: false,
+    });
   });
 
   it("keeps the Δ/a hint on the servable backends", () => {

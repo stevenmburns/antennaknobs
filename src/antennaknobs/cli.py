@@ -704,24 +704,25 @@ def make_engine_factory(
     engine_spec,
     ground_spec,
     *,
-    extended_kernel=False,
+    extended_kernel=None,
     deck_extended_kernel=False,
     nominal_nsegs=None,
     nec42_sommerfeld=None,
 ):
     """Bind an engine spec (+ optional ground) into a builder->engine factory.
 
-    ``extended_kernel`` is an explicit user request (CLI ``--extended-kernel``);
-    ``deck_extended_kernel`` is a ``@file.nec`` deck's own parsed ``EK`` card
-    (issue #849). Either turns the momwire extended thin-wire kernel on — the
-    combination rule is OR, so a deck that already carries ``EK`` doesn't need
-    the flag repeated, and the flag still works on a deck (or a built-in
-    design) that carries none. Only momwire consumes the kernel this way:
-    an explicit ``--extended-kernel`` on any other engine is a clear user
-    error (PyNEC's own extended-kernel support, issue #414, is a separate,
-    unexposed constructor kwarg — not driven by this flag); a deck-only
-    request on a non-momwire engine is silently left alone, matching the
-    pre-#849 status quo for that engine.
+    ``extended_kernel`` is the user's switch (CLI ``--extended-kernel`` /
+    ``--no-extended-kernel``): True or False decides, None defers to the
+    design. ``deck_extended_kernel`` is what a ``@file.nec`` deck asks for
+    (`deck_extended_kernel_flag`): True for a NEC-2 deck's own ``EK`` card
+    (issue #849), a request the basis may refuse; `EK_BY_DIALECT` for a deck
+    read as NEC-4 or NEC-5 (AK#1891), a default the engine falls back from,
+    with an advisory, where the basis or the deck refuses it. Only momwire
+    consumes the kernel this way: an explicit ``--extended-kernel`` on any
+    other engine is a clear user error (PyNEC's own extended-kernel support,
+    issue #414, is a separate, unexposed constructor kwarg — not driven by
+    this flag); a deck's request on a non-momwire engine is left alone,
+    matching the pre-#849 status quo for that engine.
 
     ``nec42_sommerfeld`` (CLI ``--nec42-sommerfeld``, 2 or 3) is the NEC-4.2
     engine's Sommerfeld ground card. None takes ``[engines] nec42_sommerfeld``
@@ -745,17 +746,21 @@ def make_engine_factory(
     # comparing two physics without saying so (AK#1563).
     if ground_spec is not _GROUND_UNSET:
         kwargs["ground"] = ground_spec
-    if extended_kernel or deck_extended_kernel:
-        if name != "momwire":
-            if extended_kernel:
-                raise argparse.ArgumentTypeError(
-                    f"--extended-kernel only applies to the momwire engine "
-                    f"(got {name!r}, issue #849, momwire >= 0.26.0)"
-                )
-            # A deck-only EK request on a non-momwire engine: left alone,
-            # same as before this issue — PyNEC's own EK support (#414)
-            # isn't wired to a deck or this flag.
-        else:
+    if extended_kernel and name != "momwire":
+        raise argparse.ArgumentTypeError(
+            f"--extended-kernel only applies to the momwire engine "
+            f"(got {name!r}, issue #849, momwire >= 0.26.0)"
+        )
+    # A deck's request on another engine is left alone, as before #849:
+    # PyNEC's own EK support (#414) isn't wired to a deck or this flag.
+    if name == "momwire":
+        if extended_kernel is None:
+            deck = deck_extended_kernel
+            if deck is EK_BY_DIALECT:
+                kwargs["extended_kernel_default"] = True
+            elif deck:
+                kwargs["extended_kernel"] = True
+        elif extended_kernel:
             kwargs["extended_kernel"] = True
     if name == "nec42":
         if nec42_sommerfeld is None:
@@ -879,12 +884,29 @@ def _fixed_segment_counts(builder) -> bool:
     return bool(ui.get("fixed_segment_counts"))
 
 
-def deck_extended_kernel_flag(builder_cls) -> bool:
-    """True if `builder_cls` came from an `@file.nec`/`@file.ssn` spec whose
-    deck carries an EK card (issue #849) — see `file_designs._make_builder`'s
-    `file_extended_kernel` attribute. False for every ordinary catalog/user
-    design (the attribute doesn't exist on those classes at all)."""
-    return bool(getattr(builder_cls, "file_extended_kernel", False))
+# What a deck read as NEC-4 or NEC-5 asks of the kernel (AK#1891): the
+# extended one as a DEFAULT, which the engine falls back from where the basis
+# or the deck refuses it. Truthy, so it reads as "the deck asks for EK".
+EK_BY_DIALECT = "dialect"
+
+
+def deck_extended_kernel_flag(builder_cls):
+    """What `builder_cls`'s deck asks of the kernel: True for an `@file.nec`
+    / `@file.ssn` deck read as NEC-2 that carries an EK card (issue #849,
+    `file_designs._make_builder`'s `file_extended_kernel`), `EK_BY_DIALECT`
+    for a deck read as NEC-4 or NEC-5 (`file_extended_kernel_default`),
+    False for every ordinary catalog/user design (neither attribute exists
+    on those classes)."""
+    if getattr(builder_cls, "file_extended_kernel", False):
+        return True
+    if getattr(builder_cls, "file_extended_kernel_default", False):
+        return EK_BY_DIALECT
+    return False
+
+
+# The advisory categories a command echoes to stderr: where a port landed
+# (AK#1510), and a deck's default kernel the engine fell back from (AK#1891).
+_ECHOED = ("FeedPlacement", "ExtendedKernel")
 
 
 class _FeedPlacementEcho:
@@ -922,7 +944,7 @@ class _FeedPlacementEcho:
                 continue
             for note in getattr(eng, "advisories", None) or ():
                 text = note.get("text")
-                if note.get("category") == "FeedPlacement" and text not in self._seen:
+                if note.get("category") in _ECHOED and text not in self._seen:
                     self._seen.add(text)
                     print(f"advisory: {text}", file=sys.stderr)
         self._pending = waiting
@@ -1126,17 +1148,20 @@ def cli(arguments=None):
         p.add_argument(
             "--extended-kernel",
             dest="extended_kernel",
-            default=False,
-            action="store_true",
+            default=None,
+            action=argparse.BooleanOptionalAction,
             help="Apply NEC's extended thin-wire kernel (the EK card) on the "
-            "momwire engine (issue #849, needs momwire >= 0.26.0). Every "
-            "momwire basis serves it, sinusoidal-galerkin included since "
-            "momwire#246/#287/#299 implemented it on the Galerkin fill; "
+            "momwire engine (issue #849, needs momwire >= 0.26.0), or with "
+            "--no-extended-kernel solve with the reduced one. Every "
+            "momwire basis but pulse serves it; "
             "combining it with model_options "
             "use_singular_enrichment also refuses (momwire#271). Matters for "
-            "fat wires (radius comparable to segment length). A "
-            '"@file.nec" deck\'s own EK card is honoured too — either one '
-            "turns the kernel on (OR). Only applies to the momwire engine.",
+            "fat wires (radius comparable to segment length). Without "
+            'either flag a "@file.nec" deck decides: a NEC-2 deck\'s own EK '
+            "card turns the kernel on, and a deck read as NEC-4 or NEC-5 "
+            "solves with it by default (AK#1891), falling back to the reduced "
+            "kernel with an advisory where the basis or the deck refuses it. "
+            "Only applies to the momwire engine.",
         )
         p.add_argument(
             "--nec42-sommerfeld",

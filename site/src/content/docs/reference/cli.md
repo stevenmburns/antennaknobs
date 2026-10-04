@@ -1335,9 +1335,17 @@ a junction on `sinusoidal-galerkin`. Each exits with a named message rather
 than a reduced-kernel answer under an extended-kernel request. The flag applies only to momwire: passing it with `--engine pynec` is an
 error.
 
-An imported deck brings its own: a `@file.nec` design whose deck carries an
-`EK` card is solved with the kernel on without the flag, and either source
-turns it on (`EK -1`, like an absent card, leaves it off). The same goes for
+An imported deck brings its own. A `@file.nec` deck read as NEC-2 whose deck
+carries an `EK` card is solved with the kernel on without the flag (`EK -1`,
+like an absent card, leaves it off). A deck read as **NEC-4 or NEC-5**
+(detected, or chosen) is solved with the kernel on by default, as its own
+program solves it: NEC-5's kernel behaves as the extended one, and NEC-4's
+thin-wire model is equivalent to it and ignores an `EK` card, which the
+import note says. Where the basis or the deck refuses the kernel (`pulse`, a
+buried wire), that default falls back to the reduced kernel with an
+`advisory:` line on stderr instead of refusing. `--no-extended-kernel`
+turns the kernel off whatever the deck says; `--extended-kernel` asks for it
+outright, and still refuses where it cannot run. The same goes for
 ground since v0.75.1: with no `--ground`, a `@file.nec` design is solved
 under the ground its own `GE` / `GN` cards model — `GE 0` free space, `GE 1`
 or `GN 1` perfect, `GN 2` finite with the card's ε<sub>r</sub> and σ, `GN 0`

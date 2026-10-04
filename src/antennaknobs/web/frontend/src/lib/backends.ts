@@ -215,6 +215,9 @@ export type DesignConstraintInputs = {
   has_stepped_radius_junction?: boolean;
   /** Whether the design puts a wire below the interface (already served). */
   buried?: boolean | null;
+  /** A deck read as NEC-4 or NEC-5 solves with the extended kernel unless
+   *  the slot's switch says otherwise (AK#1891, served per design). */
+  extended_kernel_default?: boolean;
 };
 
 export type BackendRoster = BackendEntry[];
@@ -630,6 +633,12 @@ export type BackendOpts = {
    *  rather than sent. Both are load-bearing — see `modelOptionsForRequest`.
    */
   model: Record<string, unknown>;
+  /** The user turned the extended kernel OFF (AK#1891). `model.extended_kernel`
+   *  true is the user's ON; neither set, the slot follows the design's
+   *  default (`extendedKernelActive`), so a deck read as NEC-4 or NEC-5 shows
+   *  it on and a "Read as" change re-resolves it, while a choice the user
+   *  made stays. */
+  ekOff?: boolean;
 };
 
 /** A backend's stock options, from the SERVED spec defaults.
@@ -833,9 +842,32 @@ export function coverageRefusal(
  *  reference until momwire#888 added it; now there is, so the copy is gone
  *  and the exclusion arrives through `constraints` like every other refusal.
  */
-export function extendedKernelActive(b: BackendEntry, opts: BackendOpts): boolean {
-  if (!offersExtendedKernel(b) || !opts.model.extended_kernel) return false;
-  return true;
+export function extendedKernelActive(
+  b: BackendEntry,
+  opts: BackendOpts,
+  design?: DesignConstraintInputs | null,
+): boolean {
+  if (!offersExtendedKernel(b)) return false;
+  if (opts.model.extended_kernel) return true;
+  return !opts.ekOff && extendedKernelByDefault(b, opts, design);
+}
+
+/** Whether this slot takes the extended kernel from the DESIGN (AK#1891): a
+ *  deck read as NEC-4 or NEC-5, on a backend that offers the kernel and
+ *  would not refuse it here. A default the backend or the deck refuses is
+ *  the reduced kernel, never a refusal — the server falls back the same way
+ *  (`MomwireEngine`'s `extended_kernel_default`) and says so in an advisory.
+ *  The refusals are the served ones the explicit switch meets: a buried
+ *  wire, a radius step at a junction, singular enrichment. */
+export function extendedKernelByDefault(
+  b: BackendEntry,
+  opts: BackendOpts,
+  design?: DesignConstraintInputs | null,
+): boolean {
+  if (!design?.extended_kernel_default || !offersExtendedKernel(b)) return false;
+  if (opts.model.use_singular_enrichment) return false;
+  const on = { ...opts, model: { ...opts.model, extended_kernel: true } };
+  return backendOptsAllowed(b, on, design) === null && steppedJunctionNote(b, on, design) === null;
 }
 
 /** Whether this backend gets an EK control at all (antennaknobs#1255).
@@ -910,13 +942,17 @@ function sommerfeldWord(b: BackendEntry, opts: BackendOpts): unknown {
 // Display label for a configured backend: B-spline-panel entries carry their
 // spline degree so two b-spline slots (the default A d=2 / B d=1 pair) stay
 // distinguishable at a glance.
-export function backendDisplayLabel(b: BackendEntry, opts: BackendOpts): string {
+export function backendDisplayLabel(
+  b: BackendEntry,
+  opts: BackendOpts,
+  design?: DesignConstraintInputs | null,
+): string {
   // "+EK" affixes the extended thin-wire kernel (issue #849) to whatever the
   // slot is already called. The whole point of the toggle is A-vs-B — one slot
   // with the kernel, one without — so the chips have to say which is which.
   // Affixed only when the kernel is actually IN FORCE, never when a backend
   // that refuses it is carrying a set flag.
-  const ek = extendedKernelActive(b, opts) ? " +EK" : "";
+  const ek = extendedKernelActive(b, opts, design) ? " +EK" : "";
   // The degree affix, when this backend has a degree at all — read off the
   // served kwarg, not off a panel hint.
   const degree = opts.model.degree;
@@ -1030,6 +1066,7 @@ export function modelOptionsForRequest(
   b: BackendEntry,
   opts: BackendOpts,
   specs: ModelOptionSpecs,
+  design?: DesignConstraintInputs | null,
 ): Record<string, unknown> {
   // Driven by the served `model_kwargs`, not by the backend's kind: PyNEC, NEC-2
   // and NEC-5 expose none, so they still send nothing, and the NEC-4.2 slot's
@@ -1058,12 +1095,18 @@ export function modelOptionsForRequest(
     if (v === null && spec.auto_when_null) continue;
     out[key] = v;
   }
-  // The extended thin-wire kernel is sent ONLY when in force: absence is the
-  // reduced kernel — the EK card's own convention, and the spelling that
-  // keeps a kernel-off request byte-identical to what every release before
-  // #849 sent. So it is deleted rather than sent false.
-  if (extendedKernelActive(b, opts)) out.extended_kernel = true;
-  else delete out.extended_kernel;
+  // The extended thin-wire kernel is sent when the user switched it on:
+  // absence is the reduced kernel — the EK card's own convention, and the
+  // spelling that keeps a kernel-off request byte-identical to what every
+  // release before #849 sent. A deck read as NEC-4 or NEC-5 (AK#1891) is the
+  // one exception, since the server gives such a deck the kernel when the
+  // request does not say: absence follows that default, and the user's OFF
+  // is sent as false.
+  delete out.extended_kernel;
+  if (offersExtendedKernel(b) && opts.model.extended_kernel) out.extended_kernel = true;
+  else if (offersExtendedKernel(b) && opts.ekOff && design?.extended_kernel_default) {
+    out.extended_kernel = false;
+  }
   return out;
 }
 

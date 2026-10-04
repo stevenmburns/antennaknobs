@@ -4446,6 +4446,7 @@ def _example_entry(name: str, ex) -> dict:
         "ground_medium": ex.ground_medium,
         "ground_card": ex.ground_card,
         "fixed_segment_counts": ex.fixed_segment_counts,
+        "extended_kernel_default": ex.extended_kernel_default,
         "has_design_freq": ex.has_design_freq,
         "variants": list(ex.variants),
         "variant_values": dict(ex.variant_values),
