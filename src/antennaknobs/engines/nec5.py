@@ -1184,7 +1184,11 @@ class NEC5Engine(SimulationEngine):
             df = float(steps[0])
         else:
             df = 0.0
-        lines = ["CM antennaknobs NEC5Engine deck"]
+        # `CM NEC-5` declares the dialect to `nec_import` (whole-comment
+        # phrase): this deck's sources sit at segment ENDS, which an EX with
+        # I4 = 1 or a bare NOFILE does not say on its own. The exporters keep
+        # it when they swap the first line for their header.
+        lines = ["CM antennaknobs NEC5Engine deck", "CM NEC-5"]
         if self._gw_radii != self._radii:
             lines.extend(JACKET_COMMENT_CARDS)
         # AK#1677: `_has_buried_wires` is only ever True over a real

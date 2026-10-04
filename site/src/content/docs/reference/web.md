@@ -61,7 +61,8 @@ carry it, and the page says so; send the file instead.
 A `.nec` deck says which NEC dialect it was read in as the first line of its
 note — NEC-2 and NEC-4 put sources and loads at segment centres, NEC-5 at
 segment ends, and the importer reads NEC-5 only when the deck says so (EZNEC's
-NEC-5 stamp, `CM NEC-5`, a `GN … NOFILE`, or an `EX` at a segment end) and
+NEC-5 stamp, `CM NEC-5`, or an `EX` at a segment end; a `GN … NOFILE` alone
+reads NEC-5 by default and says so) and
 NEC-4 when EZNEC's NEC-4.2 stamp says so. If it guessed wrong, **Read as**
 under the deck's name chooses NEC-2, NEC-4 or NEC-5 and re-opens it; the link
 carries the choice (`&dialect=nec5`). See [Loading NEC

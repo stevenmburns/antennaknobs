@@ -440,10 +440,8 @@ because the `EX` card alone cannot say which program it was written for.
 Such a deck declares itself NEC-5 with a comment card whose whole text is
 `NEC-5` (`CM NEC-5`), or with EZNEC's own stamp line —
 `CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-5 format.` — whose format token
-names the dialect: `NEC-5` declares it, `NEC-2` and `NEC-4.2` keep the NEC-2
-reading (EZNEC's NEC-4.2 slot writes the same deck with NEC-4's `EX 6`
-segment current source in place of `EX 4`), and any other token is refused by
-name. An `EX` with `I4 = 0` then reads NEC-5's way: end 2 of a positive
+names the dialect: `NEC-5` declares it, `NEC-4.2` reads it as NEC-4 (below),
+`NEC-2` keeps the NEC-2 reading, and any other token is refused by name. An `EX` with `I4 = 0` then reads NEC-5's way: end 2 of a positive
 segment, end 1 of a negative one, and the same rule reaches the ends `NT`
 and `TL` cards name, so `TL 3,2,2,-1` and `EX 4,2,-1` resolve to one port. A
 comment that only mentions NEC-5 declares nothing.
@@ -461,8 +459,15 @@ deck in the designs folder alike: *Read as NEC-5 (sources and loads at segment
 ends): EZNEC's stamp on line 1 says NEC-5 format.* or *Read as NEC-2 (sources
 and loads at segment centres): no NEC-4 or NEC-5 marker found.* The four
 markers that read a deck as NEC-5 are EZNEC's NEC-5 stamp, a `CM NEC-5` card,
-a `GN` card ending in `NOFILE`, and an `EX` in NEC-5's segment-end form; the
-note names the first one in the deck, by line. EZNEC's NEC-4.2 stamp (or a
+and an `EX` in NEC-5's segment-end form; the note names the first one in the
+deck, by line. A `GN` card ending in `NOFILE` is weaker: NEC-4 and NEC-5 both
+write it, so it only rules NEC-2 out. A deck whose only marker it is reads
+wholly as NEC-5 — its plain `EX` cards included, at end 2 of their segment —
+and the note says the choice was a default: *…ends in NOFILE, which NEC-4 and
+NEC-5 both write, and nothing else in the deck says which — choose Read as
+NEC-4 if it came from a NEC-4 program.* antennaknobs' own NEC-5 decks carry
+`CM NEC-5`, and its NEC-4.2 decks `CM NEC-4.2`, so each reads back as what it
+is. EZNEC's NEC-4.2 stamp (or a
 `CM NEC-4.2` card) reads it as **NEC-4**: NEC-2's segment centres, with NEC-4's own cards — `GN 3` is
 NEC-4.2's newer Sommerfeld (not 4nec2's MININEC-type ground), `EX 6` its
 segment current source, `GE -1` admits buried wires, and a `GN` that names a
@@ -505,7 +510,7 @@ deck = parse_nec(open("some.nec").read(), name="some.nec")
 | `freq_mhz` | The `FR` card's sweep range as `(lo, hi)` MHz, or `None` |
 | `ground` | `True` if the deck requested a ground plane (`GE` flag or a `GN` card) |
 | `ground_spec`, `ground_method` | The ground the deck models, in the CLI's `--ground` shape — `None` (free space), `"pec"`, `("finite", eps_r, sigma)` for `GN 2`, `("finite-fast", eps_r, sigma)` for a NEC-2 deck's `GN 0` (a NEC-5 deck's `GN 0` is `"finite"`), `("mininec", eps_r, sigma)` for the MININEC-type ground — and the finite model's name (`"sommerfeld"` / `"fast"` / `"mininec"`) |
-| `ground_card`, `nec5_dialect` | The card the ground came from (`"GN 0"` / `"GN 2"` / `"GD"` / `"GN 1 + GD"` / `"GN 3"`, or `None`), and whether the deck shows NEC-5's dialect: `NOFILE` on its `GN` card, a source at a segment end, or EZNEC's NEC-5 stamp |
+| `ground_card`, `nec5_dialect` | The card the ground came from (`"GN 0"` / `"GN 2"` / `"GD"` / `"GN 1 + GD"` / `"GN 3"`, or `None`), and whether the deck reads as NEC-5 (see `dialect` / `dialect_reason` for which marker said so) |
 | `comments` | The `CM` header text, line by line |
 | `ignored` | Mnemonics of run-configuration cards seen but not applied |
 | `loads`, `tls`, `nts` | The translated LD/TL/NT records (`network=True` only) |
