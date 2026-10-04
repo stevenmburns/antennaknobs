@@ -1,0 +1,33 @@
+1
+ momwire 0.70.0 bspline avx2
+
+
+                                ***********************************************
+                                *                                             *
+                                *  NUMERICAL ELECTROMAGNETICS CODE (NEC-4.2)  *
+                                *                                             *
+                                ***********************************************
+
+
+
+
+                      **********************************************************
+
+                          40-meter four-square array                                                   
+                                                                                                       
+                          EZNEC Pro/2+ v. 7.0.4  2026-10-04 07:40:24                                   
+                                                                                                       
+                          ! Written by EZNEC/Pro+ v. 7.0 in NEC-4.2 format.                            
+                                                                                                       
+                          ! WARNING: MININEC-type ground may not work properly with standard           
+                          !          NEC-2 or -4 program.                                              
+                                                                                                       
+
+                      **********************************************************
+
+
+
+
+
+
+ ***** NEC ERROR - 4 sources in one run with an EX 6 current source among them is not supported by this engine: a current source is served as its port's voltage drive rescaled, which is exact for one source only, and no EZNEC NEC-4.2 capture writes more than one

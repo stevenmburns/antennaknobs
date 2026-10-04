@@ -1,0 +1,30 @@
+1
+ momwire 0.70.0 bspline avx2
+
+
+                                ***********************************************
+                                *                                             *
+                                *  NUMERICAL ELECTROMAGNETICS CODE (NEC-4.2)  *
+                                *                                             *
+                                ***********************************************
+
+
+
+
+                      **********************************************************
+
+                          Cardioid                                                                     
+                                                                                                       
+                          EZNEC Pro/2+ v. 7.0.4  2026-10-04 07:36:29                                   
+                                                                                                       
+                          ! Written by EZNEC/Pro+ v. 7.0 in NEC-4.2 format.                            
+                                                                                                       
+
+                      **********************************************************
+
+
+
+
+
+
+ ***** NEC ERROR - 2 sources in one run with an EX 6 current source among them is not supported by this engine: a current source is served as its port's voltage drive rescaled, which is exact for one source only, and no EZNEC NEC-4.2 capture writes more than one
