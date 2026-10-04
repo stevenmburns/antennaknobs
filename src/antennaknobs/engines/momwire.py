@@ -2009,21 +2009,23 @@ class MomwireEngine(SimulationEngine):
         solves. End and vertex ports report their wire's coerced count; a port
         fed at the knot a split shares (AK#1519) reports that piece's last
         segment and the next piece's first."""
-        from ..engine import fed_records
+        from ..engine import fed_records, gap_site
 
         site = "knot" if self.segment_parity == "even" else "centre"
+        ports = self._network.ports if self._network is not None else {}
         out = []
         for k, (pl, e) in enumerate(self._feed_edges):
             poly = np.asarray(self._polylines[pl])
             length = float(np.linalg.norm(poly[e + 1] - poly[e]))
             n = int(self._edge_segments[pl][e])
+            name = self._feed_names[k] if k < len(self._feed_names) else None
             out.append(
                 {
-                    "port": self._feed_names[k] if k < len(self._feed_names) else None,
+                    "port": name,
                     "wire": None,
                     "segments": n,
                     "length_m": length / n,
-                    "site": site,
+                    "site": gap_site(ports.get(name), site),
                 }
             )
         for rec in out:
