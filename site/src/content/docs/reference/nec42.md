@@ -17,6 +17,15 @@ Because the licence covers your own use, the NEC-4.2 slot appears only where
 the machine running the server can find your binary. The hosted simulator
 never can, so it never shows the tab.
 
+**No NEC-4.2 licence?** There are two other routes to the same decks:
+- **On the workbench:** open a NEC-4.2 deck with
+  [**Open…**](/reference/web/#your-own-deck), and it reads as NEC-4. EZNEC's
+  NEC-4.2 stamp is detected, or you can choose **Read as NEC-4** yourself.
+  momwire then solves it.
+- **In EZNEC:** EZNEC's External NEC-4.2 engine slot can run
+  `momwire-nec4.exe` from momwire's free EZNEC drop-in. See
+  [momwire in EZNEC](https://momwire.dev/reference/eznec-nec5/).
+
 ## Pointing at it
 
 One environment variable, naming a console binary that takes the deck and the

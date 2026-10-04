@@ -29,17 +29,18 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.95.1" icon="star">
-  **A metric reads as a table, and every label names its ground.** A study
-  with a metric, like M0AGP's DX gain of an inverted L against a full-size
-  vertical, now shows that metric in the Table view (with the difference from
-  the reference) and in its CSV, the Metric chart marks the knob's current value
-  and reads out every curve under the pointer, and the reference curve is
-  labelled as the 0 dB reference. Chart legends, tables and the command line
-  name the ground model ("Sommerfeld · average", "refl-coef · …") rather than
-  only the soil. Imported NEC-5 decks with two loads or a source and a load at
-  the same two-wire junction now solve, in series, as NEC-5 does. Builds on
-  v0.95.0: Sommerfeld by default, and momwire 0.70.0.
+<Card title="New in v0.96.0" icon="star">
+  **Open your own deck, here or on the hosted simulator.**
+  [**Open…**](/reference/web/#your-own-deck) beside the design picker loads a
+  NEC deck (from MMANA, 4nec2 or EZNEC) or a SimNEC `.ssn`. The page's link
+  carries the deck, so you can share the model just by sending the link.
+  Every opened deck says which NEC dialect it was read in and why: NEC-2 or
+  NEC-4 (sources at segment centres) or NEC-5 (segment ends). **Read as**
+  changes that choice. NEC-4.2 decks now import, including EZNEC's.
+  EZNEC's "parallel connected loads" decks solve, and a knob sweep that the
+  server dropped is asked for again. All of this runs on momwire 0.71.0:
+  faster solves on every lane, and a stand-in for EZNEC's NEC-4.2 engine
+  slot.
 </Card>
 
 ## The whole pitch, in one line
