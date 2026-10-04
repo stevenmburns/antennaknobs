@@ -139,16 +139,9 @@ from antennaknobs.terrain import (
     levee_terrain,
 )
 import momwire
-from momwire import (
-    ArrayBlockSolver,
-    BSplineSolver,
-    HarringtonSolver,
-    HMatrixSolver,
-    RazorSolver,
-    SinusoidalGalerkinSolver,
-    SinusoidalSolver,
-)
+from momwire import BSplineSolver
 
+from .. import momwire_bases
 from ..auto_match import tuner_advisories, tuner_holding_match, tuner_rows
 from ..geometry import flat_wires_to_polylines
 from .examples import REGISTRY, register
@@ -387,12 +380,16 @@ _RAZOR_KWARGS = ("extended_kernel",)
 _NEC42_KWARGS = ("sommerfeld",)
 
 
+# Each momwire tab's class and binding come from the one roster the CLI reads
+# too (AK#1560); this table adds only what the app renders.
+_ROSTER = momwire_bases.BASES
+
 _BACKENDS: tuple[_BackendSpec, ...] = (
     _BackendSpec(
         name="sinusoidal",
         model_kwargs=_SIN_KWARGS,
         label="Sinusoidal",
-        solver=SinusoidalSolver,
+        solver=_ROSTER["sinusoidal"].solver,
         options=(_N_QP_CONST,),
     ),
     # The same three-term basis as "sinusoidal", tested variationally rather
@@ -405,7 +402,7 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         name="sinusoidal-galerkin",
         model_kwargs=_SIN_GALERKIN_KWARGS,
         label="Sin-Galerkin",
-        solver=SinusoidalGalerkinSolver,
+        solver=_ROSTER["sinusoidal-galerkin"].solver,
         options=(_N_QP_CONST,),
         panel="sin-galerkin",
         dense_family=True,
@@ -414,7 +411,7 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         name="bspline",
         model_kwargs=_BSPLINE_FAMILY_KWARGS,
         label="B-spline",
-        solver=BSplineSolver,
+        solver=_ROSTER["bspline"].solver,
         panel="bspline",
         dense_family=True,
     ),
@@ -438,7 +435,7 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         name="pulse",
         model_kwargs=(),
         label="Harrington (pulse)",
-        solver=HarringtonSolver,
+        solver=_ROSTER["pulse"].solver,
     ),
     # bspline; model_options forward verbatim (degree, aca_eta,
     # aca_leaf_size, aca_tol, solve_tol, …). Only singular enrichment falls
@@ -449,7 +446,7 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         name="hmatrix",
         model_kwargs=_BSPLINE_FAMILY_KWARGS,
         label="H-matrix (ACA)",
-        solver=HMatrixSolver,
+        solver=_ROSTER["hmatrix"].solver,
         panel="bspline",
         accelerator=True,
         dense_family=True,
@@ -464,7 +461,7 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         name="arrayblock",
         model_kwargs=_BSPLINE_FAMILY_KWARGS,
         label="Array-block",
-        solver=ArrayBlockSolver,
+        solver=_ROSTER["arrayblock"].solver,
         panel="bspline",
         accelerator=True,
         dense_family=True,
@@ -496,9 +493,9 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         name="razor-2p",
         model_kwargs=_RAZOR_KWARGS,
         label="Razor (2-point)",
-        solver=RazorSolver,
+        solver=_ROSTER["razor-2p"].solver,
         dense_family=True,
-        bound={"nec5_quadrature": True},
+        bound=dict(_ROSTER["razor-2p"].bound),
     ),
     # Optional (needs pynec-accel): served only when HAVE_PYNEC, so the
     # frontend derives availability from roster membership instead of a
