@@ -459,23 +459,31 @@ The import says which reading it took, and why, as the first sentence of the
 design's note — on the workbench above the knobs, for an opened deck and a
 deck in the designs folder alike: *Read as NEC-5 (sources and loads at segment
 ends): EZNEC's stamp on line 1 says NEC-5 format.* or *Read as NEC-2 (sources
-and loads at segment centres): no NEC-5 marker found.* The four markers that
-read a deck as NEC-5 are EZNEC's NEC-5 stamp, a `CM NEC-5` card, a `GN` card
-ending in `NOFILE`, and an `EX` in NEC-5's segment-end form; the note names
-the first one in the deck, by line. A NEC-5 deck with none of them reads as
-NEC-2, every source and load half a segment from where its author put it, so
-the dialect can be chosen: **Read as** under an opened deck's name (auto /
-NEC-2 / NEC-5) re-opens it read that way, and the page's link carries the
-choice (`&dialect=nec5`, absent for auto). In Python it is
-`parse_nec(text, dialect="nec5")` (or `"nec2"`; `None` detects), and
+and loads at segment centres): no NEC-4 or NEC-5 marker found.* The four
+markers that read a deck as NEC-5 are EZNEC's NEC-5 stamp, a `CM NEC-5` card,
+a `GN` card ending in `NOFILE`, and an `EX` in NEC-5's segment-end form; the
+note names the first one in the deck, by line. EZNEC's NEC-4.2 stamp reads it
+as **NEC-4**: NEC-2's segment centres, with NEC-4's own cards — `GN 3` is
+NEC-4.2's newer Sommerfeld (not 4nec2's MININEC-type ground), `EX 6` its
+segment current source, `GE -1` admits buried wires, and a `GN` that names a
+ground-table file (or `NOFILE`) is accepted, the file not read (it is NEC-4's
+cache; the ground is computed from the card, and the note says so). A NEC-5
+deck with no marker reads as NEC-2, every source and load half a segment from
+where its author put it, so the dialect can be chosen: **Read as** under an
+opened deck's name (auto / NEC-2 / NEC-4 / NEC-5) re-opens it read that way,
+and the page's link carries the choice (`&dialect=nec5`, absent for auto).
+In Python it is `parse_nec(text, dialect="nec5")` (or `"nec2"`, `"nec4"`;
+`None` detects), and
 `builder_from_file(path, dialect=...)` / `builder_from_text(...)` for a file
 design. A chosen dialect reads a `CM` declaration (or an EZNEC stamp naming a
 writer with no capture) as the comment it is, and the note says what
 detection would have read. What one dialect cannot spell is refused by name
 under the other: NEC-5's segment-end `EX` (a negative segment, `I4 = 2`, or
-`EX 4`) cannot be read as NEC-2, and 4nec2's percentage position cannot be
-read as NEC-5. `NOFILE` is accepted under NEC-2, since NEC-4.2's own decks end
-`GN` with it too.
+`EX 4`) cannot be read as NEC-2 or NEC-4, and 4nec2's percentage position
+cannot be read as NEC-5. `NOFILE` is accepted under NEC-2, since NEC-4.2's own
+decks end `GN` with it too. A deck antennaknobs exports for NEC-4.2
+(`--dialect nec4`) carries no stamp, and its `GN … NOFILE` reads as NEC-5
+under detection; read it back as NEC-4.
 
 ## Programmatic use
 

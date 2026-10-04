@@ -8,7 +8,7 @@
 //   ?deck=<z>&name=<file name>            an opened deck (lib/decks.ts): the
 //                                         file's text, compressed, in place
 //                                         of `design`
-//   &dialect=nec2|nec5                    the dialect the deck is read in,
+//   &dialect=nec2|nec4|nec5               the dialect the deck is read in,
 //                                         when chosen (absent: detected)
 //
 // React-free, so the grammar and the resolution are tested alone. The

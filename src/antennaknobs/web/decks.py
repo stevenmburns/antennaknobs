@@ -84,7 +84,7 @@ def deck_key(name: str, text: str, dialect: str | None = None) -> str:
 
 #: The dialects a deck may be read in when the reader chooses
 #: (`nec_import.parse_nec`'s ``dialect``); absent means detect.
-DIALECTS = ("nec2", "nec5")
+DIALECTS = ("nec2", "nec4", "nec5")
 
 
 def payload_dialect(payload) -> str | None:

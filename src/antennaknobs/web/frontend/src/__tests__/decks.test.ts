@@ -80,10 +80,10 @@ describe("the link carries the deck", () => {
       variant: null,
       analysis: null,
       view: null,
-      deck: { ...deck("abc_-123"), dialect: "nec5" },
+      deck: { ...deck("abc_-123"), dialect: "nec4" },
     });
-    expect(new URLSearchParams(s).get("dialect")).toBe("nec5");
-    expect(parseDeepLink(s)!.deck).toEqual({ z: "abc_-123", name: "my dipole.nec", dialect: "nec5" });
+    expect(new URLSearchParams(s).get("dialect")).toBe("nec4");
+    expect(parseDeepLink(s)!.deck).toEqual({ z: "abc_-123", name: "my dipole.nec", dialect: "nec4" });
     // Detected: no dialect in the link; an unknown one is dropped.
     const auto = linkSearch("?dialect=nec5", { design: KEY, variant: null, analysis: null, view: null, deck: deck("abc") });
     expect(new URLSearchParams(auto).get("dialect")).toBeNull();

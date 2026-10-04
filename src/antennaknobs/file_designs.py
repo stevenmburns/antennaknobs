@@ -674,6 +674,10 @@ def _nec_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=No
         ground_card=(
             f"NEC-5 {deck.ground_card}"
             if deck.nec5_dialect and deck.ground_card
+            # NEC-4.2's GN 3 is Sommerfeld, which the panel would otherwise
+            # spell "Sommerfeld (GN 2)".
+            else f"NEC-4 {deck.ground_card}"
+            if deck.dialect == "nec4" and deck.ground_card == "GN 3"
             else None
         ),
         file_deck=deck,
