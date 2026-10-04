@@ -658,6 +658,53 @@ def test_a_served_state_cell_is_the_clis_curve_for_that_state(
     assert worst <= REL, worst
 
 
+def test_a_served_state_cell_is_the_clis_curve_over_finite_fast(
+    monkeypatch, client, capsys, tmp_path
+):
+    """AK#1825: the free-space gate above, over ``finite-fast``. The two
+    paths build one ground (refl-coef, 13 / 0.005), so they agree as they do
+    in free space. The issue's 51.531−10.776j vs 51.540−10.759j is the tall
+    mast at N=15 on refl-coef vs SOMMERFELD (measured 2026-10-04): a request
+    with the ground on and no ``ground_model`` gets the built-in method,
+    Sommerfeld since AK#1856, so the cell has to name "fast" — which the
+    chart's ground slot does (``groundSpecHeld`` matches the method)."""
+    states = (an.State("as built"), an.State("tall", base=12.0))
+    a = _lf(name="st", cross=an.Cross(states=states))
+    _offer(monkeypatch, [a])
+    w = _served(client, {"geometry": INVVEE}, "st")
+    runs = _capture_run(monkeypatch)
+    cli(["analyze", "--builder", INVVEE, "--analysis", "st",
+         "--ground", "finite-fast", "--engine", "momwire:bspline",
+         "--nominal-nsegs", "15", "--fn", str(tmp_path / "w.png")])  # fmt: skip
+    capsys.readouterr()
+    worst = 0.0
+    for s in w["states"]:
+        xs, want = runs[0]["curves"][s["label"]]
+        body = {
+            "geometry": INVVEE,
+            **_defaults(client, INVVEE),
+            **s["knobs"],
+            "design_freq_mhz": 28.47,
+            "measurement_freq_mhz": 28.47,
+            "solver": "momwire",
+            "momwire_model": "bspline",
+            "n_per_wire": 15,
+            "ground": True,
+            "ground_model": "fast",
+            "param": s["param"],
+            "values": s["values"],
+        }
+        recs = _records(client.post("/param_sweep", json=body).text)[:-1]
+        got = [complex(r["z_re"], r["z_im"]) for r in recs]
+        worst = max(worst, float(np.max(np.abs(np.subtract(got, want)) / np.abs(want))))
+        # The other method is a different answer, not a rounding of this one.
+        body["ground_model"] = "sommerfeld"
+        recs = _records(client.post("/param_sweep", json=body).text)[:-1]
+        somm = [complex(r["z_re"], r["z_im"]) for r in recs]
+        assert np.max(np.abs(np.subtract(somm, want))) > 1e-3
+    assert worst <= REL, worst
+
+
 def _docs_states_blocks() -> list[str]:
     page = (
         Path(__file__).resolve().parents[1] / "site/src/content/docs/reference/cli.md"
