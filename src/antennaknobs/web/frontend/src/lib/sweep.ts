@@ -349,6 +349,26 @@ export function editSweepRange(
   return ok ? next : null;
 }
 
+/** What a sweep runner keys a re-sweep on (AK#1765): the grid `range`
+ *  sweeps and whether it is swept exactly, not the range object. Two ranges
+ *  that grid the same frequencies are the same sweep, whatever rung they came
+ *  from or however their density is spelled (the file's `step` and a menu
+ *  edit's re-derived one), so re-entering the range in force is a no-op.
+ *
+ *  A range with no density of its own grids the caller's default count,
+ *  which is not this key's business: it follows the engine and ground
+ *  (already in the sweep's signature) and the refinement switch (which is
+ *  deliberately not a re-sweep). Gridded at 2 points, such a range keys on
+ *  its ends and spacing, which with that count fix its grid.
+ *
+ *  Frequencies compare at 12 significant figures (a µHz at 14 MHz): a step
+ *  re-derived as (hi − lo) / gaps differs from the file's 0.025 in the last
+ *  bits, and that is the same sweep. */
+export function sweepGridKey(range: SweepRange): string {
+  const freqs = sweepGrid(range, 2).freqs.map((f) => Number(f.toPrecision(12)));
+  return JSON.stringify([freqs, range.spacing, !!range.exact]);
+}
+
 export function planSweepFreqs(
   params: SweepRangeInputs & {
     backend: BackendEntry;

@@ -159,6 +159,11 @@ from the dial's own right-click menu (long-press on a touch screen):
 - **↺ design range** reverts a session edit back to wherever the range would
   otherwise come from.
 
+A field applies when you press Enter or leave it, not on each keystroke, so
+typing `14.35` sweeps once, at 14.35. An entry that grids the same frequencies
+as the range already in force (re-typing the file's own value, say) sweeps
+nothing again.
+
 A bad entry — a step of zero or less, fewer than two points, or a high end at
 or below the low end — is refused visibly: the field marks itself invalid and
 keeps the last good value rather than accepting the edit.

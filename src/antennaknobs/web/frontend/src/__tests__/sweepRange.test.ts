@@ -286,3 +286,34 @@ describe("the hosted point cap (AK#1682)", () => {
     expect(g.freqs).toHaveLength(500);
   });
 });
+
+describe("the sweep runner's key (AK#1765)", () => {
+  const FILE: sweep.SweepRange = { lo: 14, hi: 14.35, spacing: "lin", step: 0.025 };
+
+  it("a range re-stated in another spelling is the same sweep", () => {
+    // What a lin → log → lin round trip in the menu leaves: the file's 15
+    // points, with the step re-derived as (hi - lo) / 14.
+    const restated: sweep.SweepRange = { lo: 14, hi: 14.35, spacing: "lin", step: (14.35 - 14) / 14 };
+    expect(restated.step).not.toBe(FILE.step);
+    expect(sweep.sweepGridKey(restated)).toBe(sweep.sweepGridKey(FILE));
+    // A served range carries fields the grid never reads (the file's
+    // `source`); they are not a new sweep either.
+    const served = { ...FILE, source: "file" } as sweep.SweepRange;
+    expect(sweep.sweepGridKey(served)).toBe(sweep.sweepGridKey(FILE));
+  });
+
+  it("a different grid is a different sweep", () => {
+    const key = sweep.sweepGridKey(FILE);
+    expect(sweep.sweepGridKey({ ...FILE, hi: 14.5 })).not.toBe(key);
+    expect(sweep.sweepGridKey({ ...FILE, step: 0.05 })).not.toBe(key);
+    expect(sweep.sweepGridKey({ lo: 14, hi: 14.35, spacing: "log", points: 15 })).not.toBe(key);
+    expect(sweep.sweepGridKey({ ...FILE, exact: true })).not.toBe(key);
+  });
+
+  it("a range with no density keys on its ends and spacing alone", () => {
+    const bare: sweep.SweepRange = { lo: 10, hi: 100, spacing: "log" };
+    expect(sweep.sweepGridKey(bare)).toBe(sweep.sweepGridKey({ ...bare }));
+    expect(sweep.sweepGridKey({ ...bare, hi: 90 })).not.toBe(sweep.sweepGridKey(bare));
+    expect(sweep.sweepGridKey({ ...bare, spacing: "lin" })).not.toBe(sweep.sweepGridKey(bare));
+  });
+});

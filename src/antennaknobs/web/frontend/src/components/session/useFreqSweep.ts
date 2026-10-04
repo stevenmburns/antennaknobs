@@ -7,6 +7,7 @@ import {
   defaultSweepPoints,
   mergeSweepPoints,
   sweepGrid,
+  sweepGridKey,
   type SweepProgress,
   type SweepRange,
   SWEEP_REFINE_BUDGET,
@@ -226,7 +227,9 @@ export function useFreqSweep({
   // unit 5): no refinement adds points between its points, as `antennaknobs
   // analyze` adds none, so its curve is settled once the list lands.
   const refineEnabled = refineSetting && !effectiveSweepRange.exact;
-  const sweepRangeKey = JSON.stringify(effectiveSweepRange);
+  // The grid, not the range object (AK#1765): an edit that re-states the
+  // range in force grids the same frequencies and must not re-sweep them.
+  const sweepRangeKey = sweepGridKey(effectiveSweepRange);
   const [sweep, setSweep] = useState<SweepData | null>(null);
   const [sweepRunning, setSweepRunning] = useState(false);
   // The freq sweep's phase, published on the sweep charts (AK#1762): the base

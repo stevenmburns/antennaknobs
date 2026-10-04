@@ -104,12 +104,14 @@ export function SweepRangeMenu({
         <div className="knob-menu-row">
           <span>Sweep range lo / hi (MHz)</span>
           <KnobMenuNumber
+            commitOn="enter"
             value={round(range.lo)}
             onChange={(v) => set("lo", { lo: v })}
             invalid={invalidFields.has("lo")}
             onRevert={() => markValid("lo")}
           />
           <KnobMenuNumber
+            commitOn="enter"
             value={round(range.hi)}
             onChange={(v) => set("hi", { hi: v })}
             invalid={invalidFields.has("hi")}
@@ -120,6 +122,7 @@ export function SweepRangeMenu({
           <div className="knob-menu-row">
             <span>Step (MHz)</span>
             <KnobMenuNumber
+              commitOn="enter"
               value={round(d.step, 4)}
               onChange={(v) => set("step", { step: v })}
               invalid={invalidFields.has("step")}
@@ -131,6 +134,7 @@ export function SweepRangeMenu({
           <div className="knob-menu-row">
             <span>{refineEnabled ? "Base points" : "Points"}</span>
             <KnobMenuNumber
+              commitOn="enter"
               value={Math.round(d.points)}
               onChange={(v) => set("points", { points: Math.round(v) })}
               invalid={invalidFields.has("points")}
