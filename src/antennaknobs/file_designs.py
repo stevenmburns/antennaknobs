@@ -433,10 +433,13 @@ class _SyKnobs:
         return knobs, knobs.note(freq)
 
     @classmethod
-    def for_deck(cls, path: Path, text: str, refine: int, deck, freq, limits=None):
+    def for_deck(
+        cls, path: Path, text: str, refine: int, deck, freq, limits=None, dialect=None
+    ):
         """A ``.nec`` deck's SY knobs (AK#1705). ``limits`` bounds every
         re-parse as it bounded the import: a knob that grows the
-        structure past them is refused like any other value that breaks it."""
+        structure past them is refused like any other value that breaks it.
+        ``dialect`` is the import's: every re-parse reads the deck as it did."""
 
         def reparse(overrides):
             return parse_nec(
@@ -445,6 +448,7 @@ class _SyKnobs:
                 network=True,
                 sy_overrides=overrides,
                 limits=limits,
+                dialect=dialect,
             ).refined(refine)
 
         return cls._for(
@@ -641,15 +645,27 @@ class _DeckAtParams:
         return self.deck if obj is None else self.knobs.deck_for(obj)
 
 
-def _nec_builder(path: Path, text: str, refine: int = 1, limits=None):
-    deck = parse_nec(text, name=path.name, network=True, limits=limits).refined(refine)
+def _nec_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=None):
+    deck = parse_nec(
+        text, name=path.name, network=True, limits=limits, dialect=dialect
+    ).refined(refine)
     freq, meas_range, freq_note = _seed_freq(deck.freq_mhz)
-    knobs, knob_note = _SyKnobs.for_deck(path, text, refine, deck, freq, limits)
+    knobs, knob_note = _SyKnobs.for_deck(
+        path, text, refine, deck, freq, limits, dialect
+    )
     return _make_builder(
         path.stem,
         freq,
         meas_range,
-        [deck.skipped_note(), deck.fixed_frequency_note(), freq_note, knob_note],
+        # Which dialect the deck was read in comes first: the two readings
+        # put every source and load half a segment apart.
+        [
+            deck.dialect_note(),
+            deck.skipped_note(),
+            deck.fixed_frequency_note(),
+            freq_note,
+            knob_note,
+        ],
         lambda: deck.wire_tuples(specs=True),
         deck.network,
         extended_kernel=deck.extended_kernel,
@@ -719,7 +735,12 @@ def _ssn_circuit(text: str, name: str, dcl_overrides=None, limits=None):
     return circuit
 
 
-def _ssn_builder(path: Path, text: str, refine: int = 1, limits=None):
+def _ssn_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=None):
+    if dialect is not None:
+        raise ValueError(
+            f"{path.name}: the NEC dialect is chosen for a .nec deck; a SimNEC "
+            "circuit's NEC cards are read as SimNEC writes them"
+        )
     if refine != 1:
         raise SystemExit(
             f"{path.name}: a SimNEC circuit has no refinement path; "
@@ -781,13 +802,14 @@ def _generator_zo(zo):
 _LOADERS = {".nec": _nec_builder, ".ssn": _ssn_builder}
 
 
-def builder_from_file(spec: str, refine: int = 1):
+def builder_from_file(spec: str, refine: int = 1, dialect: str | None = None):
     """The builder class for an ``@``-spec path (the leading ``@`` already
     stripped): dispatch on the extension, parse once, and synthesize the
     design. Raises ``SystemExit`` with a clear message for a missing file or
     an unsupported extension (matching ``get_builder``'s unknown-builder
     behavior); parse errors propagate as ``ValueError`` so the real cause —
-    file, line, card — reaches the user."""
+    file, line, card — reaches the user. ``dialect`` ("nec2" / "nec5", None to
+    detect) overrides a ``.nec`` deck's detected dialect (`parse_nec`)."""
     path = Path(spec).expanduser()
     loader = _LOADERS.get(path.suffix.lower())
     if loader is None:
@@ -801,10 +823,10 @@ def builder_from_file(spec: str, refine: int = 1):
     # Old decks in the wild carry cp1252/latin-1 comment text; geometry cards
     # are ASCII, so replace rather than refuse on a stray comment byte.
     text = path.read_text(encoding="utf-8", errors="replace")
-    return loader(path, text, refine=refine)
+    return loader(path, text, refine=refine, dialect=dialect)
 
 
-def builder_from_text(name: str, text: str, *, limits=None):
+def builder_from_text(name: str, text: str, *, limits=None, dialect=None):
     """The builder class for a design file's TEXT, named ``name``:
     the hosted workbench's opened decks, which never touch the disk.
 
@@ -812,7 +834,8 @@ def builder_from_text(name: str, text: str, *, limits=None):
     deck opened this way is the design ``@path`` imports. ``name`` is only a
     file name -- its extension picks the loader and its stem labels the design;
     no path in it is ever read. ``limits`` (`nec_import.GeometryLimits`)
-    bounds the import and every knob re-parse."""
+    bounds the import and every knob re-parse; ``dialect`` is
+    `builder_from_file`'s."""
     path = Path(Path(name).name)
     loader = _LOADERS.get(path.suffix.lower())
     if loader is None:
@@ -821,4 +844,4 @@ def builder_from_text(name: str, text: str, *, limits=None):
             f"{path.suffix.lower() or '(none)'!r} -- opens "
             f"{' / '.join(sorted(_LOADERS))} antenna files"
         )
-    return loader(path, text, limits=limits)
+    return loader(path, text, limits=limits, dialect=dialect)
