@@ -537,6 +537,12 @@ def _deck_text(
     # never solved here.
     eng._jacket_pair = jacket_pair
     lines = [f"CM {card_text(title)}", "CM exported by antennaknobs.nec_export"]
+    if dialect == "nec42":
+        # The declaration `nec_import` reads as NEC-4 (a whole-comment
+        # phrase, as `CM NEC-5` is NEC-5's). Without it this deck's
+        # `GN ... NOFILE` reads as NEC-5 on import, and a GN 3 came back as
+        # 4nec2's MININEC-type ground.
+        lines.append("CM NEC-4.2")
     if any(eng._gw_radius_for(t) != eng._radius_for(t) for t in eng.tups):
         lines.extend(JACKET_COMMENT_CARDS)
     lines.append("CE")

@@ -61,11 +61,13 @@ def test_the_three_downloads_have_three_filenames(client):
 
 
 def test_a_free_space_nec4_deck_is_the_nec2_deck_with_no_dialect_cards(client):
-    """Nothing NEC-4 needs differs on an ordinary free-space dipole."""
+    """Nothing NEC-4 needs differs on an ordinary free-space dipole, but the
+    deck's declaration: `CM NEC-4.2`, so it reads back as NEC-4."""
     body = {"geometry": "dipoles.invvee"}
     n2 = client.post("/export_nec", json={**body, "dialect": "nec2"}).text
     n4 = client.post("/export_nec", json={**body, "dialect": "nec4"}).text
-    assert n2 == n4
+    assert "CM NEC-4.2" in n4.splitlines()
+    assert [ln for ln in n4.splitlines() if ln != "CM NEC-4.2"] == n2.splitlines()
 
 
 def test_a_buried_design_over_the_fast_ground_refuses_by_name(client):

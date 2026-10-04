@@ -462,8 +462,8 @@ ends): EZNEC's stamp on line 1 says NEC-5 format.* or *Read as NEC-2 (sources
 and loads at segment centres): no NEC-4 or NEC-5 marker found.* The four
 markers that read a deck as NEC-5 are EZNEC's NEC-5 stamp, a `CM NEC-5` card,
 a `GN` card ending in `NOFILE`, and an `EX` in NEC-5's segment-end form; the
-note names the first one in the deck, by line. EZNEC's NEC-4.2 stamp reads it
-as **NEC-4**: NEC-2's segment centres, with NEC-4's own cards — `GN 3` is
+note names the first one in the deck, by line. EZNEC's NEC-4.2 stamp (or a
+`CM NEC-4.2` card) reads it as **NEC-4**: NEC-2's segment centres, with NEC-4's own cards — `GN 3` is
 NEC-4.2's newer Sommerfeld (not 4nec2's MININEC-type ground), `EX 6` its
 segment current source, `GE -1` admits buried wires, and a `GN` that names a
 ground-table file (or `NOFILE`) is accepted, the file not read (it is NEC-4's
@@ -481,9 +481,10 @@ detection would have read. What one dialect cannot spell is refused by name
 under the other: NEC-5's segment-end `EX` (a negative segment, `I4 = 2`, or
 `EX 4`) cannot be read as NEC-2 or NEC-4, and 4nec2's percentage position
 cannot be read as NEC-5. `NOFILE` is accepted under NEC-2, since NEC-4.2's own
-decks end `GN` with it too. A deck antennaknobs exports for NEC-4.2
-(`--dialect nec4`) carries no stamp, and its `GN … NOFILE` reads as NEC-5
-under detection; read it back as NEC-4.
+decks end `GN` with it too. A comment card whose whole text is `NEC-4` or
+`NEC-4.2` declares NEC-4 the way `CM NEC-5` declares NEC-5; antennaknobs'
+own NEC-4.2 export (`--dialect nec4`) writes `CM NEC-4.2`, so it reads back
+as NEC-4 under detection.
 
 ## Programmatic use
 

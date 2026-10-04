@@ -409,3 +409,45 @@ def test_deck_takes_nec4(client):
     nec4 = client.post("/deck", json=_payload(dialect="nec4")).json()
     assert nec4["dialect"]["read_as"] == "nec4" and nec4["dialect"]["chosen"] == "nec4"
     assert nec4["key"] != client.post("/deck", json=_payload()).json()["key"]
+
+
+@pytest.mark.parametrize("word", ["NEC-4", "NEC-4.2", "nec4.2"])
+def test_cm_nec4_declares_nec4_and_prose_does_not(word):
+    d = _deck(f"CM {word}\n" + DIPOLE)
+    assert d.dialect == "nec4"
+    assert d.dialect_reason == f"a CM {word} card on line 1"
+    assert _deck("CM converted from a NEC-4.2 deck\n" + DIPOLE).dialect == "nec2"
+
+
+@pytest.mark.parametrize("sommerfeld", [2, 3])
+def test_nec42_export_round_trips_through_auto_detection(sommerfeld):
+    """AK's own NEC-4.2 writer declares the deck, so detection reads its
+    `GN ... NOFILE` as NEC-4's no-table-file, not as NEC-5's sentinel; before
+    the declaration a GN 3 export came back as the MININEC-type ground."""
+    from antennaknobs.nec_export import export_nec
+
+    ground = ("finite", 13.0, 0.005)
+    src = builder_from_text("d.nec", DIPOLE)
+    z0 = complex(MomwireEngine(src(), ground=ground).impedance()[0])
+    text = export_nec(src(), ground=ground, dialect="nec42", sommerfeld=sommerfeld)
+    assert "CM NEC-4.2" in text.splitlines()
+    cls = builder_from_text("e.nec", text)
+    d = cls.file_deck_parsed
+    assert d.dialect == "nec4" and not d.nec5_dialect
+    assert _notes(cls).startswith(
+        "Read as NEC-4 (sources and loads at segment centres): a CM NEC-4.2 card"
+    )
+    assert cls.file_ground == ground
+    z = complex(MomwireEngine(cls(), ground=cls.file_ground).impedance()[0])
+    assert z == pytest.approx(z0, rel=1e-9)
+
+
+def test_the_nec2_export_carries_no_nec4_declaration():
+    """The NEC-2 writer's output does not move (the NEC-5 deck is NEC5Engine's
+    own writer, untouched)."""
+    from antennaknobs.nec_export import export_nec
+
+    src = builder_from_text("d.nec", DIPOLE)
+    text = export_nec(src(), ground=("finite", 13.0, 0.005))
+    assert "CM NEC-4.2" not in text.splitlines()
+    assert builder_from_text("e.nec", text).file_deck_parsed.dialect == "nec2"
