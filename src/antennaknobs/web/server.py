@@ -294,7 +294,8 @@ def _open_deck(payload, ip: str) -> tuple[str, bool]:
     """Decode, rate-limit and register a deck payload; ``(key, new)``. A deck
     already open costs nothing and counts against no limit."""
     name, text = _decks.decode_payload(payload, _DECK_SETTINGS)
-    key = _decks.deck_key(name, text)
+    dialect = _decks.payload_dialect(payload)
+    key = _decks.deck_key(name, text, dialect)
     if key in _DECK_STORE and key in EXAMPLES:
         _DECK_STORE.get(key)  # touch: recently used
         return key, False
@@ -305,7 +306,7 @@ def _open_deck(payload, ip: str) -> tuple[str, bool]:
             status=429,
             deck_status="rate",
         )
-    return _DECK_STORE.open(name, text)
+    return _DECK_STORE.open(name, text, dialect)
 
 
 def _ensure_deck(req: dict, ip: str) -> None:
@@ -4505,11 +4506,28 @@ def examples_endpoint():
     return {"examples": out, "errors": load_errors}
 
 
+def _deck_dialect(ex) -> dict | None:
+    """What an opened deck was read as (`NecDeck.dialect`): ``{read_as,
+    reason, detected, chosen}``, the dialect control's state. None for a
+    deck with no NEC cards behind it."""
+    deck = getattr(ex.builder_cls, "file_deck_parsed", None)
+    if deck is None:
+        return None
+    return {
+        "read_as": deck.dialect,
+        "reason": deck.dialect_reason,
+        "detected": deck.dialect_detected,
+        "chosen": deck.dialect_chosen,
+    }
+
+
 @app.post("/deck")
 async def deck_open_endpoint(req: dict, request: Request):
     """Open a NEC deck the user brings: ``{name, z}`` (``z`` the
     file's text, deflate-raw compressed and base64url'd, as the link carries
-    it) or ``{name, text}``. Answers ``{key, example, limits}`` -- the design
+    it) or ``{name, text}``, and optionally ``dialect`` ("nec2" / "nec5";
+    absent or "auto" detects it). Answers ``{key, example, dialect, limits}``
+    -- the design
     key every later request names it by (``deck.<hash12>``) and its catalog
     record, the one /examples would serve -- or the refusal by name: 413 over
     the text limit, 422 for a deck that does not import or is over the
@@ -4537,6 +4555,7 @@ async def deck_open_endpoint(req: dict, request: Request):
     return {
         "key": key,
         "example": entry,
+        "dialect": _deck_dialect(EXAMPLES[key]),
         "limits": {
             "max_bytes": lim.max_bytes,
             "max_segments": lim.max_segments,

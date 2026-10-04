@@ -23,11 +23,31 @@ export const DECK_NS = "deck.";
  *  deck still opens in this tab; the page says the link cannot share it. */
 export const MAX_SHARE_CHARS = 8000;
 
-export type DeckPayload = { name: string; z: string };
+/** The NEC dialects a reader may choose to read a deck in (the server's
+ *  `nec_import.parse_nec(dialect=...)`); absent means detect. */
+export const DIALECTS = ["nec2", "nec5"] as const;
+export type Dialect = (typeof DIALECTS)[number];
+export const DIALECT_LABEL: Record<Dialect, string> = { nec2: "NEC-2", nec5: "NEC-5" };
+
+export const isDialect = (v: unknown): v is Dialect =>
+  typeof v === "string" && (DIALECTS as readonly string[]).includes(v);
+
+/** `dialect`: the reader's choice, absent to let the server detect it. */
+export type DeckPayload = { name: string; z: string; dialect?: Dialect };
+
+/** What /deck says the deck was read as, and why. */
+export type DeckDialect = {
+  read_as: Dialect;
+  reason: string;
+  /** What detection alone reads it as (null: detection refuses it). */
+  detected: Dialect | null;
+  chosen: Dialect | null;
+};
 
 export type OpenedDeck = DeckPayload & {
   key: string;
   example: ExampleDescriptor;
+  readAs?: DeckDialect | null;
 };
 
 export const isDeck = (g: unknown): g is string =>
@@ -134,7 +154,13 @@ export async function openDeck(payload: DeckPayload): Promise<OpenedDeck> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  let body: { key?: string; example?: ExampleDescriptor; detail?: string; deck_status?: string } = {};
+  let body: {
+    key?: string;
+    example?: ExampleDescriptor;
+    dialect?: DeckDialect | null;
+    detail?: string;
+    deck_status?: string;
+  } = {};
   try {
     body = await resp.json();
   } catch {
@@ -147,7 +173,7 @@ export async function openDeck(payload: DeckPayload): Promise<OpenedDeck> {
       body.deck_status ?? null,
     );
   }
-  const d: OpenedDeck = { ...payload, key: body.key, example: body.example };
+  const d: OpenedDeck = { ...payload, key: body.key, example: body.example, readAs: body.dialect ?? null };
   rememberDeck(d);
   return d;
 }
@@ -161,13 +187,19 @@ export async function openDeckFile(file: File): Promise<OpenedDeck> {
 
 // --- Carrying the deck on every request ------------------------------------
 
+/** What a request carries to rebuild a deck: its name, text and the
+ *  dialect it was chosen to be read in (none when detected). */
+export function deckPayload(d: DeckPayload): DeckPayload {
+  return d.dialect ? { name: d.name, z: d.z, dialect: d.dialect } : { name: d.name, z: d.z };
+}
+
 /** `body` with its design's deck added as `_deck`, when it names an opened
  *  deck this page holds; `body` itself otherwise. */
 export function withDeck<T extends Record<string, unknown>>(body: T): T {
   const g = body.geometry;
   if (!isDeck(g) || "_deck" in body) return body;
   const d = decks.get(g);
-  return d ? { ...body, _deck: { name: d.name, z: d.z } } : body;
+  return d ? { ...body, _deck: deckPayload(d) } : body;
 }
 
 /** A JSON request body string with `_deck` added (see `withDeck`); any

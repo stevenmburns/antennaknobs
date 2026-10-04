@@ -74,6 +74,30 @@ describe("the link carries the deck", () => {
     expect(q.get("name")).toBeNull();
   });
 
+  it("writes &dialect= beside the deck when one is chosen, and reads it back", () => {
+    const s = linkSearch("", {
+      design: KEY,
+      variant: null,
+      analysis: null,
+      view: null,
+      deck: { ...deck("abc_-123"), dialect: "nec5" },
+    });
+    expect(new URLSearchParams(s).get("dialect")).toBe("nec5");
+    expect(parseDeepLink(s)!.deck).toEqual({ z: "abc_-123", name: "my dipole.nec", dialect: "nec5" });
+    // Detected: no dialect in the link; an unknown one is dropped.
+    const auto = linkSearch("?dialect=nec5", { design: KEY, variant: null, analysis: null, view: null, deck: deck("abc") });
+    expect(new URLSearchParams(auto).get("dialect")).toBeNull();
+    expect(parseDeepLink("?deck=abc&name=a.nec&dialect=nec7")!.deck).toEqual({ z: "abc", name: "a.nec" });
+  });
+
+  it("every request for a deck read in a chosen dialect carries the choice", () => {
+    rememberDeck({ ...deck("abc"), dialect: "nec2" });
+    expect(withDeck({ geometry: KEY })).toEqual({
+      geometry: KEY,
+      _deck: { name: "my dipole.nec", z: "abc", dialect: "nec2" },
+    });
+  });
+
   it("parses a deck link", () => {
     const link = parseDeepLink("?deck=abc_-123&name=my%20dipole.nec&view=Smith")!;
     expect(link.deck).toEqual({ z: "abc_-123", name: "my dipole.nec" });
