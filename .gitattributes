@@ -13,3 +13,6 @@ tests/fixtures/sy_knobs_1705/*.nec -text
 tests/fixtures/ssn_dcl_knobs_1714/*.ssn -text
 # AK#1880's deck is the byte-exact CRLF file EZNEC wrote for Dan AC6LA.
 tests/fixtures/eznec_parallel_loads_1880/*.nec -text
+# The opened-deck fixtures are verbatim copies of decks people sent (one is
+# CRLF, as EZNEC writes it): keep git from normalising them.
+tests/fixtures/opened_decks/*.nec -text

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import dataclasses
 import hashlib
 import inspect
 import json
@@ -35,7 +36,7 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import AsyncIterator
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from copy import deepcopy
 from pathlib import Path
 
@@ -54,6 +55,7 @@ from antennaknobs.terrain import Facet, Sector, Terrain, specular_cut
 from antennaknobs import in_medium
 
 from . import cost as _cost
+from . import decks as _decks
 from . import tracker
 from . import nec2_backend, nec42_backend, nec5_backend, pynec_backend, user_designs
 from .examples import REGISTRY as EXAMPLES
@@ -240,6 +242,193 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# ---------------------------------------------------------------------------
+# Opened decks: a visitor's own .nec / .ssn, carried by the link
+# ---------------------------------------------------------------------------
+#
+# See web/decks.py for the design. The server side is: POST /deck parses and
+# registers one (under ``deck.<hash12>``), every later request for it carries
+# the text again as ``_deck`` so a restart or an LRU eviction re-registers it
+# on the spot (`_ensure_deck`, from the middleware below and the /ws loop),
+# and every solve of one takes the deck slot under its budget (`_solve_turn`).
+_DECK_SETTINGS = _decks.DeckSettings.from_env(_HOSTED)
+_DECK_GATE = _decks.DeckGate(_DECK_SETTINGS)
+_DECK_OPENS = _decks.RateLimiter(_DECK_SETTINGS.opens_per_min)
+
+
+def _register_deck(key: str, cls) -> None:
+    # Imported here for the adapter <-> examples cycle (see /sweep).
+    from . import adapter
+
+    # Deferred hints, as a user design's: the geometry builds on first solve.
+    # Labelled by its file's stem (the key is a hash nobody should read).
+    ex = adapter._make_example(key, cls, defer_hints=True)
+    EXAMPLES[key] = dataclasses.replace(ex, label=str(cls.label))
+
+
+def _unregister_deck(key: str) -> None:
+    EXAMPLES.pop(key, None)
+
+
+_DECK_STORE = _decks.DeckStore(_DECK_SETTINGS, _register_deck, _unregister_deck)
+
+# The routes whose request is a solve: a busy deck slot answers 503 before
+# the request queues anywhere (the turn itself checks again, race-free).
+# /engine_io is absent: it usually answers from its cache without a solve.
+_DECK_COMPUTE_PATHS = frozenset(
+    {
+        "/sweep",
+        "/param_sweep",
+        "/converge",
+        "/pattern",
+        "/norm_check",
+        "/pattern_metrics",
+        "/pattern_cell",
+        "/optimize",
+    }
+)
+
+
+def _open_deck(payload, ip: str) -> tuple[str, bool]:
+    """Decode, rate-limit and register a deck payload; ``(key, new)``. A deck
+    already open costs nothing and counts against no limit."""
+    name, text = _decks.decode_payload(payload, _DECK_SETTINGS)
+    key = _decks.deck_key(name, text)
+    if key in _DECK_STORE and key in EXAMPLES:
+        _DECK_STORE.get(key)  # touch: recently used
+        return key, False
+    if not _DECK_OPENS.allow(ip):
+        raise _decks.DeckError(
+            "Too many new decks opened from your address in the last minute; "
+            "try again shortly.",
+            status=429,
+            deck_status="rate",
+        )
+    return _DECK_STORE.open(name, text)
+
+
+def _ensure_deck(req: dict, ip: str) -> None:
+    """Make an opened-deck request's design resolvable, and take its text
+    out of the request (``_deck``). Sync: run it in the threadpool."""
+    key = req.get("geometry")
+    payload = req.pop("_deck", None)
+    if key in _DECK_STORE and key in EXAMPLES:
+        _DECK_STORE.get(key)
+        return
+    if payload is None:
+        raise _decks.DeckError(
+            "This opened deck is no longer loaded on the server. Open the file "
+            "again, or reload the page from its link.",
+            status=409,
+            deck_status="missing",
+        )
+    opened, _ = _open_deck(payload, ip)
+    if opened != key:
+        raise _decks.DeckError(
+            f"the deck this request carries is not {key}", status=400
+        )
+
+
+def _deck_status_of(exc: BaseException) -> dict:
+    """``{"deck_status": ...}`` for an opened-deck refusal, else ``{}``: the
+    word a streamed error record carries so the client can tell busy and
+    over-budget from a solve that failed."""
+    if isinstance(exc, _decks.DeckError):
+        return {"deck_status": exc.deck_status}
+    return {}
+
+
+def _deck_refusal(exc: _decks.DeckError) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status,
+        content={"detail": exc.message, "deck_status": exc.deck_status},
+    )
+
+
+@app.exception_handler(_decks.DeckError)
+async def _deck_error(_request: Request, exc: _decks.DeckError):
+    """A deck refusal that escapes an endpoint (busy, over budget) is its own
+    status with its own sentence, never a 500."""
+    return _deck_refusal(exc)
+
+
+class _DeckRequestMiddleware:
+    """Pure-ASGI gate in front of every POST that names an opened deck.
+
+    Buffers the body (requests are small), and when its ``geometry`` is a
+    ``deck.*`` key: registers the deck from ``_deck`` if this process does
+    not hold it, strips ``_deck`` so no endpoint (or cache key) ever sees the
+    text, and answers a solve route with 503 at once while another client's
+    deck holds the slot. Every other request passes through untouched; the
+    substring test keeps that a ``bytes in`` check."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope.get("method") != "POST":
+            await self.app(scope, receive, send)
+            return
+        chunks = []
+        while True:
+            message = await receive()
+            if message["type"] != "http.request":
+                # The client left mid-body: nothing to serve.
+                return
+            chunks.append(message.get("body", b""))
+            if not message.get("more_body", False):
+                break
+        body = b"".join(chunks)
+        if b'"deck.' in body and scope.get("path") != "/deck":
+            replaced = await self._gate(scope, body)
+            if isinstance(replaced, JSONResponse):
+                await replaced(scope, receive, send)
+                return
+            if replaced is not None:
+                body = replaced
+                scope = dict(scope)
+                scope["headers"] = [
+                    (k, v) for k, v in scope["headers"] if k != b"content-length"
+                ] + [(b"content-length", str(len(body)).encode())]
+
+        sent = False
+
+        async def replay():
+            nonlocal sent
+            if not sent:
+                sent = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return await receive()
+
+        await self.app(scope, replay, send)
+
+    @staticmethod
+    async def _gate(scope, body: bytes):
+        try:
+            req = json.loads(body)
+        except ValueError:
+            return None
+        if not isinstance(req, dict) or not _decks.is_deck(req.get("geometry")):
+            return None
+        headers = {
+            k.decode("latin-1").lower(): v.decode("latin-1")
+            for k, v in scope["headers"]
+        }
+        client = scope.get("client")
+        ip = _decks.client_ip(headers, client[0] if client else None)
+        try:
+            await run_in_threadpool(_ensure_deck, req, ip)
+            if scope.get("path") in _DECK_COMPUTE_PATHS:
+                busy = _DECK_GATE.would_refuse(_lane_key(req)[0])
+                if busy is not None:
+                    raise _decks.DeckBusy(busy)
+        except _decks.DeckError as exc:
+            return _deck_refusal(exc)
+        return json.dumps(req).encode()
+
+
+app.add_middleware(_DeckRequestMiddleware)
 
 C_LIGHT = 299_792_458.0  # m/s, matches the momwire solvers' eps*mu derivation to ~1e-9
 _EPS0 = 8.854187817e-12  # F/m
@@ -1522,14 +1711,32 @@ class SolveTooLargeError(ValueError):
 def _admit(req: dict, *, kind: str, use_pynec: bool, points: int = 1):
     """The shared cost-model verdict for this request (issue #382)."""
     geometry = req.get("geometry", next(iter(EXAMPLES)))
+    example = EXAMPLES.get(geometry)
     return _cost.admit(
         req,
         kind=kind,
         use_pynec=use_pynec,
         hosted=_HOSTED,
-        example=EXAMPLES.get(geometry),
+        example=example,
         points=points,
+        why_unsized=lambda: _why_unsized(req, example),
     )
+
+
+def _why_unsized(req: dict, example) -> str | None:
+    """Why ``example``'s geometry did not build at ``req`` -- the reason an
+    opened deck's fail-closed admission gives. None when it
+    builds, or there is nothing to build."""
+    cls = getattr(example, "builder_cls", None)
+    if cls is None:
+        return None
+    from .adapter import _build_builder
+
+    try:
+        _build_builder(cls, req).build_wires()
+    except Exception as exc:  # noqa: BLE001 — the reason IS the answer here: it is quoted in the refusal
+        return str(exc) or type(exc).__name__
+    return None
 
 
 def _check_solve_size(req: dict, *, use_pynec: bool) -> None:
@@ -1600,6 +1807,9 @@ _CACHE_KEY_BLOCKLIST = frozenset(
         # invalidated cache hits for all subsequent knob scrubs.
         "az_elev_deg",
         "elev_az_deg",
+        # An opened deck's text: the geometry key already names it
+        # by hash, and the middleware strips it before the endpoint runs.
+        "_deck",
         # The reference impedance (AK#1735): it moves the SWR and the Smith
         # centre, never Z, so a Zo edit must land on the same entry. `solve()`
         # re-stamps the response's `z0_ohms` on a hit from the request.
@@ -1623,7 +1833,7 @@ _THREAD_TURN_POLL_S = 0.05
 
 
 @contextmanager
-def _turn_from_thread(loop, session, kind: str, run_token):
+def _turn_from_thread(loop, req: dict, session, kind: str, run_token):
     """A lane turn taken FROM A WORKER THREAD, for the duration of a ``with``.
 
     /optimize's run is one synchronous call in the threadpool (the optimizer
@@ -1637,14 +1847,20 @@ def _turn_from_thread(loop, session, kind: str, run_token):
     run's own token (the client went away) is linked into it, so the eval's
     solve — which runs on the yielded token — stops on either. Raises
     ``Superseded`` (cancel while queued) or ``momwire.SolveAborted`` (the run
-    stopped while queued) instead of yielding.
+    stopped while queued) instead of yielding. An opened deck's turn also
+    holds the deck slot (`_deck_turn`): `decks.DeckBusy` instead of a grant,
+    and an eval its watchdog stopped surfaces as `decks.DeckBudgetExceeded`.
     """
     granted: concurrent.futures.Future = concurrent.futures.Future()
     box: dict = {}
 
     async def hold() -> None:
         release = box["release"] = asyncio.Event()
-        async with _LANES.turn(session, kind, None) as token:
+        async with (
+            _LANES.turn(session, kind, None) as token,
+            _deck_turn(req, token) as dog,
+        ):
+            box["dog"] = dog
             granted.set_result(token)
             # Link the run's token into the turn's while the eval runs.
             while not release.is_set():
@@ -1676,6 +1892,13 @@ def _turn_from_thread(loop, session, kind: str, run_token):
         raise
     try:
         yield token
+    except BaseException as exc:
+        # The abort is raised HERE, in the thread, so the watchdog's own
+        # translation (inside `hold`) never sees it.
+        out = _DECK_GATE.translate(box.get("dog"), exc)
+        if out is not exc:
+            raise out from None
+        raise
     finally:
         loop.call_soon_threadsafe(box["release"].set)
         fut.result()
@@ -1709,6 +1932,39 @@ def _lane_key(req: dict) -> tuple[str | None, int | None]:
     if isinstance(gen, bool) or not isinstance(gen, int):
         gen = None
     return session, gen
+
+
+@asynccontextmanager
+async def _deck_turn(req: dict, token):
+    """An opened deck's hold on the deck slot and its solve budget,
+    for one solve-shaped turn; yields the budget's watchdog (None for any
+    other design, which this leaves untouched)."""
+    if not _decks.is_deck(req.get("geometry")):
+        yield None
+        return
+    async with _DECK_GATE.hold(token, _lane_key(req)[0]) as dog:
+        yield dog
+
+
+@contextmanager
+def _deck_turn_sync(req: dict, token):
+    """`_deck_turn` for a worker thread (a held sweep's solves)."""
+    if not _decks.is_deck(req.get("geometry")):
+        yield None
+        return
+    with _DECK_GATE.hold_sync(token, _lane_key(req)[0]) as dog:
+        yield dog
+
+
+@asynccontextmanager
+async def _solve_turn(req: dict, session, kind: str, gen):
+    """THE way a solve-shaped compute takes its turn: the session's lane, and
+     for an opened deck the server-wide deck slot and its solve budget too
+    . Yields the lane's CancelToken. A budget overrun raises
+     `decks.DeckBudgetExceeded` (not the bare abort every caller treats as
+     "superseded, send nothing"); a held slot raises `decks.DeckBusy`."""
+    async with _LANES.turn(session, kind, gen) as token, _deck_turn(req, token):
+        yield token
 
 
 # Quantisation grid for floats in the cache key. Slider grids in the UI
@@ -2202,7 +2458,7 @@ async def sweep_endpoint(req: dict, request: Request):
                         # stream there. A cache hit takes no turn at all —
                         # there is no engine work to serialize.
                         async with (
-                            _LANES.turn(session, lane_kind, lane_gen) as token,
+                            _solve_turn(req, session, lane_kind, lane_gen) as token,
                             cancel_on_disconnect(request, token),
                         ):
                             if is_multifeed:
@@ -2239,6 +2495,7 @@ async def sweep_endpoint(req: dict, request: Request):
                                 {
                                     "error": user_designs.format_solve_error(exc),
                                     "solver": solver_name,
+                                    **_deck_status_of(exc),
                                 }
                             )
                             + "\n"
@@ -2271,7 +2528,10 @@ async def sweep_endpoint(req: dict, request: Request):
             # 8-chunk heuristic, then after each chunk recompute the next
             # size from observed per-freq cost. Converges in ~1 iteration.
             sweep_fn = sweep_ex.momwire_sweep
-            chunk_size = max(1, len(freqs) // 8)
+            # An opened deck's chunk is one turn under its solve budget
+            # , so it starts at one point and grows only as fast
+            # points allow; a catalog design starts at an eighth.
+            chunk_size = 1 if _decks.is_deck(geometry) else max(1, len(freqs) // 8)
             start = 0
             while start < len(freqs):
                 if await request.is_disconnected():
@@ -2295,7 +2555,9 @@ async def sweep_endpoint(req: dict, request: Request):
                         # generation) or a dropped connection (the watcher)
                         # aborts THIS chunk in ~ms instead of after minutes
                         # on a benchmark mesh.
-                        async with _LANES.turn(session, lane_kind, lane_gen) as token:
+                        async with _solve_turn(
+                            req, session, lane_kind, lane_gen
+                        ) as token:
                             async with cancel_on_disconnect(request, token):
                                 sweep_result = await run_in_threadpool(
                                     _shed, sweep_fn, req, pending, cancel=token
@@ -2312,6 +2574,7 @@ async def sweep_endpoint(req: dict, request: Request):
                                 {
                                     "error": user_designs.format_solve_error(exc),
                                     "solver": solver_name,
+                                    **_deck_status_of(exc),
                                 }
                             )
                             + "\n"
@@ -2519,7 +2782,9 @@ def _param_sweep_stream(
                 # where someone pushes N high); surfaced per point below.
                 _check_solve_size(req_v, use_pynec=use_pynec)
                 # One lane turn per point (see /sweep).
-                async with _LANES.turn(session, converge_kind, lane_gen) as token:
+                async with _solve_turn(
+                    req_v, session, converge_kind, lane_gen
+                ) as token:
                     async with cancel_on_disconnect(request, token):
                         if metric is None:
                             z, feeds_z, mesh = await run_in_threadpool(
@@ -2531,6 +2796,21 @@ def _param_sweep_stream(
                             )
             except (Superseded, momwire.SolveAborted):
                 return
+            except _decks.DeckError as e:
+                # Busy or over budget: the next point would be too. One
+                # record says so, and the sweep ends (with its {done}).
+                yield (
+                    json.dumps(
+                        {
+                            **_tag(value),
+                            "error": e.message,
+                            "deck_status": e.deck_status,
+                            "solver": solver_name,
+                        }
+                    )
+                    + "\n"
+                )
+                break
             except Exception as e:  # noqa: BLE001 — one-off solver failures must not abort the whole sweep; the error is noted per point
                 yield (
                     json.dumps(
@@ -2759,6 +3039,12 @@ def _held_sweep_stream(
         return (float(x), *(float(held[n]) for n in names))
 
     def solve_fn(r: dict) -> dict:
+        # An opened deck's solve holds the deck slot under its budget
+        # ; a no-op for every other design.
+        with _deck_turn_sync(r, token):
+            return _held_solve(r)
+
+    def _held_solve(r: dict) -> dict:
         if backend is None and metric is not None:
             from .adapter import capture_solved_metrics
 
@@ -3050,7 +3336,7 @@ async def pattern_endpoint(req: dict, request: Request):
         # The token reaches the engine (AK#1712): a start gate for PyNEC, and
         # a kill switch for the NEC-5 / NEC-2 binary, tripped by a newer
         # request, the user's cancel, or the client going away.
-        async with _LANES.turn(session, "pattern", lane_gen) as token:
+        async with _solve_turn(req, session, "pattern", lane_gen) as token:
             async with cancel_on_disconnect(request, token):
                 out = await run_in_threadpool(
                     _shed, _external_call, pat_backend.pattern, req, cancel=token
@@ -3173,7 +3459,7 @@ async def norm_check_endpoint(req: dict, request: Request):
         # The common path is a cache hit on the settled live solve (the lane
         # runs the live turn first, so the cache is warm by our turn); the
         # miss path is a full solve, hence the turn + disconnect watcher.
-        async with _LANES.turn(session, "norm_check", lane_gen) as token:
+        async with _solve_turn(req, session, "norm_check", lane_gen) as token:
             async with cancel_on_disconnect(request, token):
                 return await run_in_threadpool(_shed, _norm_check, req, cancel=token)
     except (Superseded, momwire.SolveAborted):
@@ -3293,7 +3579,7 @@ async def engine_io_endpoint(req: dict, request: Request):
         # The re-run is a whole engine run; its token kills the binary when
         # the user cancels, a newer request overtakes it, or the Files view
         # goes away (AK#1712).
-        async with _LANES.turn(session, "engine_io", lane_gen) as token:
+        async with _solve_turn(body, session, "engine_io", lane_gen) as token:
             async with cancel_on_disconnect(request, token):
                 out = await run_in_threadpool(
                     _shed, _solve_uncached, body, cancel=token
@@ -3342,6 +3628,19 @@ async def design_source_endpoint(req: dict):
     """
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     ex = example_for(geometry)
+    if _decks.is_deck(geometry):
+        # An opened deck is its text; there is no file behind it.
+        held = _DECK_STORE.get(geometry)
+        if held is None:
+            return {"available": False, "geometry": geometry}
+        name, text = held
+        return {
+            "available": True,
+            "geometry": geometry,
+            "filename": name,
+            "language": _SOURCE_LANGUAGE.get(Path(name).suffix.lower(), "text"),
+            "text": text,
+        }
     path = None
     if _is_user_geometry({"geometry": geometry}):
         path = _resolve_user_design_path(geometry)
@@ -3623,7 +3922,7 @@ async def pattern_metrics_endpoint(req: dict, request: Request):
     # client goes away, and stop on the user's cancel (`LaneRegistry.cancel`).
     session, lane_gen = _lane_key(req)
     try:
-        async with _LANES.turn(session, "pattern_metrics", lane_gen) as token:
+        async with _solve_turn(req, session, "pattern_metrics", lane_gen) as token:
             async with cancel_on_disconnect(request, token):
                 # Looked up INSIDE the turn: the live solve it pairs with runs
                 # on this lane too, so it has finished (and filed) by now.
@@ -3683,8 +3982,8 @@ async def pattern_cell_endpoint(req: dict, request: Request):
     _refuse_or_withhold(_admit(req, kind="converge", use_pynec=use_pynec), req)
     session, lane_gen = _lane_key(req)
     try:
-        async with _LANES.turn(
-            session, _lane_kind(req, "pattern_cell"), lane_gen
+        async with _solve_turn(
+            req, session, _lane_kind(req, "pattern_cell"), lane_gen
         ) as token:
             async with cancel_on_disconnect(request, token):
                 out = await run_in_threadpool(_shed, _pattern_cell, req, cancel=token)
@@ -3943,7 +4242,7 @@ async def optimize_endpoint(req: dict, request: Request):
     loop = asyncio.get_running_loop()
 
     def _eval_solve(r: dict) -> dict:
-        with _turn_from_thread(loop, session, "optimize", token) as turn:
+        with _turn_from_thread(loop, req, session, "optimize", token) as turn:
             if backend is None:
                 return ex.momwire_solve(r, cancel=turn)
             # Start gate + subprocess kill switch under the turn's token, as
@@ -4024,6 +4323,158 @@ def healthz():
     return {"ok": True}
 
 
+def _sweep_policy_json(p) -> dict:
+    return {
+        "anchor": p.anchor,
+        "lo_factor": p.lo_factor,
+        "hi_factor": p.hi_factor,
+        "band_locked": p.band_locked,
+    }
+
+
+def _serialize_schema_item(item) -> dict:
+    # Discriminate by attribute: ParamGroupSpec has `params`, ParamSpec
+    # doesn't. Recurses so groups-in-groups serialize cleanly (the
+    # frontend only renders one level today but the wire format is
+    # already general).
+    if hasattr(item, "params"):
+        return {
+            "kind": "group",
+            "name": item.name,
+            "label_template": item.label_template,
+            "repeat_count": item.repeat_count,
+            "max_repeats": item.max_repeats,
+            "params": [_serialize_schema_item(p) for p in item.params],
+            "default_overrides": list(item.default_overrides),
+            "link_meas_freq_to_param": item.link_meas_freq_to_param,
+        }
+    return {
+        "name": item.name,
+        "label": item.label,
+        "default": item.default,
+        "kind": item.kind,
+        "min": item.min,
+        "max": item.max,
+        "step": item.step,
+        "precision": item.precision,
+        "unit": item.unit,
+        "visible_when": item.visible_when,
+        "enum_options": (
+            list(item.enum_options) if item.enum_options is not None else None
+        ),
+        "range_from_enum_option": item.range_from_enum_option,
+        "on_change_set": item.on_change_set,
+        "linked_to_design_freq": item.linked_to_design_freq,
+        "link_meas_freq_to_param": item.link_meas_freq_to_param,
+        "layout": item.layout,
+        "description": item.description,
+    }
+
+
+def _example_entry(name: str, ex) -> dict:
+    """One design's /examples record: what the frontend's catalog holds per
+    design. Shared by /examples and POST /deck (opened decks), so an opened
+    deck is described exactly as a catalog design is."""
+    from .adapter import design_backend_coverage
+
+    return {
+        "name": ex.name,
+        "label": ex.label,
+        "multi_feed": ex.multi_feed,
+        "param_schema": [_serialize_schema_item(p) for p in ex.param_schema],
+        "result_schema": [
+            (
+                {
+                    "kind": "group",
+                    "name": r.name,
+                    "label_template": r.label_template,
+                    "fields": [
+                        {
+                            "field": f.field,
+                            "label": f.label,
+                            "precision": f.precision,
+                            "unit": f.unit,
+                        }
+                        for f in r.fields
+                    ],
+                }
+                if hasattr(r, "fields")
+                else {
+                    "field": r.field,
+                    "label": r.label,
+                    "precision": r.precision,
+                    "unit": r.unit,
+                }
+            )
+            for r in ex.result_schema
+        ],
+        "bands": [
+            {
+                "key": b.key,
+                "label": b.label,
+                "freq_mhz": b.freq_mhz,
+                "min_mhz": b.min_mhz,
+                "max_mhz": b.max_mhz,
+            }
+            for b in ex.bands
+        ],
+        "meas_freq_range_mhz": (
+            list(ex.meas_freq_range_mhz) if ex.meas_freq_range_mhz is not None else None
+        ),
+        "default_view": ex.default_view,
+        "default_freq": ex.default_freq,
+        "default_design_freq": ex.default_design_freq,
+        "default_backend": ex.default_backend,
+        "requires_backends": (
+            list(ex.requires_backends) if ex.requires_backends is not None else None
+        ),
+        "backend_restriction": ex.backend_restriction,
+        # Which backends refuse THIS design and momwire's own sentence
+        # for each (#1286). Rides here rather than in a per-design
+        # endpoint because the whole catalog costs 0.06 s cold and
+        # nothing warm, and because the mark belongs on the LIST — the
+        # point is to learn a solver refuses before picking its tab.
+        # Known capability refusals only; absence is not a promise
+        # that a solve succeeds. See `design_backend_coverage`.
+        "backend_coverage": design_backend_coverage(name),
+        "has_stepped_radius_junction": ex.has_stepped_radius_junction,
+        "has_buried_wire": ex.has_buried_wire,
+        "converged_feed_suggested": ex.converged_feed_suggested,
+        "ground_requirement": ex.ground_requirement,
+        "ground_seed": ex.ground_seed,
+        "ground_medium": ex.ground_medium,
+        "ground_card": ex.ground_card,
+        "fixed_segment_counts": ex.fixed_segment_counts,
+        "has_design_freq": ex.has_design_freq,
+        "variants": list(ex.variants),
+        "variant_values": dict(ex.variant_values),
+        "sweep_policy": _sweep_policy_json(ex.sweep_policy),
+        # The absolute range + grid (AK#1682): a file's own sweep, or
+        # a design's ui_params["sweep_range"]. The frontend's range
+        # precedence ranks it above sweep_policy.
+        "sweep_range": ex.sweep_range,
+        # Per-variant hint overrides; only variants that differ from
+        # the design-level values appear here. `sweep_policy` falls
+        # back to the top-level field; `params` carries explicit
+        # per-param presentation hints (slider min/max/step, precision,
+        # unit, label) the frontend overlays on param_schema for the
+        # active variant.
+        "variant_ui": {
+            v: {
+                **(
+                    {"sweep_policy": _sweep_policy_json(h["sweep_policy"])}
+                    if "sweep_policy" in h
+                    else {}
+                ),
+                **({"params": h["params"]} if "params" in h else {}),
+            }
+            for v, h in ex.variant_ui.items()
+        },
+        "notes": ex.notes,
+        "layout": ex.layout,
+    }
+
+
 @app.get("/examples")
 def examples_endpoint():
     """Serve the registered antenna examples + their parameter schemas.
@@ -4037,165 +4488,62 @@ def examples_endpoint():
     Reloads user designs first (live edits without a restart) and returns
     any that failed to load under `errors`, so the UI can show them.
     """
-    from .adapter import design_backend_coverage
-
     load_errors = user_designs.refresh()
     # The refresh is the invalidation signal the cache keys lack (#1312):
     # a user design's file may have changed under an unchanged request.
     _evict_user_design_caches()
 
-    def _sweep_policy_json(p) -> dict:
-        return {
-            "anchor": p.anchor,
-            "lo_factor": p.lo_factor,
-            "hi_factor": p.hi_factor,
-            "band_locked": p.band_locked,
-        }
-
-    def _serialize_schema_item(item) -> dict:
-        # Discriminate by attribute: ParamGroupSpec has `params`, ParamSpec
-        # doesn't. Recurses so groups-in-groups serialize cleanly (the
-        # frontend only renders one level today but the wire format is
-        # already general).
-        if hasattr(item, "params"):
-            return {
-                "kind": "group",
-                "name": item.name,
-                "label_template": item.label_template,
-                "repeat_count": item.repeat_count,
-                "max_repeats": item.max_repeats,
-                "params": [_serialize_schema_item(p) for p in item.params],
-                "default_overrides": list(item.default_overrides),
-                "link_meas_freq_to_param": item.link_meas_freq_to_param,
-            }
-        return {
-            "name": item.name,
-            "label": item.label,
-            "default": item.default,
-            "kind": item.kind,
-            "min": item.min,
-            "max": item.max,
-            "step": item.step,
-            "precision": item.precision,
-            "unit": item.unit,
-            "visible_when": item.visible_when,
-            "enum_options": (
-                list(item.enum_options) if item.enum_options is not None else None
-            ),
-            "range_from_enum_option": item.range_from_enum_option,
-            "on_change_set": item.on_change_set,
-            "linked_to_design_freq": item.linked_to_design_freq,
-            "link_meas_freq_to_param": item.link_meas_freq_to_param,
-            "layout": item.layout,
-            "description": item.description,
-        }
-
-    out = []
-    for name, ex in EXAMPLES.items():
-        out.append(
-            {
-                "name": ex.name,
-                "label": ex.label,
-                "multi_feed": ex.multi_feed,
-                "param_schema": [_serialize_schema_item(p) for p in ex.param_schema],
-                "result_schema": [
-                    (
-                        {
-                            "kind": "group",
-                            "name": r.name,
-                            "label_template": r.label_template,
-                            "fields": [
-                                {
-                                    "field": f.field,
-                                    "label": f.label,
-                                    "precision": f.precision,
-                                    "unit": f.unit,
-                                }
-                                for f in r.fields
-                            ],
-                        }
-                        if hasattr(r, "fields")
-                        else {
-                            "field": r.field,
-                            "label": r.label,
-                            "precision": r.precision,
-                            "unit": r.unit,
-                        }
-                    )
-                    for r in ex.result_schema
-                ],
-                "bands": [
-                    {
-                        "key": b.key,
-                        "label": b.label,
-                        "freq_mhz": b.freq_mhz,
-                        "min_mhz": b.min_mhz,
-                        "max_mhz": b.max_mhz,
-                    }
-                    for b in ex.bands
-                ],
-                "meas_freq_range_mhz": (
-                    list(ex.meas_freq_range_mhz)
-                    if ex.meas_freq_range_mhz is not None
-                    else None
-                ),
-                "default_view": ex.default_view,
-                "default_freq": ex.default_freq,
-                "default_design_freq": ex.default_design_freq,
-                "default_backend": ex.default_backend,
-                "requires_backends": (
-                    list(ex.requires_backends)
-                    if ex.requires_backends is not None
-                    else None
-                ),
-                "backend_restriction": ex.backend_restriction,
-                # Which backends refuse THIS design and momwire's own sentence
-                # for each (#1286). Rides here rather than in a per-design
-                # endpoint because the whole catalog costs 0.06 s cold and
-                # nothing warm, and because the mark belongs on the LIST — the
-                # point is to learn a solver refuses before picking its tab.
-                # Known capability refusals only; absence is not a promise
-                # that a solve succeeds. See `design_backend_coverage`.
-                "backend_coverage": design_backend_coverage(name),
-                "has_stepped_radius_junction": ex.has_stepped_radius_junction,
-                "has_buried_wire": ex.has_buried_wire,
-                "converged_feed_suggested": ex.converged_feed_suggested,
-                "ground_requirement": ex.ground_requirement,
-                "ground_seed": ex.ground_seed,
-                "ground_medium": ex.ground_medium,
-                "ground_card": ex.ground_card,
-                "fixed_segment_counts": ex.fixed_segment_counts,
-                "has_design_freq": ex.has_design_freq,
-                "variants": list(ex.variants),
-                "variant_values": dict(ex.variant_values),
-                "sweep_policy": _sweep_policy_json(ex.sweep_policy),
-                # The absolute range + grid (AK#1682): a file's own sweep, or
-                # a design's ui_params["sweep_range"]. The frontend's range
-                # precedence ranks it above sweep_policy.
-                "sweep_range": ex.sweep_range,
-                # Per-variant hint overrides; only variants that differ from
-                # the design-level values appear here. `sweep_policy` falls
-                # back to the top-level field; `params` carries explicit
-                # per-param presentation hints (slider min/max/step, precision,
-                # unit, label) the frontend overlays on param_schema for the
-                # active variant.
-                "variant_ui": {
-                    v: {
-                        **(
-                            {"sweep_policy": _sweep_policy_json(h["sweep_policy"])}
-                            if "sweep_policy" in h
-                            else {}
-                        ),
-                        **({"params": h["params"]} if "params" in h else {}),
-                    }
-                    for v, h in ex.variant_ui.items()
-                },
-                "notes": ex.notes,
-                "layout": ex.layout,
-            }
-        )
+    # Opened decks belong to the browser that opened them: they
+    # reach the catalog through POST /deck's own record, never this list.
+    out = [
+        _example_entry(name, ex)
+        # A snapshot: a deck may register from another thread meanwhile.
+        for name, ex in list(EXAMPLES.items())
+        if not _decks.is_deck(name)
+    ]
     out.sort(key=lambda e: e["label"])
     return {"examples": out, "errors": load_errors}
+
+
+@app.post("/deck")
+async def deck_open_endpoint(req: dict, request: Request):
+    """Open a NEC deck the user brings: ``{name, z}`` (``z`` the
+    file's text, deflate-raw compressed and base64url'd, as the link carries
+    it) or ``{name, text}``. Answers ``{key, example, limits}`` -- the design
+    key every later request names it by (``deck.<hash12>``) and its catalog
+    record, the one /examples would serve -- or the refusal by name: 413 over
+    the text limit, 422 for a deck that does not import or is over the
+    structure limits, 429 past the opens-per-minute limit."""
+    ip = _decks.client_ip(
+        {k.lower(): v for k, v in request.headers.items()},
+        request.client.host if request.client else None,
+    )
+    try:
+        key, _new = await run_in_threadpool(_open_deck, req, ip)
+        entry = await run_in_threadpool(_example_entry, key, EXAMPLES[key])
+    except _decks.DeckError as exc:
+        return _deck_refusal(exc)
+    if _HOSTED:
+        # PyNEC cannot be stopped mid-solve, so the solve budget cannot hold
+        # it: the hosted server solves an opened deck on the others. Said on
+        # the record, so the tab is greyed before anyone picks it.
+        refusals = dict(entry["backend_coverage"].get("refusals") or {})
+        refusals["pynec"] = {
+            "capability": "cancellable",
+            "reason": _cost.PYNEC_DECK_REFUSAL,
+        }
+        entry["backend_coverage"] = {**entry["backend_coverage"], "refusals": refusals}
+    lim = _DECK_SETTINGS
+    return {
+        "key": key,
+        "example": entry,
+        "limits": {
+            "max_bytes": lim.max_bytes,
+            "max_segments": lim.max_segments,
+            "max_wires": lim.max_wires,
+            "budget_s": lim.budget_s,
+        },
+    }
 
 
 @app.get("/capabilities")
@@ -4375,6 +4723,11 @@ async def ws_endpoint(ws: WebSocket):
     # never travels. The client renders monotonically by `_seq`, so a higher
     # `_seq` response implicitly acknowledges every lower one.
     await ws.accept()
+    # The client's address, for the opened-deck rate limit.
+    ws_ip = _decks.client_ip(
+        {k.lower(): v for k, v in ws.headers.items()},
+        ws.client.host if ws.client else None,
+    )
     mailbox: list[dict] = []  # size-1: newest unsolved request only
     newer = asyncio.Event()  # set when the mailbox is (re)filled
     closed = asyncio.Event()  # set when the socket disconnects
@@ -4553,12 +4906,17 @@ async def ws_endpoint(ws: WebSocket):
             req = mailbox.pop()
             session, lane_gen = _lane_key(req)
             try:
+                if _decks.is_deck(req.get("geometry")):
+                    # An opened deck: registered from the request's
+                    # own `_deck` if this process does not hold it, and the
+                    # text taken out of the request before anything keys it.
+                    await run_in_threadpool(_ensure_deck, req, ws_ip)
                 # The lane turn (issue #382) serializes this solve against the
                 # session's batch work — and outranks it, so at most one chunk
                 # stands between a knob drag and its heatmap. Entering with
                 # this request's generation cancels any older running batch
                 # chunk at its next solver checkpoint.
-                async with _LANES.turn(session, "live", lane_gen) as token:
+                async with _solve_turn(req, session, "live", lane_gen) as token:
                     if closed.is_set():
                         return
                     if mailbox:
@@ -4607,6 +4965,9 @@ async def ws_endpoint(ws: WebSocket):
                     "geometry": req.get("geometry"),
                     "error": user_designs.format_solve_error(exc),
                 }
+                if isinstance(exc, _decks.DeckError):
+                    # busy / budget / missing / refused: the client words it.
+                    result["deck_status"] = exc.deck_status
             # Echo the sequence number on EVERY response, error path included —
             # the client keys ordering, RTT accounting, and solving-state off it,
             # and a stuck request would leave `solving` true forever if any path

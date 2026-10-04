@@ -134,7 +134,9 @@ def refresh() -> list[dict]:
     """
     global _GENERATION
     _GENERATION += 1
-    for key in [k for k in REGISTRY if k.startswith(f"{USER_NS}.")]:
+    # A snapshot (`list` copies atomically): an opened deck may register
+    # from another worker thread while this runs.
+    for key in [k for k in list(REGISTRY) if k.startswith(f"{USER_NS}.")]:
         del REGISTRY[key]
 
     errors: list[dict] = []
