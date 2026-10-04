@@ -37,6 +37,51 @@ FastAPI process serving the API, the `/ws` live-solve channel, and the built
 React SPA). It's deployed as a container on Fly.io; the repo's `docs/deploy.md`
 is the runbook.
 
+## Your own deck
+
+**Open…** beside the design picker opens your own model: a NEC card deck
+(`.nec`, which MMANA-GAL, 4nec2 and EZNEC all export) or a SimNEC `.ssn`. It
+becomes the tab's design, under **Opened decks** in the picker, read by the
+same importer as `antennaknobs @file.nec` — see [Loading NEC
+decks](/reference/nec-import/). A deck's `SY` constants are its knobs, as
+there; a deck with none still solves, sweeps and draws, frozen.
+
+Nothing is installed or stored. The page's address carries the deck itself,
+compressed:
+
+```
+/?deck=<the file, compressed>&name=my_vertical.nec
+```
+
+so copying the address shares the model: whoever opens the link gets the same
+design in their own browser, on the hosted app or a local workbench. A deck
+whose compressed form is over about 8 KB still opens, but the link cannot
+carry it, and the page says so; send the file instead.
+
+On the hosted app an opened deck is bounded, so one visitor's model cannot
+take the server from everyone else:
+
+| Limit | Hosted |
+|---|---|
+| File size | 64 KB |
+| Segments (after `GM` / `GR` / `GX` copies, and at any knob value) | 3000 |
+| Wires | 200 |
+| One solve (a live solve, a sweep point, an optimizer step) | 60 s |
+| Opened-deck solves at once, across all visitors | 1 |
+| New decks opened per minute, per visitor | 10 |
+
+A deck over a structure limit is refused when it opens, naming the card that
+crossed it. A solve that runs past 60 s is stopped and says so. While another
+visitor's deck is solving, yours answers **busy** at once rather than queueing
+behind it — try again in a minute. PyNEC is not offered for an opened deck on
+the hosted app (it cannot be stopped mid-solve); the momwire solvers are.
+
+None of this applies to your own machine: for a larger model, run the
+workbench locally (`pip install "antennaknobs[web]"`, [above](#run-it-locally))
+and put the file in your designs folder (`~/.antennaknobs/designs`). A local
+workbench still opens a deck the same way, within the file-size and structure
+limits, with no time limit and no queue.
+
 ## Driving a knob
 
 Each parameter in a design is a knob (the big one is the measurement-frequency
