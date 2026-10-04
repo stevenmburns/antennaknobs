@@ -111,9 +111,9 @@ describe("the sweep range menu in the session (AK#1682)", () => {
     const menu = openMenu(container);
     const [lo, hi] = within(menu).getAllByRole("spinbutton");
     await user.clear(hi);
-    await user.type(hi, "14.5");
+    await user.type(hi, "14.5{Enter}");
     await user.clear(lo);
-    await user.type(lo, "13.9");
+    await user.type(lo, "13.9{Enter}");
     // The menu reads the file's step, and the edit kept it.
     expect(within(menu).getByText("Step (MHz)")).toBeTruthy();
     expect(dial()).toEqual([13.9, 14.5]);
@@ -142,7 +142,7 @@ describe("the sweep range menu in the session (AK#1682)", () => {
     const menu = openMenu(container);
     const step = within(menu).getAllByRole("spinbutton")[2];
     await user.clear(step);
-    await user.type(step, "0.0001");
+    await user.type(step, "0.0001{Enter}");
     expect(within(menu).getByText(/clamped to 500, the hosted limit/)).toBeTruthy();
   });
 
@@ -163,7 +163,7 @@ describe("the sweep range menu in the session (AK#1682)", () => {
 
     for (const bad of ["0", "-0.01", ""]) {
       await user.clear(step);
-      if (bad) await user.type(step, bad);
+      if (bad) await user.type(step, `${bad}{Enter}`);
       expect(step.getAttribute("aria-invalid")).toBe("true");
       expect(step.getAttribute("data-invalid")).toBe("true");
     }
@@ -182,7 +182,7 @@ describe("the sweep range menu in the session (AK#1682)", () => {
 
     // Re-broken, then blur reverts it the same way.
     await user.clear(step);
-    await user.type(step, "-1");
+    await user.type(step, "-1{Enter}");
     expect(step.getAttribute("aria-invalid")).toBe("true");
     await user.tab();
     expect(step.value).toBe("0.025");
@@ -203,7 +203,7 @@ describe("the sweep range menu in the session (AK#1682)", () => {
 
     // hi dropped to below the current lo (14).
     await user.clear(hi);
-    await user.type(hi, "10");
+    await user.type(hi, "10{Enter}");
     expect(hi.getAttribute("aria-invalid")).toBe("true");
     expect(lo.getAttribute("aria-invalid")).toBeNull();
     expect(smith().dataset.phase).toBe("idle");
@@ -211,23 +211,18 @@ describe("the sweep range menu in the session (AK#1682)", () => {
     expect(dial()).toEqual([14, 14.35]);
 
     await user.clear(hi);
-    await user.type(hi, "14.35"); // back to the file's own hi: valid again
+    await user.type(hi, "14.35{Enter}"); // back to the file's own hi: valid again
     expect(hi.getAttribute("aria-invalid")).toBeNull();
-    // A VALID edit is applied, and the session's edit of the file's own
-    // range re-sweeps the same grid (the old synchronous "nothing sent"
-    // check here could never see a debounced sweep). Let it land, then
-    // count from there.
-    await sweepIdle(smith());
-    const sentAfterValid = sweeps.length;
+    // Re-stating the range in force is not an edit (AK#1765): nothing queued.
+    expect(smith().dataset.phase).toBe("idle");
+    expect(sweeps.length).toBe(sentBefore);
 
-    // lo raised to at or above hi, in ONE change: typed key by key, the
-    // intermediate "1", "14", "14.3" are valid ranges and the menu applies
-    // each (it commits per keystroke), which is a sweep per keystroke and
-    // not what this test is about.
-    fireEvent.change(lo, { target: { value: "14.35" } });
+    // lo raised to at or above hi.
+    await user.clear(lo);
+    await user.type(lo, "14.35{Enter}");
     expect(lo.getAttribute("aria-invalid")).toBe("true");
     expect(smith().dataset.phase).toBe("idle");
-    expect(sweeps.length).toBe(sentAfterValid);
+    expect(sweeps.length).toBe(sentBefore);
   });
 
   it("a log point count below 2 is refused", async () => {
@@ -240,11 +235,94 @@ describe("the sweep range menu in the session (AK#1682)", () => {
     const points = within(menu).getAllByRole("spinbutton")[2] as HTMLInputElement;
     const before = points.value;
     await user.clear(points);
-    await user.type(points, "1");
+    await user.type(points, "1{Enter}");
     expect(points.getAttribute("aria-invalid")).toBe("true");
     await user.tab();
     expect(points.value).toBe(before);
     expect(points.getAttribute("aria-invalid")).toBeNull();
+  });
+
+  // AK#1765: every valid keystroke used to apply ("14.35" applied 14, 14.3
+  // and 14.35, a sweep queued each time); the field now commits on Enter or
+  // blur, as the Z-vs-parameter boxes do.
+  it("typing applies nothing until Enter, and then exactly one sweep", async () => {
+    const user = userEvent.setup();
+    const { container, sweeps } = await mountCapturing([DECK]);
+    deckLoaded();
+    await sweepWhere(sweeps, spans(14, 14.35, 15));
+    await sweepIdle(smith());
+    const sentBefore = sweeps.length;
+    const menu = openMenu(container);
+    const hi = within(menu).getAllByRole("spinbutton")[1] as HTMLInputElement;
+    await user.clear(hi);
+    await user.type(hi, "14.5");
+    // Each prefix ("1", "14", "14.", "14.5") is text, not an edit: the dial
+    // is unmoved and the runner never left idle.
+    expect(hi.value).toBe("14.5");
+    expect(dial()).toEqual([14, 14.35]);
+    expect(smith().dataset.phase).toBe("idle");
+    expect(sweeps.length).toBe(sentBefore);
+
+    await user.keyboard("{Enter}");
+    expect(dial()).toEqual([14, 14.5]);
+    await sweepWhere(sweeps, spans(14, 14.5, 21));
+    await sweepIdle(smith());
+    // One edit, one base sweep.
+    expect(sweeps.length).toBe(sentBefore + 1);
+  });
+
+  it("blur commits a typed value, as Enter does", async () => {
+    const user = userEvent.setup();
+    const { container, sweeps } = await mountCapturing([DECK]);
+    deckLoaded();
+    const menu = openMenu(container);
+    const lo = within(menu).getAllByRole("spinbutton")[0] as HTMLInputElement;
+    await user.clear(lo);
+    await user.type(lo, "13.9");
+    expect(dial()).toEqual([14, 14.35]);
+    await user.tab();
+    expect(dial()).toEqual([13.9, 14.35]);
+    await sweepWhere(sweeps, spans(13.9, 14.35));
+  });
+
+  it("re-entering the file's own range, or re-stating it in another spelling, does not re-sweep", async () => {
+    const user = userEvent.setup();
+    const { container, sweeps } = await mountCapturing([DECK]);
+    deckLoaded();
+    await sweepWhere(sweeps, spans(14, 14.35, 15));
+    await sweepIdle(smith());
+    const sentBefore = sweeps.length;
+    const menu = openMenu(container);
+    const [lo, hi, step] = within(menu).getAllByRole("spinbutton") as HTMLInputElement[];
+    for (const [field, text] of [
+      [hi, "14.35"],
+      [lo, "14.000"],
+      [step, "0.025"],
+    ] as const) {
+      await user.clear(field);
+      await user.type(field, `${text}{Enter}`);
+      expect(field.getAttribute("aria-invalid")).toBeNull();
+      expect(smith().dataset.phase).toBe("idle");
+    }
+    // Log and back to lin at the same point count: the file's grid again,
+    // but as a session edit with a re-derived step ((hi − lo) / 14, not the
+    // file's 0.025 to the last bit). The way back from log is a real change.
+    const spacing = within(menu).getByRole("combobox", { name: "sweep spacing" });
+    await user.selectOptions(spacing, "log");
+    await sweepBaseDone(smith());
+    await sweepIdle(smith());
+    await user.selectOptions(spacing, "lin");
+    await sweepWhere(sweeps, spans(14, 14.35, 15));
+    await sweepIdle(smith());
+    const afterLin = sweeps.length;
+    expect(afterLin).toBe(sentBefore + 2);
+    // ↺ design range swaps that session edit for the file's own range: a
+    // different range object, a different rung, the same grid. The runner
+    // keys on the grid, so nothing is queued.
+    await user.click(within(menu).getByRole("button", { name: "↺ design range" }));
+    deckLoaded();
+    expect(smith().dataset.phase).toBe("idle");
+    expect(sweeps.length).toBe(afterLin);
   });
 
   it("the backdrop closes it, and so does Escape", async () => {
@@ -307,7 +385,7 @@ describe("the sweep range menu in the session (AK#1682)", () => {
     const menu = openMenu(container);
     const hi = within(menu).getAllByRole("spinbutton")[1];
     await user.clear(hi);
-    await user.type(hi, "15");
+    await user.type(hi, "15{Enter}");
     expect(dial()).toEqual([14, 15]);
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "measurement band" }));
@@ -334,9 +412,9 @@ describe("measFreq and the range it must sit in (AK#1682)", () => {
     const menu = openMenu(container);
     const [lo, hi] = within(menu).getAllByRole("spinbutton");
     await user.clear(hi);
-    await user.type(hi, "14.6");
+    await user.type(hi, "14.6{Enter}");
     await user.clear(lo);
-    await user.type(lo, "14.4");
+    await user.type(lo, "14.4{Enter}");
     expect(dial()).toEqual([14.4, 14.6]);
     // 14.175 is below the new lo: the measurement moves to the end stop.
     expect(lcd(container)).toBe("14.400");
@@ -357,9 +435,9 @@ describe("measFreq and the range it must sit in (AK#1682)", () => {
     const menu = openMenu(container);
     const [lo, hi] = within(menu).getAllByRole("spinbutton");
     await user.clear(hi);
-    await user.type(hi, "1000");
+    await user.type(hi, "1000{Enter}");
     await user.clear(lo);
-    await user.type(lo, "900");
+    await user.type(lo, "900{Enter}");
     expect(dial()).toEqual([900, 1000]);
     expect(lcd(container)).toBe(locked);
   });

@@ -33,6 +33,12 @@ function useNumericDraft(value: number) {
 // the edit is never applied — `value` stays the last committed one — and the
 // field shows `data-invalid` until the text is fixed, or reverts to `value`
 // on blur or Escape.
+//
+// `commitOn="enter"` holds the edit as text until Enter or blur, the
+// CommitNumber rule (AK#1765): for a field whose every applied value costs
+// work (the sweep range menu queues a sweep per value), typing "14.35"
+// key by key must not apply 1, 14 and 14.3 on the way. A committed value
+// equal to `value` is not an edit and is not passed on.
 export function KnobMenuNumber({
   value,
   onChange,
@@ -40,6 +46,7 @@ export function KnobMenuNumber({
   onRevert,
   placeholder,
   disabled,
+  commitOn = "keystroke",
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -56,6 +63,9 @@ export function KnobMenuNumber({
   /** Not editable (shown greyed, e.g. the range popover's min on a
    *  whole-range scale). */
   disabled?: boolean;
+  /** When a parsed value reaches `onChange`: on every keystroke (the
+   *  default), or only on Enter / blur. */
+  commitOn?: "keystroke" | "enter";
 }) {
   const [draft, setDraft] = useNumericDraft(value);
   const [textInvalid, setTextInvalid] = useState(false);
@@ -63,6 +73,16 @@ export function KnobMenuNumber({
     setDraft(String(value));
     setTextInvalid(false);
     onRevert?.();
+  };
+  const deferred = commitOn === "enter";
+  // Enter / blur in the deferred mode: pass a parsed, changed value on. The
+  // same value again is not an edit, and clears a refusal it left behind.
+  const commitDraft = () => {
+    if (draft.trim() === "") return;
+    const v = Number(draft);
+    if (Number.isNaN(v)) return;
+    if (v === value) onRevert?.();
+    else onChange(v);
   };
   // Untouched, a placeholder field shows its placeholder, not `value`.
   const shown = placeholder != null && draft === String(value) ? "" : draft;
@@ -88,12 +108,22 @@ export function KnobMenuNumber({
         }
         const v = Number(text);
         setTextInvalid(Number.isNaN(v));
-        if (!Number.isNaN(v)) onChange(v);
+        if (!Number.isNaN(v) && !deferred) onChange(v);
       }}
       // Normalize on blur: drop any leading zeros / revert an empty or
-      // refused field to the last committed value.
-      onBlur={revert}
+      // refused field to the last committed value. Deferred, the text is
+      // committed first; an accepted value then re-syncs the draft through
+      // `value`, a refused one reverts here.
+      onBlur={() => {
+        if (deferred) commitDraft();
+        revert();
+      }}
       onKeyDown={(e) => {
+        if (deferred && e.key === "Enter") {
+          e.preventDefault();
+          commitDraft();
+          return;
+        }
         if (e.key !== "Escape") return;
         // Only a DIRTY field (unparsable text, or a value the caller
         // refused) eats the Escape: it cancels that edit and leaves the
