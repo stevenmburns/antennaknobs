@@ -273,10 +273,12 @@ class DesignNotTrustedError(Exception):
     report: design_screen.ScreenReport
 
     def __str__(self) -> str:
+        from .program_name import invoked_command
+
         return (
             f"{Path(self.path).name}: not allowed to run yet.\n"
             f"{self.report.summary()}\n"
-            f"Review it, then allow it: `antennaknobs allow "
+            f"Review it, then allow it: `{invoked_command()} allow "
             f"{Path(self.path).stem}` (add --edits if it's your own file). "
             f"Only allow designs from sources you trust."
         )

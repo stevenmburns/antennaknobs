@@ -125,6 +125,29 @@ def test_the_shim_hands_its_own_name_on(monkeypatch, clean_backend):
     assert sys.argv[0] == "antennaknobs-cli.exe"
 
 
+def test_the_shim_hands_on_the_command_as_typed(monkeypatch):
+    """AK#1769: a hint naming the next command to run names the one the user
+    typed (`.\\antennaknobs-cli.exe` in PowerShell), which only the shim
+    sees; `antennaknobs.program_name` reads it under the same name."""
+    from antennaknobs import program_name
+
+    assert entry_cli.COMMAND_ENV == program_name.COMMAND_ENV
+    seen = {}
+
+    class Proc:
+        def __init__(self, argv, env):
+            seen.update(env)
+
+        def wait(self, timeout=None):
+            return 0
+
+    monkeypatch.setattr(entry_cli.subprocess, "Popen", Proc)
+    monkeypatch.setattr(sys, "argv", [".\\antennaknobs-cli.exe"])
+    assert entry_cli.main(["list"]) == 0
+    assert seen[entry_cli.COMMAND_ENV] == ".\\antennaknobs-cli.exe"
+    assert seen[entry_cli.PROG_ENV] == Path(".\\antennaknobs-cli.exe").name
+
+
 def test_entry_dispatches_cli_without_pinning_agg(monkeypatch, tmp_path, clean_backend):
     """``--cli`` is answered ahead of the workbench's own MPLBACKEND line, so
     the backend rule above is still free to choose."""

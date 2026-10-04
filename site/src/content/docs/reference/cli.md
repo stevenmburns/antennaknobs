@@ -28,7 +28,8 @@ Since v0.81.0 a pip install also puts an `antennaknobs` command on PATH, so
 `antennaknobs sweep ...` and `python -m antennaknobs sweep ...` are the same
 thing; the Windows workbench zip carries the same command line as
 `antennaknobs-cli.exe` (see [the workbench page](/start/workbench/#the-command-line)),
-with no Python to set up.
+with no Python to set up. `--version` prints the antennaknobs and momwire
+versions; `-v` / `-vv` are log verbosity, given before the command.
 
 ## Naming a design
 
@@ -111,6 +112,11 @@ Dan's `snDipoleVarLenSegs.ssn` sweeps its Generator's 14.0–14.35 MHz in 15
 points. `--npoints` alone keeps that span and sets the count. `--center` or
 `--fraction` asks for the relative window around a centre, as before. The
 R/X, gain and pattern sweeps keep the ×0.8–×1.25 window.
+Every R/X sweep, of frequency or of a knob, also prints its numbers on
+stdout: one block per `--engine`, the swept value then R and X (per port on a
+multi-port design), under the ground the run used. `--markers` points are rows
+in place, starred.
+
 Note that knob sweeps in **free space** can be perfectly flat by design —
 translation-invariant knobs like a height `base` only matter over a ground
 (`--ground finite`).
@@ -1203,7 +1209,11 @@ A bare `--engine momwire` keeps the framework default of 21 — it is the
 default engine, so naming the basis is what asks for the basis's density. A
 design that pins `nominal_nsegs` in its own params keeps winning, and a
 `@file.nec` deck is unaffected either way: a deck's only mesh is its own `GW`
-segment counts.
+segment counts, and the run says so instead of naming a density:
+
+```
+engine momwire:razor-2p: the file's own segment counts
+```
 
 ### Convergence studies
 
