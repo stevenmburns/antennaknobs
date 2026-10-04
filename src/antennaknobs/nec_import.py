@@ -616,10 +616,10 @@ class NecDeck:
     # full Sommerfeld solution.
     nec5_dialect: bool = False
     # Which dialect the deck was READ in and why (the app's import note says
-    # so, `dialect_note`): "nec2" or "nec5"; the reason is the first NEC-5
-    # tell ("EZNEC's stamp says NEC-5 format (line 1)", "the GN card ends in
-    # NOFILE (line 9)", ...), "no NEC-5 marker found", or "chosen by the
-    # reader" when parse_nec's `dialect` overrode detection. `dialect_detected`
+    # so, `dialect_note`): "nec2", "nec4" or "nec5"; the reason is the first
+    # tell ("EZNEC's stamp on line 1 says NEC-5 format", "the GN card on line
+    # 9 ends in NOFILE", ...), "no NEC-4 or NEC-5 marker found", or "chosen by
+    # the reader" when parse_nec's `dialect` overrode detection. `dialect_detected`
     # / `dialect_detected_reason` are what detection alone reads, so an
     # override can say what it overrode; `dialect_chosen` is the override.
     dialect: str = "nec2"
@@ -962,7 +962,7 @@ class NecDeck:
     def dialect_note(self) -> str:
         """One sentence saying which dialect the deck was read in and why,
         e.g. "Read as NEC-5 (sources and loads at segment ends): EZNEC's stamp
-        says NEC-5 format (line 1)." The file designs put it first in
+        on line 1 says NEC-5 format." The file designs put it first in
         ``ui_params["notes"]``: half a segment is what the two readings put
         between a source and where its author meant it."""
         where = {
@@ -5395,11 +5395,11 @@ def parse_nec(
     when a comment declares NEC-5, ``"nec4"`` as NEC-4.2 (NEC-2's segment
     centres; ``GN 3`` is Sommerfeld, and a ``GN`` ground-table file name is
     accepted and not read) as EZNEC's NEC-4.2 stamp would; None (the
-    default) detects it. A deck whose
-    cards only one dialect can spell is refused by name under the other:
-    NEC-5's segment-end ``EX`` (a negative segment, ``I4 = 2``, ``EX 4``)
-    under ``"nec2"`` and ``"nec4"``, 4nec2's percentage position under ``"nec5"``. A ``GN
-    ... NOFILE`` is not refused under ``"nec2"`` — NEC-4.2 writes it too.
+    default) detects it. A deck whose cards only one dialect can spell is
+    refused by name under the other: NEC-5's segment-end ``EX`` (a negative
+    segment, ``I4 = 2``, ``EX 4``) under ``"nec2"`` and ``"nec4"``, 4nec2's
+    percentage position under ``"nec5"``. A ``GN ... NOFILE`` is not refused
+    under ``"nec2"`` — NEC-4.2 writes it too.
     Either way the deck records what it was read as and why
     (``dialect``, ``dialect_reason``, ``dialect_detected``,
     ``dialect_note()``).
