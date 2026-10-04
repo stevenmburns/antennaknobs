@@ -1505,6 +1505,17 @@ class NecDeck:
           ends meet. There NEC-5 puts each object in its own wire's branch,
           which is one node gap per wire end, and momwire allows one per
           junction until momwire#1300's core change ships.
+
+        ``TL``/``NT`` ends take part in that last refusal and in nothing else
+        here (AK#1880). At a node of three or more wire ends they need the same
+        per-wire gap and get none: razor-2p refuses a positioned gap
+        there ("an ARCLENGTH cannot name which of that node's branches"), and
+        bspline answered one silently, 191.53 + 28.54j against the licensed
+        NEC-5's 187.13 + 23.13j on Dan's #190 deck with a stub at the joint.
+        At a TWO-wire node they are NOT folded: AK#1617's two positioned ports
+        at one junction already are the series circuit NEC-5 solves (0017,
+        195.34 - 57.458j, to the printed digit on razor-2p), whereas one port
+        would put the two ``NT`` shunts in parallel, which is 0016's answer.
         """
         if not self.network_mode:
             return {}, None
@@ -1519,6 +1530,11 @@ class NecDeck:
                 knot = _knot_of(ld.seg, ld.edge)
                 key = _node_key(_knot_point(self.wires[ld.wire], knot))
                 at_node.setdefault(key, []).append(("LD", ld.wire, knot))
+        for _p, wi, seg, edge in self._net_ends:
+            if self._knot_end(wi, seg, edge):
+                knot = _knot_of(seg, edge)
+                key = _node_key(_knot_point(self.wires[wi], knot))
+                at_node.setdefault(key, []).append(("NET", wi, knot))
 
         def where(wi, kn):
             # The card's own NEC-5 spelling: knot 0 is ``tag,-1``, knot k > 0
@@ -1540,10 +1556,17 @@ class NecDeck:
                     "objects on different wires at one node where "
                     f"{degree} wire ends meet; NEC-5 puts each object in its "
                     "own wire's branch there, which needs one series gap per "
-                    "wire end, and momwire serves one per junction until "
-                    "momwire#1300 ships. Move all of them onto one wire's "
-                    "address at that node, or move one of them a segment away"
+                    "wire end, and momwire 0.70.0 serves one per junction "
+                    "(momwire#1300 lifts that in a later release). Move all of "
+                    "them onto one wire's address at that node, or move one "
+                    "of them a segment away"
                 )
+                continue
+            # Network ends were collected for the refusal above only; at a
+            # two-wire node they keep AK#1617's two ports (see the docstring).
+            items = [it for it in items if it[0] != "NET"]
+            keys = list(dict.fromkeys((wi, kn) for _c, wi, kn in items))
+            if len(keys) < 2:
                 continue
             driven = list(dict.fromkeys((wi, kn) for c, wi, kn in items if c == "EX"))
             if len(driven) > 1:
@@ -3972,9 +3995,11 @@ def _unheld_virtual_nodes(ports, branches, sources) -> frozenset[str]:
     is exactly "port 1 does not see it" -- so leaving the node out is exact,
     not an approximation. It is the circuit the idiom's ``LD 4 ... 1.E+10``
     pin gives when EZNEC writes one: momwire's corpus deck 0017 is Dan's
-    ``ezLoadPositionsB.nec`` (QRZ 1003328 #190) with those two pins added and
-    the two ``NT`` cards' loads swapped, and it always solved, because each
-    pin is a 1e-10 S branch holding a node nothing reads.
+    ``ezLoadPositionsB.nec`` (QRZ 1003328 #190) with those two pins added, the
+    two ``NT`` cards' loads swapped and ``GE 0,-1`` for ``GE 0`` (both free
+    space under ``GN -1``), and it always solved, because each pin is a 1e-10
+    S branch holding a node nothing reads. Measured on razor-2p and bspline:
+    Dan's deck with its loads swapped answers 0017 bit for bit, pins or none.
 
     Only a ``PortVirtual`` is eligible. A port on real geometry is the
     antenna's own, and an open circuit there is a legitimate termination the
