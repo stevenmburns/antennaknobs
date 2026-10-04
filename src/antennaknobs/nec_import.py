@@ -5362,7 +5362,9 @@ def _nofile_gn_line(text: str) -> int | None:
         s = s.split("'", 1)[0].strip()
         if s[:2].upper() == "EN":
             return None
-        if s[:2].upper() == "GN" and s.split()[-1].upper().rstrip(",") == "NOFILE":
+        # The card loop's own field split: EZNEC writes ``GN 2,0,0,...,NOFILE``
+        # with commas, which a whitespace split reads as one field.
+        if s[:2].upper() == "GN" and _split_card_fields(s)[-1].upper() == "NOFILE":
             return line_no
     return None
 

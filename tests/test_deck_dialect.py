@@ -485,6 +485,22 @@ def test_nofile_before_or_after_the_ex_reads_the_same():
 
 
 @pytest.mark.parametrize(
+    "gn",
+    [
+        "GN 2,0,0,0,13,0.005,NOFILE",
+        "GN,2,0,0,0,13,0.005,NOFILE",
+        "GN2,0,0,0,13,.005,NOFILE",
+    ],
+)
+def test_a_comma_separated_nofile_gn_moves_the_source_too(gn):
+    # EZNEC writes its cards with commas. The NOFILE look-ahead must split the
+    # card as the card loop does, or the deck reads NEC-5 with its source
+    # still at the segment centre -- the half-and-half reading again.
+    d = _deck(NOFILE.replace("GN 2 0 0 0 13 0.005 NOFILE", gn))
+    assert d.dialect == "nec5" and d.feeds[0].edge == 2
+
+
+@pytest.mark.parametrize(
     "marker",
     ["CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-4.2 format.\n", "CM NEC-4\n"],
     ids=["eznec-nec42-stamp", "cm-nec4"],
