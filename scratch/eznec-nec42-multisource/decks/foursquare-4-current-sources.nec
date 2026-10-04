@@ -1,0 +1,24 @@
+CM 40-meter four-square array
+CM
+CM EZNEC Pro/2+ v. 7.0.4  2026-10-04 07:40:24
+CM
+CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-4.2 format.
+CM 
+CM ! WARNING: MININEC-type ground may not work properly with standard
+CM !          NEC-2 or -4 program.
+CE
+GW 1,6,0.,0.,0.,0.,0.,9.9822,.01905
+GW 2,6,0.,10.49122,0.,0.,10.49122,9.9822,.01905
+GW 3,6,10.49122,0.,0.,10.49122,0.,9.9822,.01905
+GW 4,6,10.49122,10.49122,0.,10.49122,10.49122,9.9822,.01905
+GE 1,-1
+FR 0,1,0,0,7.15
+GN 1,0,0,0,0.,0.
+EX 6,1,1,0,1.414214,0.
+EX 6,2,1,0,0.,-1.414214
+EX 6,3,1,0,0.,-1.414214
+EX 6,4,1,0,-1.414214,0.
+GD 2,0,0,0,13.,.005,0.,0.
+PQ 0
+XQ 0
+EN
