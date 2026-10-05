@@ -165,6 +165,14 @@ def test_the_two_routes_agree_on_a_network_free_deck(stem):
         [complex(s.impedance) for s in serve(parse_nec5(_text(path))).sources]
     )
     cls = builder_from_file(str(path))
-    ak = np.asarray(MomwireEngine(cls(), ground=cls.file_ground).impedance())
+    # The kernel as the workbench and CLI pick it: a deck read as NEC-5
+    # solves EK-on by default (AK#1891), as serve does since momwire#1326.
+    ak = np.asarray(
+        MomwireEngine(
+            cls(),
+            ground=cls.file_ground,
+            extended_kernel_default=cls.file_extended_kernel_default,
+        ).impedance()
+    )
     rel = float(np.max(np.abs(ak - mw) / np.abs(mw)))
     assert rel < 1e-12, f"AK {ak} vs serve {mw}, rel {rel:.3e}"

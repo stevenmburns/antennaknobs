@@ -40,7 +40,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from antennaknobs.cli import make_engine_factory
+from antennaknobs.cli import deck_extended_kernel_flag, make_engine_factory
 from antennaknobs.file_designs import builder_from_file
 from antennaknobs.nec_import import parse_nec
 from antennaknobs.network import Shunt
@@ -97,7 +97,7 @@ def _z(path: Path, basis: str) -> complex:
     factory = make_engine_factory(
         f"momwire:{basis}",
         getattr(cls, "file_ground", None),
-        deck_extended_kernel=bool(getattr(cls, "file_extended_kernel", False)),
+        deck_extended_kernel=deck_extended_kernel_flag(cls),
     )
     return complex(np.atleast_1d(np.asarray(factory(cls()).impedance()))[0])
 

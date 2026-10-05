@@ -182,7 +182,16 @@ def _routes(stem):
     text = path.read_text(errors="replace")
     mw = np.asarray([complex(s.impedance) for s in serve(parse_nec5(text)).sources])
     cls = builder_from_file(str(path))
-    ak = np.asarray(MomwireEngine(cls(), ground=cls.file_ground).impedance())
+    # The route as the workbench and CLI build it: a deck read as NEC-5
+    # solves with the extended kernel by default (AK#1891), as serve does
+    # since momwire#1326.
+    ak = np.asarray(
+        MomwireEngine(
+            cls(),
+            ground=cls.file_ground,
+            extended_kernel_default=cls.file_extended_kernel_default,
+        ).impedance()
+    )
     return ak, mw
 
 
