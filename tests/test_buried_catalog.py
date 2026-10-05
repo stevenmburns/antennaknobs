@@ -540,6 +540,21 @@ def test_bd_is_one_straight_horizontal_wire_strictly_below_the_plane():
     assert ws[0].p0[0] == -ws[2].p1[0]
 
 
+@pytest.mark.parametrize("nominal", [15, 120, 400])
+def test_bd_gap_is_one_fixed_50mm_segment_at_every_density(nominal):
+    """AK#1767: the feed gap is pinned at one 50 mm segment, a feed of fixed
+    width. Auto-meshed it went to 3 segments near nominal 106 and 5 near 318,
+    and bs2's X stepped -0.9 and -0.3 ohm at each."""
+    b = BuriedDipole()
+    b.nominal_nsegs = nominal
+    (gap,) = [w for w in _wires(b) if w.ex is not None]
+    assert gap.n_seg == 1
+    eng = MomwireEngine(b, ground=("finite",) + SOIL_A, ground_z=0.0)
+    (fed,) = eng.fed_segments()
+    assert fed["segments"] == 1
+    assert fed["length_m"] == pytest.approx(0.05)
+
+
 def test_bd_velocity_factor_sizes_the_wire_to_a_medium_half_wave():
     """The design's whole point: the wire is cut to a half-wave IN THE
     SOIL, so the free-space geometry is ~1/sqrt(eps_r) of a free-space

@@ -119,7 +119,15 @@ class Builder(AntennaBuilder):
 
         return [
             Wire((-half, 0.0, z), (-eps, 0.0, z)),
-            # Centre-fed gap; both arms stack onto it.
-            Wire((-eps, 0.0, z), (eps, 0.0, z), ex=1 + 0j),
+            # Centre-fed gap; both arms stack onto it. ONE segment, pinned
+            # (AK#1767): the gap is a feed of fixed physical width, 50 mm.
+            # Auto-meshed it went to 3 segments at nominal ~106 and 5 at ~318,
+            # and each step moved bs2's X by -0.9 and -0.3 ohm. One wire fed
+            # at its middle has no step but no settled answer either: its fed
+            # segment IS the mesh, and the delta gap drifts with it
+            # (momwire#1330; scratch/1767-buried-dipole). One rather than
+            # three because three moves bs2's default by 1.2 ohm and does not
+            # help NEC-4.2, whose error here is the arm/gap length step.
+            Wire((-eps, 0.0, z), (eps, 0.0, z), n_seg=1, ex=1 + 0j),
             Wire((eps, 0.0, z), (half, 0.0, z)),
         ]
