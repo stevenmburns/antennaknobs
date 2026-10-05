@@ -40,7 +40,6 @@ def _summary(records):
     "name",
     [
         "verticals.elevated_buried_counterpoise",
-        "verticals.buried_radial_vertical",
         "specialty.buried_dipole",
     ],
 )
@@ -53,6 +52,19 @@ def test_the_house_gap_is_one_segment_on_momwire_and_two_on_nec5(name):
     ]
     assert _summary(NEC5Engine(b, ground=SOIL, require_exe=False).fed_segments()) == [
         (None, 2, 25.0, "knot")
+    ]
+
+
+def test_the_buried_verticals_gap_is_three_segments_on_momwire_and_four_on_nec5():
+    """AK#1816: beside its graded node panels the buried vertical's 50 mm gap
+    is a fixed three segments, fed in the middle one on momwire; NEC-5's even
+    parity makes it four, fed at the middle knot."""
+    b = _builder("verticals.buried_radial_vertical")
+    assert _summary(MomwireEngine(b, ground=SOIL).fed_segments()) == [
+        (None, 3, 16.67, "centre")
+    ]
+    assert _summary(NEC5Engine(b, ground=SOIL, require_exe=False).fed_segments()) == [
+        (None, 4, 12.5, "knot")
     ]
 
 
@@ -129,9 +141,9 @@ def test_the_validation_pages_buried_fed_segments_are_the_engines(name):
     b = _builder(name)
     (mw,) = MomwireEngine(b, ground=SOIL).fed_segments()
     (n5,) = NEC5Engine(b, ground=SOIL, require_exe=False).fed_segments()
-    assert page.BURIED_FED == (
-        f"momwire {mw['segments']} × {1000 * mw['length_m']:.0f} mm, "
-        f"NEC-5 {n5['segments']} × {1000 * n5['length_m']:.0f} mm"
+    assert page.BURIED_FED[name] == (
+        f"momwire {mw['segments']} × {1000 * mw['length_m']:.3g} mm, "
+        f"NEC-5 {n5['segments']} × {1000 * n5['length_m']:.3g} mm"
     )
 
 

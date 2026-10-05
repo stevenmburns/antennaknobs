@@ -253,10 +253,15 @@ def test_the_uniformity_gate_and_the_mesher_share_one_reference():
     catch it are the medium ones in tests/test_auto_mesh.py."""
     import math
 
+    from antennaknobs import resolve_variant_params
     from antennaknobs.designs.verticals.buried_radial_vertical import Builder
     from antennaknobs.network import GradedSegments
 
-    b = Builder()
+    # The detached variant: an auto-meshed radiator in air beside auto-meshed
+    # radials in the soil. The default's radiator is graded and its feed gap
+    # a fixed three segments (AK#1816), so neither follows the mesher and
+    # neither can read the coupling.
+    b = Builder(params=resolve_variant_params(Builder, "detached"))
     b.nominal_nsegs = 321
     metres = [
         math.dist(w[0], w[1]) / int(w[2])

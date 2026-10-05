@@ -194,6 +194,33 @@ def test_brv_feed_is_a_base_gap_on_the_radiator_not_a_midpoint_excitation():
     assert arclength < 0.01 * height
 
 
+@pytest.mark.parametrize(
+    ("variant", "want"), [(None, 3), ("bundle", 3), ("detached", 1)]
+)
+def test_brv_gap_wire_is_three_fixed_segments_beside_the_graded_panels(variant, want):
+    """AK#1816: beside the 6.25 mm graded node panels the 5 cm gap is a fixed
+    three segments, not the density's one (a 50 mm segment there is an 8:1
+    step, and NEC-4.2 read 3.8 % from NEC-5 on it). Fixed, so the fed segment
+    does not step as the density moves (AK#1767). The detached variant has no
+    graded panel beside its gap and keeps the auto count, one segment here."""
+    params = (
+        None
+        if variant is None
+        else resolve_variant_params(BuriedRadialVertical, variant)
+    )
+    b = BuriedRadialVertical(params=params)
+    (gap,) = [w for w in _wires(b) if w.ex is not None]
+    assert math.dist(gap.p0, gap.p1) == pytest.approx(0.05)
+    assert gap.n_seg == want
+    if variant is None:
+        for n in (15, 160):
+            b.nominal_nsegs = n
+            eng = MomwireEngine(b, ground=("finite",) + SOIL_A, ground_z=0.0)
+            (fed,) = eng.fed_segments()
+            assert fed["segments"] == 3
+            assert fed["length_m"] == pytest.approx(0.05 / 3)
+
+
 def test_brv_knobs_move_the_geometry():
     """n_radials and depth are the two knobs the served spelling is most
     sensitive to; pin that they reach the wires."""

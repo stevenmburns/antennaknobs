@@ -128,10 +128,13 @@ def test_the_catalog_graded_buried_vertical_is_written():
     deck = _nec42(b, SOIL)
     assert _cards(deck, "GE") == ["GE -1"]
     assert _cards(deck, "GN") == ["GN 2 0 0 0 13 0.005 NOFILE"]
-    # The feed is the one-segment gap wire's centre: segment 1 of an odd count.
+    # The feed is the gap wire's centre: segment 2 of its fixed three
+    # (AK#1816; one 50 mm segment beside the 6.25 mm graded panels put
+    # NEC-4.2 3.8 % from NEC-5 on the refined deck).
     (ex,) = _cards(deck, "EX")
-    tag = int(ex.split()[2])
-    assert int(_cards(deck, "GW")[tag - 1].split()[2]) % 2 == 1
+    tag, seg = int(ex.split()[2]), int(ex.split()[3])
+    assert int(_cards(deck, "GW")[tag - 1].split()[2]) == 3
+    assert seg == 2
 
 
 # --------------------------------------------------------------------------

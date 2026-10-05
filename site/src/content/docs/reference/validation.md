@@ -355,7 +355,9 @@ below-ground card: on the wholly buried fed dipole the two engines agree to
 146.6+44.7j Ω at 0.15 m). On the bonded-base vertical over buried radials
 at the catalog's defaults they agree to 0.3 Ω in resistance at the shipped
 mesh and 0.2 Ω at twice it. In both comparisons each engine meshes the
-50 mm feed gap its own way (momwire 1 × 50 mm, NEC-5 2 × 25 mm). The third leg is
+50 mm feed gap its own way (the dipole:
+momwire 1 × 50 mm, NEC-5 2 × 25 mm; the vertical:
+momwire 3 × 16.7 mm, NEC-5 4 × 12.5 mm). The third leg is
 in-house and arrived with momwire 0.52.0: the sinusoidal-Galerkin basis
 serves the wholly buried and the mixed classes from its own fill, sharing no
 below-interface code with `bspline`, and the two bases are gated to agree

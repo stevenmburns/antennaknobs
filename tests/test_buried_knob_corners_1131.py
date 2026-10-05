@@ -50,12 +50,20 @@ SOIL_C = ("finite", 5.0, 0.001)
 # Re-banked 2026-09-12 on momwire v0.54.0. Its crossing fix (momwire#956)
 # moved every corner, from 1.8 ohm (mild_sparse) up to 16.2 ohm (depth_max).
 # depth_max has the tallest rise, and the pre-fix error grew with rise length.
-# The default is now 78.1321+46.3377j (bs1 77.9607+45.8129j), the shipped-mesh
+# The default was then 78.1321+46.3377j (bs1 77.9607+45.8129j), the shipped-mesh
 # answer scratch/956-derivation/DERIVATION-WTERMS.md records for the fix. The
 # degree pairs moved by at most 0.005 ohm. Before the fix the default read
 # 75.8502+40.4507j (bs1 75.6774+39.9275j), banked 2026-09-03 on momwire 84211f8
 # by scratch/buried-unit4/probe_knob_corners.py and matching
 # scratch/g1b-bs1-bs2/RESULTS.md to the digit.
+#
+# Re-banked 2026-10-04 (AK#1816): the 5 cm feed gap went from one 50 mm
+# segment to a fixed three of 16.7 mm beside the graded node panels. That is a
+# feed-model change, not a mesh one: the gap's offset is the same at nominal
+# x1, x2 and x4 to 1e-4 ohm on every corner (scratch/1816-brv-gap/corners.py).
+# It moved the default 78.1321+46.3377j -> 78.1441+46.3338j (0.013 ohm), and
+# the corners by 0.01-0.22 ohm: mild_sparse -0.156+0.160j (the largest, 0.06 %
+# of |Z|), length_max +0.091+0.066j, all_knobs_max_soil_B +0.090+0.088j.
 #
 # Tolerance is 0.10 Ω, and the number was MEASURED rather than chosen to look
 # safe. 0.5 Ω was the first draft and it is vacuous: a 7x mesh coarsening
@@ -68,16 +76,16 @@ SOIL_C = ("finite", 5.0, 0.001)
 # three orders of margin over hardware drift. The coarsening figures in this
 # note were measured before momwire#956 and have not been re-measured.
 CORNERS = {
-    "default": ({}, SOIL_A, 78.1321 + 46.3377j, 0.552),
-    "n_radials_min": ({"n_radials": 1}, SOIL_A, 170.6069 + 48.7379j, 0.595),
-    "depth_max": ({"depth": 0.5}, SOIL_A, 84.7118 + 70.6136j, 0.547),
-    "length_max": ({"length_factor": 1.2}, SOIL_A, 120.6456 + 231.8948j, 0.683),
-    "radial_max": ({"radial_factor": 1.5}, SOIL_A, 78.0190 + 43.5740j, 0.554),
-    "soil_B_dense": ({}, SOIL_B, 59.4301 + 42.7550j, 0.552),
+    "default": ({}, SOIL_A, 78.1441 + 46.3338j, 0.552),
+    "n_radials_min": ({"n_radials": 1}, SOIL_A, 170.6342 + 48.6970j, 0.595),
+    "depth_max": ({"depth": 0.5}, SOIL_A, 84.7315 + 70.6125j, 0.547),
+    "length_max": ({"length_factor": 1.2}, SOIL_A, 120.7367 + 231.9609j, 0.683),
+    "radial_max": ({"radial_factor": 1.5}, SOIL_A, 78.0303 + 43.5697j, 0.554),
+    "soil_B_dense": ({}, SOIL_B, 59.4384 + 42.7551j, 0.552),
     "mild_sparse": (
         {"n_radials": 1, "depth": 0.05, "length_factor": 0.8, "radial_factor": 0.3},
         SOIL_C,
-        140.6354 - 342.4703j,
+        140.4796 - 342.3105j,
         0.365,
     ),
     # Served since momwire 0.55.0 (momwire#1058), which serves the below/below
@@ -89,7 +97,7 @@ CORNERS = {
     "all_knobs_max_soil_B": (
         {"n_radials": 4, "depth": 0.5, "length_factor": 1.2, "radial_factor": 1.5},
         SOIL_B,
-        108.9379 + 253.9648j,
+        109.0278 + 254.0530j,
         0.650,
     ),
 }

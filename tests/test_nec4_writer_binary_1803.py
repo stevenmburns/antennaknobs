@@ -187,8 +187,11 @@ def test_the_ex6_dipole_equals_its_ex0_twin_exactly():
 # nec42cl-omp; nec5cl). Not an agreement bar: NEC-4.2 feeds a segment centre
 # and NEC-5 a knot, so the two meshes differ by parity, and the gap is mostly
 # reactance that shrinks under refinement (the check set's finding). The
-# refined buried vertical sits at 3.8 % where the stopgap deck's 3-segment
-# feed wire read 0.74 %: the writer keeps the design's own 1-segment gap wire.
+# buried vertical's rows were re-measured 2026-10-04 after its gap wire went
+# from one segment to a fixed three (AK#1816): NEC-4.2 moved from 80.2239 +
+# 48.8619j (default) and 79.4136 + 48.3276j (refined), 5.6 % and 3.8 % from
+# NEC-5, to 1.0 % and 0.76 %; NEC-5 moved from 77.8050 + 44.4680j and
+# 77.9370 + 45.2030j by under 0.03 ohm.
 SOMMERFELD = {
     ("dipoles.invvee", "default"): (48.5769 - 8.5359j, 48.4970 - 11.3780j),
     ("wire.sterba", "default"): (617.2470 + 240.9790j, 617.6200 + 201.4100j),
@@ -201,12 +204,12 @@ SOMMERFELD = {
         146.4800 + 44.3820j,
     ),
     ("verticals.buried_radial_vertical", "default"): (
-        80.2239 + 48.8619j,
-        77.8050 + 44.4680j,
+        78.1405 + 45.3722j,
+        77.8120 + 44.4980j,
     ),
     ("verticals.buried_radial_vertical", "refined"): (
-        79.4136 + 48.3276j,
-        77.9370 + 45.2030j,
+        77.3627 + 44.8636j,
+        77.9440 + 45.2320j,
     ),
 }
 
