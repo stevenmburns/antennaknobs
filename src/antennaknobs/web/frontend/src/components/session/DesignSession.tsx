@@ -1641,6 +1641,10 @@ function DesignSessionBody({
     optObjective,
     optSeed,
     setOptSeed,
+    optBands,
+    setOptBands,
+    optMeanWeight,
+    setOptMeanWeight,
     setOptObjective,
     knobOpt,
     setKnobOpt,
@@ -3492,6 +3496,13 @@ function DesignSessionBody({
           optError={optError}
           optPausedBy={optPausedBy}
           zo={{ value: z0, design: designZ0, set: setZoOverride }}
+          bands={{
+            freqs: optBands,
+            setFreqs: setOptBands,
+            meanWeight: optMeanWeight,
+            setMeanWeight: setOptMeanWeight,
+            defaultFreq: measFreq,
+          }}
         />
 
 
