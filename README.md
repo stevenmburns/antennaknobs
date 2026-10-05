@@ -98,14 +98,14 @@
 | src/antennaknobs/designs/verticals/\_\_init\_\_.py                   |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/bobtail.py                        |       20 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/bruce.py                          |       34 |        0 |    100% |           |
-| src/antennaknobs/designs/verticals/buried\_radial\_vertical.py       |       56 |        0 |    100% |           |
+| src/antennaknobs/designs/verticals/buried\_radial\_vertical.py       |       57 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/challenger.py                     |       25 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/dominator.py                      |       23 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/elevated\_buried\_counterpoise.py |       35 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/elt\_whip.py                      |      115 |        2 |     98% |   328-329 |
 | src/antennaknobs/designs/verticals/four\_square.py                   |       23 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/half\_square.py                   |       20 |        0 |    100% |           |
-| src/antennaknobs/designs/verticals/inverted\_l.py                    |       25 |        0 |    100% |           |
+| src/antennaknobs/designs/verticals/inverted\_l.py                    |       26 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/inverted\_l\_tmatch.py            |       10 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/jpole.py                          |       16 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/m0agp\_invl.py                    |       28 |        0 |    100% |           |
@@ -203,13 +203,13 @@
 | src/antennaknobs/web/param\_sweep.py                                 |       90 |        5 |     94% |39, 97, 135, 139-140 |
 | src/antennaknobs/web/progress\_stream.py                             |      120 |        1 |     99% |       243 |
 | src/antennaknobs/web/pynec\_backend.py                               |       95 |       38 |     60% |20-22, 75-93, 120, 131-134, 199-206, 218-228, 235-240 |
-| src/antennaknobs/web/server.py                                       |     1894 |      153 |     92% |120-122, 207-211, 271, 340, 354, 379, 411-412, 502-503, 505, 563-564, 639, 1140-1142, 1261, 1316, 1419-1422, 1494, 1731-1740, 1887-1888, 1890-1893, 1956-1957, 2147, 2152, 2277-2280, 2335, 2355-2357, 2417, 2449, 2466-2474, 2493-2504, 2511, 2539, 2617, 2650, 2682, 2717, 2730-2731, 2799, 2803-2814, 2840, 2851-2852, 2934, 2954-2955, 2957, 2967, 2973-2974, 2976, 3028-3029, 3059, 3062, 3091, 3105, 3138, 3142-3148, 3162, 3196, 3206-3207, 3251-3252, 3354, 3388, 3466-3473, 3506, 3604, 3636, 3651-3652, 3655, 3690, 3700-3703, 3728, 3731-3737, 3791, 3819, 3822-3823, 3910, 3941-3942, 3991-3996, 4013, 4186, 4200, 4279, 4516, 4727, 4863, 4905, 4907, 4911-4912, 4925, 4941, 4945, 5017-5018 |
+| src/antennaknobs/web/server.py                                       |     1894 |      155 |     92% |120-122, 207-211, 271, 340, 354, 379, 411-412, 502-503, 505, 563-564, 639, 1140-1142, 1261, 1316, 1419-1422, 1494, 1731-1740, 1887-1888, 1890-1893, 1956-1957, 2147, 2152, 2277-2280, 2335, 2355-2357, 2417, 2449, 2466-2474, 2493-2504, 2511, 2539, 2617, 2650, 2682, 2717, 2730-2731, 2799, 2803-2814, 2840, 2851-2852, 2934, 2954-2955, 2957, 2967, 2973-2974, 2976, 3028-3029, 3059, 3062, 3091, 3105, 3138, 3142-3148, 3162, 3196, 3206-3207, 3251-3252, 3354, 3388, 3466-3473, 3506, 3604, 3636, 3651-3652, 3655, 3690, 3700-3703, 3728, 3731-3737, 3791, 3819, 3822-3823, 3910, 3941-3942, 3991-3996, 4013, 4186, 4200, 4279, 4308-4309, 4516, 4727, 4863, 4905, 4907, 4911-4912, 4925, 4941, 4945, 5017-5018 |
 | src/antennaknobs/web/settings.py                                     |      493 |       32 |     94% |270, 300, 324-325, 356-357, 415, 430, 439, 451, 455, 466, 500-501, 512, 583-584, 618-619, 675-676, 685, 713, 739, 751, 839-840, 1081-1082, 1089-1091 |
 | src/antennaknobs/web/tracker.py                                      |      261 |       30 |     89% |213, 219, 269, 285-286, 315-316, 322, 333-335, 342-343, 349, 431, 454-458, 461-470, 497 |
 | src/antennaknobs/web/user\_designs.py                                |       68 |        6 |     91% |60-61, 92-93, 98-99 |
 | src/antennaknobs/wire\_catalog.py                                    |      188 |        0 |    100% |           |
 | src/antennaknobs/zinf.py                                             |      123 |        2 |     98% |   80, 135 |
-| **TOTAL**                                                            | **27764** | **1709** | **94%** |           |
+| **TOTAL**                                                            | **27766** | **1711** | **94%** |           |
 
 
 ## Setup coverage badge
