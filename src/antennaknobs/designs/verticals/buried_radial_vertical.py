@@ -52,12 +52,16 @@ razor's tent basis sees one column rather than N identical ones
 1-below junction.
 
 The pre-#1108 spelling — N COINCIDENT rises, one per radial — survives as the
-``bundle`` variant, and it is a DIFFERENT CONDUCTOR rather than a different
-mesh: a bundle of N coincident thin wires is not one wire of the same radius,
-which is momwire's fan-widening adjudication (momwire#524 phase 2). The two
-are never gated against each other. Every number this design banked before
-2026-09-03 was measured on the bundle and is attributed to it below; the size
-of the difference is smaller than it looks, and QUADRATURE says why.
+``bundle`` variant. It is the SAME CONDUCTOR as the hub, spelled with
+duplicates: every rise runs from the one hub junction to the one node, so the
+N rises are exact copies of the hub's single rise. Converged in quadrature
+the two agree to 5.2e-06 ohm (TWO SPELLINGS, below), and a momwire that
+carries the duplicate-wire merge (momwire#1042, as narrowed by momwire#1333)
+merges the copies and solves the variant as the hub. The pinned momwire
+predates #1042, so the variant is solved wire for wire until the pin carries
+it. Every number this design
+banked before 2026-09-03 was measured on the bundle and is attributed to it
+below.
 
 FEED. The house eps-gap idiom, verbatim: a short driven wire at the foot
 of the radiator with the radiator stacked on top. That is the physically
@@ -83,7 +87,8 @@ NEC-5 (``--engine nec5``, needs ``$NEC5_EXE``) solves its convention in
 under a second.
 
 THREE SPELLINGS, AND WHAT EACH ENGINE DOES WITH THEM. The screen can be
-spelled three ways, and they are DIFFERENT STRUCTURES, not meshes of one:
+spelled three ways. The hub and the stake are different structures; the
+bundle is the hub with its rise written N times:
 
   * The DEFAULT (connected, hub) convention above: N radials to a buried hub,
     ONE rise to the node, junction-joined to the monopole at z = 0 — the
@@ -97,12 +102,16 @@ spelled three ways, and they are DIFFERENT STRUCTURES, not meshes of one:
     momwire#838), not the binary. On that shared geometry momwire and NEC-5
     agree to a fraction of an ohm — see below.
   * The ``bundle`` variant: the pre-#1108 connected spelling, N coincident
-    rises. momwire's B-spline crossing serve is the only thing that solves
+    rises sharing the hub junction and the node. Solved wire for wire, as a
+    momwire without #1042 does, only momwire's B-spline crossing serve takes
     it — the NEC-5 binary silently prints garbage for coincident wires
     (measured on this design: 3271-3374j ohm with a 2e+25 % radiated power)
     and razor's tent basis gets N identical columns and a singular matrix
-    (momwire#846). It is kept because the fan-widening record and every
-    number banked here before 2026-09-03 belong to it.
+    (momwire#846). A momwire with #1042 merges the duplicate rises (a
+    ``DuplicateWire`` advisory) and solves the hub: the merged bundle equals
+    the hub to ~2.5e-11 ohm, not bit for bit only because the wire order
+    differs. It is kept because every number banked here before 2026-09-03
+    belongs to it.
   * The ``detached`` variant: the STAKE convention — the monopole stands
     its end in the ground plane (ground contact) and the N radials lie at
     ``depth``, joined to each other at a common centre point but touching
@@ -121,10 +130,11 @@ spelled three ways, and they are DIFFERENT STRUCTURES, not meshes of one:
     transposed ground card (the wrapper's own #1025 defect), and the
     antennaknobs NEC-5 wrapper now refuses the deck rather than repeat it.
 
-The ``bundle`` spelling has exactly one engine (momwire's B-spline crossing
-serve; the sinusoidal-Galerkin basis refuses coincident members by name,
-momwire#1003) and the ``detached`` spelling has none. The DEFAULT has all of
-them — that is what issue #1108 bought — and the spellings were never why the
+Solved wire for wire, the ``bundle`` spelling has exactly one engine
+(momwire's B-spline crossing serve; the sinusoidal-Galerkin basis refuses
+coincident members by name, momwire#1003); merged by momwire#1042 it is the
+hub. The ``detached`` spelling has no engine. The DEFAULT has all of them —
+that is what issue #1108 bought — and the spellings were never why the
 engines disagreed anyway. Measured on the licensed NEC-5 binary at this
 design's default knobs over eps_r 13 / sigma 0.005, with the DOCUMENTED
 below-ground card (antennaknobs#1025, 2026-09-05; momwire#931): NEC-5 reads
@@ -229,28 +239,22 @@ default any more. The error is still almost purely REACTIVE (R is converged
 to 0.02 ohm across both ladders) on a design whose entire purpose is tuning,
 so the ladder stays here; it is just no longer the dominant term.
 
-TWO STRUCTURES, AND HOW FAR APART THEY REALLY ARE. At n_qp_pair = 8 the hub
-and the bundle read 3.29 ohm apart, which is the number a casual comparison
-would quote. At n_qp_pair = 32 they are 0.31 ohm apart — which is where this
-file used to stop, and calling that residue structural was wrong. Carried to
-converged quadrature they agree to **5.2e-06 ohm**:
+TWO SPELLINGS OF ONE STRUCTURE. Solved wire for wire (momwire without
+#1042), the hub and the bundle read 3.29 ohm apart at n_qp_pair = 8, and
+0.31 ohm at 32. That gap is the bundle's quadrature error, all of it: carried
+to converged quadrature it closes to **5.2e-06 ohm**:
 
     n_qp_pair   |Z_bundle - Z_hub|
-       32       0.31 ohm       <- what this file used to quote as structural
+       32       0.31 ohm
       128       1.9e-03 ohm
       256       5.2e-06 ohm
 
-So it was not "nearly all" of the apparent difference that was the bundle's
-own quadrature error — it was essentially ALL of it. They are genuinely
-different decks (10 wires against 7, and 7 ohm apart at q=4), so this is two
-structures converging to one answer rather than one deck measured twice;
-if anything it reads as momwire#524's fan widening doing its job.
-
-That still does NOT license gating one against the other. They remain two
-structures under momwire#524's fan-widening adjudication, and one deck at one
-soil, mesh and frequency is a measurement rather than an equivalence theorem.
-What it does settle is that any claim about "how different the two spellings
-are" has to be made at converged quadrature or it is measuring quadrature.
+It closes because the decks are one conductor: at the default four radials
+the 10-wire bundle's rises are 4 copies of the 7-wire hub's one rise, joined at the same two junctions.
+A momwire with #1042 merges the copies before it solves, and the merged
+bundle equals the hub to ~2.5e-11 ohm. Any claim about how
+different the two spellings are has to be made at converged quadrature, or
+it is measuring quadrature.
 
 MESH CONVERGENCE — the default mesh IS the converged rung IN MESH, at
 fixed quadrature. Mesh convergence at fixed quadrature converges to the
@@ -383,17 +387,17 @@ class Builder(AntennaBuilder):
 
     # The stake convention (momwire#567 anchor class): same knobs, no rise
     # wires — the monopole stands its end in the plane, the radials lie at
-    # depth. NEC-5 serves this spelling and refuses the default's bundle;
-    # momwire mirrors it exactly the other way. See the module docstring.
+    # depth. No engine here serves it; see the module docstring.
     detached_params = MappingProxyType({"convention": "detached"})
 
-    # The pre-#1108 connected spelling: N coincident rises, one per radial.
-    # Kept as a named variant because it is a DIFFERENT CONDUCTOR from the
-    # default hub (a bundle of N coincident thin wires is not one wire of the
-    # same radius) and because every number banked on this design before
-    # 2026-09-03 was measured on it. NEC-5 refuses it (coincident wires) and
-    # razor's tent basis is singular on it (momwire#846); momwire's B-spline
-    # crossing serve is the only thing that solves it.
+    # The pre-#1108 connected spelling: N coincident rises, one per radial,
+    # all from the one hub junction to the node, so each is an exact copy of
+    # the default's single rise. Kept because every number banked on this
+    # design before 2026-09-03 was measured on it. Solved wire for wire,
+    # NEC-5 refuses it (coincident wires), razor's tent basis is singular on
+    # it (momwire#846) and momwire's B-spline crossing serve takes it; a
+    # momwire with the duplicate-wire merge (momwire#1042) solves it as the
+    # hub.
     bundle_params = MappingProxyType({"convention": "bundle"})
 
     # The SURFACE convention (momwire#865): radials lying ON the ground, the
@@ -490,8 +494,8 @@ class Builder(AntennaBuilder):
             if bundle:
                 # The `bundle` variant's per-radial rise, coincident with
                 # every other radial's by construction — the pre-#1108
-                # default, kept because the fan-widening record and every
-                # number banked before 2026-09-03 were measured on it. The
+                # default, kept because every number banked before
+                # 2026-09-03 was measured on it. The
                 # DEFAULT now puts one shared rise below this loop, and the
                 # detached variant has no rise at all.
                 #
