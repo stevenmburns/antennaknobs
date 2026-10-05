@@ -66,7 +66,9 @@ afterEach(() => {
 
 describe("off Fly", () => {
   it("never pins, and calls fetch with exactly the caller's arguments", async () => {
-    const stub = vi.fn(async (..._args: unknown[]) => new Response("{}", { status: 200 }));
+    const stub = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () => new Response("{}", { status: 200 }),
+    );
     vi.stubGlobal("fetch", stub);
     await apiFetch("/examples");
     const init = { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" };
