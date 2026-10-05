@@ -58,8 +58,8 @@ N rises are exact copies of the hub's single rise. Converged in quadrature
 the two agree to 5.2e-06 ohm (TWO SPELLINGS, below), and a momwire that
 carries the duplicate-wire merge (momwire#1042, as narrowed by momwire#1333)
 merges the copies and solves the variant as the hub. The pinned momwire
-predates #1042, so the variant is solved wire for wire until the pin carries
-it. Every number this design
+carries #1042 (from 0.72.0), so the variant solves as the hub
+(tests/test_bundle_is_the_hub_1042.py). Every number this design
 banked before 2026-09-03 was measured on the bundle and is attributed to it
 below.
 
