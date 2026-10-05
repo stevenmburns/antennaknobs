@@ -802,30 +802,31 @@ def _bundle_builder():
     )
 
 
-def test_brv_bundle_razor_refuses_the_coincidence_by_declared_name():
-    """The declared sentence, read off the PUBLIC row rather than imported
-    from `razor._BUNDLE_REFUSAL` — refusal-by-name means the name the row
-    publishes, and reaching for the private constant would be a reach-through
-    `tests/test_momwire_private_imports.py` exists to discourage.
+def test_brv_bundle_razor_solves_the_merged_bundle_as_the_hub():
+    """Razor's tent basis has no answer for a coincident bundle (momwire#846:
+    N identical columns, a singular matrix), and razor's row still declares
+    that refusal. But this bundle never reaches it any more: its N rises are
+    exact copies of the hub's one, joined at the same two junctions, so
+    momwire#1042 (as narrowed by momwire#1333) merges them before the fill,
+    says so with a `DuplicateWire` advisory, and razor solves the hub.
 
-    Pinned at SOLVE, and construction pinned to SUCCEED, because where this
-    check sits is a design decision and not a placement detail (momwire#846):
-    momwire#813's collapse adjudicators FILL a coincident deck and compare
-    matrices without ever solving it, so moving the refusal earlier — the
-    obvious tidy-up — would silently cost #813 its adjudicators. The fill is
-    well defined on this deck; it is the SOLVE that has no answer.
+    Until the momwire 0.72.0 pin this test pinned the refusal at SOLVE on
+    this deck. The refusal is intact for a coincident pair the merge does not
+    take (one joined unlike its twin, #1333); what moved is that THIS deck is
+    no longer such a pair. Bar 1e-9 relative: the wire order differs from
+    the hub's, so not bit for bit.
     """
+    from momwire._wire_spec import DuplicateWire
+
     declared = RazorSolver.capabilities.refusals["bundle"]
     assert declared, "razor's row no longer declares a `bundle` sentence"
 
-    _engine, solver = _razor_free_space(_bundle_builder())  # must NOT raise
-
-    with pytest.raises(ValueError) as excinfo:
-        solver.compute_impedance()
-    msg = str(excinfo.value)
-    assert msg.endswith(declared), f"not the declared bundle sentence: {msg}"
-    # The prefix is the diagnostic half: WHICH two segments coincide.
-    assert "run between the same two points" in msg
+    with pytest.warns(DuplicateWire, match="momwire#1042"):
+        _engine, solver = _razor_free_space(_bundle_builder())
+        z_bundle, _ = solver.compute_impedance()
+    _engine, hub = _razor_free_space(BuriedRadialVertical())
+    z_hub, _ = hub.compute_impedance()
+    assert complex(z_bundle) == pytest.approx(complex(z_hub), rel=1e-9, abs=0.0)
 
 
 def test_the_bundle_axis_is_not_reachable_through_the_refusal_cell_algebra():
