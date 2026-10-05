@@ -43,10 +43,10 @@ def _kept(client, text: str, model_options: dict | None):  # noqa: F811 — the 
         body["model_options"] = model_options
     solve = _cell(client, opened["key"], **body)
     z = complex(solve["z_in_re"], solve["z_in_im"])
-    a, _form, _origin, notes = keep.build(
-        {"origin": "pattern pins", "pins": [{"req": body}]}
-    )
-    return z, a, notes
+    pin = {"req": body}
+    _a, _form, _origin, notes = keep.build({"origin": "pattern pins", "pins": [pin]})
+    cell = keep.pin_cell(pin, swept=None, who="pin 1", notes=[])
+    return z, cell, notes
 
 
 def _run_z(tmp_path, capsys, text: str, cell, *extra) -> complex:
@@ -70,13 +70,13 @@ def test_a_kept_nec5_deck_with_ek_off_says_so_and_the_run_reproduces_it(
 ):
     # The fat NEC-5 dipole (Δ/a ≈ 4.5), where the two kernels part by ohms.
     text = _text("nec5", a=0.05)
-    z_web, a, notes = _kept(client, text, {"extended_kernel": False})
+    z_web, cell, notes = _kept(client, text, {"extended_kernel": False})
     (note,) = [n for n in notes if _FLAG in n]
     assert "extended kernel off" in note
-    (cell,) = a.cells
     assert cell.engine == "momwire:bspline"
     followed = _run_z(tmp_path, capsys, text, cell, _FLAG)
-    assert abs(followed - z_web) <= 1e-6 * abs(z_web), (followed, z_web)
+    # To the sweep table's printed precision (two to three decimals).
+    assert abs(followed - z_web) < 5e-3, (followed, z_web)
     # Adversarial: the run left alone takes the deck's default, another Z.
     ignored = _run_z(tmp_path, capsys, text, cell)
     assert abs(ignored - z_web) > 0.1, (ignored, z_web)
@@ -97,10 +97,12 @@ def test_a_kept_default_kernel_needs_no_note(
     model_options,
     client,  # noqa: F811 — the imported fixture
 ):
-    _z, _a, notes = _kept(client, _text(dialect, ek=ek), model_options)
+    _z, _cell, notes = _kept(client, _text(dialect, ek=ek), model_options)
     assert not [n for n in notes if "kernel" in n], notes
 
 
 def test_a_kept_nec2_ek_card_turned_off_says_so(client):  # noqa: F811 — the imported fixture
-    _z, _a, notes = _kept(client, _text("nec2", ek="EK\n"), {"extended_kernel": False})
+    _z, _cell, notes = _kept(
+        client, _text("nec2", ek="EK\n"), {"extended_kernel": False}
+    )
     assert [n for n in notes if _FLAG in n], notes
