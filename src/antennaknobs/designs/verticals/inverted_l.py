@@ -13,7 +13,9 @@ This fills the "bent / top-loaded monopole" gap: the catalog's verticals
 over. Like the framework's `vertical`, we give it a small set of elevated
 RADIALS as its counterpoise and model it in free space (self-contained, no
 ground card); a real install works it against earth or a buried radial field
-whose loss adds a few ohms of feed resistance.
+whose loss adds a few ohms of feed resistance. `n_radials` sets how many
+radials, and `horiz_frac` = 0 drops the top wire, leaving the plain vertical
+on the same feed and radials.
 
 Geometry, in the framework's (x, y, z) convention:
   - z : the riser axis, fed at its base against the radial counterpoise
@@ -49,8 +51,15 @@ class Builder(AntennaBuilder):
             "horiz_frac": 0.085,
             # Overall scale knob the optimiser tunes for resonance (X -> 0).
             "length_factor": 1.0,
+            # The elevated radial counterpoise: how many quarter-wave radials,
+            # spread evenly from the feed (M0AGP's comparison, AK#1828, uses
+            # two).
+            "n_radials": 4,
             "ui_params": MappingProxyType(
                 {
+                    "n_radials": {"min": 1, "max": 16, "step": 1},
+                    # Down to 0: no top wire is the straight vertical.
+                    "horiz_frac": {"min": 0.0, "max": 0.1275},
                     # Top-loaded monopole feed -> low R (~25-45 ohm).
                     "target_z0": 50.0,
                     # Riser along z, top wire along y -> not planar in any
@@ -79,7 +88,7 @@ class Builder(AntennaBuilder):
         # segments at the feed junction on fine meshes — a graded-junction
         # ratio the pulse/sinusoidal bases handle badly, so PyNEC/sin diverged
         # up the convergence ladder while BSpline d=2 stayed flat).
-        n_radials = 4
+        n_radials = max(1, round(self.n_radials))
         radial_len = quarter  # quarter-wave radials, like a ground-plane vert
 
         tups = []
@@ -88,7 +97,10 @@ class Builder(AntennaBuilder):
         tups.append(Wire((0.0, 0.0, z), (0.0, 0.0, z + eps), ex=1 + 0j))
         # Vertical riser, then the horizontal top section.
         tups.append(Wire((0.0, 0.0, z + eps), (0.0, 0.0, z + vert)))
-        tups.append(Wire((0.0, 0.0, z + vert), (0.0, horiz, z + vert)))
+        if horiz > 0:
+            # A 0 top wire is no top wire: the plain vertical, a state of
+            # this design rather than a zero-length wire that cannot mesh.
+            tups.append(Wire((0.0, 0.0, z + vert), (0.0, horiz, z + vert)))
 
         # Elevated radials spreading from the feedpoint in the x/y plane.
         for i in range(n_radials):

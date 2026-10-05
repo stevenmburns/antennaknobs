@@ -17,12 +17,16 @@ class Builder(AntennaBuilder):
             "design_freq": 28.57,
             "length": 2.619,
             "base": 0.5,
+            # The elevated radial counterpoise: how many radials, spread
+            # evenly from the feed.
+            "n_radials": 3,
             # Radials spread in x/y while the radiator rises in z — no
             # single 2D projection shows both, so iso.
             "ui_params": MappingProxyType(
                 {
                     "default_view": "iso",
                     "design_freq": {"hidden": True},
+                    "n_radials": {"min": 1, "max": 16, "step": 1},
                 }
             ),
         }
@@ -34,7 +38,7 @@ class Builder(AntennaBuilder):
         z = self.length
         base = self.base
 
-        n_radials = 3
+        n_radials = max(1, round(self.n_radials))
         # Radials refine with the mesh (issue #477): hard-coding the count let
         # coarse radial segments meet fine riser segments at the feed junction
         # on refined meshes, dragging PyNEC/sin off BSpline's converged value.
