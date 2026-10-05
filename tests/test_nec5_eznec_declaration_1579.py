@@ -392,7 +392,15 @@ def test_the_cardioid_captures_solve(name):
     from antennaknobs.file_designs import builder_from_file
 
     cls = builder_from_file(str(CAPTURES / name))
-    z = np.asarray(MomwireEngine(cls(), ground=cls.file_ground).impedance())
+    # The kernel as the workbench and CLI pick it: a deck read as NEC-5
+    # solves EK-on by default (AK#1891), as serve does since momwire#1326.
+    z = np.asarray(
+        MomwireEngine(
+            cls(),
+            ground=cls.file_ground,
+            extended_kernel_default=cls.file_extended_kernel_default,
+        ).impedance()
+    )
     assert z.shape == (2,)
     assert np.all(np.isfinite(z))
 
