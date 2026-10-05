@@ -46,9 +46,16 @@ printouts out of a public repo. Neither reason applies here: the
   Sommerfeld ground-table cache messages, which we do not write. This is the
   one shape where our printout is measurably *short*, and EZNEC read it
   without objecting.
-- **020** — ours 30, NEC-4.2 435. Deliberate: `NE` over a finite ground is a
-  shape momwire refuses by name, and NEC-4.2 solves it. The 30-line file is the
-  refusal, and EZNEC popped it up in a window.
+- **020** — ours 30, NEC-4.2 435. Deliberate **at the version measured**: in
+  momwire 0.70.0/0.71.0 `NE` over a finite ground was a shape the NEC-4.2 slot
+  refused by name, while NEC-4.2 itself solves it. The 30-line file is that
+  refusal, and EZNEC popped it up in its own window.
+
+  **This is no longer current behaviour.** momwire#1352 (PR #1355) serves `NE 0`
+  and `NE 1` over free space, PEC, `GN 2` and `GN 3`, so from 0.72.0 this deck is
+  expected to SOLVE. The file stays as the record of what 0.71.0 did and as the
+  proof that EZNEC surfaces a refusal to the user — which is what it was captured
+  for — but do not read it as a statement about what momwire refuses today.
 
 ## Pairs and negative controls
 
