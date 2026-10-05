@@ -63,6 +63,45 @@ async function* readSseFrames(
   }
 }
 
+/** The band run's default balance (AK#1901), sent explicitly on every band
+ *  run so the UI and the server cannot drift. 0.5: easy bands are not dragged
+ *  up to the hardest band's SWR (0.2 equalised every band on a real deck). */
+export const DEFAULT_MEAN_WEIGHT = 0.5;
+
+export type OptFree = { name: string; min: number; max: number };
+
+/** The `optimize` object of a POST /optimize body. With no bands it is the
+ *  single-frequency spec exactly as it has always been sent (a test pins the
+ *  body). With bands (AK#1901) it is the multi-band minimax: each band an SWR
+ *  target at its own frequency, `mean_weight` the balance, and the budget
+ *  left to the server, whose default scales with the knob count. The
+ *  single-band `objective` and `seed_surrogate` are not read on that path and
+ *  are not sent. */
+export function optimizeSpec(
+  free: OptFree[],
+  opts: {
+    objective: OptObjective;
+    seed: boolean;
+    bands: number[] | null;
+    meanWeight: number;
+  },
+): Record<string, unknown> {
+  if (opts.bands && opts.bands.length > 0) {
+    return {
+      free,
+      bands: opts.bands.map((freq) => ({ freq, objective: "swr" })),
+      mode: "minimax",
+      mean_weight: opts.meanWeight,
+    };
+  }
+  return {
+    free,
+    objective: opts.objective,
+    max_evals: 40,
+    seed_surrogate: opts.seed,
+  };
+}
+
 // --- Reactive knob optimiser (POST /optimize) ---
 //
 // The reactive knob optimiser's whole behavior cluster (#642 seam 5b-3):
@@ -118,6 +157,13 @@ export function useOptimizer({
   // from a TUNED start and decisive from a poor one, so it is the user's
   // statement about which they are in, not a default we can guess.
   const [optSeed, setOptSeed] = useState<boolean>(false);
+  // AK#1901: optimise across several bands at once. null = off, and then the
+  // request is exactly the single-frequency one; a list = each band's
+  // frequency in MHz (SWR at each, minimax). Belongs to the design it was set
+  // on, so the design-load reset clears it.
+  const [optBands, setOptBands] = useState<number[] | null>(null);
+  // The band run's balance w: J = (1 - w) * worst band + w * mean of bands.
+  const [optMeanWeight, setOptMeanWeight] = useState<number>(DEFAULT_MEAN_WEIGHT);
   const [knobOpt, setKnobOpt] = useState<Record<string, Record<string, KnobOpt>>>({});
   // Open knob context menu: which param + anchor position, and the design it
   // was opened on. A menu belongs to its design: one left open across a
@@ -185,6 +231,7 @@ export function useOptimizer({
     setOptResult(null);
     setOptProgress(null);
     setOptError(null);
+    setOptBands(null);
     if (optEnabledRef.current) {
       setOptEnabled(false);
       setOptPausedBy({ kind: "load" });
@@ -238,12 +285,12 @@ export function useOptimizer({
         body: JSON.stringify({
           ...buildRequest(),
           // Reactive runs are warm-started, so a modest eval cap keeps them snappy.
-          optimize: {
-            free,
+          optimize: optimizeSpec(free, {
             objective: optObjective,
-            max_evals: 40,
-            seed_surrogate: optSeed,
-          },
+            seed: optSeed,
+            bands: optBands,
+            meanWeight: optMeanWeight,
+          }),
         }),
       });
       if (ctrl.signal.aborted) return; // superseded by a newer run
@@ -310,6 +357,8 @@ export function useOptimizer({
       measFreq,
       bounds: free.map(([n, o]) => [n, o.optMin, o.optMax]),
       fixed,
+      // Only when set, so a single-band signature is the string it always was.
+      ...(optBands ? { bands: optBands, meanWeight: optMeanWeight } : {}),
     });
     // currentValuesKey stands in for currentValues' contents in the deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -319,6 +368,8 @@ export function useOptimizer({
     geometry,
     optObjective,
     optSeed,
+    optBands,
+    optMeanWeight,
     zoOverride,
     backend,
     designFreq,
@@ -380,6 +431,10 @@ export function useOptimizer({
     setOptObjective,
     optSeed,
     setOptSeed,
+    optBands,
+    setOptBands,
+    optMeanWeight,
+    setOptMeanWeight,
     knobOpt,
     setKnobOpt,
     knobMenu,

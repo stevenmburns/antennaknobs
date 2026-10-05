@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import type { BandSpec } from "../../lib/params";
 import type { SweepRange } from "../../lib/sweep";
 import { parseZo } from "../../lib/zoOverride";
+import {
+  BandsEditor,
+  BandsReadout,
+  type OptBandRecord,
+  type OptBandsControl,
+} from "./OptBands";
 
 // Response from POST /optimize.
 //
@@ -39,6 +45,19 @@ export type OptimizeResult = {
   residual_before?: number | null;
   residual_after?: number | null;
   improved: boolean;
+  /** A band run's (AK#1901, `objective: "bands"`): every band read at the
+   *  start and at the answer, and the two terms of what it minimised. */
+  bands_before?: OptBandRecord[];
+  bands_after?: OptBandRecord[];
+  objective_worst_before?: number;
+  objective_worst_after?: number;
+  objective_mean_before?: number;
+  objective_mean_after?: number;
+  mean_weight?: number;
+  worst_swr_before?: number;
+  worst_swr_after?: number;
+  worst_band_before?: number;
+  worst_band_after?: number;
 };
 // One `event: progress` frame from the streamed /optimize (issue #773 unit
 // 4) — a mid-run snapshot, not a final outcome; `objective` is the raw
@@ -67,6 +86,12 @@ export type OptProgress = {
    *  when its buffer fills, so a client-side tick undercounts exactly when the
    *  run is fastest. */
   n_solves?: number;
+  /** A band run's (AK#1901): the bands this eval solved (each with its
+   *  `index` in the request's list), and the worst / mean of their values. */
+  bands?: (OptBandRecord & { index: number })[];
+  objective_worst?: number;
+  objective_mean?: number;
+  worst_band?: number;
 };
 // Phases whose residual falls monotonically, and is therefore worth showing
 // in place of the SWR. Nelder-Mead's is deliberately NOT here: its best-so-far
@@ -216,6 +241,7 @@ function SimControls({
   optError,
   optPausedBy,
   zo,
+  bands,
 }: {
   autoSim: boolean;
   setAutoSim: (fn: (v: boolean) => boolean) => void;
@@ -245,8 +271,13 @@ function SimControls({
   optPausedBy: OptPause | null;
   /** AK#1735. Absent: no Zo field (a caller with no session behind it). */
   zo?: ZoControl | undefined;
+  /** AK#1901. Absent: no Bands section. */
+  bands?: OptBandsControl | undefined;
 }) {
   const [optMenuOpen, setOptMenuOpen] = useState(false);
+  // A band run's readouts (its per-band table, its refusals) live in the
+  // full-width block under the dial; this narrow column keeps the one figure.
+  const bandsOn = !!bands?.freqs;
   return (
     <div className="sim-controls" data-track-status={trackStatus ?? undefined}>
       <button
@@ -322,6 +353,8 @@ function SimControls({
                   <ZoField zo={zo} />
                 </>
               )}
+              {/* AK#1901: optimise across several bands at once. */}
+              {bands && <BandsEditor bands={bands} />}
               {/* #1176. OFF by default and deliberately: measured
                   neutral-to-slightly-negative from a TUNED start, and
                   decisive from a poor one (moxon's plain run is stuck at
@@ -398,7 +431,9 @@ function SimControls({
           {/* The seed samples the whole box, so its objective jumps around
               and a plain "#n SWR x" reads as the optimiser going backwards.
               Naming the phase is what stops that looking like a fault. */}
-          {(optProgress.seed_total ?? 0) > 0
+          {optProgress.bands && optProgress.objective_worst != null
+            ? `#${optProgress.n_evals} worst SWR ${optProgress.objective_worst.toFixed(2)}`
+            : (optProgress.seed_total ?? 0) > 0
             ? `seeding ${optProgress.seed_index}/${optProgress.seed_total}`
             : ROOT_PHASES.has(optProgress.phase ?? "") &&
                 optProgress.residual != null
@@ -411,10 +446,11 @@ function SimControls({
           className="opt-readout"
           title={`SWR after optimisation, against ${formatZo(optResult.metrics_after.z0_ohms)} Ω`}
         >
-          SWR {optResult.metrics_after.swr.toFixed(2)}
+          {optResult.objective === "bands" ? "worst SWR" : "SWR"}{" "}
+          {optResult.metrics_after.swr.toFixed(2)}
         </span>
       )}
-      {optEnabled && optError && (
+      {optEnabled && optError && !bandsOn && (
         <span
           className="opt-readout opt-readout-err"
           title={optError}
@@ -483,6 +519,7 @@ export function VfoPanel({
   optError,
   optPausedBy,
   zo,
+  bands,
 }: {
   currentBands: BandSpec[];
   measLocked: boolean;
@@ -530,6 +567,8 @@ export function VfoPanel({
   optPausedBy: OptPause | null;
   /** The gear menu's Zo field (AK#1735). */
   zo?: ZoControl | undefined;
+  /** The gear menu's band list (AK#1901). */
+  bands?: OptBandsControl | undefined;
 }) {
   // Long press = the touch route to the range menu. The knobs have no touch
   // path of their own: their menu rides the browser's contextmenu event,
@@ -603,6 +642,7 @@ export function VfoPanel({
             optError={optError}
             optPausedBy={optPausedBy}
             zo={zo}
+            bands={bands}
           />
 
           <div
@@ -684,6 +724,14 @@ export function VfoPanel({
             )}
           </div>
         </div>
+        {optEnabled && bands?.freqs && (
+          <BandsReadout
+            running={optRunning}
+            progress={optProgress}
+            result={optResult}
+            error={optError}
+          />
+        )}
       </div>
     </>
   );

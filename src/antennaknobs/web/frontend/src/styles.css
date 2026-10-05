@@ -3753,6 +3753,83 @@ canvas {
 .opt-menu .opt-zo-hint {
   margin-top: var(--space-1);
 }
+/* AK#1901: the gear menu's band list, and the band run's readout under the
+   dial (full width: the Live/Optimize column is too narrow for a table). */
+.opt-bands-body {
+  padding: 0 var(--space-3) var(--space-2);
+}
+.opt-bands-list {
+  list-style: none;
+  margin: 0 0 var(--space-1);
+  padding: 0;
+}
+.opt-bands-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+.opt-bands-remove {
+  margin-left: auto;
+  padding: 0 var(--space-2);
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.opt-bands-remove:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.opt-bands-add {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.opt-bands-balance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.opt-bands-readout {
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+div.opt-bands-readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  overflow-wrap: anywhere;
+}
+.opt-bands-readout.opt-readout-progress {
+  color: var(--accent);
+}
+.opt-bands-readout.opt-readout-err {
+  color: var(--danger, #c0392b);
+}
+.opt-bands-table {
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+}
+.opt-bands-table th,
+.opt-bands-table td {
+  padding: 1px var(--space-2);
+  text-align: right;
+  font-weight: 400;
+}
+.opt-bands-table thead th {
+  color: var(--muted-2);
+}
+.opt-bands-table tfoot th,
+.opt-bands-table tfoot td {
+  border-top: 1px solid var(--border-control);
+}
 .opt-pip {
   color: var(--accent);
   margin-left: 2px;
