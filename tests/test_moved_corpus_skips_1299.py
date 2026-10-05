@@ -55,7 +55,7 @@ def test_the_nec2_corpus_module_skips_only_when_the_corpus_is_absent():
     if not reason:
         # Running: then the corpus must be the one the module measures.
         assert nec2_mod.CORPUS_DIR.is_dir()
-        assert len(nec2_mod.CORPUS) == 65, len(nec2_mod.CORPUS)
+        assert len(nec2_mod.CORPUS) == 70, len(nec2_mod.CORPUS)
         return
     # Skipping: the ONLY acceptable cause is the directory not being there.
     assert not nec2_mod.CORPUS_DIR.is_dir(), (
