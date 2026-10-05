@@ -308,8 +308,14 @@ def test_every_plane_curve_equals_the_workbench_solve_at_that_plane(
 # the rig reads 51.24 − j4.16 at 14.45, SWR 1.09. The 0.90.0 script ran with
 # no ground given, and momwire's no-ground default was free space then (the
 # engine-ground trap); today no --ground is the file's own.
+#
+# The rig moved 43.12 - 4.33j -> 43.13 - 4.32j at the momwire 0.72.0 pin
+# (AK#1685): the CLC tuner's parts used to be evaluated 25 ppm below the
+# sweep's frequency (the reducer read NEC's 299.8 wavelength back with SI c),
+# and are now evaluated at it. T1 and feed sit outside those parts and do not
+# move at two decimals.
 E5_BEST = {
-    "rig": (1.19, 14.450, 43.12 - 4.33j),
+    "rig": (1.19, 14.450, 43.13 - 4.32j),
     "T1": (1.39, 14.250, 37.59 - 7.39j),
     "feed": (1.45, 14.250, 72.51 - 1.90j),
 }
