@@ -3935,8 +3935,9 @@ def cuts_endpoint(req: dict):
 async def pattern_metrics_endpoint(req: dict, request: Request):
     """Scalar far-field metrics for the current antenna, for the compare table.
 
-    Reuses the same builder + momwire engine as the live solve, so the metrics
-    match the lobe drawn on screen. Returns ``{available, metrics}`` where
+    Reuses the same builder and engine as the live solve, so the metrics
+    match the lobe drawn on screen: momwire, or the request's card-deck
+    engine (`_engine_metrics`, AK#1894). Returns ``{available, metrics}`` where
     metrics carries peak_gain_dbi / takeoff_deg / azimuth_deg /
     front_to_back_db / az_beamwidth_deg / el_beamwidth_deg / rdf_db (+ the
     freq).
@@ -3945,10 +3946,12 @@ async def pattern_metrics_endpoint(req: dict, request: Request):
     ex = example_for(geometry)
     if ex.far_field_metrics is None:
         return {"available": False}
-    # far_field_metrics runs a full momwire solve; apply the hosted matrix-
-    # size cap here like every other solve-forming route.
+    # A full solve on the request's engine (`_engine_metrics`, AK#1894, else
+    # momwire); apply the hosted matrix-size cap here like every other
+    # solve-forming route.
+    external = _external_backend(req) is not None and ex.engine_metrics is not None
     try:
-        _check_solve_size(req, use_pynec=False)
+        _check_solve_size(req, use_pynec=external)
     except SolveTooLargeError as e:
         return {"geometry": geometry, "error": str(e)}
     # The generation is the CLIENT's call (AK#1712). The live design's row
@@ -3964,8 +3967,12 @@ async def pattern_metrics_endpoint(req: dict, request: Request):
             async with cancel_on_disconnect(request, token):
                 # Looked up INSIDE the turn: the live solve it pairs with runs
                 # on this lane too, so it has finished (and filed) by now.
-                solved = _solved_metrics_for(req)
-                if solved is not None:
+                solved = None if external else _solved_metrics_for(req)
+                if external:
+                    metrics = await run_in_threadpool(
+                        _shed, _engine_metrics, ex, req, token
+                    )
+                elif solved is not None:
                     # The live solve's own state (AK#1727): no second fill.
                     token.raise_if_cancelled()
                     metrics = await run_in_threadpool(_shed, solved)
@@ -3992,14 +3999,26 @@ def _pattern_cell(req: dict, cancel=None) -> dict:
     out = solve(dict(req), cancel=cancel)
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     ex = example_for(geometry)
-    metrics = None
-    if ex.far_field_metrics is not None:
+    metrics = _engine_metrics(ex, req, cancel)
+    if metrics is None and ex.far_field_metrics is not None:
         solved = _solved_metrics_for(req)
         metrics = (
             solved() if solved is not None else ex.far_field_metrics(req, cancel=cancel)
         )
     out["metrics"] = metrics
     return out
+
+
+def _engine_metrics(ex, req: dict, cancel=None) -> dict | None:
+    """A card-deck engine's pattern metrics for ``req`` (AK#1894), or None
+    when the request resolves to momwire (`_external_backend`, so an
+    unavailable engine falls back as its solve does) or the design has no
+    `engine_metrics`. The CLI reads a cell's table off the engine that solved
+    it (`metrics.source_for`); so does the workbench."""
+    backend = _external_backend(req)
+    if backend is None or ex.engine_metrics is None:
+        return None
+    return _external_call(ex.engine_metrics, req, _BACKEND_NAME[backend], cancel=cancel)
 
 
 @app.post("/pattern_cell")

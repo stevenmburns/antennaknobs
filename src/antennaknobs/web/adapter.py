@@ -3531,6 +3531,16 @@ _NEC5_SEAMS = _SolveSeams(
 )
 
 
+# The card-deck engine lanes by request `solver` name, for the pattern metrics
+# a cell's own engine reads (`engine_metrics`, AK#1894).
+_SEAMS_BY_SOLVER = {
+    "pynec": _PYNEC_SEAMS,
+    "nec5": _NEC5_SEAMS,
+    "nec2": _NEC2_SEAMS,
+    "nec42": _NEC42_SEAMS,
+}
+
+
 def _feed_positions(engine, currents, multi_feed=False):
     """One marker per feed (issue #571), each ``{"name", "position": [x,y,z]}``.
 
@@ -5221,6 +5231,25 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         eng = _make_momwire_engine(req, builder, cancel=cancel)
         return _metrics_from_gain(eng.gain_evaluator(), meas_freq)
 
+    def engine_metrics(req: dict, solver: str) -> dict:
+        # The same metrics on a card-deck engine (AK#1894), read as the CLI
+        # reads a pattern cell (`analysis_run._run_patterns`): the engine's
+        # `metrics.source_for` -- its 1-degree far-field grid, or NEC-5's RP
+        # runs -- through `metrics.table_values`, so a cell's table comes from
+        # the engine that solved it. Same builder setup as `_engine_solve`.
+        from antennaknobs import metrics as mx
+
+        design_freq, meas_freq = _req_freqs(req)
+        builder = _build_builder(cls, req)
+        builder.freq = meas_freq
+        if has_design_freq:
+            builder.design_freq = design_freq
+        _apply_plane(builder, req)
+        eng = _SEAMS_BY_SOLVER[solver].make_engine(req, builder)
+        metrics = mx.table_values(mx.source_for(eng))
+        metrics["measurement_freq_mhz"] = meas_freq
+        return metrics
+
     def nec_export(req: dict) -> str:
         # Same builder construction as pynec_solve, then serialise to a NEC2
         # card deck. Ground/freq mirror what the live solve uses so the
@@ -5492,6 +5521,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         schematic_svg=schematic_svg,
         params_source=params_source,
         far_field_metrics=far_field_metrics,
+        engine_metrics=engine_metrics,
         multi_feed=field_multi_feed,
         param_schema=param_schema,
         result_schema=result_schema,
