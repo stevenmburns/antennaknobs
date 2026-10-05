@@ -57,10 +57,15 @@ FREQ, H, L, RAD = 14.0, 9.144, 10.18946, 0.0010262
 EPS, SIG = 20.0, 0.0303
 GROUND = ("finite", EPS, SIG)
 # The two engines' fed segments on the catalog's buried designs (AK#1456),
-# stated beside the below-ground cross-engine numbers. The house 50 mm gap wire
-# is one segment on momwire's odd count and two on NEC-5's even one;
-# `tests/test_fed_segments_1456.py` holds this literal to the engines.
-BURIED_FED = "momwire 1 × 50 mm, NEC-5 2 × 25 mm"
+# stated beside the below-ground cross-engine numbers. The dipole's 50 mm gap
+# wire is one segment on momwire's odd count and two on NEC-5's even one; the
+# vertical's is a fixed three beside its graded node panels (AK#1816), four on
+# NEC-5's parity. Each states the fed wire's count and segment length. `tests/test_fed_segments_1456.py` holds these literals to
+# the engines.
+BURIED_FED = {
+    "specialty.buried_dipole": "momwire 1 × 50 mm, NEC-5 2 × 25 mm",
+    "verticals.buried_radial_vertical": "momwire 3 × 16.7 mm, NEC-5 4 × 12.5 mm",
+}
 ODD = list(range(11, 102, 4))
 EVEN = list(range(12, 101, 4))
 
@@ -1224,7 +1229,9 @@ below-ground card: on the wholly buried fed dipole the two engines agree to
 146.6+44.7j Ω at 0.15 m). On the bonded-base vertical over buried radials
 at the catalog's defaults they agree to 0.3 Ω in resistance at the shipped
 mesh and 0.2 Ω at twice it. In both comparisons each engine meshes the
-50 mm feed gap its own way ({BURIED_FED}). The third leg is
+50 mm feed gap its own way (the dipole:
+{BURIED_FED["specialty.buried_dipole"]}; the vertical:
+{BURIED_FED["verticals.buried_radial_vertical"]}). The third leg is
 in-house and arrived with momwire 0.52.0: the sinusoidal-Galerkin basis
 serves the wholly buried and the mixed classes from its own fill, sharing no
 below-interface code with `bspline`, and the two bases are gated to agree

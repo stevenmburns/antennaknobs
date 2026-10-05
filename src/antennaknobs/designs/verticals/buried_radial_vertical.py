@@ -67,7 +67,11 @@ merges into the radiator's polyline instead of becoming a second above-side
 junction. Do NOT reach for ``ex=`` on the full-length radiator as a way to
 avoid a stub: a whole-wire excitation lands at that wire's MIDPOINT, which
 would silently model a mid-element shunt tap (a different, much higher-Z
-antenna) rather than a base feed.
+antenna) rather than a base feed. The gap is a fixed three segments, not the
+density's one (AK#1816): see the comment at the feed in `build_wires`. Every
+figure below dated before 2026-10-04 was measured on the one-segment gap; the
+change moves bs2 by 0.013 ohm at the defaults and at most 0.22 ohm at the knob
+corners, the same offset at every density (scratch/1816-brv-gap).
 
 REQUIRES A FINITE GROUND. Buried conductors only exist under a Sommerfeld
 half-space, which antennaknobs chooses at SOLVE time, not in the design:
@@ -527,14 +531,25 @@ class Builder(AntennaBuilder):
         # Driven gap at the radiator foot; the radiator stacks on top of it.
         # In the detached variant the gap's lower end stands in the plane as
         # a legal ground CONTACT end, touching nothing below.
-        tups.append(Wire(node, (0.0, 0.0, eps), ex=1 + 0j))
+        #
+        # THREE SEGMENTS beside the graded panels (AK#1816), a FIXED count.
+        # Auto-meshed, the 5 cm wire is one 50 mm segment between the rise's
+        # and the radiator's 6.25 mm node segments, an 8:1 step the
+        # NEC-2/NEC-4.2 basis handles badly: NEC-4.2 read 3.8 % from NEC-5
+        # on the refined deck, and 0.7 % with three 16.7 mm segments (2.7:1).
+        # The momwire bases barely notice (bs2 +0.012 ohm, razor-2p and
+        # NEC-5 +0.03 ohm, scratch/1816-brv-gap). Fixed rather than auto, so
+        # the feed model does not step as the density moves (AK#1767); the
+        # tent bases still coerce it to their even parity (4 x 12.5 mm). The
+        # detached variant has no graded panel beside its gap, so it keeps
+        # the auto count its NEC-5 print was banked on.
+        gap_segs = None if detached else 3
+        tups.append(Wire(node, (0.0, 0.0, eps), n_seg=gap_segs, ex=1 + 0j))
         if not detached and height > 1.0:
             # The radiator's node end is graded too (#674: the above
             # arm's interface-adjacent h is the dominant term of the
             # crossing node's convergence class), with the far panel at
-            # the design's own segment length. The 5 cm feed-gap wire
-            # above stays exactly as it is — re-meshing it would change
-            # the FEED MODEL, not the mesh. The detached variant keeps
+            # the design's own segment length. The detached variant keeps
             # the plain radiator: its mesh is banked against the NEC-5
             # print and its contact node is a different (served-by-NEC-5)
             # convention with no crossing junction to grade for.
