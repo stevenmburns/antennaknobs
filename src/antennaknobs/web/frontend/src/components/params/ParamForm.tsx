@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import {
   applyVisibility,
   isGroup,
+  knobKey,
   type KnobLayout,
   type KnobOpt,
   type ParamValueBag,
@@ -53,7 +54,8 @@ export function ParamForm({
   // mechanism); daisy_chain used to rely on it before build_network()
   // made the single-feed hexbeam engine-agnostic.
   disabledFields?: Set<string> | undefined;
-  // Optimiser integration (top-level rail only). `settings` overrides a knob's
+  // Optimiser integration. `settings` (keyed by the knob's optimiser key: its
+  // name at the top level, its dotted path inside a group, AK#1901) overrides a knob's
   // effective min/max/step; `onContext` opens that knob's right-click menu;
   // `onToggleVary` flips a knob's "Optimize this knob" flag (the `o` shortcut,
   // parallel to the menu checkbox).
@@ -88,6 +90,7 @@ export function ParamForm({
                       onChange={onChange}
                       pathPrefix={[...pathPrefix, item.name, i]}
                       disabledFields={disabledFields}
+                      {...(opt ? { opt } : {})}
                     />
                   </div>
                 </div>
@@ -195,7 +198,8 @@ export function ParamForm({
         // were retired — knobs are the brand.)
         // Per-knob optimiser override: display extents + manual step come from
         // the knob's menu when set, and `vary` marks it a free variable.
-        const ko = opt?.settings[item.name];
+        const optKey = knobKey([...pathPrefix, item.name]);
+        const ko = opt?.settings[optKey];
         const knobMin = ko ? ko.dispMin : effMin;
         const knobMax = ko ? ko.dispMax : effMax;
         const knobStep = ko?.step ?? item.step ?? 0.001;
@@ -204,7 +208,7 @@ export function ParamForm({
             key={item.name}
             className={`field field-knob${ko?.vary ? " is-opt-var" : ""}`}
             style={layoutStyle(item.layout)}
-            onContextMenu={opt ? (e) => opt.onContext(item.name, e) : undefined}
+            onContextMenu={opt ? (e) => opt.onContext(optKey, e) : undefined}
             // `o` toggles this knob's "Optimize this knob" flag while it's
             // focused — the keyboard parallel to the right-click menu. The event
             // bubbles up from the focused role="slider" Knob; the edit <input>
@@ -222,7 +226,7 @@ export function ParamForm({
                       !e.repeat
                     ) {
                       e.preventDefault();
-                      opt.onToggleVary(item.name);
+                      opt.onToggleVary(optKey);
                     }
                   }
                 : undefined

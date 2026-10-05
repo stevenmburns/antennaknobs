@@ -35,7 +35,9 @@ import {
 import {
   findLinkedDesignFreq,
   groupExamplesForPicker,
+  findKnobSpec,
   isGroup,
+  knobKey,
   linkedMeasFreqFor,
   overlaySchemaForVariant,
   seedDefaults,
@@ -593,6 +595,7 @@ function DesignSessionBody({
   function setParamAtPath(
     path: (string | number)[],
     value: number | string | boolean,
+    followMeas = true,
   ) {
     // Compute the new geometry bag eagerly (outside the setter) so the
     // meas-freq follow logic below can read newRoot reliably. React's
@@ -609,7 +612,7 @@ function DesignSessionBody({
 
     // Schema-driven meas-freq follow — see linkedMeasFreqFor for the two
     // variants (group leaf vs. flat scalar `link_meas_freq_to_param`).
-    if (!linkMeas) return;
+    if (!linkMeas || !followMeas) return;
     const freqValue = linkedMeasFreqFor(currentExample, path, newRoot);
     if (freqValue != null) setMeasFreq(freqValue);
   }
@@ -626,12 +629,15 @@ function DesignSessionBody({
     path: (string | number)[],
     value: number | string | boolean,
   ) {
-    if (optEnabled && path.length === 1 && typeof path[0] === "string") {
-      const ko = (knobOpt[geometry] ?? {})[path[0]];
+    // Keyed the way the marks are: a flat knob by its name, a group leaf by
+    // its dotted path (AK#1901).
+    if (optEnabled) {
+      const key = knobKey(path);
+      const ko = (knobOpt[geometry] ?? {})[key];
       if (ko?.vary) {
         optAbortRef.current?.abort();
         setOptEnabled(false);
-        setOptPausedBy({ kind: "knob", name: path[0] });
+        setOptPausedBy({ kind: "knob", name: key });
       }
     }
     // #1220 rule 1: ownership is unchanged. A marked knob belongs to the
@@ -1672,7 +1678,11 @@ function DesignSessionBody({
     autoSim,
     active,
     buildRequest,
-    setParamAtPath,
+    // The optimiser's write-back of a group leaf (AK#1901) must not move the
+    // dial the way a hand on that band's knob does: the dial is one of the
+    // run's inputs, so moving it would re-tune at another frequency. A flat
+    // knob's write-back follows exactly as before.
+    setParamAtPath: (path, value) => setParamAtPath(path, value, path.length === 1),
     zoOverride,
   });
 
@@ -3422,9 +3432,7 @@ function DesignSessionBody({
         {knobMenu && currentExample && (
           <KnobOptMenu
             menu={knobMenu}
-            spec={currentSchema.find(
-              (x): x is SchemaParamSpec => !isGroup(x) && x.name === knobMenu.name,
-            )}
+            spec={findKnobSpec(currentSchema, knobMenu.name)}
             ko={knobOptFor(knobMenu.name)}
             onPatch={(patch) => updateKnobOpt(knobMenu.name, patch)}
             onClose={() => setKnobMenu(null)}

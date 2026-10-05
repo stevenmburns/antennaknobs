@@ -3,6 +3,8 @@ import type { SolveRequest } from "../../lib/api";
 
 import {
   defaultKnobOpt,
+  knobPath,
+  setValueAtPath,
   type KnobOpt,
   type ParamValueBag,
   type SchemaItem,
@@ -245,8 +247,11 @@ export function useOptimizer({
   // non-streaming JSON body.
   function applyOptimizeResult(data: OptimizeResult) {
     setOptResult(data);
+    // A group leaf comes back under its dotted key (`bands.0.length_factor`,
+    // AK#1901) and lands at its path; a flat name is the one-element path
+    // it always was.
     for (const [name, val] of Object.entries(data.params)) {
-      setParamAtPath([name], val);
+      setParamAtPath(knobPath(name), val);
     }
   }
 
@@ -344,17 +349,30 @@ export function useOptimizer({
     const free = Object.entries(settings).filter(([, o]) => o.vary);
     if (free.length === 0) return "";
     const freeSet = new Set(free.map(([n]) => n));
-    const fixed: Record<string, unknown> = {};
+    let fixedBag: ParamValueBag = {};
     for (const [k, v] of Object.entries(currentValues)) {
-      if (!freeSet.has(k)) fixed[k] = v;
+      if (!freeSet.has(k)) fixedBag[k] = v;
     }
+    // A free group leaf (AK#1901) sits inside a group the bag carries whole;
+    // blank it there too, or the run's own write-back would change the
+    // signature and re-tune forever.
+    for (const name of freeSet) {
+      const path = knobPath(name);
+      if (path.length > 1 && path[0] in fixedBag) {
+        fixedBag = setValueAtPath(fixedBag, path, "") as ParamValueBag;
+      }
+    }
+    const fixed: Record<string, unknown> = fixedBag;
     return JSON.stringify({
       geometry,
       objective: optObjective,
       zo: zoOverride,
       backend,
       designFreq,
-      measFreq,
+      // A band run reads its own frequencies, never the dial's — and a group
+      // leaf's write-back can move the dial (link_meas_freq_to_param), which
+      // must not read as a new input.
+      ...(optBands ? {} : { measFreq }),
       bounds: free.map(([n, o]) => [n, o.optMin, o.optMax]),
       fixed,
       // Only when set, so a single-band signature is the string it always was.

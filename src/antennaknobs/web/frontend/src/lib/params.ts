@@ -624,10 +624,40 @@ export function groupExamplesForPicker(
 // The effective per-knob optimiser settings, seeded from the schema: opt
 // extents = slider bounds, step = schema step, not varying. The caller
 // overlays any explicitly stored KnobOpt entry on top of this default.
+// A knob's name as the optimiser keys it (AK#1901): a top-level param is its
+// own name, exactly as before; a leaf inside a group is its dotted path,
+// `bands.0.length_factor` — the spelling the server's /optimize reads.
+export function knobKey(path: (string | number)[]): string {
+  return path.join(".");
+}
+
+// The inverse: `bands.0.length_factor` -> ["bands", 0, "length_factor"], the
+// path setParamAtPath takes. A flat name is a one-element path.
+export function knobPath(name: string): (string | number)[] {
+  return name.split(".").map((p) => (/^\d+$/.test(p) ? Number(p) : p));
+}
+
+// A knob's spec by its optimiser key, through any groups on the way.
+export function findKnobSpec(
+  schema: SchemaItem[],
+  name: string,
+): SchemaParamSpec | undefined {
+  const path = knobPath(name);
+  let items: SchemaItem[] = schema;
+  for (let i = 0; i < path.length; i++) {
+    const seg = path[i];
+    if (typeof seg === "number") continue; // an instance index
+    const item = items.find((x) => x.name === seg);
+    if (!item) return undefined;
+    if (i === path.length - 1) return isGroup(item) ? undefined : item;
+    if (!isGroup(item)) return undefined;
+    items = item.params;
+  }
+  return undefined;
+}
+
 export function defaultKnobOpt(schema: SchemaItem[], name: string): KnobOpt {
-  const s = schema.find(
-    (x): x is SchemaParamSpec => !isGroup(x) && x.name === name,
-  );
+  const s = findKnobSpec(schema, name);
   const min = s?.min ?? 0;
   const max = s?.max ?? 1;
   return {
