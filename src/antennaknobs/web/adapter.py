@@ -2883,9 +2883,16 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
     # says on: the slot's toggle shows the default on, so "on" there is the
     # default, which falls back to the reduced kernel with an advisory where
     # the basis or the deck refuses it. Only an explicit off turns it off.
-    by_dialect = bool(getattr(builder, "file_extended_kernel_default", False))
-    extended_kernel = bool(asked) and not by_dialect
-    extended_kernel_default = by_dialect and asked is not False
+    # A NEC-2 deck's EK card is the same default here (AK#1893), where the
+    # CLI takes it as a request (`cli.deck_extended_kernel_flag`): the slot's
+    # toggle is the only way a web user can say otherwise, so it must be able
+    # to turn the card's kernel off.
+    by_deck = bool(
+        getattr(builder, "file_extended_kernel_default", False)
+        or getattr(builder, "file_extended_kernel", False)
+    )
+    extended_kernel = bool(asked) and not by_deck
+    extended_kernel_default = by_deck and asked is not False
     # Rotational symmetry (momwire#1029 sector route), gated the same way on
     # BOTH paths — hosted (already whitelisted through _OPTION_SPECS above)
     # and local (model_options forwarded verbatim, sanitize_model_options
