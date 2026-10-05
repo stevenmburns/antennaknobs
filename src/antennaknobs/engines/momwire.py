@@ -1024,7 +1024,8 @@ class MomwireEngine(SimulationEngine):
           construction, not from inside a fill.
         extended_kernel_default:
           The extended kernel as a DEFAULT rather than a request (AK#1891: a
-          deck read as NEC-4 or NEC-5). On, unless this basis or this deck
+          deck read as NEC-4 or NEC-5; AK#1893: on the web, a NEC-2 deck's EK
+          card). On, unless this basis or this deck
           refuses it — the basis itself, singular enrichment, a buried wire,
           a radius step at a junction — and then the reduced kernel, with an
           "ExtendedKernel" advisory naming the refusal. Ignored when
@@ -1285,8 +1286,9 @@ class MomwireEngine(SimulationEngine):
                 self._wire_radius = radii
         else:
             self._wire_radius = default_radius
-        # AK#1891: a dialect's default kernel, resolved once the geometry is
-        # known, since two of its refusals are about the deck.
+        # AK#1891: a deck's default kernel (its dialect's, or on the web a
+        # NEC-2 EK card's, AK#1893), resolved once the geometry is known,
+        # since two of its refusals are about the deck.
         self._kernel_notes = []
         if extended_kernel_default and not self._extended_kernel:
             why = self._extended_kernel_default_refusal()
@@ -1298,8 +1300,8 @@ class MomwireEngine(SimulationEngine):
                     {
                         "category": "ExtendedKernel",
                         "text": (
-                            "This deck's dialect solves with the extended "
-                            f"kernel by default, which {name} cannot serve "
+                            "This deck solves with the extended kernel by "
+                            f"default, which {name} cannot serve "
                             f"here, so it solved with the reduced kernel: {why}"
                         ),
                     }

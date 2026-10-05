@@ -235,7 +235,7 @@ def test_the_cli_echoes_a_fallback_advisory(tmp_path, monkeypatch, capsys):
     finally:
         plt.close("all")
     err = capsys.readouterr().err
-    assert "advisory: This deck's dialect solves with the extended kernel" in err
+    assert "advisory: This deck solves with the extended kernel by default" in err
 
 
 def _z_table(out: str) -> complex:

@@ -157,8 +157,10 @@ def _make_builder(
     ui["fixed_segment_counts"] = True
     # AK#1891: a deck read as NEC-4 or NEC-5 solves with the extended kernel
     # unless the user's switch says otherwise; the app's per-slot toggle shows
-    # it on, and the server applies it to a request that does not say.
-    if extended_kernel_by_dialect:
+    # it on, and the server applies it to a request that does not say. A
+    # NEC-2 deck's own EK card is the same default on the web (AK#1893): the
+    # toggle shows it, and turning it off is honoured.
+    if extended_kernel_by_dialect or extended_kernel:
         ui["extended_kernel_default"] = True
     note = " ".join(n for n in notes if n)
     if note:
