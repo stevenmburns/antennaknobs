@@ -62,6 +62,56 @@ def tuner_refusal(out: dict, objective: str) -> str | None:
     )
 
 
+def _knob_path(name: str) -> list:
+    """``bands.0.length`` -> ``["bands", 0, "length"]``: the dotted spelling
+    of a group leaf (`opt._parse_path`'s, and the frontend's param path)."""
+    return [int(p) if p.lstrip("-").isdigit() else p for p in name.split(".")]
+
+
+def _get_knob(req: dict, name: str):
+    """A knob's value on a request, or None. A flat name is a top-level key
+    exactly as before; a dotted one (AK#1901) is a group leaf, read through
+    the request's nested group (``req["bands"][0]["length"]``)."""
+    if name in req:
+        return req[name]
+    path = _knob_path(name)
+    if len(path) < 2 or path[0] not in req:
+        return None
+    cur = req[path[0]]
+    try:
+        for p in path[1:]:
+            cur = cur[p]
+    except (KeyError, IndexError, TypeError):
+        return None
+    return cur
+
+
+def _replaced(cur, path: list, value):
+    """``cur`` with the leaf at ``path`` set to ``value``, rebuilt on the way
+    back up: the request's own group (and so the caller's) is never
+    mutated."""
+    head = path[0]
+    if isinstance(cur, dict):
+        new = dict(cur)
+        new[head] = value if len(path) == 1 else _replaced(cur[head], path[1:], value)
+        return new
+    new = list(cur)
+    i = int(head)
+    new[i] = value if len(path) == 1 else _replaced(cur[i], path[1:], value)
+    return new
+
+
+def _with_knob(req: dict, name: str, value) -> None:
+    """Set a knob on ``req`` (a per-eval copy). A flat name, or any name the
+    request carries as a key, is a top-level write exactly as before; a dotted
+    group leaf whose group the request carries is a copy-on-write into it."""
+    path = _knob_path(name)
+    if name in req or len(path) < 2 or path[0] not in req:
+        req[name] = value
+        return
+    req[path[0]] = _replaced(req[path[0]], path[1:], value)
+
+
 def _swr(z_re: float, z_im: float, z0: float) -> float:
     """Voltage SWR of impedance Z against a real reference Z0. 1.0 = perfect
     match; clamped just below the open-circuit singularity so a totally
@@ -230,6 +280,52 @@ def _surrogate_root_start(probe, box, n, rng, z0):
 def _newton_root2(probe, x0, box, budget, *, broyden_between=True):
     """Newton on the two-component residual F = (R - R0, X). Returns (x, ok, why).
 
+    The two-knob caller of `_newton_root`, which is n-dimensional (AK#1901
+    generalised it for a band list); kept under this name and with exactly
+    its arguments so every existing caller runs the same arithmetic.
+    """
+    return _newton_root(probe, x0, box, budget, broyden_between=broyden_between)
+
+
+def _fd_jacobian(call, x, F, lo, hi, h):
+    """Forward differences, flipped INWARD wherever the box says so. None when
+    a perturbed probe answers None (a multi-feed response)."""
+    n = len(x)
+    J = np.zeros((len(F), n))
+    for j in range(n):
+        step = h[j] if x[j] + h[j] <= hi[j] else -h[j]
+        if x[j] + step < lo[j]:
+            step = h[j]
+        xp = x.copy()
+        xp[j] = min(max(xp[j] + step, lo[j]), hi[j])
+        dh = xp[j] - x[j]
+        Fp = call(xp)
+        if Fp is None:
+            return None
+        J[:, j] = (Fp - F) / (dh if dh else h[j])
+    return J
+
+
+def _fd_step(box):
+    """The finite-difference step `_newton_root` uses: 0.2 % of each span."""
+    lo = np.array([b[0] for b in box], dtype=float)
+    hi = np.array([b[1] for b in box], dtype=float)
+    return np.maximum((hi - lo) * 0.002, 1e-12)
+
+
+def _newton_root(
+    probe,
+    x0,
+    box,
+    budget,
+    *,
+    broyden_between=True,
+    J0=None,
+    ftol=_ROOT_FTOL,
+    xtol=_ROOT_XTOL,
+):
+    """Newton on an n-component residual over n knobs. Returns (x, ok, why).
+
     Three things here are load-bearing, and each was measured in #1202:
 
     **Box-aware finite differences.** A plain forward difference is DEGENERATE
@@ -250,7 +346,6 @@ def _newton_root2(probe, x0, box, budget, *, broyden_between=True):
     refresh; a third hands back to the caller, which falls back to Nelder-Mead
     from the best SOLVED point.
     """
-    n = len(x0)
     lo = np.array([b[0] for b in box], dtype=float)
     hi = np.array([b[1] for b in box], dtype=float)
     h = np.maximum((hi - lo) * 0.002, 1e-12)
@@ -265,29 +360,19 @@ def _newton_root2(probe, x0, box, budget, *, broyden_between=True):
         return probe(x)
 
     def jac(x, F):
-        """Forward differences, flipped INWARD wherever the box says so."""
-        J = np.zeros((n, n))
-        for j in range(n):
-            step = h[j] if x[j] + h[j] <= hi[j] else -h[j]
-            if x[j] + step < lo[j]:
-                step = h[j]
-            xp = x.copy()
-            xp[j] = min(max(xp[j] + step, lo[j]), hi[j])
-            dh = xp[j] - x[j]
-            Fp = call(xp)
-            if Fp is None:
-                return None
-            J[:, j] = (Fp - F) / (dh if dh else h[j])
-        return J
+        return _fd_jacobian(call, x, F, lo, hi, h)
 
     x = clip(np.asarray(x0, dtype=float))
     F = call(x)
     if F is None:
         return list(x), False, "multi-feed"
     best = (float(np.linalg.norm(F)), x.copy())
-    if best[0] <= _ROOT_FTOL:
+    if best[0] <= ftol:
         return list(x), True, "already-at-root"
-    J = jac(x, F)
+    # A caller that already paid for the Jacobian at x0 (AK#1901 checks it
+    # for a singular system before the run) hands it in rather than re-buying
+    # it; the memo would answer the probes, but the evals would still count.
+    J = jac(x, F) if J0 is None else np.array(J0, dtype=float)
     if J is None:
         return list(best[1]), False, "multi-feed"
     stall = 0
@@ -317,14 +402,14 @@ def _newton_root2(probe, x0, box, budget, *, broyden_between=True):
         moved = float(np.linalg.norm(xn - x))
         dx, dF = xn - x, Fn - F
         x, F = xn, Fn
-        if nrm <= _ROOT_FTOL:
+        if nrm <= ftol:
             return list(x), True, "ftol"
-        if moved <= _ROOT_XTOL:
+        if moved <= xtol:
             # The step went to zero. If the residual is still above tolerance
             # this is a stationary point of |F| that is NOT a root -- on a real
             # deck, the two contours not crossing anywhere reachable. Name it
             # so, rather than reporting the convergence test that caught it.
-            done = best[0] <= _ROOT_FTOL
+            done = best[0] <= ftol
             return list(best[1]), done, "xtol" if done else "no-crossing"
         # A step that does not cut the residual by at least 1 % is not
         # progress. Two of those in a row is the stall.
@@ -348,7 +433,7 @@ def _newton_root2(probe, x0, box, budget, *, broyden_between=True):
             if Jn is None:
                 return list(best[1]), False, "multi-feed"
             J = Jn
-    return list(best[1]), best[0] <= _ROOT_FTOL, "budget"
+    return list(best[1]), best[0] <= ftol, "budget"
 
 
 def _bracket_brent(probe, lo, hi, budget, *, n_scan=5):
@@ -621,7 +706,8 @@ def optimize(
     # Start from each param's current value, clipped into its bound.
     x0 = []
     for name, lob, hib in zip(names, lo, hi, strict=True):
-        cur = float(base_req.get(name, 0.5 * (lob + hib)))
+        cur = _get_knob(base_req, name)
+        cur = float(0.5 * (lob + hib) if cur is None else cur)
         x0.append(min(max(cur, lob), hib))
 
     n_evals = 0
@@ -664,7 +750,7 @@ def optimize(
         params = {}
         for name, v in zip(names, x, strict=True):
             val = float(v)
-            req[name] = val
+            _with_knob(req, name, val)
             params[name] = val
         n_evals += 1
         key = tuple(params[name] for name in names)

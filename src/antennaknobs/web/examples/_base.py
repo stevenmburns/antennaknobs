@@ -247,6 +247,12 @@ class AntennaExample:
     # produces carries it. A None here means coverage answers empty rather
     # than guessing.
     builder_cls: Optional[type] = None
+    # AK#1901: ONE build of the request's design solved at every frequency
+    # handed to it, `(req, freqs_mhz, cancel=None) -> {"zs": (n_freqs,
+    # n_feeds), "z0_ohms", "tuner", "solve_ms"}` -- what a multi-band
+    # /optimize evaluation is. None (a hand-built example) makes the endpoint
+    # solve each band through `momwire_solve` instead.
+    momwire_bands: Optional[Callable[..., dict]] = None
     # Geometry-only snapshot (wires, feed marker; no solve, no currents) for a
     # fast antenna-shape preview while the real solve runs. Optional so an
     # example without one degrades to "no preview".
