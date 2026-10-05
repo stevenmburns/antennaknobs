@@ -12,6 +12,16 @@ import {
 } from "./OptBands";
 import { NO_READING } from "../../lib/optBands";
 
+// The optimise popover opens downward from the rail. With the Bands section
+// (AK#1901) it can be taller than the space left below its button, and it is
+// absolutely positioned, so the rows past the window's bottom edge were
+// unreachable. Cap it at the room left in the viewport and scroll inside.
+function fitOptMenuToViewport(el: HTMLDivElement | null): void {
+  if (!el) return;
+  const room = window.innerHeight - el.getBoundingClientRect().top - 12;
+  el.style.maxHeight = `${Math.max(160, Math.floor(room))}px`;
+}
+
 // Response from POST /optimize.
 //
 // The first four keys are always present. The rest appear only on a bare
@@ -329,7 +339,7 @@ function SimControls({
               className="gear-menu-backdrop"
               onClick={() => setOptMenuOpen(false)}
             />
-            <div className="opt-menu" role="menu">
+            <div className="opt-menu" role="menu" ref={fitOptMenuToViewport}>
               <div className="opt-menu-title">Optimise for</div>
               {OPT_OBJECTIVES.map((k) => (
                 <button
