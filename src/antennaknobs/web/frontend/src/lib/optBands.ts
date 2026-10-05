@@ -3,6 +3,10 @@
 /** The server's cap on a band list (AK#1901). */
 export const MAX_OPT_BANDS = 8;
 
+/** The text for a band reading that is not there: the server's null, which
+ *  stands for a non-finite value (an infinite SWR, a NaN Z). */
+export const NO_READING = "no reading";
+
 export const fmtFreq = (f: number) => String(Number(f.toPrecision(7)));
 
 /** A frequency the user typed, or the reason it is refused. */

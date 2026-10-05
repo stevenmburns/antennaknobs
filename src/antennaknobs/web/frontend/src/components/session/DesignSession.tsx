@@ -1691,6 +1691,16 @@ function DesignSessionBody({
   // its own fetch. While a run is in flight these come off the progress frames
   // instead; `null` outside a run puts the readout straight back on the /ws
   // numbers with no second code path.
+  // The run's live Z for the charts. A band run's worst band can be one the
+  // engine could not read, which the server sends as null (AK#1901): no point
+  // to draw, rather than a NaN one.
+  const optLiveZ =
+    optRunning &&
+    optProgress &&
+    optProgress.metrics.z_in_re != null &&
+    optProgress.metrics.z_in_im != null
+      ? optProgress.metrics
+      : null;
   const liveSolve = optRunning && optProgress
     ? {
         solveMs: optProgress.solve_ms ?? null,
@@ -4472,7 +4482,7 @@ function DesignSessionBody({
       // `result` holds the pre-run solve for its whole duration and the
       // Smith dot would sit frozen while the readout ticks (#773). The
       // per-eval frames carry the trial Z, so hand it to the chart.
-      liveZ={optRunning && optProgress ? optProgress.metrics : null}
+      liveZ={optLiveZ}
       preview={preview}
       measured={measured}
       pattern={pattern}
@@ -4811,7 +4821,7 @@ function DesignSessionBody({
                       // Same live trial point as the primary stage: the
                       // thumbnail is the same chart, so a frozen dot there
                       // would be the same defect at a smaller size.
-                      liveZ={optRunning && optProgress ? optProgress.metrics : null}
+                      liveZ={optLiveZ}
                       preview={preview}
                       measured={measured}
                       pattern={pattern}

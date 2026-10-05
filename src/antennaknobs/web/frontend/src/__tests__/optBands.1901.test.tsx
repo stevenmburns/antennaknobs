@@ -335,6 +335,90 @@ describe("the band readouts", () => {
   });
 });
 
+// ------------------------------------------------- no reading, and index
+
+describe("null readings and index matching (AK#1901)", () => {
+  const unread = (freq: number, index?: number): OptBandRecord => ({
+    ...rec(freq, 0),
+    ...(index !== undefined ? { index } : {}),
+    swr: null,
+    z_re: null,
+    z_im: null,
+    value: null,
+  });
+
+  it("progress: a band with no reading, and a worst with none, say so", () => {
+    const p: OptProgress = {
+      ...BAND_PROGRESS,
+      bands: [
+        { ...unread(7.1), index: 0 },
+        { index: 1, ...rec(14.2, 1.6) },
+      ],
+      objective_worst: null,
+    };
+    render(<BandsReadout running progress={p} result={null} error={null} />);
+    const box = screen.getByLabelText("Band progress");
+    expect(box.textContent).toContain("7.1: SWR no reading");
+    expect(box.textContent).toContain("14.2: SWR 1.60");
+    expect(box.textContent).toContain("worst no reading");
+  });
+
+  it("the panel survives a null worst band (narrow readout, tooltip, settled SWR)", () => {
+    const nullMetrics = { z_in_re: null, z_in_im: null, z0_ohms: 50, swr: null } as unknown as OptProgress["metrics"];
+    const p: OptProgress = {
+      ...BAND_PROGRESS,
+      objective: null as unknown as number,
+      metrics: nullMetrics,
+      bands: [{ ...unread(7.1), index: 0 }],
+      objective_worst: null,
+    };
+    const { unmount } = render(
+      <VfoPanel {...panelProps()} optRunning optProgress={p} optResult={null} bands={bandsOn([7.1])} />,
+    );
+    expect(screen.getByText("#9 worst SWR no reading")).toBeTruthy();
+    unmount();
+    render(
+      <VfoPanel
+        {...panelProps()}
+        optRunning={false}
+        optProgress={null}
+        optResult={{ ...BAND_RESULT, metrics_after: nullMetrics }}
+        bands={bandsOn([7.1, 14.2])}
+      />,
+    );
+    expect(screen.getByText("worst SWR no reading")).toBeTruthy();
+  });
+
+  it("result rows match their start by index, not position; null reads as no reading", () => {
+    const res: OptimizeResult = {
+      ...BAND_RESULT,
+      // The starts listed in the other order: a position match would swap them.
+      bands_before: [{ ...rec(14.2, 1.8), index: 1 }, unread(7.1, 0)],
+      bands_after: [{ ...rec(7.1, 1.5), index: 0 }, { ...rec(14.2, 1.3), index: 1 }],
+      worst_swr_before: null,
+      objective_mean_before: null,
+    };
+    render(<BandsReadout running={false} progress={null} result={res} error={null} />);
+    const table = screen.getByRole("table", { name: "Band results" });
+    const rows = within(table)
+      .getAllByRole("row")
+      .map((r) =>
+        [
+          ...within(r).queryAllByRole("columnheader"),
+          ...within(r).queryAllByRole("rowheader"),
+          ...within(r).queryAllByRole("cell"),
+        ].map((c) => c.textContent),
+      );
+    expect(rows).toEqual([
+      ["MHz", "SWR before", "after"],
+      ["7.1", "no reading", "1.50"],
+      ["14.2", "1.80", "1.30"],
+      ["worst", "no reading", "1.50"],
+      ["mean", "no reading", "1.40"],
+    ]);
+  });
+});
+
 // ------------------------------------------------------------ on the panel
 
 function panelProps() {
