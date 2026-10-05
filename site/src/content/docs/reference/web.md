@@ -1058,6 +1058,25 @@ input, so the optimizer scores the driven plane — the same impedance the
 readout shows. The CLI's `optimize` aggregates feeds the same way (it differs
 only in scoring |Z − Z₀| distance rather than SWR).
 
+**Several bands at once.** The gear menu's **Bands** section tunes for more than
+one frequency in the same run. Tick **Several bands at once**, which seeds the
+list with the measurement frequency. Then add each band in MHz, up to eight; ×
+removes one. Each evaluation builds the design once and solves it at every band
+on the same mesh, and the optimizer minimizes
+
+  (1 − w) · worst band's SWR + w · mean of the bands' SWR
+
+with **Balance** setting w (default 0.5). At 0 it improves the worst band only,
+which lets it drag the easy bands up to the hardest one's SWR; the mean term
+stops that. On UR0GT's three-band vertical (160/80/40 m), w = 0.2 settles on SWR
+1.86 on all three bands, and w = 0.5 on 1.93 / 1.93 / 1.34. While it runs, the
+readout shows each band's SWR and the worst. When it finishes, a table gives
+each band's SWR before and after, plus the worst and the mean. Knobs inside a
+group (a fan dipole's per-band lengths) can be marked like any other. The
+command line's `optimize --bands` does the same, and adds the per-band
+objective, feed and Z₀, and the root and band-by-band modes; see
+[Optimizing across bands](/reference/cli/#optimizing-across-bands).
+
 A design whose network holds a **tuner that tunes itself** (`tune_to`) is
 refused when it is measured at the tuner's tune frequency: the tuner presents
 its target on every solve there, so SWR, Resonance and Match Z₀ are already
