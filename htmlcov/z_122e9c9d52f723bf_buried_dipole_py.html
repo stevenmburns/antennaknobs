@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_122e9c9d52f723bf_continuous_helix_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.1">coverage.py v7.16.1</a>,
-            created at 2026-10-05 02:10 +0000
+            created at 2026-10-05 04:06 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -201,10 +201,18 @@
     <p class="pln"><span class="n"><a id="t119" href="#t119">119</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t120" href="#t120">120</a></span><span class="t">        <span class="key">return</span> <span class="op">[</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t121" href="#t121">121</a></span><span class="t">            <span class="nam">Wire</span><span class="op">(</span><span class="op">(</span><span class="op">-</span><span class="nam">half</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="nam">z</span><span class="op">)</span><span class="op">,</span> <span class="op">(</span><span class="op">-</span><span class="nam">eps</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="nam">z</span><span class="op">)</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t122" href="#t122">122</a></span><span class="t">            <span class="com"># Centre-fed gap; both arms stack onto it.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t123" href="#t123">123</a></span><span class="t">            <span class="nam">Wire</span><span class="op">(</span><span class="op">(</span><span class="op">-</span><span class="nam">eps</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="nam">z</span><span class="op">)</span><span class="op">,</span> <span class="op">(</span><span class="nam">eps</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="nam">z</span><span class="op">)</span><span class="op">,</span> <span class="nam">ex</span><span class="op">=</span><span class="num">1</span> <span class="op">+</span> <span class="num">0j</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t124" href="#t124">124</a></span><span class="t">            <span class="nam">Wire</span><span class="op">(</span><span class="op">(</span><span class="nam">eps</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="nam">z</span><span class="op">)</span><span class="op">,</span> <span class="op">(</span><span class="nam">half</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="nam">z</span><span class="op">)</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t125" href="#t125">125</a></span><span class="t">        <span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t122" href="#t122">122</a></span><span class="t">            <span class="com"># Centre-fed gap; both arms stack onto it. ONE segment, pinned</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t123" href="#t123">123</a></span><span class="t">            <span class="com"># (AK#1767): the gap is a feed of fixed physical width, 50 mm.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t124" href="#t124">124</a></span><span class="t">            <span class="com"># Auto-meshed it went to 3 segments at nominal ~106 and 5 at ~318,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t125" href="#t125">125</a></span><span class="t">            <span class="com"># and each step moved bs2&#x27;s X by -0.9 and -0.3 ohm. One wire fed</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t126" href="#t126">126</a></span><span class="t">            <span class="com"># at its middle has no step but no settled answer either: its fed</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t127" href="#t127">127</a></span><span class="t">            <span class="com"># segment IS the mesh, and the delta gap drifts with it</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t128" href="#t128">128</a></span><span class="t">            <span class="com"># (momwire#1330; scratch/1767-buried-dipole). One rather than</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t129" href="#t129">129</a></span><span class="t">            <span class="com"># three because three moves bs2&#x27;s default by 1.2 ohm and does not</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t130" href="#t130">130</a></span><span class="t">            <span class="com"># help NEC-4.2, whose error here is the arm/gap length step.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t131" href="#t131">131</a></span><span class="t">            <span class="nam">Wire</span><span class="op">(</span><span class="op">(</span><span class="op">-</span><span class="nam">eps</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="nam">z</span><span class="op">)</span><span class="op">,</span> <span class="op">(</span><span class="nam">eps</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="nam">z</span><span class="op">)</span><span class="op">,</span> <span class="nam">n_seg</span><span class="op">=</span><span class="num">1</span><span class="op">,</span> <span class="nam">ex</span><span class="op">=</span><span class="num">1</span> <span class="op">+</span> <span class="num">0j</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t132" href="#t132">132</a></span><span class="t">            <span class="nam">Wire</span><span class="op">(</span><span class="op">(</span><span class="nam">eps</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="nam">z</span><span class="op">)</span><span class="op">,</span> <span class="op">(</span><span class="nam">half</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="nam">z</span><span class="op">)</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t133" href="#t133">133</a></span><span class="t">        <span class="op">]</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -214,7 +222,7 @@
             <a class="nav" href="z_122e9c9d52f723bf_continuous_helix_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.1">coverage.py v7.16.1</a>,
-            created at 2026-10-05 02:10 +0000
+            created at 2026-10-05 04:06 +0000
         </p>
     </div>
 </footer>
