@@ -1993,6 +1993,20 @@ class MomwireEngine(SimulationEngine):
         cached = getattr(self, "_solved_cache", None)
         if cached is not None and cached[0] == key:
             sim, coeffs, z = cached[1]
+        elif self._circuit_left_it_undriven(v_key + jp_key + ng_key):
+            # The circuit resolved every antenna port to 0 V: an open in it
+            # (a 0 pF series C, issue #289) leaves the antenna unexcited.
+            # momwire refuses a 0 V solve's Z = V/I by name since
+            # momwire#1164, but the CURRENT is well defined, and it is zero.
+            # Read it off the drive-independent port solution (one fill, as
+            # compute_impedance takes) as coeffs @ V with V = 0, so it has
+            # the family's own shape. Z is NaN, as momwire answered it before
+            # #1164; the Z this engine reports is the reducer's.
+            sol = sim.compute_port_solution()
+            coeffs = sol.coeffs @ np.zeros(sol.n_ports, dtype=np.complex128)
+            z = np.full(sol.n_ports, complex(np.nan, np.nan))
+            z = z[0] if sol.n_ports == 1 else z
+            self._solved_cache = (key, (sim, coeffs, z))
         else:
             z, coeffs = sim.compute_impedance()
             self._solved_cache = (key, (sim, coeffs, z))
@@ -2000,6 +2014,16 @@ class MomwireEngine(SimulationEngine):
         # the wire-loss amendment below is applied exactly once per call.
         self._amend_wire_loss(sim, coeffs, z)
         return sim, coeffs, z
+
+    def _circuit_left_it_undriven(self, drive_key):
+        """Whether a network or TL design's circuit put 0 V on every antenna
+        port (each `drive_key` entry ends in its voltage's (re, im)): a
+        physical open in the circuit, not a missing feed. A PLAIN design with
+        no drive is the design's own error, and momwire's refusal
+        (momwire#1164) is the right answer to it, so it is not caught here."""
+        if self._network is None and not self._tls:
+            return False
+        return all(entry[-2:] == (0.0, 0.0) for entry in drive_key)
 
     def _amend_wire_loss(self, sim, coeffs, z):
         """Fold ohmic wire loss (momwire#131 distributed loading) into the
