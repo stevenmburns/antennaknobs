@@ -36,6 +36,7 @@ from ..network import (
 )
 from ..terrain import Terrain, specular_cut
 from ..wire_catalog import port_at, port_wire
+from ..builder import C_LIGHT_MHZ_M
 from ..auto_match import design_freq_mhz as _design_freq_mhz
 from ..auto_match import make_reducer
 from ..network_reduce import (
@@ -1497,6 +1498,7 @@ class MomwireEngine(SimulationEngine):
             y_at=self._compute_y_matrix,
             design_freq_mhz=_design_freq_mhz(self.builder),
             wavelength_for=self._wavelength_for,
+            c_light_mhz_m=self._reducer_c_light(),
         )
 
         # Finite-gap (distributed) ports — issue #477. A distributed port
@@ -1906,6 +1908,16 @@ class MomwireEngine(SimulationEngine):
         a silent perturbation of every catalog number)."""
         return self.builder.c_light_mhz_m * 1e6 / (freq_mhz * 1e6)
 
+    def _reducer_c_light(self):
+        """The c the circuit math reads a frequency back from `_wavelength_for`
+        with (AK#1685): this design's own, so a deck-derived design's lumped
+        parts and line loss sit at the deck's frequency rather than 25 ppm
+        below it. None for an SI design, which keeps the reducer's own SI
+        expression and so stays BIT-IDENTICAL (``299.792458 / wl`` and
+        ``299792458.0 / wl / 1e6`` differ by an ulp at some wavelengths)."""
+        c = self.builder.c_light_mhz_m
+        return None if c == C_LIGHT_MHZ_M else c
+
     def _apply_tls(self, Y, wavelength):
         """Y + per-TL stamps at the corresponding feed-index pairs (legacy
         build_tls() path; the network-spec path goes through NetworkReducer)."""
@@ -1913,7 +1925,9 @@ class MomwireEngine(SimulationEngine):
         for tag1, _s1, tag2, _s2, z0, length in self._tls:
             a = self._tag_to_feed[tag1]
             b = self._tag_to_feed[tag2]
-            y_tl = tl_admittance_2x2(z0, length, wavelength)
+            y_tl = tl_admittance_2x2(
+                z0, length, wavelength, c_light_mhz_m=self._reducer_c_light()
+            )
             Y[np.ix_([a, b], [a, b])] += y_tl
         return Y
 
