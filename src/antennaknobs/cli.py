@@ -1851,12 +1851,135 @@ def cli(arguments=None):
         action="store_true",
         help="Also try to optimize gain.",
     )
+    p.add_argument(
+        "--bands",
+        default=None,
+        metavar="SPEC",
+        help="Optimize across several frequencies at once (AK#1901). "
+        "Comma-separated bands, each FREQ[:OBJECTIVE][:feed=N][:z0=OHM]"
+        "[:knobs=A+B]: OBJECTIVE is swr (the default), res (X = 0) or z0 "
+        "(Z = Z0); feed is the port the band is read at (default 0); knobs "
+        "are the band's own knobs for --mode sequential. E.g. "
+        "--bands 24.97,28.57 --params bands.0.length bands.1.length. "
+        "A SPEC starting with '[' is JSON: a list of "
+        '{"freq", "objective", "feed", "z0", "knobs"}. Each evaluation is '
+        "one build of the design solved at every band. --params defaults to "
+        "the bands' knobs; a group leaf is spelled bands.<i>.<leaf>.",
+    )
+    p.add_argument(
+        "--mode",
+        default="minimax",
+        choices=("minimax", "root", "sequential"),
+        help="With --bands: minimax (the default: minimise J = (1 - w) "
+        "worst band + w mean over the bands), root (Newton, opt-in: needs as "
+        "many equations as knobs, res = 1 and z0 = 2 per band, and reports "
+        "whether a root exists in the box), or sequential (each band by its "
+        "own knobs, in passes).",
+    )
+    p.add_argument(
+        "--max-evals",
+        dest="max_evals",
+        default=None,
+        type=int,
+        help="With --bands: the budget in distinct points solved (default 60 "
+        "per knob plus 40, at most 400).",
+    )
+    p.add_argument(
+        "--tol",
+        default=0.5,
+        type=float,
+        help="With --bands: sequential mode stops when every band's residual "
+        "(|X|, or |Z - Z0|) is under this many ohms (default 0.5).",
+    )
+    p.add_argument(
+        "--bound",
+        action="append",
+        default=[],
+        metavar="NAME=LO:HI",
+        help="With --bands: a knob's search range (repeatable). Without one a "
+        "knob searches its ui_params min/max, else +/-20 %% of its value.",
+    )
+    p.add_argument(
+        "--mean-weight",
+        dest="mean_weight",
+        default=None,
+        type=float,
+        help="With --bands, minimax form: the tradeoff w in J = (1 - w) * "
+        "worst band + w * mean of the bands (0 = pure worst band; default "
+        "0.5, which keeps the easy bands from being made as bad as the "
+        "hardest one).",
+    )
+    p.add_argument(
+        "--passes",
+        default=8,
+        type=int,
+        help="With --bands: at most this many sequential passes (default 8).",
+    )
+
+    def run_bands(args, builder, engine):
+        from . import band_opt
+        from .web.optimize import DegenerateObjective
+        from .web.optimize_bands import BandsRefused, optimize_bands, parse_bands
+
+        b = builder()
+        try:
+            bands = parse_bands(args.bands)
+        except BandsRefused as e:
+            raise SystemExit(f"optimize --bands: {e}") from None
+        names = list(args.params or [])
+        if not names:
+            names = list(dict.fromkeys(k for bd in bands for k in bd.knobs))
+        if not names:
+            raise SystemExit(
+                "optimize --bands: name the knobs to vary (--params, or knobs= "
+                "on the bands)"
+            )
+        why = band_opt.fixed_frequency_refusal(b, [bd.freq_mhz for bd in bands])
+        if why is not None:
+            raise SystemExit(f"optimize --bands: {why}")
+        try:
+            bounds = band_opt.parse_bounds(args.bound)
+        except ValueError as e:
+            raise SystemExit(f"optimize --bound: {e}") from None
+        free = band_opt.free_for(b, names, bounds=bounds)
+        base = {f["name"]: float(band_opt._get_path(b, f["name"])) for f in free}
+        try:
+            res = optimize_bands(
+                base,
+                free,
+                bands,
+                sweep_fn=band_opt.builder_sweep_fn(b, engine, args.z0),
+                mode=args.mode,
+                max_evals=args.max_evals,
+                tol=args.tol,
+                max_passes=args.passes,
+                **(
+                    {}
+                    if args.mean_weight is None
+                    else {"mean_weight": args.mean_weight}
+                ),
+            )
+        except (BandsRefused, DegenerateObjective) as e:
+            raise SystemExit(f"optimize --bands: {e}") from None
+        for line in band_opt.report_lines(res):
+            print(line)
+        band_opt.apply(b, res["params"])
+        print()
+        print("# Optimized knobs — paste over the design's params block:")
+        print(
+            builder_params_source(
+                b, name=emit_params_name(args.builder), default_precision=6
+            )
+        )
 
     def f(args):
         builder = get_builder(args.builder)
         engine = engine_factory_from_args(
             args, deck_extended_kernel_flag(builder), builder=builder
         )
+        if args.bands is not None:
+            run_bands(args, builder, engine)
+            return
         opt_builder = optimize(
             builder(),
             args.params,

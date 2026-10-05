@@ -1426,6 +1426,78 @@ python -m antennaknobs ladder --builder @my_dipole.nec \
 The factors are odd so that a centre gap stays a centre gap and a knot source
 stays a knot source. The default is `1 3 9`.
 
+## Optimizing across bands
+
+`optimize --bands` tunes one design for several frequencies at once — a fan
+dipole's lengths for 12 m and 10 m together, or a three-band vertical whose
+height, top wire and coupling capacitor each move every band. Each evaluation
+is **one build of the design solved at every band's frequency**: the geometry
+and its mesh are built once, at the design's own frequency, and the bands are
+points of the same frequency sweep. A band's own `freq` knob (the multiband
+designs size each element from one) never moves while another band is read.
+
+```bash
+# Both bands' SWR, worst band first (the default form)
+python -m antennaknobs optimize --builder multiband.twoband_fan_dipole:current_physical \
+    --bands 26.6,29.3 --params bands.0.length bands.1.length
+
+# A NEC deck's SY constants are its knobs
+python -m antennaknobs optimize --builder @vert_inv_L.nec \
+    --bands 1.83,3.7,7.1 --params sy_w5hgt sy_w6len sy_cap2 \
+    --bound sy_cap2=10:150
+```
+
+**Bands.** `--bands` is a comma-separated list, each
+`FREQ[:OBJECTIVE][:feed=N][:z0=OHM][:knobs=A+B]`:
+
+- `OBJECTIVE` is `swr` (the default), `res` (X = 0) or `z0` (Z = Z₀). All the
+  bands of one run share a unit, so `swr` is not mixed with `res` / `z0`.
+- `feed` is the port the band is read at, default 0. A design that drives one
+  feed per band (`multiband.hexbeam_5band` with `daisy_chain` off) reads band
+  *i* at feed *i*; a feed the design does not have is refused by name.
+- `z0` overrides `--z0` for that band.
+- `knobs` names the band's own knobs, for `--mode sequential`.
+
+A spec starting with `[` is JSON instead: a list of
+`{"freq", "objective", "feed", "z0", "knobs"}` objects.
+
+**Knobs.** `--params` names them, a group's leaf spelled `bands.<i>.<leaf>`.
+Each searches its `--bound NAME=LO:HI`, else its slider's `ui_params` range,
+else ±20 % of its value. With no `--params` the bands' `knobs` are the knobs.
+
+**Forms** (`--mode`):
+
+- `minimax` (the default) minimizes
+  **J = (1 − w) · worst band + w · mean of the bands**, with `w` from
+  `--mean-weight` (default 0.5). The worst band alone (`w = 0`) says nothing
+  about the others, so the search is free to make every band as bad as the
+  hardest one; the mean term stops that by trading a little on the worst band
+  for a lot on the rest. On a three-band vertical with a coupled inverted L
+  (160/80/40 m), `w = 0.2` settled on SWR 1.86 on all three bands, while
+  `w = 0.5` gave 1.93 / 1.93 / 1.34: 0.07 worse on the worst band, half an SWR
+  unit better on 40 m. The run prints the worst band, the mean and J
+  separately, and the worst SWR it reports is the largest SWR any band read.
+  It is a local search: it starts from the better of the knobs' values and a
+  fit that brings every band's reactance as near zero as the knobs allow, and
+  refines from there.
+- `root` (opt-in) solves for exact resonance or an exact match on every band,
+  by Newton. It needs as many equations as knobs (`res` is one per band, `z0`
+  two) and says whether a root exists: `root`, `no root in the box`,
+  `singular` (naming the knob that moves no band, or the knobs that only move
+  them together), `parallel resonance` (X = 0 with X *falling* through the
+  band, kilohms of R — a resonance, but not one to feed), or
+  `out of evals`. A near miss is never reported as a root, and the run does
+  not fall back to another form. Exact resonance on every band often has no
+  solution with the knobs given; `minimax` is the form to reach for first.
+- `sequential` (opt-in) tunes each band with its own `knobs`, the others held,
+  band after band, in passes (`--passes`, default 8), until every band's
+  residual is under `--tol` (default 0.5 Ω). It converges when each knob
+  mostly drives its own band, and not otherwise.
+
+`--max-evals` caps the distinct points solved (default 60 per knob plus 40,
+at most 400). The run ends with the per-band table before and after, and the usual
+paste-ready params block.
+
 ## Copying params back to code
 
 After tuning — in the workbench or with `optimize` — turn the knob values back

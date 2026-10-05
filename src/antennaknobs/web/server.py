@@ -4194,6 +4194,38 @@ async def _sse_progress_body(
             cancel.cancel()
 
 
+def _seed_knob_groups(base: dict, names: list[str], ex, *, flat: bool = False) -> None:
+    """Give every dotted knob name's group a home on ``base`` (AK#1901): a
+    group the request does not carry is copied from the design's variant as
+    plain JSON-shaped lists and dicts, the shape a client sends it in.
+
+    ``flat`` (a multi-band run) also seeds a flat knob the request leaves out
+    with the variant's value, so the run starts where the design is rather
+    than mid-range. The single-band path keeps its mid-range start for such a
+    request, exactly as before."""
+    heads = {n.split(".", 1)[0] for n in names if "." in n}
+    if flat:
+        heads |= {n for n in names if n and "." not in n}
+    heads = {h for h in heads if h not in base}
+    cls = getattr(ex, "builder_cls", None)
+    if not heads or cls is None:
+        return
+    from ..builder import resolve_variant_params
+
+    vp = resolve_variant_params(cls, base.get("variant"))
+
+    def plain(v):
+        if isinstance(v, (list, tuple)):
+            return [plain(x) for x in v]
+        if hasattr(v, "items"):
+            return {k: plain(x) for k, x in v.items()}
+        return v
+
+    for h in heads:
+        if h in vp and h != "ui_params":
+            base[h] = plain(vp[h])
+
+
 @app.post("/optimize")
 async def optimize_endpoint(req: dict, request: Request):
     """Tune a chosen subset of knobs to optimise an electrical objective.
@@ -4203,10 +4235,20 @@ async def optimize_endpoint(req: dict, request: Request):
           "free": [{"name", "min", "max"}, ...],   # which knobs + their bounds
           "objective": "swr" | "resonance" | "match_z0",
           "max_evals": <int, optional>,
+          "bands": [{"freq", "objective", "feed", "z0", "knobs"}, ...],
+          "mode": "minimax" | "root" | "sequential",            # with bands
+          "tol": <ohm, root/sequential verdict, default 0.5>,   # with bands
+          "mean_weight": <0..1, minimax's w, default 0.5>,     # with bands
         }
     Returns the best params found + before/after metrics. The objective is
     evaluated at the request's measurement frequency with no far field, so a
     run is a handful of impedance solves rather than a far-field sweep.
+
+    With ``bands`` (AK#1901) the run is multi-frequency instead
+    (`optimize_bands`): each eval is ONE build of the design solved at every
+    band's frequency, ``objective`` is not read (each band carries its own),
+    and progress frames carry every band's Z and SWR. A ``free`` name may be
+    a dotted group leaf (``bands.0.length``) on either path.
 
     **The run optimises on the request's own engine** (AK#1741): a slot on
     NEC-5, NEC-2 or PyNEC evaluates each point through that engine's solve,
@@ -4222,6 +4264,7 @@ async def optimize_endpoint(req: dict, request: Request):
     JSON object) or `error`. Every other Accept keeps the single-response form.
     """
     from .optimize import OBJECTIVES, DegenerateObjective, optimize as _optimize
+    from .optimize_bands import BandsRefused as _BandsRefused
 
     wants_sse = _SSE_MEDIA_TYPE in (request.headers.get("accept") or "")
 
@@ -4287,6 +4330,83 @@ async def optimize_endpoint(req: dict, request: Request):
     except SolveTooLargeError as e:
         return _reject({"geometry": geometry, "error": str(e)})
 
+    bands_spec = opt.get("bands")
+    bands = None
+    if bands_spec is not None:
+        from .adapter import fixed_frequency_advisories
+        from .optimize_bands import (
+            DEFAULT_MEAN_WEIGHT,
+            MODES,
+            BandsRefused,
+            parse_bands,
+        )
+
+        try:
+            bands = parse_bands(bands_spec)
+        except BandsRefused as exc:
+            return _reject({"error": str(exc)})
+        mode = opt.get("mode", "minimax")
+        if mode not in MODES:
+            return _reject({"error": f"unknown mode {mode!r}"})
+        tol = opt.get("tol", 0.5)
+        try:
+            tol = float(tol)
+            if not (math.isfinite(tol) and tol > 0):
+                raise ValueError
+        except (TypeError, ValueError):
+            return _reject({"error": f"tol must be a positive number (got {tol!r})"})
+        mean_weight = opt.get("mean_weight", DEFAULT_MEAN_WEIGHT)
+        try:
+            mean_weight = float(mean_weight)
+            if not 0.0 <= mean_weight <= 1.0:
+                raise ValueError
+        except (TypeError, ValueError):
+            return _reject(
+                {"error": f"mean_weight must be within 0..1 (got {mean_weight!r})"}
+            )
+        # AK#1681's fixed-frequency NT cards: a deck whose reactive cards hold
+        # at one frequency is not modelled at the others, and an optimizer
+        # tuning against that model would tune a wrong answer silently.
+        fixed = fixed_frequency_advisories(
+            getattr(ex, "builder_cls", None), [b.freq_mhz for b in bands]
+        )
+        if fixed:
+            return _reject(
+                {
+                    "error": "these bands cannot be solved on this design: "
+                    + fixed[0]["text"]
+                }
+            )
+
+    # A dotted free knob (`bands.0.length`, AK#1901) is a group leaf. The
+    # client sends its groups whole, but one it left out is seeded from the
+    # design's variant so the leaf has a group to land in.
+    _seed_knob_groups(
+        base,
+        [f.get("name", "") for f in free] + [k for b in (bands or []) for k in b.knobs],
+        ex,
+        flat=bands is not None,
+    )
+    if bands is not None:
+        from .optimize import _get_knob
+
+        # A knob the design does not have would be written onto the request
+        # and never read: every band would sit still and the run would
+        # report the start. Refused by name instead (the single-band path
+        # keeps its old behaviour).
+        unknown = [
+            f.get("name")
+            for f in free
+            if _get_knob(base, str(f.get("name", ""))) is None
+        ]
+        if unknown:
+            return _reject(
+                {
+                    "error": f"unknown knob{'s' if len(unknown) > 1 else ''} "
+                    f"{', '.join(map(repr, unknown))}: not a param of this design"
+                }
+            )
+
     # The run's own token (AK#1712). The client going away trips it — the SSE
     # body on its way out, the watcher on the plain-JSON path — and each
     # eval's lane turn links it into the turn's token, so a stopped run
@@ -4310,11 +4430,53 @@ async def optimize_endpoint(req: dict, request: Request):
         out.pop("_engine_runs", None)
         return out
 
+    def _eval_bands(r: dict, freqs: list[float]) -> dict:
+        """One multi-band eval (AK#1901): one build solved at every band.
+        momwire: the example's one-build sweep. An external engine solves
+        each band as its own frequency sweep does, one run per frequency."""
+        from .optimize_bands import bands_from_solves
+
+        with _turn_from_thread(loop, req, session, "optimize", token) as turn:
+            if backend is None:
+                fn = getattr(ex, "momwire_bands", None)
+                if fn is not None:
+                    return fn(r, freqs, cancel=turn)
+                outs = [
+                    ex.momwire_solve({**r, "measurement_freq_mhz": f}, cancel=turn)
+                    for f in freqs
+                ]
+            else:
+                outs = [
+                    _external_call(
+                        backend.solve, {**r, "measurement_freq_mhz": f}, cancel=turn
+                    )
+                    for f in freqs
+                ]
+        for o in outs:
+            o.pop("_engine_runs", None)
+        return bands_from_solves(outs)
+
     def _run(on_progress):
         # THE dispatch, shared by both representations so _shed can never be
         # on one path and not the other: it formats the error while the
         # traceback exists and drops the frame chain before the exception
         # crosses the thread boundary (issue #382's multi-GiB retention).
+        if bands is not None:
+            from .optimize_bands import optimize_bands
+
+            return run_in_threadpool(
+                _shed,
+                optimize_bands,
+                base,
+                free,
+                bands,
+                sweep_fn=_eval_bands,
+                mode=mode,
+                max_evals=max_evals,
+                tol=tol,
+                mean_weight=mean_weight,
+                on_progress=on_progress,
+            )
         return run_in_threadpool(
             _shed,
             _optimize,
@@ -4333,7 +4495,7 @@ async def optimize_endpoint(req: dict, request: Request):
                 result = await _run(None)
         except (momwire.SolveAborted, Superseded):
             return {"geometry": geometry, "error": "cancelled"}
-        except DegenerateObjective as exc:
+        except (DegenerateObjective, _BandsRefused) as exc:
             # AK#1664: refused by name, in the user's words, not as a traceback.
             return {"geometry": geometry, "error": str(exc)}
         except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise
@@ -4356,7 +4518,7 @@ async def optimize_endpoint(req: dict, request: Request):
                     # The consumer left and publish() aborted the run. Not an
                     # error — and not reportable, there is nobody to report to.
                     raise
-                except DegenerateObjective as exc:
+                except (DegenerateObjective, _BandsRefused) as exc:
                     stream.fail(str(exc))
                     return
                 except (momwire.SolveAborted, Superseded):

@@ -5438,6 +5438,38 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             return re, im, feeds_re, feeds_im
         return re, im
 
+    def momwire_bands(req: dict, freqs_mhz: list[float], cancel=None) -> dict:
+        """AK#1901: one multi-band /optimize evaluation -- ONE build of the
+        request's design solved at every frequency in ``freqs_mhz``.
+
+        The build is at the request's own measurement frequency (as the live
+        solve's), the same whichever bands are asked for, so every band of
+        every evaluation sees one geometry and one mesh, and a band's own
+        ``freq`` param is never moved to evaluate another band. Each band is
+        then a point of the engine's vectorized ``impedance_sweep`` (the
+        frequency sweep's own path). ``zs`` is (n_freqs, n_feeds) at every
+        port, whatever the design's multi-feed hint says: a band may be read
+        at any feed."""
+        z0 = request_z0(req, hints()["target_z0"])
+        design_freq, meas_freq = _req_freqs(req)
+        builder = _build_builder(cls, req)
+        builder.freq = meas_freq
+        if has_design_freq:
+            builder.design_freq = design_freq
+        _apply_plane(builder, req)
+        eng = _make_momwire_engine(req, builder, cancel=cancel)
+        t0 = time.perf_counter()
+        zs = np.asarray(eng.impedance_sweep(list(freqs_mhz)), dtype=np.complex128)
+        solve_ms = (time.perf_counter() - t0) * 1e3
+        if zs.ndim == 1:
+            zs = zs.reshape(len(freqs_mhz), -1)
+        return {
+            "zs": zs,
+            "z0_ohms": z0,
+            "tuner": [tuner_holding_match(eng, float(f)) for f in freqs_mhz],
+            "solve_ms": solve_ms,
+        }
+
     # Static fields served by /examples. Built-ins prime hints() now (eager,
     # unchanged behaviour); user designs ship provisional values — overrides if
     # declared, else neutral defaults — and the real values arrive with the
@@ -5479,6 +5511,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         builder_cls=cls,
         momwire_solve=momwire_solve,
         momwire_sweep=momwire_sweep,
+        momwire_bands=momwire_bands,
         momwire_geometry=momwire_geometry,
         count_basis=count_basis,
         default_backend=field_default_backend,

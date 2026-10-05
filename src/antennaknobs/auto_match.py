@@ -1397,9 +1397,11 @@ def tuner_rows(eng) -> list[dict]:
     return red.tuner_rows() if isinstance(red, AutoMatchReducer) else []
 
 
-def tuner_holding_match(eng) -> dict | None:
+def tuner_holding_match(eng, f_mhz: float | None = None) -> dict | None:
     """``{"name", "f_mhz"}`` of the self-tuning tuner when the engine's
-    solve frequency is its tune frequency, else None (AK#1664).
+    solve frequency is its tune frequency, else None (AK#1664). ``f_mhz``
+    asks about another frequency the same engine is solved at (a multi-band
+    run's band, AK#1901) instead of the builder's own.
 
     There the driven port reads the tuner's target on every solve, so a
     match objective (SWR, resonance, match to Z0) is met whatever the knobs
@@ -1407,7 +1409,7 @@ def tuner_holding_match(eng) -> dict | None:
     flat surface. Off the tune frequency the tuner holds its parts and the
     match responds again."""
     red = getattr(eng, "_reducer", None)
-    f = getattr(getattr(eng, "builder", None), "freq", None)
+    f = getattr(getattr(eng, "builder", None), "freq", None) if f_mhz is None else f_mhz
     if not isinstance(red, AutoMatchReducer) or not f or not red.tunes_at(f):
         return None
     return {"name": red._tuner.name, "f_mhz": red.f_mhz}
