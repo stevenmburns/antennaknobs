@@ -312,19 +312,60 @@ def engine_of(req: Mapping, who: str, notes: list[str] | None = None) -> str:
         from .web.adapter import model_option_specs
 
         specs = model_option_specs()
+        # A deck that defaults the extended kernel on (AK#1891 / AK#1893)
+        # makes "on" the default and "off" the setting a run must be told.
+        ek_on = solver == "momwire" and _ek_default_on(req)
         off = [
             k
             for k, v in opts.items()
             if k not in skip
             and not (k in specs and _same(v, specs[k].get("default")))
-            and not (k == "extended_kernel" and v is False)
+            and not (k == "extended_kernel" and (v is False or ek_on))
         ]
         if off:
             notes.append(
                 f"{who} was solved with {', '.join(sorted(off))} set on its slot; "
                 f"--engine {spec} runs the engine's defaults for them."
             )
+        _note_ek_off(req, who, notes)
     return spec
+
+
+def _note_ek_off(req: Mapping, who: str, notes: list[str]) -> None:
+    """Add the note a run needs when ``req`` turned off the extended kernel
+    its deck defaults on (AK#1895): no ``--engine`` spelling says it, and a
+    run left alone takes the deck's default."""
+    opts = req.get("model_options") or {}
+    if not (
+        (req.get("solver") or "momwire") == "momwire"
+        and isinstance(opts, Mapping)
+        and opts.get("extended_kernel") is False
+        and _ek_default_on(req)
+    ):
+        return
+    note = (
+        f"{who} was solved with the extended kernel off on its slot, where "
+        "its deck defaults it on: run with --no-extended-kernel."
+    )
+    if note not in notes:
+        notes.append(note)
+
+
+def _ek_default_on(req: Mapping) -> bool:
+    """Whether ``req``'s design solves with the extended kernel unless told
+    otherwise: a deck read as NEC-4 or NEC-5 (AK#1891) or a NEC-2 deck with
+    an EK card (AK#1893), what the slot's toggle shows. A run takes that
+    default too (`cli.deck_extended_kernel_flag`), so only turning it off
+    needs saying."""
+    from .web.examples import UnknownGeometryError, example_for
+
+    design = req.get("geometry")
+    if not isinstance(design, str) or not design:
+        return False
+    try:
+        return bool(getattr(example_for(design), "extended_kernel_default", False))
+    except UnknownGeometryError:
+        return False
 
 
 def ground_of(req: Mapping, who: str) -> str:
@@ -670,10 +711,13 @@ def _pins_hold(pins, x_kind) -> an.Hold | None:
 # ── a chart ──────────────────────────────────────────────────────────────────
 
 
-def _drawn(reqs) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
+def _drawn(
+    reqs, notes: list[str] | None = None
+) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
     """The engines and grounds a chart drew, in its cells' order, each
     once: the specs of the requests its curves were solved with
-    (`engine_of`, `ground_of`). None: the page sent none (the chart draws
+    (`engine_of`, `ground_of`), and in ``notes`` an extended kernel a cell
+    turned off (`_note_ek_off`). None: the page sent none (the chart draws
     what the analysis lists, or the session's slots)."""
     if reqs is None:
         return None
@@ -684,6 +728,9 @@ def _drawn(reqs) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
     ):
         raise KeepError("cells is a list of the chart's solve requests")
     engines = tuple(dict.fromkeys(engine_of(r, "the chart") for r in reqs))
+    if notes is not None:
+        for r in reqs:
+            _note_ek_off(r, "the chart", notes)
     grounds = tuple(dict.fromkeys(ground_of(r, "the chart") for r in reqs))
     return engines, grounds
 
@@ -808,10 +855,13 @@ def _as_study(a: an.Analysis, tab: Mapping) -> an.Analysis:
     return _analysis(**f)
 
 
-def analysis_from_chart(req: Mapping, *, form: str) -> an.Analysis:
-    """The chart's analysis as it drew it (module docstring)."""
+def analysis_from_chart(
+    req: Mapping, *, form: str, notes: list[str] | None = None
+) -> an.Analysis:
+    """The chart's analysis as it drew it (module docstring); ``notes``
+    collects an extended kernel its cells turned off (`_drawn`)."""
     a = analysis_of(req.get("spec"))
-    drawn = _drawn(req.get("cells"))
+    drawn = _drawn(req.get("cells"), notes)
     if drawn is not None:
         a = _with_axis(a, "engines", drawn[0])
         a = _with_axis(a, "grounds", drawn[1])
@@ -848,7 +898,9 @@ def build(req: Mapping) -> tuple[an.Analysis, str, str, list[str]]:
         raise KeepError(f"form is one of {', '.join(FORMS)}, got {form!r}")
     notes = _notes(req.get("notes") or [])
     if origin == "chart":
-        return analysis_from_chart(req, form=form), form, origin, notes
+        made: list[str] = []
+        a = analysis_from_chart(req, form=form, notes=made)
+        return a, form, origin, notes + made
     if form != "study":
         raise KeepError("pins are kept as a study: they name their designs")
     a, made = analysis_from_pins(
