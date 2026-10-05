@@ -16,7 +16,6 @@ import pytest
 from momwire.networks._reduce import C_LIGHT, tl_abcd
 
 from antennaknobs.file_designs import builder_from_file
-from antennaknobs.nec_import import NEC_C_LIGHT_MHZ_M
 from antennaknobs.network import TL, Admittance
 from antennaknobs.simnec_import import parse_ssn
 
@@ -206,10 +205,10 @@ def test_a_series_z_block_imports_as_its_fixed_admittance(tmp_path):
     z_rig_plain = _rig_z(tmp_path, plain)
     z_rig = _rig_z(tmp_path, text)
 
-    # A file design's wavelength is the deck's own 299.8 m*MHz (AK#1607) and
-    # the circuit reducer reads its frequency back with momwire's SI c, so
-    # the lumped parts are solved 25 ppm below 14.175 MHz.
-    w = 2 * math.pi * 14.175e6 * (C_LIGHT / (NEC_C_LIGHT_MHZ_M * 1e6))
+    # A file design's wavelength is the deck's own 299.8 m*MHz (AK#1607), and
+    # the circuit reducer reads its frequency back through that same c
+    # (AK#1685), so the lumped parts are solved at the file's 14.175 MHz.
+    w = 2 * math.pi * 14.175e6
 
     def cap(f, q):
         return 1 / (w * f * q) + 1 / (1j * w * f)

@@ -58,8 +58,7 @@ SIMNEC = {
 
 # The issue and SimNEC print two decimals, so a reading agrees when it is
 # within half a unit in that last place: 0.005 ohm (0.05 for SimNEC's
-# one-decimal R under C1). The 25 ppm between the deck's c and the reducer's
-# SI c (AK#1685) moves these readings by well under that.
+# one-decimal R under C1).
 TOL = 5e-3
 
 

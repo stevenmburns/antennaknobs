@@ -141,12 +141,11 @@ def test_a_trap_and_a_series_c_solve_as_their_sum(tmp_path, stem):
     """The trap beside a series C, on and off the fed segment, against ONE
     fixed load of their summed impedance (momwire bspline, exact).
 
-    The fixed load is evaluated at 14 MHz x 299.792458/299.8, not at the deck's
-    14 MHz: a file design's network is stamped 25 ppm below its frequency
-    (AK#1685, NEC's c against SI c), and a fixed impedance cannot follow it.
-    When AK#1685 is fixed this factor goes."""
+    The fixed load is evaluated at the deck's own 14 MHz: a file design's
+    network is stamped at the deck's frequency, its wavelength read back
+    through the deck's own c (AK#1685)."""
     fixed = (FIXTURES / stem.replace("par_ser", "fixed")).with_suffix(".nec")
-    z = _trap_plus_c(14.0 * 299.792458 / 299.8)
+    z = _trap_plus_c(14.0)
     text = re.sub(
         r"^LD 4 (\d+ \d+ \d+) .*$",
         lambda m: f"LD 4 {m.group(1)} {z.real!r} {z.imag!r}",

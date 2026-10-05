@@ -1127,8 +1127,14 @@ class AutoMatchReducer:
         *,
         design_freq_mhz=None,
         wavelength_for=None,
+        c_light_mhz_m=None,
     ):
         self._net = net
+        # The metre-megahertz product the wavelengths handed to this reducer
+        # were made with (AK#1685): every reducer below reads a branch's
+        # frequency back through it, and so does the tuner design. None is
+        # the SI c, bit-identical to the reducer before the keyword.
+        self._c_light = c_light_mhz_m
         self._tuner = tuner
         self._port_to_idx = dict(port_to_idx)
         self._n_total = n_total_ports
@@ -1147,7 +1153,9 @@ class AutoMatchReducer:
         wl_for = wavelength_for or (lambda f: C_LIGHT / (f * 1e6))
         self._wl_for = wl_for
         self._wavelength = float(wl_for(self.f_mhz))
-        self._structural = NetworkReducer(net, port_to_idx, n_total_ports)
+        self._structural = NetworkReducer(
+            net, port_to_idx, n_total_ports, c_light_mhz_m=c_light_mhz_m
+        )
         self._last = self._structural
         self._tuned: NetworkReducer | None = None
         self._body: tuple = ()
@@ -1168,7 +1176,7 @@ class AutoMatchReducer:
             if isinstance(p, PortVirtual):
                 idx[n] = nxt
                 nxt += 1
-        red = NetworkReducer(side, idx, nxt)
+        red = NetworkReducer(side, idx, nxt, c_light_mhz_m=self._c_light)
         z = red.driven_impedance(y_real, self._wavelength)
         return complex(np.atleast_1d(z)[0])
 
@@ -1188,7 +1196,7 @@ class AutoMatchReducer:
         # The mechanism owns the topology: it returns the branches its box
         # holds for this load, and what it tuned to.
         body, design = t.mechanism.body(
-            t.rig, t.out, z_load, C_LIGHT / self._wavelength / 1e6, *t.inner
+            t.rig, t.out, z_load, self._tune_f_mhz(), *t.inner
         )
         design = replace(design, f_mhz=self.f_mhz)
         if design.no_match:
@@ -1205,6 +1213,14 @@ class AutoMatchReducer:
         self.design, self._body = design, body
         return design
 
+    def _tune_f_mhz(self) -> float:
+        """The frequency the reducer reads off the tune wavelength, with the
+        same c it stamps the tuned branches with (AK#1685): the components
+        are designed at the frequency they are then evaluated at."""
+        if self._c_light is None:
+            return C_LIGHT / self._wavelength / 1e6
+        return self._c_light / self._wavelength
+
     def tunes_at(self, f_mhz) -> bool:
         """Whether a solve at ``f_mhz`` is at the tune frequency, by the same
         rule `_reducer_for` uses to reuse the tuning: there the port
@@ -1218,7 +1234,10 @@ class AutoMatchReducer:
         self.tune(y_real if same else None)
         if self._tuned is None:
             self._tuned = NetworkReducer(
-                self.tuned_network(), self._port_to_idx, self._n_total
+                self.tuned_network(),
+                self._port_to_idx,
+                self._n_total,
+                c_light_mhz_m=self._c_light,
             )
         self._last = self._tuned
         return self._tuned
@@ -1365,12 +1384,20 @@ def make_reducer(
     y_at=None,
     design_freq_mhz=None,
     wavelength_for=None,
+    c_light_mhz_m=None,
 ):
     """The engine's reducer: a plain `NetworkReducer`, or an
-    `AutoMatchReducer` when the network holds a self-tuning tuner."""
+    `AutoMatchReducer` when the network holds a self-tuning tuner.
+
+    ``c_light_mhz_m`` is the metre-megahertz product the engine's wavelengths
+    are made with (AK#1685), so the reducer reads each branch's frequency back
+    at the frequency the engine solved. None is the SI c: right for an engine
+    that makes its wavelengths with SI c whatever the design's dialect."""
     tuners = find_tuners(net)
     if not tuners:
-        return NetworkReducer(net, port_to_idx, n_total_ports)
+        return NetworkReducer(
+            net, port_to_idx, n_total_ports, c_light_mhz_m=c_light_mhz_m
+        )
     if len(tuners) > 1:
         raise NotImplementedError(
             "a network with more than one self-tuning tuner is not supported: "
@@ -1388,6 +1415,7 @@ def make_reducer(
         y_at,
         design_freq_mhz=design_freq_mhz,
         wavelength_for=wavelength_for,
+        c_light_mhz_m=c_light_mhz_m,
     )
 
 
