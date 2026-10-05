@@ -232,7 +232,7 @@ short.
   (repeats / fragmentation). Run on every PR here; ~3 s each, unmarked on
   purpose.
 - `test_deck_nec2_corpus_1299.py` — importer equivalence over momwire's
-  65-deck `tests/fixtures/nec_portal`, reached THROUGH the installed momwire
+  70-deck `tests/fixtures/nec_portal`, reached THROUGH the installed momwire
   (the submodule at the recorded pointer). Runs on every PR. Never copy the
   corpus here: ten momwire modules read the same tree and a copy drifts.
 - `test_deck_nec2_xnec2c_corpus_1299.py` — the same equivalence over

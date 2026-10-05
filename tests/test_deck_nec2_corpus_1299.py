@@ -299,8 +299,12 @@ def test_corpus_is_the_whole_reference_set():
     ``GN`` resets the four second-medium slots a ``GD`` writes; 60 since
     momwire#487 U2 added the cliff-at-zero deck with the serving flip; 65
     since momwire#652 captured the five ``PQ`` charge-report decks (one per
-    form the card has, plus the reversed-walk apex)."""
-    assert len(CORPUS) == 65
+    form the card has, plus the reversed-walk apex); 70 since momwire#1069
+    captured two decks whose loads change between execute cards
+    (``dipole_ld_after_xq``, ``dipole_ld_cleared_between_runs``) and
+    momwire#1079 three ``RP`` decks settling the ``XNDA`` digits
+    (``dipole_rp_xnda_1000/1002/1005``)."""
+    assert len(CORPUS) == 70
 
 
 # The corpus is 47 clean exported decks: measured, not one of them has an
@@ -454,14 +458,23 @@ def _expected_port_loads(cards, structure):
     independent check.  Every corpus ``LD`` card is a single explicit
     segment (``first == last``, both nonzero) — the assertion below is a
     guard on that assumption, not a corpus fact this helper depends on
-    silently."""
-    loads = []
+    silently.
+
+    Loads are per execute group, as NEC's are (momwire#1069): an ``LD`` arms,
+    ``LD -1`` clears, and each execute card runs the loads in force AT it. So
+    the model's list is the UNION of the loads in force at some execute card,
+    in the order they were first put in force; a load cleared before any card
+    ran it is not in it, and one re-stated after ``LD -1`` is the same entry."""
+    log, live, used = [], [], set()
     for card in cards:
+        if card.mnemonic in ("XQ", "RP", "NE", "NH"):
+            used.update(live)
+            continue
         if card.mnemonic != "LD":
             continue
         ldtyp = card.i(0)
         if ldtyp == -1:
-            loads.clear()
+            live.clear()
             continue
         if ldtyp not in (0, 1, 4):
             continue  # type 5 is conductivity, checked separately below
@@ -476,15 +489,24 @@ def _expected_port_loads(cards, structure):
             r, l, c = card.f(4), card.f(5), card.f(6)
             if r == 0.0 and l == 0.0 and c == 0.0:
                 continue
-            loads.append(
-                (wire, arclength, "series" if ldtyp == 0 else "parallel", r, l, c, 0.0)
+            entry = (
+                wire,
+                arclength,
+                "series" if ldtyp == 0 else "parallel",
+                r,
+                l,
+                c,
+                0.0,
             )
         else:
             r, x = card.f(4), card.f(5)
             if r == 0.0 and x == 0.0:
                 continue
-            loads.append((wire, arclength, "fixed", r, 0.0, 0.0, x))
-    return loads
+            entry = (wire, arclength, "fixed", r, 0.0, 0.0, x)
+        if entry not in log:
+            log.append(entry)
+        live.append(log.index(entry))
+    return [log[i] for i in sorted(used)]
 
 
 def _expected_conductivity(cards, structure):
