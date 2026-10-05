@@ -10,6 +10,7 @@ import {
   type OptBandRecord,
   type OptBandsControl,
 } from "./OptBands";
+import { NO_READING } from "../../lib/optBands";
 
 // Response from POST /optimize.
 //
@@ -49,13 +50,14 @@ export type OptimizeResult = {
    *  start and at the answer, and the two terms of what it minimised. */
   bands_before?: OptBandRecord[];
   bands_after?: OptBandRecord[];
-  objective_worst_before?: number;
-  objective_worst_after?: number;
-  objective_mean_before?: number;
-  objective_mean_after?: number;
+  // null = no reading (a non-finite value; the server sends null for those).
+  objective_worst_before?: number | null;
+  objective_worst_after?: number | null;
+  objective_mean_before?: number | null;
+  objective_mean_after?: number | null;
   mean_weight?: number;
-  worst_swr_before?: number;
-  worst_swr_after?: number;
+  worst_swr_before?: number | null;
+  worst_swr_after?: number | null;
   worst_band_before?: number;
   worst_band_after?: number;
 };
@@ -89,8 +91,9 @@ export type OptProgress = {
   /** A band run's (AK#1901): the bands this eval solved (each with its
    *  `index` in the request's list), and the worst / mean of their values. */
   bands?: (OptBandRecord & { index: number })[];
-  objective_worst?: number;
-  objective_mean?: number;
+  /** null = no reading (a band the engine could not read). */
+  objective_worst?: number | null;
+  objective_mean?: number | null;
   worst_band?: number;
 };
 // Phases whose residual falls monotonically, and is therefore worth showing
@@ -420,7 +423,9 @@ function SimControls({
         <span
           className="opt-readout opt-readout-progress"
           title={
-            (optProgress.seed_total ?? 0) > 0
+            optProgress.bands
+              ? `eval ${optProgress.n_evals} — each band's SWR is listed under the dial`
+              : (optProgress.seed_total ?? 0) > 0
               ? `seeding the search: sampling the box before the fit (#1176), point ${optProgress.seed_index} of ${optProgress.seed_total}`
               : ROOT_PHASES.has(optProgress.phase ?? "") &&
                   optProgress.residual != null
@@ -431,8 +436,8 @@ function SimControls({
           {/* The seed samples the whole box, so its objective jumps around
               and a plain "#n SWR x" reads as the optimiser going backwards.
               Naming the phase is what stops that looking like a fault. */}
-          {optProgress.bands && optProgress.objective_worst != null
-            ? `#${optProgress.n_evals} worst SWR ${optProgress.objective_worst.toFixed(2)}`
+          {optProgress.bands
+            ? `#${optProgress.n_evals} worst SWR ${optProgress.objective_worst != null ? optProgress.objective_worst.toFixed(2) : NO_READING}`
             : (optProgress.seed_total ?? 0) > 0
             ? `seeding ${optProgress.seed_index}/${optProgress.seed_total}`
             : ROOT_PHASES.has(optProgress.phase ?? "") &&
@@ -447,7 +452,10 @@ function SimControls({
           title={`SWR after optimisation, against ${formatZo(optResult.metrics_after.z0_ohms)} Ω`}
         >
           {optResult.objective === "bands" ? "worst SWR" : "SWR"}{" "}
-          {optResult.metrics_after.swr.toFixed(2)}
+          {/* A band run's worst can be "no reading" (null, AK#1901). */}
+          {optResult.metrics_after.swr != null
+            ? optResult.metrics_after.swr.toFixed(2)
+            : NO_READING}
         </span>
       )}
       {optEnabled && optError && !bandsOn && (

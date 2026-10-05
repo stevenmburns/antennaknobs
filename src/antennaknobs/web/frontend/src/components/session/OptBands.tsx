@@ -5,19 +5,23 @@
 // now.
 import { useState } from "react";
 import type { OptimizeResult, OptProgress } from "./VfoPanel";
-import { fmtFreq, MAX_OPT_BANDS, parseBandFreq } from "../../lib/optBands";
+import { fmtFreq, MAX_OPT_BANDS, NO_READING, parseBandFreq } from "../../lib/optBands";
 
-/** One band as the server reads it at one solve (AK#1901). */
+/** One band as the server reads it at one solve (AK#1901). A reading the
+ *  engine could not make (an infinite SWR, a NaN Z) arrives as null. */
 export type OptBandRecord = {
+  /** The band's place in the request's list. Always on progress frames; on
+   *  result records from the backend that sends it (older ones: by position). */
+  index?: number;
   freq_mhz: number;
   objective: string;
   feed: number;
   z0_ohms: number;
-  z_re: number;
-  z_im: number;
-  swr: number;
+  z_re: number | null;
+  z_im: number | null;
+  swr: number | null;
   residual: number | null;
-  value: number;
+  value: number | null;
 };
 
 /** The band list's state, handed to the panel the way the Zo field's is. */
@@ -32,8 +36,10 @@ export type OptBandsControl = {
   defaultFreq: number;
 };
 
-const fmtSwr = (v: number) =>
-  Number.isNaN(v) ? "—" : Number.isFinite(v) ? v.toFixed(2) : "∞";
+// null is the server's "no reading" (a non-finite value, AK#1901); undefined
+// is a field this response does not carry at all.
+const fmtSwr = (v: number | null | undefined) =>
+  v === undefined ? "—" : v === null || !Number.isFinite(v) ? NO_READING : v.toFixed(2);
 
 // The gear menu's Bands section: a switch, the list (each row removable), an
 // add field, and the balance slider.
@@ -178,7 +184,7 @@ export function BandsReadout({
             {fmtFreq(b.freq_mhz)}: SWR {fmtSwr(b.swr)}
           </span>
         ))}
-        {progress.objective_worst != null && (
+        {progress.objective_worst !== undefined && (
           <span className="opt-bands-chip">
             worst {fmtSwr(progress.objective_worst)}
           </span>
@@ -188,6 +194,11 @@ export function BandsReadout({
   }
   if (!running && result?.objective === "bands" && result.bands_after) {
     const before = result.bands_before ?? [];
+    // Each after row's own start: matched by `index` when both carry it,
+    // else by position (a backend that predates the field).
+    const startOf = (b: OptBandRecord, i: number): OptBandRecord | undefined =>
+      (b.index != null ? before.find((r) => r.index === b.index) : undefined) ??
+      before[i];
     return (
       <table className="opt-bands-readout opt-bands-table" aria-label="Band results">
         <thead>
@@ -201,23 +212,23 @@ export function BandsReadout({
           {result.bands_after.map((b, i) => (
             <tr key={`${b.freq_mhz}:${b.feed}`}>
               <td>{fmtFreq(b.freq_mhz)}</td>
-              <td>{before[i] ? fmtSwr(before[i].swr) : "—"}</td>
+              <td>{fmtSwr(startOf(b, i)?.swr)}</td>
               <td>{fmtSwr(b.swr)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
-          {result.worst_swr_after != null && (
+          {result.worst_swr_after !== undefined && (
             <tr>
               <th scope="row">worst</th>
-              <td>{fmtSwr(result.worst_swr_before ?? NaN)}</td>
+              <td>{fmtSwr(result.worst_swr_before)}</td>
               <td>{fmtSwr(result.worst_swr_after)}</td>
             </tr>
           )}
-          {result.objective_mean_after != null && (
+          {result.objective_mean_after !== undefined && (
             <tr>
               <th scope="row">mean</th>
-              <td>{fmtSwr(result.objective_mean_before ?? NaN)}</td>
+              <td>{fmtSwr(result.objective_mean_before)}</td>
               <td>{fmtSwr(result.objective_mean_after)}</td>
             </tr>
           )}
