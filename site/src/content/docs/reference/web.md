@@ -434,7 +434,9 @@ it draws it:
 - **view** — **Smith**, **SWR**, **S11 (dB)**, **R / X** or **Table** for a
   frequency sweep, all drawn from the one sweep, so switching re-solves
   nothing; **R / X**, **Smith** or **Table** for a knob sweep, where Smith
-  draws the knob sweep as a trail (what the old **param sweep** switch drew).
+  draws the knob sweep as a trail (what the old **param sweep** switch drew),
+  and then the pattern views, which draw the knob's values as a
+  [family of patterns](#patterns-across-any-knob).
   **R / X** of a frequency sweep is the knob sweep's R / X chart with
   frequency across the bottom and the dashed guide at the measurement
   frequency. **Table** prints the numbers (see [The Table](#the-table));
@@ -618,6 +620,50 @@ for its three mast heights. **run**, **Stop** and **auto re-run** work as for
 a sweep, and the cells cross engines, grounds, designs and states in the same
 way, under the same cap. A pattern's cells are not pinned: its header has no
 **pin**.
+
+### Patterns across any knob
+
+On the **Sweep a knob** chart the **view** menu goes on past the knob sweep's
+own views to **Elevation @ 0° az**, **Azimuth @ 10° el** and **Pattern
+table**. Picking one turns the chart's knob and range into a family: one
+pattern per value, each solved once as a pattern cell is, drawn as the
+patterns above are and labelled `knob = value` as the command line labels a
+family. Any knob the chart can sweep works, an opened deck's `SY` symbols
+included (Dan's `hgh`), so a height family needs no height detection; the
+inverted vee's **height patterns** is the same idea written into the design
+as three named heights.
+
+The header holds the family's values:
+
+- **over** — the knob, or **frequency (MHz)**: patterns across the band, one
+  per measurement frequency, starting from the bottom, middle and top of the
+  band the measurement frequency is in;
+- **from**, **to** — the range's ends;
+- **step** — a linear range's step. The values are from, from + step, … up
+  to **to** and never past it: a step that does not divide the range moves
+  **to** down onto the last value it reaches (4 to 14 by 3 is 4, 7, 10, 13,
+  and **to** reads 13);
+- **values** — how many, linear or with **log spacing** (a fixed ratio, no
+  step). An integer knob is rounded to whole values, as the knob sweep is.
+
+At most **6** values, the chart's curve cap: more overlapping patterns are
+unreadable. A knob sweep of more points is clamped to 6 on the way in, and
+the **values** and **step** boxes refuse a count over 6. Ticking more solver
+or ground slots multiplies the family, and a product over the cap is refused
+whole in the command line's words, with **run** disabled until it fits.
+
+What picking a pattern view does follows
+[`run_on_pick`](#where-the-workbench-starts-settingstoml)'s `pattern` (it runs
+by default; off, it waits for **run**), and after that the chart waits for
+**run** as the knob sweep does, unless **auto re-run** is on. **R / X**,
+**Smith** or **Table** goes back to the knob sweep of the same knob and range
+(a frequency family goes back to your last knob, since the knob sweep never
+sweeps frequency). **copy** and **keep** write the family as
+`an.patterns(cross=an.Cross(step=an.Sweep("base", 4, 14, points=6)))`, with
+`an.FREQUENCY` for a frequency family, `spacing="log"` for log spacing, and
+the exact `values=` only when an integer knob's rounding took them off that
+range. The chart's **link** does not carry a family (it names no analysis),
+so it opens on the design.
 
 ### Maps
 

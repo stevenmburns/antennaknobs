@@ -628,7 +628,12 @@ curves against x. Three views draw it, and only them:
   shows, per cell: peak gain, take-off angle, F/B, both beamwidths and RDF.
 
 A pattern crosses designs, states, engines, grounds, planes and a family like
-any analysis, one pattern per cell under the same cap of 6.
+any analysis, one pattern per cell under the same cap of 6. A family over a
+knob is that knob's patterns (`an.Cross(step=an.Sweep("base", 4, 14,
+points=6))`, what the workbench's [Sweep a knob chart
+keeps](/reference/web/#patterns-across-any-knob)); a family over
+`an.FREQUENCY` is patterns across the band, each cell solved at its own
+measurement frequency (`an.Sweep(an.FREQUENCY, 28, 29.7, points=3)`).
 `an.patterns(...)` is the library's form, with all three views (the
 elevation cut along +x, the azimuth cut at 10°). The inverted vee's `height
 patterns` is its three mast heights over average ground:
