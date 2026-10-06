@@ -21,6 +21,8 @@ import { CurrentCanvas } from "../charts/CurrentCanvas";
 import { FarFieldChart } from "../charts/FarFieldChart";
 import { type RxAxis, ZParamChart } from "../charts/ZParamChart";
 import { KnobsChart } from "../charts/KnobsChart";
+import { MapChart, type MapLive } from "../charts/MapChart";
+import type { MapGrid, MapQuantity, MapRefs } from "../../lib/mapGrid";
 import type {
   FarFieldCaptions,
   PatternData,
@@ -128,6 +130,10 @@ export type ViewRenderProps = {
   /** The analysis chart showing a pattern (AK#1757 step 7): its view on
    *  screen and its cells. Wins over the other two kinds when given. */
   chartPattern?: ChartPatternRender | null;
+  /** The analysis chart showing a two-knob map (docs/design/
+   *  sweep-framework-map.md): its grid as landed, and how to draw it. Wins
+   *  over the other kinds when given. */
+  chartMap?: ChartMapRender | null;
   /** A knob analysis's MetricPlot (AK#1828): the metric and its curves,
    *  one per drawn cell, which the knob chart's Metric view draws. */
   chartMetric?: { metric: MetricSpec; series: readonly MetricSeries[] } | null;
@@ -172,6 +178,21 @@ export type ChartFrequencyRender = {
   rx?: { r: RxAxisChoice; x: RxAxisChoice; xLog: boolean };
   onRxAxisChange?: (axis: RxAxis, c: RxAxisChoice) => void;
   onRxXLogChange?: (log: boolean) => void;
+};
+
+/** A map as the analysis chart draws it (MapChart's props). */
+export type ChartMapRender = {
+  grid: MapGrid;
+  xLabel: string;
+  yLabel: string;
+  xLog: boolean;
+  yLog: boolean;
+  z0: number;
+  refs: MapRefs;
+  quantity: MapQuantity;
+  live: MapLive | null;
+  status: string | null;
+  stale: boolean;
 };
 
 /** A pattern as the analysis chart draws it (AK#1757 step 7): the view on
@@ -367,6 +388,25 @@ function patternChart(p: ViewRenderProps, c: ChartPatternRender): ReactElement {
 // The analysis chart on its view (AK#1757 step 5): a frequency sweep on its
 // Swr, S11 or Smith view, or a knob sweep as R/X or its Smith trail.
 function analysisChart(p: ViewRenderProps): ReactElement {
+  if (p.chartMap) {
+    const c = p.chartMap;
+    return (
+      <MapChart
+        grid={c.grid}
+        xLabel={c.xLabel}
+        yLabel={c.yLabel}
+        xLog={c.xLog}
+        yLog={c.yLog}
+        z0={c.z0}
+        refs={c.refs}
+        quantity={c.quantity}
+        live={c.live}
+        size={p.size}
+        status={c.status}
+        stale={c.stale}
+      />
+    );
+  }
   if (p.chartPattern) return patternChart(p, p.chartPattern);
   if (p.chartFrequency) return <ChartFrequency p={p} f={p.chartFrequency} />;
   const z = p.zparam ?? DEFAULT_ZPARAM;

@@ -67,6 +67,8 @@ import {
   sweepGrid,
   type SweepRange,
   type SweepRangeInputs,
+  SWEEP_TIME_LIMIT,
+  sweepTimeLimitNote,
 } from "../../lib/sweep";
 import type {
   MeasuredData,
@@ -158,7 +160,7 @@ import {
 } from "../results/StageOverlays";
 import { ViewGrid } from "../results/ViewGrid";
 import { ViewPanel } from "../results/ViewPanel";
-import type { ChartFrequencyRender } from "../results/viewRegistry";
+import type { ChartFrequencyRender, ChartMapRender } from "../results/viewRegistry";
 import {
   fetchMetrics,
   PinsContext,
@@ -180,6 +182,7 @@ import { SolverSlotTabs } from "./SolverSlotTabs";
 import { type ChartCellRequest, NOT_APPROVED, patternSignature, useAnalysisRunners } from "./useAnalysisRunners";
 import { type CellRun, type CellRunners, useChartCells } from "./useChartCells";
 import { usePatternCell } from "./usePatternCell";
+import { mapSignature, useMapRun } from "./useMapRun";
 import { useDesignAnalyses } from "./useDesignAnalyses";
 import {
   type DeepLink,
@@ -233,8 +236,11 @@ import {
   pickFrequency,
   pickKnob,
   pickOwnFrequency,
+  pickMap,
   pickPattern,
   pickRuns,
+  editMapAxis,
+  restoreMapAxes,
   setChartView,
   withListed,
 } from "../../lib/analysisChart";
@@ -249,6 +255,8 @@ import {
   sweepableKnobs,
 } from "../../lib/paramSweep";
 import { FrequencyChartControls, PatternChartControls } from "../results/AnalysisChartControls";
+import { MapChartControls, mapCostLine, mapOverLimit } from "../results/MapChartControls";
+import { emptyGrid } from "../../lib/mapGrid";
 import { ZParamControls } from "../results/ZParamControls";
 import { ZParamStage } from "../results/ZParamStage";
 import { KeepDialog, type KeepDialogProps } from "../results/KeepDialog";
@@ -264,6 +272,12 @@ import { apiFetch } from "../../lib/pin";
 // The Z-vs-parameter header's height on a phone (two wrapped rows plus its
 // margin), which the chart below it gives up.
 const ZPARAM_MOBILE_HEADER_PX = 96;
+
+// A map pins nothing in v1 (docs/design/sweep-framework-map.md, decision
+// 11: map pins as dashed contours are a later unit), and an edited map is
+// not kept until copy-as-analysis writes its axes as ranges.
+const MAP_PIN_BLOCKED = "A map has no pins yet: map pins (dashed contours) are a later step";
+const MAP_EDITED_KEEP = "An edited map is not kept yet: ↺ restores the analysis's own axes";
 // ...and on a desktop stage, before ZParamStage has measured the real one
 // (the first frame): one row above the chart.
 const ZPARAM_DESKTOP_HEADER_PX = 48;
@@ -1068,6 +1082,15 @@ function DesignSessionBody({
       result && result.z0_ohms !== z0 ? { ...result, z0_ohms: z0 } : result,
     [result, z0],
   );
+  // The last solve that was computed, not served from the cache (whose
+  // solve_ms is the lookup's): the map's cost line times a grid at its pace.
+  // State adjusted during render, React's pattern for derived state.
+  const [freshSolveMs, setFreshSolveMs] = useState<number | null>(null);
+  const freshNow =
+    shownResult && !shownResult.cache_hit && Number.isFinite(shownResult.solve_ms)
+      ? shownResult.solve_ms
+      : null;
+  if (freshNow !== null && freshNow !== freshSolveMs) setFreshSolveMs(freshNow);
   // The analysis chart (AK#1757, sweep-framework step 5 units 2 and 3): the
   // Z-vs-parameter view grown into THE sweep view, which the standalone
   // Smith, VSWR and S11 views folded into. Its pick, dwell switch, knob spec
@@ -2705,6 +2728,8 @@ function DesignSessionBody({
         param: paramReq === inputs.param.req ? inputs.param : { ...inputs.param, req: paramReq },
         // A pattern cell is one solve (step 7): its request is the cell's.
         pattern: inputs.pattern,
+        // A map draws one grid (decision 9): its first cell only.
+        map: k === 0 ? inputs.map : { ...inputs.map, wanted: false },
       };
     });
     const currentRaw = isDensity ? nPerWire : currentValues[spec.param];
@@ -2826,7 +2851,7 @@ function DesignSessionBody({
   // makes. `same` says the pick keeps the chart's range or spec.
   const runPicked = (
     i: number,
-    kind: "freq" | "param" | "pattern",
+    kind: "freq" | "param" | "pattern" | "map",
     next: AnalysisChartState,
     same: boolean,
   ) => {
@@ -2834,7 +2859,8 @@ function DesignSessionBody({
     if (!m) return;
     const nextCells = planOf(next.cross, chartListed(next)).cells.filter(drawable);
     allRunnersOf[i].forEach((r, k) => {
-      const runner = kind === "freq" ? r.freq : kind === "param" ? r.param : r.pattern;
+      const runner =
+        kind === "freq" ? r.freq : kind === "param" ? r.param : kind === "map" ? r.map : r.pattern;
       if (same && m.resident && k < nextCells.length && m.drawn[k]?.key === nextCells[k].key) {
         runner.runNow();
       } else {
@@ -2849,7 +2875,7 @@ function DesignSessionBody({
   // next real change instead.
   const holdPicked = (
     i: number,
-    kind: "freq" | "param" | "pattern",
+    kind: "freq" | "param" | "pattern" | "map",
     next: AnalysisChartState,
     same: boolean,
   ) => {
@@ -2858,7 +2884,7 @@ function DesignSessionBody({
     const nextCells = planOf(next.cross, chartListed(next)).cells.filter(drawable);
     allRunnersOf[i].forEach((r, k) => {
       if (same && m.resident && k < nextCells.length && m.drawn[k]?.key === nextCells[k].key) return;
-      (kind === "freq" ? r.freq : kind === "param" ? r.param : r.pattern).hold();
+      (kind === "freq" ? r.freq : kind === "param" ? r.param : kind === "map" ? r.map : r.pattern).hold();
     });
   };
   // `run` says whether the pick starts the analysis: absent (the picker),
@@ -2874,8 +2900,21 @@ function DesignSessionBody({
     const w = entry.workbench;
     if (!m || !w.runs || zparamAnalysisBlocked(entry)) return;
     const run = runArg ?? pickRuns(w, runOnPick);
-    const start = (kind: "freq" | "param" | "pattern", next: AnalysisChartState, same: boolean) =>
+    const start = (kind: "freq" | "param" | "pattern" | "map", next: AnalysisChartState, same: boolean) =>
       (run ? runPicked : holdPicked)(i, kind, next, same);
+    if (w.kind === "map") {
+      // A map (docs/design/sweep-framework-map.md): one grid, on Run unless
+      // [workbench.run_on_pick] says a pick runs it. Already this map: run
+      // it (nothing will change to arm).
+      const integer = (k: string) => zparamKnobs.find((z) => z.name === k)?.kind === "int";
+      const next = pickCross(
+        pickMap(m.state, entry.name, w, { x: integer(w.x.param), y: integer(w.y.param) }),
+        w,
+      );
+      start("map", next, m.state.kind === "map" && pickedName(m.now) === entry.name && !pickedEdited(m.now));
+      setChartAt(i, () => next);
+      return;
+    }
     if (w.kind === "pattern") {
       // A pattern (step 7): one solve per cell, drawn on its first view.
       // Already this pattern (the cells it keeps): nothing will change to
@@ -3056,6 +3095,22 @@ function DesignSessionBody({
     seqRef,
     approvedComboRef: primaryRun && !primaryRun.cell.onActiveSlot ? NOT_APPROVED : approvedComboRef,
   });
+  // The first chart's map (docs/design/sweep-framework-map.md), beside its
+  // first pattern cell, on the same cell request and approval rule.
+  const primaryMap = useMapRun({
+    sig: primaryRun ? mapSignature(primaryPatternBuild(), chartInputs.map.x, chartInputs.map.y) : "",
+    x: chartInputs.map.x,
+    y: chartInputs.map.y,
+    wanted: !!primaryRun && chartInputs.map.wanted,
+    auto: chartInputs.map.auto,
+    autoSim,
+    active: analysesActive,
+    comboApproved,
+    recommendedBackend,
+    buildRequest: primaryPatternBuild,
+    solveWithheld,
+    approvedComboRef: primaryRun && !primaryRun.cell.onActiveSlot ? NOT_APPROVED : approvedComboRef,
+  });
   // Every other curve (unit 4): the first chart's second to sixth, and each
   // duplicate's six, a fixed set of runner pairs per chart (useChartCells)
   // of which a chart's cells use the first few. The refinement ranges are
@@ -3065,6 +3120,7 @@ function DesignSessionBody({
     freq: { ...chartInputs.freq, wanted: false },
     param: { ...chartInputs.param, wanted: false },
     pattern: { ...chartInputs.pattern, wanted: false },
+    map: { ...chartInputs.map, wanted: false },
   };
   const chartAxes = (m: ChartModel | null) => ({
     sweepAxes: m?.state.frequency?.axes ?? sweepAxes,
@@ -3133,7 +3189,7 @@ function DesignSessionBody({
   // Each chart's runner pairs, all of them (for arming a pick), and the
   // ones its runnable cells use, in cell order.
   const allRunnersOf: CellRunners[][] = [
-    [{ freq: primaryFreq, param: primaryParam, pattern: primaryPattern }, ...firstChartRest],
+    [{ freq: primaryFreq, param: primaryParam, pattern: primaryPattern, map: primaryMap }, ...firstChartRest],
     chart1Cells,
     chart2Cells,
     chart3Cells,
@@ -3153,6 +3209,9 @@ function DesignSessionBody({
       armPattern: () => all.forEach((r) => r.pattern.arm()),
       runPatternNow: () => live.forEach((r) => r.pattern.runNow()),
       stopPattern: () => live.forEach((r) => r.pattern.stop()),
+      armMap: () => all.forEach((r) => r.map.arm()),
+      runMapNow: () => live.slice(0, 1).forEach((r) => r.map.runNow()),
+      stopMap: () => live.forEach((r) => r.map.stop()),
     };
   };
   // The deep link (AK#1838): the page's ?design=…&analysis=…&view=…&run=1,
@@ -3306,8 +3365,9 @@ function DesignSessionBody({
   const abortAllInFlight = () => {
     abortInFlight();
     primaryPattern.abort();
-    for (const rs of allRunnersOf.slice(1)) for (const r of rs) { r.freq.abort(); r.param.abort(); r.pattern.abort(); }
-    for (const r of firstChartRest) { r.freq.abort(); r.param.abort(); r.pattern.abort(); }
+    primaryMap.abort();
+    for (const rs of allRunnersOf.slice(1)) for (const r of rs) { r.freq.abort(); r.param.abort(); r.pattern.abort(); r.map.abort(); }
+    for (const r of firstChartRest) { r.freq.abort(); r.param.abort(); r.pattern.abort(); r.map.abort(); }
   };
 
   // The Files view (AK#1428): the design's source file, plus the deck and
@@ -4025,6 +4085,7 @@ function DesignSessionBody({
           all[k]?.freq.arm();
           all[k]?.param.arm();
           all[k]?.pattern.arm();
+          all[k]?.map.arm();
         }
       });
       setAt((c) => ({ ...c, cross }));
@@ -4038,9 +4099,12 @@ function DesignSessionBody({
     // it, and its own cells are not sweep pins (keeping them is unit 4's
     // "keep as study").
     const isPattern = m.state.kind === "pattern";
+    // A map (docs/design/sweep-framework-map.md) draws no curve either: no
+    // sweep pin places on it, and it pins nothing in v1 (decision 11).
+    const isMap = m.state.kind === "map";
     const knobUnit = m.isDensity ? null : (m.knob?.unit ?? null);
     const chartX: ChartX | null =
-      chartView(m.state) === "Table" || chartView(m.state) === "Metric" || isPattern
+      chartView(m.state) === "Table" || chartView(m.state) === "Metric" || isPattern || isMap
         ? null
         : isFreq
           ? { x: FREQUENCY_X, lo: m.inputs.freq.range.lo, hi: m.inputs.freq.range.hi }
@@ -4052,7 +4116,7 @@ function DesignSessionBody({
     const chartZ0 = shownResult?.z0_ohms ?? z0;
     const pinnable: PinnableCurve[] = m.drawn.flatMap((c, k) => {
       const r = runners[k];
-      if (!r || isPattern) return [];
+      if (!r || isPattern || isMap) return [];
       const cell = m.drawn.length > 1 ? c.label : "";
       const design = c.design ?? geometry;
       // The request the curve was solved with: what "keep as study" keeps
@@ -4146,7 +4210,10 @@ function DesignSessionBody({
       keepPicked?.study || (keepPicked?.workbench.runs && keepPicked.workbench.axes?.includes("designs"))
         ? "This chart compares named designs: keep it as a study"
         : null;
-    const editedValues: number[] | null = !pickedEdited(m.now)
+    // An edited map writes its axes as ranges (copy as analysis, the next
+    // unit); until then it is kept as served, or not at all.
+    const mapEdited = isMap && pickedEdited(m.now);
+    const editedValues: number[] | null = !pickedEdited(m.now) || isMap
       ? null
       : m.state.kind === "knob"
         ? [...m.inputs.param.req.values]
@@ -4188,12 +4255,14 @@ function DesignSessionBody({
       },
       ...(isPattern
         ? {}
-        : { pin: { onPin: () => addSweepPins(pinsFromCurves(pinnable, chartZ0)), blocked: pinBlocked } }),
+        : isMap
+          ? { pin: { onPin: () => {}, blocked: MAP_PIN_BLOCKED } }
+          : { pin: { onPin: () => addSweepPins(pinsFromCurves(pinnable, chartZ0)), blocked: pinBlocked } }),
       keep: {
         onCopy: () => openChartKeep("analysis"),
-        copyBlocked: keepPicked ? copyBlocked : noPick,
+        copyBlocked: !keepPicked ? noPick : mapEdited ? MAP_EDITED_KEEP : copyBlocked,
         onKeep: () => openChartKeep("study"),
-        keepBlocked: keepPicked ? keepValuesBlocked : noPick,
+        keepBlocked: !keepPicked ? noPick : mapEdited ? MAP_EDITED_KEEP : keepValuesBlocked,
       },
       onCopyLink: () => copyChartLink(m),
       ...(charts.some((c) => c === null) ? { onDuplicate: () => duplicateChart(i) } : {}),
@@ -4335,7 +4404,96 @@ function DesignSessionBody({
     };
     const range = m.inputs.freq.range;
     const patternRunning = runners.some((r) => r.pattern.running);
-    const controls = isPattern ? (
+    // The map (docs/design/sweep-framework-map.md, unit 3): its one grid is
+    // the first cell's, on the slot and ground the radios pick.
+    const mapState = isMap ? (m.state.map ?? null) : null;
+    const mapRun = isMap ? (runners[0]?.map ?? null) : null;
+    const mapData = mapRun?.data ?? null;
+    const mapTotal = m.inputs.map.x.values.length * m.inputs.map.y.values.length;
+    const knobLabel = (k: string) => zparamKnobs.find((z) => z.name === k)?.label ?? k;
+    const mapStatus = !mapState
+      ? null
+      : mapData?.error
+        ? "map refused — see the note"
+        : mapData?.stale
+          ? "stale — the design, solver or ground changed; re-run?"
+          : mapData && mapData.timeLimitS !== undefined
+            ? `${sweepTimeLimitNote({ stopped: "time", time_budget_s: mapData.timeLimitS })} — ${mapData.received}/${mapTotal}`
+            : mapData?.partial
+              ? `stopped at ${mapData.received}/${mapTotal} — partial`
+              : mapRun?.running
+                ? `solving ${mapData?.received ?? 0}/${mapTotal}…`
+                : !mapData
+                  ? "no map yet — run"
+                  : null;
+    const chartMap: ChartMapRender | null = mapState && {
+      grid: mapData?.grid ?? emptyGrid(m.inputs.map.x.values, m.inputs.map.y.values),
+      xLabel: knobLabel(mapData?.x.param ?? mapState.x.param),
+      yLabel: knobLabel(mapData?.y.param ?? mapState.y.param),
+      xLog: mapState.x.log,
+      yLog: mapState.y.log,
+      z0,
+      refs: mapState.refs,
+      quantity: mapState.quantity,
+      live: (() => {
+        const lx = currentValues[mapState.x.param];
+        const ly = currentValues[mapState.y.param];
+        if (typeof lx !== "number" || typeof ly !== "number") return null;
+        return {
+          x: lx,
+          y: ly,
+          re: optLiveZ?.z_in_re ?? shownResult?.z_in_re ?? null,
+          im: optLiveZ?.z_in_im ?? shownResult?.z_in_im ?? null,
+        };
+      })(),
+      status: mapStatus,
+      stale: !!mapData?.stale,
+    };
+    const controls = isMap && mapState ? (
+      <MapChartControls
+        analyses={analyses}
+        x={{ label: knobLabel(mapState.x.param), spec: mapState.x, values: m.inputs.map.x.values }}
+        y={{ label: knobLabel(mapState.y.param), spec: mapState.y, values: m.inputs.map.y.values }}
+        // An axis edit is asking for that map: arm it.
+        onAxis={(axis, next) => {
+          ctl.armMap();
+          setAt((c) => editMapAxis(c, axis, next));
+        }}
+        onRestore={() => {
+          ctl.armMap();
+          setAt(restoreMapAxes);
+        }}
+        edited={pickedEdited(m.now)}
+        quantity={mapState.quantity}
+        // Z is z0-free: a new colouring re-colours, never re-solves.
+        onQuantity={(q) => setAt((c) => (c.map ? { ...c, map: { ...c.map, quantity: q } } : c))}
+        slots={{
+          items: crossEnv.slots.map(({ id, label }) => ({ id, label })),
+          checked: checkedSlots(m.now.cross, crossEnv)[0] ?? null,
+          onPick: (id) => setCross({ ...m.now.cross, slots: [id] }),
+        }}
+        grounds={{
+          items: crossEnv.grounds.map(({ id, label }) => ({ id, label })),
+          checked: checkedGrounds(m.now.cross, crossEnv)[0] ?? null,
+          onPick: (id) => setCross({ ...m.now.cross, grounds: [id] }),
+        }}
+        cost={{
+          line: mapCostLine(mapTotal, freshSolveMs),
+          refused: mapOverLimit(mapTotal, mapState.limit),
+        }}
+        run={{
+          running: !!mapRun?.running,
+          received: mapData?.received ?? 0,
+          total: mapTotal,
+          done: !!mapData?.done && !mapData.stale,
+          partial: !!mapData?.partial,
+          stale: !!mapData?.stale,
+          onStop: ctl.stopMap,
+          onRun: ctl.runMapNow,
+        }}
+        chrome={chrome}
+      />
+    ) : isPattern ? (
       <PatternChartControls
         analyses={analyses}
         viewPick={viewPick}
@@ -4425,7 +4583,36 @@ function DesignSessionBody({
     const withheld = isPattern
       ? (runners.find((r) => r.pattern.data?.errorStatus === 403)?.pattern.data ?? null)
       : null;
-    const overlays = isPattern ? (
+    const mapNotes = mapData
+      ? [
+          ...(mapData.timeLimitS !== undefined
+            ? [{ category: SWEEP_TIME_LIMIT, text: sweepTimeLimitNote({ stopped: "time", time_budget_s: mapData.timeLimitS })! }]
+            : []),
+          ...(mapData.failed > 0
+            ? [
+                {
+                  category: "MapNodesFailed",
+                  text: `${mapData.failed} node${mapData.failed === 1 ? "" : "s"} did not solve: ${mapData.firstError ?? ""}`,
+                },
+              ]
+            : []),
+        ]
+      : [];
+    const overlays = isMap ? (
+      <>
+        <SweepAdvisoryOverlay advisories={mapNotes} />
+        {mapData?.error && (
+          <div className="sweep-advisory-overlay zparam-refusal" role="alert">
+            {mapData.error}
+            {mapData.errorStatus === 403 && (
+              <button type="button" className="zparam-approve" onClick={solveAnyway}>
+                Solve anyway
+              </button>
+            )}
+          </div>
+        )}
+      </>
+    ) : isPattern ? (
       withheld && (
         <div className="sweep-advisory-overlay zparam-refusal" role="alert">
           {withheld.error}
@@ -4537,6 +4724,7 @@ function DesignSessionBody({
         onRxXLogChange,
       },
       chartPattern,
+      chartMap,
       chartMetric: chartMetricRender,
       ...(chartCurves ? { chartCurves } : {}),
       chartLegend: legend,
@@ -4550,6 +4738,7 @@ function DesignSessionBody({
       zparam,
       chartFrequency: freqRender,
       chartPattern,
+      chartMap,
       chartMetric: chartMetricRender,
       ...(chartCurves ? { chartCurves } : {}),
       chartCellLabels: m.drawn.map(caption),

@@ -16,9 +16,7 @@ const ORIENTATION_LABELS: Record<Orientation, string> = {
 };
 
 // The run-on-pick switches the menu shows (AC6LA, QRZ 1003328 #179), with
-// their words and tooltips. `map` is a valid settings.toml key, but the
-// workbench draws no map yet (sweep-framework step 5), so a switch for it
-// would do nothing; a save passes the file's value through.
+// their words and tooltips, every [workbench.run_on_pick] key.
 const RUN_ON_PICK_MENU: readonly { kind: RunOnPickKind; label: string; title: string }[] = [
   { kind: "frequency", label: "frequency sweeps", title: "A frequency sweep or band SWR: seconds." },
   { kind: "pattern", label: "patterns", title: "A pattern: one solve per curve." },
@@ -32,6 +30,11 @@ const RUN_ON_PICK_MENU: readonly { kind: RunOnPickKind; label: string; title: st
     kind: "convergence",
     label: "density ladders",
     title: "A density ladder (the convergence analysis): a re-mesh and solve per point.",
+  },
+  {
+    kind: "map",
+    label: "maps",
+    title: "A two-knob map: a solve per grid node, hundreds of them.",
   },
 ];
 

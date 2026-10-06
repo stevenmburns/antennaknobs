@@ -101,7 +101,16 @@ describe("parseAnalyses", () => {
     });
     expect(got[1].workbench).toEqual({ runs: false, why: "step 6" });
   });
-  it("a served map stays in the picker, greyed with its reason, until its chart lands", () => {
+  it("a served map: its axes, Ref lines and hosted limit; junk is dropped", () => {
+    const axis = (param: string, values: number[]) => ({
+      param,
+      values,
+      log: false,
+      lo: values[0],
+      hi: values[values.length - 1],
+      points: values.length,
+      spacing: "lin",
+    });
     const got = parseAnalyses({
       analyses: [
         {
@@ -109,9 +118,24 @@ describe("parseAnalyses", () => {
           workbench: {
             runs: true,
             kind: "map",
-            x: { param: "length_factor", values: [0.9, 1.0] },
-            y: { param: "angle_deg", values: [0, 60] },
-            refs: { r: [50], x: [0], swr: null },
+            x: axis("length_factor", [0.9, 1.0]),
+            y: axis("angle_deg", [0, 60]),
+            refs: { r: [50, 75], x: [0], swr: 2 },
+            views: ["Map"],
+            limit: { points: 1000, seconds: 120 },
+            engines: null,
+            grounds: null,
+            note: null,
+          },
+        },
+        {
+          name: "same knob twice",
+          workbench: {
+            runs: true,
+            kind: "map",
+            x: axis("length_factor", [0.9, 1.0]),
+            y: axis("length_factor", [0.9, 1.0]),
+            refs: { r: [], x: [], swr: null },
             views: ["Map"],
             note: null,
           },
@@ -119,10 +143,19 @@ describe("parseAnalyses", () => {
       ],
     });
     expect(got.map((a) => a.name)).toEqual(["tuning map"]);
-    expect(got[0].workbench).toEqual({
-      runs: false,
-      why: "the map chart: not in the workbench yet (sweep-framework step 5)",
-    });
+    const w = got[0].workbench;
+    expect(w.runs && w.kind).toBe("map");
+    if (!w.runs || w.kind !== "map") return;
+    expect(w.x.values).toEqual([0.9, 1.0]);
+    expect(w.y.param).toBe("angle_deg");
+    expect(w.refs).toEqual({ r: [50, 75], x: [0], swr: 2 });
+    expect(w.limit).toEqual({ points: 1000, seconds: 120 });
+    expect(w.views).toEqual(["Map"]);
+    // Both knobs must be ones the view can set.
+    expect(analysisBlocked(w, new Set(["length_factor", "angle_deg"]))).toBeNull();
+    expect(analysisBlocked(w, new Set(["length_factor"]))).toBe(
+      "angle_deg: not a knob this view can sweep on this variant",
+    );
   });
   it("keeps an analysis's listed engines and grounds, and drops junk lists (AK#1757 unit 4)", () => {
     const got = parseAnalyses({
