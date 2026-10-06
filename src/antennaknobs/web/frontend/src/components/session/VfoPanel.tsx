@@ -70,6 +70,14 @@ export type OptimizeResult = {
   worst_swr_after?: number | null;
   worst_band_before?: number;
   worst_band_after?: number;
+  /** "time": the hosted time budget ended the run, and the answer is the
+   *  best point solved by then (AK 0.97.1). */
+  stopped?: string | null;
+  time_budget_s?: number | null;
+  /** Knobs that ended at a bound of their range (AK#1909). */
+  at_bound?: { name: string; bound: "min" | "max"; value: number }[];
+  /** No band is near a match at the answer (AK#1909). */
+  far_from_match?: boolean;
 };
 // One `event: progress` frame from the streamed /optimize (issue #773 unit
 // 4) — a mid-run snapshot, not a final outcome; `objective` is the raw

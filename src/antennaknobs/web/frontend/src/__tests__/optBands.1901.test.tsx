@@ -289,6 +289,30 @@ describe("the band readouts", () => {
     expect(box.textContent).toContain("worst 2.20");
   });
 
+  it("result notes: a clean run says nothing beyond the table", () => {
+    render(<BandsReadout running={false} progress={null} result={BAND_RESULT} error={null} />);
+    expect(screen.queryByLabelText("Band run notes")).toBeNull();
+  });
+
+  it("result notes: time limit, a knob at its range, no band near a match (#1909)", () => {
+    const res: OptimizeResult = {
+      ...BAND_RESULT,
+      stopped: "time",
+      time_budget_s: 120,
+      at_bound: [{ name: "sy_cap2", bound: "max", value: 150 }],
+      far_from_match: true,
+    };
+    render(<BandsReadout running={false} progress={null} result={res} error={null} />);
+    const notes = within(screen.getByLabelText("Band run notes"))
+      .getAllByRole("listitem")
+      .map((li) => li.textContent);
+    expect(notes).toEqual([
+      "Stopped at the time limit (120 s): this is the best point found so far.",
+      "sy_cap2 ended at its maximum: the best value may lie outside its range. Widen it and run again.",
+      "No band is near a match: check the knobs' ranges before trusting this result.",
+    ]);
+  });
+
   it("result: before -> after per band, then worst and mean", () => {
     render(<BandsReadout running={false} progress={null} result={BAND_RESULT} error={null} />);
     const table = screen.getByRole("table", { name: "Band results" });
