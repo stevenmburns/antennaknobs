@@ -1896,8 +1896,10 @@ def cli(arguments=None):
         action="append",
         default=[],
         metavar="NAME=LO:HI",
-        help="With --bands: a knob's search range (repeatable). Without one a "
-        "knob searches its ui_params min/max, else +/-20 %% of its value.",
+        help="With --bands: a knob's search range (repeatable), in the knob's "
+        "own unit (the run header names it: an opened deck's capacitor is in "
+        "pF). Without one a knob searches its ui_params min/max, else +/-20 %% "
+        "of its value. A range that excludes the knob's value is refused.",
     )
     p.add_argument(
         "--mean-weight",
@@ -1943,6 +1945,13 @@ def cli(arguments=None):
             raise SystemExit(f"optimize --bound: {e}") from None
         free = band_opt.free_for(b, names, bounds=bounds)
         base = {f["name"]: float(band_opt._get_path(b, f["name"])) for f in free}
+        units = {nm: u for nm in names if (u := band_opt.ui_unit(b, nm))}
+        for fr in free:
+            u = f" {units[fr['name']]}" if fr["name"] in units else ""
+            print(
+                f"# knob {fr['name']} = {base[fr['name']]:.6g}{u}, "
+                f"range {fr['min']:.6g}..{fr['max']:.6g}{u}"
+            )
         try:
             res = optimize_bands(
                 base,
@@ -1953,6 +1962,7 @@ def cli(arguments=None):
                 max_evals=args.max_evals,
                 tol=args.tol,
                 max_passes=args.passes,
+                knob_units=units,
                 **(
                     {}
                     if args.mean_weight is None

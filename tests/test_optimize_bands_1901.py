@@ -130,6 +130,75 @@ def test_a_root_outside_the_box_is_reported_as_none_not_a_near_miss():
     assert res["residual_after"] > 1.0
 
 
+def test_a_range_that_excludes_the_start_is_refused_with_its_unit_1909():
+    # AK#1909: a pF capacitor bounded in farads used to be clipped into the
+    # range (an open circuit) and "optimised".
+    stub = LinearStub([[1.0]], [1.0], [7.1])
+    with pytest.raises(BandsRefused) as e:
+        optimize_bands(
+            {"k": [340.0]},
+            [{"name": "k.0", "min": 100e-12, "max": 1000e-12}],
+            parse_bands("7.1:res"),
+            sweep_fn=stub,
+            knob_units={"k.0": "pF"},
+        )
+    words = str(e.value)
+    assert "k.0 = 340 pF is outside its range 1e-10..1e-09" in words
+    assert "1e12 times the range" in words
+    assert stub.calls == []
+
+
+def test_a_knob_pinned_at_its_range_is_named_1909():
+    # The root is at x = 20, the box stops at 10: the answer sits on the max.
+    stub = LinearStub([[1.0]], [20.0], [7.1])
+    res = optimize_bands(
+        {"k": [0.0]}, _free(1), parse_bands("7.1:res"), sweep_fn=stub, mode="root"
+    )
+    assert res["at_bound"] == [{"name": "k.0", "bound": "max", "value": 10.0}]
+    assert res["stopped"] is None and res["time_budget_s"] is None
+    assert not res["far_from_match"]
+
+
+def test_no_band_near_a_match_is_said_plainly_1909():
+    # R = 1e5 ohm on a 50 ohm line: SWR 2000 wherever the knob goes.
+    stub = LinearStub([[1.0]], [0.0], [7.1], R=1e5)
+    res = optimize_bands({"k": [3.0]}, _free(1), parse_bands("7.1"), sweep_fn=stub)
+    assert res["worst_swr_after"] > 100
+    assert res["far_from_match"]
+
+
+class _SlowStub(LinearStub):
+    def __call__(self, req, freqs):
+        import time
+
+        time.sleep(0.05)
+        return super().__call__(req, freqs)
+
+
+@pytest.mark.parametrize("mode", ["minimax", "root"])
+def test_the_time_budget_answers_with_the_best_point_so_far(mode):
+    A = [[3.0, 1.0], [1.0, 4.0]]
+    stub = _SlowStub(A, [1.0, 2.0], [3.6, 7.1])
+    spec = "3.6:res,7.1:res" if mode == "root" else "3.6,7.1"
+    res = optimize_bands(
+        {"k": [-9.0, 9.0]},
+        _free(2),
+        parse_bands(spec),
+        sweep_fn=stub,
+        mode=mode,
+        time_budget_s=0.12,
+    )
+    assert res["stopped"] == "time" and res["time_budget_s"] == 0.12
+    assert not res["converged"]
+    if mode == "root":
+        assert res["root_status"] == "out of time"
+    # Stopped well short of the eval budget: 3 fresh solves start inside 0.12 s,
+    # plus the answer's own read-back and checks once the budget is spent.
+    assert res["n_fresh"] < 20
+    # The answer is a point the run solved, never worse than the start.
+    assert res["objective_after"] <= res["objective_before"]
+
+
 def test_a_knob_that_moves_nothing_is_singular_by_name():
     stub = LinearStub([[1.0, 0.0], [2.0, 0.0]], [1.0, 1.0], [3.6, 7.1])
     res = optimize_bands(

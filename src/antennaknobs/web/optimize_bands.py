@@ -140,6 +140,22 @@ class _OutOfEvals(Exception):
     """The eval budget is spent mid-search (SLSQP has no budget of its own)."""
 
 
+class _OutOfTime(Exception):
+    """The run's wall-time budget is spent (``time_budget_s``): every form
+    stops at its next fresh solve and answers with the best point solved."""
+
+
+#: A worst-band SWR past this at the answer is no match at all: the run says
+#: so instead of presenting the optimum of a design nowhere near one (AK#1909:
+#: a capacitor bounded in farads where the knob is in pF opened the circuit,
+#: and the run "improved" SWR 2.3e6 to 2.2e4).
+FAR_FROM_MATCH_SWR = 100.0
+
+#: A knob within this fraction of its range from a bound at the answer is
+#: reported as pinned there: the optimum may lie outside the range.
+_AT_BOUND_U = 1e-3
+
+
 class BandsRefused(ValueError):
     """A band list this module cannot serve, refused by name before (or at)
     the first solve: the request's shape, not the design's physics."""
@@ -400,6 +416,7 @@ _ROOT_STATUS = {
     "no-crossing": "no root in the box",
     "singular": "singular",
     "budget": "out of evals",
+    "time": "out of time",
 }
 
 
@@ -415,6 +432,8 @@ def optimize_bands(
     max_passes: int = 8,
     mean_weight: float = DEFAULT_MEAN_WEIGHT,
     on_progress: Callable[[dict], None] | None = None,
+    time_budget_s: float | None = None,
+    knob_units: dict[str, str] | None = None,
 ) -> dict:
     """Tune ``free`` (``[{name, min, max}]``, flat or dotted group-leaf names)
     so the bands in ``bands`` meet their objectives. See the module docstring.
@@ -429,6 +448,11 @@ def optimize_bands(
     resonance (Newton itself stops far tighter, at `optimize._ROOT_FTOL` on
     the stacked residual's norm). ``mean_weight`` is the MINIMAX form's one
     tradeoff, ``J = (1 - w) * worst + w * mean``.
+
+    ``time_budget_s`` bounds the run's wall time (the hosted server's, so a
+    slow design cannot hold a machine): past it no fresh point is solved, and
+    the answer is the best full-band point solved so far, with ``stopped:
+    "time"``. ``knob_units`` (knob name -> unit) only words the refusals.
     """
     if not free:
         raise BandsRefused("no free params selected to optimise")
@@ -487,11 +511,31 @@ def optimize_bands(
     # SLSQP step, so it is not the single-band 40 per knob.
     budget = int(max_evals) if max_evals else default_budget(n)
 
+    # A range that excludes the knob's own value is refused, not clipped
+    # into (AK#1909): clipping moved a 340 pF capacitor to 1e-10 pF under a
+    # bound written in farads, and the run optimised an open circuit.
     x0 = []
+    outside = []
     for name, a, b in zip(names, lo, hi, strict=True):
         cur = _get_knob(base_req, name)
         cur = float(0.5 * (a + b) if cur is None else cur)
+        if not a <= cur <= b:
+            u = f" {knob_units[name]}" if knob_units and knob_units.get(name) else ""
+            msg = f"{name} = {cur:g}{u} is outside its range {a:g}..{b:g}"
+            mid = 0.5 * (a + b)
+            ratio = cur / mid if mid else 0.0
+            if ratio > 0 and abs(math.log10(ratio)) >= 2.5:
+                msg += (
+                    f" (the value is about 1e{round(math.log10(ratio))} times the "
+                    "range: is the range in another unit?)"
+                )
+            outside.append(msg)
         x0.append(min(max(cur, a), b))
+    if outside:
+        raise BandsRefused(
+            "; ".join(outside)
+            + ". Widen the range to include the current value (check its unit)."
+        )
     x0 = np.array(x0)
 
     # Every search works on the unit cube: knobs in metres, factors and
@@ -519,6 +563,11 @@ def optimize_bands(
     # Where `hard_cap` stops a search: the budget, or a stage's own share of it.
     cap_now = budget
     memo: dict[tuple, tuple[list[dict], dict]] = {}
+    t_end = None if time_budget_s is None else time.monotonic() + float(time_budget_s)
+    timed_out = False
+    # The best full-band point solved, by the run's own score: the answer
+    # when the time budget ends a run mid-search.
+    best_full: list = [math.inf, None]
 
     def _req_at(x) -> tuple[dict, dict]:
         req = dict(base_req)
@@ -561,6 +610,8 @@ def optimize_bands(
         hit = memo.get(key)
         if hit is None and hard_cap and fresh >= cap_now:
             raise _OutOfEvals
+        if hit is None and t_end is not None and fresh and time.monotonic() > t_end:
+            raise _OutOfTime
         n_evals += 1
         if hit is None:
             fresh += 1
@@ -591,6 +642,10 @@ def optimize_bands(
                 recs.append(_band_record(b, z, b.z0 if b.z0 else z0_req))
             hit = (recs, _req_at(x)[1])
             memo[key] = hit
+            if idx == all_idx:
+                sc = score(recs)
+                if sc < best_full[0]:
+                    best_full[:] = [sc, x.copy()]
         recs, params = hit
         if on_progress is not None:
             wi, _ = _worst(recs)
@@ -1025,15 +1080,24 @@ def optimize_bands(
     singular_words = None
     converged = False
     passes = 0
-    if form == "root":
-        x_best, root_reason, singular_words = run_root(x0)
-        method = "newton"
-    elif form == "sequential":
-        x_best, passes, fixed = run_sequential(x0)
-        method = "sequential"
-    else:
-        x_best, converged, _msg = run_minimax(x0)
-        method = "slsqp minimax (trust region)"
+    fixed = False
+    try:
+        if form == "root":
+            method = "newton"
+            x_best, root_reason, singular_words = run_root(x0)
+        elif form == "sequential":
+            method = "sequential"
+            x_best, passes, fixed = run_sequential(x0)
+        else:
+            method = "slsqp minimax (trust region)"
+            x_best, converged, _msg = run_minimax(x0)
+    except _OutOfTime:
+        timed_out = True
+        x_best = best_full[1]
+        root_reason = "time" if form == "root" else None
+        # Every check after this point (the answer's own read, the slope
+        # checks) solves again; the budget has done its job.
+        t_end = None
 
     # The answer is a SOLVED point (each path returns one). A minimax or
     # sequential run that made things worse hands back the start; a root run's
@@ -1074,6 +1138,13 @@ def optimize_bands(
     ja, mxa, mna = objective_terms(recs_end, w_run)
     wb, _ = _worst(recs0)
     wa, _ = _worst(recs_end)
+    u_end = (np.asarray(x_best, float) - lo) / span
+    at_bound = [
+        {"name": nm, "bound": "min" if u <= _AT_BOUND_U else "max", "value": float(v)}
+        for nm, u, v in zip(names, u_end, x_best, strict=True)
+        if u <= _AT_BOUND_U or u >= 1.0 - _AT_BOUND_U
+    ]
+    worst_after = max(r["swr"] for r in recs_end)
     return json_safe(
         {
             "objective": "bands",
@@ -1125,6 +1196,15 @@ def optimize_bands(
             # Resonance bands whose X = 0 is a parallel resonance (dX/df <= 0).
             "antiresonant_bands": anti_end,
             "tol": tol,
+            # "time" when the wall-time budget ended the run (the answer is
+            # then the best point solved by then), else None.
+            "stopped": "time" if timed_out else None,
+            "time_budget_s": time_budget_s,
+            # Knobs that ended at a bound of their range ({name, bound
+            # "min"/"max", value}): the optimum may lie past it (AK#1909).
+            "at_bound": at_bound,
+            # No band is anywhere near a match at the answer (AK#1909).
+            "far_from_match": not worst_after <= FAR_FROM_MATCH_SWR,
         }
     )
 
