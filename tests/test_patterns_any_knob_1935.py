@@ -63,7 +63,7 @@ def test_a_family_is_kept_as_its_patterns_analysis_and_round_trips(client):
     out = got.json()
     want = an.patterns(
         name="base patterns",
-        cross=an.Cross(step=an.Sweep("base", 5.0, 15.0, points=3)),
+        cross=an.Cross(step=an.Sweep("base", 5, 15, points=3)),
     )
     assert out["code"] == an.to_code(want) + "\n"
     value = eval(out["code"], {"an": an})
@@ -88,7 +88,9 @@ def test_a_log_family_writes_its_spacing_and_an_off_grid_ladder_its_values():
     a = keep.analysis_from_family({**rounded, "values": [1, 2, 3, 4]})
     assert a.crosses[0].step == an.Sweep("n", 1.0, 4.0, points=4)
     a = keep.analysis_from_family({**rounded, "points": 3, "values": [1, 2, 4]})
-    assert a.crosses[0].step == an.Sweep("n", values=(1.0, 2.0, 4.0))
+    assert a.crosses[0].step == an.Sweep("n", values=(1, 2, 4))
+    # Whole numbers print as whole numbers, as Steve writes them.
+    assert 'an.Sweep("n", values=(1, 2, 4))' in an.to_code(a)
 
 
 @pytest.mark.parametrize(
@@ -254,7 +256,7 @@ def test_an_opened_decks_sy_knob_is_a_family_knob_with_no_height_detection(clien
     assert hgh["kind"] == "float" and hgh["default"] == 10
     fam = {"knob": "sy_hgh", "lo": 5, "hi": 15, "points": 3, "spacing": "lin"}
     out = _keep(client, fam, {"geometry": key}).json()
-    assert 'an.Sweep("sy_hgh", 5.0, 15.0, points=3)' in out["code"]
+    assert 'an.Sweep("sy_hgh", 5, 15, points=3)' in out["code"]
     assert out["problems"] == []
     value = eval(out["code"], {"an": an})
     from antennaknobs.web.analyses_offer import builder_for
