@@ -79,18 +79,22 @@ export function useChartScale(): number {
 /** Size a chart's canvas to `size` CSS px (at the device's pixel ratio) and
  *  set the transform so it draws in a logical square of `size / k` px.
  *  Returns that logical side: the chart's drawing and hit-testing use it
- *  wherever they used `size`, and pointer offsets are divided by k. */
+ *  wherever they used `size`, and pointer offsets are divided by k.
+ *  `height` (CSS px) makes it `size` wide and that high instead (the map,
+ *  whose legend lines take the rest of its square); the logical height is
+ *  then `height / k`. */
 export function fitChartCanvas(
   canvas: HTMLCanvasElement,
   ctx: CanvasRenderingContext2D,
   size: number,
   k: number,
+  height: number = size,
 ): number {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.floor(size * dpr);
-  canvas.height = Math.floor(size * dpr);
+  canvas.height = Math.floor(height * dpr);
   canvas.style.width = `${size}px`;
-  canvas.style.height = `${size}px`;
+  canvas.style.height = `${height}px`;
   ctx.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
   return size / k;
 }
