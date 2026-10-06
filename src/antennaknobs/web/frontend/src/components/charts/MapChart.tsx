@@ -20,7 +20,7 @@ import {
 import { formatOhm, xTicks } from "../../lib/paramSweep";
 import { formatTick } from "../../lib/sweepAxis";
 import { ThemeContext } from "../hooks";
-import { CHART_FONT, useChartScale } from "./chartScale";
+import { CHART_FONT, fitChartCanvas, useChartScale } from "./chartScale";
 import { plotColors, STALE_TRACE_ALPHA } from "./palette";
 
 // The two-knob map (docs/design/sweep-framework-map.md, unit 2): |Γ| on z0
@@ -169,13 +169,9 @@ export function MapChart({
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    // A plot narrower than tall would waste the square: it is `size` wide
-    // and `plotH` high, drawn in logical px (÷ the chart scale k).
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(size * dpr);
-    canvas.height = Math.floor(plotH * dpr);
-    ctx.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
-    const sz = size / k;
+    // The plot is `size` wide and `plotH` high (the legend lines take the
+    // rest of the square), drawn in logical px (÷ the chart scale k).
+    const sz = fitChartCanvas(canvas, ctx, size, k, plotH);
     const szH = plotH / k;
     const PC = plotColors();
     const pw = sz - MARGIN.l - MARGIN.r;

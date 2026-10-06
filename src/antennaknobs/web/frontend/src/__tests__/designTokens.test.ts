@@ -166,7 +166,9 @@ describe("canvas type from the chart ramp", () => {
     const drawn = files.filter(([p, src]) => src.includes('getContext("2d")') && !p.endsWith("CurrentCanvas.tsx"));
     expect(drawn.length).toBeGreaterThanOrEqual(5);
     for (const [p, src] of drawn) {
-      expect(src, p).toContain("fitChartCanvas(canvas, ctx, size, k)");
+      // A chart may give a height of its own (the map's plot, its legend
+      // lines under it): still the one sizing function, on the chart scale.
+      expect(src, p).toMatch(/fitChartCanvas\(canvas, ctx, size, k(\)|, \w+\))/);
       expect(src, p).toContain("useChartScale()");
       expect(src, p).not.toMatch(/setTransform\(dpr, 0, 0, dpr/);
     }
