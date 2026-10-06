@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { type AnalysisEntry, entryLabel } from "../../lib/analyses";
+import { type AnalysisEntry, analysisGroups, entryLabel } from "../../lib/analyses";
 
 // The Z-vs-parameter header's "analysis" picker (AK#1757, sweep-framework
 // step 3): the design's analyses (POST /analyses), one pick running the one
@@ -38,7 +38,9 @@ const KNOB = "\u0001knob";
  *  "there is no sweep item to choose, a lot of greyed-out analyses"). Three
  *  parts, the obvious first:
  *   - what runs here: the chart's own frequency sweep, then the analyses the
- *     chart can run (the design's and the library's), in the served order;
+ *     chart can run (the design's and the library's), in the served order,
+ *     each group under its heading when the design lists more than three
+ *     analyses in more than one group (AK#1907, `analysisGroups`);
  *   - "Sweep a knob", ONE entry (a design can have twenty knobs, and the
  *     chart's parameter list already chooses among them): it runs the knob
  *     in that list (the last knob swept, else the design's first) over its
@@ -98,11 +100,20 @@ export function AnalysisSelect({
             freq sweep (the design's band)
           </option>
         )}
-        {runnable.map((a) => (
-          <option key={a.name} value={a.name} title={a.summary}>
-            {edited && a.name === current ? `${a.name} (edited)` : a.name}
-          </option>
-        ))}
+        {analysisGroups(runnable, designs).map(({ group, entries: members }) => {
+          const options = members.map((a) => (
+            <option key={a.name} value={a.name} title={a.summary}>
+              {edited && a.name === current ? `${a.name} (edited)` : a.name}
+            </option>
+          ));
+          return group === null ? (
+            options
+          ) : (
+            <optgroup key={group} label={group}>
+              {options}
+            </optgroup>
+          );
+        })}
         {onSweepKnob && (
           <option value={KNOB} title="R and X against the knob in the chart's parameter list, over its own range">
             Sweep a knob
