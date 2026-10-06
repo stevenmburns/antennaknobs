@@ -29,19 +29,17 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.97.0" icon="star">
-  **Optimize across several bands at once.** In the Optimize gear menu,
-  [**Bands**](/reference/cli/#optimizing-across-bands) lists frequencies, and
-  the run tunes the marked knobs for all of them together. It balances the
-  worst band against the average, so the easy bands are not dragged down to
-  the hardest one. The command line does the same with
-  `optimize --bands 1.83,3.7,7.1`, and adds exact-resonance and band-by-band
-  modes. Knobs inside a group (a fan dipole's per-band lengths) can be marked
-  for the optimizer now. Pattern metrics come from each cell's own engine. A
-  NEC-2 deck's `EK` card sets the slot's kernel. All of this runs on momwire
-  0.72.0: near fields on the NEC-4.2 slot (`NE 1`, real ground), the extended
-  kernel by default for NEC-4 and NEC-5 decks, buried fills up to 40 % faster,
-  and cancellation that reaches every buried fill.
+<Card title="New in v0.97.1" icon="star">
+  **Several-band optimize, made usable.** Opening the Optimize gear menu now
+  pauses the run, and closing it resumes with one run for all your edits
+  (before, each edit started a new run that replaced the last). While it runs,
+  each band's impedance moves on the Smith chart in its own colour, and the
+  readout always says what the optimizer is doing. A knob range that leaves out
+  the knob's current value is refused, naming its unit; the result says when a
+  knob ended at the edge of its range or no band is near a match. The hosted app
+  runs on a dedicated CPU now, and stops a several-band run at 120 s with the
+  best point so far. Builds on [v0.97.0](/reference/cli/#optimizing-across-bands):
+  optimize across several bands at once, on momwire 0.72.0.
 </Card>
 
 ## The whole pitch, in one line

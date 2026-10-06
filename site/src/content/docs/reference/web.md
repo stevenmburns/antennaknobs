@@ -123,11 +123,14 @@ take the server from everyone else:
 | Segments (after `GM` / `GR` / `GX` copies, and at any knob value) | 3000 |
 | Wires | 200 |
 | One solve (a live solve, a sweep point, an optimizer step) | 60 s |
+| One several-band optimize run | 120 s |
 | Opened-deck solves at once, across all visitors | 1 |
 | New decks opened per minute, per visitor | 10 |
 
 A deck over a structure limit is refused when it opens, naming the card that
-crossed it. A solve that runs past 60 s is stopped and says so. While another
+crossed it. A solve that runs past 60 s is stopped and says so. A several-band
+optimize run that reaches 120 s stops and keeps the best point it has solved,
+saying so under its table. While another
 visitor's deck is solving, yours answers **busy** at once rather than queueing
 behind it — try again in a minute. PyNEC is not offered for an opened deck on
 the hosted app (it cannot be stopped mid-solve); the momwire solvers are.
@@ -1071,7 +1074,13 @@ which lets it drag the easy bands up to the hardest one's SWR; the mean term
 stops that. On UR0GT's three-band vertical (160/80/40 m), w = 0.2 settles on SWR
 1.86 on all three bands, and w = 0.5 on 1.93 / 1.93 / 1.34. While it runs, the
 readout shows each band's SWR and the worst. When it finishes, a table gives
-each band's SWR before and after, plus the worst and the mean. Knobs inside a
+each band's SWR before and after, plus the worst and the mean. Under it, a note
+says when a knob ended at the edge of its range (the best value may lie past
+it: widen the range and run again) or when no band is near a match. A range
+that leaves out a knob's current value is refused before the run, naming the
+knob and its unit. While the run is going, each band's impedance moves on the
+Smith chart in its own colour. Opening the gear menu pauses Optimize; closing
+it resumes, with one run for all the edits. Knobs inside a
 group (a fan dipole's per-band lengths) can be marked like any other. The
 command line's `optimize --bands` does the same, and adds the per-band
 objective, feed and Z₀, and the root and band-by-band modes; see
