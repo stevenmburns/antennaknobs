@@ -5408,3 +5408,35 @@ div.opt-bands-readout {
   color: var(--muted);
   font-size: var(--text-xs);
 }
+
+/* The two-knob map (docs/design/sweep-framework-map.md): the canvas, the
+   hover/tap readout's line (always there, so a hover does not move the
+   page), and the legend below it (on a phone too: the plot keeps the full
+   width). */
+.map-chart {
+  max-width: 100%;
+}
+.map-chart-plot {
+  position: relative;
+  max-width: 100%;
+}
+.map-readout {
+  min-height: 1.4em;
+  margin-top: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+.map-legend {
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.map-legend li[data-reached="0"] {
+  opacity: 0.7;
+}
+.map-legend .map-best {
+  margin-top: 2px;
+}
