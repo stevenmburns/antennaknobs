@@ -203,10 +203,14 @@ export function useOptimizer({
   const [optFrameMs, setOptFrameMs] = useState<number | null>(null);
   const lastFrameAtRef = useRef<number | null>(null);
   const [optError, setOptError] = useState<string | null>(null);
-  // When something auto-pauses the optimizer, this holds *why* for a brief cue
-  // (cleared on re-enable / after a few seconds): grabbing a knob marked for
-  // optimization by hand ("changing X by hand"), or loading a new design/variant
-  // ("loaded a new design").
+  // The run in flight replaced one that had not finished (AK#1912): a newer
+  // input superseded it. Said on the readout ("restarted") rather than
+  // dropping the old run silently.
+  const [optRestarted, setOptRestarted] = useState(false);
+  // When something auto-pauses the optimizer, this holds *why*: grabbing a
+  // knob marked for optimization by hand (said until Optimize is turned back
+  // on), or loading a new design/variant (a brief cue, cleared after a few
+  // seconds).
   const [optPausedBy, setOptPausedBy] = useState<OptPause | null>(null);
   const optAbortRef = useRef<AbortController | null>(null);
   // Latest optEnabled mirrored into a ref so the design-load reset (effects keyed
@@ -271,6 +275,9 @@ export function useOptimizer({
       .filter(([, o]) => o.vary)
       .map(([name, o]) => ({ name, min: o.optMin, max: o.optMax }));
     if (free.length === 0) return;
+    // A controller still set here is a run that has not settled: this one
+    // supersedes it.
+    setOptRestarted(optAbortRef.current !== null);
     optAbortRef.current?.abort();
     const ctrl = new AbortController();
     optAbortRef.current = ctrl;
@@ -409,10 +416,12 @@ export function useOptimizer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [optFixedSig, autoSim, active]);
 
-  // The "paused — changing X by hand" cue is a brief flash: clear it a few
-  // seconds after it appears so it doesn't linger while Optimize stays off.
+  // The "loaded a new design" cue is a brief flash: clear it a few seconds
+  // after it appears so it doesn't linger while Optimize stays off. A hand
+  // move's pause stays said until Optimize is turned back on (AK#1912): it is
+  // the optimizer's state, not a passing event.
   useEffect(() => {
-    if (!optPausedBy) return;
+    if (!optPausedBy || optPausedBy.kind === "knob") return;
     const t = setTimeout(() => setOptPausedBy(null), 5000);
     return () => clearTimeout(t);
   }, [optPausedBy]);
@@ -442,8 +451,14 @@ export function useOptimizer({
     return () => window.removeEventListener("keydown", onKey);
   }, [knobMenu, active, setKnobMenu]);
 
+  // How many knobs this design has marked (AK#1912): none means Optimize
+  // has nothing to do, and the readout says so.
+  const optMarked = Object.values(knobOpt[geometry] ?? {}).filter((o) => o.vary).length;
+
   return {
     optEnabled,
+    optMarked,
+    optRestarted,
     setOptEnabled,
     optObjective,
     setOptObjective,
