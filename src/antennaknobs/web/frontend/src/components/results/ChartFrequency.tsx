@@ -170,6 +170,7 @@ export function ChartFrequency({ p, f }: { p: ViewRenderProps; f: ChartFrequency
         trial={p.liveZ != null}
         trialFeeds={p.liveZ?.feeds}
         trialWorstFeed={p.liveZ?.worst_feed}
+        trialBands={p.liveBands ?? null}
         size={p.size}
         sweep={f.sweep}
         paramSweep={null}
@@ -241,6 +242,7 @@ export function ChartKnobSmith({ p }: { p: ViewRenderProps }) {
         trial={p.liveZ != null}
         trialFeeds={p.liveZ?.feeds}
         trialWorstFeed={p.liveZ?.worst_feed}
+        trialBands={p.liveBands ?? null}
         size={p.size}
         sweep={null}
         paramSweep={p.paramSweep}

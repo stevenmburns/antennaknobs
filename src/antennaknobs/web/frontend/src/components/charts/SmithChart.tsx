@@ -19,6 +19,7 @@ import {
 } from "../../lib/smithView";
 import type { FeedEntry, MeasuredData, ParamSweepData, SweepData } from "../../lib/api";
 import { formatParam, isDensity } from "../../lib/paramSweep";
+import { fmtFreq, type BandMarks } from "../../lib/optBands";
 import type { SweepProgress } from "../../lib/sweep";
 import { zinfSuffix, type ZInfStatus } from "../../lib/zinf";
 import { ThemeContext } from "../hooks";
@@ -50,6 +51,7 @@ export function SmithChart({
   trial = false,
   trialFeeds,
   trialWorstFeed,
+  trialBands = null,
   interactive = false,
   designKey = "",
   stale = false,
@@ -114,6 +116,12 @@ export function SmithChart({
    *  (#785). That ring is drawn bright and the rest dimmed — without it eight
    *  equal rings say "something is moving" but not what is being optimised. */
   trialWorstFeed?: number | undefined;
+  /** A band run's markers (AK 0.97.1): one per band, each with a short
+   *  fading trail of its last positions and labelled with its MHz, in the
+   *  band's colour (the bands readout's). The band the minimax is chasing
+   *  gets the bright ring. While they are drawn, a trial `r`/`x` ring (the
+   *  worst band's Z again) is not. They outlive the run until the next edit. */
+  trialBands?: BandMarks | null | undefined;
   /** The chart zooms and pans (wheel / pinch / drag / keys) — the stage's
    *  chart. Off, it is a fixed picture of the whole chart: a thumbnail is a
    *  button to pick the view, not a surface to navigate. */
@@ -851,8 +859,11 @@ export function SmithChart({
     // balance rather than feed 0 alone, which the minimax objective may not
     // even be the one chasing. Falls back to r/x when the proposer has no
     // table — single-feed designs, and any other source of a trial point.
+    const bandMarks = trialBands && trialBands.bands.length > 0 ? trialBands : null;
     const markerPoints: Array<{ re: number; im: number; fi: number }> = trial
-      ? trialFeeds && trialFeeds.length > 0
+      ? bandMarks
+        ? []
+        : trialFeeds && trialFeeds.length > 0
         ? trialFeeds.map((f, fi) => ({ re: f.z_re, im: f.z_im, fi }))
         : r > 0 || x !== 0
           ? [{ re: r, im: x, fi: 0 }]
@@ -911,6 +922,51 @@ export function SmithChart({
       ctx.strokeStyle = `rgba(${PC.bgRgb}, 0.85)`;
       ctx.lineWidth = 1;
       ctx.stroke();
+    }
+
+    // A band run's markers, over everything else. Each band: its trail as
+    // small dots fading towards the oldest, then its head as a hollow ring
+    // (the trial grammar: being tried, not settled), labelled with its MHz.
+    // The worst band's ring is the bright one and is painted last, for the
+    // reason the worst feed's is above.
+    if (bandMarks) {
+      const order = [
+        ...bandMarks.bands.filter((b) => b.index !== bandMarks.worst),
+        ...bandMarks.bands.filter((b) => b.index === bandMarks.worst),
+      ];
+      ctx.font = CHART_FONT.readout;
+      for (const b of order) {
+        if (!b.live || b.trail.length === 0) continue;
+        const pts = b.trail.map((p) => {
+          const { gRe, gIm } = reflectionCoefficient(p.re, p.im, b.z0_ohms);
+          return S(gRe, gIm);
+        });
+        const n = pts.length;
+        // Oldest faintest: 0.15 up to 0.6 just behind the head, each step a
+        // segment and a dot, so the path reads as motion towards the head.
+        const alpha = (i: number) => 0.15 + (0.45 * (i + 1)) / Math.max(n - 1, 1);
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < n - 1; i++) {
+          ctx.strokeStyle = feedColor(b.index, alpha(i));
+          ctx.beginPath();
+          ctx.moveTo(pts[i].x, pts[i].y);
+          ctx.lineTo(pts[i + 1].x, pts[i + 1].y);
+          ctx.stroke();
+          ctx.fillStyle = feedColor(b.index, alpha(i));
+          ctx.beginPath();
+          ctx.arc(pts[i].x, pts[i].y, 2.5, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+        const head = pts[n - 1];
+        const isWorst = bandMarks.worst === null || b.index === bandMarks.worst;
+        ctx.strokeStyle = feedColor(b.index, isWorst ? 0.85 : 0.6);
+        ctx.lineWidth = isWorst ? 2 : 1.5;
+        ctx.beginPath();
+        ctx.arc(head.x, head.y, isWorst ? 5 : 4, 0, 2 * Math.PI);
+        ctx.stroke();
+        ctx.fillStyle = feedColor(b.index, 0.95);
+        ctx.fillText(`${fmtFreq(b.freq_mhz)}`, head.x + 7, head.y - 6);
+      }
     }
 
     // Top-left summary: one row per feed (when multi-feed) or one row
@@ -1029,7 +1085,7 @@ export function SmithChart({
     // and `trialWorstFeed` likewise carry the whole per-eval picture (#789):
     // r/x still change every frame on a multi-feed run, but they are only
     // feed 0, so a run where feed 0 sat still would freeze every ring.
-  }, [r, x, z0, size, sz, k, sweep, paramSweep, measured, measFreqMhz, running, progress, paramSweepRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme, view, stale, curves, pins]);
+  }, [r, x, z0, size, sz, k, sweep, paramSweep, measured, measFreqMhz, running, progress, paramSweepRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, trialBands, theme, view, stale, curves, pins]);
 
   // data-connect mirrors the trail mode (locus vs. dot cloud) for tests —
   // canvas pixels are invisible to jsdom, the attribute is not (the same
@@ -1047,6 +1103,18 @@ export function SmithChart({
       data-zoom={String(view.zoom)}
       data-curves={curvesAttr(curves)}
       data-pins={pinsAttr(pins)}
+      // The band run's markers for tests: "MHz:trail[:off]" per band, the
+      // worst band's entry marked with "*".
+      data-bands={
+        trialBands
+          ? trialBands.bands
+              .map(
+                (b) =>
+                  `${fmtFreq(b.freq_mhz)}:${b.trail.length}${b.live ? "" : ":off"}${b.index === trialBands.worst ? "*" : ""}`,
+              )
+              .join(",")
+          : ""
+      }
       // The parameter trail for tests: "param:first→last:points", plus Z*
       // when the sweep has one (density only).
       data-trail={

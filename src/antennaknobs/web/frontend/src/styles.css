@@ -3801,6 +3801,14 @@ canvas {
   font-size: var(--text-xs);
   color: var(--muted);
 }
+.opt-bands-swatch {
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-right: 0.3em;
+  border-radius: 50%;
+  vertical-align: 0.05em;
+}
 .opt-bands-readout {
   margin-top: var(--space-2);
   font-size: var(--text-xs);

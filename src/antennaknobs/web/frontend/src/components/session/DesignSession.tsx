@@ -1669,6 +1669,8 @@ function DesignSessionBody({
     updateKnobOpt,
     optMarked,
     optRestarted,
+    optBandMarks,
+    optPaceMs,
     optMenuOpen,
     optMenuPaused,
     setOptMenuOpen,
@@ -3526,6 +3528,7 @@ function DesignSessionBody({
             setMeanWeight: setOptMeanWeight,
             defaultFreq: measFreq,
           }}
+          optPaceMs={optPaceMs}
           optState={{
             marked: optMarked,
             restarted: optRestarted,
@@ -4495,6 +4498,7 @@ function DesignSessionBody({
       // Smith dot would sit frozen while the readout ticks (#773). The
       // per-eval frames carry the trial Z, so hand it to the chart.
       liveZ={optLiveZ}
+      liveBands={optBandMarks}
       preview={preview}
       measured={measured}
       pattern={pattern}
@@ -4834,6 +4838,7 @@ function DesignSessionBody({
                       // thumbnail is the same chart, so a frozen dot there
                       // would be the same defect at a smaller size.
                       liveZ={optLiveZ}
+                      liveBands={optBandMarks}
                       preview={preview}
                       measured={measured}
                       pattern={pattern}

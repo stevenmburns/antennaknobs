@@ -31,6 +31,7 @@ import { ChartFrequency, ChartKnobSmith, knobTable } from "./ChartFrequency";
 import { ChartLegend, type ChartLegendData, legendShown, refusedCount } from "./ChartLegend";
 import { FilesPanel, type FilesViewData } from "./FilesPanel";
 import { type PatternCellRow, PatternCellsTable } from "./PatternCellsTable";
+import type { BandMarks } from "../../lib/optBands";
 import { SchematicPanel } from "./SchematicPanel";
 
 // The render half of the view registry (the metadata half — id, label,
@@ -108,6 +109,9 @@ export type ViewRenderProps = {
     feeds?: Array<{ z_re: number; z_im: number }>;
     worst_feed?: number;
   } | null;
+  /** A band run's per-band Smith markers (AK 0.97.1); null or omitted when
+   *  there is no band run to show. */
+  liveBands?: BandMarks | null;
   schematicSvg: string | null;
   schematicUnavailable: boolean;
   /** The Files view's texts (AK#1428). Optional: thumbnail call sites omit
