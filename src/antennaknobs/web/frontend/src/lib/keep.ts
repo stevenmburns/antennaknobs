@@ -20,7 +20,7 @@
 import type { SolveRequest } from "./api";
 import { apiFetch } from "./pin";
 
-export type KeepOrigin = "chart" | "sweep pins" | "pattern pins";
+export type KeepOrigin = "chart" | "sweep pins" | "pattern pins" | "optimize";
 export type KeepForm = "analysis" | "study";
 
 /** A solve request as a keep sends it: plain data, without the fields that
@@ -60,7 +60,20 @@ export type KeepBody =
       values?: number[];
     }
   | { origin: "sweep pins"; form: "study"; name?: string; pins: SweepPinKeep[] }
-  | { origin: "pattern pins"; form: "study"; name?: string; pins: PatternPinKeep[] };
+  | { origin: "pattern pins"; form: "study"; name?: string; pins: PatternPinKeep[] }
+  | {
+      // A band run (AK#1906): the tab's request, the knobs it moved, the
+      // bands it sent and its answer; the server keeps it as an an.Optimize
+      // starting where the run began (`keep.optimize_from_run`).
+      origin: "optimize";
+      form: "study";
+      name?: string;
+      tab: KeepRequest;
+      free: { name: string; min: number; max: number }[];
+      bands: { freq: number }[];
+      mean_weight: number;
+      result: unknown;
+    };
 
 /** Why a set of sweep pins cannot be kept as one study, or null: a study
  *  sweeps one thing, so every pin must sweep the same x (kind and, for a

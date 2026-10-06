@@ -123,7 +123,8 @@ export function AnalysisSelect({
           <optgroup label="Studies">
             {studies.map((a) => {
               const why = blocked(a);
-              const label = entryLabel(a);
+              // A kept band run (AK#1906) is jumped to, not drawn.
+              const label = a.kept ? `${entryLabel(a)} (jump to)` : entryLabel(a);
               const shown = edited && a.name === current ? `${label} (edited)` : label;
               return (
                 <option

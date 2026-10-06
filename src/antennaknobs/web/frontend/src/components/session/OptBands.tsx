@@ -168,6 +168,19 @@ export function BandsEditor({ bands }: { bands: OptBandsControl }) {
   );
 }
 
+/** The readout's part in keeping band runs (AK#1906): a kept run the tab
+ *  jumped to (`shown`: its stored table instead of a run's, until a run
+ *  answers), and the Keep action on a fresh run's result. */
+export type KeptReadout = {
+  /** The kept run's name and stored table, while it is what the tab shows. */
+  shown: { name: string; result: OptimizeResult | null } | null;
+  /** Run it again from its start; null with `runBlocked` saying why not. */
+  onRun: (() => void) | null;
+  runBlocked: string | null;
+  /** Keep the fresh result as a study; null: nothing to keep. */
+  onKeep: (() => void) | null;
+};
+
 // Under the dial, full width: while a run is in flight, each band's SWR from
 // the latest progress frame and the worst; once it settles, the before/after
 // table; and a refusal's text, which is too long for the narrow column.
@@ -177,6 +190,7 @@ export function BandsReadout({
   result,
   error,
   paceMs = null,
+  kept = null,
 }: {
   running: boolean;
   progress: OptProgress | null;
@@ -185,7 +199,33 @@ export function BandsReadout({
   /** Wall time per solved point so far, ms: how fast this run is going
    *  (a hosted run is far slower than a local one). */
   paceMs?: number | null;
+  kept?: KeptReadout | null;
 }) {
+  if (kept?.shown && !running && !error) {
+    const r = kept.shown.result;
+    return (
+      <div className="opt-bands-kept" role="group" aria-label="Kept run">
+        <div className="opt-bands-kept-head">
+          Kept run <strong>{kept.shown.name}</strong>: its stored answer
+        </div>
+        {r ? (
+          <BandTable result={r} />
+        ) : (
+          <div className="gear-menu-hint">No stored result: run it to see one.</div>
+        )}
+        <button
+          type="button"
+          className="opt-zo-reset"
+          disabled={kept.onRun === null}
+          title={kept.runBlocked ?? "Put the knobs back at the run's start and optimise again"}
+          onClick={() => kept.onRun?.()}
+        >
+          Run again from its start
+        </button>
+        {kept.runBlocked && <div className="gear-menu-hint">{kept.runBlocked}</div>}
+      </div>
+    );
+  }
   if (error) {
     return (
       <div className="opt-bands-readout opt-readout-err" role="alert">
@@ -220,15 +260,43 @@ export function BandsReadout({
     );
   }
   if (!running && result?.objective === "bands" && result.bands_after) {
-    const before = result.bands_before ?? [];
-    // Each after row's own start: matched by `index` when both carry it,
-    // else by position (a backend that predates the field).
-    const startOf = (b: OptBandRecord, i: number): OptBandRecord | undefined =>
-      (b.index != null ? before.find((r) => r.index === b.index) : undefined) ??
-      before[i];
     const notes = bandResultNotes(result);
     return (
       <>
+      <BandTable result={result} />
+      {notes.length > 0 && (
+        <ul className="opt-bands-readout opt-bands-notes" aria-label="Band run notes">
+          {notes.map((n) => (
+            <li key={n}>{n}</li>
+          ))}
+        </ul>
+      )}
+      {kept?.onKeep && (
+        <button
+          type="button"
+          className="opt-zo-reset opt-bands-keep"
+          title="Keep this run as a study: its start, knobs, ranges, bands and answer, which `antennaknobs analyze --study` runs again"
+          onClick={() => kept.onKeep?.()}
+        >
+          Keep…
+        </button>
+      )}
+      </>
+    );
+  }
+  return null;
+}
+
+// A band run's before/after table: each band's SWR at the start and at the
+// answer, the worst and the mean under them.
+function BandTable({ result }: { result: OptimizeResult }) {
+  const before = result.bands_before ?? [];
+  // Each after row's own start: matched by `index` when both carry it,
+  // else by position (a backend that predates the field).
+  const startOf = (b: OptBandRecord, i: number): OptBandRecord | undefined =>
+    (b.index != null ? before.find((r) => r.index === b.index) : undefined) ??
+    before[i];
+  return (
       <table className="opt-bands-readout opt-bands-table" aria-label="Band results">
         <thead>
           <tr>
@@ -238,7 +306,7 @@ export function BandsReadout({
           </tr>
         </thead>
         <tbody>
-          {result.bands_after.map((b, i) => (
+          {(result.bands_after ?? []).map((b, i) => (
             <tr key={`${b.freq_mhz}:${b.feed}`}>
               <td>
                 <Swatch index={b.index ?? i} />
@@ -266,17 +334,7 @@ export function BandsReadout({
           )}
         </tfoot>
       </table>
-      {notes.length > 0 && (
-        <ul className="opt-bands-readout opt-bands-notes" aria-label="Band run notes">
-          {notes.map((n) => (
-            <li key={n}>{n}</li>
-          ))}
-        </ul>
-      )}
-      </>
-    );
-  }
-  return null;
+  );
 }
 
 /** What the result table alone does not say (AK 0.97.1, AK#1909): the run

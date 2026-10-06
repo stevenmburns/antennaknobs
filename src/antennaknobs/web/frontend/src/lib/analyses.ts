@@ -16,6 +16,7 @@ import type {
   StateCross,
   StepCross,
 } from "./chartCells";
+import { parseKept, type KeptRun } from "./keptRun";
 import { DENSITY, paramValues, type ParamSweepSpec } from "./paramSweep";
 import type { SweepRangeSpec } from "./params";
 import { specRange, type SweepRange } from "./sweep";
@@ -167,6 +168,10 @@ export type AnalysisEntry = {
   /** The heading it is listed under (AK#1907, `analyses.group_of`): its
    *  `group=`, else "General". Absent from an older server: no headings. */
   group?: string;
+  /** A kept multi-band optimize run (AK#1906, served as a study): picking
+   *  it jumps to it rather than drawing a chart, so its `workbench` is the
+   *  inert "runs: false" and this is what it holds (lib/keptRun.ts). */
+  kept?: KeptRun;
   /** The analysis as data (`analyses.to_data`), which "copy as analysis"
    *  and "keep as study" send back (AK#1757 step 7 unit 4); opaque here. */
   spec?: unknown;
@@ -537,6 +542,10 @@ function parseWorkbench(w: unknown): AnalysisWorkbench | null {
   return { runs: false, why: typeof o.why === "string" ? o.why : "not runnable here" };
 }
 
+/** What a kept optimize run's (inert) workbench says: a chart never runs
+ *  it; the picker jumps to it instead. */
+export const KEPT_NOT_A_CHART = "a kept optimize run: picking it jumps to its stored answer";
+
 /** /analyses' body as entries; anything malformed is dropped (an older
  *  server, a stub answering `{}`: no analyses, not an error). */
 export function parseAnalyses(body: unknown): AnalysisEntry[] {
@@ -546,7 +555,10 @@ export function parseAnalyses(body: unknown): AnalysisEntry[] {
   for (const item of list) {
     if (!item || typeof item !== "object") continue;
     const o = item as Record<string, unknown>;
-    const workbench = parseWorkbench(o.workbench);
+    const kept = parseKept(o.workbench);
+    const workbench: AnalysisWorkbench | null = kept
+      ? { runs: false, why: KEPT_NOT_A_CHART }
+      : parseWorkbench(o.workbench);
     if (typeof o.name !== "string" || !workbench) continue;
     out.push({
       name: o.name,
@@ -558,6 +570,7 @@ export function parseAnalyses(body: unknown): AnalysisEntry[] {
       workbench,
       study: parseStudy(o.study),
       ...(typeof o.group === "string" && o.group ? { group: o.group } : {}),
+      ...(kept ? { kept } : {}),
       ...(o.spec !== undefined ? { spec: o.spec } : {}),
     });
   }
