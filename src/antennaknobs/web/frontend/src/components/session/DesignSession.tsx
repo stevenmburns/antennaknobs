@@ -4069,6 +4069,10 @@ function DesignSessionBody({
     const ctl = chartControl(i);
     const setAt = (f: (c: AnalysisChartState) => AnalysisChartState) => setChartAt(i, f);
     const pickedNow = pickedNameOf(m);
+    // The picked knob analysis's own range, while the chart still runs it
+    // (what ↺ goes back to), else null.
+    const pickedSpec =
+      pickedName(m.now) !== null && m.now.picked?.kind === "knob" ? (m.now.picked.spec ?? null) : null;
     const analyses = {
       entries: zparamAnalyses,
       current: pickedNow,
@@ -4572,11 +4576,21 @@ function DesignSessionBody({
           setZparamSpecAt(i, next);
         }}
         onParam={(param) => selectZparamParam(i, param)}
+        // ↺ goes back to the picked analysis's own range while one is
+        // picked (pickedEdited: "the chart's ↺ restores the range"), not to
+        // the knob's: from "height" it read "height (edited)" over base's
+        // own 1–16 m with height's three grounds still ticked (AC6LA, QRZ).
         onReset={() => {
           ctl.armParam();
-          selectZparamParam(i, m.spec.param);
+          if (pickedSpec) {
+            setZparamSpecAt(i, pickedSpec);
+            setZparamXLogAt(i, null);
+          } else {
+            selectZparamParam(i, m.spec.param);
+          }
         }}
-        isDefault={sameSpec(m.spec, zparamDefaultFor(m.spec.param))}
+        isDefault={sameSpec(m.spec, pickedSpec ?? zparamDefaultFor(m.spec.param))}
+        resetTitle={pickedSpec ? "Back to this analysis's own range" : undefined}
         values={m.values}
         run={{
           running: runners.some((r) => r.param.running),

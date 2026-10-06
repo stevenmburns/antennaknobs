@@ -37,6 +37,7 @@ export function ZParamControls({
   onParam,
   onReset,
   isDefault,
+  resetTitle,
   values,
   run,
   costHint = null,
@@ -52,8 +53,11 @@ export function ZParamControls({
   /** Pick a parameter: its default range, points and spacing. */
   onParam: (param: string) => void;
   onReset: () => void;
-  /** The spec is its parameter's default (the reset button has nothing to do). */
+  /** The spec is what ↺ goes back to (the reset button has nothing to do). */
   isDefault: boolean;
+  /** The reset button's tooltip, when it goes back to something other than
+   *  the parameter's default range (a picked analysis's own). */
+  resetTitle?: string | undefined;
   /** The values the spec sweeps, for the tooltip. */
   values: readonly number[];
   /** The sweep in hand: its progress, and the Stop / Run it offers. */
@@ -214,7 +218,7 @@ export function ZParamControls({
           type="button"
           className="zparam-reset"
           disabled={isDefault}
-          title="Back to this parameter's default range"
+          title={resetTitle ?? "Back to this parameter's default range"}
           onClick={onReset}
         >
           ↺
