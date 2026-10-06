@@ -115,6 +115,7 @@ Framework-free, so it is tested without a server.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from pathlib import PurePath
 
 from .. import analyses as an
 from .. import analysis_run as ar
@@ -232,6 +233,13 @@ def gaps(a: an.Analysis, builder=None) -> list[str]:
     held = hd.analysis_refusal(a, builder)
     if held:
         out.append(held)
+    elif a.hold is not None and a.hold.bands:
+        # Its views are per-band SWR along the sweep, which the knob chart
+        # does not draw (it draws one curve per cell, and no Swr view).
+        out.append(
+            "a hold across several bands: `antennaknobs analyze` draws it (each "
+            "band's SWR along the sweep, and the knobs); not in the workbench yet"
+        )
     if an.is_pattern(a):
         # Every view of a pattern is a pattern view (`an.Analysis` refuses
         # any other when built), and the chart draws each; a design's own
@@ -677,10 +685,63 @@ def _pattern(a: an.Analysis, builder, crosses: dict) -> dict:
     }
 
 
+def _optimize_run(o: an.Optimize, builder, req: Mapping) -> dict:
+    """A kept multi-band run (AK#1906) as the workbench jumps to it: its
+    start (the knobs it sets over the design's defaults), its knobs and
+    ranges, its bands and form, and its stored result. The tab must be on
+    the run's variant: a jump sets knobs, never the variant."""
+    why = an.problems(o, builder)
+    if why:
+        return {"runs": False, "why": "; ".join(why)}
+    here = req.get("variant") or "default"
+    kept = o.start.variant or "default"
+    if not str(o.design).startswith("@") and here != kept:
+        return {
+            "runs": False,
+            "why": f"kept on the {kept} variant: switch to it to jump to this run",
+        }
+    r = o.result
+    return {
+        "runs": True,
+        "kind": "optimize",
+        "state": {k: v for k, v in o.start.settings.items()},
+        "free": [{"name": k.name, "min": k.min, "max": k.max} for k in o.knobs],
+        "bands": [
+            {
+                "freq": b.freq,
+                "objective": b.objective_in("swr"),
+                "feed": b.feed,
+                "z0": b.z0,
+            }
+            for b in o.bands
+        ],
+        "mode": o.mode,
+        "mean_weight": o.mean_weight,
+        "z0": o.z0,
+        "result": None
+        if r is None
+        else {
+            "knobs": dict(r.knobs),
+            "bands": [
+                {
+                    "freq": b.freq,
+                    "swr_before": b.swr_before,
+                    "swr_after": b.swr_after,
+                }
+                for b in r.bands
+            ],
+        },
+        "note": None,
+    }
+
+
 def workbench(a: an.Analysis, builder, req: Mapping, *, hosted: bool = False) -> dict:
     """How the workbench runs ``a`` on ``builder`` (built from ``req``).
     ``hosted``: the shared instance, which offers no callable metric but
-    the catalog's (`hosted_refusal`)."""
+    the catalog's (`hosted_refusal`). A kept multi-band run is jumped to,
+    not drawn (`_optimize_run`)."""
+    if an.is_optimize(a):
+        return _optimize_run(a, builder, req)
     why = an.problems(a, builder) + gaps(a, builder)
     if hosted and (refusal := hosted_refusal(a)):
         why.append(refusal)
@@ -803,18 +864,42 @@ def offer(builder, req: Mapping, *, hosted: bool = False) -> list[dict]:
     ]
 
 
-def offer_studies(builder, req: Mapping, *, hosted: bool = False) -> list[dict]:
+def _same_deck(design: str, deck: str) -> bool:
+    """Whether a kept run's ``@path`` design is the opened deck ``@name``:
+    the same file name, wherever the run found it."""
+    return (
+        design.startswith("@")
+        and deck.startswith("@")
+        and PurePath(design[1:].replace("\\", "/")).name == PurePath(deck[1:]).name
+    )
+
+
+def offer_studies(
+    builder, req: Mapping, *, hosted: bool = False, deck: str | None = None
+) -> list[dict]:
     """The studies the tab of the design ``req`` names lists, as
     ``/analyses`` serves them (module docstring): the module-level studies
     crossing it, and its own Builder's method studies (this design against
     its references, on this tab only). A user study file not allowed yet is
     never imported, so which designs it crosses is not known: it is not
-    served here, and ``analyze --list-studies`` names it."""
+    served here, and ``analyze --list-studies`` names it. ``deck``: the tab
+    is an opened deck, ``@<its file name>``, and a kept band run on a deck
+    of that name is listed on it too (AK#1906)."""
     from .. import studies
 
     geometry = str(req.get("geometry") or "")
+    found = studies.pool(geometry, builder)
+    listed = studies.including(geometry, found)
+    if deck is not None:
+        listed += [
+            st
+            for st in found.studies
+            if an.is_optimize(st.analysis)
+            and st not in listed
+            and _same_deck(st.analysis.design, deck)
+        ]
     out = []
-    for st in studies.including(geometry, studies.pool(geometry, builder)):
+    for st in listed:
         a = st.analysis
         out.append(
             {

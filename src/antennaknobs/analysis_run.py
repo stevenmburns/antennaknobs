@@ -198,6 +198,8 @@ def density_moved(a: an.Analysis, builder) -> str | None:
 def cli_gaps(a: an.Analysis, builder=None) -> list[str]:
     """What refuses ``a`` as a whole in the CLI (on ``builder``, when
     given, which resolves a knob named directly)."""
+    if an.is_optimize(a):
+        return []
     out = []
     held = hold.analysis_refusal(a, builder)
     if held:
@@ -212,7 +214,7 @@ def cli_gaps(a: an.Analysis, builder=None) -> list[str]:
 
 def skipped_views(a: an.Analysis) -> list[str]:
     """Views left out of a run that draws at least one view."""
-    if not any(_draws(v, a) for v in a.views):
+    if an.is_optimize(a) or not any(_draws(v, a) for v in a.views):
         return []
     return [_view_why(v, a) for v in a.views if not _draws(v, a)]
 
@@ -230,7 +232,10 @@ def _cross_words(c: an.Cross) -> str:
 
 def summary(a: an.Analysis, builder) -> str:
     """One line: what is swept, over what, into how many curves (a pattern:
-    at what frequency, into how many patterns)."""
+    at what frequency, into how many patterns; a kept optimize run: what it
+    tuned, across which bands, and what it found)."""
+    if an.is_optimize(a):
+        return optimize_summary(a)
     parts = []
     for s in a.sweeps:
         r = an.resolve(s.knob, builder)
@@ -260,6 +265,8 @@ def summary(a: an.Analysis, builder) -> str:
     if a.hold is not None:
         held = ", ".join(an._knob_name(k) for k in a.hold.adjust)
         text += f"; hold {a.hold.objective} on {held}"
+        if a.hold.bands:
+            text += f" across {'/'.join(f'{b.freq:g}' for b in a.hold.bands)} MHz"
     return text + f"; views {', '.join(type(v).__name__ for v in a.views)}"
 
 
@@ -282,6 +289,22 @@ def _own_range_words(s: an.Sweep, builder) -> str:
     if s.points is None and (r.step is not None or r.points is not None):
         words += f", {r.count()} points"
     return words + ")"
+
+
+def optimize_summary(o: an.Optimize) -> str:
+    """A kept multi-band run in one line (AK#1906)."""
+    mhz = "/".join(f"{b.freq:g}" for b in o.bands)
+    form = f"minimax, balance {o.mean_weight:g}" if o.mode == "minimax" else o.mode
+    text = (
+        f"optimize {', '.join(k.name for k in o.knobs)} across {mhz} MHz "
+        f"({form}) on {o.design}"
+    )
+    if o.result is not None:
+        after = [r.swr_after for r in o.result.bands if r.swr_after is not None]
+        before = [r.swr_before for r in o.result.bands if r.swr_before is not None]
+        if after and before:
+            text += f"; kept: worst SWR {max(before):.3g} -> {max(after):.3g}"
+    return text
 
 
 def list_lines(builder) -> list[str]:
@@ -1143,6 +1166,13 @@ def run(
             if frequency and not np.array_equal(xs, session_xs):
                 print(f"  {p.label}: {_grid_words(s, p.builder, xs)}")
             try:
+                if a.hold is not None and a.hold.bands:
+                    # A band hold (AK#1906): a curve per band, each its Z
+                    # at the point's optimised knobs, a gap a NaN.
+                    for name, bz in band_curves(p.label, held[p.label], a.hold):
+                        curves.append((name, xs, bz))
+                        out["curves"][name] = (list(xs), list(bz))
+                    continue
                 if a.hold is not None:
                     # A held line (step 6, solved above): the optimizer at
                     # every point, each point's Z at its optimised knobs, a
@@ -1168,15 +1198,24 @@ def run(
             _report_refused(refused)
             raise SystemExit(f"analysis {a.name!r}: every curve was refused")
         if csv is not None:
+            # A band hold's cell is one CSV curve, every band's columns
+            # beside its knobs, not the per-band curves its views draw.
+            band_held = a.hold is not None and bool(a.hold.bands)
             csv.write(
                 "MHz" if frequency else knob,
-                [
+                (
+                    [held_csv_curve(name, pts) for name, pts in held.items()]
+                    if band_held
+                    else []
+                )
+                + [
                     held_csv_curve(name, held[name])
                     if name in held
                     else sweep_csv.impedance_curve(
                         name, x, z, swr_of(z, z0) if frequency else None
                     )
                     for name, x, z in curves
+                    if not band_held
                 ]
                 # A MetricPlot's columns, a curve per cell beside them
                 # (AK#1828): their own x, which `sweep_csv.table` aligns.
@@ -1256,8 +1295,22 @@ def hold_cell(p: _Prepared, a: an.Analysis, xs, z0: float) -> list[hold.HeldPoin
     over them), each point solved through the cell's engine factory at the
     hold's Z0 (the session's when it names none). `hold.HoldRefused` names a
     cell the hold cannot serve."""
-    free = hold.free_of(a.hold, p.builder)
     z0h = a.hold.z0 if a.hold.z0 is not None else z0
+    if a.hold.bands:
+        # A band hold (AK#1906): each point one band run, every evaluation
+        # one build solved at every band, as `optimize --bands` evaluates.
+        from . import band_opt
+
+        free = hold.band_free_of(a.hold, p.builder)
+        return hold.hold_bands_line(
+            xs,
+            p.knobs[0],
+            free,
+            a.hold,
+            sweep_fn=band_opt.builder_sweep_fn(p.builder, p.factory, z0h),
+            defaults=hold.band_defaults_of(p.builder, free),
+        )
+    free = hold.free_of(a.hold, p.builder)
     return hold.hold_line(
         [float(x) for x in xs],
         p.knobs[0],
@@ -1269,6 +1322,26 @@ def hold_cell(p: _Prepared, a: an.Analysis, xs, z0: float) -> list[hold.HeldPoin
     )
 
 
+def band_curves(label: str, pts, h: an.Hold) -> list[tuple[str, np.ndarray]]:
+    """A band hold's curves (AK#1906): one per band, ``"<cell>, <f> MHz"``,
+    each its Z at every point's optimised knobs, a gap (or a band the engine
+    read nothing at) a NaN. What its Swr view draws: each band's SWR along
+    the sweep."""
+    out = []
+    for i, b in enumerate(h.bands):
+        zs = []
+        for pt in pts:
+            rec = pt.bands[i] if pt.converged and i < len(pt.bands) else {}
+            re, im = rec.get("z_re"), rec.get("z_im")
+            zs.append(
+                complex(re, im)
+                if isinstance(re, (int, float)) and isinstance(im, (int, float))
+                else complex(np.nan, np.nan)
+            )
+        out.append((f"{label}, {b.freq:g} MHz", np.array(zs)))
+    return out
+
+
 def held_lines(label: str, knob: str, pts, h: an.Hold) -> list[str]:
     """What a held curve says beside its numbers: one summary line, then
     every gap with its reason, and where the recovery cold-started."""
@@ -1276,9 +1349,18 @@ def held_lines(label: str, knob: str, pts, h: an.Hold) -> list[str]:
     names = ", ".join(an._knob_name(k) for k in h.adjust)
     solves = sum(pt.n_solves for pt in pts)
     resid = [pt.residual for pt in pts if pt.converged and pt.residual is not None]
-    worst = f", worst residual {max(resid):.3g} ohm" if resid else ""
+    if h.bands:
+        # A point's residual is its worst band's value: SWR, or ohms.
+        unit = "" if h.objective == "swr" else " ohm"
+        what = "SWR" if h.objective == "swr" else "residual"
+        worst = f", worst band {what} {max(resid):.3g}{unit}" if resid else ""
+        mhz = "/".join(f"{b.freq:g}" for b in h.bands)
+        target = f"{h.objective} across {mhz} MHz ({h.form})"
+    else:
+        worst = f", worst residual {max(resid):.3g} ohm" if resid else ""
+        target = h.objective
     lines = [
-        f"{label}: held {h.objective} on {names}: {len(pts) - len(gaps)} of "
+        f"{label}: held {target} on {names}: {len(pts) - len(gaps)} of "
         f"{len(pts)} points held, {len(gaps)} gap{'s' if len(gaps) != 1 else ''}, "
         f"{solves} solves{worst}"
     ]
@@ -1301,15 +1383,29 @@ def _print_held_table(knob, held, ground_label):
         print(f"== {knob} sweep, held: {name} ==")
         print(f"ground: {ground_label[name]}")
         names = list(pts[0].params) if pts else []
-        head = f"{knob:>12} {'R (Ω)':>9} {'X (Ω)':>9}"
+        # A band hold (AK#1906): each band's SWR where one Z would go.
+        mhz = [r["freq_mhz"] for r in next((pt.bands for pt in pts if pt.bands), ())]
+        if mhz:
+            head = f"{knob:>12}" + "".join(f" {f'SWR {f:g}':>11}" for f in mhz)
+        else:
+            head = f"{knob:>12} {'R (Ω)':>9} {'X (Ω)':>9}"
         print(head + "".join(f" {n:>14}" for n in names))
         for pt in pts:
             if not pt.converged:
                 print(f"{pt.x:>12.6g}  gap: {pt.reason}")
                 continue
-            z = pt.z
-            row = f"{pt.x:>12.6g} {z.real:>9.3f} {z.imag:>+9.3f}"
+            if mhz:
+                row = f"{pt.x:>12.6g}" + "".join(
+                    f" {_swr_text(r.get('swr')):>11}" for r in pt.bands
+                )
+            else:
+                z = pt.z
+                row = f"{pt.x:>12.6g} {z.real:>9.3f} {z.imag:>+9.3f}"
             print(row + "".join(f" {pt.params[n]:>14.6g}" for n in names))
+
+
+def _swr_text(v) -> str:
+    return f"{v:.3f}" if isinstance(v, (int, float)) and math.isfinite(v) else "-"
 
 
 def held_csv_curve(label, pts) -> sweep_csv.Curve:
@@ -1320,7 +1416,21 @@ def held_csv_curve(label, pts) -> sweep_csv.Curve:
     def col(f):
         return [f(pt) if pt.converged else None for pt in pts]
 
-    cols = [("R_ohm", col(lambda pt: pt.z.real)), ("X_ohm", col(lambda pt: pt.z.imag))]
+    bands = next((pt.bands for pt in pts if pt.bands), ())
+    if bands:
+        # A band hold (AK#1906): R, X and SWR per band.
+        cols = []
+        for i, r in enumerate(bands):
+            f = f"{r['freq_mhz']:g}MHz"
+            for key, head in (("z_re", "R_ohm"), ("z_im", "X_ohm"), ("swr", "SWR")):
+                cols.append(
+                    (f"{head}@{f}", col(lambda pt, i=i, key=key: pt.bands[i].get(key)))
+                )
+    else:
+        cols = [
+            ("R_ohm", col(lambda pt: pt.z.real)),
+            ("X_ohm", col(lambda pt: pt.z.imag)),
+        ]
     cols += [(n, col(lambda pt, n=n: pt.params[n])) for n in names]
     return label, [pt.x for pt in pts], cols
 

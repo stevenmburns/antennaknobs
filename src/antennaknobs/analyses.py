@@ -1153,18 +1153,333 @@ _SQUARE = {
 }
 
 
+# ── several bands (AK#1906) ───────────────────────────────────────────────────
+#
+# A multi-band run as a spec value: the bands an `Optimize` (one kept run) and
+# a band `Hold` (the run at every sweep point) tune across, the knobs it may
+# move, and what a run found. They mirror ``web.optimize_bands`` (`Band` is its
+# band, by the CLI's names), which the runners call; the values here only
+# validate shape, so a design can declare one without importing scipy.
+
+#: The band objectives, by their canonical names (``optimize_bands``).
+BAND_OBJECTIVES = ("swr", "resonance", "match_z0")
+
+#: The forms of a multi-band run (``optimize_bands.MODES``).
+BAND_MODES = ("minimax", "root", "sequential")
+
+#: The minimax form's default balance ``w`` in ``J = (1 - w) * worst + w *
+#: mean`` (``optimize_bands.DEFAULT_MEAN_WEIGHT``, which a test holds equal).
+BANDS_MEAN_WEIGHT = 0.5
+
+#: Most bands in one run (``optimize_bands.MAX_BANDS``).
+MAX_BANDS = 8
+
+#: Equations a root band makes: X = 0 is one, R = Z0 and X = 0 two.
+_BAND_EQUATIONS = {"resonance": 1, "match_z0": 2}
+
+
+def _finite(owner: str, field: str, v, *, positive: bool = False) -> float:
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        raise TypeError(f"{owner}: {field} is a finite number, got {v!r}")
+    if positive and v <= 0:
+        raise ValueError(f"{owner}: {field} is positive, got {v!r}")
+    return float(v)
+
+
+@dataclass(frozen=True)
+class Band:
+    """One band of a multi-band run: its frequency (MHz), its objective
+    (``swr``, ``resonance`` or ``match_z0``; None is the run's: SWR for an
+    `Optimize`, the hold's own for a `Hold`), the feed it is read at, its Z0
+    (None: the run's) and, for the sequential form, the knobs that tune it."""
+
+    freq: float
+    objective: str | None = None
+    feed: int = 0
+    z0: float | None = None
+    knobs: tuple[str, ...] = ()
+
+    _positional: ClassVar[tuple[str, ...]] = ("freq",)
+
+    def __post_init__(self):
+        who = "Band"
+        _set(self, "freq", _finite(who, "freq", self.freq, positive=True))
+        if self.objective is not None and self.objective not in BAND_OBJECTIVES:
+            raise ValueError(
+                f"Band {self.freq:g}: objective is one of "
+                f"{', '.join(BAND_OBJECTIVES)} or None, got {self.objective!r}"
+            )
+        if (
+            isinstance(self.feed, bool)
+            or not isinstance(self.feed, int)
+            or self.feed < 0
+        ):
+            raise TypeError(
+                f"Band {self.freq:g}: feed is an index >= 0, got {self.feed!r}"
+            )
+        if self.z0 is not None:
+            _set(self, "z0", _finite(who, "z0", self.z0, positive=True))
+        knobs = _as_tuple(self.knobs, f"Band {self.freq:g} knobs")
+        if not all(isinstance(k, str) and k for k in knobs):
+            raise TypeError(f"Band {self.freq:g}: knobs are knob names, got {knobs!r}")
+        _set(self, "knobs", knobs)
+
+    def objective_in(self, run: str) -> str:
+        """The band's objective in a run whose own is ``run``."""
+        return self.objective or run
+
+
+def _check_bands(owner: str, bands) -> tuple[Band, ...]:
+    bands = _as_tuple(bands, f"{owner} bands")
+    if not bands or not all(isinstance(b, Band) for b in bands):
+        raise TypeError(f"{owner}: bands holds an.Band values, at least one")
+    if len(bands) > MAX_BANDS:
+        raise ValueError(f"{owner}: at most {MAX_BANDS} bands (got {len(bands)})")
+    seen = set()
+    for b in bands:
+        if (b.freq, b.feed) in seen:
+            raise ValueError(
+                f"{owner}: {b.freq:g} MHz is listed twice at feed {b.feed}: the "
+                "same frequency read at the same feed is one equation, not two"
+            )
+        seen.add((b.freq, b.feed))
+    return bands
+
+
+def _check_weight(owner: str, w) -> float:
+    w = _finite(owner, "mean_weight", w)
+    if not 0.0 <= w <= 1.0:
+        raise ValueError(f"{owner}: mean_weight is within 0..1, got {w!r}")
+    return w
+
+
+@dataclass(frozen=True)
+class Knob:
+    """A knob a multi-band run may move, and its search range: a flat knob
+    or a group leaf (``bands.0.length_factor``), in the knob's own unit."""
+
+    name: str
+    min: float
+    max: float
+
+    _positional: ClassVar[tuple[str, ...]] = ("name", "min", "max")
+
+    def __post_init__(self):
+        if not isinstance(self.name, str) or not self.name:
+            raise TypeError(f"Knob: name is a non-empty string, got {self.name!r}")
+        who = f"Knob {self.name!r}"
+        lo = _finite(who, "min", self.min)
+        hi = _finite(who, "max", self.max)
+        if not lo < hi:
+            raise ValueError(f"{who}: min is below max, got {lo:g}..{hi:g}")
+        _set(self, "min", lo)
+        _set(self, "max", hi)
+
+
+def _swr_or_none(owner: str, field: str, v) -> float | None:
+    # A reading the engine could not make (an open circuit's infinite SWR)
+    # is stored as None: it has no literal `to_code` could print.
+    return None if v is None else _finite(owner, field, v)
+
+
+@dataclass(frozen=True)
+class BandResult:
+    """One band's row of a kept run's table: Z (R, X ohm) and SWR at the
+    start and at the answer, None where the engine read nothing."""
+
+    freq: float
+    z_before: tuple[float, float] | None = None
+    z_after: tuple[float, float] | None = None
+    swr_before: float | None = None
+    swr_after: float | None = None
+
+    _positional: ClassVar[tuple[str, ...]] = ("freq",)
+
+    def __post_init__(self):
+        who = "BandResult"
+        _set(self, "freq", _finite(who, "freq", self.freq, positive=True))
+        for f in ("z_before", "z_after"):
+            z = getattr(self, f)
+            if z is None:
+                continue
+            z = _as_tuple(z, f"{who} {f}")
+            if len(z) != 2:
+                raise TypeError(f"{who} {self.freq:g}: {f} is (R, X), got {z!r}")
+            _set(self, f, tuple(_finite(who, f, v) for v in z))
+        for f in ("swr_before", "swr_after"):
+            _set(self, f, _swr_or_none(who, f, getattr(self, f)))
+
+
+@dataclass(frozen=True)
+class Result:
+    """What a multi-band run found: each free knob's value at the answer,
+    ``((name, value), ...)`` in the run's knob order, and the per-band table
+    (`BandResult`, in the run's band order)."""
+
+    knobs: tuple[tuple[str, float], ...]
+    bands: tuple[BandResult, ...] = ()
+
+    _positional: ClassVar[tuple[str, ...]] = ("knobs",)
+
+    def __post_init__(self):
+        knobs = _as_tuple(self.knobs, "Result knobs")
+        out = []
+        for kv in knobs:
+            kv = _as_tuple(kv, "Result knob")
+            if len(kv) != 2 or not isinstance(kv[0], str) or not kv[0]:
+                raise TypeError(f"Result: a knob is (name, value), got {kv!r}")
+            out.append((kv[0], _finite("Result", kv[0], kv[1])))
+        names = [k for k, _ in out]
+        if len(set(names)) != len(names):
+            raise ValueError(f"Result: a knob is listed twice: {names!r}")
+        _set(self, "knobs", tuple(out))
+        bands = _as_tuple(self.bands, "Result bands")
+        if not all(isinstance(b, BandResult) for b in bands):
+            raise TypeError("Result: bands holds an.BandResult values")
+        _set(self, "bands", bands)
+
+    @property
+    def values(self) -> dict[str, float]:
+        return dict(self.knobs)
+
+
+def _band_equations(bands, objective: str) -> int:
+    return sum(_BAND_EQUATIONS.get(b.objective_in(objective), 0) for b in bands)
+
+
+@dataclass(frozen=True)
+class Optimize:
+    """One multi-band optimize run, kept as a study (AK#1906): the design
+    and the knobs it started from (``start``, an `State` naming its design:
+    a registry name, ``family.design`` with its variant, or a deck as
+    ``@path.nec``), the knobs it may move with their ranges (`Knob`), the
+    bands (`Band`), the form (``mode``, ``mean_weight``, ``tol``,
+    ``max_evals``), the Z0 of a band that names none, the engine and ground
+    (None: the session's), and what the run found (`Result`), which a re-run
+    is compared against. ``group`` is the heading it is listed under."""
+
+    name: str
+    start: State
+    knobs: tuple[Knob, ...]
+    bands: tuple[Band, ...]
+    mode: str = "minimax"
+    mean_weight: float = BANDS_MEAN_WEIGHT
+    tol: float = 0.5
+    max_evals: int | None = None
+    z0: float = 50.0
+    engine: str | None = None
+    ground: str | None = None
+    result: Result | None = None
+    group: str | None = None
+
+    _positional: ClassVar[tuple[str, ...]] = ("name", "start")
+
+    def __post_init__(self):
+        if not isinstance(self.name, str) or not self.name:
+            raise TypeError(f"Optimize: name is a non-empty string, got {self.name!r}")
+        who = f"Optimize {self.name!r}"
+        if not isinstance(self.start, State) or self.start.design is None:
+            raise TypeError(
+                f"{who}: start is an an.State naming its design "
+                '(an.State("start", "family.design", ...)): a kept run has no '
+                "'this design' to fall back on"
+            )
+        knobs = _as_tuple(self.knobs, f"{who} knobs")
+        if not knobs or not all(isinstance(k, Knob) for k in knobs):
+            raise TypeError(f"{who}: knobs holds an.Knob values, at least one")
+        names = [k.name for k in knobs]
+        if len(set(names)) != len(names):
+            raise ValueError(f"{who}: a knob is listed twice: {names!r}")
+        _set(self, "knobs", knobs)
+        bands = _check_bands(who, self.bands)
+        _set(self, "bands", bands)
+        if self.mode not in BAND_MODES:
+            raise ValueError(
+                f"{who}: mode is one of {', '.join(BAND_MODES)}, got {self.mode!r}"
+            )
+        _set(self, "mean_weight", _check_weight(who, self.mean_weight))
+        _set(self, "tol", _finite(who, "tol", self.tol, positive=True))
+        _set(self, "z0", _finite(who, "z0", self.z0, positive=True))
+        if self.max_evals is not None and (
+            isinstance(self.max_evals, bool)
+            or not isinstance(self.max_evals, int)
+            or self.max_evals < 1
+        ):
+            raise TypeError(f"{who}: max_evals is a positive int or None")
+        for f in ("engine", "ground", "group"):
+            v = getattr(self, f)
+            if v is not None and not (isinstance(v, str) and v.strip()):
+                raise TypeError(f"{who}: {f} is a non-empty string or None, got {v!r}")
+        objectives = {b.objective_in("swr") for b in bands}
+        if "swr" in objectives and len(objectives) > 1:
+            raise ValueError(
+                f"{who}: the bands compare in one unit: swr bands (a ratio) "
+                "cannot share a run with resonance / match_z0 bands (ohms)"
+            )
+        for b in bands:
+            stray = [k for k in b.knobs if k not in names]
+            if stray:
+                raise ValueError(
+                    f"{who}: the {b.freq:g} MHz band names {stray[0]!r}, which "
+                    "is not one of the run's knobs"
+                )
+        if self.mode == "root":
+            n_eq = _band_equations(bands, "swr")
+            if "swr" in objectives or n_eq != len(knobs):
+                raise ValueError(
+                    f"{who}: a root needs as many equations as knobs: the bands "
+                    f"make {n_eq} (resonance 1 each, match_z0 2, swr none) for "
+                    f"{len(knobs)} knobs"
+                )
+        if self.mode == "sequential" and any(not b.knobs for b in bands):
+            raise ValueError(f"{who}: sequential tuning needs each band's own knobs")
+        if self.result is not None:
+            if not isinstance(self.result, Result):
+                raise TypeError(f"{who}: result is an an.Result or None")
+            if [k for k, _ in self.result.knobs] != names:
+                raise ValueError(
+                    f"{who}: the result's knobs are the run's, in its order "
+                    f"({', '.join(names)})"
+                )
+            got = [r.freq for r in self.result.bands]
+            if got and got != [b.freq for b in bands]:
+                raise ValueError(
+                    f"{who}: the result's bands are the run's, in its order"
+                )
+
+    @property
+    def design(self) -> str:
+        """The design as the registry (or ``--builder``) spells it."""
+        return self.start.spec
+
+
+def is_optimize(value) -> bool:
+    """Whether ``value`` is a kept multi-band run (`Optimize`), which lists
+    as a study but is not an `Analysis`."""
+    return isinstance(value, Optimize)
+
+
 @dataclass(frozen=True)
 class Hold:
     """Optimise at every sweep point: re-solve the ``adjust`` knobs (names or
     roles) for ``objective``, one of the optimizer's own
     (``web.optimize.OBJECTIVES``). ``z0`` None is the session's;
     ``warm_start`` seeds each point from the previous point's solution
-    (continuation, as the workbench's track-while-drag does)."""
+    (continuation, as the workbench's track-while-drag does).
+
+    ``bands`` (AK#1906) holds the objective across several bands at once, as
+    ``optimize --bands`` tunes: ``swr`` is the minimax over the bands' SWR
+    (``J = (1 - w) * worst + w * mean``, ``w`` = ``mean_weight``);
+    ``resonance`` / ``match_z0`` is the root form, every band a root, as many
+    equations as knobs. A band's own objective, when it names one, is the
+    hold's. ``adjust`` may then name group leaves (``bands.0.length``)."""
 
     objective: str
     adjust: tuple[str | Role, ...]
     z0: float | None = None
     warm_start: bool = True
+    bands: tuple[Band, ...] = ()
+    mean_weight: float = BANDS_MEAN_WEIGHT
 
     _positional: ClassVar[tuple[str, ...]] = ("objective",)
 
@@ -1186,9 +1501,39 @@ class Hold:
         if len(set(adjust)) != len(adjust):
             raise ValueError(f"Hold: adjust names a knob twice: {adjust!r}")
         _set(self, "adjust", adjust)
+        _set(self, "mean_weight", _check_weight("Hold", self.mean_weight))
+        if self.bands:
+            bands = _check_bands("Hold", self.bands)
+            _set(self, "bands", bands)
+            other = [
+                b for b in bands if b.objective_in(self.objective) != self.objective
+            ]
+            if other:
+                raise ValueError(
+                    f"Hold: the {other[0].freq:g} MHz band's objective is "
+                    f"{other[0].objective}, the hold's {self.objective}: a band "
+                    "hold holds one objective across its bands"
+                )
+            n_eq = _band_equations(bands, self.objective)
+            if self.objective != "swr" and n_eq != len(adjust):
+                raise ValueError(
+                    f"Hold: a root across {len(bands)} bands is {n_eq} equations "
+                    f"({self.objective}); give that many knobs (got {len(adjust)}), "
+                    'or hold "swr" (the minimax)'
+                )
+            return
+        _set(self, "bands", ())
         square = _SQUARE.get(self.objective)
         if square is not None and len(adjust) != square[0]:
             raise ValueError(f"Hold: {square[1]} (got {len(adjust)})")
+
+    @property
+    def form(self) -> str | None:
+        """A band hold's form: ``minimax`` for ``swr``, else ``root``; None
+        for a hold at one frequency."""
+        if not self.bands:
+            return None
+        return "minimax" if self.objective == "swr" else "root"
 
 
 @dataclass(frozen=True)
@@ -1537,7 +1882,10 @@ def named_designs(analysis: Analysis) -> tuple[str, ...]:
     designs its states name (a ``states=`` cross's, or its listed cells'),
     each once, in the order written, without their variants (a variant is a
     setting of its design, and a tab lists a study by design). A study names
-    its designs one of these ways (AK#1757 step 7)."""
+    its designs one of these ways (AK#1757 step 7). A kept multi-band run
+    (`Optimize`) names one, its start's."""
+    if isinstance(analysis, Optimize):
+        return (analysis.start.design,)
     for c in analysis.crosses:
         if c.kind == "designs":
             return c.designs
@@ -1759,10 +2107,41 @@ def is_reference(state: State, analysis: Analysis) -> bool:
     )
 
 
+def is_leaf(name, builder) -> bool:
+    """Whether ``name`` is a group knob's leaf on ``builder`` by its path,
+    ``group.<index>.<leaf>`` (``bands.0.length_factor``), as the multi-band
+    optimizer names one."""
+    if not isinstance(name, str) or name.count(".") != 2:
+        return False
+    group, index, leaf = name.split(".")
+    entries = _params(builder).get(group)
+    if not index.isdigit() or not isinstance(entries, (list, tuple)):
+        return False
+    i = int(index)
+    return i < len(entries) and isinstance(entries[i], Mapping) and leaf in entries[i]
+
+
+def _optimize_problems(o: Optimize, builder) -> list[str]:
+    """Why the kept run ``o`` cannot run on ``builder`` (its design's): a
+    knob it moves or its start sets that the design does not have."""
+    params = _params(builder)
+    out = []
+    for k in o.knobs:
+        if not (k.name in params or is_leaf(k.name, builder)):
+            out.append(f"UNAVAILABLE: this design has no knob {k.name!r}")
+    for k in o.start.settings:
+        if k not in params or k == "ui_params":
+            out.append(f"UNAVAILABLE: the start sets {k!r}, which this design lacks")
+    return out
+
+
 def problems(analysis: Analysis, builder) -> list[str]:
     """Why ``analysis`` cannot run on ``builder``, as listed: an unresolved
     sweep (UNAVAILABLE), a product over `CURVE_CAP`, a cross naming one
-    value twice, and a knob both swept and stepped. Empty: it can."""
+    value twice, and a knob both swept and stepped. Empty: it can. A kept
+    multi-band run (`Optimize`): a knob its design lacks."""
+    if isinstance(analysis, Optimize):
+        return _optimize_problems(analysis, builder)
     out = []
     same = sum(1 for a in builder.build_analyses() if a.name == analysis.name)
     if same > 1:
@@ -1821,6 +2200,9 @@ def problems(analysis: Analysis, builder) -> list[str]:
     if analysis.hold is not None:
         for k in analysis.hold.adjust:
             r = resolve(k, builder)
+            if r.knob is None and analysis.hold.bands and is_leaf(k, builder):
+                # A band hold sets a group leaf by its path (AK#1906).
+                continue
             if r.knob is None:
                 out.append(f"UNAVAILABLE: {r.reason}")
             elif r.knob in swept:
@@ -2041,6 +2423,11 @@ _DATA_CLASSES = {
         State,
         Ref,
         Hold,
+        Band,
+        Knob,
+        BandResult,
+        Result,
+        Optimize,
         Role,
         Rx,
         Swr,

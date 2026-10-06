@@ -3233,10 +3233,12 @@ async def analyses_endpoint(req: dict):
     if cls is None:
         return {"geometry": geometry, "analyses": []}
 
+    alias = _deck_alias(geometry)
+
     def _offer():
         builder = builder_for(cls, req)
         return offer(builder, req, hosted=_HOSTED) + offer_studies(
-            builder, req, hosted=_HOSTED
+            builder, req, hosted=_HOSTED, deck=alias
         )
 
     try:
@@ -3253,9 +3255,17 @@ def _kept(req: dict):
     from antennaknobs import keep
 
     try:
-        return keep.build(req)
+        return keep.build(req, deck_name=_deck_alias)
     except keep.KeepError as e:
         raise HTTPException(status_code=422, detail=str(e)) from None
+
+
+def _deck_alias(key) -> str | None:
+    """An opened deck's design as a command line names it, ``@<its file
+    name>`` (AK#1906: a kept band run on a deck), or None for any other
+    design."""
+    hit = _DECK_STORE.get(key) if isinstance(key, str) else None
+    return f"@{hit[0]}" if hit else None
 
 
 @app.post("/keep")
