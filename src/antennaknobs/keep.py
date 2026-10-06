@@ -43,7 +43,7 @@ import datetime as _dt
 import itertools
 import math
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from . import analyses as an
@@ -54,6 +54,7 @@ ORIGINS = {
     "chart": "your own analysis chart",
     "sweep pins": "your own pinned sweeps",
     "pattern pins": "your own pinned patterns",
+    "optimize": "your own multi-band optimize run",
 }
 
 FORMS = ("analysis", "study")
@@ -882,12 +883,110 @@ def analysis_from_chart(
 # ── the entry point ──────────────────────────────────────────────────────────
 
 
-def build(req: Mapping) -> tuple[an.Analysis, str, str, list[str]]:
+def _number(v, what: str) -> float:
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        raise KeepError(f"{what} is a finite number, got {v!r}")
+    return float(v)
+
+
+def optimize_from_run(
+    req: Mapping, deck_name: Callable[[str], str | None] | None = None
+) -> tuple[an.Optimize, list[str]]:
+    """A finished multi-band run as an `an.Optimize` (AK#1906; the
+    workbench's Keep on a band result): ``{tab, free, bands, mean_weight?,
+    result, name?}``, ``tab`` the tab's solve request, ``free`` the knobs
+    the run moved (``[{name, min, max}]``), ``bands`` the band list it sent
+    (``/optimize``'s), ``result`` its answer. The start is the tab's design
+    and knobs with the moved ones put back at the run's own start
+    (``result.params_before``), so what is kept is where the run began.
+    ``deck_name(key)`` spells an opened deck's design as ``@<its file
+    name>``, the only name a command line can find it by."""
+    from . import optimize_study as ost
+    from .opt import _set_path
+    from .web.optimize_bands import BandsRefused, parse_bands
+
+    tab, res = req.get("tab"), req.get("result")
+    if not isinstance(tab, Mapping) or not isinstance(res, Mapping):
+        raise KeepError("an optimize keep sends the tab's request and the run's result")
+    free = req.get("free")
+    if (
+        not isinstance(free, list)
+        or not free
+        or not all(isinstance(f, Mapping) for f in free)
+    ):
+        raise KeepError("free is the run's knobs, [{name, min, max}, ...]")
+    names = [f.get("name") for f in free]
+    if not all(isinstance(n, str) and n for n in names):
+        raise KeepError("each free knob has a name")
+    params, before = res.get("params"), res.get("params_before")
+    if not isinstance(params, Mapping) or not isinstance(before, Mapping):
+        raise KeepError("the result carries the run's params and params_before")
+    for n in names:
+        _number(params.get(n), f"the result's {n}")
+        _number(before.get(n), f"the start's {n}")
+    try:
+        bands = parse_bands(req.get("bands"))
+    except BandsRefused as e:
+        raise KeepError(str(e)) from None
+    design = tab.get("geometry")
+    if not isinstance(design, str) or not design:
+        raise KeepError("the request names no design (geometry)")
+    cls = _builder_cls(design)
+    variant = _variant(cls, design, tab.get("variant"))
+    solved = _solved_builder(cls, tab)
+    fresh = _solved_builder(cls, {"geometry": design, "variant": variant or "default"})
+    for n in names:
+        try:
+            _set_path(solved, n, float(before[n]))
+        except (AttributeError, KeyError, IndexError, TypeError, ValueError):
+            raise KeepError(f"{design} has no knob {n!r}") from None
+    alias = deck_name(design) if deck_name is not None else None
+    spec = alias or (design if variant is None else f"{design}:{variant}")
+    notes: list[str] = []
+    if alias:
+        notes.append(
+            f"The deck is named by its file name, {alias}: run it from the folder "
+            "that holds the deck, or write its path there."
+        )
+    rows = res.get("bands_before") or []
+    z0 = rows[0].get("z0_ohms") if rows and isinstance(rows[0], Mapping) else None
+    name = req.get("name")
+    if name is not None and not isinstance(name, str):
+        raise KeepError("name is a string")
+    mhz = "/".join(f"{b.freq_mhz:g}" for b in bands)
+    try:
+        o = ost.from_run(
+            (name or "").strip() or f"optimize across {mhz} MHz",
+            start=ost.start_state(spec, solved, fresh),
+            free=[
+                {
+                    "name": n,
+                    "min": _number(f.get("min"), f"{n}'s min"),
+                    "max": _number(f.get("max"), f"{n}'s max"),
+                }
+                for n, f in zip(names, free, strict=True)
+            ],
+            bands=bands,
+            res=res,
+            mean_weight=req.get("mean_weight"),
+            z0=_number(z0, "the run's Z0") if z0 is not None else 50.0,
+            engine=engine_of(tab, "the run", notes),
+            ground=ground_of(tab, "the run"),
+        )
+    except (TypeError, ValueError, KeyError) as e:
+        raise KeepError(str(e)) from None
+    return o, notes
+
+
+def build(
+    req: Mapping, deck_name: Callable[[str], str | None] | None = None
+) -> tuple[an.Analysis | an.Optimize, str, str, list[str]]:
     """``(analysis, form, origin, notes)`` for a keep request (``/keep``,
     ``/studies/save``): ``{origin, form, name?, notes?}`` and, for a chart,
     ``{spec, tab, cells?, values?}`` (``cells`` its curves' solve requests),
-    for pins ``{pins: [{req, x?, xs?, label?}]}``. Pins
-    are only ever kept as a study: they name their designs."""
+    for pins ``{pins: [{req, x?, xs?, label?}]}``, for a band run
+    (``"optimize"``, AK#1906) what `optimize_from_run` reads. Pins and band
+    runs are only ever kept as a study: they name their designs."""
     if not isinstance(req, Mapping):
         raise KeepError("a keep request is an object")
     origin = req.get("origin")
@@ -897,6 +996,11 @@ def build(req: Mapping) -> tuple[an.Analysis, str, str, list[str]]:
     if form not in FORMS:
         raise KeepError(f"form is one of {', '.join(FORMS)}, got {form!r}")
     notes = _notes(req.get("notes") or [])
+    if origin == "optimize":
+        if form != "study":
+            raise KeepError("a band run is kept as a study: it names its design")
+        o, made = optimize_from_run(req, deck_name)
+        return o, form, origin, notes + made
     if origin == "chart":
         made: list[str] = []
         a = analysis_from_chart(req, form=form, notes=made)

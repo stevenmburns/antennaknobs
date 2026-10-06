@@ -115,7 +115,7 @@ class Study:
     the design whose ``Builder.build_studies()`` returned it."""
 
     source: str
-    analysis: an.Analysis
+    analysis: an.Analysis | an.Optimize
     path: Path | None = None
     host: str | None = None
 
@@ -205,7 +205,11 @@ def refusal(a: an.Analysis, host: str | None = None) -> str | None:
     every study found, one at a time (a name used twice is `_collect`'s,
     since it needs the whole list). ``host`` set: a Builder's method study.
     The workbench's "keep as study" (unit 4) asks the same before it
-    writes a file, so it never saves one that would be refused when found."""
+    writes a file, so it never saves one that would be refused when found.
+    A kept multi-band run (`analyses.Optimize`, AK#1906) names its design by
+    construction, so it is never refused here."""
+    if an.is_optimize(a):
+        return None
     if not _names_designs(a) and host is not None:
         return (
             "REFUSED: a Builder's study names the designs it compares "
@@ -240,8 +244,8 @@ def _with_self(a: an.Analysis, me: str) -> an.Analysis:
     """A method study's analysis with its design cross made whole: this
     design first, then the references as written, an explicit ``me`` among
     them dropped (it is already the first cell, and a design named twice is
-    two curves drawn over each other)."""
-    if not an.crosses_designs(a):
+    two curves drawn over each other). A kept run names its one design."""
+    if an.is_optimize(a) or not an.crosses_designs(a):
         # Its references are named by its states (`_names_designs`); an
         # unnamed state is this design's, as in build_analyses().
         return a
@@ -265,13 +269,16 @@ def _collect(
     except Exception as e:  # noqa: BLE001 — a user's study function, reported by name
         return [], [Blocked(source, f"build_studies() raised {e!r}", path)]
     studies, blocked = [], []
-    names = [a.name for a in got if isinstance(a, an.Analysis)]
+    # A study is an analysis, or a kept multi-band run (AK#1906).
+    kinds = (an.Analysis, an.Optimize)
+    names = [a.name for a in got if isinstance(a, kinds)]
     for a in got:
-        if not isinstance(a, an.Analysis):
+        if not isinstance(a, kinds):
             blocked.append(
                 Blocked(
                     source,
-                    f"build_studies() returned {a!r}, not an an.Analysis",
+                    f"build_studies() returned {a!r}, not an an.Analysis or "
+                    "an.Optimize",
                     path,
                 )
             )

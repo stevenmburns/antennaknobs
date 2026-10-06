@@ -184,6 +184,9 @@ def test_a_hold_runs_with_its_knobs_bounds_and_spec(invvee):
             "adjust": ["length_factor", "angle_deg"],
             "z0": 50,
             "warm_start": True,
+            # A hold at one frequency (AK#1906's band hold names bands).
+            "bands": [],
+            "mean_weight": 0.5,
         },
     }
     e9 = invvee["resonance vs angle"]["workbench"]

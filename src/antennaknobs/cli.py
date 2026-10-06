@@ -1682,6 +1682,14 @@ def cli(arguments=None):
         action="store_true",
         help="With --analysis or --study: print its Python instead of running it.",
     )
+    p.add_argument(
+        "--apply",
+        default=False,
+        action="store_true",
+        help="With --study naming a kept optimize run (an.Optimize): load its "
+        "stored result without searching, print the knobs and each band's "
+        "reading there, and compare them with what was stored.",
+    )
     p.add_argument("--z0", default=50, type=float, help="Reference impedance.")
     p.add_argument(
         "--csv",
@@ -1761,6 +1769,11 @@ def cli(arguments=None):
             # With the imports a callable metric's function needs (AK#1828).
             print(an.code_with_imports(analysis))
             return
+        if args.apply and not an.is_optimize(analysis):
+            raise SystemExit(
+                "analyze: --apply loads a kept optimize run's stored result; "
+                f"{analysis.name!r} is an analysis, not an an.Optimize"
+            )
 
         def seam(design):
             """``design``'s builder factory, engine factory and ground label:
@@ -1804,6 +1817,9 @@ def cli(arguments=None):
                 lambda spec: format_ground(ground_for(spec)),
             )
 
+        if an.is_optimize(analysis):
+            run_optimize_study(analysis, args, seam)
+            return
         _, factory_for, ground_label_for = seam(builder)
         analysis_run.run(
             analysis,
@@ -1816,6 +1832,42 @@ def cli(arguments=None):
             design_seam=lambda name: seam(get_builder(name)),
             csv=csv,
         )
+
+    def run_optimize_study(o, args, seam):
+        """``analyze --study`` on a kept multi-band run (AK#1906): search
+        again from its start, or with ``--apply`` load its stored result, and
+        compare either with what was stored."""
+        from . import analysis_run, band_opt
+        from . import optimize_study as ost
+        from .web.optimize import DegenerateObjective
+        from .web.optimize_bands import BandsRefused
+
+        if args.csv is not None:
+            raise SystemExit(
+                "analyze: --csv writes a swept analysis's points; a kept "
+                "optimize run prints its per-band table"
+            )
+        _, factory_for, _ = seam(get_builder(o.design))
+        factory = factory_for(o.engine or args.engine, o.ground, False)
+        b = ost.prepared(o, get_builder)
+        print(f"study {o.name!r}: {analysis_run.optimize_summary(o)}")
+        if args.apply:
+            try:
+                got = ost.apply(o, b, factory)
+            except ValueError as e:
+                raise SystemExit(f"analyze --apply: {e}") from None
+            lines = ost.apply_lines(o, got)
+            lines += ost.compare_lines(o, got["params"], got["bands"])
+        else:
+            units = {k.name: u for k in o.knobs if (u := band_opt.ui_unit(b, k.name))}
+            try:
+                res = ost.run(o, b, factory, knob_units=units)
+            except (BandsRefused, DegenerateObjective) as e:
+                raise SystemExit(f"analyze --study: {e}") from None
+            lines = band_opt.report_lines(res)
+            lines += ost.compare_lines(o, res["params"], res["bands_after"])
+        for line in lines:
+            print(line)
 
     def f(args):
         if args.csv is not None and (
@@ -1918,6 +1970,55 @@ def cli(arguments=None):
         type=int,
         help="With --bands: at most this many sequential passes (default 8).",
     )
+    p.add_argument(
+        "--keep",
+        default=None,
+        metavar="PATH",
+        help="With --bands: keep the run as a study file at PATH under the "
+        "studies folder (~/.antennaknobs/studies/, e.g. ur0gt/160-80-40), "
+        "trusted as the workbench's kept studies are: its start, knobs, "
+        "ranges, bands and result as an an.Optimize, which `analyze --study` "
+        "runs again and compares with this answer (AK#1906).",
+    )
+    p.add_argument(
+        "--keep-name",
+        dest="keep_name",
+        default=None,
+        metavar="NAME",
+        help="With --keep: the study's name (default: the design and the bands).",
+    )
+
+    def keep_bands(args, start, free, bands, res):
+        """``optimize --bands --keep``: the run as a study file (AK#1906)."""
+        from . import keep
+        from . import optimize_study as ost
+
+        mhz = "/".join(f"{bd.freq_mhz:g}" for bd in bands)
+        design = args.builder
+        if design.startswith("@"):
+            design = os.path.basename(design[1:])
+        name = args.keep_name or f"{design} across {mhz} MHz"
+        try:
+            o = ost.from_run(
+                name,
+                start=start,
+                free=free,
+                bands=bands,
+                res=res,
+                mode=args.mode,
+                mean_weight=args.mean_weight,
+                tol=args.tol,
+                max_evals=args.max_evals,
+                z0=args.z0,
+                engine=args.engine,
+                # Unset is the design's own ground (a deck's GN card, else the
+                # CLI default), which `analyze` resolves the same way.
+                ground=None if args.ground is _GROUND_UNSET else args.ground,
+            )
+            saved = keep.save(o, args.keep, origin="optimize")
+        except (TypeError, ValueError) as e:
+            raise SystemExit(f"optimize --keep: {e}") from None
+        print(f"# kept as the study {saved['name']!r} in {saved['path']}")
 
     def run_bands(args, builder, engine):
         from . import band_opt
@@ -1946,6 +2047,11 @@ def cli(arguments=None):
             raise SystemExit(f"optimize --bound: {e}") from None
         free = band_opt.free_for(b, names, bounds=bounds)
         base = {f["name"]: float(band_opt._get_path(b, f["name"])) for f in free}
+        if args.keep is not None:
+            from . import optimize_study as ost
+
+            # Before the run moves the knobs: the start it is kept with.
+            start = ost.start_state(args.builder, b, builder())
         units = {nm: u for nm in names if (u := band_opt.ui_unit(b, nm))}
         for fr in free:
             u = f" {units[fr['name']]}" if fr["name"] in units else ""
@@ -1974,6 +2080,8 @@ def cli(arguments=None):
             raise SystemExit(f"optimize --bands: {e}") from None
         for line in band_opt.report_lines(res):
             print(line)
+        if args.keep is not None:
+            keep_bands(args, start, free, bands, res)
         band_opt.apply(b, res["params"])
         print()
         print("# Optimized knobs — paste over the design's params block:")
@@ -1984,6 +2092,8 @@ def cli(arguments=None):
         )
 
     def f(args):
+        if args.keep is not None and args.bands is None:
+            raise SystemExit("optimize: --keep keeps a multi-band run; give --bands")
         builder = get_builder(args.builder)
         engine = engine_factory_from_args(
             args, deck_extended_kernel_flag(builder), builder=builder

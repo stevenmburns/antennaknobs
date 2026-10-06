@@ -29,8 +29,19 @@ The rules (docs/design/sweep-framework-step6.md):
    minimisation, no root and so no verdict a point could be drawn on), a
    frequency or density sweep, a map, a multi-feed design.
 
+A BAND hold (``an.Hold(bands=...)``, AK#1906) holds a multi-band objective
+instead: each point is one call of the band optimizer
+(``web.optimize_bands.optimize_bands``, the ``optimize --bands`` run), the
+SWR minimax for ``swr`` and the root form for ``resonance`` / ``match_z0``
+(`hold_bands_line`). Rule 1 applies as it is: a point the root form does not
+reach (its ``root_status`` is not "root") is a gap, never its near miss, and
+so is a minimax answer with no band near a match. Its knobs may be group
+leaves (``bands.0.length``), and a knob the design gives no range searches
++/-20 % of its value, as ``optimize --bands`` does (`band_free_of`).
+
 Framework-free: the CLI (`analysis_run`) and the workbench's ``/param_sweep``
-(``web.server``) both call `hold_line`, with a ``solve_fn`` of their own.
+(``web.server``) both call `hold_line` (and `hold_bands_line`), with a
+``solve_fn`` (``sweep_fn``) of their own.
 """
 
 from __future__ import annotations
@@ -63,7 +74,7 @@ def analysis_refusal(a: an.Analysis, builder=None) -> str | None:
     h = a.hold
     if h is None:
         return None
-    if h.objective == "swr":
+    if h.objective == "swr" and not h.bands:
         return (
             "hold swr: SWR is a minimisation, not a root, so the optimizer has "
             "no verdict a held point could be drawn or left a gap on; hold "
@@ -140,6 +151,10 @@ class HeldPoint:
     reason: str | None
     method: str
     n_solves: int
+    #: A band hold's per-band readings at the answer (the band optimizer's
+    #: records: freq_mhz, z_re, z_im, swr, ...); () for a hold at one
+    #: frequency, whose ``z`` is its one reading.
+    bands: tuple = ()
 
 
 def _gap_reason(res: Mapping, free: Sequence[Mapping], objective: str) -> str | None:
@@ -227,6 +242,48 @@ def hold_line(
     """The held line along ``xs`` of ``knob`` (module docstring, rule 1).
     ``defaults`` are the held knobs' starting values (the design's own);
     ``on_point`` sees each point as it lands (the workbench streams them)."""
+
+    def point(x, start: dict, warm: bool) -> HeldPoint:
+        _req, res = hold_point(
+            x,
+            knob,
+            start,
+            free,
+            objective,
+            solve_fn=solve_fn,
+            warm=warm,
+            base=base,
+            max_evals=max_evals,
+        )
+        reason = _gap_reason(res, free, objective)
+        m = res["metrics_after"]
+        return HeldPoint(
+            x=x,
+            start=start,
+            cold=not warm,
+            params=dict(res["params"]),
+            z=complex(m["z_in_re"], m["z_in_im"]),
+            residual=res.get("residual_after"),
+            converged=reason is None,
+            reason=reason,
+            method=str(res.get("method")),
+            n_solves=int(res.get("n_solves") or 0),
+        )
+
+    return _line(xs, free, point, defaults, warm_start, on_point)
+
+
+def _line(
+    xs: Sequence,
+    free: Sequence[Mapping],
+    point: Callable[[object, dict, bool], HeldPoint],
+    defaults: Mapping,
+    warm_start: bool,
+    on_point: Callable[[HeldPoint], None] | None,
+) -> list[HeldPoint]:
+    """Rule 1's walk along ``xs``, whatever a point optimizes: ``point(x,
+    start, warm)`` solves one, from the last converged point's knobs when
+    ``warm``, else from ``defaults``."""
     points: list[HeldPoint] = []
     last: dict | None = None
     fails = 0
@@ -236,17 +293,7 @@ def hold_line(
         warm = warm_start and last is not None and not cold_mode
         start = dict(last) if warm else {f["name"]: defaults[f["name"]] for f in free}
         try:
-            _req, res = hold_point(
-                x,
-                knob,
-                start,
-                free,
-                objective,
-                solve_fn=solve_fn,
-                warm=warm,
-                base=base,
-                max_evals=max_evals,
-            )
+            pt = point(x, start, warm)
         except HoldRefused:
             raise
         except (ValueError, NotImplementedError) as e:
@@ -268,21 +315,6 @@ def hold_line(
                 method="failed",
                 n_solves=0,
             )
-        else:
-            reason = _gap_reason(res, free, objective)
-            m = res["metrics_after"]
-            pt = HeldPoint(
-                x=x,
-                start=start,
-                cold=not warm,
-                params=dict(res["params"]),
-                z=complex(m["z_in_re"], m["z_in_im"]),
-                residual=res.get("residual_after"),
-                converged=reason is None,
-                reason=reason,
-                method=str(res.get("method")),
-                n_solves=int(res.get("n_solves") or 0),
-            )
         points.append(pt)
         if pt.converged:
             last, fails, cold_mode = pt.params, 0, False
@@ -297,6 +329,151 @@ def hold_line(
     if points and len(failed) == len(points):
         raise failed[0]
     return points
+
+
+# ── band holds (AK#1906) ─────────────────────────────────────────────────────
+
+
+def band_free_of(h: an.Hold, builder) -> list[dict]:
+    """A band hold's knobs on ``builder`` as the band optimizer takes them,
+    ``[{name, min, max}]``: a role or a knob name resolved as for any hold,
+    or a group leaf by its path; each bounded as ``optimize --bands`` bounds
+    it (its ``ui_params`` range, else +/-20 % of its value,
+    `band_opt.free_for`). `HoldRefused` names one that cannot be."""
+    from .band_opt import free_for
+
+    dens = an.density_knob(builder)
+    names = []
+    for k in h.adjust:
+        r = an.resolve(k, builder)
+        if r.knob is None and an.is_leaf(k, builder):
+            names.append(k)
+            continue
+        if r.knob is None:
+            raise HoldRefused(r.reason)
+        if r.knob in (dens, "nominal_nsegs"):
+            raise HoldRefused(
+                f"the hold adjusts {r.knob}, the density knob: the engine holds "
+                "every solve at its own density, so it is not a knob to hold"
+            )
+        names.append(r.knob)
+    try:
+        return free_for(builder, names)
+    except SystemExit as e:
+        raise HoldRefused(str(e)) from None
+
+
+def band_defaults_of(builder, free: Sequence[Mapping]) -> dict:
+    """A band hold's knobs on ``builder``, group leaves by their path."""
+    from .opt import _get_path
+
+    return {f["name"]: float(_get_path(builder, f["name"])) for f in free}
+
+
+def bands_of(h: an.Hold) -> list:
+    """The hold's bands as the band optimizer takes them, a band naming no
+    objective at the hold's."""
+    from .web.optimize_bands import Band
+
+    return [
+        Band(b.freq, b.objective_in(h.objective), b.feed, b.z0, tuple(b.knobs))
+        for b in h.bands
+    ]
+
+
+def _band_gap_reason(res: Mapping, form: str) -> str | None:
+    """Why the band optimizer's answer ``res`` is a gap, or None (module
+    docstring): the root form not at a root, or no band near a match."""
+    if form == "root" and res.get("root_status") != "root":
+        why = res.get("root_status") or "no root path ran"
+        text = f"no root held across the bands ({why})"
+        edge = [f"{b['name']} at its {b['bound']}" for b in res.get("at_bound") or []]
+        return text + ("; " + ", ".join(edge) if edge else "")
+    if res.get("far_from_match"):
+        return f"no band near a match (worst SWR {res.get('worst_swr_after', math.inf):.3g})"
+    return None
+
+
+def hold_bands_point(
+    x,
+    knob: str,
+    start: Mapping,
+    free: Sequence[Mapping],
+    h: an.Hold,
+    *,
+    sweep_fn: Callable[[dict, list], dict],
+    base: Mapping | None = None,
+    max_evals: int | None = None,
+) -> tuple[dict, dict]:
+    """ONE held point of a band hold, as `hold_bands_line` runs it:
+    ``(request, band optimizer result)``, the request ``base`` with the
+    swept ``knob`` at ``x`` and the held knobs at ``start``. The seam a
+    test calls the band optimizer standalone beside."""
+    from .web.optimize_bands import optimize_bands
+
+    req = {**(base or {}), knob: x, **start}
+    res = optimize_bands(
+        req,
+        [dict(f) for f in free],
+        bands_of(h),
+        sweep_fn=sweep_fn,
+        mode=h.form,
+        max_evals=max_evals,
+        mean_weight=h.mean_weight,
+    )
+    return req, res
+
+
+def hold_bands_line(
+    xs: Sequence,
+    knob: str,
+    free: Sequence[Mapping],
+    h: an.Hold,
+    *,
+    sweep_fn: Callable[[dict, list], dict],
+    defaults: Mapping,
+    base: Mapping | None = None,
+    max_evals: int | None = None,
+    on_point: Callable[[HeldPoint], None] | None = None,
+) -> list[HeldPoint]:
+    """A band hold's line along ``xs`` of ``knob``: rule 1 as `hold_line`
+    walks it, each point one band run (`hold_bands_point`). A point's ``z``
+    is its first band's reading and ``bands`` every band's; ``residual`` the
+    worst band's value (SWR, or ohms for a root)."""
+
+    def point(x, start: dict, warm: bool) -> HeldPoint:
+        _req, res = hold_bands_point(
+            x,
+            knob,
+            start,
+            free,
+            h,
+            sweep_fn=sweep_fn,
+            base=base,
+            max_evals=max_evals,
+        )
+        reason = _band_gap_reason(res, h.form)
+        after = tuple(res.get("bands_after") or ())
+        z = (
+            complex(after[0]["z_re"], after[0]["z_im"])
+            if after and after[0].get("z_re") is not None
+            else complex(math.nan, math.nan)
+        )
+        return HeldPoint(
+            x=x,
+            start=start,
+            cold=not warm,
+            params=dict(res["params"]),
+            z=z,
+            residual=res.get("objective_worst_after"),
+            converged=reason is None,
+            reason=reason,
+            method=f"bands {res.get('form')}",
+            n_solves=int(res.get("n_solves") or 0),
+            bands=after,
+        )
+
+    return _line(xs, free, point, defaults, h.warm_start, on_point)
 
 
 def _short(e: Exception, limit: int = 160) -> str:
