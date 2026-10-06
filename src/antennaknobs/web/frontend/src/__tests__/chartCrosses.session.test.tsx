@@ -597,6 +597,23 @@ describe("an edit of the picked knob analysis", () => {
     expect(optionText()).toBe("feed spellings (edited)");
   });
 
+  it("↺ puts the analysis's own range back, not the knob's (AC6LA, QRZ)", async () => {
+    const r = await mount();
+    await chartOnStage(r);
+    await pick("len family");
+    await untilDom(() => (legendRows().length === 2 ? true : null));
+    const reset = screen.getByRole("button", { name: "↺" });
+    // Its own range: nothing to go back to.
+    expect((reset as HTMLButtonElement).disabled).toBe(true);
+    expect(reset.getAttribute("title")).toBe("Back to this analysis's own range");
+    editPoints(5);
+    await untilDom(() => (optionText() === "len family (edited)" ? true : null));
+    fireEvent.click(reset);
+    await untilDom(() => (optionText() === "len family" ? true : null));
+    expect((screen.getByLabelText("points") as HTMLInputElement).value).toBe("3");
+    expect(legendRows()).toHaveLength(2);
+  });
+
   it("\"Sweep a knob\" leaves the analysis and its family", async () => {
     const r = await mount();
     await chartOnStage(r);
