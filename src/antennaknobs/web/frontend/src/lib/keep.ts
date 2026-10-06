@@ -49,6 +49,16 @@ export type SweepPinKeep = {
 export type PatternPinKeep = { req: KeepRequest; label: string };
 
 /** The body of a keep request (POST /keep, and /studies/save with a path). */
+/** A knob's family of patterns as /keep takes it (AK#1935). */
+export type FamilyKeep = {
+  knob: string;
+  lo: number;
+  hi: number;
+  points: number;
+  spacing: "lin" | "log";
+  values: number[];
+};
+
 /** One edited map axis as /keep takes it. */
 export type MapAxisKeep = { lo: number; hi: number; points: number; spacing: "lin" | "log" };
 
@@ -73,7 +83,13 @@ export type KeepBody =
       origin: "chart";
       form: KeepForm;
       name?: string;
+      /** The picked analysis as /analyses served it; null for a knob's
+       *  family of patterns (AK#1935), which sends `family` instead. */
       spec: unknown;
+      /** A knob's family of patterns (AK#1935): the knob and range it drew
+       *  and the values it solved, kept as `an.patterns(cross=an.Cross(
+       *  step=an.Sweep(knob, lo, hi, points=n)))`. */
+      family?: FamilyKeep;
       tab: KeepRequest;
       cells?: KeepRequest[];
       values?: number[];

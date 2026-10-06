@@ -11,6 +11,7 @@ import {
 } from "./AnalysisPicker";
 import { ChartCrossPicker, type CrossPickerProps } from "./ChartCrossPicker";
 import { CommitNumber } from "./CommitNumber";
+import { FamilyRange, type FamilyRangeProps } from "./FamilyRange";
 
 // The analysis chart's own controls (AK#1757, sweep-framework step 5 unit 2).
 // They sit ON the chart, on the right-hand (output) side: what the chart
@@ -232,7 +233,11 @@ export function ChartViewPick({ views, view, onView, measured, patternViews }: C
   const label = (v: ChartView): string => {
     if (v.startsWith("pattern:")) {
       const spec = patternViews?.[Number(v.slice("pattern:".length))];
-      return spec ? patternViewLabel(spec) : v;
+      if (!spec) return v;
+      // Beside the knob sweep's own Table (a knob's family, AK#1935), the
+      // pattern's is named as one.
+      const words = patternViewLabel(spec);
+      return words === "Table" && views.includes("Table") ? "Pattern table" : words;
     }
     return VIEW_LABEL[v] ?? v;
   };
@@ -289,12 +294,15 @@ export function ChartViewPick({ views, view, onView, measured, patternViews }: C
 
 /** The header of a chart showing a pattern (AK#1757 step 7): the picker,
  *  the view (a cut or the table), Run / Stop and the chart's chrome. A
- *  pattern has no range: each cell is one solve at its own frequency. */
+ *  pattern has no range: each cell is one solve at its own frequency. A
+ *  knob's family of patterns (AK#1935, `family`) adds its knob and values,
+ *  which are its range. */
 export function PatternChartControls({
   analyses,
   viewPick,
   run,
   chrome,
+  family = null,
 }: {
   analyses: AnalysisPickerProps;
   viewPick: ChartViewPickProps;
@@ -304,10 +312,13 @@ export function PatternChartControls({
     solved: number;
     total: number;
     stale: boolean;
+    /** Why Run cannot (the curve cap), or null / absent: it can. */
+    blocked?: string | null;
     onStop: () => void;
     onRun: () => void;
   };
   chrome: ChartChrome;
+  family?: FamilyRangeProps | null;
 }) {
   return (
     <div
@@ -319,6 +330,7 @@ export function PatternChartControls({
       <div className="zparam-controls" role="group" aria-label="Pattern">
         <AnalysisSelect {...analyses} />
         <ChartViewPick {...viewPick} />
+        {family && <FamilyRange {...family} />}
         <span className="zparam-group">
           {run.running ? (
             <button
@@ -333,10 +345,12 @@ export function PatternChartControls({
             <button
               type="button"
               className={run.stale ? "zparam-run is-stale" : "zparam-run"}
+              disabled={!!run.blocked}
               title={
-                run.stale
+                run.blocked ??
+                (run.stale
                   ? "The design changed since these patterns were solved: solve them again"
-                  : "Solve this chart's patterns again"
+                  : "Solve this chart's patterns again")
               }
               onClick={run.onRun}
             >

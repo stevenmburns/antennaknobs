@@ -15,7 +15,9 @@ Three things can be kept (`build`):
   data (`analyses.to_data`), with what the chart changed on it: the engines
   and grounds it draws (read off its curves' solve requests), and the x
   values when the viewer edited the range, and a map's edited axes
-  (``axes``), each written as a range.
+  (``axes``), each written as a range. A knob chart showing a pattern
+  family (AK#1935) has no analysis to send: it sends ``family``, the knob
+  and range it drew, kept as ``an.patterns(cross=an.Cross(step=...))``.
   "Copy as analysis" is its ``to_code`` alone, to paste into the design's
   ``build_analyses()``, and is only for a chart about the tab's design. "Keep
   as study" also names the tab's design, since a study has no "this design"
@@ -915,12 +917,80 @@ def _as_study(a: an.Analysis, tab: Mapping) -> an.Analysis:
     return _analysis(**f)
 
 
+#: The knob a family over the measurement frequency names (AK#1935): the
+#: page's ``freq``, written back as the role, as `analyses.resolve` reads it.
+_FREQ_KNOB = "freq"
+
+
+def _grid(lo: float, hi: float, points: int, log: bool) -> list[float]:
+    """The values ``Sweep(knob, lo, hi, points=)`` steps (`sweep.gen_xs`'s
+    linear or geometric grid, before any integer rounding)."""
+    if points == 1:
+        return [lo]
+    t = [k / (points - 1) for k in range(points)]
+    if log:
+        return [lo * (hi / lo) ** x for x in t]
+    return [lo + (hi - lo) * x for x in t]
+
+
+def analysis_from_family(family) -> an.Analysis:
+    """The pattern family the knob chart drew (AK#1935): ``{knob, lo, hi,
+    points, spacing, values?}`` as ``an.patterns(cross=an.Cross(step=
+    an.Sweep(knob, lo, hi, points=n)))``, a log grid with ``spacing="log"``
+    and a frequency family over `an.FREQUENCY`. The page's ``values`` are
+    the values it solved: written as ``values=`` only where they are not
+    that grid (an integer knob's ladder, rounded to whole values), so the
+    kept analysis steps exactly what was drawn."""
+    if not isinstance(family, Mapping):
+        raise KeepError("family is {knob, lo, hi, points, spacing}")
+    knob = family.get("knob")
+    if not isinstance(knob, str) or not knob:
+        raise KeepError("family.knob is a knob name")
+    lo = _number(family.get("lo"), "family.lo")
+    hi = _number(family.get("hi"), "family.hi")
+    points = family.get("points")
+    if isinstance(points, bool) or not isinstance(points, int) or points < 1:
+        raise KeepError("family.points is a count of at least 1")
+    if points > an.CURVE_CAP:
+        raise KeepError(
+            f"family.points: {points} values is over the cap of {an.CURVE_CAP} patterns"
+        )
+    spacing = family.get("spacing", "lin")
+    if spacing not in ("lin", "log"):
+        raise KeepError("family.spacing is 'lin' or 'log'")
+    lo, hi = min(lo, hi), max(lo, hi)
+    target = an.FREQUENCY if knob == _FREQ_KNOB else knob
+    log = spacing == "log"
+    values = family.get("values")
+    grid = _grid(lo, hi, points, log)
+    kw: dict = {"lo": lo, "hi": hi, "points": points, "spacing": "log" if log else None}
+    if values is not None:
+        if not isinstance(values, list) or not values:
+            raise KeepError("family.values is a list of numbers")
+        vals = [_number(v, "a family value") for v in values]
+        on_grid = len(vals) == len(grid) and all(
+            math.isclose(v, g, rel_tol=1e-9, abs_tol=1e-12)
+            for v, g in zip(vals, grid, strict=True)
+        )
+        if not on_grid:
+            kw = {"values": tuple(vals)}
+    try:
+        sweep = an.Sweep(target, **kw)
+    except (TypeError, ValueError) as e:
+        raise KeepError(f"family: {e}") from None
+    return an.patterns(cross=an.Cross(step=sweep))
+
+
 def analysis_from_chart(
     req: Mapping, *, form: str, notes: list[str] | None = None
 ) -> an.Analysis:
     """The chart's analysis as it drew it (module docstring); ``notes``
-    collects an extended kernel its cells turned off (`_drawn`)."""
-    a = analysis_of(req.get("spec"))
+    collects an extended kernel its cells turned off (`_drawn`). A knob
+    chart's pattern family (AK#1935) sends ``family`` in place of ``spec``:
+    no analysis was picked, so the analysis is the family it drew
+    (`analysis_from_family`)."""
+    family = req.get("family")
+    a = analysis_of(req.get("spec")) if family is None else analysis_from_family(family)
     drawn = _drawn(req.get("cells"), notes)
     if drawn is not None:
         a = _with_axis(a, "engines", drawn[0])
