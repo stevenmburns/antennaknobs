@@ -177,8 +177,10 @@ export function groundSeedText(
   card?: string | null,
 ): string | null {
   if (!seed) return null;
-  if (seed === "free") return "from the file: free space (GE 0) — ground plane off";
-  if (seed === "pec") return "from the file: perfect ground (GE 1 / GN 1)";
+  // `card` is the file's own spelling of its ground: a NEC card, or an MMANA
+  // model's "MMANA G = 1" (AK#1897).
+  if (seed === "free") return `from the file: free space (${card ?? "GE 0"}) — ground plane off`;
+  if (seed === "pec") return `from the file: perfect ground (${card ?? "GE 1 / GN 1"})`;
   if (seed === "mininec") {
     // AK#1655: say which half of the ground the soil is for, because the
     // impedance will read exactly the perfect ground's.

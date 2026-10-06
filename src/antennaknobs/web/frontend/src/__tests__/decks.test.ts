@@ -5,7 +5,9 @@ import {
   MAX_SHARE_CHARS,
   clearDecks,
   compressDeck,
+  decodeMaaBytes,
   ensureDeckTransport,
+  readDesignFile,
   rememberDeck,
   withDeck,
   withDeckBody,
@@ -134,5 +136,39 @@ describe("every request for an opened deck carries it", () => {
     await fetch("/sweep", { method: "POST", body: JSON.stringify({ geometry: "dipoles.invvee" }) });
     expect(JSON.parse(seen[0])._deck).toEqual({ name: "my dipole.nec", z: "zzz" });
     expect(JSON.parse(seen[1])._deck).toBeUndefined();
+  });
+});
+
+// AK#1897: an MMANA-GAL .maa is ASCII or cp1251, never UTF-8. The browser must
+// hand the server the Cyrillic it means -- a `w1с` position (Cyrillic с, which
+// MMANA accepts) read as UTF-8 would arrive as U+FFFD and be refused.
+describe("reading an MMANA .maa", () => {
+  // "* Провода *" then a source line `w1с` with a Cyrillic с, in cp1251.
+  const cp1251 = Uint8Array.from([
+    0x2a, 0x20, 0xcf, 0xf0, 0xee, 0xe2, 0xee, 0xe4, 0xe0, 0x20, 0x2a, 0x0a, 0x77, 0x31, 0xf1, 0x0a,
+  ]);
+
+  it("decodes cp1251 when the bytes are not UTF-8", () => {
+    expect(decodeMaaBytes(cp1251)).toBe("* Провода *\nw1с\n");
+  });
+
+  it("keeps ASCII and UTF-8 as they are", () => {
+    expect(decodeMaaBytes(new TextEncoder().encode("w1c, 0.0, 1.0\n"))).toBe("w1c, 0.0, 1.0\n");
+    expect(decodeMaaBytes(new TextEncoder().encode("Диполь\n"))).toBe("Диполь\n");
+  });
+
+  it("reads a .maa file through the decoder and any other file as UTF-8", async () => {
+    const maa = new File([cp1251], "DP20.MAA");
+    // jsdom's File may lack arrayBuffer(); the product reads a .maa's bytes through it.
+    if (typeof (maa as Blob).arrayBuffer !== "function") {
+      Object.defineProperty(maa, "arrayBuffer", { value: async () => cp1251.slice().buffer });
+    }
+    expect(await readDesignFile(maa)).toBe("* Провода *\nw1с\n");
+    const nec = new File(["GW 1 3 0 0 0 0 0 1 0.001\n"], "d.nec");
+    // jsdom's File may lack text(); the product reads a .nec through it.
+    if (typeof (nec as Blob).text !== "function") {
+      Object.defineProperty(nec, "text", { value: async () => "GW 1 3 0 0 0 0 0 1 0.001\n" });
+    }
+    expect(await readDesignFile(nec)).toBe("GW 1 3 0 0 0 0 0 1 0.001\n");
   });
 });
