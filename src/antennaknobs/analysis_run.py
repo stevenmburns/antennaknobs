@@ -1786,10 +1786,40 @@ def _print_map_table(maps, kx, ky, ground_label, z0):
 def map_contours(refs: an.Ref, z0: float) -> list[tuple[str, float]]:
     """The map's contours, as ``(quantity, level)``: the `Ref` lines, R = r
     and X = x, since a map's reference lines are where the grid crosses
-    them. With no Ref, X = 0 and R = z0: resonance, and the match."""
+    them, and the SWR threshold, ``("SWR", swr)``, drawn where |Γ| on z0 is
+    `swr_gamma` of it (map note, decision 13). With no R or X line, X = 0 and
+    R = z0: resonance, and the match."""
     if not refs.r and not refs.x:
-        return [("X", 0.0), ("R", float(z0))]
-    return [("X", float(x)) for x in refs.x] + [("R", float(r)) for r in refs.r]
+        out = [("X", 0.0), ("R", float(z0))]
+    else:
+        out = [("X", float(x)) for x in refs.x] + [("R", float(r)) for r in refs.r]
+    if refs.swr is not None:
+        out.append(("SWR", float(refs.swr)))
+    return out
+
+
+def swr_gamma(swr: float) -> float:
+    """|Γ| at SWR ``swr``, (s − 1)/(s + 1): the level a map contours its
+    `Ref.swr` at, on the grid of |Γ| its colours already are."""
+    return (swr - 1.0) / (swr + 1.0)
+
+
+def map_contour_field(quantity: str, z, z0: float):
+    """The grid a map contour of ``quantity`` is drawn on, and the level it
+    is drawn at is in that grid's units: X and R in ohms; SWR as |Γ| on z0."""
+    if quantity == "X":
+        return z.imag
+    if quantity == "R":
+        return z.real
+    return np.abs((z - z0) / (z + z0))
+
+
+def map_contour_reached(field, level: float) -> bool:
+    """Whether a map's grid crosses ``level``: strictly between its finite
+    least and greatest values. A level it never crosses is named in the
+    legend "(not reached)", not dropped."""
+    finite = field[np.isfinite(field)]
+    return bool(finite.size and finite.min() < level < finite.max())
 
 
 def _map_figure(maps, *, xlabel, ylabel, refs, z0, title, refused):
@@ -1806,7 +1836,7 @@ def _map_figure(maps, *, xlabel, ylabel, refs, z0, title, refused):
         nrows, ncols, figsize=(6.2 * ncols, 5.0 * nrows), squeeze=False
     )
     contours = map_contours(refs, z0)
-    styles = {"X": ("black", "-"), "R": (None, "--")}
+    styles = {"X": ("black", "-"), "R": (None, "--"), "SWR": ("white", ":")}
     for k, (ax, (name, (xs, ys, z))) in enumerate(
         zip(axs.flat, maps.items(), strict=False)
     ):
@@ -1818,17 +1848,19 @@ def _map_figure(maps, *, xlabel, ylabel, refs, z0, title, refused):
         handles = []
         r_i = 0
         for quantity, level in contours:
-            field = z.imag if quantity == "X" else z.real
+            field = map_contour_field(quantity, z, z0)
             color, ls = styles[quantity]
             if color is None:
                 color = ("tab:orange", "tab:red", "magenta", "tab:pink")[r_i % 4]
                 r_i += 1
-            label = f"{quantity} = {level:g} Ω"
-            finite = field[np.isfinite(field)]
-            if finite.size and finite.min() < level < finite.max():
-                ax.contour(
-                    xs, ys, field, levels=[level], colors=[color], linestyles=[ls]
-                )
+            if quantity == "SWR":
+                at = swr_gamma(level)
+                label = f"SWR = {level:g} (|Γ| = {at:.3g})"
+            else:
+                at = level
+                label = f"{quantity} = {level:g} Ω"
+            if map_contour_reached(field, at):
+                ax.contour(xs, ys, field, levels=[at], colors=[color], linestyles=[ls])
             else:
                 label += " (not reached)"
             handles.append(Line2D([], [], color=color, linestyle=ls, label=label))

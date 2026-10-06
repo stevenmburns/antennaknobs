@@ -590,8 +590,10 @@ An analysis with a pair of sweeps, `(x, y)`, is a map: every point of the
 grid is solved, and `an.Map()` draws |Γ| on `--z0` as a heat map, one panel
 per curve the crosses make. The analysis's reference lines become contours:
 R = each `r` and X = each `x` of its `an.Ref`, drawn from the same grid (with
-no `Ref`, X = 0 and R = `--z0`, resonance and the match). A level the grid
-never reaches is named in the legend as `(not reached)`. The run prints the
+no `r` or `x`, X = 0 and R = `--z0`, resonance and the match). Its `swr`
+threshold is a dotted contour where |Γ| = (SWR − 1)/(SWR + 1), so
+`an.Ref(swr=2)` outlines the region inside SWR 2. A level the grid never
+reaches is named in the legend as `(not reached)`. The run prints the
 grid's best cell, and `an.Table()` prints every cell.
 
 The inverted vee's `tuning map` (E2) is `length_factor` against the apex angle,
