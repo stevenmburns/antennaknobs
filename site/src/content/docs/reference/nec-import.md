@@ -550,9 +550,11 @@ numbers will not match exactly: on MMANA-GAL's own 20 m dipole the impedance
 lands within half an ohm, and on a two-element quad within 5 %. That is
 the MININEC-versus-MoM gap, and our side is mesh-converged in both.
 
-**Nothing is snapped.** A centre that is not on the mesh (`w1c` on a wire with
-an odd manual count) cuts the wire at its exact centre, and the note says
-so. An offset that would need MMANA's own mesh to place is refused.
+**An odd segment count is rounded up to even**, as MMANA does (SEG 7 is meshed
+as 8), so a wire's centre is always a pulse. **Nothing is snapped.** A centre
+that is still not on the mesh (`w1c` on a regular, SEG 0 wire whose count comes
+out odd) cuts the wire at its exact centre, and the note says so. An offset
+that would need MMANA's own automatic mesh to place is refused.
 
 **The ground line** is `G, H, M, R, Az, El, X`:
 

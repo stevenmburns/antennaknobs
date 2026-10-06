@@ -193,14 +193,19 @@ def test_no_segment_is_shorter_than_two_radii():
     assert min(lens) >= 2 * 0.01 * (1 - 1e-12)
 
 
-def test_a_manual_count_is_kept_exactly():
-    text = maa([DIPOLE_WIRE.replace("\t-1", "\t21")], sources=("w1b3,\t0,\t1",))
+def test_a_manual_count_is_kept_or_rounded_up_to_even():
+    """A manual SEG is the segment count; an odd one is rounded up to even,
+    as MMANA does (the 10-06 sitting: SEG 7 gave 8)."""
     with pytest.raises(ValueError, match="free wire end"):
-        # w1b3 is fine, but nothing else... the source must be off the end:
-        read_maa(maa([DIPOLE_WIRE.replace("\t-1", "\t21")], sources=("w1b,\t0,\t1",)))
-    imp = read_maa(text)
-    assert sum(w.n_seg for w in imp.deck.wires) == 21
-    assert _knot_feeds(imp.deck) == [pytest.approx((0.0, -5.17 + 3 * 10.34 / 21, 0.0))]
+        # The source must be off the wire's free end.
+        read_maa(maa([DIPOLE_WIRE.replace("\t-1", "\t22")], sources=("w1b,\t0,\t1",)))
+    for seg, n in ((22, 22), (21, 22)):
+        text = maa([DIPOLE_WIRE.replace("\t-1", f"\t{seg}")], sources=("w1b3,\t0,\t1",))
+        imp = read_maa(text)
+        assert sum(w.n_seg for w in imp.deck.wires) == n
+        assert _knot_feeds(imp.deck) == [
+            pytest.approx((0.0, -5.17 + 3 * 10.34 / n, 0.0))
+        ]
 
 
 # --- positions ----------------------------------------------------------------
@@ -219,13 +224,25 @@ def test_pulse_offsets_on_a_manual_wire(pos, knot):
     assert _knot_feeds(imp.deck)[0] == pytest.approx((0.0, float(knot), 0.0))
 
 
-def test_an_off_mesh_centre_is_cut_not_snapped():
-    """An odd manual count has no segment end at its centre. The port goes
-    at the exact centre, which cuts the wire there, and the note says so."""
+def test_an_odd_manual_count_is_rounded_up_to_even_as_mmana_does():
+    """MMANA rounds an odd SEG up to even (the 10-06 sitting: SEG 7 gave 8
+    segments), so ``w1c`` is a pulse and nothing is cut."""
     wire = "0.0,\t0.0,\t0.0,\t0.0,\t10.0,\t0.0,\t0.001,\t5"
     imp = read_maa(maa([wire]))
     assert _knot_feeds(imp.deck)[0] == pytest.approx((0.0, 5.0, 0.0))
     assert sum(w.n_seg for w in imp.deck.wires) == 6
+    assert any("wire 1, 5 -> 6" in n for n in imp.notes)
+    assert not any(n.startswith("Cut, not snapped") for n in imp.notes)
+
+
+def test_an_off_mesh_centre_is_cut_not_snapped():
+    """A regular (SEG 0) mesh with an odd count has no segment end at its
+    centre: 10 m at lambda/40 of 14.05 MHz takes 19. The port goes at the
+    exact centre, which cuts the wire there, and the note says so."""
+    wire = "0.0,\t0.0,\t0.0,\t0.0,\t10.0,\t0.0,\t0.001,\t0"
+    imp = read_maa(maa([wire]))
+    assert _knot_feeds(imp.deck)[0] == pytest.approx((0.0, 5.0, 0.0))
+    assert sum(w.n_seg for w in imp.deck.wires) == 20
     assert any(n.startswith("Cut, not snapped: w1c") for n in imp.notes)
 
 
@@ -238,9 +255,17 @@ def test_an_offset_on_an_auto_meshed_wire_is_refused_by_name():
         read_maa(maa([DIPOLE_WIRE], sources=("w1c1,\t0,\t1",)))
 
 
-def test_an_offset_from_the_centre_of_an_odd_manual_wire_is_refused():
+def test_an_offset_from_the_centre_of_an_odd_manual_wire_counts_on_the_even_mesh():
+    """SEG 5 is meshed as 6, so ``w1c1`` is one pulse past the centre: the
+    knot at 4/6 of the wire."""
     wire = "0.0,\t0.0,\t0.0,\t0.0,\t10.0,\t0.0,\t0.001,\t5"
-    with pytest.raises(ValueError, match="odd segment count"):
+    imp = read_maa(maa([wire], sources=("w1c1,\t0,\t1",)))
+    assert _knot_feeds(imp.deck)[0] == pytest.approx((0.0, 40.0 / 6.0, 0.0))
+
+
+def test_an_offset_from_an_off_mesh_centre_is_refused():
+    wire = "0.0,\t0.0,\t0.0,\t0.0,\t10.0,\t0.0,\t0.001,\t0"
+    with pytest.raises(ValueError, match="automatically segmented|odd segment count"):
         read_maa(maa([wire], sources=("w1c1,\t0,\t1",)))
 
 

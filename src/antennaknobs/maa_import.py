@@ -666,7 +666,10 @@ def _mesh_wire(w: _Wire, f: _MaaFile, lam: float, tapers: dict, line_err) -> _Pi
             )
         if w.seg > _HARD_SEGMENT_CAP:
             raise line_err(w.line, f"SEG asks for {w.seg} segments")
-        n = w.seg
+        # MMANA rounds an odd count UP to even, so every wire has a pulse at
+        # its centre (measured, MMANA-GAL Basic 3.5, 2026-10-06: SEG 7 gave 8
+        # segments in the currents CSV; AK#1919). SEG counts segments.
+        n = w.seg + (w.seg % 2)
         return _Piece([k / n for k in range(n + 1)], [secs[0][2]] * n, n)
     knots, radii = [0.0], []
     for t0, t1, r in secs:
@@ -1202,6 +1205,14 @@ def read_maa(
         "to differ from MMANA's by a few percent."
     )
     out = [head, mesh]
+    odd = [(k + 1, w.seg) for k, w in enumerate(wires) if w.seg > 0 and w.seg % 2]
+    if odd:
+        out.append(
+            "An odd segment count is rounded up to even, as MMANA does, so the "
+            "wire has a pulse at its centre: "
+            + "; ".join(f"wire {k}, {n} -> {n + 1}" for k, n in odd)
+            + "."
+        )
     if cut_notes:
         out.append("Cut, not snapped: " + "; ".join(cut_notes) + ".")
     if f.ground == 0:
