@@ -220,10 +220,12 @@ def test_code_is_the_analysis_as_python(invvee):
     assert got.sweep == an.Sweep(an.HEIGHT, 2, 20, points=37)
 
 
-def test_a_design_with_no_height_role_offers_no_height(client):
+def test_the_generics_are_offered_on_every_design_and_nothing_else(client):
+    # No conditional generic (AK#1935): a design offers its own analyses
+    # and convergence and band SWR, never a height sweep it did not write.
     got = _offered(client, {"geometry": "beams.yagi"})
     assert "height" not in got
-    assert "convergence" in got
+    assert {"convergence", "band SWR"} <= set(got)
 
 
 def test_an_unknown_geometry_is_a_422(client):

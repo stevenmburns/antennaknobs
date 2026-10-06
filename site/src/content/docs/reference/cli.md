@@ -262,8 +262,9 @@ measurement planes, designs, named knob settings, and a second knob's values
 [States](#states)).
 
 Every design also offers the library's generic analyses: `convergence` (a
-density ladder), `band SWR`, and `height` where a height knob is declared. A
-design's own analysis of the same name replaces the generic one. The inverted
+density ladder) and `band SWR`, on every design, with nothing offered only
+where a design happens to declare something. A design's own analysis of the
+same name replaces the generic one. The inverted
 vee's `convergence` is the density ladder on three engines over average
 ground, and its `height` is R and X from 2 to 20 m over three grounds.
 
