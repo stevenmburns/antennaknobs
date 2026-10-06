@@ -3,7 +3,7 @@
 // <optgroup>), in the served order; three or fewer, or one group, show none.
 // The order within a group is the served order.
 import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { AnalysisSelect } from "../components/results/AnalysisPicker";
 import {
   analysisGroups,
@@ -37,10 +37,12 @@ const INVVEE = [
   entry("band SWR", "General"),
 ];
 
-function optgroups(container: HTMLElement) {
-  return [...container.querySelectorAll("optgroup")].map((g) => ({
+function optgroups() {
+  return screen.queryAllByRole("group").map((g) => ({
     label: g.getAttribute("label"),
-    options: [...g.querySelectorAll("option")].map((o) => o.textContent),
+    options: within(g)
+      .getAllByRole("option")
+      .map((o) => o.textContent),
   }));
 }
 
@@ -88,7 +90,7 @@ describe("analysisGroups", () => {
 
 describe("AnalysisSelect headings", () => {
   it("draws each group as an optgroup, in order, the Studies group after", () => {
-    const { container } = render(
+    render(
       <AnalysisSelect
         entries={[...INVVEE, entry("vs the dipole", "Tuning", true)]}
         current={null}
@@ -96,7 +98,7 @@ describe("AnalysisSelect headings", () => {
         onPick={() => {}}
       />,
     );
-    expect(optgroups(container)).toEqual([
+    expect(optgroups()).toEqual([
       {
         label: "Tuning",
         options: ["tuning family", "tuning map", "resonance vs angle", "match vs height"],
@@ -109,7 +111,7 @@ describe("AnalysisSelect headings", () => {
   });
 
   it("draws no headings for a design with three analyses", () => {
-    const { container } = render(
+    render(
       <AnalysisSelect
         entries={[entry("convergence", "General"), entry("band SWR", "General"), entry("height", "General")]}
         current={null}
@@ -117,17 +119,17 @@ describe("AnalysisSelect headings", () => {
         onPick={() => {}}
       />,
     );
-    expect(optgroups(container)).toEqual([]);
-    const names = [...container.querySelectorAll("option")].map((o) => o.textContent);
+    expect(optgroups()).toEqual([]);
+    const names = screen.getAllByRole("option").map((o) => o.textContent);
     expect(names).toEqual(["pick…", "convergence", "band SWR", "height"]);
   });
 
   it("keeps what cannot run here in its own group, out of the headings", () => {
     const blocked = (a: AnalysisEntry) => (a.name === "tuning map" ? "a map" : null);
-    const { container } = render(
+    render(
       <AnalysisSelect entries={INVVEE} current={null} blocked={blocked} onPick={() => {}} />,
     );
-    const groups = optgroups(container);
+    const groups = optgroups();
     expect(groups[0]).toEqual({
       label: "Tuning",
       options: ["tuning family", "resonance vs angle", "match vs height"],
