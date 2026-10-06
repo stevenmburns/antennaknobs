@@ -83,16 +83,17 @@ export function CatalogPanel({
           </button>
         )}
         {onOpenDeck && (
-          // Your own model, from MMANA / 4nec2 / EZNEC as a .nec deck (or a
-          // SimNEC .ssn): read in this browser, opened on the server, and
-          // carried by the page's link so it can be shared.
+          // Your own model, from MMANA / 4nec2 / EZNEC as a .nec deck, a
+          // SimNEC .ssn or an MMANA-GAL .maa (AK#1897): read in this browser,
+          // opened on the server, and carried by the page's link so it can
+          // be shared.
           <label
             className="design-reload-btn deck-open-btn"
-            title="Open your own antenna model: a NEC deck (.nec, as MMANA, 4nec2 and EZNEC export) or a SimNEC .ssn. The page's link carries it, so you can share it."
+            title="Open your own antenna model: a NEC deck (.nec, as MMANA, 4nec2 and EZNEC export), a SimNEC .ssn or an MMANA-GAL .maa. The page's link carries it, so you can share it."
           >
             <input
               type="file"
-              accept=".nec,.NEC,.ssn,.SSN"
+              accept=".nec,.NEC,.ssn,.SSN,.maa,.MAA"
               aria-label="open a NEC deck"
               onChange={(e) => {
                 const f = e.target.files?.[0];

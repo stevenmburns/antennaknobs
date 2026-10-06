@@ -1,4 +1,4 @@
-// Opened decks (AC6LA, QRZ 1005128 #40/#42): a visitor's own .nec / .ssn,
+// Opened decks (AC6LA, QRZ 1005128 #40/#42): a visitor's own .nec / .ssn / .maa,
 // studied in the workbench with nothing installed, and shared by its link.
 //
 // The deck travels as its TEXT, never parsed here. The browser compresses it
@@ -179,10 +179,32 @@ export async function openDeck(payload: DeckPayload): Promise<OpenedDeck> {
   return d;
 }
 
+/** An MMANA-GAL `.maa` file's text from its bytes. MMANA writes ASCII or
+ *  cp1251 (Cyrillic headers and comments, never UTF-8), so the bytes are read
+ *  as UTF-8 when they are valid UTF-8 and as windows-1251 otherwise -- the
+ *  server's `maa_import.decode_maa` rule. Read as UTF-8 regardless, a Cyrillic
+ *  `с` in a position (`w1с`, which MMANA accepts) would arrive as U+FFFD. */
+export function decodeMaaBytes(bytes: Uint8Array): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1251").decode(bytes);
+  }
+}
+
+/** A chosen design file's text: a `.maa` through `decodeMaaBytes`, every
+ *  other file as UTF-8. */
+export async function readDesignFile(file: File): Promise<string> {
+  if (/\.maa$/i.test(file.name) && typeof file.arrayBuffer === "function") {
+    return decodeMaaBytes(new Uint8Array(await file.arrayBuffer()));
+  }
+  return file.text();
+}
+
 /** Read a chosen file and open it: the browser reads the text, nothing
  *  parses it here. */
 export async function openDeckFile(file: File): Promise<OpenedDeck> {
-  const text = await file.text();
+  const text = await readDesignFile(file);
   return openDeck({ name: file.name, z: await compressDeck(text) });
 }
 

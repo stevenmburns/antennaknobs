@@ -2,7 +2,7 @@
 // PR 5b-1), extracted verbatim from DesignSession's inline `groundModel` /
 // `groundSummary` consts.
 import { describe, it, expect } from "vitest";
-import { groundSummaryLabel, resolveGroundModel } from "../lib/ground";
+import { groundSeedText, groundSummaryLabel, resolveGroundModel } from "../lib/ground";
 import { backendEntry, entry } from "./backendFixtures";
 
 // Every backend the server registers today supports ground/terrain, so the
@@ -66,5 +66,23 @@ describe("groundSummaryLabel", () => {
 
   it("labels 'Sommerfeld ground' for the sommerfeld finite method", () => {
     expect(groundSummaryLabel(true, entry("bspline"), "sommerfeld", "levee")).toBe("Sommerfeld ground");
+  });
+});
+
+// AK#1897: a file that is not NEC cards names its ground in its own words.
+describe("groundSeedText", () => {
+  it("keeps the NEC spelling when the file names no card", () => {
+    expect(groundSeedText("free", null)).toBe("from the file: free space (GE 0) — ground plane off");
+    expect(groundSeedText("pec", null)).toBe("from the file: perfect ground (GE 1 / GN 1)");
+  });
+
+  it("uses an MMANA model's own spelling for every seed", () => {
+    expect(groundSeedText("free", null, "MMANA G = 0")).toBe(
+      "from the file: free space (MMANA G = 0) — ground plane off",
+    );
+    expect(groundSeedText("pec", null, "MMANA G = 1")).toBe("from the file: perfect ground (MMANA G = 1)");
+    expect(groundSeedText("mininec", { eps_r: 13, sigma: 0.005 }, "MMANA G = 2, soil assumed")).toContain(
+      "MININEC-type ground (MMANA G = 2, soil assumed)",
+    );
   });
 });
