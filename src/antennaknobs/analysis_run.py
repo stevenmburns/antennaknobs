@@ -310,19 +310,28 @@ def optimize_summary(o: an.Optimize) -> str:
 def list_lines(builder) -> list[str]:
     """``analyze --list``: one line per offered analysis, with every reason
     it cannot run here; under its group's heading when the list is long
-    enough to have them (AK#1907, `analyses.shows_groups`)."""
-    offered = an.offered(builder)
+    enough to have them (AK#1907, `analyses.shows_groups`), and the generic
+    ones under ``[General]`` however short it is (`analyses.heading`). Each
+    line says where the analysis comes from (AK#1935): "this design" (its
+    own ``build_analyses()``, inherited ones included) or "every design"
+    (the library's generic ones)."""
+    pairs = an.offered_with_origin(builder)
+    offered = [a for a, _ in pairs]
     width = max((len(a.name) for a in offered), default=0)
+    marks = max((len(w) for w in an.ORIGIN_WORDS.values()), default=0)
     headed = an.shows_groups(offered)
     lines = []
     group = None
-    for a in offered:
-        if headed and an.group_of(a) != group:
-            # `offered` holds each group together, so a heading per change.
-            group = an.group_of(a)
+    for a, origin in pairs:
+        head = an.heading(a, origin, headed)
+        if head is not None and head != group:
+            # `offered` holds each group together (and the generic ones
+            # last), so a heading per change.
+            group = head
             lines.append(f"[{group}]")
         probs = an.problems(a, builder) + cli_gaps(a, builder)
-        lines.append(f"{a.name:<{width}}  {summary(a, builder)}")
+        mark = an.ORIGIN_WORDS[origin]
+        lines.append(f"{a.name:<{width}}  {mark:<{marks}}  {summary(a, builder)}")
         for p in probs:
             lines.append(f"{'':<{width}}    {p}")
         if not probs:
