@@ -230,19 +230,26 @@ export type OptPause = { kind: "knob"; name: string } | { kind: "load" };
 
 /** What the session knows about the optimizer beyond its result (AK#1912),
  *  so the readout can always say what state it is in. Absent: a caller with
- *  no session behind it. */
+ *  no session behind it, and the panel keeps its own menu state. */
 export type OptStateControl = {
   /** Knobs marked "Optimize this knob" on this design. */
   marked: number;
   /** The run in flight superseded one that had not finished. */
   restarted: boolean;
+  /** The gear menu is open. Opening it pauses Optimize, and closing it
+   *  resumes Optimize if it was on (useOptimizer). */
+  menuOpen: boolean;
+  /** The menu paused a running Optimize, which closing it resumes. */
+  menuPaused: boolean;
+  setMenuOpen: (open: boolean) => void;
 };
 
 // Live / Optimize: two matching push-button toggles (depressed = on), stacked
 // at the left of the dial. Live gates auto-solving on knob turns; Optimize
 // gates the reactive tuner. The objective ("optimise for") picker is the gear
-// next to Optimize. optMenuOpen is local — nothing outside this subtree reads
-// or writes it.
+// next to Optimize. optMenuOpen belongs to the session when it passes
+// `optState` (opening the menu pauses Optimize), else it is local to this
+// subtree.
 function SimControls({
   autoSim,
   setAutoSim,
@@ -300,15 +307,28 @@ function SimControls({
   /** AK#1912. Absent: no state line beyond the run's own readouts. */
   optState?: OptStateControl | undefined;
 }) {
-  const [optMenuOpen, setOptMenuOpen] = useState(false);
+  const [ownMenuOpen, setOwnMenuOpen] = useState(false);
+  const optMenuOpen = optState ? optState.menuOpen : ownMenuOpen;
+  const setOptMenuOpen = (next: boolean | ((o: boolean) => boolean)) => {
+    const v = typeof next === "function" ? next(optMenuOpen) : next;
+    if (optState) optState.setMenuOpen(v);
+    else setOwnMenuOpen(v);
+  };
   // A band run's readouts (its per-band table, its refusals) live in the
   // full-width block under the dial; this narrow column keeps the one figure.
   const bandsOn = !!bands?.freqs;
   // AK#1912: Optimize on, and nothing visibly happening, always has a reason
   // the readout states — before any run's own figures are there to show.
   const marked = optState?.marked;
-  const optState1912: { text: string; title: string } | null = !optEnabled || !optState
+  const optState1912: { text: string; title: string } | null = !optState
     ? null
+    : optState.menuOpen && optState.menuPaused
+      ? {
+          text: "paused while editing optimize settings",
+          title: "Optimize is off while its settings change; closing this menu turns it back on and starts one run with them.",
+        }
+    : !optEnabled
+      ? null
     : marked === 0
       ? {
           text: "mark a knob to optimize (right-click → Optimize this knob)",

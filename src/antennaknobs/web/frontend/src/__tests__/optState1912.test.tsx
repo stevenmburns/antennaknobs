@@ -1,12 +1,13 @@
 // AK#1912: "I don't think the optimize button does anything. How can I
 // tell?" The readout under Live / Optimize always says the optimizer's state:
-// nothing marked, needs Live, paused by a hand move, running (or restarted), and the progress after that.
+// nothing marked, needs Live, paused while its settings are edited, paused
+// by a hand move, running (or restarted), and the progress after that.
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { VfoPanel, type OptProgress, type OptStateControl } from "../components/session/VfoPanel";
 
 function state(over: Partial<OptStateControl> = {}): OptStateControl {
-  return { marked: 2, restarted: false, ...over };
+  return { marked: 2, restarted: false, menuOpen: false, menuPaused: false, setMenuOpen: vi.fn(), ...over };
 }
 
 const PROGRESS: OptProgress = {
@@ -69,6 +70,27 @@ describe("the Optimize readout states the optimizer's state (AK#1912)", () => {
   it("nothing marked wins over Live off: marking is the first thing to do", () => {
     render(<VfoPanel {...props({ autoSim: false, optState: state({ marked: 0 }) })} />);
     expect(status()?.textContent).toMatch(/^mark a knob/);
+  });
+
+  it("menu open over a running Optimize: paused while editing its settings", () => {
+    render(
+      <VfoPanel {...props({ optEnabled: false, optState: state({ menuOpen: true, menuPaused: true }) })} />,
+    );
+    expect(status()?.textContent).toBe("paused while editing optimize settings");
+    // The menu itself is open: the session holds its state.
+    expect(screen.getByRole("menu")).toBeTruthy();
+  });
+
+  it("menu open with Optimize already off: nothing paused, nothing said", () => {
+    render(<VfoPanel {...props({ optEnabled: false, optState: state({ menuOpen: true }) })} />);
+    expect(status()).toBeNull();
+  });
+
+  it("the gear button asks the session to open and close the menu", () => {
+    const setMenuOpen = vi.fn();
+    render(<VfoPanel {...props({ optState: state({ setMenuOpen }) })} />);
+    screen.getByRole("button", { name: "Optimisation method" }).click();
+    expect(setMenuOpen).toHaveBeenCalledWith(true);
   });
 
   it("a hand move of a marked knob: paused, and it stays said", () => {
