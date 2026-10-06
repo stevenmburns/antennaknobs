@@ -639,7 +639,10 @@ map reads as partial.
   frequency) fades the map as stale, and **run · re-run?** runs it again.
   A new Z₀ only re-colours it.
 - **Hover** (or tap) a cell for that node's values: the two knobs, R, X, SWR
-  and |Γ|, with no interpolation between nodes.
+  and |Γ|, with no interpolation between nodes. **Click** a cell to select
+  it: its readout stays, with **set knobs here**, which sets both knobs to
+  that node, so the live solve lands on it (a knob the optimizer holds is
+  handed back to you, as a drag would). Click it again to let it go.
 - **x** and **y** edit each axis's range, points and spacing, and **↺** goes
   back to the analysis's own. **colour** switches between |Γ| and
   1 − 1/SWR, the SWR chart's two scales.
@@ -652,6 +655,9 @@ map reads as partial.
   map.
 - A map has no **pin** yet, and its Table view is left out: hover gives the
   numbers, and `antennaknobs analyze` prints the table.
+- **copy** and **keep** work as for any chart. An axis you edited is written
+  as a range, `an.Sweep("angle_deg", 10.0, 50.0, points=9)`, never as a list
+  of its values; an axis you left alone stays as the analysis wrote it.
 
 On the hosted simulator a map is limited to 1000 nodes, and **run** says so
 over that. One that is still running after two minutes stops at the next
