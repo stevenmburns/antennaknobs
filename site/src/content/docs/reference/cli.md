@@ -422,6 +422,7 @@ an.band_swr(
         ),
     ),
     ground="finite-fast",
+    group="Height & ground",
 )
 ```
 
@@ -605,6 +606,7 @@ an.patterns(
     ),
     views=(an.Elevation(az=0), an.PatternTable()),
     ground="finite-fast",
+    group="Height & ground",
 )
 ```
 

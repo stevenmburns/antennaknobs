@@ -72,6 +72,7 @@ def test_every_entry_has_the_documented_shape(invvee):
             "problems",
             "workbench",
             "study",
+            "group",
         }
         # A study (AK#1757 step 7) says so; the design's own say None.
         assert (a["study"] is not None) is (":" in a["name"]), a["name"]
