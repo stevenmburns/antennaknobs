@@ -122,6 +122,10 @@ export type ParamSweepData = {
    *  Cancel): the points drawn are all there will be until a Run or a
    *  parameter change. */
   partial?: boolean;
+  /** The hosted wall-time budget stopped the run (the closing record's
+   *  `stopped: "time"`): its budget in seconds, null when the server named
+   *  none. Absent otherwise. `partial` is set with it. */
+  timeLimitS?: number | null;
   /** A knob sweep whose inputs have changed since it ran (another knob, the
    *  engine, the ground): drawn dimmed, and re-run only when asked. */
   stale?: boolean;

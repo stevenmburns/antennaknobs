@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { SolveRequest } from "../../lib/api";
 import type { BackendEntry } from "../../lib/backends";
+import { closingAdvisories } from "../../lib/sweep";
 import {
   paramFeedZinf,
   paramZinf,
@@ -255,6 +256,7 @@ export function useParamSweep({
         ...(acc.error ? { error: acc.error } : {}),
         ...(acc.errorStatus ? { errorStatus: acc.errorStatus } : {}),
         ...(acc.partial ? { partial: true } : {}),
+        ...(acc.timeLimitS !== undefined ? { timeLimitS: acc.timeLimitS } : {}),
       });
     };
     let dropped = false;
@@ -304,11 +306,16 @@ export function useParamSweep({
           const pt = JSON.parse(line);
           if (pt.done) {
             closed = true;
-            // The closing record's advisories: the gap-fed density warning.
-            if (Array.isArray(pt.advisories) && pt.advisories.length > 0) {
-              acc.advisories = pt.advisories;
-              publish();
+            // The closing record's advisories: the gap-fed density warning,
+            // and the hosted time limit's stop, which also marks what landed
+            // partial (the curve ended at its next point, not its last).
+            const notes = closingAdvisories(pt);
+            if (pt.stopped === "time") {
+              acc.partial = true;
+              acc.timeLimitS = Number.isFinite(pt.time_budget_s) ? pt.time_budget_s : null;
             }
+            if (notes.length > 0) acc.advisories = notes;
+            if (notes.length > 0 || acc.partial) publish();
             continue;
           }
           // A solver failure at one value (rare — a degenerate small-N

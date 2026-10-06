@@ -21,6 +21,7 @@ import {
   xFraction,
   xTicks,
 } from "../../lib/paramSweep";
+import { sweepTimeLimitNote } from "../../lib/sweep";
 import { formatTick } from "../../lib/sweepAxis";
 import { zinfSuffix } from "../../lib/zinf";
 import { ZPARAM_PLOT_MARGIN } from "../../lib/zparamLayout";
@@ -239,6 +240,8 @@ export function ZParamChart({
     ? "sweep refused — see the note"
     : d?.stale
     ? "stale — the design, solver or ground changed; re-run?"
+    : d?.partial && d.timeLimitS !== undefined
+    ? `${sweepTimeLimitNote({ stopped: "time", time_budget_s: d.timeLimitS })} — ${landed}/${total}${gapWords}`
     : d?.partial
     ? `stopped at ${landed}/${total} — partial${gapWords}`
     : running

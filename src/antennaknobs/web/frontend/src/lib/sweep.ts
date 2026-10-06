@@ -477,3 +477,35 @@ export function sweepProgressFraction(p: SweepProgress): number | null {
   if (p.phase !== "base" || p.planned <= 0) return null;
   return Math.min(1, p.received / p.planned);
 }
+
+/** A sweep stream's closing `{done}` record, as far as the runners read it:
+ *  its advisories, and the hosted wall-time budget's stop (the server's
+ *  `_SweepClock`: `stopped: "time"` and the budget in seconds) when the run
+ *  ended at its next point rather than its last. */
+export type SweepClosing = {
+  advisories?: { category: string; text: string }[];
+  stopped?: string | null;
+  time_budget_s?: number | null;
+};
+
+/** The advisory category the time-limit note travels under. */
+export const SWEEP_TIME_LIMIT = "SweepTimeLimit";
+
+/** What a sweep the hosted time limit stopped says, or null when it was not
+ *  stopped: "stopped at the time limit (120 s): partial". */
+export function sweepTimeLimitNote(closing: SweepClosing | null | undefined): string | null {
+  if (closing?.stopped !== "time") return null;
+  const s = closing.time_budget_s;
+  return `stopped at the time limit${typeof s === "number" && Number.isFinite(s) ? ` (${s} s)` : ""}: partial`;
+}
+
+/** The closing record's advisories, with the time-limit note first when the
+ *  budget stopped the run: every sweep view already shows advisories. */
+export function closingAdvisories(
+  closing: SweepClosing | null | undefined,
+): { category: string; text: string }[] {
+  const out = Array.isArray(closing?.advisories) ? closing.advisories.slice() : [];
+  const note = sweepTimeLimitNote(closing);
+  if (note) out.unshift({ category: SWEEP_TIME_LIMIT, text: note });
+  return out;
+}
