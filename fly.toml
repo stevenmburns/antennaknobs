@@ -48,9 +48,14 @@ primary_region = 'sjc'
     method = 'GET'
     path = '/healthz'
 
+# A dedicated-CPU machine (2026-10-05). On shared-cpu-1x the guaranteed share
+# is 6.25 % of a core (fly_instance_cpu_baseline 0.062): a knob drag fits in
+# the burst credit, but a multi-band optimize drains it within a minute and
+# then runs throttled -- UR0GT's three-band run took ~10 min there and 28.9 s
+# on performance-2x. Performance machines have no burst model.
 [[vm]]
-  size = 'shared-cpu-1x'
-  memory = '2gb'
+  size = 'performance-2x'
+  memory = '4gb'
 
 # The usage counters (AK#405; web/hosting.py): Prometheus text on their own
 # port, which Fly's scraper reads every 15 s on the machine's private address
