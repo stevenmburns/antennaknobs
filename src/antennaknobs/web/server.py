@@ -1740,6 +1740,7 @@ _MAX_BASIS_PYNEC = _cost.MAX_BASIS_PYNEC
 _COMPRESSED_MODELS = _cost.COMPRESSED_MODELS
 _MAX_SWEEP_POINTS = _cost.MAX_SWEEP_POINTS
 _MAX_OPT_EVALS = _cost.MAX_OPT_EVALS
+_MAX_OPT_SECONDS = _cost.MAX_OPT_SECONDS
 
 
 class SolveTooLargeError(ValueError):
@@ -4476,6 +4477,7 @@ async def optimize_endpoint(req: dict, request: Request):
                 tol=tol,
                 mean_weight=mean_weight,
                 on_progress=on_progress,
+                time_budget_s=float(_MAX_OPT_SECONDS) if _HOSTED else None,
             )
         return run_in_threadpool(
             _shed,

@@ -51,6 +51,11 @@ COMPRESSED_MODELS = frozenset({"arrayblock", "hmatrix"})
 # (41-point sweeps, ≤200 optimizer evals).
 MAX_SWEEP_POINTS = _env_int("ANTENNAKNOBS_MAX_SWEEP_POINTS", 500)
 MAX_OPT_EVALS = _env_int("ANTENNAKNOBS_MAX_OPT_EVALS", 500)
+# Hosted wall-time budget for one multi-band optimize run, in seconds: past
+# it the run answers with the best point solved so far. UR0GT's three-band
+# run takes ~30 s on performance-2x; a design a hundred times slower per
+# solve would otherwise hold the machine's one deck slot for an hour.
+MAX_OPT_SECONDS = _env_int("ANTENNAKNOBS_MAX_OPT_SECONDS", 120)
 
 # Above this estimated basis count the adapter recommends the sinusoidal
 # backend (`_recommended_backend`); a dense-family solver here is minutes per

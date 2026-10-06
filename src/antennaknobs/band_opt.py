@@ -21,8 +21,8 @@ from .opt import _get_path, _set_path
 DEFAULT_SPAN = 0.2
 
 
-def _ui_range(builder, name: str) -> tuple[float, float] | None:
-    """A knob's ``ui_params`` min/max: a flat knob's own entry, a group leaf's
+def _ui_meta(builder, name: str) -> Mapping | None:
+    """A knob's ``ui_params`` entry: a flat knob's own, a group leaf's
     (``bands.0.length``) in its group's entry under the leaf name."""
     params = getattr(builder, "_params", None)
     ui = params.get("ui_params") if isinstance(params, Mapping) else None
@@ -32,7 +32,21 @@ def _ui_range(builder, name: str) -> tuple[float, float] | None:
     meta = ui.get(parts[0])
     if len(parts) > 1 and isinstance(meta, Mapping):
         meta = meta.get(parts[-1])
-    if not isinstance(meta, Mapping):
+    return meta if isinstance(meta, Mapping) else None
+
+
+def ui_unit(builder, name: str) -> str | None:
+    """A knob's unit as its ``ui_params`` names it (an opened deck's SY
+    capacitor reads ``pF``), or None."""
+    meta = _ui_meta(builder, name)
+    unit = meta.get("unit") if meta is not None else None
+    return str(unit) if unit else None
+
+
+def _ui_range(builder, name: str) -> tuple[float, float] | None:
+    """A knob's ``ui_params`` min/max, or None."""
+    meta = _ui_meta(builder, name)
+    if meta is None:
         return None
     lo, hi = meta.get("min"), meta.get("max")
     if lo is None or hi is None or not float(lo) < float(hi):
@@ -160,6 +174,22 @@ def report_lines(res: dict) -> list[str]:
         + f"; worst SWR {res['worst_swr_before']:.4f} -> "
         f"{res['worst_swr_after']:.4f}"
     )
+    if res.get("stopped") == "time":
+        lines.append(
+            f"stopped at the time limit ({res['time_budget_s']:g} s): the answer "
+            "is the best point solved by then"
+        )
+    for b in res.get("at_bound") or []:
+        lines.append(
+            f"{b['name']} ended at its {b['bound']} ({b['value']:.6g}): the "
+            "optimum may lie outside the range; widen it and run again"
+        )
+    if res.get("far_from_match"):
+        lines.append(
+            "no band is near a match at the answer (worst SWR "
+            f"{res['worst_swr_after']:.4g}): check the knobs' ranges and units "
+            "before trusting this optimum"
+        )
     if res.get("antiresonant_bands"):
         lines.append(
             "parallel resonance (X = 0 with dX/df < 0) at band(s) "
