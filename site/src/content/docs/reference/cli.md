@@ -1464,6 +1464,11 @@ A spec starting with `[` is JSON instead: a list of
 **Knobs.** `--params` names them, a group's leaf spelled `bands.<i>.<leaf>`.
 Each searches its `--bound NAME=LO:HI`, else its slider's `ui_params` range,
 else ±20 % of its value. With no `--params` the bands' `knobs` are the knobs.
+A bound is in the knob's own unit, which the run prints before it starts
+(`# knob sy_cap1 = 340 pF, range 100..1000 pF`): an opened deck's `SY cap1 =
+340pF` is bounded `100:1000`, not `100e-12:1000e-12`. A bound that excludes the
+knob's current value is refused, and a run whose answer leaves a knob at the
+edge of its range, or no band near a match, says so under its table.
 
 **Forms** (`--mode`):
 
