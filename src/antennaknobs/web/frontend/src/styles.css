@@ -4714,6 +4714,17 @@ div.opt-bands-readout {
   gap: var(--space-2);
   white-space: nowrap;
 }
+/* The pattern family's range (AK#1935) is seven controls, far wider than a
+   phone (Steve's phone 2026-10-06: it ran off the pane). It wraps between
+   its controls, never inside one, as the knob sweep's range does. */
+.zparam-group.chart-family {
+  flex-wrap: wrap;
+  white-space: normal;
+  max-width: 100%;
+}
+.chart-family > label {
+  white-space: nowrap;
+}
 /* A point count is at most 4 digits. */
 .zparam-controls .zparam-points .commit-number input {
   width: 4.5ch;
