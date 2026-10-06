@@ -497,7 +497,8 @@ class Smith(View):
 @dataclass(frozen=True)
 class Map(View):
     """A two-sweep map (the sweep is a pair): |Γ| on the session's z0 over
-    (x, y), with the `Ref` lines as contours of R and X."""
+    (x, y), with the `Ref` lines as contours of R and X, and its SWR
+    threshold as the contour of |Γ| at that SWR."""
 
 
 @dataclass(frozen=True)
