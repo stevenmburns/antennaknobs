@@ -420,3 +420,27 @@ built in parallel.
     gives the numbers)?
 15. Engine and ground on a map chart: one slot and one ground slot as
     radios, not the checkboxes other charts carry?
+
+## Decisions (Steve, 2026-10-05 night)
+
+All 15 answered:
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | Where the grid is computed | A new `/map` endpoint: one stream per map, admitted once at nx·ny |
+| 2 | Hosted limits | The map's own cap of 1000 points plus a 120 s wall budget that keeps and labels the partial map |
+| 3 | Solve order | Rows in the CLI's order (y outer); coarse-first later only if budget cuts are common |
+| 4 | Default colour | \|Γ\| on z0, with 1 − 1/SWR as the alternative |
+| 5 | Palette | `viridis_r`, as the CLI draws it |
+| 6 | Click | A readout plus a "set knobs here" button |
+| 7 | Dwell | Off by default, switchable |
+| 8 | Staleness | An x/y drag moves only the marker; any other input dims the map as stale; z0 only re-colours |
+| 9 | A map with a cross | Greyed with its reason in v1 |
+| 10 | Frequency or density as an axis | Greyed with its reason in v1 |
+| 11 | Pins | None in v1; dashed-contour map pins later |
+| 12 | Copy as analysis | `Sweep(lo, hi, points=)` per edited axis |
+| 13 | `Ref.swr` | **Drawn as a \|Γ\| contour, in the CLI and the workbench together** (not the recommendation) |
+| 14 | Table view | Skipped by name in v1 |
+| 15 | Engine and ground on the chart | One solver slot and one ground slot, as radios |
+
+Steve also said yes to a hosted wall budget for EVERY sweep, catalog designs included, not just opened decks (the gap found in this note's cost section).
