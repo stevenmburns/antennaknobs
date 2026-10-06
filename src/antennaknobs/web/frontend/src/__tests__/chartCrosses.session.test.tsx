@@ -426,9 +426,12 @@ describe("the design cross", () => {
     ]);
     const legend = document.querySelector<HTMLElement>(".chart-legend");
     expect(legend?.dataset.curves).toBe("3");
-    // The engine no slot holds is skipped, not refused: a note, no row.
+    // The engine no slot holds is skipped, not refused: a note, no row. And
+    // the pick says which slots it ticked (AC6LA, QRZ).
     expect(legend?.querySelector('[role="note"]')?.textContent).toBe(
-      "skipped: razor-2p, which no slot holds. Put it in a slot to include it.",
+      "skipped: razor-2p, which no slot holds. Put it in a slot to include it. " +
+        "This analysis compares 3 engines, so picking it ticked the solver slots that hold them " +
+        "(A: B-spline d=2; C: PyNEC). The session still solves on A.",
     );
   });
 });

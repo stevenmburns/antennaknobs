@@ -106,6 +106,7 @@ import {
   type KnobValue,
   type ScalarKnob,
   type ListedCross,
+  pickNote,
   preselect,
   skippedNote,
   servedCell,
@@ -4358,9 +4359,13 @@ function DesignSessionBody({
       // (Steve, 2026-10-01), named in a muted note.
       // ...and, when one ground slot is solved as different ground models
       // across the curves' engines (NEC-5 has no refl-coef), says so (AK#1854).
+      // ...and, while the ticks are still the ones a pick made, which slots
+      // the analysis ticked and why (AC6LA, QRZ: "how is it that free space
+      // got added as a ground type?").
       note:
         [
           skippedNote(m.plan),
+          pickNote(m.now.cross, listedHere, crossEnv),
           mixedGroundNote(
             m.plan.cells.filter((c) => !c.refused),
             (id) => slots[id]?.backend,
