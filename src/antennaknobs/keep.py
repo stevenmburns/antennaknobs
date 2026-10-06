@@ -960,10 +960,20 @@ def analysis_from_family(family) -> an.Analysis:
         raise KeepError("family.spacing is 'lin' or 'log'")
     lo, hi = min(lo, hi), max(lo, hi)
     target = an.FREQUENCY if knob == _FREQ_KNOB else knob
+
+    def tidy(v: float) -> float | int:
+        # A whole number prints as one: Sweep("base", 4, 14), not 4.0.
+        return int(v) if v.is_integer() else v
+
     log = spacing == "log"
     values = family.get("values")
     grid = _grid(lo, hi, points, log)
-    kw: dict = {"lo": lo, "hi": hi, "points": points, "spacing": "log" if log else None}
+    kw: dict = {
+        "lo": tidy(lo),
+        "hi": tidy(hi),
+        "points": points,
+        "spacing": "log" if log else None,
+    }
     if values is not None:
         if not isinstance(values, list) or not values:
             raise KeepError("family.values is a list of numbers")
@@ -973,7 +983,7 @@ def analysis_from_family(family) -> an.Analysis:
             for v, g in zip(vals, grid, strict=True)
         )
         if not on_grid:
-            kw = {"values": tuple(vals)}
+            kw = {"values": tuple(tidy(v) for v in vals)}
     try:
         sweep = an.Sweep(target, **kw)
     except (TypeError, ValueError) as e:
