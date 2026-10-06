@@ -266,7 +266,7 @@ def test_a_compression_bomb_stops_at_the_limit():
     assert err.value.status == 413
 
 
-@pytest.mark.parametrize("name", ["model.ez", "model.maa", "model"])
+@pytest.mark.parametrize("name", ["model.ez", "model.mmana", "model"])
 def test_unsupported_files_are_refused_by_name(name):
     with pytest.raises(decks.DeckError, match=r"\.nec .*\.ssn"):
         decks.decode_payload({"name": name, "text": DIPOLE}, _settings())

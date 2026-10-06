@@ -1,7 +1,8 @@
 """Builders synthesized from antenna data files — the CLI's ``@file`` specs.
 
-``builder_from_file`` turns a NEC card deck (``.nec``) or a SimNEC circuit
-(``.ssn``) into a ready-to-run ``AntennaBuilder`` class, so every CLI
+``builder_from_file`` turns a NEC card deck (``.nec``), a SimNEC circuit
+(``.ssn``) or an MMANA-GAL model (``.maa``, `maa_import`, AK#1897) into a
+ready-to-run ``AntennaBuilder`` class, so every CLI
 subcommand can consume a file directly wherever a builder spec goes:
 
     antennaknobs draw --builder @decks/yagi.nec
@@ -57,7 +58,8 @@ from dataclasses import replace
 from pathlib import Path
 from types import MappingProxyType
 
-from .builder import AntennaBuilder
+from .builder import C_LIGHT_MHZ_M, AntennaBuilder
+from .maa_import import decode_maa, read_maa
 from .nec_import import _NEC_SMIN, NEC_C_LIGHT_MHZ_M, classify_sy, parse_nec
 from .simnec_import import classify_dcl, parse_ssn
 
@@ -123,6 +125,8 @@ def _make_builder(
     sweep_grid=None,
     knobs=None,
     target_z0=None,
+    c_light_mhz_m=NEC_C_LIGHT_MHZ_M,
+    seed_card=None,
 ):
     ui: dict = {}
     # AK#1735: the reference impedance the file itself names (a `.ssn`
@@ -154,6 +158,10 @@ def _make_builder(
         # panel otherwise spells "Sommerfeld (GN 2)" (AC6LA, 2026-09-13).
         if ground_card:
             ui["ground_card"] = ground_card
+    if seed_card:
+        # A file that is not NEC cards names its ground in its own words
+        # (AK#1897: MMANA's "G = 1"), for every seed, free and perfect too.
+        ui["ground_card"] = seed_card
     ui["fixed_segment_counts"] = True
     # AK#1891: a deck read as NEC-4 or NEC-5 solves with the extended kernel
     # unless the user's switch says otherwise; the app's per-slot toggle shows
@@ -172,6 +180,8 @@ def _make_builder(
     if ui:
         params["ui_params"] = MappingProxyType(ui)
 
+    _c_light = c_light_mhz_m
+
     class Builder(AntennaBuilder):
         label = stem
 
@@ -184,8 +194,10 @@ def _make_builder(
         # rather than in either loader because BOTH of them hand this
         # factory NEC cards -- a `.ssn`'s geometry is the deck embedded in
         # it, the same reason `file_deck` is set for both (AK#1576). A
-        # loader for a format that is NOT NEC cards must say so here.
-        c_light_mhz_m = NEC_C_LIGHT_MHZ_M
+        # loader for a format that is NOT NEC cards says so through the
+        # factory's `c_light_mhz_m`: a `.maa` is MMANA's, not NEC's, and
+        # takes the SI value (AK#1897).
+        c_light_mhz_m = _c_light
 
         # The file's own EK card in a NEC-2 reading (NecDeck.extended_kernel),
         # issue #849: the CLI turns the momwire kernel on for it
@@ -817,8 +829,53 @@ def _generator_zo(zo):
     return float(zo)
 
 
+def _maa_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=None):
+    """An MMANA-GAL ``.maa`` model (AK#1897, `maa_import.read_maa`): read
+    into a NEC deck in NEC-5's segment-end spelling (MMANA's sources and
+    loads sit on pulses, between segments), solved at the file's design
+    frequency, with MMANA's reference impedance as the design's Zo."""
+    if dialect is not None:
+        raise ValueError(
+            f"{path.name}: the NEC dialect is chosen for a .nec deck; an MMANA "
+            ".maa model is read as MMANA writes it"
+        )
+    if refine != 1:
+        raise SystemExit(
+            f"{path.name}: an MMANA model has no refinement path; its mesh "
+            "comes from its own segmentation line (DM1, DM2, SC, EC) -- raise "
+            "DM1/DM2 in MMANA, or export it to .nec and refine the deck"
+        )
+    imp = read_maa(text, name=path.name, limits=limits)
+    deck = imp.deck
+    freq = round(imp.freq_mhz, 6)
+    return _make_builder(
+        path.stem,
+        freq,
+        None,
+        list(imp.notes),
+        lambda: deck.wire_tuples(specs=True),
+        deck.network,
+        ground=imp.ground,
+        ground_method="mininec" if isinstance(imp.ground, tuple) else None,
+        seed_card=imp.ground_word,
+        file_deck=deck,
+        target_z0=imp.ref_z,
+        c_light_mhz_m=C_LIGHT_MHZ_M,
+    )
+
+
 # extension -> loader
-_LOADERS = {".nec": _nec_builder, ".ssn": _ssn_builder}
+_LOADERS = {".nec": _nec_builder, ".ssn": _ssn_builder, ".maa": _maa_builder}
+
+
+def read_design_text(path: Path) -> str:
+    """A design file's text. A ``.maa`` is ASCII or cp1251 (MMANA's Cyrillic
+    headers and comments, `maa_import.decode_maa`); old ``.nec`` decks in the
+    wild carry cp1252/latin-1 comment text, and geometry cards are ASCII, so
+    a stray comment byte is replaced rather than refused."""
+    if path.suffix.lower() == ".maa":
+        return decode_maa(path.read_bytes())
+    return path.read_text(encoding="utf-8", errors="replace")
 
 
 def builder_from_file(spec: str, refine: int = 1, dialect: str | None = None):
@@ -839,9 +896,7 @@ def builder_from_file(spec: str, refine: int = 1, dialect: str | None = None):
         )
     if not path.is_file():
         raise SystemExit(f"@{spec}: no such file")
-    # Old decks in the wild carry cp1252/latin-1 comment text; geometry cards
-    # are ASCII, so replace rather than refuse on a stray comment byte.
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = read_design_text(path)
     return loader(path, text, refine=refine, dialect=dialect)
 
 

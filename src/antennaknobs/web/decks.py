@@ -1,6 +1,6 @@
 """Opened decks: a NEC deck the user brings, carried by the link.
 
-A visitor opens their own ``.nec`` / ``.ssn`` in the workbench — on the hosted
+A visitor opens their own ``.nec`` / ``.ssn`` / ``.maa`` in the workbench — on the hosted
 app as well as locally — without installing anything. The design is the
 deck's TEXT, and the browser keeps it: the page's link carries it compressed
 (``?deck=<deflate-raw, base64url>&name=<file name>``), and every request for
@@ -51,7 +51,7 @@ _PREFIX = f"{DECK_NS}."
 #: Where to send someone whose model is over a hosted limit.
 RUN_LOCALLY = "run it locally (pip install antennaknobs[web]) for larger models"
 #: ...and someone already running it locally: the designs folder opens a
-#: bare .nec / .ssn with none of an opened deck's limits.
+#: bare .nec / .ssn / .maa with none of an opened deck's limits.
 USE_DESIGNS_FOLDER = (
     "to open a larger model, put the file in your designs folder "
     "(~/.antennaknobs/designs), where these limits do not apply"
@@ -183,10 +183,11 @@ def decode_payload(payload, settings: DeckSettings) -> tuple[str, str]:
     if not name or len(name) > 120:
         name = "deck.nec"
     ext = PurePath(name).suffix.lower()
-    if ext not in (".nec", ".ssn"):
+    if ext not in (".nec", ".ssn", ".maa"):
         raise DeckError(
-            f"{name}: the workbench opens .nec (NEC card deck) and .ssn (SimNEC) "
-            "files; export the model to .nec from your program first"
+            f"{name}: the workbench opens .nec (NEC card deck), .ssn (SimNEC) "
+            "and .maa (MMANA-GAL) files; export the model to .nec from your "
+            "program first"
         )
     limit = settings.max_bytes
     too_big = DeckError(

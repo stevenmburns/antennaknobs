@@ -229,13 +229,13 @@ def _builder_forms():
     return (
         f"builder forms: family.design[:variant] (see `{invoked_command()} "
         "list`), user.<name> (a design in your user folder), or "
-        "@path/to/file.nec / @file.ssn (load a file directly)"
+        "@path/to/file.nec / @file.ssn / @file.maa (load a file directly)"
     )
 
 
 # Extensions that mark a --builder value as a FILE name rather than a design
-# name. .nec/.ssn load with `@`; the others are named so their hint is right.
-_FILE_LIKE_SUFFIXES = (".nec", ".ssn", ".py", ".ez")
+# name. .nec/.ssn/.maa load with `@`; the others are named so their hint is right.
+_FILE_LIKE_SUFFIXES = (".nec", ".ssn", ".maa", ".py", ".ez")
 
 
 def _unknown_builder_message(nm):
@@ -290,7 +290,7 @@ def _unknown_builder_message(nm):
         return f"{head}; {_builder_forms()}"
 
     shown = found if found is not None else Path(cand)
-    loadable = shown.suffix.lower() in (".nec", ".ssn")
+    loadable = shown.suffix.lower() in (".nec", ".ssn", ".maa")
     if loadable and found is not None:
         fix = f"to load a file use --builder @{shown}"
     elif loadable:
@@ -311,7 +311,7 @@ def _unknown_builder_message(nm):
 def get_builder(nm):
     """Resolve a builder spec into a zero-arg factory.
 
-    Spec is "name", "name:variant", or "@path/to/file.nec|.ssn". A variant
+    Spec is "name", "name:variant", or "@path/to/file.nec|.ssn|.maa". A variant
     binds the named '<variant>_params' class attribute as the builder's
     params; absent or ':default' uses default_params. An "@" spec loads an
     antenna data file directly (see ``file_designs``) — pure data, no trust
@@ -1042,7 +1042,8 @@ def cli(arguments=None):
                 default=["dipoles.invvee:dipole", "dipoles.invvee"],
                 help="Use this list of antenna builders. Each spec is "
                 '"family.design[:variant]", "user.<name>", or "@file.nec" / '
-                '"@file.ssn" to load a card deck / SimNEC circuit directly.',
+                '"@file.ssn" / "@file.maa" to load a card deck / SimNEC '
+                "circuit / MMANA-GAL model directly.",
             )
         else:
             p.add_argument(
@@ -1050,8 +1051,8 @@ def cli(arguments=None):
                 type=str,
                 default="dipoles.invvee:dipole",
                 help='Use this antenna builder: "family.design[:variant]", '
-                '"user.<name>", or "@file.nec" / "@file.ssn" to load a card '
-                "deck / SimNEC circuit directly.",
+                '"user.<name>", or "@file.nec" / "@file.ssn" / "@file.maa" to '
+                "load a card deck / SimNEC circuit / MMANA-GAL model directly.",
             )
 
     def add_engine_args(p, plural=False, allow_multi=False):
