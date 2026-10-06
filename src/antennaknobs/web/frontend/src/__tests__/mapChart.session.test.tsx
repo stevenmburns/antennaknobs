@@ -107,12 +107,21 @@ afterEach(() => vi.unstubAllGlobals());
 
 async function open(opts: { runOnPickMap: boolean }) {
   const bodies: MapBody[] = [];
+  const keeps: Record<string, unknown>[] = [];
   const r = await mountReady({
     examples: [EXAMPLE],
     pinned: ["antenna", "zparam"],
     ...(opts.runOnPickMap ? { uiDefaults: { workbench: { run_on_pick: { map: true } } } } : {}),
     routes: {
       "/map": mapRoute(bodies),
+      "/keep": (_url: string, init?: RequestInit) => {
+        keeps.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ code: "an.Analysis(...)\n", name: "tuning map", problems: [], study_refusal: null }),
+        } as unknown as Response;
+      },
       "/analyses": () => ({ ok: true, status: 200, json: async () => ANALYSES }) as unknown as Response,
     },
   });
@@ -124,7 +133,7 @@ async function open(opts: { runOnPickMap: boolean }) {
     [...r.container.querySelectorAll("canvas.map")].find((c) => !c.closest(".thumbstrip")) as
       | HTMLElement
       | undefined;
-  return { ...r, bodies, select, map };
+  return { ...r, bodies, keeps, select, map };
 }
 
 describe("the map chart", () => {
@@ -195,5 +204,39 @@ describe("the map chart", () => {
     fireEvent.click(screen.getByRole("button", { name: "run" }));
     await untilDom(() => map()?.dataset.nodes === "12");
     expect(bodies).toHaveLength(1);
+  });
+
+  it("set knobs here moves the live point onto the picked node", async () => {
+    const { select, map } = await open({ runOnPickMap: true });
+    fireEvent.change(select, { target: { value: "tuning map" } });
+    await untilDom(() => map()?.dataset.nodes === "12");
+    const c = map()!;
+    c.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: c.clientWidth || 400, height: c.clientHeight || 300 }) as DOMRect;
+    // Walk the plot until a click selects a node (the stage's size is the
+    // session's own), then set the knobs there.
+    let at = "";
+    for (let px = 60; px < 400 && !at; px += 25) {
+      fireEvent.click(c, { clientX: px, clientY: 60 });
+      at = map()!.dataset.selected ?? "";
+    }
+    expect(at).not.toBe("");
+    const [i, j] = at.split(",").map(Number);
+    fireEvent.click(screen.getByRole("button", { name: "set knobs here" }));
+    await untilDom(() => map()?.dataset.live === `${LF[i]},${ANG[j]}`);
+  });
+
+  it("copy as analysis of an edited map sends the edited axis as a range", async () => {
+    const { keeps, select, map } = await open({ runOnPickMap: false });
+    fireEvent.change(select, { target: { value: "tuning map" } });
+    await untilDom(() => map());
+    const pts = screen.getByRole("textbox", { name: "y points" }) as HTMLInputElement;
+    fireEvent.change(pts, { target: { value: "5" } });
+    fireEvent.blur(pts);
+    await untilDom(() => map()?.dataset.total === "20");
+    fireEvent.click(screen.getByRole("button", { name: "Copy this chart as an analysis" }));
+    const body = await untilDom(() => keeps[0] ?? null);
+    expect(body.axes).toEqual({ y: { lo: 0, hi: 60, points: 5, spacing: "lin" } });
+    expect(body.values).toBeUndefined();
   });
 });

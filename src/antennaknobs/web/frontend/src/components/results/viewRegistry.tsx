@@ -193,6 +193,8 @@ export type ChartMapRender = {
   live: MapLive | null;
   status: string | null;
   stale: boolean;
+  /** "Set knobs here" (stage only; a thumbnail selects nothing). */
+  onSetKnobs?: (x: number, y: number) => void;
 };
 
 /** A pattern as the analysis chart draws it (AK#1757 step 7): the view on
@@ -404,6 +406,7 @@ function analysisChart(p: ViewRenderProps): ReactElement {
         size={p.size}
         status={c.status}
         stale={c.stale}
+        {...(c.onSetKnobs ? { onSetKnobs: c.onSetKnobs } : {})}
       />
     );
   }

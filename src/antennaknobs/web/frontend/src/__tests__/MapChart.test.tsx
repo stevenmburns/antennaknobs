@@ -121,6 +121,45 @@ describe("the live marker", () => {
   });
 });
 
+describe("set knobs here", () => {
+  it("a click selects a node; its button sets both knobs to that node", () => {
+    const calls: [number, number][] = [];
+    const r = render(
+      <MapChart
+        grid={GRID}
+        xLabel="length_factor"
+        yLabel="angle_deg"
+        z0={50}
+        refs={REFS}
+        quantity="rho"
+        live={null}
+        size={SIZE}
+        onSetKnobs={(x, y) => calls.push([x, y])}
+      />,
+    );
+    const canvas = r.container.querySelector("canvas.map") as HTMLElement;
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: SIZE, height: SIZE }) as DOMRect;
+    const pw = SIZE - MAP_MARGIN.l - MAP_MARGIN.r;
+    const ph = mapPlotHeight(SIZE, 3) - MAP_MARGIN.t - MAP_MARGIN.b;
+    // The best node's cell: its centre in canvas px.
+    const xe = cellEdges(GRID.xs);
+    const ye = cellEdges(GRID.ys);
+    const fx = (GRID.xs[FX.best.i] - xe[0]) / (xe[xe.length - 1] - xe[0]);
+    const fy = (GRID.ys[FX.best.j] - ye[0]) / (ye[ye.length - 1] - ye[0]);
+    fireEvent.click(canvas, { clientX: MAP_MARGIN.l + fx * pw, clientY: MAP_MARGIN.t + (1 - fy) * ph });
+    expect(canvas.dataset.selected).toBe(`${FX.best.i},${FX.best.j}`);
+    fireEvent.click(screen.getByRole("button", { name: "set knobs here" }));
+    expect(calls).toEqual([[GRID.xs[FX.best.i], GRID.ys[FX.best.j]]]);
+  });
+
+  it("a thumbnail (no callback) selects nothing", () => {
+    const { canvas } = mount({});
+    fireEvent.click(canvas, { clientX: 200, clientY: 150 });
+    expect(canvas.dataset.selected).toBe("");
+    expect(screen.queryByRole("button", { name: "set knobs here" })).toBeNull();
+  });
+});
+
 describe("the hover readout", () => {
   it("reads the nearest node, with no interpolation", () => {
     const { canvas } = mount({});

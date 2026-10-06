@@ -49,6 +49,25 @@ export type SweepPinKeep = {
 export type PatternPinKeep = { req: KeepRequest; label: string };
 
 /** The body of a keep request (POST /keep, and /studies/save with a path). */
+/** One edited map axis as /keep takes it. */
+export type MapAxisKeep = { lo: number; hi: number; points: number; spacing: "lin" | "log" };
+
+/** A map's edited axes for a keep: each axis whose spec is not the
+ *  analysis's own, as a range (decision 12, never a list of values). */
+export function mapAxesKeep(m: {
+  x: { lo: number; hi: number; points: number; log: boolean };
+  y: { lo: number; hi: number; points: number; log: boolean };
+  edited: { x: boolean; y: boolean };
+}): Partial<Record<"x" | "y", MapAxisKeep>> | null {
+  const out: Partial<Record<"x" | "y", MapAxisKeep>> = {};
+  for (const k of ["x", "y"] as const) {
+    if (!m.edited[k]) continue;
+    const a = m[k];
+    out[k] = { lo: a.lo, hi: a.hi, points: a.points, spacing: a.log ? "log" : "lin" };
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 export type KeepBody =
   | {
       origin: "chart";
@@ -58,6 +77,9 @@ export type KeepBody =
       tab: KeepRequest;
       cells?: KeepRequest[];
       values?: number[];
+      /** A map's edited axes (docs/design/sweep-framework-map.md, decision
+       *  12): each written back as Sweep(knob, lo, hi, points=). */
+      axes?: Partial<Record<"x" | "y", MapAxisKeep>>;
     }
   | { origin: "sweep pins"; form: "study"; name?: string; pins: SweepPinKeep[] }
   | { origin: "pattern pins"; form: "study"; name?: string; pins: PatternPinKeep[] }

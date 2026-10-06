@@ -263,6 +263,7 @@ import { KeepDialog, type KeepDialogProps } from "../results/KeepDialog";
 import {
   type KeepBody,
   keepRequest,
+  mapAxesKeep,
   patternPinsKeep,
   type SweepPinKeep,
   sweepPinsBlocked,
@@ -274,10 +275,8 @@ import { apiFetch } from "../../lib/pin";
 const ZPARAM_MOBILE_HEADER_PX = 96;
 
 // A map pins nothing in v1 (docs/design/sweep-framework-map.md, decision
-// 11: map pins as dashed contours are a later unit), and an edited map is
-// not kept until copy-as-analysis writes its axes as ranges.
+// 11: map pins as dashed contours are a later unit).
 const MAP_PIN_BLOCKED = "A map has no pins yet: map pins (dashed contours) are a later step";
-const MAP_EDITED_KEEP = "An edited map is not kept yet: ↺ restores the analysis's own axes";
 // ...and on a desktop stage, before ZParamStage has measured the real one
 // (the first frame): one row above the chart.
 const ZPARAM_DESKTOP_HEADER_PX = 48;
@@ -4217,9 +4216,17 @@ function DesignSessionBody({
       keepPicked?.study || (keepPicked?.workbench.runs && keepPicked.workbench.axes?.includes("designs"))
         ? "This chart compares named designs: keep it as a study"
         : null;
-    // An edited map writes its axes as ranges (copy as analysis, the next
-    // unit); until then it is kept as served, or not at all.
-    const mapEdited = isMap && pickedEdited(m.now);
+    // An edited map writes each edited axis back as a range (decision 12),
+    // never as a list of the values it solved.
+    const mapNow = isMap ? (m.now.map ?? null) : null;
+    const mapAxes =
+      mapNow && pickedEdited(m.now)
+        ? mapAxesKeep({
+            x: mapNow.x,
+            y: mapNow.y,
+            edited: { x: !sameSpec(mapNow.x, mapNow.served.x), y: !sameSpec(mapNow.y, mapNow.served.y) },
+          })
+        : null;
     const editedValues: number[] | null = !pickedEdited(m.now) || isMap
       ? null
       : m.state.kind === "knob"
@@ -4241,6 +4248,7 @@ function DesignSessionBody({
           ? { cells: m.runs.map((r) => keepRequest(buildCellRequest(r.cell))) }
           : {}),
         ...(editedValues ? { values: editedValues } : {}),
+        ...(mapAxes ? { axes: mapAxes } : {}),
       };
       setKeeping({
         title: form === "analysis" ? "Copy as analysis" : "Keep as study",
@@ -4267,9 +4275,9 @@ function DesignSessionBody({
           : { pin: { onPin: () => addSweepPins(pinsFromCurves(pinnable, chartZ0)), blocked: pinBlocked } }),
       keep: {
         onCopy: () => openChartKeep("analysis"),
-        copyBlocked: !keepPicked ? noPick : mapEdited ? MAP_EDITED_KEEP : copyBlocked,
+        copyBlocked: keepPicked ? copyBlocked : noPick,
         onKeep: () => openChartKeep("study"),
-        keepBlocked: !keepPicked ? noPick : mapEdited ? MAP_EDITED_KEEP : keepValuesBlocked,
+        keepBlocked: keepPicked ? keepValuesBlocked : noPick,
       },
       onCopyLink: () => copyChartLink(m),
       ...(charts.some((c) => c === null) ? { onDuplicate: () => duplicateChart(i) } : {}),
@@ -4732,7 +4740,15 @@ function DesignSessionBody({
         onRxXLogChange,
       },
       chartPattern,
-      chartMap,
+      chartMap: chartMap && {
+        ...chartMap,
+        // "Set knobs here" (decision 6): an explicit act, the same path as
+        // a drag of each knob (so a knob the optimizer owns is handed back).
+        onSetKnobs: (x: number, y: number) => {
+          handleUserParamChange([mapState!.x.param], x);
+          handleUserParamChange([mapState!.y.param], y);
+        },
+      },
       chartMetric: chartMetricRender,
       ...(chartCurves ? { chartCurves } : {}),
       chartLegend: legend,
