@@ -41,11 +41,15 @@ Every value prints back as the Python that constructs it (`to_code`), and
 the workbench's "suggest the commands" and ``analyze --code`` read.
 
 A role says what a knob MEANS, so a generic analysis finds it on any design.
-It is declared in the knob's ``ui_params`` entry beside ``min`` / ``max``
-(``{"base": {"min": 1.0, "max": 16.0, "role": "height"}}``). `resolve` maps a
-sweep's knob or role to a knob name, or to the reason the design cannot
-serve it: a missing role makes an analysis UNAVAILABLE on that design, by
-name, never an exception.
+There are two: `FREQUENCY` (the measurement frequency, ``freq``) and
+`DENSITY` (the mesh density: ``nominal_nsegs`` on a catalog design, or the
+knob a ``ui_params`` entry marks ``{"role": "density"}``, as an imported
+``.ssn`` marks its ``JamSegments`` constant). Any other knob is named, never
+inferred: the height role went in AK#1935 (an.HEIGHT now refuses, naming
+the knob to write instead). `resolve` maps a sweep's knob or role to a knob
+name, or to the reason the design cannot serve it: a missing knob or role
+makes an analysis UNAVAILABLE on that design, by name, never an
+exception.
 """
 
 from __future__ import annotations
@@ -70,18 +74,45 @@ DEFAULT_POINTS = 11
 # ── roles ──────────────────────────────────────────────────────────────────
 
 
+#: The roles there are (AK#1935: frequency and density only).
+ROLES = ("frequency", "density")
+
+#: What a study or kept file that still spells the height role is told.
+HEIGHT_REMOVED = (
+    "the height role was removed (AK#1935): name the knob instead, e.g. "
+    'an.Sweep("base", 2, 20, points=37) on the inverted vee'
+)
+
+
 @dataclass(frozen=True)
 class Role:
-    """What a knob means. ``name`` is the ``ui_params`` ``role`` value."""
+    """What a knob means. ``name`` is the ``ui_params`` ``role`` value, one
+    of `ROLES`."""
 
     name: str
+
+    def __post_init__(self):
+        if self.name == "height":
+            raise ValueError(HEIGHT_REMOVED)
+        if self.name not in ROLES:
+            raise ValueError(
+                f"Role: one of {', '.join(map(repr, ROLES))}, got {self.name!r}; "
+                'any other knob is named, an.Sweep("knob", ...)'
+            )
 
 
 FREQUENCY = Role("frequency")
 DENSITY = Role("density")
-HEIGHT = Role("height")
 
-_ROLE_CONSTANTS = {FREQUENCY: "FREQUENCY", DENSITY: "DENSITY", HEIGHT: "HEIGHT"}
+_ROLE_CONSTANTS = {FREQUENCY: "FREQUENCY", DENSITY: "DENSITY"}
+
+
+def __getattr__(name: str):
+    # A study or kept file written before AK#1935 says an.HEIGHT: say what
+    # to write instead, rather than a bare AttributeError.
+    if name == "HEIGHT":
+        raise AttributeError(HEIGHT_REMOVED)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 # ── the types ──────────────────────────────────────────────────────────────
@@ -1784,19 +1815,14 @@ def resolve(target: str | Role, builder) -> Resolved:
             f"this design declares {len(claimed)} {target.name} knobs "
             f"({', '.join(claimed)}); a role names one knob",
         )
-    if target == DENSITY:
-        if _ui(params).get("fixed_segment_counts"):
-            return Resolved(
-                None,
-                "this design's segment counts are its file's own, and it "
-                "declares no density knob",
-            )
-        return Resolved("nominal_nsegs")
-    return Resolved(
-        None,
-        f"this design declares no {target.name} knob "
-        f'(a ui_params entry with role: "{target.name}")',
-    )
+    # DENSITY, the only other role (`ROLES`), with no knob declaring it.
+    if _ui(params).get("fixed_segment_counts"):
+        return Resolved(
+            None,
+            "this design's segment counts are its file's own, and it "
+            "declares no density knob",
+        )
+    return Resolved("nominal_nsegs")
 
 
 def density_knob(builder) -> str | None:
@@ -1907,9 +1933,10 @@ def state_refusal(
     - the knob the analysis sweeps (a state is one setting, the sweep moves
       it through many), the one its family steps, or one its hold adjusts.
 
-    Roles resolve on ``builder``: a height sweep's knob is ``base`` on one
-    design and something else on another, so a clash is a property of the
-    (state, design) pair, not of the spec alone.
+    Roles resolve on ``builder``: a density ladder's knob is
+    ``nominal_nsegs`` on one design and a deck's own segment constant on
+    another, so a clash is a property of the (state, design) pair, not of
+    the spec alone.
 
     ``fixed``: the state is a `MetricPlot`'s fixed reference (AK#1828),
     solved once at its own setting, outside the sweep, the family and the

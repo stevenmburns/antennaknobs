@@ -56,7 +56,7 @@ const ANALYSES = {
   analyses: [
     {
       name: "match vs height",
-      summary: "height (base) 2..20, 7 points; 1 curve; hold resonance on gap",
+      summary: "base 2..20, 7 points; 1 curve; hold resonance on gap",
       code: 'an.Analysis("match vs height")',
       problems: [],
       spec: { an: "Analysis", name: "match vs height" },

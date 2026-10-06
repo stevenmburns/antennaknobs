@@ -181,7 +181,7 @@ def test_every_setting_a_run_would_undo_or_never_make_is_refused_by_name():
         "swept by role": (
             an.Analysis(
                 "h",
-                an.Sweep(an.HEIGHT, 2, 20, points=3),
+                an.Sweep("base", 2, 20, points=3),
                 cross=an.Cross(states=(an.State("tall", base=12.0),)),
             ),
             "REFUSED: state 'tall' sets base, which the analysis sweeps; a knob "
@@ -205,7 +205,7 @@ def test_every_setting_a_run_would_undo_or_never_make_is_refused_by_name():
         "held": (
             an.Analysis(
                 "held",
-                an.Sweep(an.HEIGHT, 2, 20, points=3),
+                an.Sweep("base", 2, 20, points=3),
                 hold=an.Hold("resonance", adjust=("length_factor",)),
                 views=(an.Rx(), an.Knobs()),
                 cross=an.Cross(states=(an.State("long", length_factor=1.0),)),

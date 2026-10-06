@@ -6,9 +6,10 @@ What is pinned here:
   value, and E1/E3 print as the spec page writes them;
 - the curve cap refuses a 7-curve product when LISTED, by name, and never
   when an analysis is built;
-- roles: ``base`` is the invvee's height (and its variants' and the apex
-  design's); a design without one lists no height analysis and refuses E3
-  by name; a SimNEC ``JamSegments($segs)`` knob is the density knob;
+- roles: there are two, frequency and density (the height role went in
+  AK#1935, and spelling it says what to write instead); a design without
+  E3's ``base`` refuses it by name; a SimNEC ``JamSegments($segs)`` knob is
+  the density knob;
 - a ``role`` key leaves the workbench schema unchanged;
 - ORACLE EQUALITY, through the real CLI on both sides: E1, E3 and E6 run by
   ``analyze`` give exactly the per-rung / per-point Z of the equivalent
@@ -77,7 +78,7 @@ def _examples() -> dict[str, list[an.Analysis]]:
         "E3": [
             an.Analysis(
                 "height",
-                an.Sweep(an.HEIGHT, 2, 20, points=37),
+                an.Sweep("base", 2, 20, points=37),
                 cross=an.Cross(grounds=("free", "finite:13,0.005", "finite:5,0.001")),
                 references=an.Ref(r=(50,), x=(0,)),
             )
@@ -108,7 +109,7 @@ def _examples() -> dict[str, list[an.Analysis]]:
         "E8": [
             an.Analysis(
                 "match vs height",
-                an.Sweep(an.HEIGHT, 2, 20, points=37),
+                an.Sweep("base", 2, 20, points=37),
                 hold=an.Hold("match_z0", adjust=("length_factor", "angle_deg"), z0=50),
                 views=(an.Rx(), an.Knobs()),
             )
@@ -145,7 +146,7 @@ def test_e1_and_e3_print_as_the_spec_page_writes_them():
     assert an.to_code(e3) == (
         "an.Analysis(\n"
         '    "height",\n'
-        "    an.Sweep(an.HEIGHT, 2, 20, points=37),\n"
+        '    an.Sweep("base", 2, 20, points=37),\n'
         '    cross=an.Cross(grounds=("free", "finite:13,0.005", "finite:5,0.001")),\n'
         "    references=an.Ref(r=(50,), x=(0,)),\n"
         ")"
@@ -199,11 +200,12 @@ def test_a_hold_that_is_not_a_square_system_refuses_by_name():
 
 
 def test_a_role_and_a_name_meeting_on_one_knob_is_refused_when_listed():
+    # A role resolves on the design, so the clash shows only when listed.
     a = an.Analysis(
-        "x", an.Sweep(an.HEIGHT), hold=an.Hold("resonance", adjust=("base",))
+        "x", an.Sweep(an.DENSITY), hold=an.Hold("resonance", adjust=("nominal_nsegs",))
     )
     assert an.problems(a, get_builder("dipoles.invvee")()) == [
-        "REFUSED: the hold adjusts base, which is the swept knob"
+        "REFUSED: the hold adjusts nominal_nsegs, which is the swept knob"
     ]
 
 
@@ -282,13 +284,25 @@ def test_six_curves_are_within_the_cap():
 # ── roles ─────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize(
-    "spec", ["dipoles.invvee", "dipoles.invvee:dipole", "dipoles.invvee_apex"]
-)
-def test_base_is_the_height_knob(spec):
-    b = get_builder(spec)()
-    assert an.resolve(an.HEIGHT, b) == an.Resolved("base")
-    assert an.resolve(an.DENSITY, b) == an.Resolved("nominal_nsegs")
+def test_the_height_role_is_gone_and_spelling_it_says_what_to_write():
+    # AK#1935 (Steve: no magical cases): two roles, frequency and density.
+    assert an.ROLES == ("frequency", "density")
+    with pytest.raises(
+        AttributeError, match=r'name the knob instead.*an.Sweep\("base"'
+    ):
+        an.HEIGHT  # noqa: B018 — the attribute access is the subject
+    with pytest.raises(ValueError, match="the height role was removed"):
+        an.Role("height")
+    # A kept file's data spelling it reads back as the same refusal.
+    with pytest.raises(ValueError, match="the height role was removed"):
+        an.from_data({"an": "Role", "name": "height"})
+    with pytest.raises(ValueError, match="one of 'frequency', 'density'"):
+        an.Role("mast")
+    # The inverted vee names its height knob; nothing declares the role.
+    for spec in ("dipoles.invvee", "dipoles.invvee:dipole", "dipoles.invvee_apex"):
+        b = get_builder(spec)()
+        assert "role" not in b._params["ui_params"]["base"]
+        assert an.resolve(an.DENSITY, b) == an.Resolved("nominal_nsegs")
 
 
 def test_the_deck_segment_constant_is_the_density_knob():
@@ -298,13 +312,11 @@ def test_the_deck_segment_constant_is_the_density_knob():
     assert "role" not in b._params["ui_params"]["dcl_len"]
 
 
-def test_a_missing_role_is_unavailable_by_name_not_an_error(capsys):
+def test_a_missing_knob_or_role_is_unavailable_by_name_not_an_error(capsys):
     b = get_builder(f"@{VARLEN}")()
-    height = an.resolve(an.HEIGHT, b)
-    assert height.knob is None
-    assert height.reason == (
-        'this design declares no height knob (a ui_params entry with role: "height")'
-    )
+    base = an.resolve("base", b)
+    assert base.knob is None
+    assert base.reason == "this design has no knob 'base'"
     # JamSegments(30) is a literal here: the file's segment counts are its own.
     assert an.resolve(an.DENSITY, b).reason == (
         "this design's segment counts are its file's own, and it declares no "
@@ -312,7 +324,7 @@ def test_a_missing_role_is_unavailable_by_name_not_an_error(capsys):
     )
     assert "height" not in {a.name for a in an.offered(b)}
     e3 = _examples()["E3"][0]
-    assert an.problems(e3, b) == [f"UNAVAILABLE: {height.reason}"]
+    assert an.problems(e3, b) == [f"UNAVAILABLE: {base.reason}"]
     cli(["analyze", "--builder", f"@{VARLEN}", "--list"])
     out = capsys.readouterr().out
     assert "UNAVAILABLE: this design's segment counts are its file's own" in out
@@ -321,10 +333,11 @@ def test_a_missing_role_is_unavailable_by_name_not_an_error(capsys):
 def test_two_knobs_claiming_one_role_is_a_reason():
     b = get_builder("dipoles.invvee")()
     ui = dict(b._params["ui_params"])
-    ui["angle_deg"] = {**ui["angle_deg"], "role": "height"}
+    ui["angle_deg"] = {**ui["angle_deg"], "role": "density"}
+    ui["base"] = {**ui["base"], "role": "density"}
     b._params["ui_params"] = ui
-    assert an.resolve(an.HEIGHT, b).reason == (
-        "this design declares 2 height knobs (angle_deg, base); a role names one knob"
+    assert an.resolve(an.DENSITY, b).reason == (
+        "this design declares 2 density knobs (angle_deg, base); a role names one knob"
     )
 
 
@@ -343,7 +356,7 @@ def _strip_roles(params):
     return {**params, "ui_params": ui}
 
 
-@pytest.mark.parametrize("spec", ["dipoles.invvee", f"@{SSN}"])
+@pytest.mark.parametrize("spec", [f"@{SSN}"])
 def test_a_role_key_leaves_the_workbench_schema_unchanged(spec):
     import antennaknobs.web.examples  # noqa: F401  — primes the adapter
     from antennaknobs.web.adapter import _derive_schema
@@ -433,7 +446,7 @@ def test_e3_via_analyze_equals_one_sweep_per_ground(monkeypatch, capsys, tmp_pat
     ``sweep --param base --ground <g>`` exactly."""
     e3 = an.Analysis(
         "height",
-        an.Sweep(an.HEIGHT, 2, 20, points=4),
+        an.Sweep("base", 2, 20, points=4),
         cross=an.Cross(grounds=("free", "finite:13,0.005", "finite:5,0.001")),
         references=an.Ref(r=(50,), x=(0,)),
     )

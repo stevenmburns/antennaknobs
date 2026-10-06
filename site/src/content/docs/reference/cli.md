@@ -243,19 +243,21 @@ a design's `build_analyses()`:
 ```python
 an.Analysis(
     "height",
-    an.Sweep(an.HEIGHT, 2, 20, points=37),
+    an.Sweep("base", 2, 20, points=37),
     cross=an.Cross(grounds=("free", "finite:13,0.005", "finite:5,0.001")),
     references=an.Ref(r=(50,), x=(0,)),
     group="Height & ground",
 )
 ```
 
-`an` is `antennaknobs.analyses`. An analysis sweeps one knob, or a *role* a
-knob plays: `an.DENSITY` (the mesh density), `an.HEIGHT`, `an.FREQUENCY`. A
-role is declared beside the knob's range in `ui_params`, e.g. `"base": {"min":
-1.0, "max": 16.0, "role": "height"}`, so one analysis serves every design that
-declares it. The density role is `nominal_nsegs` on a catalog design; an
-imported `.ssn` marks the knob its `JamSegments` count reads. Its crosses are
+`an` is `antennaknobs.analyses`. An analysis sweeps one knob, by name
+(`"base"` is the inverted vee's apex height), or one of two *roles* that
+mean the same thing on every design: `an.FREQUENCY` (the measurement
+frequency) and `an.DENSITY` (the mesh density: `nominal_nsegs` on a catalog
+design; an imported `.ssn` marks the knob its `JamSegments` count reads with
+`"role": "density"` in `ui_params`). There is no height role: a height is
+whichever knob the design calls it, named (an analysis that still says
+`an.HEIGHT` is refused with the knob to write instead). Its crosses are
 compared as separate curves, one per combination: engines, grounds,
 measurement planes, designs, named knob settings, and a second knob's values
 (see [Planes, designs and families](#planes-designs-and-families) and
@@ -518,7 +520,7 @@ an.Analysis(
 # E8: a 50-ohm match held with length and angle as the height sweeps
 an.Analysis(
     "match vs height",
-    an.Sweep(an.HEIGHT, 2, 20, points=37),
+    an.Sweep("base", 2, 20, points=37),
     hold=an.Hold("match_z0", adjust=("length_factor", "angle_deg"), z0=50),
     views=(an.Rx(), an.Knobs()),
 )

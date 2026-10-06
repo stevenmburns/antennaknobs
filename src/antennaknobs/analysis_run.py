@@ -7,7 +7,7 @@ the same functions ``antennaknobs sweep --param`` calls, so an analysis and
 the equivalent ``sweep`` command are the same numbers by construction; the
 chart is ``sweep._rx_overlay`` and the table ``sweep._print_convergence_table``.
 
-What runs: a sweep over a knob, `analyses.DENSITY`, `analyses.HEIGHT` or
+What runs: a sweep over a knob, `analyses.DENSITY` or
 `analyses.FREQUENCY`, or a pair of them (a map); crosses over engines,
 grounds, measurement planes, designs, named knob settings (`analyses.State`,
 step 7) and a second knob's values (a family), their product one curve (or

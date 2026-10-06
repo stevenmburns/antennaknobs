@@ -154,7 +154,7 @@ def test_e3_height_runs_as_a_base_sweep_2_to_20_in_37_points(invvee):
     assert w["grounds"] == ["free", "finite:13,0.005", "finite:5,0.001"]
     assert w["engines"] is None
     assert w["note"] is None
-    assert invvee["height"]["summary"].startswith("height (base) 2..20, 37 points")
+    assert invvee["height"]["summary"].startswith("base 2..20, 37 points")
 
 
 def test_e1_convergence_runs_as_the_density_ladder(invvee):
@@ -217,7 +217,7 @@ def test_code_is_the_analysis_as_python(invvee):
     a = invvee["height"]
     got = eval(a["code"], {"an": an})
     assert got.name == "height"
-    assert got.sweep == an.Sweep(an.HEIGHT, 2, 20, points=37)
+    assert got.sweep == an.Sweep("base", 2, 20, points=37)
 
 
 def test_the_generics_are_offered_on_every_design_and_nothing_else(client):
