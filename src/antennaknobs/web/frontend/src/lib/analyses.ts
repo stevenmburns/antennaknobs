@@ -164,6 +164,9 @@ export type AnalysisEntry = {
   problems: string[];
   workbench: AnalysisWorkbench;
   study?: StudyTag | null;
+  /** The heading it is listed under (AK#1907, `analyses.group_of`): its
+   *  `group=`, else "General". Absent from an older server: no headings. */
+  group?: string;
   /** The analysis as data (`analyses.to_data`), which "copy as analysis"
    *  and "keep as study" send back (AK#1757 step 7 unit 4); opaque here. */
   spec?: unknown;
@@ -172,6 +175,34 @@ export type AnalysisEntry = {
 /** What a picker shows for an entry: a study's short name (the Studies
  *  group already says it is one), else the analysis's name. */
 export const entryLabel = (a: AnalysisEntry): string => a.study?.name ?? a.name;
+
+/** A list this long or shorter shows no group headings (AK#1907): the
+ *  server's `analyses.GROUPS_FROM` less one, which the CLI's listing uses. */
+export const GROUPS_AFTER = 3;
+
+/** `entries` under their headings (AK#1907): `[{group, entries}]`, the
+ *  groups in the order the list first names them and each group's entries in
+ *  list order (the server serves them so already, `analyses.offered`). One
+ *  group with a null heading when the design's own list
+ *  (`listed`, its analyses whether or not they run here) is `GROUPS_AFTER`
+ *  long or shorter, or names one group only: a heading there is noise. */
+export function analysisGroups(
+  entries: readonly AnalysisEntry[],
+  listed: readonly AnalysisEntry[] = entries,
+): { group: string | null; entries: AnalysisEntry[] }[] {
+  const named = new Set(listed.map((a) => a.group ?? null));
+  if (listed.length <= GROUPS_AFTER || named.size < 2 || named.has(null)) {
+    return entries.length > 0 ? [{ group: null, entries: [...entries] }] : [];
+  }
+  const out: { group: string | null; entries: AnalysisEntry[] }[] = [];
+  for (const a of entries) {
+    const g = a.group ?? null;
+    const last = out.find((x) => x.group === g);
+    if (last) last.entries.push(a);
+    else out.push({ group: g, entries: [a] });
+  }
+  return out;
+}
 
 function parseStudy(v: unknown): StudyTag | null {
   if (!v || typeof v !== "object") return null;
@@ -526,6 +557,7 @@ export function parseAnalyses(body: unknown): AnalysisEntry[] {
         : [],
       workbench,
       study: parseStudy(o.study),
+      ...(typeof o.group === "string" && o.group ? { group: o.group } : {}),
       ...(o.spec !== undefined ? { spec: o.spec } : {}),
     });
   }
