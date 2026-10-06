@@ -19,6 +19,7 @@ import {
 import type { SweepRange } from "../lib/sweep";
 import { DEFAULT_AXES } from "../lib/sweepAxis";
 import { mapCostLine, mapOverLimit } from "../components/results/MapChartControls";
+import { mapAxesKeep } from "../lib/keep";
 
 const LF = Array.from({ length: 33 }, (_, i) => Number((0.9 + 0.005 * i).toPrecision(12)));
 const ANG = Array.from({ length: 25 }, (_, j) => 2.5 * j);
@@ -97,5 +98,16 @@ describe("the cost line", () => {
       "1089 points is over the live limit of 1000: reduce the points on x or y",
     );
     expect(mapOverLimit(5000, null)).toBeNull();
+  });
+});
+
+describe("copy as analysis of an edited map", () => {
+  it("each edited axis as a range, never as values; an unedited one not at all", () => {
+    const c = pickMap(fresh(), "tuning map", TUNING, NOT_INT);
+    const e = editMapAxis(c, "y", { ...c.map!.y, lo: 10, hi: 50, points: 9 });
+    expect(
+      mapAxesKeep({ x: e.map!.x, y: e.map!.y, edited: { x: false, y: true } }),
+    ).toEqual({ y: { lo: 10, hi: 50, points: 9, spacing: "lin" } });
+    expect(mapAxesKeep({ x: c.map!.x, y: c.map!.y, edited: { x: false, y: false } })).toBeNull();
   });
 });

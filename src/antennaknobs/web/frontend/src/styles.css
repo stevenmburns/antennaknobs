@@ -5440,3 +5440,6 @@ div.opt-bands-readout {
 .map-legend .map-best {
   margin-top: 2px;
 }
+.map-set-knobs {
+  margin-left: var(--space-2);
+}

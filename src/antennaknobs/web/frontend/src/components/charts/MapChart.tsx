@@ -114,6 +114,7 @@ export function MapChart({
   status = null,
   stale = false,
   footer,
+  onSetKnobs,
 }: {
   grid: MapGrid;
   /** The axes' knob names, as the CLI labels them. */
@@ -135,11 +136,19 @@ export function MapChart({
   stale?: boolean;
   /** The chart's own controls (the runner's unit), under the legend. */
   footer?: ReactNode;
+  /** "Set knobs here" (decision 6): a click selects a node, and its readout
+   *  offers to set both knobs to it. Omitted (a thumbnail): no selection. */
+  onSetKnobs?: (x: number, y: number) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const theme = useContext(ThemeContext);
   const k = useChartScale();
   const [hover, setHover] = useState<{ i: number; j: number } | null>(null);
+  // The node a click selected: its readout stays, with "set knobs here".
+  const [picked, setPicked] = useState<{ i: number; j: number } | null>(null);
+  const inGrid = (n: { i: number; j: number } | null) =>
+    n && n.i < grid.xs.length && n.j < grid.ys.length ? n : null;
+  const sel = onSetKnobs ? inGrid(picked) : null;
 
   const { axis: ax, edges: xe } = useMemo(() => axisOf(grid.xs, xLog), [grid.xs, xLog]);
   const { axis: ay, edges: ye } = useMemo(() => axisOf(grid.ys, yLog), [grid.ys, yLog]);
@@ -226,6 +235,17 @@ export function MapChart({
     ctx.lineWidth = 1;
     ctx.globalAlpha = 1;
 
+    // The selected node: its cell outlined.
+    if (sel) {
+      ctx.strokeStyle = PC.labelStrong;
+      ctx.lineWidth = 2;
+      const x0 = px(xe[sel.i]);
+      const x1 = px(xe[sel.i + 1]);
+      const y0 = py(ye[sel.j]);
+      const y1 = py(ye[sel.j + 1]);
+      ctx.strokeRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+      ctx.lineWidth = 1;
+    }
     // The best node so far: a small ring.
     if (best) {
       ctx.strokeStyle = PC.labelStrong;
@@ -328,7 +348,7 @@ export function MapChart({
       ctx.textBaseline = "top";
       ctx.fillText(status, MARGIN.l + 4, MARGIN.t + 4);
     }
-  }, [grid, ax, ay, xe, ye, contours, best, quantity, z0, live, liveGamma, place, size, plotH, k, theme, status, stale, xLabel, yLabel]);
+  }, [grid, ax, ay, xe, ye, contours, best, quantity, z0, live, liveGamma, place, size, plotH, k, theme, status, stale, xLabel, yLabel, sel]);
 
   const toData = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -343,7 +363,7 @@ export function MapChart({
     setHover(nodeAt(grid.xs, grid.ys, x, y));
   };
 
-  const hv = hover && hover.i < grid.xs.length && hover.j < grid.ys.length ? hover : null;
+  const hv = inGrid(hover) ?? sel;
   const hre = hv ? grid.re[hv.j][hv.i] : null;
   const him = hv ? grid.im[hv.j][hv.i] : null;
   const readout = hv
@@ -382,17 +402,35 @@ export function MapChart({
           data-marker={place ?? ""}
           data-live={live ? `${live.x},${live.y}` : ""}
           data-marker-fill={liveGamma === null ? "" : liveGamma.toFixed(4)}
-          data-hover={hv ? `${hv.i},${hv.j}` : ""}
+          data-hover={hover && inGrid(hover) ? `${hover.i},${hover.j}` : ""}
+          data-selected={sel ? `${sel.i},${sel.j}` : ""}
           data-stale={stale ? "1" : "0"}
           data-status={status ?? ""}
           onPointerMove={onPointerMove}
           // A tap on a phone reads the nearest node too.
           onPointerDown={onPointerMove}
           onPointerLeave={() => setHover(null)}
+          // A click selects the node under it (again: deselects).
+          onClick={(e) => {
+            if (!onSetKnobs) return;
+            const { x, y } = toData(e as unknown as React.PointerEvent<HTMLCanvasElement>);
+            const n = nodeAt(grid.xs, grid.ys, x, y);
+            setPicked((p) => (n && p && p.i === n.i && p.j === n.j ? null : n));
+          }}
         />
       </div>
       <div className="map-readout" role="status" aria-label="Map node">
         {readout ?? ""}
+        {sel && onSetKnobs && (!hover || (hover.i === sel.i && hover.j === sel.j)) && (
+          <button
+            type="button"
+            className="zparam-reset map-set-knobs"
+            title={`Set ${xLabel} and ${yLabel} to this node's values: the live solve moves there`}
+            onClick={() => onSetKnobs(grid.xs[sel.i], grid.ys[sel.j])}
+          >
+            set knobs here
+          </button>
+        )}
       </div>
       <ul className="map-legend" aria-label="Map legend">
         {legend.map(({ c, style }) => (
