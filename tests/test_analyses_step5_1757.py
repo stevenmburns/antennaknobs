@@ -176,7 +176,7 @@ def test_a_knob_swept_and_stepped_or_mapped_twice_is_refused_when_listed():
     ]
     twice = an.Analysis(
         "m",
-        (an.Sweep("base", 2, 4), an.Sweep(an.HEIGHT, 2, 4)),
+        (an.Sweep("base", 2, 4), an.Sweep("base", 3, 5)),
         views=(an.Map(),),
     )
     assert an.problems(twice, b) == ["REFUSED: the map sweeps base on both axes"]

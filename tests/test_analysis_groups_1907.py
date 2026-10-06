@@ -47,7 +47,7 @@ def _ev(code: str):
 @pytest.mark.parametrize(
     "a",
     [
-        an.Analysis("h", an.Sweep(an.HEIGHT), group="Height & ground"),
+        an.Analysis("h", an.Sweep("base"), group="Height & ground"),
         an.convergence(group="Accuracy"),
         an.band_swr(group="Tuning"),
         an.patterns(group="Patterns"),
@@ -75,14 +75,14 @@ def test_no_group_prints_nothing_and_reads_back_as_none():
 @pytest.mark.parametrize("bad", ["", "  ", 3])
 def test_group_is_a_non_empty_string(bad):
     with pytest.raises(TypeError, match="group is a non-empty string"):
-        an.Analysis("h", an.Sweep(an.HEIGHT), group=bad)
+        an.Analysis("h", an.Sweep("base"), group=bad)
 
 
 # ── the order ────────────────────────────────────────────────────────────────
 
 
 def _a(name, group=None):
-    return an.Analysis(name, an.Sweep(an.HEIGHT), group=group)
+    return an.Analysis(name, an.Sweep("base"), group=group)
 
 
 def test_grouped_keeps_first_mention_order_and_list_order_within():

@@ -83,8 +83,8 @@ const ANALYSES = {
     }),
     {
       name: "height",
-      summary: "height (base) 2..20, 37 points; 1 curve; views Rx",
-      code: 'an.Analysis("height", an.Sweep(an.HEIGHT, 2, 20, points=37))',
+      summary: "base 2..20, 37 points; 1 curve; views Rx",
+      code: 'an.Analysis("height", an.Sweep("base", 2, 20, points=37))',
       problems: [],
       workbench: { runs: true, kind: "knob", param: "base", values: HEIGHT_VALUES, log: false, note: null },
     },

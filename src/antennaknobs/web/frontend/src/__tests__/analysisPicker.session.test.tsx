@@ -58,14 +58,14 @@ const ANALYSES = {
     },
     {
       name: "height",
-      summary: "height (base) 2..20, 37 points; 3 curves (3 grounds); views Rx",
-      code: 'an.Analysis(\n    "height",\n    an.Sweep(an.HEIGHT, 2, 20, points=37),\n)',
+      summary: "base 2..20, 37 points; 3 curves (3 grounds); views Rx",
+      code: 'an.Analysis(\n    "height",\n    an.Sweep("base", 2, 20, points=37),\n)',
       problems: [],
       workbench: { runs: true, param: "base", values: E3_VALUES, log: false, note: GROUNDS_NOTE },
     },
     {
       name: "match vs height",
-      summary: "height (base) 2..20, 37 points; 1 curve; hold match_z0",
+      summary: "base 2..20, 37 points; 1 curve; hold match_z0",
       code: 'an.Analysis(\n    "match vs height",\n)',
       problems: [],
       workbench: { runs: false, why: HOLD_WHY },
@@ -163,7 +163,7 @@ describe("the analysis picker", () => {
 
     // Every analysis as Python, read-only, with Copy.
     expect(screen.getByLabelText("height as Python").textContent).toContain(
-      "an.Sweep(an.HEIGHT, 2, 20, points=37)",
+      'an.Sweep("base", 2, 20, points=37)',
     );
     const writeText = vi.fn(async () => {});
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });

@@ -74,7 +74,7 @@ describe("parseAnalyses", () => {
       analyses: [
         {
           name: "height",
-          summary: "height (base) 2..20, 37 points",
+          summary: "base 2..20, 37 points",
           code: "an.Analysis(...)",
           problems: [],
           workbench: { runs: true, param: "base", values: [2, 20], log: false, note: "n" },

@@ -44,12 +44,11 @@ class Builder(AntennaBuilder):
                     # wavelength on 40 m and the top of a typical push-up
                     # mast, so the slider spans "on a mast" instead of
                     # stopping just short of it.
-                    # `base` is the apex height, which this design's own
-                    # height analyses sweep through its role (AK#1757).
+                    # `base` is the apex height: this design's own height
+                    # analyses name it (AK#1935: there is no height role).
                     "base": {
                         "min": 1.0,
                         "max": 16.0,
-                        "role": "height",
                     },
                 }
             ),
@@ -156,7 +155,7 @@ class Builder(AntennaBuilder):
             # E8: the match held at every height, and the knobs that hold it.
             an.Analysis(
                 "match vs height",
-                an.Sweep(an.HEIGHT, 2, 20, points=37),
+                an.Sweep("base", 2, 20, points=37),
                 hold=an.Hold("match_z0", adjust=("length_factor", "angle_deg"), z0=50),
                 views=(an.Rx(), an.Knobs()),
                 group=tuning,
@@ -164,7 +163,7 @@ class Builder(AntennaBuilder):
             # E3: R/X against height, three grounds.
             an.Analysis(
                 "height",
-                an.Sweep(an.HEIGHT, 2, 20, points=37),
+                an.Sweep("base", 2, 20, points=37),
                 cross=an.Cross(grounds=("free", "finite:13,0.005", "finite:5,0.001")),
                 references=an.Ref(r=(50,), x=(0,)),
                 group=height,
