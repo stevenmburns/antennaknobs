@@ -116,7 +116,7 @@ describe("listed cells are a union", () => {
     const cells = [cell({ label: "x", engine: "nec2" }), cell({ label: "y", ground: "pec" }), cell({ label: "z" })];
     const plan = crossPlan(FOLLOW_ACTIVE, { engines: null, grounds: null, cells }, env());
     expect(plan.cells.map((c) => [c.label, c.listed, c.refused])).toEqual([
-      ["y", 1, "no ground slot holds pec"],
+      ["y", 1, "not drawn: no ground slot holds pec. Add one with + to include it."],
       ["z", 2, null],
     ]);
     expect(plan.skipped).toEqual(["nec2"]);

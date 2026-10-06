@@ -38,6 +38,15 @@ describe("the chart legend", () => {
     expect(onOpen).toHaveBeenCalledWith(false);
   });
 
+  it("a refused cell's row draws no stroke sample: it is no curve (AC6LA, QRZ)", () => {
+    render(<ChartLegend legend={{ ...LEGEND, open: true, onOpen: () => {} }} />);
+    const rows = [...document.querySelectorAll<HTMLElement>(".chart-legend-row")];
+    const swatches = rows.map((r) => r.querySelector(".chart-legend-swatch")!.classList.contains("is-none"));
+    expect(swatches).toEqual([false, false, true]);
+    // The reason flows on inside the label, one sentence that wraps as text.
+    expect(rows[2].querySelector(".chart-legend-label")!.textContent).toBe("pec: no ground slot holds pec");
+  });
+
   it("collapsed, is one chip that opens it again", () => {
     const onOpen = vi.fn();
     render(<ChartLegend legend={{ ...LEGEND, open: false, onOpen }} />);

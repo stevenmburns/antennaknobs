@@ -176,7 +176,7 @@ describe("the ground cross", () => {
       // A listed ground in the ground tabs' words (AK#1867); its reason in
       // the spec the analysis wrote.
       ["free space", "Y", null],
-      ["Sommerfeld · εr 20, σ 0.03 S/m", null, "no ground slot holds finite:20,0.03"],
+      ["Sommerfeld · εr 20, σ 0.03 S/m", null, "not drawn: no ground slot holds finite:20,0.03. Add one with + to include it."],
     ]);
   });
 });
@@ -217,9 +217,9 @@ describe("engines x grounds", () => {
     expect(plan.capRefusal).toBeNull();
     expect(plan.cells).toHaveLength(6);
     expect(plan.cells.filter((c) => c.refused).map((c) => c.refused)).toEqual([
-      "no ground slot holds finite:20,0.03",
-      "no ground slot holds finite:20,0.03",
-      "no ground slot holds finite:20,0.03",
+      "not drawn: no ground slot holds finite:20,0.03. Add one with + to include it.",
+      "not drawn: no ground slot holds finite:20,0.03. Add one with + to include it.",
+      "not drawn: no ground slot holds finite:20,0.03. Add one with + to include it.",
     ]);
     const four = { engines: ["momwire:bspline", "nec2", "nec5", "pynec", "momwire:razor-2p"], grounds: ["free", "pec"] };
     expect(crossPlan(preselect(four, env()), four, env()).capRefusal).toBe(

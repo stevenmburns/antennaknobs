@@ -259,7 +259,7 @@ function axis(
       if (what === "solver") {
         if (!skipped.includes(spec)) skipped.push(spec);
       } else {
-        out.push({ id: null, label: words(spec), refused: `no ${what} slot holds ${spec}` });
+        out.push({ id: null, label: words(spec), refused: groundSlotRefusal(spec) });
       }
       continue;
     }
@@ -272,6 +272,15 @@ function axis(
     }
   }
   return out;
+}
+
+/** Why a listed ground no slot holds draws no curve (AC6LA, QRZ, on
+ *  v0.97.1: a refused row read as a trace). It says the cell is not drawn,
+ *  names the ground as the analysis spells it (the row's label names it in
+ *  the ground tabs' words), and says how to include it: a slot is never
+ *  rewritten to hold it, so the viewer adds one. */
+export function groundSlotRefusal(spec: string): string {
+  return `not drawn: no ground slot holds ${spec}. Add one with + to include it.`;
 }
 
 /** The slots a pick preselects: those holding the analysis's listed specs
@@ -587,7 +596,8 @@ function listedPlan(
   ): { id: string | null; refused: string | null } => {
     if (spec === null) return { id: fallback, refused: null };
     const s = slots.find((x) => x.holds(spec));
-    return s ? { id: s.id, refused: null } : { id: null, refused: `no ${what} slot holds ${spec}` };
+    if (s) return { id: s.id, refused: null };
+    return { id: null, refused: what === "ground" ? groundSlotRefusal(spec) : `no solver slot holds ${spec}` };
   };
   const specs = cellEngines(listed, cells);
   const skipped: string[] = [];

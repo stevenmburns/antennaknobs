@@ -231,7 +231,7 @@ describe("the legend's captions", () => {
       ["nec5, Sommerfeld · average", null],
       // A listed ground no slot holds: named in the same words, its reason
       // in the spec the analysis wrote.
-      ["nec5, refl-coef · average", "no ground slot holds finite-fast:13,0.005"],
+      ["nec5, refl-coef · average", "not drawn: no ground slot holds finite-fast:13,0.005. Add one with + to include it."],
     ]);
     // A listed cell's served label (`an.Cell.label`) carries the spec as a
     // part of its own: the same words there, the state's label kept.
