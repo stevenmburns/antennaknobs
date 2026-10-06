@@ -56,6 +56,13 @@ MAX_OPT_EVALS = _env_int("ANTENNAKNOBS_MAX_OPT_EVALS", 500)
 # run takes ~30 s on performance-2x; a design a hundred times slower per
 # solve would otherwise hold the machine's one deck slot for an hour.
 MAX_OPT_SECONDS = _env_int("ANTENNAKNOBS_MAX_OPT_SECONDS", 120)
+# Hosted wall-time budget for one sweep (a frequency sweep, a knob or density
+# sweep, a held sweep, a map), in seconds: past it the run stops at its next
+# point and closes with what it solved, labelled ``stopped: "time"``. The
+# point cap above bounds how many solves a sweep asks for, not how long they
+# take: 121 points of a 1.2 s design is two and a half minutes, and only an
+# opened deck had any time bound (per solve, `decks.py`).
+MAX_SWEEP_SECONDS = _env_int("ANTENNAKNOBS_MAX_SWEEP_SECONDS", 120)
 
 # Above this estimated basis count the adapter recommends the sinusoidal
 # backend (`_recommended_backend`); a dense-family solver here is minutes per
