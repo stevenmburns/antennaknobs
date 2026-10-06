@@ -14,7 +14,8 @@ Three things can be kept (`build`):
 - **a chart** (``origin="chart"``): the analysis ``/analyses`` served, as
   data (`analyses.to_data`), with what the chart changed on it: the engines
   and grounds it draws (read off its curves' solve requests), and the x
-  values when the viewer edited the range.
+  values when the viewer edited the range, and a map's edited axes
+  (``axes``), each written as a range.
   "Copy as analysis" is its ``to_code`` alone, to paste into the design's
   ``build_analyses()``, and is only for a chart about the tab's design. "Keep
   as study" also names the tab's design, since a study has no "this design"
@@ -800,6 +801,64 @@ def _with_values(a: an.Analysis, values) -> an.Analysis:
     return _analysis(**{**_fields(a), "sweep": an.Sweep(a.sweep.knob, values=vals)})
 
 
+_AXES = ("x", "y")
+
+
+def _axis_sweep(s: an.Sweep, edit, name: str) -> an.Sweep:
+    """Map axis ``s`` with the chart's edit ``{lo, hi, points, spacing}``:
+    ``Sweep(knob, lo, hi, points=)`` on the analysis's own knob (the page
+    names no knob), log spacing written only when it is log."""
+    if not isinstance(edit, Mapping):
+        raise KeepError(f"axes.{name} is {{lo, hi, points, spacing}}")
+
+    def num(k):
+        v = edit.get(k)
+        if (
+            isinstance(v, bool)
+            or not isinstance(v, (int, float))
+            or not math.isfinite(v)
+        ):
+            raise KeepError(f"axes.{name}.{k} is a finite number")
+        return float(v)
+
+    lo, hi = num("lo"), num("hi")
+    points = edit.get("points")
+    if isinstance(points, bool) or not isinstance(points, int) or points < 2:
+        raise KeepError(f"axes.{name}.points is a count of at least 2")
+    spacing = edit.get("spacing", "lin")
+    if spacing not in ("lin", "log"):
+        raise KeepError(f"axes.{name}.spacing is 'lin' or 'log'")
+    if lo == hi:
+        raise KeepError(f"axes.{name}: lo and hi are the same value")
+    try:
+        return an.Sweep(
+            s.knob,
+            min(lo, hi),
+            max(lo, hi),
+            points=points,
+            spacing="log" if spacing == "log" else None,
+        )
+    except (TypeError, ValueError) as e:
+        raise KeepError(f"axes.{name}: {e}") from None
+
+
+def _with_axes(a: an.Analysis, axes) -> an.Analysis:
+    """Map ``a`` with the chart's edited axes (map note, decision 12): each
+    edited axis as ``Sweep(knob, lo, hi, points=)``, never a list of values,
+    and an axis the chart left as the analysis's own unchanged."""
+    if axes is None:
+        return a
+    if not isinstance(a.sweep, tuple):
+        raise KeepError("only a map has x and y axes to keep")
+    if not isinstance(axes, Mapping) or not axes or set(axes) - set(_AXES):
+        raise KeepError("axes is {x?, y?}, each {lo, hi, points, spacing}")
+    sweeps = tuple(
+        _axis_sweep(s, axes[k], k) if k in axes else s
+        for k, s in zip(_AXES, a.sweep, strict=True)
+    )
+    return _analysis(**{**_fields(a), "sweep": sweeps})
+
+
 def _as_study(a: an.Analysis, tab: Mapping) -> an.Analysis:
     """A chart as a study, which names its designs. One that already does
     (a designs cross, states naming theirs) is kept as it is; otherwise its
@@ -867,6 +926,7 @@ def analysis_from_chart(
         a = _with_axis(a, "engines", drawn[0])
         a = _with_axis(a, "grounds", drawn[1])
     a = _with_values(a, req.get("values"))
+    a = _with_axes(a, req.get("axes"))
     if form == "analysis":
         if an.named_designs(a):
             raise KeepError(
@@ -983,10 +1043,11 @@ def build(
 ) -> tuple[an.Analysis | an.Optimize, str, str, list[str]]:
     """``(analysis, form, origin, notes)`` for a keep request (``/keep``,
     ``/studies/save``): ``{origin, form, name?, notes?}`` and, for a chart,
-    ``{spec, tab, cells?, values?}`` (``cells`` its curves' solve requests),
-    for pins ``{pins: [{req, x?, xs?, label?}]}``, for a band run
-    (``"optimize"``, AK#1906) what `optimize_from_run` reads. Pins and band
-    runs are only ever kept as a study: they name their designs."""
+    ``{spec, tab, cells?, values?, axes?}`` (``cells`` its curves' solve
+    requests, ``axes`` a map's edited axes), for pins ``{pins: [{req, x?,
+    xs?, label?}]}``, for a band run (``"optimize"``, AK#1906) what
+    `optimize_from_run` reads. Pins and band runs are only ever kept as a
+    study: they name their designs."""
     if not isinstance(req, Mapping):
         raise KeepError("a keep request is an object")
     origin = req.get("origin")
