@@ -5174,6 +5174,12 @@ div.opt-bands-readout {
 .chart-legend-swatch[style] {
   border: none;
 }
+/* A refused cell's row: no stroke sample at all, since it draws nothing
+   (a dashed sample read as a trace, AC6LA on QRZ); the space is kept so the
+   labels still line up. */
+.chart-legend-swatch.is-none {
+  border: none;
+}
 .chart-legend-why {
   color: var(--danger);
 }

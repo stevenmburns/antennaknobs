@@ -162,13 +162,22 @@ export function ChartLegend({ legend }: { legend: ChartLegendData }) {
               className={`chart-legend-row${e.refused || e.error ? " is-refused" : ""}`}
               data-refused={e.refused ? "1" : "0"}
             >
+              {/* A refused cell draws nothing, so it shows no stroke sample:
+                  a dashed one read as a trace (AC6LA, QRZ, on v0.97.1). Its
+                  reason flows on after its label, one sentence. */}
               <span
-                className="chart-legend-swatch"
+                className={`chart-legend-swatch${e.refused ? " is-none" : ""}`}
                 style={e.color ? { background: e.color } : undefined}
                 aria-hidden="true"
               />
-              <span className="chart-legend-label">{e.label}</span>
-              {e.refused && <span className="chart-legend-why">: {e.refused}</span>}
+              {e.refused ? (
+                <span className="chart-legend-label">
+                  {e.label}
+                  <span className="chart-legend-why">: {e.refused}</span>
+                </span>
+              ) : (
+                <span className="chart-legend-label">{e.label}</span>
+              )}
               {!e.refused && e.error && <span className="chart-legend-why">: {e.error}</span>}
             </li>
           ))}
