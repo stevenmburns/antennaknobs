@@ -535,11 +535,13 @@ export function useOptimizer({
   }, [optPausedBy]);
 
   // The effective per-knob optimiser settings: the stored entry, or seeded from
-  // the schema (extents = slider bounds, step = schema step, not varying).
+  // the schema and the knob's value now (`defaultKnobOpt`). Marking a knob
+  // stores it, so its range is fixed from then on, round the value it had.
   function knobOptFor(name: string): KnobOpt {
     const existing = knobOpt[geometry]?.[name];
     if (existing) return existing;
-    return defaultKnobOpt(currentSchema, name);
+    const v = valueAtPath(currentValues, knobPath(name));
+    return defaultKnobOpt(currentSchema, name, typeof v === "number" ? v : undefined);
   }
   function updateKnobOpt(name: string, patch: Partial<KnobOpt>) {
     const base = knobOptFor(name);

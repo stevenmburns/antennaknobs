@@ -693,6 +693,64 @@ describe("defaultKnobOpt", () => {
     });
   });
 
+  const expectRange = (ko: { optMin: number; optMax: number }, lo: number, hi: number) => {
+    expect(ko.optMin).toBeCloseTo(lo, 9);
+    expect(ko.optMax).toBeCloseTo(hi, 9);
+  };
+
+  // AK 0.97.2: a knob whose design declares no range optimizes over +/-20 %
+  // of its value, the command line's default (band_opt.DEFAULT_SPAN); the
+  // slider keeps the server's whole +/-50 % window.
+  it("an auto-ranged knob optimizes over +/-20 % of its value, the slider unchanged", () => {
+    const schema: SchemaItem[] = [
+      makeParam({ name: "cap", default: 100, min: 50, max: 150, step: 0.1, auto_range: true }),
+    ];
+    expect(defaultKnobOpt(schema, "cap")).toMatchObject({
+      vary: false,
+      dispMin: 50,
+      dispMax: 150,
+      step: 0.1,
+    });
+    expectRange(defaultKnobOpt(schema, "cap"), 80, 120);
+    // Round the knob's value now, not its default.
+    expectRange(defaultKnobOpt(schema, "cap", 110), 88, 132);
+    // A negative value: the window is still lo < hi.
+    const neg: SchemaItem[] = [
+      makeParam({ name: "off", default: -10, min: -15, max: -5, auto_range: true }),
+    ];
+    expectRange(defaultKnobOpt(neg, "off"), -12, -8);
+  });
+
+  it("an auto-ranged knob's window is clipped into the slider, and 0 searches it all", () => {
+    const schema: SchemaItem[] = [
+      makeParam({ name: "phase_lr", default: 170, min: -180, max: 180, auto_range: true }),
+      makeParam({ name: "z", default: 0, min: -1, max: 1, auto_range: true }),
+    ];
+    expectRange(defaultKnobOpt(schema, "phase_lr"), 136, 180);
+    expectRange(defaultKnobOpt(schema, "z"), -1, 1);
+  });
+
+  it("a declared range (or an older server, no flag) optimizes over the slider", () => {
+    const schema: SchemaItem[] = [
+      makeParam({ name: "base", default: 7, min: 1, max: 16, auto_range: false }),
+      makeParam({ name: "old", default: 7, min: 3.5, max: 10.5 }),
+    ];
+    expectRange(defaultKnobOpt(schema, "base", 7), 1, 16);
+    expectRange(defaultKnobOpt(schema, "old", 7), 3.5, 10.5);
+  });
+
+  it("a variant that authors a bound declares the range", () => {
+    const ex = {
+      param_schema: [
+        makeParam({ name: "lf", default: 1, min: 0.5, max: 1.5, auto_range: true }),
+      ],
+      variant_ui: { long: { params: { lf: { min: 2.0, max: 3.0 } } } },
+    } as unknown as ExampleDescriptor;
+    const schema = overlaySchemaForVariant(ex, "long");
+    expectRange(defaultKnobOpt(schema, "lf", 2.5), 2, 3);
+    expectRange(defaultKnobOpt(overlaySchemaForVariant(ex, "default"), "lf"), 0.8, 1.2);
+  });
+
   it("falls back to 0/1/0.001 when the param name isn't in the schema", () => {
     expect(defaultKnobOpt([], "missing")).toEqual({
       vary: false,
