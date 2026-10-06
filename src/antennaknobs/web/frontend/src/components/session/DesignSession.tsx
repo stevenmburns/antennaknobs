@@ -195,9 +195,19 @@ import {
   analysisBlocked,
   analysisSpec,
   type AnalysisEntry,
+  entryLabel,
   type Listed,
   listRange,
 } from "../../lib/analyses";
+import {
+  keptAsResult,
+  keptMarks,
+  keptRunBlocked,
+  keptValues,
+  type KeptRun,
+} from "../../lib/keptRun";
+import { fmtFreq } from "../../lib/optBands";
+import type { KeptReadout } from "./OptBands";
 import type { SweepAxisChoice, SweepMode } from "../../lib/sweepAxis";
 import {
   type AnalysisChartState,
@@ -276,7 +286,7 @@ import { useSolverSlots } from "./useSolverSlots";
 import { gridCells, gridShape, useViewPrefs, withChartCopies } from "./useViewPrefs";
 import { useViewState } from "./useViewState";
 import { ViewPicker } from "./ViewPicker";
-import { VfoPanel } from "./VfoPanel";
+import { VfoPanel, type OptimizeResult } from "./VfoPanel";
 import { DeckNotice } from "./DeckNotice";
 import { deckFor, isDeck, openDeck, openDeckFile, type Dialect } from "../../lib/decks";
 
@@ -1693,6 +1703,75 @@ function DesignSessionBody({
     zoOverride,
   });
 
+  // The tab's variant defaults: what a state, a pin's changed knobs and a
+  // kept run's start are set over.
+  const knobDefaults = (): Record<string, unknown> => {
+    if (!currentExample) return {};
+    const base: Record<string, unknown> = seedDefaults(currentExample.param_schema);
+    const vv = currentExample.variant_values?.[currentVariant];
+    if (vv) for (const k of Object.keys(base)) if (k in vv) base[k] = vv[k];
+    return base;
+  };
+
+  // A kept band run (AK#1906, lib/keptRun.ts): the one the tab jumped to,
+  // shown in the band readout until a run answers (`seen`: the result on
+  // screen when it jumped). It belongs to the tab it was picked on.
+  const [keptAt, setKeptAt] = useState<{
+    geometry: string;
+    name: string;
+    run: KeptRun;
+    seen: OptimizeResult | null;
+  } | null>(null);
+  const kept = keptAt && keptAt.geometry === geometry ? keptAt : null;
+  // Jump to a kept run: the tab's knobs at its stored answer (or, `start`,
+  // where it began), its knobs marked over its ranges and every other mark
+  // cleared, its bands and balance set when the workbench can run its form.
+  // A jump to the answer stops Optimize, which would re-tune it at once; a
+  // run from the start turns it on, which is the run.
+  function jumpToKept(name: string, run: KeptRun, at: "result" | "start") {
+    optAbortRef.current?.abort();
+    const bag = keptValues(knobDefaults() as ParamValueBag, run, at);
+    setParamValues((prev) => ({ ...prev, [geometry]: bag }));
+    setKnobOpt((prev) => ({ ...prev, [geometry]: keptMarks(run, currentSchema) }));
+    if (keptRunBlocked(run) === null) {
+      setOptBands(run.bands.map((b) => b.freq));
+      setOptMeanWeight(run.meanWeight);
+    }
+    setKeptAt({ geometry, name, run, seen: optResult });
+    setOptEnabled(at === "start");
+  }
+  // The band readout's part (VfoPanel): the kept run's stored table, and
+  // Keep on a fresh band result.
+  const keptShown = kept && optResult === kept.seen ? kept : null;
+  const freeNow = Object.entries(knobOpt[geometry] ?? {})
+    .filter(([, o]) => o.vary)
+    .map(([name, o]) => ({ name, min: o.optMin, max: o.optMax }));
+  const keptReadout: KeptReadout = {
+    shown: keptShown ? { name: keptShown.name, result: keptAsResult(keptShown.run) } : null,
+    onRun:
+      keptShown && keptRunBlocked(keptShown.run) === null
+        ? () => jumpToKept(keptShown.name, keptShown.run, "start")
+        : null,
+    runBlocked: keptShown ? keptRunBlocked(keptShown.run) : null,
+    onKeep:
+      optResult?.objective === "bands" && optBands && freeNow.length > 0
+        ? () =>
+            setKeeping({
+              title: "Keep band run as study",
+              body: {
+                origin: "optimize",
+                form: "study",
+                tab: keepRequest(buildRequest()),
+                free: freeNow,
+                bands: optBands.map((freq) => ({ freq })),
+                mean_weight: optMeanWeight,
+                result: optResult,
+              },
+              initialName: `${geometry} across ${optBands.map((f) => fmtFreq(f)).join("/")} MHz`,
+            })
+        : null,
+  };
+
   // #1007: the engine-timing fields froze for the whole of an optimiser run,
   // because `rttMs` belongs to the /ws channel and the run POSTs /optimize with
   // its own fetch. While a run is in flight these come off the progress frames
@@ -2717,8 +2796,10 @@ function DesignSessionBody({
     request: buildRequest,
   });
   const zparamSweepable = new Set(zparamKnobs.map((k) => k.name));
+  // A kept band run is jumped to, never drawn (AK#1906): it is never blocked
+  // here (a run on another variant is served unrunnable, with why).
   const zparamAnalysisBlocked = (a: AnalysisEntry) =>
-    analysisBlocked(a.workbench, zparamSweepable);
+    a.kept ? null : analysisBlocked(a.workbench, zparamSweepable);
   const knobAnalysisSpec = (w: { param: string; values: number[]; log: boolean }) =>
     analysisSpec(
       { runs: true, kind: "knob", note: null, ...w },
@@ -2785,6 +2866,10 @@ function DesignSessionBody({
   // deep link's run=1 passes true, whatever the setting (AK#1838). False
   // only selects: the chart shows the analysis, ready, and waits for Run.
   const pickAnalysis = (i: number, entry: AnalysisEntry, runArg?: boolean) => {
+    if (entry.kept) {
+      jumpToKept(entryLabel(entry), entry.kept, "result");
+      return;
+    }
     const m = chartModels[i];
     const w = entry.workbench;
     if (!m || !w.runs || zparamAnalysisBlocked(entry)) return;
@@ -3529,6 +3614,7 @@ function DesignSessionBody({
             defaultFreq: measFreq,
           }}
           optPaceMs={optPaceMs}
+          kept={keptReadout}
           optState={{
             marked: optMarked,
             restarted: optRestarted,
@@ -3866,13 +3952,6 @@ function DesignSessionBody({
   // chart sweeps; a family step's value), and its plane. Another design's
   // cell is solved at that design's defaults (designAtDefaults), so it has
   // no changed knobs but its step.
-  const knobDefaults = (): Record<string, unknown> => {
-    if (!currentExample) return {};
-    const base: Record<string, unknown> = seedDefaults(currentExample.param_schema);
-    const vv = currentExample.variant_values?.[currentVariant];
-    if (vv) for (const k of Object.keys(base)) if (k in vv) base[k] = vv[k];
-    return base;
-  };
   const pinContext = (c: ChartCell, swept: string | null): string => {
     const other = c.design !== undefined && c.design !== geometry;
     const cfg = c.slot !== null ? slots[c.slot as Slot] : undefined;

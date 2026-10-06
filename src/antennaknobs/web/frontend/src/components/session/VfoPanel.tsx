@@ -7,6 +7,7 @@ import { parseZo } from "../../lib/zoOverride";
 import {
   BandsEditor,
   BandsReadout,
+  type KeptReadout,
   type OptBandRecord,
   type OptBandsControl,
 } from "./OptBands";
@@ -621,6 +622,7 @@ export function VfoPanel({
   bands,
   optState,
   optPaceMs,
+  kept = null,
 }: {
   currentBands: BandSpec[];
   measLocked: boolean;
@@ -675,6 +677,8 @@ export function VfoPanel({
   /** A run's wall time per solved point, ms (AK 0.97.1); null before the
    *  first frame. */
   optPaceMs?: number | null | undefined;
+  /** A kept band run jumped to, and keeping a fresh one (AK#1906). */
+  kept?: KeptReadout | null | undefined;
 }) {
   // Long press = the touch route to the range menu. The knobs have no touch
   // path of their own: their menu rides the browser's contextmenu event,
@@ -831,13 +835,14 @@ export function VfoPanel({
             )}
           </div>
         </div>
-        {optEnabled && bands?.freqs && (
+        {((optEnabled && bands?.freqs) || kept?.shown) && (
           <BandsReadout
             running={optRunning}
             progress={optProgress}
             result={optResult}
             error={optError}
             paceMs={optPaceMs ?? null}
+            kept={kept ?? null}
           />
         )}
       </div>
