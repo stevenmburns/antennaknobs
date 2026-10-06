@@ -1741,6 +1741,52 @@ _COMPRESSED_MODELS = _cost.COMPRESSED_MODELS
 _MAX_SWEEP_POINTS = _cost.MAX_SWEEP_POINTS
 _MAX_OPT_EVALS = _cost.MAX_OPT_EVALS
 _MAX_OPT_SECONDS = _cost.MAX_OPT_SECONDS
+_MAX_SWEEP_SECONDS = _cost.MAX_SWEEP_SECONDS
+
+
+class _SweepOutOfTime(Exception):
+    """A sweep's hosted wall-time budget is spent (`_SweepClock`): raised
+    between points of a run whose loop the server does not own (a held
+    sweep's `hold.hold_line`)."""
+
+
+class _SweepClock:
+    """The hosted wall-time budget of one sweep (``ANTENNAKNOBS_MAX_SWEEP_SECONDS``).
+
+    Every multi-solve sweep endpoint asks ``spent()`` before it solves a fresh
+    point (or chunk), and stops there when it says so: the points already
+    streamed stand, and the closing ``{done}`` record says why the run is
+    short, ``stopped: "time"`` and ``time_budget_s`` (`label`). The first
+    fresh point always runs, so a budget never ends a run with nothing, and a
+    point already solving is never cut: the bound is "the next point", as
+    `optimize_bands`' ``time_budget_s`` stops at its next fresh solve. Local
+    (unhosted) runs are unbounded, catalog designs and opened decks alike."""
+
+    def __init__(self) -> None:
+        self.budget_s: float | None = float(_MAX_SWEEP_SECONDS) if _HOSTED else None
+        self._t_end = (
+            None if self.budget_s is None else time.monotonic() + self.budget_s
+        )
+        self._fresh = 0
+        self.stopped = False
+
+    def spent(self) -> bool:
+        """True when the next fresh point must not start (and from then on);
+        otherwise counts the point the caller is about to solve."""
+        if self.stopped:
+            return True
+        if self._t_end is not None and self._fresh and time.monotonic() > self._t_end:
+            self.stopped = True
+            return True
+        self._fresh += 1
+        return False
+
+    def label(self, done: dict) -> dict:
+        """``done`` with the stop's label when the budget ended the run."""
+        if self.stopped:
+            done["stopped"] = "time"
+            done["time_budget_s"] = self.budget_s
+        return done
 
 
 class SolveTooLargeError(ValueError):
@@ -2475,6 +2521,7 @@ async def sweep_endpoint(req: dict, request: Request):
         if not freqs:
             yield json.dumps({"done": True, "solver": solver_name}) + "\n"
             return
+        clock = _SweepClock()
 
         if use_pynec:
             # Per-point loop with disconnect check; lets us bail before the
@@ -2487,6 +2534,8 @@ async def sweep_endpoint(req: dict, request: Request):
                     return
                 cached = _sweep_z_get(design_key, f) if read_cache else None
                 superseded_mid_point = False
+                if cached is None and clock.spent():
+                    break
                 if cached is None:
                     try:
                         # One lane turn per point: a queued live solve gets
@@ -2586,6 +2635,8 @@ async def sweep_endpoint(req: dict, request: Request):
                     for f in chunk
                 }
                 pending = [f for f, v in known.items() if v is None]
+                if pending and clock.spent():
+                    break
                 if pending:
                     t0 = time.perf_counter()
                     try:
@@ -2650,7 +2701,7 @@ async def sweep_endpoint(req: dict, request: Request):
                     yield json.dumps(_sweep_record(f, known[f], solver_name)) + "\n"
                 start += len(chunk)
 
-        done = {"done": True, "solver": solver_name}
+        done = clock.label({"done": True, "solver": solver_name})
         if sweep_advisories:
             done["advisories"] = sweep_advisories
         yield json.dumps(done) + "\n"
@@ -2812,9 +2863,12 @@ def _param_sweep_stream(
         return {record_key: value}
 
     async def gen():
+        clock = _SweepClock()
         for value in values:
             if await request.is_disconnected():
                 return
+            if clock.spent():
+                break
             req_v = request_at(req, param, value)
             try:
                 # Reject points past the size cap (a density sweep is exactly
@@ -2889,7 +2943,7 @@ def _param_sweep_stream(
                 record["feeds_z_re"] = [float(z_.real) for z_ in feeds_z]
                 record["feeds_z_im"] = [float(z_.imag) for z_ in feeds_z]
             yield json.dumps(record) + "\n"
-        done: dict = {"done": True, "solver": solver_name}
+        done: dict = clock.label({"done": True, "solver": solver_name})
         if advisories and values:
             # The advisory builds the geometry again; a failure there loses
             # the advisory, never the closing record. A stream without
@@ -3107,6 +3161,10 @@ def _held_sweep_stream(
 
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue = asyncio.Queue()
+    # The hosted wall-time budget, checked between points: a held point is
+    # one bounded optimisation, and the next one does not start past it.
+    clock = _SweepClock()
+    tally = {"held": 0, "gaps": 0}
 
     def record(pt) -> dict:
         rec = {
@@ -3129,8 +3187,16 @@ def _held_sweep_stream(
                     rec["metric_error"] = why
         else:
             rec["gap"] = pt.reason
+        tally["held" if pt.converged else "gaps"] += 1
         thunks.clear()
         return rec
+
+    def on_point(pt) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, record(pt))
+        # The next point starts only inside the budget (and the last one has
+        # no next point to stop).
+        if tally["held"] + tally["gaps"] < len(values) and clock.spent():
+            raise _SweepOutOfTime
 
     def held_metric(pt) -> tuple:
         """``metric`` at the point's optimum, off the solve that gave its Z
@@ -3147,6 +3213,7 @@ def _held_sweep_stream(
         return hd.metric_off(metric, build(), thunk.freq)
 
     def work() -> list:
+        clock.spent()  # the first point always runs
         return hd.hold_line(
             values,
             param,
@@ -3156,7 +3223,7 @@ def _held_sweep_stream(
             defaults=defaults,
             warm_start=h.warm_start,
             base=req,
-            on_point=lambda pt: loop.call_soon_threadsafe(queue.put_nowait, record(pt)),
+            on_point=on_point,
         )
 
     async def gen():
@@ -3178,6 +3245,21 @@ def _held_sweep_stream(
                 try:
                     pts = task.result()
                 except momwire.SolveAborted:
+                    return
+                except _SweepOutOfTime:
+                    yield (
+                        json.dumps(
+                            clock.label(
+                                {
+                                    "done": True,
+                                    "solver": solver_name,
+                                    "held_points": tally["held"],
+                                    "gaps": tally["gaps"],
+                                }
+                            )
+                        )
+                        + "\n"
+                    )
                     return
                 except Exception as e:  # noqa: BLE001 — a refusal at a solve (multi-feed) or a user design's build error ends the stream by name
                     yield (
