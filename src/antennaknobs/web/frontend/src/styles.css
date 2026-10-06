@@ -3826,6 +3826,11 @@ div.opt-bands-readout {
 .opt-bands-readout.opt-readout-err {
   color: var(--danger, #c0392b);
 }
+.opt-bands-notes {
+  margin-bottom: 0;
+  padding-left: 1.1em;
+  color: var(--hot);
+}
 .opt-bands-table {
   border-collapse: collapse;
   font-family: var(--font-mono);

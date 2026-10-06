@@ -226,7 +226,9 @@ export function BandsReadout({
     const startOf = (b: OptBandRecord, i: number): OptBandRecord | undefined =>
       (b.index != null ? before.find((r) => r.index === b.index) : undefined) ??
       before[i];
+    const notes = bandResultNotes(result);
     return (
+      <>
       <table className="opt-bands-readout opt-bands-table" aria-label="Band results">
         <thead>
           <tr>
@@ -264,7 +266,37 @@ export function BandsReadout({
           )}
         </tfoot>
       </table>
+      {notes.length > 0 && (
+        <ul className="opt-bands-readout opt-bands-notes" aria-label="Band run notes">
+          {notes.map((n) => (
+            <li key={n}>{n}</li>
+          ))}
+        </ul>
+      )}
+      </>
     );
   }
   return null;
+}
+
+/** What the result table alone does not say (AK 0.97.1, AK#1909): the run
+ *  stopped at the hosted time limit, a knob ended pinned at its range, or no
+ *  band is anywhere near a match. */
+export function bandResultNotes(result: OptimizeResult): string[] {
+  const out: string[] = [];
+  if (result.stopped === "time") {
+    const s = result.time_budget_s;
+    out.push(
+      `Stopped at the time limit${s ? ` (${s} s)` : ""}: this is the best point found so far.`,
+    );
+  }
+  for (const b of result.at_bound ?? []) {
+    out.push(
+      `${b.name} ended at its ${b.bound === "min" ? "minimum" : "maximum"}: the best value may lie outside its range. Widen it and run again.`,
+    );
+  }
+  if (result.far_from_match) {
+    out.push("No band is near a match: check the knobs' ranges before trusting this result.");
+  }
+  return out;
 }
