@@ -1,0 +1,224 @@
+{
+ "name": "deck.12ae0ac86287",
+ "label": "UR0GT_SY_vert_inv_L",
+ "multi_feed": false,
+ "param_schema": [
+  {
+   "name": "sy_w5hgt",
+   "label": "w5hgt",
+   "default": 12.0,
+   "kind": "float",
+   "min": 6.0,
+   "max": 18.0,
+   "step": 0.01,
+   "precision": 3,
+   "unit": null,
+   "visible_when": null,
+   "enum_options": null,
+   "range_from_enum_option": null,
+   "on_change_set": null,
+   "linked_to_design_freq": false,
+   "link_meas_freq_to_param": null,
+   "layout": null,
+   "description": null
+  },
+  {
+   "name": "sy_w6len",
+   "label": "w6len",
+   "default": 61.22,
+   "kind": "float",
+   "min": 30.61,
+   "max": 91.83,
+   "step": 0.05,
+   "precision": 3,
+   "unit": null,
+   "visible_when": null,
+   "enum_options": null,
+   "range_from_enum_option": null,
+   "on_change_set": null,
+   "linked_to_design_freq": false,
+   "link_meas_freq_to_param": null,
+   "layout": null,
+   "description": null
+  },
+  {
+   "name": "sy_cap1",
+   "label": "cap1",
+   "default": 340.0,
+   "kind": "float",
+   "min": 170.0,
+   "max": 510.0,
+   "step": 0.5,
+   "precision": 2,
+   "unit": "pF",
+   "visible_when": null,
+   "enum_options": null,
+   "range_from_enum_option": null,
+   "on_change_set": null,
+   "linked_to_design_freq": false,
+   "link_meas_freq_to_param": null,
+   "layout": null,
+   "description": null
+  },
+  {
+   "name": "sy_cap2",
+   "label": "cap2",
+   "default": 41.0,
+   "kind": "float",
+   "min": 20.5,
+   "max": 61.5,
+   "step": 0.05,
+   "precision": 3,
+   "unit": "pF",
+   "visible_when": null,
+   "enum_options": null,
+   "range_from_enum_option": null,
+   "on_change_set": null,
+   "linked_to_design_freq": false,
+   "link_meas_freq_to_param": null,
+   "layout": null,
+   "description": null
+  }
+ ],
+ "result_schema": [],
+ "bands": [
+  {
+   "key": "160m",
+   "label": "160m",
+   "freq_mhz": 1.9,
+   "min_mhz": 1.8,
+   "max_mhz": 2.0
+  },
+  {
+   "key": "80m",
+   "label": "80m",
+   "freq_mhz": 3.75,
+   "min_mhz": 3.5,
+   "max_mhz": 4.0
+  },
+  {
+   "key": "40m",
+   "label": "40m",
+   "freq_mhz": 7.15,
+   "min_mhz": 7.0,
+   "max_mhz": 7.3
+  },
+  {
+   "key": "30m",
+   "label": "30m",
+   "freq_mhz": 10.125,
+   "min_mhz": 10.1,
+   "max_mhz": 10.15
+  },
+  {
+   "key": "20m",
+   "label": "20m",
+   "freq_mhz": 14.3,
+   "min_mhz": 14.0,
+   "max_mhz": 14.35
+  },
+  {
+   "key": "17m",
+   "label": "17m",
+   "freq_mhz": 18.1575,
+   "min_mhz": 18.068,
+   "max_mhz": 18.168
+  },
+  {
+   "key": "15m",
+   "label": "15m",
+   "freq_mhz": 21.383,
+   "min_mhz": 21.0,
+   "max_mhz": 21.45
+  },
+  {
+   "key": "12m",
+   "label": "12m",
+   "freq_mhz": 24.97,
+   "min_mhz": 24.89,
+   "max_mhz": 24.99
+  },
+  {
+   "key": "10m",
+   "label": "10m",
+   "freq_mhz": 28.47,
+   "min_mhz": 28.0,
+   "max_mhz": 29.7
+  },
+  {
+   "key": "6m",
+   "label": "6m",
+   "freq_mhz": 50.15,
+   "min_mhz": 50.0,
+   "max_mhz": 54.0
+  },
+  {
+   "key": "2m",
+   "label": "2m",
+   "freq_mhz": 146.0,
+   "min_mhz": 144.0,
+   "max_mhz": 148.0
+  },
+  {
+   "key": "70cm",
+   "label": "70cm",
+   "freq_mhz": 435.0,
+   "min_mhz": 420.0,
+   "max_mhz": 450.0
+  }
+ ],
+ "meas_freq_range_mhz": null,
+ "default_view": null,
+ "default_freq": 7.2,
+ "default_design_freq": 7.2,
+ "default_backend": null,
+ "requires_backends": null,
+ "backend_restriction": null,
+ "backend_coverage": {
+  "needs": [
+   "per_wire_radius"
+  ],
+  "refusals": {
+   "pulse": {
+    "capability": "per_wire_radius",
+    "reason": "wire_radius must be a scalar for HarringtonSolver; per-wire radii (momwire#147) are not supported by this formulation probe"
+   }
+  }
+ },
+ "has_stepped_radius_junction": false,
+ "has_buried_wire": false,
+ "converged_feed_suggested": false,
+ "ground_requirement": null,
+ "ground_seed": "mininec",
+ "ground_medium": {
+  "eps_r": 13.0,
+  "sigma": 0.005
+ },
+ "ground_card": "NEC-5 GD",
+ "fixed_segment_counts": true,
+ "extended_kernel_default": true,
+ "has_design_freq": true,
+ "variants": [
+  "default"
+ ],
+ "variant_values": {
+  "default": {
+   "freq": 7.2,
+   "design_freq": 7.2,
+   "sy_w5hgt": 12.0,
+   "sy_w6len": 61.22,
+   "sy_cap1": 340.0,
+   "sy_cap2": 41.0
+  }
+ },
+ "sweep_policy": {
+  "anchor": "design_freq",
+  "lo_factor": 0.8,
+  "hi_factor": 1.25,
+  "band_locked": false
+ },
+ "sweep_range": null,
+ "variant_ui": {},
+ "notes": "Read as NEC-5 (sources and loads at segment ends): EZNEC's stamp on line 3 says NEC-5 format. Deck cards not applied: RP (radiation-pattern request) \u2014 the app's own settings are used instead. 4 SY constants are knobs (sy_w5hgt, sy_w6len, sy_cap1, sy_cap2). The deck's topology is frozen at its own values: a knob value that changes which wires meet is refused.",
+ "layout": null
+}

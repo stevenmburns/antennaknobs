@@ -1667,6 +1667,8 @@ function DesignSessionBody({
     optEnabledRef,
     knobOptFor,
     updateKnobOpt,
+    optMarked,
+    optRestarted,
   } = useOptimizer({
     geometry,
     currentValues,
@@ -3520,6 +3522,10 @@ function DesignSessionBody({
             meanWeight: optMeanWeight,
             setMeanWeight: setOptMeanWeight,
             defaultFreq: measFreq,
+          }}
+          optState={{
+            marked: optMarked,
+            restarted: optRestarted,
           }}
         />
 

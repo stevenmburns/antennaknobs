@@ -228,6 +228,16 @@ function ZoField({ zo }: { zo: ZoControl }) {
 // ranges no longer apply).
 export type OptPause = { kind: "knob"; name: string } | { kind: "load" };
 
+/** What the session knows about the optimizer beyond its result (AK#1912),
+ *  so the readout can always say what state it is in. Absent: a caller with
+ *  no session behind it. */
+export type OptStateControl = {
+  /** Knobs marked "Optimize this knob" on this design. */
+  marked: number;
+  /** The run in flight superseded one that had not finished. */
+  restarted: boolean;
+};
+
 // Live / Optimize: two matching push-button toggles (depressed = on), stacked
 // at the left of the dial. Live gates auto-solving on knob turns; Optimize
 // gates the reactive tuner. The objective ("optimise for") picker is the gear
@@ -255,6 +265,7 @@ function SimControls({
   optPausedBy,
   zo,
   bands,
+  optState,
 }: {
   autoSim: boolean;
   setAutoSim: (fn: (v: boolean) => boolean) => void;
@@ -286,11 +297,40 @@ function SimControls({
   zo?: ZoControl | undefined;
   /** AK#1901. Absent: no Bands section. */
   bands?: OptBandsControl | undefined;
+  /** AK#1912. Absent: no state line beyond the run's own readouts. */
+  optState?: OptStateControl | undefined;
 }) {
   const [optMenuOpen, setOptMenuOpen] = useState(false);
   // A band run's readouts (its per-band table, its refusals) live in the
   // full-width block under the dial; this narrow column keeps the one figure.
   const bandsOn = !!bands?.freqs;
+  // AK#1912: Optimize on, and nothing visibly happening, always has a reason
+  // the readout states — before any run's own figures are there to show.
+  const marked = optState?.marked;
+  const optState1912: { text: string; title: string } | null = !optEnabled || !optState
+    ? null
+    : marked === 0
+      ? {
+          text: "mark a knob to optimize (right-click → Optimize this knob)",
+          title: "Optimize varies only the knobs you mark: right-click a knob and choose Optimize this knob (or focus it and press o).",
+        }
+      : !autoSim
+        ? {
+            text: "needs Live",
+            title: "Optimize runs the engine, which Paused holds. Turn Live on to run it.",
+          }
+        : optRunning && !optProgress
+            ? {
+                text: `${bands?.freqs ? `bands: ${bands.freqs.length}, ` : ""}knobs: ${marked}, ${optState.restarted ? "restarted" : "running"}…`,
+                title: optState.restarted
+                  ? "An input changed while the last run was still going, so it was stopped and this one started in its place."
+                  : "The run has started; its progress shows here as each evaluation lands.",
+              }
+            : null;
+  const optMarkedTitle =
+    marked === undefined
+      ? ""
+      : ` Marked: ${marked === 0 ? "none" : `${marked} knob${marked === 1 ? "" : "s"}`}.`;
   return (
     <div className="sim-controls" data-track-status={trackStatus ?? undefined}>
       <button
@@ -316,7 +356,7 @@ function SimControls({
             setOptEnabled((v) => !v);
             setOptPausedBy(null);
           }}
-          title="Reactive optimiser: vary the knobs you mark (right-click a knob) to hit the objective whenever a fixed knob changes. Changing a marked knob by hand pauses it — turn it back on to resume."
+          title={`Reactive optimiser: vary the knobs you mark (right-click a knob) to hit the objective whenever a fixed knob changes. Changing a marked knob by hand pauses it — turn it back on to resume.${optMarkedTitle}`}
         >
           <span className="toggle-led" aria-hidden="true" />
           Optimize
@@ -419,6 +459,11 @@ function SimControls({
           limit: at the last good tick the held knob is usually nowhere near a
           bound, and it is the resonance/match itself that has gone. Nor is it
           worded as permanent: dragging back the way you came re-acquires. */}
+      {optState1912 && (
+        <span className="opt-readout opt-readout-state" role="status" title={optState1912.title}>
+          {optState1912.text}
+        </span>
+      )}
       {trackEnabled && trackLatched && (
         <span className="opt-readout opt-readout-latched" title={trackLatched}>
           ⚠ {trackLatched}
@@ -429,6 +474,14 @@ function SimControls({
           instead of the previous run's settled result — optProgress is reset
           to null at the start of every run, so this only shows once the
           first frame lands. */}
+      {optEnabled && optRunning && optProgress && optState?.restarted && (
+        <span
+          className="opt-readout opt-readout-restarted"
+          title="An input changed while the last run was still going, so it was stopped and this one started in its place."
+        >
+          restarted
+        </span>
+      )}
       {optEnabled && optRunning && optProgress && (
         <span
           className="opt-readout opt-readout-progress"
@@ -481,12 +534,12 @@ function SimControls({
           className="opt-readout opt-paused"
           title={
             optPausedBy.kind === "knob"
-              ? "You changed a knob marked for optimization, so Optimize paused. Turn it back on to resume."
+              ? `You moved ${optPausedBy.name}, a knob marked for optimization, so Optimize paused. Turn it back on to resume.`
               : "Loading a design clears its optimize marks and pauses Optimize. Re-mark knobs and turn it back on to resume."
           }
         >
           {optPausedBy.kind === "knob"
-            ? `Paused — changing ${optPausedBy.name} by hand`
+            ? "paused: you moved a marked knob"
             : "Paused — loaded a new design"}
         </span>
       )}
@@ -538,6 +591,7 @@ export function VfoPanel({
   optPausedBy,
   zo,
   bands,
+  optState,
 }: {
   currentBands: BandSpec[];
   measLocked: boolean;
@@ -587,6 +641,8 @@ export function VfoPanel({
   zo?: ZoControl | undefined;
   /** The gear menu's band list (AK#1901). */
   bands?: OptBandsControl | undefined;
+  /** The optimizer's state for its readout (AK#1912). */
+  optState?: OptStateControl | undefined;
 }) {
   // Long press = the touch route to the range menu. The knobs have no touch
   // path of their own: their menu rides the browser's contextmenu event,
@@ -661,6 +717,7 @@ export function VfoPanel({
             optPausedBy={optPausedBy}
             zo={zo}
             bands={bands}
+            optState={optState}
           />
 
           <div
