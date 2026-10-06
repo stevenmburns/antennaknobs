@@ -2723,6 +2723,9 @@ function DesignSessionBody({
       }
       return {
         cell: cellRequest(i, k, c.slot as Slot, c.ground as string, c),
+        // A chart of one cell names no curve, so its curve is "solo"
+        // whatever cell it is on (CellRun.cellKey).
+        cellKey: plan.cells.length === 1 ? "solo" : c.key,
         freq: band ? { ...inputs.freq, range: band } : inputs.freq,
         param: paramReq === inputs.param.req ? inputs.param : { ...inputs.param, req: paramReq },
         // A pattern cell is one solve (step 7): its request is the cell's.
@@ -3079,7 +3082,9 @@ function DesignSessionBody({
       solveWithheld,
       seqRef,
       approvedComboRef,
-      ...(primaryRun ? { chartCell: primaryRun.cell, buildCellRequest } : {}),
+      ...(primaryRun
+        ? { chartCell: primaryRun.cell, chartCellKey: primaryRun.cellKey, buildCellRequest }
+        : {}),
     });
   // The first chart's first pattern cell (AK#1757 step 7): the chart's
   // other runners for that cell live in useAnalysisRunners, and this one
@@ -3100,6 +3105,7 @@ function DesignSessionBody({
     solveWithheld,
     seqRef,
     approvedComboRef: primaryRun && !primaryRun.cell.onActiveSlot ? NOT_APPROVED : approvedComboRef,
+    cell: primaryRun?.cellKey,
   });
   // The first chart's map (docs/design/sweep-framework-map.md), beside its
   // first pattern cell, on the same cell request and approval rule.

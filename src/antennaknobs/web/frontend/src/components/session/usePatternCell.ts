@@ -47,6 +47,12 @@ export type PatternCellOptions = {
   solveWithheld: () => boolean;
   seqRef: MutableRefObject<number>;
   approvedComboRef: MutableRefObject<boolean>;
+  /** What the curve is drawn as on its chart (useChartCells' `cellKey`):
+   *  a result kept stale through a change is kept only while this is the
+   *  same, so a pick that moves the chart's cells never draws one cell's
+   *  old curve under another cell's legend row (AC6LA, QRZ, on v0.97.1: a
+   *  Sommerfeld sweep drawn as "free space"). Absent: not tracked. */
+  cell?: string | undefined;
 };
 
 export type PatternCellHandle = {
@@ -77,6 +83,7 @@ export function usePatternCell({
   solveWithheld,
   seqRef,
   approvedComboRef,
+  cell,
 }: PatternCellOptions): PatternCellHandle {
   const [data, setData] = useState<PatternCellData | null>(null);
   const [running, setRunning] = useState(false);
@@ -91,6 +98,8 @@ export function usePatternCell({
   const armNextRef = useRef(false);
   // A pick that only selects (useParamSweep's `hold`).
   const holdNextRef = useRef(false);
+  // The cell (`cell`) what is drawn was solved for.
+  const drawnCellRef = useRef(cell);
 
   useEffect(() => {
     if (stoppedRef.current === sig) return;
@@ -108,12 +117,16 @@ export function usePatternCell({
     if (!wanted || held) armedRef.current = null;
     if (held || (!auto && armedRef.current !== sig)) {
       // Nobody asked at these inputs: what is drawn stays, dimmed as stale.
-      setData((d) => (d ? { ...d, stale: true } : null));
+      // One solved for another cell is not this one's (PatternCellOptions.cell).
+      if (drawnCellRef.current === cell) setData((d) => (d ? { ...d, stale: true } : null));
+      else setData(null);
+      drawnCellRef.current = cell;
       setRunning(false);
       return;
     }
     setData(null);
     setRunning(false);
+    drawnCellRef.current = cell;
     // Held when Paused (issue #612), off screen, or before the design lands.
     if (!autoSim || !wanted || !active) return;
     timerRef.current = window.setTimeout(run, 500);
@@ -126,6 +139,14 @@ export function usePatternCell({
     // angles are display, exempt from `sig` like the live cut dials).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig, wanted, auto, autoSim, active, comboApproved, recommendedBackend]);
+
+  // The cell's key changing with no change to what it solves (a chart of
+  // one curve gaining a second, which names the first) leaves what is drawn
+  // valid: it is that cell's. Declared after the effect above, so a change
+  // of both is judged there first, against the old cell.
+  useEffect(() => {
+    drawnCellRef.current = cell;
+  }, [cell]);
 
   async function run() {
     setQueued(false);
@@ -201,6 +222,7 @@ export function usePatternCell({
     armedRef.current = sig;
     if (timerRef.current) window.clearTimeout(timerRef.current);
     setData(null);
+    drawnCellRef.current = cell;
     void run();
   }
 
