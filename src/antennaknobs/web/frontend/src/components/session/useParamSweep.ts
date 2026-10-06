@@ -34,6 +34,12 @@ export type ParamSweepOptions = {
   solveWithheld: () => boolean;
   seqRef: MutableRefObject<number>;
   approvedComboRef: MutableRefObject<boolean>;
+  /** What the curve is drawn as on its chart (useChartCells' `cellKey`):
+   *  a result kept stale through a change is kept only while this is the
+   *  same, so a pick that moves the chart's cells never draws one cell's
+   *  old curve under another cell's legend row (AC6LA, QRZ, on v0.97.1: a
+   *  Sommerfeld sweep drawn as "free space"). Absent: not tracked. */
+  cell?: string | undefined;
 };
 
 /** What a parameter sweep runner publishes, and its controls. */
@@ -68,6 +74,7 @@ export function useParamSweep({
   solveWithheld,
   seqRef,
   approvedComboRef,
+  cell,
 }: ParamSweepOptions): ParamSweepHandle {
 
   const [paramSweep, setParamSweep] = useState<ParamSweepData | null>(null);
@@ -98,6 +105,8 @@ export function useParamSweep({
   // (see runParamSweep's end): bounded, so a server that keeps dropping it
   // cannot loop the runner.
   const paramSweepReissuesRef = useRef(0);
+  // The cell (`cell`) what is drawn was solved for.
+  const drawnCellRef = useRef(cell);
   // Debounced parameter sweep: Z against the density or one design knob, on
   // the active slot's engine, whenever something that draws it (`wanted`) is
   // on screen. The swept field is overridden per point on the server; the
@@ -129,11 +138,13 @@ export function useParamSweep({
       // already drawn for this knob stays, dimmed as stale ("re-run?");
       // any other is cleared.
       // eslint-disable-next-line react-hooks/set-state-in-effect
+      const sameCell = drawnCellRef.current === cell;
       setParamSweep((d) =>
-        d && d.param === paramSweepReq.param
+        d && d.param === paramSweepReq.param && sameCell
           ? { ...d, stale: true, ...(wasRunning ? { partial: true } : {}) }
           : null,
       );
+      drawnCellRef.current = cell;
       setParamSweepRunning(false);
       return;
     }
@@ -143,6 +154,7 @@ export function useParamSweep({
     // unrepresentable.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setParamSweep(null);
+    drawnCellRef.current = cell;
     setParamSweepRunning(false);
     // Held when Paused (issue #612) — see the sweep effect. autoSim is a dep so
     // resuming Live restarts the parameter sweep.
@@ -170,6 +182,14 @@ export function useParamSweep({
     // Poor-match gate (see the sweep effect).
     comboApproved, recommendedBackend,
   ]);
+
+  // The cell's key changing with no change to what it solves (a chart of
+  // one curve gaining a second, which names the first) leaves what is drawn
+  // valid: it is that cell's. Declared after the effect above, so a change
+  // of both is judged there first, against the old cell.
+  useEffect(() => {
+    drawnCellRef.current = cell;
+  }, [cell]);
 
   // Unmounting (a closed tab or chart, a torn-down session) abandons the
   // sweep in flight: it is aborted, as a Stop aborts it, so its end never
@@ -462,6 +482,7 @@ export function useParamSweep({
     paramSweepArmedRef.current = paramSweepSig;
     if (paramSweepTimerRef.current) window.clearTimeout(paramSweepTimerRef.current);
     setParamSweep(null);
+    drawnCellRef.current = cell;
     void runParamSweep();
   }
 

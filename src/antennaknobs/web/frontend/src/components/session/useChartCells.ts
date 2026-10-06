@@ -35,6 +35,13 @@ import type { MapRunAxis } from "../../lib/analysisChart";
  *  every curve of a chart, lib/analysisChart.ts chartRunInputs). */
 export type CellRun = {
   cell: ChartCellRequest;
+  /** What the curve is drawn as: its cell's key (lib/chartCells.ts), or
+   *  one constant for a chart of a single cell, whose curve no legend row
+   *  names. A runner keeps a stale curve only while this is the same, so a
+   *  pick that moves the cells never draws one cell's curve under another's
+   *  name, while a lone curve still stays, dimmed, through a ground or
+   *  solver change ("re-run?"). Absent: not tracked. */
+  cellKey?: string;
   freq: {
     range: SweepRange;
     wanted: boolean;
@@ -109,6 +116,7 @@ export function useChartCells(o: ChartCellsOptions): CellRunners[] {
       solveWithheld: o.solveWithheld,
       seqRef: o.seqRef,
       approvedComboRef: r.cell.onActiveSlot ? approvedComboRef : NOT_APPROVED,
+      cell: on ? r.cellKey : undefined,
     };
   };
   const paramOptions = (run: CellRun | undefined) => {
@@ -126,6 +134,7 @@ export function useChartCells(o: ChartCellsOptions): CellRunners[] {
       solveWithheld: o.solveWithheld,
       seqRef: o.seqRef,
       approvedComboRef: r.cell.onActiveSlot ? approvedComboRef : NOT_APPROVED,
+      cell: on ? r.cellKey : undefined,
     };
   };
   const patternOptions = (run: CellRun | undefined) => {
@@ -145,6 +154,7 @@ export function useChartCells(o: ChartCellsOptions): CellRunners[] {
       solveWithheld: o.solveWithheld,
       seqRef: o.seqRef,
       approvedComboRef: r.cell.onActiveSlot ? approvedComboRef : NOT_APPROVED,
+      cell: on ? r.cellKey : undefined,
     };
   };
   const mapOptions = (run: CellRun | undefined) => {

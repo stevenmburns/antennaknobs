@@ -189,6 +189,7 @@ export function useAnalysisRunners({
   seqRef,
   approvedComboRef,
   chartCell,
+  chartCellKey,
   buildCellRequest,
 }: {
   backend: BackendEntry;
@@ -285,6 +286,9 @@ export function useAnalysisRunners({
   /** A cell's request (DesignSession's buildCellRequest); given with
    *  `chartCell`. */
   buildCellRequest?: (cell: ChartCellRequest) => SolveRequest;
+  /** What the chart's first curve is drawn as (useChartCells' `cellKey`),
+   *  so a stale curve is kept only for the same cell. */
+  chartCellKey?: string;
 }) {
   // The range the sweep grids (AK#1682): the caller's, or the design's own.
   const effectiveSweepRange =
@@ -349,6 +353,7 @@ export function useAnalysisRunners({
     solveWithheld,
     seqRef,
     approvedComboRef: cellApprovedRef,
+    cell: chartCellKey,
   });
 
   // The parameter sweep: the analysis chart's knob or density sweep, drawn
@@ -366,6 +371,7 @@ export function useAnalysisRunners({
     solveWithheld,
     seqRef,
     approvedComboRef: cellApprovedRef,
+    cell: chartCellKey,
   });
 
   const [normCheck, setNormCheck] = useState<NormCheckData | null>(null);
