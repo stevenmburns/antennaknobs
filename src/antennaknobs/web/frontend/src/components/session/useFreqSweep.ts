@@ -4,11 +4,13 @@ import type { BackendEntry } from "../../lib/backends";
 import type { GroundModel } from "../../lib/ground";
 import { refineSweepFreqs, type SweepProjectionSet } from "../../lib/refine";
 import {
+  closingAdvisories,
   defaultSweepPoints,
   mergeSweepPoints,
   sweepGrid,
   sweepGridKey,
   type SweepProgress,
+  type SweepClosing,
   type SweepRange,
   SWEEP_REFINE_BUDGET,
   SWEEP_REFINE_ROUND_BUDGET,
@@ -52,7 +54,7 @@ async function streamSweep(
   body: object,
   controller: AbortController,
   onPoint: (snapshot: SweepData) => void,
-  onDone?: (closing: { advisories?: Advisory[] }) => void,
+  onDone?: (closing: SweepClosing) => void,
 ): Promise<SweepData> {
   // feeds_z_re/feeds_z_im start OMITTED (not set to undefined): the type's
   // doc comment says single-feed geometries omit them entirely, and
@@ -505,6 +507,7 @@ export function useFreqSweep({
     setSweepSettled(!refineEnabledRef.current);
     setSweepProgress({ phase: "base", received: 0, planned: freqs.length });
     let planned: SweepData | null = null;
+    let timeStopped = false;
     try {
       // New object per point so React re-renders the Smith chart as the
       // sweep fills in. The counter reads the snapshot's own length, so it
@@ -516,7 +519,13 @@ export function useFreqSweep({
           received: snapshot.freqs_mhz.length,
           planned: freqs.length,
         });
-      }, (closing) => setSweepAdvisories(closing.advisories ?? []));
+      }, (closing) => {
+        // The hosted time limit's stop reads as an advisory (its note first),
+        // and the partial curve is not refined: every round would be another
+        // run against the same limit.
+        timeStopped = closing.stopped === "time";
+        setSweepAdvisories(closingAdvisories(closing));
+      });
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;
       console.error("sweep error", e);
@@ -538,7 +547,7 @@ export function useFreqSweep({
         // curve that is already drawn, and flickering the chart's busy
         // indicator back on would read as "this result is provisional".
         const settled = planned;
-        if (settled && !controller.signal.aborted && refineEnabledRef.current) {
+        if (settled && !timeStopped && !controller.signal.aborted && refineEnabledRef.current) {
           sweepRefineTimerRef.current = window.setTimeout(
             () => runSweepRefine(settled),
             SWEEP_REFINE_DWELL_MS,
