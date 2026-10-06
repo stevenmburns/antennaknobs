@@ -29,17 +29,17 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.97.1" icon="star">
-  **Several-band optimize, made usable.** Opening the Optimize gear menu now
-  pauses the run, and closing it resumes with one run for all your edits
-  (before, each edit started a new run that replaced the last). While it runs,
-  each band's impedance moves on the Smith chart in its own colour, and the
-  readout always says what the optimizer is doing. A knob range that leaves out
-  the knob's current value is refused, naming its unit; the result says when a
-  knob ended at the edge of its range or no band is near a match. The hosted app
-  runs on a dedicated CPU now, and stops a several-band run at 120 s with the
-  best point so far. Builds on [v0.97.0](/reference/cli/#optimizing-across-bands):
-  optimize across several bands at once, on momwire 0.72.0.
+<Card title="New in v0.97.2" icon="star">
+  **Keep an optimize run, and open MMANA models.** A several-band optimize run
+  can be kept as a study, with **Keep…** in the workbench or `optimize --bands
+  --keep` on the command line. It reopens with its knobs and its before/after
+  table, and `analyze --study` runs it again to compare with what was stored. A
+  hold can now keep several bands at their best balance while you sweep another
+  knob. [MMANA-GAL `.maa` files](/reference/nec-import/) open like NEC decks
+  (Open…, the command line, your designs folder); MMANA's automatic
+  segmentation becomes a real mesh, and anything we can't model is refused by
+  name. Long analysis lists are grouped under headings, and a knob's default
+  Optimize range is ±20 % of its value, in the workbench as on the command line.
 </Card>
 
 ## The whole pitch, in one line
