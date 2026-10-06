@@ -418,7 +418,9 @@ it draws it:
 
 - **analysis** — what the chart runs. First what runs here: **freq sweep
   (the design's band)**, the design's [analyses](#a-designs-analyses) the
-  chart can run, and **Sweep a knob**, which runs the knob in the chart's
+  chart can run (under their group headings, such as **Tuning** and
+  **General**, when the design lists more than three in more than one group:
+  see [`--list`](/reference/cli/#analyses)), and **Sweep a knob**, which runs the knob in the chart's
   **sweep** list (the last knob you swept, else the design's first) over its
   own range, as **Sweep this knob…** does. Then, under **Studies**, the
   [studies](/reference/cli/#studies) this design is in: the module-level
@@ -948,7 +950,11 @@ built-in B-spline one:
    [Which objective](#which-objective).
 2. **Mark the knobs to vary** — right-click each knob you'll let the optimizer
    move, check **Optimize this knob**, and set its **Optimize range** (the search
-   bounds). A marked knob is visually flagged. To flip the flag from the keyboard,
+   bounds). It starts at the range the design declares for the knob, else
+   ±20 % of the knob's value when you mark it (inside its slider), the same
+   default as
+   [`optimize --bands`](/reference/cli/#optimizing-across-bands) on the
+   command line. A marked knob is visually flagged. To flip the flag from the keyboard,
    focus a knob (click or tab to it) and press **`o`** — the same toggle as the
    menu checkbox, without leaving the home row.
 3. **Turn on Optimize.** While Live is also on, the optimizer runs reactively: any

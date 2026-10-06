@@ -228,6 +228,15 @@ draws, and its views. Under it go the reasons it cannot run here, if any:
 - a [hold](#holds) the command line cannot run, named with why (`hold swr`,
   or a hold on a frequency or density sweep).
 
+A long list is grouped. An analysis may name a `group=`, the heading it is
+listed under; the design's list order sets the groups' order (the first is
+the most important) and the order inside each, and the generic analyses
+every design gets (`convergence`, `band SWR`, `height`) go last under
+`General`, unless the design lists one under a group of its own. Where a
+design offers more than three analyses in more than one group, `--list`
+prints each group as a `[Tuning]` line above its analyses; a shorter list
+prints none. Names, `--analysis` and deep links are unchanged.
+
 `--code` prints the analysis as the Python that makes it, ready to paste into
 a design's `build_analyses()`:
 
@@ -237,6 +246,7 @@ an.Analysis(
     an.Sweep(an.HEIGHT, 2, 20, points=37),
     cross=an.Cross(grounds=("free", "finite:13,0.005", "finite:5,0.001")),
     references=an.Ref(r=(50,), x=(0,)),
+    group="Height & ground",
 )
 ```
 
