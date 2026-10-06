@@ -29,17 +29,19 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.97.2" icon="star">
-  **Keep an optimize run, and open MMANA models.** A several-band optimize run
-  can be kept as a study, with **Keep…** in the workbench or `optimize --bands
-  --keep` on the command line. It reopens with its knobs and its before/after
-  table, and `analyze --study` runs it again to compare with what was stored. A
-  hold can now keep several bands at their best balance while you sweep another
-  knob. [MMANA-GAL `.maa` files](/reference/nec-import/) open like NEC decks
-  (Open…, the command line, your designs folder); MMANA's automatic
-  segmentation becomes a real mesh, and anything we can't model is refused by
-  name. Long analysis lists are grouped under headings, and a knob's default
-  Optimize range is ±20 % of its value, in the workbench as on the command line.
+<Card title="New in v0.98.0" icon="star">
+  **Maps, pattern families, and the extended kernel at full speed.** An analysis
+  that sweeps two knobs now draws as a map: |Γ| coloured over both knobs, with
+  resonance, match and SWR-threshold contours, a marker at your knobs, and "set
+  knobs here" on any point. The "Sweep a knob" chart can draw patterns instead
+  of impedance: pick Elevation, Azimuth or the pattern table, choose a knob and
+  its values (start and end with a step, or a number of points), and see up to
+  six patterns together, across the band too. Keep either as an analysis. Every
+  analysis now says whether it is this design's own or every design's. Hosted
+  sweeps stop at 120 s and keep what they solved. momwire 0.73.1 rebuilds
+  Sinusoidal-Galerkin on the B-spline machinery and makes the extended kernel
+  (the default for NEC-4 and NEC-5 decks) nearly free again: free-space and
+  above-ground decks solve 2 to 20× faster than in 0.72.0.
 </Card>
 
 ## The whole pitch, in one line
