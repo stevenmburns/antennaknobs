@@ -33,8 +33,8 @@ the decided spec, ``docs/design/sweep-framework-spec.md``:
   (AK#1907): the design's list order sets the groups' order and the order
   inside each, and the generic analyses go last, under `GENERAL` (`grouped`);
 - `convergence`, `band_swr`, `knob` and `patterns` are the library: generic
-  analyses any design composes. `offered` is a design's own list plus the library's
-  generic ones that resolve on it.
+  analyses any design composes. `offered` is a design's own list plus the
+  library's `convergence` and `band_swr`, on every design.
 
 Every value prints back as the Python that constructs it (`to_code`), and
 ``eval`` of that text with ``an`` in scope equals the original: that is what
@@ -1806,15 +1806,15 @@ def density_knob(builder) -> str | None:
 
 def offered(builder) -> tuple[Analysis, ...]:
     """A design's analyses: its own ``build_analyses()``, then the library's
-    generic ones that resolve on it -- `convergence` and `band_swr` always, a
-    height sweep when a height knob is declared. A design's own analysis
-    shadows a generic one of the same name. In `grouped` order: each group
-    together, the design's own order kept inside it."""
+    generic ones, `convergence` and `band_swr`, on every design. A design's
+    own analysis shadows a generic one of the same name. In `grouped` order:
+    each group together, the design's own order kept inside it. Nothing is
+    offered conditionally (Steve, AK#1935: no magical cases): a sweep of a
+    particular knob, height included, is the design's own analysis, or a
+    few clicks on the workbench's "Sweep a knob" chart."""
     own = tuple(builder.build_analyses())
     names = {a.name for a in own}
     generic = [convergence(), band_swr()]
-    if resolve(HEIGHT, builder).knob is not None:
-        generic.append(Analysis("height", Sweep(HEIGHT)))
     listed = own + tuple(a for a in generic if a.name not in names)
     return tuple(a for _, members in grouped(listed) for a in members)
 

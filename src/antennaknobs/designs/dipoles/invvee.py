@@ -44,8 +44,8 @@ class Builder(AntennaBuilder):
                     # wavelength on 40 m and the top of a typical push-up
                     # mast, so the slider spans "on a mast" instead of
                     # stopping just short of it.
-                    # `base` is the apex height: the height role lets a
-                    # generic height analysis find it (AK#1757).
+                    # `base` is the apex height, which this design's own
+                    # height analyses sweep through its role (AK#1757).
                     "base": {
                         "min": 1.0,
                         "max": 16.0,
