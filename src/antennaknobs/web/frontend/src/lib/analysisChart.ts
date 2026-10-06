@@ -26,17 +26,20 @@ import type {
   FrequencyWorkbench,
   HoldRun,
   KnobView,
+  MapWorkbench,
   MetricSpec,
   PatternViewSpec,
   PatternWorkbench,
 } from "./analyses";
-import { frequencyPick } from "./analyses";
+import { analysisSpec, frequencyPick } from "./analyses";
+import type { MapQuantity, MapRefs } from "./mapGrid";
 import { type ChartCross, FOLLOW_ACTIVE, type ListedCross, NOTHING_LISTED } from "./chartCells";
 import {
   DEFAULT_DENSITY_SPEC,
   DENSITY,
   type ParamSweepRequest,
   type ParamSweepSpec,
+  paramValues,
   RX_AUTO,
   type RxAxisChoice,
   sameSpec,
@@ -45,7 +48,7 @@ import type { RunOnPickKind } from "./settings";
 import type { SweepRange } from "./sweep";
 import type { SweepAxes } from "./sweepAxis";
 
-export type ChartKind = "knob" | "frequency" | "pattern";
+export type ChartKind = "knob" | "frequency" | "pattern" | "map";
 
 /** A knob sweep's views: R/X against the knob, the trail on the Smith
  *  chart, or the numbers (Table, step 5 unit 5). A frequency sweep's are
@@ -68,7 +71,24 @@ export const FREQUENCY_VIEWS: readonly FrequencyView[] = ["Smith", "Swr", "S11",
  *  (AK#1757 step 7): two elevation cuts at different bearings are two
  *  views, so a view is not named by its kind alone. */
 export type PatternViewId = `pattern:${number}`;
-export type ChartView = KnobView | FrequencyView | PatternViewId;
+export type ChartView = KnobView | FrequencyView | PatternViewId | "Map";
+
+/** What a chart showing a two-knob map holds of its own
+ *  (docs/design/sweep-framework-map.md): its two axes as the chart edits
+ *  them (the knob chart's own spec: lo, hi, points, spacing; an unedited
+ *  axis keeps the served values exactly), the pick's own axes (↺ and
+ *  "edited" compare against them), the reference lines it contours, what
+ *  it is coloured by, and the hosted limits /analyses served. */
+export type MapChartState = {
+  x: ParamSweepSpec;
+  y: ParamSweepSpec;
+  served: { x: ParamSweepSpec; y: ParamSweepSpec };
+  /** Whether each axis's knob is a whole count (its values rounded). */
+  integer: { x: boolean; y: boolean };
+  refs: MapRefs;
+  quantity: MapQuantity;
+  limit: { points: number; seconds: number } | null;
+};
 
 /** What a chart showing a pattern holds of its own: the analysis's views,
  *  in its order, and the one on screen (an index into them). */
@@ -162,6 +182,9 @@ export type AnalysisChartState = {
    *  absent until a pattern is picked, and kept across a later pick of
    *  another kind like the other kinds' own state. */
   pattern?: PatternChartState | null;
+  /** The picked map's axes, references and colouring; absent until a map
+   *  is picked, and kept across a later pick of another kind. */
+  map?: MapChartState | null;
   /** The solver slots and ground slots the chart compares (unit 4,
    *  lib/chartCells.ts): null follows the session's active one. The
    *  viewer's, or a pick's preselection; kept across picks and designs,
@@ -256,6 +279,10 @@ export function chartDwell(c: AnalysisChartState, defaults: DwellDefaults): bool
   // runs on Run, never by itself after a drag, unless the viewer flips this
   // chart's switch on (the step-5 dwell, per chart, as for any analysis).
   if (chartHold(c)) return false;
+  // A map (docs/design/sweep-framework-map.md, decision 7): hundreds of
+  // solves, so it waits for Run unless the viewer flips this chart's
+  // switch on.
+  if (c.kind === "map") return false;
   // A pattern is one solve per cell, as cheap as the live solve's: it
   // follows the knobs as a frequency sweep does.
   return c.kind === "knob" ? defaults.knob : defaults.frequency;
@@ -273,7 +300,7 @@ export function chartDwell(c: AnalysisChartState, defaults: DwellDefaults): bool
  *  there is nothing to start. */
 export function runOnPickKind(w: AnalysisWorkbench): RunOnPickKind | null {
   if (!w.runs) return null;
-  if (w.kind === "frequency" || w.kind === "pattern") return w.kind;
+  if (w.kind === "frequency" || w.kind === "pattern" || w.kind === "map") return w.kind;
   if (w.hold) return "held";
   return w.param === DENSITY ? "convergence" : "knob";
 }
@@ -285,6 +312,7 @@ export function pickRuns(w: AnalysisWorkbench, runOnPick: Record<RunOnPickKind, 
 }
 
 export function chartViews(c: AnalysisChartState): readonly ChartView[] {
+  if (c.kind === "map") return ["Map"];
   if (c.kind === "pattern") return (c.pattern?.views ?? []).map((_, k) => patternViewId(k));
   if (c.kind === "knob") {
     // A picked MetricPlot adds "Metric" (AK#1828), a picked hold "Knobs"
@@ -302,6 +330,7 @@ export function chartHold(c: AnalysisChartState): HoldRun | null {
   return c.kind === "knob" && pickedName(c) !== null ? (c.knob.hold ?? null) : null;
 }
 export function chartView(c: AnalysisChartState): ChartView {
+  if (c.kind === "map") return "Map";
   if (c.kind === "pattern") return patternViewId(c.pattern?.view ?? 0);
   if (c.kind === "knob") {
     // The metric view leaves with the analysis that drew it, and the Knobs
@@ -332,6 +361,7 @@ export function chartPatternView(c: AnalysisChartState): PatternViewSpec | null 
  *  refused (the same chart back). */
 export function setChartView(c: AnalysisChartState, v: ChartView): AnalysisChartState {
   if (!chartViews(c).includes(v)) return c;
+  if (c.kind === "map") return c;
   if (c.kind === "pattern") {
     return c.pattern ? { ...c, pattern: { ...c.pattern, view: Number(v.slice("pattern:".length)) } } : c;
   }
@@ -423,6 +453,61 @@ export function pickPattern(c: AnalysisChartState, name: string, w: PatternWorkb
   };
 }
 
+/** A map axis as the chart edits it: the knob chart's spec over the served
+ *  values (`analysisSpec`: an explicit ladder only where the header's own
+ *  over the same range would differ). */
+function mapAxisSpec(a: MapWorkbench["x"], integer: boolean): ParamSweepSpec {
+  return analysisSpec(
+    { runs: true, kind: "knob", note: null, param: a.param, values: a.values, log: a.log },
+    integer,
+  );
+}
+
+/** Picking a map (docs/design/sweep-framework-map.md): its axes, its Ref
+ *  lines, |Γ| as the colour (decision 4) unless the chart already shows a
+ *  map in the other quantity, which the viewer chose. `integer` says which
+ *  knobs are whole counts. */
+export function pickMap(
+  c: AnalysisChartState,
+  name: string,
+  w: MapWorkbench,
+  integer: { x: boolean; y: boolean },
+): AnalysisChartState {
+  const x = mapAxisSpec(w.x, integer.x);
+  const y = mapAxisSpec(w.y, integer.y);
+  return {
+    ...c,
+    kind: "map",
+    picked: { name, kind: "map", spec: null },
+    map: {
+      x,
+      y,
+      served: { x, y },
+      integer,
+      refs: w.refs,
+      quantity: c.map?.quantity ?? "rho",
+      limit: w.limit,
+    },
+  };
+}
+
+/** The map with one axis edited (a new spec), or both restored (↺). */
+export function editMapAxis(
+  c: AnalysisChartState,
+  axis: "x" | "y",
+  spec: ParamSweepSpec,
+): AnalysisChartState {
+  return c.map ? { ...c, map: { ...c.map, [axis]: spec } } : c;
+}
+export function restoreMapAxes(c: AnalysisChartState): AnalysisChartState {
+  return c.map ? { ...c, map: { ...c.map, x: c.map.served.x, y: c.map.served.y } } : c;
+}
+
+/** A map's node values per axis, as /map takes them. */
+export function mapAxisValues(m: MapChartState): { x: number[]; y: number[] } {
+  return { x: paramValues(m.x, m.integer.x), y: paramValues(m.y, m.integer.y) };
+}
+
 /** A pick's listed engines and grounds, and the slots they preselect
  *  (lib/chartCells.ts preselect): an axis the analysis lists takes the
  *  preselection, one it does not keeps the chart's own. A `cells=` pick
@@ -460,7 +545,7 @@ export function chartListed(c: AnalysisChartState): ListedCross {
 export function pickedName(c: AnalysisChartState): string | null {
   const p = c.picked;
   if (!p || p.kind !== c.kind) return null;
-  if (p.kind === "frequency" || p.kind === "pattern") return p.name;
+  if (p.kind === "frequency" || p.kind === "pattern" || p.kind === "map") return p.name;
   return p.spec && p.spec.param === c.knob.spec.param ? p.name : null;
 }
 
@@ -474,9 +559,16 @@ export function pickedEdited(c: AnalysisChartState): boolean {
   if (pickedName(c) === null || !p) return false;
   // A pattern has no range to edit.
   if (p.kind === "pattern") return false;
+  if (p.kind === "map") {
+    const m = c.map;
+    return !!m && !(sameSpec(m.x, m.served.x) && sameSpec(m.y, m.served.y));
+  }
   if (p.kind === "frequency") return !!c.frequency?.rangeEdit;
   return !!p.spec && !sameSpec(p.spec, c.knob.spec);
 }
+
+/** One axis of a map run: the knob and its node values. */
+export type MapRunAxis = { param: string; values: number[] };
 
 /** What a chart asks of its two runners this render.
  *
@@ -508,6 +600,9 @@ export function chartRunInputs(
    *  first azimuth cut's elevation (another view re-cuts off the same
    *  solve, as a cut dial does). */
   pattern: { wanted: boolean; auto: boolean; elevAzDeg: number; azElevDeg: number };
+  /** A map's one grid (docs/design/sweep-framework-map.md): the two axes
+   *  /map takes, wanted while the chart shows the map on screen. */
+  map: { wanted: boolean; auto: boolean; x: MapRunAxis; y: MapRunAxis };
 } {
   const dwell = chartDwell(c, env.dwellDefaults);
   const metric = chartMetric(c);
@@ -516,7 +611,15 @@ export function chartRunInputs(
   const pv = c.kind === "pattern" ? (c.pattern?.views ?? []) : [];
   const el = pv.find((v) => v.view === "Elevation");
   const az = pv.find((v) => v.view === "Azimuth");
+  const mapState = c.kind === "map" ? (c.map ?? null) : null;
+  const mapValues = mapState ? mapAxisValues(mapState) : { x: [], y: [] };
   return {
+    map: {
+      wanted: env.resident && mapState !== null,
+      auto: dwell,
+      x: { param: mapState?.x.param ?? "", values: mapValues.x },
+      y: { param: mapState?.y.param ?? "", values: mapValues.y },
+    },
     pattern: {
       wanted: env.resident && c.kind === "pattern" && pv.length > 0,
       auto: dwell,

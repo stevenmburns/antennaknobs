@@ -14,7 +14,9 @@ import {
 } from "./useAnalysisRunners";
 import { type FreqSweepHandle, useFreqSweep } from "./useFreqSweep";
 import { type ParamSweepHandle, useParamSweep } from "./useParamSweep";
+import { type MapRunHandle, mapSignature, useMapRun } from "./useMapRun";
 import { type PatternCellHandle, usePatternCell } from "./usePatternCell";
+import type { MapRunAxis } from "../../lib/analysisChart";
 
 // The runners behind an analysis chart's curves (AK#1757, sweep-framework
 // step 5 unit 4): one frequency sweep runner and one parameter sweep runner
@@ -42,12 +44,16 @@ export type CellRun = {
   param: { req: ParamSweepRequest; wanted: boolean };
   /** A pattern's one solve (lib/analysisChart.ts chartRunInputs). */
   pattern: { wanted: boolean; auto: boolean; elevAzDeg: number; azElevDeg: number };
+  /** A map's one grid (docs/design/sweep-framework-map.md): only a chart's
+   *  first cell is ever wanted (a map draws one grid, decision 9). */
+  map: { wanted: boolean; auto: boolean; x: MapRunAxis; y: MapRunAxis };
 };
 
 export type CellRunners = {
   freq: FreqSweepHandle;
   param: ParamSweepHandle;
   pattern: PatternCellHandle;
+  map: MapRunHandle;
 };
 
 /** The number of runner pairs one chart holds: the curve cap. */
@@ -141,6 +147,24 @@ export function useChartCells(o: ChartCellsOptions): CellRunners[] {
       approvedComboRef: r.cell.onActiveSlot ? approvedComboRef : NOT_APPROVED,
     };
   };
+  const mapOptions = (run: CellRun | undefined) => {
+    const r = run ?? o.idle;
+    const on = run !== undefined;
+    return {
+      sig: on ? mapSignature(build(r.cell), r.map.x, r.map.y) : "",
+      x: r.map.x,
+      y: r.map.y,
+      wanted: on && r.map.wanted,
+      auto: r.map.auto,
+      autoSim: o.autoSim,
+      active: o.active,
+      comboApproved: o.comboApproved,
+      recommendedBackend: o.recommendedBackend,
+      buildRequest: () => build(r.cell),
+      solveWithheld: o.solveWithheld,
+      approvedComboRef: r.cell.onActiveSlot ? approvedComboRef : NOT_APPROVED,
+    };
+  };
   const f0 = useFreqSweep(freqOptions(o.runs[0]));
   const p0 = useParamSweep(paramOptions(o.runs[0]));
   const f1 = useFreqSweep(freqOptions(o.runs[1]));
@@ -159,12 +183,18 @@ export function useChartCells(o: ChartCellsOptions): CellRunners[] {
   const t3 = usePatternCell(patternOptions(o.runs[3]));
   const t4 = usePatternCell(patternOptions(o.runs[4]));
   const t5 = usePatternCell(patternOptions(o.runs[5]));
+  const m0 = useMapRun(mapOptions(o.runs[0]));
+  const m1 = useMapRun(mapOptions(o.runs[1]));
+  const m2 = useMapRun(mapOptions(o.runs[2]));
+  const m3 = useMapRun(mapOptions(o.runs[3]));
+  const m4 = useMapRun(mapOptions(o.runs[4]));
+  const m5 = useMapRun(mapOptions(o.runs[5]));
   return [
-    { freq: f0, param: p0, pattern: t0 },
-    { freq: f1, param: p1, pattern: t1 },
-    { freq: f2, param: p2, pattern: t2 },
-    { freq: f3, param: p3, pattern: t3 },
-    { freq: f4, param: p4, pattern: t4 },
-    { freq: f5, param: p5, pattern: t5 },
+    { freq: f0, param: p0, pattern: t0, map: m0 },
+    { freq: f1, param: p1, pattern: t1, map: m1 },
+    { freq: f2, param: p2, pattern: t2, map: m2 },
+    { freq: f3, param: p3, pattern: t3, map: m3 },
+    { freq: f4, param: p4, pattern: t4, map: m4 },
+    { freq: f5, param: p5, pattern: t5, map: m5 },
   ];
 }

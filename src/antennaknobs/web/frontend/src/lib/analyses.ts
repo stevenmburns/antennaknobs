@@ -139,11 +139,40 @@ export type PatternWorkbench = {
   note: string | null;
 } & Listed;
 
+/** One axis of a map, as /analyses serves it: the knob and its values
+ *  (exactly what POST /map takes, `analysis_run.knob_xs`'s, the CLI's grid),
+ *  and the axis as the spec writes it. */
+export type MapAxis = {
+  param: string;
+  values: number[];
+  log: boolean;
+  lo: number;
+  hi: number;
+  points: number;
+  spacing: "lin" | "log";
+};
+
+/** A two-knob map (docs/design/sweep-framework-map.md): one grid, its axes,
+ *  its reference lines (`Ref`: R = r, X = x, and the SWR threshold drawn as
+ *  its |Γ|), and on the hosted instance its point cap and wall-time budget
+ *  (null: a local workbench, unbounded). */
+export type MapWorkbench = {
+  runs: true;
+  kind: "map";
+  x: MapAxis;
+  y: MapAxis;
+  refs: { r: number[]; x: number[]; swr: number | null };
+  views: ["Map"];
+  limit: { points: number; seconds: number } | null;
+  note: string | null;
+} & Listed;
+
 /** How the workbench runs an analysis, or the reason it cannot yet. */
 export type AnalysisWorkbench =
   | KnobWorkbench
   | FrequencyWorkbench
   | PatternWorkbench
+  | MapWorkbench
   | { runs: false; why: string };
 
 /** A study (AK#1757 step 7): an analysis over several designs, from a
@@ -480,6 +509,48 @@ function parseFrequency(o: Record<string, unknown>, note: string | null): Analys
   };
 }
 
+function parseMapAxis(v: unknown): MapAxis | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  if (!isStr(o.param) || !Array.isArray(o.values) || o.values.length === 0) return null;
+  if (!o.values.every(isNum)) return null;
+  const values = o.values as number[];
+  return {
+    param: o.param,
+    values,
+    log: o.log === true,
+    lo: isNum(o.lo) ? o.lo : Math.min(...values),
+    hi: isNum(o.hi) ? o.hi : Math.max(...values),
+    points: values.length,
+    spacing: o.spacing === "log" ? "log" : "lin",
+  };
+}
+
+const numList = (v: unknown): number[] | null =>
+  Array.isArray(v) && v.every(isNum) ? (v as number[]) : null;
+
+function parseMap(o: Record<string, unknown>, note: string | null): AnalysisWorkbench | null {
+  const x = parseMapAxis(o.x);
+  const y = parseMapAxis(o.y);
+  const refs = (o.refs ?? {}) as Record<string, unknown>;
+  const r = numList(refs.r ?? []);
+  const rx = numList(refs.x ?? []);
+  if (!x || !y || x.param === y.param || !r || !rx) return null;
+  const lim = o.limit as Record<string, unknown> | null | undefined;
+  return {
+    runs: true,
+    kind: "map",
+    x,
+    y,
+    refs: { r, x: rx, swr: isNum(refs.swr) && refs.swr > 1 ? refs.swr : null },
+    views: ["Map"],
+    limit:
+      lim && isNum(lim.points) && isNum(lim.seconds) ? { points: lim.points, seconds: lim.seconds } : null,
+    ...parseListed(o),
+    note,
+  };
+}
+
 /** A served pattern view, else null (an unknown view, or an angle that is
  *  no whole number of degrees). */
 function parsePatternView(v: unknown): PatternViewSpec | null {
@@ -513,12 +584,7 @@ function parseWorkbench(w: unknown): AnalysisWorkbench | null {
     const note = typeof o.note === "string" && o.note ? o.note : null;
     if (o.kind === "frequency") return parseFrequency(o, note);
     if (o.kind === "pattern") return parsePattern(o, note);
-    // A two-knob map (/map, docs/design/sweep-framework-map.md): served
-    // since the map's server unit; the chart that draws it is a later unit,
-    // so until then the picker greys it as before, with its reason.
-    if (o.kind === "map") {
-      return { runs: false, why: "the map chart: not in the workbench yet (sweep-framework step 5)" };
-    }
+    if (o.kind === "map") return parseMap(o, note);
     if (typeof o.param !== "string" || !Array.isArray(o.values)) return null;
     const values = o.values.filter(isNum);
     if (values.length === 0 || values.length !== o.values.length) return null;
@@ -612,6 +678,11 @@ export function analysisBlocked(
   if (!w.runs) return w.why;
   // A frequency sweep and a pattern (step 7) sweep no knob of the header's.
   if (w.kind === "frequency" || w.kind === "pattern") return null;
+  // A map's two knobs, each one the session can set.
+  if (w.kind === "map") {
+    const off = [w.x.param, w.y.param].filter((k) => !sweepable.has(k));
+    return off.length === 0 ? null : `${off.join(" and ")}: not a knob this view can sweep on this variant`;
+  }
   if (w.param === DENSITY || sweepable.has(w.param)) return null;
   return `${w.param} is not a knob this view can sweep on this variant`;
 }
