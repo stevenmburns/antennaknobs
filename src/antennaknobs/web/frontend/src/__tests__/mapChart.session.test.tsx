@@ -180,12 +180,20 @@ describe("the map chart", () => {
     expect(screen.getByRole("button", { name: "run · re-run?" })).toBeTruthy();
   });
 
-  it("one solver slot and one ground slot, as radios", async () => {
-    const { select } = await open({ runOnPickMap: false });
+  it("one solver slot and one ground slot, as radios; a pick keeps one of each", async () => {
+    const { select, bodies, map } = await open({ runOnPickMap: false });
     fireEvent.change(select, { target: { value: "tuning map" } });
     const solver = await untilDom(() => screen.queryByRole("radiogroup", { name: "solver" }));
-    const radios = solver.querySelectorAll("input[type=radio]");
+    const radios = [...solver.querySelectorAll("input[type=radio]")] as HTMLInputElement[];
     expect(radios.length).toBeGreaterThanOrEqual(2);
-    expect([...radios].filter((r) => (r as HTMLInputElement).checked)).toHaveLength(1);
+    expect(radios.filter((r) => r.checked)).toHaveLength(1);
+    // Another slot: the map is of that slot's engine, one grid.
+    const other = radios.find((r) => !r.checked)!;
+    fireEvent.click(other);
+    await untilDom(() => (other.checked ? true : null));
+    expect(radios.filter((r) => r.checked)).toEqual([other]);
+    fireEvent.click(screen.getByRole("button", { name: "run" }));
+    await untilDom(() => map()?.dataset.nodes === "12");
+    expect(bodies).toHaveLength(1);
   });
 });
