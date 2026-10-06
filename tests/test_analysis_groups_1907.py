@@ -158,12 +158,15 @@ def test_cli_list_prints_the_headings():
         assert lines[i + 1].split("  ")[0].strip() == names[0]
 
 
-def test_cli_list_has_no_headings_on_a_short_list():
+def test_cli_list_heads_only_the_generic_ones_on_a_short_list():
+    # A short list shows no group headings; the generic analyses are still
+    # under [General] (AK#1935), so it says which every design has.
     from antennaknobs.designs.dipoles.koch_dipole import Builder
 
     offered = an.offered(Builder())
     assert len(offered) <= 3
-    assert not any(ln.startswith("[") for ln in analysis_run.list_lines(Builder()))
+    heads = [ln for ln in analysis_run.list_lines(Builder()) if ln.startswith("[")]
+    assert heads == ["[General]"]
 
 
 def test_analyses_endpoint_serves_the_group():

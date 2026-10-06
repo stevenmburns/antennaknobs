@@ -197,6 +197,11 @@ export type AnalysisEntry = {
   /** The heading it is listed under (AK#1907, `analyses.group_of`): its
    *  `group=`, else "General". Absent from an older server: no headings. */
   group?: string;
+  /** Where it comes from (AK#1935): the design's own `build_analyses()`
+   *  ("design", inherited ones included), the library's generic ones every
+   *  design is offered ("generic"), or a study. Absent from an older
+   *  server: unmarked. */
+  origin?: AnalysisOrigin;
   /** A kept multi-band optimize run (AK#1906, served as a study): picking
    *  it jumps to it rather than drawing a chart, so its `workbench` is the
    *  inert "runs: false" and this is what it holds (lib/keptRun.ts). */
@@ -205,6 +210,20 @@ export type AnalysisEntry = {
    *  and "keep as study" send back (AK#1757 step 7 unit 4); opaque here. */
   spec?: unknown;
 };
+
+/** Where an analysis comes from, as /analyses serves it (AK#1935). */
+export type AnalysisOrigin = "design" | "generic" | "study";
+
+/** How the picker words an origin, as `analyze --list` does
+ *  (`analyses.ORIGIN_WORDS`); a study says its own. */
+export const ORIGIN_WORDS: Record<Exclude<AnalysisOrigin, "study">, string> = {
+  design: "this design",
+  generic: "every design",
+};
+
+/** The heading the generic analyses are always under (AK#1935), whatever
+ *  the list's length: the server's `analyses.GENERAL`. */
+export const GENERAL = "General";
 
 /** What a picker shows for an entry: a study's short name (the Studies
  *  group already says it is one), else the analysis's name. */
@@ -216,17 +235,25 @@ export const GROUPS_AFTER = 3;
 
 /** `entries` under their headings (AK#1907): `[{group, entries}]`, the
  *  groups in the order the list first names them and each group's entries in
- *  list order (the server serves them so already, `analyses.offered`). One
- *  group with a null heading when the design's own list
- *  (`listed`, its analyses whether or not they run here) is `GROUPS_AFTER`
- *  long or shorter, or names one group only: a heading there is noise. */
+ *  list order (the server serves them so already, `analyses.offered`). With
+ *  no headings when the design's own list (`listed`, its analyses whether
+ *  or not they run here) is `GROUPS_AFTER` long or shorter, or names one
+ *  group only: a heading there is noise. Except that the generic analyses
+ *  (`origin` "generic", AK#1935) are always under General, so even a short
+ *  list says which of its analyses every design has (`analyses.heading`):
+ *  the design's own first with no heading, then General. */
 export function analysisGroups(
   entries: readonly AnalysisEntry[],
   listed: readonly AnalysisEntry[] = entries,
 ): { group: string | null; entries: AnalysisEntry[] }[] {
   const named = new Set(listed.map((a) => a.group ?? null));
   if (listed.length <= GROUPS_AFTER || named.size < 2 || named.has(null)) {
-    return entries.length > 0 ? [{ group: null, entries: [...entries] }] : [];
+    const own = entries.filter((a) => a.origin !== "generic");
+    const generic = entries.filter((a) => a.origin === "generic");
+    return [
+      ...(own.length > 0 ? [{ group: null, entries: own }] : []),
+      ...(generic.length > 0 ? [{ group: GENERAL, entries: generic }] : []),
+    ];
   }
   const out: { group: string | null; entries: AnalysisEntry[] }[] = [];
   for (const a of entries) {
@@ -642,6 +669,7 @@ export function parseAnalyses(body: unknown): AnalysisEntry[] {
       workbench,
       study: parseStudy(o.study),
       ...(typeof o.group === "string" && o.group ? { group: o.group } : {}),
+      ...(o.origin === "design" || o.origin === "generic" || o.origin === "study" ? { origin: o.origin } : {}),
       ...(kept ? { kept } : {}),
       ...(o.spec !== undefined ? { spec: o.spec } : {}),
     });

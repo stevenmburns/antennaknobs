@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { type AnalysisEntry, analysisGroups, entryLabel } from "../../lib/analyses";
+import { type AnalysisEntry, analysisGroups, entryLabel, ORIGIN_WORDS } from "../../lib/analyses";
+
+/** An entry's tooltip: where it comes from (AK#1935), then its summary. */
+function entryTitle(a: AnalysisEntry): string {
+  const where = a.origin === "design" || a.origin === "generic" ? ORIGIN_WORDS[a.origin] : null;
+  return where ? `${where}: ${a.summary}` : a.summary;
+}
 
 // The Z-vs-parameter header's "analysis" picker (AK#1757, sweep-framework
 // step 3): the design's analyses (POST /analyses), one pick running the one
@@ -40,7 +46,9 @@ const KNOB = "\u0001knob";
  *   - what runs here: the chart's own frequency sweep, then the analyses the
  *     chart can run (the design's and the library's), in the served order,
  *     each group under its heading when the design lists more than three
- *     analyses in more than one group (AK#1907, `analysisGroups`);
+ *     analyses in more than one group (AK#1907, `analysisGroups`), and the
+ *     generic ones under General however short the list (AK#1935); each
+ *     option's tooltip says "this design" or "every design";
  *   - "Sweep a knob", ONE entry (a design can have twenty knobs, and the
  *     chart's parameter list already chooses among them): it runs the knob
  *     in that list (the last knob swept, else the design's first) over its
@@ -102,7 +110,7 @@ export function AnalysisSelect({
         )}
         {analysisGroups(runnable, designs).map(({ group, entries: members }) => {
           const options = members.map((a) => (
-            <option key={a.name} value={a.name} title={a.summary}>
+            <option key={a.name} value={a.name} title={entryTitle(a)}>
               {edited && a.name === current ? `${a.name} (edited)` : a.name}
             </option>
           ));
@@ -234,9 +242,14 @@ function AnalysisCode({ entry, why }: { entry: AnalysisEntry; why: string | null
     <div className="zparam-analysis-item">
       <div className="zparam-analysis-head">
         <strong>{entryLabel(entry)}</strong>
-        {entry.study && (
+        {entry.study ? (
           <span className="zparam-analysis-summary">{`study in ${entry.study.source}`}</span>
-        )}
+        ) : entry.origin === "design" || entry.origin === "generic" ? (
+          // Where it comes from (AK#1935): this design's own, or generic.
+          <span className="zparam-analysis-origin" data-origin={entry.origin}>
+            {ORIGIN_WORDS[entry.origin]}
+          </span>
+        ) : null}
         <span className="zparam-analysis-summary">{entry.summary}</span>
         <button
           type="button"

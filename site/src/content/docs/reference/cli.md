@@ -216,11 +216,16 @@ python -m antennaknobs analyze --builder dipoles.invvee --analysis height --fn h
 python -m antennaknobs analyze --builder dipoles.invvee --analysis height --code
 ```
 
-`--list` prints one line per analysis: what it sweeps, how many curves it
-draws, and its views. Under it go the reasons it cannot run here, if any:
+`--list` prints one line per analysis: where it comes from, what it sweeps,
+how many curves it draws, and its views. *this design* is the design's own
+(its `build_analyses()`, or one it inherits from the design it is built on);
+*every design* is one of the library's generic analyses, which every design
+is offered (`convergence` and `band SWR`; nothing is offered only where a
+design happens to declare something). Under each line go the reasons it
+cannot run here, if any:
 
 - `UNAVAILABLE`: the design lacks what the analysis needs, e.g. `this design
-  declares no height knob`;
+  has no knob 'base'`;
 - `REFUSED`: the curves multiply past the cap of 6, e.g. `2 designs x 4
   engines = 8 curves`;
 - `REFUSED` also names a value a cross lists twice, a knob that is both
@@ -231,11 +236,13 @@ draws, and its views. Under it go the reasons it cannot run here, if any:
 A long list is grouped. An analysis may name a `group=`, the heading it is
 listed under; the design's list order sets the groups' order (the first is
 the most important) and the order inside each, and the generic analyses
-every design gets (`convergence`, `band SWR`, `height`) go last under
-`General`, unless the design lists one under a group of its own. Where a
-design offers more than three analyses in more than one group, `--list`
-prints each group as a `[Tuning]` line above its analyses; a shorter list
-prints none. Names, `--analysis` and deep links are unchanged.
+every design gets (`convergence`, `band SWR`) go last under `General`,
+unless the design lists one under a group of its own. Where a design offers
+more than three analyses in more than one group, `--list` prints each group
+as a `[Tuning]` line above its analyses; a shorter list prints no group
+headings, but still a `[General]` line above the generic ones, so a short
+list says which of its analyses every design has. Names, `--analysis` and
+deep links are unchanged.
 
 `--code` prints the analysis as the Python that makes it, ready to paste into
 a design's `build_analyses()`:

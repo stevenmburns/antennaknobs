@@ -1830,6 +1830,31 @@ def density_knob(builder) -> str | None:
     return resolve(DENSITY, builder).knob
 
 
+#: Where an offered analysis comes from (AK#1935, Steve: "I don't like the
+#: magical cases"): the design's own ``build_analyses()`` (one inherited from
+#: a parent Builder included), or the library's generic ones, which every
+#: design is offered. A study is neither: it is listed on its own.
+DESIGN_ORIGIN = "design"
+GENERIC_ORIGIN = "generic"
+
+#: How a list words an origin.
+ORIGIN_WORDS = {DESIGN_ORIGIN: "this design", GENERIC_ORIGIN: "every design"}
+
+
+def offered_with_origin(builder) -> tuple[tuple[Analysis, str], ...]:
+    """`offered`, each analysis with where it comes from: `DESIGN_ORIGIN`
+    or `GENERIC_ORIGIN`. A design's own analysis that shadows a generic one
+    by name is the design's."""
+    own = tuple(builder.build_analyses())
+    names = {a.name for a in own}
+    generic = tuple(a for a in (convergence(), band_swr()) if a.name not in names)
+    origin = {id(a): DESIGN_ORIGIN for a in own}
+    origin.update({id(a): GENERIC_ORIGIN for a in generic})
+    return tuple(
+        (a, origin[id(a)]) for _, members in grouped(own + generic) for a in members
+    )
+
+
 def offered(builder) -> tuple[Analysis, ...]:
     """A design's analyses: its own ``build_analyses()``, then the library's
     generic ones, `convergence` and `band_swr`, on every design. A design's
@@ -1838,11 +1863,7 @@ def offered(builder) -> tuple[Analysis, ...]:
     offered conditionally (Steve, AK#1935: no magical cases): a sweep of a
     particular knob, height included, is the design's own analysis, or a
     few clicks on the workbench's "Sweep a knob" chart."""
-    own = tuple(builder.build_analyses())
-    names = {a.name for a in own}
-    generic = [convergence(), band_swr()]
-    listed = own + tuple(a for a in generic if a.name not in names)
-    return tuple(a for _, members in grouped(listed) for a in members)
+    return tuple(a for a, _ in offered_with_origin(builder))
 
 
 # ── groups (AK#1907) ───────────────────────────────────────────────────────
@@ -1881,9 +1902,21 @@ def grouped(analyses) -> list[tuple[str, list]]:
 
 def shows_groups(analyses) -> bool:
     """Whether a list of ``analyses`` is shown with its headings: at least
-    `GROUPS_FROM` of them, in more than one group."""
+    `GROUPS_FROM` of them, in more than one group. A list shown without
+    them still heads its generic analyses `GENERAL` (`heading`)."""
     analyses = list(analyses)
     return len(analyses) >= GROUPS_FROM and len(grouped(analyses)) > 1
+
+
+def heading(analysis: Analysis, origin: str, headed: bool) -> str | None:
+    """The heading ``analysis`` is listed under: its group when the list is
+    `headed` (`shows_groups`); otherwise none, except that a generic one is
+    always under `GENERAL` (AK#1935), so a short list still says which of
+    its analyses every design has. `offered` lists the generic ones last,
+    so the heading is one line above them."""
+    if headed:
+        return group_of(analysis)
+    return GENERAL if origin == GENERIC_ORIGIN else None
 
 
 def cells_of(analysis: Analysis) -> tuple[Cell, ...]:

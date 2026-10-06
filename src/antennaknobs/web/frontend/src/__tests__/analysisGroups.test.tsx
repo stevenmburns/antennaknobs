@@ -88,6 +88,54 @@ describe("analysisGroups", () => {
   });
 });
 
+describe("where an analysis comes from (AK#1935)", () => {
+  const own = (name: string, group?: string): AnalysisEntry => ({ ...entry(name, group), origin: "design" });
+  const generic = (name: string): AnalysisEntry => ({ ...entry(name, "General"), origin: "generic" });
+
+  it("heads the generic ones General even on a short list, the design's own first and unheaded", () => {
+    const short = [own("my sweep"), generic("convergence"), generic("band SWR")];
+    expect(analysisGroups(short).map((g) => [g.group, g.entries.map((a) => a.name)])).toEqual([
+      [null, ["my sweep"]],
+      ["General", ["convergence", "band SWR"]],
+    ]);
+    // A design with no analyses of its own: only General.
+    expect(analysisGroups(short.slice(1)).map((g) => g.group)).toEqual(["General"]);
+  });
+
+  it("leaves a long grouped list as #1907 groups it", () => {
+    const long = [...INVVEE.slice(0, -1).map((a) => ({ ...a, origin: "design" as const })), generic("band SWR")];
+    expect(analysisGroups(long).map((g) => g.group)).toEqual(["Tuning", "Height & ground", "Accuracy", "General"]);
+  });
+
+  it("parses the served origin, and leaves out one it does not know", () => {
+    const body = {
+      analyses: [
+        { name: "a", origin: "design", workbench: { runs: false, why: "no" } },
+        { name: "b", origin: "generic", workbench: { runs: false, why: "no" } },
+        { name: "c", origin: "magic", workbench: { runs: false, why: "no" } },
+      ],
+    };
+    const [a, b, c] = parseAnalyses(body);
+    expect([a.origin, b.origin]).toEqual(["design", "generic"]);
+    expect("origin" in c).toBe(false);
+  });
+
+  it("draws the generic ones under a General optgroup on a short list, and says where each comes from", () => {
+    render(
+      <AnalysisSelect
+        entries={[own("my sweep"), generic("convergence"), generic("band SWR")]}
+        current={null}
+        blocked={() => null}
+        onPick={() => {}}
+      />,
+    );
+    expect(optgroups()).toEqual([{ label: "General", options: ["convergence", "band SWR"] }]);
+    const title = (name: string) => screen.getByRole("option", { name }).getAttribute("title");
+    expect(title("my sweep")).toMatch(/^this design/);
+    expect(title("convergence")).toMatch(/^every design/);
+  });
+});
+
 describe("AnalysisSelect headings", () => {
   it("draws each group as an optgroup, in order, the Studies group after", () => {
     render(

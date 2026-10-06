@@ -123,6 +123,11 @@ beside the design's own analyses, which the picker tells apart by name) and
 ``study: {source, name}``, the short name the picker shows under its Studies
 group (``study`` is None on the design's own analyses). So E7 is on the invvee and the invvee_apex tabs, and on no other.
 
+Every entry says where it comes from, ``origin`` (AK#1935): "design" (the
+design's own ``build_analyses()``, inherited ones included), "generic" (the
+library's, which every design is offered: the picker always heads them
+General), or "study".
+
 Framework-free, so it is tested without a server.
 """
 
@@ -972,10 +977,13 @@ def _entry(a: an.Analysis, builder, req: Mapping, hosted: bool) -> dict:
 
 
 def offer(builder, req: Mapping, *, hosted: bool = False) -> list[dict]:
-    """Every offered analysis on ``builder``, as ``/analyses`` serves it."""
+    """Every offered analysis on ``builder``, as ``/analyses`` serves it,
+    with its ``origin`` (AK#1935): "design" for the design's own, "generic"
+    for the library's (`analyses.offered_with_origin`)."""
     # A design's own analysis: not a study (`offer_studies`).
     return [
-        {**_entry(a, builder, req, hosted), "study": None} for a in an.offered(builder)
+        {**_entry(a, builder, req, hosted), "study": None, "origin": origin}
+        for a, origin in an.offered_with_origin(builder)
     ]
 
 
@@ -1021,6 +1029,9 @@ def offer_studies(
                 **_entry(a, builder, req, hosted),
                 "name": st.name,
                 "study": {"source": st.source, "name": a.name},
+                # Neither the design's own nor generic: a study is listed
+                # in its own section (AK#1935).
+                "origin": "study",
             }
         )
     return out

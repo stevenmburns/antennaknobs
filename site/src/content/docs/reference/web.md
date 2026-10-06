@@ -422,7 +422,10 @@ it draws it:
   (the design's band)**, the design's [analyses](#a-designs-analyses) the
   chart can run (under their group headings, such as **Tuning** and
   **General**, when the design lists more than three in more than one group:
-  see [`--list`](/reference/cli/#analyses)), and **Sweep a knob**, which runs the knob in the chart's
+  see [`--list`](/reference/cli/#analyses); a shorter list has no headings
+  except **General** over the generic analyses every design is offered, and
+  each entry's tooltip, like the **analyses as Python** list, says *this
+  design* or *every design*), and **Sweep a knob**, which runs the knob in the chart's
   **sweep** list (the last knob you swept, else the design's first) over its
   own range, as **Sweep this knob…** does. Then, under **Studies**, the
   [studies](/reference/cli/#studies) this design is in: the module-level
