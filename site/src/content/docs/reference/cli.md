@@ -557,6 +557,33 @@ python -m antennaknobs analyze --builder dipoles.invvee --analysis "match vs hei
 Each crossed cell is held on its own: its design, state, family step, engine
 and ground, starting from that cell's defaults.
 
+**Across several bands.** `an.Hold(..., bands=(an.Band(MHz), ...))` holds a
+multi-band objective at every point instead, each point one
+[`optimize --bands`](#optimizing-across-bands) run: `swr` is the SWR
+minimax across the bands (with `mean_weight=`, default 0.5), and
+`resonance` / `match_z0` the root form, every band a root and as many
+equations as knobs. A band hold may move a group's leaf (`bands.0.length`),
+and a knob with no `ui_params` range searches ±20 % of its value, as
+`optimize --bands` does. A root the form cannot reach at a point is a gap,
+never its near miss, and so is a minimax answer with no band near a match.
+Its views draw a curve per band: `an.Swr()` each band's SWR along the sweep,
+`an.Table()` an SWR column per band, and `an.Knobs()` the knobs that hold it.
+
+```python
+an.Analysis(
+    "the fan held across its bands",
+    an.Sweep("base", 6, 8, points=5),
+    hold=an.Hold(
+        "swr",
+        adjust=("bands.0.length", "bands.1.length"),
+        bands=(an.Band(26.6), an.Band(29.3)),
+    ),
+    views=(an.Swr(), an.Table(), an.Knobs()),
+)
+```
+
+The workbench lists a band hold, and says it is the command line's for now.
+
 ### Maps
 
 An analysis with a pair of sweeps, `(x, y)`, is a map: every point of the
@@ -1515,6 +1542,36 @@ edge of its range, or no band near a match, says so under its table.
 `--max-evals` caps the distinct points solved (default 60 per knob plus 40,
 at most 400). The run ends with the per-band table before and after, and the usual
 paste-ready params block.
+
+### Keeping a run
+
+`--keep PATH` keeps the run as a [study](#studies): a file at `PATH` under the
+studies folder (`~/.antennaknobs/studies/PATH.py`), recorded trusted as the
+workbench's kept studies are, whose `build_studies()` returns one
+`an.Optimize`. It holds where the run started (an `an.State` naming the
+design, its variant and the knobs set off their defaults), the knobs it moved
+with their ranges, the bands, the form, the engine and ground, and what it
+found (`an.Result`: each knob's value and the per-band table). `--keep-name`
+names it; by default it is the design and the bands.
+
+```bash
+python -m antennaknobs optimize --builder multiband.twoband_fan_dipole:current_physical \
+    --bands 26.6,29.3 --params bands.0.length bands.1.length --keep fan/12-10
+python -m antennaknobs analyze --study "fan/12-10:multiband.twoband_fan_dipole:current_physical across 26.6/29.3 MHz"
+python -m antennaknobs analyze --study "fan/12-10:..." --apply
+```
+
+- `analyze --study NAME` runs the search again from the kept start and
+  prints the table, then each knob and each band's SWR against the stored
+  result (`stored`, `now`, the change). Run on a newer momwire, that is the
+  check that the answer has not moved.
+- `--apply` loads the stored result without searching: every knob at exactly
+  its stored value, each band read once there, against what was stored.
+- `--code` prints it as Python, as for any study.
+
+A deck run (`--builder @deck.nec`) is kept by the path it was given. The
+workbench keeps one from its band readout too (see
+[Optimizing](/reference/web/#optimizing)).
 
 ## Copying params back to code
 

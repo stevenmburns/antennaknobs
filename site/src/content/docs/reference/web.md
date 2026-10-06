@@ -1093,6 +1093,21 @@ command line's `optimize --bands` does the same, and adds the per-band
 objective, feed and Z₀, and the root and band-by-band modes; see
 [Optimizing across bands](/reference/cli/#optimizing-across-bands).
 
+**Keeping a band run.** Under a finished band run's table, **Keep…** keeps it
+as a [study](/reference/cli/#keeping-a-run): where the run started (the knobs
+you had set, the marked ones put back at their start), the marked knobs and
+their ranges, the bands, the balance, the engine and ground, and the answer
+with its before/after table. It opens the keep dialog charts use: copy the
+Python, or (on a local workbench) save it to the studies folder, trusted. A
+deck is kept by its file name. The kept run is then listed under **Studies**
+in the analysis picker of the tabs of its design, marked **(jump to)**:
+picking it sets the knobs to its stored answer, marks its knobs over its
+ranges, sets its bands and balance, and shows its stored table. **Run again
+from its start** puts the knobs back where it began and runs it. A run kept on
+another variant says to switch to that variant first, and one in a form the
+workbench does not run (root, sequential, another feed or Z₀) can be jumped
+to but is run again with `antennaknobs analyze --study`.
+
 A design whose network holds a **tuner that tunes itself** (`tune_to`) is
 refused when it is measured at the tuner's tune frequency: the tuner presents
 its target on every solve there, so SWR, Resonance and Match Z₀ are already
