@@ -389,8 +389,7 @@ for the design on screen, until the next design loads. The Settings menu's
   waiting, because each point is a rebuild, an optimisation or a re-mesh and
   the whole sweep can take minutes. A study counts as the kind of analysis it
   is. The Settings menu's **picking an analysis runs it** switches set the same
-  thing for the session (`map` is not among them until the workbench draws
-  maps). A [link](#linking-to-a-chart) with `run=1` always runs. After the
+  thing for the session. A [link](#linking-to-a-chart) with `run=1` always runs. After the
   pick, the chart's own **auto re-run** switch decides as before whether a
   knob change re-runs it.
 - **The hosted simulator** reads no file and offers no save.
@@ -613,6 +612,51 @@ for its three mast heights. **run**, **Stop** and **auto re-run** work as for
 a sweep, and the cells cross engines, grounds, designs and states in the same
 way, under the same cap. A pattern's cells are not pinned: its header has no
 **pin**.
+
+### Maps
+
+A [map](/reference/cli/#maps) sweeps two knobs over a grid and colours each
+node by how well it matches: |Γ| on the session's Z₀, the colours the command
+line draws (yellow is a match, dark violet is |Γ| = 1). The inverted vee's
+**tuning map** is `length_factor` against the apex angle, 33 × 25 = 825 solves,
+about six seconds. Picking a map shows it with its **run** button and solves
+nothing until you press it (unless `map = true` in
+[`[workbench.run_on_pick]`](#where-the-workbench-starts-settingstoml)). The grid
+fills a row at a time as the nodes land, each node its own cell, so a partial
+map reads as partial.
+
+- **Contours** are the analysis's reference lines, drawn from the grid as the
+  command line draws them: X = each `x` (solid), R = each `r` (dashed), and an
+  `swr` threshold as a dotted line where |Γ| reaches it. With no `r` or `x`,
+  X = 0 and R = Z₀. A line the grid never crosses is listed in the legend as
+  *(not reached)*. Under the legend is the grid's best node, worded as the
+  command line prints it: *least |Γ| 0.0247 (SWR 1.05) at length_factor
+  0.975, angle 30*.
+- **The ring** is where the two knobs are now, filled with the live solve's
+  colour. Off the grid it becomes an arrow on the edge. Dragging either knob
+  moves the ring and leaves the map as it is: every node sets both knobs
+  itself. Any other change (another knob, the solver, the ground, the
+  frequency) fades the map as stale, and **run · re-run?** runs it again.
+  A new Z₀ only re-colours it.
+- **Hover** (or tap) a cell for that node's values: the two knobs, R, X, SWR
+  and |Γ|, with no interpolation between nodes.
+- **x** and **y** edit each axis's range, points and spacing, and **↺** goes
+  back to the analysis's own. **colour** switches between |Γ| and
+  1 − 1/SWR, the SWR chart's two scales.
+- **solver** and **ground** pick one slot each: each slot is another whole
+  grid, so a map compares nothing in this version. A map that crosses
+  engines, grounds or anything else is listed greyed out, as is a map with a
+  frequency or density axis. `antennaknobs analyze` draws those.
+- Beside **run**, the cost: *825 solves · ~6 s* at the pace of the live solve.
+  **stop** keeps the nodes solved so far. **auto re-run** starts off for a
+  map.
+- A map has no **pin** yet, and its Table view is left out: hover gives the
+  numbers, and `antennaknobs analyze` prints the table.
+
+On the hosted simulator a map is limited to 1000 nodes, and **run** says so
+over that. One that is still running after two minutes stops at the next
+node and keeps what it drew, saying *stopped at the time limit (120 s):
+partial*.
 
 ### Pinned sweeps
 
@@ -1876,8 +1920,7 @@ Only the design's `.py` is remembered: to keep a chart's setup, put it in the
 design's `build_analyses()`.
 
 What the workbench cannot run yet is listed greyed out, with the reason as
-its tooltip: a map over two knobs, and a match held at every point. Each
-reason names the step of the sweep framework it is planned for. Crosses over
+its tooltip: a map with a cross, or with a frequency or density axis. Crosses over
 planes, designs, states and families draw (see
 [Planes, designs, states and families](#planes-designs-states-and-families)).
 
