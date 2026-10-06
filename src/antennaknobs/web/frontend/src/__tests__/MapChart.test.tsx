@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import fixture from "./fixtures/invveeTuningMap.json";
-import { MAP_MARGIN, MapChart, type MapLive } from "../components/charts/MapChart";
+import { MAP_MARGIN, MapChart, type MapLive, mapPlotHeight } from "../components/charts/MapChart";
 import { cellEdges, emptyGrid, type MapGrid, type MapQuantity, type MapRefs } from "../lib/mapGrid";
 
 HTMLCanvasElement.prototype.getContext =
@@ -73,6 +73,13 @@ describe("the map from the CLI's grid", () => {
     expect(segs[3]).toBeGreaterThan(0);
   });
 
+  it("fits its square: the plot, then the readout and legend lines", () => {
+    const { canvas } = mount({});
+    expect(mapPlotHeight(400, 3)).toBe(400 - 15 * 5 - 8);
+    expect(canvas.style.height).toBe(`${mapPlotHeight(400, 3)}px`);
+    expect(canvas.style.width).toBe("400px");
+  });
+
   it("z0 re-colours, and with no Ref the contours are resonance and the match", () => {
     const { canvas } = mount({ refs: { r: [], x: [], swr: null }, z0: 75 });
     expect(canvas.dataset.z0).toBe("75");
@@ -119,7 +126,8 @@ describe("the hover readout", () => {
     const { canvas } = mount({});
     // The plot's centre, in canvas px.
     const pw = SIZE - MAP_MARGIN.l - MAP_MARGIN.r;
-    const ph = SIZE - MAP_MARGIN.t - MAP_MARGIN.b;
+    // The plot is the square less the readout and legend lines (3 contours).
+    const ph = mapPlotHeight(SIZE, 3) - MAP_MARGIN.t - MAP_MARGIN.b;
     canvas.getBoundingClientRect = () =>
       ({ left: 0, top: 0, width: SIZE, height: SIZE }) as DOMRect;
     // jsdom has no PointerEvent: a MouseEvent of the pointer type carries

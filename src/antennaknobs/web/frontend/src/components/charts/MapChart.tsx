@@ -20,7 +20,7 @@ import {
 import { formatOhm, xTicks } from "../../lib/paramSweep";
 import { formatTick } from "../../lib/sweepAxis";
 import { ThemeContext } from "../hooks";
-import { CHART_FONT, fitChartCanvas, useChartScale } from "./chartScale";
+import { CHART_FONT, useChartScale } from "./chartScale";
 import { plotColors, STALE_TRACE_ALPHA } from "./palette";
 
 // The two-knob map (docs/design/sweep-framework-map.md, unit 2): |Γ| on z0
@@ -44,6 +44,16 @@ const MARKER_R = 6;
 const R_COLOURS = ["#ff7f0e", "#d62728", "#ff00ff", "#e377c2"];
 const R_DASH = [6, 4];
 const SWR_DASH = [2, 3];
+// The readout's line and the legend's (one per contour and the best node's)
+// sit under the plot, inside the chart's square: the stage sizes the chart,
+// and anything past `size` would be cut off.
+const FOOT_LINE_PX = 15;
+
+/** The plot's height in CSS px: the square less the readout and legend
+ *  lines, never under 60 % of it. */
+export function mapPlotHeight(size: number, contours: number): number {
+  return Math.max(Math.round(size * 0.6), size - FOOT_LINE_PX * (contours + 2) - 8);
+}
 
 /** How a contour is stroked: X solid in the foreground, R dashed in the
  *  CLI's cycling colours, the SWR threshold dotted white, as the CLI. */
@@ -138,6 +148,7 @@ export function MapChart({
   const nLanded = useMemo(() => landed(grid), [grid]);
   const total = grid.xs.length * grid.ys.length;
   const bestLine = best ? bestNodeLine(best, grid, xLabel, yLabel) : null;
+  const plotH = mapPlotHeight(size, contours.length);
 
   const liveGamma =
     live && live.re !== null && live.im !== null ? gammaOf(live.re, live.im, z0) : null;
@@ -158,19 +169,25 @@ export function MapChart({
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const sz = fitChartCanvas(canvas, ctx, size, k);
+    // A plot narrower than tall would waste the square: it is `size` wide
+    // and `plotH` high, drawn in logical px (÷ the chart scale k).
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(size * dpr);
+    canvas.height = Math.floor(plotH * dpr);
+    ctx.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
+    const sz = size / k;
+    const szH = plotH / k;
     const PC = plotColors();
     const pw = sz - MARGIN.l - MARGIN.r;
-    const ph = sz - MARGIN.t - MARGIN.b;
+    const ph = szH - MARGIN.t - MARGIN.b;
     const px = (v: number) => MARGIN.l + ax.f(v) * pw;
     const py = (v: number) => MARGIN.t + (1 - ay.f(v)) * ph;
     ctx.fillStyle = PC.bg;
-    ctx.fillRect(0, 0, sz, sz);
+    ctx.fillRect(0, 0, sz, szH);
     ctx.strokeStyle = PC.axis;
     ctx.strokeRect(MARGIN.l, MARGIN.t, pw, ph);
 
     // The cells, one per solved node.
-    ctx.globalAlpha = stale ? STALE_TRACE_ALPHA : 1;
     for (let j = 0; j < grid.ys.length; j++) {
       for (let i = 0; i < grid.xs.length; i++) {
         const re = grid.re[j][i];
@@ -185,6 +202,14 @@ export function MapChart({
         // A hair of overlap so neighbouring cells leave no seam.
         ctx.fillRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0) + 0.5, Math.abs(y1 - y0) + 0.5);
       }
+    }
+    // Stale: the cells fade under a veil of the background (one veil, so the
+    // cells' hairline overlaps cannot show through as a grid), and the
+    // contours with them.
+    if (stale) {
+      ctx.fillStyle = `rgba(${PC.bgRgb}, ${1 - STALE_TRACE_ALPHA})`;
+      ctx.fillRect(MARGIN.l, MARGIN.t, pw, ph);
+      ctx.globalAlpha = STALE_TRACE_ALPHA;
     }
     // The contours, as the legend names them.
     let r = 0;
@@ -218,19 +243,22 @@ export function MapChart({
     ctx.fillStyle = PC.label;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    for (const t of xTicks({ lo: ax.lo, hi: ax.hi }, ax.log)) {
+    // Ticks over the nodes' span: a cell edge half a step past the last
+    // node is no value anyone set.
+    const span = (v: readonly number[]) => ({ lo: Math.min(...v), hi: Math.max(...v) });
+    for (const t of xTicks(span(grid.xs), ax.log)) {
       ctx.fillText(formatTick(t), px(t), MARGIN.t + ph + 3);
     }
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    for (const t of xTicks({ lo: ay.lo, hi: ay.hi }, ay.log)) {
+    for (const t of xTicks(span(grid.ys), ay.log)) {
       ctx.fillText(formatTick(t), MARGIN.l - 4, py(t));
     }
     ctx.font = CHART_FONT.label;
     ctx.fillStyle = PC.labelBright;
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
-    ctx.fillText(xLabel, MARGIN.l + pw / 2, sz - 2);
+    ctx.fillText(xLabel, MARGIN.l + pw / 2, szH - 2);
     ctx.save();
     ctx.translate(11, MARGIN.t + ph / 2);
     ctx.rotate(-Math.PI / 2);
@@ -304,15 +332,14 @@ export function MapChart({
       ctx.textBaseline = "top";
       ctx.fillText(status, MARGIN.l + 4, MARGIN.t + 4);
     }
-  }, [grid, ax, ay, xe, ye, contours, best, quantity, z0, live, liveGamma, place, size, k, theme, status, stale, xLabel, yLabel]);
+  }, [grid, ax, ay, xe, ye, contours, best, quantity, z0, live, liveGamma, place, size, plotH, k, theme, status, stale, xLabel, yLabel]);
 
   const toData = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const sz = size / k;
     const lx = (e.clientX - rect.left) / k;
     const ly = (e.clientY - rect.top) / k;
-    const pw = sz - MARGIN.l - MARGIN.r;
-    const ph = sz - MARGIN.t - MARGIN.b;
+    const pw = size / k - MARGIN.l - MARGIN.r;
+    const ph = plotH / k - MARGIN.t - MARGIN.b;
     return { x: ax.inv((lx - MARGIN.l) / pw), y: ay.inv(1 - (ly - MARGIN.t) / ph) };
   };
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -343,11 +370,12 @@ export function MapChart({
     style: contourStyle(c.quantity, c.quantity === "R" ? rIdx++ : 0, "currentColor"),
   }));
   return (
-    <div className="map-chart" style={{ width: size }}>
-      <div className="map-chart-plot" style={{ width: size, height: size }}>
+    <div className="map-chart" style={{ width: size, height: size }}>
+      <div className="map-chart-plot" style={{ width: size, height: plotH }}>
         <canvas
           ref={canvasRef}
           className="map"
+          style={{ width: size, height: plotH }}
           data-nodes={nLanded}
           data-total={total}
           data-quantity={quantity}
@@ -356,6 +384,7 @@ export function MapChart({
           data-segments={contours.map((c) => c.segments.length).join(",")}
           data-best={best ? `${best.i},${best.j}` : ""}
           data-marker={place ?? ""}
+          data-live={live ? `${live.x},${live.y}` : ""}
           data-marker-fill={liveGamma === null ? "" : liveGamma.toFixed(4)}
           data-hover={hv ? `${hv.i},${hv.j}` : ""}
           data-stale={stale ? "1" : "0"}
