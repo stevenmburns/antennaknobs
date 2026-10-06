@@ -5,7 +5,8 @@ description: read_nec imports a NEC2 card deck — from xnec2c, 4nec2, EZNEC, or
 
 antennaknobs can [export any design as a NEC2 card deck](/reference/cli/#exporting-to-nec);
 `read_nec` is the reverse direction. (SimNEC `.ssn` circuits have their own
-matching pair — see [SimNEC round-trip](/reference/simnec/).) It parses a `.nec` file — the format
+matching pair — see [SimNEC round-trip](/reference/simnec/) — and MMANA-GAL
+`.maa` models open too, see [MMANA-GAL `.maa` models](#mmana-gal-maa-models).) It parses a `.nec` file — the format
 xnec2c, 4nec2, EZNEC, and fifty years of antenna handbooks all speak — into
 wire geometry a design can return from `build_wires`, so you can solve, sweep,
 and view a deck someone published without retyping its coordinates.
@@ -511,6 +512,92 @@ decks end `GN` with it too. A comment card whose whole text is `NEC-4` or
 `NEC-4.2` declares NEC-4 the way `CM NEC-5` declares NEC-5; antennaknobs'
 own NEC-4.2 export (`--dialect nec4`) writes `CM NEC-4.2`, so it reads back
 as NEC-4 under detection.
+
+## MMANA-GAL `.maa` models
+
+An MMANA-GAL model opens wherever a deck does: **Open…** on the workbench
+(hosted and local; the link carries it), the designs folder, and an
+**`@file.maa`** builder spec on the command line. There is no need to export
+it to `.nec` first. The import builds the same deck a `.nec` becomes, and the
+design's note begins *Read as MMANA-GAL (MININEC): …*.
+
+**Read as MMANA.** MMANA is MININEC-based, so a source or load sits on a
+*pulse*, the junction between two segments, not at a segment centre. Each one
+becomes a port at that segment end, as a NEC-5 segment-end source does. A
+position is `w<wire><b|c|e>[offset]`: the wire's start, centre or end, then
+an offset in pulses (`w1c+1` is one pulse toward the end, `w3e1` one pulse
+in from the end). MMANA's own library sometimes writes the centre letter as a
+Cyrillic `с`, and that is accepted. The section headers are cosmetic and
+often Russian (`* Провода *`), so blocks are found by their position. The
+file may be cp1251, and the workbench reads it that way.
+
+**The mesh is the file's, not MMANA's.** Almost every MMANA wire says
+`SEG = -1`: *mesh it for me, tapered at both ends*. Leaving such a wire as one
+segment is wrong. Copying MMANA's mesher bit for bit is not attempted
+either. Every automatic wire is meshed from the file's own segmentation line
+`DM1, DM2, SC, EC`:
+
+- At a tapered end, segments start at λ/(DM1·EC).
+- They grow by the factor SC per segment.
+- They stop growing at λ/DM2, the length over the rest of the wire.
+
+`SEG -2` and `-3` taper only the start or only the end. `0` is a regular
+mesh no coarser than λ/DM2. A positive `SEG` is a manual count, kept exactly.
+A wire tapered at both ends is meshed symmetrically, so its centre is always
+a segment end. No segment is shorter than two radii. The note gives the
+lengths the file's numbers came to. Because the mesh is ours, MMANA's
+numbers will not match exactly: on MMANA-GAL's own 20 m dipole the impedance
+lands within half an ohm, and on a two-element quad within 5 %. That is
+the MININEC-versus-MoM gap, and our side is mesh-converged in both.
+
+**Nothing is snapped.** A centre that is not on the mesh (`w1c` on a wire with
+an odd manual count) cuts the wire at its exact centre, and the note says
+so. An offset that would need MMANA's own mesh to place is refused.
+
+**The ground line** is `G, H, M, R, Az, El, X`:
+
+- **G**: 0 is free space, 1 is perfect ground, 2 is real ground.
+- **H**: added to every z.
+- **M**: the wire material. 0 is lossless; copper wire or pipe (1, 2) is
+  5.8·10⁷ S/m; aluminium wire or pipe (3, 4) is 3.5·10⁷ S/m.
+- **R**: the reference impedance for SWR, which becomes the design's Zo.
+- **Az, El**: MMANA's front-to-back readout ranges, which are not physics.
+
+MMANA's real ground is the **MININEC type**: perfect ground for the currents
+and the impedance, with the soil used for the pattern only. The soil is not
+in the `.maa` (MMANA keeps it in its own settings), so ε<sub>r</sub> 13,
+σ 0.005 S/m is assumed and the note says so; set your own in the ground panel.
+MMANA's wire loss is about twice what these conductivities give on its 20 m
+dipole, and MMANA's loss adds no reactance.
+
+**Loads** come in three types:
+
+- **Type 0** is `L µH, C pF, Q`. With C = 0 it is a coil, with L = 0 a
+  capacitor, and with both a parallel L‖C trap.
+- **Type 1** is `R, jX` in ohms, fixed at every frequency.
+- **Type 2** is MMANA's Laplace form, which is refused.
+
+Q is the coil's, or the capacitor's when there is no coil. It becomes a loss
+resistance held at the file's frequency: a series ωL/Q, or a trap's parallel
+Q·ωL. MMANA's *Use loads* switch is honoured: a file whose loads are switched
+off opens without them, and the note says so.
+
+**Refused by name**, each with its file and line:
+
+- a stack (the wire count line's six-field Make Stack form);
+- a Laplace load;
+- an insulator wire (R = 0);
+- an iron or user-defined material;
+- a starred taper-wire type (`<>*`, `->*`);
+- a design frequency of 0 (MMANA would quietly use 14.15 MHz);
+- a source or load at a free wire end, where MININEC has no pulse;
+- an offset on an automatically meshed wire;
+- wires that cross between their ends, or a wire end on another wire's
+  middle;
+- objects on different wires' ends at one junction of three or more wires.
+
+A stepped-radius wire (a negative R pointing into the `$$$` taper wire set)
+is read for the plain `<>` and `->` types.
 
 ## Programmatic use
 

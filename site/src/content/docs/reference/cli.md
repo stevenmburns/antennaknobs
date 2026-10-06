@@ -44,9 +44,10 @@ Three spec forms work anywhere a `--builder` / `--builders` argument does:
 - **`family.name`** — a catalog or user design.
 - **`family.name:variant`** — a stored knob-set overlay
   (see [Variants are overlays](#variants-are-overlays)).
-- **`@path/to/file.nec`** or **`@path/to/file.ssn`** — a NEC card deck (via
-  [`read_nec`](/reference/nec-import/)) or a SimNEC circuit (via the
-  [SimNEC importer](/reference/simnec/#importing-ssn--design)), loaded on
+- **`@path/to/file.nec`**, **`@path/to/file.ssn`** or **`@path/to/file.maa`**
+  — a NEC card deck (via [`read_nec`](/reference/nec-import/)), a SimNEC
+  circuit (via the [SimNEC importer](/reference/simnec/#importing-ssn--design))
+  or an MMANA-GAL model (via [the `.maa` reader](/reference/nec-import/#mmana-gal-maa-models)), loaded on
   the fly as a frozen-geometry design. No user-design stub to write:
   `draw`, `sweep`, `pattern`, `schematic`, and `export` all take it
   directly, and files mix freely with named designs in `--builders` lists —
