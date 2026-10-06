@@ -1669,6 +1669,9 @@ function DesignSessionBody({
     updateKnobOpt,
     optMarked,
     optRestarted,
+    optMenuOpen,
+    optMenuPaused,
+    setOptMenuOpen,
   } = useOptimizer({
     geometry,
     currentValues,
@@ -3526,6 +3529,9 @@ function DesignSessionBody({
           optState={{
             marked: optMarked,
             restarted: optRestarted,
+            menuOpen: optMenuOpen,
+            menuPaused: optMenuPaused,
+            setMenuOpen: setOptMenuOpen,
           }}
         />
 

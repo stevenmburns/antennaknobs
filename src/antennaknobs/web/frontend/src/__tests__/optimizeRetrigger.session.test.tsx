@@ -7,8 +7,11 @@
 //
 // What the run itself does — its progress frames, its write-back of the four
 // flat knobs, the live solve that follows — never re-triggers it (pinned
-// below; it held before 0.97.1 too). A run a genuine new input supersedes
-// says "restarted" (AK#1912).
+// below; it held before 0.97.1 too). What did: the band list is a signature
+// input, so with Optimize ON every edit in the gear menu (Bands on, add 3.6,
+// add 1.8) started a run and superseded the one before. Now opening the menu
+// pauses Optimize and closing it resumes it, with ONE run. A run a genuine new
+// input supersedes says "restarted" (AK#1912).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ExampleDescriptor } from "../lib/params";
@@ -130,9 +133,15 @@ const RESULT = {
 // A streamed /optimize: `frames` progress frames `gapMs` apart, then the
 // result. Aborting the request cancels the stream (the client cancels its
 // reader on abort, which is what ends a superseded run).
+// Which /optimize requests (by index) the client aborted: an abort is what
+// cancels the request, and the server stops a run whose client has gone.
+const aborted: number[] = [];
+
 function streamingOptimize(optimizeBodies: Body[], frames = 20, gapMs = 60) {
   return (_u: string, init?: RequestInit) => {
+    const n = optimizeBodies.length;
     optimizeBodies.push(JSON.parse(String(init?.body ?? "{}")) as Body);
+    init?.signal?.addEventListener("abort", () => aborted.push(n));
     const enc = new TextEncoder();
     let timer: ReturnType<typeof setTimeout> | null = null;
     const body = new ReadableStream<Uint8Array>({
@@ -234,6 +243,7 @@ function changedInputs(a: Body, b: Body): string[] {
 
 beforeEach(() => {
   solves.length = 0;
+  aborted.length = 0;
   vi.stubGlobal("WebSocket", StubWebSocket);
 });
 afterEach(() => {
@@ -299,5 +309,76 @@ describe("after a band run writes the knobs back", () => {
     await waitFor(() => expect(solves.at(-1)?.sy_cap1).toBe(510), { timeout: 5000 });
     await screen.findAllByText(/51\.00 Ω/, undefined, { timeout: 5000 });
     expect(screen.queryAllByText(/34\.00 Ω/)).toHaveLength(0);
+  });
+});
+
+const toggle = () => optimizeButton().getAttribute("aria-pressed");
+const bandsOf = (b: Body) => (b.optimize as { bands?: { freq: number }[] }).bands?.map((x) => x.freq);
+
+describe("the gear menu pauses Optimize while its settings are edited", () => {
+  it("Steve's sequence: Optimize on, then three band edits a second apart, is ONE run", async () => {
+    const bodies: Body[] = [];
+    mount(bodies);
+    await openUr0gt();
+    markAll();
+    fireEvent.click(optimizeButton());
+    await waitFor(() => expect(bodies).toHaveLength(1), { timeout: 5000 });
+    await pause(2500); // the measurement-frequency run streams and settles
+    const before = bodies.length;
+    // Bands on, add 3.6, add 1.8 — a second apart, as on the hosted app.
+    await setBands(1000);
+    await finished();
+    await pause(1500);
+    // Before 0.97.1: [7.2], [7.2, 3.6], [7.2, 3.6, 1.8] — three runs.
+    expect(bodies.slice(before).map(bandsOf)).toEqual([BANDS]);
+    expect(toggle()).toBe("true");
+  });
+
+  it("opening the menu mid-run aborts it and turns Optimize off; closing resumes with one run", async () => {
+    const bodies: Body[] = [];
+    mount(bodies, 60, 100); // a 6 s run
+    await openUr0gt();
+    markAll();
+    fireEvent.click(optimizeButton());
+    await waitFor(() => expect(bodies).toHaveLength(1), { timeout: 5000 });
+    await screen.findByText(/^#\d+ (worst )?SWR/, undefined, { timeout: 5000 });
+    fireEvent.click(screen.getByLabelText("Optimisation method"));
+    expect(aborted).toEqual([0]);
+    expect(toggle()).toBe("false");
+    expect(screen.getByRole("status").textContent).toBe("paused while editing optimize settings");
+    // Edit everything the menu has, slowly: nothing runs while it is open.
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /Several bands at once/ }));
+    await pause(700);
+    const add = screen.getByLabelText("Add a band, MHz");
+    for (const f of BANDS.slice(1)) {
+      fireEvent.change(add, { target: { value: String(f) } });
+      fireEvent.keyDown(add, { key: "Enter" });
+      await pause(700);
+    }
+    fireEvent.change(screen.getByLabelText("Balance between the worst band and the average"), {
+      target: { value: "0.3" },
+    });
+    await pause(700);
+    expect(bodies).toHaveLength(1);
+    // Close: Optimize is back on, and exactly one run starts with the edits.
+    fireEvent.click(screen.getByLabelText("Optimisation method"));
+    expect(toggle()).toBe("true");
+    await waitFor(() => expect(bodies).toHaveLength(2), { timeout: 5000 });
+    await pause(1000);
+    expect(bodies).toHaveLength(2);
+    expect(bandsOf(bodies[1])).toEqual(BANDS);
+    expect((bodies[1].optimize as { mean_weight: number }).mean_weight).toBe(0.3);
+    expect(screen.queryByText(/restarted/)).toBeNull();
+  });
+
+  it("with Optimize off, opening, editing and closing the menu starts nothing", async () => {
+    const bodies: Body[] = [];
+    mount(bodies);
+    await openUr0gt();
+    markAll();
+    await setBands(500);
+    await pause(1000);
+    expect(bodies).toHaveLength(0);
+    expect(toggle()).toBe("false");
   });
 });

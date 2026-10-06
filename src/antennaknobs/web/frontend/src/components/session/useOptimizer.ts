@@ -207,6 +207,17 @@ export function useOptimizer({
   // input superseded it. Said on the readout ("restarted") rather than
   // dropping the old run silently.
   const [optRestarted, setOptRestarted] = useState(false);
+  // The Optimize gear menu is open (AK 0.97.1). Optimize is OFF while its
+  // settings are edited: each edit in the menu (a band, the balance, Zo, the
+  // objective) is a new input, and re-tuning on each started a run per edit,
+  // each superseding the last — UR0GT's three bands were three POST /optimize
+  // a second apart. Opening the menu stops the run in flight and switches
+  // Optimize off; closing it switches Optimize back on only if it was on when
+  // the menu opened, which starts ONE run with the new settings.
+  const [optMenuOpen, setOptMenuOpenState] = useState(false);
+  // Optimize was on when the menu opened: the menu paused it, and closing the
+  // menu resumes it.
+  const [optMenuPaused, setOptMenuPaused] = useState(false);
   // When something auto-pauses the optimizer, this holds *why*: grabbing a
   // knob marked for optimization by hand (said until Optimize is turned back
   // on), or loading a new design/variant (a brief cue, cleared after a few
@@ -451,6 +462,23 @@ export function useOptimizer({
     return () => window.removeEventListener("keydown", onKey);
   }, [knobMenu, active, setKnobMenu]);
 
+  function setOptMenuOpen(open: boolean) {
+    if (open === optMenuOpen) return;
+    setOptMenuOpenState(open);
+    if (open) {
+      // The same stop as a hand move of a marked knob: the abort cancels the
+      // request, and the server stops the run when its client goes.
+      setOptMenuPaused(optEnabled);
+      if (optEnabled) {
+        optAbortRef.current?.abort();
+        setOptEnabled(false);
+      }
+    } else {
+      if (optMenuPaused) setOptEnabled(true);
+      setOptMenuPaused(false);
+    }
+  }
+
   // How many knobs this design has marked (AK#1912): none means Optimize
   // has nothing to do, and the readout says so.
   const optMarked = Object.values(knobOpt[geometry] ?? {}).filter((o) => o.vary).length;
@@ -459,6 +487,9 @@ export function useOptimizer({
     optEnabled,
     optMarked,
     optRestarted,
+    optMenuOpen,
+    optMenuPaused,
+    setOptMenuOpen,
     setOptEnabled,
     optObjective,
     setOptObjective,
