@@ -21,6 +21,7 @@ What is pinned here:
 
 from __future__ import annotations
 
+import dataclasses
 import importlib
 import re
 from dataclasses import dataclass
@@ -152,11 +153,16 @@ def test_e1_and_e3_print_as_the_spec_page_writes_them():
 
 
 def test_invvee_returns_e1_and_e3_as_the_spec_writes_them():
-    own = get_builder("dipoles.invvee")().build_analyses()
+    # The spec page writes no groups: a heading is how a list is shown
+    # (AK#1907), not what an analysis sweeps.
+    own = {
+        a.name: dataclasses.replace(a, group=None)
+        for a in get_builder("dipoles.invvee")().build_analyses()
+    }
     ex = _examples()
-    assert own[0] == ex["E1"][0]
-    assert own[1] == ex["E3"][0]
-    assert ex["E8"][0] in own and ex["E9"][0] in own
+    assert own["convergence"] == ex["E1"][0]
+    assert own["height"] == ex["E3"][0]
+    assert ex["E8"][0] in own.values() and ex["E9"][0] in own.values()
 
 
 # ── hold: data only ─────────────────────────────────────────────────────
@@ -522,7 +528,9 @@ def test_an_engine_refusing_the_design_is_a_named_cell(monkeypatch, capsys, tmp_
 def test_code_prints_the_analysis(capsys):
     cli(["analyze", "--builder", "dipoles.invvee", "--analysis", "height", "--code"])
     code = capsys.readouterr().out
-    assert eval(code, {"an": an}) == _examples()["E3"][0]
+    a = eval(code, {"an": an})
+    assert a.group == "Height & ground"
+    assert dataclasses.replace(a, group=None) == _examples()["E3"][0]
 
 
 # ── Steve's 2026-09-28 rulings: names and spacing ────────────────────────────
