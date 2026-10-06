@@ -3650,7 +3650,7 @@ async def engine_io_endpoint(req: dict, request: Request):
     }
 
 
-_SOURCE_LANGUAGE = {".py": "python", ".nec": "nec", ".ssn": "ssn"}
+_SOURCE_LANGUAGE = {".py": "python", ".nec": "nec", ".ssn": "ssn", ".maa": "maa"}
 
 
 @app.post("/design_source")
@@ -3691,7 +3691,9 @@ async def design_source_endpoint(req: dict):
         path = Path(found) if found else None
     if path is None or not path.is_file():
         return {"available": False, "geometry": geometry}
-    text = await run_in_threadpool(path.read_text, encoding="utf-8", errors="replace")
+    from antennaknobs.file_designs import read_design_text
+
+    text = await run_in_threadpool(read_design_text, path)
     return {
         "available": True,
         "geometry": geometry,
