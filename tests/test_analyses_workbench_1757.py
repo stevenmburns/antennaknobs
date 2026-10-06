@@ -115,6 +115,7 @@ def test_every_entry_has_the_documented_shape(invvee):
                 "y",
                 "refs",
                 "views",
+                "limit",
                 "engines",
                 "grounds",
                 "note",

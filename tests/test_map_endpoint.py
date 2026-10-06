@@ -152,6 +152,14 @@ def test_invvees_tuning_map_is_offered_with_the_clis_axes(client):
     assert w["views"] == ["Map"]
     assert w["engines"] is None and w["grounds"] is None
     assert w["note"] is None
+    # A local workbench bounds neither the points nor the time.
+    assert w["limit"] is None
+
+
+def test_hosted_the_offer_carries_the_map_cap_and_budget(client, monkeypatch):
+    monkeypatch.setattr(server, "_HOSTED", True)
+    w = _served(client, "tuning map")
+    assert w["limit"] == {"points": 1000, "seconds": 120}
 
 
 LF = an.Sweep("length_factor", values=(0.95, 0.975, 1.0))

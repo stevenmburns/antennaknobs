@@ -39,7 +39,7 @@ each with its one-line summary, its Python, its problems, and a
   tab's design's measurement frequency (a cell's own may differ: a state or
   a family setting ``freq``). The chart asks ``POST /pattern_cell`` for each
   cell (`server.pattern_cell_endpoint`);
-- ``{runs: True, kind: "map", x, y, refs, views, note}`` (the sweep
+- ``{runs: True, kind: "map", x, y, refs, views, limit, note}`` (the sweep
   framework's map, docs/design/sweep-framework-map.md): a two-knob map, one
   grid, which the chart asks ``POST /map`` for. ``x`` and ``y`` are each
   ``{param, values, log, lo, hi, points, spacing}``: ``param`` and
@@ -47,7 +47,9 @@ each with its one-line summary, its Python, its problems, and a
   CLI's own grid, and the axis as the spec writes it (``lo`` / ``hi`` the
   ends of ``values``). ``refs`` is ``{r, x, swr}``, the `Ref` lines the
   chart contours (R = r, X = x, and SWR = swr as its |Γ|), and ``views``
-  is ``["Map"]``; the Table view is left out by name in ``note``. A map
+  is ``["Map"]``; the Table view is left out by name in ``note``.
+  ``limit`` is ``{points, seconds}`` on the hosted instance (its map cap
+  and sweep wall-time budget), None locally. A map
   with a cross, or with a frequency or density axis, is ``runs: False``
   with its reason (map note, decisions 9 and 10);
 - ``{runs: False, why}``: why the workbench cannot draw it yet, one
@@ -306,8 +308,13 @@ def _map_axis(s: an.Sweep, builder, req: Mapping) -> dict:
     }
 
 
-def _map(a: an.Analysis, builder, req: Mapping) -> dict:
-    """A runnable map (map note, unit 1), as the chart draws it."""
+def _map(a: an.Analysis, builder, req: Mapping, *, hosted: bool) -> dict:
+    """A runnable map (map note, unit 1), as the chart draws it. Hosted, it
+    carries the instance's map cap and wall-time budget (``limit``), so the
+    chart's Run says why before /map refuses it; None on a local workbench,
+    which bounds neither."""
+    from .cost import MAX_MAP_POINTS, MAX_SWEEP_SECONDS
+
     sx, sy = a.sweeps
     refs = a.references
     left = [
@@ -326,6 +333,9 @@ def _map(a: an.Analysis, builder, req: Mapping) -> dict:
             "swr": None if refs.swr is None else float(refs.swr),
         },
         "views": ["Map"],
+        "limit": (
+            {"points": MAX_MAP_POINTS, "seconds": MAX_SWEEP_SECONDS} if hosted else None
+        ),
         **_listed(a),
         "note": "; ".join(left) or None,
     }
@@ -836,7 +846,7 @@ def workbench(a: an.Analysis, builder, req: Mapping, *, hosted: bool = False) ->
             return {"runs": False, "why": str(e)}
     if len(a.sweeps) == 2:
         try:
-            return _map(a, builder, req)
+            return _map(a, builder, req, hosted=hosted)
         except _Refusal as e:
             return {"runs": False, "why": str(e)}
     frequency = _is_frequency(a)
