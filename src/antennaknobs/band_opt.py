@@ -16,8 +16,10 @@ from collections.abc import Callable, Mapping, Sequence
 
 from .opt import _get_path, _set_path
 
-#: The CLI's default search box around a knob with no ui_params range of its
-#: own: +/- this fraction of its current value.
+#: The default search box around a knob with no ui_params range of its own:
+#: +/- this fraction of its current value. The workbench's Optimize range
+#: defaults to the same (frontend ``lib/params.ts`` OPT_SPAN), so the two
+#: search the same box (AK 0.97.2).
 DEFAULT_SPAN = 0.2
 
 
@@ -77,9 +79,9 @@ def free_for(
     bounds: Mapping[str, tuple[float, float]] | None = None,
 ) -> list[dict]:
     """``[{name, min, max}]`` for ``names`` on ``builder``: an explicit
-    ``bounds`` entry, else each knob's ``ui_params`` range when it has one
-    (the workbench's optimize range defaults to the slider's), else +/-
-    ``span`` of its current value."""
+    ``bounds`` entry, else each knob's ``ui_params`` range when it declares
+    both ends, else +/- ``span`` of its current value: the workbench's
+    default Optimize range by the same rule (``ParamSpec.auto_range``)."""
     bounds = dict(bounds or {})
     stray = sorted(set(bounds) - set(names))
     if stray:

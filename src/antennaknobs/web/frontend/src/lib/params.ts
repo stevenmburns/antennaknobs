@@ -40,7 +40,18 @@ export type SchemaParamSpec = {
   // use it for the SY card's own comment, while the knob itself shows the
   // short SY spelling. Absent/null keeps today's fallback rule.
   description?: string | null;
+  // min/max are the server's own window round the default, not a range the
+  // design declared (both ends in its ui_params). The knob's default
+  // Optimize range is then OPT_SPAN of its value (`defaultKnobOpt`). Absent
+  // (an older server) reads as declared: the slider's range, as before.
+  auto_range?: boolean;
 };
+
+/** A knob's default Optimize range when its design declares none: this
+ *  fraction either side of its value, the command line's `optimize` default
+ *  (band_opt.DEFAULT_SPAN). Steve, 2026-10-05: "I think 20% should be the
+ *  choice". */
+export const OPT_SPAN = 0.2;
 
 // Per-knob grid placement. All fields optional; mapped onto inline
 // grid-row / grid-column. Pairs with ExampleDescriptor.layout.columns.
@@ -579,7 +590,14 @@ export function overlaySchemaForVariant(
   return example.param_schema
     .map((item) =>
       !isGroup(item) && over[item.name]
-        ? { ...item, ...over[item.name] }
+        ? {
+            ...item,
+            ...over[item.name],
+            // A variant that authors a bound has declared the range.
+            ...("min" in over[item.name] || "max" in over[item.name]
+              ? { auto_range: false }
+              : {}),
+          }
         : item,
     )
     .filter(
@@ -621,9 +639,6 @@ export function groupExamplesForPicker(
     .sort((a, b) => familyRank(a.fam) - familyRank(b.fam));
 }
 
-// The effective per-knob optimiser settings, seeded from the schema: opt
-// extents = slider bounds, step = schema step, not varying. The caller
-// overlays any explicitly stored KnobOpt entry on top of this default.
 // A knob's name as the optimiser keys it (AK#1901): a top-level param is its
 // own name, exactly as before; a leaf inside a group is its dotted path,
 // `bands.0.length_factor` — the spelling the server's /optimize reads.
@@ -656,14 +671,39 @@ export function findKnobSpec(
   return undefined;
 }
 
-export function defaultKnobOpt(schema: SchemaItem[], name: string): KnobOpt {
+// The effective per-knob optimiser settings, seeded from the schema: display
+// extents = slider bounds, step = schema step, not varying. The caller
+// overlays any explicitly stored KnobOpt entry on top of this default.
+//
+// The Optimize range is the command line's rule (band_opt.free_for): the
+// range the design declares, else OPT_SPAN either side of the knob's
+// `value` (its current one; the schema default when none is given), clipped
+// into the slider's travel. A knob at 0 has no relative window, so it
+// searches the slider's travel (the command line refuses there instead).
+export function defaultKnobOpt(
+  schema: SchemaItem[],
+  name: string,
+  value?: number,
+): KnobOpt {
   const s = findKnobSpec(schema, name);
   const min = s?.min ?? 0;
   const max = s?.max ?? 1;
+  let optMin = min;
+  let optMax = max;
+  const v = value ?? (typeof s?.default === "number" ? s.default : undefined);
+  if (s?.auto_range && v !== undefined && Number.isFinite(v) && v !== 0) {
+    const [a, b] = [v * (1 - OPT_SPAN), v * (1 + OPT_SPAN)].sort((x, y) => x - y);
+    const lo = Math.max(a, min);
+    const hi = Math.min(b, max);
+    if (lo < hi) {
+      optMin = lo;
+      optMax = hi;
+    }
+  }
   return {
     vary: false,
-    optMin: min,
-    optMax: max,
+    optMin,
+    optMax,
     dispMin: min,
     dispMax: max,
     step: s?.step ?? 0.001,

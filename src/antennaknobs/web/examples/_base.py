@@ -135,6 +135,12 @@ class ParamSpec:
     # shows the short SY spelling ("hgh"). Optional and generic — most knobs
     # carry none — so adding it here never touches an existing spec.
     description: Optional[str] = None
+    # True when min/max are the adapter's own window round the default (the
+    # design's ui_params declares no min AND max): the slider's travel, not a
+    # range the design chose. The workbench then defaults the knob's Optimize
+    # range to +/-20 % of its value, as `optimize` on the command line does
+    # (band_opt.DEFAULT_SPAN), rather than to the whole window.
+    auto_range: bool = False
 
 
 @dataclass(frozen=True)

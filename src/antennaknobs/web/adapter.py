@@ -1687,6 +1687,10 @@ def _auto_paramspec(name: str, default: Any, override: dict | None) -> ParamSpec
         is_int = isinstance(default, int) and override.get("kind") != "float"
         kind = override.pop("kind", "int" if is_int else "float")
         d = float(default)
+        # A range the design chose is both ends; anything less leaves the
+        # window below the slider's travel only (`ParamSpec.auto_range`), the
+        # same test `band_opt._ui_range` makes on the command line.
+        auto_range = not ("min" in override and "max" in override)
         # Auto bounds: a generous ±50% window. The step gives 0.1%
         # *relative* resolution (window / 1000) so any scaling factor,
         # fraction, length, or angle is fine-tunable by hand regardless of
@@ -1758,6 +1762,7 @@ def _auto_paramspec(name: str, default: Any, override: dict | None) -> ParamSpec
             sweepable=sweepable,
             layout=layout,
             description=description,
+            auto_range=auto_range,
         )
         if "linked_to_design_freq" in override:
             spec_kwargs["linked_to_design_freq"] = bool(

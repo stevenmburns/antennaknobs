@@ -4620,6 +4620,7 @@ def _serialize_schema_item(item) -> dict:
         "link_meas_freq_to_param": item.link_meas_freq_to_param,
         "layout": item.layout,
         "description": item.description,
+        "auto_range": item.auto_range,
     }
 
 
