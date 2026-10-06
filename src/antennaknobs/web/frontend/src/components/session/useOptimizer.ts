@@ -16,6 +16,7 @@ import {
   type OptProgress,
 } from "./VfoPanel";
 import { apiFetch } from "../../lib/pin";
+import { nextBandMarks, type BandMarks } from "../../lib/optBands";
 
 // One decoded `event: X\ndata: Y` frame off an SSE byte stream.
 type SseFrame = { event: string; data: string };
@@ -63,6 +64,30 @@ async function* readSseFrames(
     signal.removeEventListener("abort", onAbort);
     reader.releaseLock();
   }
+}
+
+// The value at a knob's path in a value bag (a flat name, or a group leaf).
+function valueAtPath(bag: unknown, path: (string | number)[]): unknown {
+  let v: unknown = bag;
+  for (const k of path) {
+    if (v === null || typeof v !== "object") return undefined;
+    v = (v as Record<string | number, unknown>)[k];
+  }
+  return v;
+}
+
+// `bag` with a run's answer laid over it, each knob at its path.
+function layParams(
+  bag: ParamValueBag,
+  params: Record<string, number | string | boolean>,
+): ParamValueBag {
+  let out = bag;
+  for (const [name, val] of Object.entries(params)) {
+    if (valueAtPath(out, knobPath(name)) !== val) {
+      out = setValueAtPath(out, knobPath(name), val) as ParamValueBag;
+    }
+  }
+  return out;
 }
 
 /** The band run's default balance (AK#1901), sent explicitly on every band
@@ -203,6 +228,30 @@ export function useOptimizer({
   const [optFrameMs, setOptFrameMs] = useState<number | null>(null);
   const lastFrameAtRef = useRef<number | null>(null);
   const [optError, setOptError] = useState<string | null>(null);
+  // A band run's live markers on the Smith chart (AK 0.97.1): each band's
+  // last few impedances, from every progress frame. They outlive the run —
+  // the final positions stay until the next edit — and the next run starts
+  // them afresh.
+  const [optBandMarks, setOptBandMarks] = useState<BandMarks | null>(null);
+  // The last run's answer, the values it replaces and the bag it leaves. A
+  // bag on the way there — every answered knob at its old value or its new
+  // one, nothing else moved — is the run's own write-back (whole or knob by
+  // knob), not an edit, so it must not clear the markers. Once the write-back
+  // has landed (`done`), only that exact bag is.
+  const writtenBackRef = useRef<{
+    params: Record<string, number | string | boolean>;
+    before: Record<string, unknown>;
+    key: string;
+    done: boolean;
+  } | null>(null);
+  // The run's pace (AK 0.97.1): wall time since it started over the points
+  // it has solved (`n_solves`; a memo hit costs nothing and is not counted).
+  // Read off the frames' arrival, not their `solve_ms`: a memo hit's frame
+  // repeats the last solve's `solve_ms`, and the wall time also carries the
+  // lane and network a hosted run waits through. No ETA: how many points a
+  // run needs is decided by when it converges, not known up front.
+  const [optPaceMs, setOptPaceMs] = useState<number | null>(null);
+  const runStartedAtRef = useRef(0);
   // The run in flight replaced one that had not finished (AK#1912): a newer
   // input superseded it. Said on the readout ("restarted") rather than
   // dropping the old run silently.
@@ -249,6 +298,7 @@ export function useOptimizer({
     setOptProgress(null);
     setOptError(null);
     setOptBands(null);
+    setOptBandMarks(null);
     if (optEnabledRef.current) {
       setOptEnabled(false);
       setOptPausedBy({ kind: "load" });
@@ -262,6 +312,14 @@ export function useOptimizer({
   // non-streaming JSON body.
   function applyOptimizeResult(data: OptimizeResult) {
     setOptResult(data);
+    writtenBackRef.current = {
+      params: data.params,
+      before: Object.fromEntries(
+        Object.keys(data.params).map((name) => [name, valueAtPath(currentValues, knobPath(name))]),
+      ),
+      key: JSON.stringify(layParams(currentValues, data.params)),
+      done: false,
+    };
     // A group leaf comes back under its dotted key (`bands.0.length_factor`,
     // AK#1901) and lands at its path; a flat name is the one-element path
     // it always was.
@@ -295,6 +353,9 @@ export function useOptimizer({
     setOptRunning(true);
     setOptError(null);
     setOptProgress(null);
+    setOptBandMarks(null);
+    setOptPaceMs(null);
+    runStartedAtRef.current = performance.now();
     setOptFrameMs(null);
     lastFrameAtRef.current = null;
     try {
@@ -329,7 +390,11 @@ export function useOptimizer({
               const prev = lastFrameAtRef.current;
               lastFrameAtRef.current = now;
               setOptFrameMs(prev == null ? null : now - prev);
-              setOptProgress(JSON.parse(data) as OptProgress);
+              const frame = JSON.parse(data) as OptProgress;
+              setOptProgress(frame);
+              setOptBandMarks((prev) => nextBandMarks(prev, frame));
+              const solved = frame.n_solves ?? frame.n_evals;
+              if (solved > 0) setOptPaceMs((now - runStartedAtRef.current) / solved);
             }
           } else if (event === "result") {
             applyOptimizeResult(JSON.parse(data) as OptimizeResult);
@@ -427,6 +492,38 @@ export function useOptimizer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [optFixedSig, autoSim, active]);
 
+  // An edit after the run (a knob, the band list) leaves the markers
+  // describing an antenna that is no longer there: they go. The run's own
+  // write-back is the exception — it is where the markers already are.
+  useEffect(() => {
+    const written = writtenBackRef.current;
+    if (written) {
+      if (currentValuesKey === written.key) {
+        written.done = true;
+        return;
+      }
+      const onTheWay =
+        !written.done &&
+        Object.entries(written.params).every(([name, val]) => {
+          const now = valueAtPath(currentValues, knobPath(name));
+          return now === val || now === written.before[name];
+        }) &&
+        JSON.stringify(layParams(currentValues, written.params)) === written.key;
+      if (onTheWay) return;
+    }
+    writtenBackRef.current = null;
+    // A reset on input change, not a derivable value (#768).
+    setOptBandMarks(null);
+    // currentValuesKey stands in for currentValues' contents in the deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentValuesKey]);
+  useEffect(() => {
+    writtenBackRef.current = null;
+    // A reset on input change, not a derivable value (#768).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOptBandMarks(null);
+  }, [optBands]);
+
   // The "loaded a new design" cue is a brief flash: clear it a few seconds
   // after it appears so it doesn't linger while Optimize stays off. A hand
   // move's pause stays said until Optimize is turned back on (AK#1912): it is
@@ -487,6 +584,8 @@ export function useOptimizer({
     optEnabled,
     optMarked,
     optRestarted,
+    optBandMarks,
+    optPaceMs,
     optMenuOpen,
     optMenuPaused,
     setOptMenuOpen,

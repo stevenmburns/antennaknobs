@@ -74,8 +74,9 @@ const band = (index: number, freq: number, swr: number) => ({
   objective: "swr",
   feed: 0,
   z0_ohms: 50,
-  z_re: 50,
-  z_im: 10,
+  // The Z moves with the SWR, so each frame's markers move.
+  z_re: 50 + 5 * swr,
+  z_im: 10 * swr,
   swr,
   residual: null,
   value: swr,
@@ -380,5 +381,35 @@ describe("the gear menu pauses Optimize while its settings are edited", () => {
     await pause(1000);
     expect(bodies).toHaveLength(0);
     expect(toggle()).toBe("false");
+  });
+});
+
+describe("the Smith chart during and after a band run", () => {
+  const smithBands = () =>
+    [...document.querySelectorAll<HTMLCanvasElement>("canvas.smith")].map((c) => c.dataset.bands ?? "");
+
+  it("shows one marker per band from the progress frames, and keeps them after the run", async () => {
+    const bodies: Body[] = [];
+    mount(bodies, 30, 80);
+    await openUr0gt();
+    expect(smithBands().length).toBeGreaterThan(0);
+    markAll();
+    await setBands();
+    fireEvent.click(optimizeButton());
+    // Mid-run: three bands, each with a trail, the worst (stub: band 0) marked.
+    await waitFor(
+      () => expect(smithBands()).toContainEqual(expect.stringMatching(/^7\.2:[2-6],3\.6:[2-6],1\.8:[2-6]\*$/)),
+      { timeout: 5000 },
+    );
+    await finished();
+    await pause(800);
+    // After: the markers stay where the run left them (the write-back's solve
+    // does not clear them).
+    expect(smithBands()).toContainEqual("7.2:6,3.6:6,1.8:6*");
+    // An edit clears them (Optimize off first, so the edit starts no run).
+    fireEvent.click(optimizeButton());
+    fireEvent.keyDown(knob("sy_w5hgt"), { key: "ArrowUp" });
+    await waitFor(() => expect(smithBands().every((b) => b === "")).toBe(true), { timeout: 5000 });
+    expect(bodies).toHaveLength(1);
   });
 });

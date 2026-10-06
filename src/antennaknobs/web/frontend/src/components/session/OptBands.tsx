@@ -6,6 +6,14 @@
 import { useState } from "react";
 import type { OptimizeResult, OptProgress } from "./VfoPanel";
 import { fmtFreq, MAX_OPT_BANDS, NO_READING, parseBandFreq } from "../../lib/optBands";
+import { feedColor } from "../charts/palette";
+
+// The band's colour, as its marker on the Smith chart draws it (AK 0.97.1).
+function Swatch({ index }: { index: number }) {
+  return (
+    <span className="opt-bands-swatch" aria-hidden="true" style={{ background: feedColor(index) }} />
+  );
+}
 
 /** One band as the server reads it at one solve (AK#1901). A reading the
  *  engine could not make (an infinite SWR, a NaN Z) arrives as null. */
@@ -40,6 +48,12 @@ export type OptBandsControl = {
 // is a field this response does not carry at all.
 const fmtSwr = (v: number | null | undefined) =>
   v === undefined ? "—" : v === null || !Number.isFinite(v) ? NO_READING : v.toFixed(2);
+
+/** A run's pace: "0.15 s/eval", "5.2 s/eval", "12 s/eval". */
+export const fmtPace = (ms: number) => {
+  const s = ms / 1000;
+  return `${s < 1 ? s.toFixed(2) : s < 10 ? s.toFixed(1) : s.toFixed(0)} s/eval`;
+};
 
 // The gear menu's Bands section: a switch, the list (each row removable), an
 // add field, and the balance slider.
@@ -162,11 +176,15 @@ export function BandsReadout({
   progress,
   result,
   error,
+  paceMs = null,
 }: {
   running: boolean;
   progress: OptProgress | null;
   result: OptimizeResult | null;
   error: string | null;
+  /** Wall time per solved point so far, ms: how fast this run is going
+   *  (a hosted run is far slower than a local one). */
+  paceMs?: number | null;
 }) {
   if (error) {
     return (
@@ -181,12 +199,21 @@ export function BandsReadout({
         <span>#{progress.n_evals}</span>
         {progress.bands.map((b) => (
           <span key={b.index} className="opt-bands-chip">
+            <Swatch index={b.index} />
             {fmtFreq(b.freq_mhz)}: SWR {fmtSwr(b.swr)}
           </span>
         ))}
         {progress.objective_worst !== undefined && (
           <span className="opt-bands-chip">
             worst {fmtSwr(progress.objective_worst)}
+          </span>
+        )}
+        {paceMs != null && (
+          <span
+            className="opt-bands-chip opt-bands-pace"
+            title="Wall time per solved point so far. How many points a run needs depends on when it converges, so this is a pace, not a countdown."
+          >
+            {fmtPace(paceMs)}
           </span>
         )}
       </div>
@@ -211,7 +238,10 @@ export function BandsReadout({
         <tbody>
           {result.bands_after.map((b, i) => (
             <tr key={`${b.freq_mhz}:${b.feed}`}>
-              <td>{fmtFreq(b.freq_mhz)}</td>
+              <td>
+                <Swatch index={b.index ?? i} />
+                {fmtFreq(b.freq_mhz)}
+              </td>
               <td>{fmtSwr(startOf(b, i)?.swr)}</td>
               <td>{fmtSwr(b.swr)}</td>
             </tr>

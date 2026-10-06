@@ -612,6 +612,7 @@ export function VfoPanel({
   zo,
   bands,
   optState,
+  optPaceMs,
 }: {
   currentBands: BandSpec[];
   measLocked: boolean;
@@ -663,6 +664,9 @@ export function VfoPanel({
   bands?: OptBandsControl | undefined;
   /** The optimizer's state for its readout (AK#1912). */
   optState?: OptStateControl | undefined;
+  /** A run's wall time per solved point, ms (AK 0.97.1); null before the
+   *  first frame. */
+  optPaceMs?: number | null | undefined;
 }) {
   // Long press = the touch route to the range menu. The knobs have no touch
   // path of their own: their menu rides the browser's contextmenu event,
@@ -825,6 +829,7 @@ export function VfoPanel({
             progress={optProgress}
             result={optResult}
             error={optError}
+            paceMs={optPaceMs ?? null}
           />
         )}
       </div>
