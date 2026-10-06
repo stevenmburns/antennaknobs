@@ -311,6 +311,50 @@ export function preselect(listed: ListedCross, env: CrossEnv): ChartCross {
   return { slots, grounds: pick(listed.grounds, env.grounds) };
 }
 
+/** The legend's note on what a pick ticked (AC6LA, QRZ, on v0.97.1:
+ *  "how is it that free space got added as a ground type when I switched
+ *  [to] height?"): while the chart's ticks are still exactly the ones the
+ *  pick preselected, and they are more than the active slot alone, it says
+ *  which slots the analysis ticked and why, so a box ticked for the viewer
+ *  is never a surprise. Null otherwise: nothing listed, nothing ticked
+ *  beyond the active slot, or the viewer has ticked since (they chose). An
+ *  engine pick that fell back to every slot is `skippedNote`'s to say. */
+export function pickNote(cross: ChartCross, listed: ListedCross, env: CrossEnv): string | null {
+  const pick = preselect(listed, env);
+  const same = (a: string[] | null, b: string[] | null) =>
+    a !== null && b !== null && a.length === b.length && a.every((id) => b.includes(id));
+  const say = (
+    specs: string[] | null,
+    ids: string[] | null,
+    ticked: string[] | null,
+    active: string,
+    slots: { id: string; label: string }[],
+    noun: "engines" | "grounds",
+    slotNoun: "solver" | "ground",
+  ): string | null => {
+    if (!specs || !ids || ids.length === 0 || !same(ids, ticked)) return null;
+    if (ids.length === 1 && ids[0] === active) return null;
+    const n = new Set(specs).size;
+    const named = slots.filter((s) => ids.includes(s.id)).map((s) => s.label);
+    return (
+      `This analysis compares ${n} ${n === 1 ? noun.slice(0, -1) : noun}, so picking it ticked ` +
+      `the ${slotNoun} slot${ids.length === 1 ? "" : "s"} that hold${ids.length === 1 ? "s" : ""} ` +
+      `${n === 1 ? "it" : "them"} (${named.join("; ")}). The session still solves on ${active}.`
+    );
+  };
+  const enginesFellBack = listed.cells
+    ? cellsFallback(listed, listed.cells, env)
+    : (listed.engines?.length ?? 0) > 0 && !listed.engines!.some((e) => env.slots.some((s) => s.holds(e)));
+  const parts = [
+    enginesFellBack
+      ? null
+      : say(listed.engines, pick.slots, cross.slots, env.activeSlot, env.slots, "engines", "solver"),
+    say(listed.grounds, pick.grounds, cross.grounds, env.activeGround, env.grounds, "grounds", "ground"),
+  ];
+  const out = parts.filter((p): p is string => p !== null);
+  return out.length > 0 ? out.join(" ") : null;
+}
+
 /** A `cells=` list's engine specs, one per cell: its own, else the
  *  analysis's one engine, else null (the chart's slot). */
 function cellEngines(listed: ListedCross, cells: ListedCell[]): (string | null)[] {

@@ -15,6 +15,7 @@ import {
   groundSpecHeld,
   type ListedCross,
   NOTHING_LISTED,
+  pickNote,
   preselect,
   refusedLines,
   servedCell,
@@ -584,5 +585,43 @@ describe("states", () => {
     ]);
     // The cell sweeps what was served for the state on that design.
     expect(servedCell(plan.cells[1], crossed)?.values).toEqual([0.8, 1.2]);
+  });
+});
+
+// AC6LA on QRZ (v0.97.1): picking the inverted vee's "height" ticked the
+// free-space slot beside the active Sommerfeld one and nothing said why.
+describe("the pick's note", () => {
+  const height = { engines: null, grounds: ["free", "finite:13,0.005", "finite:9,0.009"] };
+
+  it("says which ground slots a pick ticked, and that the session still solves on the active one", () => {
+    const e = env();
+    expect(pickNote(preselect(height, e), height, e)).toBe(
+      "This analysis compares 3 grounds, so picking it ticked the ground slots that hold them " +
+        "(X: finite:13,0.005; Y: free). The session still solves on X.",
+    );
+  });
+
+  it("goes once the viewer ticks something else: they chose", () => {
+    const e = env();
+    expect(pickNote({ slots: null, grounds: ["X"] }, height, e)).toBeNull();
+    expect(pickNote({ slots: null, grounds: ["X", "Y", "Z"] }, height, e)).toBeNull();
+  });
+
+  it("says nothing when the pick ticked only the active slot, or listed nothing", () => {
+    const e = env();
+    const one = { engines: null, grounds: ["finite:13,0.005"] };
+    expect(pickNote(preselect(one, e), one, e)).toBeNull();
+    expect(pickNote(FOLLOW_ACTIVE, NOTHING_LISTED, e)).toBeNull();
+  });
+
+  it("names the solver slots an engine pick ticked; a pick that fell back to every slot is skippedNote's", () => {
+    const e = env();
+    const two = { engines: ["momwire:bspline", "nec5"], grounds: null };
+    expect(pickNote(preselect(two, e), two, e)).toBe(
+      "This analysis compares 2 engines, so picking it ticked the solver slots that hold them " +
+        "(A: momwire:bspline; D: nec5). The session still solves on A.",
+    );
+    const none = { engines: ["nec2"], grounds: null };
+    expect(pickNote(preselect(none, e), none, e)).toBeNull();
   });
 });
