@@ -2907,10 +2907,17 @@ function DesignSessionBody({
       // [workbench.run_on_pick] says a pick runs it. Already this map: run
       // it (nothing will change to arm).
       const integer = (k: string) => zparamKnobs.find((z) => z.name === k)?.kind === "int";
-      const next = pickCross(
+      const picked = pickCross(
         pickMap(m.state, entry.name, w, { x: integer(w.x.param), y: integer(w.y.param) }),
         w,
       );
+      // One solver slot and one ground slot (decision 15): slots ticked for
+      // an earlier pick keep only their first.
+      const one = (ids: string[] | null) => (ids && ids.length > 1 ? [ids[0]] : ids);
+      const next: AnalysisChartState = {
+        ...picked,
+        cross: { slots: one(picked.cross.slots), grounds: one(picked.cross.grounds) },
+      };
       start("map", next, m.state.kind === "map" && pickedName(m.now) === entry.name && !pickedEdited(m.now));
       setChartAt(i, () => next);
       return;
@@ -4348,7 +4355,8 @@ function DesignSessionBody({
         ]
           .filter(Boolean)
           .join(" ") || null,
-      ...(pinRows.length > 0
+      // A map draws no pin (decision 11): its legend lists none over it.
+      ...(pinRows.length > 0 && !isMap
         ? { pins: pinRows, pinsRx: rxPlot(m), onKeepPins: keepPins, keepPinsBlocked }
         : {}),
       // R solid and X dashed per curve holds only with more than one live
