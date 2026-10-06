@@ -101,6 +101,29 @@ describe("parseAnalyses", () => {
     });
     expect(got[1].workbench).toEqual({ runs: false, why: "step 6" });
   });
+  it("a served map stays in the picker, greyed with its reason, until its chart lands", () => {
+    const got = parseAnalyses({
+      analyses: [
+        {
+          name: "tuning map",
+          workbench: {
+            runs: true,
+            kind: "map",
+            x: { param: "length_factor", values: [0.9, 1.0] },
+            y: { param: "angle_deg", values: [0, 60] },
+            refs: { r: [50], x: [0], swr: null },
+            views: ["Map"],
+            note: null,
+          },
+        },
+      ],
+    });
+    expect(got.map((a) => a.name)).toEqual(["tuning map"]);
+    expect(got[0].workbench).toEqual({
+      runs: false,
+      why: "the map chart: not in the workbench yet (sweep-framework step 5)",
+    });
+  });
   it("keeps an analysis's listed engines and grounds, and drops junk lists (AK#1757 unit 4)", () => {
     const got = parseAnalyses({
       analyses: [

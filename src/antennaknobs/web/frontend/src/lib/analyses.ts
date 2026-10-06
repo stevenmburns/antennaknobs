@@ -513,6 +513,12 @@ function parseWorkbench(w: unknown): AnalysisWorkbench | null {
     const note = typeof o.note === "string" && o.note ? o.note : null;
     if (o.kind === "frequency") return parseFrequency(o, note);
     if (o.kind === "pattern") return parsePattern(o, note);
+    // A two-knob map (/map, docs/design/sweep-framework-map.md): served
+    // since the map's server unit; the chart that draws it is a later unit,
+    // so until then the picker greys it as before, with its reason.
+    if (o.kind === "map") {
+      return { runs: false, why: "the map chart: not in the workbench yet (sweep-framework step 5)" };
+    }
     if (typeof o.param !== "string" || !Array.isArray(o.values)) return null;
     const values = o.values.filter(isNum);
     if (values.length === 0 || values.length !== o.values.length) return null;
