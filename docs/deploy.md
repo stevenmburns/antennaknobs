@@ -242,6 +242,9 @@ in `fly.toml`'s `[env]` if the VM grows:
 | `ANTENNAKNOBS_MAX_BASIS` | `7000` | dense momwire (bspline / sinusoidal) — full N×N |
 | `ANTENNAKNOBS_MAX_BASIS_COMPRESSED` | `9000` | `arrayblock` / `hmatrix` (block-low-rank, ~0.6× dense memory) |
 | `ANTENNAKNOBS_MAX_BASIS_PYNEC` | `7000` | PyNEC (full dense N×N, same as dense momwire) |
+| `ANTENNAKNOBS_MAX_SWEEP_POINTS` | `500` | points in one sweep request, refused (413) above it |
+| `ANTENNAKNOBS_MAX_SWEEP_SECONDS` | `120` | wall time of one sweep (`/sweep`, `/param_sweep`, `/converge`, a held sweep): past it the sweep stops at its next point and closes with `stopped: "time"` |
+| `ANTENNAKNOBS_MAX_OPT_SECONDS` | `120` | wall time of one several-band optimize run, answered with the best point so far |
 
 ## Opened decks (a visitor's own `.nec` / `.ssn`)
 
