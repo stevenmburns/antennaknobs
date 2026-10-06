@@ -222,24 +222,19 @@ def test_the_map_view_and_the_curve_views_refuse_the_other_sweep_shape():
     assert ar.skipped_views(mixed)[0].startswith("the Smith view of a two-sweep map")
 
 
-@pytest.mark.parametrize(
-    ("name", "refused"),
-    [("tuning family", False), ("tuning map", True), ("feed spelling (E7)", False)],
-)
-def test_step5_analyses_run_in_the_cli_and_the_map_stays_refused_in_the_workbench(
-    name, refused
-):
+@pytest.mark.parametrize("name", ["tuning family", "tuning map", "feed spelling (E7)"])
+def test_step5_analyses_run_in_the_cli_and_the_workbench(name):
     """The workbench draws crosses over planes, designs and families since
-    step 5 unit 4b; the two-sweep map is still refused there. E7 is a study
-    since step 7 (`studies.find`), read on its first design."""
+    step 5 unit 4b, and a single-grid map since the map units
+    (docs/design/sweep-framework-map.md). E7 is a study since step 7
+    (`studies.find`), read on its first design."""
     from antennaknobs import studies
     from antennaknobs.web import analyses_offer as ao
 
     b = get_builder("dipoles.invvee")()
     a = studies.find(name).analysis if name.endswith("(E7)") else ar.find(b, name)
     assert an.problems(a, b) == [] and ar.cli_gaps(a, b) == []
-    later = [g for g in ao.gaps(a) if "not in the workbench yet" in g]
-    assert bool(later) is refused, later
+    assert ao.gaps(a) == []
 
 
 # ── planes (E5) ────────────────────────────────────────────────────────────
