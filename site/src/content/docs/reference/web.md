@@ -125,13 +125,16 @@ take the server from everyone else:
 | Wires | 200 |
 | One solve (a live solve, a sweep point, an optimizer step) | 60 s |
 | One several-band optimize run | 120 s |
+| One sweep (frequency, knob, density or held) | 120 s |
 | Opened-deck solves at once, across all visitors | 1 |
 | New decks opened per minute, per visitor | 10 |
 
 A deck over a structure limit is refused when it opens, naming the card that
 crossed it. A solve that runs past 60 s is stopped and says so. A several-band
 optimize run that reaches 120 s stops and keeps the best point it has solved,
-saying so under its table. While another
+saying so under its table. A sweep that reaches 120 s stops at its next point
+and keeps the points it drew, saying *stopped at the time limit (120 s):
+partial*. While another
 visitor's deck is solving, yours answers **busy** at once rather than queueing
 behind it — try again in a minute. PyNEC is not offered for an opened deck on
 the hosted app (it cannot be stopped mid-solve); the momwire solvers are.
@@ -1265,7 +1268,9 @@ hosted instance **rejects** solves that would be too large for the shared box
 (you'll see a message in the error banner telling you to reduce N or pick a
 smaller design — or switch to the array-block / H-matrix engine for big arrays).
 The same instance also caps sweep lengths and optimizer eval budgets, well
-above anything the UI sends. This applies **only** to the shared hosted
+above anything the UI sends, and gives any one sweep 120 s of wall time: past
+it the sweep stops at its next point, keeps what it drew, and says *stopped at
+the time limit (120 s): partial*. This applies **only** to the shared hosted
 instance: a local install is **unlocked** (solve as big as your own machine
 allows, sweep as long as you like). See `docs/deploy.md`.
 :::
