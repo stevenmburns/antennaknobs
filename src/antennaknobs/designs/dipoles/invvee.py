@@ -113,14 +113,53 @@ class Builder(AntennaBuilder):
         (docs/design/sweep-framework-spec.md, AK#1757): E1, E3 and E2 as the
         spec page writes them, and E8/E9, a hold at every point (step 6:
         ``antennaknobs.hold``). E7 compares this design with another, so
-        it is a study, in ``studies/dipoles/apex_feed_on_invvee.py`` (step 7)."""
+        it is a study, in ``studies/dipoles/apex_feed_on_invvee.py`` (step 7).
+
+        Grouped (AK#1907), most important first: the list's order is the
+        groups' order and the order inside each."""
         lf = an.Sweep("length_factor", 0.90, 1.06, points=33)
         refs = an.Ref(r=(50, 75), x=(0,))
+        tuning = "Tuning"
+        height = "Height & ground"
+        states = an.Cross(
+            states=(
+                an.State("as built"),
+                an.State("low mast", base=5.0),
+                an.State("tall mast", base=12.0),
+            )
+        )
         return [
-            # E1: convergence on three engines.
-            an.convergence(
-                cross=an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec5")),
-                ground="finite:13,0.005",
+            # E2: tuning two knobs to a Z0.
+            an.Analysis(
+                "tuning family",
+                lf,
+                cross=an.Cross(step=an.Sweep("angle_deg", values=(0, 15, 30, 45, 60))),
+                references=refs,
+                group=tuning,
+            ),
+            an.Analysis(
+                "tuning map",
+                (lf, an.Sweep("angle_deg", 0, 60, points=25)),
+                views=(an.Map(),),
+                references=refs,
+                group=tuning,
+            ),
+            # E9: resonance held across the droop angle.
+            an.Analysis(
+                "resonance vs angle",
+                an.Sweep("angle_deg", 0, 60, points=25),
+                hold=an.Hold("resonance", adjust=("length_factor",)),
+                views=(an.Rx(), an.Knobs()),
+                references=an.Ref(r=(50,)),
+                group=tuning,
+            ),
+            # E8: the match held at every height, and the knobs that hold it.
+            an.Analysis(
+                "match vs height",
+                an.Sweep(an.HEIGHT, 2, 20, points=37),
+                hold=an.Hold("match_z0", adjust=("length_factor", "angle_deg"), z0=50),
+                views=(an.Rx(), an.Knobs()),
+                group=tuning,
             ),
             # E3: R/X against height, three grounds.
             an.Analysis(
@@ -128,19 +167,7 @@ class Builder(AntennaBuilder):
                 an.Sweep(an.HEIGHT, 2, 20, points=37),
                 cross=an.Cross(grounds=("free", "finite:13,0.005", "finite:5,0.001")),
                 references=an.Ref(r=(50,), x=(0,)),
-            ),
-            # E2: tuning two knobs to a Z0.
-            an.Analysis(
-                "tuning family",
-                lf,
-                cross=an.Cross(step=an.Sweep("angle_deg", values=(0, 15, 30, 45, 60))),
-                references=refs,
-            ),
-            an.Analysis(
-                "tuning map",
-                (lf, an.Sweep("angle_deg", 0, 60, points=25)),
-                views=(an.Map(),),
-                references=refs,
+                group=height,
             ),
             # States (AK#1757 step 7): the band's SWR at three mast heights,
             # each a named setting over this design's defaults, so the chart
@@ -150,14 +177,9 @@ class Builder(AntennaBuilder):
             an.band_swr(
                 name="height states",
                 sweep=an.Sweep(an.FREQUENCY, 27.5, 30.0, points=26),
-                cross=an.Cross(
-                    states=(
-                        an.State("as built"),
-                        an.State("low mast", base=5.0),
-                        an.State("tall mast", base=12.0),
-                    )
-                ),
+                cross=states,
                 ground="finite-fast",
+                group=height,
             ),
             # A pattern (AK#1757 step 7): what the same three heights do to
             # the take-off angle, one solve each at the design's frequency.
@@ -166,30 +188,16 @@ class Builder(AntennaBuilder):
             # ground slot as above: in free space the three are one pattern.
             an.patterns(
                 name="height patterns",
-                cross=an.Cross(
-                    states=(
-                        an.State("as built"),
-                        an.State("low mast", base=5.0),
-                        an.State("tall mast", base=12.0),
-                    )
-                ),
+                cross=states,
                 views=(an.Elevation(az=0), an.PatternTable()),
                 ground="finite-fast",
+                group=height,
             ),
-            # E8: the match held at every height, and the knobs that hold it.
-            an.Analysis(
-                "match vs height",
-                an.Sweep(an.HEIGHT, 2, 20, points=37),
-                hold=an.Hold("match_z0", adjust=("length_factor", "angle_deg"), z0=50),
-                views=(an.Rx(), an.Knobs()),
-            ),
-            # E9: resonance held across the droop angle.
-            an.Analysis(
-                "resonance vs angle",
-                an.Sweep("angle_deg", 0, 60, points=25),
-                hold=an.Hold("resonance", adjust=("length_factor",)),
-                views=(an.Rx(), an.Knobs()),
-                references=an.Ref(r=(50,)),
+            # E1: convergence on three engines.
+            an.convergence(
+                cross=an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec5")),
+                ground="finite:13,0.005",
+                group="Accuracy",
             ),
         ]
 

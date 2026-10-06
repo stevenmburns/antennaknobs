@@ -29,6 +29,9 @@ the decided spec, ``docs/design/sweep-framework-spec.md``:
   cut per sweep point, optionally relative to a named cell;
 - an optional `Hold` optimises at every sweep point: the knobs it adjusts
   are re-solved for one of the optimizer's objectives as x moves;
+- an analysis's ``group`` is the heading a long list shows it under
+  (AK#1907): the design's list order sets the groups' order and the order
+  inside each, and the generic analyses go last, under `GENERAL` (`grouped`);
 - `convergence`, `band_swr`, `knob` and `patterns` are the library: generic
   analyses any design composes. `offered` is a design's own list plus the library's
   generic ones that resolve on it.
@@ -1193,7 +1196,8 @@ class Analysis:
     """One analysis. ``sweep`` is a `Sweep`, or a pair of them for a map,
     or None for a pattern (one solve per cell, drawn by `PATTERN_VIEWS`);
     ``cross`` a `Cross` or a tuple of them (their product); ``ground`` /
-    ``engine`` None is the session's own."""
+    ``engine`` None is the session's own. ``group`` is the heading it is
+    listed under (AK#1907, `grouped`); None is `GENERAL`."""
 
     name: str
     sweep: Sweep | tuple[Sweep, Sweep] | None
@@ -1203,12 +1207,20 @@ class Analysis:
     ground: str | None = None
     engine: str | None = None
     hold: Hold | None = None
+    group: str | None = None
 
     _positional: ClassVar[tuple[str, ...]] = ("name", "sweep")
 
     def __post_init__(self):
         if not isinstance(self.name, str) or not self.name:
             raise TypeError(f"Analysis: name is a non-empty string, got {self.name!r}")
+        if self.group is not None and (
+            not isinstance(self.group, str) or not self.group.strip()
+        ):
+            raise TypeError(
+                f"Analysis {self.name!r}: group is a non-empty string or None, "
+                f"got {self.group!r}"
+            )
         sweeps = self.sweeps
         if self.sweep is not None and (
             not 1 <= len(sweeps) <= 2 or not all(isinstance(s, Sweep) for s in sweeps)
@@ -1450,13 +1462,56 @@ def offered(builder) -> tuple[Analysis, ...]:
     """A design's analyses: its own ``build_analyses()``, then the library's
     generic ones that resolve on it -- `convergence` and `band_swr` always, a
     height sweep when a height knob is declared. A design's own analysis
-    shadows a generic one of the same name."""
+    shadows a generic one of the same name. In `grouped` order: each group
+    together, the design's own order kept inside it."""
     own = tuple(builder.build_analyses())
     names = {a.name for a in own}
     generic = [convergence(), band_swr()]
     if resolve(HEIGHT, builder).knob is not None:
         generic.append(Analysis("height", Sweep(HEIGHT)))
-    return own + tuple(a for a in generic if a.name not in names)
+    listed = own + tuple(a for a in generic if a.name not in names)
+    return tuple(a for _, members in grouped(listed) for a in members)
+
+
+# ── groups (AK#1907) ───────────────────────────────────────────────────────
+
+#: The heading of an analysis that names no group: the library's generic
+#: ones, unless a design lists one of them under a group of its own.
+GENERAL = "General"
+
+#: A list this long or shorter is shown without headings: one heading per
+#: entry or two is noise, and it keeps most of the catalog as it was.
+GROUPS_FROM = 4
+
+
+def group_of(analysis: Analysis) -> str:
+    """The heading ``analysis`` is listed under: its ``group``, else
+    `GENERAL`."""
+    return analysis.group or GENERAL
+
+
+def grouped(analyses) -> list[tuple[str, list]]:
+    """``analyses`` as ``[(heading, [analysis, ...]), ...]``: the groups in
+    the order the list first names them (the first is the most important),
+    each holding its members in list order. `GENERAL` goes last unless an
+    analysis names it explicitly, which places it where it is named: the
+    generic analyses are what every design has, so they follow what is the
+    design's own."""
+    order: list[str] = []
+    for a in analyses:
+        if a.group is not None and a.group not in order:
+            order.append(a.group)
+    if GENERAL not in order:
+        order.append(GENERAL)
+    out = [(g, [a for a in analyses if group_of(a) == g]) for g in order]
+    return [(g, members) for g, members in out if members]
+
+
+def shows_groups(analyses) -> bool:
+    """Whether a list of ``analyses`` is shown with its headings: at least
+    `GROUPS_FROM` of them, in more than one group."""
+    analyses = list(analyses)
+    return len(analyses) >= GROUPS_FROM and len(grouped(analyses)) > 1
 
 
 def cells_of(analysis: Analysis) -> tuple[Cell, ...]:

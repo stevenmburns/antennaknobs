@@ -286,11 +286,18 @@ def _own_range_words(s: an.Sweep, builder) -> str:
 
 def list_lines(builder) -> list[str]:
     """``analyze --list``: one line per offered analysis, with every reason
-    it cannot run here."""
+    it cannot run here; under its group's heading when the list is long
+    enough to have them (AK#1907, `analyses.shows_groups`)."""
     offered = an.offered(builder)
     width = max((len(a.name) for a in offered), default=0)
+    headed = an.shows_groups(offered)
     lines = []
+    group = None
     for a in offered:
+        if headed and an.group_of(a) != group:
+            # `offered` holds each group together, so a heading per change.
+            group = an.group_of(a)
+            lines.append(f"[{group}]")
         probs = an.problems(a, builder) + cli_gaps(a, builder)
         lines.append(f"{a.name:<{width}}  {summary(a, builder)}")
         for p in probs:

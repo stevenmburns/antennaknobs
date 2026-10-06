@@ -785,6 +785,8 @@ def _entry(a: an.Analysis, builder, req: Mapping, hosted: bool) -> dict:
         _serve_functions(a)
     return {
         "name": a.name,
+        # The heading it is listed under (AK#1907): None is the library's.
+        "group": an.group_of(a),
         "summary": ar.summary(a, builder),
         "code": an.code_with_imports(a),
         "spec": an.to_data(a),
