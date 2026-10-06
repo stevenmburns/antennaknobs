@@ -73,9 +73,12 @@ def test_every_entry_has_the_documented_shape(invvee):
             "workbench",
             "study",
             "group",
+            "origin",
         }
         # A study (AK#1757 step 7) says so; the design's own say None.
         assert (a["study"] is not None) is (":" in a["name"]), a["name"]
+        # Where it comes from (AK#1935).
+        assert a["origin"] in (("study",) if a["study"] else ("design", "generic"))
         assert a["code"].startswith("an.")
         w = a["workbench"]
         if w["runs"] and w["kind"] == "frequency":
