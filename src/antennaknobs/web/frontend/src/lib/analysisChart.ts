@@ -33,7 +33,7 @@ import type {
 } from "./analyses";
 import { analysisSpec, frequencyPick } from "./analyses";
 import type { MapQuantity, MapRefs } from "./mapGrid";
-import { type ChartCross, FOLLOW_ACTIVE, type ListedCross, NOTHING_LISTED } from "./chartCells";
+import { type ChartCross, CURVE_CAP, FOLLOW_ACTIVE, type ListedCross, NOTHING_LISTED } from "./chartCells";
 import {
   DEFAULT_DENSITY_SPEC,
   DENSITY,
@@ -91,14 +91,136 @@ export type MapChartState = {
 };
 
 /** What a chart showing a pattern holds of its own: the analysis's views,
- *  in its order, and the one on screen (an index into them). */
-export type PatternChartState = { views: PatternViewSpec[]; view: number };
+ *  in its order, and the one on screen (an index into them). `family`: the
+ *  "Sweep a knob" chart's own pattern family (AK#1935), not a picked
+ *  analysis: one pattern per value of the chart's knob spec (`knob.spec`,
+ *  edited in place as the knob sweep's range is), a step cross the session
+ *  builds from it (`familyListed`). */
+export type PatternChartState = { views: PatternViewSpec[]; view: number; family?: boolean };
 
 /** A pattern view's words, as the chart's view menu names it. */
 export function patternViewLabel(v: PatternViewSpec): string {
   if (v.view === "Elevation") return `Elevation @ ${v.az}° az`;
   if (v.view === "Azimuth") return `Azimuth @ ${v.el}° el`;
   return "Table";
+}
+
+/** The pattern views a knob's family draws (AK#1935): `an.patterns()`'s own,
+ *  the elevation cut along +x, the azimuth cut at 10°, and the table, so a
+ *  family copied as an analysis draws what the chart drew. */
+export const FAMILY_PATTERN_VIEWS: readonly PatternViewSpec[] = [
+  { view: "Elevation", az: 0 },
+  { view: "Azimuth", el: 10 },
+  { view: "PatternTable" },
+];
+
+/** The knob a family over the measurement frequency names (AK#1935): the
+ *  request's `freq`, as `an.FREQUENCY` resolves. Never a knob sweep's (the
+ *  knob sweep sweeps no frequency knob); only a family's. */
+export const FAMILY_FREQ = "freq";
+
+/** The most values a family steps: the chart's curve cap (AK#1935 v1; more
+ *  overlapping patterns are unreadable). Its points field refuses more, and
+ *  entering a family from a longer knob sweep clamps to it. */
+export const FAMILY_CAP = CURVE_CAP;
+
+/** Whether the chart shows the knob chart's own pattern family. */
+export function chartFamily(c: AnalysisChartState): boolean {
+  return c.kind === "pattern" && !!c.pattern?.family;
+}
+
+/** Whether a knob chart can turn into a family of patterns over its knob:
+ *  the "Sweep a knob" chart (no analysis picked: a picked one draws its own
+ *  crosses, metric or hold, which a family would drop), over any knob but
+ *  the density ladder (`analyze` refuses a family over the density knob,
+ *  `density_moved`). */
+export function familyOffered(c: AnalysisChartState): boolean {
+  if (chartFamily(c)) return true;
+  return c.kind === "knob" && pickedName(c) === null && c.knob.spec.param !== DENSITY;
+}
+
+/** A knob spec as a family steps it: at most FAMILY_CAP values (an
+ *  explicit ladder longer than that is dropped for the range's own). */
+export function familySpec(spec: ParamSweepSpec): ParamSweepSpec {
+  if (spec.values && spec.values.length <= FAMILY_CAP) return spec;
+  const { values: _values, ...rest } = spec;
+  void _values;
+  return { ...rest, points: Math.min(rest.points, FAMILY_CAP) };
+}
+
+/** A linear family's step: the span over its gaps, or null for a log
+ *  family (a fixed ratio, not a step) or one of a single value. */
+export function familyStep(spec: ParamSweepSpec): number | null {
+  if (spec.log || spec.values || spec.points < 2) return null;
+  return Number(((spec.hi - spec.lo) / (spec.points - 1)).toPrecision(12));
+}
+
+/** A step-size edit of a linear family (AK#1935, Steve: "starting and
+ *  ending values and step size"): the values are from, from + step, … up
+ *  to `to` and never past it. A step that does not divide the span moves
+ *  `to` down onto the last value it reaches (5 → 20 by 4 is 5, 9, 13, 17,
+ *  and `to` reads 17), so the range, its points and the values drawn are
+ *  always one ladder. Refused (`problem`) when it gives fewer than two
+ *  values or more than `cap`. */
+export function stepEdit(
+  spec: ParamSweepSpec,
+  step: number,
+  cap: number = FAMILY_CAP,
+): { spec: ParamSweepSpec; problem: null } | { spec: null; problem: string } {
+  const span = spec.hi - spec.lo;
+  const size = Math.abs(step);
+  if (!(size > 0) || !Number.isFinite(size)) return { spec: null, problem: "a step above 0" };
+  // A hair of slack, so a step that divides the span exactly in decimal
+  // (0.1 over 0.3) reaches `to` despite binary rounding.
+  const gaps = Math.floor(Math.abs(span) / size + 1e-9);
+  const n = gaps + 1;
+  if (n < 2) return { spec: null, problem: `at most ${Math.abs(span)}` };
+  if (n > cap) {
+    const least = Number((Math.abs(span) / (cap - 1)).toPrecision(6));
+    return { spec: null, problem: `≥ ${least} (${cap} values at most)` };
+  }
+  const signed = span < 0 ? -size : size;
+  const hi = Number((spec.lo + gaps * signed).toPrecision(12));
+  const { values: _values, ...rest } = spec;
+  void _values;
+  return { spec: { ...rest, hi, points: n, log: false }, problem: null };
+}
+
+/** A family cell's label part, `knob = value`: the CLI's `step_label`
+ *  (Python's `{v:g}`, six significant digits), so the chart and
+ *  `antennaknobs analyze` label a family alike. */
+export function familyLabel(knob: string, value: number): string {
+  return `${knob} = ${formatG(value)}`;
+}
+
+/** Python's `format(v, "g")`: six significant digits, trailing zeros
+ *  dropped, an exponent outside 1e-4 … 1e6. */
+export function formatG(v: number): string {
+  if (!Number.isFinite(v)) return String(v);
+  if (v === 0) return "0";
+  const exp = Math.floor(Math.log10(Math.abs(Number(v.toPrecision(6)))));
+  if (exp < -4 || exp >= 6) {
+    const [m, e] = v.toExponential(5).split("e");
+    const mant = m.includes(".") ? m.replace(/0+$/, "").replace(/\.$/, "") : m;
+    const n = Number(e);
+    return `${mant}e${n < 0 ? "-" : "+"}${String(Math.abs(n)).padStart(2, "0")}`;
+  }
+  return String(Number(v.toPrecision(6)));
+}
+
+/** The family's step cross, as /analyses serves a step (`_step_entry`):
+ *  the knob each cell sets, its values, and each cell's label. `values` is
+ *  the knob spec's ladder (the session's `paramValues`). Null when the
+ *  chart shows no family. */
+export function familyListed(c: AnalysisChartState, values: readonly number[]): ListedCross | null {
+  if (!chartFamily(c)) return null;
+  const knob = c.knob.spec.param;
+  return {
+    engines: null,
+    grounds: null,
+    axes: ["step"],
+    step: { knob, values: [...values], labels: values.map((v) => familyLabel(knob, v)) },
+  };
 }
 
 /** An analysis's views first, then the rest of the frequency views. */
@@ -283,6 +405,10 @@ export function chartDwell(c: AnalysisChartState, defaults: DwellDefaults): bool
   // solves, so it waits for Run unless the viewer flips this chart's
   // switch on.
   if (c.kind === "map") return false;
+  // A knob's family of patterns (AK#1935) is the knob chart's, a solve per
+  // value of its knob: it waits for Run as that knob sweep does, by the
+  // knob sweep's default.
+  if (chartFamily(c)) return defaults.knob;
   // A pattern is one solve per cell, as cheap as the live solve's: it
   // follows the knobs as a frequency sweep does.
   return c.kind === "knob" ? defaults.knob : defaults.frequency;
@@ -313,12 +439,18 @@ export function pickRuns(w: AnalysisWorkbench, runOnPick: Record<RunOnPickKind, 
 
 export function chartViews(c: AnalysisChartState): readonly ChartView[] {
   if (c.kind === "map") return ["Map"];
+  // The knob chart's family (AK#1935): its pattern views after the knob
+  // sweep's, so R / X is one pick away.
+  if (chartFamily(c)) return [...KNOB_VIEWS, ...FAMILY_PATTERN_VIEWS.map((_, k) => patternViewId(k))];
   if (c.kind === "pattern") return (c.pattern?.views ?? []).map((_, k) => patternViewId(k));
   if (c.kind === "knob") {
     // A picked MetricPlot adds "Metric" (AK#1828), a picked hold "Knobs"
     // (AK#1757 step 6).
     const base = chartHold(c) ? HELD_VIEWS : KNOB_VIEWS;
-    return chartMetric(c) ? [...base, "Metric"] : base;
+    const own = chartMetric(c) ? [...base, "Metric" as const] : base;
+    // Any knob can be drawn as a family of patterns over its values
+    // (AK#1935): the pattern views follow the knob sweep's.
+    return familyOffered(c) ? [...own, ...FAMILY_PATTERN_VIEWS.map((_, k) => patternViewId(k))] : own;
   }
   return c.frequency?.views ?? FREQUENCY_VIEWS;
 }
@@ -362,6 +494,24 @@ export function chartPatternView(c: AnalysisChartState): PatternViewSpec | null 
 export function setChartView(c: AnalysisChartState, v: ChartView): AnalysisChartState {
   if (!chartViews(c).includes(v)) return c;
   if (c.kind === "map") return c;
+  const pattern = v.startsWith("pattern:");
+  // Into a family (AK#1935): the knob chart's knob and range become a step
+  // cross, one pattern per value, capped. Offered only on the "Sweep a knob"
+  // chart (`familyOffered`), so there is no pick to leave; `picked` is
+  // cleared all the same, so a knob chart that had merely left one never
+  // carries it in.
+  if (c.kind === "knob" && pattern) {
+    return {
+      ...c,
+      kind: "pattern",
+      picked: null,
+      knob: { ...c.knob, spec: familySpec(c.knob.spec), hold: null },
+      pattern: { views: [...FAMILY_PATTERN_VIEWS], view: Number(v.slice("pattern:".length)), family: true },
+    };
+  }
+  // Out of a family onto a knob view: the knob sweep of the same knob and
+  // range.
+  if (chartFamily(c) && !pattern) return { ...c, kind: "knob", knob: { ...c.knob, view: v as KnobView } };
   if (c.kind === "pattern") {
     return c.pattern ? { ...c, pattern: { ...c.pattern, view: Number(v.slice("pattern:".length)) } } : c;
   }

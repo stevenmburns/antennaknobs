@@ -3505,7 +3505,9 @@ def keep_endpoint(req: dict):
     """What "copy as analysis" and "keep as study" put on the clipboard
     (AK#1757 step 7, unit 4; ``antennaknobs.keep``). In: ``{origin, form,
     name?, notes?}`` and, for a chart (``origin`` "chart"), ``{spec, tab,
-    cells?, values?}`` (``spec`` the analysis ``/analyses`` served, as data;
+    cells?, values?}`` or, for a knob chart's pattern family (AK#1935),
+    ``{family: {knob, lo, hi, points, spacing, values?}, tab, cells?}``
+    (``spec`` the analysis ``/analyses`` served, as data;
     ``tab`` the tab's solve request; ``cells`` its curves' solve requests,
     whose engines and grounds it drew), for pins (``"sweep pins"`` /
     ``"pattern pins"``) ``{pins: [{req, x?, xs?, label?}]}``, ``req`` the

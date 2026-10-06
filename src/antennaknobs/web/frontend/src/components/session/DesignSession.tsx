@@ -219,6 +219,7 @@ import {
   type KnobView,
   type ChartView,
   chartDwell,
+  chartFamily,
   chartHold,
   chartForNewDesign,
   chartFrequencyRange,
@@ -230,6 +231,10 @@ import {
   chartViews,
   type DwellDefaults,
   editRange,
+  FAMILY_FREQ,
+  FAMILY_PATTERN_VIEWS,
+  familyListed,
+  familySpec,
   frequencyRx,
   initialChart,
   pickedEdited,
@@ -1136,8 +1141,15 @@ function DesignSessionBody({
     frequency: uiDefaults.switches.freq_sweep,
     knob: uiDefaults.switches.convergence_sweep,
   };
+  // A knob spec edit. On a knob's family of patterns (AK#1935) it edits the
+  // family's knob and range in place (its values capped), and the chart
+  // stays the family.
   const setZparamSpecAt = (i: number, spec: ParamSweepSpec) =>
-    setChartAt(i, (c) => ({ ...c, kind: "knob", knob: { ...c.knob, spec } }));
+    setChartAt(i, (c) =>
+      chartFamily(c)
+        ? { ...c, knob: { ...c.knob, spec: familySpec(spec) } }
+        : { ...c, kind: "knob", knob: { ...c.knob, spec } },
+    );
   const setZparamXLogAt = (i: number, xLog: boolean | null) =>
     setChartAt(i, (c) => ({ ...c, knob: { ...c.knob, xLog } }));
   const setZparamAxisAt = (i: number, axis: "r" | "x", choice: RxAxisChoice) =>
@@ -1648,8 +1660,14 @@ function DesignSessionBody({
         if (k === "design_freq" && typeof v === "number") base.design_freq_mhz = v;
       }
     }
-    // A family cell's step (unit 4b): its knob at its value.
-    if (over.step) (base as Record<string, unknown>)[over.step.knob] = over.step.value;
+    // A family cell's step (unit 4b): its knob at its value. A family over
+    // the measurement frequency (AK#1935) sets the request's own field too,
+    // which the server reads the measurement frequency from, as a state's
+    // `freq` does above.
+    if (over.step) {
+      (base as Record<string, unknown>)[over.step.knob] = over.step.value;
+      if (over.step.knob === FAMILY_FREQ) base.measurement_freq_mhz = over.step.value;
+    }
     // hexbeam_5band's daisy_chain (single common feed) is now modelled with
     // build_network(), which the shared NetworkReducer solves on momwire and
     // PyNEC alike — so it is no longer greyed out or forced off on momwire.
@@ -2549,10 +2567,26 @@ function DesignSessionBody({
   // falls back to density, so a chart's spec never names a knob the request
   // does not carry (deriveChart).
   const zparamKnobs = sweepableKnobs(currentSchema);
+  // What a knob's family of patterns can step (AK#1935): every knob the
+  // knob sweep can, and the measurement frequency (patterns across the
+  // band), which a pattern cell sets on its own request.
+  const familyKnobs = [
+    ...zparamKnobs.map((k) => ({ name: k.name, label: k.label })),
+    { name: FAMILY_FREQ, label: "frequency (MHz)" },
+  ];
   // A knob's default spec from its own range and value; density's is the
   // literal ladder.
   const zparamDefaultFor = (param: string): ParamSweepSpec => {
     if (param === DENSITY) return DEFAULT_DENSITY_SPEC;
+    // A family over the measurement frequency (AK#1935): the band the
+    // measurement frequency is in, its bottom, middle and top, the three
+    // patterns a beam is judged by; with no band there, the chart's own
+    // frequency range.
+    if (param === FAMILY_FREQ) {
+      const band = currentBands.find((b) => measFreq >= b.min_mhz && measFreq <= b.max_mhz);
+      const r = band ? { lo: band.min_mhz, hi: band.max_mhz } : chartBaseRange;
+      return { param, lo: r.lo, hi: r.hi, points: 3, log: false };
+    }
     const knob = zparamKnobs.find((k) => k.name === param);
     const cur = currentValues[param];
     return knob ? defaultKnobSpec(knob, typeof cur === "number" ? cur : 1) : DEFAULT_DENSITY_SPEC;
@@ -2659,12 +2693,28 @@ function DesignSessionBody({
   // request, whose `auto` is the chart's dwell switch, and the frequency
   // sweep's range and switch), and its cross: the cells, the runnable ones
   // in order, and one runner input per runnable cell.
+  // What a chart's cells come from: the picked analysis's crosses
+  // (chartListed), or a knob's family of patterns' step cross (AK#1935),
+  // over the values its knob spec makes (`values`: the chart's own ladder).
+  const listedFor = (c: AnalysisChartState, values?: readonly number[]): ListedCross =>
+    familyListed(c, values ?? knobLadder(c.knob.spec)) ?? chartListed(c);
+  // A knob spec's values, as the chart solves them: an int knob (and the
+  // density ladder) rounded to whole values; a family's frequency never.
+  const knobLadder = (spec: ParamSweepSpec): number[] =>
+    paramLadder(
+      spec,
+      spec.param === DENSITY || zparamKnobs.find((k) => k.name === spec.param)?.kind === "int",
+    );
   const deriveChart = (i: number, state: AnalysisChartState) => {
     const knob = zparamKnobs.find((k) => k.name === state.knob.spec.param) ?? null;
-    const spec = state.knob.spec.param === DENSITY || knob ? state.knob.spec : DEFAULT_DENSITY_SPEC;
+    // A family over the measurement frequency (AK#1935) steps `freq`, which
+    // no knob sweep sweeps; only a family keeps it.
+    const freqFamily = chartFamily(state) && state.knob.spec.param === FAMILY_FREQ;
+    const spec =
+      state.knob.spec.param === DENSITY || knob || freqFamily ? state.knob.spec : DEFAULT_DENSITY_SPEC;
     const isDensity = spec.param === DENSITY;
     const values = paramLadder(spec, isDensity || knob?.kind === "int");
-    const label = isDensity ? "N" : (knob?.label ?? spec.param);
+    const label = isDensity ? "N" : freqFamily ? "frequency (MHz)" : (knob?.label ?? spec.param);
     const now: AnalysisChartState = { ...state, knob: { ...state.knob, spec } };
     const viewId = CHART_VIEW_IDS[i];
     const resident = isResident(viewId);
@@ -2675,7 +2725,7 @@ function DesignSessionBody({
       values,
       label,
     });
-    const listedNow = chartListed(now);
+    const listedNow = listedFor(now, values);
     const plan = planOf(now.cross, listedNow);
     const drawn = plan.cells.filter(drawable);
     // A design cell of a knob sweep sweeps that design's own parameter and
@@ -2860,7 +2910,7 @@ function DesignSessionBody({
   ) => {
     const m = chartModels[i];
     if (!m) return;
-    const nextCells = planOf(next.cross, chartListed(next)).cells.filter(drawable);
+    const nextCells = planOf(next.cross, listedFor(next)).cells.filter(drawable);
     allRunnersOf[i].forEach((r, k) => {
       const runner =
         kind === "freq" ? r.freq : kind === "param" ? r.param : kind === "map" ? r.map : r.pattern;
@@ -2884,7 +2934,7 @@ function DesignSessionBody({
   ) => {
     const m = chartModels[i];
     if (!m) return;
-    const nextCells = planOf(next.cross, chartListed(next)).cells.filter(drawable);
+    const nextCells = planOf(next.cross, listedFor(next)).cells.filter(drawable);
     allRunnersOf[i].forEach((r, k) => {
       if (same && m.resident && k < nextCells.length && m.drawn[k]?.key === nextCells[k].key) return;
       (kind === "freq" ? r.freq : kind === "param" ? r.param : kind === "map" ? r.map : r.pattern).hold();
@@ -3354,7 +3404,10 @@ function DesignSessionBody({
     deck: isDeck(geometry) ? (deckFor(geometry) ?? null) : null,
     variant: currentVariant === (currentExample?.variants?.[0] ?? "default") ? null : currentVariant,
     analysis: m ? pickedNameOf(m) : null,
-    view: m ? chartView(m.state) : null,
+    // A knob's family of patterns (AK#1935) is no analysis a link can name,
+    // and its knob and range do not ride in one: its view would open on
+    // nothing, so the link leaves it out.
+    view: m && !chartFamily(m.state) ? chartView(m.state) : null,
   });
   const urlState = linkStateOf(chartModels[0]);
   const urlSearch =
@@ -4088,14 +4141,15 @@ function DesignSessionBody({
         setAt((c) => pickOwnFrequency(c, chartSeed));
       },
       ...(zparamKnobs.length > 0 ? { onSweepKnob: () => sweepKnob(knobToSweep(m), i) } : {}),
-      sweepingKnob: m.state.kind === "knob" && pickedNow === null && !m.isDensity,
+      // A knob's family of patterns (AK#1935) is still "Sweep a knob".
+      sweepingKnob: (m.state.kind === "knob" || chartFamily(m.state)) && pickedNow === null && !m.isDensity,
     };
     // A tick is asking for the curves it adds or moves: arm the runners
     // whose cell changes, and only those, so an unchanged curve neither
     // re-runs nor carries an ask over to some later change.
     const setCross = (cross: ChartCross) => {
       const next: AnalysisChartState = { ...m.now, cross };
-      const cells = planOf(cross, chartListed(next)).cells.filter(drawable);
+      const cells = planOf(cross, listedFor(next)).cells.filter(drawable);
       const all = allRunnersOf[i];
       cells.forEach((c, k) => {
         if (m.drawn[k]?.key !== c.key) {
@@ -4221,6 +4275,11 @@ function DesignSessionBody({
     // the viewer ticked slots, so an analysis naming no engine stays so), and
     // its x values when the viewer edited the range.
     const keepPicked = pickedNow !== null ? (zparamAnalyses.find((a) => a.name === pickedNow) ?? null) : null;
+    // A knob's family of patterns (AK#1935) is no picked analysis: it keeps
+    // as the family it draws, `an.patterns(cross=an.Cross(step=an.Sweep(
+    // knob, lo, hi, points=n)))` (keep.analysis_from_family), with the
+    // values it solved so an int knob's rounded ladder is kept exactly.
+    const familyNow = chartFamily(m.now);
     const noPick =
       "Pick an analysis first: the chart's own sweep is not one (pin its curves to keep them)";
     const copyBlocked =
@@ -4248,8 +4307,32 @@ function DesignSessionBody({
         ? "Run the edited range first: a study keeps the points it solved"
         : null;
     const openChartKeep = (form: "analysis" | "study") => {
-      if (!keepPicked) return;
       const ticked = m.now.cross.slots !== null || m.now.cross.grounds !== null;
+      if (familyNow) {
+        setKeeping({
+          title: form === "analysis" ? "Copy as analysis" : "Keep as study",
+          body: {
+            origin: "chart",
+            form,
+            spec: null,
+            family: {
+              knob: m.spec.param,
+              lo: m.spec.lo,
+              hi: m.spec.hi,
+              points: m.spec.points,
+              spacing: m.spec.log ? "log" : "lin",
+              values: [...m.values],
+            },
+            tab: keepRequest(buildRequest()),
+            ...(form === "study" || ticked
+              ? { cells: m.runs.map((r) => keepRequest(buildCellRequest(r.cell))) }
+              : {}),
+          },
+          initialName: `patterns over ${m.spec.param === FAMILY_FREQ ? "frequency" : m.spec.param}`,
+        });
+        return;
+      }
+      if (!keepPicked) return;
       const body: KeepBody = {
         origin: "chart",
         form,
@@ -4286,9 +4369,9 @@ function DesignSessionBody({
           : { pin: { onPin: () => addSweepPins(pinsFromCurves(pinnable, chartZ0)), blocked: pinBlocked } }),
       keep: {
         onCopy: () => openChartKeep("analysis"),
-        copyBlocked: keepPicked ? copyBlocked : noPick,
+        copyBlocked: familyNow ? m.plan.capRefusal : keepPicked ? copyBlocked : noPick,
         onKeep: () => openChartKeep("study"),
-        keepBlocked: keepPicked ? keepValuesBlocked : noPick,
+        keepBlocked: familyNow ? m.plan.capRefusal : keepPicked ? keepValuesBlocked : noPick,
       },
       onCopyLink: () => copyChartLink(m),
       ...(charts.some((c) => c === null) ? { onDuplicate: () => duplicateChart(i) } : {}),
@@ -4326,7 +4409,7 @@ function DesignSessionBody({
     // reference of a relative plot named as one (AK#1867) in the legend,
     // the Table's column groups and the plot's own curves alike.
     const metricSpec = chartMetric(m.now);
-    const listedHere = chartListed(m.now);
+    const listedHere = listedFor(m.now, m.values);
     const caption = (c: ChartCell) =>
       metricCaption(c.label, metricSpec, !!servedCell(c, listedHere)?.reference);
     // The other curves, in their legend colours.
@@ -4395,14 +4478,40 @@ function DesignSessionBody({
     };
     const setFrequency = (patch: Partial<NonNullable<AnalysisChartState["frequency"]>>) =>
       setAt((c) => (c.frequency ? { ...c, frequency: { ...c.frequency, ...patch } } : c));
+    // A view pick. A pattern view on a knob chart turns it into that knob's
+    // family of patterns (AK#1935): a pick, which runs as
+    // [workbench.run_on_pick]'s `pattern` says (off: it waits for Run). Off
+    // a family over the frequency onto a knob view, the knob sweep cannot
+    // sweep the frequency: it sweeps the last knob swept (else the first).
+    const onChartView = (v: ChartView) => {
+      const pattern = v.startsWith("pattern:");
+      if (pattern && m.state.kind === "knob") {
+        const next = setChartView(m.state, v);
+        if (next === m.state) return;
+        (runOnPick.pattern ? runPicked : holdPicked)(i, "pattern", next, false);
+        setAt(() => next);
+        return;
+      }
+      if (!pattern && chartFamily(m.state) && m.state.knob.spec.param === FAMILY_FREQ) {
+        const k = zparamKnobs.find((z) => z.name === lastKnob)?.name ?? zparamKnobs[0]?.name ?? DENSITY;
+        setAt((c) => setChartView(c, v));
+        setZparamSpecAt(i, zparamDefaultFor(k));
+        return;
+      }
+      setAt((c) => setChartView(c, v));
+    };
     // The chart's view (Rx / Swr / S11 / Smith, as many as its kind can
     // draw), and on the Smith chart the measured .s1p overlay the Smith view
     // carried (issue #595): chart controls, on the chart (unit 3).
     const viewPick = {
       views: chartViews(m.state),
       view: chartView(m.state),
-      onView: (v: ChartView) => setAt((c) => setChartView(c, v)),
-      ...(m.state.pattern ? { patternViews: m.state.pattern.views } : {}),
+      onView: (v: ChartView) => onChartView(v),
+      // A knob chart offers its family's pattern views (AK#1935) before it
+      // holds any pattern of its own.
+      ...(m.state.pattern && m.state.kind === "pattern"
+        ? { patternViews: m.state.pattern.views }
+        : { patternViews: FAMILY_PATTERN_VIEWS }),
       measured:
         chartView(m.state) === "Smith"
           ? {
@@ -4533,10 +4642,38 @@ function DesignSessionBody({
           solved: runners.filter((r) => !!r.pattern.data?.result).length,
           total: runners.length,
           stale: runners.some((r) => !!r.pattern.data?.stale),
+          // Over the curve cap nothing is drawn: Run says why (the legend
+          // carries the same refusal).
+          blocked: m.plan.capRefusal,
           onStop: ctl.stopPattern,
           onRun: ctl.runPatternNow,
         }}
         chrome={chrome}
+        family={
+          chartFamily(m.state)
+            ? {
+                spec: m.spec,
+                knobs: familyKnobs,
+                values: m.values,
+                // An edit of the family's range is asking for it: arm it.
+                onSpec: (next) => {
+                  ctl.armPattern();
+                  setZparamSpecAt(i, next);
+                },
+                onParam: (param) => {
+                  if (param !== DENSITY && param !== FAMILY_FREQ) setLastKnob(param);
+                  ctl.armPattern();
+                  setZparamSpecAt(i, zparamDefaultFor(param));
+                  setZparamXLogAt(i, null);
+                },
+                onReset: () => {
+                  ctl.armPattern();
+                  setZparamSpecAt(i, zparamDefaultFor(m.spec.param));
+                },
+                isDefault: sameSpec(m.spec, familySpec(zparamDefaultFor(m.spec.param))),
+              }
+            : null
+        }
       />
     ) : freqState ? (
       <FrequencyChartControls

@@ -93,8 +93,9 @@ chart multiplies with its slots into one curve per cell as
   one design entry per design when an unnamed state multiplies with a
   designs cross;
 - ``step``: ``{knob, values, labels}``, a family: the knob each cell sets,
-  its values (coerced as ``/param_sweep`` coerces), and each cell's label
-  part (`analysis_run.step_label`);
+  its values (coerced as ``/param_sweep`` coerces; a family over the
+  measurement frequency, ``knob`` "freq", is served as MHz above zero,
+  AK#1935), and each cell's label part (`analysis_run.step_label`);
 - ``cells``: ``[{label, state, engine, ground, plane, refused, param,
   values, range, freqs}]`` (step 7 unit 4), a ``cells=`` cross's listed
   cells, in order: a UNION the chart draws one curve per entry of, never
@@ -127,6 +128,7 @@ Framework-free, so it is tested without a server.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from pathlib import PurePath
 
@@ -530,13 +532,34 @@ def _has_variant(cls, variant: str) -> bool:
     )
 
 
+def _frequency_values(raw) -> list[float]:
+    """A frequency family's MHz, or `ParamSweepError`: each a finite number
+    above zero, as a measurement frequency must be."""
+    out = []
+    for v in raw:
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            raise ParamSweepError(f"a frequency is a number (got {v!r})")
+        if not (math.isfinite(v) and v > 0):
+            raise ParamSweepError(f"a frequency is above zero (got {v!r})")
+        out.append(float(v))
+    return out
+
+
 def _step_entry(s: an.Sweep, builder, req: Mapping) -> dict:
     """A family: the knob each cell sets, its values as ``/param_sweep``
-    would take them, and each cell's label part."""
+    would take them, and each cell's label part. A family over the
+    measurement frequency (`an.FREQUENCY`, which resolves to ``freq``;
+    AK#1935) is served too: ``/param_sweep`` refuses ``freq`` as a knob
+    (a frequency sweep in disguise), but a pattern cell is one solve, and
+    the chart sets that cell's measurement frequency, as `analyze` sets
+    ``freq`` on the cell's builder."""
     knob = an.resolve(s.knob, builder).knob
     try:
         raw = ar.step_values(s, builder)
-        values = sweep_values(req, knob, [float(v) for v in raw])
+        if knob == "freq":
+            values = _frequency_values(raw)
+        else:
+            values = sweep_values(req, knob, [float(v) for v in raw])
     except (SystemExit, ParamSweepError) as e:
         raise _Refusal(f"the family over {knob}: {e}") from None
     return {

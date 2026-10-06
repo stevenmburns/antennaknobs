@@ -97,7 +97,9 @@ describe("a held pick on the chart", () => {
     const other = pickKnob(c, null, { ...ANGLE, param: "base" });
     expect(chartHold(other)).toBeNull();
     expect(chartRunInputs(other, ENV).param.req.hold).toBeUndefined();
-    expect(chartViews(other)).toEqual(["Rx", "Smith", "Table"]);
+    // A plain knob sweep: the knob's views, then its family's pattern views
+    // (AK#1935), and no Knobs view.
+    expect(chartViews(other)).toEqual(["Rx", "Smith", "Table", "pattern:0", "pattern:1", "pattern:2"]);
     expect(chartView(other)).toBe("Rx");
     // An edit of the picked range keeps the pick, and so the hold.
     const edited = { ...c, knob: { ...c.knob, spec: { ...ANGLE, points: 5 } } };
