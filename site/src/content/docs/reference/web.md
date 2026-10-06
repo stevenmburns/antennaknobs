@@ -542,7 +542,13 @@ same way; if every cell is skipped and they differ only by engine, the chart
 draws your slots instead, and otherwise draws only the note.
 
 A ground that no slot holds is still a **refused** curve: the legend names it
-with the reason, e.g. *"free: no ground slot holds free"*, and the rest draw.
+with the reason, e.g. *"free space: not drawn: no ground slot holds free. Add
+one with + to include it."*, with no colour sample beside it, since nothing is
+drawn for it; the rest draw. While the boxes are still the ones a pick ticked,
+the legend also says which slots it ticked and that the session still solves on
+the active one, e.g. *"This analysis compares 3 grounds, so picking it ticked
+the ground slots that hold them (X: Sommerfeld · average; Y: free space). The
+session still solves on X."*
 So is a curve on a slot you have that cannot run the design at all, or is a
 poor match for it (which only the active slot's **Solve anyway** can
 override), or an engine that declines this design's feed: these are curves
@@ -1818,7 +1824,8 @@ The header at the top of the chart picks what to sweep:
   where it is for the whole sweep.
 - **from / to / points** — the range and how many solves. A knob starts at
   its own slider range and 11 points; density starts at the convergence
-  ladder above. ↺ puts the parameter's default back.
+  ladder above. ↺ puts the parameter's default back, or, while an analysis
+  is picked, that analysis's own range.
 - **log spacing** — points spaced by a fixed ratio (SimNEC's `logStep`)
   instead of a fixed step. A whole-number parameter (density, a segment
   count, a number of radials) is rounded to whole values and repeats are
