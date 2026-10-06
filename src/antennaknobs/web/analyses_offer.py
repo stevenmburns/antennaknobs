@@ -39,6 +39,17 @@ each with its one-line summary, its Python, its problems, and a
   tab's design's measurement frequency (a cell's own may differ: a state or
   a family setting ``freq``). The chart asks ``POST /pattern_cell`` for each
   cell (`server.pattern_cell_endpoint`);
+- ``{runs: True, kind: "map", x, y, refs, views, note}`` (the sweep
+  framework's map, docs/design/sweep-framework-map.md): a two-knob map, one
+  grid, which the chart asks ``POST /map`` for. ``x`` and ``y`` are each
+  ``{param, values, log, lo, hi, points, spacing}``: ``param`` and
+  ``values`` exactly what ``/map`` takes, from `analysis_run.knob_xs`, the
+  CLI's own grid, and the axis as the spec writes it (``lo`` / ``hi`` the
+  ends of ``values``). ``refs`` is ``{r, x, swr}``, the `Ref` lines the
+  chart contours (R = r, X = x, and SWR = swr as its |Γ|), and ``views``
+  is ``["Map"]``; the Table view is left out by name in ``note``. A map
+  with a cross, or with a frequency or density axis, is ``runs: False``
+  with its reason (map note, decisions 9 and 10);
 - ``{runs: False, why}``: why the workbench cannot draw it yet, one
   string (reasons joined by "; "), each naming the sweep-framework step it
   is planned for, or the problem `analyses.problems` found.
@@ -150,12 +161,6 @@ def _serve_functions(a: an.Analysis) -> None:
         SERVED_FUNCTIONS[m.ref] = m.fn
 
 
-# The sweep-framework step each piece the workbench cannot draw yet is
-# planned for (Steve, 2026-09-28): 5 the map. Crosses over planes, designs
-# and families draw since step 5 unit 4; the table, R/X against frequency
-# and explicit frequencies since unit 5; holds and the Knobs view since
-# step 6.
-_VIEW_STEP = {an.Map: 5}
 # The workbench's frequency-sweep views, by the names /analyses serves.
 _FREQUENCY_VIEWS = {
     an.Swr: "Swr",
@@ -176,19 +181,12 @@ _KNOB_VIEWS = {
 }
 
 
-def _later(what: str, step: int) -> str:
-    return f"{what}: not in the workbench yet (sweep-framework step {step})"
-
-
 def _view_gap(v: an.View, sweep: str) -> str:
     """Why the workbench does not draw view ``v`` of a ``sweep`` sweep."""
     name = f"the {type(v).__name__} view"
     unknown = ar.not_a_view(v)
     if unknown:
         return unknown
-    step = next((s for cls, s in _VIEW_STEP.items() if isinstance(v, cls)), None)
-    if step is not None:
-        return _later(name, step)
     return (
         f"{name} of a {sweep} sweep: the analysis chart does not draw it; "
         "`antennaknobs analyze` draws it"
@@ -227,9 +225,9 @@ def _pattern_view(v: an.View) -> dict | None:
 def gaps(a: an.Analysis, builder=None) -> list[str]:
     """What keeps the workbench from running ``a`` (beyond `an.problems`);
     ``builder`` (the tab's design) tells a hold on its density knob."""
+    if len(a.sweeps) == 2:
+        return _map_gaps(a)
     out = []
-    if len(a.sweeps) > 1:
-        out.append(_later("a two-sweep map", 5))
     held = hd.analysis_refusal(a, builder)
     if held:
         out.append(held)
@@ -252,6 +250,85 @@ def gaps(a: an.Analysis, builder=None) -> list[str]:
     elif not any(_knob_view(v) for v in a.views):
         out += [_view_gap(v, "knob") for v in a.views]
     return out
+
+
+def _map_gaps(a: an.Analysis) -> list[str]:
+    """What keeps the workbench from drawing the map ``a`` (map note,
+    decisions 9, 10 and 14): a cross (the chart draws one grid), a frequency
+    axis (a per-point map is not the CLI's vectorized frequency solve), or
+    no Map view among its views. A density axis is `analysis_run.
+    density_moved`'s refusal, which the CLI shares."""
+    out = []
+    if a.crosses:
+        kinds = ", ".join(c.kind for c in a.crosses)
+        out.append(
+            f"a map with a cross over {kinds}: the workbench draws one grid; "
+            "`antennaknobs analyze` draws one panel per cell"
+        )
+    if any(s.knob == an.FREQUENCY for s in a.sweeps):
+        out.append(
+            "a map with a frequency axis: the workbench maps two knobs; "
+            "`antennaknobs analyze` draws it"
+        )
+    if not any(isinstance(v, an.Map) for v in a.views):
+        out += [
+            f"the {type(v).__name__} view of a map: the workbench draws the "
+            "Map view (hover it for the numbers); `antennaknobs analyze` "
+            "prints the table"
+            if isinstance(v, an.Table)
+            else (ar.not_a_view(v) or _view_gap(v, "map"))
+            for v in a.views
+        ]
+    return out
+
+
+def _map_axis(s: an.Sweep, builder, req: Mapping) -> dict:
+    """One map axis as ``/map`` takes it and the chart edits it, or
+    `_Refusal`: the knob, its values from `analysis_run.knob_xs` (the CLI's
+    grid), coerced as ``/map`` coerces them, and the axis as written."""
+    knob = an.resolve(s.knob, builder).knob
+    try:
+        values = [float(x) for x in ar.knob_xs(s, builder, knob)]
+    except SystemExit as e:  # `_knob_range`'s refusal, by name
+        raise _Refusal(str(e)) from None
+    try:
+        values = sweep_values(req, knob, values)
+    except ParamSweepError as e:
+        raise _Refusal(str(e)) from None
+    return {
+        "param": knob,
+        "values": values,
+        "log": s.spacing == "log",
+        "lo": min(values),
+        "hi": max(values),
+        "points": len(values),
+        "spacing": s.spacing or "lin",
+    }
+
+
+def _map(a: an.Analysis, builder, req: Mapping) -> dict:
+    """A runnable map (map note, unit 1), as the chart draws it."""
+    sx, sy = a.sweeps
+    refs = a.references
+    left = [
+        f"left out: {_map_gaps(an.Analysis(a.name, a.sweeps, views=(v,)))[0]}"
+        for v in a.views
+        if not isinstance(v, an.Map)
+    ]
+    return {
+        "runs": True,
+        "kind": "map",
+        "x": _map_axis(sx, builder, req),
+        "y": _map_axis(sy, builder, req),
+        "refs": {
+            "r": [float(r) for r in refs.r],
+            "x": [float(x) for x in refs.x],
+            "swr": None if refs.swr is None else float(refs.swr),
+        },
+        "views": ["Map"],
+        **_listed(a),
+        "note": "; ".join(left) or None,
+    }
 
 
 def listed(a: an.Analysis, kind: str) -> list[str] | None:
@@ -755,6 +832,11 @@ def workbench(a: an.Analysis, builder, req: Mapping, *, hosted: bool = False) ->
     if an.is_pattern(a):
         try:
             return _pattern(a, builder, _crosses(a, builder, req, density=False))
+        except _Refusal as e:
+            return {"runs": False, "why": str(e)}
+    if len(a.sweeps) == 2:
+        try:
+            return _map(a, builder, req)
         except _Refusal as e:
             return {"runs": False, "why": str(e)}
     frequency = _is_frequency(a)

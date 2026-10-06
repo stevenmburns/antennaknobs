@@ -38,6 +38,8 @@ PRIORITY = {
     "engine_io": 1,
     "sweep": 2,
     "converge": 2,
+    # A map point (/map): one solve per turn, a batch like a sweep point.
+    "map": 2,
     # One /optimize eval per turn: a batch like a sweep point, so a live
     # solve still gets the lane between evals rather than after the run.
     "optimize": 2,
@@ -63,7 +65,16 @@ _PRIORITY_DEFAULT = 9
 # genuinely newer knob generation still supersedes them by the generation
 # rule, like every other batch.
 SAME_KIND_SUPERSEDES = frozenset(
-    {"live", "sweep", "converge", "norm_check", "pattern", "engine_io", "pattern_cell"}
+    {
+        "live",
+        "sweep",
+        "converge",
+        "map",
+        "norm_check",
+        "pattern",
+        "engine_io",
+        "pattern_cell",
+    }
 )
 
 # A kind may carry a stream name, ``"sweep:c1r2"`` (AK#1757 step 5 unit 4):

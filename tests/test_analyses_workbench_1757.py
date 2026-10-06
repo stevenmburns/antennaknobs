@@ -105,6 +105,20 @@ def test_every_entry_has_the_documented_shape(invvee):
                 *CROSSES,
                 "note",
             }
+        elif w["runs"] and w["kind"] == "map":
+            # A two-knob map (docs/design/sweep-framework-map.md): one grid,
+            # no crosses (a crossed map is refused).
+            assert set(w) == {
+                "runs",
+                "kind",
+                "x",
+                "y",
+                "refs",
+                "views",
+                "engines",
+                "grounds",
+                "note",
+            }
         elif w["runs"]:
             # `metric`: its MetricPlot as the chart draws it, or None
             # (AK#1828).
@@ -158,11 +172,12 @@ def test_e1_convergence_runs_as_the_density_ladder(invvee):
     assert w["views"] == ["Rx", "Table", "Smith"]
 
 
-@pytest.mark.parametrize(("name", "step"), [("tuning map", "step 5")])
-def test_what_the_workbench_cannot_draw_is_listed_with_its_step(invvee, name, step):
-    w = invvee[name]["workbench"]
-    assert w["runs"] is False
-    assert step in w["why"]
+def test_the_tuning_map_runs_as_a_map(invvee):
+    # The map units (docs/design/sweep-framework-map.md): served as a map,
+    # its axes the CLI's (tests/test_map_endpoint.py has the rest).
+    w = invvee["tuning map"]["workbench"]
+    assert w["runs"] is True and w["kind"] == "map"
+    assert (w["x"]["param"], w["y"]["param"]) == ("length_factor", "angle_deg")
 
 
 def test_a_hold_runs_with_its_knobs_bounds_and_spec(invvee):

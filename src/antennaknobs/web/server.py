@@ -1742,6 +1742,7 @@ _MAX_SWEEP_POINTS = _cost.MAX_SWEEP_POINTS
 _MAX_OPT_EVALS = _cost.MAX_OPT_EVALS
 _MAX_OPT_SECONDS = _cost.MAX_OPT_SECONDS
 _MAX_SWEEP_SECONDS = _cost.MAX_SWEEP_SECONDS
+_MAX_MAP_POINTS = _cost.MAX_MAP_POINTS
 
 
 class _SweepOutOfTime(Exception):
@@ -2820,6 +2821,104 @@ def _solve_z_and_metric(req: dict, metric, cancel=None):
         return z, feeds_z, mesh, None, str(e)
 
 
+async def _solve_points(
+    points,
+    request: Request,
+    *,
+    use_pynec: bool,
+    solver_name,
+    session,
+    kind: str,
+    gen,
+    metric,
+    clock: _SweepClock,
+    state: dict,
+) -> AsyncIterator[dict]:
+    """The point loop shared by ``/param_sweep`` (and ``/converge``) and
+    ``/map``: for each ``(tag, req_v)`` of ``points``, one solve of ``req_v``
+    on the request's own engine (``_solve_z_only``, or ``_solve_z_and_metric``
+    with a ``metric``), one lane turn of ``kind`` at generation ``gen``,
+    cancelled on disconnect, yielding the point's record: ``tag`` and ``{z_re,
+    z_im, solver, n_seg, fed_seg_m}`` (+ ``feeds_z_*`` on a multi-feed design,
+    ``metric`` / ``metric_error`` with a metric), or ``tag`` and ``{error}``
+    for a point that failed, after which the loop goes on.
+
+    It ends early, and the caller still closes with ``{done}``, at the time
+    budget (``clock``) and after an opened deck's busy / over-budget record
+    (the next point would be too). It ends with ``state["dropped"]`` set, and
+    the caller sends no ``{done}``, when the client went away or the lane
+    dropped the turn: what landed is then not the run."""
+    for tag, req_v in points:
+        if await request.is_disconnected():
+            state["dropped"] = True
+            return
+        if clock.spent():
+            return
+        m_value = m_why = None
+        try:
+            # Reject points past the size cap (a density sweep is exactly
+            # where someone pushes N high); surfaced per point below.
+            _check_solve_size(req_v, use_pynec=use_pynec)
+            # One lane turn per point (see /sweep).
+            async with _solve_turn(req_v, session, kind, gen) as token:
+                async with cancel_on_disconnect(request, token):
+                    if metric is None:
+                        z, feeds_z, mesh = await run_in_threadpool(
+                            _shed, _solve_z_only, req_v, cancel=token
+                        )
+                    else:
+                        z, feeds_z, mesh, m_value, m_why = await run_in_threadpool(
+                            _shed, _solve_z_and_metric, req_v, metric, cancel=token
+                        )
+        except (Superseded, momwire.SolveAborted):
+            state["dropped"] = True
+            return
+        except _decks.DeckError as e:
+            # Busy or over budget: the next point would be too. One
+            # record says so, and the run ends (with its {done}).
+            yield {
+                **tag,
+                "error": e.message,
+                "deck_status": e.deck_status,
+                "solver": solver_name,
+            }
+            return
+        except Exception as e:  # noqa: BLE001 — one-off solver failures must not abort the whole sweep; the error is noted per point
+            yield {
+                **tag,
+                # Same formatter as every other endpoint: type + message +
+                # user-design basename only, never a raw path or traceback
+                # (issue #348).
+                "error": user_designs.format_solve_error(e),
+                "solver": solver_name,
+            }
+            continue
+        record: dict = {
+            **tag,
+            "z_re": float(z.real),
+            "z_im": float(z.imag),
+            "solver": solver_name,
+        }
+        if metric is not None:
+            if m_why is None:
+                record["metric"] = m_value
+            else:
+                record["metric_error"] = m_why
+        # The achieved segment count, the workbench's Z∞ refinement
+        # variable and the CLI's N_ach, and the fed segment's length, the
+        # reason a rough Z∞ gives (AK#1781).
+        for key in ("n_seg", "fed_seg_m"):
+            if mesh is not None and mesh.get(key) is not None:
+                record[key] = mesh[key]
+        # Multi-feed geometries (bowtie 1×2 array) ship per-feed Z so
+        # the frontend can plot one trail per port. Single-feed
+        # geometries omit the field; the stream shape is unchanged.
+        if feeds_z is not None:
+            record["feeds_z_re"] = [float(z_.real) for z_ in feeds_z]
+            record["feeds_z_im"] = [float(z_.imag) for z_ in feeds_z]
+        yield record
+
+
 def _param_sweep_stream(
     req: dict,
     request: Request,
@@ -2864,85 +2963,23 @@ def _param_sweep_stream(
 
     async def gen():
         clock = _SweepClock()
-        for value in values:
-            if await request.is_disconnected():
-                return
-            if clock.spent():
-                break
-            req_v = request_at(req, param, value)
-            try:
-                # Reject points past the size cap (a density sweep is exactly
-                # where someone pushes N high); surfaced per point below.
-                _check_solve_size(req_v, use_pynec=use_pynec)
-                # One lane turn per point (see /sweep).
-                async with _solve_turn(
-                    req_v, session, converge_kind, lane_gen
-                ) as token:
-                    async with cancel_on_disconnect(request, token):
-                        if metric is None:
-                            z, feeds_z, mesh = await run_in_threadpool(
-                                _shed, _solve_z_only, req_v, cancel=token
-                            )
-                        else:
-                            z, feeds_z, mesh, m_value, m_why = await run_in_threadpool(
-                                _shed, _solve_z_and_metric, req_v, metric, cancel=token
-                            )
-            except (Superseded, momwire.SolveAborted):
-                return
-            except _decks.DeckError as e:
-                # Busy or over budget: the next point would be too. One
-                # record says so, and the sweep ends (with its {done}).
-                yield (
-                    json.dumps(
-                        {
-                            **_tag(value),
-                            "error": e.message,
-                            "deck_status": e.deck_status,
-                            "solver": solver_name,
-                        }
-                    )
-                    + "\n"
-                )
-                break
-            except Exception as e:  # noqa: BLE001 — one-off solver failures must not abort the whole sweep; the error is noted per point
-                yield (
-                    json.dumps(
-                        {
-                            **_tag(value),
-                            # Same formatter as every other endpoint: type +
-                            # message + user-design basename only, never a
-                            # raw path or traceback (issue #348).
-                            "error": user_designs.format_solve_error(e),
-                            "solver": solver_name,
-                        }
-                    )
-                    + "\n"
-                )
-                continue
-            record: dict = {
-                **_tag(value),
-                "z_re": float(z.real),
-                "z_im": float(z.imag),
-                "solver": solver_name,
-            }
-            if metric is not None:
-                if m_why is None:
-                    record["metric"] = m_value
-                else:
-                    record["metric_error"] = m_why
-            # The achieved segment count, the workbench's Z∞ refinement
-            # variable and the CLI's N_ach, and the fed segment's length, the
-            # reason a rough Z∞ gives (AK#1781).
-            for key in ("n_seg", "fed_seg_m"):
-                if mesh is not None and mesh.get(key) is not None:
-                    record[key] = mesh[key]
-            # Multi-feed geometries (bowtie 1×2 array) ship per-feed Z so
-            # the frontend can plot one trail per port. Single-feed
-            # geometries omit the field; the stream shape is unchanged.
-            if feeds_z is not None:
-                record["feeds_z_re"] = [float(z_.real) for z_ in feeds_z]
-                record["feeds_z_im"] = [float(z_.imag) for z_ in feeds_z]
+        state: dict = {"dropped": False}
+        points = ((_tag(v), request_at(req, param, v)) for v in values)
+        async for record in _solve_points(
+            points,
+            request,
+            use_pynec=use_pynec,
+            solver_name=solver_name,
+            session=session,
+            kind=converge_kind,
+            gen=lane_gen,
+            metric=metric,
+            clock=clock,
+            state=state,
+        ):
             yield json.dumps(record) + "\n"
+        if state["dropped"]:
+            return
         done: dict = clock.label({"done": True, "solver": solver_name})
         if advisories and values:
             # The advisory builds the geometry again; a failure there loses
@@ -3004,6 +3041,119 @@ async def param_sweep_endpoint(req: dict, request: Request):
         advisories=True,
         metric=metric,
     )
+
+
+class _MapAxisError(ValueError):
+    """A ``/map`` axis this endpoint does not take (a 422)."""
+
+
+def _map_axis(req: dict, axis, name: str) -> tuple[str, list]:
+    """A ``/map`` request's ``x`` or ``y``: ``(param, values)``, the values
+    coerced as ``/param_sweep`` coerces them (`param_sweep.sweep_values`), or
+    `_MapAxisError` naming what is wrong. Knobs only (map note, decision 10):
+    the density is a ladder, not a map axis, and a frequency axis solves
+    through the vectorized sweep, which a per-point map would not be."""
+    from .param_sweep import DENSITY, ParamSweepError, sweep_values
+
+    if not isinstance(axis, dict):
+        raise _MapAxisError(f"{name}: {{param, values}}")
+    param = axis.get("param")
+    if param == DENSITY:
+        raise _MapAxisError(
+            f"{name}: the density is a ladder, not a map axis; sweep it with "
+            "/param_sweep and cross the other knob as a family"
+        )
+    try:
+        values = sweep_values(req, param, axis.get("values", []))
+    except (ParamSweepError, UnknownGeometryError) as e:
+        raise _MapAxisError(f"{name}: {e}") from None
+    if not values:
+        raise _MapAxisError(f"{name}: no values")
+    return param, values
+
+
+@app.post("/map")
+async def map_endpoint(req: dict, request: Request):
+    """Stream a two-knob map (the sweep framework's map, docs/design/
+    sweep-framework-map.md): the feed impedance at every node of the grid
+    ``x.values`` × ``y.values``, one record per node.
+
+    The request is a solve request plus ``x`` and ``y``, each ``{param,
+    values}`` (a design knob and its values, as ``/analyses`` serves them from
+    `analysis_run.knob_xs`, the CLI's own), and optionally ``from``, the flat
+    index ``j * nx + i`` to resume at. Nodes solve in the CLI's order, y outer
+    and x inner (`analysis_run.solve_map`), each the request with both knobs
+    set, on the request's own engine, by the very point solve ``/param_sweep``
+    runs (`_solve_points`). Records are ``{i, j, z_re, z_im, n_seg,
+    fed_seg_m, solver}`` (``i`` the x index, ``j`` the y index; +
+    ``feeds_z_*`` on a multi-feed design), or ``{i, j, error, solver}`` for a
+    node that failed, then ``{done, solver, points}``, labelled ``stopped:
+    "time"`` and ``time_budget_s`` when the hosted budget ended it early.
+
+    Admission is once, at nx·ny (the hosted map cap, the poor-match gate).
+    Points carry no generation, so a knob drag's live solve never supersedes
+    them (dragging x or y only moves the chart's marker); the client's abort
+    (Stop, any other input), Cancel and a re-issued map stop it.
+
+    A bad axis (the density, a non-knob, the same knob twice) or ``from``
+    is a 422 before any solve.
+    """
+    from .param_sweep import request_at
+
+    try:
+        px, xs = _map_axis(req, req.get("x"), "x")
+        py, ys = _map_axis(req, req.get("y"), "y")
+    except _MapAxisError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from None
+    if px == py:
+        raise HTTPException(
+            status_code=422, detail=f"x and y are both {px}: a map sweeps two knobs"
+        )
+    n = len(xs) * len(ys)
+    start = req.get("from", 0)
+    if isinstance(start, bool) or not isinstance(start, int) or not 0 <= start <= n:
+        raise HTTPException(
+            status_code=422, detail=f"from: a node index in 0..{n}, got {start!r}"
+        )
+    metric = _request_metric(req.get("metric"))
+    base = {k: v for k, v in req.items() if k not in ("x", "y", "from", "metric")}
+    use_pynec = _external_backend(base) is not None
+    solver_name = base.get("solver") if use_pynec else "momwire"
+    _refuse_or_withhold(_admit(base, kind="map", use_pynec=use_pynec, points=n), base)
+    session, _gen = _lane_key(base)
+    nx = len(xs)
+
+    def nodes():
+        for k in range(start, n):
+            j, i = divmod(k, nx)
+            yield (
+                {"i": i, "j": j},
+                request_at(request_at(base, py, ys[j]), px, xs[i]),
+            )
+
+    async def gen():
+        clock = _SweepClock()
+        state: dict = {"dropped": False}
+        async for record in _solve_points(
+            nodes(),
+            request,
+            use_pynec=use_pynec,
+            solver_name=solver_name,
+            session=session,
+            kind=_lane_kind(base, "map"),
+            # Gen-less (map note, decision 8): see the docstring.
+            gen=None,
+            metric=metric,
+            clock=clock,
+            state=state,
+        ):
+            yield json.dumps(record) + "\n"
+        if state["dropped"]:
+            return
+        done = {"done": True, "solver": solver_name, "points": n}
+        yield json.dumps(clock.label(done)) + "\n"
+
+    return StreamingResponse(gen(), media_type="application/x-ndjson")
 
 
 def _request_metric(data):

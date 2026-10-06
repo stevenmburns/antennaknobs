@@ -51,6 +51,11 @@ COMPRESSED_MODELS = frozenset({"arrayblock", "hmatrix"})
 # (41-point sweeps, ≤200 optimizer evals).
 MAX_SWEEP_POINTS = _env_int("ANTENNAKNOBS_MAX_SWEEP_POINTS", 500)
 MAX_OPT_EVALS = _env_int("ANTENNAKNOBS_MAX_OPT_EVALS", 500)
+# A two-knob map (``/map``) is admitted once, at nx·ny points, under a cap of
+# its own (sweep-framework map note, decision 2): a design's own map is
+# routinely past the sweep cap (dipoles.invvee's tuning map is 33 × 25 =
+# 825), and the wall-time budget below bounds what a slow design's map costs.
+MAX_MAP_POINTS = _env_int("ANTENNAKNOBS_MAX_MAP_POINTS", 1000)
 # Hosted wall-time budget for one multi-band optimize run, in seconds: past
 # it the run answers with the best point solved so far. UR0GT's three-band
 # run takes ~30 s on performance-2x; a design a hundred times slower per
@@ -75,7 +80,7 @@ WARN_MIN_BASIS = 3000
 # /pattern is PyNEC-only (never warned); /pattern_metrics solves *other*
 # designs for the compare table at their defaults, which the gate's
 # this-design approval flow doesn't model — lane admission still bounds it.
-ENFORCED_WARN_KINDS = frozenset({"sweep", "converge", "norm_check"})
+ENFORCED_WARN_KINDS = frozenset({"sweep", "converge", "norm_check", "map"})
 
 
 @dataclass(frozen=True)
@@ -134,7 +139,14 @@ def admit(
             None,
         )
 
-    if hosted and points > MAX_SWEEP_POINTS:
+    if hosted and kind == "map" and points > MAX_MAP_POINTS:
+        return Admission(
+            "refuse",
+            f"A map of {points} points is over the live limit of "
+            f"{MAX_MAP_POINTS}. Reduce the points on x or y.",
+            est,
+        )
+    if hosted and kind != "map" and points > MAX_SWEEP_POINTS:
         return Admission(
             "refuse",
             # "converge" is the parameter sweep's kind (/param_sweep and its
