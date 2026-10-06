@@ -86,7 +86,8 @@ reports at most per page load, and a local workbench never sends one.
 ## Your own deck
 
 **Open…** beside the design picker opens your own model: a NEC card deck
-(`.nec`, which MMANA-GAL, 4nec2 and EZNEC all export) or a SimNEC `.ssn`. It
+(`.nec`, which MMANA-GAL, 4nec2 and EZNEC all export), a SimNEC `.ssn`, or an
+MMANA-GAL `.maa` ([read as MMANA](/reference/nec-import/#mmana-gal-maa-models)). It
 becomes the tab's design, under **Opened decks** in the picker, read by the
 same importer as `antennaknobs @file.nec` — see [Loading NEC
 decks](/reference/nec-import/). A deck's `SY` constants are its knobs, as
