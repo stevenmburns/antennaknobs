@@ -154,7 +154,14 @@ def test_the_fixtures_best_node_is_best_cell_lines(fx):
 
 @pytest.mark.antenna_computation_check
 def test_the_fixtures_grid_is_the_clis(fx):
+    """The fixture is the CLI's map. The axes match exactly; the impedances
+    to 1e-9 relative, not to the bit: the fixture is written on one machine
+    and this re-solve runs on whichever CI runner it lands on, and a solve is
+    bit-reproducible on one machine but not across CPUs and builds. A bit
+    gate here failed on some runners and passed on others with no code
+    change (main, 2026-10-06). 1e-9 is the pre-tag sweep's own "Z moved"
+    line; a real change to the map moves it by far more."""
     xs, ys, z = _script().cli_grid()
     fxs, fys, fz = _grid(fx)
     assert np.array_equal(xs, fxs) and np.array_equal(ys, fys)
-    assert np.array_equal(z.real, fz.real) and np.array_equal(z.imag, fz.imag)
+    np.testing.assert_allclose(z, fz, rtol=1e-9, atol=0.0)
