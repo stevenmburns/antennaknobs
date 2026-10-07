@@ -3288,7 +3288,7 @@ function DesignSessionBody({
   const [linkStage, setLinkStage] = useState<LinkStage>(deepLink ? "design" : "done");
   // Seeded with the shell's report when the link's deck did not open.
   const [linkProblems, setLinkProblems] = useState<string[]>(() =>
-    deepLink?.problem ? [deepLink.problem] : [],
+    [deepLink?.problem, deepLink?.familyProblem].filter((p): p is string => !!p),
   );
   const linkProblem = (p: string) => setLinkProblems((ps) => [...ps, p]);
   // Opening the user's own deck (lib/decks.ts): read here, opened on the
@@ -3317,7 +3317,7 @@ function DesignSessionBody({
   // The chart is where an analysis or a view lands, and listing the
   // design's analyses waits for it to be on screen (useDesignAnalyses).
   useEffect(() => {
-    if (deepLink && (deepLink.analysis || deepLink.view)) setView("zparam");
+    if (deepLink && (deepLink.analysis || deepLink.view || deepLink.family)) setView("zparam");
     // On mount: the link is the page's, and never changes.
   }, [deepLink, setView]);
   useEffect(() => {
@@ -3348,7 +3348,7 @@ function DesignSessionBody({
       if (!r.ok) linkProblem(r.problem);
       else if (r.value !== currentVariant) selectVariant(r.value);
     }
-    setLinkStage(deepLink.analysis || deepLink.view ? "analysis" : "done");
+    setLinkStage(deepLink.analysis || deepLink.view || deepLink.family ? "analysis" : "done");
     // Runs when the stage or the design changes; the rest is read as it
     // stands then.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3357,7 +3357,7 @@ function DesignSessionBody({
     if (!deepLink || linkStage !== "analysis") return;
     if (!deepLink.analysis) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setLinkStage(deepLink.view ? "view" : "done");
+      setLinkStage(deepLink.view || deepLink.family ? "view" : "done");
       return;
     }
     if (!zparamAnalysesLoaded || currentExample?.name !== linkDesign) return;
@@ -3382,7 +3382,30 @@ function DesignSessionBody({
   }, [deepLink, linkStage, zparamAnalysesLoaded, zparamAnalyses, currentExample, linkDesign]);
   useEffect(() => {
     if (!deepLink || linkStage !== "view") return;
-    if (deepLink.view) {
+    if (deepLink.family) {
+      // A pattern family (AK#1935): the knob chart on the family's knob and
+      // range, then its view, which turns it into the family. Run as a pick
+      // does ([workbench.run_on_pick]'s `pattern`; run=1 whatever it says).
+      const f = deepLink.family;
+      const next0 = pickKnob(chart, null, f);
+      if (f.param !== FAMILY_FREQ && !zparamKnobs.some((k) => k.name === f.param)) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        linkProblem(`family: this design has no sweepable knob "${f.param}"`);
+      } else if (!deepLink.view) {
+        setChartAt(0, (c) => pickKnob(c, null, f));
+      } else {
+        const r = resolveView(deepLink.view, chartViews(next0));
+        if (!r.ok) {
+          linkProblem(r.problem);
+        } else {
+          const next = setChartView(next0, r.value);
+          if (r.value.startsWith("pattern:")) {
+            (deepLink.run || runOnPick.pattern ? runPicked : holdPicked)(0, "pattern", next, false);
+          }
+          setChartAt(0, () => next);
+        }
+      }
+    } else if (deepLink.view) {
       const r = resolveView(deepLink.view, chartViews(chart));
       if (!r.ok) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -3402,10 +3425,21 @@ function DesignSessionBody({
     deck: isDeck(geometry) ? (deckFor(geometry) ?? null) : null,
     variant: currentVariant === (currentExample?.variants?.[0] ?? "default") ? null : currentVariant,
     analysis: m ? pickedNameOf(m) : null,
-    // A knob's family of patterns (AK#1935) is no analysis a link can name,
-    // and its knob and range do not ride in one: its view would open on
-    // nothing, so the link leaves it out.
-    view: m && !chartFamily(m.state) ? chartView(m.state) : null,
+    // A knob's family of patterns (AK#1935) is no analysis a link can name:
+    // it rides as its own knob and range (`family`) beside its pattern view.
+    // Its range only: an explicit ladder is an analysis's, and a family's
+    // values are its range's.
+    family:
+      m && chartFamily(m.state)
+        ? {
+            param: m.state.knob.spec.param,
+            lo: m.state.knob.spec.lo,
+            hi: m.state.knob.spec.hi,
+            points: m.state.knob.spec.points,
+            log: m.state.knob.spec.log,
+          }
+        : null,
+    view: m ? chartView(m.state) : null,
   });
   const urlState = linkStateOf(chartModels[0]);
   const urlSearch =
