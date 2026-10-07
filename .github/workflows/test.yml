@@ -21,6 +21,14 @@ on:
   # a rebase-merge repo the latter lands a junk commit on main verbatim.
   workflow_dispatch:
 
+# A newer push to the same PR, or a re-dispatch on the same branch, makes the
+# older run moot: cancel it. Pushes to main get a UNIQUE group (run_id), so
+# each main commit keeps its own verdict; a shared group would drop queued
+# main runs even with cancel-in-progress off.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'push' && github.run_id || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
