@@ -275,6 +275,22 @@ def parse_ground(deck_text: str):
 _FREQ_RE = re.compile(r"FREQUENCY\s*:\s*([0-9.Ee+-]+)\s*MHz", re.IGNORECASE)
 
 
+def first_fr_mhz(deck_text: str) -> float | None:
+    """The first FR card's start frequency (MHz), or None when the deck has
+    none (or one with no usable F1). nec2c's printout carries the frequency
+    to only five significant figures (7.1235 for 7.123456), so the deck's own
+    card is the full-precision source of the frequency nec2c ran at."""
+    for ln in deck_text.splitlines():
+        toks = ln.replace(",", " ").split()
+        if toks and toks[0].upper() == "FR":
+            try:
+                f = float(toks[5])
+            except (IndexError, ValueError):
+                return None
+            return f if f > 0 else None
+    return None
+
+
 def run_nec2c(
     deck_path: Path,
     timeout: float,
@@ -295,6 +311,7 @@ def run_nec2c(
             nec.write_bytes(deck_path.read_bytes())
         else:
             nec.write_text(deck_text)
+        card_freq = first_fr_mhz(nec.read_text(errors="replace"))
         t0 = time.perf_counter()
         # nec2c returns non-zero (255) both on a faulty card AND after a NaN
         # solve, and it writes its real diagnostics into the output FILE, not
@@ -322,7 +339,9 @@ def run_nec2c(
     for i, ln in enumerate(lines):
         m = _FREQ_RE.search(ln)
         if m:
-            freq = float(m.group(1))
+            # The printout's frequency is five significant figures; the FR
+            # card's is the one nec2c read.
+            freq = card_freq if card_freq is not None else float(m.group(1))
         if "ANTENNA INPUT PARAMETERS" in ln:
             zs = []
             saw_nan = False
