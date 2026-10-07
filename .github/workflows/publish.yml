@@ -71,6 +71,39 @@ jobs:
           packages-dir: dist
           skip-existing: true
 
+  wait-for-pypi:
+    # Wait for PyPI to SERVE the new version once, on one Linux runner, before
+    # the 12-cell matrix below starts. Without this every cell sat in its own
+    # 30 s retry loop through the same propagation delay: on each tag 4-6
+    # cells spent 10-11 min retrying (p90 10.9 min on Linux/macOS, 11.5 on
+    # Windows), mostly on the macOS and Windows runners. The cells keep their
+    # own retry loop as a backstop, since a CDN edge can lag the one this
+    # job saw.
+    #
+    # Polls the simple index (what pip reads) for this version's wheel file,
+    # with the same ~15 min budget the cells use.
+    name: wait for PyPI to serve the release
+    needs: publish-pypi
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Poll the PyPI simple index for this version
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          WHEEL="antennaknobs-${VERSION}-py3-none-any.whl"
+          for attempt in $(seq 1 30); do
+            if curl -fsSL -H 'Cache-Control: no-cache' https://pypi.org/simple/antennaknobs/ | grep -qF "$WHEEL"; then
+              echo "PyPI serves $WHEEL (attempt $attempt)"
+              exit 0
+            fi
+            echo "attempt $attempt: $WHEEL not on the simple index yet; retrying in 30 s"
+            sleep 30
+          done
+          echo "::error::PyPI never served $WHEEL"
+          exit 1
+
   published-smoke:
     # The release gate (#1326): install the PUBLISHED pair from PyPI — the
     # exact `pip install "antennaknobs[web]==X.Y.Z"` a user runs — in a fresh
@@ -87,7 +120,7 @@ jobs:
     # means the published release does not install or run as documented —
     # the fix is a follow-up release, and the announcement waits for it.
     name: published-smoke (${{ matrix.os }}, py${{ matrix.python-version }}${{ matrix.pynec == '1' && ', +pynec' || '' }})
-    needs: publish-pypi
+    needs: wait-for-pypi
     if: startsWith(github.ref, 'refs/tags/')
     strategy:
       fail-fast: false
