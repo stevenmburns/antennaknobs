@@ -45,6 +45,9 @@ export type SchemaParamSpec = {
   // Optimize range is then OPT_SPAN of its value (`defaultKnobOpt`). Absent
   // (an older server) reads as declared: the slider's range, as before.
   auto_range?: boolean;
+  /** What the knob means (`analyses.ROLES`): "density" is the mesh-density
+   *  knob an imported deck declares. */
+  role?: string | null;
 };
 
 /** A knob's default Optimize range when its design declares none: this

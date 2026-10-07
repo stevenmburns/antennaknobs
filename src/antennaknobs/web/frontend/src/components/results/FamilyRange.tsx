@@ -17,6 +17,9 @@ export type FamilyRangeProps = {
   /** What the family can step: the design's sweepable knobs, and the
    *  measurement frequency where the design has one. */
   knobs: readonly { name: string; label: string }[];
+  /** Density-role knobs left out of `knobs`: a family over the mesh density
+   *  is refused, so the select says why they are not there. */
+  skipped?: readonly { name: string; label: string }[];
   /** The values the spec steps, as solved (an int knob rounded). */
   values: readonly number[];
   onSpec: (next: ParamSweepSpec) => void;
@@ -26,10 +29,14 @@ export type FamilyRangeProps = {
   isDefault: boolean;
 };
 
+/** The step box's tooltip, here and on the R / X knob sweep. */
+export const STEP_TITLE =
+  "The step between values: from, from + step, … up to `to`. A step that does not divide the range moves `to` down onto the last value it reaches.";
+
 const pointsProblem = (n: number): string | null =>
   Number.isInteger(n) && n >= MIN_POINTS && n <= FAMILY_CAP ? null : `${MIN_POINTS}–${FAMILY_CAP}`;
 
-export function FamilyRange({ spec, knobs, values, onSpec, onParam, onReset, isDefault }: FamilyRangeProps) {
+export function FamilyRange({ spec, knobs, skipped = [], values, onSpec, onParam, onReset, isDefault }: FamilyRangeProps) {
   // An edit is the range's own ladder again: an analysis's explicit values
   // do not survive it.
   const set = (patch: Partial<Omit<ParamSweepSpec, "values">>) => {
@@ -44,7 +51,16 @@ export function FamilyRange({ spec, knobs, values, onSpec, onParam, onReset, isD
     <span className="zparam-group chart-family" role="group" aria-label="Pattern family">
       <label>
         <span>over</span>
-        <select aria-label="Parameter" value={spec.param} onChange={(e) => onParam(e.target.value)}>
+        <select
+          aria-label="Parameter"
+          value={spec.param}
+          title={
+            skipped.length > 0
+              ? `${skipped.map((k) => k.label).join(", ")} (the mesh density) is not offered: a family of patterns over the mesh density is refused. Sweep it on R / X.`
+              : undefined
+          }
+          onChange={(e) => onParam(e.target.value)}
+        >
           {knobs.map((k) => (
             <option key={k.name} value={k.name}>
               {k.label}
@@ -63,7 +79,7 @@ export function FamilyRange({ spec, knobs, values, onSpec, onParam, onReset, isD
       {step !== null && (
         <label
           className="chart-family-step"
-          title="The step between values: from, from + step, … up to `to`. A step that does not divide the range moves `to` down onto the last value it reaches."
+          title={STEP_TITLE}
         >
           <span>step</span>
           <CommitNumber

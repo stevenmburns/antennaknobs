@@ -9,6 +9,7 @@ import {
   chartRunInputs,
   chartView,
   chartViews,
+  familyKnobList,
   familyListed,
   familyStep,
   formatG,
@@ -149,5 +150,19 @@ describe("the step size (Steve: 'starting and ending values and step size')", ()
     expect(stepEdit(BASE, 1).problem).toBe("≥ 2 (6 values at most)");
     expect(stepEdit(BASE, 20).problem).toBe("at most 10");
     expect(stepEdit(BASE, 0).problem).toBe("a step above 0");
+  });
+});
+
+describe("the family's knob list", () => {
+  const K = [
+    { name: "base", label: "Base" },
+    { name: "nseg", label: "Segments", role: "density" },
+    { name: "h", label: "Height", role: null },
+  ];
+
+  it("leaves a density-role knob out, names it as skipped, and adds the frequency", () => {
+    const { knobs, skipped } = familyKnobList(K);
+    expect(knobs.map((k) => k.name)).toEqual(["base", "h", "freq"]);
+    expect(skipped).toEqual([{ name: "nseg", label: "Segments" }]);
   });
 });

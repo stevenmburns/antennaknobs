@@ -4865,6 +4865,7 @@ def _serialize_schema_item(item) -> dict:
         "layout": item.layout,
         "description": item.description,
         "auto_range": item.auto_range,
+        "role": item.role,
     }
 
 

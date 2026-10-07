@@ -672,3 +672,16 @@ def test_invvee_variant_length_factor_ranges():
     # the angle slider covers both the drooping default and the flat variants
     ang = next(s for s in ex.param_schema if s.name == "angle_deg")
     assert ang.min == 0.0 and ang.max >= 45.0
+
+
+def test_density_role_is_served_with_the_knob():
+    """A ui_params `role` reaches the served schema: the frontend leaves a
+    density-role knob out of a pattern family's knob list (AK#1935)."""
+    from antennaknobs.web.server import _serialize_schema_item
+
+    spec = _auto_paramspec("nseg", 12, {"role": "density"})
+    assert spec.role == "density"
+    assert _serialize_schema_item(spec)["role"] == "density"
+    plain = _auto_paramspec("h", 10.0, None)
+    assert plain.role is None
+    assert _serialize_schema_item(plain)["role"] is None

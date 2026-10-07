@@ -233,6 +233,7 @@ import {
   editRange,
   FAMILY_FREQ,
   FAMILY_PATTERN_VIEWS,
+  familyKnobList,
   familyListed,
   familySpec,
   frequencyRx,
@@ -2570,10 +2571,7 @@ function DesignSessionBody({
   // What a knob's family of patterns can step (AK#1935): every knob the
   // knob sweep can, and the measurement frequency (patterns across the
   // band), which a pattern cell sets on its own request.
-  const familyKnobs = [
-    ...zparamKnobs.map((k) => ({ name: k.name, label: k.label })),
-    { name: FAMILY_FREQ, label: "frequency (MHz)" },
-  ];
+  const { knobs: familyKnobs, skipped: familySkipped } = familyKnobList(zparamKnobs);
   // A knob's default spec from its own range and value; density's is the
   // literal ladder.
   const zparamDefaultFor = (param: string): ParamSweepSpec => {
@@ -4654,6 +4652,7 @@ function DesignSessionBody({
             ? {
                 spec: m.spec,
                 knobs: familyKnobs,
+                skipped: familySkipped,
                 values: m.values,
                 // An edit of the family's range is asking for it: arm it.
                 onSpec: (next) => {

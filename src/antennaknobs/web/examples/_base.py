@@ -141,6 +141,11 @@ class ParamSpec:
     # range to +/-20 % of its value, as `optimize` on the command line does
     # (band_opt.DEFAULT_SPAN), rather than to the whole window.
     auto_range: bool = False
+    # What the knob MEANS (`analyses.ROLES`), from ui_params[<param>]["role"]:
+    # "density" marks the mesh-density knob an imported deck declares. The
+    # frontend leaves it out of a pattern family's knob list (a family over
+    # density is refused, `analyze`'s `density_moved`).
+    role: Optional[str] = None
 
 
 @dataclass(frozen=True)

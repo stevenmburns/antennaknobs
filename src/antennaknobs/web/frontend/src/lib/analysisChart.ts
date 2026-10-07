@@ -139,6 +139,24 @@ export function familyOffered(c: AnalysisChartState): boolean {
   return c.kind === "knob" && pickedName(c) === null && c.knob.spec.param !== DENSITY;
 }
 
+/** The knobs a family of patterns can step, and the density-role knobs it
+ *  leaves out (a deck's mesh-density knob: `analyze` refuses a family over
+ *  it, `density_moved`, so the chart does not offer it to solve and fail).
+ *  `knobs` are the sweepable ones; the measurement frequency is added. */
+export function familyKnobList(knobs: readonly { name: string; label: string; role?: string | null }[]): {
+  knobs: { name: string; label: string }[];
+  skipped: { name: string; label: string }[];
+} {
+  const isDensityRole = (k: { role?: string | null }) => k.role === "density";
+  return {
+    knobs: [
+      ...knobs.filter((k) => !isDensityRole(k)).map((k) => ({ name: k.name, label: k.label })),
+      { name: FAMILY_FREQ, label: "frequency (MHz)" },
+    ],
+    skipped: knobs.filter(isDensityRole).map((k) => ({ name: k.name, label: k.label })),
+  };
+}
+
 /** A knob spec as a family steps it: at most FAMILY_CAP values (an
  *  explicit ladder longer than that is dropped for the range's own). */
 export function familySpec(spec: ParamSweepSpec): ParamSweepSpec {
