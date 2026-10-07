@@ -189,6 +189,7 @@ tag to roll back, or a fix branch) without cutting a new version.
 | Scale memory / CPU | edit `[[vm]]` in `fly.toml`, then `fly deploy` |
 | Add a region replica | `fly scale count 1 --region <r>` (keeps sjc; idle regions suspend, AK#405) |
 | Read the usage counters | Fly's Prometheus (`api.fly.io/prometheus/<org>`): `sum by (design) (increase(ak_solves_total[7d]))` |
+| Read the refusal counts | `sum by (reason) (increase(ak_refusals_total[7d]))`: requests turned away for capacity or limits (`busy`, `deck_watchdog`, `deck_cap`, `deck_rate`, `sweep_budget`, `optimize_budget`, `cost_refused`, `cost_withheld`) |
 | Check a crash report | `fly logs -a antennaknobs \| grep client-error:` (`?crash-test` on the page throws one on purpose) |
 
 **Several regions (AK#405).** `sjc` is the primary region and stays on

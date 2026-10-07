@@ -57,7 +57,7 @@ import re
 from dataclasses import dataclass, replace
 
 from .builder import C_LIGHT_MHZ_M
-from .nec_import import GeometryLimits, NecDeck, parse_nec
+from .nec_import import GeometryLimitError, GeometryLimits, NecDeck, parse_nec
 
 __all__ = [
     "MAA_DEFAULT_SOIL",
@@ -731,9 +731,8 @@ def read_maa(
     h = f.height
     tapers = {t.pointer: t for t in f.tapers}
     if limits is not None and len(f.wires) > limits.max_wires:
-        raise line_err(
-            None,
-            f"this model has {len(f.wires)} wires (the limit is "
+        raise GeometryLimitError(
+            f"{name}: this model has {len(f.wires)} wires (the limit is "
             f"{limits.max_wires})" + (f"; {limits.note}" if limits.note else ""),
         )
 
@@ -770,9 +769,8 @@ def read_maa(
     pieces = [_mesh_wire(w, f, lam, tapers, line_err) for w in wires]
     total = sum(len(p.radii) for p in pieces)
     if limits is not None and total > limits.max_segments:
-        raise line_err(
-            None,
-            f"this model meshes to {total} segments (the limit is "
+        raise GeometryLimitError(
+            f"{name}: this model meshes to {total} segments (the limit is "
             f"{limits.max_segments})" + (f"; {limits.note}" if limits.note else ""),
         )
 

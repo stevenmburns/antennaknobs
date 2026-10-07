@@ -103,6 +103,17 @@ def payload_dialect(payload) -> str | None:
     return d
 
 
+# The server's counter for requests turned away (`hosting.REFUSAL_REASONS`),
+# set by web/server.py; None in this module's own tests and anywhere no
+# server is loaded. Called once, where the refusal is made.
+refusal_hook = None
+
+
+def _refused(reason: str) -> None:
+    if refusal_hook is not None:
+        refusal_hook(reason)
+
+
 class DeckError(RuntimeError):
     """A deck refused before (or instead of) a solve. ``status`` is the HTTP
     status the REST path answers with; ``deck_status`` the word the client
@@ -190,36 +201,40 @@ def decode_payload(payload, settings: DeckSettings) -> tuple[str, str]:
             "program first"
         )
     limit = settings.max_bytes
-    too_big = DeckError(
-        f"{name} is over the {limit // 1024} KB limit for an opened deck; "
-        f"{settings.bigger}",
-        status=413,
-    )
+
+    def too_big() -> DeckError:
+        _refused("deck_cap")
+        return DeckError(
+            f"{name} is over the {limit // 1024} KB limit for an opened deck; "
+            f"{settings.bigger}",
+            status=413,
+        )
+
     if "text" in payload and payload.get("z") is None:
         text = payload["text"]
         if not isinstance(text, str):
             raise DeckError("text must be a string")
         if len(text.encode("utf-8", "surrogatepass")) > limit:
-            raise too_big
+            raise too_big()
         return name, text
     z = payload.get("z")
     if not isinstance(z, str) or not z:
         raise DeckError("the deck payload carries no deck (z)")
     if len(z) > settings.max_payload_chars:
-        raise too_big
+        raise too_big()
     try:
         packed = base64.urlsafe_b64decode(z + "=" * (-len(z) % 4))
         d = zlib.decompressobj(-15)  # raw deflate, the browser's 'deflate-raw'
         data = d.decompress(packed, limit + 1)
         if len(data) > limit or d.unconsumed_tail:
-            raise too_big
+            raise too_big()
         data += d.flush()
     except DeckError:
         raise
     except (ValueError, zlib.error) as exc:
         raise DeckError(f"{name}: the link's deck does not decode ({exc})") from None
     if len(data) > limit:
-        raise too_big
+        raise too_big()
     # Old decks in the wild carry cp1252/latin-1 comment text; geometry cards
     # are ASCII, so replace rather than refuse (as builder_from_file does).
     return name, data.decode("utf-8", errors="replace")
@@ -373,6 +388,7 @@ class DeckGate:
             return False  # our own earlier turn: it ends within its budget
         waited = self._clock() - started
         if wait > self.settings.busy_wait_s or waited > self.settings.busy_wait_s + 5:
+            _refused("busy")
             raise DeckBusy(self.busy_message(wait))
         return False
 
@@ -394,6 +410,7 @@ class DeckGate:
             type(exc).__name__ == "AcceleratorAborted"
         )
         if dog is not None and dog.fired and aborted:
+            _refused("deck_watchdog")
             return DeckBudgetExceeded(self.budget_message())
         return exc
 
@@ -480,6 +497,7 @@ class DeckStore:
         ``dialect`` is the reader's choice (`payload_dialect`), None to
         detect; it is part of the key."""
         from antennaknobs.file_designs import builder_from_text
+        from antennaknobs.nec_import import GeometryLimitError
 
         key = deck_key(name, text, dialect)
         if self.get(key) is not None:
@@ -489,6 +507,9 @@ class DeckStore:
             cls()  # default_params construct, as user designs are checked
         except DeckError:
             raise
+        except GeometryLimitError as exc:
+            _refused("deck_cap")
+            raise DeckError(str(exc)) from None
         except (ValueError, SystemExit) as exc:
             raise DeckError(str(exc)) from None
         except Exception as exc:  # noqa: BLE001 — a stranger's deck: any failure to import it is a refusal by name, never a 500

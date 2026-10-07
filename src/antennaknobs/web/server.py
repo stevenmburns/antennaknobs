@@ -301,6 +301,7 @@ def _open_deck(payload, ip: str) -> tuple[str, bool]:
         _DECK_STORE.get(key)  # touch: recently used
         return key, False
     if not _DECK_OPENS.allow(ip):
+        _count_refusal("deck_rate")
         raise _decks.DeckError(
             "Too many new decks opened from your address in the last minute; "
             "try again shortly.",
@@ -424,6 +425,7 @@ class _DeckRequestMiddleware:
             if scope.get("path") in _DECK_COMPUTE_PATHS:
                 busy = _DECK_GATE.would_refuse(_lane_key(req)[0])
                 if busy is not None:
+                    _count_refusal("busy")
                     raise _decks.DeckBusy(busy)
         except _decks.DeckError as exc:
             return _deck_refusal(exc)
@@ -438,6 +440,16 @@ app.add_middleware(_DeckRequestMiddleware)
 # are inert off the hosted instance, and the pinning off Fly.
 _METRICS = _hosting.UsageCounters(enabled=_HOSTED)
 _METRICS_SERVER: list = []
+
+
+def _count_refusal(reason: str) -> None:
+    """One ``ak_refusals_total{reason}``, at the point the server turns a
+    request away for capacity or limits (reasons: `hosting.REFUSAL_REASONS`).
+    Looks ``_METRICS`` up at call time, so a swapped instance sees it."""
+    _METRICS.inc("ak_refusals_total", reason)
+
+
+_decks.refusal_hook = _count_refusal
 
 
 def _start_metrics_endpoint() -> None:
@@ -1778,6 +1790,7 @@ class _SweepClock:
             return True
         if self._t_end is not None and self._fresh and time.monotonic() > self._t_end:
             self.stopped = True
+            _count_refusal("sweep_budget")
             return True
         self._fresh += 1
         return False
@@ -1835,7 +1848,15 @@ def _check_solve_size(req: dict, *, use_pynec: bool) -> None:
     """
     adm = _admit(req, kind="live", use_pynec=use_pynec)
     if adm.verdict == "refuse":
+        _count_refusal("cost_refused")
         raise SolveTooLargeError(adm.reason)
+
+
+def _count_optimize_stop(result) -> None:
+    """``optimize_budget`` when the hosted time budget ended an /optimize run
+    early (`optimize_bands` answers ``stopped: "time"``, hosted only)."""
+    if isinstance(result, dict) and result.get("stopped") == "time":
+        _count_refusal("optimize_budget")
 
 
 def _refuse_or_withhold(adm, req: dict) -> None:
@@ -1847,8 +1868,10 @@ def _refuse_or_withhold(adm, req: dict) -> None:
     benchmark mesh no longer relies on the client politely holding it back.
     """
     if adm.verdict == "refuse":
+        _count_refusal("cost_refused")
         raise HTTPException(status_code=413, detail=adm.reason)
     if adm.verdict == "warn" and not req.get("_approved"):
+        _count_refusal("cost_withheld")
         raise HTTPException(status_code=403, detail=adm.reason)
 
 
@@ -4748,6 +4771,7 @@ async def optimize_endpoint(req: dict, request: Request):
             return {"geometry": geometry, "error": str(exc)}
         except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise
             return {"geometry": geometry, "error": user_designs.format_solve_error(exc)}
+        _count_optimize_stop(result)
         result["geometry"] = geometry
         result["solver"] = solver_name
         return result
@@ -4776,6 +4800,7 @@ async def optimize_endpoint(req: dict, request: Request):
                 except Exception as exc:  # noqa: BLE001 — user design build_wires
                     stream.fail(user_designs.format_solve_error(exc))
                     return
+                _count_optimize_stop(result)
                 result["geometry"] = geometry
                 result["solver"] = solver_name
                 stream.finish(result)

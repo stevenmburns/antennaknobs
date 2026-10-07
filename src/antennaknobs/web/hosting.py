@@ -61,7 +61,21 @@ the engine and ground rosters.
 - ``ak_sessions_total{kind}``: live-solve connections, by what their first
   solve was of (``catalog`` / ``user`` / ``deck``);
 - ``ak_deck_opens_total{dialect, outcome}``: ``POST /deck``, by the dialect it
-  was read in and ``ok`` / ``refused`` / ``busy``.
+  was read in and ``ok`` / ``refused`` / ``busy``;
+- ``ak_refusals_total{reason}``: requests the server turned away for capacity
+  or limits, by why (``REFUSAL_REASONS``, a closed set, one count per
+  refusal at the point it is made): ``busy`` (the deck slot is held by
+  another client), ``deck_watchdog`` (an opened deck's solve killed at the
+  hosted solve budget), ``deck_cap`` (a deck over the byte, segment or wire
+  caps), ``deck_rate`` (opens per minute), ``sweep_budget`` (a sweep stopped
+  at the hosted wall-time budget; its partial results stand),
+  ``optimize_budget`` (an optimize run stopped at its time budget),
+  ``cost_refused`` (the cost model refused a solve or batch outright) and
+  ``cost_withheld`` (a poor-match batch held until the client approves it).
+  A malformed deck, a design build error and a superseded or cancelled solve
+  are not refusals and are not counted. ``ak_deck_opens_total``'s ``busy``
+  outcome overlaps ``deck_rate`` for ``POST /deck`` (that counter is about
+  opens, this one about turning away, and the two are never summed).
 
 ``design`` is the catalog name, or the literal ``deck`` or ``user``, never a
 file name or hash. Off unless hosted.
@@ -263,6 +277,21 @@ _GROUNDS = frozenset({"fast", "sommerfeld", "mininec", "pec", "terrain"})
 _EXTERNAL_ENGINES = frozenset({"pynec", "nec5", "nec2", "nec42"})
 _DECK_DIALECTS = frozenset({"nec2", "nec4", "nec5"})
 
+# Why the server turned a request away (``ak_refusals_total``). Closed: the
+# series count is len(REFUSAL_REASONS), and `inc` raises on anything else.
+REFUSAL_REASONS = frozenset(
+    {
+        "busy",
+        "deck_watchdog",
+        "deck_cap",
+        "deck_rate",
+        "sweep_budget",
+        "optimize_budget",
+        "cost_refused",
+        "cost_withheld",
+    }
+)
+
 _HELP = {
     "ak_solves_total": (
         "Live solves the server paid for (cache hits and failures excluded).",
@@ -275,6 +304,10 @@ _HELP = {
     "ak_deck_opens_total": (
         "Opened decks (POST /deck), by dialect read in and outcome.",
         ("dialect", "outcome"),
+    ),
+    "ak_refusals_total": (
+        "Requests turned away for capacity or limits, by reason.",
+        ("reason",),
     ),
 }
 
@@ -344,11 +377,15 @@ class UsageCounters:
         self._counts: dict[str, dict[tuple[str, ...], int]] = {n: {} for n in _HELP}
 
     def inc(self, name: str, *labels: str) -> None:
-        if not self.enabled:
-            return
         names = _HELP[name][1]
         if len(labels) != len(names):
             raise ValueError(f"{name} takes labels {names}, got {labels}")
+        # Checked before the enabled test, so a local run and a test both
+        # trip on a reason outside the set.
+        if name == "ak_refusals_total" and labels[0] not in REFUSAL_REASONS:
+            raise ValueError(f"unknown refusal reason {labels[0]!r}")
+        if not self.enabled:
+            return
         with self._lock:
             series = self._counts[name]
             series[labels] = series.get(labels, 0) + 1
