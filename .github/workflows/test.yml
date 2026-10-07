@@ -56,6 +56,12 @@ jobs:
         # create the gcc/g++ -> ccache shims on PATH; without this the action
         # caches ccache but nothing routes through it (the compile isn't cached).
         create-symlink: true
+        # Save on push to main only. Every PR used to save its own copy (15
+        # entries, 5.7 GB across 7 refs), and a PR-scoped cache is readable
+        # only by that PR, so the copies were dead weight that pushed the repo
+        # over the 10 GB Actions cache cap and evicted main's entry, the one
+        # every PR restores from. PRs restore main's and save nothing.
+        save: ${{ github.event_name == 'push' }}
     - name: Install dependencies
       # Build prerequisites only: setuptools/pybind11/numpy must be present
       # before momwire's --no-build-isolation source build below. The test
