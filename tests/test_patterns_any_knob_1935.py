@@ -226,6 +226,41 @@ def test_a_frequency_cell_is_the_clis_cell_at_that_frequency(
     assert own["peak_gain_dbi"] != web["peak_gain_dbi"]
 
 
+def test_the_cli_summary_of_a_frequency_family_has_the_knob_familys_shape(
+    monkeypatch, capsys
+):
+    """``analyze``'s header for a family over the frequency reads as a knob
+    family's: the knob as the cells label it (``freq``, not the role's
+    "frequency"), and no "at <design frequency> MHz" clause, which no cell of
+    it is solved at. A knob family keeps the clause (its cells are)."""
+    fam = an.patterns(
+        name="f",
+        cross=an.Cross(step=an.Sweep(an.FREQUENCY, values=(28.0, 29.5))),
+        views=(an.PatternTable(),),
+    )
+    knob = an.patterns(
+        name="k",
+        cross=an.Cross(step=an.Sweep("base", values=(6.0, 8.0))),
+        views=(an.PatternTable(),),
+    )
+    b = get_builder(INVVEE)()
+    freq_line = ar.summary(fam, b)
+    assert freq_line.startswith("pattern; 2 patterns (2 values of freq); ")
+    assert "(freq)" not in freq_line
+    knob_line = ar.summary(knob, b)
+    assert (
+        knob_line.startswith("pattern at ")
+        and "MHz (freq); 2 patterns (2 values of base)" in knob_line
+    )
+    # The run prints it, and a line per value.
+    _offer(monkeypatch, [fam])
+    cli(["analyze", "--builder", INVVEE, "--analysis", "f", "--engine", ENGINE,
+         "--nominal-nsegs", "15", "--ground", "free", "--fn", "/dev/null"])  # fmt: skip
+    out = capsys.readouterr().out
+    assert "analysis 'f': pattern; 2 patterns (2 values of freq)" in out
+    assert "  freq = 28: 28 MHz" in out and "  freq = 29.5: 29.5 MHz" in out
+
+
 # ── an opened deck: any SY knob ──────────────────────────────────────────────
 
 # A synthetic 20 m dipole whose height is an SY symbol (the shape of Dan's

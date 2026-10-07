@@ -223,10 +223,11 @@ def _fmt(v) -> str:
     return f"{v:g}" if isinstance(v, (int, float)) else str(v)
 
 
-def _cross_words(c: an.Cross) -> str:
+def _cross_words(c: an.Cross, builder=None) -> str:
     if c.step is not None:
-        knob = c.step.knob.name if isinstance(c.step.knob, an.Role) else c.step.knob
-        return f"{c.size} values of {knob}"
+        # The knob as the design names it (`freq`, as the cell labels do),
+        # not the role's word ("frequency").
+        return f"{c.size} values of {_step_name(c.step, builder)}"
     return f"{c.size} {c.kind}"
 
 
@@ -255,8 +256,12 @@ def summary(a: an.Analysis, builder) -> str:
         parts.append(what)
     text = " x ".join(parts)
     if an.is_pattern(a):
-        text = "pattern" + _pattern_freq_words(builder)
-    crosses = " x ".join(_cross_words(c) for c in a.crosses)
+        # A family over the frequency sets it on every cell: the design's own
+        # is no pattern's frequency, so it is not named.
+        text = "pattern" + (
+            "" if _steps_freq(a, builder) else _pattern_freq_words(builder)
+        )
+    crosses = " x ".join(_cross_words(c, builder) for c in a.crosses)
     n = a.curves
     unit = "pattern" if an.is_pattern(a) else "map" if len(a.sweeps) == 2 else "curve"
     text += f"; {n} {unit}{'s' if n != 1 else ''}" + (
@@ -268,6 +273,14 @@ def summary(a: an.Analysis, builder) -> str:
         if a.hold.bands:
             text += f" across {'/'.join(f'{b.freq:g}' for b in a.hold.bands)} MHz"
     return text + f"; views {', '.join(type(v).__name__ for v in a.views)}"
+
+
+def _steps_freq(a: an.Analysis, builder) -> bool:
+    """Whether a family of ``a`` steps the measurement frequency."""
+    return any(
+        c.step is not None and an.resolve(c.step.knob, builder).knob == "freq"
+        for c in a.crosses
+    )
 
 
 def _pattern_freq_words(builder) -> str:
