@@ -203,3 +203,33 @@ def test_superposition_reference_is_physical():
     assert sup is not None and not sup.get("error")
     for re, im in sup["z"]:
         assert re > 0.0, f"non-physical negative resistance: {re}+{im}j"
+
+
+# ------------------------------------------ run_nec2c's frequency (harness)
+
+
+def test_first_fr_mhz_reads_the_card_at_full_precision():
+    assert (
+        bnc.first_fr_mhz("GW 1 5 0 0 0 0 0 1 .01\nFR 0 1 0 0 7.123456 0\nEN\n")
+        == 7.123456
+    )
+    assert bnc.first_fr_mhz("FR,0,3,0,0,14.0001234,0.1\n") == 14.0001234
+    # The first FR card, not a later one; none, or no F1, is None.
+    assert bnc.first_fr_mhz("FR 0 1 0 0 7 0\nFR 0 1 0 0 14 0\n") == 7.0
+    assert bnc.first_fr_mhz("GE 1\nEN\n") is None
+    assert bnc.first_fr_mhz("FR 0 1 0 0\n") is None
+
+
+@needs_nec2c
+def test_run_nec2c_frequency_is_not_rounded_to_the_printout(tmp_path):
+    """nec2c prints FREQUENCY to five significant figures (7.1235 MHz for a
+    7.123456 card); the reference must carry the card's value, so the engines
+    are solved at the frequency nec2c ran at, not 7e-6 relative off it."""
+    deck = tmp_path / "d.nec"
+    deck.write_text(
+        "CE\nGW 1 11 0 0 -10 0 0 10 0.01\nGE 0\nEX 0 1 6 0 1 0\n"
+        "FR 0 1 0 0 7.123456 0\nXQ\nEN\n"
+    )
+    ref = bnc.run_nec2c(deck, 60)
+    assert ref["error"] is None
+    assert ref["freq"] == 7.123456
