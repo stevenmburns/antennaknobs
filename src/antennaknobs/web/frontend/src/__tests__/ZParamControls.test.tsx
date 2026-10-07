@@ -143,3 +143,41 @@ describe("an analysis's explicit ladder (AK#1757)", () => {
     expect("values" in next).toBe(false);
   });
 });
+
+describe("the step box on the R / X knob sweep", () => {
+  const LIN: ParamSweepSpec = { param: "base", lo: 5, hi: 20, points: 4, log: false };
+
+  it("shows the linear range's step, and not on a log ladder (density)", () => {
+    const { unmount } = render(<Harness initial={LIN} onSpec={() => {}} />);
+    expect(box("step").value).toBe("5");
+    unmount();
+    render(<Harness onSpec={() => {}} />);
+    expect(screen.queryByLabelText("step")).toBeNull();
+  });
+
+  it("a step that does not divide the span moves `to` onto the last value, and sets the points", async () => {
+    const user = userEvent.setup();
+    const onSpec = vi.fn();
+    render(<Harness initial={LIN} onSpec={onSpec} />);
+    await user.clear(box("step"));
+    await user.type(box("step"), "4{Enter}");
+    // 5, 9, 13, 17.
+    expect(onSpec).toHaveBeenLastCalledWith(expect.objectContaining({ lo: 5, hi: 17, points: 4 }));
+    expect(box("points").value).toBe("4");
+  });
+
+  it("refuses a step that would exceed the sweep's own point cap, leaving the points as they were", async () => {
+    const user = userEvent.setup();
+    const onSpec = vi.fn();
+    render(<Harness initial={LIN} onSpec={onSpec} />);
+    await user.clear(box("step"));
+    await user.type(box("step"), "0.01{Enter}");
+    expect(onSpec).not.toHaveBeenCalled();
+    expect(box("points").value).toBe("4");
+  });
+
+  it("is not inside the nowrap group, so it cannot widen the header on a phone", () => {
+    render(<Harness initial={LIN} onSpec={() => {}} />);
+    expect(box("step").closest(".zparam-group")).toBeNull();
+  });
+});
