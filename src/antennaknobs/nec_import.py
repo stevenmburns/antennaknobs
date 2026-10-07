@@ -3462,6 +3462,12 @@ class _Card:
         return ValueError(f"{self.where}: {self.mnemonic} card: {msg}")
 
 
+class GeometryLimitError(ValueError):
+    """A deck is over a `GeometryLimits` bound. Still a ValueError, as it
+    always was; the subclass lets the hosted server tell a cap from a
+    malformed deck."""
+
+
 @dataclass(frozen=True)
 class GeometryLimits:
     """Upper bounds on the structure a deck may build, checked BEFORE a card
@@ -3488,7 +3494,7 @@ class GeometryLimits:
         if not n_wires <= self.max_wires:
             over.append(f"{_count(n_wires)} wires (the limit is {self.max_wires})")
         if over:
-            raise ValueError(
+            raise GeometryLimitError(
                 f"{where}: this deck builds {' and '.join(over)}"
                 + (f"; {self.note}" if self.note else "")
             )
