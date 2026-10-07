@@ -367,10 +367,37 @@ jobs:
     # deploy-docs.yml on tags and is intentionally NOT built here.
     name: frontend build + typecheck
     runs-on: ubuntu-latest
+    # paths-filter lists a PR's files through the API, which needs this read
+    # grant on top of the workflow-wide `contents: read`.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
     - uses: actions/checkout@v7
       # No `submodules:` — the frontend build is pure Node, momwire is irrelevant.
+    - name: Did this change touch the frontend?
+      # The guard is on the STEPS, never the job: `frontend build + typecheck`
+      # is a required check, and a job filtered out at the job or `on:` level
+      # reports nothing, which branch protection waits on forever (the same
+      # pattern as momwire's ci.yml `changes` job). Half the merged PRs touch
+      # no file under the frontend dir; for them this job now reports success
+      # in seconds instead of ~2 min of npm ci + tsc + vite + vitest.
+      #
+      # Only this direction is safe. The Python `build` job must NOT be
+      # guarded the other way: ~45 Python tests read frontend fixtures.
+      # workflow_dispatch skips the filter, and an empty output means "run".
+      # This workflow file is deliberately NOT in the filter: an edit here
+      # that changes how the frontend job runs is proven with
+      # `gh workflow run test.yml --ref <branch>`, which runs every step.
+      if: github.event_name != 'workflow_dispatch'
+      uses: dorny/paths-filter@v4
+      id: filter
+      with:
+        filters: |
+          frontend:
+            - 'src/antennaknobs/web/frontend/**'
     - uses: actions/setup-node@v7
+      if: steps.filter.outputs.frontend != 'false'
       # Same pinning as publish.yml's frontend step: Node 20 with the built-in
       # npm cache keyed on the frontend lockfile. Keep the two in sync — publish
       # builds the very same bundle into the wheel, and a version split there
@@ -380,6 +407,7 @@ jobs:
         cache: npm
         cache-dependency-path: src/antennaknobs/web/frontend/package-lock.json
     - name: Build the React frontend
+      if: steps.filter.outputs.frontend != 'false'
       # `npm run build` is `tsc --noEmit && vite build`, so the typecheck gates
       # the bundle — a type error fails here before Vite runs.
       #
@@ -392,6 +420,7 @@ jobs:
         npm ci
         npm run build
     - name: Lint the frontend
+      if: steps.filter.outputs.frontend != 'false'
       # eslint.config.js (issue #736): typescript-eslint + react-hooks +
       # testing-library, non-type-checked so this stays fast. Warnings don't
       # gate (--max-warnings=9999) — testing-library's structure-coupled
@@ -402,6 +431,7 @@ jobs:
       working-directory: src/antennaknobs/web/frontend
       run: npm run lint -- --max-warnings=9999
     - name: Unit-test the frontend (lib logic + mounted components)
+      if: steps.filter.outputs.frontend != 'false'
       # Vitest: the pure lib/ functions (issue #642) plus Testing Library
       # component tests (issue #673), run headless under jsdom (module-scope
       # WS_URL reads window.location, so a Node environment can't import the
