@@ -192,10 +192,17 @@ describe("a relative metric analysis in the session", () => {
     expect(plot.getAttribute("data-guide-label")).toBe("Length = 1 (now)");
 
     fireEvent.change(screen.getByRole("combobox", { name: "Chart view" }), { target: { value: "Table" } });
-    const table = await untilDom(() => screen.queryByRole("table", { name: "Analysis table" }));
-    // eslint-disable-next-line testing-library/no-node-access -- header cells by row
-    const groups = [...table.querySelectorAll("thead tr:first-child th")].map((th) => th.textContent);
-    expect(groups).toEqual(["", "as built", "ref (reference, 0 dB)"]);
+    // The table is drawn before the reference's column has arrived; wait for
+    // the column itself, not for a table (a fixed wait raced it under load).
+    const groupsOf = (t: HTMLElement) =>
+      // eslint-disable-next-line testing-library/no-node-access -- header cells by row
+      [...t.querySelectorAll("thead tr:first-child th")].map((th) => th.textContent);
+    const table = await untilDom(() => {
+      const t = screen.queryByRole("table", { name: "Analysis table" });
+      // eslint-disable-next-line testing-library/no-node-access -- body rows
+      return t && groupsOf(t).includes("ref (reference, 0 dB)") && t.querySelectorAll("tbody tr").length === 4 ? t : null;
+    });
+    expect(groupsOf(table)).toEqual(["", "as built", "ref (reference, 0 dB)"]);
     // eslint-disable-next-line testing-library/no-node-access -- header cells by row
     const heads = [...table.querySelectorAll("thead tr:last-child th")].map((th) => th.textContent);
     expect(heads.slice(1, 5)).toEqual(["R (Ω)", "X (Ω)", "DX gain (dBi)", "DX gain vs ref (dB)"]);
