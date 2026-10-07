@@ -29,19 +29,15 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.98.0" icon="star">
-  **Maps, pattern families, and the extended kernel at full speed.** An analysis
-  that sweeps two knobs now draws as a map: |Γ| coloured over both knobs, with
-  resonance, match and SWR-threshold contours, a marker at your knobs, and "set
-  knobs here" on any point. The "Sweep a knob" chart can draw patterns instead
-  of impedance: pick Elevation, Azimuth or the pattern table, choose a knob and
-  its values (start and end with a step, or a number of points), and see up to
-  six patterns together, across the band too. Keep either as an analysis. Every
-  analysis now says whether it is this design's own or every design's. Hosted
-  sweeps stop at 120 s and keep what they solved. momwire 0.73.1 rebuilds
-  Sinusoidal-Galerkin on the B-spline machinery and makes the extended kernel
-  (the default for NEC-4 and NEC-5 decks) nearly free again: free-space and
-  above-ground decks solve 2 to 20× faster than in 0.72.0.
+<Card title="New in v0.99.0" icon="star">
+  **The extended kernel on every pair, and SimNEC sweeps on NEC-5.** momwire
+  0.74.0 applies the extended kernel to every pair of segments, with each
+  wire's own radius, instead of only to straight runs of equal radius, so
+  bent and stepped NEC-4 and NEC-5 decks can read slightly differently than
+  before. Its NEC-5 drop-in now reads the multi-run decks SimNEC
+  sends for a sweep. Buried and inverted-L decks solve faster. In the workbench, a
+  copied link carries the pattern family, the R / X knob sweep gets the step
+  box, and pattern families read better on a phone.
 </Card>
 
 ## The whole pitch, in one line
