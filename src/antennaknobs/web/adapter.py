@@ -1669,6 +1669,8 @@ def _auto_paramspec(name: str, default: Any, override: dict | None) -> ParamSpec
     explicit_precision = override.pop("precision", None)
     precision = 3 if explicit_precision is None else int(explicit_precision)
     sweepable = bool(override.pop("sweepable", name == "freq"))
+    role_raw = override.pop("role", None)
+    role = role_raw if isinstance(role_raw, str) else None
 
     if isinstance(default, bool):
         kind = override.pop("kind", "bool")
@@ -1763,6 +1765,7 @@ def _auto_paramspec(name: str, default: Any, override: dict | None) -> ParamSpec
             layout=layout,
             description=description,
             auto_range=auto_range,
+            role=role,
         )
         if "linked_to_design_freq" in override:
             spec_kwargs["linked_to_design_freq"] = bool(

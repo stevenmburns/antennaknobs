@@ -364,7 +364,18 @@ def test_a_role_key_leaves_the_workbench_schema_unchanged(spec):
     params = dict(get_builder(spec)()._params)
     stripped = _strip_roles(params)
     assert stripped["ui_params"] != dict(params["ui_params"])  # a role was there
-    assert _derive_schema(params) == _derive_schema(stripped)
+
+    # The role is served on its knob (ParamSpec.role: the workbench's family
+    # leaves a density knob out, #1935) and changes nothing else.
+    def plain(schema):
+        return [
+            dataclasses.replace(p, role=None) if hasattr(p, "role") else p
+            for p in schema
+        ]
+
+    assert plain(_derive_schema(params)) == plain(_derive_schema(stripped))
+    served = {p.name: p.role for p in _derive_schema(params) if hasattr(p, "role")}
+    assert "density" in served.values()
 
 
 # ── oracle equality through the CLI ──────────────────────────────────────
