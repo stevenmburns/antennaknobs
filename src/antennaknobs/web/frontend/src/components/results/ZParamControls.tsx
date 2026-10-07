@@ -13,7 +13,8 @@ import {
   AnalysisSelect,
   chartNotes,
 } from "./AnalysisPicker";
-import { chartDataAttrs } from "../../lib/analysisChart";
+import { chartDataAttrs, familyStep, stepEdit } from "../../lib/analysisChart";
+import { STEP_TITLE } from "./FamilyRange";
 import {
   type ChartChrome,
   ChartViewPick,
@@ -95,6 +96,7 @@ export function ZParamControls({
   // magnitude (0.01 on 0.8…1.25, 1 on 8…68, 10 on 10…500).
   const span = Math.abs(spec.hi - spec.lo) || Math.abs(spec.hi) || 1;
   const rangeStep = 10 ** Math.floor(Math.log10(span / 10));
+  const step = familyStep(spec);
   return (
     <div
       className="zparam-overlay"
@@ -134,6 +136,25 @@ export function ZParamControls({
           <span>to</span>
           <CommitNumber label="to" value={spec.hi} step={rangeStep} onCommit={(v) => set({ hi: v })} />
         </label>
+        {/* The step is the range's other spelling (from, to, points): an
+            edit sets the points and moves `to` onto the last value it
+            reaches. A direct child of the wrapping row, not of the nowrap
+            group below, so it adds a wrap point rather than header width. */}
+        {step !== null && (
+          <label className="chart-family-step" title={STEP_TITLE}>
+            <span>step</span>
+            <CommitNumber
+              label="step"
+              value={step}
+              step={rangeStep}
+              problem={(v) => stepEdit(spec, v, MAX_POINTS).problem}
+              onCommit={(v) => {
+                const r = stepEdit(spec, v, MAX_POINTS);
+                if (r.spec) onSpec(r.spec);
+              }}
+            />
+          </label>
+        )}
         <span className="zparam-group">
           <label
             className="zparam-points"
