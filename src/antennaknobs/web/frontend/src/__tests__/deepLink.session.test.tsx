@@ -128,6 +128,7 @@ type Body = Record<string, unknown>;
 async function open(url: string) {
   const paramSweeps: Body[] = [];
   const analysesAsked: Body[] = [];
+  const cells: Body[] = [];
   const r = mountDesignSession({
     url,
     examples: [OTHER, DECK],
@@ -151,6 +152,11 @@ async function open(url: string) {
         lines.push(JSON.stringify({ done: true, solver: "momwire" }));
         return ndjson(lines);
       },
+      // A family's cells: asked for, not drawn (the answer is a refusal).
+      "/pattern_cell": (_url: string, init?: RequestInit) => {
+        cells.push(JSON.parse(String(init?.body ?? "{}")) as Body);
+        return { ok: true, status: 200, json: async () => ({ available: false }) } as unknown as Response;
+      },
       "/analyses": (_url: string, init?: RequestInit) => {
         analysesAsked.push(JSON.parse(String(init?.body ?? "{}")) as Body);
         return { ok: true, status: 200, json: async () => ANALYSES } as unknown as Response;
@@ -158,7 +164,7 @@ async function open(url: string) {
     },
   });
   await sessionReady(document.body);
-  return { ...r, paramSweeps, analysesAsked };
+  return { ...r, paramSweeps, analysesAsked, cells };
 }
 
 const ready = () => document.querySelector<HTMLElement>(".app[data-ready]")?.dataset.ready ?? "";
@@ -301,5 +307,50 @@ describe("the URL follows the tab", () => {
       `${window.location.origin}/?design=dipoles.deck&analysis=match%20vs%20height&view=Knobs`,
     );
     await untilDom(() => btn.textContent === "copied" || null);
+  });
+});
+
+describe("a link carries a pattern family (AK#1935)", () => {
+  const FAMILY_LINK = "/?design=dipoles.deck&family=base:4:14:3&view=pattern:1";
+  const box = (name: string) => (screen.getByRole("textbox", { name }) as HTMLInputElement).value;
+
+  it("opens the family on its knob, range and view, and asks one cell per value", async () => {
+    const { cells } = await open(FAMILY_LINK);
+    await untilDom(() => (head()?.dataset.chartKind === "pattern" && query().get("family") ? true : null));
+    expect(chartViewBox()!.value).toBe("pattern:1");
+    expect([box("from"), box("to"), box("values")]).toEqual(["4", "14", "3"]);
+    expect((screen.getByRole("combobox", { name: "Parameter" }) as HTMLSelectElement).value).toBe("base");
+    await untilDom(() => (cells.length >= 3 ? true : null));
+    expect(cells.map((b) => b.base)).toEqual([4, 9, 14]);
+    expect(notice()).toBeNull();
+  });
+
+  it("the copied link is the one that opens it, and an edited range rides in the next copy", async () => {
+    const writes: string[] = [];
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      clipboard: { writeText: async (t: string) => void writes.push(t) },
+    });
+    await open(FAMILY_LINK);
+    await untilDom(() => (head()?.dataset.chartKind === "pattern" && query().get("family") ? true : null));
+    // The URL follows the tab: the family is in it, with its view.
+    expect(query().get("family")).toBe("base:4:14:3");
+    expect(query().get("view")).toBe("pattern:1");
+    const to = screen.getByRole("textbox", { name: "to" });
+    fireEvent.change(to, { target: { value: "12" } });
+    fireEvent.blur(to);
+    await untilDom(() => query().get("family") === "base:4:12:3" || null);
+    fireEvent.click(screen.getAllByRole("button", { name: "Copy a link to this chart" })[0]);
+    await untilDom(() => writes.length > 0 || null);
+    expect(writes[0]).toBe(
+      `${window.location.origin}/?design=dipoles.deck&family=base:4:12:3&view=pattern:1`,
+    );
+  });
+
+  it("names a knob the design does not have, and leaves the chart as it was", async () => {
+    await open("/?design=dipoles.deck&family=nope:1:2:3&view=pattern:0");
+    await untilDom(() => notice() || null);
+    expect(notice()!.textContent).toContain('"nope"');
+    expect(head()!.dataset.chartKind).not.toBe("pattern");
   });
 });

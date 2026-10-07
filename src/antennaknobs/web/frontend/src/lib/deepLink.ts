@@ -4,6 +4,9 @@
 //   ?design=<family.design>[:<variant>]   the design, and optionally its variant
 //   &analysis=<name>                      the chart's analysis (own or a study)
 //   &view=<view id>                       the chart's view (Rx, Knobs, Smith, …)
+//   &family=<knob>:<from>:<to>:<points>[:log]
+//                                         a pattern family's knob and range
+//                                         (AK#1935), beside a pattern `view`
 //   &run=1                                press Run once it is selected
 //   ?deck=<z>&name=<file name>            an opened deck (lib/decks.ts): the
 //                                         file's text, compressed, in place
@@ -18,6 +21,27 @@
 import type { AnalysisEntry } from "./analyses";
 import { DECK_NS, isDialect, shareable, type DeckPayload } from "./decks";
 import type { ExampleDescriptor } from "./params";
+import { MIN_POINTS, type ParamSweepSpec } from "./paramSweep";
+
+/** A family's spec as a link carries it: its knob, range, count and spacing
+ *  (never an analysis's explicit `values`: a family's are its range's). */
+export type LinkFamily = Pick<ParamSweepSpec, "param" | "lo" | "hi" | "points" | "log">;
+
+/** `knob:from:to:points[:log]`, or null when it is not that. The knob name
+ *  holds no colon; `points` is a whole number of at least MIN_POINTS. */
+export function parseFamily(raw: string): LinkFamily | null {
+  const f = raw.split(":");
+  if ((f.length !== 4 && f.length !== 5) || (f.length === 5 && f[4] !== "log")) return null;
+  const [param, lo, hi, points] = [f[0].trim(), Number(f[1]), Number(f[2]), Number(f[3])];
+  if (param === "" || !Number.isFinite(lo) || !Number.isFinite(hi)) return null;
+  if (!Number.isInteger(points) || points < MIN_POINTS) return null;
+  return { param, lo, hi, points, log: f.length === 5 };
+}
+
+/** The family as `parseFamily` reads it back. */
+export function familyParam(f: LinkFamily): string {
+  return [f.param, f.lo, f.hi, f.points, ...(f.log ? ["log"] : [])].join(":");
+}
 
 /** A parsed link. Every field is optional: an absent one is not part of the
  *  link. `run` is true only for `run=1`. */
@@ -30,12 +54,16 @@ export type DeepLink = {
   /** An opened deck the link carries (`deck` + `name`); the shell opens it
    *  and sets `design` to its key before the session reads the link. */
   deck?: DeckPayload | null;
+  /** A pattern family's knob and range, to be applied beside `view`. */
+  family?: LinkFamily | null;
+  /** What was wrong with the link's `family`, for the link notice. */
+  familyProblem?: string | null;
   /** What went wrong opening the link's deck, for the link notice. */
   problem?: string | null;
 };
 
 /** The query parameters a link owns; any other is left as it is. */
-export const LINK_PARAMS = ["design", "analysis", "view", "run", "deck", "name", "dialect"] as const;
+export const LINK_PARAMS = ["design", "analysis", "view", "run", "deck", "name", "dialect", "family"] as const;
 
 /** A non-empty, trimmed parameter, else null. */
 function param(q: URLSearchParams, k: string): string | null {
@@ -59,12 +87,18 @@ export function parseDeepLink(search: string): DeepLink | null {
   const z = param(q, "deck");
   // A dialect the workbench does not know is dropped: the deck opens detected.
   const dialect = param(q, "dialect");
+  const rawFamily = param(q, "family");
+  const family = rawFamily === null ? null : parseFamily(rawFamily);
   const link: DeepLink = {
     design,
     variant,
     analysis: param(q, "analysis"),
     view: param(q, "view"),
     run: q.get("run") === "1",
+    ...(family ? { family } : {}),
+    ...(rawFamily !== null && family === null
+      ? { familyProblem: `family "${rawFamily}" is not knob:from:to:points[:log]` }
+      : {}),
     ...(z === null
       ? {}
       : {
@@ -75,7 +109,7 @@ export function parseDeepLink(search: string): DeepLink | null {
           },
         }),
   };
-  return link.design || link.variant || link.analysis || link.view || link.run || link.deck
+  return link.design || link.variant || link.analysis || link.view || link.run || link.deck || link.family || link.familyProblem
     ? link
     : null;
 }
@@ -183,6 +217,9 @@ export type LinkState = {
   /** The opened deck the design is, when it is one: the link carries it in
    *  place of the design's key, when it fits (`decks.shareable`). */
   deck?: DeckPayload | null;
+  /** The pattern family the chart draws (AK#1935): its knob and range,
+   *  beside its pattern `view`; no analysis names it. */
+  family?: LinkFamily | null;
 };
 
 /** `search` with the link's parameters replaced by `state`'s (any other
@@ -203,6 +240,9 @@ export function linkSearch(search: string, state: LinkState): string {
   }
   if (state.analysis) {
     q.set("analysis", state.analysis);
+    if (state.view) q.set("view", state.view);
+  } else if (state.family) {
+    q.set("family", familyParam(state.family));
     if (state.view) q.set("view", state.view);
   }
   // URLSearchParams writes a space as "+" and escapes a colon and

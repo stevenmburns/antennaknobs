@@ -229,3 +229,33 @@ describe("linkSearch / linkHref", () => {
     ).toBe("https://antennaknobs.dev/app/?design=dipoles.invvee&analysis=convergence&view=Rx");
   });
 });
+
+describe("a pattern family in a link (AK#1935)", () => {
+  const base = { design: "dipoles.invvee", variant: null, analysis: null };
+  const fam = { param: "base", lo: 4, hi: 14, points: 6, log: false };
+
+  it("writes the knob, range and count beside the pattern view, `log` only when log", () => {
+    expect(linkSearch("", { ...base, family: fam, view: "pattern:1" })).toBe(
+      "?design=dipoles.invvee&family=base:4:14:6&view=pattern:1",
+    );
+    expect(linkSearch("", { ...base, family: { ...fam, log: true }, view: "pattern:0" })).toBe(
+      "?design=dipoles.invvee&family=base:4:14:6:log&view=pattern:0",
+    );
+  });
+
+  it("round-trips through parseDeepLink", () => {
+    const f = { param: "freq", lo: 28, hi: 29.7, points: 3, log: false };
+    const search = linkSearch("", { ...base, family: f, view: "pattern:2" });
+    expect(parseDeepLink(search)).toMatchObject({ design: "dipoles.invvee", family: f, view: "pattern:2" });
+    const g = { ...fam, log: true };
+    expect(parseDeepLink(linkSearch("", { ...base, family: g, view: "pattern:0" }))?.family).toEqual(g);
+  });
+
+  it("a malformed family is reported, not applied", () => {
+    for (const bad of ["base:4:14", "base:4:x:6", "base:4:14:1", "base:4:14:6:lin", ":4:14:6"]) {
+      const l = parseDeepLink(`?design=a.b&family=${bad}&view=pattern:0`);
+      expect(l?.family).toBeUndefined();
+      expect(l?.familyProblem).toContain("knob:from:to:points");
+    }
+  });
+});
