@@ -484,15 +484,23 @@ row exists to catch.
 
 This page grows as the validation story does: further analytic anchors
 (King-Middleton second-order dipole values, from King's published
-tables), community-submitted problem decks — the intake is
+tables), community-submitted problem decks, and measured-data anchors.
+
+Problem decks come in through
 [antenna-problem-decks](https://github.com/stevenmburns/antenna-problem-decks),
-where every submission gets a committed per-deck verdict (two published
-so far: a 20:1 tapered dipole submitted by Ward Harriman, AE6TY, and
-the hentenna — one NEC-2 defect class each — plus two hexbeam
-verdicts requested via Reddit: the single-band broadband hexbeam,
-the collection's first *agreement* entry (all three engines within
-0.15 Ω, with the wire-gauge sensitivity measured rather than
-assumed), and the 5-band stack (three-engine census on all five
-bands plus the physical one-coax feed solved as a network — two
-formulations within 1.2 Ω on every band; NEC-5 sits that one out,
-having no TL stamping) — and measured-data anchors.
+where every submission gets a committed per-deck verdict, run four ways:
+nec2c, licensed NEC-4.2, licensed NEC-5 and momwire. Four are published:
+
+- **A 20:1 tapered dipole** submitted by Ward Harriman, AE6TY: momwire
+  and NEC-5 agree on ≈ 76 + j8 Ω (0.33 Ω apart). Raw NEC-2 reads the
+  reactance ~23 Ω high and NEC-4.2 ~8 Ω high, and both drift upward
+  under refinement.
+- **The hentenna:** all four engines agree on R. NEC-2's reactance is
+  still crawling at 15× the mesh, and NEC-4.2 reads it 2.6–3.0 Ω low.
+- **The single-band broadband hexbeam** (requested via Reddit), the
+  collection's *agreement* entry: all four engines within 0.22 Ω, with
+  the wire-gauge sensitivity measured rather than assumed.
+- **The 5-band stack:** a census of every band, and the physical
+  one-coax feed solved as a network. momwire and NEC-5 converge to
+  within 0.81 Ω on it, while the NEC-2 family agrees with itself but
+  drifts 1.5–4.8 Ω under refinement.
