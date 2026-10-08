@@ -5130,8 +5130,16 @@ def capabilities_endpoint():
     an old folder silently keeps the old `_internal` beside it; the console
     line was the only tell, so the label is served here too rather than
     built in the frontend (which must name no engine — issue #1517).
+
+    `accelerator`: which momwire C++ build this process loaded (`avx2`,
+    `sse2`, `legacy`, or a newer variant) and whether any loaded at all, read
+    from momwire's public `accelerator_variant` / `accelerated` per request. It is the only way to tell from outside
+    which build a hosted machine is running, e.g. that an AVX-512 machine
+    picked the AVX-512 build (momwire#1370).
     """
     from importlib.metadata import version as pkg_version
+
+    import momwire
 
     from . import settings as ui_settings
     from .adapter import (
@@ -5166,6 +5174,10 @@ def capabilities_endpoint():
         # it renders this, never "momwire" itself.
         "versions": {"antennaknobs": ak_version, "momwire": mw_version},
         "version_label": f"v{ak_version} · momwire v{mw_version}",
+        "accelerator": {
+            "variant": momwire.accelerator_variant,
+            "loaded": momwire.accelerated,
+        },
         "backends": backend_roster(**have),
         "model_option_specs": model_option_specs(),
         "backend_aliases": backend_aliases(),
