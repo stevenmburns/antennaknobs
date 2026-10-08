@@ -933,14 +933,46 @@ def _grid(lo: float, hi: float, points: int, log: bool) -> list[float]:
     return [lo + (hi - lo) * x for x in t]
 
 
+def _family_views(views) -> tuple[an.View, ...] | None:
+    """A family's ``views`` as the page sends them (AK#1950): /analyses'
+    own shape for a pattern's views (``{view: "Elevation", az}``,
+    ``{view: "Azimuth", el}``, ``{view: "PatternTable"}``), so the cut angles
+    the chart drew are the ones kept. None when absent (an.patterns()'s
+    own). An angle the view refuses is refused in its constructor's words."""
+    if views is None:
+        return None
+    if not isinstance(views, list) or not views:
+        raise KeepError("family.views is a list of pattern views")
+    makers: dict[str, Callable[[Mapping], an.View]] = {
+        "Elevation": lambda v: an.Elevation(az=v.get("az")),
+        "Azimuth": lambda v: an.Azimuth(el=v.get("el")),
+        "PatternTable": lambda _v: an.PatternTable(),
+    }
+    out: list[an.View] = []
+    for v in views:
+        kind = v.get("view") if isinstance(v, Mapping) else None
+        make = makers.get(kind) if isinstance(kind, str) else None
+        if make is None:
+            raise KeepError(
+                "family.views: each is an Elevation, Azimuth or PatternTable view"
+            )
+        try:
+            out.append(make(v))
+        except (TypeError, ValueError) as e:
+            raise KeepError(f"family.views: {e}") from None
+    return tuple(out)
+
+
 def analysis_from_family(family) -> an.Analysis:
     """The pattern family the knob chart drew (AK#1935): ``{knob, lo, hi,
-    points, spacing, values?}`` as ``an.patterns(cross=an.Cross(step=
+    points, spacing, values?, views?}`` as ``an.patterns(cross=an.Cross(step=
     an.Sweep(knob, lo, hi, points=n)))``, a log grid with ``spacing="log"``
     and a frequency family over `an.FREQUENCY`. The page's ``values`` are
     the values it solved: written as ``values=`` only where they are not
     that grid (an integer knob's ladder, rounded to whole values), so the
-    kept analysis steps exactly what was drawn."""
+    kept analysis steps exactly what was drawn. Its ``views`` (AK#1950) are
+    the cuts it drew at, written as ``views=`` only where they are not
+    an.patterns()'s own."""
     if not isinstance(family, Mapping):
         raise KeepError("family is {knob, lo, hi, points, spacing}")
     knob = family.get("knob")
@@ -988,7 +1020,10 @@ def analysis_from_family(family) -> an.Analysis:
         sweep = an.Sweep(target, **kw)
     except (TypeError, ValueError) as e:
         raise KeepError(f"family: {e}") from None
-    return an.patterns(cross=an.Cross(step=sweep))
+    views = _family_views(family.get("views"))
+    return an.patterns(
+        cross=an.Cross(step=sweep), **({} if views is None else {"views": views})
+    )
 
 
 def analysis_from_chart(
