@@ -649,6 +649,13 @@ The header holds the family's values:
 - **values** — how many, linear or with **log spacing** (a fixed ratio, no
   step). An integer knob is rounded to whole values, as the knob sweep is.
 
+Beside the **view** menu, an elevation or azimuth view shows its cut:
+**at** *n* **° az** (the bearing of an elevation cut, 0–359, wrapping round)
+or **at** *n* **° el** (the elevation of an azimuth cut, 1–89). Type an angle
+and press Enter: every pattern in the family redraws at that cut, and the
+view menu's label follows it (**Elevation @ 90° az**). **at peak** sets the
+cut through the live design's 3-D maximum.
+
 At most **6** values, the chart's curve cap: more overlapping patterns are
 unreadable. A knob sweep of more points is clamped to 6 on the way in, and
 the **values** and **step** boxes refuse a count over 6. Ticking more solver
@@ -665,8 +672,9 @@ sweeps frequency). **copy** and **keep** write the family as
 `an.patterns(cross=an.Cross(step=an.Sweep("base", 4, 14, points=6)))`, with
 `an.FREQUENCY` for a frequency family, `spacing="log"` for log spacing, and
 the exact `values=` only when an integer knob's rounding took them off that
-range. The chart's **link** does not carry a family (it names no analysis),
-so it opens on the design.
+range, and the cut angles you set as `views=` when they differ from the
+views' own. The chart's **link** carries the family as `family=` and a cut
+angle off the view's own as `cut=` (see [Linking to a chart](#linking-to-a-chart)).
 
 ### Maps
 
@@ -787,7 +795,13 @@ chart. Opening such a link opens the design and selects the analysis:
   study goes by its full `source:name`, or by its source or short name when
   only one study answers to it: the same rule as `analyze --study`.
 - `view=` is the chart's view (`Rx`, `Smith`, `Table`, `Knobs`, `Metric`,
-  `Swr`, `S11`); optional.
+  `Swr`, `S11`, or a pattern view such as `pattern:0`); optional.
+- `family=` is a pattern family's knob and range, beside a pattern `view=`:
+  `knob:from:to:points`, with `:log` for log spacing
+  (`family=angle_deg:0:60:6`). The knob is its name, not its label.
+- `cut=` is that family's cut angle in degrees: the bearing of an elevation
+  view, or the elevation of an azimuth view. Absent, the view's own
+  (0° az, 10° el).
 - `run=1` presses **run** once the analysis is selected, whatever
   `[workbench.run_on_pick]` says. Without it, the link picks the analysis as
   the **analysis** list does: a frequency sweep or a pattern runs, and a knob

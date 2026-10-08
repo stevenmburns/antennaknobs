@@ -29,15 +29,15 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.99.0" icon="star">
-  **The extended kernel on every pair, and SimNEC sweeps on NEC-5.** momwire
-  0.74.0 applies the extended kernel to every pair of segments, with each
-  wire's own radius, instead of only to straight runs of equal radius, so
-  bent and stepped NEC-4 and NEC-5 decks can read slightly differently than
-  before. Its NEC-5 drop-in now reads the multi-run decks SimNEC
-  sends for a sweep. Buried and inverted-L decks solve faster. In the workbench, a
-  copied link carries the pattern family, the R / X knob sweep gets the step
-  box, and pattern families read better on a phone.
+<Card title="New in v0.100.0" icon="star">
+  **Choose the cut, and faster SimNEC sweeps.** A pattern family on the
+  **Sweep a knob** chart now has a cut angle: type a bearing or an elevation
+  beside the view menu, or press **at peak**, and the chart's link and
+  **keep** carry it. The pattern table fills its box, clear of the solve
+  readout, and a long readout (a log-periodic's transmission-line rows) stays
+  on screen. momwire 0.75.0 serves SimNEC's multi-port NEC-5 decks with one
+  matrix solve per frequency instead of one per port, and its Windows build
+  runs the SIMD kernels.
 </Card>
 
 ## The whole pitch, in one line
