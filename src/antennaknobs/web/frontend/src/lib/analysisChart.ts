@@ -114,6 +114,73 @@ export const FAMILY_PATTERN_VIEWS: readonly PatternViewSpec[] = [
   { view: "PatternTable" },
 ];
 
+/** The angle a cut view is taken at (AK#1950): an elevation cut's bearing,
+ *  an azimuth cut's elevation; null for the table, which has none. */
+export function cutAngle(v: PatternViewSpec): number | null {
+  if (v.view === "Elevation") return v.az;
+  if (v.view === "Azimuth") return v.el;
+  return null;
+}
+
+/** Why `deg` is no angle for `v`'s cut, or null. Whole degrees, as
+ *  an.Elevation / an.Azimuth take them (analyses.py `_whole_degrees`), so a
+ *  kept family writes exactly the cut the chart drew. A bearing is any whole
+ *  number: it wraps onto 0–359 (`cutAt`), since a bearing is circular and
+ *  the arrow keys should step past north rather than stop there. An
+ *  elevation is 1–89, not 0–89: an.Azimuth refuses the horizon (the cone
+ *  is degenerate there over ground), and a copy must not fail on a cut the
+ *  chart accepted. */
+export function cutAngleProblem(v: PatternViewSpec, deg: number): string | null {
+  if (v.view === "PatternTable") return "no cut";
+  if (!Number.isInteger(deg)) return "whole degrees";
+  if (v.view === "Azimuth" && (deg < 1 || deg > 89)) return "1–89";
+  return null;
+}
+
+/** `v` cut at `deg` (`cutAngleProblem` already passed): a bearing wrapped
+ *  onto 0–359. */
+export function cutAt(v: PatternViewSpec, deg: number): PatternViewSpec {
+  if (v.view === "Elevation") return { view: "Elevation", az: ((deg % 360) + 360) % 360 };
+  if (v.view === "Azimuth") return { view: "Azimuth", el: deg };
+  return v;
+}
+
+/** The pattern views a knob chart's family draws: its own, once it has
+ *  drawn one (so a cut angle set on it survives a detour to R / X and back,
+ *  AK#1950), else `FAMILY_PATTERN_VIEWS`. Same length and order either way:
+ *  a view id `pattern:<k>` names the same kind of view in both. */
+export function familyPatternViews(c: AnalysisChartState): readonly PatternViewSpec[] {
+  return c.pattern?.family ? c.pattern.views : FAMILY_PATTERN_VIEWS;
+}
+
+/** The family's view on screen at cut angle `deg` (AK#1950), or the same
+ *  chart back: not a family, the table on screen, or an angle
+ *  `cutAngleProblem` refuses. Only a family's: a picked analysis's views
+ *  are the analysis's, which a link names and a copy writes as served, so
+ *  re-cutting one here would draw what neither carries. */
+export function setChartCut(c: AnalysisChartState, deg: number): AnalysisChartState {
+  if (!chartFamily(c) || !c.pattern) return c;
+  const k = c.pattern.view;
+  const v = c.pattern.views[k];
+  if (!v || cutAngleProblem(v, deg) !== null) return c;
+  const next = cutAt(v, deg);
+  if (cutAngle(next) === cutAngle(v)) return c;
+  return { ...c, pattern: { ...c.pattern, views: c.pattern.views.map((w, j) => (j === k ? next : w)) } };
+}
+
+/** The family's cut angle a link records (AK#1950): the angle of the cut on
+ *  screen when it is not the one `FAMILY_PATTERN_VIEWS` opens at, else null,
+ *  so a family at its own angles links exactly as it did before there was a
+ *  cut to set (`view=pattern:0` alone is Elevation @ 0° az). */
+export function chartLinkCut(c: AnalysisChartState): number | null {
+  if (!chartFamily(c) || !c.pattern) return null;
+  const v = c.pattern.views[c.pattern.view];
+  const own = FAMILY_PATTERN_VIEWS[c.pattern.view];
+  if (!v || !own) return null;
+  const deg = cutAngle(v);
+  return deg !== null && deg !== cutAngle(own) ? deg : null;
+}
+
 /** The knob a family over the measurement frequency names (AK#1935): the
  *  request's `freq`, as `an.FREQUENCY` resolves. Never a knob sweep's (the
  *  knob sweep sweeps no frequency knob); only a family's. */
@@ -459,7 +526,7 @@ export function chartViews(c: AnalysisChartState): readonly ChartView[] {
   if (c.kind === "map") return ["Map"];
   // The knob chart's family (AK#1935): its pattern views after the knob
   // sweep's, so R / X is one pick away.
-  if (chartFamily(c)) return [...KNOB_VIEWS, ...FAMILY_PATTERN_VIEWS.map((_, k) => patternViewId(k))];
+  if (chartFamily(c)) return [...KNOB_VIEWS, ...familyPatternViews(c).map((_, k) => patternViewId(k))];
   if (c.kind === "pattern") return (c.pattern?.views ?? []).map((_, k) => patternViewId(k));
   if (c.kind === "knob") {
     // A picked MetricPlot adds "Metric" (AK#1828), a picked hold "Knobs"
@@ -468,7 +535,7 @@ export function chartViews(c: AnalysisChartState): readonly ChartView[] {
     const own = chartMetric(c) ? [...base, "Metric" as const] : base;
     // Any knob can be drawn as a family of patterns over its values
     // (AK#1935): the pattern views follow the knob sweep's.
-    return familyOffered(c) ? [...own, ...FAMILY_PATTERN_VIEWS.map((_, k) => patternViewId(k))] : own;
+    return familyOffered(c) ? [...own, ...familyPatternViews(c).map((_, k) => patternViewId(k))] : own;
   }
   return c.frequency?.views ?? FREQUENCY_VIEWS;
 }
@@ -524,7 +591,9 @@ export function setChartView(c: AnalysisChartState, v: ChartView): AnalysisChart
       kind: "pattern",
       picked: null,
       knob: { ...c.knob, spec: familySpec(c.knob.spec), hold: null },
-      pattern: { views: [...FAMILY_PATTERN_VIEWS], view: Number(v.slice("pattern:".length)), family: true },
+      // The family's own views when it has drawn before: its cut angles
+      // (AK#1950) stay across a detour to a knob view.
+      pattern: { views: [...familyPatternViews(c)], view: Number(v.slice("pattern:".length)), family: true },
     };
   }
   // Out of a family onto a knob view: the knob sweep of the same knob and

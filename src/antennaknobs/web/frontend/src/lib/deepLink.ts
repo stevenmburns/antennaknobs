@@ -7,6 +7,11 @@
 //   &family=<knob>:<from>:<to>:<points>[:log]
 //                                         a pattern family's knob and range
 //                                         (AK#1935), beside a pattern `view`
+//   &cut=<degrees>                        that family's cut angle (AK#1950):
+//                                         the bearing of an Elevation view,
+//                                         the elevation of an Azimuth view;
+//                                         absent, the view's own (0° az,
+//                                         10° el), as every link before it
 //   &run=1                                press Run once it is selected
 //   ?deck=<z>&name=<file name>            an opened deck (lib/decks.ts): the
 //                                         file's text, compressed, in place
@@ -58,12 +63,17 @@ export type DeepLink = {
   family?: LinkFamily | null;
   /** What was wrong with the link's `family`, for the link notice. */
   familyProblem?: string | null;
+  /** The family's cut angle (AK#1950), a whole number of degrees; whether
+   *  it suits the view is the session's to judge (`cutAngleProblem`). */
+  cut?: number | null;
+  /** What was wrong with the link's `cut`, for the link notice. */
+  cutProblem?: string | null;
   /** What went wrong opening the link's deck, for the link notice. */
   problem?: string | null;
 };
 
 /** The query parameters a link owns; any other is left as it is. */
-export const LINK_PARAMS = ["design", "analysis", "view", "run", "deck", "name", "dialect", "family"] as const;
+export const LINK_PARAMS = ["design", "analysis", "view", "run", "deck", "name", "dialect", "family", "cut"] as const;
 
 /** A non-empty, trimmed parameter, else null. */
 function param(q: URLSearchParams, k: string): string | null {
@@ -89,6 +99,10 @@ export function parseDeepLink(search: string): DeepLink | null {
   const dialect = param(q, "dialect");
   const rawFamily = param(q, "family");
   const family = rawFamily === null ? null : parseFamily(rawFamily);
+  // A whole number here; its range is the view's (a bearing wraps, an
+  // elevation is 1–89), which only the session knows.
+  const rawCut = param(q, "cut");
+  const cut = rawCut !== null && /^-?\d+$/.test(rawCut) ? Number(rawCut) : null;
   const link: DeepLink = {
     design,
     variant,
@@ -99,6 +113,8 @@ export function parseDeepLink(search: string): DeepLink | null {
     ...(rawFamily !== null && family === null
       ? { familyProblem: `family "${rawFamily}" is not knob:from:to:points[:log]` }
       : {}),
+    ...(cut !== null ? { cut } : {}),
+    ...(rawCut !== null && cut === null ? { cutProblem: `cut "${rawCut}" is not a whole number of degrees` } : {}),
     ...(z === null
       ? {}
       : {
@@ -109,7 +125,16 @@ export function parseDeepLink(search: string): DeepLink | null {
           },
         }),
   };
-  return link.design || link.variant || link.analysis || link.view || link.run || link.deck || link.family || link.familyProblem
+  return link.design ||
+    link.variant ||
+    link.analysis ||
+    link.view ||
+    link.run ||
+    link.deck ||
+    link.family ||
+    link.familyProblem ||
+    link.cut !== undefined ||
+    link.cutProblem
     ? link
     : null;
 }
@@ -220,6 +245,9 @@ export type LinkState = {
   /** The pattern family the chart draws (AK#1935): its knob and range,
    *  beside its pattern `view`; no analysis names it. */
   family?: LinkFamily | null;
+  /** That family's cut angle (AK#1950), only where it is not the view's
+   *  own (`chartLinkCut`); written only beside a `family`. */
+  cut?: number | null;
 };
 
 /** `search` with the link's parameters replaced by `state`'s (any other
@@ -244,6 +272,7 @@ export function linkSearch(search: string, state: LinkState): string {
   } else if (state.family) {
     q.set("family", familyParam(state.family));
     if (state.view) q.set("view", state.view);
+    if (state.view && state.cut !== null && state.cut !== undefined) q.set("cut", String(state.cut));
   }
   // URLSearchParams writes a space as "+" and escapes a colon and
   // parentheses; %20 and the bare characters (legal in a query) read the
