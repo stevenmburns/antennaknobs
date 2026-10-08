@@ -3162,8 +3162,16 @@ button.overlay-readout:disabled {
   bottom: var(--space-6);
   left: var(--space-6);
   z-index: 2;
-  min-width: 172px;
-  max-width: 240px;
+  /* border-box, so the height cap below holds for the WHOLE card. Under the
+     default content-box it limited only the content, and the padding (the
+     minimize button's reserved top included) and border landed on top of
+     it: a 42-element LPDA's TL power budget at 125 % zoom put the card 40 px
+     taller than its cap, its top and minimize button off the window. The
+     widths add the same padding and border back, so the card's width does
+     not move. */
+  box-sizing: border-box;
+  min-width: calc(172px + 2 * var(--space-5) + 2px);
+  max-width: calc(240px + 2 * var(--space-5) + 2px);
   /* Never taller than the stage it floats over: a long readout (multi-feed
      Z table + a design's own rows) used to grow past the top edge. The cap
      clips; the .readout-overflowing escape hatch below restores access. */
