@@ -5264,6 +5264,11 @@ div.opt-bands-readout {
   background: var(--panel);
   box-sizing: border-box;
 }
+/* Inside the sweep's plot box the solve readout floats over the square's
+   bottom-left; end the table's scroll above it, as .files-fill does. */
+.zparam-plot .analysis-pattern-table {
+  padding-bottom: calc(var(--zparam-plot-b, 0px) + 4px + var(--stage-readout-h, 0px) + var(--space-3));
+}
 .analysis-pattern-table .compare-name {
   max-width: 24ch;
 }

@@ -17,9 +17,14 @@ export type PatternCellRow = {
   stale: boolean;
 };
 
+// The box FILLS the chart's square (height, not maxHeight), as a chart does.
+// The floating solve readout sits at the bottom-left of that square
+// (ZParamStage's .zparam-plot), so a box shrunk to a few rows put the readout
+// on top of them (Dan, QRZ 1005128 #61). Filling the square keeps the rows
+// above it; the CSS ends the scroll clear of it.
 export function PatternCellsTable({ rows, size }: { rows: readonly PatternCellRow[]; size: number }) {
   return (
-    <div className="analysis-pattern-table" style={{ width: size, maxHeight: size, overflow: "auto" }}>
+    <div className="analysis-pattern-table" style={{ width: size, height: size, overflow: "auto" }}>
       <table className="compare-table" aria-label="Pattern metrics">
         <thead>
           <tr>
