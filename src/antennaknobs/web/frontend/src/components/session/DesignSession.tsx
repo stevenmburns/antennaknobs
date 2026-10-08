@@ -223,21 +223,25 @@ import {
   chartHold,
   chartForNewDesign,
   chartFrequencyRange,
+  chartLinkCut,
   chartListed,
   chartMetric,
   chartPatternView,
   chartRunInputs,
   chartView,
   chartViews,
+  cutAngle,
+  cutAngleProblem,
   type DwellDefaults,
   editRange,
   FAMILY_FREQ,
-  FAMILY_PATTERN_VIEWS,
   familyKnobList,
   familyListed,
+  familyPatternViews,
   familySpec,
   frequencyRx,
   initialChart,
+  patternViewLabel,
   pickedEdited,
   pickedName,
   pickFrequency,
@@ -248,6 +252,7 @@ import {
   pickRuns,
   editMapAxis,
   restoreMapAxes,
+  setChartCut,
   setChartView,
   withListed,
 } from "../../lib/analysisChart";
@@ -2305,6 +2310,25 @@ function DesignSessionBody({
       );
     });
   }
+  // The live design's 3-D maximum for a family's "at peak" cut (AK#1950):
+  // the one in hand (the compare table's, or "find 3-D max"'s, for THIS
+  // solve), else /pattern_metrics on the design as the knobs now set it,
+  // the fetch "find 3-D max" makes. Not filed as that readout's, so the
+  // stage does not grow a readout nobody asked for. Null before a solve,
+  // or while one is in flight (the knobs would describe another design).
+  const peakNow = (): Promise<PatternMetrics | null> => {
+    const inHand = liveMetrics ?? ownMax;
+    if (inHand) return Promise.resolve(inHand);
+    const controls = controlsRef.current;
+    if (!controls || !result || stale) return Promise.resolve(null);
+    return fetchMetrics(controls, { gen: seqRef.current });
+  };
+  const peakBlocked = !result
+    ? "Solve the design first: the peak is the live design's"
+    : stale
+      ? "The design is solving: its peak is the new solve's"
+      : null;
+
   // Aim both cuts through the maximum: the elevation cut at its bearing, the
   // azimuth cut at its elevation (the knob's own 0-89° range).
   function aimAtMax(m: PatternMetrics) {
@@ -3288,7 +3312,7 @@ function DesignSessionBody({
   const [linkStage, setLinkStage] = useState<LinkStage>(deepLink ? "design" : "done");
   // Seeded with the shell's report when the link's deck did not open.
   const [linkProblems, setLinkProblems] = useState<string[]>(() =>
-    [deepLink?.problem, deepLink?.familyProblem].filter((p): p is string => !!p),
+    [deepLink?.problem, deepLink?.familyProblem, deepLink?.cutProblem].filter((p): p is string => !!p),
   );
   const linkProblem = (p: string) => setLinkProblems((ps) => [...ps, p]);
   // Opening the user's own deck (lib/decks.ts): read here, opened on the
@@ -3398,7 +3422,14 @@ function DesignSessionBody({
         if (!r.ok) {
           linkProblem(r.problem);
         } else {
-          const next = setChartView(next0, r.value);
+          let next = setChartView(next0, r.value);
+          // The family's cut angle (AK#1950), on the cut it opened on.
+          const v = chartPatternView(next);
+          if (deepLink.cut !== undefined && deepLink.cut !== null && v) {
+            const why = cutAngleProblem(v, deepLink.cut);
+            if (why === null) next = setChartCut(next, deepLink.cut);
+            else linkProblem(`cut ${deepLink.cut}°: the ${patternViewLabel(v)} view takes ${why}`);
+          }
           if (r.value.startsWith("pattern:")) {
             (deepLink.run || runOnPick.pattern ? runPicked : holdPicked)(0, "pattern", next, false);
           }
@@ -3412,6 +3443,11 @@ function DesignSessionBody({
         linkProblem(r.problem);
       } else {
         setChartAt(0, (c) => setChartView(c, r.value));
+      }
+      // A cut angle is a family's alone (AK#1950): an analysis's views are
+      // its own.
+      if (deepLink.cut !== undefined && deepLink.cut !== null) {
+        linkProblem(`cut ${deepLink.cut}°: only a pattern family (family=) takes a cut angle`);
       }
     }
     setLinkStage("done");
@@ -3440,6 +3476,8 @@ function DesignSessionBody({
           }
         : null,
     view: m ? chartView(m.state) : null,
+    // The family's cut angle, where it is not the view's own (AK#1950).
+    cut: m ? chartLinkCut(m.state) : null,
   });
   const urlState = linkStateOf(chartModels[0]);
   const urlSearch =
@@ -4354,6 +4392,9 @@ function DesignSessionBody({
               points: m.spec.points,
               spacing: m.spec.log ? "log" : "lin",
               values: [...m.values],
+              // The cuts it draws at (AK#1950): a kept family writes the
+              // angles the chart drew, not an.patterns()'s own.
+              views: [...familyPatternViews(m.now)],
             },
             tab: keepRequest(buildRequest()),
             ...(form === "study" || ticked
@@ -4543,7 +4584,7 @@ function DesignSessionBody({
       // holds any pattern of its own.
       ...(m.state.pattern && m.state.kind === "pattern"
         ? { patternViews: m.state.pattern.views }
-        : { patternViews: FAMILY_PATTERN_VIEWS }),
+        : { patternViews: familyPatternViews(m.state) }),
       measured:
         chartView(m.state) === "Smith"
           ? {
@@ -4576,6 +4617,8 @@ function DesignSessionBody({
     };
     const range = m.inputs.freq.range;
     const patternRunning = runners.some((r) => r.pattern.running);
+    // A family's cut on screen (AK#1950), which its angle box edits.
+    const familyCut = chartFamily(m.state) ? chartPatternView(m.state) : null;
     // The map (docs/design/sweep-framework-map.md, unit 3): its one grid is
     // the first cell's, on the slot and ground the radios pick.
     const mapState = isMap ? (m.state.map ?? null) : null;
@@ -4681,6 +4724,35 @@ function DesignSessionBody({
           onRun: ctl.runPatternNow,
         }}
         chrome={chrome}
+        cut={
+          // A family's cut angle (AK#1950), on its Elevation / Azimuth view.
+          // A change re-cuts the solves in hand (the angles are exempt from
+          // a cell's signature) and rides every later cell request.
+          familyCut && cutAngle(familyCut) !== null
+            ? {
+                view: familyCut,
+                onCut: (deg) => setAt((c) => setChartCut(c, deg)),
+                peak: {
+                  blocked: peakBlocked,
+                  // The cut through the peak: its bearing for an elevation
+                  // cut, its take-off angle (an.Azimuth's 1-89) for an
+                  // azimuth cut. Applied to the view that asked, should the
+                  // viewer have moved on while it was fetched.
+                  onPeak: () => {
+                    const asked = familyCut.view;
+                    void peakNow().then((pk) => {
+                      if (!pk) return;
+                      const deg =
+                        asked === "Elevation"
+                          ? Math.round(pk.azimuth_deg)
+                          : Math.min(89, Math.max(1, Math.round(pk.takeoff_deg)));
+                      setAt((c) => (chartPatternView(c)?.view === asked ? setChartCut(c, deg) : c));
+                    });
+                  },
+                },
+              }
+            : null
+        }
         family={
           chartFamily(m.state)
             ? {

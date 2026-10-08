@@ -4729,6 +4729,10 @@ div.opt-bands-readout {
 .zparam-controls .zparam-points .commit-number input {
   width: 4.5ch;
 }
+/* A family's cut angle (AK#1950) is at most 3 digits and a sign. */
+.zparam-controls .chart-cut .commit-number input {
+  width: 4.5ch;
+}
 .zparam-controls input[type="number"] {
   width: 4.6em;
 }

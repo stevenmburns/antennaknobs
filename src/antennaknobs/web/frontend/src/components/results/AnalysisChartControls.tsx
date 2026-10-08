@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { chartDataAttrs, type ChartView, patternViewLabel } from "../../lib/analysisChart";
+import {
+  chartDataAttrs,
+  type ChartView,
+  cutAngle,
+  cutAngleProblem,
+  patternViewLabel,
+} from "../../lib/analysisChart";
 import type { PatternViewSpec } from "../../lib/analyses";
 import type { MeasuredData } from "../../lib/api";
 import type { SweepRange } from "../../lib/sweep";
@@ -292,6 +298,65 @@ export function ChartViewPick({ views, view, onView, measured, patternViews }: C
   );
 }
 
+/** A family's cut angle (AK#1950): the bearing of the Elevation cut on
+ *  screen, or the elevation of the Azimuth cut. */
+export type CutAngleProps = {
+  /** The view on screen; nothing is drawn for the table, which has no cut. */
+  view: PatternViewSpec;
+  /** A whole degree `cutAngleProblem` passed: a bearing as typed (the
+   *  session wraps it onto 0–359), an elevation 1–89. */
+  onCut: (deg: number) => void;
+  /** "at peak": the cut through the live design's 3-D maximum (its bearing
+   *  for an elevation cut, its take-off angle for an azimuth cut).
+   *  `blocked` is why it cannot now, or null. Omitted: no button. */
+  peak?: { onPeak: () => void; blocked: string | null } | null;
+};
+
+/** The family's cut angle box, beside the view menu (AK#1950). Dan AC6LA
+ *  (QRZ 1005128 #61): the two fixed cuts (0° az, 10° el) cannot follow a
+ *  design whose peak is elsewhere, so the angle is the viewer's. */
+export function CutAngle({ view, onCut, peak = null }: CutAngleProps) {
+  const deg = cutAngle(view);
+  if (deg === null) return null;
+  const elevation = view.view === "Elevation";
+  return (
+    <span className="zparam-group chart-cut" role="group" aria-label="Cut angle">
+      <label
+        title={
+          elevation
+            ? "The elevation cut's bearing, whole degrees from +x (0–359; 360 wraps to 0). The view menu and the chart follow it, re-cut from the same solves."
+            : "The azimuth cut's elevation above the horizon, whole degrees 1–89. The view menu and the chart follow it, re-cut from the same solves."
+        }
+      >
+        <span>at</span>
+        <CommitNumber
+          label={elevation ? "cut azimuth" : "cut elevation"}
+          value={deg}
+          problem={(v) => cutAngleProblem(view, v)}
+          onCommit={onCut}
+        />
+        <span>° {elevation ? "az" : "el"}</span>
+      </label>
+      {peak && (
+        <button
+          type="button"
+          className="zparam-reset chart-cut-peak"
+          disabled={peak.blocked !== null}
+          title={
+            peak.blocked ??
+            (elevation
+              ? "Cut through the live design's peak gain: its bearing, from the design as the knobs now set it"
+              : "Cut through the live design's peak gain: its take-off angle, from the design as the knobs now set it")
+          }
+          onClick={peak.onPeak}
+        >
+          at peak
+        </button>
+      )}
+    </span>
+  );
+}
+
 /** The header of a chart showing a pattern (AK#1757 step 7): the picker,
  *  the view (a cut or the table), Run / Stop and the chart's chrome. A
  *  pattern has no range: each cell is one solve at its own frequency. A
@@ -303,6 +368,7 @@ export function PatternChartControls({
   run,
   chrome,
   family = null,
+  cut = null,
 }: {
   analyses: AnalysisPickerProps;
   viewPick: ChartViewPickProps;
@@ -319,6 +385,9 @@ export function PatternChartControls({
   };
   chrome: ChartChrome;
   family?: FamilyRangeProps | null;
+  /** A family's cut angle (AK#1950); null on a picked analysis, whose
+   *  views are its own. */
+  cut?: CutAngleProps | null;
 }) {
   return (
     <div
@@ -330,6 +399,7 @@ export function PatternChartControls({
       <div className="zparam-controls" role="group" aria-label="Pattern">
         <AnalysisSelect {...analyses} />
         <ChartViewPick {...viewPick} />
+        {cut && <CutAngle {...cut} />}
         {family && <FamilyRange {...family} />}
         <span className="zparam-group">
           {run.running ? (
