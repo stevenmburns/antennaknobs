@@ -17,6 +17,7 @@
 //    disagree about what a pin was. A sweep pin adds what it sweeps and the
 //    x values it was solved at.
 
+import type { PatternViewSpec } from "./analyses";
 import type { SolveRequest } from "./api";
 import { apiFetch } from "./pin";
 
@@ -57,6 +58,10 @@ export type FamilyKeep = {
   points: number;
   spacing: "lin" | "log";
   values: number[];
+  /** The views it draws, cut angles and all (AK#1950), as /analyses serves
+   *  a pattern's: the server writes them as `views=` where they are not
+   *  an.patterns()'s own. Absent: an.patterns()'s own. */
+  views?: PatternViewSpec[];
 };
 
 /** One edited map axis as /keep takes it. */
