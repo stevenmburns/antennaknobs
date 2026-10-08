@@ -313,6 +313,23 @@ def test_capabilities_serves_the_running_versions(client: TestClient, monkeypatc
     assert payload["version_label"] == "v9.9.9 · momwire v1.2.3"
 
 
+def test_capabilities_serves_the_loaded_accelerator(client: TestClient, monkeypatch):
+    """momwire#1370: `/capabilities` names the C++ build this process loaded,
+    so a hosted machine can be checked from outside. Read per request from
+    momwire's public names, not cached: patching them moves the payload."""
+    import momwire
+
+    payload = client.get("/capabilities").json()
+    assert payload["accelerator"] == {
+        "variant": momwire.accelerator_variant,
+        "loaded": momwire.accelerated,
+    }
+    monkeypatch.setattr(momwire, "accelerator_variant", "avx512")
+    monkeypatch.setattr(momwire, "accelerated", True)
+    payload = client.get("/capabilities").json()
+    assert payload["accelerator"] == {"variant": "avx512", "loaded": True}
+
+
 def test_each_example_has_the_keys_the_frontend_reads(client: TestClient):
     payload = client.get("/examples").json()
     required = {
