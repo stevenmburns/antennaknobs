@@ -347,6 +347,51 @@ describe("a link carries a pattern family (AK#1935)", () => {
     );
   });
 
+  // AK#1950: the family's cut angle rides as cut=. Mutation notes (run by
+  // hand, 2026-10-07; each reverted after): the session's view stage not
+  // applying deepLink.cut fails "opens at the link's cut" (the menu reads
+  // "Azimuth @ 10° el", the cells ask at 10); linkStateOf not writing `cut`
+  // fails "the URL follows a cut" and "opens at the link's cut" (no cut= in
+  // the address).
+  it("opens at the link's cut: the menu names it and every cell asks at it", async () => {
+    const { cells } = await open(`${FAMILY_LINK}&cut=22`);
+    await untilDom(() => (head()?.dataset.chartKind === "pattern" && query().get("family") ? true : null));
+    expect(chartViewBox()!.selectedOptions[0].textContent).toBe("Azimuth @ 22° el");
+    expect(box("cut elevation")).toBe("22");
+    await untilDom(() => (cells.length >= 3 ? true : null));
+    expect(cells.map((b) => b.az_elev_deg)).toEqual([22, 22, 22]);
+    expect(query().get("cut")).toBe("22");
+    expect(notice()).toBeNull();
+  });
+
+  it("an old link (no cut=) opens at the view's own angle and stays without one", async () => {
+    const { cells } = await open(FAMILY_LINK);
+    await untilDom(() => (head()?.dataset.chartKind === "pattern" && query().get("family") ? true : null));
+    expect(chartViewBox()!.selectedOptions[0].textContent).toBe("Azimuth @ 10° el");
+    await untilDom(() => (cells.length >= 3 ? true : null));
+    expect(cells.map((b) => b.az_elev_deg)).toEqual([10, 10, 10]);
+    expect(query().has("cut")).toBe(false);
+  });
+
+  it("the URL follows a cut set on the chart, and drops it back at the view's own", async () => {
+    await open(FAMILY_LINK);
+    await untilDom(() => (head()?.dataset.chartKind === "pattern" && query().get("family") ? true : null));
+    const cut = screen.getByRole("textbox", { name: "cut elevation" });
+    fireEvent.change(cut, { target: { value: "30" } });
+    fireEvent.blur(cut);
+    await untilDom(() => query().get("cut") === "30" || null);
+    fireEvent.change(cut, { target: { value: "10" } });
+    fireEvent.blur(cut);
+    await untilDom(() => !query().has("cut") || null);
+  });
+
+  it("a cut the view refuses is named, and the view's own angle stays", async () => {
+    await open(`${FAMILY_LINK}&cut=0`);
+    await untilDom(() => notice() || null);
+    expect(notice()!.textContent).toContain("cut 0°");
+    expect(chartViewBox()!.selectedOptions[0].textContent).toBe("Azimuth @ 10° el");
+  });
+
   it("names a knob the design does not have, and leaves the chart as it was", async () => {
     await open("/?design=dipoles.deck&family=nope:1:2:3&view=pattern:0");
     await untilDom(() => notice() || null);

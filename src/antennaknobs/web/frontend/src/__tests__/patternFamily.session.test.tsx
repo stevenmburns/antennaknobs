@@ -268,6 +268,8 @@ describe("a knob's family of patterns on the 'Sweep a knob' chart", () => {
       points: 6,
       spacing: "lin",
       values: [4, 6, 8, 10, 12, 14],
+      // The views it draws at (AK#1950): an.patterns()'s own, uncut.
+      views: [{ view: "Elevation", az: 0 }, { view: "Azimuth", el: 10 }, { view: "PatternTable" }],
     });
   });
 });
