@@ -19,8 +19,11 @@ from antennaknobs.designs.dipoles.invvee_apex import Builder as Apex
 from antennaknobs.designs.dipoles.invvee_endport import Builder as EndVee
 from antennaknobs.engines.momwire import MomwireEngine
 
-Z_VEE_END = 49.432 - 49.045j  # gap 0.1 m
-Z_YAGI_END = 31.703 - 78.913j  # gap 0.1 m
+# At the default 1 cm gap, and at 0.1 m (the stock bridge length).
+Z_VEE_END = 53.946 - 16.399j
+Z_YAGI_END = 34.213 - 41.423j
+Z_VEE_END_10CM = 49.432 - 49.045j
+Z_YAGI_END_10CM = 31.703 - 78.913j
 
 
 def _z(builder):
@@ -36,8 +39,11 @@ def _with(cls, **kw):
 
 @pytest.mark.antenna_computation_check
 def test_endport_readings_are_pinned():
+    assert EndVee().gap == EndYagi().gap == 0.01
     assert abs(_z(EndVee()) - Z_VEE_END) < 0.5
     assert abs(_z(EndYagi()) - Z_YAGI_END) < 0.5
+    assert abs(_z(_with(EndVee, gap=0.1)) - Z_VEE_END_10CM) < 0.5
+    assert abs(_z(_with(EndYagi, gap=0.1)) - Z_YAGI_END_10CM) < 0.5
 
 
 @pytest.mark.antenna_computation_check
@@ -48,12 +54,12 @@ def test_endport_vee_extrapolates_to_the_apex_feed():
     za = _z(Apex())
     assert abs(extrap - za) < 0.5, (extrap, za)
     # and the gap is not free: 0.1 m of missing metal is tens of ohms of X
-    assert _z(EndVee()).imag < za.imag - 20
+    assert _z(_with(EndVee, gap=0.1)).imag < za.imag - 20
 
 
 @pytest.mark.antenna_computation_check
 def test_endport_yagi_keeps_the_stock_parasitics():
-    stock, end = StockYagi(), EndYagi()
+    stock, end = StockYagi(), _with(EndYagi, gap=0.1)
     ws, we = stock.build_wires(), end.build_wires()
     assert len(we) == len(ws) - 1  # the bridge is gone, nothing else
     assert list(we[1:3]) == list(ws[1:3]) and list(we[4:]) == list(ws[5:])
@@ -63,6 +69,7 @@ def test_endport_yagi_keeps_the_stock_parasitics():
 
 
 def test_endport_designs_get_the_junction_port_backends():
+    import antennaknobs.web.examples  # noqa: F401 — registration order, as the adapter needs
     from antennaknobs.web import adapter
 
     for cls in (EndVee, EndYagi):

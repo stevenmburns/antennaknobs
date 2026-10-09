@@ -8,9 +8,9 @@ construction as ``dipoles.invvee_endport`` (see its docstring for why: the
 gap is geometry, so it holds still as the mesh refines). Reflector and
 directors are the stock design's, untouched.
 
-With ``gap`` = 0.1 m (the default, the stock bridge length) the arms are the
-stock arms exactly, so stock vs this design is the bridge metal and nothing
-else. That metal is not small: the driver is ``gap`` shorter without it, and
+``gap`` defaults to 1 cm, a typical driver-insulator gap. With ``gap`` =
+0.1 m (the stock bridge length) the arms are the stock arms exactly, so stock
+vs this design is then the bridge metal and nothing else. That metal is not small: the driver is ``gap`` shorter without it, and
 the feed reactance moves by tens of ohms at 10 m. Pattern and F/B move far
 less, since the parasitic elements set them.
 
@@ -36,7 +36,7 @@ class Builder(Yagi):
         {
             **Yagi.default_params,
             # Gap between the two driver-arm ends at the feed, metres.
-            "gap": 0.1,
+            "gap": 0.01,
             "ui_params": MappingProxyType(
                 {"gap": {"min": 0.005, "max": 0.3, "step": 0.005}}
             ),

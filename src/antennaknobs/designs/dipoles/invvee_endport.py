@@ -18,10 +18,10 @@ coarse-mesh value. The width is physics, not a nuisance: with no metal in
 the gap the antenna is ``gap`` shorter, and at 10 m a 0.1 m gap moves X by
 tens of ohms against the bridge model of the same arms.
 
-Same knobs as the stock invvee plus ``gap``. Arm geometry matches the stock
-design with ``gap`` = 0.1 m (its bridge length), so stock vs this design at
-the defaults is the bridge metal and nothing else. ``angle_deg`` = 0 is a
-flat dipole.
+Same knobs as the stock invvee plus ``gap``, which defaults to 1 cm, a
+typical centre-insulator gap. Set ``gap`` = 0.1 m (the stock bridge length)
+and the arms are the stock arms exactly, so stock vs this design is then the
+bridge metal and nothing else. ``angle_deg`` = 0 is a flat dipole.
 
 Engine support is `PortAtEnd`'s: momwire's junction-port backends only;
 NEC-2-shaped engines refuse the port by name.
@@ -46,7 +46,7 @@ class Builder(InvVee):
         {
             **{k: v for k, v in InvVee.default_params.items() if k != "ui_params"},
             # Gap between the two arm ends at the feed, metres.
-            "gap": 0.1,
+            "gap": 0.01,
             "ui_params": MappingProxyType(
                 {
                     **InvVee.default_params["ui_params"],
