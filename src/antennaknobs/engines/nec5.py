@@ -59,6 +59,7 @@ from ..network import (
     Driven,
     DrivenCurrent,
     Load,
+    PortAtEnd,
     PortAtVertex,
     PortOnWire,
     PortOnWireFloating,
@@ -717,6 +718,24 @@ class NEC5Engine(SimulationEngine):
             if isinstance(port, PortOnWire) and port.distributed:
                 raise NotImplementedError(
                     f"port {name!r} is {DISTRIBUTED_PORT_REFUSAL}"
+                )
+            if isinstance(port, PortAtEnd):
+                # Measured against the licensed binary (black box, 10-09): an
+                # EX at the knot of a FREE wire end -- either end, EX 0 or
+                # EX 4, a lone wire or two facing halves -- stops the run with
+                # an error and prints no input parameters, so there is no card
+                # that injects current into a free end the way PortAtEnd does.
+                # A bridge wire with a centre gap is the near miss, and it is a
+                # different model (the bridge metal), so it is named, never
+                # substituted. `test_nec5_refuses_a_source_at_a_free_end` holds
+                # the premise.
+                raise NotImplementedError(
+                    f"port {name!r} (PortAtEnd) drives a free wire end, and "
+                    "NEC-5 cannot: the binary refuses an EX source at a free "
+                    "end's knot, so the end-port feed has no NEC-5 spelling. "
+                    "Run the design on momwire (bspline), or author a short "
+                    "bridge wire with a centre gap across the feed point — a "
+                    "different model, whose bridge metal adds reactance."
                 )
             raise NotImplementedError(
                 f"port {name!r} ({type(port).__name__}) cannot be addressed on "
