@@ -291,14 +291,18 @@ def test_the_route_on_lifts_21_of_the_26_and_names_the_other_5(stub_exe):
     # 22 since AK#1707: `wire.beverage` builds on the route (its ports are
     # a plain gap feed and termination, neither floating nor distributed).
     assert len(built) == 22, sorted(built)
-    # 7 since the two end-port feed examples: a third class, a PortAtEnd,
-    # which is neither an EX-addressable gap nor a virtual node.
+    # 7 since the two end-port feed examples: a third class, a PortAtEnd on a
+    # free wire end, which the binary refuses an EX at (measured, see
+    # `test_nec5_refuses_a_source_at_a_free_end`).
     assert len(refused) == 7, sorted(refused)
     floating = [n for n, m in refused.items() if "floating" in m]
     distributed = [n for n, m in refused.items() if "distributed" in m]
     assert len(floating) == 2, floating
     at_end = [n for n, m in refused.items() if "(PortAtEnd)" in m]
     assert sorted(at_end) == ["beams.yagi_endport", "dipoles.invvee_endport"]
+    for name in at_end:
+        assert "free wire end" in refused[name], refused[name]
+        assert "bridge wire" in refused[name], refused[name]
     assert len(distributed) == 3, distributed
     for name, msg in refused.items():
         # The #1264 rule: a refusal is a sentence that says what to do.
@@ -310,6 +314,34 @@ def test_the_route_on_lifts_21_of_the_26_and_names_the_other_5(stub_exe):
 # ---------------------------------------------------------------------
 
 needs_nec5 = pytest.mark.skipif(find_nec5() is None, reason="no licensed nec5cl")
+
+
+_FREE_END_DECK = """CM two facing halves 0.127 m apart, EX at a FREE end
+CE
+GW 1 12 0 0 -2.35 0 0 -0.0635 0.005
+GW 2 12 0 0 0.0635 0 0 2.35 0.005
+GE 0
+EX {ex} 1 12 2 1. 0.
+FR 0 1 0 0 29.9792458 0.
+XQ 0
+EN
+"""
+
+
+@needs_nec5
+@pytest.mark.parametrize("ex", [0, 4])
+def test_nec5_refuses_a_source_at_a_free_end(ex):
+    """The premise of the PortAtEnd refusal, held against the binary itself.
+
+    An end-port feed injects current into a FREE wire end (momwire's junction
+    port). The only NEC-5 cards that address a knot are EX 0 and EX 4, and at a
+    free end's knot the licensed binary stops with an error and prints no
+    ANTENNA INPUT PARAMETERS (measured 10-09; also at a lone wire's outer ends
+    and the second half's p0). If a NEC-5 build ever accepts it, this fails,
+    and the refusal should be revisited by measurement, not by assumption."""
+    text = nec5.run_deck(find_nec5(), _FREE_END_DECK.format(ex=ex), timeout=60.0)
+    assert "ANTENNA INPUT PARAMETERS" not in text
+    assert "ERROR" in text
 
 
 @needs_nec5
