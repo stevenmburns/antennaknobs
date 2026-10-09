@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from "react";
+import { NO_LEDGER_MININEC } from "../../lib/api";
 import type { NormCheckData, SolveResponse } from "../../lib/api";
 import { feedDriveText, formatOhms, formatSwr } from "../../lib/format";
 import type { ExampleDescriptor } from "../../lib/params";
@@ -362,18 +363,23 @@ export function SolveReadout({
                 // denominator); the plain finite ground keeps its P_in-
                 // referenced number.
                 const isTerrain = !!normCheck?.method.startsWith("grid_terrain");
+                // The MININEC-type ground has no ledger to read (AK#1955):
+                // the server sends no fraction, and the row says why.
+                const noLedger = !!normCheck && normCheck.radiated_fraction == null;
                 return (
                   <div
                     className="row"
                     title={
-                      isTerrain
+                      noLedger
+                        ? NO_LEDGER_MININEC
+                        : isTerrain
                         ? "Share of accepted power leaving as sky wave over the faceted terrain: referenced against the same facet geometry with perfect-reflector media, so the ratio isolates real ground-media absorption (the hybrid model's separate field-vs-circuit ledger gap cancels; it is shown on the chart as the dotted overlay)."
                         : "P_radiated / P_input from the dwell-triggered pattern integral (the norm check as a percentage): what actually leaves as far-field radiation after network, wire AND real ground absorption. Fills in once the knobs settle; over PEC ground or free space it collapses onto the structural efficiency. See the 'three ledgers' section of the docs."
                     }
                   >
                     <span>radiated (incl. ground)</span>
                     <span className={normCheck ? "val" : "val val-pending"}>
-                      {normCheck
+                      {normCheck && normCheck.radiated_fraction != null
                         ? `${(normCheck.radiated_fraction * 100).toFixed(0)}%`
                         : "—"}
                     </span>

@@ -507,7 +507,7 @@ export function useAnalysisRunners({
         pattern_norm: data.pattern_norm,
         method: data.method,
         delta_db: delta,
-        radiated_fraction: data.radiated_fraction ?? 0,
+        radiated_fraction: data.radiated_fraction ?? null,
         radiation_efficiency: data.radiation_efficiency ?? 1,
       });
     } catch (e: unknown) {
