@@ -174,9 +174,8 @@ export function BandsEditor({ bands }: { bands: OptBandsControl }) {
 export type KeptReadout = {
   /** The kept run's name and stored table, while it is what the tab shows. */
   shown: { name: string; result: OptimizeResult | null } | null;
-  /** Run it again from its start; null with `runBlocked` saying why not. */
+  /** Run it again from its start, in its own form; null: no kept run shown. */
   onRun: (() => void) | null;
-  runBlocked: string | null;
   /** Keep the fresh result as a study; null: nothing to keep. */
   onKeep: (() => void) | null;
 };
@@ -217,12 +216,11 @@ export function BandsReadout({
           type="button"
           className="opt-zo-reset"
           disabled={kept.onRun === null}
-          title={kept.runBlocked ?? "Put the knobs back at the run's start and optimise again"}
+          title="Put the knobs back at the run's start and optimise again, in the run's own form"
           onClick={() => kept.onRun?.()}
         >
           Run again from its start
         </button>
-        {kept.runBlocked && <div className="gear-menu-hint">{kept.runBlocked}</div>}
       </div>
     );
   }

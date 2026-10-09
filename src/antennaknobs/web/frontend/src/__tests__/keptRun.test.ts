@@ -2,13 +2,15 @@
 // an.Optimize study, and what a jump to it sets.
 import { describe, expect, it } from "vitest";
 import {
+  formFor,
   keptAsResult,
+  keptForm,
   keptMarks,
-  keptRunBlocked,
   keptValues,
   parseKept,
   type KeptRun,
 } from "../lib/keptRun";
+import { optimizeSpec } from "../components/session/useOptimizer";
 import { KEPT_NOT_A_CHART, parseAnalyses } from "../lib/analyses";
 import type { SchemaItem, SchemaParamSpec } from "../lib/params";
 
@@ -108,11 +110,44 @@ describe("a jump", () => {
     expect(r.worst_swr_before).toBeNull();
   });
 
-  it("is run again here only in the workbench's own form", () => {
-    expect(keptRunBlocked(k)).toBeNull();
-    const root = { ...k, mode: "root", bands: k.bands.map((b) => ({ ...b, objective: "resonance" })) };
-    expect(keptRunBlocked(root)).toMatch(/analyze --study/);
-    const feed = { ...k, bands: [{ ...k.bands[0], feed: 1 }] };
-    expect(keptRunBlocked(feed)).toMatch(/another feed/);
+  it("is run again in its own form, every band's Z0 spelled out (#1921)", () => {
+    const root: KeptRun = {
+      ...k,
+      mode: "root",
+      bands: [
+        { freq: 26.6, objective: "resonance", feed: 1, z0: null },
+        { freq: 29.3, objective: "match_z0", feed: 0, z0: 75 },
+      ],
+    };
+    const form = keptForm(root);
+    expect(form).toEqual({
+      mode: "root",
+      bands: [
+        { freq: 26.6, objective: "resonance", feed: 1, z0: 50 },
+        { freq: 29.3, objective: "match_z0", feed: 0, z0: 75 },
+      ],
+    });
+    const free = [{ name: "base", min: 6, max: 8 }];
+    const spec = optimizeSpec(free, {
+      objective: "swr",
+      seed: false,
+      bands: [26.6, 29.3],
+      meanWeight: 0.3,
+      form: formFor(form, [26.6, 29.3]),
+    });
+    expect(spec).toEqual({ free, bands: form.bands, mode: "root", mean_weight: 0.3 });
+  });
+
+  it("drops the kept form once the band list is edited", () => {
+    const form = keptForm(k);
+    expect(formFor(form, [26.6, 29.3])).toBe(form);
+    expect(formFor(form, [26.6, 29.4])).toBeNull();
+    expect(formFor(form, [29.3, 26.6])).toBeNull();
+    expect(formFor(form, [26.6])).toBeNull();
+    expect(formFor(form, null)).toBeNull();
+    // No form: the plain SWR minimax, as before.
+    expect(
+      optimizeSpec([], { objective: "swr", seed: false, bands: [26.6], meanWeight: 0.5, form: null }),
+    ).toEqual({ free: [], bands: [{ freq: 26.6, objective: "swr" }], mode: "minimax", mean_weight: 0.5 });
   });
 });

@@ -601,6 +601,48 @@ def test_the_workbench_keeps_a_band_run_and_lists_it(folder, client):
     }
 
 
+def test_a_band_run_in_a_kept_form_is_kept_in_that_form(folder, client):
+    """Run again in a kept run's own form sends its mode and each band's
+    objective, feed and Z0 (#1921); keeping that run keeps the form, and
+    /analyses serves it back for the next jump."""
+    tab = {"geometry": "multiband.twoband_fan_dipole", "variant": "current_physical"}
+    free = [
+        {"name": "bands.0.length", "min": 5.2, "max": 5.8},
+        {"name": "bands.1.length", "min": 4.8, "max": 5.3},
+    ]
+    params = {"bands.0.length": 5.51, "bands.1.length": 5.04}
+    before = {"bands.0.length": 5.6, "bands.1.length": 5.0}
+    body = _run_body(tab, free, params, before, path="fan/root")
+    body["mode"] = "root"
+    body["bands"] = [
+        {"freq": 26.6, "objective": "resonance", "feed": 0, "z0": 50},
+        {"freq": 29.3, "objective": "resonance", "feed": 0, "z0": 75},
+    ]
+    r = client.post("/studies/save", json=body)
+    assert r.status_code == 200, r.text
+    from antennaknobs import studies
+
+    o = studies.find("fan/root:kept pair").analysis
+    assert o.mode == "root"
+    assert [(b.objective, b.z0) for b in o.bands] == [
+        ("resonance", 50.0),
+        ("resonance", 75.0),
+    ]
+    req = {**tab, "measurement_freq_mhz": 28.0, "design_freq_mhz": 28.0}
+    got = client.post("/analyses", json=req).json()["analyses"]
+    (entry,) = [a for a in got if a["study"] and a["study"]["name"] == "kept pair"]
+    w = entry["workbench"]
+    assert w["mode"] == "root"
+    assert [(b["objective"], b["z0"]) for b in w["bands"]] == [
+        ("resonance", 50.0),
+        ("resonance", 75.0),
+    ]
+
+    bad = {**body, "mode": "sideways", "path": "fan/bad"}
+    r = client.post("/studies/save", json=bad)
+    assert r.status_code != 200 and "unknown mode 'sideways'" in r.text
+
+
 @pytest.fixture
 def fresh_decks(monkeypatch):
     from antennaknobs.web import decks, server

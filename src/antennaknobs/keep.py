@@ -1068,8 +1068,8 @@ def optimize_from_run(
     req: Mapping, deck_name: Callable[[str], str | None] | None = None
 ) -> tuple[an.Optimize, list[str]]:
     """A finished multi-band run as an `an.Optimize` (AK#1906; the
-    workbench's Keep on a band result): ``{tab, free, bands, mean_weight?,
-    result, name?}``, ``tab`` the tab's solve request, ``free`` the knobs
+    workbench's Keep on a band result): ``{tab, free, bands, mode?,
+    mean_weight?, result, name?}``, ``tab`` the tab's solve request, ``free`` the knobs
     the run moved (``[{name, min, max}]``), ``bands`` the band list it sent
     (``/optimize``'s), ``result`` its answer. The start is the tab's design
     and knobs with the moved ones put back at the run's own start
@@ -1078,7 +1078,7 @@ def optimize_from_run(
     name>``, the only name a command line can find it by."""
     from . import optimize_study as ost
     from .opt import _set_path
-    from .web.optimize_bands import BandsRefused, parse_bands
+    from .web.optimize_bands import MODES, BandsRefused, parse_bands
 
     tab, res = req.get("tab"), req.get("result")
     if not isinstance(tab, Mapping) or not isinstance(res, Mapping):
@@ -1103,6 +1103,10 @@ def optimize_from_run(
         bands = parse_bands(req.get("bands"))
     except BandsRefused as e:
         raise KeepError(str(e)) from None
+    # The run's form (#1921): a run made in a kept run's form keeps it.
+    mode = req.get("mode", "minimax")
+    if mode not in MODES:
+        raise KeepError(f"unknown mode {mode!r} ({', '.join(MODES)})")
     design = tab.get("geometry")
     if not isinstance(design, str) or not design:
         raise KeepError("the request names no design (geometry)")
@@ -1143,6 +1147,7 @@ def optimize_from_run(
             ],
             bands=bands,
             res=res,
+            mode=mode,
             mean_weight=req.get("mean_weight"),
             z0=_number(z0, "the run's Z0") if z0 is not None else 50.0,
             engine=engine_of(tab, "the run", notes),

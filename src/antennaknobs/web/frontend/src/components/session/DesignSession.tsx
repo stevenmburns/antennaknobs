@@ -206,7 +206,7 @@ import {
 import {
   keptAsResult,
   keptMarks,
-  keptRunBlocked,
+  keptForm,
   keptValues,
   type KeptRun,
 } from "../../lib/keptRun";
@@ -1708,6 +1708,8 @@ function DesignSessionBody({
     setOptBands,
     optMeanWeight,
     setOptMeanWeight,
+    optForm,
+    setOptBandForm,
     setOptObjective,
     knobOpt,
     setKnobOpt,
@@ -1772,7 +1774,8 @@ function DesignSessionBody({
   const kept = keptAt && keptAt.geometry === geometry ? keptAt : null;
   // Jump to a kept run: the tab's knobs at its stored answer (or, `start`,
   // where it began), its knobs marked over its ranges and every other mark
-  // cleared, its bands and balance set when the workbench can run its form.
+  // cleared, and its bands, balance and form (mode, and each band's
+  // objective, feed and Z0: #1921) set, so a run is the run it kept.
   // A jump to the answer stops Optimize, which would re-tune it at once; a
   // run from the start turns it on, which is the run.
   function jumpToKept(name: string, run: KeptRun, at: "result" | "start") {
@@ -1780,10 +1783,9 @@ function DesignSessionBody({
     const bag = keptValues(knobDefaults() as ParamValueBag, run, at);
     setParamValues((prev) => ({ ...prev, [geometry]: bag }));
     setKnobOpt((prev) => ({ ...prev, [geometry]: keptMarks(run, currentSchema) }));
-    if (keptRunBlocked(run) === null) {
-      setOptBands(run.bands.map((b) => b.freq));
-      setOptMeanWeight(run.meanWeight);
-    }
+    setOptBands(run.bands.map((b) => b.freq));
+    setOptMeanWeight(run.meanWeight);
+    setOptBandForm(keptForm(run));
     setKeptAt({ geometry, name, run, seen: optResult });
     setOptEnabled(at === "start");
   }
@@ -1795,11 +1797,7 @@ function DesignSessionBody({
     .map(([name, o]) => ({ name, min: o.optMin, max: o.optMax }));
   const keptReadout: KeptReadout = {
     shown: keptShown ? { name: keptShown.name, result: keptAsResult(keptShown.run) } : null,
-    onRun:
-      keptShown && keptRunBlocked(keptShown.run) === null
-        ? () => jumpToKept(keptShown.name, keptShown.run, "start")
-        : null,
-    runBlocked: keptShown ? keptRunBlocked(keptShown.run) : null,
+    onRun: keptShown ? () => jumpToKept(keptShown.name, keptShown.run, "start") : null,
     onKeep:
       optResult?.objective === "bands" && optBands && freeNow.length > 0
         ? () =>
@@ -1810,7 +1808,9 @@ function DesignSessionBody({
                 form: "study",
                 tab: keepRequest(buildRequest()),
                 free: freeNow,
-                bands: optBands.map((freq) => ({ freq })),
+                // A run in a kept form keeps that form (#1921).
+                bands: optForm ? optForm.bands : optBands.map((freq) => ({ freq })),
+                ...(optForm ? { mode: optForm.mode } : {}),
                 mean_weight: optMeanWeight,
                 result: optResult,
               },
