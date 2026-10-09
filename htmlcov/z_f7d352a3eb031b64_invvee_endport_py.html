@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_f7d352a3eb031b64_koch_dipole_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.1">coverage.py v7.16.1</a>,
-            created at 2026-10-09 20:31 +0000
+            created at 2026-10-09 23:04 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -100,10 +100,10 @@
     <p class="pln"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t"><span class="str">the gap the antenna is ``gap`` shorter, and at 10 m a 0.1 m gap moves X by</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t"><span class="str">tens of ohms against the bridge model of the same arms.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t"><span class="str">Same knobs as the stock invvee plus ``gap``. Arm geometry matches the stock</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t"><span class="str">design with ``gap`` = 0.1 m (its bridge length), so stock vs this design at</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t"><span class="str">the defaults is the bridge metal and nothing else. ``angle_deg`` = 0 is a</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t"><span class="str">flat dipole.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t"><span class="str">Same knobs as the stock invvee plus ``gap``, which defaults to 1 cm, a</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t"><span class="str">typical centre-insulator gap. Set ``gap`` = 0.1 m (the stock bridge length)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t"><span class="str">and the arms are the stock arms exactly, so stock vs this design is then the</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t"><span class="str">bridge metal and nothing else. ``angle_deg`` = 0 is a flat dipole.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t25" href="#t25">25</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t26" href="#t26">26</a></span><span class="t"><span class="str">Engine support is `PortAtEnd`&#x27;s: momwire&#x27;s junction-port backends only;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t27" href="#t27">27</a></span><span class="t"><span class="str">NEC-2-shaped engines refuse the port by name.</span>&nbsp;</span><span class="r"></span></p>
@@ -128,7 +128,7 @@
     <p class="run run2"><span class="n"><a id="t46" href="#t46">46</a></span><span class="t">        <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t47" href="#t47">47</a></span><span class="t">            <span class="op">**</span><span class="op">{</span><span class="nam">k</span><span class="op">:</span> <span class="nam">v</span> <span class="key">for</span> <span class="nam">k</span><span class="op">,</span> <span class="nam">v</span> <span class="key">in</span> <span class="nam">InvVee</span><span class="op">.</span><span class="nam">default_params</span><span class="op">.</span><span class="nam">items</span><span class="op">(</span><span class="op">)</span> <span class="key">if</span> <span class="nam">k</span> <span class="op">!=</span> <span class="str">&quot;ui_params&quot;</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t48" href="#t48">48</a></span><span class="t">            <span class="com"># Gap between the two arm ends at the feed, metres.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t49" href="#t49">49</a></span><span class="t">            <span class="str">&quot;gap&quot;</span><span class="op">:</span> <span class="num">0.1</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t49" href="#t49">49</a></span><span class="t">            <span class="str">&quot;gap&quot;</span><span class="op">:</span> <span class="num">0.01</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t50" href="#t50">50</a></span><span class="t">            <span class="str">&quot;ui_params&quot;</span><span class="op">:</span> <span class="nam">MappingProxyType</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t51" href="#t51">51</a></span><span class="t">                <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t52" href="#t52">52</a></span><span class="t">                    <span class="op">**</span><span class="nam">InvVee</span><span class="op">.</span><span class="nam">default_params</span><span class="op">[</span><span class="str">&quot;ui_params&quot;</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -179,7 +179,7 @@
             <a class="nav" href="z_f7d352a3eb031b64_koch_dipole_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.1">coverage.py v7.16.1</a>,
-            created at 2026-10-09 20:31 +0000
+            created at 2026-10-09 23:04 +0000
         </p>
     </div>
 </footer>
