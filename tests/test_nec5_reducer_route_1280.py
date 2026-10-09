@@ -112,8 +112,10 @@ def test_the_route_splits_the_catalog_where_the_issue_says_it_does():
     for name, _cls, net in _networks():
         (reduce_ if _network_needs_reducer(net) else native).append(name)
     # 27 since AK#1707: `wire.beverage` drives its feed through a
-    # Transformer from a virtual rig port.
-    assert len(reduce_) == 27, sorted(reduce_)
+    # Transformer from a virtual rig port. 29 since the end-port feed
+    # examples (`dipoles.invvee_endport`, `beams.yagi_endport`): a
+    # FloatingBalun across two PortAtEnd ports.
+    assert len(reduce_) == 29, sorted(reduce_)
     assert native, "no network stayed native; the LD path would be dead"
 
 
@@ -252,7 +254,8 @@ def test_the_route_switched_off_restores_todays_refusal(monkeypatch, stub_exe):
         msg = str(ei.value)
         assert "cannot stamp" in msg or "has no NEC-5 LD form" in msg, msg
         refused += 1
-    assert refused == 27, refused  # 26 + wire.beverage (AK#1707)
+    # 26 + wire.beverage (AK#1707) + the two end-port feed examples
+    assert refused == 29, refused
 
 
 def test_the_route_on_lifts_21_of_the_26_and_names_the_other_5(stub_exe):
@@ -288,10 +291,14 @@ def test_the_route_on_lifts_21_of_the_26_and_names_the_other_5(stub_exe):
     # 22 since AK#1707: `wire.beverage` builds on the route (its ports are
     # a plain gap feed and termination, neither floating nor distributed).
     assert len(built) == 22, sorted(built)
-    assert len(refused) == 5, sorted(refused)
+    # 7 since the two end-port feed examples: a third class, a PortAtEnd,
+    # which is neither an EX-addressable gap nor a virtual node.
+    assert len(refused) == 7, sorted(refused)
     floating = [n for n, m in refused.items() if "floating" in m]
     distributed = [n for n, m in refused.items() if "distributed" in m]
     assert len(floating) == 2, floating
+    at_end = [n for n, m in refused.items() if "(PortAtEnd)" in m]
+    assert sorted(at_end) == ["beams.yagi_endport", "dipoles.invvee_endport"]
     assert len(distributed) == 3, distributed
     for name, msg in refused.items():
         # The #1264 rule: a refusal is a sentence that says what to do.

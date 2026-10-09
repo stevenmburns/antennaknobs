@@ -355,9 +355,11 @@ def test_the_listing_serves_e7_after_the_designs_own_on_both_its_designs(
 ):
     got = _listing(client, geometry)
     names = [a["name"] for a in got]
-    assert names[-1] == E7
     own = [a["name"] for a in got if a["study"] is None]
     assert own == names[: len(own)]
+    # E7 is one of the studies after the design's own; since the end-port
+    # feed examples it shares the vee tabs with `feed_models_on_invvee`.
+    assert E7 in names[len(own) :]
     (e7,) = [a for a in got if a["name"] == E7]
     assert e7["study"] == {"source": E7_SOURCE, "name": "feed spelling (E7)"}
     assert e7["problems"] == []

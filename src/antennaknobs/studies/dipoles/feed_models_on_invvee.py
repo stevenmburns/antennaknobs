@@ -2,7 +2,7 @@
 carrying a delta gap), ``dipoles.invvee_apex`` (series gap at the closed
 apex) and ``dipoles.invvee_endport`` (the arms stop a real gap apart and the
 source sits across their two ends). Offered on all three tabs as
-``dipoles.endport_feed_on_invvee:feed models``."""
+``dipoles.feed_models_on_invvee:feed models``."""
 
 from antennaknobs import analyses as an
 
