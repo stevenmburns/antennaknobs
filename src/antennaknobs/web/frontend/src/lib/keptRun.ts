@@ -100,16 +100,28 @@ export function parseKept(w: unknown): KeptRun | null {
   };
 }
 
-/** Why the workbench cannot run ``k`` again itself, or null. Its band run is
- *  the SWR minimax at feed 0 against the session's Z0 (the gear's Bands);
- *  any other form `antennaknobs analyze --study` runs. Jumping to the stored
- *  answer works either way. */
-export function keptRunBlocked(k: KeptRun): string | null {
-  if (k.mode !== "minimax" || k.bands.some((b) => b.objective !== "swr"))
-    return `This run is the ${k.mode} form over ${k.bands[0].objective}; the workbench runs the SWR minimax. \`antennaknobs analyze --study\` runs it again.`;
-  if (k.bands.some((b) => b.feed !== 0 || b.z0 !== null))
-    return "This run reads a band at another feed or Z0; `antennaknobs analyze --study` runs it again.";
-  return null;
+/** A band run's form beyond its frequencies (#1921): the mode, and each
+ *  band's objective, feed and Z0. A kept run is run again in its own form,
+ *  every band's Z0 spelled out (a band that named none ran at the run's), so
+ *  the session's Z0 cannot change what it measures. */
+export type BandForm = {
+  mode: string;
+  bands: { freq: number; objective: string; feed: number; z0: number }[];
+};
+
+export function keptForm(k: KeptRun): BandForm {
+  return {
+    mode: k.mode,
+    bands: k.bands.map((b) => ({ freq: b.freq, objective: b.objective, feed: b.feed, z0: b.z0 ?? k.z0 })),
+  };
+}
+
+/** ``form`` while the band list is still its frequencies, in order, else
+ *  null: editing the gear's Bands leaves the kept form behind, and the run is
+ *  the plain SWR minimax again. */
+export function formFor(form: BandForm | null, bands: number[] | null): BandForm | null {
+  if (!form || !bands || bands.length !== form.bands.length) return null;
+  return form.bands.every((b, i) => b.freq === bands[i]) ? form : null;
 }
 
 /** The tab's values at the kept run: its variant's ``defaults``, the start's

@@ -1225,10 +1225,12 @@ deck is kept by its file name. The kept run is then listed under **Studies**
 in the analysis picker of the tabs of its design, marked **(jump to)**:
 picking it sets the knobs to its stored answer, marks its knobs over its
 ranges, sets its bands and balance, and shows its stored table. **Run again
-from its start** puts the knobs back where it began and runs it. A run kept on
-another variant says to switch to that variant first, and one in a form the
-workbench does not run (root, sequential, another feed or Z₀) can be jumped
-to but is run again with `antennaknobs analyze --study`.
+from its start** puts the knobs back where it began and runs it in its own
+form: the same mode (minimax, root or sequential) and each band's own
+objective, feed and Z₀, whatever the session's Z₀ is. Keeping that run keeps
+the form. Editing the bands in the gear menu leaves the kept form behind, and
+the run is the SWR minimax again. A run kept on another variant says to switch
+to that variant first.
 
 A design whose network holds a **tuner that tunes itself** (`tune_to`) is
 refused when it is measured at the tuner's tune frequency: the tuner presents

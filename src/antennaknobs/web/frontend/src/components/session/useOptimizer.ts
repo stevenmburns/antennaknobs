@@ -17,6 +17,7 @@ import {
 } from "./VfoPanel";
 import { apiFetch } from "../../lib/pin";
 import { nextBandMarks, type BandMarks } from "../../lib/optBands";
+import { formFor, type BandForm } from "../../lib/keptRun";
 
 // One decoded `event: X\ndata: Y` frame off an SSE byte stream.
 type SseFrame = { event: string; data: string };
@@ -111,9 +112,20 @@ export function optimizeSpec(
     seed: boolean;
     bands: number[] | null;
     meanWeight: number;
+    /** A kept run's form for these bands (#1921, `formFor`), else the
+     *  SWR minimax. */
+    form?: BandForm | null;
   },
 ): Record<string, unknown> {
   if (opts.bands && opts.bands.length > 0) {
+    if (opts.form) {
+      return {
+        free,
+        bands: opts.form.bands.map((b) => ({ ...b })),
+        mode: opts.form.mode,
+        mean_weight: opts.meanWeight,
+      };
+    }
     return {
       free,
       bands: opts.bands.map((freq) => ({ freq, objective: "swr" })),
@@ -191,6 +203,10 @@ export function useOptimizer({
   const [optBands, setOptBands] = useState<number[] | null>(null);
   // The band run's balance w: J = (1 - w) * worst band + w * mean of bands.
   const [optMeanWeight, setOptMeanWeight] = useState<number>(DEFAULT_MEAN_WEIGHT);
+  // A kept run's form (#1921): read only while the band list is still its
+  // frequencies (`formFor`), so an edit to Bands drops it by itself.
+  const [optBandForm, setOptBandForm] = useState<BandForm | null>(null);
+  const optForm = formFor(optBandForm, optBands);
   const [knobOpt, setKnobOpt] = useState<Record<string, Record<string, KnobOpt>>>({});
   // Open knob context menu: which param + anchor position, and the design it
   // was opened on. A menu belongs to its design: one left open across a
@@ -298,6 +314,7 @@ export function useOptimizer({
     setOptProgress(null);
     setOptError(null);
     setOptBands(null);
+    setOptBandForm(null);
     setOptBandMarks(null);
     if (optEnabledRef.current) {
       setOptEnabled(false);
@@ -374,6 +391,7 @@ export function useOptimizer({
             seed: optSeed,
             bands: optBands,
             meanWeight: optMeanWeight,
+            form: optForm,
           }),
         }),
       });
@@ -460,6 +478,7 @@ export function useOptimizer({
       fixed,
       // Only when set, so a single-band signature is the string it always was.
       ...(optBands ? { bands: optBands, meanWeight: optMeanWeight } : {}),
+      ...(optForm ? { form: optForm } : {}),
     });
     // currentValuesKey stands in for currentValues' contents in the deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -471,6 +490,7 @@ export function useOptimizer({
     optSeed,
     optBands,
     optMeanWeight,
+    optForm,
     zoOverride,
     backend,
     designFreq,
@@ -600,6 +620,8 @@ export function useOptimizer({
     setOptBands,
     optMeanWeight,
     setOptMeanWeight,
+    optForm,
+    setOptBandForm,
     knobOpt,
     setKnobOpt,
     knobMenu,

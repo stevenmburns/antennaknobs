@@ -201,10 +201,14 @@ describe("a kept band run", () => {
     const opt = optimized[0].optimize as {
       free: { name: string; min: number; max: number }[];
       bands: { freq: number }[];
+      mode: string;
       mean_weight: number;
     };
+    // In the run's own form (#1921): each band's objective, feed and Z0.
+    const form = BANDS.map((freq) => ({ freq, objective: "swr", feed: 0, z0: 50 }));
     expect(opt.free).toEqual(KEPT.workbench.free);
-    expect(opt.bands.map((b) => b.freq)).toEqual(BANDS);
+    expect(opt.bands).toEqual(form);
+    expect(opt.mode).toBe("minimax");
     expect(opt.mean_weight).toBe(0.5);
     expect(optimized[0].sy_cap1).toBe(START.sy_cap1);
 
@@ -215,7 +219,8 @@ describe("a kept band run", () => {
     expect(body.origin).toBe("optimize");
     expect(body.form).toBe("study");
     expect(body.free).toEqual(KEPT.workbench.free);
-    expect(body.bands).toEqual(BANDS.map((freq) => ({ freq })));
+    expect(body.bands).toEqual(form);
+    expect(body.mode).toBe("minimax");
     expect((body.result as { params: unknown }).params).toEqual(STORED);
     expect((body.tab as Body).geometry).toBe(KEY);
   });
