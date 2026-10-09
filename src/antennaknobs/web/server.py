@@ -3220,7 +3220,7 @@ def _held_setup(req: dict, param: str, hold_data) -> tuple:
         raise HTTPException(status_code=422, detail=f"hold: {e}") from None
     if not isinstance(h, an.Hold):
         raise HTTPException(status_code=422, detail="hold is an an.Hold, as data")
-    if h.objective == "swr":
+    if h.objective == "swr" and not h.bands:
         raise HTTPException(
             status_code=422,
             detail="hold swr: SWR is a minimisation, not a root; hold resonance "
@@ -3234,7 +3234,9 @@ def _held_setup(req: dict, param: str, hold_data) -> tuple:
         )
     builder = builder_for(cls, req)
     try:
-        free = hd.free_of(h, builder)
+        # A band hold (#1921) bounds its knobs as `optimize --bands` does,
+        # group leaves included, the CLI's `band_free_of`.
+        free = hd.band_free_of(h, builder) if h.bands else hd.free_of(h, builder)
     except hd.HoldRefused as e:
         raise HTTPException(status_code=422, detail=str(e)) from None
     if param in {f["name"] for f in free}:
@@ -3246,7 +3248,21 @@ def _held_setup(req: dict, param: str, hold_data) -> tuple:
     sub = {"geometry": geometry}
     if req.get("variant") is not None:
         sub["variant"] = req["variant"]
-    defaults = hd.defaults_of(builder_for(cls, sub), free)
+    fresh = builder_for(cls, sub)
+    if h.bands:
+        # AK#1681's fixed-frequency NT cards, refused as /optimize's band run
+        # refuses them: a deck modelled at one frequency is not at the others.
+        from .adapter import fixed_frequency_advisories
+
+        fixed = fixed_frequency_advisories(cls, [b.freq for b in h.bands])
+        if fixed:
+            raise HTTPException(
+                status_code=422,
+                detail="these bands cannot be solved on this design: "
+                + fixed[0]["text"],
+            )
+        return h, free, hd.band_defaults_of(fresh, free)
+    defaults = hd.defaults_of(fresh, free)
     return h, free, defaults
 
 
@@ -3281,6 +3297,12 @@ def _held_sweep_stream(
     from antennaknobs import hold as hd
 
     h, free, defaults = _held_setup(req, param, hold_data)
+    if h.bands and metric is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="a metric on a hold across several bands: `antennaknobs "
+            "analyze` draws it; the workbench draws each band's SWR",
+        )
     backend = _external_backend(req)
     use_pynec = backend is not None
     solver_name = _BACKEND_NAME[backend] if backend is not None else "momwire"
@@ -3332,6 +3354,34 @@ def _held_sweep_stream(
         z0 = h.z0 if h.z0 is not None else float(out.get("z0_ohms") or 50.0)
         return {"z_in_re": out["z_in_re"], "z_in_im": out["z_in_im"], "z0_ohms": z0}
 
+    def bands_fn(r: dict, freqs: list) -> dict:
+        """One band-hold eval (#1921): one build solved at every band, as
+        /optimize's band run evaluates (`_eval_bands` there)."""
+        from .optimize_bands import bands_from_solves
+
+        with _deck_turn_sync(r, token):
+            if backend is None:
+                fn = getattr(ex, "momwire_bands", None)
+                if fn is not None:
+                    return fn(r, freqs, cancel=token)
+                outs = [
+                    ex.momwire_solve({**r, "measurement_freq_mhz": f}, cancel=token)
+                    for f in freqs
+                ]
+            else:
+                outs = [
+                    _external_call(
+                        backend.solve, {**r, "measurement_freq_mhz": f}, cancel=token
+                    )
+                    for f in freqs
+                ]
+        for o in outs:
+            o.pop("_engine_runs", None)
+        return bands_from_solves(outs)
+
+    def _finite(v):
+        return float(v) if isinstance(v, (int, float)) and math.isfinite(v) else None
+
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue = asyncio.Queue()
     # The hosted wall-time budget, checked between points: a held point is
@@ -3350,7 +3400,27 @@ def _held_sweep_stream(
             "n_solves": pt.n_solves,
             "solver": solver_name,
         }
-        if pt.converged:
+        if pt.bands:
+            # A band hold's point (#1921): every band's reading at the answer
+            # (its first band's Z is the record's), null where a band read
+            # nothing. On a gap too, where it is the search's last point.
+            rec["bands"] = [
+                {
+                    "freq_mhz": _finite(b.get("freq_mhz")),
+                    "swr": _finite(b.get("swr")),
+                    "z_re": _finite(b.get("z_re")),
+                    "z_im": _finite(b.get("z_im")),
+                }
+                for b in pt.bands
+            ]
+        if (
+            pt.converged
+            and h.bands
+            and not (math.isfinite(pt.z.real) and math.isfinite(pt.z.imag))
+        ):
+            # Held, but its first band read nothing: no Z to draw there.
+            rec.update(z_re=None, z_im=None, residual=_finite(pt.residual))
+        elif pt.converged:
             rec.update(z_re=pt.z.real, z_im=pt.z.imag, residual=pt.residual)
             if metric is not None:
                 value, why = held_metric(pt)
@@ -3387,6 +3457,17 @@ def _held_sweep_stream(
 
     def work() -> list:
         clock.spent()  # the first point always runs
+        if h.bands:
+            return hd.hold_bands_line(
+                values,
+                param,
+                free,
+                h,
+                sweep_fn=bands_fn,
+                defaults=defaults,
+                base=req,
+                on_point=on_point,
+            )
         return hd.hold_line(
             values,
             param,

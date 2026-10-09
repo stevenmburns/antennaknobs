@@ -409,9 +409,17 @@ def hold_bands_point(
     ``(request, band optimizer result)``, the request ``base`` with the
     swept ``knob`` at ``x`` and the held knobs at ``start``. The seam a
     test calls the band optimizer standalone beside."""
+    from .web.optimize import _with_knob
     from .web.optimize_bands import optimize_bands
 
-    req = {**(base or {}), knob: x, **start}
+    # The start laid on as the optimizer writes a knob (#1921): a group leaf
+    # into the request's group when it carries one (the workbench's), never
+    # as a flat dotted key beside it, which the optimizer's writes would then
+    # follow and the solve never read. Without a group (the CLI's empty base)
+    # it is the flat key, as before.
+    req = {**(base or {}), knob: x}
+    for k, v in start.items():
+        _with_knob(req, k, v)
     res = optimize_bands(
         req,
         [dict(f) for f in free],
