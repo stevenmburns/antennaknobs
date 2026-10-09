@@ -3744,6 +3744,16 @@ def _norm_check(req: dict, cancel=None) -> dict:
             if pattern_norm > 0
             else 0.0
         )
+    if ground_on and out.get("ground_model_applied") == "mininec":
+        # The MININEC-type ground solves the currents (so P_in) over a perfect
+        # ground and applies the soil to the pattern alone, so pattern power
+        # over input power is no ledger: a near-ground wire whose PEC image
+        # cancels it radiates more over soil than P_in accounts for (117 % on
+        # UR0GT's 160/80/40 deck, AK#1955). Below 100 % the ratio means no
+        # more. `pattern_norm` stays: the renormalised lobe is still the
+        # pattern's own shape.
+        radiated = None
+        method = "no_ledger_mininec"
     return {
         "available": pattern_norm > 0,
         "directivity_norm": out["directivity_norm"],

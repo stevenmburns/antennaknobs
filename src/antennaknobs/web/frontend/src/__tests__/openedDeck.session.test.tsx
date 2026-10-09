@@ -77,7 +77,7 @@ const query = () => new URLSearchParams(window.location.search);
 const ready = () => document.querySelector<HTMLElement>(".app[data-ready]")?.dataset.ready ?? "";
 
 function openFile(text: string, name = "mydeck.nec") {
-  const input = screen.getByLabelText("open a NEC deck") as HTMLInputElement;
+  const input = screen.getByLabelText("open an antenna model (.nec, .ssn or .maa)") as HTMLInputElement;
   const file = new File([text], name);
   // jsdom's File may lack text(); the product reads the file through it.
   if (typeof (file as Blob).text !== "function") {

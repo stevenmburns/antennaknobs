@@ -1111,6 +1111,34 @@ def test_norm_check_finite_ground_uses_grid_method(client: TestClient):
     )
 
 
+def test_norm_check_reports_no_radiated_fraction_under_mininec_ground(
+    client: TestClient,
+):
+    """AK#1955: the MININEC-type ground solves P_in over a perfect ground and
+    applies the soil to the pattern only, so pattern power over input power
+    is not a ledger (it read 117 % on a near-ground deck). The check names
+    the reason and ships no fraction; the same request over Sommerfeld still
+    gets one."""
+    server._SOLVE_CACHE.clear()
+    req = {
+        "geometry": "dipoles.invvee",
+        "measurement_freq_mhz": 28.47,
+        "design_freq_mhz": 28.47,
+        "momwire_model": "bspline",
+        "ground": True,
+        "ground_model": "mininec",
+    }
+    resp = client.post("/norm_check", json=req).json()
+    assert resp["available"] is True
+    assert resp["method"] == "no_ledger_mininec"
+    assert resp["radiated_fraction"] is None
+    assert resp["pattern_norm"] > 0
+
+    resp = client.post("/norm_check", json={**req, "ground_model": "sommerfeld"}).json()
+    assert resp["method"].startswith("grid_")
+    assert 0.0 < resp["radiated_fraction"] < 1.0
+
+
 @pytest.mark.parametrize(
     "geometry, req_extra, params_extra, lo, hi",
     [

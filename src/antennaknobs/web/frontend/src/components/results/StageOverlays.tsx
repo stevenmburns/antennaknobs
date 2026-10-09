@@ -1,5 +1,6 @@
 
 import { useEffect, useRef, useState } from "react";
+import { NO_LEDGER_MININEC } from "../../lib/api";
 import type { NormCheckData, SolveResponse } from "../../lib/api";
 import type { GroundModel } from "../../lib/ground";
 import type { ExampleDescriptor } from "../../lib/params";
@@ -425,14 +426,18 @@ export function FarFieldOverlayControls({
         <span
           className="overlay-readout"
           title={
-            normCheck.method.startsWith("grid_terrain")
+            normCheck.radiated_fraction == null
+              ? NO_LEDGER_MININEC
+              : normCheck.method.startsWith("grid_terrain")
               ? `Share of accepted power leaving as sky wave over the faceted terrain (${normCheck.method}): the same facet geometry integrated with perfect-reflector media is the reference, so the ratio isolates real ground-media absorption. The dotted overlay shows the separate hybrid-model ledger gap (Δ ${normCheck.delta_db >= 0 ? "+" : ""}${normCheck.delta_db.toFixed(2)} dB — the facet far field vs the crest-referenced input power; either sign is normal, and absolute gains stay anchored to the input-power norm, the convention validated against NEC-2's cliff).`
               : normCheck.method.startsWith("grid_")
                 ? `P_radiated/P_input from the pattern-integral norm (${normCheck.method}): the gap between the solid and dotted lobes as a fraction — structural loss plus real ground absorption (Δ ${normCheck.delta_db >= 0 ? "+" : ""}${normCheck.delta_db.toFixed(3)} dB, NEC average-gain style)`
                 : `input-power norm vs pattern-integral norm (${normCheck.method}); 0 dB = perfect power balance`
           }
         >
-          {normCheck.method.startsWith("grid_") ? (
+          {normCheck.radiated_fraction == null ? (
+            <>radiated —</>
+          ) : normCheck.method.startsWith("grid_") ? (
             <>radiated {(normCheck.radiated_fraction * 100).toFixed(0)}%</>
           ) : (
             <>

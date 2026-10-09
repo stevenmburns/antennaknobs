@@ -1628,6 +1628,13 @@ elevated arrays, where the MININEC heritage came from; for low horizontal
 wires, radials near the surface, or anything buried, use the Sommerfeld
 method.
 
+Over this ground the readout's **radiated (incl. ground)** row shows a dash.
+That row is the pattern's power over the input power, and here the two come
+from different grounds: the input power from the perfect one, the pattern from
+the soil. So the ratio is not a fraction of anything. A low wire whose
+perfect-ground image cancels it can read over 100 %. Pick Sommerfeld or the
+fast reflection-coefficient method for that number.
+
 Every engine serves it in its own terms:
 
 - momwire solves over the PEC image and reflects the far field off the soil;

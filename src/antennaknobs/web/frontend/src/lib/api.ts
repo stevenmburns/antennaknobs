@@ -488,6 +488,12 @@ export type NormCheckData = {
   pattern_norm: number;
   method: string;
   delta_db: number;
-  radiated_fraction: number;
+  // null under the MININEC-type ground (method "no_ledger_mininec", AK#1955):
+  // its currents see a perfect ground and its pattern the soil, so pattern
+  // power over input power is no ledger.
+  radiated_fraction: number | null;
   radiation_efficiency: number;
 };
+
+export const NO_LEDGER_MININEC =
+  "No power ledger under the MININEC-type ground: it solves the currents and input power over a perfect ground and applies the soil to the pattern only, so the pattern's power over the input power is not a fraction of anything (it can exceed 100 % when a wire runs close to the ground). Switch the ground to Sommerfeld or reflection-coefficient for a radiated fraction.";
