@@ -1584,6 +1584,10 @@ python -m antennaknobs analyze --study "fan/12-10:..." --apply
   check that the answer has not moved.
 - `--apply` loads the stored result without searching: every knob at exactly
   its stored value, each band read once there, against what was stored.
+- A kept run solves on the engine it was kept with, whatever `--engine`
+  says, so a re-run repeats it. `--override-engine ENGINE` runs it (or
+  `--apply`s it) on another engine instead, says so, and still compares
+  against the stored columns, which are from the kept engine.
 - `--code` prints it as Python, as for any study.
 
 A deck run (`--builder @deck.nec`) is kept by the path it was given. The
