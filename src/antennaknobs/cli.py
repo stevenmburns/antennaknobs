@@ -1690,6 +1690,15 @@ def cli(arguments=None):
         "stored result without searching, print the knobs and each band's "
         "reading there, and compare them with what was stored.",
     )
+    p.add_argument(
+        "--override-engine",
+        default=None,
+        metavar="ENGINE",
+        help="With --study naming a kept optimize run (an.Optimize): run it "
+        "(or --apply it) on this engine instead of the one it was kept with, "
+        "to compare the stored result on another engine. A kept run's own "
+        "engine otherwise wins over --engine.",
+    )
     p.add_argument("--z0", default=50, type=float, help="Reference impedance.")
     p.add_argument(
         "--csv",
@@ -1774,6 +1783,12 @@ def cli(arguments=None):
                 "analyze: --apply loads a kept optimize run's stored result; "
                 f"{analysis.name!r} is an analysis, not an an.Optimize"
             )
+        if args.override_engine is not None and not an.is_optimize(analysis):
+            raise SystemExit(
+                "analyze: --override-engine re-runs a kept optimize run on "
+                f"another engine; {analysis.name!r} is an analysis, not an "
+                "an.Optimize (give it --engine)"
+            )
 
         def seam(design):
             """``design``'s builder factory, engine factory and ground label:
@@ -1848,9 +1863,19 @@ def cli(arguments=None):
                 "optimize run prints its per-band table"
             )
         _, factory_for, _ = seam(get_builder(o.design))
-        factory = factory_for(o.engine or args.engine, o.ground, False)
+        # The kept run's engine wins over --engine, so a re-run repeats it;
+        # --override-engine is the explicit way to compare it on another
+        # (#1921).
+        engine = args.override_engine or o.engine or args.engine
+        factory = factory_for(engine, o.ground, False)
         b = ost.prepared(o, get_builder)
         print(f"study {o.name!r}: {analysis_run.optimize_summary(o)}")
+        if args.override_engine is not None:
+            print(
+                f"# engine {engine}, overriding the kept run's "
+                f"{o.engine or 'session default'}: the stored columns are "
+                "from that engine"
+            )
         if args.apply:
             try:
                 got = ost.apply(o, b, factory)
@@ -2051,7 +2076,10 @@ def cli(arguments=None):
             from . import optimize_study as ost
 
             # Before the run moves the knobs: the start it is kept with.
-            start = ost.start_state(args.builder, b, builder())
+            try:
+                start = ost.start_state(args.builder, b, builder())
+            except ValueError as e:
+                raise SystemExit(f"optimize --keep: {e}") from None
         units = {nm: u for nm in names if (u := band_opt.ui_unit(b, nm))}
         for fr in free:
             u = f" {units[fr['name']]}" if fr["name"] in units else ""

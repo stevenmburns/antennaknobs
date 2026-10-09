@@ -262,6 +262,54 @@ def test_a_kept_run_is_a_trusted_study_that_reruns_and_applies(folder, capsys):
     assert "evals" not in out  # nothing searched
 
 
+def test_override_engine_reruns_a_kept_run_on_another_engine(
+    folder, capsys, monkeypatch
+):
+    """A kept run's engine wins over --engine, so a re-run repeats it;
+    --override-engine is the explicit way onto another (#1921). A spy on the
+    engine seam proves which engine each --apply actually built."""
+    import importlib
+
+    cli = importlib.import_module("antennaknobs.cli")  # the module, not ant.cli
+    ant.cli([*_FAN_RUN, "--keep", "fan/two", "--keep-name", "fan pair"])
+    capsys.readouterr()
+    built = []
+    real = cli.make_engine_factory
+
+    def spy(spec, *a, **k):
+        built.append(spec)
+        return real(spec, *a, **k)
+
+    monkeypatch.setattr(cli, "make_engine_factory", spy)
+    study = ["analyze", "--study", "fan/two:fan pair", "--apply"]
+
+    ant.cli([*study, "--engine", "momwire:sinusoidal"])
+    assert built == ["momwire"]  # the kept engine, not --engine
+    assert "overriding" not in capsys.readouterr().out
+
+    built.clear()
+    ant.cli([*study, "--override-engine", "momwire:sinusoidal"])
+    assert built == ["momwire:sinusoidal"]
+    out = capsys.readouterr().out
+    assert "# engine momwire:sinusoidal, overriding the kept run's momwire" in out
+    assert "against the stored result" in out
+
+
+def test_override_engine_needs_a_kept_run():
+    with pytest.raises(SystemExit, match="--override-engine re-runs a kept"):
+        ant.cli(
+            [
+                "analyze",
+                "--builder",
+                "dipoles.invvee",
+                "--study",
+                "dipoles.apex_feed_on_invvee:feed spelling (E7)",
+                "--override-engine",
+                "momwire:sinusoidal",
+            ]
+        )
+
+
 def test_apply_reproduces_the_stored_knobs_exactly():
     from antennaknobs import optimize_study as ost
     from antennaknobs.cli import get_builder, make_engine_factory
@@ -273,6 +321,20 @@ def test_apply_reproduces_the_stored_knobs_exactly():
     for k, v in o.result.values.items():
         assert ost._get_path(b, k) == v  # set exactly, not re-derived
     assert [r["freq_mhz"] for r in got["bands"]] == [26.6, 29.3]
+
+
+@pytest.mark.parametrize("knob", ["name", "design", "variant"])
+def test_a_start_with_a_knob_named_as_a_state_argument_is_refused(monkeypatch, knob):
+    """A design knob spelled ``name``/``design``/``variant`` cannot be a
+    State keyword (#1921): refused by name, as keep's states are, not a
+    TypeError from the State call."""
+    from antennaknobs import optimize_study as ost
+
+    built, fresh = object(), object()
+    monkeypatch.setattr(an, "_params", lambda b: {knob: 2.0 if b is built else 1.0})
+    monkeypatch.setattr(an, "density_knob", lambda b: "nsegs")
+    with pytest.raises(ValueError, match=rf"the knob '{knob}' cannot be written"):
+        ost.start_state("fan_dipole", built, fresh)
 
 
 def test_analyze_apply_needs_a_kept_run():
@@ -298,6 +360,8 @@ def _fan_builder():
     return get_builder(FAN)()
 
 
+# 6-11 s of fan solves: out of the PR lane (#1921).
+@pytest.mark.antenna_computation_check
 def test_a_band_hold_matches_independent_band_runs_at_three_points():
     """Each held point (warm-started from the last, as a hold runs) agrees
     with a band run of its own from the design's defaults, to the root

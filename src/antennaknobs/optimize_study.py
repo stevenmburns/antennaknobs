@@ -155,6 +155,14 @@ def start_state(design: str, builder, fresh) -> an.State:
         for k, v in params.items()
         if k not in skip and k in defaults and not _same(v, defaults[k])
     }
+    # A knob spelled as one of State's own arguments cannot be written as a
+    # keyword (#1921), the same guard as keep's states.
+    reserved = [k for k in knobs if k in ("name", "design", "variant")]
+    if reserved:
+        raise ValueError(
+            f"{name}: the knob {reserved[0]!r} cannot be written as a state's "
+            "keyword argument"
+        )
     return an.State("start", name, variant=variant, **knobs)
 
 
