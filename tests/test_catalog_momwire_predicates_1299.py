@@ -84,12 +84,15 @@ def test_the_catalog_split_is_what_the_arrayblock_advisory_was_argued_from():
             continue
         (repeats if part.n_shapes < part.n_elem else no_repeats).append(name)
 
-    assert len(repeats) == 27, sorted(repeats)
+    # 28 since `beams.yagi_endport`: its two driver arms are separate
+    # elements now (no bridge joins them), and they share a shape.
+    assert len(repeats) == 28, sorted(repeats)
     # 73 and 3 since AK#1464: `wire.terminated_longwire` has nothing buried,
     # and it used to refuse at construction under finite ground because the
     # below/below pre-flight counted its two ground terminations as buried.
     # 74 since `verticals.m0agp_invl`: one element, one shape.
-    assert len(no_repeats) == 74, len(no_repeats)
+    # 75 since `dipoles.invvee_endport`: two arms, mirror images, two shapes.
+    assert len(no_repeats) == 75, len(no_repeats)
     assert "verticals.m0agp_invl" in no_repeats
     # 4 since AK#1707: `wire.beverage`'s ground rods are buried, and the
     # array-block operator refuses a buried deck.

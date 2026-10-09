@@ -293,11 +293,17 @@ def test_the_probe_still_answers_a_useful_number_after_the_new_capabilities():
         and not (adapter._design_capability_needs(cls) & _EARLIER_CAPABILITY)
     )
     assert asked >= 80, asked
-    # And the two port designs are exactly what the exclusion covers beyond buried.
+    # And the port designs are exactly what the exclusion covers beyond buried
+    # (the two end-port feed examples joined sterba_bl and invvee_apex).
     excluded = {
         name
         for name in REGISTRY
         if (cls := _design_cls(name)) is not None
         and (adapter._design_capability_needs(cls) & {"junction_ports", "node_gaps"})
     }
-    assert excluded == {"wire.sterba_bl", "dipoles.invvee_apex"}, excluded
+    assert excluded == {
+        "wire.sterba_bl",
+        "dipoles.invvee_apex",
+        "dipoles.invvee_endport",
+        "beams.yagi_endport",
+    }, excluded
