@@ -88,6 +88,7 @@ and a real 16 mm rod on NEC-5.
 | `dipoles.invvee_apex` | Inverted-vee fed at its exact apex — no bridge wire (issue #898) · variants: `classic_edz`, `dipole`, `three_halves` |
 | `dipoles.invvee_catenary` | Inverted-vee dipole whose arms hang as real catenaries (issue #698, unit 2) |
 | `dipoles.invvee_coax_station` | Inverted-V fed through real coax — the classic "resonant antenna on 50 Ω line" station, modelled from the rig (issue #300) · variants: `classic_edz`, `dipole`, `three_halves` |
+| `dipoles.invvee_endport` | Inverted-vee (or flat dipole) fed across a real gap between its arm ends · variants: `classic_edz`, `dipole`, `three_halves` |
 | `dipoles.koch_dipole` | Koch fractal dipole (L. B. Cebik, W4RNL -- "fractal antennas") |
 | `dipoles.ocf_dipole` | Off-Center-Fed dipole (Windom): a half-wave fed away from the middle (L. B. Cebik, W4RNL) |
 | `dipoles.pota_invvee` | POTA wire-gauge tradeoff: a 20 m inverted-V where the wire is a knob · variants: `classic_edz`, `dipole`, `three_halves` |
@@ -136,6 +137,7 @@ whole shape with a `Drone` — see
 | `beams.owa_yagi_6el` | 6-element OWA Yagi — Cebik's 2 m band-flat beam, wavelength-scaled (issue #497's first VHF-native design) · variants: `band70cm` |
 | `beams.phased_driver_yagi` | 40 m wide-band phased-driver wire Yagi (L. B. Cebik, W4RNL, "Wide-Band 40-Meter Yagis", Part 3) |
 | `beams.yagi` | Yagi-Uda parasitic beam (driven element + reflector + directors) |
+| `beams.yagi_endport` | Yagi-Uda whose driven element is fed across a real gap between its arm ends |
 <!-- catalog:end beams -->
 
 ## Verticals
