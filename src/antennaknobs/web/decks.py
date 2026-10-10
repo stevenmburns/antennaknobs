@@ -1,8 +1,9 @@
 """Opened decks: a NEC deck the user brings, carried by the link.
 
-A visitor opens their own ``.nec`` / ``.ssn`` / ``.maa`` in the workbench — on the hosted
-app as well as locally — without installing anything. The design is the
-deck's TEXT, and the browser keeps it: the page's link carries it compressed
+A visitor opens their own ``.nec`` / ``.ssn`` / ``.maa`` / ``.ez`` in the workbench — on
+the hosted app as well as locally — without installing anything. The design is
+the deck's TEXT (an EZNEC ``.ez`` is binary: its bytes, one character per
+byte), and the browser keeps it: the page's link carries it compressed
 (``?deck=<deflate-raw, base64url>&name=<file name>``), and every request for
 that design carries it again (``_deck``), so the server holds no state a
 restart or a second machine could lose. The server parses it with the same
@@ -51,7 +52,7 @@ _PREFIX = f"{DECK_NS}."
 #: Where to send someone whose model is over a hosted limit.
 RUN_LOCALLY = "run it locally (pip install antennaknobs[web]) for larger models"
 #: ...and someone already running it locally: the designs folder opens a
-#: bare .nec / .ssn / .maa with none of an opened deck's limits.
+#: bare .nec / .ssn / .maa / .ez with none of an opened deck's limits.
 USE_DESIGNS_FOLDER = (
     "to open a larger model, put the file in your designs folder "
     "(~/.antennaknobs/designs), where these limits do not apply"
@@ -194,12 +195,13 @@ def decode_payload(payload, settings: DeckSettings) -> tuple[str, str]:
     if not name or len(name) > 120:
         name = "deck.nec"
     ext = PurePath(name).suffix.lower()
-    if ext not in (".nec", ".ssn", ".maa"):
+    if ext not in (".nec", ".ssn", ".maa", ".ez"):
         raise DeckError(
-            f"{name}: the workbench opens .nec (NEC card deck), .ssn (SimNEC) "
-            "and .maa (MMANA-GAL) files; export the model to .nec from your "
-            "program first"
+            f"{name}: the workbench opens .nec (NEC card deck), .ssn (SimNEC), "
+            ".maa (MMANA-GAL) and .ez (EZNEC) files; export the model to .nec "
+            "from your program first"
         )
+    binary = ext == ".ez"
     limit = settings.max_bytes
 
     def too_big() -> DeckError:
@@ -214,6 +216,13 @@ def decode_payload(payload, settings: DeckSettings) -> tuple[str, str]:
         text = payload["text"]
         if not isinstance(text, str):
             raise DeckError("text must be a string")
+        if binary:
+            # An .ez's bytes, one character per byte (AK#1958).
+            if any(ord(ch) > 0xFF for ch in text):
+                raise DeckError(f"{name}: an .ez is binary; send its bytes (z)")
+            if len(text) > limit:
+                raise too_big()
+            return name, text
         if len(text.encode("utf-8", "surrogatepass")) > limit:
             raise too_big()
         return name, text
@@ -235,6 +244,10 @@ def decode_payload(payload, settings: DeckSettings) -> tuple[str, str]:
         raise DeckError(f"{name}: the link's deck does not decode ({exc})") from None
     if len(data) > limit:
         raise too_big()
+    if binary:
+        # The browser compresses an .ez's bytes as they are; one character
+        # per byte keeps them intact for the importer (AK#1958).
+        return name, data.decode("latin-1")
     # Old decks in the wild carry cp1252/latin-1 comment text; geometry cards
     # are ASCII, so replace rather than refuse (as builder_from_file does).
     return name, data.decode("utf-8", errors="replace")

@@ -20,3 +20,5 @@ tests/fixtures/opened_decks/*.nec -text
 # those exact deck bytes; keep git from normalising either.
 tests/fixtures/nec4_gc_gh_1296_1297/*.nec -text
 tests/fixtures/nec4_gc_gh_1296_1297/*.out -text
+# AK#1958's EZNEC fixtures are binary .ez files, copied byte for byte.
+tests/fixtures/ez_lonney9_1958/*.ez binary

@@ -1,8 +1,9 @@
 """Builders synthesized from antenna data files — the CLI's ``@file`` specs.
 
 ``builder_from_file`` turns a NEC card deck (``.nec``), a SimNEC circuit
-(``.ssn``) or an MMANA-GAL model (``.maa``, `maa_import`, AK#1897) into a
-ready-to-run ``AntennaBuilder`` class, so every CLI
+(``.ssn``), an MMANA-GAL model (``.maa``, `maa_import`, AK#1897) or an EZNEC
+model (``.ez``, `ez_import`, AK#1958) into a ready-to-run ``AntennaBuilder``
+class, so every CLI
 subcommand can consume a file directly wherever a builder spec goes:
 
     antennaknobs draw --builder @decks/yagi.nec
@@ -59,6 +60,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 from .builder import C_LIGHT_MHZ_M, AntennaBuilder
+from .ez_import import accept_guesses_from_env, read_ez
 from .maa_import import decode_maa, read_maa
 from .nec_import import _NEC_SMIN, NEC_C_LIGHT_MHZ_M, classify_sy, parse_nec
 from .simnec_import import classify_dcl, parse_ssn
@@ -864,8 +866,56 @@ def _maa_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=No
     )
 
 
+def _ez_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=None):
+    """An EZNEC ``.ez`` model (AK#1958, `ez_import.read_ez`): binary, so
+    ``text`` carries its bytes one character per byte (latin-1, see
+    `read_design_text`). Read into a NEC deck in the spelling of the engine
+    EZNEC was set to -- or the ``dialect`` chosen, as for a ``.nec`` -- and
+    solved at the file's frequency. The readings the format leaves undefined
+    are taken only when ``ANTENNAKNOBS_EZ_ACCEPT_GUESSES`` asks."""
+    if refine != 1:
+        raise SystemExit(
+            f"{path.name}: an EZNEC model has no refinement path; set its "
+            "segment counts in EZNEC, or export it to .nec and refine the deck"
+        )
+    try:
+        raw = text.encode("latin-1")
+    except UnicodeEncodeError:
+        raise ValueError(
+            f"{path.name}: the file's bytes did not arrive intact (an .ez is "
+            "binary; it must be read as bytes, not as text)"
+        ) from None
+    imp = read_ez(
+        raw,
+        name=path.name,
+        limits=limits,
+        accept_guesses=accept_guesses_from_env(),
+        reading=dialect,
+    )
+    deck = imp.deck
+    return _make_builder(
+        path.stem,
+        round(imp.freq_mhz, 6),
+        None,
+        list(imp.notes),
+        lambda: deck.wire_tuples(specs=True),
+        deck.network,
+        extended_kernel_by_dialect=imp.extended_kernel,
+        ground=imp.ground,
+        ground_method=imp.ground_method,
+        seed_card=imp.ground_word,
+        file_deck=deck,
+        c_light_mhz_m=C_LIGHT_MHZ_M,
+    )
+
+
 # extension -> loader
-_LOADERS = {".nec": _nec_builder, ".ssn": _ssn_builder, ".maa": _maa_builder}
+_LOADERS = {
+    ".nec": _nec_builder,
+    ".ssn": _ssn_builder,
+    ".maa": _maa_builder,
+    ".ez": _ez_builder,
+}
 
 
 def read_design_text(path: Path) -> str:
@@ -875,6 +925,9 @@ def read_design_text(path: Path) -> str:
     a stray comment byte is replaced rather than refused."""
     if path.suffix.lower() == ".maa":
         return decode_maa(path.read_bytes())
+    if path.suffix.lower() == ".ez":
+        # Binary: one character per byte, so the loader gets the bytes back.
+        return path.read_bytes().decode("latin-1")
     return path.read_text(encoding="utf-8", errors="replace")
 
 

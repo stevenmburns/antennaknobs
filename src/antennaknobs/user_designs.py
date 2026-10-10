@@ -29,7 +29,7 @@ _MODULE_PREFIX = "antennaknobs._user_designs"
 # beside the ``.py`` designs shows up as ``user.<stem>`` with no stub, through
 # the same pure-data loader the CLI's ``@file`` spec uses. Data never
 # executes, so these bypass the trust gate that Python designs go through.
-DECK_SUFFIXES = (".nec", ".ssn", ".maa")
+DECK_SUFFIXES = (".nec", ".ssn", ".maa", ".ez")
 
 
 def default_user_dir() -> Path:
@@ -77,7 +77,7 @@ def _is_design_file(path: Path) -> bool:
 
 
 def is_deck_file(path: Path) -> bool:
-    """True for a data-file design (``.nec`` / ``.ssn`` / ``.maa``) as
+    """True for a data-file design (``.nec`` / ``.ssn`` / ``.maa`` / ``.ez``) as
     opposed to a Python one — the two load differently and only the Python
     one needs trusting."""
     return path.suffix.lower() in DECK_SUFFIXES
