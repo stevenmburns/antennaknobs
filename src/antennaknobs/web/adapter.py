@@ -2013,6 +2013,44 @@ def _apply_plane(builder, req):
     return plane, planes
 
 
+def _plane_labels(builder, planes) -> dict[str, str]:
+    """Display names for the measurement-plane picker, from the builder's
+    optional ``plane_labels()`` → {plane: label}, kept to the planes this
+    solve offers. A design without the method (nearly all) serves none and
+    the picker shows the port names."""
+    labels = getattr(builder, "plane_labels", None)
+    if not callable(labels) or not planes:
+        return {}
+    got = dict(labels() or {})
+    return {p: str(got[p]) for p in planes if p in got}
+
+
+def _smith_target(builder, plane) -> str | None:
+    """The Smith chart circle a design asks to highlight at ``plane``: "r"
+    (the constant-resistance circle through Z0, r = 1) or "g" (the
+    constant-conductance circle through it, g = 1), else None.
+
+    Declared by a builder method, ``smith_targets()`` → {plane: "r" | "g"},
+    not a static ui_param: the circle can depend on a knob (which side of an
+    L network the shunt part sits on decides whether the remaining part
+    moves the point along a circle of constant R or constant G), so it is
+    computed at the knobs this solve was built with and served beside
+    ``plane``. Designs without the method serve nothing.
+    """
+    targets = getattr(builder, "smith_targets", None)
+    if not callable(targets) or plane is None:
+        return None
+    kind = dict(targets() or {}).get(plane)
+    if kind is None:
+        return None
+    if kind not in ("r", "g"):
+        raise ValueError(
+            f"{type(builder).__name__}.smith_targets(): plane {plane!r} names "
+            f"{kind!r}; a Smith target is 'r' (R = Z0) or 'g' (G = 1/Z0)"
+        )
+    return kind
+
+
 def _derive_schema(default_params: dict) -> tuple:
     ui = dict(default_params.get("ui_params") or {})
     specs: list[ParamSpec] = []
@@ -4790,6 +4828,13 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # referenced to, and which the picker may offer.
             out["plane"] = plane
             out["planes"] = planes
+            labels = _plane_labels(builder, planes)
+            if labels:
+                out["plane_labels"] = labels
+            # The circle the design highlights at this plane, if any.
+            target = _smith_target(builder, plane)
+            if target is not None:
+                out["smith_target"] = target
         # Array Block coupling-path diagnostics (issue #613): absent for
         # every other engine/model (eng.solver_diag() only returns a dict
         # for an ArrayBlockSolver-backed solve).
@@ -5049,6 +5094,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # Same plane fields as the momwire path (issue #652 c).
             out["plane"] = plane
             out["planes"] = planes
+            labels = _plane_labels(builder, planes)
+            if labels:
+                out["plane_labels"] = labels
+            target = _smith_target(builder, plane)
+            if target is not None:
+                out["smith_target"] = target
         if _requested_ground_model(req) == "terrain":
             # Terrain hybrid (issue #553): the engine solved over the
             # crest-medium Sommerfeld spec (so ground_eps_r/sigma above are

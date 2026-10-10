@@ -23,6 +23,7 @@ What is pinned:
 from __future__ import annotations
 
 import importlib
+import math
 import warnings
 
 import numpy as np
@@ -751,3 +752,149 @@ def test_optimize_from_the_command_line(capsys):
     (line,) = [ln for ln in text.splitlines() if "worst SWR" in ln]
     assert float(line.rsplit("->", 1)[1]) < 1.01, line
     assert "'tuner_c_side': 'balun'" in text
+
+
+# ── the graphical tune: the ``lc`` plane between the tuner's two parts ────
+#: 20 m with the capacitor across the balun, and 40 m (the stock station)
+#: with it across the rig: one setting per side.
+GRAPHICAL = {
+    "balun": {"freq": 14.3, "tuner_c_side": "balun", "tuner_l_uH": 4.16, "tuner_c_pF": 41.7},
+    "rig": {"freq": 7.15},
+}  # fmt: skip
+
+
+class _CompositeTuner(Builder):
+    """The design as it was built before the ``lc`` plane: the tuner one
+    two-port `l_network_tuner` box, so no node between its parts."""
+
+    def tuner(self):
+        from antennaknobs.station import l_network_tuner
+
+        return l_network_tuner(
+            series_l_uH=self.tuner_l_uH,
+            shunt_c_pF=self.tuner_c_pF,
+            ql=self.tuner_ql or None,
+            qc=self.tuner_qc or None,
+            shunt_at=mod.C_SIDES[self.tuner_c_side],
+        )
+
+
+def _at_plane(builder, plane):
+    """Z as a VNA on ``plane`` reads it (the workbench's plane seam)."""
+    from antennaknobs.plane import driven_at
+
+    if plane is not None:
+        pruned = driven_at(builder.build_network(), plane)
+        object.__setattr__(builder, "build_network", lambda: pruned)
+    return _solve(builder)[1]
+
+
+def test_the_manual_tuner_offers_the_lc_plane_in_chain_order():
+    from antennaknobs.plane import planes_of
+
+    for side in ("balun", "rig"):
+        planes = planes_of(_manual(tuner_c_side=side).build_network())
+        assert planes[:3] == ["rig", "lc", "tuner"], planes
+    # The auto-tuner owns its own topology: no lc plane, and no target.
+    auto = _builder(freq=7.15)
+    assert "lc" not in planes_of(auto.build_network())
+    assert auto.smith_targets() == {}
+
+
+@pytest.mark.parametrize("side", ["balun", "rig"])
+def test_at_lc_the_closest_part_is_applied_and_the_other_removed(side):
+    """At ``lc`` the load carries only the part closest to the antenna:
+    with the capacitor across the balun, the load in parallel with the
+    capacitor; with it across the rig, the load in series with the coil (and
+    its Q). Checked by hand from the ``tuner`` plane's Z."""
+    kw = GRAPHICAL[side]
+    zt = _at_plane(_manual(**kw), "tuner")
+    zlc = _at_plane(_manual(**kw), "lc")
+    w = 2 * math.pi * kw["freq"] * 1e6
+    p = {**Builder.default_params, **kw}
+    if side == "balun":
+        want = 1 / (1 / zt + 1j * w * p["tuner_c_pF"] * 1e-12)
+    else:
+        xl = w * p["tuner_l_uH"] * 1e-6
+        want = zt + xl / p["tuner_ql"] + 1j * xl
+    assert zlc == pytest.approx(want, rel=1e-9)
+
+
+@pytest.mark.parametrize("side", ["balun", "rig"])
+def test_the_rig_plane_is_the_composite_tuners(side):
+    """The split box is the same circuit: at the rig, the same Z as the
+    one-box `l_network_tuner` build, to roundoff."""
+    kw = GRAPHICAL[side]
+    z = _at_plane(_manual(**kw), None)
+    old = _at_plane(_CompositeTuner(params={**Builder.default_params, **kw}), None)
+    assert z == pytest.approx(old, rel=1e-10)
+
+
+def test_the_tuner_plane_is_the_bare_load_on_either_side():
+    """The ``tuner`` plane is the load at the jack whichever side the
+    capacitor is on. RED CONTROL: before the split, a capacitor across the
+    balun sat AT the jack node, so the plane kept it and read load ∥ C."""
+    from antennaknobs.network import FloatingBalun
+
+    kw = GRAPHICAL["balun"]
+    # The plane is the balun's tuner-side terminal: what the tuner's output
+    # jack sees.
+    (fb,) = [
+        b
+        for b in _manual(**kw).build_network().branches
+        if isinstance(b, FloatingBalun)
+    ]
+    assert fb.primary == "tuner"
+    balun = _at_plane(_manual(**kw), "tuner")
+    rig = _at_plane(_manual(**{**kw, "tuner_c_side": "rig"}), "tuner")
+    assert balun == pytest.approx(rig, rel=1e-9)
+    old = _at_plane(_CompositeTuner(params={**Builder.default_params, **kw}), "tuner")
+    assert abs(old - balun) > 100.0
+
+
+def test_the_smith_target_follows_the_capacitor_side():
+    """The remaining part's circle: the series coil (C across the balun)
+    moves along constant R, the shunt capacitor (C across the rig) along
+    constant G. Only at ``lc``."""
+    assert _manual(tuner_c_side="balun").smith_targets() == {"lc": "r"}
+    assert _manual(tuner_c_side="rig").smith_targets() == {"lc": "g"}
+
+
+def test_the_solve_serves_the_target_at_lc_only():
+    session = {
+        "geometry": "wire.doublet_remote_tuner",
+        "measurement_freq_mhz": 14.3,
+        "ground": True,
+        "params": {"tuner_c_side": "balun"},
+    }
+    ex = _example()
+    at_lc = ex.momwire_solve({**session, "plane": "lc"})
+    assert at_lc["plane"] == "lc" and at_lc["smith_target"] == "r"
+    at_rig = ex.momwire_solve(session)
+    assert at_rig["plane"] == "rig" and "smith_target" not in at_rig
+    # The picker's names, source to antenna.
+    labels = at_rig["plane_labels"]
+    assert [labels[p] for p in at_rig["planes"][:3]] == [
+        "rig (tuner input)",
+        "inside tuner (L–C)",
+        "tuner output / balun input",
+    ]
+    rig_side = {**session, "params": {"tuner_c_side": "rig"}, "plane": "lc"}
+    assert ex.momwire_solve(rig_side)["smith_target"] == "g"
+
+
+def test_the_power_budget_names_the_tuner_parts():
+    """The split box's rows read as its parts, under the tuner group."""
+    _example()  # registers the catalog before the adapter is imported
+    from antennaknobs.web.adapter import _budget_rows
+
+    for side in ("balun", "rig"):
+        b = _manual(**GRAPHICAL[side])
+        eng = _solve(b)[0]
+        eng.current_distribution()  # the solve the budget is read from
+        rows = [r for r in _budget_rows(eng, b) if r["path"] == "tuner"]
+        assert [r["label"] for r in rows if r["label"] != "wire to the lc plane"] in (
+            ["coil", "capacitor"],
+            ["capacitor", "coil"],
+        )
+        assert next(r for r in rows if r["label"] == "coil")["watts"] > 0

@@ -37,6 +37,34 @@ The workflow, as with a manual tuner:
 - Change band and the parts stay where they were, as on the real box; run
   Optimize again on the new band.
 
+The graphical tune, on the Smith chart, as you would do it by hand: look at
+the load, turn the part CLOSEST to the antenna until the point lands on the
+circle along which the other part moves it (a circle through Z0), then turn
+the other part to slide along that circle to the centre. The measurement
+plane ``lc`` (manual mode only) is the node between the two parts, and at it
+the chart highlights that circle:
+
+1. Pick the plane ``lc``. What it reads is the load with only the closest
+   part applied. With the capacitor across the balun that part is the
+   capacitor, and the remaining series coil moves the point along a circle of
+   constant resistance: the chart highlights R = 50 Ω (r = 1). With it across
+   the rig the closest part is the coil, and the remaining shunt capacitor
+   moves the point along a circle of constant conductance: G = 20 mS (g = 1).
+   The chart's "Y" button adds the admittance grid that circle belongs to.
+2. Turn the closest part (``tuner_c_pF`` across the balun, ``tuner_l_uH``
+   across the rig) until the point sits on the highlighted circle. "Sweep
+   this knob…" in the knob's menu traces its whole locus, to see where it
+   crosses.
+3. Pick the plane ``rig`` and turn the other part until the point reaches the
+   centre: SWR 1.
+
+The picker names the planes source to antenna: "rig (tuner input)",
+"inside tuner (L–C)" (``lc``), "tuner output / balun input" (``tuner``).
+On 20 m (14.3 MHz), capacitor across the balun, on the workbench's default
+ground (bs2, Sommerfeld average): 39.2 pF puts ``lc`` on the circle
+(49.9 − j387 Ω), and 4.31 µH then reads SWR 1.04 at the rig (the coil's Q
+leaves R at 51.8 Ω).
+
 From the command line, the same (``--set`` holds a knob that the run does
 not vary):
 
@@ -46,7 +74,9 @@ not vary):
 What the tuner SEES is the impedance at its antenna jack, after the balun:
 the doublet's feed impedance carried down the line and divided by the
 balun's ratio (``balun_ratio`` "1:4" divides it by 4). The measurement plane
-``tuner`` reads that load as a VNA on the tuner's output jack.
+``tuner`` reads that load as a VNA on the tuner's output jack, whichever side
+the capacitor is on; ``lc``, between the tuner's parts, is the graphical
+tune's (above).
 
 Where the power goes. The power budget (issue #299) itemizes every lossy
 branch from the same solve: the window line (its matched loss plus the extra
@@ -182,14 +212,18 @@ import antennaknobs.analyses as an
 from antennaknobs import AntennaBuilder
 from antennaknobs.network import (
     BalancedLine,
+    Composite,
     Driven,
     FloatingBalun,
     Instance,
     Network,
     PortOnWireFloating,
     PortVirtual,
+    Shunt,
+    TwoPort,
     Wire,
 )
+from antennaknobs.schematic import series, shunt
 from antennaknobs.station import l_network_tuner
 from antennaknobs.wire_catalog import WIRES, cable_from_catalog, wire_from_catalog
 
@@ -206,6 +240,10 @@ BALUN_RATIOS = {"1:1": 1.0, "1:4": 4.0}
 #: 50 Ω input (steps a load below 50 Ω up) — the choice a switched-L
 #: auto-tuner's relay makes.
 C_SIDES = {"balun": "out", "rig": "rig"}
+
+#: The measurement plane between the manual tuner's two parts: the point
+#: the graphical tune moves onto the Smith chart's highlighted circle.
+LC_PLANE = "lc"
 
 #: The rig's coax, and what the tuner matches to.
 TUNE_TO_OHMS = 50.0
@@ -230,6 +268,41 @@ BAND_FREQS = (
 
 #: The window line's loss: the catalog's representative window line.
 _WINDOW = cable_from_catalog("window-450")
+
+
+def manual_l_tuner(l_uH, c_pF, c_side, *, ql=None, qc=None) -> Composite:
+    """The manual L network, with the node BETWEEN its parts as a formal,
+    ``lc``, so the design can name it a measurement plane. Formals ``rig``,
+    ``lc``, ``out``; electrically `station.l_network_tuner` with fixed parts.
+
+    Picking a plane drops everything on the source side and keeps a shunt
+    AT the plane node (`plane.driven_at`), so each part sits where the cut
+    does the right thing, and an ideal short (a `TwoPort` with no element,
+    Z = 0) carries the node to the other end of the box:
+
+    - ``c_side`` "balun": rig —coil— lc (capacitor across it) —short— out.
+      At ``lc`` the coil is gone and the capacitor stays: the load with the
+      part closest to the antenna applied. At ``out`` the capacitor goes with
+      the upstream, so the ``tuner`` plane is the bare load.
+    - ``c_side`` "rig": rig (capacitor across it) —short— lc —coil— out. At
+      ``lc`` the capacitor goes with the upstream and the coil stays.
+    """
+    # The short is written toward ``lc`` on both sides, so each of the four
+    # branches has a power-budget label of its own (``budget_labels``).
+    coil = TwoPort(a="lc", b="out", l=l_uH * 1e-6, ql=ql)
+    short = TwoPort(a="lc", b="rig")
+    if c_side == "balun":
+        coil = TwoPort(a="rig", b="lc", l=l_uH * 1e-6, ql=ql)
+        short = TwoPort(a="out", b="lc")
+    cap = Shunt(port="lc" if c_side == "balun" else "rig", c=c_pF * 1e-12, qc=qc)
+    draw_l = series("inductor", f"{l_uH:g} µH")
+    draw_c = shunt("capacitor", f"{c_pF:g} pF")
+    return Composite(
+        ports=("rig", "lc", "out"),
+        branches=(coil, cap, short),
+        # Drawn from the rig side: the shunt comes first when it sits there.
+        schematic=(draw_l, draw_c) if c_side == "balun" else (draw_c, draw_l),
+    )
 
 
 class Builder(AntennaBuilder):
@@ -302,6 +375,17 @@ class Builder(AntennaBuilder):
             "ui_params": MappingProxyType(
                 {
                     "target_z0": TUNE_TO_OHMS,
+                    # The manual tuner's power-budget rows, by part: the
+                    # structural labels of `manual_l_tuner`'s branches on
+                    # either capacitor side (the jack is the ``tuner`` node).
+                    "budget_labels": {
+                        "tuner: TwoPort rig→lc": "coil",
+                        "tuner: TwoPort lc→tuner": "coil",
+                        "tuner: Shunt lc": "capacitor",
+                        "tuner: Shunt rig": "capacitor",
+                        "tuner: TwoPort tuner→lc": "wire to the lc plane",
+                        "tuner: TwoPort lc→rig": "wire to the lc plane",
+                    },
                     # The sweep runs edge to edge of the band you are on: the
                     # parts are fixed, so the curve is how far you can QSY in
                     # the band before you retune (doublet_ladder_tuner's
@@ -456,26 +540,54 @@ class Builder(AntennaBuilder):
             raise ValueError(
                 f"tuner_c_side={self.tuner_c_side!r}: one of {tuple(C_SIDES)}"
             )
-        return l_network_tuner(
-            series_l_uH=self.tuner_l_uH,
-            shunt_c_pF=self.tuner_c_pF,
-            ql=ql,
-            qc=qc,
-            shunt_at=C_SIDES[self.tuner_c_side],
+        return manual_l_tuner(
+            self.tuner_l_uH, self.tuner_c_pF, self.tuner_c_side, ql=ql, qc=qc
         )
 
+    def plane_labels(self) -> dict[str, str]:
+        """What the measurement-plane picker shows for each plane, source to
+        antenna: the rig, the node inside the tuner between its two parts,
+        and the tuner's antenna jack (the balun's tuner-side terminals)."""
+        return {
+            "rig": "rig (tuner input)",
+            LC_PLANE: "inside tuner (L–C)",
+            "tuner": "tuner output / balun input",
+        }
+
+    def smith_targets(self) -> dict[str, str]:
+        """The circle the Smith chart highlights at each measurement plane:
+        at ``lc`` (manual mode), the circle the tuner's REMAINING part moves
+        the point along, which passes through Z0. With the capacitor across
+        the balun the remaining part is the series coil, which moves along a
+        constant-R circle: "r", R = Z0. With it across the rig the remaining
+        part is the shunt capacitor, which moves along a constant-G circle:
+        "g", G = 1/Z0. Served per solve (``smith_target``), so it follows
+        ``tuner_c_side``. The auto mode has no ``lc`` plane."""
+        if self.tuner_mode != "manual":
+            return {}
+        return {LC_PLANE: "r" if self.tuner_c_side == "balun" else "g"}
+
     def build_network(self):
+        ports = {
+            "feed": PortOnWireFloating("feed"),
+            "rig": PortVirtual("rig"),
+            # The tuner's antenna jack: the balun's unbalanced side.
+            "tuner": PortVirtual("tuner"),
+            "liL": PortVirtual("liL"),  # balun's balanced side → line
+            "liR": PortVirtual("liR"),
+        }
+        tuner = self.tuner()
+        bind = {"rig": "rig", "out": "tuner"}
+        if "lc" in tuner.ports:
+            # The node between the manual tuner's two parts, a measurement
+            # plane of its own (see `manual_l_tuner`). The auto-tuner owns
+            # its own topology, so it has none.
+            ports[LC_PLANE] = PortVirtual(LC_PLANE)
+            bind["lc"] = LC_PLANE
         return Network(
-            ports={
-                "feed": PortOnWireFloating("feed"),
-                "rig": PortVirtual("rig"),
-                # The tuner's antenna jack: the balun's unbalanced side.
-                "tuner": PortVirtual("tuner"),
-                "liL": PortVirtual("liL"),  # balun's balanced side → line
-                "liR": PortVirtual("liR"),
-            },
+            ports=ports,
             branches=[
-                Instance("tuner", self.tuner(), rig="rig", out="tuner"),
+                Instance("tuner", tuner, **bind),
                 FloatingBalun(
                     primary="tuner",
                     a="liL",
