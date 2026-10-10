@@ -63,7 +63,9 @@ def test_the_baseline_is_not_empty_and_covers_every_kwarg():
     measured"."""
     # `sommerfeld` (the NEC-4.2 slot's GN card) postdates the recording; its
     # own accept/reject cases are in test_nec42_sommerfeld_choice.py.
-    assert set(BASELINE) | {"sommerfeld"} == set(_HOSTED_MODEL_OPTIONS)
+    # `exact_kernel` (momwire#1408) likewise; its cases are in
+    # test_exact_kernel_option_1408.py.
+    assert set(BASELINE) | {"sommerfeld", "exact_kernel"} == set(_HOSTED_MODEL_OPTIONS)
     assert set(_HOSTED_MODEL_OPTIONS) == set(_OPTION_SPECS)
     assert len(BASELINE) == 14
     total = sum(len(v) for v in BASELINE.values())
@@ -180,7 +182,7 @@ def test_the_catalogue_serves_every_option_and_is_json():
 
     served = model_option_specs()
     assert set(served) == set(_OPTION_SPECS)
-    assert len(served) == 15
+    assert len(served) == 16
     assert json.loads(json.dumps(served)) == served
 
 
@@ -249,7 +251,9 @@ def test_the_roster_names_only_kwargs_the_catalogue_describes():
     # capability's own test lives in
     # test_rotational_symmetry_sector_route_1029.py, which SKIPS here for
     # the identical reason and runs for real once #1029 has landed.
-    CAPABILITY_GATED = {"rotational_symmetry"}
+    # `exact_kernel` (momwire#1408) is gated the same way, on the momwire
+    # pin; test_exact_kernel_option_1408.py gates where it is offered.
+    CAPABILITY_GATED = {"rotational_symmetry", "exact_kernel"}
     unreachable = described - seen - CAPABILITY_GATED
     assert not unreachable, f"described but unreachable: {sorted(unreachable)}"
 

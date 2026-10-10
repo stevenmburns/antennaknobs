@@ -26,6 +26,7 @@
   "height_m": "number",
   "input_power_w": "number",
   "k_meas_m_inv": "number",
+  "kernel": "string",
   "lambda_design_m": "number",
   "measurement_freq_mhz": "number",
   "multi_feed": "bool",
