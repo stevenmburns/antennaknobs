@@ -1521,6 +1521,9 @@ A spec starting with `[` is JSON instead: a list of
 **Knobs.** `--params` names them, a group's leaf spelled `bands.<i>.<leaf>`.
 Each searches its `--bound NAME=LO:HI`, else its slider's `ui_params` range,
 else ±20 % of its value. With no `--params` the bands' `knobs` are the knobs.
+`--set NAME=VALUE ...` sets other knobs before the run and holds them (a
+choice the optimizer cannot make, such as an enum); a kept run records them
+in its start.
 A bound is in the knob's own unit, which the run prints before it starts
 (`# knob sy_cap1 = 340 pF, range 100..1000 pF`): an opened deck's `SY cap1 =
 340pF` is bounded `100:1000`, not `100e-12:1000e-12`. A bound that excludes the
@@ -1593,6 +1596,66 @@ python -m antennaknobs analyze --study "fan/12-10:..." --apply
 A deck run (`--builder @deck.nec`) is kept by the path it was given. The
 workbench keeps one from its band readout too (see
 [Optimizing](/reference/web/#optimizing)).
+
+### Stations whose tuner retunes on every band: `band-loss`
+
+`optimize --bands` reads impedance objectives, and a station with an
+automatic tuner (`l_network_tuner(tune_to=...)`) meets them on every band
+whatever the knobs do — the tuner retunes. What differs between two such
+stations is where the power goes. `band-loss` solves each band on its own
+build (so the tuner retunes there) and prints, per band, the load the tuner
+sees, the parts it chose, the SWR at the rig, and where the power a 50 Ω rig
+makes AVAILABLE goes: reflected at the rig ("mismatch", when the tuner's
+parts cannot reach the match), each lossy branch's share from the power
+budget (the line, the balun, the tuner coil, the antenna wire's I²R when it
+is lossy), and the share reaching the antenna. The shares add to 100 %, and
+a band the tuner cannot match gets a `!!` line saying why.
+
+`wire.doublet_remote_tuner` (WA7ARK's station) has a MANUAL tuner on the
+workbench; `band-loss` puts it in its auto mode first (the design's
+`band_loss_params`: `tuner_mode=auto`), so the table answers "what would a
+remote auto-tuner pick on every band":
+
+```bash
+# WA7ARK's doublet: 130 ft at 30 ft, 30 ft of window line, a remote auto-tuner
+python -m antennaknobs band-loss --builder wire.doublet_remote_tuner
+
+# the line length (from 30 ft: it has to reach the tuner) that makes the
+# worst band least bad, for each balun ratio
+python -m antennaknobs band-loss --builder wire.doublet_remote_tuner \
+    --each balun_ratio=1:1,1:4 --search line_ft=30:100:1
+```
+
+- `--freqs` lists the bands in MHz; without it the design's own `band_freqs`
+  (`wire.doublet_remote_tuner`: WA7ARK's 3.6–28.5 MHz table).
+- `--set KNOB=VALUE` sets a knob first (repeatable), after the design's own
+  `band_loss_params`, e.g. `--set tuner_c_max_pF=1000` for an auto-tuner
+  with less capacitance.
+- `--search KNOB=LO:HI:STEP` maximizes the **worst** band's share reaching
+  the antenna: a grid every STEP, then a bounded refinement around the best
+  grid point. It prints the table at the start value and at the best. A
+  band's solved port admittance is reused only while everything the antenna
+  is built from is unchanged (its meshed wires, wire material, and the
+  antenna's own feed ports and where they sit), so a line length or balun
+  ratio costs one antenna solve per band, and a knob that moves the wires
+  or a feed solves every point. A lossy antenna wire reuses nothing (its
+  I²R row needs the excited currents).
+- `--each KNOB=V1,V2` runs once per value of a discrete knob and, with
+  `--search`, names the best of them.
+
+The design's own analysis prints the same table beside the impedance at the
+rig and at the tuner's jack: `analyze --builder wire.doublet_remote_tuner
+--analysis "tuner per band"`.
+
+To set the manual tuner for one frequency, optimize its two parts there;
+`--set` holds a knob the run does not vary (here the capacitor's side,
+which an optimizer cannot flip: across the balun for a load resistance
+above 50 Ω, across the rig below it):
+
+```bash
+python -m antennaknobs optimize --builder wire.doublet_remote_tuner \
+    --bands 14.2 --params tuner_l_uH tuner_c_pF --set tuner_c_side=balun
+```
 
 ## Copying params back to code
 

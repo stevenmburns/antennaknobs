@@ -1138,14 +1138,23 @@ def _sweep_convergence(
     save_or_show(plt, fn)
 
 
-def _solve_at(antenna_builder, nm, xs, factory):
+def _solve_at(antenna_builder, nm, xs, factory, on_engine=None):
     """One solve per value of ``xs`` with knob ``nm`` set to it: each
     solve's impedance array (every port). The ONE place a knob sweep solves:
-    ``sweep --param`` and ``analyze`` both call it."""
+    ``sweep --param`` and ``analyze`` both call it.
+
+    ``on_engine``, when given, is called with each point's engine after its
+    solve: every point is its own build, so a self-tuning tuner that tunes at
+    the design's ``freq`` has retuned at every point of a ``freq`` knob
+    sweep, as an auto-tuner does band by band, and the caller can read what
+    it chose (``analyze``'s tuner table)."""
     out = []
     for x in xs:
         setattr(antenna_builder, nm, x)
-        out.append(factory(antenna_builder).impedance())
+        eng = factory(antenna_builder)
+        out.append(eng.impedance())
+        if on_engine is not None:
+            on_engine(eng)
     return out
 
 

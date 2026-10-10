@@ -92,7 +92,8 @@ def test_the_catalog_split_is_what_the_arrayblock_advisory_was_argued_from():
     # below/below pre-flight counted its two ground terminations as buried.
     # 74 since `verticals.m0agp_invl`: one element, one shape.
     # 75 since `dipoles.invvee_endport`: two arms, mirror images, two shapes.
-    assert len(no_repeats) == 75, len(no_repeats)
+    # 76 since `wire.doublet_remote_tuner`: one flat wire, one shape.
+    assert len(no_repeats) == 76, len(no_repeats)
     assert "verticals.m0agp_invl" in no_repeats
     # 4 since AK#1707: `wire.beverage`'s ground rods are buried, and the
     # array-block operator refuses a buried deck.

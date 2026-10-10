@@ -1693,6 +1693,162 @@ def cli(arguments=None):
     p.set_defaults(func=f)
 
     p = subparsers.add_parser(
+        "band-loss",
+        help="Per-band power budget of a station whose tuner retunes on every "
+        "band, and the knob value that makes the worst band least bad",
+    )
+    add_common(p)
+    add_engine_args(p)
+    p.add_argument(
+        "--freqs",
+        default=None,
+        help="Comma-separated band frequencies in MHz. Default: the design's "
+        "own band_freqs (wire.doublet_remote_tuner: WA7ARK's 3.6-28.5 MHz table).",
+    )
+    p.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="KNOB=VALUE",
+        help="Set a knob before solving (repeatable), e.g. --set balun_ratio=1:4. "
+        "Applied after the design's own band_loss_params "
+        "(wire.doublet_remote_tuner: tuner_mode=auto).",
+    )
+    p.add_argument(
+        "--search",
+        default=None,
+        metavar="KNOB=LO:HI:STEP",
+        help="Search KNOB over [LO, HI] for the value whose WORST band delivers "
+        "the most to the antenna: a grid every STEP, then a bounded "
+        "refinement (band_loss.search). Prints the table at the start "
+        "value and at the best one.",
+    )
+    p.add_argument(
+        "--each",
+        default=None,
+        metavar="KNOB=V1,V2,...",
+        help="Run once per value of KNOB (a discrete knob, e.g. "
+        "balun_ratio=1:1,1:4), and with --search name the best of them.",
+    )
+
+    def f(args):
+        import warnings
+
+        from . import band_loss
+        from .auto_match import TunerAdvisory
+
+        builder_cls = get_builder(args.builder)
+
+        def coerce(builder, item, flag):
+            k, sep, v = item.partition("=")
+            if not sep or k not in builder._params or k == "ui_params":
+                raise SystemExit(
+                    f"band-loss: {flag} {item!r}: not KNOB=VALUE of a knob"
+                )
+            try:
+                return k, band_loss.parse_knob_value(builder._params[k], v)
+            except ValueError as e:
+                raise SystemExit(f"band-loss: {flag} {item!r}: {e}") from None
+
+        def fresh():
+            builder = builder_cls()
+            # The design's own band-loss knobs first (a station with a
+            # manual tuner puts it in its auto mode), then the user's --set.
+            for k, v in (getattr(builder_cls, "band_loss_params", None) or {}).items():
+                setattr(builder, k, v)
+            for item in args.set:
+                k, v = coerce(builder, item, "--set")
+                setattr(builder, k, v)
+            return builder
+
+        if args.freqs:
+            freqs = [float(x) for x in args.freqs.split(",") if x.strip()]
+        else:
+            freqs = list(getattr(builder_cls, "band_freqs", None) or ())
+        if not freqs:
+            raise SystemExit("band-loss: this design names no band_freqs; give --freqs")
+        search = None
+        if args.search is not None:
+            knob, sep, rng = args.search.partition("=")
+            try:
+                lo, hi, step = (float(x) for x in rng.split(":"))
+            except ValueError:
+                raise SystemExit(
+                    f"band-loss: --search {args.search!r} is not KNOB=LO:HI:STEP"
+                ) from None
+            if not sep or knob not in builder_cls()._params:
+                raise SystemExit(f"band-loss: --search names no knob: {args.search!r}")
+            search = (knob, lo, hi, step)
+        each = [None]
+        if args.each is not None:
+            k, sep, vals = args.each.partition("=")
+            each = [
+                coerce(builder_cls(), f"{k}={v}", "--each") for v in vals.split(",")
+            ]
+        factory = engine_factory_from_args(
+            args, deck_extended_kernel_flag(builder_cls), builder=builder_cls
+        )
+        ground = format_ground(resolve_ground(args.ground, builder_cls))
+        print(f"band-loss {args.builder}: {len(freqs)} bands; ground: {ground}")
+        if args.set:
+            print(f"  set: {', '.join(args.set)}")
+        results = []
+        # A band the tuner cannot match is printed under each table it is in
+        # (`band_loss.out_of_reach`: why, and the SWR the rig sees); the
+        # advisory per band per search point would bury the tables.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", TunerAdvisory)
+            for kv in each:
+                builder = fresh()
+                tag = ""
+                if kv is not None:
+                    setattr(builder, *kv)
+                    tag = f" [{kv[0]} = {kv[1]}]"
+                if search is None:
+                    print(f"--{tag} --")
+                    for line in band_loss.format_table(
+                        band_loss.band_losses(builder, factory, freqs)
+                    ):
+                        print(line)
+                    continue
+                knob, lo, hi, step = search
+                start = getattr(builder, knob)
+                print(f"-- at {knob} = {start:g} (as set){tag} --")
+                before = band_loss.band_losses(builder, factory, freqs)
+                for line in band_loss.format_table(before):
+                    print(line)
+                res = band_loss.search(builder, factory, freqs, knob, lo, hi, step=step)
+                print(
+                    f"-- best {knob} = {res.best:.4g} over [{lo:g}, {hi:g}]{tag} "
+                    f"({len(res.tried)} points"
+                    + (
+                        f", the antenna's Y reused {res.reused}×"
+                        if res.reused_y
+                        else ""
+                    )
+                    + ") --"
+                )
+                for line in band_loss.format_table(res.bands):
+                    print(line)
+                w0, w1 = band_loss.worst(before), res.worst
+                print(
+                    f"worst band{tag}: {100 * w0.antenna_fraction:.2f}% at "
+                    f"{knob} = {start:g} ({w0.f_mhz:g} MHz) -> "
+                    f"{100 * w1.antenna_fraction:.2f}% at {knob} = {res.best:.4g} "
+                    f"({w1.f_mhz:g} MHz)"
+                )
+                results.append((kv, res, w0))
+        if len(results) > 1:
+            kv, res, w0 = max(results, key=lambda r: r[1].worst.antenna_fraction)
+            print(
+                f"best of {args.each}: {kv[0]} = {kv[1]}, {search[0]} = "
+                f"{res.best:.4g}: {100 * res.worst.antenna_fraction:.2f}% reaches "
+                f"the antenna on its worst band ({res.worst.f_mhz:g} MHz)"
+            )
+
+    p.set_defaults(func=f)
+
+    p = subparsers.add_parser(
         "analyze",
         help="List or run a design's analyses (sweep framework, step 1)",
     )
@@ -1973,6 +2129,16 @@ def cli(arguments=None):
     )
     p.add_argument("--z0", default=50, type=float, help="Use this reference impedance.")
     p.add_argument(
+        "--set",
+        dest="set_params",
+        metavar="NAME=VALUE",
+        nargs="+",
+        default=[],
+        help="Set design knobs before optimizing, held fixed while --params "
+        "vary, e.g. --set tuner_c_side=balun. Only the design's own knobs "
+        "are accepted.",
+    )
+    p.add_argument(
         "--resonance",
         default=False,
         action="store_true",
@@ -2100,7 +2266,7 @@ def cli(arguments=None):
             raise SystemExit(f"optimize --keep: {e}") from None
         print(f"# kept as the study {saved['name']!r} in {saved['path']}")
 
-    def run_bands(args, builder, engine):
+    def run_bands(args, builder, engine, fresh):
         from . import band_opt
         from .web.optimize import DegenerateObjective
         from .web.optimize_bands import BandsRefused, optimize_bands, parse_bands
@@ -2132,7 +2298,7 @@ def cli(arguments=None):
 
             # Before the run moves the knobs: the start it is kept with.
             try:
-                start = ost.start_state(args.builder, b, builder())
+                start = ost.start_state(args.builder, b, fresh())
             except ValueError as e:
                 raise SystemExit(f"optimize --keep: {e}") from None
         units = {nm: u for nm in names if (u := band_opt.ui_unit(b, nm))}
@@ -2177,12 +2343,15 @@ def cli(arguments=None):
     def f(args):
         if args.keep is not None and args.bands is None:
             raise SystemExit("optimize: --keep keeps a multi-band run; give --bands")
-        builder = get_builder(args.builder)
+        fresh = get_builder(args.builder)
+        # --set knobs are part of the start: a kept study records them, as
+        # the design's defaults (`fresh`) do not have them.
+        builder = _with_params(fresh, args.set_params)
         engine = engine_factory_from_args(
-            args, deck_extended_kernel_flag(builder), builder=builder
+            args, deck_extended_kernel_flag(fresh), builder=fresh
         )
         if args.bands is not None:
-            run_bands(args, builder, engine)
+            run_bands(args, builder, engine, fresh)
             return
         opt_builder = optimize(
             builder(),

@@ -62,6 +62,7 @@ from momwire.networks import (
     C_LIGHT,
     Driven,
     NetworkReducer,
+    PortOnWireFloating,
     PortVirtual,
     Shunt,
     TwoPort,
@@ -1065,6 +1066,14 @@ def find_tuners(net) -> list[_Tuner]:
     return found
 
 
+def _port_node(net, name: str) -> str:
+    """A port's node for the union-find: a floating port is wired as
+    "<name>.p" / "<name>.n" and its bare name is not a node at all, so its
+    ``.p`` terminal stands for it (a doublet's centre gap behind a balun and a
+    balanced line, or a source driving one)."""
+    return f"{name}.p" if isinstance(net.ports.get(name), PortOnWireFloating) else name
+
+
 def _load_side(net, tuner: _Tuner):
     """The circuit on the tuner's ``out`` side, driven at ``out``: what the
     tuner sees. Refuses a tuner that is not the only path from its rig side
@@ -1091,12 +1100,12 @@ def _load_side(net, tuner: _Tuner):
             "sides, so there is no load for it to tune to"
         )
     for src in net.sources:
-        if find(src.port) == side:
+        if find(_port_node(net, src.port)) == side:
             raise NotImplementedError(
                 f"tuner {tuner.name!r} has a source on its out side; a tuner "
                 "tunes to a passive load"
             )
-    ports = {n: p for n, p in net.ports.items() if find(n) == side}
+    ports = {n: p for n, p in net.ports.items() if find(_port_node(net, n)) == side}
     branches = [br for br in rest if all(find(n) == side for n in terminals_of(br))]
     return type(net)(
         ports=ports, branches=branches, sources=[Driven(port=tuner.out, voltage=1.0)]
@@ -1275,6 +1284,14 @@ class AutoMatchReducer:
         group = f"tuner {self._tuner.name}"
         if d is None:
             return []
+        z = d.z_load
+        # What the tuner sees on its output side: the load it tuned for.
+        load = {
+            "label": "load",
+            "value": f"{z.real:.4g} {'+' if z.imag >= 0 else '−'} j{abs(z.imag):.4g}",
+            "unit": "Ω",
+            "group": group,
+        }
         if d.bypass:
             why = "already at the target" if d.matched else "no match"
             return [
@@ -1283,9 +1300,10 @@ class AutoMatchReducer:
                     "value": f"{why} at {d.f_mhz:g} MHz, bypassed",
                     "unit": None,
                     "group": group,
-                }
+                },
+                load,
             ]
-        rows = [
+        rows = [load] + [
             {
                 "label": label,
                 "value": round(value * (1e6 if kind == "L" else 1e12), 6),
@@ -1423,6 +1441,14 @@ def tuner_rows(eng) -> list[dict]:
     """The engine's tuner readout rows, [] when it has no self-tuning tuner."""
     red = getattr(eng, "_reducer", None)
     return red.tuner_rows() if isinstance(red, AutoMatchReducer) else []
+
+
+def tuner_design(eng) -> LMatchDesign | TMatchDesign | None:
+    """What the engine's self-tuning tuner tuned to (the load it saw, the
+    parts it chose, whether they reach the target), or None when the engine
+    has no such tuner or it has not tuned yet."""
+    red = getattr(eng, "_reducer", None)
+    return red.design if isinstance(red, AutoMatchReducer) else None
 
 
 def tuner_holding_match(eng, f_mhz: float | None = None) -> dict | None:

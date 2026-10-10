@@ -277,7 +277,7 @@ def test_e3_values_equal_what_analyze_sweeps(monkeypatch, invvee, tmp_path):
     which values, not which numbers)."""
     calls = []
 
-    def fake_solve_at(builder, knob, xs, factory):
+    def fake_solve_at(builder, knob, xs, factory, on_engine=None):
         calls.append((knob, list(xs)))
         return [np.array([50 + 0j]) for _ in xs]
 
