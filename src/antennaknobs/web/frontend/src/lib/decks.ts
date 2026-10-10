@@ -135,7 +135,8 @@ export async function compressDeck(text: string): Promise<string> {
 export async function compressBytes(bytes: Uint8Array): Promise<string> {
   const input = new ReadableStream<BufferSource>({
     start(c) {
-      c.enqueue(bytes);
+      // A copy backed by a plain ArrayBuffer, which BufferSource requires.
+      c.enqueue(new Uint8Array(bytes));
       c.close();
     },
   });
