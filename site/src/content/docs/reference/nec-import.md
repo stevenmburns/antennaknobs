@@ -6,7 +6,8 @@ description: read_nec imports a NEC2 card deck — from xnec2c, 4nec2, EZNEC, or
 antennaknobs can [export any design as a NEC2 card deck](/reference/cli/#exporting-to-nec);
 `read_nec` is the reverse direction. (SimNEC `.ssn` circuits have their own
 matching pair — see [SimNEC round-trip](/reference/simnec/) — and MMANA-GAL
-`.maa` models open too, see [MMANA-GAL `.maa` models](#mmana-gal-maa-models).) It parses a `.nec` file — the format
+`.maa` models open too, see [MMANA-GAL `.maa` models](#mmana-gal-maa-models),
+as do EZNEC `.ez` models, see [EZNEC `.ez` models](#eznec-ez-models).) It parses a `.nec` file — the format
 xnec2c, 4nec2, EZNEC, and fifty years of antenna handbooks all speak — into
 wire geometry a design can return from `build_wires`, so you can solve, sweep,
 and view a deck someone published without retyping its coordinates.
@@ -600,6 +601,67 @@ off opens without them, and the note says so.
 
 A stepped-radius wire (a negative R pointing into the `$$$` taper wire set)
 is read for the plain `<>` and `->` types.
+
+## EZNEC `.ez` models
+
+An EZNEC model opens wherever a deck does: **Open…** on the workbench (hosted
+and local; the link carries the file), the designs folder, and an
+**`@file.ez`** builder spec on the command line. There is no need to export it
+to `.nec` first. The `.ez` is binary; the import writes it as NEC cards (the
+Files view shows them) and builds the same deck a `.nec` becomes.
+
+**Where things sit.** EZNEC places a source, load or line end at a percentage
+along a wire and runs it on the segment that percentage lands on, as its own
+`.nec` export does. EZNEC's own engines (its NEC-2 and NEC-4 cores) put it at
+that segment's centre, so that is the default reading. A file saved with
+EZNEC set to the external NEC-5 engine is read at segment ends instead, as
+NEC-5 connects. The reading can be chosen, as a `.nec`'s dialect can (the
+`dialect` of an opened deck, or `read_ez(..., reading="nec5")`).
+
+**Loads keep their type**, so a frequency sweep evaluates each at every
+frequency rather than at the model frequency only:
+
+- R + jX is a fixed impedance.
+- Series and parallel RLC are the deck's own frequency-dependent load (a zero
+  part is a missing part).
+- A trap, a resistance that varies with frequency, and a Laplace load are
+  read only on request (below), and then evaluated from their own formula.
+
+**Lines and networks.** A lossless line keeps its reversal (NEC's crossed
+line), length and velocity factor. A stub end becomes the line into an open
+or a short, so it follows frequency too. A lossy line is the two-port
+EZNEC's export writes at the model frequency, and the app flags it away from
+that frequency. Transformers are EZNEC's own two-port, Y-parameter networks
+their fixed admittances, and L networks their two branches, fixed R + jX or
+R/L/C parts that follow frequency.
+
+**Wire loss** comes from the per-wire loss table when the file has one, else
+from the model-wide resistivity. Insulation becomes the wire's jacket.
+**Ground** is free space, perfect, or the first medium with EZNEC's
+high-accuracy (Sommerfeld) or MININEC-type analysis.
+
+**Virtual segments** are stored by EZNEC on one extra wire. The import
+rebuilds it 100 λ away, as EZNEC's own export does, and the deck reader
+treats its segments as circuit nodes.
+
+**Refusals come in four kinds**, each naming the field and value:
+
+- *An unknown format*: a file version, block type or block revision the
+  reader does not know. The `.ez` format still changes between EZNEC
+  versions, so these are never guessed at. (Blocks another program marks
+  as its own are skipped.)
+- *A reading the format leaves undefined*: a trap's arrangement, how a
+  resistance varies with frequency, a Laplace load's variable, a split
+  source's placement, a line length in degrees or "the physical distance",
+  a lossy line's loss away from its loss frequency. These are refused unless
+  you set `ANTENNAKNOBS_EZ_ACCEPT_GUESSES=1`; then each reading taken is
+  listed in the design's note.
+- *Not representable here*: a second ground medium, NEC radials, an active
+  plane-wave source, an insulation with dielectric loss, a magnetic wire.
+- *A malformed file*: counts or lengths that contradict each other.
+
+A setting that only changes EZNEC's display (plot ranges, units, the
+near-field request) never refuses a file; an odd value is noted.
 
 ## Programmatic use
 
