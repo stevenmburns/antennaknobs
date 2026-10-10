@@ -22,6 +22,11 @@ every point of every cell (`hold_cell`, ``antennaknobs.hold``), each cell on
 its own builder from its own defaults: a point's Z is the optimum's, a point
 the optimizer does not converge at is a gap (NaN on the curve, its reason
 printed), and `an.Knobs` draws the held knobs against x.
+A knob sweep builds once per point, so a design's self-tuning tuner
+(`auto_match`) retunes at every point; its `Table` then also prints, per
+curve, what the tuner saw and chose at each x and where the power went (the
+budget's losses, `band_loss`; `_print_tuner_table`): swept as the ``freq``
+knob, that is an auto-tuner's table band by band.
 Everything else is refused by name, with the step it is planned for, when
 the analysis is listed and when it is asked to run.
 
@@ -728,6 +733,38 @@ def _print_sweep_table(knob, curves, ground_label):
             print(f"{x:>12.6g} {z.real:>9.3f} {z.imag:>+9.3f}")
 
 
+def _tuning_recorder(out: list, z0: float = 50.0) -> Callable:
+    """An ``on_engine`` for a knob sweep: appends each point's
+    `band_loss.BandLoss` (what its self-tuning tuner tuned to, and the power
+    budget's losses there, issue #299), or None for a point with no such
+    tuner."""
+    from .auto_match import tuner_design
+    from .band_loss import engine_band_loss
+
+    def record(eng) -> None:
+        out.append(engine_band_loss(eng, z0=z0)[0] if tuner_design(eng) else None)
+
+    return record
+
+
+def _print_tuner_table(knob, label, xs, bands) -> None:
+    """Beside a knob sweep's `Table`: the curve's self-tuning tuner at each
+    x, retuned there (each point is its own build): the load it saw on its
+    output side, the parts it chose and where its shunt part sits, each
+    lossy owner's share of the input power, and the share reaching the
+    antenna (`band_loss.format_table`). On a ``freq`` knob sweep it is an
+    auto-tuner's table, band by band."""
+    from .band_loss import format_table
+
+    print(f"-- tuner and losses, retuned at each {knob}: {label} --")
+    pairs = [(x, b) for x, b in zip(xs, bands, strict=True) if b is not None]
+    if len(pairs) < len(bands):
+        missing = [f"{x:g}" for x, b in zip(xs, bands, strict=True) if b is None]
+        print(f"  (no tuner at {knob} = {', '.join(missing)})")
+    for line in format_table([b for _, b in pairs], [x for x, _ in pairs], knob):
+        print(line)
+
+
 def _references(axes, refs: an.Ref) -> None:
     ax_r, ax_x = axes
     for ax, values in ((ax_r, refs.r), (ax_x, refs.x)):
@@ -963,15 +1000,20 @@ def _xs(s: an.Sweep, builder, knob: str) -> np.ndarray:
     )
 
 
-def _solve_line(builder, s: an.Sweep, knob: str, xs, factory, z0) -> np.ndarray:
+def _solve_line(
+    builder, s: an.Sweep, knob: str, xs, factory, z0, on_engine=None
+) -> np.ndarray:
     """Z at every port, (points, ports), along one knob or frequency sweep:
     ``sweep.swr_curve`` for frequency (one build, the engine's vectorized
-    sweep), ``sweep._solve_at`` for a knob (a build per point)."""
+    sweep), ``sweep._solve_at`` for a knob (a build per point). ``on_engine``
+    sees each point's engine on a knob sweep (`sweep._solve_at`); a
+    frequency sweep is one build, whose tuner holds one tuning, so it is
+    not called."""
     sw = _sweep_module()
     if s.knob == an.FREQUENCY:
         zs, _swr = sw.swr_curve(builder, "freq", xs, factory, z0)
         return np.asarray(zs)
-    return np.array(sw._solve_at(builder, knob, xs, factory))
+    return np.array(sw._solve_at(builder, knob, xs, factory, on_engine=on_engine))
 
 
 def solve_map(p: _Prepared, a: an.Analysis, z0: float):
@@ -1123,6 +1165,10 @@ def run(
     # One (label, xs, Z at port 0) per curve that solved: what the Swr, S11
     # and Smith panels draw, whatever was swept.
     curves = []
+    # A knob sweep's self-tuning tuner, retuned at every point (one build
+    # each): per curve, a `band_loss.BandLoss` at each x (what it tuned to,
+    # and the power budget's losses there), for the Table.
+    tunings: dict[str, list] = {}
     nports = 1
     # A refusal is the engine declining the design (NEC-2 and a vertex feed),
     # which every engine raises as ValueError / NotImplementedError, or a
@@ -1207,7 +1253,20 @@ def run(
                         ]
                     )
                 else:
-                    zs = _solve_line(p.builder, s, p.knobs[0], xs, p.factory, z0)
+                    tuned: list = []
+                    zs = _solve_line(
+                        p.builder,
+                        s,
+                        p.knobs[0],
+                        xs,
+                        p.factory,
+                        z0,
+                        on_engine=_tuning_recorder(tuned, z0)
+                        if _has(a, an.Table)
+                        else None,
+                    )
+                    if any(b is not None for b in tuned):
+                        tunings[p.label] = tuned
             except (ValueError, NotImplementedError) as e:
                 # HoldRefused is a ValueError: a cell the hold cannot serve
                 # (a knob with no range there, a multi-feed design).
@@ -1250,6 +1309,10 @@ def run(
                 _print_held_table(knob, held, ground_label)
             else:
                 _print_sweep_table(knob, curves, ground_label)
+            for label, tuned in tunings.items():
+                _print_tuner_table(knob, label, out["curves"][label][0], tuned)
+        if tunings:
+            out["tunings"] = tunings
         for label, pts in held.items():
             for line in held_lines(label, knob, pts, a.hold):
                 print(line)

@@ -114,8 +114,9 @@ def test_the_route_splits_the_catalog_where_the_issue_says_it_does():
     # 27 since AK#1707: `wire.beverage` drives its feed through a
     # Transformer from a virtual rig port. 29 since the end-port feed
     # examples (`dipoles.invvee_endport`, `beams.yagi_endport`): a
-    # FloatingBalun across two PortAtEnd ports.
-    assert len(reduce_) == 29, sorted(reduce_)
+    # FloatingBalun across two PortAtEnd ports. 30 since
+    # `wire.doublet_remote_tuner`: a balun and balanced line to a floating gap.
+    assert len(reduce_) == 30, sorted(reduce_)
     assert native, "no network stayed native; the LD path would be dead"
 
 
@@ -255,7 +256,8 @@ def test_the_route_switched_off_restores_todays_refusal(monkeypatch, stub_exe):
         assert "cannot stamp" in msg or "has no NEC-5 LD form" in msg, msg
         refused += 1
     # 26 + wire.beverage (AK#1707) + the two end-port feed examples
-    assert refused == 29, refused
+    # + wire.doublet_remote_tuner
+    assert refused == 30, refused
 
 
 def test_the_route_on_lifts_21_of_the_26_and_names_the_other_5(stub_exe):
@@ -294,10 +296,12 @@ def test_the_route_on_lifts_21_of_the_26_and_names_the_other_5(stub_exe):
     # 7 since the two end-port feed examples: a third class, a PortAtEnd on a
     # free wire end, which the binary refuses an EX at (measured, see
     # `test_nec5_refuses_a_source_at_a_free_end`).
-    assert len(refused) == 7, sorted(refused)
+    # 8 since `wire.doublet_remote_tuner`: its centre gap is a floating port.
+    assert len(refused) == 8, sorted(refused)
     floating = [n for n, m in refused.items() if "floating" in m]
     distributed = [n for n, m in refused.items() if "distributed" in m]
-    assert len(floating) == 2, floating
+    assert len(floating) == 3, floating
+    assert "wire.doublet_remote_tuner" in floating
     at_end = [n for n, m in refused.items() if "(PortAtEnd)" in m]
     assert sorted(at_end) == ["beams.yagi_endport", "dipoles.invvee_endport"]
     for name in at_end:
