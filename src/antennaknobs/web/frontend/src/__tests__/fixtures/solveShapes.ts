@@ -32,11 +32,11 @@ export const invveeShape = {
       ],
       "knot_currents_re": [
         0.0,
-        -0.0016752899083794857
+        -0.001675289908379537
       ],
       "knot_currents_im": [
         0.0,
-        -0.00018905979915505433
+        -0.00018905979915486765
       ]
     }
   ],
@@ -57,12 +57,13 @@ export const invveeShape = {
       ] as [number, number, number]
     }
   ],
-  "z_in_re": 55.17841963036039,
-  "z_in_im": -9.521690585177454,
+  "z_in_re": 55.178419630360715,
+  "z_in_im": -9.521690585171072,
   "design_freq_mhz": 28.47,
   "measurement_freq_mhz": 28.481,
   "lambda_design_m": 10.53011794871795,
-  "solve_ms": 7.4777069967240095,
+  "solve_ms": 6.521443836390972,
+  "kernel": "reduced",
   "ground": false,
   "height_m": 0.0,
   "ground_eps_r": 10000000000.0,
@@ -74,11 +75,11 @@ export const invveeShape = {
   "default_view": "yz" as Projection,
   "radiation_efficiency": 1.0,
   "power_budget": [],
-  "input_power_w": 0.008799486072185744,
+  "input_power_w": 0.008799486072186034,
   "solver": "momwire",
   "k_meas_m_inv": 0.5969176207020584,
   "ground_eps_im": -0.0,
-  "directivity_norm": 606.9629722094169,
+  "directivity_norm": 606.9629722093969,
   "cache_hit": false,
   "solve_id": "c61d045c1507f2842dc2579c49ccca60",
   "cuts": {
@@ -120,11 +121,11 @@ export const doubletLadderTunerShape = {
       ],
       "knot_currents_re": [
         0.0,
-        0.000868587560482945
+        0.0008685875604828514
       ],
       "knot_currents_im": [
         0.0,
-        -0.0004960829403458946
+        -0.0004960829403459348
       ]
     }
   ],
@@ -145,12 +146,13 @@ export const doubletLadderTunerShape = {
       ] as [number, number, number]
     }
   ],
-  "z_in_re": 51.310677621288306,
-  "z_in_im": 9.663598555297884,
+  "z_in_re": 51.31067762129089,
+  "z_in_im": 9.663598555302398,
   "design_freq_mhz": 7.1,
   "measurement_freq_mhz": 7.15,
   "lambda_design_m": 42.22428985915493,
-  "solve_ms": 7.836743025109172,
+  "solve_ms": 6.574232829734683,
+  "kernel": "reduced",
   "ground": false,
   "height_m": 0.0,
   "ground_eps_r": 10000000000.0,
@@ -160,11 +162,11 @@ export const doubletLadderTunerShape = {
   "design_z0_ohms": 50.0,
   "multi_feed": false,
   "default_view": "yz" as Projection,
-  "radiation_efficiency": 0.9198967189554218,
+  "radiation_efficiency": 0.919896718955422,
   "power_budget": [
     {
       "label": "TL li\u2192feed",
-      "watts": 0.0003513368892358905,
+      "watts": 0.00035133688923586794,
       "path": "",
       "key": "TL li\u2192feed"
     },
@@ -175,7 +177,7 @@ export const doubletLadderTunerShape = {
       "key": "tuner: TwoPort rig\u2192m"
     }
   ],
-  "input_power_w": 0.009410759973649534,
+  "input_power_w": 0.009410759973648803,
   "plane": "rig",
   "planes": [
     "rig",
@@ -184,7 +186,7 @@ export const doubletLadderTunerShape = {
   "solver": "momwire",
   "k_meas_m_inv": 0.14985291906954523,
   "ground_eps_im": -0.0,
-  "directivity_norm": 35.76814564809835,
+  "directivity_norm": 35.76814564810112,
   "cache_hit": false,
   "solve_id": "6227dedce17ac72c6cd97fe045051119",
   "cuts": {
@@ -226,11 +228,11 @@ export const invveeCatenaryShape = {
       ],
       "knot_currents_re": [
         0.0,
-        -0.002549804637741891
+        -0.0025498046377418425
       ],
       "knot_currents_im": [
         0.0,
-        0.0003695242879133117
+        0.0003695242879135081
       ]
     }
   ],
@@ -251,12 +253,13 @@ export const invveeCatenaryShape = {
       ] as [number, number, number]
     }
   ],
-  "z_in_re": 51.678889072177455,
-  "z_in_im": 4.438900085880874,
+  "z_in_re": 51.67888907217749,
+  "z_in_im": 4.438900085884954,
   "design_freq_mhz": 28.47,
   "measurement_freq_mhz": 28.489,
   "lambda_design_m": 10.53011794871795,
-  "solve_ms": 18.2441120268777,
+  "solve_ms": 17.63199595734477,
+  "kernel": "reduced",
   "ground": false,
   "height_m": 0.0,
   "ground_eps_r": 10000000000.0,
@@ -270,12 +273,12 @@ export const invveeCatenaryShape = {
   "power_budget": [
     {
       "label": "wire loss (I\u00b2R)",
-      "watts": 0.0002105740932005508,
+      "watts": 0.00021057409320054813,
       "path": "",
       "key": "wire loss (I\u00b2R)"
     }
   ],
-  "input_power_w": 0.009604272581829467,
+  "input_power_w": 0.009604272581829335,
   "wire_length_m": 4.996458847072652,
   "wire_weight_g": 55.310799437094246,
   "rig": {
@@ -307,7 +310,7 @@ export const invveeCatenaryShape = {
   "solver": "momwire",
   "k_meas_m_inv": 0.5970852883038147,
   "ground_eps_im": -0.0,
-  "directivity_norm": 556.4151820321165,
+  "directivity_norm": 556.4151820321242,
   "cache_hit": false,
   "solve_id": "a5318d631e94bb828ec14a7de8c2eebf",
   "cuts": {
