@@ -847,6 +847,8 @@ function DesignSessionBody({
     swrThreshold,
     setSwrThreshold,
     chartView: seededChartView,
+    smithYGrid,
+    setSmithYGrid,
   } = useViewPrefs();
   // The combined view's highlighted designs (AK#1730): the live design and/or
   // pin ids, toggled per row in the compare table; while any is highlighted
@@ -5077,6 +5079,8 @@ function DesignSessionBody({
       // Same bag, same reasoning: the Smith chart zooms here and not in
       // the thumbnail strip, whose bag omits it.
       chartZoom
+      smithYGrid={smithYGrid}
+      onSmithYGridChange={setSmithYGrid}
       showHeatmap={showHeatmap}
       showEnvelope={showEnvelope}
       showWireLabels={showWireLabels}
@@ -5417,6 +5421,7 @@ function DesignSessionBody({
                       schematicSvg={schematicSvg}
                       schematicUnavailable={schematicUnavailable}
                       combinedFill={combinedFill}
+                      smithYGrid={smithYGrid}
                     />
                     </ChartScaleContext.Provider>
                     </div>

@@ -71,6 +71,27 @@ describe("measurement-plane picker", () => {
     ).toBe("feed");
   });
 
+  it("shows the design's plane labels, and the port name for the rest", () => {
+    const onPlaneChange = vi.fn();
+    renderReadout(
+      fakeResult({
+        plane: "rig",
+        planes: ["rig", "lc", "tuner", "liL"],
+        plane_labels: { lc: "inside tuner (L–C)", tuner: "tuner output / balun input" },
+      }),
+      onPlaneChange,
+    );
+    const select = screen.getByLabelText("measurement plane") as HTMLSelectElement;
+    expect([...select.options].map((o) => [o.value, o.text])).toEqual([
+      ["rig", "rig"],
+      ["lc", "inside tuner (L–C)"],
+      ["tuner", "tuner output / balun input"],
+      ["liL", "liL"],
+    ]);
+    fireEvent.change(select, { target: { value: "lc" } });
+    expect(onPlaneChange).toHaveBeenCalledWith("lc");
+  });
+
   it("is absent when the design has no planes to offer", () => {
     renderReadout(fakeResult(), vi.fn());
     expect(screen.queryByLabelText("measurement plane")).toBeNull();

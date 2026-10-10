@@ -114,6 +114,12 @@ export function plotColors() {
     bg: v("--plot-bg", "#0d1015"),
     bgRgb: v("--plot-bg-rgb", "13, 16, 21"),
     grid: v("--plot-grid", "#2a313d"),
+    // The Smith chart's optional admittance grid: its own, warmer ink, drawn
+    // dashed, so it reads apart from the impedance grid it overlays.
+    gridY: v("--plot-grid-y", "#4a3a34"),
+    // The Smith chart's design target circle (r = 1 or g = 1): a colour the
+    // chart draws nothing else in.
+    target: v("--plot-target", "#ff8a5c"),
     axis: v("--plot-axis", "#3a4150"),
     axisFaint: v("--plot-axis-faint", "#23272f"),
     labelDim: v("--plot-label-dim", "#4a5160"),
