@@ -708,6 +708,7 @@ def make_engine_factory(
     deck_extended_kernel=False,
     nominal_nsegs=None,
     nec42_sommerfeld=None,
+    exact_kernel=None,
 ):
     """Bind an engine spec (+ optional ground) into a builder->engine factory.
 
@@ -723,6 +724,14 @@ def make_engine_factory(
     issue #414, is a separate, unexposed constructor kwarg — not driven by
     this flag); a deck's request on a non-momwire engine is left alone,
     matching the pre-#849 status quo for that engine.
+
+    ``exact_kernel`` (CLI ``--exact-kernel auto|on|off``, momwire#1408) is
+    the exact ring kernel on coaxial pairs. None leaves it to the engine,
+    which runs "auto" on the B-spline basis where momwire serves it and
+    nothing elsewhere. "on" or "auto" on any other engine is refused here,
+    as ``--extended-kernel`` is; "on"/"auto" on a momwire basis that does
+    not serve it is refused by `MomwireEngine`, by name; "off" is always
+    satisfied.
 
     ``nec42_sommerfeld`` (CLI ``--nec42-sommerfeld``, 2 or 3) is the NEC-4.2
     engine's Sommerfeld ground card. None takes ``[engines] nec42_sommerfeld``
@@ -751,6 +760,20 @@ def make_engine_factory(
             f"--extended-kernel only applies to the momwire engine "
             f"(got {name!r}, issue #849, momwire >= 0.26.0)"
         )
+    if exact_kernel is not None:
+        from .engines.momwire import normalize_exact_kernel
+
+        try:
+            exact = normalize_exact_kernel(exact_kernel)
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError(str(exc)) from None
+        if exact is not False and name != "momwire":
+            raise argparse.ArgumentTypeError(
+                f"--exact-kernel {exact_kernel} only applies to the momwire "
+                f"engine's B-spline basis (got {name!r}, momwire#1408)"
+            )
+        if name == "momwire" and exact is not None:
+            kwargs["exact_kernel"] = exact
     # A deck's request on another engine is left alone, as before #849:
     # PyNEC's own EK support (#414) isn't wired to a deck or this flag.
     if name == "momwire":
@@ -947,7 +970,20 @@ class _FeedPlacementEcho:
                 if note.get("category") in _ECHOED and text not in self._seen:
                     self._seen.add(text)
                     print(f"advisory: {text}", file=sys.stderr)
+            # What ran (momwire#1408): said once a run, only when the exact
+            # ring kernel engaged, since that is the case a user did not ask
+            # for by name when "auto" resolved it on.
+            if getattr(eng, "exact_kernel_ran", None) and _EXACT_RAN not in self._seen:
+                self._seen.add(_EXACT_RAN)
+                print(f"note: {_EXACT_RAN}", file=sys.stderr)
         self._pending = waiting
+
+
+_EXACT_RAN = (
+    "the exact ring kernel ran on coaxial wire runs (by default where a "
+    "segment is shorter than 3 radii; --exact-kernel off solves without it, "
+    "momwire#1408)"
+)
 
 
 def _tolerant_console() -> None:
@@ -1165,6 +1201,22 @@ def cli(arguments=None):
             "Only applies to the momwire engine.",
         )
         p.add_argument(
+            "--exact-kernel",
+            dest="exact_kernel",
+            default=None,
+            choices=("auto", "on", "off"),
+            help="The exact ring kernel on coaxial pairs (momwire#1408), on "
+            "the momwire engine's B-spline basis: the same line at the same "
+            "radius takes the exact tube kernel at every separation, while "
+            "bends and other wires keep the kernel --extended-kernel selects "
+            "(across a bend that is a small step, ~1e-4 relative at 50 mm "
+            "radius, momwire#1413). Default auto: on wherever some segment is "
+            "shorter than 3 radii and the route serves it (not buried wires, "
+            "singular enrichment or the sector route), off elsewhere. Needs a "
+            "momwire that serves it; on other engines and bases only off is "
+            "accepted.",
+        )
+        p.add_argument(
             "--nec42-sommerfeld",
             dest="nec42_sommerfeld",
             type=int,
@@ -1256,6 +1308,7 @@ def cli(arguments=None):
                 args.engine,
                 ground,
                 extended_kernel=args.extended_kernel,
+                exact_kernel=getattr(args, "exact_kernel", None),
                 nec42_sommerfeld=getattr(args, "nec42_sommerfeld", None),
                 deck_extended_kernel=deck_extended_kernel,
                 nominal_nsegs=density_from_args(args, args.engine, builder),
@@ -1285,6 +1338,7 @@ def cli(arguments=None):
                     spec,
                     ground,
                     extended_kernel=args.extended_kernel,
+                    exact_kernel=getattr(args, "exact_kernel", None),
                     nec42_sommerfeld=getattr(args, "nec42_sommerfeld", None),
                     deck_extended_kernel=deck_extended_kernel,
                     nominal_nsegs=density,
@@ -1816,6 +1870,7 @@ def cli(arguments=None):
                         engine_spec,
                         ground_for(ground_spec),
                         extended_kernel=args.extended_kernel,
+                        exact_kernel=getattr(args, "exact_kernel", None),
                         nec42_sommerfeld=getattr(args, "nec42_sommerfeld", None),
                         deck_extended_kernel=deck_ek,
                         nominal_nsegs=(
@@ -2548,6 +2603,7 @@ def cli(arguments=None):
                 espec,
                 file_ground_default(ground, builder_cls),  # AK#1432
                 extended_kernel=args.extended_kernel,
+                exact_kernel=getattr(args, "exact_kernel", None),
                 nec42_sommerfeld=getattr(args, "nec42_sommerfeld", None),
                 deck_extended_kernel=deck_extended_kernel_flag(builder_cls),
                 # Per SPEC, not per command: a cross-engine comparison whose
@@ -2635,6 +2691,7 @@ def cli(arguments=None):
                     espec,
                     file_ground_default(ground, builder_cls),
                     extended_kernel=args.extended_kernel,
+                    exact_kernel=getattr(args, "exact_kernel", None),
                     nec42_sommerfeld=getattr(args, "nec42_sommerfeld", None),
                     deck_extended_kernel=deck_extended_kernel_flag(builder_cls),
                 )

@@ -402,6 +402,21 @@ export function SolveReadout({
           feeds-table wrapper is used only for its dashed separator rule —
           no header. */}
       <div className="feeds-table">
+        {result?.kernel && (
+          <div
+            className="row"
+            title={
+              result.kernel === "exact"
+                ? "The exact ring kernel ran on wires sharing a line and a radius; bends and other wires used the extended or reduced kernel (momwire#1408)."
+                : "The thin-wire kernel this solve used. The exact ring kernel engages on its own where a segment is shorter than 3 radii."
+            }
+          >
+            <span>kernel</span>
+            <span className="val">
+              {result.kernel === "exact" ? "exact ring" : result.kernel}
+            </span>
+          </div>
+        )}
         {result?.solver_diag && (
           <div
             className="row"
