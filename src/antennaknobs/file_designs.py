@@ -893,7 +893,7 @@ def _ez_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=Non
         reading=dialect,
     )
     deck = imp.deck
-    return _make_builder(
+    cls = _make_builder(
         path.stem,
         round(imp.freq_mhz, 6),
         None,
@@ -907,6 +907,10 @@ def _ez_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=Non
         file_deck=deck,
         c_light_mhz_m=C_LIGHT_MHZ_M,
     )
+    # The reading chosen for it (None: the file's engine setting), so the
+    # Files view shows the cards it was read into (AK#1958).
+    cls.file_ez_reading = dialect
+    return cls
 
 
 # extension -> loader

@@ -189,7 +189,7 @@ const ready = () => document.querySelector<HTMLElement>(".app[data-ready]")?.dat
 
 async function openUr0gt() {
   await sessionReady(document.body);
-  const input = screen.getByLabelText("open an antenna model (.nec, .ssn or .maa)") as HTMLInputElement;
+  const input = screen.getByLabelText("open an antenna model (.nec, .ssn, .maa or .ez)") as HTMLInputElement;
   const text = "CM stand-in: the /deck stub answers with the UR0GT record\nCE\nEN\n";
   const file = new File([text], "UR0GT_SY_vert_inv_L.nec");
   if (typeof (file as Blob).text !== "function") {

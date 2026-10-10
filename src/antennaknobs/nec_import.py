@@ -2394,10 +2394,33 @@ class NecDeck:
         # leaves them at 2.01e-01 (WORSE than the 1.29e-01 of dropping the
         # load outright); redirecting the source too puts them at 4.06e-14,
         # and leaves every deck with no source at a load site untouched.
+        single = len(self.feeds) == 1
+
+        def feed_site(k, f):
+            """The port a feed names, before any load redirects it."""
+            if self._knot_end(f.wire, f.seg, f.edge):
+                knot = _knot_of(f.seg, f.edge)
+                key = self._knot_folds.get((f.wire, knot), (f.wire, knot))
+                if key in self._vertex_plan:
+                    return self._vertex_plan[key][0]
+                return "feed" if single else f"feed{k}"
+            return plan[(f.wire, f.seg)]
+
+        fed = {feed_site(k, f) for k, f in enumerate(self.feeds, 1)}
+
+        def is_line(ld):
+            # AK#1958: an importer element that is a LINE ending here (a
+            # stub), not a load: it hangs across the segment gap like any
+            # TL end, in parallel with whatever else attaches.
+            return ld.custom is not None and getattr(ld.custom, "line", False)
+
+        # A custom load (AK#1958) on a fed site goes in series with the
+        # source, as an LD load does: the source moves behind it.
         behind = {
             load_port(ld): f"{load_port(ld)}#ld"
             for ld in self.loads
-            if ld.at_connection
+            if not is_line(ld)
+            and (ld.at_connection or (ld.custom is not None and load_port(ld) in fed))
         }
         for node in behind.values():
             ports[node] = _net.PortVirtual(node)
@@ -2413,13 +2436,16 @@ class NecDeck:
         for ld in self.loads:
             port = load_port(ld)
             if ld.custom is not None:
-                # AK#1958: the importer's own element for this site, in
-                # series with the lines that meet here as any load is.
-                made, extra = (
-                    ld.custom.series(port, behind[port])
-                    if ld.at_connection
-                    else ld.custom.terminate(port)
-                )
+                # AK#1958: the importer's own element for this site. A line
+                # (stub) attaches where lines attach, across the gap; a load
+                # sits in series with the lines and the source that meet
+                # here, as an LD load does, else terminates the gap.
+                if is_line(ld):
+                    made, extra = ld.custom.terminate(behind.get(port, port))
+                elif port in behind:
+                    made, extra = ld.custom.series(port, behind[port])
+                else:
+                    made, extra = ld.custom.terminate(port)
                 branches.extend(made)
                 ports.update(extra)
                 continue
@@ -2502,17 +2528,8 @@ class NecDeck:
             if nt.shunt_r_b is not None:
                 branches.append(_net.Shunt(port=b, r=nt.shunt_r_b))
 
-        single = len(self.feeds) == 1
-
         def feed_port(k, f):
-            if self._knot_end(f.wire, f.seg, f.edge):
-                knot = _knot_of(f.seg, f.edge)
-                key = self._knot_folds.get((f.wire, knot), (f.wire, knot))
-                if key in self._vertex_plan:
-                    return self._vertex_plan[key][0]
-                name = "feed" if single else f"feed{k}"
-            else:
-                name = plan[(f.wire, f.seg)]
+            name = feed_site(k, f)
             return behind.get(name, name)
 
         sources = [

@@ -615,8 +615,10 @@ along a wire and runs it on the segment that percentage lands on, as its own
 `.nec` export does. EZNEC's own engines (its NEC-2 and NEC-4 cores) put it at
 that segment's centre, so that is the default reading. A file saved with
 EZNEC set to the external NEC-5 engine is read at segment ends instead, as
-NEC-5 connects. The reading can be chosen, as a `.nec`'s dialect can (the
-`dialect` of an opened deck, or `read_ez(..., reading="nec5")`).
+NEC-5 connects; there a 0 % position is the wire's end itself. From Python
+the reading can be chosen, as a `.nec`'s dialect can
+(`read_ez(..., reading="nec5")`); the workbench's *Read as* control is for
+`.nec` decks only.
 
 **Loads keep their type**, so a frequency sweep evaluates each at every
 frequency rather than at the model frequency only:

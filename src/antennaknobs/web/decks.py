@@ -191,7 +191,10 @@ def decode_payload(payload, settings: DeckSettings) -> tuple[str, str]:
     if not isinstance(payload, dict):
         raise DeckError("the deck payload must be an object with name and z (or text)")
     raw_name = payload.get("name")
-    name = PurePath(str(raw_name or "deck.nec").replace("\\", "/")).name.strip()
+    name = PurePath(str(raw_name or "deck.nec").replace("\\", "/")).name
+    # A control character (a CR or LF) in a name would split the comment
+    # card an importer writes it into (AK#1958).
+    name = "".join(" " if ord(c) < 32 or ord(c) == 127 else c for c in name).strip()
     if not name or len(name) > 120:
         name = "deck.nec"
     ext = PurePath(name).suffix.lower()

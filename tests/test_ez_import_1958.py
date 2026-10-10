@@ -567,15 +567,19 @@ LOADS = {
 }
 
 
+@pytest.mark.parametrize("pct", [75.0, 50.0], ids=["off-feed", "on-the-fed-segment"])
 @pytest.mark.parametrize("form", list(LOADS))
-def test_a_typed_load_is_evaluated_at_every_frequency_of_a_sweep(form, monkeypatch):
+def test_a_typed_load_is_evaluated_at_every_frequency_of_a_sweep(
+    form, pct, monkeypatch
+):
     """The load's impedance at each frequency equals a fixed R + jX twin
-    holding exactly that frequency's value -- and moves across the sweep."""
+    holding exactly that frequency's value -- and moves across the sweep.
+    On the fed segment it is in series with the source, as an LD load is."""
     spec, guesses, zf = LOADS[form]
     kind = "L" if "laplace" in spec else "R"
     w0 = 2 * math.pi * F0 * 1e6
     z0 = zf(F0, w0)
-    load = {"wire": 1, "pct": 75.0, "z": (float(z0.real), float(z0.imag)), **spec}
+    load = {"wire": 1, "pct": pct, "z": (float(z0.real), float(z0.imag)), **spec}
     raw = ez_file(DIPOLE, loads=(load,), load_type=kind)
     imp = read_ez(raw, accept_guesses=guesses)
     if guesses:
@@ -588,7 +592,7 @@ def test_a_typed_load_is_evaluated_at_every_frequency_of_a_sweep(form, monkeypat
     for f in SWEEP:
         zl = zf(f, 2 * math.pi * f * 1e6)
         twin = _open(
-            ez_file(DIPOLE, loads=({"wire": 1, "pct": 75.0, "z": (zl.real, zl.imag)},)),
+            ez_file(DIPOLE, loads=({"wire": 1, "pct": pct, "z": (zl.real, zl.imag)},)),
             "twin.ez",
         )
         got, want = _z(cls, f), _z(twin, f)
@@ -596,7 +600,7 @@ def test_a_typed_load_is_evaluated_at_every_frequency_of_a_sweep(form, monkeypat
         assert got == pytest.approx(want, rel=1e-6), (form, f)
         zs.append(got)
     held = _open(
-        ez_file(DIPOLE, loads=({"wire": 1, "pct": 75.0, "z": (z0.real, z0.imag)},)),
+        ez_file(DIPOLE, loads=({"wire": 1, "pct": pct, "z": (z0.real, z0.imag)},)),
         "held.ez",
     )
     assert abs(_z(held, SWEEP[0]) - zs[0]) > 1e-3 * abs(zs[0])  # not collapsed to f0
@@ -680,6 +684,108 @@ def test_a_stub_follows_frequency(stub):
             ez_file(DIPOLE, loads=({"wire": 1, "pct": 75.0, "z": (zl.real, zl.imag)},))
         )
         assert _z(cls, f) == pytest.approx(_z(twin, f), rel=1e-7), (stub, f)
+
+
+def test_a_stub_on_the_fed_segment_is_in_parallel_with_the_source():
+    """A quarter-wave shorted stub is an open: across the feed it changes
+    nothing, as any line ending at the source's segment hangs across it."""
+    lam = 299_792_458.0 / (F0 * 1e6)
+    raw = ez_file(DIPOLE, lines=((1, 50.0, -1, 0.0, 50.0, lam / 4, 1.0),))
+    assert _z(_open(raw)) == pytest.approx(_z(_open(ez_file(DIPOLE))), rel=1e-6)
+
+
+def test_a_stub_where_a_line_lands_hangs_across_the_gap_with_it():
+    """A line from wire 1 to wire 2 with a (vanishingly short) shorted stub
+    where it lands on wire 2: the stub shorts both the line's end and wire 2's
+    gap, which is the same circuit as a shorted stub of the line's length on
+    wire 1 with wire 2 left whole."""
+    with_stub = ez_file(
+        PAIR,
+        lines=((1, 50.0, 2, 50.0, 50.0, 3.0, 1.0), (2, 50.0, -1, 0.0, 50.0, 1e-5, 1.0)),
+    )
+    twin = ez_file(PAIR, lines=((1, 50.0, -1, 0.0, 50.0, 3.0, 1.0),))
+    plain = ez_file(PAIR, lines=((1, 50.0, 2, 50.0, 50.0, 3.0, 1.0),))
+    z, zt = _z(_open(with_stub)), _z(_open(twin))
+    assert z == pytest.approx(zt, rel=1e-4)
+    assert abs(z - _z(_open(plain))) > 1e-2 * abs(z)
+
+
+def test_a_typed_load_where_a_line_lands_sits_between_the_wire_and_the_line(
+    monkeypatch,
+):
+    monkeypatch.setenv(ez_import.ACCEPT_GUESSES_ENV, "1")
+    line = (1, 50.0, 2, 50.0, 50.0, 3.0, 1.0)
+    for f in SWEEP:
+        w = 2 * math.pi * f * 1e6
+        w0 = 2 * math.pi * F0 * 1e6
+        zt0 = _trap(2.0, 2e-6, 60e-12, w0)
+        trap = {
+            "wire": 2,
+            "pct": 50.0,
+            "z": (zt0.real, zt0.imag),
+            "rlc": ("T", 2.0, 2e-6, 60e-12, 0.0),
+        }
+        got = _z(_open(ez_file(PAIR, lines=(line,), loads=(trap,), load_type="R")), f)
+        zl = _trap(2.0, 2e-6, 60e-12, w)
+        twin = ez_file(
+            PAIR,
+            lines=(line,),
+            loads=({"wire": 2, "pct": 50.0, "z": (zl.real, zl.imag)},),
+        )
+        assert got == pytest.approx(_z(_open(twin), f), rel=1e-6), f
+
+
+@pytest.mark.parametrize("pct", [75.0, 50.0])
+def test_a_lossless_and_a_barely_lossy_stub_sit_in_the_same_place(pct, monkeypatch):
+    lossless = ez_file(DIPOLE, lines=((1, pct, -1, 0.0, 50.0, 2.0, 0.8),))
+    lossy = ez_file(
+        DIPOLE,
+        lines=((1, pct, -1, 0.0, 50.0, 2.0, 0.8),),
+        blocks=[line_loss_block([(1e-6, F0)])],
+    )
+    z0 = _z(_open(lossless))
+    assert _z(_open(lossy)) == pytest.approx(z0, rel=1e-4)  # strict: held at F0
+    monkeypatch.setenv(ez_import.ACCEPT_GUESSES_ENV, "1")
+    for f in SWEEP:
+        assert _z(_open(lossy), f) == pytest.approx(_z(_open(lossless), f), rel=1e-4)
+
+
+def test_a_lossless_trap_at_exact_resonance_is_an_open_not_a_crash():
+    # w = 1, L = 1 H, C = 1 F: R + jwL and 1/(jwC) cancel exactly.
+    z = ez_import._rlc_z("T", 0.0, 1.0, 1.0, 1.0)
+    assert math.isinf(abs(z))
+    assert ez_import._YOf(z=lambda f: z).y_at(1.0)[0, 0] == 0
+    with pytest.raises(ValueError, match="zero impedance"):
+        ez_import._YOf(z=lambda f: 0j).y_at(1.0)
+
+
+def test_under_nec5_every_attachment_at_0_percent_is_the_wire_end():
+    nec5 = engine_block(8, "Ext NEC-5")
+    lossy = ez_file(
+        PAIR,
+        lines=((1, 0.0, 2, 0.0, 50.0, 3.0, 1.0),),
+        blocks=[line_loss_block([(0.01, F0)]), nec5],
+    )
+    assert "NT 1 -1 2 -1 " in read_ez(lossy).nec_text
+    lossless = ez_file(PAIR, lines=((1, 0.0, 2, 0.0, 50.0, 3.0, 1.0),), blocks=[nec5])
+    assert "TL 1 -1 2 -1 " in read_ez(lossless).nec_text
+    # A source at 0 % of a wire whose end 1 is a junction: at that knot.
+    vee = [
+        (0.0, 0.0, 10.0, 0.0, 5.15, 10.0, 0.002, 10),
+        (0.0, 0.0, 10.0, 0.0, -5.15, 10.0, 0.002, 10),
+    ]
+    imp = read_ez(ez_file(vee, sources=((1, 0.0, 1.0, 0.0, "V"),), blocks=[nec5]))
+    assert any(ln.startswith("EX 0 1 -1 ") for ln in imp.nec_text.splitlines())
+    assert (
+        _z(_open(ez_file(vee, sources=((1, 0.0, 1.0, 0.0, "V"),), blocks=[nec5]))).real
+        > 0
+    )
+
+
+def test_a_cr_or_lf_in_the_title_or_name_stays_on_its_comment_card():
+    imp = read_ez(ez_file(DIPOLE, title="two\r\nlines"), name="a\nb.ez")
+    head = imp.nec_text.splitlines()[:2]
+    assert head == ["CM two  lines", "CM read from a b.ez (EZNEC .ez)"]
 
 
 def test_a_lossy_line_is_held_at_the_model_frequency_and_flagged():
@@ -1020,6 +1126,19 @@ def test_an_ez_opens_solves_and_shows_its_cards_through_the_routes(monkeypatch):
         assert 60 < out["z_in_re"] < 90
         src = client.post("/design_source", json={"geometry": key}).json()
         assert src["language"] == "nec" and src["text"].startswith("CM hosted dipole")
+        # Opened in a chosen reading, the Source tab shows that reading's cards.
+        raw5 = ez_file(
+            DIPOLE,
+            title="read as nec5",
+            loads=({"wire": 1, "pct": 0.0, "z": (5.0, 0.0)},),
+        )
+        r5 = client.post(
+            "/deck",
+            json={"name": "dp5.ez", "text": raw5.decode("latin-1"), "dialect": "nec5"},
+        )
+        assert r5.status_code == 200, r5.text
+        src5 = client.post("/design_source", json={"geometry": r5.json()["key"]}).json()
+        assert "LD 4 1 -1 0 " in src5["text"]
         bad = client.post(
             "/deck",
             json={

@@ -3937,14 +3937,17 @@ _SOURCE_LANGUAGE = {
 }
 
 
-def _source_text(name: str, text: str) -> str:
+def _source_text(name: str, text: str, reading: str | None = None) -> str:
     """What the Source tab shows for a design file's text: the text, or for
-    a binary EZNEC .ez (AK#1958) the NEC cards it was read into."""
+    a binary EZNEC .ez (AK#1958) the NEC cards it was read into, in the
+    reading it was opened with."""
     if Path(name).suffix.lower() != ".ez":
         return text
     from antennaknobs.ez_import import ez_source_view
 
-    return ez_source_view(text.encode("latin-1", errors="replace"), Path(name).name)
+    return ez_source_view(
+        text.encode("latin-1", errors="replace"), Path(name).name, reading
+    )
 
 
 @app.post("/design_source")
@@ -3972,7 +3975,12 @@ async def design_source_endpoint(req: dict):
             "geometry": geometry,
             "filename": name,
             "language": _SOURCE_LANGUAGE.get(Path(name).suffix.lower(), "text"),
-            "text": await run_in_threadpool(_source_text, name, text),
+            "text": await run_in_threadpool(
+                _source_text,
+                name,
+                text,
+                getattr(getattr(ex, "builder_cls", None), "file_ez_reading", None),
+            ),
         }
     path = None
     if _is_user_geometry({"geometry": geometry}):
@@ -3993,7 +4001,12 @@ async def design_source_endpoint(req: dict):
         "geometry": geometry,
         "filename": path.name,
         "language": _SOURCE_LANGUAGE.get(path.suffix.lower(), "text"),
-        "text": await run_in_threadpool(_source_text, path.name, text),
+        "text": await run_in_threadpool(
+            _source_text,
+            path.name,
+            text,
+            getattr(getattr(ex, "builder_cls", None), "file_ez_reading", None),
+        ),
     }
 
 

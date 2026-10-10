@@ -388,6 +388,12 @@ def _ch(b: bytes, o: int) -> str:
     return chr(b[o]) if b[o] else ""
 
 
+def _one_line(text: str) -> str:
+    """Text for a CM card: control characters (a CR or LF would start a new
+    card) become spaces."""
+    return "".join(" " if (ord(c) < 32 or ord(c) == 127) else c for c in text)
+
+
 def _r7(x: float) -> float:
     """A stored single as EZNEC prints it: seven significant digits."""
     if x == 0 or not math.isfinite(x):
@@ -518,7 +524,7 @@ def decode_ez(
     if min(n_xfmr, n_ynet, n_lnet, n_virt) < 0:
         rd.malformed("network counts", f"{(n_xfmr, n_ynet, n_lnet, n_virt)}")
 
-    title = d[0x12:0x30].decode("latin-1").rstrip(" \0")
+    title = _one_line(d[0x12:0x30].decode("latin-1")).rstrip(" ")
     freq = _r7(_f32(d, 0x05))
     if not (math.isfinite(freq) and freq > 0):
         rd.malformed("frequency", f"{freq} MHz")
@@ -1145,10 +1151,12 @@ def _lnet_block(rd: _Reader, blk, n: int, form: str) -> list[EzLNetwork]:
 class _YOf:
     """A frequency-dependent admittance block built from an impedance
     function (Ω at Hz): a one-port ``y = 1/z``, or the series two-port
-    ``(1/z)·[[1, -1], [-1, 1]]``, or (``y2``) a full two-port function."""
+    ``(1/z)·[[1, -1], [-1, 1]]``, or (``y1`` / ``y2``) a one- or two-port
+    admittance function."""
 
     z: Callable[[float], complex] | None = None
     series: bool = False
+    y1: Callable[[float], complex] | None = None
     y2: (
         Callable[[float], tuple[tuple[complex, complex], tuple[complex, complex]]]
         | None
@@ -1161,7 +1169,14 @@ class _YOf:
     def y_at(self, f_hz: float) -> np.ndarray:
         if self.y2 is not None:
             return np.array(self.y2(f_hz), dtype=complex)
-        y = 1.0 / self.z(f_hz)
+        if self.y1 is not None:
+            return np.array([[self.y1(f_hz)]], dtype=complex)
+        z = self.z(f_hz)
+        if z == 0:
+            raise ValueError(
+                f"a zero impedance at {f_hz / 1e6:g} MHz has no admittance"
+            )
+        y = 1.0 / z
         if self.series:
             return np.array([[y, -y], [-y, y]], dtype=complex)
         return np.array([[y]], dtype=complex)
@@ -1189,6 +1204,20 @@ class _OnePort:
         if self.native_series is not None:
             return self.native_series(a, b)
         return [_net.TouchstoneTwoPort(a, b, _YOf(z=self.z, series=True))], {}
+
+
+@dataclass(frozen=True)
+class _StubLine:
+    """A stub (`NecLoad.custom` with ``line``): a line ending at one site, so
+    it hangs across the segment gap like any line end there -- in parallel
+    with a source or another line at that site, never in series."""
+
+    label: str
+    build: Callable[[str], tuple[list, dict]]
+    line: bool = True
+
+    def terminate(self, port: str):
+        return self.build(port)
 
 
 @dataclass(frozen=True)
@@ -1225,6 +1254,8 @@ def _rlc_z(kind: str, R: float, L: float, C: float, w: float) -> complex:
         return 1.0 / y if y else complex(math.inf)
     zl = complex(R, w * L)
     zc = 1.0 / (1j * w * C)
+    if zl + zc == 0:
+        return complex(math.inf)  # a lossless trap at its resonance: open
     return zl * zc / (zl + zc)
 
 
@@ -1286,10 +1317,11 @@ class _Deck:
 
     # -- addresses --------------------------------------------------------------
 
-    def where(self, e: EzEnd, *, end_form: bool = False) -> tuple[int, int]:
-        """The ``(tag, segment)`` an attachment is written at. ``end_form``:
-        NEC-5's spelling of a 0 % load or line end, segment -1 (the wire's
-        end 1), as EZNEC's NEC-5 export writes it."""
+    def where(self, e: EzEnd) -> tuple[int, int]:
+        """The ``(tag, segment)`` an attachment is written at. Under NEC-5,
+        which connects everything at segment ends, a 0 % position is the
+        wire's end 1 -- segment -1, as EZNEC's NEC-5 export writes a load or
+        line end there -- for every kind of attachment alike."""
         m = self.m
         if self.vtag is not None and e.wire == len(m.wires) + 1:
             # The stored virtual wire: its segment k carries virtual segment
@@ -1299,7 +1331,7 @@ class _Deck:
             label = labels[_segment(e.pct, m.virtual_wire_segments) - 1]
             return self.vtag, sorted(labels).index(label) + 1
         n = m.wires[e.wire - 1].segments
-        if end_form and self.nec5 and e.pct == 0:
+        if self.nec5 and e.pct == 0:
             return e.wire, -1
         return e.wire, _segment(e.pct, n)
 
@@ -1320,7 +1352,7 @@ class _Deck:
         custom=None,
         label: str = "",
     ):
-        tag, seg = self.where(at, end_form=True)
+        tag, seg = self.where(at)
         if custom is not None:
             self.cards.append(
                 f"CM ! LD {typ} on wire {tag} segment {seg} stands for {label}"
@@ -1435,6 +1467,13 @@ def _load_cards(dk: _Deck) -> None:
         else:
             z = _rlc_load(dk, k, ld)
         zf0 = z(m.freq_mhz * 1e6)
+        if not (math.isfinite(zf0.real) and math.isfinite(zf0.imag)):
+            raise EzMalformed(
+                m.name,
+                name,
+                f"its impedance is infinite at the model frequency {m.freq_mhz:g} MHz "
+                "(a lossless resonance): it would cut the wire",
+            )
         _check_stored(m, name, ld.stored_z, zf0)
         if ld.kind == "R" and ld.rlc_type in ("S", "P") and not ld.r_freq_mhz:
             # Plain series / parallel RLC: NEC's own LD 0 / LD 1, which
@@ -1645,50 +1684,50 @@ def _line_cards(dk: _Deck) -> None:
         if stub:
             far, near = (t.end1, t.end2) if t.end1.stub else (t.end2, t.end1)
 
-            def zin(f_hz, far=far, gz=gz, length=length):
+            def yin(f_hz, far=far, gz=gz, length=length, k=k):
+                """The stub's input admittance (a lossy line never resonates
+                exactly; the guard names the case if one does)."""
                 g, zc = gz(f_hz)
                 th = cmath.tanh(g * length)
-                return zc * th if far.stub == "short" else zc / th
+                if far.stub == "open":
+                    return th / zc
+                if th == 0:
+                    raise ValueError(
+                        f"{m.name}: line {k}: the shorted stub is a short "
+                        f"circuit at {f_hz / 1e6:g} MHz"
+                    )
+                return 1.0 / (zc * th)
 
             label = f"line {k} ({far.stub}-circuit stub)"
             if lossy and not m.accept_guesses:
-                z0f = zin(f0)
+                # Held at the model frequency (its loss law is not defined).
                 dk.fixed.append(label)
+                y0 = yin(f0)
 
-                def native(p, z=z0f):
-                    return [_net.Load(port=p, z=z)], {}
+                def build(p, y0=y0):
+                    return [_net.Admittance(ports=(p,), y=((y0,),))], {}
 
-                def native_series(a, b, z=z0f):
-                    y = 1.0 / z
-                    return [_net.Admittance(ports=(a, b), y=((y, -y), (-y, y)))], {}
+            elif lossy:
 
-                dk.load_card(
-                    near,
-                    4,
-                    1.0,
-                    0.0,
-                    0.0,
-                    _OnePort(label, lambda f, z=z0f: z, native, native_series),
-                    label,
-                )
-                continue
-            native = None
-            if not lossy:
+                def build(p, yin=yin):
+                    return [_net.TouchstoneLoad(p, _YOf(y1=yin))], {}
 
-                def native(p, t=t, length=length, short=far.stub == "short"):
+            else:
+
+                def build(p, t=t, length=length, short=far.stub == "short"):
                     node = f"{p}#stub"
                     brs = [_net.TL(a=p, b=node, z0=t.z0, length=length, vf=t.vf)]
                     if short:
                         brs.append(_net.Shunt(port=node, r=0.0))
                     return brs, {node: _net.PortVirtual(node)}
 
-            dk.load_card(near, 4, 1.0, 0.0, 0.0, _OnePort(label, zin, native), label)
+            dk.load_card(near, 4, 1.0, 0.0, 0.0, _StubLine(label, build), label)
             continue
         if not lossy:
             # NEC's TL length is electrical: the physical length over VF. A
             # reversed line is NEC's crossed line (negative Z0).
-            t1, s1 = dk.where(t.end1, end_form=True)
-            t2, s2 = dk.where(t.end2, end_form=True)
+            t1, s1 = dk.where(t.end1)
+            t2, s2 = dk.where(t.end2)
             z0 = -t.z0 if t.reversed else t.z0
             dk.cards.append(
                 f"TL {t1} {s1} {t2} {s2} {_fmt(z0)} {_fmt(length / t.vf)} 0 0 0 0"
@@ -1964,11 +2003,8 @@ def _attach_customs(m: EzModel, dk: _Deck, deck: NecDeck) -> NecDeck:
         loads.append(replace(ld, custom=custom) if custom is not None else ld)
     nts = []
     for nt, (t1, s1, t2, s2, custom) in zip(deck.nts, dk.nt, strict=True):
-        if (tag_of[nt.wire_a], nt.seg_a, tag_of[nt.wire_b], nt.seg_b) != (
-            t1,
-            s1,
-            t2,
-            s2,
+        if (tag_of[nt.wire_a], tag_of[nt.wire_b]) != (t1, t2) or any(
+            want > 0 and got != want for got, want in ((nt.seg_a, s1), (nt.seg_b, s2))
         ):
             raise ValueError(
                 f"{m.name}: internal: a network card read back at another site"
@@ -2010,7 +2046,7 @@ def read_ez(
     dialect = "nec5" if nec5 else "nec2"
     head = [
         f"CM {m.title}" if m.title else "CM EZNEC model",
-        f"CM read from {name} (EZNEC .ez)",
+        f"CM read from {_one_line(name)} (EZNEC .ez)",
         "CE",
     ]
     _wire_cards(dk)
