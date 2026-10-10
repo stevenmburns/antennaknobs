@@ -494,6 +494,12 @@ class NecLoad:
     # node that the TL/NT attaches to, not as a `Load` on the port
     # (`_network_parts`). It used to be dropped with a skipped note.
     at_connection: bool = False
+    # AK#1958: an element no LD card can spell, carried in place of this
+    # card's own values by an importer that wrote the card as a placeholder
+    # for its site (an EZNEC trap, Laplace load or stub). It has
+    # ``terminate(port)`` and ``series(a, b)``, each returning ``(branches,
+    # extra ports)``; `_network_parts` asks it instead of building a `Load`.
+    custom: object = None
 
 
 @dataclass(frozen=True)
@@ -582,6 +588,12 @@ class NecNT:
     at_b: float | None = None
     edge_a: int = 0  # NEC-5 knot ends (AK#1579), as on NecFeed/NecLoad
     edge_b: int = 0
+    # AK#1958: a two-port no NT card can spell at every frequency (an EZNEC
+    # L network or line), carried in place of this card's values by an
+    # importer that wrote the card as a placeholder for its two sites. It has
+    # ``between(a, b)`` returning ``(branches, extra ports)``; `_network_parts`
+    # asks it instead, and `fixed_frequency_nts` does not count the card.
+    custom: object = None
 
 
 @dataclass(frozen=True)
@@ -1152,7 +1164,8 @@ class NecDeck:
         (AK#1595), whose transfer is the fixed ``B`` by construction."""
         out = []
         for k, nt in enumerate(self.nts, 1):
-            if nt.y is None:
+            if nt.y is None or nt.custom is not None:
+                # A custom two-port (AK#1958) is evaluated at each frequency.
                 continue
             (y11, y12), (_y21, y22) = nt.y
             if not (y11 or y22 or y12.real):
@@ -2399,6 +2412,17 @@ class NecDeck:
         branches: list = []
         for ld in self.loads:
             port = load_port(ld)
+            if ld.custom is not None:
+                # AK#1958: the importer's own element for this site, in
+                # series with the lines that meet here as any load is.
+                made, extra = (
+                    ld.custom.series(port, behind[port])
+                    if ld.at_connection
+                    else ld.custom.terminate(port)
+                )
+                branches.extend(made)
+                ports.update(extra)
+                continue
             if ld.at_connection:
                 # Series, between the wire and the node the lines moved to.
                 # A fixed complex z has no r/l/c spelling, so it goes in as
@@ -2453,6 +2477,11 @@ class NecDeck:
         for nt in self.nts:
             a = net_port(nt.wire_a, nt.seg_a, nt.edge_a)
             b = net_port(nt.wire_b, nt.seg_b, nt.edge_b)
+            if nt.custom is not None:
+                made, extra = nt.custom.between(a, b)
+                branches.extend(made)
+                ports.update(extra)
+                continue
             if nt.y is not None:
                 # Complex Y (susceptance present): the full 2×2 as one general
                 # Admittance branch (issue #416).

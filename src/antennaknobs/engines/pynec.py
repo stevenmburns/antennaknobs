@@ -28,6 +28,8 @@ from ..network import (
     PortVirtual,
     Shunt,
     TL,
+    TouchstoneLoad,
+    TouchstoneTwoPort,
     Transformer,
     TwoPort,
     _series_rlc_impedance,
@@ -783,9 +785,21 @@ class PyNECEngine(SimulationEngine):
         # Transformer (issue #301) and its floating-secondary sibling the
         # FloatingBalun (issue #589): no NEC card expresses the ideal ratio,
         # and the fixed complex-Y Admittance (issue #416) — a general 1-/2-port
-        # Y with no native 1-port card — always takes the reducer stamp too.
+        # Y with no native 1-port card — always takes the reducer stamp too, as
+        # does a frequency-dependent admittance (a Touchstone block, or an
+        # imported element evaluated per frequency, AK#1958).
         if any(
-            isinstance(b, (Shunt, Transformer, Admittance, FloatingBalun))
+            isinstance(
+                b,
+                (
+                    Shunt,
+                    Transformer,
+                    Admittance,
+                    FloatingBalun,
+                    TouchstoneLoad,
+                    TouchstoneTwoPort,
+                ),
+            )
             for b in net.branches
         ):
             why.add("no-native-card")

@@ -7,6 +7,8 @@ import {
   compressDeck,
   decodeMaaBytes,
   ensureDeckTransport,
+  isBinaryDesign,
+  openDeckFile,
   readDesignFile,
   rememberDeck,
   withDeck,
@@ -170,5 +172,49 @@ describe("reading an MMANA .maa", () => {
       Object.defineProperty(nec, "text", { value: async () => "GW 1 3 0 0 0 0 0 1 0.001\n" });
     }
     expect(await readDesignFile(nec)).toBe("GW 1 3 0 0 0 0 0 1 0.001\n");
+  });
+});
+
+// AK#1958: an EZNEC .ez is binary. It must reach the server byte for byte --
+// read as text, every byte >= 0x80 would be replaced and the model lost.
+describe("opening an EZNEC .ez", () => {
+  const ezBytes = Uint8Array.from([0x00, 0x7f, 0x80, 0x9f, 0xa0, 0xff, 0x18, 0x05, 0x45, 0x43, 0x00]);
+
+  async function inflateBytes(z: string): Promise<Uint8Array> {
+    const b64 = z.replace(/-/g, "+").replace(/_/g, "/");
+    const bin = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
+    const packed = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    const out = new Response(packed).body!.pipeThrough(new DecompressionStream("deflate-raw"));
+    return new Uint8Array(await new Response(out).arrayBuffer());
+  }
+
+  it("names .ez (any case) as binary and nothing else", () => {
+    expect(isBinaryDesign("model.ez")).toBe(true);
+    expect(isBinaryDesign("MODEL.EZ")).toBe(true);
+    expect(isBinaryDesign("model.nec")).toBe(false);
+    expect(isBinaryDesign("model.ez.nec")).toBe(false);
+  });
+
+  it("posts the file's bytes, compressed, with no text decoding between", async () => {
+    const file = new File([ezBytes], "loop.ez");
+    if (typeof (file as Blob).arrayBuffer !== "function") {
+      Object.defineProperty(file, "arrayBuffer", { value: async () => ezBytes.slice().buffer });
+    }
+    let posted: { name: string; z: string } | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: unknown, init?: RequestInit) => {
+        posted = JSON.parse(String(init?.body));
+        return new Response(
+          JSON.stringify({ key: KEY, example: { ...HARNESS_EXAMPLE, name: KEY, label: "loop" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }),
+    );
+    const opened = await openDeckFile(file);
+    expect(posted).not.toBeNull();
+    expect(posted!.name).toBe("loop.ez");
+    expect(Array.from(await inflateBytes(posted!.z))).toEqual(Array.from(ezBytes));
+    expect(opened.key).toBe(KEY);
   });
 });

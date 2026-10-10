@@ -1,7 +1,8 @@
-// Opened decks (AC6LA, QRZ 1005128 #40/#42): a visitor's own .nec / .ssn / .maa,
-// studied in the workbench with nothing installed, and shared by its link.
+// Opened decks (AC6LA, QRZ 1005128 #40/#42): a visitor's own .nec / .ssn / .maa
+// / .ez, studied in the workbench with nothing installed, and shared by its link.
 //
-// The deck travels as its TEXT, never parsed here. The browser compresses it
+// The deck travels as its TEXT, never parsed here -- an EZNEC .ez, which is
+// binary, as its BYTES (AK#1958). The browser compresses it
 // (CompressionStream "deflate-raw", base64url) into the page's address,
 // `?deck=<z>&name=<file name>`, and POSTs it to /deck, which parses it with the
 // same importer `@path` uses and answers with the design key
@@ -125,7 +126,13 @@ async function drain(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
 
 /** A deck's text as the link carries it: deflate-raw, base64url. */
 export async function compressDeck(text: string): Promise<string> {
-  const bytes = new TextEncoder().encode(text);
+  return compressBytes(new TextEncoder().encode(text));
+}
+
+/** A file's bytes as the link carries them (a binary .ez, AK#1958): the same
+ *  deflate-raw + base64url as a text deck, with no text encoding between. The
+ *  server reads an .ez's payload as bytes. */
+export async function compressBytes(bytes: Uint8Array): Promise<string> {
   const input = new ReadableStream<BufferSource>({
     start(c) {
       c.enqueue(bytes);
@@ -201,9 +208,16 @@ export async function readDesignFile(file: File): Promise<string> {
   return file.text();
 }
 
-/** Read a chosen file and open it: the browser reads the text, nothing
- *  parses it here. */
+/** Whether a file name is an EZNEC .ez model, which travels as bytes. */
+export const isBinaryDesign = (name: string): boolean => /\.ez$/i.test(name);
+
+/** Read a chosen file and open it: the browser reads the text (an .ez's
+ *  bytes), nothing parses it here. */
 export async function openDeckFile(file: File): Promise<OpenedDeck> {
+  if (isBinaryDesign(file.name)) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    return openDeck({ name: file.name, z: await compressBytes(bytes) });
+  }
   const text = await readDesignFile(file);
   return openDeck({ name: file.name, z: await compressDeck(text) });
 }

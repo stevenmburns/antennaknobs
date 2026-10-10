@@ -1,0 +1,39 @@
+EZNEC models used as test fixtures by tests/test_ez_import_1958.py (AK#1958).
+
+Copied byte for byte from https://github.com/lonney9/Antenna-Models at
+commit 5771ee094d842eb32c38494fb0f2a31ecaff4179, under that repository's
+MIT licence, which follows. They are EZNEC-written files, so they check the
+.ez reader against bytes EZNEC itself wrote rather than against this repo's
+own test writer. They are binary (.gitattributes keeps git from touching them).
+
+sha256                                                            source path
+7ad0c9571ebe14978a4a0ae35fe6fb5bcb7111fceca48f84bde7716af4024503  HF/Dipole/40m/40m-Dipole.ez
+57c91eb04575187b067c3cdc856df7d93c7780dcda27025ec3b6cc983ce79227  HF/Phased-Array/Dipole/20m-Dipoles-CF-2El/20m-2-Dipoles-1-CF.ez
+8ce96512e2f86e408e23871f1d61ce16c08e50e63cf1c014d6ffbf9f6687c5d1  HF/Phased-Array/Vertical/40m_W6NBC/W6NBC_40m_Vert_2El_OVF.ez
+d1c3adcbe99968f054c49ed7701b6ed79e62ccf2b193db7c98ab89827ced1065  HF/Basic/Basic-NEC5-DLoop-Vert-Inv.ez
+921947239da0bce1d87478570391b2e1b2bd37a98ec5ae45b0108abf70a41d4b  HF/Receive-Only/K6STI/K6STI-RX-Loop.ez
+a08c0d9a04ccb72fdbe197be14e3e40249e5bd112869f392127e3afd2d240cd0  HF/Vertical/GP-10m-20m/20m-10m-GP-WA7ARK.ez
+acaa642abf4062e187ce093c8c4a756df04f8ef80803653d26f2e850562f425c  HF/Basic/Basic-NEC5-Dipole-40m.ez
+
+---------------------------------------------------------------------------
+MIT License
+
+Copyright (c) 2024 Lonney
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
