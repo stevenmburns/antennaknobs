@@ -212,6 +212,13 @@ export type SolveResponse = {
    *  first). Absent for designs with no network or a multi-feed drive. */
   plane?: string;
   planes?: string[];
+  /** The picker's display name for each plane the design labels (absent:
+   *  the port names). */
+  plane_labels?: Record<string, string>;
+  /** The circle the design highlights on the Smith chart at this solve's
+   *  plane: "r" (R = Z0) or "g" (G = 1/Z0), the circle its tuner's remaining
+   *  part moves the point along. Absent for every design that declares none. */
+  smith_target?: "r" | "g";
   /** Generic design-supplied readout rows (issue #712), rendered by
    *  ReadoutsPanel. Absent for the designs (nearly all of them) that define
    *  no `readout_rows()`, and absent rather than empty when every row a

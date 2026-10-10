@@ -151,3 +151,13 @@ export function smithGrid(zoom: number, z0: number): SmithGrid {
   const lines = [...fine, ...coarse];
   return { r: lines, x: lines, stepOhms: step };
 }
+
+/** A Smith chart target circle: r = 1 (R = Z0) or g = 1 (G = 1/Z0). */
+export type SmithTarget = "r" | "g";
+
+/** The target circle's label in the chart's own Z0: "R = 50 Ω" or
+ *  "G = 20 mS". */
+export function smithTargetLabel(target: SmithTarget, z0: number): string {
+  if (target === "r") return `R = ${Number(z0.toPrecision(4))} Ω`;
+  return `G = ${Number((1000 / z0).toPrecision(3))} mS`;
+}

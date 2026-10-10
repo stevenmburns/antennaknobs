@@ -186,6 +186,9 @@ export function ChartFrequency({ p, f }: { p: ViewRenderProps; f: ChartFrequency
         interactive={p.chartZoom ?? false}
         designKey={p.result?.geometry ?? ""}
         stale={f.stale}
+        target={p.result?.smith_target ?? null}
+        yGrid={p.smithYGrid ?? false}
+        {...(p.onSmithYGridChange ? { onYGridChange: p.onSmithYGridChange } : {})}
         {...(p.chartCurves ? { curves: p.chartCurves } : {})}
         {...(p.chartPins ? { pins: p.chartPins } : {})}
       />
@@ -255,6 +258,9 @@ export function ChartKnobSmith({ p }: { p: ViewRenderProps }) {
         interactive={p.chartZoom ?? false}
         designKey={p.result?.geometry ?? ""}
         stale={stale}
+        target={p.result?.smith_target ?? null}
+        yGrid={p.smithYGrid ?? false}
+        {...(p.onSmithYGridChange ? { onYGridChange: p.onSmithYGridChange } : {})}
         {...(p.chartCurves ? { curves: p.chartCurves } : {})}
         {...(p.chartPins ? { pins: p.chartPins } : {})}
       />

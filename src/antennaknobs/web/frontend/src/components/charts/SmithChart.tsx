@@ -13,6 +13,8 @@ import {
   isZoomed,
   panBy,
   screenToGamma,
+  type SmithTarget,
+  smithTargetLabel,
   type SmithView,
   smithGrid,
   zoomAbout,
@@ -57,6 +59,9 @@ export function SmithChart({
   stale = false,
   curves = NO_CURVES,
   pins = NO_PINS,
+  target = null,
+  yGrid = false,
+  onYGridChange,
 }: {
   r: number;
   x: number;
@@ -136,6 +141,19 @@ export function SmithChart({
    *  step 5 unit 3). It dims; the current-Z marker, which follows every
    *  solve, does not. */
   stale?: boolean;
+  /** A circle the design asks to highlight at the solve's measurement plane
+   *  (the solve's `smith_target`): "r", the constant-resistance circle
+   *  through the centre (r = 1, R = Z0), or "g", the constant-conductance
+   *  one (g = 1, G = 1/Z0) — the circle an L network's remaining part moves
+   *  the point along. In the chart's own normalisation, so it follows a
+   *  user Z0 override. Null or omitted: none. */
+  target?: SmithTarget | null;
+  /** Draw the admittance grid (constant-G circles and constant-B arcs, the
+   *  Z grid mirrored through the centre) under the impedance grid. */
+  yGrid?: boolean;
+  /** The admittance-grid toggle (stage only): given, the chart shows its
+   *  "Y" button. */
+  onYGridChange?: (on: boolean) => void;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -327,6 +345,42 @@ export function SmithChart({
     }
     ctx.restore();
 
+    // The admittance grid (optional): the impedance grid mirrored through
+    // the centre, Γ → −Γ, since y = 1/z. Constant-g circles: centre
+    // (−g/(g+1), 0), radius 1/(g+1); constant-b arcs: centre (−1, ∓1/b),
+    // radius 1/|b|, capacitive (b > 0) below the axis. Zoomed, smithGrid on
+    // the chart's Y0 in mS gives round-millisiemens steps. Its own lighter,
+    // dashed ink so the two grids read apart; no labels, the Z grid's ruler
+    // stays the one that reads.
+    if (yGrid) {
+      const yg = smithGrid(view.zoom, z0 > 0 ? 1000 / z0 : 0);
+      ctx.save();
+      clipDisc();
+      ctx.strokeStyle = PC.gridY;
+      ctx.lineWidth = 0.6;
+      ctx.setLineDash([3, 3]);
+      for (const { n: gn } of yg.r) {
+        const c = S(-gn / (gn + 1), 0);
+        const rad = Rz / (gn + 1);
+        if (!circleOnScreen(c.x, c.y, rad)) continue;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, rad, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+      for (const { n: bn } of yg.x) {
+        const rad = Rz / bn;
+        for (const sgn of [1, -1]) {
+          const c = S(-1, sgn / bn);
+          if (!circleOnScreen(c.x, c.y, rad)) continue;
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, rad, 0, 2 * Math.PI);
+          ctx.stroke();
+        }
+      }
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
     // Real axis
     ctx.strokeStyle = PC.axis;
     ctx.lineWidth = 0.8;
@@ -396,6 +450,42 @@ export function SmithChart({
         if (m.y < lastBottom) continue;
         ctx.fillText(m.t, m.x + 3, m.y + 3);
         lastBottom = m.y + 12;
+      }
+    }
+
+    // The design's target circle (the solve's smith_target): r = 1 or g = 1,
+    // both through the centre, radius 1/2. Heavier and in its own colour,
+    // over the grids and under every locus and marker. Labelled at its
+    // topmost visible point, so the label stays on screen when zoomed.
+    if (target) {
+      const gc = target === "r" ? 0.5 : -0.5;
+      const c = S(gc, 0);
+      const rad = Rz / 2;
+      if (circleOnScreen(c.x, c.y, rad)) {
+        ctx.save();
+        clipDisc();
+        ctx.strokeStyle = PC.target;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, rad, 0, 2 * Math.PI);
+        ctx.stroke();
+        ctx.restore();
+        const txt = smithTargetLabel(target, z0);
+        ctx.font = CHART_FONT.label;
+        const w = ctx.measureText(txt).width;
+        let best: { x: number; y: number } | null = null;
+        for (let i = 0; i < 96; i++) {
+          const t = (2 * Math.PI * i) / 96;
+          const gRe = gc + 0.5 * Math.cos(t);
+          const gIm = 0.5 * Math.sin(t);
+          const q = S(gRe, gIm);
+          if (q.x < 4 || q.x + w + 8 > sz || q.y < 30 || q.y > sz - 30) continue;
+          if (!best || q.y < best.y) best = q;
+        }
+        if (best) {
+          ctx.fillStyle = PC.target;
+          ctx.fillText(txt, best.x + 4, best.y - 5);
+        }
       }
     }
 
@@ -1085,7 +1175,7 @@ export function SmithChart({
     // and `trialWorstFeed` likewise carry the whole per-eval picture (#789):
     // r/x still change every frame on a multi-feed run, but they are only
     // feed 0, so a run where feed 0 sat still would freeze every ring.
-  }, [r, x, z0, size, sz, k, sweep, paramSweep, measured, measFreqMhz, running, progress, paramSweepRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, trialBands, theme, view, stale, curves, pins]);
+  }, [r, x, z0, size, sz, k, sweep, paramSweep, measured, measFreqMhz, running, progress, paramSweepRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, trialBands, theme, view, stale, curves, pins, target, yGrid]);
 
   // data-connect mirrors the trail mode (locus vs. dot cloud) for tests —
   // canvas pixels are invisible to jsdom, the attribute is not (the same
@@ -1101,6 +1191,8 @@ export function SmithChart({
       data-progress={sweepProgressAttr(progress)}
       data-phase={phase}
       data-zoom={String(view.zoom)}
+      data-target={target ?? ""}
+      data-ygrid={yGrid ? "1" : "0"}
       data-curves={curvesAttr(curves)}
       data-pins={pinsAttr(pins)}
       // The band run's markers for tests: "MHz:trail[:off]" per band, the
@@ -1157,6 +1249,22 @@ export function SmithChart({
   return (
     <div className="smith-chart" style={{ width: size, height: size }}>
       {canvas}
+      {onYGridChange && (
+        <button
+          type="button"
+          className={`smith-ygrid-btn${yGrid ? " active" : ""}`}
+          aria-pressed={yGrid}
+          aria-label="Admittance grid"
+          title={
+            yGrid
+              ? "Hide the admittance grid (constant G circles, constant B arcs)"
+              : "Show the admittance grid (constant G circles, constant B arcs)"
+          }
+          onClick={() => onYGridChange(!yGrid)}
+        >
+          Y
+        </button>
+      )}
       {zoomed && (
         <div className="schematic-zoom smith-zoom" role="group" aria-label="Smith chart zoom">
           <span className="smith-zoom-level" title={step != null ? `Grid every ${step} Ω` : undefined}>

@@ -207,7 +207,7 @@ export function SolveReadout({
           >
             {planes.map((p) => (
               <option key={p} value={p}>
-                {p}
+                {result?.plane_labels?.[p] ?? p}
               </option>
             ))}
           </select>

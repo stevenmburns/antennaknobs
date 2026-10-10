@@ -74,6 +74,10 @@ export type ViewRenderProps = {
    *  true; thumbnails omit it and draw the whole chart, unzoomed — a thumb is
    *  a button. (`fill` cannot say this: the Smith chart never fills.) */
   chartZoom?: boolean;
+  /** The Smith chart's admittance grid (a view pref), and its toggle (stage
+   *  only: a thumbnail draws the grid but offers no button). */
+  smithYGrid?: boolean;
+  onSmithYGridChange?: (on: boolean) => void;
   showHeatmap: boolean;
   showEnvelope: boolean;
   showWireLabels: boolean;

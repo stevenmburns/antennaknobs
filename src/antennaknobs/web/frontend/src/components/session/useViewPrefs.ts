@@ -93,6 +93,9 @@ type ViewPrefs = {
   // old id. A flip of the chart's view is session-only and never writes it;
   // unpinning the chart clears it. Written only when it is not "Smith".
   chartView: FrequencyView;
+  // The Smith chart's admittance grid: on or off (default). Written only
+  // when on.
+  smithYGrid: boolean;
 };
 
 const KNOWN = new Set<string>(VIEWS.map((v) => v.id));
@@ -196,6 +199,7 @@ function defaultPrefs(): ViewPrefs {
     sweepAxes: DEFAULT_AXES,
     swrThreshold: DEFAULT_SWR_THRESHOLD,
     chartView: "Smith",
+    smithYGrid: false,
   };
 }
 
@@ -230,6 +234,8 @@ function parseStoredPrefs(raw: string): ViewPrefs | null {
           // A removed id in the pins decides it; else what the last write
           // kept (a record already migrated).
           chartView: migrated.view ?? sanitizeChartView(rec.chartView),
+          // Only the literal true turns it on.
+          smithYGrid: rec.smithYGrid === true,
         };
       }
     }
@@ -312,6 +318,7 @@ function update(next: ViewPrefs): void {
             ? undefined
             : next.swrThreshold,
         chartView: next.chartView === "Smith" ? undefined : next.chartView,
+        smithYGrid: next.smithYGrid ? true : undefined,
       }),
     );
   } catch {
@@ -507,6 +514,7 @@ export function useViewPrefs() {
     sweepAxes,
     swrThreshold,
     chartView,
+    smithYGrid,
   } = prefs;
 
   // Views the user has never been offered. Seeded (not empty) on a first run,
@@ -629,6 +637,14 @@ export function useViewPrefs() {
     update({ ...cur, swrThreshold: next });
   }, []);
 
+  // The Smith chart's admittance grid. An unchanged value keeps snapshot
+  // identity, as setLayout does.
+  const setSmithYGrid = useCallback((on: boolean) => {
+    const cur = getSnapshot();
+    if (cur.smithYGrid === on) return;
+    update({ ...cur, smithYGrid: on });
+  }, []);
+
   return {
     pinned,
     seen,
@@ -648,5 +664,7 @@ export function useViewPrefs() {
     swrThreshold,
     setSwrThreshold,
     chartView,
+    smithYGrid,
+    setSmithYGrid,
   };
 }

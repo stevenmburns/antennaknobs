@@ -106,6 +106,8 @@
   --plot-nec-rgb: 47, 95, 176;        /* NEC overlay (blueprint blue) */
   --plot-elev-rgb: 47, 95, 176;       /* combined view's elevation cut */
   --plot-threshold-rgb: 38, 140, 84;  /* sweep charts' SWR threshold + band (AK#1738) */
+  --plot-grid-y: #ecd2c6;      /* Smith chart's admittance grid (dashed) */
+  --plot-target: #cc4f17;      /* Smith chart's design target circle */
   --plot-r-rgb: 200, 50, 50;    /* Z-vs-parameter chart: R (left axis) */
   --plot-x-rgb: 40, 90, 200;    /* Z-vs-parameter chart: X (right axis) */
   --plot-ground-rgb: 150, 116, 70;    /* ground line (brown) */
@@ -194,6 +196,8 @@
   --plot-nec-rgb: 110, 220, 255;
   --plot-elev-rgb: 110, 220, 255;
   --plot-threshold-rgb: 110, 210, 140;
+  --plot-grid-y: #4a3a34;
+  --plot-target: #ff8a5c;
   --plot-r-rgb: 255, 110, 110;
   --plot-x-rgb: 118, 170, 255;
   --plot-ground-rgb: 140, 110, 70;
@@ -4613,6 +4617,31 @@ div.opt-bands-readout {
 .smith-chart .smith:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* The admittance-grid toggle, top right of the stage's Smith chart. */
+.smith-ygrid-btn {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 2;
+  min-width: 2em;
+  padding: var(--space-1) var(--space-2);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--muted);
+  font: var(--text-sm) var(--font-mono);
+  cursor: pointer;
+}
+
+.smith-ygrid-btn:hover {
+  color: var(--fg);
+}
+
+.smith-ygrid-btn.active {
+  color: var(--accent);
+  background: var(--accent-active);
 }
 
 .smith-zoom {
