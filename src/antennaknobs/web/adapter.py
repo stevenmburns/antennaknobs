@@ -5469,14 +5469,19 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
 
     def momwire_sweep(req: dict, freqs_mhz: list[float], cancel=None):
         builder = _build_builder(cls, req)
-        # MomwireEngine reads builder.freq only for the initial wavelength
-        # passed to _make_solver — impedance_sweep overrides k per point.
-        builder.freq = float(freqs_mhz[0]) if freqs_mhz else float(builder.freq)
-        # Geometry is fixed across the sweep; honour the request's
-        # design_freq so the sweep sees the same antenna the live
-        # solve sees. See momwire_solve for the rationale.
+        # Built at the request's own measurement frequency, as the live
+        # solve and `momwire_bands` are, the same whichever chunk of the
+        # sweep this is: impedance_sweep overrides k per point, but a design
+        # that reads freq for anything else (a self-tuning tuner that tunes
+        # at ``freq``) would otherwise be rebuilt per CHUNK at that chunk's
+        # first frequency, retuning at each and drawing a curve that depends
+        # on the chunking. Geometry is fixed across the sweep; honour the
+        # request's design_freq so the sweep sees the same antenna the live
+        # solve sees.
+        design_freq, meas_freq = _req_freqs(req)
+        builder.freq = meas_freq
         if has_design_freq:
-            builder.design_freq = _req_freqs(req)[0]
+            builder.design_freq = design_freq
         # A sweep at a picked plane sweeps THAT plane's impedance — the
         # curve the measured overlay lands on (issue #652 c).
         _apply_plane(builder, req)
