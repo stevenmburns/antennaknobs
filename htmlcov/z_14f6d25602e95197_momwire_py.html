@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/antennaknobs/engines/momwire.py: 96%</title>
+    <title>Coverage for src/antennaknobs/engines/momwire.py: 97%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_4667309f.css" type="text/css">
     <script src="coverage_html_cb_15cffcd0.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src<span class="sep">/</span>antennaknobs<span class="sep">/</span>engines<span class="sep">/</span>momwire.py</b>:
-            <span class="pc_cov">96%</span>
+            <span class="pc_cov">97%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">1018 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">979<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">39<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">983<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">35<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_14f6d25602e95197_nec2_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.1">coverage.py v7.16.1</a>,
-            created at 2026-10-10 03:13 +0000
+            created at 2026-10-10 23:24 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -541,14 +541,14 @@
     <p class="pln"><span class="n"><a id="t459" href="#t459">459</a></span><span class="t"><span class="str">    momwire) that does not serve it.&quot;&quot;&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t460" href="#t460">460</a></span><span class="t">    <span class="nam">name</span> <span class="op">=</span> <span class="nam">getattr</span><span class="op">(</span><span class="nam">solver_cls</span><span class="op">,</span> <span class="str">&quot;__name__&quot;</span><span class="op">,</span> <span class="nam">str</span><span class="op">(</span><span class="nam">solver_cls</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t461" href="#t461">461</a></span><span class="t">    <span class="key">if</span> <span class="str">&quot;auto&quot;</span> <span class="key">not</span> <span class="key">in</span> <span class="nam">getattr</span><span class="op">(</span><span class="nam">BSplineSolver</span><span class="op">,</span> <span class="str">&quot;EXACT_KERNEL_CHOICES&quot;</span><span class="op">,</span> <span class="op">(</span><span class="op">)</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t462" href="#t462">462</a></span><span class="t">        <span class="key">return</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t463" href="#t463">463</a></span><span class="t">            <span class="str">&quot;the exact ring kernel needs a momwire release with &quot;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t464" href="#t464">464</a></span><span class="t">            <span class="str">&quot;exact_kernel=&#x27;auto&#x27; (momwire#1408); this momwire has none&quot;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t465" href="#t465">465</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t466" href="#t466">466</a></span><span class="t">    <span class="key">return</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t467" href="#t467">467</a></span><span class="t">        <span class="fst">f&quot;</span><span class="fst">the exact ring kernel is served by the B-spline basis only </span><span class="fst">&quot;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t468" href="#t468">468</a></span><span class="t">        <span class="fst">f&quot;</span><span class="fst">(momwire#1408); </span><span class="op">{</span><span class="nam">name</span><span class="op">}</span><span class="fst"> does not serve it</span><span class="fst">&quot;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t469" href="#t469">469</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t462" href="#t462">462</a></span><span class="t">        <span class="key">return</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t463" href="#t463">463</a></span><span class="t">            <span class="str">&quot;the exact ring kernel needs a momwire release with &quot;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t464" href="#t464">464</a></span><span class="t">            <span class="str">&quot;exact_kernel=&#x27;auto&#x27; (momwire#1408); this momwire has none&quot;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t465" href="#t465">465</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t466" href="#t466">466</a></span><span class="t">    <span class="key">return</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t467" href="#t467">467</a></span><span class="t">        <span class="fst">f&quot;</span><span class="fst">the exact ring kernel is served by the B-spline basis only </span><span class="fst">&quot;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t468" href="#t468">468</a></span><span class="t">        <span class="fst">f&quot;</span><span class="fst">(momwire#1408); </span><span class="op">{</span><span class="nam">name</span><span class="op">}</span><span class="fst"> does not serve it</span><span class="fst">&quot;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t469" href="#t469">469</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t470" href="#t470">470</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t471" href="#t471">471</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t472" href="#t472">472</a></span><span class="t"><span class="key">def</span> <span class="nam">_node_gaps_refusal</span><span class="op">(</span><span class="nam">solver_cls</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -1864,7 +1864,7 @@
     <p class="run"><span class="n"><a id="t1782" href="#t1782">1782</a></span><span class="t">        <span class="nam">out</span> <span class="op">=</span> <span class="op">{</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1783" href="#t1783">1783</a></span><span class="t">        <span class="nam">exact</span> <span class="op">=</span> <span class="nam">getattr</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="str">&quot;_exact_kernel&quot;</span><span class="op">,</span> <span class="key">None</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1784" href="#t1784">1784</a></span><span class="t">        <span class="key">if</span> <span class="nam">exact</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1785" href="#t1785">1785</a></span><span class="t">            <span class="nam">out</span><span class="op">[</span><span class="str">&quot;exact_kernel&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="nam">exact</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1785" href="#t1785">1785</a></span><span class="t">            <span class="nam">out</span><span class="op">[</span><span class="str">&quot;exact_kernel&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="nam">exact</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1786" href="#t1786">1786</a></span><span class="t">        <span class="nam">ek</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_extended_kernel</span> <span class="key">if</span> <span class="nam">extended_kernel</span> <span class="key">is</span> <span class="key">None</span> <span class="key">else</span> <span class="nam">bool</span><span class="op">(</span><span class="nam">extended_kernel</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1787" href="#t1787">1787</a></span><span class="t">        <span class="key">if</span> <span class="key">not</span> <span class="nam">ek</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1788" href="#t1788">1788</a></span><span class="t">            <span class="key">return</span> <span class="nam">out</span>&nbsp;</span><span class="r"></span></p>
@@ -1882,7 +1882,7 @@
     <p class="run"><span class="n"><a id="t1800" href="#t1800">1800</a></span><span class="t">        <span class="nam">seen</span> <span class="op">=</span> <span class="nam">getattr</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="str">&quot;_exact_kernel_seen&quot;</span><span class="op">,</span> <span class="key">None</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1801" href="#t1801">1801</a></span><span class="t">        <span class="key">if</span> <span class="key">not</span> <span class="nam">seen</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1802" href="#t1802">1802</a></span><span class="t">            <span class="key">return</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1803" href="#t1803">1803</a></span><span class="t">        <span class="key">return</span> <span class="key">True</span> <span class="key">in</span> <span class="nam">seen</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1803" href="#t1803">1803</a></span><span class="t">        <span class="key">return</span> <span class="key">True</span> <span class="key">in</span> <span class="nam">seen</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1804" href="#t1804">1804</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1805" href="#t1805">1805</a></span><span class="t">    <span class="op">@</span><span class="nam">property</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1806" href="#t1806">1806</a></span><span class="t">    <span class="key">def</span> <span class="nam">kernel_ran</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -1890,7 +1890,7 @@
     <p class="pln"><span class="n"><a id="t1808" href="#t1808">1808</a></span><span class="t"><span class="str">        &quot;exact&quot; (ring kernel on coaxial pairs, the extended or reduced one</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1809" href="#t1809">1809</a></span><span class="t"><span class="str">        across bends and between wires), &quot;extended&quot; or &quot;reduced&quot;.&quot;&quot;&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1810" href="#t1810">1810</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">exact_kernel_ran</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1811" href="#t1811">1811</a></span><span class="t">            <span class="key">return</span> <span class="str">&quot;exact&quot;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1811" href="#t1811">1811</a></span><span class="t">            <span class="key">return</span> <span class="str">&quot;exact&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1812" href="#t1812">1812</a></span><span class="t">        <span class="key">return</span> <span class="str">&quot;extended&quot;</span> <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_extended_kernel</span> <span class="key">else</span> <span class="str">&quot;reduced&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1813" href="#t1813">1813</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1814" href="#t1814">1814</a></span><span class="t">    <span class="key">def</span> <span class="nam">_make_solver</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -1975,7 +1975,7 @@
     <p class="run run2"><span class="n"><a id="t1893" href="#t1893">1893</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1894" href="#t1894">1894</a></span><span class="t">        <span class="nam">solver</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_solver</span><span class="op">(</span><span class="op">**</span><span class="nam">kwargs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1895" href="#t1895">1895</a></span><span class="t">        <span class="key">if</span> <span class="str">&quot;exact_kernel&quot;</span> <span class="key">in</span> <span class="nam">kwargs</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1896" href="#t1896">1896</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">_exact_kernel_seen</span><span class="op">.</span><span class="nam">add</span><span class="op">(</span><span class="nam">bool</span><span class="op">(</span><span class="nam">getattr</span><span class="op">(</span><span class="nam">solver</span><span class="op">,</span> <span class="str">&quot;exact_kernel&quot;</span><span class="op">,</span> <span class="key">False</span><span class="op">)</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1896" href="#t1896">1896</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">_exact_kernel_seen</span><span class="op">.</span><span class="nam">add</span><span class="op">(</span><span class="nam">bool</span><span class="op">(</span><span class="nam">getattr</span><span class="op">(</span><span class="nam">solver</span><span class="op">,</span> <span class="str">&quot;exact_kernel&quot;</span><span class="op">,</span> <span class="key">False</span><span class="op">)</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1897" href="#t1897">1897</a></span><span class="t">        <span class="key">if</span> <span class="nam">share_z</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1898" href="#t1898">1898</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">_share_z_fill</span><span class="op">(</span><span class="nam">solver</span><span class="op">,</span> <span class="nam">_z_fill_key</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_solver</span><span class="op">,</span> <span class="nam">kwargs</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1899" href="#t1899">1899</a></span><span class="t">        <span class="key">return</span> <span class="nam">solver</span>&nbsp;</span><span class="r"></span></p>
@@ -3043,7 +3043,7 @@
             <a class="nav" href="z_14f6d25602e95197_nec2_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.1">coverage.py v7.16.1</a>,
-            created at 2026-10-10 03:13 +0000
+            created at 2026-10-10 23:24 +0000
         </p>
     </div>
 </footer>
