@@ -174,6 +174,10 @@ export type SolveResponse = {
    *  readout's ground row shows this rather than re-deriving it from
    *  backend + groundType state. */
   ground_model_applied?: string;
+  /** The kernel that RAN on a momwire solve (momwire#1408): "exact" when the
+   *  exact ring kernel engaged on coaxial pairs ("auto" resolved on, or "on"),
+   *  else "extended" or "reduced". Absent on other engines. */
+  kernel?: "exact" | "extended" | "reduced" | null;
   /** Array Block solver diagnostics (issue #613): which coupling path the
    *  last solve actually used. Only the Array Block engine populates this —
    *  every other engine/model leaves it absent, and the Info panel omits

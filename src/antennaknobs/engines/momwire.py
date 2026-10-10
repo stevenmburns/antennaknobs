@@ -411,6 +411,64 @@ def _extended_kernel_refusal(solver, solver_kwargs):
     return _capability_refusal(solver, "extended_kernel")
 
 
+# The exact ring kernel (momwire#1408): the user's spellings and what each
+# asks momwire for. None is "not said", which the engine resolves to "auto"
+# where the basis serves it (the server owns the default, decision
+# 2026-10-02) and to nothing at all where it does not.
+EXACT_KERNEL_CHOICES = ("auto", "on", "off")
+_EXACT_KERNEL_ASKS = {
+    None: None,
+    "auto": "auto",
+    "on": True,
+    "off": False,
+    True: True,
+    False: False,
+}
+
+
+def exact_kernel_served(solver_cls) -> bool:
+    """Whether ``solver_cls`` takes ``exact_kernel="auto"`` (momwire#1408).
+
+    PROBED AS A FEATURE, never as a version, on `_backend_axes`' precedent:
+    the submodule pointer and the PyPI pin can declare the same version with
+    and without the option. ``EXACT_KERNEL_CHOICES`` is the public capability
+    momwire declares; ``_serves_exact_kernel`` is False on the H-matrix and
+    array subclasses, which inherit the constructor but refuse the kernel.
+    """
+    return "auto" in getattr(solver_cls, "EXACT_KERNEL_CHOICES", ()) and bool(
+        getattr(solver_cls, "_serves_exact_kernel", False)
+    )
+
+
+def normalize_exact_kernel(value):
+    """The user's exact-kernel choice as momwire's value: None (not said),
+    "auto", True or False. Raises ValueError on anything else."""
+    if isinstance(value, str):
+        value = value.strip().lower()
+    try:
+        return _EXACT_KERNEL_ASKS[value]
+    except (KeyError, TypeError):
+        raise ValueError(
+            f"exact_kernel must be one of {', '.join(EXACT_KERNEL_CHOICES)} "
+            f"(got {value!r})"
+        ) from None
+
+
+def exact_kernel_refusal(solver_cls) -> str:
+    """The sentence an explicit exact-kernel request meets on a basis (or a
+    momwire) that does not serve it."""
+    name = getattr(solver_cls, "__name__", str(solver_cls))
+    if "auto" not in getattr(BSplineSolver, "EXACT_KERNEL_CHOICES", ()):
+        return (
+            "the exact ring kernel needs a momwire release with "
+            "exact_kernel='auto' (momwire#1408); this momwire has none"
+        )
+    return (
+        f"the exact ring kernel is served by the B-spline basis only "
+        f"(momwire#1408); {name} does not serve it"
+    )
+
+
 def _node_gaps_refusal(solver_cls):
     """Why `solver_cls` cannot take `node_gaps=`, or None — straight from
     momwire's own row, same as `_extended_kernel_refusal` (antennaknobs#1264).
@@ -978,6 +1036,7 @@ class MomwireEngine(SimulationEngine):
         ground_z=0.0,
         extended_kernel=False,
         extended_kernel_default=False,
+        exact_kernel=None,
         cancel=None,
     ):
         """
@@ -1031,6 +1090,20 @@ class MomwireEngine(SimulationEngine):
           a radius step at a junction — and then the reduced kernel, with an
           "ExtendedKernel" advisory naming the refusal. Ignored when
           `extended_kernel` is on, which still refuses.
+        exact_kernel:
+          The exact ring kernel on coaxial pairs (momwire#1408): "auto",
+          "on" or "off" (True/False accepted). None — not said — is "auto"
+          wherever the basis serves it (the B-spline basis on a momwire that
+          declares ``EXACT_KERNEL_CHOICES``) and nothing at all elsewhere, so
+          an older momwire and every other basis solve exactly as before.
+          "auto" engages where some segment is shorter than 3 radii and the
+          route serves the kernel (not buried, not enrichment, not the sector
+          route); the pairs across a bend keep the kernel ``extended_kernel``
+          selects, a ~1e-4 relative step at a = 50 mm (momwire#1413). "on" or
+          "auto" asked of a basis that does not serve it is refused HERE, by
+          name; "off" is always satisfied. ``solver_kwargs={"exact_kernel":
+          ...}`` is folded into this option. What ran is
+          ``exact_kernel_ran``.
         ground:
           None or "free"           — no ground (default)
           "pec"                    — PEC plane at z=ground_z (image method)
@@ -1083,6 +1156,22 @@ class MomwireEngine(SimulationEngine):
         ) or bool(extended_kernel)
         if self._extended_kernel:
             self._require_extended_kernel()
+        # The exact ring kernel (momwire#1408), folded the same way.
+        asked_exact = normalize_exact_kernel(
+            self._solver_kwargs.pop("exact_kernel", None)
+        )
+        if exact_kernel is not None:
+            asked_exact = normalize_exact_kernel(exact_kernel)
+        served = exact_kernel_served(self._solver)
+        if asked_exact in (True, "auto") and not served:
+            raise NotImplementedError(exact_kernel_refusal(self._solver))
+        # momwire's value to pass, or None to pass nothing: off is momwire's
+        # own default, so an off solve passes exactly what it did before.
+        self._exact_kernel = (
+            ("auto" if asked_exact is None else asked_exact or None) if served else None
+        )
+        # What each constructed solver resolved to (`exact_kernel_ran`).
+        self._exact_kernel_seen = set()
         # Per-instance parity: sinusoidal wants odd, bspline depends on
         # degree. Set before _coerce_wire_tuples runs.
         self.segment_parity = _parity_for_solver(self._solver, self._solver_kwargs)
@@ -1690,11 +1779,37 @@ class MomwireEngine(SimulationEngine):
         ``extended_kernel=False`` so a kernel-off solve keeps passing exactly
         the kwargs it passed before momwire 0.26.0.
         """
+        out = {}
+        exact = getattr(self, "_exact_kernel", None)
+        if exact is not None:
+            out["exact_kernel"] = exact
         ek = self._extended_kernel if extended_kernel is None else bool(extended_kernel)
         if not ek:
-            return {}
+            return out
         self._require_extended_kernel()
-        return {"extended_kernel": True}
+        out["extended_kernel"] = True
+        return out
+
+    @property
+    def exact_kernel_ran(self):
+        """Whether the exact ring kernel ran (momwire#1408): True when any
+        solver this engine built resolved it on, False when solvers were
+        built and none did, None when this basis or this momwire has no such
+        kernel, or nothing has been built yet. Read from the solver's own
+        resolved ``exact_kernel``, so "auto" reports what it became."""
+        seen = getattr(self, "_exact_kernel_seen", None)
+        if not seen:
+            return None
+        return True in seen
+
+    @property
+    def kernel_ran(self):
+        """The kernel the last solves used, in words a readout can print:
+        "exact" (ring kernel on coaxial pairs, the extended or reduced one
+        across bends and between wires), "extended" or "reduced"."""
+        if self.exact_kernel_ran:
+            return "exact"
+        return "extended" if self._extended_kernel else "reduced"
 
     def _make_solver(
         self,
@@ -1777,6 +1892,8 @@ class MomwireEngine(SimulationEngine):
             **self._solver_kwargs,
         )
         solver = self._solver(**kwargs)
+        if "exact_kernel" in kwargs:
+            self._exact_kernel_seen.add(bool(getattr(solver, "exact_kernel", False)))
         if share_z:
             self._share_z_fill(solver, _z_fill_key(self._solver, kwargs))
         return solver

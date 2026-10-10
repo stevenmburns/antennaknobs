@@ -118,7 +118,9 @@ except ImportError:
     PyNECEngine = None
     DEFAULT_GROUND = ("finite", 13.0, 0.005)
 from antennaknobs.engines.momwire import (
+    EXACT_KERNEL_CHOICES,
     MomwireEngine,
+    exact_kernel_served,
     _ends_in_the_plane,
     _solver_supports_ground_eps,
     split_wires_at_plane,
@@ -654,7 +656,9 @@ def backend_roster(
             # _a_surface, #1006) even though only bspline's own
             # `solve_strategy` axis ever contains "sector".
             "model_kwargs": list(b.model_kwargs)
-            + (["rotational_symmetry"] if _offers_rotational_symmetry(b) else []),
+            + (["rotational_symmetry"] if _offers_rotational_symmetry(b) else [])
+            # momwire#1408: the same live-probe exposure, for the same reason.
+            + (["exact_kernel"] if _offers_exact_kernel(b) else []),
             # Axis -> the value this preset pins it to (#1006 G2-7).
             "bound_axes": _bound_axes(b),
             "options_schema": [
@@ -834,6 +838,19 @@ def _offers_rotational_symmetry(spec) -> bool:
     if not axes:
         return False
     return "sector" in axes.get("solve_strategy", ())
+
+
+def _offers_exact_kernel(spec) -> bool:
+    """Whether `spec`'s momwire class serves the exact ring kernel
+    (momwire#1408) — the choice on the bspline tab, absent elsewhere.
+
+    A live probe of the installed momwire (`exact_kernel_served`), on
+    `_offers_rotational_symmetry`'s precedent: a momwire predating the
+    option (the submodule pointer and the PyPI pin today) answers False for
+    every backend, so nothing is offered and nothing is sent. The H-matrix
+    and array tabs answer False on a momwire that has it, as their classes
+    refuse the kernel."""
+    return spec.kind == "momwire" and exact_kernel_served(spec.solver)
 
 
 # Fallback only — see `reword_rotational_symmetry_refusal`, which prefers
@@ -1503,6 +1520,24 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
     # engine-side note), but the named kwarg keeps the adapter's intent
     # explicit and is what unit 1 documented at this call site.
     "extended_kernel": _OptionSpec("bool", label="extended kernel (EK)", default=False),
+    # The exact ring kernel on coaxial pairs (momwire#1408), offered on the
+    # bspline tab only and only where the installed momwire serves it
+    # (`_offers_exact_kernel`). "auto" is the server's default: on where some
+    # segment is shorter than 3 radii. A physics selection like the EK card,
+    # so it is on the hosted allowlist.
+    "exact_kernel": _OptionSpec(
+        "enum",
+        values=EXACT_KERNEL_CHOICES,
+        label="exact ring kernel",
+        default="auto",
+        description=(
+            "The exact tube kernel on wires that share a line and a radius, "
+            "at every separation; bends and other wires keep the kernel "
+            "above (a step of ~1e-4 relative across a bend at 50 mm radius, "
+            "momwire#1413). auto turns it on where some segment is shorter "
+            "than 3 radii, where the thin-wire kernels stop converging."
+        ),
+    ),
     # The sector (block-circulant) solve route for a rotationally symmetric
     # radial screen (momwire#1029). Unadvertised on purpose (Steve, #1567
     # thread): a checkbox on the bspline panel, offered only where momwire's
@@ -2925,6 +2960,15 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
             and _offers_rotational_symmetry(backend_spec)
         ):
             solver_kwargs["rotational_symmetry"] = True
+    # The exact ring kernel (momwire#1408): pulled out and passed named, like
+    # the extended kernel. MomwireEngine refuses "on"/"auto" by name where the
+    # basis does not serve it, so a hand-made local request to another tab is
+    # told no rather than silently ignored; absent, the engine runs "auto"
+    # where it is served (the server owns the default).
+    exact_kernel = None
+    if solver_kwargs and "exact_kernel" in solver_kwargs:
+        solver_kwargs = dict(solver_kwargs)
+        exact_kernel = solver_kwargs.pop("exact_kernel")
     if _SWEPT_MEM_MB is not None and issubclass(solver_cls, BSplineSolver):
         # Deployment-owned memory policy (momwire >= 0.9): cap the batched
         # frequency sweep's transient memory per solve. Server-side value
@@ -2943,6 +2987,7 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
         ground=ground,
         extended_kernel=extended_kernel,
         extended_kernel_default=extended_kernel_default,
+        exact_kernel=exact_kernel,
         cancel=cancel,
     )
 
@@ -4707,6 +4752,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "measurement_freq_mhz": meas_freq,
             "lambda_design_m": C_LIGHT / (design_freq * 1e6),
             "solve_ms": solve_ms,
+            # The kernel that RAN (momwire#1408): "exact", "extended" or
+            # "reduced", read off the solver after "auto" resolved.
+            "kernel": eng.kernel_ran,
             "ground": bool(req.get("ground", False)),
             "height_m": 0.0,
             # Ground constants + applied-model label (+ the packed terrain

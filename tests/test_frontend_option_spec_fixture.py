@@ -83,8 +83,14 @@ def test_the_kwarg_tuples_match_what_the_server_measured():
     """The families share tuples on both sides, so this checks the SHARING as
     well as the contents — three separate literals would be the drift."""
     src = ROSTER_FIXTURE.read_text()
+    # `exact_kernel` (momwire#1408) is offered by a live capability probe the
+    # PINNED momwire answers no to, and `backendFixtures.ts` models the pinned
+    # roster. Set aside here so a dev-mode run (a momwire that serves it)
+    # pins the same fixture; `test_exact_kernel_option_1408.py` gates where it
+    # is offered. The pin PR that brings a momwire release carrying it adds it
+    # to `BSPLINE_KWARGS` and drops this filter.
     live = {
-        r["name"]: r["model_kwargs"]
+        r["name"]: [k for k in r["model_kwargs"] if k != "exact_kernel"]
         for r in backend_roster(have_pynec=True, have_nec5=True)
     }
     # The sinusoidal pair no longer shares one tuple: the Galerkin member

@@ -219,6 +219,22 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "shown_when_value": null,
     "description": null
   },
+  "exact_kernel": {
+    "kind": "enum",
+    "label": "exact ring kernel",
+    "default": "auto",
+    "auto_when_null": false,
+    "shown_when": null,
+    "gate_label": null,
+    "gate_on_value": null,
+    "shown_when_value": null,
+    "description": "The exact tube kernel on wires that share a line and a radius, at every separation; bends and other wires keep the kernel above (a step of ~1e-4 relative across a bend at 50 mm radius, momwire#1413). auto turns it on where some segment is shorter than 3 radii, where the thin-wire kernels stop converging.",
+    "values": [
+      "auto",
+      "on",
+      "off"
+    ]
+  },
   "rotational_symmetry": {
     "kind": "bool",
     "label": "rotational symmetry (radial screens)",
