@@ -95,7 +95,7 @@ export function CatalogPanel({
             <input
               type="file"
               accept=".nec,.NEC,.ssn,.SSN,.maa,.MAA,.ez,.EZ"
-              aria-label="open an antenna model (.nec, .ssn or .maa)"
+              aria-label="open an antenna model (.nec, .ssn, .maa or .ez)"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 e.target.value = "";

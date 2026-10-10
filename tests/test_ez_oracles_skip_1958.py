@@ -11,6 +11,7 @@ documented cause.
 
 from __future__ import annotations
 
+import pytest
 import test_ez_oracles_1958 as oracles
 
 
@@ -28,3 +29,17 @@ def test_every_pairing_names_a_tolerance_and_a_file_pair():
         assert ez.lower().endswith(".ez") and ref.lower().endswith(".nec"), name
         assert reading in (None, "nec2", "nec4", "nec5") and isinstance(invert, bool)
         assert 0 < tol <= 5e-3, name
+
+
+@pytest.mark.parametrize("name", sorted(oracles.PAIRS))
+def test_each_pairing_skips_only_when_one_of_its_files_is_absent(name):
+    """`_pair` skips a pairing one at a time; the only reason it may give is
+    a named file that is not there."""
+    ez, ref, *_ = oracles.PAIRS[name]
+    missing = [p for p in (oracles._path(ez), oracles._path(ref)) if not p.is_file()]
+    if not missing:
+        assert oracles._pair(name)[0] == oracles._path(ez)
+        return
+    with pytest.raises(pytest.skip.Exception) as skipped:
+        oracles._pair(name)
+    assert str(skipped.value.msg) == f"{name}: {missing[0]} is not here"
