@@ -29,21 +29,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.100.1" icon="star">
-  **No false efficiency over the MININEC-type ground.** That ground solves the
-  currents over perfect ground and puts the soil in the pattern only, so the
-  readout's **radiated (incl. ground)** row now shows a dash there instead of
-  a ratio that could read over 100 % for a low wire; see
-  [the MININEC-type ground](/reference/web/#the-mininec-type-ground).
+<Card title="New in v0.101.0" icon="star">
+  **Open your EZNEC `.ez` model.** **Open…** a `.ez` on the workbench, or name
+  `@model.ez` on the command line, and it opens like a deck, with no export to
+  `.nec` first; see [EZNEC `.ez` models](/reference/nec-import/#eznec-ez-models).
 
-  From v0.100.0, **choose the cut, and faster SimNEC sweeps.** A pattern family on the
-  **Sweep a knob** chart now has a cut angle: type a bearing or an elevation
-  beside the view menu, or press **at peak**, and the chart's link and
-  **keep** carry it. The pattern table fills its box, clear of the solve
-  readout, and a long readout (a log-periodic's transmission-line rows) stays
-  on screen. momwire 0.75.0 serves SimNEC's multi-port NEC-5 decks with one
-  matrix solve per frequency instead of one per port, and its Windows build
-  runs the SIMD kernels.
+  **Fat wires that converge.** momwire 0.76.0's B-spline basis has an **exact
+  ring kernel** that takes over on its own where a segment is shorter than
+  three radii, where the extended kernel's answer drifts as the mesh is
+  refined; see [the exact ring kernel](/reference/solver/#the-exact-ring-kernel-fat-wires-short-segments).
+
+  **Tune an L network on the Smith chart.** A new design,
+  `wire.doublet_remote_tuner` (WA7ARK's doublet on window line into a remote L
+  tuner), has a plane inside the tuner and draws the circle to turn onto, and
+  the chart's **Y** button adds the admittance grid; see
+  [tuning on the Smith chart](/reference/web/#the-measurement-plane).
 </Card>
 
 ## The whole pitch, in one line
