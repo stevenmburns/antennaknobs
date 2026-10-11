@@ -29,8 +29,17 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.101.0" icon="star">
-  **Open your EZNEC `.ez` model.** **Open…** a `.ez` on the workbench, or name
+<Card title="New in v0.101.1" icon="star">
+  **Sweep a tuner's parts in one pass.** *Sweep this knob…* on a tuner's coil
+  or capacitor now sweeps it log-spaced in 81 points over the part's whole
+  range, so one sweep traces its path on the Smith chart; the command line's
+  `sweep --param` starts from the same. **NEC-5 runs the remote-tuner
+  doublet** and the other floating-gap feeds; see
+  [a doublet into a remote tuner](/advanced/remote-tuner/), a new worked
+  example. The chart's sweep controls **fold to one line** (folded by default
+  on a phone), and the analyses' Python is behind a **py** button.
+
+  From v0.101.0, **open your EZNEC `.ez` model.** **Open…** a `.ez` on the workbench, or name
   `@model.ez` on the command line, and it opens like a deck, with no export to
   `.nec` first; see [EZNEC `.ez` models](/reference/nec-import/#eznec-ez-models).
 
