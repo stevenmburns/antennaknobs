@@ -48,6 +48,17 @@ export type SchemaParamSpec = {
   /** What the knob means (`analyses.ROLES`): "density" is the mesh-density
    *  knob an imported deck declares. */
   role?: string | null;
+  /** How the knob's sweep starts (AK#1975, `knob_sweep.py`): any of lo / hi
+   *  / points / log, already checked by the server. Absent or null: the
+   *  slider's range in KNOB_POINTS linear points. */
+  sweep?: KnobSweepHint | null;
+};
+
+export type KnobSweepHint = {
+  lo?: number;
+  hi?: number;
+  points?: number;
+  log?: boolean;
 };
 
 /** A knob's default Optimize range when its design declares none: this

@@ -34,6 +34,7 @@ nearly flat, so the practical ceiling costs only tenths of a percent.
 
 from types import MappingProxyType
 
+from antennaknobs.knob_sweep import TUNER_PART_SWEEP
 from antennaknobs.network import (
     TL,
     Driven,
@@ -97,9 +98,17 @@ class Builder(InvVee):
                     # every tune reachable here is one you could dial on
                     # actual hardware. (The loss penalty vs arbitrarily
                     # big caps is a few tenths of a percent.)
-                    "series_c1_pF": {"min": 25.0, "max": 600.0},
-                    "shunt_l_uH": {"min": 0.5, "max": 40.0},
-                    "series_c2_pF": {"min": 25.0, "max": 600.0},
+                    "series_c1_pF": {
+                        "min": 25.0,
+                        "max": 600.0,
+                        "sweep": TUNER_PART_SWEEP,
+                    },
+                    "shunt_l_uH": {"min": 0.5, "max": 40.0, "sweep": TUNER_PART_SWEEP},
+                    "series_c2_pF": {
+                        "min": 25.0,
+                        "max": 600.0,
+                        "sweep": TUNER_PART_SWEEP,
+                    },
                     "coil_q": {"min": 0.0, "max": 400.0},
                 }
             ),

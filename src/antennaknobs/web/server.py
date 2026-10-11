@@ -4931,6 +4931,7 @@ def _serialize_schema_item(item) -> dict:
         "description": item.description,
         "auto_range": item.auto_range,
         "role": item.role,
+        "sweep": item.sweep,
     }
 
 

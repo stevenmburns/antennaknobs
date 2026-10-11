@@ -74,10 +74,11 @@ capacitor on the rig side.
 3. Pick **inside tuner (L–C)**. The chart highlights the R = 50 Ω circle.
    Turn `tuner_c_pF` until the point sits on it: **39 pF** puts it at about
    50 − j389 Ω. (*Sweep this knob…* in the knob's menu traces its path, so
-   you can see where it crosses. By default it sweeps the knob's whole range
-   in 11 steps, which for the capacitor is 396 pF a step, far too coarse
-   here: narrow the range around where you expect the answer, say 10–100 pF
-   on 20 m, and raise the points to 50 or more.)
+   you can see where it crosses. On this design it sweeps the capacitor from
+   1 pF to its maximum in 81 log-spaced points, about 11 % apart, and the
+   coil from 0.05 µH the same way, so one sweep shows the whole path on any
+   band. To look closer, narrow the range in the sweep's header, say
+   10–100 pF on 20 m.)
 4. Pick **rig (tuner input)** and turn `tuner_l_uH` until the point reaches the
    centre: **4.32 µH** gives SWR 1.05. The coil's Q is why it isn't exactly 1:
    the resistance at the rig is 52 Ω.
