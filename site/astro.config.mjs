@@ -90,6 +90,7 @@ export default defineConfig({
           label: "Advanced",
           items: [
             { label: "Coax vs. ladder line", slug: "advanced/station-comparison" },
+            { label: "A doublet into a remote tuner", slug: "advanced/remote-tuner" },
             { label: "Wire gauge for POTA", slug: "advanced/wire-gauge" },
             { label: "The end-fed question", slug: "advanced/efhw" },
             { label: "Three ledgers of efficiency", slug: "advanced/pota-performer" },
