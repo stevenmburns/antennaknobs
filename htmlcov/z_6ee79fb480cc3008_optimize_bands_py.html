@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/antennaknobs/web/optimize_bands.py: 87%</title>
+    <title>Coverage for src/antennaknobs/web/optimize_bands.py: 88%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_4667309f.css" type="text/css">
     <script src="coverage_html_cb_15cffcd0.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src<span class="sep">/</span>antennaknobs<span class="sep">/</span>web<span class="sep">/</span>optimize_bands.py</b>:
-            <span class="pc_cov">87%</span>
+            <span class="pc_cov">88%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">627 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">545<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">82<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">549<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">78<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_6ee79fb480cc3008_param_sweep_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.1">coverage.py v7.16.1</a>,
-            created at 2026-10-10 23:24 +0000
+            created at 2026-10-11 01:13 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -691,7 +691,7 @@
     <p class="run"><span class="n"><a id="t609" href="#t609">609</a></span><span class="t">        <span class="nam">key</span> <span class="op">=</span> <span class="op">(</span><span class="nam">tuple</span><span class="op">(</span><span class="nam">float</span><span class="op">(</span><span class="nam">v</span><span class="op">)</span> <span class="key">for</span> <span class="nam">v</span> <span class="key">in</span> <span class="nam">x</span><span class="op">)</span><span class="op">,</span> <span class="nam">tuple</span><span class="op">(</span><span class="nam">freqs</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t610" href="#t610">610</a></span><span class="t">        <span class="nam">hit</span> <span class="op">=</span> <span class="nam">memo</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="nam">key</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t611" href="#t611">611</a></span><span class="t">        <span class="key">if</span> <span class="nam">hit</span> <span class="key">is</span> <span class="key">None</span> <span class="key">and</span> <span class="nam">hard_cap</span> <span class="key">and</span> <span class="nam">fresh</span> <span class="op">&gt;=</span> <span class="nam">cap_now</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t612" href="#t612">612</a></span><span class="t">            <span class="key">raise</span> <span class="nam">_OutOfEvals</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t612" href="#t612">612</a></span><span class="t">            <span class="key">raise</span> <span class="nam">_OutOfEvals</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t613" href="#t613">613</a></span><span class="t">        <span class="key">if</span> <span class="nam">hit</span> <span class="key">is</span> <span class="key">None</span> <span class="key">and</span> <span class="nam">t_end</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">and</span> <span class="nam">fresh</span> <span class="key">and</span> <span class="nam">time</span><span class="op">.</span><span class="nam">monotonic</span><span class="op">(</span><span class="op">)</span> <span class="op">&gt;</span> <span class="nam">t_end</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t614" href="#t614">614</a></span><span class="t">            <span class="key">raise</span> <span class="nam">_OutOfTime</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t615" href="#t615">615</a></span><span class="t">        <span class="nam">n_evals</span> <span class="op">+=</span> <span class="num">1</span>&nbsp;</span><span class="r"></span></p>
@@ -951,7 +951,7 @@
     <p class="run"><span class="n"><a id="t869" href="#t869">869</a></span><span class="t">                    <span class="nam">u_c</span><span class="op">,</span> <span class="nam">j_c</span> <span class="op">=</span> <span class="nam">u_n</span><span class="op">,</span> <span class="nam">j_n</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t870" href="#t870">870</a></span><span class="t">                    <span class="key">if</span> <span class="key">not</span> <span class="nam">edge</span> <span class="key">and</span> <span class="nam">res</span><span class="op">.</span><span class="nam">success</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t871" href="#t871">871</a></span><span class="t">                        <span class="key">return</span> <span class="nam">u_c</span><span class="op">,</span> <span class="key">True</span><span class="op">,</span> <span class="nam">str</span><span class="op">(</span><span class="nam">res</span><span class="op">.</span><span class="nam">message</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t872" href="#t872">872</a></span><span class="t">                    <span class="nam">r</span> <span class="op">=</span> <span class="nam">min</span><span class="op">(</span><span class="num">2.0</span> <span class="op">*</span> <span class="nam">r</span><span class="op">,</span> <span class="num">0.5</span><span class="op">)</span> <span class="key">if</span> <span class="nam">edge</span> <span class="key">else</span> <span class="nam">r</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t872" href="#t872">872</a></span><span class="t">                    <span class="nam">r</span> <span class="op">=</span> <span class="nam">min</span><span class="op">(</span><span class="num">2.0</span> <span class="op">*</span> <span class="nam">r</span><span class="op">,</span> <span class="num">0.5</span><span class="op">)</span> <span class="key">if</span> <span class="nam">edge</span> <span class="key">else</span> <span class="nam">r</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t873" href="#t873">873</a></span><span class="t">                <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t874" href="#t874">874</a></span><span class="t">                    <span class="key">if</span> <span class="nam">res</span><span class="op">.</span><span class="nam">success</span> <span class="key">and</span> <span class="nam">r</span> <span class="op">&lt;=</span> <span class="num">1e-3</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t875" href="#t875">875</a></span><span class="t">                        <span class="key">return</span> <span class="nam">u_c</span><span class="op">,</span> <span class="key">True</span><span class="op">,</span> <span class="nam">str</span><span class="op">(</span><span class="nam">res</span><span class="op">.</span><span class="nam">message</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -1017,13 +1017,13 @@
     <p class="run"><span class="n"><a id="t935" href="#t935">935</a></span><span class="t">            <span class="nam">phase</span> <span class="op">=</span> <span class="str">&quot;minimax&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t936" href="#t936">936</a></span><span class="t">            <span class="nam">u_best</span><span class="op">,</span> <span class="nam">ok</span><span class="op">,</span> <span class="nam">msg</span> <span class="op">=</span> <span class="nam">trust_region</span><span class="op">(</span><span class="nam">u_best</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t937" href="#t937">937</a></span><span class="t">        <span class="key">except</span> <span class="nam">_OutOfEvals</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t938" href="#t938">938</a></span><span class="t">            <span class="key">if</span> <span class="nam">seen</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t938" href="#t938">938</a></span><span class="t">            <span class="key">if</span> <span class="nam">seen</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t939" href="#t939">939</a></span><span class="t">                <span class="com"># The budget ran out mid-search: the best SOLVED point by the</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t940" href="#t940">940</a></span><span class="t">                <span class="com"># objective itself.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t941" href="#t941">941</a></span><span class="t">                <span class="nam">u_best</span> <span class="op">=</span> <span class="nam">min</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t942" href="#t942">942</a></span><span class="t">                    <span class="op">(</span><span class="op">(</span><span class="nam">score</span><span class="op">(</span><span class="nam">evaluate</span><span class="op">(</span><span class="nam">to_x</span><span class="op">(</span><span class="nam">u</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">,</span> <span class="nam">u</span><span class="op">)</span> <span class="key">for</span> <span class="nam">_j</span><span class="op">,</span> <span class="nam">u</span> <span class="key">in</span> <span class="nam">seen</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t943" href="#t943">943</a></span><span class="t">                    <span class="nam">key</span><span class="op">=</span><span class="key">lambda</span> <span class="nam">t</span><span class="op">:</span> <span class="nam">t</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t944" href="#t944">944</a></span><span class="t">                <span class="op">)</span><span class="op">[</span><span class="num">1</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t941" href="#t941">941</a></span><span class="t">                <span class="nam">u_best</span> <span class="op">=</span> <span class="nam">min</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t942" href="#t942">942</a></span><span class="t">                    <span class="op">(</span><span class="op">(</span><span class="nam">score</span><span class="op">(</span><span class="nam">evaluate</span><span class="op">(</span><span class="nam">to_x</span><span class="op">(</span><span class="nam">u</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">,</span> <span class="nam">u</span><span class="op">)</span> <span class="key">for</span> <span class="nam">_j</span><span class="op">,</span> <span class="nam">u</span> <span class="key">in</span> <span class="nam">seen</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t943" href="#t943">943</a></span><span class="t">                    <span class="nam">key</span><span class="op">=</span><span class="key">lambda</span> <span class="nam">t</span><span class="op">:</span> <span class="nam">t</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t944" href="#t944">944</a></span><span class="t">                <span class="op">)</span><span class="op">[</span><span class="num">1</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t945" href="#t945">945</a></span><span class="t">        <span class="key">finally</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t946" href="#t946">946</a></span><span class="t">            <span class="nam">hard_cap</span> <span class="op">=</span> <span class="key">False</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t947" href="#t947">947</a></span><span class="t">        <span class="key">return</span> <span class="nam">to_x</span><span class="op">(</span><span class="nam">u_best</span><span class="op">)</span><span class="op">,</span> <span class="nam">ok</span><span class="op">,</span> <span class="nam">msg</span>&nbsp;</span><span class="r"></span></p>
@@ -1346,7 +1346,7 @@
             <a class="nav" href="z_6ee79fb480cc3008_param_sweep_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.1">coverage.py v7.16.1</a>,
-            created at 2026-10-10 23:24 +0000
+            created at 2026-10-11 01:13 +0000
         </p>
     </div>
 </footer>
