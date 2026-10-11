@@ -264,39 +264,56 @@ const LONG =
   "crossed over engines: the workbench draws this session's engine; `antennaknobs analyze` draws all 3; the analysis names ground finite:13,0.005; the workbench uses this session's ground";
 
 describe("a chart note never sizes the plot", () => {
-  // The layout contract, as the stylesheet states it: the note line is one
-  // line (nowrap, ellipsized), it is there note or none (min-height), and the
-  // open note is laid over the chart (absolute), out of the header's flow.
+  // The layout contract, as the stylesheet states it: the note and the
+  // analyses as Python are buttons in the header's row (Steve's phone,
+  // 2026-10-11: the line they had under it was chart lost), and each opens
+  // as a panel laid over the chart (absolute, against the row), out of the
+  // header's flow.
   const rule = (sel: string) => {
     const at = css.indexOf(`${sel} {`);
     expect(at, sel).toBeGreaterThanOrEqual(0);
     return css.slice(at, css.indexOf("}", at));
   };
 
-  it("the stylesheet: one fixed line, and the open note out of the flow", () => {
-    expect(rule(".zparam-analysis-extra")).toMatch(/min-height:/);
-    expect(rule(".zparam-analysis-extra")).toMatch(/position: relative/);
-    expect(rule(".chart-note-btn")).toMatch(/white-space: nowrap/);
-    expect(rule(".chart-note-btn")).toMatch(/text-overflow: ellipsis/);
+  it("the stylesheet: no line under the row, and the panels out of the flow", () => {
+    // The row's own rule (not ".zparam-area .zparam-controls").
+    const row = css.slice(css.search(/^\.zparam-controls \{/m));
+    expect(row.slice(0, row.indexOf("}"))).toMatch(/position: relative/);
+    expect(rule(".zparam-analysis-extra")).not.toMatch(/min-height:/);
     expect(rule(".chart-note-pop")).toMatch(/position: absolute/);
+    expect(rule(".chart-code-pop")).toMatch(/position: absolute/);
+    expect(rule(".chart-code-pop")).toMatch(/overflow: auto/);
   });
 
-  it("with a note or without, the header holds the same rows; the note opens only on a tap", async () => {
+  it("nothing to show, nothing drawn; a note and the Python are two buttons, one panel at a time", async () => {
     const user = userEvent.setup();
-    const shape = (root: HTMLElement) =>
-      [...root.querySelectorAll(":scope > div > *")].map((e) => `${e.tagName}.${e.className}`);
     const without = render(<AnalysisDetails entries={[]} notes={[]} blocked={() => null} />);
-    const withNote = render(<AnalysisDetails entries={[]} notes={[LONG]} blocked={() => null} />);
-    // One line in both, and the note shut: nothing but its button in the line.
-    expect(without.container.querySelectorAll(".zparam-analysis-extra")).toHaveLength(1);
-    expect(shape(withNote.container)).toEqual(["BUTTON.chart-note-btn"]);
-    expect(withNote.container.querySelector(".chart-note-pop")).toBeNull();
+    expect(without.container.innerHTML).toBe("");
+    without.unmount();
+    const entry = {
+      name: "band SWR",
+      code: "Analysis(...)",
+      origin: "design",
+    } as unknown as Parameters<typeof AnalysisDetails>[0]["entries"][number];
+    const withNote = render(
+      <AnalysisDetails entries={[entry]} notes={[LONG]} blocked={() => null} />,
+    );
+    const shape = [...withNote.container.querySelectorAll(":scope > span > *")].map(
+      (e) => `${e.tagName}.${e.className}`,
+    );
+    expect(shape).toEqual(["BUTTON.chart-note-btn", "BUTTON.chart-code-btn"]);
     await user.click(screen.getByRole("button", { name: "Show the chart's note" }));
     const pop = screen.getByRole("note", { name: "Chart note" });
     expect(pop.textContent).toBe(LONG);
     expect(pop.className).toBe("chart-note-pop");
-    await user.click(screen.getByRole("button", { name: "Hide the chart's note" }));
+    // The Python replaces the note: one panel at a time.
+    await user.click(screen.getByRole("button", { name: "Show the analyses as Python" }));
     expect(screen.queryByRole("note", { name: "Chart note" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Analyses as Python" }).className).toBe(
+      "chart-code-pop",
+    );
+    await user.click(screen.getByRole("button", { name: "Hide the analyses as Python" }));
+    expect(screen.queryByRole("region", { name: "Analyses as Python" })).toBeNull();
   });
 });
 

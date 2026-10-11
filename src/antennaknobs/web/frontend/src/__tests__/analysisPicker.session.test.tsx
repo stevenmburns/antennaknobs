@@ -159,9 +159,11 @@ describe("the analysis picker", () => {
     expect((screen.getByRole("combobox", { name: "Parameter" }) as HTMLSelectElement).value).toBe(
       "base",
     );
-    expect(screen.getByText(GROUNDS_NOTE)).toBeTruthy();
+    // The note is behind the row's ⓘ (its title, and its panel on a tap).
+    expect(screen.getByRole("button", { name: "Show the chart's note" }).title).toBe(GROUNDS_NOTE);
 
-    // Every analysis as Python, read-only, with Copy.
+    // Every analysis as Python, read-only, with Copy, behind the row's "py".
+    fireEvent.click(screen.getByRole("button", { name: "Show the analyses as Python" }));
     expect(screen.getByLabelText("height as Python").textContent).toContain(
       'an.Sweep("base", 2, 20, points=37)',
     );

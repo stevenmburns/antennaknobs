@@ -68,8 +68,11 @@ const ROLE_RADIUS: Record<string, string> = {
   ".chart-legend": "var(--r-md)", // overlay
   ".chart-legend-chip": "var(--r-md)", // the legend's collapsed toggle
   ".chart-note-pop": "var(--r-md)", // overlay
+  ".chart-code-pop": "var(--r-md)", // overlay: the analyses as Python
   ".knob-menu": "var(--r-md)", // the cross and range popovers
   ".chart-note-btn": "var(--r-sm)", // button
+  ".chart-code-btn": "var(--r-sm)", // "py"
+  ".chart-fold": "var(--r-sm)", // the header's fold toggle
   ".zinf-info-btn": "var(--r-sm)",
   ".zparam-xlog-btn": "var(--r-sm)", // lin/log and "values"
   ".zparam-run": "var(--r-sm)", // Run, and the cross button
@@ -88,7 +91,7 @@ describe("the arc's chart elements on their role's tokens", () => {
   }
 
   it("popovers share one elevation", () => {
-    for (const sel of [".knob-menu", ".chart-note-pop"]) {
+    for (const sel of [".knob-menu", ".chart-note-pop", ".chart-code-pop"]) {
       expect(ruleBody(stylesSrc, sel)).toContain("box-shadow: var(--elev-pop);");
     }
   });

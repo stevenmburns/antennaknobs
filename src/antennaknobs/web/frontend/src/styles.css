@@ -4726,6 +4726,8 @@ div.opt-bands-readout {
   max-width: calc(100% - var(--zparam-plot-l) - var(--zparam-plot-r) - 8px);
 }
 .zparam-controls {
+  /* The anchor of the note and Python panels (.chart-note-pop). */
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -4776,40 +4778,37 @@ div.opt-bands-readout {
 .zparam-controls select {
   max-width: 11em;
 }
-/* The analysis picker (AK#1757): the picked one's note, and every analysis
-   as Python behind a disclosure, under the header's row. */
-/* One line under a chart's controls, note or none (AK#1757, Steve's phone
-   2026-09-29): the note is a one-line button, ellipsized, and opens as a
-   panel laid over the chart (.chart-note-pop, absolute), so a note never
-   changes the header's height and so never the plot's. */
+/* The analysis picker's extras (AK#1757): the picked one's note behind
+   "ⓘ" and every analysis as Python behind "py", last in the header's row
+   (Steve's phone, 2026-10-11: the line they had under the row was a row of
+   chart lost to something rarely opened). Each opens as a panel laid over
+   the chart (absolute, against the row), so neither ever changes the
+   header's height and so never the plot's (Steve's phone, 2026-09-29). */
 .zparam-analysis-extra {
-  position: relative;
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-3);
-  max-width: 100%;
-  min-height: 1.6em;
-  font-size: var(--text-xs);
-  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 .chart-note-btn {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 60%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   padding: 0 var(--space-2);
   background: var(--inset);
   color: var(--muted);
   border: 1px solid var(--border-control);
   border-radius: var(--r-sm);
   font: inherit;
-  text-align: left;
   cursor: pointer;
 }
+.chart-code-btn {
+  padding: 0 var(--space-2);
+  background: var(--inset);
+  color: var(--muted);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+.chart-code-btn[aria-expanded="true"],
 .chart-note-btn[aria-expanded="true"] {
   color: var(--accent);
   border-color: var(--accent);
@@ -4836,23 +4835,23 @@ div.opt-bands-readout {
 .chart-note-pop p + p {
   margin-top: var(--space-2);
 }
-.zparam-analysis-code {
-  flex: 0 0 auto;
-}
-/* Opening the Python list is asked for, and takes its own line. */
-.zparam-analysis-code[open] {
-  flex-basis: 100%;
-}
-.zparam-analysis-code > summary {
-  cursor: pointer;
-}
-.zparam-analysis-code[open] {
+/* The Python is long: it scrolls inside its panel, as wide as the screen
+   allows. */
+.chart-code-pop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 6;
+  width: min(40rem, calc(100vw - 2 * var(--space-5)));
+  max-height: 50vh;
+  overflow: auto;
+  margin-top: var(--space-1);
   background: var(--panel);
+  color: var(--fg);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
+  box-shadow: var(--elev-pop);
   padding: var(--space-2) var(--space-3);
-  max-height: 40vh;
-  overflow: auto;
 }
 .zparam-analysis-item + .zparam-analysis-item {
   margin-top: var(--space-2);
@@ -4955,6 +4954,35 @@ div.opt-bands-readout {
 .zparam-reset:disabled {
   opacity: 0.4;
   cursor: default;
+}
+/* A chart header folded to one line (Steve's phone, 2026-10-11): the
+   toggle sits at the row's start, and folded it carries the header's
+   summary, ellipsized, so the row never wraps; Run / Stop stays beside it. */
+.chart-fold {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 0 var(--space-2);
+  background: var(--inset);
+  color: var(--fg);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.chart-fold.is-folded {
+  flex: 1 1 auto;
+}
+.chart-fold-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.zparam-controls:has(> .chart-fold.is-folded) {
+  flex-wrap: nowrap;
 }
 /* The Z∞ readout on a phone (AK#1757): a DOM row between the "R Ω" and
    "X Ω" titles, the value and status word, then the ⓘ that opens the

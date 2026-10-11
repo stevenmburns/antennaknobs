@@ -9,6 +9,7 @@ import {
 } from "./AnalysisPicker";
 import { type ChartChrome, ChartChromeControls, DwellSwitch } from "./AnalysisChartControls";
 import { CommitNumber } from "./CommitNumber";
+import { FoldToggle, useHeaderFold } from "./ControlsFold";
 
 // The header of a chart showing a two-knob map (docs/design/
 // sweep-framework-map.md, unit 3): the picker, the two axes (each the knob
@@ -174,6 +175,45 @@ export function MapChartControls({
     : run.done || run.partial
       ? `${run.received}/${run.total} · run`
       : "run";
+  const [folded, setFolded] = useHeaderFold();
+  // Folded, the header keeps the cost line and Run / Stop beside the toggle.
+  const runGroup = (
+    <span className="zparam-group">
+      <span
+        className="map-cost"
+        aria-label="Map cost"
+        {...(cost.refused ? { title: cost.refused } : {})}
+      >
+        {cost.refused ?? cost.line}
+      </span>
+      {run.running ? (
+        <button
+          type="button"
+          className="zparam-run is-running"
+          title="Stop the map: keep the nodes solved so far, solve no more"
+          onClick={run.onStop}
+        >
+          {run.received}/{run.total} · stop
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={run.stale ? "zparam-run is-stale" : "zparam-run"}
+          disabled={cost.refused !== null}
+          title={
+            cost.refused ??
+            (run.stale
+              ? "The design changed since this map ran; a map re-runs only when asked"
+              : "Run the map")
+          }
+          onClick={run.onRun}
+        >
+          {runLabel}
+        </button>
+      )}
+      <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />
+    </span>
+  );
   return (
     <div
       className="zparam-overlay"
@@ -182,73 +222,50 @@ export function MapChartControls({
       {...chartDataAttrs("map", chrome.dwell, analyses.current)}
     >
       <div className="zparam-controls" role="group" aria-label="Map">
-        <AnalysisSelect {...analyses} />
-        <AxisEditor axis="x" label={x.label} spec={x.spec} values={x.values} onSpec={(s) => onAxis("x", s)} />
-        <AxisEditor axis="y" label={y.label} spec={y.spec} values={y.values} onSpec={(s) => onAxis("y", s)} />
-        <button
-          type="button"
-          className="zparam-reset"
-          disabled={!edited}
-          title="Back to the analysis's own axes"
-          onClick={onRestore}
-        >
-          ↺
-        </button>
-        <label className="zparam-group">
-          <span>colour</span>
-          <select
-            aria-label="Map quantity"
-            value={quantity}
-            onChange={(e) => onQuantity(e.target.value as MapQuantity)}
-          >
-            <option value="rho">|Γ|</option>
-            <option value="reciprocal">1 − 1/SWR</option>
-          </select>
-        </label>
-        <RadioGroup label="solver" {...slots} />
-        <RadioGroup label="ground" {...grounds} />
-        <span className="zparam-group">
-          <span
-            className="map-cost"
-            aria-label="Map cost"
-            {...(cost.refused ? { title: cost.refused } : {})}
-          >
-            {cost.refused ?? cost.line}
-          </span>
-          {run.running ? (
+        <FoldToggle
+          folded={folded}
+          onFolded={setFolded}
+          summary={`${x.label} × ${y.label}`}
+        />
+        {folded ? (
+          runGroup
+        ) : (
+          <>
+            <AnalysisSelect {...analyses} />
+            <AxisEditor axis="x" label={x.label} spec={x.spec} values={x.values} onSpec={(s) => onAxis("x", s)} />
+            <AxisEditor axis="y" label={y.label} spec={y.spec} values={y.values} onSpec={(s) => onAxis("y", s)} />
             <button
               type="button"
-              className="zparam-run is-running"
-              title="Stop the map: keep the nodes solved so far, solve no more"
-              onClick={run.onStop}
+              className="zparam-reset"
+              disabled={!edited}
+              title="Back to the analysis's own axes"
+              onClick={onRestore}
             >
-              {run.received}/{run.total} · stop
+              ↺
             </button>
-          ) : (
-            <button
-              type="button"
-              className={run.stale ? "zparam-run is-stale" : "zparam-run"}
-              disabled={cost.refused !== null}
-              title={
-                cost.refused ??
-                (run.stale
-                  ? "The design changed since this map ran; a map re-runs only when asked"
-                  : "Run the map")
-              }
-              onClick={run.onRun}
-            >
-              {runLabel}
-            </button>
-          )}
-          <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />
-        </span>
-        <ChartChromeControls {...chromeRest} />
+            <label className="zparam-group">
+              <span>colour</span>
+              <select
+                aria-label="Map quantity"
+                value={quantity}
+                onChange={(e) => onQuantity(e.target.value as MapQuantity)}
+              >
+                <option value="rho">|Γ|</option>
+                <option value="reciprocal">1 − 1/SWR</option>
+              </select>
+            </label>
+            <RadioGroup label="solver" {...slots} />
+            <RadioGroup label="ground" {...grounds} />
+            {runGroup}
+            <ChartChromeControls {...chromeRest} />
+            <AnalysisDetails
+              entries={analyses.entries}
+              notes={chartNotes(analyses.entries, analyses.current)}
+              blocked={analyses.blocked}
+            />
+          </>
+        )}
       </div>
-      <AnalysisDetails
-        entries={analyses.entries}
-        notes={chartNotes(analyses.entries, analyses.current)}
-        blocked={analyses.blocked}
-      />
     </div>
   );
 }
