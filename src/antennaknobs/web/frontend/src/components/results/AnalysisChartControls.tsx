@@ -18,6 +18,7 @@ import {
 import { ChartCrossPicker, type CrossPickerProps } from "./ChartCrossPicker";
 import { CommitNumber } from "./CommitNumber";
 import { FamilyRange, type FamilyRangeProps } from "./FamilyRange";
+import { FoldToggle, useHeaderFold } from "./ControlsFold";
 
 // The analysis chart's own controls (AK#1757, sweep-framework step 5 unit 2).
 // They sit ON the chart, on the right-hand (output) side: what the chart
@@ -389,6 +390,38 @@ export function PatternChartControls({
    *  views are its own. */
   cut?: CutAngleProps | null;
 }) {
+  const [folded, setFolded] = useHeaderFold();
+  // Folded, the header keeps Run / Stop (with its count) beside the toggle.
+  const runGroup = (
+    <span className="zparam-group">
+      {run.running ? (
+        <button
+          type="button"
+          className="zparam-run is-running"
+          title="Stop: keep the patterns solved so far"
+          onClick={run.onStop}
+        >
+          {run.solved}/{run.total} · stop
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={run.stale ? "zparam-run is-stale" : "zparam-run"}
+          disabled={!!run.blocked}
+          title={
+            run.blocked ??
+            (run.stale
+              ? "The design changed since these patterns were solved: solve them again"
+              : "Solve this chart's patterns again")
+          }
+          onClick={run.onRun}
+        >
+          {run.stale ? "run · re-run?" : "run"}
+        </button>
+      )}
+      <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />
+    </span>
+  );
   return (
     <div
       className="zparam-overlay"
@@ -397,45 +430,25 @@ export function PatternChartControls({
       {...chartDataAttrs("pattern", chrome.dwell, analyses.current)}
     >
       <div className="zparam-controls" role="group" aria-label="Pattern">
-        <AnalysisSelect {...analyses} />
-        <ChartViewPick {...viewPick} />
-        {cut && <CutAngle {...cut} />}
-        {family && <FamilyRange {...family} />}
-        <span className="zparam-group">
-          {run.running ? (
-            <button
-              type="button"
-              className="zparam-run is-running"
-              title="Stop: keep the patterns solved so far"
-              onClick={run.onStop}
-            >
-              {run.solved}/{run.total} · stop
-            </button>
-          ) : (
-            <button
-              type="button"
-              className={run.stale ? "zparam-run is-stale" : "zparam-run"}
-              disabled={!!run.blocked}
-              title={
-                run.blocked ??
-                (run.stale
-                  ? "The design changed since these patterns were solved: solve them again"
-                  : "Solve this chart's patterns again")
-              }
-              onClick={run.onRun}
-            >
-              {run.stale ? "run · re-run?" : "run"}
-            </button>
-          )}
-          <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />
-        </span>
-        <ChartChromeControls {...chrome} />
+        <FoldToggle folded={folded} onFolded={setFolded} summary={analyses.current ?? "pattern"} />
+        {folded ? (
+          runGroup
+        ) : (
+          <>
+            <AnalysisSelect {...analyses} />
+            <ChartViewPick {...viewPick} />
+            {cut && <CutAngle {...cut} />}
+            {family && <FamilyRange {...family} />}
+            {runGroup}
+            <ChartChromeControls {...chrome} />
+            <AnalysisDetails
+              entries={analyses.entries}
+              notes={chartNotes(analyses.entries, analyses.current)}
+              blocked={analyses.blocked}
+            />
+          </>
+        )}
       </div>
-      <AnalysisDetails
-        entries={analyses.entries}
-        notes={chartNotes(analyses.entries, analyses.current)}
-        blocked={analyses.blocked}
-      />
     </div>
   );
 }
@@ -472,6 +485,36 @@ export function FrequencyChartControls({
   const span = range.hi - range.lo || range.hi || 1;
   const step = 10 ** Math.floor(Math.log10(span / 10));
   const positive = (v: number) => (v > 0 ? null : "> 0");
+  const [folded, setFolded] = useHeaderFold();
+  // Folded, the header keeps Run / Stop (with its count) beside the toggle.
+  const runGroup = (
+    <span className="zparam-group">
+      {run.running ? (
+        <button
+          type="button"
+          className="zparam-run is-running"
+          title="Stop the sweep: keep the points so far"
+          onClick={run.onStop}
+        >
+          {run.received} · stop
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={run.stale ? "zparam-run is-stale" : "zparam-run"}
+          title={
+            run.stale
+              ? "The design changed since this sweep ran: run it again"
+              : "Run this chart's analysis again"
+          }
+          onClick={run.onRun}
+        >
+          {run.stale ? "run · re-run?" : "run"}
+        </button>
+      )}
+      <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />
+    </span>
+  );
   return (
     <div
       className="zparam-overlay"
@@ -480,83 +523,65 @@ export function FrequencyChartControls({
       {...chartDataAttrs("frequency", chrome.dwell, analyses.current)}
     >
       <div className="zparam-controls" role="group" aria-label="Frequency sweep">
-        <AnalysisSelect {...analyses} />
-        <ChartViewPick {...viewPick} />
-        <label>
-          <span>from</span>
-          <CommitNumber
-            label="from MHz"
-            value={range.lo}
-            step={step}
-            problem={positive}
-            onCommit={(v) => onRange(v, range.hi)}
-          />
-        </label>
-        <label>
-          <span>to</span>
-          <CommitNumber
-            label="to MHz"
-            value={range.hi}
-            step={step}
-            problem={positive}
-            onCommit={(v) => onRange(range.lo, v)}
-          />
-          <span>MHz</span>
-        </label>
-        {range.exact && range.freqs && (
-          // An analysis's explicit frequency list (step 5 unit 5): the
-          // sweep is these values, not a range; an edit of from / to makes
-          // it one, and ↺ brings the list back.
-          <span
-            className="chart-freq-list"
-            data-values={range.freqs.join(",")}
-            title={`Swept at exactly ${range.freqs.join(", ")} MHz. An edit of from / to makes it a range; ↺ brings the list back.`}
-          >
-            {range.freqs.length} value{range.freqs.length === 1 ? "" : "s"}
-          </span>
+        <FoldToggle folded={folded} onFolded={setFolded} summary={`${range.lo}–${range.hi} MHz`} />
+        {folded ? (
+          runGroup
+        ) : (
+          <>
+            <AnalysisSelect {...analyses} />
+            <ChartViewPick {...viewPick} />
+            <label>
+              <span>from</span>
+              <CommitNumber
+                label="from MHz"
+                value={range.lo}
+                step={step}
+                problem={positive}
+                onCommit={(v) => onRange(v, range.hi)}
+              />
+            </label>
+            <label>
+              <span>to</span>
+              <CommitNumber
+                label="to MHz"
+                value={range.hi}
+                step={step}
+                problem={positive}
+                onCommit={(v) => onRange(range.lo, v)}
+              />
+              <span>MHz</span>
+            </label>
+            {range.exact && range.freqs && (
+              // An analysis's explicit frequency list (step 5 unit 5): the
+              // sweep is these values, not a range; an edit of from / to makes
+              // it one, and ↺ brings the list back.
+              <span
+                className="chart-freq-list"
+                data-values={range.freqs.join(",")}
+                title={`Swept at exactly ${range.freqs.join(", ")} MHz. An edit of from / to makes it a range; ↺ brings the list back.`}
+              >
+                {range.freqs.length} value{range.freqs.length === 1 ? "" : "s"}
+              </span>
+            )}
+            {runGroup}
+            <ChartChromeControls {...chrome} />
+            <button
+              type="button"
+              className="zparam-reset"
+              disabled={rangeIsOwn}
+              title="Back to the analysis's own range"
+              onClick={onResetRange}
+            >
+              ↺
+            </button>
+            <AnalysisDetails
+              entries={analyses.entries}
+              notes={chartNotes(analyses.entries, analyses.current)}
+              blocked={analyses.blocked}
+            />
+          </>
         )}
-        <span className="zparam-group">
-          {run.running ? (
-            <button
-              type="button"
-              className="zparam-run is-running"
-              title="Stop the sweep: keep the points so far"
-              onClick={run.onStop}
-            >
-              {run.received} · stop
-            </button>
-          ) : (
-            <button
-              type="button"
-              className={run.stale ? "zparam-run is-stale" : "zparam-run"}
-              title={
-                run.stale
-                  ? "The design changed since this sweep ran: run it again"
-                  : "Run this chart's analysis again"
-              }
-              onClick={run.onRun}
-            >
-              {run.stale ? "run · re-run?" : "run"}
-            </button>
-          )}
-          <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />
-        </span>
-        <ChartChromeControls {...chrome} />
-        <button
-          type="button"
-          className="zparam-reset"
-          disabled={rangeIsOwn}
-          title="Back to the analysis's own range"
-          onClick={onResetRange}
-        >
-          ↺
-        </button>
       </div>
-      <AnalysisDetails
-        entries={analyses.entries}
-        notes={chartNotes(analyses.entries, analyses.current)}
-        blocked={analyses.blocked}
-      />
     </div>
   );
 }

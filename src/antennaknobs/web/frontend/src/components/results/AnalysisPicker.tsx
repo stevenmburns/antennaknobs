@@ -177,14 +177,15 @@ export function chartNotes(
   return [...own, ...extra.filter((n): n is string => !!n)];
 }
 
-/** Under the header's controls: ONE line, whatever the notes say (Steve's
- *  phone, 2026-09-29: the convergence pick's two-clause note wrapped to four
- *  lines and took them from the plot). The notes are an "ⓘ note" button on
- *  that line; tapped, they open in a panel laid OVER the chart, out of the
- *  flow, so the header, and so the plot under it, is the same height with a
- *  note or without one, open or shut. Beside it, every analysis as Python
- *  (read-only, with Copy), the reasons beside the ones the chart cannot run.
- *  The line is there on every chart header, note or none. */
+/** In the header's row, last: the chart's notes behind an "ⓘ" and every
+ *  analysis as Python behind "py", each opening a panel laid OVER the chart,
+ *  out of the flow (Steve's phone, 2026-09-29: a note that wrapped took lines
+ *  from the plot). They used to sit on a line of their own under the row,
+ *  there on every chart, note or none; on a phone that line was a row of
+ *  chart lost to something rarely opened (Steve, 2026-10-11), so now nothing
+ *  sits under the row at all, and the header is the same height with a note
+ *  or without one, open or shut. The Python is read-only, with Copy, and the
+ *  reasons beside the ones the chart cannot run. One panel opens at a time. */
 export function AnalysisDetails({
   entries,
   notes,
@@ -194,39 +195,53 @@ export function AnalysisDetails({
   notes: readonly string[];
   blocked: (entry: AnalysisEntry) => string | null;
 }) {
-  const [open, setOpen] = useState(false);
-  const shown = open && notes.length > 0;
+  const [open, setOpen] = useState<"note" | "code" | null>(null);
+  const noteShown = open === "note" && notes.length > 0;
+  const codeShown = open === "code" && entries.length > 0;
+  const toggle = (which: "note" | "code") => setOpen((o) => (o === which ? null : which));
   const summary = notes.join(" · ");
+  if (notes.length === 0 && entries.length === 0) return null;
   return (
-    <div className="zparam-analysis-extra">
+    <span className="zparam-analysis-extra">
       {notes.length > 0 && (
         <button
           type="button"
           className="chart-note-btn"
-          aria-expanded={shown}
-          aria-label={shown ? "Hide the chart's note" : "Show the chart's note"}
+          aria-expanded={noteShown}
+          aria-label={noteShown ? "Hide the chart's note" : "Show the chart's note"}
           title={summary}
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => toggle("note")}
         >
-          <span aria-hidden="true">ⓘ</span> <span className="chart-note-peek">{summary}</span>
+          <span aria-hidden="true">ⓘ</span>
         </button>
       )}
-      {shown && (
+      {entries.length > 0 && (
+        <button
+          type="button"
+          className="chart-code-btn"
+          aria-expanded={codeShown}
+          aria-label={codeShown ? "Hide the analyses as Python" : "Show the analyses as Python"}
+          title="This design's analyses as Python"
+          onClick={() => toggle("code")}
+        >
+          py
+        </button>
+      )}
+      {noteShown && (
         <div className="chart-note-pop" role="note" aria-label="Chart note">
           {notes.map((n) => (
             <p key={n}>{n}</p>
           ))}
         </div>
       )}
-      {entries.length > 0 && (
-        <details className="zparam-analysis-code">
-          <summary>analyses as Python</summary>
+      {codeShown && (
+        <div className="chart-code-pop" role="region" aria-label="Analyses as Python">
           {entries.map((a) => (
             <AnalysisCode key={a.name} entry={a} why={blocked(a)} />
           ))}
-        </details>
+        </div>
       )}
-    </div>
+    </span>
   );
 }
 

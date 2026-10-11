@@ -23,6 +23,7 @@ import {
   DwellSwitch,
 } from "./AnalysisChartControls";
 import type { SchemaParamSpec } from "../../lib/params";
+import { FoldToggle, useHeaderFold } from "./ControlsFold";
 
 // The Z-vs-parameter view's header (docs/design/z-vs-param-view.md): which
 // parameter, over what range, how many points, lin or log spacing. Every
@@ -97,6 +98,59 @@ export function ZParamControls({
   const span = Math.abs(spec.hi - spec.lo) || Math.abs(spec.hi) || 1;
   const rangeStep = 10 ** Math.floor(Math.log10(span / 10));
   const step = familyStep(spec);
+  const [folded, setFolded] = useHeaderFold();
+  const paramLabel =
+    spec.param === DENSITY
+      ? densityLabel
+      : (knobs.find((k) => k.name === spec.param)?.label ?? spec.param);
+  const summary = `${paramLabel} ${spec.lo}–${spec.hi}${spec.log ? " log" : ""} · ${values.length} pts`;
+  // Stop while it runs (the count is the progress); Run when it was stopped,
+  // refused, or has not started — a stopped sweep does not restart by itself.
+  // Folded, the header keeps this group, so progress and Run stay in reach.
+  const runGroup = (
+    <span className="zparam-group">
+      {run.running ? (
+        <button
+          type="button"
+          className="zparam-run is-running"
+          title="Stop the sweep: keep the points so far, solve no more"
+          onClick={run.onStop}
+        >
+          {run.received}/{values.length} · stop
+        </button>
+      ) : run.stale ? (
+        <button
+          type="button"
+          className="zparam-run is-stale"
+          title="The design changed since this sweep ran; a knob sweep re-runs only when asked"
+          onClick={run.onRun}
+        >
+          run · re-run?
+        </button>
+      ) : run.done ? (
+        // Finished: the count, and Run again (an analysis chart's Run
+        // always re-runs, AK#1757).
+        <button
+          type="button"
+          className="zparam-run zparam-run-done"
+          title="The sweep has finished: run it again"
+          onClick={run.onRun}
+        >
+          {run.received}/{values.length} · run
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="zparam-run"
+          title={run.partial ? "Run the whole sweep again" : "Run the sweep"}
+          onClick={run.onRun}
+        >
+          {run.partial ? `${run.received}/${values.length} · run` : "run"}
+        </button>
+      )}
+      {chrome && <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />}
+    </span>
+  );
   return (
     <div
       className="zparam-overlay"
@@ -109,152 +163,113 @@ export function ZParamControls({
         : {})}
     >
       <div className="zparam-controls" role="group" aria-label="Parameter sweep">
-        {analyses && (analyses.entries.length > 0 || !!analyses.onSweepKnob) && (
-          <AnalysisSelect {...analyses} />
-        )}
-        {viewPick && <ChartViewPick {...viewPick} />}
-        <label>
-          <span>sweep</span>
-          <select
-            aria-label="Parameter"
-            value={spec.param}
-            onChange={(e) => onParam(e.target.value)}
-          >
-            <option value={DENSITY}>{densityLabel}</option>
-            {knobs.map((k) => (
-              <option key={k.name} value={k.name}>
-                {k.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>from</span>
-          <CommitNumber label="from" value={spec.lo} step={rangeStep} onCommit={(v) => set({ lo: v })} />
-        </label>
-        <label>
-          <span>to</span>
-          <CommitNumber label="to" value={spec.hi} step={rangeStep} onCommit={(v) => set({ hi: v })} />
-        </label>
-        {/* The step is the range's other spelling (from, to, points): an
-            edit sets the points and moves `to` onto the last value it
-            reaches. A direct child of the wrapping row, not of the nowrap
-            group below, so it adds a wrap point rather than header width. */}
-        {step !== null && (
-          <label className="chart-family-step" title={STEP_TITLE}>
-            <span>step</span>
-            <CommitNumber
-              label="step"
-              value={step}
-              step={rangeStep}
-              problem={(v) => stepEdit(spec, v, MAX_POINTS).problem}
-              onCommit={(v) => {
-                const r = stepEdit(spec, v, MAX_POINTS);
-                if (r.spec) onSpec(r.spec);
-              }}
-            />
-          </label>
-        )}
-        <span className="zparam-group">
-          <label
-            className="zparam-points"
-            // The ladder itself, as solved: a rounded integer ladder can hold
-            // fewer points than asked for.
-            title={`${values.length} points (${MIN_POINTS}–${MAX_POINTS}): ${values.join(", ")}`}
-          >
-            <span>points</span>
-            <CommitNumber
-              label="points"
-              value={spec.points}
-              problem={pointsProblem}
-              onCommit={(v) => set({ points: v })}
-            />
-            {/* A rounded integer ladder (density, an int knob) drops repeats,
-                so a big count over a narrow range solves fewer: say so. */}
-            {values.length !== spec.points && (
-              <span className="zparam-actual">
-                → {values.length} {isDensity(spec.param) ? "rungs" : "points"}
-              </span>
+        <FoldToggle folded={folded} onFolded={setFolded} summary={summary} />
+        {folded ? (
+          runGroup
+        ) : (
+          <>
+            {analyses && (analyses.entries.length > 0 || !!analyses.onSweepKnob) && (
+              <AnalysisSelect {...analyses} />
             )}
-          </label>
-          <label
-            className="zparam-log"
-            title="Space the points by a fixed ratio (SimNEC's logStep) instead of a fixed step. An integer parameter is rounded to whole values."
-          >
-            <input
-              type="checkbox"
-              checked={spec.log}
-              onChange={(e) => set({ log: e.target.checked })}
+            {viewPick && <ChartViewPick {...viewPick} />}
+            <label>
+              <span>sweep</span>
+              <select
+                aria-label="Parameter"
+                value={spec.param}
+                onChange={(e) => onParam(e.target.value)}
+              >
+                <option value={DENSITY}>{densityLabel}</option>
+                {knobs.map((k) => (
+                  <option key={k.name} value={k.name}>
+                    {k.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>from</span>
+              <CommitNumber label="from" value={spec.lo} step={rangeStep} onCommit={(v) => set({ lo: v })} />
+            </label>
+            <label>
+              <span>to</span>
+              <CommitNumber label="to" value={spec.hi} step={rangeStep} onCommit={(v) => set({ hi: v })} />
+            </label>
+            {/* The step is the range's other spelling (from, to, points): an
+                edit sets the points and moves `to` onto the last value it
+                reaches. A direct child of the wrapping row, not of the nowrap
+                group below, so it adds a wrap point rather than header width. */}
+            {step !== null && (
+              <label className="chart-family-step" title={STEP_TITLE}>
+                <span>step</span>
+                <CommitNumber
+                  label="step"
+                  value={step}
+                  step={rangeStep}
+                  problem={(v) => stepEdit(spec, v, MAX_POINTS).problem}
+                  onCommit={(v) => {
+                    const r = stepEdit(spec, v, MAX_POINTS);
+                    if (r.spec) onSpec(r.spec);
+                  }}
+                />
+              </label>
+            )}
+            <span className="zparam-group">
+              <label
+                className="zparam-points"
+                // The ladder itself, as solved: a rounded integer ladder can hold
+                // fewer points than asked for.
+                title={`${values.length} points (${MIN_POINTS}–${MAX_POINTS}): ${values.join(", ")}`}
+              >
+                <span>points</span>
+                <CommitNumber
+                  label="points"
+                  value={spec.points}
+                  problem={pointsProblem}
+                  onCommit={(v) => set({ points: v })}
+                />
+                {/* A rounded integer ladder (density, an int knob) drops repeats,
+                    so a big count over a narrow range solves fewer: say so. */}
+                {values.length !== spec.points && (
+                  <span className="zparam-actual">
+                    → {values.length} {isDensity(spec.param) ? "rungs" : "points"}
+                  </span>
+                )}
+              </label>
+              <label
+                className="zparam-log"
+                title="Space the points by a fixed ratio (SimNEC's logStep) instead of a fixed step. An integer parameter is rounded to whole values."
+              >
+                <input
+                  type="checkbox"
+                  checked={spec.log}
+                  onChange={(e) => set({ log: e.target.checked })}
+                />
+                log spacing
+              </label>
+            </span>
+            {runGroup}
+            {chrome && <ChartChromeControls {...chrome} />}
+            <button
+              type="button"
+              className="zparam-reset"
+              disabled={isDefault}
+              title={resetTitle ?? "Back to this parameter's default range"}
+              onClick={onReset}
+            >
+              ↺
+            </button>
+            {/* The cost hint is a chart note like an analysis's: behind the
+                row's ⓘ, opened on demand, never in the flow that sizes the
+                plot (AnalysisDetails). */}
+            <AnalysisDetails
+              entries={analyses?.entries ?? []}
+              notes={chartNotes(analyses?.entries ?? [], analyses?.current ?? null, [costHint])}
+              blocked={analyses?.blocked ?? (() => null)}
             />
-            log spacing
-          </label>
-        </span>
-        {/* Stop while it runs (the count is the progress); Run when it was
-            stopped, refused, or has not started — a stopped sweep does not
-            restart by itself. */}
-        <span className="zparam-group">
-          {run.running ? (
-            <button
-              type="button"
-              className="zparam-run is-running"
-              title="Stop the sweep: keep the points so far, solve no more"
-              onClick={run.onStop}
-            >
-              {run.received}/{values.length} · stop
-            </button>
-          ) : run.stale ? (
-            <button
-              type="button"
-              className="zparam-run is-stale"
-              title="The design changed since this sweep ran; a knob sweep re-runs only when asked"
-              onClick={run.onRun}
-            >
-              run · re-run?
-            </button>
-          ) : run.done ? (
-            // Finished: the count, and Run again (an analysis chart's Run
-            // always re-runs, AK#1757).
-            <button
-              type="button"
-              className="zparam-run zparam-run-done"
-              title="The sweep has finished: run it again"
-              onClick={run.onRun}
-            >
-              {run.received}/{values.length} · run
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="zparam-run"
-              title={run.partial ? "Run the whole sweep again" : "Run the sweep"}
-              onClick={run.onRun}
-            >
-              {run.partial ? `${run.received}/${values.length} · run` : "run"}
-            </button>
-          )}
-          {chrome && <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />}
-        </span>
-        {chrome && <ChartChromeControls {...chrome} />}
-        <button
-          type="button"
-          className="zparam-reset"
-          disabled={isDefault}
-          title={resetTitle ?? "Back to this parameter's default range"}
-          onClick={onReset}
-        >
-          ↺
-        </button>
+          </>
+        )}
       </div>
-      {/* The cost hint is a chart note like an analysis's: on the one line
-          under the controls, opened on demand, never in the flow that sizes
-          the plot (AnalysisDetails). */}
-      {(chrome || costHint || (analyses && analyses.entries.length > 0)) && (
-        <AnalysisDetails
-          entries={analyses?.entries ?? []}
-          notes={chartNotes(analyses?.entries ?? [], analyses?.current ?? null, [costHint])}
-          blocked={analyses?.blocked ?? (() => null)}
-        />
-      )}
     </div>
   );
 }

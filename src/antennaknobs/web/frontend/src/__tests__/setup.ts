@@ -7,10 +7,17 @@
 // next, so getBy* queries throw on duplicate matches. Registering it here
 // rather than per test file keeps the guarantee unconditional — a new
 // component test cannot forget it.
-import { afterEach } from "vitest";
+import { afterEach, beforeEach } from "vitest";
 import { cleanup } from "@testing-library/react";
+import { resetHeaderFoldForTests } from "../components/results/ControlsFold";
 
 afterEach(cleanup);
+
+// Chart headers open in every test: a phone-width stub would otherwise fold
+// them (ControlsFold), hiding the controls a test drives. Held in memory, not
+// in localStorage, which many files clear in their own beforeEach. The fold's
+// own tests (chartHeaderFold.test.tsx) release it and choose for themselves.
+beforeEach(() => resetHeaderFoldForTests(false));
 
 // --- jsdom gap-fillers (issue #728) ----------------------------------------
 //
