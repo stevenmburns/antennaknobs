@@ -39,7 +39,8 @@ directly. Every band solves on the same mesh, one fine enough for 10 m.
 
 ## The planes
 
-The readout's **plane** selector puts the VNA anywhere along the chain
+The readout's **plane** selector picks the point along the chain where the
+impedance, SWR and Smith chart are read
 ([how planes work](/reference/web/#the-measurement-plane)). This design names
 three, source to antenna:
 
