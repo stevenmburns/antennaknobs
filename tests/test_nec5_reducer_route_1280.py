@@ -137,6 +137,21 @@ def test_a_load_only_network_stays_native():
     assert seen, "no load-only network in the catalog to check"
 
 
+def test_a_floating_port_reduces_even_with_only_loads():
+    """AK#1977: a floating gap's two terminals are circuit nodes only the
+    reducer can wire to different branches, so a floating port reduces
+    whatever its branches are; with the route switched off it is the one
+    place the old refusal survives."""
+    from antennaknobs.network import Driven, Network, PortOnWireFloating
+
+    net = Network(
+        ports={"feed": PortOnWireFloating("feed")},
+        branches=[Load(port="feed.p", r=50.0)],
+        sources=[Driven(port="feed.n", voltage=1 + 0j)],
+    )
+    assert _network_needs_reducer(net)
+
+
 def test_the_predicate_is_the_complement_of_the_native_surface():
     """Written as "not natively expressible" rather than a list of branch
     types, so a NEW branch class reduces by default instead of silently
@@ -263,18 +278,22 @@ def test_the_route_switched_off_restores_todays_refusal(monkeypatch, stub_exe):
 def test_the_route_on_lifts_21_of_the_26_and_names_the_other_5(stub_exe):
     """The behaviour change, gated without the binary — and the honest count.
 
-    #1280 expects all 26 lifted. Measured, it is 21: five designs carry a port
-    the multiport-Y route still cannot address, and they refuse with a
+    #1280 expects all 26 lifted. Measured, it was 21: five designs carry a port
+    the multiport-Y route could not address, and they refuse with a
     sentence that says which and what to run instead rather than the old
     blanket "cannot stamp a <branch>".
 
-      2  a FLOATING port, whose second terminal NEC-5 cannot expose at all
       3  a DISTRIBUTED port — PyNEC drives every segment at V/S and reads the
          weighted current; NEC-5's EX addresses knots, and the knot-weighting
          rule for that expansion has not been derived
 
-    Both are real gaps in the ROUTE, not in the reducer, and both are named
-    here so the number cannot quietly drift in either direction.
+    The other two were FLOATING ports, refused as if NEC-5 could not expose
+    the second terminal. It never had to: a floating gap is an ordinary
+    delta gap whose Y NEC-5 supplies, and the reducer stamps its two
+    terminals as separate nodes, as it does for PyNEC (AK#1977). They build.
+
+    The distributed gap is real, and named here so the number cannot
+    quietly drift in either direction.
     """
     built, refused = [], {}
     for name, cls, net in _networks():
@@ -292,16 +311,21 @@ def test_the_route_on_lifts_21_of_the_26_and_names_the_other_5(stub_exe):
         built.append(name)
     # 22 since AK#1707: `wire.beverage` builds on the route (its ports are
     # a plain gap feed and termination, neither floating nor distributed).
-    assert len(built) == 22, sorted(built)
+    # 25 since AK#1977: the three floating-port designs build too.
+    assert len(built) == 25, sorted(built)
+    for name in (
+        "arrays.bowtie1x2_bl",
+        "wire.doublet_balanced_tuner",
+        "wire.doublet_remote_tuner",
+    ):
+        assert name in built, name
     # 7 since the two end-port feed examples: a third class, a PortAtEnd on a
     # free wire end, which the binary refuses an EX at (measured, see
     # `test_nec5_refuses_a_source_at_a_free_end`).
-    # 8 since `wire.doublet_remote_tuner`: its centre gap is a floating port.
-    assert len(refused) == 8, sorted(refused)
-    floating = [n for n, m in refused.items() if "floating" in m]
+    # 5 since AK#1977: the floating ports build, so none refuses as one.
+    assert len(refused) == 5, sorted(refused)
+    assert not [n for n, m in refused.items() if "floating" in m]
     distributed = [n for n, m in refused.items() if "distributed" in m]
-    assert len(floating) == 3, floating
-    assert "wire.doublet_remote_tuner" in floating
     at_end = [n for n, m in refused.items() if "(PortAtEnd)" in m]
     assert sorted(at_end) == ["beams.yagi_endport", "dipoles.invvee_endport"]
     for name in at_end:
@@ -355,6 +379,14 @@ def test_nec5_refuses_a_source_at_a_free_end(ex):
         "arrays.lumped_coupled_pair",  # TwoPort
         "broadband.g5rv",  # TL
         "beams.hb9cv",  # phased driver
+        # AK#1977: a floating gap, through a balun and balanced line.
+        # Measured on the licensed binary (free space): NEC-5 / bs2 d=2 /
+        # PyNEC 39.96-j2.07 / 39.16-j2.29 / 38.51-j2.49 (remote tuner),
+        # 49.70+j1.12 / 50.01-j0.05 / 50.72-j1.43 (balanced tuner),
+        # 49.69-j2.75 / 49.96-j0.62 / 49.86-j1.19 (bowtie pair).
+        "wire.doublet_remote_tuner",
+        "wire.doublet_balanced_tuner",
+        "arrays.bowtie1x2_bl",
     ],
 )
 def test_a_reduced_design_solves_and_agrees_with_bspline(design):

@@ -164,6 +164,11 @@ def _network_needs_reducer(net) -> bool:
             return True
         if isinstance(port, PortOnWire) and port.distributed:
             return True
+        if isinstance(port, PortOnWireFloating):
+            # Its two terminals are circuit nodes ("feed.p", "feed.n"), which
+            # only the reducer's stamp can wire to different branches; the
+            # gap itself is an ordinary knot source (AK#1977).
+            return True
     return False
 
 
@@ -625,10 +630,16 @@ class NEC5Engine(SimulationEngine):
             port = network.ports.get(port_name)
             if port is None:
                 raise ValueError(f"network names unknown port {port_name!r}")
-            if isinstance(port, PortOnWireFloating):
+            if isinstance(port, PortOnWireFloating) and not self._use_reducer:
+                # A floating gap is a delta gap like any other: NEC-5 supplies
+                # its Y, and the shared reducer stamps the two terminals as
+                # separate nodes (momwire's PortOnWireFloating: "works on every
+                # engine"). Only with the reducer route switched off is there
+                # nothing to stamp them (AK#1977).
                 raise NotImplementedError(
                     "NEC5Engine cannot expose a floating port's second "
-                    "terminal (no circuit stamping on this engine)"
+                    "terminal without the reducer route (no circuit stamping "
+                    "on the native path)"
                 )
             if isinstance(port, PortAtVertex):
                 idx = by_name.get(port.wire)
