@@ -146,6 +146,10 @@ class ParamSpec:
     # frontend leaves it out of a pattern family's knob list (a family over
     # density is refused, `analyze`'s `density_moved`).
     role: Optional[str] = None
+    # How the knob's sweep starts (AK#1975), from ui_params[<param>]["sweep"]
+    # after `knob_sweep.sanitize_sweep_hint`: any of lo / hi / points / log.
+    # None: the generic default (the slider's range, 11 linear points).
+    sweep: Optional[dict] = None
 
 
 @dataclass(frozen=True)

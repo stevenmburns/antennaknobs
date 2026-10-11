@@ -82,6 +82,34 @@ describe("a knob's ladder", () => {
     expect([spec.lo, spec.hi]).toEqual([8, 12]);
   });
 
+  // AK#1975: a tuner's part sweeps where its design says, log-spaced and
+  // finely, so one sweep traces its whole Smith-chart path (Steve tuning the
+  // remote tuner: 11 linear points over 0–3961 pF stepped 396 pF).
+  it("starts from the design's sweep hint when the knob carries one", () => {
+    const c = knob({
+      name: "tuner_c_pF",
+      min: 0,
+      max: 3961,
+      sweep: { lo: 1, log: true, points: 81 },
+    });
+    const spec = defaultKnobSpec(c, 413);
+    expect(spec).toEqual({ param: "tuner_c_pF", lo: 1, hi: 3961, points: 81, log: true });
+    const v = paramValues(spec, false);
+    expect(v).toHaveLength(81);
+    expect(v[0]).toBeCloseTo(1, 12);
+    expect(v[80]).toBeCloseTo(3961, 9);
+    // The 20 m answer, 39 pF, now has neighbours a few percent away.
+    const near = v.find((x) => x > 39)!;
+    expect(near / 39).toBeLessThan(1.15);
+  });
+
+  it("keeps the knob's own range where the hint names none, and never logs a range from zero", () => {
+    const part = knob({ min: 10, max: 500, sweep: { log: true, points: 81 } });
+    expect(defaultKnobSpec(part, 100)).toMatchObject({ lo: 10, hi: 500, points: 81, log: true });
+    const fromZero = knob({ min: 0, max: 100, sweep: { log: true } });
+    expect(defaultKnobSpec(fromZero, 10)).toMatchObject({ lo: 0, hi: 100, points: 11, log: false });
+  });
+
   it("rounds an int knob and drops duplicates", () => {
     const spec = { param: "n_directors", lo: 0, hi: 3, points: 11, log: false };
     expect(paramValues(spec, true)).toEqual([0, 1, 2, 3]);

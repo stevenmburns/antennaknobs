@@ -45,6 +45,7 @@ a modelling choice)."""
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.knob_sweep import TUNER_PART_SWEEP
 from antennaknobs.network import (
     BalancedLine,
     Driven,
@@ -97,12 +98,19 @@ class Builder(AntennaBuilder):
                     "line_vf": {"min": 0.80, "max": 1.0, "step": 0.01},
                     "line_len_factor": {"min": 0.05, "max": 1.0, "step": 0.01},
                     "line_zcomm": {"min": 0.0, "max": 400.0, "step": 25.0},
-                    "tuner_l_uH": {"min": 0.5, "max": 30.0, "step": 0.1, "unit": "µH"},
+                    "tuner_l_uH": {
+                        "min": 0.5,
+                        "max": 30.0,
+                        "step": 0.1,
+                        "unit": "µH",
+                        "sweep": TUNER_PART_SWEEP,
+                    },
                     "tuner_c_pF": {
                         "min": 10.0,
                         "max": 500.0,
                         "step": 1.0,
                         "unit": "pF",
+                        "sweep": TUNER_PART_SWEEP,
                     },
                     "tuner_ql": {"min": 0.0, "max": 400.0},
                 }

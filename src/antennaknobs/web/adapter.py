@@ -146,6 +146,7 @@ from momwire import BSplineSolver
 from .. import momwire_bases
 from ..auto_match import tuner_advisories, tuner_holding_match, tuner_rows
 from ..geometry import flat_wires_to_polylines
+from ..knob_sweep import sanitize_sweep_hint
 from .examples import REGISTRY, register
 from ..frequency_range import sweep_policy as _derive_sweep_policy
 from .examples._base import (
@@ -1706,6 +1707,8 @@ def _auto_paramspec(name: str, default: Any, override: dict | None) -> ParamSpec
     sweepable = bool(override.pop("sweepable", name == "freq"))
     role_raw = override.pop("role", None)
     role = role_raw if isinstance(role_raw, str) else None
+    # A knob's sweep hint (AK#1975), checked against its range below.
+    sweep_raw = override.pop("sweep", None)
 
     if isinstance(default, bool):
         kind = override.pop("kind", "bool")
@@ -1801,6 +1804,9 @@ def _auto_paramspec(name: str, default: Any, override: dict | None) -> ParamSpec
             description=description,
             auto_range=auto_range,
             role=role,
+        )
+        spec_kwargs["sweep"] = sanitize_sweep_hint(
+            sweep_raw, spec_kwargs["min"], spec_kwargs["max"]
         )
         if "linked_to_design_freq" in override:
             spec_kwargs["linked_to_design_freq"] = bool(

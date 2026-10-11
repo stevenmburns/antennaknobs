@@ -396,6 +396,36 @@ def _with_params(factory, assignments):
     return make
 
 
+def _apply_knob_sweep_hint(args, make, density):
+    """A knob sweep with no range of its own starts where the design says
+    (AK#1975): the knob's ``ui_params`` ``sweep`` hint gives the range (its
+    lo / hi, else the knob's min / max), the point count and log spacing.
+    An explicit --range / --center / --fraction, --npoints or --log wins;
+    log spacing applies to the impedance chart only (the one --log serves).
+    Frequency and the density study keep their own defaults."""
+    if density or args.param == "freq":
+        return
+    if (args.range, args.center, args.fraction) != (None, None, None):
+        return
+    from .band_opt import _ui_range
+    from .knob_sweep import knob_sweep_hint
+
+    antenna = make()
+    hint = knob_sweep_hint(antenna, args.param)
+    if not hint:
+        return
+    ui = _ui_range(antenna, args.param)
+    lo = hint.get("lo", ui[0] if ui else None)
+    hi = hint.get("hi", ui[1] if ui else None)
+    if lo is None or hi is None:
+        return
+    args.range = [lo, hi]
+    if args.npoints is None and "points" in hint:
+        args.npoints = hint["points"]
+    if hint.get("log") and not (args.swr or args.gain or args.patterns):
+        args.log = True
+
+
 def _check_chart_flags(args, *, multi_engine, density=None):
     """The new chart options refuse, by name, where they would draw nothing.
     The twin-axis ones (ranges, callouts, panels) need the rectangular R/X
@@ -1532,6 +1562,7 @@ def cli(arguments=None):
             density=is_density_study,
         )
         engine_specs = _engine_specs(args.engine)
+        _apply_knob_sweep_hint(args, make, is_density_study)
         # None means "not given": the density study reads that (its ladder);
         # every frequency-sweep path keeps its 21.
         npoints = args.npoints if (args.npoints is not None or is_density_study) else 21

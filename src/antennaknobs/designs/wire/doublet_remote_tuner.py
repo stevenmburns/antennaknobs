@@ -211,6 +211,7 @@ from types import MappingProxyType
 
 import antennaknobs.analyses as an
 from antennaknobs import AntennaBuilder
+from antennaknobs.knob_sweep import TUNER_PART_SWEEP
 from antennaknobs.network import (
     BalancedLine,
     Composite,
@@ -417,17 +418,21 @@ class Builder(AntennaBuilder):
                     "balun_ratio": {"enum_options": tuple(BALUN_RATIOS)},
                     "wire_type": {"enum_options": ("ideal", *sorted(WIRES))},
                     # The MFJ-926B's ranges: Optimize searches inside them.
+                    # A knob sweep traces each part's path on the Smith chart
+                    # (AK#1975): log from 0.05 µH / 1 pF, as 0 has no log.
                     "tuner_l_uH": {
                         "min": 0.0,
                         "max": MFJ_L_MAX_UH,
                         "step": 0.01,
                         "unit": "µH",
+                        "sweep": {**TUNER_PART_SWEEP, "lo": 0.05},
                     },
                     "tuner_c_pF": {
                         "min": 0.0,
                         "max": MFJ_C_MAX_PF,
                         "step": 1.0,
                         "unit": "pF",
+                        "sweep": {**TUNER_PART_SWEEP, "lo": 1.0},
                     },
                     "tuner_c_side": {"enum_options": tuple(C_SIDES)},
                     "tuner_mode": {

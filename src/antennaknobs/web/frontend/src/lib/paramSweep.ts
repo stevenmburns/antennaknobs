@@ -180,9 +180,15 @@ export const DEFAULT_DENSITY_SPEC: ParamSweepSpec = {
  *  ±KNOB_SPAN_FRACTION of its value; KNOB_POINTS linear points. */
 export function defaultKnobSpec(knob: SchemaParamSpec, current: number): ParamSweepSpec {
   const span = Math.abs(current) * KNOB_SPAN_FRACTION || 1;
-  const lo = knob.min ?? current - span;
-  const hi = knob.max ?? current + span;
-  return { param: knob.name, lo, hi, points: KNOB_POINTS, log: false };
+  // A design's own start for this knob (AK#1975): a tuner's part sweeps
+  // log-spaced and finely, so one sweep traces its whole Smith-chart path.
+  const hint = knob.sweep ?? {};
+  const lo = hint.lo ?? knob.min ?? current - span;
+  const hi = hint.hi ?? knob.max ?? current + span;
+  // Log spacing needs a range above zero; the server refuses a hint that
+  // asks otherwise, and a hint-less knob stays linear.
+  const log = (hint.log ?? false) && lo > 0 && hi > lo;
+  return { param: knob.name, lo, hi, points: hint.points ?? KNOB_POINTS, log };
 }
 
 export function sameSpec(a: ParamSweepSpec, b: ParamSweepSpec): boolean {

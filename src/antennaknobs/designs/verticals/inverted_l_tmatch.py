@@ -48,6 +48,7 @@ source itself.
 from types import MappingProxyType
 
 from antennaknobs.designs.verticals.inverted_l import Builder as InvertedL
+from antennaknobs.knob_sweep import TUNER_PART_SWEEP
 from antennaknobs.network import (
     Driven,
     Instance,
@@ -90,9 +91,17 @@ class Builder(InvertedL):
                     # Matched to 50 Ω, so the SWR readout shows ~1:1.
                     "target_z0": 50.0,
                     "default_view": "iso",
-                    "series_c1_pF": {"min": 5.0, "max": 60.0},
-                    "shunt_l_uH": {"min": 0.1, "max": 2.0},
-                    "series_c2_pF": {"min": 50.0, "max": 500.0},
+                    "series_c1_pF": {
+                        "min": 5.0,
+                        "max": 60.0,
+                        "sweep": TUNER_PART_SWEEP,
+                    },
+                    "shunt_l_uH": {"min": 0.1, "max": 2.0, "sweep": TUNER_PART_SWEEP},
+                    "series_c2_pF": {
+                        "min": 50.0,
+                        "max": 500.0,
+                        "sweep": TUNER_PART_SWEEP,
+                    },
                     "coil_q": {"min": 0.0, "max": 400.0},
                     # Display names for the power-budget rows (issue #489).
                     # Keys are the STRUCTURAL labels the solver emits —
