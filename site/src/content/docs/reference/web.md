@@ -1846,6 +1846,22 @@ nor anything you could measure. Attachments that hang off the structure
 (traps, stubs wired into the antenna) are upstream of nothing, so they always
 stay.
 
+A design can name its planes for what they are: the doublet into a remote
+tuner (`wire.doublet_remote_tuner`) lists **rig (tuner input)**, **inside tuner
+(L–C)** and **tuner output / balun input**, source to antenna.
+
+**Tuning on the Smith chart.** A design can also mark a **target circle** at a
+plane: the circle the remaining tuner part moves the point along, through the
+chart's centre. At the doublet tuner's **inside tuner (L–C)** plane it is
+**R = 50 Ω** (r = 1) when the capacitor sits across the balun, since the series
+coil left to turn moves the point along constant resistance, and **G = 20 mS**
+(g = 1) when it sits across the rig. That is the graphical L-network tune:
+turn the part nearest the antenna until the point lands on the circle (**Sweep
+this knob…** traces its whole path), then pick the rig plane and turn the other
+part to slide along the circle to the centre. The **Y** button on the Smith
+chart adds the admittance grid (constant-G circles and constant-B arcs, dashed)
+that the g = 1 circle belongs to; the browser remembers the choice.
+
 The frequency sweep, convergence ladder, and chart titles all follow the pick,
 so a measurement overlay is compared at the plane you actually calibrated at.
 The CLI has the same control on `fit` via `--plane`.
