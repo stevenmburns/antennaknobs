@@ -200,9 +200,10 @@ Caveats:
 - In the auto mode the optimizer refuses a match objective at the tuner's
   own frequency: the tuner meets it there whatever the knobs do (AK#1664).
   The manual tuner has no such refusal: its parts are what Optimize varies.
-- Engines: bs2 and PyNEC (they agree to 1.2 % on the tuner's load).
-  NEC-5 refuses it by name: its reducer route cannot address the floating
-  centre gap.
+- Engines: bs2, PyNEC and NEC-5. bs2 and PyNEC agree to 1.2 % on the
+  tuner's load. NEC-5 runs it through the shared reducer, which stamps the
+  floating centre gap (AK#1977): at the stock tune, in free space, the rig
+  sees 40.0 - j2.1 ohm on NEC-5, 39.2 - j2.3 on bs2 and 38.5 - j2.5 on PyNEC.
 """
 
 import math
