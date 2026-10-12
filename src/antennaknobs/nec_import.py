@@ -5804,6 +5804,41 @@ def _gn3_buried_wire(deck: NecDeck) -> int | None:
     return None
 
 
+def _eznec_nec2_stamp_line(text: str) -> int | None:
+    """The line of EZNEC's writer stamp naming its NEC-2 format
+    (``! Written by EZNEC/Pro+ v. 7.0 in NEC-2 format.``), else None."""
+    for line_no, raw in _logical_lines(text):
+        s = raw.strip()
+        if s[:2].upper() != "CM":
+            continue
+        try:
+            if _eznec_stamp_dialect(s[2:].strip(), "") == "nec2":
+                return line_no
+        except ValueError:
+            continue
+    return None
+
+
+def _gn3_eznec_stamp(deck: NecDeck, text: str) -> int | None:
+    """The line of EZNEC's NEC-2 stamp on a deck that detection reads as
+    NEC-2 for want of a marker and whose ground card is ``GN 3``, else None
+    (AK#1993).
+
+    EZNEC writes ``GN 3`` for one ground only, its 'Extended Accuracy' real
+    ground, which is NEC-4's Sommerfeld, and writes it so in its NEC-2 export
+    as well as its NEC-4.2 one (sitting 2026-10-12: Basic-NEC5-Dipole and
+    40m-15m, both exports). Its MININEC-type ground is ``GN 1`` and a ``GD``
+    (AK#1655), under a warning comment of its own. So the stamp settles
+    which ``GN 3`` the deck means, as a buried wire does (AK#1982). Every
+    one of the sitting's 92 exports carries the stamp; a 4nec2 deck carries
+    none."""
+    if deck.dialect_detected != "nec2" or deck.dialect_detected_reason != _NO_MARKER:
+        return None
+    if deck.ground_card != "GN 3":
+        return None
+    return _eznec_nec2_stamp_line(text)
+
+
 def parse_nec(
     text: str,
     *,
@@ -5863,7 +5898,9 @@ def parse_nec(
     4nec2's MININEC ground, unless a wire runs below the ground: that ground
     cannot hold one, and only NEC-4's ``GN 3`` (Sommerfeld) models the deck
     as written, so detection reads it as NEC-4 and says why (AK#1982,
-    G8HUL). A reader's chosen dialect still wins.
+    G8HUL), or unless EZNEC's NEC-2 stamp says EZNEC wrote it: EZNEC's
+    ``GN 3`` is always NEC-4's (AK#1993). A reader's chosen dialect, or a
+    keyed ``CM engine=`` declaration, still wins.
 
     Raises ``ValueError`` (with ``name`` and the line number) on cards that
     are malformed or describe things antennaknobs cannot model — patches,
@@ -5908,14 +5945,23 @@ def parse_nec(
             limits=limits,
         )
         deck = parse_nec(text, **kw, dialect=dialect, _gn3_probe=False)
+        # AK#1993: EZNEC's NEC-2 stamp settles it too, by the writer.
         buried = _gn3_buried_wire(deck)
-        if buried is None:
+        stamp = None if buried is not None else _gn3_eznec_stamp(deck, text)
+        if buried is None and stamp is None:
             return deck
-        reason = (
-            f"the GN card is type 3 and wire {buried} runs below the ground: "
-            "only NEC-4's GN 3 (Sommerfeld) can model a buried wire, where "
-            "4nec2's GN 3 is a MININEC ground"
-        )
+        if buried is not None:
+            reason = (
+                f"the GN card is type 3 and wire {buried} runs below the ground: "
+                "only NEC-4's GN 3 (Sommerfeld) can model a buried wire, where "
+                "4nec2's GN 3 is a MININEC ground"
+            )
+        else:
+            reason = (
+                f"EZNEC's stamp on line {stamp} says NEC-2 format and the GN "
+                "card is type 3: EZNEC writes GN 3 only for NEC-4's GN 3 "
+                "(Sommerfeld), where 4nec2's GN 3 is a MININEC ground"
+            )
         if dialect is None:
             deck = replace(
                 parse_nec(text, **kw, dialect="nec4", _gn3_probe=False),
