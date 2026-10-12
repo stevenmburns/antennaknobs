@@ -120,4 +120,37 @@ describe("SolverAdvisories", () => {
     expect(screen.getByText(/h\/a = 2\.1/)).toBeTruthy();
     expect(screen.getByText(/node region is unresolved/)).toBeTruthy();
   });
+
+  // AK#1981: plain words first. Jeff G8HUL could not read the crossing
+  // advisory; the server's summary now leads and momwire's text is the detail.
+  const PLAIN = {
+    category: "CoarseCrossingNode",
+    text: "crossing node: wire 0's start is the above member, and the finest mesh within 150 mm of the node is 502.5 mm",
+    summary: "A wire meets the ground at x = 0 m, y = 0 m. Add segments.",
+  };
+
+  it("leads with the summary and keeps momwire's text behind Details", async () => {
+    render(<SolverAdvisories advisories={[PLAIN]} />);
+    expect(screen.getByText(/Add segments/)).toBeTruthy();
+    expect(screen.queryByText(/finest mesh/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(screen.getByText(/finest mesh/)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Hide details" }));
+    expect(screen.queryByText(/finest mesh/)).toBeNull();
+  });
+
+  it("shows the text in full, with no Details, when there is no summary", () => {
+    render(<SolverAdvisories advisories={[COARSE]} />);
+    expect(screen.getByText(/node region is unresolved/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Details" })).toBeNull();
+  });
+
+  it("gives the collapsed far-mesh advisory its summary too", async () => {
+    const far = { ...FARMESH, summary: "razor-2p's answer keeps moving as segments are added." };
+    render(<SolverAdvisories advisories={[far]} />);
+    expect(screen.queryByText(/keeps moving/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /convergence advisory/ }));
+    expect(screen.getByText(/keeps moving/)).toBeTruthy();
+    expect(screen.queryByText(/first order in the far mesh/)).toBeNull();
+  });
 });

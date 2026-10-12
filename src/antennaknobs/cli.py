@@ -960,6 +960,10 @@ def deck_extended_kernel_flag(builder_cls):
 # The advisory categories a command echoes to stderr: where a port landed
 # (AK#1510), and a deck's default kernel the engine fell back from (AK#1891).
 _ECHOED = ("FeedPlacement", "ExtendedKernel")
+# momwire's deck-specific advisories echo their plain-words summary (AK#1981):
+# before it, the engine captured them and a command printed nothing at all.
+# RazorFarMeshClass is left out because it fires on every razor-2p solve.
+_ECHOED_SUMMARY = ("CoarseCrossingNode", "SurfaceRadialHeight")
 
 
 class _FeedPlacementEcho:
@@ -997,7 +1001,15 @@ class _FeedPlacementEcho:
                 continue
             for note in getattr(eng, "advisories", None) or ():
                 text = note.get("text")
-                if note.get("category") in _ECHOED and text not in self._seen:
+                if note.get("category") in _ECHOED_SUMMARY:
+                    text = note.get("summary")
+                    if text is None:
+                        continue
+                elif note.get("category") in _ECHOED:
+                    text = note.get("summary") or text
+                else:
+                    continue
+                if text not in self._seen:
                     self._seen.add(text)
                     print(f"advisory: {text}", file=sys.stderr)
             # What ran (momwire#1408): said once a run, only when the exact

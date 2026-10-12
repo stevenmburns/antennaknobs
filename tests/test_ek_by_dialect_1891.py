@@ -78,8 +78,14 @@ def test_nec2_keeps_the_cards_word():
 @pytest.mark.parametrize(
     ("dialect", "sentence"),
     [
-        ("nec4", "NEC-4 ignores EK; the extended kernel is used."),
-        ("nec5", "NEC-5 has no EK card; the extended kernel is used."),
+        (
+            "nec4",
+            "NEC-4 ignores EK; the extended kernel is used where the solver serves it.",
+        ),
+        (
+            "nec5",
+            "NEC-5 has no EK card; the extended kernel is used where the solver serves it.",
+        ),
     ],
 )
 def test_an_ek_card_under_nec4_or_nec5_is_ignored_with_a_note(dialect, sentence):
@@ -235,7 +241,12 @@ def test_the_cli_echoes_a_fallback_advisory(tmp_path, monkeypatch, capsys):
     finally:
         plt.close("all")
     err = capsys.readouterr().err
-    assert "advisory: This deck solves with the extended kernel by default" in err
+    # The plain-words summary echoes, not the solver's refusal (AK#1981).
+    assert (
+        "advisory: This deck asks for the extended (fat-wire) kernel, but this "
+        "solver has no extended kernel, so this solve used the standard "
+        "thin-wire kernel." in err
+    )
 
 
 def _z_table(out: str) -> complex:

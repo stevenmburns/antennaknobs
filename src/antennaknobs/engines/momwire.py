@@ -16,7 +16,7 @@ import numpy as np
 import momwire
 from momwire import BSplineSolver, RazorSolver
 
-from .. import in_medium
+from .. import advisory_words, in_medium
 from ..engine import (
     FarField,
     SimulationEngine,
@@ -392,6 +392,18 @@ def _solver_accepts_junctions_kwarg(solver_cls):
     including a plain junction-free dipole, well before any capability the
     registry tracks comes into play."""
     return not issubclass(solver_cls, RazorSolver)
+
+
+# Why a deck's default extended kernel was not used, in plain words for the
+# "ExtendedKernel" advisory's summary (AK#1981), keyed by which refusal fired.
+_EK_CAUSE_WORDS = {
+    "basis": "this solver has no extended kernel",
+    "enrichment": "this solver has no extended kernel with singular enrichment",
+    "buried": "the extended kernel is not available for wires below the ground",
+    "stepped": (
+        "the extended kernel is not available where wires of different radii meet"
+    ),
+}
 
 
 def _extended_kernel_refusal(solver, solver_kwargs):
@@ -1381,7 +1393,7 @@ class MomwireEngine(SimulationEngine):
         # since two of its refusals are about the deck.
         self._kernel_notes = []
         if extended_kernel_default and not self._extended_kernel:
-            why = self._extended_kernel_default_refusal()
+            why, cause = self._extended_kernel_default_refusal()
             if why is None:
                 self._extended_kernel = True
             else:
@@ -1393,6 +1405,15 @@ class MomwireEngine(SimulationEngine):
                             "This deck solves with the extended kernel by "
                             f"default, which {name} cannot serve "
                             f"here, so it solved with the reduced kernel: {why}"
+                        ),
+                        # AK#1981: the same in plain words; `text` stays the
+                        # detail, the solver's refusal verbatim.
+                        "summary": (
+                            "This deck asks for the extended (fat-wire) "
+                            f"kernel, but {_EK_CAUSE_WORDS[cause]}, so this "
+                            "solve used the standard thin-wire kernel. The "
+                            "difference matters for fat wires on short "
+                            "segments."
                         ),
                     }
                 )
@@ -1739,7 +1760,9 @@ class MomwireEngine(SimulationEngine):
             raise NotImplementedError(reason)
 
     def _extended_kernel_default_refusal(self):
-        """Why the extended kernel cannot be this engine's DEFAULT, or None:
+        """Why the extended kernel cannot be this engine's DEFAULT, as
+        ``(reason, cause)`` with ``cause`` a key of `_EK_CAUSE_WORDS`, or
+        ``(None, None)``:
         the basis's own refusal (`_extended_kernel_refusal`), then the two
         that depend on the deck — a wire below the ground plane, and a
         radius step at a junction — each in the solver's own words
@@ -1747,7 +1770,8 @@ class MomwireEngine(SimulationEngine):
         same refusals from momwire; a default must not, so it asks first."""
         reason = _extended_kernel_refusal(self._solver, self._solver_kwargs)
         if reason is not None:
-            return reason
+            enriched = (self._solver_kwargs or {}).get("use_singular_enrichment")
+            return reason, "enrichment" if enriched else "basis"
         if self._ground_z is not None:
             from momwire import ground_touch_tol
 
@@ -1758,16 +1782,18 @@ class MomwireEngine(SimulationEngine):
             ):
                 reason = _capability_refusal(self._solver, "buried", "extended_kernel")
                 if reason is not None:
-                    return reason
+                    return reason, "buried"
         radii = self._wire_radius
         if isinstance(radii, (list, tuple)) and any(
             len({radii[w] for w, _end in members}) > 1
             for members in self._junctions or ()
         ):
-            return _capability_refusal(
+            reason = _capability_refusal(
                 self._solver, "extended_kernel", "stepped_radius_junction"
             )
-        return None
+            if reason is not None:
+                return reason, "stepped"
+        return None, None
 
     def _kernel_solver_kwargs(self, extended_kernel=None):
         """Extra kernel kwargs for solver construction.
@@ -2201,7 +2227,7 @@ class MomwireEngine(SimulationEngine):
         deck momwire will not solve raises instead, and never reaches here.
         """
         rec = getattr(self, "_advisory_recorder", None)
-        items = list(rec.items) if rec is not None else []
+        items = [self._with_summary(a) for a in rec.items] if rec is not None else []
         # AK's own notes follow momwire's: one per wire split at its ports
         # (AK#1511, AK#1519), then any port a solver placed off its request
         # (AK#1469).
@@ -2211,6 +2237,22 @@ class MomwireEngine(SimulationEngine):
             + list(getattr(self, "_placement_notes", None) or [])
             + list(getattr(self, "_kernel_notes", None) or [])
         )
+
+    def _with_summary(self, advisory):
+        """`advisory` with its plain-words ``summary`` (AK#1981) when momwire's
+        sentence is one `advisory_words` reads; unchanged otherwise. momwire
+        numbers wires by POLYLINE, so the summary names a joint by where that
+        polyline's end sits rather than by an index the deck never shows."""
+
+        def locate(wire, end):
+            polylines = getattr(self, "_polylines", None) or ()
+            if not 0 <= wire < len(polylines):
+                return None
+            pl = np.asarray(polylines[wire], dtype=float)
+            return tuple(pl[0 if end == "start" else -1])
+
+        text = advisory_words.summary(advisory["category"], advisory["text"], locate)
+        return advisory if text is None else {**advisory, "summary": text}
 
     def _parity_exempt_names(self):
         """Wires whose only attachment is a `PortAtVertex` keep their authored

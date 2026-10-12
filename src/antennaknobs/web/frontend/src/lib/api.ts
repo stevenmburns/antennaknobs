@@ -111,8 +111,9 @@ export type SolveResponse = {
    *  not itself a signal to branch on. `category` is the stable identity
    *  (momwire's warning class); `text` is composed from measured rows and
    *  carries this deck's own numbers, so it is re-measured and must never be
-   *  matched on. */
-  advisories?: { category: string; text: string }[];
+   *  matched on. `summary` (AK#1981) is the server's plain-words reading of
+   *  it, present only for a category and sentence it could read. */
+  advisories?: { category: string; text: string; summary?: string }[];
   /** AK#1664: the self-tuning tuner, when this solve is at its tune
    *  frequency — where a match objective cannot move. null otherwise. The
    *  server refuses optimize/hold on it; the client only carries it. */
