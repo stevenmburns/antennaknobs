@@ -377,7 +377,7 @@ def test_a_nec4_engine_setting_keeps_centres_and_the_extended_kernel():
 @pytest.mark.parametrize(
     ("kw", "named"),
     [
-        ({"vercode": 10}, "version code 10"),
+        ({"vercode": 11}, "version code 11"),
         ({"pgm": 700_007}, "program version word 700007"),
         ({"pgm": 80_000_001}, "program version word 80000001"),
     ],
@@ -431,22 +431,27 @@ def test_a_negative_custom_block_is_skipped_by_its_length():
 # The other refusals, kept apart
 # --------------------------------------------------------------------------
 
-TRAP = {"wire": 1, "pct": 75.0, "rlc": ("T", 2.0, 2e-6, 60e-12, 0.0)}
+# A Laplace load: its variable is a reading the format leaves undefined.
+LAPLACE = {
+    "wire": 1,
+    "pct": 75.0,
+    "laplace": ((5.0, 2e-6, 0, 0, 0, 0), (1.0, 0, 0, 0, 0, 0)),
+}
 
 
 def test_an_undefined_reading_is_refused_unless_asked_for_and_then_listed():
-    raw = ez_file(DIPOLE, loads=(TRAP,), load_type="R")
+    raw = ez_file(DIPOLE, loads=(LAPLACE,), load_type="L")
     with pytest.raises(EzUndefined) as err:
         read_ez(raw)
-    assert err.value.kind == "undefined" and "trap" in str(err.value)
+    assert err.value.kind == "undefined" and "Laplace" in str(err.value)
     assert ez_import.ACCEPT_GUESSES_ENV in str(err.value)
     imp = read_ez(raw, accept_guesses=True)
-    assert any("Readings taken on request" in n and "trap" in n for n in imp.notes)
+    assert any("Readings taken on request" in n and "Laplace" in n for n in imp.notes)
 
 
 def test_the_environment_switch_opts_in_through_the_file_loader(tmp_path, monkeypatch):
-    p = tmp_path / "trap.ez"
-    p.write_bytes(ez_file(DIPOLE, loads=(TRAP,), load_type="R"))
+    p = tmp_path / "laplace.ez"
+    p.write_bytes(ez_file(DIPOLE, loads=(LAPLACE,), load_type="L"))
     monkeypatch.delenv(ez_import.ACCEPT_GUESSES_ENV, raising=False)
     with pytest.raises(EzUndefined):
         builder_from_file(str(p))
@@ -551,12 +556,12 @@ LOADS = {
     ),
     "trap": (
         {"rlc": ("T", 2.0, 2e-6, 60e-12, 0.0)},
-        True,
+        False,
         lambda f, w: _trap(2.0, 2e-6, 60e-12, w),
     ),
     "variable R": (
         {"rlc": ("S", 8.0, 1e-6, 0.0, 10.0)},
-        True,
+        False,
         lambda f, w: _series(8.0 * math.sqrt(f / 10.0), 1e-6, 0.0, w),
     ),
     "Laplace": (
@@ -623,15 +628,16 @@ def test_plain_rlc_loads_are_the_decks_own_frequency_dependent_load():
     )
 
 
-def test_a_variable_r_given_at_the_model_frequency_is_held_there_unless_asked():
-    spec = {"wire": 1, "pct": 75.0, "rlc": ("S", 8.0, 1e-6, 0.0, F0)}
-    imp = read_ez(ez_file(DIPOLE, loads=(spec,), load_type="R"))
-    assert any(
-        "Held at their model-frequency values" in n and "R of 8" in n for n in imp.notes
-    )
-    elsewhere = {**spec, "rlc": ("S", 8.0, 1e-6, 0.0, 7.0)}
-    with pytest.raises(EzUndefined, match="given at 7 MHz"):
-        read_ez(ez_file(DIPOLE, loads=(elsewhere,), load_type="R"))
+def test_a_variable_r_given_anywhere_follows_root_f_with_no_guess():
+    """AK#1991: R ∝ √(f/F) is how EZNEC's exports print a variable R, so it
+    is read by default, at the model frequency or away from it."""
+    for F in (F0, 7.0):
+        spec = {"wire": 1, "pct": 75.0, "rlc": ("S", 8.0, 1e-6, 0.0, F)}
+        imp = read_ez(ez_file(DIPOLE, loads=(spec,), load_type="R"))
+        assert not any("Readings taken" in n or "Held at" in n for n in imp.notes)
+        (ld,) = imp.deck.loads
+        f = 2 * F0 * 1e6
+        assert ld.custom.z(f).real == pytest.approx(8.0 * math.sqrt(f / (F * 1e6)))
 
 
 def test_a_stored_impedance_that_disagrees_with_the_parts_is_refused():
@@ -788,26 +794,29 @@ def test_a_cr_or_lf_in_the_title_or_name_stays_on_its_comment_card():
     assert head == ["CM two  lines", "CM read from a b.ez (EZNEC .ez)"]
 
 
-def test_a_lossy_line_is_held_at_the_model_frequency_and_flagged():
+def test_a_lossy_line_with_no_loss_frequency_is_held_at_the_model_frequency():
+    """How a loss given at no frequency varies is not defined: held at the
+    model frequency and flagged, or held at every frequency on request."""
     raw = ez_file(
         PAIR,
         lines=((1, 50.0, 2, 50.0, 50.0, 6.0, 0.66),),
-        blocks=[line_loss_block([(0.02, F0)])],
+        blocks=[line_loss_block([(0.02, 0.0)])],
     )
     deck = read_ez(raw).deck
     assert deck.fixed_frequency_nts() == (1,)
     assert any("NT card #1" in n for n in read_ez(raw).notes)
+    imp = read_ez(raw, accept_guesses=True)
+    assert imp.deck.fixed_frequency_nts() == ()
+    assert any("holds at every frequency" in n for n in imp.notes)
 
 
-def test_a_lossy_line_follows_root_f_on_request():
+def test_a_lossy_line_follows_root_f():
     raw = ez_file(
         PAIR,
         lines=((1, 50.0, 2, 50.0, 50.0, 6.0, 0.66),),
         blocks=[line_loss_block([(0.02, 7.0)])],
     )
-    with pytest.raises(EzUndefined, match="given at 7 MHz"):
-        read_ez(raw)
-    deck = read_ez(raw, accept_guesses=True).deck
+    deck = read_ez(raw).deck
     assert deck.fixed_frequency_nts() == ()
     (br,) = [
         b for b in deck.network().branches if isinstance(b, network.TouchstoneTwoPort)
@@ -1036,9 +1045,12 @@ def test_the_ground_is_eznecs(kw, spec, method, word):
     assert cls.default_params["ui_params"]["ground_card"] == imp.ground_word
 
 
-def test_extended_high_accuracy_ground_is_a_reading():
-    raw = ez_file(DIPOLE, ground="R", hag="X")
-    with pytest.raises(EzUndefined, match="extended"):
+def test_extended_high_accuracy_ground_is_sommerfeld_but_buried_is_a_reading():
+    imp = read_ez(ez_file(DIPOLE, ground="R", hag="X"))
+    assert imp.ground_method == "sommerfeld" and imp.ground == ("finite", 13.0, 0.005)
+    buried = [(0.0, -5.15, -0.5, 0.0, 5.15, -0.5, 0.002, 21)]
+    raw = ez_file(buried, ground="R", hag="X")
+    with pytest.raises(EzUndefined, match="buried"):
         read_ez(raw)
     assert read_ez(raw, accept_guesses=True).ground_method == "sommerfeld"
 
@@ -1143,10 +1155,10 @@ def test_an_ez_opens_solves_and_shows_its_cards_through_the_routes(monkeypatch):
             "/deck",
             json={
                 "name": "v.ez",
-                "text": ez_file(DIPOLE, vercode=10).decode("latin-1"),
+                "text": ez_file(DIPOLE, vercode=11).decode("latin-1"),
             },
         )
-        assert bad.status_code == 422 and "version code 10" in bad.json()["detail"]
+        assert bad.status_code == 422 and "version code 11" in bad.json()["detail"]
     finally:
         for k in list(server.EXAMPLES):
             if decks.is_deck(k):
@@ -1192,16 +1204,14 @@ def test_a_real_file_with_insulation_wears_jackets():
     assert imp.deck.wire_insulation
 
 
-def test_a_real_file_with_a_trap_is_refused_until_asked():
+def test_a_real_file_with_a_trap_opens_with_no_guess():
     raw = (FIXTURES / "20m-10m-GP-WA7ARK.ez").read_bytes()
-    with pytest.raises(EzUndefined, match="trap"):
-        read_ez(raw)
-    imp = read_ez(raw, accept_guesses=True)
+    imp = read_ez(raw)
     assert any(isinstance(ld.custom, ez_import._OnePort) for ld in imp.deck.loads)
+    assert not any("Readings taken" in n for n in imp.notes)
 
 
-def test_a_real_file_with_eznecs_extended_ground_is_a_reading():
+def test_a_real_file_with_eznecs_extended_ground_opens_as_sommerfeld():
     raw = (FIXTURES / "Basic-NEC5-Dipole-40m.ez").read_bytes()
-    with pytest.raises(EzUndefined, match="extended"):
-        read_ez(raw)
-    assert read_ez(raw, accept_guesses=True).deck.feeds
+    imp = read_ez(raw)
+    assert imp.deck.feeds and imp.ground_method == "sommerfeld"
