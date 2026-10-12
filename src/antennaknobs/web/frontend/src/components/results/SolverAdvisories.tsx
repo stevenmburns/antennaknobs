@@ -34,13 +34,43 @@
 // list at all. A category momwire adds later therefore shows until someone
 // decides otherwise: over-showing is visible and gets fixed, quiet
 // suppression is neither.
+//
+// PLAIN WORDS FIRST (AK#1981). momwire writes its advisories for its own
+// maintainers: issue numbers, solver internals, 0-based wire indices. Jeff
+// G8HUL called one "totally incomprehensible", and the server now adds a
+// `summary` for the categories it can read (`advisory_words.py`): what it is
+// about in the deck's terms, roughly what it is worth, what to do. The
+// summary leads and momwire's text sits behind "Details". An advisory with no
+// summary (an unknown category, or a sentence the server could not read)
+// shows its text in full, as before.
 import { useState } from "react";
 
 /** Advisories that fire on every solve of their backend and so would drown
  *  the rest. Presentation only — see the header. */
 const UNCONDITIONAL = new Set(["RazorFarMeshClass"]);
 
-export type Advisory = { category: string; text: string };
+export type Advisory = { category: string; text: string; summary?: string };
+
+/** One advisory's words: the summary with momwire's text behind a toggle,
+ *  or the text alone when there is no summary. */
+function AdvisoryWords({ a }: { a: Advisory }) {
+  const [open, setOpen] = useState(false);
+  if (!a.summary) return <>{a.text}</>;
+  return (
+    <>
+      {a.summary}{" "}
+      <button
+        type="button"
+        className="solver-advisory-toggle solver-advisory-details"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? "Hide details" : "Details"}
+      </button>
+      {open && <div className="solver-advisory-body">{a.text}</div>}
+    </>
+  );
+}
 
 export function SolverAdvisories({
   advisories,
@@ -60,7 +90,7 @@ export function SolverAdvisories({
     <div className={`solver-advisories${className ? " " + className : ""}`}>
       {shown.map((a) => (
         <div className="solver-advisory" key={`${a.category}:${a.text}`}>
-          <span className="solver-advisory-tag">Advisory</span> {a.text}
+          <span className="solver-advisory-tag">Advisory</span> <AdvisoryWords a={a} />
         </div>
       ))}
       {collapsed.length > 0 && (
@@ -80,7 +110,7 @@ export function SolverAdvisories({
           {showAll &&
             collapsed.map((a) => (
               <div className="solver-advisory-body" key={`${a.category}:${a.text}`}>
-                {a.text}
+                <AdvisoryWords a={a} />
               </div>
             ))}
         </div>

@@ -1010,9 +1010,9 @@ class NecDeck:
         )
         if self.ek_card_ignored:
             tail += (
-                " NEC-4 ignores EK; the extended kernel is used."
+                " NEC-4 ignores EK; the extended kernel is used where the solver serves it."
                 if self.dialect == "nec4"
-                else " NEC-5 has no EK card; the extended kernel is used."
+                else " NEC-5 has no EK card; the extended kernel is used where the solver serves it."
             )
         if self.dialect == "nec2" and self.ground_card == "GN 3":
             tail += (
