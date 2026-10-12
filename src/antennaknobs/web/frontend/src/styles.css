@@ -721,6 +721,9 @@ button:focus-visible,
   outline-offset: -2px;
 }
 .readout-zo-btn {
+  /* The stage readout is a passive HUD (pointer-events: none); this label is
+     interactive, as the plane picker is, so it takes clicks back. */
+  pointer-events: auto;
   background: none;
   border: 0;
   padding: 0;
