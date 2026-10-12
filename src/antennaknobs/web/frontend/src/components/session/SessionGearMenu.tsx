@@ -4,6 +4,7 @@ import type { Theme } from "../hooks";
 import { helpUrl } from "../../lib/help";
 import { ORIENTATIONS, type Orientation, type RunOnPickKind } from "../../lib/settings";
 import { TabStrip } from "./TabStrip";
+import { ZoField, type ZoControl } from "./ZoField";
 
 // The orientation <select>'s words: the view switch's own labels
 // (lib/view.ts PROJECTIONS), so the menu and the chart name a view the same.
@@ -75,6 +76,8 @@ export function SessionGearMenu({
   onSaveDefaults,
   theme,
   applyTheme,
+  zo,
+  focusZo,
 }: {
   /** "v0.77.0 · momwire v0.55.0" (AK#1517), rendered as served — this
    *  component names no engine. Null renders no label (older server, or the
@@ -115,6 +118,10 @@ export function SessionGearMenu({
   onSaveDefaults: () => void;
   theme: Theme;
   applyTheme: (t: Theme) => void;
+  /** This design's reference impedance (AK#1735, here since AK#1985). */
+  zo?: ZoControl | undefined;
+  /** Opened from a Z₀ label or the SWR row: focus the field. */
+  focusZo?: boolean | undefined;
 }) {
   return (
     <>
@@ -147,6 +154,16 @@ export function SessionGearMenu({
                   onClick={() => setGearMenuOpen(false)}
                 />
                 <div className="gear-menu" role="menu">
+                  {/* AK#1985: this design's settings first (each design tab
+                      has its own), then a line, then the switches every
+                      design shares. */}
+                  <div className="gear-menu-section">this design</div>
+                  {zo && (
+                    <div className="gear-menu-zo">
+                      <div className="gear-menu-hint">reference impedance</div>
+                      <ZoField zo={zo} autoFocus={focusZo} />
+                    </div>
+                  )}
                   <button
                     type="button"
                     className="gear-menu-item"
@@ -196,7 +213,8 @@ export function SessionGearMenu({
                       spare the chart area — so this menu is the only place
                       to reach them there; on desktop it's a convenience
                       duplicate. */}
-                  <div className="gear-menu-divider" />
+                  <div className="gear-menu-divider gear-menu-scope-line" />
+                  <div className="gear-menu-section">all designs</div>
                   {/* Mobile-layout only: it exists to reclaim the phone's
                       status/nav bars; on desktop F11 already does this and
                       the menu entry would be clutter. Also needs element

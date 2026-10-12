@@ -28,6 +28,7 @@ import { ThemeContext } from "../hooks";
 import { CHART_FONT, fitChartCanvas, useChartScale } from "./chartScale";
 import { curvesAttr, type ExtraCurve, NO_CURVES, NO_PINS, type PinCurve, pinsAttr } from "./curves";
 import { feedColor, feedSweepColor, PIN_DASH, plotColors, STALE_TRACE_ALPHA } from "./palette";
+import { useZoOpen } from "../session/zoOpen";
 import {
   drawSweepProgressBar,
   sweepProgressAttr,
@@ -177,6 +178,7 @@ export function SmithChart({
   // offset divided by k), so the view's pan is in logical px too.
   const k = useChartScale();
   const sz = size / k;
+  const openZo = useZoOpen();
   // Geometry the handlers share with the draw: canvas centre and the unit
   // circle's radius at fit.
   const half = sz / 2;
@@ -1249,6 +1251,19 @@ export function SmithChart({
   return (
     <div className="smith-chart" style={{ width: size, height: size }}>
       {canvas}
+      {openZo && interactive && (
+        // AK#1985: a hit area over the canvas's "Z₀ = …" corner text, which
+        // opens the reference impedance where it is read.
+        <button
+          type="button"
+          className="smith-zo-btn"
+          aria-label={`Reference impedance ${z0} Ω: change it`}
+          title="Change the reference impedance (this design)"
+          // Over the corner text, drawn at (6, 14) in chart units.
+          style={{ width: 76 * k, height: 20 * k }}
+          onClick={openZo}
+        />
+      )}
       {onYGridChange && (
         <button
           type="button"
