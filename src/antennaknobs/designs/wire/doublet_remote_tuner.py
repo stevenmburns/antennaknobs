@@ -225,7 +225,7 @@ from antennaknobs.network import (
     TwoPort,
     Wire,
 )
-from antennaknobs.schematic import series, shunt
+from antennaknobs.schematic import node, series, shunt
 from antennaknobs.station import l_network_tuner
 from antennaknobs.wire_catalog import WIRES, cable_from_catalog, wire_from_catalog
 
@@ -303,7 +303,13 @@ def manual_l_tuner(l_uH, c_pF, c_side, *, ql=None, qc=None) -> Composite:
         ports=("rig", "lc", "out"),
         branches=(coil, cap, short),
         # Drawn from the rig side: the shunt comes first when it sits there.
-        schematic=(draw_l, draw_c) if c_side == "balun" else (draw_c, draw_l),
+        # `node("lc")` marks where the ``lc`` plane sits between the parts, so
+        # its marker lands there rather than at the box's edge (AK#1984).
+        schematic=(
+            (draw_l, node("lc"), draw_c)
+            if c_side == "balun"
+            else (draw_c, node("lc"), draw_l)
+        ),
     )
 
 

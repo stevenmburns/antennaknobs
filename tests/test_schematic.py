@@ -535,9 +535,12 @@ def test_a_picked_plane_marks_the_cut_but_keeps_the_whole_chain():
     assert len(sch.blocks) == 2  # tuner (upstream) + line, both still drawn
     # A cut at the chain's end marks the antenna terminals themselves.
     assert lower(net, plane="feed").plane_cut == 2
-    # The natural plane and an unknown one mark nothing — the drawing never
-    # crashes; plane.driven_at is the validating gate.
-    assert lower(net, plane="rig").plane_cut is None
+    # The natural plane picked by name marks the source terminals and dims
+    # nothing (AK#1984: Dan saw no marker for "rig" and could not tell). An
+    # unknown one marks nothing: the drawing never crashes, and
+    # plane.driven_at is the validating gate.
+    rig = lower(net, plane="rig")
+    assert (rig.plane, rig.plane_cut, rig.plane_element) == ("rig", 0, None)
     assert lower(net, plane="bogus").plane_cut is None
 
 
@@ -573,3 +576,79 @@ def test_cli_writes_a_file(tmp_path):
 def test_cli_refuses_an_antenna_with_no_network():
     with pytest.raises(SystemExit, match="no build_network"):
         ant.cli("schematic --builder dipoles.invvee".split())
+
+
+# --- a plane inside a box (AK#1984) ----------------------------------------
+# Dan AC6LA: on wire.doublet_remote_tuner the "inside tuner (L–C)" plane drew
+# at the tuner's output, coil dimmed, where it belongs between the parts.
+
+
+@pytest.mark.parametrize(
+    ("c_side", "dimmed", "live"),
+    [("rig", "413 pF", "1.87 µH"), ("balun", "1.87 µH", "413 pF")],
+)
+def test_the_lc_plane_sits_between_the_tuners_parts(c_side, dimmed, live):
+    b = build("wire.doublet_remote_tuner")
+    b.tuner_c_side = c_side
+    net = b.build_network()
+    sch = lower(net, plane="lc")
+    assert (sch.plane, sch.plane_cut, sch.plane_element) == ("lc", 0, 1)
+    # The tuner and lc planes are different places on the drawing now.
+    tuner = lower(net, plane="tuner")
+    assert (tuner.plane_cut, tuner.plane_element) == (1, None)
+    pytest.importorskip("schemdraw")
+    svg = render_svg(sch, color="black")
+    assert "plane: lc" in svg
+    # The part upstream of the plane is the de-emphasised one, and only it.
+    assert _label_color(svg, dimmed) == "gray"
+    assert _label_color(svg, live) == "black"
+
+
+def _label_color(svg: str, text: str) -> str:
+    """The fill of the <text> element carrying ``text`` in a schemdraw SVG."""
+    import re
+
+    for m in re.finditer(r"<text[^>]*>(?:(?!</text>).)*</text>", svg, re.S):
+        if text in m.group(0):
+            fill = re.search(r'fill="([^"]+)"', m.group(0))
+            return fill.group(1) if fill else ""
+    raise AssertionError(f"{text!r} not in the drawing")
+
+
+def test_a_default_rendered_box_places_an_inside_plane_by_counting_symbols():
+    # No author fragment: a plane at the box's internal node lands after the
+    # symbols of the steps in front of it, here between the two lines.
+    body = Composite(
+        ports=("a", "b"),
+        branches=(
+            TL(a="a", b="m", z0=75.0, length=3.0),
+            TL(a="m", b="b", z0=50.0, length=2.0),
+        ),
+    )
+    net = Network(
+        ports={"rig": PortVirtual("rig"), "far": PortOnWire("far")},
+        branches=[Instance("box", body, a="rig", b="far")],
+        sources=[Driven(port="rig")],
+    )
+    sch = lower(net, plane="box.m")
+    assert (sch.plane, sch.plane_cut, sch.plane_element) == ("box.m", 0, 1)
+
+
+def test_a_fragment_without_the_node_keeps_the_old_edge_cut():
+    # A fragment that does not mark the plane's node cannot be split: the
+    # marker stays at the box's edge, as before.
+    body = Composite(
+        ports=("a", "b"),
+        branches=(
+            TL(a="a", b="m", z0=75.0, length=3.0),
+            TL(a="m", b="b", z0=50.0, length=2.0),
+        ),
+        schematic=(series("coax", "75"), series("coax", "50")),
+    )
+    net = Network(
+        ports={"rig": PortVirtual("rig"), "far": PortOnWire("far")},
+        branches=[Instance("box", body, a="rig", b="far")],
+        sources=[Driven(port="rig")],
+    )
+    sch = lower(net, plane="box.m")
+    assert (sch.plane_cut, sch.plane_element) == (1, None)
