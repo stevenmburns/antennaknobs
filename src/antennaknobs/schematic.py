@@ -194,6 +194,17 @@ def shunt(
     )
 
 
+def node(name: str) -> Element:
+    """Where a Composite's formal ``name`` sits on its fragment (AK#1984).
+
+    Draws nothing. A fragment is a picture with no wiring, so without it a
+    measurement plane at a node INSIDE the box (a manual L tuner's ``lc``,
+    between its capacitor and coil) can only be marked at one of the box's
+    edges. With it, the plane marker lands between the symbols either side.
+    """
+    return Element(kind="node", label=name, orient="node")
+
+
 def ground(label: str = "") -> Element:
     """An explicit connection to the datum (a shorted stub's far end)."""
     return Element(kind="short", label=label, orient="shunt")
@@ -293,6 +304,10 @@ class Schematic:
     # for the solve being displayed and renders de-emphasised.
     plane: str = ""
     plane_cut: int | None = None
+    # A plane INSIDE block ``plane_cut`` (AK#1984): the marker draws in front
+    # of that block's element at this index, and only the elements before it
+    # render de-emphasised. None: the plane is at the block's front edge.
+    plane_element: int | None = None
     title: str = ""
     notes: list[str] = field(default_factory=list)
     branches: list[Branch] = field(default_factory=list)
@@ -937,6 +952,21 @@ def lower(net, *, title: str = "", budget=None, p_in=None, plane=None) -> Schema
             i += 1
         return groups, starts
 
+    def _element_at_plane(group, path, k):
+        """Index, in the block drawn for ``group``, of the element the plane
+        sits in front of: the plane is the entry node of the group's ``k``-th
+        step. An author's fragment places it by its `node` marker; a default
+        rendering counts the symbols of the steps before it. None when the
+        fragment marks no such node, and the cut stays at the block's edge."""
+        frag = fragment_of(net, path) if path else None
+        if frag is None:
+            return sum(len(default_elements(branches[st.idx])) for st in group[:k])
+        formals = (getattr(net, "composite_nodes", None) or {}).get(path, {})
+        for i, e in enumerate(frag):
+            if e.orient == "node" and formals.get(e.label, path + e.label) == plane:
+                return i
+        return None
+
     grouped = [group_steps(ch) for ch in chains]
     groups, starts = grouped[0]
 
@@ -951,6 +981,20 @@ def lower(net, *, title: str = "", budget=None, p_in=None, plane=None) -> Schema
         if cut is not None:
             sch.plane = plane
             sch.plane_cut = sum(1 for s in starts if s < cut)
+            if cut < len(chain) and cut not in starts:
+                # The plane is inside a block, between two of its steps
+                # (AK#1984): rounding to the block's end drew a manual L
+                # tuner's ``lc`` plane at the tuner's output, coil dimmed.
+                bi = sum(1 for s in starts if s <= cut) - 1
+                at = _element_at_plane(groups[bi][0], groups[bi][1], cut - starts[bi])
+                if at is not None:
+                    sch.plane_cut, sch.plane_element = bi, at
+    elif plane and plane == sch.source and chain:
+        # The natural source picked by name: marked at the source terminals,
+        # so every plane the picker lists shows on the drawing (AK#1984). Not
+        # drawn when no plane was asked for, as before (#652 c).
+        sch.plane = plane
+        sch.plane_cut = 0
 
     # Assign each rib to EXACTLY ONE block, across every chain. A node a
     # chain passes through can belong to two consecutive blocks, so keying a
@@ -1106,6 +1150,10 @@ SRC_R = 0.5  # radius of the source circle, for label clearance
 SHUNT_STEP = 0.9  # past a drop, so two in a row do not land on the same x
 PAIR_LEN = 4.6  # a two-conductor line, long enough to read as a line
 ATTACH_ROW = 1.9  # between attachment rows, which carry two lines of text each
+# How far above the spine a plane marker reaches. High enough that its label
+# clears a box caption and a balun's lifted label (AK#1984: at 0.9 "plane: lc"
+# sat on "tuner" and "plane: tuner" on "balun 1:1").
+PLANE_TOP = 1.7
 
 
 def _burn_text(watts: float, p_in: float | None) -> str:
@@ -1218,6 +1266,8 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
         plane_at=None,
         b0=None,
         row_dim=False,
+        plane_el=None,
+        plane_x0=None,
     ):
         """One chain's blocks, drawn left to right from ``(x, y)``.
 
@@ -1264,9 +1314,12 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
             x = xc = at
 
         for n, block in enumerate(blocks):
+            # A plane inside this block (AK#1984) dims only the elements in
+            # front of it; the box itself, and its caption, stay live.
+            inside = plane_el is not None and plane_at == n
             dim_n = row_dim or (dim_until is not None and n < dim_until)
             if dim_until is not None:
-                d.config(color=DIM if n < dim_until else base_color)
+                d.config(color=DIM if (n < dim_until or inside) else base_color)
             if n:
                 d += elm.Line().at((x, y)).to((x + GAP, y))
                 x += GAP
@@ -1286,14 +1339,43 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
                         .at((bxs[n], y - 0.35))
                         .label(marks[n], fontsize=SUBFONT, valign="top")
                     )
-            if plane_at == n:
+            if plane_at == n and not inside:
                 # The cut sits at the node this block starts from — mid-gap
                 # between blocks, or on the lead-in for a cut at the first one.
-                plane_marker(bxs[n], y + 0.9, gnd_y() + 0.3)
+                plane_marker(
+                    plane_x0 if (n == 0 and plane_x0 is not None) else bxs[n],
+                    y + PLANE_TOP,
+                    gnd_y() + 0.3,
+                )
             x0 = x
             drawn = []  # what the block's enclosure has to contain
             tall = False  # the last symbol drawn reaches below the spine
-            for el in block.elements:
+            for ei, el in enumerate(block.elements):
+                if inside and ei == plane_el:
+                    # The plane inside the box: a short lead on each rail, the
+                    # marker on it, and the drawing colour back from here on.
+                    sync(drawn)
+                    # Room for the marker, plus a following drop's left-hand
+                    # label, which would otherwise print across it.
+                    nxt = next(
+                        (e for e in block.elements[ei:] if e.orient != "node"), None
+                    )
+                    gap = 2 * SHUNT_STEP
+                    if nxt is not None and nxt.orient == "shunt":
+                        gap = SHUNT_STEP + _label_room(nxt) + 1.2
+                    rails = [(x, y)] + ([(xc, yr)] if balanced else [])
+                    for cur, ry in rails:
+                        line = elm.Line().at((cur, ry)).to((cur + gap, ry))
+                        d += line
+                        drawn.append(line)
+                    d.config(color=base_color)
+                    plane_marker(x + gap / 2.0, y + PLANE_TOP, gnd_y() + 0.3)
+                    x += gap
+                    if balanced:
+                        xc += gap
+                    tall = False
+                if el.orient == "node":
+                    continue  # a position marker, never a symbol
                 if el.orient == "pair":
                     # A two-conductor line: both rails, drawn as the pair it is
                     # rather than one line with the return taken on trust. It also
@@ -1535,6 +1617,10 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
                     x = _exit_x(e, x + DX)
                     tall = wound
             sync(drawn)
+            if inside and plane_el >= len(block.elements):
+                # A plane past the block's last symbol, still inside its box.
+                d.config(color=base_color)
+                plane_marker(x + SHUNT_STEP / 2.0, y + PLANE_TOP, gnd_y() + 0.3)
             if x == x0:  # a block of pure shunts still needs a step
                 e = elm.Line().at((x, y)).to((x + DX, y))
                 d += e
@@ -1658,6 +1744,11 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
         )
         if first is not None and first.orient == "shunt":
             leadin = max(leadin, SRC_R + 0.3 + _label_room(first) + 0.5)
+        # A plane at the source terminals gets its own stretch of lead-in, so
+        # the marker stands clear of the first box's enclosure (AK#1984).
+        at_source = sch.plane_cut == 0 and sch.plane_element is None
+        if at_source:
+            leadin += 0.8
         d += elm.Line().at((0.0, 0.0)).to((leadin, 0.0))
 
         x, xc, yr, balanced, bxs = draw_blocks(
@@ -1669,6 +1760,11 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
             dim_until=sch.plane_cut,
             plane_at=sch.plane_cut,
             b0=leadin / 2.0,
+            plane_el=sch.plane_element,
+            # A plane at the source terminals sits just clear of the source
+            # circle: the lead-in's midpoint is where a first shunt's
+            # left-hand label is (AK#1984).
+            plane_x0=SRC_R + 0.45,
         )
         y = 0.0
         gy = (yr - DY) if balanced else (y - DY)
@@ -1689,7 +1785,7 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
                 # the marker at leadout/2, so its right edge lands at
                 # text_width/2 past centre and needs the difference clear.
                 leadout = max(LEADOUT, _text_width(f"plane: {sch.plane}") + 1.5)
-                plane_marker(x + leadout / 2.0, y + 0.9, gy + 0.3)
+                plane_marker(x + leadout / 2.0, y + PLANE_TOP, gy + 0.3)
 
         # "antenna (feed0)" when the chain's end carries a name — it only does
         # when the network has other antenna ports to confuse it with.

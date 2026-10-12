@@ -204,7 +204,15 @@ class Instance:
 
 
 def _expand_instance(
-    inst, formal_to_final, prefix, flat, paths, aliases, internals, composites=None
+    inst,
+    formal_to_final,
+    prefix,
+    flat,
+    paths,
+    aliases,
+    internals,
+    composites=None,
+    nodes=None,
 ):
     """Recursively flatten ``inst`` into ``flat``/``paths``, collecting alias
     pairs and auto-created internal node names. ``formal_to_final`` maps the
@@ -224,12 +232,18 @@ def _expand_instance(
         # the box, which is exactly what a schematic (issue #652) needs: the
         # author's fragment lives on the Composite, not on its branches.
         composites[prefix] = inst.of
+    if nodes is not None:
+        # The composite's formals as network nodes (AK#1984): a fragment that
+        # marks where a formal sits on its drawing (`schematic.node`) is placed
+        # by the node the plane picker names. Formals only; an internal node
+        # resolves to ``prefix + name`` and is looked up that way.
+        nodes[prefix] = dict(formal_to_final)
     for item in inst.of.branches:
         if isinstance(item, Instance):
             child_map = {f: resolve(a) for f, a in item.portmap.items()}
             _expand_instance(
                 item, child_map, prefix + item.name + ".",
-                flat, paths, aliases, internals, composites,
+                flat, paths, aliases, internals, composites, nodes,
             )  # fmt: skip
         else:
             flat.append(_rewrite_branch(item, resolve))
@@ -324,6 +338,9 @@ class Network(_FlatNetwork):
     #: Instance path → the `Composite` it came from, filled by flattening
     #: (issue #652). Derived, like ``branch_paths``.
     composites: dict = field(default_factory=dict)
+    #: Instance path → {formal: network node} for its Composite, aliases
+    #: resolved (AK#1984). Derived, like ``composites``.
+    composite_nodes: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if self.branch_paths:
@@ -339,6 +356,7 @@ class Network(_FlatNetwork):
         resolve aliases, stamp per-branch instance paths."""
         flat, paths, alias_pairs, internals = [], [], [], set()
         composites: dict[str, Composite] = {}
+        nodes: dict[str, dict[str, str]] = {}
         for item in self.branches:
             if isinstance(item, Instance):
                 for actual in item.portmap.values():
@@ -350,7 +368,7 @@ class Network(_FlatNetwork):
                         )
                 _expand_instance(
                     item, dict(item.portmap), item.name + ".",
-                    flat, paths, alias_pairs, internals, composites,
+                    flat, paths, alias_pairs, internals, composites, nodes,
                 )  # fmt: skip
             else:
                 flat.append(item)
@@ -358,6 +376,7 @@ class Network(_FlatNetwork):
         self.branches = flat
         self.branch_paths = paths
         self.composites = composites
+        self.composite_nodes = nodes
         for n in sorted(internals):
             if n in self.ports:
                 raise ValueError(f"internal node {n!r} collides with a port")
@@ -369,6 +388,10 @@ class Network(_FlatNetwork):
             return
         ren = lambda n: rename.get(n, n)  # noqa: E731
         self.branches = [_rewrite_branch(br, ren) for br in self.branches]
+        self.composite_nodes = {
+            path: {f: ren(n) for f, n in m.items()}
+            for path, m in self.composite_nodes.items()
+        }
         self.ports = {n: p for n, p in self.ports.items() if n not in rename}
         merged_sources = []
         for src in self.sources:
