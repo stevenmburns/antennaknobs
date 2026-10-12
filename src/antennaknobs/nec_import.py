@@ -276,7 +276,64 @@ _DIALECT_WORD = {"nec2": "NEC-2", "nec4": "NEC-4", "nec5": "NEC-5"}
 _DIALECT_STAMP_WORD = {"nec4": "NEC-4.2", "nec5": "NEC-5"}
 _NO_MARKER = "no NEC-4 or NEC-5 marker found"
 _CM_NEC4 = ("NEC-4", "NEC4", "NEC-4.2", "NEC4.2")
+# A keyed declaration (AK#1987, after Maury Markowitz's suggestion for
+# OpenNEC): a comment whose WHOLE text is ``engine=<v>`` or ``dialect=<v>``
+# (``:`` also, any case). Values are compared with case, spaces and hyphens
+# dropped; one this table does not name declares nothing.
+_KEYED_DECLARATION = re.compile(r"^(engine|dialect)\s*[=:]\s*(\S+)$", re.IGNORECASE)
+_KEYED_DIALECT = {
+    "nec2": "nec2",
+    "4nec2": "nec2",
+    "nec2c": "nec2",
+    "nec4": "nec4",
+    "nec4.1": "nec4",
+    "nec4.2": "nec4",
+    "nec5": "nec5",
+}
 _EZNEC_NEC2_WRITERS = ("NEC-2", "NEC2", "NEC-4.2", "NEC4.2")
+
+
+def _keyed_declaration(text: str, name: str) -> tuple[str, int, str] | None:
+    """The deck's keyed dialect declaration (AK#1987), as ``(dialect, line,
+    comment text)``, or None.
+
+    Only a comment whose whole text is the declaration counts, as for
+    ``CM NEC-5`` (AK#1476). Two declarations that disagree, keyed or
+    whole-comment, are refused by name: the deck says two things and nothing
+    here can say which is right. An unknown value declares nothing.
+    """
+    found = None
+    whole = None
+    for line_no, raw in _logical_lines(text):
+        s = raw.strip()
+        if s[:2].upper() != "CM":
+            continue
+        body = s[2:].strip()
+        if body.upper() in ("NEC-5", "NEC5"):
+            whole = whole or ("nec5", line_no, body)
+        elif body.upper() in _CM_NEC4:
+            whole = whole or ("nec4", line_no, body)
+        m = _KEYED_DECLARATION.match(body)
+        if m is None:
+            continue
+        value = m.group(2).lower().replace("-", "")
+        said = _KEYED_DIALECT.get(value)
+        if said is None:
+            continue
+        if found is not None and found[0] != said:
+            raise ValueError(
+                f"{name}: line {found[1]} declares {_DIALECT_WORD[found[0]]} "
+                f"and line {line_no} declares {_DIALECT_WORD[said]}; remove "
+                "one, or choose Read as"
+            )
+        found = found or (said, line_no, body)
+    if found is not None and whole is not None and whole[0] != found[0]:
+        raise ValueError(
+            f"{name}: line {found[1]} declares {_DIALECT_WORD[found[0]]} and "
+            f"line {whole[1]} declares {_DIALECT_WORD[whole[0]]}; remove one, "
+            "or choose Read as"
+        )
+    return found
 
 
 def _eznec_stamp_dialect(text: str, where: str) -> str | None:
@@ -5812,6 +5869,30 @@ def parse_nec(
     are malformed or describe things antennaknobs cannot model — patches,
     tapered wires, plane-wave or current-source excitation.
     """
+    if _gn3_probe and dialect is None:
+        # AK#1987: a keyed declaration says what the deck is, so it is read
+        # as that dialect, as if a reader had chosen it, with the declaration
+        # as the reason. It outranks every guess below, the GN 3 one included.
+        declared = _keyed_declaration(text, name)
+        if declared is not None:
+            words = f"a CM {declared[2]} card on line {declared[1]}"
+            deck = parse_nec(
+                text,
+                name=name,
+                network=network,
+                virtualize_anchors=virtualize_anchors,
+                sy_overrides=sy_overrides,
+                limits=limits,
+                dialect=declared[0],
+                _gn3_probe=False,
+            )
+            return replace(
+                deck,
+                dialect_chosen=None,
+                dialect_reason=words,
+                dialect_detected=declared[0],
+                dialect_detected_reason=words,
+            )
     if _gn3_probe:
         # AK#1982: settle GN 3's two meanings by the geometry, which only the
         # parsed deck knows (its wires after every SY, GM and GX). NEC-2 and

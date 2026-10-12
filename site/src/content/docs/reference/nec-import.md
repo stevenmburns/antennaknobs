@@ -514,6 +514,18 @@ decks end `GN` with it too. A comment card whose whole text is `NEC-4` or
 own NEC-4.2 export (`--dialect nec4`) writes `CM NEC-4.2`, so it reads back
 as NEC-4 under detection.
 
+A deck can also say which program it is for with a keyed comment, whose
+whole text is `engine=` or `dialect=` and a value: `CM engine=nec4`,
+`CM dialect=4nec2` (`:` works as well as `=`, in any case). `nec2`, `4nec2`
+and `nec2c` declare NEC-2, the only way a deck can declare it; `nec4`,
+`nec4.1` and `nec4.2` declare NEC-4; `nec5` declares NEC-5. A declared deck
+reads as that dialect, as if it had been chosen, ahead of every guess above,
+and the note names the card: *Read as NEC-2 (sources and loads at segment
+centres): a CM engine=4nec2 card on line 1.* So a `GN 3` deck that declares
+4nec2 keeps 4nec2's MININEC ground even with a buried wire. Two declarations
+that disagree, keyed or whole-comment, are refused by name; a value not in
+that list declares nothing. **Read as** still wins over a declaration.
+
 ## MMANA-GAL `.maa` models
 
 An MMANA-GAL model opens wherever a deck does: **Open…** on the workbench
