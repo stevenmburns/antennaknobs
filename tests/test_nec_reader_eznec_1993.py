@@ -21,9 +21,12 @@ branch under test is the one that ran.
 
 from __future__ import annotations
 
+import pytest
+
 from antennaknobs.engines import MomwireEngine
 from antennaknobs.file_designs import builder_from_text
 from antennaknobs.nec_import import parse_nec
+from antennaknobs.network import DrivenCurrent, PortVirtual
 
 STAMP2 = "CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-2 format."
 STAMP4 = "CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-4.2 format."
@@ -160,3 +163,104 @@ def test_an_eznec_nec2_export_on_another_ground_is_unchanged():
     deck = parse_nec(text)
     assert deck.dialect == "nec2"
     assert deck.dialect_reason == "no NEC-4 or NEC-5 marker found"
+
+
+# --------------------------------------------------------------------------
+# 2. a current source on a virtual segment: the gyrator's phantom wire
+# --------------------------------------------------------------------------
+LEGEND = (
+    "CM ! *Wire #2 for virtual segments.",
+    "CM ! Wire #3 for I srcs, shorted/open TL, and/or parallel loads.",
+)
+# Doublet+Feed's NEC-2 export: the source on virtual segment 2/2 through the
+# gyrator from phantom 3/2, and a line from there to the feed.
+VIRTUAL_I_NEC2 = _eznec(
+    "CM Synthetic doublet with feed",
+    "CM",
+    STAMP2,
+    "CM",
+    *LEGEND,
+    "CM ! NT #1 is EZNEC current source",
+    "CE",
+    DIPOLE,
+    VIRTUAL,
+    PHANTOM,
+    "GE 0",
+    "FR 0,1,0,0,14.15",
+    "GN -1",
+    "EX 0,3,2,0,0.,1.414214",
+    "NT 3,2,2,2,0.,0.,0.,1.,0.,0.",
+    "TL 2,2,1,11,300.,3.5,0.,0.,0.,0.",
+    "RP 0,181,1,1000,90.,0.,-1.,0.,0.",
+    "EN",
+)
+# The same antenna spelled directly: NEC-4's EX 6 on virtual segment 2/2.
+VIRTUAL_I_NEC4 = _eznec(
+    "CM Synthetic doublet with feed",
+    "CM",
+    STAMP4,
+    "CM",
+    "CM ! *Wire #2 for virtual segments.",
+    "CE",
+    DIPOLE,
+    VIRTUAL,
+    "GE 0",
+    "FR 0,1,0,0,14.15",
+    "GN -1",
+    "EX 6,2,2,0,1.414214,0.",
+    "TL 2,2,1,11,300.,3.5,0.,0.,0.,0.",
+    "RP 0,181,1,1000,90.,0.,-1.,0.,0.",
+    "EN",
+)
+
+
+def _gyrators(text: str) -> dict:
+    return parse_nec(text, network=True)._network_parts()[3]
+
+
+def test_the_phantom_and_the_virtual_wire_both_virtualize():
+    deck = parse_nec(VIRTUAL_I_NEC2, network=True)
+    assert deck.virtual_segment_wires == frozenset({1, 2})
+    ports, _branches, sources, gyrators = deck._network_parts()
+    # The branch that ran: one gyrator collapsed, from the phantom's node onto
+    # a VIRTUAL node, which now carries the forced current.
+    ((phantom, target),) = gyrators.items()
+    assert phantom not in ports
+    assert isinstance(ports[target], PortVirtual)
+    (src,) = sources
+    assert isinstance(src, DrivenCurrent)
+    assert src.port == target
+    assert src.current == pytest.approx(1.414214)
+
+
+def test_the_gyrator_spelling_solves_as_ex6_on_the_virtual_segment():
+    ref = _z(VIRTUAL_I_NEC4)
+    assert parse_nec(VIRTUAL_I_NEC4, network=True).virtual_segment_wires == {1}
+    assert _rel(_z(VIRTUAL_I_NEC2), ref) < 1e-9
+    # Before: without the legend neither wire clears the other, both stay
+    # real, and the source reads the gyrator's inverted impedance.
+    bare = VIRTUAL_I_NEC2
+    for line in LEGEND:
+        bare = bare.replace(line + "\r\n", "")
+    assert parse_nec(bare, network=True).virtual_segment_wires == frozenset()
+    assert _gyrators(bare) == {}
+    assert _rel(_z(bare), ref) > 0.5
+
+
+def test_the_legend_needs_the_stamp():
+    text = VIRTUAL_I_NEC2.replace(STAMP2 + "\r\n", "")
+    assert parse_nec(text, network=True).virtual_segment_wires == frozenset()
+
+
+def test_a_real_wire_one_wavelength_away_stays_real():
+    """The exemption is between the wires the legend names, never from the
+    antenna: a real element 1 λ from the virtual wire still keeps it real."""
+    near = "GW 4,11,2118.675,2116.,2161.05,2118.675,2121.,2161.05,.001"
+    text = VIRTUAL_I_NEC2.replace("GE 0", near + "\r\nGE 0")
+    deck = parse_nec(text, network=True)
+    assert 1 not in deck.virtual_segment_wires
+
+
+def test_a_legend_naming_a_missing_wire_names_nothing():
+    text = VIRTUAL_I_NEC2.replace("*Wire #2 for", "*Wire #7 for")
+    assert parse_nec(text, network=True).virtual_segment_wires == frozenset()
