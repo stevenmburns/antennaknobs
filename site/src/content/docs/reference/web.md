@@ -2213,6 +2213,21 @@ it follows you to every view. It's still a mesh check: what should be
 small is how much the reading *moves* as you add segments, and switching
 the ground to PEC (or off) should send it back toward ~100% (Δ 0 dB).
 
+## The reference impedance
+
+SWR, the Smith chart, the readout and the optimizer's SWR and Match Z₀ all
+measure against one reference impedance, Z₀: the design's own (a SimNEC
+Generator's Zo, or what the design file names), else 50 Ω. To change it,
+click the Smith chart's **Z₀ = …** corner or the readout's **SWR (… Ω)** line,
+or open the gear menu (⚙, top of the sidebar): it is the first thing in its
+**this design** section. Each design tab keeps its own, and **reset** returns
+to the design's. The optimizer's menu shows the value it is tuning against,
+with **change…** leading to the same field.
+
+The gear menu is split by a line: above it, **this design** (the reference
+impedance, Copy params, the deck downloads); below it, **all designs**, the
+display switches every tab shares.
+
 ## Copying params back to code
 
 The **gear menu** (⚙, top of the sidebar) has **Copy params (Python)**, which

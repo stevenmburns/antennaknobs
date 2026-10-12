@@ -29,30 +29,27 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.101.1" icon="star">
-  **Sweep a tuner's parts in one pass.** *Sweep this knob…* on a tuner's coil
-  or capacitor now sweeps it log-spaced in 81 points over the part's whole
-  range, so one sweep traces its path on the Smith chart; the command line's
-  `sweep --param` starts from the same. **NEC-5 runs the remote-tuner
-  doublet** and the other floating-gap feeds; see
-  [a doublet into a remote tuner](/advanced/remote-tuner/), a new worked
-  example. The chart's sweep controls **fold to one line** (folded by default
-  on a phone), and the analyses' Python is behind a **py** button.
+<Card title="New in v0.101.2" icon="star">
+  **Advisories in plain words.** A solver advisory now leads with what it
+  means for your model: where, roughly how much, and what to do about it. The
+  solver's own detail sits behind **Details**, and the command line prints the
+  same summary.
 
-  From v0.101.0, **open your EZNEC `.ez` model.** **Open…** a `.ez` on the workbench, or name
-  `@model.ez` on the command line, and it opens like a deck, with no export to
-  `.nec` first; see [EZNEC `.ez` models](/reference/nec-import/#eznec-ez-models).
+  **Say which program a deck is for.** A comment card `CM engine=nec4` (or
+  `dialect=`, with `nec2`, `4nec2`, `nec4` or `nec5`) reads the deck as that
+  dialect, and a `GN 3` deck with a buried wire now reads as NEC-4 on its own;
+  see [which dialect a deck was read in](/reference/nec-import/#which-dialect-a-deck-was-read-in-and-choosing-it).
 
-  **Fat wires that converge.** momwire 0.76.0's B-spline basis has an **exact
-  ring kernel** that takes over on its own where a segment is shorter than
-  three radii, where the extended kernel's answer drifts as the mesh is
-  refined; see [the exact ring kernel](/reference/solver/#the-exact-ring-kernel-fat-wires-short-segments).
+  **The reference impedance where you look.** Click the Smith chart's Z₀ or
+  the readout's SWR line to change it; it lives in the gear menu's new **this
+  design** section. The schematic marks a measurement plane **inside** the
+  tuner where it really is.
 
-  **Tune an L network on the Smith chart.** A new design,
-  `wire.doublet_remote_tuner` (WA7ARK's doublet on window line into a remote L
-  tuner), has a plane inside the tuner and draws the circle to turn onto, and
-  the chart's **Y** button adds the admittance grid; see
-  [tuning on the Smith chart](/reference/web/#the-measurement-plane).
+  From v0.101.1, **sweep a tuner's parts in one pass**, and **NEC-5 runs the
+  remote-tuner doublet**; see
+  [a doublet into a remote tuner](/advanced/remote-tuner/).
+  From v0.101.0, **open your EZNEC `.ez` model** like a deck; see
+  [EZNEC `.ez` models](/reference/nec-import/#eznec-ez-models).
 </Card>
 
 ## The whole pitch, in one line
