@@ -134,13 +134,16 @@ def test_flattening_fills_branch_paths_before_the_parent_validates():
 def test_field_order_is_the_parents_then_composites():
     """Subclassing appends; it must not reorder. Positional construction and
     `dataclasses.replace` both read this order, and `composites` staying last
-    is what keeps the pre-move signature intact."""
+    is what keeps the pre-move signature intact (``composite_nodes``, AK#1984,
+    is appended after it, so every earlier position holds)."""
     assert [f.name for f in dataclasses.fields(akn.Network)] == [
         "ports",
         "branches",
         "sources",
         "branch_paths",
         "composites",
+        # AK#1984: each composite's formal -> node map, appended after.
+        "composite_nodes",
     ]
     assert [f.name for f in dataclasses.fields(mw.Network)] == [
         "ports",
