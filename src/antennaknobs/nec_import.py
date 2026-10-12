@@ -4511,9 +4511,14 @@ def _collapse_gyrator_drives(ports, branches, sources):
       transformer is an all-real Y, which arrives as a ``Transformer``
       (AK#1681) and is not an ``Admittance`` branch at all; a lossy line is lossy, so
       its 2×2 has a nonzero diagonal. Neither survives the first test;
-    - exactly one side on a ``PortVirtual``, the other on real geometry. A
-      line between two virtual nodes drives nothing, and a gyrator between two
-      real ports is a component of the model rather than a source;
+    - exactly one side on a ``PortVirtual``, the other on real geometry, or
+      both sides virtual and exactly one of them holding a source. A gyrator
+      between two real ports is a component of the model rather than a
+      source. The both-virtual shape is EZNEC's current source ON a virtual
+      segment (AK#1993): the phantom holds the ``EX``, and the forced current
+      lands on the virtual node, as NEC-4's ``EX 6`` there does. A gyrator
+      between two virtual nodes with no source, or one on each, drives
+      nothing this reading can name, and is left as the circuit it is;
     - that virtual node carries one source, a ``Driven`` with a nonzero EMF —
       the voltage the gyrator converts. Zero is the datum pin, not a drive.
 
@@ -4542,6 +4547,10 @@ def _collapse_gyrator_drives(ports, branches, sources):
         if y12.real or abs(y12.imag) < _GYRATOR_MIN_B:
             continue
         virtual = [p for p in br.ports if isinstance(ports.get(p), _net.PortVirtual)]
+        if len(virtual) == 2:
+            # A current source ON a virtual segment (AK#1993): both ends are
+            # virtual, and the phantom is the one end holding the source.
+            virtual = [p for p in virtual if src_at.get(p)]
         if len(virtual) != 1:
             continue
         v = virtual[0]
@@ -4718,6 +4727,7 @@ def _remote_wire_tests(wires):
     two agree on what "connected" means). ``clearance(i)`` is the nearest
     endpoint-to-endpoint distance from wire ``i`` to any other wire — a lower
     bound on true separation, ample at the ≫10 λ scales both idioms park at.
+    ``clearance(i, ignore)`` leaves the wires in ``ignore`` out (AK#1993).
 
     Closures rather than a precomputed set: the callers test a handful of
     candidate wires, and ``clearance`` is O(n) per call.
@@ -4740,12 +4750,12 @@ def _remote_wire_tests(wires):
         w = wires[i]
         return any(len(owners[key(boundary(w, k))]) > 1 for k in range(w[1] + 1))
 
-    def clearance(i):
+    def clearance(i, ignore=frozenset()):
         wi = wires[i]
         pts_i = (wi[2], wi[3])
         best = math.inf
         for j, wj in enumerate(wires):
-            if j == i:
+            if j == i or j in ignore:
                 continue
             for pj in (wj[2], wj[3]):
                 for pi in pts_i:
@@ -4845,7 +4855,9 @@ def _anchor_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz):
     return anchors
 
 
-def _virtual_segment_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz):
+def _virtual_segment_wires(
+    wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz, eznec_wires=frozenset()
+):
     """Wire indices that are EZNEC's *virtual wire* (AK#1577).
 
     EZNEC spells a source that sits behind a transformer or a transmission
@@ -4892,6 +4904,16 @@ def _virtual_segment_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz):
     A source ON the wire is a TRIGGER here, where issue #427 excludes a driven
     wire by name: the EX becoming a drive on a virtual node is the whole point
     of the idiom.
+
+    ``eznec_wires`` are the wires EZNEC's own comments name as its circuit
+    wires (`_eznec_circuit_wires`, AK#1993). For a current source on a
+    virtual segment EZNEC writes TWO of them, the virtual wire and the
+    gyrator's phantom wire, about 1 λ apart, so each fails the clearance
+    against the other. A named wire's clearance is therefore measured
+    against everything EXCEPT the other named wires; it must still clear the
+    antenna by the same margin, and pass every other test here. A wire the
+    comments do not name gets no exemption, so a real wire 1 λ away stays
+    real.
     """
     if freq_mhz is None or len(wires) < 2:
         return set()
@@ -4935,7 +4957,7 @@ def _virtual_segment_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz):
         if (w[1] < 2 and not one_segment_idiom) or i in loaded or touches(i):
             continue
         extent = math.dist(w[2], w[3])
-        clr = clearance(i)
+        clr = clearance(i, eznec_wires - {i} if i in eznec_wires else frozenset())
         if (
             clr > _ANCHOR_CLEARANCE_LAMBDA * lam
             and clr > 100.0 * extent
@@ -4943,6 +4965,37 @@ def _virtual_segment_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz):
         ):
             out.add(i)
     return out
+
+
+# EZNEC's own legend for the wires it parks for its circuit elements, as its
+# NEC-2 export writes it: ``! *Wire #2 for virtual segments.`` and ``! Wire #3
+# for I srcs, shorted/open TL, and/or parallel loads.`` (sitting 2026-10-12).
+_EZNEC_CIRCUIT_WIRE = re.compile(
+    r"^!\s*\*?\s*wire\s*#\s*(\d+)\s+for\s+(?:virtual\s+segments|"
+    r"i\s+srcs,\s*shorted/open\s+tl,\s*and/or\s+parallel\s+loads)\s*\.?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _eznec_circuit_wires(comments, wires) -> frozenset[int]:
+    """Indices of the wires EZNEC's comments name as its circuit wires
+    (AK#1993), on a deck that carries EZNEC's writer stamp; empty otherwise.
+
+    EZNEC writes each wire's GW tag as its wire number, so ``Wire #N`` is the
+    one wire tagged N. A number no wire carries, or more than one does, names
+    nothing: the legend and the cards disagree, and the structural reading
+    stands alone."""
+    if not any(_EZNEC_STAMP.search(c) for c in comments):
+        return frozenset()
+    out: set[int] = set()
+    for c in comments:
+        m = _EZNEC_CIRCUIT_WIRE.match(c.strip())
+        if m is None:
+            continue
+        hits = [i for i, w in enumerate(wires) if w[0] == int(m.group(1))]
+        if len(hits) == 1:
+            out.add(hits[0])
+    return frozenset(out)
 
 
 def _translate_network_cards(
@@ -4958,6 +5011,7 @@ def _translate_network_cards(
     sym_cell=None,
     nec5_dialect=False,
     ground=False,
+    eznec_wires=frozenset(),
 ):
     """Turn the collected LD/TL/NT cards into NecLoad/NecTL/NecNT records,
     plus (mnemonic, reason) detail for every card instance that stays
@@ -4985,7 +5039,9 @@ def _translate_network_cards(
         else set()
     )
     virtual_segments = (
-        _virtual_segment_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz)
+        _virtual_segment_wires(
+            wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz, eznec_wires
+        )
         if virtualize_anchors
         else set()
     )
@@ -6584,6 +6640,7 @@ def parse_nec(
             sym_cell,
             nec5_dialect,
             ground,
+            _eznec_circuit_wires(comments, wires),
         )
         ignored |= skipped
 
