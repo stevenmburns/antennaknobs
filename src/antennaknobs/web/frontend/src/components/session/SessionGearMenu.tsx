@@ -213,7 +213,11 @@ export function SessionGearMenu({
                       spare the chart area — so this menu is the only place
                       to reach them there; on desktop it's a convenience
                       duplicate. */}
-                  <div className="gear-menu-divider gear-menu-scope-line" />
+                  <div
+                    className="gear-menu-divider gear-menu-scope-line"
+                    role="separator"
+                    aria-label="this design above, all designs below"
+                  />
                   <div className="gear-menu-section">all designs</div>
                   {/* Mobile-layout only: it exists to reclaim the phone's
                       status/nav bars; on desktop F11 already does this and

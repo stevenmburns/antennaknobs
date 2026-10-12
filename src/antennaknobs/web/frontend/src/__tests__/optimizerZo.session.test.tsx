@@ -162,6 +162,8 @@ describe("the optimizer's Zo field (AK#1735)", () => {
     expect(screen.queryByLabelText("Reference impedance Zo, ohms")).toBeNull();
     fireEvent.click(swrLabel(DESIGN_ZO));
     expect(zoInput().value).toBe("75");
+    // Focus is only readable off the document.
+    // eslint-disable-next-line testing-library/no-node-access
     expect(document.activeElement).toBe(zoInput());
   });
 
@@ -171,6 +173,8 @@ describe("the optimizer's Zo field (AK#1735)", () => {
     expect(screen.queryByLabelText("Reference impedance Zo, ohms")).toBeNull();
     expect(screen.getByText(/SWR and Match Z₀ are against 75 Ω/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "change…" }));
+    // Focus is only readable off the document.
+    // eslint-disable-next-line testing-library/no-node-access
     expect(document.activeElement).toBe(zoInput());
   });
 
@@ -182,6 +186,8 @@ describe("the optimizer's Zo field (AK#1735)", () => {
     expect(text.indexOf("this design")).toBeLessThan(text.indexOf("reference impedance"));
     expect(text.indexOf("Download NEC-5 .nec")).toBeLessThan(text.indexOf("all designs"));
     expect(text.indexOf("all designs")).toBeLessThan(text.indexOf("antenna chart"));
-    expect(menu.querySelector(".gear-menu-scope-line")).not.toBeNull();
+    expect(
+      screen.getByRole("separator", { name: "this design above, all designs below" }),
+    ).toBeTruthy();
   });
 });

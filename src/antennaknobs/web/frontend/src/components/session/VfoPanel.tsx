@@ -3,7 +3,8 @@ import { Knob } from "../params/Knob";
 import { useEffect, useRef, useState } from "react";
 import type { BandSpec } from "../../lib/params";
 import type { SweepRange } from "../../lib/sweep";
-import { formatZo, ZoField, type ZoControl } from "./ZoField";
+import { formatZo } from "../../lib/zoOverride";
+import { ZoField, type ZoControl } from "./ZoField";
 export type { ZoControl };
 import {
   BandsEditor,

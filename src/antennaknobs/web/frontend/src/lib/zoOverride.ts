@@ -31,6 +31,11 @@ export function isValidZo(v: unknown): v is number {
 
 /** The field's text as a Zo, or null when it is not one. Strict: "75 ohm" or
  *  "1e400" is refused, never read as a prefix or clamped. */
+/** A Zo as the fields and labels print it: six significant figures. */
+export function formatZo(v: number): string {
+  return String(Number(v.toPrecision(6)));
+}
+
 export function parseZo(text: string): number | null {
   const t = text.trim();
   if (t === "") return null;

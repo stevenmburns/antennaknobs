@@ -2,7 +2,7 @@
 // it lives with this design's other settings (AK#1985), and the optimizer's
 // menu for a caller with no session to open that one.
 import { useState } from "react";
-import { parseZo } from "../../lib/zoOverride";
+import { formatZo, parseZo } from "../../lib/zoOverride";
 
 // The gear menu's reference impedance (AK#1735). `value` is the Zo this
 // session measures against — the override when there is one, else the
@@ -16,7 +16,6 @@ export type ZoControl = {
   open?: () => void;
 };
 
-export const formatZo = (v: number) => String(Number(v.toPrecision(6)));
 
 // The Zo field. Commits on Enter or blur; text that is not a positive, finite
 // number of ohms is refused where it was typed (red, with the reason), and
