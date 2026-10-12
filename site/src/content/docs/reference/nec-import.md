@@ -220,7 +220,7 @@ the trap dipole and station designs use), wherever it can express them
 | `EX` type 6 (4nec2 current source) | A `DrivenCurrent` source — the forced complex current drives the network exactly as 4nec2 would |
 | `EX` type 4 (NEC-5 current source) | The same `DrivenCurrent`, at the segment **end** NEC-5's rule names (I4, else the sign of I3) — the form EZNEC's NEC-5 export writes. NEC-2's type 4 (an elementary current source at a point in space, no segment addressed) is refused by name |
 | `TL` | A `TL` branch: negative z0 (NEC's crossed line) becomes `transposed=True`, zero length resolves to the port separation, conductance-only end admittances become `Shunt(r=1/G)`, reactive ones a fixed 1-port `Admittance` |
-| `NT` with an all-real, rank-1 Y matrix | An ideal `Transformer` (turns ratio plus a series winding resistance) — EZNEC's own transformer card, read as the transformer it is rather than the pi network that Y would also describe |
+| `NT` with an all-real, rank-1 Y matrix | An ideal `Transformer` (turns ratio plus a series winding resistance) — EZNEC's own transformer card, read as the transformer it is rather than the pi network that Y would also describe. What the printed digits leave over (Y11·Y22 − Y12²) is a `Shunt` at port b |
 | `NT` with an all-real Y matrix, not rank 1 | Its exact resistive pi: a series `TwoPort` between the ports plus a `Shunt` at each |
 | `NT` with susceptance | The full 2×2 complex Y as an `Admittance` branch |
 
@@ -332,7 +332,12 @@ naming the SimNEC importer uses. When what a phantom
 segment drives is an `NT` gyrator (zero diagonal, `Y12 = Y21 = jB`), the only
 way NEC-2 can spell a current source, it imports as the current source it is,
 whether the phantom wire has one segment or several, and the driving point
-reads as the antenna rather than its reciprocal. This dialect support was
+reads as the antenna rather than its reciprocal. For a current source on the
+virtual wire itself, EZNEC's NEC-2 export parks the phantom about 1 λ from the
+virtual wire; the wires its own legend names (`! *Wire #N for virtual
+segments.`, `! Wire #N for I srcs, …`) are exempt from each other's clearance,
+never from the antenna's, and the current is forced on the virtual node as
+NEC-4's `EX 6` there would be. This dialect support was
 validated against a 3,146-deck corpus of published models — ARRL course
 material, 4nec2's own library, and the wider web.
 
@@ -484,7 +489,11 @@ is. EZNEC's NEC-4.2 stamp (or a
 NEC-4.2's newer Sommerfeld (not 4nec2's MININEC-type ground), `EX 6` its
 segment current source, `GE -1` admits buried wires, and a `GN` that names a
 ground-table file (or `NOFILE`) is accepted, the file not read (it is NEC-4's
-cache; the ground is computed from the card, and the note says so). `GH` and
+cache; the ground is computed from the card, and the note says so). EZNEC's
+NEC-2 stamp reads as NEC-2, but EZNEC writes `GN 3` only for its 'Extended'
+real ground, NEC-4's Sommerfeld, in that export too, so a stamped `GN 3` deck
+reads as NEC-4 and the note says why; a 4nec2 deck carries no stamp and keeps
+the MININEC-type ground. `GH` and
 `GC` take NEC-4's layouts (shared by NEC-5). A card only that layout spells,
 a `GH` whose ninth field is a literal 0 (ISPX; NEC-2's radius there would be
 zero) or a `GC 1`/`GC 2`, rules NEC-2 out and leans NEC-4, the dialect of the
