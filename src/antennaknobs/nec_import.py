@@ -1014,6 +1014,11 @@ class NecDeck:
                 if self.dialect == "nec4"
                 else " NEC-5 has no EK card; the extended kernel is used."
             )
+        if self.dialect == "nec2" and self.ground_card == "GN 3":
+            tail += (
+                " Its GN 3 is read as 4nec2's MININEC ground; read the deck as "
+                "NEC-4 for NEC-4's GN 3, the Sommerfeld ground."
+            )
         if self.dialect_chosen is None:
             return f"{head}: {self.dialect_reason}.{tail}"
         if self.dialect_detected is None:
@@ -5726,6 +5731,22 @@ def _nec4_layout_lean(text: str) -> tuple[int, str, bool] | None:
     return None if lean is None else (*lean, not nec5)
 
 
+def _gn3_buried_wire(deck: NecDeck) -> int | None:
+    """The tag of the first wire below the ground plane of a deck that
+    detection reads as NEC-2 for want of a marker and whose ground card is
+    ``GN 3``, else None
+    (AK#1982). Such a deck's GN 3 can only be NEC-4's: 4nec2's MININEC
+    ground is perfect for the currents and holds no buried wire."""
+    if deck.dialect_detected != "nec2" or deck.dialect_detected_reason != _NO_MARKER:
+        return None
+    if deck.ground_card != "GN 3":
+        return None
+    for w in deck.wires:
+        if min(w.p1[2], w.p2[2]) < 0.0:
+            return w.tag
+    return None
+
+
 def parse_nec(
     text: str,
     *,
@@ -5735,6 +5756,7 @@ def parse_nec(
     sy_overrides: Mapping[str, float] | None = None,
     limits: GeometryLimits | None = None,
     dialect: str | None = None,
+    _gn3_probe: bool = True,
 ) -> NecDeck:
     """Parse the text of a NEC2 card deck into a :class:`NecDeck`.
 
@@ -5780,10 +5802,46 @@ def parse_nec(
     (``dialect``, ``dialect_reason``, ``dialect_detected``,
     ``dialect_note()``).
 
+    A ``GN 3`` deck with no other marker reads as NEC-2, where ``GN 3`` is
+    4nec2's MININEC ground, unless a wire runs below the ground: that ground
+    cannot hold one, and only NEC-4's ``GN 3`` (Sommerfeld) models the deck
+    as written, so detection reads it as NEC-4 and says why (AK#1982,
+    G8HUL). A reader's chosen dialect still wins.
+
     Raises ``ValueError`` (with ``name`` and the line number) on cards that
     are malformed or describe things antennaknobs cannot model — patches,
     tapered wires, plane-wave or current-source excitation.
     """
+    if _gn3_probe:
+        # AK#1982: settle GN 3's two meanings by the geometry, which only the
+        # parsed deck knows (its wires after every SY, GM and GX). NEC-2 and
+        # NEC-4 address sources and loads alike, so a second parse as NEC-4
+        # changes the ground, the EK reading and the cards NEC-4 spells, and
+        # nothing about where a feed lands. A chosen dialect is kept; only
+        # what detection would have read changes.
+        kw = dict(
+            name=name,
+            network=network,
+            virtualize_anchors=virtualize_anchors,
+            sy_overrides=sy_overrides,
+            limits=limits,
+        )
+        deck = parse_nec(text, **kw, dialect=dialect, _gn3_probe=False)
+        buried = _gn3_buried_wire(deck)
+        if buried is None:
+            return deck
+        reason = (
+            f"the GN card is type 3 and wire {buried} runs below the ground: "
+            "only NEC-4's GN 3 (Sommerfeld) can model a buried wire, where "
+            "4nec2's GN 3 is a MININEC ground"
+        )
+        if dialect is None:
+            deck = replace(
+                parse_nec(text, **kw, dialect="nec4", _gn3_probe=False),
+                dialect_chosen=None,
+                dialect_reason=reason,
+            )
+        return replace(deck, dialect_detected="nec4", dialect_detected_reason=reason)
     wires: list[list] = []
     comments: list[str] = []
     ignored: set[str] = set()
