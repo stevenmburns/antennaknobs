@@ -635,11 +635,16 @@ Files view shows them) and builds the same deck a `.nec` becomes.
 along a wire and runs it on the segment that percentage lands on, as its own
 `.nec` export does. EZNEC's own engines (its NEC-2 and NEC-4 cores) put it at
 that segment's centre, so that is the default reading. A file saved with
-EZNEC set to the external NEC-5 engine is read at segment ends instead, as
-NEC-5 connects; there a 0 % position is the wire's end itself. From Python
-the reading can be chosen, as a `.nec`'s dialect can
+EZNEC set to the external NEC-5 engine is read at segment ends instead, at
+the knot EZNEC's NEC-5 export names: a load at the end of its segment (0 % is
+the wire's end itself), a source or line end at the nearest knot. From
+Python the reading can be chosen, as a `.nec`'s dialect can
 (`read_ez(..., reading="nec5")`); the workbench's *Read as* control is for
 `.nec` decks only.
+
+A **split source** at a wire end is, as EZNEC's exports write it, one source
+either side of the junction (a voltage halved, a current repeated), or under
+NEC-5 one source at the junction's knot.
 
 **Loads keep their type**, so a frequency sweep evaluates each at every
 frequency rather than at the model frequency only:
@@ -647,25 +652,35 @@ frequency rather than at the model frequency only:
 - R + jX is a fixed impedance.
 - Series and parallel RLC are the deck's own frequency-dependent load (a zero
   part is a missing part).
-- A trap, a resistance that varies with frequency, and a Laplace load are
-  read only on request (below), and then evaluated from their own formula.
+- A trap is R and L in series, across C.
+- A resistance that varies with frequency follows √(f/F) from the frequency
+  F it is given at.
+- A Laplace load is read only on request (below).
 
 **Lines and networks.** A lossless line keeps its reversal (NEC's crossed
 line), length and velocity factor. A stub end becomes the line into an open
-or a short, so it follows frequency too. A lossy line is the two-port
-EZNEC's export writes at the model frequency, and the app flags it away from
-that frequency. Transformers are EZNEC's own two-port, Y-parameter networks
+or a short, so it follows frequency too. A length of 0 is the distance
+between the line's connection points (segment centres, or knots under
+NEC-5); a length in degrees keeps those degrees at every frequency, as EZNEC
+does. A lossy line's loss follows √(f/F) from its loss frequency F; one with
+no loss frequency is held at the model frequency, and the app flags it away
+from there. Transformers are EZNEC's own two-port, Y-parameter networks
 their fixed admittances, and L networks their two branches, fixed R + jX or
 R/L/C parts that follow frequency.
 
 **Wire loss** comes from the per-wire loss table when the file has one, else
 from the model-wide resistivity. Insulation becomes the wire's jacket.
 **Ground** is free space, perfect, or the first medium with EZNEC's
-high-accuracy (Sommerfeld) or MININEC-type analysis.
+high-accuracy (Sommerfeld) or MININEC-type analysis. EZNEC's extended
+high-accuracy ground is the same Sommerfeld ground.
 
 **Virtual segments** are stored by EZNEC on one extra wire. The import
 rebuilds it 100 λ away, as EZNEC's own export does, and the deck reader
-treats its segments as circuit nodes.
+treats its segments as circuit nodes, stubs and loads on them included.
+
+These readings were checked against EZNEC itself: its own exports of each
+kind of file, solved here, at the model frequency and away from it. Files
+from before EZNEC 4.0 open too, as the model EZNEC 7 saves them as.
 
 **Refusals come in four kinds**, each naming the field and value:
 
@@ -673,12 +688,13 @@ treats its segments as circuit nodes.
   reader does not know. The `.ez` format still changes between EZNEC
   versions, so these are never guessed at. (Blocks another program marks
   as its own are skipped.)
-- *A reading the format leaves undefined*: a trap's arrangement, how a
-  resistance varies with frequency, a Laplace load's variable, a split
-  source's placement, a line length in degrees or "the physical distance",
-  a lossy line's loss away from its loss frequency. These are refused unless
-  you set `ANTENNAKNOBS_EZ_ACCEPT_GUESSES=1`; then each reading taken is
-  listed in the design's note.
+- *A reading the format leaves undefined*, and EZNEC's exports have not
+  settled: a Laplace load's variable, a reversed transformer or Y network, a
+  parallel L-network branch, a load on a virtual segment, a line loss given
+  at no frequency, the extended ground under a buried wire, a pre-3.0 load
+  type, data in a record the format reserves. These are
+  refused unless you set `ANTENNAKNOBS_EZ_ACCEPT_GUESSES=1`; then each
+  reading taken is listed in the design's note.
 - *Not representable here*: a second ground medium, NEC radials, an active
   plane-wave source, an insulation with dielectric loss, a magnetic wire.
 - *A malformed file*: counts or lengths that contradict each other.
