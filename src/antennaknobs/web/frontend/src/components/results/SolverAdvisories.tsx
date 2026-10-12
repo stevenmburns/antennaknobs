@@ -61,7 +61,7 @@ function AdvisoryWords({ a }: { a: Advisory }) {
       {a.summary}{" "}
       <button
         type="button"
-        className="solver-advisory-toggle solver-advisory-details"
+        className="solver-advisory-toggle"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
