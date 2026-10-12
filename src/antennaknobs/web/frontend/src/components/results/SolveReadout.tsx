@@ -5,6 +5,7 @@ import { feedDriveText, formatOhms, formatSwr } from "../../lib/format";
 import type { ExampleDescriptor } from "../../lib/params";
 import { ReadoutsPanel } from "./ReadoutsPanel";
 import { ResultPanel } from "./ResultPanel";
+import { useZoOpen } from "../session/zoOpen";
 
 function feedMag(r: SolveResponse): number {
   const w = r.wires[r.feed_wire_index];
@@ -80,6 +81,7 @@ export function SolveReadout({
   z0?: number | undefined;
 }) {
   const ref = z0 ?? result?.z0_ohms ?? 50;
+  const openZo = useZoOpen();
   const planes = result?.planes;
   const isCollapsed = collapsed && onCollapsedChange !== undefined;
   // Overflow guard for the floating stage HUD: with enough content (a
@@ -288,7 +290,19 @@ export function SolveReadout({
         </div>
       )}
       <div className="row">
-        <span>SWR ({Number(ref.toPrecision(4))} Ω)</span>
+        {openZo ? (
+          // AK#1985: the reference is changed where it is read.
+          <button
+            type="button"
+            className="readout-zo-btn"
+            title="Change the reference impedance (this design)"
+            onClick={openZo}
+          >
+            SWR ({Number(ref.toPrecision(4))} Ω)
+          </button>
+        ) : (
+          <span>SWR ({Number(ref.toPrecision(4))} Ω)</span>
+        )}
         <span className="val">
           {result
             ? formatSwr(result.z_in_re, result.z_in_im, ref)

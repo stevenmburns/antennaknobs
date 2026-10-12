@@ -178,6 +178,7 @@ import { KnobOptMenu } from "./KnobOptMenu";
 import { SweepRangeMenu } from "./SweepRangeMenu";
 import { copyParams, downloadNec, loadMeasured, saveTextFile } from "./sessionActions";
 import { SessionGearMenu } from "./SessionGearMenu";
+import { ZoOpenContext } from "./zoOpen";
 import { SolveOverlays } from "./SolveOverlays";
 import { SolverSlotTabs } from "./SolverSlotTabs";
 import { type ChartCellRequest, NOT_APPROVED, patternSignature, useAnalysisRunners } from "./useAnalysisRunners";
@@ -442,6 +443,23 @@ function DesignSessionBody({
   // Tools (gear) dropdown in the header. Tucked away because it holds
   // occasional actions like the NEC deck export, not per-solve controls.
   const [gearMenuOpen, setGearMenuOpen] = useState(false);
+  // AK#1985: the reference impedance opens from where it is read (the Smith
+  // chart's Z₀, the readout's SWR row, the optimizer's menu) into the top
+  // gear menu, focused. `focusZo` is cleared whenever the menu closes.
+  const [focusZo, setFocusZo] = useState(false);
+  const openZo = useCallback(() => {
+    setFocusZo(true);
+    setGearMenuOpen(true);
+  }, []);
+  // Render-time reset (not an effect): closing the menu forgets the focus.
+  const [focusFor, setFocusFor] = useState(gearMenuOpen);
+  if (focusFor !== gearMenuOpen) {
+    setFocusFor(gearMenuOpen);
+    if (!gearMenuOpen) setFocusZo(false);
+  }
+  const withZoOpen = (node: ReactNode) => (
+    <ZoOpenContext.Provider value={openZo}>{node}</ZoOpenContext.Provider>
+  );
   // Transient "Copied ✓" confirmation on the Copy-params menu item.
   const [copiedParams, setCopiedParams] = useState(false);
   // Document fullscreen (global, like theme) — the gear check is just the
@@ -3608,6 +3626,8 @@ function DesignSessionBody({
           }}
           theme={theme}
           applyTheme={applyTheme}
+          zo={{ value: z0, design: designZ0, set: setZoOverride }}
+          focusZo={focusZo}
         />
 
         {!settingsProblemsDismissed && uiDefaults.problems.length > 0 && (
@@ -3803,7 +3823,7 @@ function DesignSessionBody({
           optProgress={optProgress}
           optError={optError}
           optPausedBy={optPausedBy}
-          zo={{ value: z0, design: designZ0, set: setZoOverride }}
+          zo={{ value: z0, design: designZ0, set: setZoOverride, open: openZo }}
           bands={{
             freqs: optBands,
             setFreqs: setOptBands,
@@ -5232,7 +5252,7 @@ function DesignSessionBody({
   // desktop one) keeps both layouts honest; the shared pieces are exactly the
   // hoisted consts above. All hooks already ran, so branching here is safe.
   if (isMobile) {
-    return (
+    return withZoOpen(
       <div className="app app-mobile" data-ready={sessionReadyKey}>
         <aside className="sidebar mobile-knobs">{controls}</aside>
         <section
@@ -5315,7 +5335,7 @@ function DesignSessionBody({
     );
   }
 
-  return (
+  return withZoOpen(
     <div className="app" data-ready={sessionReadyKey}>
       <aside className="sidebar">{controls}</aside>
 

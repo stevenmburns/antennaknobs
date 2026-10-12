@@ -48,7 +48,9 @@ function geometryRoute(bodies: Record<string, unknown>[]) {
 const swrLabel = (ohms: number) => screen.getByText(`SWR (${ohms} Ω)`);
 const zoInput = () =>
   screen.getByLabelText("Reference impedance Zo, ohms") as HTMLInputElement;
-const openGear = () => fireEvent.click(screen.getByLabelText("Optimisation method"));
+// AK#1985: the field lives in the top (Tools) gear menu, with this design's
+// other settings; the optimizer's menu leads there.
+const openGear = () => fireEvent.click(screen.getByLabelText("Tools menu"));
 const stored = () => localStorage.getItem(ZO_STORAGE_KEY);
 
 function typeZo(text: string) {
@@ -151,5 +153,35 @@ describe("the optimizer's Zo field (AK#1735)", () => {
     typeZo("75");
     swrLabel(DESIGN_ZO);
     expect(stored()).toBeNull();
+  });
+
+  // AK#1985: Jeff G8HUL looked for Zo where it is read, on the SWR readout
+  // and the Smith chart, and never found it in the optimizer's menu.
+  it("the readout's SWR label opens the field, focused", async () => {
+    await mountReady({ routes: geometryRoute([]) });
+    expect(screen.queryByLabelText("Reference impedance Zo, ohms")).toBeNull();
+    fireEvent.click(swrLabel(DESIGN_ZO));
+    expect(zoInput().value).toBe("75");
+    expect(document.activeElement).toBe(zoInput());
+  });
+
+  it("the optimizer's menu shows the reference and leads to the field", async () => {
+    await mountReady({ routes: geometryRoute([]) });
+    fireEvent.click(screen.getByLabelText("Optimisation method"));
+    expect(screen.queryByLabelText("Reference impedance Zo, ohms")).toBeNull();
+    expect(screen.getByText(/SWR and Match Z₀ are against 75 Ω/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "change…" }));
+    expect(document.activeElement).toBe(zoInput());
+  });
+
+  it("the gear menu puts this design's settings above a line, the rest below", async () => {
+    await mountReady({ routes: geometryRoute([]) });
+    openGear();
+    const menu = screen.getByRole("menu");
+    const text = menu.textContent ?? "";
+    expect(text.indexOf("this design")).toBeLessThan(text.indexOf("reference impedance"));
+    expect(text.indexOf("Download NEC-5 .nec")).toBeLessThan(text.indexOf("all designs"));
+    expect(text.indexOf("all designs")).toBeLessThan(text.indexOf("antenna chart"));
+    expect(menu.querySelector(".gear-menu-scope-line")).not.toBeNull();
   });
 });
