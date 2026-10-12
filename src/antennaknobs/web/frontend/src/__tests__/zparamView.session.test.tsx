@@ -385,7 +385,8 @@ describe("R = Z0 follows the session's Zo (AK#1735)", () => {
     fireEvent.contextMenu(screen.getByRole("slider", { name: "Gap" }));
     fireEvent.click(screen.getByRole("button", { name: "Sweep this knob…" }));
     await untilDom(() => chart()?.dataset.z0 === "75");
-    fireEvent.click(screen.getByLabelText("Optimisation method"));
+    // The field lives in the top (Tools) gear menu since AK#1985.
+    fireEvent.click(screen.getByLabelText("Tools menu"));
     const zo = screen.getByLabelText("Reference impedance Zo, ohms") as HTMLInputElement;
     fireEvent.change(zo, { target: { value: "60" } });
     fireEvent.keyDown(zo, { key: "Enter" });
