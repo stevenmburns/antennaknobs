@@ -12,7 +12,10 @@ a ``.nec`` deck becomes, so an ``.ez`` opens wherever a deck does: the CLI's
 The layout follows the format description EZNEC's author publishes for
 writers of ``.ez`` files (version 7.0), read with the census of real files
 recorded on AK#1958. This module is a reader written from that description;
-it carries none of the description's text.
+it carries none of the description's text. Where the description leaves a
+reading open, what EZNEC itself does was settled at a sitting with EZNEC
+(10-12, AK#1991): its own exports of the files, at the model frequency and
+away from it, against this import's reading of the same file.
 
 **What is refused, and how.** Four kinds of refusal are kept apart, each a
 ``ValueError`` subclass of `EzRefusal` naming the file, the field and the value:
@@ -24,12 +27,14 @@ it carries none of the description's text.
   from the description) is accepted, and its contents -- provenance only, no
   model data -- are skipped. A negative (custom) block type is skipped by its
   length, as the description says a reader should.
-* `EzUndefined` -- a reading the description leaves undefined (a trap's
-  topology, the law a frequency-variable resistance follows, a Laplace load's
-  variable, where a split source sits, ...). Refused by default. Where a
-  reading has been checked against real files it can be taken on purpose,
-  with ``accept_guesses=True`` (``ANTENNAKNOBS_EZ_ACCEPT_GUESSES=1`` for the
-  CLI and the app); every reading taken is listed in the import's notes.
+* `EzUndefined` -- a reading the description leaves undefined and EZNEC's
+  exports have not settled (a Laplace load's variable, a reversed transformer
+  or Y network, a parallel L-network branch, a line loss given at no
+  frequency, the extended ground under a buried wire, ...). Refused by
+  default. Where a reading has been checked against real files it can be
+  taken on purpose, with ``accept_guesses=True``
+  (``ANTENNAKNOBS_EZ_ACCEPT_GUESSES=1`` for the CLI and the app); every
+  reading taken is listed in the import's notes.
 * `EzNotRepresentable` -- something the model here has no element for: a
   second ground medium, NEC radials, an active plane-wave source, a lossy
   wire insulation, a magnetic wire.
@@ -51,21 +56,29 @@ notes, not a refusal.
   and NEC-4 cores) put sources and loads at segment CENTRES, so the deck is
   read in NEC-2's spelling -- unless the file says EZNEC was set to the
   external NEC-5 engine, which connects at segment ENDS, and the deck is then
-  read in NEC-5's spelling (a 0 % load or line end at the wire's end).
+  read in NEC-5's spelling, at the knot EZNEC's NEC-5 export names: for a
+  load the end of the segment above (a 0 % load at the wire's end), for a
+  source or a line end the nearest knot.
 * Sources: RMS magnitudes (×√2 into the deck, as EZNEC's export writes);
-  voltage sources drive volts, current sources force amps.
+  voltage sources drive volts, current sources force amps. A split source
+  at a wire end is, as EZNEC's exports write it, one source either side of
+  the junction (a voltage halved, a current repeated), or under NEC-5 one
+  source at the junction's knot.
 * Loads keep their type, so a frequency sweep evaluates each at every
   frequency instead of at the model frequency only: R + jX is a fixed
   impedance, series and parallel RLC are the frequency-dependent ``Load``
-  (zero is a missing part, as the description says), and the readings that
-  need ``accept_guesses`` -- a trap, a frequency-variable R, a Laplace load
-  -- are evaluated per frequency from their own formula.
+  (zero is a missing part, as the description says), a trap is R and L in
+  series across C, and a frequency-variable R follows ``√(f/F)`` from its
+  frequency F; a Laplace load needs ``accept_guesses``. Each is evaluated per
+  frequency from its own formula.
 * Transmission lines: lossless lines are ``TL`` with their reversal (a
   crossed line), length and velocity factor; a stub end becomes the line
-  into an open or a short, so it also follows frequency. A lossy line is the
-  two-port EZNEC's export writes at the model frequency, which the app flags
-  away from it (the law its loss follows with frequency is undefined); with
-  ``accept_guesses`` it follows ``loss ∝ √f`` from its loss frequency.
+  into an open or a short, so it also follows frequency. A length of 0 is
+  the distance between the line's connection points (segment centres, or
+  knots under NEC-5); a length in degrees holds those degrees at every
+  frequency. A lossy line's loss follows ``√(f/F)`` from its loss frequency
+  F; one given at no frequency is held at the model frequency, and the app
+  flags it away from there.
 * Transformers are EZNEC's own two-port (an ideal ratio behind a small
   series resistance); Y-parameter networks are their fixed admittances; L
   networks are their two branches -- fixed R + jX, or R/L/C parts that
@@ -75,11 +88,16 @@ notes, not a refusal.
   resistivity. Insulation becomes the wire's jacket (outer radius and
   permittivity); a jacket with dielectric loss is refused.
 * Ground: free space, perfect, or real with EZNEC's high-accuracy
-  (Sommerfeld) or MININEC-type analysis, from the first medium.
+  (Sommerfeld) or MININEC-type analysis, from the first medium. The extended
+  high-accuracy ground ('X') is the same Sommerfeld ground, spelled as
+  NEC-4's ``GN 3`` when the deck is read as NEC-4.
 * Virtual segments: EZNEC stores them as one extra wire and its own export
   rebuilds that wire 100 λ away, which the NEC reader then reads as circuit
-  nodes. This import does the same. (A first-class virtual feed node, which
-  would make the far wire unnecessary, is AK#1966.)
+  nodes. This import does the same, and names the wire to the reader, so a
+  stub or a load on it does not make it a real wire. (A first-class virtual
+  feed node, which would make the far wire unnecessary, is AK#1966.)
+* Files from before EZNEC 4.0 (version code 10) are read with their own
+  frame and defaults (`_LEGACY_VERCODE`).
 """
 
 from __future__ import annotations
@@ -125,8 +143,15 @@ _LNET_ZERO_R = 1e-3
 
 # The writing program's version code (an i16 in the header). The values the
 # census found with a layout the description accounts for, and the value the
-# description tells other writers to use.
-_KNOWN_VERCODES = frozenset({51, 50, 49, 48, 46, 45, 31, 30})
+# description tells other writers to use -- plus 10, the files from before
+# EZNEC 4.0, read by the legacy rules below (AK#1991).
+_KNOWN_VERCODES = frozenset({51, 50, 49, 48, 46, 45, 31, 30, 10})
+# Version code 10 (pre-4.0): the records end the file (no near-field record
+# and no reserved record after them), a blank load type is R + jX and a blank
+# load connection is series. Checked on the six such files EZNEC opened at
+# the 10-12 sitting: each reads as the model of its own EZNEC 7 Save As copy,
+# card for card.
+_LEGACY_VERCODE = 10
 _PGM_VERCODE_OTHER_WRITER = 62_000_000
 
 # Block type -> (name, revisions this reader knows).
@@ -340,6 +365,7 @@ class EzModel:
     version: tuple[int, int]  # (version code, program version code)
     ground: str  # "free", "perfect", "real"
     analysis: str  # "H" high accuracy, "M" MININEC (real ground only)
+    ground_x: bool  # high accuracy marked 'X' (EZNEC's extended ground)
     eps_r: float
     sigma: float
     wires: tuple[EzWire, ...]  # the user's wires (the virtual wire is not one)
@@ -422,6 +448,7 @@ class _Reader:
         self.d = data
         self.name = name
         self.accept = accept_guesses
+        self.legacy = False  # a version-10 file (`_LEGACY_VERCODE`)
         self.guesses: list[str] = []
         self.warnings: list[str] = []
 
@@ -478,6 +505,7 @@ def decode_ez(
     if problems:
         rd.unknown("file version", " and ".join(problems))
     pre5 = pv < 50_000_000  # 0 included: older than the field
+    rd.legacy = vc == _LEGACY_VERCODE
 
     # -- counts ----------------------------------------------------------------
     n_media, n_src, n_load, n_line = (
@@ -511,7 +539,7 @@ def decode_ez(
             "record count",
             f"{n_rec}, where the largest table has {max(n_media, n_wire, n_src, n_load, n_line)} rows",
         )
-    blocks_at = HEADER_BYTES + RECORD_BYTES * (n_rec + 2)
+    blocks_at = HEADER_BYTES + RECORD_BYTES * (n_rec + (0 if rd.legacy else 2))
     if len(d) < blocks_at:
         rd.malformed("length", f"{len(d)} bytes; {n_rec} records need {blocks_at}")
 
@@ -530,7 +558,7 @@ def decode_ez(
         rd.malformed("frequency", f"{freq} MHz")
 
     _check_display_fields(rd)
-    ground, analysis = _read_ground(rd, n_media)
+    ground, analysis, ground_x = _read_ground(rd, n_media)
     eps_r = sigma = 0.0
     if ground == "real":
         r0 = rd.rec(0)
@@ -551,10 +579,13 @@ def decode_ez(
     for k in range(n_rec):
         if any(rd.rec(k)[167:170]):
             rd.undefined(f"record {k + 1} reserved bytes", rd.rec(k)[167:170].hex())
-    _record3(rd, n_rec)
-    r4 = d[HEADER_BYTES + RECORD_BYTES * (n_rec + 1) : blocks_at]
-    if any(r4):
-        rd.undefined("record 4", "holds data where the format reserves zeros", "unused")
+    if not rd.legacy:
+        _record3(rd, n_rec)
+        r4 = d[HEADER_BYTES + RECORD_BYTES * (n_rec + 1) : blocks_at]
+        if any(r4):
+            rd.undefined(
+                "record 4", "holds data where the format reserves zeros", "unused"
+            )
 
     # -- blocks -------------------------------------------------------------------
     blocks = _walk_blocks(rd, blocks_at)
@@ -575,6 +606,14 @@ def decode_ez(
     if n_user < 1:
         rd.malformed("wires", "the only wire is the virtual-segment wire")
     wires = stored_wires[:n_user]
+    if ground_x and any(min(w.p1[2], w.p2[2]) < 0 for w in wires):
+        # 'X' is the Sommerfeld ground on every file the sitting could solve;
+        # its two with buried wires could not be solved there.
+        rd.undefined(
+            "high-accuracy ground type",
+            "'X' (EZNEC's extended ground) under a buried wire",
+            "the high-accuracy (Sommerfeld) ground",
+        )
 
     insulation = _insulation_block(rd, blocks.get(12), n_wire)
     wire_loss = _loss_block(rd, blocks.get(13), n_wire)
@@ -627,6 +666,7 @@ def decode_ez(
         version=(vc, pv),
         ground=ground,
         analysis=analysis,
+        ground_x=ground_x,
         eps_r=eps_r,
         sigma=sigma,
         wires=tuple(wires),
@@ -676,7 +716,7 @@ def _check_display_fields(rd: _Reader) -> None:
         rd.undefined("header reserved bytes", d[0xA0:0xAA].hex())
 
 
-def _read_ground(rd: _Reader, n_media: int) -> tuple[str, str]:
+def _read_ground(rd: _Reader, n_media: int) -> tuple[str, str, bool]:
     d = rd.d
     gt = _ch(d, 0x36)
     kinds = {"F": "free", "P": "perfect", "R": "real"}
@@ -692,7 +732,7 @@ def _read_ground(rd: _Reader, n_media: int) -> tuple[str, str]:
                 f"The file keeps {n_media} ground media and {nr} radials, unused over "
                 f"{'free space' if ground == 'free' else 'perfect ground'}."
             )
-        return ground, ""
+        return ground, "", False
     if n_media < 1:
         rd.malformed("media", "real ground with no medium")
     if n_media > 1:
@@ -713,17 +753,13 @@ def _read_ground(rd: _Reader, n_media: int) -> tuple[str, str]:
         ga = "H"
     if ga not in ("H", "M"):
         rd.undefined("ground analysis", repr(ga))
-    if ga == "H":
-        hag = _ch(d, 0xA2)
-        if hag == "X":
-            rd.undefined(
-                "high-accuracy ground type",
-                "'X' (EZNEC Pro/4's extended ground)",
-                "the high-accuracy (Sommerfeld) ground",
-            )
-        elif hag not in ("", "H"):
-            rd.undefined("high-accuracy ground type", repr(hag))
-    return ground, ga
+    hag = _ch(d, 0xA2) if ga == "H" else ""
+    # 'X' is the selector EZNEC's exports follow to NEC-4's GN 3 (where 'H'
+    # or a blank gives GN 2): the Sommerfeld ground, as the sitting's solves
+    # of its exports agree. A buried wire under it is checked by the caller.
+    if hag not in ("", "H", "X"):
+        rd.undefined("high-accuracy ground type", repr(hag))
+    return ground, ga, hag == "X"
 
 
 def _load_kind(rd: _Reader, n_load: int) -> str:
@@ -733,6 +769,8 @@ def _load_kind(rd: _Reader, n_load: int) -> str:
         return lt
     if lt in ("Z", "R", "L"):
         return lt
+    if rd.legacy and lt in ("", " "):
+        return "Z"  # a version-10 file's blank type is R + jX
     old = _ch(d, 0x50)
     if lt in ("", " ") and old in ("Z", "S"):
         # Files from before the field existed name the type in the older one.
@@ -749,6 +787,20 @@ def _load_kind(rd: _Reader, n_load: int) -> str:
 def _segment(pct: float, n: int) -> int:
     """The segment a position lands on, as EZNEC's export writes it."""
     return min(n, max(1, math.ceil(pct * n / 100.0 - 1e-9)))
+
+
+def _knot(pct: float, n: int) -> int:
+    """The knot (segment end, 0 to ``n``) EZNEC's NEC-5 export puts a source
+    or a line end at: the nearest one to ``p·N/100``, and at a tie the even
+    one (`_Deck.knot` says how far that holds). Loads follow `_segment`
+    instead (AK#1991)."""
+    x = pct * n / 100.0
+    lo = math.floor(x + 1e-9)
+    if abs(x - lo - 0.5) <= 1e-9:
+        k = lo if lo % 2 == 0 else lo + 1
+    else:
+        k = math.floor(x + 0.5)
+    return min(n, max(0, k))
 
 
 def _wire(rd: _Reader, k: int) -> EzWire:
@@ -776,6 +828,8 @@ def _source(rd: _Reader, k: int) -> EzSource:
 def _load(rd: _Reader, k: int, kind: str) -> EzLoad:
     r = rd.rec(k)
     conn = _ch(r, 149)
+    if rd.legacy and conn == "":
+        conn = "S"  # a version-10 file's blank connection is series
     if conn == "P":
         rd.undefined(
             f"load {k + 1} connection",
@@ -1260,7 +1314,8 @@ def _rlc_z(kind: str, R: float, L: float, C: float, w: float) -> complex:
 
 
 def _var_r(R: float, F_mhz: float, f_hz: float) -> float:
-    """A frequency-variable R (an undefined reading): ∝ √f from F."""
+    """A frequency-variable R: ∝ √f from F, as EZNEC's exports print it at
+    every frequency (AK#1991)."""
     return R * math.sqrt(f_hz / (F_mhz * 1e6)) if F_mhz else R
 
 
@@ -1296,9 +1351,10 @@ def _fmt(v: float) -> str:
 class _Deck:
     """The NEC cards being written, with the elements no card spells."""
 
-    def __init__(self, m: EzModel, nec5: bool):
+    def __init__(self, m: EzModel, nec5: bool, nec4: bool = False):
         self.m = m
         self.nec5 = nec5
+        self.nec4 = nec4 and not nec5  # NEC-4's cards (its GN 3) are read
         self.lam = _C0 / (m.freq_mhz * 1e6)
         self.cards: list[str] = []
         self.ld: list[tuple[int, int, object]] = []  # (tag, seg, custom) per LD card
@@ -1317,11 +1373,12 @@ class _Deck:
 
     # -- addresses --------------------------------------------------------------
 
-    def where(self, e: EzEnd) -> tuple[int, int]:
+    def where(self, e: EzEnd, knot: bool = False) -> tuple[int, int]:
         """The ``(tag, segment)`` an attachment is written at. Under NEC-5,
-        which connects everything at segment ends, a 0 % position is the
-        wire's end 1 -- segment -1, as EZNEC's NEC-5 export writes a load or
-        line end there -- for every kind of attachment alike."""
+        which connects everything at segment ends, the field is a knot: for a
+        load the end of the segment the position lands on, for a source or a
+        line end (``knot``) the nearest knot (`_knot`), as EZNEC's NEC-5
+        export writes them; knot 0, the wire's end 1, is segment -1."""
         m = self.m
         if self.vtag is not None and e.wire == len(m.wires) + 1:
             # The stored virtual wire: its segment k carries virtual segment
@@ -1331,9 +1388,69 @@ class _Deck:
             label = labels[_segment(e.pct, m.virtual_wire_segments) - 1]
             return self.vtag, sorted(labels).index(label) + 1
         n = m.wires[e.wire - 1].segments
+        if self.nec5 and knot:
+            return e.wire, self.knot(e) or -1
         if self.nec5 and e.pct == 0:
             return e.wire, -1
         return e.wire, _segment(e.pct, n)
+
+    def knot(self, e: EzEnd) -> int:
+        """`_knot`, except that a tie never lands on a free wire end when the
+        other knot is not one (a source cannot sit there).
+
+        Ties, measured (AK#1991, EZNEC's NEC-5 exports): of eight, the five
+        whose two knots give different answers all follow this rule --
+        13.5 -> 14, 1.5 -> 2, 0.5 -> 0 twice, and 0.5 -> 1 where knot 0 is a
+        free end. The other three are the centre of a mirror-symmetric
+        structure (N/2 for odd N), where EZNEC wrote 9 of 17 but 91 of 183
+        and 25 of 51; either knot gives the same answer there, and this rule
+        writes the mirror image of EZNEC's card in two of them."""
+        w = self.m.wires[e.wire - 1]
+        n = w.segments
+        k = _knot(e.pct, n)
+        x = e.pct * n / 100.0
+        lo = math.floor(x + 1e-9)
+        if abs(x - lo - 0.5) > 1e-9:
+            return k
+        other = lo + 1 if k == lo else lo
+        if self._free_end_knot(e.wire, k) and not self._free_end_knot(e.wire, other):
+            return other
+        return k
+
+    def _free_end_knot(self, wire: int, k: int) -> bool:
+        w = self.m.wires[wire - 1]
+        if k == 0:
+            return self._free_end(wire, w.p1)
+        return k == w.segments and self._free_end(wire, w.p2)
+
+    def _free_end(self, wire: int, p) -> bool:
+        """No other wire's knot is at ``p``, and it is not in a ground plane."""
+
+        def near(q):
+            return all(abs(p[i] - q[i]) <= 1e-6 * max(1.0, abs(p[i])) for i in range(3))
+
+        if self.m.ground != "free" and abs(p[2]) <= 1e-6:
+            return False
+        for j, w in enumerate(self.m.wires, 1):
+            if j == wire:
+                continue
+            for k in range(w.segments + 1):
+                u = k / w.segments
+                if near(
+                    tuple(a + u * (b - a) for a, b in zip(w.p1, w.p2, strict=True))
+                ):
+                    return False
+        return True
+
+    def point(self, e: EzEnd) -> tuple[float, float, float]:
+        """Where a line end connects: its segment's centre, or under NEC-5
+        its knot."""
+        w = self.m.wires[e.wire - 1]
+        if self.nec5:
+            u = self.knot(e) / w.segments
+        else:
+            u = (_segment(e.pct, w.segments) - 0.5) / w.segments
+        return tuple(a + u * (b - a) for a, b in zip(w.p1, w.p2, strict=True))
 
     def seg_field(self, seg: int) -> str:
         """An LD/TL card's segment pair as written: NEC-5's knot form names
@@ -1351,8 +1468,9 @@ class _Deck:
         f3: float,
         custom=None,
         label: str = "",
+        knot: bool = False,
     ):
-        tag, seg = self.where(at)
+        tag, seg = self.where(at, knot)
         if custom is not None:
             self.cards.append(
                 f"CM ! LD {typ} on wire {tag} segment {seg} stands for {label}"
@@ -1372,8 +1490,8 @@ class _Deck:
         custom=None,
         label: str = "",
     ):
-        t1, s1 = self.where(p1)
-        t2, s2 = self.where(p2)
+        t1, s1 = self.where(p1, knot=True)
+        t2, s2 = self.where(p2, knot=True)
         if custom is not None:
             self.cards.append(
                 f"CM ! NT from wire {t1} segment {s1} to wire {t2} segment {s2} stands for {label}"
@@ -1393,8 +1511,10 @@ def _source_cards(dk: _Deck) -> None:
     for k, s in enumerate(m.sources, 1):
         v = _clean(s.rms * _SQRT2)
         typ = (4 if dk.nec5 else 6) if s.current else 0
-        if s.kind in ("V", "I"):
-            tag, seg = dk.where(s.at)
+        if s.kind in ("V", "I") or (dk.nec5 and not _on_virtual(dk, s.at)):
+            # Under NEC-5 a split source is one source at its knot, at the
+            # full excitation, as EZNEC's NEC-5 export writes it.
+            tag, seg = dk.where(s.at, knot=True)
             dk.cards.append(f"EX {typ} {tag} {seg} 0 {_fmt(v.real)} {_fmt(v.imag)}")
             continue
         _split_source(dk, k, s, typ, v)
@@ -1408,20 +1528,18 @@ def _clean(v: complex) -> complex:
     )
 
 
+def _on_virtual(dk: _Deck, e: EzEnd) -> bool:
+    return dk.vtag is not None and e.wire == len(dk.m.wires) + 1
+
+
 def _split_source(dk: _Deck, k: int, s: EzSource, typ: int, v: complex) -> None:
-    """A split source (W/J): EZNEC places it across a junction; where, and
-    how it shares the excitation, the format does not say. The reading taken
-    with ``accept_guesses``: at a wire END that meets exactly one other wire
-    end, one source on each side's end segment -- a voltage halved, a
-    current repeated -- with the sign following the two wires' directions."""
+    """A split source (W/J) under EZNEC's NEC-2/NEC-4 reading, as its export
+    writes one: at a wire END that meets exactly one other wire end, one
+    source on each side's end segment -- a voltage halved, a current repeated
+    -- with the sign following the two wires' directions."""
     m = dk.m
-    dk.guess(
-        f"source {k}",
-        "a split source",
-        "one source either side of the wire-end junction it sits at",
-    )
     w = s.at.wire
-    if (dk.vtag is not None and w == len(m.wires) + 1) or s.at.pct not in (0.0, 100.0):
+    if _on_virtual(dk, s.at) or s.at.pct not in (0.0, 100.0):
         raise EzNotRepresentable(
             m.name,
             f"source {k}",
@@ -1456,12 +1574,16 @@ def _load_cards(dk: _Deck) -> None:
     m = dk.m
     for k, ld in enumerate(m.loads, 1):
         name = f"load {k}"
-        if ld.kind == "Z":
-            if ld.stored_z != 0:
-                dk.load_card(ld.at, 4, ld.stored_z.real, ld.stored_z.imag, 0.0)
+        if ld.kind == "Z" and ld.stored_z == 0:
             continue
-        if ld.kind == "R" and ld.r_freq_mhz:
-            ld = replace(ld, r_freq_mhz=_held_r(dk, name, ld.r, ld.r_freq_mhz))
+        if _on_virtual(dk, ld.at):
+            _virtual_load(dk, k, ld)
+            continue
+        if ld.kind == "Z":
+            dk.load_card(ld.at, 4, ld.stored_z.real, ld.stored_z.imag, 0.0)
+            continue
+        if ld.kind == "R" and not ld.r:
+            ld = replace(ld, r_freq_mhz=0.0)  # no R to vary: a plain RLC
         if ld.kind == "L":
             z = _laplace(dk, k, ld)
         else:
@@ -1507,22 +1629,33 @@ def _load_cards(dk: _Deck) -> None:
         )
 
 
-def _held_r(dk: _Deck, what: str, R: float, F: float) -> float:
-    """The frequency a variable R scales from, after the strict rule: a
-    variable R given AT the model frequency is exact there, so without
-    ``accept_guesses`` it is held at that value (and listed); given anywhere
-    else it needs the undefined law and is refused. With ``accept_guesses``
-    the law is taken (R ∝ √f) and F is kept."""
+def _virtual_load(dk: _Deck, k: int, ld: EzLoad) -> None:
+    """A load on a virtual segment. There is no wire for it to sit in series
+    with, and no file at the sitting had one, so how it connects is a reading:
+    an impedance across the segment's node, in parallel with what connects
+    there (a line's termination, a source's shunt)."""
     m = dk.m
-    if m.accept_guesses or abs(F - m.freq_mhz) > 1e-4 * m.freq_mhz:
-        dk.guess(
-            what,
-            f"a resistance given at {F:g} MHz that varies with frequency, in a model at {m.freq_mhz:g} MHz",
-            "R ∝ √f (skin effect), F in MHz",
-        )
-        return F
-    dk.fixed.append(f"{what}'s R of {R:g} Ω (given at the model frequency)")
-    return 0.0
+    dk.guess(
+        f"load {k}",
+        "a load on a virtual segment",
+        "an impedance across the segment, in parallel with what connects there",
+    )
+    if ld.kind == "Z":
+
+        def z(f_hz: float, z0: complex = ld.stored_z) -> complex:
+            return z0
+
+    elif ld.kind == "L":
+        z = _laplace(dk, k, ld)
+    else:
+        z = _rlc_load(dk, k, ld)
+        _check_stored(m, f"load {k}", ld.stored_z, z(m.freq_mhz * 1e6))
+    label = f"load {k} ({'R + jX' if ld.kind == 'Z' else _load_word(ld)}, on a virtual segment)"
+
+    def build(p, z=z):
+        return [_net.TouchstoneLoad(p, _YOf(z=z))], {}
+
+    dk.load_card(ld.at, 4, 1.0, 0.0, 0.0, _StubLine(label, build), label)
 
 
 def _load_word(ld: EzLoad) -> str:
@@ -1552,8 +1685,6 @@ def _laplace(dk: _Deck, k: int, ld: EzLoad) -> Callable[[float], complex]:
 
 def _rlc_load(dk: _Deck, k: int, ld: EzLoad) -> Callable[[float], complex]:
     m = dk.m
-    if ld.rlc_type == "T":
-        dk.guess(f"load {k}", "a trap", "R and L in series, across C")
     if ld.rlc_type == "T" and not ld.c:
         raise EzMalformed(m.name, f"load {k}", "a trap with no capacitor")
     if ld.rlc_type == "P" and not (ld.r or ld.l or ld.c):
@@ -1578,38 +1709,25 @@ def _check_stored(m: EzModel, what: str, stored: complex, z: complex) -> None:
         )
 
 
-def _line_length(dk: _Deck, k: int, t: EzLine) -> float:
-    """A line's physical length, metres."""
+def _line_length(dk: _Deck, k: int, t: EzLine) -> float | None:
+    """A line's physical length, metres; None for a length in degrees, which
+    is the line's electrical length at every frequency (`_length_at`). A
+    length of 0 is the distance between the points the line connects at --
+    segment centres, or knots under NEC-5 -- as EZNEC's exports measure it."""
     m = dk.m
     if t.length > 0:
         return t.length
     if t.length < 0:
-        dk.guess(
-            f"line {k} length",
-            f"{-t.length:g} degrees",
-            "electrical degrees in the line at the model frequency",
-        )
-        return -t.length / 360.0 * dk.lam * t.vf
-    dk.guess(
-        f"line {k} length",
-        "0 (the physical distance; between which points is not defined)",
-        "the distance between the two segment centres",
-    )
+        return None
     if t.end1.stub or t.end2.stub:
         raise EzMalformed(
             m.name, f"line {k}", "a stub whose length is the distance between its ends"
         )
-    pts = []
-    for e in (t.end1, t.end2):
-        if dk.vtag is not None and e.wire == len(m.wires) + 1:
-            raise EzNotRepresentable(
-                m.name, f"line {k}", "a physical-distance length to a virtual segment"
-            )
-        w = m.wires[e.wire - 1]
-        s = _segment(e.pct, w.segments)
-        u = (s - 0.5) / w.segments
-        pts.append(tuple(a + u * (b - a) for a, b in zip(w.p1, w.p2, strict=True)))
-    length = math.dist(*pts)
+    if _on_virtual(dk, t.end1) or _on_virtual(dk, t.end2):
+        raise EzNotRepresentable(
+            m.name, f"line {k}", "a physical-distance length to a virtual segment"
+        )
+    length = math.dist(dk.point(t.end1), dk.point(t.end2))
     if length == 0:
         raise EzMalformed(
             m.name, f"line {k}", "the physical distance between its ends is zero"
@@ -1617,16 +1735,25 @@ def _line_length(dk: _Deck, k: int, t: EzLine) -> float:
     return length
 
 
-def _line_model(t: EzLine, law: bool):
-    """``(gamma(f), zc(f))`` of a lossy line. ``law``: loss follows √f from
-    the loss frequency (0: held constant) -- the reading taken with
-    ``accept_guesses``; otherwise the model frequency's loss is used, which is
-    exact there."""
+def _length_at(t: EzLine, length: float | None) -> Callable[[float], float]:
+    """The line's physical length at a frequency (Hz). A length in degrees
+    holds its electrical degrees, as EZNEC does: the metres follow the
+    wavelength in the line (the velocity factor's part in that is untested
+    against EZNEC; it enters only through the loss per metre)."""
+    if length is not None:
+        return lambda f_hz: length
+    deg = -t.length
+    return lambda f_hz: deg / 360.0 * t.vf * _C0 / f_hz
+
+
+def _line_model(t: EzLine):
+    """``(gamma(f), zc(f))`` of a line: loss follows √f from the loss
+    frequency, as EZNEC's exports print it; with no loss frequency it holds."""
     vf, z0 = t.vf, t.z0
     loss_np_m = t.loss_db_per_m / (20.0 / math.log(10.0))
 
     def alpha(f_hz: float) -> float:
-        if law and t.loss_freq_mhz:
+        if t.loss_freq_mhz:
             return loss_np_m * math.sqrt(f_hz / (t.loss_freq_mhz * 1e6))
         return loss_np_m
 
@@ -1638,11 +1765,12 @@ def _line_model(t: EzLine, law: bool):
     return gz
 
 
-def _two_port_line_y(gz, length: float, reversed_: bool):
+def _two_port_line_y(gz, length_at: Callable[[float], float], reversed_: bool):
     def y2(f_hz: float):
         g, zc = gz(f_hz)
-        y11 = 1.0 / (zc * cmath.tanh(g * length))
-        y12 = -1.0 / (zc * cmath.sinh(g * length))
+        gl = g * length_at(f_hz)
+        y11 = 1.0 / (zc * cmath.tanh(gl))
+        y12 = -1.0 / (zc * cmath.sinh(gl))
         if reversed_:
             y12 = -y12
         return ((y11, y12), (y12, y11))
@@ -1655,40 +1783,28 @@ def _line_cards(dk: _Deck) -> None:
     f0 = m.freq_mhz * 1e6
     for k, t in enumerate(m.lines, 1):
         length = _line_length(dk, k, t)
+        length_at = _length_at(t, length)
         lossy = t.loss_db_per_m > 0
-        if (
-            lossy
-            and t.loss_freq_mhz
-            and abs(t.loss_freq_mhz - m.freq_mhz) > 1e-4 * m.freq_mhz
-        ):
+        # A loss with no frequency stated: how it varies is not defined.
+        # Held at the model frequency, or (``accept_guesses``) at every one.
+        held = lossy and not t.loss_freq_mhz and not m.accept_guesses
+        if lossy and not t.loss_freq_mhz and m.accept_guesses:
             dk.guess(
                 f"line {k} loss",
-                f"{t.loss_db_per_m:g} dB/m given at {t.loss_freq_mhz:g} MHz, the model at {m.freq_mhz:g} MHz",
-                "loss ∝ √f",
+                f"{t.loss_db_per_m:g} dB/m at no stated frequency",
+                "a loss that holds at every frequency",
             )
-        elif lossy and m.accept_guesses:
-            dk.guess(
-                f"line {k} loss",
-                f"{t.loss_db_per_m:g} dB/m"
-                + (
-                    f" given at {t.loss_freq_mhz:g} MHz"
-                    if t.loss_freq_mhz
-                    else " at no stated frequency"
-                ),
-                "loss ∝ √f"
-                if t.loss_freq_mhz
-                else "a loss that holds at every frequency",
-            )
-        gz = _line_model(t, law=m.accept_guesses)
+        gz = _line_model(t)
+        word = f", {-t.length:g}°" if length is None else ""
         stub = t.end1.stub or t.end2.stub
         if stub:
             far, near = (t.end1, t.end2) if t.end1.stub else (t.end2, t.end1)
 
-            def yin(f_hz, far=far, gz=gz, length=length, k=k):
+            def yin(f_hz, far=far, gz=gz, length_at=length_at, k=k):
                 """The stub's input admittance (a lossy line never resonates
                 exactly; the guard names the case if one does)."""
                 g, zc = gz(f_hz)
-                th = cmath.tanh(g * length)
+                th = cmath.tanh(g * length_at(f_hz))
                 if far.stub == "open":
                     return th / zc
                 if th == 0:
@@ -1698,16 +1814,15 @@ def _line_cards(dk: _Deck) -> None:
                     )
                 return 1.0 / (zc * th)
 
-            label = f"line {k} ({far.stub}-circuit stub)"
-            if lossy and not m.accept_guesses:
-                # Held at the model frequency (its loss law is not defined).
+            label = f"line {k} ({far.stub}-circuit stub{word})"
+            if held:
                 dk.fixed.append(label)
                 y0 = yin(f0)
 
                 def build(p, y0=y0):
                     return [_net.Admittance(ports=(p,), y=((y0,),))], {}
 
-            elif lossy:
+            elif lossy or length is None:
 
                 def build(p, yin=yin):
                     return [_net.TouchstoneLoad(p, _YOf(y1=yin))], {}
@@ -1721,41 +1836,44 @@ def _line_cards(dk: _Deck) -> None:
                         brs.append(_net.Shunt(port=node, r=0.0))
                     return brs, {node: _net.PortVirtual(node)}
 
-            dk.load_card(near, 4, 1.0, 0.0, 0.0, _StubLine(label, build), label)
+            dk.load_card(
+                near, 4, 1.0, 0.0, 0.0, _StubLine(label, build), label, knot=True
+            )
             continue
-        if not lossy:
+        if not lossy and length is not None:
             # NEC's TL length is electrical: the physical length over VF. A
-            # reversed line is NEC's crossed line (negative Z0).
-            t1, s1 = dk.where(t.end1)
-            t2, s2 = dk.where(t.end2)
+            # reversed line is NEC's crossed line (negative Z0). A distance
+            # at VF 1 is written 0, NEC's own "between the connection
+            # points", as EZNEC's exports write it.
+            t1, s1 = dk.where(t.end1, knot=True)
+            t2, s2 = dk.where(t.end2, knot=True)
             z0 = -t.z0 if t.reversed else t.z0
-            dk.cards.append(
-                f"TL {t1} {s1} {t2} {s2} {_fmt(z0)} {_fmt(length / t.vf)} 0 0 0 0"
-            )
+            ln = 0.0 if (t.length == 0 and t.vf == 1) else length / t.vf
+            dk.cards.append(f"TL {t1} {s1} {t2} {s2} {_fmt(z0)} {_fmt(ln)} 0 0 0 0")
             continue
-        y2 = _two_port_line_y(gz, length, t.reversed)
-        (y11, y12), (_, y22) = y2(f0)
-        if m.accept_guesses:
-            label = f"line {k} (lossy, {t.z0:g} Ω)"
-            dk.nt_card(
-                t.end1,
-                t.end2,
-                1.0,
-                0.0,
-                1.0,
-                _TwoPort(
-                    label,
-                    lambda a, b, y2=y2: (
-                        [_net.TouchstoneTwoPort(a, b, _YOf(y2=y2))],
-                        {},
-                    ),
-                ),
-                label,
-            )
-        else:
+        y2 = _two_port_line_y(gz, length_at, t.reversed)
+        if held:
             # EZNEC's own spelling: the line's Y at the model frequency, which
             # the app flags at any other frequency.
+            (y11, y12), (_, y22) = y2(f0)
             dk.nt_card(t.end1, t.end2, y11, y12, y22)
+            continue
+        label = f"line {k} ({'lossy, ' if lossy else ''}{t.z0:g} Ω{word})"
+        dk.nt_card(
+            t.end1,
+            t.end2,
+            1.0,
+            0.0,
+            1.0,
+            _TwoPort(
+                label,
+                lambda a, b, y2=y2: (
+                    [_net.TouchstoneTwoPort(a, b, _YOf(y2=y2))],
+                    {},
+                ),
+            ),
+            label,
+        )
 
 
 def _network_cards(dk: _Deck) -> None:
@@ -1803,7 +1921,7 @@ def _network_cards(dk: _Deck) -> None:
             1.0,
             0.0,
             1.0,
-            _TwoPort(label, _lnet_builder(dk, k, x)),
+            _TwoPort(label, _lnet_builder(x)),
             label,
         )
 
@@ -1820,22 +1938,10 @@ def _lnet_branch_z(br: EzBranch) -> Callable[[float], complex]:
     return z
 
 
-def _lnet_builder(dk: _Deck, k: int, x: EzLNetwork):
+def _lnet_builder(x: EzLNetwork):
     """The L network: the series branch between its ports, the shunt branch
     across port 2 (EZNEC's arrangement, as its export spells it)."""
     ser, sh = x.series, x.shunt
-    if ser.kind and ser.r_freq_mhz:
-        ser = replace(
-            ser,
-            r_freq_mhz=_held_r(
-                dk, f"L network {k} series branch", ser.r, ser.r_freq_mhz
-            ),
-        )
-    if sh.kind and sh.r_freq_mhz:
-        sh = replace(
-            sh,
-            r_freq_mhz=_held_r(dk, f"L network {k} shunt branch", sh.r, sh.r_freq_mhz),
-        )
     zs, zp = _lnet_branch_z(ser), _lnet_branch_z(sh)
     if not (ser.kind or sh.kind):
         ya, yb = 1.0 / zs(0.0), 1.0 / zp(0.0)
@@ -1908,9 +2014,13 @@ def _ground_cards(dk: _Deck) -> tuple[str, str]:
         else:
             dk.cards += ["GN 1 0 0 0 0 0", f"GD 2 0 0 0 {e} {s} 0 0"]
         return "mininec", "EZNEC real ground, MININEC-type"
-    # High accuracy: Sommerfeld -- NEC-5's GN 0, NEC-2's GN 2.
-    dk.cards.append(f"GN {0 if dk.nec5 else 2} 0 0 0 {e} {s}")
-    return "sommerfeld", "EZNEC real ground, high accuracy"
+    # High accuracy: Sommerfeld -- NEC-5's GN 0, NEC-2's GN 2. 'X' is the
+    # same ground, which EZNEC's exports spell as NEC-4's GN 3 where the
+    # deck is read as NEC-4.
+    gn = 0 if dk.nec5 else (3 if (dk.nec4 and m.ground_x) else 2)
+    dk.cards.append(f"GN {gn} 0 0 0 {e} {s}")
+    word = "EZNEC real ground, high accuracy" + (" (extended)" if m.ground_x else "")
+    return "sommerfeld", word
 
 
 def _loss_cards(dk: _Deck) -> None:
@@ -2042,8 +2152,12 @@ def read_ez(
     m = decode_ez(raw, name=name, accept_guesses=accept_guesses)
     _check_limits(m, limits)
     nec5 = m.nec5 if reading is None else reading == "nec5"
-    dk = _Deck(m, nec5)
-    dialect = "nec5" if nec5 else "nec2"
+    if reading is None:
+        nec4 = m.engine is not None and m.engine[0] == _ENGINE_NEC4
+    else:
+        nec4 = reading == "nec4"
+    dk = _Deck(m, nec5, nec4)
+    dialect = "nec5" if nec5 else ("nec4" if dk.nec4 and m.ground_x else "nec2")
     head = [
         f"CM {m.title}" if m.title else "CM EZNEC model",
         f"CM read from {_one_line(name)} (EZNEC .ez)",
@@ -2073,8 +2187,15 @@ def read_ez(
             note=limits.note,
         )
     try:
+        # The rebuilt virtual wire is named, so a stub or a load on one of
+        # its segments does not make the reader take it for a real wire.
         deck = parse_nec(
-            nec_text, name=name, network=True, limits=deck_limits, dialect=dialect
+            nec_text,
+            name=name,
+            network=True,
+            limits=deck_limits,
+            dialect=dialect,
+            virtual_wires=() if dk.vtag is None else (dk.vtag,),
         )
     except GeometryLimitError:
         raise
