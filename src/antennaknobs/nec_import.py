@@ -90,7 +90,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, replace
 from functools import cached_property
 from itertools import pairwise
@@ -5012,6 +5012,7 @@ def _translate_network_cards(
     nec5_dialect=False,
     ground=False,
     eznec_wires=frozenset(),
+    virtual_tags=(),
 ):
     """Turn the collected LD/TL/NT cards into NecLoad/NecTL/NecNT records,
     plus (mnemonic, reason) detail for every card instance that stays
@@ -5045,6 +5046,12 @@ def _translate_network_cards(
         if virtualize_anchors
         else set()
     )
+    # Wires the deck's writer NAMES as its virtual wire (AK#1991: the .ez
+    # import, which knows). The detector reads a real load on a wire as a
+    # real wire; on a named one, a load is an element at that circuit node.
+    named_tags = set(virtual_tags)
+    named_virtual = {i for i, w in enumerate(wires) if w[0] in named_tags}
+    virtual_segments |= named_virtual
     anchors |= virtual_segments
     # Anchors actually replaced by a virtual end. Every virtual-segment wire
     # is one by construction (a TL/NT end is what detects it), so they go in
@@ -5422,8 +5429,11 @@ def _translate_network_cards(
                 c = card.f(6) or None
             if r is None and le is None and c is None and z is None:
                 continue  # zero-valued load — a no-op
+            pin = ldtyp == 4 and abs(complex(card.f(4), card.f(5))) >= _VIRTUAL_PIN_OHMS
             for pair in pairs:
-                if pair[0] in virtual_segments:
+                if pair[0] in virtual_segments and (
+                    pin or pair[0] not in named_virtual
+                ):
                     # The idiom's own open-circuit pin (AK#1577), not a load
                     # on geometry: the segment it opens is becoming a circuit
                     # node. Kept as the node's residual admittance rather
@@ -5493,7 +5503,9 @@ def _translate_network_cards(
                         c,
                         ldtyp in (1, 6),
                         z=z,
-                        edge=edge,
+                        # On a virtual wire the segment IS the node; the end
+                        # a NEC-5 card names there is not a place (AK#1577).
+                        edge=0 if pair[0] in virtual_segments else edge,
                         at=ld_at if len(pairs) == 1 else None,
                         at_connection=at_connection,
                     )
@@ -5904,6 +5916,7 @@ def parse_nec(
     sy_overrides: Mapping[str, float] | None = None,
     limits: GeometryLimits | None = None,
     dialect: str | None = None,
+    virtual_wires: Collection[int] = (),
     _gn3_probe: bool = True,
 ) -> NecDeck:
     """Parse the text of a NEC2 card deck into a :class:`NecDeck`.
@@ -5926,6 +5939,12 @@ def parse_nec(
       source behind a transformer or a transmission line.
 
     Set it ``False`` to model such wires as real geometry.
+
+    ``virtual_wires`` names (by tag) wires the deck's WRITER knows are its
+    virtual wire -- the ``.ez`` import, which rebuilds EZNEC's (AK#1991).
+    They are read as circuit nodes whatever loads they carry: a load there
+    is an element at the node, where the detector would read it as a real
+    wire. A pin (``LD 4`` of at least 1e9 Ω) stays a pin.
 
     ``sy_overrides`` (AK#1705) sets SY symbols by case-insensitive name: the
     named symbol takes that value at its definition, and every later symbol
@@ -5977,6 +5996,7 @@ def parse_nec(
                 sy_overrides=sy_overrides,
                 limits=limits,
                 dialect=declared[0],
+                virtual_wires=virtual_wires,
                 _gn3_probe=False,
             )
             return replace(
@@ -5999,6 +6019,7 @@ def parse_nec(
             virtualize_anchors=virtualize_anchors,
             sy_overrides=sy_overrides,
             limits=limits,
+            virtual_wires=virtual_wires,
         )
         deck = parse_nec(text, **kw, dialect=dialect, _gn3_probe=False)
         # AK#1993: EZNEC's NEC-2 stamp settles it too, by the writer.
@@ -6641,6 +6662,7 @@ def parse_nec(
             nec5_dialect,
             ground,
             _eznec_circuit_wires(comments, wires),
+            virtual_wires,
         )
         ignored |= skipped
 
