@@ -1039,6 +1039,13 @@ Three come from momwire and carry that deck's own measured figures:
   solve, by design: momwire measured that no solve-free predictor of the error
   correlates, so there is no honest threshold to gate it behind.
 
+Each of the three **leads with a plain summary** for the deck in front of
+you: where (a wire meeting the ground at x, y), roughly how much (a few ohms
+of reactance), and what to do (add segments near the joint). momwire's own
+text, written for its developers, is one click away behind **Details**. The
+command line prints the summaries of the first two the same way, as an
+`advisory:` line on stderr.
+
 Because the last one is unconditional, it is **collapsed to a count you can
 expand** while the deck-specific notes are always shown in full. An advisory
 that appears every single time trains the eye to skip the whole panel, which
@@ -1838,7 +1845,10 @@ shack sees.
 
 When a design's chain has more than one named port, the readout grows a
 **plane** selector, and the picked plane is marked on the schematic with the
-disconnected part of the chain dimmed. Picking a plane re-solves the design
+disconnected part of the chain dimmed. A plane inside a box is drawn there: a
+manual L tuner's **inside tuner (L–C)** plane sits between its capacitor and
+coil, with only the part upstream of it dimmed, and the rig's own terminals
+are marked when you pick the rig. Picking a plane re-solves the design
 **as a VNA clipped on at that port would see it**: the chain upstream of the
 pick is *unscrewed*, not merely re-driven — leaving a length of open-ended
 coax dangling in parallel with the antenna would be neither what you asked for
