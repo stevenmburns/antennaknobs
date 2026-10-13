@@ -408,8 +408,15 @@ def _zinf_lines(out):
 def test_e1_via_analyze_equals_the_sweep_command(monkeypatch, capsys, tmp_path):
     """E1 as invvee declares it, nec5 off the roster (a refused cell): the
     two momwire curves equal ``sweep --param nominal_nsegs`` exactly, rung
-    by rung, with the same Z∞."""
+    by rung, with the same Z∞.
+
+    Hiding nec5 takes both halves (AK#1964). The roster entry decides whether
+    the cell is served; the refusal SENTENCE is written from the environment,
+    and with ``$NEC5_EXE`` set it names that path instead of saying what the
+    engine needs. So on a box with the binary the cell was still refused and
+    the two curves still matched, and only the last assertion went red."""
     monkeypatch.delitem(cli_mod.ENGINE_CLASSES, "nec5", raising=False)
+    monkeypatch.delenv("NEC5_EXE", raising=False)
     calls = _record(monkeypatch, "_convergence_rows")
     cli(
         [
