@@ -45,8 +45,8 @@ never assigns, AK#1716), as ``par_<name>``, including one that sets a
 ``JamSegments`` count; and each parameter the script assigns a constant
 (``prm len = 10.2;`` or a plain ``len = 10.2;``, AK#1734), as ``prm_<name>``.
 The file's topology is frozen at its own values: a
-knob value that changes which wire ends meet, or makes the geometry invalid,
-is refused by name. A file with no such constant is frozen geometry, as
+knob value that changes which wire ends meet, lays one wire on top of
+another (AK#1715), or makes the geometry invalid, is refused by name. A file with no such constant is frozen geometry, as
 before: port the design to a real ``AntennaBuilder`` when its dimensions
 should tune.
 """
@@ -265,6 +265,47 @@ def _wire_name(deck, i: int) -> str:
     return f"wire {i + 1} (tag {deck.wires[i].tag})"
 
 
+# Two wires count as lying on one line when neither end of the shorter stands
+# off the longer's axis by more than this fraction of the longer's length, and
+# as overlapping when the shared stretch is longer than the same measure. The
+# case this exists for is exact (a knob at 0 puts one GW card's line on
+# another's), so the tolerance only has to absorb the arithmetic of a formula.
+_COLLINEAR_RTOL = 1e-9
+
+
+def _overlaps(wires) -> dict[tuple[int, int], float]:
+    """Pairs of wires that lie along one line and share a stretch of it
+    (AK#1715), with the length shared, in metres. Wires that only touch end to
+    end share none: that is a contact, which `_topology` already compares."""
+    out = {}
+    spans = []
+    for w in wires:
+        d = tuple(b - a for a, b in zip(w.p1, w.p2, strict=True))
+        spans.append((d, math.sqrt(sum(c * c for c in d))))
+    for i in range(len(wires)):
+        for j in range(i + 1, len(wires)):
+            # Measure along the longer wire, so the tolerance is one length.
+            a, b = (i, j) if spans[i][1] >= spans[j][1] else (j, i)
+            d, length = spans[a]
+            if length == 0.0 or spans[b][1] == 0.0:
+                continue
+            tol = _COLLINEAR_RTOL * length
+            origin = wires[a].p1
+            along = []
+            for p in (wires[b].p1, wires[b].p2):
+                r = tuple(q - o for q, o in zip(p, origin, strict=True))
+                t = sum(x * y for x, y in zip(r, d, strict=True)) / length
+                off = math.sqrt(max(sum(x * x for x in r) - t * t, 0.0))
+                if off > tol:
+                    break
+                along.append(t)
+            else:
+                shared = min(length, max(along)) - max(0.0, min(along))
+                if shared > tol:
+                    out[(i, j)] = shared
+    return out
+
+
 def _topology(deck) -> dict:
     """What a knob may not change (AK#1705): which wire ends meet which, where
     each end stands against a ground plane, and which wires the feeds,
@@ -272,6 +313,10 @@ def _topology(deck) -> dict:
     own formulas re-mesh it (``segV=int(hgh)``) -- but a contact that exists
     only on one mesh changes the list, since NEC connects a wire end to
     another wire's interior only at a segment boundary.
+
+    Also which wires lie on top of which (AK#1715): two wires on one line
+    sharing a stretch of it meet at no end, so the contacts say nothing, and
+    the solve that follows is of two conductors in the same place.
 
     Contacts are compared EXACTLY: `parse_nec` has already snapped every end
     NEC would connect onto one shared coordinate (`_snap_nec_connections`),
@@ -304,6 +349,7 @@ def _topology(deck) -> dict:
     return {
         "wires": len(wires),
         "contacts": frozenset(contacts),
+        "overlaps": _overlaps(wires),
         "plane": plane,
         "feeds": tuple((f.wire, f.edge, f.current) for f in deck.feeds),
         "loads": tuple(ld.wire for ld in deck.loads),
@@ -333,6 +379,21 @@ def _topology_change(old: dict, new: dict, deck) -> str | None:
         if diff:
             a, b = min(diff)
             return f"{end_name(a)} {verb} {end_name(b)}"
+    stacked = sorted(set(new["overlaps"]) - set(old["overlaps"]))
+    if stacked:
+        i, j = stacked[0]
+        return (
+            f"{_wire_name(deck, i)} would lie on top of {_wire_name(deck, j)}: the "
+            f"two run along the same line and share {new['overlaps'][(i, j)]:g} m "
+            "of it"
+        )
+    apart = sorted(set(old["overlaps"]) - set(new["overlaps"]))
+    if apart:
+        i, j = apart[0]
+        return (
+            f"{_wire_name(deck, i)} would no longer lie on top of "
+            f"{_wire_name(deck, j)}, as it does in the file"
+        )
     if old["plane"] != new["plane"]:
         where = {1: "above", 0: "in", -1: "below"}
         for end in sorted(old["plane"]):
