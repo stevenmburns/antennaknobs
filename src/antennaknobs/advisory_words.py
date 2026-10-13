@@ -150,19 +150,23 @@ EK_CAUSE_WORDS = {
     "stepped": "It is not available where wires of different radii meet",
 }
 
-EK_SOURCES = ("dialect", "card", "default")
+EK_SOURCES = ("dialect", "ez_engine", "ez_reading", "card", "default")
 
 
 def _ek_why_on(source: str, dialect: str | None) -> str:
     """Why this solve was to use the extended kernel. ``source`` is what the
-    engine could establish: the deck's reading ("dialect"), a NEC-2 deck's
-    own EK card ("card"), or neither ("default": a caller turned the default
-    on for a design that does not say why)."""
-    if source == "dialect" and dialect in _DIALECT_WORD:
-        return (
-            f"This deck is read as {_DIALECT_WORD[dialect]}, which is solved "
-            "with the extended (fat-wire) kernel."
-        )
+    engine could establish: the deck's reading ("dialect"), an EZNEC model's
+    engine setting ("ez_engine") or the reading chosen for it ("ez_reading"),
+    a NEC-2 deck's own EK card ("card"), or none of these ("default": a
+    caller turned the default on for a design that does not say why)."""
+    nec = _DIALECT_WORD.get(dialect)
+    solved = "solved with the extended (fat-wire) kernel"
+    if source == "dialect" and nec:
+        return f"This deck is read as {nec}, which is {solved}."
+    if source == "ez_reading" and nec:
+        return f"This EZNEC model is read as {nec}, which is {solved}."
+    if source == "ez_engine" and nec:
+        return f"This EZNEC model is set to the {nec} engine, so it is {solved}."
     if source == "card":
         return "This deck's EK card asks for the extended (fat-wire) kernel."
     return "This design is solved with the extended (fat-wire) kernel by default."
@@ -262,7 +266,7 @@ def extended_kernel_fallback(
     """The "ExtendedKernel" advisory's ``(summary, details)`` in plain words.
 
     ``cause`` is a key of `EK_CAUSE_WORDS`; ``source`` one of `EK_SOURCES`
-    with ``dialect`` ("nec4" / "nec5") for the "dialect" source; ``facts``
+    with ``dialect`` ("nec4" / "nec5") for every source that names one; ``facts``
     the deck's own numbers for the cause: ``depth_m`` (how far the deepest
     wire goes below the ground) and ``joints`` (the (x, y, z) of each joint
     where wires of different radii meet)."""

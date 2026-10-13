@@ -120,6 +120,7 @@ def _make_builder(
     *,
     extended_kernel=False,
     extended_kernel_by_dialect=False,
+    extended_kernel_source=None,
     ground=None,
     ground_method=None,
     file_deck=None,
@@ -213,6 +214,12 @@ def _make_builder(
         # kernel falls back to the reduced one with an advisory instead of
         # refusing the solve.
         file_extended_kernel_default = extended_kernel_by_dialect
+        # Why that default is on, as ``(source, dialect)`` for the advisory a
+        # solve that cannot take it shows (AK#1996): the deck's reading, or
+        # an .ez model's engine setting. None where the loader does not say.
+        file_extended_kernel_source = (
+            extended_kernel_source if extended_kernel_by_dialect else None
+        )
         # The deck's ground in the CLI's `--ground` shape (AK#1432): the
         # `@file` route applies it when `--ground` is not given.
         file_ground = ground
@@ -698,6 +705,7 @@ def _nec_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=No
         deck.network,
         extended_kernel=deck.extended_kernel,
         extended_kernel_by_dialect=deck.extended_kernel_by_dialect,
+        extended_kernel_source=("dialect", deck.dialect),
         ground=deck.ground_spec,
         ground_method=deck.ground_method,
         ground_card=(
@@ -901,6 +909,7 @@ def _ez_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=Non
         lambda: deck.wire_tuples(specs=True),
         deck.network,
         extended_kernel_by_dialect=imp.extended_kernel,
+        extended_kernel_source=imp.extended_kernel_source,
         ground=imp.ground,
         ground_method=imp.ground_method,
         seed_card=imp.ground_word,
