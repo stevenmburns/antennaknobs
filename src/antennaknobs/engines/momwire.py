@@ -403,17 +403,16 @@ _EK_CAUSE_WORDS = advisory_words.EK_CAUSE_WORDS
 def _kernel_default_source(builder):
     """Why a design's extended kernel is on by default, as ``(source,
     dialect)`` for `advisory_words.extended_kernel_fallback`, read from the
-    same class attributes the callers decide by (`cli.deck_extended_kernel_flag`,
-    the web adapter's `by_deck`): a NEC-2 deck's own EK card, or a deck read
-    as NEC-4 or NEC-5. ``("default", None)`` when the design says neither,
-    which is a caller turning the default on by hand."""
+    class attributes the file loaders set and the callers decide by
+    (`cli.deck_extended_kernel_flag`, the web adapter's `by_deck`): a NEC-2
+    deck's own EK card, a deck read as NEC-4 or NEC-5, or an EZNEC model's
+    engine setting or chosen reading. ``("default", None)`` when the design
+    says none of these, which is a caller turning the default on by hand."""
     if getattr(builder, "file_extended_kernel", False):
         return "card", None
-    if getattr(builder, "file_extended_kernel_default", False):
-        deck = getattr(builder, "file_deck_parsed", None)
-        dialect = getattr(deck, "dialect", None)
-        if dialect in ("nec4", "nec5"):
-            return "dialect", dialect
+    said = getattr(builder, "file_extended_kernel_source", None)
+    if said is not None and getattr(builder, "file_extended_kernel_default", False):
+        return said
     return "default", None
 
 

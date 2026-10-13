@@ -1341,6 +1341,10 @@ class EzImport:
     nec_text: str
     title: str
     extended_kernel: bool
+    # ``(source, dialect)`` for `advisory_words.extended_kernel_fallback`:
+    # whether the kernel comes from the file's engine setting or from a
+    # chosen reading, and which of NEC-4 / NEC-5 it is. None when it is off.
+    extended_kernel_source: tuple[str, str] | None = None
 
 
 def _fmt(v: float) -> str:
@@ -2220,13 +2224,18 @@ def read_ez(
         dialect_detected_reason="an EZNEC .ez model",
         dialect_chosen=None,
     )
+    # Why the extended kernel is this model's default, for the advisory that
+    # says so when a solve cannot take it (AK#1996): the file's own engine
+    # setting, or the reading chosen for it. None where it is not the default.
     if reading is None:
-        ext_kernel = m.engine is not None and m.engine[0] in (
-            _ENGINE_NEC4,
-            _ENGINE_NEC5,
-        )
+        code = m.engine[0] if m.engine is not None else None
+        kernel_source = {
+            _ENGINE_NEC4: ("ez_engine", "nec4"),
+            _ENGINE_NEC5: ("ez_engine", "nec5"),
+        }.get(code)
     else:
-        ext_kernel = reading in ("nec4", "nec5")
+        kernel_source = ("ez_reading", reading) if reading in ("nec4", "nec5") else None
+    ext_kernel = kernel_source is not None
     notes = _notes(m, dk, deck, reading)
     ground = deck.ground_spec
     return EzImport(
@@ -2240,6 +2249,7 @@ def read_ez(
         nec_text=nec_text,
         title=m.title,
         extended_kernel=ext_kernel,
+        extended_kernel_source=kernel_source,
     )
 
 
