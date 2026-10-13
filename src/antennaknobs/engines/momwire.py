@@ -394,16 +394,27 @@ def _solver_accepts_junctions_kwarg(solver_cls):
     return not issubclass(solver_cls, RazorSolver)
 
 
-# Why a deck's default extended kernel was not used, in plain words for the
-# "ExtendedKernel" advisory's summary (AK#1981), keyed by which refusal fired.
-_EK_CAUSE_WORDS = {
-    "basis": "this solver has no extended kernel",
-    "enrichment": "this solver has no extended kernel with singular enrichment",
-    "buried": "the extended kernel is not available for wires below the ground",
-    "stepped": (
-        "the extended kernel is not available where wires of different radii meet"
-    ),
-}
+# Why a deck's default extended kernel was not used, keyed by which refusal
+# fired. The words live in `advisory_words` (AK#1996); the name stays here
+# because `_extended_kernel_default_refusal` documents its causes by it.
+_EK_CAUSE_WORDS = advisory_words.EK_CAUSE_WORDS
+
+
+def _kernel_default_source(builder):
+    """Why a design's extended kernel is on by default, as ``(source,
+    dialect)`` for `advisory_words.extended_kernel_fallback`, read from the
+    same class attributes the callers decide by (`cli.deck_extended_kernel_flag`,
+    the web adapter's `by_deck`): a NEC-2 deck's own EK card, or a deck read
+    as NEC-4 or NEC-5. ``("default", None)`` when the design says neither,
+    which is a caller turning the default on by hand."""
+    if getattr(builder, "file_extended_kernel", False):
+        return "card", None
+    if getattr(builder, "file_extended_kernel_default", False):
+        deck = getattr(builder, "file_deck_parsed", None)
+        dialect = getattr(deck, "dialect", None)
+        if dialect in ("nec4", "nec5"):
+            return "dialect", dialect
+    return "default", None
 
 
 def _extended_kernel_refusal(solver, solver_kwargs):
@@ -1397,25 +1408,22 @@ class MomwireEngine(SimulationEngine):
             if why is None:
                 self._extended_kernel = True
             else:
-                name = getattr(self._solver, "__name__", self._solver)
+                # AK#1996: plain words throughout. The solver's own
+                # refusal is for developers: kept on the engine and logged,
+                # never shown. Debug level: an optimizer builds many engines.
+                self._kernel_default_refusal = why
+                _logger.debug(
+                    "extended kernel default not served by %s (%s): %s",
+                    getattr(self._solver, "__name__", self._solver),
+                    cause,
+                    why,
+                )
+                source, dialect = _kernel_default_source(builder)
+                summary, details = advisory_words.extended_kernel_fallback(
+                    cause, source, dialect, self._kernel_fallback_facts(cause)
+                )
                 self._kernel_notes.append(
-                    {
-                        "category": "ExtendedKernel",
-                        "text": (
-                            "This deck solves with the extended kernel by "
-                            f"default, which {name} cannot serve "
-                            f"here, so it solved with the reduced kernel: {why}"
-                        ),
-                        # AK#1981: the same in plain words; `text` stays the
-                        # detail, the solver's refusal verbatim.
-                        "summary": (
-                            "This deck asks for the extended (fat-wire) "
-                            f"kernel, but {_EK_CAUSE_WORDS[cause]}, so this "
-                            "solve used the standard thin-wire kernel. The "
-                            "difference matters for fat wires on short "
-                            "segments."
-                        ),
-                    }
+                    {"category": "ExtendedKernel", "text": details, "summary": summary}
                 )
         # Distributed loading rides only the solvers that model it; warn
         # once (not raise) so a matched-basis sinusoidal comparison of a
@@ -1794,6 +1802,27 @@ class MomwireEngine(SimulationEngine):
             if reason is not None:
                 return reason, "stepped"
         return None, None
+
+    def _kernel_fallback_facts(self, cause):
+        """The deck's own numbers behind a default-kernel refusal, for the
+        advisory's details (AK#1996): how deep the deepest wire goes, or
+        where wires of different radii meet."""
+        if cause == "buried" and self._ground_z is not None:
+            lowest = min(float(np.asarray(pl)[:, 2].min()) for pl in self._polylines)
+            return {"depth_m": float(self._ground_z) - lowest}
+        if cause == "stepped":
+            radii = self._wire_radius
+            joints = []
+            for members in self._junctions or ():
+                if len({radii[w] for w, _end in members}) > 1:
+                    w, end = members[0]
+                    pl = np.asarray(self._polylines[w], dtype=float)
+                    joints.append(
+                        # + 0.0: a joint at z = -0.0 reads "0", not "-0".
+                        tuple(float(v) + 0.0 for v in pl[0 if end == "start" else -1])
+                    )
+            return {"joints": joints}
+        return {}
 
     def _kernel_solver_kwargs(self, extended_kernel=None):
         """Extra kernel kwargs for solver construction.

@@ -176,10 +176,13 @@ def test_jeffs_deck_says_in_plain_words_why_the_kernel_fell_back():
         extended_kernel_default=True,
     )
     (adv,) = [a for a in eng.advisories if a["category"] == "ExtendedKernel"]
-    assert "momwire#" in adv["text"]
+    # AK#1996: the details are plain words too, and the summary says whose
+    # choice the kernel was. This deck is read as NEC-4, which ignores its EK
+    # card, so the reading is the reason and not the card.
+    assert "momwire#" not in adv["text"]
     assert adv["summary"] == (
-        "This deck asks for the extended (fat-wire) kernel, but the extended "
-        "kernel is not available for wires below the ground, so this solve "
-        "used the standard thin-wire kernel. The difference matters for fat "
-        "wires on short segments."
+        "This deck is read as NEC-4, which is solved with the extended "
+        "(fat-wire) kernel. It is not available for wires below the ground, "
+        "so this whole solve used the standard thin-wire kernel. The "
+        "difference matters for fat wires on short segments."
     )
