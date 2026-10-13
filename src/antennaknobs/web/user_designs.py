@@ -20,7 +20,9 @@ from antennaknobs.user_designs import (
     USER_NS,
     default_user_dir,
     iter_design_files,
+    iter_shadowed_files,
     load_builder,
+    load_user_file,
     user_design_dirs,
 )
 
@@ -31,6 +33,7 @@ __all__ = [
     "USER_NS",
     "default_user_dir",
     "user_design_dirs",
+    "load_builder",
     "ensure_scaffold",
     "refresh",
     "format_solve_error",
@@ -42,9 +45,10 @@ _ASSETS = Path(__file__).resolve().parent / "user_design_assets"
 def ensure_scaffold() -> None:
     """Create the default user folder and keep its reference assets current.
 
-    ``TEMPLATE.py`` and ``CLAUDE.md`` are shipped documentation, not user
-    content — the workflow is copy-then-rename, so they're safe to refresh from
-    the packaged copies on every startup. That's what lets an *existing* install
+    ``TEMPLATE.py``, ``TERRAIN_TEMPLATE.py`` and ``CLAUDE.md`` are shipped
+    documentation, not user content — the workflow is copy-then-rename, so
+    they're safe to refresh from the packaged copies on every startup. That's
+    what lets an *existing* install
     pick up updated authoring guidance (e.g. the design_freq tuning note) after
     an upgrade, not just brand-new folders. Any other ``*.py`` in the folder is
     a user design and is never touched.
@@ -53,7 +57,7 @@ def ensure_scaffold() -> None:
     d = default_user_dir()
     try:
         d.mkdir(parents=True, exist_ok=True)
-        for asset in ("TEMPLATE.py", "CLAUDE.md"):
+        for asset in ("TEMPLATE.py", "TERRAIN_TEMPLATE.py", "CLAUDE.md"):
             src = _ASSETS / asset
             if src.is_file():
                 shutil.copyfile(src, d / asset)
@@ -126,7 +130,8 @@ def generation() -> int:
 
 def refresh() -> list[dict]:
     """Reload every user design into ``REGISTRY`` under ``user.<filename>``,
-    replacing any previously-loaded user designs.
+    replacing any previously-loaded user designs, and every user terrain
+    (issue #1292) into the adapter's preset list under its file's name.
 
     Returns a list of ``{"name", "file", "message"}`` for files that failed to
     load — surfaced in the UI so the author (or Claude) can fix them. A broken
@@ -140,10 +145,14 @@ def refresh() -> list[dict]:
         del REGISTRY[key]
 
     errors: list[dict] = []
+    terrains: dict = {}
     for stem, path in iter_design_files():
         name = f"{USER_NS}.{stem}"
         try:
-            cls = load_builder(path)
+            kind, cls = load_user_file(path)
+            if kind == "terrain":
+                terrains[stem] = cls
+                continue
             # Construct (cheap — validates default_params) but do NOT run
             # build_wires here: registration must not execute a user's geometry
             # code, so a slow or hanging builder can't stall startup or a page
@@ -192,4 +201,20 @@ def refresh() -> list[dict]:
                     "message": _format_error(path, exc),
                 }
             )
+    # A terrain is listed once. A second file of the same name in another
+    # folder is not loaded, and says so here rather than disappearing.
+    for stem, path, winner in iter_shadowed_files():
+        if stem in terrains and path.suffix == ".py":
+            errors.append(
+                {
+                    "name": f"{USER_NS}.{stem}",
+                    "file": str(path),
+                    "trust_required": False,
+                    "message": (
+                        f"a terrain named {stem!r} is already loaded from "
+                        f"{winner}; this file is not used. Rename one of them."
+                    ),
+                }
+            )
+    adapter.set_user_terrain_presets(terrains)
     return errors

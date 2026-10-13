@@ -426,6 +426,72 @@ For a phased array of N copies of one element, `antennaknobs` exposes
 These wrap an element `Builder`. For a first design, stick to a single
 `build_wires`; reach for arrays only once a single element works.
 
+## A terrain of your own (the other kind of file)
+
+A `.py` file in this folder is either an antenna or a **terrain**: the shape
+of the ground around the mast, for the app's ground type "terrain". The app
+has three built in (levee, cliff, hillside). A terrain file adds one more, and
+it is offered for every antenna, not only yours.
+
+A terrain file must:
+
+1. **Be named** `lowercase_with_underscores.py`. The file name is the
+   terrain's name in the list (`lake_bluff.py` → "lake_bluff"). It cannot be
+   `levee`, `cliff` or `hillside`.
+2. **Bind one `TerrainPreset` to the name `TERRAIN`**, exactly, and leave its
+   `name` and `label` out. One terrain per file.
+3. **Not define a `Builder`.** A file is one antenna or one terrain.
+4. **Import only** from `antennaknobs` and the Python standard library.
+
+Start from `TERRAIN_TEMPLATE.py` in this folder — copy it, rename it, edit it.
+It explains facets and sectors and is a complete working example.
+
+```python
+from antennaknobs.terrain import Facet, Sector, Terrain, TerrainField, TerrainPreset
+
+SOIL = (13.0, 0.005)  # relative permittivity, conductivity in S/m
+LAKE = (80.0, 0.001)
+
+
+def build(v):  # v: each field's value by key, already inside its min..max
+    return Terrain(
+        (
+            Sector(
+                0.0,
+                360.0,
+                (
+                    Facet(v["edge_m"], 0.0, *SOIL),  # flat out to the edge
+                    Facet(v["edge_m"] + 2 * v["drop_m"], -v["drop_m"], *SOIL),
+                    Facet(None, -v["drop_m"], *LAKE),  # last facet: x1=None
+                ),
+            ),
+        )
+    )
+
+
+TERRAIN = TerrainPreset(
+    tooltip="Flat ground out to a bluff, a bank falling 1 in 2, then lake.",
+    media_note="media: lake εr=80 σ=0.001 · soil εr=13 σ=0.005",
+    fields=(  # key, label, default, min, max, step, unit
+        TerrainField("edge_m", "edge of the bluff", 15.0, 1.0, 500.0, 1.0, "m"),
+        TerrainField("drop_m", "drop to the lake", 6.0, 0.5, 100.0, 0.5, "m"),
+    ),
+    build=build,
+)
+```
+
+Rules the app checks, and reports in the "failed to load" panel when broken:
+every sector's last facet has `x1=None`; facet edges increase outward; the
+sectors cover the full circle without overlap; every sector starts on the same
+ground at the mast (that ground is what the feed impedance is solved over);
+each field has `min < max`, a default between them and a positive step.
+
+To see it: save the file, **reload the web page**, allow the file to run, pick
+ground type "terrain" and choose it from the list. The list of terrains is read
+when the page loads, so a new or renamed terrain needs a page reload (if it is
+not there yet, reload once more). A terrain file is not an antenna:
+`antennaknobs draw --builder user.lake_bluff` says so.
+
 ## How to check your work
 
 1. Save the file. **Refresh the web page** (no server restart needed).

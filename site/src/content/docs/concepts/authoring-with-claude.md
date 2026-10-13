@@ -12,15 +12,17 @@ can write or edit one for you from a contract that's seeded right into the folde
 ## Your designs folder
 
 On first run the app creates **`~/.antennaknobs/designs/`** (override with the
-`ANTENNAKNOBS_USER_DIR` environment variable) and seeds two reference files into
-it:
+`ANTENNAKNOBS_USER_DIR` environment variable) and seeds three reference files
+into it:
 
 - **`TEMPLATE.py`** — a complete, working example dipole. Copy it, rename it, edit
   it.
+- **`TERRAIN_TEMPLATE.py`** — a complete, working example terrain (a bluff
+  over a lake). See [A terrain of your own](#a-terrain-of-your-own) below.
 - **`CLAUDE.md`** — the authoring contract, written *for Claude Code*. It's the
   context that lets Claude write a correct design on the first try.
 
-Both are refreshed from the package on every startup (they're documentation, not
+All three are refreshed from the package on every startup (they're documentation, not
 your content), so an upgrade brings the latest authoring guidance. Your own
 `*.py` files are never touched.
 
@@ -52,6 +54,78 @@ and `antennaknobs list` shows it.
    and iterate.
 4. **Adjust it** with the knobs, watching the pattern plots and the impedance
    readout, until the resonance and pattern look right.
+
+## A terrain of your own
+
+The same folder holds a second kind of file: a **terrain**, the shape of the
+ground around your mast. The workbench has three built in (levee, cliff and
+hillside, see [Faceted terrain](/reference/web/#faceted-terrain)). A terrain
+file adds one of your own to that list, for every antenna, built-in ones
+included.
+
+The rules are the design rules with one name changed:
+
+- **One terrain per file, and the file's name is the terrain's name.**
+  `lake_bluff.py` is listed as "lake_bluff". The name cannot be `levee`,
+  `cliff` or `hillside`.
+- The file binds one `TerrainPreset` to the name **`TERRAIN`** and leaves its
+  `name` and `label` out.
+- The file defines **no `Builder`**. A file is one antenna or one terrain.
+- It imports only from `antennaknobs` and the Python standard library.
+
+A terrain is a few sliders and a function from their values to a `Terrain`:
+
+```python
+from antennaknobs.terrain import Facet, Sector, Terrain, TerrainField, TerrainPreset
+
+SOIL = (13.0, 0.005)  # relative permittivity, conductivity in S/m
+LAKE = (80.0, 0.001)
+
+
+def build(v):  # v: each slider's value by key, already inside its min..max
+    return Terrain(
+        (
+            Sector(
+                0.0,
+                360.0,
+                (
+                    Facet(v["edge_m"], 0.0, *SOIL),  # flat out to the edge
+                    Facet(v["edge_m"] + 2 * v["drop_m"], -v["drop_m"], *SOIL),
+                    Facet(None, -v["drop_m"], *LAKE),  # the lake, to the horizon
+                ),
+            ),
+        )
+    )
+
+
+TERRAIN = TerrainPreset(
+    tooltip="Flat ground out to a bluff, a bank falling 1 in 2, then lake.",
+    media_note="media: lake εr=80 σ=0.001 · soil εr=13 σ=0.005",
+    fields=(  # key, label, default, min, max, step, unit
+        TerrainField("edge_m", "edge of the bluff", 15.0, 1.0, 500.0, 1.0, "m"),
+        TerrainField("drop_m", "drop to the lake", 6.0, 0.5, 100.0, 0.5, "m"),
+    ),
+    build=build,
+)
+```
+
+Each `Facet` is a straight piece of ground along one bearing: how far from the
+mast it ends, how high the ground is there (negative is below the mast's
+ground), and what it is made of. The last one has `x1=None` and runs to the
+horizon. A `Sector` applies one chain of facets to a range of bearings; the
+sectors together cover the full circle. `TERRAIN_TEMPLATE.py` in the folder is
+a longer example with a lake on one side only.
+
+Unlike the built-in terrains, the ground and water are yours to choose: put
+them in the facets, and say what you chose in `media_note`, which is the line
+shown under the sliders.
+
+To use it, save the file and **reload the page**. A terrain file is a Python
+program too, so it asks for the same OK to run as a design. Then set the ground
+type to **terrain** and pick it from the list. The list is read when the page
+loads, so a new or renamed terrain needs a reload; if it is not listed yet,
+reload once more. A file with a mistake in it appears in the **"designs that
+failed to load"** panel with the error and line number, like a broken design.
 
 ## The contract (what Claude follows)
 

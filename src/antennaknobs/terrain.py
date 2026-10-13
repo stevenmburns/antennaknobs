@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import itertools
 import math
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 import numpy as np
@@ -381,3 +382,126 @@ def levee_terrain(
             ),
         )
     )
+
+
+# --- Terrain presets (issues #560, #1292) --------------------------------
+#
+# A preset is a named recipe for a `Terrain`: a few numeric fields with bounds
+# and a function from their values to the terrain. The web app's ground panel
+# is drawn from these, for the built-in presets (levee, cliff, hillside) and
+# for a preset a user keeps as a file in their designs folder. They live here,
+# not in the web package, so that file imports nothing from the app.
+
+BUILTIN_PRESET_NAMES = ("levee", "cliff", "hillside")
+
+
+@dataclass(frozen=True)
+class TerrainField:
+    """One number of a preset, as a slider: ``min``/``max`` are the bounds a
+    value is clamped to before ``build`` sees it, ``default`` is where the
+    slider starts, and ``label``/``unit``/``step`` are what the panel shows.
+    ``label`` leaves the unit out; the panel writes ``"{label} ({unit})"``."""
+
+    key: str
+    label: str
+    default: float
+    min: float
+    max: float
+    step: float
+    unit: str | None = None
+
+    def __post_init__(self):
+        if not isinstance(self.key, str) or not self.key:
+            raise ValueError(f"a terrain field needs a name, got key={self.key!r}")
+        for what in ("default", "min", "max", "step"):
+            v = getattr(self, what)
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                raise ValueError(
+                    f"terrain field {self.key!r}: {what} must be a number, got {v!r}"
+                )
+            if not math.isfinite(v):
+                raise ValueError(
+                    f"terrain field {self.key!r}: {what} must be finite, got {v!r}"
+                )
+        if not self.min < self.max:
+            raise ValueError(
+                f"terrain field {self.key!r}: min ({self.min:g}) must be below "
+                f"max ({self.max:g})"
+            )
+        if not self.min <= self.default <= self.max:
+            raise ValueError(
+                f"terrain field {self.key!r}: default ({self.default:g}) must lie "
+                f"between min ({self.min:g}) and max ({self.max:g})"
+            )
+        if self.step <= 0:
+            raise ValueError(
+                f"terrain field {self.key!r}: step must be positive, got {self.step:g}"
+            )
+
+
+@dataclass(frozen=True)
+class TerrainMarker:
+    """Which way the terrain faces, for the polar charts: the field that
+    carries the bearing, and a label for that side and the opposite one.
+    ``hide_when_ge=(key, value)`` drops the marker when that field reaches
+    ``value`` (a full-circle cliff has no facing side)."""
+
+    bearing_key: str
+    label: str
+    opposite: str
+    hide_when_ge: tuple[str, float] | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class TerrainPreset:
+    """A terrain the ground panel offers.
+
+    ``fields`` are its sliders and ``build`` turns their clamped values, a
+    mapping from each field's ``key`` to a float, into a `Terrain`. ``tooltip``
+    is the hover text and ``media_note`` the read-only line under the sliders,
+    which is where a preset says what soil and water it assumes.
+
+    ``name`` and ``label`` are what the panel lists it as. A preset kept as a
+    file in the designs folder leaves both out: the file's name is the
+    preset's name, as a design file's name is the design's."""
+
+    fields: tuple[TerrainField, ...]
+    build: Callable[[Mapping[str, float]], Terrain]
+    name: str = ""
+    label: str = ""
+    tooltip: str = ""
+    media_note: str = ""
+    marker: TerrainMarker | None = None
+
+    def __post_init__(self):
+        fields = tuple(self.fields)
+        object.__setattr__(self, "fields", fields)
+        if not fields:
+            raise ValueError("a terrain preset needs at least one field")
+        for f in fields:
+            if not isinstance(f, TerrainField):
+                raise ValueError(
+                    f"a terrain preset's fields must be TerrainField objects, got {f!r}"
+                )
+        keys = [f.key for f in fields]
+        twice = sorted({k for k in keys if keys.count(k) > 1})
+        if twice:
+            raise ValueError(
+                f"terrain field {twice[0]!r} is listed twice; each field needs "
+                "its own key"
+            )
+        if not callable(self.build):
+            raise ValueError(
+                f"a terrain preset's build must be a function, got {self.build!r}"
+            )
+        m = self.marker
+        if m is not None:
+            named = [m.bearing_key]
+            if m.hide_when_ge is not None:
+                named.append(m.hide_when_ge[0])
+            for k in named:
+                if k not in keys:
+                    raise ValueError(
+                        f"the terrain marker names field {k!r}, which this "
+                        f"preset does not have (fields: {', '.join(keys)})"
+                    )
