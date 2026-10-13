@@ -61,3 +61,8 @@ def test_a_nec2_ek_card_on_a_refusing_tab_falls_back_and_says_so(
         a for a in out.get("advisories") or () if a["category"] == "ExtendedKernel"
     ]
     assert len(notes) == 1, out.get("advisories")
+    # AK#1996: here the deck did ask, with its EK card, and the note says so.
+    assert notes[0]["summary"].startswith(
+        "This deck's EK card asks for the extended (fat-wire) kernel. This "
+        "solver does not have it, so"
+    )

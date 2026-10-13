@@ -156,7 +156,9 @@ def test_a_refusing_basis_falls_back_with_an_advisory():
     eng = MomwireEngine(cls(), solver=HarringtonSolver, extended_kernel_default=True)
     eng.impedance()
     notes = [a for a in eng.advisories if a["category"] == "ExtendedKernel"]
-    assert len(notes) == 1 and "reduced kernel" in notes[0]["text"]
+    # AK#1996 reworded it: "standard thin-wire kernel", in plain words.
+    assert len(notes) == 1 and "standard thin-wire kernel" in notes[0]["text"]
+    assert notes[0]["summary"].startswith("This deck is read as NEC-4, which is")
     # The same basis REFUSES the kernel when it is asked for, as before.
     with pytest.raises(NotImplementedError):
         MomwireEngine(cls(), solver=HarringtonSolver, extended_kernel=True)
@@ -243,9 +245,9 @@ def test_the_cli_echoes_a_fallback_advisory(tmp_path, monkeypatch, capsys):
     err = capsys.readouterr().err
     # The plain-words summary echoes, not the solver's refusal (AK#1981).
     assert (
-        "advisory: This deck asks for the extended (fat-wire) kernel, but this "
-        "solver has no extended kernel, so this solve used the standard "
-        "thin-wire kernel." in err
+        "advisory: This deck is read as NEC-4, which is solved with the "
+        "extended (fat-wire) kernel. This solver does not have it, so this "
+        "whole solve used the standard thin-wire kernel." in err
     )
 
 
@@ -368,3 +370,8 @@ def test_an_opened_deck_on_a_refusing_tab_falls_back_and_says_so(client):
         a for a in out.get("advisories") or () if a["category"] == "ExtendedKernel"
     ]
     assert len(notes) == 1, out.get("advisories")
+    # AK#1996: over the web route too, the reading is named as the reason.
+    assert notes[0]["summary"].startswith(
+        "This deck is read as NEC-4, which is solved with the extended "
+        "(fat-wire) kernel. This solver does not have it, so"
+    )
