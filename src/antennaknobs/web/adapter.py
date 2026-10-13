@@ -135,7 +135,11 @@ from antennaknobs.engines.nec5 import (
     _network_needs_reducer,
 )
 from antennaknobs.terrain import (
+    BUILTIN_PRESET_NAMES,
     Terrain,
+    TerrainField,
+    TerrainMarker,
+    TerrainPreset,
     cliff_terrain,
     hillside_terrain,
     levee_terrain,
@@ -2306,46 +2310,6 @@ def _terrain_num(t: Mapping, key: str, default: float, lo: float, hi: float) -> 
 # is now one entry here — no TypeScript, no rebuild beyond the asset build.
 
 
-@dataclass(frozen=True)
-class _TerrainField:
-    """One clamped numeric knob of a preset. `min`/`max`/`default` are
-    authoritative server-side (the clamp) AND drive the frontend slider;
-    `label`/`unit`/`step` are presentation the UI reads verbatim. `label`
-    omits the unit — the panel renders it as ``"{label} ({unit})"``."""
-
-    key: str
-    label: str
-    default: float
-    min: float
-    max: float
-    step: float
-    unit: str | None = None
-
-
-@dataclass(frozen=True)
-class _TerrainMarker:
-    """Chart-orientation hint: which field carries the preset's characteristic
-    bearing, and the two side labels drawn on the polar charts. `hide_when_ge`
-    drops the marker for an azimuth-symmetric configuration (a full-circle
-    cliff, arc_deg >= 360)."""
-
-    bearing_key: str
-    label: str
-    opposite: str
-    hide_when_ge: tuple[str, float] | None = None
-
-
-@dataclass(frozen=True)
-class _TerrainPreset:
-    name: str
-    label: str  # radio label shown in the panel
-    tooltip: str  # radio hover text
-    media_note: str  # read-only media line under the knobs
-    fields: tuple[_TerrainField, ...]
-    build: Callable[[Mapping[str, float]], Terrain]
-    marker: _TerrainMarker | None = None
-
-
 _TERRAIN_MEDIA_NOTE = "media: water εr=80 σ=0.001 · land/crest εr=13 σ=0.005"
 
 
@@ -2382,8 +2346,8 @@ def _build_hillside(v: Mapping[str, float]) -> Terrain:
     )
 
 
-_TERRAIN_PRESETS: tuple[_TerrainPreset, ...] = (
-    _TerrainPreset(
+_TERRAIN_PRESETS: tuple[TerrainPreset, ...] = (
+    TerrainPreset(
         name="levee",
         label="levee",
         tooltip=(
@@ -2393,18 +2357,18 @@ _TERRAIN_PRESETS: tuple[_TerrainPreset, ...] = (
         ),
         media_note=_TERRAIN_MEDIA_NOTE,
         fields=(
-            _TerrainField("crest_width_m", "crest width", 3.0, 0.1, 1e3, 0.5, "m"),
-            _TerrainField("slope_deg", "slope", 20.0, 1.0, 89.0, 1.0, "°"),
-            _TerrainField("drop_water_m", "drop to water", 10.7, 0.01, 1e3, 0.5, "m"),
-            _TerrainField("drop_land_m", "drop to land", 7.6, 0.01, 1e3, 0.5, "m"),
-            _TerrainField(
+            TerrainField("crest_width_m", "crest width", 3.0, 0.1, 1e3, 0.5, "m"),
+            TerrainField("slope_deg", "slope", 20.0, 1.0, 89.0, 1.0, "°"),
+            TerrainField("drop_water_m", "drop to water", 10.7, 0.01, 1e3, 0.5, "m"),
+            TerrainField("drop_land_m", "drop to land", 7.6, 0.01, 1e3, 0.5, "m"),
+            TerrainField(
                 "water_azimuth_deg", "water bearing", 0.0, -360.0, 360.0, 5.0, "°"
             ),
         ),
         build=_build_levee,
-        marker=_TerrainMarker("water_azimuth_deg", "water", "land"),
+        marker=TerrainMarker("water_azimuth_deg", "water", "land"),
     ),
-    _TerrainPreset(
+    TerrainPreset(
         name="cliff",
         label="cliff",
         tooltip=(
@@ -2413,17 +2377,17 @@ _TERRAIN_PRESETS: tuple[_TerrainPreset, ...] = (
         ),
         media_note=_TERRAIN_MEDIA_NOTE,
         fields=(
-            _TerrainField("edge_m", "cliff edge", 10.0, 0.1, 1e4, 1.0, "m"),
-            _TerrainField("drop_m", "drop", 10.0, 0.01, 1e3, 0.5, "m"),
-            _TerrainField("azimuth_deg", "bearing", 0.0, -360.0, 360.0, 5.0, "°"),
-            _TerrainField("arc_deg", "arc", 360.0, 1.0, 360.0, 15.0, "°"),
+            TerrainField("edge_m", "cliff edge", 10.0, 0.1, 1e4, 1.0, "m"),
+            TerrainField("drop_m", "drop", 10.0, 0.01, 1e3, 0.5, "m"),
+            TerrainField("azimuth_deg", "bearing", 0.0, -360.0, 360.0, 5.0, "°"),
+            TerrainField("arc_deg", "arc", 360.0, 1.0, 360.0, 15.0, "°"),
         ),
         build=_build_cliff,
-        marker=_TerrainMarker(
+        marker=TerrainMarker(
             "azimuth_deg", "cliff", "flat", hide_when_ge=("arc_deg", 360.0)
         ),
     ),
-    _TerrainPreset(
+    TerrainPreset(
         name="hillside",
         label="hillside",
         tooltip=(
@@ -2435,24 +2399,53 @@ _TERRAIN_PRESETS: tuple[_TerrainPreset, ...] = (
         ),
         media_note="media: earth εr=13 σ=0.005",
         fields=(
-            _TerrainField("flat_width_m", "flat width", 20.0, 0.1, 1e3, 1.0, "m"),
-            _TerrainField("up_slope_deg", "uphill slope", 15.0, 1.0, 89.0, 1.0, "°"),
-            _TerrainField(
-                "down_slope_deg", "downhill slope", 10.0, 1.0, 89.0, 1.0, "°"
-            ),
-            _TerrainField(
+            TerrainField("flat_width_m", "flat width", 20.0, 0.1, 1e3, 1.0, "m"),
+            TerrainField("up_slope_deg", "uphill slope", 15.0, 1.0, 89.0, 1.0, "°"),
+            TerrainField("down_slope_deg", "downhill slope", 10.0, 1.0, 89.0, 1.0, "°"),
+            TerrainField(
                 "downhill_azimuth_deg", "downhill bearing", 0.0, -360.0, 360.0, 5.0, "°"
             ),
         ),
         build=_build_hillside,
-        marker=_TerrainMarker("downhill_azimuth_deg", "downhill", "uphill"),
+        marker=TerrainMarker("downhill_azimuth_deg", "downhill", "uphill"),
     ),
 )
-_TERRAIN_PRESET_BY_NAME = {p.name: p for p in _TERRAIN_PRESETS}
 _DEFAULT_TERRAIN_PRESET = _TERRAIN_PRESETS[0]  # levee
+assert tuple(p.name for p in _TERRAIN_PRESETS) == BUILTIN_PRESET_NAMES
+
+# Presets a user keeps as files in the designs folder (issue #1292), by name.
+# `user_designs.refresh()` replaces the whole table on every reload, so a file
+# that was deleted or has stopped loading leaves the list with it. Listed after
+# the built-ins, in name order; a name here is never a built-in's (the loader
+# refuses the file).
+_USER_TERRAIN_PRESETS: dict[str, TerrainPreset] = {}
 
 
-def _clamped_terrain(req: dict) -> tuple[_TerrainPreset, dict[str, float]]:
+def set_user_terrain_presets(presets: Mapping[str, TerrainPreset]) -> None:
+    """Replace the user presets with ``presets`` (name -> preset)."""
+    builtin = set(BUILTIN_PRESET_NAMES) & set(presets)
+    if builtin:
+        raise ValueError(
+            f"{sorted(builtin)[0]!r} is a built-in terrain and cannot be replaced"
+        )
+    global _USER_TERRAIN_PRESETS
+    _USER_TERRAIN_PRESETS = dict(sorted(presets.items()))
+
+
+def _terrain_presets() -> tuple[TerrainPreset, ...]:
+    return (*_TERRAIN_PRESETS, *_USER_TERRAIN_PRESETS.values())
+
+
+def is_user_terrain_request(req: dict) -> bool:
+    """True when the request's ground is a terrain a user file defines, so the
+    answer can change when that file does."""
+    if _requested_ground_model(req) != "terrain":
+        return False
+    t = req.get("terrain")
+    return isinstance(t, Mapping) and t.get("preset") in _USER_TERRAIN_PRESETS
+
+
+def _clamped_terrain(req: dict) -> tuple[TerrainPreset, dict[str, float]]:
     """Resolve the request's `terrain` block to (preset, clamped values).
     Unknown or missing preset falls back to levee; every field is clamped to
     the descriptor's range so a hand-crafted request can't build a degenerate
@@ -2460,7 +2453,10 @@ def _clamped_terrain(req: dict) -> tuple[_TerrainPreset, dict[str, float]]:
     t = req.get("terrain") or {}
     if not isinstance(t, Mapping):
         t = {}
-    preset = _TERRAIN_PRESET_BY_NAME.get(t.get("preset"), _DEFAULT_TERRAIN_PRESET)
+    preset = _DEFAULT_TERRAIN_PRESET
+    for p in _terrain_presets():
+        if p.name == t.get("preset"):
+            preset = p
     values = {
         f.key: _terrain_num(t, f.key, f.default, f.min, f.max) for f in preset.fields
     }
@@ -2481,7 +2477,14 @@ def _terrain_from_request(req: dict) -> Terrain:
     # of latency on every knob drag. The dwell path (specular while dragging,
     # the diffracted pattern composed once on settle, with a label while the two
     # differ) is the follow-on PR, and THIS LINE is the seam it moves.
-    return replace(preset.build(values), diffraction=False)
+    terrain = preset.build(values)
+    if not isinstance(terrain, Terrain):
+        # Only a user preset can get here; the built-ins call the constructors.
+        raise TypeError(
+            f"terrain {preset.name!r}: build must return a Terrain (from "
+            f"antennaknobs.terrain), and it returned {type(terrain).__name__}"
+        )
+    return replace(terrain, diffraction=False)
 
 
 def _terrain_marker(req: dict) -> dict | None:
@@ -2531,7 +2534,7 @@ def terrain_presets_schema() -> list[dict]:
                 for f in p.fields
             ],
         }
-        for p in _TERRAIN_PRESETS
+        for p in _terrain_presets()
     ]
 
 

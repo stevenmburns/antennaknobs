@@ -1678,9 +1678,21 @@ number a live knob:
   angle the real sky is shadowed by the hill — which the specular composer
   cannot express and the diffracted one can; see *Two fields* below.
 
-Media are fixed in this version (water εr=80 σ=0.001, land and crest εr=13
-σ=0.005 — shown read-only in the panel); arbitrary facet profiles and custom
-media are available from Python via `antennaknobs.terrain`.
+Media are fixed for these three (water εr=80 σ=0.001, land and crest εr=13
+σ=0.005 — shown read-only in the panel).
+
+**Your own terrain.** On a local workbench, a file in your designs folder
+(`~/.antennaknobs/designs`) can add a terrain to this list: its own sliders,
+its own profile and its own media. One terrain per file; the file's name is
+the name in the list, and it cannot be `levee`, `cliff` or `hillside`. The
+file binds a `TerrainPreset` (from `antennaknobs.terrain`) to the name
+`TERRAIN` and defines no `Builder`. It is offered for every design, runs under
+the same permission as a design file, and a file with an error in it is shown
+in the "designs that failed to load" panel. The list of terrains is read when
+the page loads, so reload the page after adding or renaming one. The worked
+example and the rules are in
+[Writing designs with Claude Code](/concepts/authoring-with-claude/#a-terrain-of-your-own);
+`TERRAIN_TEMPLATE.py` in the designs folder is a copy to start from.
 
 How it solves: the **impedance/current solution runs over a flat Sommerfeld
 ground with the crest medium** (near-field ground interaction is

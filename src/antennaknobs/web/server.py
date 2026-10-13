@@ -1615,7 +1615,14 @@ _USER_CACHE_KEYS: dict[str, set] = {"solve": set(), "sweep": set()}
 
 
 def _is_user_geometry(req: dict) -> bool:
-    return str(req.get("geometry", "")).startswith(f"{user_designs.USER_NS}.")
+    """True when the answer to ``req`` depends on a file in the user's designs
+    folder: the design itself, or the terrain it stands on (#1292)."""
+    if str(req.get("geometry", "")).startswith(f"{user_designs.USER_NS}."):
+        return True
+    # Imported here for the adapter <-> examples cycle (see /sweep).
+    from . import adapter
+
+    return adapter.is_user_terrain_request(req)
 
 
 def _evict_user_design_caches() -> dict[str, int]:

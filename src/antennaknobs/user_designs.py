@@ -19,6 +19,8 @@ import sys
 from collections.abc import Iterator
 from pathlib import Path
 
+from dataclasses import replace
+
 from . import design_screen, design_trust
 
 USER_NS = "user"
@@ -70,10 +72,18 @@ class NoBuilderError(AttributeError):
     """
 
 
+# The name a terrain file binds its preset to (issue #1292), as a design file
+# binds its class to ``Builder``.
+TERRAIN_ATTR = "TERRAIN"
+
+# The copied authoring templates: reference files, never loaded.
+_TEMPLATE_STEMS = ("TEMPLATE", "TERRAIN_TEMPLATE")
+
+
 def _is_design_file(path: Path) -> bool:
-    """Skip private files and the copied authoring template."""
+    """Skip private files and the copied authoring templates."""
     stem = path.stem
-    return not (stem.startswith("_") or stem == "TEMPLATE")
+    return not (stem.startswith("_") or stem in _TEMPLATE_STEMS)
 
 
 def is_deck_file(path: Path) -> bool:
@@ -85,6 +95,57 @@ def is_deck_file(path: Path) -> bool:
 
 def load_builder(path: Path, *, trust: bool | None = None):
     """Import a single user file by path and return its ``Builder`` class.
+    Re-executes the file on every call, so edits are picked up live.
+
+    A terrain file (see `load_user_file`) is not a design: it raises
+    `NoBuilderError`, saying what the file is.
+    """
+    kind, obj = load_user_file(path, trust=trust)
+    if kind == "terrain":
+        raise NoBuilderError(
+            f"{path.name} defines a terrain (`{TERRAIN_ATTR}`), not an antenna "
+            "design; pick it as the ground's terrain in the web app"
+        )
+    return obj
+
+
+def _terrain_preset(path: Path, preset):
+    """The file's `TERRAIN`, named after the file, or the reason it cannot
+    be used, in words for the error panel."""
+    from .terrain import BUILTIN_PRESET_NAMES, TerrainPreset
+
+    stem = path.stem
+    if not isinstance(preset, TerrainPreset):
+        raise TypeError(
+            f"`{TERRAIN_ATTR}` must be a TerrainPreset (from antennaknobs.terrain), "
+            f"and it is a {type(preset).__name__}"
+        )
+    for what in ("name", "label"):
+        given = getattr(preset, what)
+        if given not in ("", stem):
+            raise ValueError(
+                f"`{TERRAIN_ATTR}` sets {what}={given!r}, but a terrain file is "
+                f"named by its file name ({stem!r}); leave {what} out, or rename "
+                "the file"
+            )
+    if stem in BUILTIN_PRESET_NAMES:
+        raise ValueError(
+            f"{stem!r} is a built-in terrain and a file cannot replace it; "
+            f"rename {path.name} (for example to {stem}_mine.py)"
+        )
+    return replace(preset, name=stem, label=stem)
+
+
+def load_user_file(path: Path, *, trust: bool | None = None):
+    """Import a single user file by path and say what it is:
+    ``("design", Builder)`` or ``("terrain", TerrainPreset)``.
+
+    A folder holds two kinds of Python file (issue #1292). A design defines
+    ``Builder``. A terrain defines ``TERRAIN = TerrainPreset(...)`` and no
+    ``Builder``; there is one per file, and the file's name is the preset's
+    name and its label in the ground panel. A file with both is refused, and
+    a file with neither raises `NoBuilderError`.
+
     Re-executes the file on every call, so edits are picked up live.
 
     A user design runs with full privileges, so it executes only if it is
@@ -103,7 +164,7 @@ def load_builder(path: Path, *, trust: bool | None = None):
     if is_deck_file(path):
         from .file_designs import builder_from_file
 
-        return builder_from_file(str(path))
+        return "design", builder_from_file(str(path))
     if trust is None:
         trust = design_trust.is_trusted(path)
     if not trust:
@@ -123,11 +184,38 @@ def load_builder(path: Path, *, trust: bool | None = None):
         sys.modules.pop(modname, None)
         raise
     cls = getattr(mod, "Builder", None)
+    preset = getattr(mod, TERRAIN_ATTR, None)
+    if cls is not None and preset is not None:
+        raise ValueError(
+            f"this file defines both `Builder` and `{TERRAIN_ATTR}`; a file is "
+            "one antenna design or one terrain, so move one of them to a file "
+            "of its own"
+        )
+    if preset is not None:
+        return "terrain", _terrain_preset(path, preset)
     if cls is None:
         raise NoBuilderError(
             "no `Builder` class found — define `class Builder(AntennaBuilder): ...`"
         )
-    return cls
+    return "design", cls
+
+
+def _scan() -> Iterator[tuple[str, Path, Path | None]]:
+    """``(stem, path, winner)`` for every candidate file in every folder:
+    ``winner`` is None for the file that carries its stem, and that file's
+    path for each later one of the same stem."""
+    seen: dict[str, Path] = {}
+    for d in user_design_dirs():
+        if not d.is_dir():
+            continue
+        entries = sorted(d.glob("*.py")) + sorted(
+            p for p in d.iterdir() if p.is_file() and is_deck_file(p)
+        )
+        for path in entries:
+            if not _is_design_file(path):
+                continue
+            winner = seen.setdefault(path.stem, path)
+            yield path.stem, path, (None if winner is path else winner)
 
 
 def iter_design_files() -> Iterator[tuple[str, Path]]:
@@ -138,20 +226,17 @@ def iter_design_files() -> Iterator[tuple[str, Path]]:
     (``.nec`` / ``.ssn``, issue #1419) after them, so a stub beside its deck —
     the documented ``my_yagi.py`` + ``my_yagi.nec`` recipe — is the design and
     the bare deck of the same stem is not listed twice."""
-    seen: set[str] = set()
-    for d in user_design_dirs():
-        if not d.is_dir():
-            continue
-        entries = sorted(d.glob("*.py")) + sorted(
-            p for p in d.iterdir() if p.is_file() and is_deck_file(p)
-        )
-        for path in entries:
-            if not _is_design_file(path):
-                continue
-            if path.stem in seen:
-                continue
-            seen.add(path.stem)
-            yield path.stem, path
+    for stem, path, winner in _scan():
+        if winner is None:
+            yield stem, path
+
+
+def iter_shadowed_files() -> Iterator[tuple[str, Path, Path]]:
+    """Yield ``(stem, path, winner)`` for each file `iter_design_files` leaves
+    out because ``winner`` already carries its stem."""
+    for stem, path, winner in _scan():
+        if winner is not None:
+            yield stem, path, winner
 
 
 def find_design_file(stem: str) -> Path | None:
