@@ -146,7 +146,8 @@ def test_the_option_spec_is_served_with_auto_as_its_default():
     assert tuple(spec["values"]) == ("auto", "on", "off")
 
 
-def test_the_roster_offers_it_on_bspline_only_and_only_when_served():
+def test_the_roster_offers_it_where_momwire_serves_it():
+    # bspline since momwire 0.76.0 (#1408); razor-2p since 0.77.0 (#1433).
     from antennaknobs.web import server  # noqa: F401
     from antennaknobs.web.adapter import backend_roster
 
@@ -155,7 +156,7 @@ def test_the_roster_offers_it_on_bspline_only_and_only_when_served():
         for b in backend_roster(have_pynec=True, have_nec5=True, have_nec2=True)
         if "exact_kernel" in b["model_kwargs"]
     }
-    assert offered == ({"bspline"} if SERVED else set())
+    assert offered == ({"bspline", "razor-2p"} if SERVED else set())
 
 
 # --------------------------------------------------------------------------

@@ -83,12 +83,14 @@ def test_the_kwarg_tuples_match_what_the_server_measured():
     """The families share tuples on both sides, so this checks the SHARING as
     well as the contents — three separate literals would be the drift."""
     src = ROSTER_FIXTURE.read_text()
-    # `exact_kernel` (momwire#1408) is offered by a live capability probe the
-    # PINNED momwire answers no to, and `backendFixtures.ts` models the pinned
-    # roster. Set aside here so a dev-mode run (a momwire that serves it)
-    # pins the same fixture; `test_exact_kernel_option_1408.py` gates where it
-    # is offered. The pin PR that brings a momwire release carrying it adds it
-    # to `BSPLINE_KWARGS` and drops this filter.
+    # `exact_kernel` (momwire#1408) is offered by a live capability probe of
+    # the installed momwire: on bspline since 0.76.0 and on razor-2p since
+    # 0.77.0. `backendFixtures.ts` still models the roster WITHOUT it, so it
+    # is set aside here and `test_exact_kernel_option_1408.py` gates where it
+    # is offered. Carrying it in the fixture means updating the hand-kept
+    # panel and request-shape tests that count the b-spline controls
+    # (antennaknobs#1999); until then the frontend tests do not see that
+    # control on either engine.
     live = {
         r["name"]: [k for k in r["model_kwargs"] if k != "exact_kernel"]
         for r in backend_roster(have_pynec=True, have_nec5=True)
