@@ -61,6 +61,7 @@ import pytest
 from momwire.deck import DeckError, parse, tokenize
 from momwire.deck._nec2 import _GEOMETRY_CARDS
 from momwire.deck._nec2_geometry import build_geometry
+from momwire.deck.model import NearFieldRequest
 
 from antennaknobs import nec_import
 
@@ -256,12 +257,13 @@ _EXPECTED: dict[str, str | None] = {
     "2m_sqr_halo_stack": None,
     "2m_xpol_omni": None,
     "2m_xpol_omni_stack": None,
-    # Served until the 2026-08-22 refresh, and the refusal is not this
-    # deck's fault: it carries NE/NH over its GN 2 ground, which this dialect
-    # still refuses although the engine has served near fields over every
-    # ground since momwire#545.  Recorded as the stale refusal it is, and
-    # tracked as momwire#560 — when that lands, this goes back to None.
-    "40m-moxon": "NH over a finite ground",
+    # Served again (AK#1944).  Between the 2026-08-22 refresh and momwire#560
+    # this was pinned as refused for "NH over a finite ground": the deck
+    # carries NE/NH over its GN 2 ground, which the dialect refused although
+    # the engine had served near fields over every ground since momwire#545.
+    # #560 closed on 2026-09-02 and the entry was not moved with it, which
+    # nobody saw because this module skips on CI.
+    "40m-moxon": None,
     "6-17m_bipyramid": None,
     "6-20m_fan": None,
     "6-20m_inv_cone": None,
@@ -321,7 +323,8 @@ def test_the_corpus_is_the_one_this_module_measures():
     against a refreshed checkout (it had been 75 and 36; #415's original census
     reported 82 and 34).  The seven decks the refresh brought write neither
     card, so the GX/GR slice and every expectation in ``_EXPECTED`` came
-    through unchanged except ``40m-moxon`` — see its entry.
+    through unchanged except ``40m-moxon``, which was pinned as refused from
+    then until AK#1944 — see its entry.
 
     This test could not fail for the whole period the counts were wrong: two
     corpus decks carry 4nec2 ``SY`` cards, ``_decks()`` tokenizes at import,
@@ -511,20 +514,16 @@ def test_40m_moxon_is_the_wild_witness_for_the_network_cell_exemption():
     It is also the only deck in this 36-deck slice where the two rules meet,
     so if the exemption were wrong this is where the corpus would say so.
 
-    The deck also carries ``NE``/``NH`` over its ``GN 2`` ground, which this
-    dialect refuses although the engine has served near fields over every
-    ground since momwire#545 (tracked as momwire#560).  That is about the two
-    OBSERVATION cards and touches nothing this test measures, so they are
-    dropped here rather than losing the only wild witness there is — and the
-    drop is GATED below, so the day #560 lands this test fails and says to
-    stop trimming."""
-    text = (CORPUS / "40m-moxon.nec").read_text()
-    with pytest.raises(DeckError, match="NH over a finite ground"):
-        parse(text)
-    trimmed = "\n".join(
-        line for line in text.splitlines() if line.split()[:1] not in (["NE"], ["NH"])
-    )
-    model = parse(trimmed)
+    The deck also carries ``NE``/``NH`` over its ``GN 2`` ground.  Until
+    momwire#560 the dialect refused those two OBSERVATION cards, so this test
+    dropped them before parsing and gated the drop on the refusal, to fail on
+    the day #560 landed and say to stop trimming.  It did (AK#1944), so the
+    deck is parsed here exactly as xnec2c ships it.  The gate is kept in its
+    positive form: the near-field request has to arrive over the finite
+    ground, so the witness cannot go back to being a trimmed deck unnoticed."""
+    model = parse((CORPUS / "40m-moxon.nec").read_text())
+    assert model.ground[0] == "finite"
+    assert any(isinstance(r, NearFieldRequest) for r in model.requests)
     built = build_geometry(geometry_cards("40m-moxon"))
     assert built.symmetry is not None, "the premise: the cell must still be live"
     assert [c.kind for c in model.networks] == ["TL", "TL", "TL"]
