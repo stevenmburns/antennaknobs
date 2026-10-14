@@ -23,3 +23,13 @@ updates:
     directory: "/src/antennaknobs/web/frontend"
     schedule:
       interval: "monthly"
+    groups:
+      # react and react-dom must be the exact same version (React refuses to
+      # run otherwise), and their type packages track them: one PR for all
+      # four, never react alone (#1831 bumped react without react-dom).
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
