@@ -208,20 +208,20 @@ it changes the answer by less than the mesh does.
 The extended kernel is itself an expansion, and it runs out where a segment is
 no longer long compared to the wire's radius: its error grows from about 0.2 %
 at a segment three radii long to about 3 % at one radius, so refining a fat
-wire's mesh far enough makes the answer drift instead of settle. From momwire
-0.76.0 the B-spline basis (**`bspline`**, bs2) has an **exact ring kernel**:
-between segments that share a line and a radius it integrates the current's
+wire's mesh far enough makes the answer drift instead of settle. The B-spline
+basis (**`bspline`**, bs2, from momwire 0.76.0) and **`razor-2p`** (from momwire
+0.77.0) have an **exact ring kernel**: between segments that share a line and a radius it integrates the current's
 ring around the tube exactly, with no expansion, and stays put as the mesh
 goes finer. Where a straight run bends, that pair goes back to the extended
 (or reduced) kernel, a step of about 1e-4 of the answer on a 50 mm wire.
 
-It is **`auto` by default on `bspline`**: it engages on its own when some
+It is **`auto` by default on `bspline` and `razor-2p`**: it engages on its own when some
 segment is shorter than **3 radii**, and otherwise the solve is exactly what it
 was. The readout's **kernel** row says which kernel ran (**exact ring** when it
 did), and the command line prints a note. To choose it yourself:
 
 - in the workbench, the **exact ring kernel** setting (auto / on / off) in the
-  `bspline` slot's gear menu;
+  `bspline` or `razor-2p` slot's gear menu;
 - on the command line, `--exact-kernel auto|on|off`.
 
 `on` (or `auto`) on any other basis or engine is refused by name, and `off`
