@@ -58,8 +58,16 @@ describe("the slot follows the design's kernel", () => {
   });
 
   it("falls back to reduced where the deck refuses it: a buried wire", () => {
+    // razor-2p still refuses the kernel beside a buried wire.
     const buried = { ...DECK, buried: true };
-    expect(extendedKernelActive(entry("bspline"), stock("bspline"), buried)).toBe(false);
+    expect(extendedKernelActive(entry("razor-2p"), stock("razor-2p"), buried)).toBe(false);
+  });
+
+  it("keeps it on B-spline beside a buried wire (above-ground wires only)", () => {
+    // momwire 0.78 (momwire#1170): B-spline serves the kernel in part, so its
+    // served row no longer forbids it and the deck's default stands.
+    const buried = { ...DECK, buried: true };
+    expect(extendedKernelActive(entry("bspline"), stock("bspline"), buried)).toBe(true);
   });
 
   it("says +EK on the chip where the default is in force", () => {
