@@ -267,7 +267,7 @@ enabled = true
 type = "finite"             # finite, pec or terrain
 method = "sommerfeld"       # fast, sommerfeld or mininec
 soil = "average"            # a soil preset, or eps_r = 13 and sigma = 0.005
-terrain_preset = "levee"    # cliff, hillside or levee
+terrain_preset = "levee"    # cliff, hillside, levee or one of your own
 
 [grounds.Y]                 # free space in stock; this makes it PEC
 enabled = true
@@ -1343,7 +1343,7 @@ The controls themselves are drawn from the served option catalogue rather
 than a hand-written panel per engine, so a knob appears exactly when the
 engine behind the tab takes it, with the server's own bounds and captions.
 When the loaded design cannot be solved with a tab's current settings — a
-buried deck under the extended kernel, say — the tab says so inline with
+buried deck under the extended kernel on `razor-2p`, say — the tab says so inline with
 momwire's own refusal sentence and the issue it cites, and there is no
 *Solve anyway*: momwire would raise, so an override would buy an error
 dialog rather than a result.

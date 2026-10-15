@@ -189,9 +189,12 @@ than silently:
 - **singular enrichment**, on the bases that otherwise serve EK — the
   enrichment degrees of freedom carry their own quadrature and bypass the
   moment kernels the extended kernel corrects (momwire#249).
-- **a wire below the ground plane**, on every lane — the extended kernel
-  has not been measured on a pair of segments spanning two media. Solve a
-  buried deck with the reduced kernel, which is the default.
+- **a wire below the ground plane**, on every lane but `bspline` — the
+  extended kernel has not been measured on a pair of segments spanning two
+  media. From momwire 0.78, `bspline` serves such a deck in part: a pair of
+  segments both above ground takes the extended kernel, every pair touching a
+  buried segment keeps the reduced kernel, and a warning says so once. A deck
+  with every wire buried stays on the reduced kernel.
 - **a radius step at a junction** on `sinusoidal-galerkin` — measured
   divergent; `bspline` and `sinusoidal` serve the step.
 
@@ -210,8 +213,9 @@ no longer long compared to the wire's radius: its error grows from about 0.2 %
 at a segment three radii long to about 3 % at one radius, so refining a fat
 wire's mesh far enough makes the answer drift instead of settle. The B-spline
 basis (**`bspline`**, bs2, from momwire 0.76.0) and **`razor-2p`** (from momwire
-0.77.0) have an **exact ring kernel**: between segments that share a line and a radius it integrates the current's
-ring around the tube exactly, with no expansion, and stays put as the mesh
+0.77.0) have an **exact ring kernel**: between segments that share a line it integrates the current's
+ring around the tube exactly — across a radius step on that line too, each
+ring on its own wire's surface, from momwire 0.78 — with no expansion, and stays put as the mesh
 goes finer. Where a straight run bends, that pair goes back to the extended
 (or reduced) kernel, a step of about 1e-4 of the answer on a 50 mm wire.
 
