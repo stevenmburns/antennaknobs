@@ -18,7 +18,12 @@ import logging
 
 import momwire
 import pytest
-from momwire import BSplineSolver, HarringtonSolver, SinusoidalGalerkinSolver
+from momwire import (
+    BSplineSolver,
+    HarringtonSolver,
+    RazorSolver,
+    SinusoidalGalerkinSolver,
+)
 
 from test_ez_import_1958 import DIPOLE, engine_block, ez_file
 
@@ -104,9 +109,10 @@ DETAILS = {
         "What was affected: the whole solve. Every wire used the standard "
         "thin-wire kernel, not only the wires below the ground. What caused "
         "it: this model has wire below the ground, down to 0.5 m deep. "
-        f"{HOW_MUCH} What you can do: nothing in the app changes this. No "
-        "setting turns the extended kernel on for a model with wire below "
-        "the ground."
+        f"{HOW_MUCH} What you can do: to use the extended kernel on the wires "
+        "above the ground, open the slot's options (the gear beside the "
+        "solver slot) and choose B-spline (the default). The wires below the "
+        "ground keep the standard kernel on every solver."
     ),
     "stepped": (
         "What was affected: the whole solve. Every wire used the standard "
@@ -206,6 +212,9 @@ STEPPED = (
 
 
 GALERKIN = {"solver": SinusoidalGalerkinSolver}
+# Since momwire 0.78 B-spline serves a buried deck in part (momwire#1170), so
+# the buried fallback is a razor-2p (or sinusoidal) one.
+RAZOR = {"solver": RazorSolver}
 
 
 def _note(text, **kw):
@@ -231,7 +240,7 @@ ENRICHED = {"solver_kwargs": {"use_singular_enrichment": True}}
         (NEC4, {"solver": HarringtonSolver}, ("dialect", "nec4"), "basis"),
         (NEC5, ENRICHED, ("dialect", "nec5"), "enrichment"),
         (NEC4, ENRICHED, ("dialect", "nec4"), "enrichment"),
-        (BURIED, {}, ("dialect", "nec4"), "buried"),
+        (BURIED, RAZOR, ("dialect", "nec4"), "buried"),
         (STEPPED, GALERKIN, ("dialect", "nec4"), "stepped"),
         (NEC2_EK, {"solver": HarringtonSolver}, ("card", None), "basis"),
         (NEC2_EK, ENRICHED, ("card", None), "enrichment"),
@@ -301,7 +310,7 @@ def test_a_model_with_no_kernel_default_records_no_reason():
 
 
 def test_a_buried_deck_reports_its_own_depth():
-    note, _eng = _note(BURIED.replace("-0.5", "-1.25"))
+    note, _eng = _note(BURIED.replace("-0.5", "-1.25"), **RAZOR)
     assert "down to 1.25 m deep." in note["text"]
 
 
@@ -320,16 +329,38 @@ def _solvers():
     return [getattr(momwire, n) for n in SOLVER_CLASSES]
 
 
-def test_no_solver_serves_the_extended_kernel_on_a_buried_wire():
-    # The buried details say no setting changes this. When a momwire serves
-    # the extended kernel beside a buried wire, this fails and the words (and
-    # "what was affected") must be revisited rather than left false.
+def test_only_bspline_serves_the_extended_kernel_beside_a_buried_wire():
+    # The buried details send the user to B-spline, and only there. When
+    # another solver serves the extended kernel beside a buried wire, or
+    # B-spline stops, this fails and the words must be revisited rather than
+    # left false.
     served = [
         c.__name__
         for c in _solvers()
         if _capability_refusal(c, "buried", "extended_kernel") is None
     ]
-    assert served == []
+    assert served == ["BSplineSolver"]
+
+
+def test_bspline_keeps_the_kernel_on_a_buried_deck_and_says_where():
+    # No fallback note: the kernel stays on. momwire's own advisory says the
+    # buried wires kept the standard kernel, in plain words once summarised.
+    cls = builder_from_text("d.nec", BURIED)
+    eng = MomwireEngine(
+        cls(), solver=BSplineSolver, ground=cls.file_ground,
+        extended_kernel_default=True,
+    )  # fmt: skip
+    assert eng._extended_kernel is True
+    assert not [a for a in eng.advisories if a["category"] == "ExtendedKernel"]
+    eng.impedance()
+    (note,) = [
+        a for a in eng.advisories if a["category"] == "ExtendedKernelAboveGround"
+    ]
+    assert note["summary"].startswith(
+        "The extended (fat-wire) kernel was used on the wires above the ground. "
+        "The 1 wire below the ground (of 1) used the standard thin-wire kernel"
+    )
+    _user_facing_is_plain(note["summary"])
 
 
 def test_another_solver_does_serve_a_radius_step():
@@ -346,7 +377,7 @@ def test_some_solver_shows_the_switch_the_basis_details_name():
 
 def test_the_solvers_own_refusal_is_kept_for_developers_only(caplog):
     with caplog.at_level(logging.DEBUG, logger="antennaknobs.engines.momwire"):
-        note, eng = _note(BURIED)
+        note, eng = _note(BURIED, **RAZOR)
     raw = eng._kernel_default_refusal
     # momwire's sentence, whatever it says today, reaches the log and the
     # engine attribute, and none of it reaches the user.

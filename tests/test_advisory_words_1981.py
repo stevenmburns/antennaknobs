@@ -115,6 +115,24 @@ def test_the_far_mesh_summary():
     assert "Doubling the segments roughly halves" in got
 
 
+@pytest.mark.parametrize(
+    ("flags", "lead"),
+    [((True, False), "The 1 wire below the ground (of 2)"),
+     ((True, False, False, True), "The 2 wires below the ground (of 4)")],
+)  # fmt: skip
+def test_the_extended_kernel_above_ground_summary(flags, lead):
+    from momwire._below_interface import extended_kernel_above_advisory
+
+    got = advisory_words.summary(
+        "ExtendedKernelAboveGround", extended_kernel_above_advisory(flags)
+    )
+    assert got.startswith(
+        "The extended (fat-wire) kernel was used on the wires above the ground. "
+        f"{lead} used the standard thin-wire kernel"
+    )
+    assert "momwire" not in got and "reduced" not in got
+
+
 def test_unknown_and_unreadable_advisories_get_no_summary():
     assert advisory_words.summary("SomethingNew", "anything") is None
     assert advisory_words.summary("CoarseCrossingNode", "reworded text") is None
@@ -160,10 +178,10 @@ def test_the_cli_echoes_the_summary_once_and_never_the_far_mesh_one(capsys):
     assert capsys.readouterr().err == "advisory: plain\n"
 
 
-def test_jeffs_deck_says_in_plain_words_why_the_kernel_fell_back():
-    # His deck carries EK and a buried stake, which the extended kernel does
-    # not serve: the note said so in the solver's own words, issue numbers
-    # and all.
+def test_jeffs_deck_keeps_the_extended_kernel_above_ground_on_bspline():
+    # His deck carries EK and a buried stake. Since momwire 0.78 B-spline
+    # serves the kernel on the wires above the ground (momwire#1170), so
+    # nothing falls back and no fallback note is composed.
     from momwire.bspline import BSplineSolver
 
     from antennaknobs.engines.momwire import MomwireEngine
@@ -172,6 +190,24 @@ def test_jeffs_deck_says_in_plain_words_why_the_kernel_fell_back():
     eng = MomwireEngine(
         builder,
         solver=BSplineSolver,
+        ground=resolve_ground(_GROUND_UNSET, builder),
+        extended_kernel_default=True,
+    )
+    assert eng._extended_kernel is True
+    assert not [a for a in eng.advisories if a["category"] == "ExtendedKernel"]
+
+
+def test_jeffs_deck_says_in_plain_words_why_the_kernel_fell_back():
+    # On razor-2p, which still refuses the kernel beside a buried wire, the
+    # note used to say so in the solver's own words, issue numbers and all.
+    from momwire import RazorSolver
+
+    from antennaknobs.engines.momwire import MomwireEngine
+
+    builder = builder_from_text("g8hul.nec", G8HUL)()
+    eng = MomwireEngine(
+        builder,
+        solver=RazorSolver,
         ground=resolve_ground(_GROUND_UNSET, builder),
         extended_kernel_default=True,
     )

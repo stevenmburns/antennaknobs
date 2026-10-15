@@ -43,6 +43,8 @@ _SURFACE = re.compile(
 
 _FAR_MESH = re.compile(rf"a median {_NUM} % from converged, with a tail to {_NUM} %")
 
+_EK_ABOVE = re.compile(r"On this deck (\d+) of (\d+) wires are below the plane")
+
 
 def _length(mm: float) -> str:
     """A segment length as a modeller reads it: millimetres when short."""
@@ -104,10 +106,30 @@ def _far_mesh(text: str, _locate) -> str | None:
     )
 
 
+def _ek_above_ground(text: str, _locate) -> str | None:
+    """momwire 0.78's B-spline basis serves the extended kernel on a deck
+    with buried wires in part (momwire#1170): the pairs above the ground take
+    it, the buried wires keep the standard kernel. One summary for both ways
+    of getting there, an explicit request and a deck whose dialect asks."""
+    m = _EK_ABOVE.search(text)
+    if m is None:
+        return None
+    n, total = int(m.group(1)), int(m.group(2))
+    buried = "The 1 wire" if n == 1 else f"The {n} wires"
+    return (
+        f"The extended (fat-wire) kernel was used on the wires above the "
+        f"ground. {buried} below the ground (of {total}) used the standard "
+        f"thin-wire kernel, because the extended kernel is not available "
+        f"there. The difference matters for fat wires on short segments, so "
+        f"on ordinary buried radials it is small."
+    )
+
+
 _SUMMARISERS: dict[str, Callable] = {
     "CoarseCrossingNode": _coarse_crossing,
     "SurfaceRadialHeight": _surface_height,
     "RazorFarMeshClass": _far_mesh,
+    "ExtendedKernelAboveGround": _ek_above_ground,
 }
 
 
@@ -136,9 +158,11 @@ def summary(category: str, text: str, locate=None) -> str | None:
 #
 # Four pieces, each its own function so one can change without the others:
 # WHY the kernel was on, WHAT refused it, WHAT WAS AFFECTED, and what the
-# user can do. "What was affected" is the piece a later momwire will change
-# (extended kernel above the ground, standard kernel on the buried wires
-# only): that case is one more branch in `_ek_affected`, nothing else.
+# user can do. Since momwire 0.78 the B-spline basis serves a buried deck
+# in part (extended kernel above the ground, standard kernel on the buried
+# wires), so on that basis nothing falls back and this advisory is not
+# composed; momwire's own `ExtendedKernelAboveGround` says what happened,
+# summarised by `_ek_above_ground` above.
 
 _DIALECT_WORD = {"nec4": "NEC-4", "nec5": "NEC-5"}
 
@@ -241,14 +265,17 @@ _EK_WHAT_TO_DO = {
         "options (the gear beside the solver slot) and switch off "
         '"K≥3 junction singular enrichment".'
     ),
+    # Only the B-spline basis (bs2, the default) serves the extended kernel
+    # beside a buried wire, and only on the wires above the ground;
+    # `test_ek_advisory_wording_1996.py` holds that claim to momwire.
     "buried": (
-        "What you can do: nothing in the app changes this. No setting turns "
-        "the extended kernel on for a model with wire below the ground."
+        "What you can do: to use the extended kernel on the wires above the "
+        "ground, open the slot's options (the gear beside the solver slot) "
+        "and choose B-spline (the default). The wires below "
+        "the ground keep the standard kernel on every solver."
     ),
     # Only some solvers have this limit (in the pinned momwire, the
-    # sinusoidal Galerkin one), so another solver is real advice here. No
-    # solver serves the extended kernel on a buried wire, hence "nothing"
-    # above; `test_ek_advisory_wording_1996.py` holds both claims to momwire.
+    # sinusoidal Galerkin one), so another solver is real advice here too.
     "stepped": (
         "What you can do: to solve with the extended kernel, open the slot's "
         "options (the gear beside the solver slot) and choose another "
