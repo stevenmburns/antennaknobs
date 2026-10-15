@@ -1387,8 +1387,10 @@ and is a fraction of a percent on ordinary thin wire; see
 Every momwire basis but `pulse` serves it — `sinusoidal-galerkin` since
 momwire 0.27.0 (momwire#246/#287/#299), and `razor-2p` with it. The
 refusals left are combinations: with `use_singular_enrichment`
-(momwire#271), with a wire below the ground plane, and with a radius step at
-a junction on `sinusoidal-galerkin`. Each exits with a named message rather
+(momwire#271), with a wire below the ground plane (on every basis but
+`bspline`, which from momwire 0.78 serves the above-ground pairs, keeps the
+reduced kernel on the buried ones and warns), and with a radius step at a
+junction on `sinusoidal-galerkin`. Each exits with a named message rather
 than a reduced-kernel answer under an extended-kernel request. The flag applies only to momwire: passing it with `--engine pynec` is an
 error.
 
@@ -1399,8 +1401,10 @@ like an absent card, leaves it off). A deck read as **NEC-4 or NEC-5**
 program solves it: NEC-5's kernel behaves as the extended one, and NEC-4's
 thin-wire model is equivalent to it and ignores an `EK` card, which the
 import note says. Where the basis or the deck refuses the kernel (`pulse`, a
-buried wire), that default falls back to the reduced kernel with an
-`advisory:` line on stderr instead of refusing. `--no-extended-kernel`
+buried wire on any basis but `bspline`), that default falls back to the
+reduced kernel with an `advisory:` line on stderr instead of refusing. On
+`bspline` a deck with buried wires keeps the kernel on its above-ground
+wires, and the advisory says the buried ones kept the reduced kernel. `--no-extended-kernel`
 turns the kernel off whatever the deck says; `--extended-kernel` asks for it
 outright, and still refuses where it cannot run. The same goes for
 ground since v0.75.1: with no `--ground`, a `@file.nec` design is solved
