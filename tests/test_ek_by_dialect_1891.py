@@ -164,22 +164,39 @@ def test_a_refusing_basis_falls_back_with_an_advisory():
         MomwireEngine(cls(), solver=HarringtonSolver, extended_kernel=True)
 
 
+_BURIED_NEC4 = (
+    "CM NEC-4.2\nCE\nGW 1 11 0 -2 -0.5 0 2 -0.5 0.001\nGE 1\n"
+    "GN 2 0 0 0 13 0.005\nEX 0 1 6 0 1 0\nFR 0 1 0 0 14.0\nEN\n"
+)
+
+
 def test_a_buried_wire_falls_back_with_an_advisory():
-    text = (
-        "CM NEC-4.2\nCE\nGW 1 11 0 -2 -0.5 0 2 -0.5 0.001\nGE 1\n"
-        "GN 2 0 0 0 13 0.005\nEX 0 1 6 0 1 0\nFR 0 1 0 0 14.0\nEN\n"
-    )
-    cls = builder_from_text("b.nec", text)
+    # razor-2p still refuses the extended kernel beside a buried wire.
+    cls = builder_from_text("b.nec", _BURIED_NEC4)
     assert cls.file_extended_kernel_default is True
     eng = MomwireEngine(
         cls(),
-        solver=BSplineSolver,
+        solver=RazorSolver,
         ground=cls.file_ground,
         extended_kernel_default=True,
     )
     assert eng._extended_kernel is False
     (note,) = [a for a in eng.advisories if a["category"] == "ExtendedKernel"]
     assert "below" in note["text"] or "buried" in note["text"]
+
+
+def test_bspline_keeps_the_kernel_above_a_buried_wire():
+    # momwire 0.78 (momwire#1170): B-spline serves the kernel on the
+    # above-ground pairs, so the deck's default is taken and nothing falls back.
+    cls = builder_from_text("b.nec", _BURIED_NEC4)
+    eng = MomwireEngine(
+        cls(),
+        solver=BSplineSolver,
+        ground=cls.file_ground,
+        extended_kernel_default=True,
+    )
+    assert eng._extended_kernel is True
+    assert not [a for a in eng.advisories if a["category"] == "ExtendedKernel"]
 
 
 def test_an_accepting_basis_takes_the_default_silently():

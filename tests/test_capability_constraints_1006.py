@@ -62,7 +62,9 @@ def test_a_backend_is_told_only_about_couplings_that_apply_to_IT():
     assert ("kernel", "near_correction") not in forbids
     assert ("kernel", "junctions") not in forbids
     # The presence half, so the absence cannot pass by returning nothing.
-    assert ("kernel", "wire_position") in forbids
+    # (`kernel` x `wire_position` left this row with momwire 0.78, which
+    # serves the extended kernel beside a buried wire in part, momwire#1170.)
+    assert ("kernel", "singular_enrichment") in forbids
     assert ("kernel", "singular_enrichment") in forbids
 
 
