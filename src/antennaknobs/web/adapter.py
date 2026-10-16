@@ -5522,8 +5522,20 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         plane = plane if isinstance(plane, str) else None
         # "currentColor": the frontend inlines the SVG, so strokes/text
         # inherit the app theme's CSS colour (see render_svg's docstring).
+        # An imported deck's fixed NT cards hold at its FR frequency, which
+        # labels an L network's C and L the way EZNEC shows them (AK#1890).
+        nt_freq = getattr(
+            getattr(builder, "file_deck_parsed", None), "nt_frequency_mhz", None
+        )
         return render_svg(
-            lower(net, title=name, budget=budget, p_in=p_in, plane=plane),
+            lower(
+                net,
+                title=name,
+                budget=budget,
+                p_in=p_in,
+                plane=plane,
+                nt_freq_mhz=nt_freq() if callable(nt_freq) else None,
+            ),
             color="currentColor",
         )
 

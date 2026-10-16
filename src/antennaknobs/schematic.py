@@ -56,6 +56,7 @@ looks right and is false.
 
 from __future__ import annotations
 
+import cmath
 import math
 import re
 from collections import namedtuple
@@ -383,11 +384,15 @@ def _val(v):
     return f"{v:.{places}f}".rstrip("0").rstrip(".") if places else f"{v:.0f}"
 
 
-def default_elements(branch) -> tuple[Element, ...]:
+def default_elements(branch, freq_mhz: float | None = None) -> tuple[Element, ...]:
     """The fallback picture for a branch with no author-supplied fragment.
 
     Deliberately plain: enough to see that the element is there and what type
     it is. A box that wants to look like what it *is* supplies a fragment.
+
+    `freq_mhz` is the frequency a fixed `Admittance` was frozen at (an EZNEC
+    ``NT`` card's ``FR``), which turns its susceptances into the C and L values
+    EZNEC shows; without it they are labelled in siemens (AK#1890).
     """
     if isinstance(branch, TL):
         return (series("coax", f"{_val(branch.z0)} Ω", _fmt_len(branch.length)),)
@@ -415,8 +420,85 @@ def default_elements(branch) -> tuple[Element, ...]:
     if isinstance(branch, TouchstoneTwoPort):
         return (series("box", "measured 2-port"),)
     if isinstance(branch, Admittance):
-        return (series("box", "admittance"),)
+        return _admittance_elements(branch, freq_mhz) or (series("box", "admittance"),)
     return (series("box", type(branch).__name__),)
+
+
+# How exactly an NT's Y must have a shape to be drawn as it (AK#1890). A deck
+# prints five figures (EZNEC writes Y12 = -7.007E-6 - j1.395E-2 against
+# Y11 = 7.0066E-6 + j1.3951E-2 for one series element), so "zero" and "equal"
+# are at that precision, relative to the series admittance.
+_NT_SHAPE_RTOL = 1e-3
+# How nearly real a symmetric NT's Z0 must be to draw it as a line: Dan's 100
+# ft of lossy coax reads 50.000 - j0.21 Ω.
+_NT_LINE_Z0_RTOL = 5e-2
+
+
+def _y_element(orient: str, y: complex, freq_mhz: float | None) -> Element:
+    """One R/L/C symbol for admittance `y`, in series or as a shunt.
+
+    The C or L is the value at `freq_mhz` (exact there, by construction); a
+    finite Q, from the element's own loss, goes in the second line. Without a
+    frequency the susceptance is labelled as it is."""
+    if orient == "series":
+        z = 1.0 / y
+        react, res = z.imag, z.real
+        kind = "capacitor" if react < 0 else "inductor"
+    else:
+        react, res = y.imag, y.real
+        kind = "capacitor" if react > 0 else "inductor"
+    if freq_mhz:
+        w = 2.0 * math.pi * freq_mhz * 1e6
+        if orient == "series":
+            val = -1.0 / (w * react) if kind == "capacitor" else react / w
+        else:
+            val = react / w if kind == "capacitor" else -1.0 / (w * react)
+        label = (
+            f"{_val(val * 1e12)} pF" if kind == "capacitor" else f"{_val(val * 1e6)} µH"
+        )
+        q = abs(react) / res if res > 0 else math.inf
+        sub = f"Q {_val(q)}" if q < 1e5 else ""
+    else:
+        label = (
+            f"X {_val(react)} Ω" if orient == "series" else f"B {_val(react * 1e3)} mS"
+        )
+        sub = ""
+    return series(kind, label, sub) if orient == "series" else shunt(kind, label, sub)
+
+
+def _admittance_elements(br, freq_mhz: float | None):
+    """What a fixed 2-port `Admittance` IS, when its Y says so (AK#1890), in
+    ``ports[0]`` → ``ports[1]`` order; None when it is neither shape.
+
+    EZNEC writes every L network and lossy line as an ``NT`` card, so without
+    this they all drew as one opaque box. Any reciprocal 2-port is exactly a
+    pi of series ``-Y12`` and shunts ``Y11 + Y12`` / ``Y22 + Y12``; when one
+    shunt is zero to the deck's precision it is an L network — series element
+    then shunt, or shunt then series — drawn as the two symbols EZNEC shows.
+    A symmetric 2-port whose ``Z0 = 1/sqrt(Y11² - Y12²)`` is nearly real is a
+    line section, drawn as one with its Z0 and matched loss: its electrical
+    length is only known modulo a half wave from one frequency's Y, so it is
+    not printed. Other shapes keep the box."""
+    if len(br.ports) != 2:
+        return None
+    (y11, y12), (y21, y22) = (tuple(complex(v) for v in row) for row in br.y)
+    if y12 == 0 or abs(y12 - y21) > _NT_SHAPE_RTOL * abs(y12):
+        return None
+    tol = _NT_SHAPE_RTOL * abs(y12)
+    p1, p2 = y11 + y12, y22 + y12
+    if abs(p1) <= tol < abs(p2):
+        return (_y_element("series", -y12, freq_mhz), _y_element("shunt", p2, freq_mhz))
+    if abs(p2) <= tol < abs(p1):
+        return (_y_element("shunt", p1, freq_mhz), _y_element("series", -y12, freq_mhz))
+    if abs(y11 - y22) <= tol:
+        z0 = 1.0 / cmath.sqrt(y11 * y11 - y12 * y12)
+        if z0.real < 0:
+            z0 = -z0
+        if z0.real > 0 and abs(z0.imag) <= _NT_LINE_Z0_RTOL * z0.real:
+            gl = cmath.acosh(-y11 / y12)
+            loss_db = 20.0 * math.log10(math.e) * abs(gl.real)
+            return (series("coax", f"{_val(z0.real)} Ω line", f"{_val(loss_db)} dB"),)
+    return None
 
 
 def _rlc_kind(br):
@@ -650,7 +732,9 @@ def _walk(branches, start, targets, is_datum, used=frozenset()):
     return best
 
 
-def lower(net, *, title: str = "", budget=None, p_in=None, plane=None) -> Schematic:
+def lower(
+    net, *, title: str = "", budget=None, p_in=None, plane=None, nt_freq_mhz=None
+) -> Schematic:
     """`Network` → :class:`Schematic`.
 
     Walks source → antenna to find the chain, groups consecutive chain
@@ -668,6 +752,9 @@ def lower(net, *, title: str = "", budget=None, p_in=None, plane=None) -> Schema
     with a marker at the cut and the disconnected upstream de-emphasised. A
     plane the chain does not visit is quietly ignored: the drawing must never
     crash, and the solve path (`plane.driven_at`) is the validating gate.
+
+    ``nt_freq_mhz`` is the frequency a deck's fixed ``NT`` admittances were
+    written at (AK#1890), which labels an L network's elements in pF and µH.
     """
     sch = Schematic(
         source=net.sources[0].port if net.sources else "",
@@ -866,7 +953,7 @@ def lower(net, *, title: str = "", budget=None, p_in=None, plane=None) -> Schema
             sch.attachments.append(
                 Block(
                     label=paths[idx][:-1] or type(br).__name__,
-                    elements=default_elements(br),
+                    elements=default_elements(br, nt_freq_mhz),
                     path=paths[idx],
                     watts=burned(paths[idx]) if paths[idx] else burned_bare(idx),
                     nodes=tuple(ts),
@@ -925,12 +1012,19 @@ def lower(net, *, title: str = "", budget=None, p_in=None, plane=None) -> Schema
             return list(stamped(frag, balanced_in))
         out = []
         for st in steps:
-            for e in default_elements(branches[st.idx]):
+            br = branches[st.idx]
+            els = default_elements(br, nt_freq_mhz)
+            if isinstance(br, Admittance) and st.pair_in[0] != br.ports[0]:
+                # Walked from its second port: an L network's shunt is on the
+                # side the walk ENTERS, so the symbols run the other way.
+                els = els[::-1]
+            for e in els:
                 # The branch's own default orientation says what the element
                 # is on its own; the walk says which conductor it landed in.
-                out.append(
-                    replace(e, orient=st.orient, leg=st.leg, balanced=st.balanced)
-                )
+                # A 2-port drawn as several symbols (an NT's L network,
+                # AK#1890) keeps its shunt a shunt.
+                orient = "shunt" if e.orient == "shunt" else st.orient
+                out.append(replace(e, orient=orient, leg=st.leg, balanced=st.balanced))
         return out
 
     # Group consecutive chain steps sharing an instance path.
@@ -960,7 +1054,9 @@ def lower(net, *, title: str = "", budget=None, p_in=None, plane=None) -> Schema
         fragment marks no such node, and the cut stays at the block's edge."""
         frag = fragment_of(net, path) if path else None
         if frag is None:
-            return sum(len(default_elements(branches[st.idx])) for st in group[:k])
+            return sum(
+                len(default_elements(branches[st.idx], nt_freq_mhz)) for st in group[:k]
+            )
         formals = (getattr(net, "composite_nodes", None) or {}).get(path, {})
         for i, e in enumerate(frag):
             if e.orient == "node" and formals.get(e.label, path + e.label) == plane:
@@ -1052,7 +1148,7 @@ def lower(net, *, title: str = "", budget=None, p_in=None, plane=None) -> Schema
                             leg=rib_leg.get(rib, "signal"),
                             balanced=rib in rungs,
                         )
-                        for e in default_elements(branches[rib])
+                        for e in default_elements(branches[rib], nt_freq_mhz)
                     )
             out.append(
                 Block(
@@ -1110,7 +1206,7 @@ def lower(net, *, title: str = "", budget=None, p_in=None, plane=None) -> Schema
                 sch.blocks.append(
                     Block(
                         label=paths[idx][:-1] or type(branches[idx]).__name__,
-                        elements=default_elements(branches[idx]),
+                        elements=default_elements(branches[idx], nt_freq_mhz),
                         path=paths[idx],
                         watts=burned(paths[idx]) if paths[idx] else burned_bare(idx),
                     )
@@ -1313,6 +1409,7 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
                         drawn.append(line)
             x = xc = at
 
+        tall = False  # the last symbol drawn reaches below the spine
         for n, block in enumerate(blocks):
             # A plane inside this block (AK#1984) dims only the elements in
             # front of it; the box itself, and its caption, stay live.
@@ -1349,7 +1446,9 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
                 )
             x0 = x
             drawn = []  # what the block's enclosure has to contain
-            tall = False  # the last symbol drawn reaches below the spine
+            # Carried over from the block before: a drop at the end of one box
+            # and a labelled drop at the start of the next sit a GAP apart, and
+            # the second's value printed across the first (AK#1890).
             for ei, el in enumerate(block.elements):
                 if inside and ei == plane_el:
                     # The plane inside the box: a short lead on each rail, the
@@ -1463,8 +1562,8 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
                     sync(drawn)
                     if tall and (el.label or el.sublabel):
                         # Same reservation as LEADIN: a drop labels itself
-                        # leftward, and a transformer fills the whole band below
-                        # the spine, so step clear before dropping.
+                        # leftward, and a transformer or another drop fills the
+                        # band below the spine, so step clear before dropping.
                         pad = _label_room(el) + 0.4
                         lead = elm.Line().at((x, y)).to((x + pad, y))
                         d += lead
@@ -1553,6 +1652,11 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
                     x += SHUNT_STEP
                     if balanced:
                         xc += SHUNT_STEP
+                    # A drop fills the band below the spine too, so a labelled
+                    # drop right after it steps clear first: an NT's T network
+                    # puts two coils side by side (AK#1890), and their values
+                    # printed over one another.
+                    tall = True
                 else:
                     wound = el.kind in ("transformer", "balun")
                     sync(drawn)
