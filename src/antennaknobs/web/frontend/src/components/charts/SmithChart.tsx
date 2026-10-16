@@ -21,6 +21,7 @@ import {
 } from "../../lib/smithView";
 import type { FeedEntry, MeasuredData, ParamSweepData, SweepData } from "../../lib/api";
 import { formatParam, isDensity } from "../../lib/paramSweep";
+import { type DisplayPoint, kinkBreaks } from "../../lib/refine";
 import { fmtFreq, type BandMarks } from "../../lib/optBands";
 import type { SweepProgress } from "../../lib/sweep";
 import { zinfSuffix, type ZInfStatus } from "../../lib/zinf";
@@ -298,6 +299,33 @@ export function SmithChart({
       ctx.arc(ox, oy, Rz, 0, 2 * Math.PI);
       ctx.clip();
     };
+    // A connected frequency locus with no visible kink (AK#1969): the
+    // segments meeting at an unresolved corner are left out and its samples
+    // drawn as dots. Measured in screen pixels against the unzoomed disc's
+    // diameter, so a zoom that magnifies a corner can break it. A sample off
+    // the visible disc or canvas is never a break: its corner is not seen.
+    const strokeBroken = (scr: { x: number; y: number }[], dotR: number) => {
+      const pts: DisplayPoint[] = scr.map((p) => ({
+        x: p.x,
+        y: p.y,
+        ...(p.x < 0 || p.x > sz || p.y < 0 || p.y > sz || Math.hypot(p.x - ox, p.y - oy) > Rz
+          ? { clamped: true }
+          : {}),
+      }));
+      const { segments, dots } = kinkBreaks(pts, 2 * R);
+      ctx.beginPath();
+      pts.forEach((p, i) => {
+        if (i === 0 || !segments[i - 1]) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+      pts.forEach((p, i) => {
+        if (!dots[i]) return;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, dotR, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+    };
     // Whether a circle can put ink in the canvas: its box meets the canvas,
     // and the canvas is not wholly inside it (a huge arc passing far off).
     // Zoomed in, most of the fine grid is off-screen and this skips it.
@@ -541,16 +569,16 @@ export function SmithChart({
           // so drawing in array order IS drawing in frequency order — no
           // chord ever jumps across the chart.
           ctx.strokeStyle = feedSweepColor(fi);
+          ctx.fillStyle = feedSweepColor(fi);
           ctx.lineWidth = 1.2;
-          ctx.beginPath();
-          for (let i = 0; i < sweep.freqs_mhz.length; i++) {
-            const z = zAt(fi, i);
-            const g = reflectionCoefficient(z.re, z.im, z0);
-            const { x: px, y: py } = S(g.gRe, g.gIm);
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-          }
-          ctx.stroke();
+          strokeBroken(
+            sweep.freqs_mhz.map((_, i) => {
+              const z = zAt(fi, i);
+              const g = reflectionCoefficient(z.re, z.im, z0);
+              return S(g.gRe, g.gIm);
+            }),
+            1.5,
+          );
         } else {
           ctx.fillStyle = feedSweepColor(fi);
           for (let i = 0; i < sweep.freqs_mhz.length; i++) {
@@ -879,7 +907,9 @@ export function SmithChart({
           pts.push(S(g.gRe, g.gIm));
         }
         const line = c.paramSweep ? true : connectSweep && c.settled !== false;
-        if (line && pts.length > 1) {
+        if (line && pts.length > 1 && !c.paramSweep) {
+          strokeBroken(pts, 1.5);
+        } else if (line && pts.length > 1) {
           ctx.beginPath();
           pts.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
           ctx.stroke();

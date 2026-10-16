@@ -112,6 +112,70 @@ export function maxKinkRad(
   return turnAngles(pts, closed).reduce((a, b) => Math.max(a, b), 0);
 }
 
+/** The turn, in degrees, past which a drawn corner is visible (AK#1969,
+ *  decided 10-10 at the 350 px charts). */
+export const KINK_BREAK_DEG = 5;
+
+/** Which segments of a sweep polyline to draw, and where to put dots
+ *  instead (AK#1969). The rule is "no visible first-derivative
+ *  discontinuity": a vertex that turns by more than KINK_BREAK_DEG is a
+ *  corner the true curve may not have, so the two segments meeting there are
+ *  not drawn and the samples show as dots.
+ *
+ *  Except where the corner is RESOLVED — a kink that persists under
+ *  refinement is a feature, not a sampling artifact (a VSWR notch at an
+ *  exact match turns ~177° however finely it is sampled). Resolved means what
+ *  makes `planRefinement` stop: the vertex's chord deviation is within
+ *  DEVIATION_TOLERANCE, or both segments meeting there are already no longer
+ *  than MIN_SEGMENT. Such a vertex stays connected.
+ *
+ *  A vertex off the plot (`clamped`) is never a break: its corner cannot be
+ *  seen, and breaking there would drop the visible segment that crosses the
+ *  edge.
+ *
+ *  `pts` are in screen pixels and `extentPx` is the plot's size, so the
+ *  angles are the angles a viewer sees and the length tests are in the same
+ *  plot fractions as the planner's. A non-finite vertex draws nothing.
+ *  `segments[i]` is the segment from `pts[i]` to `pts[i + 1]`; `dots[i]`
+ *  marks a finite vertex with an undrawn segment beside it (or a lone
+ *  point). */
+export function kinkBreaks(
+  pts: readonly DisplayPoint[],
+  extentPx: number,
+  opts: { thresholdDeg?: number; tolerance?: number; minSegment?: number } = {},
+): { segments: boolean[]; dots: boolean[] } {
+  const n = pts.length;
+  const ext = extentPx > 0 ? extentPx : 1;
+  const thr = ((opts.thresholdDeg ?? KINK_BREAK_DEG) * Math.PI) / 180;
+  const tol = opts.tolerance ?? DEVIATION_TOLERANCE;
+  const minSeg = opts.minSegment ?? MIN_SEGMENT;
+  const ok = pts.map((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+  const norm = pts.map((p) => ({ x: p.x / ext, y: p.y / ext }));
+  const turns = turnAngles(norm);
+  const devs = chordDeviations(norm);
+  const segLen = (i: number) =>
+    Math.hypot(norm[i + 1].x - norm[i].x, norm[i + 1].y - norm[i].y);
+  const breaks = new Array<boolean>(n).fill(false);
+  for (let i = 1; i < n - 1; i++) {
+    if (!ok[i - 1] || !ok[i] || !ok[i + 1] || pts[i].clamped) continue;
+    if (turns[i] <= thr || devs[i] <= tol) continue;
+    if (segLen(i - 1) <= minSeg && segLen(i) <= minSeg) continue;
+    breaks[i] = true;
+  }
+  const segments = new Array<boolean>(Math.max(0, n - 1));
+  for (let i = 0; i < n - 1; i++) {
+    segments[i] = ok[i] && ok[i + 1] && !breaks[i] && !breaks[i + 1];
+  }
+  const dots = pts.map(
+    (_, i) =>
+      ok[i] &&
+      (n === 1 ||
+        (i > 0 && !segments[i - 1]) ||
+        (i < n - 1 && !segments[i])),
+  );
+  return { segments, dots };
+}
+
 /** Per-vertex chord deviation: the perpendicular distance from each vertex
  *  to the chord joining its two neighbours, in the same normalized display
  *  units as the points.
