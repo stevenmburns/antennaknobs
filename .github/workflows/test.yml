@@ -264,7 +264,7 @@ jobs:
     needs: wheel-build
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '{"os":["ubuntu-latest","windows-latest","macos-14"],"python-version":["3.12","3.14"],"pynec":["0","1"]}' || '{"os":["ubuntu-latest"],"python-version":["3.12"],"pynec":["0"]}') }}
+      matrix: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '{"os":["ubuntu-latest","windows-latest","macos-15"],"python-version":["3.12","3.14"],"pynec":["0","1"]}' || '{"os":["ubuntu-latest"],"python-version":["3.12"],"pynec":["0"]}') }}
     name: wheel-smoke (${{ matrix.os }}, py${{ matrix.python-version }}${{ matrix.pynec == '1' && ', +pynec' || '' }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20

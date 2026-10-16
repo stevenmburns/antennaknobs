@@ -125,7 +125,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-14]
+        os: [ubuntu-latest, windows-latest, macos-15]
         python-version: ["3.12", "3.14"]
         pynec: ["0", "1"]
     runs-on: ${{ matrix.os }}
