@@ -12,7 +12,7 @@ a printout is read. Everything downstream of Y is the same arithmetic, and it
 lives here so the two cannot drift: the port index map and the reducer, the
 reduced impedance and sweep, the network-resolved drive with the power its
 sources deliver, the budget with the engine's conductor loss folded in, the
-per-source-watt gain factor, and the reciprocity tripwire.
+per-source-watt gain factor, and the asymmetry backstop (AK#1689).
 
 Every function takes the ENGINE and reads ``eng._compute_y_matrix`` and
 ``eng._reducer`` at call time, never a bound method captured earlier: the gates
@@ -124,14 +124,24 @@ def source_gain_factor(p_struct, p_source, error_cls):
     return p_struct / p_source
 
 
-def check_reciprocity(Y, names, rtol, error_cls, engine):
-    """The worst |Y[i,j] - Y[j,i]| relative to sqrt(|Y[i,i]| |Y[j,j]|), the
-    ports' own scale; raises `error_cls` past `rtol`.
+# The gross-error backstop on Y's asymmetry (AK#1689). NOT a bookkeeping
+# check: each engine checks its port bookkeeping DIRECTLY, run by run (NEC-5
+# matches every source row to its card by tag and segment; NEC-2 checks the
+# driven port's rows, voltages and currents), which needs no tolerance. The
+# asymmetry itself is the formulation's: neither NEC tests by Galerkin, so its
+# discrete Y is not symmetric by a mesh- and design-dependent amount
+# (`multiband.hexbeam_5band` reads 1.96e-2 on NEC-2, on nec2c and PyNEC alike).
+# A bar tuned to that number per engine was fragile and, once loosened to
+# admit it, no longer caught the misreads it was for. So the measured value is
+# kept as information (`_y_reciprocity_rel`), and only an asymmetry no solver
+# produces on a sane mesh is refused. One bar for every engine.
+Y_ASYMMETRY_BACKSTOP = 0.5
 
-    Y[i, j] and Y[j, i] come from DIFFERENT runs, so nothing about the
-    arithmetic makes them agree by construction, and a reading put into the
-    wrong port breaks the symmetry. Agreement is not evidence the entries are
-    right, though: an error that is itself symmetric passes (AK#1629)."""
+
+def y_asymmetry(Y, names):
+    """``(rel, (name_i, name_j))``: the worst |Y[i,j] - Y[j,i]| relative to
+    sqrt(|Y[i,i]| |Y[j,j]|), the ports' own scale (AK#1629), and the pair it is
+    at (None when there is no pair to compare)."""
     n = len(names)
     worst = (0.0, None)
     for i in range(n):
@@ -139,17 +149,30 @@ def check_reciprocity(Y, names, rtol, error_cls, engine):
             scale = np.sqrt(abs(Y[i, i]) * abs(Y[j, j]))
             if scale <= 0:
                 continue
-            rel = abs(Y[i, j] - Y[j, i]) / scale
+            rel = float(abs(Y[i, j] - Y[j, i]) / scale)
             if rel > worst[0]:
                 worst = (rel, (names[i], names[j]))
-    if worst[0] > rtol:
-        a, b = worst[1]
+    return worst
+
+
+def check_reciprocity(Y, names, error_cls, engine):
+    """Y's asymmetry (`y_asymmetry`), returned as information; raises
+    `error_cls` only past `Y_ASYMMETRY_BACKSTOP`, read at call time.
+
+    Y[i, j] and Y[j, i] come from DIFFERENT runs, so a gross misread shows up
+    here — but agreement is not evidence the entries are right (an error that
+    is itself symmetric passes, AK#1629), and a modest asymmetry is the
+    formulation, not a defect. The port bookkeeping has its own direct check
+    in each engine."""
+    rel, pair = y_asymmetry(Y, names)
+    if rel > Y_ASYMMETRY_BACKSTOP:
+        a, b = pair
         raise error_cls(
             f"the multiport Y is not reciprocal: ports {a!r} and {b!r} "
-            f"disagree by {worst[0]:.3e} of the ports' own admittance, over "
-            f"the {rtol:g} this route allows. Y[i,j] and Y[j,i] come from "
-            f"different runs and every entry is {engine}'s own reported "
-            "current, so this is the port-to-row bookkeeping in "
-            "`_compute_y_matrix`, not the network."
+            f"disagree by {rel:.3e} of the ports' own admittance, over the "
+            f"{Y_ASYMMETRY_BACKSTOP:g} gross-error backstop. No {engine} "
+            "formulation is that asymmetric on a sane mesh, and each run's port "
+            "bookkeeping already passed its direct check, so suspect the "
+            "printout or the mesh rather than the network."
         )
-    return worst[0]
+    return rel

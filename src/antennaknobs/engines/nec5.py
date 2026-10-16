@@ -87,20 +87,6 @@ NULL_GAIN_DB = -999.99
 # what the engine can express.
 _NEC5_REDUCER_ROUTE = True
 
-# How far Y may sit from symmetric before `_compute_y_matrix` refuses.
-#
-# Every entry of Y is a current NEC-5 itself reports (AK#1629), so nothing
-# here is interpolated any more; what is left to break symmetry is NEC-5's
-# testing, which is not Galerkin, and the five-figure printout. The gate is a
-# tripwire on the bookkeeping instead: a source row read into the wrong port
-# breaks Y[i, j] == Y[j, i], because the two entries come from different runs.
-#
-# It is NOT evidence that the entries are right. The interpolation this route
-# used before AK#1629 was 2.4 % out at an undriven knot, and on a symmetric
-# array the error is symmetric too — the four-squares passed this gate at a
-# residual of exactly 0.0 while their impedances were 10 % wrong.
-_Y_RECIPROCITY_RTOL = 1e-2
-
 # The amplitude of a PROBE source (AK#1629): an `EX` whose only job is to make
 # NEC-5 print the current at an undriven port's knot. Its ANTENNA INPUT
 # PARAMETERS row carries that knot's current, which the `Wire Currents` table
@@ -815,27 +801,26 @@ class NEC5Engine(SimulationEngine):
         return Y
 
     def _check_reciprocity(self, Y, names):
-        """Y must be symmetric, to within `_Y_RECIPROCITY_RTOL`.
+        """Y's asymmetry, kept as information (`_y_reciprocity_rel`); refused
+        only past the shared gross-error backstop (AK#1689).
 
-        Y[i, j] and Y[j, i] come from DIFFERENT runs, so nothing about the
-        arithmetic makes them agree by construction, and a row read into the
-        wrong port breaks the symmetry. Agreement is not evidence the entries
-        are right, though: an error that is itself symmetric passes, which is
-        how the interpolated route passed this gate on the four-squares while
-        10 % wrong (AK#1629). The external gate is the licensed printout.
+        The bookkeeping has its own direct check: every run's source rows are
+        matched to its EX cards by tag and absolute segment
+        (`_check_source_rows`), so a row read into the wrong port fails there,
+        with no tolerance. What is left in Y's asymmetry is NEC-5's testing,
+        which is not Galerkin, and the five-figure printout: on 0011/0029/0030
+        a weak coupling at junction ports carries 1.2e-3 of the ports' scale,
+        and all four corpus decks reproduce the licensed engine on EZNEC's own
+        deck to 1.8e-4. Symmetry was never evidence the entries are right
+        either: the interpolated route before AK#1629 passed at exactly 0.0 on
+        the four-squares while 10 % wrong.
 
-        The gap is measured against sqrt(|Y[i,i]| |Y[j,j]|), the ports' own
-        scale, not against the coupling itself (AK#1629). Measured the old way
-        it refused four corpus decks NEC-5 solves correctly: on 0028 a port
-        coupled at 1e-14 compared two roundoff-level entries and read 55 %, and
-        on 0011/0029/0030 a weak coupling at junction ports carries an
-        asymmetry that is NEC-5's own (1.8 % of Y[i,j], 1.2e-3 of the ports'
-        scale) — its testing is not Galerkin, so its discrete Y need not be
-        symmetric. With the gate lifted, all four reproduce the licensed
-        engine run on EZNEC's own deck to 1.8e-4.
+        Measured against sqrt(|Y[i,i]| |Y[j,j]|), the ports' own scale, not
+        the coupling itself (AK#1629): on 0028 a port coupled at 1e-14
+        compared two roundoff-level entries and read 55 %.
         """
         self._y_reciprocity_rel = _multiport.check_reciprocity(
-            Y, names, _Y_RECIPROCITY_RTOL, NEC5Error, "NEC-5"
+            Y, names, NEC5Error, "NEC-5"
         )
 
     def _real_port_sources(self, V):

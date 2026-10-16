@@ -408,44 +408,40 @@ def test_a_reduced_design_solves_and_agrees_with_bspline(design):
 
 
 @needs_nec5
-def test_the_reciprocity_gate_is_live_and_catches_a_bad_reading():
-    """The gate must actually fire, on a real printout.
+def test_the_bookkeeping_check_is_direct_and_the_asymmetry_is_information():
+    """AK#1689, on a real printout. Three arms.
 
-    Two arms, because either alone is weak. Tightening the tolerance to zero
-    proves the comparison runs on real data rather than being a branch nothing
-    reaches; misreading ONE PORT proves the gate SEPARATES a right reading from
-    a wrong one.
+    The ASYMMETRY is measured on real data and kept as information: hb9cv, NOT
+    a mirror-symmetric pair (on `arrays.lumped_coupled_pair` the two runs are
+    mirror images and Y is symmetric to the BIT), reads 1.1e-05 of its ports'
+    own scale, and a zero backstop fires on it — so the comparison is live.
 
-    hb9cv, NOT a mirror-symmetric pair. THE DESIGN IS THE TEST'S SUBJECT here,
-    not scenery: on `arrays.lumped_coupled_pair` the two per-port runs are
-    mirror images, Y[0,1] == Y[1,0] to the BIT, and a zero tolerance cannot
-    fire. Since AK#1629 every entry is a printed source-row current, and hb9cv
-    reads 1.1e-05 of its ports' own scale.
+    A MODEST MISREAD is not the asymmetry's to catch. The first port's source
+    row scaled by 10 % in every run moves Y[0, j] and not Y[j, 0]: 6.5e-2 on
+    hb9cv's 0.72 coupling. The old 1e-2 bar refused that; NEC-2's 1e-1 would
+    not have, which is the fragility the issue names. It now passes the
+    backstop and is reported.
+
+    A ROW READ INTO THE WRONG PORT fails outright, with no tolerance: the rows
+    are matched to the cards by tag and segment (`_check_source_rows`).
     """
     import unittest.mock as mock
 
     from antennaknobs.designs.beams.hb9cv import Builder
+    from antennaknobs.engines import _multiport
 
     eng = NEC5Engine(Builder())
     wl = nec5.C_LIGHT / (eng.builder.freq * 1e6)
-    Y = eng._compute_y_matrix(wl)  # passes at the shipped tolerance
+    Y = eng._compute_y_matrix(wl)
     assert Y.shape[0] >= 2
-    assert eng._y_reciprocity_rel < nec5._Y_RECIPROCITY_RTOL
-    # The precondition, by name: a zero residual makes the next arm vacuous,
-    # and swapping in a symmetric design is the easy way to get one.
-    assert eng._y_reciprocity_rel > 0.0, (
-        "this design's Y is symmetric to the bit, so tightening the tolerance "
-        "below it cannot fire — pick an asymmetric multiport design"
+    assert 0.0 < eng._y_reciprocity_rel < 1e-4, (
+        "this design's Y is symmetric to the bit, so a zero backstop cannot "
+        "fire — pick an asymmetric multiport design"
     )
-
-    with mock.patch.object(nec5, "_Y_RECIPROCITY_RTOL", 0.0):
+    with mock.patch.object(_multiport, "Y_ASYMMETRY_BACKSTOP", 0.0):
         with pytest.raises(nec5.NEC5Error, match="not reciprocal"):
             eng._compute_y_matrix(wl)
 
-    # A WRONG READING AT ONE PORT: the first port's source row scaled by 10 %
-    # in every run, so Y[0, j] moves and Y[j, 0] does not — what a row read
-    # into the wrong port looks like. hb9cv's ports couple at 0.72 of their
-    # own scale, so that is 6.5e-2, over the 1e-2 tolerance.
     real = NEC5Engine._parse_input_parameters
 
     def scale_first_port(text, *, current=False):
@@ -458,10 +454,19 @@ def test_the_reciprocity_gate_is_live_and_catches_a_bad_reading():
             for rows in sections
         ]
 
+    def swap_rows(text, *, current=False):
+        return [rows[::-1] for rows in real(text, current=current)]
+
     with mock.patch.object(
         NEC5Engine, "_parse_input_parameters", staticmethod(scale_first_port)
     ):
-        with pytest.raises(nec5.NEC5Error, match="not reciprocal"):
+        scaled = NEC5Engine(Builder())
+        scaled._compute_y_matrix(wl)
+    assert 3e-2 < scaled._y_reciprocity_rel < _multiport.Y_ASYMMETRY_BACKSTOP
+    with mock.patch.object(
+        NEC5Engine, "_parse_input_parameters", staticmethod(swap_rows)
+    ):
+        with pytest.raises(nec5.NEC5Error, match="source rows"):
             NEC5Engine(Builder())._compute_y_matrix(wl)
     assert NEC5Engine._parse_input_parameters is real
 

@@ -39,7 +39,7 @@ import pytest
 from conftest import needs_nec5, nec5_fake_y_runs
 
 from antennaknobs import AntennaBuilder, WireSpec
-from antennaknobs.engines import nec5
+from antennaknobs.engines import _multiport, nec5
 from antennaknobs.engines.nec5 import NEC5Engine, NEC5Error
 from antennaknobs.file_designs import builder_from_file
 from antennaknobs.network import (
@@ -224,16 +224,20 @@ def test_the_gate_measures_against_the_ports_own_scale():
     assert _gate([[1e-3, 1e-14], [3e-14, 4e-4]]) < 1e-10
 
 
-def test_the_gate_still_refuses_a_row_read_into_the_wrong_port():
-    """One port's reading scaled by 10 % on a coupled pair (|Y01| /
-    sqrt(|Y00 Y11|) = 0.51 here; hb9cv's is 0.72) is 4.9e-2 of the ports'
-    scale, five times the tolerance."""
+def test_a_modest_misread_is_information_and_a_gross_one_refuses():
+    """AK#1689: the asymmetry is not the bookkeeping check (the rows are
+    matched to the cards by tag and segment, `test_rows_that_do_not_match_the_
+    cards_refuse`). One port's reading scaled by 10 % on a coupled pair
+    (|Y01| / sqrt(|Y00 Y11|) = 0.51 here) is 4.9e-2 of the ports' scale and is
+    reported, not refused; a TRANSPOSED pair of rows is 1.2 and is."""
     Y = np.array(
         [[2.2e-3 - 8.2e-3j, 5.0e-3 - 2.0e-3j], [5.0e-3 - 2.0e-3j, 8.7e-3 - 9.5e-3j]]
     )
-    Y[0, :] *= 1.1
+    scaled = Y.copy()
+    scaled[0, :] *= 1.1
+    assert 4e-2 < _gate(scaled) < _multiport.Y_ASYMMETRY_BACKSTOP
     with pytest.raises(NEC5Error, match="not reciprocal"):
-        _gate(Y)
+        _gate(Y[::-1, :])
 
 
 # ---------------------------------------------------------------------------
@@ -322,7 +326,7 @@ def test_a_real_printout_is_not_symmetric_to_the_bit(monkeypatch):
     cls = builder_from_file(str(CORPUS / "0011_dipole-with-coax-feedline.nec"))
     eng = NEC5Engine(cls(), ground=cls.file_ground)
     eng.impedance()
-    assert 1e-4 < eng._y_reciprocity_rel < nec5._Y_RECIPROCITY_RTOL
-    monkeypatch.setattr(nec5, "_Y_RECIPROCITY_RTOL", 0.0)
+    assert 1e-4 < eng._y_reciprocity_rel < _multiport.Y_ASYMMETRY_BACKSTOP
+    monkeypatch.setattr(_multiport, "Y_ASYMMETRY_BACKSTOP", 0.0)
     with pytest.raises(NEC5Error, match="not reciprocal"):
         eng.impedance()
