@@ -199,25 +199,137 @@ def test_the_download_refusal_is_true_for_either_reader():
 # ---------------------------------------------------------------------------
 
 
-def test_nec2s_reciprocity_bar_admits_its_own_formulation():
-    """NEC-2's point-matched Y is not symmetric: `multiband.hexbeam_5band`
-    reads 1.96e-2 of the ports' scale on nec2c AND on PyNEC. NEC-5's 1e-2 bar
-    refused it; NEC-2's does not, and still refuses a row read into the wrong
-    port of a coupled pair."""
+def test_nec2s_formulation_asymmetry_is_information_not_a_refusal():
+    """AK#1689. NEC-2's point-matched Y is not symmetric: `multiband.
+    hexbeam_5band` reads 1.85e-2 of the ports' scale on nec2c AND on PyNEC
+    (1.96e-2 when #1678 measured it). No per-engine bar: that asymmetry, and even a 10 % misread on a coupled
+    pair, pass the shared backstop and are returned as information. The port
+    bookkeeping is checked directly per run (`_check_port_run`, below). Only a
+    gross asymmetry — a transposed pair of rows, 1.2 of the ports' scale —
+    refuses."""
     Y = np.array(
         [[2.2e-3 - 8.2e-3j, 5.0e-3 - 2.0e-3j], [5.0e-3 - 2.0e-3j, 8.7e-3 - 9.5e-3j]]
     )
     asym = Y.copy()
-    asym[0, 1] *= 1.0 + 0.03  # 3 % of a 0.5-scale coupling: ~1.5e-2
-    rel = _multiport.check_reciprocity(
-        asym, ["a", "b"], m._Y_RECIPROCITY_RTOL, NEC2Error, "NEC-2"
+    asym[0, 1] *= 1.0 + 0.04  # hexbeam_5band's size: ~2e-2
+    assert (
+        1e-2 < _multiport.check_reciprocity(asym, ["a", "b"], NEC2Error, "NEC-2") < 5e-2
     )
-    assert 1e-2 < rel < m._Y_RECIPROCITY_RTOL
-    swapped = Y[::-1, :].copy()
+    misread = Y.copy()
+    misread[0, :] *= 1.1
+    assert _multiport.check_reciprocity(misread, ["a", "b"], NEC2Error, "NEC-2") < 0.5
     with pytest.raises(NEC2Error, match="not reciprocal"):
-        _multiport.check_reciprocity(
-            swapped, ["a", "b"], m._Y_RECIPROCITY_RTOL, NEC2Error, "NEC-2"
-        )
+        _multiport.check_reciprocity(Y[::-1, :].copy(), ["a", "b"], NEC2Error, "NEC-2")
+
+
+# One nec2c run (2026-10-16): two wires, 5 and 7 segments, EX 0 2 3 at 1 V. The
+# source row prints the ABSOLUTE segment (8 = 5 + 3); the CURRENTS table holds
+# the same current at tag 2's third segment.
+_ONE_PORT_RUN = """
+                        --------- ANTENNA INPUT PARAMETERS ---------
+  TAG   SEG       VOLTAGE (VOLTS)         CURRENT (AMPS)         IMPEDANCE (OHMS)        ADMITTANCE (MHOS)     POWER
+  No:   No:     REAL      IMAGINARY     REAL      IMAGINARY     REAL      IMAGINARY    REAL       IMAGINARY   (WATTS)
+    2     8  1.0000E+00  0.0000E+00  4.1706E-03 -1.1296E-02  2.8765E+01  7.7908E+01  4.1706E-03 -1.1296E-02  2.0853E-03
+
+
+                           -------- CURRENTS AND LOCATION --------
+                                  DISTANCES IN WAVELENGTHS
+
+   SEG  TAG    COORDINATES OF SEGM CENTER     SEGM    ------------- CURRENT (AMPS) -------------
+   No:  No:       X         Y         Z      LENGTH     REAL      IMAGINARY    MAGN        PHASE
+     1    1    0.0000    0.0000    0.0500   0.10007  2.4169E-04  3.5460E-03  3.5543E-03   86.101
+     2    1    0.0000    0.0000    0.1501   0.10007  5.5359E-04  9.0011E-03  9.0181E-03   86.481
+     3    1    0.0000    0.0000    0.2502   0.10007  6.5655E-04  1.1068E-02  1.1088E-02   86.605
+     4    1    0.0000    0.0000    0.3502   0.10007  5.5093E-04  9.0321E-03  9.0489E-03   86.509
+     5    1    0.0000    0.0000    0.4503   0.10007  2.3948E-04  3.5610E-03  3.5691E-03   86.153
+     6    2    0.1001    0.0000    0.0357   0.07148  1.1165E-03 -3.0711E-03  3.2677E-03  -70.021
+     7    2    0.1001    0.0000    0.1072   0.07148  2.9523E-03 -8.0569E-03  8.5808E-03  -69.876
+     8    2    0.1001    0.0000    0.1787   0.07148  4.1706E-03 -1.1296E-02  1.2041E-02  -69.735
+     9    2    0.1001    0.0000    0.2502   0.07148  4.6000E-03 -1.3019E-02  1.3808E-02  -70.540
+    10    2    0.1001    0.0000    0.3216   0.07148  4.1684E-03 -1.2147E-02  1.2843E-02  -71.060
+    11    2    0.1001    0.0000    0.3931   0.07148  2.9491E-03 -8.7283E-03  9.2131E-03  -71.331
+    12    2    0.1001    0.0000    0.4646   0.07148  1.1146E-03 -3.3197E-03  3.5018E-03  -71.441
+"""
+
+
+def _port_run(text, sources):
+    NEC2Engine._check_port_run("p", sources, text, NEC2Engine._parse_currents(text)[0])
+
+
+def test_a_port_run_that_drove_its_own_port_passes():
+    _port_run(_ONE_PORT_RUN, [(2, 3, 1.0 + 0j)])
+
+
+@pytest.mark.parametrize(
+    "sources",
+    [
+        [(2, 4, 1.0 + 0j)],  # the next segment of the same wire
+        [(1, 3, 1.0 + 0j)],  # the same relative segment on another wire
+        [(2, 3, 0.5 + 0j)],  # the right segment at the wrong voltage
+        [(2, 3, 1.0 + 0j), (1, 2, 1.0 + 0j)],  # a source the run never had
+    ],
+)
+def test_a_port_run_that_drove_anything_else_refuses(sources):
+    """AK#1689's direct check: what the run DROVE must be what the column is
+    for. No tolerance — a port addressed one segment off fails outright."""
+    with pytest.raises(NEC2Error, match="did not drive"):
+        _port_run(_ONE_PORT_RUN, sources)
+
+
+@needs_nec2
+def test_a_swapped_port_assignment_fails_on_a_real_nec2(monkeypatch):
+    """AK#1689 item 4: drive the WRONG port in each run — the bookkeeping slip
+    the old gate was for — and the direct check refuses on the first column,
+    whatever the coupling. Unpatched, the same design solves, and hexbeam's
+    1.85e-2 asymmetry is reported rather than refused."""
+    import importlib
+
+    monkeypatch.setenv("NEC2_EXE", _nec2c())
+    cls = importlib.import_module(
+        "antennaknobs.designs.multiband.hexbeam_5band"
+    ).Builder
+    eng = NEC2Engine(cls())
+    assert eng._use_reducer and len(eng._real_port_names) >= 2
+    wl = m.C_LIGHT / (eng.builder.freq * 1e6)
+    eng._compute_y_matrix(wl)
+    assert 1e-2 < eng._y_reciprocity_rel < 3e-2
+
+    a, b = eng._real_port_names[:2]
+    real_deck = eng.deck
+
+    def deck(freq, *, sources=None, **kw):
+        if sources == [(t, g, complex(w)) for t, g, w in eng._port_drive[a]]:
+            sources = [(t, g, complex(w)) for t, g, w in eng._port_drive[b]]
+        return real_deck(freq, sources=sources, **kw)
+
+    monkeypatch.setattr(eng, "deck", deck)
+    with pytest.raises(NEC2Error, match="did not drive"):
+        eng._compute_y_matrix(wl)
+
+
+@needs_nec2
+@needs_pynec
+def test_the_reported_asymmetry_is_the_formulations(monkeypatch):
+    """AK#1689 item 4, the validation the runtime gate is not: the asymmetry
+    NEC-2 reports is the one PyNEC (nec2++, the same formulation, in process)
+    has on the same design — 1.8531e-2 vs 1.8536e-2 on hexbeam_5band, the two
+    Y agreeing to 9.6e-5. Ours, not a bookkeeping residue."""
+    import importlib
+
+    from antennaknobs.engines.pynec import PyNECEngine
+
+    monkeypatch.setenv("NEC2_EXE", _nec2c())
+    cls = importlib.import_module(
+        "antennaknobs.designs.multiband.hexbeam_5band"
+    ).Builder
+    eng = NEC2Engine(cls())
+    wl = m.C_LIGHT / (eng.builder.freq * 1e6)
+    eng._compute_y_matrix(wl)
+    ref, _pair = _multiport.y_asymmetry(
+        PyNECEngine(cls())._compute_y_matrix(wl), eng._real_port_names
+    )
+    assert ref > 1e-2
+    assert eng._y_reciprocity_rel == pytest.approx(ref, rel=1e-2)
 
 
 def test_the_source_gain_factor_is_structure_over_source_power():

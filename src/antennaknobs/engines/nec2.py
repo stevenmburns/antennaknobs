@@ -105,18 +105,6 @@ _NUMBERS_ONLY = re.compile(rf"(?:\s*{_NUMBER.pattern})+\s*")
 _CURRENTS_HEADER = "CURRENTS AND LOCATION"
 _PATTERN_HEADER = "RADIATION PATTERNS"
 
-# How far the multiport Y may sit from symmetric before `_compute_y_matrix`
-# refuses (AK#1678). NEC-5's tripwire, for NEC-5's reason — Y[i, j] and Y[j, i]
-# come from different runs, and a current read into the wrong port breaks the
-# symmetry — but NOT NEC-5's 1e-2 bar. NEC-2 tests by point matching, so its
-# discrete Y is not symmetric, and on `multiband.hexbeam_5band`'s closely
-# spaced feeds the asymmetry is 1.96e-2 of the ports' scale: PyNEC's own Y
-# (nec2++, in process) reads 1.9557e-2 and nec2c's 1.9554e-2, the two Y
-# agreeing to 5.6e-5. That is the formulation, and a gate at 1e-2 refused a
-# design both NEC-2s solve identically. 1e-1 sits 5x above the worst catalog
-# design and still catches a row read into the wrong port of a coupled pair.
-_Y_RECIPROCITY_RTOL = 1e-1
-
 # NEC prints -999.99 dB for a true pattern null. Kept verbatim: it is already a
 # dB floor, and inventing -inf here would change what a caller plots.
 NULL_GAIN_DB = -999.99
@@ -600,14 +588,59 @@ class NEC2Engine(SimulationEngine):
             sources = [(tag, seg, complex(w)) for tag, seg, w in self._port_drive[drv]]
             text = self._run(self.deck(freq, sources=sources))
             per_tag = self._parse_currents(text)[0]
+            self._check_port_run(drv, sources, text, per_tag)
             for i, name in enumerate(names):
                 Y[i, j] = sum(
                     w * per_tag[tag][seg - 1] for tag, seg, w in self._port_drive[name]
                 )
         self._y_reciprocity_rel = _multiport.check_reciprocity(
-            Y, names, _Y_RECIPROCITY_RTOL, NEC2Error, "NEC-2"
+            Y, names, NEC2Error, "NEC-2"
         )
         return Y
+
+    @staticmethod
+    def _check_port_run(drv, sources, text, per_tag):
+        """Refuse unless the run that fills port `drv`'s column drove exactly
+        `drv` (AK#1689): one ANTENNA INPUT PARAMETERS row per source, at the
+        source's tag and segment, at the source's voltage. No tolerance to
+        tune (the voltage is printed to five figures, so 1e-4 is its
+        precision, not a bar): a port driven one segment off, or a run that
+        drove another port, fails outright, however strongly the ports couple.
+        Y's asymmetry is the formulation's, kept as information
+        (`_y_reciprocity_rel`).
+
+        The printout's SEG is the ABSOLUTE segment number, while `sources`
+        address tag-relative segments; the CURRENTS table lists every tag's
+        segments in tag order, which gives the offsets.
+
+        The source row's CURRENT is deliberately not compared with the table
+        the column is read from: on a fine mesh neighbouring segments differ
+        by less than a printout's noise, and the momwire portal stand-in
+        prints its gap current 0.5 % from its own centre sample, so that
+        comparison needs exactly the tuned tolerance this replaces."""
+        chunks = text.split(_AIP_HEADER)[1:]
+        rows = NEC2Engine._aip_rows(chunks[0]) if chunks else []
+        offset, total = {}, 0
+        for tag in sorted(per_tag):
+            offset[tag] = total
+            total += len(per_tag[tag])
+        want = sorted(
+            ((tag, offset.get(tag, -1) + seg, complex(v)) for tag, seg, v in sources),
+            key=lambda r: r[:2],
+        )
+        got = sorted(
+            ((tag, seg, complex(n[0], n[1])) for tag, seg, n in rows),
+            key=lambda r: r[:2],
+        )
+        if [(t, g) for t, g, _ in got] != [(t, g) for t, g, _ in want] or any(
+            abs(gv - wv) > 1e-4 * max(abs(wv), 1e-30)
+            for (_t, _g, gv), (_t2, _g2, wv) in zip(got, want, strict=True)
+        ):
+            raise NEC2Error(
+                f"port {drv!r}'s run did not drive port {drv!r}: the printout's "
+                f"source rows (tag, segment, volts) {got} are not its feeds "
+                f"{want}, so its column of Y would be read off another port"
+            )
 
     def _port_sources(self, V):
         """EX sources driving every real port at its network-resolved voltage
