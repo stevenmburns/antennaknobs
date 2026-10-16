@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import type { FeedEntry, SweepData } from "../../lib/api";
 import { gammaDbFromMag, gammaMagFromZ, vswrFromGammaMag } from "../../lib/math";
-import { s11DbTop } from "../../lib/refine";
+import { type DisplayPoint, kinkBreaks, s11DbTop } from "../../lib/refine";
 import type { SweepProgress } from "../../lib/sweep";
 import {
   type AxisDomain,
@@ -465,6 +465,30 @@ export function SweepChart({
     const fHi = span ? span.hi : null;
     const xOf = (f: number) =>
       marginL + plotW * ((f - fLo!) / ((fHi! - fLo!) || 1));
+    // A trail vertex in screen pixels, marked off-plot when it lies outside
+    // the plot rect: its corner cannot be seen, so it never breaks the line.
+    const trailPoint = (px: number, py: number): DisplayPoint => ({
+      x: px,
+      y: py,
+      ...(py < marginT || py > marginT + plotH ? { clamped: true } : {}),
+    });
+    // A connected trail with no visible kink (AK#1969): the segments meeting
+    // at an unresolved corner are left out and its samples drawn as dots.
+    const strokeBroken = (pts: DisplayPoint[], vs: number[]) => {
+      const { segments, dots } = kinkBreaks(pts, plotW);
+      ctx.beginPath();
+      pts.forEach((p, i) => {
+        if (i === 0 || !segments[i - 1]) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+      pts.forEach((p, i) => {
+        if (!dots[i] || offScale(vs[i])) return;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 1.5, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+    };
 
     if (hasSweep) {
       const freqs = sweep!.freqs_mhz;
@@ -502,18 +526,16 @@ export function SweepChart({
           ctx.rect(marginL, marginT, plotW, plotH);
           ctx.clip();
           ctx.strokeStyle = feedSweepColor(fi);
+          ctx.fillStyle = feedSweepColor(fi);
           ctx.lineWidth = 1.3;
-          ctx.beginPath();
-          let started = false;
-          for (let i = 0; i < freqs.length; i++) {
+          const vs = freqs.map((_, i) => {
             const z = zAt(fi, i);
-            const v = valueFor(mode, z.re, z.im, z0);
-            const px = xOf(freqs[i]);
-            const py = marginT + plotH * (1 - rawFracOf(v));
-            if (!started) { ctx.moveTo(px, py); started = true; }
-            else ctx.lineTo(px, py);
-          }
-          ctx.stroke();
+            return valueFor(mode, z.re, z.im, z0);
+          });
+          strokeBroken(
+            freqs.map((f, i) => trailPoint(xOf(f), marginT + plotH * (1 - rawFracOf(vs[i])))),
+            vs,
+          );
           ctx.restore();
         } else {
           // Same dot radius as SmithChart's unconnected trail, same color
@@ -567,15 +589,13 @@ export function SweepChart({
         ctx.fillStyle = c.color;
         ctx.lineWidth = 1.3;
         if (c.settled !== false) {
-          ctx.beginPath();
-          for (let i = 0; i < s.freqs_mhz.length; i++) {
-            const v = valueFor(mode, s.z_re[i], s.z_im[i], z0);
-            const px = xOf(s.freqs_mhz[i]);
-            const py = marginT + plotH * (1 - rawFracOf(v));
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-          }
-          ctx.stroke();
+          const vs = s.freqs_mhz.map((_, i) => valueFor(mode, s.z_re[i], s.z_im[i], z0));
+          strokeBroken(
+            s.freqs_mhz.map((f, i) =>
+              trailPoint(xOf(f), marginT + plotH * (1 - rawFracOf(vs[i]))),
+            ),
+            vs,
+          );
         } else {
           for (let i = 0; i < s.freqs_mhz.length; i++) {
             const v = valueFor(mode, s.z_re[i], s.z_im[i], z0);
