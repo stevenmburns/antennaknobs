@@ -78,6 +78,16 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
+import momwire_serve_client
+
+# AVX-512 off before anything imports numpy (AK#2020, momwire#1533), in
+# os.environ so the server's worker processes and the --cli mode inherit it.
+# The package's own __init__ pins too; this is the frozen program's own
+# statement of it, at its first line of real code, so a later import that
+# reaches numpy before antennaknobs cannot undo it. Never replaces a value the
+# user set; on a CPU without AVX-512 it sets nothing.
+momwire_serve_client.pin_cpu_env()
+
 NAME = "antennaknobs-workbench"
 # The port a launch takes unless it is busy or ``--port`` says otherwise. It is
 # the browser's identity for the workbench, not only a number: see choose_port.

@@ -13,8 +13,12 @@
 
 import importlib.util
 import os
+import sys
 import tempfile
 import warnings
+
+import momwire_serve_client
+import pytest
 
 # AK#1492: the library reads ~/.antennaknobs/settings.toml for engine paths and
 # the capture folder. Point the whole suite at a file that does not exist, so a
@@ -25,6 +29,21 @@ os.environ["ANTENNAKNOBS_SETTINGS"] = os.path.join(
 )
 
 os.environ.setdefault("MPLBACKEND", "Agg")
+
+# AVX-512 off for the whole session (AK#2020, momwire#1533), here at import,
+# before any test module imports numpy, and in os.environ so every xdist
+# worker and every server or CLI subprocess a test starts inherits it: a
+# gate's answer must not depend on whether the box running it has AVX-512.
+# On a CPU without AVX-512 this sets nothing; a value already exported wins.
+if momwire_serve_client.pin_cpu_env() and "numpy" in sys.modules:
+    # Something (a plugin, a root conftest) loaded numpy first: the variables
+    # would reach subprocesses but not this process, whose in-process gates
+    # would then run AVX-512 numpy and OpenBLAS. Loud, not a quiet half-pin.
+    raise pytest.UsageError(
+        "numpy was imported before tests/conftest.py could turn AVX-512 off "
+        "(momwire_serve_client.pin_cpu_env); export NPY_DISABLE_CPU_FEATURES "
+        "and OPENBLAS_CORETYPE yourself, or find the early importer"
+    )
 
 # momwire's persistent Sommerfeld grid store (momwire#1224, #1287) writes
 # ~/.cache/momwire by default. Off for the whole suite, and pointed at a
@@ -84,8 +103,6 @@ def pytest_collection(session):
 import matplotlib  # noqa: E402
 
 matplotlib.use("Agg", force=True)
-
-import pytest  # noqa: E402
 
 os.environ.setdefault(
     "ANTENNAKNOBS_USER_DIR",
