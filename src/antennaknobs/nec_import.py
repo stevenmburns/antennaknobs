@@ -2654,6 +2654,23 @@ def _close_parens(line: str) -> str:
     return "".join(out)
 
 
+# A card's trailing comment. 4nec2's ``'`` starts one anywhere after the
+# mnemonic (#418), and NEC-4 brought in ``!`` for the same thing, which NEC-5
+# kept: ``GW 1 9 0 0 0 0 0 1 .001 ! Drive connection`` (AK#2021). Both run to
+# the end of the line. A ``!`` in the FIRST column is not read as one: that
+# line has no card in front of its comment, and it stays refused as the
+# mnemonic it is not. CM/CE text is never cut here (its callers handle it
+# first), so EZNEC's ``CM ! Written by ...`` stamp keeps its ``!``.
+def _card_code(stripped: str) -> str:
+    """``stripped`` (a non-comment card line) with its trailing ``'`` or
+    ``!`` comment removed and the right edge trimmed."""
+    code = stripped.split("'", 1)[0]
+    bang = code.find("!", 1)
+    if bang > 0:
+        code = code[:bang]
+    return code.rstrip()
+
+
 _NUMBER_TOKEN = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)([eEdD][+-]?\d+)?$")
 
 
@@ -2706,7 +2723,7 @@ def _logical_lines(text: str):
     """``(line number, text)`` per card, with wrapped continuation lines joined.
 
     A continuation joins only onto a card line: never onto a blank line, a
-    ``CM``/``CE`` comment, or a line carrying a ``'`` comment (the joined fields
+    ``CM``/``CE`` comment, or a line carrying a ``'`` or ``!`` comment (the joined fields
     would land after the comment and be dropped with it). The card keeps its
     FIRST line's number, so an error still points at the line the user sees the
     mnemonic on. A deck with no wrapped lines passes through unchanged (#1295).
@@ -2721,6 +2738,7 @@ def _logical_lines(text: str):
             and pending[1].strip()
             and pending[1].strip()[:2].upper() not in ("CM", "CE")
             and "'" not in pending[1]
+            and "!" not in pending[1].strip()[1:]
         ):
             pending = (pending[0], pending[1].rstrip() + " " + stripped)
             continue
@@ -2791,7 +2809,7 @@ def resolve_sy(
                 out.append(f"CE {rest}" if rest else "CE")
                 in_comments = False
             continue
-        stripped = stripped.split("'", 1)[0].rstrip()
+        stripped = _card_code(stripped)
         if not stripped:
             continue
         tokens = _split_card_fields(stripped)
@@ -3379,8 +3397,8 @@ def classify_sy(text: str, *, name: str = "NEC deck") -> tuple[SySymbol, ...]:
             continue
         if stripped[:2].upper() in ("CM", "CE"):
             continue
-        code, _, comment = stripped.partition("'")
-        code = code.rstrip()
+        _, _, comment = stripped.partition("'")
+        code = _card_code(stripped)
         if not code:
             continue
         where = f"{name}, line {line_no}"
@@ -5767,7 +5785,7 @@ def _nofile_gn_line(text: str) -> int | None:
         s = raw.strip()
         if not s or s.startswith("'") or s[:2].upper() in ("CM", "CE"):
             continue
-        s = s.split("'", 1)[0].strip()
+        s = _card_code(s)
         if s[:2].upper() == "EN":
             return None
         # The card loop's own field split: EZNEC writes ``GN 2,0,0,...,NOFILE``
@@ -5826,7 +5844,7 @@ def _nec4_layout_lean(text: str) -> tuple[int, str, bool] | None:
             continue
         if s[:2].upper() == "CE":
             continue
-        s = s.split("'", 1)[0].strip()
+        s = _card_code(s)
         if not s:
             continue
         tokens = _split_card_fields(s)
@@ -6139,8 +6157,10 @@ def parse_nec(
         where = f"{name}, line {line_no}"
         # 4nec2 comment convention (#418): a leading ' comments out the
         # whole line (including commented-out cards, `'GW ...`); anywhere
-        # else ' starts an end-of-line comment. CM/CE lines are exempt —
-        # their free text legitimately contains apostrophes.
+        # else ' starts an end-of-line comment, as NEC-4/NEC-5's ! does after
+        # a card's fields (AK#2021, `_card_code`). CM/CE lines are exempt —
+        # their free text legitimately contains apostrophes (and EZNEC's
+        # stamp a !).
         if stripped.startswith("'"):
             continue
         if stripped[:2].upper() == "CM":
@@ -6194,7 +6214,7 @@ def parse_nec(
             # Like CM, identified by its first two columns: "CEFOR THIS RUN"
             # is the end-of-comments card with its text glued on (#1272).
             continue
-        stripped = stripped.split("'", 1)[0].rstrip()
+        stripped = _card_code(stripped)
         if not stripped:
             continue
         # Cards are free-format in practice: mnemonic, then numbers separated
