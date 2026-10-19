@@ -12,6 +12,7 @@
 # a process that loaded NumPy before importing antennaknobs is unaffected:
 # the pools have already read their environment.
 import os as _os
+import sys as _sys
 
 for _k, _v in (
     ("OMP_WAIT_POLICY", "PASSIVE"),
@@ -20,6 +21,25 @@ for _k, _v in (
 ):
     _os.environ.setdefault(_k, _v)
 del _os, _k, _v
+
+# AVX-512 off before NumPy loads (AK#2020, momwire#1533). On a CPU with
+# AVX-512, numpy's ufuncs and OpenBLAS's SkylakeX kernels move results' last
+# bits away from what every AVX2 machine computes, so this names numpy's
+# AVX-512 targets in NPY_DISABLE_CPU_FEATURES and holds OpenBLAS to
+# OPENBLAS_CORETYPE=Haswell. It is momwire's own pin, the one its entry points
+# and serve pool use, so the CLI, the web server (bare uvicorn and the Docker
+# image), the frozen app and momwire's subprocesses agree. Stdlib only and
+# under a millisecond; on a CPU without AVX-512 it sets nothing, and a value
+# the user exported is never replaced. Like the block above it only reaches a
+# process that has not loaded NumPy yet, so it is skipped when one has: a
+# library caller that imported numpy first has chosen, and pinning only its
+# children would split the parent from its own subprocesses.
+if "numpy" not in _sys.modules:
+    import momwire_serve_client as _msc
+
+    _msc.pin_cpu_env()
+    del _msc
+del _sys
 
 __all__ = [
     "Transform",

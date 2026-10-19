@@ -440,7 +440,7 @@ def _write_spec(
 # Two EXE objects, one COLLECT (issue #1566): `antennaknobs-workbench` is the
 # program, `antennaknobs-cli` the shim that runs it with `--cli`. One
 # `_internal`, one dist folder, one zip.
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
 hiddenimports = {list(HIDDEN_IMPORTS)!r}
 hiddenimports += collect_submodules('antennaknobs')
@@ -448,6 +448,10 @@ hiddenimports += collect_submodules('momwire')
 
 datas = collect_data_files('antennaknobs') + collect_data_files('schemdraw')
 datas += {datas!r}
+# numpy's .dist-info, which `momwire_serve_client.pin_cpu_env` (entry.py)
+# reads to name numpy's AVX-512 targets in that release's vocabulary
+# (AK#2020); without it the pin names both and numpy warns about the others.
+datas += copy_metadata('numpy')
 binaries = {binaries!r}
 excludes = {list(EXCLUDES)!r}
 
