@@ -405,7 +405,8 @@ def test_wholly_buried_dipole_is_served():
     ff = eng.far_field(n_theta=90, n_phi=360, del_theta=1, del_phi=1)
     assert ff.in_medium_moment_fraction == pytest.approx(1.0)
     assert np.isfinite(ff.max_gain) and np.isfinite(ff.min_gain)
-    assert ff.max_gain == pytest.approx(-21.42708041701554, abs=1e-6)
+    # -21.42708041701554 until momwire 0.79's coarser below table (momwire#1510).
+    assert ff.max_gain == pytest.approx(-21.426932754063152, abs=1e-6)
 
 
 @pytest.mark.antenna_computation_check
@@ -418,7 +419,8 @@ def test_buried_radial_vertical_moves_less_than_the_retired_note_allowed():
     assert 0.30 < ff.in_medium_moment_fraction < 0.45
     imaged_peak_dbi = -2.7092732487947693  # the v0.79.0 readout's number
     # -2.895921847500022 until the feed gap's fixed three segments (AK#1816).
-    assert ff.max_gain == pytest.approx(-2.8959469776174935, abs=1e-6)
+    # -2.8959469776174935 until momwire 0.79's coarser below table (momwire#1510).
+    assert ff.max_gain == pytest.approx(-2.895907670982645, abs=1e-6)
     assert abs(ff.max_gain - imaged_peak_dbi) < 0.46
 
 
