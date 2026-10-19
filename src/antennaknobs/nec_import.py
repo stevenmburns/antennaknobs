@@ -3199,12 +3199,27 @@ def _check_sy_overrides(
 # cards are not applied at all -- so a symbol that reaches only those is not
 # a knob: moving it would change nothing the app solves.
 _SY_REBUILT_CARDS = frozenset(
-    ("GW", "GA", "GH", "GM", "GX", "GR", "GS", "GC", "EX", "LD", "TL", "NT", "IS")
+    (
+        "GW",
+        "GA",
+        "GH",
+        "CW",
+        "GM",
+        "GX",
+        "GR",
+        "GS",
+        "GC",
+        "EX",
+        "LD",
+        "TL",
+        "NT",
+        "IS",
+    )
 )
 # Integer fields per card, as the readers take them with `_Card.i` (GM's ITS,
 # field 9, is read as a float and rounded, the same thing).
 _SY_INT_FIELDS = {
-    **dict.fromkeys(("GW", "GA", "GH", "GX", "GR", "GS", "GC"), (0, 1)),
+    **dict.fromkeys(("GW", "GA", "GH", "CW", "GX", "GR", "GS", "GC"), (0, 1)),
     "GM": (0, 1, 8),
     **dict.fromkeys(
         ("EX", "LD", "TL", "NT", "IS", "FR", "GN", "GE", "EK", "GD"), (0, 1, 2, 3)
@@ -3634,7 +3649,7 @@ class GeometryLimits:
         add_w = add_s = 0.0
         if mnemonic == "GW":
             add_w, add_s = 1.0, card.f(1)
-        elif mnemonic in ("GA", "GH"):
+        elif mnemonic in ("GA", "GH", "CW"):
             add_w = add_s = card.f(1)
         elif mnemonic == "GC":
             # The parked zero-radius GW becomes one wire per segment -- as
@@ -4099,6 +4114,196 @@ def _gh(card, wires, *, nec45=False):
         z2 = z1 + zinc
         wires.append([tag, 1, point(z1), point(z2), radius])
         z1 = z2
+
+
+# ---------------------------------------------------------------------------
+# CW: NEC-4 and NEC-5's catenary wire (AK#2021)
+# ---------------------------------------------------------------------------
+# ``CW ITG NS X1 Y1 Z1 X2 Y2 Z2 RAD ICAT RHM ZM``. The wire hangs between its
+# two ends under gravity along -z. With u the horizontal distance from end 1
+# (along the ends' separation projected onto the xy plane) and k = 1/a the
+# curvature at the vertex,
+#
+#     z(u) = z1 + (cosh(k(u - u0)) - cosh(k u0)) / k,
+#
+# k > 0 for a wire that sags below the straight line between its ends and
+# k < 0 for one that arches above it. ICAT says which number fixes k:
+#
+# * 1: the wire passes through the point at horizontal distance RHM from end
+#   1 at height ZM (absolute z, metres);
+# * 2: at horizontal distance RHM from end 1 it hangs ZM below the straight
+#   line between the ends (a negative ZM arches above it);
+# * 3: its arc length is RHM (ZM unused); no longer than the straight line,
+#   and the wire is that straight line.
+#
+# Measured, not assumed: every field, the curve and the spacing below were
+# read off NEC-5's and NEC-4.2's own segment tables for 20 synthetic decks
+# (ICAT 1-3, equal and unequal end heights, a diagonal span, arches, ICAT 3
+# shorter than the chord), and the two engines agree with each other and with
+# this model to the printed digits.
+#
+# SPACING: a sag is cut into NS pieces of equal ARC LENGTH, but an arch into
+# NS pieces of equal HORIZONTAL step. The second is what both engines do, not
+# what the NEC-5 User's Guide says (equal arc length always); Steve's call
+# (2026-10-19) is to follow the engines, since a deck is read the way the
+# engine that ran it built it.
+#
+# Everything is written in forms that stay accurate as k -> 0 (a nearly
+# straight wire): z and the arc length are products of sinh/cosh terms whose
+# arguments are O(1), never differences of two large cosh values.
+
+_CW_KD_MAX = 600.0  # |k|·D bound: sinh overflows past ~710
+
+
+def _sinhc(x: float) -> float:
+    """sinh(x)/x, 1 at 0."""
+    return math.sinh(x) / x if x != 0.0 else 1.0
+
+
+def _cw_shape(k: float, d: float, h: float):
+    """``(z(u), s(u))``: height above end 1 and arc length from end 1 of the
+    catenary of curvature ``k`` through (0, 0) and (``d``, ``h``)."""
+    half = 0.5 * k * d
+    # asinh(k h / (2 sinh(k d / 2))), the vertex offset, as an O(1) number.
+    c = math.asinh(h / (d * _sinhc(half)))
+
+    def z(u: float) -> float:
+        # 2 sinh(k(u - 2 u0)/2) sinh(k u/2) / k
+        return u * math.sinh(0.5 * k * u - half + c) * _sinhc(0.5 * k * u)
+
+    def s(u: float) -> float:
+        # 2 cosh(k(u - 2 u0)/2) sinh(k u/2) / k
+        return u * math.cosh(0.5 * k * u - half + c) * _sinhc(0.5 * k * u)
+
+    return z, s
+
+
+def _bisect(f, lo: float, hi: float) -> float:
+    """The root of ``f`` between ``lo`` and ``hi`` (a sign change)."""
+    f_lo = f(lo)
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        if mid in (lo, hi):
+            break
+        f_mid = f(mid)
+        if (f_mid > 0.0) == (f_lo > 0.0):
+            lo, f_lo = mid, f_mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+def _cw_solve_k(g, d: float, signs) -> float | None:
+    """The curvature k where ``g(k)`` crosses zero, searched outward from a
+    straight wire on each side in ``signs``; None when it never does."""
+    for sign in signs:
+        prev_k, prev_g = None, None
+        for j in range(-400, 1):
+            k = sign * (_CW_KD_MAX / d) * 10.0 ** (j / 25.0)
+            try:
+                gk = g(k)
+            except OverflowError:
+                continue
+            if gk != gk:  # NaN
+                continue
+            if gk == 0.0:
+                return k
+            if prev_g is not None and (gk > 0.0) != (prev_g > 0.0):
+                return _bisect(g, prev_k, k)
+            prev_k, prev_g = k, gk
+    return None
+
+
+def _cw(card, wires):
+    """NEC-4 and NEC-5's catenary wire: ``n_seg`` 1-segment chords (see the
+    block above for the fields, the curve and the spacing)."""
+    tag, n_seg = card.i(0), card.i(1)
+    p1 = [card.f(2), card.f(3), card.f(4)]
+    p2 = [card.f(5), card.f(6), card.f(7)]
+    radius, icat, rhm, zm = card.f(8), card.f(9), card.f(10), card.f(11)
+    if n_seg < 1:
+        raise card.error(f"segment count must be >= 1, got {n_seg}")
+    if radius <= 0.0:
+        raise card.error("wire radius must be > 0")
+    if icat not in (1.0, 2.0, 3.0):
+        raise card.error(
+            f"ICAT must be 1 (a point the wire passes through), 2 (the sag "
+            f"below the straight line at a distance) or 3 (the wire's "
+            f"length), got {icat:g}"
+        )
+    dx, dy, h = p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]
+    d = math.hypot(dx, dy)
+    if d == 0.0:
+        raise card.error(
+            "the two ends are one above the other, so there is no horizontal "
+            "span for the wire to hang across"
+        )
+    ex, ey = dx / d, dy / d
+
+    if icat == 3.0:
+        if rhm <= math.hypot(d, h):
+            # No longer than the straight line: both engines build that line.
+            wires.append([tag, n_seg, p1, p2, radius])
+            return
+        signs = (1.0,)
+
+        def g(k):
+            return _cw_shape(k, d, h)[1](d) - rhm
+
+    else:
+        if rhm == 0.0 or rhm == d:
+            raise card.error(
+                f"RHM = {rhm:g} puts the point at an end of the wire, which "
+                "fixes nothing about its shape"
+            )
+        drop = zm if icat == 2.0 else p1[2] + h * rhm / d - zm
+        if drop == 0.0:
+            raise card.error(
+                "the point lies on the straight line between the ends, so no "
+                "catenary passes through it"
+            )
+        # Inside the span a sag (k > 0) drops below the line and an arch
+        # rises above it; outside the span the two swap, so try both.
+        inside = 0.0 < rhm < d
+        signs = (
+            (math.copysign(1.0, drop),)
+            if inside
+            else (-math.copysign(1.0, drop), math.copysign(1.0, drop))
+        )
+
+        def g(k):
+            return h * rhm / d - _cw_shape(k, d, h)[0](rhm) - drop
+
+    k = _cw_solve_k(g, d, signs)
+    if k is None:
+        raise card.error(
+            f"no catenary between these ends fits ICAT {icat:g} with "
+            f"RHM = {rhm:g} and ZM = {zm:g}"
+        )
+    z, s = _cw_shape(k, d, h)
+    if k > 0.0:
+        total = s(d)
+        us = [0.0]
+        for i in range(1, n_seg):
+            target = total * i / n_seg
+            us.append(_bisect(lambda u, t=target: s(u) - t, 0.0, d))
+        us.append(d)
+    else:
+        us = [d * i / n_seg for i in range(n_seg + 1)]
+
+    def point(i: int):
+        if i == 0:
+            return list(p1)
+        if i == n_seg:
+            return list(p2)
+        u = us[i]
+        return [p1[0] + ex * u, p1[1] + ey * u, p1[2] + z(u)]
+
+    p = point(0)
+    for i in range(1, n_seg + 1):
+        q = point(i)
+        wires.append([tag, 1, p, q, radius])
+        p = q
 
 
 def _first_wire_with_tag(wires, tag, card):
@@ -4698,7 +4903,7 @@ def _symmetry_after(mnemonic, card, wires, segs_before, cell):
     """
     if mnemonic in ("GX", "GR"):
         return segs_before or None
-    if mnemonic in ("GW", "GA", "GH"):
+    if mnemonic in ("GW", "GA", "GH", "CW"):
         return None
     if mnemonic == "GM":
         its = int(card.f(8) + 0.5)
@@ -6144,6 +6349,7 @@ def parse_nec(
         "GC": _gc,
         "GA": _ga,
         "GH": _gh,
+        "CW": _cw,
         "GM": _gm,
         "GX": _gx,
         "GR": _gr,
