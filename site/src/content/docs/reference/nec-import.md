@@ -301,7 +301,7 @@ Green's-function files (`GF`), and plane-wave excitation.
 Real-world decks are mostly written *for 4nec2*, and the importer reads that
 dialect natively: `SY` symbolic variables with full expressions (BASIC-style
 — trig in degrees, `^` power, unit suffixes like `1.5*mm` or `36.6pF`),
-`'`-comments, fused mnemonics (`GW1,8,…`), and `#14`-style AWG wire-gauge
+`'`-comments and `!`-comments after a card's fields, fused mnemonics (`GW1,8,…`), and `#14`-style AWG wire-gauge
 radii. A deck's `EK` card (extended thin-wire kernel) is honoured on both
 engines — momwire builds the solver with its own O(a²) tube expansion, PyNEC
 with NEC's — so fat-wire decks solve kernel-for-kernel with NEC without a flag

@@ -29,35 +29,28 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.103.0" icon="star">
-  **Your own terrain.** A file in your designs folder can now describe a
-  terrain profile, and the workbench offers it in the ground panel beside
-  levee, cliff and hillside, for every design; see
-  [faceted terrain](/reference/web/#faceted-terrain) and
-  [a terrain of your own](/concepts/authoring-with-claude/#a-terrain-of-your-own).
+<Card title="New in v0.104.0" icon="star">
+  **Buried ground at NEC-5 speed.** With momwire 0.79 a buried deck fills only
+  the part of its underground tables a run reads, on a coarser table where the
+  answer cannot see the difference, and the slow tail at grazing angles is
+  gone. A cold buried run that took about fifteen seconds now takes under two
+  on the same machine.
 
-  **Buried sweeps that reuse their ground tables.** With momwire 0.78 a
-  frequency sweep of a buried deck fills its underground tables once and
-  serves later frequencies from them, instead of paying a whole fill per
-  point.
+  **A source at the base of a buried vertical.** A vertical whose radials start
+  at its base, or that meets a buried hub through a short stub, now solves on
+  `razor-2p` with the source at the base, as EZNEC means it: a gap on the
+  vertical. Same deck, same answer: buried results no longer depend on what
+  ran before.
 
-  **The extended kernel over buried radials.** On `bspline` a deck with
-  buried wires keeps the extended kernel on everything above ground, rather
-  than dropping it everywhere for one ground stake; the advisory says how
-  many buried wires kept the standard kernel. On `razor-2p`, which still
-  refuses it there, the advisory now points you to `bspline`. See
-  [the extended thin-wire kernel](/reference/solver/#the-extended-thin-wire-kernel-ek).
+  **4nec2 decks with `!` comments** after a card's fields now import.
 
-  **The exact ring kernel across a radius step**, so a tapered element meshed
-  fine stays put on `bspline` and `razor-2p`.
+  **Steadier numbers on newer CPUs.** antennaknobs now keeps numpy and
+  OpenBLAS off their AVX-512 paths, as momwire does, so a machine with AVX-512
+  gives the same last digits as one without.
 
-  **A knob that would lay one wire on another is refused**, naming the two
-  wires and how much of the line they would share, instead of solving two
-  conductors in the same place.
-
-  For 4nec2 users, momwire 0.78's Windows engine zip runs as **4nec2's
-  engine**, reading the file names 4nec2 hands it and writing the `.GMO`
-  file it expects.
+  Also: a drawn sweep shows a break and a dot where it used to draw a kink,
+  and the schematic draws an EZNEC `NT` network as the L network or line it
+  is.
 </Card>
 
 ## The whole pitch, in one line
