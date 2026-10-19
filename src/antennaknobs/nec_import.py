@@ -6599,6 +6599,22 @@ def parse_nec(
 
         card = _Card(mnemonic, tokens[1:], where, syms)
 
+        if mnemonic == "UM":
+            # NEC-5's upper medium: the medium the structure sits in (all of
+            # space with no ground, the half-space above one with a ground),
+            # ``UM 0 0 0 0 EPSR SIG``, a negative SIG giving |SIG| as the
+            # imaginary part of EPSR. Every solver here models the structure
+            # in air, so air is a no-op and anything else is refused by name
+            # rather than solved as though the card were not there.
+            eps_r, sigma = card.f(4), card.f(5)
+            if not (math.isclose(eps_r, 1.0, abs_tol=1e-9) and abs(sigma) <= 1e-12):
+                raise ValueError(
+                    f"{where}: an antenna in a lossy or dielectric medium "
+                    f"(UM εr={eps_r:g}, σ={sigma:g}) isn't supported; remove "
+                    "the card, or set it to 1 0, to model the structure in air"
+                )
+            continue
+
         if mnemonic in geometry:
             if limits is not None:
                 limits.admit_card(mnemonic, card, wires)
