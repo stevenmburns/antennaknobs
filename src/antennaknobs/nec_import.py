@@ -151,6 +151,10 @@ FIXED_FREQUENCY_NT_CATEGORY = "FixedFrequencyNT"
 # Cards that configure a NEC *run* rather than the wire list. antennaknobs has
 # its own engine settings for these concerns (ground, loading, feedlines,
 # sweeps, pattern output), so they are recorded, not translated.
+# The cards that end a run's input and execute it (AK#2029): an EX card read
+# after one of these starts the next run's excitation set.
+_EXECUTE_CARDS = frozenset({"XQ", "RP", "NE", "NH"})
+
 _IGNORED_CARDS = {
     "GN": "ground parameters",
     "GD": "additional ground medium",
@@ -776,6 +780,11 @@ class NecDeck:
     # discard IS the deck's physics under NEC.
     symmetry_cell: int | None = None
     symmetry_dropped_loads: int = 0
+    # AK#2029: (run number, card location) for every EX card after the first
+    # run's, which the deck solves as further cases of the same structure (a
+    # SimNEC fieldSensing deck re-drives its feed and probe in turn). Only
+    # the first run's sources are modelled; these are reported, not ports.
+    later_run_ex: tuple[tuple[int, str], ...] = ()
     # antennaknobs#1460: False when the deck's GE card is NEGATIVE (`GE -1`),
     # which NEC reads as the ground plane WITHOUT the ground-contact current
     # expansion. Every engine here serves the interpolated (`GE 1`) contact,
@@ -1198,6 +1207,16 @@ class NecDeck:
                 "is a lone conductor end away from ground, which has no "
                 "through-current path to host a port in (NEC-5 refuses that "
                 "deck too)"
+            )
+        if self.later_run_ex:
+            runs = 1 + len({r for r, _ in self.later_run_ex})
+            n = len(self.later_run_ex)
+            parts.append(
+                f"the deck excites the structure in {runs} runs, and only the "
+                f"first run's sources are modelled: the {n} EX card"
+                f"{'s' if n > 1 else ''} after its first XQ, RP or NE "
+                f"{'are' if n > 1 else 'is'} a later case of the same "
+                "structure, not a further source"
             )
         if self.symmetry_dropped_loads:
             n = self.symmetry_dropped_loads
@@ -6273,6 +6292,14 @@ def parse_nec(
     comments: list[str] = []
     ignored: set[str] = set()
     feeds_raw: list[tuple[int, int, complex, str]] = []
+    # AK#2029: an EX card after an execute request (XQ, RP, NE, NH) starts the
+    # next run's excitation set, which NEC solves as a separate case of the
+    # same structure. The app models one case, the first run's, so a later
+    # run's EX cards are counted for the import note instead of becoming
+    # ports of their own.
+    executed = False
+    run = 0
+    later_run_ex: list[tuple[int, str]] = []
     lds_raw: list[_Card] = []
     is_raw: list[_Card] = []
     tls_raw: list[_Card] = []
@@ -6595,6 +6622,8 @@ def parse_nec(
             continue
         if mnemonic in _IGNORED_CARDS:
             ignored.add(mnemonic)
+            if mnemonic in _EXECUTE_CARDS:
+                executed = True
             continue
 
         card = _Card(mnemonic, tokens[1:], where, syms)
@@ -6790,6 +6819,12 @@ def parse_nec(
                     edge = 1 if seg_field < 0 else 2
             if edge:
                 nec5_dialect = True
+            if executed and feeds_raw:
+                run += 1
+            executed = False
+            if run:
+                later_run_ex.append((run + 1, where))
+                continue
             feeds_raw.append(
                 (
                     card.i(1),
@@ -6955,5 +6990,6 @@ def parse_nec(
         virtual_pins=virtual_pins,
         symmetry_cell=sym_cell,
         symmetry_dropped_loads=symmetry_dropped,
+        later_run_ex=tuple(later_run_ex),
         net_ends_demoted=net_ends_demoted,
     )
