@@ -165,6 +165,7 @@ _seed_defaults_from_deck(Builder)
 | --- | --- |
 | `GW` | Straight wires (tag, segments, endpoints, radius) |
 | `GA`, `GH` | Arcs and helices, generated as per-segment chords exactly as NEC does internally. A deck read as NEC-4 or NEC-5 takes their `GH` layout (`TURNS ZLEN HR1 HR2 WR1 WR2 ISPX`: log or Archimedes spirals, tapered wire) |
+| `CW` | NEC-4 and NEC-5 catenary wires, generated as straight 1-segment pieces through the catenary, as `GA` and `GH` are |
 | `GC` | Tapered wires: the zero-radius `GW` before it becomes a run of 1-segment wires with geometric lengths and radii. Read as NEC-4 or NEC-5 it also takes their `IX` forms, a fixed first segment (`GC 1`) or first and last (`GC 2`, which computes its own segment count) |
 | `GM` | Move / replicate — repetitions compound, each copy transforming the previous one |
 | `GX` | Reflect in the Z, Y, X planes, tag increment doubling per plane |
@@ -172,6 +173,8 @@ _seed_defaults_from_deck(Builder)
 | `GS` | Scale — including xnec2c's tag-range extension (scale only tags I1..I2) |
 | `EX` types 0/5 | Voltage-source feeds, resolved through NEC's (tag, segment) addressing |
 | `EX` types 4/6 | Current-source feeds (NEC-5's type 4, 4nec2's type 6), in amps — `network=True` only, see below |
+
+An `EX` card read after an execute request (`XQ`, `RP`, `NE`, `NH`) starts the next run's excitation, as NEC reads it. The first run's sources are the design's ports. A later run's `EX` cards (SimNEC's two-run feed-and-probe decks, for example) are kept on `deck.later_run_ex` and named in the import note, never added as more ports.
 
 Card semantics are transcribed from the `nec2c` 1.3.1 sources, quirks
 included (tag 0 never increments under any transform), and validated against
@@ -449,7 +452,7 @@ source on a knot where another wire joins imports as a `PortAtVertex`, voltage
 or current alike. Either way it solves on momwire, and the deck also solves
 natively on [the NEC-5 engine](/reference/nec5/), which speaks the form as a
 first-class citizen. NEC-5's `GN` card also names a
-ground file, and the `NOFILE` that says there is none is accepted.
+ground file, and the `NOFILE` that says there is none is accepted. NEC-5's `UM` card, the medium the structure sits in, is read when it says air (relative permittivity 1, conductivity 0), which is what every solver here models; any other medium is refused by name.
 
 A deck that shows neither `NOFILE` nor an explicit end field reads as NEC-2,
 because the `EX` card alone cannot say which program it was written for.
