@@ -29,25 +29,22 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.105.0" icon="star">
-  **The no-Python engines read a deck the way NEC-5 does.** With momwire 0.81
-  the standalone `razor2p` and `bs2` executables serve decks that run as a
-  program: a pattern and then a near field in one run, two patterns before one
-  `XQ`, a new frequency between runs, and a two-run deck that swaps its sources
-  to measure the transfer between a feed and a probe. They used to decline those
-  decks, and now print them byte for byte as the Python engine does.
+<Card title="New in v0.106.0" icon="star">
+  **Far buried probes at near-field speed.** With momwire 0.82, a wire far
+  from a buried structure (a field probe a kilometre out, a long Beverage, a
+  wide array) no longer slows the solve down the further away it is. A deck
+  with a probe 1 km from a buried radial system now runs in about 3 s where it
+  took 21 s, at any elevation, grazing angles included, and nearer probes run
+  exactly as before.
 
-  **The NEC-4.2 slot under SimNEC and 4nec2.** SimNEC's batch mode works on the
-  NEC-4.2 launchers, 4nec2 can run them with its `ENGINE < nec2d.tmp` call, and
-  the slot now serves the other `RP` forms (XNDA 1002, 1003, 1010 and 1011), a
-  later run at a new frequency, and the `GS` and `GM` geometry cards.
+  **razor-2p keeps the extended kernel over buried radials.** On a NEC-5 deck
+  with buried wires, razor-2p now uses the extended thin-wire kernel on the
+  wires above ground, as bs2 already did, so a fat vertical over buried
+  radials converges to the same answer as NEC-5 under mesh refinement.
 
-  **Faster buried fills,** about 15 % on the Slant and Hub decks and more on
-  older CPUs without AVX2.
-
-  Also: importing a deck now reads a later run's `EX` cards as a later case
-  rather than more ports, reads NEC-4/NEC-5 `CW` catenary wires, and reads
-  NEC-5's `UM` card when it says air.
+  **A version line SimNEC and scripts can parse.** Every momwire launcher
+  answers `-version` with one line naming its dialect, its launcher, its modes
+  and the full version, e.g. `NEC5 momwire-nec5-razor-2p [sb] 0.82.0`.
 </Card>
 
 ## The whole pitch, in one line
