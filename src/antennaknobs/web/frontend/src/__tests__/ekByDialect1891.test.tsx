@@ -23,6 +23,7 @@ import {
   type BackendOpts,
   type DesignConstraintInputs,
 } from "../lib/backends";
+import { SERVED_CONSTRAINTS } from "./backendConstraintFixtures";
 import { entry, optsWithModel, SERVED_ROSTER, SERVED_VOCAB } from "./backendFixtures";
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
@@ -57,17 +58,38 @@ describe("the slot follows the design's kernel", () => {
     expect(extendedKernelActive(entry("bspline"), on, CATALOG)).toBe(true);
   });
 
-  it("falls back to reduced where the deck refuses it: a buried wire", () => {
-    // razor-2p still refuses the kernel beside a buried wire.
-    const buried = { ...DECK, buried: true };
-    expect(extendedKernelActive(entry("razor-2p"), stock("razor-2p"), buried)).toBe(false);
+  it("falls back to reduced where the deck refuses it: a radius step at a junction", () => {
+    // The sinusoidal Galerkin row: kernel=extended forbids a stepped-radius
+    // junction. Until momwire 0.82 this case was a buried wire on razor-2p.
+    const stepped = { ...DECK, has_stepped_radius_junction: true };
+    const name = "sinusoidal-galerkin";
+    expect(extendedKernelActive(entry(name), stock(name), stepped)).toBe(false);
+    expect(extendedKernelActive(entry("bspline"), stock("bspline"), stepped)).toBe(true);
   });
 
-  it("keeps it on B-spline beside a buried wire (above-ground wires only)", () => {
-    // momwire 0.78 (momwire#1170): B-spline serves the kernel in part, so its
-    // served row no longer forbids it and the deck's default stands.
-    const buried = { ...DECK, buried: true };
-    expect(extendedKernelActive(entry("bspline"), stock("bspline"), buried)).toBe(true);
+  it.each(["bspline", "razor-2p"])(
+    "%s: keeps it on beside a buried wire (above-ground wires only)",
+    (name) => {
+      // B-spline since momwire 0.78 (momwire#1170), razor-2p since 0.82
+      // (momwire#1614): each serves the kernel in part, so neither served
+      // row forbids it and the deck's default stands.
+      const buried = { ...DECK, buried: true };
+      expect(extendedKernelActive(entry(name), stock(name), buried)).toBe(true);
+    },
+  );
+
+  it("no served row forbids the extended kernel beside a buried wire", () => {
+    // When a momwire serves such a row again, this fails and a buried
+    // fallback case belongs back in this file.
+    const rows = Object.values(SERVED_CONSTRAINTS).flatMap((r) => r ?? []);
+    const buriedEk = rows.filter(
+      (r) =>
+        r.axis === "kernel" &&
+        r.value === "extended" &&
+        r.forbids_axis === "wire_position" &&
+        r.forbids_value === "buried",
+    );
+    expect(buriedEk).toEqual([]);
   });
 
   it("says +EK on the chip where the default is in force", () => {
