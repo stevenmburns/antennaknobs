@@ -13,7 +13,15 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
-from test_ez_import_1958 import DIPOLE, _open, _z, ez_file, insulation_block
+from test_ez_import_1958 import (
+    DIPOLE,
+    PAIR,
+    _open,
+    _z,
+    ez_file,
+    insulation_block,
+    lnet_block,
+)
 
 from antennaknobs.engines._nec_wire import nec_wire_material
 from antennaknobs.ez_import import read_ez
@@ -129,3 +137,60 @@ def test_a_design_default_material_is_not_every_wire():
         == radii["max"]
         == pytest.approx(Builder().build_wire_material().radius)
     )
+
+
+# --- the schematic of a lossy L network (AK#2035 item 3) --------------------
+
+
+def _lossy_lnet(f_var_mhz: float):
+    """A series coil and shunt capacitor whose R varies with frequency from
+    `f_var_mhz` (0 = fixed R): EZNEC's spelling of a part's Q."""
+    rlc = [((0.5, 1e-6, 0.0, f_var_mhz, "S"), (0.02, 0.0, 200e-12, f_var_mhz, "S"))]
+    return _open(
+        ez_file(
+            PAIR,
+            lnet_type="R",
+            blocks=[lnet_block([((1, 50.0), (2, 50.0), 0j, 0j)], rlc)],
+            counts=(0, 0, 1, 0),
+        )
+    )
+
+
+def _drawn(cls):
+    from antennaknobs.schematic import lower
+
+    b = cls()
+    sch = lower(b.build_network(), freq_mhz=b.freq)
+    return [(e.kind, e.orient, e.sublabel) for blk in sch.blocks for e in blk.elements]
+
+
+def test_a_lossy_l_network_draws_as_its_coil_and_capacitor():
+    """Its parts' R grows with frequency, so it solves as a computed 2-port;
+    the drawing evaluates that 2-port at the drawing frequency and finds the
+    L shape, rather than one opaque box."""
+    from antennaknobs.network import TouchstoneTwoPort
+
+    cls = _lossy_lnet(7.0)
+    branches = cls().build_network().branches
+    assert [b for b in branches if isinstance(b, TouchstoneTwoPort)]
+    drawn = _drawn(cls)
+    kinds = [(k, o) for k, o, _ in drawn]
+    assert ("inductor", "series") in kinds and ("capacitor", "shunt") in kinds
+    assert not [k for k, *_ in drawn if k == "box"]
+    assert all(
+        sub.startswith("Q ") for k, _, sub in drawn if k in ("inductor", "capacitor")
+    )
+
+
+def test_a_measured_two_port_keeps_its_box():
+    from antennaknobs.network import TouchstoneTwoPort
+    from antennaknobs.schematic import default_elements
+    from antennaknobs.touchstone import Touchstone
+
+    ts = Touchstone.__new__(Touchstone)
+    br = TouchstoneTwoPort.__new__(TouchstoneTwoPort)
+    object.__setattr__(br, "a", "a")
+    object.__setattr__(br, "b", "b")
+    object.__setattr__(br, "data", ts)
+    (el,) = default_elements(br, None, 7.0)
+    assert (el.kind, el.label) == ("box", "measured 2-port")
