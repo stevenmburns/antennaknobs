@@ -5558,6 +5558,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                 p_in=p_in,
                 plane=plane,
                 nt_freq_mhz=nt_freq() if callable(nt_freq) else None,
+                freq_mhz=meas_freq,
             ),
             color="currentColor",
         )

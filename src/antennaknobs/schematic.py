@@ -384,7 +384,9 @@ def _val(v):
     return f"{v:.{places}f}".rstrip("0").rstrip(".") if places else f"{v:.0f}"
 
 
-def default_elements(branch, freq_mhz: float | None = None) -> tuple[Element, ...]:
+def default_elements(
+    branch, freq_mhz: float | None = None, draw_freq_mhz: float | None = None
+) -> tuple[Element, ...]:
     """The fallback picture for a branch with no author-supplied fragment.
 
     Deliberately plain: enough to see that the element is there and what type
@@ -393,6 +395,8 @@ def default_elements(branch, freq_mhz: float | None = None) -> tuple[Element, ..
     `freq_mhz` is the frequency a fixed `Admittance` was frozen at (an EZNEC
     ``NT`` card's ``FR``), which turns its susceptances into the C and L values
     EZNEC shows; without it they are labelled in siemens (AK#1890).
+    `draw_freq_mhz` is the frequency the drawing is for, at which a computed
+    (formula, not file) 2-port is evaluated to find its shape (AK#2035).
     """
     if isinstance(branch, TL):
         return (series("coax", f"{_val(branch.z0)} Ω", _fmt_len(branch.length)),)
@@ -418,7 +422,9 @@ def default_elements(branch, freq_mhz: float | None = None) -> tuple[Element, ..
     if isinstance(branch, TouchstoneLoad):
         return (shunt("box", "measured 1-port"),)
     if isinstance(branch, TouchstoneTwoPort):
-        return (series("box", "measured 2-port"),)
+        return _computed_two_port_elements(branch, draw_freq_mhz) or (
+            series("box", "measured 2-port"),
+        )
     if isinstance(branch, Admittance):
         return _admittance_elements(branch, freq_mhz) or (series("box", "admittance"),)
     return (series("box", type(branch).__name__),)
@@ -499,6 +505,25 @@ def _admittance_elements(br, freq_mhz: float | None):
             loss_db = 20.0 * math.log10(math.e) * abs(gl.real)
             return (series("coax", f"{_val(z0.real)} Ω line", f"{_val(loss_db)} dB"),)
     return None
+
+
+def _computed_two_port_elements(br, freq_mhz: float | None):
+    """A 2-port whose Y is a formula rather than a measurement, drawn by its
+    shape at `freq_mhz` (AK#2035); None for a measured file or no frequency.
+
+    An EZNEC L network whose parts have a frequency-variable R (its parts' Q,
+    R growing as the square root of f) cannot be a `TwoPort` plus `Shunt`,
+    whose Q model grows as f, so the importer keeps it as a frequency-
+    dependent 2-port. Its Y at the drawing frequency has the same L shape a
+    fixed NT card's has (AK#1890), with its Q from that frequency's loss."""
+    from .touchstone import Touchstone
+
+    data = br.data
+    if not freq_mhz or isinstance(data, Touchstone) or not hasattr(data, "y_at"):
+        return None
+    y = data.y_at(freq_mhz * 1e6)
+    shim = Admittance(ports=(br.a, br.b), y=tuple(tuple(row) for row in y))
+    return _admittance_elements(shim, freq_mhz)
 
 
 def _rlc_kind(br):
@@ -733,7 +758,14 @@ def _walk(branches, start, targets, is_datum, used=frozenset()):
 
 
 def lower(
-    net, *, title: str = "", budget=None, p_in=None, plane=None, nt_freq_mhz=None
+    net,
+    *,
+    title: str = "",
+    budget=None,
+    p_in=None,
+    plane=None,
+    nt_freq_mhz=None,
+    freq_mhz=None,
 ) -> Schematic:
     """`Network` → :class:`Schematic`.
 
@@ -755,6 +787,8 @@ def lower(
 
     ``nt_freq_mhz`` is the frequency a deck's fixed ``NT`` admittances were
     written at (AK#1890), which labels an L network's elements in pF and µH.
+    ``freq_mhz`` is the frequency being drawn (the measurement frequency), at
+    which a computed 2-port is drawn by its shape (AK#2035).
     """
     sch = Schematic(
         source=net.sources[0].port if net.sources else "",
@@ -953,7 +987,7 @@ def lower(
             sch.attachments.append(
                 Block(
                     label=paths[idx][:-1] or type(br).__name__,
-                    elements=default_elements(br, nt_freq_mhz),
+                    elements=default_elements(br, nt_freq_mhz, freq_mhz),
                     path=paths[idx],
                     watts=burned(paths[idx]) if paths[idx] else burned_bare(idx),
                     nodes=tuple(ts),
@@ -1013,7 +1047,7 @@ def lower(
         out = []
         for st in steps:
             br = branches[st.idx]
-            els = default_elements(br, nt_freq_mhz)
+            els = default_elements(br, nt_freq_mhz, freq_mhz)
             if isinstance(br, Admittance) and st.pair_in[0] != br.ports[0]:
                 # Walked from its second port: an L network's shunt is on the
                 # side the walk ENTERS, so the symbols run the other way.
@@ -1055,7 +1089,8 @@ def lower(
         frag = fragment_of(net, path) if path else None
         if frag is None:
             return sum(
-                len(default_elements(branches[st.idx], nt_freq_mhz)) for st in group[:k]
+                len(default_elements(branches[st.idx], nt_freq_mhz, freq_mhz))
+                for st in group[:k]
             )
         formals = (getattr(net, "composite_nodes", None) or {}).get(path, {})
         for i, e in enumerate(frag):
@@ -1148,7 +1183,7 @@ def lower(
                             leg=rib_leg.get(rib, "signal"),
                             balanced=rib in rungs,
                         )
-                        for e in default_elements(branches[rib], nt_freq_mhz)
+                        for e in default_elements(branches[rib], nt_freq_mhz, freq_mhz)
                     )
             out.append(
                 Block(
@@ -1206,7 +1241,7 @@ def lower(
                 sch.blocks.append(
                     Block(
                         label=paths[idx][:-1] or type(branches[idx]).__name__,
-                        elements=default_elements(branches[idx], nt_freq_mhz),
+                        elements=default_elements(branches[idx], nt_freq_mhz, freq_mhz),
                         path=paths[idx],
                         watts=burned(paths[idx]) if paths[idx] else burned_bare(idx),
                     )
