@@ -534,10 +534,19 @@ class PyNECEngine(SimulationEngine):
     # two places that want it: the SimNEC portal, whose deck drops the LD cards,
     # and the test that pins how far the two spellings differ.
     _jacket_pair = True
+    # Set by a writer that carries a jacket's loss tangent in its own spelling
+    # (SimNEC's W7EL directive, AK#2035); every other NEC path refuses it.
+    _lossy_jacket_elsewhere = False
 
     def _material(self, radius, spec):
         sigma = spec.conductivity if spec is not None else WIRE_CONDUCTIVITY
-        return nec_wire_material(radius, sigma, spec, pair=self._jacket_pair)
+        return nec_wire_material(
+            radius,
+            sigma,
+            spec,
+            pair=self._jacket_pair,
+            lossy_jacket_elsewhere=self._lossy_jacket_elsewhere,
+        )
 
     def _material_for(self, t):
         """One build_wires() entry's GW radius, LD 5 conductivity and LD 2

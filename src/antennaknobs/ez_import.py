@@ -2075,28 +2075,35 @@ def _wire_cards(dk: _Deck) -> None:
 def _insulation(dk: _Deck, deck: NecDeck) -> NecDeck:
     m = dk.m
     out = []
+    lossy = []
     for k, (eps, th, tand) in enumerate(m.insulation, 1):
         if th == 0:
             continue
-        if th < 0 or eps < 1:
+        if th < 0 or eps < 1 or not 0 <= tand < 1:
             raise EzMalformed(
-                m.name, f"wire {k} insulation", f"thickness {th} m, eps_r {eps}"
-            )
-        if tand:
-            raise EzNotRepresentable(
                 m.name,
                 f"wire {k} insulation",
-                f"a jacket with loss tangent {tand:g} (a jacket here is lossless)",
+                f"thickness {th} m, eps_r {eps}, loss tangent {tand:g}",
             )
-        if eps == 1:
+        if eps == 1 and not tand:
             continue  # air: no jacket
         out.append((k - 1, (m.wires[k - 1].diameter / 2.0 + th, eps)))
+        if tand:
+            # The jacket's dielectric loss (AK#2035), served by momwire#765.
+            lossy.append((k - 1, tand))
     if out:
         dk.notes.append(
             f"{len(out)} insulated wire{'s' if len(out) != 1 else ''}: each wears a jacket of "
+            "the file's thickness, permittivity and loss tangent."
+            if lossy
+            else f"{len(out)} insulated wire{'s' if len(out) != 1 else ''}: each wears a jacket of "
             "the file's thickness and permittivity."
         )
-    return replace(deck, wire_insulation=tuple(out)) if out else deck
+    if not out:
+        return deck
+    return replace(
+        deck, wire_insulation=tuple(out), wire_insulation_loss_tangent=tuple(lossy)
+    )
 
 
 def _attach_customs(m: EzModel, dk: _Deck, deck: NecDeck) -> NecDeck:

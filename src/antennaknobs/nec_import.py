@@ -722,6 +722,10 @@ class NecDeck:
     # reported is one member of the electrically-equivalent family that
     # inductance implies, not a measurement of the physical jacket.
     wire_insulation: tuple[tuple[int, tuple[float, float]], ...] = ()
+    # A jacket's dielectric loss tangent (AK#2035): (wire index, tan δ) for
+    # a wire in wire_insulation whose jacket is lossy. No NEC card carries
+    # one, so only the .ez and SimNEC readers set it.
+    wire_insulation_loss_tangent: tuple[tuple[int, float], ...] = ()
     # The conductor radius an LD 2 jacket-pair inversion (issue #1591)
     # recovered for a wire whose GW card carries the fattened equivalent
     # radius a' instead: (wire index, true conductor radius m). Overrides
@@ -2252,6 +2256,7 @@ class NecDeck:
 
         sigma_by_wire = dict(self.wire_conductivity)
         ins_by_wire = dict(self.wire_insulation)
+        tand_by_wire = dict(self.wire_insulation_loss_tangent)
         radius_by_wire = dict(self.wire_conductor_radius)
 
         def spec_for(i, w):
@@ -2274,6 +2279,7 @@ class NecDeck:
                 conductivity=sigma_by_wire.get(i, self.conductivity),
                 insulation_radius=ins[0] if ins else None,
                 insulation_eps_r=ins[1] if ins else None,
+                insulation_loss_tangent=tand_by_wire.get(i) if ins else None,
             )
 
         tups = []

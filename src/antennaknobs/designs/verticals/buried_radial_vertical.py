@@ -600,7 +600,12 @@ class Builder(AntennaBuilder):
         # not the antenna anyone builds and is worth ~15-30 ohm of spurious
         # reactance, the trap that sent momwire#874's first reading the wrong
         # way.
-        bare = dataclasses.replace(spec, insulation_radius=None, insulation_eps_r=None)
+        bare = dataclasses.replace(
+            spec,
+            insulation_radius=None,
+            insulation_eps_r=None,
+            insulation_loss_tangent=None,
+        )
 
         tups = []
         for i in range(n_radials):

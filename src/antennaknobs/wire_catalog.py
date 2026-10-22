@@ -89,6 +89,9 @@ class WireSpec:
     conductivity: float | None = None  # S/m; None = PEC
     insulation_radius: float | None = None  # jacket outer radius, m
     insulation_eps_r: float | None = None  # jacket relative permittivity
+    # The jacket's dielectric loss tangent tan δ (AK#2035, momwire#765);
+    # None or 0 is a lossless jacket. Needs insulation_radius.
+    insulation_loss_tangent: float | None = None
     weight_g_per_m: float = 0.0  # conductor + jacket
 
 
