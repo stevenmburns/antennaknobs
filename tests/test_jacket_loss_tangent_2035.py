@@ -17,6 +17,8 @@ from test_ez_import_1958 import DIPOLE, _open, _z, ez_file, insulation_block
 
 from antennaknobs.engines._nec_wire import nec_wire_material
 from antennaknobs.ez_import import read_ez
+from antennaknobs.web import server  # noqa: F401 — before adapter: import order
+from antennaknobs.web import adapter
 from antennaknobs.wire_catalog import wire_from_catalog
 
 PVC = (3.5, 0.001)  # eps_r, radial thickness m
@@ -88,3 +90,42 @@ def test_a_lossy_jacket_round_trips_through_simnecs_w7el(tmp_path):
     path.write_text(ssn)
     for t in builder_from_file(str(path))().build_wires():
         assert as_wire(t).spec.insulation_loss_tangent == pytest.approx(0.02)
+
+
+# --- the solver settings' wire radius on an opened file (AK#2035 item 1) ----
+
+
+THICK = [(0.0, -5.0, 10.0, 0.0, 5.0, 10.0, 0.127, 21)]  # a 5-inch dipole
+
+
+def test_an_opened_files_preview_names_its_own_radius():
+    """The slot's field shows 0.0005 ("auto"), which a file never uses; the
+    preview carries the file's radius so the field can say so."""
+
+    ex = adapter._make_example("user.thick", _open(ez_file(THICK)), defer_hints=True)
+    g = ex.momwire_geometry({})
+    assert g["design_radii"] == {
+        "min": pytest.approx(0.0635),
+        "max": pytest.approx(0.0635),
+        "every_wire": True,
+    }
+
+
+def test_a_design_that_names_no_radius_previews_none():
+    from antennaknobs.designs.dipoles.ocf_dipole import Builder
+
+    ex = adapter._make_example("user.ocf", Builder, defer_hints=True)
+    assert ex.momwire_geometry({})["design_radii"] is None
+
+
+def test_a_design_default_material_is_not_every_wire():
+    from antennaknobs.designs.dipoles.pota_invvee import Builder
+
+    ex = adapter._make_example("user.pota", Builder, defer_hints=True)
+    radii = ex.momwire_geometry({})["design_radii"]
+    assert radii["every_wire"] is False
+    assert (
+        radii["min"]
+        == radii["max"]
+        == pytest.approx(Builder().build_wire_material().radius)
+    )

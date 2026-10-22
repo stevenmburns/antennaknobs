@@ -613,6 +613,33 @@ export const BSPLINE_DEFAULT_OPTS: BSplineOpts = {
 // segments/wire, whose per-backend default the roster carries.
 export const DEFAULT_WIRE_RADIUS = 0.0005;
 
+/** The radii a design names for itself (AK#2035), as the geometry preview
+ *  reports them. */
+export type DesignRadii = { min: number; max: number; every_wire: boolean };
+
+/** What the "wire radius" field actually does on this design, or null when it
+ *  IS the radius (AK#2035). The field's 0.0005 is "auto", and a file deck
+ *  names every wire's radius, so a bare 0.0005 beside a 5-inch dipole read as
+ *  the solver using the wrong wire. */
+export function wireRadiusNote(
+  radii: DesignRadii | null | undefined,
+  wireRadius: number,
+): string | null {
+  if (!radii) return null;
+  const fmt = (r: number) => `${Number(r.toPrecision(4))}`;
+  const span =
+    radii.min === radii.max
+      ? `${fmt(radii.min)} m`
+      : `${fmt(radii.min)}–${fmt(radii.max)} m`;
+  if (radii.every_wire) {
+    return `Every wire's radius comes from the design (${span}), so this field changes nothing.`;
+  }
+  if (wireRadius === DEFAULT_WIRE_RADIUS) {
+    return `0.0005 means auto: the design's own radius (${span}) is used.`;
+  }
+  return `Replaces the design's radius (${span}) on wires that don't set their own.`;
+}
+
 // One slot's solver settings. `schema` holds the served generic knobs keyed
 // by wire key; the two optional members are the bespoke panels' state,
 // present exactly when the entry names that panel.
