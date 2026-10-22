@@ -1343,7 +1343,7 @@ The controls themselves are drawn from the served option catalogue rather
 than a hand-written panel per engine, so a knob appears exactly when the
 engine behind the tab takes it, with the server's own bounds and captions.
 When the loaded design cannot be solved with a tab's current settings — a
-buried deck under the extended kernel on `razor-2p`, say — the tab says so inline with
+buried deck under `hmatrix`'s ACA solve, say — the tab says so inline with
 momwire's own refusal sentence and the issue it cites, and there is no
 *Solve anyway*: momwire would raise, so an override would buy an error
 dialog rather than a result.
@@ -1432,8 +1432,11 @@ from momwire's own table of couplings, never retyped here.
   freedom bypass the very kernels the extended kernel corrects
   (momwire#249). The two grey each other out, so you can always back out of
   either.
-- **A buried wire** cannot be solved under it (momwire#553): on a deck with
-  a conductor below the interface the tab says so and withholds the solve.
+- **A buried wire** keeps the standard kernel. On the B-spline tab (since
+  momwire 0.78, momwire#1170) and `razor-2p` (since momwire 0.82,
+  momwire#1614) the extended kernel acts on the wires above the ground and
+  the buried wires keep the standard one, which the solve's advisory says;
+  the sinusoidal tabs do not serve it beside a buried wire at all.
 
 **A deck read as NEC-4 or NEC-5 opens with the check on.** NEC-5's kernel
 behaves as the extended one, and NEC-4's single thin-wire model is
@@ -1444,9 +1447,9 @@ NEC-2 turns it back off unless you set it yourself (a NEC-2 deck's `EK`
 card is the card's word, as before). A NEC-4 deck's `EK` card is ignored,
 as NEC-4 ignores it, and the import note says so; a `VC` card is noted as
 not modelled. On a solver that cannot run the kernel here — the
-reduced-only Pulse tab, a buried wire — the default quietly stays off and
-the solve's advisory names the reason, rather than refusing a solve you
-never asked to be extended.
+reduced-only Pulse tab, a buried wire on a sinusoidal tab — the default
+quietly stays off and the solve's advisory names the reason, rather than
+refusing a solve you never asked to be extended.
 
 **PyNEC** has no such check — the toggle drives momwire's kernel. Changing a
 slot's solver resets the check along with that solver's other options, so an
