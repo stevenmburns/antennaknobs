@@ -3990,6 +3990,7 @@ function DesignSessionBody({
               currentExample?.converged_feed_suggested ?? false
             }
             densityNote={densityNotes[gearOpen]}
+            designRadii={preview?.design_radii ?? null}
             opts={slots[gearOpen].opts}
             onChangeBackend={(b) => {
               backendTouchedRef.current = true;

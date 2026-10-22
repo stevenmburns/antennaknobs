@@ -4196,6 +4196,28 @@ def _backend_restriction(required) -> dict | None:
     return {"backends": list(required), "reason": reason}
 
 
+def _design_radii(eng) -> dict | None:
+    """The radii the design sets for itself, for the slot's "wire radius"
+    field to show beside its "auto" value (AK#2035).
+
+    The field's 0.0005 means "auto": a wire with its own spec keeps its own
+    radius whatever the field says, and a spec-less wire takes the design's
+    `build_wire_material()` radius at auto (the field overrides that one). So
+    `{"min", "max"}` spans the radii the design itself names, `every_wire`
+    says the field has no wire left to move, and None means the design names
+    no radius (the field IS the radius). A file opened from disk names every
+    wire's radius, which is where the 0.0005 on show read as wrong."""
+    specs = list(getattr(eng, "_polyline_specs", None) or ())
+    stock = getattr(eng, "_wire_spec", None)
+    own = [s.radius for s in specs if s is not None]
+    every = bool(specs) and len(own) == len(specs)
+    if stock is not None and not every:
+        own.append(stock.radius)
+    if not own:
+        return None
+    return {"min": float(min(own)), "max": float(max(own)), "every_wire": every}
+
+
 def _has_stepped_radius_junction(cls, params=None) -> bool:
     """Whether any junction in this design joins wires of DIFFERENT radii.
 
@@ -4947,6 +4969,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "multi_feed": hints()["multi_feed"],
             "default_view": hints()["default_view"],
             "default_backend": hints()["default_backend"],
+            "design_radii": _design_radii(eng),
             "preview": True,
         }
 

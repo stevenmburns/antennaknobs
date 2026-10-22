@@ -301,6 +301,11 @@ export type SolveResponse = {
    *  racing the preview. Absent / null = no recommendation. Plain string —
    *  may name a retired backend; normalizeBackend before use. */
   default_backend?: string | null;
+  /** The radii the design names for itself (AK#2035), on the geometry
+   *  preview: the span, and whether every wire names its own (the slot's
+   *  "wire radius" field then moves nothing). Null = the design names none,
+   *  so the field is the radius. Absent on an older server. */
+  design_radii?: { min: number; max: number; every_wire: boolean } | null;
   /** Set when the solve/geometry request failed — e.g. a user design's
    *  build_wires() raised. Carries a short, formatted message (type + file +
    *  line). Mutually exclusive with a normal result payload. */

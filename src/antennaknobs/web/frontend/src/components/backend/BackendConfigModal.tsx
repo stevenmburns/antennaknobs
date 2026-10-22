@@ -24,6 +24,8 @@ import {
   type BackendOpts,
   type FeedModel,
   type Slot,
+  type DesignRadii,
+  wireRadiusNote,
 } from "../../lib/backends";
 import { NumberField } from "./fields";
 import { CompositionLine } from "./CompositionLine";
@@ -111,6 +113,9 @@ export type BackendConfigProps = {
   /** The design keeps its own segment counts (a file deck, AK#1432), so N
    *  does nothing and the field gives way to a note saying so (AK#1649). */
   fixedSegmentCounts?: boolean;
+  /** The radii the design names for itself (AK#2035), from the geometry
+   *  preview; the wire-radius field says what it does on this design. */
+  designRadii?: DesignRadii | null;
   opts: BackendOpts;
   onChangeBackend: (b: BackendEntry) => void;
   onPatch: (patch: Partial<BackendOpts>) => void;
@@ -136,6 +141,7 @@ export function BackendConfigModal({
   suggestConvergedFeed,
   densityNote = null,
   fixedSegmentCounts = false,
+  designRadii = null,
   opts,
   onChangeBackend,
   onPatch,
@@ -293,6 +299,11 @@ export function BackendConfigModal({
             step={0.0001}
             onChange={(v) => onPatch({ wireRadius: v })}
           />
+          {wireRadiusNote(designRadii, opts.wireRadius) && (
+            <em className="density-note" role="note">
+              {wireRadiusNote(designRadii, opts.wireRadius)}
+            </em>
+          )}
 
           {/* The extended thin-wire kernel (issue #849) sits next to the wire
               radius on purpose — it is the knob that decides how the on-axis
