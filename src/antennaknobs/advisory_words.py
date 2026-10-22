@@ -107,10 +107,11 @@ def _far_mesh(text: str, _locate) -> str | None:
 
 
 def _ek_above_ground(text: str, _locate) -> str | None:
-    """momwire 0.78's B-spline basis serves the extended kernel on a deck
-    with buried wires in part (momwire#1170): the pairs above the ground take
-    it, the buried wires keep the standard kernel. One summary for both ways
-    of getting there, an explicit request and a deck whose dialect asks."""
+    """B-spline (momwire 0.78, momwire#1170) and razor-2p (momwire 0.82,
+    momwire#1614) serve the extended kernel on a deck with buried wires in
+    part: the pairs above the ground take it, the buried wires keep the
+    standard kernel. One summary for both ways of getting there, an explicit
+    request and a deck whose dialect asks."""
     m = _EK_ABOVE.search(text)
     if m is None:
         return None
@@ -158,11 +159,12 @@ def summary(category: str, text: str, locate=None) -> str | None:
 #
 # Four pieces, each its own function so one can change without the others:
 # WHY the kernel was on, WHAT refused it, WHAT WAS AFFECTED, and what the
-# user can do. Since momwire 0.78 the B-spline basis serves a buried deck
-# in part (extended kernel above the ground, standard kernel on the buried
-# wires), so on that basis nothing falls back and this advisory is not
-# composed; momwire's own `ExtendedKernelAboveGround` says what happened,
-# summarised by `_ek_above_ground` above.
+# user can do. The B-spline basis (since momwire 0.78) and razor-2p (since
+# momwire 0.82) serve a buried deck in part (extended kernel above the
+# ground, standard kernel on the buried wires), so on those two nothing falls
+# back and this advisory is not composed; momwire's own
+# `ExtendedKernelAboveGround` says what happened, summarised by
+# `_ek_above_ground` above.
 
 _DIALECT_WORD = {"nec4": "NEC-4", "nec5": "NEC-5"}
 
@@ -265,14 +267,14 @@ _EK_WHAT_TO_DO = {
         "options (the gear beside the solver slot) and switch off "
         '"K≥3 junction singular enrichment".'
     ),
-    # Only the B-spline basis (bs2, the default) serves the extended kernel
-    # beside a buried wire, and only on the wires above the ground;
-    # `test_ek_advisory_wording_1996.py` holds that claim to momwire.
+    # Only the B-spline basis (bs2, the default) and razor-2p serve the
+    # extended kernel beside a buried wire, and only on the wires above the
+    # ground; `test_ek_advisory_wording_1996.py` holds that claim to momwire.
     "buried": (
         "What you can do: to use the extended kernel on the wires above the "
         "ground, open the slot's options (the gear beside the solver slot) "
-        "and choose B-spline (the default). The wires below "
-        "the ground keep the standard kernel on every solver."
+        "and choose B-spline (the default) or Razor (2-point). The wires "
+        "below the ground keep the standard kernel on every solver."
     ),
     # Only some solvers have this limit (in the pinned momwire, the
     # sinusoidal Galerkin one), so another solver is real advice here too.
