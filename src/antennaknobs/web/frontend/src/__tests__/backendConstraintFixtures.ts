@@ -218,16 +218,6 @@ export const SERVED_CONSTRAINTS: Record<string, BackendConstraint[] | null> =
   ],
   "razor-2p": [
     {
-      "axis": "kernel",
-      "value": "extended",
-      "forbids_axis": "wire_position",
-      "forbids_value": "buried",
-      "forbids_is_axis": true,
-      "condition": null,
-      "reason": "extended_kernel=True + a wire below the ground plane is not served: the extended kernel extends every pair of the geometry, and momwire#553 measured neither what that means for a pair spanning two media (the tube expansion's O(a^2) term is written at one wavenumber) nor for the image of a buried source, which lands in the OTHER medium. Solve the buried deck with extended_kernel=False, which is the default",
-      "issue": "momwire#553"
-    },
-    {
       "axis": "wire_position",
       "value": "contact",
       "forbids_axis": "ground_model",
