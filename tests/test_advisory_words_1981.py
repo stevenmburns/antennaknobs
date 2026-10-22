@@ -178,18 +178,20 @@ def test_the_cli_echoes_the_summary_once_and_never_the_far_mesh_one(capsys):
     assert capsys.readouterr().err == "advisory: plain\n"
 
 
-def test_jeffs_deck_keeps_the_extended_kernel_above_ground_on_bspline():
-    # His deck carries EK and a buried stake. Since momwire 0.78 B-spline
-    # serves the kernel on the wires above the ground (momwire#1170), so
-    # nothing falls back and no fallback note is composed.
-    from momwire.bspline import BSplineSolver
+@pytest.mark.parametrize("solver_name", ["BSplineSolver", "RazorSolver"])
+def test_jeffs_deck_keeps_the_extended_kernel_above_ground(solver_name):
+    # His deck carries EK and a buried stake. B-spline (momwire 0.78,
+    # momwire#1170) and razor-2p (momwire 0.82, momwire#1614) serve the
+    # kernel on the wires above the ground, so nothing falls back and no
+    # fallback note is composed.
+    import momwire
 
     from antennaknobs.engines.momwire import MomwireEngine
 
     builder = builder_from_text("g8hul.nec", G8HUL)()
     eng = MomwireEngine(
         builder,
-        solver=BSplineSolver,
+        solver=getattr(momwire, solver_name),
         ground=resolve_ground(_GROUND_UNSET, builder),
         extended_kernel_default=True,
     )
@@ -198,16 +200,17 @@ def test_jeffs_deck_keeps_the_extended_kernel_above_ground_on_bspline():
 
 
 def test_jeffs_deck_says_in_plain_words_why_the_kernel_fell_back():
-    # On razor-2p, which still refuses the kernel beside a buried wire, the
-    # note used to say so in the solver's own words, issue numbers and all.
-    from momwire import RazorSolver
+    # On the sinusoidal Galerkin basis, which still refuses the kernel
+    # beside a buried wire, the note used to say so in the solver's own
+    # words, issue numbers and all.
+    from momwire import SinusoidalGalerkinSolver
 
     from antennaknobs.engines.momwire import MomwireEngine
 
     builder = builder_from_text("g8hul.nec", G8HUL)()
     eng = MomwireEngine(
         builder,
-        solver=RazorSolver,
+        solver=SinusoidalGalerkinSolver,
         ground=resolve_ground(_GROUND_UNSET, builder),
         extended_kernel_default=True,
     )

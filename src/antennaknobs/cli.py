@@ -963,8 +963,9 @@ _ECHOED = ("FeedPlacement", "ExtendedKernel")
 # momwire's deck-specific advisories echo their plain-words summary (AK#1981):
 # before it, the engine captured them and a command printed nothing at all.
 # RazorFarMeshClass is left out because it fires on every razor-2p solve.
-# ExtendedKernelAboveGround (momwire 0.78) takes the place of the
-# "ExtendedKernel" fallback note on a buried deck solved with B-spline.
+# ExtendedKernelAboveGround takes the place of the "ExtendedKernel" fallback
+# note on a buried deck solved with B-spline (momwire 0.78) or razor-2p
+# (momwire 0.82).
 _ECHOED_SUMMARY = (
     "CoarseCrossingNode",
     "SurfaceRadialHeight",

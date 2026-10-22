@@ -111,8 +111,8 @@ DETAILS = {
         "it: this model has wire below the ground, down to 0.5 m deep. "
         f"{HOW_MUCH} What you can do: to use the extended kernel on the wires "
         "above the ground, open the slot's options (the gear beside the "
-        "solver slot) and choose B-spline (the default). The wires below the "
-        "ground keep the standard kernel on every solver."
+        "solver slot) and choose B-spline (the default) or Razor (2-point). "
+        "The wires below the ground keep the standard kernel on every solver."
     ),
     "stepped": (
         "What was affected: the whole solve. Every wire used the standard "
@@ -212,9 +212,10 @@ STEPPED = (
 
 
 GALERKIN = {"solver": SinusoidalGalerkinSolver}
-# Since momwire 0.78 B-spline serves a buried deck in part (momwire#1170), so
-# the buried fallback is a razor-2p (or sinusoidal) one.
-RAZOR = {"solver": RazorSolver}
+# B-spline (momwire 0.78, momwire#1170) and razor-2p (momwire 0.82,
+# momwire#1614) serve a buried deck in part, so the buried fallback is a
+# sinusoidal one.
+BURIED_REFUSER = GALERKIN
 
 
 def _note(text, **kw):
@@ -240,7 +241,7 @@ ENRICHED = {"solver_kwargs": {"use_singular_enrichment": True}}
         (NEC4, {"solver": HarringtonSolver}, ("dialect", "nec4"), "basis"),
         (NEC5, ENRICHED, ("dialect", "nec5"), "enrichment"),
         (NEC4, ENRICHED, ("dialect", "nec4"), "enrichment"),
-        (BURIED, RAZOR, ("dialect", "nec4"), "buried"),
+        (BURIED, BURIED_REFUSER, ("dialect", "nec4"), "buried"),
         (STEPPED, GALERKIN, ("dialect", "nec4"), "stepped"),
         (NEC2_EK, {"solver": HarringtonSolver}, ("card", None), "basis"),
         (NEC2_EK, ENRICHED, ("card", None), "enrichment"),
@@ -310,7 +311,7 @@ def test_a_model_with_no_kernel_default_records_no_reason():
 
 
 def test_a_buried_deck_reports_its_own_depth():
-    note, _eng = _note(BURIED.replace("-0.5", "-1.25"), **RAZOR)
+    note, _eng = _note(BURIED.replace("-0.5", "-1.25"), **BURIED_REFUSER)
     assert "down to 1.25 m deep." in note["text"]
 
 
@@ -329,25 +330,26 @@ def _solvers():
     return [getattr(momwire, n) for n in SOLVER_CLASSES]
 
 
-def test_only_bspline_serves_the_extended_kernel_beside_a_buried_wire():
-    # The buried details send the user to B-spline, and only there. When
-    # another solver serves the extended kernel beside a buried wire, or
-    # B-spline stops, this fails and the words must be revisited rather than
-    # left false.
+def test_only_bspline_and_razor_serve_the_extended_kernel_beside_a_buried_wire():
+    # The buried details send the user to B-spline or razor-2p, and only
+    # there. When another solver serves the extended kernel beside a buried
+    # wire, or either of those stops, this fails and the words must be
+    # revisited rather than left false.
     served = [
         c.__name__
         for c in _solvers()
         if _capability_refusal(c, "buried", "extended_kernel") is None
     ]
-    assert served == ["BSplineSolver"]
+    assert served == ["BSplineSolver", "RazorSolver"]
 
 
-def test_bspline_keeps_the_kernel_on_a_buried_deck_and_says_where():
+@pytest.mark.parametrize("solver", [BSplineSolver, RazorSolver])
+def test_a_partial_solver_keeps_the_kernel_on_a_buried_deck_and_says_where(solver):
     # No fallback note: the kernel stays on. momwire's own advisory says the
     # buried wires kept the standard kernel, in plain words once summarised.
     cls = builder_from_text("d.nec", BURIED)
     eng = MomwireEngine(
-        cls(), solver=BSplineSolver, ground=cls.file_ground,
+        cls(), solver=solver, ground=cls.file_ground,
         extended_kernel_default=True,
     )  # fmt: skip
     assert eng._extended_kernel is True
@@ -377,7 +379,7 @@ def test_some_solver_shows_the_switch_the_basis_details_name():
 
 def test_the_solvers_own_refusal_is_kept_for_developers_only(caplog):
     with caplog.at_level(logging.DEBUG, logger="antennaknobs.engines.momwire"):
-        note, eng = _note(BURIED, **RAZOR)
+        note, eng = _note(BURIED, **BURIED_REFUSER)
     raw = eng._kernel_default_refusal
     # momwire's sentence, whatever it says today, reaches the log and the
     # engine attribute, and none of it reaches the user.
