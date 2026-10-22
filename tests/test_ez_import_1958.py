@@ -477,7 +477,6 @@ def test_an_undefined_value_with_no_reading_stays_refused_on_request():
             {"blocks": [(31, 1, struct.pack("<ii6f", 1, 1, 10, 0, 0, 0, 1, 0))]},
             "plane wave",
         ),
-        ({"blocks": [insulation_block([(3.5, 0.001, 0.01)])]}, "loss tangent"),
         ({"wrho": 1e-7, "wmu": 200.0}, "permeability 200"),
     ],
 )

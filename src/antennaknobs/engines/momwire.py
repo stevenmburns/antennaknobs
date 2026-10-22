@@ -1468,6 +1468,17 @@ class MomwireEngine(SimulationEngine):
                     for e in eff
                 ]
             )
+            # A jacket's loss tangent (AK#2035, momwire#765): NaN is lossless.
+            ins_tand = np.array(
+                [
+                    e.insulation_loss_tangent
+                    if e is not None
+                    and e.insulation_radius is not None
+                    and e.insulation_loss_tangent
+                    else nan
+                    for e in eff
+                ]
+            )
             wants_loading = bool(np.isfinite(cond).any() or np.isfinite(ins_r).any())
             if wants_loading and _solver_supports_wire_loading(self._solver):
                 if np.isfinite(cond).any():
@@ -1475,6 +1486,8 @@ class MomwireEngine(SimulationEngine):
                 if np.isfinite(ins_r).any():
                     self._loading_kwargs["insulation_radius"] = ins_r
                     self._loading_kwargs["insulation_eps_r"] = ins_eps
+                if np.isfinite(ins_tand).any():
+                    self._loading_kwargs["insulation_loss_tangent"] = ins_tand
             elif wants_loading:
                 _logger.warning(
                     "%s doesn't model distributed wire loading; solving the "
@@ -1491,6 +1504,10 @@ class MomwireEngine(SimulationEngine):
                 if spec.insulation_radius is not None:
                     self._loading_kwargs["insulation_radius"] = spec.insulation_radius
                     self._loading_kwargs["insulation_eps_r"] = spec.insulation_eps_r
+                    if spec.insulation_loss_tangent:
+                        self._loading_kwargs["insulation_loss_tangent"] = (
+                            spec.insulation_loss_tangent
+                        )
             else:
                 _logger.warning(
                     "%s doesn't model distributed wire loading; solving the "
@@ -2202,8 +2219,10 @@ class MomwireEngine(SimulationEngine):
         the matching efficiency drop. The loss already lives inside P_in
         (the loading raised the driving-point R), so gain = 4π·U/P_in needs
         no change — this keeps the *reported* efficiency and budget rows
-        truthful about where those watts went. Insulation is reactive and
-        contributes nothing; lossless designs are untouched."""
+        truthful about where those watts went. A lossless jacket is
+        reactive and contributes nothing; a lossy one's dielectric watts
+        (momwire#765, AK#2035) land in the same row. Lossless designs are
+        untouched."""
         self._excited_p_wire = 0.0
         if not self._loading_kwargs:
             return

@@ -334,12 +334,23 @@ def test_wires_with_different_jackets_are_refused_by_name():
         export_ssn(Mixed(), ground=None)
 
 
-def test_a_lossy_w7el_insulation_is_refused_on_import():
-    with pytest.raises(ValueError, match="loss tangent"):
+def test_a_lossy_w7el_insulation_is_carried_on_import():
+    """AK#2035: the loss tangent rides every wire's jacket (momwire#765)."""
+    deck = parse_ssn(
+        _script_ssn("").replace(
+            "P2 w2 gnd;\n",
+            'P2 w2 gnd;\nNECOptions.Insulation("W7EL", 5e-4, 3.5, 0.05);\n',
+        )
+    ).deck
+    assert dict(deck.wire_insulation_loss_tangent) == {0: 0.05, 1: 0.05}
+
+
+def test_a_w7el_loss_tangent_out_of_range_is_refused_on_import():
+    with pytest.raises(ValueError, match="loss tangent of -0.1"):
         parse_ssn(
             _script_ssn("").replace(
                 "P2 w2 gnd;\n",
-                'P2 w2 gnd;\nNECOptions.Insulation("W7EL", 5e-4, 3.5, 0.05);\n',
+                'P2 w2 gnd;\nNECOptions.Insulation("W7EL", 5e-4, 3.5, -0.1);\n',
             )
         )
 

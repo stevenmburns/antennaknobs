@@ -423,6 +423,13 @@ def export_nec(
     # with the writer-only flag that takes the native path and records those
     # sources for `_gyrator_cards`. Every other reason still refuses.
     engine_cls = deck_engine_cls(dialect)
+    if not jacket_pair:
+        # The inductance-only spelling is SimNEC's, whose W7EL directive
+        # carries a jacket's loss tangent (AK#2035); the NEC cards' refusal of
+        # a lossy jacket is for decks that would solve it as lossless.
+        engine_cls = type(
+            engine_cls.__name__, (engine_cls,), {"_lossy_jacket_elsewhere": True}
+        )
     probe = engine_cls(builder, ground=ground, wire_radius=wire_radius)
     reasons = probe._reducer_reasons()
     gyrators = reasons == frozenset({"current-source"})

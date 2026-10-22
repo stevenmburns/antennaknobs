@@ -1844,8 +1844,8 @@ class _Script:
         # node pair, and the NECSource statements attaching them.
         self._r_components: dict[tuple[str, str], tuple[str, str]] = {}
         self._load_sources: list[tuple[re.Match, str]] = []
-        # NECOptions.Insulation("W7EL", ...): (radial thickness m, eps_r).
-        self.insulation: tuple[float, float] | None = None
+        # NECOptions.Insulation("W7EL", ...): (radial thickness m, eps_r, loss tangent).
+        self.insulation: tuple[float, float, float] | None = None
         # Every assignment the script makes, in order (AK#1714): what
         # `_DclCards` reads the cards' names from.
         self.assigns: list[_Assign] = []
@@ -2013,12 +2013,14 @@ class _Script:
         if m:
             thick = _fnum(m.group(1), where, "Insulation thickness")
             eps_r = _fnum(m.group(2), where, "Insulation permittivity")
-            if _fnum(m.group(3), where, "Insulation loss tangent") != 0.0:
+            tand = _fnum(m.group(3), where, "Insulation loss tangent")
+            if not 0.0 <= tand < 1.0:
                 raise ValueError(
-                    f"{where}: {stmt!r} gives the insulation a loss tangent, "
-                    "which the insulated-wire model here does not carry"
+                    f"{where}: {stmt!r} gives the insulation a loss tangent of "
+                    f"{tand:g}; it must be at least 0 and below 1"
                 )
-            self.insulation = (thick, eps_r) if thick > 0.0 else None
+            # The jacket's dielectric loss (AK#2035), served by momwire#765.
+            self.insulation = (thick, eps_r, tand) if thick > 0.0 else None
             return
         if _ENGINE_GUARD.match(stmt):
             return
@@ -2538,11 +2540,14 @@ def parse_ssn(
     if script.insulation is not None:
         # The circuit's default insulation covers every wire (AK#1683): a
         # jacket of that radial thickness over each GW conductor radius.
-        thick, eps_r = script.insulation
+        thick, eps_r, tand = script.insulation
         deck = replace(
             deck,
             wire_insulation=tuple(
                 (i, (w.radius + thick, eps_r)) for i, w in enumerate(deck.wires)
+            ),
+            wire_insulation_loss_tangent=tuple(
+                (i, tand) for i in range(len(deck.wires)) if tand
             ),
         )
 

@@ -148,6 +148,7 @@ def nec_wire_material(
     spec: WireSpec | None,
     *,
     pair: bool = True,
+    lossy_jacket_elsewhere: bool = False,
 ) -> NecWireMaterial:
     """The NEC cards for a wire of conductor radius ``radius`` [m] and
     ``conductivity`` [S/m, None = PEC], jacketed as ``spec`` says.
@@ -167,6 +168,17 @@ def nec_wire_material(
     if not b > radius:
         raise ValueError(
             f"insulation_radius ({b}) must exceed the conductor radius ({radius})"
+        )
+    tand = getattr(spec, "insulation_loss_tangent", None)
+    if pair and tand and not lossy_jacket_elsewhere:
+        # AK#2035: the a'+L' pair is a lossless jacket, and no NEC card adds
+        # the jacket's dielectric loss, so a lossy one is refused by name
+        # rather than solved as lossless. `lossy_jacket_elsewhere` is for a
+        # writer that carries the loss in its own spelling (SimNEC's W7EL
+        # directive) and builds the NEC structure only for its geometry.
+        raise ValueError(
+            f"a jacket with loss tangent {tand:g} has no NEC cards: the "
+            "equivalent radius and LD 2 model a lossless jacket"
         )
     inductance = float(insulation_inductance(radius, b, eps_r))
     if not pair:

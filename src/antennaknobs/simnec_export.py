@@ -427,8 +427,8 @@ def _insulation(eng) -> list[str]:
     otherwise. So does this file: SimNEC's default correction is K6OIK, and
     silently solving another insulation model under a NEC-5 engine is what
     the guard prevents. Thickness is the jacket's radial thickness,
-    ``insulation_radius - radius``; the loss tangent is 0, because a
-    ``WireSpec`` has none. The GW cards keep the bare conductor radius, which
+    ``insulation_radius - radius``; the loss tangent is the spec's
+    (AK#2035), 0 when it has none. The GW cards keep the bare conductor radius, which
     is what SimNEC's correction starts from.
 
     The directive is one value for every wire, and the manual documents no
@@ -441,7 +441,8 @@ def _insulation(eng) -> list[str]:
         if eff is not None and eff.insulation_radius:
             thick = eff.insulation_radius - eng._radius_for(t)
             eps_r = eff.insulation_eps_r if eff.insulation_eps_r else 1.0
-            key = (round(thick, 15), eps_r)
+            tand = eff.insulation_loss_tangent or 0.0
+            key = (round(thick, 15), eps_r, tand)
         else:
             key = None
         jackets.setdefault(key, []).append(tag)
@@ -449,7 +450,12 @@ def _insulation(eng) -> list[str]:
         return []
     if len(jackets) > 1:
         groups = "; ".join(
-            ("bare" if k is None else f"{k[0]:g} m of eps_r {k[1]:g}")
+            (
+                "bare"
+                if k is None
+                else f"{k[0]:g} m of eps_r {k[1]:g}"
+                + (f", loss tangent {k[2]:g}" if k[2] else "")
+            )
             + f" on wire{'s' if len(t) > 1 else ''} {', '.join(map(str, t))}"
             for k, t in jackets.items()
         )
@@ -459,15 +465,23 @@ def _insulation(eng) -> list[str]:
             "design is not exported rather than written with one jacket "
             "applied to all"
         )
-    ((thick, eps_r),) = jackets
+    ((thick, eps_r, tand),) = jackets
     return [
         "// SimNEC applies its own (W7EL) insulated-wire correction, so small",
         "// differences from antennaknobs are expected.",
         "if (NECOptions.Engine == 2)",
-        f'    NECOptions.Insulation("W7EL", {_val(thick)}, {_val(eps_r)}, 0);',
+        f'    NECOptions.Insulation("W7EL", {_val(thick)}, {_val(eps_r)}, {_val(tand) if tand else 0});',
         "else",
         '    errorOutln("NOT USING NEC2: the W7EL insulation needs the NEC2 engine");',
     ]
+
+
+class _SsnNecEngine(PyNECEngine):
+    """The NEC structure SimNEC's export reads its geometry and circuit from.
+    A jacket's loss tangent rides the W7EL directive (AK#2035), so the NEC
+    cards' refusal of a lossy jacket does not apply here."""
+
+    _lossy_jacket_elsewhere = True
 
 
 def _feed_loc(cards) -> tuple[int, int] | None:
@@ -588,7 +602,7 @@ def _antenna_portal(
     # `nec_export.export_nec` itself: this call IS that function, so its
     # `refuse_nec2_geometry` already refuses any below-z=0 wire before a
     # SimNEC script can be built.
-    eng = PyNECEngine(builder, ground=ground, wire_radius=wire_radius)
+    eng = _SsnNecEngine(builder, ground=ground, wire_radius=wire_radius)
     deck = export_nec(
         builder,
         ground=ground,
@@ -1249,7 +1263,7 @@ def export_ssn(
     # PyNECEngine raises ValueError here for PortAtEnd / PortAtVertex
     # designs — NEC-2 (and therefore SimNEC's NEC block) has no
     # junction-node port and no segment-end source (issues #579, #898).
-    eng = PyNECEngine(builder, ground=ground, wire_radius=wire_radius)
+    eng = _SsnNecEngine(builder, ground=ground, wire_radius=wire_radius)
     if eng._use_reducer:
         # Station path (issue #604): circuit elements from the reducer
         # branches, the antenna alone in the NEC block, driven at the
