@@ -27,6 +27,16 @@ export const SERVED_CONSTRAINTS: Record<string, BackendConstraint[] | null> =
       "issue": "momwire#212"
     },
     {
+      "axis": "kernel",
+      "value": "extended",
+      "forbids_axis": "wire_position",
+      "forbids_value": "buried",
+      "forbids_is_axis": true,
+      "condition": null,
+      "reason": "extended_kernel=True + a wire below the ground plane is not served: the extended kernel extends every pair of the geometry, and momwire#553 measured neither what that means for a pair spanning two media (the tube expansion's O(a^2) term is written at one wavenumber) nor for the image of a buried source, which lands in the OTHER medium. Solve the buried deck with extended_kernel=False, which is the default",
+      "issue": "momwire#1636"
+    },
+    {
       "axis": "wire_position",
       "value": "contact",
       "forbids_axis": "ground_model",
@@ -57,6 +67,16 @@ export const SERVED_CONSTRAINTS: Record<string, BackendConstraint[] | null> =
       "condition": "a radius step at the junction",
       "reason": "extended_kernel=True with a radius step at a junction is not implemented on SinusoidalGalerkinSolver: measured DIVERGENT, not merely inaccurate. On momwire#435's two-wire step deck (10:1 radius step at the midspan junction, 10.19 m dipole @ 14.2 MHz) the extrapolated continuum limit is 7.110 - 483.925j against NEC-5's 132.560 - 11.921j, with the residual GROWING every rung refined (23.2 Ohm -> 285.8 Ohm) and a 286 Ohm dX spread down the ladder \u2014 materially worse than the reduced `sg` row's ~20 Ohm walk-away #435 already documents (that is a formulation gap; this is a divergence). The mechanism is under the mixed end-condition constants the extended delta's end bracket takes at a stepped node \u2014 the same node kind momwire#299 gates for the UNIFORM-radius case, not yet derived here for a step. Use `extended_kernel=False` (the reduced `sg` row, correctly documented as NEC-2-identified rather than NEC-5-accurate on any radius step), or `BSplineSolver(extended_kernel=True)` / `SinusoidalSolver(extended_kernel=True)`, both of which are served on a step (taper-readiness study Sec 2-3, maintainer decision D2, stevenmburns/momwire#398)",
       "issue": "momwire#398"
+    },
+    {
+      "axis": "kernel",
+      "value": "extended",
+      "forbids_axis": "fill",
+      "forbids_value": "direct",
+      "forbids_is_axis": false,
+      "condition": "a buried deck with a crossing junction",
+      "reason": "extended_kernel=True on a buried deck with a crossing junction is not served by SinusoidalGalerkinSolver's direct fill (fill='direct'): the extended delta's end cap at the crossing node has no partner in the fill, because the node's other member is in the other medium and its terms come from the crossing fill on the reduced kernel. Measured on the momwire#524 crossing deck: with the cap removed the extended kernel moved the input impedance by 1.1 ohm at grade 1 and 7.3 ohm at grade 2, with it kept by 237 ohm, where the mixed-potential fill moves it by 0.097 ohm at both grades, within 1e-4 ohm of bs2's partial extended kernel (momwire#1626). Use the default fill='mixed-potential', or extended_kernel=False",
+      "issue": "momwire#1626"
     },
     {
       "axis": "wire_position",
