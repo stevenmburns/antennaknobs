@@ -398,12 +398,12 @@ jobs:
             - 'src/antennaknobs/web/frontend/**'
     - uses: actions/setup-node@v7
       if: steps.filter.outputs.frontend != 'false'
-      # Same pinning as publish.yml's frontend step: Node 20 with the built-in
+      # Same pinning as publish.yml's frontend step: Node 24 with the built-in
       # npm cache keyed on the frontend lockfile. Keep the two in sync — publish
       # builds the very same bundle into the wheel, and a version split there
       # would mean CI green on a bundle the release never builds.
       with:
-        node-version: "20"
+        node-version: "24"
         cache: npm
         cache-dependency-path: src/antennaknobs/web/frontend/package-lock.json
     - name: Build the React frontend
