@@ -23,6 +23,7 @@ from momwire import (
     HarringtonSolver,
     RazorSolver,
     SinusoidalGalerkinSolver,
+    SinusoidalSolver,
 )
 
 from test_ez_import_1958 import DIPOLE, engine_block, ez_file
@@ -111,8 +112,9 @@ DETAILS = {
         "it: this model has wire below the ground, down to 0.5 m deep. "
         f"{HOW_MUCH} What you can do: to use the extended kernel on the wires "
         "above the ground, open the slot's options (the gear beside the "
-        "solver slot) and choose B-spline (the default) or Razor (2-point). "
-        "The wires below the ground keep the standard kernel on every solver."
+        "solver slot) and choose B-spline (the default), Razor (2-point) or "
+        "Sin-Galerkin. The wires below the ground keep the standard kernel on "
+        "every solver."
     ),
     "stepped": (
         "What was affected: the whole solve. Every wire used the standard "
@@ -212,10 +214,11 @@ STEPPED = (
 
 
 GALERKIN = {"solver": SinusoidalGalerkinSolver}
-# B-spline (momwire 0.78, momwire#1170) and razor-2p (momwire 0.82,
-# momwire#1614) serve a buried deck in part, so the buried fallback is a
-# sinusoidal one.
-BURIED_REFUSER = GALERKIN
+# B-spline (momwire 0.78, momwire#1170), razor-2p (momwire 0.82,
+# momwire#1614) and the sinusoidal Galerkin basis (momwire 0.83,
+# momwire#1626) serve a buried deck in part, so the buried fallback is the
+# point-matched sinusoidal one (momwire#1636).
+BURIED_REFUSER = {"solver": SinusoidalSolver}
 
 
 def _note(text, **kw):
@@ -330,20 +333,22 @@ def _solvers():
     return [getattr(momwire, n) for n in SOLVER_CLASSES]
 
 
-def test_only_bspline_and_razor_serve_the_extended_kernel_beside_a_buried_wire():
-    # The buried details send the user to B-spline or razor-2p, and only
-    # there. When another solver serves the extended kernel beside a buried
-    # wire, or either of those stops, this fails and the words must be
+def test_only_the_named_solvers_serve_the_extended_kernel_beside_a_buried_wire():
+    # The buried details send the user to B-spline, razor-2p or Sin-Galerkin,
+    # and only there. When another solver serves the extended kernel beside a buried
+    # wire, or any of those stops, this fails and the words must be
     # revisited rather than left false.
     served = [
         c.__name__
         for c in _solvers()
         if _capability_refusal(c, "buried", "extended_kernel") is None
     ]
-    assert served == ["BSplineSolver", "RazorSolver"]
+    assert served == ["BSplineSolver", "RazorSolver", "SinusoidalGalerkinSolver"]
 
 
-@pytest.mark.parametrize("solver", [BSplineSolver, RazorSolver])
+@pytest.mark.parametrize(
+    "solver", [BSplineSolver, RazorSolver, SinusoidalGalerkinSolver]
+)
 def test_a_partial_solver_keeps_the_kernel_on_a_buried_deck_and_says_where(solver):
     # No fallback note: the kernel stays on. momwire's own advisory says the
     # buried wires kept the standard kernel, in plain words once summarised.

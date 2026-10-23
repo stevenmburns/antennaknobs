@@ -267,14 +267,15 @@ _EK_WHAT_TO_DO = {
         "options (the gear beside the solver slot) and switch off "
         '"K≥3 junction singular enrichment".'
     ),
-    # Only the B-spline basis (bs2, the default) and razor-2p serve the
-    # extended kernel beside a buried wire, and only on the wires above the
-    # ground; `test_ek_advisory_wording_1996.py` holds that claim to momwire.
+    # Only the B-spline basis (bs2, the default), razor-2p and the sinusoidal
+    # Galerkin basis (momwire 0.83, momwire#1626) serve the extended kernel
+    # beside a buried wire, and only on the wires above the ground;
+    # `test_ek_advisory_wording_1996.py` holds that claim to momwire.
     "buried": (
         "What you can do: to use the extended kernel on the wires above the "
         "ground, open the slot's options (the gear beside the solver slot) "
-        "and choose B-spline (the default) or Razor (2-point). The wires "
-        "below the ground keep the standard kernel on every solver."
+        "and choose B-spline (the default), Razor (2-point) or Sin-Galerkin. "
+        "The wires below the ground keep the standard kernel on every solver."
     ),
     # Only some solvers have this limit (in the pinned momwire, the
     # sinusoidal Galerkin one), so another solver is real advice here too.

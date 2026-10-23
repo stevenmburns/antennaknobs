@@ -30,6 +30,7 @@ from momwire import (
     HarringtonSolver,
     RazorSolver,
     SinusoidalGalerkinSolver,
+    SinusoidalSolver,
 )
 
 import antennaknobs as ant
@@ -176,13 +177,14 @@ _BURIED_NEC4 = (
 
 
 def test_a_buried_wire_falls_back_with_an_advisory():
-    # The sinusoidal families still refuse the extended kernel beside a
-    # buried wire (razor-2p did until momwire 0.82).
+    # The point-matched sinusoidal basis still refuses the extended kernel
+    # beside a buried wire (momwire#1636); razor-2p did until momwire 0.82 and
+    # the sinusoidal Galerkin one until 0.83 (momwire#1626).
     cls = builder_from_text("b.nec", _BURIED_NEC4)
     assert cls.file_extended_kernel_default is True
     eng = MomwireEngine(
         cls(),
-        solver=SinusoidalGalerkinSolver,
+        solver=SinusoidalSolver,
         ground=cls.file_ground,
         extended_kernel_default=True,
     )
@@ -191,11 +193,14 @@ def test_a_buried_wire_falls_back_with_an_advisory():
     assert "below" in note["text"] or "buried" in note["text"]
 
 
-@pytest.mark.parametrize("solver", [BSplineSolver, RazorSolver])
+@pytest.mark.parametrize(
+    "solver", [BSplineSolver, RazorSolver, SinusoidalGalerkinSolver]
+)
 def test_a_partial_solver_keeps_the_kernel_above_a_buried_wire(solver):
-    # B-spline (momwire 0.78, momwire#1170) and razor-2p (momwire 0.82,
-    # momwire#1614) serve the kernel on the above-ground pairs, so the deck's
-    # default is taken and nothing falls back.
+    # B-spline (momwire 0.78, momwire#1170), razor-2p (momwire 0.82,
+    # momwire#1614) and Sin-Galerkin (momwire 0.83, momwire#1626) serve the
+    # kernel on the above-ground pairs, so the deck's default is taken and
+    # nothing falls back.
     cls = builder_from_text("b.nec", _BURIED_NEC4)
     eng = MomwireEngine(
         cls(),
