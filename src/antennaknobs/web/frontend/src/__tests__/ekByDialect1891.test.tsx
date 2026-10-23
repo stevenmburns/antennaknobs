@@ -67,29 +67,38 @@ describe("the slot follows the design's kernel", () => {
     expect(extendedKernelActive(entry("bspline"), stock("bspline"), stepped)).toBe(true);
   });
 
-  it.each(["bspline", "razor-2p"])(
+  it.each(["bspline", "razor-2p", "sinusoidal-galerkin"])(
     "%s: keeps it on beside a buried wire (above-ground wires only)",
     (name) => {
       // B-spline since momwire 0.78 (momwire#1170), razor-2p since 0.82
-      // (momwire#1614): each serves the kernel in part, so neither served
-      // row forbids it and the deck's default stands.
+      // (momwire#1614), Sin-Galerkin since 0.83 (momwire#1626): each serves
+      // the kernel in part, so no served row forbids it and the deck's
+      // default stands.
       const buried = { ...DECK, buried: true };
       expect(extendedKernelActive(entry(name), stock(name), buried)).toBe(true);
     },
   );
 
-  it("no served row forbids the extended kernel beside a buried wire", () => {
-    // When a momwire serves such a row again, this fails and a buried
-    // fallback case belongs back in this file.
-    const rows = Object.values(SERVED_CONSTRAINTS).flatMap((r) => r ?? []);
-    const buriedEk = rows.filter(
-      (r) =>
-        r.axis === "kernel" &&
-        r.value === "extended" &&
-        r.forbids_axis === "wire_position" &&
-        r.forbids_value === "buried",
+  it("falls back to reduced beside a buried wire on point-matched Sinusoidal", () => {
+    // The one served row that forbids the extended kernel beside a buried
+    // wire (momwire#1636). When it goes, the buried fallback case goes too.
+    const rows = Object.entries(SERVED_CONSTRAINTS).flatMap(([name, r]) =>
+      (r ?? [])
+        .filter(
+          (c) =>
+            c.axis === "kernel" &&
+            c.value === "extended" &&
+            c.forbids_axis === "wire_position" &&
+            c.forbids_value === "buried",
+        )
+        .map(() => name),
     );
-    expect(buriedEk).toEqual([]);
+    expect(rows).toEqual(["sinusoidal"]);
+    const buried = { ...DECK, buried: true };
+    expect(extendedKernelActive(entry("sinusoidal"), stock("sinusoidal"), buried)).toBe(
+      false,
+    );
+    expect(extendedKernelActive(entry("sinusoidal"), stock("sinusoidal"), DECK)).toBe(true);
   });
 
   it("says +EK on the chip where the default is in force", () => {
