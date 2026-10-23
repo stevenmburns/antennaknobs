@@ -1433,10 +1433,12 @@ from momwire's own table of couplings, never retyped here.
   (momwire#249). The two grey each other out, so you can always back out of
   either.
 - **A buried wire** keeps the standard kernel. On the B-spline tab (since
-  momwire 0.78, momwire#1170) and `razor-2p` (since momwire 0.82,
-  momwire#1614) the extended kernel acts on the wires above the ground and
-  the buried wires keep the standard one, which the solve's advisory says;
-  the sinusoidal tabs do not serve it beside a buried wire at all.
+  momwire 0.78, momwire#1170), `razor-2p` (since momwire 0.82,
+  momwire#1614) and Sin-Galerkin (since momwire 0.83, momwire#1626) the
+  extended kernel acts on the wires above the ground and the buried wires
+  keep the standard one, which the solve's advisory says; the point-matched
+  Sinusoidal tab does not serve it beside a buried wire at all
+  (momwire#1636).
 
 **A deck read as NEC-4 or NEC-5 opens with the check on.** NEC-5's kernel
 behaves as the extended one, and NEC-4's single thin-wire model is
@@ -1447,7 +1449,7 @@ NEC-2 turns it back off unless you set it yourself (a NEC-2 deck's `EK`
 card is the card's word, as before). A NEC-4 deck's `EK` card is ignored,
 as NEC-4 ignores it, and the import note says so; a `VC` card is noted as
 not modelled. On a solver that cannot run the kernel here — the
-reduced-only Pulse tab, a buried wire on a sinusoidal tab — the default
+reduced-only Pulse tab, a buried wire on the Sinusoidal tab — the default
 quietly stays off and the solve's advisory names the reason, rather than
 refusing a solve you never asked to be extended.
 
