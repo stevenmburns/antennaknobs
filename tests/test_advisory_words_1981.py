@@ -178,12 +178,14 @@ def test_the_cli_echoes_the_summary_once_and_never_the_far_mesh_one(capsys):
     assert capsys.readouterr().err == "advisory: plain\n"
 
 
-@pytest.mark.parametrize("solver_name", ["BSplineSolver", "RazorSolver"])
+@pytest.mark.parametrize(
+    "solver_name", ["BSplineSolver", "RazorSolver", "SinusoidalGalerkinSolver"]
+)
 def test_jeffs_deck_keeps_the_extended_kernel_above_ground(solver_name):
     # His deck carries EK and a buried stake. B-spline (momwire 0.78,
-    # momwire#1170) and razor-2p (momwire 0.82, momwire#1614) serve the
-    # kernel on the wires above the ground, so nothing falls back and no
-    # fallback note is composed.
+    # momwire#1170), razor-2p (momwire 0.82, momwire#1614) and Sin-Galerkin
+    # (momwire 0.83, momwire#1626) serve the kernel on the wires above the
+    # ground, so nothing falls back and no fallback note is composed.
     import momwire
 
     from antennaknobs.engines.momwire import MomwireEngine
@@ -200,17 +202,17 @@ def test_jeffs_deck_keeps_the_extended_kernel_above_ground(solver_name):
 
 
 def test_jeffs_deck_says_in_plain_words_why_the_kernel_fell_back():
-    # On the sinusoidal Galerkin basis, which still refuses the kernel
-    # beside a buried wire, the note used to say so in the solver's own
-    # words, issue numbers and all.
-    from momwire import SinusoidalGalerkinSolver
+    # On the point-matched sinusoidal basis, which still refuses the kernel
+    # beside a buried wire (momwire#1636), the note used to say so in the
+    # solver's own words, issue numbers and all.
+    from momwire import SinusoidalSolver
 
     from antennaknobs.engines.momwire import MomwireEngine
 
     builder = builder_from_text("g8hul.nec", G8HUL)()
     eng = MomwireEngine(
         builder,
-        solver=SinusoidalGalerkinSolver,
+        solver=SinusoidalSolver,
         ground=resolve_ground(_GROUND_UNSET, builder),
         extended_kernel_default=True,
     )
