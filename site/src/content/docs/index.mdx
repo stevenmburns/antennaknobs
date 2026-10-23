@@ -29,22 +29,23 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.106.0" icon="star">
-  **Far buried probes at near-field speed.** With momwire 0.82, a wire far
-  from a buried structure (a field probe a kilometre out, a long Beverage, a
-  wide array) no longer slows the solve down the further away it is. A deck
-  with a probe 1 km from a buried radial system now runs in about 3 s where it
-  took 21 s, at any elevation, grazing angles included, and nearer probes run
-  exactly as before.
+<Card title="New in v0.107.0" icon="star">
+  **Near fields over buried radials.** With momwire 0.83, NE and NH now serve
+  on decks with buried wires, and at points in the soil itself, on the NEC-5
+  launchers (B-spline and Razor). A SimNEC session saved with its near-field
+  display on now runs over a buried radial screen instead of stopping, from
+  Python or from the no-Python executables, and far points cost the same as
+  near ones.
 
-  **razor-2p keeps the extended kernel over buried radials.** On a NEC-5 deck
-  with buried wires, razor-2p now uses the extended thin-wire kernel on the
-  wires above ground, as bs2 already did, so a fat vertical over buried
-  radials converges to the same answer as NEC-5 under mesh refinement.
+  **Sin-Galerkin keeps the extended kernel over buried radials.** A fat
+  vertical over buried radials keeps the extended thin-wire kernel on its
+  above-ground wires on the Sin-Galerkin tab too, as B-spline and Razor
+  already did.
 
-  **A version line SimNEC and scripts can parse.** Every momwire launcher
-  answers `-version` with one line naming its dialect, its launcher, its modes
-  and the full version, e.g. `NEC5 momwire-nec5-razor-2p [sb] 0.82.0`.
+  **For 4nec2 users.** The NEC-2 launcher reads GA (arcs) and GH (helices),
+  and the NEC-4.2 slot serves GX (reflected structures) and PT -1, each read
+  the way its own dialect reads it. The Linux download also carries a preview
+  of the NEC-4.2 slot as a single executable, with no Python inside.
 </Card>
 
 ## The whole pitch, in one line
