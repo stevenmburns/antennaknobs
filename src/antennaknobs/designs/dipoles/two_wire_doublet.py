@@ -91,6 +91,7 @@ class Builder(AntennaBuilder):
         )
 
     def build_analyses(self):
+        splits = "Resonant splits"
         return [
             an.Analysis(
                 "resonance map",
@@ -101,6 +102,7 @@ class Builder(AntennaBuilder):
                 views=(an.Map(),),
                 references=an.Ref(x=(0,)),
                 ground="free",
+                group=splits,
             ),
             # Step L from the centre-fed half wave toward the hook, holding M.
             an.Analysis(
@@ -109,6 +111,7 @@ class Builder(AntennaBuilder):
                 hold=an.Hold("resonance", adjust=("short_ft",)),
                 views=(an.Rx(), an.Knobs()),
                 ground="free",
+                group=splits,
             ),
             # Step M down from the centre-fed doublet to the hook, holding L.
             # Downward on purpose: at M = 33 ft the only resonant L in the
@@ -121,5 +124,6 @@ class Builder(AntennaBuilder):
                 hold=an.Hold("resonance", adjust=("long_ft",)),
                 views=(an.Rx(), an.Knobs()),
                 ground="free",
+                group=splits,
             ),
         ]
