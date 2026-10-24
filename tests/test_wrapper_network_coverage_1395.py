@@ -294,7 +294,8 @@ def test_the_probe_still_answers_a_useful_number_after_the_new_capabilities():
     )
     assert asked >= 80, asked
     # And the port designs are exactly what the exclusion covers beyond buried
-    # (the two end-port feed examples joined sterba_bl and invvee_apex).
+    # (the two end-port feed examples joined sterba_bl and invvee_apex, and
+    # dipoles.two_wire_doublet's knot feed is a node gap).
     excluded = {
         name
         for name in REGISTRY
@@ -306,4 +307,5 @@ def test_the_probe_still_answers_a_useful_number_after_the_new_capabilities():
         "dipoles.invvee_apex",
         "dipoles.invvee_endport",
         "beams.yagi_endport",
+        "dipoles.two_wire_doublet",
     }, excluded
