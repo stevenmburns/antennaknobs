@@ -93,6 +93,7 @@ and a real 16 mm rod on NEC-5.
 | `dipoles.ocf_dipole` | Off-Center-Fed dipole (Windom): a half-wave fed away from the middle (L. B. Cebik, W4RNL) |
 | `dipoles.pota_invvee` | POTA wire-gauge tradeoff: a 20 m inverted-V where the wire is a knob · variants: `classic_edz`, `dipole`, `three_halves` |
 | `dipoles.short_dipole_loaded` | Center-loaded shortened dipole — the Load-branch showcase for issue #65 |
+| `dipoles.two_wire_doublet` | One straight wire fed anywhere along it: the resonant splits, from the centre-fed half wave through the OCF and EFHW to the 1 λ doublet (AK#2037) |
 <!-- catalog:end dipoles -->
 
 ## Loops
