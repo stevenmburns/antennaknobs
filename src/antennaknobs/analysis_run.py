@@ -172,6 +172,18 @@ def _view_why(v: an.View, a: an.Analysis) -> str:
     )
 
 
+def _held_x_only(a: an.Analysis, frequency: bool) -> str | None:
+    """``"r"`` when the R/X chart's X is the held quantity: a knob sweep
+    holding resonance on one band keeps X at zero by construction, so its
+    trace is the root finder's residual (a few milliohms, autoscaled into
+    what looks like structure) and the chart draws R alone. A multi-band
+    hold or a frequency sweep leaves X free along the curve, so both stay."""
+    hold = a.hold
+    if hold is None or frequency or hold.bands or hold.objective != "resonance":
+        return None
+    return "r"
+
+
 def _has(a: an.Analysis, cls) -> bool:
     """Whether ``a`` draws a view of ``cls`` (a subclass is that view)."""
     return any(isinstance(v, cls) and _draws(v, a) for v in a.views)
@@ -1333,6 +1345,7 @@ def run(
                 title=title,
                 log_x=log,
                 xname=knob,
+                only=_held_x_only(a, frequency),
                 refused=list(refused),
             )
             _references(axes, a.references)
