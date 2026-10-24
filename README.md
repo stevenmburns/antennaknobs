@@ -70,6 +70,7 @@
 | src/antennaknobs/designs/dipoles/ocf\_dipole.py                      |       12 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/pota\_invvee.py                     |        5 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/short\_dipole\_loaded.py            |       11 |        0 |    100% |           |
+| src/antennaknobs/designs/dipoles/two\_wire\_doublet.py               |       21 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/\_\_init\_\_.py                       |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/bisquare.py                           |       19 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/delta\_loop.py                        |       25 |        0 |    100% |           |
@@ -222,7 +223,7 @@
 | src/antennaknobs/web/user\_designs.py                                |       76 |        6 |     92% |64-65, 96-97, 102-103 |
 | src/antennaknobs/wire\_catalog.py                                    |      189 |        0 |    100% |           |
 | src/antennaknobs/zinf.py                                             |      123 |        2 |     98% |   80, 135 |
-| **TOTAL**                                                            | **33123** | **2096** | **94%** |           |
+| **TOTAL**                                                            | **33144** | **2096** | **94%** |           |
 
 
 ## Setup coverage badge
