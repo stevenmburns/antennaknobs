@@ -206,6 +206,8 @@ def test_a_hold_runs_with_its_knobs_bounds_and_spec(invvee):
             # A hold at one frequency (AK#1906's band hold names bands).
             "bands": [],
             "mean_weight": 0.5,
+            # No range of the hold's own: each knob searches its ui_params.
+            "bounds": [],
         },
     }
     e9 = invvee["resonance vs angle"]["workbench"]
