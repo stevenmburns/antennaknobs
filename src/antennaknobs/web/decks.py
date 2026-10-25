@@ -223,6 +223,20 @@ def _numeric_knob(params, name: str) -> bool:
     )
 
 
+def _inside(v, lo: float, hi: float):
+    """``v`` moved into ``[lo, hi]`` when it lies outside (`with_ranges`):
+    to the nearer end, or for an integer knob the nearest whole number
+    inside; ``v`` itself when it is inside."""
+    if lo <= v <= hi:
+        return v
+    if isinstance(v, int):
+        a, b = math.ceil(lo), math.floor(hi)
+        # A range holding no whole number keeps the value: the slider and
+        # the hold then refuse it in their own words.
+        return v if a > b else min(max(v, a), b)
+    return float(lo) if v < lo else float(hi)
+
+
 def with_ranges(cls, ranges: dict[str, tuple[float, float]]):
     """``(cls with ranges, refusals)``: a subclass of the deck's builder
     class whose knobs' ``ui_params`` carry the link's ``min``/``max``
@@ -231,7 +245,14 @@ def with_ranges(cls, ranges: dict[str, tuple[float, float]]):
     on a name that is not one of the deck's numeric knobs is refused by name
     and left out. A float knob's ``step`` is a thousandth of its range, as
     the app's own window's is; an integer knob keeps whole steps. No range
-    taken: ``cls`` itself."""
+    taken: ``cls`` itself.
+
+    A range may leave out the deck's own value (the SY card's): the link
+    says where the knob may go, and its ``knobs=`` value is where the panel
+    starts. The knob's default is then moved to the nearer end of the range
+    (an integer knob to the nearest whole number inside it), so the slider's
+    default, a held sweep's start (`hold.defaults_of`, the design's
+    defaults) and the optimizer's all lie inside the bounds they search."""
     from types import MappingProxyType
 
     from .adapter import _nice_step
@@ -251,6 +272,7 @@ def with_ranges(cls, ranges: dict[str, tuple[float, float]]):
         if not isinstance(params[name], int):
             meta["step"] = _nice_step(max((hi - lo) / 1000.0, 1e-9))
         ui[name] = meta
+        params[name] = _inside(params[name], lo, hi)
         taken += 1
     if not taken:
         return cls, refused

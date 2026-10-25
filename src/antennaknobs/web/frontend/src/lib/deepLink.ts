@@ -18,13 +18,19 @@
 //                                         of `design`
 //   &dialect=nec2|nec4|nec5               the dialect the deck is read in,
 //                                         when chosen (absent: detected)
-//   &analyses=<z>                         analyses for the deck (AK#2045):
-//                                         the stylized Python a design's
-//                                         build_analyses() returns, compressed
-//                                         as the deck is; listed in the
-//                                         chart's picker, and `analysis=`
-//                                         selects one by name. Read by the
-//                                         server, never run. Only beside `deck`
+//   &analyses=<z>                         analyses for the deck or design
+//                                         (AK#2045): the stylized Python a
+//                                         design's build_analyses() returns,
+//                                         compressed as the deck is; listed
+//                                         in the chart's picker, and
+//                                         `analysis=` selects one by name.
+//                                         Read by the server, never run.
+//                                         Beside `deck` it rides the deck
+//                                         (part of its key); beside `design`
+//                                         the session sends it with /analyses.
+//                                         Copy link writes the listed link
+//                                         and built analyses here, at most
+//                                         MAX_SHARE_CHARS packed
 //   &knobs=<knob>:<value>[:<min>:<max>],…
 //                                         knob values (AK#2045), set on the
 //                                         knob panel before `analysis` is
@@ -271,6 +277,9 @@ export type DeepLink = {
   knobs?: LinkKnob[] | null;
   /** The `knobs=` entries that did not read, by name, for the link notice. */
   knobsProblems?: string[] | null;
+  /** A catalog design's `analyses=` (AK#2045), packed: the session lists
+   *  them with /analyses. A deck's ride the deck (`deck.analyses`). */
+  analyses?: string | null;
 };
 
 /** The query parameters a link owns; any other is left as it is. */
@@ -345,6 +354,7 @@ export function parseDeepLink(search: string): DeepLink | null {
         }),
     ...(parsedKnobs && parsedKnobs.knobs.length > 0 ? { knobs: parsedKnobs.knobs } : {}),
     ...(parsedKnobs && parsedKnobs.problems.length > 0 ? { knobsProblems: parsedKnobs.problems } : {}),
+    ...(z === null && analyses !== null ? { analyses } : {}),
   };
   return link.design ||
     link.variant ||
@@ -357,7 +367,8 @@ export function parseDeepLink(search: string): DeepLink | null {
     link.cut !== undefined ||
     link.cutProblem ||
     link.knobs ||
-    link.knobsProblems
+    link.knobsProblems ||
+    link.analyses
     ? link
     : null;
 }
@@ -474,6 +485,9 @@ export type LinkState = {
   /** The knob values the link carries (AK#2045): a knob moved off its
    *  default, and every knob the deck has a range for (with it). */
   knobs?: readonly LinkKnob[] | null;
+  /** A catalog design's analyses (AK#2045, packed): written beside the
+   *  design. A deck's are its payload's (`deck.analyses`). */
+  analyses?: string | null;
 };
 
 /** `search` with the link's parameters replaced by `state`'s (any other
@@ -493,6 +507,7 @@ export function linkSearch(search: string, state: LinkState): string {
     if (state.deck.analyses) q.set("analyses", state.deck.analyses);
   } else {
     q.set("design", state.variant ? `${state.design}:${state.variant}` : state.design);
+    if (state.analyses && !state.deck) q.set("analyses", state.analyses);
   }
   if (state.knobs && state.knobs.length > 0) {
     // A range rides only beside the deck it was opened with: the key alone

@@ -305,7 +305,10 @@ describe("the endpoints' answers", () => {
   it("keep: the text, its name, problems and the study refusal; a refusal in the server's words", async () => {
     vi.stubGlobal("fetch", answer(200, { code: "c", name: "n", problems: ["p"], study_refusal: "r" }));
     const body = { origin: "chart" as const, form: "study" as const, spec: {}, tab: {} };
-    expect(await fetchKeep(body)).toEqual({ code: "c", name: "n", problems: ["p"], studyRefusal: "r" });
+    // An older server writes no `expr` (AK#2045): "".
+    expect(await fetchKeep(body)).toEqual({ code: "c", name: "n", problems: ["p"], studyRefusal: "r", expr: "" });
+    vi.stubGlobal("fetch", answer(200, { code: "c", name: "n", problems: [], study_refusal: null, expr: "an.X()" }));
+    expect((await fetchKeep(body)).expr).toBe("an.X()");
     vi.stubGlobal("fetch", answer(422, { detail: "give the pins to keep" }));
     await expect(fetchKeep(body)).rejects.toThrow("give the pins to keep");
   });

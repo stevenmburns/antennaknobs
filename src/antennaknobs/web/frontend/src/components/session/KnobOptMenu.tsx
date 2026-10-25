@@ -10,6 +10,8 @@ export function KnobOptMenu({
   onPatch,
   onClose,
   onSweep,
+  onBuildMap,
+  onBuildHold,
 }: {
   menu: { name: string; x: number; y: number };
   spec: SchemaParamSpec | undefined;
@@ -19,6 +21,11 @@ export function KnobOptMenu({
   /** Given (a knob the Z-vs-parameter view can sweep), the menu offers
    *  "Sweep this knob": that knob over its own range, on the view. */
   onSweep?: () => void;
+  /** Given (AK#2045: the design has another knob to pair it with), the map
+   *  and hold builders, beside "Sweep this knob": a map of this knob against
+   *  another, and this knob swept with another held at a target. */
+  onBuildMap?: () => void;
+  onBuildHold?: () => void;
 }) {
   const name = menu.name;
   const s = spec;
@@ -84,6 +91,26 @@ export function KnobOptMenu({
             onClick={onSweep}
           >
             Sweep this knob…
+          </button>
+        )}
+        {onBuildMap && (
+          <button
+            type="button"
+            className="knob-menu-sweep"
+            title="Build a two-knob map of this knob against another: |Γ| over the grid, resonance as a contour"
+            onClick={onBuildMap}
+          >
+            Map against another knob…
+          </button>
+        )}
+        {onBuildHold && (
+          <button
+            type="button"
+            className="knob-menu-sweep"
+            title="Build a sweep of this knob with another knob held at resonance (or a Z0 match) at every point"
+            onClick={onBuildHold}
+          >
+            Sweep, holding another knob…
           </button>
         )}
         <div className="knob-menu-row">

@@ -159,6 +159,10 @@ export type KeepText = {
   name: string;
   problems: string[];
   studyRefusal: string | null;
+  /** The analysis as the bare `an.to_code` expression (no imports, no
+   *  comments): what a shared link's `analyses=` lists (AK#2045). "" from
+   *  an older server. */
+  expr: string;
 };
 
 // The server's refusal in its own words, else the status.
@@ -188,6 +192,7 @@ export async function fetchKeep(body: KeepBody, signal?: AbortSignal): Promise<K
     name: typeof o.name === "string" ? o.name : "",
     problems: Array.isArray(o.problems) ? o.problems.filter((p): p is string => typeof p === "string") : [],
     studyRefusal: typeof o.study_refusal === "string" ? o.study_refusal : null,
+    expr: typeof o.expr === "string" ? o.expr : "",
   };
 }
 

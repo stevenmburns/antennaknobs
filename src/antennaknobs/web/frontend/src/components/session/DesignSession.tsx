@@ -188,11 +188,14 @@ import { mapSignature, useMapRun } from "./useMapRun";
 import { useDesignAnalyses } from "./useDesignAnalyses";
 import {
   type DeepLink,
+  knobsParam,
   linkHref,
   linkKnobsOf,
   linkKnobValues,
   linkSearch,
   type LinkState,
+  MAX_LINK_KNOBS,
+  MAX_LINK_KNOBS_CHARS,
   rangesOf,
   resolveAnalysis,
   resolveDesign,
@@ -203,10 +206,19 @@ import {
   analysisBlocked,
   analysisSpec,
   type AnalysisEntry,
+  carriedByLink,
   entryLabel,
   type Listed,
   listRange,
 } from "../../lib/analyses";
+import {
+  analysesText,
+  type Build,
+  buildData,
+  linkPartsProblem,
+  uniqueName,
+} from "../../lib/buildAnalysis";
+import { BuildAnalysisDialog, type BuildKind } from "./BuildAnalysisDialog";
 import {
   keptAsResult,
   keptMarks,
@@ -277,6 +289,7 @@ import { ZParamControls } from "../results/ZParamControls";
 import { ZParamStage } from "../results/ZParamStage";
 import { KeepDialog, type KeepDialogProps } from "../results/KeepDialog";
 import {
+  fetchKeep,
   type KeepBody,
   keepRequest,
   mapAxesKeep,
@@ -293,6 +306,8 @@ const ZPARAM_MOBILE_HEADER_PX = 96;
 // A map pins nothing in v1 (docs/design/sweep-framework-map.md, decision
 // 11: map pins as dashed contours are a later unit).
 const MAP_PIN_BLOCKED = "A map has no pins yet: map pins (dashed contours) are a later step";
+// A design with no built analyses (AK#2045): one stable empty list.
+const NO_BUILT: string[] = [];
 // ...and on a desktop stage, before ZParamStage has measured the real one
 // (the first frame): one row above the chart.
 const ZPARAM_DESKTOP_HEADER_PX = 48;
@@ -317,7 +332,15 @@ import { useViewState } from "./useViewState";
 import { ViewPicker } from "./ViewPicker";
 import { VfoPanel, type OptimizeResult } from "./VfoPanel";
 import { DeckNotice } from "./DeckNotice";
-import { deckFor, isDeck, openDeck, openDeckFile, type Dialect } from "../../lib/decks";
+import {
+  compressDeck,
+  deckFor,
+  deckPayload,
+  isDeck,
+  openDeck,
+  openDeckFile,
+  type Dialect,
+} from "../../lib/decks";
 
 // One antenna design session: the entire left sidebar + right stage plus all
 // the state, effects, and the WebSocket that drive them. The shell (`App`,
@@ -530,6 +553,20 @@ function DesignSessionBody({
     null,
   );
   const [studiesNonce, setStudiesNonce] = useState(0);
+  // The map and hold builders (AK#2045): the analyses built in this tab, by
+  // design, each the Python /keep wrote for it (its bare `expr`), which every
+  // /analyses sends back (`built`) so the picker lists them as "built here";
+  // and the builder open, its kind and the knob its menu was opened on.
+  const [builtBy, setBuiltBy] = useState<Record<string, string[]>>({});
+  const [building, setBuilding] = useState<{ kind: BuildKind; knob: string } | null>(null);
+  // The build waiting for its analysis to be listed, to pick it then.
+  const pendingBuild = useRef<{
+    name: string;
+    expr: string;
+    geometry: string;
+    resolve: () => void;
+    reject: (e: Error) => void;
+  } | null>(null);
   const [reloadBusy, setReloadBusy] = useState(false);
   // The catalog button: a re-fetch always (the server rescans the user-design
   // folder on every GET /examples). Only a selected USER design is also
@@ -2912,11 +2949,30 @@ function DesignSessionBody({
   // and grounds name (unit 4). Neither touches another chart, the session's
   // sweep range or the viewer's saved chart preferences. What the chart
   // cannot run yet is listed with why, and picking it does nothing.
-  const { entries: zparamAnalyses, loaded: zparamAnalysesLoaded } = useDesignAnalyses({
-    designKey: `${zparamDesignKey}#${reloadNonce}#${studiesNonce}`,
+  // AK#2045: the analyses built in this tab, and a catalog design's link
+  // analyses (`analyses=` beside `design=`; a deck's ride the deck), both
+  // sent with every /analyses and so part of its key.
+  const built = builtBy[geometry] ?? NO_BUILT;
+  const catalogLinkAnalyses =
+    deepLink?.analyses && !deepLink.deck && !isDeck(geometry) && deepLink.design && examples.length > 0
+      ? (() => {
+          const r = resolveDesign(deepLink.design, examples);
+          return r.ok && r.value === geometry ? deepLink.analyses : null;
+        })()
+      : null;
+  const {
+    entries: zparamAnalyses,
+    loaded: zparamAnalysesLoaded,
+    refusals: zparamRefusals,
+  } = useDesignAnalyses({
+    designKey: `${zparamDesignKey}#${reloadNonce}#${studiesNonce}#${catalogLinkAnalyses ?? ""}#${built.join("\u0000")}`,
     // Not before the session has a design: the first render has none.
     enabled: chartModels.some((m) => m?.resident) && !!geometry,
-    request: buildRequest,
+    request: () => ({
+      ...buildRequest(),
+      ...(built.length > 0 ? { built } : {}),
+      ...(catalogLinkAnalyses ? { analyses: catalogLinkAnalyses } : {}),
+    }),
   });
   const zparamSweepable = new Set(zparamKnobs.map((k) => k.name));
   // A kept band run is jumped to, never drawn (AK#1906): it is never blocked
@@ -3342,6 +3398,69 @@ function DesignSessionBody({
     ),
   );
   const linkProblem = (p: string) => setLinkProblems((ps) => [...ps, p]);
+  // A catalog design's link analyses the server did not read (AK#2045),
+  // named in the link notice once.
+  const linkRefusal = catalogLinkAnalyses ? zparamRefusals.link : null;
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (linkRefusal) linkProblem(linkRefusal);
+  }, [linkRefusal]);
+  // The map and hold builders (AK#2045): the analysis as data, which /keep
+  // writes as its Python (`expr`); the tab lists it by sending that text with
+  // every /analyses, and once it is listed it is picked on the first chart
+  // and run, exactly as a design's own map or held sweep is (pickAnalysis).
+  // Refused there (a knob the hold cannot bound, a text that does not read),
+  // it is dropped again and the builder says why.
+  const buildAnalysis = async (b: Build): Promise<void> => {
+    const kept = await fetchKeep({
+      origin: "chart",
+      form: "analysis",
+      spec: buildData(b),
+      tab: keepRequest(buildRequest()),
+    });
+    if (!kept.expr) throw new Error("This server writes no analysis text for a link: it is older than this page");
+    const g = geometry;
+    // The chart on the stage, so its picker lists the analysis and the pick
+    // lands where the viewer looks.
+    setView(m0.viewId);
+    return new Promise<void>((resolve, reject) => {
+      pendingBuild.current?.reject(new Error("Another build replaced this one"));
+      pendingBuild.current = { name: kept.name, expr: kept.expr, geometry: g, resolve, reject };
+      setBuiltBy((prev) => ({ ...prev, [g]: [...(prev[g] ?? []).filter((e) => e !== kept.expr), kept.expr] }));
+    });
+  };
+  useEffect(() => {
+    const p = pendingBuild.current;
+    if (!p) return;
+    const drop = () =>
+      setBuiltBy((prev) => ({ ...prev, [p.geometry]: (prev[p.geometry] ?? []).filter((e) => e !== p.expr) }));
+    if (p.geometry !== geometry) {
+      pendingBuild.current = null;
+      drop();
+      p.reject(new Error("The design changed before the analysis was listed"));
+      return;
+    }
+    // Not before /analyses has answered for the list that holds it.
+    if (!zparamAnalysesLoaded || !built.includes(p.expr)) return;
+    pendingBuild.current = null;
+    const entry = zparamAnalyses.find(
+      (a) => a.origin === "built" && (a.name === p.name || a.name === `built:${p.name}`),
+    );
+    const why = !entry
+      ? (zparamRefusals.built ?? `The server did not list "${p.name}"`)
+      : !entry.workbench.runs
+        ? entry.workbench.why
+        : zparamAnalysisBlocked(entry);
+    if (!entry || why !== null) {
+      drop();
+      p.reject(new Error(why ?? `"${p.name}" cannot run here`));
+      return;
+    }
+    pickAnalysis(0, entry, true);
+    p.resolve();
+    // Runs when the list answers; the rest is read as it stands then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zparamAnalyses, zparamAnalysesLoaded, geometry]);
   // Opening the user's own deck (lib/decks.ts): read here, opened on the
   // server, and then simply the design this tab is on. Its refusal (over a
   // limit, a card the importer cannot model) is the server's own sentence.
@@ -3521,6 +3640,8 @@ function DesignSessionBody({
   const linkStateOf = (m: ChartModel | null): LinkState => ({
     design: geometry,
     knobs: linkKnobs,
+    // A catalog design's link analyses stay in its address (AK#2045).
+    analyses: catalogLinkAnalyses,
     // An opened deck: the link carries the deck itself (when it fits).
     deck: linkDeck,
     variant: currentVariant === (currentExample?.variants?.[0] ?? "default") ? null : currentVariant,
@@ -3555,10 +3676,64 @@ function DesignSessionBody({
     const { pathname, hash } = window.location;
     window.history.replaceState(window.history.state, "", `${pathname}${urlSearch}${hash}`);
   }, [active, linkStage, urlSearch]);
-  // The chart's "link" button: this tab's design with the chart's analysis
-  // and view, at this page's address.
-  const copyChartLink = (m: ChartModel) =>
-    navigator.clipboard?.writeText(linkHref(window.location, linkStateOf(m)));
+  // The chart's "link" button (AK#1838; AK#2045 Copy link): a link that
+  // reproduces what is on screen. The design, or the opened deck itself
+  // (name, dialect and its knobs' ranges); the knobs moved off their
+  // defaults (`knobs=`); every analysis the picker lists from a link or
+  // built here, each as the Python /keep writes for it (`expr`), packed into
+  // one `analyses=`, the chart's own pick as it is edited (a design's own
+  // analysis edited rides as "<name> (edited)"); and the chart's analysis
+  // and view. A part over what a link carries is refused by name, and no
+  // link is written. Resolves with the link once it is on the clipboard.
+  const copyChartLink = async (
+    m: ChartModel,
+    pick: { entry: AnalysisEntry | null; edits: Pick<Extract<KeepBody, { origin: "chart" }>, "values" | "axes"> | null },
+  ): Promise<string> => {
+    const base = linkStateOf(m);
+    const tab = keepRequest(buildRequest());
+    const listed = zparamAnalyses.filter((a) => carriedByLink(a) && a.spec !== undefined);
+    const bodies: KeepBody[] = listed.map((a) => ({ origin: "chart", form: "analysis", spec: a.spec, tab }));
+    let analysis = base.analysis;
+    const p = pick.entry;
+    if (p && pick.edits && p.spec !== undefined) {
+      const at = listed.findIndex((a) => a.name === p.name);
+      if (at >= 0) {
+        bodies[at] = { ...(bodies[at] as Extract<KeepBody, { origin: "chart" }>), ...pick.edits };
+      } else {
+        const name = uniqueName(`${p.name} (edited)`, new Set(zparamAnalyses.map((a) => a.name)));
+        bodies.push({ origin: "chart", form: "analysis", spec: p.spec, tab, name, ...pick.edits });
+        analysis = name;
+      }
+    }
+    // A built analysis renamed beside a design's own ("built:<name>") is a
+    // link's in the page the link opens ("link:<name>").
+    if (p?.origin === "built" && analysis?.startsWith("built:")) analysis = `link:${analysis.slice(6)}`;
+    const exprs = await Promise.all(bodies.map((b) => fetchKeep(b).then((t) => t.expr)));
+    if (exprs.some((e) => !e)) throw new Error("This server writes no analysis text for a link: it is older than this page");
+    const packed = exprs.length > 0 ? await compressDeck(analysesText(exprs)) : null;
+    const knobsText = knobsParam(linkKnobs);
+    const problem = linkPartsProblem({
+      deck: linkDeck ? linkDeck.z.length : null,
+      analyses: packed?.length ?? null,
+      knobs:
+        linkKnobs.length > MAX_LINK_KNOBS || knobsText.length > MAX_LINK_KNOBS_CHARS
+          ? `The knobs are ${linkKnobs.length} entries, ${knobsText.length} characters: over the ${MAX_LINK_KNOBS} entries or ${MAX_LINK_KNOBS_CHARS} characters a link carries`
+          : null,
+    });
+    if (problem) throw new Error(problem);
+    // The deck as it opened, with this link's analyses in place of its own.
+    const deck = linkDeck ? deckPayload(linkDeck) : null;
+    if (deck) delete deck.analyses;
+    const state: LinkState = {
+      ...base,
+      analysis,
+      ...(deck ? { deck: packed ? { ...deck, analyses: packed } : deck, analyses: null } : { analyses: packed }),
+    };
+    const href = linkHref(window.location, state);
+    if (!navigator.clipboard) throw new Error("This browser gives the page no clipboard to copy to");
+    await navigator.clipboard.writeText(href);
+    return href;
+  };
 
   // The app's Cancel (AK#1712) stops every curve of every chart, as it
   // stops the session's own batches.
@@ -3803,6 +3978,32 @@ function DesignSessionBody({
             {...(zparamKnobs.some((k) => k.name === knobMenu.name)
               ? { onSweep: () => sweepKnob(knobMenu.name) }
               : {})}
+            {...(zparamKnobs.length > 1 && zparamKnobs.some((k) => k.name === knobMenu.name)
+              ? {
+                  onBuildMap: () => {
+                    setKnobMenu(null);
+                    setBuilding({ kind: "map", knob: knobMenu.name });
+                  },
+                  onBuildHold: () => {
+                    setKnobMenu(null);
+                    setBuilding({ kind: "hold", knob: knobMenu.name });
+                  },
+                }
+              : {})}
+          />
+        )}
+        {building && currentExample && (
+          <BuildAnalysisDialog
+            kind={building.kind}
+            knob={building.knob}
+            knobs={zparamKnobs}
+            axisFor={(k) => {
+              const sp = zparamDefaultFor(k);
+              return { knob: k, lo: sp.lo, hi: sp.hi, points: sp.points, log: sp.log };
+            }}
+            taken={new Set(zparamAnalyses.map((a) => a.name))}
+            onBuild={buildAnalysis}
+            onClose={() => setBuilding(null)}
           />
         )}
 
@@ -4513,7 +4714,14 @@ function DesignSessionBody({
         onKeep: () => openChartKeep("study"),
         keepBlocked: familyNow ? m.plan.capRefusal : keepPicked ? keepValuesBlocked : noPick,
       },
-      onCopyLink: () => copyChartLink(m),
+      onCopyLink: () =>
+        copyChartLink(m, {
+          entry: keepPicked,
+          edits:
+            editedValues || mapAxes
+              ? { ...(editedValues ? { values: editedValues } : {}), ...(mapAxes ? { axes: mapAxes } : {}) }
+              : null,
+        }),
       ...(charts.some((c) => c === null) ? { onDuplicate: () => duplicateChart(i) } : {}),
       ...(i > 0 ? { onClose: () => closeChart(i) } : {}),
     };

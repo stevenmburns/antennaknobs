@@ -54,14 +54,18 @@ export type ChartChrome = {
     onKeep: () => void;
     keepBlocked: string | null;
   };
-  /** "Copy link" (AK#1838): a link to this tab's design with this chart's
-   *  analysis and view. Resolves once copied. Omitted: no button. */
-  onCopyLink?: () => Promise<void> | undefined;
+  /** "Copy link" (AK#1838, AK#2045): a link that reproduces this tab's
+   *  design (or deck), knobs, link and built analyses, and this chart's
+   *  analysis and view. Resolves with the link once copied; rejects with
+   *  why no link was written (a part over what a link carries). Omitted: no
+   *  button. */
+  onCopyLink?: () => Promise<string | void> | undefined;
 };
 
 /** The link button's tooltip: the link is one tab's, never the set. */
 export const COPY_LINK_TITLE =
-  "Copy link: opens this design with this chart's analysis and view. " +
+  "Copy link: opens this design (or the opened deck itself) with its knobs, the analyses built here or " +
+  "carried by its link, and this chart's analysis and view. " +
   "It covers this tab only, not the other open tabs (D1, D2…), and never runs on its own";
 
 /** The chart's own chrome: what it compares, pin / copy / keep / link, and
@@ -163,30 +167,50 @@ export function ChartChromeControls(chrome: ChartChrome) {
   );
 }
 
-/** The chart's "link" button (AK#1838): copies the link and says so. */
-function CopyLinkButton({ onCopy }: { onCopy: () => Promise<void> | undefined }) {
-  const [copied, setCopied] = useState(false);
+/** The chart's "link" button (AK#1838): copies the link and says so, with
+ *  its length; a link it would not write (AK#2045: a part over what a link
+ *  carries) says why instead, and nothing is copied. */
+function CopyLinkButton({ onCopy }: { onCopy: () => Promise<string | void> | undefined }) {
+  const [said, setSaid] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
-    if (!copied) return;
-    const t = window.setTimeout(() => setCopied(false), 1500);
+    if (!said) return;
+    const t = window.setTimeout(() => setSaid(null), said.ok ? 2500 : 8000);
     return () => window.clearTimeout(t);
-  }, [copied]);
+  }, [said]);
   return (
-    <button
-      type="button"
-      className="zparam-reset chart-copy-link"
-      aria-label="Copy a link to this chart"
-      title={COPY_LINK_TITLE}
-      onClick={(e) => {
-        e.stopPropagation();
-        void onCopy()?.then(
-          () => setCopied(true),
-          () => {},
-        );
-      }}
-    >
-      {copied ? "copied" : "link"}
-    </button>
+    <>
+      <button
+        type="button"
+        className="zparam-reset chart-copy-link"
+        aria-label="Copy a link to this chart"
+        title={said && !said.ok ? said.text : COPY_LINK_TITLE}
+        disabled={busy}
+        onClick={(e) => {
+          e.stopPropagation();
+          const p = onCopy();
+          if (!p) return;
+          setBusy(true);
+          void p.then(
+            (href) => {
+              setBusy(false);
+              setSaid({ ok: true, text: typeof href === "string" ? `link copied (${href.length} characters)` : "link copied" });
+            },
+            (err: unknown) => {
+              setBusy(false);
+              setSaid({ ok: false, text: `No link copied: ${err instanceof Error ? err.message : String(err)}` });
+            },
+          );
+        }}
+      >
+        {busy ? "…" : said ? (said.ok ? "copied" : "not copied") : "link"}
+      </button>
+      {said && (
+        <span className="chart-copy-link-why" role={said.ok ? "status" : "alert"} aria-label="Copy link">
+          {said.text}
+        </span>
+      )}
+    </>
   );
 }
 
