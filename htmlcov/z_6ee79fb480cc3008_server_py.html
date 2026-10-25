@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/antennaknobs/web/server.py: 92%</title>
+    <title>Coverage for src/antennaknobs/web/server.py: 93%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_4667309f.css" type="text/css">
     <script src="coverage_html_cb_15cffcd0.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src<span class="sep">/</span>antennaknobs<span class="sep">/</span>web<span class="sep">/</span>server.py</b>:
-            <span class="pc_cov">92%</span>
+            <span class="pc_cov">93%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">2199 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">2033<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">166<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">2035<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">164<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_6ee79fb480cc3008_settings_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.2">coverage.py v7.16.2</a>,
-            created at 2026-10-25 16:46 +0000
+            created at 2026-10-25 19:16 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -3405,8 +3405,8 @@
     <p class="run"><span class="n"><a id="t3323" href="#t3323">3323</a></span><span class="t">    <span class="nam">builder</span> <span class="op">=</span> <span class="nam">builder_for</span><span class="op">(</span><span class="nam">cls</span><span class="op">,</span> <span class="nam">req</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t3324" href="#t3324">3324</a></span><span class="t">    <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t3325" href="#t3325">3325</a></span><span class="t">        <span class="nam">free</span> <span class="op">=</span> <span class="nam">hd</span><span class="op">.</span><span class="nam">free_of</span><span class="op">(</span><span class="nam">h</span><span class="op">,</span> <span class="nam">builder</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t3326" href="#t3326">3326</a></span><span class="t">    <span class="key">except</span> <span class="nam">hd</span><span class="op">.</span><span class="nam">HoldRefused</span> <span class="key">as</span> <span class="nam">e</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t3327" href="#t3327">3327</a></span><span class="t">        <span class="key">raise</span> <span class="nam">HTTPException</span><span class="op">(</span><span class="nam">status_code</span><span class="op">=</span><span class="num">422</span><span class="op">,</span> <span class="nam">detail</span><span class="op">=</span><span class="nam">str</span><span class="op">(</span><span class="nam">e</span><span class="op">)</span><span class="op">)</span> <span class="key">from</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t3326" href="#t3326">3326</a></span><span class="t">    <span class="key">except</span> <span class="nam">hd</span><span class="op">.</span><span class="nam">HoldRefused</span> <span class="key">as</span> <span class="nam">e</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t3327" href="#t3327">3327</a></span><span class="t">        <span class="key">raise</span> <span class="nam">HTTPException</span><span class="op">(</span><span class="nam">status_code</span><span class="op">=</span><span class="num">422</span><span class="op">,</span> <span class="nam">detail</span><span class="op">=</span><span class="nam">str</span><span class="op">(</span><span class="nam">e</span><span class="op">)</span><span class="op">)</span> <span class="key">from</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t3328" href="#t3328">3328</a></span><span class="t">    <span class="key">if</span> <span class="nam">param</span> <span class="key">in</span> <span class="op">{</span><span class="nam">f</span><span class="op">[</span><span class="str">&quot;name&quot;</span><span class="op">]</span> <span class="key">for</span> <span class="nam">f</span> <span class="key">in</span> <span class="nam">free</span><span class="op">}</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t3329" href="#t3329">3329</a></span><span class="t">        <span class="key">raise</span> <span class="nam">HTTPException</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t3330" href="#t3330">3330</a></span><span class="t">            <span class="nam">status_code</span><span class="op">=</span><span class="num">422</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -5940,7 +5940,7 @@
             <a class="nav" href="z_6ee79fb480cc3008_settings_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.2">coverage.py v7.16.2</a>,
-            created at 2026-10-25 16:46 +0000
+            created at 2026-10-25 19:16 +0000
         </p>
     </div>
 </footer>
