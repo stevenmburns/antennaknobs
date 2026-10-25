@@ -20,6 +20,12 @@
 // server that rebuilds the deck lists them again; the server reads them
 // without running them, and they are part of the deck's key.
 //
+// The link's knob ranges (`&knobs=`, lib/deepLink.ts) ride the same way
+// (`ranges`, `<knob>:<min>:<max>,…`): a deck's SY knob has no range of its
+// own, the server makes the link's its min/max (so a hold on it can run), and
+// they are part of the key too. The knob values are the panel's, not the
+// deck's, and never ride here.
+//
 // React-free, so the link grammar and the store are tested alone.
 
 import type { ExampleDescriptor } from "./params";
@@ -42,8 +48,9 @@ export const isDialect = (v: unknown): v is Dialect =>
 
 /** `dialect`: the reader's choice, absent to let the server detect it.
  *  `analyses`: the analyses a link carried for the deck (AK#2045), compressed
- *  as the deck is; absent when it carried none. */
-export type DeckPayload = { name: string; z: string; dialect?: Dialect; analyses?: string };
+ *  as the deck is; absent when it carried none. `ranges`: the knob ranges
+ *  the link gave it (AK#2045, `deepLink.knobRanges`), absent for none. */
+export type DeckPayload = { name: string; z: string; dialect?: Dialect; analyses?: string; ranges?: string };
 
 /** What /deck says the deck was read as, and why. */
 export type DeckDialect = {
@@ -61,6 +68,9 @@ export type OpenedDeck = DeckPayload & {
   /** Why the server refused the link's analyses (the deck opened without
    *  them), in its words; null or absent when it read them or there were none. */
   analysesRefusal?: string | null;
+  /** The link's knob ranges the server did not take, by name (the deck
+   *  opened with the rest); null or absent for none. */
+  rangesRefusal?: string | null;
 };
 
 export const isDeck = (g: unknown): g is string =>
@@ -182,6 +192,7 @@ export async function openDeck(payload: DeckPayload): Promise<OpenedDeck> {
     example?: ExampleDescriptor;
     dialect?: DeckDialect | null;
     analyses_refusal?: string | null;
+    ranges_refusal?: string | null;
     detail?: string;
     deck_status?: string;
   } = {};
@@ -203,6 +214,7 @@ export async function openDeck(payload: DeckPayload): Promise<OpenedDeck> {
     example: body.example,
     readAs: body.dialect ?? null,
     analysesRefusal: body.analyses_refusal ?? null,
+    rangesRefusal: body.ranges_refusal ?? null,
   };
   rememberDeck(d);
   return d;
@@ -247,14 +259,16 @@ export async function openDeckFile(file: File): Promise<OpenedDeck> {
 // --- Carrying the deck on every request ------------------------------------
 
 /** What a request carries to rebuild a deck: its name, text, the dialect
- *  it was chosen to be read in (none when detected) and the analyses its link
- *  carried (none when it carried none), which are part of its key. */
+ *  it was chosen to be read in (none when detected), and the analyses and
+ *  knob ranges its link carried (none when it carried none), all part of its
+ *  key. */
 export function deckPayload(d: DeckPayload): DeckPayload {
   return {
     name: d.name,
     z: d.z,
     ...(d.dialect ? { dialect: d.dialect } : {}),
     ...(d.analyses ? { analyses: d.analyses } : {}),
+    ...(d.ranges ? { ranges: d.ranges } : {}),
   };
 }
 

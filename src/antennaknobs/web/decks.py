@@ -20,6 +20,14 @@ the text `analyses_text.pack` writes. They travel in the same payload
 part of the key (`deck_key`) and are kept beside the deck
 (`DeckStore.link_analyses`).
 
+A link may carry knob RANGES too (``&knobs=<name>:<value>:<min>:<max>,...``,
+AK#2045): a deck's SY knob has no ``ui_params`` min/max of its own, so a hold
+has nothing to bound its search by. The page sends the ranges alone
+(``ranges``, ``<name>:<min>:<max>`` entries; the values are the knob panel's,
+never the server's), `payload_ranges` reads them strictly, they are part of
+the key, and the deck opens with them folded into its knobs' ``ui_params``
+(`with_ranges`), so its sliders, holds and optimizer all take them.
+
 Because the text is a stranger's, everything about it is bounded:
 
 - the text (64 KB) before anything parses it;
@@ -44,6 +52,7 @@ import base64
 import hashlib
 import math
 import os
+import re
 import threading
 import time
 import zlib
@@ -78,7 +87,11 @@ def is_deck(geometry) -> bool:
 
 
 def deck_key(
-    name: str, text: str, dialect: str | None = None, analyses: str | None = None
+    name: str,
+    text: str,
+    dialect: str | None = None,
+    analyses: str | None = None,
+    ranges: dict[str, tuple[float, float]] | None = None,
 ) -> str:
     """The design key for a deck: its file name and text, hashed. The name is
     in the hash because it is the design's label, so the same text opened
@@ -92,11 +105,18 @@ def deck_key(
     shared by every visitor of the hosted app, so the same deck under two
     links listing different analyses is two entries, never one whose list a
     second visitor overwrote. None (no analyses, or ones refused) hashes as
-    a deck always did, so every older link names the same design."""
+    a deck always did, so every older link names the same design.
+
+    ``ranges`` is the knob ranges the link carries (`payload_ranges`'s), for
+    the same reason: two links giving one deck different ranges are two
+    designs. None or empty hashes as before, so a link with no ranges keeps
+    its key."""
     tail = "" if dialect is None else f"\0{dialect}"
     if analyses is not None:
         # After the dialect, behind a marker no dialect spells.
         tail += f"\0analyses\0{analyses}"
+    if ranges:
+        tail += f"\0ranges\0{ranges_text(ranges)}"
     h = hashlib.sha256(f"{name}\0{text}{tail}".encode("utf-8", "surrogatepass"))
     return f"{_PREFIX}{h.hexdigest()[:12]}"
 
@@ -114,6 +134,131 @@ def payload_analyses(payload) -> str | None:
     if not isinstance(z, str):
         raise DeckError("analyses must be a string (the link's analyses= value)")
     return z
+
+
+#: How many knob ranges one link may carry, and how long their text may be:
+#: a deck has at most a few dozen knobs, and each entry is a name and two
+#: numbers.
+MAX_RANGES = 32
+MAX_RANGES_CHARS = 2000
+#: A knob name as a link spells it: an identifier (an SY knob opens as
+#: ``sy_<name>``), bounded.
+_KNOB_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
+#: A number as a link spells it: decimal, optionally signed, optionally with
+#: an exponent. Nothing else ``float`` would take (``inf``, ``nan``,
+#: ``1_000``, whitespace) is one.
+_NUMBER = re.compile(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?")
+
+
+def link_number(raw: str) -> float | None:
+    """``raw`` as a link's number (`_NUMBER`, finite), else None."""
+    if not _NUMBER.fullmatch(raw):
+        return None
+    v = float(raw)
+    return v if math.isfinite(v) else None
+
+
+def ranges_text(ranges: dict[str, tuple[float, float]]) -> str:
+    """The ranges in one canonical spelling: by name, each bound as Python
+    writes a float, so the key does not depend on how the page spelled
+    them (``10`` and ``10.0`` are one range)."""
+    return ",".join(
+        f"{k}:{float(lo)!r}:{float(hi)!r}" for k, (lo, hi) in sorted(ranges.items())
+    )
+
+
+def payload_ranges(payload) -> tuple[dict[str, tuple[float, float]], list[str]]:
+    """The knob ranges a deck payload carries (``ranges``: the link's
+    ``knobs=`` ranges, ``<name>:<min>:<max>`` comma-separated), as
+    ``({name: (min, max)}, refusals)``. Read strictly and never evaluated:
+    a name is an identifier, a bound a finite decimal number, ``min < max``,
+    each name once. An entry that is not that is refused by name and left
+    out; the rest stand. Over `MAX_RANGES` entries or `MAX_RANGES_CHARS`
+    characters, all are refused. Absent or empty: none. Not a string is a
+    `DeckError` by name. Whether each knob exists is the deck's to say
+    (`with_ranges`)."""
+    if not isinstance(payload, dict):
+        return {}, []
+    raw = payload.get("ranges")
+    if raw is None or raw == "":
+        return {}, []
+    if not isinstance(raw, str):
+        raise DeckError("ranges must be a string (<knob>:<min>:<max>,...)")
+    if len(raw) > MAX_RANGES_CHARS:
+        return {}, [
+            f"the link's knob ranges are {len(raw)} characters, over the "
+            f"{MAX_RANGES_CHARS} a link may carry"
+        ]
+    entries = raw.split(",")
+    if len(entries) > MAX_RANGES:
+        return {}, [
+            f"the link carries {len(entries)} knob ranges, over the {MAX_RANGES} "
+            "a link may carry"
+        ]
+    out: dict[str, tuple[float, float]] = {}
+    refused: list[str] = []
+    for entry in entries:
+        f = entry.split(":")
+        shown = entry if len(entry) <= 80 else entry[:77] + "..."
+        if len(f) != 3 or not _KNOB_NAME.fullmatch(f[0]):
+            refused.append(f"knob range {shown!r} is not <knob>:<min>:<max>")
+            continue
+        name = f[0]
+        lo, hi = link_number(f[1]), link_number(f[2])
+        if lo is None or hi is None:
+            refused.append(f"{name}'s range {shown!r} is not two finite numbers")
+        elif not lo < hi:
+            refused.append(f"{name}'s range {shown!r} does not have min < max")
+        elif name in out:
+            refused.append(f"{name} is given a range twice")
+        else:
+            out[name] = (lo, hi)
+    return out, refused
+
+
+def _numeric_knob(params, name: str) -> bool:
+    v = params.get(name)
+    return (
+        name != "ui_params" and isinstance(v, (int, float)) and not isinstance(v, bool)
+    )
+
+
+def with_ranges(cls, ranges: dict[str, tuple[float, float]]):
+    """``(cls with ranges, refusals)``: a subclass of the deck's builder
+    class whose knobs' ``ui_params`` carry the link's ``min``/``max``
+    (replacing any the import gave them), so the slider, a hold
+    (`hold.free_of`) and the optimizer all search the link's range. A range
+    on a name that is not one of the deck's numeric knobs is refused by name
+    and left out. A float knob's ``step`` is a thousandth of its range, as
+    the app's own window's is; an integer knob keeps whole steps. No range
+    taken: ``cls`` itself."""
+    from types import MappingProxyType
+
+    from .adapter import _nice_step
+
+    params = dict(cls.default_params)
+    ui = dict(params.get("ui_params") or {})
+    refused = []
+    taken = 0
+    for name, (lo, hi) in ranges.items():
+        if not _numeric_knob(params, name):
+            refused.append(
+                f"the link gives {name} a range, and this deck has no knob {name!r}"
+            )
+            continue
+        meta = dict(ui.get(name) or {})
+        meta.update(min=lo, max=hi)
+        if not isinstance(params[name], int):
+            meta["step"] = _nice_step(max((hi - lo) / 1000.0, 1e-9))
+        ui[name] = meta
+        taken += 1
+    if not taken:
+        return cls, refused
+    params["ui_params"] = MappingProxyType(ui)
+    sub = type(cls.__name__, (cls,), {"default_params": MappingProxyType(params)})
+    sub.__qualname__ = cls.__qualname__
+    sub.__module__ = cls.__module__
+    return sub, refused
 
 
 #: The dialects a deck may be read in when the reader chooses
@@ -518,6 +663,10 @@ class DeckStore:
         # The analyses a link opened each deck with (AK#2045), by key; a key
         # opened without any has no entry. Evicted with its deck.
         self._links: dict[str, tuple] = {}
+        # Why the deck's knobs took none of some link ranges (AK#2045): a
+        # name that is no knob of it, by key, so a second open of the same
+        # link names it again. Evicted with its deck.
+        self._range_refusals: dict[str, tuple[str, ...]] = {}
         self._lock = threading.Lock()
 
     def limits(self):
@@ -543,6 +692,12 @@ class DeckStore:
         with self._lock:
             return self._links.get(key, ())
 
+    def range_refusals(self, key: str) -> tuple[str, ...]:
+        """The link ranges the deck ``key`` opened with that name no knob of
+        it (`with_ranges`), by name; ``()`` for none."""
+        with self._lock:
+            return self._range_refusals.get(key, ())
+
     def __contains__(self, key: str) -> bool:
         with self._lock:
             return key in self._decks
@@ -553,6 +708,7 @@ class DeckStore:
         text: str,
         dialect: str | None = None,
         analyses: tuple[str, tuple] | None = None,
+        ranges: dict[str, tuple[float, float]] | None = None,
     ) -> tuple[str, bool]:
         """Parse and register a deck; ``(key, new)``. A deck already open is
         only touched. Parse errors and limit refusals raise `DeckError`.
@@ -560,15 +716,21 @@ class DeckStore:
         detect; it is part of the key. ``analyses`` is ``(text, values)``,
         the analyses a link carries as `analyses_text.read` read them
         (AK#2045), or None: the text is part of the key, and the values are
-        kept beside the deck (`link_analyses`)."""
+        kept beside the deck (`link_analyses`). ``ranges`` is the link's knob
+        ranges (`payload_ranges`), part of the key and folded into the
+        knobs' ``ui_params`` (`with_ranges`); one on a name that is no knob
+        of the deck is left out and named (`range_refusals`)."""
         from antennaknobs.file_designs import builder_from_text
         from antennaknobs.nec_import import GeometryLimitError
 
-        key = deck_key(name, text, dialect, None if analyses is None else analyses[0])
+        key = deck_key(
+            name, text, dialect, None if analyses is None else analyses[0], ranges
+        )
         if self.get(key) is not None:
             return key, False
         try:
             cls = builder_from_text(name, text, limits=self.limits(), dialect=dialect)
+            cls, refused = with_ranges(cls, ranges or {})
             cls()  # default_params construct, as user designs are checked
         except DeckError:
             raise
@@ -586,9 +748,12 @@ class DeckStore:
             self._decks.move_to_end(key)
             if analyses is not None:
                 self._links[key] = tuple(analyses[1])
+            if refused:
+                self._range_refusals[key] = tuple(refused)
             while len(self._decks) > self.settings.max_open:
                 old = self._decks.popitem(last=False)[0]
                 self._links.pop(old, None)
+                self._range_refusals.pop(old, None)
                 evicted.append(old)
         for old in evicted:
             self._unregister(old)

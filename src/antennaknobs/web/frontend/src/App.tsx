@@ -73,12 +73,16 @@ export function App() {
     openDeck(link.deck).then(
       (d) => {
         if (!live) return;
-        // The deck opened; analyses the server refused (AK#2045) are named
-        // in the link notice, as a deck that did not open is.
+        // The deck opened; analyses or knob ranges the server refused
+        // (AK#2045) are named in the link notice, as a deck that did not
+        // open is.
+        const refused = [d.analysesRefusal, d.rangesRefusal && `knobs: ${d.rangesRefusal}`].filter(
+          (p): p is string => !!p,
+        );
         setDeepLink({
           ...link,
           design: d.key,
-          ...(d.analysesRefusal ? { problem: d.analysesRefusal } : {}),
+          ...(refused.length > 0 ? { problem: refused.join("; ") } : {}),
         });
         setDeckBoot("done");
       },

@@ -16,8 +16,13 @@ this file covers what the server does with them after that:
   be the deck itself or a catalog design, and every knob it sets or moves a
   knob of a design it runs on (`analyses_offer.link_refusal`); nothing a link
   says can make the server read a file;
+- the link's knob ranges (``knobs=``, sent to /deck as ``ranges``): read
+  strictly and refused by name, part of the key (a link with none keeps its
+  old key), folded into the deck's knobs' min/max so a hold on an SY knob
+  runs, and carried through eviction;
 - the acceptance: ``dipoles.two_wire_doublet`` as a NEC-5 deck with SY cards
-  for L and M, its three analyses, opened, listed and run.
+  for L and M, its three analyses and the knobs' ranges, opened, listed, and
+  the map and a held branch run.
 """
 
 from __future__ import annotations
@@ -465,6 +470,194 @@ def test_a_link_may_carry_a_kept_run_on_the_deck(
 
 
 # ---------------------------------------------------------------------------
+# Knob ranges a link carries (knobs=, AK#2045): the deck's knobs take them
+# ---------------------------------------------------------------------------
+
+
+def test_a_deck_without_ranges_keeps_its_key():
+    # No ranges, or an empty set, hashes as every older link did: pinned
+    # literally (the pre-#2045 key) and beside analyses.
+    assert decks.deck_key("dipole.nec", DIPOLE, None, None, None) == "deck.51cef6474d59"
+    assert decks.deck_key("dipole.nec", DIPOLE, None, None, {}) == "deck.51cef6474d59"
+    assert decks.deck_key("dipole.nec", DIPOLE, "nec5", None, {}) == "deck.3357c412c8b5"
+    for dialect in (None, "nec2", "nec4", "nec5"):
+        assert decks.deck_key("d.nec", SY_DIPOLE, dialect, SWEEP_HALF, {}) == (
+            decks.deck_key("d.nec", SY_DIPOLE, dialect, SWEEP_HALF)
+        )
+
+
+def test_open_without_ranges_answers_the_old_key(client, fresh_decks):
+    for extra in ({}, {"ranges": ""}, {"ranges": None}):
+        body = client.post("/deck", json={**_payload(), **extra}).json()
+        assert body["key"] == "deck.51cef6474d59", extra
+        assert body["ranges_refusal"] is None
+
+
+def test_ranges_are_part_of_the_key_in_one_spelling():
+    a = {"sy_half": (4.0, 6.0)}
+    plain = decks.deck_key("d.nec", SY_DIPOLE)
+    ka = decks.deck_key("d.nec", SY_DIPOLE, None, None, a)
+    kb = decks.deck_key("d.nec", SY_DIPOLE, None, None, {"sy_half": (4.0, 6.5)})
+    assert len({plain, ka, kb}) == 3
+    # The bounds' spelling is not part of it: 4 and 4.0 are one range.
+    assert decks.deck_key("d.nec", SY_DIPOLE, None, None, {"sy_half": (4, 6)}) == ka
+    r1, _ = decks.payload_ranges({"ranges": "sy_half:4:6"})
+    r2, _ = decks.payload_ranges({"ranges": "sy_half:4.0:6.00"})
+    assert decks.deck_key("d.nec", SY_DIPOLE, None, None, r1) == ka
+    assert decks.deck_key("d.nec", SY_DIPOLE, None, None, r2) == ka
+    # Ranges and analyses are separate parts.
+    assert decks.deck_key("d.nec", SY_DIPOLE, None, SWEEP_HALF, a) not in {
+        ka,
+        decks.deck_key("d.nec", SY_DIPOLE, None, SWEEP_HALF),
+    }
+
+
+def test_two_links_with_different_ranges_do_not_collide(client, fresh_decks):
+    def opened(ranges):
+        body = client.post(
+            "/deck", json={**_payload(SY_DIPOLE, "d.nec"), "ranges": ranges}
+        ).json()
+        assert body["ranges_refusal"] is None, body
+        (half,) = [p for p in body["example"]["param_schema"] if p["name"] == "sy_half"]
+        return body["key"], (half["min"], half["max"], half.get("auto_range"))
+
+    ka, sa = opened("sy_half:4:6")
+    kb, sb = opened("sy_half:3:8")
+    plain = client.post("/deck", json=_payload(SY_DIPOLE, "d.nec")).json()
+    assert len({ka, kb, plain["key"]}) == 3
+    assert sa == (4.0, 6.0, False) and sb == (3.0, 8.0, False)
+    # The deck opened without ranges keeps the import's own window.
+    (half,) = [p for p in plain["example"]["param_schema"] if p["name"] == "sy_half"]
+    assert half["auto_range"] is True
+
+
+@pytest.mark.parametrize(
+    ("ranges", "words"),
+    [
+        ("sy_half:4", "knob range 'sy_half:4' is not <knob>:<min>:<max>"),
+        ("sy_half:4:6:8", "knob range 'sy_half:4:6:8' is not <knob>:<min>:<max>"),
+        ("1x:4:6", "knob range '1x:4:6' is not <knob>:<min>:<max>"),
+        ("sy.half:4:6", "knob range 'sy.half:4:6' is not <knob>:<min>:<max>"),
+        ("sy_half:inf:6", "sy_half's range 'sy_half:inf:6' is not two finite numbers"),
+        ("sy_half:4:nan", "is not two finite numbers"),
+        ("sy_half:0x10:20", "is not two finite numbers"),
+        ("sy_half:1_0:20", "is not two finite numbers"),
+        ("sy_half:1e999:2e999", "is not two finite numbers"),
+        ("sy_half:6:4", "sy_half's range 'sy_half:6:4' does not have min < max"),
+        ("sy_half:4:4", "does not have min < max"),
+        ("sy_half:4:6,sy_half:3:7", "sy_half is given a range twice"),
+        (
+            "__import__:1:2",
+            "the link gives __import__ a range, and this deck has no knob",
+        ),
+        (
+            "ui_params:1:2",
+            "the link gives ui_params a range, and this deck has no knob",
+        ),
+        ("freq_scale:1:2", "this deck has no knob 'freq_scale'"),
+    ],
+)
+def test_a_bad_range_is_refused_by_name_and_the_deck_opens(
+    client, fresh_decks, ranges, words
+):
+    body = client.post(
+        "/deck", json={**_payload(SY_DIPOLE, "d.nec"), "ranges": ranges}
+    ).json()
+    assert body["key"].startswith("deck."), body
+    assert words in (body["ranges_refusal"] or ""), body["ranges_refusal"]
+    (half,) = [p for p in body["example"]["param_schema"] if p["name"] == "sy_half"]
+    # A refused entry gives no knob a range.
+    if "twice" not in words:
+        assert half["auto_range"] is True
+
+
+def test_the_good_ranges_stand_beside_a_refused_one(client, fresh_decks):
+    sent = {**_payload(SY_DIPOLE, "d.nec"), "ranges": "nope:1:2,sy_half:4:6,x:9:1"}
+    body = client.post("/deck", json=sent).json()
+    assert body["ranges_refusal"] == (
+        "x's range 'x:9:1' does not have min < max; "
+        "the link gives nope a range, and this deck has no knob 'nope'"
+    )
+    (half,) = [p for p in body["example"]["param_schema"] if p["name"] == "sy_half"]
+    assert (half["min"], half["max"]) == (4.0, 6.0)
+    # Opened again (already open: no re-parse), the refusal is named again.
+    again = client.post("/deck", json=sent).json()
+    assert again["key"] == body["key"]
+    assert again["ranges_refusal"] == body["ranges_refusal"]
+
+
+def test_ranges_are_bounded(client, fresh_decks):
+    many = ",".join(f"k{i}:0:1" for i in range(decks.MAX_RANGES + 1))
+    body = client.post(
+        "/deck", json={**_payload(SY_DIPOLE, "d.nec"), "ranges": many}
+    ).json()
+    assert f"over the {decks.MAX_RANGES} a link may carry" in body["ranges_refusal"]
+    long = "sy_half:4:" + "6" * decks.MAX_RANGES_CHARS
+    body = client.post(
+        "/deck", json={**_payload(SY_DIPOLE, "d.nec"), "ranges": long}
+    ).json()
+    assert (
+        f"over the {decks.MAX_RANGES_CHARS} a link may carry" in body["ranges_refusal"]
+    )
+    assert body["key"] == decks.deck_key("d.nec", SY_DIPOLE)
+
+
+def test_ranges_that_are_not_a_string_are_refused_by_name(client, fresh_decks):
+    r = client.post(
+        "/deck", json={**_payload(SY_DIPOLE, "d.nec"), "ranges": {"sy_half": [4, 6]}}
+    )
+    assert r.status_code == 422
+    assert "ranges must be a string" in r.json()["detail"]
+
+
+def test_an_evicted_deck_comes_back_with_its_ranges(client, monkeypatch):
+    st = replace(server._DECK_SETTINGS, max_open=1)
+    store = decks.DeckStore(st, server._register_deck, server._unregister_deck)
+    monkeypatch.setattr(server, "_DECK_STORE", store)
+    monkeypatch.setattr(server, "_DECK_OPENS", decks.RateLimiter(0))
+    try:
+        sent = {**_payload(SY_DIPOLE, "d.nec"), "ranges": "sy_half:4:6,nope:1:2"}
+        key = client.post("/deck", json=sent).json()["key"]
+        client.post("/deck", json=_payload())
+        assert key not in store and key not in server.EXAMPLES
+        assert store.range_refusals(key) == ()
+        # The page's payload carries the ranges: the deck comes back under the
+        # same key, its knob bounded by them again.
+        r = client.post("/geometry", json={"geometry": key, "_deck": sent})
+        assert r.status_code == 200, r.text
+        assert key in store
+        b = analyses_offer.builder_for(
+            server.EXAMPLES[key].builder_cls, {"geometry": key}
+        )
+        assert an._ui(an._params(b))["sy_half"]["min"] == 4.0
+        assert store.range_refusals(key) == (
+            "the link gives nope a range, and this deck has no knob 'nope'",
+        )
+        # A payload that dropped the ranges names another design: refused.
+        store._decks.clear()
+        server.EXAMPLES.pop(key)
+        bare = _payload(SY_DIPOLE, "d.nec")
+        r = client.post("/geometry", json={"geometry": key, "_deck": bare})
+        assert r.status_code == 400
+    finally:
+        for k in list(server.EXAMPLES):
+            if decks.is_deck(k):
+                del server.EXAMPLES[k]
+
+
+def test_without_ranges_the_doublet_deck_holds_are_refused(client, fresh_decks):
+    # The gap the link's knobs= closes: a deck's SY knob has no range of its
+    # own, so each held branch is listed, refused by name.
+    sent = _payload(DOUBLET, "two_wire_doublet.nec", at.pack(_doublet_text()))
+    key = client.post("/deck", json=sent).json()["key"]
+    links = _links(_listed(client, key))
+    for e, held in ((links[1], "sy_short_ft"), (links[2], "sy_long_ft")):
+        w = e["workbench"]
+        assert w["runs"] is False
+        assert f"the hold adjusts {held}, which has no ui_params min/max" in w["why"]
+
+
+# ---------------------------------------------------------------------------
 # Acceptance: the two-wire doublet as a deck, with its three analyses
 # ---------------------------------------------------------------------------
 
@@ -479,25 +672,56 @@ def _doublet_text() -> str:
     )
 
 
+#: The doublet link's knobs (AK#2045, ``knobs=``): each SY knob's value and
+#: the catalog design's own range, which the deck's SY cards cannot say. The
+#: values start the panel on the doublet (L = M = 33 ft); the ranges give
+#: the two holds something to search.
+DOUBLET_KNOBS = "sy_long_ft:33:15:36,sy_short_ft:33:1:34"
+#: What the page sends /deck of it: the ranges alone (`lib/deepLink.ts`
+#: `knobRanges`), never the values, which are the panel's.
+DOUBLET_RANGES = "sy_long_ft:15:36,sy_short_ft:1:34"
+
+
 def test_acceptance_two_wire_doublet_deck_link(client, fresh_decks):
     text = _doublet_text()
     packed = at.pack(text)
-    sent = _payload(DOUBLET, "two_wire_doublet.nec", packed)
-    # The link: ?deck=<z>&name=<file>&analyses=<z2> (base64url needs no
-    # escaping; the name has none to escape).
-    link = f"?deck={sent['z']}&name={sent['name']}&analyses={packed}"
+    sent = {
+        **_payload(DOUBLET, "two_wire_doublet.nec", packed),
+        "ranges": DOUBLET_RANGES,
+    }
+    # The link: ?deck=<z>&name=<file>&analyses=<z2>&knobs=<...> (base64url
+    # needs no escaping, nor does the name; a knobs= colon and comma are
+    # written bare, as the link writer writes them).
+    link = (
+        f"?deck={sent['z']}&name={sent['name']}&analyses={packed}&knobs={DOUBLET_KNOBS}"
+    )
     assert len(link) < 2 * decks_max_share()
     print(
-        f"\nlink: deck {len(sent['z'])} + analyses {len(packed)} chars, "
-        f"query {len(link)} chars"
+        f"\nlink: deck {len(sent['z'])} + analyses {len(packed)} + knobs "
+        f"{len(DOUBLET_KNOBS)} chars, query {len(link)} chars"
     )
     body = client.post("/deck", json=sent).json()
     assert body["analyses"] == 3 and body["analyses_refusal"] is None
+    assert body["ranges_refusal"] is None
     key = body["key"]
-    assert body["example"]["param_schema"]
+    schema = {p["name"]: p for p in body["example"]["param_schema"]}
+    assert (schema["sy_long_ft"]["min"], schema["sy_long_ft"]["max"]) == (15.0, 36.0)
+    assert (schema["sy_short_ft"]["min"], schema["sy_short_ft"]["max"]) == (1.0, 34.0)
     links = _links(_listed(client, key))
     assert [e["name"] for e in links] == [a.name for a in Doublet().build_analyses()]
     assert all(e["group"] == "Resonant splits" for e in links)
+    # The two held branches run now: the link's ranges bound their holds.
+    for e, held, swept in (
+        (links[1], "sy_short_ft", "sy_long_ft"),
+        (links[2], "sy_long_ft", "sy_short_ft"),
+    ):
+        w = e["workbench"]
+        assert w["runs"] is True, w
+        assert w["kind"] == "knob" and w["param"] == swept
+        assert w["hold"]["knobs"] == [held]
+        assert w["hold"]["bounds"][held] == list(
+            (schema[held]["min"], schema[held]["max"])
+        )
     resonance_map = links[0]["workbench"]
     assert resonance_map["runs"] is True and resonance_map["kind"] == "map"
     assert resonance_map["x"]["param"] == "sy_long_ft"
@@ -526,6 +750,44 @@ def test_acceptance_two_wire_doublet_deck_link(client, fresh_decks):
     assert [(x["i"], x["j"]) for x in nodes] == [(38, 33), (39, 33), (40, 33)]
     assert all("error" not in x for x in nodes), nodes
     assert all(x["z_re"] > 0 for x in nodes)
+    # Run the high-R branch's first point through its own route (POST
+    # /param_sweep with the hold, as the chart does), with the panel at the
+    # link's values: M = 33 ft, L held at resonance from the deck's own
+    # value (a held curve starts from the design's defaults). The catalog
+    # run gives L = 33.0 ft, about 5320 ohms there (AK#2045 acceptance).
+    high = links[2]["workbench"]
+    r = client.post(
+        "/param_sweep",
+        json={
+            "geometry": key,
+            "_session": "acceptance",
+            "_deck": sent,
+            "sy_long_ft": 33.0,
+            "sy_short_ft": 33.0,
+            "design_freq_mhz": 14.0,
+            "measurement_freq_mhz": 14.0,
+            "solver": "momwire",
+            "momwire_model": "bspline",
+            "ground": False,
+            "param": high["param"],
+            "values": high["values"][:1],
+            "hold": high["hold"]["spec"],
+        },
+    )
+    assert r.status_code == 200, r.text
+    recs = [json.loads(line) for line in r.text.splitlines() if line.strip()]
+    (point,) = [x for x in recs if "value" in x]
+    assert recs[-1].get("done") is True, recs
+    assert point["converged"] is True, point
+    assert point["value"] == 33.0
+    assert 15.0 <= point["held"]["sy_long_ft"] <= 36.0
+    print(
+        f"high-R point: M = 33 ft, L = {point['held']['sy_long_ft']:.3f} ft, "
+        f"Z = {point['z_re']:.1f}{point['z_im']:+.1f}j"
+    )
+    assert point["held"]["sy_long_ft"] == pytest.approx(33.0, abs=0.3)
+    assert abs(point["z_im"]) < 5.0
+    assert 4000 < point["z_re"] < 6500
 
 
 def decks_max_share() -> int:

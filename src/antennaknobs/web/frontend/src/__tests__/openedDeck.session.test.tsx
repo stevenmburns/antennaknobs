@@ -145,6 +145,55 @@ describe("opening a deck", () => {
     expect(screen.queryByRole("alert", { name: "Link problems" })).toBeNull();
   });
 
+  it("a link's knob ranges ride to /deck and every request; its values set the panel (AK#2045)", async () => {
+    const z = await compressDeck(DECK_TEXT);
+    // The deck as the server answers it: the link's range is its knob's own.
+    const example: ExampleDescriptor = {
+      ...DECK_EXAMPLE,
+      param_schema: [
+        {
+          name: "sy_half",
+          label: "half",
+          default: 5.1,
+          kind: "float",
+          min: 4,
+          max: 6,
+          step: 0.002,
+          precision: 3,
+          unit: null,
+          visible_when: null,
+          auto_range: false,
+        },
+      ],
+    };
+    const { opened, geometry } = mount(`/?deck=${z}&name=mydeck.nec&knobs=sy_half:5.5:4:6`, {
+      example,
+      ranges_refusal: null,
+    });
+    await sessionReady(document.body);
+    await waitFor(() => expect(ready()).toMatch(/^deck\.0123456789ab#/), { timeout: 5000 });
+    expect(opened[0]).toEqual({ name: "mydeck.nec", z, ranges: "sy_half:4:6" });
+    await waitFor(() => expect(query().get("knobs")).toBe("sy_half:5.5:4:6"), { timeout: 5000 });
+    expect(geometry.find((b) => b.geometry === KEY)?._deck).toEqual({ name: "mydeck.nec", z, ranges: "sy_half:4:6" });
+    await waitFor(() => expect(sent.some((m) => m.geometry === KEY && m.sy_half === 5.5)).toBe(true), {
+      timeout: 5000,
+    });
+    expect(sent.find((m) => m.geometry === KEY)?._deck).toEqual({ name: "mydeck.nec", z, ranges: "sy_half:4:6" });
+    expect(screen.queryByRole("alert", { name: "Link problems" })).toBeNull();
+  });
+
+  it("knob ranges the server does not take are named, and the deck opens anyway", async () => {
+    const z = await compressDeck(DECK_TEXT);
+    mount(`/?deck=${z}&name=mydeck.nec&knobs=nope:1:0:2`, {
+      ranges_refusal: "the link gives nope a range, and this deck has no knob 'nope'",
+    });
+    await sessionReady(document.body);
+    await waitFor(() => expect(ready()).toMatch(/^deck\.0123456789ab#/), { timeout: 5000 });
+    const n = await screen.findByRole("alert", { name: "Link problems" }, { timeout: 5000 });
+    expect(n.textContent).toContain("knobs: the link gives nope a range");
+    expect(n.textContent).toContain(`this design has no knob "nope"`);
+  });
+
   it("analyses the server refuses are named, and the deck opens anyway", async () => {
     const z = await compressDeck(DECK_TEXT);
     mount(`/?deck=${z}&name=mydeck.nec&analyses=AAAA`, {
