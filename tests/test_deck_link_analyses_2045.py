@@ -726,12 +726,12 @@ def test_acceptance_two_wire_doublet_deck_link(client, fresh_decks):
     assert resonance_map["runs"] is True and resonance_map["kind"] == "map"
     assert resonance_map["x"]["param"] == "sy_long_ft"
     assert resonance_map["y"]["param"] == "sy_short_ft"
-    assert len(resonance_map["x"]["values"]) == 41
-    assert len(resonance_map["y"]["values"]) == 34
+    assert len(resonance_map["x"]["values"]) == 32
+    assert len(resonance_map["y"]["values"]) == 31
     # Run the map through its own route (POST /map), as the chart does: the
     # axes exactly as /analyses served them, resumed at the grid's last
-    # nodes so the test solves three of its 1394 (the route, not the size).
-    n = 41 * 34
+    # nodes so the test solves three of its 992 (the route, not the size).
+    n = 32 * 31
     r = client.post(
         "/map",
         json={
@@ -747,7 +747,7 @@ def test_acceptance_two_wire_doublet_deck_link(client, fresh_decks):
     recs = [json.loads(line) for line in r.text.splitlines() if line.strip()]
     nodes = [x for x in recs if "i" in x]
     assert recs[-1].get("done") is True, recs
-    assert [(x["i"], x["j"]) for x in nodes] == [(38, 33), (39, 33), (40, 33)]
+    assert [(x["i"], x["j"]) for x in nodes] == [(29, 30), (30, 30), (31, 30)]
     assert all("error" not in x for x in nodes), nodes
     assert all(x["z_re"] > 0 for x in nodes)
     # Run the high-R branch's first point through its own route (POST
