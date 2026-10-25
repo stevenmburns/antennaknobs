@@ -8,6 +8,7 @@ import {
   defaultBuildName,
   HOLD_TARGETS,
   type HoldObjective,
+  holdRangeText,
 } from "../../lib/buildAnalysis";
 import type { SchemaParamSpec } from "../../lib/params";
 
@@ -31,6 +32,9 @@ export type BuildAnalysisDialogProps = {
   axisFor: (knob: string) => BuildAxis;
   /** The names the tab's picker lists already. */
   taken: ReadonlySet<string>;
+  /** The ranges set in the knobs' Optimize menus (KnobOpt optMin/optMax),
+   *  by knob: a held knob searches its own, else its own real range. */
+  optRanges?: Readonly<Record<string, { min: number; max: number }>>;
   /** Build it: resolves once it is listed and picked, rejects with why not. */
   onBuild: (b: Build) => Promise<void>;
   onClose: () => void;
@@ -114,7 +118,16 @@ function AxisRow({
   );
 }
 
-export function BuildAnalysisDialog({ kind, knob, knobs, axisFor, taken, onBuild, onClose }: BuildAnalysisDialogProps) {
+export function BuildAnalysisDialog({
+  kind,
+  knob,
+  knobs,
+  axisFor,
+  taken,
+  optRanges,
+  onBuild,
+  onClose,
+}: BuildAnalysisDialogProps) {
   const other = (not: string) => knobs.find((k) => k.name !== not)?.name ?? not;
   const [x, setX] = useState<AxisText>(() => asText(axisFor(knob)));
   const [y, setY] = useState<AxisText>(() => asText(axisFor(other(knob))));
@@ -136,7 +149,14 @@ export function BuildAnalysisDialog({ kind, knob, knobs, axisFor, taken, onBuild
   const draft: Build =
     kind === "map"
       ? { kind: "map", name: "", x: asAxis(x), y: asAxis(y) }
-      : { kind: "hold", name: "", sweep: asAxis(x), objective, adjust: held };
+      : {
+          kind: "hold",
+          name: "",
+          sweep: asAxis(x),
+          objective,
+          adjust: held,
+          ranges: Object.fromEntries(held.flatMap((h) => (optRanges?.[h] ? [[h, optRanges[h]]] : []))),
+        };
   // The name follows the choices until the viewer types one.
   const shownName = name ?? defaultBuildName(draft, label, taken);
   const build: Build = { ...draft, name: shownName };
@@ -245,9 +265,18 @@ export function BuildAnalysisDialog({ kind, knob, knobs, axisFor, taken, onBuild
                   </select>
                 ))}
               </div>
+              {held.map((h) => {
+                const k = knobs.find((s) => s.name === h);
+                return k ? (
+                  <div key={h} className="keep-dialog-note" aria-label={`${k.label} range`}>
+                    {holdRangeText(k, optRanges?.[h])}
+                  </div>
+                ) : null;
+              })}
               <div className="keep-dialog-note">
-                At every point the held knob is re-solved within its own range; a point with no solution there
-                is a gap. Drawn as R/X and the held knob against the swept one.
+                At every point the held knob is re-solved within that range (set it in the knob&apos;s Optimize
+                menu); a point with no solution there is a gap. Drawn as R/X and the held knob against the swept
+                one.
               </div>
             </>
           )}

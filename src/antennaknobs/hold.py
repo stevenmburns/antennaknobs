@@ -23,8 +23,10 @@ The rules (docs/design/sweep-framework-step6.md):
    from the defaults once (a converged one resumes the warm chain); one that
    fails then is given up on, a gap.
 2. The bounds are the knobs' own ``ui_params`` min/max, as the workbench's
-   optimizer reads them (its knob menu's opt extents default to the slider's).
-   A held knob without both is refused by name.
+   optimizer reads them (its knob menu's opt extents default to the slider's),
+   unless the hold gives a knob its own (``an.Hold.bounds``, AK#2045: the
+   range set in the knob's Optimize menu), which lies within the knob's own
+   range when it has one. A held knob with neither is refused by name.
 3. What the optimizer cannot serve is refused by name, not run: ``swr`` (a
    minimisation, no root and so no verdict a point could be drawn on), a
    frequency or density sweep, a map, a multi-feed design.
@@ -102,11 +104,33 @@ def analysis_refusal(a: an.Analysis, builder=None) -> str | None:
     return None
 
 
+def _bound_of(hold: an.Hold, k) -> an.Knob | None:
+    """The hold's own `an.Hold.bounds` entry for the adjusted ``k`` (a knob
+    name or a role, as ``adjust`` names it), or None."""
+    name = k.name if isinstance(k, an.Role) else k
+    return next((b for b in hold.bounds if b.name == name), None)
+
+
+def _within_own(knob: str, b: an.Knob, lo, hi) -> None:
+    """Refuse, by name, hold bounds ``b`` reaching outside the knob's own
+    ``ui_params`` range ``lo..hi`` (rule 2)."""
+    if not float(lo) <= b.min < b.max <= float(hi):
+        raise HoldRefused(
+            f"the hold searches {knob} over {b.min:g}..{b.max:g}, outside its "
+            f"own range {float(lo):g}..{float(hi):g}: a hold's range for a knob "
+            "lies within the knob's own"
+        )
+
+
 def free_of(hold: an.Hold, builder) -> list[dict]:
     """The hold's knobs on ``builder`` as the optimizer takes them,
-    ``[{name, min, max}]``, bounded by each knob's ``ui_params`` min/max
-    (rule 2); `HoldRefused` by name for a knob that does not resolve, the
-    density knob, or a knob with no range of its own."""
+    ``[{name, min, max}]`` (rule 2): bounded by the hold's own range for the
+    knob (`an.Hold.bounds`) when it gives one, else by the knob's
+    ``ui_params`` min/max. Hold bounds on a knob with a range of its own lie
+    within it; on a knob without one (an opened deck's SY knob) they are
+    what make it searchable. `HoldRefused` by name for a knob that does not
+    resolve, the density knob, bounds outside the knob's own range, or a
+    knob with no range at all."""
     params = an._params(builder)
     ui = an._ui(params)
     dens = an.density_knob(builder)
@@ -123,11 +147,19 @@ def free_of(hold: an.Hold, builder) -> list[dict]:
         meta = ui.get(r.knob)
         lo = meta.get("min") if isinstance(meta, Mapping) else None
         hi = meta.get("max") if isinstance(meta, Mapping) else None
-        if lo is None or hi is None or not float(lo) < float(hi):
+        own = lo is not None and hi is not None and float(lo) < float(hi)
+        b = _bound_of(hold, k)
+        if b is not None:
+            if own:
+                _within_own(r.knob, b, lo, hi)
+            out.append({"name": r.knob, "min": b.min, "max": b.max})
+            continue
+        if not own:
             raise HoldRefused(
                 f"the hold adjusts {r.knob}, which has no ui_params min/max to "
                 "bound it: the optimizer searches within a knob's own range; "
-                f'give {r.knob} a "min" and "max" in ui_params'
+                f'give {r.knob} a "min" and "max" in ui_params, or the hold a '
+                "range for it (bounds)"
             )
         out.append({"name": r.knob, "min": float(lo), "max": float(hi)})
     return out
@@ -358,16 +390,34 @@ def band_free_of(h: an.Hold, builder) -> list[dict]:
             )
         names.append(r.knob)
     try:
-        return free_for(builder, names)
+        free = free_for(builder, names)
     except SystemExit as e:
         raise HoldRefused(str(e)) from None
+    if not h.bounds:
+        return free
+    ui = an._ui(an._params(builder))
+    for k, f in zip(h.adjust, free, strict=True):
+        b = _bound_of(h, k)
+        if b is None:
+            continue
+        meta = ui.get(f["name"])
+        lo = meta.get("min") if isinstance(meta, Mapping) else None
+        hi = meta.get("max") if isinstance(meta, Mapping) else None
+        if lo is not None and hi is not None and float(lo) < float(hi):
+            _within_own(f["name"], b, lo, hi)
+        f["min"], f["max"] = b.min, b.max
+    return free
 
 
 def band_defaults_of(builder, free: Sequence[Mapping]) -> dict:
-    """A band hold's knobs on ``builder``, group leaves by their path."""
+    """A band hold's knobs on ``builder``, group leaves by their path, each
+    inside its bounds (``free``'s min/max), as `defaults_of`."""
     from .opt import _get_path
 
-    return {f["name"]: float(_get_path(builder, f["name"])) for f in free}
+    return {
+        f["name"]: min(max(float(_get_path(builder, f["name"])), f["min"]), f["max"])
+        for f in free
+    }
 
 
 def bands_of(h: an.Hold) -> list:

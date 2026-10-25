@@ -1504,7 +1504,15 @@ class Hold:
     (``J = (1 - w) * worst + w * mean``, ``w`` = ``mean_weight``);
     ``resonance`` / ``match_z0`` is the root form, every band a root, as many
     equations as knobs. A band's own objective, when it names one, is the
-    hold's. ``adjust`` may then name group leaves (``bands.0.length``)."""
+    hold's. ``adjust`` may then name group leaves (``bands.0.length``).
+
+    ``bounds`` (AK#2045) gives a held knob the range the hold searches, as a
+    `Knob` named as ``adjust`` names it (a knob name, or a role's name):
+    a range the user set in the workbench, which a knob with no
+    ``ui_params`` range of its own (an opened deck's SY knob) needs before
+    it can be held. A knob WITH its own range may be given a narrower one
+    inside it, never one reaching outside it (`hold.free_of`). A knob the
+    bounds leave out searches its own range."""
 
     objective: str
     adjust: tuple[str | Role, ...]
@@ -1512,6 +1520,7 @@ class Hold:
     warm_start: bool = True
     bands: tuple[Band, ...] = ()
     mean_weight: float = BANDS_MEAN_WEIGHT
+    bounds: tuple[Knob, ...] = ()
 
     _positional: ClassVar[tuple[str, ...]] = ("objective",)
 
@@ -1534,6 +1543,25 @@ class Hold:
             raise ValueError(f"Hold: adjust names a knob twice: {adjust!r}")
         _set(self, "adjust", adjust)
         _set(self, "mean_weight", _check_weight("Hold", self.mean_weight))
+        if isinstance(self.bounds, Knob):
+            raise TypeError(
+                f"Hold: bounds takes a tuple of an.Knob, got one: {self.bounds!r}"
+            )
+        bounds = _as_tuple(self.bounds, "Hold bounds")
+        if not all(isinstance(b, Knob) for b in bounds):
+            raise TypeError(
+                f"Hold: bounds holds an.Knob(name, min, max) entries, got {bounds!r}"
+            )
+        held = [k.name if isinstance(k, Role) else k for k in adjust]
+        for b in bounds:
+            if b.name not in held:
+                raise ValueError(
+                    f"Hold: bounds name {b.name!r}, which the hold does not "
+                    f"adjust ({', '.join(held)})"
+                )
+        if len({b.name for b in bounds}) != len(bounds):
+            raise ValueError(f"Hold: bounds give a knob twice: {bounds!r}")
+        _set(self, "bounds", bounds)
         if self.bands:
             bands = _check_bands("Hold", self.bands)
             _set(self, "bands", bands)

@@ -33,6 +33,10 @@ export type HoldBuild = {
   sweep: BuildAxis;
   objective: HoldObjective;
   adjust: string[];
+  /** The ranges the user set in each knob's Optimize menu (its KnobOpt
+   *  optMin/optMax), by knob, when set: a held knob searches its own
+   *  (`holdRange`), and the hold carries it as `an.Hold.bounds`. */
+  ranges?: Readonly<Record<string, { min: number; max: number }>>;
 };
 
 export type Build = MapBuild | HoldBuild;
@@ -54,6 +58,33 @@ export const BUILD_MAX_POINTS = 401;
 export const BUILD_NAME_CHARS = 80;
 
 const fmt = (v: number) => String(Number(v.toPrecision(6)));
+
+/** The range a held knob searches: the one the user set in its Optimize
+ *  menu (`opt`) when there is one, else the knob's own, real range (never
+ *  an automatic one, `auto_range`, which `hold.free_of` does not take);
+ *  null when it has neither. */
+export function holdRange(
+  k: SchemaParamSpec,
+  opt?: { min: number; max: number } | null,
+): { lo: number; hi: number; from: "optimize" | "own" } | null {
+  if (opt && Number.isFinite(opt.min) && Number.isFinite(opt.max) && opt.min < opt.max) {
+    return { lo: opt.min, hi: opt.max, from: "optimize" };
+  }
+  if (ownRange(k)) return { lo: k.min!, hi: k.max!, from: "own" };
+  return null;
+}
+
+const ownRange = (k: SchemaParamSpec) =>
+  k.min !== null && k.max !== null && k.auto_range !== true && k.min < k.max;
+
+/** The words for a held knob's range, as the builder shows it. */
+export function holdRangeText(k: SchemaParamSpec, opt?: { min: number; max: number } | null): string {
+  const r = holdRange(k, opt);
+  if (!r) return `${k.label}: no range yet`;
+  const unit = k.unit ? ` ${k.unit}` : "";
+  const where = r.from === "optimize" ? "its Optimize menu's range" : "its own range";
+  return `${k.label} searched over ${fmt(r.lo)} to ${fmt(r.hi)}${unit} (${where})`;
+}
 
 /** Why `b` cannot be built on this design's knobs (`knobs`, the sweepable
  *  ones), in words the builder shows; null when it can. */
@@ -86,9 +117,14 @@ export function buildProblem(b: Build, knobs: readonly SchemaParamSpec[]): strin
     const k = knobs.find((s) => s.name === h);
     if (!k) return `This design has no knob "${h}" to hold`;
     if (h === b.sweep.knob) return `${k.label} is the swept knob: a knob is swept or held, not both`;
-    // The hold searches the knob's own range (`hold.free_of`).
-    if (k.min === null || k.max === null || k.auto_range === true) {
-      return `${k.label} has no range of its own for the hold to search: on an opened deck, a link's knobs= gives it one`;
+    // The hold searches the Optimize menu's range, else the knob's own
+    // (`hold.free_of`, which takes the first as `an.Hold.bounds`).
+    const r = holdRange(k, b.ranges?.[h]);
+    if (!r) {
+      return `${k.label} has no range for the hold to search: set one in its Optimize menu (right-click the knob)`;
+    }
+    if (r.from === "optimize" && ownRange(k) && (r.lo < k.min! || r.hi > k.max!)) {
+      return `${k.label}: its Optimize range ${fmt(r.lo)} to ${fmt(r.hi)} reaches outside its own ${fmt(k.min!)} to ${fmt(k.max!)}; a hold searches within it`;
     }
   }
   return null;
@@ -109,12 +145,23 @@ export function buildData(b: Build): Record<string, unknown> {
       references: { an: "Ref", x: [0] },
     };
   }
+  // The Optimize menu's ranges, as `an.Hold.bounds` (an.Knob each): what
+  // lets a deck's SY knob, which has no range of its own, be held.
+  const bounds = b.adjust.flatMap((h) => {
+    const r = b.ranges?.[h];
+    return r ? [{ an: "Knob", name: h, min: r.min, max: r.max }] : [];
+  });
   return {
     an: "Analysis",
     name: b.name.trim(),
     sweep: sweepData(b.sweep),
     views: [{ an: "Rx" }, { an: "Knobs" }],
-    hold: { an: "Hold", objective: b.objective, adjust: [...b.adjust] },
+    hold: {
+      an: "Hold",
+      objective: b.objective,
+      adjust: [...b.adjust],
+      ...(bounds.length ? { bounds } : {}),
+    },
   };
 }
 

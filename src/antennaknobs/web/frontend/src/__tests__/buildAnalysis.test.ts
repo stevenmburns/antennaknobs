@@ -7,6 +7,8 @@ import {
   buildData,
   buildProblem,
   defaultBuildName,
+  holdRange,
+  holdRangeText,
   linkPartsProblem,
   uniqueName,
 } from "../lib/buildAnalysis";
@@ -72,6 +74,36 @@ describe("what a builder builds", () => {
     expect((buildData(logged).sweep as Record<string, unknown>).spacing).toBe("log");
   });
 
+  it("a held deck knob searches the range set in its Optimize menu (an.Hold bounds)", () => {
+    // Mike's doublet as a deck: an SY knob has only the app's automatic
+    // window, so the hold takes the range the user set for it.
+    const deck: Build = {
+      ...hold,
+      sweep: axis("sy_long_ft", 30, 36, 13),
+      adjust: ["sy_h"],
+      ranges: { sy_h: { min: 1, max: 16 } },
+    };
+    expect(buildProblem(deck, KNOBS)).toBeNull();
+    expect((buildData(deck) as { hold: unknown }).hold).toEqual({
+      an: "Hold",
+      objective: "resonance",
+      adjust: ["sy_h"],
+      bounds: [{ an: "Knob", name: "sy_h", min: 1, max: 16 }],
+    });
+    const h = KNOBS[2];
+    expect(holdRange(h, { min: 1, max: 16 })).toEqual({ lo: 1, hi: 16, from: "optimize" });
+    expect(holdRange(h, null)).toBeNull();
+    expect(holdRange(KNOBS[1], null)).toEqual({ lo: 1, hi: 34, from: "own" });
+    expect(holdRangeText(h, { min: 1, max: 16 })).toBe("H searched over 1 to 16 (its Optimize menu's range)");
+    expect(holdRangeText(KNOBS[1])).toBe("M searched over 1 to 34 (its own range)");
+    // A range inside a knob's own is taken as the hold's.
+    const inside: Build = { ...hold, ranges: { sy_long_ft: { min: 20, max: 30 } } };
+    expect(buildProblem(inside, KNOBS)).toBeNull();
+    expect((buildData(inside) as { hold: { bounds: unknown } }).hold.bounds).toEqual([
+      { an: "Knob", name: "sy_long_ft", min: 20, max: 30 },
+    ]);
+  });
+
   it.each([
     [{ ...map, name: "  " }, "Give the analysis a name"],
     [{ ...map, y: map.x }, "A map sweeps two different knobs"],
@@ -85,7 +117,14 @@ describe("what a builder builds", () => {
     [{ ...hold, adjust: ["sy_short_ft"] }, "M is the swept knob: a knob is swept or held, not both"],
     [{ ...hold, adjust: ["sy_long_ft", "sy_h"] }, "adjusts one knob"],
     [{ ...hold, objective: "match_z0", adjust: ["sy_long_ft"] }, "adjusts 2 knobs"],
-    [{ ...hold, adjust: ["sy_h"] }, "H has no range of its own for the hold to search"],
+    [
+      { ...hold, adjust: ["sy_h"] },
+      "H has no range for the hold to search: set one in its Optimize menu (right-click the knob)",
+    ],
+    [
+      { ...hold, ranges: { sy_long_ft: { min: 10, max: 30 } } },
+      "L: its Optimize range 10 to 30 reaches outside its own 15 to 36",
+    ],
     [{ ...hold, objective: "swr" as never }, 'No hold target "swr"'],
   ] as [Build, string][])("refuses %#: %s", (b, words) => {
     expect(buildProblem(b, KNOBS)).toContain(words);

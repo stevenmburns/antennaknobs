@@ -4002,6 +4002,9 @@ function DesignSessionBody({
               return { knob: k, lo: sp.lo, hi: sp.hi, points: sp.points, log: sp.log };
             }}
             taken={new Set(zparamAnalyses.map((a) => a.name))}
+            optRanges={Object.fromEntries(
+              Object.entries(knobOpt[geometry] ?? {}).map(([n, o]) => [n, { min: o.optMin, max: o.optMax }]),
+            )}
             onBuild={buildAnalysis}
             onClose={() => setBuilding(null)}
           />
