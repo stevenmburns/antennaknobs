@@ -112,9 +112,12 @@ export function maxKinkRad(
   return turnAngles(pts, closed).reduce((a, b) => Math.max(a, b), 0);
 }
 
-/** The turn, in degrees, past which a drawn corner is visible (AK#1969,
- *  decided 10-10 at the 350 px charts). */
-export const KINK_BREAK_DEG = 5;
+/** The turn, in degrees, past which an unresolved corner breaks the line
+ *  (AK#1969). 5° (decided 10-10) broke ordinary coarse knob sweeps, which
+ *  are never refined: an 11-point R/X curve turns 6-7° per sample and was
+ *  drawn as dots. A modest first-derivative discontinuity is fine to draw
+ *  through; only a sharp one is a corner the true curve may not have. */
+export const KINK_BREAK_DEG = 20;
 
 /** Which segments of a sweep polyline to draw, and where to put dots
  *  instead (AK#1969). The rule is "no visible first-derivative

@@ -1,5 +1,5 @@
 // AK#1969: a drawn sweep polyline must not show a visible kink. Where a vertex
-// turns by more than 5° and the sampling has not resolved it, the segments
+// turns by more than KINK_BREAK_DEG and the sampling has not resolved it, the segments
 // meeting there are not drawn and the samples show as dots; a kink that
 // persists under refinement (a VSWR notch's tip) is a feature and stays drawn.
 import { describe, expect, it } from "vitest";
@@ -83,10 +83,11 @@ describe("kinkBreaks", () => {
   });
 
   it("a corner within a pixel of its chord stays drawn", () => {
-    // Turns 10°, but the vertex sits under DEVIATION_TOLERANCE of the plot
-    // from its chord: the picture is already right there.
+    // Turns twice KINK_BREAK_DEG, but the vertex sits under
+    // DEVIATION_TOLERANCE of the plot from its chord: the picture is already
+    // right there.
     const h = 0.5 * DEVIATION_TOLERANCE * EXT;
-    const run = h / Math.tan((5 * Math.PI) / 180);
+    const run = h / Math.tan((KINK_BREAK_DEG * Math.PI) / 180);
     const pts = [
       { x: 100, y: 100 },
       { x: 100 + run, y: 100 + h },
@@ -95,6 +96,24 @@ describe("kinkBreaks", () => {
     const t = turnAngles(pts.map((p) => ({ x: p.x / EXT, y: p.y / EXT })))[1];
     expect(t * (180 / Math.PI)).toBeGreaterThan(KINK_BREAK_DEG);
     expect(kinkBreaks(pts, EXT).segments).toEqual([true, true]);
+  });
+
+  it("a coarse knob sweep's gently curving trail stays drawn", () => {
+    // The 11-point X trail Steve saw drawn as dots (10-25): ~6-7° per
+    // sample, never refined. A modest corner is drawn through.
+    const pts = [
+      { x: 61, y: 135 },
+      { x: 122, y: 232 },
+      { x: 184, y: 309 },
+      { x: 245, y: 370 },
+      { x: 306, y: 422 },
+      { x: 368, y: 463 },
+      { x: 429, y: 499 },
+      { x: 490, y: 530 },
+    ];
+    const { segments, dots } = kinkBreaks(pts, 600);
+    expect(segments.every(Boolean)).toBe(true);
+    expect(dots.some(Boolean)).toBe(false);
   });
 
   it("an off-plot vertex never breaks the line", () => {
