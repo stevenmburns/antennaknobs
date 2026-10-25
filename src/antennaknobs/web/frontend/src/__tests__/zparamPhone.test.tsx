@@ -117,10 +117,9 @@ describe("the per-point dots", () => {
   });
 
   it("the drawing skips the circles on a phone (no zero-radius arcs), the live dots stay", () => {
-    // KNOB's three points turn visibly at the middle one, so since AK#1969
-    // its lines break there and the broken stretch's samples show as small
-    // dots (radius 1.5) even on a phone — otherwise a broken stretch would
-    // draw nothing at all. A straight sweep draws no such dots (below).
+    // KNOB's three points turn visibly at the middle one, and the line is
+    // still drawn through it: a knob sweep never breaks at a kink (AK#2045),
+    // so a phone draws the live markers and nothing else.
     const radii: number[] = [];
     const orig = HTMLCanvasElement.prototype.getContext;
     const noop = () => {};
@@ -132,7 +131,7 @@ describe("the per-point dots", () => {
     try {
       stubMedia(true);
       mount(KNOB);
-      expect(radii.filter((r) => r !== 4 && r !== 1.5)).toEqual([]);
+      expect(radii.filter((r) => r !== 4)).toEqual([]);
       expect(radii.filter((r) => r === 4).length).toBe(2); // live R and X
       radii.length = 0;
       cleanupAll();
