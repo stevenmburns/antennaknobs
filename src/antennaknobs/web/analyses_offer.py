@@ -126,7 +126,10 @@ group (``study`` is None on the design's own analyses). So E7 is on the invvee a
 Every entry says where it comes from, ``origin`` (AK#1935): "design" (the
 design's own ``build_analyses()``, inherited ones included), "generic" (the
 library's, which every design is offered: the picker always heads them
-General), or "study".
+General), "link" (AK#2045: analyses a shared link carried for an opened
+deck, `offer_link`, listed after the generic ones, ``study`` None; each is
+checked by `link_refusal` before anything of it is built, and runs as any
+other does), or "study".
 
 Framework-free, so it is tested without a server.
 """
@@ -685,6 +688,13 @@ def _cell_builder(st: an.State, req: Mapping):
     if variant is not None:
         sub["variant"] = variant
     b = builder_for(cls, sub)
+    # Only the design's own knobs are ever set (AK#2045): the state's cell
+    # was checked by `analyses.state_refusal` before this is reached, and a
+    # name the design lacks is not set here either, whoever wrote the state.
+    params = an._params(b)
+    for k in st.settings:
+        if k == "ui_params" or k not in params:
+            raise _Refusal(f"state {st.name!r} sets {k}, and {name} has no knob {k!r}")
     for k, v in st.settings.items():
         setattr(b, k, v)
     return b
@@ -985,6 +995,179 @@ def offer(builder, req: Mapping, *, hosted: bool = False) -> list[dict]:
         {**_entry(a, builder, req, hosted), "study": None, "origin": origin}
         for a, origin in an.offered_with_origin(builder)
     ]
+
+
+# ── analyses a link carries (AK#2045) ──────────────────────────────────────
+
+
+def _catalog_design(name: str) -> bool:
+    """Whether ``name`` (``family.design``, or with ``:variant``) is a design
+    of the catalog this package ships: registered, and neither a user design
+    (``user.*``, a file on this machine) nor an opened deck (``deck.*``,
+    another visitor's text on the hosted app)."""
+    from . import decks
+    from .examples import REGISTRY
+
+    base = name.partition(":")[0]
+    return (
+        base in REGISTRY
+        and not decks.is_deck(base)
+        and not base.startswith("user.")
+        and not base.startswith("@")
+    )
+
+
+def _link_designs(a) -> list[str]:
+    """Every design a link analysis names (``design=`` of its states and
+    cells, its designs cross, a kept run's start), in the order written."""
+    out: list[str] = []
+    if an.is_optimize(a):
+        return [a.start.design]
+    for c in a.crosses:
+        if c.kind == "designs":
+            out += list(c.designs)
+        elif c.kind == "states":
+            out += [st.design for st in c.states if st.design is not None]
+        elif c.kind == "cells":
+            out += [
+                c2.state.design
+                for c2 in c.cells
+                if c2.state is not None and c2.state.design is not None
+            ]
+    return out
+
+
+def _link_states(a) -> list:
+    """Every `State` a link analysis sets knobs from."""
+    if an.is_optimize(a):
+        return [a.start]
+    out = []
+    for c in a.crosses:
+        if c.kind == "states":
+            out += list(c.states)
+        elif c.kind == "cells":
+            out += [c2.state for c2 in c.cells if c2.state is not None]
+    return out
+
+
+def _link_moved_knobs(a) -> list[str]:
+    """The knob names (not roles) a link analysis sweeps, steps, holds or
+    tunes."""
+    if an.is_optimize(a):
+        names = [k.name for k in a.knobs]
+        for b in a.bands:
+            names += list(b.knobs)
+        return names
+    sweeps = list(a.sweeps) + [c.step for c in a.crosses if c.kind == "step"]
+    names = [s.knob for s in sweeps if isinstance(s.knob, str)]
+    if a.hold is not None:
+        names += [k for k in a.hold.adjust if isinstance(k, str)]
+    return names
+
+
+def link_refusal(a, builder, *, own: tuple[str, ...]) -> str | None:
+    """Why the workbench does not offer ``a``, an analysis a shared link
+    carries (AK#2045), or None. Checked BEFORE anything of it is built or
+    set, because the text is a stranger's (`analyses_text`):
+
+    - every design it names (``design=`` on a State or Cell's state, a
+      designs cross, a kept run's start) is the opened deck itself (``own``:
+      its key, and ``@<its file name>``) or a design of the catalog
+      (`_catalog_design`). Anything else, a path (``@...``), a user design
+      (``user.*``) or another opened deck (``deck.*``), is refused by name,
+      so no link can make the server read a file or reach a stranger's deck;
+    - every knob a state sets is a knob of the design it is set on, and every
+      knob it sweeps, steps, holds or tunes is a knob of a design it runs on,
+      refused by name before any is set on a builder."""
+    from .examples import example_for
+
+    tab = an._params(builder)
+
+    def is_own(name: str | None) -> bool:
+        # Exactly the deck's key or ``@<its file name>``: never a path that
+        # happens to end in the same file name.
+        return name is None or name in own
+
+    designs = _link_designs(a)
+    for d in designs:
+        if not is_own(d) and not _catalog_design(d):
+            return (
+                f"the link's analysis names design {d!r}: a shared analysis "
+                "may name only the opened deck itself or a catalog design"
+            )
+
+    def params_of(name: str | None, variant: str | None = None) -> Mapping:
+        if is_own(name):
+            return tab
+        cls = getattr(example_for(name.partition(":")[0]), "builder_cls", None)
+        if cls is None:
+            return {}
+        sub = {"geometry": name.partition(":")[0]}
+        if variant is not None and _has_variant(cls, variant):
+            sub["variant"] = variant
+        return an._params(builder_for(cls, sub))
+
+    known = set(tab)
+    for d in dict.fromkeys(designs):
+        if not is_own(d):
+            known |= set(params_of(d))
+    for st in _link_states(a):
+        params = params_of(st.design, st.variant)
+        for k in st.settings:
+            if k == "ui_params" or k not in params:
+                where = "this deck" if is_own(st.design) else repr(st.design)
+                return (
+                    f"the link's analysis sets {k!r} in state {st.name!r}, and "
+                    f"{where} has no knob {k!r}"
+                )
+    for k in _link_moved_knobs(a):
+        if k == "ui_params" or k not in known:
+            return f"the link's analysis moves {k!r}, which no design it runs on has as a knob"
+    return None
+
+
+def _refused_entry(a, why: str) -> dict:
+    """A link analysis `link_refusal` refused, listed by name with its
+    reason; nothing of it was built on a design."""
+    return {
+        "name": a.name,
+        "group": an.group_of(a),
+        "summary": why,
+        "code": an.code_with_imports(a),
+        "spec": an.to_data(a),
+        "problems": [why],
+        "workbench": {"runs": False, "why": why},
+    }
+
+
+def offer_link(
+    builder,
+    req: Mapping,
+    analyses,
+    *,
+    hosted: bool = False,
+    deck: str | None = None,
+    taken=(),
+) -> list[dict]:
+    """The analyses a shared link carried for the opened deck ``req`` names
+    (AK#2045, `decks.DeckStore.link_analyses`), as ``/analyses`` serves the
+    design's own (`_entry`), with ``origin: "link"`` and ``study: None``.
+    Each is checked by `link_refusal` first; one it refuses is listed with
+    ``runs: False`` and the reason, and nothing of it is built. They run as
+    any analysis runs: the same routes, under the same hosted budgets and
+    caps. ``deck`` is the tab's ``@<file name>``; ``taken`` the names already
+    listed, which a link's analysis is renamed ``link:<name>`` beside."""
+    own = tuple(x for x in (str(req.get("geometry") or ""), deck) if x)
+    out = []
+    names = set(taken)
+    for a in analyses:
+        why = link_refusal(a, builder, own=own)
+        entry = _refused_entry(a, why) if why else _entry(a, builder, req, hosted)
+        if entry["name"] in names:
+            entry["name"] = f"link:{entry['name']}"
+        names.add(entry["name"])
+        out.append({**entry, "study": None, "origin": "link"})
+    return out
 
 
 def _same_deck(design: str, deck: str) -> bool:

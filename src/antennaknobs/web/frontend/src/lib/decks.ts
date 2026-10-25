@@ -14,6 +14,12 @@
 // workbench's two dozen request sites knowing decks exist, and the /ws solve
 // channel calls `withDeck` itself.
 //
+// A link may also carry analyses for the deck (AK#2045), `&analyses=<z>`: the
+// same stylized Python a design's `build_analyses()` returns, compressed the
+// same way. They travel beside the deck in every payload (`analyses`), so a
+// server that rebuilds the deck lists them again; the server reads them
+// without running them, and they are part of the deck's key.
+//
 // React-free, so the link grammar and the store are tested alone.
 
 import type { ExampleDescriptor } from "./params";
@@ -34,8 +40,10 @@ export const DIALECT_LABEL: Record<Dialect, string> = { nec2: "NEC-2", nec4: "NE
 export const isDialect = (v: unknown): v is Dialect =>
   typeof v === "string" && (DIALECTS as readonly string[]).includes(v);
 
-/** `dialect`: the reader's choice, absent to let the server detect it. */
-export type DeckPayload = { name: string; z: string; dialect?: Dialect };
+/** `dialect`: the reader's choice, absent to let the server detect it.
+ *  `analyses`: the analyses a link carried for the deck (AK#2045), compressed
+ *  as the deck is; absent when it carried none. */
+export type DeckPayload = { name: string; z: string; dialect?: Dialect; analyses?: string };
 
 /** What /deck says the deck was read as, and why. */
 export type DeckDialect = {
@@ -50,13 +58,19 @@ export type OpenedDeck = DeckPayload & {
   key: string;
   example: ExampleDescriptor;
   readAs?: DeckDialect | null;
+  /** Why the server refused the link's analyses (the deck opened without
+   *  them), in its words; null or absent when it read them or there were none. */
+  analysesRefusal?: string | null;
 };
 
 export const isDeck = (g: unknown): g is string =>
   typeof g === "string" && g.startsWith(DECK_NS);
 
-/** Whether a deck's compressed form fits a link someone can share. */
-export const shareable = (d: DeckPayload): boolean => d.z.length <= MAX_SHARE_CHARS;
+/** Whether a deck's compressed form fits a link someone can share. The cap is
+ *  per part: the deck, and its analyses (AK#2045), each at most
+ *  MAX_SHARE_CHARS (the doublet's three analyses take about 400). */
+export const shareable = (d: DeckPayload): boolean =>
+  d.z.length <= MAX_SHARE_CHARS && (d.analyses ?? "").length <= MAX_SHARE_CHARS;
 
 // --- The store (module-level: every tab of the page shares it) -------------
 
@@ -167,6 +181,7 @@ export async function openDeck(payload: DeckPayload): Promise<OpenedDeck> {
     key?: string;
     example?: ExampleDescriptor;
     dialect?: DeckDialect | null;
+    analyses_refusal?: string | null;
     detail?: string;
     deck_status?: string;
   } = {};
@@ -182,7 +197,13 @@ export async function openDeck(payload: DeckPayload): Promise<OpenedDeck> {
       body.deck_status ?? null,
     );
   }
-  const d: OpenedDeck = { ...payload, key: body.key, example: body.example, readAs: body.dialect ?? null };
+  const d: OpenedDeck = {
+    ...payload,
+    key: body.key,
+    example: body.example,
+    readAs: body.dialect ?? null,
+    analysesRefusal: body.analyses_refusal ?? null,
+  };
   rememberDeck(d);
   return d;
 }
@@ -225,10 +246,16 @@ export async function openDeckFile(file: File): Promise<OpenedDeck> {
 
 // --- Carrying the deck on every request ------------------------------------
 
-/** What a request carries to rebuild a deck: its name, text and the
- *  dialect it was chosen to be read in (none when detected). */
+/** What a request carries to rebuild a deck: its name, text, the dialect
+ *  it was chosen to be read in (none when detected) and the analyses its link
+ *  carried (none when it carried none), which are part of its key. */
 export function deckPayload(d: DeckPayload): DeckPayload {
-  return d.dialect ? { name: d.name, z: d.z, dialect: d.dialect } : { name: d.name, z: d.z };
+  return {
+    name: d.name,
+    z: d.z,
+    ...(d.dialect ? { dialect: d.dialect } : {}),
+    ...(d.analyses ? { analyses: d.analyses } : {}),
+  };
 }
 
 /** `body` with its design's deck added as `_deck`, when it names an opened

@@ -193,15 +193,18 @@ def _too_long() -> AnalysesTextError:
 def write(analyses) -> str:
     """The text of one or more analyses: a list of their `to_code`, which
     `read` reads back to equal values."""
-    items = (analyses,) if isinstance(analyses, an.Analysis) else tuple(analyses)
+    one = isinstance(analyses, an.Analysis) or an.is_optimize(analyses)
+    items = (analyses,) if one else tuple(analyses)
     body = "".join(f"    {an.to_code(a, 4)},\n" for a in items)
     return f"[\n{body}]\n"
 
 
-def read(text: str) -> tuple[an.Analysis, ...]:
+def read(text: str) -> tuple:
     """The analyses ``text`` writes, without executing it (module docstring):
     one ``an.<...>(...)`` expression, or a list or tuple of them, each an
-    ``an.Analysis`` (or a library call that makes one). Anything else is an
+    ``an.Analysis`` (or a library call that makes one) or a kept multi-band
+    run, ``an.Optimize`` (AK#2045: a shared link may carry one, and the
+    workbench jumps to it as to a kept study). Anything else is an
     `AnalysesTextError` naming what was refused."""
     if not isinstance(text, str):
         raise AnalysesTextError("the analyses text must be a string")
@@ -222,16 +225,16 @@ def read(text: str) -> tuple[an.Analysis, ...]:
     out = []
     for node in nodes:
         value = _build(node)
-        if not isinstance(value, an.Analysis):
+        if not (isinstance(value, an.Analysis) or an.is_optimize(value)):
             raise _refuse(
                 f"{type(value).__name__} at the top level; the text lists "
-                "an.Analysis values"
+                "an.Analysis (or an.Optimize) values"
             )
         out.append(value)
     return tuple(out)
 
 
-def read_link(z: str) -> tuple[an.Analysis, ...]:
+def read_link(z: str) -> tuple:
     """`read` of the text a link's ``analyses=`` parameter carries."""
     return read(unpack(z))
 

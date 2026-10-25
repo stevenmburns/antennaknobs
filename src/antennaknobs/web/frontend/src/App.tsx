@@ -73,7 +73,13 @@ export function App() {
     openDeck(link.deck).then(
       (d) => {
         if (!live) return;
-        setDeepLink({ ...link, design: d.key });
+        // The deck opened; analyses the server refused (AK#2045) are named
+        // in the link notice, as a deck that did not open is.
+        setDeepLink({
+          ...link,
+          design: d.key,
+          ...(d.analysesRefusal ? { problem: d.analysesRefusal } : {}),
+        });
         setDeckBoot("done");
       },
       (e: unknown) => {

@@ -18,6 +18,13 @@
 //                                         of `design`
 //   &dialect=nec2|nec4|nec5               the dialect the deck is read in,
 //                                         when chosen (absent: detected)
+//   &analyses=<z>                         analyses for the deck (AK#2045):
+//                                         the stylized Python a design's
+//                                         build_analyses() returns, compressed
+//                                         as the deck is; listed in the
+//                                         chart's picker, and `analysis=`
+//                                         selects one by name. Read by the
+//                                         server, never run. Only beside `deck`
 //
 // React-free, so the grammar and the resolution are tested alone. The
 // session (DesignSession) applies a parsed link in stages and reports what it
@@ -73,7 +80,18 @@ export type DeepLink = {
 };
 
 /** The query parameters a link owns; any other is left as it is. */
-export const LINK_PARAMS = ["design", "analysis", "view", "run", "deck", "name", "dialect", "family", "cut"] as const;
+export const LINK_PARAMS = [
+  "design",
+  "analysis",
+  "view",
+  "run",
+  "deck",
+  "name",
+  "dialect",
+  "analyses",
+  "family",
+  "cut",
+] as const;
 
 /** A non-empty, trimmed parameter, else null. */
 function param(q: URLSearchParams, k: string): string | null {
@@ -97,6 +115,7 @@ export function parseDeepLink(search: string): DeepLink | null {
   const z = param(q, "deck");
   // A dialect the workbench does not know is dropped: the deck opens detected.
   const dialect = param(q, "dialect");
+  const analyses = param(q, "analyses");
   const rawFamily = param(q, "family");
   const family = rawFamily === null ? null : parseFamily(rawFamily);
   // A whole number here; its range is the view's (a bearing wraps, an
@@ -122,6 +141,7 @@ export function parseDeepLink(search: string): DeepLink | null {
             z,
             name: param(q, "name") ?? "deck.nec",
             ...(isDialect(dialect) ? { dialect } : {}),
+            ...(analyses !== null ? { analyses } : {}),
           },
         }),
   };
@@ -263,6 +283,7 @@ export function linkSearch(search: string, state: LinkState): string {
     q.set("deck", state.deck.z);
     q.set("name", state.deck.name);
     if (state.deck.dialect) q.set("dialect", state.deck.dialect);
+    if (state.deck.analyses) q.set("analyses", state.deck.analyses);
   } else {
     q.set("design", state.variant ? `${state.design}:${state.variant}` : state.design);
   }

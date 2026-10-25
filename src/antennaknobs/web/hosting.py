@@ -117,14 +117,17 @@ _URL_TAIL_RE = re.compile(
 )
 _QUERY_RE = re.compile(r"\?[^\s)'\"]*=[^\s)'\"]*")
 _DECK_PARAM_RE = re.compile(r"\bdeck=[^\s&)'\"]*")
+# ...and the analyses a deck link carries (AK#2045), cut the same way.
+_ANALYSES_PARAM_RE = re.compile(r"\banalyses=[^\s&)'\"]*")
 
 
 def scrub(text: str) -> str:
-    """``text`` with every URL query and fragment, and any deck parameter,
-    cut out."""
+    """``text`` with every URL query and fragment, and any deck or analyses
+    parameter, cut out."""
     text = _URL_TAIL_RE.sub(r"\1", text)
     text = _QUERY_RE.sub("", text)
-    return _DECK_PARAM_RE.sub("deck=…", text)
+    text = _DECK_PARAM_RE.sub("deck=…", text)
+    return _ANALYSES_PARAM_RE.sub("analyses=…", text)
 
 
 def _field(value, cap: int) -> str:
