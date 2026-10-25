@@ -29,19 +29,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.108.1" icon="star">
-  **Razor is faster over buried radials.** With momwire 0.84.1, Razor fills a
-  buried radial screen near the surface about 2.8 times faster: Dan's sloping
-  radial model at 500 segments per wavelength drops from 5.9 to 2.1 seconds,
-  with the answer unchanged to a few thousandths of an ohm.
+<Card title="New in v0.108.2" icon="star">
+  **Share a deck with its analyses in a link.** Open your own deck, build a
+  map or a sweep held at resonance from any knob's menu, and the chart's
+  **link** copies one address that reopens the deck with its knobs where you
+  left them and those analyses ready to run; see
+  [linking to a chart](/reference/web/#linking-to-a-chart). The link's
+  analysis text is read, never run.
 
-  **Held-resonance charts plot R alone.** When an analysis holds a knob at
-  resonance on one band, X is zero by construction, so its chart now shows only R
-  instead of a reactance trace of root-finder leftovers.
+  **For 4nec2 users** (momwire 0.84.2): the engines take a deck without an EN
+  card, a bare `GE`, a print-control `PT` between runs, a GW tag two wires
+  share, and several `GM` cards with wires between them, each read the way
+  the licensed engine reads it.
 
-  From v0.108.0, **buried radials near the surface converge** on both
-  B-spline and Razor, and the new catalog design
-  **the two-wire doublet** (`dipoles.two_wire_doublet`) maps a wire's
+  From v0.108.1, **Razor is faster over buried radials**, and from v0.108.0
+  the **two-wire doublet** (`dipoles.two_wire_doublet`) maps a wire's
   resonant splits.
 </Card>
 
