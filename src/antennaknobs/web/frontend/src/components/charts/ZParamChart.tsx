@@ -21,7 +21,6 @@ import {
   xFraction,
   xTicks,
 } from "../../lib/paramSweep";
-import { type DisplayPoint, kinkBreaks } from "../../lib/refine";
 import { sweepTimeLimitNote } from "../../lib/sweep";
 import { formatTick } from "../../lib/sweepAxis";
 import { zinfSuffix } from "../../lib/zinf";
@@ -428,35 +427,24 @@ export function ZParamChart({
       ctx.strokeStyle = c;
       ctx.lineWidth = 1.4;
       ctx.setLineDash(dash);
-      // No visible kink (AK#1969): a corner the sampling has not resolved
-      // is not drawn through. Off-plot samples never break the line.
-      const pts: DisplayPoint[] = vx.map((v, i) => {
-        const y = py(ys[i], dd);
-        return { x: px(v), y, ...(onPlot(y) ? {} : { clamped: true }) };
-      });
-      const { segments, dots } = kinkBreaks(pts, pw);
+      // Every sample is joined, kinks included. The sweep charts break the
+      // line at an unresolved corner (AK#1969) because refinement resolves
+      // the real ones; a knob sweep is never refined, so that rule could
+      // only ever end in dots, and the turn it measures is in pixels — the
+      // R/X autoscale and the plot's aspect, not the physics (AK#2045).
       ctx.beginPath();
       vx.forEach((v, i) => {
-        const { x, y } = pts[i];
+        const x = px(v);
+        const y = py(ys[i], dd);
         // A held sweep breaks at a gap: no line through a point the hold
         // never reached (step 6).
-        if (i === 0 || !segments[i - 1] || gapBetween(breaks, vx[i - 1], v)) {
+        if (i === 0 || gapBetween(breaks, vx[i - 1], v)) {
           ctx.moveTo(x, y);
         } else ctx.lineTo(x, y);
       });
       ctx.stroke();
       ctx.setLineDash([]);
-      if (dotR <= 0) {
-        // Lines only (a phone), but a broken stretch still shows its samples.
-        ctx.fillStyle = c;
-        pts.forEach((p, i) => {
-          if (!dots[i] || p.clamped) return;
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, 1.5, 0, 2 * Math.PI);
-          ctx.fill();
-        });
-        return;
-      }
+      if (dotR <= 0) return; // lines only (a phone)
       ctx.fillStyle = PC.bg;
       vx.forEach((v, i) => {
         ctx.beginPath();
