@@ -94,6 +94,50 @@ describe("the link carries the deck", () => {
     expect(parseDeepLink("?deck=abc&name=a.nec&dialect=nec7")!.deck).toEqual({ z: "abc", name: "a.nec" });
   });
 
+  it("writes &analyses= beside the deck when the link carried some, and reads it back (AK#2045)", () => {
+    const s = linkSearch("?analyses=stale", {
+      design: KEY,
+      variant: null,
+      analysis: "resonance map",
+      view: null,
+      deck: { ...deck("abc_-123"), analyses: "an_z-1" },
+    });
+    const q = new URLSearchParams(s);
+    expect(q.get("analyses")).toBe("an_z-1");
+    expect(q.get("analysis")).toBe("resonance map");
+    const link = parseDeepLink(s)!;
+    expect(link.deck).toEqual({ z: "abc_-123", name: "my dipole.nec", analyses: "an_z-1" });
+    expect(link.analysis).toBe("resonance map");
+    // A deck with none writes none (and drops a stale one); a design never does.
+    const none = { variant: null, analysis: null, view: null };
+    const bare = linkSearch("?analyses=stale", { ...none, design: KEY, deck: deck("abc") });
+    expect(new URLSearchParams(bare).get("analyses")).toBeNull();
+    const design = linkSearch("?analyses=stale", { ...none, design: "dipoles.invvee" });
+    expect(new URLSearchParams(design).get("analyses")).toBeNull();
+  });
+
+  it("the link's cap is per part: analyses too long to share fall back to the key", () => {
+    const s = linkSearch("", {
+      design: KEY,
+      variant: null,
+      analysis: null,
+      view: null,
+      deck: { ...deck("abc"), analyses: "x".repeat(MAX_SHARE_CHARS + 1) },
+    });
+    const q = new URLSearchParams(s);
+    expect(q.get("design")).toBe(KEY);
+    expect(q.get("deck")).toBeNull();
+    expect(q.get("analyses")).toBeNull();
+  });
+
+  it("every request for a deck carries the analyses its link carried", () => {
+    rememberDeck({ ...deck("abc"), analyses: "an_z" });
+    expect(withDeck({ geometry: KEY })).toEqual({
+      geometry: KEY,
+      _deck: { name: "my dipole.nec", z: "abc", analyses: "an_z" },
+    });
+  });
+
   it("every request for a deck read in a chosen dialect carries the choice", () => {
     rememberDeck({ ...deck("abc"), dialect: "nec2" });
     expect(withDeck({ geometry: KEY })).toEqual({

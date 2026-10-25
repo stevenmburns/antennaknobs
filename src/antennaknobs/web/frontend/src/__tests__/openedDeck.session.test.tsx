@@ -53,7 +53,7 @@ class StubWebSocket {
 const json = (body: unknown, status = 200) =>
   ({ ok: status < 400, status, json: async () => body }) as unknown as Response;
 
-function mount(url: string) {
+function mount(url: string, extra: Body = {}) {
   const opened: Body[] = [];
   const geometry: Body[] = [];
   mountDesignSession({
@@ -62,7 +62,7 @@ function mount(url: string) {
     routes: {
       "/deck": (_u: string, init?: RequestInit) => {
         opened.push(JSON.parse(String(init?.body ?? "{}")) as Body);
-        return json({ key: KEY, example: DECK_EXAMPLE, limits: {} });
+        return json({ key: KEY, example: DECK_EXAMPLE, limits: {}, ...extra });
       },
       "/geometry": (_u: string, init?: RequestInit) => {
         geometry.push(JSON.parse(String(init?.body ?? "{}")) as Body);
@@ -126,6 +126,35 @@ describe("opening a deck", () => {
     expect(opened[0]).toEqual({ name: "mydeck.nec", z });
     expect(query().get("deck")).toBe(z);
     expect(screen.queryByRole("alert", { name: "Link problems" })).toBeNull();
+  });
+
+  it("a link's analyses ride to /deck, stay in the link, and every request carries them (AK#2045)", async () => {
+    const z = await compressDeck(DECK_TEXT);
+    const analyses = await compressDeck('[an.Analysis("half", an.Sweep("sy_half", 4, 6))]');
+    const { opened, geometry } = mount(`/?deck=${z}&name=mydeck.nec&analyses=${analyses}`, {
+      analyses: 1,
+      analyses_refusal: null,
+    });
+    await sessionReady(document.body);
+    await waitFor(() => expect(ready()).toMatch(/^deck\.0123456789ab#/), { timeout: 5000 });
+    expect(opened[0]).toEqual({ name: "mydeck.nec", z, analyses });
+    await waitFor(() => expect(query().get("analyses")).toBe(analyses), { timeout: 5000 });
+    expect(query().get("deck")).toBe(z);
+    const deckPreview = geometry.find((b) => b.geometry === KEY);
+    expect(deckPreview?._deck).toEqual({ name: "mydeck.nec", z, analyses });
+    expect(screen.queryByRole("alert", { name: "Link problems" })).toBeNull();
+  });
+
+  it("analyses the server refuses are named, and the deck opens anyway", async () => {
+    const z = await compressDeck(DECK_TEXT);
+    mount(`/?deck=${z}&name=mydeck.nec&analyses=AAAA`, {
+      analyses: 0,
+      analyses_refusal: "the link's analyses were not read: refused: Name 'os'",
+    });
+    await sessionReady(document.body);
+    await waitFor(() => expect(ready()).toMatch(/^deck\.0123456789ab#/), { timeout: 5000 });
+    const n = await screen.findByRole("alert", { name: "Link problems" }, { timeout: 5000 });
+    expect(n.textContent).toContain("refused: Name 'os'");
   });
 
   it("a deck too long for a link opens, and says the link cannot share it", async () => {

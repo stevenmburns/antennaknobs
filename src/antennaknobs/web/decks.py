@@ -14,6 +14,12 @@ registry that `user_designs.refresh` rebuilds. (Asked for by Dan Maguire
 AC6LA, QRZ 1005128 #40/#42: let MMANA / 4nec2 / EZNEC users share and study a
 non-catalog model with nothing installed, "even if frozen with no knobs".)
 
+A link may also carry analyses for the deck (``&analyses=<z>``, AK#2045),
+the text `analyses_text.pack` writes. They travel in the same payload
+(``analyses``), are read without being run (`analyses_text.read_link`), are
+part of the key (`deck_key`) and are kept beside the deck
+(`DeckStore.link_analyses`).
+
 Because the text is a stranger's, everything about it is bounded:
 
 - the text (64 KB) before anything parses it;
@@ -71,16 +77,43 @@ def is_deck(geometry) -> bool:
     return isinstance(geometry, str) and geometry.startswith(_PREFIX)
 
 
-def deck_key(name: str, text: str, dialect: str | None = None) -> str:
+def deck_key(
+    name: str, text: str, dialect: str | None = None, analyses: str | None = None
+) -> str:
     """The design key for a deck: its file name and text, hashed. The name is
     in the hash because it is the design's label, so the same text opened
     under two names is two designs that look different. A chosen dialect is
     in it too: the same deck read as NEC-2 and as NEC-5 is two designs (its
     sources half a segment apart). Detection (None) hashes as it always did,
-    so a link from before the choice existed names the same design."""
+    so a link from before the choice existed names the same design.
+
+    ``analyses`` is the text of the analyses the link carries (AK#2045,
+    `analyses_text.unpack`'s), when it carries any that read: the store is
+    shared by every visitor of the hosted app, so the same deck under two
+    links listing different analyses is two entries, never one whose list a
+    second visitor overwrote. None (no analyses, or ones refused) hashes as
+    a deck always did, so every older link names the same design."""
     tail = "" if dialect is None else f"\0{dialect}"
+    if analyses is not None:
+        # After the dialect, behind a marker no dialect spells.
+        tail += f"\0analyses\0{analyses}"
     h = hashlib.sha256(f"{name}\0{text}{tail}".encode("utf-8", "surrogatepass"))
     return f"{_PREFIX}{h.hexdigest()[:12]}"
+
+
+def payload_analyses(payload) -> str | None:
+    """The packed analyses a deck payload carries (``analyses``, AK#2045:
+    `analyses_text.pack`'s form, what the link's ``analyses=`` holds), or
+    None when it carries none (absent or empty). Not a string is refused by
+    name; what the text says is `analyses_text.read_link`'s to judge."""
+    if not isinstance(payload, dict):
+        return None
+    z = payload.get("analyses")
+    if z is None or z == "":
+        return None
+    if not isinstance(z, str):
+        raise DeckError("analyses must be a string (the link's analyses= value)")
+    return z
 
 
 #: The dialects a deck may be read in when the reader chooses
@@ -482,6 +515,9 @@ class DeckStore:
         self._register = register
         self._unregister = unregister
         self._decks: OrderedDict[str, tuple[str, str]] = OrderedDict()
+        # The analyses a link opened each deck with (AK#2045), by key; a key
+        # opened without any has no entry. Evicted with its deck.
+        self._links: dict[str, tuple] = {}
         self._lock = threading.Lock()
 
     def limits(self):
@@ -501,21 +537,34 @@ class DeckStore:
                 self._decks.move_to_end(key)
             return hit
 
+    def link_analyses(self, key: str) -> tuple:
+        """The analyses the link opened ``key`` with (`analyses.Analysis`
+        values, read without running anything), ``()`` for none."""
+        with self._lock:
+            return self._links.get(key, ())
+
     def __contains__(self, key: str) -> bool:
         with self._lock:
             return key in self._decks
 
     def open(
-        self, name: str, text: str, dialect: str | None = None
+        self,
+        name: str,
+        text: str,
+        dialect: str | None = None,
+        analyses: tuple[str, tuple] | None = None,
     ) -> tuple[str, bool]:
         """Parse and register a deck; ``(key, new)``. A deck already open is
         only touched. Parse errors and limit refusals raise `DeckError`.
         ``dialect`` is the reader's choice (`payload_dialect`), None to
-        detect; it is part of the key."""
+        detect; it is part of the key. ``analyses`` is ``(text, values)``,
+        the analyses a link carries as `analyses_text.read` read them
+        (AK#2045), or None: the text is part of the key, and the values are
+        kept beside the deck (`link_analyses`)."""
         from antennaknobs.file_designs import builder_from_text
         from antennaknobs.nec_import import GeometryLimitError
 
-        key = deck_key(name, text, dialect)
+        key = deck_key(name, text, dialect, None if analyses is None else analyses[0])
         if self.get(key) is not None:
             return key, False
         try:
@@ -535,8 +584,12 @@ class DeckStore:
         with self._lock:
             self._decks[key] = (name, text)
             self._decks.move_to_end(key)
+            if analyses is not None:
+                self._links[key] = tuple(analyses[1])
             while len(self._decks) > self.settings.max_open:
-                evicted.append(self._decks.popitem(last=False)[0])
+                old = self._decks.popitem(last=False)[0]
+                self._links.pop(old, None)
+                evicted.append(old)
         for old in evicted:
             self._unregister(old)
         return key, True

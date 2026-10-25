@@ -31,12 +31,14 @@ export function resetClientErrorReports(): void {
   sent = 0;
 }
 
-/** `text` with every URL query and fragment and any `deck=` run cut out. */
+/** `text` with every URL query and fragment and any `deck=` or `analyses=`
+ *  run cut out. */
 export function scrubReportText(text: string): string {
   return text
     .replace(/((?:[a-z][a-z0-9+.-]*:)?\/\/[^\s?#)'"]*)[?#][^\s)'"]*/gi, "$1")
     .replace(/\?[^\s)'"]*=[^\s)'"]*/g, "")
-    .replace(/\bdeck=[^\s&)'"]*/g, "deck=…");
+    .replace(/\bdeck=[^\s&)'"]*/g, "deck=…")
+    .replace(/\banalyses=[^\s&)'"]*/g, "analyses=…");
 }
 
 function bounded(text: string, cap: number): string {

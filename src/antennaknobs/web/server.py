@@ -291,15 +291,40 @@ _DECK_COMPUTE_PATHS = frozenset(
 )
 
 
-def _open_deck(payload, ip: str) -> tuple[str, bool]:
-    """Decode, rate-limit and register a deck payload; ``(key, new)``. A deck
-    already open costs nothing and counts against no limit."""
+def _link_analyses(payload) -> tuple[tuple[str, tuple] | None, str | None]:
+    """The analyses a deck payload carries (AK#2045, ``analyses``: the link's
+    ``analyses=``), read by `analyses_text.read_link`, which parses the text
+    and NEVER runs it: ``((text, values), None)``, or ``(None, refusal)``
+    naming why they were refused, or ``(None, None)`` for none. A refusal
+    does not refuse the deck: it opens without them, under the key it would
+    have had with no analyses at all."""
+    from antennaknobs import analyses_text
+
+    z = _decks.payload_analyses(payload)
+    if z is None:
+        return None, None
+    try:
+        text = analyses_text.unpack(z)
+        return (text, analyses_text.read(text)), None
+    except analyses_text.AnalysesTextError as exc:
+        return None, f"the link's analyses were not read: {exc}"
+
+
+def _open_deck(payload, ip: str) -> tuple[str, bool, str | None]:
+    """Decode, rate-limit and register a deck payload; ``(key, new,
+    analyses_refusal)``. A deck already open costs nothing and counts
+    against no limit. ``analyses_refusal`` names why the analyses the
+    payload carries were refused (`_link_analyses`), None when there were
+    none or they read."""
     name, text = _decks.decode_payload(payload, _DECK_SETTINGS)
     dialect = _decks.payload_dialect(payload)
-    key = _decks.deck_key(name, text, dialect)
+    analyses, refusal = _link_analyses(payload)
+    key = _decks.deck_key(
+        name, text, dialect, None if analyses is None else analyses[0]
+    )
     if key in _DECK_STORE and key in EXAMPLES:
         _DECK_STORE.get(key)  # touch: recently used
-        return key, False
+        return key, False, refusal
     if not _DECK_OPENS.allow(ip):
         _count_refusal("deck_rate")
         raise _decks.DeckError(
@@ -308,7 +333,8 @@ def _open_deck(payload, ip: str) -> tuple[str, bool]:
             status=429,
             deck_status="rate",
         )
-    return _DECK_STORE.open(name, text, dialect)
+    key, new = _DECK_STORE.open(name, text, dialect, analyses)
+    return key, new, refusal
 
 
 def _ensure_deck(req: dict, ip: str) -> None:
@@ -326,7 +352,9 @@ def _ensure_deck(req: dict, ip: str) -> None:
             status=409,
             deck_status="missing",
         )
-    opened, _ = _open_deck(payload, ip)
+    # The page sends the analyses its link carried (`analyses`) beside the
+    # deck, so an evicted deck comes back with them, under the same key.
+    opened, _, _ = _open_deck(payload, ip)
     if opened != key:
         raise _decks.DeckError(
             f"the deck this request carries is not {key}", status=400
@@ -3479,13 +3507,15 @@ async def analyses_endpoint(req: dict):
     frequency sweep and its SWR / S11 / Smith charts take, step 4), or
     ``{runs: false, why}``. After them, the studies that cross the design
     (step 7), each with ``study: {source, name}`` beside the same fields
-    (``study`` is None on the design's own).
+    (``study`` is None on the design's own). On an opened deck, the analyses
+    its link carried (AK#2045, ``origin: "link"``, `analyses_offer.
+    offer_link`) are listed between the generic ones and the studies.
     Nothing solves.
     An unknown geometry or a bad knob value is a 422, as on ``/param_sweep``.
     Served on demand, not in ``/examples``: listing a design's analyses
     builds it.
     """
-    from .analyses_offer import builder_for, offer, offer_studies
+    from .analyses_offer import builder_for, offer, offer_link, offer_studies
 
     geometry = req.get("geometry")
     try:
@@ -3496,12 +3526,22 @@ async def analyses_endpoint(req: dict):
         return {"geometry": geometry, "analyses": []}
 
     alias = _deck_alias(geometry)
+    # AK#2045: the analyses an opened deck's link carried, listed after the
+    # generic ones; none for any other design.
+    link = _DECK_STORE.link_analyses(geometry) if _decks.is_deck(geometry) else ()
 
     def _offer():
         builder = builder_for(cls, req)
-        return offer(builder, req, hosted=_HOSTED) + offer_studies(
-            builder, req, hosted=_HOSTED, deck=alias
+        own = offer(builder, req, hosted=_HOSTED)
+        linked = offer_link(
+            builder,
+            req,
+            link,
+            hosted=_HOSTED,
+            deck=alias,
+            taken={e["name"] for e in own},
         )
+        return own + linked + offer_studies(builder, req, hosted=_HOSTED, deck=alias)
 
     try:
         analyses = await run_in_threadpool(_offer)
@@ -5102,13 +5142,22 @@ async def deck_open_endpoint(req: dict, request: Request):
     key every later request names it by (``deck.<hash12>``) and its catalog
     record, the one /examples would serve -- or the refusal by name: 413 over
     the text limit, 422 for a deck that does not import or is over the
-    structure limits, 429 past the opens-per-minute limit."""
+    structure limits, 429 past the opens-per-minute limit.
+
+    ``analyses`` (optional, AK#2045) is the link's ``analyses=``: analyses
+    as `analyses_text.pack` writes them, read with `analyses_text.read_link`
+    (parsed, never run) and listed by ``POST /analyses`` after the generic
+    ones, ``origin: "link"``. They are part of the key. The answer then also
+    says ``analyses`` (how many were read, 0 for none) and
+    ``analyses_refusal``: None, or the sentence naming why they were refused
+    -- a refusal is NOT the deck's: it opens (200) without them, under the
+    key it has with no analyses."""
     ip = _decks.client_ip(
         {k.lower(): v for k, v in request.headers.items()},
         request.client.host if request.client else None,
     )
     try:
-        key, _new = await run_in_threadpool(_open_deck, req, ip)
+        key, _new, analyses_refusal = await run_in_threadpool(_open_deck, req, ip)
         entry = await run_in_threadpool(_example_entry, key, EXAMPLES[key])
     except _decks.DeckError as exc:
         _METRICS.inc(
@@ -5140,6 +5189,11 @@ async def deck_open_endpoint(req: dict, request: Request):
         "key": key,
         "example": entry,
         "dialect": read,
+        # AK#2045: how many analyses the link's ``analyses`` gave the deck
+        # (POST /analyses lists them, origin "link"), and why they were
+        # refused, if they were (the deck opens either way).
+        "analyses": len(_DECK_STORE.link_analyses(key)),
+        "analyses_refusal": analyses_refusal,
         "limits": {
             "max_bytes": lim.max_bytes,
             "max_segments": lim.max_segments,

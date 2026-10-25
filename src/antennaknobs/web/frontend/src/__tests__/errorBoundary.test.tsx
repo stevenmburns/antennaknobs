@@ -126,6 +126,7 @@ describe("the reporter", () => {
     expect(scrubReportText("GET /deck?deck=ABC failed")).toBe("GET /deck failed");
     expect(scrubReportText("open //h/x#frag now")).toBe("open //h/x now");
     expect(scrubReportText("deck=ZZZ")).toBe("deck=…");
+    expect(scrubReportText("deck=ZZZ&analyses=YYY")).toBe("deck=…&analyses=…");
     expect(scrubReportText("is it 5? yes")).toBe("is it 5? yes");
   });
 });

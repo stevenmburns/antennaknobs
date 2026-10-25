@@ -140,6 +140,7 @@ def test_capabilities_says_hosted_reports(client, hosted):
         ("GET /deck?deck=ABC failed", "GET /deck failed"),
         ("open //h/x#frag now", "open //h/x now"),
         ("deck=ZZZ", "deck=…"),
+        ("deck=ZZZ&analyses=YYY", "deck=…&analyses=…"),
         ("is it 5? yes", "is it 5? yes"),
     ],
 )
