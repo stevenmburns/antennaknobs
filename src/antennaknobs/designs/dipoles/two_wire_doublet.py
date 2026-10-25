@@ -96,8 +96,8 @@ class Builder(AntennaBuilder):
             an.Analysis(
                 "resonance map",
                 (
-                    an.Sweep("long_ft", 16.0, 36.0, points=41),
-                    an.Sweep("short_ft", 1.0, 34.0, points=34),
+                    an.Sweep("long_ft", 16.0, 36.0, points=32),
+                    an.Sweep("short_ft", 1.0, 34.0, points=31),
                 ),
                 views=(an.Map(),),
                 references=an.Ref(x=(0,)),
