@@ -355,6 +355,10 @@ describe("Copy link on the doublet deck (the AK#2045 acceptance)", () => {
     expect((within(holdDialog).getByRole("combobox", { name: "held knob 1" }) as HTMLSelectElement).value).toBe(
       "sy_long_ft",
     );
+    // The range the hold searches, shown: no Optimize range was set, so L's own.
+    expect(within(holdDialog).getByLabelText("long_ft range").textContent).toBe(
+      "long_ft searched over 15 to 36 (its own range)",
+    );
     fireEvent.change(field(holdDialog, "sweep from"), { target: { value: "33" } });
     fireEvent.change(field(holdDialog, "sweep to"), { target: { value: "3.5" } });
     fireEvent.change(field(holdDialog, "sweep points"), { target: { value: "6" } });
