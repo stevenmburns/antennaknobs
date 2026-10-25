@@ -81,10 +81,27 @@ jobs:
           "MOMWIRE_SIGN_SHA1=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "MOMWIRE_SIGN_ALLOW_UNTRUSTED=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "MOMWIRE_SIGN_TIMESTAMP_URL=http://timestamp.acs.microsoft.com" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      - uses: actions/setup-dotnet@v6
+      # .NET 8 for the Artifact Signing dlib, which runs on the .NET 8 runtime
+      # (nuget.exe below fetches the dlib itself, so no SDK is needed). Not
+      # actions/setup-dotnet: its installer reads dotnetorigin.blob.core.
+      # windows.net, which answers HTTP 409 since 2026-10-25 while Microsoft's
+      # current host, builds.dotnet.microsoft.com, serves the same files. The
+      # runner's own .NET 8 is used when it has one.
+      - name: .NET 8 runtime (the runner's, else Microsoft's current host)
         if: env.MOMWIRE_SIGN_MODE == 'azure'
-        with:
-          dotnet-version: '8.0'
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          $have = @(& dotnet --list-runtimes 2>$null) -match '^Microsoft\.NETCore\.App 8\.'
+          if ($have) { $have; exit 0 }
+          $dir = Join-Path $env:RUNNER_TEMP 'dotnet'
+          $script = Join-Path $env:RUNNER_TEMP 'dotnet-install.ps1'
+          Invoke-WebRequest -Uri https://builds.dotnet.microsoft.com/dotnet/scripts/v1/dotnet-install.ps1 -OutFile $script
+          & $script -Channel 8.0 -Runtime dotnet -InstallDir $dir -AzureFeed https://builds.dotnet.microsoft.com/dotnet
+          if (-not (Test-Path (Join-Path $dir 'dotnet.exe'))) { throw ".NET 8 runtime did not install to $dir" }
+          $dir | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          "DOTNET_ROOT=$dir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Install the Artifact Signing dlib (azure mode)
         if: env.MOMWIRE_SIGN_MODE == 'azure'
         shell: pwsh
