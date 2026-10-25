@@ -310,21 +310,34 @@ def _link_analyses(payload) -> tuple[tuple[str, tuple] | None, str | None]:
         return None, f"the link's analyses were not read: {exc}"
 
 
-def _open_deck(payload, ip: str) -> tuple[str, bool, str | None]:
+def _ranges_refusal(syntax: list[str], key: str) -> str | None:
+    """One sentence naming every link knob range the deck did not take
+    (AK#2045): the ones `decks.payload_ranges` refused as written, then the
+    ones naming no knob of the deck (`DeckStore.range_refusals`); None for
+    none."""
+    every = [*syntax, *_DECK_STORE.range_refusals(key)]
+    return "; ".join(every) if every else None
+
+
+def _open_deck(payload, ip: str) -> tuple[str, bool, str | None, str | None]:
     """Decode, rate-limit and register a deck payload; ``(key, new,
-    analyses_refusal)``. A deck already open costs nothing and counts
-    against no limit. ``analyses_refusal`` names why the analyses the
-    payload carries were refused (`_link_analyses`), None when there were
-    none or they read."""
+    analyses_refusal, ranges_refusal)``. A deck already open costs nothing
+    and counts against no limit. ``analyses_refusal`` names why the analyses
+    the payload carries were refused (`_link_analyses`), None when there
+    were none or they read; ``ranges_refusal`` the knob ranges it did not
+    take (`_ranges_refusal`)."""
     name, text = _decks.decode_payload(payload, _DECK_SETTINGS)
     dialect = _decks.payload_dialect(payload)
     analyses, refusal = _link_analyses(payload)
+    # AK#2045: the link's knob ranges, read strictly; the ones that read are
+    # part of the key, whatever the deck then says of their names.
+    ranges, ranges_syntax = _decks.payload_ranges(payload)
     key = _decks.deck_key(
-        name, text, dialect, None if analyses is None else analyses[0]
+        name, text, dialect, None if analyses is None else analyses[0], ranges
     )
     if key in _DECK_STORE and key in EXAMPLES:
         _DECK_STORE.get(key)  # touch: recently used
-        return key, False, refusal
+        return key, False, refusal, _ranges_refusal(ranges_syntax, key)
     if not _DECK_OPENS.allow(ip):
         _count_refusal("deck_rate")
         raise _decks.DeckError(
@@ -333,8 +346,8 @@ def _open_deck(payload, ip: str) -> tuple[str, bool, str | None]:
             status=429,
             deck_status="rate",
         )
-    key, new = _DECK_STORE.open(name, text, dialect, analyses)
-    return key, new, refusal
+    key, new = _DECK_STORE.open(name, text, dialect, analyses, ranges)
+    return key, new, refusal, _ranges_refusal(ranges_syntax, key)
 
 
 def _ensure_deck(req: dict, ip: str) -> None:
@@ -352,9 +365,10 @@ def _ensure_deck(req: dict, ip: str) -> None:
             status=409,
             deck_status="missing",
         )
-    # The page sends the analyses its link carried (`analyses`) beside the
-    # deck, so an evicted deck comes back with them, under the same key.
-    opened, _, _ = _open_deck(payload, ip)
+    # The page sends the analyses and knob ranges its link carried
+    # (`analyses`, `ranges`) beside the deck, so an evicted deck comes back
+    # with them, under the same key.
+    opened, _, _, _ = _open_deck(payload, ip)
     if opened != key:
         raise _decks.DeckError(
             f"the deck this request carries is not {key}", status=400
@@ -5151,13 +5165,22 @@ async def deck_open_endpoint(req: dict, request: Request):
     says ``analyses`` (how many were read, 0 for none) and
     ``analyses_refusal``: None, or the sentence naming why they were refused
     -- a refusal is NOT the deck's: it opens (200) without them, under the
-    key it has with no analyses."""
+    key it has with no analyses.
+
+    ``ranges`` (optional, AK#2045) is the link's knob ranges,
+    ``<knob>:<min>:<max>`` comma-separated (`decks.payload_ranges`): they
+    become those knobs' min/max (`decks.with_ranges`), so a hold on a deck's
+    SY knob has a range to search, and are part of the key. One that does
+    not read, or names no knob of the deck, is left out and named in
+    ``ranges_refusal`` (None for none); the deck opens either way."""
     ip = _decks.client_ip(
         {k.lower(): v for k, v in request.headers.items()},
         request.client.host if request.client else None,
     )
     try:
-        key, _new, analyses_refusal = await run_in_threadpool(_open_deck, req, ip)
+        key, _new, analyses_refusal, ranges_refusal = await run_in_threadpool(
+            _open_deck, req, ip
+        )
         entry = await run_in_threadpool(_example_entry, key, EXAMPLES[key])
     except _decks.DeckError as exc:
         _METRICS.inc(
@@ -5194,6 +5217,9 @@ async def deck_open_endpoint(req: dict, request: Request):
         # refused, if they were (the deck opens either way).
         "analyses": len(_DECK_STORE.link_analyses(key)),
         "analyses_refusal": analyses_refusal,
+        # AK#2045: the link's knob ranges the deck did not take, by name
+        # (the ones it took are its knobs' min/max in `example`).
+        "ranges_refusal": ranges_refusal,
         "limits": {
             "max_bytes": lim.max_bytes,
             "max_segments": lim.max_segments,

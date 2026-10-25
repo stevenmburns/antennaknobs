@@ -189,8 +189,11 @@ import { useDesignAnalyses } from "./useDesignAnalyses";
 import {
   type DeepLink,
   linkHref,
+  linkKnobsOf,
+  linkKnobValues,
   linkSearch,
   type LinkState,
+  rangesOf,
   resolveAnalysis,
   resolveDesign,
   resolveVariant,
@@ -3327,12 +3330,16 @@ function DesignSessionBody({
   // design and variant, and the chart's view once the pick has landed. A
   // name that resolves to nothing is reported by name in the notice below
   // and otherwise ignored; an unknown design ends the link there, since its
-  // analysis and view were for that design.
-  type LinkStage = "design" | "variant" | "analysis" | "view" | "done";
+  // analysis and view were for that design. The link's knob values
+  // (AK#2045, `knobs=`) are set after the variant (which reseeds the knobs)
+  // and before the analysis is picked, so a run=1 starts from them.
+  type LinkStage = "design" | "variant" | "knobs" | "analysis" | "view" | "done";
   const [linkStage, setLinkStage] = useState<LinkStage>(deepLink ? "design" : "done");
   // Seeded with the shell's report when the link's deck did not open.
   const [linkProblems, setLinkProblems] = useState<string[]>(() =>
-    [deepLink?.problem, deepLink?.familyProblem, deepLink?.cutProblem].filter((p): p is string => !!p),
+    [deepLink?.problem, deepLink?.familyProblem, deepLink?.cutProblem, ...(deepLink?.knobsProblems ?? [])].filter(
+      (p): p is string => !!p,
+    ),
   );
   const linkProblem = (p: string) => setLinkProblems((ps) => [...ps, p]);
   // Opening the user's own deck (lib/decks.ts): read here, opened on the
@@ -3353,7 +3360,14 @@ function DesignSessionBody({
     const d = isDeck(geometry) ? deckFor(geometry) : undefined;
     if (!d) return;
     setDeckError(null);
-    openDeck({ name: d.name, z: d.z, ...(dialect ? { dialect } : {}) }).then(
+    // The same deck: its link's analyses and knob ranges stay with it.
+    openDeck({
+      name: d.name,
+      z: d.z,
+      ...(dialect ? { dialect } : {}),
+      ...(d.analyses ? { analyses: d.analyses } : {}),
+      ...(d.ranges ? { ranges: d.ranges } : {}),
+    }).then(
       (o) => setGeometry(o.key),
       (e: unknown) => setDeckError(e instanceof Error ? e.message : String(e)),
     );
@@ -3392,9 +3406,28 @@ function DesignSessionBody({
       if (!r.ok) linkProblem(r.problem);
       else if (r.value !== currentVariant) selectVariant(r.value);
     }
-    setLinkStage(deepLink.analysis || deepLink.view || deepLink.family ? "analysis" : "done");
+    setLinkStage(
+      deepLink.knobs ? "knobs" : deepLink.analysis || deepLink.view || deepLink.family ? "analysis" : "done",
+    );
     // Runs when the stage or the design changes; the rest is read as it
     // stands then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLink, linkStage, currentExample, linkDesign]);
+  useEffect(() => {
+    if (!deepLink || linkStage !== "knobs") return;
+    if (!currentExample || currentExample.name !== linkDesign) return;
+    // On the variant's knobs (the stage before set it); a deck's ranges are
+    // already its knobs' min/max, from the server.
+    const { values, problems } = linkKnobValues(deepLink.knobs ?? [], currentSchema, { deck: isDeck(geometry) });
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    for (const p of problems) linkProblem(p);
+    if (Object.keys(values).length > 0) {
+      setParamValues((prev) => ({
+        ...prev,
+        [geometry]: { ...(prev[geometry] ?? seedDefaults(currentExample.param_schema)), ...values },
+      }));
+    }
+    setLinkStage(deepLink.analysis || deepLink.view || deepLink.family ? "analysis" : "done");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLink, linkStage, currentExample, linkDesign]);
   useEffect(() => {
@@ -3459,7 +3492,6 @@ function DesignSessionBody({
     } else if (deepLink.view) {
       const r = resolveView(deepLink.view, chartViews(chart));
       if (!r.ok) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         linkProblem(r.problem);
       } else {
         setChartAt(0, (c) => setChartView(c, r.value));
@@ -3475,10 +3507,22 @@ function DesignSessionBody({
   }, [deepLink, linkStage]);
   // What the URL records of this tab (AK#1838): its design and variant
   // (the design's first left out), and the first chart's analysis and view.
+  // The knobs a link writes (AK#2045): the ones moved off the variant's
+  // defaults, and every knob the opened deck has a link range for.
+  const linkDeck = isDeck(geometry) ? (deckFor(geometry) ?? null) : null;
+  const linkKnobs = currentExample
+    ? linkKnobsOf(
+        currentSchema,
+        currentValues,
+        { ...seedDefaults(currentExample.param_schema), ...(currentExample.variant_values?.[currentVariant] ?? {}) },
+        rangesOf(linkDeck?.ranges),
+      )
+    : [];
   const linkStateOf = (m: ChartModel | null): LinkState => ({
     design: geometry,
+    knobs: linkKnobs,
     // An opened deck: the link carries the deck itself (when it fits).
-    deck: isDeck(geometry) ? (deckFor(geometry) ?? null) : null,
+    deck: linkDeck,
     variant: currentVariant === (currentExample?.variants?.[0] ?? "default") ? null : currentVariant,
     analysis: m ? pickedNameOf(m) : null,
     // A knob's family of patterns (AK#1935) is no analysis a link can name:

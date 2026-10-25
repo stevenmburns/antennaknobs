@@ -399,3 +399,39 @@ describe("a link carries a pattern family (AK#1935)", () => {
     expect(head()!.dataset.chartKind).not.toBe("pattern");
   });
 });
+
+describe("a link carries knob values (AK#2045, knobs=)", () => {
+  it("sets them on the panel before the analysis runs, and keeps them in the URL", async () => {
+    const { paramSweeps } = await open("/?design=dipoles.deck&knobs=gap:0.5&analysis=match%20vs%20height&run=1");
+    await settled("match vs height");
+    await untilDom(() => paramSweeps.length > 0 || null);
+    // The run=1 run is asked at the link's value, not the default 0.25.
+    expect(paramSweeps[0]).toEqual(expect.objectContaining({ gap: 0.5, param: "base" }));
+    expect(query().get("knobs")).toBe("gap:0.5");
+    expect(window.location.search).toContain("knobs=gap:0.5");
+    expect(notice()).toBeNull();
+  });
+
+  it("names every entry it does not take, and sets the rest", async () => {
+    const { paramSweeps } = await open(
+      "/?design=dipoles.deck&knobs=nope:1,gap:0.5:0:0.8,base:99,oops&analysis=match%20vs%20height&run=1",
+    );
+    await settled("match vs height");
+    const n = await untilDom(() => notice());
+    expect(n.textContent).toContain(`"oops" is not <knob>:<value>[:<min>:<max>]`);
+    expect(n.textContent).toContain(`this design has no knob "nope"`);
+    expect(n.textContent).toContain("gap's range 0:0.8 is not applied");
+    expect(n.textContent).toContain("base's value 99 is outside its range 1 to 16");
+    await untilDom(() => paramSweeps.length > 0 || null);
+    expect(paramSweeps[0]).toEqual(expect.objectContaining({ gap: 0.5 }));
+    // The URL writes the panel as it is: gap moved, base at its default.
+    await untilDom(() => query().get("knobs") === "gap:0.5" || null);
+  });
+
+  it("a variant's own value is its default: the link writes no knobs= for it", async () => {
+    await open("/?design=dipoles.deck:tall&analysis=match%20vs%20height");
+    await settled("match vs height");
+    expect(query().get("design")).toBe("dipoles.deck:tall");
+    expect(query().get("knobs")).toBeNull();
+  });
+});
