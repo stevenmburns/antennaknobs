@@ -4995,6 +4995,35 @@ div.opt-bands-readout {
   flex: 1 1 100%;
   margin: 0 0 var(--space-2);
 }
+/* The map and hold builders (AK#2045): one row per swept axis (a knob, its
+   ends, points, log), and the hold's target and held knobs. Wraps on a
+   phone. */
+.build-dialog-axis {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+.build-dialog-axis label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  color: var(--muted);
+}
+.build-dialog-axis input[type="number"] {
+  width: 5.5em;
+}
+.build-dialog-label {
+  min-width: 3.5em;
+  font-weight: 600;
+}
+/* Copy link's refusal (AK#2045): the link it would not write, and why. */
+.chart-copy-link-why {
+  flex: 1 1 100%;
+  color: var(--muted);
+  font-style: italic;
+}
 .zparam-reset {
   padding: 0 var(--space-2);
   background: var(--inset);

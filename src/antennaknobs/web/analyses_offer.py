@@ -1148,15 +1148,19 @@ def offer_link(
     hosted: bool = False,
     deck: str | None = None,
     taken=(),
+    origin: str = "link",
 ) -> list[dict]:
-    """The analyses a shared link carried for the opened deck ``req`` names
-    (AK#2045, `decks.DeckStore.link_analyses`), as ``/analyses`` serves the
-    design's own (`_entry`), with ``origin: "link"`` and ``study: None``.
+    """The analyses a shared link carried for the design ``req`` names
+    (AK#2045: an opened deck's, `decks.DeckStore.link_analyses`, or a
+    catalog design's ``analyses=``), as ``/analyses`` serves the design's
+    own (`_entry`), with ``origin: "link"`` and ``study: None``. The page's
+    map and hold builders' analyses come the same way, as text the page
+    sent (``origin: "built"``), and are checked as a stranger's are.
     Each is checked by `link_refusal` first; one it refuses is listed with
     ``runs: False`` and the reason, and nothing of it is built. They run as
     any analysis runs: the same routes, under the same hosted budgets and
     caps. ``deck`` is the tab's ``@<file name>``; ``taken`` the names already
-    listed, which a link's analysis is renamed ``link:<name>`` beside."""
+    listed, which a link's analysis is renamed ``<origin>:<name>`` beside."""
     own = tuple(x for x in (str(req.get("geometry") or ""), deck) if x)
     out = []
     names = set(taken)
@@ -1164,9 +1168,9 @@ def offer_link(
         why = link_refusal(a, builder, own=own)
         entry = _refused_entry(a, why) if why else _entry(a, builder, req, hosted)
         if entry["name"] in names:
-            entry["name"] = f"link:{entry['name']}"
+            entry["name"] = f"{origin}:{entry['name']}"
         names.add(entry["name"])
-        out.append({**entry, "study": None, "origin": "link"})
+        out.append({**entry, "study": None, "origin": origin})
     return out
 
 

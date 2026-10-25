@@ -103,7 +103,9 @@ compressed:
 so copying the address shares the model: whoever opens the link gets the same
 design in their own browser, on the hosted app or a local workbench. A deck
 whose compressed form is over about 8 KB still opens, but the link cannot
-carry it, and the page says so; send the file instead.
+carry it, and the page says so; send the file instead. A chart's **link**
+also carries the deck's knob values and ranges and any maps or held sweeps
+you built on it (see [Linking to a chart](#linking-to-a-chart)).
 
 A `.nec` deck says which NEC dialect it was read in as the first line of its
 note — NEC-2 and NEC-4 put sources and loads at segment centres, NEC-5 at
@@ -172,6 +174,9 @@ change a knob:
     The same range bounds
     [Keep the target while I drag](#keep-the-target-while-i-drag): a marked knob
     is the one the hold moves, and it will not leave this range to do it.
+  - **Sweep this knob…**, **Map against another knob…** and **Sweep, holding
+    another knob…** — a sweep of this knob, or one of the analyses the
+    [builders](#building-a-map-or-a-held-sweep) make.
 
 The measurement-frequency dial's own right-click menu is different: its
 **Display range** *is* the sweep range, so it opens the range editor
@@ -727,6 +732,30 @@ over that. One that is still running after two minutes stops at the next
 node and keeps what it drew, saying *stopped at the time limit (120 s):
 partial*.
 
+### Building a map or a held sweep
+
+A design's own maps and held sweeps come from its Python. Any design, an
+opened deck included, can have more built here: right-click a knob.
+
+- **Map against another knob…** builds a [map](#maps): this knob as x,
+  another as y, each with its from, to, points and log spacing (each starts
+  at its knob's own range). It is coloured by |Γ| with X = 0, resonance, as a
+  contour.
+- **Sweep, holding another knob…** builds a sweep of this knob with another
+  knob re-solved at every point: held at **resonance** (X = 0, one knob), or
+  at a **match Z0** (R = Z₀ and X = 0, two knobs). Each point is the
+  optimizer's own solve, within the held knob's own range; a point with no
+  solution there is a gap. It draws R/X and the held knob against the swept
+  one (the **Knobs** view). A knob with no range of its own cannot be held:
+  an opened deck's SY knob gets one from its link's `knobs=` (see
+  [Linking to a chart](#linking-to-a-chart)).
+
+The name starts from the knobs and can be changed. **build and run** lists
+the analysis under **analysis** as *built here* and runs it on the first
+chart, the same way a design's own runs: **copy** and **keep** copy it as
+Python, and the chart's **link** carries it. Built analyses last for the
+session.
+
 ### Pinned sweeps
 
 **pin** on a chart's header freezes what it draws: one pin per curve, holding
@@ -780,8 +809,11 @@ instead.
 ### Linking to a chart
 
 The address bar follows the tab you are on: its design, and the first chart's
-analysis and view. **link** on a chart's header copies the same for that
-chart. Opening such a link opens the design and selects the analysis:
+analysis and view. **link** on a chart's header copies a link that reproduces
+what is on screen: the design (or the opened deck itself, with its dialect),
+the knobs you have moved, the analyses built here or carried by the link you
+came in on, and that chart's analysis and view. It says *link copied* with the
+link's length. Opening such a link opens the design and selects the analysis:
 
 ```
 /?design=dipoles.invvee&analysis=resonance%20vs%20angle&view=Knobs
@@ -802,6 +834,25 @@ chart. Opening such a link opens the design and selects the analysis:
 - `cut=` is that family's cut angle in degrees: the bearing of an elevation
   view, or the elevation of an azimuth view. Absent, the view's own
   (0° az, 10° el).
+- `knobs=` sets knob values before the analysis is picked or run:
+  `knob:value`, comma-separated (`knobs=long_ft:33,short_ft:5`), with an
+  optional range on an opened deck's knob, `knob:value:min:max`
+  (`knobs=sy_long_ft:33:15:36`). A deck's SY knob has no range of its own; the
+  link's becomes its slider range and the range a hold or the optimizer
+  searches. When the deck's own SY value lies outside it, the knob starts at
+  the nearer end. A catalog design keeps its own ranges, and a range there is
+  reported and ignored; the value still applies. Numbers are plain decimals.
+  **link** writes every knob moved off its default, and an opened deck's
+  ranged knobs always.
+- `analyses=` carries analyses as the Python a design's `build_analyses()`
+  returns, compressed as a deck is. They are listed under **analysis** as
+  *from the link*, and `analysis=` picks one by name. The server only reads
+  them: it builds only the analysis library's own constructors from literal
+  numbers and strings, refuses anything else by name, and never runs the
+  text. An analysis that names another design may name only a catalog design
+  or the opened deck itself. **link** writes the analyses the picker lists
+  from the link or built here, and the chart's own pick as you edited it (an
+  edited design analysis rides as *name (edited)*).
 - `run=1` presses **run** once the analysis is selected, whatever
   `[workbench.run_on_pick]` says. Without it, the link picks the analysis as
   the **analysis** list does: a frequency sweep or a pattern runs, and a knob
@@ -813,6 +864,12 @@ A name the workbench does not know is reported by name above the knobs and
 otherwise ignored. A link to a user design (`user.…`) opens only on the
 machine that has that design. The link is one tab's: the other tabs (**D2**,
 …) are not in it.
+
+A link carries a deck and its analyses each up to about 8 KB compressed (the
+two-wire doublet as a NEC-5 deck with its three analyses and both knobs'
+ranges is about 800 characters in all). Over that, **link** copies nothing and
+says which part is too long: send the deck file instead, or copy the analysis
+with **copy**.
 
 ### More than one chart
 

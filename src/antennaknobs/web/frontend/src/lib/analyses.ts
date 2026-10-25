@@ -211,14 +211,22 @@ export type AnalysisEntry = {
   spec?: unknown;
 };
 
-/** Where an analysis comes from, as /analyses serves it (AK#1935). */
-export type AnalysisOrigin = "design" | "generic" | "study";
+/** Where an analysis comes from, as /analyses serves it (AK#1935): and
+ *  since AK#2045, the analyses a shared link carried ("link") and the ones
+ *  this tab's map and hold builders made ("built"). */
+export type AnalysisOrigin = "design" | "generic" | "study" | "link" | "built";
+
+/** Whether an entry is one a shared link carries (AK#2045): a link's own,
+ *  or one built here. Copy link writes these into its `analyses=`. */
+export const carriedByLink = (a: AnalysisEntry): boolean => a.origin === "link" || a.origin === "built";
 
 /** How the picker words an origin, as `analyze --list` does
  *  (`analyses.ORIGIN_WORDS`); a study says its own. */
 export const ORIGIN_WORDS: Record<Exclude<AnalysisOrigin, "study">, string> = {
   design: "this design",
   generic: "every design",
+  link: "from the link",
+  built: "built here",
 };
 
 /** The heading the generic analyses are always under (AK#1935), whatever
@@ -669,7 +677,13 @@ export function parseAnalyses(body: unknown): AnalysisEntry[] {
       workbench,
       study: parseStudy(o.study),
       ...(typeof o.group === "string" && o.group ? { group: o.group } : {}),
-      ...(o.origin === "design" || o.origin === "generic" || o.origin === "study" ? { origin: o.origin } : {}),
+      ...(o.origin === "design" ||
+      o.origin === "generic" ||
+      o.origin === "study" ||
+      o.origin === "link" ||
+      o.origin === "built"
+        ? { origin: o.origin }
+        : {}),
       ...(kept ? { kept } : {}),
       ...(o.spec !== undefined ? { spec: o.spec } : {}),
     });

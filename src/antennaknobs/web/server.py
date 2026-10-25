@@ -310,6 +310,45 @@ def _link_analyses(payload) -> tuple[tuple[str, tuple] | None, str | None]:
         return None, f"the link's analyses were not read: {exc}"
 
 
+#: How many analyses the page may have built in a tab and send with
+#: ``/analyses`` (AK#2045, ``built``): each one a builder's map or held sweep,
+#: a few hundred characters of text.
+MAX_BUILT = 16
+
+
+def _built_analyses(req) -> tuple[tuple, list[str]]:
+    """The analyses the page built in this tab (AK#2045, ``built``: the map
+    and hold builders' analyses, each the ``to_code`` text ``/keep`` wrote
+    for it), read by `analyses_text.read`, which parses the text and NEVER
+    runs it: ``(values, refusals)``. The texts are bounded together as one
+    link's analyses are (`analyses_text.MAX_TEXT_CHARS`), at most
+    `MAX_BUILT` of them; one that does not read is left out and named, the
+    rest stand. Absent or empty: none. Not a list of strings is a 422."""
+    from antennaknobs import analyses_text
+
+    raw = req.get("built")
+    if raw is None or raw == []:
+        return (), []
+    if not isinstance(raw, list) or not all(isinstance(t, str) for t in raw):
+        raise HTTPException(status_code=422, detail="built is a list of analysis texts")
+    if len(raw) > MAX_BUILT:
+        return (), [f"{len(raw)} built analyses, over the {MAX_BUILT} a tab may hold"]
+    total = sum(len(t) for t in raw)
+    if total > analyses_text.MAX_TEXT_CHARS:
+        return (), [
+            f"the built analyses are {total} characters, over the "
+            f"{analyses_text.MAX_TEXT_CHARS} limit"
+        ]
+    values: list = []
+    refused: list[str] = []
+    for i, text in enumerate(raw):
+        try:
+            values += list(analyses_text.read(text))
+        except analyses_text.AnalysesTextError as exc:
+            refused.append(f"built analysis {i + 1} was not read: {exc}")
+    return tuple(values), refused
+
+
 def _ranges_refusal(syntax: list[str], key: str) -> str | None:
     """One sentence naming every link knob range the deck did not take
     (AK#2045): the ones `decks.payload_ranges` refused as written, then the
@@ -3541,27 +3580,55 @@ async def analyses_endpoint(req: dict):
 
     alias = _deck_alias(geometry)
     # AK#2045: the analyses an opened deck's link carried, listed after the
-    # generic ones; none for any other design.
-    link = _DECK_STORE.link_analyses(geometry) if _decks.is_deck(geometry) else ()
+    # generic ones. A catalog design's link carries its own beside the
+    # design (``analyses``, packed as a deck's are), which the page sends
+    # with this request; a deck's ride the deck, never the request.
+    refusal = None
+    if _decks.is_deck(geometry):
+        link = _DECK_STORE.link_analyses(geometry)
+    else:
+        try:
+            read, refusal = _link_analyses(req)
+        except _decks.DeckError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from None
+        link = () if read is None else read[1]
+    # The analyses the page's map and hold builders made in this tab.
+    built, built_refused = _built_analyses(req)
 
     def _offer():
         builder = builder_for(cls, req)
         own = offer(builder, req, hosted=_HOSTED)
-        linked = offer_link(
+        taken = {e["name"] for e in own}
+        linked = offer_link(builder, req, link, hosted=_HOSTED, deck=alias, taken=taken)
+        taken |= {e["name"] for e in linked}
+        made = offer_link(
             builder,
             req,
-            link,
+            built,
             hosted=_HOSTED,
             deck=alias,
-            taken={e["name"] for e in own},
+            taken=taken,
+            origin="built",
         )
-        return own + linked + offer_studies(builder, req, hosted=_HOSTED, deck=alias)
+        return (
+            own
+            + linked
+            + made
+            + offer_studies(builder, req, hosted=_HOSTED, deck=alias)
+        )
 
     try:
         analyses = await run_in_threadpool(_offer)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from None
-    return {"geometry": geometry, "analyses": analyses}
+    return {
+        "geometry": geometry,
+        "analyses": analyses,
+        # Why a catalog design's link analyses, or a built one, were not
+        # read (AK#2045), in their words; None for none.
+        "analyses_refusal": refusal,
+        "built_refusal": "; ".join(built_refused) or None,
+    }
 
 
 def _kept(req: dict):
@@ -3595,9 +3662,11 @@ def keep_endpoint(req: dict):
     ``tab`` the tab's solve request; ``cells`` its curves' solve requests,
     whose engines and grounds it drew), for pins (``"sweep pins"`` /
     ``"pattern pins"``) ``{pins: [{req, x?, xs?, label?}]}``, ``req`` the
-    solve request the pin was solved with. Out: ``{code, name, problems, study_refusal}``: ``code`` the
+    solve request the pin was solved with. Out: ``{code, name, problems, study_refusal, expr}``: ``code`` the
     analysis's ``to_code`` text ("analysis") or a whole study file
-    ("study"); ``problems`` ``analyses.problems`` on the tab's design (a
+    ("study"); ``expr`` the bare ``an.to_code`` expression, no imports and
+    no comments, which a shared link carries (AK#2045, `analyses_text`:
+    the page lists several in one ``analyses=``); ``problems`` ``analyses.problems`` on the tab's design (a
     chart's); ``study_refusal`` why it could not be kept as a study
     (``studies.refusal``), or None. Nothing solves and nothing is written,
     so the hosted instance serves it too."""
@@ -3623,6 +3692,7 @@ def keep_endpoint(req: dict):
         "name": a.name,
         "problems": problems,
         "study_refusal": studies.refusal(a),
+        "expr": an.to_code(a),
     }
 
 

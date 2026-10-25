@@ -3,7 +3,7 @@ import { type AnalysisEntry, analysisGroups, entryLabel, ORIGIN_WORDS } from "..
 
 /** An entry's tooltip: where it comes from (AK#1935), then its summary. */
 function entryTitle(a: AnalysisEntry): string {
-  const where = a.origin === "design" || a.origin === "generic" ? ORIGIN_WORDS[a.origin] : null;
+  const where = a.origin && a.origin !== "study" ? ORIGIN_WORDS[a.origin] : null;
   return where ? `${where}: ${a.summary}` : a.summary;
 }
 
@@ -259,7 +259,7 @@ function AnalysisCode({ entry, why }: { entry: AnalysisEntry; why: string | null
         <strong>{entryLabel(entry)}</strong>
         {entry.study ? (
           <span className="zparam-analysis-summary">{`study in ${entry.study.source}`}</span>
-        ) : entry.origin === "design" || entry.origin === "generic" ? (
+        ) : entry.origin && entry.origin !== "study" ? (
           // Where it comes from (AK#1935): this design's own, or generic.
           <span className="zparam-analysis-origin" data-origin={entry.origin}>
             {ORIGIN_WORDS[entry.origin]}

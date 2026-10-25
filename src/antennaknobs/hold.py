@@ -511,8 +511,16 @@ def builder_solve_fn(builder, factory: Callable, z0: float) -> Callable[[dict], 
 
 
 def defaults_of(builder, free: Sequence[Mapping]) -> dict:
-    """The held knobs' values on ``builder``: where a cold point starts."""
-    return {f["name"]: float(getattr(builder, f["name"])) for f in free}
+    """The held knobs' values on ``builder``: where a cold point starts, each
+    inside its bounds (``free``'s min/max). A design whose own value lies
+    outside the range its hold searches (an opened deck's SY value, outside
+    the range a shared link gave the knob, AK#2045) starts from the nearer
+    end, never from a point the search could not have reached."""
+    out = {}
+    for f in free:
+        v = float(getattr(builder, f["name"]))
+        out[f["name"]] = min(max(v, float(f["min"])), float(f["max"]))
+    return out
 
 
 def metric_off(metric, gain, freq) -> tuple:
