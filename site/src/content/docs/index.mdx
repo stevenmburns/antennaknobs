@@ -29,23 +29,20 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.108.0" icon="star">
-  **Buried radials near the surface converge.** With momwire 0.84, radials
-  that leave a vertical's base at the surface and slope a few centimetres
-  into the soil settle as the mesh is refined, on both B-spline and Razor.
-  Before, Razor's reactance there was off by more than ten ohms at a coarse
-  mesh. It now stays within half an ohm of the licensed NEC-5 at every
-  density on that geometry.
+<Card title="New in v0.108.1" icon="star">
+  **Razor is faster over buried radials.** With momwire 0.84.1, Razor fills a
+  buried radial screen near the surface about 2.8 times faster: Dan's sloping
+  radial model at 500 segments per wavelength drops from 5.9 to 2.1 seconds,
+  with the answer unchanged to a few thousandths of an ohm.
 
-  **A new catalog design: the two-wire doublet.** One straight wire fed
-  anywhere along it, with its resonant splits mapped and both branches held
-  at resonance, from the centre-fed half wave through the OCF and the end-fed
-  half wave to the 1 λ doublet (`dipoles.two_wire_doublet`).
+  **Held-resonance charts plot R alone.** When an analysis holds a knob at
+  resonance on one band, X is zero by construction, so its chart now shows only R
+  instead of a reactance trace of root-finder leftovers.
 
-  **For SimNEC and 4nec2 users.** The engines no longer write warnings to
-  stderr unless asked, which ends a stall in SimNEC's stream mode. The
-  no-Python executables read 4nec2's geometry cards (GA, GH, GM, GX, GS) and
-  PT, and the Windows README sets up 4nec2 through 4nec2.bat.
+  From v0.108.0, **buried radials near the surface converge** on both
+  B-spline and Razor, and the new catalog design
+  **the two-wire doublet** (`dipoles.two_wire_doublet`) maps a wire's
+  resonant splits.
 </Card>
 
 ## The whole pitch, in one line
