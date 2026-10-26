@@ -5456,7 +5456,9 @@ def trust_endpoint(req: dict):
     # Register it now so the caller can re-fetch /examples and see it live.
     user_designs.refresh()
     _evict_user_design_caches()
-    return {"ok": True, "stem": path.stem, "mode": mode}
+    from antennaknobs.user_designs import _user_name
+
+    return {"ok": True, "stem": _user_name(path), "mode": mode}
 
 
 @app.post("/untrust")
@@ -5476,7 +5478,9 @@ def untrust_endpoint(req: dict):
     removed = design_trust.untrust(path)
     user_designs.refresh()
     _evict_user_design_caches()
-    return {"ok": True, "stem": path.stem, "removed": removed}
+    from antennaknobs.user_designs import _user_name
+
+    return {"ok": True, "stem": _user_name(path), "removed": removed}
 
 
 @app.websocket("/ws")
