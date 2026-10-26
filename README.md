@@ -130,7 +130,7 @@
 | src/antennaknobs/designs/wire/doublet\_ladder\_tuner.py              |       16 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/doublet\_remote\_tuner.py              |       69 |        2 |     97% |  548, 553 |
 | src/antennaknobs/designs/wire/edz.py                                 |       20 |        0 |    100% |           |
-| src/antennaknobs/designs/wire/efhw\_autotransformer.py               |       83 |        3 |     96% |207, 244, 291 |
+| src/antennaknobs/designs/wire/efhw\_autotransformer.py               |       73 |        3 |     96% |203, 240, 287 |
 | src/antennaknobs/designs/wire/efhw\_sloper.py                        |       24 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/expanded\_lazy\_h.py                   |       25 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/lazy\_h.py                             |       18 |        0 |    100% |           |
@@ -180,7 +180,7 @@
 | src/antennaknobs/optimize\_study.py                                  |      113 |        8 |     93% |62, 115, 220, 232, 236, 255, 261, 267 |
 | src/antennaknobs/plane.py                                            |       74 |        5 |     93% |59, 92, 158, 161-162 |
 | src/antennaknobs/program\_name.py                                    |       16 |        0 |    100% |           |
-| src/antennaknobs/schematic.py                                        |      837 |       69 |     92% |211, 382, 413, 426, 433, 501, 505, 551, 648, 661, 741, 802-803, 853, 884, 888, 1007-1008, 1028, 1041, 1334, 1341, 1445-1447, 1480, 1512, 1554, 1568-1586, 1591-1598, 1764-1765, 1767-1775, 1783, 1893, 1954, 1960, 1973, 1988, 2016-2017, 2021, 2024 |
+| src/antennaknobs/schematic.py                                        |      873 |       69 |     92% |211, 382, 435, 442, 510, 514, 560, 657, 670, 750, 811-812, 862, 893, 897, 1037, 1050, 1205, 1241-1242, 1400, 1407, 1511-1513, 1546, 1578, 1620, 1634-1652, 1657-1664, 1830-1831, 1833-1841, 1849, 1959, 2020, 2026, 2039, 2054, 2082-2083, 2087, 2090 |
 | src/antennaknobs/serialize.py                                        |       83 |        3 |     96% |33, 91, 103 |
 | src/antennaknobs/settings\_file.py                                   |       62 |        2 |     97% |     87-88 |
 | src/antennaknobs/sim.py                                              |        2 |        0 |    100% |           |
@@ -225,7 +225,7 @@
 | src/antennaknobs/web/user\_designs.py                                |       76 |        6 |     92% |64-65, 96-97, 102-103 |
 | src/antennaknobs/wire\_catalog.py                                    |      189 |        0 |    100% |           |
 | src/antennaknobs/zinf.py                                             |      123 |        2 |     98% |   80, 135 |
-| **TOTAL**                                                            | **33767** | **2067** | **94%** |           |
+| **TOTAL**                                                            | **33793** | **2067** | **94%** |           |
 
 
 ## Setup coverage badge
