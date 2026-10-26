@@ -80,7 +80,11 @@ def test_exactly_one_catalog_design_is_stepped():
         for n in list_builtin_designs()
         if _has_stepped_radius_junction(resolve_class(n))
     ]
-    assert stepped == [STEPPED], stepped
+    # Two since `wire.efhw_autotransformer` (AK#2062): the coax shield (1.8 mm)
+    # meets the 28 AWG radiator and counterpoise at the feed point. Checked
+    # against the extended kernel there: stock Z moves 0.002 ohm with it on
+    # (43.707+7.787j off, 43.706+7.785j on, Sommerfeld average ground).
+    assert stepped == [STEPPED, "wire.efhw_autotransformer"], stepped
 
 
 def test_the_field_reaches_the_registry():
