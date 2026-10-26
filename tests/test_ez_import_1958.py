@@ -460,11 +460,16 @@ def test_the_environment_switch_opts_in_through_the_file_loader(tmp_path, monkey
 
 
 def test_an_undefined_value_with_no_reading_stays_refused_on_request():
+    """A parallel-connected load on a free wire end under NEC-5 has no knot
+    to sit on (EZNEC's own NEC-5 export refuses it, AK#2061), and no reading
+    to take."""
     raw = ez_file(
-        DIPOLE, loads=({"wire": 1, "pct": 75.0, "z": (5.0, 0.0), "conn": "P"},)
+        DIPOLE,
+        loads=({"wire": 1, "pct": 0.0, "z": (5.0, 0.0), "conn": "P"},),
+        blocks=[engine_block(8, "Ext NEC-5")],
     )
     for guesses in (False, True):
-        with pytest.raises(EzUndefined, match="parallel-connected"):
+        with pytest.raises(EzUndefined, match="free wire end"):
             read_ez(raw, accept_guesses=guesses)
 
 

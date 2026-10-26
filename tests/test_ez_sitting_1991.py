@@ -287,23 +287,29 @@ KNOTS = {
     (90.0, 15): 14,
     (50.0, 3): 2,
 }
-# ... and loads the end of the segment the position lands on (0 % = -1).
+# ... and loads the nearest knot, a tie toward end 2 (0 % = -1). The first
+# six are this sitting's; none sits in a segment's lower half, where the
+# nearest knot and the end of the segment the position lands on (what AK read
+# until AK#2061) part. The AK#2061 sitting's 25 % of 21 does: knot 5, a series
+# load and a parallel-connected one alike.
 LOAD_KNOTS = {(34.0, 50): 17, (50.0, 19): 10, (5.56, 27): 2, (0.0, 183): -1,
-              (100.0, 183): 183, (0.0, 60): -1}  # fmt: skip
+              (100.0, 183): 183, (0.0, 60): -1,
+              (25.0, 21): 5, (50.0, 21): 11, (50.0, 11): 6}  # fmt: skip
 
 
 def test_nec5s_knot_for_a_source_or_line_end_is_the_nearest():
     for (pct, n), want in KNOTS.items():
         assert (ez_import._knot(pct, n) or -1) == want, (pct, n)
     for (pct, n), want in LOAD_KNOTS.items():
-        got = -1 if pct == 0 else ez_import._segment(pct, n)
+        got = ez_import._load_knot(pct, n) or -1
         assert got == want, (pct, n)
 
 
 def test_the_knot_rule_reaches_the_cards():
     """A source at 26 % of 27 segments: p·N/100 = 7.02, so knot 7 under NEC-5
-    (EZNEC's EX field), where NEC-2's segment is 8; a load there stays on
-    segment 8's end."""
+    (EZNEC's EX field), where NEC-2's segment is 8. A load there sits on knot
+    7 too, the nearest one (AK#2061: AK put it at 8 until the sitting showed
+    loads take the nearest knot)."""
     wires = [
         (0.0, 0.0, 10.0, 0.0, 5.0, 10.0, 0.002, 27),
         (0.0, 0.0, 10.0, 0.0, -5.0, 10.0, 0.002, 27),
@@ -318,7 +324,7 @@ def test_the_knot_rule_reaches_the_cards():
     (ex,) = _cards(imp, "EX")
     assert ex.split()[2:4] == ["1", "7"]
     (ld,) = _cards(imp, "LD")
-    assert ld.split()[2:4] == ["1", "8"]
+    assert ld.split()[2:4] == ["1", "7"]
     assert read_ez(raw, reading="nec2").deck.feeds[0].seg == 8
 
 

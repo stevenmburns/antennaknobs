@@ -56,9 +56,9 @@ notes, not a refusal.
   and NEC-4 cores) put sources and loads at segment CENTRES, so the deck is
   read in NEC-2's spelling -- unless the file says EZNEC was set to the
   external NEC-5 engine, which connects at segment ENDS, and the deck is then
-  read in NEC-5's spelling, at the knot EZNEC's NEC-5 export names: for a
-  load the end of the segment above (a 0 % load at the wire's end), for a
-  source or a line end the nearest knot.
+  read in NEC-5's spelling, at the knot EZNEC's NEC-5 export names: the
+  nearest knot, a tie going toward end 2 for a load and to the even knot for
+  a source or a line end (`_load_knot`, `_knot`).
 * Sources: RMS magnitudes (×√2 into the deck, as EZNEC's export writes);
   voltage sources drive volts, current sources force amps. A split source
   at a wire end is, as EZNEC's exports write it, one source either side of
@@ -793,8 +793,8 @@ def _segment(pct: float, n: int) -> int:
 def _knot(pct: float, n: int) -> int:
     """The knot (segment end, 0 to ``n``) EZNEC's NEC-5 export puts a source
     or a line end at: the nearest one to ``p·N/100``, and at a tie the even
-    one (`_Deck.knot` says how far that holds). Loads follow `_segment`
-    instead (AK#1991)."""
+    one (`_Deck.knot` says how far that holds). Loads break a tie the other
+    way (`_load_knot`)."""
     x = pct * n / 100.0
     lo = math.floor(x + 1e-9)
     if abs(x - lo - 0.5) <= 1e-9:
@@ -802,6 +802,20 @@ def _knot(pct: float, n: int) -> int:
     else:
         k = math.floor(x + 0.5)
     return min(n, max(0, k))
+
+
+def _load_knot(pct: float, n: int) -> int:
+    """The knot (0 to ``n``) EZNEC's NEC-5 export puts a load at: the nearest
+    one to ``p·N/100``, a tie going toward end 2.
+
+    Measured: a series and a parallel load at 25 % of 21 segments (5.25) are
+    both written at knot 5 (the AK#2061 sitting, p2 and p6), and 50 % of 21
+    (10.5) at 11, 50 % of 11 (5.5) at 6 and 50 % of 19 (9.5) at 10. Every
+    load AK#1991 measured sat on a knot, at a tie or in a segment's upper
+    half, where the end of the segment the position lands on (`_segment`,
+    which AK read until the sitting) gives the same knot."""
+    x = pct * n / 100.0
+    return min(n, max(0, math.floor(x + 0.5 + 1e-9)))
 
 
 def _wire(rd: _Reader, k: int) -> EzWire:
@@ -1363,6 +1377,19 @@ class _Deck:
         self.fixed: list[str] = []  # elements held at the model frequency
         self.guesses: list[str] = []  # readings taken while writing the cards
         self.vtag = len(m.wires) + 1 if m.virtual_labels else None
+        # The spare circuit wire a parallel-connected load on a real wire
+        # hangs from, one segment per such load (`_parallel_load`).
+        self.p_loads = sum(
+            1
+            for ld in m.loads
+            if ld.connection == "P"
+            and not (ld.kind == "Z" and ld.stored_z == 0)
+            and not _on_virtual(self, ld.at)
+        )
+        self.ptag = (
+            (len(m.wires) + 1 + (self.vtag is not None)) if self.p_loads else None
+        )
+        self.p_used = 0
 
     def guess(self, fld: str, detail: str, reading: str) -> None:
         """An undefined reading met while writing the cards: refused, or
@@ -1376,9 +1403,10 @@ class _Deck:
     def where(self, e: EzEnd, knot: bool = False) -> tuple[int, int]:
         """The ``(tag, segment)`` an attachment is written at. Under NEC-5,
         which connects everything at segment ends, the field is a knot: for a
-        load the end of the segment the position lands on, for a source or a
-        line end (``knot``) the nearest knot (`_knot`), as EZNEC's NEC-5
-        export writes them; knot 0, the wire's end 1, is segment -1."""
+        load the nearest one, a tie toward end 2 (`_load_knot`), for a source
+        or a line end (``knot``) the nearest one, a tie to the even one
+        (`_knot`), as EZNEC's NEC-5 export writes them; knot 0, the wire's
+        end 1, is segment -1."""
         m = self.m
         if self.vtag is not None and e.wire == len(m.wires) + 1:
             # The stored virtual wire: its segment k carries virtual segment
@@ -1390,8 +1418,14 @@ class _Deck:
         n = m.wires[e.wire - 1].segments
         if self.nec5 and knot:
             return e.wire, self.knot(e) or -1
-        if self.nec5 and e.pct == 0:
-            return e.wire, -1
+        if self.nec5:
+            if any(s.at.wire == e.wire and s.at.pct == e.pct for s in m.sources):
+                # A load where a source is takes the source's knot, so the
+                # two never part at a tie, where the rules for a load and a
+                # source break the other way (a P load across the feed is
+                # the common case; EZNEC writes both on one knot).
+                return e.wire, self.knot(e) or -1
+            return e.wire, _load_knot(e.pct, n) or -1
         return e.wire, _segment(e.pct, n)
 
     def knot(self, e: EzEnd) -> int:
@@ -1633,32 +1667,59 @@ def _load_cards(dk: _Deck) -> None:
 
 
 def _parallel_load(dk: _Deck, k: int, ld: EzLoad) -> None:
-    """A parallel-connected (``P``) load (AK#2061). The ``.ez`` does not say
-    what it is wired across; EZNEC decides when it writes a deck. One case is
-    known from EZNEC's own NEC-5 export of a real model: a P load on a
-    VIRTUAL segment is an ``NT`` from that segment to a spare virtual wire,
-    Y11 = 1/Z and Y12 = Y22 = 0, which is a shunt of 1/Z across the segment's
-    node. That is the reading `_virtual_load` already takes, so it is served
-    there, as a fact rather than a guess. Anywhere else stays refused by name
-    until an EZNEC sitting shows what it writes."""
-    if not _on_virtual(dk, ld.at):
-        raise EzUndefined(
-            dk.m.name,
-            f"load {k} connection",
-            "'P' on a real wire's segment (a parallel-connected load: what "
-            "it is connected across there is not defined; only one on a "
-            "virtual segment is known, AK#2061)",
-            None,
-        )
-    _virtual_load(dk, k, ld, parallel=True)
+    """A parallel-connected (``P``) load: wired ACROSS its segment's gap, a
+    shunt, rather than inserted in the wire (AK#2061). EZNEC writes one, on a
+    real wire or a virtual one, as an ``NT`` from its segment to a spare
+    virtual wire with Y11 = 1/Z and Y12 = Y22 = 0 (the AK#2061 sitting, in
+    all three of its export formats): an admittance across the gap, in
+    parallel with a source or a line there and never in series with them.
+    Its RLC parts, series or parallel, only fold into that one Z. It is
+    placed as any load is (`_Deck.where`).
+
+    Under NEC-5 a load has to sit on a knot, and a free wire end is not one
+    EZNEC will put it on: its NEC-5 export refuses the model ("One or more
+    loads are incorrectly placed"), so this does too. Its NEC-2 and NEC-4.2
+    exports move such a load to the end segment's centre, which `_segment`
+    already does."""
+    if dk.nec5 and not _on_virtual(dk, ld.at):
+        _, seg = dk.where(ld.at)
+        knot = 0 if seg == -1 else seg
+        if dk._free_end_knot(ld.at.wire, knot):
+            raise EzUndefined(
+                dk.m.name,
+                f"load {k}",
+                "a parallel-connected load on a free wire end, where a NEC-5 "
+                "deck has no knot to put it on (EZNEC's NEC-5 export refuses "
+                "the model: 'One or more loads are incorrectly placed')",
+                None,
+            )
+    if _on_virtual(dk, ld.at):
+        _virtual_load(dk, k, ld, parallel=True)
+        return
+    z = _load_z(dk, k, ld)
+    dk.p_used += 1
+    t1, s1 = dk.where(ld.at)
+    t2, s2 = dk.ptag, dk.p_used
+    label = f"load {k} ({'R + jX' if ld.kind == 'Z' else _load_word(ld)}, across its segment)"
+    y0 = 1.0 / z(dk.m.freq_mhz * 1e6)
+
+    def build(a, b, z=z):
+        return [_net.TouchstoneLoad(a, _YOf(z=z))], {}
+
+    dk.cards.append(
+        f"CM ! NT from wire {t1} segment {s1} to wire {t2} segment {s2} stands for {label}"
+    )
+    dk.cards.append(f"NT {t1} {s1} {t2} {s2} {_fmt(y0.real)} {_fmt(y0.imag)} 0 0 0 0")
+    dk.nt.append((t1, s1, t2, s2, _TwoPort(label, build)))
 
 
 def _virtual_load(dk: _Deck, k: int, ld: EzLoad, *, parallel: bool = False) -> None:
-    """A load on a virtual segment. There is no wire for it to sit in series
-    with, and no file at the sitting had one, so how it connects is a reading:
-    an impedance across the segment's node, in parallel with what connects
-    there (a line's termination, a source's shunt)."""
-    m = dk.m
+    """A load on a virtual segment: a series (S) one, where there is no wire
+    for it to sit in series with, so how it connects is a reading, or a
+    parallel-connected (P) one, which is EZNEC's own construction
+    (`_parallel_load`). Either way an impedance across the segment, in
+    parallel with what connects there (a line's termination, a source's
+    shunt)."""
     if not parallel:
         # A series (S) load on a virtual segment has no wire to sit in
         # series with; a P load there is EZNEC's own construction (above).
@@ -1667,22 +1728,29 @@ def _virtual_load(dk: _Deck, k: int, ld: EzLoad, *, parallel: bool = False) -> N
             "a load on a virtual segment",
             "an impedance across the segment, in parallel with what connects there",
         )
-    if ld.kind == "Z":
-
-        def z(f_hz: float, z0: complex = ld.stored_z) -> complex:
-            return z0
-
-    elif ld.kind == "L":
-        z = _laplace(dk, k, ld)
-    else:
-        z = _rlc_load(dk, k, ld)
-        _check_stored(m, f"load {k}", ld.stored_z, z(m.freq_mhz * 1e6))
+    z = _load_z(dk, k, ld)
     label = f"load {k} ({'R + jX' if ld.kind == 'Z' else _load_word(ld)}, on a virtual segment)"
 
     def build(p, z=z):
         return [_net.TouchstoneLoad(p, _YOf(z=z))], {}
 
     dk.load_card(ld.at, 4, 1.0, 0.0, 0.0, _StubLine(label, build), label)
+
+
+def _load_z(dk: _Deck, k: int, ld: EzLoad) -> Callable[[float], complex]:
+    """A load's impedance (Ω at Hz): its R + jX, Laplace function or RLC
+    branch, the last checked against the impedance EZNEC stored."""
+    if ld.kind == "Z":
+
+        def z(f_hz: float, z0: complex = ld.stored_z) -> complex:
+            return z0
+
+        return z
+    if ld.kind == "L":
+        return _laplace(dk, k, ld)
+    z = _rlc_load(dk, k, ld)
+    _check_stored(dk.m, f"load {k}", ld.stored_z, z(dk.m.freq_mhz * 1e6))
+    return z
 
 
 def _load_word(ld: EzLoad) -> str:
@@ -2093,6 +2161,16 @@ def _wire_cards(dk: _Deck) -> None:
         dk.cards.append(
             f"GW {dk.vtag} {ns} " + " ".join(_fmt(v) for v in (*a, *b, 1e-4 * lam))
         )
+    if dk.ptag is not None:
+        # As EZNEC's exports do, an isolated wire far out whose segments are
+        # the far ports of the parallel-connected loads' one-port NTs.
+        lam = dk.lam
+        ns = dk.p_loads + 1
+        a = (100 * lam, 100 * lam, 99 * lam)
+        b = tuple(v + 0.001 * lam * ns for v in a)
+        dk.cards.append(
+            f"GW {dk.ptag} {ns} " + " ".join(_fmt(v) for v in (*a, *b, 1e-4 * lam))
+        )
 
 
 def _insulation(dk: _Deck, deck: NecDeck) -> NecDeck:
@@ -2217,7 +2295,7 @@ def read_ez(
     if limits is not None:
         deck_limits = GeometryLimits(
             max_segments=limits.max_segments,
-            max_wires=limits.max_wires + 1,  # the rebuilt virtual wire
+            max_wires=limits.max_wires + 2,  # the virtual and spare wires
             note=limits.note,
         )
     try:
@@ -2229,7 +2307,7 @@ def read_ez(
             network=True,
             limits=deck_limits,
             dialect=dialect,
-            virtual_wires=() if dk.vtag is None else (dk.vtag,),
+            virtual_wires=tuple(t for t in (dk.vtag, dk.ptag) if t is not None),
         )
     except GeometryLimitError:
         raise
