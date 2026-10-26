@@ -641,8 +641,10 @@ along a wire and runs it on the segment that percentage lands on, as its own
 `.nec` export does. EZNEC's own engines (its NEC-2 and NEC-4 cores) put it at
 that segment's centre, so that is the default reading. A file saved with
 EZNEC set to the external NEC-5 engine is read at segment ends instead, at
-the knot EZNEC's NEC-5 export names: a load at the end of its segment (0 % is
-the wire's end itself), a source or line end at the nearest knot. From
+the knot EZNEC's NEC-5 export names: the nearest knot, a tie going toward
+end 2 for a load and to the even knot for a source or line end (0 % is the
+wire's end itself). A load placed where a source is shares the source's
+knot, so the two never part at a tie. From
 Python the reading can be chosen, as a `.nec`'s dialect can
 (`read_ez(..., reading="nec5")`); the workbench's *Read as* control is for
 `.nec` decks only.
@@ -664,7 +666,10 @@ frequency rather than at the model frequency only:
 
 **Lines and networks.** A lossless line keeps its reversal (NEC's crossed
 line), length and velocity factor. A stub end becomes the line into an open
-or a short, so it follows frequency too. A length of 0 is the distance
+or a short, so it follows frequency too. A stub on a real wire hangs across its segment, as EZNEC's exports write it
+(a one-port network to a spare circuit wire): in parallel with a source
+there, and elsewhere in series with the wire current; a series load on the
+same segment stays in the wire. A length of 0 is the distance
 between the line's connection points (segment centres, or knots under
 NEC-5); a length in degrees keeps those degrees at every frequency, as EZNEC
 does. A lossy line's loss follows √(f/F) from its loss frequency F; one with
@@ -683,11 +688,16 @@ high-accuracy ground is the same Sommerfeld ground.
 rebuilds it 100 λ away, as EZNEC's own export does, and the deck reader
 treats its segments as circuit nodes, stubs and loads on them included.
 
-A **parallel-connected load** (connection `P`) on a virtual segment is a
-shunt of 1/Z across that segment's node, which is how EZNEC's NEC-5 export
-writes one at a source behind a transformer. A P load on a real wire is
-refused by name: the format does not say what it is wired across there, and
-no EZNEC export has shown it yet.
+A **parallel-connected load** (connection `P`) is wired across its
+segment rather than inserted in the wire. EZNEC writes one, in all three of
+its export formats, as a one-port network to a spare circuit wire with
+admittance 1/Z, and the import does the same: on a virtual segment it is a
+shunt across that node, at a source in parallel with it, and on a real wire
+away from a source it carries the wire current as a series load of the same
+Z would. Its R, L and C, in series or in parallel, only set that one Z, which
+follows frequency. Under NEC-5 a P load on a free wire end is refused, as
+EZNEC's NEC-5 export refuses it ("One or more loads are incorrectly placed");
+under NEC-2 it sits on the end segment, as EZNEC's NEC-2 export moves it.
 
 These readings were checked against EZNEC itself: its own exports of each
 kind of file, solved here, at the model frequency and away from it. Files

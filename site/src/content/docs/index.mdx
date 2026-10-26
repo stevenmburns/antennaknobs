@@ -29,21 +29,25 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.108.3" icon="star">
-  **EZNEC models with a load at a three-wire junction open and solve.** A
-  load, source or line on each wire's end where three or more wires meet
-  gets a gap in its own wire's branch, as NEC-5 puts it, in a `.nec`, `.maa`
-  or `.ez`. An `.ez` with a **parallel-connected load at a source on a
-  virtual segment** opens too, read the way EZNEC's own NEC-5 export writes
-  it; see [EZNEC `.ez` models](/reference/nec-import/#eznec-ez-models).
+<Card title="New in v0.108.4" icon="star">
+  **A multiband EFHW on a real tapped autotransformer**: `wire.efhw_autotransformer`
+  is a 40/20/15/10 m end-fed half wave matched by one tapped winding (coupled
+  inductors, not an ideal ratio), with a capacitor in the wire that pulls the
+  harmonics onto the bands, the coax shield as antenna wire with a
+  common-mode choke, and a choice of where the impedance is read: at the rig,
+  at the box or at the bare feed.
 
-  **Subfolders in your designs folder**: `mydesigns/my_dipole.py` shows up as
-  `user.mydesigns.my_dipole` after the ⟳ rescan, with no restart; see
-  [your own designs](/start/workbench/#your-own-designs). A knob sweep's
-  line no longer breaks into dots at a sharp turn.
+  **EZNEC `.ez` models read more of what EZNEC writes**: a load wired across
+  a real wire's segment (connection P) opens, read as EZNEC's own exports
+  write it; a stub with a series load on the same segment now gives NEC's
+  answer; and under the NEC-5 reading a load sits on the nearest segment
+  end, as EZNEC puts it. See [EZNEC `.ez` models](/reference/nec-import/#eznec-ez-models).
+  Opened files are labelled with their extension, so `foo.ez` and `foo.nec`
+  are told apart, and the schematic reads an EFHW's 1:7 unun as 1:7.
 
-  From v0.108.2, **share a deck with its analyses in a link**; see
-  [linking to a chart](/reference/web/#linking-to-a-chart).
+  On momwire 0.84.3: a lossy coax now uses its complex characteristic
+  impedance, as EZNEC does, which moves a long lossy run's answer by a few
+  tenths of an ohm.
 </Card>
 
 ## The whole pitch, in one line
