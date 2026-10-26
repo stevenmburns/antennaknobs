@@ -652,3 +652,33 @@ def test_a_fragment_without_the_node_keeps_the_old_edge_cut():
     )
     sch = lower(net, plane="box.m")
     assert (sch.plane_cut, sch.plane_element) == (1, None)
+
+
+# --------------------------------------------------------------------------
+# A shunt on a chain node is drawn at that node (AK#2081)
+# --------------------------------------------------------------------------
+
+
+def test_a_shunt_on_a_blocks_entry_node_draws_ahead_of_the_block():
+    """The sloper's 47 pF comp cap hangs on the unun's primary node, the rig
+    side; appended at the block's end it drew on the antenna side of the
+    1:7 winding."""
+    sch = lower(build("wire.efhw_sloper").build_network())
+    unun = next(b for b in sch.blocks if b.label == "unun")
+    assert [e.kind for e in unun.elements] == ["capacitor", "transformer"]
+
+
+def test_a_plane_on_a_shunts_node_is_drawn_in_front_of_the_shunt():
+    """At the autotransformer EFHW's tap the solve keeps the comp cap
+    (`plane.driven_at`), so the marker sits between the coax and the cap,
+    inside the coax's block, not behind the cap."""
+    from antennaknobs.network import Shunt
+    from antennaknobs.plane import driven_at
+
+    net = build("wire.efhw_autotransformer").build_network()
+    node = next(br.port for br in net.branches if isinstance(br, Shunt))
+    assert any(isinstance(br, Shunt) for br in driven_at(net, node).branches)
+    sch = lower(net, plane=node)
+    kinds = [e.kind for e in sch.blocks[sch.plane_cut].elements]
+    assert kinds[sch.plane_element :] == ["capacitor"]
+    assert kinds[: sch.plane_element] == ["coax"]
