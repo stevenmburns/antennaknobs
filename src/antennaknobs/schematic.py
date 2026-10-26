@@ -421,6 +421,15 @@ def default_elements(
     if isinstance(branch, Load):
         return (shunt(_rlc_kind(branch), _rlc_label(branch)),)
     if isinstance(branch, TwoPort):
+        if branch.c == 0:
+            # C = 0 is an open (momwire's `TwoPort`): the series path is cut.
+            return (series("open"),)
+        if not (branch.r or branch.l) and branch.c is None:
+            # Z = 0 is an ideal short identifying its two nodes: plain wire,
+            # no symbol and no label. It is how a design gives a part its own
+            # node, so a measurement plane can stand on either side of it
+            # (AK#2082: a hairpin across ``match``, the bare feed beyond).
+            return (series("short"),)
         return (series(_rlc_kind(branch), _rlc_label(branch)),)
     if isinstance(branch, TouchstoneLoad):
         return (shunt("box", "measured 1-port"),)

@@ -22,9 +22,11 @@ from antennaknobs.network import (
     PortVirtual,
     Shunt,
     TL,
+    TwoPort,
 )
 from antennaknobs.schematic import (
     Element,
+    default_elements,
     lower,
     render_svg,
     retn,
@@ -682,3 +684,47 @@ def test_a_plane_on_a_shunts_node_is_drawn_in_front_of_the_shunt():
     kinds = [e.kind for e in sch.blocks[sch.plane_cut].elements]
     assert kinds[sch.plane_element :] == ["capacitor"]
     assert kinds[: sch.plane_element] == ["coax"]
+
+
+# --------------------------------------------------------------------------
+# A zero-ohm TwoPort is plain wire: a part's own node, for a plane (AK#2082)
+# --------------------------------------------------------------------------
+
+
+def _hairpin():
+    """A hairpin (shunt inductor) match: across ``match``, joined to the
+    driven element's feed by an ideal through, so a plane can stand on
+    either side of the hairpin."""
+    return Network(
+        ports={"match": PortVirtual("match"), "feed": PortOnWire("feed")},
+        branches=[Shunt("match", l=0.15e-6), TwoPort(a="match", b="feed", r=0.0)],
+        sources=[Driven(port="match", voltage=1 + 0j)],
+    )
+
+
+def test_a_zero_ohm_twoport_draws_as_plain_wire():
+    assert default_elements(TwoPort(a="x", b="y", r=0.0)) == (series("short"),)
+    assert default_elements(TwoPort(a="x", b="y")) == (series("short"),)
+    sch = lower(_hairpin())
+    (blk,) = sch.blocks
+    assert [(e.kind, e.label) for e in blk.elements] == [
+        ("inductor", "0.15 µH"),
+        ("short", ""),
+    ]
+
+
+def test_a_zero_capacitance_twoport_is_an_open():
+    """C = 0 is an open in momwire's TwoPort, not a short."""
+    assert default_elements(TwoPort(a="x", b="y", c=0.0)) == (series("open"),)
+
+
+def test_a_plane_beyond_a_through_excludes_the_part_before_it():
+    """The hairpin example: `match` keeps the hairpin, `feed` is the bare
+    driven element, and the drawing marks `feed` beyond the hairpin."""
+    from antennaknobs.plane import driven_at, planes_of
+
+    net = _hairpin()
+    assert planes_of(net) == ["match", "feed"]
+    assert not any(isinstance(b, Shunt) for b in driven_at(net, "feed").branches)
+    sch = lower(net, plane="feed")
+    assert sch.plane == "feed" and sch.plane_cut == len(sch.blocks)
