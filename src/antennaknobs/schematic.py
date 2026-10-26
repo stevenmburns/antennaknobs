@@ -1083,18 +1083,12 @@ def lower(
             i += 1
         return groups, starts
 
-    def _element_at_plane(group, path, k):
-        """Index, in the block drawn for ``group``, of the element the plane
-        sits in front of: the plane is the entry node of the group's ``k``-th
-        step. An author's fragment places it by its `node` marker; a default
-        rendering counts the symbols of the steps before it. None when the
-        fragment marks no such node, and the cut stays at the block's edge."""
-        frag = fragment_of(net, path) if path else None
-        if frag is None:
-            return sum(
-                len(default_elements(branches[st.idx], nt_freq_mhz, freq_mhz))
-                for st in group[:k]
-            )
+    def _element_at_plane(path):
+        """Index, in an author's fragment, of the element the plane sits in
+        front of, by its `node` marker; None when the fragment marks no such
+        node, and the cut stays at the block's edge. A default rendering
+        places the marker while it lays the block out (`_with_ribs`)."""
+        frag = fragment_of(net, path)
         formals = (getattr(net, "composite_nodes", None) or {}).get(path, {})
         for i, e in enumerate(frag):
             if e.orient == "node" and formals.get(e.label, path + e.label) == plane:
@@ -1103,6 +1097,10 @@ def lower(
 
     grouped = [group_steps(ch) for ch in chains]
     groups, starts = grouped[0]
+    # (block, step) of a plane inside a default-rendered block: the marker's
+    # element index is fixed while the block's symbols are laid out, ribs
+    # and all (`_with_ribs`).
+    cut_step = None
 
     if plane and plane != sch.source and chain:
         # Where the picked plane sits: in front of the first step whose
@@ -1120,9 +1118,13 @@ def lower(
                 # (AK#1984): rounding to the block's end drew a manual L
                 # tuner's ``lc`` plane at the tuner's output, coil dimmed.
                 bi = sum(1 for s in starts if s <= cut) - 1
-                at = _element_at_plane(groups[bi][0], groups[bi][1], cut - starts[bi])
-                if at is not None:
-                    sch.plane_cut, sch.plane_element = bi, at
+                path_bi = groups[bi][1]
+                if path_bi and fragment_of(net, path_bi) is not None:
+                    at = _element_at_plane(path_bi)
+                    if at is not None:
+                        sch.plane_cut, sch.plane_element = bi, at
+                else:
+                    sch.plane_cut, cut_step = bi, (bi, cut - starts[bi])
     elif plane and plane == sch.source and chain:
         # The natural source picked by name: marked at the source terminals,
         # so every plane the picker lists shows on the drawing (AK#1984). Not
@@ -1156,38 +1158,93 @@ def lower(
 
             owner.setdefault(max(cands, key=_rank), []).append(ridx)
 
+    def _rib_elements(rib):
+        # A rib crosses to the local reference whatever the
+        # branch's own default orientation says: a stub is a
+        # length of line, drawn in series on its own, used as a
+        # shunt here.
+        #
+        # WHICH reference is the rib's own wiring, not the
+        # section's. A `Shunt` is by definition R/L/C to the
+        # common, so it keeps its ground even inside a floating
+        # section — that is exactly what a 100 MΩ common-mode pin
+        # is, and drawing the ground is what explains why the
+        # resistor is there at all. Only a branch wired across
+        # both conductors is a rung between them.
+        return [
+            replace(
+                e,
+                orient="shunt",
+                leg=rib_leg.get(rib, "signal"),
+                balanced=rib in rungs,
+            )
+            for e in default_elements(branches[rib], nt_freq_mhz, freq_mhz)
+        ]
+
+    def _rib_slot(group, rib):
+        """Where in ``group`` a rib is drawn: -1 ahead of the first step, k
+        right after step k, None at the block's end (as before AK#2081).
+        After the last step at which every node the rib touches is on the
+        walked pair -- a rung across both legs waits for the second leg's
+        step -- else ahead of the block when it hangs on the entry pair."""
+        nodes = {t for t in terminals_of(branches[rib]) if t not in is_datum}
+        for k in range(len(group) - 1, -1, -1):
+            if nodes <= set(group[k].pair_out):
+                return k
+        if nodes <= set(group[0].pair_in):
+            return -1
+        return None
+
+    def _with_ribs(ci, gi, group, path, balanced_in):
+        """A default-rendered block's symbols, each rib at its own node
+        (`_rib_slot`): appended at the end, a shunt on the entry node drew on
+        the far side of the block (AK#2081). Where the picked plane is this
+        block's exit node, the marker goes in front of the ribs hanging
+        there, which the plane keeps (`plane.driven_at`)."""
+        slots: dict[int | None, list[int]] = {}
+        for rib in sorted(owner.get((ci, gi), [])):
+            slots.setdefault(_rib_slot(group, rib), []).append(rib)
+        els = []
+        for rib in slots.pop(-1, []):
+            els += _rib_elements(rib)
+        for k, st in enumerate(group):
+            if ci == 0 and cut_step == (gi, k):
+                sch.plane_element = len(els)
+            els += chain_elements(
+                [st], path, balanced_in if k == 0 else group[k - 1].balanced
+            )
+            here = slots.pop(k, [])
+            if (
+                here
+                and ci == 0
+                and cut_step is None
+                and k == len(group) - 1
+                and st.pair_out[0] == sch.plane
+                and sch.plane_cut == gi + 1
+            ):
+                # The plane is this block's exit node and ribs hang there: the
+                # plane keeps them (`plane.driven_at`), so the marker goes in
+                # front of them, inside this block (AK#2081).
+                sch.plane_cut, sch.plane_element = gi, len(els)
+            for rib in here:
+                els += _rib_elements(rib)
+        for rest in slots.values():  # a node off the walked pair: as before
+            for rib in rest:
+                els += _rib_elements(rib)
+        return els
+
     def build_blocks(ci, balanced0):
         """One chain's steps → its blocks, ribs appended where they hang."""
         out = []
         balanced = balanced0
         for gi, (group, path, _nodes) in enumerate(grouped[ci][0]):
-            els = chain_elements(group, path, balanced)
+            balanced_in = balanced
             balanced = group[-1].balanced
-            if fragment_of(net, path) is None:
-                # Ribs are already inside an author's fragment; only the
-                # default rendering needs them appended.
-                for rib in sorted(owner.get((ci, gi), [])):
-                    # A rib crosses to the local reference whatever the
-                    # branch's own default orientation says: a stub is a
-                    # length of line, drawn in series on its own, used as a
-                    # shunt here.
-                    #
-                    # WHICH reference is the rib's own wiring, not the
-                    # section's. A `Shunt` is by definition R/L/C to the
-                    # common, so it keeps its ground even inside a floating
-                    # section — that is exactly what a 100 MΩ common-mode pin
-                    # is, and drawing the ground is what explains why the
-                    # resistor is there at all. Only a branch wired across
-                    # both conductors is a rung between them.
-                    els.extend(
-                        replace(
-                            e,
-                            orient="shunt",
-                            leg=rib_leg.get(rib, "signal"),
-                            balanced=rib in rungs,
-                        )
-                        for e in default_elements(branches[rib], nt_freq_mhz, freq_mhz)
-                    )
+            if fragment_of(net, path) is not None:
+                # Ribs are already inside an author's fragment.
+                els = chain_elements(group, path, balanced_in)
+            else:
+                els = _with_ribs(ci, gi, group, path, balanced_in)
             out.append(
                 Block(
                     label=path[:-1] if path else type(branches[group[0].idx]).__name__,
