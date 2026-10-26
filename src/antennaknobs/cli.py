@@ -150,8 +150,9 @@ def resolve_class(s):
     # "user.<name>". Kept to its own namespace on purpose: a bare name never
     # resolves to a user file, so a user design can't shadow a built-in. Load
     # errors propagate so someone debugging their own file sees the real cause.
-    if len(lst) == 2 and lst[0] == USER_NS:
-        if (res := resolve_user_design(lst[1])) is not None:
+    # A subfolder is a name part: `user.mydesigns.my_dipole` (AK#2064).
+    if len(lst) >= 2 and lst[0] == USER_NS:
+        if (res := resolve_user_design(".".join(lst[1:]))) is not None:
             return res
 
     return None

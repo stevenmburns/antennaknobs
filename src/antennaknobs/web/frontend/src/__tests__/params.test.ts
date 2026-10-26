@@ -663,6 +663,30 @@ describe("groupExamplesForPicker", () => {
     ]);
   });
 
+  it("groups a user design in a subfolder under that subfolder (AK#2064)", () => {
+    const mine = makeExample({ name: "user.my_dipole", label: "my dipole" });
+    const sub = makeExample({ name: "user.mydesigns.my_dipole", label: "my dipole" });
+    const subB = makeExample({ name: "user.mydesigns.my_dipole_B", label: "my dipole B" });
+    const deep = makeExample({ name: "user.a.b.x", label: "x" });
+    const groups = groupExamplesForPicker([sub, dipole, deep, mine, subB], "", "");
+    expect(groups.map((g) => g.fam)).toEqual([
+      "user",
+      "user.a.b",
+      "user.mydesigns",
+      "dipoles",
+    ]);
+    expect(groups.map((g) => g.label)).toEqual([
+      FAMILY_LABELS.user,
+      `${FAMILY_LABELS.user} / a / b`,
+      `${FAMILY_LABELS.user} / mydesigns`,
+      FAMILY_LABELS.dipoles,
+    ]);
+    expect(groups[2].items.map((i) => i.name)).toEqual([
+      "user.mydesigns.my_dipole",
+      "user.mydesigns.my_dipole_B",
+    ]);
+  });
+
   it("sorts items within a family by label", () => {
     const dipoleZ = makeExample({ name: "dipoles.zepp", label: "AAA Zepp" });
     const groups = groupExamplesForPicker([dipole, dipoleZ], "", "");

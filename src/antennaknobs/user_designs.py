@@ -80,10 +80,11 @@ TERRAIN_ATTR = "TERRAIN"
 _TEMPLATE_STEMS = ("TEMPLATE", "TERRAIN_TEMPLATE")
 
 
-def _is_design_file(path: Path) -> bool:
-    """Skip private files and the copied authoring templates."""
+def _is_design_file(path: Path, *, top: bool = True) -> bool:
+    """Skip private files and, at the folder's top level (``top``), the
+    copied authoring templates."""
     stem = path.stem
-    return not (stem.startswith("_") or stem in _TEMPLATE_STEMS)
+    return not (stem.startswith("_") or (top and stem in _TEMPLATE_STEMS))
 
 
 def is_deck_file(path: Path) -> bool:
@@ -114,7 +115,7 @@ def _terrain_preset(path: Path, preset):
     be used, in words for the error panel."""
     from .terrain import BUILTIN_PRESET_NAMES, TerrainPreset
 
-    stem = path.stem
+    stem = _user_name(path)
     if not isinstance(preset, TerrainPreset):
         raise TypeError(
             f"`{TERRAIN_ATTR}` must be a TerrainPreset (from antennaknobs.terrain), "
@@ -172,7 +173,9 @@ def load_user_file(path: Path, *, trust: bool | None = None):
         # tells the user what they're being asked to trust.
         report = design_screen.screen_file(path)
         raise design_trust.DesignNotTrustedError(path, report)
-    modname = f"{_MODULE_PREFIX}.{path.stem}"
+    # Named after the design, subfolders included, so two ``x.py`` files in
+    # different subfolders never share a `sys.modules` entry (AK#2064).
+    modname = f"{_MODULE_PREFIX}.{_user_name(path).replace('.', '__')}"
     spec = importlib.util.spec_from_file_location(modname, path)
     if spec is None or spec.loader is None:
         raise ImportError(f"could not create import spec for {path.name}")
@@ -200,22 +203,48 @@ def load_user_file(path: Path, *, trust: bool | None = None):
     return "design", cls
 
 
-def _scan() -> Iterator[tuple[str, Path, Path | None]]:
-    """``(stem, path, winner)`` for every candidate file in every folder:
-    ``winner`` is None for the file that carries its stem, and that file's
-    path for each later one of the same stem."""
-    seen: dict[str, Path] = {}
-    for d in user_design_dirs():
-        if not d.is_dir():
+def _folder_files(d: Path, roots: frozenset[Path] = frozenset()) -> list[Path]:
+    """The candidate files under user folder ``d``, at any depth (AK#2064):
+    one folder at a time, its ``.py`` designs before its data-file designs,
+    the top level first. A subfolder whose name starts with ``_`` or ``.``
+    is private and skipped with everything under it, and so is one whose
+    name carries a ``.``, since the dot separates a design name's parts. A
+    subfolder in ``roots`` is a scanned folder of its own (``./antenna_designs``
+    can sit inside the designs folder), and is left to its own scan."""
+    py = sorted(d.glob("*.py"))
+    decks = sorted(p for p in d.iterdir() if p.is_file() and is_deck_file(p))
+    out = [p for p in py + decks if _is_design_file(p, top=False)]
+    for sub in sorted(p for p in d.iterdir() if p.is_dir()):
+        if sub.name.startswith(("_", ".")) or "." in sub.name:
             continue
-        entries = sorted(d.glob("*.py")) + sorted(
-            p for p in d.iterdir() if p.is_file() and is_deck_file(p)
-        )
-        for path in entries:
-            if not _is_design_file(path):
+        if sub.resolve() not in roots:
+            out += _folder_files(sub, roots)
+    return out
+
+
+def design_name(path: Path, root: Path) -> str:
+    """The name of user design ``path`` under folder ``root``, without the
+    ``user.`` prefix: its file name, after its subfolders, dot-separated.
+    ``mydesigns/my_dipole.py`` is ``mydesigns.my_dipole`` (AK#2064); a file
+    at the top level keeps the name it always had."""
+    rel = path.relative_to(root)
+    return ".".join((*rel.parent.parts, rel.stem))
+
+
+def _scan() -> Iterator[tuple[str, Path, Path | None]]:
+    """``(name, path, winner)`` for every candidate file in every folder:
+    ``winner`` is None for the file that carries its name, and that file's
+    path for each later one of the same name."""
+    seen: dict[str, Path] = {}
+    dirs = [d for d in user_design_dirs() if d.is_dir()]
+    roots = frozenset(d.resolve() for d in dirs)
+    for d in dirs:
+        for path in _folder_files(d, roots):
+            if path.parent == d and not _is_design_file(path):
                 continue
-            winner = seen.setdefault(path.stem, path)
-            yield path.stem, path, (None if winner is path else winner)
+            name = design_name(path, d)
+            winner = seen.setdefault(name, path)
+            yield name, path, (None if winner is path else winner)
 
 
 def iter_design_files() -> Iterator[tuple[str, Path]]:
@@ -237,6 +266,22 @@ def iter_shadowed_files() -> Iterator[tuple[str, Path, Path]]:
     for stem, path, winner in _scan():
         if winner is not None:
             yield stem, path, winner
+
+
+def _user_name(path: Path) -> str:
+    """`design_name` under whichever user folder holds ``path``; its file
+    name when none does (a file loaded by path from elsewhere)."""
+    resolved = path.resolve()
+    # The innermost folder that holds it, as `_scan` names it: a scanned
+    # folder nested in another is scanned on its own (`_folder_files`).
+    holders = [
+        d.resolve()
+        for d in user_design_dirs()
+        if d.is_dir() and resolved.is_relative_to(d.resolve())
+    ]
+    if not holders:
+        return path.stem
+    return design_name(resolved, max(holders, key=lambda d: len(d.parts)))
 
 
 def find_design_file(stem: str) -> Path | None:

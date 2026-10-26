@@ -641,16 +641,38 @@ export function groupExamplesForPicker(
   );
   const byFam = new Map<string, ExampleDescriptor[]>();
   for (const ex of visible) {
-    const fam = familyOf(ex.name);
+    const fam = pickerGroupOf(ex.name);
     (byFam.get(fam) ?? byFam.set(fam, []).get(fam)!).push(ex);
   }
   return [...byFam.entries()]
     .map(([fam, items]) => ({
       fam,
-      label: FAMILY_LABELS[fam] ?? fam,
+      label: pickerGroupLabel(fam),
       items: items.sort((a, b) => a.label.localeCompare(b.label)),
     }))
-    .sort((a, b) => familyRank(a.fam) - familyRank(b.fam));
+    .sort(
+      (a, b) =>
+        familyRank(familyOf(a.fam)) - familyRank(familyOf(b.fam)) ||
+        // "Your designs" first, then its subfolders by name (AK#2064).
+        (a.fam === "user" ? -1 : b.fam === "user" ? 1 : a.fam.localeCompare(b.fam)),
+    );
+}
+
+// A user design in a subfolder of the designs folder is named by its path,
+// `user.mydesigns.my_dipole` (AK#2064), and the picker groups it under that
+// subfolder; every other design groups by its family, as before.
+export function pickerGroupOf(name: string): string {
+  const parts = name.split(".");
+  return parts[0] === "user" && parts.length > 2
+    ? parts.slice(0, -1).join(".")
+    : parts[0];
+}
+
+function pickerGroupLabel(group: string): string {
+  if (group.startsWith("user.")) {
+    return `${FAMILY_LABELS.user} / ${group.slice(5).split(".").join(" / ")}`;
+  }
+  return FAMILY_LABELS[group] ?? group;
 }
 
 // A knob's name as the optimiser keys it (AK#1901): a top-level param is its
