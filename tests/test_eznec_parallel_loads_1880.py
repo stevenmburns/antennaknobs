@@ -43,7 +43,7 @@ import pytest
 from antennaknobs.cli import deck_extended_kernel_flag, make_engine_factory
 from antennaknobs.file_designs import builder_from_file
 from antennaknobs.nec_import import parse_nec
-from antennaknobs.network import Shunt
+from antennaknobs.network import PortAtVertex, Shunt
 
 FIXTURES = Path(__file__).parent / "fixtures" / "eznec_parallel_loads_1880"
 DECK = FIXTURES / "ezLoadPositionsB.nec"
@@ -157,13 +157,39 @@ def test_open_stubs_on_the_two_sides_answer_nec5(tmp_path):
     assert abs(z - NEC5_LINES) / abs(NEC5_LINES) < 1e-4, z
 
 
-def test_loads_on_two_wires_at_a_three_wire_node_are_refused(tmp_path):
-    """NEC-5 puts each end in its own wire's branch there, which needs one
-    series gap per wire end. razor-2p refused the positioned gap on its own;
-    bspline answered 191.53 + 28.54j where NEC-5 prints 187.13 + 23.127j."""
-    deck = _deck(_variant(tmp_path, STUB, "k3.nec"))
-    with pytest.raises(ValueError, match="momwire#1300") as e:
-        deck.network()
-    assert "2,3 and 3,-1" in str(e.value)
-    assert "3 wire ends meet" in str(e.value)
-    assert "AK#1886" in str(e.value)
+# The stub variant with its two NT ends swapped for two LD 4 loads, one on
+# each wire's end at the K = 3 node. Licensed NEC-5, 2026-10-25.
+K3_LOADS = (
+    ("NT 2,3,4,1,.01,0.,0.,0.,0.,0.", "LD 4,2,3,0,50.,30."),
+    ("NT 3,-1,4,2,.005,0.,0.,0.,0.,0.", "LD 4,3,-1,0,20.,-40."),
+)
+NEC5_K3_STUB = 187.13 + 23.127j
+NEC5_K3_LOADS = 132.42 + 99.409j
+
+
+@pytest.mark.parametrize("basis", ["razor-2p", "bspline"])
+@pytest.mark.parametrize(
+    ("swaps", "nec5"),
+    [((), NEC5_K3_STUB), (K3_LOADS, NEC5_K3_LOADS)],
+    ids=["nt-ends", "ld-loads"],
+)
+def test_objects_on_two_wires_at_a_three_wire_node_answer_nec5(
+    tmp_path, basis, swaps, nec5
+):
+    """NEC-5 puts each object in its own wire's branch there, one node gap per
+    wire end (AK#1886). Each address keeps its own `PortAtVertex`, the NT ends
+    included: a positioned gap cannot name the branch, and razor-2p refused
+    one ("an ARCLENGTH cannot name which of that node's branches"), while
+    bspline answered the stub deck 191.51 + 28.53j. That is bspline's own
+    answer, not the spelling's: the seam's bspline gives the same."""
+    path = _variant(tmp_path, [*STUB, *swaps], "k3.nec")
+    pinned = _variant(tmp_path, [*STUB, *swaps, PINNED], "k3_pinned.nec")
+    # One vertex port per wire end: wire 2's end 2 and wire 3's end 1.
+    a, b = ("load1", "load2") if swaps else ("nt1a", "nt2a")
+    ports = _deck(path).network().ports
+    assert ports[a] == PortAtVertex(a, end="p1")
+    assert ports[b] == PortAtVertex(b, end="p0")
+    z, ref = _z(path, basis), _seam(pinned if not swaps else path, basis)
+    assert abs(z - ref) / abs(ref) < BAR[basis], (z, ref)
+    if basis == "razor-2p":
+        assert abs(z - nec5) < 0.01, z

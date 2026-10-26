@@ -30,11 +30,12 @@ import pytest
 
 from antennaknobs import maa_import
 from antennaknobs.builder import C_LIGHT_MHZ_M
-from antennaknobs.cli import get_builder
+from antennaknobs.cli import get_builder, make_engine_factory
 from antennaknobs.engines import MomwireEngine
 from antennaknobs.file_designs import builder_from_text
 from antennaknobs.maa_import import MAA_DEFAULT_SOIL, decode_maa, read_maa
 from antennaknobs.nec_import import GeometryLimits
+from antennaknobs.network import PortAtVertex
 
 
 def maa(
@@ -278,6 +279,33 @@ def test_a_source_at_a_junction_is_a_series_gap_at_that_wire_end():
     ]
     imp = read_maa(maa(wires, sources=("w2b,\t0,\t1",)))
     assert _knot_feeds(imp.deck)[0] == pytest.approx((0.0, 0.0, 10.0))
+
+
+def test_objects_on_two_wires_at_a_three_wire_junction_get_a_gap_each():
+    """A T: a source at wire 1's end and a 50 + j30 load at wire 2's start,
+    where a third wire also meets them. Each is a series gap in its own
+    wire's branch (momwire#1300, AK#1886), so the deck carries two vertex
+    ports. Licensed NEC-5 on the emitted deck (numbers only, 2026-10-25):
+    114.42 - 30.599j. This route lands 3.2e-4 away; it sits the same distance
+    from momwire's seam on the two-wire version of the model, so the gap is
+    the mesh's, not the junction's."""
+    wires = [
+        "0.0,\t-5.0,\t10.0,\t0.0,\t0.0,\t10.0,\t0.001,\t-1",
+        "0.0,\t0.0,\t10.0,\t0.0,\t5.0,\t10.0,\t0.001,\t-1",
+        "0.0,\t0.0,\t10.0,\t1.5,\t0.0,\t10.0,\t0.001,\t-1",
+    ]
+    text = maa(wires, sources=("w1e,\t0,\t1",), loads=("w2b,\t1,\t50.0,\t30.0",))
+    ports = read_maa(text).deck.network().ports
+    assert ports == {
+        "feed": PortAtVertex("feed", end="p1"),
+        "load1": PortAtVertex("load1", end="p0"),
+    }
+    cls = builder_from_text("t.maa", text)
+    z = complex(
+        make_engine_factory("momwire:razor-2p", cls.file_ground)(cls()).impedance()[0]
+    )
+    nec5 = 114.42 - 30.599j
+    assert abs(z - nec5) / abs(nec5) < 5e-4, z
 
 
 def test_a_source_at_a_free_end_is_refused():
