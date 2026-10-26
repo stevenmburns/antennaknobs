@@ -19,6 +19,8 @@ from antennaknobs.designs.wire.efhw_autotransformer import (
 )
 from antennaknobs.engines import MomwireEngine
 from antennaknobs.network import Autotransformer, Network, Transformer
+from antennaknobs.plane import planes_of
+from antennaknobs.plane import driven_at
 from antennaknobs.station import autotransformer_ratio
 
 GROUND = dict(ground=("finite", 13.0, 0.005), ground_z=0.0)
@@ -37,7 +39,13 @@ def _with_params(**overrides):
     return Builder(params={**Builder.default_params, **overrides})
 
 
-def _z(builder):
+def _z(builder, plane=None):
+    """The impedance at ``plane`` (a node the HUD's picker offers), solved
+    as the workbench solves a picked plane: the design re-sourced there by
+    `plane.driven_at`, the upstream chain cut away."""
+    if plane is not None:
+        pruned = driven_at(builder.build_network(), plane)
+        object.__setattr__(builder, "build_network", lambda: pruned)
     (z,) = MomwireEngine(builder, **GROUND).impedance()
     return complex(z)
 
@@ -61,7 +69,7 @@ class _IdealBox(Builder):
         n = autotransformer_ratio(*section_uH(self.taps, self.al_nH))
         # Network flattens the "box" instance into its Autotransformer branch.
         branches = [b for b in net.branches if not isinstance(b, Autotransformer)]
-        branches.append(Transformer(a="pri", b="ant", n=1.0 / n))
+        branches.append(Transformer(a="tap", b="ant", n=1.0 / n))
         return Network(ports=net.ports, branches=branches, sources=net.sources)
 
 
@@ -124,11 +132,11 @@ def test_power_budget_balances_and_names_every_row():
     fr = _budget(eng)
     assert eng._excited_efficiency + sum(fr.values()) == pytest.approx(1.0, abs=1e-6)
     winding = (
-        fr["box: Autotransformer pri→ant (lower)"]
-        + fr["box: Autotransformer pri→ant (upper)"]
+        fr["box: Autotransformer tap→ant (lower)"]
+        + fr["box: Autotransformer tap→ant (upper)"]
     )
     assert winding > 0.005
-    assert abs(fr["Shunt pri"]) < 1e-9
+    assert abs(fr["Shunt tap"]) < 1e-9
     assert abs(fr["Load load"]) < 1e-9
     assert fr["Load choke"] > 0.0
     labels = Builder.default_params["ui_params"]["budget_labels"]
@@ -155,12 +163,18 @@ def test_the_counterpoise_is_the_return_not_the_coax():
     assert worst(choke="ideal", cp_len_m=0.5) > 3.0
 
 
+def test_the_hud_offers_rig_tap_and_ant():
+    b = Builder()
+    assert planes_of(b.build_network()) == ["rig", "tap", "ant"]
+    assert set(b.plane_labels()) == {"rig", "tap", "ant"}
+
+
 def test_the_tap_plane_includes_the_comp_cap():
     """At the tap the comp cap is in parallel with the box, so its
     admittance adds exactly; the rig plane adds the coax on top."""
     f = 28.3
-    bare = _z(_with_params(freq=f, measure_at="tap", comp_c_pF=0.0))
-    with_cap = _z(_with_params(freq=f, measure_at="tap"))
+    bare = _z(_with_params(freq=f, comp_c_pF=0.0), "tap")
+    with_cap = _z(_with_params(freq=f), "tap")
     y_cap = 2j * math.pi * f * 1e6 * Builder.default_params["comp_c_pF"] * 1e-12
     assert with_cap == pytest.approx(1 / (1 / bare + y_cap), rel=1e-9)
     assert abs(_z(_with_params(freq=f)) - with_cap) > 1.0
@@ -170,14 +184,12 @@ def test_the_ant_plane_is_the_bare_wire():
     """Across the feed gap, the box and its comp cap are not in the circuit:
     the high impedance the box has to match."""
     f = 14.175
-    z = _z(_with_params(freq=f, measure_at="ant"))
-    assert z == _z(_with_params(freq=f, measure_at="ant", taps="2:16", comp_c_pF=0.0))
+    z = _z(_with_params(freq=f), "ant")
+    assert z == _z(_with_params(freq=f, taps="2:16", comp_c_pF=0.0), "ant")
     assert abs(z) > 1000.0
 
 
 def test_geometry_is_validated():
-    with pytest.raises(ValueError, match="measure_at"):
-        _with_params(measure_at="feed").build_network()
     with pytest.raises(ValueError, match="choke_at_m"):
         _with_params(choke_at_m=9.5).build_wires()
     with pytest.raises(ValueError, match="does not reach the ground"):
