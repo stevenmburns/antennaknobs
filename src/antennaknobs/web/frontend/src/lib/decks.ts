@@ -76,6 +76,19 @@ export type OpenedDeck = DeckPayload & {
 export const isDeck = (g: unknown): g is string =>
   typeof g === "string" && g.startsWith(DECK_NS);
 
+/** An opened deck's hover (AK#2071): its file name, and the dialect when the
+ *  reader chose one -- the same file read two ways is two entries, labelled
+ *  alike. Browsers never expose the folder, so the name is all there is. */
+export const deckTitle = (d: DeckPayload): string =>
+  d.dialect ? `${d.name}, read as ${DIALECT_LABEL[d.dialect]}` : d.name;
+
+/** The hover for a picker entry: an opened deck's `deckTitle`, nothing for a
+ *  catalog or user design. */
+export function deckTitleFor(name: string): string | undefined {
+  const d = isDeck(name) ? deckFor(name) : undefined;
+  return d ? deckTitle(d) : undefined;
+}
+
 /** Whether a deck's compressed form fits a link someone can share. The cap is
  *  per part: the deck, and its analyses (AK#2045), each at most
  *  MAX_SHARE_CHARS (the doublet's three analyses take about 400). */
@@ -211,7 +224,9 @@ export async function openDeck(payload: DeckPayload): Promise<OpenedDeck> {
   const d: OpenedDeck = {
     ...payload,
     key: body.key,
-    example: body.example,
+    // Labelled by its file name, extension included (AK#2071): the server
+    // names it by the stem, so foo.ez and foo.nec would read alike.
+    example: { ...body.example, label: payload.name },
     readAs: body.dialect ?? null,
     analysesRefusal: body.analyses_refusal ?? null,
     rangesRefusal: body.ranges_refusal ?? null,
