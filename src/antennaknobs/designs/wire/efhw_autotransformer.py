@@ -62,6 +62,7 @@ import math
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder, Drone
+from antennaknobs import analyses as an
 from antennaknobs.network import (
     CABLES,
     Driven,
@@ -88,6 +89,19 @@ TAPS = {
     "3:21": (3, 21),
     "2:16": (2, 16),
 }
+
+# The bands the per-band sweeps cover: (label, lo, hi) MHz, US edges. A half
+# wave on 20 m is a full wave on 10 m, its end a voltage maximum again, so the
+# box matches there too (best SWR 1.82 at 27.8 MHz, just below the band). The
+# 3-30 MHz sweep shows why the other bands are left out: on 40 m the wire is a
+# quarter wave (SWR > 3), on 15 m three quarters with its end at a current
+# maximum (SWR ~6 -- physics, not the box; the 40/20/15/10 EFHW is the 40 m
+# one). Its dip near 5.2 MHz is the shield: radiator plus coax make a quarter
+# wave there, where a choke tuned for 14 MHz is weak.
+BAND_SWEEPS = (
+    ("20 m", 14.0, 14.35),
+    ("10 m", 28.0, 29.7),
+)
 
 # The coax shield as a wire: bare copper at the braid's radius (RG-58 class).
 SHIELD = WireSpec(radius=0.0018, conductivity=5.8e7)
@@ -191,6 +205,30 @@ class Builder(AntennaBuilder):
     def turns_ratio(self) -> float:
         """The ideal (k → 1) voltage ratio of the chosen taps."""
         return autotransformer_ratio(*section_uH(self.taps, self.al_nH))
+
+    def build_analyses(self):
+        """SWR from 3 to 30 MHz in one sweep (where the wire's harmonics
+        land), then each band on its own, over average ground (Sommerfeld,
+        the workbench's default)."""
+        ground = "finite:13,0.005"
+        bands = "Bands"
+        return [
+            an.band_swr(
+                name="SWR 3-30 MHz",
+                sweep=an.Sweep(an.FREQUENCY, 3.0, 30.0, points=271),
+                ground=ground,
+                group=bands,
+            ),
+            *(
+                an.band_swr(
+                    name=f"SWR {label}",
+                    sweep=an.Sweep(an.FREQUENCY, lo, hi, points=36),
+                    ground=ground,
+                    group=bands,
+                )
+                for label, lo, hi in BAND_SWEEPS
+            ),
+        ]
 
     def build_wires(self):
         eps = 0.05

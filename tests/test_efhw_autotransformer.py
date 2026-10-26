@@ -118,3 +118,16 @@ def test_choke_must_sit_on_the_drop():
         _with_params(choke_at_m=3.0).build_wires()
     with pytest.raises(ValueError, match="does not reach the ground"):
         _with_params(line_len_m=1.0).build_wires()
+
+
+def test_analyses_sweep_3_to_30_and_each_band_within_the_hosted_cap():
+    from antennaknobs import analyses as an
+    from antennaknobs.web.cost import MAX_SWEEP_POINTS
+
+    specs = {a.name: a for a in Builder().build_analyses()}
+    assert list(specs) == ["SWR 3-30 MHz", "SWR 20 m", "SWR 10 m"]
+    wide = specs["SWR 3-30 MHz"].sweep
+    assert (wide.knob, wide.lo, wide.hi) == (an.FREQUENCY, 3.0, 30.0)
+    for a in specs.values():
+        assert a.sweep.points <= MAX_SWEEP_POINTS
+        assert not an.problems(a, Builder())
