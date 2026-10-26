@@ -128,7 +128,7 @@
 | src/antennaknobs/designs/wire/beverage.py                            |       23 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/doublet\_balanced\_tuner.py            |       17 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/doublet\_ladder\_tuner.py              |       16 |        0 |    100% |           |
-| src/antennaknobs/designs/wire/doublet\_remote\_tuner.py              |       69 |        2 |     97% |  547, 552 |
+| src/antennaknobs/designs/wire/doublet\_remote\_tuner.py              |       69 |        2 |     97% |  548, 553 |
 | src/antennaknobs/designs/wire/edz.py                                 |       20 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/efhw\_autotransformer.py               |       83 |        3 |     96% |207, 244, 291 |
 | src/antennaknobs/designs/wire/efhw\_sloper.py                        |       24 |        0 |    100% |           |
