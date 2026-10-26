@@ -1022,29 +1022,9 @@ def read_maa(
                 q_notes.append(f"{ld.pos.text} (capacitor, {rs:.4g} ohm in series)")
 
     # Objects on DIFFERENT wires' ends at one junction of three or more wire
-    # ends. Each is a series gap at its own wire's end, which is what MMANA's
-    # position names; the port model here serves one gap per junction
-    # (AK#1886), so the model is refused rather than half-built.
-    at_node: dict[int, dict[int, list[str]]] = {}
-    for at, text_ in [(at, s.pos.text) for at, _v, s in feeds] + [
-        (at, pos) for at, *_rest, pos in ld_cards
-    ]:
-        i, knot = at
-        n = len(pieces[i].radii)
-        if knot in (0, n):
-            node = ends[(i, 0 if knot == 0 else 1)]
-            at_node.setdefault(node, {}).setdefault(i, []).append(text_)
-    for node, by_wire in at_node.items():
-        if len(by_wire) > 1 and degree[node] >= 3:
-            named = " and ".join(p for ps in by_wire.values() for p in ps)
-            raise line_err(
-                None,
-                f"{named} sit at one junction of {degree[node]} wire ends, each "
-                "at its own wire's end: that is a series gap in each of those "
-                "wires, and this route serves one gap per junction (AK#1886). "
-                "Put them on one wire's end there, or move one of them along "
-                "its wire",
-            )
+    # ends are a series gap in each of those wires, which is what MMANA's
+    # position names; `addr` writes each on its own wire's end, and the deck
+    # route gives each its own node gap (momwire#1300, AK#1886).
 
     # Panels: one GW per run of equal segments of one radius, so every knot
     # a port lands on is a segment end of some GW. `seg_card` maps a wire's

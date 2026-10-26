@@ -15,8 +15,9 @@ errored, K=2 included. Now the addresses fold onto one key and land on one
 port, where the `Load`s sum in series and a `Driven` sees the sum.
 
 At a node of THREE or more wire ends NEC-5 puts each object in its own wire's
-branch, which is one node gap per wire end. momwire serves one per junction
-until momwire#1300's core change ships, so that stays refused, by name.
+branch, which is one node gap per wire end. momwire serves that since 0.71.0
+(momwire#1300), so nothing folds there and each address keeps its own port
+(AK#1886).
 """
 
 from __future__ import annotations
@@ -129,14 +130,25 @@ def test_the_buried_crossing_node_folds_too(tmp_path):
     assert [b.port for b in net.branches] == ["load1", "load1"]
 
 
-def test_two_objects_at_a_three_wire_node_are_refused_naming_momwire_1300(
-    tmp_path,
-):
-    deck = _deck(_variant(tmp_path, MIRROR, STUB, "k3.nec"))
-    with pytest.raises(ValueError, match="momwire#1300") as e:
-        deck.network()
-    assert "2,-1 and 1,10" in str(e.value)
-    assert "3 wire ends meet" in str(e.value)
+# Licensed NEC-5 on the two decks with STUB added (numbers only), 2026-10-25.
+NEC5_K3 = {"mirror": 133.12 - 0.78251j, "two_loads": 939.94 - 184.71j}
+
+
+@pytest.mark.parametrize("which", ["mirror", "two_loads"])
+def test_two_objects_at_a_three_wire_node_keep_a_gap_each(tmp_path, which):
+    """At K = 3 nothing folds: NEC-5 puts each object in its own wire's
+    branch, one node gap per wire end, which momwire serves since 0.71.0
+    (momwire#1300, AK#1886). The mirror is a source on one wire and a load on
+    the other. Both land within 2e-4 of NEC-5's printout, which is the size
+    of the gap these decks already show at K = 2 (508.56 against 508.53)."""
+    src = MIRROR if which == "mirror" else TWO_LOADS
+    path = _variant(tmp_path, src, STUB, f"k3_{which}.nec")
+    net = _deck(path).network()
+    # The two objects at the node: two ports, not one folded port.
+    at_node = ("feed", "load1") if which == "mirror" else ("load1", "load2")
+    assert all(isinstance(net.ports[n], PortAtVertex) for n in at_node), net.ports
+    z = _z(path, "razor-nec5")
+    assert abs(z - NEC5_K3[which]) / abs(NEC5_K3[which]) < 2e-4, z
 
 
 def test_two_sources_on_the_two_sides_of_one_node_are_refused(tmp_path):

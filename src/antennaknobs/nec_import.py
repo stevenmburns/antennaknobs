@@ -1610,13 +1610,23 @@ class NecDeck:
         for _p, wi, seg, edge in self._net_ends:
             if not self._knot_end(wi, seg, edge):
                 continue
-            # Two network ends on one node cannot both be vertex ports
-            # (AK#1617); they take the positioned spelling, as serve does.
-            if (wi, _knot_of(seg, edge)) in crowded:
+            # Two network ends on one TWO-wire node cannot both be vertex
+            # ports (AK#1617); they take the positioned spelling, as serve
+            # does. Where three or more wire ends meet, a positioned gap
+            # cannot name the branch, and momwire carries one node gap per
+            # wire end there (momwire#1300, AK#1886).
+            knot = _knot_of(seg, edge)
+            if (wi, knot) in crowded and self._knot_degree(wi, knot) == 2:
                 continue
             if needs_a_wire_end(wi, seg, edge):
                 out.add(wi)
         return frozenset(out)
+
+    def _knot_degree(self, wi: int, knot: int) -> int:
+        """How many wire ends meet at knot ``knot`` of wire ``wi`` (an
+        interior knot of a crossing wire counts twice)."""
+        members = self._knot_nodes.get(_node_key(_knot_point(self.wires[wi], knot)), ())
+        return sum(1 if k in (0, self.wires[i].n_seg) else 2 for i, k in members)
 
     @cached_property
     def _crowded_net_knots(self) -> frozenset[tuple[int, int]]:
@@ -1688,18 +1698,17 @@ class NecDeck:
         still loads):
 
         - two ``EX`` cards on the two sides of one node — one port carries one
-          drive, and the seam's sum of two EMFs has no spelling here;
-        - two objects on different wires at a node where THREE or more wire
-          ends meet. There NEC-5 puts each object in its own wire's branch,
-          which is one node gap per wire end, and momwire allows one per
-          junction until momwire#1300's core change ships.
+          drive, and the seam's sum of two EMFs has no spelling here.
 
-        ``TL``/``NT`` ends take part in that last refusal and in nothing else
-        here (AK#1880). At a node of three or more wire ends they need the same
-        per-wire gap and get none: razor-2p refuses a positioned gap
-        there ("an ARCLENGTH cannot name which of that node's branches"), and
-        bspline answered one silently, 191.53 + 28.54j against the licensed
-        NEC-5's 187.13 + 23.13j on Dan's #190 deck with a stub at the joint.
+        Nothing folds at a node where THREE or more wire ends meet. There NEC-5
+        puts each object in its own wire's branch, one node gap per wire end,
+        which momwire serves since 0.71.0 (momwire#1300); each address keeps
+        its own `PortAtVertex` (AK#1886). ``TL``/``NT`` ends there take the
+        vertex spelling too (`_vertex_wires`), since a positioned gap cannot
+        name the branch: razor-2p refuses one ("an ARCLENGTH cannot name which
+        of that node's branches").
+
+        ``TL``/``NT`` ends take part in nothing else here (AK#1880).
         At a TWO-wire node they are NOT folded: AK#1617's two positioned ports
         at one junction already are the series circuit NEC-5 solves (0017,
         195.34 - 57.458j, to the printed digit on razor-2p), whereas one port
@@ -1739,17 +1748,9 @@ class NecDeck:
             degree = sum(1 if k in (0, self.wires[i].n_seg) else 2 for i, k in members)
 
             if degree != 2:
-                refusal = refusal or (
-                    f"cards at {' and '.join(where(*k) for k in keys)} put "
-                    "objects on different wires at one node where "
-                    f"{degree} wire ends meet; NEC-5 puts each object in its "
-                    "own wire's branch there, which needs one series gap per "
-                    "wire end; momwire's EZNEC drop-in serves that since "
-                    "0.71.0 (momwire#1300), but this route still serves one "
-                    "per junction (AK#1886). Move all of "
-                    "them onto one wire's address at that node, or move one "
-                    "of them a segment away"
-                )
+                # NEC-5 puts each object in its own wire's branch here, one
+                # node gap per wire end (momwire#1300): nothing folds, and
+                # each address keeps its own `PortAtVertex` (AK#1886).
                 continue
             # Network ends were collected for the refusal above only; at a
             # two-wire node they keep AK#1617's two ports (see the docstring).
