@@ -209,10 +209,14 @@ def test_a_physical_distance_is_knot_to_knot_over_vf_under_nec5():
     _no_guess(imp)
     (tl,) = _cards(imp, "TL")
     f = tl.split()
-    assert f[1:5] == ["1", "26", "2", "26"]
+    # EZNEC's NEC-5 export of this model writes TL 1,25,2,25 and EX 4,1,25:
+    # 50 % of 51 segments is an exact tie, which EZNEC's placement takes to
+    # knot 25 (this test read 26, the even-tie rule's answer, until the
+    # placement followed EZNEC's own).
+    assert f[1:5] == ["1", "25", "2", "25"]
     assert float(f[6]) == pytest.approx(1.41151, abs=2e-6)
     (ex,) = _cards(imp, "EX")
-    assert ex.split()[1:4] == ["4", "1", "26"]
+    assert ex.split()[1:4] == ["4", "1", "25"]
 
 
 def test_a_physical_distance_at_vf_1_is_written_0_as_eznec_writes_it():
@@ -271,12 +275,13 @@ def test_a_knot_tie_on_a_feed_wire_takes_the_junction_not_the_free_end():
     assert ex.split()[1:4] == ["4", "4", "1"]
 
 
-# What EZNEC's NEC-5 export named, (position %, segments) -> field. Sources
-# and line ends take the nearest knot; at a tie (p·N/100 = k + 1/2) the even
-# one, as in 90 % of 15 (13.5 -> 14, the banked coupled loop) and 50 % of 3
-# (1.5 -> 2). The ties EZNEC broke the other way are all a mirror-symmetric
-# structure's centre, where the two knots give one answer (9 of 17, 91 of
-# 183, 25 of 51 written; this rule writes 8, 92, 26).
+# What EZNEC's NEC-5 export named, (position %, segments) -> field, for
+# sources, line ends and loads alike: this sitting's, the AK#2061 sitting's
+# loads (25 % of 21 is knot 5, series and parallel-connected), and every tie
+# seen, which go both ways (p·N/100 = k + 1/2: 13.5 -> 14, 1.5 -> 2, but
+# 91.5 -> 91 and 25.5 -> 25). EZNEC's own placement, as its author describes
+# it (`ez_import._knot`), reproduces all of them: an exact tie goes whichever
+# way its single-precision rounding takes it.
 KNOTS = {
     (20.0, 10): 2,
     (20.0, 6): 1,
@@ -286,23 +291,25 @@ KNOTS = {
     (17.95, 23): 4,
     (90.0, 15): 14,
     (50.0, 3): 2,
+    (50.0, 17): 9,
+    (50.0, 183): 91,
+    (50.0, 51): 25,
+    (50.0, 41): 20,
+    (50.0, 21): 11,
+    (34.0, 50): 17,
+    (50.0, 19): 10,
+    (5.56, 27): 2,
+    (0.0, 183): -1,
+    (100.0, 183): 183,
+    (0.0, 60): -1,
+    (25.0, 21): 5,
+    (50.0, 11): 6,
 }
-# ... and loads the nearest knot, a tie toward end 2 (0 % = -1). The first
-# six are this sitting's; none sits in a segment's lower half, where the
-# nearest knot and the end of the segment the position lands on (what AK read
-# until AK#2061) part. The AK#2061 sitting's 25 % of 21 does: knot 5, a series
-# load and a parallel-connected one alike.
-LOAD_KNOTS = {(34.0, 50): 17, (50.0, 19): 10, (5.56, 27): 2, (0.0, 183): -1,
-              (100.0, 183): 183, (0.0, 60): -1,
-              (25.0, 21): 5, (50.0, 21): 11, (50.0, 11): 6}  # fmt: skip
 
 
-def test_nec5s_knot_for_a_source_or_line_end_is_the_nearest():
+def test_nec5s_knot_is_eznecs_placement():
     for (pct, n), want in KNOTS.items():
         assert (ez_import._knot(pct, n) or -1) == want, (pct, n)
-    for (pct, n), want in LOAD_KNOTS.items():
-        got = ez_import._load_knot(pct, n) or -1
-        assert got == want, (pct, n)
 
 
 def test_the_knot_rule_reaches_the_cards():

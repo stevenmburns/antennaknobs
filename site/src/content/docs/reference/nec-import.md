@@ -641,10 +641,13 @@ along a wire and runs it on the segment that percentage lands on, as its own
 `.nec` export does. EZNEC's own engines (its NEC-2 and NEC-4 cores) put it at
 that segment's centre, so that is the default reading. A file saved with
 EZNEC set to the external NEC-5 engine is read at segment ends instead, at
-the knot EZNEC's NEC-5 export names: the nearest knot, a tie going toward
-end 2 for a load and to the even knot for a source or line end (0 % is the
-wire's end itself). A load placed where a source is shares the source's
-knot, so the two never part at a tie. From
+the knot EZNEC's NEC-5 export names (0 % is the wire's end itself). Both
+readings follow EZNEC's own placement rule, as its author describes it:
+the nearest segment or knot, worked out in single precision. A part placed
+exactly halfway between two (50 % of an odd number of segments under NEC-5,
+or of an even number under NEC-2) goes whichever way that rounding takes it,
+which EZNEC itself treats as ambiguous; the import reproduces EZNEC's choice.
+A load placed where a source is shares the source's knot. From
 Python the reading can be chosen, as a `.nec`'s dialect can
 (`read_ez(..., reading="nec5")`); the workbench's *Read as* control is for
 `.nec` decks only.

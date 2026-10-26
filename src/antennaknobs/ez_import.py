@@ -51,14 +51,14 @@ notes, not a refusal.
   radius. Values are rounded to the seven significant digits EZNEC prints,
   which is what its own ``.nec`` export carries, so a model opens here as
   its export does.
-* A position (% from end 1) lands on segment ``ceil(p·N/100)`` (at least 1),
-  as EZNEC's export writes it. EZNEC's own calculating engines (its NEC-2
+* A position (% from end 1) lands where EZNEC's own placement puts it
+  (`_segment`, `_knot`: the rule its author describes, in single precision,
+  so an exact midpoint goes whichever way EZNEC's rounding takes it). EZNEC's own calculating engines (its NEC-2
   and NEC-4 cores) put sources and loads at segment CENTRES, so the deck is
   read in NEC-2's spelling -- unless the file says EZNEC was set to the
   external NEC-5 engine, which connects at segment ENDS, and the deck is then
-  read in NEC-5's spelling, at the knot EZNEC's NEC-5 export names: the
-  nearest knot, a tie going toward end 2 for a load and to the even knot for
-  a source or a line end (`_load_knot`, `_knot`).
+  read in NEC-5's spelling, at the knot EZNEC's NEC-5 export names
+  (`_knot`, sources, loads and line ends alike).
 * Sources: RMS magnitudes (×√2 into the deck, as EZNEC's export writes);
   voltage sources drive volts, current sources force amps. A split source
   at a wire end is, as EZNEC's exports write it, one source either side of
@@ -785,37 +785,41 @@ def _load_kind(rd: _Reader, n_load: int) -> str:
     return lt  # pragma: no cover - undefined() raised
 
 
+def _single(x: float) -> float:
+    """``x`` rounded to single precision (a 4-byte float)."""
+    return struct.unpack("<f", struct.pack("<f", x))[0]
+
+
+# Where EZNEC puts a source, load or line end given as a percentage along a
+# wire, as its author describes EZNEC's own placement (private
+# correspondence, 2026-10-26; his code is not reproduced here). Both rules
+# round to the nearest integer, an exact half to the even one, and both work
+# in single precision, so a position that is exactly halfway in decimal is
+# rarely halfway in the arithmetic: which way such a tie goes is an artefact
+# of that rounding, which EZNEC has kept unchanged since 2010 so that a file
+# places its parts the same way it always has. Its author calls the result
+# at a tie ambiguous; these reproduce it rather than pick a side.
+
+
 def _segment(pct: float, n: int) -> int:
-    """The segment a position lands on, as EZNEC's export writes it."""
-    return min(n, max(1, math.ceil(pct * n / 100.0 - 1e-9)))
+    """The segment (1 to ``n``) EZNEC's NEC-2 and NEC-4 readings put a
+    position on: one hundredth of the percentage (each in single precision)
+    times the segment count, plus a half, rounded. Away from a junction it is
+    the segment the position lands on."""
+    x = _single(0.01) * _single(pct) * n + _single(0.5)
+    return min(n, max(1, round(x)))
 
 
 def _knot(pct: float, n: int) -> int:
-    """The knot (segment end, 0 to ``n``) EZNEC's NEC-5 export puts a source
-    or a line end at: the nearest one to ``p·N/100``, and at a tie the even
-    one (`_Deck.knot` says how far that holds). Loads break a tie the other
-    way (`_load_knot`)."""
-    x = pct * n / 100.0
-    lo = math.floor(x + 1e-9)
-    if abs(x - lo - 0.5) <= 1e-9:
-        k = lo if lo % 2 == 0 else lo + 1
-    else:
-        k = math.floor(x + 0.5)
-    return min(n, max(0, k))
-
-
-def _load_knot(pct: float, n: int) -> int:
-    """The knot (0 to ``n``) EZNEC's NEC-5 export puts a load at: the nearest
-    one to ``p·N/100``, a tie going toward end 2.
-
-    Measured: a series and a parallel load at 25 % of 21 segments (5.25) are
-    both written at knot 5 (the AK#2061 sitting, p2 and p6), and 50 % of 21
-    (10.5) at 11, 50 % of 11 (5.5) at 6 and 50 % of 19 (9.5) at 10. Every
-    load AK#1991 measured sat on a knot, at a tie or in a segment's upper
-    half, where the end of the segment the position lands on (`_segment`,
-    which AK read until the sitting) gives the same knot."""
-    x = pct * n / 100.0
-    return min(n, max(0, math.floor(x + 0.5 + 1e-9)))
+    """The knot (segment end, 0 to ``n``) EZNEC's NEC-5 reading puts a
+    source, load or line end at: the percentage divided by one segment's
+    share of 100 % (held in single precision), rounded. Measured against
+    EZNEC's NEC-5 exports it gives every knot seen so far (AK#1991 and the
+    AK#2061 sitting), sources and loads alike, the ties included: 50 % of
+    21, 17, 183, 51 and 41 segments go to 11, 9, 91, 25 and 20, and 90 % of
+    15 to 14. `_Deck.knot` adds the one exception a source has."""
+    share = _single(_single(100.0) / _single(n))
+    return min(n, max(0, round(_single(pct) / share)))
 
 
 def _wire(rd: _Reader, k: int) -> EzWire:
@@ -1437,11 +1441,10 @@ class _Deck:
 
     def where(self, e: EzEnd, knot: bool = False) -> tuple[int, int]:
         """The ``(tag, segment)`` an attachment is written at. Under NEC-5,
-        which connects everything at segment ends, the field is a knot: for a
-        load the nearest one, a tie toward end 2 (`_load_knot`), for a source
-        or a line end (``knot``) the nearest one, a tie to the even one
-        (`_knot`), as EZNEC's NEC-5 export writes them; knot 0, the wire's
-        end 1, is segment -1."""
+        which connects everything at segment ends, the field is the knot
+        EZNEC's placement names (`_knot`; a source or a line end, ``knot``,
+        through `knot`'s free-end exception); knot 0, the wire's end 1, is
+        segment -1."""
         m = self.m
         if self.vtag is not None and e.wire == len(m.wires) + 1:
             # The stored virtual wire: its segment k carries virtual segment
@@ -1460,26 +1463,20 @@ class _Deck:
                 # source break the other way (a P load across the feed is
                 # the common case; EZNEC writes both on one knot).
                 return e.wire, self.knot(e) or -1
-            return e.wire, _load_knot(e.pct, n) or -1
+            return e.wire, _knot(e.pct, n) or -1
         return e.wire, _segment(e.pct, n)
 
     def knot(self, e: EzEnd) -> int:
-        """`_knot`, except that a tie never lands on a free wire end when the
-        other knot is not one (a source cannot sit there).
-
-        Ties, measured (AK#1991, EZNEC's NEC-5 exports): of eight, the five
-        whose two knots give different answers all follow this rule --
-        13.5 -> 14, 1.5 -> 2, 0.5 -> 0 twice, and 0.5 -> 1 where knot 0 is a
-        free end. The other three are the centre of a mirror-symmetric
-        structure (N/2 for odd N), where EZNEC wrote 9 of 17 but 91 of 183
-        and 25 of 51; either knot gives the same answer there, and this rule
-        writes the mirror image of EZNEC's card in two of them."""
+        """`_knot`, except that a tie never lands a source or a line end on a
+        free wire end when the other knot is not one: measured (AK#1991),
+        50 % of a one-segment wire whose knot 0 is free went to knot 1, where
+        `_knot` alone gives 0."""
         w = self.m.wires[e.wire - 1]
         n = w.segments
         k = _knot(e.pct, n)
         x = e.pct * n / 100.0
         lo = math.floor(x + 1e-9)
-        if abs(x - lo - 0.5) > 1e-9:
+        if abs(x - lo - 0.5) > 1e-6:
             return k
         other = lo + 1 if k == lo else lo
         if self._free_end_knot(e.wire, k) and not self._free_end_knot(e.wire, other):
