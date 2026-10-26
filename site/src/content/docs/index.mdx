@@ -29,25 +29,24 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.108.4" icon="star">
-  **A multiband EFHW on a real tapped autotransformer**: `wire.efhw_autotransformer`
-  is a 40/20/15/10 m end-fed half wave matched by one tapped winding (coupled
-  inductors, not an ideal ratio), with a capacitor in the wire that pulls the
-  harmonics onto the bands, the coax shield as antenna wire with a
-  common-mode choke, and a choice of where the impedance is read: at the rig,
-  at the box or at the bare feed.
+<Card title="New in v0.108.5" icon="star">
+  **The schematic draws a shunt at the node it hangs on.** A comp cap across
+  an unun's input now sits on the rig side of the winding, and a measurement
+  plane picked at that node is marked in front of the cap it keeps.
+  `wire.efhw_autotransformer`'s three readings are the HUD's plane picker:
+  **rig**, **tap** (at the box) and **ant** (the bare feed gap). A zero-ohm
+  `TwoPort` draws as plain wire, which is how a design gives a part its own
+  node so a plane can leave it out, a hairpin match for example. EZNEC
+  `.ez` files now place sources, loads and line ends exactly as EZNEC does,
+  even a part placed exactly halfway between two segments.
 
+  From v0.108.4: **a multiband EFHW on a real tapped autotransformer**
+  (`wire.efhw_autotransformer`, after Mike WA7ARK's published model), and
   **EZNEC `.ez` models read more of what EZNEC writes**: a load wired across
-  a real wire's segment (connection P) opens, read as EZNEC's own exports
-  write it; a stub with a series load on the same segment now gives NEC's
-  answer; and under the NEC-5 reading a load sits on the nearest segment
-  end, as EZNEC puts it. See [EZNEC `.ez` models](/reference/nec-import/#eznec-ez-models).
-  Opened files are labelled with their extension, so `foo.ez` and `foo.nec`
-  are told apart, and the schematic reads an EFHW's 1:7 unun as 1:7.
-
-  On momwire 0.84.3: a lossy coax now uses its complex characteristic
-  impedance, as EZNEC does, which moves a long lossy run's answer by a few
-  tenths of an ohm.
+  a real segment, a stub beside a series load, NEC-5 loads at the nearest
+  segment end; see [EZNEC `.ez` models](/reference/nec-import/#eznec-ez-models).
+  Opened files show their extension, and on momwire 0.84.3 a lossy coax uses
+  its complex characteristic impedance.
 </Card>
 
 ## The whole pitch, in one line
