@@ -372,8 +372,8 @@ def _val(v):
     """A component value, to three significant figures.
 
     `%g` prints whatever float arithmetic produced — a trap resonating at a
-    round frequency gives "6.46181 pF" and a 1:7 unun gives "1:0.142857",
-    neither of which is a number anyone winds or buys. Plain decimal at every
+    round frequency gives "6.46181 pF" and a 1:7 unun read off an NT card's
+    seven printed digits gives "1:7.0000021", neither of which is a number anyone winds or buys. Plain decimal at every
     magnitude a component takes: `%g` would flip to an exponent at 1e5 and
     `%.3g` as early as 1000, which is only a 600 Ω line away.
     """
@@ -405,7 +405,10 @@ def default_elements(
             series("line", f"{_val(branch.zdiff)} Ω pair", _fmt_len(branch.length)),
         )
     if isinstance(branch, Transformer):
-        return (series("transformer", f"1:{_val(branch.n)}"),)
+        # `n` is a:b with v_a = n·v_b, a the primary, so the turns read
+        # primary:secondary are 1:1/n (a 1:7 unun is n = 1/7, AK#2069).
+        # FloatingBalun's `n` is secondary per primary, so it prints as is.
+        return (series("transformer", f"1:{_val(1.0 / branch.n)}"),)
     if isinstance(branch, Autotransformer):
         return (series("transformer", "autotransformer"),)
     if isinstance(branch, FloatingBalun):
