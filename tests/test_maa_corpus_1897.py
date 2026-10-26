@@ -96,26 +96,27 @@ _CATEGORIES = (
     ("end on a wire's interior", r"between its ends; MMANA joins"),
     ("wires cross", r"cross between their ends"),
     ("zero-length wire", r"zero length"),
-    ("objects at one junction (AK#1886)", r"sit at one junction of \d+ wire ends"),
     ("port model cannot place them", r"cannot be placed here"),
 )
 
-# Recorded 2026-10-05 against CENSUS_REVISION (935 files).
+# Recorded 2026-10-05 against CENSUS_REVISION (935 files); re-recorded
+# 2026-10-25 (AK#1886). Main already read 853 by then: the one E4 file (an
+# offset from an odd wire's centre) imports, unrecorded. AK#1886 then served
+# the 7 "objects at one junction" files: 6 import, and Short gp80-40.maa
+# reaches the #824 refusal (one segment's piece claimed twice at a K = 3 node).
 _EXPECTED = {
-    "imported": 852,
+    "imported": 859,
     "offset on an automatically meshed wire": 30,
     "wires cross": 17,
     "starred taper type (E10)": 8,
-    "objects at one junction (AK#1886)": 7,
     "stack": 5,
     "end on a wire's interior": 3,
     "no frequency": 2,
     "Laplace load": 2,
     "no source": 2,
-    "port model cannot place them": 2,
+    "port model cannot place them": 3,
     "not an MMANA file": 1,
     "insulator wire": 1,
-    "offset from an odd wire's centre (E4)": 1,
     "iron": 1,
     "zero-length wire": 1,
 }
