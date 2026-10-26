@@ -111,6 +111,10 @@ FAT_CONDUCTOR_HEADROOM = {
     # conductors: with every wire at driver-arm density they measure ~1840.
     "verticals.dominator": 270,  # measured 292 — one aluminum tube
     "specialty.hourglass": 545,  # measured 593 — short crossing rails
+    # The coax shield modelled as wire at the braid's radius (2.4 mm, 4.7×
+    # the 18 AWG radiator). Every wire carries its segs_for count, so the
+    # shield reaches the floor first at the same density as the rest.
+    "wire.efhw_autotransformer": 485,  # measured 525 — coax-shield wires
 }
 
 
