@@ -917,7 +917,7 @@ folders follow the same rule:
 | | designs | module-level studies |
 |---|---|---|
 | the catalog | `designs/<family>/<design>.py`, named `family.design` | `studies/<family>/<name>.py`, named `family.name` |
-| your folders | `~/.antennaknobs/designs/<name>.py`, named `user.name` | `~/.antennaknobs/studies/<path>.py`, named by its path |
+| your folders | `~/.antennaknobs/designs/<path>.py`, named `user.` and its path: `mydesigns/x.py` is `user.mydesigns.x` | `~/.antennaknobs/studies/<path>.py`, named by its path |
 
 - The catalog's studies are the `.py` files under `studies/`, at any depth,
   each inside a family folder. They ship with antennaknobs, so they run

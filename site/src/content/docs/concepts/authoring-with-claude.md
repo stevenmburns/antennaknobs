@@ -5,7 +5,9 @@ description: Drop your own antenna into the workbench — and let Claude Code wr
 
 The workbench loads **your** designs alongside the built-ins. Each `.py` file in
 your designs folder becomes one antenna under **"Your designs"** (the `user.*`
-namespace) — drop a file in, refresh the page, and it shows up. Because each
+namespace) — drop a file in, press the ⟳ rescan button beside **Open…**, and
+it shows up. A file in a subfolder is named by its path, so
+`mydesigns/my_dipole.py` is `user.mydesigns.my_dipole`. Because each
 design is just a small Python class, [Claude Code](https://claude.com/claude-code)
 can write or edit one for you from a contract that's seeded right into the folder.
 

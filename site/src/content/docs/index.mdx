@@ -29,22 +29,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.108.2" icon="star">
-  **Share a deck with its analyses in a link.** Open your own deck, build a
-  map or a sweep held at resonance from any knob's menu, and the chart's
-  **link** copies one address that reopens the deck with its knobs where you
-  left them and those analyses ready to run; see
-  [linking to a chart](/reference/web/#linking-to-a-chart). The link's
-  analysis text is read, never run.
+<Card title="New in v0.108.3" icon="star">
+  **EZNEC models with a load at a three-wire junction open and solve.** A
+  load, source or line on each wire's end where three or more wires meet
+  gets a gap in its own wire's branch, as NEC-5 puts it, in a `.nec`, `.maa`
+  or `.ez`. An `.ez` with a **parallel-connected load at a source on a
+  virtual segment** opens too, read the way EZNEC's own NEC-5 export writes
+  it; see [EZNEC `.ez` models](/reference/nec-import/#eznec-ez-models).
 
-  **For 4nec2 users** (momwire 0.84.2): the engines take a deck without an EN
-  card, a bare `GE`, a print-control `PT` between runs, a GW tag two wires
-  share, and several `GM` cards with wires between them, each read the way
-  the licensed engine reads it.
+  **Subfolders in your designs folder**: `mydesigns/my_dipole.py` shows up as
+  `user.mydesigns.my_dipole` after the ⟳ rescan, with no restart; see
+  [your own designs](/start/workbench/#your-own-designs). A knob sweep's
+  line no longer breaks into dots at a sharp turn.
 
-  From v0.108.1, **Razor is faster over buried radials**, and from v0.108.0
-  the **two-wire doublet** (`dipoles.two_wire_doublet`) maps a wire's
-  resonant splits.
+  From v0.108.2, **share a deck with its analyses in a link**; see
+  [linking to a chart](/reference/web/#linking-to-a-chart).
 </Card>
 
 ## The whole pitch, in one line
