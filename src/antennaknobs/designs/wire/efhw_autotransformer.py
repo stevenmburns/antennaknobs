@@ -42,6 +42,12 @@ Physics worth knowing before turning the knobs:
   at ``choke_f0_mhz`` (Q 1, broadband, as a mix-31 multi-turn choke
   measures). ``choke="none"`` leaves the shield bare; ``choke="ideal"``
   drops the shield wires, the line-hygiene idealization.
+* **Where the impedance is read.** ``measure_at`` moves the measurement
+  plane: ``"rig"`` at the rig end of the coax (the default, what the radio
+  sees); ``"tap"`` at the box's tap with the comp cap across it and no coax,
+  what an analyser clipped to the box reads; ``"ant"`` across the feed gap
+  with no box, the bare wire the box has to match. The shield wires stay in
+  every case, so the antenna is the same one each plane reads.
 
 SimNEC export refuses `Autotransformer`, so this design does not export to
 SimNEC.
@@ -104,6 +110,9 @@ SHIELD = WireSpec(radius=0.0024, conductivity=5.8e7)
 
 CHOKES = ("ferrite", "none", "ideal")
 
+# The measurement plane: where the source sits (see the module docstring).
+PLANES = ("rig", "tap", "ant")
+
 # Short named wires that carry a port in their interior.
 GAP_M = 0.05
 
@@ -152,6 +161,7 @@ class Builder(AntennaBuilder):
             "choke_kohm": 5.0,
             "choke_f0_mhz": 14.0,
             "choke_at_m": 0.0,
+            "measure_at": "rig",
             "ui_params": MappingProxyType(
                 {
                     "target_z0": 50.0,
@@ -175,6 +185,7 @@ class Builder(AntennaBuilder):
                     "choke_kohm": {"min": 0.1, "max": 50.0},
                     "choke_f0_mhz": {"min": 1.0, "max": 60.0},
                     "choke_at_m": {"min": 0.0, "max": 8.0, "unit": "m"},
+                    "measure_at": {"enum_options": PLANES},
                     # Keys are the structural labels the solver emits -- keep
                     # in sync with build_network below.
                     "budget_labels": {
@@ -293,27 +304,37 @@ class Builder(AntennaBuilder):
         return wires + shield
 
     def build_network(self):
-        lower, upper = section_uH(self.taps, self.al_nH)
-        ports = {
-            "ant": PortOnWire("ant"),
-            "pri": PortVirtual("pri"),  # the tap: the rig side of the box
-            "rig": PortVirtual("rig"),
-        }
-        branches = [
-            Instance(
-                "box",
-                autotransformer(
-                    lower, upper, k=self.k, ql=self.ql if self.ql > 0 else None
-                ),
-                tap="pri",
-                top="ant",
-            ),
-            TL.from_cable(
-                cable_from_catalog(self.cable), "rig", "pri", self.line_len_m
-            ),
-        ]
-        if self.comp_c_pF > 0:
-            branches.append(Shunt("pri", c=self.comp_c_pF * 1e-12))
+        if self.measure_at not in PLANES:
+            raise ValueError(
+                f"measure_at {self.measure_at!r} is not one of {', '.join(PLANES)}"
+            )
+        ports = {"ant": PortOnWire("ant")}
+        branches = []
+        source = "ant"
+        if self.measure_at != "ant":
+            lower, upper = section_uH(self.taps, self.al_nH)
+            ports["pri"] = PortVirtual("pri")  # the tap: the rig side of the box
+            branches.append(
+                Instance(
+                    "box",
+                    autotransformer(
+                        lower, upper, k=self.k, ql=self.ql if self.ql > 0 else None
+                    ),
+                    tap="pri",
+                    top="ant",
+                )
+            )
+            if self.comp_c_pF > 0:
+                branches.append(Shunt("pri", c=self.comp_c_pF * 1e-12))
+            source = "pri"
+        if self.measure_at == "rig":
+            ports["rig"] = PortVirtual("rig")
+            branches.append(
+                TL.from_cable(
+                    cable_from_catalog(self.cable), "rig", "pri", self.line_len_m
+                )
+            )
+            source = "rig"
         if self.load_c_pF > 0:
             ports["load"] = PortOnWire("load")
             branches.append(Load("load", c=self.load_c_pF * 1e-12))
@@ -326,5 +347,5 @@ class Builder(AntennaBuilder):
         return Network(
             ports=ports,
             branches=branches,
-            sources=[Driven(port="rig", voltage=1 + 0j)],
+            sources=[Driven(port=source, voltage=1 + 0j)],
         )

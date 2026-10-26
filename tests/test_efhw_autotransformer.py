@@ -7,6 +7,8 @@ Every figure below is over average ground in Sommerfeld (εr 13, σ 0.005),
 the workbench's default ground.
 """
 
+import math
+
 import pytest
 
 from antennaknobs.designs.wire.efhw_autotransformer import (
@@ -153,7 +155,29 @@ def test_the_counterpoise_is_the_return_not_the_coax():
     assert worst(choke="ideal", cp_len_m=0.5) > 3.0
 
 
+def test_the_tap_plane_includes_the_comp_cap():
+    """At the tap the comp cap is in parallel with the box, so its
+    admittance adds exactly; the rig plane adds the coax on top."""
+    f = 28.3
+    bare = _z(_with_params(freq=f, measure_at="tap", comp_c_pF=0.0))
+    with_cap = _z(_with_params(freq=f, measure_at="tap"))
+    y_cap = 2j * math.pi * f * 1e6 * Builder.default_params["comp_c_pF"] * 1e-12
+    assert with_cap == pytest.approx(1 / (1 / bare + y_cap), rel=1e-9)
+    assert abs(_z(_with_params(freq=f)) - with_cap) > 1.0
+
+
+def test_the_ant_plane_is_the_bare_wire():
+    """Across the feed gap, the box and its comp cap are not in the circuit:
+    the high impedance the box has to match."""
+    f = 14.175
+    z = _z(_with_params(freq=f, measure_at="ant"))
+    assert z == _z(_with_params(freq=f, measure_at="ant", taps="2:16", comp_c_pF=0.0))
+    assert abs(z) > 1000.0
+
+
 def test_geometry_is_validated():
+    with pytest.raises(ValueError, match="measure_at"):
+        _with_params(measure_at="feed").build_network()
     with pytest.raises(ValueError, match="choke_at_m"):
         _with_params(choke_at_m=9.5).build_wires()
     with pytest.raises(ValueError, match="does not reach the ground"):
