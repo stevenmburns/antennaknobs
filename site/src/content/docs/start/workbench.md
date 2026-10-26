@@ -33,8 +33,9 @@ double-click.
    opens at it.
 
 Keep the console window open while you work; closing it, or Ctrl-C, stops the
-server. Nothing is installed and nothing is written outside the folder —
-delete the folder to remove it. The server listens on `127.0.0.1` only, so
+server. Nothing is installed, and the only thing written outside the folder
+is your own designs folder (below) — delete the workbench folder to remove
+the program. The server listens on `127.0.0.1` only, so
 nothing on your network can reach it.
 
 The page shows the running version just below the bold "AntennaKNoBs" in the
@@ -111,6 +112,38 @@ console window's startup summary names the settings file each shortcut
 started from. *Save as my defaults* writes to that same file, so each shortcut
 keeps its own defaults. An `[engines]` table serves only the file it is in,
 while a `NEC5_EXE.txt` beside the program serves both shortcuts.
+
+## Your own designs
+
+Your own designs go in your designs folder, not inside the workbench folder:
+
+```
+%USERPROFILE%\.antennaknobs\designs
+```
+
+that is, `C:\Users\<your user name>\.antennaknobs\designs`. The workbench
+creates it when it starts, with a `TEMPLATE.py` inside that makes a good
+starting point: copy it, rename the copy, and edit that. The folder name
+starts with a dot, so a file dialog may not offer it; pasting the path into
+Explorer's address bar always works.
+
+- A `.py` design in it appears in the design picker under **Your designs**
+  as `user.<file name>`. Press the ⟳ button beside **Open…** to pick up a
+  new file; there is no need to restart.
+- A file in a subfolder is named by its path: `mydesigns\my_dipole.py` is
+  `user.mydesigns.my_dipole`, grouped under **Your designs / mydesigns**.
+  Folders whose names start with `_` or `.` are skipped.
+- A design is a small Python program, so the first time a new one loads the
+  workbench asks whether to allow it. For a file you are writing yourself,
+  choose **Allow + my edits**; then each save loads without asking again, and
+  ⟳ with your design selected reloads it and re-solves.
+- `.nec`, `.ez`, `.maa` and `.ssn` files in the folder show up the same way,
+  and never need allowing.
+
+Don't add files under `_internal\antennaknobs\designs`: that is the built-in
+catalog, read once when the workbench starts, and a new release replaces it.
+To keep your designs somewhere else, set the `ANTENNAKNOBS_USER_DIR`
+environment variable to that folder before starting the workbench.
 
 ## Adding your NEC-5 engine
 

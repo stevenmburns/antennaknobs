@@ -620,8 +620,10 @@ off opens without them, and the note says so.
 - a source or load at a free wire end, where MININEC has no pulse;
 - an offset on an automatically meshed wire;
 - wires that cross between their ends, or a wire end on another wire's
-  middle;
-- objects on different wires' ends at one junction of three or more wires.
+  middle.
+
+Objects on different wires' ends at one junction of three or more wires are
+each a series gap in their own wire, as MMANA's positions name them.
 
 A stepped-radius wire (a negative R pointing into the `$$$` taper wire set)
 is read for the plain `<>` and `->` types.
@@ -681,6 +683,12 @@ high-accuracy ground is the same Sommerfeld ground.
 rebuilds it 100 λ away, as EZNEC's own export does, and the deck reader
 treats its segments as circuit nodes, stubs and loads on them included.
 
+A **parallel-connected load** (connection `P`) on a virtual segment is a
+shunt of 1/Z across that segment's node, which is how EZNEC's NEC-5 export
+writes one at a source behind a transformer. A P load on a real wire is
+refused by name: the format does not say what it is wired across there, and
+no EZNEC export has shown it yet.
+
 These readings were checked against EZNEC itself: its own exports of each
 kind of file, solved here, at the model frequency and away from it. Files
 from before EZNEC 4.0 open too, as the model EZNEC 7 saves them as.
@@ -693,7 +701,7 @@ from before EZNEC 4.0 open too, as the model EZNEC 7 saves them as.
   as its own are skipped.)
 - *A reading the format leaves undefined*, and EZNEC's exports have not
   settled: a Laplace load's variable, a reversed transformer or Y network, a
-  parallel L-network branch, a load on a virtual segment, a line loss given
+  parallel L-network branch, a series load on a virtual segment, a line loss given
   at no frequency, the extended ground under a buried wire, a pre-3.0 load
   type, data in a record the format reserves. These are
   refused unless you set `ANTENNAKNOBS_EZ_ACCEPT_GUESSES=1`; then each
