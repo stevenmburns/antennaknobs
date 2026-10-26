@@ -94,7 +94,9 @@ def test_the_catalog_split_is_what_the_arrayblock_advisory_was_argued_from():
     # 75 since `dipoles.invvee_endport`: two arms, mirror images, two shapes.
     # 76 since `wire.doublet_remote_tuner`: one flat wire, one shape.
     # 77 since `dipoles.two_wire_doublet`: two sides of unequal length.
-    assert len(no_repeats) == 77, len(no_repeats)
+    # 78 since `wire.efhw_autotransformer`: radiator, counterpoise and coax
+    # shield, no two alike.
+    assert len(no_repeats) == 78, len(no_repeats)
     assert "verticals.m0agp_invl" in no_repeats
     # 4 since AK#1707: `wire.beverage`'s ground rods are buried, and the
     # array-block operator refuses a buried deck.

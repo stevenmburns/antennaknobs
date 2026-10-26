@@ -116,7 +116,9 @@ def test_the_route_splits_the_catalog_where_the_issue_says_it_does():
     # examples (`dipoles.invvee_endport`, `beams.yagi_endport`): a
     # FloatingBalun across two PortAtEnd ports. 30 since
     # `wire.doublet_remote_tuner`: a balun and balanced line to a floating gap.
-    assert len(reduce_) == 30, sorted(reduce_)
+    # 31 since `wire.efhw_autotransformer` (AK#2062): an Autotransformer and a
+    # line from a virtual rig port.
+    assert len(reduce_) == 31, sorted(reduce_)
     assert native, "no network stayed native; the LD path would be dead"
 
 
@@ -271,8 +273,8 @@ def test_the_route_switched_off_restores_todays_refusal(monkeypatch, stub_exe):
         assert "cannot stamp" in msg or "has no NEC-5 LD form" in msg, msg
         refused += 1
     # 26 + wire.beverage (AK#1707) + the two end-port feed examples
-    # + wire.doublet_remote_tuner
-    assert refused == 30, refused
+    # + wire.doublet_remote_tuner + wire.efhw_autotransformer (AK#2062)
+    assert refused == 31, refused
 
 
 def test_the_route_on_lifts_21_of_the_26_and_names_the_other_5(stub_exe):
@@ -312,7 +314,8 @@ def test_the_route_on_lifts_21_of_the_26_and_names_the_other_5(stub_exe):
     # 22 since AK#1707: `wire.beverage` builds on the route (its ports are
     # a plain gap feed and termination, neither floating nor distributed).
     # 25 since AK#1977: the three floating-port designs build too.
-    assert len(built) == 25, sorted(built)
+    # 26 since `wire.efhw_autotransformer` (AK#2062): gap ports only.
+    assert len(built) == 26, sorted(built)
     for name in (
         "arrays.bowtie1x2_bl",
         "wire.doublet_balanced_tuner",
