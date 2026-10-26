@@ -23,7 +23,7 @@ The knobs are in **feet**, the units you would measure the real thing in:
 | `line_ft` | 30 | window line from the feed to the balun |
 | `balun_ratio` | 1:1 | 1:1 or 1:4 |
 | `tuner_l_uH` | 1.87 | the tuner's series coil |
-| `tuner_c_pF` | 413 | the tuner's shunt capacitor |
+| `tuner_c_pF` | 415 | the tuner's shunt capacitor |
 | `tuner_c_side` | rig | which side the capacitor sits on: across the **balun**, or across the **rig** |
 
 The line is Mike's: Wireman #552 with his 0.97 velocity factor and the
@@ -136,10 +136,10 @@ A few rows, with the 1:1 balun (bs2, Sommerfeld 13 / 0.005):
 
 | MHz | load at the tuner | capacitor | coil | capacitor value | reaches the antenna |
 |---|---|---|---|---|---|
-| 3.6 | 73.9 + j293.9 Ω | across balun | 10.7 µH | 317.5 pF | 95.3 % |
-| 7.0 | 27.2 − j79.8 Ω | across rig | 2.38 µH | 408.3 pF | 92.1 % |
-| 14.0 | 211.8 + j712.7 Ω | across balun | 4.00 µH | 46.4 pF | 92.6 % |
-| 28.0 | 98.1 + j186.8 Ω | across balun | 0.803 µH | 59.7 pF | 94.9 % |
+| 3.6 | 75.0 + j293.9 Ω | across balun | 10.6 µH | 318.3 pF | 93.9 % |
+| 7.0 | 27.0 − j79.9 Ω | across rig | 2.38 µH | 411.5 pF | 92.8 % |
+| 14.0 | 212.6 + j712.2 Ω | across balun | 3.99 µH | 46.5 pF | 92.2 % |
+| 28.0 | 98.1 + j186.6 Ω | across balun | 0.802 µH | 59.8 pF | 94.9 % |
 
 With a 1:4 balun every load is a quarter of these. The balun is modelled as a
 current balun: only its winding resistance, and no magnetizing inductance.
@@ -156,18 +156,18 @@ antennaknobs band-loss --builder wire.doublet_remote_tuner \
 On this antenna:
 
 - **With the 1:1 balun, the 30 ft line is already the best.** The worst band
-  is 25 MHz, where 91.9 % reaches the antenna.
-- **With the 1:4 balun, 30 ft gives 91.4 % (worst at 7 MHz), and the best
-  length, 35.2 ft, gives 92.2 %.**
+  is 25 MHz, where 91.0 % reaches the antenna.
+- **With the 1:4 balun, 30 ft gives 92.0 % (worst at 7.3 MHz), and the best
+  length, 31.7 ft, gives 92.0 % too.**
 
-The spread is under a percentage point, a tenth of a dB. A tuner at the
+The spread is about a percentage point, under a tenth of a dB. A tuner at the
 bottom of 30 ft of window line is within a whisker of the best these parts
 can do. (The line here is dry. Wet window line loses several times as much.)
 
 ## Against Mike's own table
 
 Mike's EZNEC/AutoEZ model and this design agree at 3.6 MHz: 75.6 + j289.8 Ω
-there against 73.9 + j293.9 Ω here, and parts within a few percent. On the
+there against 75.0 + j293.9 Ω here, and parts within a few percent. On the
 upper bands the loads differ.
 
 The tuner and the line are not where the difference comes from:

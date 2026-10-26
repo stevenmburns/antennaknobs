@@ -309,9 +309,14 @@ def test_every_plane_curve_equals_the_workbench_solve_at_that_plane(
 # sweep's frequency (the reducer read NEC's 299.8 wavelength back with SI c),
 # and are now evaluated at it. T1 and feed sit outside those parts and do not
 # move at two decimals.
+#
+# Both moved at the momwire 0.84.3 pin, when the deck's lossy line took a
+# complex Zc, Z0(1 - jα/β) (momwire#1706): rig 43.13 - 4.32j (SWR 1.19) ->
+# 42.80 - 4.24j (1.20), T1 37.59 - 7.39j (1.39) -> 37.63 - 7.67j (1.40). The
+# feed sits beyond the line and does not move.
 E5_BEST = {
-    "rig": (1.19, 14.450, 43.13 - 4.32j),
-    "T1": (1.39, 14.250, 37.59 - 7.39j),
+    "rig": (1.20, 14.450, 42.80 - 4.24j),
+    "T1": (1.40, 14.250, 37.63 - 7.67j),
     "feed": (1.45, 14.250, 72.51 - 1.90j),
 }
 
