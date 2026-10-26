@@ -344,14 +344,15 @@ class Builder(AntennaBuilder):
             "balun_ratio": "1:1",
             # The tuner, set by hand: its coil, its capacitor, and the side
             # the capacitor sits on. Stock: the stock station matched at
-            # 7.15 MHz, SWR 1.005 (bs2, Sommerfeld 13 / 0.005). Source: the
+            # 7.15 MHz, SWR 1.001 (bs2, Sommerfeld 13 / 0.005). Source: the
             # parts the auto mode's L-match arithmetic chooses there, with
             # the coil's Q (``tuner_mode`` "auto", read off
-            # `auto_match.tuner_design`: 1.867 µH, 413.4 pF), rounded to the
-            # knobs' steps. 40 m's load is below 50 Ω (26.4 − j59.0 Ω), so
-            # the capacitor is on the rig side.
+            # `auto_match.tuner_design`: 1.870 µH, 415.5 pF), rounded to the
+            # knobs' steps. 40 m's load is below 50 Ω (26.3 − j59.1 Ω), so
+            # the capacitor is on the rig side. The capacitor was 413 pF
+            # before the lossy line's Zc went complex (momwire#1706).
             "tuner_l_uH": 1.87,
-            "tuner_c_pF": 413.0,
+            "tuner_c_pF": 415.0,
             "tuner_c_side": "rig",
             # "manual": the parts above. "auto": the tuner tunes itself at
             # the frequency it is solved at (`l_network_tuner(tune_to=50,

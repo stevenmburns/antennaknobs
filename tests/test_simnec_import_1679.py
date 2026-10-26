@@ -8,6 +8,7 @@ a compensating series Z, an ideal 1:4 transformer and a CLC high-pass T.
 
 from __future__ import annotations
 
+import cmath
 import math
 import re
 from pathlib import Path
@@ -120,10 +121,13 @@ def _without_r1(text: str) -> str:
 
 
 def _matched_loss_db(tl, f_mhz: float) -> float:
-    a, b, _c, _d = tl_abcd(
+    """The line's loss terminated in its own characteristic impedance,
+    Zc = √(B/C) of the symmetric chain matrix: complex for a lossy line,
+    Z0(1 − jα/β) (momwire#1706), so a real Z0 load would add mismatch loss."""
+    a, b, c, _d = tl_abcd(
         tl.z0, tl.length, C_LIGHT / (f_mhz * 1e6), tl.vf, tl.k1, tl.k2
     )
-    return 20.0 * math.log10(abs(a + b / tl.z0))
+    return 20.0 * math.log10(abs(a + b / cmath.sqrt(b / c)))
 
 
 def _line(text: str):

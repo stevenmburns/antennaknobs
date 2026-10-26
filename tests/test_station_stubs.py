@@ -189,8 +189,10 @@ def test_lossless_quarter_wave_open_stub_is_a_short_at_every_odd_multiple(length
 
 
 def test_loss_is_the_escape_hatch_for_the_quarter_wave_open_stub():
-    """With real cable loss the λ/4 open stub is finite and REAL: coth of
-    (αl + jπ/2) is tanh(αl), so Z_in ≈ Z₀·αl — the stub's own copper."""
+    """With real cable loss the λ/4 open stub is finite: coth of
+    (αl + jπ/2) is tanh(αl), so Z_in = Zc·tanh(αl) ≈ Z₀·αl — the stub's own
+    copper. Zc = Z₀(1 − jα/β) is the lossy line's complex characteristic
+    impedance (momwire#1706), so a small capacitive part rides with it."""
     from antennaknobs.network import CABLES
     from antennaknobs.network_reduce import FEET_PER_M, NEPER_PER_DB
 
@@ -200,8 +202,10 @@ def test_loss_is_the_escape_hatch_for_the_quarter_wave_open_stub():
         (c.k1 * np.sqrt(F_MHZ) + c.k2 * F_MHZ) * NEPER_PER_DB * FEET_PER_M / 100.0
     )  # fmt: skip
     length = 0.25 * c.vf * WL
-    assert z == pytest.approx(c.z0 * np.tanh(alpha * length), rel=1e-9)
-    assert z.real > 0.0 and abs(z.imag) < 1e-9
+    beta = 2.0 * np.pi / (c.vf * WL)
+    zc = c.z0 * (1.0 - 1j * alpha / beta)
+    assert z == pytest.approx(zc * np.tanh(alpha * length), rel=1e-9)
+    assert z.real > 0.0 and z.imag < 0.0
 
 
 def test_half_wave_shorted_stub_is_a_dead_short_across_the_port():

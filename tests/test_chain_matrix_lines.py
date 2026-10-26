@@ -182,10 +182,14 @@ def test_a_lossy_half_wave_line_reports_its_attenuation_in_the_budget():
     """The 2-current probe reads ½Re(v_a·j₁* − v_b·j₂*): in minus out. At the
     half-wave point, which the budget could not previously reach at all."""
     tl = TL("rig", "ant", z0=50.0, length=WL / 2.0, k1=0.40, k2=0.008)
-    _v, eff, p_in, budget = _rig(tl).excited_state(_y1(50.0 + 0j), WL)
+    matched_db = tl.k1 * np.sqrt(F_MHZ) + tl.k2 * F_MHZ
+    # Matched means terminated in the lossy line's complex Zc = Z0(1 − jα/β)
+    # (momwire#1706), α from the catalog loss and β = 2π/λ (vf 1).
+    alpha = matched_db / (100.0 * 0.3048) * np.log(10.0) / 20.0
+    zc = tl.z0 * (1.0 - 1j * alpha / (2.0 * np.pi / WL))
+    _v, eff, p_in, budget = _rig(tl).excited_state(_y1(zc), WL)
     ((label, watts),) = budget
     assert label == "TL rig→ant"
-    matched_db = tl.k1 * np.sqrt(F_MHZ) + tl.k2 * F_MHZ
     # 100 ft of catalog loss over a λ/2 (15 m) section, matched at both ends.
     expect_db = matched_db * (tl.length / (100.0 * 0.3048))
     assert 10.0 * np.log10(p_in / (p_in - watts)) == pytest.approx(expect_db, rel=1e-9)

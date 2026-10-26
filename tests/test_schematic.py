@@ -585,7 +585,7 @@ def test_cli_refuses_an_antenna_with_no_network():
 
 @pytest.mark.parametrize(
     ("c_side", "dimmed", "live"),
-    [("rig", "413 pF", "1.87 µH"), ("balun", "1.87 µH", "413 pF")],
+    [("rig", "415 pF", "1.87 µH"), ("balun", "1.87 µH", "415 pF")],
 )
 def test_the_lc_plane_sits_between_the_tuners_parts(c_side, dimmed, live):
     b = build("wire.doublet_remote_tuner")

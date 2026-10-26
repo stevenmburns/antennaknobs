@@ -358,7 +358,7 @@ def _factory(b):
 def test_the_line_length_search_beats_mikes_30_ft():
     """With a 1:4 balun, 30 ft is not the best line for the worst band:
     the search, from 30 ft up (the line has to reach the ground), finds a
-    length whose worst band delivers more to the antenna."""
+    length whose worst band delivers at least as much to the antenna."""
     from antennaknobs import band_loss as bl
 
     with warnings.catch_warnings():
@@ -368,7 +368,9 @@ def test_the_line_length_search_beats_mikes_30_ft():
         res = bl.search(b, _factory, SEARCH_FREQS, "line_ft", 30.0, 100.0, step=2.0)
     assert res.reused_y
     assert res.best != pytest.approx(30.0, abs=0.5)
-    assert res.worst.antenna_fraction > at_30.antenna_fraction + 0.005
+    # The margin was over 0.005 while a lossy line's Zc was real; with the
+    # complex Zc (momwire#1706) it is about 0.001 (0.9215 vs 0.9205).
+    assert res.worst.antenna_fraction >= at_30.antenna_fraction
     # It is the max-min of what it tried.
     assert res.worst.antenna_fraction == pytest.approx(max(v for _, v in res.tried))
     assert b.line_ft == pytest.approx(res.best)
@@ -475,8 +477,10 @@ def test_wire_loss_is_a_loss_row_on_every_engine(engine):
     )
     wire = dict(band.losses)["wire loss"]
     assert wire > 0.01 * band.p_in
-    # Measured 2026-10-10: momwire 6.062e-4 W, PyNEC 6.058e-4 W of 10 mW.
-    assert wire == pytest.approx(6.06e-4, rel=0.01)
+    # Measured 2026-10-26 with the lossy line's complex Zc (momwire#1706):
+    # momwire 5.982e-4 W, PyNEC 5.978e-4 W of 10 mW (6.062e-4 / 6.058e-4
+    # with a real Zc).
+    assert wire == pytest.approx(5.98e-4, rel=0.01)
 
 
 def test_a_command_line_bool_reads_false_as_false():
@@ -512,7 +516,8 @@ def test_band_loss_puts_the_tuner_in_its_auto_mode(capsys):
     cli(["band-loss", "--builder", "wire.doublet_remote_tuner", "--freqs", "3.6"])
     text = capsys.readouterr().out
     (row,) = [ln for ln in text.splitlines() if ln.strip().startswith("3.6 ")]
-    assert "series L 10.7 µH" in row and "(C at out)" in row
+    # 10.7 µH before the lossy line's Zc went complex (momwire#1706).
+    assert "series L 10.6 µH" in row and "(C at out)" in row
     assert row.split("(C at out)")[1].split()[0] == "1.00"
     # The user's --set still wins: back in manual mode there is no tuning.
     cli(
