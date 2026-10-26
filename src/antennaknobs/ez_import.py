@@ -301,6 +301,7 @@ class EzLoad:
     c: float = 0.0
     r_freq_mhz: float = 0.0  # where a frequency-variable R holds; 0 = fixed
     laplace: tuple[tuple[float, ...], tuple[float, ...]] | None = None
+    connection: str = "S"  # S series, P parallel-connected (AK#2061)
 
 
 @dataclass(frozen=True)
@@ -830,19 +831,14 @@ def _load(rd: _Reader, k: int, kind: str) -> EzLoad:
     conn = _ch(r, 149)
     if rd.legacy and conn == "":
         conn = "S"  # a version-10 file's blank connection is series
-    if conn == "P":
-        rd.undefined(
-            f"load {k + 1} connection",
-            "'P' (a parallel-connected load: what it is connected across is not defined)",
-        )
-    elif conn != "S":
+    if conn not in ("S", "P"):
         rd.undefined(f"load {k + 1} connection", repr(conn))
     at = EzEnd(_i16(r, 63), _r7(_f32(r, 65)))
     stored = complex(_r7(_f32(r, 69)), _r7(_f32(r, 73)))
     if kind == "L":
         num = tuple(_f32(r, 77 + 4 * i) for i in range(6))
         den = tuple(_f32(r, 101 + 4 * i) for i in range(6))
-        return EzLoad(at, stored, "L", laplace=(num, den))
+        return EzLoad(at, stored, "L", laplace=(num, den), connection=conn)
     if any(r[77:125]):
         rd.warn(f"Load {k + 1} keeps Laplace coefficients it does not use.")
     if kind == "R":
@@ -854,10 +850,10 @@ def _load(rd: _Reader, k: int, kind: str) -> EzLoad:
         R, L, C, F = (_f32(r, o) for o in (151, 155, 159, 163))
         if min(R, L, C, F) < 0:
             rd.malformed(f"load {k + 1}", f"negative part R {R}, L {L}, C {C}, F {F}")
-        return EzLoad(at, stored, "R", t, R, L, C, F)
+        return EzLoad(at, stored, "R", t, R, L, C, F, connection=conn)
     if any(r[150:167]):
         rd.undefined(f"load {k + 1}", "R/L/C values on a load that is not an RLC load")
-    return EzLoad(at, stored, "Z")
+    return EzLoad(at, stored, "Z", connection=conn)
 
 
 def _line(rd: _Reader, k: int) -> EzLine:
@@ -1580,6 +1576,9 @@ def _load_cards(dk: _Deck) -> None:
         name = f"load {k}"
         if ld.kind == "Z" and ld.stored_z == 0:
             continue
+        if ld.connection == "P":
+            _parallel_load(dk, k, ld)
+            continue
         if _on_virtual(dk, ld.at):
             _virtual_load(dk, k, ld)
             continue
@@ -1633,17 +1632,41 @@ def _load_cards(dk: _Deck) -> None:
         )
 
 
-def _virtual_load(dk: _Deck, k: int, ld: EzLoad) -> None:
+def _parallel_load(dk: _Deck, k: int, ld: EzLoad) -> None:
+    """A parallel-connected (``P``) load (AK#2061). The ``.ez`` does not say
+    what it is wired across; EZNEC decides when it writes a deck. One case is
+    known from EZNEC's own NEC-5 export of a real model: a P load on a
+    VIRTUAL segment is an ``NT`` from that segment to a spare virtual wire,
+    Y11 = 1/Z and Y12 = Y22 = 0, which is a shunt of 1/Z across the segment's
+    node. That is the reading `_virtual_load` already takes, so it is served
+    there, as a fact rather than a guess. Anywhere else stays refused by name
+    until an EZNEC sitting shows what it writes."""
+    if not _on_virtual(dk, ld.at):
+        raise EzUndefined(
+            dk.m.name,
+            f"load {k} connection",
+            "'P' on a real wire's segment (a parallel-connected load: what "
+            "it is connected across there is not defined; only one on a "
+            "virtual segment is known, AK#2061)",
+            None,
+        )
+    _virtual_load(dk, k, ld, parallel=True)
+
+
+def _virtual_load(dk: _Deck, k: int, ld: EzLoad, *, parallel: bool = False) -> None:
     """A load on a virtual segment. There is no wire for it to sit in series
     with, and no file at the sitting had one, so how it connects is a reading:
     an impedance across the segment's node, in parallel with what connects
     there (a line's termination, a source's shunt)."""
     m = dk.m
-    dk.guess(
-        f"load {k}",
-        "a load on a virtual segment",
-        "an impedance across the segment, in parallel with what connects there",
-    )
+    if not parallel:
+        # A series (S) load on a virtual segment has no wire to sit in
+        # series with; a P load there is EZNEC's own construction (above).
+        dk.guess(
+            f"load {k}",
+            "a load on a virtual segment",
+            "an impedance across the segment, in parallel with what connects there",
+        )
     if ld.kind == "Z":
 
         def z(f_hz: float, z0: complex = ld.stored_z) -> complex:
