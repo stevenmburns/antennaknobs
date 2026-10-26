@@ -23,10 +23,7 @@ differences as data, not noise).
 ## Getting a NEC-5 deck without the engine
 
 The workbench's gear menu has **Download NEC-5 .nec**, and it is offered whatever
-engines that machine has: writing a deck needs no binary. It is the same file the
-corpus tool's `catalog-nec5/` ships for that design at that mesh and ground, from
-the same writer — so a deck you download and a deck from the published set cannot
-disagree. It is also the dialect that carries what NEC-2 cannot: buried wires,
+engines that machine has: writing a deck needs no binary. It is also the dialect that carries what NEC-2 cannot: buried wires,
 wires in the ground plane, and momwire's graded meshes.
 
 ### The NEC-4.2 download
@@ -192,7 +189,7 @@ patterns. The one apparent exception closed under study, and the closing is
 worth telling: the day the engine landed, NEC-5's reactance at very low
 heights over lossy Sommerfeld ground (≈0.05 λ) sat ~7 Ω away from the
 mutually-agreeing NEC-2 lineage, and was documented here as a formulation
-difference. The full corpus comparison then swept a dipole from 0.02 λ to
+difference. A fuller comparison then swept a dipole from 0.02 λ to
 1.0 λ and found the offset is height-*independent* — a feed-model term from
 NEC-5's knot-source mesh march, not close-ground physics — and that
 Richardson-extrapolating NEC-5's (N, 2N) pair dissolves it entirely:

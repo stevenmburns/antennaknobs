@@ -2335,10 +2335,6 @@ and NEC-4 ones — which do carry them. A design whose network is a transmission
 virtual driver refuses both: the app solves those by a multiport-Y reduction over
 one deck per driven port, and no single deck says that in either dialect.
 
-The NEC-5 deck is the same file the corpus tool's `catalog-nec5/` ships for that
-design at that mesh and ground — one writer, so the download and the published
-set cannot disagree.
-
 The reverse — bringing a `.nec` deck someone published *into* the workbench — is
 [Loading NEC decks](/reference/nec-import/).
 
