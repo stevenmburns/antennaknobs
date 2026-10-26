@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">1060 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">1023<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">37<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">1024<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">36<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_14f6d25602e95197_nec2_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.2">coverage.py v7.16.2</a>,
-            created at 2026-10-26 19:18 +0000
+            created at 2026-10-26 20:33 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1571,12 +1571,12 @@
     <p class="run"><span class="n"><a id="t1489" href="#t1489">1489</a></span><span class="t">                <span class="key">if</span> <span class="nam">np</span><span class="op">.</span><span class="nam">isfinite</span><span class="op">(</span><span class="nam">ins_tand</span><span class="op">)</span><span class="op">.</span><span class="nam">any</span><span class="op">(</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1490" href="#t1490">1490</a></span><span class="t">                    <span class="nam">self</span><span class="op">.</span><span class="nam">_loading_kwargs</span><span class="op">[</span><span class="str">&quot;insulation_loss_tangent&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="nam">ins_tand</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1491" href="#t1491">1491</a></span><span class="t">            <span class="key">elif</span> <span class="nam">wants_loading</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1492" href="#t1492">1492</a></span><span class="t">                <span class="nam">_logger</span><span class="op">.</span><span class="nam">warning</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t1493" href="#t1493">1493</a></span><span class="t">                    <span class="str">&quot;%s doesn&#x27;t model distributed wire loading; solving the &quot;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t1494" href="#t1494">1494</a></span><span class="t">                    <span class="str">&quot;design&#x27;s %s wire as ideal (PEC, bare)&quot;</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t1495" href="#t1495">1495</a></span><span class="t">                    <span class="nam">getattr</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_solver</span><span class="op">,</span> <span class="str">&quot;__name__&quot;</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_solver</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t1496" href="#t1496">1496</a></span><span class="t">                    <span class="nam">type</span><span class="op">(</span><span class="nam">builder</span><span class="op">)</span><span class="op">.</span><span class="nam">__name__</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t1497" href="#t1497">1497</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1492" href="#t1492">1492</a></span><span class="t">                <span class="nam">_logger</span><span class="op">.</span><span class="nam">warning</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t1493" href="#t1493">1493</a></span><span class="t">                    <span class="str">&quot;%s doesn&#x27;t model distributed wire loading; solving the &quot;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t1494" href="#t1494">1494</a></span><span class="t">                    <span class="str">&quot;design&#x27;s %s wire as ideal (PEC, bare)&quot;</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t1495" href="#t1495">1495</a></span><span class="t">                    <span class="nam">getattr</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_solver</span><span class="op">,</span> <span class="str">&quot;__name__&quot;</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_solver</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t1496" href="#t1496">1496</a></span><span class="t">                    <span class="nam">type</span><span class="op">(</span><span class="nam">builder</span><span class="op">)</span><span class="op">.</span><span class="nam">__name__</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t1497" href="#t1497">1497</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1498" href="#t1498">1498</a></span><span class="t">        <span class="key">elif</span> <span class="nam">spec</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">and</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t1499" href="#t1499">1499</a></span><span class="t">            <span class="nam">spec</span><span class="op">.</span><span class="nam">conductivity</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">or</span> <span class="nam">spec</span><span class="op">.</span><span class="nam">insulation_radius</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t1500" href="#t1500">1500</a></span><span class="t">        <span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -3132,7 +3132,7 @@
             <a class="nav" href="z_14f6d25602e95197_nec2_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.2">coverage.py v7.16.2</a>,
-            created at 2026-10-26 19:18 +0000
+            created at 2026-10-26 20:33 +0000
         </p>
     </div>
 </footer>
