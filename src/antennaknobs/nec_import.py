@@ -2598,8 +2598,18 @@ class NecDeck:
                 continue
             if nt.y is not None:
                 # Complex Y (susceptance present): the full 2×2 as one general
-                # Admittance branch (issue #416).
-                branches.append(_net.Admittance(ports=(a, b), y=nt.y))
+                # Admittance branch (issue #416) -- or, when one half is all
+                # zero, the one-port it is. EZNEC writes a parallel-connected
+                # load as Y11 only; a two-port branch would hold its dead
+                # node, which `_unheld_virtual_nodes` must be free to drop
+                # (AK#1880, AK#2061: the source on a virtual segment).
+                (y11, y12), (y21, y22) = nt.y
+                if y12 == y21 == y22 == 0:
+                    branches.append(_net.Admittance(ports=(a,), y=((y11,),)))
+                elif y11 == y12 == y21 == 0:
+                    branches.append(_net.Admittance(ports=(b,), y=((y22,),)))
+                else:
+                    branches.append(_net.Admittance(ports=(a, b), y=nt.y))
                 continue
             if nt.xfmr_n is not None:
                 # AK#1681: the rank-1 real Y, as the transformer it is.
@@ -5219,9 +5229,12 @@ def _virtual_segment_wires(
 # EZNEC's own legend for the wires it parks for its circuit elements, as its
 # NEC-2 export writes it: ``! *Wire #2 for virtual segments.`` and ``! Wire #3
 # for I srcs, shorted/open TL, and/or parallel loads.`` (sitting 2026-10-12).
+# Its NEC-5 export words the second one ``! Wire #6 for shorted/open trans.
+# lines and/or parallel loads.`` (EZNEC/Pro+ 7.0, a real model, AK#2061).
 _EZNEC_CIRCUIT_WIRE = re.compile(
     r"^!\s*\*?\s*wire\s*#\s*(\d+)\s+for\s+(?:virtual\s+segments|"
-    r"i\s+srcs,\s*shorted/open\s+tl,\s*and/or\s+parallel\s+loads)\s*\.?\s*$",
+    r"i\s+srcs,\s*shorted/open\s+tl,\s*and/or\s+parallel\s+loads|"
+    r"shorted/open\s+trans\.\s*lines\s+and/or\s+parallel\s+loads)\s*\.?\s*$",
     re.IGNORECASE,
 )
 
