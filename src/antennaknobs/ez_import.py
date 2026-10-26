@@ -1377,19 +1377,54 @@ class _Deck:
         self.fixed: list[str] = []  # elements held at the model frequency
         self.guesses: list[str] = []  # readings taken while writing the cards
         self.vtag = len(m.wires) + 1 if m.virtual_labels else None
-        # The spare circuit wire a parallel-connected load on a real wire
-        # hangs from, one segment per such load (`_parallel_load`).
-        self.p_loads = sum(
+        # The spare circuit wire that what hangs across a real segment's gap
+        # (a parallel-connected load, a stub) reaches with a one-port NT, one
+        # segment each, as EZNEC's exports write them (`one_port`).
+        p_loads = sum(
             1
             for ld in m.loads
             if ld.connection == "P"
             and not (ld.kind == "Z" and ld.stored_z == 0)
             and not _on_virtual(self, ld.at)
         )
+        stubs = sum(
+            1
+            for t in m.lines
+            if (near := t.end2 if t.end1.stub else t.end1 if t.end2.stub else None)
+            is not None
+            and not _on_virtual(self, near)
+        )
+        self.p_loads = p_loads + stubs
         self.ptag = (
             (len(m.wires) + 1 + (self.vtag is not None)) if self.p_loads else None
         )
         self.p_used = 0
+
+    def one_port(
+        self,
+        at: EzEnd,
+        y0: complex,
+        label: str,
+        build: Callable[[str], tuple[list, dict]],
+        knot: bool = False,
+    ) -> None:
+        """An element across a real segment's gap, written as EZNEC writes
+        one: an ``NT`` from the segment to the next segment of the spare
+        circuit wire, Y11 = ``y0`` at the model frequency and the other
+        entries zero; ``build(port)`` is the element itself, so it follows
+        frequency. Through the deck reader it combines with a source, a line
+        or a series load on the same segment as NEC's network does (AK#2076:
+        a placeholder LD did not)."""
+        self.p_used += 1
+        t1, s1 = self.where(at, knot)
+        t2, s2 = self.ptag, self.p_used
+        self.cards.append(
+            f"CM ! NT from wire {t1} segment {s1} to wire {t2} segment {s2} stands for {label}"
+        )
+        self.cards.append(
+            f"NT {t1} {s1} {t2} {s2} {_fmt(y0.real)} {_fmt(y0.imag)} 0 0 0 0"
+        )
+        self.nt.append((t1, s1, t2, s2, _TwoPort(label, lambda a, b: build(a))))
 
     def guess(self, fld: str, detail: str, reading: str) -> None:
         """An undefined reading met while writing the cards: refused, or
@@ -1697,20 +1732,12 @@ def _parallel_load(dk: _Deck, k: int, ld: EzLoad) -> None:
         _virtual_load(dk, k, ld, parallel=True)
         return
     z = _load_z(dk, k, ld)
-    dk.p_used += 1
-    t1, s1 = dk.where(ld.at)
-    t2, s2 = dk.ptag, dk.p_used
     label = f"load {k} ({'R + jX' if ld.kind == 'Z' else _load_word(ld)}, across its segment)"
-    y0 = 1.0 / z(dk.m.freq_mhz * 1e6)
 
-    def build(a, b, z=z):
-        return [_net.TouchstoneLoad(a, _YOf(z=z))], {}
+    def build(p, z=z):
+        return [_net.TouchstoneLoad(p, _YOf(z=z))], {}
 
-    dk.cards.append(
-        f"CM ! NT from wire {t1} segment {s1} to wire {t2} segment {s2} stands for {label}"
-    )
-    dk.cards.append(f"NT {t1} {s1} {t2} {s2} {_fmt(y0.real)} {_fmt(y0.imag)} 0 0 0 0")
-    dk.nt.append((t1, s1, t2, s2, _TwoPort(label, build)))
+    dk.one_port(ld.at, 1.0 / z(dk.m.freq_mhz * 1e6), label, build)
 
 
 def _virtual_load(dk: _Deck, k: int, ld: EzLoad, *, parallel: bool = False) -> None:
@@ -1931,9 +1958,12 @@ def _line_cards(dk: _Deck) -> None:
                         brs.append(_net.Shunt(port=node, r=0.0))
                     return brs, {node: _net.PortVirtual(node)}
 
-            dk.load_card(
-                near, 4, 1.0, 0.0, 0.0, _StubLine(label, build), label, knot=True
-            )
+            if _on_virtual(dk, near):
+                dk.load_card(
+                    near, 4, 1.0, 0.0, 0.0, _StubLine(label, build), label, knot=True
+                )
+            else:
+                dk.one_port(near, yin(f0), label, build, knot=True)
             continue
         if not lossy and length is not None:
             # NEC's TL length is electrical: the physical length over VF. A
