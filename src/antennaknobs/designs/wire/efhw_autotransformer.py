@@ -1,29 +1,35 @@
-"""End-fed half-wave sloper matched with a tapped autotransformer — the
-49:1 box most builds actually are (issue #2062).
+"""Multiband end-fed half wave (40/20/15/10 m) on a tapped autotransformer,
+with a harmonic-aligning capacitor in the wire (issue #2062).
 
-The sibling of ``wire.efhw_sloper``: the same POTA sloper (counterpoise,
-short "ant" gap wire, radiator climbing toward −x), but the box is ONE tapped
-winding on a ferrite toroid rather than the isolated two-winding transformer
-`station.unun` builds, and the coax is part of the antenna.
+The classic multiband EFHW: a half wave on 40 m strung as a horizontal flat
+top, so 20, 15 and 10 m are its 2nd, 3rd and 4th harmonics, each with a
+high-impedance end the box can match. The box is ONE tapped winding on a
+ferrite toroid -- the 49:1 most builds actually are -- rather than the
+isolated two-winding transformer ``wire.efhw_sloper``'s `station.unun`
+builds, and the coax is part of the antenna.
 
 Physics worth knowing before turning the knobs:
 
+* **A plain wire's harmonics do not land on the bands.** End effects and
+  the feed make each harmonic fall progressively further from n times the
+  fundamental, so a wire cut for 40 m drifts off 20, 15 and 10. A small
+  series capacitor in the wire (``load_c_pF``, ``load_at`` of the way out
+  from the feed) shortens the wire electrically by a different amount on
+  each band -- it is in a different place on each band's standing wave --
+  which is what pulls the harmonics back into line. Builds often hang a
+  bleed resistor (~100 kΩ) across it so the far section cannot charge up
+  with static; at RF it adds milliohms, so the model leaves it out.
 * **The box is coupled inductors, not an ideal ratio.**
   `station.autotransformer` (#594) models the tapped winding: the common
   section (datum to tap, ``taps`` primary turns) carries the DIFFERENCE of
   the rig and antenna currents, and the coupling ``k`` below 1 leaves a
-  leakage inductance in series with the high-Z side. ``taps`` picks the
-  turns (2:14 and 3:21 are both 7:1, so 49:1; 2:16 is 64:1); the section
-  inductances follow from ``al_nH``, the core's A_L (FT240-43 ≈ 1075 nH/N²).
-  At ``k`` → 1 with large inductances the tap sees Z_ant/n², exactly the
-  ideal unun; at a realistic ``k`` the leakage reactance is a sizeable
-  fraction of the ~2–3 kΩ end-fed feed, which is why ``k`` is a
-  load-bearing knob and why the comp cap's best value here is not the
-  sloper's.
+  leakage inductance in series with the high-Z side, which grows with
+  frequency. ``taps`` picks the turns (2:14 and 3:21 are both 7:1, so 49:1;
+  2:16 is 64:1); the section inductances follow from ``al_nH``, the core's
+  A_L (FT240-43 ≈ 1075 nH/N²). At ``k`` → 1 with large inductances the tap
+  sees Z_ant/n², exactly the ideal unun.
 * **The comp cap compensates that leakage.** ``comp_c_pF`` sits across the
-  tap (rig) side. In the ideal-transformer sloper it barely matters at
-  14 MHz; here it is the knob that recovers the match, and its default is
-  tuned with the winding in place.
+  tap (rig) side, and matters most on 10 m.
 * **Core loss is a fixed ``ql``, not the ferrite.** `Autotransformer` takes
   no ``core=`` (unlike `Transformer`), so #43's frequency-dependent
   permeability is not modelled; both sections get one Q, and the winding
@@ -31,37 +37,29 @@ Physics worth knowing before turning the knobs:
 * **The coax is an antenna wire.** The feedline's shield runs from the feed
   point straight down to ``shield_h_m`` and then along the ground (+y) for
   the rest of ``line_len_m``. Without a choke the shield is a second
-  counterpoise and pulls the feed impedance a long way (SWR 1.91 at the
-  defaults); ``choke`` puts a common-mode choke ``choke_at_m`` down the
+  counterpoise; ``choke`` puts a common-mode choke ``choke_at_m`` down the
   shield, modelled as a parallel R‖L‖C with peak resistance ``choke_kohm``
   at ``choke_f0_mhz`` (Q 1, broadband, as a mix-31 multi-turn choke
-  measures). Where it sits matters: at the feed point the box's datum
-  swings at nearly the full end-fed voltage, so the choke row in the power
-  budget is the heat a real choke there takes. ``choke="none"`` leaves the
-  shield bare; ``choke="ideal"`` drops the shield wires, the line-hygiene
-  idealization ``wire.efhw_sloper`` makes.
+  measures). ``choke="none"`` leaves the shield bare; ``choke="ideal"``
+  drops the shield wires, the line-hygiene idealization.
 
 SimNEC export refuses `Autotransformer`, so this design does not export to
-SimNEC; the NEC deck writers spell the box as a network they can carry or
-say why not.
+SimNEC.
 
-Geometry is ``wire.efhw_sloper``'s `Drone` flight, plus the shield:
+Geometry, in the x-z plane with the coax along +y:
 
-    apex (derived)
-        /
-       /  radiator ≈ λ/2 · length_factor   (wire_type from WIRES)
-      /   slope_deg above horizontal
-     F=========            z = h_feed        main lobe → +x
-     |  counterpoise (+x)  F = "ant" port: autotransformer top
-     |                     tap → comp cap ∥ → coax (TL) → rig
-     |  shield (choke choke_at_m down)
-     +------------- along +y, shield_h_m above ground
+     counterpoise         F  radiator (+x)            load cap      far end
+       (slopes down        ●=========================||============   z = height_m
+        toward −x,         |  F = "ant" gap: autotransformer top;
+        cp_slope_deg)      |  tap → comp cap ∥ → coax (TL) → rig
+                           |  shield (choke choke_at_m down)
+                           +------------- along +y, shield_h_m above ground
 """
 
 import math
 from types import MappingProxyType
 
-from antennaknobs import AntennaBuilder, Drone
+from antennaknobs import AntennaBuilder
 from antennaknobs import analyses as an
 from antennaknobs.network import (
     CABLES,
@@ -76,7 +74,6 @@ from antennaknobs.network import (
     Wire,
     WireSpec,
     WIRES,
-    as_wire,
     cable_from_catalog,
 )
 from antennaknobs.station import autotransformer, autotransformer_ratio
@@ -90,23 +87,25 @@ TAPS = {
     "2:16": (2, 16),
 }
 
-# The bands the per-band sweeps cover: (label, lo, hi) MHz, US edges. A half
-# wave on 20 m is a full wave on 10 m, its end a voltage maximum again, so the
-# box matches there too (best SWR 1.82 at 27.8 MHz, just below the band). The
-# 3-30 MHz sweep shows why the other bands are left out: on 40 m the wire is a
-# quarter wave (SWR > 3), on 15 m three quarters with its end at a current
-# maximum (SWR ~6 -- physics, not the box; the 40/20/15/10 EFHW is the 40 m
-# one). Its dip near 5.2 MHz is the shield: radiator plus coax make a quarter
-# wave there, where a choke tuned for 14 MHz is weak.
-BAND_SWEEPS = (
+# The bands the antenna is for: (label, lo, hi) MHz, US edges.
+BANDS = (
+    ("40 m", 7.0, 7.3),
     ("20 m", 14.0, 14.35),
+    ("15 m", 21.0, 21.45),
     ("10 m", 28.0, 29.7),
 )
 
-# The coax shield as a wire: bare copper at the braid's radius (RG-58 class).
-SHIELD = WireSpec(radius=0.0018, conductivity=5.8e7)
+# Every wire meshes at 10 m's density, whatever band is solved, so a band
+# change never re-meshes.
+MESH_MHZ = 29.7
+
+# The coax shield as a wire: bare copper at the braid's radius (RG-8X class).
+SHIELD = WireSpec(radius=0.0024, conductivity=5.8e7)
 
 CHOKES = ("ferrite", "none", "ideal")
+
+# Short named wires that carry a port in their interior.
+GAP_M = 0.05
 
 
 def section_uH(taps: str, al_nH: float) -> tuple[float, float]:
@@ -120,79 +119,69 @@ def section_uH(taps: str, al_nH: float) -> tuple[float, float]:
 class Builder(AntennaBuilder):
     default_params = MappingProxyType(
         {
-            "design_freq": 14.1,
-            "freq": 14.1,
-            # The sloper's geometry and its stock wire.
-            "slope_deg": 63.0,
-            "h_feed": 1.5,
-            # Tuned with the stock box, comp cap and choke below for the best
-            # rig-side SWR at 14.1 MHz over average ground (Sommerfeld,
-            # εr 13, σ 0.005): 1.238. Shorter than the sloper's 0.8965,
-            # because the winding's leakage adds series reactance at the top.
-            "length_factor": 0.8815,
-            "wire_type": "28-awg-pvc",
-            "cp_len_m": 1.05,
-            # The winding: 2:14 turns on an FT240-43 (A_L ≈ 1075 nH/N²) is
-            # 4.3 µH common section, 155 µH upper section.
+            "design_freq": 7.1,
+            "freq": 7.1,
+            "height_m": 9.0,
+            # The radiator, as a fraction of a half wave at design_freq.
+            # length_factor, load_c_pF, load_at and comp_c_pF are tuned
+            # together for the lowest worst-case SWR at three points across
+            # each of 40, 20 and 15 m and 28.0-28.6 MHz, over average ground
+            # (Sommerfeld, εr 13, σ 0.005): 1.60. Without the load cap the
+            # same wire's worst point is past 2.5.
+            "length_factor": 0.999,
+            "wire_type": "18-awg",
+            "load_c_pF": 166.0,
+            # Where the load cap sits, as a fraction of the radiator from
+            # the feed point.
+            "load_at": 0.583,
+            # The counterpoise is the box's return, and it is load-bearing:
+            # at 0.5 m the worst SWR is 2.40, and 4.05 with the coax choked
+            # off ideally. With it at 4 m the shield carries little, so the
+            # choke barely matters (no choke: 1.60; ideal: 1.80).
+            "cp_len_m": 4.0,
+            "cp_slope_deg": 60.0,
             "taps": "2:14",
             "al_nH": 1075.0,
             "k": 0.98,
-            # Both sections' Q: 300 burns ~5 % in the winding at the stock
-            # tune, a box inside the bench-measured 85–90 % range.
             "ql": 300.0,
-            # The comp cap, tuned WITH the length (best SWR at each value,
-            # same conditions as length_factor):
-            #
-            #     C pF   length_factor   SWR
-            #     100       0.8961       1.330
-            #     150       0.8815       1.238
-            #     200       0.8677       1.146
-            #     283       0.8468       1.001
-            #
-            # A perfect match exists, but at a cap twice the customary size
-            # and a length off the bottom of the knob's range; 150 pF is the
-            # top of what builds fit and clears 1.3.
-            "comp_c_pF": 150.0,
-            # The coax: its line, and its shield as antenna wire.
-            "cable": "RG-58",
-            "line_len_m": 5.0,
+            "comp_c_pF": 43.0,
+            "cable": "RG-8X",
+            "line_len_m": 20.0,
             "shield_h_m": 0.05,
             "choke": "ferrite",
             "choke_kohm": 5.0,
             "choke_f0_mhz": 14.0,
-            # 1 m down the shield's drop. At the feed point the box's datum
-            # swings at nearly the full end-fed voltage, and a 5 kΩ choke
-            # there burns 17 % (efficiency 0.685); 1 m down it burns 7 %
-            # (0.772).
-            "choke_at_m": 1.0,
+            "choke_at_m": 0.0,
             "ui_params": MappingProxyType(
                 {
                     "target_z0": 50.0,
                     "default_view": "xz",
-                    "length_factor": {"min": 0.80, "max": 1.10},
-                    "slope_deg": {"min": 10.0, "max": 85.0},
-                    "h_feed": {"min": 0.2, "max": 4.0, "unit": "m"},
-                    "cp_len_m": {"min": 0.3, "max": 6.0, "unit": "m"},
+                    "height_m": {"min": 3.0, "max": 20.0, "unit": "m"},
+                    "length_factor": {"min": 0.85, "max": 1.15},
                     "wire_type": {"enum_options": tuple(sorted(WIRES))},
+                    "load_c_pF": {"min": 0.0, "max": 1000.0, "unit": "pF"},
+                    "load_at": {"min": 0.1, "max": 0.95},
+                    "cp_len_m": {"min": 0.5, "max": 10.0, "unit": "m"},
+                    "cp_slope_deg": {"min": 0.0, "max": 85.0},
                     "taps": {"enum_options": tuple(TAPS)},
                     "al_nH": {"min": 100.0, "max": 3000.0},
                     "k": {"min": 0.90, "max": 1.0},
                     "ql": {"min": 0.0, "max": 500.0},
                     "comp_c_pF": {"min": 0.0, "max": 330.0, "unit": "pF"},
                     "cable": {"enum_options": tuple(sorted(CABLES))},
-                    "line_len_m": {"min": 2.0, "max": 30.0, "unit": "m"},
+                    "line_len_m": {"min": 5.0, "max": 40.0, "unit": "m"},
                     "shield_h_m": {"min": 0.01, "max": 1.0, "unit": "m"},
                     "choke": {"enum_options": CHOKES},
                     "choke_kohm": {"min": 0.1, "max": 50.0},
                     "choke_f0_mhz": {"min": 1.0, "max": 60.0},
-                    "choke_at_m": {"min": 0.0, "max": 3.5, "unit": "m"},
-                    "sweep_policy": {"anchor": "meas_freq", "band_locked": True},
-                    # Keys are the structural labels the solver emits — keep
+                    "choke_at_m": {"min": 0.0, "max": 8.0, "unit": "m"},
+                    # Keys are the structural labels the solver emits -- keep
                     # in sync with build_network below.
                     "budget_labels": {
                         "box: Autotransformer pri→ant (lower)": "winding, common section",
                         "box: Autotransformer pri→ant (upper)": "winding, upper section",
                         "Shunt pri": "comp cap",
+                        "Load load": "load cap",
                         "Load choke": "common-mode choke",
                         "TL rig→pri": "feedline",
                     },
@@ -207,9 +196,9 @@ class Builder(AntennaBuilder):
         return autotransformer_ratio(*section_uH(self.taps, self.al_nH))
 
     def build_analyses(self):
-        """SWR from 3 to 30 MHz in one sweep (where the wire's harmonics
-        land), then each band on its own, over average ground (Sommerfeld,
-        the workbench's default)."""
+        """SWR from 3 to 30 MHz in one sweep (the fundamental and its
+        harmonics), then each band on its own, over average ground
+        (Sommerfeld, the workbench's default)."""
         ground = "finite:13,0.005"
         bands = "Bands"
         return [
@@ -226,58 +215,80 @@ class Builder(AntennaBuilder):
                     ground=ground,
                     group=bands,
                 )
-                for label, lo, hi in BAND_SWEEPS
+                for label, lo, hi in BANDS
             ),
         ]
 
-    def build_wires(self):
-        eps = 0.05
-        length = 0.5 * self.design_wavelength * self.length_factor
+    def _segs(self, length: float) -> int:
+        return self.segs_for(length, 0.25 * self.c_light_mhz_m / MESH_MHZ)
 
-        # The sloper's flight: counterpoise in along −x to the feed point,
-        # pitch up, gap wire, radiator climbing toward −x.
-        d = Drone((self.cp_len_m, 0.0, self.h_feed))
-        d.face((-1.0, 0.0, 0.0))
-        d.pay_out().forward(self.cp_len_m)
-        d.pitch(-self.slope_deg)
-        d.forward(eps)
-        d.forward(length - eps)
-        wires = d.wires()
-        gap = as_wire(wires[1])
-        wires[1] = Wire(gap.p0, gap.p1, name="ant")
+    def _wire(self, p0, p1, name=None, spec=None) -> Wire:
+        n = self._segs(math.dist(p0, p1))
+        return Wire(p0, p1, n, name=name, spec=spec)
+
+    def build_wires(self):
+        h = self.height_m
+        length = 0.5 * self.design_wavelength * self.length_factor
+        if not 0.0 < self.load_at < 1.0:
+            raise ValueError(f"load_at {self.load_at:g} is not inside the radiator")
+        cap_x = GAP_M + self.load_at * (length - GAP_M)
+        s = math.radians(self.cp_slope_deg)
+        cp_end = (-self.cp_len_m * math.cos(s), 0.0, h - self.cp_len_m * math.sin(s))
+        if cp_end[2] <= 0.0:
+            raise ValueError(
+                f"the counterpoise ({self.cp_len_m:g} m at {self.cp_slope_deg:g}°) "
+                f"reaches the ground from {h:g} m"
+            )
+        feed = (0.0, 0.0, h)
+        wires = [
+            self._wire(cp_end, feed),
+            # The feed gap: the box's top sits across it.
+            Wire(feed, (GAP_M, 0.0, h), 1, name="ant"),
+            self._wire((GAP_M, 0.0, h), (cap_x, 0.0, h)),
+            # The load cap's gap (a plain wire without the cap: a named
+            # wire is a port edge).
+            Wire(
+                (cap_x, 0.0, h),
+                (cap_x + GAP_M, 0.0, h),
+                1,
+                name="load" if self.load_c_pF > 0 else None,
+            ),
+            self._wire((cap_x + GAP_M, 0.0, h), (length, 0.0, h)),
+        ]
         if self.choke == "ideal":
             return wires
 
         # The shield: the drop from the feed point to shield_h_m, with a
         # short "choke" wire choke_at_m down it (the choke is a port in its
         # interior), then the run along +y for what is left of the line.
-        drop = self.h_feed - self.shield_h_m
-        if self.line_len_m <= drop + eps:
+        drop = h - self.shield_h_m
+        if self.line_len_m <= drop + GAP_M:
             raise ValueError(
                 f"line_len_m {self.line_len_m:g} m does not reach the ground "
-                f"from h_feed {self.h_feed:g} m"
+                f"from height_m {h:g} m"
             )
-        if not 0.0 <= self.choke_at_m <= drop - eps:
+        if not 0.0 <= self.choke_at_m <= drop - GAP_M:
             raise ValueError(
                 f"choke_at_m {self.choke_at_m:g} m is not on the shield's "
                 f"{drop:g} m drop to the ground"
             )
-        z0 = self.h_feed - self.choke_at_m
+        z0 = h - self.choke_at_m
         knee = (0.0, 0.0, self.shield_h_m)
         end = (0.0, self.line_len_m - drop, self.shield_h_m)
         shield = []
         if self.choke_at_m > 0:
-            shield.append(Wire((0.0, 0.0, self.h_feed), (0.0, 0.0, z0), spec=SHIELD))
+            shield.append(self._wire(feed, (0.0, 0.0, z0), spec=SHIELD))
         shield += [
             Wire(
                 (0.0, 0.0, z0),
-                (0.0, 0.0, z0 - eps),
+                (0.0, 0.0, z0 - GAP_M),
+                1,
                 # A named wire is a port edge; without a choke it is plain shield.
                 name="choke" if self.choke == "ferrite" else None,
                 spec=SHIELD,
             ),
-            Wire((0.0, 0.0, z0 - eps), knee, spec=SHIELD),
-            Wire(knee, end, spec=SHIELD),
+            self._wire((0.0, 0.0, z0 - GAP_M), knee, spec=SHIELD),
+            self._wire(knee, end, spec=SHIELD),
         ]
         return wires + shield
 
@@ -302,7 +313,10 @@ class Builder(AntennaBuilder):
             ),
         ]
         if self.comp_c_pF > 0:
-            branches.insert(1, Shunt("pri", c=self.comp_c_pF * 1e-12))
+            branches.append(Shunt("pri", c=self.comp_c_pF * 1e-12))
+        if self.load_c_pF > 0:
+            ports["load"] = PortOnWire("load")
+            branches.append(Load("load", c=self.load_c_pF * 1e-12))
         if self.choke == "ferrite":
             # R‖L‖C, peak choke_kohm at choke_f0_mhz, Q 1: X_L = R there.
             r = self.choke_kohm * 1e3
