@@ -3228,6 +3228,45 @@ def _pack_wires(currents) -> list[dict]:
     ]
 
 
+def _branch_ports(branch) -> tuple[str, ...]:
+    """The port names a network branch joins: a two-port's ``a`` and ``b``,
+    an admittance block's ``ports``. A one-port (``port``) joins nothing."""
+    ports = getattr(branch, "ports", None)
+    if isinstance(ports, (tuple, list)):
+        return tuple(p for p in ports if isinstance(p, str))
+    return tuple(
+        p for p in (getattr(branch, "a", None), getattr(branch, "b", None)) if p
+    )
+
+
+def _driven_port_name(network) -> str | None:
+    """The port the feed marker belongs at: the first source's port when it
+    is on a wire, else the nearest wire port the network reaches from it
+    through its multi-port branches (lines, transformers, admittance
+    blocks). A deck that drives a virtual rig port through its coax and
+    transformer is fed where the transformer meets the wire; without this
+    the marker fell back to the first named wire, or with only vertex ports
+    to the first wire's first knot -- the far end of an end-fed's radiator.
+    None when no source; the source's own name when nothing is reached."""
+    if network is None or not network.sources:
+        return None
+    start = network.sources[0].port
+    physical = (PortOnWire, PortAtVertex, PortAtEnd)
+    seen, frontier = {start}, [start]
+    while frontier:
+        nxt = []
+        for name in frontier:
+            if isinstance(network.ports.get(name), physical):
+                return name
+            for br in network.branches:
+                joined = _branch_ports(br)
+                if name in joined:
+                    nxt += [p for p in joined if p not in seen]
+                    seen.update(joined)
+        frontier = nxt
+    return start
+
+
 def _primary_feed(engine):
     """(polyline_idx, arclength) of the driven feed, or None.
 
@@ -3245,10 +3284,11 @@ def _primary_feed(engine):
     feed_idx = 0
     network = getattr(engine, "_network", None)
     if network is not None and network.sources:
-        # The first Driven source is the primary feed. If it resolves to a
-        # real (PortOnWire) port, use its position; otherwise (virtual port,
-        # e.g. delta_looparray_network's "driver"), fall back to feeds[0].
-        driven_name = network.sources[0].port
+        # The primary feed is the first Driven source's port, or for a
+        # virtual one the wire port the network reaches from it
+        # (`_driven_port_name`); a vertex port has no `_feeds` entry and
+        # falls back to feeds[0] here (`_driven_vertex_knot` places it).
+        driven_name = _driven_port_name(network)
         if driven_name in feed_names:
             feed_idx = feed_names.index(driven_name)
     pl_idx, arclen, _v = feeds[feed_idx]
@@ -3340,7 +3380,7 @@ def _driven_vertex_knot(engine, currents):
     network = getattr(engine, "_network", None)
     if network is None or not network.sources:
         return None
-    return _vertex_port_knot(engine, currents, network.sources[0].port)
+    return _vertex_port_knot(engine, currents, _driven_port_name(network))
 
 
 def _vertex_feed_position(engine, currents):
