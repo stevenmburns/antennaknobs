@@ -108,8 +108,8 @@ describe("opening a deck", () => {
     await waitFor(() => expect(query().get("deck")).toBe(opened[0].z), { timeout: 5000 });
     expect(query().get("name")).toBe("mydeck.nec");
     expect(query().get("design")).toBeNull();
-    // The picker shows the deck by its file's name.
-    expect((screen.getByRole("combobox", { name: "antenna" }) as HTMLInputElement).value).toBe("mydeck");
+    // The picker shows the deck by its file name, extension included (AK#2071).
+    expect((screen.getByRole("combobox", { name: "antenna" }) as HTMLInputElement).value).toBe("mydeck.nec");
     // Every request for it carries the deck, so a server that never saw it
     // rebuilds it: the preview's POST and the live solve's message alike.
     const deckPreview = geometry.find((b) => b.geometry === KEY);

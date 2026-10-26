@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { deckTitleFor } from "../../lib/decks";
 import type { ExampleDescriptor } from "../../lib/params";
 
 // Searchable antenna picker: merges the old filter box + grouped <select> into
@@ -75,6 +76,7 @@ export function GeometryCombobox({
         aria-expanded={open}
         aria-label="antenna"
         placeholder="search antennas…"
+        title={deckTitleFor(selected)}
         value={open ? filter : currentLabel}
         onChange={(e) => {
           setFilter(e.target.value);
@@ -123,6 +125,7 @@ export function GeometryCombobox({
                           choose(ex.name);
                         }}
                         onMouseEnter={() => setActive(idx)}
+                        title={deckTitleFor(ex.name)}
                       >
                         {ex.label}
                       </li>
