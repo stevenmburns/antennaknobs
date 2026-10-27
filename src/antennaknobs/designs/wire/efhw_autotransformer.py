@@ -83,7 +83,7 @@ from antennaknobs.network import (
     WIRES,
     cable_from_catalog,
 )
-from antennaknobs.station import autotransformer, autotransformer_ratio
+from antennaknobs.station import autotransformer
 
 # taps dropdown → (primary turns, total turns) on the one winding. The
 # impedance ratio is (total / primary)²: 49:1 for both 7:1 builds, 64:1 for
@@ -196,11 +196,6 @@ class Builder(AntennaBuilder):
             ),
         }
     )
-
-    @property
-    def turns_ratio(self) -> float:
-        """The ideal (k → 1) voltage ratio of the chosen taps."""
-        return autotransformer_ratio(*section_uH(self.taps, self.al_nH))
 
     def build_analyses(self):
         """SWR from 3 to 30 MHz in one sweep (the fundamental and its
