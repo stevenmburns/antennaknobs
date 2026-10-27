@@ -83,7 +83,7 @@ from antennaknobs.network import (
     WIRES,
     cable_from_catalog,
 )
-from antennaknobs.station import autotransformer, autotransformer_ratio
+from antennaknobs.station import autotransformer
 
 # taps dropdown → (primary turns, total turns) on the one winding. The
 # impedance ratio is (total / primary)²: 49:1 for both 7:1 builds, 64:1 for
@@ -197,11 +197,6 @@ class Builder(AntennaBuilder):
         }
     )
 
-    @property
-    def turns_ratio(self) -> float:
-        """The ideal (k → 1) voltage ratio of the chosen taps."""
-        return autotransformer_ratio(*section_uH(self.taps, self.al_nH))
-
     def build_analyses(self):
         """SWR from 3 to 30 MHz in one sweep (the fundamental and its
         harmonics), then each band on its own, over average ground
@@ -233,6 +228,28 @@ class Builder(AntennaBuilder):
         n = self._segs(math.dist(p0, p1))
         return Wire(p0, p1, n, name=name, spec=spec)
 
+    def _gapped(self, p0, p1, gaps, spec=None) -> list[Wire]:
+        """The straight run p0 → p1, broken by one-segment GAP_M wires.
+
+        ``gaps`` is ``(at_m, name)`` pairs in order along the run: each gap
+        starts ``at_m`` from ``p0`` and carries ``name`` (a named wire is a
+        port edge; None keeps it plain wire, so switching an element off
+        leaves the mesh alone). A gap at 0 has no wire before it.
+        """
+        d = tuple((b - a) / math.dist(p0, p1) for a, b in zip(p0, p1, strict=True))
+
+        def along(p, m):
+            return tuple(a + u * m for a, u in zip(p, d, strict=True))
+
+        wires, prev = [], p0
+        for at_m, name in gaps:
+            start = along(p0, at_m)
+            if start != prev:
+                wires.append(self._wire(prev, start, spec=spec))
+            prev = along(start, GAP_M)
+            wires.append(Wire(start, prev, 1, name=name, spec=spec))
+        return [*wires, self._wire(prev, p1, spec=spec)]
+
     def build_wires(self):
         h = self.height_m
         length = 0.5 * self.design_wavelength * self.length_factor
@@ -247,27 +264,22 @@ class Builder(AntennaBuilder):
                 f"reaches the ground from {h:g} m"
             )
         feed = (0.0, 0.0, h)
+        # The radiator: the feed gap (the box's top sits across it), then the
+        # load cap's gap.
         wires = [
             self._wire(cp_end, feed),
-            # The feed gap: the box's top sits across it.
-            Wire(feed, (GAP_M, 0.0, h), 1, name="ant"),
-            self._wire((GAP_M, 0.0, h), (cap_x, 0.0, h)),
-            # The load cap's gap (a plain wire without the cap: a named
-            # wire is a port edge).
-            Wire(
-                (cap_x, 0.0, h),
-                (cap_x + GAP_M, 0.0, h),
-                1,
-                name="load" if self.load_c_pF > 0 else None,
+            *self._gapped(
+                feed,
+                (length, 0.0, h),
+                [(0.0, "ant"), (cap_x, "load" if self.load_c_pF > 0 else None)],
             ),
-            self._wire((cap_x + GAP_M, 0.0, h), (length, 0.0, h)),
         ]
         if self.choke == "ideal":
             return wires
 
-        # The shield: the drop from the feed point to shield_h_m, with a
-        # short "choke" wire choke_at_m down it (the choke is a port in its
-        # interior), then the run along +y for what is left of the line.
+        # The shield: the drop from the feed point to shield_h_m, with the
+        # choke's gap choke_at_m down it, then the run along +y for what is
+        # left of the line.
         drop = h - self.shield_h_m
         if self.line_len_m <= drop + GAP_M:
             raise ValueError(
@@ -279,25 +291,14 @@ class Builder(AntennaBuilder):
                 f"choke_at_m {self.choke_at_m:g} m is not on the shield's "
                 f"{drop:g} m drop to the ground"
             )
-        z0 = h - self.choke_at_m
         knee = (0.0, 0.0, self.shield_h_m)
         end = (0.0, self.line_len_m - drop, self.shield_h_m)
-        shield = []
-        if self.choke_at_m > 0:
-            shield.append(self._wire(feed, (0.0, 0.0, z0), spec=SHIELD))
-        shield += [
-            Wire(
-                (0.0, 0.0, z0),
-                (0.0, 0.0, z0 - GAP_M),
-                1,
-                # A named wire is a port edge; without a choke it is plain shield.
-                name="choke" if self.choke == "ferrite" else None,
-                spec=SHIELD,
-            ),
-            self._wire((0.0, 0.0, z0 - GAP_M), knee, spec=SHIELD),
+        choke = "choke" if self.choke == "ferrite" else None
+        return [
+            *wires,
+            *self._gapped(feed, knee, [(self.choke_at_m, choke)], spec=SHIELD),
             self._wire(knee, end, spec=SHIELD),
         ]
-        return wires + shield
 
     def plane_labels(self):
         """The measurement-plane picker's names for the chain's nodes."""
