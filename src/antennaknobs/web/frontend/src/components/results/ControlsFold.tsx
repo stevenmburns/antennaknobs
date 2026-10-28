@@ -105,6 +105,13 @@ export function FoldToggle({
         {folded ? "⚙" : "▴"}
       </span>
       {folded && <span className="chart-fold-summary">{summary}</span>}
+      {/* Folded, the summary alone read as a caption rather than a control
+          (AC6LA, QRZ 1003328 #214, AK#2093): the cue says it opens. */}
+      {folded && (
+        <span className="chart-fold-cue" aria-hidden="true">
+          ▾ controls
+        </span>
+      )}
     </button>
   );
 }

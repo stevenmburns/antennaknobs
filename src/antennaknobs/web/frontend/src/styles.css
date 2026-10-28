@@ -5062,6 +5062,12 @@ div.opt-bands-readout {
   white-space: nowrap;
   color: var(--muted);
 }
+.chart-fold-cue {
+  flex: none;
+  margin-left: auto;
+  color: var(--accent);
+  white-space: nowrap;
+}
 .zparam-controls:has(> .chart-fold.is-folded) {
   flex-wrap: nowrap;
 }
