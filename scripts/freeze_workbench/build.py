@@ -287,9 +287,14 @@ by running your binary once. No NEC-2 is bundled on purpose: nec2++ is GPLv2
 and shipping it would change this zip's licence.
 
 NEC-4.2 (optional, needs your own licence from LLNL): no NEC-4.2 is
-bundled, for licence reasons. Set the NEC42_EXE environment variable, or
-nec42_exe under [engines] in settings.toml, to your own binary and the
-NEC-4.2 tab appears in the solver panel.
+bundled, for licence reasons. Put the full path to your own binary on one
+line in NEC42_EXE.txt beside {NAME}.exe (or set the NEC42_EXE environment
+variable, or nec42_exe under [engines] in settings.toml), for example
+
+    C:\\EZNEC 7.0\\Docs\\NEC42W64CL.exe
+
+and start the workbench again; the NEC-4.2 tab appears in the solver panel,
+and the startup line "NEC-4.2:" in this window confirms the path.
 
 THE COMMAND LINE
 ================
@@ -308,8 +313,9 @@ Richardson-extrapolated Z* under it. With no --fn the chart opens in a window
 with the matplotlib toolbar, so the Smith chart zooms and pans; add
 --fn out.png to write the picture to a file instead.
 
-It finds NEC-5 and NEC-2 the way the workbench does, through the same
-NEC5_EXE.txt and NEC2_EXE.txt beside it, the same variables and the same
+It finds NEC-5, NEC-2 and NEC-4.2 the way the workbench does, through the
+same NEC5_EXE.txt, NEC2_EXE.txt and NEC42_EXE.txt beside it, the same
+variables and the same
 settings.toml, so an engine set up once is set up for both. It does the work
 by running {NAME}.exe, so it needs that file and
 _internal beside it like everything else here.

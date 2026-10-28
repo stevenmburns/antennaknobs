@@ -172,8 +172,14 @@ licence.
 The NEC-2 tab appears in the solver panel the same way the NEC-5 one does, and
 `--engine nec2` reaches the same engine from the command line.
 
-A licensed NEC-4.2 binary of your own is reached the same way, through the
-`NEC42_EXE` variable or `nec42_exe` in `settings.toml` — see
+## Adding a NEC-4.2 engine
+
+A licensed NEC-4.2 binary of your own is reached the same way: its path on one
+line in `NEC42_EXE.txt` beside the executable, or `--nec42-exe PATH`, the
+`NEC42_EXE` variable, or `nec42_exe` under `[engines]` in `settings.toml`. The
+NEC-4.2 tab appears in the solver panel, and the startup line `NEC-4.2:` in the
+workbench's window confirms the path. EZNEC Pro+ keeps the one its External
+NEC-4.2 slot runs in its `Docs` folder too (`NEC42W64CL.exe`). See
 [NEC-4.2 as an external engine](/reference/nec42/). None is bundled: NEC-4.2 is
 licensed per user by LLNL.
 

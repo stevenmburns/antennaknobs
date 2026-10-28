@@ -53,6 +53,10 @@ console binary (nec2c, nec2++, 4nec2's nec2dxs*.exe). The bundle ships none:
 nec2++ is GPLv2, and shipping it would make this zip a combined work (#1354).
 It is the one engine most users already have, because 4nec2 installs one.
 
+``--nec42-exe`` / ``NEC42_EXE`` / ``NEC42_EXE.txt`` do the same for a NEC-4.2
+console binary (NEC42W64CL.exe, the one EZNEC's External NEC-4.2 slot runs),
+which is licensed software the user supplies, as NEC-5 is (AK#2095).
+
 ``antennaknobs-cli[.exe]`` beside this one is the same zip's command line
 (issue #1566) — ``antennaknobs-cli sweep --param nominal_nsegs ...``, the
 pip install's ``python -m antennaknobs``. It runs THIS program with a
@@ -97,8 +101,16 @@ DEFAULT_PORT = 8000
 # the user supplies (#825); NEC-2 is freely available but GPL, so the bundle
 # drives a user-supplied binary rather than ship one (#1354). The same rule for
 # both: the flag beats the variable, and the variable beats the file.
-EXE_FILES = {"NEC5_EXE": "NEC5_EXE.txt", "NEC2_EXE": "NEC2_EXE.txt"}
-EXE_FLAGS = {"NEC5_EXE": "--nec5-exe", "NEC2_EXE": "--nec2-exe"}
+EXE_FILES = {
+    "NEC5_EXE": "NEC5_EXE.txt",
+    "NEC2_EXE": "NEC2_EXE.txt",
+    "NEC42_EXE": "NEC42_EXE.txt",
+}
+EXE_FLAGS = {
+    "NEC5_EXE": "--nec5-exe",
+    "NEC2_EXE": "--nec2-exe",
+    "NEC42_EXE": "--nec42-exe",
+}
 NEC5_FILE = EXE_FILES["NEC5_EXE"]
 NEC2_FILE = EXE_FILES["NEC2_EXE"]
 # What ``antennaknobs-cli[.exe]`` puts in front of the user's arguments when
@@ -215,6 +227,7 @@ def _parse(argv: list[str]) -> dict:
         "capture_dir": None,
         "nec5_exe": None,
         "nec2_exe": None,
+        "nec42_exe": None,
         "settings": None,
     }
     it = iter(argv)
@@ -262,13 +275,14 @@ def _apply_capture_opts(opts: dict) -> None:
         os.environ["ANTENNAKNOBS_LOG_LEVEL"] = str(opts["log_level"])
     if opts.get("capture_dir"):
         os.environ["ANTENNAKNOBS_CAPTURE_DIR"] = str(opts["capture_dir"])
-    # --nec5-exe / --nec2-exe become NEC5_EXE / NEC2_EXE the same way. A flag
-    # beats a variable already set, and a set variable means NEC5_EXE.txt is
-    # not consulted, so the order is flag, then variable, then file.
-    if opts.get("nec5_exe"):
-        os.environ["NEC5_EXE"] = str(opts["nec5_exe"])
-    if opts.get("nec2_exe"):
-        os.environ["NEC2_EXE"] = str(opts["nec2_exe"])
+    # --nec5-exe / --nec2-exe / --nec42-exe become NEC5_EXE / NEC2_EXE /
+    # NEC42_EXE the same way. A flag beats a variable already set, and a set
+    # variable means NEC5_EXE.txt is not consulted, so the order is flag, then
+    # variable, then file.
+    for var, flag in EXE_FLAGS.items():
+        key = flag[2:].replace("-", "_")
+        if opts.get(key):
+            os.environ[var] = str(opts[key])
     # --settings becomes ANTENNAKNOBS_SETTINGS, which the server reads at every
     # page load (AK#1492).
     if opts.get("settings"):
@@ -404,6 +418,7 @@ def main(argv: list[str] | None = None) -> int:
         print(notice)
     print(f"  NEC-5:     {_engine_line('NEC5_EXE')}")
     print(f"  NEC-2:     {_engine_line('NEC2_EXE')}")
+    print(f"  NEC-4.2:   {_engine_line('NEC42_EXE')}")
     print(f"  settings:  {_settings_line()}")
     from antennaknobs.settings_file import capture_dir
 
