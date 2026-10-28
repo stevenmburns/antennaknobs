@@ -69,3 +69,42 @@ def test_junk_band_freqs_are_dropped_not_refused():
     ]
     assert server._live_band_freqs("7.1") == []
     assert len(server._live_band_freqs([float(f) for f in range(1, 20)])) == 8
+
+
+def _record_sweeps(monkeypatch) -> list[list[float]]:
+    """Every frequency list the live band solve sweeps, through a copy of the
+    design's example (examples are frozen) put in the server's table."""
+    import dataclasses
+
+    ex = server.EXAMPLES[REQ["geometry"]]
+    real = ex.momwire_bands
+    swept: list[list[float]] = []
+
+    def recording(req, freqs, cancel=None):
+        swept.append(list(freqs))
+        return real(req, freqs, cancel=cancel)
+
+    monkeypatch.setitem(
+        server.EXAMPLES,
+        REQ["geometry"],
+        dataclasses.replace(ex, momwire_bands=recording),
+    )
+    return swept
+
+
+def test_the_band_at_the_measurement_frequency_is_the_live_solve(client, monkeypatch):
+    """Not solved twice (Steve, 2026-10-28): the live solve already is that
+    band, so its Z is reused exactly and only the other bands are swept."""
+    swept = _record_sweeps(monkeypatch)
+    out = _ws(client, {**REQ, "band_freqs": [7.1, 14.2, 21.2], "_seq": 1})
+    assert swept == [[7.1, 21.2]]
+    assert [b["freq_mhz"] for b in out["band_zs"]] == [7.1, 14.2, 21.2]
+    assert out["band_zs"][1]["feeds"][0] == [out["z_in_re"], out["z_in_im"]]
+
+
+def test_with_no_band_at_the_measurement_frequency_every_band_is_swept(
+    client, monkeypatch
+):
+    swept = _record_sweeps(monkeypatch)
+    _ws(client, {**REQ, "band_freqs": [7.1, 21.2], "_seq": 1})
+    assert swept == [[7.1, 21.2]]
