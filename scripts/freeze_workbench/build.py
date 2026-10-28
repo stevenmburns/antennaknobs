@@ -453,6 +453,12 @@ hiddenimports += collect_submodules('antennaknobs')
 hiddenimports += collect_submodules('momwire')
 
 datas = collect_data_files('antennaknobs') + collect_data_files('schemdraw')
+# The designs folder's templates (AK#2099): .py files that are documents, not
+# modules, so collect_data_files' default (no Python sources) left them out
+# and a new folder got CLAUDE.md alone. The selftest checks they are here.
+datas += collect_data_files(
+    'antennaknobs', include_py_files=True, includes=['web/user_design_assets/*']
+)
 datas += {datas!r}
 # numpy's .dist-info, which `momwire_serve_client.pin_cpu_env` (entry.py)
 # reads to name numpy's AVX-512 targets in that release's vocabulary

@@ -380,6 +380,15 @@ def selftest() -> int:
     import antennaknobs.web.server  # noqa: F401
 
     print("server import OK")
+    # The designs folder's templates (AK#2099): .py files PyInstaller leaves
+    # out unless the build asks for them, and nothing else noticed.
+    from antennaknobs.web.user_designs import missing_assets
+
+    missing = missing_assets()
+    if missing:
+        print(f"FAIL: the designs folder's templates are not in this bundle: {missing}")
+        return 1
+    print("design templates OK")
     print("SELFTEST OK")
     return 0
 

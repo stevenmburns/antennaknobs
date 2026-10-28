@@ -40,6 +40,16 @@ __all__ = [
 ]
 
 _ASSETS = Path(__file__).resolve().parent / "user_design_assets"
+# What a new designs folder gets, refreshed at every start (`ensure_scaffold`).
+SCAFFOLD_ASSETS = ("TEMPLATE.py", "TERRAIN_TEMPLATE.py", "CLAUDE.md")
+
+
+def missing_assets() -> list[str]:
+    """The scaffold's packaged files this install lacks: none in a pip
+    install. The frozen workbench once shipped CLAUDE.md alone, because
+    PyInstaller leaves .py data out unless told (AK#2099); its selftest calls
+    this so a bundle that drops one fails before it ships."""
+    return [a for a in SCAFFOLD_ASSETS if not (_ASSETS / a).is_file()]
 
 
 def ensure_scaffold() -> None:
@@ -57,10 +67,14 @@ def ensure_scaffold() -> None:
     d = default_user_dir()
     try:
         d.mkdir(parents=True, exist_ok=True)
-        for asset in ("TEMPLATE.py", "TERRAIN_TEMPLATE.py", "CLAUDE.md"):
+        for asset in SCAFFOLD_ASSETS:
             src = _ASSETS / asset
             if src.is_file():
                 shutil.copyfile(src, d / asset)
+            else:
+                # Said, not skipped: a silent skip is how a whole release
+                # handed out a designs folder with no template (AK#2099).
+                print(f"[user_designs] {asset} is missing from this install")
     except OSError as exc:  # read-only home, permissions, … — log and move on
         print(f"[user_designs] could not scaffold {d}: {exc!r}")
 
