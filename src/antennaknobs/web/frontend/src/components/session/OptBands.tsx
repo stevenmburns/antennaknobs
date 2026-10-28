@@ -42,11 +42,6 @@ export type OptBandsControl = {
   setMeanWeight: (w: number) => void;
   /** The first band when the list is switched on: the measurement freq. */
   defaultFreq: number;
-  /** The bands ticked to show on the Smith chart while a knob turns: one
-   *  extra solve per ticked band per knob change, so each is opt-in. Absent:
-   *  no ticks are offered. */
-  shown?: number[];
-  setShown?: (f: number[]) => void;
 };
 
 // null is the server's "no reading" (a non-finite value, AK#1901); undefined
@@ -101,19 +96,6 @@ export function BandsEditor({ bands }: { bands: OptBandsControl }) {
           <ul className="opt-bands-list" aria-label="Band frequencies">
             {freqs.map((f, i) => (
               <li key={f} className="opt-bands-row">
-                {bands.setShown && (
-                  <input
-                    type="checkbox"
-                    className="opt-bands-show"
-                    aria-label={`Show ${fmtFreq(f)} MHz on the Smith chart while knobs turn`}
-                    title="Show this band's Z on the Smith chart while you turn a knob (one more solve per change)"
-                    checked={(bands.shown ?? []).includes(f)}
-                    onChange={(e) => {
-                      const now = (bands.shown ?? []).filter((g) => g !== f);
-                      bands.setShown?.(e.target.checked ? [...now, f] : now);
-                    }}
-                  />
-                )}
                 <span className="opt-bands-freq">{fmtFreq(f)} MHz</span>
                 <button
                   type="button"
@@ -163,12 +145,10 @@ export function BandsEditor({ bands }: { bands: OptBandsControl }) {
               {error}
             </div>
           )}
-          {bands.setShown && (
-            <div className="gear-menu-hint">
-              Ticked bands show their Z on the Smith chart as you turn knobs, each one
-              more solve per change
-            </div>
-          )}
+          <div className="gear-menu-hint">
+            The Smith chart lists these bands: click one there to show its Z as you
+            turn knobs
+          </div>
           <label className="opt-bands-balance">
             <span>
               Balance {bands.meanWeight.toFixed(2)}

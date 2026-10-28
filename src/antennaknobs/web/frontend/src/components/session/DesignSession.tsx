@@ -4125,8 +4125,6 @@ function DesignSessionBody({
           bands={{
             freqs: optBands,
             setFreqs: setOptBands,
-            shown: optBandsShown,
-            setShown: setOptBandsShown,
             meanWeight: optMeanWeight,
             setMeanWeight: setOptMeanWeight,
             defaultFreq: measFreq,
@@ -5389,6 +5387,9 @@ function DesignSessionBody({
       // per-eval frames carry the trial Z, so hand it to the chart.
       liveZ={optLiveZ}
       liveBands={smithBands}
+      smithBands={
+        optBands ? { freqs: optBands, shown: optBandsShown, setShown: setOptBandsShown } : null
+      }
       preview={preview}
       measured={measured}
       pattern={pattern}

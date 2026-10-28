@@ -418,3 +418,27 @@ describe("live per-feed trial rings (issue #789)", () => {
     expect(arcs.filter((a) => a.radius === 4)).toHaveLength(SETTLED.length);
   });
 });
+
+describe("band markers and the live dot (AK#2100)", () => {
+  it("paints the live dot last, over a band ring on the same point", () => {
+    // The band list's 28.47 MHz band at the measurement frequency: its ring
+    // and the live dot are one point, and the dot must stay visible on top.
+    const { arcs } = renderSmith({
+      r: 50,
+      x: 0,
+      trialBands: {
+        bands: [
+          { index: 0, freq_mhz: 28.47, z0_ohms: Z0, trail: [{ re: 50, im: 0 }], live: true },
+        ],
+        worst: null,
+      },
+    });
+    const at = gammaPoint(50, 0);
+    // Markers only: the grid's circles centre on Z0 too.
+    const here = arcs.filter(
+      (a) => a.radius < 10 && Math.abs(a.x - at.x) < 1e-6 && Math.abs(a.y - at.y) < 1e-6,
+    );
+    // The band's ring first, then the live dot (filled, r=4) over it.
+    expect(here.map((a) => a.radius)).toEqual([5, 4]);
+  });
+});

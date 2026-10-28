@@ -1,3 +1,4 @@
+import { SmithBandToggles, type SmithBandPicker } from "./SmithBandToggles";
 import {
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
@@ -56,6 +57,7 @@ export function SmithChart({
   trialFeeds,
   trialWorstFeed,
   trialBands = null,
+  bandPicker = null,
   interactive = false,
   designKey = "",
   stale = false,
@@ -129,6 +131,9 @@ export function SmithChart({
    *  gets the bright ring. While they are drawn, a trial `r`/`x` ring (the
    *  worst band's Z again) is not. They outlive the run until the next edit. */
   trialBands?: BandMarks | null | undefined;
+  /** The band list's show/hide toggles, drawn on the chart (bottom left).
+   *  Null: none (no band list, or a thumbnail). */
+  bandPicker?: SmithBandPicker | null;
   /** The chart zooms and pans (wheel / pinch / drag / keys) — the stage's
    *  chart. Off, it is a fixed picture of the whole chart: a thumbnail is a
    *  button to pick the view, not a surface to navigate. */
@@ -1013,48 +1018,14 @@ export function SmithChart({
             ...markerPoints.filter((m) => m.fi === trialWorstFeed),
           ]
         : markerPoints;
-    for (const m of drawOrder) {
-      if (m.re <= 0 && m.im === 0) continue;
-      const { gRe, gIm } = reflectionCoefficient(m.re, m.im, z0);
-      const { x: px, y: py } = S(gRe, gIm);
-      if (trial) {
-        // Hollow ring, not a filled dot. The chart's grammar is already
-        // filled = settled / hollow = the other end of a trail, so a ring
-        // reads as "being tried" rather than "this is your antenna" — which
-        // matters because nothing else on the chart has caught up yet: the
-        // sweep locus and any measured overlay still describe the geometry
-        // as it was before the run started.
-        //
-        // With a table of rings, the one the objective is driving is bright
-        // and full-width and the rest recede (#789). Eight equal rings
-        // wandering per eval read as chaos; one bright ring among seven
-        // faint ones reads as "this is the feed holding the array back",
-        // which is exactly what a minimax run is doing.
-        const isWorst =
-          markerPoints.length === 1 ||
-          trialWorstFeed === undefined ||
-          m.fi === trialWorstFeed;
-        ctx.strokeStyle = feedColor(m.fi, isWorst ? 0.85 : 0.32);
-        ctx.lineWidth = isWorst ? 2 : 1.25;
-        ctx.beginPath();
-        ctx.arc(px, py, isWorst ? 5 : 3.5, 0, 2 * Math.PI);
-        ctx.stroke();
-        continue;
-      }
-      ctx.fillStyle = feedColor(m.fi);
-      ctx.beginPath();
-      ctx.arc(px, py, 4, 0, 2 * Math.PI);
-      ctx.fill();
-      ctx.strokeStyle = `rgba(${PC.bgRgb}, 0.85)`;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-
-    // A band run's markers, over everything else. Each band: its trail as
-    // small dots fading towards the oldest, then its head as a hollow ring
-    // (the trial grammar: being tried, not settled), labelled with its MHz.
-    // The worst band's ring is the bright one and is painted last, for the
-    // reason the worst feed's is above.
+    // The band markers (a band run's, or the band list's while a knob turns),
+    // drawn under the live marker: at the measurement frequency a band's ring
+    // and the live dot are the same point, and the dot, the Z being measured,
+    // stays on top (Steve, 2026-10-28: it vanished under a same-colour ring).
+    // Each band: its trail as small dots fading towards the oldest, then its
+    // head as a hollow ring (the trial grammar: being tried, not settled),
+    // labelled with its MHz. The worst band's ring is the bright one and is
+    // painted last, for the reason the worst feed's is below.
     if (bandMarks) {
       const order = [
         ...bandMarks.bands.filter((b) => b.index !== bandMarks.worst),
@@ -1094,6 +1065,44 @@ export function SmithChart({
         ctx.fillText(`${fmtFreq(b.freq_mhz)}`, head.x + 7, head.y - 6);
       }
     }
+
+    for (const m of drawOrder) {
+      if (m.re <= 0 && m.im === 0) continue;
+      const { gRe, gIm } = reflectionCoefficient(m.re, m.im, z0);
+      const { x: px, y: py } = S(gRe, gIm);
+      if (trial) {
+        // Hollow ring, not a filled dot. The chart's grammar is already
+        // filled = settled / hollow = the other end of a trail, so a ring
+        // reads as "being tried" rather than "this is your antenna" — which
+        // matters because nothing else on the chart has caught up yet: the
+        // sweep locus and any measured overlay still describe the geometry
+        // as it was before the run started.
+        //
+        // With a table of rings, the one the objective is driving is bright
+        // and full-width and the rest recede (#789). Eight equal rings
+        // wandering per eval read as chaos; one bright ring among seven
+        // faint ones reads as "this is the feed holding the array back",
+        // which is exactly what a minimax run is doing.
+        const isWorst =
+          markerPoints.length === 1 ||
+          trialWorstFeed === undefined ||
+          m.fi === trialWorstFeed;
+        ctx.strokeStyle = feedColor(m.fi, isWorst ? 0.85 : 0.32);
+        ctx.lineWidth = isWorst ? 2 : 1.25;
+        ctx.beginPath();
+        ctx.arc(px, py, isWorst ? 5 : 3.5, 0, 2 * Math.PI);
+        ctx.stroke();
+        continue;
+      }
+      ctx.fillStyle = feedColor(m.fi);
+      ctx.beginPath();
+      ctx.arc(px, py, 4, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(${PC.bgRgb}, 0.85)`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
 
     // Top-left summary: one row per feed (when multi-feed) or one row
     // total (single-feed). Each row gets:
@@ -1285,6 +1294,7 @@ export function SmithChart({
   return (
     <div className="smith-chart" style={{ width: size, height: size }}>
       {canvas}
+      {bandPicker && <SmithBandToggles picker={bandPicker} />}
       {openZo && interactive && (
         // AK#1985: a hit area over the canvas's "Z₀ = …" corner text, which
         // opens the reference impedance where it is read.

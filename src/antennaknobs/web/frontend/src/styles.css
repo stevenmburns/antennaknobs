@@ -4696,6 +4696,45 @@ div.opt-bands-readout {
   background: var(--accent-active);
 }
 
+/* The band list's toggles on the Smith chart (bottom left, clear of the Zo
+   corner, the Y-grid button and the zoom): which bands' Z to show while a
+   knob turns, each in its marker's colour. */
+.smith-band-toggles {
+  position: absolute;
+  left: var(--space-2);
+  bottom: var(--space-2);
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  max-width: 60%;
+}
+
+.smith-band-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--muted);
+  font: var(--text-xs) var(--font-mono);
+  cursor: pointer;
+}
+
+.smith-band-toggle:hover,
+.smith-band-toggle.is-on {
+  color: var(--fg);
+}
+
+.smith-band-swatch {
+  width: 0.7em;
+  height: 0.7em;
+  border: 1.5px solid;
+  border-radius: 50%;
+}
+
 .smith-zoom {
   left: auto;
   bottom: auto;
