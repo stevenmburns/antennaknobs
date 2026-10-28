@@ -126,8 +126,11 @@ def section_uH(taps: str, al_nH: float) -> tuple[float, float]:
 class Builder(AntennaBuilder):
     default_params = MappingProxyType(
         {
+            # design_freq sizes the radiator (the tune below assumes 7.1);
+            # freq is where the readout measures: 40 m's own declared
+            # frequency (operating_bands), so the live dot sits on its ring.
             "design_freq": 7.1,
-            "freq": 7.1,
+            "freq": 7.15,
             "height_m": 9.0,
             # The radiator, as a fraction of a half wave at design_freq.
             # length_factor, load_c_pF, load_at and comp_c_pF are tuned
