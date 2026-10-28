@@ -34,11 +34,11 @@ class Builder(AntennaBuilder):
             # doesn't read it — each band sizes itself from its own `length`.
             # The band group's link_meas_freq_to_param wires each band's `freq`
             # leaf to this when a band row is selected.
-            "freq": 28.47,
+            "freq": 28.5,
             # Geometry is hand-tuned per band in absolute metres;
             # design_freq only anchors auto_mesh's density scale
             # (nominal_nsegs per quarter-wave), so it is hidden from the UI.
-            "design_freq": 28.47,
+            "design_freq": 28.5,
             "base": 7.0,
             # In-plane spread of the two bands about the y axis (deg). 0 keeps
             # each band in its own x = ±s/√2 plane (a true parallel fan).
