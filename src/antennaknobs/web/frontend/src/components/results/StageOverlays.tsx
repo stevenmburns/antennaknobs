@@ -1,4 +1,5 @@
 
+import { formatPeakAngles, maxAzimuthsDeg } from "../../lib/peakLobes";
 import { useEffect, useRef, useState } from "react";
 import { NO_LEDGER_MININEC } from "../../lib/api";
 import type { NormCheckData, SolveResponse } from "../../lib/api";
@@ -231,14 +232,15 @@ function signed(x: number, digits: number): string {
 // and fetched on a click otherwise. Clicking it aims both cut knobs there.
 function SlicePeak({ captions }: { captions: FarFieldCaptions }) {
   if (captions.peakDbi == null || captions.peakAngleDeg == null) return null;
-  const where = captions.cut === "xy" ? "az" : "el";
+  const axis = captions.cut === "xy" ? "az" : "el";
+  // Every lobe within 0.01 dB of the max (AK#2094), as the 3-D max lists them.
+  const where = formatPeakAngles(captions.peakAnglesDeg ?? [captions.peakAngleDeg], axis);
   return (
     <span
       className="overlay-readout overlay-peak"
       title={`The maximum of this ${captions.cut === "xy" ? "azimuth" : "elevation"} cut and where it is on the cut (EZNEC's "Slice Max Gain"). Over the far side of the zenith an elevation reads past 90°.`}
     >
-      peak {signed(captions.peakDbi, 1)} dBi @ {where}{" "}
-      {Math.round(captions.peakAngleDeg)}°
+      peak {signed(captions.peakDbi, 1)} dBi @ {where}
     </span>
   );
 }
@@ -279,7 +281,7 @@ function PeakReadout({
             3-D max {signed(maxMetrics.peak_gain_dbi, 1)} dBi{" "}
             {/* Two lines, so the readout stays narrow on a small stage. */}
             <span className="overlay-max-where">
-              @ az {Math.round(maxMetrics.azimuth_deg) % 360}°, el{" "}
+              @ {formatPeakAngles(maxAzimuthsDeg(maxMetrics), "az")}, el{" "}
               {Math.round(maxMetrics.takeoff_deg)}°
             </span>
           </button>

@@ -1,3 +1,4 @@
+import { maxBearingDeg } from "../../lib/peakLobes";
 import {
   useCallback,
   useContext,
@@ -2397,7 +2398,9 @@ function DesignSessionBody({
   // Aim both cuts through the maximum: the elevation cut at its bearing, the
   // azimuth cut at its elevation (the knob's own 0-89° range).
   function aimAtMax(m: PatternMetrics) {
-    setElevAzDeg(Math.round(m.azimuth_deg) % 360);
+    // Its first lobe; an omnidirectional peak leaves the bearing (AK#2094).
+    const bearing = maxBearingDeg(m);
+    if (bearing != null) setElevAzDeg(bearing);
     setAzElevDeg(Math.min(89, Math.max(0, Math.round(m.takeoff_deg))));
   }
 
@@ -5028,8 +5031,9 @@ function DesignSessionBody({
                       if (!pk) return;
                       const deg =
                         asked === "Elevation"
-                          ? Math.round(pk.azimuth_deg)
+                          ? maxBearingDeg(pk)
                           : Math.min(89, Math.max(1, Math.round(pk.takeoff_deg)));
+                      if (deg == null) return; // round: every bearing is the peak's
                       setAt((c) => (chartPatternView(c)?.view === asked ? setChartCut(c, deg) : c));
                     });
                   },

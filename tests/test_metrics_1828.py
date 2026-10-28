@@ -183,6 +183,9 @@ def test_the_table_as_metrics_is_pattern_metrics_bit_for_bit(client, knobs):
     assert r.status_code == 200, r.text
     served = r.json()["metrics"]
     served.pop("measurement_freq_mhz")
+    # The 3-D max readout's lobes ride beside the table, not in it (AK#2094).
+    assert isinstance(served.pop("azimuth_lobes_deg"), list)
+    assert served.pop("azimuth_ripple_db") >= 0.0
     eng = _engine(ground=None, **knobs)
     got = mx.table_values(mx.source_for(eng))
     assert set(got) == set(served) == {m.key for m in an.TABLE_METRICS}

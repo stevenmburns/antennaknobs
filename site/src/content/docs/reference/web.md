@@ -2257,7 +2257,19 @@ elevation cut turns to its bearing and the azimuth cut rises to its elevation,
 and the slice peak becomes the 3-D maximum. A re-solve offers the button again
 rather than keep an answer for a design that has changed. With a pattern
 pinned, the compare table already fetches the maximum, so it appears without
-asking. The **×** beside it hides it until you find it again. The search
+asking. The **×** beside it hides it until you find it again.
+
+**A maximum in more than one place.** An antenna that looks the same after a
+turn of 360°/k has k equal lobes: a dipole or a turnstile two, 180° apart, a
+vertical on three radials three, 120° apart. Both readouts list every lobe that
+comes within 0.01 dB of the maximum (NEC's printed resolution), each at the
+centre of its flat top: **3-D max +4.6 dBi @ az 7° · 187°, el 32°**. A ring
+that stays within 0.01 dB all the way round, a vertical on four or more radials,
+reads **@ all az**. Past four lobes the readout lists four and how many more.
+Clicking it aims the elevation cut at the first lobe listed, and leaves it where
+it is on a round ring. Front-to-back is still read through the maximum: 0 dB
+with an even number of equal lobes, where the back of one is another, and the
+ripple between lobes with an odd number, where it falls between two. The search
 samples elevations 0–90° over ground (0–180° in free space, so a lobe
 pointing into the lower hemisphere is not missed), then refines the peak it
 finds to 0.01° — a lobe sitting exactly on the horizon reads there, not one

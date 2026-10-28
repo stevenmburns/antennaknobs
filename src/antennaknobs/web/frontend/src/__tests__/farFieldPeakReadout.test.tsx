@@ -112,6 +112,27 @@ describe("the peak readout", () => {
     expect(onAimAtMax).toHaveBeenCalledWith(METRICS);
   });
 
+  it("lists every lobe of a peak, and none on a round ring (AK#2094)", () => {
+    const { unmount } = controls({
+      maxMetrics: { ...METRICS, azimuth_lobes_deg: [7.03, 187.03] },
+    });
+    expect(
+      screen.getByRole("button", { name: "3-D max +6.8 dBi @ az 7° · 187°, el 12°" }),
+    ).toBeTruthy();
+    unmount();
+    controls({ maxMetrics: { ...METRICS, azimuth_lobes_deg: [] } });
+    expect(
+      screen.getByRole("button", { name: "3-D max +6.8 dBi @ all az, el 12°" }),
+    ).toBeTruthy();
+  });
+
+  it("lists the slice's lobes the same way", () => {
+    controls({
+      captions: { ...CAPTIONS, cut: "xy", peakAngleDeg: 7, peakAnglesDeg: [7, 187] },
+    });
+    expect(screen.getByText("peak +6.8 dBi @ az 7° · 187°")).toBeTruthy();
+  });
+
   it("dismisses the 3-D max with its ×", () => {
     const onDismissMax = vi.fn();
     const onAimAtMax = vi.fn();
