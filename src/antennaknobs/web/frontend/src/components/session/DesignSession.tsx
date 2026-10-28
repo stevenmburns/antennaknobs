@@ -1855,6 +1855,35 @@ function DesignSessionBody({
       return bands.length ? { ...next, bands } : null;
     });
   }, [result, optBandsLive, optBands, optForm]);
+  // The bands the design declares (AK#2108), from its latest solve: they
+  // name the Smith chart's toggles and seed the band list.
+  const declaredBands =
+    result?.geometry === geometry ? (result?.operating_bands ?? null) : null;
+  const declaredKey = declaredBands?.map((b) => `${b.label}@${b.freq_mhz}`).join(",") ?? "";
+  const declaredBandFreqs = useMemo(
+    () => (declaredBands ?? []).map((b) => b.freq_mhz),
+    // keyed on the content, not the response object
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [declaredKey],
+  );
+  const declaredBandLabels = useMemo(
+    () => new Map((declaredBands ?? []).map((b) => [b.freq_mhz, b.label])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [declaredKey],
+  );
+  // A design that declares its bands opens with them in the band list, every
+  // one shown on the Smith chart, once per design load: the user's own list
+  // wins, and switching the list off stays off.
+  const seededBandsFor = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${geometry}#${previewNonce}`;
+    if (declaredBandFreqs.length === 0 || seededBandsFor.current === key) return;
+    seededBandsFor.current = key;
+    if (optBands !== null) return;
+    // Seeding the band list from the design's declaration, once per load.
+    setOptBands(declaredBandFreqs);
+    setOptBandsShown(declaredBandFreqs);
+  }, [declaredBandFreqs, geometry, previewNonce, optBands, setOptBands, setOptBandsShown]);
   // The design's band table as the SWR charts' band spans.
   const hamBandSpans = useMemo(
     () =>
@@ -4136,7 +4165,9 @@ function DesignSessionBody({
             meanWeight: optMeanWeight,
             setMeanWeight: setOptMeanWeight,
             defaultFreq: measFreq,
-            seedFreqs: bandAnchorFreqs(currentExample, currentValues, MAX_OPT_BANDS),
+            seedFreqs: declaredBandFreqs.length
+              ? declaredBandFreqs
+              : bandAnchorFreqs(currentExample, currentValues, MAX_OPT_BANDS),
           }}
           optPaceMs={optPaceMs}
           kept={keptReadout}
@@ -5397,7 +5428,14 @@ function DesignSessionBody({
       liveZ={optLiveZ}
       liveBands={smithBands}
       smithBands={
-        optBands ? { freqs: optBands, shown: optBandsShown, setShown: setOptBandsShown } : null
+        optBands
+          ? {
+              freqs: optBands,
+              shown: optBandsShown,
+              setShown: setOptBandsShown,
+              labels: declaredBandLabels,
+            }
+          : null
       }
       hamBands={hamBandSpans}
       preview={preview}

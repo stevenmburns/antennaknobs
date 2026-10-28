@@ -34,6 +34,21 @@ describe("SmithBandToggles", () => {
     expect(shown()).toEqual([24.97]);
   });
 
+  it("names a band the design declares, the frequency otherwise (AK#2108)", () => {
+    render(
+      <SmithBandToggles
+        picker={{
+          freqs: [7.15, 14.175],
+          shown: [],
+          setShown: () => {},
+          labels: new Map([[7.15, "40 m"]]),
+        }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "40 m" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "14.175" })).toBeTruthy();
+  });
+
   it("draws nothing with an empty band list", () => {
     render(<Harness freqs={[]} />);
     expect(screen.queryByRole("group", { name: "Bands on the Smith chart" })).toBeNull();

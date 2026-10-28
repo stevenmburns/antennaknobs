@@ -8,6 +8,10 @@ export type SmithBandPicker = {
   freqs: number[];
   shown: number[];
   setShown: (freqs: number[]) => void;
+  /** A band's name where the design declares one ("40 m"), by its
+   *  frequency (`operating_bands`, AK#2108); the frequency is shown
+   *  otherwise. */
+  labels?: ReadonlyMap<number, string>;
 };
 
 // One toggle per band, on the chart, in its marker's colour (Steve,
@@ -21,6 +25,7 @@ export function SmithBandToggles({ picker }: { picker: SmithBandPicker }) {
       {picker.freqs.map((f, i) => {
         const on = picker.shown.includes(f);
         const color = feedColor(i, 0.95);
+        const name = picker.labels?.get(f);
         return (
           <button
             key={f}
@@ -29,8 +34,8 @@ export function SmithBandToggles({ picker }: { picker: SmithBandPicker }) {
             aria-pressed={on}
             title={
               on
-                ? `Stop showing ${fmtFreq(f)} MHz`
-                : `Show ${fmtFreq(f)} MHz here as you turn knobs (one more solve per change)`
+                ? `Stop showing ${name ? `${name}, ` : ""}${fmtFreq(f)} MHz`
+                : `Show ${name ? `${name}, ` : ""}${fmtFreq(f)} MHz here as you turn knobs (one more solve per change)`
             }
             onClick={() =>
               picker.setShown(on ? picker.shown.filter((g) => g !== f) : [...picker.shown, f])
@@ -41,7 +46,7 @@ export function SmithBandToggles({ picker }: { picker: SmithBandPicker }) {
               aria-hidden="true"
               style={{ borderColor: color, background: on ? color : "transparent" }}
             />
-            {fmtFreq(f)}
+            {name ?? fmtFreq(f)}
           </button>
         );
       })}
