@@ -23,7 +23,11 @@ export function CatalogPanel({
   reloadBusy,
   advisories,
   onOpenDeck,
+  canRescan = true,
 }: {
+  /** The ⟳ has a design folder to read (AK#2096): false on the hosted
+   *  instance, where it could never find a file, so it is not shown. */
+  canRescan?: boolean;
   /** Open the user's own NEC deck (.nec / .ssn) as a design (lib/decks.ts). */
   onOpenDeck?: (file: File) => void;
   /** Advisories from the last solve (#1144); absent on a
@@ -55,11 +59,14 @@ export function CatalogPanel({
           setFilter={setGeomFilter}
           onSelect={setGeometry}
         />
-        {/* Always present: with a user design selected it reloads that file
-            and re-solves (#867); otherwise it rescans the user-design folder,
-            so a file dropped into an empty ~/.antennaknobs/designs shows up
-            without a page reload. The catalog never refreshes on its own. */}
-        {currentExample?.name.startsWith("user.") ? (
+        {/* On a local workbench: with a user design selected it reloads that
+            file and re-solves (#867); otherwise it rescans the user-design
+            folder, so a file dropped into an empty ~/.antennaknobs/designs
+            shows up without a page reload. The catalog never refreshes on its
+            own. Hosted it is not shown: the folder is the server's, and no
+            visitor can put a file there (AK#2096). */}
+        {canRescan &&
+          (currentExample?.name.startsWith("user.") ? (
           <button
             type="button"
             className="design-reload-btn"
@@ -81,7 +88,7 @@ export function CatalogPanel({
           >
             ⟳
           </button>
-        )}
+        ))}
         {onOpenDeck && (
           // Your own model, from MMANA / 4nec2 / EZNEC as a .nec deck, a
           // SimNEC .ssn, an MMANA-GAL .maa (AK#1897) or an EZNEC .ez

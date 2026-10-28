@@ -386,6 +386,7 @@ export function DesignSession({
     uiDefaults,
     versionLabel,
     canSaveStudies,
+    userDesigns,
     error,
   } = useCapabilities();
   if (error !== null)
@@ -414,6 +415,7 @@ export function DesignSession({
       uiDefaults={uiDefaults}
       versionLabel={versionLabel}
       canSaveStudies={canSaveStudies}
+      userDesigns={userDesigns}
       deepLink={deepLink}
     />
   );
@@ -434,6 +436,7 @@ function DesignSessionBody({
   uiDefaults,
   versionLabel,
   canSaveStudies,
+  userDesigns,
 }: {
   id: number;
   active: boolean;
@@ -455,6 +458,8 @@ function DesignSessionBody({
   versionLabel: string | null;
   /** "Save as study" may write a file (AK#1757 step 7 unit 4). */
   canSaveStudies: boolean;
+  /** The ⟳ rescan has a design folder to read (AK#2096). */
+  userDesigns: boolean;
 }) {
   const [geometry, setGeometry] = useState<string>("");
 
@@ -3913,6 +3918,7 @@ function DesignSessionBody({
           onReloadDesign={reloadDesigns}
           reloadBusy={reloadBusy}
           onOpenDeck={openDeckFromFile}
+          canRescan={userDesigns}
         />
 
         {currentExample && (

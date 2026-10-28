@@ -33,6 +33,9 @@ type CapabilitiesPayload = {
   /** Whether "save as study" may write a file (AK#1757 step 7 unit 4):
    *  false on the hosted instance, absent from a server predating it. */
   can_save_studies?: boolean;
+  /** Whether the server's design folder can gain a file (AK#2096): false on
+   *  the hosted instance, absent from a server predating it. */
+  user_designs?: boolean;
 };
 
 export type CapabilitiesState = {
@@ -74,6 +77,9 @@ export type CapabilitiesState = {
   /** "Save as study" writes a file: a local workbench only (the server
    *  refuses it hosted too). False until the server says otherwise. */
   canSaveStudies: boolean;
+  /** The ⟳ rescan has a folder to read: a local workbench (AK#2096). True
+   *  until the server says otherwise, which is how it always was. */
+  userDesigns: boolean;
   error: string | null;
 };
 
@@ -99,6 +105,7 @@ export function useCapabilities(): CapabilitiesState {
   const [uiDefaults, setUiDefaults] = useState<UiDefaults | null>(null);
   const [versionLabel, setVersionLabel] = useState<string | null>(null);
   const [canSaveStudies, setCanSaveStudies] = useState(false);
+  const [userDesigns, setUserDesigns] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -148,6 +155,7 @@ export function useCapabilities(): CapabilitiesState {
         });
         setVersionLabel(typeof c.version_label === "string" ? c.version_label : null);
         setCanSaveStudies(c.can_save_studies === true);
+        setUserDesigns(c.user_designs !== false);
         // Each of these is a payload the session cannot start from, so each
         // takes the error path with its own sentence rather than stranding
         // the session on the loading note or starting it on a guess. An
@@ -188,6 +196,7 @@ export function useCapabilities(): CapabilitiesState {
     uiDefaults,
     versionLabel,
     canSaveStudies,
+    userDesigns,
     error,
   };
 }

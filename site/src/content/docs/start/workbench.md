@@ -129,7 +129,9 @@ Explorer's address bar always works.
 
 - A `.py` design in it appears in the design picker under **Your designs**
   as `user.<file name>`. Press the ⟳ button beside **Open…** to pick up a
-  new file; there is no need to restart.
+  new file; there is no need to restart. (The hosted app has no designs
+  folder of yours to read, so a `.py` design needs this installed
+  workbench.)
 - A file in a subfolder is named by its path: `mydesigns\my_dipole.py` is
   `user.mydesigns.my_dipole`, grouped under **Your designs / mydesigns**.
   Folders whose names start with `_` or `.` are skipped.

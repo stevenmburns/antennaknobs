@@ -1826,7 +1826,7 @@ them as self-describing rows the readout renders generically, so a new
 design idea (including a user design in `~/.antennaknobs/designs/`) gets its
 numbers on screen with no frontend change.
 
-A **⟳ button** beside the design picker is always there. When the design
+A **⟳ button** beside the design picker is there on a local workbench. When the design
 you're iterating **is** a user design — editor in one window, workbench in
 the other — it re-reads that file and re-solves in place: your tuned knob
 values always survive the reload; a parameter the edited file just *grew*
@@ -1835,7 +1835,9 @@ the SimNEC circuit and the engine's deck are the edited file's. One click
 instead of a page reload per edit cycle. With anything else loaded, the same
 button instead rescans `~/.antennaknobs/designs` for new or changed files, so
 a design dropped into an empty folder shows up in the picker without a page
-reload.
+reload. The hosted app has no ⟳: the designs folder is the server's, and no
+visitor can put a file there, so `.py` designs run on an installed workbench
+and the hosted app opens your own model with **Open…** instead.
 
 ## Power budget
 
