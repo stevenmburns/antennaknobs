@@ -218,6 +218,13 @@ _W7EL = re.compile(
     r"\s*([^\s,()]+)\s*,\s*([^\s,()]+)\s*\)$",
     re.IGNORECASE,
 )
+# The exporter's NEC-5 alternative for a 1-segment fed wire (AK#2091): SimNEC
+# applies it only on its NEC-5 engine, so a read for antennaknobs' engines,
+# which take the NEC2 block's segment-centre feed, keeps the unguarded count.
+_NEC5_JAM = re.compile(
+    r"^if\s*\(\s*NECOptions\.Engine\s*==\s*5\s*\)\s*"
+    r"\$GW_\d+\s*\.\s*JamSegments\s*\(\s*\d+\s*\)$"
+)
 _ENGINE_GUARD = re.compile(
     r"^(?:if\s*\(\s*NECOptions\.Engine\s*==\s*2\s*\)|else|errorOutln\s*\(.*\))$"
 )
@@ -2022,7 +2029,7 @@ class _Script:
             # The jacket's dielectric loss (AK#2035), served by momwire#765.
             self.insulation = (thick, eps_r, tand) if thick > 0.0 else None
             return
-        if _ENGINE_GUARD.match(stmt):
+        if _ENGINE_GUARD.match(stmt) or _NEC5_JAM.match(stmt):
             return
         m = _R_COMPONENT.match(stmt)
         if m:
