@@ -395,7 +395,6 @@ def test_twoband_fan_dipole_carries_spacing_sweep_variants():
     # comparison sweep the user runs after picking a baseline.
     expected = {
         "default",
-        "current_physical",
         "s01",
         "s015",
         "s01_eps001",
