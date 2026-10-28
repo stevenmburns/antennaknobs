@@ -79,6 +79,8 @@ describe("the chart header's fold", () => {
       name: "Show the chart's controls",
     });
     expect(toggle.textContent).toContain("C (pF) 10–100 · 50 pts");
+    // A visible cue that it opens, not only the tooltip (AK#2093).
+    expect(toggle.textContent).toContain("▾ controls");
     fireEvent.click(screen.getByRole("button", { name: "run" }));
     expect(onRun).toHaveBeenCalled();
   });

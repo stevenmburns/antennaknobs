@@ -421,7 +421,14 @@ The **Sweep** view is the workbench's analysis chart. It opens on a
 **frequency sweep on the Smith chart**, over the
 [measurement dial's range](#the-measurement-dial-is-the-sweep-range), where the
 Smith view used to be. Its header, on the chart, holds what it computes and how
-it draws it:
+it draws it.
+
+In a window narrower than about 1100 px (a phone, or a desktop browser zoomed to
+175 %) every chart header starts **folded** to one line: a toggle that names the
+range (**⚙ 13–15.35 MHz ▾ controls**), then **Run** / **Stop** and the progress
+count. Tap the toggle to bring back the range boxes (from, to, points, step) and
+the rest of the header; **▴** folds it again. The choice holds for every chart
+and is remembered in this browser.
 
 - **analysis** — what the chart runs. First what runs here: **freq sweep
   (the design's band)**, the design's [analyses](#a-designs-analyses) the
