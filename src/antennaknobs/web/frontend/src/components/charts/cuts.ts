@@ -1,3 +1,4 @@
+import { lobeCentresDeg } from "../../lib/peakLobes";
 import { useEffect, useState } from "react";
 import type { PatternCuts, SolveResponse } from "../../lib/api";
 import { cutDbiTop, refineCutAngles } from "../../lib/refine";
@@ -707,6 +708,24 @@ export function slicePeakAngleDeg(
   return cut === "xy" ? a : a > 180 ? a - 360 : a;
 }
 
+/** Every lobe of a trace's maximum, in the cut's own terms (AK#2094): the
+ *  azimuths of an xy cut (empty when it is round), the elevations of a yz
+ *  cut, read as `slicePeakAngleDeg` reads one. */
+export function slicePeakAnglesDeg(
+  trace: { dbi: number[]; anglesDeg?: number[] },
+  cut: FarFieldCut,
+): number[] {
+  const n = trace.dbi.length;
+  const angles =
+    trace.anglesDeg && trace.anglesDeg.length === n
+      ? trace.anglesDeg
+      : Array.from({ length: n }, (_, i) => (360 * i) / n);
+  return lobeCentresDeg(angles, trace.dbi, cut === "xy").map((raw) => {
+    const a = ((raw % 360) + 360) % 360;
+    return cut === "xy" ? a : a > 180 ? a - 360 : a;
+  });
+}
+
 /** What a far-field chart prints in its corners for one cut (see
  *  `FarFieldCaptions`), from the live trace it draws. Shared by the one-cut
  *  charts and the combined view (AK#1730), which hands up one per cut. */
@@ -727,6 +746,7 @@ export function buildFarFieldCaptions(
         : `elev @ ${elevAzDeg}° az (dBi)`,
     peakDbi: result && trace ? trace.peakDbi : null,
     peakAngleDeg: result && trace ? slicePeakAngleDeg(trace, cut) : null,
+    peakAnglesDeg: result && trace ? slicePeakAnglesDeg(trace, cut) : null,
     field:
       liveCuts && result?.ground_terrain
         ? liveCuts.diffraction

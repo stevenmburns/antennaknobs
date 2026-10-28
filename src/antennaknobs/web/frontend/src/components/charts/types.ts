@@ -25,6 +25,10 @@ export type FarFieldCaptions = {
    *  the far side past 90; negative below the horizon). Null with no trace. */
   peakDbi: number | null;
   peakAngleDeg: number | null;
+  /** Every place the trace comes within 0.01 dB of its maximum, one per lobe
+   *  (`lib/peakLobes`, AK#2094); empty on an omnidirectional azimuth ring.
+   *  Absent: read `peakAngleDeg` alone. */
+  peakAnglesDeg?: number[] | null;
   /** Over faceted terrain, which field the trace is (issue #1373). */
   field: "with diffraction" | "specular while dragging" | null;
   /** Share of current moment below ground, percent (issue #1341). */
@@ -45,6 +49,11 @@ export type PatternMetrics = {
    * the pattern's average gain, normalised by the full sphere. Optional so a
    * pin fetched from an older server still renders ("—"). */
   rdf_db?: number;
+  /** Every azimuth sharing the peak to 0.01 dB on its elevation's ring, one
+   *  per lobe; empty when the ring is omnidirectional (`far_field.ring_lobes`,
+   *  AK#2094). Absent from an older server: `azimuth_deg` alone. */
+  azimuth_lobes_deg?: number[];
+  azimuth_ripple_db?: number;
   measurement_freq_mhz?: number;
 };
 

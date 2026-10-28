@@ -2937,9 +2937,11 @@ def _solved_thunk(build, meas_freq: float):
 def _metrics_from_gain(gain, meas_freq: float) -> dict:
     """`far_field_metrics`' answer from a gain evaluator: the one place both
     the fresh path and a solve's captured state (AK#1727) produce it."""
-    from antennaknobs.far_field import refined_pattern_metrics
+    from antennaknobs.far_field import refined_pattern_metrics, ring_lobes
 
     metrics = refined_pattern_metrics(gain)
+    # Every azimuth sharing the peak, for the 3-D max readout (AK#2094).
+    metrics.update(ring_lobes(gain, metrics))
     metrics["measurement_freq_mhz"] = meas_freq
     return metrics
 
@@ -5417,6 +5419,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # runs -- through `metrics.table_values`, so a cell's table comes from
         # the engine that solved it. Same builder setup as `_engine_solve`.
         from antennaknobs import metrics as mx
+        from antennaknobs.far_field import ring_lobes
 
         design_freq, meas_freq = _req_freqs(req)
         builder = _build_builder(cls, req)
@@ -5425,7 +5428,11 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             builder.design_freq = design_freq
         _apply_plane(builder, req)
         eng = _SEAMS_BY_SOLVER[solver].make_engine(req, builder)
-        metrics = mx.table_values(mx.source_for(eng))
+        source = mx.source_for(eng)
+        metrics = mx.table_values(source)
+        if metrics.get("takeoff_deg") is not None:
+            # Every azimuth sharing the peak (AK#2094), off the same source.
+            metrics.update(ring_lobes(source.gain, metrics))
         metrics["measurement_freq_mhz"] = meas_freq
         return metrics
 

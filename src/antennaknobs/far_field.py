@@ -214,6 +214,61 @@ def rdf_db(target_gain_dbi, gain_dbi, thetas_deg, phis_deg):
     )
 
 
+# How close to the peak another azimuth must come to share it: NEC's printed
+# resolution, so the readouts list the same lobes whichever engine drew them
+# (AK#2094).
+PEAK_LOBE_TOL_DB = 0.01
+
+
+def azimuth_lobes(phis_deg, ring_dbi, peak_dbi=None, *, tol_db=PEAK_LOBE_TOL_DB):
+    """``(lobes, ripple)`` for the azimuth ring through a pattern's peak
+    (AK#2094): the azimuths, ascending in [0, 360), at which the ring comes
+    within ``tol_db`` of ``peak_dbi`` (its own maximum if None), one per lobe,
+    each the centre of its run of such samples; and the ring's max - min.
+
+    An antenna that is the same after a turn of 360°/k has k equal lobes (a
+    dipole or SP3L's turnstile 2, a vertical on three radials 3), and which
+    one a first-found rule names is chance; listing them is not. A ring
+    within ``tol_db`` all the way round is omnidirectional, and ``lobes`` is
+    empty: no azimuth is the peak's. ``phis_deg`` is evenly spaced over one
+    turn and not closed (no 360° copy of 0°).
+
+    Not a `pattern_metrics` key: that table is scalars by contract (the
+    metrics table, AK#1828). The workbench's peak readouts attach it
+    (`ring_lobes`)."""
+    phis = np.asarray(phis_deg, float)
+    ring = np.asarray(ring_dbi, float)
+    top = float(ring.max()) if peak_dbi is None else float(peak_dbi)
+    ripple = float(ring.max() - ring.min())
+    on = ring >= top - tol_db
+    if on.all() or not on.any():
+        return [], ripple
+    n = len(ring)
+    step = 360.0 / n
+    first_off = int(np.flatnonzero(~on)[0])
+    lobes, run = [], []
+    for k in range(1, n + 1):
+        i = (first_off + k) % n
+        if on[i]:
+            run.append(i)
+        elif run:
+            lobes.append((phis[run[0]] + step * (len(run) - 1) / 2.0) % 360.0)
+            run = []
+    return sorted(float(a) for a in lobes), ripple
+
+
+def ring_lobes(gain, metrics) -> dict:
+    """``{"azimuth_lobes_deg", "azimuth_ripple_db"}`` for a pattern's
+    ``metrics``, off ``gain(thetas, phis)`` (a gain evaluator or a
+    `metrics.Source`): the ring at the peak's elevation, on whole degrees from
+    the peak's azimuth, which a 1-degree grid also serves exactly."""
+    theta = 90.0 - float(metrics["takeoff_deg"])
+    phis = (float(metrics["azimuth_deg"]) + np.arange(0.0, 360.0, 1.0)) % 360.0
+    ring = np.asarray(gain([theta], phis), float)[0]
+    lobes, ripple = azimuth_lobes(phis, ring, metrics["peak_gain_dbi"])
+    return {"azimuth_lobes_deg": lobes, "azimuth_ripple_db": ripple}
+
+
 def pattern_metrics(ff, *, beamwidth_db=3.0, has_ground=None):
     """Summarise a `FarField` into scalar metrics for comparing antennas.
 
