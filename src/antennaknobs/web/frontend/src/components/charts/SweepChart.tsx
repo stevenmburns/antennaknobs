@@ -14,6 +14,9 @@ import {
   effectiveChoice,
   isWholeRange,
   formatTick,
+  hamBandLabel,
+  hamBandMarks,
+  type HamBandSpan,
   s11DbForSwr,
   sweepAxisDomain,
   type SweepAxisChoice,
@@ -126,6 +129,8 @@ function valueFor(mode: SweepMode, re: number, im: number, z0: number): number {
   return mode === "gamma" ? gammaDbFromMag(g) : vswrFromGammaMag(g);
 }
 
+const NO_HAM_BANDS: readonly HamBandSpan[] = [];
+
 export function SweepChart({
   mode,
   r,
@@ -147,6 +152,7 @@ export function SweepChart({
   stale = false,
   curves = NO_CURVES,
   pins = NO_PINS,
+  hamBands = NO_HAM_BANDS,
 }: {
   mode: SweepMode;
   r: number;
@@ -195,6 +201,10 @@ export function SweepChart({
    *  dashed, in their own colours, each at ITS OWN Z0 (ruling 4), no live
    *  marker. Auto fits them too; the hover reads them. */
   pins?: readonly PinCurve[];
+  /** The ham bands to mark (the design's band table): each one the sweep
+   *  overlaps is a full-height span labelled with how much of it is under
+   *  the threshold. Omitted on a thumbnail. */
+  hamBands?: readonly HamBandSpan[];
 }) {
   // The choice as drawn: the mode's default when none is passed, and a VSWR
   // Auto read as the 1–∞ scale that replaced it. From here on `axis.kind`
@@ -346,6 +356,14 @@ export function SweepChart({
   const span =
     curveSpan ?? (pinLo < pinHi ? { lo: pinLo, hi: pinHi } : null);
   const spanKey = span ? `${span.lo},${span.hi}` : "";
+  // The ham bands the sweep overlaps, with their share under the threshold
+  // (none known before the chart's own curve has landed).
+  const hamMarks = span
+    ? hamBandMarks(hamBands, bands, span.lo, span.hi).map((m) =>
+        hasSweep ? m : { ...m, covered: null },
+      )
+    : [];
+  const hamKey = hamMarks.map((m) => `${m.label}:${m.covered ?? "?"}`).join(",");
 
   // Hover (AK#1757 item 1): the frequency under the pointer, and each
   // curve's value there, the live curve's and each pin's (at its Z0).
@@ -435,6 +453,11 @@ export function SweepChart({
     const thresholdAt = project(thresholdY);
     if (thresholdAt >= dom.lo && thresholdAt <= dom.hi) {
       const ty = yOf(thresholdY);
+      // The good side of the line, as a horizontal strip: SWR is the chart's
+      // vertical axis, so its zone runs across. (Full-height columns under
+      // the in-threshold runs read as ham bands; AC6LA, 2026-10-27.)
+      ctx.fillStyle = `rgba(${PC.thresholdRgb}, 0.07)`;
+      ctx.fillRect(marginL, ty, plotW, marginT + plotH - ty);
       ctx.strokeStyle = `rgb(${PC.thresholdRgb})`;
       ctx.lineWidth = 0.8;
       ctx.setLineDash([5, 3]);
@@ -490,18 +513,43 @@ export function SweepChart({
       });
     };
 
+    // The ham bands the sweep overlaps: faint full-height spans, labelled at
+    // the top with how much of each is under the threshold. Vertical marks
+    // are frequency on this chart; the threshold's zone is the horizontal
+    // strip above.
+    if (hasSpan && hamMarks.length > 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(marginL, marginT, plotW, plotH);
+      ctx.clip();
+      ctx.fillStyle = `rgba(${PC.hamBandRgb}, 0.12)`;
+      const xs = hamMarks.map((m) => {
+        const x0 = xOf(Math.max(m.lo, fLo!));
+        const x1 = xOf(Math.min(m.hi, fHi!));
+        return { x0, x1: Math.max(x1, x0 + 1) };
+      });
+      for (const { x0, x1 } of xs) ctx.fillRect(x0, marginT, x1 - x0, plotH);
+      ctx.fillStyle = PC.labelBright;
+      ctx.font = CHART_FONT.tick;
+      let lastRight = -Infinity;
+      hamMarks.forEach((m, i) => {
+        const text = hamBandLabel(m);
+        const w = ctx.measureText(text).width;
+        const cx = (xs[i].x0 + xs[i].x1) / 2;
+        const left = Math.max(marginL + 2, Math.min(cx - w / 2, marginL + plotW - w - 2));
+        if (left < lastRight + 6) return; // a neighbour's label is there already
+        ctx.fillText(text, left, marginT + 11);
+        lastRight = left + w;
+      });
+      ctx.restore();
+    }
+
     if (hasSweep) {
       const freqs = sweep!.freqs_mhz;
       // A stale sweep dims the trace and its bands, never the marker below.
       ctx.save();
       ctx.globalAlpha = stale ? STALE_TRACE_ALPHA : 1;
 
-      // The below-threshold band(s), shaded under the trace.
-      ctx.fillStyle = `rgba(${PC.thresholdRgb}, 0.12)`;
-      for (const b of bands) {
-        const x0 = xOf(b.lo);
-        ctx.fillRect(x0, marginT, xOf(b.hi) - x0, plotH);
-      }
 
       // One polyline per feed, dim "trail" color (SmithChart's convention:
       // dim = sweep trail, bright = current-Z marker). Unlike the Smith
@@ -532,10 +580,26 @@ export function SweepChart({
             const z = zAt(fi, i);
             return valueFor(mode, z.re, z.im, z0);
           });
-          strokeBroken(
-            freqs.map((f, i) => trailPoint(xOf(f), marginT + plotH * (1 - rawFracOf(vs[i])))),
-            vs,
+          const pts = freqs.map((f, i) =>
+            trailPoint(xOf(f), marginT + plotH * (1 - rawFracOf(vs[i]))),
           );
+          strokeBroken(pts, vs);
+          // Where the chart's own curve is under the threshold, it is drawn
+          // again, thick, in the threshold's colour: the runs, without the
+          // full-height columns that read as bands.
+          if (fi === 0 && bands.length > 0) {
+            ctx.strokeStyle = `rgb(${PC.thresholdRgb})`;
+            ctx.fillStyle = `rgb(${PC.thresholdRgb})`;
+            ctx.lineWidth = 3;
+            for (const b of bands) {
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(xOf(b.lo), marginT, xOf(b.hi) - xOf(b.lo), plotH);
+              ctx.clip();
+              strokeBroken(pts, vs);
+              ctx.restore();
+            }
+          }
           ctx.restore();
         } else {
           // Same dot radius as SmithChart's unconnected trail, same color
@@ -740,7 +804,7 @@ export function SweepChart({
     // bands and the threshold line (AK#1738): strings, so an unchanged range
     // does not redraw.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, r, x, z0, size, k, sweep, measFreqMhz, running, progress, settled, feeds, multiFeed, theme, domKey, bandsKey, readout, swrThreshold, stale, curves, pins, spanKey, hoverKey]);
+  }, [mode, r, x, z0, size, k, sweep, measFreqMhz, running, progress, settled, feeds, multiFeed, theme, domKey, bandsKey, readout, swrThreshold, stale, curves, pins, spanKey, hoverKey, hamKey]);
 
   // The pointer's frequency, in the canvas's logical px (./chartScale), on
   // the plot's margins as the draw lays them out.
@@ -774,6 +838,7 @@ export function SweepChart({
         data-ticks={ticks.map((t) => t.label).join(",")}
         data-axis={axis.kind}
         data-bands={bands.length}
+        data-hambands={hamKey}
         data-curves={curvesAttr(curves)}
         data-pins={pinsAttr(pins)}
         data-pin-y={pinYs.map((ys) => ys.map((v) => v.toFixed(4)).join(",")).join(";")}
