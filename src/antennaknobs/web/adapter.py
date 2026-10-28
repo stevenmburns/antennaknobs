@@ -3873,7 +3873,7 @@ def _pynec_feed_positions(builder, currents, multi_feed=False):
 def _discover_variants(cls) -> tuple[str, ...]:
     """Names of every class-level `<name>_params` attribute (the variant
     convention used across the design library — e.g. `default_params`,
-    `opt_params`, `z50_params`, `s015_params`). The
+    `opt_params`, `z50_params`). The
     returned list is suitable for a UI selector; the bare names (no
     `_params` suffix) are what the frontend sends back in the request.
 

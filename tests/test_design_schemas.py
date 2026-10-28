@@ -388,25 +388,6 @@ def test_variant_family(name, expected):
     assert set(REGISTRY[name].variants) >= expected
 
 
-def test_twoband_fan_dipole_carries_spacing_sweep_variants():
-    # twoband_fan_dipole sweeps spacing factor across s01..s07 + an
-    # eps-perturbed variant. The full set is what feeds the UI's
-    # variant selector — losing any of them silently breaks the
-    # comparison sweep the user runs after picking a baseline.
-    expected = {
-        "default",
-        "s01",
-        "s015",
-        "s01_eps001",
-        "s02",
-        "s025",
-        "s03",
-        "s05",
-        "s07",
-    }
-    assert set(REGISTRY["multiband.twoband_fan_dipole"].variants) >= expected
-
-
 # ---------------------------------------------------------------------------
 # design_freq presence — design_freq-sized designs derive geometry from
 # design_freq; top-level designs are hand-tuned in absolute meters. The

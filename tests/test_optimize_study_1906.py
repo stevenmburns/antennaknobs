@@ -22,7 +22,7 @@ from antennaknobs import analyses as an
 from antennaknobs import hold
 from antennaknobs.web import optimize_bands as ob
 
-FAN = "multiband.twoband_fan_dipole:s015"
+FAN = "multiband.twoband_fan_dipole"
 
 
 def _ev(code: str):
@@ -32,7 +32,7 @@ def _ev(code: str):
 def _optimize(**kw) -> an.Optimize:
     fields = {
         "name": "fan 24.97/28.57",
-        "start": an.State("start", "multiband.twoband_fan_dipole", variant="s015"),
+        "start": an.State("start", "multiband.twoband_fan_dipole"),
         "knobs": (
             an.Knob("bands.0.length", 5.2, 5.8),
             an.Knob("bands.1.length", 4.8, 5.3),
@@ -553,13 +553,13 @@ def client():
 
 
 def test_the_workbench_keeps_a_band_run_and_lists_it(folder, client):
-    tab = {"geometry": "multiband.twoband_fan_dipole", "variant": "s015"}
+    tab = {"geometry": "multiband.fandipole", "variant": "pair_12_10"}
     free = [
-        {"name": "bands.0.length", "min": 5.2, "max": 5.8},
-        {"name": "bands.1.length", "min": 4.8, "max": 5.3},
+        {"name": "bands.0.length_factor", "min": 0.45, "max": 0.55},
+        {"name": "bands.1.length_factor", "min": 0.45, "max": 0.55},
     ]
-    params = {"bands.0.length": 5.51, "bands.1.length": 5.04}
-    before = {"bands.0.length": 5.6, "bands.1.length": 5.0}
+    params = {"bands.0.length_factor": 0.497, "bands.1.length_factor": 0.501}
+    before = {"bands.0.length_factor": 0.49, "bands.1.length_factor": 0.50}
     r = client.post(
         "/studies/save", json=_run_body(tab, free, params, before, path="fan/kept")
     )
@@ -568,7 +568,7 @@ def test_the_workbench_keeps_a_band_run_and_lists_it(folder, client):
 
     o = studies.find("fan/kept:kept pair").analysis
     assert an.is_optimize(o)
-    assert o.design == "multiband.twoband_fan_dipole:s015"
+    assert o.design == "multiband.fandipole:pair_12_10"
     assert o.mean_weight == 0.4 and o.engine == "momwire:bspline"
     # The run's start: the moved knobs back where the run began.
     from antennaknobs import optimize_study as ost
@@ -587,7 +587,9 @@ def test_the_workbench_keeps_a_band_run_and_lists_it(folder, client):
     assert w["free"] == free
     assert [bd["freq"] for bd in w["bands"]] == [24.97, 28.57]
     assert w["result"]["knobs"] == params
-    assert entry["summary"].startswith("optimize bands.0.length, bands.1.length")
+    assert entry["summary"].startswith(
+        "optimize bands.0.length_factor, bands.1.length_factor"
+    )
     assert entry["group"] == "General"
     # Another variant's tab lists it, and says why it cannot jump there.
     other = client.post("/analyses", json={**req, "variant": "default"}).json()
@@ -596,7 +598,7 @@ def test_the_workbench_keeps_a_band_run_and_lists_it(folder, client):
     ]
     assert entry["workbench"] == {
         "runs": False,
-        "why": "kept on the s015 variant: switch to it to jump to this run",
+        "why": "kept on the pair_12_10 variant: switch to it to jump to this run",
     }
 
 
@@ -604,13 +606,13 @@ def test_a_band_run_in_a_kept_form_is_kept_in_that_form(folder, client):
     """Run again in a kept run's own form sends its mode and each band's
     objective, feed and Z0 (#1921); keeping that run keeps the form, and
     /analyses serves it back for the next jump."""
-    tab = {"geometry": "multiband.twoband_fan_dipole", "variant": "s015"}
+    tab = {"geometry": "multiband.fandipole", "variant": "pair_12_10"}
     free = [
-        {"name": "bands.0.length", "min": 5.2, "max": 5.8},
-        {"name": "bands.1.length", "min": 4.8, "max": 5.3},
+        {"name": "bands.0.length_factor", "min": 0.45, "max": 0.55},
+        {"name": "bands.1.length_factor", "min": 0.45, "max": 0.55},
     ]
-    params = {"bands.0.length": 5.51, "bands.1.length": 5.04}
-    before = {"bands.0.length": 5.6, "bands.1.length": 5.0}
+    params = {"bands.0.length_factor": 0.497, "bands.1.length_factor": 0.501}
+    before = {"bands.0.length_factor": 0.49, "bands.1.length_factor": 0.50}
     body = _run_body(tab, free, params, before, path="fan/root")
     body["mode"] = "root"
     body["bands"] = [

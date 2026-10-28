@@ -6,9 +6,10 @@ two near-parallel vertical planes, splitting at the feed a distance `s` out, and
 each band is tuned by its own ABSOLUTE length. Band 0 fans to +x, band 1 to -x;
 with `gap_angle_deg = 0` the two stay in their own x = ±s/√2 planes.
 
-The design doubles as a methodology study of the feed-junction spacing `s` (the
-s01..s07 variants sweep it), which is why the per-band lengths are hand-tuned
-absolutes rather than freq×factor.
+Each band is tuned by its absolute length rather than freq×factor, and the
+feed-junction spacing `s` is a knob of its own. (A spacing sweep of variants,
+s01..s07, once rode along; its lengths had gone stale against the geometry
+and it was dropped, 2026-10-28.)
 
 Per-band knobs (freq / length / droop angle) are grouped under `bands`, the
 shared multiband-design idiom (cf. fandipole, trap_fan_dipole); the feed-split
@@ -26,57 +27,7 @@ from antennaknobs.network import Wire
 logger = logging.getLogger(__name__)
 
 
-def _variant(freq, s, eps, *, len12, freq12, len10, freq10, angle=26.5651):
-    """A value-preset dict in the grouped (bands) shape, as an overlay on
-    default_params — it states only the swept knobs (freq / s / eps) and the
-    per-band lengths; base / gap_angle_deg / n_bands come from default.
-
-    Band 0 is the 12m element (fans to +x), band 1 the 10m element (-x), matching
-    the original A/B placement so geometry is unchanged by the regrouping.
-    """
-    return MappingProxyType(
-        {
-            "freq": freq,
-            "s": s,
-            "eps": eps,
-            # Plain dicts (NOT MappingProxyType): the adapter detects a band
-            # group via isinstance(x, dict), which MappingProxyType fails.
-            "bands": (
-                {"freq": freq12, "length": len12, "angle_deg": angle},
-                {"freq": freq10, "length": len10, "angle_deg": angle},
-            ),
-        }
-    )
-
-
 class Builder(AntennaBuilder):
-    # Feed-junction spacing sweep (s = 0.7 → 0.1) + an eps perturbation. The
-    # per-band lengths were re-tuned for resonance at each s.
-    s07_params = _variant(
-        28.57, 0.7, 0.01, len12=5.1102, freq12=24.97, len10=4.4682, freq10=28.57
-    )
-    s05_params = _variant(
-        28.57, 0.5, 0.01, len12=5.2949, freq12=24.97, len10=4.6531, freq10=28.57
-    )
-    s03_params = _variant(
-        28.57, 0.3, 0.01, len12=5.4725, freq12=24.97, len10=4.8370, freq10=28.57
-    )
-    s025_params = _variant(
-        24.97, 0.25, 0.01, len12=5.5153, freq12=24.97, len10=4.8837, freq10=28.57
-    )
-    s02_params = _variant(
-        24.97, 0.2, 0.01, len12=5.5571, freq12=24.97, len10=4.9312, freq10=28.57
-    )
-    s015_params = _variant(
-        24.97, 0.15, 0.01, len12=5.5978, freq12=24.97, len10=4.9803, freq10=28.57
-    )
-    s01_params = _variant(
-        24.97, 0.10, 0.01, len12=5.6371, freq12=24.97, len10=5.0331, freq10=28.57
-    )
-    s01_eps001_params = _variant(
-        24.97, 0.10, 0.001, len12=5.7628, freq12=24.97, len10=5.0717, freq10=28.57
-    )
-
     default_params = MappingProxyType(
         {
             # Measurement frequency the live solve evaluates Z_in at. Geometry
