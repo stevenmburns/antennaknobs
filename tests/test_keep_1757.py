@@ -588,8 +588,11 @@ def test_saving_a_study_is_refused_on_the_hosted_instance(monkeypatch, client, f
     assert list(folder.iterdir()) == []
     assert client.post("/keep", json=body).status_code == 200
     assert client.get("/capabilities").json()["can_save_studies"] is False
+    # The ⟳ rescan's design folder is the server's (AK#2096).
+    assert client.get("/capabilities").json()["user_designs"] is False
     monkeypatch.setattr(server, "_HOSTED", False)
     assert client.get("/capabilities").json()["can_save_studies"] is True
+    assert client.get("/capabilities").json()["user_designs"] is True
     assert client.post("/studies/save", json=body).status_code == 200
     assert (folder / "h.py").is_file()
 

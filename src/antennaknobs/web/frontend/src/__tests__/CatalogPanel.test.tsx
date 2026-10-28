@@ -68,6 +68,7 @@ type PanelOverrides = Partial<{
   loadErrors: DesignLoadError[];
   trustBusy: string | null;
   reloadBusy: boolean;
+  canRescan: boolean;
 }>;
 
 function renderPanel(overrides: PanelOverrides = {}) {
@@ -165,6 +166,12 @@ describe("CatalogPanel — reload button (issue #867)", () => {
     renderPanel({ currentExample: undefined });
     expect(reloadButton()).toBeNull();
     expect(rescanButton()).not.toBeNull();
+  });
+
+  it("shows neither ⟳ on the hosted instance, which has no design folder (AK#2096)", () => {
+    renderPanel({ canRescan: false });
+    expect(rescanButton()).toBeNull();
+    expect(reloadButton()).toBeNull();
   });
 
   it("fires onReloadDesign from the rescan button", async () => {

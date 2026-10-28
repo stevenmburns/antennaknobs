@@ -5389,6 +5389,9 @@ def capabilities_endpoint():
         # "Save as study" writes a file (AK#1757 step 7 unit 4): a local
         # workbench only; /studies/save refuses it hosted either way.
         "can_save_studies": not _HOSTED,
+        # Whether a design folder can gain a file (AK#2096): the ⟳ rescan reads
+        # the SERVER's ~/.antennaknobs/designs, which no hosted user can reach.
+        "user_designs": not _HOSTED,
         # The page reports its crashes to /client-error (AK#1851) only where
         # this says so: the hosted instance. A local workbench reports nowhere.
         "client_error_reports": _HOSTED,
