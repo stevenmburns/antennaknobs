@@ -639,7 +639,11 @@ export function SmithChart({
       }
       ctx.strokeStyle = PC.labelStrong;
       ctx.lineWidth = 1.4;
-      for (let fi = 0; fi < nFeeds; fi++) {
+      // Not on a stale locus: the ring would mark the measurement frequency
+      // on an antenna the knobs have since left, a steady point that is no
+      // longer the live one (Steve, 2026-10-28). The live marker carries the
+      // measurement frequency until the sweep runs again.
+      for (let fi = 0; fi < (stale ? 0 : nFeeds); fi++) {
         const z = zAt(fi, nearestIdx);
         const g = reflectionCoefficient(z.re, z.im, z0);
         const { x: px, y: py } = S(g.gRe, g.gIm);
