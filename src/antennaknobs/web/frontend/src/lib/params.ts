@@ -588,6 +588,38 @@ export function linkedMeasFreqFor(
   return typeof freqValue === "number" ? freqValue : null;
 }
 
+/** The frequencies a design's own band knobs name: each instance of a group
+ *  with `link_meas_freq_to_param`, in order, as many as its repeat count
+ *  shows, then any flat knob linked the same way. What the optimize menu's
+ *  band list starts from when it is switched on, so it begins where the
+ *  design's bands are rather than at the measurement frequency alone (Steve,
+ *  2026-10-28). Empty for a design with no band knobs. Deduplicated, at most
+ *  `max` entries. */
+export function bandAnchorFreqs(
+  ex: ExampleDescriptor | undefined,
+  values: ParamValueBag,
+  max: number,
+): number[] {
+  if (!ex) return [];
+  const out: number[] = [];
+  const add = (f: unknown) => {
+    if (typeof f === "number" && Number.isFinite(f) && f > 0 && !out.includes(f)) out.push(f);
+  };
+  for (const item of ex.param_schema) {
+    if (isGroup(item)) {
+      const link = item.link_meas_freq_to_param;
+      const rows = values[item.name];
+      if (!link || !Array.isArray(rows)) continue;
+      const count = values[item.repeat_count];
+      const n = typeof count === "number" ? Math.min(count, rows.length) : rows.length;
+      for (let i = 0; i < n; i++) add(rows[i]?.[link]);
+    } else if (item.link_meas_freq_to_param) {
+      add(values[item.link_meas_freq_to_param]);
+    }
+  }
+  return out.slice(0, max);
+}
+
 // param_schema with a variant's explicit presentation overrides
 // (variant_ui[variant].params) overlaid per param — e.g. invvee's
 // long-wire variants carry their own length_factor slider range. Feeds

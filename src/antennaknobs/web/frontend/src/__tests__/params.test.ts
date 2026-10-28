@@ -5,6 +5,7 @@
 // DOM/React dependency.
 import { describe, it, expect } from "vitest";
 import {
+  bandAnchorFreqs,
   applyVisibility,
   defaultKnobOpt,
   familyOf,
@@ -810,5 +811,41 @@ describe("defaultKnobOpt", () => {
       dispMax: 1,
       step: 0.001,
     });
+  });
+});
+
+describe("bandAnchorFreqs (the band list's seed)", () => {
+  const bands = makeGroup({
+    name: "bands",
+    repeat_count: "n_bands",
+    max_repeats: 3,
+    link_meas_freq_to_param: "freq",
+  });
+
+  it("reads each shown band's freq, in order, as many as the repeat count shows", () => {
+    const ex = makeExample({ param_schema: [bands] });
+    const values = {
+      n_bands: 2,
+      bands: [{ freq: 24.94 }, { freq: 28.5 }, { freq: 14.2 }],
+    };
+    expect(bandAnchorFreqs(ex, values, 8)).toEqual([24.94, 28.5]);
+  });
+
+  it("adds a flat knob linked to the dial, drops duplicates, and caps the list", () => {
+    const flat = makeParam({ name: "freq_40", link_meas_freq_to_param: "freq_40" });
+    const ex = makeExample({ param_schema: [bands, flat] });
+    const values = {
+      n_bands: 3,
+      bands: [{ freq: 7.1 }, { freq: 7.1 }, { freq: 14.2 }],
+      freq_40: 7.15,
+    };
+    expect(bandAnchorFreqs(ex, values, 8)).toEqual([7.1, 14.2, 7.15]);
+    expect(bandAnchorFreqs(ex, values, 2)).toEqual([7.1, 14.2]);
+  });
+
+  it("is empty for a design with no band knobs, or none at all", () => {
+    expect(bandAnchorFreqs(makeExample(), { freq: 14.1 }, 8)).toEqual([]);
+    expect(bandAnchorFreqs(makeExample({ param_schema: [makeGroup()] }), {}, 8)).toEqual([]);
+    expect(bandAnchorFreqs(undefined, {}, 8)).toEqual([]);
   });
 });

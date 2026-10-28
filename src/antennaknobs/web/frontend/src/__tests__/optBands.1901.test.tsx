@@ -220,6 +220,29 @@ describe("the band list editor", () => {
     expect(state().freqs).toBeNull();
   });
 
+  it("switching Bands on starts from the design's own bands when it has them", () => {
+    function Seeded() {
+      const [freqs, setFreqs] = useState<number[] | null>(null);
+      const bands: OptBandsControl = {
+        freqs,
+        setFreqs,
+        meanWeight: DEFAULT_MEAN_WEIGHT,
+        setMeanWeight: () => {},
+        defaultFreq: 28.47,
+        seedFreqs: [24.94, 28.5],
+      };
+      return (
+        <>
+          <BandsEditor bands={bands} />
+          <output data-testid="state">{JSON.stringify({ freqs })}</output>
+        </>
+      );
+    }
+    render(<Seeded />);
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /several bands/i }));
+    expect(state().freqs).toEqual([24.94, 28.5]);
+  });
+
   it("adds a typed band, refuses junk and duplicates by name, removes a row", () => {
     render(<Harness initial={[14.1]} />);
     const input = screen.getByLabelText("Add a band, MHz");
