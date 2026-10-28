@@ -22,6 +22,7 @@ import entry
 ENGINES = [
     ("NEC5_EXE", "--nec5-exe", "NEC5_EXE.txt"),
     ("NEC2_EXE", "--nec2-exe", "NEC2_EXE.txt"),
+    ("NEC42_EXE", "--nec42-exe", "NEC42_EXE.txt"),
 ]
 
 
@@ -100,7 +101,7 @@ def test_main_settles_both_engines_before_anything_starts(bundle, monkeypatch):
     seen = {}
 
     def fake_selftest():
-        seen.update({var: os.environ[var] for var, _flag, _fname in ENGINES})
+        seen.update({var: os.environ[var] for var in ("NEC5_EXE", "NEC2_EXE")})
         return 0
 
     monkeypatch.setattr(entry, "selftest", fake_selftest)
@@ -161,7 +162,7 @@ def test_the_settings_file_sits_between_the_variable_and_the_text_file(
 ):
     """AK#1492: an engine the settings file names is left for the library to
     read, so NEC5_EXE.txt is not consulted, and a variable still wins."""
-    key = {"NEC5_EXE": "nec5_exe", "NEC2_EXE": "nec2_exe"}[var]
+    key = var.lower()  # NEC5_EXE -> nec5_exe, the settings file's [engines] key
     settings = bundle / "settings.toml"
     settings.write_text(f'[engines]\n{key} = "/from/settings"\n')
     monkeypatch.setenv("ANTENNAKNOBS_SETTINGS", str(settings))
