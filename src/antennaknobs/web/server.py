@@ -2480,6 +2480,74 @@ def _track_step(req: dict, box: dict, cancel=None) -> dict:
     return out
 
 
+def _live_band_freqs(raw) -> list[float]:
+    """The band frequencies a live solve asks Z at (``band_freqs``, MHz):
+    finite and positive, first occurrence kept, at most
+    ``optimize_bands.MAX_BANDS``. Anything else is dropped rather than
+    refused: a marker that cannot be drawn must never cost the live solve."""
+    from .optimize_bands import MAX_BANDS
+
+    out: list[float] = []
+    for v in raw if isinstance(raw, list) else ():
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            continue
+        f = float(v)
+        if math.isfinite(f) and f > 0.0 and f not in out:
+            out.append(f)
+    return out[:MAX_BANDS]
+
+
+def _live_band_zs(req: dict, freqs: list[float], cancel=None) -> list[dict]:
+    """Z at each of ``freqs`` for the live solve's design, for the Smith
+    chart's band markers while a knob turns: ``[{freq_mhz, z0_ohms, feeds:
+    [[re, im] | None, ...]}]``, one per frequency, every feed.
+
+    The optimizer's own band evaluation (``_eval_bands``): momwire builds the
+    design once at the measurement frequency and reads every band off its
+    vectorized ``impedance_sweep`` (1.4-2.1x four full solves, measured
+    2026-10-28), so a marker here is the marker a band run draws; an external
+    engine solves each band as its frequency sweep does."""
+    from .optimize_bands import bands_from_solves
+
+    backend = _external_backend(req)
+    if backend is None:
+        ex = example_for(req["geometry"])
+        fn = getattr(ex, "momwire_bands", None)
+        if fn is not None:
+            out = fn(req, freqs, cancel=cancel)
+        else:
+            out = bands_from_solves(
+                [
+                    ex.momwire_solve({**req, "measurement_freq_mhz": f}, cancel=cancel)
+                    for f in freqs
+                ]
+            )
+    else:
+        out = bands_from_solves(
+            [
+                _external_call(
+                    backend.solve, {**req, "measurement_freq_mhz": f}, cancel=cancel
+                )
+                for f in freqs
+            ]
+        )
+    zs = np.asarray(out["zs"], dtype=complex).reshape(len(freqs), -1)
+    z0 = float(out.get("z0_ohms") or 50.0)
+    return [
+        {
+            "freq_mhz": f,
+            "z0_ohms": z0,
+            "feeds": [
+                [float(z.real), float(z.imag)]
+                if math.isfinite(z.real) and math.isfinite(z.imag)
+                else None
+                for z in zs[k]
+            ],
+        }
+        for k, f in enumerate(freqs)
+    ]
+
+
 def solve(req: dict, cancel=None) -> dict:
     key = _canonical_solve_key(req)
     hit = _SOLVE_CACHE.get(key)
@@ -5732,9 +5800,24 @@ async def ws_endpoint(ws: WebSocket):
                             # tracking tick starts from a fresh root find rather
                             # than a tangent taken about a point that has moved.
                             tracker_box["sig"] = None
+                            # The band markers' frequencies ride beside the
+                            # solve, never in it: the live solve (and its
+                            # cache key) is the one it always was.
+                            bands = _live_band_freqs(req.pop("band_freqs", None))
                             result = await run_in_threadpool(
                                 _shed, solve, req, cancel=token
                             )
+                            if bands and "error" not in result:
+                                try:
+                                    result["band_zs"] = await run_in_threadpool(
+                                        _shed, _live_band_zs, req, bands, cancel=token
+                                    )
+                                except (Superseded, momwire.SolveAborted):
+                                    raise
+                                except Exception as exc:  # noqa: BLE001 — the live solve stands; its markers say why they are missing
+                                    result["band_error"] = (
+                                        user_designs.format_solve_error(exc)
+                                    )
                     finally:
                         current["token"] = None
             except (Superseded, momwire.SolveAborted):

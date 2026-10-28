@@ -183,20 +183,28 @@ describe("the /optimize body (AK#1901)", () => {
 
 // ----------------------------------------------------------- the editor
 
-function Harness({ initial = null }: { initial?: number[] | null }) {
+function Harness({
+  initial = null,
+  withShow = false,
+}: {
+  initial?: number[] | null;
+  withShow?: boolean;
+}) {
   const [freqs, setFreqs] = useState<number[] | null>(initial);
   const [w, setW] = useState(DEFAULT_MEAN_WEIGHT);
+  const [shown, setShown] = useState<number[]>([]);
   const bands: OptBandsControl = {
     freqs,
     setFreqs,
     meanWeight: w,
     setMeanWeight: setW,
     defaultFreq: 14.1,
+    ...(withShow ? { shown, setShown } : {}),
   };
   return (
     <>
       <BandsEditor bands={bands} />
-      <output data-testid="state">{JSON.stringify({ freqs, w })}</output>
+      <output data-testid="state">{JSON.stringify({ freqs, w, shown })}</output>
     </>
   );
 }
@@ -205,6 +213,7 @@ const state = () =>
   JSON.parse(screen.getByTestId("state").textContent ?? "{}") as {
     freqs: number[] | null;
     w: number;
+    shown: number[];
   };
 
 describe("the band list editor", () => {
@@ -218,6 +227,27 @@ describe("the band list editor", () => {
     expect(screen.getByText("14.1 MHz")).toBeTruthy();
     fireEvent.click(toggle);
     expect(state().freqs).toBeNull();
+  });
+
+  it("ticks a band for the Smith chart, and unticks it (none by default)", () => {
+    render(<Harness initial={[7.1, 14.2]} withShow />);
+    const tick = screen.getByRole("checkbox", {
+      name: "Show 14.2 MHz on the Smith chart while knobs turn",
+    }) as HTMLInputElement;
+    expect(tick.checked).toBe(false);
+    fireEvent.click(tick);
+    expect(state().shown).toEqual([14.2]);
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Show 7.1 MHz on the Smith chart while knobs turn" }),
+    );
+    expect(state().shown).toEqual([14.2, 7.1]);
+    fireEvent.click(tick);
+    expect(state().shown).toEqual([7.1]);
+  });
+
+  it("offers no ticks where the control has no shown list", () => {
+    render(<Harness initial={[7.1]} />);
+    expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
   it("adds a typed band, refuses junk and duplicates by name, removes a row", () => {

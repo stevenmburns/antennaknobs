@@ -79,6 +79,13 @@ export type ReadoutRow = {
   group: string | null;
 };
 
+/** One band's reading on a live solve (`SolveResponse.band_zs`). */
+export type BandZ = {
+  freq_mhz: number;
+  z0_ohms: number;
+  feeds: ([number, number] | null)[];
+};
+
 export type SolveResponse = {
   geometry: string;
   /** Which backend actually produced this response ("momwire" | "pynec").
@@ -285,6 +292,12 @@ export type SolveResponse = {
    *  one. Bowtie array returns 100 Ω because each element is designed for a
    *  100 Ω feedline. */
   z0_ohms?: number;
+  /** Z at each band the request's `band_freqs` asked for, in its order, every
+   *  feed ([re, im], null for a non-finite reading): the band list's ticked
+   *  bands, drawn on the Smith chart while a knob turns. Absent when none was
+   *  asked; `band_error` says why when the bands failed and the solve did not. */
+  band_zs?: BandZ[];
+  band_error?: string;
   /** The design's OWN reference impedance (AK#1735) — `ui_params
    *  ["target_z0"]`, a `.ssn` Generator's Zo, or the array rule — whatever
    *  the request overrode it with. What the gear menu's Zo field starts at. */
@@ -404,6 +417,9 @@ export type SolveRequest = {
    *  keeps it out of its cache key and the analyses keep it out of their
    *  signatures. */
   z0_ohms?: number;
+  /** Band frequencies (MHz) to read Z at beside the live solve: the band
+   *  list's ticked bands. Omitted: none, and the same bytes as before. */
+  band_freqs?: number[];
   /** Cut angles for the server-attached polar traces (issue #547). */
   az_elev_deg?: number;
   elev_az_deg?: number;

@@ -227,7 +227,12 @@ import {
   keptValues,
   type KeptRun,
 } from "../../lib/keptRun";
-import { fmtFreq } from "../../lib/optBands";
+import {
+  fmtFreq,
+  liveBandReadings,
+  nextBandMarks,
+  type BandMarks,
+} from "../../lib/optBands";
 import type { KeptReadout } from "./OptBands";
 import type { SweepAxisChoice, SweepMode } from "../../lib/sweepAxis";
 import {
@@ -1563,7 +1568,11 @@ function DesignSessionBody({
   // The session's solve request: the active solver slot's engine and the
   // active ground slot's ground (buildRequestFor).
   function buildRequest(): SolveRequest {
-    return buildRequestFor(activeSlot, activeGroundSlot);
+    const r = buildRequestFor(activeSlot, activeGroundSlot);
+    // The bands ticked for the Smith chart ride the live solve only, and not
+    // while a band run draws its own markers. Absent: the same bytes as ever.
+    if (optBandsLive.length > 0 && !optRunning) r.band_freqs = optBandsLive;
+    return r;
   }
 
   // An analysis chart curve's request (unit 4): its cell's slot and ground,
@@ -1772,6 +1781,9 @@ function DesignSessionBody({
     setOptSeed,
     optBands,
     setOptBands,
+    optBandsShown,
+    setOptBandsShown,
+    optBandsLive,
     optMeanWeight,
     setOptMeanWeight,
     optForm,
@@ -1817,6 +1829,33 @@ function DesignSessionBody({
     setParamAtPath: (path, value) => setParamAtPath(path, value, path.length === 1),
     zoOverride,
   });
+  // What the solve effect re-runs on when a band is ticked or unticked: the
+  // live request's band_freqs, which a band run leaves out (buildRequest).
+  const bandsLiveKey = optRunning ? "" : optBandsLive.join(",");
+  // The ticked bands' markers on the Smith chart while a knob turns: each
+  // solve's band_zs, a short trail per band as the band run draws it. A band
+  // unticked or removed leaves at once; no bands, or no solve, no markers.
+  const [knobBandMarks, setKnobBandMarks] = useState<BandMarks | null>(null);
+  useEffect(() => {
+    // Derived from each solve response as it lands, keeping the trail the
+    // previous ones left: a reduction over results, not a render-time value.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setKnobBandMarks((prev) => {
+      const zs = result?.band_zs;
+      if (!zs || optBandsLive.length === 0) return null;
+      const next = nextBandMarks(prev, {
+        bands: liveBandReadings(zs, optBands ?? [], optForm),
+        worst_band: null,
+      });
+      if (!next) return null;
+      const keep = new Set(optBandsLive);
+      const bands = next.bands.filter((b) => keep.has(b.freq_mhz));
+      return bands.length ? { ...next, bands } : null;
+    });
+  }, [result, optBandsLive, optBands, optForm]);
+  // A band run draws its own markers; otherwise the ticked bands', else what
+  // the last run left.
+  const smithBands = optRunning ? optBandMarks : (knobBandMarks ?? optBandMarks);
 
   // The tab's variant defaults: what a state, a pin's changed knobs and a
   // kept run's start are set over.
@@ -2555,6 +2594,8 @@ function DesignSessionBody({
     currentValuesKey,
     designFreq, measFreq, plane,
     groundEnabled, groundModel, terrainKey, soilKey,
+    // Ticking a band for the Smith chart solves it now, not at the next knob.
+    bandsLiveKey,
   ]);
 
   // Antenna switch: drop the previous antenna's results immediately so nothing
@@ -4084,6 +4125,8 @@ function DesignSessionBody({
           bands={{
             freqs: optBands,
             setFreqs: setOptBands,
+            shown: optBandsShown,
+            setShown: setOptBandsShown,
             meanWeight: optMeanWeight,
             setMeanWeight: setOptMeanWeight,
             defaultFreq: measFreq,
@@ -5345,7 +5388,7 @@ function DesignSessionBody({
       // Smith dot would sit frozen while the readout ticks (#773). The
       // per-eval frames carry the trial Z, so hand it to the chart.
       liveZ={optLiveZ}
-      liveBands={optBandMarks}
+      liveBands={smithBands}
       preview={preview}
       measured={measured}
       pattern={pattern}
@@ -5687,7 +5730,7 @@ function DesignSessionBody({
                       // thumbnail is the same chart, so a frozen dot there
                       // would be the same defect at a smaller size.
                       liveZ={optLiveZ}
-                      liveBands={optBandMarks}
+                      liveBands={smithBands}
                       preview={preview}
                       measured={measured}
                       pattern={pattern}
