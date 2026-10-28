@@ -66,6 +66,23 @@ the reported deck). :mod:`nec5_export` is the one writer that CAN keep the
 file's own count for this wire, because NEC-5's end code reaches the
 junction NEC-2 cannot address at all.
 
+**A 1-segment fed wire gets a NEC-5 alternative (AK#2091).** SimNEC runs the
+same ``.ssn`` on its NEC-2, NEC-4.2 or NEC-5 engine, chosen after the file is
+open. Under NEC-5 it does not pass the block's ``EX`` through: it writes its
+own source card on the knot at the feed position, and evens a fed wire's
+count to have a knot there (a Jam of 3 went to 2; measured in SimNEC 5.5a11
+on 2026-10-28). The one count it cannot fix is 1, which has no interior
+knot, so the NEC-5 source landed on the wire's START, half its length off
+centre. So that wire's Jam line is followed by
+``if (NECOptions.Engine == 5) $GW_<tag>.JamSegments(2);``, which SimNEC runs
+only on its NEC-5 engine (the value it reads there, measured the same day; 2
+on NEC-2). NEC-2 and NEC-4.2 keep the deck's count exactly: flooring the
+fed wire at 3 instead was measured and rejected, because a delta gap's
+impedance follows the fed segment's length, and it moved NEC-2's answer
+1-3 % (5 % with the floor on a trap dipole's load wires). Every other count,
+and SimNEC's own mesh under ``seg_per_wl``, is left to SimNEC, which put the
+source on the centre knot in both.
+
 Scope
 -----
 Two export shapes:
@@ -261,11 +278,17 @@ def _jam_segments(cards) -> list[str]:
     strong suggestion, not a guarantee: it does not suppress SimNEC's
     auto-segmentation (growth-rate / junction splits), so the counts SimNEC
     reports are still worth a look."""
+    feed = _feed_loc(cards)
     out = []
     for c in cards:
         parts = c.split()
         if parts[:1] == ["GW"]:
-            out.append(f"$GW_{int(parts[1])}.JamSegments({int(parts[2])});")
+            tag, n = int(parts[1]), int(parts[2])
+            out.append(f"$GW_{tag}.JamSegments({n});")
+            if n == 1 and feed is not None and feed[0] == tag:
+                # SimNEC's NEC-5 engine needs a knot at the feed (AK#2091,
+                # see the module note); NEC-2 and NEC-4.2 keep the 1.
+                out.append(f"if (NECOptions.Engine == 5) $GW_{tag}.JamSegments(2);")
     return out
 
 

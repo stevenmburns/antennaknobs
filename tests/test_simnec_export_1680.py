@@ -101,9 +101,13 @@ def _gw_counts(script: str) -> dict[int, int]:
 
 
 def _jammed(script: str) -> dict[int, int]:
+    """The unguarded Jam counts: a 1-segment fed wire's NEC-5-only line
+    (AK#2091) is an alternative for SimNEC's NEC-5 engine, not the count."""
     return {
         int(t): int(n)
-        for t, n in re.findall(r"\$GW_(\d+)\.JamSegments\((\d+)\);", script)
+        for t, n in re.findall(
+            r"^\$GW_(\d+)\.JamSegments\((\d+)\);", script, flags=re.MULTILINE
+        )
     }
 
 
