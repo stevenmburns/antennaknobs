@@ -29,29 +29,24 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.108.6" icon="star">
-  **The feed marker sits on the real feed.** A model driven from a virtual
-  port, as an end-fed exported from EZNEC's virtual segments is, now marks
-  "feed" at the corner where the coax and counterpoise leave the wire,
-  where it used to fall back to the far end of the first wire.
+<Card title="New in v0.109.0" icon="star">
+  **Tune several bands at once, by hand.** With a band list set, the Smith
+  chart lists your bands; click one and its impedance moves on the chart as
+  you turn any knob, as it does during a band optimize. The list starts from
+  the design's own band frequencies. A new page walks through it, by hand and
+  with the optimizer: [Tuning for several bands](/advanced/multiband-tuning/).
 
-  From v0.108.5: **the schematic draws a shunt at the node it hangs on.** A comp cap across
-  an unun's input now sits on the rig side of the winding, and a measurement
-  plane picked at that node is marked in front of the cap it keeps.
-  `wire.efhw_autotransformer`'s three readings are the HUD's plane picker:
-  **rig**, **tap** (at the box) and **ant** (the bare feed gap). A zero-ohm
-  `TwoPort` draws as plain wire, which is how a design gives a part its own
-  node so a plane can leave it out, a hairpin match for example. EZNEC
-  `.ez` files now place sources, loads and line ends exactly as EZNEC does,
-  even a part placed exactly halfway between two segments.
+  **The SWR chart marks the ham bands.** Every band the sweep crosses is a
+  labelled span saying how much of it is under 2:1 (`12m all`, `10m 39%`);
+  the 2:1 zone is now a horizontal strip, so it can no longer be mistaken for
+  a band.
 
-  From v0.108.4: **a multiband EFHW on a real tapped autotransformer**
-  (`wire.efhw_autotransformer`, after Mike WA7ARK's published model), and
-  **EZNEC `.ez` models read more of what EZNEC writes**: a load wired across
-  a real segment, a stub beside a series load, NEC-5 loads at the nearest
-  segment end; see [EZNEC `.ez` models](/reference/nec-import/#eznec-ez-models).
-  Opened files show their extension, and on momwire 0.84.3 a lossy coax uses
-  its complex characteristic impedance.
+  Also: the peak readouts list every lobe of a symmetric pattern
+  (`az 7° · 187°`, or `all az`); the SimNEC export centres a short fed wire's
+  source on SimNEC's NEC-5 engine; the Windows workbench ships the design
+  templates again and lists a NEC-4.2 engine at startup; a folded chart
+  header says it opens (**▾ controls**); and the hosted app drops the rescan
+  button it could never use.
 </Card>
 
 ## The whole pitch, in one line
