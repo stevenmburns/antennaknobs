@@ -1286,11 +1286,14 @@ command line's `optimize --bands` does the same, and adds the per-band
 objective, feed and Z₀, and the root and band-by-band modes; see
 [Optimizing across bands](/reference/cli/#optimizing-across-bands).
 
-**Watching the bands while you turn a knob.** Each band in the list has a
-checkbox: tick it, and that band's impedance shows on the Smith chart in its
-own colour as you drag any knob, with a short trail, just as it does during a
-run. Every ticked band is one more solve per knob change, so none is ticked to
-start with. A ticked band is solved on the run's own path, the design built once
+**Watching the bands while you turn a knob.** With a band list set, the Smith
+chart lists its bands in the bottom-left corner, each in its marker's colour.
+Click one, and that band's impedance shows on the chart as you drag any knob,
+with a short trail, just as it does during a run; click it again to hide it.
+Only some bands matter for the knob in hand, so showing one is a click where
+you are looking. Every band shown is one more solve per knob change, so none is
+shown to start with. The live dot is drawn over the band rings, so it stays
+visible when a band sits at the measurement frequency. A ticked band is solved on the run's own path, the design built once
 at the measurement frequency and read at each band, about twice as fast as a
 full solve per band. The marker you already had stays: the filled dot is the
 measurement frequency's Z. On a frequency sweep a hollow ink ring marks the

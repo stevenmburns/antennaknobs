@@ -34,6 +34,7 @@ import { ChartLegend, type ChartLegendData, legendShown, refusedCount } from "./
 import { FilesPanel, type FilesViewData } from "./FilesPanel";
 import { type PatternCellRow, PatternCellsTable } from "./PatternCellsTable";
 import type { BandMarks } from "../../lib/optBands";
+import type { SmithBandPicker } from "../charts/SmithBandToggles";
 import { SchematicPanel } from "./SchematicPanel";
 
 // The render half of the view registry (the metadata half — id, label,
@@ -118,6 +119,9 @@ export type ViewRenderProps = {
   /** A band run's per-band Smith markers (AK 0.97.1); null or omitted when
    *  there is no band run to show. */
   liveBands?: BandMarks | null;
+  /** The band list's toggles on the Smith chart (which bands' Z to show while
+   *  a knob turns); null or omitted with no band list, and on a thumbnail. */
+  smithBands?: SmithBandPicker | null;
   schematicSvg: string | null;
   schematicUnavailable: boolean;
   /** The Files view's texts (AK#1428). Optional: thumbnail call sites omit
