@@ -171,6 +171,15 @@ describe("frequency-anchor ring (issue #719)", () => {
     expect(rings[0].radius).not.toBe(4);
   });
 
+  it("is not drawn on a stale sweep: it would mark an antenna the knobs left", () => {
+    // The locus stays, faded; the ring would be a steady point that is no
+    // longer the live one, so it waits for the sweep to run again.
+    const { arcs } = renderSmith({ sweep: SWEEP, measFreqMhz: 13, stale: true });
+    expect(ringArcs(arcs)).toHaveLength(0);
+    // The locus itself is still drawn (its endpoints, r=3).
+    expect(arcs.some((a) => a.radius === 3)).toBe(true);
+  });
+
   it("picks the correct point for an unsorted, non-uniformly-spaced sweep", () => {
     // freqs arrive as [18, 10, 14]; measFreqMhz=11 is nearest to the 10 MHz
     // sample at index 1 (|11-10|=1) over index 2's 14 MHz (|11-14|=3) and

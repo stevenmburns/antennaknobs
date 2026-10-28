@@ -1293,9 +1293,10 @@ run. Every ticked band is one more solve per knob change, so none is ticked to
 start with. A ticked band is solved on the run's own path, the design built once
 at the measurement frequency and read at each band, about twice as fast as a
 full solve per band. The marker you already had stays: the filled dot is the
-measurement frequency's Z, and on a frequency sweep the hollow ink ring marks
-where the measurement frequency sat on the last sweep, which moves only when
-the sweep runs again.
+measurement frequency's Z. On a frequency sweep a hollow ink ring marks the
+measurement frequency on the swept curve; once a knob moves and the curve goes
+stale it is no longer drawn, since it would mark the antenna as it was, and it
+returns when the sweep runs again.
 
 **Keeping a band run.** Under a finished band run's table, **Keep…** keeps it
 as a [study](/reference/cli/#keeping-a-run): where the run started (the knobs
