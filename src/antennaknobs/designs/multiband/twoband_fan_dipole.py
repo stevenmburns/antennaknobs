@@ -109,8 +109,8 @@ class Builder(AntennaBuilder):
             # anchor) / absolute length / droop angle. Band 0 = 12m (+x),
             # band 1 = 10m (-x).
             "bands": (
-                {"freq": 24.0, "length": 5.877, "angle_deg": 26.5651},
-                {"freq": 28.7, "length": 5.19, "angle_deg": 26.5651},
+                {"freq": 24.94, "length": 5.877, "angle_deg": 26.5651},
+                {"freq": 28.5, "length": 5.19, "angle_deg": 26.5651},
             ),
             "ui_params": MappingProxyType(
                 {

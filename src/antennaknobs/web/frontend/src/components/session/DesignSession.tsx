@@ -34,6 +34,7 @@ import {
   isCustomBand,
 } from "../../lib/bands";
 import {
+  bandAnchorFreqs,
   findLinkedDesignFreq,
   groupExamplesForPicker,
   findKnobSpec,
@@ -229,6 +230,7 @@ import {
 } from "../../lib/keptRun";
 import {
   fmtFreq,
+  MAX_OPT_BANDS,
   liveBandReadings,
   nextBandMarks,
   type BandMarks,
@@ -4128,6 +4130,7 @@ function DesignSessionBody({
             meanWeight: optMeanWeight,
             setMeanWeight: setOptMeanWeight,
             defaultFreq: measFreq,
+            seedFreqs: bandAnchorFreqs(currentExample, currentValues, MAX_OPT_BANDS),
           }}
           optPaceMs={optPaceMs}
           kept={keptReadout}

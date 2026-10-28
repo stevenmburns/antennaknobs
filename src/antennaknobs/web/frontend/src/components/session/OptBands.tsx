@@ -42,6 +42,9 @@ export type OptBandsControl = {
   setMeanWeight: (w: number) => void;
   /** The first band when the list is switched on: the measurement freq. */
   defaultFreq: number;
+  /** The design's own band frequencies (`bandAnchorFreqs`): the list starts
+   *  with these when it is switched on, else with `defaultFreq`. */
+  seedFreqs?: number[];
 };
 
 // null is the server's "no reading" (a non-finite value, AK#1901); undefined
@@ -82,7 +85,9 @@ export function BandsEditor({ bands }: { bands: OptBandsControl }) {
         className={`gear-menu-item${on ? " is-active" : ""}`}
         onClick={() => {
           setError(null);
-          bands.setFreqs(on ? null : [bands.defaultFreq]);
+          bands.setFreqs(
+            on ? null : bands.seedFreqs?.length ? bands.seedFreqs : [bands.defaultFreq],
+          );
         }}
       >
         Several bands at once
