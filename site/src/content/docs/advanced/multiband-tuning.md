@@ -29,11 +29,12 @@ momwire over average ground, the workbench's default.
 Both ways start from the band list, in the **Optimize** gear menu (the gear
 beside the **Optimize** toggle, next to **Live**):
 
-1. Open the gear menu and tick **Several bands at once**. The list starts with
-   one band at the measurement frequency.
-2. Type each band you care about in MHz and press **add**: here **24.94** and
-   **28.5**, the middle of each band. Up to eight; **×** removes one, so
-   remove the seeded band if it is not one you want.
+1. Open the gear menu and tick **Several bands at once**. On a design whose
+   bands have their own frequency knobs, as this one's do, the list starts
+   with those: here **24.94** and **28.5**, the middle of each band. On other
+   designs it starts with the measurement frequency.
+2. Add any other band you care about: type it in MHz and press **add**. Up to
+   eight; **×** removes one.
 3. Close the menu.
 
 The list belongs to the design you set it on, and it stays while you work on
@@ -76,10 +77,10 @@ A few things help along the way:
   the pattern follow it. It is drawn over the band rings, so it stays visible
   when the dial sits on one of your bands.
 - **Touching a band's knob moves the dial**, on this design, while the dial's
-  lock is closed: the dial jumps to that band's own **freq** knob. Set each
-  band's **freq** to the frequency in your band list (24.94 and 28.5 here) and
-  the live dot lands on the ring of the band you are tuning, with its numbers
-  in the readout. Open the lock to keep the dial where you put it.
+  lock is closed: the dial jumps to that band's own **freq** knob, the same
+  frequency the band list started from. So the live dot lands on the ring of
+  the band you are tuning, with its numbers in the readout. Open the lock to
+  keep the dial where you put it.
 - **To see the whole span**, a frequency sweep across both bands (the SWR view
   is the plainest) shows both dips. With **auto re-run** on, it re-sweeps half
   a second after you let go of a knob; with it off, the curve fades as stale
