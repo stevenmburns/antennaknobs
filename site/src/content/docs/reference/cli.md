@@ -1499,8 +1499,8 @@ designs size each element from one) never moves while another band is read.
 
 ```bash
 # Both bands' SWR, worst band first (the default form)
-python -m antennaknobs optimize --builder multiband.twoband_fan_dipole:s015 \
-    --bands 24.97,28.57 --params bands.0.length bands.1.length
+python -m antennaknobs optimize --builder multiband.twoband_fan_dipole \
+    --bands 24.94,28.5 --params bands.0.length bands.1.length
 
 # A NEC deck's SY constants are its knobs
 python -m antennaknobs optimize --builder @vert_inv_L.nec \
@@ -1579,9 +1579,9 @@ found (`an.Result`: each knob's value and the per-band table). `--keep-name`
 names it; by default it is the design and the bands.
 
 ```bash
-python -m antennaknobs optimize --builder multiband.twoband_fan_dipole:s015 \
-    --bands 24.97,28.57 --params bands.0.length bands.1.length --keep fan/12-10
-python -m antennaknobs analyze --study "fan/12-10:multiband.twoband_fan_dipole:s015 across 24.97/28.57 MHz"
+python -m antennaknobs optimize --builder multiband.twoband_fan_dipole \
+    --bands 24.94,28.5 --params bands.0.length bands.1.length --keep fan/12-10
+python -m antennaknobs analyze --study "fan/12-10:multiband.twoband_fan_dipole across 24.94/28.5 MHz"
 python -m antennaknobs analyze --study "fan/12-10:..." --apply
 ```
 

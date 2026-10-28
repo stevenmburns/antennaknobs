@@ -5,7 +5,7 @@ import pytest
 from antennaknobs import AntennaBuilder, resolve_variant_params
 from antennaknobs.cli import get_builder, list_variants
 from antennaknobs.designs.beams import hexbeam, moxon
-from antennaknobs.designs.multiband import twoband_fan_dipole
+from antennaknobs.designs.multiband import fandipole
 from antennaknobs.designs.loops import delta_loop
 from antennaknobs.designs.specialty import hentenna
 
@@ -43,15 +43,16 @@ def test_variant_on_moxon_original():
     assert _design_params(inst) == resolve_variant_params(moxon.Builder, "original")
 
 
-def test_renamed_twoband_variant():
-    # s07_params is complete in regular params but omits `ui_params`; under
-    # the overlay it inherits `default_params["ui_params"]` (matching how the
-    # default path already builds), so the resolved set is default ⊕ s07.
-    factory = get_builder("twoband_fan_dipole:s07")
+def test_renamed_multiband_variant():
+    # pair_12_10_params omits `ui_params`; under the overlay it inherits
+    # `default_params["ui_params"]` (matching how the default path already
+    # builds), so the resolved set is default ⊕ pair_12_10. (This pinned
+    # twoband_fan_dipole's s07 until its spacing-sweep variants were dropped.)
+    factory = get_builder("fandipole:pair_12_10")
     inst = factory()
     expected = {
-        **dict(twoband_fan_dipole.Builder.default_params),
-        **dict(twoband_fan_dipole.Builder.s07_params),
+        **dict(fandipole.Builder.default_params),
+        **dict(fandipole.Builder.pair_12_10_params),
     }
     assert _design_params(inst) == expected
 
