@@ -298,6 +298,10 @@ export type SolveResponse = {
    *  asked; `band_error` says why when the bands failed and the solve did not. */
   band_zs?: BandZ[];
   band_error?: string;
+  /** The bands the design is built to work on (AK#2108), from its
+   *  `operating_bands()`, at this solve's knobs: the band list starts with
+   *  them and the Smith chart shows each. Absent for a single-band design. */
+  operating_bands?: { label: string; freq_mhz: number }[];
   /** The design's OWN reference impedance (AK#1735) — `ui_params
    *  ["target_z0"]`, a `.ssn` Generator's Zo, or the array rule — whatever
    *  the request overrode it with. What the gear menu's Zo field starts at. */

@@ -1270,9 +1270,12 @@ readout shows. The CLI's `optimize` aggregates feeds the same way (it differs
 only in scoring |Z − Z₀| distance rather than SWR).
 
 **Several bands at once.** The gear menu's **Bands** section tunes for more than
-one frequency in the same run. Tick **Several bands at once**: on a design
-whose bands have their own frequency knobs (a fan dipole's, a hexbeam's), the
-list starts with those, else with the measurement frequency. Then add each band
+one frequency in the same run. A design that declares the bands it is built
+for (`wire.efhw_autotransformer`'s 40/20/15/10 m) opens with them already in
+the list, each shown on the Smith chart by its name. Otherwise tick **Several
+bands at once**: on a design whose bands have their own frequency knobs (a fan
+dipole's, a hexbeam's), the list starts with those, else with the measurement
+frequency. Then add each band
 in MHz, up to eight; × removes one. Each evaluation builds the design once and solves it at every band
 on the same mesh, and the optimizer minimizes
 

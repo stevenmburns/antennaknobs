@@ -2035,6 +2035,36 @@ def _plane_labels(builder, planes) -> dict[str, str]:
     return {p: str(got[p]) for p in planes if p in got}
 
 
+def _operating_bands(builder) -> list[dict]:
+    """The bands a multiband design is built to work on (AK#2108), as
+    ``[{"label", "freq_mhz"}]``: the workbench fills the band list with them
+    and shows each band's Z on the Smith chart.
+
+    Declared by a builder method, ``operating_bands()`` → ``[(label,
+    freq_mhz), ...]``, read at the knobs this solve was built with, so a
+    knob that changes how many bands the design has (``n_bands``) changes the
+    list. Designs without the method serve nothing. At most
+    ``optimize_bands.MAX_BANDS``; a frequency that is not finite and positive,
+    or a label that is not text, is the design's bug and refuses by name."""
+    from .optimize_bands import MAX_BANDS
+
+    bands = getattr(builder, "operating_bands", None)
+    if not callable(bands):
+        return []
+    out: list[dict] = []
+    for item in bands() or ():
+        label, freq = item
+        f = float(freq)
+        if not isinstance(label, str) or not math.isfinite(f) or f <= 0.0:
+            raise ValueError(
+                f"{type(builder).__name__}.operating_bands(): {item!r} is not "
+                "(label, freq_mhz) with a positive frequency"
+            )
+        if all(b["freq_mhz"] != f for b in out):
+            out.append({"label": label, "freq_mhz": f})
+    return out[:MAX_BANDS]
+
+
 def _smith_target(builder, plane) -> str | None:
     """The Smith chart circle a design asks to highlight at ``plane``: "r"
     (the constant-resistance circle through Z0, r = 1) or "g" (the
@@ -4908,6 +4938,10 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             target = _smith_target(builder, plane)
             if target is not None:
                 out["smith_target"] = target
+        # The design's own bands, for the band list and the Smith chart.
+        operating = _operating_bands(builder)
+        if operating:
+            out["operating_bands"] = operating
         # Array Block coupling-path diagnostics (issue #613): absent for
         # every other engine/model (eng.solver_diag() only returns a dict
         # for an ArrayBlockSolver-backed solve).
@@ -5174,6 +5208,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             target = _smith_target(builder, plane)
             if target is not None:
                 out["smith_target"] = target
+        operating = _operating_bands(builder)
+        if operating:
+            out["operating_bands"] = operating
         if _requested_ground_model(req) == "terrain":
             # Terrain hybrid (issue #553): the engine solved over the
             # crest-medium Sommerfeld spec (so ground_eps_r/sigma above are

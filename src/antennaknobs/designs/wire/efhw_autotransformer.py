@@ -202,6 +202,13 @@ class Builder(AntennaBuilder):
         """The ideal (k → 1) voltage ratio of the chosen taps."""
         return autotransformer_ratio(*section_uH(self.taps, self.al_nH))
 
+    def operating_bands(self):
+        """The bands this antenna is for (AK#2108), at the middle of each
+        range it was tuned across: the workbench lists them and shows each
+        band's Z on the Smith chart. 10 m is the 28.0-28.6 MHz stretch the
+        tune covers, not the whole band."""
+        return [("40 m", 7.15), ("20 m", 14.175), ("15 m", 21.225), ("10 m", 28.3)]
+
     def build_analyses(self):
         """SWR from 3 to 30 MHz in one sweep (the fundamental and its
         harmonics), then each band on its own, over average ground
