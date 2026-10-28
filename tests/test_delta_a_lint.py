@@ -148,6 +148,9 @@ def test_twoband_fan_sin_ladder_stays_flat():
 
     b = Builder()
     b.nominal_nsegs = 321
+    # The values above were taken at 28.47 MHz, the design's measurement
+    # frequency then; it is 28.5 now (band 1's own freq), so pin the rung.
+    b.freq = 28.47
     z = MomwireEngine(b, solver=SinusoidalSolver).impedance()[0]
     assert abs(z - (55.8 - 7.4j)) < 3.0, z
 
