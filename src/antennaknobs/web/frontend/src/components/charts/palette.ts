@@ -143,6 +143,9 @@ export function plotColors() {
     // The sweep charts' SWR threshold line and below-threshold band
     // (AK#1738). Green: the good-match side of the line.
     thresholdRgb: v("--plot-threshold-rgb", "110, 210, 140"),
+    // The SWR chart's ham band spans: a cool slate, so a band never reads as
+    // the threshold's green zone.
+    hamBandRgb: v("--plot-hamband-rgb", "160, 180, 210"),
     // The Z-vs-parameter chart's two traces: R on the left axis, X on the
     // right (SimNEC's red and blue, as the CLI draws them).
     rRgb: v("--plot-r-rgb", "255, 110, 110"),

@@ -35,6 +35,7 @@ import { FilesPanel, type FilesViewData } from "./FilesPanel";
 import { type PatternCellRow, PatternCellsTable } from "./PatternCellsTable";
 import type { BandMarks } from "../../lib/optBands";
 import type { SmithBandPicker } from "../charts/SmithBandToggles";
+import type { HamBandSpan } from "../../lib/sweepAxis";
 import { SchematicPanel } from "./SchematicPanel";
 
 // The render half of the view registry (the metadata half — id, label,
@@ -122,6 +123,9 @@ export type ViewRenderProps = {
   /** The band list's toggles on the Smith chart (which bands' Z to show while
    *  a knob turns); null or omitted with no band list, and on a thumbnail. */
   smithBands?: SmithBandPicker | null;
+  /** The design's ham band table, for the SWR charts' band spans (stage
+   *  only: a thumbnail omits it). */
+  hamBands?: readonly HamBandSpan[];
   schematicSvg: string | null;
   schematicUnavailable: boolean;
   /** The Files view's texts (AK#1428). Optional: thumbnail call sites omit

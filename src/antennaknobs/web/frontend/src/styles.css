@@ -106,6 +106,7 @@
   --plot-nec-rgb: 47, 95, 176;        /* NEC overlay (blueprint blue) */
   --plot-elev-rgb: 47, 95, 176;       /* combined view's elevation cut */
   --plot-threshold-rgb: 38, 140, 84;  /* sweep charts' SWR threshold + band (AK#1738) */
+  --plot-hamband-rgb: 70, 95, 130;     /* SWR chart's ham band spans (slate) */
   --plot-grid-y: #ecd2c6;      /* Smith chart's admittance grid (dashed) */
   --plot-target: #cc4f17;      /* Smith chart's design target circle */
   --plot-r-rgb: 200, 50, 50;    /* Z-vs-parameter chart: R (left axis) */
@@ -196,6 +197,7 @@
   --plot-nec-rgb: 110, 220, 255;
   --plot-elev-rgb: 110, 220, 255;
   --plot-threshold-rgb: 110, 210, 140;
+  --plot-hamband-rgb: 160, 180, 210;
   --plot-grid-y: #4a3a34;
   --plot-target: #ff8a5c;
   --plot-r-rgb: 255, 110, 110;

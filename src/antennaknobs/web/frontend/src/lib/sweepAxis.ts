@@ -329,6 +329,49 @@ export function primaryBand(bands: readonly SwrBand[], measFreqMhz: number): Swr
   return bands.reduce((w, b) => (b.hi - b.lo > w.hi - w.lo ? b : w));
 }
 
+/** A ham band as the SWR chart draws it (Steve, 2026-10-28): a full-height
+ *  span, labelled with its name and how much of it the curve keeps under the
+ *  threshold. Vertical marks on the chart are frequency; the threshold is
+ *  the horizontal strip under its line, so a band can never be mistaken for
+ *  the 2:1 region (AC6LA took the old full-height green columns for "the
+ *  band"). */
+export type HamBandSpan = { label: string; lo: number; hi: number };
+export type HamBandMark = HamBandSpan & {
+  /** Fraction of the band under the threshold, 0…1; null when the sweep
+   *  covers only part of the band, so no fraction of it is known. */
+  covered: number | null;
+};
+
+/** The ham bands that overlap the swept span `[spanLo, spanHi]`, each with
+ *  the fraction of it inside `under` (the runs below the threshold,
+ *  `swrBands`). A band that sticks out past either end of the sweep is drawn
+ *  but its fraction is null. */
+export function hamBandMarks(
+  bands: readonly HamBandSpan[],
+  under: readonly SwrBand[],
+  spanLo: number,
+  spanHi: number,
+): HamBandMark[] {
+  const out: HamBandMark[] = [];
+  for (const b of bands) {
+    if (!(b.hi > spanLo && b.lo < spanHi) || !(b.hi > b.lo)) continue;
+    const whole = b.lo >= spanLo && b.hi <= spanHi;
+    let inside = 0;
+    for (const u of under) inside += Math.max(0, Math.min(b.hi, u.hi) - Math.max(b.lo, u.lo));
+    out.push({ ...b, covered: whole ? Math.min(1, inside / (b.hi - b.lo)) : null });
+  }
+  return out;
+}
+
+/** A band's label on the chart: "10m 39%", "12m all", "40m none"; the name
+ *  alone when its fraction is unknown (`hamBandMarks`). */
+export function hamBandLabel(m: HamBandMark): string {
+  if (m.covered === null) return m.label;
+  if (m.covered >= 0.995) return `${m.label} all`;
+  if (m.covered <= 0.005) return `${m.label} none`;
+  return `${m.label} ${Math.round(m.covered * 100)}%`;
+}
+
 /** A frequency span for the readout: kHz below 1 MHz, else MHz. */
 export function formatSpan(mhz: number): string {
   return mhz < 1 ? `${(mhz * 1000).toFixed(0)} kHz` : `${mhz.toFixed(3)} MHz`;

@@ -1855,6 +1855,12 @@ function DesignSessionBody({
       return bands.length ? { ...next, bands } : null;
     });
   }, [result, optBandsLive, optBands, optForm]);
+  // The design's band table as the SWR charts' band spans.
+  const hamBandSpans = useMemo(
+    () =>
+      (currentExample?.bands ?? []).map((b) => ({ label: b.label, lo: b.min_mhz, hi: b.max_mhz })),
+    [currentExample],
+  );
   // A band run draws its own markers; otherwise the ticked bands', else what
   // the last run left.
   const smithBands = optRunning ? optBandMarks : (knobBandMarks ?? optBandMarks);
@@ -5393,6 +5399,7 @@ function DesignSessionBody({
       smithBands={
         optBands ? { freqs: optBands, shown: optBandsShown, setShown: setOptBandsShown } : null
       }
+      hamBands={hamBandSpans}
       preview={preview}
       measured={measured}
       pattern={pattern}

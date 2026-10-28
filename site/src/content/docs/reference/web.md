@@ -912,12 +912,20 @@ Each view remembers its own choice, in the browser, as the pins are.
 
 Both charts draw a dashed **SWR threshold** line, 2:1 unless you change it in
 the same menu (on S11 it is the matching return loss, −9.5 dB for 2:1). The
-band where the sweep is below it is shaded, and the title row reads its width,
-e.g. `2:1 BW 176 kHz`, with the edges interpolated between sweep points rather
-than taken at the nearest one. `≥` means the band runs off the end of the
-sweep, so it may be wider. When the sweep dips below the line more than once,
-the readout gives the band holding the measurement frequency (else the widest)
-and says `(1 of 2)`.
+side of the line that meets it is a faint horizontal strip, and wherever the
+curve is under the line it is drawn thick in the line's green. The title row
+reads that stretch's width, e.g. `2:1 BW 176 kHz`, with the edges interpolated
+between sweep points rather than taken at the nearest one. `≥` means it runs
+off the end of the sweep, so it may be wider. When the sweep dips below the
+line more than once, the readout gives the stretch holding the measurement
+frequency (else the widest) and says `(1 of 2)`.
+
+**Ham bands** are the vertical marks: every amateur band the sweep overlaps is
+a faint full-height span, labelled at the top with how much of it the curve
+keeps under the threshold, `12m all`, `10m 39%` or `40m none` (just the name
+when the sweep covers only part of the band). So the chart answers "is the
+band covered?" at a glance: the threshold is horizontal, the bands vertical,
+and the two never look alike. Thumbnails leave the bands off.
 
 **The Files view** shows the text behind a solve, each tab with Copy and
 Download. **Source** is the file the design is built from: a catalog or user
