@@ -586,7 +586,7 @@ an.Analysis(
     hold=an.Hold(
         "swr",
         adjust=("bands.0.length", "bands.1.length"),
-        bands=(an.Band(24.94), an.Band(28.5)),
+        bands=(an.Band(24.97), an.Band(28.47)),
     ),
     views=(an.Swr(), an.Table(), an.Knobs()),
 )
@@ -1500,7 +1500,7 @@ designs size each element from one) never moves while another band is read.
 ```bash
 # Both bands' SWR, worst band first (the default form)
 python -m antennaknobs optimize --builder multiband.twoband_fan_dipole \
-    --bands 24.94,28.5 --params bands.0.length bands.1.length
+    --bands 24.97,28.47 --params bands.0.length bands.1.length
 
 # A NEC deck's SY constants are its knobs
 python -m antennaknobs optimize --builder @vert_inv_L.nec \
@@ -1580,8 +1580,8 @@ names it; by default it is the design and the bands.
 
 ```bash
 python -m antennaknobs optimize --builder multiband.twoband_fan_dipole \
-    --bands 24.94,28.5 --params bands.0.length bands.1.length --keep fan/12-10
-python -m antennaknobs analyze --study "fan/12-10:multiband.twoband_fan_dipole across 24.94/28.5 MHz"
+    --bands 24.97,28.47 --params bands.0.length bands.1.length --keep fan/12-10
+python -m antennaknobs analyze --study "fan/12-10:multiband.twoband_fan_dipole across 24.97/28.47 MHz"
 python -m antennaknobs analyze --study "fan/12-10:..." --apply
 ```
 

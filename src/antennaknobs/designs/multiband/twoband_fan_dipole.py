@@ -34,11 +34,11 @@ class Builder(AntennaBuilder):
             # doesn't read it — each band sizes itself from its own `length`.
             # The band group's link_meas_freq_to_param wires each band's `freq`
             # leaf to this when a band row is selected.
-            "freq": 28.5,
+            "freq": 28.47,
             # Geometry is hand-tuned per band in absolute metres;
             # design_freq only anchors auto_mesh's density scale
             # (nominal_nsegs per quarter-wave), so it is hidden from the UI.
-            "design_freq": 28.5,
+            "design_freq": 28.47,
             "base": 7.0,
             # In-plane spread of the two bands about the y axis (deg). 0 keeps
             # each band in its own x = ±s/√2 plane (a true parallel fan).
@@ -56,8 +56,8 @@ class Builder(AntennaBuilder):
             # anchor) / absolute length / droop angle. Band 0 = 12m (+x),
             # band 1 = 10m (-x).
             "bands": (
-                {"freq": 24.94, "length": 5.877, "angle_deg": 26.5651},
-                {"freq": 28.5, "length": 5.19, "angle_deg": 26.5651},
+                {"freq": 24.97, "length": 5.877, "angle_deg": 26.5651},
+                {"freq": 28.47, "length": 5.19, "angle_deg": 26.5651},
             ),
             "ui_params": MappingProxyType(
                 {

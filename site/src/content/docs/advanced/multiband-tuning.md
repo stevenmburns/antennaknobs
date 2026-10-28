@@ -31,8 +31,9 @@ beside the **Optimize** toggle, next to **Live**):
 
 1. Open the gear menu and tick **Several bands at once**. On a design whose
    bands have their own frequency knobs, as this one's do, the list starts
-   with those: here **24.94** and **28.5**, the middle of each band. On other
-   designs it starts with the measurement frequency.
+   with those: here **24.97** and **28.47**, the frequencies its 12 m and 10 m
+   bands are set for. On other designs it starts with the measurement
+   frequency.
 2. Add any other band you care about: type it in MHz and press **add**. Up to
    eight; **×** removes one.
 3. Close the menu.
@@ -56,13 +57,13 @@ solve per band), but on a large design they add up.
 
 Now drag **band 0 length**. Measured on this antenna, 5 cm either way:
 
-| Change | 12 m (24.94 MHz) | 10 m (28.5 MHz) |
+| Change | 12 m (24.97 MHz) | 10 m (28.47 MHz) |
 |---|---|---|
-| as designed | 52.1 − j6.8 Ω, SWR 1.15 | 51.5 − j2.4 Ω, SWR 1.06 |
-| band 0 (12 m) length −5 cm | 50.1 − j17.2 Ω, SWR 1.41 | 51.4 − j2.9 Ω, SWR 1.07 |
-| band 0 (12 m) length +5 cm | 54.4 + j4.6 Ω, SWR 1.13 | 51.5 − j2.0 Ω, SWR 1.05 |
-| band 1 (10 m) length −5 cm | 52.1 − j6.9 Ω, SWR 1.15 | 45.0 − j35.2 Ω, SWR 2.08 |
-| band 1 (10 m) length +5 cm | 52.1 − j6.6 Ω, SWR 1.14 | 57.0 + j23.5 Ω, SWR 1.58 |
+| as designed | 52.4 − j5.1 Ω, SWR 1.12 | 50.8 − j5.7 Ω, SWR 1.12 |
+| band 0 (12 m) length −5 cm | 50.3 − j15.6 Ω, SWR 1.36 | 50.7 − j6.4 Ω, SWR 1.14 |
+| band 0 (12 m) length +5 cm | 54.7 + j6.3 Ω, SWR 1.16 | 50.8 − j5.2 Ω, SWR 1.11 |
+| band 1 (10 m) length −5 cm | 52.4 − j5.3 Ω, SWR 1.12 | 44.2 − j39.5 Ω, SWR 2.29 |
+| band 1 (10 m) length +5 cm | 52.4 − j4.9 Ω, SWR 1.11 | 56.4 + j20.8 Ω, SWR 1.50 |
 
 Each element moves its own band and barely touches the other: 5 cm on the
 12 m element swings 12 m's reactance by about 11 Ω and 10 m's by half an ohm.
@@ -128,11 +129,11 @@ worst and the mean. On the fan dipole, from the design's own lengths:
 
 | Band | Before | After |
 |---|---|---|
-| 12 m, 24.94 MHz | 52.1 − j6.8 Ω, SWR 1.149 | 53.3 − j0.7 Ω, SWR 1.068 |
-| 10 m, 28.5 MHz | 51.5 − j2.4 Ω, SWR 1.057 | 51.9 − j0.4 Ω, SWR 1.038 |
+| 12 m, 24.97 MHz | 52.4 − j5.1 Ω, SWR 1.117 | 53.3 − j0.7 Ω, SWR 1.067 |
+| 10 m, 28.47 MHz | 50.8 − j5.7 Ω, SWR 1.122 | 51.9 − j0.4 Ω, SWR 1.038 |
 
-It got there by lengthening the 12 m element 2.7 cm (5.877 → 5.904 m) and the
-10 m element 3 mm (5.190 → 5.193 m), in 59 evaluations. Small moves, because
+It got there by lengthening the 12 m element 2.0 cm (5.877 → 5.897 m) and the
+10 m element 9 mm (5.190 → 5.199 m), in 59 evaluations. Small moves, because
 the design was close; from an antenna you have dragged far off, it travels
 further and the before column is worse. Read the notes under the table: one
 says when a knob ended at the edge of its range (the best value may lie past
@@ -150,12 +151,12 @@ and two lengths:
 
 ```bash
 python -m antennaknobs optimize --builder multiband.twoband_fan_dipole \
-    --bands 24.94:res,28.5:res --mode root \
+    --bands 24.97:res,28.47:res --mode root \
     --params bands.0.length bands.1.length
 ```
 
-On the fan dipole this finds both reactances below 10 µΩ in 9 evaluations,
-SWR 1.069 / 1.039. When there is no exact answer within the knobs' ranges,
+On the fan dipole this finds both reactances below 1 mΩ in 9 evaluations,
+SWR 1.068 / 1.039. When there is no exact answer within the knobs' ranges,
 the root form says so (`no root in the box`, or which knob moves no band)
 rather than returning a near miss; the minimax form is the one to reach for
 first. [Optimizing across bands](/reference/cli/#optimizing-across-bands) covers
@@ -179,7 +180,7 @@ The same run as the workbench's, as one command:
 
 ```bash
 python -m antennaknobs optimize --builder multiband.twoband_fan_dipole \
-    --bands 24.94,28.5 --params bands.0.length bands.1.length
+    --bands 24.97,28.47 --params bands.0.length bands.1.length
 ```
 
 It prints the knobs' ranges, the per-band table before and after, and a
