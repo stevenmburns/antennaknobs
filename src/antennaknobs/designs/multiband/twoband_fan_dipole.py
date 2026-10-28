@@ -50,9 +50,8 @@ def _variant(freq, s, eps, *, len12, freq12, len10, freq10, angle=26.5651):
 
 
 class Builder(AntennaBuilder):
-    # Feed-junction spacing sweep (s = 0.7 → 0.1) + an eps perturbation and the
-    # as-built "current_physical" point. The per-band lengths were re-tuned for
-    # resonance at each s.
+    # Feed-junction spacing sweep (s = 0.7 → 0.1) + an eps perturbation. The
+    # per-band lengths were re-tuned for resonance at each s.
     s07_params = _variant(
         28.57, 0.7, 0.01, len12=5.1102, freq12=24.97, len10=4.4682, freq10=28.57
     )
@@ -76,9 +75,6 @@ class Builder(AntennaBuilder):
     )
     s01_eps001_params = _variant(
         24.97, 0.10, 0.001, len12=5.7628, freq12=24.97, len10=5.0717, freq10=28.57
-    )
-    current_physical_params = _variant(
-        28.47, 0.15, 0.015, len12=5.494, freq12=26.6, len10=5.0517, freq10=29.3
     )
 
     default_params = MappingProxyType(

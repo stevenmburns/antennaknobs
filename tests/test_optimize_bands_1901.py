@@ -421,13 +421,13 @@ _FAN = "multiband.twoband_fan_dipole"
 
 
 def _fan_body(**opt) -> dict:
-    v = server.EXAMPLES[_FAN].builder_cls.current_physical_params
+    v = server.EXAMPLES[_FAN].builder_cls.default_params
     bands = [dict(b) for b in v["bands"]]
     bands[0]["length"] *= 1.05
     bands[1]["length"] *= 0.95
     return {
         "geometry": _FAN,
-        "variant": "current_physical",
+        "variant": "default",
         "bands": bands,
         "optimize": opt,
     }
@@ -441,12 +441,12 @@ _LENGTHS = [
 
 def test_two_band_fan_root_through_the_workbench():
     """Gate 1, fast: the two band lengths to resonance at both of
-    current_physical's frequencies, from +5 % / -5 % off the variant."""
+    the design's band frequencies, from +5 % / -5 % off its lengths."""
     body = _fan_body(
         free=_LENGTHS,
         bands=[
-            {"freq": 26.6, "objective": "resonance"},
-            {"freq": 29.3, "objective": "resonance"},
+            {"freq": 24.94, "objective": "resonance"},
+            {"freq": 28.5, "objective": "resonance"},
         ],
         mode="root",
     )
@@ -457,8 +457,8 @@ def test_two_band_fan_root_through_the_workbench():
     assert out["n_fresh"] <= 30
     assert out["solver"] == "momwire"
     # The variant's own lengths, give or take: the root is the one nearby.
-    assert out["params"]["bands.0.length"] == pytest.approx(5.494, abs=0.05)
-    assert out["params"]["bands.1.length"] == pytest.approx(5.0517, abs=0.05)
+    assert out["params"]["bands.0.length"] == pytest.approx(5.905, abs=0.05)
+    assert out["params"]["bands.1.length"] == pytest.approx(5.193, abs=0.05)
 
 
 def test_one_shared_knob_minimax_through_the_workbench_streams_every_band():
@@ -467,7 +467,7 @@ def test_one_shared_knob_minimax_through_the_workbench_streams_every_band():
     frame carries each band's Z and SWR."""
     body = _fan_body(
         free=[{"name": "s", "min": 0.05, "max": 0.8}],
-        bands=[{"freq": 26.6}, {"freq": 29.3}],
+        bands=[{"freq": 24.94}, {"freq": 28.5}],
     )
     body["s"] = 0.4
     text = (
@@ -498,17 +498,20 @@ def test_one_shared_knob_minimax_through_the_workbench_streams_every_band():
     "opt, words",
     [
         (
-            {"free": _LENGTHS, "bands": [{"freq": 26.6, "feed": 3}]},
+            {"free": _LENGTHS, "bands": [{"freq": 24.94, "feed": 3}]},
             "feed 3",
         ),
         (
-            {"free": [{"name": "nope", "min": 0, "max": 1}], "bands": [{"freq": 26.6}]},
+            {
+                "free": [{"name": "nope", "min": 0, "max": 1}],
+                "bands": [{"freq": 24.94}],
+            },
             "unknown knob 'nope'",
         ),
         ({"free": _LENGTHS, "bands": [{"freq": -1}]}, "positive"),
-        ({"free": _LENGTHS, "bands": [{"freq": 26.6}], "mode": "auto"}, "mode"),
+        ({"free": _LENGTHS, "bands": [{"freq": 24.94}], "mode": "auto"}, "mode"),
         (
-            {"free": _LENGTHS, "bands": [{"freq": 26.6}], "mean_weight": 2},
+            {"free": _LENGTHS, "bands": [{"freq": 24.94}], "mean_weight": 2},
             "mean_weight",
         ),
     ],
@@ -521,14 +524,14 @@ def test_workbench_refusals_are_by_name(opt, words):
 def test_a_group_the_request_leaves_out_is_seeded_from_the_design():
     body = _fan_body(
         free=_LENGTHS,
-        bands=[{"freq": 26.6, "objective": "res"}, {"freq": 29.3, "objective": "res"}],
+        bands=[{"freq": 24.94, "objective": "res"}, {"freq": 28.5, "objective": "res"}],
         mode="root",
         max_evals=1,
     )
     del body["bands"]
     out = TestClient(server.app).post("/optimize", json=body).json()
     assert "error" not in out, out
-    v = server.EXAMPLES[_FAN].builder_cls.current_physical_params
+    v = server.EXAMPLES[_FAN].builder_cls.default_params
     assert out["params_before"]["bands.0.length"] == v["bands"][0]["length"]
 
 
@@ -608,27 +611,27 @@ def test_cli_optimize_bands_root_on_the_two_band_fan(capsys):
         [
             "optimize",
             "--builder",
-            "multiband.twoband_fan_dipole:current_physical",
+            "multiband.twoband_fan_dipole",
             "--engine",
             "momwire",
             "--bands",
-            "26.6:res,29.3:res",
+            "24.94:res,28.5:res",
             "--mode",
             "root",
             "--params",
             "bands.0.length",
             "bands.1.length",
             "--bound",
-            "bands.0.length=5.2:5.8",
+            "bands.0.length=5.6:6.2",
         ]
     )
     out = capsys.readouterr().out
     assert "root: root" in out, out
-    assert "current_physical_params" in out
+    assert "default_params" in out
     import re
 
     lengths = [float(v) for v in re.findall(r"'length': ([0-9.]+)", out)]
-    assert lengths == pytest.approx([5.50, 5.05], abs=0.03)
+    assert lengths == pytest.approx([5.905, 5.193], abs=0.03)
 
 
 def test_cli_bounds_parse_and_refuse_by_name():

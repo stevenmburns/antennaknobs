@@ -22,7 +22,7 @@ from antennaknobs import analyses as an
 from antennaknobs import hold
 from antennaknobs.web import optimize_bands as ob
 
-FAN = "multiband.twoband_fan_dipole:current_physical"
+FAN = "multiband.twoband_fan_dipole:s015"
 
 
 def _ev(code: str):
@@ -31,21 +31,19 @@ def _ev(code: str):
 
 def _optimize(**kw) -> an.Optimize:
     fields = {
-        "name": "fan 26.6/29.3",
-        "start": an.State(
-            "start", "multiband.twoband_fan_dipole", variant="current_physical"
-        ),
+        "name": "fan 24.97/28.57",
+        "start": an.State("start", "multiband.twoband_fan_dipole", variant="s015"),
         "knobs": (
             an.Knob("bands.0.length", 5.2, 5.8),
             an.Knob("bands.1.length", 4.8, 5.3),
         ),
-        "bands": (an.Band(26.6), an.Band(29.3)),
+        "bands": (an.Band(24.97), an.Band(28.57)),
         "engine": "momwire",
         "result": an.Result(
             (("bands.0.length", 5.5), ("bands.1.length", 5.05)),
             (
-                an.BandResult(26.6, (60.0, -20.0), (55.0, 1.0), 1.6, 1.1),
-                an.BandResult(29.3, None, (52.0, -3.0), None, 1.08),
+                an.BandResult(24.97, (60.0, -20.0), (55.0, 1.0), 1.6, 1.1),
+                an.BandResult(28.57, None, (52.0, -3.0), None, 1.08),
             ),
         ),
         **kw,
@@ -63,26 +61,26 @@ def _optimize(**kw) -> an.Optimize:
         _optimize(
             mode="sequential",
             bands=(
-                an.Band(26.6, knobs=("bands.0.length",)),
-                an.Band(29.3, knobs=("bands.1.length",)),
+                an.Band(24.97, knobs=("bands.0.length",)),
+                an.Band(28.57, knobs=("bands.1.length",)),
             ),
         ),
         _optimize(result=None, group="Tuning", mean_weight=0.2, max_evals=80),
         _optimize(
             mode="root",
-            bands=(an.Band(26.6, "resonance"), an.Band(29.3, "resonance")),
+            bands=(an.Band(24.97, "resonance"), an.Band(28.57, "resonance")),
             result=None,
         ),
         an.Hold(
             "swr",
             adjust=("bands.0.length", "bands.1.length"),
-            bands=(an.Band(26.6), an.Band(29.3, z0=75.0)),
+            bands=(an.Band(24.97), an.Band(28.57, z0=75.0)),
             mean_weight=0.3,
         ),
         an.Hold(
             "resonance",
             adjust=("bands.0.length", "bands.1.length"),
-            bands=(an.Band(26.6), an.Band(29.3)),
+            bands=(an.Band(24.97), an.Band(28.57)),
             warm_start=False,
         ),
     ],
@@ -98,7 +96,7 @@ def test_an_analysis_with_a_band_hold_round_trips():
     a = an.Analysis(
         "the fan held across its bands",
         an.Sweep("base", 5, 9, points=3),
-        hold=an.Hold("swr", adjust=("bands.0.length",), bands=(an.Band(26.6),)),
+        hold=an.Hold("swr", adjust=("bands.0.length",), bands=(an.Band(24.97),)),
         views=(an.Swr(), an.Knobs()),
     )
     assert _ev(an.to_code(a)) == a
@@ -126,7 +124,7 @@ def test_the_spec_constants_are_the_optimizers():
     [
         ({"mode": "root", "result": None}, "as many equations as knobs"),
         (
-            {"bands": (an.Band(26.6), an.Band(29.3, "resonance")), "result": None},
+            {"bands": (an.Band(24.97), an.Band(28.57, "resonance")), "result": None},
             "one unit",
         ),
         ({"mode": "sequential", "result": None}, "each band's own knobs"),
@@ -136,7 +134,7 @@ def test_the_spec_constants_are_the_optimizers():
         ),
         ({"mean_weight": 1.5}, "within 0..1"),
         ({"start": an.State("start")}, "naming its design"),
-        ({"bands": (an.Band(26.6), an.Band(26.6))}, "listed twice"),
+        ({"bands": (an.Band(24.97), an.Band(24.97))}, "listed twice"),
     ],
 )
 def test_an_optimize_refuses_by_name(kw, words):
@@ -179,7 +177,7 @@ def test_swr_is_holdable_across_bands_only():
     many = an.Analysis(
         "x",
         an.Sweep("base", 5, 9, points=3),
-        hold=an.Hold("swr", adjust=("s",), bands=(an.Band(26.6),)),
+        hold=an.Hold("swr", adjust=("s",), bands=(an.Band(24.97),)),
     )
     assert any("SWR is a minimisation" in g for g in cli_gaps(one))
     assert cli_gaps(many) == []
@@ -207,14 +205,14 @@ _FAN_RUN = [
     "--engine",
     "momwire",
     "--bands",
-    "26.6:res,29.3:res",
+    "24.97:res,28.57:res",
     "--mode",
     "root",
     "--params",
     "bands.0.length",
     "bands.1.length",
     "--bound",
-    "bands.0.length=5.2:5.8",
+    "bands.0.length=5.3:5.9",
     "--bound",
     "bands.1.length=4.8:5.3",
 ]
@@ -320,7 +318,7 @@ def test_apply_reproduces_the_stored_knobs_exactly():
     assert got["params"] == o.result.values
     for k, v in o.result.values.items():
         assert ost._get_path(b, k) == v  # set exactly, not re-derived
-    assert [r["freq_mhz"] for r in got["bands"]] == [26.6, 29.3]
+    assert [r["freq_mhz"] for r in got["bands"]] == [24.97, 28.57]
 
 
 @pytest.mark.parametrize("knob", ["name", "design", "variant"])
@@ -372,7 +370,7 @@ def test_a_band_hold_matches_independent_band_runs_at_three_points():
     h = an.Hold(
         "resonance",
         adjust=("bands.0.length", "bands.1.length"),
-        bands=(an.Band(26.6), an.Band(29.3)),
+        bands=(an.Band(24.97), an.Band(28.57)),
     )
     factory = make_engine_factory("momwire", None)
     xs = [6.0, 7.0, 8.0]
@@ -435,7 +433,7 @@ def test_analyze_runs_a_band_hold_and_draws_per_band_swr(monkeypatch, capsys, tm
         hold=an.Hold(
             "resonance",
             adjust=("bands.0.length", "bands.1.length"),
-            bands=(an.Band(26.6), an.Band(29.3)),
+            bands=(an.Band(24.97), an.Band(28.57)),
         ),
         views=(an.Swr(), an.Table(), an.Knobs()),
     )
@@ -452,12 +450,13 @@ def test_analyze_runs_a_band_hold_and_draws_per_band_swr(monkeypatch, capsys, tm
         ]
     )
     out = capsys.readouterr().out
-    assert "held resonance across 26.6/29.3 MHz (root)" in out
+    assert "held resonance across 24.97/28.57 MHz (root)" in out
     assert "3 of 3 points held" in out, out
-    assert "SWR 26.6" in out and "SWR 29.3" in out
+    assert "SWR 24.97" in out and "SWR 28.57" in out
     assert (tmp_path / "h.png").exists()
-    assert "hold resonance on bands.0.length, bands.1.length across 26.6/29.3 MHz" in (
-        ar.summary(a, Builder())
+    assert (
+        "hold resonance on bands.0.length, bands.1.length across 24.97/28.57 MHz"
+        in (ar.summary(a, Builder()))
     )
 
 
@@ -528,14 +527,14 @@ def _run_body(tab, free, params, before, *, path=None, name="kept pair"):
         "name": name,
         "tab": tab,
         "free": free,
-        "bands": [{"freq": 26.6}, {"freq": 29.3}],
+        "bands": [{"freq": 24.97}, {"freq": 28.57}],
         "mean_weight": 0.4,
         "result": {
             "objective": "bands",
             "params": params,
             "params_before": before,
-            "bands_before": [_rec(26.6, 2.5), _rec(29.3, 3.0)],
-            "bands_after": [_rec(26.6, 1.2), _rec(29.3, 1.3)],
+            "bands_before": [_rec(24.97, 2.5), _rec(28.57, 3.0)],
+            "bands_after": [_rec(24.97, 1.2), _rec(28.57, 1.3)],
             "mean_weight": 0.4,
         },
     }
@@ -554,7 +553,7 @@ def client():
 
 
 def test_the_workbench_keeps_a_band_run_and_lists_it(folder, client):
-    tab = {"geometry": "multiband.twoband_fan_dipole", "variant": "current_physical"}
+    tab = {"geometry": "multiband.twoband_fan_dipole", "variant": "s015"}
     free = [
         {"name": "bands.0.length", "min": 5.2, "max": 5.8},
         {"name": "bands.1.length", "min": 4.8, "max": 5.3},
@@ -569,7 +568,7 @@ def test_the_workbench_keeps_a_band_run_and_lists_it(folder, client):
 
     o = studies.find("fan/kept:kept pair").analysis
     assert an.is_optimize(o)
-    assert o.design == "multiband.twoband_fan_dipole:current_physical"
+    assert o.design == "multiband.twoband_fan_dipole:s015"
     assert o.mean_weight == 0.4 and o.engine == "momwire:bspline"
     # The run's start: the moved knobs back where the run began.
     from antennaknobs import optimize_study as ost
@@ -586,7 +585,7 @@ def test_the_workbench_keeps_a_band_run_and_lists_it(folder, client):
     w = entry["workbench"]
     assert w["kind"] == "optimize" and w["runs"] is True
     assert w["free"] == free
-    assert [bd["freq"] for bd in w["bands"]] == [26.6, 29.3]
+    assert [bd["freq"] for bd in w["bands"]] == [24.97, 28.57]
     assert w["result"]["knobs"] == params
     assert entry["summary"].startswith("optimize bands.0.length, bands.1.length")
     assert entry["group"] == "General"
@@ -597,7 +596,7 @@ def test_the_workbench_keeps_a_band_run_and_lists_it(folder, client):
     ]
     assert entry["workbench"] == {
         "runs": False,
-        "why": "kept on the current_physical variant: switch to it to jump to this run",
+        "why": "kept on the s015 variant: switch to it to jump to this run",
     }
 
 
@@ -605,7 +604,7 @@ def test_a_band_run_in_a_kept_form_is_kept_in_that_form(folder, client):
     """Run again in a kept run's own form sends its mode and each band's
     objective, feed and Z0 (#1921); keeping that run keeps the form, and
     /analyses serves it back for the next jump."""
-    tab = {"geometry": "multiband.twoband_fan_dipole", "variant": "current_physical"}
+    tab = {"geometry": "multiband.twoband_fan_dipole", "variant": "s015"}
     free = [
         {"name": "bands.0.length", "min": 5.2, "max": 5.8},
         {"name": "bands.1.length", "min": 4.8, "max": 5.3},
@@ -615,8 +614,8 @@ def test_a_band_run_in_a_kept_form_is_kept_in_that_form(folder, client):
     body = _run_body(tab, free, params, before, path="fan/root")
     body["mode"] = "root"
     body["bands"] = [
-        {"freq": 26.6, "objective": "resonance", "feed": 0, "z0": 50},
-        {"freq": 29.3, "objective": "resonance", "feed": 0, "z0": 75},
+        {"freq": 24.97, "objective": "resonance", "feed": 0, "z0": 50},
+        {"freq": 28.57, "objective": "resonance", "feed": 0, "z0": 75},
     ]
     r = client.post("/studies/save", json=body)
     assert r.status_code == 200, r.text
@@ -713,7 +712,7 @@ def test_a_band_hold_is_listed_for_the_command_line(client, monkeypatch):
     a = an.Analysis(
         "fan held",
         an.Sweep("base", 6, 8, points=3),
-        hold=an.Hold("swr", adjust=("bands.0.length",), bands=(an.Band(26.6),)),
+        hold=an.Hold("swr", adjust=("bands.0.length",), bands=(an.Band(24.97),)),
         views=(an.Swr(), an.Knobs()),
     )
     monkeypatch.setattr(Builder, "build_analyses", lambda self: (a,))
