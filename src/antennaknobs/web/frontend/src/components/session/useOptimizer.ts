@@ -201,6 +201,14 @@ export function useOptimizer({
   // frequency in MHz (SWR at each, minimax). Belongs to the design it was set
   // on, so the design-load reset clears it.
   const [optBands, setOptBands] = useState<number[] | null>(null);
+  // The bands ticked to show on the Smith chart while a knob turns: each a
+  // live solve of its own per knob change, so none is shown until asked.
+  // Only the ticked bands still in the list count (`optBandsLive`).
+  const [optBandsShown, setOptBandsShown] = useState<number[]>([]);
+  const optBandsLive = useMemo(
+    () => (optBands ? optBands.filter((f) => optBandsShown.includes(f)) : []),
+    [optBands, optBandsShown],
+  );
   // The band run's balance w: J = (1 - w) * worst band + w * mean of bands.
   const [optMeanWeight, setOptMeanWeight] = useState<number>(DEFAULT_MEAN_WEIGHT);
   // A kept run's form (#1921): read only while the band list is still its
@@ -314,6 +322,7 @@ export function useOptimizer({
     setOptProgress(null);
     setOptError(null);
     setOptBands(null);
+    setOptBandsShown([]);
     setOptBandForm(null);
     setOptBandMarks(null);
     if (optEnabledRef.current) {
@@ -618,6 +627,9 @@ export function useOptimizer({
     setOptSeed,
     optBands,
     setOptBands,
+    optBandsShown,
+    setOptBandsShown,
+    optBandsLive,
     optMeanWeight,
     setOptMeanWeight,
     optForm,

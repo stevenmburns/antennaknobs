@@ -46,7 +46,7 @@ export type BandMark = {
 export type BandMarks = { bands: BandMark[]; worst: number | null };
 
 /** The minimal shape of a progress frame's band records. */
-type BandReading = {
+export type BandReading = {
   index: number;
   freq_mhz: number;
   z0_ohms: number;
@@ -88,4 +88,31 @@ export function nextBandMarks(
   const worst =
     frame.worst_band !== undefined ? (frame.worst_band ?? null) : (prev?.worst ?? null);
   return { bands, worst };
+}
+
+/** The live solve's band readings (`SolveResponse.band_zs`) as the records
+ *  `nextBandMarks` reads: each band at its place in the band list (its marker
+ *  colour), read at its own feed and drawn against its own Z0 where a kept
+ *  run's form says so, else feed 0 and the solve's reference. A band the list
+ *  no longer has is dropped. */
+export function liveBandReadings(
+  bandZs: readonly { freq_mhz: number; z0_ohms: number; feeds: ([number, number] | null)[] }[],
+  freqs: readonly number[],
+  form: { bands: { freq: number; feed: number; z0: number }[] } | null = null,
+): BandReading[] {
+  const out: BandReading[] = [];
+  for (const b of bandZs) {
+    const index = freqs.indexOf(b.freq_mhz);
+    if (index < 0) continue;
+    const spec = form?.bands.find((f) => f.freq === b.freq_mhz);
+    const z = b.feeds[spec?.feed ?? 0] ?? null;
+    out.push({
+      index,
+      freq_mhz: b.freq_mhz,
+      z0_ohms: spec?.z0 ?? b.z0_ohms,
+      z_re: z ? z[0] : null,
+      z_im: z ? z[1] : null,
+    });
+  }
+  return out;
 }
