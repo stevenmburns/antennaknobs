@@ -95,6 +95,7 @@ export default defineConfig({
             { label: "The end-fed question", slug: "advanced/efhw" },
             { label: "Three ledgers of efficiency", slug: "advanced/pota-performer" },
             { label: "Cut for one band, worked on another", slug: "advanced/off-band" },
+            { label: "Tuning for several bands", slug: "advanced/multiband-tuning" },
             { label: "How many segments?", slug: "advanced/convergence" },
             { label: "Antennas on a levee", slug: "advanced/terrain" },
             { label: "Calibrating against your VNA", slug: "advanced/calibrating" },
