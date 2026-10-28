@@ -2497,7 +2497,31 @@ def _live_band_freqs(raw) -> list[float]:
     return out[:MAX_BANDS]
 
 
-def _live_band_zs(req: dict, freqs: list[float], cancel=None) -> list[dict]:
+def _live_feed_zs(live: dict) -> list[list[float] | None] | None:
+    """The live solve's Z at every feed, as `_live_band_zs` reports a band:
+    its per-feed table where it has one, else the single input Z; None when
+    the response carries neither."""
+    feeds = live.get("feeds")
+    if feeds:
+        return [
+            [float(f["z_re"]), float(f["z_im"])]
+            if math.isfinite(f["z_re"]) and math.isfinite(f["z_im"])
+            else None
+            for f in feeds
+        ]
+    re, im = live.get("z_in_re"), live.get("z_in_im")
+    if isinstance(re, (int, float)) and isinstance(im, (int, float)):
+        return (
+            [[float(re), float(im)]]
+            if math.isfinite(re) and math.isfinite(im)
+            else [None]
+        )
+    return None
+
+
+def _live_band_zs(
+    req: dict, freqs: list[float], cancel=None, live: dict | None = None
+) -> list[dict]:
     """Z at each of ``freqs`` for the live solve's design, for the Smith
     chart's band markers while a knob turns: ``[{freq_mhz, z0_ohms, feeds:
     [[re, im] | None, ...]}]``, one per frequency, every feed.
@@ -2506,8 +2530,33 @@ def _live_band_zs(req: dict, freqs: list[float], cancel=None) -> list[dict]:
     design once at the measurement frequency and reads every band off its
     vectorized ``impedance_sweep`` (1.4-2.1x four full solves, measured
     2026-10-28), so a marker here is the marker a band run draws; an external
-    engine solves each band as its frequency sweep does."""
+    engine solves each band as its frequency sweep does.
+
+    A band at the measurement frequency is the live solve itself (``live``,
+    its response): the same build, plane and engine, so its Z is reused
+    rather than solved again, and only the other bands are swept (Steve,
+    2026-10-28: a quarter of the band work on a four-band design whose
+    dial sits on one of its bands)."""
     from .optimize_bands import bands_from_solves
+
+    meas = req.get("measurement_freq_mhz")
+    live_zs = _live_feed_zs(live) if live is not None else None
+    reuse = (
+        live_zs is not None
+        and isinstance(meas, (int, float))
+        and any(abs(f - float(meas)) <= 1e-9 * max(1.0, f) for f in freqs)
+    )
+    if reuse:
+        swept = [f for f in freqs if abs(f - float(meas)) > 1e-9 * max(1.0, f)]
+        out_rest = _live_band_zs(req, swept, cancel=cancel) if swept else []
+        by_freq = {b["freq_mhz"]: b for b in out_rest}
+        z0 = out_rest[0]["z0_ohms"] if out_rest else float(live.get("z0_ohms") or 50.0)
+        return [
+            by_freq[f]
+            if f in by_freq
+            else {"freq_mhz": f, "z0_ohms": z0, "feeds": live_zs}
+            for f in freqs
+        ]
 
     backend = _external_backend(req)
     if backend is None:
@@ -5810,7 +5859,12 @@ async def ws_endpoint(ws: WebSocket):
                             if bands and "error" not in result:
                                 try:
                                     result["band_zs"] = await run_in_threadpool(
-                                        _shed, _live_band_zs, req, bands, cancel=token
+                                        _shed,
+                                        _live_band_zs,
+                                        req,
+                                        bands,
+                                        cancel=token,
+                                        live=result,
                                     )
                                 except (Superseded, momwire.SolveAborted):
                                     raise
