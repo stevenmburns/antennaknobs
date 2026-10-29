@@ -110,6 +110,15 @@ WIRES = {
     "18-awg": WireSpec(
         radius=0.512e-3, conductivity=COPPER_CONDUCTIVITY, weight_g_per_m=7.37
     ),
+    "16-awg": WireSpec(
+        radius=0.6455e-3, conductivity=COPPER_CONDUCTIVITY, weight_g_per_m=11.73
+    ),
+    "14-awg": WireSpec(
+        radius=0.814e-3, conductivity=COPPER_CONDUCTIVITY, weight_g_per_m=18.65
+    ),
+    "12-awg": WireSpec(
+        radius=1.0265e-3, conductivity=COPPER_CONDUCTIVITY, weight_g_per_m=29.66
+    ),
     "28-awg-pvc": WireSpec(
         radius=0.160e-3,
         conductivity=COPPER_CONDUCTIVITY,
@@ -130,6 +139,27 @@ WIRES = {
         insulation_radius=1.05e-3,
         insulation_eps_r=3.5,
         weight_g_per_m=11.07,
+    ),
+    "16-awg-pvc": WireSpec(
+        radius=0.6455e-3,
+        conductivity=COPPER_CONDUCTIVITY,
+        insulation_radius=1.20e-3,
+        insulation_eps_r=3.5,
+        weight_g_per_m=16.23,
+    ),
+    "14-awg-pvc": WireSpec(
+        radius=0.814e-3,
+        conductivity=COPPER_CONDUCTIVITY,
+        insulation_radius=1.45e-3,
+        insulation_eps_r=3.5,
+        weight_g_per_m=24.98,
+    ),
+    "12-awg-pvc": WireSpec(
+        radius=1.0265e-3,
+        conductivity=COPPER_CONDUCTIVITY,
+        insulation_radius=1.70e-3,
+        insulation_eps_r=3.5,
+        weight_g_per_m=37.74,
     ),
 }
 
