@@ -60,7 +60,7 @@ def test_catalog_entries_consistent():
 
 def test_catalog_lookup_error_ergonomics():
     with pytest.raises(KeyError, match="unknown wire.*available"):
-        wire_from_catalog("12-awg")
+        wire_from_catalog("10-awg")
 
 
 def test_builder_hook_default_and_wire_type():
@@ -225,17 +225,21 @@ class _InductanceOnly(PyNECEngine):
     _jacket_pair = False
 
 
-def _pec(wire_type):
-    """The catalog wire with conductor loss switched off, both engines."""
+def _pec(monkeypatch, wire_type):
+    """The catalog wire with conductor loss switched off, both engines.
+
+    Registered through monkeypatch so the entry leaves WIRES with the test:
+    a leaked key changes `len(WIRES)` under every later test in the process.
+    """
     import dataclasses
 
     spec = dataclasses.replace(WIRES[wire_type], conductivity=None)
-    WIRES.setdefault(f"_pec_{wire_type}", spec)
+    monkeypatch.setitem(WIRES, f"_pec_{wire_type}", spec)
     return _builder(f"_pec_{wire_type}")
 
 
 @needs_pynec
-def test_cross_engine_coated_pair_oracle():
+def test_cross_engine_coated_pair_oracle(monkeypatch):
     """THE tight cross-engine pin for a jacketed wire: momwire (a'+L) against
     NEC given the SAME pair, PEC on both sides.
 
@@ -245,12 +249,12 @@ def test_cross_engine_coated_pair_oracle():
     baseline of 0.47 % (at a) and 0.56 % (at a'), and 0.80 % absolute.
     """
     dx_m = (
-        _z(MomwireEngine(_pec("28-awg-pvc"), ground=None)).imag
-        - _z(MomwireEngine(_pec("28-awg"), ground=None)).imag
+        _z(MomwireEngine(_pec(monkeypatch, "28-awg-pvc"), ground=None)).imag
+        - _z(MomwireEngine(_pec(monkeypatch, "28-awg"), ground=None)).imag
     )
     dx_n = (
-        _z(pair_pynec(_pec("28-awg-pvc"), lossy=False)).imag
-        - _z(PyNECEngine(_pec("28-awg"), ground=None)).imag
+        _z(pair_pynec(_pec(monkeypatch, "28-awg-pvc"), lossy=False)).imag
+        - _z(PyNECEngine(_pec(monkeypatch, "28-awg"), ground=None)).imag
     )
     assert dx_m == pytest.approx(dx_n, rel=0.015)
 
