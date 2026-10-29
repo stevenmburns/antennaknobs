@@ -87,7 +87,7 @@ def test_web_example_carries_the_story():
 
 
 def test_wire_gauge_analyses_lead_and_run_here():
-    """The three wire-gauge charts come first, under their own group, each
+    """The four wire-gauge charts come first, under their own group, each
     one curve per PVC wire, with nothing the design or the CLI refuses; the
     inverted vee's own analyses follow, inherited."""
     from antennaknobs import analyses as an
@@ -97,12 +97,13 @@ def test_wire_gauge_analyses_lead_and_run_here():
     analyses = b.build_analyses()
     gauge = [a for a in analyses if a.group == "Wire gauge"]
     assert (
-        [a.name for a in analyses[:3]]
+        [a.name for a in analyses[:4]]
         == [a.name for a in gauge]
         == [
             "Z vs length by gauge",
             "resonant length by gauge",
             "patterns by gauge",
+            "band-tuned SWR by gauge",
         ]
     )
     for a in gauge:
@@ -119,4 +120,4 @@ def test_wire_gauge_analyses_lead_and_run_here():
     served = {e["name"]: e for e in offer(builder_for(cls, req), req)}
     for a in gauge:
         assert served[a.name]["workbench"]["runs"], served[a.name]["workbench"]
-    assert "tuning map" in [a.name for a in analyses[3:]]
+    assert "tuning map" in [a.name for a in analyses[4:]]
