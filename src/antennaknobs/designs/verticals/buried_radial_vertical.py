@@ -413,15 +413,12 @@ class Builder(AntennaBuilder):
     # 18 AWG PVC is the default because both of momwire's floors agree there:
     # b/a = 2.05, so h = b sits at h/a = 2.05, just above the BARE bound of 2a.
     #
-    # In fact EVERY insulated wire in the catalog clears that bare bound —
-    # 18/22/28 AWG PVC are b/a 2.05 / 2.49 / 3.12, and a thinner conductor
-    # under the same jacket has a LARGER ratio, not a smaller one. So this
-    # variant never actually needs momwire#875's jacketed relaxation today;
-    # it would take an enamel-class jacket (b/a ~ 1.05) to go under h/a = 2,
-    # and the catalog has none. That is a robustness property worth knowing
-    # rather than a gap: the variant is served by the older, stricter bound,
-    # and #875 is what will keep it served if a thin-jacket wire is ever
-    # added.
+    # 18/22/28 AWG PVC clear that bare bound (b/a 2.05 / 2.49 / 3.12), but
+    # the heavier 16/14/12 AWG PVC entries do not (b/a 1.86 / 1.78 / 1.66):
+    # a thick conductor carries a proportionally thinner jacket. Those are
+    # served by momwire#875's jacketed relaxation, which is therefore
+    # load-bearing for this variant, and the surface-radial tests pin that
+    # they still solve.
     # antennaknobs#1144 built the channel this note was standing in for, so
     # the closing sentence — that the app does not surface solver advisories —
     # became false and is replaced by a pointer to the live one.

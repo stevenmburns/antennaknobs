@@ -192,13 +192,21 @@ def test_a_bare_wire_type_refuses_by_name():
         _builder(wire_type=None).build_wires()
 
 
-def test_every_catalog_jacket_clears_the_bare_floor():
-    """So the guard cannot be "simplified" on the belief that momwire#875's
-    jacketed relaxation is load-bearing here. It is not, today: a thinner
-    conductor under the same jacket has a LARGER b/a, not a smaller one."""
-    for name, w in WIRES.items():
-        if w.insulation_radius:
-            assert w.insulation_radius / w.radius >= 2.0, name
+def test_thin_jacket_wires_are_served_by_the_jacketed_floor():
+    """momwire#875's jacketed relaxation IS load-bearing here: the 16/14/12
+    AWG PVC entries sit at b/a 1.86 / 1.78 / 1.66, under the bare floor of
+    2a, and the surface variant serves them only because the jacket, not the
+    bare bound, sets the floor. The 18/22/28 AWG entries clear the bare bound
+    (b/a 2.05 / 2.49 / 3.12); this pins that the rest still solve."""
+    under = sorted(
+        name
+        for name, w in WIRES.items()
+        if w.insulation_radius and w.insulation_radius / w.radius < 2.0
+    )
+    assert under == ["12-awg-pvc", "14-awg-pvc", "16-awg-pvc"]
+    for name in under:
+        z = _z(wire_type=name)
+        assert 50.0 < z.real < 65.0, name
 
 
 def test_the_note_carries_the_advisory_and_points_at_the_live_one():
