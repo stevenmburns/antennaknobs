@@ -2,7 +2,7 @@
 
 The park-activation question, as numbers (issue #318): a half-wave
 inverted-V on a 7 m telescoping pole, with the **wire itself** selectable
-from the `WIRES` catalog — 28/22/18 AWG, bare or PVC-insulated. Flip the
+from the `WIRES` catalog — 28 through 12 AWG, bare or PVC-insulated. Flip the
 `wire_type` dropdown and watch three things move at once:
 
 * **weight** — the Info pane reports the total wire run and its grams

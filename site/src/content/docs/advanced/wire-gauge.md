@@ -1,6 +1,6 @@
 ---
 title: "How thin can you go? Wire gauge for POTA"
-description: An advanced worked example — weigh 28 vs 22 vs 18 AWG antenna wire against SWR bandwidth and radiated power, with skin-effect loss and insulation modelled for real.
+description: An advanced worked example — weigh 28 through 12 AWG antenna wire against SWR bandwidth and radiated power, with skin-effect loss and insulation modelled for real.
 ---
 
 Every portable operator has packed this decision. The 28 AWG magnet-wire
@@ -15,8 +15,8 @@ One catalog design carries the whole comparison:
 on a 7 m telescoping pole over average ground, where **the wire itself is
 a knob**. The `wire_type` dropdown selects from a wire catalog the same
 way the station designs pick a feedline from the cable catalog: 28, 22,
-or 18 AWG copper, bare or PVC-insulated, each entry carrying its real
-radius, conductivity, jacket, and grams per meter.
+18, 16, 14 or 12 AWG copper, bare or PVC-insulated, each entry carrying its
+real radius, conductivity, jacket, and grams per meter.
 
 ## What the wire actually does in the model
 
@@ -48,18 +48,24 @@ physics, kept honest against each other.
 
 ## The numbers
 
-Stock design, PVC-insulated wire, retuned length per gauge not required —
-the numbers below are the dropdown flipped with everything else constant
-(2:1 SWR window from the band-locked sweep; weight for the full ~10 m of
-wire; loss relative to a perfect conductor):
+The stock design, PVC-insulated wire, with the dropdown flipped and
+everything else held — the same length for every wire. The 2:1 SWR window is
+on 50 Ω over average ground; the weight is for the full ~10 m of wire; the
+loss is relative to a perfect conductor:
 
-| wire | weight | 2:1 SWR window | gain vs lossless wire |
-|---|---|---|---|
-| 28 AWG PVC | **17 g** | 550 kHz | −0.36 dB (92 %) |
-| 22 AWG PVC | 53 g | 605 kHz | −0.18 dB (96 %) |
-| 18 AWG PVC | 111 g | **645 kHz** | **−0.11 dB (97.5 %)** |
+| wire | weight | resonance | 2:1 SWR window | gain vs lossless wire |
+|---|---|---|---|---|
+| 28 AWG PVC | **17 g** | 14.00 MHz | 590 kHz | −0.35 dB (92 %) |
+| 22 AWG PVC | 53 g | 14.08 MHz | 640 kHz | −0.17 dB (96 %) |
+| 18 AWG PVC | 111 g | 14.17 MHz | 680 kHz | −0.11 dB (97.5 %) |
+| 16 AWG PVC | 162 g | 14.21 MHz | 700 kHz | −0.09 dB (98 %) |
+| 14 AWG PVC | 249 g | 14.22 MHz | 710 kHz | −0.07 dB (98.5 %) |
+| 12 AWG PVC | 377 g | 14.25 MHz | **740 kHz** | **−0.05 dB (99 %)** |
 
-Three readings worth taking home:
+Re-cutting each wire to resonance at 14.1 MHz moves its window by 10 kHz
+or less and its loss not at all, so the table reads the same either way.
+
+Four readings worth taking home:
 
 1. **The loss argument is real but small.** Going from 18 AWG all the way
    down to 28 AWG costs a quarter of a decibel — nobody on the other end
@@ -71,12 +77,19 @@ Three readings worth taking home:
    conductor is intrinsically broader (lower ln(L/a) Q — free), and a
    lossier conductor is *also* broader (resistance flattens the SWR
    curve — paid for in watts). The table shows the honest sum: 18 AWG is
-   ~100 kHz broader than 28 AWG *and* radiates more. Thin wire's loss
+   ~90 kHz broader than 28 AWG *and* radiates more. Thin wire's loss
    does not buy its bandwidth back.
-3. **The insulation is a bigger tuning effect than the gauge.** Flip any
-   PVC entry to its bare twin and the resonance jumps ~500 kHz — several
-   times the entire gauge-to-gauge bandwidth difference. Cut your antenna
-   for the wire you'll actually hang.
+3. **Past 18 AWG the returns flatten.** From 18 to 12 AWG buys 0.06 dB and
+   60 kHz of window for 3.4× the weight. The case against thin wire is
+   mostly made by 22 AWG; the heavy gauges are for strength, not signal.
+4. **The insulation is a bigger tuning effect than the gauge.** Flip any
+   PVC entry to its bare twin and the resonance jumps 370–670 kHz, to about
+   14.65 MHz — several times the entire gauge-to-gauge bandwidth
+   difference. Even among the PVC wires, most of the 250 kHz the
+   resonance walks from 28 to 12 AWG is the jacket: a thin conductor
+   carries a proportionally thicker one, and bare wire of every gauge
+   resonates within 50 kHz of the others. Cut your antenna for the wire
+   you'll actually hang.
 
 And the weight column is the one the solver can't argue with: the 28 AWG
 antenna is **17 grams**. For a summit activation where every antenna is a
