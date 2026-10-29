@@ -455,7 +455,10 @@ and is remembered in this browser.
   **R / X** of a frequency sweep is the knob sweep's R / X chart with
   frequency across the bottom and the dashed guide at the measurement
   frequency. **Table** prints the numbers (see [The Table](#the-table));
-- **from / to** and **↺**, **run**, and **auto re-run**;
+- **from / to**, **points** and **↺**, **run**, and **auto re-run**.
+  **points** is how many frequencies the sweep solves; with
+  [adaptive resolution](#adaptive-resolution) on it is the starting grid,
+  and refinement adds points where the curve bends;
 - **A · X**, the engines and grounds it compares (see
   [Comparing engines and grounds](#comparing-engines-and-grounds));
 - **⧉** duplicates the chart, and **×** closes a duplicate (see
