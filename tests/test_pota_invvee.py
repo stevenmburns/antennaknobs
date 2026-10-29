@@ -84,3 +84,28 @@ def test_web_example_carries_the_story():
     labels = [b["label"] for b in out["power_budget"]]
     assert labels == ["wire loss (I²R)"]
     assert 0.9 < out["radiation_efficiency"] < 1.0
+
+
+def test_wire_gauge_analyses_lead_and_run_here():
+    """The three wire-gauge charts come first, under their own group, each
+    one curve per PVC wire, with nothing the design or the CLI refuses; the
+    inverted vee's own analyses follow, inherited."""
+    from antennaknobs import analyses as an
+    from antennaknobs.analysis_run import cli_gaps
+
+    b = Builder()
+    analyses = b.build_analyses()
+    gauge = [a for a in analyses if a.group == "Wire gauge"]
+    assert (
+        [a.name for a in analyses[:3]]
+        == [a.name for a in gauge]
+        == [
+            "Z vs length by gauge",
+            "resonant length by gauge",
+            "patterns by gauge",
+        ]
+    )
+    for a in gauge:
+        assert a.curves == 6, a.name
+        assert an.problems(a, b) == [] and cli_gaps(a, b) == [], a.name
+    assert "tuning map" in [a.name for a in analyses[3:]]

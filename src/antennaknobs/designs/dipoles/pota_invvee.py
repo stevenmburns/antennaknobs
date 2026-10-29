@@ -33,8 +33,13 @@ conductor loss; issue #1523) — engine-switching holds the story steady.
 
 from types import MappingProxyType
 
+from antennaknobs import analyses as an
 from antennaknobs.network import WIRES
 from antennaknobs.designs.dipoles.invvee import Builder as InvVee
+
+#: The PVC wires, thinnest first: one state per gauge, each over the
+#: design's defaults, so a chart compares the wires and nothing else.
+PVC_GAUGES = (28, 22, 18, 16, 14, 12)
 
 
 class Builder(InvVee):
@@ -72,3 +77,44 @@ class Builder(InvVee):
             ),
         }
     )
+
+    def build_analyses(self):
+        """The wire-gauge story as charts (the site's wire-gauge page), ahead
+        of the inverted vee's own analyses, which this design inherits.
+
+        A sweep caps at 6 curves, so these cross the six PVC gauges; flip a
+        state's wire to its bare twin in the dropdown to see the jacket's
+        share. There is no pattern at a held resonance: a pattern refuses a
+        hold, so the patterns are the stock length, where the wires differ
+        by their loss alone."""
+        gauges = an.Cross(
+            states=tuple(
+                an.State(f"{g} AWG PVC", wire_type=f"{g}-awg-pvc") for g in PVC_GAUGES
+            )
+        )
+        group = "Wire gauge"
+        return [
+            an.Analysis(
+                "Z vs length by gauge",
+                an.Sweep("length_factor", 0.90, 1.0, points=21),
+                cross=gauges,
+                references=an.Ref(r=(50,), x=(0,)),
+                group=group,
+            ),
+            an.Analysis(
+                "resonant length by gauge",
+                an.Sweep("base", 4, 10, points=13),
+                cross=gauges,
+                hold=an.Hold("resonance", adjust=("length_factor",)),
+                views=(an.Rx(), an.Knobs()),
+                references=an.Ref(r=(50,)),
+                group=group,
+            ),
+            an.patterns(
+                name="patterns by gauge",
+                cross=gauges,
+                views=(an.Elevation(az=0), an.Azimuth(el=30), an.PatternTable()),
+                group=group,
+            ),
+            *super().build_analyses(),
+        ]
