@@ -104,3 +104,23 @@ catalog. Watch the **wire weight** row in the Info pane, the **wire loss
 (I²R)** row in the power budget, and the SWR trace breathe as the gauge
 changes. Then flip 22 AWG PVC to bare 22 AWG and watch the whole
 resonance walk up the band — the velocity factor, live.
+
+The design also carries the comparison as charts, under **Wire gauge** in
+the chart picker, each with one curve per PVC gauge:
+
+- **Z vs length by gauge** — R and X against `length_factor`. Each wire's
+  X = 0 crossing is its resonant length, from 0.934 for 28 AWG to 0.951 for
+  12 AWG.
+- **resonant length by gauge** — the length re-held at resonance as the
+  mast goes from 4 to 10 m, with the held `length_factor` drawn beside it.
+- **patterns by gauge** — the elevation and azimuth cuts and the pattern
+  table. The shapes lie on top of each other; only the peak gain moves,
+  by the loss column above (4.94 dBi for 28 AWG, 5.23 dBi for 12 AWG).
+
+The same three run from the command line:
+
+```bash
+python -m antennaknobs analyze --builder dipoles.pota_invvee --list
+python -m antennaknobs analyze --builder dipoles.pota_invvee \
+    --analysis "Z vs length by gauge" --fn gauge.png
+```
