@@ -29,24 +29,17 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.109.0" icon="star">
-  **Tune several bands at once, by hand.** With a band list set, the Smith
-  chart lists your bands; click one and its impedance moves on the chart as
-  you turn any knob, as it does during a band optimize. The list starts from
-  the design's own band frequencies. A new page walks through it, by hand and
-  with the optimizer: [Tuning for several bands](/advanced/multiband-tuning/).
+<Card title="New in v0.109.1" icon="star">
+  **A points box on the frequency sweep.** The sweep chart's header now sets
+  how many frequencies the sweep solves, beside from and to; with adaptive
+  resolution on it is the starting grid, and refinement still adds points
+  where the curve bends.
 
-  **The SWR chart marks the ham bands.** Every band the sweep crosses is a
-  labelled span saying how much of it is under 2:1 (`12m all`, `10m 39%`);
-  the 2:1 zone is now a horizontal strip, so it can no longer be mistaken for
-  a band.
-
-  Also: the peak readouts list every lobe of a symmetric pattern
-  (`az 7° · 187°`, or `all az`); the SimNEC export centres a short fed wire's
-  source on SimNEC's NEC-5 engine; the Windows workbench ships the design
-  templates again and lists a NEC-4.2 engine at startup; a folded chart
-  header says it opens (**▾ controls**); and the hosted app drops the rescan
-  button it could never use.
+  **Mike's EFHW tunes on four bands.** The autotransformer EFHW declares its
+  40, 20, 15 and 10 m bands, so the Smith chart lists them by name, and it
+  measures at its 40 m band's 7.15 MHz. A band at the measurement frequency
+  now takes its impedance from the live solve, one sweep point fewer per
+  knob change.
 </Card>
 
 ## The whole pitch, in one line
