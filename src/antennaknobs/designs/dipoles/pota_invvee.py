@@ -39,6 +39,27 @@ from antennaknobs.designs.dipoles.invvee import Builder as InvVee
 
 #: The PVC wires, thinnest first: one state per gauge, each over the
 #: design's defaults, so a chart compares the wires and nothing else.
+
+#: Each PVC gauge tuned for the 20 m band edges at the stock 7 m mast:
+#: (length_factor, angle_deg) minimising the worse of the SWRs at 14.0 and
+#: 14.35 MHz, from
+#:
+#:     python -m antennaknobs optimize --builder dipoles.pota_invvee \
+#:         --bands 14.0,14.35 --mean-weight 0 --params length_factor angle_deg \
+#:         --set wire_type=<g>-awg-pvc --bound angle_deg=30:55
+#:
+#: Worst edge SWR 1.51 / 1.47 / 1.45 / 1.44 / 1.42 / 1.41, 28 down to 12 AWG.
+#: The bound matters for 28 AWG: over the full 0-60 degree range the search
+#: stalls at a flat dipole (0 degrees, SWR 1.84). These are numbers, not a
+#: hold, so they go stale when the model moves; re-run the command then.
+BAND_TUNED = {
+    28: (0.935495, 43.329257),
+    22: (0.940759, 42.251065),
+    18: (0.946908, 42.35786),
+    16: (0.950292, 42.544276),
+    14: (0.951101, 42.595828),
+    12: (0.953517, 42.803891),
+}
 PVC_GAUGES = (28, 22, 18, 16, 14, 12)
 
 
@@ -114,6 +135,24 @@ class Builder(InvVee):
                 name="patterns by gauge",
                 cross=gauges,
                 views=(an.Elevation(az=0), an.Azimuth(el=30), an.PatternTable()),
+                group=group,
+            ),
+            an.Analysis(
+                "band-tuned SWR by gauge",
+                an.Sweep(an.FREQUENCY, 13.5, 14.9, points=71),
+                cross=an.Cross(
+                    states=tuple(
+                        an.State(
+                            f"{g} AWG PVC",
+                            wire_type=f"{g}-awg-pvc",
+                            length_factor=lf,
+                            angle_deg=angle,
+                        )
+                        for g, (lf, angle) in BAND_TUNED.items()
+                    )
+                ),
+                views=(an.Swr(),),
+                references=an.Ref(swr=2),
                 group=group,
             ),
             *super().build_analyses(),

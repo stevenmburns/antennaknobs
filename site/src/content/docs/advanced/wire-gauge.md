@@ -116,8 +116,30 @@ the chart picker, each with one curve per PVC gauge:
 - **patterns by gauge** — the elevation and azimuth cuts and the pattern
   table. The shapes lie on top of each other; only the peak gain moves,
   by the loss column above (4.94 dBi for 28 AWG, 5.23 dBi for 12 AWG).
+- **band-tuned SWR by gauge** — each wire with its length *and* droop angle
+  tuned for the band edges (the worse of the SWRs at 14.0 and 14.35 MHz as
+  low as it goes), swept wide enough to show the whole 2:1 window.
 
-The same three run from the command line:
+That last chart answers the question the table above leaves open: what if
+you cut each wire for the band instead of keeping one length? Every gauge
+then lands at about 42–43° of droop, bottoms out near 1.07 at 14.18 MHz,
+and covers all of 20 m:
+
+| wire | 2:1 SWR window | worst band-edge SWR |
+|---|---|---|
+| 28 AWG PVC | 603 kHz | 1.51 |
+| 22 AWG PVC | 644 kHz | 1.47 |
+| 18 AWG PVC | 673 kHz | 1.45 |
+| 16 AWG PVC | 689 kHz | 1.44 |
+| 14 AWG PVC | 708 kHz | 1.42 |
+| 12 AWG PVC | 726 kHz | 1.41 |
+
+Tuned for the band, gauge is worth about a tenth of an SWR unit at the
+edges. On this antenna, bandwidth alone is no reason to carry heavier wire.
+The tunings are fixed numbers for the stock 7 m mast; move the mast and
+they no longer apply.
+
+The same four run from the command line:
 
 ```bash
 python -m antennaknobs analyze --builder dipoles.pota_invvee --list
