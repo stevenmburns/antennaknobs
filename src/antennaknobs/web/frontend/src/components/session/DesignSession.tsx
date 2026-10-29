@@ -65,6 +65,7 @@ import { useZoOverride } from "../../lib/zoOverride";
 import {
   defaultSweepPoints,
   designSweepRange,
+  editSweepRange,
   resolveSweepRange,
   sweepGrid,
   type SweepRange,
@@ -4984,6 +4985,11 @@ function DesignSessionBody({
       setFrequency({ rx: { ...frequencyRx(freqState), xLog: log } });
     };
     const range = m.inputs.freq.range;
+    // The grid the chart's sweep runs, whose count its points box shows.
+    const freqGridN = sweepGrid(
+      range,
+      defaultSweepPoints({ backend, groundEnabled, groundModel, refineEnabled }),
+    ).freqs.length;
     const patternRunning = runners.some((r) => r.pattern.running);
     // A family's cut on screen (AK#1950), which its angle box edits.
     const familyCut = chartFamily(m.state) ? chartPatternView(m.state) : null;
@@ -5166,6 +5172,22 @@ function DesignSessionBody({
           setFrequency({ rangeEdit: null });
         }}
         rangeIsOwn={freqState.rangeEdit === null}
+        points={{
+          value: freqGridN,
+          refine: refineEnabled,
+          // A point count is the range's density in either spacing: a lin
+          // range takes it as the step that lands on `to`.
+          onCommit: (n) => {
+            const next = editSweepRange(
+              range,
+              freqGridN,
+              range.spacing === "lin" ? { step: (range.hi - range.lo) / (n - 1) } : { points: n },
+            );
+            if (!next) return;
+            ctl.armFreq();
+            setFrequency({ rangeEdit: next });
+          },
+        }}
         run={{
           running: runners.some((r) => r.freq.running),
           received: f0?.sweep?.freqs_mhz.length ?? 0,

@@ -281,6 +281,31 @@ describe("a frequency analysis in the chart", () => {
     expect(smith).toBeTruthy();
   });
 
+  it("the points box shows the grid's count, and an edit re-sweeps with that many (AC6LA, QRZ #222)", async () => {
+    const user = userEvent.setup();
+    const { sweeps } = await mount();
+    const points = screen.getByLabelText("points") as HTMLInputElement;
+    expect(points.value).toBe("15");
+    const n = sweeps.length;
+    await user.clear(points);
+    await user.type(points, "29{Enter}");
+    await untilDom(() => sweeps.length > n || null);
+    const last = sweeps[sweeps.length - 1];
+    expect(last).toHaveLength(29);
+    expect(last[0]).toBeCloseTo(14, 9);
+    expect(last[28]).toBeCloseTo(14.35, 9);
+    expect((screen.getByLabelText("points") as HTMLInputElement).value).toBe("29");
+    // The range is now the chart's own edit, which its reset undoes.
+    expect((screen.getByRole("button", { name: "↺" }) as HTMLButtonElement).disabled).toBe(false);
+
+    // A count below 2 is refused, and nothing re-sweeps.
+    const m = sweeps.length;
+    await user.clear(points);
+    await user.type(points, "1{Enter}");
+    expect(points.getAttribute("data-invalid")).toBe("true");
+    expect(sweeps.length).toBe(m);
+  });
+
   it("with the switch on (its default) a knob change re-sweeps after the dwell", async () => {
     const { select, sweeps } = await mount();
     fireEvent.change(select, { target: { value: "wide SWR" } });

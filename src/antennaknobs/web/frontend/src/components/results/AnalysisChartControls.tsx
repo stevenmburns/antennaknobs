@@ -8,7 +8,7 @@ import {
 } from "../../lib/analysisChart";
 import type { PatternViewSpec } from "../../lib/analyses";
 import type { MeasuredData } from "../../lib/api";
-import type { SweepRange } from "../../lib/sweep";
+import { MAX_SWEEP_POINTS, type SweepRange } from "../../lib/sweep";
 import {
   AnalysisDetails,
   type AnalysisPickerProps,
@@ -487,6 +487,7 @@ export function FrequencyChartControls({
   onRange,
   onResetRange,
   rangeIsOwn,
+  points,
   run,
   chrome,
 }: {
@@ -497,6 +498,10 @@ export function FrequencyChartControls({
   onResetRange: () => void;
   /** The range is the analysis's own (the reset has nothing to do). */
   rangeIsOwn: boolean;
+  /** The grid's point count, which the box edits (AC6LA, QRZ #222). With
+   *  refinement on it is the base grid, and refinement adds points where the
+   *  curve bends. */
+  points: { value: number; refine: boolean; onCommit: (n: number) => void };
   run: {
     running: boolean;
     received: number;
@@ -575,6 +580,26 @@ export function FrequencyChartControls({
               />
               <span>MHz</span>
             </label>
+            {!(range.exact && range.freqs) && (
+              <label
+                className="chart-freq-points"
+                title={
+                  points.refine
+                    ? "Points in the base grid; refinement adds more where the curve bends"
+                    : "Points in the sweep"
+                }
+              >
+                <span>points</span>
+                <CommitNumber
+                  label="points"
+                  value={points.value}
+                  problem={(v) =>
+                    Number.isInteger(v) && v >= 2 && v <= MAX_SWEEP_POINTS ? null : `2–${MAX_SWEEP_POINTS}`
+                  }
+                  onCommit={points.onCommit}
+                />
+              </label>
+            )}
             {range.exact && range.freqs && (
               // An analysis's explicit frequency list (step 5 unit 5): the
               // sweep is these values, not a range; an edit of from / to makes
