@@ -108,4 +108,15 @@ def test_wire_gauge_analyses_lead_and_run_here():
     for a in gauge:
         assert a.curves == 6, a.name
         assert an.problems(a, b) == [] and cli_gaps(a, b) == [], a.name
+    # And the workbench serves them: /analyses builds the same offer, and a
+    # cross it cannot express (a family over this dropdown knob, say) is a
+    # 422 for the whole design's list, which the CLI checks above never see.
+    from antennaknobs.web.analyses_offer import builder_for, offer
+    from antennaknobs.web.server import example_for
+
+    req = {"geometry": "dipoles.pota_invvee"}
+    cls = example_for("dipoles.pota_invvee").builder_cls
+    served = {e["name"]: e for e in offer(builder_for(cls, req), req)}
+    for a in gauge:
+        assert served[a.name]["workbench"]["runs"], served[a.name]["workbench"]
     assert "tuning map" in [a.name for a in analyses[3:]]
