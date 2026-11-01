@@ -1,4 +1,8 @@
+from contextlib import contextmanager
+
 import numpy as np
+
+from .wire_catalog import as_wire
 
 
 class Transform:
@@ -13,6 +17,13 @@ class Transform:
     def translate(x, y, z):
         return Transform(
             np.array([[1, 0, 0, x], [0, 1, 0, y], [0, 0, 1, z], [0, 0, 0, 1]])
+        )
+
+    @staticmethod
+    def scale(sx=1, sy=1, sz=1):
+        """Scale each axis; a -1 mirrors that axis."""
+        return Transform(
+            np.array([[sx, 0, 0, 0], [0, sy, 0, 0], [0, 0, sz, 0], [0, 0, 0, 1]])
         )
 
     @staticmethod
@@ -54,6 +65,7 @@ class Transform:
 class TransformStack:
     def __init__(self):
         self.stack = [Transform()]
+        self.wires = []
 
     def push(self, tr):
         self.stack.append(self.stack[-1].postmult(tr))
@@ -63,3 +75,19 @@ class TransformStack:
 
     def hit(self, v):
         return self.stack[-1].hit(v)
+
+    def emit(self, raw_w):
+        """Append ``raw_w`` (a ``Wire`` or a plain wire tuple) to ``wires``
+        with both endpoints under the current transform."""
+        w = as_wire(raw_w)
+        self.wires.append(w._replace(p0=self.hit(w.p0), p1=self.hit(w.p1)))
+
+    @contextmanager
+    def push_pop_tr(self, tr: Transform):
+        """``push(tr)`` for the ``with`` block, popped on the way out even if
+        the block raises."""
+        self.push(tr)
+        try:
+            yield
+        finally:
+            self.pop()
