@@ -405,8 +405,10 @@ def test_wholly_buried_dipole_is_served():
     ff = eng.far_field(n_theta=90, n_phi=360, del_theta=1, del_phi=1)
     assert ff.in_medium_moment_fraction == pytest.approx(1.0)
     assert np.isfinite(ff.max_gain) and np.isfinite(ff.min_gain)
-    # -21.42708041701554 until momwire 0.79's coarser below table (momwire#1510).
-    assert ff.max_gain == pytest.approx(-21.426932754063152, abs=1e-6)
+    # -21.42708041701554 until momwire 0.79's coarser below table (momwire#1510);
+    # -21.426932754063152 until momwire 0.85's buried order-4 rung from 4
+    # lengths (momwire#1765), 4e-6 dB.
+    assert ff.max_gain == pytest.approx(-21.426936918, abs=1e-6)
 
 
 @pytest.mark.antenna_computation_check
