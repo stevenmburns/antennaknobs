@@ -1704,6 +1704,36 @@ lossless: copy a tuned variant, paste it back as its `<variant>_params`, and it
 means the same thing. (A variant written out in full still works — overlaying a
 complete dict reproduces that dict — but the minimal delta form is the idiom.)
 
+## Checking two constructions agree: `compare_wires`
+
+When you build the same antenna two ways — a `TransformStack` mirror and the
+explicit wires, or either against the `.nec` deck you transcribed it from —
+`compare_wires` checks they are the same metal:
+
+```bash
+python -m antennaknobs compare_wires dipoles.invvee dipoles.invvee_apex
+python -m antennaknobs compare_wires user.mybeam @mybeam.nec --set-left base=0
+python -m antennaknobs compare_wires user.mybeam user.mybeam --set-right method=nec
+```
+
+Each side is any builder spec. `--set` changes knobs on both sides, and
+`--set-left` / `--set-right` on one. It prints every span found on only one
+side, every feed (a wire carrying `ex`) that sits somewhere different, and
+points that nearly coincide, which is what a transcription slip usually looks
+like.
+
+What it ignores:
+
+- **Order and direction:** `p0` and `p1` swapped is the same wire.
+- **Segment counts.**
+- **How a run is split:** one 2 m wire equals two 1 m pieces end to end. An
+  exact duplicate is still extra metal.
+
+Points within `--tol` metres (default 1e-6) are the same point. It exits 0 when
+the wires match, 1 when they differ and 2 on a usage error, so it works in a
+script. From Python, `antennaknobs.wire_compare.compare_wires(left, right)`
+takes two `build_wires()` lists and returns the differences.
+
 ## Exporting to NEC
 
 ```bash

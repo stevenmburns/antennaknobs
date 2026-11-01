@@ -2851,6 +2851,64 @@ def cli(arguments=None):
     p.set_defaults(func=f)
 
     p = subparsers.add_parser(
+        "compare_wires",
+        help="Check that two builders produce the same wires (order, direction, "
+        "segmentation and how a run is split into pieces ignored); exits 0 when "
+        "they match, 1 when they differ, 2 on a usage error",
+    )
+    _builder_spec_help = (
+        '"family.design[:variant]", "user.<name>", or "@file.nec" / "@file.ssn" '
+        '/ "@file.maa" / "@file.ez"'
+    )
+    p.add_argument("left", help=f"The first builder: {_builder_spec_help}.")
+    p.add_argument("right", help="The second builder, same forms as LEFT.")
+    for flag, side in (
+        ("--set", "both builders"),
+        ("--set-left", "LEFT only"),
+        ("--set-right", "RIGHT only"),
+    ):
+        p.add_argument(
+            flag,
+            dest=flag[2:].replace("-", "_"),
+            metavar="NAME=VALUE",
+            nargs="+",
+            default=[],
+            help=f"Set design knobs on {side}, e.g. {flag} a=11 method=nec.",
+        )
+    p.add_argument(
+        "--tol",
+        type=float,
+        default=1e-6,
+        help="Points closer than this many metres are the same point (default 1e-6).",
+    )
+
+    def f(args):
+        from .wire_compare import compare_wires, format_diff
+
+        def wires(spec, extra):
+            make = _with_params(get_builder(spec), [*args.set, *extra])
+            return make().build_wires()
+
+        # Exit 1 means "they differ", so a refusal to build (an unknown
+        # design, a bad --set) must not exit 1 too: it prints and exits 2.
+        try:
+            left = wires(args.left, args.set_left)
+            right = wires(args.right, args.set_right)
+        except SystemExit as e:
+            if isinstance(e.code, str):
+                print(e.code, file=sys.stderr)
+            raise SystemExit(2) from None
+        names = (args.left, args.right)
+        if args.left == args.right:
+            names = (f"{args.left} (left)", f"{args.right} (right)")
+        diff = compare_wires(left, right, args.tol)
+        print("\n".join(format_diff(diff, names)))
+        if not diff.same:
+            raise SystemExit(1)
+
+    p.set_defaults(func=f)
+
+    p = subparsers.add_parser(
         "ladder",
         help="Refine an imported .nec deck by odd factors and print each engine's impedance ladder",
         description="Refinement ladder for an imported card deck (U2 of "
