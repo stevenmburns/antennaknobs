@@ -35,7 +35,7 @@ permissions:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: ubuntu-latest became 26.04 (momwire#1742)
 
     permissions:
       pull-requests: write
@@ -173,7 +173,7 @@ jobs:
     # Push-to-main only: PRs never build this action's container (#734).
     if: github.event_name == 'push'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: ubuntu-latest became 26.04 (momwire#1742)
     # SERIALISED, because this job pushes to a branch it shares with every
     # other run of itself (#1087). The action commits the badge and coverage
     # data to `python-coverage-comment-action-data`; two runs that overlap
@@ -216,7 +216,7 @@ jobs:
     # Build the wheel ONCE for the smoke matrix below. No submodule, no
     # frontend (the server's static mount is gated on the directory existing,
     # and the smoke never fetches the UI).
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: ubuntu-latest became 26.04 (momwire#1742)
     steps:
     - uses: actions/checkout@v7
     - uses: actions/setup-python@v7
@@ -264,7 +264,7 @@ jobs:
     needs: wheel-build
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '{"os":["ubuntu-latest","windows-latest","macos-15"],"python-version":["3.12","3.14"],"pynec":["0","1"]}' || '{"os":["ubuntu-latest"],"python-version":["3.12"],"pynec":["0"]}') }}
+      matrix: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '{"os":["ubuntu-24.04","windows-latest","macos-15"],"python-version":["3.12","3.14"],"pynec":["0","1"]}' || '{"os":["ubuntu-24.04"],"python-version":["3.12"],"pynec":["0"]}') }}
     name: wheel-smoke (${{ matrix.os }}, py${{ matrix.python-version }}${{ matrix.pynec == '1' && ', +pynec' || '' }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
@@ -330,7 +330,7 @@ jobs:
   wheel-smoke:
     # The REQUIRED status check, by this exact name. Branch protection names
     # `wheel-smoke`; a matrix job reports one check PER CELL ("wheel-smoke
-    # (ubuntu-latest, py3.12)"), so the moment the lane above became a matrix
+    # (ubuntu-24.04, py3.12)"), so the moment the lane above became a matrix
     # the required context stopped reporting and every PR sat BLOCKED with
     # all checks green (#1330, 2026-09-09 — the "no checks reported" trap in
     # CLAUDE.md, from the other side). This job carries the stable name and
@@ -340,7 +340,7 @@ jobs:
     name: wheel-smoke
     needs: wheel-smoke-cells
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: ubuntu-latest became 26.04 (momwire#1742)
     steps:
     - name: Every wheel-smoke cell succeeded
       run: |
@@ -366,7 +366,7 @@ jobs:
     # separate Astro app with its own package.json; it is built and deployed by
     # deploy-docs.yml on tags and is intentionally NOT built here.
     name: frontend build + typecheck
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: ubuntu-latest became 26.04 (momwire#1742)
     # paths-filter lists a PR's files through the API, which needs this read
     # grant on top of the workflow-wide `contents: read`.
     permissions:

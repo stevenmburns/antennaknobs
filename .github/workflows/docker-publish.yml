@@ -24,7 +24,7 @@ on:
 jobs:
   docker:
     name: build & push to docker.io
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: ubuntu-latest became 26.04 (momwire#1742)
     steps:
       - uses: actions/checkout@v7
 
