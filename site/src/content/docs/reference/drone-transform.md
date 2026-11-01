@@ -157,6 +157,7 @@ A 4×4 homogeneous transform (rotation + translation). All rotation factories ta
 | `Transform(A=identity)` | Wrap a 4×4 matrix `A`. |
 | `Transform.translate(x, y, z)` | Translation-only transform *(static)*. |
 | `Transform.rotX(deg)` / `rotY(deg)` / `rotZ(deg)` | Rotation about a world axis, in degrees *(static)*. |
+| `Transform.scale(sx=1, sy=1, sz=1)` | Scale each axis; `-1` mirrors that axis *(static)*. |
 | `Transform.inverse(tr)` | The inverse of `tr` *(static)*. |
 | `t.hit(coords)` | Apply `t` to a point `coords=(x, y, z)`; returns the transformed `(x, y, z)`. |
 | `t.premult(other)` | Return `other @ t` (apply `t` first, then `other`). |
@@ -178,6 +179,9 @@ through the top.
 | `push(tr)` | Compose `tr` onto the current top frame and push it. |
 | `pop()` | Remove the top frame. |
 | `hit(v)` | Transform point `v` through the current top frame. |
+| `push_pop_tr(tr)` | Context manager: `push(tr)` for the `with` block, popped on the way out even if the block raises. |
+| `emit(w)` | Append wire `w` (a `Wire` or a plain wire tuple) to `wires`, its endpoints through the current top frame; other fields kept. |
+| `wires` | The wires `emit` has collected, ready to return from `build_wires()`. |
 
 ### Example — stacked frames
 
@@ -194,4 +198,20 @@ st.push(Transform.rotX(-self.slant_deg))  # tilt the structure
 
 def build_path(lst, ns, ex):
     return ((st.hit(a), st.hit(b), ns, ex) for a, b in zip(lst[:-1], lst[1:]))
+```
+
+### Example — scoped frames and collected wires
+
+`push_pop_tr` scopes a frame to a `with` block, and `emit` collects the wires
+in world coordinates, so a mirrored copy is one more block:
+
+```python
+from antennaknobs import Transform, TransformStack
+
+st = TransformStack()
+with st.push_pop_tr(Transform.translate(0, 0, 10)):
+    for mirror in (1, -1):
+        with st.push_pop_tr(Transform.scale(sx=mirror)):
+            st.emit(((0.0, 0, 0), (5.0, 0, 0), None, None))
+wires = st.wires  # both arms, at z = 10
 ```
