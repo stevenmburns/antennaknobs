@@ -4967,6 +4967,65 @@ _VIRTUAL_EXTENT_LAMBDA = 0.05
 # EZNEC idiom writes on every virtual segment it uses (AK#1577). EZNEC
 # writes 1.E+10 exactly; the margin is for a deck that spells it 1e9.
 _VIRTUAL_PIN_OHMS = 1e9
+
+# EZNEC's load probe is a 1e-10 V EX 0; anything up to this many volts reads as
+# one (momwire's ``_PROBE_VOLTS``, the same bound).
+_PROBE_VOLTS = 1e-9
+
+
+def _collapse_repeated_load_probes(feeds, ex_types, loads, lines):
+    """``feeds`` with EZNEC's repeated load probe at one address kept ONCE
+    (momwire#1787).
+
+    EZNEC writes one ``EX 0,tag,node,0,1.E-10,0.`` probe per lumped load, so
+    two loads at one node (stacked traps) give two identical probes at one
+    address. Licensed NEC-5 solves that as ONE passive probe: the drive row is
+    the one-probe deck's to every printed digit. momwire 0.85.0's seam serves
+    exactly this shape, and this is the same rule, no wider. A repeated
+    address collapses only when EVERY card at it is a probe:
+
+    * an ``EX 0`` voltage source of at most `_PROBE_VOLTS`,
+    * at a site an ``LD`` loads, and that no ``TL``/``NT`` end lands on (at a
+      connection point NEC-5 answers a probe as a port-voltage constraint,
+      not as a passive port),
+    * on a MIXED deck: one with a drive that is not an ``EX 0``.
+
+    Anything else at a repeated address is returned untouched, so AK's
+    existing refusals still meet it: "more than one EX card" from the port
+    planners (`_port_plan`, `_vertex_claims`, `network()`), or two ports at
+    one point from the wire builder on the positioned-port path (AK#1469).
+    """
+    if all(t == 0 for t in ex_types):
+        return feeds
+    loaded = {(ld.wire, ld.seg, ld.edge) for ld in loads}
+    ends = {(ln.wire_a, ln.seg_a, ln.edge_a) for ln in lines} | {
+        (ln.wire_b, ln.seg_b, ln.edge_b) for ln in lines
+    }
+
+    def is_probe(f, ex_type):
+        site = (f.wire, f.seg, f.edge)
+        return (
+            ex_type == 0
+            and not f.current
+            and abs(f.voltage) <= _PROBE_VOLTS
+            and site in loaded
+            and site not in ends
+        )
+
+    at: dict[tuple, list[int]] = {}
+    for k, f in enumerate(feeds):
+        at.setdefault((f.wire, f.seg, f.edge, f.at), []).append(k)
+    drop = {
+        k
+        for ks in at.values()
+        if len(ks) > 1 and all(is_probe(feeds[k], ex_types[k]) for k in ks)
+        for k in ks[1:]
+    }
+    if not drop:
+        return feeds
+    return [f for k, f in enumerate(feeds) if k not in drop]
+
+
 # Speed of light for the CLEARANCE heuristics above, wavelength = c / f.
 # Deliberately SI rather than `NEC_C_LIGHT_MHZ_M` (AK#1607), and the one place
 # in this module where the two are allowed to differ: these are geometric
@@ -6311,7 +6370,7 @@ def parse_nec(
     wires: list[list] = []
     comments: list[str] = []
     ignored: set[str] = set()
-    feeds_raw: list[tuple[int, int, complex, str]] = []
+    feeds_raw: list[tuple] = []
     # AK#2029: an EX card after an execute request (XQ, RP, NE, NH) starts the
     # next run's excitation set, which NEC solves as a separate case of the
     # same structure. The app models one case, the first run's, so a later
@@ -6862,6 +6921,7 @@ def parse_nec(
                     current,
                     edge,
                     where,
+                    ex_type,
                 )
             )
         else:
@@ -6876,7 +6936,7 @@ def parse_nec(
     _snap_nec_connections(wires)
 
     feeds = []
-    for tag, seg, voltage, current, edge, where in feeds_raw:
+    for tag, seg, voltage, current, edge, where, _ex_type in feeds_raw:
         card = _Card("EX", [], where)
         if isinstance(seg, _Pct):
             idx, local, at = _percent_position(
@@ -6962,6 +7022,10 @@ def parse_nec(
             virtual_wires,
         )
         ignored |= skipped
+        if nec5_dialect:
+            feeds = _collapse_repeated_load_probes(
+                feeds, [raw[6] for raw in feeds_raw], loads, (*tls, *nts)
+            )
 
     # NEC-5 has no reflection-coefficient ground: its GN 0, like GN 2, is the
     # full Sommerfeld solution. Reading a NEC-5 deck's GN 0 the NEC-2 way
