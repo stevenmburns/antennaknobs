@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   ruff:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: ubuntu-latest became 26.04 (momwire#1742)
     steps:
       - uses: actions/checkout@v7
       # Pinned, and kept in sync with the local dev venv.
