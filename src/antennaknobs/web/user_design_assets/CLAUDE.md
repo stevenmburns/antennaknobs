@@ -267,8 +267,10 @@ Return a list of straight wire segments. Each entry is:
 ```
 
 - `start`, `end` — `(x, y, z)` tuples in metres.
-- `n_segments` — how finely to subdivide that wire. Use `self.nominal_nsegs`
-  for the main radiator; fewer for short stubs (`max(1, self.nominal_nsegs // 7)`).
+- `n_segments` — how finely to subdivide that wire. Use `None`: it meshes the
+  wire at the design density (`nominal_nsegs` segments per quarter wave at
+  `design_freq`), so short stubs get few segments, long wires many, and the
+  counts follow the knobs and the band. Give an integer only to pin a count.
 - `feed` — `1 + 0j` on the **single** segment the transmitter drives, `None`
   everywhere else. Exactly one segment in the whole antenna is the feed —
   unless the design models its feed system with `build_network` (see that
