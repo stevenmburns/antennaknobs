@@ -52,3 +52,46 @@ def test_the_marker_sits_at_the_feed_corner(solved):
     assert cur[wire].knot_positions[knot].tolist() == pytest.approx(
         [0.0, 0.0, 8.0], abs=1e-9
     )
+
+
+# The engine lanes (PyNEC, NEC-2, NEC-4.2, NEC-5) place the marker from the
+# design's own build_wires() tuples, one current list per tuple. They read the
+# source's port as is, so a rig port at the far end of a coax named no wire
+# and the marker fell to the first wire's first knot: on AC6LA's 14 MHz dipole
+# on 10 m of RG-8X, run on NEC-5, the dipole's tip. Same walk as momwire now.
+
+
+def _engine_lane_currents(builder):
+    """One knot list per build_wires() tuple, as the engine lanes return:
+    enough for the marker, no engine run needed."""
+    from types import SimpleNamespace
+
+    import numpy as np
+
+    from antennaknobs.network import as_wire
+
+    return [
+        SimpleNamespace(knot_positions=np.linspace(w.p0, w.p1, w.n_seg + 1))
+        for w in map(as_wire, builder.build_wires())
+    ]
+
+
+def test_engine_lane_marker_follows_the_coax_to_the_feed():
+    from antennaknobs.designs.dipoles.invvee_coax_station import Builder
+
+    builder = Builder()
+    net = builder.build_network()
+    assert isinstance(net.ports[net.sources[0].port], PortVirtual)
+
+    tuples = [w for w in builder.build_wires()]
+    (fed,) = [i for i, t in enumerate(tuples) if len(t) >= 5 and t[4] == "feed"]
+    assert fed != 0, "the fed wire must not be wire 0, or the old fallback passes"
+    middle = [(a + b) / 2 for a, b in zip(tuples[fed][0], tuples[fed][1], strict=True)]
+
+    cur = _engine_lane_currents(builder)
+    assert adapter._pynec_driven(builder)[:2] == ("feed", "feed")
+    assert adapter._pynec_feed_position(builder, cur) == pytest.approx(middle)
+    wire, knot = adapter._pynec_feed_indices(builder, cur)
+    assert wire == fed
+    (marker,) = adapter._pynec_feed_positions(builder, cur)
+    assert marker["position"] == pytest.approx(middle)
