@@ -86,8 +86,10 @@ class Builder(AntennaBuilder):
 
         Each entry is ``(start, end, n_segments, feed)``:
           * ``start`` / ``end`` are ``(x, y, z)`` points in metres,
-          * ``n_segments`` is how finely to divide that wire (more = finer,
-            slower) -- ``self.nominal_nsegs`` is a sensible default,
+          * ``n_segments`` is how finely to divide that wire. ``None`` meshes
+            it at the design density (``nominal_nsegs`` segments per quarter
+            wave at ``design_freq``), which is what you want almost always;
+            give a number only to pin a count,
           * ``feed`` is ``1 + 0j`` on the ONE segment driven by the
             transmitter, and ``None`` on every other wire.
         """
@@ -99,9 +101,6 @@ class Builder(AntennaBuilder):
         z = self.height
         eps = 0.01  # tiny half-gap at the centre where the feed point sits
 
-        arm_segs = self.nominal_nsegs
-        feed_segs = max(1, self.nominal_nsegs // 7)
-
         # A center-fed dipole lying along the y axis at height z:
         #
         #   tip(-h) ---- arm ---- (-eps)[ feed ](+eps) ---- arm ---- tip(+h)
@@ -112,7 +111,9 @@ class Builder(AntennaBuilder):
         feed_hi = (0.0, eps, z)
 
         return [
-            (left_tip, feed_lo, arm_segs, None),  # left arm
-            (feed_hi, right_tip, arm_segs, None),  # right arm
-            (feed_lo, feed_hi, feed_segs, 1 + 0j),  # the driven feed gap
+            # A segment count of None: each wire is meshed at the design
+            # density, so the counts follow the length knob and the band.
+            (left_tip, feed_lo, None, None),  # left arm
+            (feed_hi, right_tip, None, None),  # right arm
+            (feed_lo, feed_hi, None, 1 + 0j),  # the driven feed gap
         ]
