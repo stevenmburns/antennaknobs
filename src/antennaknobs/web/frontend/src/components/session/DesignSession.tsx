@@ -5545,7 +5545,7 @@ function DesignSessionBody({
               normOverlayEnabled={normOverlayEnabled}
               setNormOverlayEnabled={setNormOverlayEnabled}
               normCheck={normCheck}
-              backend={backend.name}
+              exactPattern={backend.exact_pattern ?? null}
               groundModel={groundModel}
               necOverlayEnabled={necOverlayEnabled}
               setNecOverlayEnabled={setNecOverlayEnabled}
@@ -5568,7 +5568,7 @@ function DesignSessionBody({
               normOverlayEnabled={normOverlayEnabled}
               setNormOverlayEnabled={setNormOverlayEnabled}
               normCheck={normCheck}
-              backend={backend.name}
+              exactPattern={backend.exact_pattern ?? null}
               groundModel={groundModel}
               necOverlayEnabled={necOverlayEnabled}
               setNecOverlayEnabled={setNecOverlayEnabled}

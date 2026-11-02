@@ -3,6 +3,10 @@ import { formatPeakAngles, maxAzimuthsDeg } from "../../lib/peakLobes";
 import { useEffect, useRef, useState } from "react";
 import { NO_LEDGER_MININEC } from "../../lib/api";
 import type { NormCheckData, SolveResponse } from "../../lib/api";
+import {
+  type ExactPatternCapability,
+  exactPatternRefusal,
+} from "../../lib/backends";
 import type { GroundModel } from "../../lib/ground";
 import type { ExampleDescriptor } from "../../lib/params";
 import type { CombinedFill, Projection, View } from "../../lib/view";
@@ -330,7 +334,7 @@ export function FarFieldOverlayControls({
   normOverlayEnabled = false,
   setNormOverlayEnabled = () => {},
   normCheck,
-  backend,
+  exactPattern,
   groundModel,
   necOverlayEnabled,
   setNecOverlayEnabled,
@@ -355,7 +359,8 @@ export function FarFieldOverlayControls({
   setNormOverlayEnabled?: (v: boolean) => void;
   normCheck: NormCheckData | null;
   /** Backend NAME; the NEC-overlay switch is PyNEC-only. */
-  backend: string;
+  /** The backend's served exact-pattern capability (null: none). */
+  exactPattern: ExactPatternCapability | null;
   groundModel: GroundModel;
   necOverlayEnabled: boolean;
   setNecOverlayEnabled: (v: boolean) => void;
@@ -372,6 +377,8 @@ export function FarFieldOverlayControls({
   onAimAtMax: (m: PatternMetrics) => void;
   onDismissMax: () => void;
 }) {
+  // The exact-pattern overlay's refusal on this ground, served with it.
+  const refusal = exactPatternRefusal(exactPattern, groundModel);
   return (
     <div className="farfield-overlay">
       {captions && (
@@ -403,25 +410,22 @@ export function FarFieldOverlayControls({
           norm overlay
         </label>
       )}
-      {!isMobile && overlayToggles && (backend === "pynec" || backend === "nec5") && (
+      {!isMobile && overlayToggles && exactPattern && (
         <label
           className="overlay-checkbox"
-          style={
-            groundModel === "terrain" ? { opacity: 0.45 } : undefined
-          }
+          style={refusal !== null ? { opacity: 0.45 } : undefined}
           title={
-            groundModel === "terrain"
-              ? "NEC's rp_card pattern is flat-ground only (no facet model), so the exact-pattern overlay is unavailable over terrain — the terrain traces come from the server's facet physics instead."
-              : "Overlay NEC's own rp_card far-field pattern (dashed cyan) as an exact reference for this engine's ground model."
+            refusal ??
+            `Overlay ${exactPattern.label}'s own RP-card far-field pattern (dashed cyan) as an exact reference for this engine's ground model.`
           }
         >
           <input
             type="checkbox"
-            checked={necOverlayEnabled && groundModel !== "terrain"}
-            disabled={groundModel === "terrain"}
+            checked={necOverlayEnabled && refusal === null}
+            disabled={refusal !== null}
             onChange={(e) => setNecOverlayEnabled(e.target.checked)}
           />
-          NEC rp
+          {exactPattern.label} rp
           {/* The legend the chart used to print in its corner. */}
           {captions?.necOverlay && (
             <span className="nec-swatch" aria-label="dashed cyan line" />

@@ -25,6 +25,11 @@ import type {
   BackendRoster,
 } from "../lib/backends";
 
+/** The exact-pattern overlay's terrain refusal, as the roster serves it
+ *  (adapter._EXACT_PATTERN_TERRAIN_REFUSAL, verbatim). */
+export const EXACT_PATTERN_TERRAIN_REFUSAL =
+  "NEC's RP-card pattern is flat-ground only (no facet model), so the exact-pattern overlay is unavailable over terrain: the terrain traces come from the server's facet physics instead.";
+
 export function backendOption(
   over: Partial<BackendOptionField> = {},
 ): BackendOptionField {
@@ -174,6 +179,8 @@ export const SERVED_ROSTER: BackendRoster = ([
     kind: "pynec",
     panel: "pynec",
     default_n_per_wire: 21,
+    // Served by adapter._backend_exact_pattern (test_exact_pattern_capability.py).
+    exact_pattern: { label: "PyNEC", ground_refusals: { terrain: EXACT_PATTERN_TERRAIN_REFUSAL } },
   }),
 ] as BackendRoster).map(withConstraints);
 
@@ -206,6 +213,8 @@ export const ROSTER_WITH_NEC5: BackendRoster = [
     // sentence by test_nec5_refuses_refl_coef_1856.py.
     ground_applied: { sommerfeld: "sommerfeld", mininec: "mininec" },
     ground_refusals: { fast: NEC5_REFL_COEF_REFUSAL },
+    // Served by adapter._backend_exact_pattern (test_exact_pattern_capability.py).
+    exact_pattern: { label: "NEC-5", ground_refusals: { terrain: EXACT_PATTERN_TERRAIN_REFUSAL } },
   }),
 ];
 
@@ -221,6 +230,8 @@ export const ROSTER_WITH_NEC42: BackendRoster = [
     panel: "pynec",
     default_n_per_wire: 21,
     model_kwargs: NEC42_KWARGS,
+    // Served by adapter._backend_exact_pattern (test_exact_pattern_capability.py).
+    exact_pattern: { label: "NEC-4.2", ground_refusals: { terrain: EXACT_PATTERN_TERRAIN_REFUSAL } },
   }),
 ];
 

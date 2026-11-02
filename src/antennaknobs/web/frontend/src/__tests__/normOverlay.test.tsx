@@ -20,7 +20,7 @@ function controls(over: Partial<Props> = {}) {
     normOverlayEnabled: false,
     setNormOverlayEnabled: vi.fn(),
     normCheck: null,
-    backend: "bspline",
+    exactPattern: null,
     groundModel: "sommerfeld" as const,
     necOverlayEnabled: true,
     setNecOverlayEnabled: vi.fn(),
@@ -86,5 +86,33 @@ describe("the NEC overlay's peak counts toward the outer ring", () => {
     const smp = necCutSamples(pattern, "yz", 0, 0, 8);
     const necPeak = Math.max(...smp.flatMap((s) => (s ? [s.dbi] : [])));
     expect(cutDbiTop([3.8, necPeak], "arrl")).toBeCloseTo(4, 12);
+  });
+});
+
+describe("the NEC rp box follows the served capability", () => {
+  const nec42 = {
+    label: "NEC-4.2",
+    ground_refusals: { terrain: "NEC's RP-card pattern is flat-ground only." },
+  };
+
+  it("is absent when the backend draws no exact pattern (every momwire basis)", () => {
+    controls({ exactPattern: null });
+    expect(screen.queryByLabelText(/ rp$/)).toBeNull();
+  });
+
+  it("names the engine and is offered on NEC-4.2, which the old name check missed", () => {
+    controls({ exactPattern: nec42, groundModel: "sommerfeld" });
+    const box = screen.getByLabelText("NEC-4.2 rp") as HTMLInputElement;
+    expect(box.disabled).toBe(false);
+    expect(box.checked).toBe(true);
+  });
+
+  it("is disabled with the served sentence on a refused ground", () => {
+    controls({ exactPattern: nec42, groundModel: "terrain" });
+    const box = screen.getByLabelText("NEC-4.2 rp") as HTMLInputElement;
+    expect(box.disabled).toBe(true);
+    expect(box.checked).toBe(false);
+    // The served sentence is the switch's tooltip.
+    expect(screen.getByTitle("NEC's RP-card pattern is flat-ground only.")).toBeTruthy();
   });
 });

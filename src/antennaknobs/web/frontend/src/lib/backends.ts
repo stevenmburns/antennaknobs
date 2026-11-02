@@ -103,6 +103,25 @@ export type CompositionVocabulary = {
 
 /** A served roster entry. Mirrors adapter.backend_roster(); snake_case
  *  because it is wire data, not a local shape. */
+/** A backend's exact-pattern overlay, as /capabilities serves it. */
+export type ExactPatternCapability = {
+  /** The engine's own label, for the overlay's switch. */
+  label: string;
+  /** Ground model (as the request spells it) -> why the overlay is refused
+   *  there. A ground not listed is served. */
+  ground_refusals: Record<string, string>;
+};
+
+/** The overlay's refusal sentence on `ground`, or null when it is served
+ *  there. Null too when the backend draws no exact pattern at all: callers
+ *  check `exact_pattern` first. */
+export function exactPatternRefusal(
+  cap: ExactPatternCapability | null | undefined,
+  ground: string,
+): string | null {
+  return cap?.ground_refusals[ground] ?? null;
+}
+
 export type BackendEntry = {
   name: string;
   label: string;
@@ -125,6 +144,11 @@ export type BackendEntry = {
    *  a refused pair and withholds its solve without restating the rule.
    *  Absent on a server predating it. */
   ground_refusals?: Record<string, string> | null;
+  /** Whether this backend draws its own exact far-field pattern (an RP-card
+   *  run) as the pattern charts' dashed overlay, as served: null for every
+   *  momwire basis. The overlay is gated on this, never on backend names.
+   *  Absent on a server predating it, which reads as "no overlay". */
+  exact_pattern?: ExactPatternCapability | null;
   options_schema: BackendOptionField[];
   /** Bespoke panel hint, as served. Nothing in this client reads it since
    *  #1170 — every knob is drawn from the catalogue and the axes — and it is

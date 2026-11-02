@@ -18,6 +18,8 @@ const PYNEC: BackendEntry = {
   name: "pynec",
   label: "PyNEC",
   kind: "pynec",
+  // As served (adapter._backend_exact_pattern): the overlay is gated on it.
+  exact_pattern: { label: "PyNEC", ground_refusals: { terrain: "flat ground only" } },
   supports_ground: true,
   options_schema: [],
   panel: null,
