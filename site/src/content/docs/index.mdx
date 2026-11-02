@@ -29,20 +29,19 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.110.0" icon="star">
-  **momwire 0.85.0 underneath.** NEC-4.2 decks get the junction-charge fix,
-  and the no-Python engine executables now cover the NEC-4.2 slot too
-  (sinusoidal, Sinusoidal-Galerkin and B-spline), all faster than before.
+<Card title="New in v0.110.1" icon="star">
+  **Do two constructions agree?** `compare_wires` checks that two builders
+  produce the same metal, ignoring wire order, direction, segment counts and
+  how a run is split into pieces, and names every span, feed or near-miss
+  that differs. Use it to check a mirrored build against the explicit wires,
+  or either against the `.nec` deck you transcribed it from. See
+  [the CLI reference](/reference/cli/#checking-two-constructions-agree-compare_wires).
 
-  **Two traps at one point.** An EZNEC model with two loads on one node, such
-  as stacked traps, writes two identical load probes at that node. A `.nec`
-  of it now opens instead of being refused, and solves as the one probe
-  NEC-5 treats it as.
-
-  **Heavier wire.** 16, 14 and 12 AWG copper, bare and PVC, join the wire
-  catalog, and the wire-gauge comparison is re-measured. For design authors,
-  `Transform.scale` mirrors or scales an axis, and a `TransformStack` can now
-  collect wires as it goes (`emit`, `push_pop_tr`).
+  **The designs-folder guide's coax examples run.** The `CLAUDE.md` in your
+  designs folder showed a cable form that stopped working, so a design
+  written from it failed on its coax line. It now shows
+  `cable_from_catalog("RG-8X")`, and `TEMPLATE.py` explains how to ask
+  Claude Code for a design, step by step.
 </Card>
 
 ## The whole pitch, in one line
