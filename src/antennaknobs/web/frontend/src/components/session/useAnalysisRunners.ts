@@ -5,7 +5,7 @@ import {
   type MutableRefObject,
 } from "react";
 import type { NormCheckData, SolveRequest } from "../../lib/api";
-import { type BackendEntry } from "../../lib/backends";
+import { type BackendEntry, exactPatternRefusal } from "../../lib/backends";
 import type { CellState } from "../../lib/chartCells";
 import { type GroundModel } from "../../lib/ground";
 import {
@@ -441,11 +441,13 @@ export function useAnalysisRunners({
     setPattern(null);
     if (
       !autoSim || // Paused holds the engine (issue #612) — no NEC re-solve.
-      (backend.name !== "pynec" && backend.name !== "nec5") ||
+      // The served capability, not a list of backend names: which engines
+      // draw an exact pattern, and on which grounds they refuse it.
+      !backend.exact_pattern ||
+      exactPatternRefusal(backend.exact_pattern, groundModel) !== null ||
       !active ||
       !necOverlayEnabled ||
-      !patternResident || // issue #715: gated on the azimuth/elevation cuts
-      groundModel === "terrain"
+      !patternResident // issue #715: gated on the azimuth/elevation cuts
     ) {
       return;
     }

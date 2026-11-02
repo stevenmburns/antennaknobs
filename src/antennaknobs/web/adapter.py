@@ -694,6 +694,12 @@ def backend_roster(
             # every backend including the ones momwire#553 says nothing about.
             "buried_issue": _backend_buried_issue(b),
             "axes": _backend_axes(b),
+            # Whether this backend can draw its own exact far-field pattern
+            # (an RP-card run) as the pattern charts' dashed overlay, and the
+            # grounds it refuses it on. Served so the client gates the overlay
+            # on this field, never on a list of backend names: that list was
+            # pynec + nec5 and missed NEC-2 and NEC-4.2 when they arrived.
+            "exact_pattern": _backend_exact_pattern(b),
             "constraints": _backend_constraints(b),
             # The roster entry's bound kwargs, verbatim (antennaknobs#1006
             # G2-5). `axes` says what the CLASS can be configured to; `bound`
@@ -1181,6 +1187,34 @@ def _backend_buried_refusal(spec):
         return None
     refusal = caps.refusal("buried")
     return refusal if isinstance(refusal, str) else None
+
+
+# The backends whose wrapper serves POST /pattern: an RP-card run of the
+# engine's own, the same 46 x 73 (theta 0..90, phi 0..360) dBi-per-source-watt
+# grid on all four (pynec_backend.pattern, and _nec2_family_pattern for NEC-2
+# and NEC-4.2). `test_exact_pattern_capability.py` holds this set equal to the
+# server's external backends, so a new engine cannot serve /pattern without
+# the overlay knowing, or the other way round.
+_EXACT_PATTERN_KINDS = ("pynec", "nec5", "nec2", "nec42")
+
+_EXACT_PATTERN_TERRAIN_REFUSAL = (
+    "NEC's RP-card pattern is flat-ground only (no facet model), so the "
+    "exact-pattern overlay is unavailable over terrain: the terrain traces come "
+    "from the server's facet physics instead."
+)
+
+
+def _backend_exact_pattern(spec) -> dict | None:
+    """The `exact_pattern` capability: None for a backend with no exact
+    pattern of its own (every momwire basis), else what the overlay needs:
+    the engine's label, and the grounds it refuses the overlay on with the
+    sentence to show."""
+    if spec.kind not in _EXACT_PATTERN_KINDS:
+        return None
+    return {
+        "label": spec.label,
+        "ground_refusals": {"terrain": _EXACT_PATTERN_TERRAIN_REFUSAL},
+    }
 
 
 def _backend_buried_issue(spec):

@@ -66,7 +66,7 @@ function controls(
       normCheckEnabled={false}
       setNormCheckEnabled={() => {}}
       normCheck={null}
-      backend="nec5"
+      exactPattern={{ label: "NEC-5", ground_refusals: { terrain: "flat ground only" } }}
       groundModel="sommerfeld"
       necOverlayEnabled
       setNecOverlayEnabled={() => {}}
