@@ -1,6 +1,7 @@
 import { lobeCentresDeg } from "../../lib/peakLobes";
 import { useEffect, useState } from "react";
 import type { PatternCuts, SolveResponse } from "../../lib/api";
+import { getPatternScale } from "../../lib/patternScale";
 import { cutDbiTop, refineCutAngles } from "../../lib/refine";
 import { tunedInt } from "../../lib/tuning";
 import type { FarFieldCaptions, FarFieldCut } from "./types";
@@ -477,6 +478,7 @@ function refineCuts(
             cur.az_angles_deg,
             cutDbiTop([peakOf(cur.azimuth)]),
             budget,
+            getPatternScale(),
           )
         : [];
       const elAdd = want.elev
@@ -485,6 +487,7 @@ function refineCuts(
             cur.elev_angles_deg,
             cutDbiTop([peakOf(cur.elevation)]),
             budget,
+            getPatternScale(),
           )
         : [];
       if (azAdd.length === 0 && elAdd.length === 0) break;

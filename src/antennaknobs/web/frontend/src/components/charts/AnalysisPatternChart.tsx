@@ -1,6 +1,7 @@
 import { useContext, useEffect, useRef } from "react";
 import type { SolveResponse } from "../../lib/api";
-import { cutDbiTop, cutDbiToFrac } from "../../lib/refine";
+import { usePatternScale } from "../../lib/patternScale";
+import { cutDbiTop, cutDbiToFrac, cutRingsDbi } from "../../lib/refine";
 import { ThemeContext } from "../hooks";
 import { CHART_FONT, fitChartCanvas, useChartScale } from "./chartScale";
 import { cutsRedrawKey, traceFor, useCutTraces } from "./cuts";
@@ -41,6 +42,7 @@ export function AnalysisPatternChart({
   size: number;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle
+  const [scale] = usePatternScale(); // ARRL or linear radius
   const k = useChartScale();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const traces = useCutTraces(
@@ -70,8 +72,14 @@ export function AnalysisPatternChart({
     // The radial scale fits the highest lobe of every cell, as the
     // far-field charts fit the live lobe and the pinned ghosts together.
     const peaks = drawn.flatMap((d) => (d.trace ? [d.trace.peakDbi] : []));
-    const dbiToFrac = cutDbiToFrac(cutDbiTop(peaks));
-    const geom: PolarGeom = { cx: sz / 2, cy: sz / 2, R, dbiToFrac };
+    const dbiTop = cutDbiTop(peaks);
+    const geom: PolarGeom = {
+      cx: sz / 2,
+      cy: sz / 2,
+      R,
+      dbiToFrac: cutDbiToFrac(dbiTop, scale),
+      ringsDbi: cutRingsDbi(dbiTop, scale),
+    };
     drawDbiRings(ctx, geom, PC);
     ctx.fillStyle = PC.labelDim;
     ctx.font = CHART_FONT.label;
@@ -91,7 +99,7 @@ export function AnalysisPatternChart({
     }
     // drawKey and tracesKey stand in for the cells and their traces.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawKey, tracesKey, cut, azElevDeg, elevAzDeg, size, k, theme]);
+  }, [drawKey, tracesKey, cut, azElevDeg, elevAzDeg, size, k, theme, scale]);
 
   return (
     <canvas

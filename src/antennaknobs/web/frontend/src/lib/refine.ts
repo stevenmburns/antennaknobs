@@ -9,6 +9,7 @@ import {
   type SweepAxes,
 } from "./sweepAxis";
 import { tunedFloat } from "./tuning";
+import type { PatternScale } from "./patternScale";
 
 // Adaptive sampling refinement (issue #744).
 //
@@ -500,12 +501,40 @@ export function refineSweepFreqs(
 /** Origin of FarFieldChart's radial axis, in dBi. */
 export const CUT_DBI_FLOOR = -20;
 
+/** The ARRL grid's radius ratio per 3 dB down: r = 0.89^(dB down / 3). */
+export const ARRL_RATIO_PER_3DB = 0.89;
+
+/** How far below the top the ARRL grid is drawn, in dB: −100 dB is about 2 %
+ *  of the radius, which reads as the centre. */
+export const ARRL_DEPTH_DB = 100;
+
 /** FarFieldChart's radial map: absolute dBi → fraction of the plot radius,
- *  given the top of the (adaptive) radial scale. Exported so the chart and
- *  the refinement planner cannot drift apart about where a sample lands. */
-export function cutDbiToFrac(dbiTop: number): (db: number) => number {
+ *  given the top of the (adaptive) radial scale and the scale in use
+ *  (lib/patternScale.ts). Exported so the chart and the refinement planner
+ *  cannot drift apart about where a sample lands.
+ *
+ *  linear: dBi linear in radius from the −20 dBi floor to the top.
+ *  arrl:   r = 0.89^((top − dBi) / 3), the ARRL modified-log grid. */
+export function cutDbiToFrac(
+  dbiTop: number,
+  scale: PatternScale = "linear",
+): (db: number) => number {
+  if (scale === "arrl")
+    return (db: number) =>
+      clamp01(Math.pow(ARRL_RATIO_PER_3DB, (dbiTop - db) / 3));
   const span = dbiTop - CUT_DBI_FLOOR;
   return (db: number) => clamp01((db - CUT_DBI_FLOOR) / span);
+}
+
+/** The labelled rings, in dBi, for a scale. linear keeps its fixed rings;
+ *  arrl puts them at the grid's usual steps down from the top (0, 3, 6, 10,
+ *  20, 30 dB), labelled in absolute dBi so gains read as everywhere else. */
+export function cutRingsDbi(
+  dbiTop: number,
+  scale: PatternScale = "linear",
+): number[] {
+  if (scale === "arrl") return [0, 3, 6, 10, 20, 30].map((down) => dbiTop - down);
+  return [6, 0, -6, -12, -18];
 }
 
 /** The top of the radial scale for a set of trace peaks: +10 dBi by
@@ -527,8 +556,9 @@ export function cutProjection(
   dbi: readonly number[],
   anglesDeg: readonly number[] | undefined,
   dbiTop: number,
+  scale: PatternScale = "linear",
 ): DisplayPoint[] {
-  const toFrac = cutDbiToFrac(dbiTop);
+  const toFrac = cutDbiToFrac(dbiTop, scale);
   const n = dbi.length;
   const span = dbiTop - CUT_DBI_FLOOR;
   return Array.from({ length: n }, (_, i) => {
@@ -542,7 +572,11 @@ export function cutProjection(
     // sits — the below-horizon floor sentinel is the common case, and
     // sharpening the corner where a null dives under the floor redraws
     // nothing.
-    const raw = (dbi[i] - CUT_DBI_FLOOR) / span;
+    // The ARRL grid has no floor: its centre is ARRL_DEPTH_DB down.
+    const raw =
+      scale === "arrl"
+        ? 1 - (dbiTop - dbi[i]) / ARRL_DEPTH_DB
+        : (dbi[i] - CUT_DBI_FLOOR) / span;
     // Canvas flips y, but a reflection changes no turn ANGLE — the planner
     // only reads |turn|, so the sign convention here is free.
     return {
@@ -560,13 +594,14 @@ export function refineCutAngles(
   anglesDeg: readonly number[] | undefined,
   dbiTop: number,
   budget: number,
+  scale: PatternScale = "linear",
 ): number[] {
   const n = dbi.length;
   if (n < 3) return [];
   const t = anglesDeg
     ? Array.from(anglesDeg)
     : Array.from({ length: n }, (_, i) => (360 * i) / n);
-  const planned = planRefinement(t, [cutProjection(dbi, anglesDeg, dbiTop)], {
+  const planned = planRefinement(t, [cutProjection(dbi, anglesDeg, dbiTop, scale)], {
     budget,
     closed: true,
     period: 360,

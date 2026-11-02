@@ -1,6 +1,7 @@
 import { useContext, useEffect, useRef } from "react";
 import type { SolveResponse } from "../../lib/api";
-import { cutDbiToFrac } from "../../lib/refine";
+import { usePatternScale } from "../../lib/patternScale";
+import { cutDbiToFrac, cutRingsDbi } from "../../lib/refine";
 import type { CombinedFill } from "../../lib/view";
 import { ThemeContext } from "../hooks";
 import {
@@ -65,6 +66,7 @@ export function CombinedPatternChart({
   onCaptions?: ((c: FarFieldCaptions) => void) | undefined;
 }) {
   const theme = useContext(ThemeContext);
+  const [scale] = usePatternScale(); // ARRL or linear radius
   const k = useChartScale(); // the chart scale (./chartScale)
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -114,11 +116,13 @@ export function CombinedPatternChart({
     const R = sz / 2 - 14;
 
     const traces = combinedTraces(cutTraces, enabledPins);
+    const dbiTop = combinedDbiTop(traces);
     const geom: PolarGeom = {
       cx,
       cy,
       R,
-      dbiToFrac: cutDbiToFrac(combinedDbiTop(traces)),
+      dbiToFrac: cutDbiToFrac(dbiTop, scale),
+      ringsDbi: cutRingsDbi(dbiTop, scale),
     };
     drawDbiRings(ctx, geom, PC);
 
@@ -214,6 +218,7 @@ export function CombinedPatternChart({
     fill,
     litKey,
     theme,
+    scale,
     cutTracesKey,
     stage,
   ]);
