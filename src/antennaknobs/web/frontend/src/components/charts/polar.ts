@@ -133,3 +133,78 @@ export function strokeTrace(
   ctx.stroke();
   if (o.dash) ctx.setLineDash([]);
 }
+
+/** One sample of the NEC exact-pattern overlay along a cut: polar parameter
+ *  t (radians, as `polarPoint`) and the interpolated dBi. */
+export type NecCutSample = { t: number; dbi: number };
+
+/** The NEC rp_card pattern sampled along a cut, for FarFieldChart's dashed
+ *  overlay. Taken before the radial scale is chosen, so the overlay's peak
+ *  counts toward the top: on the ARRL scale the rim is the highest peak
+ *  drawn, and an uncounted NEC lobe above the live one would be flattened
+ *  onto the rim. Bilinear interpolation off the (θ, φ) grid; null marks a ray
+ *  below the horizon, where the line breaks rather than wrapping.
+ *
+ *  xy: the cone at elevation `azElevDeg`. yz: the vertical great circle
+ *  through bearing `elevAzDeg` (t = π/2 the zenith). */
+export function necCutSamples(
+  pattern: {
+    theta_deg: readonly number[];
+    phi_deg: readonly number[];
+    gain_dbi: readonly (readonly number[])[];
+  },
+  cut: "xy" | "yz",
+  azElevDeg: number,
+  elevAzDeg: number,
+  nDir = 180,
+): (NecCutSample | null)[] {
+  const azElevRad = (azElevDeg * Math.PI) / 180;
+  const azSinT = Math.cos(azElevRad);
+  const azCosT = Math.sin(azElevRad);
+  const elevAzRad = (elevAzDeg * Math.PI) / 180;
+  const elevAzCos = Math.cos(elevAzRad);
+  const elevAzSin = Math.sin(elevAzRad);
+  const nt = pattern.theta_deg.length;
+  const np_ = pattern.phi_deg.length;
+  const dTheta = pattern.theta_deg[1] - pattern.theta_deg[0];
+  const dPhi = pattern.phi_deg[1] - pattern.phi_deg[0];
+  const clip = (g: number) => (g < -100 ? -100 : g);
+  const out: (NecCutSample | null)[] = [];
+  for (let pi = 0; pi <= nDir; pi++) {
+    const t = (2 * Math.PI * pi) / nDir;
+    const ct = Math.cos(t);
+    const st = Math.sin(t);
+    const rx = cut === "xy" ? azSinT * ct : elevAzCos * ct;
+    const ry = cut === "xy" ? azSinT * st : elevAzSin * ct;
+    const rz = cut === "xy" ? azCosT : st;
+    if (rz < -1e-9) {
+      out.push(null);
+      continue;
+    }
+    const thetaDeg = (Math.acos(Math.max(-1, Math.min(1, rz))) * 180) / Math.PI;
+    let phiRad = Math.atan2(ry, rx);
+    if (phiRad < 0) phiRad += 2 * Math.PI;
+    const phiDeg = (phiRad * 180) / Math.PI;
+    const tf = Math.max(0, Math.min(nt - 1, thetaDeg / dTheta));
+    const pf = Math.max(0, Math.min(np_ - 1, phiDeg / dPhi));
+    const t0 = Math.floor(tf),
+      t1 = Math.min(nt - 1, t0 + 1);
+    const p0 = Math.floor(pf),
+      p1 = Math.min(np_ - 1, p0 + 1);
+    const ft = tf - t0,
+      fp = pf - p0;
+    const g00 = clip(pattern.gain_dbi[t0][p0]);
+    const g01 = clip(pattern.gain_dbi[t0][p1]);
+    const g10 = clip(pattern.gain_dbi[t1][p0]);
+    const g11 = clip(pattern.gain_dbi[t1][p1]);
+    out.push({
+      t,
+      dbi:
+        g00 * (1 - ft) * (1 - fp) +
+        g01 * (1 - ft) * fp +
+        g10 * ft * (1 - fp) +
+        g11 * ft * fp,
+    });
+  }
+  return out;
+}
