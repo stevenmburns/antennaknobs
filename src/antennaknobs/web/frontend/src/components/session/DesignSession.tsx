@@ -1280,6 +1280,12 @@ function DesignSessionBody({
   const [normCheckEnabled, setNormCheckEnabled] = useState(
     uiDefaults.switches.pattern_renorm,
   );
+  // The dotted overlay of that check on the pattern chart, separately and
+  // session-only, off by default: over real ground it sits above the gain
+  // lobe by the ground loss (the readouts' radiated %), and on the ARRL scale
+  // the highest trace drawn sets the outer ring, which should be the
+  // antenna's gain. The check itself still runs for the readouts.
+  const [normOverlayEnabled, setNormOverlayEnabled] = useState(false);
   // NEC rp_card exact-pattern overlay (PyNEC backend only). User-switchable;
   // forced off (and the switch greyed) over a terrain ground, where NEC's
   // flat-ground rp pattern would silently disagree with the facet traces.
@@ -5486,7 +5492,7 @@ function DesignSessionBody({
       showWireLabels={showWireLabels}
       showFeedNames={showFeedNames}
       multiFeed={effectiveMultiFeed}
-      fineNorm={normCheck?.pattern_norm ?? null}
+      fineNorm={normOverlayEnabled ? (normCheck?.pattern_norm ?? null) : null}
       onFarFieldCaptions={onFarFieldCaptions}
       combinedFill={combinedFill}
       combinedHighlight={shownHighlight}
@@ -5536,6 +5542,8 @@ function DesignSessionBody({
               isMobile={isMobile}
               normCheckEnabled={normCheckEnabled}
               setNormCheckEnabled={setNormCheckEnabled}
+              normOverlayEnabled={normOverlayEnabled}
+              setNormOverlayEnabled={setNormOverlayEnabled}
               normCheck={normCheck}
               backend={backend.name}
               groundModel={groundModel}
@@ -5557,6 +5565,8 @@ function DesignSessionBody({
               isMobile={isMobile}
               normCheckEnabled={normCheckEnabled}
               setNormCheckEnabled={setNormCheckEnabled}
+              normOverlayEnabled={normOverlayEnabled}
+              setNormOverlayEnabled={setNormOverlayEnabled}
               normCheck={normCheck}
               backend={backend.name}
               groundModel={groundModel}

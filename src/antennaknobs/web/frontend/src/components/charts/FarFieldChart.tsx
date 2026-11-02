@@ -14,6 +14,7 @@ import { ghostRgb, plotColors } from "./palette";
 import {
   drawDbiRings,
   drawSpoke,
+  necCutSamples,
   type PolarGeom,
   strokeTrace as strokePolarTrace,
   type TraceStyle,
@@ -113,15 +114,10 @@ export function FarFieldChart({
     // off, the conventional setting is 0° (the xy plane). With ground on,
     // 0° is grazing and Fresnel kills the pattern, so something like 15°
     // gives a useful view — the slider lets the user pick.
-    const azElevRad = (azElevDeg * Math.PI) / 180;
-    const azSinT = Math.cos(azElevRad); // sin(polar θ from +z) = cos(elevation)
-    const azCosT = Math.sin(azElevRad); // cos(polar θ) = sin(elevation)
     // Elevation cut: vertical great circle through azimuth bearing elevAzDeg.
     // t=0 lies at +elevAz horizon; t=π/2 is zenith; t=π is at the opposite
     // horizon; t=3π/2 is nadir (below ground, zeroed when ground is on).
-    const elevAzRad = (elevAzDeg * Math.PI) / 180;
-    const elevAzCos = Math.cos(elevAzRad);
-    const elevAzSin = Math.sin(elevAzRad);
+    // (The NEC overlay's own geometry is polar.ts's necCutSamples.)
 
     // Slice every trace (live + any pinned ghosts) up front, so the radial
     // scale below can expand to fit the highest-gain lobe on screen.
@@ -131,12 +127,13 @@ export function FarFieldChart({
       trace: traceFor(cutTraces[i + 1], cut),
     }));
 
-    // Radial axis: absolute directivity in dBi. Origin is a fixed −20 dBi
-    // floor. The outer edge is +10 dBi by default, but expands to fit the peak
-    // of the highest-gain trace (plus 1 dB headroom) so a high-gain array's
-    // lobe renders in full instead of drawing past the edge and clipping — the
-    // thumbnails escaped this only because their tiny radius left slack inside
-    // the margin. Labeled rings sit at +6/0/−6/−12/−18 (all inside any top).
+    // Radial axis (lib/refine.ts, the scale from lib/patternScale.ts). Its top
+    // comes from the peak of every trace DRAWN: the live lobe, the pins, the
+    // norm-check overlay when shown and the NEC overlay (sampled below).
+    //   arrl:   the top IS that peak, the rim of r = R_max·0.89^(−dB/3), with
+    //           rings 3/6/10/20/30 dB down and the rim labelled in dBi.
+    //   linear: dBi from a fixed −20 dBi floor to 1 dB above the peak (never
+    //           under 11 dBi), rings at +6/0/−6/−12/−18 dBi.
     const peaks: number[] = [];
     if (liveTrace) peaks.push(liveTrace.peakDbi);
     for (const gh of ghosts) if (gh.trace) peaks.push(gh.trace.peakDbi);
@@ -155,6 +152,17 @@ export function FarFieldChart({
     // drawing past R and clipping against the canvas edge. The map itself
     // lives in lib/refine.ts so the refinement planner (issue #744) judges
     // curvature against the exact geometry drawn here.
+    // NEC exact-pattern overlay samples along this cut, taken BEFORE the
+    // radial scale so its peak counts: on the ARRL scale the rim is the
+    // highest peak drawn, and an uncounted NEC lobe peaking above the live
+    // one would be flattened onto the rim, hiding the difference the overlay
+    // is there to show. Bilinear interpolation off the (θ, φ) grid; null
+    // marks a ray below the horizon.
+    const necSamples = pattern
+      ? necCutSamples(pattern, cut, azElevDeg, elevAzDeg)
+      : null;
+    if (necSamples)
+      for (const smp of necSamples) if (smp !== null) peaks.push(smp.dbi);
     const dbiTop = cutDbiTop(peaks, scale);
     const dbiToFrac = cutDbiToFrac(dbiTop, scale);
     const geom: PolarGeom = {
@@ -306,58 +314,20 @@ export function FarFieldChart({
       );
     }
 
-    // NEC exact-pattern overlay (dashed cyan line) when available. Bilinear
-    // interpolation off the (θ, φ) grid; rays below horizon are skipped so
-    // the line breaks at the ground rather than wrapping to the origin.
-    if (pattern) {
-      const N_DIR = 180; // drawing resolution for the interpolated overlay
-      const nt = pattern.theta_deg.length;
-      const np_ = pattern.phi_deg.length;
-      const dTheta = pattern.theta_deg[1] - pattern.theta_deg[0];
-      const dPhi = pattern.phi_deg[1] - pattern.phi_deg[0];
-      const clip = (g: number) => (g < -100 ? -100 : g);
-
+    // NEC exact-pattern overlay (dashed cyan line) when available, drawn from
+    // the samples taken above (`necSamples`); a null sample is a ray below
+    // the horizon, where the line breaks rather than wrapping to the origin.
+    if (pattern && necSamples) {
       ctx.beginPath();
       let started = false;
-      for (let pi = 0; pi <= N_DIR; pi++) {
-        const t = (2 * Math.PI * pi) / N_DIR;
-        const ct = Math.cos(t);
-        const st = Math.sin(t);
-        const rx = cut === "xy" ? azSinT * ct : elevAzCos * ct;
-        const ry = cut === "xy" ? azSinT * st : elevAzSin * ct;
-        const rz = cut === "xy" ? azCosT : st;
-        if (rz < -1e-9) {
+      for (const smp of necSamples) {
+        if (smp === null) {
           started = false;
           continue;
         }
-
-        const thetaDeg =
-          (Math.acos(Math.max(-1, Math.min(1, rz))) * 180) / Math.PI;
-        let phiRad = Math.atan2(ry, rx);
-        if (phiRad < 0) phiRad += 2 * Math.PI;
-        const phiDeg = (phiRad * 180) / Math.PI;
-
-        const tf = Math.max(0, Math.min(nt - 1, thetaDeg / dTheta));
-        const pf = Math.max(0, Math.min(np_ - 1, phiDeg / dPhi));
-        const t0 = Math.floor(tf),
-          t1 = Math.min(nt - 1, t0 + 1);
-        const p0 = Math.floor(pf),
-          p1 = Math.min(np_ - 1, p0 + 1);
-        const ft = tf - t0,
-          fp = pf - p0;
-        const g00 = clip(pattern.gain_dbi[t0][p0]);
-        const g01 = clip(pattern.gain_dbi[t0][p1]);
-        const g10 = clip(pattern.gain_dbi[t1][p0]);
-        const g11 = clip(pattern.gain_dbi[t1][p1]);
-        const dBi =
-          g00 * (1 - ft) * (1 - fp) +
-          g01 * (1 - ft) * fp +
-          g10 * ft * (1 - fp) +
-          g11 * ft * fp;
-
-        const frac = dbiToFrac(dBi);
-        const px = cx + Math.cos(t) * frac * R;
-        const py = cy - Math.sin(t) * frac * R;
+        const frac = dbiToFrac(smp.dbi);
+        const px = cx + Math.cos(smp.t) * frac * R;
+        const py = cy - Math.sin(smp.t) * frac * R;
         if (!started) {
           ctx.moveTo(px, py);
           started = true;

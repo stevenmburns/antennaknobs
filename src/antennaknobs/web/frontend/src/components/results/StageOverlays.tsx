@@ -217,7 +217,8 @@ export function SweepAdvisoryOverlay({
 }
 
 // On mobile only the Δ readout survives (it's output, not a control, and
-// it's one short span); the norm-check toggle lives in the gear menu. The
+// it's one short span); the norm check itself is switched in the gear menu,
+// and the dotted overlay (desktop's "norm overlay" box) stays off. The
 // caller skips this entirely when it would be empty (see the `!isMobile ||
 // (normCheckEnabled && normCheck)` gate at the call site).
 function signed(x: number, digits: number): string {
@@ -326,6 +327,8 @@ export function FarFieldOverlayControls({
   isMobile,
   normCheckEnabled,
   setNormCheckEnabled,
+  normOverlayEnabled = false,
+  setNormOverlayEnabled = () => {},
   normCheck,
   backend,
   groundModel,
@@ -344,6 +347,12 @@ export function FarFieldOverlayControls({
   isMobile: boolean;
   normCheckEnabled: boolean;
   setNormCheckEnabled: (v: boolean) => void;
+  /** The dotted norm-check overlay on the chart: separate from the check
+   *  itself (`normCheckEnabled`, which also feeds the readouts' radiated %),
+   *  and off by default, because over real ground it sits above the gain
+   *  lobe by the ground loss and would set the ARRL scale's outer ring. */
+  normOverlayEnabled?: boolean;
+  setNormOverlayEnabled?: (v: boolean) => void;
   normCheck: NormCheckData | null;
   /** Backend NAME; the NEC-overlay switch is PyNEC-only. */
   backend: string;
@@ -380,14 +389,18 @@ export function FarFieldOverlayControls({
       {!isMobile && overlayToggles && (
         <label
           className="overlay-checkbox"
-          title="On dwell, renormalise the pattern by its own integrated radiated power (dotted) instead of the input power the solid line uses. Overlap ⇒ the solve conserves power; a visible gap is the solver's discretisation error (NEC's 'average gain' check)."
+          title="Draw the pattern renormalised by its own integrated radiated power (dotted) beside the solid one, which uses the input power. In free space or over a perfect ground they should overlap, and a gap is the solver's power-balance error (NEC's 'average gain' check). Over real ground the dotted one sits above by the ground loss, so it is off by default: the plot's outer ring then stays the antenna's gain."
         >
           <input
             type="checkbox"
-            checked={normCheckEnabled}
-            onChange={(e) => setNormCheckEnabled(e.target.checked)}
+            checked={normOverlayEnabled}
+            onChange={(e) => {
+              // The overlay needs the check's result: switch it on too.
+              if (e.target.checked && !normCheckEnabled) setNormCheckEnabled(true);
+              setNormOverlayEnabled(e.target.checked);
+            }}
           />
-          norm check
+          norm overlay
         </label>
       )}
       {!isMobile && overlayToggles && (backend === "pynec" || backend === "nec5") && (

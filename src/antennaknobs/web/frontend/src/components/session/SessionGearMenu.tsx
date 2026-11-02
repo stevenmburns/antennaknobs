@@ -364,7 +364,7 @@ export function SessionGearMenu({
                   <div className="gear-menu-section">azimuth / elevation</div>
                   <label
                     className="gear-menu-check"
-                    title="On dwell, renormalise the pattern by its own integrated radiated power (dotted) instead of the input power the solid line uses. Overlap ⇒ the solve conserves power; a visible gap is the solver's discretisation error (NEC's 'average gain' check)."
+                    title="On dwell, integrate the pattern to find the power it actually radiates: the readouts' radiated % (structural loss plus real-ground absorption) and the chart's optional dotted norm overlay. In free space or over a perfect ground the two norms should agree, and a gap is the solver's power-balance error (NEC's 'average gain' check); over real ground the gap is mostly power absorbed by the ground."
                   >
                     <input
                       type="checkbox"
