@@ -3771,11 +3771,18 @@ def _pynec_driven(builder):
 
     A gap port may name another wire and a position on it (AK#1469), so the
     build_wires() tuple that carries it is found by its WIRE. Every other port
-    is found by its own name, at the middle, as before."""
+    is found by its own name, at the middle, as before.
+
+    The port is `_driven_port_name`'s, as on the momwire lane: a source on a
+    virtual rig port reaches the antenna through its coax, so the marker
+    belongs at the first wire port the network reaches. Reading the source's
+    own port named a wire that does not exist, and the marker fell to the
+    first wire's first knot, a dipole's tip (AC6LA's 14 MHz dipole on 10 m
+    of RG-8X, on NEC-5)."""
     net = builder.build_network() if hasattr(builder, "build_network") else None
     if net is None or not net.sources:
         return None, None, None, net
-    port_name = net.sources[0].port
+    port_name = _driven_port_name(net)
     port = net.ports.get(port_name)
     if isinstance(port, PortOnWire):
         return port_name, port_wire(port), port_at(port), net
