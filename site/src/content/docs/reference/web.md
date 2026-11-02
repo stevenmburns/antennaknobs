@@ -2310,43 +2310,65 @@ The plot's captions (which cut this is, the peak, the terrain field, the NEC rp
 legend) sit in the control stacks rather than printed in the plot's corners,
 so no control covers them on a small or zoomed display.
 
+## Pattern scale — ARRL or linear
+
+The azimuth, elevation and combined pattern charts, and the analysis pattern
+grids, draw on the **ARRL** scale by default: the modified-logarithmic grid of
+the ARRL Antenna Book and EZNEC, **r = R_max · 0.89^(−dB/3)**. The outer ring
+is the peak: the highest lobe of everything on the chart. Each 3 dB down shrinks
+the radius to 89 % of the last, so the main lobe keeps its shape while
+sidelobes 20–30 dB down stay readable, and −100 dB sits near the centre. The
+rings are labelled in dB down from the peak (−3, −6, −10, −20, −30), and the
+rim carries the peak's own gain in dBi.
+
+Everything on one chart shares that rim: pinned patterns, both cuts of the
+combined view, the cells of an analysis grid, and the NEC rp and norm overlays
+when they are shown. So a weaker antenna sits inside the rim by its gain
+difference, read straight off the rings. Two *separate* charts each put their
+own peak on the rim, so compare their rim labels rather than their sizes.
+
+The gear menu's **pattern chart › Scale** switches to **linear dB**: dBi linear
+in radius from a −20 dBi floor to 1 dB above the peak (never under 11 dBi),
+with rings at +6/0/−6/−12/−18 dBi. It reads a deep null's depth directly, at the
+cost of squashing everything below −20 dBi onto the centre. The choice is
+remembered in this browser.
+
 ## Norm check — is the solve trustworthy?
 
-On the **azimuth** and **elevation** pattern views a **norm check** checkbox
-(top-right of the plot) draws a second, dotted radiation curve over the solid
-live one — a built-in "should I trust this pattern?" gauge.
+The **norm check** integrates the pattern to find the power it actually
+radiates, and compares that with the input power the feed delivers. It's a
+built-in "should I trust this pattern?" gauge, and NEC's classic **"average
+gain"** check, which most tools make you compute by hand. It's cheap (a
+closed-form integral for free space and PEC ground, a small reference-grid
+quadrature over finite ground, either way evaluated once the knobs settle), so
+it is **on by default**; the gear menu's **azimuth / elevation › norm check**
+switches it off, and so does the `pattern_renorm` setting.
 
-The two curves are the *same pattern normalised two different ways*. The solid
-line scales it by the **input power** the feed delivers (the circuit side — what
-the impedance solve says went in). The dotted line renormalises by the pattern's
-**own integrated radiated power** (the field side — what the far-field integral
-says came back out). For a lossless PEC antenna those two must be equal, so:
+In free space and over PEC ground the two must agree for a lossless antenna.
+Beside the plot a **Δ** readout gives the gap in decibels: **0 dB is perfect
+power balance**. A few tenths of a dB is typical and harmless; a large value
+means too few segments (or too stiff a basis) for this geometry, and the
+pattern's gain figures should not be trusted until you refine the mesh.
 
-- **The curves overlap** ⇒ the solve conserves power: the mesh is fine enough
-  that the currents and the radiated field agree.
-- **A visible gap** ⇒ discretisation error — too few segments (or too stiff a
-  basis) for this geometry. Add segments and the gap closes.
+**Over a finite ground the gap is not supposed to be zero — it's physics**, so
+the readout switches to its honest form: **radiated NN%**, the fraction of
+input power that actually leaves as far-field radiation. The pattern integral
+only counts power that leaves upward, so the shortfall from 100 % is structural
+loss plus real ground absorption, exactly like NEC's average-gain value over
+real ground (hover the readout for the raw Δ dB). The same number fills the
+[power budget](#power-budget)'s **radiated (incl. ground)** row, so it follows
+you to every view. It's still a mesh check: what should be small is how much
+the reading *moves* as you add segments, and switching the ground to PEC (or
+off) should send it back toward ~100 % (Δ 0 dB).
 
-Beside the checkbox a **Δ** readout gives that gap as one number in decibels —
-**0 dB is perfect power balance**. A few tenths of a dB is typical and harmless;
-a large value means the pattern and its gain figures should not be trusted until
-you refine the mesh. This is exactly NEC's classic **"average gain"** sanity
-check, which most tools make you compute by hand. It's cheap (a closed-form
-integral for free space and PEC ground, a small reference-grid quadrature over
-finite ground, either way evaluated once the knob settles), so it's **on by
-default** — uncheck it to hide the overlay and the readout.
-
-**Over a finite ground the gap is not supposed to be zero — it's physics**,
-so the readout switches to its honest form: **radiated NN%**, the fraction
-of input power that actually leaves as far-field radiation. The pattern
-integral only counts power that leaves upward — what the lossy ground
-absorbs never comes back — so the shortfall from 100% is structural loss
-plus real ground absorption, exactly like NEC's average-gain value over
-real ground (hover the readout for the raw Δ dB). The same number fills
-the [power budget](#power-budget)'s **radiated (incl. ground)** row, so
-it follows you to every view. It's still a mesh check: what should be
-small is how much the reading *moves* as you add segments, and switching
-the ground to PEC (or off) should send it back toward ~100% (Δ 0 dB).
+**The norm overlay.** The **norm overlay** checkbox (top-right of the azimuth
+and elevation plots) draws the same pattern renormalised the second way, as a
+dotted curve over the solid live one. In free space or over PEC the two should
+overlap, and a gap is the solver's power-balance error. Over real ground the
+dotted curve sits above the solid one by the ground loss (1.4 dB for a dipole
+over average ground). It is off by default: on the ARRL scale the highest curve
+drawn sets the outer ring, and that ring should be the antenna's gain. Turning
+it on turns the norm check on too.
 
 ## The reference impedance
 
