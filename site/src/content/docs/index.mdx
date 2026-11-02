@@ -29,19 +29,20 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.110.1" icon="star">
-  **Do two constructions agree?** `compare_wires` checks that two builders
-  produce the same metal, ignoring wire order, direction, segment counts and
-  how a run is split into pieces, and names every span, feed or near-miss
-  that differs. Use it to check a mirrored build against the explicit wires,
-  or either against the `.nec` deck you transcribed it from. See
-  [the CLI reference](/reference/cli/#checking-two-constructions-agree-compare_wires).
+<Card title="New in v0.110.2" icon="star">
+  **The feed marker follows the coax on every engine.** A design fed through
+  its feedline from the rig drew its feed marker at the first wire's tip on
+  NEC-5, NEC-4.2, NEC-2 and PyNEC. It now sits where the coax meets the
+  antenna, as it already did on momwire.
 
-  **The designs-folder guide's coax examples run.** The `CLAUDE.md` in your
-  designs folder showed a cable form that stopped working, so a design
-  written from it failed on its coax line. It now shows
-  `cable_from_catalog("RG-8X")`, and `TEMPLATE.py` explains how to ask
-  Claude Code for a design, step by step.
+  **Simpler designs to copy.** `TEMPLATE.py` and the guide in your designs
+  folder now build wires as `Wire(start, end)`, with `ex=`, `name=`,
+  `n_seg=` and `spec=` only when needed, and leave segment counts to the
+  design density. The workbench refreshes both at every start.
+
+  **v0.110.1** added `compare_wires`, which checks that two builders produce
+  the same metal: see
+  [the CLI reference](/reference/cli/#checking-two-constructions-agree-compare_wires).
 </Card>
 
 ## The whole pitch, in one line
