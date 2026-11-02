@@ -260,22 +260,31 @@ a `"layout"` to a param's override dict — `{row, col, row_span, col_span}`,
 
 ## `build_wires(self)`
 
-Return a list of straight wire segments. Each entry is:
+Return a list of straight wires, each a `Wire` (`from antennaknobs import
+Wire`). Only the two end points are required; everything else is a keyword:
 
 ```python
-(start, end, n_segments, feed)
+Wire(start, end)  # a plain wire
+Wire(start, end, ex=1 + 0j)  # the feed
+Wire(start, end, name="feed")  # a named wire, for build_network
+Wire(start, end, n_seg=5)  # a pinned segment count
+Wire(start, end, spec=TUBE)  # its own conductor (see below)
 ```
 
 - `start`, `end` — `(x, y, z)` tuples in metres.
-- `n_segments` — how finely to subdivide that wire. Use `None`: it meshes the
-  wire at the design density (`nominal_nsegs` segments per quarter wave at
-  `design_freq`), so short stubs get few segments, long wires many, and the
-  counts follow the knobs and the band. Give an integer only to pin a count.
-- `feed` — `1 + 0j` on the **single** segment the transmitter drives, `None`
-  everywhere else. Exactly one segment in the whole antenna is the feed —
+- `n_seg` — leave it out. The wire is then meshed at the design density
+  (`nominal_nsegs` segments per quarter wave at `design_freq`), so short stubs
+  get few segments, long wires many, and the counts follow the knobs and the
+  band. Give an integer only to pin a count.
+- `ex` — `1 + 0j` on the **single** wire the transmitter drives, left out
+  everywhere else. Exactly one wire in the whole antenna is the feed —
   unless the design models its feed system with `build_network` (see that
   section below), in which case the drive moves into the network and the
   feed wire is *named* instead.
+
+Plain tuples, `(start, end, n_seg, ex[, name])`, still work and can be mixed
+with `Wire`s, but they need a `None` in every slot you are not using, so
+prefer `Wire`.
 
 **Feed convention:** put the feed on a tiny segment between two points a
 small `eps` (e.g. 0.01 m) apart, with the radiator arms running outward from
@@ -283,9 +292,8 @@ those two points. Wires connect where they share an endpoint, so the arms and
 the feed segment must share their centre points exactly. See `TEMPLATE.py`.
 
 **Per-wire sizes (optional).** A design that mixes conductors — a fat
-aluminium element with thin wire radials — can give any entry its own
-`WireSpec` by returning a `Wire` named tuple instead of a plain tuple; the
-two mix freely in one list:
+aluminium element with thin wire radials — can give any wire its own
+`WireSpec` with `spec=`:
 
 ```python
 from antennaknobs import AntennaBuilder, Wire, WireSpec
@@ -293,8 +301,8 @@ from antennaknobs import AntennaBuilder, Wire, WireSpec
 TUBE = WireSpec(radius=6e-3)  # 12 mm boom element
 WIRE = WireSpec(radius=1e-3, conductivity=5.8e7)  # copper radial
 
-(start, end, n_segments, feed)  # plain tuple: design default
-Wire(start, end, n_segments, feed, spec=TUBE)  # this wire is the fat tube
+Wire(start, end)  # the design default conductor
+Wire(start, end, spec=TUBE)  # this wire is the fat tube
 ```
 
 A wire without a `spec` uses `build_wire_material()` (or the 0.5 mm ideal).
@@ -335,9 +343,8 @@ are explained on the docs site under **Station modelling**.
 
 Two changes, always together:
 
-1. In `build_wires`, the driven segment **loses its inline drive** and
-   instead *names* its wire with a 5-element tuple:
-   `(start, end, n_segments, None, "feed")`. The name declares a port;
+1. In `build_wires`, the driven wire **loses its `ex=`** and instead gets a
+   name: `Wire(start, end, name="feed")`. The name declares a port;
    which port is driven is now the network's business (so the "exactly
    one feed segment" rule above applies only to network-less designs).
 2. Add `build_network` returning a `Network` — three fields, always:

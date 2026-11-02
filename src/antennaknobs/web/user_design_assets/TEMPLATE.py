@@ -43,8 +43,9 @@ GOING FURTHER: THE WHOLE STATION
 --------------------------------
 A design can also model its feed system — coax, a balun/unun, a tuner —
 by adding an optional ``build_network(self)`` method: the wire that was
-driven below instead gets a NAME (a 5th tuple element, with the drive set
-to ``None``), and the network drives it through real feedline and matchbox
+driven below loses its ``ex=`` and gets a NAME instead
+(``Wire(feed_lo, feed_hi, name="feed")``), and the network drives it through
+real feedline and matchbox
 components, re-referencing SWR and the power budget to the rig. See the
 "build_network" section of CLAUDE.md in this folder for the contract and
 the pre-built boxes in ``antennaknobs.station``; built-in examples:
@@ -54,7 +55,7 @@ the pre-built boxes in ``antennaknobs.station``; built-in examples:
 
 from types import MappingProxyType
 
-from antennaknobs import AntennaBuilder
+from antennaknobs import AntennaBuilder, Wire
 
 
 class Builder(AntennaBuilder):
@@ -82,16 +83,16 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        """Return the antenna as a list of straight wire segments.
+        """Return the antenna as a list of straight wires.
 
-        Each entry is ``(start, end, n_segments, feed)``:
-          * ``start`` / ``end`` are ``(x, y, z)`` points in metres,
-          * ``n_segments`` is how finely to divide that wire. ``None`` meshes
-            it at the design density (``nominal_nsegs`` segments per quarter
-            wave at ``design_freq``), which is what you want almost always;
-            give a number only to pin a count,
-          * ``feed`` is ``1 + 0j`` on the ONE segment driven by the
-            transmitter, and ``None`` on every other wire.
+        Each one is ``Wire(start, end)``, where ``start`` and ``end`` are
+        ``(x, y, z)`` points in metres. Everything else is an optional keyword:
+          * ``ex=1 + 0j`` on the ONE wire the transmitter drives,
+          * ``n_seg=`` to pin how many segments the wire is divided into.
+            Leave it out and the wire is meshed at the design density
+            (``nominal_nsegs`` segments per quarter wave at ``design_freq``),
+            which is what you want almost always,
+          * ``name=`` and ``spec=`` (see CLAUDE.md) when you need them.
         """
         # Size each arm from the design frequency: a half-wave dipole is about
         # lambda/2 tip-to-tip, so each arm is ~lambda/4. ``length_factor`` trims
@@ -110,10 +111,10 @@ class Builder(AntennaBuilder):
         feed_lo = (0.0, -eps, z)
         feed_hi = (0.0, eps, z)
 
+        # No n_seg: each wire is meshed at the design density, so the counts
+        # follow the length knob and the band.
         return [
-            # A segment count of None: each wire is meshed at the design
-            # density, so the counts follow the length knob and the band.
-            (left_tip, feed_lo, None, None),  # left arm
-            (feed_hi, right_tip, None, None),  # right arm
-            (feed_lo, feed_hi, None, 1 + 0j),  # the driven feed gap
+            Wire(left_tip, feed_lo),  # left arm
+            Wire(feed_hi, right_tip),  # right arm
+            Wire(feed_lo, feed_hi, ex=1 + 0j),  # the driven feed gap
         ]
