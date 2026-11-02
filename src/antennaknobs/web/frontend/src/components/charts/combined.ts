@@ -2,6 +2,7 @@
 // so it can be tested without a canvas: which traces the plot draws, the one
 // radial scale they share, and which legend focus it honours.
 import type { PatternCuts } from "../../lib/api";
+import type { PatternScale } from "../../lib/patternScale";
 import { cutDbiTop } from "../../lib/refine";
 import { traceFor } from "./cuts";
 import type { FarFieldCut, PinnedPattern } from "./types";
@@ -41,8 +42,14 @@ export function combinedTraces(
 
 /** The top of the shared radial scale: the peak over EVERY drawn trace, both
  *  cuts and the pins, through the same rule the one-cut charts use. */
-export function combinedDbiTop(traces: readonly CombinedTrace[]): number {
-  return cutDbiTop(traces.map((t) => t.peakDbi));
+export function combinedDbiTop(
+  traces: readonly CombinedTrace[],
+  scale: PatternScale = "linear",
+): number {
+  return cutDbiTop(
+    traces.map((t) => t.peakDbi),
+    scale,
+  );
 }
 
 /** The highlight the chart honours (AK#1730): the stored ids that still name

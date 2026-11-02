@@ -8,9 +8,10 @@ import {
 import {
   ARRL_DEPTH_DB,
   CUT_DBI_FLOOR,
+  cutDbiTop,
   cutDbiToFrac,
   cutProjection,
-  cutRingsDbi,
+  cutRings,
 } from "../lib/refine";
 
 // The polar pattern charts' ARRL radial scale (AC6LA, 2026-11-02):
@@ -50,27 +51,58 @@ describe("the ARRL radial map", () => {
   });
 });
 
+describe("the top of the scale", () => {
+  it("ARRL: the highest peak itself, the R_max of the formula", () => {
+    expect(cutDbiTop([8.47], "arrl")).toBe(8.47);
+    // several traces (pins, both cuts, analysis cells) share the highest
+    expect(cutDbiTop([2.1, 8.47, 5], "arrl")).toBe(8.47);
+    expect(cutDbiTop([-4.2], "arrl")).toBe(-4.2);
+    expect(cutDbiTop([Number.NaN], "arrl")).toBe(0);
+  });
+
+  it("linear is unchanged: 1 dB above the peak or 10 dBi, whichever is higher, and never under 11", () => {
+    expect(cutDbiTop([8.47])).toBe(11);
+    expect(cutDbiTop([12.3])).toBe(14);
+    expect(cutDbiTop([12.3], "linear")).toBe(14);
+  });
+
+  it("puts a weaker antenna below the rim by its gain difference", () => {
+    const top = cutDbiTop([8.47, 5.47], "arrl");
+    expect(cutDbiToFrac(top, "arrl")(5.47)).toBeCloseTo(0.89, 12);
+  });
+});
+
 describe("the rings", () => {
-  it("ARRL rings sit 0, 3, 6, 10, 20 and 30 dB down, labelled in dBi", () => {
-    expect(cutRingsDbi(11, "arrl")).toEqual([11, 8, 5, 1, -9, -19]);
+  it("ARRL: the rim carries the peak's dBi, the rings 3, 6, 10, 20 and 30 dB down", () => {
+    expect(cutRings(8.47, "arrl")).toEqual([
+      { dbi: 8.47, label: "8.5 dBi" },
+      { dbi: 8.47 - 3, label: "\u22123" },
+      { dbi: 8.47 - 6, label: "\u22126" },
+      { dbi: 8.47 - 10, label: "\u221210" },
+      { dbi: 8.47 - 20, label: "\u221220" },
+      { dbi: 8.47 - 30, label: "\u221230" },
+    ]);
   });
 
   it("linear keeps its fixed dBi rings", () => {
-    expect(cutRingsDbi(11)).toEqual([6, 0, -6, -12, -18]);
-    expect(cutRingsDbi(11, "linear")).toEqual([6, 0, -6, -12, -18]);
+    const want = [6, 0, -6, -12, -18];
+    expect(cutRings(11).map((r) => r.dbi)).toEqual(want);
+    expect(cutRings(11, "linear").map((r) => r.label)).toEqual(["+6", "0", "-6", "-12", "-18"]);
   });
 });
 
 describe("the refinement projection follows the scale", () => {
-  it("draws the same radius the chart does, and marks the rim and the centre as clamped", () => {
+  it("draws the same radius the chart does; the peak on the rim is data, not a clamp", () => {
     const top = 10;
-    const dbi = [top, top - 3, top - 200];
-    const pts = cutProjection(dbi, [0, 90, 180], top, "arrl");
+    const dbi = [top, top - 3, top - 200, top + 1];
+    const pts = cutProjection(dbi, [0, 90, 180, 270], top, "arrl");
     // Display units: plot extent 1, so the rim is radius 0.5.
+    expect(Math.hypot(pts[0].x, pts[0].y)).toBeCloseTo(0.5, 12);
     expect(Math.hypot(pts[1].x, pts[1].y)).toBeCloseTo(0.5 * 0.89, 12);
-    expect(pts[0].clamped).toBe(true);
+    expect(pts[0].clamped).toBeUndefined();
     expect(pts[1].clamped).toBeUndefined();
     expect(pts[2].clamped).toBe(true);
+    expect(pts[3].clamped).toBe(true);
   });
 });
 

@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef } from "react";
 import type { SolveResponse } from "../../lib/api";
 import { usePatternScale } from "../../lib/patternScale";
-import { cutDbiTop, cutDbiToFrac, cutRingsDbi } from "../../lib/refine";
+import { cutDbiTop, cutDbiToFrac, cutRings } from "../../lib/refine";
 import { ThemeContext } from "../hooks";
 import {
   buildFarFieldCaptions,
@@ -155,14 +155,14 @@ export function FarFieldChart({
     // drawing past R and clipping against the canvas edge. The map itself
     // lives in lib/refine.ts so the refinement planner (issue #744) judges
     // curvature against the exact geometry drawn here.
-    const dbiTop = cutDbiTop(peaks);
+    const dbiTop = cutDbiTop(peaks, scale);
     const dbiToFrac = cutDbiToFrac(dbiTop, scale);
     const geom: PolarGeom = {
       cx,
       cy,
       R,
       dbiToFrac,
-      ringsDbi: cutRingsDbi(dbiTop, scale),
+      rings: cutRings(dbiTop, scale),
     };
     drawDbiRings(ctx, geom, PC);
 

@@ -2,6 +2,7 @@
 // and the combined Az + El plot, AK#1730). Pulled out of FarFieldChart so the
 // two draw the grid, the traces and the cross-reference spoke the same way,
 // and so the geometry can be tested without a canvas.
+import { cutRings, type PolarRing } from "../../lib/refine";
 import { CHART_FONT } from "./chartScale";
 import { plotColors } from "./palette";
 
@@ -12,9 +13,9 @@ export type PolarGeom = {
   R: number;
   /** Absolute dBi → fraction of R (lib/refine.ts's cutDbiToFrac). */
   dbiToFrac: (db: number) => number;
-  /** The labelled rings, in dBi (lib/refine.ts's cutRingsDbi for the scale
-   *  in use). Absent: the linear scale's fixed +6/0/−6/−12/−18. */
-  ringsDbi?: readonly number[];
+  /** The labelled rings (lib/refine.ts's cutRings for the scale in use).
+   *  Absent: the linear scale's fixed +6/0/−6/−12/−18 dBi. */
+  rings?: readonly PolarRing[];
 };
 
 /** Canvas point of a sample at polar parameter t (radians) and `dbi`.
@@ -46,7 +47,7 @@ export function sampleAngleRad(
   return anglesDeg ? (anglesDeg[i % n] * Math.PI) / 180 : (2 * Math.PI * i) / n;
 }
 
-/** The labelled dBi rings (`g.ringsDbi`, else +6/0/−6/−12/−18) and the two
+/** The labelled rings (`g.rings`, else +6/0/−6/−12/−18 dBi) and the two
  *  axis lines. */
 export function drawDbiRings(
   ctx: CanvasRenderingContext2D,
@@ -58,12 +59,12 @@ export function drawDbiRings(
   ctx.lineWidth = 0.6;
   ctx.fillStyle = PC.labelDim;
   ctx.font = CHART_FONT.tick;
-  for (const db of g.ringsDbi ?? [6, 0, -6, -12, -18]) {
-    const f = g.dbiToFrac(db);
+  for (const { dbi, label } of g.rings ?? cutRings(0)) {
+    const f = g.dbiToFrac(dbi);
     ctx.beginPath();
     ctx.arc(cx, cy, R * f, 0, 2 * Math.PI);
     ctx.stroke();
-    ctx.fillText(`${db > 0 ? "+" : ""}${db}`, cx + 2, cy - R * f - 1);
+    ctx.fillText(label, cx + 2, cy - R * f - 1);
   }
   ctx.beginPath();
   ctx.moveTo(cx - R, cy);
