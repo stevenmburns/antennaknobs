@@ -1,4 +1,4 @@
-"""A complete, working example antenna. Copy it and make it your own.
+r"""A complete, working example antenna. Copy it and make it your own.
 
 HOW TO USE THIS FILE
 --------------------
@@ -12,10 +12,21 @@ HOW TO USE THIS FILE
 
 NOT A PYTHON PROGRAMMER?
 ------------------------
-Open Claude Code in this folder and just ask, for example:
-    "make me a 40-meter off-center-fed dipole"
-The CLAUDE.md file next to this one tells Claude everything it needs to
-write a valid design and check its work.
+Claude Code can write a design for you. It is a program you install and
+run in a terminal window, and it needs a paid Claude account; install
+steps are at https://claude.com/claude-code. Then:
+  1. Open a terminal: Command Prompt or PowerShell on Windows, Terminal on
+     macOS or Linux.
+  2. Go to this folder:
+         cd %USERPROFILE%\.antennaknobs\designs     (Windows)
+         cd ~/.antennaknobs/designs                  (macOS / Linux)
+  3. Type  claude  and press Enter.
+  4. Type what you want in plain English, the way you would ask a person:
+         make me a 14 MHz dipole in free space fed with 10 m of RG-8X
+Claude reads the CLAUDE.md file next to this one, writes the .py file,
+runs it to check its work, and fixes its own mistakes. A chat assistant
+in a browser can't run the code, so it can't check it: what it writes for
+this folder often calls functions that don't exist.
 
 THE RULES (keep it this simple)
 -------------------------------

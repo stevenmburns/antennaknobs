@@ -341,7 +341,9 @@ Two changes, always together:
 2. Add `build_network` returning a `Network` — three fields, always:
 
 ```python
-from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
+from antennaknobs.network import (
+    Driven, Network, PortOnWire, PortVirtual, TL, cable_from_catalog,
+)
 
     def build_network(self):
         return Network(
@@ -350,7 +352,8 @@ from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
                 "rig": PortVirtual("rig"),   # circuit-only node: the rig end
             },
             branches=[
-                TL.from_cable("RG-8X", "rig", "feed", 20.0),  # 20 m of coax
+                # 20 m of coax: the cable is looked up by name in the catalog
+                TL.from_cable(cable_from_catalog("RG-8X"), "rig", "feed", 20.0),
             ],
             sources=[Driven(port="rig", voltage=1 + 0j)],
         )
@@ -361,9 +364,15 @@ from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
   middle segment — give the feed its own short wire, as in
   `TEMPLATE.py`); `PortVirtual` is a node with no geometry. Driving a
   virtual `rig` node is what makes the readouts rig-referenced.
-- `branches` come from `antennaknobs.network`: `TL` / `TL.from_cable`
-  (the `CABLES` catalog: `"RG-58"`, `"RG-8X"`, `"window-450"`,
-  `"openwire-600"`, …), `Load` (series R/L/C in a wire — a trap, a
+- `branches` come from `antennaknobs.network`: `TL` / `TL.from_cable`.
+  `TL.from_cable` takes a `Cable`, not a name: look the name up with
+  `cable_from_catalog("RG-8X")` (the `CABLES` catalog: `"RG-58"`,
+  `"RG-8X"`, `"RG-213"`, `"LMR-400"`, `"window-450"`, `"openwire-600"`).
+  A bare name raises a `TypeError`. For your own cable, give `TL` the
+  numbers directly:
+  `TL("rig", "feed", z0=50, length=10.0, vf=0.82, k1=0.27, k2=0.0055)`
+  (name `z0` and `length`: the third positional argument is `z0`).
+  Other branches: `Load` (series R/L/C in a wire — a trap, a
   terminating resistor), `TwoPort`, `Shunt`, `Transformer`. Reactive
   elements take a finite Q (`ql`, `qc`, `qlmag`) — that is where real
   boxes burn power, and the app itemizes it in the power budget.
@@ -375,7 +384,9 @@ branches for the common cases — a tuner or transformer is one
 arguments mapping the box's formal ports to your port names:
 
 ```python
-from antennaknobs.network import Driven, Instance, Network, PortOnWire, PortVirtual, TL
+from antennaknobs.network import (
+    Driven, Instance, Network, PortOnWire, PortVirtual, TL, cable_from_catalog,
+)
 from antennaknobs.station import unun
 
     def build_network(self):
@@ -392,7 +403,7 @@ from antennaknobs.station import unun
                     line="pri",  # formal → actual port map
                     ant="ant",
                 ),
-                TL.from_cable("RG-58", "rig", "pri", 5.0),
+                TL.from_cable(cable_from_catalog("RG-58"), "rig", "pri", 5.0),
             ],
             sources=[Driven(port="rig", voltage=1 + 0j)],
         )
