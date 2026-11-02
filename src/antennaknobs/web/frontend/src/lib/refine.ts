@@ -526,24 +526,50 @@ export function cutDbiToFrac(
   return (db: number) => clamp01((db - CUT_DBI_FLOOR) / span);
 }
 
-/** The labelled rings, in dBi, for a scale. linear keeps its fixed rings;
- *  arrl puts them at the grid's usual steps down from the top (0, 3, 6, 10,
- *  20, 30 dB), labelled in absolute dBi so gains read as everywhere else. */
-export function cutRingsDbi(
+/** One labelled ring of a polar chart: where it sits, in dBi, and its text. */
+export type PolarRing = { dbi: number; label: string };
+
+/** The labelled rings for a scale.
+ *
+ *  linear: its fixed dBi rings, +6/0/−6/−12/−18.
+ *  arrl:   the grid's usual steps, 3, 6, 10, 20 and 30 dB down from the peak,
+ *          labelled in dB down; the rim carries the peak's own dBi, the one
+ *          absolute number the plot needs. */
+export function cutRings(
   dbiTop: number,
   scale: PatternScale = "linear",
-): number[] {
-  if (scale === "arrl") return [0, 3, 6, 10, 20, 30].map((down) => dbiTop - down);
-  return [6, 0, -6, -12, -18];
+): PolarRing[] {
+  if (scale === "arrl")
+    return [
+      { dbi: dbiTop, label: `${dbiTop.toFixed(1)} dBi` },
+      ...[3, 6, 10, 20, 30].map((down) => ({
+        dbi: dbiTop - down,
+        label: `\u2212${down}`,
+      })),
+    ];
+  return [6, 0, -6, -12, -18].map((db) => ({
+    dbi: db,
+    label: `${db > 0 ? "+" : ""}${db}`,
+  }));
 }
 
-/** The top of the radial scale for a set of trace peaks: +10 dBi by
- *  default, expanded (with 1 dB headroom) to fit the highest lobe on
- *  screen. */
-export function cutDbiTop(peaks: readonly number[]): number {
-  const maxPeak = peaks
-    .filter(Number.isFinite)
-    .reduce((a, b) => Math.max(a, b), 10);
+/** The top of the radial scale for a set of trace peaks.
+ *
+ *  linear: +10 dBi by default, expanded (with 1 dB headroom) to fit the
+ *  highest lobe on screen.
+ *  arrl:   the highest peak itself, R_max in r = R_max·0.89^(−dB/3): the
+ *  strongest lobe touches the rim and every ring reads dB down from it, as on
+ *  an ARRL or EZNEC plot. Over several traces (pins, both cuts, analysis
+ *  cells) it is the highest of them, so they compare on one reference. With
+ *  no finite peak it is 0 dBi. */
+export function cutDbiTop(
+  peaks: readonly number[],
+  scale: PatternScale = "linear",
+): number {
+  const finite = peaks.filter(Number.isFinite);
+  if (scale === "arrl")
+    return finite.length ? finite.reduce((a, b) => Math.max(a, b)) : 0;
+  const maxPeak = finite.reduce((a, b) => Math.max(a, b), 10);
   return Math.max(10, Math.ceil(maxPeak + 1));
 }
 
@@ -572,17 +598,20 @@ export function cutProjection(
     // sits — the below-horizon floor sentinel is the common case, and
     // sharpening the corner where a null dives under the floor redraws
     // nothing.
-    // The ARRL grid has no floor: its centre is ARRL_DEPTH_DB down.
-    const raw =
+    // The ARRL grid has no floor (its centre is ARRL_DEPTH_DB down) and its
+    // top IS the peak, so the peak sample is real data on the rim, not a
+    // clamp: only a sample above the top or past the depth is clamped.
+    const clamped =
       scale === "arrl"
-        ? 1 - (dbiTop - dbi[i]) / ARRL_DEPTH_DB
-        : (dbi[i] - CUT_DBI_FLOOR) / span;
+        ? dbi[i] > dbiTop || dbiTop - dbi[i] >= ARRL_DEPTH_DB
+        : (dbi[i] - CUT_DBI_FLOOR) / span <= 0 ||
+          (dbi[i] - CUT_DBI_FLOOR) / span >= 1;
     // Canvas flips y, but a reflection changes no turn ANGLE — the planner
     // only reads |turn|, so the sign convention here is free.
     return {
       x: Math.cos(t) * frac,
       y: Math.sin(t) * frac,
-      ...(raw <= 0 || raw >= 1 ? { clamped: true } : {}),
+      ...(clamped ? { clamped: true } : {}),
     };
   });
 }

@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef } from "react";
 import type { SolveResponse } from "../../lib/api";
 import { usePatternScale } from "../../lib/patternScale";
-import { cutDbiToFrac, cutRingsDbi } from "../../lib/refine";
+import { cutDbiToFrac, cutRings } from "../../lib/refine";
 import type { CombinedFill } from "../../lib/view";
 import { ThemeContext } from "../hooks";
 import {
@@ -116,13 +116,13 @@ export function CombinedPatternChart({
     const R = sz / 2 - 14;
 
     const traces = combinedTraces(cutTraces, enabledPins);
-    const dbiTop = combinedDbiTop(traces);
+    const dbiTop = combinedDbiTop(traces, scale);
     const geom: PolarGeom = {
       cx,
       cy,
       R,
       dbiToFrac: cutDbiToFrac(dbiTop, scale),
-      ringsDbi: cutRingsDbi(dbiTop, scale),
+      rings: cutRings(dbiTop, scale),
     };
     drawDbiRings(ctx, geom, PC);
 

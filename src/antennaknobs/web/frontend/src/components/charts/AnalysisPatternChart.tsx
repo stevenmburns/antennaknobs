@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef } from "react";
 import type { SolveResponse } from "../../lib/api";
 import { usePatternScale } from "../../lib/patternScale";
-import { cutDbiTop, cutDbiToFrac, cutRingsDbi } from "../../lib/refine";
+import { cutDbiTop, cutDbiToFrac, cutRings } from "../../lib/refine";
 import { ThemeContext } from "../hooks";
 import { CHART_FONT, fitChartCanvas, useChartScale } from "./chartScale";
 import { cutsRedrawKey, traceFor, useCutTraces } from "./cuts";
@@ -72,13 +72,13 @@ export function AnalysisPatternChart({
     // The radial scale fits the highest lobe of every cell, as the
     // far-field charts fit the live lobe and the pinned ghosts together.
     const peaks = drawn.flatMap((d) => (d.trace ? [d.trace.peakDbi] : []));
-    const dbiTop = cutDbiTop(peaks);
+    const dbiTop = cutDbiTop(peaks, scale);
     const geom: PolarGeom = {
       cx: sz / 2,
       cy: sz / 2,
       R,
       dbiToFrac: cutDbiToFrac(dbiTop, scale),
-      ringsDbi: cutRingsDbi(dbiTop, scale),
+      rings: cutRings(dbiTop, scale),
     };
     drawDbiRings(ctx, geom, PC);
     ctx.fillStyle = PC.labelDim;

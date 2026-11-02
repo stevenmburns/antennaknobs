@@ -476,7 +476,7 @@ function refineCuts(
         ? refineCutAngles(
             cur.azimuth,
             cur.az_angles_deg,
-            cutDbiTop([peakOf(cur.azimuth)]),
+            cutDbiTop([peakOf(cur.azimuth)], getPatternScale()),
             budget,
             getPatternScale(),
           )
@@ -485,7 +485,7 @@ function refineCuts(
         ? refineCutAngles(
             cur.elevation,
             cur.elev_angles_deg,
-            cutDbiTop([peakOf(cur.elevation)]),
+            cutDbiTop([peakOf(cur.elevation)], getPatternScale()),
             budget,
             getPatternScale(),
           )
