@@ -2,6 +2,12 @@ import type { MeasuredData } from "../../lib/api";
 import type { useFullscreen } from "../hooks";
 import type { Theme } from "../hooks";
 import { helpUrl } from "../../lib/help";
+import {
+  PATTERN_SCALE_LABELS,
+  PATTERN_SCALES,
+  type PatternScale,
+  usePatternScale,
+} from "../../lib/patternScale";
 import { ORIENTATIONS, type Orientation, type RunOnPickKind } from "../../lib/settings";
 import { TabStrip } from "./TabStrip";
 import { ZoField, type ZoControl } from "./ZoField";
@@ -123,6 +129,8 @@ export function SessionGearMenu({
   /** Opened from a Z₀ label or the SWR row: focus the field. */
   focusZo?: boolean | undefined;
 }) {
+  // Per browser, not per design (lib/patternScale.ts): read here directly.
+  const [patternScale, setPatternScale] = usePatternScale();
   return (
     <>
       <TabStrip />
@@ -300,6 +308,25 @@ export function SessionGearMenu({
                       {ORIENTATIONS.map((o) => (
                         <option key={o} value={o}>
                           {ORIENTATION_LABELS[o]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="gear-menu-section">pattern chart</div>
+                  <label
+                    className="gear-menu-check"
+                    title="The polar pattern charts' radius. ARRL: the ARRL modified-log grid, r = 0.89^(dB down / 3), which keeps the main lobe's shape and still shows sidelobes 20-30 dB down; rings at 0, 3, 6, 10, 20 and 30 dB down. linear dB: dBi linear in radius from a -20 dBi floor."
+                  >
+                    Scale
+                    <select
+                      className="gear-menu-select"
+                      value={patternScale}
+                      onChange={(e) => setPatternScale(e.target.value as PatternScale)}
+                      aria-label="pattern chart radial scale"
+                    >
+                      {PATTERN_SCALES.map((s) => (
+                        <option key={s} value={s}>
+                          {PATTERN_SCALE_LABELS[s]}
                         </option>
                       ))}
                     </select>

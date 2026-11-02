@@ -1,6 +1,7 @@
 import { useContext, useEffect, useRef } from "react";
 import type { SolveResponse } from "../../lib/api";
-import { cutDbiTop, cutDbiToFrac } from "../../lib/refine";
+import { usePatternScale } from "../../lib/patternScale";
+import { cutDbiTop, cutDbiToFrac, cutRingsDbi } from "../../lib/refine";
 import { ThemeContext } from "../hooks";
 import {
   buildFarFieldCaptions,
@@ -55,6 +56,7 @@ export function FarFieldChart({
   onCaptions?: ((c: FarFieldCaptions) => void) | undefined;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
+  const [scale] = usePatternScale(); // ARRL or linear radius (dep below)
   const k = useChartScale(); // the chart scale (./chartScale)
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -154,8 +156,14 @@ export function FarFieldChart({
     // lives in lib/refine.ts so the refinement planner (issue #744) judges
     // curvature against the exact geometry drawn here.
     const dbiTop = cutDbiTop(peaks);
-    const dbiToFrac = cutDbiToFrac(dbiTop);
-    const geom: PolarGeom = { cx, cy, R, dbiToFrac };
+    const dbiToFrac = cutDbiToFrac(dbiTop, scale);
+    const geom: PolarGeom = {
+      cx,
+      cy,
+      R,
+      dbiToFrac,
+      ringsDbi: cutRingsDbi(dbiTop, scale),
+    };
     drawDbiRings(ctx, geom, PC);
 
     // Axis labels: xy cut uses world x/y around the rim; yz cut shows the
@@ -428,6 +436,7 @@ export function FarFieldChart({
     elevAzDeg,
     fineNorm,
     theme,
+    scale,
     cutTracesKey,
     drawCaptions,
   ]);

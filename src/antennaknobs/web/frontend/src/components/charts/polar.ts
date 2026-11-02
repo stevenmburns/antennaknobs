@@ -12,6 +12,9 @@ export type PolarGeom = {
   R: number;
   /** Absolute dBi → fraction of R (lib/refine.ts's cutDbiToFrac). */
   dbiToFrac: (db: number) => number;
+  /** The labelled rings, in dBi (lib/refine.ts's cutRingsDbi for the scale
+   *  in use). Absent: the linear scale's fixed +6/0/−6/−12/−18. */
+  ringsDbi?: readonly number[];
 };
 
 /** Canvas point of a sample at polar parameter t (radians) and `dbi`.
@@ -43,7 +46,8 @@ export function sampleAngleRad(
   return anglesDeg ? (anglesDeg[i % n] * Math.PI) / 180 : (2 * Math.PI * i) / n;
 }
 
-/** The labelled dB rings (+6/0/−6/−12/−18) and the two axis lines. */
+/** The labelled dBi rings (`g.ringsDbi`, else +6/0/−6/−12/−18) and the two
+ *  axis lines. */
 export function drawDbiRings(
   ctx: CanvasRenderingContext2D,
   g: PolarGeom,
@@ -54,7 +58,7 @@ export function drawDbiRings(
   ctx.lineWidth = 0.6;
   ctx.fillStyle = PC.labelDim;
   ctx.font = CHART_FONT.tick;
-  for (const db of [6, 0, -6, -12, -18]) {
+  for (const db of g.ringsDbi ?? [6, 0, -6, -12, -18]) {
     const f = g.dbiToFrac(db);
     ctx.beginPath();
     ctx.arc(cx, cy, R * f, 0, 2 * Math.PI);
