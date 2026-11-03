@@ -652,3 +652,30 @@ def test_cli_free_reads_a_group_leafs_ui_range():
 
     free = free_for(Builder(), ["bands.2.length_factor"])
     assert free == [{"name": "bands.2.length_factor", "min": 0.40, "max": 0.55}]
+
+
+def test_band_frames_carry_the_best_full_band_point_so_far():
+    """The band runs send it too: the best eval that solved every band, by the
+    run's own objective, so a run stopped early can offer it."""
+    frames = []
+    res = optimize_bands(
+        {"k": [0.5]},
+        _free(1, -5.0, 5.0),
+        parse_bands("3.6,7.1"),
+        sweep_fn=_quadratic_swr_stub(),
+        on_progress=frames.append,
+    )
+    full = [f for f in frames if len(f["bands"]) == 2]
+    assert full
+    running = math.inf
+    for f in frames:
+        if len(f["bands"]) == 2:
+            running = min(running, f["objective"])
+        if f["best"] is not None:
+            assert f["best"]["objective"] == running
+            assert set(f["best"]["params"]) == set(f["params"])
+    assert frames[-1]["best"]["objective"] == pytest.approx(
+        min(f["objective"] for f in full)
+    )
+    json.loads(json.dumps(frames[-1], allow_nan=False))
+    assert res["params"]

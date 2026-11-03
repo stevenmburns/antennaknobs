@@ -116,6 +116,19 @@ export type OptProgress = {
   objective_worst?: number | null;
   objective_mean?: number | null;
   worst_band?: number;
+  /** The lowest objective any eval of this run has reached so far, with its
+   *  knobs: whole on every frame, so it survives dropped frames. A band run's
+   *  is its best full-band eval, null until one has run. */
+  best?: { params: Record<string, number>; objective: number; metrics: OptMetrics } | null;
+};
+
+/** A run the user stopped early that had found a better point than it
+ *  started from: what the "keep best so far" prompt offers. */
+export type OptStopped = {
+  params: Record<string, number>;
+  objectiveStart: number;
+  objectiveBest: number;
+  nEvals: number;
 };
 // Phases whose residual falls monotonically, and is therefore worth showing
 // in place of the SWR. Nelder-Mead's is deliberately NOT here: its best-so-far
@@ -161,6 +174,14 @@ export type OptStateControl = {
   /** The menu paused a running Optimize, which closing it resumes. */
   menuPaused: boolean;
   setMenuOpen: (open: boolean) => void;
+  /** Turning Optimize off while a run is in flight: stop it now. Absent: the
+   *  toggle only switches Optimize off, as before. */
+  stop?: () => void;
+  /** A run stopped early with a better point than its start, and the
+   *  prompt's two answers. */
+  stopped?: OptStopped | null;
+  keepBest?: () => void;
+  discardBest?: () => void;
 };
 
 // Live / Optimize: two matching push-button toggles (depressed = on), stacked
@@ -292,7 +313,10 @@ function SimControls({
           className={`toggle-btn opt-toggle${optEnabled ? " is-on" : ""}`}
           aria-pressed={optEnabled}
           onClick={() => {
-            setOptEnabled((v) => !v);
+            // Off while a run is in flight is a cancel: stop it now, and
+            // offer its best point so far (useOptimizer.stopOptimize).
+            if (optEnabled && optRunning && optState?.stop) optState.stop();
+            else setOptEnabled((v) => !v);
             setOptPausedBy(null);
           }}
           title={`Reactive optimiser: vary the knobs you mark (right-click a knob) to hit the objective whenever a fixed knob changes. Changing a marked knob by hand pauses it — turn it back on to resume.${optMarkedTitle}`}
@@ -420,6 +444,24 @@ function SimControls({
       {optState1912 && (
         <span className="opt-readout opt-readout-state" role="status" title={optState1912.title}>
           {optState1912.text}
+        </span>
+      )}
+      {optState?.stopped && (
+        <span
+          className="opt-readout opt-stopped"
+          role="alertdialog"
+          aria-label="Keep the best point so far?"
+          title="Optimize was stopped before it finished. The knobs are where they started; Keep best moves the marked knobs to the best point the run had found."
+        >
+          stopped after {optState.stopped.nEvals} evals: best{" "}
+          {optState.stopped.objectiveBest.toPrecision(4)} (start{" "}
+          {optState.stopped.objectiveStart.toPrecision(4)})
+          <button type="button" className="opt-stopped-btn" onClick={optState.keepBest}>
+            Keep best
+          </button>
+          <button type="button" className="opt-stopped-btn" onClick={optState.discardBest}>
+            Discard
+          </button>
         </span>
       )}
       {trackEnabled && trackLatched && (

@@ -341,3 +341,37 @@ def test_optimize_real_geometry_improves_resonance():
     )
     assert res["objective_after"] <= res["objective_before"]
     assert 0.85 <= res["params"]["length_factor"] <= 1.15
+
+
+def test_every_frame_carries_the_best_point_so_far():
+    """A run stopped early offers its best point ("keep best so far"), so
+    every progress frame carries the lowest objective reached up to it, with
+    its knobs and metrics, whole: the client keeps the true best even when
+    the stream drops frames. Pinned: it is the running minimum of the frames'
+    own objectives, its knobs reproduce it, and it never beats the result."""
+
+    def solve(req: dict) -> dict:
+        a, b = float(req["a"]), float(req["b"])
+        x_im = 100.0 * (a - 1.10) + 80.0 * (b - 0.90)
+        return {"z_in_re": 50.0, "z_in_im": x_im, "z0_ohms": 50.0}
+
+    calls = []
+    res = optimize(
+        {"a": 1.0, "b": 1.0},
+        [{"name": "a", "min": 0.8, "max": 1.3}, {"name": "b", "min": 0.7, "max": 1.1}],
+        "resonance",
+        solve_fn=solve,
+        max_evals=25,
+        on_progress=calls.append,
+    )
+    running = float("inf")
+    for frame in calls:
+        running = min(running, frame["objective"])
+        best = frame["best"]
+        assert best["objective"] == running
+        # Its knobs give its objective back.
+        a, b = best["params"]["a"], best["params"]["b"]
+        assert abs(100.0 * (a - 1.10) + 80.0 * (b - 0.90)) == pytest.approx(
+            best["objective"]
+        )
+    assert calls[-1]["best"]["objective"] <= res["objective_after"]

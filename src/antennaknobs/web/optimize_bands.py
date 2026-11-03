@@ -568,6 +568,10 @@ def optimize_bands(
     # The best full-band point solved, by the run's own score: the answer
     # when the time budget ends a run mid-search.
     best_full: list = [math.inf, None]
+    # The best full-band eval so far, as the progress frames send it: the
+    # knobs, the objective and the worst band's metrics. Only an eval that
+    # solved every band can be compared with the run's objective.
+    best_frame: dict | None = None
 
     def _req_at(x) -> tuple[dict, dict]:
         req = dict(base_req)
@@ -603,7 +607,7 @@ def optimize_bands(
     def evaluate(x, idx=all_idx) -> list[dict]:
         """Solve at the bands ``idx`` (one build, every band's frequency),
         returning their records in ``idx`` order."""
-        nonlocal n_evals, fresh
+        nonlocal n_evals, fresh, best_frame
         x = np.asarray(x, dtype=float)
         freqs = sorted({bands[i].freq_mhz for i in idx})
         key = (tuple(float(v) for v in x), tuple(freqs))
@@ -647,6 +651,15 @@ def optimize_bands(
                 if sc < best_full[0]:
                     best_full[:] = [sc, x.copy()]
         recs, params = hit
+        if idx == all_idx:
+            wi_all, _ = _worst(recs)
+            jv_all = objective_terms(recs, w_run)[0]
+            if best_frame is None or jv_all < best_frame["objective"]:
+                best_frame = {
+                    "params": dict(params),
+                    "objective": jv_all,
+                    "metrics": _band_metrics(recs[wi_all]),
+                }
         if on_progress is not None:
             wi, _ = _worst(recs)
             jv, mx, mn = objective_terms(recs, w_run)
@@ -666,6 +679,7 @@ def optimize_bands(
                             {"index": i, **r} for i, r in zip(idx, recs, strict=True)
                         ],
                         "objective": jv,
+                        "best": best_frame,
                         "objective_worst": mx,
                         "objective_mean": mn,
                         "mean_weight": w_run,
