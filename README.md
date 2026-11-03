@@ -18,7 +18,6 @@ second backend and solve the same design both ways to trust the answer.
 
 [![Test Python package](https://github.com/stevenmburns/antennaknobs/actions/workflows/test.yml/badge.svg)](https://github.com/stevenmburns/antennaknobs/actions/workflows/test.yml)
 [![Ruff](https://github.com/stevenmburns/antennaknobs/actions/workflows/ruff.yml/badge.svg)](https://github.com/stevenmburns/antennaknobs/actions/workflows/ruff.yml)
-[![Coverage](https://raw.githubusercontent.com/stevenmburns/antennaknobs/python-coverage-comment-action-data/badge.svg)](https://github.com/stevenmburns/antennaknobs/actions/workflows/test.yml)
 
 ---
 

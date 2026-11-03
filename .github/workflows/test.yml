@@ -145,72 +145,18 @@ jobs:
       # calibrated.
       run: python -m pytest -m "not antenna_computation_check and not heavy_mesh" --durations=15 tests/
 
-    - name: Full suite + coverage (push to main only)
-      # The complete suite, including the per-design solver catalogs, with
-      # coverage instrumentation. Runs once per merge to main, not per PR.
+    - name: Full suite (push to main only)
+      # The complete suite, including the per-design solver catalogs. Runs
+      # once per merge to main, not per PR. No coverage instrumentation: that
+      # runs only on request now, in coverage.yml, and its report is an
+      # expiring artifact rather than commits to a branch.
       #
       # heavy_mesh is excluded here too — benchmark-class solves are not
       # unit tests (one OOM-killed the runner on top of the catalog lane's
       # accumulated RSS). They run manually: `python -m pytest -m heavy_mesh`
       # after nec-import or engine changes.
       if: github.event_name == 'push'
-      run: coverage run --source=src/ -m pytest -m "not heavy_mesh" --durations=15 tests/
-
-    - name: Upload coverage data (push to main only)
-      # The coverage-comment CONTAINER action used to live here as a step:
-      # container actions build their Docker image at job start even when the
-      # step's `if` is false, so every PR paid ~8 s building an image for a
-      # step that only runs on push (#734). The data ships to a push-gated
-      # job instead; include-hidden-files because `.coverage` is a dotfile.
-      if: github.event_name == 'push'
-      uses: actions/upload-artifact@v7
-      with:
-        name: coverage-data
-        path: .coverage
-        include-hidden-files: true
-
-  coverage-comment:
-    # Push-to-main only: PRs never build this action's container (#734).
-    if: github.event_name == 'push'
-    needs: build
-    runs-on: ubuntu-24.04  # pinned: ubuntu-latest became 26.04 (momwire#1742)
-    # SERIALISED, because this job pushes to a branch it shares with every
-    # other run of itself (#1087). The action commits the badge and coverage
-    # data to `python-coverage-comment-action-data`; two runs that overlap
-    # compute their push from different tips of that branch and the loser is
-    # rejected outright — `GitError` out of `storage.py`'s `git.push`. Three
-    # merges inside ~70 seconds did exactly that and left a RED run on main
-    # against a commit that was not broken, which is worse than a slow job:
-    # the standing rule here is to check whether main is already red before
-    # blaming your own branch (#748), and a false red costs precisely the time
-    # that rule exists to save.
-    #
-    # `cancel-in-progress: false` is the load-bearing half and differs on
-    # purpose from `fly-deploy.yml` / `deploy-docs.yml`, the repo's two other
-    # shared-destination writers. A superseded DEPLOY is worth cancelling
-    # because the next one replaces it wholesale; a superseded coverage run is
-    # not, because each push's data is its own artifact. Queue them, do not
-    # drop one.
-    concurrency:
-      group: coverage-comment-data
-      cancel-in-progress: false
-    permissions:
-      # The workflow default is contents: read; the action pushes the badge/
-      # data to its python-coverage-comment-action-data branch, which the old
-      # inline step could do only because the BUILD job grants contents:
-      # write. A job does not inherit a sibling's grants — the first push
-      # run after #739 failed exactly here (GitError on git push).
-      contents: write
-      pull-requests: write
-    steps:
-    - uses: actions/checkout@v7
-    - uses: actions/download-artifact@v8
-      with:
-        name: coverage-data
-    - name: Coverage comment
-      uses: py-cov-action/python-coverage-comment-action@v3
-      with:
-        GITHUB_TOKEN: ${{ github.token }}
+      run: python -m pytest -m "not heavy_mesh" --durations=15 tests/
 
   wheel-build:
     # Build the wheel ONCE for the smoke matrix below. No submodule, no

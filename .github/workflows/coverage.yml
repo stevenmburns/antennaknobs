@@ -1,0 +1,122 @@
+name: Coverage (on request)
+
+# Coverage runs only when asked for (Steve, 2026-11-03). It used to run on every
+# push to main and push its HTML report and badge to the
+# python-coverage-comment-action-data branch: 1,383 commits of htmlcov, about
+# 250 MB that every clone of this repo downloaded, for a PR comment nobody read
+# any more. Now: Actions > "Coverage (on request)" > Run workflow. The HTML
+# report is an artifact that expires on its own, the totals go to the run's
+# summary page, and nothing is committed anywhere.
+#
+# Locally the same thing is:
+#   coverage run --source=src/ -m pytest -m "not heavy_mesh" tests/
+#   coverage html && xdg-open htmlcov/index.html
+
+on:
+  workflow_dispatch:
+    inputs:
+      markers:
+        description: "pytest -m expression"
+        default: "not heavy_mesh"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-24.04  # pinned: ubuntu-latest became 26.04 (momwire#1742)
+    steps:
+    - uses: actions/checkout@v7
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.12"
+        cache: pip
+        cache-dependency-path: |
+          pyproject.toml
+          constraints-ci.txt
+    - name: Set up ccache
+      # Caches object files for the momwire C++ accelerator (built from source in
+      # the "Install momwire" step). The action masquerades gcc/g++ on PATH, so
+      # setuptools' default compiler invocation routes through ccache with no
+      # CC/CXX overrides. Cold runs see no benefit; warm runs (the common case,
+      # when _accelerators.cpp is unchanged) skip the recompile.
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ccache-${{ runner.os }}-py312
+        max-size: 200M
+        # create the gcc/g++ -> ccache shims on PATH; without this the action
+        # caches ccache but nothing routes through it (the compile isn't cached).
+        create-symlink: true
+        # Save on push to main only. Every PR used to save its own copy (15
+        # entries, 5.7 GB across 7 refs), and a PR-scoped cache is readable
+        # only by that PR, so the copies were dead weight that pushed the repo
+        # over the 10 GB Actions cache cap and evicted main's entry, the one
+        # every PR restores from. PRs restore main's and save nothing.
+        save: false  # restore main's entry; never write one from here
+    - name: Install dependencies
+      # Build prerequisites only: setuptools/pybind11/numpy must be present
+      # before momwire's --no-build-isolation source build below. The test
+      # tooling (pytest, coverage) and the web-server test client (fastapi,
+      # httpx2) are NOT pinned here — they come from the declared `.[test]`
+      # extra at "Install antennaknobs" so a clean clone reproduces CI with
+      # `pip install -e ".[test]"`.
+      # -c constraints-ci.txt pins these (and the `.[test]` extra's
+      # transitive closure below) to known-good versions — see that file's
+      # header for why (the ruff-0.16.0-class incident) and how to
+      # regenerate it.
+      run: |
+        python -m pip install --upgrade pip
+        pip install -c constraints-ci.txt setuptools numpy scipy matplotlib pybind11
+        if [ -f requirements.txt ]; then pip install -c constraints-ci.txt -r requirements.txt; fi
+
+    - name: Install PyNEC from the python-necpp release wheel
+      # PyNEC is no longer built from a submodule — install the self-contained
+      # wheel (OpenBLAS vendored via scipy-openblas32) from the python-necpp
+      # fork's GitHub Release. The fork's distribution name is `pynec-accel`
+      # (import name stays `PyNEC`). --no-index so upstream PyNEC/pynec on PyPI
+      # (broken builds on current Python, missing our BLAS/OpenMP work) can never
+      # shadow it; numpy is already installed above.
+      run: |
+        pip install pynec-accel --no-index \
+          --find-links https://github.com/stevenmburns/python-necpp/releases/expanded_assets/v1.7.6
+
+    - name: Install momwire (vendored MoM engine)
+      # momwire is still a submodule; its C++ accelerator builds from source here.
+      # --no-build-isolation so setup.py sees the numpy + pybind11 installed
+      # above.
+      run: |
+        # NO --remote (dropped in #737): --remote checked out momwire's live
+        # remote main regardless of the pointer this branch RECORDS, which
+        # (a) meant CI never tested the recorded pointer (the exact gap that
+        # bit PRs #268/#270), and (b) made tests/test_momwire_pin.py go red
+        # on every unrelated PR the moment momwire released. The recorded
+        # pointer is the contract; the pin-triple test now enforces it.
+        git submodule update --init momwire
+        pip install -c constraints-ci.txt --no-build-isolation -e ./momwire
+
+    - name: Install antennaknobs
+      # `.[test]` pulls in pytest + coverage + the web extra (fastapi, uvicorn,
+      # …) + httpx2 for Starlette's TestClient, so the full suite — including the
+      # web-server tests — runs without any ad-hoc pip installs.
+      # -c constraints-ci.txt pins the resolved versions of that extra's
+      # transitive closure (see the file's header).
+      run: pip install -c constraints-ci.txt -e ".[test]"
+
+    - name: Full suite under coverage
+      run: coverage run --source=src/ -m pytest -m "${{ inputs.markers }}" --durations=15 tests/
+
+    - name: Report
+      # The totals on the run's summary page, the full HTML as an artifact.
+      if: always()
+      run: |
+        coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+        coverage html
+
+    - uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: htmlcov
+        path: htmlcov/
+        retention-days: 14
