@@ -130,8 +130,9 @@ export function FarFieldChart({
     // Radial axis (lib/refine.ts, the scale from lib/patternScale.ts). Its top
     // comes from the peak of every trace DRAWN: the live lobe, the pins, the
     // norm-check overlay when shown and the NEC overlay (sampled below).
-    //   arrl:   the top IS that peak, the rim of r = R_max·0.89^(−dB/3), with
-    //           rings 3/6/10/20/30 dB down and the rim labelled in dBi.
+    //   arrl, eznec: the top IS that peak, the rim of r = R_max·0.89^(−dB/3),
+    //           with each scale's rings dB down (refine.ts cutRings) and the
+    //           rim labelled in dBi.
     //   linear: dBi from a fixed −20 dBi floor to 1 dB above the peak (never
     //           under 11 dBi), rings at +6/0/−6/−12/−18 dBi.
     const peaks: number[] = [];

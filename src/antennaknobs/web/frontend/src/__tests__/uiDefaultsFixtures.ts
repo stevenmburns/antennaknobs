@@ -81,6 +81,9 @@ export const SERVED_UI_DEFAULTS =
   "antenna_view": {
     "orientation": "auto"
   },
+  "pattern_chart": {
+    "scale": "arrl"
+  },
   "ground": {
     "enabled": true,
     "type": "finite",

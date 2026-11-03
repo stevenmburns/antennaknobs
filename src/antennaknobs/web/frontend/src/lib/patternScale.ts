@@ -1,52 +1,71 @@
 import { useCallback, useSyncExternalStore } from "react";
 
-// The polar pattern charts' radial scale (AC6LA, 2026-11-02).
+// The polar pattern charts' radial scale (AC6LA, 2026-11-02/03).
 //
-// "arrl" is the ARRL modified-logarithmic grid: r = R_max * 0.89^(-dB/3), dB
-// measured down from the top of the scale. The first 3 dB step takes about a
-// tenth of the radius and each later 3 dB step is 89 % of the one before, so
-// the main lobe keeps its shape while sidelobes 20-30 dB down stay readable
-// and -100 dB sits near the centre. "linear" is the scale the charts drew
-// before: dBi linear in radius from a -20 dBi floor, which reads a null's
-// depth directly but squashes everything below the floor onto the centre.
+// "arrl" and "eznec" are the same modified-logarithmic radius,
+// r = R_max * 0.89^(-dB/3), dB down from the top of the scale: the first 3 dB
+// step takes about a tenth of the radius and each later 3 dB step is 89 % of
+// the one before, so the main lobe keeps its shape while sidelobes 20-30 dB
+// down stay readable. They differ only in their rings (lib/refine.ts
+// cutRings): the ARRL Antenna Book's, with a -3 dB half-power ring, or
+// EZNEC's. "linear" is the scale the charts drew before: dBi linear in radius
+// from a -20 dBi floor, which reads a null's depth directly but squashes
+// everything below the floor onto the centre.
 //
-// Per browser, in localStorage, like the gear menu's other display choices:
-// it is how you like to read a plot, not a property of the antenna. A module
-// store (the zoOverride idiom), so every chart on the page agrees at once.
+// The default comes from settings.toml's [pattern_chart] scale (the server
+// validates it; "arrl" when the file says nothing), and a choice made in the
+// gear menu is remembered in this browser over it: how you like to read a
+// plot, not a property of the antenna. A module store (the zoOverride
+// idiom), so every chart on the page agrees at once.
 
-export type PatternScale = "arrl" | "linear";
+export type PatternScale = "arrl" | "eznec" | "linear";
 
-export const PATTERN_SCALES: readonly PatternScale[] = ["arrl", "linear"];
+export const PATTERN_SCALES: readonly PatternScale[] = ["arrl", "eznec", "linear"];
 
 export const PATTERN_SCALE_LABELS: Record<PatternScale, string> = {
   arrl: "ARRL",
+  eznec: "EZNEC",
   linear: "linear dB",
 };
 
+/** The built-in default, before settings.toml says otherwise. */
 export const DEFAULT_PATTERN_SCALE: PatternScale = "arrl";
 
 export const PATTERN_SCALE_KEY = "akb.patternScale.v1";
 
-function isScale(v: unknown): v is PatternScale {
-  return v === "arrl" || v === "linear";
+export function isPatternScale(v: unknown): v is PatternScale {
+  return v === "arrl" || v === "eznec" || v === "linear";
 }
 
-// localStorage is user-editable: anything that is not a scale reads as the
-// default.
+/** The two scales drawn on the modified-log radius (their rings differ). */
+export function isLogScale(scale: PatternScale): boolean {
+  return scale !== "linear";
+}
+
+// The startup default: settings.toml's, once the page has read it.
+let startDefault: PatternScale = DEFAULT_PATTERN_SCALE;
+
+// localStorage is user-editable: anything that is not a scale reads as no
+// browser choice, so the startup default applies.
 function load(): PatternScale {
   try {
     const raw = localStorage.getItem(PATTERN_SCALE_KEY);
-    return isScale(raw) ? raw : DEFAULT_PATTERN_SCALE;
+    return isPatternScale(raw) ? raw : startDefault;
   } catch {
-    return DEFAULT_PATTERN_SCALE;
+    return startDefault;
   }
 }
 
 let cached: PatternScale | null = null;
 const listeners = new Set<() => void>();
 
+function notify(): void {
+  for (const l of listeners) l();
+}
+
 /** The scale the charts draw with now. Also read outside React (the cut
- *  refinement planner), so it is a plain function as well as a hook. */
+ *  refinement planner, the settings save), so it is a plain function as well
+ *  as a hook. */
 export function getPatternScale(): PatternScale {
   if (cached === null) cached = load();
   return cached;
@@ -62,18 +81,27 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
+/** The settings file's default, from the served startup settings. A browser
+ *  that has made its own choice keeps it. */
+export function setPatternScaleDefault(scale: PatternScale): void {
+  if (!isPatternScale(scale) || scale === startDefault) return;
+  startDefault = scale;
+  cached = load();
+  notify();
+}
+
+/** The gear menu's choice. Stored in this browser only when it differs from
+ *  the startup default, so a browser that never chose follows the file. */
 export function setPatternScale(scale: PatternScale): void {
-  if (!isScale(scale)) return;
+  if (!isPatternScale(scale)) return;
   cached = scale;
   try {
-    // Sparse: the default is not written, so a browser that never touches
-    // the setting follows a future change of default.
-    if (scale === DEFAULT_PATTERN_SCALE) localStorage.removeItem(PATTERN_SCALE_KEY);
+    if (scale === startDefault) localStorage.removeItem(PATTERN_SCALE_KEY);
     else localStorage.setItem(PATTERN_SCALE_KEY, scale);
   } catch {
     /* storage disabled: the choice still holds for this page's life */
   }
-  for (const l of listeners) l();
+  notify();
 }
 
 /** The polar charts' radial scale, and its setter. */

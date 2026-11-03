@@ -267,6 +267,9 @@ feed_labels = true
 [antenna_view]
 orientation = "iso"         # auto, top, front, side or iso
 
+[pattern_chart]
+scale = "arrl"              # arrl, eznec or linear (the polar charts' scale)
+
 [grounds.X]                 # ground slot X; [ground] is its older spelling
 enabled = true
 type = "finite"             # finite, pec or terrain
@@ -294,7 +297,7 @@ map         = false         # 2-D maps
 [engines]                   # edited by hand only; the page never writes these
 nec5_exe = 'C:\EZNEC 7.0\Docs\NEC5CL_x13.exe'
 nec2_exe = 'C:\4nec2\exe\nec2dxs11.exe'
-nec42_exe = 'C:\nec42\nec42cl.exe'   # your own licensed NEC-4.2, if you have one
+nec42_exe = 'C:\EZNEC 7.0\Docs\NEC42W64CL.exe'   # your own licensed NEC-4.2, if you have one
 nec42_sommerfeld = 3        # optional: the NEC-4.2 slot starts on GN 3 (default 2)
 
 [capture]
@@ -2310,28 +2313,43 @@ The plot's captions (which cut this is, the peak, the terrain field, the NEC rp
 legend) sit in the control stacks rather than printed in the plot's corners,
 so no control covers them on a small or zoomed display.
 
-## Pattern scale — ARRL or linear
+## Pattern scale — ARRL, EZNEC or linear
 
 The azimuth, elevation and combined pattern charts, and the analysis pattern
 grids, draw on the **ARRL** scale by default: the modified-logarithmic grid of
-the ARRL Antenna Book and EZNEC, **r = R_max · 0.89^(−dB/3)**. The outer ring
-is the peak: the highest lobe of everything on the chart. Each 3 dB down shrinks
-the radius to 89 % of the last, so the main lobe keeps its shape while
-sidelobes 20–30 dB down stay readable, and −100 dB sits near the centre. The
-rings are labelled in dB down from the peak (−3, −6, −10, −20, −30), and the
-rim carries the peak's own gain in dBi.
+the ARRL Antenna Book, **r = R_max · 0.89^(−dB/3)**. The outer ring is the
+peak: the highest lobe of everything on the chart. Each 3 dB down shrinks the
+radius to 89 % of the last, so the main lobe keeps its shape while sidelobes
+20–30 dB down stay readable, and −100 dB sits near the centre. The rim carries
+the peak's own gain in dBi, and the rings are labelled in dB down from it.
 
-Everything on one chart shares that rim: pinned patterns, both cuts of the
+The gear menu's **pattern chart › Scale** offers three choices:
+
+| Scale | Radius | Rings (dB down from the peak) |
+|---|---|---|
+| **ARRL** | modified-log | 3, 6, 9, 12, 18, 24 labelled; 36, 48 unlabelled. The −3 dB ring is the half-power level. |
+| **EZNEC** | modified-log, the same | 5, 10, 15, 20, 30 labelled; 40, 50 unlabelled, as EZNEC v7 draws them |
+| **linear dB** | dBi linear in radius, from a −20 dBi floor to 1 dB above the peak (never under 11 dBi) | +6, 0, −6, −12, −18 dBi |
+
+ARRL and EZNEC differ only in their rings. Linear dB reads a deep null's
+depth directly, at the cost of squashing everything below −20 dBi onto the
+centre.
+
+Everything on one chart shares the rim: pinned patterns, both cuts of the
 combined view, the cells of an analysis grid, and the NEC rp and norm overlays
 when they are shown. So a weaker antenna sits inside the rim by its gain
 difference, read straight off the rings. Two *separate* charts each put their
 own peak on the rim, so compare their rim labels rather than their sizes.
 
-The gear menu's **pattern chart › Scale** switches to **linear dB**: dBi linear
-in radius from a −20 dBi floor to 1 dB above the peak (never under 11 dBi),
-with rings at +6/0/−6/−12/−18 dBi. It reads a deep null's depth directly, at the
-cost of squashing everything below −20 dBi onto the centre. The choice is
-remembered in this browser.
+The default comes from `settings.toml`:
+
+```toml
+[pattern_chart]
+scale = "eznec"             # arrl (the default) | eznec | linear
+```
+
+A choice made in the gear menu is remembered in this browser over that
+default, and **Save as my defaults** writes it to the file.
 
 ## Norm check — is the solve trustworthy?
 

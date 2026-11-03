@@ -315,7 +315,7 @@ export function SessionGearMenu({
                   <div className="gear-menu-section">pattern chart</div>
                   <label
                     className="gear-menu-check"
-                    title="The polar pattern charts' radius. ARRL: the ARRL modified-log grid, r = 0.89^(dB down / 3), which keeps the main lobe's shape and still shows sidelobes 20-30 dB down; rings at 0, 3, 6, 10, 20 and 30 dB down. linear dB: dBi linear in radius from a -20 dBi floor."
+                    title="The polar pattern charts' radius. ARRL and EZNEC: the modified-log grid, r = 0.89^(dB down / 3), with the peak on the rim, which keeps the main lobe's shape and still shows sidelobes 20-30 dB down. ARRL draws the ARRL Antenna Book's rings, 3/6/9/12/18/24 dB down (with a -3 dB half-power ring); EZNEC draws EZNEC's, 5/10/15/20/30. linear dB: dBi linear in radius from a -20 dBi floor. The default comes from settings.toml's [pattern_chart] scale; a choice here is remembered in this browser, and 'Save as my defaults' writes it."
                   >
                     Scale
                     <select

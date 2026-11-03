@@ -4,6 +4,7 @@ import {
   getPatternScale,
   PATTERN_SCALE_KEY,
   setPatternScale,
+  setPatternScaleDefault,
 } from "../lib/patternScale";
 import {
   ARRL_DEPTH_DB,
@@ -73,15 +74,31 @@ describe("the top of the scale", () => {
 });
 
 describe("the rings", () => {
-  it("ARRL: the rim carries the peak's dBi, the rings 3, 6, 10, 20 and 30 dB down", () => {
-    expect(cutRings(8.47, "arrl")).toEqual([
-      { dbi: 8.47, label: "8.5 dBi" },
-      { dbi: 8.47 - 3, label: "\u22123" },
-      { dbi: 8.47 - 6, label: "\u22126" },
-      { dbi: 8.47 - 10, label: "\u221210" },
-      { dbi: 8.47 - 20, label: "\u221220" },
-      { dbi: 8.47 - 30, label: "\u221230" },
+  const down = (rings: { dbi: number; label: string }[], top: number) =>
+    rings.slice(1).map((r) => [Math.round(top - r.dbi), r.label !== ""]);
+
+  it("ARRL: the Antenna Book's rings, 3/6/9/12/18/24 labelled (a -3 dB half-power ring), 36/48 not", () => {
+    const rings = cutRings(8.47, "arrl");
+    expect(rings[0]).toEqual({ dbi: 8.47, label: "8.5 dBi" });
+    expect(rings[1]).toEqual({ dbi: 8.47 - 3, label: "\u22123" });
+    expect(down(rings, 8.47)).toEqual([
+      [3, true], [6, true], [9, true], [12, true], [18, true], [24, true], [36, false], [48, false],
     ]);
+  });
+
+  it("EZNEC: EZNEC v7's rings, 5/10/15/20/30 labelled, 40/50 not", () => {
+    const rings = cutRings(8.47, "eznec");
+    expect(rings[0]).toEqual({ dbi: 8.47, label: "8.5 dBi" });
+    expect(down(rings, 8.47)).toEqual([
+      [5, true], [10, true], [15, true], [20, true], [30, true], [40, false], [50, false],
+    ]);
+  });
+
+  it("ARRL and EZNEC share the radius and the peak-on-the-rim top", () => {
+    for (const db of [8.47, 5.47, -1.5, -40]) {
+      expect(cutDbiToFrac(8.47, "eznec")(db)).toBe(cutDbiToFrac(8.47, "arrl")(db));
+    }
+    expect(cutDbiTop([2.1, 8.47], "eznec")).toBe(8.47);
   });
 
   it("linear keeps its fixed dBi rings", () => {
@@ -115,6 +132,25 @@ describe("the setting", () => {
 
   it("defaults to ARRL", () => {
     expect(DEFAULT_PATTERN_SCALE).toBe("arrl");
+    expect(getPatternScale()).toBe("arrl");
+  });
+
+  it("starts on the settings file's default when this browser has not chosen", () => {
+    setPatternScaleDefault("eznec");
+    expect(getPatternScale()).toBe("eznec");
+    setPatternScaleDefault(DEFAULT_PATTERN_SCALE);
+    expect(getPatternScale()).toBe("arrl");
+  });
+
+  it("a browser's own choice wins over the settings file's default", () => {
+    setPatternScale("linear");
+    setPatternScaleDefault("eznec");
+    expect(getPatternScale()).toBe("linear");
+    // Choosing the file's default clears the browser's choice, so the file
+    // leads again.
+    setPatternScale("eznec");
+    expect(localStorage.getItem(PATTERN_SCALE_KEY)).toBeNull();
+    setPatternScaleDefault(DEFAULT_PATTERN_SCALE);
     expect(getPatternScale()).toBe("arrl");
   });
 
