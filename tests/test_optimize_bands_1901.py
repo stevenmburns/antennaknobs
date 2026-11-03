@@ -678,4 +678,5 @@ def test_band_frames_carry_the_best_full_band_point_so_far():
         min(f["objective"] for f in full)
     )
     json.loads(json.dumps(frames[-1], allow_nan=False))
+    assert frames[-1]["objective_start"] == full[0]["objective"]
     assert res["params"]

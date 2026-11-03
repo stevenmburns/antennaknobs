@@ -3773,6 +3773,11 @@ def test_optimize_sse_streams_one_progress_per_eval_then_one_result(
             # its buffer fills.
             "solve_ms",
             "n_solves",
+            # Stopping a run early offers its best point so far: the running
+            # minimum with its knobs, and the objective it started from, both
+            # whole on every frame so dropped frames cannot lose them.
+            "best",
+            "objective_start",
         }
         assert set(d["params"]) == {"length_factor"}
 
