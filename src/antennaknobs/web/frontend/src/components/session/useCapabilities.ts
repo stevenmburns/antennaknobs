@@ -1,3 +1,4 @@
+import { setPatternScaleDefault } from "../../lib/patternScale";
 import { useEffect, useState } from "react";
 import {
   SOLVER_SLOTS,
@@ -173,6 +174,9 @@ export function useCapabilities(): CapabilitiesState {
           );
         } else {
           setUiDefaults(ui.defaults);
+          // The pattern charts read their scale from a module store; seed its
+          // default from the file (a browser's own choice still wins).
+          setPatternScaleDefault(ui.defaults.patternScale);
           setRoster(c.backends);
         }
       } catch (e: unknown) {

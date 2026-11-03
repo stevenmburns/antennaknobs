@@ -9,7 +9,7 @@ import {
   type SweepAxes,
 } from "./sweepAxis";
 import { tunedFloat } from "./tuning";
-import type { PatternScale } from "./patternScale";
+import { isLogScale, type PatternScale } from "./patternScale";
 
 // Adaptive sampling refinement (issue #744).
 //
@@ -519,34 +519,49 @@ export function cutDbiToFrac(
   dbiTop: number,
   scale: PatternScale = "linear",
 ): (db: number) => number {
-  if (scale === "arrl")
+  if (isLogScale(scale))
     return (db: number) =>
       clamp01(Math.pow(ARRL_RATIO_PER_3DB, (dbiTop - db) / 3));
   const span = dbiTop - CUT_DBI_FLOOR;
   return (db: number) => clamp01((db - CUT_DBI_FLOOR) / span);
 }
 
-/** One labelled ring of a polar chart: where it sits, in dBi, and its text. */
+/** One ring of a polar chart: where it sits, in dBi, and its text. An empty
+ *  label draws the ring without one. */
 export type PolarRing = { dbi: number; label: string };
 
-/** The labelled rings for a scale.
+/** The log scales' rings, in dB down from the peak: labelled, then
+ *  unlabelled where the rings crowd toward the centre. AC6LA compared EZNEC,
+ *  AutoEZ, 4nec2 and the ARRL Antenna Book (2026-11-03):
+ *    arrl:  the Antenna Book's, 3/6/9/12/18/24 with 36 and 48 unlabelled; the
+ *           −3 dB ring is the half-power level.
+ *    eznec: EZNEC v7's, 5/10/15/20/30 with 40 and 50 unlabelled. */
+export const LOG_SCALE_RINGS_DB_DOWN: Record<
+  "arrl" | "eznec",
+  { labelled: readonly number[]; unlabelled: readonly number[] }
+> = {
+  arrl: { labelled: [3, 6, 9, 12, 18, 24], unlabelled: [36, 48] },
+  eznec: { labelled: [5, 10, 15, 20, 30], unlabelled: [40, 50] },
+};
+
+/** The rings for a scale.
  *
- *  linear: its fixed dBi rings, +6/0/−6/−12/−18.
- *  arrl:   the grid's usual steps, 3, 6, 10, 20 and 30 dB down from the peak,
- *          labelled in dB down; the rim carries the peak's own dBi, the one
- *          absolute number the plot needs. */
+ *  linear:      its fixed dBi rings, +6/0/−6/−12/−18.
+ *  arrl, eznec: LOG_SCALE_RINGS_DB_DOWN, labelled in dB down, then the
+ *               unlabelled ones; the rim carries the peak's own dBi, the one
+ *               absolute number the plot needs. */
 export function cutRings(
   dbiTop: number,
   scale: PatternScale = "linear",
 ): PolarRing[] {
-  if (scale === "arrl")
+  if (scale !== "linear") {
+    const { labelled, unlabelled } = LOG_SCALE_RINGS_DB_DOWN[scale];
     return [
       { dbi: dbiTop, label: `${dbiTop.toFixed(1)} dBi` },
-      ...[3, 6, 10, 20, 30].map((down) => ({
-        dbi: dbiTop - down,
-        label: `\u2212${down}`,
-      })),
+      ...labelled.map((down) => ({ dbi: dbiTop - down, label: `\u2212${down}` })),
+      ...unlabelled.map((down) => ({ dbi: dbiTop - down, label: "" })),
     ];
+  }
   return [6, 0, -6, -12, -18].map((db) => ({
     dbi: db,
     label: `${db > 0 ? "+" : ""}${db}`,
@@ -567,7 +582,7 @@ export function cutDbiTop(
   scale: PatternScale = "linear",
 ): number {
   const finite = peaks.filter(Number.isFinite);
-  if (scale === "arrl")
+  if (isLogScale(scale))
     return finite.length ? finite.reduce((a, b) => Math.max(a, b)) : 0;
   const maxPeak = finite.reduce((a, b) => Math.max(a, b), 10);
   return Math.max(10, Math.ceil(maxPeak + 1));
@@ -602,7 +617,7 @@ export function cutProjection(
     // top IS the peak, so the peak sample is real data on the rim, not a
     // clamp: only a sample above the top or past the depth is clamped.
     const clamped =
-      scale === "arrl"
+      isLogScale(scale)
         ? dbi[i] > dbiTop || dbiTop - dbi[i] >= ARRL_DEPTH_DB
         : (dbi[i] - CUT_DBI_FLOOR) / span <= 0 ||
           (dbi[i] - CUT_DBI_FLOOR) / span >= 1;

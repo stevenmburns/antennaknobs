@@ -1,3 +1,4 @@
+import { getPatternScale } from "../../lib/patternScale";
 import { maxBearingDeg } from "../../lib/peakLobes";
 import {
   useCallback,
@@ -1466,6 +1467,9 @@ function DesignSessionBody({
         feed_labels: showFeedNames,
       },
       antenna_view: { orientation: antennaOrientation },
+      // The chart scale in use, which is this browser's choice when it made
+      // one: "Save as my defaults" makes it the file's.
+      pattern_chart: { scale: getPatternScale() },
       // Every ground slot, written as [grounds.X] (AK#1794).
       grounds: Object.fromEntries(
         groundSlots.map((g) => [

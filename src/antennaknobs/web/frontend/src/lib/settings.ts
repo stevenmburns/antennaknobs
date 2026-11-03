@@ -6,6 +6,11 @@
 // (useCapabilities) rather than guessing. The key lists below are vocabulary,
 // not defaults; tests/test_settings_toml_1492.py and its siblings hold each
 // one equal to the server's table.
+import {
+  DEFAULT_PATTERN_SCALE,
+  isPatternScale,
+  type PatternScale,
+} from "./patternScale";
 import type {
   FiniteGroundMethod,
   GroundType,
@@ -97,6 +102,8 @@ export type UiDefaults = {
   switchesSet: SwitchKey[];
   /** The Antenna view's orientation on a design load (AK#1737). */
   orientation: Orientation;
+  /** The polar pattern charts' default scale, [pattern_chart] scale. */
+  patternScale: PatternScale;
   /** Every ground slot, slot X first (AK#1794). */
   grounds: GroundSlotDefaults[];
   /** Whether a pick starts an analysis, per kind (AC6LA #179). */
@@ -216,6 +223,12 @@ export function readUiDefaults(raw: unknown): UiDefaultsRead {
         (SWITCH_KEYS as readonly string[]).includes(k),
       ),
       orientation: av.orientation as Orientation,
+      // Lenient on purpose: a server predating the table serves none, and
+      // that means the built-in default rather than a page that cannot start.
+      patternScale:
+        isRecord(raw.pattern_chart) && isPatternScale(raw.pattern_chart.scale)
+          ? raw.pattern_chart.scale
+          : DEFAULT_PATTERN_SCALE,
       grounds,
       runOnPick: rp.flags,
       problems,
@@ -242,6 +255,8 @@ export type GroundSaveEntry = {
 export type SettingsSaveBody = {
   switches: Record<SwitchKey, boolean>;
   antenna_view: { orientation: Orientation };
+  /** The polar pattern charts' scale, written as [pattern_chart]. */
+  pattern_chart?: { scale: PatternScale };
   /** The older spelling of ground slot X; the page posts `grounds`. The
    *  server refuses a body carrying both. */
   ground?: GroundSaveEntry;

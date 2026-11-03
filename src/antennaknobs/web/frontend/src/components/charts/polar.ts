@@ -64,7 +64,7 @@ export function drawDbiRings(
     ctx.beginPath();
     ctx.arc(cx, cy, R * f, 0, 2 * Math.PI);
     ctx.stroke();
-    ctx.fillText(label, cx + 2, cy - R * f - 1);
+    if (label) ctx.fillText(label, cx + 2, cy - R * f - 1);
   }
   ctx.beginPath();
   ctx.moveTo(cx - R, cy);

@@ -15,6 +15,9 @@ apply, and the entry it names keeps its built-in default.
     [antenna_view]
     orientation = "iso"      # auto | top | front | side | iso
 
+    [pattern_chart]
+    scale = "eznec"          # arrl | eznec | linear
+
     [ground]
     enabled = true
     type = "finite"          # finite | pec | terrain
@@ -106,6 +109,14 @@ GROUND_BUILTIN: dict = {
 # save leaves it out; any other value wins over that guess at EVERY load.
 ORIENTATIONS = ("auto", "top", "front", "side", "iso")
 ANTENNA_VIEW_BUILTIN: dict = {"orientation": "auto"}
+# The polar pattern charts' radial scale (AC6LA, 2026-11-02/03). "arrl" and
+# "eznec" are the same modified-log radius, r = R_max * 0.89^(-dB/3), with the
+# rings each draws: the ARRL Antenna Book's 3/6/9/12/18/24 dB down (36 and 48
+# unlabelled, and a -3 dB half-power ring) or EZNEC's 5/10/15/20/30 (40 and 50
+# unlabelled). "linear" is dBi linear in radius. The page remembers a choice
+# per browser over this default; the built-in is written only when changed.
+PATTERN_SCALES = ("arrl", "eznec", "linear")
+PATTERN_CHART_BUILTIN: dict = {"scale": "arrl"}
 GROUND_TYPES = ("finite", "pec", "terrain")
 GROUND_METHODS = ("fast", "sommerfeld", "mininec")
 # The solver slots' names, in order (AK#1801): A, B and C are the stock set
@@ -165,7 +176,15 @@ RUN_ON_PICK: tuple[tuple[str, bool], ...] = (
 _RUN_ON_PICK_KINDS = tuple(k for k, _ in RUN_ON_PICK)
 _WORKBENCH_KEYS = ("run_on_pick",)
 
-_TABLES = ("switches", "antenna_view", "ground", "grounds", "slots", "workbench")
+_TABLES = (
+    "switches",
+    "antenna_view",
+    "pattern_chart",
+    "ground",
+    "grounds",
+    "slots",
+    "workbench",
+)
 # Tables only a person editing the file sets (antennaknobs.settings_file): a
 # path the server executes must never be settable by a web request.
 _FILE_TABLES = ("engines", "capture")
@@ -176,6 +195,7 @@ _CAPTURE_KEYS = ("dir",)
 _GROUND_KEYS = ("enabled", "type", "method", "soil", "eps_r", "sigma", "terrain_preset")
 _SLOT_KEYS = ("backend", "n_per_wire", "model")
 _ANTENNA_VIEW_KEYS = ("orientation",)
+_PATTERN_CHART_KEYS = ("scale",)
 
 
 class SettingsError(ValueError):
@@ -292,6 +312,7 @@ def resolve(
     switches = {k: d for k, _, d in SWITCHES}
     switches_set: list[str] = []
     antenna_view = dict(ANTENNA_VIEW_BUILTIN)
+    pattern_chart = dict(PATTERN_CHART_BUILTIN)
     ground = dict(GROUND_BUILTIN)
     ground_set: list[str] = []
     slots: dict[str, dict] = {}
@@ -307,8 +328,8 @@ def resolve(
             grounds=[dict(g) for g in cat.stock_grounds],
             run_on_pick=run_on_pick,
         ), [
-            "settings must be a table of [switches], [antenna_view], [ground], "
-            "[grounds], [slots] and [workbench]"
+            "settings must be a table of [switches], [antenna_view], "
+            "[pattern_chart], [ground], [grounds], [slots] and [workbench]"
         ]
     allowed = _TABLES + _FILE_TABLES if from_file else _TABLES
     for key in data:
@@ -351,6 +372,23 @@ def resolve(
         else:
             antenna_view[key] = value
 
+    table = data.get("pattern_chart", {})
+    if not isinstance(table, Mapping):
+        problems.append("[pattern_chart] must be a table")
+        table = {}
+    for key, value in table.items():
+        if key not in _PATTERN_CHART_KEYS:
+            problems.append(
+                f"[pattern_chart] {key}: not a pattern chart setting "
+                f"(known: {_known(_PATTERN_CHART_KEYS)})"
+            )
+        elif value not in PATTERN_SCALES:
+            problems.append(
+                f"[pattern_chart] {key} = {value!r}: must be one of {_known(PATTERN_SCALES)}"
+            )
+        else:
+            pattern_chart[key] = value
+
     table = data.get("ground", {})
     if not isinstance(table, Mapping):
         problems.append("[ground] must be a table")
@@ -392,6 +430,7 @@ def resolve(
             grounds=grounds,
             ground_spelling=spelling,
             run_on_pick=run_on_pick,
+            pattern_chart=pattern_chart,
         ),
         problems,
     )
@@ -770,11 +809,13 @@ def _resolved(
     grounds,
     ground_spelling="ground",
     run_on_pick=None,
+    pattern_chart=None,
 ) -> dict:
     return {
         "switches": switches,
         "switches_set": switches_set,
         "antenna_view": antenna_view or dict(ANTENNA_VIEW_BUILTIN),
+        "pattern_chart": pattern_chart or dict(PATTERN_CHART_BUILTIN),
         # Ground slot X, as a server before AK#1794 served it.
         "ground": ground,
         "ground_set": ground_set,
@@ -894,6 +935,11 @@ def _differences(resolved: dict, cat: Catalog) -> dict:
         for key, value in resolved["antenna_view"].items()
         if value != ANTENNA_VIEW_BUILTIN[key]
     }
+    pattern_chart = {
+        key: value
+        for key, value in resolved.get("pattern_chart", PATTERN_CHART_BUILTIN).items()
+        if value != PATTERN_CHART_BUILTIN[key]
+    }
     # Each ground slot against the slot it starts as (AK#1794). A stock slot
     # left as it was writes nothing; a slot past the stock set is written even
     # when empty, since the table's presence is what makes the slot exist.
@@ -925,6 +971,7 @@ def _differences(resolved: dict, cat: Catalog) -> dict:
     return {
         "switches": switches,
         "antenna_view": antenna_view,
+        "pattern_chart": pattern_chart,
         "ground": ground,
         "grounds": grounds,
         "slots": slots,
@@ -1005,7 +1052,7 @@ def dump(settings: dict, kept: Mapping | None = None) -> str:
         "# follows the version you run. Hand edits are fine, and the file is",
         "# re-read at every page load.",
     ]
-    for table_name in ("switches", "antenna_view", "ground"):
+    for table_name in ("switches", "antenna_view", "pattern_chart", "ground"):
         if settings.get(table_name):
             lines += ["", f"[{table_name}]"]
             lines += [
