@@ -14,6 +14,7 @@ import {
   type OptObjective,
   type OptPause,
   type OptProgress,
+  type OptStopped,
 } from "./VfoPanel";
 import { apiFetch } from "../../lib/pin";
 import { nextBandMarks, type BandMarks } from "../../lib/optBands";
@@ -243,6 +244,11 @@ export function useOptimizer({
   // Latest `progress` frame of the in-flight run; reset to null at the start
   // of every runOptimize call so a stale frame never outlives its run.
   const [optProgress, setOptProgress] = useState<OptProgress | null>(null);
+  // A run the user stopped early (Optimize off mid-run) that had found a
+  // better point than it started from: the "keep best so far" prompt.
+  const [optStopped, setOptStopped] = useState<OptStopped | null>(null);
+  // The run's starting objective: its first frame's, the warm start's solve.
+  const startObjectiveRef = useRef<number | null>(null);
   // Frame-to-frame arrival interval (#1007). The interactive `rtt` is one
   // request/response pair on the /ws channel, which the optimiser never
   // touches, so it has no exact analogue mid-run — but the gap between
@@ -320,6 +326,7 @@ export function useOptimizer({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOptResult(null);
     setOptProgress(null);
+    setOptStopped(null);
     setOptError(null);
     setOptBands(null);
     setOptBandsShown([]);
@@ -354,6 +361,48 @@ export function useOptimizer({
     }
   }
 
+  // Write a set of knob values back the way a settled run's are, so the
+  // same markers and the same "edit after the run clears them" rule apply.
+  function writeBack(params: Record<string, number>) {
+    writtenBackRef.current = {
+      params,
+      before: Object.fromEntries(
+        Object.keys(params).map((name) => [name, valueAtPath(currentValues, knobPath(name))]),
+      ),
+      key: JSON.stringify(layParams(currentValues, params)),
+      done: false,
+    };
+    for (const [name, val] of Object.entries(params)) {
+      setParamAtPath(knobPath(name), val);
+    }
+  }
+
+  // Optimize switched off while a run is in flight: stop it now (the server
+  // stops when its client goes), leave the knobs where they started, and,
+  // if the run had found a better point, offer it.
+  function stopOptimize() {
+    const frame = optProgress;
+    optAbortRef.current?.abort();
+    setOptEnabled(false);
+    const best = frame?.best;
+    const start = startObjectiveRef.current;
+    if (best && start !== null && best.objective < start) {
+      setOptStopped({
+        params: best.params,
+        objectiveStart: start,
+        objectiveBest: best.objective,
+        nEvals: frame.n_evals,
+      });
+    }
+  }
+  function keepBest() {
+    if (optStopped) writeBack(optStopped.params);
+    setOptStopped(null);
+  }
+  function discardBest() {
+    setOptStopped(null);
+  }
+
   // Run the optimiser once: POST the current solve request + the free knobs
   // (from each knob's menu) and objective, then apply the returned params to the
   // knobs (re-solving via the normal onChange path). Warm-started from the
@@ -379,6 +428,8 @@ export function useOptimizer({
     setOptRunning(true);
     setOptError(null);
     setOptProgress(null);
+    setOptStopped(null);
+    startObjectiveRef.current = null;
     setOptBandMarks(null);
     setOptPaceMs(null);
     runStartedAtRef.current = performance.now();
@@ -418,6 +469,8 @@ export function useOptimizer({
               lastFrameAtRef.current = now;
               setOptFrameMs(prev == null ? null : now - prev);
               const frame = JSON.parse(data) as OptProgress;
+              if (startObjectiveRef.current === null && frame.n_evals === 1)
+                startObjectiveRef.current = frame.objective;
               setOptProgress(frame);
               setOptBandMarks((prev) => nextBandMarks(prev, frame));
               const solved = frame.n_solves ?? frame.n_evals;
@@ -641,6 +694,10 @@ export function useOptimizer({
     optRunning,
     optResult,
     optProgress,
+    optStopped,
+    stopOptimize,
+    keepBest,
+    discardBest,
     optFrameMs,
     optError,
     optPausedBy,

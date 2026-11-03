@@ -743,9 +743,14 @@ def optimize(
     # lives on the stack of one `optimize()` call, and makes a run strictly
     # cheaper than the run it replaces.
     memo: dict[tuple[float, ...], dict] = {}
+    # The lowest objective any eval has reached so far, with its knobs and
+    # metrics, sent on every progress frame. Each frame carries it whole, so
+    # the client keeps the true best even when the stream drops frames, and a
+    # run stopped early can offer it ("keep best so far").
+    best: dict | None = None
 
     def _solve_at(x) -> dict:
-        nonlocal n_evals, n_solves, last_solve_ms
+        nonlocal n_evals, n_solves, last_solve_ms, best
         req = dict(base_req)
         params = {}
         for name, v in zip(names, x, strict=True):
@@ -777,12 +782,20 @@ def optimize(
         # solve, in every phase (baseline, simplex, confirmation), goes through
         # this one choke point, so hooking here is the only way to get gapless
         # per-eval granularity that also covers the initial-simplex evals.
+        value = _objective_value(out, objective)
+        if best is None or value < best["objective"]:
+            best = {
+                "params": dict(params),
+                "objective": value,
+                "metrics": _metrics(out),
+            }
         if on_progress is not None:
             on_progress(
                 {
                     "n_evals": n_evals,
                     "params": params,
-                    "objective": _objective_value(out, objective),
+                    "objective": value,
+                    "best": best,
                     "metrics": _metrics(out),
                     "seed_index": seed_index,
                     "seed_total": seed_total,

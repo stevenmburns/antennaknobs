@@ -1805,6 +1805,10 @@ function DesignSessionBody({
     optRunning,
     optResult,
     optProgress,
+    optStopped,
+    stopOptimize,
+    keepBest,
+    discardBest,
     optFrameMs,
     optError,
     optPausedBy,
@@ -4027,6 +4031,9 @@ function DesignSessionBody({
               // that menu.
               opt={{
                 settings: knobOpt[geometry] ?? {},
+                // The run's current trial, beside each marked knob while it
+                // runs; the knobs themselves move only when it settles.
+                trial: optRunning ? (optProgress?.params ?? null) : null,
                 onContext: (name, e) => {
                   e.preventDefault();
                   setKnobMenu({ name, x: e.clientX, y: e.clientY });
@@ -4184,6 +4191,10 @@ function DesignSessionBody({
             menuOpen: optMenuOpen,
             menuPaused: optMenuPaused,
             setMenuOpen: setOptMenuOpen,
+            stop: stopOptimize,
+            stopped: optStopped,
+            keepBest,
+            discardBest,
           }}
         />
 

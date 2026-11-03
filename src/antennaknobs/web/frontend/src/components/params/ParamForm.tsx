@@ -61,6 +61,10 @@ export function ParamForm({
   // parallel to the menu checkbox).
   opt?: {
     settings: Record<string, KnobOpt>;
+    /** The optimizer's current trial, keyed like `settings`, while a run is
+     *  in flight: drawn as a second value under each marked knob, so the
+     *  search can be watched without the knobs (and the design) moving. */
+    trial?: Record<string, number> | null;
     onContext: (name: string, e: React.MouseEvent) => void;
     onToggleVary: (name: string) => void;
   };
@@ -256,6 +260,18 @@ export function ParamForm({
               onChange={(v) => onChange([...pathPrefix, item.name], v)}
             />
             <span className="knob-value">{shown}{item.unit ?? ""}</span>
+            {ko?.vary && typeof opt?.trial?.[optKey] === "number" && (
+              <span
+                className="knob-trial"
+                title="The optimizer's current trial for this knob. The knob itself moves when the run settles."
+              >
+                trial{" "}
+                {item.kind === "int"
+                  ? String(Math.round(opt.trial[optKey]))
+                  : opt.trial[optKey].toFixed(item.precision)}
+                {item.unit ?? ""}
+              </span>
+            )}
           </div>
         );
       })}
