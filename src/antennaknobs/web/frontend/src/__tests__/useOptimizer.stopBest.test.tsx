@@ -161,6 +161,7 @@ describe("stopping a run early", () => {
       objectiveStart: 2.0,
       objectiveBest: 1.31,
       nEvals: 6,
+      improved: true,
     });
 
     act(() => result.current.keepBest());
@@ -185,7 +186,7 @@ describe("stopping a run early", () => {
     expect(setParamAtPath).not.toHaveBeenCalled();
   });
 
-  it("offers nothing when the run has not beaten its start", async () => {
+  it("says the run stopped with nothing better, and offers nothing to keep, when it has not beaten its start", async () => {
     const sse = makeSseReader();
     fetchMock = vi.fn(async () => sseResponse(sse.reader));
     vi.stubGlobal("fetch", fetchMock);
@@ -196,8 +197,26 @@ describe("stopping a run early", () => {
     await flush();
     act(() => result.current.stopOptimize());
     await flush();
-    expect(result.current.optStopped).toBeNull();
+    expect(result.current.optStopped?.improved).toBe(false);
+    act(() => result.current.keepBest());
     expect(setParamAtPath).not.toHaveBeenCalled();
+    expect(result.current.optStopped).toBeNull();
+  });
+
+  it("uses the server's starting objective when the first frame was dropped", async () => {
+    const sse = makeSseReader();
+    fetchMock = vi.fn(async () => sseResponse(sse.reader));
+    vi.stubGlobal("fetch", fetchMock);
+    const { result } = mount();
+    await armAndFire(result);
+    // Frame 1 never arrives (the stream dropped it); frame 9 carries the start.
+    act(() =>
+      sse.push("progress", { ...frame(9, 1.7, { lf: 0.975, objective: 1.35 }), objective_start: 2.0 }),
+    );
+    await flush();
+    act(() => result.current.stopOptimize());
+    await flush();
+    expect(result.current.optStopped).toMatchObject({ objectiveStart: 2.0, objectiveBest: 1.35, improved: true });
   });
 
   it("a new run clears an unanswered prompt", async () => {

@@ -120,6 +120,9 @@ export type OptProgress = {
    *  knobs: whole on every frame, so it survives dropped frames. A band run's
    *  is its best full-band eval, null until one has run. */
   best?: { params: Record<string, number>; objective: number; metrics: OptMetrics } | null;
+  /** The objective the run started from (its first eval), on every frame so
+   *  a dropped first frame cannot lose it. */
+  objective_start?: number | null;
 };
 
 /** A run the user stopped early that had found a better point than it
@@ -129,6 +132,9 @@ export type OptStopped = {
   objectiveStart: number;
   objectiveBest: number;
   nEvals: number;
+  /** Whether the best beat the start: the prompt offers Keep best only then,
+   *  and otherwise just says the run stopped with nothing better. */
+  improved: boolean;
 };
 // Phases whose residual falls monotonically, and is therefore worth showing
 // in place of the SWR. Nelder-Mead's is deliberately NOT here: its best-so-far
@@ -453,15 +459,27 @@ function SimControls({
           aria-label="Keep the best point so far?"
           title="Optimize was stopped before it finished. The knobs are where they started; Keep best moves the marked knobs to the best point the run had found."
         >
-          stopped after {optState.stopped.nEvals} evals: best{" "}
-          {optState.stopped.objectiveBest.toPrecision(4)} (start{" "}
-          {optState.stopped.objectiveStart.toPrecision(4)})
-          <button type="button" className="opt-stopped-btn" onClick={optState.keepBest}>
-            Keep best
-          </button>
-          <button type="button" className="opt-stopped-btn" onClick={optState.discardBest}>
-            Discard
-          </button>
+          {optState.stopped.improved ? (
+            <>
+              stopped after {optState.stopped.nEvals} evals: best{" "}
+              {optState.stopped.objectiveBest.toPrecision(4)} (start{" "}
+              {optState.stopped.objectiveStart.toPrecision(4)})
+              <button type="button" className="opt-stopped-btn" onClick={optState.keepBest}>
+                Keep best
+              </button>
+              <button type="button" className="opt-stopped-btn" onClick={optState.discardBest}>
+                Discard
+              </button>
+            </>
+          ) : (
+            <>
+              stopped after {optState.stopped.nEvals} evals: nothing better than
+              where it started ({optState.stopped.objectiveStart.toPrecision(4)})
+              <button type="button" className="opt-stopped-btn" onClick={optState.discardBest}>
+                OK
+              </button>
+            </>
+          )}
         </span>
       )}
       {trackEnabled && trackLatched && (

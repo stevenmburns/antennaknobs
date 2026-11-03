@@ -375,3 +375,5 @@ def test_every_frame_carries_the_best_point_so_far():
             best["objective"]
         )
     assert calls[-1]["best"]["objective"] <= res["objective_after"]
+    # Where the run started, on every frame: the first eval's objective.
+    assert {f["objective_start"] for f in calls} == {calls[0]["objective"]}

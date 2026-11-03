@@ -748,9 +748,13 @@ def optimize(
     # the client keeps the true best even when the stream drops frames, and a
     # run stopped early can offer it ("keep best so far").
     best: dict | None = None
+    # The objective where the run started (its first eval, the warm start),
+    # sent with `best` so the client can tell whether the run improved on it
+    # without needing to have received the first frame.
+    objective_start: float | None = None
 
     def _solve_at(x) -> dict:
-        nonlocal n_evals, n_solves, last_solve_ms, best
+        nonlocal n_evals, n_solves, last_solve_ms, best, objective_start
         req = dict(base_req)
         params = {}
         for name, v in zip(names, x, strict=True):
@@ -783,6 +787,8 @@ def optimize(
         # this one choke point, so hooking here is the only way to get gapless
         # per-eval granularity that also covers the initial-simplex evals.
         value = _objective_value(out, objective)
+        if objective_start is None:
+            objective_start = value
         if best is None or value < best["objective"]:
             best = {
                 "params": dict(params),
@@ -796,6 +802,7 @@ def optimize(
                     "params": params,
                     "objective": value,
                     "best": best,
+                    "objective_start": objective_start,
                     "metrics": _metrics(out),
                     "seed_index": seed_index,
                     "seed_total": seed_total,

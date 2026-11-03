@@ -384,19 +384,25 @@ export function useOptimizer({
     const frame = optProgress;
     optAbortRef.current?.abort();
     setOptEnabled(false);
+    // Always say what happened: the prompt when the run found something
+    // better than where it started, a plain "nothing better" otherwise
+    // (a warm-started run's first trials are often worse than its start).
+    // The start comes off the frame (the server's, so a dropped first frame
+    // cannot lose it), else the first frame this page saw.
     const best = frame?.best;
-    const start = startObjectiveRef.current;
-    if (best && start !== null && best.objective < start) {
+    const start = frame?.objective_start ?? startObjectiveRef.current;
+    if (frame && best && start != null) {
       setOptStopped({
         params: best.params,
         objectiveStart: start,
         objectiveBest: best.objective,
         nEvals: frame.n_evals,
+        improved: best.objective < start,
       });
     }
   }
   function keepBest() {
-    if (optStopped) writeBack(optStopped.params);
+    if (optStopped?.improved) writeBack(optStopped.params);
     setOptStopped(null);
   }
   function discardBest() {

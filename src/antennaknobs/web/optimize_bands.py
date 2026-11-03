@@ -572,6 +572,8 @@ def optimize_bands(
     # knobs, the objective and the worst band's metrics. Only an eval that
     # solved every band can be compared with the run's objective.
     best_frame: dict | None = None
+    # The first full-band eval's objective: where the run started.
+    objective_start: float | None = None
 
     def _req_at(x) -> tuple[dict, dict]:
         req = dict(base_req)
@@ -607,7 +609,7 @@ def optimize_bands(
     def evaluate(x, idx=all_idx) -> list[dict]:
         """Solve at the bands ``idx`` (one build, every band's frequency),
         returning their records in ``idx`` order."""
-        nonlocal n_evals, fresh, best_frame
+        nonlocal n_evals, fresh, best_frame, objective_start
         x = np.asarray(x, dtype=float)
         freqs = sorted({bands[i].freq_mhz for i in idx})
         key = (tuple(float(v) for v in x), tuple(freqs))
@@ -654,6 +656,8 @@ def optimize_bands(
         if idx == all_idx:
             wi_all, _ = _worst(recs)
             jv_all = objective_terms(recs, w_run)[0]
+            if objective_start is None:
+                objective_start = jv_all
             if best_frame is None or jv_all < best_frame["objective"]:
                 best_frame = {
                     "params": dict(params),
@@ -680,6 +684,7 @@ def optimize_bands(
                         ],
                         "objective": jv,
                         "best": best_frame,
+                        "objective_start": objective_start,
                         "objective_worst": mx,
                         "objective_mean": mn,
                         "mean_weight": w_run,
