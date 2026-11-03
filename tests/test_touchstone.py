@@ -360,7 +360,9 @@ def test_degenerate_s2p_of_ideal_tl_equals_TL_element():
             sources=[Driven(port="a")],
         )
 
-    z_tl = reducer(net_with(TL("a", "b", zc, length)), 2).driven_impedance(y, WL)[0]
+    z_tl = reducer(net_with(TL("a", "b", z0=zc, length=length)), 2).driven_impedance(
+        y, WL
+    )[0]
     z_ts = reducer(net_with(TouchstoneTwoPort("a", "b", t)), 2).driven_impedance(y, WL)[
         0
     ]
