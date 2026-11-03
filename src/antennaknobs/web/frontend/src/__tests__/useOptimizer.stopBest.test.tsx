@@ -169,7 +169,7 @@ describe("stopping a run early", () => {
     expect(result.current.optStopped).toBeNull();
   });
 
-  it("Discard leaves the knobs where they started", async () => {
+  it("Keep start leaves the knobs where they started", async () => {
     const sse = makeSseReader();
     fetchMock = vi.fn(async () => sseResponse(sse.reader));
     vi.stubGlobal("fetch", fetchMock);
