@@ -457,7 +457,7 @@ function SimControls({
           className="opt-readout opt-stopped"
           role="alertdialog"
           aria-label="Keep the best point so far?"
-          title="Optimize was stopped before it finished. The knobs are where they started; Keep best moves the marked knobs to the best point the run had found."
+          title="Optimize was stopped before it finished. The knobs are where they started: Keep best moves the marked knobs to the best point the run had found, Keep start leaves them where they were. Either way, turning Optimize on again starts a fresh run from the knobs as they are."
         >
           {optState.stopped.improved ? (
             <>
@@ -468,7 +468,7 @@ function SimControls({
                 Keep best
               </button>
               <button type="button" className="opt-stopped-btn" onClick={optState.discardBest}>
-                Discard
+                Keep start
               </button>
             </>
           ) : (
