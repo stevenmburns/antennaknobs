@@ -26,13 +26,20 @@ import sys
 
 
 def _nprocs_of_this_user() -> int:
+    """The tasks RLIMIT_NPROC counts for this user: its THREADS, not just
+    its processes (a desktop's browser alone runs hundreds)."""
     uid, n = os.getuid(), 0
     for d in os.listdir("/proc"):
         if d.isdigit():
             try:
-                if os.stat(f"/proc/{d}").st_uid == uid:
-                    n += 1
-            except OSError:
+                if os.stat(f"/proc/{d}").st_uid != uid:
+                    continue
+                with open(f"/proc/{d}/status") as f:
+                    for line in f:
+                        if line.startswith("Threads:"):
+                            n += int(line.split()[1])
+                            break
+            except (OSError, ValueError):
                 pass
     return n
 
@@ -106,6 +113,7 @@ def _load_builder(filename: str, source: str):
 
 
 def main() -> int:
+    me = os.getpid()
     out = os.fdopen(os.dup(1), "w", encoding="utf-8")
     os.dup2(2, 1)
     sys.stdout = sys.stderr
@@ -140,6 +148,10 @@ def main() -> int:
         text = json.dumps(
             {"ok": False, "kind": "design", "error": f"{type(e).__name__}: {e}"[:2000]}
         )
+    if os.getpid() != me:
+        # A forked copy of the design that ran on past its fork: only the
+        # child the parent started may answer, or two replies would garble.
+        os._exit(0)
     out.write(text)
     out.flush()
     return 0

@@ -82,6 +82,7 @@ NOBODY = 65534
 
 def _jail_binds() -> list[str]:
     seen: list[str] = []
+    made: set[str] = set()
     out: list[str] = []
     paths = list(_SYSTEM_DIRS) + [sys.prefix, sys.base_prefix, sys.exec_prefix]
     paths += [p for p in sys.path if p and os.path.isabs(p)]
@@ -94,6 +95,18 @@ def _jail_binds() -> list[str]:
             # bookworm's /lib, /bin, ... are symlinks into /usr: recreate them.
             out += ["--symlink", os.readlink(p), p]
         elif os.path.isdir(p):
+            # The parents a bind needs (/app for /app/src, /opt/... for a
+            # toolcache Python) do not exist in the jail's fresh root, and
+            # bubblewrap run as root creates missing ones 0700: nobody could
+            # not walk through them. Make each one first, 0755, top-down.
+            parts = p.split("/")[1:-1]
+            for i in range(1, len(parts) + 1):
+                a = "/" + "/".join(parts[:i])
+                if a not in made and not any(
+                    a == q or a.startswith(q + "/") for q in seen[:-1]
+                ):
+                    made.add(a)
+                    out += ["--perms", "0755", "--dir", a]
             out += ["--ro-bind", p, p]
     return out
 
@@ -124,7 +137,7 @@ def _bwrap_cmd(workdir: str) -> list[str]:
         "--die-with-parent",
         "--new-session",
         *_jail_binds(),
-        "--tmpfs", "/tmp",
+        "--perms", "1777", "--tmpfs", "/tmp",
         "--bind", workdir, workdir,
         "--proc", "/proc",
         "--dev", "/dev",
@@ -303,9 +316,14 @@ def run_design(
             else f"died on signal {sig}"
         )
         raise SandboxError(kind, f"the design {what}")
-    try:
-        reply = json.loads(raw)
-    except (ValueError, UnicodeDecodeError):
+    if raw.strip():
+        try:
+            reply = json.loads(raw)
+        except (ValueError, UnicodeDecodeError):
+            raise SandboxError(
+                "reply", "the design process's reply is not JSON"
+            ) from None
+    else:
         tail = b"".join(err)[-500:].decode("utf-8", "replace")
         raise SandboxError(
             "crash", f"the design process gave no reply ({tail.strip() or 'no output'})"

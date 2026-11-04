@@ -152,7 +152,9 @@ def test_a_design_cannot_fork_without_limit():
     )
     err = hook_error(snap)
     assert "fork refused after" in err, err
-    assert int(err.rsplit(" ", 1)[1]) <= 8
+    # At least one fork went through (the cap is headroom, not zero), and no
+    # more than the allowance did.
+    assert 1 <= int(err.rsplit(" ", 1)[1]) <= 8, err
 
 
 def test_the_forked_children_do_not_outlive_the_run():
@@ -172,6 +174,18 @@ def test_the_forked_children_do_not_outlive_the_run():
         and marker in Path(f"/proc/{p}/cmdline").read_bytes().decode(errors="replace")
     ]
     assert not alive
+
+
+def test_a_forked_copy_of_the_design_cannot_add_a_second_reply():
+    """A fork whose child does not exec runs on as a second copy of the
+    design; only the process the parent started may answer."""
+    body = """
+        import os
+        os.fork()
+        return []
+    """
+    snap = sb.run_design(design(body), "twin.py", limits=FAST)
+    assert ds.decode(snap["build_wires"]) == []
 
 
 def test_the_design_sees_none_of_the_servers_environment(monkeypatch):
