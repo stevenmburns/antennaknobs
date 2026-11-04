@@ -40,6 +40,19 @@ def _nprocs_of_this_user() -> int:
 NOBODY = 65534
 
 
+def _preload() -> None:
+    """Import what every design needs while the files are surely readable:
+    once the child drops to nobody, a checkout in a private home folder is
+    not, and a design should not depend on file permissions to get the
+    framework. design_snapshot's allowlist imports every spec module."""
+    import antennaknobs  # noqa: F401
+    import antennaknobs.builder  # noqa: F401
+    import antennaknobs.touchstone  # noqa: F401
+    from antennaknobs import design_snapshot
+
+    design_snapshot.allowed_types()
+
+
 def _drop_root() -> None:
     """A server running as root (the container) runs the design as nobody:
     no supplementary groups, then gid, then uid, irreversibly."""
@@ -98,6 +111,7 @@ def main() -> int:
     sys.stdout = sys.stderr
     try:
         req = json.loads(sys.stdin.read())
+        _preload()
         _drop_root()
         _apply_limits(req["limits"])
     except Exception as e:  # noqa: BLE001 — a malformed request is reported to the parent
