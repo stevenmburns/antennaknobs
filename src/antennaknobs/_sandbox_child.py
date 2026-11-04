@@ -10,6 +10,13 @@ and writes ONE JSON reply to the stdout it was started with::
 
     {"ok": true, "data": ...}   or   {"ok": false, "error": "...", "kind": "..."}
 
+Run with ``--serve`` it is a WARM worker for one design (AK#2157): the first
+line on stdin is ``{"filename", "source", "limits"}``, answered with one reply
+line once the design is loaded; every later line is ``{"params": ...}``,
+answered with one snapshot reply line carrying ``"retire": true`` when the
+parent should replace it (it forked, ran out of memory, or has used half its
+CPU allowance, which an rlimit counts over the process's whole life).
+
 Before any design code runs it lowers its own resource limits (soft and hard,
 so the design cannot raise them back) and points ``sys.stdout`` at stderr, so
 a design that prints cannot corrupt the reply. Everything after that is the
@@ -112,6 +119,124 @@ def _load_builder(filename: str, source: str):
     return cls
 
 
+def _kill_my_group(me: int) -> int:
+    """SIGKILL every other process in this worker's process group (what the
+    design forked during the request) and reap the ones that are ours, so
+    they stop counting against RLIMIT_NPROC. Returns how many there were."""
+    import signal
+    import time
+
+    pgrp = os.getpgrp()
+    victims = []
+    for d in os.listdir("/proc"):
+        if not d.isdigit() or int(d) == me:
+            continue
+        try:
+            with open(f"/proc/{d}/stat") as f:
+                # pid (comm) state ppid pgrp ...: comm may hold spaces.
+                fields = f.read().rsplit(")", 1)[1].split()
+            if int(fields[2]) == pgrp:
+                victims.append(int(d))
+        except (OSError, ValueError, IndexError):
+            pass
+    for pid in victims:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+    end = time.monotonic() + 2.0
+    while time.monotonic() < end:
+        try:
+            pid, _ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            break
+        if pid == 0:
+            time.sleep(0.01)
+    return len(victims)
+
+
+def _ran_out_of_memory(data) -> bool:
+    return isinstance(data, dict) and any(
+        isinstance(v, dict) and str(v.get("__error__", "")).startswith("MemoryError")
+        for v in data.values()
+    )
+
+
+def serve() -> int:
+    me = os.getpid()
+    out = os.fdopen(os.dup(1), "w", encoding="utf-8")
+    inp = os.fdopen(os.dup(0), "r", encoding="utf-8")
+    os.dup2(2, 1)
+    sys.stdout = sys.stderr
+    null = os.open(os.devnull, os.O_RDONLY)
+    os.dup2(null, 0)
+    sys.stdin = open(os.devnull)  # noqa: SIM115 — the design's stdin, for its life
+
+    def reply(obj) -> None:
+        out.write(json.dumps(obj, allow_nan=False) + "\n")
+        out.flush()
+
+    try:
+        init = json.loads(inp.readline())
+        _preload()
+        _drop_root()
+        _apply_limits(init["limits"])
+        cpu_budget = float(init["limits"]["cpu_s"])
+    except Exception as e:  # noqa: BLE001 — a malformed request is reported to the parent
+        reply({"ok": False, "kind": "request", "error": f"{type(e).__name__}: {e}"})
+        return 2
+    from antennaknobs import design_snapshot as ds
+
+    try:
+        cls = _load_builder(init["filename"], init["source"])
+        ready = {"ok": True, "data": None}
+    except MemoryError:
+        ready = {"ok": False, "kind": "memory", "error": "the design ran out of memory"}
+    except Exception as e:  # noqa: BLE001 — the design's failure is the reply
+        ready = {
+            "ok": False,
+            "kind": "design",
+            "error": f"{type(e).__name__}: {e}"[:2000],
+        }
+    if os.getpid() != me:
+        os._exit(0)
+    forked = _kill_my_group(me)
+    reply(ready)
+    if not ready["ok"]:
+        return 0
+    for line in inp:
+        oom = False
+        try:
+            params = json.loads(line).get("params")
+            b = cls(ds.decode(params)) if params is not None else cls()
+            data = ds.snapshot(b)
+            oom = _ran_out_of_memory(data)
+            text = json.dumps({"ok": True, "data": data}, allow_nan=False)
+        except MemoryError:
+            oom = True
+            text = json.dumps(
+                {"ok": False, "kind": "memory", "error": "the design ran out of memory"}
+            )
+        except Exception as e:  # noqa: BLE001 — the design's failure is the reply
+            text = json.dumps(
+                {
+                    "ok": False,
+                    "kind": "design",
+                    "error": f"{type(e).__name__}: {e}"[:2000],
+                }
+            )
+        if os.getpid() != me:
+            os._exit(0)
+        forked += _kill_my_group(me)
+        ru = resource.getrusage(resource.RUSAGE_SELF)
+        retire = bool(forked or oom or ru.ru_utime + ru.ru_stime > cpu_budget / 2)
+        out.write(text[:-1] + f', "retire": {"true" if retire else "false"}}}\n')
+        out.flush()
+        if retire:
+            return 0
+    return 0
+
+
 def main() -> int:
     me = os.getpid()
     out = os.fdopen(os.dup(1), "w", encoding="utf-8")
@@ -158,4 +283,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(serve() if sys.argv[1:] == ["--serve"] else main())
