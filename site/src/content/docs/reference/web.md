@@ -1213,6 +1213,17 @@ those views **dim** for the duration — the same stale-fade a mid-solve view
 wears — and light up when the result lands. The schematic stays bright: it's
 drawn from the current knob values and stays right throughout.
 
+**Each marked knob shows its trial value.** While a run is going, the value
+the optimizer is trying appears as "trial …" under the knob, so you can see
+which way the search is moving without waiting for it to finish.
+
+**Stopping early keeps what you choose.** Turning Optimize off mid-run cancels
+the search and always says what happened. If the run found something better
+than where it started, you choose **Keep best**, which writes the best point
+so far into the knobs, or **Keep start**, which leaves them as they were. If
+nothing beat the starting point, it says so and the knobs stay put. The start
+survives even if the connection drops a frame mid-run.
+
 The solve readout keeps moving too. Its `solve` field shows the last full solve
 *inside* the run, `rtt` gives way to a **per eval** figure — the gap between
 updates, which is what you are actually waiting through, rather than the

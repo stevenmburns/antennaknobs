@@ -29,20 +29,25 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.110.3" icon="star">
-  **Pattern charts on the ARRL scale.** The polar charts now draw on the ARRL
-  Antenna Book's modified-log grid, r = R_max · 0.89^(−dB/3), as EZNEC does:
-  the peak on the rim, rings 3, 6, 10, 20 and 30 dB down, so sidelobes stay
-  readable without flattening the main lobe. Pinned patterns share the rim,
-  so a weaker antenna sits inside it by its gain difference. Linear dB is
-  still a gear-menu option. Thanks to Dan, AC6LA. See
+<Card title="New in v0.111.0" icon="star">
+  **Pattern charts: ARRL, EZNEC or linear.** Choose the polar chart's scale.
+  ARRL's rings sit 3, 6, 9, 12, 18 and 24 dB down, EZNEC's 5, 10, 15, 20 and
+  30. The default comes from settings.toml (`[pattern_chart] scale`, ARRL
+  unless you change it), and a choice made in the browser wins over it.
+  Thanks to Dan, AC6LA. See
   [Pattern scale](/reference/web/#pattern-scale--arrl-eznec-or-linear).
 
-  **The NEC rp overlay on every NEC engine.** NEC-2 and NEC-4.2 now draw their
-  own exact pattern beside the live one, as PyNEC and NEC-5 did. The dotted
-  norm-check overlay is now its own switch and off by default: over real
-  ground it sits above the gain by the ground loss. The check itself still
-  fills in the radiated % readout.
+  **Watch the optimizer, and stop it when you like.** A marked knob shows the
+  value being tried under itself while a run goes. Turning Optimize off
+  mid-run cancels it and asks whether to keep the best point so far or the
+  start. See [Optimizing](/reference/web/#optimizing).
+
+  **A transmission line takes its numbers by name** (momwire 0.86.0). Write
+  `TL("rig", "feed", z0=50, length=10, vf=0.82, k1=0.27, k2=0.0055)`. Every
+  number after the two port names now has to be named, because a call that
+  listed them in another order used to solve the wrong cable without a word.
+  A design that passes them by position stops with a message naming the call:
+  add the names.
 </Card>
 
 ## The whole pitch, in one line
