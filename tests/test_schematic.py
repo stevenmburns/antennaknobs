@@ -728,3 +728,45 @@ def test_a_plane_beyond_a_through_excludes_the_part_before_it():
     assert not any(isinstance(b, Shunt) for b in driven_at(net, "feed").branches)
     sch = lower(net, plane="feed")
     assert sch.plane == "feed" and sch.plane_cut == len(sch.blocks)
+
+
+# ---------------------------------------------------------------------------
+# a line says what it solves (AK#2144)
+# ---------------------------------------------------------------------------
+def test_a_catalog_cable_is_labelled_with_its_vf_and_matched_loss():
+    """`invvee_coax_station` picks RG-8X from the cable table: Z0 50, VF 0.80,
+    K1 0.27, K2 0.0055 (momwire's catalog). At 14 MHz its 30.48 m (100 ft)
+    loses k1·√14 + k2·14 = 1.087 dB."""
+    b = build("dipoles.invvee_coax_station")
+    (tl,) = [br for br in b.build_network().branches if isinstance(br, TL)]
+    assert (tl.z0, tl.vf, tl.k1, tl.k2) == (50.0, 0.80, 0.27, 0.0055)
+    (el,) = default_elements(tl, None, 14.0)
+    assert el.label == "50 Ω · VF 0.80"
+    want_db = (0.27 * 14.0**0.5 + 0.0055 * 14.0) * tl.length / 30.48
+    assert el.sublabel.endswith(f" · {want_db:.2f} dB")
+    assert "K1 0.27" in el.hint and "K2 0.0055" in el.hint
+    assert "at 14 MHz" in el.hint
+
+
+def test_a_hand_written_transposed_line_shows_both():
+    (el,) = default_elements(
+        TL("a", "b", z0=75.0, length=3.0, transposed=True, vf=0.66), None, 7.0
+    )
+    assert el.label == "75 Ω · VF 0.66 · transposed"
+    assert el.sublabel == "3.00 m"  # lossless: no loss figure
+
+
+def test_without_a_frequency_a_lossy_line_still_names_its_vf():
+    (el,) = default_elements(
+        TL("a", "b", z0=50.0, length=10.0, vf=0.82, k1=0.27, k2=0.0055)
+    )
+    assert el.label == "50 Ω · VF 0.82"
+    assert "dB" not in el.sublabel
+
+
+def test_the_drawing_carries_the_k1_k2_hover():
+    pytest.importorskip("schemdraw")
+    net = build("dipoles.invvee_coax_station").build_network()
+    svg = render_svg(lower(net, freq_mhz=14.0))
+    assert "<title>K1 0.27, K2 0.0055" in svg
+    assert "VF 0.80" in svg

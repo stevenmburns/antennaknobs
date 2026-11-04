@@ -2738,8 +2738,18 @@ def cli(arguments=None):
             # With p_in the annotation reads as the budget table's percent
             # instead of the canonical drive's meaningless milliwatts.
             p_in = getattr(eng, "_excited_p_in", None)
+        freq = getattr(builder, "freq", None)
         svg = render_svg(
-            lower(net, title=args.builder, budget=budget, p_in=p_in), args.out
+            lower(
+                net,
+                title=args.builder,
+                budget=budget,
+                p_in=p_in,
+                # The design's own frequency: a lossy line's matched loss
+                # is labelled there (AK#2144).
+                freq_mhz=float(freq) if freq else None,
+            ),
+            args.out,
         )
         if args.out:
             print(f"wrote {args.out}")

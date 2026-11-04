@@ -144,11 +144,16 @@ class Element:
     term: str = ""  # "short" | "open" — a shunt's far end
     leg: str = "signal"
     balanced: bool = False
+    # Shown on hover over the label (an SVG <title>): detail that would
+    # crowd the drawing, such as a line's raw K1 and K2 (AK#2144).
+    hint: str = ""
 
 
-def series(kind: str, label: str = "", sublabel: str = "") -> Element:
+def series(kind: str, label: str = "", sublabel: str = "", hint: str = "") -> Element:
     """A symbol in the signal conductor."""
-    return Element(kind=kind, label=label, orient="series", sublabel=sublabel)
+    return Element(
+        kind=kind, label=label, orient="series", sublabel=sublabel, hint=hint
+    )
 
 
 def retn(kind: str, label: str = "", sublabel: str = "") -> Element:
@@ -399,7 +404,7 @@ def default_elements(
     (formula, not file) 2-port is evaluated to find its shape (AK#2035).
     """
     if isinstance(branch, TL):
-        return (series("coax", f"{_val(branch.z0)} Ω", _fmt_len(branch.length)),)
+        return (_tl_element(branch, draw_freq_mhz),)
     if isinstance(branch, BalancedLine):
         return (
             series("line", f"{_val(branch.zdiff)} Ω pair", _fmt_len(branch.length)),
@@ -440,6 +445,38 @@ def default_elements(
     if isinstance(branch, Admittance):
         return _admittance_elements(branch, freq_mhz) or (series("box", "admittance"),)
     return (series("box", type(branch).__name__),)
+
+
+# Metres per 100 ft: the cable-table loss convention is per 100 feet.
+_M_PER_100_FT = 30.48
+
+
+def _tl_element(branch, freq_mhz: float | None) -> Element:
+    """A `TL` labelled with what it solves (AK#2144): Z0, VF and whether it
+    is transposed on the first line; its length and, when lossy, its
+    matched loss at the drawing frequency on the second. Its raw K1 and K2,
+    and that frequency, are the hover, so a catalog cable can be checked
+    against a data sheet.
+
+    Matched loss is the cable-table convention momwire's `TL` documents:
+    dB per 100 ft = k1·√f + k2·f, f in MHz."""
+    vf = float(getattr(branch, "vf", 1.0) or 1.0)
+    k1 = float(getattr(branch, "k1", 0.0) or 0.0)
+    k2 = float(getattr(branch, "k2", 0.0) or 0.0)
+    label = f"{_val(branch.z0)} Ω · VF {vf:.2f}"
+    if getattr(branch, "transposed", False):
+        label += " · transposed"
+    sub = _fmt_len(branch.length)
+    hint = f"K1 {k1:g}, K2 {k2:g} (dB/100 ft = K1·√f + K2·f, f in MHz)"
+    if (k1 or k2) and freq_mhz:
+        per_100ft = k1 * math.sqrt(freq_mhz) + k2 * freq_mhz
+        loss_db = per_100ft * float(branch.length) / _M_PER_100_FT
+        # The frequency is the drawing's own; it goes in the hover, so the
+        # second line stays as narrow as the symbol (a 5 m line's
+        # "@ 14.1 MHz" ran into the next part's label).
+        sub += f" · {_val(loss_db)} dB"
+        hint += f"; matched loss at {_val(freq_mhz)} MHz"
+    return series("coax", label, sub, hint=hint)
 
 
 # How exactly an NT's Y must have a shape to be drawn as it (AK#1890). A deck
@@ -1407,6 +1444,44 @@ def _exit_y(e, fallback: float) -> float:
     return fallback
 
 
+def _elements_of(obj, seen=None):
+    """Every `Element` reachable from a schematic, through its blocks,
+    attachments and whatever else holds them."""
+    import dataclasses
+
+    seen = set() if seen is None else seen
+    if id(obj) in seen:
+        return
+    seen.add(id(obj))
+    if isinstance(obj, Element):
+        yield obj
+    elif dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        for f in dataclasses.fields(obj):
+            yield from _elements_of(getattr(obj, f.name), seen)
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            yield from _elements_of(v, seen)
+    elif isinstance(obj, (list, tuple)):
+        for v in obj:
+            yield from _elements_of(v, seen)
+
+
+def _with_hints(svg: str, sch) -> str:
+    """Give each label whose element carries a ``hint`` an SVG ``<title>``,
+    which the inlined drawing shows on hover (AK#2144)."""
+    from html import escape
+
+    done = set()
+    for el in _elements_of(sch):
+        if not el.hint or not el.label or (el.label, el.hint) in done:
+            continue
+        done.add((el.label, el.hint))
+        text = escape(el.label, quote=False)
+        title = f"<title>{escape(el.hint, quote=False)}</title>"
+        svg = svg.replace(f">{text}</tspan></text>", f">{text}</tspan>{title}</text>")
+    return svg
+
+
 def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
     """Draw a :class:`Schematic` and return SVG (also written to ``path``).
 
@@ -2101,7 +2176,7 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
     # to show=True, which writes a temp file and xdg-opens it in the desktop
     # image viewer — one popup per render, i.e. per web knob tweak.
     d.draw(show=False)
-    svg = d.get_imagedata("svg").decode("utf-8")
+    svg = _with_hints(d.get_imagedata("svg").decode("utf-8"), sch)
     if path is not None:
         # schemdraw emits Ω in every impedance label; an unpinned encoding
         # falls back to the platform default, which is cp1252 on stock
