@@ -1,0 +1,269 @@
+"""Run a design ``.py`` you did not write, in a disposable child process (AK#2149 unit 2).
+
+`run_design(source, filename, want=...)` starts ``python -I -m
+antennaknobs._sandbox_child`` in a fresh scratch folder, hands it the source
+on stdin and reads back ONE JSON reply: `design_snapshot` data, which the
+caller `decode`s through the allowlist. Nothing the design returns crosses
+as an object.
+
+Two layers, and `sandbox_status()` says which is active:
+
+- **Baseline** (any Linux): the child lowers its own rlimits (address space,
+  CPU seconds, file size, open files, processes, no core dumps) before the
+  design runs; it gets an empty environment (no tokens, no engine paths) and
+  a scratch folder of its own; its whole process group is SIGKILLed on a
+  wall-clock deadline; and its reply is capped in size. This bounds what a
+  design can COST, not what it can SEE: the child runs as the server's user,
+  so it can still read the filesystem and open sockets.
+- **Jail** (bubblewrap, when it actually starts on this machine): on top of
+  the baseline, no network, a read-only root, a private /tmp and private
+  process ids. It is used only if a probe run succeeds (`jail_available`),
+  so a host whose kernel or AppArmor policy refuses namespaces falls back to
+  the baseline instead of failing every design.
+
+The policy that follows (unit 3): the hosted app accepts a visitor's ``.py``
+ONLY when the jail is active. A local install runs the user's own file, where
+the baseline's resource bounds are the point.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+from dataclasses import asdict, dataclass
+from functools import lru_cache
+from pathlib import Path
+
+JAIL_ENV = "ANTENNAKNOBS_DESIGN_JAIL"  # "auto" (default), "bwrap", or "none"
+
+
+@dataclass(frozen=True)
+class Limits:
+    memory_mb: int = 1536
+    cpu_s: int = 20
+    wall_s: float = 30.0
+    file_mb: int = 16
+    open_files: int = 256
+    extra_processes: int = 32
+    max_source_bytes: int = 256 * 1024
+    max_reply_bytes: int = 16 * 1024 * 1024
+
+
+class SandboxError(RuntimeError):
+    """The design did not produce a reply. ``kind`` is one of: ``source``
+    (refused before running), ``timeout``, ``memory``, ``crash`` (the child
+    died), ``reply`` (oversized or not JSON), ``design`` (the design raised),
+    ``request``."""
+
+    def __init__(self, kind: str, message: str):
+        super().__init__(message)
+        self.kind = kind
+
+
+def _bwrap_cmd(workdir: str) -> list[str]:
+    exe = shutil.which("bwrap")
+    if exe is None:
+        return []
+    return [
+        exe,
+        "--unshare-all",  # net, pid, ipc, uts, cgroup (and user where allowed)
+        "--die-with-parent",
+        "--new-session",
+        "--ro-bind", "/", "/",
+        "--tmpfs", "/tmp",
+        "--bind", workdir, workdir,
+        "--proc", "/proc",
+        "--dev", "/dev",
+        "--chdir", workdir,
+    ]  # fmt: skip
+
+
+@lru_cache(maxsize=1)
+def jail_available() -> bool:
+    """Whether bubblewrap starts here, with no network inside. Probed once."""
+    if os.environ.get(JAIL_ENV, "auto") == "none" or shutil.which("bwrap") is None:
+        return False
+    with tempfile.TemporaryDirectory(prefix="ak-jail-probe-") as wd:
+        cmd = _bwrap_cmd(wd) + [
+            sys.executable, "-I", "-c",
+            "import socket; s = socket.socket()\n"
+            "try:\n s.connect(('1.1.1.1', 53)); print('net')\n"
+            "except OSError:\n print('jailed')",
+        ]  # fmt: skip
+        try:
+            r = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=20, env=_child_env(wd)
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+    return r.returncode == 0 and r.stdout.strip() == "jailed"
+
+
+def _use_jail() -> bool:
+    mode = os.environ.get(JAIL_ENV, "auto")
+    if mode == "none":
+        return False
+    if mode == "bwrap" and not jail_available():
+        raise SandboxError(
+            "request", f"{JAIL_ENV}=bwrap but bubblewrap does not start here"
+        )
+    return jail_available()
+
+
+def sandbox_status() -> dict:
+    """What `run_design` would use on this machine, for logs and /capabilities."""
+    return {
+        "layer": "jail" if _use_jail() else "baseline",
+        "jail": "bwrap" if _use_jail() else None,
+    }
+
+
+def _child_env(workdir: str) -> dict:
+    # Nothing of the server's environment: no tokens, no engine paths.
+    return {
+        "PATH": "/usr/bin:/bin",
+        "HOME": workdir,
+        "LANG": "C.UTF-8",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "MOMWIRE_THREADS": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+
+
+def _safe_name(filename: str) -> str:
+    name = Path(filename).name
+    if not name.endswith(".py") or name.startswith(".") or len(name) > 128:
+        raise SandboxError("source", f"{filename!r}: a design file is a .py file")
+    return name
+
+
+def _read_capped(stream, cap: int, sink: list, over: threading.Event) -> None:
+    total = 0
+    while True:
+        chunk = stream.read(65536)
+        if not chunk:
+            return
+        total += len(chunk)
+        if total > cap:
+            over.set()
+            return
+        sink.append(chunk)
+
+
+def run_design(
+    source: str,
+    filename: str,
+    *,
+    want: str = "snapshot",
+    params=None,
+    limits: Limits | None = None,
+) -> dict:
+    """The design's `design_snapshot` data: ``static(cls)`` for
+    ``want="static"``, or ``snapshot(cls(params))`` for ``want="snapshot"``
+    (``params`` already encoded; None for the defaults). Raises
+    `SandboxError`."""
+    lim = limits or Limits()
+    if want not in ("static", "snapshot"):
+        raise SandboxError(
+            "request", f"want must be 'static' or 'snapshot', not {want!r}"
+        )
+    if (
+        not isinstance(source, str)
+        or len(source.encode("utf-8")) > lim.max_source_bytes
+    ):
+        raise SandboxError(
+            "source", f"a design file is at most {lim.max_source_bytes // 1024} KB"
+        )
+    name = _safe_name(filename)
+    request = json.dumps(
+        {
+            "filename": name,
+            "source": source,
+            "want": want,
+            "params": params,
+            "limits": asdict(lim),
+        }
+    ).encode("utf-8")
+    with tempfile.TemporaryDirectory(prefix="ak-design-") as wd:
+        cmd = [sys.executable, "-I", "-m", "antennaknobs._sandbox_child"]
+        if _use_jail():
+            cmd = _bwrap_cmd(wd) + cmd
+        proc = subprocess.Popen(
+            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            cwd=wd, env=_child_env(wd), start_new_session=True, close_fds=True,
+        )  # fmt: skip
+        out, err, over = [], [], threading.Event()
+        t_out = threading.Thread(
+            target=_read_capped, args=(proc.stdout, lim.max_reply_bytes, out, over)
+        )
+        t_err = threading.Thread(
+            target=_read_capped, args=(proc.stderr, 64 * 1024, err, threading.Event())
+        )
+        t_out.start()
+        t_err.start()
+        try:
+            proc.stdin.write(request)
+            proc.stdin.close()
+        except BrokenPipeError:
+            pass
+        deadline = time.monotonic() + lim.wall_s
+        timed_out = False
+        while proc.poll() is None:
+            if over.is_set() or time.monotonic() > deadline:
+                timed_out = not over.is_set()
+                break
+            time.sleep(0.02)
+        _kill_group(proc)
+        t_out.join(5)
+        t_err.join(5)
+    if over.is_set():
+        raise SandboxError(
+            "reply",
+            f"the design's reply passed {lim.max_reply_bytes // (1024 * 1024)} MB",
+        )
+    if timed_out:
+        raise SandboxError("timeout", f"the design ran past {lim.wall_s:g} s")
+    raw = b"".join(out)
+    if proc.returncode is not None and proc.returncode < 0 and not raw:
+        sig = -proc.returncode
+        kind = "timeout" if sig in (signal.SIGXCPU, signal.SIGKILL) else "crash"
+        what = (
+            "used more than its CPU time"
+            if kind == "timeout"
+            else f"died on signal {sig}"
+        )
+        raise SandboxError(kind, f"the design {what}")
+    try:
+        reply = json.loads(raw)
+    except (ValueError, UnicodeDecodeError):
+        tail = b"".join(err)[-500:].decode("utf-8", "replace")
+        raise SandboxError(
+            "crash", f"the design process gave no reply ({tail.strip() or 'no output'})"
+        ) from None
+    if not isinstance(reply, dict) or "ok" not in reply:
+        raise SandboxError("reply", "the design process's reply is not a reply")
+    if not reply["ok"]:
+        raise SandboxError(
+            str(reply.get("kind", "design")), str(reply.get("error", ""))
+        )
+    return reply["data"]
+
+
+def _kill_group(proc: subprocess.Popen) -> None:
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+    try:
+        proc.wait(5)
+    except subprocess.TimeoutExpired:
+        pass
