@@ -4880,13 +4880,31 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         )
         return design_freq, meas_freq
 
+    def _solve_builder(req: dict):
+        """The builder a solve-forming request describes: the request's knobs
+        (`_build_builder`), its measurement frequency as `freq`, and, for a
+        design_freq-sized design, its design frequency, so dragging the
+        design-freq slider retunes the antenna. Top-level designs don't carry
+        the parameter, so the attribute write would be silently absorbed into
+        _params and never read: hence the has_design_freq guard. EVERY
+        solve-forming closure builds through this, the size probe included
+        (AK#2156): a probe built at the defaults counted a different mesh
+        than the solve built, and for a sandboxed .py design paid a second
+        sandbox run per solve whenever the dial left the default."""
+        design_freq, meas_freq = _req_freqs(req)
+        builder = _build_builder(cls, req)
+        builder.freq = meas_freq
+        if has_design_freq:
+            builder.design_freq = design_freq
+        return builder
+
     def count_basis(req: dict):
         """Total wire segments (≈ MoM basis functions, the N×N matrix dim) the
         request would build. Geometry-only (cheap) — runs build_wires but no
         solve. Returns None if the geometry can't be built; the real solve then
         surfaces the underlying error instead of a spurious size rejection."""
         try:
-            builder = _build_builder(cls, req)
+            builder = _solve_builder(req)
             return sum(int(w[2]) for w in builder.build_wires())
         except Exception:  # noqa: BLE001 — size probe only — returning None lets the real solve surface the underlying error instead of a spurious size rejection
             return None
@@ -4894,16 +4912,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
     def momwire_solve(req: dict, cancel=None) -> dict:
         z0 = request_z0(req, hints()["target_z0"])
         design_freq, meas_freq = _req_freqs(req)
-        builder = _build_builder(cls, req)
-        builder.freq = meas_freq
-        # For design_freq-sized designs the geometry computes from
-        # design_freq via build_wires(); apply the request's
-        # design_freq_mhz so dragging the design-freq slider actually
-        # retunes the antenna. Top-level designs don't carry the
-        # parameter so the attribute write would be silently absorbed
-        # into _params and never read — guard on has_design_freq.
-        if has_design_freq:
-            builder.design_freq = design_freq
+        builder = _solve_builder(req)
         plane, planes = _apply_plane(builder, req)
         eng = _make_momwire_engine(req, builder, cancel=cancel)
         t0 = time.perf_counter()
@@ -5019,10 +5028,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # field (the live solve fills those in).
         z0 = request_z0(req, hints()["target_z0"])
         design_freq, meas_freq = _req_freqs(req)
-        builder = _build_builder(cls, req)
-        builder.freq = meas_freq
-        if has_design_freq:
-            builder.design_freq = design_freq
+        builder = _solve_builder(req)
         # THE PREVIEW MUST NOT CARRY A SOLVER'S REFUSAL.
         #
         # momwire#814 moved the buried refusal into engine CONSTRUCTION, so
@@ -5111,10 +5117,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         #                  underlying nec_context isn't released
         #                  before rp_card runs
         design_freq, meas_freq = _req_freqs(req)
-        builder = _build_builder(cls, req)
-        builder.freq = meas_freq
-        if has_design_freq:
-            builder.design_freq = design_freq
+        builder = _solve_builder(req)
         # The pattern must be the same solve the impedance readout shows —
         # a picked plane (issue #652 c) moves both together.
         _apply_plane(builder, req)
@@ -5167,10 +5170,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         """
         z0 = request_z0(req, hints()["target_z0"])
         design_freq, meas_freq = _req_freqs(req)
-        builder = _build_builder(cls, req)
-        builder.freq = meas_freq
-        if has_design_freq:
-            builder.design_freq = design_freq
+        builder = _solve_builder(req)
         plane, planes = _apply_plane(builder, req)
         eng = seams.make_engine(req, builder)
         t0 = time.perf_counter()
@@ -5293,10 +5293,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # Same response contract as pynec_backend.pattern (46 thetas
         # 0..90 x 73 phis 0..360, gains in dBi), from one RP deck run.
         design_freq, meas_freq = _req_freqs(req)
-        builder = _build_builder(cls, req)
-        builder.freq = meas_freq
-        if has_design_freq:
-            builder.design_freq = design_freq
+        builder = _solve_builder(req)
         _apply_plane(builder, req)
         eng = _make_nec5_engine(req, builder)
         n_theta, n_phi = 46, 73
@@ -5364,10 +5361,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         same gate.
         """
         design_freq, meas_freq = _req_freqs(req)
-        builder = _build_builder(cls, req)
-        builder.freq = meas_freq
-        if has_design_freq:
-            builder.design_freq = design_freq
+        builder = _solve_builder(req)
         _apply_plane(builder, req)
         eng = make_engine(req, builder)
         n_theta, n_phi = 46, 73
@@ -5482,10 +5476,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # these off its solve instead (AK#1727, `capture_solved_metrics`),
         # which must stay the same builder setup as this.
         design_freq, meas_freq = _req_freqs(req)
-        builder = _build_builder(cls, req)
-        builder.freq = meas_freq
-        if has_design_freq:
-            builder.design_freq = design_freq
+        builder = _solve_builder(req)
         _apply_plane(builder, req)
         eng = _make_momwire_engine(req, builder, cancel=cancel)
         return _metrics_from_gain(eng.gain_evaluator(), meas_freq)
@@ -5500,10 +5491,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         from antennaknobs.far_field import ring_lobes
 
         design_freq, meas_freq = _req_freqs(req)
-        builder = _build_builder(cls, req)
-        builder.freq = meas_freq
-        if has_design_freq:
-            builder.design_freq = design_freq
+        builder = _solve_builder(req)
         _apply_plane(builder, req)
         eng = _SEAMS_BY_SOLVER[solver].make_engine(req, builder)
         source = mx.source_for(eng)
@@ -5521,10 +5509,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         from antennaknobs.nec_export import export_nec as _export_nec
 
         design_freq, meas_freq = _req_freqs(req)
-        builder = _build_builder(cls, req)
-        builder.freq = meas_freq
-        if has_design_freq:
-            builder.design_freq = design_freq
+        builder = _solve_builder(req)
         ground = _ground_for_engine(req) or "free"
         if isinstance(ground, tuple) and ground[0] == "terrain":
             # A NEC deck can't carry the facet model (and the GD card is
@@ -5549,10 +5534,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         from antennaknobs.nec_export import export_nec as _export_nec
 
         design_freq, meas_freq = _req_freqs(req)
-        builder = _build_builder(cls, req)
-        builder.freq = meas_freq
-        if has_design_freq:
-            builder.design_freq = design_freq
+        builder = _solve_builder(req)
         # The NEC-4.2 slot's own ground (`_make_nec42_engine`), so the file is
         # the deck that slot would run; terrain is its crest medium there too.
         return _export_nec(
@@ -5584,10 +5566,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         from antennaknobs.simnec_export import export_ssn as _export_ssn
 
         design_freq, meas_freq = _req_freqs(req)
-        builder = _build_builder(cls, req)
-        builder.freq = meas_freq
-        if has_design_freq:
-            builder.design_freq = design_freq
+        builder = _solve_builder(req)
         ground = _ground_for_engine(req) or "free"
         if isinstance(ground, tuple) and ground[0] == "terrain":
             # As in nec_export: SimNEC's NEC block cannot carry the facet
@@ -5614,10 +5593,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         from antennaknobs.nec5_export import export_nec5 as _export_nec5
 
         design_freq, meas_freq = _req_freqs(req)
-        builder = _build_builder(cls, req)
-        builder.freq = meas_freq
-        if has_design_freq:
-            builder.design_freq = design_freq
+        builder = _solve_builder(req)
         ground = _nec5_ground_spec(req)
         # QRZ #170: the slot's radius reaches the deck as it reaches the solve.
         # At the field's untouched 0.0005 ("auto") nothing moves and no note is
@@ -5652,10 +5628,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         from antennaknobs.schematic import lower, render_svg
 
         design_freq, meas_freq = _req_freqs(req)
-        builder = _build_builder(cls, req)
-        builder.freq = meas_freq
-        if has_design_freq:
-            builder.design_freq = design_freq
+        builder = _solve_builder(req)
         net = builder.build_network()
         if net is None:
             return None
@@ -5734,10 +5707,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         at any feed."""
         z0 = request_z0(req, hints()["target_z0"])
         design_freq, meas_freq = _req_freqs(req)
-        builder = _build_builder(cls, req)
-        builder.freq = meas_freq
-        if has_design_freq:
-            builder.design_freq = design_freq
+        builder = _solve_builder(req)
         _apply_plane(builder, req)
         eng = _make_momwire_engine(req, builder, cancel=cancel)
         t0 = time.perf_counter()
