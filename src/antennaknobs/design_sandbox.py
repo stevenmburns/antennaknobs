@@ -106,17 +106,23 @@ def _bwrap_cmd(workdir: str) -> list[str]:
     # not drop to nobody (setgid/setuid need CAP_SETGID/CAP_SETUID). It keeps
     # just those two; the child uses them before any design code loads, and
     # leaving uid 0 for nobody clears all capabilities, so the design has none.
-    caps = (
-        ["--cap-add", "CAP_SETUID", "--cap-add", "CAP_SETGID"]
-        if os.geteuid() == 0
-        else []
-    )
+    # And as root it makes NO user namespace: one that maps only uid 0 denies
+    # setgroups and has no uid 65534, so the drop would fail inside it; with
+    # the namespaces listed instead, nobody is the host's real uid 65534. As
+    # any other user bubblewrap needs the user namespace, so --unshare-all.
+    if os.geteuid() == 0:
+        unshare = [
+            "--unshare-net", "--unshare-pid", "--unshare-ipc", "--unshare-uts",
+            "--unshare-cgroup-try",
+            "--cap-add", "CAP_SETUID", "--cap-add", "CAP_SETGID",
+        ]  # fmt: skip
+    else:
+        unshare = ["--unshare-all"]  # net, pid, ipc, uts, cgroup and user
     return [
         exe,
-        "--unshare-all",  # net, pid, ipc, uts, cgroup (and user where allowed)
+        *unshare,
         "--die-with-parent",
         "--new-session",
-        *caps,
         *_jail_binds(),
         "--tmpfs", "/tmp",
         "--bind", workdir, workdir,
