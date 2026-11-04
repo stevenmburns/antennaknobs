@@ -39,6 +39,28 @@ DIPOLE = textwrap.dedent('''
 
 FAST = sb.Limits(wall_s=20.0, cpu_s=15, memory_mb=1536)
 
+_ONE_SHOT = sb.run_design
+
+
+@pytest.fixture(autouse=True, params=["one-shot", "warm worker"])
+def route(request, monkeypatch):
+    """Every promise here holds on both routes a snapshot can take: a fresh
+    child per request, and a design's warm worker (AK#2157). The worker
+    route answers ``want="snapshot"``; ``static`` is always one-shot."""
+    if request.param == "one-shot":
+        yield request.param
+        return
+    pool = sb.WorkerPool(max_workers=2, idle_s=60)
+
+    def run(source, filename, *, want="snapshot", params=None, limits=None):
+        if want != "snapshot":
+            return _ONE_SHOT(source, filename, want=want, params=params, limits=limits)
+        return pool.snapshot(source, filename, params=params, limits=limits)
+
+    monkeypatch.setattr(sb, "run_design", run)
+    yield request.param
+    pool.close()
+
 
 def design(body: str, header: str = "") -> str:
     """A minimal design whose build_wires runs ``body``."""

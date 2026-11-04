@@ -239,14 +239,7 @@ def run_design(
         raise SandboxError(
             "request", f"want must be 'static' or 'snapshot', not {want!r}"
         )
-    if (
-        not isinstance(source, str)
-        or len(source.encode("utf-8")) > lim.max_source_bytes
-    ):
-        raise SandboxError(
-            "source", f"a design file is at most {lim.max_source_bytes // 1024} KB"
-        )
-    name = _safe_name(filename)
+    name = _check_source(source, filename, lim)
     request = json.dumps(
         {
             "filename": name,
@@ -257,20 +250,7 @@ def run_design(
         }
     ).encode("utf-8")
     with tempfile.TemporaryDirectory(prefix="ak-design-") as wd:
-        if os.geteuid() == 0:
-            # The child drops to nobody before the design runs; its folder
-            # must be its own. 0755, not tempfile's 0700: bubblewrap run as
-            # root drops its capabilities, so it needs the folder's own
-            # permissions to enter it.
-            os.chown(wd, NOBODY, NOBODY)
-            os.chmod(wd, 0o755)
-        cmd = [sys.executable, "-I", "-m", "antennaknobs._sandbox_child"]
-        if _use_jail():
-            cmd = _bwrap_cmd(wd) + cmd
-        proc = subprocess.Popen(
-            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            cwd=wd, env=_child_env(wd), start_new_session=True, close_fds=True,
-        )  # fmt: skip
+        proc = _spawn(wd)
         out, err, over = [], [], threading.Event()
         t_out = threading.Thread(
             target=_read_capped, args=(proc.stdout, lim.max_reply_bytes, out, over)
@@ -303,11 +283,46 @@ def run_design(
     if timed_out:
         raise SandboxError("timeout", f"the design ran past {lim.wall_s:g} s")
     raw = b"".join(out)
+    if not raw.strip():
+        _raise_death(proc.returncode, b"".join(err))
+    return _parse_reply(raw)["data"]
+
+
+def _check_source(source, filename: str, lim: Limits) -> str:
+    """The checks made before anything runs; the file's bare name."""
+    if (
+        not isinstance(source, str)
+        or len(source.encode("utf-8")) > lim.max_source_bytes
+    ):
+        raise SandboxError(
+            "source", f"a design file is at most {lim.max_source_bytes // 1024} KB"
+        )
+    return _safe_name(filename)
+
+
+def _spawn(wd: str, *args: str) -> subprocess.Popen:
+    """The child, started in ``wd`` (jailed when the jail is in use)."""
+    if os.geteuid() == 0:
+        # The child drops to nobody before the design runs; its folder
+        # must be its own. 0755, not tempfile's 0700: bubblewrap run as
+        # root drops its capabilities, so it needs the folder's own
+        # permissions to enter it.
+        os.chown(wd, NOBODY, NOBODY)
+        os.chmod(wd, 0o755)
+    cmd = [sys.executable, "-I", "-m", "antennaknobs._sandbox_child", *args]
+    if _use_jail():
+        cmd = _bwrap_cmd(wd) + cmd
+    return subprocess.Popen(
+        cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        cwd=wd, env=_child_env(wd), start_new_session=True, close_fds=True,
+    )  # fmt: skip
+
+
+def _raise_death(rc, err: bytes):
+    """The error for a child that ended without a reply."""
     # A child killed by a signal: -sig from Popen, or 128 + sig when the
     # jail (bubblewrap) reports its child's death as its own exit status.
-    rc = proc.returncode
-    died = rc is not None and not raw and (rc < 0 or 128 < rc < 128 + 65)
-    if died:
+    if rc is not None and (rc < 0 or 128 < rc < 128 + 65):
         sig = -rc if rc < 0 else rc - 128
         kind = "timeout" if sig in (signal.SIGXCPU, signal.SIGKILL) else "crash"
         what = (
@@ -316,25 +331,25 @@ def run_design(
             else f"died on signal {sig}"
         )
         raise SandboxError(kind, f"the design {what}")
-    if raw.strip():
-        try:
-            reply = json.loads(raw)
-        except (ValueError, UnicodeDecodeError):
-            raise SandboxError(
-                "reply", "the design process's reply is not JSON"
-            ) from None
-    else:
-        tail = b"".join(err)[-500:].decode("utf-8", "replace")
-        raise SandboxError(
-            "crash", f"the design process gave no reply ({tail.strip() or 'no output'})"
-        ) from None
+    tail = err[-500:].decode("utf-8", "replace")
+    raise SandboxError(
+        "crash", f"the design process gave no reply ({tail.strip() or 'no output'})"
+    )
+
+
+def _parse_reply(raw: bytes) -> dict:
+    """One reply, checked; raises the design's own error when it failed."""
+    try:
+        reply = json.loads(raw)
+    except (ValueError, UnicodeDecodeError):
+        raise SandboxError("reply", "the design process's reply is not JSON") from None
     if not isinstance(reply, dict) or "ok" not in reply:
         raise SandboxError("reply", "the design process's reply is not a reply")
     if not reply["ok"]:
         raise SandboxError(
             str(reply.get("kind", "design")), str(reply.get("error", ""))
         )
-    return reply["data"]
+    return reply
 
 
 def _kill_group(proc: subprocess.Popen) -> None:
@@ -346,6 +361,324 @@ def _kill_group(proc: subprocess.Popen) -> None:
         proc.wait(5)
     except subprocess.TimeoutExpired:
         pass
+
+
+# --- warm workers (AK#2157) ------------------------------------------------------
+#
+# A knob turn on an opened design .py used to start a fresh child: about half
+# a second, nearly all of it starting Python and importing numpy and
+# antennaknobs. A worker is the same child, in the same jail, under the same
+# rlimits, kept alive for ONE design and answering snapshot after snapshot.
+# Each request has its own wall deadline; a worker that overruns, crashes,
+# answers too much, forks, runs out of memory or has used half its CPU
+# allowance (RLIMIT_CPU counts the process's whole life) is killed, and the
+# next request starts a fresh one. State the design keeps between calls is
+# its own: the worker serves nobody else.
+#
+# Measured on the laptop (AK#2157): a warm turn of a 5-wire design is 12 ms
+# against 0.7 s for a one-shot child, and a worker is ~100 MB resident, 60 MB
+# of it private. That is the interpreter and its imports; a design's own data
+# is the size of its wires and network, never n^2 (the solve stays outside).
+
+WORKERS_ENV = "ANTENNAKNOBS_DESIGN_WORKERS"  # resident cap; 0 = one-shot only
+WORKER_IDLE_ENV = "ANTENNAKNOBS_DESIGN_WORKER_IDLE_S"
+
+
+class _Worker:
+    def __init__(self, source: str, name: str, lim: Limits):
+        import queue
+
+        self.lim = lim
+        self.lock = threading.Lock()
+        self.served = 0
+        self.last_used = time.monotonic()
+        self.wall_timeout = False
+        self._dir = tempfile.TemporaryDirectory(prefix="ak-worker-")
+        self.proc = _spawn(self._dir.name, "--serve")
+        self._lines: queue.Queue = queue.Queue()
+        self._over = threading.Event()
+        self._err = bytearray()
+        threading.Thread(target=self._read_lines, daemon=True).start()
+        threading.Thread(target=self._read_err, daemon=True).start()
+        try:
+            self._ask({"filename": name, "source": source, "limits": asdict(lim)})
+        except BaseException:
+            self.close()
+            raise
+
+    @property
+    def pid(self) -> int:
+        return self.proc.pid
+
+    def alive(self) -> bool:
+        return self.proc.poll() is None
+
+    def _read_lines(self) -> None:
+        cap, buf = self.lim.max_reply_bytes, bytearray()
+        stream = self.proc.stdout
+        while True:
+            try:
+                chunk = stream.read1(65536)
+            except (OSError, ValueError):
+                chunk = b""
+            if not chunk:
+                self._lines.put(None)
+                return
+            buf += chunk
+            while (i := buf.find(b"\n")) >= 0:
+                self._lines.put(bytes(buf[:i]))
+                del buf[: i + 1]
+            if len(buf) > cap:
+                self._over.set()
+                self._lines.put(None)
+                return
+
+    def _read_err(self) -> None:
+        # What the design printed, a rolling tail: a worker lives long.
+        while True:
+            try:
+                chunk = self.proc.stderr.read1(65536)
+            except (OSError, ValueError):
+                return
+            if not chunk:
+                return
+            self._err += chunk
+            del self._err[:-65536]
+
+    def _ask(self, msg: dict) -> dict:
+        import queue
+
+        try:
+            self.proc.stdin.write(json.dumps(msg).encode("utf-8") + b"\n")
+            self.proc.stdin.flush()
+        except (BrokenPipeError, ValueError, OSError):
+            pass  # it died; the reader reports how
+        deadline = time.monotonic() + self.lim.wall_s
+        line = None
+        while True:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                self.wall_timeout = True
+                self.close()
+                raise SandboxError(
+                    "timeout", f"the design ran past {self.lim.wall_s:g} s"
+                )
+            try:
+                line = self._lines.get(timeout=min(left, 0.25))
+                break
+            except queue.Empty:
+                continue
+        if line is None:
+            self.close()
+            if self._over.is_set():
+                raise SandboxError(
+                    "reply",
+                    f"the design's reply passed "
+                    f"{self.lim.max_reply_bytes // (1024 * 1024)} MB",
+                )
+            _raise_death(self.proc.returncode, bytes(self._err))
+        if not line.strip():
+            self.close()
+            _raise_death(self.proc.returncode, bytes(self._err))
+        try:
+            return _parse_reply(line)
+        except SandboxError:
+            self.close()
+            raise
+
+    def snapshot(self, params) -> tuple[dict, bool]:
+        """``(snapshot data, retire)`` at ``params``; raises `SandboxError`."""
+        self.last_used = time.monotonic()
+        try:
+            reply = self._ask({"params": params})
+        finally:
+            self.served += 1
+            self.last_used = time.monotonic()
+        return reply["data"], bool(reply.get("retire"))
+
+    def close(self) -> None:
+        _kill_group(self.proc)
+        for f in (self.proc.stdin, self.proc.stdout, self.proc.stderr):
+            try:
+                f.close()
+            except OSError:
+                pass
+        self._dir.cleanup()
+
+
+class WorkerPool:
+    """At most ``max_workers`` warm workers, one per design (its source,
+    name and limits), least recently used evicted first, each closed after
+    ``idle_s`` without a request."""
+
+    def __init__(self, max_workers: int = 4, idle_s: float = 300.0):
+        self.max_workers = max(1, int(max_workers))
+        self.idle_s = float(idle_s)
+        self.started = 0  # workers started, for tests and logs
+        self._workers: dict = {}  # key -> _Worker, oldest use first
+        self._lock = threading.Lock()
+        self._reaper: threading.Thread | None = None
+        self._closed = False
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._workers)
+
+    def pids(self) -> list[int]:
+        with self._lock:
+            return [w.pid for w in self._workers.values()]
+
+    def snapshot(self, source: str, filename: str, params=None, limits=None) -> dict:
+        """`run_design(want="snapshot")`, answered by this design's warm
+        worker. A worker that had already served and then died on its CPU
+        allowance or memory is retried once on a fresh one: those limits
+        count the worker's whole life, and a request is owed a full one."""
+        import hashlib
+
+        lim = limits or Limits()
+        name = _check_source(source, filename, lim)
+        key = (hashlib.sha256(source.encode("utf-8")).hexdigest(), name, lim)
+        for attempt in (0, 1):
+            w = self._worker(key, source, name, lim)
+            with w.lock:
+                if not w.alive():
+                    self._drop(key, w)
+                    continue
+                try:
+                    data, retire = w.snapshot(params)
+                except SandboxError as e:
+                    self._drop(key, w)
+                    used = w.served > 1
+                    if (
+                        attempt == 0
+                        and used
+                        and not w.wall_timeout
+                        and e.kind in ("timeout", "memory", "crash")
+                    ):
+                        continue
+                    raise
+            if retire:
+                self._drop(key, w)
+            return data
+        raise SandboxError("crash", "the design's worker would not stay up")
+
+    def _worker(self, key, source, name, lim) -> _Worker:
+        with self._lock:
+            w = self._workers.pop(key, None)
+            if w is not None:
+                self._workers[key] = w  # most recently used
+                return w
+        w = _Worker(source, name, lim)  # outside the lock: it takes a while
+        with self._lock:
+            self.started += 1
+            other = self._workers.get(key)
+            if other is not None:  # another request started one meanwhile
+                spare, w = w, other
+            else:
+                spare = None
+                self._workers[key] = w
+            self._evict_locked(keep=key)
+            self._start_reaper_locked()
+        if spare is not None:
+            spare.close()
+        return w
+
+    def _evict_locked(self, keep) -> None:
+        over = len(self._workers) - self.max_workers
+        for k in list(self._workers):
+            if over <= 0:
+                break
+            if k == keep:
+                continue
+            w = self._workers[k]
+            if w.lock.acquire(blocking=False):  # never kill a busy one
+                try:
+                    del self._workers[k]
+                    w.close()
+                finally:
+                    w.lock.release()
+                over -= 1
+
+    def _drop(self, key, w: _Worker) -> None:
+        with self._lock:
+            if self._workers.get(key) is w:
+                del self._workers[key]
+        w.close()
+
+    def reap(self) -> int:
+        """Close the workers idle past ``idle_s``; how many were closed."""
+        now, n = time.monotonic(), 0
+        with self._lock:
+            for k, w in list(self._workers.items()):
+                if now - w.last_used > self.idle_s and w.lock.acquire(blocking=False):
+                    try:
+                        del self._workers[k]
+                        w.close()
+                        n += 1
+                    finally:
+                        w.lock.release()
+        return n
+
+    def _start_reaper_locked(self) -> None:
+        if self._reaper is not None and self._reaper.is_alive():
+            return
+
+        def loop():
+            while not self._closed:
+                time.sleep(max(0.05, min(self.idle_s / 4, 30.0)))
+                self.reap()
+                with self._lock:
+                    if not self._workers:
+                        self._reaper = None
+                        return
+
+        self._reaper = threading.Thread(
+            target=loop, daemon=True, name="ak-worker-reaper"
+        )
+        self._reaper.start()
+
+    def close(self) -> None:
+        self._closed = True
+        with self._lock:
+            ws, self._workers = list(self._workers.values()), {}
+        for w in ws:
+            w.close()
+
+
+_POOL: WorkerPool | None = None
+_POOL_LOCK = threading.Lock()
+
+
+def default_pool() -> WorkerPool | None:
+    """The process's worker pool, or None when ``ANTENNAKNOBS_DESIGN_WORKERS``
+    is 0 (every request is then a one-shot child, as before AK#2157)."""
+    global _POOL
+    try:
+        n = int(os.environ.get(WORKERS_ENV, "8"))
+    except ValueError:
+        n = 8
+    if n <= 0:
+        return None
+    with _POOL_LOCK:
+        if _POOL is None:
+            import atexit
+
+            try:
+                idle = float(os.environ.get(WORKER_IDLE_ENV, "300"))
+            except ValueError:
+                idle = 300.0
+            _POOL = WorkerPool(max_workers=n, idle_s=idle)
+            atexit.register(_POOL.close)
+        return _POOL
+
+
+def warm_snapshot(source: str, filename: str, params=None, limits=None) -> dict:
+    """A snapshot from the design's warm worker, or a one-shot child when
+    workers are off."""
+    pool = default_pool()
+    if pool is None:
+        return run_design(source, filename, params=params, limits=limits)
+    return pool.snapshot(source, filename, params=params, limits=limits)
 
 
 # --- the server-side builder for a sandboxed design ----------------------------
@@ -371,7 +704,7 @@ def sandboxed_builder(
 
     lim = limits or Limits()
     static = run_design(source, filename, want="static", limits=lim)
-    hooks = set(run_design(source, filename, want="snapshot", limits=lim))
+    hooks = set(warm_snapshot(source, filename, limits=lim))
     stem = PurePath(filename).stem
     cache: collections.OrderedDict = collections.OrderedDict()
     lock = _threading.Lock()
@@ -384,7 +717,7 @@ def sandboxed_builder(
             if hit is not None:
                 cache.move_to_end(key)
                 return hit
-        snap = run_design(source, filename, want="snapshot", params=params, limits=lim)
+        snap = warm_snapshot(source, filename, params=params, limits=lim)
         with lock:
             cache[key] = snap
             while len(cache) > 64:
