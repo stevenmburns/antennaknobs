@@ -88,6 +88,7 @@ feed on its own 1-segment wire.
 
 from __future__ import annotations
 
+import itertools
 import math
 import re
 from collections.abc import Collection, Mapping
@@ -561,6 +562,29 @@ class NecLoad:
     # ``terminate(port)`` and ``series(a, b)``, each returning ``(branches,
     # extra ports)``; `_network_parts` asks it instead of building a `Load`.
     custom: object = None
+
+
+def _connection_load(ld, a: str, b: str) -> list:
+    """One load at a TL/NT connection point as series element(s) between
+    nodes ``a`` and ``b``. A fixed complex z goes in as the 2x2 admittance of
+    a series element, y = 1/z; a series RLC is one `TwoPort`; a PARALLEL RLC
+    is its R, L and C as separate `TwoPort`s between the same two nodes.
+    Their admittances add, 1/R + 1/(jwL) + jwC, which is exactly the
+    parallel element sitting in series with the path. An absent element
+    (NEC's zero) is left out, which for a parallel load is an open."""
+    if ld.z is not None:
+        y = 1.0 / ld.z
+        return [_net.Admittance(ports=(a, b), y=((y, -y), (-y, y)))]
+    if not ld.parallel:
+        return [_net.TwoPort(a=a, b=b, r=ld.r, l=ld.l, c=ld.c)]
+    out = []
+    if ld.r is not None:
+        out.append(_net.TwoPort(a=a, b=b, r=ld.r))
+    if ld.l is not None:
+        out.append(_net.TwoPort(a=a, b=b, l=ld.l))
+    if ld.c is not None:
+        out.append(_net.TwoPort(a=a, b=b, c=ld.c))
+    return out
 
 
 @dataclass(frozen=True)
@@ -2520,6 +2544,20 @@ class NecDeck:
                 name = knot_port(wire, seg, edge)
             return behind.get(name, name)
 
+        # Several loads at one connection add in series (NEC's "LOADED TWICE -
+        # IMPEDANCES ADDED"): wire port -> port#ld1 -> ... -> the node the
+        # lines moved to, one link per load, in card order.
+        at_conn: dict[str, int] = {}
+        for ld in self.loads:
+            if ld.at_connection and ld.custom is None:
+                at_conn[load_port(ld)] = at_conn.get(load_port(ld), 0) + 1
+        connection_chain: dict[str, list] = {}
+        for port, n in at_conn.items():
+            nodes = [port] + [f"{port}#ld{k}" for k in range(1, n)] + [behind[port]]
+            for node in nodes[1:-1]:
+                ports[node] = _net.PortVirtual(node)
+            connection_chain[port] = list(itertools.pairwise(nodes))
+
         branches: list = []
         for ld in self.loads:
             port = load_port(ld)
@@ -2538,21 +2576,11 @@ class NecDeck:
                 ports.update(extra)
                 continue
             if ld.at_connection:
-                # Series, between the wire and the node the lines moved to.
-                # A fixed complex z has no r/l/c spelling, so it goes in as
-                # the 2x2 admittance of a series element, y = 1/z; every
-                # other shape is the frequency-dependent `TwoPort`.
-                if ld.z is not None:
-                    y = 1.0 / ld.z
-                    branches.append(
-                        _net.Admittance(
-                            ports=(port, behind[port]), y=((y, -y), (-y, y))
-                        )
-                    )
-                else:
-                    branches.append(
-                        _net.TwoPort(a=port, b=behind[port], r=ld.r, l=ld.l, c=ld.c)
-                    )
+                # Series, between the wire and the node the lines moved to;
+                # several loads on one site in a chain, one link each, in card
+                # order (`_connection_load` builds the link).
+                a, b = connection_chain[port].pop(0)
+                branches.extend(_connection_load(ld, a, b))
                 continue
             branches.append(
                 _net.Load(
@@ -5781,32 +5809,15 @@ def _translate_network_cards(
                         "share a node",
                     )
                     continue
-                if at_connection and ldtyp in (1, 6):
-                    # A PARALLEL RLC in series with the path is not a
-                    # two-terminal series element, and nothing in the branch
-                    # vocabulary spells it. Narrowed from the old blanket
-                    # refusal (AK#1584), which dropped every load sharing a
-                    # site with a line — including the plain series
-                    # resistances that are the whole of this idiom.
-                    skip(
-                        "LD",
-                        "a PARALLEL RLC load at a TL/NT connection point — "
-                        "only a series element can sit between the wire and "
-                        "the line",
-                    )
-                    continue
+                # At a TL/NT connection point every load is a series element
+                # between the wire's port and the node the lines moved to
+                # (AK#1584), a PARALLEL RLC included (built as its R, L and C
+                # side by side between the same two nodes), and several loads
+                # on one site chain in series, NEC's own rule (AK#1708)
+                # (`_connection_load`). Both used to be refused: a parallel
+                # RLC, and a second load (EZNEC's unun models, AC6LA
+                # 2026-11-04).
                 where = (*pair, edge)
-                if where in loaded and at_connection:
-                    # Each load at a connection is a series branch from the
-                    # wire's port to ONE node the line moved to (AK#1584), so
-                    # a second one would sit in parallel with the first.
-                    skip(
-                        "LD",
-                        "a second load at a TL/NT connection point -- each is "
-                        "a series branch to the same node, which would put "
-                        "them in parallel",
-                    )
-                    continue
                 # A second load on one segment ADDS in series (AK#1708): nec2c
                 # and the licensed NEC-5 both print "LOADED TWICE - IMPEDANCES
                 # ADDED" and answer the single summed load to the digit, in
