@@ -37,8 +37,11 @@ FROM python:3.12-slim-bookworm AS runtime
 # (>=0.2.2) and pynec-accel (>=1.7.4.post1) de-vendor libgomp and link THIS
 # system copy, so they share one OpenMP runtime — no private-vendored static-TLS
 # clash, so no GLIBC_TUNABLES workaround is needed.
+# bubblewrap: the jail a visitor's design .py runs in (AK#2149). Opening a .py
+# on the hosted app is switched on only when it starts here
+# (design_sandbox.jail_available; the server logs the layer at startup).
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libgomp1 \
+ && apt-get install -y --no-install-recommends libgomp1 bubblewrap \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

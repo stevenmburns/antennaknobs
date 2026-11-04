@@ -232,8 +232,21 @@ def test_the_status_names_the_layer_in_use():
     assert (s["jail"] is not None) == (s["layer"] == "jail")
 
 
+# AK_REQUIRE_JAIL=1 (the sandbox-jail CI lane): a jail that does not start is
+# a failure there, never a skip, so the lane cannot pass without running them.
+REQUIRE_JAIL = os.environ.get("AK_REQUIRE_JAIL") == "1"
+
+
+def test_the_jail_starts_where_it_is_required():
+    if not REQUIRE_JAIL:
+        pytest.skip("AK_REQUIRE_JAIL is not set")
+    assert sb.jail_available(), "AK_REQUIRE_JAIL=1 but bubblewrap does not start"
+    assert sb.sandbox_status() == {"layer": "jail", "jail": "bwrap"}
+
+
 jail = pytest.mark.skipif(
-    not sb.jail_available(), reason="bubblewrap does not start on this machine"
+    not sb.jail_available() and not REQUIRE_JAIL,
+    reason="bubblewrap does not start on this machine",
 )
 
 
@@ -267,3 +280,37 @@ def test_in_the_jail_the_root_is_read_only(tmp_path):
         sb.run_design(design(body), "w.py", limits=FAST)
     assert "refused" in str(e.value)
     assert not target.exists()
+
+
+@jail
+def test_in_the_jail_what_is_not_bound_is_not_there():
+    """The jail binds the system, /etc and Python's import path, read-only,
+    and nothing else: a file in the home folder (outside them) is absent."""
+    secret = Path.home() / f".ak-jail-test-{os.getpid()}"
+    secret.write_text("server-only")
+    try:
+        body = f"""
+            try:
+                open({str(secret)!r}).read()
+            except OSError as e:
+                raise RuntimeError(f"not there: {{type(e).__name__}}")
+            raise RuntimeError("read it")
+        """
+        snap = sb.run_design(design(body), "s.py", limits=FAST)
+        assert "not there" in hook_error(snap)
+    finally:
+        secret.unlink()
+
+
+@pytest.mark.skipif(
+    os.geteuid() != 0, reason="only a server running as root drops to nobody"
+)
+def test_a_server_running_as_root_runs_the_design_as_nobody():
+    snap = sb.run_design(
+        design(
+            "import os\nraise RuntimeError(f'uid {os.getuid()} gid {os.getgid()} groups {os.getgroups()}')"
+        ),
+        "u.py",
+        limits=FAST,
+    )
+    assert hook_error(snap).endswith("uid 65534 gid 65534 groups []")

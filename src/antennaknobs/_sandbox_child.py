@@ -37,6 +37,21 @@ def _nprocs_of_this_user() -> int:
     return n
 
 
+NOBODY = 65534
+
+
+def _drop_root() -> None:
+    """A server running as root (the container) runs the design as nobody:
+    no supplementary groups, then gid, then uid, irreversibly."""
+    if os.getuid() != 0 and os.geteuid() != 0:
+        return
+    os.setgroups([])
+    os.setgid(NOBODY)
+    os.setuid(NOBODY)
+    if os.getuid() == 0 or os.geteuid() == 0:
+        raise PermissionError("could not drop root")
+
+
 def _limit(which, soft, hard=None):
     hard = soft if hard is None else hard
     _, cur_hard = resource.getrlimit(which)
@@ -83,6 +98,7 @@ def main() -> int:
     sys.stdout = sys.stderr
     try:
         req = json.loads(sys.stdin.read())
+        _drop_root()
         _apply_limits(req["limits"])
     except Exception as e:  # noqa: BLE001 — a malformed request is reported to the parent
         out.write(
