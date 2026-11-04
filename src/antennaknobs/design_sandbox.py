@@ -196,7 +196,10 @@ def _safe_name(filename: str) -> str:
 def _read_capped(stream, cap: int, sink: list, over: threading.Event) -> None:
     total = 0
     while True:
-        chunk = stream.read(65536)
+        # read1: whatever is there now, not a full 64 KB. A grandchild that
+        # inherited the pipe can keep it open past the reply, and a blocking
+        # read would sit on the bytes already written until it closed.
+        chunk = stream.read1(65536)
         if not chunk:
             return
         total += len(chunk)
