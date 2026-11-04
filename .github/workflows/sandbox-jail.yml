@@ -72,6 +72,9 @@ jobs:
           d="$GITHUB_WORKSPACE"
           while [ "$d" != "/" ]; do chmod o+x "$d" 2>/dev/null || true; d=$(dirname "$d"); done
           chmod -R o+rX "$GITHUB_WORKSPACE"
+      - name: TEMPORARY diagnostic, as root
+        continue-on-error: true
+        run: sudo -E env "PATH=$PATH" "$(command -v python)" scripts/diag_sandbox_jail.py
       - name: Sandbox tests, jail required, as root (the container's case)
         run: >-
           sudo -E env "PATH=$PATH" AK_REQUIRE_JAIL=1
