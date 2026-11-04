@@ -126,16 +126,28 @@ def _kill_my_group(me: int) -> int:
     import signal
     import time
 
+    def stat(pid):
+        with open(f"/proc/{pid}/stat") as f:
+            # pid (comm) state ppid pgrp ...: comm may hold spaces.
+            return f.read().rsplit(")", 1)[1].split()
+
+    # Never this process or what it runs under: in the jail's pid namespace
+    # bubblewrap's init (pid 1) can share the group, and killing it ends the
+    # namespace, this worker with it.
+    spare, pid = {me}, me
+    while pid > 1:
+        try:
+            pid = int(stat(pid)[1])
+        except (OSError, ValueError, IndexError):
+            break
+        spare.add(pid)
     pgrp = os.getpgrp()
     victims = []
     for d in os.listdir("/proc"):
-        if not d.isdigit() or int(d) == me:
+        if not d.isdigit() or int(d) in spare:
             continue
         try:
-            with open(f"/proc/{d}/stat") as f:
-                # pid (comm) state ppid pgrp ...: comm may hold spaces.
-                fields = f.read().rsplit(")", 1)[1].split()
-            if int(fields[2]) == pgrp:
+            if int(stat(d)[2]) == pgrp:
                 victims.append(int(d))
         except (OSError, ValueError, IndexError):
             pass

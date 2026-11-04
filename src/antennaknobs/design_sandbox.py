@@ -533,11 +533,9 @@ class WorkerPool:
         worker. A worker that had already served and then died on its CPU
         allowance or memory is retried once on a fresh one: those limits
         count the worker's whole life, and a request is owed a full one."""
-        import hashlib
-
         lim = limits or Limits()
         name = _check_source(source, filename, lim)
-        key = (hashlib.sha256(source.encode("utf-8")).hexdigest(), name, lim)
+        key = self._key(source, name, lim)
         for attempt in (0, 1):
             w = self._worker(key, source, name, lim)
             with w.lock:
@@ -561,6 +559,20 @@ class WorkerPool:
                 self._drop(key, w)
             return data
         raise SandboxError("crash", "the design's worker would not stay up")
+
+    @staticmethod
+    def _key(source: str, name: str, lim: Limits) -> tuple:
+        import hashlib
+
+        return (hashlib.sha256(source.encode("utf-8")).hexdigest(), name, lim)
+
+    def worker_pid(self, source: str, filename: str, limits=None) -> int | None:
+        """The host process id of this design's resident worker, if any."""
+        lim = limits or Limits()
+        key = self._key(source, _safe_name(filename), lim)
+        with self._lock:
+            w = self._workers.get(key)
+            return None if w is None else w.pid
 
     def _worker(self, key, source, name, lim) -> _Worker:
         with self._lock:
