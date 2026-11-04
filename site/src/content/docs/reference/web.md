@@ -156,10 +156,13 @@ appear in the picker. A design that carries its own data has to keep it in the
 file: for example, a Touchstone measurement as a string, read with
 `parse_touchstone(text, nports=2)`, rather than a file beside it.
 
-A design is code, so the server never runs it in its own process. Each build
-runs in a separate, disposable process with limited memory and CPU time and
-none of the server's settings, and only plain data (wires, network, analyses)
-comes back. **The hosted app opens a `.py` only where that process is also cut
+A design is code, so the server never runs it in its own process. It runs in
+a separate process with limited memory and CPU time and none of the server's
+settings, and only plain data (wires, network, analyses) comes back. Each open
+design keeps one such process, already loaded, so a knob turn costs about what
+it does for a catalog design. A process that overruns its time, crashes, runs
+out of memory or forks is killed and the next turn starts a fresh one, and one
+left idle for five minutes is closed. **The hosted app opens a `.py` only where that process is also cut
 off from the network and the server's files.** Where it can't be, the page
 says so and you can run the design on a local workbench instead.
 `/capabilities` reports which applies (`open_design_py`).
@@ -1972,6 +1975,12 @@ to themed SVG on every knob change; no solve is involved, so component labels
   risers draw beneath the antenna labelled with the nodes they bridge; a
   parallel second antenna is noted rather than drawn in series; a 16-source
   array summarizes its feeds instead of drawing sixteen identical branches.
+- **A line says what it solves.** A transmission line is labelled with its Z0
+  and velocity factor, marked *transposed* when it is, and carries its length
+  and, when it has loss, its matched loss at the measurement frequency
+  (`50 Ω · VF 0.80` over `30.48 m · 1.6 dB`). Hovering the label shows the raw
+  K1 and K2 (dB per 100 ft = K1·√f + K2·f, f in MHz), so a catalog cable can
+  be checked against its data sheet.
 - Roughly two-thirds of the catalog is a bare antenna with no feed circuit at
   all. Those say so — *"No feed circuit — this design is the bare antenna"* —
   instead of showing an empty box.

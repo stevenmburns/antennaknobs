@@ -29,31 +29,23 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.111.0" icon="star">
-  **Pattern charts: ARRL, EZNEC or linear.** Choose the polar chart's scale.
-  ARRL's rings sit 3, 6, 9, 12, 18 and 24 dB down, EZNEC's 5, 10, 15, 20 and
-  30. The default comes from settings.toml (`[pattern_chart] scale`, ARRL
-  unless you change it), and a choice made in the browser wins over it.
-  Thanks to Dan, AC6LA. See
-  [Pattern scale](/reference/web/#pattern-scale--arrl-eznec-or-linear).
+<Card title="New in v0.112.0" icon="star">
+  **An opened design `.py` turns as fast as a catalog one.** Each opened design
+  now keeps one locked-down process of its own, already loaded, so turning a
+  knob no longer starts a fresh Python each time: about 12 ms a turn instead of
+  0.7 s on a laptop. The process keeps every limit it had, and one that
+  overruns, crashes or forks is replaced on the next turn. See
+  [A design .py](/reference/web/#a-design-py).
 
-  **Watch the optimizer, and stop it when you like.** A marked knob shows the
-  value being tried under itself while a run goes. Turning Optimize off
-  mid-run cancels it and asks whether to keep the best point so far or the
-  start. See [Optimizing](/reference/web/#optimizing).
+  **The Schematic says what a feedline is.** A transmission line is labelled
+  with its velocity factor and, when it is lossy, its matched loss at the
+  frequency you are on (`50 Ω · VF 0.80`, `30.48 m · 1.6 dB`), and marked when
+  it is transposed. Hover over the label for its K1 and K2, to check a catalog
+  cable against its data sheet. See [The schematic view](/reference/web/#the-schematic-view).
 
-  **A transmission line takes its numbers by name** (momwire 0.86.0). Write
-  `TL("rig", "feed", z0=50, length=10, vf=0.82, k1=0.27, k2=0.0055)`. Every
-  number after the two port names now has to be named, because a call that
-  listed them in another order used to solve the wrong cable without a word.
-  A design that passes them by position stops with a message naming the call:
-  add the names.
-
-  **Open your own design `.py`.** **Open…** now takes an antennaknobs design
-  file as well as a deck. Its code runs in a separate, locked-down process,
-  and only its wires and network come back. The hosted app opens one only
-  where that process is also cut off from the network and the server's files.
-  See [A design .py](/reference/web/#a-design-py).
+  **A parallel RLC at a line's end is kept** when you open a deck. A trap, or
+  several loads, at a point where a TL or NT card connects used to be dropped
+  with a note; they now solve. Thanks to Dan, AC6LA.
 </Card>
 
 ## The whole pitch, in one line
