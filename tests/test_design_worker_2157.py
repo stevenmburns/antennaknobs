@@ -22,10 +22,13 @@ FAST = sb.Limits(wall_s=20.0, cpu_s=15, memory_mb=1536)
 
 
 def design(body: str, tag: str = "") -> str:
-    """A design whose build_wires runs ``body`` with ``self.mode`` set; it
-    reports its process id by raising, so a test can tell workers apart."""
+    """A design whose build_wires runs ``body`` with ``self.mode`` set. It
+    reports a token drawn when its module loads, by raising, so a test can
+    tell workers apart (a process id inside the jail is the namespace's)."""
     return textwrap.dedent(f"""
         # {tag}
+        import os as _os
+        TOKEN = _os.urandom(8).hex()
         from types import MappingProxyType
         from antennaknobs import AntennaBuilder
 
@@ -40,12 +43,20 @@ def design(body: str, tag: str = "") -> str:
         """) + textwrap.indent(textwrap.dedent(body), " " * 8)
 
 
-PID = "raise ValueError(f'pid={os.getpid()}')\n"
+PID = "raise ValueError(f'id={TOKEN}')\n"
 
 
-def pid_of(snap: dict) -> int:
+def pid_of(snap: dict) -> str:
+    """The answering worker's token (named for what it stands in for)."""
     err = snap["build_wires"]["__error__"]
-    return int(err.rsplit("pid=", 1)[1])
+    return err.rsplit("id=", 1)[1]
+
+
+def host(pool, src, limits=FAST, name="d.py") -> int:
+    """The host process id of ``src``'s resident worker."""
+    pid = pool.worker_pid(src, name, limits)
+    assert pid is not None
+    return pid
 
 
 def ask(pool, src, mode=0, name="d.py", limits=FAST):
@@ -102,10 +113,11 @@ def test_a_worker_that_overruns_is_killed_and_the_next_turn_gets_a_fresh_one():
         src = design("if mode == 1:\n    while True:\n        pass\n" + PID)
         lim = sb.Limits(wall_s=2.0, cpu_s=30)
         first = pid_of(ask(p, src, limits=lim))
+        first_host = host(p, src, lim)
         with pytest.raises(sb.SandboxError) as e:
             ask(p, src, mode=1, limits=lim)
         assert e.value.kind == "timeout"
-        assert not alive(first)
+        assert not alive(first_host)
         second = pid_of(ask(p, src, limits=lim))
         assert second != first
     finally:
@@ -116,12 +128,14 @@ def test_one_designs_trouble_leaves_another_designs_worker_alone(pool):
     calm = design(PID, tag="calm")
     wild = design("if mode == 1:\n    os._exit(3)\n" + PID, tag="wild")
     calm_pid = pid_of(ask(pool, calm))
-    wild_pid = pid_of(ask(pool, wild))
+    calm_host = host(pool, calm)
+    ask(pool, wild)
+    wild_host = host(pool, wild)
     with pytest.raises(sb.SandboxError) as e:
         ask(pool, wild, mode=1)
     assert e.value.kind == "crash"
-    assert not alive(wild_pid)
-    assert alive(calm_pid)
+    assert not alive(wild_host)
+    assert alive(calm_host)
     assert pid_of(ask(pool, calm)) == calm_pid
 
 
@@ -129,9 +143,10 @@ def test_a_worker_that_ran_out_of_memory_is_replaced(pool):
     src = design("if mode == 1:\n    x = bytearray(4 * 1024 ** 3)\n" + PID)
     lim = sb.Limits(memory_mb=1024, wall_s=20)
     first = pid_of(ask(pool, src, limits=lim))
+    first_host = host(pool, src, lim)
     snap = ask(pool, src, mode=1, limits=lim)
     assert snap["build_wires"]["__error__"].startswith("MemoryError")
-    assert not alive(first)
+    assert not alive(first_host)
     assert pid_of(ask(pool, src, limits=lim)) != first
 
 
@@ -147,6 +162,7 @@ def test_a_worker_whose_design_forked_is_replaced_and_its_children_are_gone(pool
     )
     src = design(body)
     first = pid_of(ask(pool, src))
+    first_host = host(pool, src)
     assert pid_of(ask(pool, src, mode=1)) == first  # it answers, then goes
     time.sleep(0.5)
     orphans = [
@@ -156,7 +172,7 @@ def test_a_worker_whose_design_forked_is_replaced_and_its_children_are_gone(pool
         and marker in open(f"/proc/{p}/cmdline", "rb").read().decode(errors="replace")
     ]
     assert not orphans
-    assert not alive(first)
+    assert not alive(first_host)
     assert pid_of(ask(pool, src)) != first
 
 
@@ -174,7 +190,11 @@ def test_a_worker_is_retired_at_half_its_cpu_allowance_and_the_turn_still_answer
 def test_resident_workers_are_bounded_by_count():
     p = sb.WorkerPool(max_workers=2, idle_s=60)
     try:
-        pids = [pid_of(ask(p, design(PID, tag=f"d{i}"))) for i in range(3)]
+        pids = []
+        for i in range(3):
+            src = design(PID, tag=f"d{i}")
+            ask(p, src)
+            pids.append(host(p, src))
         assert len(p) == 2
         assert not alive(pids[0])  # least recently used goes first
         assert alive(pids[1]) and alive(pids[2])
@@ -185,7 +205,9 @@ def test_resident_workers_are_bounded_by_count():
 def test_resident_workers_are_bounded_by_idle_time():
     p = sb.WorkerPool(max_workers=4, idle_s=0.4)
     try:
-        pid = pid_of(ask(p, design(PID)))
+        src = design(PID)
+        ask(p, src)
+        pid = host(p, src)
         deadline = time.monotonic() + 5
         while len(p) and time.monotonic() < deadline:
             time.sleep(0.1)
