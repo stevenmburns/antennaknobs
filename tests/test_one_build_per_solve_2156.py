@@ -46,13 +46,22 @@ def test_a_knob_turn_off_the_default_dial_is_one_sandbox_run(fresh_decks, monkey
     src = Path(importlib.import_module(cls.__module__).__file__)
     payload = {"name": src.name, "text": src.read_text()}
     calls = []
-    real = sb.run_design
+    real, real_warm = sb.run_design, sb.warm_snapshot
 
     def spy(*a, **k):
         calls.append(k.get("want", "snapshot"))
         return real(*a, **k)
 
+    def spy_warm(*a, **k):
+        # A snapshot from the design's warm worker (AK#2157) is still one
+        # sandbox run: counted here, not again inside run_design.
+        calls.append("snapshot")
+        with monkeypatch.context() as m:
+            m.setattr(sb, "run_design", real)
+            return real_warm(*a, **k)
+
     monkeypatch.setattr(sb, "run_design", spy)
+    monkeypatch.setattr(sb, "warm_snapshot", spy_warm)
     client = TestClient(server.app)
     key = client.post("/deck", json=payload).json()["key"]
     v0 = float(cls.default_params["series_L_uH"])
