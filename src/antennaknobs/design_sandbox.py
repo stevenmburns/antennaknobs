@@ -67,6 +67,37 @@ class SandboxError(RuntimeError):
         self.kind = kind
 
 
+# What the jailed child may see, read-only: the system's programs and
+# libraries, /etc, and Python with every directory on this process's import
+# path (the venv, an editable checkout's src/). NOT the whole root: a server
+# keeps readable things a design has no business with (the app folder, /root,
+# /home, /var, /run, Fly's /.fly), and a read-only bind still lets them be read.
+_SYSTEM_DIRS = ("/usr", "/bin", "/sbin", "/lib", "/lib64", "/lib32", "/libx32", "/etc")
+
+# The unprivileged user a child runs as when the server runs as root (as the
+# container does): nobody, so even a bind that is too wide reaches no
+# root-only file.
+NOBODY = 65534
+
+
+def _jail_binds() -> list[str]:
+    seen: list[str] = []
+    out: list[str] = []
+    paths = list(_SYSTEM_DIRS) + [sys.prefix, sys.base_prefix, sys.exec_prefix]
+    paths += [p for p in sys.path if p and os.path.isabs(p)]
+    for p in paths:
+        p = os.path.normpath(p)
+        if not os.path.lexists(p) or any(p == q or p.startswith(q + "/") for q in seen):
+            continue
+        seen.append(p)
+        if os.path.islink(p) and os.path.dirname(p) == "/":
+            # bookworm's /lib, /bin, ... are symlinks into /usr: recreate them.
+            out += ["--symlink", os.readlink(p), p]
+        elif os.path.isdir(p):
+            out += ["--ro-bind", p, p]
+    return out
+
+
 def _bwrap_cmd(workdir: str) -> list[str]:
     exe = shutil.which("bwrap")
     if exe is None:
@@ -76,7 +107,7 @@ def _bwrap_cmd(workdir: str) -> list[str]:
         "--unshare-all",  # net, pid, ipc, uts, cgroup (and user where allowed)
         "--die-with-parent",
         "--new-session",
-        "--ro-bind", "/", "/",
+        *_jail_binds(),
         "--tmpfs", "/tmp",
         "--bind", workdir, workdir,
         "--proc", "/proc",
@@ -194,6 +225,10 @@ def run_design(
         }
     ).encode("utf-8")
     with tempfile.TemporaryDirectory(prefix="ak-design-") as wd:
+        if os.geteuid() == 0:
+            # The child drops to nobody before the design runs; its folder
+            # must be its own.
+            os.chown(wd, NOBODY, NOBODY)
         cmd = [sys.executable, "-I", "-m", "antennaknobs._sandbox_child"]
         if _use_jail():
             cmd = _bwrap_cmd(wd) + cmd

@@ -1,0 +1,72 @@
+# The design .py sandbox's JAIL, exercised (AK#2149 unit 4).
+#
+# The default test lane runs the sandbox's baseline layer everywhere, but its
+# jail tests skip there: GitHub's Ubuntu 24.04 runners (like Ubuntu desktops)
+# forbid the unprivileged user namespaces bubblewrap needs. This lane lifts
+# that restriction for its own VM, installs bubblewrap, and runs the sandbox
+# tests with AK_REQUIRE_JAIL=1, which turns every jail skip into a failure, so
+# the lane cannot pass green without the jail actually running. It runs them
+# twice: as the runner's user (bubblewrap through a user namespace) and as
+# root (the container's case, where the child also drops to nobody).
+#
+# No secrets, no deploy: momwire comes from PyPI at the pinned version.
+name: sandbox-jail
+
+on:
+  pull_request:
+    paths:
+      - "src/antennaknobs/design_sandbox.py"
+      - "src/antennaknobs/_sandbox_child.py"
+      - "src/antennaknobs/design_snapshot.py"
+      - "src/antennaknobs/web/decks.py"
+      - "tests/test_design_sandbox_2149.py"
+      - "tests/test_open_design_py_2149.py"
+      - "Dockerfile"
+      - ".github/workflows/sandbox-jail.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/antennaknobs/design_sandbox.py"
+      - "src/antennaknobs/_sandbox_child.py"
+      - "src/antennaknobs/design_snapshot.py"
+      - "src/antennaknobs/web/decks.py"
+      - "tests/test_design_sandbox_2149.py"
+      - "tests/test_open_design_py_2149.py"
+      - "Dockerfile"
+      - ".github/workflows/sandbox-jail.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  jail:
+    runs-on: ubuntu-24.04  # pinned: ubuntu-latest became 26.04 (momwire#1742)
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Let bubblewrap create namespaces on this VM
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Install bubblewrap
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap
+          bwrap --version
+      - name: Install antennaknobs (momwire from PyPI at the pin)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -c constraints-ci.txt -e ".[test]"
+      - name: Sandbox tests, jail required, as the runner's user
+        env:
+          AK_REQUIRE_JAIL: "1"
+        run: >-
+          python -m pytest -n 0 -q -p no:cacheprovider -rs
+          tests/test_design_sandbox_2149.py tests/test_open_design_py_2149.py
+      - name: Sandbox tests, jail required, as root (the container's case)
+        run: >-
+          sudo -E env "PATH=$PATH" AK_REQUIRE_JAIL=1
+          "$(command -v python)" -m pytest -n 0 -q -p no:cacheprovider -rs
+          tests/test_design_sandbox_2149.py
