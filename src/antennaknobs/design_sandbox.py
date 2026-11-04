@@ -268,8 +268,12 @@ def run_design(
     if timed_out:
         raise SandboxError("timeout", f"the design ran past {lim.wall_s:g} s")
     raw = b"".join(out)
-    if proc.returncode is not None and proc.returncode < 0 and not raw:
-        sig = -proc.returncode
+    # A child killed by a signal: -sig from Popen, or 128 + sig when the
+    # jail (bubblewrap) reports its child's death as its own exit status.
+    rc = proc.returncode
+    died = rc is not None and not raw and (rc < 0 or 128 < rc < 128 + 65)
+    if died:
+        sig = -rc if rc < 0 else rc - 128
         kind = "timeout" if sig in (signal.SIGXCPU, signal.SIGKILL) else "crash"
         what = (
             "used more than its CPU time"

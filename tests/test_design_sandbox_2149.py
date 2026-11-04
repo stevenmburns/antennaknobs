@@ -261,9 +261,8 @@ def test_in_the_jail_the_design_has_no_network():
             raise RuntimeError(f"no network: {e}")
         raise RuntimeError("connected")
     """
-    with pytest.raises(sb.SandboxError) as e:
-        sb.run_design(design(body), "net.py", limits=FAST)
-    assert "no network" in str(e.value)
+    snap = sb.run_design(design(body), "net.py", limits=FAST)
+    assert "no network" in hook_error(snap)
 
 
 @jail
@@ -276,9 +275,8 @@ def test_in_the_jail_the_root_is_read_only(tmp_path):
             raise RuntimeError(f"refused: {{e}}")
         raise RuntimeError("wrote")
     """
-    with pytest.raises(sb.SandboxError) as e:
-        sb.run_design(design(body), "w.py", limits=FAST)
-    assert "refused" in str(e.value)
+    snap = sb.run_design(design(body), "w.py", limits=FAST)
+    assert "refused" in hook_error(snap)
     assert not target.exists()
 
 
