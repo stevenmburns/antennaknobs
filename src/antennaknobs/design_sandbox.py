@@ -227,8 +227,11 @@ def run_design(
     with tempfile.TemporaryDirectory(prefix="ak-design-") as wd:
         if os.geteuid() == 0:
             # The child drops to nobody before the design runs; its folder
-            # must be its own.
+            # must be its own. 0755, not tempfile's 0700: bubblewrap run as
+            # root drops its capabilities, so it needs the folder's own
+            # permissions to enter it.
             os.chown(wd, NOBODY, NOBODY)
+            os.chmod(wd, 0o755)
         cmd = [sys.executable, "-I", "-m", "antennaknobs._sandbox_child"]
         if _use_jail():
             cmd = _bwrap_cmd(wd) + cmd
