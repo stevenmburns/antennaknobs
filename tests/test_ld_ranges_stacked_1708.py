@@ -102,17 +102,19 @@ def test_both_loads_land_on_one_port(stem):
     assert len(ports) == 2 and len(set(ports)) == 1
 
 
-def test_a_second_load_at_a_line_connection_is_still_refused():
-    """There each load is a series branch to the node the line moved to, so a
-    second one would sit in parallel with the first."""
+def test_a_second_load_at_a_line_connection_is_kept():
+    """Each load at a TL/NT connection point is a series link between the
+    wire and the node the line moved to; a second one chains behind the
+    first, so the two add, as NEC adds loads on one segment. The solve is
+    checked in test_connection_point_loads.py."""
     text = (
         "GW 1 7 0 -3.5 10 0 3.5 10 0.001\nGW 2 7 1 -3.5 10 1 3.5 10 0.001\nGE\n"
         "EX 0 1 4 0 1 0\nTL 1 2 2 2 300 1.5 0 0 0 0\n"
         "LD 4 1 2 2 5 0\nLD 4 1 2 2 7 0\nEN\n"
     )
     deck = parse_nec(text, network=True)
-    assert len(deck.loads) == 1
-    assert any("second load at a TL/NT" in why for _m, why in deck.ignored_detail)
+    assert len(deck.loads) == 2
+    assert not any("TL/NT" in why for _m, why in deck.ignored_detail)
 
 
 # --- the solve ----------------------------------------------------------------
