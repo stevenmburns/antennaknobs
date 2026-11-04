@@ -304,11 +304,15 @@ def test_in_the_jail_what_is_not_bound_is_not_there():
     os.geteuid() != 0, reason="only a server running as root drops to nobody"
 )
 def test_a_server_running_as_root_runs_the_design_as_nobody():
-    snap = sb.run_design(
-        design(
-            "import os\nraise RuntimeError(f'uid {os.getuid()} gid {os.getgid()} groups {os.getgroups()}')"
-        ),
-        "u.py",
-        limits=FAST,
-    )
-    assert hook_error(snap).endswith("uid 65534 gid 65534 groups []")
+    body = """
+        import os
+        caps = {k: v.strip() for k, v in (line.split(":", 1) for line in open("/proc/self/status"))
+                if k in ("CapEff", "CapPrm")}
+        raise RuntimeError(f"uid {os.getuid()} gid {os.getgid()} groups {os.getgroups()} "
+                           f"eff {caps['CapEff']} prm {caps['CapPrm']}")
+    """
+    snap = sb.run_design(design(body), "u.py", limits=FAST)
+    err = hook_error(snap)
+    assert "uid 65534 gid 65534 groups []" in err, err
+    # Leaving uid 0 cleared every capability, including the two kept for the drop.
+    assert err.endswith("eff 0000000000000000 prm 0000000000000000"), err
