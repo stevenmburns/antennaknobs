@@ -63,10 +63,10 @@ jobs:
         env:
           AK_REQUIRE_JAIL: "1"
         run: >-
-          python -m pytest -n 0 -q -p no:cacheprovider -rs
+          python -m pytest -q -p no:cacheprovider -rs
           tests/test_design_sandbox_2149.py tests/test_open_design_py_2149.py
       - name: Sandbox tests, jail required, as root (the container's case)
         run: >-
           sudo -E env "PATH=$PATH" AK_REQUIRE_JAIL=1
-          "$(command -v python)" -m pytest -n 0 -q -p no:cacheprovider -rs
+          "$(command -v python)" -m pytest -q -p no:cacheprovider -rs
           tests/test_design_sandbox_2149.py
