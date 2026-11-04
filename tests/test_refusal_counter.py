@@ -44,6 +44,7 @@ REASONS = {
     "busy",
     "deck_watchdog",
     "deck_cap",
+    "deck_py",  # a design .py on a server that will not open one (AK#2149)
     "deck_rate",
     "sweep_budget",
     "optimize_budget",

@@ -287,6 +287,8 @@ REFUSAL_REASONS = frozenset(
         "busy",
         "deck_watchdog",
         "deck_cap",
+        # A design .py on a server that will not open one (AK#2149).
+        "deck_py",
         "deck_rate",
         "sweep_budget",
         "optimize_budget",

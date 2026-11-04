@@ -97,12 +97,12 @@ export function CatalogPanel({
           // be shared.
           <label
             className="design-reload-btn deck-open-btn"
-            title="Open your own antenna model: a NEC deck (.nec, as MMANA, 4nec2 and EZNEC export), a SimNEC .ssn, an MMANA-GAL .maa or an EZNEC .ez. The page's link carries it, so you can share it."
+            title="Open your own antenna model: a NEC deck (.nec, as MMANA, 4nec2 and EZNEC export), a SimNEC .ssn, an MMANA-GAL .maa, an EZNEC .ez, or an antennaknobs design .py. The page's link carries it, so you can share it."
           >
             <input
               type="file"
-              accept=".nec,.NEC,.ssn,.SSN,.maa,.MAA,.ez,.EZ"
-              aria-label="open an antenna model (.nec, .ssn, .maa or .ez)"
+              accept=".nec,.NEC,.ssn,.SSN,.maa,.MAA,.ez,.EZ,.py,.PY"
+              aria-label="open an antenna model (.nec, .ssn, .maa, .ez or .py)"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 e.target.value = "";

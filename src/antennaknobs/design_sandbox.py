@@ -267,3 +267,82 @@ def _kill_group(proc: subprocess.Popen) -> None:
         proc.wait(5)
     except subprocess.TimeoutExpired:
         pass
+
+
+# --- the server-side builder for a sandboxed design ----------------------------
+
+
+def sandboxed_builder(
+    filename: str, source: str, *, limits: Limits | None = None, check=None
+):
+    """An `AntennaBuilder` class for a design ``.py`` that runs ONLY in the
+    sandbox. Its class-level parts (label, docstring, defaults, variants, c)
+    come from one ``static`` run; every hook it answers is a method that asks
+    the sandbox for a snapshot at the instance's params (cached per params)
+    and decodes that hook's data through the allowlist. ``check(wires)``, if
+    given, sees every decoded ``build_wires`` result (the opened-deck limits).
+    A hook that raised in the sandbox raises here, named."""
+    import collections
+    import json as _json
+    import threading as _threading
+    from pathlib import PurePath
+
+    from . import design_snapshot as ds
+    from .builder import AntennaBuilder
+
+    lim = limits or Limits()
+    static = run_design(source, filename, want="static", limits=lim)
+    hooks = set(run_design(source, filename, want="snapshot", limits=lim))
+    stem = PurePath(filename).stem
+    cache: collections.OrderedDict = collections.OrderedDict()
+    lock = _threading.Lock()
+
+    def snap_for(self) -> dict:
+        params = ds.encode(dict(self._params))
+        key = _json.dumps(params, sort_keys=True)
+        with lock:
+            hit = cache.get(key)
+            if hit is not None:
+                cache.move_to_end(key)
+                return hit
+        snap = run_design(source, filename, want="snapshot", params=params, limits=lim)
+        with lock:
+            cache[key] = snap
+            while len(cache) > 64:
+                cache.popitem(last=False)
+        return snap
+
+    def make_hook(name):
+        def hook(self):
+            data = snap_for(self).get(name)
+            if isinstance(data, dict) and set(data) == {"__error__"}:
+                raise RuntimeError(f"{filename}: {name}() raised {data['__error__']}")
+            value = ds.decode(data)
+            if name == "build_wires" and check is not None:
+                check(value)
+            return value
+
+        hook.__name__ = name
+        return hook
+
+    label = ds.decode(static["label"])
+    ns = {
+        "__doc__": static.get("doc") or None,
+        "__module__": "antennaknobs.sandboxed",
+        "label": label if isinstance(label, str) and label else stem,
+        "default_params": ds.decode(static["default_params"]),
+        "c_light_mhz_m": ds.decode(static["c_light_mhz_m"]),
+        # Marks the class for the server: its source is a stranger's .py.
+        "sandboxed_source_name": filename,
+    }
+    for v, data in static["variants"].items():
+        if v.isidentifier() and not v.startswith("_"):
+            ns[f"{v}_params"] = ds.decode(data)
+    for h in ds.HOOKS:
+        if h in hooks:
+            ns[h] = make_hook(h)
+    cls = type(
+        stem if stem.isidentifier() else "SandboxedDesign", (AntennaBuilder,), ns
+    )
+    cls.__qualname__ = cls.__name__
+    return cls

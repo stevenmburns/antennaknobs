@@ -352,13 +352,33 @@ class DeckSettings:
     max_bytes: int = 64 * 1024
     max_segments: int = 3000
     max_wires: int = 200
-    # The compressed form a request may carry: generous over max_bytes'
-    # worst case (incompressible text grows ~4/3 in base64).
-    max_payload_chars: int = 128 * 1024
+    # A design .py (AK#2149): its own text cap, since a design that carries
+    # its measurements (Touchstone tables) as text is larger than a deck.
+    max_py_bytes: int = 256 * 1024
+    # "auto": a local install opens a .py, the hosted app only when the
+    # sandbox's jail is active (design_sandbox.sandbox_status); "off": never.
+    py_policy: str = "auto"
+    # The compressed form a request may carry: generous over the larger text
+    # cap's worst case (incompressible text grows ~4/3 in base64).
+    max_payload_chars: int = 512 * 1024
     max_open: int = 64
     budget_s: float = field(default=0.0)
     busy_wait_s: float = 10.0
     opens_per_min: int = 0
+
+    def py_refusal(self) -> str | None:
+        """Why a design .py cannot be opened here, or None when it can."""
+        if self.py_policy == "off":
+            return "opening a design .py is turned off on this server"
+        if self.hosted:
+            from antennaknobs.design_sandbox import sandbox_status
+
+            if sandbox_status()["layer"] != "jail":
+                return (
+                    "this server cannot isolate a design .py yet, so it does not open "
+                    f"one; {RUN_LOCALLY}"
+                )
+        return None
 
     @property
     def bigger(self) -> str:
@@ -372,6 +392,8 @@ class DeckSettings:
             max_bytes=int(_env_float("ANTENNAKNOBS_DECK_MAX_BYTES", 64 * 1024)),
             max_segments=int(_env_float("ANTENNAKNOBS_DECK_MAX_SEGMENTS", 3000)),
             max_wires=int(_env_float("ANTENNAKNOBS_DECK_MAX_WIRES", 200)),
+            max_py_bytes=int(_env_float("ANTENNAKNOBS_DECK_MAX_PY_BYTES", 256 * 1024)),
+            py_policy=os.environ.get("ANTENNAKNOBS_DECK_PY", "auto").strip().lower(),
             # 0 = no budget. Hosted 60 s: Steve, 2026-10-03.
             budget_s=_env_float("ANTENNAKNOBS_DECK_BUDGET_S", 60.0 if hosted else 0.0),
             busy_wait_s=_env_float("ANTENNAKNOBS_DECK_BUSY_WAIT_S", 10.0),
@@ -398,14 +420,19 @@ def decode_payload(payload, settings: DeckSettings) -> tuple[str, str]:
     if not name or len(name) > 120:
         name = "deck.nec"
     ext = PurePath(name).suffix.lower()
-    if ext not in (".nec", ".ssn", ".maa", ".ez"):
+    if ext not in (".nec", ".ssn", ".maa", ".ez", ".py"):
         raise DeckError(
             f"{name}: the workbench opens .nec (NEC card deck), .ssn (SimNEC), "
-            ".maa (MMANA-GAL) and .ez (EZNEC) files; export the model to .nec "
-            "from your program first"
+            ".maa (MMANA-GAL) and .ez (EZNEC) files, and antennaknobs design .py "
+            "files; export the model to .nec from your program first"
         )
+    if ext == ".py":
+        why = settings.py_refusal()
+        if why is not None:
+            _refused("deck_py")
+            raise DeckError(f"{name}: {why}", status=403)
     binary = ext == ".ez"
-    limit = settings.max_bytes
+    limit = settings.max_py_bytes if ext == ".py" else settings.max_bytes
 
     def too_big() -> DeckError:
         _refused("deck_cap")
@@ -700,6 +727,43 @@ class DeckStore:
             note=f"that is over the limit for an opened deck; {self.settings.bigger}",
         )
 
+    def _sandboxed(self, name: str, text: str):
+        """A design .py's builder: its code runs only in the sandbox
+        (AK#2149); every build it hands back meets the opened-deck limits."""
+        from antennaknobs.design_sandbox import Limits, SandboxError, sandboxed_builder
+        from antennaknobs.wire_catalog import as_wire
+
+        st = self.settings
+
+        def check(wires):
+            n_seg = 0
+            for t in wires:
+                seg = as_wire(t).n_seg
+                n_seg += (
+                    seg if isinstance(seg, int) else sum(getattr(seg, "counts", (0,)))
+                )
+            if len(wires) > st.max_wires or n_seg > st.max_segments:
+                _refused("deck_cap")
+                raise DeckError(
+                    f"{name}: {len(wires)} wires, {n_seg} segments is over the limit "
+                    f"for an opened design ({st.max_wires} wires, {st.max_segments} "
+                    f"segments); {st.bigger}"
+                )
+
+        lim = Limits(max_source_bytes=st.max_py_bytes)
+        try:
+            cls = sandboxed_builder(name, text, limits=lim, check=check)
+            # Built once at its defaults, so an over-limit design is refused
+            # when it opens, as an over-limit deck is (`check` raises).
+            cls().build_wires()
+        except SandboxError as exc:
+            raise DeckError(f"{name}: {exc}") from None
+        except RuntimeError as exc:
+            if isinstance(exc, DeckError):
+                raise
+            raise DeckError(str(exc)) from None
+        return cls
+
     def get(self, key: str) -> tuple[str, str] | None:
         """``(name, text)`` of an open deck, touched as recently used."""
         with self._lock:
@@ -751,7 +815,12 @@ class DeckStore:
         if self.get(key) is not None:
             return key, False
         try:
-            cls = builder_from_text(name, text, limits=self.limits(), dialect=dialect)
+            if PurePath(name).suffix.lower() == ".py":
+                cls = self._sandboxed(name, text)
+            else:
+                cls = builder_from_text(
+                    name, text, limits=self.limits(), dialect=dialect
+                )
             cls, refused = with_ranges(cls, ranges or {})
             cls()  # default_params construct, as user designs are checked
         except DeckError:

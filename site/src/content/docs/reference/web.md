@@ -147,6 +147,23 @@ and put the file in your designs folder (`~/.antennaknobs/designs`). A local
 workbench still opens a deck the same way, within the file-size and structure
 limits, with no time limit and no queue.
 
+### A design `.py`
+
+**Open…** also takes an antennaknobs design file (`.py`, a `Builder` class as
+in the [designs folder](/concepts/authoring/)), up to 256 KB. It opens like a
+deck, with the same structure limits, time limits and queue, and its variants
+appear in the picker. A design that carries its own data has to keep it in the
+file: for example, a Touchstone measurement as a string, read with
+`parse_touchstone(text, nports=2)`, rather than a file beside it.
+
+A design is code, so the server never runs it in its own process. Each build
+runs in a separate, disposable process with limited memory and CPU time and
+none of the server's settings, and only plain data (wires, network, analyses)
+comes back. **The hosted app opens a `.py` only where that process is also cut
+off from the network and the server's files.** Where it can't be, the page
+says so and you can run the design on a local workbench instead.
+`/capabilities` reports which applies (`open_design_py`).
+
 ## Driving a knob
 
 Each parameter in a design is a knob (the big one is the measurement-frequency
