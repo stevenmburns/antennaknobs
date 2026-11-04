@@ -533,9 +533,32 @@ def _count_refusal(reason: str) -> None:
 _decks.refusal_hook = _count_refusal
 
 
+_SANDBOX_LOGGED: list = []
+
+
+def _log_sandbox_status() -> None:
+    """One startup line saying whether Open… takes a design .py here and which
+    sandbox layer would run it (AK#2149), so a deploy's log answers whether
+    the jail starts on that machine."""
+    if _SANDBOX_LOGGED:
+        return
+    _SANDBOX_LOGGED.append(True)
+    try:
+        info = _open_design_py()
+    except Exception as exc:  # noqa: BLE001 — a status line must never stop the server starting
+        _logger.warning("design .py sandbox: status unknown (%s)", exc)
+        return
+    _logger.info(
+        "design .py sandbox: layer=%s jail=%s; Open… %s",
+        info["layer"], info["jail"],
+        "takes a .py" if info["accepted"] else f"refuses a .py ({info['refusal']})",
+    )  # fmt: skip
+
+
 def _start_metrics_endpoint() -> None:
     """Serve the counters on their own port (fly.toml's ``[metrics]``), once,
     at the server's startup and only when hosted."""
+    _log_sandbox_status()
     if not _METRICS.enabled or _METRICS_SERVER:
         return
     try:
@@ -5416,6 +5439,13 @@ async def deck_open_endpoint(req: dict, request: Request):
     }
 
 
+def _open_design_py() -> dict:
+    from antennaknobs.design_sandbox import sandbox_status
+
+    why = _DECK_SETTINGS.py_refusal()
+    return {"accepted": why is None, "refusal": why, **sandbox_status()}
+
+
 @app.get("/capabilities")
 def capabilities_endpoint():
     """Backend feature availability the frontend reads once on mount.
@@ -5512,6 +5542,9 @@ def capabilities_endpoint():
         # The page reports its crashes to /client-error (AK#1851) only where
         # this says so: the hosted instance. A local workbench reports nowhere.
         "client_error_reports": _HOSTED,
+        # Whether Open… takes a design .py here, and which sandbox layer would
+        # run it (AK#2149): the hosted app opens one only inside the jail.
+        "open_design_py": _open_design_py(),
         "terrain_presets": terrain_presets_schema(),
         "soil_presets": soil_presets_schema(),
         "soil_ranges": soil_ranges_schema(),
