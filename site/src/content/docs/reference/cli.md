@@ -1786,7 +1786,7 @@ two segments are. That helps long single wires most: a 30 m inverted-L top at
 smaller for now (about 1.2x), because the ground terms are not yet filled
 this way.
 
-This needs a momwire newer than 0.86.0 (0.88.0 for the straight-wire part);
+This needs a momwire newer than 0.86.0 (for the straight-wire part, the release after 0.87.0);
 with an older one the setting does nothing.
 
 ## Exporting to NEC
