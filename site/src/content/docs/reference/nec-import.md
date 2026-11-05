@@ -654,7 +654,12 @@ Python the reading can be chosen, as a `.nec`'s dialect can
 
 A **split source** at a wire end is, as EZNEC's exports write it, one source
 either side of the junction (a voltage halved, a current repeated), or under
-NEC-5 one source at the junction's knot.
+NEC-5 one source at the junction's knot. Placed inside a wire, EZNEC moves it
+to a knot, the one its NEC-5 export names: a voltage is then two sources at
+half the voltage on the segments either side, and a current is one source on
+the segment that meets the knot. Under NEC-2 the two halves of a split voltage
+are two feeds, each showing about half the feed impedance; their sum is the
+feed's.
 
 **Loads keep their type**, so a frequency sweep evaluates each at every
 frequency rather than at the model frequency only:
