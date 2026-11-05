@@ -2366,7 +2366,14 @@ def read_ez(
     dk.cards.append("EN")
     # The placeholder comments go into the card list where their cards are;
     # keep the deck's CM block at the head, as NEC requires.
-    body = _one_load_run([c for c in dk.cards if not c.startswith("CM ")])
+    # Every card inside NEC's 80 columns (AK#2179): one that fits keeps its
+    # exact digits, and the text parsed below is the deck AK shows.
+    from .nec_export import fit_card  # lazy: it loads the engines
+
+    body = [
+        fit_card(c)
+        for c in _one_load_run([c for c in dk.cards if not c.startswith("CM ")])
+    ]
     marks = [c for c in dk.cards if c.startswith("CM ")]
     nec_text = "\n".join(head[:-1] + marks + head[-1:] + body) + "\n"
 
