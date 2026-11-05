@@ -679,7 +679,9 @@ does. A lossy line's loss follows √(f/F) from its loss frequency F; one with
 no loss frequency is held at the model frequency, and the app flags it away
 from there. Transformers are EZNEC's own two-port, Y-parameter networks
 their fixed admittances, and L networks their two branches, fixed R + jX or
-R/L/C parts that follow frequency.
+R/L/C parts that follow frequency. A parallel R/L/C branch with a part left
+unset reads that part as absent (open), as a parallel RLC load does; EZNEC's
+own `.nec` export of such a model agrees, and the design's notes say so.
 
 **Wire loss** comes from the per-wire loss table when the file has one, else
 from the model-wide resistivity. Insulation becomes the wire's jacket.
@@ -706,6 +708,16 @@ These readings were checked against EZNEC itself: its own exports of each
 kind of file, solved here, at the model frequency and away from it. Files
 from before EZNEC 4.0 open too, as the model EZNEC 7 saves them as.
 
+**Files AutoEZ writes** (AutoEZ creates the `.ez`, then has EZNEC open it)
+differ from ones EZNEC saves in two ways that matter here. They record no
+engine, so they are read as EZNEC's own engines read them, with sources and
+loads at segment centres: if you ran the model on EZNEC's NEC-5 engine, use
+**Read as NEC-5**, which puts them on segment ends, as NEC-5 does. And they
+store each load's R where EZNEC stores its impedance at the model frequency,
+so that value is not checked against the load's parts. The design's notes say
+both. Saving the model from EZNEC instead records the engine and the
+impedances.
+
 **Refusals come in four kinds**, each naming the field and value:
 
 - *An unknown format*: a file version, block type or block revision the
@@ -714,7 +726,7 @@ from before EZNEC 4.0 open too, as the model EZNEC 7 saves them as.
   as its own are skipped.)
 - *A reading the format leaves undefined*, and EZNEC's exports have not
   settled: a Laplace load's variable, a reversed transformer or Y network, a
-  parallel L-network branch, a series load on a virtual segment, a line loss given
+  series load on a virtual segment, a line loss given
   at no frequency, the extended ground under a buried wire, a pre-3.0 load
   type, data in a record the format reserves. These are
   refused unless you set `ANTENNAKNOBS_EZ_ACCEPT_GUESSES=1`; then each

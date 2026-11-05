@@ -1199,11 +1199,13 @@ def _lnet_block(rd: _Reader, blk, n: int, form: str) -> list[EzLNetwork]:
                             f"L network {k} branch {j + 1}",
                             "a parallel branch with no parts",
                         )
-                    rd.undefined(
-                        f"L network {k} branch {j + 1}",
-                        "a parallel R/L/C branch (the format defines a missing part only for loads)",
-                        "a missing part being absent (open), as for a parallel RLC load",
-                    )
+                    # The format defines a missing part only for loads; for an
+                    # L-network branch this reading is the default (AK#2173,
+                    # Steve 2026-11-05) because EZNEC's own .nec export of such
+                    # a model matches it: a part left at zero is absent
+                    # (open), as for a parallel RLC load. Noted once.
+                    if not any(w.startswith(_LNET_OPEN_NOTE) for w in rd.warnings):
+                        rd.warn(_LNET_OPEN_NOTE)
                 parts.append(EzBranch(complex(rx[2 * j], rx[2 * j + 1]), t, R, L, C, F))
             ser, sh = parts
         out.append(EzLNetwork(*_ports(b, n, k), ser, sh))
@@ -1665,7 +1667,7 @@ def _load_cards(dk: _Deck) -> None:
                 f"its impedance is infinite at the model frequency {m.freq_mhz:g} MHz "
                 "(a lossless resonance): it would cut the wire",
             )
-        _check_stored(m, name, ld.stored_z, zf0)
+        _check_stored(m, name, ld.stored_z, zf0, r=ld.r)
         if ld.kind == "R" and ld.rlc_type in ("S", "P") and not ld.r_freq_mhz:
             # Plain series / parallel RLC: NEC's own LD 0 / LD 1, which
             # follow frequency (a zero part is missing, as in EZNEC).
@@ -1773,7 +1775,7 @@ def _load_z(dk: _Deck, k: int, ld: EzLoad) -> Callable[[float], complex]:
     if ld.kind == "L":
         return _laplace(dk, k, ld)
     z = _rlc_load(dk, k, ld)
-    _check_stored(dk.m, f"load {k}", ld.stored_z, z(dk.m.freq_mhz * 1e6))
+    _check_stored(dk.m, f"load {k}", ld.stored_z, z(dk.m.freq_mhz * 1e6), r=ld.r)
     return z
 
 
@@ -1816,9 +1818,28 @@ def _rlc_load(dk: _Deck, k: int, ld: EzLoad) -> Callable[[float], complex]:
     return z
 
 
-def _check_stored(m: EzModel, what: str, stored: complex, z: complex) -> None:
+# The note an L network's parallel branch with an unset part carries (AK#2173).
+_LNET_OPEN_NOTE = (
+    "An L network's parallel R/L/C branch with a part left unset is read with "
+    "that part absent (open), as for a parallel RLC load; EZNEC's own .nec "
+    "export of such a model agrees."
+)
+
+
+def _check_stored(
+    m: EzModel, what: str, stored: complex, z: complex, r: float | None = None
+) -> None:
     """EZNEC stores every load's impedance at the model frequency beside its
-    parts; a reading that disagrees with it is not EZNEC's."""
+    parts; a reading that disagrees with it is not EZNEC's.
+
+    AutoEZ writes ``.ez`` files that EZNEC then opens (AK#2173), and stores the
+    load's R in that slot instead. So a file with no EZNEC save stamp
+    (``program``) whose stored value is exactly the load's R is AutoEZ's
+    convention, not a disagreement, and passes; the notes say the check was
+    not made (`_notes`). Every other mismatch is still refused, an old EZNEC
+    file without a stamp included."""
+    if not m.program and r is not None and stored == complex(r, 0.0):
+        return
     if stored != 0 and abs(z - stored) > 2e-3 * max(1.0, abs(stored)):
         raise EzUndefined(
             m.name,
@@ -2413,6 +2434,21 @@ def _notes(m: EzModel, dk: _Deck, deck: NecDeck, reading: str | None) -> list[st
         )
     if m.program:
         out.append(f"Written by {m.program}.")
+    else:
+        # AK#2173: no EZNEC save stamp. AutoEZ writes such files (EZNEC then
+        # opens them); they record no engine and store a load's R where EZNEC
+        # stores its impedance at the model frequency.
+        out.append(
+            "No EZNEC save stamp (an AutoEZ-written file, for one). Where a load "
+            "stores its R in place of its impedance at the model frequency, as "
+            "AutoEZ writes it, that value is not checked against its parts."
+        )
+    if m.engine is None and reading is None:
+        out.append(
+            "The file records no engine, so it is read as EZNEC's own engines "
+            "read it. If it was run on EZNEC's NEC-5 engine, use Read as NEC-5: "
+            "NEC-5 connects sources and loads at segment ends."
+        )
     n_seg = sum(w.segments for w in m.wires)
     out.append(
         f"{len(m.wires)} wire{'s' if len(m.wires) != 1 else ''}, {n_seg} segments, "
