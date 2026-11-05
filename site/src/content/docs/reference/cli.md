@@ -1755,7 +1755,12 @@ It prints:
 - With `--pairs`, **segment-pair counts:** distinct segment pairs under the
   mirrors and under any repeat. This is the upper bound, which also shares
   entries inside a block, such as one offset along two parallel elements with
-  the same segment length. It is quadratic in segments: about a second at 300.
+  the same segment length. It is quadratic in segments: about 1.5 s at 300.
+
+The mesh analysed is the one the momwire engine would solve, after its feed
+parity, port splits and ground-plane split. "Over ground" assumes ground that is
+the same everywhere horizontally; a radial screen (GN with radials) or a second
+ground medium allows fewer moves than it counts.
 
 The reuse itself is momwire#1809, tracked in antennaknobs#2165.
 
