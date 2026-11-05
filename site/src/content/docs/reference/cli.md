@@ -1779,8 +1779,17 @@ height qualify; a vertical stack of identical dipoles does not. On a laptop,
 one thread, a whole solve of a 20-director Yagi, finding the pairs included,
 went from 70 to 52 ms in free space and from 285 to 180 ms over Sommerfeld
 ground; a 4-element CED from 44 to 34 ms and from 142 to 116 ms. Finding the
-pairs takes about 1 ms on designs like these and 60 ms on 120 radials. This
-needs momwire 0.87.0 or newer, which is what antennaknobs 0.113.0 installs;
+pairs takes about 1 ms on designs like these and 60 ms on 120 radials.
+
+The same setting also fills each straight, evenly meshed wire's own block by
+segment offset, since there every entry depends only on how far apart its
+two segments are. That helps long single wires most: a 30 m inverted-L top at
+280 segments solved 3.6x faster in free space. Over ground the gain is
+smaller for now (about 1.2x), because the ground terms are not yet filled
+this way.
+
+This needs momwire 0.87.0 or newer, which is what antennaknobs 0.113.0
+installs (for the straight-wire part, the momwire release after 0.87.0);
 with an older one the setting does nothing.
 
 ## Exporting to NEC
