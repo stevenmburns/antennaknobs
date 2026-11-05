@@ -378,7 +378,9 @@ def test_a_nec4_engine_setting_keeps_centres_and_the_extended_kernel():
     ("kw", "named"),
     [
         ({"vercode": 11}, "version code 11"),
-        ({"pgm": 700_007}, "program version word 700007"),
+        # 700007, 700008 and 60023 are 7.0.7, 7.0.8 and 6.0.23 in shorter
+        # stamps (the 11-05 sitting); a word no EZNEC has written stays unknown.
+        ({"pgm": 1_234_567}, "program version word 1234567"),
         ({"pgm": 80_000_001}, "program version word 80000001"),
     ],
 )
@@ -439,19 +441,29 @@ LAPLACE = {
 }
 
 
+# A reading the format still leaves undefined, with one to take on request: a
+# transformer with a negative impedance (a reversed transformer).
+def _reversed_xfmr() -> bytes:
+    return ez_file(
+        PAIR,
+        blocks=[transformer_block([((1, 50.0), (2, 50.0), 50.0, -200.0)])],
+        counts=(1, 0, 0, 0),
+    )
+
+
 def test_an_undefined_reading_is_refused_unless_asked_for_and_then_listed():
-    raw = ez_file(DIPOLE, loads=(LAPLACE,), load_type="L")
+    raw = _reversed_xfmr()
     with pytest.raises(EzUndefined) as err:
         read_ez(raw)
-    assert err.value.kind == "undefined" and "Laplace" in str(err.value)
+    assert err.value.kind == "undefined" and "reversed" in str(err.value)
     assert ez_import.ACCEPT_GUESSES_ENV in str(err.value)
     imp = read_ez(raw, accept_guesses=True)
-    assert any("Readings taken on request" in n and "Laplace" in n for n in imp.notes)
+    assert any("Readings taken on request" in n and "reversed" in n for n in imp.notes)
 
 
 def test_the_environment_switch_opts_in_through_the_file_loader(tmp_path, monkeypatch):
-    p = tmp_path / "laplace.ez"
-    p.write_bytes(ez_file(DIPOLE, loads=(LAPLACE,), load_type="L"))
+    p = tmp_path / "reversed.ez"
+    p.write_bytes(_reversed_xfmr())
     monkeypatch.delenv(ez_import.ACCEPT_GUESSES_ENV, raising=False)
     with pytest.raises(EzUndefined):
         builder_from_file(str(p))
@@ -568,9 +580,11 @@ LOADS = {
         False,
         lambda f, w: _series(8.0 * math.sqrt(f / 10.0), 1e-6, 0.0, w),
     ),
+    # s = jω, ω in rad/s: settled by EZNEC at the 11-05 sitting (rxvrhat.ez),
+    # so no longer a reading taken on request.
     "Laplace": (
         {"laplace": ((5.0, 2e-6, 0, 0, 0, 0), (1.0, 0, 0, 0, 0, 0))},
-        True,
+        False,
         lambda f, w: _laplace_z((5.0, 2e-6, 0, 0, 0, 0), (1.0, 0, 0, 0, 0, 0), w),
     ),
 }

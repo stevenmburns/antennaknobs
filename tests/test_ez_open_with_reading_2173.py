@@ -17,12 +17,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from antennaknobs.web import decks, server
-from test_ez_import_1958 import DIPOLE, LAPLACE, engine_block, ez_file
+from test_ez_import_1958 import DIPOLE, _reversed_xfmr, engine_block, ez_file
 
-RAW = ez_file(DIPOLE, loads=(LAPLACE,), load_type="L")
+# A reading the .ez format leaves undefined, with one to take: a reversed
+# transformer (the Laplace load was settled at the 11-05 sitting).
+RAW = _reversed_xfmr()
 
 
-def _payload(raw=RAW, name="laplace.ez", **kw) -> dict:
+def _payload(raw=RAW, name="reversed.ez", **kw) -> dict:
     c = zlib.compressobj(9, zlib.DEFLATED, -15)
     packed = c.compress(raw) + c.flush()
     return {
@@ -52,7 +54,7 @@ def test_the_refusal_names_the_reading_and_no_environment_variable(client):
     body = r.json()
     assert body["deck_status"] == "undefined"
     assert body["reading"]
-    assert "Laplace" in body["detail"] and "Open with this reading" in body["detail"]
+    assert "reversed" in body["detail"] and "Open with this reading" in body["detail"]
     assert "ANTENNAKNOBS_" not in body["detail"]
 
 
@@ -64,9 +66,9 @@ def test_opening_with_the_reading_opens_it_and_lists_the_reading(client):
 
 def test_the_reading_is_part_of_the_key_and_false_keeps_the_old_one():
     text = RAW.decode("latin-1")
-    old = decks.deck_key("laplace.ez", text)
-    assert decks.deck_key("laplace.ez", text, accept_guesses=False) == old
-    assert decks.deck_key("laplace.ez", text, accept_guesses=True) != old
+    old = decks.deck_key("reversed.ez", text)
+    assert decks.deck_key("reversed.ez", text, accept_guesses=False) == old
+    assert decks.deck_key("reversed.ez", text, accept_guesses=True) != old
 
 
 def test_the_flag_means_nothing_for_a_file_that_is_not_an_ez():

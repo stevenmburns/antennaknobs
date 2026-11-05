@@ -628,10 +628,12 @@ def test_the_readings_that_remain_are_refused_by_default():
         ),
         load_type="L",
     )
-    for raw, named in ((rev, "reversed"), (lap, "Laplace")):
-        with pytest.raises(EzUndefined, match=named):
-            read_ez(raw)
-        read_ez(raw, accept_guesses=True)
+    with pytest.raises(EzUndefined, match="reversed"):
+        read_ez(rev)
+    read_ez(rev, accept_guesses=True)
+    # The Laplace variable was settled at the 11-05 sitting (s = jω, ω in
+    # rad/s, rxvrhat.ez): it reads by default now.
+    read_ez(lap)
 
 
 def test_no_settled_reading_is_listed_as_a_guess():

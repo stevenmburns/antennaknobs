@@ -681,7 +681,16 @@ from there. Transformers are EZNEC's own two-port, Y-parameter networks
 their fixed admittances, and L networks their two branches, fixed R + jX or
 R/L/C parts that follow frequency. A parallel R/L/C branch with a part left
 unset reads that part as absent (open), as a parallel RLC load does; EZNEC's
-own `.nec` export of such a model agrees, and the design's notes say so.
+own `.nec` export of such a model agrees, and the design's notes say so. A
+parallel shunt branch with no parts at all is no element, which EZNEC shows as
+Open, Open, Open.
+
+**Checked against EZNEC 7.0.4** at a sitting with the census files the reader
+used to refuse: a Laplace load is Z(s) with s = jω, ω in rad/s; a pre-3.0
+file's blank load type, with its older field reading R + jX, is an R + jX
+load; the shorter version stamps 700007, 700008 and 60023 are versions 7.0.7,
+7.0.8 and 6.0.23; and a wire-loss table with a single entry for a many-wire
+model gives every wire that material. Each now opens as EZNEC reads it.
 
 **Wire loss** comes from the per-wire loss table when the file has one, else
 from the model-wide resistivity. Insulation becomes the wire's jacket.
@@ -725,10 +734,10 @@ impedances.
   versions, so these are never guessed at. (Blocks another program marks
   as its own are skipped.)
 - *A reading the format leaves undefined*, and EZNEC's exports have not
-  settled: a Laplace load's variable, a reversed transformer or Y network, a
-  series load on a virtual segment, a line loss given
-  at no frequency, the extended ground under a buried wire, a pre-3.0 load
-  type, data in a record the format reserves. These are
+  settled: a reversed transformer or Y network, a series load on a virtual
+  segment, a line loss given at no frequency, the extended ground under a
+  buried wire, a pre-3.0 file's Laplace load type, data in a record the format
+  reserves. These are
   refused unless you ask for the reading: on the web app with the refusal's
   **Open with this reading** button, on the command line by setting
   `ANTENNAKNOBS_EZ_ACCEPT_GUESSES=1`. Each reading taken is then listed in the

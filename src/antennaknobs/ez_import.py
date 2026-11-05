@@ -28,9 +28,9 @@ away from it, against this import's reading of the same file.
   model data -- are skipped. A negative (custom) block type is skipped by its
   length, as the description says a reader should.
 * `EzUndefined` -- a reading the description leaves undefined and EZNEC's
-  exports have not settled (a Laplace load's variable, a reversed transformer
-  or Y network, a parallel L-network branch, a line loss given at no
-  frequency, the extended ground under a buried wire, ...). Refused by
+  exports have not settled (a reversed transformer or Y network, a series
+  load on a virtual segment, a line loss given at no frequency, the extended
+  ground under a buried wire, ...). Refused by
   default. Where a reading has been checked against real files it can be
   taken on purpose, with ``accept_guesses=True``
   (``ANTENNAKNOBS_EZ_ACCEPT_GUESSES=1`` for the CLI and the app); every
@@ -69,7 +69,8 @@ notes, not a refusal.
   impedance, series and parallel RLC are the frequency-dependent ``Load``
   (zero is a missing part, as the description says), a trap is R and L in
   series across C, and a frequency-variable R follows ``√(f/F)`` from its
-  frequency F; a Laplace load needs ``accept_guesses``. Each is evaluated per
+  frequency F; a Laplace load is Z(s) with s = jω, ω in rad/s, as EZNEC
+  evaluates it (the 11-05 sitting). Each is evaluated per
   frequency from its own formula.
 * Transmission lines: lossless lines are ``TL`` with their reversal (a
   crossed line), length and velocity factor; a stub end becomes the line
@@ -451,6 +452,15 @@ def _pgm_version_word(pv: int, vc: int) -> str | None:
     major, minor, build = pv // 10_000_000, (pv // 100_000) % 100, pv % 100_000
     if 4 <= major <= 7 and minor == 0:
         return f"{major}.{minor}.{build}"
+    # Shorter stamps from earlier builds (the 11-05 sitting): EZNEC 7.0.4
+    # opens 700007, 700008 and 60023 without a word and re-stamps them as
+    # its own 70000004, so they are versions 7.0.7, 7.0.8 and 6.0.23 spelt in
+    # six and five digits.
+    for scale in (100_000, 10_000):
+        major, rest = divmod(pv, scale)
+        minor, build = divmod(rest, scale // 100)
+        if 6 <= major <= 7 and minor == 0:
+            return f"{major}.{minor}.{build}"
     return None
 
 
@@ -785,8 +795,12 @@ def _load_kind(rd: _Reader, n_load: int) -> str:
     if rd.legacy and lt in ("", " "):
         return "Z"  # a version-10 file's blank type is R + jX
     old = _ch(d, 0x50)
-    if lt in ("", " ") and old in ("Z", "S"):
-        # Files from before the field existed name the type in the older one.
+    if lt in ("", " ") and old == "Z":
+        # Files from before the field existed name the type in the older one;
+        # EZNEC 7.0.4 shows such a load as R + jX and exports it as LD 4 (the
+        # 11-05 sitting, logbev.ez).
+        return "Z"
+    if lt in ("", " ") and old == "S":
         rd.undefined(
             "load type",
             f"{lt!r} (a pre-3.0 file)",
@@ -1074,6 +1088,16 @@ def _loss_block(rd: _Reader, blk, n_wire: int):
         return None
     b = blk[0]
     what = "block 13 (wire loss)"
+    if n_wire > 1 and len(b) == 12 and _i32(b, 0) == 1:
+        # One row for a many-wire model: EZNEC 7.0.4 opens it and applies that
+        # material to every wire, its re-save writing the row once per wire
+        # (the 11-05 sitting, KT34XA.ez).
+        rd.warn(
+            "The wire-loss table has one entry for this many-wire model; "
+            "as EZNEC does, it applies to every wire."
+        )
+        row = (_r7(_f32(b, 4)), _r7(_f32(b, 8)))
+        return [row] * n_wire
     _count(rd, b, what, n_wire)
     if len(b) != 4 + 8 * n_wire:
         rd.malformed(what, f"{len(b)} bytes for {n_wire} wires")
@@ -1206,10 +1230,11 @@ def _lnet_block(rd: _Reader, blk, n: int, form: str) -> list[EzLNetwork]:
                         f"L network {k}", f"negative part R {R}, L {L}, C {C}, F {F}"
                     )
                 if t == "P":
-                    if not (R or L or C):
+                    if not (R or L or C) and j == 0:
+                        # An empty series branch would cut the network.
                         rd.undefined(
                             f"L network {k} branch {j + 1}",
-                            "a parallel branch with no parts",
+                            "a parallel series branch with no parts",
                         )
                     # The format defines a missing part only for loads; for an
                     # L-network branch this reading is the default (AK#2173,
@@ -1800,7 +1825,9 @@ def _load_word(ld: EzLoad) -> str:
 
 def _laplace(dk: _Deck, k: int, ld: EzLoad) -> Callable[[float], complex]:
     m = dk.m
-    dk.guess(f"load {k}", "a Laplace load", "a function of s = jω (rad/s)")
+    # Z(s) with s = jω, ω in rad/s: EZNEC evaluates it so (the 11-05 sitting,
+    # rxvrhat.ez: 73 + 2.8906e-5 s exports as 73 + j336 Ω at 1.85 MHz and
+    # 73 + j672 Ω at 3.7 MHz), so this is the reading, not a guess.
     num, den = ld.laplace
 
     def z(f_hz: float) -> complex:
@@ -2132,6 +2159,10 @@ def _lnet_builder(x: EzLNetwork):
                         port=b, r=sh.r or _LNET_ZERO_R, l=sh.l or None, c=sh.c or None
                     )
                 )
+            elif not (sh.r or sh.l or sh.c):
+                # A parallel shunt branch with every part open: no element,
+                # as EZNEC shows it (Open / Open / Open, the 11-05 sitting).
+                pass
             else:
                 brs.append(
                     _net.Shunt(

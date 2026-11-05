@@ -23,6 +23,13 @@ Tolerances are each pairing's measured gap, with headroom, and why:
   singles: a few 1e-5 to 1e-4.
 * A lossy line: EZNEC's export writes its two-port with a constant that
   closes all but the last digit of the Y parameters: 3.4e-4 (Bydpole).
+* The 11-05 sitting's files (``~/ez-sitting-1105-results``, the census
+  files AK refused, each opened in EZNEC 7.0.4 and exported both ways): 2e-4
+  to 8e-4 against EZNEC's 7-digit exports. The 4Square model is 2.3e-2: its
+  second L network has an open shunt branch, which the file stores as open
+  and AK reads as no element, but EZNEC's export writes that network's NT
+  with a 1 Ω series resistance and a 1 MΩ shunt in place of the file's 0 and
+  open, a rule one example cannot settle.
 * The NEC-2 export of a current source is NEC-2's gyrator idiom, and its
   virtual wire stays real wire (a phantom wire parks beside it): 1.8e-4
   (cardL, NEC-2). That reading used to come out as 1/Z, and the pairing
@@ -87,6 +94,104 @@ PAIRS = {
         "nec5",
         False,
         1e-3,
+    ),
+    "Dipole1, a 6-digit version stamp (700008), NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/version_word/Dipole1.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/version_word/Dipole1-nec2.nec",
+        None,
+        False,
+        2e-3,
+    ),
+    "Dipole1, a 6-digit version stamp (700008), NEC-5 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/version_word/Dipole1.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/version_word/Dipole1-nec5.nec",
+        "nec5",
+        False,
+        2e-3,
+    ),
+    "DipTLxx, a 5-digit version stamp (60023), NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/version_word/DipTLxx.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/version_word/DipTLxx-nec2.nec",
+        None,
+        False,
+        2e-3,
+    ),
+    "DipTLxx, a 5-digit version stamp (60023), NEC-5 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/version_word/DipTLxx.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/version_word/DipTLxx-nec5.nec",
+        "nec5",
+        False,
+        2e-3,
+    ),
+    "Network connection test (700007), NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/version_word/Network connection test.EZ",
+        "~/ez-sitting-1105-results/ez-sitting-1105/version_word/Network connection test-nec2.nec",
+        None,
+        False,
+        2e-3,
+    ),
+    "Network connection test (700007), NEC-5 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/version_word/Network connection test.EZ",
+        "~/ez-sitting-1105-results/ez-sitting-1105/version_word/Network connection test-nec5.nec",
+        "nec5",
+        False,
+        2e-3,
+    ),
+    "logbev, a pre-3.0 load type, NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/pre30_load/logbev.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/pre30_load/logbev-nec2.nec",
+        None,
+        False,
+        2e-3,
+    ),
+    "logbev, a pre-3.0 load type, NEC-5 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/pre30_load/logbev.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/pre30_load/logbev-nec5.nec",
+        "nec5",
+        False,
+        2e-3,
+    ),
+    "rxvrhat, a Laplace load, NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/laplace/rxvrhat.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/laplace/rxvrhat-nec2.nec",
+        None,
+        False,
+        2e-3,
+    ),
+    "rxvrhat, a Laplace load, NEC-5 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/laplace/rxvrhat.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/laplace/rxvrhat-nec5.nec",
+        "nec5",
+        False,
+        2e-3,
+    ),
+    "KT34XA, one wire-loss row for 12 wires, NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/malformed/KT34XA.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/malformed/KT34XA-nec2.nec",
+        None,
+        False,
+        2e-3,
+    ),
+    "KT34XA, one wire-loss row for 12 wires, NEC-5 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/malformed/KT34XA.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/malformed/KT34XA-nec5.nec",
+        "nec5",
+        False,
+        2e-3,
+    ),
+    "4Square, an L network with an empty shunt branch, NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/lnet_empty_branch/4Square L Network Feed With Z Matching.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/lnet_empty_branch/4Square-nec2.nec",
+        None,
+        False,
+        3e-2,
+    ),
+    "4Square, an L network with an empty shunt branch, NEC-5 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/lnet_empty_branch/4Square L Network Feed With Z Matching.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/lnet_empty_branch/4Square-nec5.nec",
+        "nec5",
+        False,
+        3e-2,
     ),
     "efhw2, EZNEC's NEC-5 engine deck": (
         "~/Downloads/GroundRod/efhw2.ez",
