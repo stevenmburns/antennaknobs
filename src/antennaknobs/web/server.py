@@ -367,12 +367,13 @@ def _open_deck(payload, ip: str) -> tuple[str, bool, str | None, str | None]:
     take (`_ranges_refusal`)."""
     name, text = _decks.decode_payload(payload, _DECK_SETTINGS)
     dialect = _decks.payload_dialect(payload)
+    guesses = _decks.payload_accept_guesses(payload)
     analyses, refusal = _link_analyses(payload)
     # AK#2045: the link's knob ranges, read strictly; the ones that read are
     # part of the key, whatever the deck then says of their names.
     ranges, ranges_syntax = _decks.payload_ranges(payload)
     key = _decks.deck_key(
-        name, text, dialect, None if analyses is None else analyses[0], ranges
+        name, text, dialect, None if analyses is None else analyses[0], ranges, guesses
     )
     if key in _DECK_STORE and key in EXAMPLES:
         _DECK_STORE.get(key)  # touch: recently used
@@ -385,7 +386,7 @@ def _open_deck(payload, ip: str) -> tuple[str, bool, str | None, str | None]:
             status=429,
             deck_status="rate",
         )
-    key, new = _DECK_STORE.open(name, text, dialect, analyses, ranges)
+    key, new = _DECK_STORE.open(name, text, dialect, analyses, ranges, guesses)
     return key, new, refusal, _ranges_refusal(ranges_syntax, key)
 
 
@@ -424,10 +425,10 @@ def _deck_status_of(exc: BaseException) -> dict:
 
 
 def _deck_refusal(exc: _decks.DeckError) -> JSONResponse:
-    return JSONResponse(
-        status_code=exc.status,
-        content={"detail": exc.message, "deck_status": exc.deck_status},
-    )
+    content = {"detail": exc.message, "deck_status": exc.deck_status}
+    if getattr(exc, "reading", None):
+        content["reading"] = exc.reading
+    return JSONResponse(status_code=exc.status, content=content)
 
 
 @app.exception_handler(_decks.DeckError)

@@ -18,6 +18,9 @@
 //                                         of `design`
 //   &dialect=nec2|nec4|nec5               the dialect the deck is read in,
 //                                         when chosen (absent: detected)
+//   &readings=1                           an .ez opened with the readings its
+//                                         format leaves undefined (AK#2173),
+//                                         part of the deck's key
 //   &analyses=<z>                         analyses for the deck or design
 //                                         (AK#2045): the stylized Python a
 //                                         design's build_analyses() returns,
@@ -369,6 +372,7 @@ export const LINK_PARAMS = [
   "deck",
   "name",
   "dialect",
+  "readings",
   "analyses",
   "knobs",
   "family",
@@ -426,6 +430,7 @@ export function parseDeepLink(search: string): DeepLink | null {
             z,
             name: param(q, "name") ?? "deck.nec",
             ...(isDialect(dialect) ? { dialect } : {}),
+            ...(param(q, "readings") === "1" ? { accept_guesses: true } : {}),
             ...(analyses !== null ? { analyses } : {}),
             ...(ranges ? { ranges } : {}),
           },
@@ -582,6 +587,7 @@ export function linkSearch(search: string, state: LinkState): string {
     q.set("deck", state.deck.z);
     q.set("name", state.deck.name);
     if (state.deck.dialect) q.set("dialect", state.deck.dialect);
+    if (state.deck.accept_guesses) q.set("readings", "1");
     if (state.deck.analyses) q.set("analyses", state.deck.analyses);
   } else {
     q.set("design", state.variant ? `${state.design}:${state.variant}` : state.design);

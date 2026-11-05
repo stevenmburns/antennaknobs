@@ -50,7 +50,16 @@ export const isDialect = (v: unknown): v is Dialect =>
  *  `analyses`: the analyses a link carried for the deck (AK#2045), compressed
  *  as the deck is; absent when it carried none. `ranges`: the knob ranges
  *  the link gave it (AK#2045, `deepLink.knobRanges`), absent for none. */
-export type DeckPayload = { name: string; z: string; dialect?: Dialect; analyses?: string; ranges?: string };
+export type DeckPayload = {
+  name: string;
+  z: string;
+  dialect?: Dialect;
+  analyses?: string;
+  ranges?: string;
+  /** An .ez opened with the readings its format leaves undefined (AK#2173:
+   *  the refusal's "Open with this reading"); part of the deck's key. */
+  accept_guesses?: boolean;
+};
 
 /** What /deck says the deck was read as, and why. */
 export type DeckDialect = {
@@ -80,7 +89,8 @@ export const isDeck = (g: unknown): g is string =>
  *  reader chose one -- the same file read two ways is two entries, labelled
  *  alike. Browsers never expose the folder, so the name is all there is. */
 export const deckTitle = (d: DeckPayload): string =>
-  d.dialect ? `${d.name}, read as ${DIALECT_LABEL[d.dialect]}` : d.name;
+  (d.dialect ? `${d.name}, read as ${DIALECT_LABEL[d.dialect]}` : d.name) +
+  (d.accept_guesses ? ", with the readings taken" : "");
 
 /** The hover for a picker entry: an opened deck's `deckTitle`, nothing for a
  *  catalog or user design. */
@@ -182,12 +192,17 @@ export async function compressBytes(bytes: Uint8Array): Promise<string> {
 
 // --- The server ------------------------------------------------------------
 
-/** What /deck refused, in its words, and its kind ("refused", "rate", ...). */
+/** What /deck refused, in its words, and its kind ("refused", "rate", ...).
+ *  `reading` is the reading an .ez refusal can take on request (AK#2173),
+ *  null for every other refusal; `payload` is what was sent, so the page can
+ *  open it again with that reading. */
 export class DeckOpenError extends Error {
   constructor(
     message: string,
     readonly status: number,
     readonly deckStatus: string | null,
+    readonly reading: string | null = null,
+    readonly payload: DeckPayload | null = null,
   ) {
     super(message);
   }
@@ -208,6 +223,7 @@ export async function openDeck(payload: DeckPayload): Promise<OpenedDeck> {
     ranges_refusal?: string | null;
     detail?: string;
     deck_status?: string;
+    reading?: string;
   } = {};
   try {
     body = await resp.json();
@@ -219,6 +235,8 @@ export async function openDeck(payload: DeckPayload): Promise<OpenedDeck> {
       body.detail ?? `Could not open ${payload.name} (${resp.status}).`,
       resp.status,
       body.deck_status ?? null,
+      body.reading ?? null,
+      payload,
     );
   }
   const d: OpenedDeck = {
@@ -284,6 +302,7 @@ export function deckPayload(d: DeckPayload): DeckPayload {
     ...(d.dialect ? { dialect: d.dialect } : {}),
     ...(d.analyses ? { analyses: d.analyses } : {}),
     ...(d.ranges ? { ranges: d.ranges } : {}),
+    ...(d.accept_guesses ? { accept_guesses: true } : {}),
   };
 }
 

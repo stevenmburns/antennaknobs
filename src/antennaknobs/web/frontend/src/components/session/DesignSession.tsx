@@ -346,9 +346,11 @@ import {
   compressDeck,
   deckFor,
   deckPayload,
+  DeckOpenError,
   isDeck,
   openDeck,
   openDeckFile,
+  type DeckPayload,
   type Dialect,
 } from "../../lib/decks";
 
@@ -3566,12 +3568,26 @@ function DesignSessionBody({
   // server, and then simply the design this tab is on. Its refusal (over a
   // limit, a card the importer cannot model) is the server's own sentence.
   const [deckError, setDeckError] = useState<string | null>(null);
+  // An .ez refusal that names a reading (AK#2173): the payload to send again
+  // with it, behind the notice's "Open with this reading".
+  const [deckRetry, setDeckRetry] = useState<DeckPayload | null>(null);
+  const deckRefused = (e: unknown) => {
+    setDeckError(e instanceof Error ? e.message : String(e));
+    setDeckRetry(
+      e instanceof DeckOpenError && e.reading && e.payload ? { ...e.payload, accept_guesses: true } : null,
+    );
+  };
   const openDeckFromFile = (file: File) => {
     setDeckError(null);
-    openDeckFile(file).then(
-      (d) => setGeometry(d.key),
-      (e: unknown) => setDeckError(e instanceof Error ? e.message : String(e)),
-    );
+    setDeckRetry(null);
+    openDeckFile(file).then((d) => setGeometry(d.key), deckRefused);
+  };
+  const acceptDeckReading = () => {
+    const p = deckRetry;
+    if (!p) return;
+    setDeckError(null);
+    setDeckRetry(null);
+    openDeck(p).then((o) => setGeometry(o.key), deckRefused);
   };
   // The dialect control (DeckNotice): the same deck, re-opened read in the
   // chosen dialect, is another design (its key carries the choice) and the
@@ -3580,17 +3596,17 @@ function DesignSessionBody({
     const d = isDeck(geometry) ? deckFor(geometry) : undefined;
     if (!d) return;
     setDeckError(null);
-    // The same deck: its link's analyses and knob ranges stay with it.
+    setDeckRetry(null);
+    // The same deck: its link's analyses and knob ranges, and a reading it
+    // was opened with, stay with it.
     openDeck({
       name: d.name,
       z: d.z,
       ...(dialect ? { dialect } : {}),
       ...(d.analyses ? { analyses: d.analyses } : {}),
       ...(d.ranges ? { ranges: d.ranges } : {}),
-    }).then(
-      (o) => setGeometry(o.key),
-      (e: unknown) => setDeckError(e instanceof Error ? e.message : String(e)),
-    );
+      ...(d.accept_guesses ? { accept_guesses: true } : {}),
+    }).then((o) => setGeometry(o.key), deckRefused);
   };
   // The chart is where an analysis or a view lands, and listing the
   // design's analyses waits for it to be on screen (useDesignAnalyses).
@@ -3981,8 +3997,12 @@ function DesignSessionBody({
         <DeckNotice
           deck={isDeck(geometry) ? (deckFor(geometry) ?? null) : null}
           error={deckError}
-          onDismissError={() => setDeckError(null)}
+          onDismissError={() => {
+            setDeckError(null);
+            setDeckRetry(null);
+          }}
           onReadAs={reopenDeckAs}
+          {...(deckRetry ? { onAcceptReading: acceptDeckReading } : {})}
         />
         {settingsNote && (
           <div className="settings-notice" role="status">
