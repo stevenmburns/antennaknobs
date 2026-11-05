@@ -2178,6 +2178,25 @@ def _ground_cards(dk: _Deck) -> tuple[str, str]:
     return "sommerfeld", word
 
 
+def _one_load_run(body: list[str]) -> list[str]:
+    """The deck's LD cards in one run, right after the geometry (AK#2177).
+
+    NEC-4.2 and nec2c start a new run of loads at an LD card that follows any
+    other card (FR, GN, GD, EX, TL, NT, ...), and the new run throws away every
+    load read before it. The writers here emit lumped loads, then lines and
+    networks (a stub on a virtual segment is an LD card among them), then
+    wire conductivity (LD 5), which in real NEC would drop the lumped loads.
+    So every LD card moves, in its own order, to directly after ``GE``: the
+    loads, and which card stands for which (``_Deck.ld``), are unchanged."""
+    ge = next((i for i, c in enumerate(body) if c.startswith("GE")), None)
+    if ge is None:
+        return body
+    tail = body[ge + 1 :]
+    loads = [c for c in tail if c.startswith("LD ")]
+    rest = [c for c in tail if not c.startswith("LD ")]
+    return body[: ge + 1] + loads + rest
+
+
 def _loss_cards(dk: _Deck) -> None:
     m = dk.m
     rows = m.wire_loss
@@ -2347,7 +2366,7 @@ def read_ez(
     dk.cards.append("EN")
     # The placeholder comments go into the card list where their cards are;
     # keep the deck's CM block at the head, as NEC requires.
-    body = [c for c in dk.cards if not c.startswith("CM ")]
+    body = _one_load_run([c for c in dk.cards if not c.startswith("CM ")])
     marks = [c for c in dk.cards if c.startswith("CM ")]
     nec_text = "\n".join(head[:-1] + marks + head[-1:] + body) + "\n"
 
