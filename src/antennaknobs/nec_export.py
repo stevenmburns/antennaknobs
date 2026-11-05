@@ -39,6 +39,7 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
+import re
 import numpy as np
 
 from .card_text import card_text
@@ -210,6 +211,61 @@ def _gw(tag, n_seg, p0, p1, radius):
         f"GW {tag} cannot be written inside NEC-2's {CARD_COLUMNS}-column card "
         f"even at 5 significant figures: {card!r}"
     )
+
+
+_INT_FIELD = re.compile(r"[+-]?\d+")
+
+
+def fit_card(card: str, columns: int = CARD_COLUMNS) -> str:
+    """``card`` inside ``columns`` (AK#2179), for a writer that spells its
+    reals at full precision (the ``.ez`` and ``.maa`` imports). A card that
+    fits is returned as it is, so its digits stay exact. One that does not is
+    shortened a field at a time, always the longest real first: a leading
+    zero dropped (``.5``), then one significant figure, never below 5. So the
+    long spellings go first (a ``-5.955815e-08`` of rounding noise beside a
+    20 m coordinate), and a short coordinate keeps every digit it has.
+    Integer fields (tags, segment counts, card options) are never touched,
+    and a comment card is left alone, since a cut-off only shortens its text.
+    A card that cannot fit is refused: NEC would truncate it without a word
+    (Fortran NEC-2 at 80 columns, NEC-4.2 at 120, nec2c at 132, measured)."""
+    if len(card) <= columns or card.startswith(("CM", "CE")):
+        return card
+    head, *fields = card.split()
+    text = list(fields)
+    state = {}  # field index -> (digits, bare) it is now spelt with
+    for k, f in enumerate(fields):
+        if not _INT_FIELD.fullmatch(f):
+            state[k] = (17, False)
+
+    def joined() -> str:
+        return " ".join([head, *text])
+
+    while len(joined()) > columns:
+        movable = [k for k, (d, bare) in state.items() if d > 5 or not bare]
+        if not movable:
+            raise ValueError(
+                f"{head} cannot be written inside NEC's {columns}-column card "
+                f"even at 5 significant figures: {card!r}"
+            )
+        k = max(movable, key=lambda i: (len(text[i]), -i))
+        d, bare = state[k]
+        x = float(fields[k])
+        cur = len(text[k])
+        # The first spelling that is shorter: the same figures without a
+        # leading zero, else fewer figures (with or without it), never below
+        # 5. A field with nothing shorter left is retired.
+        steps = [(d, True)] + [
+            (nd, b) for nd in range(d - 1, 4, -1) for b in (bare, True)
+        ]
+        for nd, nb in steps:
+            t = _num(x, nd, nb)
+            if len(t) < cur:
+                state[k] = (nd, nb)
+                text[k] = t
+                break
+        else:
+            state[k] = (5, True)
+    return joined()
 
 
 # The deck dialects this writer spells (AK#1603). NEC-4.2 reads NEC-2's cards

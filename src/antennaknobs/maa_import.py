@@ -1110,7 +1110,11 @@ def read_maa(
         cards.append(f"EX 0 {t} {seg} {end} {_fmt(v.real)} {_fmt(v.imag)}")
     cards.append(f"FR 0 1 0 0 {_fmt(f.freq_mhz)} 0")
     cards.append("EN")
-    nec_text = "\n".join(cards) + "\n"
+    # Every card inside NEC's 80 columns (AK#2179): a card that fits keeps
+    # its exact digits, and the text parsed here is the deck AK shows.
+    from .nec_export import fit_card  # lazy: it loads the engines
+
+    nec_text = "\n".join(fit_card(c) for c in cards) + "\n"
 
     deck_limits = None
     if limits is not None:

@@ -988,7 +988,10 @@ def test_the_virtual_wire_is_rebuilt_as_eznecs_export_does_and_read_as_nodes():
     f = [float(x) for x in vw.split()[3:]]
     assert int(vw.split()[2]) == 3  # two numbers + 1
     assert f[:3] == pytest.approx([100 * lam, 100 * lam, 101 * lam])
-    assert f[3] - f[0] == pytest.approx(0.003 * lam)
+    # Its ends sit 100 λ out and are rounded to fit NEC's 80-column card
+    # (AK#2179), as EZNEC's own export rounds them to 7 figures, so its tiny
+    # length is good to about 1e-4; the reader takes its segments as nodes.
+    assert f[3] - f[0] == pytest.approx(0.003 * lam, rel=5e-4)
     assert [ln for ln in imp.nec_text.splitlines() if ln.startswith("EX ")] == [
         f"EX 6 2 2 0 {math.sqrt(2)!r} 0"
     ]
