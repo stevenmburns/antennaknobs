@@ -236,3 +236,33 @@ def test_the_mesh_is_the_engines():
         if c.rep[0] == c.rep[1] and edges[c.rep[0]].n == 20
     ]
     assert len(legs) == 1 and len(legs[0].members) == 2
+
+
+def _membership(classes):
+    return sorted(
+        (c.rep, tuple((i, j, fi, fj) for i, j, _iso, fi, fj in c.members))
+        for c in classes
+    )
+
+
+def test_the_distance_check_forms_the_fitted_classes():
+    """`isometries=False` (the hint's fast path) decides membership by six
+    end-point distances instead of a fit; the classes and flips are the same,
+    in free space and over ground, on shapes where the two could part: tilted
+    legs, a non-uniform Yagi, radials at NEC precision, coincident wires."""
+    vee = [
+        Wire((0, 0, 7), (0, 2.2, 5.7), n_seg=20),
+        Wire((0, 0, 7), (0, -2.2, 5.7), n_seg=20),
+    ]
+    radials = [Wire((0, 0, 0), (0, 0, 10), n_seg=20)]
+    for k in range(8):
+        a = 2 * np.pi * k / 8
+        tip = tuple(float(f"{v:.6g}") for v in (10 * np.cos(a), 10 * np.sin(a), 0.5))
+        radials.append(Wire((0.0, 0.0, 0.5), tip, n_seg=20))
+    twins = [Wire((0, 0, 5), (0, 4, 5), n_seg=10), Wire((0, 0, 5), (0, 4, 5), n_seg=10)]
+    for ws in (vee, yagi(6, aligned=False), radials, twins):
+        edges = edges_from_wires(design(ws))
+        for over_ground in (False, True):
+            fitted = edge_pair_classes(edges, over_ground)
+            fast = edge_pair_classes(edges, over_ground, isometries=False)
+            assert _membership(fast) == _membership(fitted), over_ground
