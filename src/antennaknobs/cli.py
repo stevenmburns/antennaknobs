@@ -2700,6 +2700,39 @@ def cli(arguments=None):
     p.set_defaults(func=f)
 
     p = subparsers.add_parser(
+        "structure",
+        help="Find the design's mirror planes and repeated wires, and the fill they could share",
+        description="Read-only analysis of a design's meshed wires (AK#2165): its "
+        "straight edges, the planes that mirror the whole structure onto itself, "
+        "and the edge pairs that share a relative pose (and so a block of the "
+        "fill, momwire#1809), in free space and over ground. --pairs adds the "
+        "segment-level counts, which take about a second at 300 segments.",
+    )
+    add_common(p)
+    p.add_argument(
+        "--set",
+        dest="set_params",
+        metavar="NAME=VALUE",
+        nargs="+",
+        default=[],
+        help="Set design knobs first, e.g. --set a=11.5.",
+    )
+    p.add_argument(
+        "--pairs",
+        default=False,
+        action="store_true",
+        help="Also count distinct segment pairs under the mirrors and under any repeat.",
+    )
+
+    def f(args):
+        from .structure import analyze, report
+
+        builder = _with_params(get_builder(args.builder), args.set_params)()
+        print(report(analyze(builder, pairs=args.pairs)))
+
+    p.set_defaults(func=f)
+
+    p = subparsers.add_parser(
         "schematic",
         help="Draw the design's feed network as a circuit schematic",
         description="Render a design's build_network() — feedline, tuner, "
