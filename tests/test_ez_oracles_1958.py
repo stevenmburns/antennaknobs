@@ -25,11 +25,13 @@ Tolerances are each pairing's measured gap, with headroom, and why:
   closes all but the last digit of the Y parameters: 3.4e-4 (Bydpole).
 * The 11-05 sitting's files (``~/ez-sitting-1105-results``, the census
   files AK refused, each opened in EZNEC 7.0.4 and exported both ways): 2e-4
-  to 8e-4 against EZNEC's 7-digit exports. The 4Square model is 2.3e-2: its
-  second L network has an open shunt branch, which the file stores as open
-  and AK reads as no element, but EZNEC's export writes that network's NT
-  with a 1 Ω series resistance and a 1 MΩ shunt in place of the file's 0 and
-  open, a rule one example cannot settle.
+  to 8e-4 against EZNEC's 7-digit exports. The 4Square model (an L network
+  with an empty shunt branch) is NOT a pairing: it is 2.3e-2 from both
+  exports, past the 5e-3 ceiling every pairing keeps. The file stores that
+  network's shunt as open and its series R as 0, and AK reads it so, but
+  EZNEC's export writes the network's NT with a 1 Ω series resistance and a
+  1 MΩ shunt, a rule one example cannot settle. It is the next sitting's
+  question.
 * The NEC-2 export of a current source is NEC-2's gyrator idiom, and its
   virtual wire stays real wire (a phantom wire parks beside it): 1.8e-4
   (cardL, NEC-2). That reading used to come out as 1/Z, and the pairing
@@ -178,20 +180,6 @@ PAIRS = {
         "nec5",
         False,
         2e-3,
-    ),
-    "4Square, an L network with an empty shunt branch, NEC-2 export": (
-        "~/ez-sitting-1105-results/ez-sitting-1105/lnet_empty_branch/4Square L Network Feed With Z Matching.ez",
-        "~/ez-sitting-1105-results/ez-sitting-1105/lnet_empty_branch/4Square-nec2.nec",
-        None,
-        False,
-        3e-2,
-    ),
-    "4Square, an L network with an empty shunt branch, NEC-5 export": (
-        "~/ez-sitting-1105-results/ez-sitting-1105/lnet_empty_branch/4Square L Network Feed With Z Matching.ez",
-        "~/ez-sitting-1105-results/ez-sitting-1105/lnet_empty_branch/4Square-nec5.nec",
-        "nec5",
-        False,
-        3e-2,
     ),
     "efhw2, EZNEC's NEC-5 engine deck": (
         "~/Downloads/GroundRod/efhw2.ez",
