@@ -1734,6 +1734,31 @@ the wires match, 1 when they differ and 2 on a usage error, so it works in a
 script. From Python, `antennaknobs.wire_compare.compare_wires(left, right)`
 takes two `build_wires()` lists and returns the differences.
 
+## Finding repeated geometry: `structure`
+
+`structure` reads a design's meshed wires and reports the symmetry and
+repetition a solver could use. Nothing in it changes a solve.
+
+```bash
+python -m antennaknobs structure --builder beams.owa_yagi
+python -m antennaknobs structure --builder user.mybeam --set a=11.5 --pairs
+```
+
+It prints:
+
+- **Mirror planes** that map the whole structure onto itself. Only vertical
+  ones still hold over ground.
+- **Edge-pair blocks:** every pair of straight edges, grouped by their relative
+  pose. A pose that repeats (a Yagi's director pairs at one spacing) is one
+  block of the fill, computed once and copied. The line gives how many segment
+  pairs that would fill, against all of them, in free space and over ground.
+- With `--pairs`, **segment-pair counts:** distinct segment pairs under the
+  mirrors and under any repeat. This is the upper bound, which also shares
+  entries inside a block, such as one offset along two parallel elements with
+  the same segment length. It is quadratic in segments: about a second at 300.
+
+The reuse itself is momwire#1809, tracked in antennaknobs#2165.
+
 ## Exporting to NEC
 
 ```bash
