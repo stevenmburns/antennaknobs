@@ -15,7 +15,7 @@ import pytest
 
 from antennaknobs import Wire
 from antennaknobs.cli import make_engine_factory
-from antennaknobs.engines.momwire import _takes_pair_reuse
+from antennaknobs.engines.momwire import _takes_kwarg, _takes_pair_reuse
 from antennaknobs.structure import edges_from_wires, pair_reuse_hint
 
 from test_structure_2165 import design, yagi
@@ -115,3 +115,28 @@ def test_over_sommerfeld_ground_the_remainder_copies():
     z1 = np.asarray(engine(fed_yagi(4), g, pair_reuse=True).impedance(), dtype=complex)
     assert acc.remainder_q_reused_pairs() > c0
     assert np.max(np.abs(z1 - z0) / np.abs(z0)) <= 1e-13
+
+
+takes_offset = pytest.mark.skipif(
+    not _takes_kwarg(momwire_bspline, "offset_reuse"),
+    reason="this momwire's BSplineSolver takes no offset_reuse (momwire#1815)",
+)
+
+
+@takes_offset
+def test_the_switch_also_fills_a_straight_wire_by_offset(monkeypatch):
+    """One long straight wire has no repeated edge pair, so no hint, but its
+    own block repeats by segment offset: the switch passes offset_reuse."""
+    import momwire._bspline_kernels as K
+
+    L = 0.5 * 299.792458 / 14.2 * 4
+    w = design([Wire((0, -L / 2, 10), (0, L / 2, 10), n_seg=81, ex=1 + 0j)])
+    z0 = np.asarray(engine(w).impedance(), dtype=complex)
+    e = engine(w, pair_reuse=True)
+    seen = spy(monkeypatch, e)
+    c0 = K.REG_TOEPLITZ_EDGES
+    z1 = np.asarray(e.impedance(), dtype=complex)
+    assert seen and all(kw.get("offset_reuse") is True for kw in seen)
+    assert all("pair_reuse" not in kw for kw in seen)  # nothing repeats
+    assert K.REG_TOEPLITZ_EDGES > c0
+    assert np.max(np.abs(z1 - z0) / np.abs(z0)) <= 1e-12
