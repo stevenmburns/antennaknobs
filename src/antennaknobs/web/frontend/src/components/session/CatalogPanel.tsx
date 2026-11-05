@@ -90,14 +90,14 @@ export function CatalogPanel({
           </button>
         ))}
         {onOpenDeck && (
-          // Your own model, from MMANA / 4nec2 / EZNEC as a .nec deck, a
+          // Your own model, from 4nec2 / EZNEC as a .nec deck, a
           // SimNEC .ssn, an MMANA-GAL .maa (AK#1897) or an EZNEC .ez
           // (AK#1958): read in this browser,
           // opened on the server, and carried by the page's link so it can
           // be shared.
           <label
             className="design-reload-btn deck-open-btn"
-            title="Open your own antenna model: a NEC deck (.nec, as MMANA, 4nec2 and EZNEC export), a SimNEC .ssn, an MMANA-GAL .maa, an EZNEC .ez, or an antennaknobs design .py. The page's link carries it, so you can share it."
+            title="Open your own antenna model: a NEC deck (.nec, as 4nec2 and EZNEC write it), a SimNEC .ssn, an MMANA-GAL .maa, an EZNEC .ez, or an antennaknobs design .py. The page's link carries it, so you can share it."
           >
             <input
               type="file"
