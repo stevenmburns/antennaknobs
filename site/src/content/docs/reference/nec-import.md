@@ -722,6 +722,13 @@ These readings were checked against EZNEC itself: its own exports of each
 kind of file, solved here, at the model frequency and away from it. Files
 from before EZNEC 4.0 open too, as the model EZNEC 7 saves them as.
 
+A **second ground medium** beyond a boundary (a straight line at X, or a
+circle of radius R) is written as EZNEC's NEC-2 export writes it, as NEC-2's
+`GD` card. In NEC-2 it changes only the far field, and EZNEC agrees: moving it
+from 1 m down to 50 m down leaves the impedance unchanged to every digit. The
+design's notes say that AK draws the pattern over the first medium alone.
+Under NEC-5 it is left out, as EZNEC's NEC-5 engine deletes it.
+
 **Files AutoEZ writes** (AutoEZ creates the `.ez`, then has EZNEC open it)
 differ from ones EZNEC saves in two ways that matter here. They record no
 engine, so they are read as EZNEC's own engines read them, with sources and
@@ -747,7 +754,8 @@ impedances.
   **Open with this reading** button, on the command line by setting
   `ANTENNAKNOBS_EZ_ACCEPT_GUESSES=1`. Each reading taken is then listed in the
   design's notes, and a link to the design keeps it.
-- *Not representable here*: a second ground medium, NEC radials, an active
+- *Not representable here*: a third ground medium, a second one under the
+  MININEC-type analysis, NEC radials, an active
   plane-wave source, an insulation with dielectric loss, a magnetic wire.
 - *A malformed file*: counts or lengths that contradict each other.
 

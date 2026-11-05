@@ -37,6 +37,9 @@ Tolerances are each pairing's measured gap, with headroom, and why:
   current source as two current sources in series across a wire end, so each
   of its ports carries only part of the voltage, where the import's one
   source carries all of it (the same current, so the same antenna).
+* The sitting's second ground media: 2.5e-4 to 5.2e-4, NEC-2 exports only
+  (EZNEC's NEC-5 engine deletes the second medium, so it has no NEC-5 export
+  of one). The medium does not move Z, in EZNEC or here.
 * The NEC-2 export of a current source is NEC-2's gyrator idiom, and its
   virtual wire stays real wire (a phantom wire parks beside it): 1.8e-4
   (cardL, NEC-2). That reading used to come out as 1/Z, and the pairing
@@ -262,6 +265,48 @@ PAIRS = {
         "nec5",
         False,
         3e-3,
+    ),
+    "9-2.ez, a second ground medium (radial boundary at 25 m), NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/two_media/9-2.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/two_media/9-2-v7-nec2.nec",
+        None,
+        False,
+        2e-3,
+    ),
+    "9-2-1.ez, a second ground medium (radial boundary at 10 m), NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/two_media/9-2-1.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/two_media/9-2-1-nec2.nec",
+        None,
+        False,
+        2e-3,
+    ),
+    "9-2-2.EZ, a second ground medium (linear boundary at X = 30 m), NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/two_media/9-2-2.EZ",
+        "~/ez-sitting-1105-results/ez-sitting-1105/two_media/9-2-2-nec2.nec",
+        None,
+        False,
+        2e-3,
+    ),
+    "9-3-1.EZ, a second ground medium (vertical dipole, linear boundary), NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/two_media/9-3-1.EZ",
+        "~/ez-sitting-1105-results/ez-sitting-1105/two_media/9-3-1-nec2.nec",
+        None,
+        False,
+        2e-3,
+    ),
+    "9-3-2.EZ, a second ground medium (ground plane, medium 2 1 m down), NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/two_media/9-3-2.EZ",
+        "~/ez-sitting-1105-results/ez-sitting-1105/two_media/9-3-2-nec2.nec",
+        None,
+        False,
+        2e-3,
+    ),
+    "9-3-3.EZ, a second ground medium (ground plane, medium 2 50 m down), NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/two_media/9-3-3.EZ",
+        "~/ez-sitting-1105-results/ez-sitting-1105/two_media/9-3-3-nec2.nec",
+        None,
+        False,
+        2e-3,
     ),
     "efhw2, EZNEC's NEC-5 engine deck": (
         "~/Downloads/GroundRod/efhw2.ez",

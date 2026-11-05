@@ -73,6 +73,7 @@ def ez_file(
     ground="F",
     analysis="H",
     media=None,
+    boundary="R",
     wrho=0.0,
     wmu=1.0,
     load_type="Z",
@@ -92,7 +93,9 @@ def ez_file(
     ``wires``: (x1, y1, z1, x2, y2, z2, diameter, segments). ``sources``:
     (wire, %, rms, phase deg, type). ``loads``: dicts with wire, pct and one
     of z=(R, X), rlc=(type, R, L, C, F), laplace=(num6, den6); conn. ``lines``:
-    (wire1, %1, wire2, %2, z0, length, vf). ``media``: [(sigma, eps_r)].
+    (wire1, %1, wire2, %2, z0, length, vf). ``media``: [(sigma, eps_r)], a
+    second one optionally (sigma, eps_r, coord, height); ``boundary`` 'R'
+    (circular) or 'X' (linear) for it.
     ``counts``: (nx, nn, nl, nvirt) for the network blocks in ``blocks``."""
     media = list(
         media if media is not None else ([(0.005, 13.0)] if ground == "R" else [])
@@ -101,7 +104,7 @@ def ez_file(
     h = bytearray(170)
     _put(h, 0x00, "h", min(n, 32767))
     _put(h, 0x02, "h", len(media))
-    h[0x04] = ord("R")
+    h[0x04] = ord(boundary)
     _put(h, 0x05, "f", freq)
     h[0x09] = ord("A")
     _put(h, 0x0E, "f", 5.0)
@@ -143,7 +146,7 @@ def ez_file(
     for k in range(n):
         r = memoryview(recs)[170 * k : 170 * (k + 1)]
         if k < len(media):
-            struct.pack_into("<ff", r, 0, *media[k])
+            struct.pack_into("<" + "f" * len(media[k]), r, 0, *media[k])
         if k < len(wires):
             *c, dia, nseg = wires[k]
             struct.pack_into("<6ffhh", r, 16, *c, dia, -1, nseg)
@@ -488,7 +491,10 @@ def test_an_undefined_value_with_no_reading_stays_refused_on_request():
 @pytest.mark.parametrize(
     ("kw", "named"),
     [
-        ({"ground": "R", "media": [(0.005, 13.0), (0.01, 5.0)]}, "2 ground media"),
+        (
+            {"ground": "R", "media": [(0.005, 13.0), (0.01, 5.0), (0.02, 4.0)]},
+            "3 ground media",
+        ),
         ({"ground": "R", "nr": 8}, "8 radials"),
         (
             {"blocks": [(31, 1, struct.pack("<ii6f", 1, 1, 10, 0, 0, 0, 1, 0))]},
