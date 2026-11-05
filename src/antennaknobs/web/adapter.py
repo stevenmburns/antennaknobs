@@ -122,6 +122,7 @@ from antennaknobs.engines.momwire import (
     MomwireEngine,
     exact_kernel_served,
     _ends_in_the_plane,
+    _takes_pair_reuse,
     _solver_supports_ground_eps,
     split_wires_at_plane,
 )
@@ -663,7 +664,9 @@ def backend_roster(
             "model_kwargs": list(b.model_kwargs)
             + (["rotational_symmetry"] if _offers_rotational_symmetry(b) else [])
             # momwire#1408: the same live-probe exposure, for the same reason.
-            + (["exact_kernel"] if _offers_exact_kernel(b) else []),
+            + (["exact_kernel"] if _offers_exact_kernel(b) else [])
+            # momwire#1809 / AK#2165: and again, for the fill reuse switch.
+            + (["pair_reuse"] if _offers_pair_reuse(b) else []),
             # Axis -> the value this preset pins it to (#1006 G2-7).
             "bound_axes": _bound_axes(b),
             "options_schema": [
@@ -862,6 +865,20 @@ def _offers_exact_kernel(spec) -> bool:
     and array tabs answer False on a momwire that has it, as their classes
     refuse the kernel."""
     return spec.kind == "momwire" and exact_kernel_served(spec.solver)
+
+
+def _offers_pair_reuse(spec) -> bool:
+    """Whether `spec`'s momwire class takes the fill reuse switch
+    (momwire#1809, AK#2165): repeated edge-pair blocks copied, and on a
+    momwire that has it each straight wire's own block filled by offset.
+
+    A live probe of the installed momwire's constructor, on
+    `_offers_exact_kernel`'s precedent: a momwire predating it (the
+    submodule pointer and the PyPI pin until 0.87.0) answers False for
+    every backend, so nothing is offered and nothing is sent. Only the
+    B-spline class takes it, at every degree; the H-matrix and array
+    subclasses do not."""
+    return spec.kind == "momwire" and _takes_pair_reuse(spec.solver)
 
 
 # Fallback only — see `reword_rotational_symmetry_refusal`, which prefers
@@ -1575,6 +1592,23 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
             "above (a step of ~1e-4 relative across a bend at 50 mm radius, "
             "momwire#1413). auto turns it on where some segment is shorter "
             "than 3 radii, where the thin-wire kernels stop converging."
+        ),
+    ),
+    # Fill reuse (momwire#1809, AK#2165): offered on the bspline tab only
+    # where the installed momwire takes it (`_offers_pair_reuse`). It only
+    # ever removes work, never adds any, so it is on the hosted allowlist.
+    # Off by default: the server's ANTENNAKNOBS_PAIR_REUSE seeds an unset
+    # request in the engine, and an explicit off here wins over it.
+    "pair_reuse": _OptionSpec(
+        "bool",
+        label="reuse repeated geometry (faster fill)",
+        default=False,
+        description=(
+            "Fill each repeated pair of straight wires once and copy it (a "
+            "Yagi's directors, mirrored halves), and fill an evenly meshed "
+            "straight wire's own entries once per segment spacing. The "
+            "solver checks every repeat against its own geometry first. "
+            "Results change only in the last digits."
         ),
     ),
     # The sector (block-circulant) solve route for a rotationally symmetric
@@ -3082,6 +3116,16 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
     if solver_kwargs and "exact_kernel" in solver_kwargs:
         solver_kwargs = dict(solver_kwargs)
         exact_kernel = solver_kwargs.pop("exact_kernel")
+    # Fill reuse (AK#2165): pulled out and passed named. On a backend that
+    # does not offer it the request's value is dropped, as for the sector
+    # route, so a hand-made local request to another tab changes nothing.
+    pair_reuse = None
+    if solver_kwargs and "pair_reuse" in solver_kwargs:
+        solver_kwargs = dict(solver_kwargs)
+        asked_reuse = solver_kwargs.pop("pair_reuse")
+        backend_spec = _BACKENDS_BY_NAME.get(model)
+        if backend_spec is not None and _offers_pair_reuse(backend_spec):
+            pair_reuse = bool(asked_reuse)
     if _SWEPT_MEM_MB is not None and issubclass(solver_cls, BSplineSolver):
         # Deployment-owned memory policy (momwire >= 0.9): cap the batched
         # frequency sweep's transient memory per solve. Server-side value
@@ -3101,6 +3145,7 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
         extended_kernel=extended_kernel,
         extended_kernel_default=extended_kernel_default,
         exact_kernel=exact_kernel,
+        pair_reuse=pair_reuse,
         cancel=cancel,
     )
 

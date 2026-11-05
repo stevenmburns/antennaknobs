@@ -235,6 +235,17 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
       "off"
     ]
   },
+  "pair_reuse": {
+    "kind": "bool",
+    "label": "reuse repeated geometry (faster fill)",
+    "default": false,
+    "auto_when_null": false,
+    "shown_when": null,
+    "gate_label": null,
+    "gate_on_value": null,
+    "shown_when_value": null,
+    "description": "Fill each repeated pair of straight wires once and copy it (a Yagi's directors, mirrored halves), and fill an evenly meshed straight wire's own entries once per segment spacing. The solver checks every repeat against its own geometry first. Results change only in the last digits."
+  },
   "rotational_symmetry": {
     "kind": "bool",
     "label": "rotational symmetry (radial screens)",

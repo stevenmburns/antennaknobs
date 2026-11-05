@@ -1766,8 +1766,10 @@ The reuse itself is momwire#1809, tracked in antennaknobs#2165.
 
 ### Using it in a solve (opt-in)
 
-Set `ANTENNAKNOBS_PAIR_REUSE=1` and the momwire B-spline engine passes its
-mesh's repeated edge pairs to the solver. The solver fills each repeated block
+Set `ANTENNAKNOBS_PAIR_REUSE=1`, or tick **reuse repeated geometry** on the
+web app's B-spline solver tab, and the momwire B-spline engine passes its
+mesh's repeated edge pairs to the solver. The tab shows the box only when the
+installed momwire supports it, at any B-spline degree. The solver fills each repeated block
 once and copies it. It checks every claimed pair against its own geometry
 first, so a pair that does not really repeat is simply filled. Results move
 by rounding only (about 1e-15 relative).
