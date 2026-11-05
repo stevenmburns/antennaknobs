@@ -729,8 +729,10 @@ impedances.
   series load on a virtual segment, a line loss given
   at no frequency, the extended ground under a buried wire, a pre-3.0 load
   type, data in a record the format reserves. These are
-  refused unless you set `ANTENNAKNOBS_EZ_ACCEPT_GUESSES=1`; then each
-  reading taken is listed in the design's note.
+  refused unless you ask for the reading: on the web app with the refusal's
+  **Open with this reading** button, on the command line by setting
+  `ANTENNAKNOBS_EZ_ACCEPT_GUESSES=1`. Each reading taken is then listed in the
+  design's notes, and a link to the design keeps it.
 - *Not representable here*: a second ground medium, NEC radials, an active
   plane-wave source, an insulation with dielectric loss, a magnetic wire.
 - *A malformed file*: counts or lengths that contradict each other.

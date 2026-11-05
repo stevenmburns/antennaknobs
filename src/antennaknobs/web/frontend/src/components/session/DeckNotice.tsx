@@ -20,6 +20,7 @@ export function DeckNotice({
   error,
   onDismissError,
   onReadAs,
+  onAcceptReading,
 }: {
   /** The opened deck the session is on, or null. */
   deck: OpenedDeck | null;
@@ -28,10 +29,16 @@ export function DeckNotice({
   onDismissError: () => void;
   /** Re-open the deck read in `dialect` (null: detect it). */
   onReadAs?: (dialect: Dialect | null) => void;
+  /** Open the refused .ez again with the reading the refusal names
+   *  (AK#2173); absent when the refusal offers none. */
+  onAcceptReading?: () => void;
 }) {
   const tooLong = deck !== null && !shareable(deck);
   const readAs = deck?.readAs ?? null;
-  const isNec = deck !== null && /\.nec$/i.test(deck.name);
+  // An EZNEC .ez takes the same choice (AK#2173): where its sources and
+  // loads sit, which the file's engine setting decides when not chosen.
+  const isEz = deck !== null && /\.ez$/i.test(deck.name);
+  const isNec = deck !== null && (/\.nec$/i.test(deck.name) || isEz);
   return (
     <>
       {deck && readAs && isNec && onReadAs && (
@@ -45,7 +52,9 @@ export function DeckNotice({
               onChange={(e) => onReadAs(isDialect(e.target.value) ? e.target.value : null)}
             >
               <option value="auto">
-                auto ({readAs.detected ? DIALECT_LABEL[readAs.detected] : "refused"})
+                {isEz
+                  ? "auto (as the file says)"
+                  : `auto (${readAs.detected ? DIALECT_LABEL[readAs.detected] : "refused"})`}
               </option>
               {DIALECTS.map((d) => (
                 <option key={d} value={d}>
@@ -61,6 +70,16 @@ export function DeckNotice({
           <span>
             <strong>deck:</strong> {error}
           </span>
+          {onAcceptReading && (
+            <button
+              type="button"
+              className="deck-accept-reading"
+              title="Open this file again, taking the reading named above; the design's notes list it"
+              onClick={onAcceptReading}
+            >
+              Open with this reading
+            </button>
+          )}
           <button type="button" aria-label="Dismiss the deck notice" onClick={onDismissError}>
             ×
           </button>

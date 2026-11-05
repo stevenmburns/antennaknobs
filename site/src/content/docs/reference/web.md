@@ -118,6 +118,14 @@ NEC-4 when EZNEC's NEC-4.2 stamp says so. If it guessed wrong, **Read as**
 under the deck's name chooses NEC-2, NEC-4 or NEC-5 and re-opens it; the link
 carries the choice (`&dialect=nec5`). See [Loading NEC
 decks](/reference/nec-import/#which-dialect-a-deck-was-read-in-and-choosing-it).
+An EZNEC `.ez` gets the same **Read as**: by default its sources and loads sit
+where the file's engine setting puts them, and a file AutoEZ wrote records no
+engine, so one run on EZNEC's NEC-5 engine reads right as NEC-5.
+
+An `.ez` can hold a value its format leaves undefined (a Laplace load's
+variable, say). Open… then says which one, and the reading it would take, with
+an **Open with this reading** button that opens it that way. The reading is
+listed in the design's notes, and the link keeps it (`&readings=1`).
 
 On the hosted app an opened deck is bounded, so one visitor's model cannot
 take the server from everyone else:

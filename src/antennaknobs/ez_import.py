@@ -230,6 +230,18 @@ class EzUndefined(EzRefusal):
             f"{ACCEPT_GUESSES_ENV}=1 (the reading is then listed in the notes)"
         )
 
+    def web_message(self) -> str:
+        """The refusal as the web app's Open… says it (AK#2173): the reading
+        is a button there, not an environment variable nobody on the page can
+        set."""
+        head = f"{self.name}: {self.field}: {self.detail}, which the .ez format leaves undefined"
+        if self.reading is None:
+            return head + "; open it in EZNEC and export it to .nec"
+        return (
+            f"{head}. Open with this reading to read it as {self.reading}; the "
+            "reading is then listed in the design's notes."
+        )
+
 
 class EzNotRepresentable(EzRefusal):
     """Something the model here has no element for."""

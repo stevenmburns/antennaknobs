@@ -935,13 +935,22 @@ def _maa_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=No
     )
 
 
-def _ez_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=None):
+def _ez_builder(
+    path: Path,
+    text: str,
+    refine: int = 1,
+    limits=None,
+    dialect=None,
+    accept_guesses: bool | None = None,
+):
     """An EZNEC ``.ez`` model (AK#1958, `ez_import.read_ez`): binary, so
     ``text`` carries its bytes one character per byte (latin-1, see
     `read_design_text`). Read into a NEC deck in the spelling of the engine
     EZNEC was set to -- or the ``dialect`` chosen, as for a ``.nec`` -- and
     solved at the file's frequency. The readings the format leaves undefined
-    are taken only when ``ANTENNAKNOBS_EZ_ACCEPT_GUESSES`` asks."""
+    are taken only when ``accept_guesses`` asks, or, when it is None, when
+    ``ANTENNAKNOBS_EZ_ACCEPT_GUESSES`` does (the web app's Open… passes the
+    page's choice, AK#2173)."""
     if refine != 1:
         raise SystemExit(
             f"{path.name}: an EZNEC model has no refinement path; set its "
@@ -958,7 +967,9 @@ def _ez_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=Non
         raw,
         name=path.name,
         limits=limits,
-        accept_guesses=accept_guesses_from_env(),
+        accept_guesses=(
+            accept_guesses_from_env() if accept_guesses is None else accept_guesses
+        ),
         reading=dialect,
     )
     deck = imp.deck
@@ -1027,7 +1038,9 @@ def builder_from_file(spec: str, refine: int = 1, dialect: str | None = None):
     return loader(path, text, refine=refine, dialect=dialect)
 
 
-def builder_from_text(name: str, text: str, *, limits=None, dialect=None):
+def builder_from_text(
+    name: str, text: str, *, limits=None, dialect=None, accept_guesses=None
+):
     """The builder class for a design file's TEXT, named ``name``:
     the hosted workbench's opened decks, which never touch the disk.
 
@@ -1036,7 +1049,8 @@ def builder_from_text(name: str, text: str, *, limits=None, dialect=None):
     file name -- its extension picks the loader and its stem labels the design;
     no path in it is ever read. ``limits`` (`nec_import.GeometryLimits`)
     bounds the import and every knob re-parse; ``dialect`` is
-    `builder_from_file`'s."""
+    `builder_from_file`'s. ``accept_guesses`` (an ``.ez`` only; None: the
+    environment's) takes the readings the ``.ez`` format leaves undefined."""
     path = Path(Path(name).name)
     loader = _LOADERS.get(path.suffix.lower())
     if loader is None:
@@ -1044,5 +1058,9 @@ def builder_from_text(name: str, text: str, *, limits=None, dialect=None):
             f"{path.name}: unsupported design-file extension "
             f"{path.suffix.lower() or '(none)'!r} -- opens "
             f"{' / '.join(sorted(_LOADERS))} antenna files"
+        )
+    if loader is _ez_builder:
+        return loader(
+            path, text, limits=limits, dialect=dialect, accept_guesses=accept_guesses
         )
     return loader(path, text, limits=limits, dialect=dialect)

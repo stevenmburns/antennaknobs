@@ -92,6 +92,7 @@ def deck_key(
     dialect: str | None = None,
     analyses: str | None = None,
     ranges: dict[str, tuple[float, float]] | None = None,
+    accept_guesses: bool = False,
 ) -> str:
     """The design key for a deck: its file name and text, hashed. The name is
     in the hash because it is the design's label, so the same text opened
@@ -110,13 +111,19 @@ def deck_key(
     ``ranges`` is the knob ranges the link carries (`payload_ranges`'s), for
     the same reason: two links giving one deck different ranges are two
     designs. None or empty hashes as before, so a link with no ranges keeps
-    its key."""
+    its key.
+
+    ``accept_guesses`` (AK#2173): an ``.ez`` opened with the readings its
+    format leaves undefined is another design from the same file refused, so
+    it is in the key; False hashes as before."""
     tail = "" if dialect is None else f"\0{dialect}"
     if analyses is not None:
         # After the dialect, behind a marker no dialect spells.
         tail += f"\0analyses\0{analyses}"
     if ranges:
         tail += f"\0ranges\0{ranges_text(ranges)}"
+    if accept_guesses:
+        tail += "\0accept_guesses"
     h = hashlib.sha256(f"{name}\0{text}{tail}".encode("utf-8", "surrogatepass"))
     return f"{_PREFIX}{h.hexdigest()[:12]}"
 
@@ -288,6 +295,16 @@ def with_ranges(cls, ranges: dict[str, tuple[float, float]]):
 DIALECTS = ("nec2", "nec4", "nec5")
 
 
+def payload_accept_guesses(payload) -> bool:
+    """Whether a deck payload asks for the readings an ``.ez`` leaves
+    undefined (``accept_guesses``, AK#2173: the refusal's Open with this
+    reading). Only a literal true asks; it means nothing for other files, so
+    it is False for them and never splits their key."""
+    if not isinstance(payload, dict) or payload.get("accept_guesses") is not True:
+        return False
+    return PurePath(str(payload.get("name", ""))).suffix.lower() == ".ez"
+
+
 def payload_dialect(payload) -> str | None:
     """The dialect a deck payload chooses (``dialect``), None to detect.
     ``"auto"`` and an empty value are detection too; anything else not in
@@ -321,12 +338,20 @@ class DeckError(RuntimeError):
     keys its message on ("refused", "busy", "budget", "rate", "missing")."""
 
     def __init__(
-        self, message: str, *, status: int = 422, deck_status: str = "refused"
+        self,
+        message: str,
+        *,
+        status: int = 422,
+        deck_status: str = "refused",
+        reading: str | None = None,
     ):
         super().__init__(message)
         self.message = message
         self.status = status
         self.deck_status = deck_status
+        # The reading an .ez refusal can take on request (AK#2173), for the
+        # page's Open with this reading; None for every other refusal.
+        self.reading = reading
         # `user_designs.format_solve_error` prints this verbatim, with no
         # exception class name in front of the user's message.
         self._formatted_solve_error = message
@@ -795,6 +820,7 @@ class DeckStore:
         dialect: str | None = None,
         analyses: tuple[str, tuple] | None = None,
         ranges: dict[str, tuple[float, float]] | None = None,
+        accept_guesses: bool = False,
     ) -> tuple[str, bool]:
         """Parse and register a deck; ``(key, new)``. A deck already open is
         only touched. Parse errors and limit refusals raise `DeckError`.
@@ -805,12 +831,21 @@ class DeckStore:
         kept beside the deck (`link_analyses`). ``ranges`` is the link's knob
         ranges (`payload_ranges`), part of the key and folded into the
         knobs' ``ui_params`` (`with_ranges`); one on a name that is no knob
-        of the deck is left out and named (`range_refusals`)."""
+        of the deck is left out and named (`range_refusals`).
+        ``accept_guesses`` (`payload_accept_guesses`) takes an ``.ez``'s
+        undefined readings, part of the key; a refusal the reading would
+        lift says so (``deck_status`` "undefined", ``reading``)."""
+        from antennaknobs.ez_import import EzUndefined
         from antennaknobs.file_designs import builder_from_text
         from antennaknobs.nec_import import GeometryLimitError
 
         key = deck_key(
-            name, text, dialect, None if analyses is None else analyses[0], ranges
+            name,
+            text,
+            dialect,
+            None if analyses is None else analyses[0],
+            ranges,
+            accept_guesses,
         )
         if self.get(key) is not None:
             return key, False
@@ -819,7 +854,11 @@ class DeckStore:
                 cls = self._sandboxed(name, text)
             else:
                 cls = builder_from_text(
-                    name, text, limits=self.limits(), dialect=dialect
+                    name,
+                    text,
+                    limits=self.limits(),
+                    dialect=dialect,
+                    accept_guesses=accept_guesses,
                 )
             cls, refused = with_ranges(cls, ranges or {})
             cls()  # default_params construct, as user designs are checked
@@ -828,6 +867,13 @@ class DeckStore:
         except GeometryLimitError as exc:
             _refused("deck_cap")
             raise DeckError(str(exc)) from None
+        except EzUndefined as exc:
+            # The page offers the reading as a button (AK#2173).
+            raise DeckError(
+                exc.web_message(),
+                deck_status="undefined" if exc.reading else "refused",
+                reading=exc.reading,
+            ) from None
         except (ValueError, SystemExit) as exc:
             raise DeckError(str(exc)) from None
         except Exception as exc:  # noqa: BLE001 — a stranger's deck: any failure to import it is a refusal by name, never a 500
