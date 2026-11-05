@@ -770,13 +770,18 @@ def _z_fill_shareable(solver) -> bool:
     )
 
 
+def _takes_kwarg(solver_cls, name) -> bool:
+    """Whether ``solver_cls``'s constructor names keyword ``name``."""
+    try:
+        return name in inspect.signature(solver_cls.__init__).parameters
+    except (TypeError, ValueError):
+        return False
+
+
 def _takes_pair_reuse(solver_cls) -> bool:
     """Whether ``solver_cls`` takes momwire#1809's ``pair_reuse`` hint (the
     B-spline solver from momwire after 0.86.0)."""
-    try:
-        return "pair_reuse" in inspect.signature(solver_cls.__init__).parameters
-    except (TypeError, ValueError):
-        return False
+    return _takes_kwarg(solver_cls, "pair_reuse")
 
 
 def _z_fill_key(solver_cls, kwargs):
@@ -1078,9 +1083,11 @@ class MomwireEngine(SimulationEngine):
           Fill each repeated edge-pair block once and copy it (AK#2165 stage
           2, momwire#1809): the engine finds its own mesh's congruent edge
           pairs (`structure.pair_reuse_hint`) once and hands them to the
-          solver, which checks each against its geometry before copying. Z
-          moves by a few ulp. None reads ``ANTENNAKNOBS_PAIR_REUSE`` (``1``
-          on; default off). Ignored by a solver that takes no hint.
+          solver, which checks each against its geometry before copying. On
+          a momwire that takes ``offset_reuse``, the same switch also fills
+          each uniform straight edge's own block by segment offset. Z moves
+          by a few ulp. None reads ``ANTENNAKNOBS_PAIR_REUSE`` (``1`` on;
+          default off). Ignored by a solver that takes neither.
 
         solver:
           A momwire solver class — BSplineSolver (default), SinusoidalSolver,
@@ -1221,6 +1228,11 @@ class MomwireEngine(SimulationEngine):
         if asked_reuse is None:
             asked_reuse = os.environ.get("ANTENNAKNOBS_PAIR_REUSE", "") in ("1", "on")
         self._pair_reuse = bool(asked_reuse) and _takes_pair_reuse(self._solver)
+        # The same switch fills a uniform edge's own block by segment offset
+        # (momwire#1809), on a momwire that takes it; no hint is needed.
+        self._offset_reuse = bool(asked_reuse) and _takes_kwarg(
+            self._solver, "offset_reuse"
+        )
         self._pair_reuse_hint_cache = None
         # Per-instance parity: sinusoidal wants odd, bspline depends on
         # degree. Set before _coerce_wire_tuples runs.
@@ -1993,6 +2005,8 @@ class MomwireEngine(SimulationEngine):
         hint = self._pair_reuse_hint()
         if hint:
             kwargs["pair_reuse"] = hint
+        if self._offset_reuse:
+            kwargs["offset_reuse"] = True
         solver = self._solver(**kwargs)
         if "exact_kernel" in kwargs:
             self._exact_kernel_seen.add(bool(getattr(solver, "exact_kernel", False)))
