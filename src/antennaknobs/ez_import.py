@@ -385,6 +385,10 @@ class EzModel:
     ground_x: bool  # high accuracy marked 'X' (EZNEC's extended ground)
     eps_r: float
     sigma: float
+    # A second ground medium (AK#2173, the 11-05 sitting), or None: its
+    # boundary ('X' a straight line at X = coord, 'R' a circle of radius
+    # coord), its eps_r and sigma, and its height (m, negative below).
+    medium2: tuple[str, float, float, float, float] | None
     wires: tuple[EzWire, ...]  # the user's wires (the virtual wire is not one)
     # The virtual-segment numbers, in the stored wire's segment order, and
     # that wire's segment count; None / 0 without virtual segments.
@@ -591,6 +595,25 @@ def decode_ez(
         sigma, eps_r = _r7(_f32(r0, 0)), _r7(_f32(r0, 4))
         if not (sigma >= 0 and eps_r >= 1):
             rd.malformed("medium 1", f"sigma {sigma} S/m, eps_r {eps_r}")
+    medium2 = None
+    if ground == "real" and n_media == 2:
+        # A medium record is sigma, eps_r, the boundary's position and the
+        # medium's height; the header's byte 4 says which boundary: 'X' a
+        # line at that X, 'R' a circle of that radius (the 11-05 sitting's
+        # Media windows, "X Coord" and "R Coord").
+        if analysis != "H":
+            rd.unrepresentable(
+                "media", "a second ground medium under the MININEC-type analysis"
+            )
+        kind = _ch(d, 0x04)
+        if kind not in ("X", "R"):
+            rd.undefined("second medium's boundary", repr(kind))
+        r1 = rd.rec(1)
+        s2, e2 = _r7(_f32(r1, 0)), _r7(_f32(r1, 4))
+        coord, height = _r7(_f32(r1, 8)), _r7(_f32(r1, 12))
+        if not (s2 >= 0 and e2 >= 1) or (kind == "R" and coord < 0):
+            rd.malformed("medium 2", f"sigma {s2} S/m, eps_r {e2}, at {coord} m")
+        medium2 = (kind, e2, s2, coord, height)
 
     lnet_form = _ch(d, 0x59)
     if n_lnet and lnet_form not in ("Z", "R"):
@@ -695,6 +718,7 @@ def decode_ez(
         ground_x=ground_x,
         eps_r=eps_r,
         sigma=sigma,
+        medium2=medium2,
         wires=tuple(wires),
         virtual_labels=None if virtual is None else tuple(virtual),
         virtual_wire_segments=0 if virtual is None else stored_wires[-1].segments,
@@ -761,9 +785,9 @@ def _read_ground(rd: _Reader, n_media: int) -> tuple[str, str, bool]:
         return ground, "", False
     if n_media < 1:
         rd.malformed("media", "real ground with no medium")
-    if n_media > 1:
+    if n_media > 2:
         rd.unrepresentable(
-            "media", f"{n_media} ground media (a second medium or boundary)"
+            "media", f"{n_media} ground media (more than a second medium)"
         )
     if nr > 0:
         rd.unrepresentable(
@@ -2209,6 +2233,38 @@ def _lnet_builder(x: EzLNetwork):
     return lambda a, b: ([_net.TouchstoneTwoPort(a, b, _YOf(y2=y2))], {})
 
 
+def _second_medium(dk: _Deck) -> None:
+    """A second ground medium (the 11-05 sitting). EZNEC's NEC-2 export
+    writes it as NEC-2's GD: 1 for a straight boundary at X = coord, 2 for a
+    circle of radius coord, then eps_r, sigma, the coordinate and the height
+    with its sign flipped (``GD 1,0,0,0,81.,5.,30.,50.`` for a medium 50 m
+    down beyond X = 30 m). In NEC-2 a second medium changes only the far
+    field: the sitting's 9-3-2 and 9-3-3 (it 1 m and 50 m down) solve to the
+    same impedance. AK's own far field reads no cliff, so the note says so.
+    EZNEC's NEC-5 engine has no second medium and deletes it."""
+    kind, e2, s2, coord, height = dk.m.medium2
+    where = (
+        f"beyond X = {_fmt(coord)} m"
+        if kind == "X"
+        else f"beyond a radius of {_fmt(coord)} m"
+    )
+    if dk.nec5:
+        dk.notes.append(
+            f"The second ground medium (eps_r {_fmt(e2)}, sigma {_fmt(s2)} S/m, {where}) "
+            "is left out: EZNEC's NEC-5 engine deletes it."
+        )
+        return
+    dk.cards.append(
+        f"GD {1 if kind == 'X' else 2} 0 0 0 {_fmt(e2)} {_fmt(s2)} {_fmt(coord)} {_fmt(-height)}"
+    )
+    dk.notes.append(
+        f"A second ground medium (eps_r {_fmt(e2)}, sigma {_fmt(s2)} S/m, {where}, "
+        f"{_fmt(abs(height))} m {'below' if height < 0 else 'above'} the first) is written "
+        "as EZNEC's NEC-2 export writes it (GD). It changes only the far field, as in "
+        "EZNEC; AK draws the pattern over the first medium alone."
+    )
+
+
 def _ground_cards(dk: _Deck) -> tuple[str, str]:
     """The ground cards, and the ground in EZNEC's words for the panel."""
     m = dk.m
@@ -2230,6 +2286,8 @@ def _ground_cards(dk: _Deck) -> tuple[str, str]:
     # deck is read as NEC-4.
     gn = 0 if dk.nec5 else (3 if (dk.nec4 and m.ground_x) else 2)
     dk.cards.append(f"GN {gn} 0 0 0 {e} {s}")
+    if m.medium2 is not None:
+        _second_medium(dk)
     word = "EZNEC real ground, high accuracy" + (" (extended)" if m.ground_x else "")
     return "sommerfeld", word
 
