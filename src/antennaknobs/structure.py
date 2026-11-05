@@ -183,11 +183,17 @@ def edges_of(
         from .cli import make_engine_factory
 
         e = make_engine_factory(engine, ground)(builder)
-        polylines, counts, specs = e._polylines, e._edge_segments, e._polyline_specs
     except Exception as exc:  # noqa: BLE001 — any refusal falls back to the wires as written
         return edges_from_wires(
             builder
         ), f"authored wires ({engine} would not build this design: {exc})"
+    return edges_of_engine(e), None
+
+
+def edges_of_engine(e) -> list[Edge]:
+    """The straight edges of a built momwire engine's own wire translation."""
+    polylines, counts, specs = e._polylines, e._edge_segments, e._polyline_specs
+    builder = e.builder
     material = (
         builder.build_wire_material()
         if hasattr(builder, "build_wire_material")
@@ -210,7 +216,28 @@ def edges_of(
                     _material_key(spec),
                 )
             )
-    return out, None
+    return out
+
+
+def pair_reuse_hint(edges) -> list:
+    """momwire's ``pair_reuse`` hint (momwire#1809): per pose class of two or
+    more members, ``[((wire, edge), (wire, edge)), ...]`` with the
+    representative first. Free-space classes, so a pair repeated at another
+    height is still offered; momwire checks every member against its own
+    geometry and copies only what that geometry repeats (the Sommerfeld
+    remainder only where heights are kept). A member running against its
+    representative's direction is left out: the copy maps segment k to
+    segment k."""
+    hint = []
+    for c in edge_pair_classes(edges, over_ground=False):
+        members = [
+            ((edges[i].wire, edges[i].sub), (edges[j].wire, edges[j].sub))
+            for i, j, _iso, fi, fj in c.members
+            if not fi and not fj
+        ]
+        if len(members) > 1:
+            hint.append(members)
+    return hint
 
 
 # --- tolerant lookup ----------------------------------------------------------

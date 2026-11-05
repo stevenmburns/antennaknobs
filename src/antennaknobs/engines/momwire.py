@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import functools
 import hashlib
+import inspect
 import logging
+import os
 import pickle
 import warnings
 import weakref
@@ -768,6 +770,15 @@ def _z_fill_shareable(solver) -> bool:
     )
 
 
+def _takes_pair_reuse(solver_cls) -> bool:
+    """Whether ``solver_cls`` takes momwire#1809's ``pair_reuse`` hint (the
+    B-spline solver from momwire after 0.86.0)."""
+    try:
+        return "pair_reuse" in inspect.signature(solver_cls.__init__).parameters
+    except (TypeError, ValueError):
+        return False
+
+
 def _z_fill_key(solver_cls, kwargs):
     """Digest of everything a solver's Z depends on: its class and the
     constructor kwargs, less the cancel token and every port voltage.
@@ -1059,9 +1070,18 @@ class MomwireEngine(SimulationEngine):
         extended_kernel=False,
         extended_kernel_default=False,
         exact_kernel=None,
+        pair_reuse=None,
         cancel=None,
     ):
         """
+        pair_reuse:
+          Fill each repeated edge-pair block once and copy it (AK#2165 stage
+          2, momwire#1809): the engine finds its own mesh's congruent edge
+          pairs (`structure.pair_reuse_hint`) once and hands them to the
+          solver, which checks each against its geometry before copying. Z
+          moves by a few ulp. None reads ``ANTENNAKNOBS_PAIR_REUSE`` (``1``
+          on; default off). Ignored by a solver that takes no hint.
+
         solver:
           A momwire solver class — BSplineSolver (default), SinusoidalSolver,
           SinusoidalGalerkinSolver, the fast BSpline subclasses
@@ -1194,6 +1214,14 @@ class MomwireEngine(SimulationEngine):
         )
         # What each constructed solver resolved to (`exact_kernel_ran`).
         self._exact_kernel_seen = set()
+        # Repeated edge-pair reuse (AK#2165), folded like the kernels.
+        asked_reuse = self._solver_kwargs.pop("pair_reuse", None)
+        if pair_reuse is not None:
+            asked_reuse = pair_reuse
+        if asked_reuse is None:
+            asked_reuse = os.environ.get("ANTENNAKNOBS_PAIR_REUSE", "") in ("1", "on")
+        self._pair_reuse = bool(asked_reuse) and _takes_pair_reuse(self._solver)
+        self._pair_reuse_hint_cache = None
         # Per-instance parity: sinusoidal wants odd, bspline depends on
         # degree. Set before _coerce_wire_tuples runs.
         self.segment_parity = _parity_for_solver(self._solver, self._solver_kwargs)
@@ -1962,12 +1990,36 @@ class MomwireEngine(SimulationEngine):
             **self._kernel_solver_kwargs(extended_kernel),
             **self._solver_kwargs,
         )
+        hint = self._pair_reuse_hint()
+        if hint:
+            kwargs["pair_reuse"] = hint
         solver = self._solver(**kwargs)
         if "exact_kernel" in kwargs:
             self._exact_kernel_seen.add(bool(getattr(solver, "exact_kernel", False)))
         if share_z:
             self._share_z_fill(solver, _z_fill_key(self._solver, kwargs))
         return solver
+
+    def _pair_reuse_hint(self):
+        """The congruent edge pairs of this engine's mesh, found once per mesh,
+        or None when reuse is off."""
+        if not self._pair_reuse:
+            return None
+        key = pickle.dumps(
+            (
+                [np.asarray(p, dtype=float).tobytes() for p in self._polylines],
+                [tuple(n) for n in self._edge_segments],
+            )
+        )
+        cached = self._pair_reuse_hint_cache
+        if cached is None or cached[0] != key:
+            from ..structure import edges_of_engine, pair_reuse_hint
+
+            cached = self._pair_reuse_hint_cache = (
+                key,
+                pair_reuse_hint(edges_of_engine(self)),
+            )
+        return cached[1]
 
     def _share_z_fill(self, solver, key):
         """Route ``solver``'s dense Z fill through this engine's one held Z.
