@@ -87,6 +87,10 @@ class Isometry:
         )
 
 
+#: The isometry `edge_pair_classes(isometries=False)` gives every member.
+_IDENTITY = Isometry(np.eye(3), np.zeros(3))
+
+
 @dataclass(frozen=True)
 class Plane:
     """The plane ``normal · x = offset`` (unit normal)."""
@@ -229,7 +233,7 @@ def pair_reuse_hint(edges) -> list:
     representative's direction is left out: the copy maps segment k to
     segment k."""
     hint = []
-    for c in edge_pair_classes(edges, over_ground=False):
+    for c in edge_pair_classes(edges, over_ground=False, isometries=False):
         members = [
             ((edges[i].wire, edges[i].sub), (edges[j].wire, edges[j].sub))
             for i, j, _iso, fi, fj in c.members
@@ -403,46 +407,96 @@ def _ends(edge, flip):
     return (edge.p1, edge.p0) if flip else (edge.p0, edge.p1)
 
 
-def _signature(ei, ej, same, over_ground) -> tuple:
+class _PoseKeys:
+    """Every end point's rounded distance to every other, and its rounded
+    height, computed once: a pair's pose key is then integer lookups, not six
+    vector norms per orientation (the search ran 25 ms on a 15-edge CED)."""
+
+    def __init__(self, edges):
+        X = np.array([p for e in edges for p in (e.p0, e.p1)], dtype=float)
+        X = X.reshape(-1, 3)
+        D = np.sqrt(np.sum((X[:, None, :] - X[None, :, :]) ** 2, axis=-1))
+        self.X, self.D = X, D
+        # np.rint rounds half to even, as round() does.
+        self.d = np.rint(D / _KEY).astype(np.int64).tolist()
+        self.z = np.rint(X[:, 2] / _KEY).astype(np.int64).tolist()
+
+
+def _signature(keys, edges, i, j, over_ground) -> tuple:
     """A coarse pose key for the unordered pair (whether it is an edge with
     itself, segment counts, materials, the six end-point distances, and the
     heights over ground), in the order and orientation that sorts lowest, plus
     that order and orientation."""
+    d, z = keys.d, keys.z
     best = None
-    for A, B in ((ei, ej), (ej, ei)):
+    for A, B in ((i, j), (j, i)):
+        ea, eb = edges[A], edges[B]
         for fa, fb in itertools.product((False, True), repeat=2):
-            pts = [*map(np.asarray, _ends(A, fa)), *map(np.asarray, _ends(B, fb))]
-            d = tuple(
-                round(float(np.linalg.norm(u - v)) / _KEY)
-                for u, v in itertools.combinations(pts, 2)
-            )
-            sig = (same, A.n, B.n, A.material, B.material, d)
+            a0, a1 = 2 * A + fa, 2 * A + (not fa)
+            b0, b1 = 2 * B + fb, 2 * B + (not fb)
+            dist = (d[a0][a1], d[a0][b0], d[a0][b1], d[a1][b0], d[a1][b1], d[b0][b1])
+            sig = (i == j, ea.n, eb.n, ea.material, eb.material, dist)
             if over_ground:
-                sig += (tuple(round(float(p[2]) / _KEY) for p in pts),)
+                sig += ((z[a0], z[a1], z[b0], z[b1]),)
             if best is None or sig < best[0]:
-                best = (sig, A is ej and A is not ei, fa, fb)
+                best = (sig, A == j and A != i, fa, fb)
     return best
 
 
-def edge_pair_classes(edges, over_ground=False) -> list[PairClass]:
+def _congruent(keys, over_ground):
+    """`_fit`'s question without the isometry: do two ordered end-point
+    quadruples have the same six distances within TOL (and, over ground, the
+    same heights)? Equal distances are exactly when an isometry, reflections
+    allowed, carries one onto the other; with equal heights too, one that
+    keeps every height does."""
+    D, X = keys.D, keys.X
+    pairs = tuple(itertools.combinations(range(4), 2))
+
+    def check(rep_idx, idx):
+        for a, b in pairs:
+            if abs(D[rep_idx[a], rep_idx[b]] - D[idx[a], idx[b]]) > TOL:
+                return False
+        return not (
+            over_ground and np.max(np.abs(X[list(rep_idx), 2] - X[list(idx), 2])) > TOL
+        )
+
+    return check
+
+
+def edge_pair_classes(edges, over_ground=False, isometries=True) -> list[PairClass]:
     """Unordered edge pairs (an edge with itself included) grouped by relative
     pose. Every member carries an isometry from its class's representative,
     fitted and checked against the end points; over ground the fit keeps every
-    height. Pairs that share a coarse key but no isometry become separate classes."""
-    fit = _fit_keeping_heights if over_ground else _fit
+    height. Pairs that share a coarse key but no isometry become separate classes.
+
+    ``isometries=False`` decides membership by the six end-point distances
+    alone (the same classes, as an isometry exists exactly when they agree)
+    and gives every member an identity in place of its isometry: the hint
+    needs only who repeats whom, and the fits were most of its time."""
+    keys = _PoseKeys(edges)
+    if isometries:
+        fit = _fit_keeping_heights if over_ground else _fit
+    else:
+        check = _congruent(keys, over_ground)
     groups: dict = {}
     for i in range(len(edges)):
         for j in range(i, len(edges)):
-            sig, swapped, fa, fb = _signature(edges[i], edges[j], i == j, over_ground)
+            sig, swapped, fa, fb = _signature(keys, edges, i, j, over_ground)
             first, second = (j, i) if swapped else (i, j)
             groups.setdefault(sig, []).append((first, second, fa, fb))
     classes = []
     for members in groups.values():
         local: list[tuple[PairClass, list, bool, bool]] = []
         for i, j, fa, fb in members:
-            pts = [*_ends(edges[i], fa), *_ends(edges[j], fb)]
+            if isometries:
+                pts = [*_ends(edges[i], fa), *_ends(edges[j], fb)]
+            else:
+                pts = (2 * i + fa, 2 * i + (not fa), 2 * j + fb, 2 * j + (not fb))
             for cls, rep_pts, rfa, rfb in local:
-                iso = fit(rep_pts, pts)
+                if isometries:
+                    iso = fit(rep_pts, pts)
+                else:
+                    iso = _IDENTITY if check(rep_pts, pts) else None
                 if iso is not None:
                     cls.members.append((i, j, iso, fa != rfa, fb != rfb))
                     break
