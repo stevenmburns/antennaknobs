@@ -875,8 +875,13 @@ link's length. Opening such a link opens the design and selects the analysis:
   searches. When the deck's own SY value lies outside it, the knob starts at
   the nearer end. A catalog design keeps its own ranges, and a range there is
   reported and ignored; the value still applies. Numbers are plain decimals.
-  **link** writes every knob moved off its default, and an opened deck's
-  ranged knobs always.
+  A dropdown knob takes one of its own options, spelled exactly
+  (`knobs=cable:RG-213,wire_type:copper`), and no range. An option the
+  dropdown does not offer is reported with the ones it does, and the rest of
+  the link still applies. In an option, a `:` or `,` is written `%253A` or
+  `%252C`, so a ratio such as 1:4 reads `ratio:1%253A4`; **link** writes this
+  for you. **link** writes every knob moved off its default, dropdowns
+  included, and an opened deck's ranged knobs always.
 - `analyses=` carries analyses as the Python a design's `build_analyses()`
   returns, compressed as a deck is. They are listed under **analysis** as
   *from the link*, and `analysis=` picks one by name. The server only reads

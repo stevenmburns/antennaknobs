@@ -39,7 +39,13 @@
 //                                         sy_<name>), a value, and optionally
 //                                         a range. Numbers are decimal
 //                                         (sign, point, exponent; nothing
-//                                         else, never evaluated). A range is
+//                                         else, never evaluated). A dropdown
+//                                         knob's value is one of its own
+//                                         options, matched exactly, its `,`
+//                                         `:` and `%` percent-encoded (so
+//                                         the option survives whole) and
+//                                         never read as anything but text;
+//                                         it takes no range (AK#2163). A range is
 //                                         for an opened deck's knob, which
 //                                         has none of its own: it is sent
 //                                         with the deck (`ranges`), is part
@@ -90,8 +96,13 @@ export function familyParam(f: LinkFamily): string {
 export const MAX_LINK_KNOBS = 32;
 export const MAX_LINK_KNOBS_CHARS = 2000;
 
-/** One `knobs=` entry: a knob's value, and the range the link gives it. */
-export type LinkKnob = { name: string; value: number; min?: number; max?: number };
+/** One `knobs=` entry: a knob's value, and the range the link gives it. A
+ *  value that is not a number is a dropdown option's text (AK#2163), which
+ *  only the design's schema can accept or refuse. */
+export type LinkKnob = { name: string; value: number | string; min?: number; max?: number };
+
+/** The longest dropdown option a link carries, decoded. */
+const MAX_LINK_OPTION_CHARS = 64;
 
 const KNOB_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const LINK_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
@@ -127,6 +138,24 @@ export function parseKnobs(raw: string): { knobs: LinkKnob[]; problems: string[]
     }
     const [name, ...nums] = f;
     const v = nums.map(linkNumber);
+    if (nums.length === 1 && v[0] === null) {
+      // A dropdown's option, percent-encoded by the writer (AK#2163).
+      let text: string | null;
+      try {
+        text = decodeURIComponent(nums[0]);
+      } catch {
+        text = null;
+      }
+      if (text === null || text === "" || text.length > MAX_LINK_OPTION_CHARS) {
+        problems.push(`knobs: ${name}'s "${shown}" has a value that is neither a number nor a dropdown option`);
+      } else if (seen.has(name)) {
+        problems.push(`knobs: ${name} is given twice`);
+      } else {
+        seen.add(name);
+        knobs.push({ name, value: text });
+      }
+      continue;
+    }
     if (v.some((x) => x === null)) {
       problems.push(`knobs: ${name}'s "${shown}" has a value that is not a finite decimal number`);
     } else if (seen.has(name)) {
@@ -143,10 +172,21 @@ export function parseKnobs(raw: string): { knobs: LinkKnob[]; problems: string[]
   return { knobs, problems };
 }
 
-/** The entries as `parseKnobs` reads them back. */
+/** A dropdown option inside `knobs=`: the grammar's own `,` and `:`, and
+ *  `%`, percent-encoded, and nothing else (the URL layer encodes the rest,
+ *  `+` included, once). `parseKnobs` decodes it with decodeURIComponent. */
+function encodeOption(v: string): string {
+  return v.replace(/%/g, "%25").replace(/,/g, "%2C").replace(/:/g, "%3A");
+}
+
+/** The entries as `parseKnobs` reads them back. A dropdown option is
+ *  escaped (`encodeOption`), so its `,` `:` or `%` never splits or changes it. */
 export function knobsParam(knobs: readonly LinkKnob[]): string {
   return knobs
-    .map((k) => (k.min !== undefined && k.max !== undefined ? `${k.name}:${k.value}:${k.min}:${k.max}` : `${k.name}:${k.value}`))
+    .map((k) => {
+      const value = typeof k.value === "string" ? encodeOption(k.value) : String(k.value);
+      return k.min !== undefined && k.max !== undefined ? `${k.name}:${value}:${k.min}:${k.max}` : `${k.name}:${value}`;
+    })
     .join(",");
 }
 
@@ -172,10 +212,25 @@ export function rangesOf(ranges: string | undefined): Map<string, [number, numbe
   return out;
 }
 
-/** A design's flat numeric knob by name (a group's leaves are not link
- *  knobs). */
-function numericKnob(schema: readonly SchemaItem[], name: string): SchemaParamSpec | undefined {
+/** A design's flat knob by name (a group's leaves are not link knobs). */
+function flatKnob(schema: readonly SchemaItem[], name: string): SchemaParamSpec | undefined {
   return schema.find((x): x is SchemaParamSpec => !isGroup(x) && x.name === name);
+}
+
+/** The option of dropdown `spec` a link value names: its text exactly, or,
+ *  for a value that read as a number, the option whose text is that number
+ *  (an option spelled "20" comes back from the link as 20). */
+function linkOption(spec: SchemaParamSpec, value: number | string): string | null {
+  const opts = spec.enum_options ?? [];
+  if (typeof value === "string") return opts.some((o) => o.value === value) ? value : null;
+  return opts.find((o) => linkNumber(o.value) === value)?.value ?? null;
+}
+
+/** A dropdown's options as a refusal lists them: the first few, then a count. */
+function optionList(spec: SchemaParamSpec): string {
+  const opts = (spec.enum_options ?? []).map((o) => o.value);
+  const shown = opts.slice(0, 8).join(", ");
+  return opts.length > 8 ? `${shown}, … (${opts.length} in all)` : shown;
 }
 
 const fmt = (v: number | null) => (v === null ? "?" : String(v));
@@ -195,17 +250,34 @@ export function linkKnobValues(
   knobs: readonly LinkKnob[],
   schema: readonly SchemaItem[],
   opts: { deck: boolean },
-): { values: Record<string, number>; problems: string[] } {
-  const values: Record<string, number> = {};
+): { values: Record<string, number | string>; problems: string[] } {
+  const values: Record<string, number | string> = {};
   const problems: string[] = [];
   for (const k of knobs) {
-    const spec = numericKnob(schema, k.name);
+    const spec = flatKnob(schema, k.name);
     if (!spec) {
       problems.push(`knobs: this design has no knob "${k.name}"`);
       continue;
     }
+    if (spec.kind === "enum") {
+      if (k.min !== undefined) {
+        problems.push(`knobs: ${k.name} is a dropdown, which takes no range`);
+        continue;
+      }
+      const option = linkOption(spec, k.value);
+      if (option === null) {
+        problems.push(`knobs: ${k.name} has no option "${k.value}"; it offers ${optionList(spec)}`);
+        continue;
+      }
+      values[k.name] = option;
+      continue;
+    }
     if (spec.kind !== "float" && spec.kind !== "int") {
-      problems.push(`knobs: "${k.name}" is not a numeric knob`);
+      problems.push(`knobs: "${k.name}" is not a numeric or dropdown knob`);
+      continue;
+    }
+    if (typeof k.value !== "number") {
+      problems.push(`knobs: ${k.name} takes a number, not "${k.value}"`);
       continue;
     }
     if (spec.kind === "int" && !Number.isInteger(k.value)) {
@@ -229,9 +301,9 @@ export function linkKnobValues(
 }
 
 /** What a link writes of a design's knobs (`knobs=`): every flat numeric
- *  knob moved off its default (`defaults`, the variant's), and every knob
- *  the opened deck has a link range for (`ranges`), with its range, in the
- *  schema's order. */
+ *  or dropdown knob moved off its default (`defaults`, the variant's), and
+ *  every knob the opened deck has a link range for (`ranges`), with its
+ *  range, in the schema's order. */
 export function linkKnobsOf(
   schema: readonly SchemaItem[],
   values: Readonly<Record<string, unknown>>,
@@ -240,7 +312,13 @@ export function linkKnobsOf(
 ): LinkKnob[] {
   const out: LinkKnob[] = [];
   for (const item of schema) {
-    if (isGroup(item) || (item.kind !== "float" && item.kind !== "int")) continue;
+    if (isGroup(item)) continue;
+    if (item.kind === "enum") {
+      const v = values[item.name];
+      if (typeof v === "string" && v !== String(defaults[item.name])) out.push({ name: item.name, value: v });
+      continue;
+    }
+    if (item.kind !== "float" && item.kind !== "int") continue;
     const v = values[item.name];
     if (typeof v !== "number" || !Number.isFinite(v)) continue;
     const r = ranges.get(item.name);

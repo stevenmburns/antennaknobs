@@ -36,7 +36,19 @@ const SCHEMA = [
   knob({ name: "short_ft", label: "M", min: 1, max: 34 }),
   knob({ name: "segs", kind: "int", default: 20, min: 10, max: 30, step: 1 }),
   knob({ name: "free", default: 2, min: 1, max: 3, auto_range: true }),
-  knob({ name: "wire", kind: "enum", default: "copper", min: null, max: null }),
+  knob({
+    name: "wire",
+    kind: "enum",
+    default: "copper",
+    min: null,
+    max: null,
+    enum_options: ["copper", "steel", "B034+B099", "a:b,c"].map((value) => ({ value, label: value })),
+  }),
+  knob({ name: "band", kind: "enum", default: "40", min: null, max: null, enum_options: [
+    { value: "40", label: "40 m" },
+    { value: "20", label: "20 m" },
+  ] }),
+  knob({ name: "lit", kind: "bool", default: false, min: null, max: null }),
 ];
 
 describe("the knobs= grammar", () => {
@@ -72,7 +84,9 @@ describe("the knobs= grammar", () => {
     ["long_ft:1:2:3:4", "is not <knob>:<value>"],
     ["1x:3", `"1x:3" is not <knob>`],
     ["a.b:3", `"a.b:3" is not <knob>`],
-    ["long_ft:abc", `long_ft's "long_ft:abc" has a value that is not a finite decimal number`],
+    ["long_ft:%E0%A4%A", `long_ft's "long_ft:%E0%A4%A" has a value that is neither a number nor a dropdown option`],
+    [`long_ft:${"x".repeat(65)}`, "neither a number nor a dropdown option"],
+    ["long_ft:abc:1:2", `long_ft's "long_ft:abc:1:2" has a value that is not a finite decimal number`],
     ["long_ft:1:Infinity:3", "not a finite decimal number"],
     ["long_ft:20:36:15", "long_ft's range 36:15 does not have min < max"],
     ["long_ft:40:15:36", "long_ft's value 40 is outside its range 15:36"],
@@ -123,7 +137,10 @@ describe("what the panel takes of a link's knobs", () => {
 
   it.each([
     ["nope:1", `knobs: this design has no knob "nope"`],
-    ["wire:1", `knobs: "wire" is not a numeric knob`],
+    ["wire:1", `knobs: wire has no option "1"; it offers copper, steel, B034+B099, a:b,c`],
+    ["band:20:10:30", "knobs: band is a dropdown, which takes no range"],
+    ["long_ft:steel", `knobs: long_ft takes a number, not "steel"`],
+    ["lit:1", `knobs: "lit" is not a numeric or dropdown knob`],
     ["segs:20.5", `knobs: "segs" takes a whole number, not 20.5`],
     ["long_ft:99", "knobs: long_ft's value 99 is outside its range 15 to 36"],
   ])("refuses %s by name, and sets nothing of it", (raw, words) => {
@@ -140,10 +157,10 @@ describe("what the panel takes of a link's knobs", () => {
 });
 
 describe("what a link writes of the knobs", () => {
-  const defaults = { long_ft: 17.066, short_ft: 17.066, segs: 20, free: 2, wire: "copper" };
+  const defaults = { long_ft: 17.066, short_ft: 17.066, segs: 20, free: 2, wire: "copper", band: "40", lit: false };
 
   it("writes a knob moved off its default, and a deck's ranged knob always", () => {
-    const values = { ...defaults, short_ft: 5, wire: "steel" };
+    const values = { ...defaults, short_ft: 5 };
     expect(linkKnobsOf(SCHEMA, values, defaults, new Map())).toEqual([{ name: "short_ft", value: 5 }]);
     expect(linkKnobsOf(SCHEMA, defaults, defaults, new Map())).toEqual([]);
     const ranged = linkKnobsOf(SCHEMA, values, defaults, new Map([["long_ft", [15, 36] as [number, number]]]));
@@ -176,5 +193,77 @@ describe("what a link writes of the knobs", () => {
     const deck = { z: "x".repeat(9000), name: "d.nec", ranges: "sy_a:1:5" };
     const s = linkSearch("", { design: "deck.0123456789ab", variant: null, analysis: null, view: null, knobs, deck });
     expect(s).toBe("?design=deck.0123456789ab&knobs=sy_a:3");
+  });
+});
+
+describe("a dropdown knob in a link (AK#2163)", () => {
+  const defaults = { long_ft: 17.066, short_ft: 17.066, segs: 20, free: 2, wire: "copper", band: "40", lit: false };
+  const base = { design: "user.choke", analyses: null, deck: null, variant: null, analysis: null, view: null };
+
+  it("sets a dropdown beside a number, matched exactly", () => {
+    const { knobs, problems } = parseKnobs("wire:steel,long_ft:20");
+    expect(problems).toEqual([]);
+    expect(linkKnobValues(knobs, SCHEMA, { deck: false })).toEqual({
+      values: { wire: "steel", long_ft: 20 },
+      problems: [],
+    });
+    expect(linkKnobValues(parseKnobs("wire:Steel").knobs, SCHEMA, { deck: false }).values).toEqual({});
+  });
+
+  it("an option spelled as a number reads back as that option", () => {
+    expect(linkKnobValues(parseKnobs("band:20").knobs, SCHEMA, { deck: false })).toEqual({
+      values: { band: "20" },
+      problems: [],
+    });
+  });
+
+  it("an unknown option is refused by name and the rest still applies", () => {
+    const { values, problems } = linkKnobValues(parseKnobs("wire:B999,segs:24").knobs, SCHEMA, { deck: false });
+    expect(values).toEqual({ segs: 24 });
+    expect(problems).toEqual([`knobs: wire has no option "B999"; it offers copper, steel, B034+B099, a:b,c`]);
+  });
+
+  it.each(["steel", "B034+B099", "a:b,c", "50%"])("Copy link reproduces the dropdown at %s", (option) => {
+    const opts = [...(SCHEMA[4] as SchemaParamSpec).enum_options!, { value: "50%", label: "half" }];
+    const schema = SCHEMA.map((k) => (k.name === "wire" ? { ...k, enum_options: opts } : k));
+    const values = { ...defaults, wire: option, band: "20", segs: 24 };
+    const knobs = linkKnobsOf(schema, values, defaults, new Map());
+    expect(knobs).toEqual([
+      { name: "segs", value: 24 },
+      { name: "wire", value: option },
+      { name: "band", value: "20" },
+    ]);
+    const search = linkSearch("", { ...base, knobs });
+    const back = parseDeepLink(search)!;
+    expect(back.knobsProblems).toBeUndefined();
+    expect(linkKnobValues(back.knobs!, schema, { deck: false })).toEqual({
+      values: { segs: 24, wire: option, band: "20" },
+      problems: [],
+    });
+  });
+
+  it("writes an option's + once, as %2B, and its grammar characters escaped", () => {
+    const search = linkSearch("", { ...base, knobs: [{ name: "wire", value: "B034+B099" }] });
+    expect(search).toBe("?design=user.choke&knobs=wire:B034%2BB099");
+    const odd = linkSearch("", { ...base, knobs: [{ name: "wire", value: "a:b,c" }] });
+    expect(odd).toBe("?design=user.choke&knobs=wire:a%253Ab%252Cc");
+  });
+
+  it.each(["1:4", "225:4", "49-1 U 001"])("a shipped option %s survives the round trip", (option) => {
+    const schema = [
+      knob({ name: "ratio", kind: "enum", default: "1:1", min: null, max: null, enum_options: [
+        { value: "1:1", label: "1:1" },
+        { value: option, label: option },
+      ] }),
+    ];
+    const search = linkSearch("", { ...base, knobs: [{ name: "ratio", value: option }] });
+    const back = parseDeepLink(search)!;
+    expect(back.knobsProblems).toBeUndefined();
+    expect(linkKnobValues(back.knobs!, schema, { deck: false }).values).toEqual({ ratio: option });
+  });
+
+  it("a hand-typed %2B reads as +", () => {
+    const d = parseDeepLink("?design=user.choke&knobs=wire:B034%2BB099")!;
+    expect(d.knobs).toEqual([{ name: "wire", value: "B034+B099" }]);
   });
 });
