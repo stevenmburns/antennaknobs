@@ -80,11 +80,17 @@ def test_every_other_served_spec_keeps_its_description_field_and_it_is_usually_n
     """Adding the field to the NamedTuple must not disturb an existing spec's
     served row — `description` is optional and most options carry none. The
     ones that do: this file's checkbox, NEC-4.2's Sommerfeld choice (its
-    GN 2 / GN 3 hint) and the exact ring kernel's choice (momwire#1408)."""
+    GN 2 / GN 3 hint), the exact ring kernel's choice (momwire#1408) and the
+    fill reuse switch (AK#2165)."""
     rows = model_option_specs()
     for key, row in rows.items():
         assert "description" in row
-        if key not in ("rotational_symmetry", "sommerfeld", "exact_kernel"):
+        if key not in (
+            "rotational_symmetry",
+            "sommerfeld",
+            "exact_kernel",
+            "pair_reuse",
+        ):
             assert row["description"] is None
 
 
