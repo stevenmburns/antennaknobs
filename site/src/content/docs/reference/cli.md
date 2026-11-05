@@ -1764,6 +1764,20 @@ ground medium allows fewer moves than it counts.
 
 The reuse itself is momwire#1809, tracked in antennaknobs#2165.
 
+### Using it in a solve (opt-in)
+
+Set `ANTENNAKNOBS_PAIR_REUSE=1` and the momwire B-spline engine passes its
+mesh's repeated edge pairs to the solver. The solver fills each repeated block
+once and copies it. It checks every claimed pair against its own geometry
+first, so a pair that does not really repeat is simply filled. Results move
+by rounding only (about 1e-15 relative).
+
+Over Sommerfeld ground, a copy also has to keep its heights. Directors at one
+height qualify; a vertical stack of identical dipoles does not. On a laptop,
+one thread, the fill of a 20-director Yagi went from 82 to 58 ms in free space
+and from 300 to 197 ms over Sommerfeld ground. This needs a momwire newer than
+0.86.0; with an older one the setting does nothing.
+
 ## Exporting to NEC
 
 ```bash
