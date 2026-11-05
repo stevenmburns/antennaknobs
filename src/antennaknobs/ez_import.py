@@ -63,7 +63,10 @@ notes, not a refusal.
   voltage sources drive volts, current sources force amps. A split source
   at a wire end is, as EZNEC's exports write it, one source either side of
   the junction (a voltage halved, a current repeated), or under NEC-5 one
-  source at the junction's knot.
+  source at the junction's knot. Inside a wire EZNEC moves a split to a knot
+  (the one its NEC-5 export names): a voltage is then two half-voltage
+  sources on the segments either side, a current one source on the segment
+  of the wire meeting the knot.
 * Loads keep their type, so a frequency sweep evaluates each at every
   frequency instead of at the model frequency only: R + jX is a fixed
   impedance, series and parallel RLC are the frequency-dependent ``Load``
@@ -1641,17 +1644,40 @@ def _split_source(dk: _Deck, k: int, s: EzSource, typ: int, v: complex) -> None:
     """A split source (W/J) under EZNEC's NEC-2/NEC-4 reading, as its export
     writes one: at a wire END that meets exactly one other wire end, one
     source on each side's end segment -- a voltage halved, a current repeated
-    -- with the sign following the two wires' directions."""
+    -- with the sign following the two wires' directions. Inside a wire it
+    moves to a knot (see below)."""
     m = dk.m
     w = s.at.wire
-    if _on_virtual(dk, s.at) or s.at.pct not in (0.0, 100.0):
+    if _on_virtual(dk, s.at):
         raise EzNotRepresentable(
             m.name,
             f"source {k}",
-            f"a split source at {s.at.pct} % (only a wire end is read)",
+            f"a split source at {s.at.pct} % of the virtual wire",
         )
     wires = m.wires
-    at_end2 = s.at.pct == 100.0
+    n = wires[w - 1].segments
+    vv = v / 2 if typ == 0 else v
+    if s.at.pct not in (0.0, 100.0):
+        # Inside the wire (the 11-05 sitting): EZNEC moves the split to a
+        # knot, the one its NEC-5 export names (`_Deck.knot`). A voltage there
+        # is two sources at half the voltage on the segments either side
+        # (TOPBOB40: EX 0 on segments 1 and 2 at .707 V). A current is the
+        # current on the segment of this wire that meets the knot: EZNEC's
+        # export writes one there (4.6.8c, the half-squares), and where it
+        # writes a second across a wire end (ocf) that one is in series with
+        # the first, forcing the same current, so it changes nothing.
+        knot = dk.knot(s.at)
+        if typ != 0:
+            seg = min(max(knot, 1), n)
+            dk.cards.append(f"EX {typ} {w} {seg} 0 {_fmt(v.real)} {_fmt(v.imag)}")
+            return
+        if 0 < knot < n:
+            for seg in (knot, knot + 1):
+                dk.cards.append(f"EX {typ} {w} {seg} 0 {_fmt(vv.real)} {_fmt(vv.imag)}")
+            return
+        at_end2 = knot == n  # moved to a wire end: as a split there, below
+    else:
+        at_end2 = s.at.pct == 100.0
     p = wires[w - 1].p2 if at_end2 else wires[w - 1].p1
     hits = []
     for j, ww in enumerate(wires):
@@ -1668,7 +1694,6 @@ def _split_source(dk: _Deck, k: int, s: EzSource, typ: int, v: complex) -> None:
         )
     j, j_end2 = hits[0]
     same = at_end2 != j_end2
-    vv = v / 2 if typ == 0 else v
     seg_a = wires[w - 1].segments if at_end2 else 1
     seg_b = wires[j].segments if j_end2 else 1
     for tag, seg, vx in ((w, seg_a, vv), (j + 1, seg_b, vv if same else -vv)):
