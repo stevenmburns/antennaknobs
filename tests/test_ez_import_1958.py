@@ -655,6 +655,34 @@ def test_a_stored_impedance_that_disagrees_with_the_parts_is_refused():
         read_ez(ez_file(DIPOLE, loads=(spec,), load_type="R"))
 
 
+def test_autoez_s_stored_r_is_its_convention_not_a_disagreement():
+    """AutoEZ writes .ez files that EZNEC then opens, with no EZNEC save stamp
+    and the load's R in the stored-impedance slot (AK#2173). That passes, and
+    the notes say the value was not checked; any other mismatch on such a
+    file is still refused (the test above)."""
+    spec = {
+        "wire": 1,
+        "pct": 75.0,
+        "z": (4150.0, 0.0),
+        "rlc": ("P", 4150.0, 26.3e-6, 4.91e-12, 0.0),
+    }
+    imp = read_ez(ez_file(DIPOLE, loads=(spec,), load_type="R"))
+    assert imp.model.program is None
+    assert any("No EZNEC save stamp" in n for n in imp.notes)
+
+
+def test_a_file_with_no_engine_says_how_it_is_read():
+    """No engine recorded (AutoEZ's files, AK#2173): read as EZNEC's own
+    engines read it, and the notes point at Read as NEC-5."""
+    imp = read_ez(ez_file(DIPOLE))
+    if imp.model.engine is not None:
+        pytest.skip("this fixture records an engine")
+    assert any("Read as NEC-5" in n for n in imp.notes)
+    assert not any(
+        "Read as NEC-5" in n for n in read_ez(ez_file(DIPOLE), reading="nec5").notes
+    )
+
+
 def test_a_fixed_r_jx_load_holds_at_every_frequency():
     raw = ez_file(DIPOLE, loads=({"wire": 1, "pct": 75.0, "z": (5.0, -40.0)},))
     (br,) = [
@@ -910,7 +938,9 @@ def test_an_l_network_in_rlc_form_is_series_then_shunt_parts_that_follow_frequen
         pytest.approx(200e-12),
         False,
     )
-    # A parallel branch is a reading the format leaves undefined for networks.
+    # A parallel branch: the format defines a missing part only for loads, and
+    # the default reading (AK#2173) is the load's, an unset part absent
+    # (open), because EZNEC's own .nec export of such a model agrees. Noted.
     par = [((0.0, 1e-6, 0.0, 0.0, "S"), (500.0, 1e-6, 0.0, 0.0, "P"))]
     raw = ez_file(
         PAIR,
@@ -918,9 +948,10 @@ def test_an_l_network_in_rlc_form_is_series_then_shunt_parts_that_follow_frequen
         blocks=[lnet_block([((1, 50.0), (2, 50.0), 0j, 0j)], par)],
         counts=(0, 0, 1, 0),
     )
-    with pytest.raises(EzUndefined, match="parallel"):
-        read_ez(raw)
-    read_ez(raw, accept_guesses=True)
+    imp = read_ez(raw)
+    assert any("absent (open)" in n for n in imp.notes)
+    (sh,) = [b for b in imp.deck.network().branches if isinstance(b, network.Shunt)]
+    assert (sh.r, sh.l, sh.c, sh.parallel) == (500.0, pytest.approx(1e-6), None, True)
 
 
 # --------------------------------------------------------------------------
