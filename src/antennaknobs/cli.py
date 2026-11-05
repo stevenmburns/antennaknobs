@@ -2706,7 +2706,7 @@ def cli(arguments=None):
         "straight edges, the planes that mirror the whole structure onto itself, "
         "and the edge pairs that share a relative pose (and so a block of the "
         "fill, momwire#1809), in free space and over ground. --pairs adds the "
-        "segment-level counts, which take about a second at 300 segments.",
+        "segment-level counts (about 1.5 s at 300 segments, quadratic in segments). The mesh is the momwire engine's own.",
     )
     add_common(p)
     p.add_argument(
