@@ -24,8 +24,11 @@ Tolerances are each pairing's measured gap, with headroom, and why:
 * A lossy line: EZNEC's export writes its two-port with a constant that
   closes all but the last digit of the Y parameters: 3.4e-4 (Bydpole).
 * The NEC-2 export of a current source is NEC-2's gyrator idiom, and its
-  virtual wire stays real wire (a phantom wire parks beside it), so that
-  reading drives 1/Z through a slightly leaky node: 2.8e-3 (cardL, NEC-2).
+  virtual wire stays real wire (a phantom wire parks beside it): 1.8e-4
+  (cardL, NEC-2). That reading used to come out as 1/Z, and the pairing
+  inverted it; the deck now solves to Z directly, so it compares Z with Z.
+  The pairing went stale silently, as this module runs only where the
+  private tree is, never on CI.
 """
 
 from __future__ import annotations
@@ -75,8 +78,8 @@ PAIRS = {
         _CARDL,
         "qrz-lfa-thread/cardL-nec2.nec",
         None,
-        True,
-        5e-3,
+        False,
+        1e-3,
     ),
     "Bydpole TL + transformer + L networks, NEC-5 export": (
         "dan-140-144/tl-xfmr-clc/Bydpole-TL-Xfmr-CLC.ez",
