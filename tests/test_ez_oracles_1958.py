@@ -23,6 +23,11 @@ Tolerances are each pairing's measured gap, with headroom, and why:
   singles: a few 1e-5 to 1e-4.
 * A lossy line: EZNEC's export writes its two-port with a constant that
   closes all but the last digit of the Y parameters: 3.4e-4 (Bydpole).
+* The sitting's split sources (a split moved to a knot inside a wire): 5e-4
+  to 1.6e-3. The OCF's NEC-2 export is not a pairing: EZNEC writes its split
+  current source as two current sources in series across a wire end, so each
+  of its ports carries only part of the voltage, where the import's one
+  source carries all of it (the same current, so the same antenna).
 * The NEC-2 export of a current source is NEC-2's gyrator idiom, and its
   virtual wire stays real wire (a phantom wire parks beside it): 1.8e-4
   (cardL, NEC-2). That reading used to come out as 1/Z, and the pairing
@@ -87,6 +92,83 @@ PAIRS = {
         "nec5",
         False,
         1e-3,
+    ),
+    "Bobtail, a split voltage source mid-wire, NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/TOPBOB40.EZ",
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/TOPBOB40-nec2.nec",
+        None,
+        False,
+        3e-3,
+    ),
+    "Bobtail, a split voltage source mid-wire, NEC-5 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/TOPBOB40.EZ",
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/TOPBOB40-nec5.nec",
+        "nec5",
+        False,
+        3e-3,
+    ),
+    "Bobtail (lower), a split voltage source mid-wire, NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/topbob40-lower.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/topbob40-lower-nec2.nec",
+        None,
+        False,
+        3e-3,
+    ),
+    "Bobtail (lower), a split voltage source mid-wire, NEC-5 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/topbob40-lower.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/topbob40-lower-nec5.nec",
+        "nec5",
+        False,
+        3e-3,
+    ),
+    "20 m half-square, a split current source on a 1-segment wire, NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/halfsq20.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/halfsq20-nec2.nec",
+        None,
+        False,
+        3e-3,
+    ),
+    "20 m half-square, a split current source on a 1-segment wire, NEC-5 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/halfsq20.ez",
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/halfsq20-nec5.nec",
+        "nec5",
+        False,
+        3e-3,
+    ),
+    "40 m half-square, a split current source on a 1-segment wire, NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/HALFSQ40.EZ",
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/HALFSQ40-nec2.nec",
+        None,
+        False,
+        3e-3,
+    ),
+    "40 m half-square, a split current source on a 1-segment wire, NEC-5 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/HALFSQ40.EZ",
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/HALFSQ40-nec5.nec",
+        "nec5",
+        False,
+        3e-3,
+    ),
+    "Delta loop, a split current source at 33 %, NEC-2 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/4.6.8c.EZ",
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/4.6.8c-nec2.nec",
+        None,
+        False,
+        3e-3,
+    ),
+    "Delta loop, a split current source at 33 %, NEC-5 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/4.6.8c.EZ",
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/4.6.8c-nec5.nec",
+        "nec5",
+        False,
+        3e-3,
+    ),
+    "OCF, a split current source across a wire end, NEC-5 export": (
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/ocf- feedline.EZ",
+        "~/ez-sitting-1105-results/ez-sitting-1105/split_source_mid/ocf- feedline-v7-nec5.nec",
+        "nec5",
+        False,
+        3e-3,
     ),
     "efhw2, EZNEC's NEC-5 engine deck": (
         "~/Downloads/GroundRod/efhw2.ez",
