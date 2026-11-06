@@ -85,7 +85,10 @@ def test_on_passes_the_hint_and_moves_z_by_ulps(monkeypatch, how):
     seen = spy(monkeypatch, e)
     z1 = np.asarray(e.impedance(), dtype=complex)
     assert seen and all(kw.get("pair_reuse") for kw in seen)
-    assert np.max(np.abs(z1 - z0) / np.abs(z0)) <= 1e-13
+    # The switch also passes offset_reuse (momwire#1809 step 2, 0.87.1), whose
+    # route sums each element's own block in another order: 2.3e-13 measured
+    # on this Yagi, inside the 1e-12 eval-order tolerance.
+    assert np.max(np.abs(z1 - z0) / np.abs(z0)) <= 1e-12
 
 
 @takes_hint
@@ -114,7 +117,16 @@ def test_over_sommerfeld_ground_the_remainder_copies():
     c0 = acc.remainder_q_reused_pairs()
     z1 = np.asarray(engine(fed_yagi(4), g, pair_reuse=True).impedance(), dtype=complex)
     assert acc.remainder_q_reused_pairs() > c0
-    assert np.max(np.abs(z1 - z0) / np.abs(z0)) <= 1e-13
+    # The switch also passes offset_reuse (momwire#1809 step 2, 0.87.1), whose
+    # route sums each element's own block in another order: 2.3e-13 measured
+    # on this Yagi, inside the 1e-12 eval-order tolerance.
+    assert np.max(np.abs(z1 - z0) / np.abs(z0)) <= 1e-12
+
+
+def momwire_bspline_module():
+    import momwire.bspline as bs
+
+    return bs
 
 
 takes_offset = pytest.mark.skipif(
@@ -135,8 +147,12 @@ def test_the_switch_also_fills_a_straight_wire_by_offset(monkeypatch):
     e = engine(w, pair_reuse=True)
     seen = spy(monkeypatch, e)
     c0 = K.REG_TOEPLITZ_EDGES
+    f0 = getattr(momwire_bspline_module(), "FREE_OFFSET_EDGES", 0)
     z1 = np.asarray(e.impedance(), dtype=complex)
     assert seen and all(kw.get("offset_reuse") is True for kw in seen)
     assert all("pair_reuse" not in kw for kw in seen)  # nothing repeats
-    assert K.REG_TOEPLITZ_EDGES > c0
+    # Step 1's Toeplitz reg block, or (momwire 0.87.1, step 2) the edge's own
+    # block assembled by offset, which replaces it on a whole-mesh fill.
+    free = getattr(momwire_bspline_module(), "FREE_OFFSET_EDGES", 0)
+    assert K.REG_TOEPLITZ_EDGES + free > c0 + f0
     assert np.max(np.abs(z1 - z0) / np.abs(z0)) <= 1e-12
