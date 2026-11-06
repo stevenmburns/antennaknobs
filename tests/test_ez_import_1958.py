@@ -664,6 +664,29 @@ def test_a_variable_r_given_anywhere_follows_root_f_with_no_guess():
         assert ld.custom.z(f).real == pytest.approx(8.0 * math.sqrt(f / (F * 1e6)))
 
 
+def test_a_parallel_variable_r_falls_as_one_over_f():
+    """EZNEC's Help: a parallel configuration's variable R models dielectric
+    loss and falls in inverse proportion to frequency; series and trap R
+    (conductor loss) go as √f (the test above)."""
+    spec = {"wire": 1, "pct": 75.0, "rlc": ("P", 5000.0, 0.0, 0.0, 7.0)}
+    imp = read_ez(ez_file(DIPOLE, loads=(spec,), load_type="R"))
+    (ld,) = imp.deck.loads
+    f = 14e6
+    assert ld.custom.z(f).real == pytest.approx(5000.0 * 7e6 / f)
+
+
+def test_a_trap_with_no_capacitor_is_its_r_and_l_in_series():
+    """EZNEC's Help: in a trap a zero C is an open, which leaves R + jωL; it
+    used to be refused as malformed (and crashed in an L-network branch)."""
+    w = 2 * math.pi * 7e6
+    assert ez_import._rlc_z("T", 2.0, 1e-6, 0.0, w) == complex(2.0, w * 1e-6)
+    spec = {"wire": 1, "pct": 75.0, "rlc": ("T", 2.0, 1e-6, 0.0, 0.0)}
+    imp = read_ez(ez_file(DIPOLE, loads=(spec,), load_type="R"))
+    (ld,) = imp.deck.loads
+    f = F0 * 1e6
+    assert ld.custom.z(f) == pytest.approx(complex(2.0, 2 * math.pi * f * 1e-6))
+
+
 def test_a_stored_impedance_that_disagrees_with_the_parts_is_refused():
     spec = {
         "wire": 1,
