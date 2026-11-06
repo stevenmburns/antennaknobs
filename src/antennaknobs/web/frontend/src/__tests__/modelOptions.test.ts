@@ -39,7 +39,7 @@ describe("modelOptionsForRequest", () => {
     expect(result).not.toHaveProperty("feed_model");
   });
 
-  it("bspline sends the twelve b-spline kwargs, feed_model among them", () => {
+  it("bspline sends the thirteen b-spline kwargs, feed_model among them", () => {
     const model = {
       degree: 1,
       n_qp_pair: 5,
@@ -74,6 +74,10 @@ describe("modelOptionsForRequest", () => {
         "n_qp_pair",
         "n_qp_sing",
         "n_qp_source",
+        // ADDED with momwire 0.87.0 (#1809): the repeated-geometry fill
+        // switch, on bspline alone; `false` by default, and on it moves Z
+        // only in the last digits (tests/test_pair_reuse_hint_2165.py).
+        "pair_reuse",
         // ADDED with momwire 0.60.0 (#1029): bspline alone carries the sector
         // route flag; it is on the wire as `false` by default and moves no
         // number when off (pinned in tests/test_rotational_symmetry_*_1029.py).
@@ -95,6 +99,7 @@ describe("modelOptionsForRequest", () => {
       n_qp_sing: 40,
       enrichment_min_k: 4,
       rotational_symmetry: false,
+      pair_reuse: false,
     });
     // Not set in the model literal above, so it carries the SERVED default —
     // which is the value this family was already solving with.
@@ -173,10 +178,11 @@ describe("modelOptionsForRequest", () => {
     expect(stock("sinusoidal-galerkin")).toBe(
       '{"n_qp_const":8,"feed_model":"point"}',
     );
-    // bspline alone carries `rotational_symmetry` (#1029, momwire 0.60.0);
+    // bspline alone carries `rotational_symmetry` (#1029, momwire 0.60.0)
+    // and `pair_reuse` (#1809, momwire 0.87.0);
     // the accelerators' stock payload is exactly the family's, unchanged.
     expect(stock("bspline")).toBe(
-      BSPLINE_JSON.slice(0, -1) + ',"rotational_symmetry":false}',
+      BSPLINE_JSON.slice(0, -1) + ',"rotational_symmetry":false,"pair_reuse":false}',
     );
     expect(stock("hmatrix")).toBe(BSPLINE_JSON);
     expect(stock("arrayblock")).toBe(BSPLINE_JSON);
