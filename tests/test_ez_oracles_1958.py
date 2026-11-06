@@ -33,7 +33,11 @@ Tolerances are each pairing's measured gap, with headroom, and why:
   1 MΩ shunt, a rule one example cannot settle. It is the next sitting's
   question.
 * The sitting's split sources (a split moved to a knot inside a wire): 5e-4
-  to 1.6e-3. The OCF's NEC-2 export is not a pairing: EZNEC writes its split
+  to 1.6e-3. EZNEC's NEC-2 export writes a split voltage as two sources at
+  half the voltage, each port seeing about half the feed impedance; the
+  import reads them as one source at the joint (AK#2183), so those pairings
+  (`JOINED`) compare its one feed with the SUM of the export's two: 1.0e-3
+  (Bobtail) and 1.0e-3 (Bobtail, lower). The OCF's NEC-2 export is not a pairing: EZNEC writes its split
   current source as two current sources in series across a wire end, so each
   of its ports carries only part of the voltage, where the import's one
   source carries all of it (the same current, so the same antenna).
@@ -335,6 +339,14 @@ def _z(cls) -> complex:
     return complex(MomwireEngine(cls(), ground=cls.file_ground).impedance()[0])
 
 
+# Pairings whose export writes a split voltage as two half-voltage sources:
+# the reference's impedance is the sum of its ports'.
+JOINED = {
+    "Bobtail, a split voltage source mid-wire, NEC-2 export",
+    "Bobtail (lower), a split voltage source mid-wire, NEC-2 export",
+}
+
+
 def _pair(name):
     ez, ref, reading, invert, tol = PAIRS[name]
     ez, ref = _path(ez), _path(ref)
@@ -354,6 +366,10 @@ def test_an_ez_solves_as_its_eznec_nec_does(name):
     theirs = _reference(ref)
     assert ours.file_ground == theirs.file_ground
     z_ours, z_ref = _z(ours), _z(theirs)
+    if name in JOINED:
+        zs = MomwireEngine(theirs(), ground=theirs.file_ground).impedance()
+        assert len(zs) == 2
+        z_ref = complex(sum(zs))
     if invert:
         z_ref = 1.0 / z_ref
     assert abs(z_ours - z_ref) <= tol * abs(z_ref), (z_ours, z_ref)

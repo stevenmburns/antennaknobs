@@ -51,9 +51,10 @@ def test_under_nec5_it_is_one_source_at_the_knot(kind):
 
 
 def test_it_solves_as_one_feed_point_would():
-    """The two half-voltage sources sit either side of one knot: together
-    they drive the antenna as the NEC-5 reading's one source at that knot
-    does, to the difference between centre and edge placement."""
+    """EZNEC's NEC-2 export writes the split as two half-voltage sources
+    either side of one knot; the model reads them back as the one source at
+    that knot that the NEC-5 reading has, so it shows one feed with the whole
+    impedance (AK#2183), the same as the NEC-5 reading's."""
     from antennaknobs.file_designs import builder_from_text
     from antennaknobs.engines import MomwireEngine
 
@@ -63,7 +64,20 @@ def test_it_solves_as_one_feed_point_would():
     one = builder_from_text("split.ez", text, dialect="nec5")
     z2 = MomwireEngine(two(), ground=two.file_ground).impedance()
     z1 = complex(MomwireEngine(one(), ground=one.file_ground).impedance()[0])
-    # Each half-voltage port sees half the feed impedance, so the two add up
-    # to the one source's, to what moving from two segment centres to one
-    # segment end costs on a 10-segment wire (2.4 % here).
-    assert complex(z2[0]) + complex(z2[1]) == pytest.approx(z1, rel=4e-2)
+    assert len(z2) == 1
+    assert complex(z2[0]) == pytest.approx(z1, rel=1e-9)
+
+
+def test_the_deck_keeps_eznecs_two_cards_and_the_notes_say_why():
+    raw = ez_file(WIRE, sources=((1, 50.0, 1.0, 0.0, "W"),))
+    assert len(_ex(raw)) == 2
+    imp = read_ez(raw, name="s.ez")
+    assert len(imp.deck.feeds) == 1
+    (f,) = imp.deck.feeds
+    assert f.edge == 2 and f.seg == 5 and f.voltage == pytest.approx(math.sqrt(2))
+    assert any("read as one source at the joint" in n for n in imp.notes)
+
+
+def test_a_split_current_is_not_joined():
+    imp = read_ez(ez_file(WIRE, sources=((1, 50.0, 1.0, 0.0, "J"),)), name="s.ez")
+    assert not any("read as one source at the joint" in n for n in imp.notes)

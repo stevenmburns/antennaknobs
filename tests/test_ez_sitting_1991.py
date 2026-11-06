@@ -103,14 +103,16 @@ def test_a_split_source_is_one_source_at_the_junction_knot_under_nec5(kind, ex):
 
 
 def test_the_two_readings_of_a_split_source_are_one_feed():
-    """Halved either side under NEC-2, whole at the knot under NEC-5: the
-    vee's driving-point impedance is the same feed both ways (to the
-    difference between centre and knot placement)."""
+    """Halved either side in EZNEC's NEC-2 export, whole at the knot in its
+    NEC-5 one: both readings model the one source at the junction's knot
+    (AK#2183), so the vee shows one feed with its whole impedance either
+    way."""
     raw = ez_file(VEE, sources=((1, 0.0, 1.0, 0.0, "W"),))
     cls2 = _open(raw)
-    z2 = complex(sum(MomwireEngine(cls2(), ground=cls2.file_ground).impedance()))
+    z2 = MomwireEngine(cls2(), ground=cls2.file_ground).impedance()
     z5 = _z(_open(raw, dialect="nec5"))
-    assert abs(z2 - z5) < 0.05 * abs(z5)
+    assert len(z2) == 1
+    assert abs(complex(z2[0]) - z5) < 1e-9 * abs(z5)
 
 
 # --------------------------------------------------------------------------

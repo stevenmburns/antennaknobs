@@ -66,7 +66,9 @@ notes, not a refusal.
   source at the junction's knot. Inside a wire EZNEC moves a split to a knot
   (the one its NEC-5 export names): a voltage is then two half-voltage
   sources on the segments either side, a current one source on the segment
-  of the wire meeting the knot.
+  of the wire meeting the knot. The deck keeps a split voltage's two cards,
+  but the model reads them as ONE source at the joint (AK#2183, `_join`), so
+  it shows the one feed and the whole impedance EZNEC's Src Dat shows.
 * Loads keep their type, so a frequency sweep evaluates each at every
   frequency instead of at the model frequency only: R + jX is a fixed
   impedance, series and parallel RLC are the frequency-dependent ``Load``
@@ -1469,6 +1471,10 @@ class _Deck:
             (len(m.wires) + 1 + (self.vtag is not None)) if self.p_loads else None
         )
         self.p_used = 0
+        # Split voltage sources under NEC-2/NEC-4 (AK#2183): the two EX cards
+        # EZNEC's export writes, and the one knot source the model takes in
+        # their place, ``((tag, seg), (tag, seg), (tag, seg, edge), v)``.
+        self.joins: list[tuple] = []
 
     def one_port(
         self,
@@ -1698,6 +1704,7 @@ def _split_source(dk: _Deck, k: int, s: EzSource, typ: int, v: complex) -> None:
         if 0 < knot < n:
             for seg in (knot, knot + 1):
                 dk.cards.append(f"EX {typ} {w} {seg} 0 {_fmt(vv.real)} {_fmt(vv.imag)}")
+            _join(dk, k, (w, knot), (w, knot + 1), (w, knot, 2), v)
             return
         at_end2 = knot == n  # moved to a wire end: as a split there, below
     else:
@@ -1722,6 +1729,61 @@ def _split_source(dk: _Deck, k: int, s: EzSource, typ: int, v: complex) -> None:
     seg_b = wires[j].segments if j_end2 else 1
     for tag, seg, vx in ((w, seg_a, vv), (j + 1, seg_b, vv if same else -vv)):
         dk.cards.append(f"EX {typ} {tag} {seg} 0 {_fmt(vx.real)} {_fmt(vx.imag)}")
+    if typ == 0:
+        _join(dk, k, (w, seg_a), (j + 1, seg_b), (w, seg_a, 2 if at_end2 else 1), v)
+
+
+def _join(dk: _Deck, k: int, a, b, site, v: complex) -> None:
+    """Record a split voltage source's two half-voltage EX cards to be read
+    back as ONE source of the whole voltage at the joint (AK#2183), where the
+    NEC-5 reading puts it, so the model shows the one feed and the one
+    impedance EZNEC's Src Dat shows. The deck keeps EZNEC's two cards."""
+    dk.joins.append((a, b, site, v))
+    dk.cards.append(
+        f"CM ! the EX cards on wire {a[0]} segment {a[1]} and wire {b[0]} segment "
+        f"{b[1]} are source {k}, read as one source at the joint"
+    )
+    dk.notes.append(
+        f"Source {k}, a split source, is read as one source at the joint between "
+        f"wire {a[0]} segment {a[1]} and wire {b[0]} segment {b[1]}, where the NEC-5 "
+        "reading puts it, so it shows one feed and its whole impedance. EZNEC's "
+        "NEC-2 export writes it as two sources at half the voltage, one on each "
+        "segment; that model's impedance can differ a little."
+    )
+
+
+def _join_splits(m: EzModel, dk: _Deck, deck: NecDeck) -> NecDeck:
+    """Replace each recorded split pair's two feeds by its one knot source."""
+    if not dk.joins:
+        return deck
+    tag_of = [w.tag for w in deck.wires]
+    index = {t: i for i, t in enumerate(tag_of)}
+    feeds = list(deck.feeds)
+    for a, b, (tag, seg, edge), v in dk.joins:
+        hits = []
+        for want in (a, b):
+            i = next(
+                (
+                    i
+                    for i, f in enumerate(feeds)
+                    if f is not None
+                    and i not in hits
+                    and not f.edge
+                    and not f.current
+                    and (tag_of[f.wire], f.seg) == want
+                ),
+                None,
+            )
+            if i is None:
+                raise ValueError(
+                    f"{m.name}: internal: a split source's card did not read back"
+                )
+            hits.append(i)
+        feeds[hits[0]] = replace(
+            feeds[hits[0]], wire=index[tag], seg=seg, voltage=v, edge=edge, at=None
+        )
+        feeds[hits[1]] = None
+    return replace(deck, feeds=tuple(f for f in feeds if f is not None))
 
 
 def _load_cards(dk: _Deck) -> None:
@@ -2514,6 +2576,7 @@ def read_ez(
     except ValueError as e:
         raise ValueError(f"{name}: the model cannot be built here: {e}") from None
     deck = _attach_customs(m, dk, deck)
+    deck = _join_splits(m, dk, deck)
     deck = _insulation(dk, deck)
     try:
         # Built once here, so a model the port model cannot host is refused

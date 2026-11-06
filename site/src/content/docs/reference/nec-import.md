@@ -657,9 +657,12 @@ either side of the junction (a voltage halved, a current repeated), or under
 NEC-5 one source at the junction's knot. Placed inside a wire, EZNEC moves it
 to a knot, the one its NEC-5 export names: a voltage is then two sources at
 half the voltage on the segments either side, and a current is one source on
-the segment that meets the knot. Under NEC-2 the two halves of a split voltage
-are two feeds, each showing about half the feed impedance; their sum is the
-feed's.
+the segment that meets the knot. A split *voltage* is modelled as one source
+at the joint under every reading, so it shows one feed with its whole
+impedance, as EZNEC's Src Dat does. The deck in the Files view keeps EZNEC's
+two NEC-2 cards, and the design's notes say they are read as one. On the
+Bobtail models in the sitting, that one feed is within 0.1 % of the sum of
+the two half-voltage feeds.
 
 **Loads keep their type**, so a frequency sweep evaluates each at every
 frequency rather than at the model frequency only:
