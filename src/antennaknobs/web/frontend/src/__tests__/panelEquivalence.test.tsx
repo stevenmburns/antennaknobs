@@ -178,7 +178,13 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
       // pinned momwire declares the route (0.60.0); unticked by default. The
       // accelerators' capability rows exclude it, so their panels stay at
       // the family's four boxes.
-      ...(name === "bspline" ? ["rotational symmetry (radial screens)"] : []),
+      ...(name === "bspline"
+        ? [
+            "rotational symmetry (radial screens)",
+            // ADDED with momwire 0.87.0 (#1809), bspline alone, unticked.
+            "reuse repeated geometry (faster fill)",
+          ]
+        : []),
     ]);
   });
 
@@ -312,7 +318,13 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
       "K≥3 junction singular enrichment",
       // ADDED with momwire 0.60.0 (#1029), on bspline alone: the generic
       // loop draws it last, in spec order, above the axis-governed feed model.
-      ...(name === "bspline" ? ["rotational symmetry (radial screens)"] : []),
+      ...(name === "bspline"
+        ? [
+            "rotational symmetry (radial screens)",
+            // ADDED with momwire 0.87.0 (#1809), bspline alone, in spec order.
+            "reuse repeated geometry (faster fill)",
+          ]
+        : []),
       // ADDED DELIBERATELY, and it is why this list is asserted rather than
       // described: the b-spline family gained a feed-model control when
       // momwire#891 corrected a row that declared the axis single-valued

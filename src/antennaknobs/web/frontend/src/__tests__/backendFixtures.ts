@@ -84,7 +84,7 @@ export function backendEntry(over: Partial<BackendEntry> = {}): BackendEntry {
 const SIN_KWARGS = ["n_qp_const", "extended_kernel"];
 const SIN_GALERKIN_KWARGS = ["n_qp_const", "feed_model", "extended_kernel"];
 const BSPLINE_FAMILY_KWARGS = ["degree", "feed_model", "n_qp_pair", "n_qp_source", "feed_smoothing_factor", "use_singular_enrichment", "enrichment_variant", "tikhonov_lambda", "auto_tap_ratio_threshold", "n_qp_sing", "enrichment_min_k", "extended_kernel"];
-const BSPLINE_KWARGS = ["degree", "feed_model", "n_qp_pair", "n_qp_source", "feed_smoothing_factor", "use_singular_enrichment", "enrichment_variant", "tikhonov_lambda", "auto_tap_ratio_threshold", "n_qp_sing", "enrichment_min_k", "extended_kernel", "rotational_symmetry"];
+const BSPLINE_KWARGS = ["degree", "feed_model", "n_qp_pair", "n_qp_source", "feed_smoothing_factor", "use_singular_enrichment", "enrichment_variant", "tikhonov_lambda", "auto_tap_ratio_threshold", "n_qp_sing", "enrichment_min_k", "extended_kernel", "rotational_symmetry", "pair_reuse"];
 const RAZOR_KWARGS = ["extended_kernel"];
 // The NEC-4.2 slot's one knob (pinned Python-side beside the others).
 const NEC42_KWARGS = ["sommerfeld"];
