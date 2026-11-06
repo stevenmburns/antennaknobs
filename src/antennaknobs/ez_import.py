@@ -1373,7 +1373,11 @@ def _omega(f_hz: float) -> float:
 
 def _rlc_z(kind: str, R: float, L: float, C: float, w: float) -> complex:
     """A branch of R, L and C (zero = missing): ``S`` series, ``P`` parallel,
-    ``T`` the trap reading -- R and L in series, across C."""
+    ``T`` the trap reading -- R and L in series, across C.
+
+    Missing means what EZNEC's Help gives for each configuration: a short in
+    series, an open in parallel, and in a trap a short for R or L and an open
+    for C, which leaves the trap as R and L in series."""
     if kind == "S":
         z = complex(R, w * L)
         if C:
@@ -1389,16 +1393,24 @@ def _rlc_z(kind: str, R: float, L: float, C: float, w: float) -> complex:
             y += 1j * w * C
         return 1.0 / y if y else complex(math.inf)
     zl = complex(R, w * L)
+    if not C:
+        return zl
     zc = 1.0 / (1j * w * C)
     if zl + zc == 0:
         return complex(math.inf)  # a lossless trap at its resonance: open
     return zl * zc / (zl + zc)
 
 
-def _var_r(R: float, F_mhz: float, f_hz: float) -> float:
-    """A frequency-variable R: ∝ √f from F, as EZNEC's exports print it at
-    every frequency (AK#1991)."""
-    return R * math.sqrt(f_hz / (F_mhz * 1e6)) if F_mhz else R
+def _var_r(R: float, F_mhz: float, f_hz: float, kind: str = "S") -> float:
+    """A frequency-variable R, equal to R at F: ∝ √f in a series or trap
+    configuration (conductor loss), as EZNEC's exports print it at every
+    frequency (AK#1991), and ∝ 1/f in a parallel one (dielectric loss), as
+    EZNEC's Help gives it."""
+    if not F_mhz:
+        return R
+    if kind == "P":
+        return R * (F_mhz * 1e6) / f_hz
+    return R * math.sqrt(f_hz / (F_mhz * 1e6))
 
 
 # --------------------------------------------------------------------------
@@ -1827,14 +1839,19 @@ def _load_cards(dk: _Deck) -> None:
         if ld.kind == "R" and ld.rlc_type == "T" and not ld.r_freq_mhz:
             R, L, C = ld.r or None, ld.l or None, ld.c
 
+            # A trap with no capacitor is its R and L alone (a missing C is
+            # an open, per EZNEC's Help), so the C branch is left out.
             def native(p, R=R, L=L, C=C):
-                return [_net.Shunt(port=p, r=R, l=L), _net.Shunt(port=p, c=C)], {}
+                parts = [_net.Shunt(port=p, r=R, l=L)]
+                if C:
+                    parts.append(_net.Shunt(port=p, c=C))
+                return parts, {}
 
             def native_series(a, b, R=R, L=L, C=C):
-                return [
-                    _net.TwoPort(a=a, b=b, r=R, l=L),
-                    _net.TwoPort(a=a, b=b, c=C),
-                ], {}
+                parts = [_net.TwoPort(a=a, b=b, r=R, l=L)]
+                if C:
+                    parts.append(_net.TwoPort(a=a, b=b, c=C))
+                return parts, {}
 
         label = f"{name} ({_load_word(ld)})"
         dk.load_card(
@@ -1956,14 +1973,12 @@ def _laplace(dk: _Deck, k: int, ld: EzLoad) -> Callable[[float], complex]:
 
 def _rlc_load(dk: _Deck, k: int, ld: EzLoad) -> Callable[[float], complex]:
     m = dk.m
-    if ld.rlc_type == "T" and not ld.c:
-        raise EzMalformed(m.name, f"load {k}", "a trap with no capacitor")
     if ld.rlc_type == "P" and not (ld.r or ld.l or ld.c):
         raise EzUndefined(m.name, f"load {k}", "a parallel RLC load with no parts")
     t, R, L, C, F = ld.rlc_type, ld.r, ld.l, ld.c, ld.r_freq_mhz
 
     def z(f_hz: float) -> complex:
-        return _rlc_z(t, _var_r(R, F, f_hz), L, C, _omega(f_hz))
+        return _rlc_z(t, _var_r(R, F, f_hz, t), L, C, _omega(f_hz))
 
     return z
 
@@ -2226,7 +2241,9 @@ def _lnet_branch_z(br: EzBranch) -> Callable[[float], complex]:
     R = br.r if (br.r or br.kind == "P") else _LNET_ZERO_R
 
     def z(f_hz: float) -> complex:
-        return _rlc_z(br.kind, _var_r(R, br.r_freq_mhz, f_hz), br.l, br.c, _omega(f_hz))
+        return _rlc_z(
+            br.kind, _var_r(R, br.r_freq_mhz, f_hz, br.kind), br.l, br.c, _omega(f_hz)
+        )
 
     return z
 

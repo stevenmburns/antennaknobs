@@ -669,10 +669,12 @@ frequency rather than at the model frequency only:
 
 - R + jX is a fixed impedance.
 - Series and parallel RLC are the deck's own frequency-dependent load (a zero
-  part is a missing part).
-- A trap is R and L in series, across C.
-- A resistance that varies with frequency follows √(f/F) from the frequency
-  F it is given at.
+  part is a missing part: a short in series, an open in parallel).
+- A trap is R and L in series, across C. With no C it is just R and L in
+  series.
+- A resistance that varies with frequency is given at a frequency F. In a
+  series or trap configuration it follows √(f/F), like conductor loss. In a
+  parallel one it falls as F/f, like dielectric loss.
 - A Laplace load is read only on request (below).
 
 **Lines and networks.** A lossless line keeps its reversal (NEC's crossed
