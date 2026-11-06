@@ -1781,16 +1781,25 @@ went from 70 to 52 ms in free space and from 285 to 180 ms over Sommerfeld
 ground; a 4-element CED from 44 to 34 ms and from 142 to 116 ms. Finding the
 pairs takes about 1 ms on designs like these and 60 ms on 120 radials.
 
-The same setting also fills each straight, evenly meshed wire's own block by
-segment offset, since there every entry depends only on how far apart its
-two segments are. That helps long single wires most: a 30 m inverted-L top at
-280 segments solved 3.6x faster in free space. Over ground the gain is
-smaller for now (about 1.2x), because the ground terms are not yet filled
-this way.
+The same setting also builds each straight, evenly meshed wire's own block from
+its distinct segment offsets: in free space at any orientation, and over
+ground for a horizontal or vertical wire (a sloped one keeps the full fill
+there). Every entry of that block depends only on how far apart its two
+segments are, or for a vertical wire over ground on their combined height. It
+helps long wires most. Filling Z for one straight wire on one thread (Skylake):
 
-This needs momwire 0.87.0 or newer, which is what antennaknobs 0.113.0
-installs (for the straight-wire part, the momwire release after 0.87.0);
-with an older one the setting does nothing.
+| segments | free space | over Sommerfeld ground |
+|---|---|---|
+| 401 | 50 → 14 ms | 192 → 33 ms |
+| 801 | 176 → 36 ms | 789 → 95 ms |
+| 1601 | 1306 → 145 ms | 5434 → 377 ms |
+
+A 30 m inverted L (96 + 280 segments) fills in 40 → 15 ms in free space and
+161 → 69 ms over Sommerfeld ground; the block between its vertical and
+horizontal wires has nothing that repeats. Results move by rounding only (Z
+by about 1e-15 relative). This part needs momwire 0.87.1 or newer, which is
+what antennaknobs 0.113.1 installs; the repeated-pair part needs 0.87.0.
+With an older momwire the setting does nothing.
 
 ## Exporting to NEC
 
