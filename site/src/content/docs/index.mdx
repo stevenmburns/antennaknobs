@@ -29,23 +29,25 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.112.0" icon="star">
-  **An opened design `.py` turns as fast as a catalog one.** Each opened design
-  now keeps one locked-down process of its own, already loaded, so turning a
-  knob no longer starts a fresh Python each time: about 12 ms a turn instead of
-  0.7 s on a laptop. The process keeps every limit it had, and one that
-  overruns, crashes or forks is replaced on the next turn. See
-  [A design .py](/reference/web/#a-design-py).
+<Card title="New in v0.113.0" icon="star">
+  **More EZNEC `.ez` files open, and open the way EZNEC reads them.** Files
+  AutoEZ writes now open, a split source in the middle of a wire reads as one
+  feed with its whole impedance, and a second ground medium beyond a boundary
+  is kept. Where the format leaves a value undefined, Open… names the reading
+  and offers it as an **Open with this reading** button instead of a refusal.
+  Each of these was settled against EZNEC itself. Thanks to Dan, AC6LA. See
+  [EZNEC .ez models](/reference/nec-import/#eznec-ez-models).
 
-  **The Schematic says what a feedline is.** A transmission line is labelled
-  with its velocity factor and, when it is lossy, its matched loss at the
-  frequency you are on (`50 Ω · VF 0.80`, `30.48 m · 1.6 dB`), and marked when
-  it is transposed. Hover over the label for its K1 and K2, to check a catalog
-  cable against its data sheet. See [The schematic view](/reference/web/#the-schematic-view).
+  **Reuse repeated geometry.** A new box on the B-spline solver tab fills each
+  repeated pair of straight wires once and copies it, a Yagi's directors or
+  mirrored halves, with results changing only in the last digits. On a laptop
+  a 20-director Yagi solves in 52 ms instead of 70 in free space, and 180 ms
+  instead of 285 over Sommerfeld ground. It is off by default. See
+  [Using it in a solve](/reference/cli/#using-it-in-a-solve-opt-in).
 
-  **A parallel RLC at a line's end is kept** when you open a deck. A trap, or
-  several loads, at a point where a TL or NT card connects used to be dropped
-  with a note; they now solve. Thanks to Dan, AC6LA.
+  **A dropdown knob's value rides the link**, so a shared design opens with
+  the choice you made. Every NEC card the `.ez` and `.maa` imports write now
+  fits 80 columns, and an `.ez`'s loads all reach a real NEC.
 </Card>
 
 ## The whole pitch, in one line

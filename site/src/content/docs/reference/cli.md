@@ -1780,8 +1780,8 @@ one thread, a whole solve of a 20-director Yagi, finding the pairs included,
 went from 70 to 52 ms in free space and from 285 to 180 ms over Sommerfeld
 ground; a 4-element CED from 44 to 34 ms and from 142 to 116 ms. Finding the
 pairs takes about 1 ms on designs like these and 60 ms on 120 radials. This
-needs a momwire newer than 0.86.0; with an older one the setting does
-nothing.
+needs momwire 0.87.0 or newer, which is what antennaknobs 0.113.0 installs;
+with an older one the setting does nothing.
 
 ## Exporting to NEC
 
