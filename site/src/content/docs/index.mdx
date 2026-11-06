@@ -29,25 +29,22 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.113.0" icon="star">
-  **More EZNEC `.ez` files open, and open the way EZNEC reads them.** Files
-  AutoEZ writes now open, a split source in the middle of a wire reads as one
-  feed with its whole impedance, and a second ground medium beyond a boundary
-  is kept. Where the format leaves a value undefined, Open… names the reading
-  and offers it as an **Open with this reading** button instead of a refusal.
-  Each of these was settled against EZNEC itself. Thanks to Dan, AC6LA. See
-  [EZNEC .ez models](/reference/nec-import/#eznec-ez-models).
-
-  **Reuse repeated geometry.** A new box on the B-spline solver tab fills each
-  repeated pair of straight wires once and copies it, a Yagi's directors or
-  mirrored halves, with results changing only in the last digits. On a laptop
-  a 20-director Yagi solves in 52 ms instead of 70 in free space, and 180 ms
-  instead of 285 over Sommerfeld ground. It is off by default. See
+<Card title="New in v0.113.1" icon="star">
+  **Long straight wires fill several times faster.** With **reuse repeated
+  geometry** ticked on the B-spline solver tab, a straight, evenly meshed
+  wire's own block of the impedance matrix is now built from its distinct
+  segment offsets, in free space and over ground. On one thread an 801-segment
+  wire fills in 36 ms instead of 176 in free space, and 95 ms instead of 789
+  over Sommerfeld ground; at 1601 segments over ground, 0.38 s instead of 5.4.
+  Results move by rounding only. It is off by default. See
   [Using it in a solve](/reference/cli/#using-it-in-a-solve-opt-in).
 
-  **A dropdown knob's value rides the link**, so a shared design opens with
-  the choice you made. Every NEC card the `.ez` and `.maa` imports write now
-  fits 80 columns, and an `.ez`'s loads all reach a real NEC.
+  **Two `.ez` load readings change.** A parallel RLC load whose resistance
+  varies with frequency now falls as F/f, like dielectric loss, as EZNEC's
+  own Help gives it (series and trap stay √f). A trap with no capacitor reads
+  as its R and L in series instead of being refused. An `.ez` file with either
+  load can give a different impedance from 0.113.0. See
+  [EZNEC .ez models](/reference/nec-import/#eznec-ez-models).
 </Card>
 
 ## The whole pitch, in one line
