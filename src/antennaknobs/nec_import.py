@@ -795,6 +795,9 @@ class NecDeck:
     # (EZNEC spells a parallel load as an NT whose far half is all zeros) is
     # a singular row without it.
     virtual_pins: tuple[tuple[int, int, complex], ...] = ()
+    # AK#2205: (wire index, knot, cards) for each NEC-5 knot several EX cards
+    # drive, read as ONE source of their summed voltage, as NEC-5 reads them.
+    summed_knot_sources: tuple[tuple[int, int, int], ...] = ()
     # AK#1579: (wire index, knot) for every NEC-5 network end whose knot is a
     # LONE wire end. NEC-5 connects there; the port model cannot, so the end
     # stays on the segment the card names. Counted rather than routed through
@@ -1163,6 +1166,11 @@ class NecDeck:
                 f"{n} remote TL-anchor wire{'s' if n > 1 else ''} "
                 f"(tag{'s' if n > 1 else ''} {tags}) modeled as ideal virtual "
                 f"terminations"
+            )
+        for wi, knot, count in self.summed_knot_sources:
+            parts.append(
+                f"{count} EX cards on knot {knot} of wire {self.wires[wi].tag} "
+                "read as one source of their summed voltage, as NEC-5 reads them"
             )
         if self.virtual_segment_wires:
             # AK#1577: say both halves of what was translated — the wire that
@@ -5001,6 +5009,42 @@ _VIRTUAL_PIN_OHMS = 1e9
 _PROBE_VOLTS = 1e-9
 
 
+def _sum_knot_sources(feeds):
+    """``(feeds, summed)``: several voltage ``EX`` cards on one NEC-5 knot
+    as ONE source there of their summed voltage, and ``(wire, knot, count)``
+    for each knot so read (AK#2205).
+
+    NEC-5 reads them that way. Measured on the licensed binary (a 21-segment
+    dipole, 14 MHz): 1 V and 0.5 V on one knot carry exactly the current one
+    1.5 V source does, whether the two cards name the knot as the same end
+    or as the two ends that meet there, and each card's printed row is its
+    own voltage over that one current. SimNEC writes this shape: its port
+    measurement deck drives two loads at one wire end as two cards on one
+    knot. A knot is the same place on one wire only; ends of different wires
+    meeting at a junction are separate ports and are left alone, as are
+    current sources and segment-centre (NEC-2) duplicates, which the port
+    planners still refuse by name."""
+    groups: dict[tuple[int, int], list[int]] = {}
+    for k, f in enumerate(feeds):
+        if f.edge and not f.current and f.at is None:
+            groups.setdefault((f.wire, _knot_of(f.seg, f.edge)), []).append(k)
+    repeated = {key: ks for key, ks in groups.items() if len(ks) > 1}
+    if not repeated:
+        return feeds, ()
+    out, summed = [], []
+    drop = {k for ks in repeated.values() for k in ks[1:]}
+    for k, f in enumerate(feeds):
+        if k in drop:
+            continue
+        key = (f.wire, _knot_of(f.seg, f.edge)) if f.edge else None
+        if key in repeated:
+            ks = repeated[key]
+            f = replace(f, voltage=sum((feeds[j].voltage for j in ks), 0j))
+            summed.append((key[0], key[1], len(ks)))
+        out.append(f)
+    return out, tuple(summed)
+
+
 def _collapse_repeated_load_probes(feeds, ex_types, loads, lines):
     """``feeds`` with EZNEC's repeated load probe at one address kept ONCE
     (momwire#1787).
@@ -5018,10 +5062,12 @@ def _collapse_repeated_load_probes(feeds, ex_types, loads, lines):
       not as a passive port),
     * on a MIXED deck: one with a drive that is not an ``EX 0``.
 
-    Anything else at a repeated address is returned untouched, so AK's
-    existing refusals still meet it: "more than one EX card" from the port
-    planners (`_port_plan`, `_vertex_claims`, `network()`), or two ports at
-    one point from the wire builder on the positioned-port path (AK#1469).
+    Anything else at a repeated address is returned untouched. Repeated
+    voltage sources on one knot are then read as their sum
+    (`_sum_knot_sources`, AK#2205); what neither rule takes meets AK's
+    refusals: "more than one EX card" from the port planners (`_port_plan`,
+    `_vertex_claims`, `network()`), or two ports at one point from the wire
+    builder on the positioned-port path (AK#1469).
     """
     if all(t == 0 for t in ex_types):
         return feeds
@@ -7049,6 +7095,9 @@ def parse_nec(
             feeds = _collapse_repeated_load_probes(
                 feeds, [raw[6] for raw in feeds_raw], loads, (*tls, *nts)
             )
+    summed_knot_sources: tuple[tuple[int, int, int], ...] = ()
+    if nec5_dialect:
+        feeds, summed_knot_sources = _sum_knot_sources(feeds)
 
     # NEC-5 has no reflection-coefficient ground: its GN 0, like GN 2, is the
     # full Sommerfeld solution. Reading a NEC-5 deck's GN 0 the NEC-2 way
@@ -7095,6 +7144,7 @@ def parse_nec(
         virtual_anchors=virtual_anchors,
         virtual_segment_wires=virtual_segment_wires,
         virtual_pins=virtual_pins,
+        summed_knot_sources=summed_knot_sources,
         symmetry_cell=sym_cell,
         symmetry_dropped_loads=symmetry_dropped,
         later_run_ex=tuple(later_run_ex),

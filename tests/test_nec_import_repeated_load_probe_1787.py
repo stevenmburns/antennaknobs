@@ -5,8 +5,10 @@ makes EZNEC write one ``EX 0,tag,node,0,1.E-10,0.`` probe per load, so its
 NEC-5 export carries two identical probes at one address beside the ``EX 4``
 drive. Licensed NEC-5 solves that as ONE passive probe: the drive row equals
 the one-probe deck's to every printed digit. momwire 0.85.0's seam serves
-exactly that shape and refuses every other repeat; the importer follows the
-same rule, no wider.
+exactly that shape. The importer since reads any repeated voltage source on
+one NEC-5 knot as NEC-5 does, as one source of their sum (AK#2205), checked
+here against the licensed binary on the shapes it used to refuse; repeated
+current sources (EX 4) still refuse.
 
 The deck is momwire's ``tests/fixtures/eznec_load_probes_1110/
 M_0195_two_loads_one_node.nec`` (capture 0195 with a second trap at 1,8),
@@ -101,28 +103,41 @@ def test_two_probes_give_the_one_probe_feed_impedance(tmp_path, basis):
             f"{DRIVE}\n",
             f"{DRIVE}\nEX 0,1,6,0,1.E-10,0.\nLD 4,1,6,0,10.,0.\n",
         ),
-        # A real generator repeated at the loaded node, not a probe.
-        (f"{PROBE}\n{PROBE}", "EX 0,1,8,0,1.,0.\nEX 0,1,8,0,1.,0."),
-        # A probe beside a generator at one address.
-        (f"{PROBE}\n{PROBE}", f"{PROBE}\nEX 0,1,8,0,1.,0."),
     ],
-    ids=["doubled-ex4", "probe-at-ex4", "doubled-generator", "probe-plus-generator"],
+    ids=["doubled-ex4", "probe-at-ex4"],
 )
-def test_any_other_repeated_address_still_refuses(tmp_path, old, new):
+def test_a_repeated_current_source_still_refuses(tmp_path, old, new):
     assert old in TWO_PROBES
     with pytest.raises(ValueError, match=REFUSAL):
         _z(tmp_path, TWO_PROBES.replace(old, new), "razor-2p")
 
 
-def test_repeated_probes_at_an_unloaded_node_still_refuse(tmp_path):
-    """No load under the probes: they read nothing back, so not this shape."""
-    text = TWO_PROBES.replace("EX 0,1,8,0,", "EX 0,1,9,0,")
-    with pytest.raises(ValueError, match=REFUSAL):
-        _z(tmp_path, text, "razor-2p")
+# Licensed NEC-5's drive row (EX 4 at 1,6) on each repeated-voltage shape the
+# importer used to refuse (AK#2205): it reads the cards on one knot as one
+# source of their sum, and prints each card's row as its own voltage over that
+# one current (two 1 V generators: 1.667 + j0.078 each, 3.333 + j0.155 summed).
+_SUMMED = [
+    pytest.param(
+        f"{PROBE}\n{PROBE}",
+        "EX 0,1,8,0,1.,0.\nEX 0,1,8,0,1.,0.",
+        58.442 - 163.710j,
+        id="doubled-generator",
+    ),
+    pytest.param(
+        f"{PROBE}\n{PROBE}",
+        f"{PROBE}\nEX 0,1,8,0,1.,0.",
+        58.741 - 163.720j,
+        id="probe-plus-generator",
+    ),
+    pytest.param(
+        "EX 0,1,8,0,", "EX 0,1,9,0,", 59.041 - 163.740j, id="probes-unloaded-node"
+    ),
+    pytest.param(DRIVE, "EX 0,1,6,0,1.,0.", 59.041 - 163.740j, id="ex0-drive"),
+]
 
 
-def test_repeated_probes_without_a_non_ex0_drive_still_refuse(tmp_path):
-    """Not a mixed deck: an EX 0 drive in place of the EX 4."""
-    text = TWO_PROBES.replace(DRIVE, "EX 0,1,6,0,1.,0.")
-    with pytest.raises(ValueError, match=REFUSAL):
-        _z(tmp_path, text, "razor-2p")
+@pytest.mark.parametrize(("old", "new", "nec5"), _SUMMED)
+def test_repeated_voltage_sources_on_a_knot_read_as_nec5_does(tmp_path, old, new, nec5):
+    assert old in TWO_PROBES
+    z = _z(tmp_path, TWO_PROBES.replace(old, new), "razor-2p")
+    assert abs(z - nec5) < 0.01, z
