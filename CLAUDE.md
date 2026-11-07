@@ -218,6 +218,59 @@ worth keeping readable.
   This also means the global instructions' squash-contagion warning cannot
   apply here — no squash commit ever concatenates the branch's messages.
 
+## momwire's experimental features: what reach means here
+
+momwire ships new numerical work as opt-in features, each with a REACH. Its
+CLAUDE.md, "Dev flow", has the contract, and `support/hierarchy.toml` and
+`src/momwire/_features.py` in the submodule hold the data. A shipped momwire
+release can therefore contain features certified only on the hosted app.
+
+Four facts change how work goes here.
+
+**The hosted app is level 1.**
+- It is antennaknobs on Linux avx2, `ak-linux-avx2`. Linux sse2 is level 2,
+  Windows level 3, macOS level 5.
+- A reach-1 feature is certified for the hosted app only.
+- On a user's own install below its reach, a python-kind feature still runs:
+  momwire stamps it "uncertified on this platform" on printout line 2.
+  A native-kind feature refuses with `FeatureNotCertified`.
+- Offering a feature on local installs, or turning one on by default anywhere,
+  is Steve's call, not a side effect of a pin bump.
+
+**Wire a feature the way `pair_reuse` is wired.** `pair_reuse`
+(momwire#1809, AK#2165) is the worked example:
+- **Probe:** a live check of the installed momwire's constructor,
+  `_takes_pair_reuse` → `_offers_pair_reuse`. Never a version comparison, and
+  never a hand-kept backend list.
+- **Option:** an `_OptionSpec` that is off by default, with a per-request
+  kwarg.
+- **Server seed:** an optional `ANTENNAKNOBS_<NAME>` server env that seeds an
+  unset request. An explicit off in the request wins over it.
+- **Allowlist:** a hosted-allowlist entry only when the feature can only remove
+  work.
+- **Env:** don't set `MOMWIRE_X_<NAME>` process-wide in the server. A request
+  must be able to say no.
+
+**A pin bump never turns a feature on.**
+- Every momwire feature is off unless asked for. So moving the pin or the
+  submodule pointer changes defaults only through features that momwire has
+  PROMOTED to stable.
+- momwire's stable-path tripwire holds the flag-off bytes. Its Skylake nightly,
+  status in momwire#1837, holds exe == Python and perf.
+- Neither replaces the gates here: the antenna computation check, the frontend
+  fixtures, and the pin triple are unchanged.
+
+**Engine names: the long form.** Dialect first, as the momwire launchers have
+it:
+- `nec5-bspline`
+- `nec42-bspline`
+- `nec5-razor-2p`
+- `nec42-sinusoidal`
+
+`bs42` is banned because it drops the d=2. `bs2` and `sin42` are retired in new
+text, including user-visible advisory strings: momwire#1831 carries the
+rename.
+
 ## Testing: four tests that run nowhere unless you know this
 
 `tests/*_1299.py` are the four tests AK#1299 moved here from momwire because
