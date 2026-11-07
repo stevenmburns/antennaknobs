@@ -160,14 +160,15 @@ def test_a_jamsegments_equal_to_its_gw_count_is_silent():
 def test_a_jamsegments_that_differs_from_its_gw_count_is_applied():
     """AK#1679: a different N is the count, exactly, and it no longer lands
     in the not-applied note. One naming a wire the deck does not have names no
-    wire, and stays there."""
+    wire, and refuses the file (AK#2204)."""
     c = parse_ssn(_ssn(_SCRIPT_M + "\n$GW_1.JamSegments(12);"), name="t.ssn")
     assert c.ignored_directives == ()
     assert c.skipped_note() is None
     assert [w.n_seg for w in c.deck.wires] == [12]
-    c = parse_ssn(_ssn(_SCRIPT_M + "\n$GW_7.JamSegments(11);"), name="t.ssn")
-    assert c.ignored_directives == ("$GW_7.JamSegments(11)",)
-    assert c.deck.pinned_wires == frozenset()
+    # A count for a wire the deck does not have is refused by name (AK#2204):
+    # it sets a mesh, and the file is not opened without it.
+    with pytest.raises(ValueError, match=r"could not be read.*\$GW_7\.JamSegments"):
+        parse_ssn(_ssn(_SCRIPT_M + "\n$GW_7.JamSegments(11);"), name="t.ssn")
 
 
 def test_roundtrip_real_builtin_design():
@@ -267,11 +268,22 @@ def test_the_far_field_step_is_a_display_option_not_a_skipped_directive():
     assert c.skipped_note() is None
 
 
-def test_unknown_directive_is_recorded():
+def test_an_unknown_statement_refuses_by_name():
+    """It used to land in the not-applied note while the file solved; an
+    unknown call may change the antenna, so since AK#2204 it refuses."""
     script = _SCRIPT_M.replace("NEC2", "FancyNewThing(1, 2);\nNEC2")
+    with pytest.raises(
+        ValueError, match=r"may change the model.*FancyNewThing\(1, 2\)"
+    ):
+        parse_ssn(_ssn(script), name="t.ssn")
+
+
+def test_a_display_call_or_a_result_read_out_is_not_applied_and_opens():
+    script = _SCRIPT_M.replace(
+        "NEC2", 'BodyGraphic("x", 1, 2, 3, 4);\n$g = _NECBLOCK.field.APG;\nNEC2'
+    )
     c = parse_ssn(_ssn(script), name="t.ssn")
-    assert c.ignored_directives == ("FancyNewThing(1, 2)",)
-    assert "FancyNewThing" in c.skipped_note()
+    assert "BodyGraphic" in c.skipped_note()
 
 
 def test_missing_generator_leaves_freq_none():

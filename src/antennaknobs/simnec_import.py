@@ -2092,6 +2092,43 @@ def _element_param(spelling: str) -> str:
 _CONTINUES = ("+", "-", "*", "/", "^", "|", "=", ",", "(", "&", "<", ">", "!", "?", ":")
 
 
+# Calls that only draw or report (AK#2204): SimNEC's element picture and
+# its output lines. Nothing they do reaches the antenna.
+_DISPLAY_CALLS = frozenset({"BodyGraphic", "errorOutln", "outln", "out", "println"})
+# Names whose call in a statement's value means the statement builds or
+# changes the antenna, whatever it assigns to.
+_MODEL_CALL = re.compile(
+    r"\b(?:NECSource|NECWire|SommerfeldGround|PerfectGround|MiniNECGround|"
+    r"NECGround|Insulation|JamSegments|Diameter|include)\s*\(",
+    re.IGNORECASE,
+)
+
+
+def _harmless_unapplied(stmt: str) -> bool:
+    """Whether a statement the import leaves unapplied leaves the model alone
+    (AK#2204), so the file may open without it: block structure and control
+    headers, declarations and bare references, an assignment to a plain name
+    that calls nothing that builds the antenna (a result read-out, a label,
+    an unused constant), and the display calls. Anything else left unread
+    may change the antenna, and refuses the file by name."""
+    s = stmt.strip()
+    if s in ("{", "}", "else") or s.startswith("}") or s.endswith("{"):
+        return not _MODEL_CALL.search(s)
+    if _CONTROL.match(s) or re.match(r"^(?:dcl|prm|String)\s+\$?\w", s):
+        return not _MODEL_CALL.search(s)
+    if _BARE_NAME.match(s):
+        return True
+    call = re.match(r"^([A-Za-z_]\w*)\s*\(", s)
+    if call and call.group(1) in _DISPLAY_CALLS:
+        return True
+    lhs, eq, rhs = s.partition("=")
+    if eq and not rhs.startswith("=") and not lhs.endswith(("!", "<", ">")):
+        target = lhs.strip()
+        if re.fullmatch(r"\$?[A-Za-z_]\w*", target) and not _MODEL_CALL.search(rhs):
+            return True
+    return False
+
+
 def _nblock_element(stmt: str) -> tuple[str, str, str] | None:
     """An N-block element line as ``(node, node, impedance expression)``
     (AK#2204), or None when ``stmt`` is not one: ``R`` takes its value as
@@ -3192,13 +3229,16 @@ def parse_ssn(
         # A jacket on a wire no GW card declares names no wire (AK#2195).
         script.ignored.append(f"$GW_{tag}.Insulation(...)")
         del script.wire_insulation[tag]
-    dropped = [s for s in script.ignored if _MODEL_STATEMENT.search(s)]
+    dropped = [s for s in script.ignored if not _harmless_unapplied(s)]
     if dropped:
-        # A load, a source or a jacket the import could not read changes the
-        # antenna. Solving without it is a confidently wrong answer, so the
-        # file is refused by name instead (AK#2195).
+        # A statement left unread may change the antenna, and solving without
+        # it is a confidently wrong answer, so the file is refused by name
+        # (AK#2195). Since AK#2204 that is the rule for every statement but
+        # the few kinds known to leave the model alone (`_harmless_unapplied`).
+        changes = [s for s in dropped if _MODEL_STATEMENT.search(s)]
         raise ValueError(
-            f"{name}: {'these statements change' if len(dropped) > 1 else 'this statement changes'} "
+            f"{name}: {'these statements' if len(dropped) > 1 else 'this statement'} "
+            f"{'change' if changes and len(dropped) > 1 else 'changes' if changes else 'may change'} "
             "the model and could not be read, so the file is not opened "
             "without them: " + "; ".join(dropped)
         )

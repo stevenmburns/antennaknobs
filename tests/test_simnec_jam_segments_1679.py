@@ -204,10 +204,10 @@ def test_the_note_says_simnec_re_meshes_and_names_the_same_mesh_route(tmp_path):
     assert "the 1 JamSegments wire at exactly the jammed count" in notes
 
 
-def test_a_jamsegments_naming_no_wire_stays_in_the_not_applied_note():
-    c = parse_ssn(_ssn(_script("$GW_7.JamSegments(20);")), network=True)
-    assert c.ignored_directives == ("$GW_7.JamSegments(20)",)
-    assert [w.n_seg for w in c.deck.wires] == [11]
+def test_a_jamsegments_naming_no_wire_refuses_by_name():
+    """It sets a mesh, so the file is not opened without it (AK#2204)."""
+    with pytest.raises(ValueError, match=r"could not be read.*\$GW_7\.JamSegments"):
+        parse_ssn(_ssn(_script("$GW_7.JamSegments(20);")), network=True)
 
 
 def test_a_count_that_moves_a_junction_is_refused_by_name():
