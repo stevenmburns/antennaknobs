@@ -95,9 +95,20 @@ export function useEngineFiles({
         body: JSON.stringify(buildRequest()),
         signal: controller.signal,
       })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data: DesignSsn | null) => {
-          if (!controller.signal.aborted && data) setSsn({ geometry, data });
+        .then(
+          (r): Promise<DesignSsn> =>
+            r.ok
+              ? r.json()
+              : // A failed request is an answer too (AK#2196): without one
+                // the pane stays on "Writing the SimNEC circuit…" for good.
+                Promise.resolve<DesignSsn>({
+                  available: false,
+                  geometry,
+                  reason: `The SimNEC circuit could not be written (the server answered ${r.status}).`,
+                }),
+        )
+        .then((data: DesignSsn) => {
+          if (!controller.signal.aborted) setSsn({ geometry, data });
         })
         .catch(() => {});
     }, 250);

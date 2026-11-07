@@ -528,8 +528,82 @@ def _default_block_name(builder) -> str:
     return qual
 
 
+def _buried_tags(builder, ground) -> list[int]:
+    """The wire tags (1-based, the NEC block's order) with an end below z = 0
+    under a finite ground, or ``[]`` (AK#2196).
+
+    SimNEC takes such a wire in its NEC2 block: the block is NEC-2 card
+    SYNTAX, and SimNEC's NEC-5 and NEC-4.2 engines model the soil around it.
+    Only its NEC-2 engine cannot, and :func:`_buried_guard` stops that one by
+    name. With no finite ground there is no soil, and nothing is buried."""
+    if not (
+        isinstance(ground, tuple) and ground and ground[0] in ("finite", "finite-fast")
+    ):
+        return []
+    return [
+        tag
+        for tag, w in enumerate(builder.build_wires(), start=1)
+        if min(w[0][2], w[1][2]) < 0.0
+    ]
+
+
+def _buried_guard(tags) -> list[str]:
+    """The script lines that stop SimNEC's NEC-2 engine on a buried wire
+    (AK#2196), in the shape of the W7EL guard (:func:`_insulation`): NEC-2
+    has no medium below its ground plane and would solve the wire as if in
+    air, with no word (antennaknobs#1389)."""
+    if not tags:
+        return []
+    which = ", ".join(map(str, tags))
+    return [
+        f"// Wire{'s' if len(tags) > 1 else ''} {which} run below ground: NEC-5 or NEC-4.2 only.",
+        "if (NECOptions.Engine == 2)",
+        f'    errorOutln("NOT USING NEC-5 OR NEC-4.2: wire {which} is buried, which NEC2 cannot model");',
+    ]
+
+
+def _insulation_per_wire(eng) -> list[str]:
+    """Each jacketed wire's insulation as SimNEC's per-wire directive,
+    ``$GW_<tag>.Insulation(thickness, eps_r, loss_tangent)`` (AK#2196), for
+    a design that cannot use the W7EL form because that one needs SimNEC's
+    NEC-2 engine. The per-wire form is SimNEC's own (K6OIK) correction, and
+    on SimNEC's NEC-5 engine it writes the same a′ and L′ the engines use
+    (AK#1523): checked on a user's 0.35 mm wire with a 0.45 mm, eps_r 3.5
+    jacket, radius 6.317021e-4 m and LD 2 L′ 1.180969e-7 H/m in both. Goes
+    after the NEC2 block, which declares the wires."""
+    lines = []
+    for tag, t in enumerate(eng.tups, start=1):
+        spec = as_wire(t).spec
+        eff = spec if spec is not None else eng._wire_spec
+        if eff is not None and eff.insulation_radius:
+            thick = eff.insulation_radius - eng._radius_for(t)
+            eps_r = eff.insulation_eps_r if eff.insulation_eps_r else 1.0
+            tand = eff.insulation_loss_tangent or 0.0
+            lines.append(
+                f"$GW_{tag}.Insulation({_val(thick)}, {_val(eps_r)}, {_val(tand) if tand else 0});"
+            )
+    return lines
+
+
+def _insulation_lines(eng, buried) -> tuple[list[str], list[str]]:
+    """``(before_block, after_block)`` insulation lines: the W7EL directive
+    (:func:`_insulation`) before the block, or with a buried wire the
+    per-wire form (:func:`_insulation_per_wire`) after it, plus the guard."""
+    if buried:
+        return _buried_guard(buried), _insulation_per_wire(eng)
+    return _insulation(eng), []
+
+
 def _portal_wrap(
-    cards, *, name, ground, seg_per_wl, conductivity, loads=(), insulation=()
+    cards,
+    *,
+    name,
+    ground,
+    seg_per_wl,
+    conductivity,
+    loads=(),
+    insulation=(),
+    after=(),
 ) -> str:
     """The NEC-portal daemon script (the ``<equ>`` body): comment header,
     ports/units/ground/conductivity/mesh directives, then ``cards`` between
@@ -557,6 +631,7 @@ def _portal_wrap(
     lines.append("NECEND")
     if seg_per_wl is None:
         lines.extend(_jam_segments(cards))
+    lines.extend(after)
     lines.extend(loads)
     return "\n".join(lines)
 
@@ -621,14 +696,18 @@ def _antenna_portal(
     # (issue #1523). The GW cards carry the conductor's own radius, and the
     # jacket is SimNEC's W7EL Insulation() directive (AK#1683).
     #
-    # AK#1677 needs no separate handling here, for the same reason as
-    # `nec_export.export_nec` itself: this call IS that function, so its
-    # `refuse_nec2_geometry` already refuses any below-z=0 wire before a
-    # SimNEC script can be built.
-    eng = _SsnNecEngine(builder, ground=ground, wire_radius=wire_radius)
+    # A buried wire (AK#2196): the NEC2 block is card SYNTAX, which SimNEC's
+    # NEC-5 and NEC-4.2 engines read with the soil around the wire. So the
+    # cards are written as if in free space -- skipping NEC-2's own
+    # below-ground refusal, which is about NEC-2 SOLVING it -- and the script
+    # stops SimNEC's NEC-2 engine by name instead. The ground directive still
+    # comes from `ground`.
+    buried = _buried_tags(builder, ground)
+    structure_ground = None if buried else ground
+    eng = _SsnNecEngine(builder, ground=structure_ground, wire_radius=wire_radius)
     deck = export_nec(
         builder,
-        ground=ground,
+        ground=structure_ground,
         freq=freq_mhz,
         include_rp=False,
         jacket_pair=False,
@@ -673,6 +752,7 @@ def _antenna_portal(
     )
     if name is None:
         name = _default_block_name(builder)
+    before, after = _insulation_lines(eng, buried)
     script = _portal_wrap(
         cards,
         name=name,
@@ -680,7 +760,8 @@ def _antenna_portal(
         seg_per_wl=seg_per_wl,
         conductivity=conductivity,
         loads=statements,
-        insulation=_insulation(eng),
+        insulation=before,
+        after=after,
     )
     return script, feed_elements
 
@@ -1286,7 +1367,12 @@ def export_ssn(
     # PyNECEngine raises ValueError here for PortAtEnd / PortAtVertex
     # designs — NEC-2 (and therefore SimNEC's NEC block) has no
     # junction-node port and no segment-end source (issues #579, #898).
-    eng = _SsnNecEngine(builder, ground=ground, wire_radius=wire_radius)
+    # A buried wire's cards are written as if in free space (AK#2196; see
+    # `_antenna_portal`), and the script refuses SimNEC's NEC-2 engine.
+    buried = _buried_tags(builder, ground)
+    eng = _SsnNecEngine(
+        builder, ground=None if buried else ground, wire_radius=wire_radius
+    )
     if eng._use_reducer:
         # Station path (issue #604): circuit elements from the reducer
         # branches, the antenna alone in the NEC block, driven at the
@@ -1298,6 +1384,7 @@ def export_ssn(
         cards, statements, feed_elements = _station_cards(
             eng, feed_port, deck_loads, freq_mhz
         )
+        before, after = _insulation_lines(eng, buried)
         script = _portal_wrap(
             cards,
             name=name if name is not None else _default_block_name(builder),
@@ -1305,7 +1392,8 @@ def export_ssn(
             seg_per_wl=seg_per_wl,
             conductivity=_uniform_conductivity(_wire_conductivities(eng)),
             loads=statements,
-            insulation=_insulation(eng),
+            insulation=before,
+            after=after,
         )
         # A load on the fed segment is the antenna-most element (AK#1683).
         walk_elements = walk_elements + feed_elements
