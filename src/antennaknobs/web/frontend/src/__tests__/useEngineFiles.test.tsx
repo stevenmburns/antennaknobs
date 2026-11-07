@@ -151,6 +151,21 @@ describe("what is fetched when", () => {
     expect(calls("/design_ssn")).toHaveLength(2);
   });
 
+  it("a failed SimNEC request is an answer, not an endless wait (AK#2196)", async () => {
+    // A 500 used to leave the pane on "Writing the SimNEC circuit…" for good.
+    fetchMock.mockImplementation((url: string, init: RequestInit) =>
+      url === "/design_ssn"
+        ? Promise.resolve({ ok: false, status: 500, json: () => Promise.reject() })
+        : respond({ available: true, geometry: JSON.parse(String(init.body)).geometry }),
+    );
+    const { result } = renderFiles({ engineLabel: null });
+    await settle();
+    expect(result.current.ssn).toMatchObject({ available: false });
+    expect(result.current.ssn && !result.current.ssn.available && result.current.ssn.reason).toMatch(
+      /could not be written.*500/,
+    );
+  });
+
   it("loads the source per design, not per solve", async () => {
     const { rerender } = renderFiles();
     await settle();

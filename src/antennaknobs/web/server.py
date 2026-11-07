@@ -4320,6 +4320,15 @@ async def design_ssn_endpoint(req: dict):
         # Request validation (bad freq / radius / n_per_wire), and the ports
         # NEC-2 itself has no spelling for — same shape of answer.
         return {"available": False, "geometry": geometry, "reason": str(e)}
+    except Exception as e:  # noqa: BLE001 — any other failure is still a stated answer
+        # A 500 here leaves the Files pane on "Writing the SimNEC circuit…"
+        # for good (AK#2196: PyNEC's below-ground RuntimeError did exactly
+        # that). Whatever the exporter raised, the pane says it.
+        return {
+            "available": False,
+            "geometry": geometry,
+            "reason": f"The SimNEC circuit could not be written: {e}",
+        }
     return {
         "available": True,
         "geometry": geometry,

@@ -206,7 +206,7 @@ _BARE_NAME = re.compile(r"^[A-Za-z_]\w*$")
 # attaching those nodes to `$GW_<tag>` at a percentage of its length.
 _R_COMPONENT = re.compile(r"^R\d+\s*\((.*)\)\s+(\w+)\s+(\w+)$")
 _LOAD_SOURCE = re.compile(
-    r"^(?:dcl\s+\w+\s*=\s*)?NECSource\s*\(\s*\{\s*(\w+)\s*,\s*(\w+)\s*\}\s*,"
+    r"^(?:(?:dcl\s+\w+|\$\w+)\s*=\s*)?NECSource\s*\(\s*\{\s*(\w+)\s*,\s*(\w+)\s*\}\s*,"
     r"\s*\$GW_(\d+)\s*,\s*([^\s,()]+)\s*\)$",
     re.IGNORECASE,
 )
@@ -229,8 +229,36 @@ _ENGINE_GUARD = re.compile(
     r"^(?:if\s*\(\s*NECOptions\.Engine\s*==\s*2\s*\)|else|errorOutln\s*\(.*\))$"
 )
 _NUM = r"[0-9.]+(?:[eE][-+]?\d+)?[a-zA-Z\u00b5]?"
-_Z_EXPR = re.compile(rf"^({_NUM})\s*([+-])\s*j\s*\*\s*({_NUM})$")
-_LC_TERM = re.compile(rf"^([LC])\(\s*({_NUM})\s*\)$")
+_Z_EXPR = re.compile(rf"^({_NUM})\s*([+-])\s*j\s*\*?\s*({_NUM})$")
+_LC_TERM = re.compile(rf"^([RLC])\(\s*({_NUM})\s*\)$")
+# A load written inline, the component expression as the NECSource's first
+# argument (AK#2195): `$ld = NECSource(R(4150) ||| L(26.3u) ||| C(4.91p),
+# $GW_3, 100);` — SimNEC's own shorthand for an `R` component on two nodes.
+_INLINE_LOAD = re.compile(
+    r"^(?:(?:dcl\s+\w+|\$\w+)\s*=\s*)?NECSource\s*\(\s*([^\s{].*?)\s*,"
+    r"\s*\$GW_(\d+)\s*,\s*([^\s,()]+)\s*\)$",
+    re.IGNORECASE,
+)
+# SimNEC's per-wire insulation (AK#2195), `$GW_<tag>.Insulation(thickness,
+# permittivity, loss tangent)`: SimNEC's own (K6OIK) correction, where
+# `NECOptions.Insulation("W7EL", ...)` is the circuit-wide EZNEC one.
+_WIRE_INSULATION = re.compile(
+    r"^\$GW_(\d+)\s*\.\s*Insulation\s*\(\s*([^\s,()]+)\s*,\s*([^\s,()]+)\s*,"
+    r"\s*([^\s,()]+)\s*\)$",
+    re.IGNORECASE,
+)
+# The circuit-wide K6OIK form (AK#2195): `NECOptions.Insulation(thickness,
+# permittivity, loss tangent)`, no correction named.
+_K6OIK = re.compile(
+    r"^NECOptions\.Insulation\s*\(\s*([^\s,()\"]+)\s*,\s*([^\s,()]+)\s*,"
+    r"\s*([^\s,()]+)\s*\)$",
+    re.IGNORECASE,
+)
+# The statements that change the model when applied. One left unapplied
+# refuses the file (AK#2195) rather than solving without it.
+_MODEL_STATEMENT = re.compile(
+    r"NECSource\s*\(|\.\s*Insulation\s*\(|^R\d+\s*\(", re.IGNORECASE
+)
 
 
 @dataclass(frozen=True)
@@ -1853,6 +1881,19 @@ class _Script:
         self._load_sources: list[tuple[re.Match, str]] = []
         # NECOptions.Insulation("W7EL", ...): (radial thickness m, eps_r, loss tangent).
         self.insulation: tuple[float, float, float] | None = None
+        # `$GW_<tag>.Insulation(...)` (AK#2195): the same triple per tag,
+        # over the circuit default for that wire.
+        self.wire_insulation: dict[int, tuple[float, float, float] | None] = {}
+        # Loads written inline (AK#2195): (expression, tag, percent, stmt).
+        self._inline_loads: list[tuple[str, int, str, str]] = []
+        # Port declarations (`P2 w2 gnd`): each port's node pair, so a
+        # NECSource on a port's nodes reads as the feed (AK#2195).
+        self.port_nodes: set[frozenset[str]] = set()
+        # Feeds and loads at a knot (a wire end included), which no NEC-2
+        # card spells: (tag, segment, end) and (values, tag, segment, end),
+        # placed on the deck once it is read (AK#2195).
+        self.knot_feeds: list[tuple[int, int, int]] = []
+        self.knot_loads: list[tuple[tuple, int, int, int]] = []
         # Every assignment the script makes, in order (AK#1714): what
         # `_DclCards` reads the cards' names from.
         self.assigns: list[_Assign] = []
@@ -1965,39 +2006,131 @@ class _Script:
                     counts.setdefault(int(parts[1]), []).append(int(parts[2]))
                 except ValueError:
                     continue
+
+        def segment(tag: int, pct_text: str, what: str) -> tuple[int, int] | None:
+            """Where ``pct_text`` % of ``$GW_<tag>`` falls, as ``(segment,
+            end)``: end 0 for a segment's centre (NEC-2's own attachment), or
+            end 1 / 2 of that segment for a knot, a wire end included, which
+            is placed there exactly (AK#2195; the knot form NEC-5 decks use).
+            None when the wire or the percentage cannot be read, and a refusal
+            by name anywhere else: never moved to the nearest."""
+            n = counts.get(tag, [])
+            try:
+                pct = _si_float(pct_text)
+            except ValueError:
+                return None
+            if len(n) != 1:
+                return None
+            # A percentage is written to so many decimals: 95.45 for the
+            # centre of segment 11 of 11 (95.4545...) is that centre, not a
+            # place beside it. Within half its last digit is the place; any
+            # further is refused (AK#2195).
+            digits = pct_text.split(".", 1)[1] if "." in pct_text else ""
+            decimals = len(digits) if digits.isdigit() else 0
+            # A whole number is exact: 40 means 40, not "about 40".
+            tol = (
+                max(1e-6, 0.5 * 10.0 ** (-decimals) / 100.0 * n[0])
+                if decimals
+                else 1e-6
+            )
+            x = pct / 100.0 * n[0]
+            knot = round(x)
+            if 0 <= knot <= n[0] and math.isclose(x, knot, abs_tol=tol):
+                return (1, 1) if knot == 0 else (knot, 2)
+            seg = round(x + 0.5)
+            if not (1 <= seg <= n[0] and math.isclose(x + 0.5, seg, abs_tol=tol)):
+                raise ValueError(
+                    f"{where}: {what} sits at {pct_text}% of $GW_{tag}, which "
+                    f"is neither a segment centre nor a knot of its "
+                    f"{n[0]}-segment GW card; this import places it at one of "
+                    "those and does not move it to the nearest or re-mesh the "
+                    "wire to put one there"
+                )
+            return seg, 0
+
+        # A load's value may name a constant the script sets once, as
+        # AC6LA's files do (`dcl R_4 = 0+j50;` then `R4 (R_4) r4a r4b;`):
+        # the constant's own literal stands in for it (AK#2195). A name set
+        # more than once, or to anything but a literal, is left as it is,
+        # and the load then refuses as unread.
+        sets: dict[str, list[str | None]] = {}
+        for a in self.assigns:
+            sets.setdefault(a.name, []).append(a.expr if a.constant else None)
+        consts = {
+            k: v[0].strip()
+            for k, v in sets.items()
+            if len(v) == 1
+            and v[0] is not None
+            and (re.fullmatch(_NUM, v[0].strip()) or _Z_EXPR.match(v[0].strip()))
+        }
+
+        def values_of(expr: str):
+            if expr.strip() in consts:
+                return _load_card_values(consts[expr.strip()])
+            return _load_card_values(
+                re.sub(
+                    r"(?<![\w.])([A-Za-z_]\w*)(?![\w(])",
+                    lambda m: consts.get(m.group(1), m.group(1)),
+                    expr,
+                )
+            )
+
+        def add_load(values, tag, place) -> None:
+            seg, end = place
+            if end:
+                # A knot has no NEC-2 card spelling: placed on the deck after
+                # it is read (`_place_at_knots`).
+                self.knot_loads.append((values, tag, seg, end))
+                return
+            ldtyp, f1, f2, f3 = values
+            self.cards.append(f"LD {ldtyp} {tag} {seg} {seg} {f1!r} {f2!r} {f3!r}")
+
+        has_ex = any(c.split()[:1] == ["EX"] for c in self.cards)
         used: set[tuple[str, str]] = set()
         for m, stmt in self._load_sources:
             a, b, tag, pct_text = m.group(1), m.group(2), int(m.group(3)), m.group(4)
             key = (a, b) if (a, b) in self._r_components else (b, a)
             comp = self._r_components.get(key)
-            values = _load_card_values(comp[0]) if comp else None
-            n = counts.get(tag, [])
-            try:
-                pct = _si_float(pct_text)
-            except ValueError:
-                pct = None
-            if values is None or len(n) != 1 or pct is None:
+            if comp is None and frozenset((a, b)) in self.port_nodes and not has_ex:
+                # A port's own nodes on a wire: the feed, as SimNEC reads it
+                # with no EX card in the block (AK#2195).
+                place = segment(tag, pct_text, f"the source {stmt!r}")
+                if place is None:
+                    self.ignored.append(stmt)
+                    continue
+                seg, end = place
+                if end:
+                    self.knot_feeds.append((tag, seg, end))
+                else:
+                    self.cards.append(f"EX 0 {tag} {seg} 0 1 0")
+                has_ex = True
+                continue
+            values = values_of(comp[0]) if comp else None
+            place = segment(tag, pct_text, f"the load {comp[1]!r}") if values else None
+            if values is None or place is None:
                 self.ignored.append(stmt)
                 continue
             used.add(key)
-            seg_f = pct / 100.0 * n[0] + 0.5
-            seg = round(seg_f)
-            if not (1 <= seg <= n[0] and math.isclose(seg_f, seg, abs_tol=1e-6)):
-                raise ValueError(
-                    f"{where}: the load {comp[1]!r} sits at {pct_text}% of "
-                    f"$GW_{tag}, which is not a segment centre of its "
-                    f"{n[0]}-segment GW card; this import places a load on a "
-                    "segment and does not re-mesh a wire to put one there"
-                )
-            ldtyp, f1, f2, f3 = values
-            self.cards.append(f"LD {ldtyp} {tag} {seg} {seg} {f1!r} {f2!r} {f3!r}")
+            add_load(values, tag, place)
+        for expr, tag, pct_text, stmt in self._inline_loads:
+            values = values_of(expr)
+            place = segment(tag, pct_text, f"the load {stmt!r}") if values else None
+            if values is None or place is None:
+                self.ignored.append(stmt)
+                continue
+            add_load(values, tag, place)
         for key, (_expr, stmt) in self._r_components.items():
             if key not in used:
                 self.ignored.append(stmt)
 
     def _directive(self, stmt: str, where: str) -> None:
         if _PORT_DECL.match(stmt):
-            return  # port declaration (P1 w1 gnd) — circuit structure only
+            # Port declaration (P1 w1 gnd): circuit structure, and the node
+            # pair a source NECSource names (AK#2195).
+            parts = stmt.split()
+            if len(parts) >= 3:
+                self.port_nodes.add(frozenset(parts[1:3]))
+            return
         if _PRM_DECL.match(stmt):
             # `prm len;`, `prm file[];`, `prm num; prm runs; prm logLvl;`
             # (AK#1734): a declaration, nothing to apply. A parameter the
@@ -2029,7 +2162,46 @@ class _Script:
             # The jacket's dielectric loss (AK#2035), served by momwire#765.
             self.insulation = (thick, eps_r, tand) if thick > 0.0 else None
             return
+        m = _WIRE_INSULATION.match(stmt)
+        if m:
+            try:
+                thick = _si_float(m.group(2))
+                eps_r = _si_float(m.group(3))
+                tand = _si_float(m.group(4))
+            except ValueError:
+                self.ignored.append(stmt)
+                return
+            if not 0.0 <= tand < 1.0:
+                raise ValueError(
+                    f"{where}: {stmt!r} gives the insulation a loss tangent of "
+                    f"{tand:g}; it must be at least 0 and below 1"
+                )
+            self.wire_insulation[int(m.group(1))] = (
+                (thick, eps_r, tand) if thick > 0.0 else None
+            )
+            return
+        m = _K6OIK.match(stmt)
+        if m:
+            # SimNEC's own (K6OIK) correction for every wire (AK#2195), the
+            # circuit-wide twin of the per-wire form: on SimNEC's NEC-5 engine
+            # both write the a′ and L′ these engines use (AK#1523).
+            try:
+                thick, eps_r, tand = (_si_float(m.group(i)) for i in (1, 2, 3))
+            except ValueError:
+                self.ignored.append(stmt)
+                return
+            if not 0.0 <= tand < 1.0:
+                raise ValueError(
+                    f"{where}: {stmt!r} gives the insulation a loss tangent of "
+                    f"{tand:g}; it must be at least 0 and below 1"
+                )
+            self.insulation = (thick, eps_r, tand) if thick > 0.0 else None
+            return
         if _ENGINE_GUARD.match(stmt) or _NEC5_JAM.match(stmt):
+            return
+        m = _INLINE_LOAD.match(stmt)
+        if m:
+            self._inline_loads.append((m.group(1), int(m.group(2)), m.group(3), stmt))
             return
         m = _R_COMPONENT.match(stmt)
         if m:
@@ -2089,6 +2261,54 @@ class _Script:
                 _fnum(value, where, f"NECOptions.{option}")
                 return
         self.ignored.append(stmt)
+
+
+def _place_at_knots(deck: NecDeck, script, where: str) -> NecDeck:
+    """The deck with the script's knot feeds and loads on it (AK#2195): a
+    source or load at a wire end, or between two segments, exactly where the
+    script puts it, in the form a NEC-5 deck's end field gives
+    (``NecFeed.edge`` / ``NecLoad.edge``). ``network()`` serves it as a
+    vertex port; an engine with no knot port refuses it by name.
+
+    Two loads at one knot sit in series there, as two LD cards on one place
+    do in NEC (checked against the licensed NEC-5 on a deck with two parallel
+    RLC loads at one wire end: 0.1 ohm). A tag that names no single wire
+    leaves its statement unread, and so refused."""
+    if not (script.knot_feeds or script.knot_loads):
+        return deck
+    from .nec_import import NecFeed, NecLoad  # noqa: PLC0415 — only for these
+
+    index: dict[int, list[int]] = {}
+    for i, w in enumerate(deck.wires):
+        index.setdefault(w.tag, []).append(i)
+
+    def wire(tag: int) -> int:
+        hits = index.get(tag, [])
+        if len(hits) != 1:
+            raise ValueError(
+                f"{where}: $GW_{tag} names {len(hits)} wires after the block's "
+                "transforms, so a place along it names no one wire"
+            )
+        return hits[0]
+
+    def leg(v: float) -> float | None:
+        return v if v else None
+
+    feeds = list(deck.feeds)
+    for tag, seg, end in script.knot_feeds:
+        feeds.append(NecFeed(wire(tag), seg, 1 + 0j, edge=end))
+    loads = list(deck.loads)
+    for (ldtyp, f1, f2, f3), tag, seg, end in script.knot_loads:
+        wi = wire(tag)
+        if ldtyp == 4:
+            loads.append(
+                NecLoad(wi, seg, None, None, None, False, z=complex(f1, f2), edge=end)
+            )
+        else:
+            loads.append(
+                NecLoad(wi, seg, leg(f1), leg(f2), leg(f3), ldtyp == 1, edge=end)
+            )
+    return replace(deck, feeds=tuple(feeds), loads=tuple(loads))
 
 
 def _jam_segments(
@@ -2538,23 +2758,47 @@ def parse_ssn(
         virtualize_anchors=virtualize_anchors,
         limits=limits,
     )
+    deck = _place_at_knots(deck, script, name)
     jam = {**script.jam, **dcl.jam_counts(name, dcl_overrides)}
     deck, unapplied = _jam_segments(deck, jam, name)
     if limits is not None:
         # JamSegments re-counts wires after the cards are read.
         limits.check_wires(deck.wires, name)
     script.ignored.extend(unapplied)
-    if script.insulation is not None:
-        # The circuit's default insulation covers every wire (AK#1683): a
-        # jacket of that radial thickness over each GW conductor radius.
-        thick, eps_r, tand = script.insulation
+    tags = {w.tag for w in deck.wires}
+    for tag in sorted(set(script.wire_insulation) - tags):
+        # A jacket on a wire no GW card declares names no wire (AK#2195).
+        script.ignored.append(f"$GW_{tag}.Insulation(...)")
+        del script.wire_insulation[tag]
+    dropped = [s for s in script.ignored if _MODEL_STATEMENT.search(s)]
+    if dropped:
+        # A load, a source or a jacket the import could not read changes the
+        # antenna. Solving without it is a confidently wrong answer, so the
+        # file is refused by name instead (AK#2195).
+        raise ValueError(
+            f"{name}: {'these statements change' if len(dropped) > 1 else 'this statement changes'} "
+            "the model and could not be read, so the file is not opened "
+            "without them: " + "; ".join(dropped)
+        )
+    if script.insulation is not None or script.wire_insulation:
+        # The circuit's default insulation covers every wire (AK#1683), and a
+        # `$GW_<tag>.Insulation(...)` replaces it on that wire (AK#2195): a
+        # jacket of that radial thickness over the GW conductor radius.
+        # The per-wire form is SimNEC's K6OIK correction; on SimNEC's NEC-5
+        # engine it writes the same a′ and L′ these engines use (AK#1523).
+        jackets: list[tuple[int, tuple[float, float, float]]] = []
+        for i, w in enumerate(deck.wires):
+            jacket = script.wire_insulation.get(w.tag, script.insulation)
+            if jacket is not None:
+                jackets.append((i, jacket))
         deck = replace(
             deck,
             wire_insulation=tuple(
-                (i, (w.radius + thick, eps_r)) for i, w in enumerate(deck.wires)
+                (i, (deck.wires[i].radius + thick, eps_r))
+                for i, (thick, eps_r, _t) in jackets
             ),
             wire_insulation_loss_tangent=tuple(
-                (i, tand) for i in range(len(deck.wires)) if tand
+                (i, tand) for i, (_th, _e, tand) in jackets if tand
             ),
         )
 

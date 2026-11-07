@@ -355,15 +355,17 @@ def test_a_w7el_loss_tangent_out_of_range_is_refused_on_import():
         )
 
 
-def test_simnecs_default_k6oik_insulation_is_reported_not_applied():
-    """Only the W7EL form is the model here; K6OIK is a different one."""
+def test_simnecs_default_k6oik_insulation_is_every_wire_s_jacket():
+    """SimNEC's own (K6OIK) form reads as the same jacket as the W7EL one
+    (AK#2195): on SimNEC's NEC-5 engine it writes the a′ and L′ these engines
+    use. It was reported "not applied" before, and the file solved bare."""
     c = parse_ssn(
         _script_ssn("").replace(
             "P2 w2 gnd;\n", "P2 w2 gnd;\nNECOptions.Insulation(5e-4, 3.5, 0);\n"
         )
     )
-    assert c.deck.wire_insulation == ()
-    assert c.ignored_directives == ("NECOptions.Insulation(5e-4, 3.5, 0)",)
+    assert c.deck.wire_insulation == ((0, (1e-3, 3.5)), (1, (1e-3, 3.5)))
+    assert c.ignored_directives == ()
 
 
 # --- the importer, on files it did not write ---------------------------------
@@ -398,23 +400,38 @@ def test_a_suffixed_load_reads_as_its_value():
 
 
 def test_a_load_between_segment_centres_is_refused_not_moved():
-    with pytest.raises(ValueError, match=r"2% of \$GW_2.*not a segment centre"):
+    with pytest.raises(
+        ValueError, match=r"2% of \$GW_2.*neither a segment centre nor a knot"
+    ):
         parse_ssn(
             _script_ssn("R1 (50) r1a r1b;  NECSource({r1a,r1b}, $GW_2, 2);"),
             network=True,
         )
 
 
-def test_a_load_it_cannot_evaluate_is_reported_not_applied():
-    """AC6LA's files name the values with dcl variables; they are not
-    evaluated here, so both statements are reported as not applied."""
+def test_a_load_it_cannot_evaluate_refuses_the_file():
+    """A Q argument (``L(Lt, 300)``) has no LD-card spelling. The load used to
+    be reported "not applied" while the file solved without it; since AK#2195
+    the file is refused, naming both statements."""
+    with pytest.raises(ValueError, match=r"could not be read.*NECSource.*R1 \("):
+        parse_ssn(
+            _script_ssn(
+                "dcl Lt = 1u;\nR1 (L(Lt, 300) ||| C(30p)) r1a r1b;  "
+                "dcl T = NECSource({r1a,r1b}, $GW_2, 50);"
+            ),
+            network=True,
+        )
+
+
+def test_a_load_named_by_a_constant_reads_as_its_value():
+    """AC6LA's files name a load's value with a constant set once (AK#2195):
+    ``dcl Lt = 1u;`` stands for its literal in ``L(Lt)``."""
     c = parse_ssn(
         _script_ssn(
-            "dcl Lt = 1u;\nR1 (L(Lt, 300) ||| C(30p)) r1a r1b;  "
+            "dcl Lt = 1u;\nR1 (L(Lt) ||| C(30p)) r1a r1b;  "
             "dcl T = NECSource({r1a,r1b}, $GW_2, 50);"
         ),
         network=True,
     )
-    assert c.deck.loads == ()
-    assert any("NECSource" in d for d in c.ignored_directives)
-    assert any(d.startswith("R1 (") for d in c.ignored_directives)
+    (ld,) = c.deck.loads
+    assert ld.parallel and ld.l == pytest.approx(1e-6)
