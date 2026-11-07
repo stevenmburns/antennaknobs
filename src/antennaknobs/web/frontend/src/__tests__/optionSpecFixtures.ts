@@ -246,6 +246,28 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "shown_when_value": null,
     "description": "Fill each repeated pair of straight wires once and copy it (a Yagi's directors, mirrored halves), and fill an evenly meshed straight wire's own entries once per segment spacing. The solver checks every repeat against its own geometry first. Results change only in the last digits."
   },
+  "transmitted_anchors": {
+    "kind": "bool",
+    "label": "share buried tables across a sweep (faster)",
+    "default": false,
+    "auto_when_null": false,
+    "shown_when": null,
+    "gate_label": null,
+    "gate_on_value": null,
+    "shown_when_value": null,
+    "description": "Over buried wires, build the table that carries fields up through the ground once for a band and blend it at each frequency, instead of rebuilding it at every point. Results change only in the last digits."
+  },
+  "point_cplx_staged": {
+    "kind": "bool",
+    "label": "vectorised buried fill (faster)",
+    "default": false,
+    "auto_when_null": false,
+    "shown_when": null,
+    "gate_label": null,
+    "gate_on_value": null,
+    "shown_when_value": null,
+    "description": "Fill the entries between buried wires with the vectorised kernel the Galerkin solver uses, several times faster on a large radial screen. Results change only in the last digits."
+  },
   "rotational_symmetry": {
     "kind": "bool",
     "label": "rotational symmetry (radial screens)",

@@ -65,10 +65,15 @@ def test_the_baseline_is_not_empty_and_covers_every_kwarg():
     # own accept/reject cases are in test_nec42_sommerfeld_choice.py.
     # `exact_kernel` (momwire#1408) likewise; its cases are in
     # test_exact_kernel_option_1408.py. `pair_reuse` (AK#2165) too; its cases
-    # are in test_pair_reuse_option_2165.py.
-    assert set(BASELINE) | {"sommerfeld", "exact_kernel", "pair_reuse"} == set(
-        _HOSTED_MODEL_OPTIONS
-    )
+    # are in test_pair_reuse_option_2165.py. The pass-through features
+    # (momwire#1847, #1849) too; theirs are in test_feature_switches_1847.py.
+    assert set(BASELINE) | {
+        "sommerfeld",
+        "exact_kernel",
+        "pair_reuse",
+        "transmitted_anchors",
+        "point_cplx_staged",
+    } == set(_HOSTED_MODEL_OPTIONS)
     assert set(_HOSTED_MODEL_OPTIONS) == set(_OPTION_SPECS)
     assert len(BASELINE) == 14
     total = sum(len(v) for v in BASELINE.values())
@@ -185,7 +190,7 @@ def test_the_catalogue_serves_every_option_and_is_json():
 
     served = model_option_specs()
     assert set(served) == set(_OPTION_SPECS)
-    assert len(served) == 17
+    assert len(served) == 19
     assert json.loads(json.dumps(served)) == served
 
 
@@ -258,7 +263,15 @@ def test_the_roster_names_only_kwargs_the_catalogue_describes():
     # pin; test_exact_kernel_option_1408.py gates where it is offered.
     # `pair_reuse` (momwire#1809, AK#2165) as well: offered only where the
     # installed momwire's constructor takes it (test_pair_reuse_option_2165.py).
-    CAPABILITY_GATED = {"rotational_symmetry", "exact_kernel", "pair_reuse"}
+    # The pass-through features likewise, plus their reach
+    # (test_feature_switches_1847.py).
+    CAPABILITY_GATED = {
+        "rotational_symmetry",
+        "exact_kernel",
+        "pair_reuse",
+        "transmitted_anchors",
+        "point_cplx_staged",
+    }
     unreachable = described - seen - CAPABILITY_GATED
     assert not unreachable, f"described but unreachable: {sorted(unreachable)}"
 

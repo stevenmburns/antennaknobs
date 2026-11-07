@@ -119,8 +119,10 @@ except ImportError:
     DEFAULT_GROUND = ("finite", 13.0, 0.005)
 from antennaknobs.engines.momwire import (
     EXACT_KERNEL_CHOICES,
+    FEATURE_SWITCHES,
     MomwireEngine,
     exact_kernel_served,
+    feature_served,
     _ends_in_the_plane,
     _takes_pair_reuse,
     _solver_supports_ground_eps,
@@ -666,7 +668,9 @@ def backend_roster(
             # momwire#1408: the same live-probe exposure, for the same reason.
             + (["exact_kernel"] if _offers_exact_kernel(b) else [])
             # momwire#1809 / AK#2165: and again, for the fill reuse switch.
-            + (["pair_reuse"] if _offers_pair_reuse(b) else []),
+            + (["pair_reuse"] if _offers_pair_reuse(b) else [])
+            # momwire's pass-through features: the same probe, plus their reach.
+            + [n for n in FEATURE_SWITCHES if _offers_feature(b, n)],
             # Axis -> the value this preset pins it to (#1006 G2-7).
             "bound_axes": _bound_axes(b),
             "options_schema": [
@@ -879,6 +883,18 @@ def _offers_pair_reuse(spec) -> bool:
     B-spline class takes it, at every degree; the H-matrix and array
     subclasses do not."""
     return spec.kind == "momwire" and _takes_pair_reuse(spec.solver)
+
+
+def _offers_feature(spec, name) -> bool:
+    """Whether `spec`'s momwire class takes pass-through feature `name`
+    (`FEATURE_SWITCHES`) and momwire certifies it on this platform.
+
+    `_offers_pair_reuse`'s live probe plus the feature's reach
+    (`feature_served`): the hosted app is level 1, so a reach-1 feature is
+    offered there and on no install below it. A momwire predating the
+    feature (the submodule pointer and the PyPI pin until the release that
+    carries it) answers False for every backend."""
+    return spec.kind == "momwire" and feature_served(spec.solver, name)
 
 
 # Fallback only — see `reword_rotational_symmetry_refusal`, which prefers
@@ -1609,6 +1625,34 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
             "straight wire's own entries once per segment spacing. The "
             "solver checks every repeat against its own geometry first. "
             "Results change only in the last digits."
+        ),
+    ),
+    # momwire's pass-through features (`FEATURE_SWITCHES`), offered on a tab
+    # only where its solver takes one and momwire certifies it here
+    # (`_offers_feature`). Each only removes work, so each is on the hosted
+    # allowlist. Off by default: the server's ANTENNAKNOBS_<NAME> seeds an
+    # unset request in the engine, and an explicit off here wins over it.
+    # momwire#1847: the B-spline and sinusoidal tabs.
+    "transmitted_anchors": _OptionSpec(
+        "bool",
+        label="share buried tables across a sweep (faster)",
+        default=False,
+        description=(
+            "Over buried wires, build the table that carries fields up "
+            "through the ground once for a band and blend it at each "
+            "frequency, instead of rebuilding it at every point. Results "
+            "change only in the last digits."
+        ),
+    ),
+    # momwire#1849: the sinusoidal tab.
+    "point_cplx_staged": _OptionSpec(
+        "bool",
+        label="vectorised buried fill (faster)",
+        default=False,
+        description=(
+            "Fill the entries between buried wires with the vectorised "
+            "kernel the Galerkin solver uses, several times faster on a "
+            "large radial screen. Results change only in the last digits."
         ),
     ),
     # The sector (block-circulant) solve route for a rotationally symmetric
@@ -3126,6 +3170,16 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
         backend_spec = _BACKENDS_BY_NAME.get(model)
         if backend_spec is not None and _offers_pair_reuse(backend_spec):
             pair_reuse = bool(asked_reuse)
+    # momwire's pass-through features, the same way: dropped on a tab that
+    # does not offer one, passed named where it does.
+    features = {}
+    for name in FEATURE_SWITCHES:
+        if solver_kwargs and name in solver_kwargs:
+            solver_kwargs = dict(solver_kwargs)
+            asked = solver_kwargs.pop(name)
+            backend_spec = _BACKENDS_BY_NAME.get(model)
+            if backend_spec is not None and _offers_feature(backend_spec, name):
+                features[name] = bool(asked)
     if _SWEPT_MEM_MB is not None and issubclass(solver_cls, BSplineSolver):
         # Deployment-owned memory policy (momwire >= 0.9): cap the batched
         # frequency sweep's transient memory per solve. Server-side value
@@ -3146,6 +3200,7 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
         extended_kernel_default=extended_kernel_default,
         exact_kernel=exact_kernel,
         pair_reuse=pair_reuse,
+        features=features,
         cancel=cancel,
     )
 
