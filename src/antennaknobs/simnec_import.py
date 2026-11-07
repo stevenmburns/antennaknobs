@@ -139,6 +139,8 @@ import xml.etree.ElementTree as ET
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
+import numpy as np
+
 from . import network as _net
 from .design_data import read_data
 from .nec_import import (
@@ -166,7 +168,16 @@ M_PER_FT = 0.3048
 # Station chain elements network() can translate (issue #604's captured set).
 _SHUNT_CHAIN = frozenset({"SHUNT_IND", "SHUNT_CAP"})
 _SERIES_CHAIN = frozenset(
-    {"SERIES_TLINE", "SERIES_IND", "SERIES_CAP", "SERIES_Z", "TRANSFORMER2"}
+    {
+        "SERIES_TLINE",
+        "SERIES_IND",
+        "SERIES_CAP",
+        "SERIES_Z",
+        "TRANSFORMER2",
+        # SimNEC's S block: a two-port from an .s2p, or the S-parameters
+        # written on the element (AK#2200).
+        "SCATTERING",
+    }
 )
 # SimNEC's LC matching component. A series-position element: its generator
 # side and load side are two nodes, like a series element's (AK#1646).
@@ -854,9 +865,9 @@ def _shunt_branch(el: SsnElement, node: str):
 _LOSS_PER_100 = {"f": 1.0, "m": 1.0 / M_PER_FT}
 
 
-def _tline_loss(el: SsnElement) -> tuple[float, float]:
-    """A SERIES_TLINE's matched loss as TL's ``(k1, k2)``, dB/100 ft at
-    ``k1*sqrt(f_MHz) + k2*f_MHz`` (AK#1679).
+def _tline_loss(el: SsnElement) -> tuple[float, float, float]:
+    """A SERIES_TLINE's matched loss as ``(k0, k1, k2)``, dB/100 ft at
+    ``k0 + k1*sqrt(f_MHz) + k2*f_MHz`` (AK#1679, AK#2200).
 
     SimNEC's ``Mdl`` picks the loss model (its manual, "The Simplified Model"
     and "The K0K1K2 Model"):
@@ -868,16 +879,20 @@ def _tline_loss(el: SsnElement) -> tuple[float, float]:
       exact at ``@frq``, and the stored k0/k1/k2 are not what it solves. A
       line given per 100 m (``/100m``) is converted to per 100 ft.
     - ``k0k1k2`` takes the three coefficients as written (the station
-      exporter pins this model). k0, a constant dB term, has no TL
-      equivalent and is refused.
+      exporter pins this model).
     - No ``Mdl`` at all reads as ``k0k1k2``, as older station exports did.
+    - A named line from SimNEC's database (an AC6LA cable such as ``Belden
+      8259 (RG-58A/U) AC6LA (50.0 ohm)``) is the K0K1K2 model with that
+      cable's coefficients, and SimNEC saves them on the element alongside
+      its Zo and VF: those are read (AK#2200), and `_chain_notes` says so. A
+      named line saved without them is refused by name.
 
-    Any other model (a named commercial line from SimNEC's database) is
-    refused by name rather than imported lossless. SimNEC runs even the
-    simplified loss through AC6LA's line model, which also bends the
-    effective Zo and velocity factor at low frequency; TL keeps ``Zo`` and
-    ``VFnom`` at face value, so the import is exact in loss at ``@frq`` and
-    approximate in Zo off it."""
+    The line is solved as AC6LA's Johnson line (momwire's ``TL(k0=...,
+    skin=True)``), which is how SimNEC, TLDetails, Zplots and AutoEZ solve a
+    K0K1K2 cable: k0 and k1 sit in the conductors' internal impedance
+    sqrt(R_dc^2 + [R_hf(1+j)]^2), which lengthens the line as 1/sqrt(f) and
+    bends its Zo at low frequency. A station read with it meets SimNEC's
+    generator-side trace to 3e-15 (AK#2200)."""
     where = "SERIES_TLINE" + (f" {el.label}" if el.label else "")
     mdl = (el.get("Mdl") or "k0k1k2").strip()
     if mdl.lower() == "simplified":
@@ -895,26 +910,182 @@ def _tline_loss(el: SsnElement) -> tuple[float, float]:
             )
         loss = _chain_f(el, keys[0], default=0.0) / _LOSS_PER_100[unit]
         if loss == 0.0:
-            return 0.0, 0.0
+            return 0.0, 0.0, 0.0
         frq = _chain_f(el, "@frq", default=0.0)
         if frq <= 0.0:
             raise ValueError(
                 f"{where}: a {loss:g} dB/100 ft loss needs the frequency it "
                 "is quoted at, and '@frq' is missing or zero"
             )
-        return loss / frq**0.5, 0.0
-    if mdl.lower() != "k0k1k2":
+        return 0.0, loss / frq**0.5, 0.0
+    if mdl.lower() != "k0k1k2" and el.get("k1") is None:
         raise ValueError(
-            f"{where}: line model {mdl!r} is not translated; only 'simplified' "
-            "and 'k0k1k2' are. Switch the line to one of those in SimNEC "
-            "(k0k1k2 keeps a database line's coefficients)"
+            f"{where}: line model {mdl!r} is saved without its k0/k1/k2, so its "
+            "loss is unknown here; switch the line to 'k0k1k2' in SimNEC, "
+            "which keeps a database line's coefficients"
         )
-    if _chain_f(el, "k0", default=0.0) != 0.0:
+    return (
+        _chain_f(el, "k0", default=0.0),
+        _chain_f(el, "k1", default=0.0),
+        _chain_f(el, "k2", default=0.0),
+    )
+
+
+# A SERIES_TLINE's length keys: SimNEC saves the length in the unit the line
+# was entered in (AK#2200: Jacek's lines carry `mtrs`).
+_TLINE_LENGTH = {"ft": M_PER_FT, "mtrs": 1.0}
+
+
+def _tline_length(el: SsnElement) -> float:
+    """A SERIES_TLINE's length in metres, from whichever length key it was
+    saved with; one with none of them, or several, is refused by name."""
+    where = "SERIES_TLINE" + (f" {el.label}" if el.label else "")
+    keys = [k for k in _TLINE_LENGTH if el.get(k) is not None]
+    if len(keys) != 1:
         raise ValueError(
-            f"{where}: a constant k0 loss term has no TL equivalent — TL "
-            f"matched loss is k1*sqrt(f) + k2*f (dB/100 ft)"
+            f"{where}: needs its length as one of {', '.join(_TLINE_LENGTH)}; "
+            f"found {keys or 'none'}"
         )
-    return _chain_f(el, "k1", default=0.0), _chain_f(el, "k2", default=0.0)
+    return _chain_f(el, keys[0]) * _TLINE_LENGTH[keys[0]]
+
+
+def _tline_branch(el: SsnElement, a: str, b: str):
+    """A SERIES_TLINE as momwire's `TL` solved as AC6LA's Johnson line
+    (``skin=True``, momwire#1855), with its k0, k1 and k2 as saved: k0 the
+    conductors' DC resistance, k1 their skin-effect resistance and its equal
+    internal reactance, k2 the dielectric. That is the line SimNEC solves, and
+    a station read with it meets SimNEC's own trace to 3e-15 (AK#2200)."""
+    k0, k1, k2 = _tline_loss(el)
+    if k0 < 0.0:
+        raise ValueError(
+            f"SERIES_TLINE {el.label or ''}: k0 = {k0:g} is a negative loss"
+        )
+    return _net.TL(
+        a=a,
+        b=b,
+        z0=_chain_f(el, "Zo"),
+        length=_tline_length(el),
+        vf=_chain_f(el, "VFnom", default=1.0),
+        k0=k0,
+        k1=k1,
+        k2=k2,
+        skin=True,
+    )
+
+
+def _complex_param(text: str | None, where: str) -> complex:
+    """A SimNEC complex parameter, ``(a+jb)`` / ``(a-jb)`` or a plain number."""
+    s = (text or "0").strip().strip("()").replace(" ", "")
+    m = re.fullmatch(
+        r"([-+]?[0-9.]+(?:[eE][-+]?\d+)?)(?:([-+])j([0-9.]+(?:[eE][-+]?\d+)?))?", s
+    )
+    if not m:
+        raise ValueError(f"{where}: {text!r} is not a complex number")
+    im = float(m.group(3)) if m.group(3) else 0.0
+    return complex(float(m.group(1)), -im if m.group(2) == "-" else im)
+
+
+def _scattering_branch(el: SsnElement, a: str, b: str, files):
+    """An S block (SimNEC's SCATTERING element) between the generator-side
+    node ``a`` and the antenna-side ``b`` (AK#2200).
+
+    ``dir`` is SimNEC's orientation: ``2 <> 1`` puts port 2 on the left and
+    port 1 on the right, and the normal layout has the generator on the right,
+    so port 1 faces the generator; ``1 <> 2`` is the reverse (SimNEC Manual,
+    "Orienting the S Block"). The subtract modes (``-(1<>2)``) de-embed rather
+    than add, and are refused by name.
+
+    The parameters come from the element's ``.s2p`` file when it names one,
+    found next to the ``.ssn`` (``files``); otherwise from the S-parameters
+    written on the element, at its ``Zref``, which hold at every frequency."""
+    where = "SCATTERING" + (f" {el.label}" if el.label else "")
+    d = re.sub(r"\s+", "", el.get("dir") or "1<>2")
+    if d not in ("1<>2", "2<>1"):
+        raise ValueError(
+            f"{where}: orientation {el.get('dir')!r} subtracts the block "
+            "(de-embedding); only '1 <> 2' and '2 <> 1' are read"
+        )
+    # Port 1 faces the generator under 2<>1.
+    p1, p2 = (a, b) if d == "2<>1" else (b, a)
+    src = (el.get("file") or "").strip()
+    if src and src != "<none>":
+        if files is None:
+            raise ValueError(
+                f"{where}: takes its S-parameters from {src!r}; read the circuit "
+                "with read_ssn / read_ssn_station so the file can be found next "
+                "to it"
+            )
+        from .touchstone import parse_touchstone  # noqa: PLC0415 — on use
+
+        path = _sibling_path(src)
+        data = parse_touchstone(files(path), nports=2, name=path)
+        zref = el.get("Zref")
+        if zref is not None and not math.isclose(
+            _chain_f(el, "Zref"), data.z0, rel_tol=1e-9
+        ):
+            raise ValueError(
+                f"{where}: the element's Zref {_chain_f(el, 'Zref'):g} ohm is not "
+                f"the {data.z0:g} ohm reference {path!r} declares"
+            )
+        return _net.TouchstoneTwoPort(p1, p2, data)
+    z0 = _chain_f(el, "Zref", default=50.0)
+    s = np.array(
+        [
+            [
+                _complex_param(el.get(f"s{i}{j}r"), where)
+                + 1j * _complex_param(el.get(f"s{i}{j}i"), where)
+                for j in (1, 2)
+            ]
+            for i in (1, 2)
+        ]
+    )
+    eye = np.eye(2)
+    y = (eye - s) @ np.linalg.inv(eye + s) / z0
+    return _net.Admittance(ports=(p1, p2), y=tuple(map(tuple, y)))
+
+
+def _sibling_path(src: str) -> str:
+    """A file a SimNEC element names, as a path beside the ``.ssn``: SimNEC
+    writes Windows paths (``.\\49-1 U 001 S-matrix.s2p``). A relative one is
+    taken as written; an absolute one (``C:\\Users\\...``) names a folder on
+    the author's machine, so the file of that name next to the circuit is
+    used, and `_chain_notes` says so."""
+    s = src.strip().replace("\\", "/")
+    if _ABSOLUTE.match(s):
+        return s.rsplit("/", 1)[-1]
+    while s.startswith("./"):
+        s = s[2:]
+    return s
+
+
+_ABSOLUTE = re.compile(r"^(?:[A-Za-z]:/|/)")
+
+
+def _chain_notes(chain) -> tuple[str, ...]:
+    """What reading a station chain approximated or redirected, one sentence
+    each, for `skipped_note` (AK#2200)."""
+    notes = []
+    for el in chain:
+        where = f"{el.typ} {el.label}" if el.label else el.typ
+        if el.typ == "SERIES_TLINE":
+            mdl = (el.get("Mdl") or "k0k1k2").strip()
+            if mdl.lower() not in ("simplified", "k0k1k2"):
+                notes.append(
+                    f"{where} is SimNEC's {' '.join(mdl.split())!r} line, read "
+                    "from the Zo, velocity factor and k0/k1/k2 saved with it"
+                )
+            if mdl.lower() != "simplified" and _chain_f(el, "k0", default=0.0):
+                notes.append(
+                    f"{where}'s constant k0 loss is a matched pad at the line's "
+                    "middle, exact on a matched line"
+                )
+        src = (el.get("file") or "").strip()
+        if src and src != "<none>" and _ABSOLUTE.match(src.replace("\\", "/")):
+            notes.append(
+                f"{where} names {src!r}, a folder on the author's machine; the "
+                f"file {_sibling_path(src)!r} next to the circuit is read instead"
+            )
+    return tuple(notes)
 
 
 def _series_z(el: SsnElement, a: str, b: str):
@@ -940,20 +1111,13 @@ def _series_z(el: SsnElement, a: str, b: str):
     return _net.Admittance(ports=(a, b), y=((y, -y), (-y, y)))
 
 
-def _series_branch(el: SsnElement, a: str, b: str):
+def _series_branch(el: SsnElement, a: str, b: str, files=None):
     """The network branch for one series chain element, entered generator-side
     at ``a`` — the inverse of the station exporter's ``_series_elements``."""
     if el.typ == "SERIES_TLINE":
-        k1, k2 = _tline_loss(el)
-        return _net.TL(
-            a=a,
-            b=b,
-            z0=_chain_f(el, "Zo"),
-            length=_chain_f(el, "ft") * M_PER_FT,
-            vf=_chain_f(el, "VFnom", default=1.0),
-            k1=k1,
-            k2=k2,
-        )
+        return _tline_branch(el, a, b)
+    if el.typ == "SCATTERING":
+        return _scattering_branch(el, a, b, files)
     if el.typ == "SERIES_IND":
         return _net.TwoPort(a=a, b=b, l=_chain_f(el, "H"), ql=_chain_q(el))
     if el.typ == "SERIES_CAP":
@@ -1038,6 +1202,11 @@ class SsnCircuit:
     # AK#1734) whose value saved on the element disagrees with the script's:
     # the script's is used, as SimNEC's next run would, and these say so.
     saved_param_notes: tuple[str, ...] = ()
+    # What reading the chain approximated or redirected (`_chain_notes`).
+    chain_notes: tuple[str, ...] = ()
+    # Reads a file a chain element names (an S block's .s2p), by its path
+    # beside the .ssn; None when the circuit was parsed from bare text.
+    files: object = field(default=None, compare=False, repr=False)
 
     def skipped_note(self) -> str | None:
         """One human-readable sentence naming what the file carries that the
@@ -1061,6 +1230,7 @@ class SsnCircuit:
         for card in self.dropped_fr:
             parts.append(f"FR card not read: {card}")
         parts.extend(self.saved_param_notes)
+        parts.extend(self.chain_notes)
         for el in self.chain:
             if el.typ in _MATCH_CHAIN and _chain_f(el, "MHz", default=0.0) <= 0.0:
                 # AK#1646: SimNEC retunes an MHz = 0 XMATCH at every
@@ -1130,120 +1300,135 @@ class SsnCircuit:
 
         Raises ``ValueError`` for a chain the app cannot faithfully rebuild:
         an element outside the captured set (see ``other_elements``), a
-        non-ideal TRANSFORMER2, a k0 loss term, or a deck without exactly
+        non-ideal TRANSFORMER2, an S block whose file cannot be found, or a deck without exactly
         one voltage feed to attach the chain to."""
-        net = self.deck.network()
-        if not self.chain:
-            return net
-        bad = sorted({el.typ for el in self.chain if el.typ not in _CHAIN_TYPES})
-        if bad:
-            raise ValueError(
-                f"station chain carries element(s) with no network "
-                f"translation: {', '.join(bad)} — importing the antenna "
-                f"while dropping them would misrepresent the circuit"
-            )
-        if len(net.sources) != 1 or not isinstance(net.sources[0], _net.Driven):
-            raise ValueError(
-                "a station chain attaches between the generator and one "
-                "voltage-driven feed; this deck does not have exactly one "
-                "EX voltage source"
-            )
-        src = net.sources[0]
-        feed_port = src.port
-        ports = dict(net.ports)
-        branches = list(net.branches)
-        if rig_port in ports:
-            raise ValueError(
-                f"rig_port {rig_port!r} collides with a deck port name — "
-                f"pass a different rig_port"
-            )
-        ports[rig_port] = _net.PortVirtual(rig_port)
-
-        nodes = _block_nodes(self.chain, taken=set(ports))
-        # `at` is the node the next block attaches to. `pending` is a series
-        # block whose antenna side is not wired yet: the next node closes it,
-        # so two series blocks in a row meet with no pass-through between.
-        at, pending, n_thru = rig_port, None, 0
-
-        def attach(node):
-            nonlocal pending, n_thru
-            if pending is None:
-                n_thru += 1
-                branches.append(_through(at, node, n_thru))
-                return
-            el, a, index = pending
-            pending = None
-            if el.typ in _MATCH_CHAIN:
-                branches.append(self._tuner(el, a, node, index))
-            else:
-                branches.append(_series_branch(el, a, node))
-
-        for index, (el, node) in enumerate(zip(self.chain, nodes, strict=True), 1):
-            ports[node] = _net.PortVirtual(node)
-            attach(node)
-            if el.typ in _SHUNT_CHAIN:
-                branches.append(_shunt_branch(el, node))
-            else:
-                pending = (el, node, index)
-            at = node
-        attach(feed_port)
-        return _net.Network(
-            ports=ports,
-            branches=branches,
-            sources=[_net.Driven(port=rig_port, voltage=src.voltage)],
+        return _hang_chain(
+            self.deck.network(),
+            self.chain,
+            rig_port=rig_port,
+            gen_zo=self.gen_zo,
+            freq_mhz=self.freq_mhz,
+            files=self.files,
         )
 
-    def _tuner(self, el: SsnElement, rig: str, out: str, k: int):
-        """An XMATCH as antennaknobs' own self-tuning L tuner (AK#1646):
-        `station.l_network_tuner(tune_to=...)`, from SimNEC's parameters
-        (its manual, "The LC Matching Component")."""
-        from .station import l_network_tuner
 
-        where = "XMATCH element" + (f" {el.label}" if el.label else "")
-        mode = (el.get("mode") or "auto").strip()
-        if mode != "auto":
-            raise ValueError(
-                f"{where}: {mode!r} mode is not translated, only 'auto'. "
-                "Replace it with the explicit SERIES_IND / SHUNT_CAP (or "
-                "SERIES_CAP / SHUNT_IND) elements it stands for"
-            )
-        pass_ = (el.get("pass") or "low").strip().lower()
-        if pass_ not in ("low", "high"):
-            raise ValueError(f"{where}: pass {pass_!r} is not 'low' or 'high'")
-        r = _chain_f(el, "R", default=0.0)
-        x = _chain_f(el, "X", default=0.0)
-        if x != 0.0:
-            raise ValueError(
-                f"{where}: a complex target (R {r:g}, X {x:g}) is not translated; "
-                "SimNEC's manual does not say whether it presents R + jX or its "
-                "conjugate"
-            )
-        if r == 0.0:
-            if self.gen_zo is None:
-                raise ValueError(
-                    f"{where}: matches to the generator's Zo, and this file's "
-                    "GENERATOR carries none"
-                )
-            r = self.gen_zo
-        mhz = _chain_f(el, "MHz", default=0.0)
-        if mhz <= 0.0:
-            # SimNEC's MHz = 0 retunes at every generator frequency; the app's
-            # tuner holds its tune (skipped_note says so), so it tunes at the
-            # generator's own frequency, where SimNEC's would be at the start.
-            mhz = self.freq_mhz or 0.0
-        qc = _chain_f(el, "Qc", default=0.0)
-        ql = _chain_f(el, "Ql", default=0.0)
-        comp = l_network_tuner(
-            tune_to=r,
-            tune_at_mhz=mhz if mhz > 0.0 else None,
-            mode=pass_,
-            # SimNEC picks the side itself, by the same rule as "auto".
-            shunt_at="auto",
-            qc=qc if qc > 0.0 else None,
-            ql=ql if ql > 0.0 else None,
+def _hang_chain(net, chain, *, rig_port, gen_zo, freq_mhz, files):
+    """``net`` with the station ``chain`` re-hung between a virtual
+    generator-side ``rig_port`` node, where its one ``Driven`` source moves
+    to, and the port that source drove. See `SsnCircuit.network`; the same
+    for any antenna's network (`SsnStation.network`, AK#2200)."""
+    if not chain:
+        return net
+    bad = sorted({el.typ for el in chain if el.typ not in _CHAIN_TYPES})
+    if bad:
+        raise ValueError(
+            f"station chain carries element(s) with no network "
+            f"translation: {', '.join(bad)} — importing the antenna "
+            f"while dropping them would misrepresent the circuit"
         )
-        name = (el.label or f"tuner{k}").replace(".", "_")
-        return _net.Instance(name, comp, rig=rig, out=out)
+    if len(net.sources) != 1 or not isinstance(net.sources[0], _net.Driven):
+        raise ValueError(
+            "a station chain attaches between the generator and one "
+            "voltage-driven feed; this antenna does not have exactly one "
+            "voltage source"
+        )
+    src = net.sources[0]
+    feed_port = src.port
+    ports = dict(net.ports)
+    branches = list(net.branches)
+    if rig_port in ports:
+        raise ValueError(
+            f"rig_port {rig_port!r} collides with an antenna port name — "
+            f"pass a different rig_port"
+        )
+    ports[rig_port] = _net.PortVirtual(rig_port)
+
+    nodes = _block_nodes(chain, taken=set(ports))
+    # `at` is the node the next block attaches to. `pending` is a series
+    # block whose antenna side is not wired yet: the next node closes it,
+    # so two series blocks in a row meet with no pass-through between.
+    at, pending, n_thru = rig_port, None, 0
+
+    def attach(node):
+        nonlocal pending, n_thru
+        if pending is None:
+            n_thru += 1
+            branches.append(_through(at, node, n_thru))
+            return
+        el, a, index = pending
+        pending = None
+        if el.typ in _MATCH_CHAIN:
+            branches.append(_xmatch_tuner(el, a, node, index, gen_zo, freq_mhz))
+        else:
+            branches.append(_series_branch(el, a, node, files))
+
+    for index, (el, node) in enumerate(zip(chain, nodes, strict=True), 1):
+        ports[node] = _net.PortVirtual(node)
+        attach(node)
+        if el.typ in _SHUNT_CHAIN:
+            branches.append(_shunt_branch(el, node))
+        else:
+            pending = (el, node, index)
+        at = node
+    attach(feed_port)
+    return _net.Network(
+        ports=ports,
+        branches=branches,
+        sources=[_net.Driven(port=rig_port, voltage=src.voltage)],
+    )
+
+
+def _xmatch_tuner(el: SsnElement, rig: str, out: str, k: int, gen_zo, freq_mhz):
+    """An XMATCH as antennaknobs' own self-tuning L tuner (AK#1646):
+    `station.l_network_tuner(tune_to=...)`, from SimNEC's parameters
+    (its manual, "The LC Matching Component")."""
+    from .station import l_network_tuner
+
+    where = "XMATCH element" + (f" {el.label}" if el.label else "")
+    mode = (el.get("mode") or "auto").strip()
+    if mode != "auto":
+        raise ValueError(
+            f"{where}: {mode!r} mode is not translated, only 'auto'. "
+            "Replace it with the explicit SERIES_IND / SHUNT_CAP (or "
+            "SERIES_CAP / SHUNT_IND) elements it stands for"
+        )
+    pass_ = (el.get("pass") or "low").strip().lower()
+    if pass_ not in ("low", "high"):
+        raise ValueError(f"{where}: pass {pass_!r} is not 'low' or 'high'")
+    r = _chain_f(el, "R", default=0.0)
+    x = _chain_f(el, "X", default=0.0)
+    if x != 0.0:
+        raise ValueError(
+            f"{where}: a complex target (R {r:g}, X {x:g}) is not translated; "
+            "SimNEC's manual does not say whether it presents R + jX or its "
+            "conjugate"
+        )
+    if r == 0.0:
+        if gen_zo is None:
+            raise ValueError(
+                f"{where}: matches to the generator's Zo, and this file's "
+                "GENERATOR carries none"
+            )
+        r = gen_zo
+    mhz = _chain_f(el, "MHz", default=0.0)
+    if mhz <= 0.0:
+        # SimNEC's MHz = 0 retunes at every generator frequency; the app's
+        # tuner holds its tune (skipped_note says so), so it tunes at the
+        # generator's own frequency, where SimNEC's would be at the start.
+        mhz = freq_mhz or 0.0
+    qc = _chain_f(el, "Qc", default=0.0)
+    ql = _chain_f(el, "Ql", default=0.0)
+    comp = l_network_tuner(
+        tune_to=r,
+        tune_at_mhz=mhz if mhz > 0.0 else None,
+        mode=pass_,
+        # SimNEC picks the side itself, by the same rule as "auto".
+        shunt_at="auto",
+        qc=qc if qc > 0.0 else None,
+        ql=ql if ql > 0.0 else None,
+    )
+    name = (el.label or f"tuner{k}").replace(".", "_")
+    return _net.Instance(name, comp, rig=rig, out=out)
 
 
 def _block_nodes(chain, taken: set[str]) -> list[str]:
@@ -3752,6 +3937,7 @@ def parse_ssn(
     virtualize_anchors: bool = True,
     dcl_overrides: Mapping[str, float] | None = None,
     limits: GeometryLimits | None = None,
+    files=None,
 ) -> SsnCircuit:
     """Parse the text of a SimNEC ``.ssn`` file into an :class:`SsnCircuit`.
 
@@ -3940,6 +4126,8 @@ def parse_ssn(
         sweep_grid=sweep_grid,
         dropped_fr=dcl.dropped,
         saved_param_notes=_saved_param_notes(script, dcl, name),
+        chain_notes=_chain_notes(chain),
+        files=files,
     )
 
 
@@ -3954,4 +4142,233 @@ def read_ssn(
         name=name,
         network=network,
         virtualize_anchors=virtualize_anchors,
+        files=_beside(builder, name),
     )
+
+
+def _beside(builder, name: str):
+    """Reads a file a circuit element names, by its path relative to the
+    ``.ssn`` ``name``, inside ``builder``'s design folder (`read_data`)."""
+    folder = name.replace("\\", "/").rsplit("/", 1)[0] if "/" in name else ""
+
+    def read(path: str) -> str:
+        return read_data(builder, f"{folder}/{path}" if folder else path)
+
+    return read
+
+
+@dataclass(frozen=True)
+class SsnStation:
+    """A SimNEC station chain on its own (AK#2200): the elements between the
+    GENERATOR and the circuit's antenna end, to hang on an antenna that comes
+    from elsewhere -- a ``.nec``, an ``.ez``, or a native builder.
+
+    A common workflow models the antenna in EZNEC or AutoEZ, writes its
+    feed-point impedance to a table, and builds the feed system in SimNEC
+    with a ``LOAD`` reading that table as the antenna. ``antenna`` is that
+    end: the ``LOAD`` element, or None when the file's antenna is a NEC-portal
+    block (which `network` replaces just the same)."""
+
+    chain: tuple[SsnElement, ...]
+    freq_mhz: float | None
+    gen_zo: float | None
+    sweep: tuple[float, float] | None
+    sweep_points: tuple[float, ...] | None
+    antenna: SsnElement | None
+    other_elements: tuple[str, ...] = ()
+    chain_notes: tuple[str, ...] = ()
+    files: object = field(default=None, compare=False, repr=False)
+
+    def network(self, antenna, *, rig_port: str = "rig"):
+        """``antenna`` (a ``network.Network`` with one ``Driven`` source, such
+        as ``deck.network()`` or a builder's own) with this chain between a
+        virtual ``rig_port``, the GENERATOR, and the port the source drove,
+        which keeps its name as the antenna's own terminals. Every chain block
+        gets a node named after its label, as in `SsnCircuit.network`."""
+        return _hang_chain(
+            antenna,
+            self.chain,
+            rig_port=rig_port,
+            gen_zo=self.gen_zo,
+            freq_mhz=self.freq_mhz,
+            files=self.files,
+        )
+
+    def antenna_table(self):
+        """The antenna-end LOAD's impedance table as a 1-port
+        `~antennaknobs.touchstone.Touchstone` (Z data, linear in R and X
+        between points, refused outside them), or None when the LOAD names no
+        file. Lets a solved antenna be checked against the impedance the
+        station was built on, or terminate the chain in its place
+        (``TouchstoneLoad(port, table)``)."""
+        if self.antenna is None:
+            return None
+        src = (self.antenna.get("file") or "").strip()
+        if not src or src == "<none>":
+            return None
+        if self.files is None:
+            raise ValueError(
+                f"the antenna LOAD reads {src!r}; read the circuit with "
+                "read_ssn_station so the file can be found next to it"
+            )
+        path = _sibling_path(src)
+        return parse_generic_table(self.files(path), name=path)
+
+    def skipped_note(self) -> str | None:
+        """What the chain read approximated, and the elements outside it."""
+        parts = list(self.chain_notes)
+        if self.other_elements:
+            parts.insert(
+                0,
+                "SimNEC circuit elements not imported: "
+                + ", ".join(self.other_elements),
+            )
+        if not parts:
+            return None
+        body = "; ".join(parts)
+        return body[0].upper() + body[1:] + "."
+
+
+def parse_ssn_station(text: str, *, name: str = "SimNEC circuit", files=None):
+    """The station chain of a SimNEC ``.ssn`` as an :class:`SsnStation`
+    (AK#2200). The antenna end is the circuit's NEC-portal block when it has
+    one, else its one ``LOAD`` (SimNEC's unused 0-ohm and the exporter's open
+    terminations aside); the chain is every element between it and the
+    GENERATOR, generator first. ``files`` reads a file an element names by its
+    path beside the circuit (`read_ssn_station` supplies it)."""
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError as e:
+        raise ValueError(f"{name}: not well-formed .ssn XML ({e})") from None
+    elements = root.findall(".//CIRCUIT/element")
+    infos = [((el.findtext("type") or "?").strip(), _params(el), el) for el in elements]
+    gens = [i for i, (typ, _, _) in enumerate(infos) if typ == "GENERATOR"]
+    if len(gens) != 1:
+        raise ValueError(f"{name}: a station has one GENERATOR; found {len(gens)}")
+    gen_pos = gens[0]
+    blocks = [
+        i
+        for i, (typ, params, _) in enumerate(infos)
+        if typ == "NETWORK"
+        and any(
+            _NEC2_LINE.match(line.strip())
+            for line in (params.get("equ") or "").splitlines()
+        )
+    ]
+    loads = [
+        i
+        for i, (typ, params, el) in enumerate(infos)
+        if typ == "LOAD"
+        and not _is_open_load(params)
+        and not _is_unused_termination(el.findtext("sweeperLabel"), params)
+    ]
+    ends = blocks or loads
+    if len(ends) != 1:
+        raise ValueError(
+            f"{name}: the antenna end is a NEC-portal block or one LOAD; found "
+            f"{len(blocks)} block(s) and {len(loads)} LOAD(s)"
+        )
+    end = ends[0]
+    lo, hi = sorted((end, gen_pos))
+    chain_doc, other = [], []
+    for i, (typ, _params_, el) in enumerate(infos):
+        if i in (end, gen_pos):
+            continue
+        if lo < i < hi:
+            chain_doc.append(_element(el))
+            if typ not in _CHAIN_TYPES:
+                other.append(typ)
+        elif not (typ == "LOAD" and i not in loads):
+            other.append(typ)
+    if end < gen_pos:
+        chain_doc.reverse()
+    chain = tuple(chain_doc)
+    p = _params(elements[gen_pos])
+    try:
+        freq_mhz = float(p["MHz"]) if p.get("MHz") else None
+    except ValueError:
+        raise ValueError(f"{name}: bad GENERATOR MHz {p['MHz']!r}") from None
+    try:
+        gen_zo = float(p["Zo"]) if p.get("Zo") else None
+    except ValueError:
+        gen_zo = None
+    sweep, sweep_points, _grid, _note = _gen_sweep(elements[gen_pos])
+    return SsnStation(
+        chain=chain,
+        freq_mhz=freq_mhz,
+        gen_zo=gen_zo,
+        sweep=sweep,
+        sweep_points=sweep_points,
+        antenna=None if blocks else _element(elements[end]),
+        other_elements=tuple(other),
+        chain_notes=_chain_notes(chain),
+        files=files,
+    )
+
+
+def read_ssn_station(builder, name: str) -> SsnStation:
+    """``read_data`` followed by `parse_ssn_station`, with the files the
+    chain names (an S block's ``.s2p``, the antenna LOAD's table) read from
+    beside the ``.ssn``, inside ``builder``'s design folder (AK#2200)."""
+    return parse_ssn_station(
+        read_data(builder, name), name=name, files=_beside(builder, name)
+    )
+
+
+def _element(el) -> SsnElement:
+    return SsnElement(
+        typ=(el.findtext("type") or "?").strip(),
+        label=el.findtext("sweeperLabel"),
+        params=tuple((p.findtext("n"), p.findtext("v")) for p in el.findall("p")),
+    )
+
+
+def _is_open_load(params) -> bool:
+    try:
+        return float(params.get("ohms") or 0) >= _OPEN_OHMS
+    except ValueError:
+        return False
+
+
+def parse_generic_table(text: str, *, name: str = "impedance table"):
+    """A SimSmith "Generic" impedance file as a 1-port Z
+    `~antennaknobs.touchstone.Touchstone` (AK#2200). Its first line is
+    ``Generic #index #scale #real #imag``: the 1-based columns of the index
+    (a frequency, multiplied by ``#scale`` to give Hz) and of R and X. Lines
+    starting ``!`` or ``#`` are comments; values are separated by commas or
+    white space (SimNEC Manual, "SimSmith Generic Format")."""
+    from .touchstone import Touchstone  # noqa: PLC0415 — on use
+
+    lines = [ln.strip() for ln in text.splitlines()]
+    lines = [ln for ln in lines if ln and not ln.startswith(("!", "#"))]
+    head = re.split(r"[\s,]+", lines[0]) if lines else []
+    if not head or head[0] != "Generic" or len(head) < 5:
+        raise ValueError(
+            f"{name}: not a SimSmith Generic table (its first line is "
+            "'Generic #index #scale #real #imag')"
+        )
+    try:
+        col_f, col_r, col_x = (int(head[i]) - 1 for i in (1, 3, 4))
+        scale = float(head[2])
+    except ValueError:
+        raise ValueError(f"{name}: bad Generic header {lines[0]!r}") from None
+    rows = []
+    for ln in lines[1:]:
+        cells = re.split(r"[\s,]+", ln)
+        try:
+            rows.append(
+                (
+                    float(cells[col_f]) * scale,
+                    complex(float(cells[col_r]), float(cells[col_x])),
+                )
+            )
+        except (ValueError, IndexError):
+            raise ValueError(f"{name}: unreadable row {ln!r}") from None
+    if len(rows) < 2:
+        raise ValueError(f"{name}: needs at least two rows")
+    rows.sort()
+    f = np.array([r[0] for r in rows])
+    if np.any(np.diff(f) <= 0):
+        raise ValueError(f"{name}: a frequency appears twice")
+    z = np.array([r[1] for r in rows], dtype=complex).reshape(-1, 1, 1)
+    return Touchstone(freqs=f, params=z, ptype="Z", z0=50.0, name=name)
