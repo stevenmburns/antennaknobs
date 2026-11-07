@@ -121,3 +121,58 @@ def test_a_control_header_on_its_own_line_stays_its_own_statement():
 def test_an_unclosed_construct_refuses_by_name(text, message):
     with pytest.raises(ValueError, match=message):
         list(_script_units(text, "t"))
+
+
+# --- part 2: values are evaluated, not matched --------------------------------
+
+
+@pytest.mark.parametrize(
+    "spelling",
+    [
+        # A value from a constant set earlier.
+        f"$r = 1k;\n$ld = NECSource(R($r) ||| L(2u) ||| C(30p), $GW_1, {SEG6});",
+        # Arithmetic in a value.
+        f"$ld = NECSource(R(400+600) ||| L(2*1u) ||| C(30p), $GW_1, {SEG6});",
+        # The whole impedance in a constant.
+        f"$z = R(1k) ||| L(2u) ||| C(30p);\n$ld = NECSource($z, $GW_1, {SEG6});",
+        # The wire in a variable.
+        f"$w = $GW_1;\n$ld = NECSource(R(1k) ||| L(2u) ||| C(30p), $w, {SEG6});",
+        # The place computed.
+        "$ld = NECSource(R(1k) ||| L(2u) ||| C(30p), $GW_1, 100*5.5/21);",
+        # N-block element lines on the same two nodes are in parallel.
+        f"Ra 1k n1 n2;\nLa 2u n1 n2;\nCa 30p n2 n1;\n$ld = NECSource({{n1, n2}}, $GW_1, {SEG6});",
+    ],
+)
+def test_a_value_reads_however_it_is_computed(spelling):
+    assert _loads(spelling) == ONE_LINE
+
+
+def test_insulation_reads_from_constants_and_a_wire_variable():
+    def jackets(*after):
+        return parse_ssn(_ssn(*after), name="t.ssn").deck.wire_insulation
+
+    plain = jackets("$GW_1.Insulation(0.45m, 3.5, 0);")
+    assert plain
+    assert jackets("$t = 0.45m;", "$GW_1.Insulation($t, 3.5, 0);") == plain
+    assert jackets("$w = $GW_1;", "$w.Insulation(0.45m, 3.5, 0);") == plain
+    assert jackets("NECOptions.Insulation(0.45m, 3.5, 0);") == plain
+
+
+@pytest.mark.parametrize(
+    "spelling",
+    [
+        # A name set twice has no one value.
+        f"$r = 1k;\n$r = 2k;\n$ld = NECSource(R($r) ||| L(2u), $GW_1, {SEG6});",
+        # A name set only inside a block.
+        f"if (1) {{ $r = 1k; }}\n$ld = NECSource(R($r) ||| L(2u), $GW_1, {SEG6});",
+        # SimNEC's notes disagree on where ||| sits against *.
+        f"$ld = NECSource(2*R(500) ||| L(2u), $GW_1, {SEG6});",
+        # Two elements in series through an inner node is not one LD card.
+        f"Ra 1k n1 m;\nLa 2u m n2;\n$ld = NECSource({{n1, n2}}, $GW_1, {SEG6});",
+        # An L with a Q.
+        f"$ld = NECSource(R(1k) ||| L(2u, 300), $GW_1, {SEG6});",
+    ],
+)
+def test_what_has_no_reading_refuses_by_name(spelling):
+    with pytest.raises(ValueError, match="could not be read"):
+        _loads(spelling)

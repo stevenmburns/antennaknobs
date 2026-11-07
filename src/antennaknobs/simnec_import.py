@@ -204,12 +204,18 @@ _BARE_NAME = re.compile(r"^[A-Za-z_]\w*$")
 # A lumped load on a GW wire, the way SimNEC places one (AK#1683): an N-block
 # `R` component carrying the impedance between two nodes, and a NECSource
 # attaching those nodes to `$GW_<tag>` at a percentage of its length.
-_R_COMPONENT = re.compile(r"^R\d+\s*\((.*)\)\s+(\w+)\s+(\w+)$")
-_LOAD_SOURCE = re.compile(
-    r"^(?:(?:dcl\s+\w+|\$\w+)\s*=\s*)?NECSource\s*\(\s*\{\s*(\w+)\s*,\s*(\w+)\s*\}\s*,"
-    r"\s*\$GW_(\d+)\s*,\s*([^\s,()]+)\s*\)$",
-    re.IGNORECASE,
+# A NECSource call (AK#1683, AK#2195, AK#2204), optionally assigned: its
+# three arguments are split and read by `_Script._directive` -- a node pair
+# `{a, b}` or a load's impedance, the wire, and the place along it.
+_NECSOURCE = re.compile(
+    r"^(?:(?:dcl\s+)?\$?[A-Za-z_]\w*\s*=\s*)?NECSource\s*\((.*)\)$",
+    re.IGNORECASE | re.DOTALL,
 )
+# An N-block element line (SimNEC's "N Block Syntax"): a designator whose
+# first letter is its kind, R (ohms), X (j ohms), L (henries) or C (farads),
+# then its value, then two node names, then for L and C an optional Q and its
+# frequency. The value is either one field with no spaces or a ( ) group.
+_NBLOCK = re.compile(r"^([RXLC])\w*(?=[\s(])\s*(.*)$")
 # SimNEC's W7EL (EZNEC) insulation, the circuit default, as the exporter writes
 # it (AK#1683) under Ward's own engine guard, whose `if` / `else` /
 # `errorOutln` lines are structure, not directives.
@@ -234,30 +240,18 @@ _LC_TERM = re.compile(rf"^([RLC])\(\s*({_NUM})\s*\)$")
 # A load written inline, the component expression as the NECSource's first
 # argument (AK#2195): `$ld = NECSource(R(4150) ||| L(26.3u) ||| C(4.91p),
 # $GW_3, 100);` — SimNEC's own shorthand for an `R` component on two nodes.
-_INLINE_LOAD = re.compile(
-    r"^(?:(?:dcl\s+\w+|\$\w+)\s*=\s*)?NECSource\s*\(\s*([^\s{].*?)\s*,"
-    r"\s*\$GW_(\d+)\s*,\s*([^\s,()]+)\s*\)$",
-    re.IGNORECASE,
-)
-# SimNEC's per-wire insulation (AK#2195), `$GW_<tag>.Insulation(thickness,
-# permittivity, loss tangent)`: SimNEC's own (K6OIK) correction, where
-# `NECOptions.Insulation("W7EL", ...)` is the circuit-wide EZNEC one.
-_WIRE_INSULATION = re.compile(
-    r"^\$GW_(\d+)\s*\.\s*Insulation\s*\(\s*([^\s,()]+)\s*,\s*([^\s,()]+)\s*,"
-    r"\s*([^\s,()]+)\s*\)$",
-    re.IGNORECASE,
-)
-# The circuit-wide K6OIK form (AK#2195): `NECOptions.Insulation(thickness,
-# permittivity, loss tangent)`, no correction named.
-_K6OIK = re.compile(
-    r"^NECOptions\.Insulation\s*\(\s*([^\s,()\"]+)\s*,\s*([^\s,()]+)\s*,"
-    r"\s*([^\s,()]+)\s*\)$",
-    re.IGNORECASE,
+# An `.Insulation(...)` call on a wire or on NECOptions (AK#2195, AK#2204):
+# `$GW_<tag>.Insulation(t, er, tand)` or a variable holding the wire is
+# SimNEC's per-wire (K6OIK) jacket, `NECOptions.Insulation(t, er, tand)` the
+# circuit-wide one. The W7EL form, which names its correction, is `_W7EL`.
+_INSULATION_CALL = re.compile(
+    r"^(\$?[A-Za-z_]\w*)\s*\.\s*Insulation\s*\((.*)\)$", re.IGNORECASE | re.DOTALL
 )
 # The statements that change the model when applied. One left unapplied
 # refuses the file (AK#2195) rather than solving without it.
 _MODEL_STATEMENT = re.compile(
-    r"NECSource\s*\(|\.\s*Insulation\s*\(|^R\d+\s*\(", re.IGNORECASE
+    r"NECSource\s*\(|\.\s*Insulation\s*\(|^[RXLC]\w*(?=[\s(]).*\s\w+\s+\w+\s*$",
+    re.IGNORECASE,
 )
 
 
@@ -335,6 +329,257 @@ def _si_float(token: str) -> float:
     if text and text[-1] in _SI_SUFFIX:
         scale, text = _SI_SUFFIX[text[-1]], text[:-1]
     return float(text) * scale
+
+
+class _Unread(ValueError):
+    """An expression the evaluator does not read (AK#2204): a name with no
+    one constant value, a function it does not know, or a form it refuses."""
+
+
+_ZTOKEN = re.compile(
+    r"\s*(?:(?P<num>(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?(?P<sfx>[a-zA-Z\u00b5](?![\w.]))?)"
+    r"|(?P<name>\$?[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)"
+    r"|(?P<op>\|\|\||\*\*|[-+*/^(),]))"
+)
+
+
+def _ztokens(text: str) -> list[tuple[str, object]]:
+    """``(kind, value)`` tokens of a SimNEC value expression (AK#2204):
+    ``num`` (a float, its SI suffix applied), ``name`` and ``op``. A name of
+    the form ``j<digits>`` is SimNEC's ``j`` prefix on a number (``j50``)."""
+    out: list[tuple[str, object]] = []
+    k = 0
+    text = text.strip()
+    while k < len(text):
+        m = _ZTOKEN.match(text, k)
+        if not m or m.end() == k:
+            raise _Unread(f"{text!r}: cannot read from {text[k:]!r}")
+        k = m.end()
+        if m.group("num") is not None:
+            out.append(("num", _si_float(m.group("num"))))
+        elif m.group("name") is not None:
+            name = m.group("name")
+            jm = re.fullmatch(r"j(\d+\.?\d*(?:[eE][-+]?\d+)?[a-zA-Z\u00b5]?)", name)
+            if jm:
+                out += [("op", "j"), ("num", _si_float(jm.group(1)))]
+            elif name == "j":
+                out.append(("op", "j"))
+            else:
+                out.append(("name", name))
+        else:
+            out.append(("op", m.group("op")))
+        if not text[k:].strip():
+            break
+    return out
+
+
+def _zparse(text: str):
+    """A SimNEC value expression as a tree (AK#2204), at the F block's
+    precedence: ``|||`` between sum and product, ``**`` / ``^`` right
+    associative above the unary ``-``, ``+`` and ``j``. The F-block notes
+    give ``|||`` two different places against ``*`` and ``/``, so an
+    unparenthesised product beside a ``|||`` is refused as ambiguous."""
+    toks = _ztokens(text)
+    pos = 0
+
+    def peek():
+        return toks[pos] if pos < len(toks) else ("end", None)
+
+    def take():
+        nonlocal pos
+        pos += 1
+        return toks[pos - 1]
+
+    def expect(op):
+        if peek() != ("op", op):
+            raise _Unread(f"{text!r}: expected {op!r}")
+        take()
+
+    def atom():
+        kind, val = take() if pos < len(toks) else ("end", None)
+        if kind == "num":
+            return ("num", complex(val))
+        if kind == "name":
+            if peek() == ("op", "("):
+                take()
+                args = []
+                if peek() != ("op", ")"):
+                    args.append(sum_())
+                    while peek() == ("op", ","):
+                        take()
+                        args.append(sum_())
+                expect(")")
+                return ("call", val, tuple(args))
+            return ("name", val)
+        if (kind, val) == ("op", "("):
+            inner = sum_()
+            expect(")")
+            return ("paren", inner)
+        raise _Unread(f"{text!r}: unexpected {val!r}")
+
+    def power():
+        base = atom()
+        if peek() in (("op", "**"), ("op", "^")):
+            take()
+            return ("bin", "**", base, unary())
+        return base
+
+    def unary():
+        if peek() in (("op", "-"), ("op", "+"), ("op", "j")):
+            op = take()[1]
+            if op == "j" and peek() == ("op", "*"):
+                take()  # `j*50`, the spelling the old reader took as j50
+            return ("un", op, unary())
+        return power()
+
+    def prod():
+        left = unary()
+        while peek() in (("op", "*"), ("op", "/")):
+            op = take()[1]
+            left = ("bin", op, left, unary())
+        return left
+
+    def par():
+        left = prod()
+        while peek() == ("op", "|||"):
+            take()
+            right = prod()
+            for side in (left, right):
+                if side[0] == "bin" and side[1] in ("*", "/"):
+                    raise _Unread(
+                        f"{text!r}: a product beside '|||' without parentheses "
+                        "is ambiguous (SimNEC's notes give '|||' two precedences)"
+                    )
+            left = ("bin", "|||", left, right)
+        return left
+
+    def sum_():
+        left = par()
+        while peek() in (("op", "+"), ("op", "-")):
+            op = take()[1]
+            left = ("bin", op, left, par())
+        return left
+
+    tree = sum_()
+    if pos != len(toks):
+        raise _Unread(f"{text!r}: unexpected {toks[pos][1]!r}")
+    return tree
+
+
+def _znum(tree, lookup) -> complex:
+    """The constant value of ``tree``; ``lookup(name)`` gives a name's tree.
+    ``R(x)`` is x ohms and ``X(x)`` j*x; anything that depends on frequency
+    (``L``, ``C``, ``jw``) or is unknown raises `_Unread`."""
+    kind = tree[0]
+    if kind == "num":
+        return tree[1]
+    if kind == "paren":
+        return _znum(tree[1], lookup)
+    if kind == "name":
+        return _znum(lookup(tree[1]), lookup)
+    if kind == "un":
+        v = _znum(tree[2], lookup)
+        return {"-": -v, "+": v, "j": 1j * v}[tree[1]]
+    if kind == "call":
+        name, args = tree[1], tree[2]
+        if name in ("R", "X") and len(args) == 1:
+            v = _znum(args[0], lookup)
+            return v if name == "R" else 1j * v
+        raise _Unread(f"{name}(...) is not a constant")
+    _, op, a, b = tree
+    x, y = _znum(a, lookup), _znum(b, lookup)
+    if op == "+":
+        return x + y
+    if op == "-":
+        return x - y
+    if op == "*":
+        return x * y
+    if op == "/":
+        if y == 0:
+            raise _Unread("division by zero")
+        return x / y
+    if op == "**":
+        return x**y
+    if x + y == 0:
+        raise _Unread("'|||' of opposite impedances")
+    return x * y / (x + y)
+
+
+def _zlumped(text: str, lookup) -> tuple[int, float, float, float]:
+    """A load value as LD card values ``(type, F1, F2, F3)`` (AK#2204): type
+    0 for R, ``L(henries)`` and ``C(farads)`` joined by ``+`` (each at most
+    once), 1 for the same joined by ``|||``, 4 for a constant R + jX (a
+    constant real is a type-0 R). Values may be any constant expression, the
+    script's own constants included. Anything else raises `_Unread`."""
+    tree = _zparse(text)
+    while tree[0] == "paren":
+        tree = tree[1]
+    if tree[0] == "name":
+        return _zlumped_tree(lookup(tree[1]), lookup)
+    return _zlumped_tree(tree, lookup)
+
+
+def _zlumped_tree(tree, lookup):
+    try:
+        v = _znum(tree, lookup)
+    except _Unread:
+        v = None
+    if v is not None:
+        return (0, v.real, 0.0, 0.0) if v.imag == 0 else (4, v.real, v.imag, 0.0)
+    op = tree[1] if tree[0] == "bin" and tree[1] in ("+", "|||") else None
+    if op is None:
+        leaves = [tree]
+    else:
+        leaves = []
+
+        def flat(t):
+            while t[0] == "paren":
+                t = t[1]
+            if t[0] == "bin" and t[1] == op:
+                flat(t[2])
+                flat(t[3])
+            else:
+                leaves.append(t)
+
+        flat(tree)
+    legs: dict[str, float] = {}
+    for leaf in leaves:
+        while leaf[0] == "paren":
+            leaf = leaf[1]
+        if leaf[0] == "call" and leaf[1] in ("L", "C"):
+            if len(leaf[2]) != 1:
+                raise _Unread(f"{leaf[1]}(...) with a Q is not an LD card value")
+            kind, val = leaf[1], _znum(leaf[2][0], lookup)
+        else:
+            kind, val = "R", _znum(leaf, lookup)
+        if val.imag != 0 or kind in legs:
+            raise _Unread("not one R, L and C joined by '+' or '|||'")
+        legs[kind] = val.real
+    return (
+        1 if op == "|||" else 0,
+        legs.get("R", 0.0),
+        legs.get("L", 0.0),
+        legs.get("C", 0.0),
+    )
+
+
+def _top_split(text: str, sep: str = ",") -> list[str]:
+    """``text`` split at ``sep`` outside ( ), [ ], { } and strings."""
+    out, cur, depth, q = [], [], 0, False
+    for ch in text:
+        if ch == '"':
+            q = not q
+        elif not q and ch in "([{":
+            depth += 1
+        elif not q and ch in ")]}":
+            depth -= 1
+        if ch == sep and depth == 0 and not q:
+            out.append("".join(cur).strip())
+            cur = []
+            continue
+        cur.append(ch)
+    out.append("".join(cur).strip())
+    return out
 
 
 def _load_card_values(expr: str) -> tuple[int, float, float, float] | None:
@@ -1847,6 +2092,45 @@ def _element_param(spelling: str) -> str:
 _CONTINUES = ("+", "-", "*", "/", "^", "|", "=", ",", "(", "&", "<", ">", "!", "?", ":")
 
 
+def _nblock_element(stmt: str) -> tuple[str, str, str] | None:
+    """An N-block element line as ``(node, node, impedance expression)``
+    (AK#2204), or None when ``stmt`` is not one: ``R`` takes its value as
+    ohms (any expression, `R1 (1000 ||| L(2u)) a b`), ``X`` as j ohms, ``L``
+    as henries and ``C`` as farads. An L or C with a Q is returned with the
+    Q in its call, which the load reader refuses by name."""
+    m = _NBLOCK.match(stmt)
+    if not m or "=" in stmt.replace("==", ""):
+        return None
+    kind, rest = m.group(1), m.group(2).strip()
+    if rest.startswith("("):
+        depth = 0
+        for k, ch in enumerate(rest):
+            depth += {"(": 1, ")": -1}.get(ch, 0)
+            if depth == 0:
+                break
+        else:
+            return None
+        value, tail = rest[1:k].strip(), rest[k + 1 :].split()
+        inner = _top_split(value) if kind in "LC" else [value]
+        if len(inner) > 1:
+            value, tail = inner[0], [*tail, *inner[1:]]
+    else:
+        fields = rest.split()
+        if not fields:
+            return None
+        value, tail = fields[0], fields[1:]
+    if len(tail) < 2 or not all(re.fullmatch(r"\w+", n) for n in tail[:2]):
+        return None
+    extra = tail[2:]
+    if kind in "RX" and extra:
+        return None
+    if kind == "R":
+        expr = value
+    else:
+        expr = f"{kind}({', '.join([value, *extra])})"
+    return tail[0], tail[1], expr
+
+
 def _script_units(text: str, where: str):
     """The NEC-portal script as ``(kind, text, line, comment)`` units, in order
     (AK#2204): ``"card"`` for each card line of a ``NEC2 … NECEND`` block,
@@ -2003,14 +2287,17 @@ class _Script:
         # Lumped loads on GW wires (AK#1683): the `R` components by their
         # node pair, and the NECSource statements attaching them.
         self._r_components: dict[tuple[str, str], tuple[str, str]] = {}
-        self._load_sources: list[tuple[re.Match, str]] = []
+        self._load_sources: list[tuple[str, str, str, str, str]] = []
         # NECOptions.Insulation("W7EL", ...): (radial thickness m, eps_r, loss tangent).
         self.insulation: tuple[float, float, float] | None = None
         # `$GW_<tag>.Insulation(...)` (AK#2195): the same triple per tag,
         # over the circuit default for that wire.
         self.wire_insulation: dict[int, tuple[float, float, float] | None] = {}
         # Loads written inline (AK#2195): (expression, tag, percent, stmt).
-        self._inline_loads: list[tuple[str, int, str, str]] = []
+        self._inline_loads: list[tuple[str, str, str, str]] = []
+        # `.Insulation(...)` calls, (wire or NECOptions, argument texts, stmt),
+        # read after the whole script (`_apply_insulation`, AK#2204).
+        self._insulation_calls: list[tuple[str, list[str], str]] = []
         # Port declarations (`P2 w2 gnd`): each port's node pair, so a
         # NECSource on a port's nodes reads as the feed (AK#2195).
         self.port_nodes: set[frozenset[str]] = set()
@@ -2093,7 +2380,9 @@ class _Script:
                 except ValueError:
                     continue
 
-        def segment(tag: int, pct_text: str, what: str) -> tuple[int, int] | None:
+        def segment(
+            tag: int, pct_text: str, what: str, exact: bool = False
+        ) -> tuple[int, int] | None:
             """Where ``pct_text`` % of ``$GW_<tag>`` falls, as ``(segment,
             end)``: end 0 for a segment's centre (NEC-2's own attachment), or
             end 1 / 2 of that segment for a knot, a wire end included, which
@@ -2112,7 +2401,7 @@ class _Script:
             # place beside it. Within half its last digit is the place; any
             # further is refused (AK#2195).
             digits = pct_text.split(".", 1)[1] if "." in pct_text else ""
-            decimals = len(digits) if digits.isdigit() else 0
+            decimals = len(digits) if digits.isdigit() and not exact else 0
             # A whole number is exact: 40 means 40, not "about 40".
             tol = (
                 max(1e-6, 0.5 * 10.0 ** (-decimals) / 100.0 * n[0])
@@ -2134,35 +2423,69 @@ class _Script:
                 )
             return seg, 0
 
-        # A load's value may name a constant the script sets once, as
-        # AC6LA's files do (`dcl R_4 = 0+j50;` then `R4 (R_4) r4a r4b;`):
-        # the constant's own literal stands in for it (AK#2195). A name set
-        # more than once, or to anything but a literal, is left as it is,
-        # and the load then refuses as unread.
+        # A value may name a constant the script sets once, as AC6LA's files
+        # do (`dcl R_4 = 0+j50;` then `R4 (R_4) r4a r4b;`), and a wire may be
+        # a variable holding one (`$w = $GW_3;`): read as their one value
+        # (AK#2195, AK#2204). A name set more than once, or only inside a
+        # block or a condition, has no one value, and what uses it refuses.
         sets: dict[str, list[str | None]] = {}
         for a in self.assigns:
             sets.setdefault(a.name, []).append(a.expr if a.constant else None)
-        consts = {
-            k: v[0].strip()
-            for k, v in sets.items()
-            if len(v) == 1
-            and v[0] is not None
-            and (re.fullmatch(_NUM, v[0].strip()) or _Z_EXPR.match(v[0].strip()))
-        }
+        consts = {k: v[0].strip() for k, v in sets.items() if len(v) == 1 and v[0]}
+        busy: set[str] = set()
+
+        def lookup(name: str):
+            if name not in consts:
+                raise _Unread(f"{name} has no one constant value")
+            if name in busy:
+                raise _Unread(f"{name} is defined in terms of itself")
+            busy.add(name)
+            try:
+                return _zparse(consts[name])
+            finally:
+                busy.discard(name)
+
+        def number(text: str) -> float:
+            v = _znum(_zparse(text), lookup)
+            if v.imag:
+                raise _Unread(f"{text!r} is complex")
+            return v.real
+
+        def wire_tag(ref: str) -> int | None:
+            for _ in range(8):
+                m = re.fullmatch(r"\$GW_(\d+)", ref.strip())
+                if m:
+                    return int(m.group(1))
+                if ref.strip() not in consts:
+                    return None
+                ref = consts[ref.strip()]
+            return None
+
+        self._apply_insulation(where, number, wire_tag)
 
         def values_of(expr: str):
-            if expr.strip() in consts:
-                return _load_card_values(consts[expr.strip()])
-            return _load_card_values(
-                re.sub(
-                    r"(?<![\w.])([A-Za-z_]\w*)(?![\w(])",
-                    lambda m: consts.get(m.group(1), m.group(1)),
-                    expr,
-                )
+            try:
+                return _zlumped(expr, lookup)
+            except _Unread:
+                return None
+
+        def place(ref: str, pct_text: str, what: str):
+            tag = wire_tag(ref)
+            if tag is None:
+                return None, None
+            if re.fullmatch(_NUM, pct_text.strip()):
+                return tag, segment(tag, pct_text.strip(), what)
+            try:
+                pct = number(pct_text)
+            except _Unread:
+                return tag, None
+            # A computed place is exact, as a whole number is.
+            return tag, segment(
+                tag, repr(pct) if pct != int(pct) else str(int(pct)), what, exact=True
             )
 
-        def add_load(values, tag, place) -> None:
-            seg, end = place
+        def add_load(values, tag, at) -> None:
+            seg, end = at
             if end:
                 # A knot has no NEC-2 card spelling: placed on the deck after
                 # it is read (`_place_at_knots`).
@@ -2173,18 +2496,17 @@ class _Script:
 
         has_ex = any(c.split()[:1] == ["EX"] for c in self.cards)
         used: set[tuple[str, str]] = set()
-        for m, stmt in self._load_sources:
-            a, b, tag, pct_text = m.group(1), m.group(2), int(m.group(3)), m.group(4)
+        for a, b, ref, pct_text, stmt in self._load_sources:
             key = (a, b) if (a, b) in self._r_components else (b, a)
             comp = self._r_components.get(key)
             if comp is None and frozenset((a, b)) in self.port_nodes and not has_ex:
                 # A port's own nodes on a wire: the feed, as SimNEC reads it
                 # with no EX card in the block (AK#2195).
-                place = segment(tag, pct_text, f"the source {stmt!r}")
-                if place is None:
+                tag, at = place(ref, pct_text, f"the source {stmt!r}")
+                if at is None:
                     self.ignored.append(stmt)
                     continue
-                seg, end = place
+                seg, end = at
                 if end:
                     self.knot_feeds.append((tag, seg, end))
                 else:
@@ -2192,22 +2514,54 @@ class _Script:
                 has_ex = True
                 continue
             values = values_of(comp[0]) if comp else None
-            place = segment(tag, pct_text, f"the load {comp[1]!r}") if values else None
-            if values is None or place is None:
+            tag, at = (
+                place(ref, pct_text, f"the load {comp[1]!r}")
+                if values
+                else (None, None)
+            )
+            if values is None or at is None:
                 self.ignored.append(stmt)
                 continue
             used.add(key)
-            add_load(values, tag, place)
-        for expr, tag, pct_text, stmt in self._inline_loads:
+            add_load(values, tag, at)
+        for expr, ref, pct_text, stmt in self._inline_loads:
             values = values_of(expr)
-            place = segment(tag, pct_text, f"the load {stmt!r}") if values else None
-            if values is None or place is None:
+            tag, at = (
+                place(ref, pct_text, f"the load {stmt!r}") if values else (None, None)
+            )
+            if values is None or at is None:
                 self.ignored.append(stmt)
                 continue
-            add_load(values, tag, place)
+            add_load(values, tag, at)
         for key, (_expr, stmt) in self._r_components.items():
             if key not in used:
                 self.ignored.append(stmt)
+
+    def _apply_insulation(self, where: str, number, wire_tag) -> None:
+        """Each ``.Insulation(t, er, tand)`` call, its values and its wire
+        read now that the whole script is in (AK#2195, AK#2204): on
+        ``NECOptions`` the circuit's jacket, on a wire that wire's. One whose
+        values or wire cannot be read is left unread, and so refused."""
+        for ref, args, stmt in self._insulation_calls:
+            circuit = ref.lower() == "necoptions"
+            tag = None if circuit else wire_tag(ref)
+            try:
+                if len(args) != 3 or (tag is None and not circuit):
+                    raise _Unread(stmt)
+                thick, eps_r, tand = (number(a) for a in args)
+            except _Unread:
+                self.ignored.append(stmt)
+                continue
+            if not 0.0 <= tand < 1.0:
+                raise ValueError(
+                    f"{where}: {stmt!r} gives the insulation a loss tangent of "
+                    f"{tand:g}; it must be at least 0 and below 1"
+                )
+            jacket = (thick, eps_r, tand) if thick > 0.0 else None
+            if circuit:
+                self.insulation = jacket
+            else:
+                self.wire_insulation[tag] = jacket
 
     def _directive(self, stmt: str, where: str) -> None:
         if _PORT_DECL.match(stmt):
@@ -2248,54 +2602,36 @@ class _Script:
             # The jacket's dielectric loss (AK#2035), served by momwire#765.
             self.insulation = (thick, eps_r, tand) if thick > 0.0 else None
             return
-        m = _WIRE_INSULATION.match(stmt)
-        if m:
-            try:
-                thick = _si_float(m.group(2))
-                eps_r = _si_float(m.group(3))
-                tand = _si_float(m.group(4))
-            except ValueError:
-                self.ignored.append(stmt)
-                return
-            if not 0.0 <= tand < 1.0:
-                raise ValueError(
-                    f"{where}: {stmt!r} gives the insulation a loss tangent of "
-                    f"{tand:g}; it must be at least 0 and below 1"
-                )
-            self.wire_insulation[int(m.group(1))] = (
-                (thick, eps_r, tand) if thick > 0.0 else None
-            )
-            return
-        m = _K6OIK.match(stmt)
-        if m:
-            # SimNEC's own (K6OIK) correction for every wire (AK#2195), the
-            # circuit-wide twin of the per-wire form: on SimNEC's NEC-5 engine
-            # both write the a′ and L′ these engines use (AK#1523).
-            try:
-                thick, eps_r, tand = (_si_float(m.group(i)) for i in (1, 2, 3))
-            except ValueError:
-                self.ignored.append(stmt)
-                return
-            if not 0.0 <= tand < 1.0:
-                raise ValueError(
-                    f"{where}: {stmt!r} gives the insulation a loss tangent of "
-                    f"{tand:g}; it must be at least 0 and below 1"
-                )
-            self.insulation = (thick, eps_r, tand) if thick > 0.0 else None
+        m = _INSULATION_CALL.match(stmt)
+        if m and not m.group(2).lstrip().startswith('"'):
+            # Read once the whole script is in (`_apply_insulation`), so its
+            # values may be the script's constants and the wire a variable.
+            self._insulation_calls.append((m.group(1), _top_split(m.group(2)), stmt))
             return
         if _ENGINE_GUARD.match(stmt) or _NEC5_JAM.match(stmt):
             return
-        m = _INLINE_LOAD.match(stmt)
+        m = _NECSOURCE.match(stmt)
         if m:
-            self._inline_loads.append((m.group(1), int(m.group(2)), m.group(3), stmt))
+            args = _top_split(m.group(1))
+            if len(args) == 3 and args[0].startswith("{") and args[0].endswith("}"):
+                nodes = _top_split(args[0][1:-1])
+                if len(nodes) == 2 and all(re.fullmatch(r"\w+", n) for n in nodes):
+                    self._load_sources.append((*nodes, args[1], args[2], stmt))
+                    return
+            elif len(args) == 3:
+                self._inline_loads.append((args[0], args[1], args[2], stmt))
+                return
+            self.ignored.append(stmt)
             return
-        m = _R_COMPONENT.match(stmt)
-        if m:
-            self._r_components[(m.group(2), m.group(3))] = (m.group(1), stmt)
-            return
-        m = _LOAD_SOURCE.match(stmt)
-        if m:
-            self._load_sources.append((m, stmt))
+        element = _nblock_element(stmt)
+        if element is not None:
+            # Elements on the same two nodes are in parallel (AK#2204).
+            n1, n2, expr = element
+            key = (n1, n2) if (n2, n1) not in self._r_components else (n2, n1)
+            if key in self._r_components:
+                prev, prev_stmt = self._r_components[key]
+                expr, stmt = f"({prev}) ||| ({expr})", f"{prev_stmt}; {stmt}"
+            self._r_components[key] = (expr, stmt)
             return
         if _PERFECT.match(stmt):
             self.ground = "pec"
