@@ -241,7 +241,7 @@ The [validation page](/reference/validation/) carries the panel. The twin
 is the controlled experiment behind the pair recipe: on a 14 MHz dipole
 the *same* tent basis under Galerkin testing (bs1) sits within 0.5 Ω of
 its converged value at 48 segments where NEC-5's formulation is still
-outside that band at 96, and momwire's degree-2 B-spline (bs2) gets there
+outside that band at 96, and momwire's degree-2 B-spline (nec5-bspline) gets there
 at 12 (16 on an inverted-V, 32 on the fat dipole). Eight times the
 segments is 64× the fill and roughly 500× the dense solve, before the
 second solve the (N, 2N) pair costs.
@@ -257,7 +257,7 @@ free space and 2.1× under full Sommerfeld (its certified figures at 8,320
 basis functions), for a ceiling of 15–18k basis functions: the working
 copies a higher-order basis needs while it assembles in windows. Wall
 clock runs the other way at that size — 8,320 segments takes nec2c 466 s,
-NEC-5 37 s, and momwire's bs2 29 s. NEC-5 is a lean, fast solve; what
+NEC-5 37 s, and momwire's nec5-bspline 29 s. NEC-5 is a lean, fast solve; what
 the triangle pays for it is the mesh its formulation asks for, not the
 code that runs it.
 

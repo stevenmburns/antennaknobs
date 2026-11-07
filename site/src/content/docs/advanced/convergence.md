@@ -52,15 +52,15 @@ only evidence about itself. `dominator` again, slot A this time:
 
 | N | 21 | 61 | 161 | 321 | 641 |
 |---|---|---|---|---|---|
-| Z (bs2) | 30.6+3.2j | 30.6+2.8j | 30.7+2.5j | 30.9+0.9j | 30.9−0.5j |
+| Z (bspline) | 30.6+3.2j | 30.6+2.8j | 30.7+2.5j | 30.9+0.9j | 30.9−0.5j |
 
 The d=2 basis is already at N=21 where the sinusoidal basis arrives at
 N=321–641 — and they arrive at the **same** place. That pair of facts is
 what "converged and correct" looks like. In the census, the two bases
 reached a mutual limit (<2 % apart at the finest affordable mesh) on
-66 of 91 designs; on those, bs2 was already within 2 % of the limit at
+66 of 91 designs; on those, bspline was already within 2 % of the limit at
 N=21 on 53 — the sinusoidal basis on 36 — with conv@N advantages up to
-15×. That measurement is why the default solver slot now runs bs2 at
+15×. That measurement is why the default solver slot now runs bspline at
 N=15: on the scorable catalog it is converged out of the box, at ~35 %
 less cost per solve than N=21.
 
@@ -79,9 +79,9 @@ The census decomposed every non-converging catalog design into four
 classes, and they want four different responses.
 
 **1. Slow basis convergence.** The value is creeping monotonically and
-slot A (bs2) is flat at the value slot B is creeping *toward*. This is
+slot A (bspline) is flat at the value slot B is creeping *toward*. This is
 the common case — port-fed and junction-heavy designs converge slowly on
-the sinusoidal/pulse family. Response: trust the flat bs2 value, or
+the sinusoidal/pulse family. Response: trust the flat bspline value, or
 extend the ladder if you need the confirmation.
 
 **2. Mesh-density mismatch in the geometry.** One part of the structure
@@ -89,7 +89,7 @@ refines while another is pinned coarse, and the graded junction between
 them poisons the solve — the curve may *diverge* with refinement. (Two
 catalog verticals did exactly this until their radials were made to
 refine with the mesh; the tell was sin/PyNEC marching away from a flat
-bs2 while the meshes decoupled.) Response: refine *uniformly* — in
+bspline while the meshes decoupled.) Response: refine *uniformly* — in
 your own builders, just return `None` segment counts; the framework
 meshes every such wire at the design density, `nominal_nsegs`
 segments per quarter-wavelength at your declared `design_freq` (so
@@ -143,7 +143,7 @@ rather than reusing the nominal count on short wires (the catalog is
 now linted for exactly this, both the ratio at fine mesh and its
 growth up the ladder). The d=2 basis is immune — a Galerkin method
 regularizes the reduced-kernel ill-posedness — which is also why a flat
-bs2 next to an exploding sin curve is the tell.
+bspline next to an exploding sin curve is the tell.
 
 When the low Δ/a is the *design* rather than a meshing slip — tubing,
 cages, a fat-wire imported deck — the fix is not a finer mesh but a
@@ -197,7 +197,7 @@ free space; "converged" = within 2 % of the finest rung):
 | `loops.delta_loop` (triangle) | N≥15 | N≥7 |
 
 A dense solve scales as (basis count)², so 2–3× fewer segments is a
-~4–9× cheaper solve at equal accuracy — on bs2 a single-loop design can
+~4–9× cheaper solve at equal accuracy — on bspline a single-loop design can
 run *below* the N=15 default without losing the answer. Verify with the
 convergence sweep as usual, and don't generalize the discount: it is
 loop-specific. On open linear structures (`beams.yagi`) and the
@@ -243,7 +243,7 @@ the physics doesn't:
   *middle segment* as the mesh refines, so the point model survives
   refinement; pinning the wire's count instead (the old convention)
   turned out to bias the converged value itself — the catalog's trap
-  study saw a pinned trap hold bs2 flat at the wrong reactance while the
+  study saw a pinned trap hold bspline flat at the wrong reactance while the
   density-meshed model converged cleanly. What you should *not* do is
   spread the load's port current over a finite extent: gap-averaging a
   physical resistor under-counts its dissipation. Even the historically
@@ -382,7 +382,7 @@ knowing before you trust a curve:
 
 ## A working recipe
 
-1. Solve at the defaults (bs2, N=15). For most of the catalog you are
+1. Solve at the defaults (bspline, N=15). For most of the catalog you are
    already converged — the census says 80 % of scorable designs are
    within 2 % at coarse mesh on this basis.
 2. Run a **convergence sweep**: the **Sweep** chart with density

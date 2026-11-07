@@ -212,7 +212,7 @@ The extended kernel is itself an expansion, and it runs out where a segment is
 no longer long compared to the wire's radius: its error grows from about 0.2 %
 at a segment three radii long to about 3 % at one radius, so refining a fat
 wire's mesh far enough makes the answer drift instead of settle. The B-spline
-basis (**`bspline`**, bs2, from momwire 0.76.0) and **`razor-2p`** (from momwire
+basis (**`bspline`**, degree 2, from momwire 0.76.0) and **`razor-2p`** (from momwire
 0.77.0) have an **exact ring kernel**: between segments that share a line it integrates the current's
 ring around the tube exactly — across a radius step on that line too, each
 ring on its own wire's surface, from momwire 0.78 — with no expansion, and stays put as the mesh

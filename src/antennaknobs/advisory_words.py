@@ -101,7 +101,7 @@ def _far_mesh(text: str, _locate) -> str | None:
     return (
         f"razor-2p's answer keeps moving as segments are added: on typical "
         f"models it sits a few percent from converged (median {m.group(1)} %). "
-        f"Doubling the segments roughly halves that, and bs2 is already "
+        f"Doubling the segments roughly halves that, and bspline is already "
         f"converged at the same segment counts."
     )
 
