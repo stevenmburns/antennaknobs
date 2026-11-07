@@ -1842,6 +1842,131 @@ def _element_param(spelling: str) -> str:
     return f"par_{spelling}"
 
 
+# A script line that ends in one of these continues on the next line
+# (AK#2204): the statement is not finished.
+_CONTINUES = ("+", "-", "*", "/", "^", "|", "=", ",", "(", "&", "<", ">", "!", "?", ":")
+
+
+def _script_units(text: str, where: str):
+    """The NEC-portal script as ``(kind, text, line, comment)`` units, in order
+    (AK#2204): ``"card"`` for each card line of a ``NEC2 … NECEND`` block,
+    ``"name"`` for a line that is only a ``//`` comment (the first names the
+    block), and ``"stmt"`` for each statement, with the ``//`` comment of the
+    line it ends on.
+
+    A statement ends at a ``;`` outside parentheses, strings and comments,
+    or at the end of a line that leaves it complete: a control header on a
+    line of its own (``if (c)``, ``else``) stays its own statement, as the
+    exporter writes them. It runs on across lines while a parenthesis is
+    open, or when its line ends on an operator or a comma, as a statement
+    split by hand does. ``//`` and ``/* … */`` are comments wherever they
+    are, never inside a string; a ``/* */`` may span lines."""
+    in_cards = False
+    in_block = False  # inside /* */
+    cur: list[str] = []  # the statement so far, comments removed
+    start = 0
+    depth = 0  # ( ) and [ ] nesting of the statement so far
+    comment = ""
+
+    def flush():
+        nonlocal cur, depth
+        stmt = " ".join("".join(cur).split())
+        cur, depth = [], 0
+        return stmt
+
+    for line_no, raw in enumerate(text.splitlines(), 1):
+        line = raw.strip()
+        if in_cards:
+            if _NECEND_LINE.match(line):
+                in_cards = False
+                continue
+            if not line:
+                continue
+            if line[:2].upper() not in ("CM", "CE"):
+                # SimNEC reads `//` as a comment inside the block too.
+                line = line.split("//", 1)[0].rstrip()
+            if line and line.split()[0].upper() != "EN":
+                # A stray EN inside the block would make parse_nec stop
+                # before the appended GS (units) / GE (ground) cards; the
+                # importer supplies its own EN.
+                yield "card", line, line_no, ""
+            continue
+        if not in_block and not cur and _NEC2_LINE.match(line):
+            in_cards = True
+            continue
+        if not in_block and not cur and line.startswith("//"):
+            yield "name", line[2:].strip(), line_no, ""
+            continue
+        comment = ""
+        k, n = 0, len(raw)
+        while k < n:
+            ch = raw[k]
+            if in_block:
+                end = raw.find("*/", k)
+                if end < 0:
+                    k = n
+                    break
+                in_block, k = False, end + 2
+                cur.append(" ")
+                continue
+            if raw.startswith("//", k):
+                comment = raw[k + 2 :].strip()
+                break
+            if raw.startswith("/*", k):
+                in_block, k = True, k + 2
+                continue
+            if ch == '"':
+                end = raw.find('"', k + 1)
+                if end < 0:
+                    raise ValueError(f"{where}: line {line_no}: a string is not closed")
+                if not "".join(cur).strip():
+                    start = line_no
+                cur.append(raw[k : end + 1])
+                k = end + 1
+                continue
+            if ch in "([":
+                depth += 1
+            elif ch in ")]":
+                depth = max(0, depth - 1)
+            if ch == ";" and depth == 0:
+                stmt = flush()
+                if stmt:
+                    yield "stmt", stmt, start, _comment_of(raw, k)
+                k += 1
+                continue
+            if not ch.isspace() and not "".join(cur).strip():
+                start = line_no
+            cur.append(ch)
+            k += 1
+        if in_block:
+            continue
+        so_far = "".join(cur).strip()
+        if not so_far:
+            cur = []
+        elif depth == 0 and not so_far.endswith(_CONTINUES):
+            yield "stmt", flush(), start, comment
+        else:
+            cur.append(" ")
+    if in_cards:
+        raise ValueError(f"{where}: NEC2 block is missing its NECEND")
+    if in_block:
+        raise ValueError(f"{where}: a /* comment is not closed")
+    stmt = flush()
+    if stmt:
+        yield "stmt", stmt, start, comment
+
+
+def _comment_of(raw: str, k: int) -> str:
+    """The ``//`` comment after position ``k`` of ``raw``, outside strings."""
+    q = False
+    for j in range(k, len(raw) - 1):
+        if raw[j] == '"':
+            q = not q
+        elif not q and raw.startswith("//", j):
+            return raw[j + 2 :].strip()
+    return ""
+
+
 class _Script:
     """The NEC-portal ``<equ>`` script pulled apart: NEC cards, translated
     directives, the block name, and whatever was not understood. ``params``
@@ -1897,70 +2022,31 @@ class _Script:
         # Every assignment the script makes, in order (AK#1714): what
         # `_DclCards` reads the cards' names from.
         self.assigns: list[_Assign] = []
-        in_cards = False
         depth = 0  # `{ }` nesting of the directive text
         # The next statement is the brace-less body of an `if (...)`,
         # `while (...)`, `for (...)` or `else` (AK#1734): conditional, so
-        # never a constant, as if it sat inside `{ }`. `in_for` is inside a
-        # `for (` header, which the `;` split cuts into three statements.
+        # never a constant, as if it sat inside `{ }`.
         body, in_for = False, False
-        in_comment = False  # inside a /* */ block
-        for line_no, raw in enumerate(text.splitlines(), 1):
-            line = raw.strip()
-            if not line:
+        for kind, stmt, line_no, comment in _script_units(text, where):
+            if kind == "card":
+                self.cards.append(stmt)
                 continue
-            if in_cards:
-                if _NECEND_LINE.match(line):
-                    in_cards = False
-                    continue
-                if line[:2].upper() not in ("CM", "CE"):
-                    # SimNEC reads `//` as a comment inside the block too.
-                    line = line.split("//", 1)[0].rstrip()
-                if line and line.split()[0].upper() != "EN":
-                    # A stray EN inside the block would make parse_nec stop
-                    # before the appended GS (units) / GE (ground) cards; the
-                    # importer supplies its own EN.
-                    self.cards.append(line)
-                continue
-            if line.startswith("//"):
+            if kind == "name":
                 if self.name is None:
-                    self.name = line[2:].strip() or None
+                    self.name = stmt or None
                 continue
-            if _NEC2_LINE.match(line):
-                in_cards = True
-                continue
-            # Directive line: drop a trailing // comment, then take the
-            # ;-separated statements (the exporter writes one per line, but
-            # the daemon language does not require that).
-            code, _, comment = line.partition("//")
-            # A /* */ block is prose to the script: its lines still reach
-            # `_directive` (and the not-applied list) as before, but no
-            # assignment or brace in it counts.
-            prose = in_comment or code.lstrip().startswith("/*")
-            if prose:
-                in_comment = "*/" not in code
-            for stmt in code.split(";"):
-                stmt = stmt.strip()
-                if stmt:
-                    if not prose:
-                        self.assigns.extend(
-                            _assignments(stmt, depth + body, comment.strip(), line_no)
-                        )
-                        body, in_for = _control_header(stmt, in_for)
-                        if _BARE_NAME.match(stmt):
-                            self.bare.setdefault(stmt, (comment.strip(), line_no, stmt))
-                        m = _PRM_DECL.match(stmt)
-                        if m:
-                            for decl in m.group(1).split(","):
-                                decl = decl.strip()
-                                if not decl.endswith("[]"):
-                                    self.bare.setdefault(
-                                        decl, (comment.strip(), line_no, stmt)
-                                    )
-                        depth = max(0, depth + stmt.count("{") - stmt.count("}"))
-                    self._directive(stmt, where)
-        if in_cards:
-            raise ValueError(f"{where}: NEC2 block is missing its NECEND")
+            self.assigns.extend(_assignments(stmt, depth + body, comment, line_no))
+            body, in_for = _control_header(stmt, in_for)
+            if _BARE_NAME.match(stmt):
+                self.bare.setdefault(stmt, (comment, line_no, stmt))
+            m = _PRM_DECL.match(stmt)
+            if m:
+                for decl in m.group(1).split(","):
+                    decl = decl.strip()
+                    if not decl.endswith("[]"):
+                        self.bare.setdefault(decl, (comment, line_no, stmt))
+            depth = max(0, depth + stmt.count("{") - stmt.count("}"))
+            self._directive(stmt, where)
         self._apply_loads(where)
         self._resolve_seg_per_wl(where)
 
