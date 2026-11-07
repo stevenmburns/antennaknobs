@@ -6031,6 +6031,18 @@ def _translate_network_cards(
                 continue
             wire_insulation[wi] = (b, eps_r)
 
+    # A jacket pair's LD 5 is the writer's σ′ = σ·(a/a′)², not the metal's σ
+    # (`engines._nec_wire.nec_wire_material`; EZNEC's NEC-5 export says the
+    # same, "LD 5 modified for wire insulation"). Once the pair inverts back
+    # to the conductor radius a, the conductivity goes back to σ too, or
+    # every writer scales it a second time: a jacketed NEC-5 deck read here
+    # solved ~8 % from the same deck on the NEC-5 binary (AK#2197).
+    for wi, a in wire_conductor_radius.items():
+        a_eq = wires[wi][4]
+        sigma = wire_conductivity.get(wi, conductivity)
+        if sigma is not None and a > 0.0:
+            wire_conductivity[wi] = sigma * (a_eq / a) ** 2
+
     return (
         tuple(loads),
         tuple(tls),
