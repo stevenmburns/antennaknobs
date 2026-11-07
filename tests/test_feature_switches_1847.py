@@ -65,8 +65,9 @@ def test_offered_only_where_served(name):
 def test_not_offered_outside_the_reach(monkeypatch):
     """The constructor probe alone is not enough: a platform below the
     feature's reach (sse2, Windows, macOS) is offered nothing."""
-    from momwire import _features
-
+    _features = pytest.importorskip(
+        "momwire._features", reason="this momwire has no feature registry"
+    )
     monkeypatch.setattr(_features, "certified", lambda name, *a, **k: False)
     for b in adapter._BACKENDS:
         for name in FEATURE_SWITCHES:
