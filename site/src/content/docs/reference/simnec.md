@@ -69,6 +69,14 @@ NEC2 engine only, with an `errorOutln` for any other engine. A jacket is one
 value for every wire, so a design whose wires carry different jackets is
 refused by name.
 
+A design with a wire **in the soil** (an end below z = 0 over real ground)
+exports too. The `NEC2` block is still NEC-2 card syntax, which SimNEC's
+NEC-5 and NEC-4.2 engines read with the soil around the buried wire; its NEC-2
+engine cannot model a buried wire, so the script stops there with an
+`errorOutln` naming the wire. For the same reason such a design's jackets go
+per wire, as `$GW_<tag>.Insulation(thickness, εr, loss tangent)` after the
+block, the form SimNEC's NEC-5 engine applies, rather than the W7EL directive.
+
 **Station designs** — a `build_network()` ladder of feedline, tuner arms, and
 transformers — additionally emit the chain as SimNEC circuit elements in
 cascade order:
@@ -164,7 +172,10 @@ splitting the wire at that point, never snapped to a neighbouring site.
 unpinned. Short of that, SimNEC still re-meshes every wire by its own rules
 before it solves, so its numbers differ from an import's by the mesh alone;
 for a same-mesh comparison, import `lastConstructedNEC.nec` from
-`~/.SimNEC/<version>/` instead — the deck SimNEC actually solved.
+`~/.SimNEC/<version>/` instead — the deck SimNEC actually solved. In a file
+with `NECSource` loads, though, that deck carries each load as one more
+source, which SimNEC then terminates in its own circuit, so the deck on its own
+is not the loaded antenna.
 
 Each SimNEC block is its own **measurement plane**: the Generator is `"rig"`
 (the far end of the feed system, not the antenna), the deck's fed wire is
@@ -196,6 +207,31 @@ saved file. antennaknobs does not evaluate SimNEC's scripting language, and
 says so by name rather than reporting a missing block. To bring such an
 antenna in, either write its cards into a `NEC2 … NECEND` block in the NETWORK
 script, or export a design from antennaknobs to `.ssn` and edit that.
+
+**Feeds, loads and jackets written in the script.** Around the block, the
+importer also reads SimNEC's own statements for them:
+
+- a feed as a `NECSource` on a declared port's nodes
+  (`$src = NECSource({w2, gnd}, $GW_2, 100);`), when the block has no `EX`;
+- a load as an `R` component on two nodes plus the `NECSource` attaching
+  them, or written inline as
+  `NECSource(R(4150) ||| L(26.3u) ||| C(4.91p), $GW_3, 100)`, its values
+  literal or set once by a constant;
+- a jacket per wire, `$GW_<tag>.Insulation(thickness, εr, loss tangent)`,
+  over the circuit-wide `NECOptions.Insulation(...)`.
+
+A place along a wire is taken exactly: a percentage that lands on a segment
+centre is that centre, and one on a knot (between two segments, or a wire's
+end, as `100` is) sits at that knot, as a NEC-5 deck's end field puts it.
+A percentage written to a few decimals counts within half its last digit;
+a whole number is exact. Anywhere else is refused by name, never moved to the
+nearest site. Two loads at one place add in series, as two `LD` cards on one
+segment do in NEC.
+
+**What is not read is refused, not dropped.** A feed, load or insulation
+statement the importer cannot read (a value from a variable, a wire no `GW`
+card declares, an `R` component nothing attaches) refuses the file, naming the
+statement, instead of solving the antenna without it.
 
 In Python the same machinery is `read_ssn(self, "circuit.ssn")` /
 `parse_ssn(text)` — `read_ssn` ships a `.ssn` next to a
