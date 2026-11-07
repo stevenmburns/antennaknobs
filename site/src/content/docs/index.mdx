@@ -29,22 +29,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.113.1" icon="star">
-  **Long straight wires fill several times faster.** With **reuse repeated
-  geometry** ticked on the B-spline solver tab, a straight, evenly meshed
-  wire's own block of the impedance matrix is now built from its distinct
-  segment offsets, in free space and over ground. On one thread an 801-segment
-  wire fills in 36 ms instead of 176 in free space, and 95 ms instead of 789
-  over Sommerfeld ground; at 1601 segments over ground, 0.38 s instead of 5.4.
-  Results move by rounding only. It is off by default. See
-  [Using it in a solve](/reference/cli/#using-it-in-a-solve-opt-in).
+<Card title="New in v0.113.2" icon="star">
+  **Hand-written SimNEC files open the way they are written.** The `.ssn`
+  importer now reads a feed placed on a port's own nodes, loads written inline
+  as `R(…) ||| L(…) ||| C(…)` or set by a constant, and a jacket per wire. A
+  feed or load at a wire's end, or between two segments, sits exactly there.
+  A feed, load or insulation statement it cannot read now refuses the file by
+  name instead of solving without it. See
+  [Importing: .ssn → design](/reference/simnec/#importing-ssn--design).
 
-  **Two `.ez` load readings change.** A parallel RLC load whose resistance
-  varies with frequency now falls as F/f, like dielectric loss, as EZNEC's
-  own Help gives it (series and trap stay √f). A trap with no capacitor reads
-  as its R and L in series instead of being refused. An `.ez` file with either
-  load can give a different impedance from 0.113.0. See
-  [EZNEC .ez models](/reference/nec-import/#eznec-ez-models).
+  **Insulated NEC decks re-open right.** Re-opening a deck with jacketed wires
+  (EZNEC's NEC-5 exports, and antennaknobs' own) applied the wire conductivity
+  correction twice, about 7–8 % off in impedance; it now matches NEC-5.
+
+  **A buried wire exports to SimNEC**, for its NEC-5 and NEC-4.2 engines, and
+  the Files view's SimNEC tab no longer hangs on such a design.
 </Card>
 
 ## The whole pitch, in one line
