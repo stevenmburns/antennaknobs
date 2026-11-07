@@ -101,7 +101,7 @@ the curve shows how far the match holds:
 
 A remote auto-tuner retunes for exactly this reason.
 
-All of these numbers are on bs2 (momwire's B-spline solver) over the
+All of these numbers are on bspline (momwire's B-spline solver) over the
 workbench's default Sommerfeld ground (13 / 0.005 S/m).
 
 You can also let the optimizer do it: mark `tuner_l_uH` and `tuner_c_pF`, set
@@ -132,7 +132,7 @@ A band the MFJ's part ranges can't match is flagged.
 antennaknobs analyze --builder wire.doublet_remote_tuner --analysis "tuner per band"
 ```
 
-A few rows, with the 1:1 balun (bs2, Sommerfeld 13 / 0.005):
+A few rows, with the 1:1 balun (bspline, Sommerfeld 13 / 0.005):
 
 | MHz | load at the tuner | capacitor | coil | capacitor value | reaches the antenna |
 |---|---|---|---|---|---|
@@ -190,7 +190,7 @@ model's own frequency, and the app flags the others.
 
 ## Engines
 
-bs2 and PyNEC solve this design and agree to within 1.2 % on the tuner's load.
+bspline and PyNEC solve this design and agree to within 1.2 % on the tuner's load.
 The NEC-5 engine solves it too from v0.101.1 (v0.101.0 refused it). The
 refusal was ours, not NEC-5's: the centre gap's two sides go to
 different parts of the station, and antennaknobs, not the engine, connects

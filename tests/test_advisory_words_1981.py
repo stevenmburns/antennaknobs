@@ -113,6 +113,10 @@ def test_the_far_mesh_summary():
     )
     assert "median 3.3 %" in got
     assert "Doubling the segments roughly halves" in got
+    # momwire#1831: the engine by the model name the user picks, not the
+    # retired short form.
+    assert "bspline is already converged" in got
+    assert "bs2" not in got
 
 
 @pytest.mark.parametrize(
