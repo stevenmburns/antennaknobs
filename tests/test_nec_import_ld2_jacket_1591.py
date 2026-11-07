@@ -84,8 +84,12 @@ def test_0219_recovers_the_conductor_radius_to_9_significant_figures():
     wire, radius = deck.wire_conductor_radius[0]
     assert wire == 0
     assert math.isclose(radius, a, rel_tol=1e-9)  # >= 9 significant figures
-    # LD 5's conductivity survives alongside, unchanged (requirement 3).
-    assert deck.wire_conductivity == ((0, 1.5378e7),)
+    # LD 5 is the pair's σ′ = σ·(a/a′)², the third part of the set this issue
+    # names; the inversion takes it back to the metal's σ with the radius
+    # (AK#2197), or every writer scales it a second time.
+    ((wire, sigma),) = deck.wire_conductivity
+    assert wire == 0
+    assert math.isclose(sigma, 1.5378e7 * (a_eq / a) ** 2, rel_tol=1e-12)
     # The LD 2 is fully consumed -- no residue in ignored_detail.
     assert not any("type 2" in why for _m, why in deck.ignored_detail)
 
@@ -110,7 +114,11 @@ def test_0219_ld5_absolute_span_and_ld2_whole_wire_sentinel_agree_either_order()
         _capture_0219_shape(a_eq, l_ins, ld_order=("2", "5")), network=True
     )
 
-    assert forward.wire_conductivity == swapped.wire_conductivity == ((0, 1.5378e7),)
+    # σ′ back to σ with the radius (AK#2197), in either order.
+    sigma = 1.5378e7 * (a_eq / a) ** 2
+    assert forward.wire_conductivity == swapped.wire_conductivity
+    ((wire, got),) = forward.wire_conductivity
+    assert wire == 0 and math.isclose(got, sigma, rel_tol=1e-12)
     assert forward.wire_insulation == swapped.wire_insulation
     assert forward.wire_conductor_radius == swapped.wire_conductor_radius
     untranslated = [
@@ -163,7 +171,9 @@ def test_mixed_addressing_lands_on_the_correct_wire_only():
     )
 
     for deck in (forward, swapped):
-        assert deck.wire_conductivity == ((1, 1.5378e7),)
+        ((wire, got),) = deck.wire_conductivity  # σ′ back to σ (AK#2197)
+        assert wire == 1
+        assert math.isclose(got, 1.5378e7 * (a_eq / a) ** 2, rel_tol=1e-12)
         assert [wi for wi, _ in deck.wire_insulation] == [1]
         assert [wi for wi, _ in deck.wire_conductor_radius] == [1]
         assert math.isclose(deck.wire_conductor_radius[0][1], a, rel_tol=1e-9)
