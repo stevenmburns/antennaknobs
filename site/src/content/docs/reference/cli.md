@@ -1801,6 +1801,29 @@ by about 1e-15 relative). This part needs momwire 0.87.1 or newer, which is
 what antennaknobs 0.113.1 installs; the repeated-pair part needs 0.87.0.
 With an older momwire the setting does nothing.
 
+## Faster buried fills (opt-in)
+
+Two more momwire switches speed up designs with buried wires, such as a
+vertical over buried radials. Both are off by default and move results only
+in the last digits.
+
+| option | tab | env | what it does |
+|---|---|---|---|
+| **share buried tables across a sweep** | B-spline, sinusoidal | `ANTENNAKNOBS_TRANSMITTED_ANCHORS=1` | builds the table that carries fields up through the ground once per band and blends it at each frequency (momwire#1847) |
+| **vectorised buried fill** | sinusoidal | `ANTENNAKNOBS_POINT_CPLX_STAGED=1` | fills the entries between buried wires with the Galerkin solver's vectorised kernel (momwire#1849) |
+
+On a vertical over 48 buried radials, one thread, a nec42-sinusoidal solve
+went from 22.9 to 6.5 s with the vectorised fill. On a 30-point sweep over 24
+radials, nec5-bspline went from 63.8 to 40.4 s with shared tables, each point
+a fresh process.
+
+A tab shows each box only where the installed momwire has the switch and
+certifies it on this platform. Today that means Linux with the avx2
+accelerator, which is what the hosted app runs. The env var seeds a request
+that does not say; an explicit off in the request wins. An explicit
+`False` on the engine (`features={"transmitted_anchors": False}`) does the
+same from Python.
+
 ## Exporting to NEC
 
 ```bash

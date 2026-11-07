@@ -98,6 +98,12 @@ ALLOWED = {
     # panel that renders the axes needs the constraints on them in the same
     # breath.
     ("web/adapter.py", "momwire._couplings", "COUPLINGS"),
+    # The reach check behind each pass-through feature's option
+    # (`feature_served`): `_features.certified` is the one place momwire
+    # answers whether a feature is certified on this platform, and it exports
+    # no public name for it. A hand-kept platform table here is the drift
+    # the registry exists to prevent.
+    ("engines/momwire.py", "momwire", "_features"),
     # Compatibility re-exports (momwire#456 ws2 phase B) — see module docstrings.
     ("network.py", "momwire.networks._reduce", "_series_rlc_impedance"),
     ("network.py", "momwire.networks._spec", "_branch_port_refs"),

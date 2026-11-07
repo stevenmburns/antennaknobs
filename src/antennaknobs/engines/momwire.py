@@ -784,6 +784,35 @@ def _takes_pair_reuse(solver_cls) -> bool:
     return _takes_kwarg(solver_cls, "pair_reuse")
 
 
+# momwire's opt-in features passed straight through as one solver keyword
+# (momwire `_features`), each with the server env that seeds an unset
+# request. `pair_reuse` is not here: it carries the engine's own hint.
+FEATURE_SWITCHES = {
+    # The transmitted (below->above) grid blended from frequency anchors, so
+    # a sweep over buried radials shares its tables (momwire#1847).
+    "transmitted_anchors": "ANTENNAKNOBS_TRANSMITTED_ANCHORS",
+    # The point-matched complex tensor on the staged vector kernel
+    # (momwire#1849).
+    "point_cplx_staged": "ANTENNAKNOBS_POINT_CPLX_STAGED",
+}
+
+
+def feature_served(solver_cls, name) -> bool:
+    """Whether ``solver_cls`` takes momwire feature ``name`` and momwire
+    certifies it where this process runs (the feature's reach). Both are
+    live probes of the installed momwire, never a version comparison: below
+    its reach a native feature refuses, and offering a python one there is
+    Steve's call, so neither is offered."""
+    if not _takes_kwarg(solver_cls, name):
+        return False
+    try:
+        from momwire import _features
+
+        return _features.certified(name)
+    except (ImportError, KeyError, ValueError):
+        return False
+
+
 def _z_fill_key(solver_cls, kwargs):
     """Digest of everything a solver's Z depends on: its class and the
     constructor kwargs, less the cancel token and every port voltage.
@@ -1076,9 +1105,17 @@ class MomwireEngine(SimulationEngine):
         extended_kernel_default=False,
         exact_kernel=None,
         pair_reuse=None,
+        features=None,
         cancel=None,
     ):
         """
+        features:
+          ``{name: bool}`` for momwire's pass-through features
+          (`FEATURE_SWITCHES`), off by default. An unset or None entry reads
+          the feature's ``ANTENNAKNOBS_<NAME>`` (``1`` on). A feature the
+          solver does not take, or that momwire does not certify here
+          (`feature_served`), is passed nothing.
+
         pair_reuse:
           Fill each repeated edge-pair block once and copy it (AK#2165 stage
           2, momwire#1809): the engine finds its own mesh's congruent edge
@@ -1234,6 +1271,17 @@ class MomwireEngine(SimulationEngine):
             self._solver, "offset_reuse"
         )
         self._pair_reuse_hint_cache = None
+        # Pass-through features, folded the same way; only an on and served
+        # one reaches the constructor, so an off solve passes what it did.
+        self._feature_kwargs = {}
+        for name, env in FEATURE_SWITCHES.items():
+            asked = self._solver_kwargs.pop(name, None)
+            if (features or {}).get(name) is not None:
+                asked = features[name]
+            if asked is None:
+                asked = os.environ.get(env, "") in ("1", "on")
+            if asked and feature_served(self._solver, name):
+                self._feature_kwargs[name] = True
         # Per-instance parity: sinusoidal wants odd, bspline depends on
         # degree. Set before _coerce_wire_tuples runs.
         self.segment_parity = _parity_for_solver(self._solver, self._solver_kwargs)
@@ -2001,6 +2049,7 @@ class MomwireEngine(SimulationEngine):
             **self._ground_solver_kwargs(),
             **self._kernel_solver_kwargs(extended_kernel),
             **self._solver_kwargs,
+            **self._feature_kwargs,
         )
         hint = self._pair_reuse_hint()
         if hint:
