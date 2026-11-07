@@ -213,12 +213,22 @@ importer also reads SimNEC's own statements for them:
 
 - a feed as a `NECSource` on a declared port's nodes
   (`$src = NECSource({w2, gnd}, $GW_2, 100);`), when the block has no `EX`;
-- a load as an `R` component on two nodes plus the `NECSource` attaching
-  them, or written inline as
-  `NECSource(R(4150) ||| L(26.3u) ||| C(4.91p), $GW_3, 100)`, its values
-  literal or set once by a constant;
+- a load as N-block element lines on two nodes (`R1 (1000 ||| L(2u)) a b;`,
+  or `Ra 4150 a b;`, `La 26.3u a b;`, `Ca 4.91p a b;`, which on the same two
+  nodes are in parallel) plus the `NECSource` attaching them, or written
+  inline as `NECSource(R(4150) ||| L(26.3u) ||| C(4.91p), $GW_3, 100)`;
 - a jacket per wire, `$GW_<tag>.Insulation(thickness, εr, loss tangent)`,
   over the circuit-wide `NECOptions.Insulation(...)`.
+
+The script is read as SimNEC reads it, statement by statement: a statement
+may run over several lines, and `//` and `/* … */` comments may sit anywhere.
+Values are evaluated, not matched. A value, a place along the wire, or the
+wire itself may come from a constant the script sets once (`$r = 4150;` then
+`R($r)`; `$w = $GW_3;` then `NECSource(…, $w, 100)`), and may be arithmetic
+(`R(4000+150)`, `100*5.5/21`), with SimNEC's suffixes and `j` prefix. One
+thing is refused as ambiguous: a product beside `|||` without parentheses
+(`2*R(500) ||| L(2u)`), since SimNEC's own notes give `|||` two different
+precedences against `*`.
 
 A place along a wire is taken exactly: a percentage that lands on a segment
 centre is that centre, and one on a knot (between two segments, or a wire's
@@ -228,10 +238,15 @@ a whole number is exact. Anywhere else is refused by name, never moved to the
 nearest site. Two loads at one place add in series, as two `LD` cards on one
 segment do in NEC.
 
-**What is not read is refused, not dropped.** A feed, load or insulation
-statement the importer cannot read (a value from a variable, a wire no `GW`
-card declares, an `R` component nothing attaches) refuses the file, naming the
-statement, instead of solving the antenna without it.
+**What is not read is refused, not dropped.** A statement the importer cannot
+read refuses the file, naming the statement, instead of solving the antenna
+without it: a name with no one value (set twice, or only inside a block), a
+wire no `GW` card declares, an element nothing attaches, an L or C with a Q,
+elements in series through an inner node, or any call or setting it does not
+know. Only statements known to leave the model alone may go unread, and are
+listed in the import note: block structure, declarations, assignments that
+read results back (`$g = _NECBLOCK.field.APG;`), and display calls such as
+`BodyGraphic(…)`.
 
 In Python the same machinery is `read_ssn(self, "circuit.ssn")` /
 `parse_ssn(text)` — `read_ssn` ships a `.ssn` next to a
