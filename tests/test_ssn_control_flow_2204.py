@@ -307,3 +307,11 @@ def test_the_field_step_is_read_however_it_is_spaced():
 def test_the_units_command_reads_however_it_is_spaced():
     script = _Script("NECUnits feet,\n  inches ; // display", "t.ssn")
     assert script.display_units == ("feet", "inches")
+
+
+def test_constants_defined_in_terms_of_each_other_refuse_by_name():
+    """00b3897e recursed until Python's stack ran out (RecursionError)."""
+    message = _refusal(
+        "$a = $b;", "$b = $a;", f"$ld = NECSource(R($a) ||| L(2u), $GW_1, {SEG6});"
+    )
+    assert "$a is defined in terms of itself" in message
