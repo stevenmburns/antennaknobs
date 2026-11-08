@@ -183,6 +183,8 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
             "rotational symmetry (radial screens)",
             // ADDED with momwire 0.87.0 (#1809), bspline alone, unticked.
             "reuse repeated geometry (faster fill)",
+            // ADDED with momwire 0.88.0 (#1847), bspline alone, unticked.
+            "share buried tables across a sweep (faster)",
           ]
         : []),
     ]);
@@ -323,6 +325,8 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
             "rotational symmetry (radial screens)",
             // ADDED with momwire 0.87.0 (#1809), bspline alone, in spec order.
             "reuse repeated geometry (faster fill)",
+            // ADDED with momwire 0.88.0 (#1847), bspline alone, in spec order.
+            "share buried tables across a sweep (faster)",
           ]
         : []),
       // ADDED DELIBERATELY, and it is why this list is asserted rather than

@@ -28,18 +28,29 @@ describe("modelOptionsForRequest", () => {
     expect(result).toEqual({ n_qp_const: 11, feed_model: "point" });
   });
 
-  it("plain sinusoidal sends exactly n_qp_const, and feed_model is ABSENT", () => {
+  it("plain sinusoidal sends n_qp_const and its two buried-fill switches, and feed_model is ABSENT", () => {
     const b = entry("sinusoidal");
     const result = modelOptionsForRequest(b, {
       ...defaultOptsFor(b, SERVED_OPTION_SPECS),
       model: { n_qp_const: 7 },
     }, SERVED_OPTION_SPECS);
-    expect(Object.keys(result).sort()).toEqual(["n_qp_const"]);
-    expect(result).toEqual({ n_qp_const: 7 });
+    // ADDED with momwire 0.88.0 (#1847, #1849): the two buried-fill switches
+    // the sinusoidal solver takes, `false` by default; each only removes
+    // work, and on, moves Z only in the last digits.
+    expect(Object.keys(result).sort()).toEqual([
+      "n_qp_const",
+      "point_cplx_staged",
+      "transmitted_anchors",
+    ]);
+    expect(result).toEqual({
+      n_qp_const: 7,
+      transmitted_anchors: false,
+      point_cplx_staged: false,
+    });
     expect(result).not.toHaveProperty("feed_model");
   });
 
-  it("bspline sends the thirteen b-spline kwargs, feed_model among them", () => {
+  it("bspline sends the fourteen b-spline kwargs, feed_model among them", () => {
     const model = {
       degree: 1,
       n_qp_pair: 5,
@@ -83,6 +94,10 @@ describe("modelOptionsForRequest", () => {
         // number when off (pinned in tests/test_rotational_symmetry_*_1029.py).
         "rotational_symmetry",
         "tikhonov_lambda",
+        // ADDED with momwire 0.88.0 (#1847): buried transmitted tables shared
+        // across a sweep; `false` by default, and on it moves Z only in the
+        // last digits.
+        "transmitted_anchors",
         "use_singular_enrichment",
       ].sort(),
     );
@@ -100,6 +115,7 @@ describe("modelOptionsForRequest", () => {
       enrichment_min_k: 4,
       rotational_symmetry: false,
       pair_reuse: false,
+      transmitted_anchors: false,
     });
     // Not set in the model literal above, so it carries the SERVED default —
     // which is the value this family was already solving with.
@@ -171,18 +187,23 @@ describe("modelOptionsForRequest", () => {
       '"feed_smoothing_factor":null,"use_singular_enrichment":false,' +
       '"enrichment_variant":"raw","tikhonov_lambda":0.1,' +
       '"auto_tap_ratio_threshold":0.3,"n_qp_sing":32,"enrichment_min_k":3}';
-    expect(stock("sinusoidal")).toBe('{"n_qp_const":8}');
+    // The two buried-fill switches joined with momwire 0.88.0 (#1847, #1849).
+    expect(stock("sinusoidal")).toBe(
+      '{"n_qp_const":8,"transmitted_anchors":false,"point_cplx_staged":false}',
+    );
     // "point" since momwire#654 made it the solver's default — the wire
     // format still carries the value explicitly, so a request says which
     // source ran regardless of which momwire the server has.
     expect(stock("sinusoidal-galerkin")).toBe(
       '{"n_qp_const":8,"feed_model":"point"}',
     );
-    // bspline alone carries `rotational_symmetry` (#1029, momwire 0.60.0)
-    // and `pair_reuse` (#1809, momwire 0.87.0);
+    // bspline alone carries `rotational_symmetry` (#1029, momwire 0.60.0),
+    // `pair_reuse` (#1809, momwire 0.87.0) and `transmitted_anchors`
+    // (#1847, momwire 0.88.0);
     // the accelerators' stock payload is exactly the family's, unchanged.
     expect(stock("bspline")).toBe(
-      BSPLINE_JSON.slice(0, -1) + ',"rotational_symmetry":false,"pair_reuse":false}',
+      BSPLINE_JSON.slice(0, -1) +
+        ',"rotational_symmetry":false,"pair_reuse":false,"transmitted_anchors":false}',
     );
     expect(stock("hmatrix")).toBe(BSPLINE_JSON);
     expect(stock("arrayblock")).toBe(BSPLINE_JSON);

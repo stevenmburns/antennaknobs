@@ -78,7 +78,14 @@ describe("defaultOptsFor", () => {
     // `feed_model` is deliberately ABSENT: `SinusoidalSolver` accepts the
     // kwarg and refuses the value "point" (momwire#212), so the server does
     // not EXPOSE it here. Its Galerkin sibling does — asserted below.
-    expect(opts.model).toEqual({ n_qp_const: 8, extended_kernel: false });
+    // The two buried-fill switches joined with momwire 0.88.0 (#1847, #1849),
+    // off by default.
+    expect(opts.model).toEqual({
+      n_qp_const: 8,
+      extended_kernel: false,
+      transmitted_anchors: false,
+      point_cplx_staged: false,
+    });
     expect(
       defaultOptsFor(entry("sinusoidal-galerkin"), SERVED_OPTION_SPECS).model
         .feed_model,
