@@ -169,6 +169,9 @@ from .network import (
     Driven,
     FloatingBalun,
     Load,
+    Network,
+    PortAtEnd,
+    PortAtVertex,
     PortOnWire,
     Shunt,
     TouchstoneLoad,
@@ -675,6 +678,7 @@ def _antenna_portal(
     seg_per_wl: int | None = None,
     name: str | None = None,
     wire_radius: float | None = None,
+    knot: _KnotPlan | None = None,
 ) -> tuple[str, list[str]]:
     """The NEC-portal script for an antenna-only ``builder``, and the series
     circuit elements for any load on its fed segment (:func:`_wire_loads`).
@@ -730,6 +734,20 @@ def _antenna_portal(
             "(every feed driven in phase — issue #815); multi-feed designs "
             "are not exported until per-feed sources are modeled"
         )
+    if knot is not None:
+        if len(eng.tups) != len(knot.builder.build_wires()):
+            raise SsnUnsupported(
+                "the card writer re-meshed a wire into several, so a knot's "
+                "wire has no single GW tag to place a NECSource on (AK#2210)"
+            )
+        if knot.feed is not None:
+            at = eng._network_port_loc[knot.feed[0]]
+            ex = [c for c in cards if c.startswith("EX") and _feed_loc([c]) == at]
+            if len(ex) != 1:
+                raise SsnUnsupported(
+                    "the knot feed's placeholder EX card was not found (AK#2210)"
+                )
+            cards = [c for c in cards if c is not ex[0]]
     net = eng._network
     loads = (
         [
@@ -750,6 +768,8 @@ def _antenna_portal(
         {tag: t[2] for tag, t in enumerate(eng.tups, 1)},
         freq_mhz,
     )
+    if knot is not None:
+        statements = [*_knot_statements(knot, knot.tags), *statements]
     if name is None:
         name = _default_block_name(builder)
     before, after = _insulation_lines(eng, buried)
@@ -1316,6 +1336,146 @@ def _tuner_spans(eng, builder, ground, freeze: bool, wire_radius=None):
     )
 
 
+@dataclass(frozen=True)
+class _KnotPlan:
+    """How a design with a feed or loads at a junction knot is written
+    (AK#2210). ``builder`` is the design with the knot feed moved to the
+    centre of its wire's end segment, a placeholder the NEC card writer can
+    place; its ``EX`` card is then dropped for SimNEC's own ``NECSource`` at the
+    knot, as SimNEC writes it (``$src = NECSource({w2, gnd}, $GW_2, 100);``).
+    ``feed`` is ``(placeholder port, wire name, percent)`` or None; ``loads``
+    is ``[(Load, wire name, percent)]``, written as ``NECSource`` loads at the
+    knot."""
+
+    builder: object
+    feed: tuple[str, str, float] | None
+    loads: tuple[tuple[Load, str, float], ...]
+    tags: dict[str, int]
+
+
+def _knot_plan(builder) -> _KnotPlan | None:
+    """The `_KnotPlan` for ``builder``, None when no port sits at a knot, or
+    `SsnUnsupported` for a knot shape the SimNEC block cannot write.
+
+    SimNEC places a source or a load at a knot with ``NECSource(..., $GW_<tag>,
+    0 | 100)``, a percentage of one wire's length at its end, which is where
+    `PortAtVertex` puts its series gap: at the named wire's own end, between
+    it and the node. A `PortAtEnd` is a different port (the node's KCL row, a
+    shunt attachment) with no SimNEC spelling."""
+    net = builder.build_network()
+    if net is None:
+        return None
+    ends = sorted(k for k, p in net.ports.items() if isinstance(p, PortAtEnd))
+    if ends:
+        raise SsnUnsupported(
+            f"port {ends[0]!r} is a junction-node port (PortAtEnd, a shunt "
+            "attachment at a node), which the SimNEC block has no element for"
+        )
+    knots = {k: p for k, p in net.ports.items() if isinstance(p, PortAtVertex)}
+    if not knots:
+        return None
+    wires = list(builder.build_wires())
+    by_name = {as_wire(w).name: as_wire(w) for w in wires if as_wire(w).name}
+
+    def place(port):
+        w = by_name.get(port.wire)
+        if w is None:
+            raise SsnUnsupported(f"knot port on {port.wire!r} names no wire")
+        return w, (100.0 if port.end == "p1" else 0.0)
+
+    feed = None
+    sources = list(net.sources)
+    driven = [s for s in sources if s.port in knots]
+    if driven:
+        (src,) = driven
+        if not isinstance(src, Driven) or len(sources) != 1:
+            raise SsnUnsupported(
+                f"the source at knot {src.port!r} is not the design's one "
+                "voltage source; SimNEC's block has one generator port"
+            )
+    loads, branches = [], []
+    for br in net.branches:
+        on_knot = [p for p in _branch_port_refs(br) if p in knots]
+        if not on_knot:
+            branches.append(br)
+            continue
+        if not isinstance(br, Load):
+            raise SsnUnsupported(
+                f"{type(br).__name__} on knot port {on_knot[0]!r}: at a junction "
+                "knot the SimNEC block writes a source or a lumped load, not a "
+                "network element"
+            )
+        if br.ql is not None or br.qc is not None:
+            raise SsnUnsupported(
+                f"{br.port}: a finite-Q Load needs R = ωL/Q re-derived per "
+                "frequency, which the export does not write"
+            )
+        w, pct = place(knots[br.port])
+        if driven and br.port == driven[0].port:
+            raise SsnUnsupported(
+                f"a load on the fed knot {br.port!r} would sit in series with "
+                "the source; move it off the feed"
+            )
+        loads.append((br, w.name, pct))
+    ports = {k: p for k, p in net.ports.items() if k not in knots}
+    if driven:
+        port = knots[driven[0].port]
+        w, pct = place(port)
+        half = 0.5 / w.n_seg
+        ports[driven[0].port] = PortOnWire(
+            driven[0].port, wire=w.name, at=1.0 - half if pct else half
+        )
+        feed = (driven[0].port, w.name, pct)
+    used = {getattr(p, "wire", None) or k for k, p in ports.items()}
+    sub_wires = [
+        w
+        if as_wire(w).name in used or not as_wire(w).name
+        else as_wire(w)._replace(name=None)
+        for w in wires
+    ]
+    sub_net = Network(ports=ports, branches=branches, sources=sources)
+
+    class _AtKnot(type(builder)):
+        def build_wires(self):
+            return sub_wires
+
+        def build_network(self):
+            return sub_net
+
+    # The design's own state, under a class whose wires and network are the
+    # placeholder's. Built without __init__ (whose parameters may differ) and
+    # without copy.copy, which an AntennaBuilder's __getattr__ recurses on.
+    sub = object.__new__(_AtKnot)
+    sub.__dict__.update(builder.__dict__)
+    tags = {as_wire(w).name: t for t, w in enumerate(wires, 1) if as_wire(w).name}
+    return _KnotPlan(sub, feed, tuple(loads), tags)
+
+
+def _knot_statements(plan: _KnotPlan, tags: dict[str, int]) -> list[str]:
+    """The ``NECSource`` statements for a `_KnotPlan`: the feed on the block's
+    generator port (``P2``, whose nodes ``{w2, gnd}`` a NECSource on reads as
+    the feed, AK#2195) and each knot load as an N-block element on a node pair
+    of its own. SimNEC's NEC-2 engine is stopped by name: where it places a
+    source at a knot is not measured, and a block that solved somewhere else
+    without a word is what this exporter never writes."""
+    out = []
+    if plan.feed is not None:
+        _port, wire, pct = plan.feed
+        out += [
+            "// The source sits at a junction knot, at the wire's end, as SimNEC places one.",
+            f"$feed = NECSource({{w2, gnd}}, $GW_{tags[wire]}, {_val(pct)});",
+            "if (NECOptions.Engine == 2)",
+            '    errorOutln("NOT USING NEC-5 OR NEC-4.2: the feed is at a junction knot, '
+            "which this export writes for SimNEC's NEC-5 and NEC-4.2 engines\");",
+        ]
+    for k, (br, wire, pct) in enumerate(plan.loads, 1):
+        out.append(
+            f"RK{k} ({_load_expr(br)}) kn{k}a kn{k}b;  "
+            f"dcl KnotLoad{k} = NECSource({{kn{k}a,kn{k}b}}, $GW_{tags[wire]}, {_val(pct)});"
+        )
+    return out
+
+
 def export_ssn(
     builder,
     *,
@@ -1364,15 +1524,26 @@ def export_ssn(
     is exact at that frequency and Q-model-approximate across a sweep.
     """
     freq_mhz = builder.freq if freq_mhz is None else float(freq_mhz)
-    # PyNECEngine raises ValueError here for PortAtEnd / PortAtVertex
-    # designs — NEC-2 (and therefore SimNEC's NEC block) has no
-    # junction-node port and no segment-end source (issues #579, #898).
+    if name is None:
+        name = _default_block_name(builder)
+    # A feed or load at a junction knot (AK#2210): written as SimNEC writes
+    # one, a NECSource at the wire's end, through a placeholder the NEC card
+    # writer can place. A junction-node (PortAtEnd) port refuses by name.
+    knot = _knot_plan(builder)
+    if knot is not None:
+        builder = knot.builder
     # A buried wire's cards are written as if in free space (AK#2196; see
     # `_antenna_portal`), and the script refuses SimNEC's NEC-2 engine.
     buried = _buried_tags(builder, ground)
     eng = _SsnNecEngine(
         builder, ground=None if buried else ground, wire_radius=wire_radius
     )
+    if eng._use_reducer and knot is not None:
+        raise SsnUnsupported(
+            "a feed or load at a junction knot is written as a NECSource on "
+            "the antenna block, and a station chain on such a design is not "
+            "written yet (AK#2210)"
+        )
     if eng._use_reducer:
         # Station path (issue #604): circuit elements from the reducer
         # branches, the antenna alone in the NEC block, driven at the
@@ -1405,6 +1576,7 @@ def export_ssn(
             seg_per_wl=seg_per_wl,
             name=name,
             wire_radius=wire_radius,
+            knot=knot,
         )
     # File order is right-to-left (LOAD … GENERATOR), so the chain lands
     # after the antenna NETWORK element in antenna→generator order.

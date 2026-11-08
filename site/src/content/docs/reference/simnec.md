@@ -117,6 +117,15 @@ fixed `z`, or a parallel pair there is refused by name, since SimNEC's own
 source already owns that spot. About four in five catalog designs export; the
 refusals tell you exactly what construct is in the way.
 
+A **feed or load at a junction knot** (a `PortAtVertex`, such as an apex feed,
+or a source at the end of a feed wire where the next wire starts) exports as
+SimNEC writes one itself: `$feed = NECSource({w2, gnd}, $GW_<tag>, 100)` at
+that wire's end, with no `EX` card, and a knot load as a `NECSource` load at
+the same place. The script stops SimNEC's NEC-2 engine by name, because NEC-2
+has no source at a knot. A station chain on such a design, and a
+junction-node port (`PortAtEnd`, a shunt attachment at a node), are still
+refused by name.
+
 Component `Q` deserves one note: antennaknobs models `ql`/`qc` as
 frequency-independent while SimNEC quotes Q at a frequency, so a lossy
 component is exact at the export frequency and Q-model-approximate across a
