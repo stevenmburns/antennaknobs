@@ -187,6 +187,33 @@ _SERIES_CHAIN = frozenset(
 _MATCH_CHAIN = frozenset({"XMATCH"})
 _CHAIN_TYPES = _SHUNT_CHAIN | _SERIES_CHAIN | _MATCH_CHAIN
 
+# The chain values `SsnStation.with_values` may set (AK#2222): per element
+# type, exactly the numbers the chain reader turns into physics (`_chain_f`).
+# Left out on purpose: SimNEC's display-only fields (a line's `~deg` and
+# `@MHz`, which the reader never reads, so setting one would change nothing),
+# the text fields (`Mdl`, `dir`, `file`, `mode`, `pass`), an S block's `Zref`
+# (it names the reference its S-parameters are quoted at, not a component
+# value) and its S-parameters themselves. A line's simplified-model loss is
+# keyed by its unit (`/100f`, `/100m`), so any `/100` key on a SERIES_TLINE
+# counts too.
+_ADJUSTABLE = {
+    "SERIES_TLINE": frozenset({"mtrs", "ft", "Zo", "VFnom", "k0", "k1", "k2", "@frq"}),
+    "SERIES_IND": frozenset({"H", "Q"}),
+    "SHUNT_IND": frozenset({"H", "Q"}),
+    "SERIES_CAP": frozenset({"F", "Q"}),
+    "SHUNT_CAP": frozenset({"F", "Q"}),
+    "SERIES_Z": frozenset({"ohms", "johms"}),
+    "TRANSFORMER2": frozenset({"N"}),
+    "XMATCH": frozenset({"R", "MHz", "Qc", "Ql"}),
+}
+
+
+def _adjustable(el: "SsnElement", key: str) -> bool:
+    if key in _ADJUSTABLE.get(el.typ, ()):
+        return True
+    return el.typ == "SERIES_TLINE" and key.startswith("/100")
+
+
 # SimNEC reads a `//` comment after either keyword (AC6LA's examples write
 # `NEC2  // ====`), so the keyword line is the keyword plus that comment.
 _NEC2_LINE = re.compile(r"^NEC2\s*(?://.*)?$")
@@ -4339,6 +4366,14 @@ def _beside(builder, name: str):
     return read
 
 
+def _label_counts(chain) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for el in chain:
+        if el.label:
+            counts[el.label] = counts.get(el.label, 0) + 1
+    return counts
+
+
 @dataclass(frozen=True)
 class SsnStation:
     """A SimNEC station chain on its own (AK#2200): the elements between the
@@ -4375,6 +4410,97 @@ class SsnStation:
             freq_mhz=self.freq_mhz,
             files=self.files,
         )
+
+    def values(self) -> dict[str, float]:
+        """The chain's adjustable numbers, keyed ``"<label>.<param>"`` in the
+        chain's order, generator first: ``{"T2.mtrs": 12.0, "S1.F": 1e-10}``.
+        Each is in SimNEC's own unit for that parameter (metres or feet as
+        the line was saved, henries, farads, ohms) with any SI suffix
+        applied. These are the keys `with_values` takes (AK#2222). An element
+        with no label, or one whose label another element shares, has no key
+        here: name it in SimNEC to adjust it."""
+        counts = _label_counts(self.chain)
+        out = {}
+        for el in self.chain:
+            if not el.label or counts[el.label] > 1:
+                continue
+            for name, raw in el.params:
+                if name and raw is not None and _adjustable(el, name):
+                    out[f"{el.label}.{name}"] = _chain_f(el, name)
+        return out
+
+    def with_values(self, values) -> "SsnStation":
+        """A copy of this station with chain values set, keyed as in
+        `values`: ``station.with_values({"T2.mtrs": self.coax_m})`` makes a
+        design knob of a coax run (AK#2222). The chain reads each one exactly
+        as if SimNEC had saved it, so `network` is the network of the edited
+        file. The station itself is unchanged.
+
+        Refused by name, before anything is built: a key that is not
+        ``label.param``; a label that no element, or more than one, carries;
+        a parameter the element does not carry (a line saved in ``ft`` has no
+        ``mtrs`` to set: set ``ft``) or that is not a value the chain reads
+        (see `values`); and a value that is not a finite number."""
+        counts = _label_counts(self.chain)
+        edits: dict[str, dict[str, str]] = {}
+        for key, value in dict(values).items():
+            label, dot, param = str(key).rpartition(".")
+            if not dot or not label or not param:
+                raise ValueError(
+                    f"station value {key!r}: keys are '<label>.<param>', "
+                    "for example 'T2.mtrs'"
+                )
+            n = counts.get(label, 0)
+            if n != 1:
+                known = ", ".join(sorted(k for k, c in counts.items() if c == 1))
+                raise ValueError(
+                    f"station value {key!r}: "
+                    + (
+                        f"no chain element is labelled {label!r} (labels: {known or 'none'})"
+                        if n == 0
+                        else f"{n} chain elements are labelled {label!r}; "
+                        "give each its own label in SimNEC"
+                    )
+                )
+            el = next(e for e in self.chain if e.label == label)
+            if el.get(param) is None:
+                carried = sorted(
+                    nm
+                    for nm, v in el.params
+                    if nm and v is not None and _adjustable(el, nm)
+                )
+                raise ValueError(
+                    f"station value {key!r}: {el.typ} {label} carries no "
+                    f"{param!r}; its adjustable values are {', '.join(carried) or 'none'}"
+                )
+            if not _adjustable(el, param):
+                raise ValueError(
+                    f"station value {key!r}: {param!r} is not a value the "
+                    f"{el.typ} reader uses, so setting it would change nothing"
+                )
+            try:
+                v = float(value)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"station value {key!r}: {value!r} is not a number"
+                ) from None
+            if not math.isfinite(v):
+                raise ValueError(f"station value {key!r}: {v!r} is not finite")
+            edits.setdefault(label, {})[param] = repr(v)
+        if not edits:
+            return self
+        chain = tuple(
+            replace(
+                el,
+                params=tuple(
+                    (nm, edits[el.label].get(nm, raw)) for nm, raw in el.params
+                ),
+            )
+            if el.label in edits
+            else el
+            for el in self.chain
+        )
+        return replace(self, chain=chain)
 
     def antenna_table(self):
         """The antenna-end LOAD's impedance table as a 1-port
