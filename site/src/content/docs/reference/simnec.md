@@ -565,6 +565,61 @@ on SimNEC's own antenna table reproduces SimNEC's generator-side trace to
 lumped two-port, so a feed line that radiates, or carries common-mode current
 through the antenna's field, is not in it. Model that as wires.
 
+### The station as one NEC-5 deck
+
+`nec5_station.export_nec5_station(builder)` writes the antenna and its
+whole station as ONE NEC-5 deck, so the station runs on licensed NEC-5 (or
+momwire's `momwire-nec5-bspline` drop-in) with no antennaknobs installed:
+
+```python
+from antennaknobs.nec5_station import station_deck
+
+deck = station_deck(Station(), freq=7.0)  # the Station class above
+open("station-7MHz.nec", "w").write(deck.text)
+```
+
+| part of the station | NEC-5 card |
+| --- | --- |
+| antenna wires, ground, wire material, loads on wires | `GW` / `GE` / `GN` / `LD`, as the plain NEC-5 download writes them |
+| a virtual node (`rig`, each block's node) | a knot of one phantom wire parked 200 λ away, pinned open by `LD 4 … 1e10` |
+| a lossless line | `TL` |
+| the Johnson line, an S block, a series R/L/C | `NT`: the two-port's Y at the deck's frequency |
+| a shunt R/L/C | folded into the `NT` (or `TL`) at its node |
+| an ideal transformer | two λ/4 `TL` cards through a phantom knot, the second transposed: an exact impedance inverter twice is an exact transformer |
+| the bare wire between blocks | the two nodes become one knot |
+| the Generator | `EX 0` on the `rig` knot |
+
+**One frequency per deck.** `NT` values and the λ/4 lines hold only at the
+frequency they were computed for; the deck's `CM` header says so, and a
+sweep is one deck per frequency. A list of frequencies is refused.
+
+**Why the phantom knots are pinned.** A phantom knot is real wire to NEC-5,
+and bare it sits in parallel with the network there: about j2.6e-5 S per
+knot measured on the licensed binary, which put this page's test station
+1 % off. Pinned by `LD 4` of 10¹⁰ Ω, as EZNEC pins its own virtual
+segments, a knot reads 10⁻¹⁰ S and the source and network cards on it are
+untouched. The writer measures what that residual does at every knot (it
+solves the design once, on momwire by default) and lists it in the `CM`
+header; a knot whose pin would move the impedance by more than 10⁻⁶,
+below anything a five-figure printout can show, is refused by name. That
+is a node near 10 kΩ, which belongs on a real antenna segment.
+
+How exact it is (a 7 MHz dipole and an inverted V fed at its vertex, each
+behind an ideal transformer, a shunt C, a series L, a lossless line, an S
+block and 12 m of RG-58; `scratch/2209-station-deck/`):
+
+| run | against | agreement |
+| --- | --- | --- |
+| licensed NEC-5 | the station on NEC-5's own antenna | 1.3e-6 / 8.7e-6, inside the printout's rounding |
+| `momwire-nec5-bspline` | the station on the drop-in's own antenna | 1.5e-6 / 9.6e-6 |
+| AK's importer → momwire | the station on momwire | 3.7e-8 / 5.4e-8, the pins' measured 4e-8 / 6e-8 |
+
+An antenna fed at a knot where two wires meet (`PortAtVertex`) is written:
+NEC-5 attaches `NT` and `TL` cards to a segment end exactly as it attaches
+`EX`. Refused by name: a self-tuning tuner (tune it, then write its parts),
+a current source, a floating or distributed port, a load behind a source
+that also drives the network.
+
 ## The round-trip guarantee
 
 Export → import is pinned by identity tests: a transformer's turns ratio and
