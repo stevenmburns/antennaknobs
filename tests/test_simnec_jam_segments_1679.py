@@ -195,13 +195,31 @@ def test_the_note_says_simnec_re_meshes_and_names_the_same_mesh_route(tmp_path):
     """SimNEC re-meshes before it solves and antennaknobs does not emulate
     that, so the note says the numbers differ by mesh and names the deck
     SimNEC actually solved as the way to compare on one mesh."""
-    notes = _notes(tmp_path, "$GW_1.JamSegments(20);")
+    notes = _notes(tmp_path, "")
     assert "SimNEC re-meshes the wires before it solves" in notes
     assert "segmentsPerWavelength = 40" in notes
     assert "differ from these by mesh" in notes
     assert "lastConstructedNEC.nec" in notes
     assert "~/.SimNEC/<version>/" in notes
-    assert "the 1 JamSegments wire at exactly the jammed count" in notes
+    assert "JamSegments" not in notes
+
+
+def test_the_note_names_the_jammed_wires_among_re_meshed_ones():
+    script = _script("$GW_1.JamSegments(20);").replace(
+        "NECEND", "GW 2 11 3 -5 10 3 5 10 0.0005\nNECEND"
+    )
+    note = parse_ssn(_ssn(script), network=True).mesh_note()
+    assert "SimNEC re-meshes the wires before it solves" in note
+    assert "the 1 JamSegments wire at exactly the jammed count" in note
+
+
+def test_every_wire_jammed_is_one_mesh(tmp_path):
+    """SimNEC re-meshes no jammed wire, so with every count held the two
+    solve one mesh (AK#2215: a real full-station file agrees with SimNEC's
+    own readout within 0.06 % that way)."""
+    notes = _notes(tmp_path, "$GW_1.JamSegments(20);")
+    assert "Every wire's segment count is held by JamSegments" in notes
+    assert "differ from these by mesh" not in notes
 
 
 def test_a_jamsegments_naming_no_wire_refuses_by_name():

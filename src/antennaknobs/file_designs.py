@@ -55,7 +55,6 @@ from __future__ import annotations
 
 import functools
 import math
-from dataclasses import replace
 from pathlib import Path
 from types import MappingProxyType
 
@@ -820,21 +819,13 @@ def _ground_note(ground) -> str | None:
 
 
 def _ssn_circuit(text: str, name: str, dcl_overrides=None, limits=None):
-    """The circuit a ``.ssn`` design builds from: `parse_ssn` with the
-    wire material applied. The import and every knob re-parse (AK#1714) go
-    through here, so the two cannot differ by the material step."""
-    circuit = parse_ssn(
+    """The circuit a ``.ssn`` design builds from. The import and every knob
+    re-parse (AK#1714) go through here, so the two cannot differ. The wire
+    material is `parse_ssn`'s own step (AK#2215), and a file SimNEC stored in
+    the ``.ssn`` stands in for the folder this loader does not have."""
+    return parse_ssn(
         text, name=name, network=True, dcl_overrides=dcl_overrides, limits=limits
     )
-    if circuit.conductivity is not None and circuit.deck.conductivity is None:
-        # NECOptions.mhosPerMeter is the wire material; bake it into the deck
-        # so wire_tuples(specs=True) carries it per wire, exactly as a deck
-        # LD 5 would. A deck that writes its own LD 5 keeps it: the two are
-        # never both applied.
-        circuit = replace(
-            circuit, deck=replace(circuit.deck, conductivity=circuit.conductivity)
-        )
-    return circuit
 
 
 def _ssn_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=None):

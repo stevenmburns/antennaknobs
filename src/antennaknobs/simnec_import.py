@@ -133,9 +133,12 @@ is SimNEC's own unused 0 Ohm ``NotUsed`` LOAD on the antenna block (AK#1679).
 
 from __future__ import annotations
 
+import base64
+import binascii
 import math
 import re
 import xml.etree.ElementTree as ET
+import zlib
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
@@ -1083,6 +1086,114 @@ def _chain_notes(chain) -> tuple[str, ...]:
     return tuple(notes)
 
 
+# The files SimNEC stored in a .ssn (AK#2215) are read up to this size once
+# inflated, all of them together, as `read_data` caps a file beside the
+# design: a small upload cannot inflate past it however many it names.
+_ARCHIVE_CAP = 4 * 1024 * 1024
+
+
+def _with_archive(text: str, files, name: str):
+    """``(files, notes)``: a reader for the files a circuit element names
+    that falls back to the copy SimNEC stores in the ``.ssn`` itself
+    (``<FILEARCHIVE>``, gzip then base64), and one note per element read
+    from that copy (AK#2215). A file beside the ``.ssn`` wins over the
+    stored copy, as the one the author can still edit; with no folder
+    (``files`` None: the bare-file loader, a hosted upload) the stored copy
+    is what makes the circuit whole. A copy that does not decode, or inflates
+    past `_ARCHIVE_CAP`, refuses by name."""
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError:
+        return files, lambda chain: ()
+    stored: dict[str, tuple[str, str]] = {}
+    for el in root.findall(".//FILEARCHIVE/element"):
+        full = (el.findtext("name") or "").strip()
+        base = full.replace("\\", "/").rsplit("/", 1)[-1]
+        if base:
+            stored.setdefault(base.lower(), (full, el.findtext("compressed") or ""))
+    if not stored:
+        return files, lambda chain: ()
+    read_cache: dict[str, str] = {}
+    inflated = [0]
+
+    def from_archive(path: str) -> str | None:
+        hit = stored.get(path.replace("\\", "/").rsplit("/", 1)[-1].lower())
+        if hit is None:
+            return None
+        full, blob = hit
+        try:
+            raw = "".join(blob.split())
+            raw = base64.b64decode(raw + "=" * (-len(raw) % 4), validate=True)
+            inflate = zlib.decompressobj(16 + zlib.MAX_WBITS)
+            room = _ARCHIVE_CAP - inflated[0]
+            data = inflate.decompress(raw, room + 1)
+        except (binascii.Error, zlib.error, ValueError) as e:
+            raise ValueError(
+                f"{name}: the copy of {full!r} stored in the file cannot be read ({e})"
+            ) from None
+        if len(data) > room or inflate.unconsumed_tail:
+            raise ValueError(
+                f"{name}: the files stored in it come to over {_ARCHIVE_CAP} bytes "
+                f"once {full!r} is inflated"
+            )
+        inflated[0] += len(data)
+        try:
+            return data.decode("utf-8")
+        except UnicodeDecodeError:
+            return data.decode("latin-1")
+
+    def read(path: str) -> str:
+        if path in read_cache:
+            return read_cache[path]
+        if files is not None:
+            try:
+                out = files(path)
+            except FileNotFoundError:
+                out = from_archive(path)
+                if out is None:
+                    raise
+        else:
+            out = from_archive(path)
+            if out is None:
+                raise ValueError(
+                    f"{name}: {path!r} is not stored in the file, and the circuit "
+                    "was read without the folder beside it; read it with "
+                    "read_ssn / read_ssn_station"
+                )
+        read_cache[path] = out
+        return out
+
+    def stored_note(chain) -> tuple[str, ...]:
+        notes = []
+        for el in chain:
+            src = (el.get("file") or "").strip()
+            if not src or src == "<none>":
+                continue
+            path = _sibling_path(src)
+            beside = False
+            if files is not None:
+                try:
+                    read_cache[path] = files(path)
+                    beside = True
+                except (FileNotFoundError, ValueError):
+                    # Not beside it (or not readable there): the element's
+                    # own read says which, when the network is built.
+                    pass
+            if beside or path in read_cache:
+                continue
+            stored = from_archive(path)
+            if stored is not None:
+                read_cache[path] = stored
+                where = f"{el.typ} {el.label}" if el.label else el.typ
+                notes.append(
+                    f"{where}'s {path!r} is read from the copy SimNEC stored in "
+                    "the .ssn"
+                )
+        return tuple(notes)
+
+    return read, stored_note
+
+
 def _series_z(el: SsnElement, a: str, b: str):
     """A SERIES_Z — SimNEC's fixed complex impedance, ``ohms`` + j``johms``,
     in series — as the 2-port ``Admittance`` of a series element,
@@ -1253,7 +1364,15 @@ class SsnCircuit:
         how to compare on one mesh (AK#1679). Always given: SimNEC re-meshes
         every wire before it solves (its own segmentation pass, not a density
         formula), and antennaknobs does not emulate that — it solves the GW
-        counts as written, and each ``JamSegments(N)`` as exactly N."""
+        counts as written, and each ``JamSegments(N)`` as exactly N. When
+        every wire is jammed SimNEC re-meshes none, and the two solve one mesh
+        (AK#2215)."""
+        pinned = set(self.deck.pinned_wires)
+        if self.deck.wires and pinned >= set(range(len(self.deck.wires))):
+            return (
+                "Every wire's segment count is held by JamSegments, so SimNEC "
+                "solves the file's own mesh, as this import does."
+            )
         spw = (
             f" (NECOptions.segmentsPerWavelength = {self.seg_per_wl})"
             if self.seg_per_wl
@@ -1970,6 +2089,14 @@ def _assignments(stmt: str, depth: int, comment: str, line: int) -> list[_Assign
     ]
 
 
+# `Button Name()` before its `{`: a button whose body SimNEC runs only when
+# it is clicked (AK#2215). `_structure` makes it a node `_Script` never runs.
+_BUTTON = re.compile(r"Button\s+([A-Za-z_]\w*)\s*\(\s*\)$")
+# A button as `_Script` records it, unread (AK#2215).
+_BUTTON_UNREAD = re.compile(r"Button\s+[A-Za-z_]\w*\(\) \{ … \}$")
+# `pl ...`: SimNEC's print-line statement, a display (AK#2215).
+_PRINT_LINE = re.compile(r"pl(?![\w$.(=\[])")
+
 # The script's control flow (AK#2204). A header keyword and its ( ) group:
 # `if`, `while`, `for`, `switch`, and SimNEC's `at(phase)`, which runs its
 # body only in the phases it names (the SimNEC Manual's "at" section).
@@ -2025,13 +2152,31 @@ def _header(text: str) -> _Head | None:
 def _opens_block(so_far: str) -> bool:
     """Whether a ``{`` after the statement text ``so_far`` opens a block:
     at a statement's start, or after a header with nothing following it (an
-    ``else if (c)`` included) or a function's ``dcl f(a)``."""
-    if not so_far or _FUNC.match(so_far):
+    ``else if (c)`` included), a function's ``dcl f(a)``, a ``Button Name()``,
+    or a statement ending in a ``( … )`` group, a call that takes a block
+    (``InCircuitWith(G.MHz = f) { … }``, AK#2215)."""
+    if not so_far or _FUNC.match(so_far) or _BUTTON.match(so_far):
+        return True
+    if _ends_in_group(so_far):
+        # `NelderMead (...) {`, `InCircuitWith(G.MHz = f) {`: a call that
+        # takes a block (AK#2215).
         return True
     head = _header(so_far)
     while head is not None and head.rest:
         head = _header(head.rest)
     return head is not None
+
+
+def _ends_in_group(text: str) -> bool:
+    """Whether ``text`` ends in a top-level ``( … )`` group."""
+    if not text.endswith(")"):
+        return False
+    depth = 0
+    for k in range(len(text) - 1, -1, -1):
+        depth += {")": 1, "(": -1}.get(text[k], 0)
+        if depth == 0:
+            return True
+    return False
 
 
 @dataclass
@@ -2040,7 +2185,8 @@ class _Node:
     (``cond``, ``body``, ``other`` the else branch or None); a ``loop``
     (``for``, ``while``, ``do``); a ``block`` (``guarded`` for one whose
     body runs only sometimes: a phase, a ``switch``; plain ``{ }`` is not);
-    or a ``func`` (``text`` its name, ``params``). ``text`` is a statement's
+    a ``func`` (``text`` its name, ``params``); or a ``button`` (``text`` its
+    name), whose body is never run (AK#2215). ``text`` is a statement's
     text, or a header as written."""
 
     kind: str
@@ -2109,6 +2255,18 @@ def _structure(units: list[tuple[str, int, str]]) -> list[_Node]:
                 body=seq(True),
                 params=tuple(p for p in params if p),
             )
+        button = _BUTTON.match(text)
+        if button and peek() is not None and peek()[0] == "{":
+            pos += 1
+            return _Node("button", button.group(1), line, comment, body=seq(True))
+        if (
+            _ends_in_group(text)
+            and _header(text) is None
+            and peek() is not None
+            and peek()[0] == "{"
+        ):
+            pos += 1
+            return _Node("block", text, line, comment, body=seq(True), guarded=True)
         label = _LABEL.match(text)
         if label:
             rest = text[label.end() :].strip()
@@ -2150,7 +2308,7 @@ def _flatten(nodes: list[_Node], funcs: bool = False):
     ``funcs``."""
     for n in nodes:
         yield n
-        if n.kind != "func" or funcs:
+        if n.kind not in ("func", "button") or funcs:
             yield from _flatten(n.body, funcs)
             yield from _flatten(n.other or [], funcs)
 
@@ -2670,8 +2828,10 @@ def _harmless_unapplied(stmt: str, model_funcs: frozenset[str] = frozenset()) ->
     form = _form(s)
     if s in ("{", "}") or _header(s) is not None or form.keyword in _DECLARE:
         return not model
-    if _BARE_NAME.match(s):
+    if _BARE_NAME.match(s) or _BUTTON_UNREAD.match(s):
         return True
+    if _PRINT_LINE.match(s):
+        return not model
     if form.callee is not None and form.target is None and not form.keyword:
         if len(form.callee) == 1 and form.callee[0] in _DISPLAY_CALLS:
             return True
@@ -2990,6 +3150,18 @@ class _Script:
             if n.kind == "func":
                 if mode == "run":
                     self.funcs[n.text] = self._function(n)
+                continue
+            if n.kind == "button":
+                # SimNEC runs a button's body only when it is clicked (a tune,
+                # a report), never in a solve; what a click changed is saved
+                # in the file's own values (AK#2215).
+                self.ignored.append(
+                    _Located(
+                        f"Button {n.text}() {{ … }}",
+                        n.line,
+                        "SimNEC runs a button only when it is clicked",
+                    )
+                )
                 continue
             self.assigns.extend(_assignments(n.text, 1, n.comment, n.line))
             if n.kind == "if":
@@ -3688,8 +3860,13 @@ def _sweep_range(item: str) -> list[float]:
 
 def _expr_items(expr: str) -> list[str]:
     """A sweep expression's items, one token each: ``{}`` dropped, spaces
-    around ``:`` closed up, and ``logStep s`` fused to ``logSteps``."""
-    text = expr.replace("{", " ").replace("}", " ")
+    around ``:`` closed up, and ``logStep s`` fused to ``logSteps``. Inside
+    ``{ }`` a comma separates items too: ``{3, 30}`` is two single values,
+    which SimNEC plots as dots (AK#2215)."""
+    text = re.sub(
+        r"\{([^{}]*)\}", lambda m: " " + m.group(1).replace(",", " ") + " ", expr
+    )
+    text = text.replace("{", " ").replace("}", " ")
     text = re.sub(r"\s*:\s*", ":", text)
     text = re.sub(r"(?i)logstep\s+", "logStep", text)
     return text.split()
@@ -3702,7 +3879,8 @@ def _sweep_expr(expr: str) -> tuple[float, ...]:
     separated items, each a single value or a colon triple ``from:to:step``,
     where the step may be ``logStep s`` for steps whose log10 values are whole
     multiples of ``s``. A range may be wrapped in ``{}``, which only changes
-    how SimNEC plots it. Raises ``ValueError`` for anything else, ``Vary``
+    how SimNEC plots it, and single values listed in ``{a, b}`` are plotted as
+    dots (AK#2215). Raises ``ValueError`` for anything else, ``Vary``
     included: its span comes from a SimNEC preference the file does not
     carry."""
     out: list[float] = []
@@ -3937,7 +4115,7 @@ def parse_ssn(
     """Parse the text of a SimNEC ``.ssn`` file into an :class:`SsnCircuit`.
 
     ``network`` and ``virtualize_anchors`` forward to :func:`parse_nec` for the
-    embedded NEC cards — ``network=True`` makes ``circuit.deck.wire_tuples()``
+    embedded NEC cards — ``network=True`` makes ``circuit.deck.wire_tuples(specs=True)``
     and ``circuit.network()`` ready to return from ``build_wires`` /
     ``build_network``, with the deck's lumped LD loads and the file's station
     chain (see the module note) translated.
@@ -3947,6 +4125,7 @@ def parse_ssn(
     ``parse_nec`` refuses in the embedded cards.
     """
     elements, infos, nec_pos = _nec_block(text, name)
+    files, stored_note = _with_archive(text, files, name)
     gen_pos = next(
         (i for i, (typ, _, _) in enumerate(infos) if typ == "GENERATOR"), None
     )
@@ -4089,6 +4268,14 @@ def parse_ssn(
             ),
         )
 
+    if script.conductivity is not None and deck.conductivity is None:
+        # NECOptions.mhosPerMeter is the wire material: baked into the deck so
+        # wire_tuples(specs=True) carries it per wire, as a deck LD 5 would. A
+        # deck writing its own LD 5 keeps it; the two are never both applied.
+        # Done here, not by each caller (AK#2215): a design reading the
+        # circuit with read_ssn otherwise solved PEC wire.
+        deck = replace(deck, conductivity=script.conductivity)
+
     freq_mhz = None
     sweep = sweep_points = sweep_grid = sweep_note = None
     gen_zo = None
@@ -4121,7 +4308,7 @@ def parse_ssn(
         sweep_grid=sweep_grid,
         dropped_fr=dcl.dropped,
         saved_param_notes=_saved_param_notes(script, dcl, name),
-        chain_notes=_chain_notes(chain),
+        chain_notes=_chain_notes(chain) + stored_note(chain),
         files=files,
     )
 
@@ -4230,11 +4417,13 @@ def parse_ssn_station(text: str, *, name: str = "SimNEC circuit", files=None):
     one, else its one ``LOAD`` (SimNEC's unused 0-ohm and the exporter's open
     terminations aside); the chain is every element between it and the
     GENERATOR, generator first. ``files`` reads a file an element names by its
-    path beside the circuit (`read_ssn_station` supplies it)."""
+    path beside the circuit (`read_ssn_station` supplies it); a file SimNEC
+    stored in the ``.ssn`` itself is the fallback (AK#2215)."""
     try:
         root = ET.fromstring(text)
     except ET.ParseError as e:
         raise ValueError(f"{name}: not well-formed .ssn XML ({e})") from None
+    files, stored_note = _with_archive(text, files, name)
     elements = root.findall(".//CIRCUIT/element")
     infos = [((el.findtext("type") or "?").strip(), _params(el), el) for el in elements]
     gens = [i for i, (typ, _, _) in enumerate(infos) if typ == "GENERATOR"]
@@ -4296,7 +4485,7 @@ def parse_ssn_station(text: str, *, name: str = "SimNEC circuit", files=None):
         sweep_points=sweep_points,
         antenna=None if blocks else _element(elements[end]),
         other_elements=tuple(other),
-        chain_notes=_chain_notes(chain),
+        chain_notes=_chain_notes(chain) + stored_note(chain),
         files=files,
     )
 

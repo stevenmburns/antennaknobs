@@ -56,6 +56,8 @@ def test_the_generator_sweep_expression_sets_the_measurement_range():
         ("1.1:2.2:logStep .1", 5),
         # several ranges, a {}-plotted one, and a single point
         ("7:7.3:.05 {14:14.35:.1} 21.2", 12),
+        # single values listed in braces, plotted as dots (AK#2215): 177 + 2
+        ("3.4 : 29.8 : 0.15  {3, 30}", 179),
     ],
 )
 def test_sweep_expressions_follow_the_manual_grammar(expr, points):
