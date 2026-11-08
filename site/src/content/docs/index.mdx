@@ -29,21 +29,17 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.114.1" icon="star">
-  **A full SimNEC station file opens by itself.** A `.ssn` that models the
-  antenna and its whole feed system (S-block unun and choke, coax runs) now
-  opens as saved: SimNEC's `Button` tunes and `pl` print lines are read as
-  the display they are, the `.s2p` files SimNEC stores inside the `.ssn` are
-  read from there when they are not beside it, and the Generator's sweep
-  points in `{ }` are read. On a real full-station file the Generator
-  impedance matches SimNEC's own readout within 0.06 %. Opened `.ssn` files
-  may now be up to 256 KB, on the hosted app too. See
-  [importing a .ssn](/reference/simnec/#importing-ssn--design).
+<Card title="New in v0.114.2" icon="star">
+  **razor-2p frequency sweeps are right on knot-fed designs.** A design fed
+  at a junction of wires (a knot port, as a SimNEC station file makes) gave a
+  wrong impedance, or failed outright with two such ports, when solved as a
+  sweep on the `nec5-razor-2p` engine: the app's SWR curves and
+  `impedance_sweep`. Single-frequency solves were always right, and so were
+  the other engines. Fixed in momwire 0.88.1, which this release adopts.
 
-  **A `read_ssn` design gets the file's wire material,** as the app's own
-  loader always did; it solved perfect wire before. And the
-  [station example](/reference/simnec/#a-simnec-station-on-any-antenna)
-  now keeps each wire's own radius and insulation (`wire_tuples(specs=True)`).
+  Also still new from v0.114.1: **a full SimNEC station file opens by
+  itself**, `Button`, `pl`, stored `.s2p` copies and all. See
+  [importing a .ssn](/reference/simnec/#importing-ssn--design).
 </Card>
 
 ## The whole pitch, in one line
