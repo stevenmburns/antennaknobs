@@ -137,7 +137,7 @@ import math
 import re
 import xml.etree.ElementTree as ET
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from . import network as _net
 from .design_data import read_data
@@ -178,81 +178,181 @@ _CHAIN_TYPES = _SHUNT_CHAIN | _SERIES_CHAIN | _MATCH_CHAIN
 _NEC2_LINE = re.compile(r"^NEC2\s*(?://.*)?$")
 _NECEND_LINE = re.compile(r"^NECEND\s*(?://.*)?$")
 _PORT_DECL = re.compile(r"^P\d+\s+\S", re.IGNORECASE)
-_SOMMERFELD = re.compile(
-    r"^SommerfeldGround\s*\(\s*([^\s,()]+)\s*,\s*([^\s,()]+)\s*\)$", re.IGNORECASE
-)
-_PERFECT = re.compile(r"^PerfectGround\s*\(\s*\)$", re.IGNORECASE)
-# SimNEC's own MININEC ground (its NECPortal manual, "NECGrounds"), with the
-# SommerfeldGround argument order: (mhos, dielectric).
-_MININEC = re.compile(
-    r"^MiniNECGround\s*\(\s*([^\s,()]+)\s*,\s*([^\s,()]+)\s*\)$", re.IGNORECASE
-)
-_NECUNITS = re.compile(r"^NECUnits\s+(.+)$", re.IGNORECASE)
-_NECOPTION = re.compile(r"^NECOptions\.(\w+)\s*=\s*(\S+)$", re.IGNORECASE)
-# `$GW_<tag>.JamSegments(N)`: SimNEC names each NEC2-block GW wire `$GW_<tag>`,
-# and JamSegments fixes that wire's count (the NECPortal manual, "Suggesting
-# Wire Segmentation"). Applied exactly (AK#1679).
-_JAM = re.compile(r"^\$GW_(\d+)\s*\.\s*JamSegments\s*\(\s*(\d+)\s*\)$", re.IGNORECASE)
-# The same call with an expression for the count (`JamSegments(segs)`, AC6LA's
-# DipoleVarLenSegs.ssn, AK#1716): evaluated with the script's constants and
-# the element's parameters (`_DclCards.jam_counts`).
-_JAM_EXPR = re.compile(r"^\$GW_(\d+)\s*\.\s*JamSegments\s*\((.*)\)$", re.IGNORECASE)
 # A statement that is one bare name (`len;`): a reference, which makes SimNEC
 # add the name to the element as a parameter (SimNEC Manual, "Adding a
 # Parameter to the circuit Element"), never an assignment.
 _BARE_NAME = re.compile(r"^[A-Za-z_]\w*$")
-# A lumped load on a GW wire, the way SimNEC places one (AK#1683): an N-block
-# `R` component carrying the impedance between two nodes, and a NECSource
-# attaching those nodes to `$GW_<tag>` at a percentage of its length.
-# A NECSource call (AK#1683, AK#2195, AK#2204), optionally assigned: its
-# three arguments are split and read by `_Script._directive` -- a node pair
-# `{a, b}` or a load's impedance, the wire, and the place along it.
-_NECSOURCE = re.compile(
-    r"^(?:(?:dcl\s+)?\$?[A-Za-z_]\w*\s*=\s*)?NECSource\s*\((.*)\)$",
-    re.IGNORECASE | re.DOTALL,
-)
 # An N-block element line (SimNEC's "N Block Syntax"): a designator whose
 # first letter is its kind, R (ohms), X (j ohms), L (henries) or C (farads),
 # then its value, then two node names, then for L and C an optional Q and its
 # frequency. The value is either one field with no spaces or a ( ) group.
 _NBLOCK = re.compile(r"^([RXLC])\w*(?=[\s(])\s*(.*)$")
-# SimNEC's W7EL (EZNEC) insulation, the circuit default, as the exporter writes
-# it (AK#1683) under Ward's own engine guard, whose `if` / `else` /
-# `errorOutln` lines are structure, not directives.
-_W7EL = re.compile(
-    r'^NECOptions\.Insulation\s*\(\s*"W7EL"\s*,\s*([^\s,()]+)\s*,'
-    r"\s*([^\s,()]+)\s*,\s*([^\s,()]+)\s*\)$",
-    re.IGNORECASE,
-)
-# The exporter's NEC-5 alternative for a 1-segment fed wire (AK#2091): SimNEC
-# applies it only on its NEC-5 engine, so a read for antennaknobs' engines,
-# which take the NEC2 block's segment-centre feed, keeps the unguarded count.
-_NEC5_JAM = re.compile(
-    r"^if\s*\(\s*NECOptions\.Engine\s*==\s*5\s*\)\s*"
-    r"\$GW_\d+\s*\.\s*JamSegments\s*\(\s*\d+\s*\)$"
-)
-_ENGINE_GUARD = re.compile(
-    r"^(?:if\s*\(\s*NECOptions\.Engine\s*==\s*2\s*\)|else|errorOutln\s*\(.*\))$"
-)
+# The same shape for the refusal's wording: an element line names two nodes.
+_NBLOCK_LINE = re.compile(r"^[RXLC]\w*(?=[\s(]).*\s\w+\s+\w+\s*$")
 _NUM = r"[0-9.]+(?:[eE][-+]?\d+)?[a-zA-Z\u00b5]?"
 _Z_EXPR = re.compile(rf"^({_NUM})\s*([+-])\s*j\s*\*?\s*({_NUM})$")
 _LC_TERM = re.compile(rf"^([RLC])\(\s*({_NUM})\s*\)$")
-# A load written inline, the component expression as the NECSource's first
-# argument (AK#2195): `$ld = NECSource(R(4150) ||| L(26.3u) ||| C(4.91p),
-# $GW_3, 100);` — SimNEC's own shorthand for an `R` component on two nodes.
-# An `.Insulation(...)` call on a wire or on NECOptions (AK#2195, AK#2204):
-# `$GW_<tag>.Insulation(t, er, tand)` or a variable holding the wire is
-# SimNEC's per-wire (K6OIK) jacket, `NECOptions.Insulation(t, er, tand)` the
-# circuit-wide one. The W7EL form, which names its correction, is `_W7EL`.
-_INSULATION_CALL = re.compile(
-    r"^(\$?[A-Za-z_]\w*)\s*\.\s*Insulation\s*\((.*)\)$", re.IGNORECASE | re.DOTALL
+# One argument of a ground call, a W7EL insulation or an option: a single
+# token, read as a plain number (`_fnum`), as the importer always has.
+_ONE_TOKEN = re.compile(r"[^\s,()]+")
+
+
+class _Located(str):
+    """A statement's text, carrying the line it starts on and, once known,
+    why it was not read (AK#2204), for the refusal. It compares and hashes
+    as its text, so the lists that hold statements are unchanged."""
+
+    __slots__ = ("line", "why")
+
+    def __new__(cls, text: str, line: int | None = None, why: str | None = None):
+        s = super().__new__(cls, text)
+        s.line, s.why = line, why
+        return s
+
+
+def _located(stmt: str, why: str | None) -> _Located:
+    """``stmt`` with ``why`` attached, keeping its line."""
+    return _Located(stmt, getattr(stmt, "line", None), why)
+
+
+def _shown(stmt: str) -> str:
+    """A refused statement as the refusal names it: ``line N: <statement>``,
+    then why, when that is known (AK#2204)."""
+    line, why = getattr(stmt, "line", None), getattr(stmt, "why", None)
+    return (f"line {line}: " if line else "") + stmt + (f" ({why})" if why else "")
+
+
+@dataclass(frozen=True)
+class _Form:
+    """One statement parsed (AK#2204), the shape `_Script._directive` reads
+    instead of matching patterns: an optional declaring ``keyword`` (``dcl``,
+    ``prm``, ``String``); an assignment's ``target`` member chain and ``op``;
+    the ``value`` (the right side, or the whole statement after any keyword);
+    when the value is exactly one call, its ``callee`` member chain, its
+    ``inner`` argument text and ``args`` split at top-level commas; and the
+    statement's leading word and the ``rest`` when a space follows that word
+    (the command forms: ``NECUnits meters``, ``P1 w1 gnd``)."""
+
+    keyword: str = ""
+    target: tuple[str, ...] | None = None
+    op: str | None = None
+    value: str = ""
+    callee: tuple[str, ...] | None = None
+    inner: str = ""
+    args: tuple[str, ...] = ()
+    head: str = ""
+    rest: str = ""
+
+    def calls(self, *chain: str) -> bool:
+        """Whether the statement is a bare call (nothing assigned or
+        declared) of the member chain ``chain``, compared without case as
+        SimNEC's own names are spelled either way; ``None`` in ``chain``
+        matches any one name."""
+        if self.callee is None or self.target is not None or self.keyword:
+            return False
+        return len(self.callee) == len(chain) and all(
+            want is None or got.lower() == want.lower()
+            for got, want in zip(self.callee, chain, strict=True)
+        )
+
+
+_KEYWORD = re.compile(r"(dcl|prm|String)\s+", re.IGNORECASE)
+_CHAIN = re.compile(r"\$?[A-Za-z_]\w*(?:\s*\.\s*[A-Za-z_]\w*)*")
+_ASSIGN_OP = re.compile(r"\s*(\*\*=|<<=|>>>?=|[-+*/%^|&]?=)(?!=)")
+_COMMAND = re.compile(r"([A-Za-z_]\w*)\s+(\S.*)$", re.DOTALL)
+
+
+def _chain_names(text: str) -> tuple[str, ...]:
+    return tuple(part.strip() for part in text.split("."))
+
+
+def _matching(text: str, start: int) -> int | None:
+    """The index of the bracket closing the one at ``text[start]``, outside
+    strings; None when it is not closed."""
+    pairs = {"(": ")", "[": "]", "{": "}"}
+    stack: list[str] = []
+    q = False
+    for k in range(start, len(text)):
+        ch = text[k]
+        if ch == '"':
+            q = not q
+        elif q:
+            continue
+        elif ch in pairs:
+            stack.append(pairs[ch])
+        elif ch in ")]}":
+            if not stack or stack.pop() != ch:
+                return None
+            if not stack:
+                return k
+    return None
+
+
+def _form(stmt: str) -> _Form:
+    """``stmt`` parsed into its `_Form` (AK#2204)."""
+    s = stmt.strip()
+    command = _COMMAND.match(s)
+    head, rest = (command.group(1), command.group(2).strip()) if command else ("", "")
+    k = 0
+    kw = _KEYWORD.match(s)
+    keyword = kw.group(1) if kw else ""
+    if kw:
+        k = kw.end()
+    target = op = None
+    m = _CHAIN.match(s, k)
+    if m:
+        a = _ASSIGN_OP.match(s, m.end())
+        if a:
+            target, op, k = _chain_names(m.group(0)), a.group(1), a.end()
+    value = s[k:].strip()
+    callee, inner, args = None, "", ()
+    c = _CHAIN.match(value)
+    if c:
+        open_at = len(value) - len(value[c.end() :].lstrip())
+        if value[open_at : open_at + 1] == "(":
+            close = _matching(value, open_at)
+            if close == len(value) - 1:
+                callee = _chain_names(c.group(0))
+                inner = value[open_at + 1 : close]
+                args = tuple(_top_split(inner))
+    return _Form(keyword, target, op, value, callee, inner, args, head, rest)
+
+
+# Calls that build or change the antenna (AK#2204): a statement calling one,
+# wherever in it, is a model statement, never a harmless read-out.
+_MODEL_CALLS = frozenset(
+    {
+        "necsource",
+        "necwire",
+        "sommerfeldground",
+        "perfectground",
+        "mininecground",
+        "necground",
+        "insulation",
+        "jamsegments",
+        "diameter",
+        "include",
+    }
 )
-# The statements that change the model when applied. One left unapplied
-# refuses the file (AK#2195) rather than solving without it.
-_MODEL_STATEMENT = re.compile(
-    r"NECSource\s*\(|\.\s*Insulation\s*\(|^[RXLC]\w*(?=[\s(]).*\s\w+\s+\w+\s*$",
-    re.IGNORECASE,
-)
+_CALL_NAME = re.compile(r"(?:(\.)\s*|(?<![\w$.]))([A-Za-z_]\w*)\s*\(")
+_STRING = re.compile(r'"[^"]*"')
+
+
+def _called(stmt: str) -> list[tuple[str, bool]]:
+    """Every name ``stmt`` calls, outside its strings, lowercased, with
+    whether it is called as a member (``$GW_1.Insulation(``)."""
+    text = _STRING.sub('""', stmt)
+    return [(m.group(2).lower(), bool(m.group(1))) for m in _CALL_NAME.finditer(text)]
+
+
+def _changes_model(stmt: str) -> bool:
+    """Whether ``stmt`` is one of the statements that change the model when
+    applied (a NECSource, an ``.Insulation(...)``, an N-block element line):
+    one left unapplied refuses the file (AK#2195) in those words."""
+    return _NBLOCK_LINE.match(stmt) is not None or any(
+        name == "necsource" or (name == "insulation" and member)
+        for name, member in _called(stmt)
+    )
 
 
 @dataclass(frozen=True)
@@ -466,6 +566,15 @@ def _zparse(text: str):
     return tree
 
 
+def _znames(tree) -> set[str]:
+    """The names a value tree reads."""
+    if tree[0] == "name":
+        return {tree[1]}
+    if tree[0] == "call":
+        return set().union(*(_znames(a) for a in tree[2]))
+    return set().union(*(_znames(t) for t in tree[1:] if isinstance(t, tuple)))
+
+
 def _znum(tree, lookup) -> complex:
     """The constant value of ``tree``; ``lookup(name)`` gives a name's tree.
     ``R(x)`` is x ohms and ``X(x)`` j*x; anything that depends on frequency
@@ -505,13 +614,137 @@ def _znum(tree, lookup) -> complex:
     return x * y / (x + y)
 
 
-def _zlumped(text: str, lookup) -> tuple[int, float, float, float]:
+# A function the script declares (AK#2204), `dcl f(a, b) { return <expr>; }`:
+# its parameter names and its return expression's tree, or, for any other
+# body, why a call to it is not read.
+_ZFunc = tuple[tuple[str, ...], tuple] | str
+
+
+def _zexpand(tree, funcs: Mapping[str, _ZFunc], depth: int = 0):
+    """``tree`` with each call of a declared function replaced by its return
+    expression, the arguments in place of its parameters (AK#2204): what
+    SimNEC computes for the call, as long as the body is one return of an
+    expression. A call to any other body raises `_Unread` naming it; so does
+    a recursion this deep, which no constant expression needs."""
+    if depth > 32:
+        raise _Unread("a function calls itself too deeply to be a constant")
+    kind = tree[0]
+    if kind == "paren":
+        return ("paren", _zexpand(tree[1], funcs, depth))
+    if kind == "un":
+        return ("un", tree[1], _zexpand(tree[2], funcs, depth))
+    if kind == "bin":
+        return (
+            "bin",
+            tree[1],
+            _zexpand(tree[2], funcs, depth),
+            _zexpand(tree[3], funcs, depth),
+        )
+    if kind != "call":
+        return tree
+    args = tuple(_zexpand(a, funcs, depth) for a in tree[2])
+    func = funcs.get(tree[1])
+    if func is None:
+        return ("call", tree[1], args)
+    if isinstance(func, str):
+        raise _Unread(func)
+    params, body = func
+    if len(args) != len(params):
+        raise _Unread(
+            f"{tree[1]} takes {len(params)} argument(s), and is called with {len(args)}"
+        )
+    bound = dict(zip(params, args, strict=True))
+
+    def bind(t):
+        if t[0] == "name" and t[1] in bound:
+            return ("paren", bound[t[1]])
+        if t[0] == "paren":
+            return ("paren", bind(t[1]))
+        if t[0] == "un":
+            return ("un", t[1], bind(t[2]))
+        if t[0] == "bin":
+            return ("bin", t[1], bind(t[2]), bind(t[3]))
+        if t[0] == "call":
+            return ("call", t[1], tuple(bind(a) for a in t[2]))
+        return t
+
+    return ("paren", _zexpand(bind(body), funcs, depth + 1))
+
+
+def _top_find(text: str, ops: tuple[str, ...]) -> tuple[int, str] | None:
+    """The first top-level (outside brackets and strings) occurrence in
+    ``text`` of any of ``ops``, as ``(index, op)``; ``||`` never matches
+    inside the parallel operator ``|||``."""
+    depth, q, k = 0, False, 0
+    while k < len(text):
+        ch = text[k]
+        if ch == '"':
+            q = not q
+        elif not q and ch in "([{":
+            depth += 1
+        elif not q and ch in ")]}":
+            depth -= 1
+        elif not q and depth == 0:
+            if text.startswith("|||", k):
+                k += 3
+                continue
+            for op in ops:
+                if text.startswith(op, k):
+                    return k, op
+        k += 1
+    return None
+
+
+_COMPARE = ("==", "!=", "<=", ">=", "<", ">")
+
+
+def _zcond(text: str, value) -> bool:
+    """Whether the condition ``text`` holds (AK#2204), ``value(expr)`` giving
+    a side's constant complex value: ``||`` and ``&&`` (C's precedence), a
+    leading ``!``, one comparison, or a value that holds when it is not 0.
+    An order on a complex value, or any form beyond these, raises
+    `_Unread`."""
+    s = text.strip()
+    for op in ("||", "&&"):
+        hit = _top_find(s, (op,))
+        if hit:
+            k = hit[0]
+            left, right = _zcond(s[:k], value), _zcond(s[k + 2 :], value)
+            return (left or right) if op == "||" else (left and right)
+    hit = _top_find(s, _COMPARE)
+    if s.startswith("!") and not s.startswith("!="):
+        if hit:
+            raise _Unread(f"{text!r}: '!' beside a comparison is not read")
+        return not _zcond(s[1:], value)
+    if hit is None:
+        if s.startswith("(") and _matching(s, 0) == len(s) - 1:
+            return _zcond(s[1:-1], value)
+        return value(s) != 0
+    k, op = hit
+    x, y = value(s[:k]), value(s[k + len(op) :])
+    if op == "==":
+        return x == y
+    if op == "!=":
+        return x != y
+    if x.imag or y.imag:
+        raise _Unread(f"{text!r} orders a complex value")
+    a, b = x.real, y.real
+    if op == "<=":
+        return a <= b
+    if op == ">=":
+        return a >= b
+    return a < b if op == "<" else a > b
+
+
+def _zlumped(text: str, lookup, parse=_zparse) -> tuple[int, float, float, float]:
     """A load value as LD card values ``(type, F1, F2, F3)`` (AK#2204): type
     0 for R, ``L(henries)`` and ``C(farads)`` joined by ``+`` (each at most
     once), 1 for the same joined by ``|||``, 4 for a constant R + jX (a
     constant real is a type-0 R). Values may be any constant expression, the
-    script's own constants included. Anything else raises `_Unread`."""
-    tree = _zparse(text)
+    script's own constants included. Anything else raises `_Unread`.
+    ``parse`` reads the text into a tree (the script's own functions
+    expanded, AK#2204)."""
+    tree = parse(text)
     while tree[0] == "paren":
         tree = tree[1]
     if tree[0] == "name":
@@ -1557,47 +1790,189 @@ def _assignments(stmt: str, depth: int, comment: str, line: int) -> list[_Assign
     ]
 
 
-_CONTROL = re.compile(r"^(?:\}\s*)?(?:(else)$|(?:if|while|else\s+if|for)\s*\()")
+# The script's control flow (AK#2204). A header keyword and its ( ) group:
+# `if`, `while`, `for`, `switch`, and SimNEC's `at(phase)`, which runs its
+# body only in the phases it names (the SimNEC Manual's "at" section).
+_HEAD_KW = re.compile(r"(if|while|for|switch|at)\s*\(")
+_ELSE = re.compile(r"else(?![\w$])\s*")
+# `finalize { }`, as a bundled SimNEC insulation example writes one: a block
+# run at some point of SimNEC's evaluation, not once per solve as written.
+_PHASE_BLOCK = re.compile(r"finalize$")
+# `dcl f(a, b)` before a `{`: a function (the F-block notes).
+_FUNC = re.compile(
+    r"dcl\s+(\$?[A-Za-z_]\w*)\s*\(\s*(\$?[A-Za-z_]\w*(?:\s*,\s*\$?[A-Za-z_]\w*)*)?\s*\)$"
+)
+# A `switch` body's labels: `case "x":`, `default:`.
+_LABEL = re.compile(r'(?:case\s+(?:"[^"]*"|[^:"]+?)|default)\s*:(?!:)')
+_RETURN = re.compile(r"return(?![\w$])\s*(.*)$", re.DOTALL)
 
 
-def _closes_at_end(stmt: str, start: int) -> bool:
-    """Whether the ``(`` at ``stmt[start]`` is closed by the last character."""
-    level = 0
-    for k in range(start, len(stmt)):
-        level += {"(": 1, ")": -1}.get(stmt[k], 0)
-        if level == 0:
-            return k == len(stmt) - 1
-    return False
+@dataclass(frozen=True)
+class _Head:
+    """A control header at the start of a statement: its ``kind`` (``if``,
+    ``while``, ``for``, ``switch``, ``at``, ``else``, ``do``, or ``block``
+    for ``finalize``), its ``cond`` text, the header as written, and the
+    ``rest`` of the statement: a brace-less body on the same statement."""
+
+    kind: str
+    cond: str | None
+    text: str
+    rest: str
 
 
-def _control_header(stmt: str, in_for: bool) -> tuple[bool, bool]:
-    """``(body, in_for)`` after ``stmt`` (AK#1734): whether the next
-    statement is the brace-less body of a control header ``stmt`` ends
-    (``if (c)``, ``while (c)``, ``else``, the last part of ``for (a; b; c)``,
-    which the ``;`` split cuts in three), and whether a ``for`` header is
-    still open. A header that opens a ``{`` has its body counted by the
-    brace depth instead, and ``if (c) x = 1`` carries its own body."""
-    if "{" in stmt:
-        return False, False
-    if in_for:
-        # The rest of a `for (` header: it ends at its unmatched `)`.
-        level = 0
-        for k, ch in enumerate(stmt):
-            level += {"(": 1, ")": -1}.get(ch, 0)
-            if level < 0:
-                return k == len(stmt) - 1, False
-        return False, True
-    m = _CONTROL.match(stmt)
-    if m is None:
-        return False, False
-    if m.group(1):
-        return True, False
-    start = m.end() - 1
-    if _closes_at_end(stmt, start):
-        return True, False
-    # `for($i=0` -- the header goes on past this statement.
-    level = sum({"(": 1, ")": -1}.get(ch, 0) for ch in stmt[start:])
-    return False, level > 0 and stmt.lstrip("} ").startswith("for")
+def _header(text: str) -> _Head | None:
+    m = _HEAD_KW.match(text)
+    if m:
+        close = _matching(text, m.end() - 1)
+        if close is None:
+            return None
+        return _Head(
+            m.group(1),
+            text[m.end() : close].strip(),
+            text[: close + 1],
+            text[close + 1 :].strip(),
+        )
+    m = _ELSE.match(text)
+    if m:
+        return _Head("else", None, "else", text[m.end() :].strip())
+    if text == "do":
+        return _Head("do", None, "do", "")
+    if _PHASE_BLOCK.match(text):
+        return _Head("block", None, text, "")
+    return None
+
+
+def _opens_block(so_far: str) -> bool:
+    """Whether a ``{`` after the statement text ``so_far`` opens a block:
+    at a statement's start, or after a header with nothing following it (an
+    ``else if (c)`` included) or a function's ``dcl f(a)``."""
+    if not so_far or _FUNC.match(so_far):
+        return True
+    head = _header(so_far)
+    while head is not None and head.rest:
+        head = _header(head.rest)
+    return head is not None
+
+
+@dataclass
+class _Node:
+    """One piece of the script's structure (AK#2204): a ``stmt``; an ``if``
+    (``cond``, ``body``, ``other`` the else branch or None); a ``loop``
+    (``for``, ``while``, ``do``); a ``block`` (``guarded`` for one whose
+    body runs only sometimes: a phase, a ``switch``; plain ``{ }`` is not);
+    or a ``func`` (``text`` its name, ``params``). ``text`` is a statement's
+    text, or a header as written."""
+
+    kind: str
+    text: str
+    line: int
+    comment: str = ""
+    cond: str | None = None
+    body: list[_Node] = field(default_factory=list)
+    other: list[_Node] | None = None
+    guarded: bool = False
+    params: tuple[str, ...] = ()
+
+
+def _structure(units: list[tuple[str, int, str]]) -> list[_Node]:
+    """The script's statements (``(text, line, comment)``, braces as their
+    own units) as a tree of `_Node` (AK#2204). A header's body is the next
+    statement or ``{ }`` block, or the rest of its own statement
+    (``if (c) $x = 1``); an ``else`` belongs to the ``if`` before it. A stray
+    ``}`` closes nothing, and the end of the script closes what is open."""
+    pos = 0
+
+    def peek() -> tuple[str, int, str] | None:
+        return units[pos] if pos < len(units) else None
+
+    def seq(closing: bool) -> list[_Node]:
+        nonlocal pos
+        out: list[_Node] = []
+        while pos < len(units):
+            if units[pos][0] == "}":
+                pos += 1
+                if closing:
+                    return out
+                continue
+            out.append(one(None))
+        return out
+
+    def body_of(rest: str, line: int, comment: str) -> list[_Node]:
+        if rest:
+            nodes = [one((rest, line, comment))]
+        elif peek() is None or peek()[0] == "}":
+            return []
+        else:
+            nodes = [one(None)]
+        # A `{ }` body is the header's own, not a block inside it.
+        if nodes[0].kind == "block" and nodes[0].text == "{":
+            return nodes[0].body
+        return nodes
+
+    def one(unit: tuple[str, int, str] | None) -> _Node:
+        nonlocal pos
+        if unit is None:
+            unit = units[pos]
+            pos += 1
+        text, line, comment = unit
+        if text == "{":
+            return _Node("block", "{", line, comment, body=seq(True))
+        func = _FUNC.match(text)
+        if func and peek() is not None and peek()[0] == "{":
+            pos += 1
+            params = tuple(p.strip() for p in (func.group(2) or "").split(","))
+            return _Node(
+                "func",
+                func.group(1),
+                line,
+                comment,
+                body=seq(True),
+                params=tuple(p for p in params if p),
+            )
+        label = _LABEL.match(text)
+        if label:
+            rest = text[label.end() :].strip()
+            if rest:
+                return one((rest, line, comment))
+            return _Node("block", "", line, comment)
+        head = _header(text)
+        if head is None:
+            return _Node("stmt", text, line, comment)
+        body = body_of(head.rest, line, comment)
+        if head.kind == "if":
+            other = None
+            nxt = peek()
+            else_head = _header(nxt[0]) if nxt is not None else None
+            if else_head is not None and else_head.kind == "else":
+                pos += 1
+                other = body_of(else_head.rest, nxt[1], nxt[2])
+            return _Node(
+                "if", head.text, line, comment, cond=head.cond, body=body, other=other
+            )
+        if head.kind == "do":
+            nxt = peek()
+            until = _header(nxt[0]) if nxt is not None else None
+            text = "do"
+            if until is not None and until.kind == "while" and not until.rest:
+                pos += 1
+                text = f"do ... {until.text}"
+            return _Node("loop", text, line, comment, body=body)
+        if head.kind in ("for", "while"):
+            return _Node("loop", head.text, line, comment, body=body)
+        # `switch`, `at(...)`, `finalize`, an `else` with no `if`.
+        return _Node("block", head.text, line, comment, body=body, guarded=True)
+
+    return seq(False)
+
+
+def _flatten(nodes: list[_Node], funcs: bool = False):
+    """Every node of the tree, depth first; a function's body only when
+    ``funcs``."""
+    for n in nodes:
+        yield n
+        if n.kind != "func" or funcs:
+            yield from _flatten(n.body, funcs)
+            yield from _flatten(n.other or [], funcs)
 
 
 def _card_mnemonic(fields: list[str]) -> tuple[str, list[str]]:
@@ -2095,38 +2470,40 @@ _CONTINUES = ("+", "-", "*", "/", "^", "|", "=", ",", "(", "&", "<", ">", "!", "
 # Calls that only draw or report (AK#2204): SimNEC's element picture and
 # its output lines. Nothing they do reaches the antenna.
 _DISPLAY_CALLS = frozenset({"BodyGraphic", "errorOutln", "outln", "out", "println"})
-# Names whose call in a statement's value means the statement builds or
-# changes the antenna, whatever it assigns to.
-_MODEL_CALL = re.compile(
-    r"\b(?:NECSource|NECWire|SommerfeldGround|PerfectGround|MiniNECGround|"
-    r"NECGround|Insulation|JamSegments|Diameter|include)\s*\(",
-    re.IGNORECASE,
-)
+# The declaring keywords, spelled as SimNEC spells them (it is case-sensitive).
+_DECLARE = frozenset({"dcl", "prm", "String"})
 
 
-def _harmless_unapplied(stmt: str) -> bool:
+def _harmless_unapplied(stmt: str, model_funcs: frozenset[str] = frozenset()) -> bool:
     """Whether a statement the import leaves unapplied leaves the model alone
     (AK#2204), so the file may open without it: block structure and control
     headers, declarations and bare references, an assignment to a plain name
     that calls nothing that builds the antenna (a result read-out, a label,
-    an unused constant), and the display calls. Anything else left unread
-    may change the antenna, and refuses the file by name."""
+    an unused constant), and the display calls. A call to one of the
+    script's own functions in ``model_funcs`` (one whose body builds the
+    antenna) is a model call too. Anything else left unread may change the
+    antenna, and refuses the file by name."""
     s = stmt.strip()
-    if s in ("{", "}", "else") or s.startswith("}") or s.endswith("{"):
-        return not _MODEL_CALL.search(s)
-    if _CONTROL.match(s) or re.match(r"^(?:dcl|prm|String)\s+\$?\w", s):
-        return not _MODEL_CALL.search(s)
+    model = any(
+        name in _MODEL_CALLS or name in model_funcs for name, _member in _called(s)
+    )
+    form = _form(s)
+    if s in ("{", "}") or _header(s) is not None or form.keyword in _DECLARE:
+        return not model
     if _BARE_NAME.match(s):
         return True
-    call = re.match(r"^([A-Za-z_]\w*)\s*\(", s)
-    if call and call.group(1) in _DISPLAY_CALLS:
-        return True
-    lhs, eq, rhs = s.partition("=")
-    if eq and not rhs.startswith("=") and not lhs.endswith(("!", "<", ">")):
-        target = lhs.strip()
-        if re.fullmatch(r"\$?[A-Za-z_]\w*", target) and not _MODEL_CALL.search(rhs):
+    if form.callee is not None and form.target is None and not form.keyword:
+        if len(form.callee) == 1 and form.callee[0] in _DISPLAY_CALLS:
             return True
-    return False
+    if form.op is not None and form.target is not None and len(form.target) == 1:
+        # `$x = ...`, and `$x += ...`: a plain name changes, and what reads
+        # it then finds no one value and is refused by name itself.
+        return not model
+    return _STEP.fullmatch(s) is not None
+
+
+# `$i++`, `--n`: a loop counter's step, which changes only that name.
+_STEP = re.compile(r"(?:\+\+|--)\s*\$?[A-Za-z_]\w*|\$?[A-Za-z_]\w*\s*(?:\+\+|--)")
 
 
 def _nblock_element(stmt: str) -> tuple[str, str, str] | None:
@@ -2181,18 +2558,25 @@ def _script_units(text: str, where: str):
     exporter writes them. It runs on across lines while a parenthesis is
     open, or when its line ends on an operator or a comma, as a statement
     split by hand does. ``//`` and ``/* … */`` are comments wherever they
-    are, never inside a string; a ``/* */`` may span lines."""
+    are, never inside a string; a ``/* */`` may span lines.
+
+    A brace that opens or closes a block is a unit of its own, ``"{"`` or
+    ``"}"``, with the line it is on: one at the start of a statement, or after
+    a block header (`_opens_block`: ``if (c)``, ``else``, ``for (...)``,
+    ``dcl f(a)``, ...). Any other brace is part of an expression
+    (``{n1, n2}``, ``SelectOneOf {a, b} x``) and stays in its statement."""
     in_cards = False
     in_block = False  # inside /* */
     cur: list[str] = []  # the statement so far, comments removed
     start = 0
     depth = 0  # ( ) and [ ] nesting of the statement so far
+    braces = 0  # expression { } nesting of the statement so far
     comment = ""
 
     def flush():
-        nonlocal cur, depth
+        nonlocal cur, depth, braces
         stmt = " ".join("".join(cur).split())
-        cur, depth = [], 0
+        cur, depth, braces = [], 0, 0
         return stmt
 
     for line_no, raw in enumerate(text.splitlines(), 1):
@@ -2245,6 +2629,17 @@ def _script_units(text: str, where: str):
                 cur.append(raw[k : end + 1])
                 k = end + 1
                 continue
+            if ch in "{}" and depth == 0:
+                so_far = " ".join("".join(cur).split())
+                if (ch == "{" and _opens_block(so_far)) or (ch == "}" and not braces):
+                    note = _comment_of(raw, k)
+                    if so_far:
+                        yield "stmt", flush(), start, note
+                    cur = []
+                    yield "stmt", ch, line_no, note
+                    k += 1
+                    continue
+                braces += 1 if ch == "{" else -1
             if ch in "([":
                 depth += 1
             elif ch in ")]":
@@ -2295,7 +2690,11 @@ class _Script:
     directive may name (AK#1716)."""
 
     def __init__(
-        self, text: str, where: str, params: Mapping[str, str | None] | None = None
+        self,
+        text: str,
+        where: str,
+        params: Mapping[str, str | None] | None = None,
+        overrides: Mapping[str, float] | None = None,
     ):
         self.params: Mapping[str, str | None] = params or {}
         self.cards: list[str] = []
@@ -2335,6 +2734,8 @@ class _Script:
         # `.Insulation(...)` calls, (wire or NECOptions, argument texts, stmt),
         # read after the whole script (`_apply_insulation`, AK#2204).
         self._insulation_calls: list[tuple[str, list[str], str]] = []
+        # The line of each wire's `.Insulation(...)`, for its refusal.
+        self.insulation_lines: dict[int, int | None] = {}
         # Port declarations (`P2 w2 gnd`): each port's node pair, so a
         # NECSource on a port's nodes reads as the feed (AK#2195).
         self.port_nodes: set[frozenset[str]] = set()
@@ -2346,31 +2747,33 @@ class _Script:
         # Every assignment the script makes, in order (AK#1714): what
         # `_DclCards` reads the cards' names from.
         self.assigns: list[_Assign] = []
-        depth = 0  # `{ }` nesting of the directive text
-        # The next statement is the brace-less body of an `if (...)`,
-        # `while (...)`, `for (...)` or `else` (AK#1734): conditional, so
-        # never a constant, as if it sat inside `{ }`.
-        body, in_for = False, False
+        # The script's own functions (AK#2204): name -> (parameters, return
+        # tree), or why a call to it is not read (`_zexpand`).
+        self.funcs: dict[str, _ZFunc] = {}
+        # Lowercased names of the functions whose body calls something that
+        # builds the antenna: a call to one is never a harmless read-out.
+        self.model_funcs: frozenset[str] = frozenset()
+        self._overrides: Mapping[str, float] = overrides or {}
+        stmts: list[tuple[str, int, str]] = []
         for kind, stmt, line_no, comment in _script_units(text, where):
             if kind == "card":
                 self.cards.append(stmt)
-                continue
-            if kind == "name":
+            elif kind == "name":
                 if self.name is None:
                     self.name = stmt or None
-                continue
-            self.assigns.extend(_assignments(stmt, depth + body, comment, line_no))
-            body, in_for = _control_header(stmt, in_for)
-            if _BARE_NAME.match(stmt):
-                self.bare.setdefault(stmt, (comment, line_no, stmt))
-            m = _PRM_DECL.match(stmt)
-            if m:
-                for decl in m.group(1).split(","):
-                    decl = decl.strip()
-                    if not decl.endswith("[]"):
-                        self.bare.setdefault(decl, (comment, line_no, stmt))
-            depth = max(0, depth + stmt.count("{") - stmt.count("}"))
-            self._directive(stmt, where)
+            else:
+                stmts.append((stmt, line_no, comment))
+        tree = _structure(stmts)
+        # How often the script's text assigns each name, every branch and
+        # loop counted, functions' own bodies not: a condition reads only a
+        # name assigned once in the whole script (`_condition`).
+        self._written: dict[str, int] = {}
+        for n in _flatten(tree):
+            if n.kind != "func":
+                for a in _assignments(n.text, 1, "", n.line):
+                    self._written[a.name] = self._written.get(a.name, 0) + 1
+        self.model_funcs = self._model_funcs(tree)
+        self._run(tree, "run", True, None, where)
         self._apply_loads(where)
         self._resolve_seg_per_wl(where)
 
@@ -2387,6 +2790,161 @@ class _Script:
             and name in self.params
             and not any(a.name == name for a in self.assigns)
         )
+
+    def _run(
+        self, nodes: list[_Node], mode: str, const: bool, why: str | None, where: str
+    ) -> None:
+        """Read ``nodes`` (AK#2204). In ``"run"`` a statement is applied, as
+        SimNEC runs it once per solve; ``const`` says whether an assignment
+        there sets a constant (top level, or the taken branch of an ``if``
+        whose condition is a constant, but not inside a plain ``{ }``). In
+        ``"guard"`` -- a branch of a condition this import cannot evaluate, a
+        loop body, a phase or ``switch`` block -- nothing is applied: each
+        statement is left unread, ``why`` naming the construct, and refuses
+        the file unless it is one that leaves the model alone. A branch not
+        taken is not read at all."""
+        for n in nodes:
+            if n.kind == "stmt":
+                self._statement(n, mode, const, why, where)
+                continue
+            if n.kind == "func":
+                if mode == "run":
+                    self.funcs[n.text] = self._function(n)
+                continue
+            self.assigns.extend(_assignments(n.text, 1, n.comment, n.line))
+            if n.kind == "if":
+                taken = self._condition(n.cond or "") if mode == "run" else None
+                if taken is None:
+                    inside = why or (
+                        f"inside {n.text}, whose condition this import cannot "
+                        "evaluate to a constant"
+                    )
+                    self._run(n.body, "guard", False, inside, where)
+                    self._run(n.other or [], "guard", False, inside, where)
+                else:
+                    self._run(
+                        n.body if taken else n.other or [], mode, const, why, where
+                    )
+            elif n.kind == "loop":
+                self._run(
+                    n.body,
+                    "guard",
+                    False,
+                    why or f"inside the loop {n.text}, which this import does not run",
+                    where,
+                )
+            elif n.guarded:
+                what = (
+                    "which runs only in some of SimNEC's phases"
+                    if n.text.startswith("at")
+                    else "which this import does not evaluate"
+                )
+                self._run(
+                    n.body, "guard", False, why or f"inside {n.text}, {what}", where
+                )
+            else:
+                self._run(n.body, mode, False, why, where)
+
+    def _statement(
+        self, n: _Node, mode: str, const: bool, why: str | None, where: str
+    ) -> None:
+        stmt = _Located(n.text, n.line, why)
+        constant = mode == "run" and const
+        self.assigns.extend(_assignments(stmt, 0 if constant else 1, n.comment, n.line))
+        if _BARE_NAME.match(stmt):
+            self.bare.setdefault(stmt, (n.comment, n.line, stmt))
+        m = _PRM_DECL.match(stmt)
+        if m:
+            for decl in m.group(1).split(","):
+                decl = decl.strip()
+                if not decl.endswith("[]"):
+                    self.bare.setdefault(decl, (n.comment, n.line, stmt))
+        if mode == "run":
+            self._directive(stmt, where)
+        else:
+            self.ignored.append(stmt)
+
+    def _function(self, n: _Node) -> _ZFunc:
+        """A declared function as `_zexpand` calls it (AK#2204)."""
+        body = [b for b in n.body if not (b.kind == "block" and not b.body)]
+        ret = _RETURN.match(body[0].text) if len(body) == 1 else None
+        if body and body[0].kind == "stmt" and ret and ret.group(1).strip():
+            try:
+                return n.params, _zparse(ret.group(1))
+            except _Unread as e:
+                return f"the function {n.text} returns what is not read here ({e})"
+        return (
+            f"the function {n.text} is not one `return <expression>;`, the only "
+            "body this import evaluates"
+        )
+
+    @staticmethod
+    def _model_funcs(tree: list[_Node]) -> frozenset[str]:
+        """The functions (lowercased) whose bodies call something that builds
+        the antenna, directly or through another of the script's functions."""
+        bodies = {
+            n.text.lower(): [b.text for b in _flatten(n.body, funcs=True)]
+            for n in _flatten(tree)
+            if n.kind == "func"
+        }
+        found: set[str] = set()
+        grew = True
+        while grew:
+            grew = False
+            for name, texts in bodies.items():
+                if name not in found and any(
+                    called in _MODEL_CALLS or called in found
+                    for t in texts
+                    for called, _member in _called(t)
+                ):
+                    found.add(name)
+                    grew = True
+        return frozenset(found)
+
+    def _zparse(self, text: str):
+        """``text`` as a value tree, the script's functions expanded."""
+        return _zexpand(_zparse(text), self.funcs)
+
+    def _condition(self, cond: str) -> bool | None:
+        """The value of an ``if`` condition, or None when it is not a
+        constant (AK#2204). It may read numbers, the script's functions,
+        ``NECOptions.Engine`` and names assigned once in the whole script,
+        by an assignment already run as a constant -- a knob among them at
+        its override. ``NECOptions.Engine`` reads 2: where a script branches
+        on SimNEC's engine, the reading follows its NEC-2 engine, the one
+        whose cards the NEC2 block is. So the exporter's W7EL insulation
+        under ``if (NECOptions.Engine == 2)`` is applied, and its NEC-5
+        ``JamSegments`` for a 1-segment fed wire (AK#2091) is not: these
+        engines take the NEC2 block's segment-centre feed. Anything else
+        (``G.MHz``, an element parameter, a name set twice) is no
+        constant."""
+        busy: set[str] = set()
+
+        def lookup(name: str):
+            if name.lower() == "necoptions.engine":
+                return ("num", 2 + 0j)
+            hits = [a for a in self.assigns if a.name == name]
+            if (
+                self._written.get(name) != 1
+                or len(hits) != 1
+                or not hits[0].constant
+                or not hits[0].expr
+            ):
+                raise _Unread(f"{name} is not a constant here")
+            if name in self._overrides:
+                return ("num", complex(float(self._overrides[name])))
+            if name in busy:
+                raise _Unread(f"{name} is defined in terms of itself")
+            busy.add(name)
+            try:
+                return ("num", _znum(self._zparse(hits[0].expr), lookup))
+            finally:
+                busy.discard(name)
+
+        try:
+            return _zcond(cond, lambda e: _znum(self._zparse(e), lookup))
+        except _Unread:
+            return None
 
     def _resolve_seg_per_wl(self, where: str) -> None:
         """A `segmentsPerWavelength` naming an input parameter takes its saved
@@ -2469,21 +3027,25 @@ class _Script:
         for a in self.assigns:
             sets.setdefault(a.name, []).append(a.expr if a.constant else None)
         consts = {k: v[0].strip() for k, v in sets.items() if len(v) == 1 and v[0]}
-        busy: set[str] = set()
+
+        def cyclic(name: str, seen: frozenset[str] = frozenset()) -> bool:
+            if name in seen:
+                return True
+            try:
+                refs = _znames(self._zparse(consts[name]))
+            except _Unread:
+                return False
+            return any(cyclic(r, seen | {name}) for r in refs if r in consts)
 
         def lookup(name: str):
             if name not in consts:
                 raise _Unread(f"{name} has no one constant value")
-            if name in busy:
+            if cyclic(name):
                 raise _Unread(f"{name} is defined in terms of itself")
-            busy.add(name)
-            try:
-                return _zparse(consts[name])
-            finally:
-                busy.discard(name)
+            return self._zparse(consts[name])
 
         def number(text: str) -> float:
-            v = _znum(_zparse(text), lookup)
+            v = _znum(self._zparse(text), lookup)
             if v.imag:
                 raise _Unread(f"{text!r} is complex")
             return v.real
@@ -2501,25 +3063,32 @@ class _Script:
         self._apply_insulation(where, number, wire_tag)
 
         def values_of(expr: str):
+            """The LD values of ``expr``, or None and why not."""
             try:
-                return _zlumped(expr, lookup)
-            except _Unread:
-                return None
+                return _zlumped(expr, lookup, self._zparse), None
+            except _Unread as e:
+                return None, str(e)
 
         def place(ref: str, pct_text: str, what: str):
+            """``(tag, (segment, end), why)``: the place, or None and why."""
             tag = wire_tag(ref)
             if tag is None:
-                return None, None
+                return None, None, f"{ref.strip()} names no one GW wire"
             if re.fullmatch(_NUM, pct_text.strip()):
-                return tag, segment(tag, pct_text.strip(), what)
-            try:
-                pct = number(pct_text)
-            except _Unread:
-                return tag, None
-            # A computed place is exact, as a whole number is.
-            return tag, segment(
-                tag, repr(pct) if pct != int(pct) else str(int(pct)), what, exact=True
-            )
+                at = segment(tag, pct_text.strip(), what)
+            else:
+                try:
+                    pct = number(pct_text)
+                except _Unread as e:
+                    return tag, None, str(e)
+                # A computed place is exact, as a whole number is.
+                at = segment(
+                    tag,
+                    repr(pct) if pct != int(pct) else str(int(pct)),
+                    what,
+                    exact=True,
+                )
+            return tag, at, None if at else f"$GW_{tag} is not one GW card's wire"
 
         def add_load(values, tag, at) -> None:
             seg, end = at
@@ -2539,9 +3108,9 @@ class _Script:
             if comp is None and frozenset((a, b)) in self.port_nodes and not has_ex:
                 # A port's own nodes on a wire: the feed, as SimNEC reads it
                 # with no EX card in the block (AK#2195).
-                tag, at = place(ref, pct_text, f"the source {stmt!r}")
+                tag, at, why = place(ref, pct_text, f"the source {stmt!r}")
                 if at is None:
-                    self.ignored.append(stmt)
+                    self.ignored.append(_located(stmt, why))
                     continue
                 seg, end = at
                 if end:
@@ -2550,24 +3119,30 @@ class _Script:
                     self.cards.append(f"EX 0 {tag} {seg} 0 1 0")
                 has_ex = True
                 continue
-            values = values_of(comp[0]) if comp else None
-            tag, at = (
+            values, why = (
+                values_of(comp[0])
+                if comp
+                else (None, f"no element line joins nodes {a} and {b}")
+            )
+            tag, at, why = (
                 place(ref, pct_text, f"the load {comp[1]!r}")
                 if values
-                else (None, None)
+                else (None, None, why)
             )
             if values is None or at is None:
-                self.ignored.append(stmt)
+                self.ignored.append(_located(stmt, why))
                 continue
             used.add(key)
             add_load(values, tag, at)
         for expr, ref, pct_text, stmt in self._inline_loads:
-            values = values_of(expr)
-            tag, at = (
-                place(ref, pct_text, f"the load {stmt!r}") if values else (None, None)
+            values, why = values_of(expr)
+            tag, at, why = (
+                place(ref, pct_text, f"the load {stmt!r}")
+                if values
+                else (None, None, why)
             )
             if values is None or at is None:
-                self.ignored.append(stmt)
+                self.ignored.append(_located(stmt, why))
                 continue
             add_load(values, tag, at)
         for key, (_expr, stmt) in self._r_components.items():
@@ -2583,11 +3158,15 @@ class _Script:
             circuit = ref.lower() == "necoptions"
             tag = None if circuit else wire_tag(ref)
             try:
-                if len(args) != 3 or (tag is None and not circuit):
-                    raise _Unread(stmt)
+                if len(args) != 3:
+                    raise _Unread(
+                        "it takes 3 values: thickness, permittivity, loss tangent"
+                    )
+                if tag is None and not circuit:
+                    raise _Unread(f"{ref} names no one GW wire")
                 thick, eps_r, tand = (number(a) for a in args)
-            except _Unread:
-                self.ignored.append(stmt)
+            except _Unread as e:
+                self.ignored.append(_located(stmt, str(e)))
                 continue
             if not 0.0 <= tand < 1.0:
                 raise ValueError(
@@ -2595,12 +3174,16 @@ class _Script:
                     f"{tand:g}; it must be at least 0 and below 1"
                 )
             jacket = (thick, eps_r, tand) if thick > 0.0 else None
+            if not circuit:
+                self.insulation_lines[tag] = getattr(stmt, "line", None)
             if circuit:
                 self.insulation = jacket
             else:
                 self.wire_insulation[tag] = jacket
 
     def _directive(self, stmt: str, where: str) -> None:
+        """Apply one statement the script runs, read from its parsed form
+        (`_form`, AK#2204), or leave it in ``ignored``."""
         if _PORT_DECL.match(stmt):
             # Port declaration (P1 w1 gnd): circuit structure, and the node
             # pair a source NECSource names (AK#2195).
@@ -2613,43 +3196,80 @@ class _Script:
             # (AK#1734): a declaration, nothing to apply. A parameter the
             # cards read is read from the element's saved value.
             return
-        m = _JAM.match(stmt)
-        if m:
-            self.jam[int(m.group(1))] = (int(m.group(2)), stmt)
-            self.jam_exprs.pop(int(m.group(1)), None)
-            return
-        m = _JAM_EXPR.match(stmt)
-        if m:
-            # Not applied until `_dcl_cards` reads the expression, and
-            # reported as not applied when it does not (a block of SY cards).
-            self.jam_exprs[int(m.group(1))] = (m.group(2).strip(), stmt)
-            self.jam.pop(int(m.group(1)), None)
+        f = _form(stmt)
+        if f.calls(None, "JamSegments") and re.fullmatch(
+            r"\$GW_\d+", f.callee[0], re.IGNORECASE
+        ):
+            # SimNEC names each NEC2-block GW wire `$GW_<tag>`, and
+            # JamSegments fixes that wire's count (the NECPortal manual,
+            # "Suggesting Wire Segmentation"), applied exactly (AK#1679). A
+            # tag's later JamSegments replaces its earlier one, either form.
+            tag = int(f.callee[0][4:])
+            if len(f.args) == 1 and re.fullmatch(r"\d+", f.args[0]):
+                self.jam[tag] = (int(f.args[0]), stmt)
+                self.jam_exprs.pop(tag, None)
+                return
+            # An expression for the count (`JamSegments(segs)`, AC6LA's
+            # DipoleVarLenSegs.ssn, AK#1716): evaluated with the script's
+            # constants and the element's parameters by `_dcl_cards`, and
+            # reported as not applied when it is not (a block of SY cards).
+            self.jam_exprs[tag] = (f.inner.strip(), stmt)
+            self.jam.pop(tag, None)
             self.ignored.append(stmt)
             return
-        m = _W7EL.match(stmt)
-        if m:
-            thick = _fnum(m.group(1), where, "Insulation thickness")
-            eps_r = _fnum(m.group(2), where, "Insulation permittivity")
-            tand = _fnum(m.group(3), where, "Insulation loss tangent")
-            if not 0.0 <= tand < 1.0:
-                raise ValueError(
-                    f"{where}: {stmt!r} gives the insulation a loss tangent of "
-                    f"{tand:g}; it must be at least 0 and below 1"
+        if f.calls(None, "Insulation"):
+            if f.args[0].startswith('"'):
+                # SimNEC's W7EL (EZNEC) insulation, `NECOptions.Insulation(
+                # "W7EL", t, er, tand)`, the circuit default, as the exporter
+                # writes it (AK#1683); any other named correction is unread.
+                if (
+                    f.calls("NECOptions", "Insulation")
+                    and f.args[0].upper() == '"W7EL"'
+                    and len(f.args) == 4
+                    and all(_ONE_TOKEN.fullmatch(x) for x in f.args[1:])
+                ):
+                    thick = _fnum(f.args[1], where, "Insulation thickness")
+                    eps_r = _fnum(f.args[2], where, "Insulation permittivity")
+                    tand = _fnum(f.args[3], where, "Insulation loss tangent")
+                    if not 0.0 <= tand < 1.0:
+                        raise ValueError(
+                            f"{where}: {stmt!r} gives the insulation a loss "
+                            f"tangent of {tand:g}; it must be at least 0 and "
+                            "below 1"
+                        )
+                    # The jacket's dielectric loss (AK#2035), momwire#765.
+                    self.insulation = (thick, eps_r, tand) if thick > 0.0 else None
+                    return
+            elif re.fullmatch(r"\$?[A-Za-z_]\w*", f.callee[0]):
+                # `$GW_<tag>.Insulation(t, er, tand)`, or a variable holding
+                # the wire, is SimNEC's per-wire (K6OIK) jacket;
+                # `NECOptions.Insulation(t, er, tand)` the circuit-wide one
+                # (AK#2195). Read once the whole script is in
+                # (`_apply_insulation`), so its values may be constants.
+                self._insulation_calls.append((f.callee[0], list(f.args), stmt))
+                return
+        if f.calls("errorOutln"):
+            # An error line the script prints, as the exporter's engine
+            # guards write it: nothing to apply.
+            return
+        if (
+            f.callee is not None
+            and [c.lower() for c in f.callee] == ["necsource"]
+            and (
+                (f.target is None and not f.keyword)
+                or (
+                    f.keyword.lower() in ("", "dcl")
+                    and f.op == "="
+                    and f.target is not None
+                    and len(f.target) == 1
                 )
-            # The jacket's dielectric loss (AK#2035), served by momwire#765.
-            self.insulation = (thick, eps_r, tand) if thick > 0.0 else None
-            return
-        m = _INSULATION_CALL.match(stmt)
-        if m and not m.group(2).lstrip().startswith('"'):
-            # Read once the whole script is in (`_apply_insulation`), so its
-            # values may be the script's constants and the wire a variable.
-            self._insulation_calls.append((m.group(1), _top_split(m.group(2)), stmt))
-            return
-        if _ENGINE_GUARD.match(stmt) or _NEC5_JAM.match(stmt):
-            return
-        m = _NECSOURCE.match(stmt)
-        if m:
-            args = _top_split(m.group(1))
+            )
+        ):
+            # A NECSource call (AK#1683, AK#2195, AK#2204), optionally
+            # assigned: a node pair `{a, b}` or a load's impedance (SimNEC's
+            # shorthand for an `R` component on two nodes), the wire, and
+            # the place along it as a percentage of its length.
+            args = f.args
             if len(args) == 3 and args[0].startswith("{") and args[0].endswith("}"):
                 nodes = _top_split(args[0][1:-1])
                 if len(nodes) == 2 and all(re.fullmatch(r"\w+", n) for n in nodes):
@@ -2667,38 +3287,50 @@ class _Script:
             key = (n1, n2) if (n2, n1) not in self._r_components else (n2, n1)
             if key in self._r_components:
                 prev, prev_stmt = self._r_components[key]
-                expr, stmt = f"({prev}) ||| ({expr})", f"{prev_stmt}; {stmt}"
+                expr = f"({prev}) ||| ({expr})"
+                stmt = _Located(
+                    f"{prev_stmt}; {stmt}", getattr(prev_stmt, "line", None)
+                )
             self._r_components[key] = (expr, stmt)
             return
-        if _PERFECT.match(stmt):
+        if f.calls("PerfectGround") and f.args == ("",):
             self.ground = "pec"
             return
-        m = _SOMMERFELD.match(stmt)
-        if m:
-            # SommerfeldGround(mhos, dielectric) == (sigma, eps_r) — the
-            # reverse of the ("finite", eps_r, sigma) spec, as on export.
-            sigma = _fnum(m.group(1), where, "SommerfeldGround")
-            eps_r = _fnum(m.group(2), where, "SommerfeldGround")
-            self.ground = ("finite", eps_r, sigma)
-            return
-        m = _MININEC.match(stmt)
-        if m:
-            # Perfect-ground currents, the soil for the pattern alone: the
-            # same ground as EZNEC's MININEC type (AK#1655).
-            sigma = _fnum(m.group(1), where, "MiniNECGround")
-            eps_r = _fnum(m.group(2), where, "MiniNECGround")
-            self.ground = ("mininec", eps_r, sigma)
-            return
-        m = _NECUNITS.match(stmt)
-        if m:
-            units = [u for u in m.group(1).split(",") if u.strip()]
+        for call, kind in (
+            ("SommerfeldGround", "finite"),
+            ("MiniNECGround", "mininec"),
+        ):
+            if (
+                f.calls(call)
+                and len(f.args) == 2
+                and all(_ONE_TOKEN.fullmatch(x) for x in f.args)
+            ):
+                # SommerfeldGround(mhos, dielectric) == (sigma, eps_r) — the
+                # reverse of the ("finite", eps_r, sigma) spec, as on export.
+                # SimNEC's own MININEC ground (its NECPortal manual,
+                # "NECGrounds") takes the same order: perfect-ground
+                # currents, the soil for the pattern alone, EZNEC's MININEC
+                # type (AK#1655).
+                sigma = _fnum(f.args[0], where, call)
+                eps_r = _fnum(f.args[1], where, call)
+                self.ground = (kind, eps_r, sigma)
+                return
+        if f.head.lower() == "necunits" and not f.keyword:
+            units = [u for u in f.rest.split(",") if u.strip()]
             if not 1 <= len(units) <= 2:
                 raise ValueError(f"{where}: bad NECUnits directive {stmt!r}")
             self.display_units = tuple(u.strip() for u in units)
             return
-        m = _NECOPTION.match(stmt)
-        if m:
-            option, value = m.group(1), m.group(2)
+        if (
+            f.target is not None
+            and len(f.target) == 2
+            and f.target[0].lower() == "necoptions"
+            and f.op == "="
+            and not f.keyword
+            and f.value
+            and len(f.value.split()) == 1
+        ):
+            option, value = f.target[1], f.value
             key = option.lower()
             if key == "mhospermeter":
                 mhos = _mhos(value, where, f"NECOptions.{option}")
@@ -3189,7 +3821,10 @@ def parse_ssn(
     chain = tuple(chain_doc)
 
     script = _Script(
-        infos[nec_pos][1]["equ"] or "", name, _numeric_params(infos[nec_pos][2])
+        infos[nec_pos][1]["equ"] or "",
+        name,
+        _numeric_params(infos[nec_pos][2]),
+        overrides=dcl_overrides,
     )
     dcl = _dcl_cards(script, name)
     # Read into the cards now, so no longer "not applied": a constant's
@@ -3227,20 +3862,29 @@ def parse_ssn(
     tags = {w.tag for w in deck.wires}
     for tag in sorted(set(script.wire_insulation) - tags):
         # A jacket on a wire no GW card declares names no wire (AK#2195).
-        script.ignored.append(f"$GW_{tag}.Insulation(...)")
+        script.ignored.append(
+            _Located(
+                f"$GW_{tag}.Insulation(...)",
+                script.insulation_lines.get(tag),
+                "no GW card declares that wire",
+            )
+        )
         del script.wire_insulation[tag]
-    dropped = [s for s in script.ignored if not _harmless_unapplied(s)]
+    dropped = [
+        s for s in script.ignored if not _harmless_unapplied(s, script.model_funcs)
+    ]
     if dropped:
         # A statement left unread may change the antenna, and solving without
         # it is a confidently wrong answer, so the file is refused by name
         # (AK#2195). Since AK#2204 that is the rule for every statement but
         # the few kinds known to leave the model alone (`_harmless_unapplied`).
-        changes = [s for s in dropped if _MODEL_STATEMENT.search(s)]
+        # Each is named with the line it starts on (AK#2204).
+        changes = [s for s in dropped if _changes_model(s)]
         raise ValueError(
             f"{name}: {'these statements' if len(dropped) > 1 else 'this statement'} "
             f"{'change' if changes and len(dropped) > 1 else 'changes' if changes else 'may change'} "
             "the model and could not be read, so the file is not opened "
-            "without them: " + "; ".join(dropped)
+            "without them: " + "; ".join(_shown(s) for s in dropped)
         )
     if script.insulation is not None or script.wire_insulation:
         # The circuit's default insulation covers every wire (AK#1683), and a
@@ -3290,7 +3934,7 @@ def parse_ssn(
         name=script.name,
         chain=chain,
         other_elements=tuple(other),
-        ignored_directives=tuple(script.ignored),
+        ignored_directives=tuple(str(s) for s in script.ignored),
         sweep_points=sweep_points,
         sweep_note=sweep_note,
         sweep_grid=sweep_grid,
