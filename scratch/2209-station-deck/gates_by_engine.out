@@ -1,0 +1,111 @@
+=== dipole (centre knot) at 7.0 MHz
+CM antennaknobs NEC-5 station deck: fixture.station.<locals>.Station
+CM NT/TL station cards valid at 7 MHz only
+CM (NT values and the lambda/4 transformer lines are computed at it)
+CM wire 2 is the phantom wire for virtual nodes, each knot pinned open by LD 4 1e+10 ohm
+CM knot 2/1: node rig, T2, pin moves Z 1.0e-08
+CM knot 2/2: node S2, pin moves Z 1.2e-08
+CM knot 2/3: node T1, pin moves Z 9.6e-09
+CM knot 2/4: node L1, pin moves Z 5.6e-09
+CM knot 2/5: node C1, X1, pin moves Z 1.7e-09
+CM knot 2/6: node X1~feed#7, pin moves Z 7.9e-10
+CM NEC-5
+CE
+GW 1 20 0.000000E+00 -1.070000E+01 1.000000E+01 0.000000E+00 1.070000E+01 1.000000E+01 1.000000E-03
+GW 2 7 0 0 8672.71428571429 0.214142857142857 0 8672.71428571429 0.000152959183673469
+GE 0 0
+LD 4 2 1 2 10000000000 0 0
+LD 4 2 2 2 10000000000 0 0
+LD 4 2 3 2 10000000000 0 0
+LD 4 2 4 2 10000000000 0 0
+LD 4 2 5 2 10000000000 0 0
+LD 4 2 6 2 10000000000 0 0
+TL 2 3 2 4 75 3.75 0 0 0 0
+TL 2 5 2 6 27.2165526975909 10.7071428571429 0 0 0 0
+TL 2 6 1 10 -40.8248290463863 10.7071428571429 0 0 0 0
+NT 2 1 2 2 0.00549959162331883 0.0430150313276464 0.00486633107095156 0.0472033228025131 0.00549959162331883 0.0430150313276464
+NT 2 2 2 3 0.010353680511391 -0.0564408428751272 -0.00923410937078528 0.0618271648512935 0.0086855285560858 -0.064825453305462
+NT 2 4 2 5 0 -0.0189470170347494 0 0.0189470170347494 0 -0.0145487873197237
+EX 0 2 1 2 1 0
+FR 0 1 0 0 7.000000E+00 0.000000E+00
+XQ 0
+EN
+
+  knots (measured on momwire bspline):
+    knot 1: rig, T2  effect 1.01e-08
+    knot 2: S2  effect 1.16e-08
+    knot 3: T1  effect 9.64e-09
+    knot 4: L1  effect 5.65e-09
+    knot 5: C1, X1  effect 1.69e-09
+    knot 6: X1~feed#7  effect 7.90e-10
+  derived phantom tolerance (sum of knot effects): 3.94e-08
+  cards-as-circuit vs composite: 9.5e-16
+  importer -> momwire bspline: deck 60.830687+80.237460j  composite 60.830685+80.237463j  rel 3.70e-08
+    within derived tolerance 3.94e-08: True
+  licensed NEC-5: deck 57.811000+77.915000j  composite 57.810931+77.914890j  rel 1.34e-06
+    knot 1: rig, T2  effect 9.70e-09 (on NEC-5's Y)
+    knot 2: S2  effect 1.13e-08 (on NEC-5's Y)
+    knot 3: T1  effect 9.31e-09 (on NEC-5's Y)
+    knot 4: L1  effect 5.25e-09 (on NEC-5's Y)
+    knot 5: C1, X1  effect 1.52e-09 (on NEC-5's Y)
+    knot 6: X1~feed#7  effect 7.92e-10 (on NEC-5's Y)
+    tolerance = knots 3.79e-08 + printout 7.29e-06 = 7.33e-06: True
+  momwire-nec5-bspline drop-in: deck 60.825000+80.051000j  composite 60.824853+80.051021j  rel 1.47e-06
+    (antenna-only Z on the drop-in (78.516+43.343j), itself printed to 5 figures)
+    tolerance = knots 3.94e-08 + printout x2 = 1.50e-05: True
+=== inverted V (vertex knot) at 7.0 MHz
+CM antennaknobs NEC-5 station deck: fixture.station.<locals>.Station
+CM NT/TL station cards valid at 7 MHz only
+CM (NT values and the lambda/4 transformer lines are computed at it)
+CM wire 3 is the phantom wire for virtual nodes, each knot pinned open by LD 4 1e+10 ohm
+CM knot 3/1: node rig, T2, pin moves Z 1.4e-08
+CM knot 3/2: node S2, pin moves Z 1.4e-08
+CM knot 3/3: node T1, pin moves Z 1.3e-08
+CM knot 3/4: node L1, pin moves Z 9.6e-09
+CM knot 3/5: node C1, X1, pin moves Z 3.8e-09
+CM knot 3/6: node X1~feed#7, pin moves Z 8.1e-10
+CM NEC-5
+CE
+GW 1 10 0.000000E+00 -1.000000E+01 5.000000E+00 0.000000E+00 0.000000E+00 1.000000E+01 1.000000E-03
+GW 2 10 0.000000E+00 0.000000E+00 1.000000E+01 0.000000E+00 1.000000E+01 5.000000E+00 1.000000E-03
+GW 3 7 0 0 8665.71428571429 0.214142857142857 0 8665.71428571429 0.000152959183673469
+GE 0 0
+LD 4 3 1 2 10000000000 0 0
+LD 4 3 2 2 10000000000 0 0
+LD 4 3 3 2 10000000000 0 0
+LD 4 3 4 2 10000000000 0 0
+LD 4 3 5 2 10000000000 0 0
+LD 4 3 6 2 10000000000 0 0
+TL 3 3 3 4 75 3.75 0 0 0 0
+TL 3 5 3 6 27.2165526975909 10.7071428571429 0 0 0 0
+TL 3 6 1 10 -40.8248290463863 10.7071428571429 0 0 0 0
+NT 3 1 3 2 0.00549959162331883 0.0430150313276464 0.00486633107095156 0.0472033228025131 0.00549959162331883 0.0430150313276464
+NT 3 2 3 3 0.010353680511391 -0.0564408428751272 -0.00923410937078528 0.0618271648512935 0.0086855285560858 -0.064825453305462
+NT 3 4 3 5 0 -0.0189470170347494 0 0.0189470170347494 0 -0.0145487873197237
+EX 0 3 1 2 1 0
+FR 0 1 0 0 7.000000E+00 0.000000E+00
+XQ 0
+EN
+
+  knots (measured on momwire bspline):
+    knot 1: rig, T2  effect 1.37e-08
+    knot 2: S2  effect 1.44e-08
+    knot 3: T1  effect 1.29e-08
+    knot 4: L1  effect 9.56e-09
+    knot 5: C1, X1  effect 3.77e-09
+    knot 6: X1~feed#7  effect 8.12e-10
+  derived phantom tolerance (sum of knot effects): 5.51e-08
+  cards-as-circuit vs composite: 2.7e-15
+  importer -> momwire bspline: deck 88.066894+104.621758j  composite 88.066893+104.621766j  rel 5.35e-08
+    within derived tolerance 5.51e-08: True
+  licensed NEC-5: deck 83.504000+102.740000j  composite 83.503757+102.741128j  rel 8.71e-06
+    knot 1: rig, T2  effect 1.32e-08 (on NEC-5's Y)
+    knot 2: S2  effect 1.40e-08 (on NEC-5's Y)
+    knot 3: T1  effect 1.26e-08 (on NEC-5's Y)
+    knot 4: L1  effect 9.04e-09 (on NEC-5's Y)
+    knot 5: C1, X1  effect 3.39e-09 (on NEC-5's Y)
+    knot 6: X1~feed#7  effect 8.12e-10 (on NEC-5's Y)
+    tolerance = knots 5.31e-08 + printout 3.80e-05 = 3.80e-05: True
+  momwire-nec5-bspline drop-in: deck 88.066000+104.620000j  composite 88.065990+104.621310j  rel 9.58e-06
+    (antenna-only Z on the drop-in (75.297+108.37j), itself printed to 5 figures)
+    tolerance = knots 5.51e-08 + printout x2 = 7.49e-05: True
