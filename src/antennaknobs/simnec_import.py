@@ -1074,11 +1074,6 @@ def _chain_notes(chain) -> tuple[str, ...]:
                     f"{where} is SimNEC's {' '.join(mdl.split())!r} line, read "
                     "from the Zo, velocity factor and k0/k1/k2 saved with it"
                 )
-            if mdl.lower() != "simplified" and _chain_f(el, "k0", default=0.0):
-                notes.append(
-                    f"{where}'s constant k0 loss is a matched pad at the line's "
-                    "middle, exact on a matched line"
-                )
         src = (el.get("file") or "").strip()
         if src and src != "<none>" and _ABSOLUTE.match(src.replace("\\", "/")):
             notes.append(
