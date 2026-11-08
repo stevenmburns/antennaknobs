@@ -30,7 +30,8 @@ the key, and the deck opens with them folded into its knobs' ``ui_params``
 
 Because the text is a stranger's, everything about it is bounded:
 
-- the text (64 KB) before anything parses it;
+- the text (64 KB; a design .py and a SimNEC .ssn, which carries copies of
+  its .s2p files, 256 KB) before anything parses it;
 - the structure (3000 segments, 200 wires) BEFORE a card builds it
   (`nec_import.GeometryLimits`), including counts an SY symbol or a knob
   reaches and the copies GM / GR / GX make;
@@ -380,6 +381,11 @@ class DeckSettings:
     # A design .py (AK#2149): its own text cap, since a design that carries
     # its measurements (Touchstone tables) as text is larger than a deck.
     max_py_bytes: int = 256 * 1024
+    # A SimNEC .ssn (AK#2215): its own text cap, since SimNEC stores a copy of
+    # each file the circuit names (an S block's .s2p, compressed) inside it,
+    # and a full-station circuit runs to ~100 KB. The copies' inflated size
+    # has its own bound in the importer (simnec_import._ARCHIVE_CAP).
+    max_ssn_bytes: int = 256 * 1024
     # "auto": a local install opens a .py, the hosted app only when the
     # sandbox's jail is active (design_sandbox.sandbox_status); "off": never.
     py_policy: str = "auto"
@@ -418,6 +424,9 @@ class DeckSettings:
             max_segments=int(_env_float("ANTENNAKNOBS_DECK_MAX_SEGMENTS", 3000)),
             max_wires=int(_env_float("ANTENNAKNOBS_DECK_MAX_WIRES", 200)),
             max_py_bytes=int(_env_float("ANTENNAKNOBS_DECK_MAX_PY_BYTES", 256 * 1024)),
+            max_ssn_bytes=int(
+                _env_float("ANTENNAKNOBS_DECK_MAX_SSN_BYTES", 256 * 1024)
+            ),
             py_policy=os.environ.get("ANTENNAKNOBS_DECK_PY", "auto").strip().lower(),
             # 0 = no budget. Hosted 60 s: Steve, 2026-10-03.
             budget_s=_env_float("ANTENNAKNOBS_DECK_BUDGET_S", 60.0 if hosted else 0.0),
@@ -457,7 +466,9 @@ def decode_payload(payload, settings: DeckSettings) -> tuple[str, str]:
             _refused("deck_py")
             raise DeckError(f"{name}: {why}", status=403)
     binary = ext == ".ez"
-    limit = settings.max_py_bytes if ext == ".py" else settings.max_bytes
+    limit = {".py": settings.max_py_bytes, ".ssn": settings.max_ssn_bytes}.get(
+        ext, settings.max_bytes
+    )
 
     def too_big() -> DeckError:
         _refused("deck_cap")

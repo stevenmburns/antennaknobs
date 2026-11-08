@@ -291,8 +291,21 @@ constant), a wire no `GW` card declares, an element nothing attaches, an L or
 C with a Q, elements in series through an inner node, a model statement in a
 loop or an unevaluated branch, or any call or setting it does not know. Only statements known to leave the model alone may go unread, and are
 listed in the import note: block structure, declarations, assignments that
-read results back (`$g = _NECBLOCK.field.APG;`), and display calls such as
-`BodyGraphic(…)`.
+read results back (`$g = _NECBLOCK.field.APG;`), display calls such as
+`BodyGraphic(…)` and `pl` print lines, and a `Button Name() { … }`, whose
+body SimNEC runs only when the button is clicked (a tune, a report); what a
+click changed is already saved in the file's values.
+
+**A file that carries its own files opens alone.** SimNEC stores a copy of
+each file the circuit names (an S block's `.s2p`) inside the `.ssn`. A file
+of that name beside the `.ssn` is read first; otherwise the stored copy is,
+and the import note says which. So a full-station `.ssn` opens by itself
+through Open… and on the hosted app, with no folder of sidecars. When every
+wire's count is held by `JamSegments`, SimNEC solves the file's own mesh, and
+the two agree: a real full-station file (an inverted L with its insulation
+and traps, a measured 49:1 unun and choke as S blocks, and two RG-58 runs)
+reads SimNEC's own Generator impedance within 0.06 % at 3.55 and 28.45 MHz on
+`momwire:razor-2p`.
 
 In Python the same machinery is `read_ssn(self, "circuit.ssn")` /
 `parse_ssn(text)` — `read_ssn` ships a `.ssn` next to a
@@ -455,7 +468,9 @@ class Station(AntennaBuilder):
         return read_nec(self, "antenna.nec", network=True)
 
     def build_wires(self):
-        return self._deck().wire_tuples()
+        # specs=True keeps each wire's own radius, insulation and material;
+        # plain wire_tuples() gives every wire one stock radius.
+        return self._deck().wire_tuples(specs=True)
 
     def build_network(self):
         station = read_ssn_station(self, "station.ssn")  # .s2p files beside it
@@ -478,7 +493,8 @@ What the chain reads:
   RG-58 at 3.55 MHz that is 2.7 % more electrical length than the velocity
   factor alone gives.
 - **`SCATTERING`** (an S block): its S-parameters from the `.s2p` named
-  beside the `.ssn`, or as written on the element, at its `Zref`. `2 <> 1`
+  beside the `.ssn`, else from the copy SimNEC stores inside the `.ssn` (the
+  import note says so), or as written on the element, at its `Zref`. `2 <> 1`
   puts port 1 on the generator side; `1 <> 2` reverses it. The de-embedding
   modes are refused by name.
 - The lumped blocks (series and shunt R, L, C with their Q, transformers, the
