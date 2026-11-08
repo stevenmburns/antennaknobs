@@ -414,9 +414,17 @@ def _antenna_engine(builder, real, net, native, ground, wire_radius):
         sources=[Driven(port=n) for n in real],
     )
     # The same builder state behind a class whose network is the antenna's
-    # (a builder's __getattr__ reads its params, so copy.copy recurses).
+    # (a builder's __getattr__ reads its params, so copy.copy recurses). The
+    # subclass keeps the design's __module__: `design_data.read_data` finds a
+    # design's folder from it, so a design that reads its .nec or .ssn from
+    # beside itself reads it here too.
     cls = type(builder)
-    b = object.__new__(type(cls.__name__, (cls,), {"build_network": lambda _s: inner}))
+    sub = type(
+        cls.__name__,
+        (cls,),
+        {"build_network": lambda _s: inner, "__module__": cls.__module__},
+    )
+    b = object.__new__(sub)
     b.__dict__.update(builder.__dict__)
     return NEC5Engine(b, ground=ground, require_exe=False, wire_radius=wire_radius)
 

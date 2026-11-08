@@ -385,3 +385,53 @@ def test_a_current_source_is_refused_by_name():
     )
     with pytest.raises(StationDeckRefusal, match="current source on 'rig'"):
         station_deck(_builder(deck.wire_tuples(specs=True), net))
+
+
+# --- a design that reads its files from beside itself ---------------------------
+
+_FILE_DESIGN = """
+from types import MappingProxyType
+
+from antennaknobs.builder import AntennaBuilder
+from antennaknobs.nec_import import read_nec
+from antennaknobs.simnec_import import read_ssn_station
+
+
+class Builder(AntennaBuilder):
+    default_params = MappingProxyType({"freq": %r})
+    c_light_mhz_m = 299.8
+
+    def _deck(self):
+        return read_nec(self, "antenna.nec", network=True)
+
+    def build_wires(self):
+        return self._deck().wire_tuples(specs=True)
+
+    def build_network(self):
+        station = read_ssn_station(self, "station.ssn")
+        return station.network(self._deck().network())
+"""
+
+
+def test_a_design_reading_files_beside_itself_writes_the_same_deck(tmp_path):
+    """The writer re-homes the design's network on a subclass, and
+    `read_data` finds a design's folder from its class's module: the subclass
+    must keep it, or the design's own `.nec` and `.ssn` are looked for inside
+    the antennaknobs package (found writing a real station deck)."""
+    import importlib.util  # noqa: PLC0415 — this test's own loader
+
+    (tmp_path / "antenna.nec").write_text(DIPOLE)
+    (tmp_path / "station.ssn").write_text(_ssn())
+    (tmp_path / "hybrid_2209.py").write_text(_FILE_DESIGN % F_MHZ)
+    spec = importlib.util.spec_from_file_location(
+        "hybrid_2209", tmp_path / "hybrid_2209.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["hybrid_2209"] = mod
+    try:
+        spec.loader.exec_module(mod)
+        from_files = station_deck(mod.Builder(), title="t")
+    finally:
+        sys.modules.pop("hybrid_2209", None)
+    inline = station_deck(_station(), title="t")
+    assert from_files.text == inline.text

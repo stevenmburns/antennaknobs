@@ -574,9 +574,12 @@ momwire's `momwire-nec5-bspline` drop-in) with no antennaknobs installed:
 ```python
 from antennaknobs.nec5_station import station_deck
 
-deck = station_deck(Station(), freq=7.0)  # the Station class above
-open("station-7MHz.nec", "w").write(deck.text)
+deck = station_deck(Station(), freq=3.55, ground=("finite", 13.0, 0.005))
+open("station-3.55MHz.nec", "w").write(deck.text)
 ```
+
+`ground` is the deck's ground, as in the plain NEC-5 download, and it
+defaults to free space whatever the `.nec` says, so name it.
 
 | part of the station | NEC-5 card |
 | --- | --- |
@@ -613,6 +616,12 @@ block and 12 m of RG-58; `scratch/2209-station-deck/`):
 | licensed NEC-5 | the station on NEC-5's own antenna | 1.3e-6 / 8.7e-6, inside the printout's rounding |
 | `momwire-nec5-bspline` | the station on the drop-in's own antenna | 1.5e-6 / 9.6e-6 |
 | AK's importer → momwire | the station on momwire | 3.7e-8 / 5.4e-8, the pins' measured 4e-8 / 6e-8 |
+
+On a real full-station model (an EFHW inverted L fed at a wire junction,
+a 49:1 unun and a choke as S blocks, two runs of RG-58 as Johnson lines),
+the one deck run on licensed NEC-5 reads 34.78 + j7.85 Ω at 3.55 MHz and
+29.02 + j33.95 Ω at 28.45 MHz, SimNEC's own Generator readout to the
+printout's digits.
 
 An antenna fed at a knot where two wires meet (`PortAtVertex`) is written:
 NEC-5 attaches `NT` and `TL` cards to a segment end exactly as it attaches
