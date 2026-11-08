@@ -19,7 +19,10 @@ What this refuses, and it is a different list from the NEC-2 writer's:
   native card for them either; the app solves them by a multiport-Y reduction
   outside the field solve, one deck per driven port, so there is no faithful
   SINGLE deck. (The catalog export writes the per-port decks instead, which is
-  a set of files rather than a download.)
+  a set of files rather than a download.) `nec5_station.station_deck` does
+  write one, at ONE frequency (AK#2209): each two-port as an ``NT`` of its Y
+  at that frequency, virtual nodes as pinned phantom knots. That is a
+  different file (it is wrong at any other frequency), so this refusal stays.
 * **Buried, ground-contact and graded designs** — served here and refused by
   the NEC-2 writer. That asymmetry is the whole point of #1389: the user who
   most needs a deck for `verticals.buried_radial_vertical` was being handed
