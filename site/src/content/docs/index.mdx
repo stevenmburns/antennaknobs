@@ -29,28 +29,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.114.0" icon="star">
-  **A SimNEC station on any antenna.** Model the antenna in EZNEC, AutoEZ or
-  NEC, and the feed system (coax, measured choke and unun S-parameters, a
-  tuner) in SimNEC: `read_ssn_station` reads just the station chain from the
-  `.ssn` and hangs it on any antenna, a `.nec` deck's or a builder's, in a
-  short design. On a real SimNEC station it reproduces SimNEC's own
-  generator-side trace to 3e-15. See
-  [a SimNEC station on any antenna](/reference/simnec/#a-simnec-station-on-any-antenna).
+<Card title="New in v0.114.1" icon="star">
+  **A full SimNEC station file opens by itself.** A `.ssn` that models the
+  antenna and its whole feed system (S-block unun and choke, coax runs) now
+  opens as saved: SimNEC's `Button` tunes and `pl` print lines are read as
+  the display they are, the `.s2p` files SimNEC stores inside the `.ssn` are
+  read from there when they are not beside it, and the Generator's sweep
+  points in `{ }` are read. On a real full-station file the Generator
+  impedance matches SimNEC's own readout within 0.06 %. Opened `.ssn` files
+  may now be up to 256 KB, on the hosted app too. See
+  [importing a .ssn](/reference/simnec/#importing-ssn--design).
 
-  **Coax as SimNEC, TLDetails and AutoEZ solve it.** A SimNEC cable is now
-  AC6LA's Johnson line (momwire 0.88.0), with the skin-effect inductance
-  and k0 included. It matches AC6LA's own T-Line Model worked example to
-  machine precision.
-
-  **Hand-written SimNEC scripts read as a script.** Statements, comments,
-  constants, conditions, loops and functions are evaluated rather than
-  pattern-matched, and anything still unread refuses by line number.
-
-  **NEC-5 decks with several sources on one knot** open as NEC-5 reads them,
-  one source of their summed voltage. **A feed at a junction knot** (an EFHW's
-  feed at the end of its wire) now exports to SimNEC, written as SimNEC writes
-  it.
+  **A `read_ssn` design gets the file's wire material,** as the app's own
+  loader always did; it solved perfect wire before. And the
+  [station example](/reference/simnec/#a-simnec-station-on-any-antenna)
+  now keeps each wire's own radius and insulation (`wire_tuples(specs=True)`).
 </Card>
 
 ## The whole pitch, in one line
