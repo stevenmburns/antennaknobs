@@ -504,6 +504,60 @@ What the chain reads:
   antenna against what the station was built on, or to terminate the chain
   with it (`N.TouchstoneLoad(port, table)`).
 
+### Knobs on both halves
+
+Either half can carry knobs. On the antenna side, a constant the `.nec`
+defines with an `SY` card becomes a knob through `parse_nec`'s
+`sy_overrides`. On the station side, `station.values()` lists the chain's
+adjustable numbers, keyed `"<label>.<param>"` by each element's SimNEC
+label, and `station.with_values()` sets them:
+
+```python
+from types import MappingProxyType
+
+from antennaknobs.builder import AntennaBuilder
+from antennaknobs.design_data import read_data
+from antennaknobs.nec_import import parse_nec
+from antennaknobs.simnec_import import read_ssn_station
+
+
+class Station(AntennaBuilder):
+    """The top wire's length and the coax run as knobs."""
+
+    # antenna.nec carries `SY H_len=30.45` and uses H_len in its GW card.
+    default_params = MappingProxyType({"freq": 3.55, "H_len": 30.45, "coax_m": 12.0})
+
+    def _deck(self):
+        return parse_nec(
+            read_data(self, "antenna.nec"),
+            name="antenna.nec",
+            network=True,
+            sy_overrides={"H_len": float(self.H_len)},
+        )
+
+    def build_wires(self):
+        return self._deck().wire_tuples(specs=True)
+
+    def build_network(self):
+        station = read_ssn_station(self, "station.ssn")
+        station = station.with_values({"T2.mtrs": float(self.coax_m)})
+        return station.network(self._deck().network())
+```
+
+The values are the ones the chain reads, in SimNEC's own units: a line's
+length (`mtrs` or `ft`, whichever it was saved with), `Zo`, `VFnom` and
+`k0`/`k1`/`k2`; a component's `H` or `F` and `Q`; a `SERIES_Z`'s `ohms`
+and `johms`; a transformer's `N`; an `XMATCH`'s `R`, `MHz`, `Qc` and `Ql`.
+A value set this way builds exactly the network the `.ssn` saved with it
+would. A label no element carries, or more than one does, a parameter the
+element does not carry, a display-only field such as a line's `~deg`, and a
+value that is not a finite number are refused by name.
+
+On the hosted app a design cannot read files beside it, so paste the two
+files into the design as strings and read them with `parse_nec(text, ...)`
+and `parse_ssn_station(text, name=...)`. The `.s2p` files then come from the
+copies SimNEC stores inside the `.ssn`.
+
 How exact it is: on a real EFHW station (an inverted L with a measured 49:1
 unun and a common-mode choke as S blocks, and 12 m + 4 m of RG-58), the chain
 on SimNEC's own antenna table reproduces SimNEC's generator-side trace to
