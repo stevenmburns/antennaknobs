@@ -199,7 +199,12 @@ import-only case: a `SERIES_Z` — SimNEC's fixed complex impedance — becomes 
 frequency-independent 2-port `Admittance`. A `SERIES_TLINE`'s `Mdl simplified`
 loss model (SimNEC's default: one dB/100-length figure at one frequency) is
 read and kept as the matched-loss coefficient it implies, exact at that
-frequency; any other line model is refused by name rather than approximated.
+frequency. A `k0k1k2` line, or a named cable from SimNEC's database (an AC6LA
+table entry such as Belden 8259 RG-58A/U), is read from the Zo, velocity
+factor and k0/k1/k2 that SimNEC saves on the element. It is solved as AC6LA's
+Johnson line, the model SimNEC, TLDetails, Zplots and AutoEZ all use; see
+[a station on any antenna](#a-simnec-station-on-any-antenna). A named cable
+saved without its coefficients is refused by name rather than approximated.
 A chain element outside the translated set makes `network()` refuse rather
 than build a station with a silently-missing tuner part.
 
@@ -422,6 +427,73 @@ a name that is neither a constant nor a saved parameter. A
 `NECOptions.segmentsPerWavelength` that names a parameter (`= segsWL`, in
 AC6LA's Synth conversions) takes its saved value, which, like any
 `segmentsPerWavelength`, only feeds the mesh note.
+
+## A SimNEC station on any antenna
+
+A common workflow models the antenna in EZNEC, AutoEZ or NEC and the feed
+system in SimNEC: coax runs, measured choke and unun S-parameters, a tuner.
+The SimNEC circuit holds the antenna as a `LOAD` reading a table of its
+feed-point impedance. `parse_ssn_station` reads just that station chain, the
+elements between the Generator and the antenna end, and
+`SsnStation.network(antenna)` hangs it on any antenna's network: a native
+builder's, a `.nec` deck's, or the table itself.
+
+```python
+from types import MappingProxyType
+
+from antennaknobs.builder import AntennaBuilder
+from antennaknobs.nec_import import read_nec  # or parse_nec(text, network=True)
+from antennaknobs.simnec_import import read_ssn_station
+
+
+class Station(AntennaBuilder):
+    """My antenna from a .nec, my feed system from a .ssn, in one design."""
+
+    default_params = MappingProxyType({"freq": 7.0})
+
+    def _deck(self):
+        return read_nec(self, "antenna.nec", network=True)
+
+    def build_wires(self):
+        return self._deck().wire_tuples()
+
+    def build_network(self):
+        station = read_ssn_station(self, "station.ssn")  # .s2p files beside it
+        return station.network(self._deck().network())
+```
+
+The chain sits between a new `rig` port, which is SimNEC's Generator, and the
+antenna's own fed port, which keeps its name and reads the antenna alone.
+Every chain block gets a node named after its SimNEC label, so each block's
+generator side is a measurement plane, as in SimNEC.
+
+What the chain reads:
+
+- **`SERIES_TLINE`**: length in feet or metres, with its Zo, velocity factor
+  and k0/k1/k2, solved as **AC6LA's Johnson line** (momwire's
+  `TL(k0=..., skin=True)`). Each coefficient becomes a per-length element:
+  R_dc from k0, R_hf from k1, G from k2, and L and C from Zo and velocity
+  factor. The conductors' internal impedance is √(R_dc² + [R_hf·(1 + j)]²),
+  so the skin effect's internal inductance slows the line as 1/√f. On 12 m of
+  RG-58 at 3.55 MHz that is 2.7 % more electrical length than the velocity
+  factor alone gives.
+- **`SCATTERING`** (an S block): its S-parameters from the `.s2p` named
+  beside the `.ssn`, or as written on the element, at its `Zref`. `2 <> 1`
+  puts port 1 on the generator side; `1 <> 2` reverses it. The de-embedding
+  modes are refused by name.
+- The lumped blocks (series and shunt R, L, C with their Q, transformers, the
+  `XMATCH` tuner) as in a full station import above.
+- The antenna `LOAD`'s table (SimSmith Generic format):
+  `station.antenna_table()` returns it as a one-port, to check a solved
+  antenna against what the station was built on, or to terminate the chain
+  with it (`N.TouchstoneLoad(port, table)`).
+
+How exact it is: on a real EFHW station (an inverted L with a measured 49:1
+unun and a common-mode choke as S blocks, and 12 m + 4 m of RG-58), the chain
+on SimNEC's own antenna table reproduces SimNEC's generator-side trace to
+3e-15. What it does not model is the same as in SimNEC: the coax is a
+lumped two-port, so a feed line that radiates, or carries common-mode current
+through the antenna's field, is not in it. Model that as wires.
 
 ## The round-trip guarantee
 
