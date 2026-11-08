@@ -346,3 +346,42 @@ def test_a_table_antenna_read_without_its_folder_is_refused_by_name():
     st = parse_ssn_station(_station(), name="t.ssn")
     with pytest.raises(ValueError, match="read_ssn_station"):
         st.antenna_table()
+
+
+def test_a_johnson_line_round_trips_through_export_with_its_k0():
+    """The exporter writes a line's k0 (it used to write 0 whatever the line
+    had), so a station read from SimNEC goes back out with the same cable."""
+    from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual
+    from antennaknobs.simnec_export import export_ssn
+    from antennaknobs.simnec_import import parse_ssn
+
+    class Station(AntennaBuilder):
+        default_params = MappingProxyType({"freq": 14.0, "design_freq": 14.0})
+
+        def build_wires(self):
+            return [Wire((0.0, -5.0, 10.0), (0.0, 5.0, 10.0), 11, name="feed")]
+
+        def build_network(self):
+            return Network(
+                ports={"feed": PortOnWire("feed"), "rig": PortVirtual("rig")},
+                branches=[
+                    TL(
+                        a="rig",
+                        b="feed",
+                        z0=50.0,
+                        length=12.0,
+                        vf=0.66,
+                        k0=0.12942,
+                        k1=0.436326,
+                        k2=0.009218,
+                        skin=True,
+                    )
+                ],
+                sources=[Driven(port="rig")],
+            )
+
+    back = parse_ssn(export_ssn(Station(), freq_mhz=14.0, ground=None), network=True)
+    (tl,) = [b for b in back.network().branches if isinstance(b, TL)]
+    assert (tl.k0, tl.k1, tl.k2, tl.skin) == (0.12942, 0.436326, 0.009218, True)
+    # the exporter prints the length in feet to its own precision
+    assert tl.length == pytest.approx(12.0, rel=1e-6)

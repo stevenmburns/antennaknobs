@@ -853,7 +853,10 @@ def _series_elements(br, entered_at: str, freq_mhz: float, mk, name: str):
         # "simplified" model reads the single `/100f @frq` point instead of
         # the coefficients, which agrees at the export frequency but not
         # across a SimNEC-side sweep.
-        loss_100ft = br.k1 * math.sqrt(freq_mhz) + br.k2 * freq_mhz
+        # k0 (momwire#1855) is the line's constant term; a momwire without it
+        # has none.
+        k0 = getattr(br, "k0", 0.0)
+        loss_100ft = k0 + br.k1 * math.sqrt(freq_mhz) + br.k2 * freq_mhz
         deg = 360.0 * br.length * freq_mhz / (br.vf * C_MHZ_M)
         return [
             mk(
@@ -868,7 +871,7 @@ def _series_elements(br, entered_at: str, freq_mhz: float, mk, name: str):
                     ("@MHz", _fmt(freq_mhz)),
                     ("/100f", _fmt(loss_100ft)),
                     ("@frq", _fmt(freq_mhz)),
-                    ("k0", "0"),
+                    ("k0", _fmt(k0)),
                     ("k1", _fmt(br.k1)),
                     ("k2", _fmt(br.k2)),
                 ],
