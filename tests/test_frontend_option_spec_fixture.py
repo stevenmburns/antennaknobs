@@ -117,6 +117,9 @@ def test_the_kwarg_tuples_match_what_the_server_measured():
         # momwire#1809 (0.87.0): the repeated-pair fill hint, offered where
         # the solver takes it, which is the plain B-spline backend only.
         "pair_reuse",
+        # momwire#1847 (0.88.0): buried transmitted tables shared across a
+        # sweep, a pass-through feature offered where momwire certifies it.
+        "transmitted_anchors",
     ]
     assert _ts_tuple(src, "RAZOR_KWARGS") == live["razor-2p"]
     # The NEC-4.2 row exists only where $NEC42_EXE resolves, so it is asked for.
