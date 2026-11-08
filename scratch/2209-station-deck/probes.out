@@ -1,0 +1,70 @@
+=== licensed NEC-5
+  dipole, EX at the centre knot
+      Z = 77.114 +35.586j   Y = 0.010691-0.0049336j
+  dipole via NT series 10 ohm from an UNPINNED phantom knot
+      Z = 87.205 +35.492j   Y = 0.0098377-0.0040039j
+  dipole via NT series 10 ohm from a PINNED phantom knot
+      Z = 87.114 +35.586j   Y = 0.0098376-0.0040187j
+  residual: pinned generator knot -1 ohm- pinned knot, nothing else
+      Z = 5e+09 -25409j   Y = 2e-10+1.0164e-15j
+  residual: the same, UNPINNED
+      Z = 0.29512 -19045j   Y = 8.1365e-10+5.2507e-05j
+  residual: pins of 1e12
+      Z = 4.9998e+11 -25407j   Y = 2.0001e-12+1.0164e-19j
+  lambda/4 pair 100 then 50 ohm, lambda = 299.792458/f (expect 4 x Z_dipole)
+      Z = 308.4 +142.38j   Y = 0.0026728-0.001234j
+  lambda/4 pair, lambda = 299.8/f
+      Z = 308.46 +142.34j   Y = 0.0026728-0.0012334j
+  lambda/4 pair, second card transposed (negative Z0)
+      Z = 308.46 +142.34j   Y = 0.0026728-0.0012334j
+  inverted V, EX at the vertex knot (1 10 end 2)
+      Z = 73.698 +101.01j   Y = 0.0047138-0.0064607j
+  inverted V via NT series 10 ohm, vertex addressed 1 10
+      Z = 83.698 +101.01j   Y = 0.0048638-0.0058698j
+  inverted V via NT series 10 ohm, vertex addressed 2 -1
+      Z = 83.698 +101.01j   Y = 0.0048638-0.0058698j
+  token -1.23456789012345e-1 (mantissa 17 characters with its sign)
+      Z = -26.025 +4.2597j   Y = -0.037422-0.0061251j
+  token 1.234567890123456e-1 (mantissa 17 characters)
+      Z = -26.025 +4.2597j   Y = -0.037422-0.0061251j
+  token -1.234567890123456e-1 (mantissa 18 characters with its sign)
+      REFUSED
+  token -0.0000123456789012345678 (no exponent, 26 characters)
+      Z = 10 +6.125e-09j   Y = 0.1-6.125e-11j
+  NT then TL in one deck
+      Z = 77.818 -37.984j   Y = 0.010378+0.0050656j
+=== momwire-nec5-bspline
+  dipole, EX at the centre knot
+      Z = 78.516 +43.343j   Y = 0.0097616-0.0053887j
+  dipole via NT series 10 ohm from an UNPINNED phantom knot
+      Z = 88.516 +43.343j   Y = 0.0091125-0.004462j
+  dipole via NT series 10 ohm from a PINNED phantom knot
+      Z = 88.516 +43.343j   Y = 0.0091125-0.004462j
+  residual: pinned generator knot -1 ohm- pinned knot, nothing else
+      REFUSED
+  residual: the same, UNPINNED
+      REFUSED
+  residual: pins of 1e12
+      REFUSED
+  lambda/4 pair 100 then 50 ohm, lambda = 299.792458/f (expect 4 x Z_dipole)
+      Z = 314 +173.4j   Y = 0.0024405-0.0013477j
+  lambda/4 pair, lambda = 299.8/f
+      Z = 314.06 +173.37j   Y = 0.0024404-0.0013472j
+  lambda/4 pair, second card transposed (negative Z0)
+      Z = 314.06 +173.37j   Y = 0.0024404-0.0013472j
+  inverted V, EX at the vertex knot (1 10 end 2)
+      Z = 75.297 +108.37j   Y = 0.004324-0.0062233j
+  inverted V via NT series 10 ohm, vertex addressed 1 10
+      Z = 85.297 +108.37j   Y = 0.0044847-0.0056978j
+  inverted V via NT series 10 ohm, vertex addressed 2 -1
+      Z = 85.297 +108.37j   Y = 0.0044847-0.0056978j
+  token -1.23456789012345e-1 (mantissa 17 characters with its sign)
+      Z = -25.172 +4.4433j   Y = -0.038526-0.0068006j
+  token 1.234567890123456e-1 (mantissa 17 characters)
+      Z = -25.172 +4.4433j   Y = -0.038526-0.0068006j
+  token -1.234567890123456e-1 (mantissa 18 characters with its sign)
+      Z = -25.172 +4.4433j   Y = -0.038526-0.0068006j
+  token -0.0000123456789012345678 (no exponent, 26 characters)
+      Z = 10 +6.8009e-09j   Y = 0.1-6.8009e-11j
+  NT then TL in one deck
+      REFUSED
