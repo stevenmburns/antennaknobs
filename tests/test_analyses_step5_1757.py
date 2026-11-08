@@ -314,9 +314,18 @@ def test_every_plane_curve_equals_the_workbench_solve_at_that_plane(
 # complex Zc, Z0(1 - jα/β) (momwire#1706): rig 43.13 - 4.32j (SWR 1.19) ->
 # 42.80 - 4.24j (1.20), T1 37.59 - 7.39j (1.39) -> 37.63 - 7.67j (1.40). The
 # feed sits beyond the line and does not move.
+#
+# Both moved again in AK#2200, when a SimNEC line became AC6LA's Johnson
+# line (momwire#1855's TL(skin=True)), the model SimNEC solves its K0K1K2
+# cables with: rig 42.80 - 4.24j (1.20) -> 44.85 - 3.67j (1.14), T1
+# 37.63 - 7.67j (1.40) -> 37.32 - 6.30j (1.39). This deck's line is
+# SimNEC's "simplified" model, a k1 alone (the SimSmith Primer: k0 and k2
+# are 0), through the same machinery; the Johnson line itself is verified
+# against SimNEC's own trace on a station with named cables, not on this
+# deck. The feed sits beyond the line and does not move.
 E5_BEST = {
-    "rig": (1.20, 14.450, 42.80 - 4.24j),
-    "T1": (1.40, 14.250, 37.63 - 7.67j),
+    "rig": (1.14, 14.450, 44.85 - 3.67j),
+    "T1": (1.39, 14.250, 37.32 - 6.30j),
     "feed": (1.45, 14.250, 72.51 - 1.90j),
 }
 
