@@ -249,12 +249,17 @@ def _branch_cards(net, nodes: _Nodes, order, freq_mhz, wl, c_light, cl_reducer):
     """Every branch of ``net`` as card material on the merged ``nodes``."""
     omega = 2.0 * math.pi * freq_mhz * 1e6
     f_hz = freq_mhz * 1e6
-    from momwire.networks._reduce import (  # noqa: PLC0415 — momwire's line math, on use
-        _series_rlc_impedance,
+    from momwire.networks import (  # noqa: PLC0415 — momwire's line math, on use
         magnetizing_impedance,
         tl_admittance_2x2,
     )
-    from momwire.networks._spec import _parallel_rlc_admittance  # noqa: PLC0415 — on use
+
+    # The RLC helpers through network.py's compatibility re-exports, the one
+    # sanctioned path to them (tests/test_momwire_private_imports.py).
+    from .network import (  # noqa: PLC0415 — on use
+        _parallel_rlc_admittance,
+        _series_rlc_impedance,
+    )
 
     cards = _Cards(nt={}, tl=[], shunt={}, ld4=[])
     rank = {n: i for i, n in enumerate(order)}
@@ -388,7 +393,7 @@ def _merge_throughs(net, nodes: _Nodes, omega):
     zero-impedance card, and one knot is that connection exactly. A 1:1
     transformer's magnetizing branch, if it has one, is a shunt on that
     knot, which is where it sits on either winding."""
-    from momwire.networks._reduce import _series_rlc_impedance  # noqa: PLC0415 — on use
+    from .network import _series_rlc_impedance  # noqa: PLC0415 — on use
 
     for br in net.branches:
         if isinstance(br, Transformer):
