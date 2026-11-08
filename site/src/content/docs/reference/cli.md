@@ -402,8 +402,8 @@ A plane cross on Dan's rig, over 13.9–14.45 MHz in free space, reads:
 
 | plane | minimum SWR | at | Z there |
 |---|---|---|---|
-| `rig` | 1.19 | 14.450 MHz (the sweep's edge) | 43.13 − j4.32 |
-| `T1` | 1.39 | 14.250 MHz | 37.59 − j7.39 |
+| `rig` | 1.14 | 14.450 MHz (the sweep's edge) | 44.85 − j3.67 |
+| `T1` | 1.39 | 14.250 MHz | 37.32 − j6.30 |
 | `feed` | 1.45 | 14.250 MHz | 72.51 − j1.90 |
 
 ```python
