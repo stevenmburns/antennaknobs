@@ -163,8 +163,8 @@ def test_insulation_reads_from_constants_and_a_wire_variable():
     [
         # A name set twice has no one value.
         f"$r = 1k;\n$r = 2k;\n$ld = NECSource(R($r) ||| L(2u), $GW_1, {SEG6});",
-        # A name set only inside a block.
-        f"if (1) {{ $r = 1k; }}\n$ld = NECSource(R($r) ||| L(2u), $GW_1, {SEG6});",
+        # A name set only inside a condition that is no constant.
+        f"if (G.MHz > 1) {{ $r = 1k; }}\n$ld = NECSource(R($r) ||| L(2u), $GW_1, {SEG6});",
         # SimNEC's notes disagree on where ||| sits against *.
         f"$ld = NECSource(2*R(500) ||| L(2u), $GW_1, {SEG6});",
         # Two elements in series through an inner node is not one LD card.
