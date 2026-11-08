@@ -230,6 +230,36 @@ thing is refused as ambiguous: a product beside `|||` without parentheses
 (`2*R(500) ||| L(2u)`), since SimNEC's own notes give `|||` two different
 precedences against `*`.
 
+**Conditions, loops and functions.** The script's control flow is evaluated
+where it can be, and never guessed at where it cannot:
+
+- An `if (…) … else …` whose condition is a constant reads only the branch it
+  takes, and a constant set in that branch counts as set once — a knob, if
+  the cards read it. A condition may use numbers, arithmetic, comparisons,
+  `&&` / `||` / `!`, the script's own functions and names the whole script
+  sets once, before the `if`. A knob in a condition is read at the knob's
+  value, so moving the knob can move the branch.
+- `NECOptions.Engine` reads as `2`: where a script branches on SimNEC's
+  engine, the import follows SimNEC's NEC-2 engine, the one the `NEC2` block's
+  cards are written for. That is why the export's W7EL insulation, written
+  under `if (NECOptions.Engine == 2)`, is applied on the way back in, and its
+  NEC-5-only `JamSegments` for a one-segment fed wire is not.
+- A condition that is not a constant — the frequency (`G.MHz`), an element
+  parameter, a name set twice — applies neither branch. A statement there
+  that changes the model refuses the file by name; one that only computes a
+  read-out or prints a line does not.
+- A loop (`for`, `while`, `do`) is not run. A model statement in its body
+  refuses by name — geometry built in a loop is `NECWire` territory, which
+  is not read — and a loop that only adds up a read-out, such as the segment
+  count in SimNEC's bundled examples, is harmless. The same holds inside an
+  `at(…)` phase block, a `switch`, and `finalize { … }`.
+- A function declared as `dcl f(a, b) { return <expression>; }` is evaluated
+  where a value calls it, its arguments in place of its parameters, so
+  `dcl trap(r, l, c) { return R(r) ||| L(l) ||| C(c); }` then
+  `NECSource(trap(4150, 26.3u, 4.91p), $GW_3, 100)` reads as the inline load.
+  A call to a function with any other body refuses by name, and a function
+  whose body builds the antenna is never taken for a read-out.
+
 A place along a wire is taken exactly: a percentage that lands on a segment
 centre is that centre, and one on a knot (between two segments, or a wire's
 end, as `100` is) sits at that knot, as a NEC-5 deck's end field puts it.
@@ -239,11 +269,13 @@ nearest site. Two loads at one place add in series, as two `LD` cards on one
 segment do in NEC.
 
 **What is not read is refused, not dropped.** A statement the importer cannot
-read refuses the file, naming the statement, instead of solving the antenna
-without it: a name with no one value (set twice, or only inside a block), a
-wire no `GW` card declares, an element nothing attaches, an L or C with a Q,
-elements in series through an inner node, or any call or setting it does not
-know. Only statements known to leave the model alone may go unread, and are
+read refuses the file, naming the statement and the line it starts on (and,
+where it is known, why — `line 17: $ld = NECSource(R($r), $GW_1, 50) ($r has
+no one constant value)`), instead of solving the antenna without it: a name
+with no one value (set twice, or only under a condition that is not a
+constant), a wire no `GW` card declares, an element nothing attaches, an L or
+C with a Q, elements in series through an inner node, a model statement in a
+loop or an unevaluated branch, or any call or setting it does not know. Only statements known to leave the model alone may go unread, and are
 listed in the import note: block structure, declarations, assignments that
 read results back (`$g = _NECBLOCK.field.APG;`), and display calls such as
 `BodyGraphic(…)`.
