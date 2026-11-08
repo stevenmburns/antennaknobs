@@ -463,10 +463,18 @@ def test_station_non_ideal_transformer2_rejected():
         c.network()
 
 
-def test_station_k0_loss_rejected():
+def test_station_k0_is_read_into_the_johnson_line():
+    """k0 is the conductors' DC resistance, which AC6LA's Johnson line (the
+    one SimNEC solves) carries inside the internal impedance with the k1
+    term: the line reads as ``TL(k0=..., skin=True)`` (AK#2200,
+    momwire#1855). A negative k0 is not a loss and is refused."""
     extra = _el("SERIES_TLINE", {"Zo": 50, "ft": 100, "k0": 0.5})
     c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
-    with pytest.raises(ValueError, match="k0"):
+    (tl,) = [b for b in c.network().branches if isinstance(b, TL)]
+    assert (tl.k0, tl.k1, tl.k2, tl.skin) == (0.5, 0.0, 0.0, True)
+    extra = _el("SERIES_TLINE", {"Zo": 50, "ft": 100, "k0": -0.5})
+    c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
+    with pytest.raises(ValueError, match="negative loss"):
         c.network()
 
 

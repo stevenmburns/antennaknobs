@@ -155,12 +155,15 @@ def test_a_simplified_loss_per_100_metres_is_converted():
     assert _matched_loss_db(tl, 14.175) == pytest.approx(0.5 * 0.3048, rel=1e-12)
 
 
-def test_an_untranslated_line_model_is_refused_by_name():
+def test_a_named_line_saved_without_its_coefficients_is_refused_by_name():
+    """A database line (AC6LA's table) is read from the k0/k1/k2 SimNEC saves
+    beside its name (AK#2200); one saved without them has no loss to read."""
     text = CLC.read_text().replace(
         "<p><n>Mdl</n><v>simplified</v></p>", "<p><n>Mdl</n><v>RG-213</v></p>"
     )
-    assert "RG-213" in text
-    with pytest.raises(ValueError, match="line model 'RG-213' is not translated"):
+    text = re.sub(r"<p><n>k[012]</n><v>[^<]*</v></p>", "", text)
+    assert "RG-213" in text and "<n>k1</n>" not in text
+    with pytest.raises(ValueError, match="'RG-213' is saved without its k0/k1/k2"):
         _line(text)
 
 
