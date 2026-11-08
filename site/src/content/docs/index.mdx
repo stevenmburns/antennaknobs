@@ -29,21 +29,28 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.113.2" icon="star">
-  **Hand-written SimNEC files open the way they are written.** The `.ssn`
-  importer now reads a feed placed on a port's own nodes, loads written inline
-  as `R(…) ||| L(…) ||| C(…)` or set by a constant, and a jacket per wire. A
-  feed or load at a wire's end, or between two segments, sits exactly there.
-  A feed, load or insulation statement it cannot read now refuses the file by
-  name instead of solving without it. See
-  [Importing: .ssn → design](/reference/simnec/#importing-ssn--design).
+<Card title="New in v0.114.0" icon="star">
+  **A SimNEC station on any antenna.** Model the antenna in EZNEC, AutoEZ or
+  NEC, and the feed system (coax, measured choke and unun S-parameters, a
+  tuner) in SimNEC: `read_ssn_station` reads just the station chain from the
+  `.ssn` and hangs it on any antenna, a `.nec` deck's or a builder's, in a
+  short design. On a real SimNEC station it reproduces SimNEC's own
+  generator-side trace to 3e-15. See
+  [a SimNEC station on any antenna](/reference/simnec/#a-simnec-station-on-any-antenna).
 
-  **Insulated NEC decks re-open right.** Re-opening a deck with jacketed wires
-  (EZNEC's NEC-5 exports, and antennaknobs' own) applied the wire conductivity
-  correction twice, about 7–8 % off in impedance; it now matches NEC-5.
+  **Coax as SimNEC, TLDetails and AutoEZ solve it.** A SimNEC cable is now
+  AC6LA's Johnson line (momwire 0.88.0), with the skin-effect inductance
+  and k0 included. It matches AC6LA's own T-Line Model worked example to
+  machine precision.
 
-  **A buried wire exports to SimNEC**, for its NEC-5 and NEC-4.2 engines, and
-  the Files view's SimNEC tab no longer hangs on such a design.
+  **Hand-written SimNEC scripts read as a script.** Statements, comments,
+  constants, conditions, loops and functions are evaluated rather than
+  pattern-matched, and anything still unread refuses by line number.
+
+  **NEC-5 decks with several sources on one knot** open as NEC-5 reads them,
+  one source of their summed voltage. **A feed at a junction knot** (an EFHW's
+  feed at the end of its wire) now exports to SimNEC, written as SimNEC writes
+  it.
 </Card>
 
 ## The whole pitch, in one line
