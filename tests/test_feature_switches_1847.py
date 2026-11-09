@@ -47,10 +47,25 @@ CASES = [(n, t) for n, tabs in TABS.items() for t in tabs]
 
 
 @pytest.mark.parametrize("name", FEATURE_SWITCHES)
-def test_each_spec_is_a_plain_checkbox_off_by_default(name):
+def test_each_spec_is_a_plain_checkbox_off_by_default(name, monkeypatch):
+    monkeypatch.delenv(FEATURE_SWITCHES[name], raising=False)
     spec = adapter.model_option_specs()[name]
     assert spec["kind"] == "bool" and spec["default"] is False
     assert FEATURE_SWITCHES[name] == "ANTENNAKNOBS_" + name.upper()
+
+
+@pytest.mark.parametrize("name", [*FEATURE_SWITCHES, "pair_reuse"])
+def test_a_seeded_server_serves_the_checkbox_ticked(name, monkeypatch):
+    # The app sends every option it shows, so a seed reaches its solves only
+    # through the served default; with it the box shows ticked and an
+    # explicit untick still wins.
+    env = adapter._SEED_ENVS[name]
+    monkeypatch.delenv(env, raising=False)
+    assert adapter.model_option_specs()[name]["default"] is False
+    monkeypatch.setenv(env, "1")
+    assert adapter.model_option_specs()[name]["default"] is True
+    monkeypatch.setenv(env, "0")
+    assert adapter.model_option_specs()[name]["default"] is False
 
 
 @pytest.mark.parametrize("name", FEATURE_SWITCHES)
