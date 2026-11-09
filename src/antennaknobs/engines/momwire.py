@@ -946,16 +946,27 @@ def _z_fill_key(solver_cls, kwargs):
     return hashlib.sha256(blob).digest()
 
 
-# A process-wide LRU of filled Z operators, behind each engine's own held Z
-# (`_share_z_fill`). The server builds an engine per request, so the held Z
-# alone never outlives one knob turn; this lets the next request reuse it
-# when nothing the operator depends on moved, which is what a station-chain
-# knob does: it changes the network the reducer applies, never the antenna.
-# Keyed exactly as the held Z is (construction digest + live k triple), so a
-# hit is the same matrix a fresh fill would produce. Entries are read-only
-# and only copies go out. Bounded by bytes; 0 turns it off.
-_Z_CACHE: OrderedDict = OrderedDict()
+# One process-wide LRU behind each engine's own held Z (`_share_z_fill`), for
+# what the next request can reuse when the antenna did not move, which is
+# what a station-chain knob does: it changes the network the reducer
+# applies, never the antenna. Two kinds of entry share it:
+#
+# - ("Z", key): a filled Z operator, keyed exactly as the held Z is
+#   (construction digest + live k triple), so a hit is the matrix a fresh
+#   fill would produce;
+# - ("Y", key): one frequency's swept port admittance (`_swept_y`).
+#
+# One byte budget bounds both (ANTENNAKNOBS_Z_CACHE_MB, 256 by default; 0
+# turns the cache off), least recently used first whichever kind it is, so
+# a network of thousands of ports, whose Y grows as their square, cannot
+# outgrow it; an entry larger than the whole budget is never kept. Y entries
+# are also capped at `_Y_CACHE_ENTRIES`. Entries are read-only; copies go
+# out.
+_FILL_CACHE: OrderedDict = OrderedDict()
 _Z_CACHE_LOCK = threading.Lock()
+_FILL_STATE = {"bytes": 0, "y": 0}
+# At most this many frequencies' Y are kept (about twenty sweeps).
+_Y_CACHE_ENTRIES = 1024
 
 
 def _z_cache_cap() -> int:
@@ -966,30 +977,100 @@ def _z_cache_cap() -> int:
     return int(max(mb, 0.0) * 2**20)
 
 
-def _z_cache_get(live):
+def _cache_take(keys):
     with _Z_CACHE_LOCK:
-        Z = _Z_CACHE.get(live)
-        if Z is not None:
-            _Z_CACHE.move_to_end(live)
-        return Z
+        out = []
+        for key in keys:
+            v = _FILL_CACHE.get(key)
+            if v is not None:
+                _FILL_CACHE.move_to_end(key)
+            out.append(v)
+        return out
+
+
+def _drop(key) -> None:
+    old = _FILL_CACHE.pop(key)
+    _FILL_STATE["bytes"] -= old.nbytes
+    if key[0] == "Y":
+        _FILL_STATE["y"] -= 1
+
+
+def _cache_put(items) -> None:
+    cap = _z_cache_cap()
+    with _Z_CACHE_LOCK:
+        for key, v in items:
+            if v.nbytes > cap:
+                continue
+            if key in _FILL_CACHE:
+                _drop(key)
+            _FILL_CACHE[key] = v
+            _FILL_STATE["bytes"] += v.nbytes
+            if key[0] == "Y":
+                _FILL_STATE["y"] += 1
+        while _FILL_STATE["bytes"] > cap and _FILL_CACHE:
+            _drop(next(iter(_FILL_CACHE)))
+        while _FILL_STATE["y"] > _Y_CACHE_ENTRIES:
+            _drop(next(k for k in _FILL_CACHE if k[0] == "Y"))
+
+
+def _z_cache_get(live):
+    return _cache_take([("Z", live)])[0]
 
 
 def _z_cache_put(live, Z) -> None:
-    cap = _z_cache_cap()
-    if Z.nbytes > cap:
-        return
-    with _Z_CACHE_LOCK:
-        _Z_CACHE[live] = Z
-        _Z_CACHE.move_to_end(live)
-        total = sum(z.nbytes for z in _Z_CACHE.values())
-        while total > cap and _Z_CACHE:
-            _k, old = _Z_CACHE.popitem(last=False)
-            total -= old.nbytes
+    _cache_put([(("Z", live), Z)])
 
 
 def clear_z_cache() -> None:
     with _Z_CACHE_LOCK:
-        _Z_CACHE.clear()
+        _FILL_CACHE.clear()
+        _FILL_STATE.update(bytes=0, y=0)
+
+
+# A swept Y is cached per (construction digest, k), not per sweep, because
+# /sweep sizes its chunks by measured time, so a faster repeat chunks
+# differently. That is sound because a swept point's Y is that point's own:
+# the one feature that shares work across a sweep, transmitted_anchors,
+# blends anchors at fixed frequencies (F_REF * 1.1**j), whatever band asked.
+
+
+def _y_cache_base(solver):
+    """The digest a swept Y is keyed on beside its k: the construction kwargs
+    less the wavelength the solver was built at, which a sweep overrides per
+    point (`impedance_sweep` builds each /sweep chunk's solver at that
+    chunk's first frequency). B-spline only, where the swept Y is measured to
+    be independent of it, bit for bit (test_y_cache_station_sweep.py pins
+    that); any other family is not cached."""
+    construct = getattr(solver, "_ak_construct", None)
+    if construct is None or not _z_fill_shareable(solver):
+        return None
+    cls, kwargs = construct
+    return _z_fill_key(cls, {k: v for k, v in kwargs.items() if k != "wavelength"})
+
+
+def _swept_y(solver, k_array):
+    """``solver.compute_y_matrix_swept(k_array)`` as complex128, each
+    frequency served from `_FILL_CACHE` when the same configuration has swept
+    it; the rest are solved in one swept call, in their order."""
+    k_array = np.asarray(k_array, dtype=float)
+    base = _y_cache_base(solver)
+    if base is None or _z_cache_cap() == 0:
+        return np.asarray(solver.compute_y_matrix_swept(k_array), dtype=np.complex128)
+    keys = [("Y", (base, float(k))) for k in k_array]
+    kept = _cache_take(keys)
+    missing = [i for i, Y in enumerate(kept) if Y is None]
+    if missing:
+        solved = np.asarray(
+            solver.compute_y_matrix_swept(k_array[missing]), dtype=np.complex128
+        )
+        fresh = []
+        for row, i in enumerate(missing):
+            frozen = solved[row].copy()
+            frozen.flags.writeable = False
+            kept[i] = frozen
+            fresh.append((keys[i], frozen))
+        _cache_put(fresh)
+    return np.stack([Y.copy() for Y in kept])
 
 
 def _z_fill_live(solver):
@@ -2211,6 +2292,9 @@ class MomwireEngine(SimulationEngine):
         if self._offset_reuse:
             kwargs["offset_reuse"] = True
         solver = self._solver(**kwargs)
+        # The construction kwargs, for a key over everything the operator
+        # and the port solution depend on (`_z_fill_key`, `_swept_y`).
+        solver._ak_construct = (self._solver, kwargs)
         if "exact_kernel" in kwargs:
             self._exact_kernel_seen.add(bool(getattr(solver, "exact_kernel", False)))
         if share_z:
@@ -2267,7 +2351,7 @@ class MomwireEngine(SimulationEngine):
         ``wavelength`` on the instance (`_set_k`) and fill again, and a
         construction-time key alone would hand each k the first k's Z.
 
-        Behind the engine's held Z sits the process-wide `_Z_CACHE`, on the
+        Behind the engine's held Z sits the process-wide `_FILL_CACHE`, on the
         same key: the next request reuses a Z whose inputs did not move (a
         station-chain knob turn), bounded by ANTENNAKNOBS_Z_CACHE_MB."""
         if key is None or not _z_fill_shareable(solver):
@@ -2690,7 +2774,7 @@ class MomwireEngine(SimulationEngine):
         k_array = 2.0 * np.pi * freqs * 1e6 / (self.builder.c_light_mhz_m * 1e6)
         if self._network is not None:
             Y_swept = self._contract_y(
-                np.asarray(s.compute_y_matrix_swept(k_array), dtype=np.complex128)
+                _swept_y(s, k_array)
             )  # (n_k, n_real, n_real) at port granularity
             zs = np.empty((freqs.size, self._reducer.n_driven), dtype=np.complex128)
             for ki, freq in enumerate(freqs):
@@ -2710,7 +2794,7 @@ class MomwireEngine(SimulationEngine):
             # is amortised across frequencies via the upstream swept solve;
             # the per-k post-processing is O(n_p³) and dwarfed by the solve.
             Y_swept = self._contract_y(
-                np.asarray(s.compute_y_matrix_swept(k_array), dtype=np.complex128)
+                _swept_y(s, k_array)
             )  # (n_k, n_p, n_p) — contraction applies the issue-#580 port
             # signs (legacy TLs have no distributed ports, so W is at most
             # the diagonal sign matrix; identity when W is None)
