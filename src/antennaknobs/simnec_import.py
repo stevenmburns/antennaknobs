@@ -3486,7 +3486,13 @@ class _Script:
             seg = round(x + 0.5)
             if 1 <= seg <= n[0] and math.isclose(x + 0.5, seg, abs_tol=tol):
                 return seg, 0, None
-            # Strictly inside the wire: 0 % and 100 % are knots, taken above.
+            if not 0.0 < pct < 100.0:
+                # 0 % and 100 % are knots, taken above; past them is off the
+                # wire, which no engine can place.
+                raise ValueError(
+                    f"{where}: {pct_text}% of $GW_{tag} is off the wire; a "
+                    "place along it is from 0% to 100%"
+                )
             return 0, 0, pct
 
         # A value may name a constant the script sets once, as AC6LA's files
