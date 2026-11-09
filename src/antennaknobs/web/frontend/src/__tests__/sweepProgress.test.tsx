@@ -17,6 +17,7 @@ import {
   sweepProgressFraction,
   sweepProgressLabel,
 } from "../lib/sweep";
+import { sweepStoppable } from "../components/session/useFreqSweep";
 import type { BackendEntry } from "../lib/backends";
 import type { SolveRequest } from "../lib/api";
 
@@ -203,6 +204,35 @@ describe("sweep progress in the analysis runners (AK#1682)", () => {
     expect(Math.max(...counts)).toBe(added);
     // Pass over: the counter goes away.
     expect(result.current.sweepProgress).toBeNull();
+  });
+});
+
+describe("Stop through refinement", () => {
+  it("is offered while refinement rounds solve, and stopping ends them", async () => {
+    const { result } = renderRunners();
+    await flush(500);
+    base!.release(18);
+    await flush();
+    await flush(500); // the refinement dwell: the first round goes out
+    expect(refines.length).toBe(1);
+    // The runner reports no busy curve during refinement, by design, yet
+    // the header must still offer Stop.
+    const r = () => ({
+      running: result.current.sweepRunning,
+      phase: result.current.sweepPhase,
+    });
+    expect(r()).toEqual({ running: false, phase: "refining" });
+    expect(sweepStoppable(r())).toBe(true);
+    refines[0].release(1);
+    await flush();
+    act(() => result.current.stopSweep());
+    await flush();
+    // Nothing more goes out however long the session waits.
+    refines[0].release(100);
+    await flush(5000);
+    expect(refines.length).toBe(1);
+    expect(result.current.sweepPhase).toBe("idle");
+    expect(sweepStoppable(r())).toBe(false);
   });
 });
 

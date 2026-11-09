@@ -144,6 +144,13 @@ async function streamSweep(
 /** The freq sweep runner's phase, as the sweep charts publish it. */
 export type SweepPhase = "idle" | "queued" | "running" | "refining";
 
+/** Whether the chart header offers Stop. The refinement rounds keep
+ *  `running` false on purpose (no busy flicker on a curve already drawn) but
+ *  still solve point after point, so Stop follows them too. */
+export function sweepStoppable(r: { running: boolean; phase: SweepPhase }): boolean {
+  return r.running || r.phase === "refining";
+}
+
 export type FreqSweepOptions = {
   /** The range the sweep grids (lib/sweep.ts). */
   range: SweepRange;

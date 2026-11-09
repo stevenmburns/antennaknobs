@@ -186,6 +186,7 @@ import { ZoOpenContext } from "./zoOpen";
 import { SolveOverlays } from "./SolveOverlays";
 import { SolverSlotTabs } from "./SolverSlotTabs";
 import { type ChartCellRequest, NOT_APPROVED, patternSignature, useAnalysisRunners } from "./useAnalysisRunners";
+import { sweepStoppable } from "./useFreqSweep";
 import { type CellRun, type CellRunners, useChartCells } from "./useChartCells";
 import { usePatternCell } from "./usePatternCell";
 import { mapSignature, useMapRun } from "./useMapRun";
@@ -5230,10 +5231,7 @@ function DesignSessionBody({
           },
         }}
         run={{
-          // Stop stays offered through the adaptive refinement rounds, which
-          // keep `running` false on purpose (no busy flicker on a drawn
-          // curve) but still solve point after point until stopped.
-          running: runners.some((r) => r.freq.running || r.freq.phase === "refining"),
+          running: runners.some((r) => sweepStoppable(r.freq)),
           received: f0?.sweep?.freqs_mhz.length ?? 0,
           stale: runners.some((r) => r.freq.stale),
           onStop: ctl.stopFreq,
