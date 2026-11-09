@@ -2408,6 +2408,8 @@ class _DclCards:
     # `$GW_<tag>.JamSegments(<expression>)` (AK#1716): (tag, expression
     # tree, the statement as written).
     jams: tuple[tuple[int, tuple, str], ...] = ()
+    # Input parameters a NECSource load or source reads (`_Script.load_params`).
+    loads: frozenset[str] = frozenset()
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -2639,6 +2641,10 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
         jams.append((tag, tree, stmt))
         todo.extend(names)
 
+    # A slider a NECSource load or source reads is a constant to it, as to a
+    # card (`_Script.load_params`).
+    todo.extend(sorted(script.load_params))
+
     # The constants the cards read, and the ones those read, in script order.
     # An input parameter is set before the script runs, so any constant may
     # read it; the parameters come first, in the element's order.
@@ -2677,7 +2683,13 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
             ),
         )
     )
-    return _DclCards(tuple(out), constants, tuple(dropped), tuple(jams))
+    return _DclCards(
+        tuple(out),
+        constants,
+        tuple(dropped),
+        tuple(jams),
+        frozenset(script.load_params),
+    )
 
 
 def _param_constant(script: _Script, name: str, where: str) -> _DclConstant:
@@ -2732,6 +2744,9 @@ def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
             direct.setdefault(n, set()).add("GW")
             int_use.add(n)
             jam_names.add(n)
+    # A slider a NECSource reads sets a load's value or place: the LD role.
+    for n in dcl.loads:
+        direct.setdefault(n, set()).add("LD")
     dependents: dict[str, set[str]] = {}
     for c in dcl.constants:
         for ref in _sim_names(c.tree):
@@ -3128,6 +3143,13 @@ class _Script:
         # placed on the deck once it is read (AK#2195).
         self.knot_feeds: list[tuple[int, int, int]] = []
         self.knot_loads: list[tuple[tuple, int, int, int]] = []
+        # Feeds and loads between sites, at the percentage the script gives:
+        # (tag, percent) and (values, tag, percent), placed with the knots.
+        self.placed_feeds: list[tuple[int, float]] = []
+        self.placed_loads: list[tuple[tuple, int, float]] = []
+        # Input parameters (sliders, AK#1716) a NECSource load or source
+        # reads, for its value or its place: knobs, as the cards' are.
+        self.load_params: set[str] = set()
         # Every assignment the script makes, in order (AK#1714): what
         # `_DclCards` reads the cards' names from.
         self.assigns: list[_Assign] = []
@@ -3357,11 +3379,12 @@ class _Script:
     def _apply_loads(self, where: str) -> None:
         """Each NECSource load (an `R` component on a `$GW_<tag>` wire,
         AK#1683) as the LD card it stands for, appended to the cards. SimNEC
-        places the load at the percentage itself; here it must be a segment
-        centre of the GW count, which is where the exporter puts it. A load
-        between two centres is refused by name, never moved to the nearest;
-        one whose value or wire cannot be read is left unapplied (and so
-        reported), as is an `R` component no NECSource attaches."""
+        places the load at the percentage itself: on a segment centre or a
+        knot of the GW count it is that site's card (`segment`), and between
+        sites the percentage is the place. A value or a place may name a
+        constant or a slider (an input parameter, AK#1716), which is then a
+        knob. One whose value or wire cannot be read is left unapplied (and
+        so reported), as is an `R` component no NECSource attaches."""
         counts: dict[int, list[int]] = {}
         for card in self.cards:
             parts = re.split(r"[\s,]+", card.strip())
@@ -3372,14 +3395,17 @@ class _Script:
                     continue
 
         def segment(
-            tag: int, pct_text: str, what: str, exact: bool = False
-        ) -> tuple[int, int] | None:
+            tag: int, pct_text: str, exact: bool = False
+        ) -> tuple[int, int, float | None] | None:
             """Where ``pct_text`` % of ``$GW_<tag>`` falls, as ``(segment,
-            end)``: end 0 for a segment's centre (NEC-2's own attachment), or
-            end 1 / 2 of that segment for a knot, a wire end included, which
-            is placed there exactly (AK#2195; the knot form NEC-5 decks use).
-            None when the wire or the percentage cannot be read, and a refusal
-            by name anywhere else: never moved to the nearest."""
+            end, None)``: end 0 for a segment's centre (NEC-2's own
+            attachment), or end 1 / 2 of that segment for a knot, a wire end
+            included (AK#2195; the knot form NEC-5 decks use). Anywhere else
+            is ``(0, 0, pct)``: SimNEC places a NECSource at the percentage
+            itself, so it is carried as that exact place along the wire (the
+            4nec2 percentage form, AK#1496), and each engine puts it there or
+            on its nearest site and says so (`feed_placements`). None when
+            the wire or the percentage cannot be read."""
             n = counts.get(tag, [])
             try:
                 pct = _si_float(pct_text)
@@ -3389,8 +3415,8 @@ class _Script:
                 return None
             # A percentage is written to so many decimals: 95.45 for the
             # centre of segment 11 of 11 (95.4545...) is that centre, not a
-            # place beside it. Within half its last digit is the place; any
-            # further is refused (AK#2195).
+            # place beside it. Within half its last digit is the place
+            # (AK#2195); further off, the percentage is the place.
             digits = pct_text.split(".", 1)[1] if "." in pct_text else ""
             decimals = len(digits) if digits.isdigit() and not exact else 0
             # A whole number is exact: 40 means 40, not "about 40".
@@ -3402,17 +3428,12 @@ class _Script:
             x = pct / 100.0 * n[0]
             knot = round(x)
             if 0 <= knot <= n[0] and math.isclose(x, knot, abs_tol=tol):
-                return (1, 1) if knot == 0 else (knot, 2)
+                return (1, 1, None) if knot == 0 else (knot, 2, None)
             seg = round(x + 0.5)
-            if not (1 <= seg <= n[0] and math.isclose(x + 0.5, seg, abs_tol=tol)):
-                raise ValueError(
-                    f"{where}: {what} sits at {pct_text}% of $GW_{tag}, which "
-                    f"is neither a segment centre nor a knot of its "
-                    f"{n[0]}-segment GW card; this import places it at one of "
-                    "those and does not move it to the nearest or re-mesh the "
-                    "wire to put one there"
-                )
-            return seg, 0
+            if 1 <= seg <= n[0] and math.isclose(x + 0.5, seg, abs_tol=tol):
+                return seg, 0, None
+            # Strictly inside the wire: 0 % and 100 % are knots, taken above.
+            return 0, 0, pct
 
         # A value may name a constant the script sets once, as AC6LA's files
         # do (`dcl R_4 = 0+j50;` then `R4 (R_4) r4a r4b;`), and a wire may be
@@ -3433,12 +3454,56 @@ class _Script:
                 return False
             return any(cyclic(r, seen | {name}) for r in refs if r in consts)
 
+        def param_value(name: str) -> float:
+            """An input parameter's value (a SimNEC slider, AK#1716): its knob
+            override, else its saved ``<v>`` read as `_param_constant` reads
+            it for the cards, so a knob at its default is the saved value to
+            the bit. Recorded in ``load_params``: a load reads it, which
+            makes it a knob (`_dcl_cards`)."""
+            self.load_params.add(name)
+            if name in self._overrides:
+                return float(self._overrides[name])
+            raw = (self.params.get(name) or "").strip()
+            what = f"{where}: the element's parameter {name} = {raw!r}"
+            try:
+                tree = _sim_parse(raw, what)
+                if not raw or _sim_names(tree):
+                    raise ValueError(what)
+                return _sim_eval(tree, {}, what)
+            except ValueError:
+                raise _Unread(f"{name}'s saved value {raw!r} is not a number") from None
+
         def lookup(name: str):
             if name not in consts:
+                if self.input_param(name):
+                    return ("num", complex(param_value(name)))
                 raise _Unread(f"{name} has no one constant value")
             if cyclic(name):
                 raise _Unread(f"{name} is defined in terms of itself")
             return self._zparse(consts[name])
+
+        def written(text: str) -> str | None:
+            """The number ``text`` is as WRITTEN: itself when it is a number,
+            or the number a bare name stands for -- a constant set to one
+            (``dcl P = 66.4;``, through names set to names) or a slider's
+            saved value. None for anything computed. A place given by name is
+            then read to the written number's own decimals, as if inline."""
+            name = text.strip()
+            for _ in range(8):
+                if re.fullmatch(_NUM, name):
+                    return name
+                if name in consts:
+                    name = consts[name]
+                    continue
+                if self.input_param(name) and name not in self._overrides:
+                    param_value(name)
+                    raw = (self.params.get(name) or "").strip()
+                    return raw if re.fullmatch(_NUM, raw) else None
+                if self.input_param(name):
+                    v = param_value(name)
+                    return str(int(v)) if v.is_integer() else repr(v)
+                return None
+            return None
 
         def number(text: str) -> float:
             v = _znum(self._zparse(text), lookup)
@@ -3465,13 +3530,15 @@ class _Script:
             except _Unread as e:
                 return None, str(e)
 
-        def place(ref: str, pct_text: str, what: str):
-            """``(tag, (segment, end), why)``: the place, or None and why."""
+        def place(ref: str, pct_text: str):
+            """``(tag, (segment, end, pct), why)``: the place (`segment`), or
+            None and why."""
             tag = wire_tag(ref)
             if tag is None:
                 return None, None, f"{ref.strip()} names no one GW wire"
-            if re.fullmatch(_NUM, pct_text.strip()):
-                at = segment(tag, pct_text.strip(), what)
+            as_written = written(pct_text)
+            if as_written is not None:
+                at = segment(tag, as_written)
             else:
                 try:
                     pct = number(pct_text)
@@ -3481,13 +3548,17 @@ class _Script:
                 at = segment(
                     tag,
                     repr(pct) if pct != int(pct) else str(int(pct)),
-                    what,
                     exact=True,
                 )
             return tag, at, None if at else f"$GW_{tag} is not one GW card's wire"
 
         def add_load(values, tag, at) -> None:
-            seg, end = at
+            seg, end, pct = at
+            if pct is not None:
+                # Between sites: no NEC-2 card spells it; placed on the deck
+                # after it is read, at the percentage (`_place_at_knots`).
+                self.placed_loads.append((values, tag, pct))
+                return
             if end:
                 # A knot has no NEC-2 card spelling: placed on the deck after
                 # it is read (`_place_at_knots`).
@@ -3504,12 +3575,14 @@ class _Script:
             if comp is None and frozenset((a, b)) in self.port_nodes and not has_ex:
                 # A port's own nodes on a wire: the feed, as SimNEC reads it
                 # with no EX card in the block (AK#2195).
-                tag, at, why = place(ref, pct_text, f"the source {stmt!r}")
+                tag, at, why = place(ref, pct_text)
                 if at is None:
                     self.ignored.append(_located(stmt, why))
                     continue
-                seg, end = at
-                if end:
+                seg, end, pct = at
+                if pct is not None:
+                    self.placed_feeds.append((tag, pct))
+                elif end:
                     self.knot_feeds.append((tag, seg, end))
                 else:
                     self.cards.append(f"EX 0 {tag} {seg} 0 1 0")
@@ -3520,11 +3593,7 @@ class _Script:
                 if comp
                 else (None, f"no element line joins nodes {a} and {b}")
             )
-            tag, at, why = (
-                place(ref, pct_text, f"the load {comp[1]!r}")
-                if values
-                else (None, None, why)
-            )
+            tag, at, why = place(ref, pct_text) if values else (None, None, why)
             if values is None or at is None:
                 self.ignored.append(_located(stmt, why))
                 continue
@@ -3532,11 +3601,7 @@ class _Script:
             add_load(values, tag, at)
         for expr, ref, pct_text, stmt in self._inline_loads:
             values, why = values_of(expr)
-            tag, at, why = (
-                place(ref, pct_text, f"the load {stmt!r}")
-                if values
-                else (None, None, why)
-            )
+            tag, at, why = place(ref, pct_text) if values else (None, None, why)
             if values is None or at is None:
                 self.ignored.append(_located(stmt, why))
                 continue
@@ -3757,11 +3822,21 @@ def _place_at_knots(deck: NecDeck, script, where: str) -> NecDeck:
     (``NecFeed.edge`` / ``NecLoad.edge``). ``network()`` serves it as a
     vertex port; an engine with no knot port refuses it by name.
 
+    A feed or load on no site of its wire (`_Script.placed_feeds`,
+    ``placed_loads``) is carried at its percentage as a fraction from end 1,
+    the form a 4nec2 percentage takes (``at``, AK#1496), on the segment
+    whose centre is nearest: ``network()`` serves it as a positioned port.
+
     Two loads at one knot sit in series there, as two LD cards on one place
     do in NEC (checked against the licensed NEC-5 on a deck with two parallel
     RLC loads at one wire end: 0.1 ohm). A tag that names no single wire
     leaves its statement unread, and so refused."""
-    if not (script.knot_feeds or script.knot_loads):
+    if not (
+        script.knot_feeds
+        or script.knot_loads
+        or script.placed_feeds
+        or script.placed_loads
+    ):
         return deck
     from .nec_import import NecFeed, NecLoad  # noqa: PLC0415 — only for these
 
@@ -3778,23 +3853,35 @@ def _place_at_knots(deck: NecDeck, script, where: str) -> NecDeck:
             )
         return hits[0]
 
+    def nearest(wi: int, pct: float) -> int:
+        # `nec_import._percent_position`'s segment: the one whose centre is
+        # nearest, strictly inside the wire, as `segment` places these.
+        n = deck.wires[wi].n_seg
+        return min(n, max(1, math.ceil(pct / 100.0 * n - 1e-9)))
+
     def leg(v: float) -> float | None:
         return v if v else None
+
+    def load(values, wi, seg, edge=0, at=None):
+        ldtyp, f1, f2, f3 = values
+        if ldtyp == 4:
+            return NecLoad(
+                wi, seg, None, None, None, False, z=complex(f1, f2), edge=edge, at=at
+            )
+        return NecLoad(wi, seg, leg(f1), leg(f2), leg(f3), ldtyp == 1, edge=edge, at=at)
 
     feeds = list(deck.feeds)
     for tag, seg, end in script.knot_feeds:
         feeds.append(NecFeed(wire(tag), seg, 1 + 0j, edge=end))
-    loads = list(deck.loads)
-    for (ldtyp, f1, f2, f3), tag, seg, end in script.knot_loads:
+    for tag, pct in script.placed_feeds:
         wi = wire(tag)
-        if ldtyp == 4:
-            loads.append(
-                NecLoad(wi, seg, None, None, None, False, z=complex(f1, f2), edge=end)
-            )
-        else:
-            loads.append(
-                NecLoad(wi, seg, leg(f1), leg(f2), leg(f3), ldtyp == 1, edge=end)
-            )
+        feeds.append(NecFeed(wi, nearest(wi, pct), 1 + 0j, at=pct / 100.0))
+    loads = list(deck.loads)
+    for values, tag, seg, end in script.knot_loads:
+        loads.append(load(values, wire(tag), seg, edge=end))
+    for values, tag, pct in script.placed_loads:
+        wi = wire(tag)
+        loads.append(load(values, wi, nearest(wi, pct), at=pct / 100.0))
     return replace(deck, feeds=tuple(feeds), loads=tuple(loads))
 
 

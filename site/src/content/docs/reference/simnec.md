@@ -277,10 +277,25 @@ where it can be, and never guessed at where it cannot:
 A place along a wire is taken exactly: a percentage that lands on a segment
 centre is that centre, and one on a knot (between two segments, or a wire's
 end, as `100` is) sits at that knot, as a NEC-5 deck's end field puts it.
-A percentage written to a few decimals counts within half its last digit;
-a whole number is exact. Anywhere else is refused by name, never moved to the
-nearest site. Two loads at one place add in series, as two `LD` cards on one
+A percentage written to a few decimals counts within half its last digit, and
+so does one given by name (`dcl P = 66.4;` or a slider saved at `66.4`, then
+`NECSource(…, $GW_1, P)`), read to the decimals it is written with; a whole
+number, or a place the script computes, is exact. Anywhere else, the
+percentage itself is the place, never moved to the nearest site: the feed or
+load is carried at that fraction of the wire, as a 4nec2 `LD … 71.89%` card
+is, and the wire is split so the port sits exactly there (the placement note
+says so). Two loads at one place add in series, as two `LD` cards on one
 segment do in NEC.
+
+A value or a place may also name a **slider**: a bare `Cap_F;` in the script
+whose value SimNEC saves on the element (`<numericParam>Cap_F</numericParam>`).
+It is read at its saved value and offered as a knob, like a slider the cards
+read; a `Button` that tunes it does not change that, since SimNEC runs a
+button only when it is clicked.
+
+The Generator's `MHz` may list several frequencies (`3.55 14.05 21.1 28.3`):
+SimNEC solves at the last and marks every one on its charts, so the design
+opens at the last and offers each as a band.
 
 **What is not read is refused, not dropped.** A statement the importer cannot
 read refuses the file, naming the statement and the line it starts on (and,

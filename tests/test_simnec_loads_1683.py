@@ -399,14 +399,16 @@ def test_a_suffixed_load_reads_as_its_value():
     assert ld.c == pytest.approx(30e-12)
 
 
-def test_a_load_between_segment_centres_is_refused_not_moved():
-    with pytest.raises(
-        ValueError, match=r"2% of \$GW_2.*neither a segment centre nor a knot"
-    ):
-        parse_ssn(
-            _script_ssn("R1 (50) r1a r1b;  NECSource({r1a,r1b}, $GW_2, 2);"),
-            network=True,
-        )
+def test_a_load_between_sites_is_carried_at_its_percentage_not_moved():
+    """2 % of a 3-segment wire is no centre and no knot: the load keeps that
+    place along the wire, never the nearest site (the 4nec2 percentage form,
+    AK#1496, on segment 1, whose centre is nearest)."""
+    c = parse_ssn(
+        _script_ssn("R1 (50) r1a r1b;  NECSource({r1a,r1b}, $GW_2, 2);"),
+        network=True,
+    )
+    (ld,) = c.deck.loads
+    assert (ld.wire, ld.seg, ld.edge, ld.at, ld.r) == (1, 1, 0, 0.02, 50.0)
 
 
 def test_a_load_it_cannot_evaluate_refuses_the_file():
