@@ -50,7 +50,7 @@ describe("modelOptionsForRequest", () => {
     expect(result).not.toHaveProperty("feed_model");
   });
 
-  it("bspline sends the fourteen b-spline kwargs, feed_model among them", () => {
+  it("bspline sends the eighteen b-spline kwargs, feed_model among them", () => {
     const model = {
       degree: 1,
       n_qp_pair: 5,
@@ -98,6 +98,12 @@ describe("modelOptionsForRequest", () => {
         // across a sweep; `false` by default, and on it moves Z only in the
         // last digits.
         "transmitted_anchors",
+        // ADDED with momwire 0.89.0 (#1860): the EFHW levers, derived from
+        // momwire's registry (AK#2233); each `false` by default.
+        "factored_columns",
+        "height_sheet_recal",
+        "crossing_table",
+        "crossing_above_rule",
         "use_singular_enrichment",
       ].sort(),
     );
@@ -116,6 +122,10 @@ describe("modelOptionsForRequest", () => {
       rotational_symmetry: false,
       pair_reuse: false,
       transmitted_anchors: false,
+      factored_columns: false,
+      height_sheet_recal: false,
+      crossing_table: false,
+      crossing_above_rule: false,
     });
     // Not set in the model literal above, so it carries the SERVED default —
     // which is the value this family was already solving with.
@@ -198,12 +208,14 @@ describe("modelOptionsForRequest", () => {
       '{"n_qp_const":8,"feed_model":"point"}',
     );
     // bspline alone carries `rotational_symmetry` (#1029, momwire 0.60.0),
-    // `pair_reuse` (#1809, momwire 0.87.0) and `transmitted_anchors`
-    // (#1847, momwire 0.88.0);
+    // `pair_reuse` (#1809, momwire 0.87.0), `transmitted_anchors`
+    // (#1847, momwire 0.88.0) and the four EFHW levers (#1860, 0.89.0);
     // the accelerators' stock payload is exactly the family's, unchanged.
     expect(stock("bspline")).toBe(
       BSPLINE_JSON.slice(0, -1) +
-        ',"rotational_symmetry":false,"pair_reuse":false,"transmitted_anchors":false}',
+        ',"rotational_symmetry":false,"pair_reuse":false,"transmitted_anchors":false' +
+        ',"factored_columns":false,"height_sheet_recal":false,"crossing_table":false' +
+        ',"crossing_above_rule":false}',
     );
     expect(stock("hmatrix")).toBe(BSPLINE_JSON);
     expect(stock("arrayblock")).toBe(BSPLINE_JSON);

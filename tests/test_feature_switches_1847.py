@@ -29,6 +29,8 @@ TABS = {
     "point_cplx_staged": ("sinusoidal",),
     "factored_columns": ("bspline", "razor-2p"),
     "height_sheet_recal": ("bspline", "razor-2p"),
+    "crossing_table": ("bspline", "razor-2p"),
+    "crossing_above_rule": ("bspline",),
 }
 
 
@@ -63,7 +65,10 @@ def test_a_seeded_server_serves_the_checkbox_ticked(name, monkeypatch):
     monkeypatch.delenv(env, raising=False)
     assert adapter.model_option_specs()[name]["default"] is False
     monkeypatch.setenv(env, "1")
-    assert adapter.model_option_specs()[name]["default"] is True
+    # An approximate feature (drift over the line) is never seeded on.
+    assert adapter.model_option_specs()[name]["default"] is mw_engine.feature_seedable(
+        name
+    )
     monkeypatch.setenv(env, "0")
     assert adapter.model_option_specs()[name]["default"] is False
 
@@ -121,7 +126,11 @@ def test_the_server_env_seeds_an_unset_request(name, tab, monkeypatch):
     assert name not in eng._feature_kwargs
     monkeypatch.setenv(FEATURE_SWITCHES[name], "1")
     eng = adapter._make_momwire_engine({"momwire_model": tab}, fed_yagi(2))
-    assert eng._feature_kwargs.get(name) is True
+    if mw_engine.feature_seedable(name):
+        assert eng._feature_kwargs.get(name) is True
+    else:
+        # Over the drift line: on only when a request asks (AK#2233).
+        assert name not in eng._feature_kwargs
 
 
 @pytest.mark.parametrize("name,tab", CASES)

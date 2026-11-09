@@ -81,6 +81,8 @@ SAMPLE = {
     "point_cplx_staged": False,
     "factored_columns": False,
     "height_sheet_recal": False,
+    "crossing_table": False,
+    "crossing_above_rule": False,
 }
 
 MOMWIRE = [b for b in _BACKENDS if b.kind == "momwire" and b.solver is not None]
