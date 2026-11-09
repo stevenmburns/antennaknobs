@@ -1,4 +1,7 @@
-"""Compatibility shim: the network solve lives in `momwire.networks` now.
+"""Compatibility shim: the network solve lives in `antennaknobs.mw.networks`.
+
+(It lived in `momwire.networks` from momwire#456 until AK#2219 stage 1 copied
+it back into antennaknobs' momwire layer; the history below is that move.)
 
 The whole of this module — the closed-form TL/chain math, the MNA primitives
 and `MNASystem`, and `NetworkReducer` with its branch-stamping switch — moved
@@ -12,18 +15,18 @@ seams has to as well. The code arrived there verbatim, split across
 Nothing in antennaknobs had to change its imports for that, which is the
 point of this file: ~40 design modules and ~50 test modules import from
 ``antennaknobs.network_reduce``, and every name they ask for is re-exported
-below and IS the momwire object (``network_reduce.NetworkReducer is
-momwire.networks.NetworkReducer``). The PyNEC-gated oracles that guard the
+below and IS the layer's object (``network_reduce.NetworkReducer is
+antennaknobs.mw.networks.NetworkReducer``). The PyNEC-gated oracles that guard the
 moved core — ``tests/test_tl_composition.py`` and the ``nt_card`` oracle in
 ``tests/test_momwire_engine.py`` — stay in antennaknobs and keep exercising
 it from above, since PyNEC is outside momwire's dependency envelope.
 
-Prefer importing from ``momwire.networks`` directly in new code.
+Prefer importing from ``antennaknobs.mw.networks`` directly in new code.
 """
 
 from __future__ import annotations
 
-from momwire.networks import (
+from .mw.networks import (
     C_LIGHT,
     FEET_PER_M,
     NEPER_PER_DB,

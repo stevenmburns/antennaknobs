@@ -26,8 +26,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from momwire.networks import NetworkReducer
-from momwire.networks._reduce import C_LIGHT
+from antennaknobs.mw.networks import NetworkReducer
+from antennaknobs.mw.networks._reduce import C_LIGHT
 
 from antennaknobs.engines import NEC5Engine
 from antennaknobs.file_designs import builder_from_file

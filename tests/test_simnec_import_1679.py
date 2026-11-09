@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 
 import pytest
-from momwire.networks._reduce import C_LIGHT, tl_abcd
+from antennaknobs.mw.networks._reduce import C_LIGHT, tl_abcd
 
 from antennaknobs.file_designs import builder_from_file
 from antennaknobs.network import TL, Admittance

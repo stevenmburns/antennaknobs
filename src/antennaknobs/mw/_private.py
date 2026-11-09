@@ -9,28 +9,13 @@ is retired when momwire publishes the name (AK#2219 phase 2).
 
 from __future__ import annotations
 
-from momwire.networks._reduce import _series_rlc_impedance as series_rlc_impedance
-from momwire.networks._spec import (
-    _branch_port_refs as branch_port_refs,
-)
-from momwire.networks._spec import (
-    _parallel_rlc_admittance as parallel_rlc_admittance,
-)
-from momwire.networks._spec import (
-    _rewrite_branch as rewrite_branch,
-)
-
 __all__ = [
-    "branch_port_refs",
     "couplings",
     "eps_tilde",
     "feature_certified",
     "feature_registry",
     "k_medium",
     "lambda_medium",
-    "parallel_rlc_admittance",
-    "rewrite_branch",
-    "series_rlc_impedance",
 ]
 
 

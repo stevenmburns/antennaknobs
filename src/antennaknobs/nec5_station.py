@@ -249,7 +249,7 @@ def _branch_cards(net, nodes: _Nodes, order, freq_mhz, wl, c_light, cl_reducer):
     """Every branch of ``net`` as card material on the merged ``nodes``."""
     omega = 2.0 * math.pi * freq_mhz * 1e6
     f_hz = freq_mhz * 1e6
-    from momwire.networks import (  # noqa: PLC0415 — momwire's line math, on use
+    from .mw.networks import (  # noqa: PLC0415 — the layer's line math, on use
         magnetizing_impedance,
         tl_admittance_2x2,
     )
@@ -454,7 +454,7 @@ def _solver_y(engine, freq_mhz):
 
 
 def _driven_z(net, Y, real_names, wl, c_light_reducer):
-    from momwire.networks import NetworkReducer  # noqa: PLC0415 — on use
+    from .mw.networks import NetworkReducer  # noqa: PLC0415 — on use
 
     idx = {n: i for i, n in enumerate(real_names)}
     k = len(idx)

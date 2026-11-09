@@ -96,7 +96,8 @@ class Touchstone:
         The threshold is the reducer's, not a second policy. It used to be
         imported at call time, because network_reduce → network → touchstone
         closed an import cycle; the cycle dissolved when the circuit core
-        moved to `momwire.networks` (momwire#456 ws2 phase B), so the import
+        moved to `momwire.networks` (momwire#456 ws2 phase B; it is
+        `antennaknobs.mw.networks` since AK#2219), so the import
         is an ordinary module-scope one and touchstone is a leaf again.
         """
         rc = _reciprocal_condition(m, scale)

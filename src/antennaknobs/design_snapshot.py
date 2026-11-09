@@ -44,7 +44,7 @@ ALLOWED_MODULES = (
     "antennaknobs.schematic",
     "antennaknobs.auto_match",
     "antennaknobs.touchstone",
-    "momwire.networks._spec",
+    "antennaknobs.mw.networks._spec",
 )
 
 # The instance hooks a builder may answer, all argument-free and returning
