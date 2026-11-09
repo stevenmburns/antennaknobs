@@ -29,7 +29,13 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.115.0" icon="star">
+<Card title="New in v0.115.1" icon="star">
+  **A slider that places a SimNEC load turns everywhere.** In 0.115.0 a knob
+  that put a `NECSource` load exactly on a segment centre was refused as a
+  topology change; now every value builds.
+
+  Still new from v0.115.0:
+
   **A station knob turns instantly.** Turning a value in a station's chain (a
   coax length, a matching C) reuses the antenna's solve, for the live point
   and for the sweep after it: on a full SimNEC station file, a sweep went from
