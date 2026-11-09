@@ -1655,6 +1655,30 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
             "large radial screen. Results change only in the last digits."
         ),
     ),
+    # momwire#1860 L1: the B-spline and razor-2p tabs.
+    "factored_columns": _OptionSpec(
+        "bool",
+        label="factored rod columns (faster)",
+        default=False,
+        description=(
+            "Where a buried rod crosses the ground under a vertical (an "
+            "EFHW with a ground rod), fill the rod's column of entries by "
+            "shared factors instead of one by one. Results change only in "
+            "the last digits."
+        ),
+    ),
+    # momwire#1860 L2: the B-spline and razor-2p tabs.
+    "height_sheet_recal": _OptionSpec(
+        "bool",
+        label="shared near-ground tables (faster)",
+        default=False,
+        description=(
+            "Build one table for a wire just above the ground (a low "
+            "counterpoise over a ground rod) and read it from both parts of "
+            "the fill, instead of computing those entries twice. Results "
+            "change only in the last digits."
+        ),
+    ),
     # The sector (block-circulant) solve route for a rotationally symmetric
     # radial screen (momwire#1029). Unadvertised on purpose (Steve, #1567
     # thread): a checkbox on the bspline panel, offered only where momwire's

@@ -79,6 +79,8 @@ SAMPLE = {
     "pair_reuse": False,
     "transmitted_anchors": False,
     "point_cplx_staged": False,
+    "factored_columns": False,
+    "height_sheet_recal": False,
 }
 
 MOMWIRE = [b for b in _BACKENDS if b.kind == "momwire" and b.solver is not None]

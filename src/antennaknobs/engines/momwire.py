@@ -794,6 +794,12 @@ FEATURE_SWITCHES = {
     # The point-matched complex tensor on the staged vector kernel
     # (momwire#1849).
     "point_cplx_staged": "ANTENNAKNOBS_POINT_CPLX_STAGED",
+    # The near-interface column twin's factored route on grid-shaped columns
+    # (momwire#1860 L1): a buried rod under a vertical, the EFHW shape.
+    "factored_columns": "ANTENNAKNOBS_FACTORED_COLUMNS",
+    # The near-interface height census recalibrated (momwire#1860 L2): a
+    # horizontal wire very near ground over a crossing rod.
+    "height_sheet_recal": "ANTENNAKNOBS_HEIGHT_SHEET_RECAL",
 }
 
 
