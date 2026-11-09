@@ -331,10 +331,10 @@ of that name beside the `.ssn` is read first; otherwise the stored copy is,
 and the import note says which. So a full-station `.ssn` opens by itself
 through Open… and on the hosted app, with no folder of sidecars. When every
 wire's count is held by `JamSegments`, SimNEC solves the file's own mesh, and
-the two agree: a real full-station file (an inverted L with its insulation
-and traps, a measured 49:1 unun and choke as S blocks, and two RG-58 runs)
-reads SimNEC's own Generator impedance within 0.06 % at 3.55 and 28.45 MHz on
-`momwire:razor-2p`.
+the two agree: on a full-station file (a wire antenna, a measured
+transformer and choke as S blocks, and coax runs), `momwire:razor-2p` reads
+SimNEC's own Generator impedance within 0.06 % at the bottom and the top of
+its HF range.
 
 In Python the same machinery is `read_ssn(self, "circuit.ssn")` /
 `parse_ssn(text)` — `read_ssn` ships a `.ssn` next to a
@@ -540,9 +540,9 @@ What the chain reads:
   `TL(k0=..., skin=True)`). Each coefficient becomes a per-length element:
   R_dc from k0, R_hf from k1, G from k2, and L and C from Zo and velocity
   factor. The conductors' internal impedance is √(R_dc² + [R_hf·(1 + j)]²),
-  so the skin effect's internal inductance slows the line as 1/√f. On 12 m of
-  RG-58 at 3.55 MHz that is 2.7 % more electrical length than the velocity
-  factor alone gives.
+  so the skin effect's internal inductance slows the line as 1/√f. On RG-58
+  at the bottom of 80 m that is about 2.7 % more electrical length than the
+  velocity factor alone gives.
 - **`SCATTERING`** (an S block): its S-parameters from the `.s2p` named
   beside the `.ssn`, else from the copy SimNEC stores inside the `.ssn` (the
   import note says so), or as written on the element, at its `Zref`. `2 <> 1`
@@ -575,15 +575,15 @@ from antennaknobs.simnec_import import read_ssn_station
 class Station(AntennaBuilder):
     """The top wire's length and the coax run as knobs."""
 
-    # antenna.nec carries `SY H_len=30.45` and uses H_len in its GW card.
-    default_params = MappingProxyType({"freq": 3.55, "H_len": 30.45, "coax_m": 12.0})
+    # antenna.nec carries `SY top_len=20.0` and uses top_len in its GW card.
+    default_params = MappingProxyType({"freq": 7.1, "top_len": 20.0, "coax_m": 15.0})
 
     def _deck(self):
         return parse_nec(
             read_data(self, "antenna.nec"),
             name="antenna.nec",
             network=True,
-            sy_overrides={"H_len": float(self.H_len)},
+            sy_overrides={"top_len": float(self.top_len)},
         )
 
     def build_wires(self):
@@ -591,7 +591,7 @@ class Station(AntennaBuilder):
 
     def build_network(self):
         station = read_ssn_station(self, "station.ssn")
-        station = station.with_values({"T2.mtrs": float(self.coax_m)})
+        station = station.with_values({"T1.mtrs": float(self.coax_m)})
         return station.network(self._deck().network())
 ```
 
@@ -609,10 +609,9 @@ files into the design as strings and read them with `parse_nec(text, ...)`
 and `parse_ssn_station(text, name=...)`. The `.s2p` files then come from the
 copies SimNEC stores inside the `.ssn`.
 
-How exact it is: on a real EFHW station (an inverted L with a measured 49:1
-unun and a common-mode choke as S blocks, and 12 m + 4 m of RG-58), the chain
-on SimNEC's own antenna table reproduces SimNEC's generator-side trace to
-3e-15. What it does not model is the same as in SimNEC: the coax is a
+How exact it is: on a full station (a wire antenna, a measured transformer
+and common-mode choke as S blocks, and two coax runs), the chain on SimNEC's
+own antenna table reproduces SimNEC's generator-side trace to 3e-15. What it does not model is the same as in SimNEC: the coax is a
 lumped two-port, so a feed line that radiates, or carries common-mode current
 through the antenna's field, is not in it. Model that as wires.
 
@@ -625,8 +624,8 @@ momwire's `momwire-nec5-bspline` drop-in) with no antennaknobs installed:
 ```python
 from antennaknobs.nec5_station import station_deck
 
-deck = station_deck(Station(), freq=3.55, ground=("finite", 13.0, 0.005))
-open("station-3.55MHz.nec", "w").write(deck.text)
+deck = station_deck(Station(), freq=7.1, ground=("finite", 13.0, 0.005))
+open("station-7.1MHz.nec", "w").write(deck.text)
 ```
 
 `ground` is the deck's ground, as in the plain NEC-5 download, and it
@@ -668,11 +667,10 @@ block and 12 m of RG-58; `scratch/2209-station-deck/`):
 | `momwire-nec5-bspline` | the station on the drop-in's own antenna | 1.5e-6 / 9.6e-6 |
 | AK's importer → momwire | the station on momwire | 3.7e-8 / 5.4e-8, the pins' measured 4e-8 / 6e-8 |
 
-On a real full-station model (an EFHW inverted L fed at a wire junction,
-a 49:1 unun and a choke as S blocks, two runs of RG-58 as Johnson lines),
-the one deck run on licensed NEC-5 reads 34.78 + j7.85 Ω at 3.55 MHz and
-29.02 + j33.95 Ω at 28.45 MHz, SimNEC's own Generator readout to the
-printout's digits.
+On a full-station model (a wire antenna fed at a wire junction, a measured
+transformer and choke as S blocks, and two coax runs as Johnson lines), the
+one deck run on licensed NEC-5 reads SimNEC's own Generator impedance to the
+printout's digits at both ends of its HF range.
 
 An antenna fed at a knot where two wires meet (`PortAtVertex`) is written:
 NEC-5 attaches `NT` and `TL` cards to a segment end exactly as it attaches
