@@ -214,6 +214,27 @@ function CopyLinkButton({ onCopy }: { onCopy: () => Promise<string | void> | und
   );
 }
 
+/** A sweep chart's Clear: stop a run and drop its points, or empty a chart
+ *  whose curve is no longer wanted. Nothing re-runs by itself afterwards;
+ *  Run (or a changed input, with the dwell switch on) draws it again. */
+export function ClearButton({
+  run,
+}: {
+  run: { canClear?: boolean; onClear?: () => void };
+}) {
+  if (!run.onClear || !run.canClear) return null;
+  return (
+    <button
+      type="button"
+      className="zparam-clear"
+      title="Clear: stop the sweep and drop its points"
+      onClick={run.onClear}
+    >
+      clear
+    </button>
+  );
+}
+
 /** The per-chart dwell switch: today's freq-sweep checkbox, moved onto the
  *  chart and applied to whatever it shows. */
 export function DwellSwitch({ dwell, onDwell }: Pick<ChartChrome, "dwell" | "onDwell">) {
@@ -506,6 +527,10 @@ export function FrequencyChartControls({
     running: boolean;
     received: number;
     stale: boolean;
+    /** Points drawn or a run under way: Clear is offered. */
+    canClear?: boolean;
+    /** Stop whatever runs and drop the curve. */
+    onClear?: () => void;
     onStop: () => void;
     onRun: () => void;
   };
@@ -541,6 +566,7 @@ export function FrequencyChartControls({
           {run.stale ? "run · re-run?" : "run"}
         </button>
       )}
+      <ClearButton run={run} />
       <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />
     </span>
   );

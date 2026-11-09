@@ -214,6 +214,9 @@ export type FreqSweepHandle = {
   /** The app's Cancel: stop the stream and any pending round; what is drawn
    *  stays drawn. */
   abort: () => void;
+  /** Stop whatever runs and drop the drawn points; nothing re-runs by
+   *  itself until Run or a changed input. */
+  clear: () => void;
 };
 
 export function useFreqSweep({
@@ -738,6 +741,21 @@ export function useFreqSweep({
     sweepRefineAbortRef.current?.abort();
   }
 
+  // Clear: stop whatever runs, refinement included, and drop the curve.
+  // Nothing re-runs on its own: the dwell re-runs only when an input moves,
+  // and clearing moves none. Run (or that input) draws it again.
+  function clear() {
+    abort();
+    setSweep(null);
+    drawnCellRef.current = cell;
+    setSweepRunning(false);
+    setSweepStale(false);
+    setSweepSettled(true);
+    setSweepProgress(null);
+    setSweepAdvisories([]);
+    setSweepError(null);
+  }
+
   const phase: SweepPhase = sweepRunning
     ? "running"
     : sweepQueued
@@ -759,5 +777,6 @@ export function useFreqSweep({
     arm,
     hold,
     abort,
+    clear,
   };
 }

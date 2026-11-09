@@ -236,6 +236,29 @@ describe("Stop through refinement", () => {
   });
 });
 
+describe("Clear", () => {
+  it("stops a refining sweep, drops its points, and runs nothing more", async () => {
+    const { result } = renderRunners();
+    await flush(500);
+    base!.release(18);
+    await flush();
+    await flush(500); // the refinement dwell: the first round goes out
+    expect(refines.length).toBe(1);
+    expect(result.current.sweep!.freqs_mhz.length).toBe(17);
+    act(() => result.current.freq.clear());
+    await flush();
+    expect(result.current.sweep).toBeNull();
+    expect(result.current.sweepPhase).toBe("idle");
+    expect(result.current.sweepProgress).toBeNull();
+    // The aborted round's stream finishing late publishes nothing, and no
+    // new round or base sweep goes out however long the session waits.
+    refines[0].release(100);
+    await flush(5000);
+    expect(result.current.sweep).toBeNull();
+    expect(refines.length).toBe(1);
+  });
+});
+
 describe("status text and bar fraction", () => {
   it("labels the base grid as k/N and refinement against a ceiling", () => {
     expect(sweepProgressLabel({ phase: "base", received: 3, planned: 17 })).toBe(
