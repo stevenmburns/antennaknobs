@@ -73,6 +73,8 @@ def test_the_baseline_is_not_empty_and_covers_every_kwarg():
         "pair_reuse",
         "transmitted_anchors",
         "point_cplx_staged",
+        "factored_columns",
+        "height_sheet_recal",
     } == set(_HOSTED_MODEL_OPTIONS)
     assert set(_HOSTED_MODEL_OPTIONS) == set(_OPTION_SPECS)
     assert len(BASELINE) == 14
@@ -190,7 +192,7 @@ def test_the_catalogue_serves_every_option_and_is_json():
 
     served = model_option_specs()
     assert set(served) == set(_OPTION_SPECS)
-    assert len(served) == 19
+    assert len(served) == 21
     assert json.loads(json.dumps(served)) == served
 
 
@@ -271,6 +273,8 @@ def test_the_roster_names_only_kwargs_the_catalogue_describes():
         "pair_reuse",
         "transmitted_anchors",
         "point_cplx_staged",
+        "factored_columns",
+        "height_sheet_recal",
     }
     unreachable = described - seen - CAPABILITY_GATED
     assert not unreachable, f"described but unreachable: {sorted(unreachable)}"

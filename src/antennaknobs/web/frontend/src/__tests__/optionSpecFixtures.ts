@@ -268,6 +268,28 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "shown_when_value": null,
     "description": "Fill the entries between buried wires with the vectorised kernel the Galerkin solver uses, several times faster on a large radial screen. Results change only in the last digits."
   },
+  "factored_columns": {
+    "kind": "bool",
+    "label": "factored rod columns (faster)",
+    "default": false,
+    "auto_when_null": false,
+    "shown_when": null,
+    "gate_label": null,
+    "gate_on_value": null,
+    "shown_when_value": null,
+    "description": "Where a buried rod crosses the ground under a vertical (an EFHW with a ground rod), fill the rod's column of entries by shared factors instead of one by one. Results change only in the last digits."
+  },
+  "height_sheet_recal": {
+    "kind": "bool",
+    "label": "shared near-ground tables (faster)",
+    "default": false,
+    "auto_when_null": false,
+    "shown_when": null,
+    "gate_label": null,
+    "gate_on_value": null,
+    "shown_when_value": null,
+    "description": "Build one table for a wire just above the ground (a low counterpoise over a ground rod) and read it from both parts of the fill, instead of computing those entries twice. Results change only in the last digits."
+  },
   "rotational_symmetry": {
     "kind": "bool",
     "label": "rotational symmetry (radial screens)",

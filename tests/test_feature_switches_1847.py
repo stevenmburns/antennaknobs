@@ -1,4 +1,5 @@
-"""momwire's pass-through features on the solver pane (momwire#1847, #1849).
+"""momwire's pass-through features on the solver pane (momwire#1847, #1849,
+#1860).
 
 `transmitted_anchors` (the B-spline and sinusoidal tabs) and
 `point_cplx_staged` (the sinusoidal tab) are each one solver keyword, wired
@@ -26,6 +27,8 @@ from test_pair_reuse_hint_2165 import fed_yagi
 TABS = {
     "transmitted_anchors": ("bspline", "sinusoidal"),
     "point_cplx_staged": ("sinusoidal",),
+    "factored_columns": ("bspline", "razor-2p"),
+    "height_sheet_recal": ("bspline", "razor-2p"),
 }
 
 
@@ -57,6 +60,8 @@ def test_offered_only_where_served(name):
             b.kind == "momwire" and feature_served(b.solver, name)
         ), b.name
     for tab in ("razor-2p", "pulse", "hmatrix", "arrayblock"):
+        if tab in TABS[name]:
+            continue
         b = adapter._BACKENDS_BY_NAME.get(tab)
         if b is not None:
             assert not adapter._offers_feature(b, name), tab
@@ -132,7 +137,7 @@ def test_another_tab_drops_it():
     changes nothing: the value is dropped, never forwarded."""
     for name in FEATURE_SWITCHES:
         eng = adapter._make_momwire_engine(
-            {"momwire_model": "razor-2p", "model_options": {name: True}},
+            {"momwire_model": "pulse", "model_options": {name: True}},
             fed_yagi(2),
         )
         assert name not in eng._feature_kwargs
