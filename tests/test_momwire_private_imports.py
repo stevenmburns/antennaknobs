@@ -290,7 +290,7 @@ def _relative_import_escapes_layer(path, level):
 
 def test_the_momwire_layer_imports_nothing_else_from_antennaknobs():
     """momwire's CI imports the layer without antennaknobs' web or engine
-    dependencies, so the layer may import momwire, numpy and its own
+    dependencies, so the layer may import momwire, numpy, scipy and its own
     modules, and no other part of antennaknobs."""
     bad = []
     layer = SRC / "mw"

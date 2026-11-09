@@ -29,15 +29,51 @@ What the layer relies on, and what core keeps:
 | the layer uses | core's side | today |
 |---|---|---|
 | `swept_y(solver, k_array)` | a per-frequency `PortSolution` stream (`_port_solutions_swept`), each with its own `y` | private generator; phase 2 publishes it |
-| `series_rlc_impedance`, `parallel_rlc_admittance`, `branch_port_refs`, `rewrite_branch` | `momwire.networks._reduce` / `._spec` | private |
 | `eps_tilde`, `lambda_medium`, `k_medium` | `momwire._ground_refl`, `momwire._sommerfeld_below` | private |
 | `couplings()` | `momwire._couplings.COUPLINGS` (momwire#885) | private |
 | `feature_registry()`, `feature_certified(name)` | `momwire._features` (momwire#1869) | private |
 
 Core keeps everything its executables and portal run: the deck path, every
-solver's fill and solve, the network reducer (the NEC-5 drop-in stamps its
-`TL`/`NT` cards through it), and the swept solution stream, since batched
-swept fills are where the accelerated speed is.
+solver's fill and solve, its own network reducer (the NEC-5 drop-in stamps
+its `TL`/`NT` cards through it), and the swept solution stream, since
+batched swept fills are where the accelerated speed is. antennaknobs no
+longer reduces on core's reducer at all; see the next section.
+
+## `networks`: antennaknobs' general network reducer
+
+`antennaknobs.mw.networks` is a copy of `momwire.networks` (the spec, the MNA
+core and `NetworkReducer`, four modules) taken at momwire commit 03a2357e
+(momwire 0.89.0), phase 3 stage 1 of AK#2219. From that commit on it is
+antennaknobs' code. Its package docstring lists every difference from
+upstream:
+- `C_LIGHT` is the SI literal.
+- `_lapack.matmul` is written `a @ b`, which is what that seam returns when
+  no host process publishes a BLAS.
+- AK's lint: B905 `strict=True` on seven zips, and SLOT001 noted on the
+  two keyed tuple subclasses.
+
+The copy imports nothing from momwire.
+
+`antennaknobs.network` and `antennaknobs.network_reduce` re-export it, so
+every design and engine reduces on it. No momwire function receives an
+antennaknobs network: momwire's deck path builds its own from cards. The
+four flattening and RLC helpers the layer used to re-export from momwire
+privates (`series_rlc_impedance`, `parallel_rlc_admittance`,
+`branch_port_refs`, `rewrite_branch`) are the copy's own now.
+
+The gate is `tests/test_mw_networks_ab_2219.py`. It builds one description
+from each namespace's classes and compares the two reductions by bytes:
+- driven Z and Γ;
+- `apply_branches`' system and solution;
+- `excited_state`'s voltages, efficiency, input power and budget rows;
+- refusals.
+
+It covers every branch, port and source class, at four frequencies and both
+c values. When the copy is meant to move a number (a fix, AK#2241's sparse
+path), the case that moves is updated there on purpose.
+
+Stage 3 trims core's reducer to the NEC-card subset; a cross-check then holds
+this copy equal to it on card-only networks.
 
 ## `swept_y`
 
@@ -70,6 +106,9 @@ own tolerance.
    momwire from the PR and runs this repo's `tests/test_mw_layer_2219.py`
    from `main`. That job must fail, not skip, when it collects no tests,
    and report how many it ran (the `tests/*_1299.py` lesson in CLAUDE.md).
-3. **AK-only pieces move into the layer** as they next need a change: the
-   skin-effect line as a layer two-port on the reducer's `y_at(f)` protocol,
-   and sparse elimination of circuit-only network nodes (AK#2241).
+3. **The general reducer moves into the layer** (plan and correction in
+   AK#2219's comments). Stage 1, the copy and the switch with no number
+   moving, is the `networks` section above. Stage 2 is sparse MNA in the copy
+   (AK#2241). Stage 3 trims core to the NEC-card subset. Stage 4 puts
+   AK-only branch models (the skin-effect line, Touchstone, baluns) in the
+   layer for good.
