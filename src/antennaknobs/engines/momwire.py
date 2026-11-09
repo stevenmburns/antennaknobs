@@ -11,8 +11,10 @@ import inspect
 import logging
 import os
 import pickle
+import threading
 import warnings
 import weakref
+from collections import OrderedDict
 
 import numpy as np
 import momwire
@@ -842,6 +844,52 @@ def _z_fill_key(solver_cls, kwargs):
     except Exception:  # noqa: BLE001 — an unpicklable kwarg means no key, i.e. no sharing
         return None
     return hashlib.sha256(blob).digest()
+
+
+# A process-wide LRU of filled Z operators, behind each engine's own held Z
+# (`_share_z_fill`). The server builds an engine per request, so the held Z
+# alone never outlives one knob turn; this lets the next request reuse it
+# when nothing the operator depends on moved, which is what a station-chain
+# knob does: it changes the network the reducer applies, never the antenna.
+# Keyed exactly as the held Z is (construction digest + live k triple), so a
+# hit is the same matrix a fresh fill would produce. Entries are read-only
+# and only copies go out. Bounded by bytes; 0 turns it off.
+_Z_CACHE: OrderedDict = OrderedDict()
+_Z_CACHE_LOCK = threading.Lock()
+
+
+def _z_cache_cap() -> int:
+    try:
+        mb = float(os.environ.get("ANTENNAKNOBS_Z_CACHE_MB", "256"))
+    except ValueError:
+        mb = 0.0
+    return int(max(mb, 0.0) * 2**20)
+
+
+def _z_cache_get(live):
+    with _Z_CACHE_LOCK:
+        Z = _Z_CACHE.get(live)
+        if Z is not None:
+            _Z_CACHE.move_to_end(live)
+        return Z
+
+
+def _z_cache_put(live, Z) -> None:
+    cap = _z_cache_cap()
+    if Z.nbytes > cap:
+        return
+    with _Z_CACHE_LOCK:
+        _Z_CACHE[live] = Z
+        _Z_CACHE.move_to_end(live)
+        total = sum(z.nbytes for z in _Z_CACHE.values())
+        while total > cap and _Z_CACHE:
+            _k, old = _Z_CACHE.popitem(last=False)
+            total -= old.nbytes
+
+
+def clear_z_cache() -> None:
+    with _Z_CACHE_LOCK:
+        _Z_CACHE.clear()
 
 
 def _z_fill_live(solver):
@@ -2119,8 +2167,9 @@ class MomwireEngine(SimulationEngine):
         ``wavelength`` on the instance (`_set_k`) and fill again, and a
         construction-time key alone would hand each k the first k's Z.
 
-        Scope is the engine instance, which the server builds per request;
-        there is deliberately no cross-request cache."""
+        Behind the engine's held Z sits the process-wide `_Z_CACHE`, on the
+        same key: the next request reuses a Z whose inputs did not move (a
+        station-chain knob turn), bounded by ANTENNAKNOBS_Z_CACHE_MB."""
         if key is None or not _z_fill_shareable(solver):
             return
         held = self.__dict__.setdefault("_z_fill_held", [None])
@@ -2146,9 +2195,16 @@ class MomwireEngine(SimulationEngine):
             live = (key, _z_fill_live(sim))
             if held[0] is not None and held[0][0] == live:
                 return held[0][1].copy()
+            kept = _z_cache_get(live)
+            if kept is not None:
+                held[0] = (live, kept)
+                return kept.copy()
             held[0] = None  # release the old Z before the new fill peaks
             Z = fill(sim, geom, supp_seg, polys)
-            held[0] = (live, Z.copy())
+            frozen = Z.copy()
+            frozen.flags.writeable = False
+            held[0] = (live, frozen)
+            _z_cache_put(live, frozen)
             return Z
 
         solver._compute_Z_operator = shared

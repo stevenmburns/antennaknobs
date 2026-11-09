@@ -377,3 +377,13 @@ def nec2c_printout(deck: str, *, timeout: float = 300) -> str:
             )
         with open(out, errors="replace") as f:
             return f.read()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_z_cache():
+    """Each test starts with an empty process-wide Z cache, so a fill count or
+    a timing never depends on which test ran before it."""
+    from antennaknobs.engines.momwire import clear_z_cache
+
+    clear_z_cache()
+    yield
