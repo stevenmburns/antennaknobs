@@ -763,9 +763,10 @@ def _backend_constraints(spec):
     """
     if spec.kind != "momwire" or spec.solver is None:
         return None
-    try:
-        from momwire._couplings import COUPLINGS
-    except ImportError:  # a momwire predating momwire#885
+    from ..mw import couplings
+
+    COUPLINGS = couplings()
+    if COUPLINGS is None:  # a momwire predating momwire#885
         return None
     name = spec.solver.__name__
     return [

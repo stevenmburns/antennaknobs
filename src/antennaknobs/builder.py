@@ -219,8 +219,8 @@ class AntennaBuilder:
         import math as _math
 
         from momwire import RazorSolver as _Solver
-        from momwire._ground_refl import eps_tilde as _eps_tilde
-        from momwire._sommerfeld_below import lambda_medium as _lambda_medium
+        from .mw import eps_tilde as _eps_tilde
+        from .mw import lambda_medium as _lambda_medium
 
         # Derived from design_wavelength, so a soil declaration without a
         # design_freq raises that property's error rather than a bare

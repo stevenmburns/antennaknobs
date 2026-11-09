@@ -107,7 +107,7 @@ def medium_wavenumber(eps_t, k_p) -> complex:
     the readout and the fill cannot drift apart on which root of ε̃ they
     mean — the branch is the whole content of the function.
     """
-    from momwire._sommerfeld_below import k_medium
+    from .mw import k_medium
 
     return k_medium(eps_t, k_p)
 

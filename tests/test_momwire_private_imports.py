@@ -14,6 +14,14 @@ This test pins the whole boundary rather than that one site. It fails on
 so the allowlist below stays an accurate census of the debt rather than
 drifting into a rubber stamp.
 
+Since AK#2219 every entry lives in one module, `antennaknobs.mw._private`,
+the layer between antennaknobs and momwire's internals: the rest of
+antennaknobs reaches these names through `antennaknobs.mw`, and
+`test_every_private_import_is_in_the_momwire_layer` holds that. The
+allowlist is then exactly what momwire would need to publish (#2219 phase
+2). The two categories below describe why each name was needed in the first
+place; the files they name are its callers.
+
 Two categories are deliberately distinguished, because only one is a smell:
 
 * **Compatibility re-exports** (`network.py`, `network_reduce.py`) — names
@@ -46,13 +54,13 @@ SRC = pathlib.Path(__file__).resolve().parent.parent / "src" / "antennaknobs"
 # (module path relative to src/antennaknobs, momwire module, imported name)
 ALLOWED = {
     # Incidental reach-throughs: no public momwire equivalent today.
-    ("builder.py", "momwire._ground_refl", "eps_tilde"),
-    ("builder.py", "momwire._sommerfeld_below", "lambda_medium"),
+    ("mw/_private.py", "momwire._ground_refl", "eps_tilde"),
+    ("mw/_private.py", "momwire._sommerfeld_below", "lambda_medium"),
     # The transmitted far field (#1341) needs k_m on the SAME branch of √ε̃
     # the fill took; `k_medium` is that branch and momwire exports no public
     # alias of it. Re-deriving it here is the drift this table exists to
     # prevent, so the reach-through is the safer of the two.
-    ("in_medium.py", "momwire._sommerfeld_below", "k_medium"),
+    ("mw/_private.py", "momwire._sommerfeld_below", "k_medium"),
     # The coated-wire capability guard (momwire#865). Both are FEATURE
     # probes, not calls: the engine refuses a surface deck when the installed
     # momwire lacks the equivalent-radius pair, because that momwire does not
@@ -97,18 +105,18 @@ ALLOWED = {
     # `AXIS_VALUES` to public names should take `COUPLINGS` with it, since a
     # panel that renders the axes needs the constraints on them in the same
     # breath.
-    ("web/adapter.py", "momwire._couplings", "COUPLINGS"),
+    ("mw/_private.py", "momwire._couplings", "COUPLINGS"),
     # The reach check behind each pass-through feature's option
     # (`feature_served`): `_features.certified` is the one place momwire
     # answers whether a feature is certified on this platform, and it exports
     # no public name for it. A hand-kept platform table here is the drift
     # the registry exists to prevent.
-    ("engines/momwire.py", "momwire", "_features"),
+    ("mw/_private.py", "momwire", "_features"),
     # Compatibility re-exports (momwire#456 ws2 phase B) — see module docstrings.
-    ("network.py", "momwire.networks._reduce", "_series_rlc_impedance"),
-    ("network.py", "momwire.networks._spec", "_branch_port_refs"),
-    ("network.py", "momwire.networks._spec", "_parallel_rlc_admittance"),
-    ("network.py", "momwire.networks._spec", "_rewrite_branch"),
+    ("mw/_private.py", "momwire.networks._reduce", "_series_rlc_impedance"),
+    ("mw/_private.py", "momwire.networks._spec", "_branch_port_refs"),
+    ("mw/_private.py", "momwire.networks._spec", "_parallel_rlc_admittance"),
+    ("mw/_private.py", "momwire.networks._spec", "_rewrite_branch"),
 }
 
 
@@ -254,8 +262,42 @@ def test_the_couplings_entry_is_not_retired_by_this_round():
     and is not — the import is still there, and removing the entry would stop
     counting a debt that still exists.
     """
-    assert ("web/adapter.py", "momwire._couplings", "COUPLINGS") in ALLOWED
+    assert ("mw/_private.py", "momwire._couplings", "COUPLINGS") in ALLOWED
     assert (
         "from momwire._couplings import COUPLINGS"
-        in (SRC / "web" / "adapter.py").read_text()
+        in (SRC / "mw" / "_private.py").read_text()
     )
+
+
+def test_every_private_import_is_in_the_momwire_layer():
+    """AK#2219: `antennaknobs.mw._private` is the one module allowed a
+    private momwire name. Everything else reaches momwire's internals
+    through the layer, so the layer's import list IS the census of what
+    momwire would need to publish (#2219 phase 2)."""
+    outside = sorted(e for e in FOUND if e[0] != "mw/_private.py")
+    assert not outside, "private momwire imports outside the layer:\n" + _fmt(outside)
+
+
+def test_the_momwire_layer_imports_nothing_else_from_antennaknobs():
+    """momwire's CI imports the layer without antennaknobs' web or engine
+    dependencies, so the layer may import momwire, numpy and its own
+    modules, and no other part of antennaknobs."""
+    bad = []
+    for path in sorted((SRC / "mw").rglob("*.py")):
+        tree = ast.parse(path.read_text(), str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                if node.level >= 2 or (
+                    node.level == 0
+                    and (node.module or "").split(".")[0] == "antennaknobs"
+                ):
+                    bad.append(
+                        f"{path.name}: from {'.' * node.level}{node.module} import ..."
+                    )
+            elif isinstance(node, ast.Import):
+                bad += [
+                    f"{path.name}: import {a.name}"
+                    for a in node.names
+                    if a.name.split(".")[0] == "antennaknobs"
+                ]
+    assert not bad, "the momwire layer reaches into antennaknobs:\n" + "\n".join(bad)

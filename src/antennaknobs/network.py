@@ -75,12 +75,12 @@ from momwire.networks import Network as _FlatNetwork
 # Private helpers that were importable from here before the move: the two the
 # flattening below actually calls, plus the two RLC primitives designs and
 # tests reach for. Re-exported so nothing had to churn in the move PR.
-from momwire.networks._reduce import _series_rlc_impedance  # noqa: F401
-from momwire.networks._spec import (  # noqa: F401
-    _branch_port_refs,
-    _parallel_rlc_admittance,
-    _rewrite_branch,
-)
+# Through the momwire layer (AK#2219), the one module allowed a private
+# momwire name.
+from .mw import branch_port_refs as _branch_port_refs  # noqa: F401
+from .mw import parallel_rlc_admittance as _parallel_rlc_admittance  # noqa: F401
+from .mw import rewrite_branch as _rewrite_branch  # noqa: F401
+from .mw import series_rlc_impedance as _series_rlc_impedance  # noqa: F401
 
 # Wire/cable stock split out in momwire#456 ws2 phase A, and joined in phase B
 # by the two constructors that need a catalog (`cable_from_catalog`,
