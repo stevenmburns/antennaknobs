@@ -55,13 +55,14 @@ from __future__ import annotations
 
 import functools
 import math
+import re
 from pathlib import Path
 from types import MappingProxyType
 
 from .builder import C_LIGHT_MHZ_M, AntennaBuilder
 from .ez_import import accept_guesses_from_env, read_ez
 from .maa_import import decode_maa, read_maa
-from .nec_import import _NEC_SMIN, NEC_C_LIGHT_MHZ_M, classify_sy, parse_nec
+from .nec_import import _NEC_SMIN, NEC_C_LIGHT_MHZ_M, SySymbol, classify_sy, parse_nec
 from .simnec_import import classify_dcl, parse_ssn
 
 __all__ = ["builder_from_file"]
@@ -446,7 +447,11 @@ def _ssn_dialect(symbols):
     """How a circuit's knobs speak in the note: dcl constants, element
     parameters (``par_``, and ``prm_`` for one the script assigns, AK#1734),
     or both."""
-    kinds = {s.param[:4] in ("par_", "prm_") for s in symbols if s.kind == "knob"}
+    kinds = {
+        s.param[:4] in ("par_", "prm_")
+        for s in symbols
+        if s.kind == "knob" and not _is_station(s)
+    }
     if kinds == {True}:
         return _PAR_DIALECT
     return _SCRIPT_DIALECT if kinds == {True, False} else _DCL_DIALECT
@@ -552,15 +557,19 @@ class _SyKnobs:
 
     @classmethod
     def for_circuit(cls, path: Path, text: str, circuit, freq, limits=None):
-        """A ``.ssn`` circuit's dcl knobs (AK#1714) and element-parameter
-        knobs (AK#1716)."""
+        """A ``.ssn`` circuit's dcl knobs (AK#1714), element-parameter
+        knobs (AK#1716), and its station chain's component values
+        (`_station_symbols`). A station knob's ``name`` is its
+        ``label.param`` key, which no dcl name can spell, so one override
+        map carries both and `_ssn_reparse` splits it."""
         try:
             symbols = classify_dcl(text, name=path.name)
         except ValueError:
-            return None, None
+            symbols = ()
+        symbols = (*symbols, *_station_symbols(circuit))
         return cls._for(
             path.stem,
-            lambda overrides: _ssn_circuit(text, path.name, overrides, limits),
+            lambda overrides: _ssn_reparse(text, path.name, overrides, limits),
             lambda: symbols,
             circuit,
             freq,
@@ -685,20 +694,31 @@ class _SyKnobs:
         return ui
 
     def note(self, freq) -> str:
-        knobs = self.symbols
+        station = [s for s in self.symbols if _is_station(s)]
+        knobs = [s for s in self.symbols if not _is_station(s)]
         derived = [s for s in self.all_symbols if s.kind == "derived"]
-        parts = [
-            f"{len(knobs)} {self.dialect['constant']}"
-            f"{'s are' if len(knobs) != 1 else ' is a'} "
-            f"knob{'s' if len(knobs) != 1 else ''} "
-            f"({', '.join(s.param for s in knobs)})"
-            + (
-                f"; {len(derived)} derived symbol"
-                f"{'s follow' if len(derived) != 1 else ' follows'} them."
-                if derived
-                else "."
+        parts = (
+            []
+            if not knobs
+            else [
+                f"{len(knobs)} {self.dialect['constant']}"
+                f"{'s are' if len(knobs) != 1 else ' is a'} "
+                f"knob{'s' if len(knobs) != 1 else ''} "
+                f"({', '.join(s.param for s in knobs)})"
+                + (
+                    f"; {len(derived)} derived symbol"
+                    f"{'s follow' if len(derived) != 1 else ' follows'} them."
+                    if derived
+                    else "."
+                )
+            ]
+        )
+        if station:
+            parts.append(
+                f"The station chain's {', '.join(s.spelling for s in station)} "
+                f"{'are knobs' if len(station) != 1 else 'is a knob'}, read "
+                "as if SimNEC had saved the value."
             )
-        ]
         why = {
             "redefined": "assigned more than once",
             "unit": "a unit selector",
@@ -826,6 +846,74 @@ def _ssn_circuit(text: str, name: str, dcl_overrides=None, limits=None):
     return parse_ssn(
         text, name=name, network=True, dcl_overrides=dcl_overrides, limits=limits
     )
+
+
+# The station chain values a ``.ssn`` design offers as knobs: the
+# component values a station is tuned by -- a line's length, an L, a C, a
+# transformer's ratio -- each in a unit a knob reads well in. A cable's own
+# model (Zo, VF, loss coefficients), a component's Q and a fixed SERIES_Z
+# load are left to `SsnStation.with_values` (AK#2222): a design that wants
+# them as knobs says so.
+_STATION_KNOBS = {
+    ("SERIES_TLINE", "mtrs"): ("m", None),
+    ("SERIES_TLINE", "ft"): ("ft", None),
+    ("SERIES_IND", "H"): ("µH", 1e-6),
+    ("SHUNT_IND", "H"): ("µH", 1e-6),
+    ("SERIES_CAP", "F"): ("pF", 1e-12),
+    ("SHUNT_CAP", "F"): ("pF", 1e-12),
+    ("TRANSFORMER2", "N"): (None, None),
+}
+
+
+def _is_station(symbol) -> bool:
+    return "." in symbol.name
+
+
+def _station_symbols(circuit) -> tuple[SySymbol, ...]:
+    """The station chain's knob values (`_STATION_KNOBS`) as knob records,
+    generator first. ``name`` is the `SsnCircuit.with_station_values` key;
+    the design param is ``stn_<label>_<param>``. An element whose label is
+    shared or missing has no key (`SsnStation.values`), and so no knob."""
+    types = {el.label: el.typ for el in circuit.chain if el.label}
+    out, seen = [], set()
+    for key, value in circuit.station_values().items():
+        label, _, param = key.rpartition(".")
+        spec = _STATION_KNOBS.get((types.get(label), param))
+        if spec is None or value == 0:
+            continue
+        unit, factor = spec
+        param_name = "stn_" + re.sub(r"\W", "_", f"{label}_{param}")
+        if param_name in seen:
+            continue
+        seen.add(param_name)
+        shown = value / factor if factor else value
+        out.append(
+            SySymbol(
+                name=key,
+                spelling=f"{label} length" if types[label] == "SERIES_TLINE" else label,
+                line=0,
+                expr=repr(value),
+                label=f"{types[label]} {label} in the station chain ({param})",
+                kind="knob",
+                value=value,
+                assignments=1,
+                refs=(),
+                reaches=frozenset(),
+                unit=unit,
+                unit_factor=factor,
+                default=float(f"{shown:.12g}"),
+                param_name=param_name,
+            )
+        )
+    return tuple(out)
+
+
+def _ssn_reparse(text: str, name: str, overrides, limits=None):
+    """`_ssn_circuit` at a knob map that may hold station keys as well as
+    dcl names (`_SyKnobs.for_circuit`)."""
+    station = {k: v for k, v in overrides.items() if "." in k}
+    dcl = {k: v for k, v in overrides.items() if "." not in k}
+    return _ssn_circuit(text, name, dcl or None, limits).with_station_values(station)
 
 
 def _ssn_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=None):

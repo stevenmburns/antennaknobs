@@ -441,6 +441,27 @@ a name that is neither a constant nor a saved parameter. A
 AC6LA's Synth conversions) takes its saved value, which, like any
 `segmentsPerWavelength`, only feeds the mesh note.
 
+### The station's component values are knobs
+
+A full station opened by itself — the antenna block plus the chain between
+it and the Generator — also offers the chain's component values as knobs,
+beside its `dcl` and parameter knobs:
+
+| Element | Knob | Unit |
+|---|---|---|
+| `SERIES_TLINE` | its length, `stn_<label>_mtrs` or `stn_<label>_ft` | as saved: m or ft |
+| `SERIES_IND`, `SHUNT_IND` | `stn_<label>_H` | µH |
+| `SERIES_CAP`, `SHUNT_CAP` | `stn_<label>_F` | pF |
+| `TRANSFORMER2` | `stn_<label>_N` | turns ratio |
+
+Moving one builds exactly what the file builds when SimNEC saves that value.
+A line's cable model (Zo, VF, the loss coefficients), a component's Q and a
+fixed `SERIES_Z` load stay as saved; a design that wants them as knobs sets
+them with `with_values` (see *Knobs on both halves* below). An element needs its own label to
+have a knob: one with no label, or one sharing its label with another
+element, keeps its saved value. A value of 0 (an unused component) is not
+offered.
+
 ## A SimNEC station on any antenna
 
 A common workflow models the antenna in EZNEC, AutoEZ or NEC and the feed

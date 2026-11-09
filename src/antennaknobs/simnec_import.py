@@ -1420,6 +1420,18 @@ class SsnCircuit:
             "deck SimNEC actually solved."
         )
 
+    def station_values(self) -> dict[str, float]:
+        """The station chain's adjustable numbers, keyed as
+        `SsnStation.values` keys them (AK#2222)."""
+        return _chain_values(self.chain)
+
+    def with_station_values(self, values) -> "SsnCircuit":
+        """A copy with station chain values set, as
+        `SsnStation.with_values` sets them; the file design's station knobs
+        build through this."""
+        chain = _chain_with_values(self.chain, values)
+        return self if chain is self.chain else replace(self, chain=chain)
+
     def network(self, *, rig_port: str = "rig"):
         """The full circuit as a ``network.Network``, ready to return from
         ``build_network()``: the deck's translated branches and feed (via
@@ -4374,6 +4386,87 @@ def _label_counts(chain) -> dict[str, int]:
     return counts
 
 
+def _chain_values(chain) -> dict[str, float]:
+    """`SsnStation.values` on a bare chain."""
+    counts = _label_counts(chain)
+    out = {}
+    for el in chain:
+        if not el.label or counts[el.label] > 1:
+            continue
+        for name, raw in el.params:
+            if name and raw is not None and _adjustable(el, name):
+                out[f"{el.label}.{name}"] = _chain_f(el, name)
+    return out
+
+
+def _chain_with_values(chain, values):
+    """`SsnStation.with_values` on a bare chain: the edited chain, or
+    ``chain`` itself when nothing changes."""
+    counts = _label_counts(chain)
+    edits: dict[str, dict[str, str]] = {}
+    for key, value in dict(values).items():
+        label, dot, param = str(key).rpartition(".")
+        if not dot or not label or not param:
+            raise ValueError(
+                f"station value {key!r}: keys are '<label>.<param>', "
+                "for example 'T2.mtrs'"
+            )
+        n = counts.get(label, 0)
+        if n != 1:
+            known = ", ".join(sorted(k for k, c in counts.items() if c == 1))
+            raise ValueError(
+                f"station value {key!r}: "
+                + (
+                    f"no chain element is labelled {label!r} (labels: {known or 'none'})"
+                    if n == 0
+                    else f"{n} chain elements are labelled {label!r}; "
+                    "give each its own label in SimNEC"
+                )
+            )
+        el = next(e for e in chain if e.label == label)
+        if el.get(param) is None:
+            carried = sorted(
+                nm
+                for nm, v in el.params
+                if nm and v is not None and _adjustable(el, nm)
+            )
+            raise ValueError(
+                f"station value {key!r}: {el.typ} {label} carries no "
+                f"{param!r}; its adjustable values are {', '.join(carried) or 'none'}"
+            )
+        if not _adjustable(el, param):
+            raise ValueError(
+                f"station value {key!r}: {param!r} is not a value the "
+                f"{el.typ} reader uses, so setting it would change nothing"
+            )
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"station value {key!r}: {value!r} is not a number"
+            ) from None
+        if not math.isfinite(v):
+            raise ValueError(f"station value {key!r}: {v!r} is not finite")
+        if math.isclose(v, _chain_f(el, param), rel_tol=1e-12, abs_tol=0.0):
+            # The value the file already has (to 1e-12, which a knob's shown
+            # default and its unit scaling round within): left as saved, so a
+            # knob at its default builds the file exactly as imported.
+            continue
+        edits.setdefault(label, {})[param] = repr(v)
+    if not edits:
+        return chain
+    chain = tuple(
+        replace(
+            el,
+            params=tuple((nm, edits[el.label].get(nm, raw)) for nm, raw in el.params),
+        )
+        if el.label in edits
+        else el
+        for el in chain
+    )
+    return chain
+
+
 @dataclass(frozen=True)
 class SsnStation:
     """A SimNEC station chain on its own (AK#2200): the elements between the
@@ -4419,15 +4512,7 @@ class SsnStation:
         applied. These are the keys `with_values` takes (AK#2222). An element
         with no label, or one whose label another element shares, has no key
         here: name it in SimNEC to adjust it."""
-        counts = _label_counts(self.chain)
-        out = {}
-        for el in self.chain:
-            if not el.label or counts[el.label] > 1:
-                continue
-            for name, raw in el.params:
-                if name and raw is not None and _adjustable(el, name):
-                    out[f"{el.label}.{name}"] = _chain_f(el, name)
-        return out
+        return _chain_values(self.chain)
 
     def with_values(self, values) -> "SsnStation":
         """A copy of this station with chain values set, keyed as in
@@ -4441,66 +4526,8 @@ class SsnStation:
         a parameter the element does not carry (a line saved in ``ft`` has no
         ``mtrs`` to set: set ``ft``) or that is not a value the chain reads
         (see `values`); and a value that is not a finite number."""
-        counts = _label_counts(self.chain)
-        edits: dict[str, dict[str, str]] = {}
-        for key, value in dict(values).items():
-            label, dot, param = str(key).rpartition(".")
-            if not dot or not label or not param:
-                raise ValueError(
-                    f"station value {key!r}: keys are '<label>.<param>', "
-                    "for example 'T2.mtrs'"
-                )
-            n = counts.get(label, 0)
-            if n != 1:
-                known = ", ".join(sorted(k for k, c in counts.items() if c == 1))
-                raise ValueError(
-                    f"station value {key!r}: "
-                    + (
-                        f"no chain element is labelled {label!r} (labels: {known or 'none'})"
-                        if n == 0
-                        else f"{n} chain elements are labelled {label!r}; "
-                        "give each its own label in SimNEC"
-                    )
-                )
-            el = next(e for e in self.chain if e.label == label)
-            if el.get(param) is None:
-                carried = sorted(
-                    nm
-                    for nm, v in el.params
-                    if nm and v is not None and _adjustable(el, nm)
-                )
-                raise ValueError(
-                    f"station value {key!r}: {el.typ} {label} carries no "
-                    f"{param!r}; its adjustable values are {', '.join(carried) or 'none'}"
-                )
-            if not _adjustable(el, param):
-                raise ValueError(
-                    f"station value {key!r}: {param!r} is not a value the "
-                    f"{el.typ} reader uses, so setting it would change nothing"
-                )
-            try:
-                v = float(value)
-            except (TypeError, ValueError):
-                raise ValueError(
-                    f"station value {key!r}: {value!r} is not a number"
-                ) from None
-            if not math.isfinite(v):
-                raise ValueError(f"station value {key!r}: {v!r} is not finite")
-            edits.setdefault(label, {})[param] = repr(v)
-        if not edits:
-            return self
-        chain = tuple(
-            replace(
-                el,
-                params=tuple(
-                    (nm, edits[el.label].get(nm, raw)) for nm, raw in el.params
-                ),
-            )
-            if el.label in edits
-            else el
-            for el in self.chain
-        )
-        return replace(self, chain=chain)
+        chain = _chain_with_values(self.chain, values)
+        return self if chain is self.chain else replace(self, chain=chain)
 
     def antenna_table(self):
         """The antenna-end LOAD's impedance table as a 1-port
