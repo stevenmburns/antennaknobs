@@ -488,10 +488,13 @@ def test_parse_ssn_refuses_an_override_the_cards_do_not_read():
 )
 def test_a_circuit_without_dcl_constants_publishes_no_knobs(path):
     cls = builder_from_file(str(path))
-    assert cls.file_sy_knobs is None
-    assert set(cls.default_params) == {"freq", "design_freq", "ui_params"}
+    # A station chain's values are knobs of their own (stn_*); no dcl one is.
+    station = {k for k in cls.default_params if k.startswith("stn_")}
+    assert set(cls.default_params) - station == {"freq", "design_freq", "ui_params"}
     assert "dcl" not in (cls.default_params["ui_params"].get("notes") or "")
-    assert cls.file_deck_parsed is cls().file_deck_parsed
+    if not station:
+        assert cls.file_sy_knobs is None
+        assert cls.file_deck_parsed is cls().file_deck_parsed
 
 
 def test_nec2_and_necend_lines_may_carry_a_comment():
