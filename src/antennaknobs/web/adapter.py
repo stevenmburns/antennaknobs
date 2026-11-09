@@ -119,7 +119,9 @@ except ImportError:
     DEFAULT_GROUND = ("finite", 13.0, 0.005)
 from antennaknobs.engines.momwire import (
     EXACT_KERNEL_CHOICES,
+    FEATURE_INFO,
     FEATURE_SWITCHES,
+    LAST_DIGITS_DRIFT,
     MomwireEngine,
     exact_kernel_served,
     feature_served,
@@ -894,6 +896,8 @@ def _offers_feature(spec, name) -> bool:
     offered there and on no install below it. A momwire predating the
     feature (the submodule pointer and the PyPI pin until the release that
     carries it) answers False for every backend."""
+    if _HOSTED and _moves_results(name):
+        return False
     return spec.kind == "momwire" and feature_served(spec.solver, name)
 
 
@@ -1446,6 +1450,101 @@ def _sanitiser_for(name: str, spec: _OptionSpec):
 # The Sommerfeld choices as the menu words them; index + 2 is the GN card type.
 _SOMMERFELD_CHOICES = ("GN 2", "GN 3")
 
+# The pass-through features' checkboxes for a momwire whose registry does
+# not describe them (before momwire#1869), offered on a tab only where its
+# solver takes one and momwire certifies it here (`_offers_feature`). Each
+# only removes work, so each is on the hosted allowlist. Off by default: the
+# server's ANTENNAKNOBS_<NAME> seeds an unset request in the engine, and an
+# explicit off here wins over it.
+_FALLBACK_FEATURE_SPECS: dict[str, _OptionSpec] = {
+    "transmitted_anchors": _OptionSpec(
+        "bool",
+        label="share buried tables across a sweep (faster)",
+        default=False,
+        description=(
+            "Over buried wires, build the table that carries fields up "
+            "through the ground once for a band and blend it at each "
+            "frequency, instead of rebuilding it at every point. Results "
+            "change only in the last digits."
+        ),
+    ),
+    # momwire#1849: the sinusoidal tab.
+    "point_cplx_staged": _OptionSpec(
+        "bool",
+        label="vectorised buried fill (faster)",
+        default=False,
+        description=(
+            "Fill the entries between buried wires with the vectorised "
+            "kernel the Galerkin solver uses, several times faster on a "
+            "large radial screen. Results change only in the last digits."
+        ),
+    ),
+    # momwire#1860 L1: the B-spline and razor-2p tabs.
+    "factored_columns": _OptionSpec(
+        "bool",
+        label="factored rod columns (faster)",
+        default=False,
+        description=(
+            "Where a buried rod crosses the ground under a vertical (an "
+            "EFHW with a ground rod), fill the rod's column of entries by "
+            "shared factors instead of one by one. Results change only in "
+            "the last digits."
+        ),
+    ),
+    # momwire#1860 L2: the B-spline and razor-2p tabs.
+    "height_sheet_recal": _OptionSpec(
+        "bool",
+        label="shared near-ground tables (faster)",
+        default=False,
+        description=(
+            "Build one table for a wire just above the ground (a low "
+            "counterpoise over a ground rod) and read it from both parts of "
+            "the fill, instead of computing those entries twice. Results "
+            "change only in the last digits."
+        ),
+    ),
+}
+
+
+def _last_digits(name: str) -> bool:
+    """Whether registry-described feature ``name`` changes only the last
+    digits (its declared drift at or under `LAST_DIGITS_DRIFT`)."""
+    info = (FEATURE_INFO or {}).get(name)
+    return info is not None and info.drift <= LAST_DIGITS_DRIFT
+
+
+def _feature_specs() -> dict[str, _OptionSpec]:
+    """The pass-through features' checkboxes, from momwire's registry
+    (`FEATURE_INFO`) when it describes them, else the hand-kept specs. A
+    feature that moves the answer says so in its label as well as its hover,
+    with the bound its author measured."""
+    if FEATURE_INFO is None:
+        return dict(_FALLBACK_FEATURE_SPECS)
+    out = {}
+    for name, info in FEATURE_INFO.items():
+        if _last_digits(name):
+            tag, note = " (faster)", "Results change only in the last digits."
+        else:
+            tag = " (faster, approximate)"
+            note = (
+                f"Results move by up to {info.drift:.0e} relative: compare "
+                "against a solve with this off before trusting them."
+            )
+        out[name] = _OptionSpec(
+            "bool",
+            label=info.label + tag,
+            default=False,
+            description=f"{info.summary} {note}",
+        )
+    return out
+
+
+def _moves_results(name: str) -> bool:
+    """Whether feature ``name`` is one the registry says moves the answer:
+    never on the hosted allowlist, never offered there."""
+    return name in (FEATURE_INFO or {}) and not _last_digits(name)
+
+
 _OPTION_SPECS: dict[str, _OptionSpec] = {
     "degree": _OptionSpec("int", 1, 3, label="degree", default=2),
     "n_qp_const": _OptionSpec(
@@ -1627,58 +1726,11 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
             "Results change only in the last digits."
         ),
     ),
-    # momwire's pass-through features (`FEATURE_SWITCHES`), offered on a tab
-    # only where its solver takes one and momwire certifies it here
-    # (`_offers_feature`). Each only removes work, so each is on the hosted
-    # allowlist. Off by default: the server's ANTENNAKNOBS_<NAME> seeds an
-    # unset request in the engine, and an explicit off here wins over it.
-    # momwire#1847: the B-spline and sinusoidal tabs.
-    "transmitted_anchors": _OptionSpec(
-        "bool",
-        label="share buried tables across a sweep (faster)",
-        default=False,
-        description=(
-            "Over buried wires, build the table that carries fields up "
-            "through the ground once for a band and blend it at each "
-            "frequency, instead of rebuilding it at every point. Results "
-            "change only in the last digits."
-        ),
-    ),
-    # momwire#1849: the sinusoidal tab.
-    "point_cplx_staged": _OptionSpec(
-        "bool",
-        label="vectorised buried fill (faster)",
-        default=False,
-        description=(
-            "Fill the entries between buried wires with the vectorised "
-            "kernel the Galerkin solver uses, several times faster on a "
-            "large radial screen. Results change only in the last digits."
-        ),
-    ),
-    # momwire#1860 L1: the B-spline and razor-2p tabs.
-    "factored_columns": _OptionSpec(
-        "bool",
-        label="factored rod columns (faster)",
-        default=False,
-        description=(
-            "Where a buried rod crosses the ground under a vertical (an "
-            "EFHW with a ground rod), fill the rod's column of entries by "
-            "shared factors instead of one by one. Results change only in "
-            "the last digits."
-        ),
-    ),
-    # momwire#1860 L2: the B-spline and razor-2p tabs.
-    "height_sheet_recal": _OptionSpec(
-        "bool",
-        label="shared near-ground tables (faster)",
-        default=False,
-        description=(
-            "Build one table for a wire just above the ground (a low "
-            "counterpoise over a ground rod) and read it from both parts of "
-            "the fill, instead of computing those entries twice. Results "
-            "change only in the last digits."
-        ),
-    ),
+    # momwire's pass-through features (`FEATURE_SWITCHES`): described by
+    # momwire's registry where it can (`_feature_specs`), else the hand-kept
+    # `_FALLBACK_FEATURE_SPECS` below. Kept at this place in the order so the
+    # served list reads as it always did.
+    **_feature_specs(),
     # The sector (block-circulant) solve route for a rotationally symmetric
     # radial screen (momwire#1029). Unadvertised on purpose (Steve, #1567
     # thread): a checkbox on the bspline panel, offered only where momwire's
@@ -1713,11 +1765,18 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
     ),
 }
 
+
 # Derived, never written twice. Same name and same shape as the dict of
 # closures this replaced, so every existing call site is untouched.
-_HOSTED_MODEL_OPTIONS = {
-    k: _sanitiser_for(k, spec) for k, spec in _OPTION_SPECS.items()
-}
+def _hosted_options(specs: dict[str, _OptionSpec]) -> dict:
+    """The hosted allowlist: every spec's sanitiser, less any feature the
+    registry says moves the answer (`_moves_results`)."""
+    return {
+        k: _sanitiser_for(k, spec) for k, spec in specs.items() if not _moves_results(k)
+    }
+
+
+_HOSTED_MODEL_OPTIONS = _hosted_options(_OPTION_SPECS)
 
 
 def sanitize_model_options(req: dict) -> dict | None:

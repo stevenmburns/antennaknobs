@@ -8,6 +8,7 @@ from __future__ import annotations
 import functools
 import hashlib
 import inspect
+import math
 import logging
 import os
 import pickle
@@ -15,6 +16,7 @@ import threading
 import warnings
 import weakref
 from collections import OrderedDict
+from typing import NamedTuple
 
 import numpy as np
 import momwire
@@ -789,7 +791,13 @@ def _takes_pair_reuse(solver_cls) -> bool:
 # momwire's opt-in features passed straight through as one solver keyword
 # (momwire `_features`), each with the server env that seeds an unset
 # request. `pair_reuse` is not here: it carries the engine's own hint.
-FEATURE_SWITCHES = {
+#
+# Derived from momwire's registry when it says which features a front end
+# should offer and how to describe them (momwire#1869: `offer`, `label`,
+# `summary`, `drift`), so a new momwire feature reaches the app with no
+# change here. On a momwire whose registry predates those fields this
+# hand-kept table is the answer, as it was before.
+_FALLBACK_SWITCHES = {
     # The transmitted (below->above) grid blended from frequency anchors, so
     # a sweep over buried radials shares its tables (momwire#1847).
     "transmitted_anchors": "ANTENNAKNOBS_TRANSMITTED_ANCHORS",
@@ -805,13 +813,93 @@ FEATURE_SWITCHES = {
 }
 
 
+class FeatureInfo(NamedTuple):
+    """What momwire's registry says a front end needs about one offered
+    feature: the solver keyword, the checkbox text and hover, and its
+    declared ``drift``, the largest relative change in input impedance its
+    author measured with it on (an upper bound, not a run-time reading)."""
+
+    kwarg: str
+    label: str
+    summary: str
+    drift: float
+
+
+# The line between a feature that changes only the last digits and one that
+# moves the answer (Steve, 11-09): 1e-6 relative, below which a five-figure
+# printout reads the same. Tighter bounds (1e-12, 1e-9) are for refactors of
+# one computation; a feature that redoes the physics is held to what a user
+# can see. At or under it a feature is labelled faster and may be on the
+# hosted allowlist; over it, approximate and local only.
+LAST_DIGITS_DRIFT = 1e-6
+
+
+def _derive_features(registry) -> dict[str, FeatureInfo] | None:
+    """The offered features of momwire's ``FEATURES`` registry, or None when
+    the registry predates momwire#1869 (no entry carries ``offer``) or
+    describes one it offers incompletely: then nothing is half-derived and
+    the hand-kept table stands."""
+    entries = list(registry.values())
+    if not entries or not all(hasattr(f, "offer") for f in entries):
+        return None
+    out = {}
+    for f in entries:
+        if not f.offer:
+            continue
+        kwarg = getattr(f, "kwarg", None)
+        label = getattr(f, "label", "") or ""
+        summary = getattr(f, "summary", "") or ""
+        drift = getattr(f, "drift", None)
+        try:
+            drift = float(drift)
+        except (TypeError, ValueError):
+            return None
+        if not (kwarg and label.strip() and summary.strip()) or not (
+            math.isfinite(drift) and drift >= 0.0
+        ):
+            return None
+        out[f.name] = FeatureInfo(kwarg, label.strip(), summary.strip(), drift)
+    return out
+
+
+def _registry_features() -> dict[str, FeatureInfo] | None:
+    try:
+        from momwire import _features
+    except ImportError:
+        return None
+    return _derive_features(getattr(_features, "FEATURES", {}) or {})
+
+
+# None: this momwire's registry is not descriptive, so the adapter keeps its
+# own copy of each feature's label (and the fallback table above names them).
+FEATURE_INFO: dict[str, FeatureInfo] | None = _registry_features()
+
+
+def _switches_for(info: dict[str, FeatureInfo] | None) -> dict[str, str]:
+    """Each offered feature's server seed: ANTENNAKNOBS_<NAME>."""
+    if info is None:
+        return dict(_FALLBACK_SWITCHES)
+    return {name: "ANTENNAKNOBS_" + name.upper() for name in info}
+
+
+FEATURE_SWITCHES: dict[str, str] = _switches_for(FEATURE_INFO)
+
+
+def feature_kwarg(name: str) -> str:
+    """The solver keyword of offered feature ``name`` (its own name unless
+    the registry says otherwise)."""
+    if FEATURE_INFO is not None and name in FEATURE_INFO:
+        return FEATURE_INFO[name].kwarg
+    return name
+
+
 def feature_served(solver_cls, name) -> bool:
     """Whether ``solver_cls`` takes momwire feature ``name`` and momwire
     certifies it where this process runs (the feature's reach). Both are
     live probes of the installed momwire, never a version comparison: below
     its reach a native feature refuses, and offering a python one there is
     Steve's call, so neither is offered."""
-    if not _takes_kwarg(solver_cls, name):
+    if not _takes_kwarg(solver_cls, feature_kwarg(name)):
         return False
     try:
         from momwire import _features
@@ -1335,7 +1423,7 @@ class MomwireEngine(SimulationEngine):
             if asked is None:
                 asked = os.environ.get(env, "") in ("1", "on")
             if asked and feature_served(self._solver, name):
-                self._feature_kwargs[name] = True
+                self._feature_kwargs[feature_kwarg(name)] = True
         # Per-instance parity: sinusoidal wants odd, bspline depends on
         # degree. Set before _coerce_wire_tuples runs.
         self.segment_parity = _parity_for_solver(self._solver, self._solver_kwargs)
