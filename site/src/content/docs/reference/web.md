@@ -459,7 +459,10 @@ it draws it.
 In a window narrower than about 1100 px (a phone, or a desktop browser zoomed to
 175 %) every chart header starts **folded** to one line: a toggle that names the
 range (**⚙ 13–15.35 MHz ▾ controls**), then **Run** / **Stop** and the progress
-count. Tap the toggle to bring back the range boxes (from, to, points, step) and
+count. **Stop** keeps the points so far, through a sweep's refinement passes
+too. A frequency or knob sweep chart also offers **clear** while it runs or
+has points: it stops the run and empties the chart, and nothing re-runs until
+**Run** or, with auto re-run on, a change. Tap the toggle to bring back the range boxes (from, to, points, step) and
 the rest of the header; **▴** folds it again. The choice holds for every chart
 and is remembered in this browser.
 

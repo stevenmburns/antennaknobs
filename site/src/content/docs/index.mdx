@@ -29,17 +29,24 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.114.2" icon="star">
-  **razor-2p frequency sweeps are right on knot-fed designs.** A design fed
-  at a junction of wires (a knot port, as a SimNEC station file makes) gave a
-  wrong impedance, or failed outright with two such ports, when solved as a
-  sweep on the `nec5-razor-2p` engine: the app's SWR curves and
-  `impedance_sweep`. Single-frequency solves were always right, and so were
-  the other engines. Fixed in momwire 0.88.1, which this release adopts.
+<Card title="New in v0.115.0" icon="star">
+  **A station knob turns instantly.** Turning a value in a station's chain (a
+  coax length, a matching C) reuses the antenna's solve, for the live point
+  and for the sweep after it: on a full SimNEC station file, a sweep went from
+  about 13 s to under 0.1 s. Antenna knobs solve as before.
 
-  Also still new from v0.114.1: **a full SimNEC station file opens by
-  itself**, `Button`, `pl`, stored `.s2p` copies and all. See
+  **More SimNEC files open.** A Generator listing several frequencies opens at
+  the last, with each as a band; a `NECSource` whose value or place is a
+  slider or a constant reads it, as a knob in pF, µH or %; a load between two
+  segment grid points is placed exactly where the file puts it. See
   [importing a .ssn](/reference/simnec/#importing-ssn--design).
+
+  **Faster EFHW solves, opt-in,** from momwire 0.89.0: four switches for a
+  counterpoise near the ground and a rod crossing it, on the B-spline and
+  razor-2p tabs. See [the switches](/reference/cli/#faster-wires-near-and-through-the-ground-opt-in).
+
+  Also: a sweep chart's **clear** button, Stop that works through a sweep's
+  refinement passes, and K0 in a coax line's loss on the schematic.
 </Card>
 
 ## The whole pitch, in one line
