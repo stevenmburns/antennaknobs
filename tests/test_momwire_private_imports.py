@@ -112,11 +112,11 @@ ALLOWED = {
     # no public name for it. A hand-kept platform table here is the drift
     # the registry exists to prevent.
     ("mw/_private.py", "momwire", "_features"),
-    # Compatibility re-exports (momwire#456 ws2 phase B) — see module docstrings.
-    ("mw/_private.py", "momwire.networks._reduce", "_series_rlc_impedance"),
-    ("mw/_private.py", "momwire.networks._spec", "_branch_port_refs"),
-    ("mw/_private.py", "momwire.networks._spec", "_parallel_rlc_admittance"),
-    ("mw/_private.py", "momwire.networks._spec", "_rewrite_branch"),
+    # The four network helpers that used to be listed here as compatibility
+    # re-exports (`_series_rlc_impedance`, `_branch_port_refs`,
+    # `_parallel_rlc_admittance`, `_rewrite_branch`) are antennaknobs' own
+    # since AK#2219 stage 1 copied the reducer into `antennaknobs.mw.networks`;
+    # they are no longer momwire names at all.
 }
 
 
@@ -278,26 +278,76 @@ def test_every_private_import_is_in_the_momwire_layer():
     assert not outside, "private momwire imports outside the layer:\n" + _fmt(outside)
 
 
+def _relative_import_escapes_layer(path, level):
+    """Whether a `level`-dot relative import in `path` lands outside the
+    layer package `SRC / "mw"`."""
+    layer = SRC / "mw"
+    base = path.parent
+    for _ in range(level - 1):
+        base = base.parent
+    return base != layer and layer not in base.parents
+
+
 def test_the_momwire_layer_imports_nothing_else_from_antennaknobs():
     """momwire's CI imports the layer without antennaknobs' web or engine
     dependencies, so the layer may import momwire, numpy and its own
     modules, and no other part of antennaknobs."""
     bad = []
-    for path in sorted((SRC / "mw").rglob("*.py")):
+    layer = SRC / "mw"
+    for path in sorted(layer.rglob("*.py")):
         tree = ast.parse(path.read_text(), str(path))
+        rel = path.relative_to(SRC)
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
-                if node.level >= 2 or (
-                    node.level == 0
-                    and (node.module or "").split(".")[0] == "antennaknobs"
-                ):
+                # A relative import is resolved against the importing
+                # module's package: `mw/networks/_spec.py`'s `..` is `mw`,
+                # which is inside the layer; `mw/_private.py`'s `..` is
+                # antennaknobs itself, which is not.
+                if node.level:
+                    escapes = _relative_import_escapes_layer(path, node.level)
+                else:
+                    escapes = (node.module or "").split(".")[0] == "antennaknobs"
+                if escapes:
                     bad.append(
-                        f"{path.name}: from {'.' * node.level}{node.module} import ..."
+                        f"{rel}: from {'.' * node.level}{node.module or ''} import ..."
                     )
             elif isinstance(node, ast.Import):
                 bad += [
-                    f"{path.name}: import {a.name}"
+                    f"{rel}: import {a.name}"
                     for a in node.names
                     if a.name.split(".")[0] == "antennaknobs"
                 ]
     assert not bad, "the momwire layer reaches into antennaknobs:\n" + "\n".join(bad)
+
+
+def test_the_network_copy_imports_nothing_from_momwire():
+    """AK#2219 stage 1: `antennaknobs.mw.networks` is antennaknobs' own copy
+    of momwire's general reducer. It stands on numpy and scipy alone, so a
+    momwire release can neither move its numbers nor break its imports; the
+    A/B against momwire's reducer is `tests/test_mw_networks_ab_2219.py`."""
+    found = []
+    for path in sorted((SRC / "mw" / "networks").glob("*.py")):
+        tree = ast.parse(path.read_text(), str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.level == 0:
+                mods = [node.module or ""]
+            elif isinstance(node, ast.Import):
+                mods = [a.name for a in node.names]
+            else:
+                continue
+            found += [f"{path.name}: {m}" for m in mods if m.split(".")[0] == "momwire"]
+    assert len(list((SRC / "mw" / "networks").glob("*.py"))) == 4
+    assert not found, "the network copy imports momwire:\n" + "\n".join(found)
+
+
+def test_the_layer_boundary_scanner_sees_an_escape():
+    """The relative-import resolution above must flag `..` from the layer's
+    top level (it is antennaknobs) and pass `..` from inside `mw/networks/`
+    (it is the layer). Pinned on synthetic paths so the rule cannot pass by
+    resolving nothing."""
+    layer = SRC / "mw"
+    escapes = _relative_import_escapes_layer
+    assert escapes(layer / "_private.py", 2)
+    assert not escapes(layer / "_private.py", 1)
+    assert not escapes(layer / "networks" / "_spec.py", 2)
+    assert escapes(layer / "networks" / "_spec.py", 3)

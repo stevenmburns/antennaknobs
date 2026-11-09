@@ -1,4 +1,4 @@
-"""The authoring HIERARCHY over `momwire.networks`, and the compatibility
+"""The authoring HIERARCHY over `antennaknobs.mw.networks`, and the compatibility
 shim for everything that moved down there.
 
 The circuit spec this module used to hold — the port types, the eleven branch
@@ -9,22 +9,28 @@ three drop-in seams momwire stands at emit ``TL``/``NT`` cards and both NEC-2
 and NEC-5 serve networks natively, so the network solve belongs to the engine.
 Everything moved is re-exported here verbatim, so every existing
 ``from antennaknobs.network import TL, Driven, PortOnWire, ...`` keeps
-working and every re-exported name IS the momwire object (``antennaknobs.
-network.TL is momwire.networks.TL``).
+working.
+
+Since AK#2219 (phase 3, stage 1) the spec and the reducer antennaknobs uses
+are its OWN copy of that code, `antennaknobs.mw.networks`, taken from momwire
+0.89.0 and held bit-identical to it by ``tests/test_mw_networks_ab_2219.py``.
+Every re-exported name IS the layer's object (``antennaknobs.network.TL is
+antennaknobs.mw.networks.TL``), and none of them is a `momwire.networks`
+class any more: momwire keeps its own for its deck path.
 
 What is genuinely still first-party here is the design-AUTHORING hierarchy,
 which momwire deliberately does not adopt:
 
 * `Composite` — a reusable sub-network template (issue #489),
 * `Instance` — one instantiation of one, with a formal/actual port map,
-* `Network` — a SUBCLASS of `momwire.networks.Network` that flattens those
+* `Network` — a SUBCLASS of the layer's flat `Network` that flattens those
   instances (namespacing internals, resolving aliases, merging sources,
   filling ``branch_paths``/``composites``) and then hands the resulting FLAT
   spec to the parent for validation.
 
-So antennaknobs flattens BEFORE momwire ever sees a network, and the private
-``_branch_port_refs``/``_rewrite_branch`` reach-through that flattening needs
-never crosses the boundary in the other direction.
+So antennaknobs flattens BEFORE the reducer ever sees a network, and the
+``_branch_port_refs``/``_rewrite_branch`` helpers that flattening needs are the
+layer's own.
 
 Two constructors changed spelling in the move, because they need catalogs
 momwire does not ship — both now live with the stock they resolve, in
@@ -39,10 +45,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-# The circuit spec and the solve, re-exported (momwire#456 ws2 phase B). The
-# `Network` name is claimed by the hierarchy subclass below, so the flat
-# container arrives under a private alias.
-from momwire.networks import (  # noqa: F401
+# The circuit spec and the solve, re-exported (momwire#456 ws2 phase B), from
+# the momwire layer's copy since AK#2219. The `Network` name is claimed by the
+# hierarchy subclass below, so the flat container arrives under a private alias.
+from .mw.networks import (  # noqa: F401
     TL,
     Admittance,
     AdmittanceData,
@@ -70,13 +76,13 @@ from momwire.networks import (  # noqa: F401
     load_impedance,
     load_series_admittance,
 )
-from momwire.networks import Network as _FlatNetwork
+from .mw.networks import Network as _FlatNetwork
 
 # Private helpers that were importable from here before the move: the two the
 # flattening below actually calls, plus the two RLC primitives designs and
-# tests reach for. Re-exported so nothing had to churn in the move PR.
-# Through the momwire layer (AK#2219), the one module allowed a private
-# momwire name.
+# tests reach for. Re-exported so nothing had to churn in the move PR. They
+# are the momwire layer's own since AK#2219 stage 1, no longer private
+# momwire names.
 from .mw import branch_port_refs as _branch_port_refs  # noqa: F401
 from .mw import parallel_rlc_admittance as _parallel_rlc_admittance  # noqa: F401
 from .mw import rewrite_branch as _rewrite_branch  # noqa: F401
@@ -308,7 +314,7 @@ def _resolve_aliases(pairs, ports):
 @dataclass
 class Network(_FlatNetwork):
     """Complete network spec returned by `build_network()` — the HIERARCHY-
-    aware `momwire.networks.Network`.
+    aware `antennaknobs.mw.networks.Network`.
 
     ports:    dict mapping name → Port (real or virtual)
     branches: list of Branch (TL / Load / TwoPort / …) — may also contain
@@ -331,8 +337,10 @@ class Network(_FlatNetwork):
     field; here ``branch_paths`` is DERIVED — passing it raises — because
     flattening is what computes it. So ``__post_init__`` expands instances
     first and calls the parent's validation second, on the flat result. An
-    ``isinstance(x, momwire.networks.Network)`` therefore holds for every
-    antennaknobs network, and momwire sees only what it was handed.
+    ``isinstance(x, antennaknobs.mw.networks.Network)`` therefore holds for
+    every antennaknobs network, and the reducer sees only what it was handed.
+    (Not ``momwire.networks.Network`` since AK#2219: no momwire function
+    receives an antennaknobs network.)
     """
 
     #: Instance path → the `Composite` it came from, filled by flattening

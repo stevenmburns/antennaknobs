@@ -47,8 +47,8 @@ from antennaknobs.nec5_station import (
 )
 from antennaknobs.nec_import import parse_nec
 from antennaknobs.simnec_import import parse_ssn_station
-from momwire.networks import NetworkReducer
-from momwire.networks._reduce import tl_abcd
+from antennaknobs.mw.networks import NetworkReducer
+from antennaknobs.mw.networks._reduce import tl_abcd
 
 F_MHZ = 7.0
 
@@ -157,7 +157,7 @@ def _rel(a, b):
 
 @pytest.mark.parametrize("n", [2.0, 0.5, 1 / 1.5, 7.0, -3.0])
 def test_the_quarter_wave_pair_is_the_ideal_transformer(n):
-    """Chain matrices, with momwire's own line stamp: λ/4 of Z1 then λ/4 of
+    """Chain matrices, with the reducer's own line stamp: λ/4 of Z1 then λ/4 of
     Z2 (one of them transposed, which negates its port b) is
     ``Transformer(a, b, n)``'s [[n, 0], [0, 1/n]] to machine precision."""
     wl = NEC5_C_LIGHT_MHZ_M / F_MHZ

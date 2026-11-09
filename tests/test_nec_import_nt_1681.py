@@ -34,7 +34,7 @@ from antennaknobs.nec_import import (
 from antennaknobs.network import PortVirtual, Shunt, Transformer, TwoPort
 from antennaknobs.plane import driven_at, planes_of
 from antennaknobs.web.adapter import fixed_frequency_advisories
-from momwire.networks import NetworkReducer
+from antennaknobs.mw.networks import NetworkReducer
 
 from conftest import needs_nec5
 

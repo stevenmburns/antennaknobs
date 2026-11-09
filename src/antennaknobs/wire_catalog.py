@@ -2,7 +2,8 @@
 module (momwire#456 workstream 2, phases A and B).
 
 `network.py` grew two unrelated populations: the circuit spec (ports,
-branches, sources, `Network`), which moved down into `momwire.networks`,
+branches, sources, `Network`), which moved down into `momwire.networks`
+(and back into `antennaknobs.mw.networks`, AK#2219),
 and this — the catalog of physical wire and feedline stock
 (`WireSpec`/`WIRES`, `CABLES`), the named `build_wires()` entry
 (`Wire`/`as_wire`), the two-wire line geometry (`two_wire_params`,
@@ -29,11 +30,13 @@ import math
 from dataclasses import dataclass
 from typing import NamedTuple
 
-# `Cable` is momwire's now — promoted in momwire#456 ws2 from a local catalog
-# record to the FORMAL line spec `TL.from_cable` takes. Re-exported from here
-# (and, through here, from `antennaknobs.network`) so the catalog's entries and
-# every `from antennaknobs.network import Cable` keep their one type.
-from momwire.networks import BalancedLine, Cable, PortAtEnd, PortAtVertex, PortOnWire
+# `Cable` is the network layer's — promoted in momwire#456 ws2 from a local
+# catalog record to the FORMAL line spec `TL.from_cable` takes, and copied
+# back into antennaknobs' momwire layer with the rest of the reducer (AK#2219
+# stage 1). Re-exported from here (and, through here, from
+# `antennaknobs.network`) so the catalog's entries and every
+# `from antennaknobs.network import Cable` keep their one type.
+from .mw.networks import BalancedLine, Cable, PortAtEnd, PortAtVertex, PortOnWire
 
 # Nominal catalog values assembled from typical published matched-loss tables
 # (dB/100 ft at HF/VHF) — vendor datasheets vary by a few tens of percent
@@ -670,7 +673,7 @@ def validate_named_wires_referenced(named_wires, network):
     Engines call this once the flattened network and the final wire list are
     both known (composite expansion has already namespaced port names).
     """
-    # The port types are imported at module scope (from momwire.networks —
+    # The port types are imported at module scope (from antennaknobs.mw.networks —
     # see the header). Until momwire#456 ws2 phase B they had to be imported
     # here at CALL time, because they lived in `antennaknobs.network`, which
     # imports this module for its compatibility re-exports; the circuit half

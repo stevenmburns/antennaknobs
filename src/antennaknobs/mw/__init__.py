@@ -17,23 +17,28 @@ The contract with momwire core is small and written down here:
   public momwire name (#2219 phase 2), and `_private` is the only module
   in antennaknobs allowed to import a private momwire name
   (tests/test_momwire_private_imports.py).
+- `networks`: the general network reducer, antennaknobs' own copy of
+  `momwire.networks` (#2219 phase 3, stage 1). It imports nothing from
+  momwire. The four flattening and RLC helpers below are its own private
+  names, re-exported for `antennaknobs.network`; they were private momwire
+  names until the copy.
 """
 
 from __future__ import annotations
 
 from ._private import (
-    branch_port_refs,
     couplings,
     eps_tilde,
     feature_certified,
     feature_registry,
     k_medium,
     lambda_medium,
-    parallel_rlc_admittance,
-    rewrite_branch,
-    series_rlc_impedance,
 )
 from ._swept import swept_y
+from .networks._reduce import _series_rlc_impedance as series_rlc_impedance
+from .networks._spec import _branch_port_refs as branch_port_refs
+from .networks._spec import _parallel_rlc_admittance as parallel_rlc_admittance
+from .networks._spec import _rewrite_branch as rewrite_branch
 
 __all__ = [
     "branch_port_refs",

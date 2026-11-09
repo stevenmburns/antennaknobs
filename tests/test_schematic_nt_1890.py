@@ -30,7 +30,7 @@ from antennaknobs.network import Admittance, PortVirtual
 from antennaknobs.nec_import import parse_nec
 from antennaknobs.schematic import default_elements, lower
 from antennaknobs.web import decks, server
-from momwire.networks import NetworkReducer
+from antennaknobs.mw.networks import NetworkReducer
 
 DECK = (
     Path(__file__).parent / "fixtures" / "eznec_ac6la_1681" / "Bydpole-TL-Xfmr-CLC.nec"

@@ -58,7 +58,7 @@ from dataclasses import dataclass, replace
 from itertools import pairwise
 
 import numpy as np
-from momwire.networks import (
+from .mw.networks import (
     C_LIGHT,
     Driven,
     NetworkReducer,

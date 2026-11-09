@@ -1,15 +1,19 @@
-"""The `momwire.networks` shim (momwire#456 ws2 phase B).
+"""The network shim (momwire#456 ws2 phase B; AK#2219 stage 1).
 
 `antennaknobs.network` and `antennaknobs.network_reduce` are compatibility
-re-exports over the circuit spec and network solve that moved down into
-momwire. These tests pin the two properties that make the move invisible to
-the ~40 design modules and ~50 test modules importing through them:
+re-exports over the circuit spec and network solve. Those moved down into
+momwire in momwire#456 and back into antennaknobs' momwire layer,
+`antennaknobs.mw.networks`, in AK#2219 stage 1. These tests pin the
+properties that make both moves invisible to the ~40 design modules and ~50
+test modules importing through them:
 
-* every re-exported name IS the momwire object, not a copy — a second class
-  object would break every `isinstance` in the engines;
+* every re-exported name IS the layer's object, not a second copy — a second
+  class object would break every `isinstance` in the engines;
+* none of them is momwire's own `momwire.networks` object any more, so no
+  half-switched import can mix the two class families in one network;
 * the hierarchy `Network` that stayed behind is a SUBCLASS of the flat one,
-  so `isinstance(net, momwire.networks.Network)` holds for what antennaknobs
-  builds while `Composite`/`Instance` flattening stays app-side.
+  so `isinstance(net, antennaknobs.mw.networks.Network)` holds for what
+  antennaknobs builds while `Composite`/`Instance` flattening stays app-side.
 
 The behavioural half — that flattening still namespaces, aliases and
 attributes correctly — is `tests/test_composite_network.py`, which this file
@@ -18,9 +22,10 @@ deliberately does not duplicate.
 
 import dataclasses
 
-import momwire.networks as mw
+import momwire.networks as core
 import pytest
 
+import antennaknobs.mw.networks as mw
 import antennaknobs.network as akn
 import antennaknobs.network_reduce as akr
 
@@ -62,19 +67,27 @@ PRIVATE_NAMES = [
 
 
 @pytest.mark.parametrize("name", SPEC_NAMES)
-def test_network_reexports_are_the_momwire_object(name):
+def test_network_reexports_are_the_layer_object(name):
     assert getattr(akn, name) is getattr(mw, name)
+
+
+@pytest.mark.parametrize("name", SPEC_NAMES)
+def test_network_reexports_are_not_momwires_own(name):
+    """AK#2219 stage 1: antennaknobs reduces on its copy. A name still bound
+    to momwire's class would build networks the copy's `isinstance` stamps
+    do not recognise."""
+    assert getattr(akn, name) is not getattr(core, name)
 
 
 @pytest.mark.parametrize("name", PRIVATE_NAMES)
 def test_private_helpers_still_importable_from_network(name):
     """They were reachable here before the move; the shim keeps them so the
     move PR did not have to churn their callers."""
-    assert getattr(akn, name).__module__.startswith("momwire.networks")
+    assert getattr(akn, name).__module__.startswith("antennaknobs.mw.networks")
 
 
 @pytest.mark.parametrize("name", akr.__all__)
-def test_network_reduce_reexports_are_the_momwire_object(name):
+def test_network_reduce_reexports_are_the_layer_object(name):
     assert getattr(akr, name) is getattr(mw, name)
 
 
@@ -83,13 +96,14 @@ def test_hierarchy_network_subclasses_the_flat_one():
     assert akn.Network is not mw.Network
 
 
-def test_a_built_network_is_a_momwire_network():
+def test_a_built_network_is_a_layer_network():
     net = akn.Network(
         ports={"ant": akn.PortOnWire("ant")},
         sources=[akn.Driven("ant")],
     )
     assert isinstance(net, mw.Network)
     assert isinstance(net, akn.Network)
+    assert not isinstance(net, core.Network)
     assert net.branch_paths == []
 
 
@@ -153,7 +167,7 @@ def test_field_order_is_the_parents_then_composites():
     ]
 
 
-def test_replace_on_a_flat_momwire_network_round_trips():
+def test_replace_on_a_flat_layer_network_round_trips():
     """The flat parent takes branch_paths as data, so `replace` works there —
     which is what antennaknobs' own flattening hands down."""
     flat = mw.Network(

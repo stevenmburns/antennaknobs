@@ -130,7 +130,7 @@ def test_non_finite_floats_and_odd_keys_survive():
         {"__ndarray__": "|O", "shape": [1], "data": [None]},  # object dtype
         {"__npscalar__": "|O", "v": 1},
         {
-            "__dc__": "momwire.networks._spec:TL",
+            "__dc__": "antennaknobs.mw.networks._spec:TL",
             "fields": {"a": "x", "b": "y", "z0": 50, "length": 1.0, "evil": 1},
         },
         {"__float__": "1e999"},
@@ -157,7 +157,7 @@ def test_the_allowlist_holds_only_spec_types():
     for key, cls in allowed.items():
         mod = key.split(":")[0]
         assert mod in dd.ALLOWED_MODULES, key
-    assert "momwire.networks._spec:TL" in allowed
+    assert "antennaknobs.mw.networks._spec:TL" in allowed
     assert "antennaknobs.network:Instance" in allowed
 
 

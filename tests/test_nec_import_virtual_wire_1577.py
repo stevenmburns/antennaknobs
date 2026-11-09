@@ -45,7 +45,7 @@ from antennaknobs.network import (
     Shunt,
 )
 from momwire import BSplineSolver
-from momwire.networks import NetworkReducer
+from antennaknobs.mw.networks import NetworkReducer
 
 from conftest import needs_nec5
 
