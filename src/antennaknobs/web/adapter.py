@@ -124,6 +124,7 @@ from antennaknobs.engines.momwire import (
     LAST_DIGITS_DRIFT,
     MomwireEngine,
     exact_kernel_served,
+    feature_seedable,
     feature_served,
     _ends_in_the_plane,
     _takes_pair_reuse,
@@ -896,8 +897,6 @@ def _offers_feature(spec, name) -> bool:
     offered there and on no install below it. A momwire predating the
     feature (the submodule pointer and the PyPI pin until the release that
     carries it) answers False for every backend."""
-    if _HOSTED and _moves_results(name):
-        return False
     return spec.kind == "momwire" and feature_served(spec.solver, name)
 
 
@@ -1539,12 +1538,6 @@ def _feature_specs() -> dict[str, _OptionSpec]:
     return out
 
 
-def _moves_results(name: str) -> bool:
-    """Whether feature ``name`` is one the registry says moves the answer:
-    never on the hosted allowlist, never offered there."""
-    return name in (FEATURE_INFO or {}) and not _last_digits(name)
-
-
 _OPTION_SPECS: dict[str, _OptionSpec] = {
     "degree": _OptionSpec("int", 1, 3, label="degree", default=2),
     "n_qp_const": _OptionSpec(
@@ -1769,11 +1762,11 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
 # Derived, never written twice. Same name and same shape as the dict of
 # closures this replaced, so every existing call site is untouched.
 def _hosted_options(specs: dict[str, _OptionSpec]) -> dict:
-    """The hosted allowlist: every spec's sanitiser, less any feature the
-    registry says moves the answer (`_moves_results`)."""
-    return {
-        k: _sanitiser_for(k, spec) for k, spec in specs.items() if not _moves_results(k)
-    }
+    """The hosted allowlist: every spec's sanitiser. An approximate feature
+    is on it too (Steve, 11-09: testable on the hosted app); what keeps it
+    from changing an answer nobody asked to change is that it is never on by
+    default (`feature_seedable`)."""
+    return {k: _sanitiser_for(k, spec) for k, spec in specs.items()}
 
 
 _HOSTED_MODEL_OPTIONS = _hosted_options(_OPTION_SPECS)
@@ -6251,7 +6244,9 @@ _SEED_ENVS = {"pair_reuse": "ANTENNAKNOBS_PAIR_REUSE", **FEATURE_SWITCHES}
 
 
 def _seeded_default(key: str, default):
-    env = _SEED_ENVS.get(key)
+    env = _SEED_ENVS.get(key) or FEATURE_SWITCHES.get(key)
+    if key in FEATURE_SWITCHES and not feature_seedable(key):
+        return default
     if env is not None and os.environ.get(env, "") in ("1", "on"):
         return True
     return default
