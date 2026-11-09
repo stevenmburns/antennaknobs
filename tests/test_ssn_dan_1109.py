@@ -359,3 +359,51 @@ def test_a_place_off_the_wire_is_refused(pct):
     # Between sites is carried as that place; past either end is no place.
     with pytest.raises(ValueError, match="off the wire"):
         builder_from_text("t.ssn", _inline_file(pct=pct))
+
+
+def _two_wire(*after: str, before: tuple[str, ...] = ()) -> str:
+    """The 122-segment wire, fed, and a second 21-segment wire beside it."""
+    return "\n".join(
+        ["//t", "P1 w1 gnd;", *before, "NECUnits meters;", "NEC2", _WIRE]
+        + ["GW 2 21 2 -5 10 2 5 10 0.0005", _FEED, "NECEND", *after]
+    )
+
+
+def test_a_slider_place_may_cross_onto_a_segment_centre():
+    """A knot load on another wire ahead of the slider's cap: at its default
+    the cap sits between sites (carried after the deck is read, behind the
+    knot load); turned onto a segment centre it is an LD card, read with the
+    deck, ahead of it. The loads' order changes and no load moves wire, so
+    the turn is allowed and builds the file saved with that value."""
+    centre = repr(50.5 / 122 * 100)  # segment 51's centre
+
+    def text(place, sliders):
+        return _with_sliders(
+            _ssn(
+                _two_wire(
+                    "$r = NECSource(R(10), $GW_2, 47.62);",  # wire 2, knot 10 of 21
+                    f"$cap = NECSource(C(Cx_F), $GW_1, {place});",
+                    before=("Cx_F;", *(("Px;",) if "Px" in sliders else ())),
+                )
+            ),
+            **sliders,
+        )
+
+    B = builder_from_text("slider.ssn", text("Px", {"Cx_F": "47p", "Px": "41.23"}))
+    got = _z(B, par_Px=float(centre))
+    saved = builder_from_text("saved.ssn", text(centre, {"Cx_F": "47p"}))
+    assert got == pytest.approx(_z(saved), rel=1e-12)
+    assert abs(got - _z(B)) > 1e-6 * abs(got)
+
+
+def test_a_knob_that_moves_a_load_to_another_wire_is_still_refused():
+    # The loads compare as a multiset of wires: a reorder passes, a move
+    # does not.
+    deck = (
+        "CM two wires, a load whose wire is a knob\nCE\nSY t=1\n"
+        "GW 1 11 0 -5 10 0 5 10 1e-3\nGW 2 11 2 -5 10 2 5 10 1e-3\nGE 0\n"
+        "LD 0 t 3 3 50 0 0\nEX 0 1 6 0 1 0\nFR 0 1 0 0 14.1 0\nEN\n"
+    )
+    B = builder_from_text("t.nec", deck)
+    with pytest.raises(ValueError, match="an LD load would land on a different wire"):
+        B({**B.default_params, "sy_t": 2}).build_wires()
